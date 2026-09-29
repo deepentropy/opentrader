@@ -2,7 +2,7 @@
 name = "opentrader"
 version = "0.1.0"
 description = "OpenTrader: desktop charting app"
-authors = ["Odyssée"]
+authors = ["OpenTrader contributors"]
 license = "MIT"
 repository = "https://github.com/deepentropy/opentrader"
 edition = "2021"

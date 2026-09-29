@@ -1,10 +1,8 @@
 /*
  * Price-based chart transforms driven by the Symbol-tab style inputs
- * (TV chart-style studies BarSetRenko / BarSetKagi / BarSetPnF /
- * BarSetPriceBreak / BarSetRange; inputs + defaults captured 25/09/2026).
+ * (Renko / Kagi / Point & figure / Line break / Range).
  *
- * TV builds these series on its servers, so the construction rules come from
- * TV's help pages (Renko, Kagi, Line break, Point & figure, Range, hollow
+ * Construction rules (Renko, Kagi, Line break, Point & figure, Range, hollow
  * candles):
  *   • box size: ATR (the ATR(length) value a regular candle chart would show,
  *     i.e. Wilder's RMA of the true range at the last loaded bar),
@@ -44,7 +42,7 @@ export function assignTimes<T extends { time: Time }>(items: T[], raw: OHLC[]): 
   return items;
 }
 
-/** TV basePriceSources value of a bar. */
+/** Price-source value of a bar. */
 export function priceOf(r: OHLC, src: PriceSource): number {
   switch (src) {
     case "open": return r.open;
@@ -62,7 +60,7 @@ export function minTickFor(price: number): number {
   return Math.abs(price) >= 1 ? 0.01 : 0.0001;
 }
 
-/** ATR(length) at the last bar — Wilder's RMA of the true range (TV `ta.atr`). */
+/** ATR(length) at the last bar — Wilder's RMA of the true range (Pine `ta.atr`). */
 export function atrAtLast(raw: OHLC[], length: number): number {
   const n = Math.max(1, Math.round(length));
   if (raw.length === 0) return 0;
@@ -168,7 +166,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
 // ── Line break ──────────────────────────────────────────────────────────────
 
 /** Line break: a new up line when the close is above the high of the last
- *  `n` lines, a new down line when it is below their low (TV help). */
+ *  `n` lines, a new down line when it is below their low. */
 export function toLineBreak(raw: OHLC[], n: number, lastForming: boolean): Brick[] {
   if (raw.length === 0) return [];
     const lines: Brick[] = [];
@@ -243,9 +241,9 @@ export function toRangeBars(raw: OHLC[], range: number, phantom: boolean, lastFo
   return assignTimes(out, raw);
 }
 
-/** Range size: TV's range is an interval in ticks (range intervals such as
- *  "10R"), which this app's interval system does not have; bars use the
- *  loaded bars' average high−low as the range. */
+/** Range size: a Range chart normally takes an interval in ticks (range
+ *  intervals such as "10R"), which this app's interval system does not have;
+ *  bars use the loaded bars' average high−low as the range. */
 export function rangeSize(raw: OHLC[]): number {
   if (raw.length === 0) return 0;
   let s = 0;

@@ -46,7 +46,7 @@ export function publishDataWindow(s: DataWindowState | null): void {
 }
 
 // ── UI request (Alt+D) ────────────────────────────────────────────────────────
-// TV "Show a data window widget" opens the Object tree page with its Data
+// "Show a data window widget" opens the Object tree page with its Data
 // window view selected. The panel only mounts while that rail tab is open, so
 // App sets a consume-once flag and the panel's effect reads it on mount.
 const [dataWindowPending, setDataWindowPending] = createSignal(false);

@@ -1,14 +1,14 @@
 /*
- * Closed tabs and windows — TV Desktop's undo stack behind "Reopen closed tab"
+ * Closed tabs and windows — the undo stack behind "Reopen closed tab"
  * / "Reopen closed window" (main menu + Ctrl+Shift+T):
  *
  *  - one stack for the whole app (every window), newest on top, 30 entries,
  *    kept across restarts;
  *  - a closed tab comes back in the window it was closed in, at its position,
  *    active if it was active, with its link colour; if that window is gone,
- *    the entry is used up and nothing opens (TV `tab-closed` undo handler);
+ *    the entry is used up and nothing opens;
  *  - a window closed while other windows stay open comes back with its tabs
- *    and bounds (TV `window-closed`); a window closed because its last tab
+ *    and bounds; a window closed because its last tab
  *    moved to another window is not recorded.
  *
  * Stored in localStorage (shared by all windows, written synchronously, so a

@@ -41,7 +41,7 @@ import type { CursorMode } from "../../data/drawing-toolbar";
 
 type Props = {
   /** False while this grid's tab is hidden. App keeps every opened tab's grid
-   *  mounted (TV keeps each tab page alive), so a tab switch is one paint: the
+   *  mounted (each tab page stays alive), so a tab switch is one paint: the
    *  hidden grid sits under the shown one at the same size (no resize, no
    *  reload) and takes no input. */
   shown?: boolean;
@@ -55,7 +55,7 @@ type Props = {
   /** When true, the focused pane fills the layout and the others are hidden
    *  ("Maximize chart"). All cells stay mounted so chart state is preserved. */
   maximized?: boolean;
-  /** Toggle maximize (TV: double-click a pane). Wired from App's maximize state. */
+  /** Toggle maximize (double-click a pane). Wired from App's maximize state. */
   onToggleMaximize?: () => void;
   theme?: "dark" | "light";
   timeZone?: string;
@@ -77,9 +77,9 @@ type Props = {
   onVisibleRange?: (paneIndex: number, range: { from: number; to: number }) => void;
   /** Legend eye of pane `paneIndex` (hide / show its main series). */
   onToggleSeries?: (paneIndex: number) => void;
-  /** Legend symbol title clicked (TV "Change symbol"). */
+  /** Legend symbol title clicked ("Change symbol"). */
   onChangeSymbol?: () => void;
-  /** Legend interval clicked (TV "Change interval"). */
+  /** Legend interval clicked ("Change interval"). */
   onChangeInterval?: () => void;
   /** Hide-all dropdown's "Hide indicators" — suppresses study layers on every
    *  pane without removing them from the active set. */
@@ -117,12 +117,11 @@ export function ChartGrid(props: Props) {
   const isMaximized = () => !!props.maximized && spec().cells.length > 1;
   const live = () => props.shown !== false;
 
-  // TV chart event hints (setupChartEventHint on the ChartWidgetCollection,
-  // module 934930): ONE hint for the whole layout, centred 32 px above the
+  // Chart event hints: ONE hint for the whole layout, centred 32 px above the
   // bottom of the chart area; a new hint replaces the shown one, a tool change
   // hides it, its close button dismisses its key for good.
   const [hint, setHint] = createSignal<{ key: string; text: string } | null>(null);
-  // Tool change (TV `tool.subscribe`): hide, then the demonstration hint.
+  // Tool change: hide, then the demonstration hint.
   createEffect(
     on(
       () => [props.cursorMode, props.armedTool] as const,
@@ -132,14 +131,14 @@ export function ChartGrid(props: Props) {
       },
     ),
   );
-  // Path / polyline first point (TV createdLineTool) shows its hint; a finish
+  // Path / polyline first point shows its hint; a finish
   // or a tool change clears the shared signal (DrawingsOverlay).
   createEffect(() => {
     const l = lineToolHint();
     if (l) setHint(l);
     else if (untrack(hint)?.key === PATH_HINT || untrack(hint)?.key === POLYLINE_HINT) setHint(null);
   });
-  // TV zoom hint (StartNotFocusedZoomHint): the first wheel zoom WITHOUT Ctrl
+  // Zoom hint: the first wheel zoom WITHOUT Ctrl
   // shows "Press and hold Ctrl ..." (once per layout page); a later Ctrl zoom,
   // after it was shown, dismisses it for good; a Ctrl zoom ends the watch.
   let zoomShown = false;
@@ -208,7 +207,7 @@ export function ChartGrid(props: Props) {
               // when a drawing is hit, so a bubbling handler would miss those
               // clicks. Capture fires before the overlay.
               //   mousedown → focus this pane; Alt + left-button toggles
-              //               maximize (TV's expand-pane gesture). Stopping the
+              //               maximize (the expand-pane gesture). Stopping the
               //               event here keeps the Alt+click from also starting a
               //               pan/select on the pane underneath.
               // Skips when a tool is armed or the press landed on a drawing.
@@ -217,7 +216,7 @@ export function ChartGrid(props: Props) {
                   !!(e.target as Element | null)?.closest?.("[data-drawing-id]");
                 el.addEventListener("mousedown", (e) => {
                   props.setActivePane(i);
-                  // TV `_initMaximizeHotkey`: not with the demonstration
+                  // Maximize hotkey: not with the demonstration
                   // cursor, where Alt + press draws a highlighter instead.
                   if (e.button === 0 && e.altKey && !props.armedTool && props.cursorMode !== "demonstration" && !onDrawing(e)) {
                     e.preventDefault();
@@ -245,8 +244,8 @@ export function ChartGrid(props: Props) {
                 timeZoneLabel={props.timeZoneLabel}
                 active={isActive()}
                 shown={live()}
-                // Control bar → maximize. TV only offers it when there is more
-                // than one cell to grow over (its `fullscreenable`). No
+                // Control bar → maximize. Only offered when there is more
+                // than one cell to grow over. No
                 // setActivePane here: the cell's capture-phase mousedown above
                 // already focused this pane before the click lands.
                 canMaximize={spec().cells.length > 1}

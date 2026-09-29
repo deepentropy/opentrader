@@ -1,7 +1,7 @@
 /*
  * Alert settings — global preferences shared by the engine, the sound player,
- * and the Settings → Alerts tab. Mirrors TV's AlertSettingsProvider
- * (alertSoundEnabledChange / alertVolumeChange / alertNotificationEnabledChange).
+ * and the Settings → Alerts tab (sound enabled, volume, notification
+ * enabled).
  *
  * Process singleton + createRoot autosave, same pattern as the other stores.
  */

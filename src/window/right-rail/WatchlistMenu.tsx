@@ -17,7 +17,7 @@ import {
   type FlagColor,
   type WlMenuAction,
 } from "../../data/watchlist";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { watchlistStore, type WatchList } from "../../data/watchlist-store";
 
 type Props = {
@@ -109,7 +109,7 @@ export function WatchlistMenu(props: Props) {
     <button
       type="button"
       role="menuitem"
-      class="tv-menu-item"
+      class="ot-menu-item"
       data-value={a.value}
       onClick={() => {
         if (a.toggle) { props.onToggleShare?.(); return; } // keep menu open
@@ -118,16 +118,16 @@ export function WatchlistMenu(props: Props) {
         props.onClose();
       }}
     >
-      <span class="tv-menu-item__icon" aria-hidden="true">
+      <span class="ot-menu-item__icon" aria-hidden="true">
         <Show when={a.icon}>{(icon) => <span innerHTML={icon()} />}</Show>
       </span>
-      <span class="tv-menu-item__label apply-overflow-tooltip">{a.label}</span>
+      <span class="ot-menu-item__label apply-overflow-tooltip">{a.label}</span>
       <Show when={a.toggle}>
         <span class={`watchlist-menu-switch${props.shared ? " on" : ""}`} aria-hidden="true">
           <span class="watchlist-menu-switch-thumb" />
         </span>
       </Show>
-      <Show when={a.shortcut}><span class="tv-menu-item__hotkey">{a.shortcut}</span></Show>
+      <Show when={a.shortcut}><span class="ot-menu-item__hotkey">{a.shortcut}</span></Show>
     </button>
   );
 
@@ -144,11 +144,11 @@ export function WatchlistMenu(props: Props) {
   };
 
   return (
-    <div ref={root} class="tv-popover watchlist-menu" role="menu" aria-label="Watchlists">
+    <div ref={root} class="ot-popover watchlist-menu" role="menu" aria-label="Watchlists">
       <For each={WL_MENU_GROUPS}>
         {(g, gi) => (
           <>
-            <Show when={gi() > 0}><div class="tv-popover__divider" /></Show>
+            <Show when={gi() > 0}><div class="ot-popover__divider" /></Show>
             <Show
               when={g.recentlyUsed}
               fallback={<For each={g.actions!}>{(a) => renderAction(a)}</For>}
@@ -159,13 +159,13 @@ export function WatchlistMenu(props: Props) {
                   <button
                     type="button"
                     role="menuitem"
-                    class={`tv-menu-item${t.id === props.activeId ? " tv-menu-item--current" : ""}`}
+                    class={`ot-menu-item${t.id === props.activeId ? " ot-menu-item--current" : ""}`}
                     onClick={() => { props.onSelectList(t.id); props.onClose(); }}
                   >
-                    <span class="tv-menu-item__icon" aria-hidden="true">
+                    <span class="ot-menu-item__icon" aria-hidden="true">
                       <ListMarker flag={t.flag} emoji={t.emoji} name={t.name} />
                     </span>
-                    <span class="tv-menu-item__label apply-overflow-tooltip">{t.name}</span>
+                    <span class="ot-menu-item__label apply-overflow-tooltip">{t.name}</span>
                     <span
                       role="button"
                       tabIndex={0}
@@ -185,7 +185,7 @@ export function WatchlistMenu(props: Props) {
                         }
                       }}
                     >
-                      <TvIcon
+                      <Icon
                         name={t.favorite ? "draw-remove-from-favorites" : "draw-add-to-favorites"}
                         size={18}
                       />

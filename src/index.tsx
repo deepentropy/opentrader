@@ -3,7 +3,7 @@ import "./styles.css";
 import { hydrateKv } from "./data/kv";
 import { installOverflowTooltip } from "./components/overflow-tooltip";
 
-// TV `apply-overflow-tooltip`: a tooltip on menu labels only when they are cut.
+// A tooltip on menu labels only when they are cut.
 installOverflowTooltip();
 
 // Hydrate the persistence layer BEFORE App (and its module graph) loads: many

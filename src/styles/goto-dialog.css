@@ -1,37 +1,7 @@
-/*
- * Go-to date dialog — verbatim from TV's `.wrapper-b8SxMnzX` / `.calendar-N6r5jhbE`
- * ruleset (captured 28/05/2026).
- *
- * Hashed source classes → readable names:
- *   .wrapper-b8SxMnzX        → .goto-dialog-wrapper
- *   .container-BZKENkhT      → .goto-dialog-titlebar
- *   .title-BZKENkhT          → .goto-dialog-title
- *   .nav-button-JwteAiHB     → .goto-dialog-close
- *   .tabs-P_IVoUsZ           → .goto-dialog-tabs
- *   .underline-tabs-XYpEsuY1 → .goto-dialog-tablist
- *   .underline-tab-StZ98i8e  → .goto-dialog-tab (selected → .is-selected)
- *   .underline-uKnMxgHn      → .goto-dialog-underline (4 px brand strip)
- *   .content-P_IVoUsZ        → .goto-dialog-content
- *   .bodyWrapper-P_IVoUsZ    → .goto-dialog-body
- *   .row-Sj9z7O1v            → .goto-dialog-row
- *   .desktopTimeInput-cW0jHi4o, .container-I_wdwnnu → .goto-dialog-input-wrap
- *   .calendar-N6r5jhbE       → .goto-dialog-calendar
- *   .header-N6r5jhbE         → .goto-dialog-cal-header
- *   .sub-header-N6r5jhbE     → .goto-dialog-cal-sub-header
- *   .view-month-N6r5jhbE     → .goto-dialog-cal-view-month
- *   .weeks-N6r5jhbE          → .goto-dialog-cal-weeks
- *   .week-N6r5jhbE           → .goto-dialog-cal-week
- *   .day-N6r5jhbE            → .goto-dialog-cal-day
- *     .accent-color-N6r5jhbE   → .is-accent  (selected day)
- *     .current-day-N6r5jhbE    → .is-current (today)
- *   .footer-PhMf7PhQ         → .goto-dialog-footer
- *   .buttons-PhMf7PhQ        → .goto-dialog-footer-buttons
- *   .submitButton-PhMf7PhQ   → .goto-dialog-submit-wrap
- *   .button-KoxY3d86         → .goto-dialog-btn
- */
+/* Go-to date dialog. */
 
-/* The shared .tv-popover gives us bg + radius + shadow.  We override width
- * (the probe rect was 302 px) and add `position: fixed`. */
+/* The shared .ot-popover gives us bg + radius + shadow.  We override width
+ * (302 px) and add `position: fixed`. */
 .goto-dialog-wrapper {
   position: fixed;
   z-index: 1000;
@@ -180,7 +150,7 @@
   padding-top: 17px;
 }
 
-/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+/* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
 .goto-dialog-body {
   flex: 0 1 201px;
@@ -367,7 +337,7 @@
   justify-content: space-between;
 }
 
-/* First/last partial-week pinning, mirroring TV: */
+/* First/last partial-week pinning: */
 .goto-dialog-cal-week:first-child {
   justify-content: flex-end;
 }
@@ -407,8 +377,8 @@
   background-color: var(--color-bg-primary-hover);
 }
 
-/* Today — 2 px high underline pinned just below the cell (TV uses ::before
- * with margin-top: -6px to lift it back into the cell). */
+/* Today — 2 px high underline pinned just below the cell (::before with
+ * margin-top: -6px lifts it back into the cell). */
 .goto-dialog-cal-day.is-current {
   position: relative;
 }

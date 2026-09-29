@@ -1,10 +1,9 @@
 /*
- * Volume — TV's basic Volume study, absent from lightweight-charts-indicators.
- * Values captured off the live desktop app 25/07/2026 (study properties over
- * CDP): palette up #26A69A / down #EF5350 at 50% transparency, coloured by
- * close vs open (col_prev_close off), optional SMA(20) line #2962FF hidden by
- * default. TV draws it INSIDE the price pane on its own hidden scale pinned
- * to the bottom quarter — `ownScaleId` metadata, honoured by IndicatorLayer.
+ * Volume — the basic Volume study, absent from lightweight-charts-indicators.
+ * Palette up #26A69A / down #EF5350 at 50% transparency, coloured by close vs
+ * open (col_prev_close off), optional SMA(20) line #2962FF hidden by default.
+ * Drawn INSIDE the price pane on its own hidden scale pinned to the bottom
+ * quarter — `ownScaleId` metadata, honoured by IndicatorLayer.
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 
@@ -15,7 +14,7 @@ export type OwnScaleMeta = {
   ownScaleMargins?: { top: number; bottom: number };
 };
 
-const UP = "#26a69a80"; // palette colours at TV's transparency 50
+const UP = "#26a69a80"; // palette colours at transparency 50
 const DOWN = "#ef535080";
 
 export const VOLUME_ENTRY: IndicatorRegistryEntry = {

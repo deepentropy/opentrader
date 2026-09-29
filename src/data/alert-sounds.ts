@@ -1,11 +1,10 @@
 /*
- * Alert sounds — Web Audio synth stand-in for TradingView's bundled sound bank.
+ * Alert sounds — Web Audio synth sound bank.
  *
- * The desktop app ships .mp3 files (alert/fired, alert/hand_bell, …) and plays
- * them via a native <audio> tag. We have no such assets, so each sound key maps
- * to a short synthesized tone pattern instead. The KEY NAMES match TV's bank so
- * the rest of the system (and a future real-asset swap) stays unchanged — drop
- * mp3s in and switch playAlertSound to an <audio> source.
+ * There are no .mp3 sound assets, so each sound key (alert/fired,
+ * alert/hand_bell, …) maps to a short synthesized tone pattern instead. The key
+ * names stay stable so the rest of the system (and a future real-asset swap)
+ * stays unchanged — drop mp3s in and switch playAlertSound to an <audio> source.
  *
  * Volume + enabled come from alert-settings.ts.
  */
@@ -16,9 +15,9 @@ import { alertSettings } from "./alert-settings";
  *  distinct timbre on top of its distinct pitch contour. */
 type Beep = { freq: number; at: number; dur: number; wave?: OscillatorType };
 
-/** Sound bank — keys mirror TV's `alert/<name>` (stored without the `alert/`
- *  prefix here; the engine stores the bare key). Each melody has its own
- *  contour: single ping / bell dyad / rising triad / triple pulse / double
+/** Sound bank — keys follow the `alert/<name>` scheme (stored without the
+ *  `alert/` prefix here; the engine stores the bare key). Each melody has its
+ *  own contour: single ping / bell dyad / rising triad / triple pulse / double
  *  beep / slow two-tone call / fast high chirps / falling minor pair. */
 const BANK: Record<string, Beep[]> = {
   fired: [{ freq: 880, at: 0, dur: 0.18 }],

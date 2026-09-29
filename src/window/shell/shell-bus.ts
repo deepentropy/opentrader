@@ -1,12 +1,12 @@
 /*
  * Shell bus — window-to-window messages for the tab strip:
  *
- *  - Merge (TV: drag a tab into another window's tab strip, `dragTabIn`): on a
+ *  - Merge (drag a tab into another window's tab strip): on a
  *    tab drop outside its window, the source asks every other window whether
  *    the screen point is on its tab strip; the window that says yes takes the
  *    tab at the index under the cursor and confirms, and only then the source
  *    drops it. The tab keeps its id, panes and link colour; its charts are
- *    built again in the target webview (TV moves the live page instead).
+ *    built again in the target webview.
  *  - Reopen a closed tab in the window it was closed in.
  *
  * Windows share one origin, so a BroadcastChannel reaches them all.

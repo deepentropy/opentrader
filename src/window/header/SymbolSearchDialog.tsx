@@ -51,10 +51,9 @@ type Props = {
   seedQuery?: string | null;
   onSelect: (symbolName: string) => void;
   onClose: () => void;
-  /** Watchlist "Add symbol" mode (TV `showWatchlistSearchDialog`, modules
-   *  591998 / 816316, captured 25/09/2026). The query starts empty; a click or
+  /** Watchlist "Add symbol" mode. The query starts empty; a click or
    *  Enter adds the row (or removes it when it is already in the list) and
-   *  keeps the dialog open; with Shift it also closes. Each row gets TV's
+   *  keeps the dialog open; with Shift it also closes. Each row gets the
    *  action buttons: + (add), or trash (remove) + target (go to symbol). */
   watchlist?: {
     has: (symbolName: string) => boolean;
@@ -66,7 +65,7 @@ type Props = {
   };
 };
 
-// Row action icons, captured verbatim from TV's watchlist search dialog.
+// Row action icons of the watchlist search dialog.
 const ICON_ADD =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M13.9 14.1V22h1.2v-7.9H23v-1.2h-7.9V5h-1.2v7.9H6v1.2h7.9z"></path></svg>';
 const ICON_REMOVE =
@@ -74,7 +73,7 @@ const ICON_REMOVE =
 const ICON_GOTO =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none"><path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M14 9.5a.5.5 0 0 0 1 0V7.02A6.5 6.5 0 0 1 20.98 13H18.5a.5.5 0 0 0 0 1h2.48A6.5 6.5 0 0 1 15 19.98V17.5a.5.5 0 0 0-1 0v2.48A6.5 6.5 0 0 1 8.02 14h2.48a.5.5 0 0 0 0-1H8.02A6.5 6.5 0 0 1 14 7.02V9.5zm1-3.48V4.5a.5.5 0 0 0-1 0v1.52A7.5 7.5 0 0 0 7.02 13H5.5a.5.5 0 0 0 0 1h1.52A7.5 7.5 0 0 0 14 20.98v1.52a.5.5 0 0 0 1 0v-1.52A7.5 7.5 0 0 0 21.98 14h1.52a.5.5 0 0 0 0-1h-1.52A7.5 7.5 0 0 0 15 6.02z"></path></svg>';
 
-/** Symbol tokens of a comma list, TV tokenizer subset (module 907738): a
+/** Symbol tokens of a comma list (tokenizer subset): a
  *  token runs from its first non-space character to the next comma, so it
  *  keeps trailing spaces ("MSFT " in "AAPL,MSFT , KO"). */
 function symbolTokens(text: string): { value: string; offset: number }[] {
@@ -87,11 +86,11 @@ function symbolTokens(text: string): { value: string; offset: number }[] {
   }
   return out;
 }
-/** Token under the caret, ends inclusive (TV `getTokenAtPos`). */
+/** Token under the caret, ends inclusive. */
 function tokenAt(text: string, pos: number): { value: string; offset: number } | null {
   return symbolTokens(text).find((t) => t.offset <= pos && pos <= t.offset + t.value.length) ?? null;
 }
-/** TV quotes names that contain a spread operator (`symbolTokenEscapeRe`). */
+/** Names that contain a spread operator are quoted. */
 const TOKEN_ESCAPE_RE = /[+\-/*]/;
 
 /** Split `text` so the matched `[a, b)` range renders inside an <em>. */
@@ -113,16 +112,15 @@ export function SymbolSearchDialog(props: Props) {
     // A typed character (seedQuery) takes precedence over the active ticker —
     // the user started typing a new lookup, so don't pre-fill the old symbol.
     if (props.seedQuery != null) return props.seedQuery;
-    if (props.watchlist) return ""; // TV's Add-symbol dialog opens empty
+    if (props.watchlist) return ""; // the Add-symbol dialog opens empty
     const a = props.activeSymbol;
     if (!a) return "";
     const colon = a.indexOf(":");
     return colon >= 0 ? a.slice(colon + 1) : a;
   })();
   const [query, setQuery] = createSignal(initialQuery);
-  // Watchlist comma mode (TV `isSpreadOrMultipleMode`): the search runs on the
-  // token under the caret, upper-cased (TV `searchTokenValue`,
-  // `uppercase_instrument_names` on), and follows the caret as it moves.
+  // Watchlist comma mode: the search runs on the token under the caret,
+  // upper-cased, and follows the caret as it moves.
   const [caret, setCaret] = createSignal(initialQuery.length);
   const multiMode = () => !!props.watchlist && query().includes(",");
   const searchText = () =>
@@ -216,11 +214,11 @@ export function SymbolSearchDialog(props: Props) {
     el?.scrollIntoView({ block: "nearest" });
   });
 
-  // Watchlist mode: a row just added flashes for 500 ms (TV `highlight`).
+  // Watchlist mode: a row just added flashes for 500 ms.
   const [flashed, setFlashed] = createSignal<string | null>(null);
   let flashTimer: number | undefined;
   onCleanup(() => window.clearTimeout(flashTimer));
-  /** TV lays the rows on one grid, so the actions column is two buttons wide
+  /** The rows share one grid, so the actions column is two buttons wide
    *  as soon as one visible row is already in the list. */
   const anyInList = () => !!props.watchlist && !multiMode() && rows().some((r) => props.watchlist!.has(r.symbolName));
 
@@ -231,14 +229,14 @@ export function SymbolSearchDialog(props: Props) {
     flashTimer = window.setTimeout(() => setFlashed(null), 500);
   }
   /** Watchlist mode: Shift closes the dialog, else the query is reselected so
-   *  the next symbol can be typed at once (TV). */
+   *  the next symbol can be typed at once. */
   function afterAction(shift: boolean) {
     if (shift) props.onClose();
     else input.select();
   }
 
   /** Comma mode, row click: the row's full name replaces the token under the
-   *  caret (appended when there is none); nothing is added yet (TV `Tt`). */
+   *  caret (appended when there is none); nothing is added yet. */
   function insertToken(row: FilteredRow) {
     const text = input.value;
     const pos = input.selectionStart ?? text.length;
@@ -253,7 +251,7 @@ export function SymbolSearchDialog(props: Props) {
     input.focus();
   }
   /** Comma mode, Enter (with or without Shift): add every token, then close
-   *  (TV `It(!0)`: split on commas, trim, drop empties, upper-case). */
+   *  (split on commas, trim, drop empties, upper-case). */
   function submitMany() {
     const names = query()
       .split(",")
@@ -351,7 +349,7 @@ export function SymbolSearchDialog(props: Props) {
           </header>
 
           {/* Search input — wrapped in a rounded box whose border lights up on
-              focus; a clear disc appears once the field is non-empty (TV). */}
+              focus; a clear disc appears once the field is non-empty. */}
           <div class="symbol-search-input-wrap">
             <div class="symbol-search-input-box">
               <span class="symbol-search-input-icon" aria-hidden="true">
@@ -428,12 +426,12 @@ export function SymbolSearchDialog(props: Props) {
                 </button>
               )}
             </For>
-            {/* TV parks a "More" overflow tab off-screen; all ten tabs fit at
-                this dialog width so it never surfaces — omitted (as the mock). */}
+            {/* No "More" overflow tab: all ten tabs fit at this dialog
+                width. */}
           </div>
 
-          {/* Filter chips — Stocks + All tabs. TV also shows Country and Sector
-              chips, but both are plan-dependent: this feed is US-only and the
+          {/* Filter chips — Stocks + All tabs. No Country and Sector chips:
+              both are plan-dependent: this feed is US-only and the
               provider's reference search has no sector filter, so they are
               omitted rather than rendered dead. Only the working Type chip
               (provider `type` filter) remains. */}
@@ -484,7 +482,7 @@ export function SymbolSearchDialog(props: Props) {
               when={rows().length > 0}
               fallback={
                 <Show when={!searching()}>
-                  <div class="tv-empty-state symbol-search-empty">No matches</div>
+                  <div class="ot-empty-state symbol-search-empty">No matches</div>
                 </Show>
               }
             >
@@ -637,7 +635,7 @@ export function SymbolSearchDialog(props: Props) {
             </Show>
           </div>
 
-          {/* Footer hint (watchlist mode: TV's keyboard-hint footer). */}
+          {/* Footer hint (watchlist mode: keyboard-hint footer). */}
           <Show
             when={props.watchlist}
             fallback={

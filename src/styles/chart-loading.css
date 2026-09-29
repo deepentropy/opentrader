@@ -1,11 +1,10 @@
 /*
- * Chart loading wheel — faithful port of TradingView's chart spinner
- * (ui-lib CircleProgressbar, intent=neutral, size=Large). A 64x64 centred
+ * Chart loading wheel (neutral intent, large size). A 64x64 centred
  * SVG with a faint background track and a foreground arc; the whole SVG
  * rotates 1s linear infinite. Neutral colours flip with the theme:
  * foreground #0f0f0f (light) / #dbdbdb (dark), track #ebebeb / #3d3d3d.
  */
-.tv-chart-loader {
+.ot-chart-loader {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -15,38 +14,38 @@
   z-index: 11;
   pointer-events: none;
 
-  /* neutral intent — matches TV's --ui-lib progressbar colours */
-  --tv-loader-fg: #0f0f0f;
-  --tv-loader-track: #ebebeb;
+  /* neutral intent progressbar colours */
+  --ot-loader-fg: #0f0f0f;
+  --ot-loader-track: #ebebeb;
 }
 
-html.theme-dark .tv-chart-loader {
-  --tv-loader-fg: #dbdbdb;
-  --tv-loader-track: #3d3d3d;
+html.theme-dark .ot-chart-loader {
+  --ot-loader-fg: #dbdbdb;
+  --ot-loader-track: #3d3d3d;
 }
 
-.tv-chart-loader__svg {
+.ot-chart-loader__svg {
   width: 64px;
   height: 64px;
-  animation: tv-chart-loader-spin 1s linear infinite;
+  animation: ot-chart-loader-spin 1s linear infinite;
 }
 
 /* radius 30, stroke-width 4 -> circumference ~188.5; foreground shows ~25% */
-.tv-chart-loader__track {
+.ot-chart-loader__track {
   fill: none;
-  stroke: var(--tv-loader-track);
+  stroke: var(--ot-loader-track);
   stroke-width: 4;
 }
 
-.tv-chart-loader__arc {
+.ot-chart-loader__arc {
   fill: none;
-  stroke: var(--tv-loader-fg);
+  stroke: var(--ot-loader-fg);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dasharray: 47 142;
 }
 
-@keyframes tv-chart-loader-spin {
+@keyframes ot-chart-loader-spin {
   0% {
     transform: rotate(0deg);
   }

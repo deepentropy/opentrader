@@ -222,7 +222,7 @@ export function GoToDateDialog(props: Props) {
     <Portal mount={document.body}>
       <div
         ref={popup}
-        class="tv-popover goto-dialog-wrapper"
+        class="ot-popover goto-dialog-wrapper"
         role="dialog"
         data-name="go-to-date-dialog"
         aria-label="Go to"

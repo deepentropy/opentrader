@@ -1,5 +1,5 @@
 /*
- * TvIcon — renders an SVG icon recovered from @tradingview/ui-lib.
+ * Icon — renders an SVG icon.
  *
  * Icons live in `src/assets/icons/` and are loaded as raw text via Vite's
  * `?raw` glob — every file there is bundled at build time and addressed
@@ -7,8 +7,8 @@
  *
  * When a `size` is given, the SVG's literal width/height attrs are stripped
  * so our square wrapper's dimensions win.  When `size` is omitted, the icon
- * renders at its own intrinsic width/height — TV does this for icons that
- * aren't on the standard 28×28 grid (e.g. the layout-setup glyph is 21×19),
+ * renders at its own intrinsic width/height — used for icons that aren't on
+ * the standard 28×28 grid (e.g. the layout-setup glyph is 21×19),
  * so forcing them into a 28px box makes them look oversized.
  *
  * Either way viewBox + `fill="currentColor"` are preserved so color inherits
@@ -28,16 +28,16 @@ for (const [path, content] of Object.entries(RAW_ICONS)) {
   REGISTRY[name] = content;
 }
 
-export type TvIconName = string;
+export type IconName = string;
 
 type Props = {
-  name: TvIconName;
+  name: IconName;
   size?: number;
   class?: string;
   title?: string;
 };
 
-export function TvIcon(props: Props) {
+export function Icon(props: Props) {
   const svg = () => {
     const raw = REGISTRY[props.name];
     if (!raw) return "";

@@ -2,9 +2,8 @@
  * Saved chart layouts — the data layer behind the header "Manage layouts"
  * dropdown (the `save-load-menu` HeaderMenu owner).
  *
- * In TradingView a "layout" is a named snapshot of a chart workspace. The
- * desktop app stores them in the cloud; this local port persists them to
- * localStorage instead. A snapshot captures ONE tab's chart configuration
+ * A "layout" is a named snapshot of a chart workspace, persisted locally to
+ * localStorage (not the cloud). A snapshot captures ONE tab's chart configuration
  * (the multi-pane template + every pane's symbol/interval/chart-type/
  * indicators). The active tab references the layout it was loaded from via
  * `savedLayoutId`; "dirty" = the tab's current config differs from that
@@ -36,7 +35,7 @@ export type LayoutSnapshot = {
    *  unique symbols across `panes`). Restored into the live per-symbol store on
    *  open. Optional — layouts saved before drawing-capture have no map. */
   drawings?: Record<string, Drawing[]>;
-  /** "Sync in layout" toggles (TV saves them in the layout content).
+  /** "Sync in layout" toggles (saved in the layout content).
    *  Optional — layouts saved before per-tab sync have none. */
   sync?: LayoutSyncState;
 };
@@ -48,7 +47,7 @@ export type SavedLayout = {
   /** Epoch ms of the last save — drives the recent-first ordering. */
   updatedAt: number;
   /** Starred in the Manage layouts menu → a letter shortcut in the header
-   *  (TV's favorite layouts, `loadChartDialog.favorites`). */
+   *  (favorite layouts). */
   favorite?: boolean;
 };
 
@@ -117,7 +116,7 @@ export function isUnnamedLayout(name: string): boolean {
 }
 
 /** Default name for a layout created without one: "Unnamed", then "Unnamed1",
- *  "Unnamed2", … picking the lowest free suffix (TV's new-layout naming). */
+ *  "Unnamed2", … picking the lowest free suffix. */
 export function nextUnnamedName(): string {
   const taken = new Set(layouts().map((l) => l.name));
   if (!taken.has("Unnamed")) return "Unnamed";
@@ -150,7 +149,7 @@ export function toggleFavoriteLayout(id: string): void {
   commit(layouts().map((l) => (l.id === id ? { ...l, favorite: !l.favorite } : l)));
 }
 
-/** Favorite layouts in header order: by name (TV sorts with localeCompare). */
+/** Favorite layouts in header order: by name (localeCompare). */
 export const favoriteLayouts = () =>
   layouts().filter((l) => l.favorite).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -163,10 +162,9 @@ export function removeLayout(id: string): void {
  *  when BOTH snapshots carry a map, so a pre-drawing-capture layout isn't
  *  flagged dirty the instant it's opened.
  *
- *  View-only and format fields are left out, like TV (its ChartChangesWatcher
- *  only counts undoable actions, drawings and a rename; scroll/zoom never
- *  mark a layout changed, nor does selecting another chart of the layout —
- *  read in the desktop bundle and tested live 23/09/2026): the snapshot's
+ *  View-only and format fields are left out (only undoable actions, drawings
+ *  and a rename count as changes; scroll/zoom never mark a layout changed,
+ *  nor does selecting another chart of the layout): the snapshot's
  *  activePane, a pane's visibleLogicalRange, and the settings stamps
  *  settingsFp / settingsRev. All of them are still saved. Both sides' settings go through the same revive
  *  + migration, so a layout saved before a SETTINGS_REV bump compares equal
@@ -222,20 +220,19 @@ type BuildArgs = {
   activeId?: string;
   autosave: boolean;
   /** TRUE when the active chart has unsaved changes — drives the enabled state
-   *  of "Save layout" (TV greys it out when everything is already saved). */
+   *  of "Save layout" (greyed out when everything is already saved). */
   dirty: boolean;
   /** One-line "SYMBOL, INTERVAL" of each saved layout's focused pane. */
   summaryOf: (l: SavedLayout) => string;
 };
 
 /**
- * Build the live "Manage layouts" menu def. Structure + row icons/hotkeys are
- * verbatim from the desktop probe of the header menus
- * ("manage-layouts"); the Autosave checkmark, the Save-layout enabled state, and
- * the saved-layouts list reflect live state. Saved-layout rows get a unique
- * `open-layout:<id>` id so the click handler knows which one to load.
+ * Build the live "Manage layouts" menu def ("manage-layouts"). Structure + row
+ * icons/hotkeys are static; the Autosave checkmark, the Save-layout enabled
+ * state, and the saved-layouts list reflect live state. Saved-layout rows get
+ * a unique `open-layout:<id>` id so the click handler knows which one to load.
  *
- * Sections (matching the desktop dividers):
+ * Sections (separated by dividers):
  *   1. Save / Autosave / Share / Make a copy / Rename / Download
  *   2. Create new layout
  *   3. saved layouts ("RECENTLY USED")
@@ -284,7 +281,7 @@ export function buildSaveLoadMenu(args: BuildArgs): HeaderMenuDef {
           { id: "save-load-menu-item-create", label: "Create new layout…", iconName: "menu-manage-layouts-create-new-layout", hotkey: null, checked: false, favorited: false },
         ],
       },
-      // TV titles the saved-layout rows "RECENTLY USED" (none on the empty hint).
+      // The saved-layout rows are titled "RECENTLY USED" (none on the empty hint).
       { header: saved.length ? "RECENTLY USED" : null, items: recentItems },
       {
         header: null,

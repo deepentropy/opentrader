@@ -1,10 +1,8 @@
 /*
  * FontIconPicker — the Icon / Emoji / Sticker drawing-tool picker.
  *
- * Reverse-engineered from the live desktop app (CDP probe 2026-05-29).
- * TV renders it as a LEFT-DOCKED panel
- * flush against the 52px drawing toolbar — NOT a floating modal.  Real
- * metrics: 354px wide, full height, bg #1f1f1f, dividers #4a4a4a, accent
+ * Rendered as a LEFT-DOCKED panel flush against the 52px drawing toolbar,
+ * NOT a floating modal.  Metrics: 354px wide, full height, bg #1f1f1f, dividers #4a4a4a, accent
  * #2962ff.  Layout is three stacked rows:
  *   • category strip (top, 48px, 38×38 icon buttons, active = blue underline)
  *   • scrollable list (section header + 9-col glyph grid, 38px cells/24px glyph)
@@ -68,8 +66,8 @@
 .font-icon-picker-cat:hover { color: #fff; }
 
 .font-icon-picker-cat.active {
-  color: var(--color-tv-blue-500, #2962ff);
-  border-bottom-color: var(--color-tv-blue-500, #2962ff);
+  color: var(--color-ot-blue-500, #2962ff);
+  border-bottom-color: var(--color-ot-blue-500, #2962ff);
 }
 
 /* ── Scrollable glyph list (middle) ─────────────────────────────────────── */
@@ -166,8 +164,8 @@
 .font-icon-picker-tab:hover { color: #fff; }
 
 .font-icon-picker-tab.active {
-  color: var(--color-tv-blue-500, #2962ff);
-  border-top-color: var(--color-tv-blue-500, #2962ff);
+  color: var(--color-ot-blue-500, #2962ff);
+  border-top-color: var(--color-ot-blue-500, #2962ff);
 }
 
 /* Placed font-icon glyph on the chart overlay (inside an SVG foreignObject). */

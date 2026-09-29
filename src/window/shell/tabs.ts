@@ -45,7 +45,7 @@ export function revivePaneSettings(
 
 /** One chart pane inside a tab's layout — its own symbol / interval / chart-type
  *  / indicators, so every cell of a multi-pane layout is a fully independent
- *  chart (matches TV Desktop, where each pane has its own symbol). */
+ *  chart (each pane has its own symbol). */
 export type PaneChart = {
   /** Stable per-pane id — survives layout reconcile and persistence, so
    *  drawings can be scoped to a single pane ("No sync" mode). Cloned panes
@@ -55,12 +55,12 @@ export type PaneChart = {
   interval: string;
   chartType: ChartTypeId;
   /** Bottom-bar session: regular (09:30–16:00 ET) vs extended hours. Only
-   *  affects intraday frames; daily+ ignore it. Defaults to RTH (TV default). */
+   *  affects intraday frames; daily+ ignore it. Defaults to RTH. */
   session: SessionId;
   indicators: string[];
   /** Compared symbols overlaid as line series on this pane (header "Compare
-   *  symbols"). Rendered on a shared overlay price scale — TV compares on a
-   *  percentage scale; the overlay autoscale is the local stand-in. */
+   *  symbols"). Rendered on a shared overlay price scale with its own
+   *  autoscale (not a percentage scale). */
   compare?: string[];
   /** Per-indicator settings overrides (Settings dialog → Inputs/Style), keyed by
    *  indicator registry id. Persisted so a study's inputs/colours survive
@@ -84,7 +84,7 @@ export type PaneChart = {
    *  when out of bounds for the loaded bar count (e.g. a shorter-history
    *  symbol), in which case the default framing is used. */
   visibleLogicalRange?: { from: number; to: number };
-  /** Main series hidden with the legend eye (TV series `visible` property,
+  /** Main series hidden with the legend eye (series `visible` property,
    *  saved with the chart). Absent = shown. */
   seriesHidden?: boolean;
 };
@@ -103,9 +103,9 @@ export type TabChart = {
   /** Tab-syncing link colour; absent = unlinked. The channels belong to the
    *  colour's group (data/link-groups.ts). */
   link?: TabLink;
-  /** "Sync in layout" toggles of this tab (TV saves them per layout). */
+  /** "Sync in layout" toggles of this tab (saved per layout). */
   sync: LayoutSyncState;
-  /** Pinned (TV "Pin tab"): kept in the block at the left of the strip, no
+  /** Pinned ("Pin tab"): kept in the block at the left of the strip, no
    *  close button, spared by "Close other tabs" / "Close tabs to the right". */
   pinned?: boolean;
   /** Id of the saved layout this tab was loaded from / last saved to (see
@@ -156,8 +156,8 @@ export function newPaneId(): string {
 type MakeTabPartial = Partial<PaneChart> & { layout?: LayoutId; isChart?: boolean };
 
 /** Studies a brand-new pane starts with (registry ids). `colored-volume` is the
- *  library's Volume bars study — a non-overlay columns pane below price, matching
- *  TV's default volume. Only seeds fresh tabs/panes; persisted panes keep their
+ *  library's Volume bars study — a non-overlay columns pane below price, the
+ *  default volume. Only seeds fresh tabs/panes; persisted panes keep their
  *  own saved list. */
 export const DEFAULT_INDICATORS: string[] = ["colored-volume"];
 
@@ -171,7 +171,7 @@ export function makeTab(partial: MakeTabPartial = {}): TabChart {
     indicators: pane.indicators ?? [...DEFAULT_INDICATORS],
   };
   const count = paneCountFor(layout);
-  // A new chart starts with the user's chart settings defaults (TV), unless
+  // A new chart starts with the user's chart settings defaults, unless
   // the caller passes its own settings.
   const defaults = pane.settings ? undefined : loadChartSettingsDefaults();
   const seed = (): Partial<PaneChart> =>
@@ -252,7 +252,7 @@ export function fullSymbolFor(ticker: string): string {
 }
 
 /** Tab strip title — "EXCHANGE:TICKER, INTERVAL" of the tab's active pane
- *  (TV's tab caption). */
+ *  (tab caption). */
 export function tabTitle(tab: TabChart): string {
   const pane = activePaneOf(tab);
   return `${fullSymbolFor(pane.symbol)}, ${pane.interval}`;
@@ -379,7 +379,7 @@ export function pinnedCount(tabs: TabChart[]): number {
   return i === -1 ? tabs.length : i;
 }
 
-/** Where a tab may be inserted (TV TabManager.computeInsertPosition): a pinned
+/** Where a tab may be inserted: a pinned
  *  tab inside the pinned block, an unpinned one after it. */
 export function insertPosition(tabs: TabChart[], pinned: boolean, requested?: number): number {
   const count = pinnedCount(tabs);
@@ -388,8 +388,7 @@ export function insertPosition(tabs: TabChart[], pinned: boolean, requested?: nu
   return tabs.length;
 }
 
-/** Drag target index kept on the dragged tab's side of the pinned border
- *  (TV tab-panel onTabMove). */
+/** Drag target index kept on the dragged tab's side of the pinned border. */
 export function clampMoveIndex(tabs: TabChart[], from: number, to: number): number {
   const first = tabs.findIndex((t) => !t.pinned);
   if (first === -1) return to;

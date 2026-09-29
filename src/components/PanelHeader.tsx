@@ -1,10 +1,9 @@
 /*
  * PanelHeader — shared 48-px header strip used by every right-rail widget
- * (Watchlist today; Alerts/Object tree/Chats when they land). Mirrors TV's
- * `.widgetHeader-X9EuSe_t`.
+ * (Watchlist today; Alerts/Object tree/Chats when they land).
  *
- * The slot model matches TV: `left` carries the widget's name or a
- * SegmentedControl; `right` carries the per-panel action buttons.
+ * Slot model: `left` carries the widget's name or a SegmentedControl;
+ * `right` carries the per-panel action buttons.
  */
 import type { JSX } from "solid-js";
 
@@ -18,14 +17,14 @@ type Props = {
 export function PanelHeader(props: Props) {
   return (
     <header
-      class={`tv-panel-header${props.class ? " " + props.class : ""}`}
+      class={`ot-panel-header${props.class ? " " + props.class : ""}`}
       aria-label={props.ariaLabel}
     >
       {props.left !== undefined && (
-        <div class="tv-panel-header__left">{props.left}</div>
+        <div class="ot-panel-header__left">{props.left}</div>
       )}
       {props.right !== undefined && (
-        <div class="tv-panel-header__right">{props.right}</div>
+        <div class="ot-panel-header__right">{props.right}</div>
       )}
     </header>
   );

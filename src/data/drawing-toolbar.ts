@@ -1,19 +1,17 @@
 /*
- * Drawing-toolbar inventory — extracted from the reference mock's hardcoded
- * GROUPS array.
+ * Drawing-toolbar inventory — the tool groups.
  *
- * Sourced from TradingView's live drawing toolbar. Group assignments mirror
- * the live app exactly (e.g. Arrow lives in Geometric Shapes, not Annotation;
- * Pitchforks live in Trend, not Gann). Each tool's `iconName` is
+ * Group assignments are deliberate (e.g. Arrow lives in Geometric Shapes, not
+ * Annotation; Pitchforks live in Trend, not Gann). Each tool's `iconName` is
  * `draw-<slug>` matching the SVG filename under `src/assets/icons/`.
  */
-import type { TvIconName } from "../components/TvIcon";
+import type { IconName } from "../components/Icon";
 
 export type Tool = {
   id: string;
   title: string;
   /** Per-tool icon; falls back to the group's defaultIcon when missing. */
-  iconName?: TvIconName;
+  iconName?: IconName;
   /** Optional keyboard hint shown right-aligned in the submenu row. */
   hotkey?: string;
 };
@@ -30,7 +28,7 @@ export type Group = {
   id: string;
   title: string;
   /** Icon shown on the toolbar button when no per-tool icon has been promoted. */
-  defaultIcon: TvIconName;
+  defaultIcon: IconName;
   sections: Section[];
 };
 
@@ -284,7 +282,7 @@ export const GROUPS: Group[] = [
 export type CursorMode = "cross" | "dot" | "arrow" | "eraser" | "demonstration";
 
 /** Cursor-group tool id → interaction mode. Picking one of these sets the
- *  chart's cursor mode and arms NO drawing tool (mirrors TV). */
+ *  chart's cursor mode and arms NO drawing tool. */
 export const CURSOR_TOOL_MODES: Record<string, CursorMode> = {
   cross: "cross",
   dot: "dot",

@@ -80,7 +80,7 @@ type Props = {
   drawings: Drawing[];
   armedTool: string | null;
   /** Cursor-group interaction mode. `eraser` removes drawings under the pointer
-   *  (click + sweep); `demonstration` draws TV's circle cursor (+ Alt highlighter);
+   *  (click + sweep); `demonstration` draws a circle cursor (+ Alt highlighter);
    *  the rest just set the pointer glyph (handled on the chart host). */
   cursorMode?: CursorMode;
   /** Staged glyph for the `font-icon` tool — a Unicode emoji char or raw
@@ -90,13 +90,13 @@ type Props = {
    *  cursor. Driven by the Magnet toggle. */
   magnet: boolean;
   /** Chart background (solid or vertical gradient) — anchors are filled with
-   *  the background at their height, like TV (`backgroundColorAtYPercentFromTop`). */
+   *  the background at their height. */
   anchorBg?: { top: string; bottom: string; gradient: boolean };
   /** Magnet strength: "strong" always snaps to the nearest OHLC level; "weak"
    *  only engages within MAGNET_WEAK_RADIUS_PX of a level (else the raw cursor
-   *  is kept). Mirrors TV's Weak/Strong magnet. */
+   *  is kept). */
   magnetMode?: "weak" | "strong";
-  /** Also snap to price-pane overlay-indicator values (TV's "Snap to
+  /** Also snap to price-pane overlay-indicator values (the "Snap to
    *  indicator" magnet sub-option). */
   magnetSnapsToIndicators?: boolean;
   /** After placing a drawing, keep the same tool armed instead of clearing.
@@ -110,7 +110,7 @@ type Props = {
    *  single-select behaviour only. */
   selectedIds?: string[];
   setSelectedId: (id: string | null) => void;
-  /** Ctrl/Cmd+click membership toggle (TV multi-select). */
+  /** Ctrl/Cmd+click membership toggle (multi-select). */
   onToggleSelect?: (id: string) => void;
   onUpdate: (d: Drawing) => void;
   /** Bulk replace for group body-drags / group nudges — one undo entry. */
@@ -173,9 +173,9 @@ export function DrawingsOverlay(props: Props) {
     const h = size().h;
     return mixHex(bg.top, bg.bottom, h > 0 ? Math.max(0, Math.min(1, y / h)) : 0);
   };
-  // Held modifiers that temporarily override the persisted magnet (TV behaviour):
+  // Held modifiers that temporarily override the persisted magnet:
   //   Shift    → magnet off once a tool is being created (after its first
-  //              point) or an anchor is dragged (TV magnet module 32742); it
+  //              point) or an anchor is dragged; it
   //              also drives the per-tool Shift constraints (lib interact/shift).
   //   Ctrl/Cmd → invert magnet: off→Strong, on→off.
   // Window-level so a press registers even when the pointer is over the canvas;
@@ -215,14 +215,13 @@ export function DrawingsOverlay(props: Props) {
     setSettingsId(id);
   }
 
-  // ── Table (TV line-tool-table) cell editing and cell operations ─────────
-  // The active cell resets when its table is no longer selected (TV
-  // setInplaceEditableCellIndexes([-1, -1]) on deselection).
+  // ── Table cell editing and cell operations ──────────────────────────────
+  // The active cell resets when its table is no longer selected.
   createEffect(() => {
     const u = tableUi();
     if (u && !selIds().includes(u.id)) setTableUi(null);
   });
-  /** TV table actions: insert a column / row (right of / below the active
+  /** Table actions: insert a column / row (right of / below the active
    *  cell, else at the end; the active cell is kept) or remove the active
    *  cell's row / column (never the last one). One undo entry each. */
   function tableOp(id: string, op: "insert-column" | "insert-row" | "remove-row" | "remove-column") {
@@ -242,7 +241,7 @@ export function DrawingsOverlay(props: Props) {
     }
     window.dispatchEvent(new CustomEvent("drawing-gesture-end"));
   }
-  /** TV "Anchor drawing" toggle (core interact/anchor: text, pin, table). */
+  /** "Anchor drawing" toggle (core interact/anchor: text, pin, table). */
   function toggleAnchored(id: string) {
     const d = props.drawings.find((x) => x.id === id);
     const c = props.coords;
@@ -256,7 +255,7 @@ export function DrawingsOverlay(props: Props) {
     const u = tableUi();
     return u?.editing && u.cell ? `${u.id}|${u.cell[0]}|${u.cell[1]}` : null;
   });
-  /** Editor geometry: the cell's text box (TV TextRenderer box less padding). */
+  /** Editor geometry: the cell's text box (text renderer box less padding). */
   const tableEditor = createMemo(() => {
     const u = tableUi();
     if (!u?.editing || !u.cell) return null;
@@ -273,7 +272,7 @@ export function DrawingsOverlay(props: Props) {
     return { d, l, r, col };
   });
 
-  // ── Image (TV line-tool-image) ────────────────────────────────────────
+  // ── Image ─────────────────────────────────────────────────────────────
   // Arming the tool opens the Image dialog at once (active pane only); Ok
   // places the image at the pane centre, sized to fit a quarter of the pane,
   // and selects it. Cancel / Ok both leave the tool.
@@ -295,7 +294,7 @@ export function DrawingsOverlay(props: Props) {
     });
     if (id) props.setSelectedId(id);
   }
-  /** TV pasteImageAsLineTool: a pasted image file (type, 2 MB and 2000 x
+  /** Paste an image as a drawing: a pasted image file (type, 2 MB and 2000 x
    *  2000 checks as the Image dialog) is placed like a dialog image, with the
    *  factory transparency, and selected. */
   async function pasteImage(file: File) {
@@ -307,7 +306,7 @@ export function DrawingsOverlay(props: Props) {
       console.warn("[image] paste failed:", err instanceof Error ? err.message : err);
     }
   }
-  // TV removes an image drawing whose image fails to load.
+  // An image drawing whose image fails to load is removed.
   createEffect(() => {
     void imagesVersion();
     if (props.active === false) return;
@@ -318,7 +317,7 @@ export function DrawingsOverlay(props: Props) {
 
   const armedSpec = () => findOverlaySpec(props.armedTool);
   const cmode = (): CursorMode => props.cursorMode ?? "cross";
-  // Drawing under the pointer (TV shows a hovered drawing's anchors before any
+  // Drawing under the pointer (a hovered drawing shows its anchors before any
   // click). Driven by per-<g> pointer enter/leave — no extra hit-test pass.
   const [hoveredId, setHoveredId] = createSignal<string | null>(null);
   /** Hidden flag OR filtered out by the per-interval Visibility matrix. */
@@ -331,15 +330,14 @@ export function DrawingsOverlay(props: Props) {
   const intervalHidden = (d: Drawing) =>
     !isVisibleOnInterval(d.visibility, props.interval);
 
-  // Demonstration cursor (TV crosshair demonstration view, 879505 `ld`): a
-  // circle under the pointer on the pane it is over (screen px), or null.
+  // Demonstration cursor (crosshair demonstration view): a circle under the
+  // pointer on the pane it is over (screen px), or null.
   const [demoCursor, setDemoCursor] = createSignal<Pt | null>(null);
-  // TV "Hold Alt for temporary drawing" (demonstration cursor, 879505
-  // `toolIsDemonstration && altOnly` on mouse down): a presentation
-  // highlighter (TV LineToolDemonstrationHighlighter, module 937120) — a
-  // brush stroke, 36 px, ripe-red-500 at 25 %, opaque while drawn, then fading
-  // linearly over 4000 ms after release and removed. Data points, so it follows
-  // pan / zoom. Not a drawing: never saved, no undo.
+  // "Hold Alt for temporary drawing" (demonstration cursor, Alt-only mouse
+  // down): a presentation highlighter — a brush stroke, 36 px, ripe-red-500
+  // at 25 %, opaque while drawn, then fading linearly over 4000 ms after
+  // release and removed. Data points, so it follows pan / zoom. Not a
+  // drawing: never saved, no undo.
   type Highlighter = { id: number; points: DataPoint[]; finishedAt: number | null };
   const [highlighters, setHighlighters] = createSignal<Highlighter[]>([]);
   const [fadeClock, setFadeClock] = createSignal(0);
@@ -357,7 +355,7 @@ export function DrawingsOverlay(props: Props) {
 
   // ── Region tools (Measure / Zoom in) ──────────────────────────────────────
   // Zoom is a transient press-drag-release rectangle (applies a chart zoom on
-  // release). Measure is a two-click gesture (TV: click the first point, move,
+  // release). Measure is a two-click gesture (click the first point, move,
   // click the second) that leaves an ephemeral price/bars/% ruler until Escape
   // or a tool switch — NOT a persisted drawing. `region` holds the live rect
   // (zoom drag, or the measure rubber-band between its two clicks).
@@ -380,7 +378,7 @@ export function DrawingsOverlay(props: Props) {
     if (!regionTool()) setRegion(null);
   });
 
-  /** Measure tool — two-click placement (TV behaviour). First click commits the
+  /** Measure tool — two-click placement. First click commits the
    *  start point (magnet-snapped); the rubber-band follows the cursor; the
    *  second click commits the ruler. Each point runs through the magnet via
    *  `aimAt`, so it locks onto the nearest OHLC level just like a drawing. */
@@ -474,10 +472,10 @@ export function DrawingsOverlay(props: Props) {
     document.addEventListener("pointerup", onDocUp);
   }
 
-  // Demonstration mode (TV): the pane keeps its crosshair, pan and selection
-  // (the overlay does not capture it); the circle follows the pointer and an
-  // Alt-only left press draws a highlighter instead (TV `altOnly` branch of
-  // the pane mouse down, before hit tests / scrolling). Listened on the pane
+  // Demonstration mode: the pane keeps its crosshair, pan and selection (the
+  // overlay does not capture it); the circle follows the pointer and an
+  // Alt-only left press draws a highlighter instead (handled on the pane mouse
+  // down, before hit tests / scrolling). Listened on the pane
   // root in the capture phase so the press never reaches the chart.
   createEffect(() => {
     if (cmode() !== "demonstration" || props.armedTool) {
@@ -519,8 +517,8 @@ export function DrawingsOverlay(props: Props) {
 
   /** The chart pane inside the overlay (the SVG also spans the price and
    *  time axes): width = the time scale width, height = overlay height less
-   *  the time axis. TV draws every drawing in the pane (its mediaSize) and
-   *  clips it there; renderers, hit tests and placement use this size. */
+   *  the time axis. Every drawing is drawn in the pane (its media size) and
+   *  clipped there; renderers, hit tests and placement use this size. */
   function paneDims(): { w: number; h: number } {
     const sz = size();
     const ax = props.coords?.timeAxis();
@@ -557,7 +555,7 @@ export function DrawingsOverlay(props: Props) {
 
   /** Screen point the placement preview/crosshair should track: the raw cursor,
    *  or — when the magnet engages — the snapped OHLC point projected back to
-   *  screen (so the rubber-band locks onto the candle, x and y, like TV). Reads
+   *  screen (so the rubber-band locks onto the candle, x and y). Reads
    *  the modifier signals so it updates live when Shift/Ctrl change with a
    *  stationary cursor. Returns null alongside `engaged=false` when the magnet
    *  doesn't catch, so the caller keeps the free cursor. */
@@ -577,24 +575,23 @@ export function DrawingsOverlay(props: Props) {
   function onPlacementClick(e: PointerEvent) {
     const spec = armedSpec();
     if (!spec) return;
-    // TV Image: placed from its dialog (opened when the tool is armed), not
-    // by a click.
+    // Image: placed from its dialog (opened when the tool is armed), not by a
+    // click.
     if (spec.kind === "image") return;
     const sp = eventPoint(svg, e);
     const pend = pending();
-    // Variable-length finish gesture (TV LineToolPolyline/LineToolPath
-    // `addPoint`): a click within the vertex tolerance of the LAST placed
-    // point commits the drawing instead of appending; polyline ALSO commits on
-    // the FIRST point (closing the shape — TV sets `filled` there). Path only
-    // finishes on the last point. Double-click keeps working (on:dblclick).
-    // TV's tolerance is `interactionTolerance().minDistanceBetweenPoints`
-    // = 5px with a mouse (saved bundle 39611; 10px on touch).
+    // Variable-length finish gesture (polyline / path): a click within the
+    // vertex tolerance of the LAST placed point commits the drawing instead of
+    // appending; polyline ALSO commits on the FIRST point (closing the shape,
+    // `filled` is set there). Path only finishes on the last point.
+    // Double-click keeps working (on:dblclick). The tolerance is the minimum
+    // distance between points = 5px with a mouse (10px on touch).
     if (spec.variableLength && pend.length >= 1 && props.coords) {
       const nearVertex = (v: DataPoint) => {
         const p = projectPoint(props.coords!, v);
         return !!p && Math.hypot(p.x - sp.x, p.y - sp.y) < MIN_DISTANCE_BETWEEN_POINTS;
       };
-      // Last point first (TV checks it first): finishing on the last point
+      // Last point first (checked first): finishing on the last point
       // leaves the polyline open; on the first point it closes it (filled).
       if (nearVertex(pend[pend.length - 1])) {
         // <2 points can't commit (a 1-point polyline is degenerate here) — the
@@ -609,7 +606,7 @@ export function DrawingsOverlay(props: Props) {
     }
     const dp0 = dataAt(sp);
     if (!dp0) return;
-    // Shift: the TV per-tool placement rule (lib interact/shift: 45° against
+    // Shift: the per-tool placement rule (lib interact/shift: 45° against
     // the previous point, square, Gann fixed increments; the ellipse ends as a
     // circle on its 2nd click).
     const sh = shiftDown() && props.coords ? shiftPlacementPoint(spec.kind, pend, dp0, props.coords) : { point: dp0 };
@@ -618,12 +615,12 @@ export function DrawingsOverlay(props: Props) {
     // Variable-length tools (path/polyline/brush/highlighter) keep appending on
     // every click; the user finishes by double-clicking or re-clicking the
     // first/last vertex (above). Escape mid-placement CANCELS the in-progress
-    // drawing — TV `cancelCreatingLineTool` removes tools with pointsCount ≤ 0
-    // (the variable-length set) via `cancelCreatingLine`, it never commits.
+    // drawing — tools with pointsCount ≤ 0 (the variable-length set) are
+    // removed, never committed.
     if (spec.variableLength || next.length < spec.pointCount) {
       setPending(next);
-      // TV createdLineTool (first point of a path / polyline): the "Double-click
-      // to finish" event hint on every chart, until dismissed once.
+      // First point of a path / polyline: the "Double-click to finish" event
+      // hint on every chart, until dismissed once.
       if (next.length === 1 && (spec.kind === "path" || spec.kind === "polyline")) {
         const key = spec.kind === "path" ? PATH_HINT : POLYLINE_HINT;
         if (!hintState(key).dismissed()) setLineToolHint({ key, text: `Double-click to finish ${spec.kind}` });
@@ -635,8 +632,8 @@ export function DrawingsOverlay(props: Props) {
     if (spec.textEditable) {
       // Placement runs on pointerdown; the browser's mousedown focus change
       // that follows would blur the new editor (and commit it empty). Ignore
-      // blurs until the button is released, then focus the editor (TV opens
-      // the text editor focused after the click).
+      // blurs until the button is released, then focus the editor (the text
+      // editor opens focused after the click).
       holdTextFocus = true;
       window.addEventListener("pointerup", () => {
         setTimeout(() => {
@@ -650,7 +647,7 @@ export function DrawingsOverlay(props: Props) {
       setCursor(null);
       return;
     }
-    // Finalize (fixed-length): the core adds the data TV computes at
+    // Finalize (fixed-length): the core adds the data computed at
     // placement; font-icon placements carry the staged glyph.
     const placed = finishPlacement(spec.kind, next, props.coords, paneDims(), { glyph: props.armedGlyph });
     if (placed) placeNew(placed);
@@ -715,7 +712,7 @@ export function DrawingsOverlay(props: Props) {
     // The core stores polyline `closed` and freezes the ghost-feed seed.
     const placed = finishPlacement(spec.kind, pts, props.coords, paneDims(), { closed });
     if (placed) placeNew(placed);
-    // TV finishedLineTool: the shown path / polyline hint is dismissed for good.
+    // Drawing finished: the shown path / polyline hint is dismissed for good.
     const hint = lineToolHint();
     if (hint) {
       hintState(hint.key).dismiss();
@@ -727,11 +724,9 @@ export function DrawingsOverlay(props: Props) {
     return true;
   }
 
-  /** Place a freshly drawn drawing. TV selects every new drawing (anchors +
-   *  floating toolbar) once placement finishes (measured 24/09/2026: 85/85
-   *  tools). Keep-drawing mode is left as before (the
-   *  tool stays armed for the next placement; TV's behaviour there is not
-   *  measured). */
+  /** Place a freshly drawn drawing. Every new drawing is selected (anchors +
+   *  floating toolbar) once placement finishes. Keep-drawing mode is left as
+   *  before (the tool stays armed for the next placement). */
   function placeNew(nd: import("lightweight-charts-drawing/tv/types").NewDrawing) {
     const id = props.onPlace(nd);
     if (id && !props.stayMode) props.setSelectedId(id);
@@ -746,7 +741,7 @@ export function DrawingsOverlay(props: Props) {
     const text = te.value;
     if (te.mode === "create") {
       let placed = buildNewDrawing(te.kind, te.points);
-      // TV signpost addPoint: the click height sets the label position.
+      // Signpost: the click height sets the label position.
       if (placed && te.kind === "signpost" && props.coords) {
         placed = { ...placed, style: { ...defaultStyleFor("signpost"), signpostPosition: signpostPositionFor(props.coords, te.points[0], paneDims().h) } };
       }
@@ -763,7 +758,7 @@ export function DrawingsOverlay(props: Props) {
   function cancelTextEdit() {
     const te = textEdit();
     if (!te) return;
-    // TV: Escape closes a NEW text's editor but keeps the drawing (selected).
+    // Escape closes a NEW text's editor but keeps the drawing (selected).
     if (te.mode === "create") { commitTextEdit(); return; }
     setTextEdit(null);
   }
@@ -785,7 +780,7 @@ export function DrawingsOverlay(props: Props) {
     const c = props.coords;
     if (!c) return null;
     const { w, h } = paneDims();
-    // Drawings are clipped to the pane (TV): nothing hits over the axes.
+    // Drawings are clipped to the pane: nothing hits over the axes.
     if (sp.x < 0 || sp.x > w || sp.y < 0 || sp.y > h) return null;
     for (let i = props.drawings.length - 1; i >= 0; i--) {
       const d = props.drawings[i];
@@ -803,7 +798,7 @@ export function DrawingsOverlay(props: Props) {
     return props.selectedIds ?? (props.selectedId ? [props.selectedId] : []);
   }
 
-  /** Delete / Backspace and middle click (TV removeSelectedSources): remove the
+  /** Delete / Backspace and middle click (remove selected sources): remove the
    *  deletable members in one shot (one undo entry). Locked drawings and
    *  drawings the Visibility matrix filtered off this interval are skipped
    *  (their toolbar is gone — don't delete blind). TRUE when any was removed. */
@@ -826,10 +821,11 @@ export function DrawingsOverlay(props: Props) {
     if (!c) return;
     const sp = eventPoint(svg, e);
     const hit = hitTopmost(sp);
-    // Middle (wheel) click on a drawing removes it (TV wheelClickEvent): an
+    // Middle (wheel) click on a drawing removes it: an
     // unselected drawing becomes the selection first, then the selection is
     // removed like Delete. OT hit tests do not tell a shape's fill from its
-    // outline, so a click on a fill also removes (TV ignores fill hits).
+    // outline, so a click on a fill also removes (by design fill hits are
+    // ignored).
     if (e.button === 1) {
       if (!hit) return;
       e.preventDefault();
@@ -845,7 +841,7 @@ export function DrawingsOverlay(props: Props) {
     }
     const multiKey = (e.ctrlKey || e.metaKey) && !!props.onToggleSelect;
     if (!hit) {
-      // Ctrl+click on empty space keeps the selection (TV); plain click clears.
+      // Ctrl+click on empty space keeps the selection; plain click clears.
       if (!multiKey) props.setSelectedId(null);
       return;
     }
@@ -873,7 +869,7 @@ export function DrawingsOverlay(props: Props) {
             .map((d) => ({ start: d, startScreen: screenPoints(c, d, paneDims()) }))
             .filter((m): m is { start: Drawing; startScreen: Pt[] } => !!m.startScreen)
         : undefined;
-    // TV gates body-drags on selection: clicking an unselected drawing's body
+    // Body-drags are gated on selection: clicking an unselected drawing's body
     // only selects it — the same gesture can't move it (a fresh grab needs a
     // second press). Anchor drags engage regardless of selection state. With
     // Ctrl held the press may still resolve to a toggle on release, so the
@@ -908,7 +904,7 @@ export function DrawingsOverlay(props: Props) {
         // update: a toolbar style edit within the last 800ms shares the
         // drag's coalesceId and would otherwise merge into one undo entry.
         window.dispatchEvent(new CustomEvent("drawing-gesture-end"));
-        // Ctrl/Cmd + body drag on a single selected drawing → clone (TV): drop
+        // Ctrl/Cmd + body drag on a single selected drawing → clone: drop
         // a duplicate in place and keep the drag on the original. Deferred to
         // drag activation so a bare Ctrl+click still toggles selection. Group
         // drags never clone — Ctrl just rides along.
@@ -925,7 +921,7 @@ export function DrawingsOverlay(props: Props) {
       // group apart (same rule as the single body drag).
       const st = drag();
       if (st?.group) {
-        // Shift: TV H/V lock of the move (lib lockAxisDelta).
+        // Shift: H/V lock of the move (lib lockAxisDelta).
         const d0 = { dx: cur.x - st.startCursor.x, dy: cur.y - st.startCursor.y };
         const { dx, dy } = shiftDown() ? lockAxisDelta(d0.dx, d0.dy) : d0;
         const moved: Drawing[] = [];
@@ -954,9 +950,9 @@ export function DrawingsOverlay(props: Props) {
       if (state && !state.active) {
         if (state.pendingToggle) props.onToggleSelect?.(state.id);
         else if (state.pendingCollapse) props.setSelectedId(state.id);
-        // TV table: a click on a cell of the already selected table makes it
-        // the active cell and opens its editor (inplaceEditHandlers,
-        // sourceWasSelected); a click on a corner anchor clears it.
+        // Table: a click on a cell of the already selected table makes it the
+        // active cell and opens its editor; a click on a corner anchor clears
+        // it.
         if (hit.drawing.kind === "table" && !multiKey && e.button === 0) {
           if (hit.mode.hit === "body" && hit.mode.cell && wasSelected) {
             setTableUi({ id: hit.drawing.id, cell: hit.mode.cell, editing: true, edge: null });
@@ -965,7 +961,7 @@ export function DrawingsOverlay(props: Props) {
           }
         }
       }
-      // TV image endChanging: the centre goes back to its bar (the drag's
+      // Image drag end: the centre goes back to its bar (the drag's
       // exact-centre offset is dropped).
       if (state?.active && state.start.kind === "image") {
         const cur = props.drawings.find((x) => x.id === state.id);
@@ -1016,7 +1012,7 @@ export function DrawingsOverlay(props: Props) {
     e.preventDefault();
     e.stopPropagation();
     // Right-click on a member of a multi-selection keeps the group selected
-    // (TV — the menu's Remove then acts on the whole group); a drawing outside
+    // (the menu's Remove then acts on the whole group); a drawing outside
     // the selection re-anchors it.
     if (!selIds().includes(hit.drawing.id)) props.setSelectedId(hit.drawing.id);
     setMenu({ drawing: hit.drawing, pos: { x: e.clientX, y: e.clientY } });
@@ -1052,7 +1048,7 @@ export function DrawingsOverlay(props: Props) {
       } else if (e.key === "Delete" || e.key === "Backspace") {
         if (removeDrawings(selIds())) e.preventDefault();
       } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyC") {
-        // TV: Ctrl+C copies the selected drawing to the drawing clipboard. Match
+        // Ctrl+C copies the selected drawing to the drawing clipboard. Match
         // the physical key (e.code) so non-Latin layouts work, and require a bare
         // Ctrl/Cmd so Ctrl+Shift+C etc. aren't hijacked. Without a selection, fall
         // through to the browser's text copy.
@@ -1068,12 +1064,11 @@ export function DrawingsOverlay(props: Props) {
     document.addEventListener("keydown", onKey);
     onCleanup(() => document.removeEventListener("keydown", onKey));
 
-    // Ctrl+V (TV clipboardPaste): handled on the paste event, which carries
-    // the system clipboard. A drawing copied here (marker in the HTML) pastes
-    // at the same data coords; an image file (TV
-    // _processSpecialLineToolsContents) becomes an Image drawing at the pane
-    // centre; otherwise the in-app drawing clipboard is used. Only the
-    // focused pane pastes.
+    // Ctrl+V: handled on the paste event, which carries the system clipboard.
+    // A drawing copied here (marker in the HTML) pastes at the same data
+    // coords; an image file becomes an Image drawing at the pane centre;
+    // otherwise the in-app drawing clipboard is used. Only the focused pane
+    // pastes.
     const onPaste = (e: ClipboardEvent) => {
       if (props.shown === false) return;
       const t = e.target as HTMLElement | null;
@@ -1097,7 +1092,7 @@ export function DrawingsOverlay(props: Props) {
     document.addEventListener("paste", onPaste);
     onCleanup(() => document.removeEventListener("paste", onPaste));
 
-    // Arrow-key nudge of the selected drawing (TV: ←↑→↓ move it 1px). App owns
+    // Arrow-key nudge of the selected drawing (←↑→↓ move it 1px). App owns
     // the selection + arrow keys and broadcasts the screen delta; only the
     // focused pane applies it (props.active), so a drawing shown on several
     // panes moves exactly once. Mirrors the body-drag translate: project every
@@ -1138,8 +1133,8 @@ export function DrawingsOverlay(props: Props) {
       ".dt-popover", // colour / width / style / template popovers
       ".dt-color-field-portal", // portalled colour field
       ".drawing-toolbar", // the left drawing toolbar
-      ".tv-table-cell-input", // the table cell editor
-      ".tv-dlg-layer", // TV name / confirm dialogs (template save, delete)
+      ".ot-table-cell-input", // the table cell editor
+      ".ot-dlg-layer", // name / confirm dialogs (template save, delete)
     ].join(",");
     const onOutsideDown = (e: PointerEvent) => {
       if (props.shown === false || selIds().length === 0) return;
@@ -1152,7 +1147,7 @@ export function DrawingsOverlay(props: Props) {
     window.addEventListener("pointerdown", onOutsideDown, true);
     onCleanup(() => window.removeEventListener("pointerdown", onOutsideDown, true));
 
-    // Alt+H / J / V / C (TV): create the line at once at the cursor, in the
+    // Alt+H / J / V / C: create the line at once at the cursor, in the
     // pane under the pointer (same magnet snap as a click), then select it.
     const onPlaceAtCursor = (e: Event) => {
       const detail = (e as CustomEvent<PlaceAtCursorDetail>).detail;
@@ -1203,7 +1198,7 @@ export function DrawingsOverlay(props: Props) {
     return { enabled: !!props.magnet, mode };
   }
 
-  // TV: a tool change hides the line-tool event hint (not dismissed).
+  // A tool change hides the line-tool event hint (not dismissed).
   createEffect(on(() => [props.armedTool, cmode()], () => setLineToolHint(null), { defer: true }));
 
   // Reset rubber-band when armedTool clears (e.g. switching tools mid-place).
@@ -1233,7 +1228,7 @@ export function DrawingsOverlay(props: Props) {
     if (!coords) return;
     const desired = new Map<string, { price: number; color: string }>();
     for (const d of list) {
-      // TV anchored VWAP "Price label": the VWAP's last value on the price
+      // Anchored VWAP "Price label": the VWAP's last value on the price
       // scale (re-read when the bars change; vwapData is cached per bars).
       if (d.kind === "anchored-vwap") {
         void props.coordEpoch;
@@ -1277,7 +1272,7 @@ export function DrawingsOverlay(props: Props) {
     priceLines.clear();
   });
 
-  // Live preview while placing. TV draws the *real* tool as you aim, not a
+  // Live preview while placing. The *real* tool is drawn as you aim, not a
   // placeholder rubber-band: the in-progress draw renders exactly like the
   // finished one — solid stroke, a ray already extends to the pane edge, a
   // rectangle shows its fill.
@@ -1358,7 +1353,7 @@ export function DrawingsOverlay(props: Props) {
     }
 
     // Multi-point tools mid-placement: connect the placed points so far + a SOLID
-    // rubber-band to the cursor (TV's in-progress line is solid).
+    // rubber-band to the cursor (the in-progress line is solid).
     const last = placed[placed.length - 1];
     return (
       <>
@@ -1388,8 +1383,8 @@ export function DrawingsOverlay(props: Props) {
     );
   }
 
-  /** Demonstration highlighters (Alt + draw): the brush renderer (TV smooths
-   *  it the same way), faded by the time since release. */
+  /** Demonstration highlighters (Alt + draw): the brush renderer (smoothed
+   *  the same way), faded by the time since release. */
   function highlighterElement(): import("solid-js").JSX.Element {
     const hs = highlighters();
     const c = props.coords;
@@ -1411,7 +1406,7 @@ export function DrawingsOverlay(props: Props) {
     );
   }
 
-  /** TV demonstration cursor (`ld`): circle of radius LineWidth / 2 = 18 at
+  /** Demonstration cursor: circle of radius LineWidth / 2 = 18 at
    *  the pointer, filled ripe-red-500 at 25 %, 1 px border at 3 %. */
   function demoCursorElement(): import("solid-js").JSX.Element {
     const p = demoCursor();
@@ -1441,10 +1436,10 @@ export function DrawingsOverlay(props: Props) {
     if (!rawCur) return null;
     const { w, h } = paneDims();
     const aim = aimAt(rawCur);
-    // Magnet pulls ONLY the horizontal (price) line to the nearest OHLC level
-    // (TV behaviour). The vertical (time) line stays on
-    // the raw cursor, and no snap dot is drawn — the crosshair always reads as a
-    // full cross, never collapsing to a point.
+    // Magnet pulls ONLY the horizontal (price) line to the nearest OHLC level.
+    // The vertical (time) line stays on the raw cursor, and no snap dot is
+    // drawn — the crosshair always reads as a full cross, never collapsing to
+    // a point.
     const yLine = aim.engaged ? aim.pt.y : rawCur.y;
     return (
       <g pointer-events="none">
@@ -1456,7 +1451,7 @@ export function DrawingsOverlay(props: Props) {
 
   /** Measure ruler — a green/red box from start→end with a centered badge
    *  showing the price delta + %, bar count, and duration. Ephemeral (not a
-   *  saved drawing); mirrors TV's transient `LineToolMeasure`. */
+   *  saved drawing); a transient measure tool. */
   function renderMeasure(start: Pt, end: Pt): import("solid-js").JSX.Element {
     const c = props.coords;
     if (!c) return null;
@@ -1531,7 +1526,7 @@ export function DrawingsOverlay(props: Props) {
     // (+) stays visible at the pointer so there's always a cross marker where the
     // mouse is — even when magnet pulls the horizontal guide line off to the
     // nearest OHLC level (the guide line sticks to the bar, the + tracks the
-    // cursor). TV behaviour.
+    // cursor).
     if (armedSpec()) return "crosshair";
     // Region tools (measure / zoom) keep the OS crosshair while dragging a box.
     if (regionTool()) return "crosshair";
@@ -1549,7 +1544,7 @@ export function DrawingsOverlay(props: Props) {
   // While a tool is armed the overlay captures the whole pane (to receive
   // placement clicks), which otherwise swallows wheel scroll/zoom. Forward the
   // wheel to the chart element beneath so it stays scrollable/zoomable while
-  // armed (TV behavior) — clicks still place points. No-op when not armed (the
+  // armed — clicks still place points. No-op when not armed (the
   // overlay is pointer-events:none then and the chart gets the wheel directly).
   function forwardWheel(e: WheelEvent) {
     if (!armedSpec()) return;
@@ -1669,8 +1664,8 @@ export function DrawingsOverlay(props: Props) {
           return;
         }
         // Re-edit an existing text annotation (double-click while not placing);
-        // any other drawing opens its settings dialog (TV behaviour — the two
-        // single-clicks that preceded the dblclick already selected it).
+        // any other drawing opens its settings dialog (the two single-clicks
+        // that preceded the dblclick already selected it).
         if (!armedSpec()) {
           const sp = eventPoint(svg, e as unknown as PointerEvent);
           const hit = hitTopmost(sp);
@@ -1714,7 +1709,7 @@ export function DrawingsOverlay(props: Props) {
             return pts ? { c, pts } : null;
           });
           const selected = () => selIds().includes(d.id);
-          // TV shows a drawing's anchors on hover too (not just selection) —
+          // A drawing's anchors show on hover too (not just selection) —
           // locked drawings and armed-tool placement keep hover feedback off.
           const active = () =>
             selected() || (hoveredId() === d.id && !d.locked && !armedSpec());
@@ -1752,8 +1747,8 @@ export function DrawingsOverlay(props: Props) {
       {crosshairElement()}
       {previewElement()}
       </g>
-      {/* Axis parts of drawings (TV draws them in the axis panes, outside the
-          pane clip): vertical / cross line time label, position price
+      {/* Axis parts of drawings (drawn in the axis panes, outside the pane
+          clip): vertical / cross line time label, position price
           labels. */}
       <For each={props.drawings}>
         {(d) => {
@@ -1777,7 +1772,7 @@ export function DrawingsOverlay(props: Props) {
       {(te) => (
         <input
           ref={(el) => { textInput = el; queueMicrotask(() => { el.focus(); el.select(); }); }}
-          class="tv-drawing-text-input"
+          class="ot-drawing-text-input"
           value={te().value}
           placeholder={TEXT_PLACEHOLDER[te().kind] ?? "Text"}
           style={{
@@ -1804,9 +1799,9 @@ export function DrawingsOverlay(props: Props) {
         />
       )}
     </Show>
-    {/* TV table in-place cell editor (multi-line; Tab / Shift+Tab = next /
+    {/* Table in-place cell editor (multi-line; Tab / Shift+Tab = next /
         previous cell, Escape closes it and clears the active cell). The text
-        is written to the cell on every change (TV editableText binding). */}
+        is written to the cell on every change. */}
     <Show when={props.active !== false && tableEditKey()} keyed>
       {(key) => {
         const [id, r0, c0] = key.split("|");
@@ -1838,7 +1833,7 @@ export function DrawingsOverlay(props: Props) {
                   el.value = d?.kind === "table" ? d.style.tableCells?.[cell[0]]?.[cell[1]] ?? "" : "";
                   queueMicrotask(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
                 }}
-                class="tv-table-cell-input"
+                class="ot-table-cell-input"
                 spellcheck={false}
                 style={{
                   left: `${g().left}px`,
@@ -1866,8 +1861,8 @@ export function DrawingsOverlay(props: Props) {
                   }
                 }}
                 onBlur={() => {
-                  // Leaving the editor keeps the active cell (TV: the blue
-                  // border stays while the table is selected).
+                  // Leaving the editor keeps the active cell (the blue border
+                  // stays while the table is selected).
                   setTableUi((u) => (u && u.id === id && u.editing && u.cell && u.cell[0] === cell[0] && u.cell[1] === cell[1] ? { ...u, editing: false } : u));
                 }}
               />
@@ -1962,8 +1957,8 @@ export function DrawingsOverlay(props: Props) {
 const AXIS_PART_KINDS = new Set<string>(["vertical-line", "cross-line", "long-position", "short-position"]);
 
 /** Axis parts of a drawing: the time label of a vertical / cross line on the
- *  time axis (TV showTime) and the entry / target / stop price pills of a
- *  position on the price axis (TV shows axis labels for the three levels).
+ *  time axis (show time) and the entry / target / stop price pills of a
+ *  position on the price axis (axis labels for the three levels).
  *  `pane` = the pane size, `svgW` = the overlay width (pane + price axis). */
 function renderAxisParts(d: Drawing, pts: Pt[], pane: { w: number; h: number }, svgW: number, coords: Coords | null) {
   const s = d.style;
@@ -2025,12 +2020,12 @@ export function renderKind(
   return sceneSvg(sceneOf(d, pts, { w, h, coords, selected, hovered }), Handles, d.style.color);
 }
 
-/** TV anchor colour (`colorsPalette["color-tv-blue-600"]`), the same for every
- *  drawing whatever its line colour. */
-const TV_ANCHOR_COLOR = "#1e53e5";
+/** Anchor colour (ot-blue-600), the same for every drawing whatever its line
+ *  colour. */
+const ANCHOR_COLOR = "#1e53e5";
 
 /** Per-drawing anchor context: chart background at a y, and whether the owner
- *  drawing is selected (TV thickens the ring for a selected drawing). */
+ *  drawing is selected (the ring is thicker for a selected drawing). */
 const AnchorCtx = createContext<{ fillAt: (y: number) => string; selected: () => boolean }>({
   fillAt: () => "#0f0f0f",
   selected: () => true,
@@ -2047,9 +2042,8 @@ function mixHex(a: string, b: string, t: number): string {
   return "#" + ((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, "0");
 }
 
-/** Line anchors (TV LineAnchorRenderer, lt-pane-views): radius 6
- *  (RegularAnchorRadius), ring in tv-blue-600 drawn inside the radius with
- *  stroke 1 (RegularStrokeWidth, +1 when the drawing is selected), filled with
+/** Line anchors: radius 6, ring in ot-blue-600 drawn inside the radius with
+ *  stroke 1 (+1 when the drawing is selected), filled with
  *  the chart background at the anchor's height. The hovered anchor adds a 3px
  *  ring (RegularSelectedStrokeWidth) at 20% alpha just outside. `color` (the
  *  drawing colour) is no longer used for anchors. */
@@ -2059,23 +2053,23 @@ function Handles(props: { pts: Pt[]; color: string; squares?: readonly number[] 
   return (
     <For each={props.pts}>
       {(p, i) => {
-        // One-axis anchors (TV `square: true`) are rounded squares: side
+        // One-axis anchors (`square: true`) are rounded squares: side
         // 2·radius − stroke, corner radius 3; hover ring side 2·radius + 3.
         const square = () => !!props.squares?.includes(i());
         return (
           <g class="drawing-handle" style={{ cursor: anchorCursor(p, props.pts) }}>
-            {/* hovered-anchor ring (TV's 20%-alpha halo) — shown via CSS :hover */}
+            {/* hovered-anchor ring (20%-alpha halo) — shown via CSS :hover */}
             <Show
               when={square()}
-              fallback={<circle class="drawing-handle-ring" cx={p.x} cy={p.y} r={HANDLE_RADIUS + 1.5} fill="none" stroke={TV_ANCHOR_COLOR} stroke-opacity={0.2} stroke-width={3} pointer-events="none" />}
+              fallback={<circle class="drawing-handle-ring" cx={p.x} cy={p.y} r={HANDLE_RADIUS + 1.5} fill="none" stroke={ANCHOR_COLOR} stroke-opacity={0.2} stroke-width={3} pointer-events="none" />}
             >
-              <rect class="drawing-handle-ring" x={p.x - HANDLE_RADIUS - 1.5} y={p.y - HANDLE_RADIUS - 1.5} width={2 * HANDLE_RADIUS + 3} height={2 * HANDLE_RADIUS + 3} rx={4.5} fill="none" stroke={TV_ANCHOR_COLOR} stroke-opacity={0.2} stroke-width={3} pointer-events="none" />
+              <rect class="drawing-handle-ring" x={p.x - HANDLE_RADIUS - 1.5} y={p.y - HANDLE_RADIUS - 1.5} width={2 * HANDLE_RADIUS + 3} height={2 * HANDLE_RADIUS + 3} rx={4.5} fill="none" stroke={ANCHOR_COLOR} stroke-opacity={0.2} stroke-width={3} pointer-events="none" />
             </Show>
             <Show
               when={square()}
-              fallback={<circle cx={p.x} cy={p.y} r={HANDLE_RADIUS - sw() / 2} fill={ctx.fillAt(p.y)} stroke={TV_ANCHOR_COLOR} stroke-width={sw()} />}
+              fallback={<circle cx={p.x} cy={p.y} r={HANDLE_RADIUS - sw() / 2} fill={ctx.fillAt(p.y)} stroke={ANCHOR_COLOR} stroke-width={sw()} />}
             >
-              <rect x={p.x - HANDLE_RADIUS + sw() / 2} y={p.y - HANDLE_RADIUS + sw() / 2} width={2 * HANDLE_RADIUS - sw()} height={2 * HANDLE_RADIUS - sw()} rx={3} fill={ctx.fillAt(p.y)} stroke={TV_ANCHOR_COLOR} stroke-width={sw()} />
+              <rect x={p.x - HANDLE_RADIUS + sw() / 2} y={p.y - HANDLE_RADIUS + sw() / 2} width={2 * HANDLE_RADIUS - sw()} height={2 * HANDLE_RADIUS - sw()} rx={3} fill={ctx.fillAt(p.y)} stroke={ANCHOR_COLOR} stroke-width={sw()} />
             </Show>
           </g>
         );
@@ -2084,7 +2078,7 @@ function Handles(props: { pts: Pt[]; color: string; squares?: readonly number[] 
   );
 }
 
-/** Locked-selection anchors (TV): padlocks on the anchor points in place of
+/** Locked-selection anchors: padlocks on the anchor points in place of
  *  the grab handles (core sceneLockedAnchors); no resize cursors — the body
  *  keeps `default`. */
 function renderLockedAnchors(pts: Pt[], color: string) {
@@ -2092,8 +2086,8 @@ function renderLockedAnchors(pts: Pt[], color: string) {
 }
 
 
-/** Time-axis label of a vertical line / cross line (TV `showTime`): the
- *  crosshair label in the line colour. TV TimeAxisView renderer (the same as
+/** Time-axis label of a vertical line / cross line (`showTime`): the
+ *  crosshair label in the line colour. Time axis view renderer (the same as
  *  the lightweight-charts crosshair label): chart date-time text, axis font,
  *  padding 9·fs/12, height 1 + 5 + fs/4 + fs + fs/4 from the axis top, bottom
  *  corners radius 2, kept inside the axis width. */
@@ -2142,7 +2136,7 @@ function TimeAxisLabel(props: { x: number; h: number; time: import("lightweight-
 
 /** The style's visible levels (or the kind's factory set), coeff-ascending. */
 
-/** Fib time zone (TV model, line-tool-fib-timezone): one vertical line per
+/** Fib time zone (line-tool-fib-timezone): one vertical line per
  *  visible level at p0 + coeff × the p0→p1 distance (11 Fibonacci-sequence
  *  coefficients), per-level colour/width/style, coeff labels at the foot,
  *  fills between adjacent lines (default off) and a dashed gray connector
@@ -2152,8 +2146,8 @@ function TimeAxisLabel(props: { x: number; h: number; time: import("lightweight-
  * These mirror the reference mock's per-kind renderers (window/drawings/kinds/*.tsx);
  * geometry + level palette are lifted verbatim, adapted to our render-fn signature. */
 
-/** TV table (scene/text-tools sceneTable) with the host's interaction: the
- *  hovered resize edge (TV activeEdge from the last hit test, selected only)
+/** Table (scene/text-tools sceneTable) with the host's interaction: the
+ *  hovered resize edge (active edge from the last hit test, selected only)
  *  and its cursor. */
 function TableView(props: { d: Drawing; p: Pt; active: boolean }) {
   const ctx = useContext(AnchorCtx);

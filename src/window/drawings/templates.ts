@@ -1,16 +1,14 @@
 /*
- * Drawing templates + tool defaults — TV LinetoolTemplatesList (module
- * 728838, store 216857) and DefaultProperty (667950), read 26/09/2026.
+ * Drawing templates + tool defaults.
  *
- * Templates: one list PER TOOL (TV `/drawing-templates/<toolName>/`), sorted
- * by name (localeCompare, numeric). A template holds the drawing's style and,
- * for text tools, its text (TV templateKeys include "text").
+ * Templates: one list PER TOOL, sorted by name (localeCompare, numeric). A
+ * template holds the drawing's style and, for text tools, its text.
  *
- * Tool default: TV saves a tool's default each time one of its drawings is
- * edited through the UI (property change -> saveDefaults), so the next drawing
- * of that tool starts with the last style. Text content is not part of the
- * default (TV defaults keys exclude "text"). "Apply defaults" restores the
- * factory style and clears the saved default (restoreFactoryDefaults).
+ * Tool default: a tool's default is saved each time one of its drawings is
+ * edited through the UI (property change -> save defaults), so the next
+ * drawing of that tool starts with the last style. Text content is not part
+ * of the default. "Apply defaults" restores the factory style and clears the
+ * saved default.
  *
  * Persisted in the app key-value store, shared by all windows.
  */
@@ -89,7 +87,7 @@ export function kindDefaultOverride(kind: string): DrawingStyle | undefined {
   return loadKindDefaults()[kind];
 }
 
-/** Remember `style` as the default of `kind` (TV saves a tool's defaults on
+/** Remember `style` as the default of `kind` (a tool's defaults are saved on
  *  every UI edit of one of its drawings). The text content is left out. */
 export function saveKindDefault(kind: string, style: DrawingStyle): void {
   const { text: _text, ...rest } = style;
@@ -98,7 +96,7 @@ export function saveKindDefault(kind: string, style: DrawingStyle): void {
   kv.setItem(KIND_DEFAULTS_KEY, JSON.stringify(all));
 }
 
-/** Forget the saved default of `kind` (TV restoreFactoryDefaults). */
+/** Forget the saved default of `kind` (restore factory defaults). */
 export function clearKindDefault(kind: string): void {
   const all = { ...loadKindDefaults() };
   if (!(kind in all)) return;

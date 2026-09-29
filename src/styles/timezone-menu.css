@@ -1,26 +1,25 @@
 /*
- * Timezone popup — verbatim from TV's `.menuWrap-XktvVkFF` / `.menu-Tx5xMZww`
- * ruleset (captured 28/05/2026).
+ * Timezone popup.
  *
- * Source classes (hashed) → our names:
- *   .menuWrap-XktvVkFF       → .tz-menu-wrap
- *   .scrollWrap-XktvVkFF     → .tz-menu-scroll
- *   .menuBox-XktvVkFF        → .tz-menu-box
- *   .item-GJX1EXhk.normal    → .tz-menu-item   (32 px tall)
- *   .iconCell-GJX1EXhk       → .tz-menu-icon-cell
- *   .icon-GJX1EXhk           → .tz-menu-icon   (28 px wide, padding-start 8 px)
- *   .content-GJX1EXhk        → .tz-menu-content
- *   .label-GJX1EXhk          → .tz-menu-label  (14 px, padding-start 2 px)
- *   .subMenu-GJX1EXhk        → .tz-menu-sub    (height:0 spacer)
+ * Classes:
+ *   .tz-menu-wrap
+ *   .tz-menu-scroll
+ *   .tz-menu-box
+ *   .tz-menu-item        (32 px tall)
+ *   .tz-menu-icon-cell
+ *   .tz-menu-icon        (28 px wide, padding-start 8 px)
+ *   .tz-menu-content
+ *   .tz-menu-label       (14 px, padding-start 2 px)
+ *   .tz-menu-sub         (height:0 spacer)
  *
  * Tokens used (all already in tokens.css):
  *   --color-popup-background, --color-popup-element-text,
  *   --color-popup-element-background-hover, --color-shadow-primary-neutral-extra-heavy,
- *   --color-scroll-bg, --color-tv-blue-500
+ *   --color-scroll-bg, --color-ot-blue-500
  */
 
 /* Shell (bg / radius / shadow / padding) comes from the shared
- * `.tv-popover` class; we only own positioning + size constraints. */
+ * `.ot-popover` class; we only own positioning + size constraints. */
 .tz-menu-wrap {
   position: fixed;
   z-index: 1000;
@@ -43,7 +42,7 @@
   max-height: inherit;
 }
 
-/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+/* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
 .tz-menu-box {
   padding: 6px 0;
@@ -73,13 +72,13 @@
   background-color: var(--color-popup-element-background-hover);
 }
 
-/* TV's focus ring — 2 px tv-blue-500 border with 6 px radius via ::after,
-   hidden by default; only shown for keyboard focus.  Kept here for
-   parity even though the mock doesn't yet wire keyboard navigation. */
+/* Focus ring — 2 px ot-blue-500 border with 6 px radius via ::after,
+   hidden by default; only shown for keyboard focus.  Kept here even
+   though keyboard navigation is not wired yet. */
 .tz-menu-item::after {
   border-style: solid;
   border-width: 2px;
-  border-color: var(--color-tv-blue-500);
+  border-color: var(--color-ot-blue-500);
   border-radius: 6px;
   box-sizing: border-box;
   content: '';
@@ -133,7 +132,7 @@
 }
 
 .tz-menu-label-checked {
-  /* TV doesn't actually restyle the label beyond the check icon — kept as
+  /* The label is not restyled beyond the check icon — kept as
      a hook in case downstream rules want to bolden / colour the selected
      row.  Left a no-op for now. */
 }
@@ -160,7 +159,7 @@
   flex-direction: column;
 }
 
-/* title-GlrQ9d9L: rgb(128,128,128), 11px, padding 0 12px, margin 6px 0. */
+/* Title: rgb(128,128,128), 11px, padding 0 12px, margin 6px 0. */
 .session-menu-title {
   color: var(--color-cold-gray-400, #808080);
   font-size: 11px;
@@ -171,7 +170,7 @@
   letter-spacing: 0.4px;
 }
 
-/* item-BOZdoKo9: 14px, hover bg rgb(46,46,46); the current session highlighted. */
+/* Item: 14px, hover bg rgb(46,46,46); the current session highlighted. */
 .session-menu-item {
   display: flex;
   align-items: center;

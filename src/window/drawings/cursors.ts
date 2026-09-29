@@ -1,14 +1,14 @@
 /*
  * CSS cursor strings for the drawing-toolbar Cursor group (cross / dot / arrow /
- * eraser). The dot + eraser cursors are built from the SAME captured TV icon
- * SVGs the toolbar uses (`draw-dot.svg`, `draw-eraser.svg`) — imported raw and
- * turned into `data:` cursor URLs — so the on-canvas cursor matches TV's glyph
+ * eraser). The dot + eraser cursors are built from the SAME icon SVGs the
+ * toolbar uses (`draw-dot.svg`, `draw-eraser.svg`) — imported raw and turned
+ * into `data:` cursor URLs — so the on-canvas cursor matches the toolbar glyph
  * rather than a hand-drawn approximation. `currentColor` is substituted with a
  * concrete colour (cursors have no inherited text colour) and the root width/
  * height are pinned to a cursor-appropriate size.
  *
- * Demonstration keeps the default arrow (TV `.pane--cursor-demonstration {
- * cursor: default }`); the overlay draws TV's red circle around it.
+ * Demonstration keeps the default arrow; the overlay draws a red circle around
+ * it.
  *
  * Ported from the reference mock.
  */
@@ -16,10 +16,10 @@ import dotSvg from "../../assets/icons/draw-dot.svg?raw";
 import eraserSvg from "../../assets/icons/draw-eraser.svg?raw";
 import type { CursorMode } from "../../data/drawing-toolbar";
 
-/** TV icon grey — the colour the toolbar glyphs render at. */
+/** Icon grey — the colour the toolbar glyphs render at. */
 const GLYPH_COLOR = "#B2B5BE";
 
-/** Build a `url(data:…) hotX hotY, fallback` cursor from a raw captured SVG. */
+/** Build a `url(data:…) hotX hotY, fallback` cursor from a raw SVG. */
 function dataCursor(raw: string, size: number, hotX: number, hotY: number, fallback: string): string {
   const colored = raw
     .replace(/currentColor/g, GLYPH_COLOR)
@@ -55,9 +55,9 @@ export function cursorForMode(mode: CursorMode, armed: boolean): string {
   }
 }
 
-/** Demonstration cursor + "Hold Alt" highlighter — TV crosshair demonstration
- *  constants (879505 `rd`: LineWidth 36, CircleBorderWidth 1,
- *  AnimationDuration 4000; `nd` = ripe-red-500 at 25 %, `ad` = at 3 %). */
+/** Demonstration cursor + "Hold Alt" highlighter — crosshair demonstration
+ *  constants (LineWidth 36, CircleBorderWidth 1, AnimationDuration 4000;
+ *  colour ripe-red-500 at 25 %, border at 3 %). */
 export const HIGHLIGHTER_COLOR = "#f23645";
 export const HIGHLIGHTER_OPACITY = 0.25;
 export const HIGHLIGHTER_WIDTH = 36;

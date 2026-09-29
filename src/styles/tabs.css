@@ -5,7 +5,7 @@
  * directly off `.tab`/`.tab.active`/`.tab:hover`.
  */
 
-/* Host bar above the header toolbar — holds the strip; 35px tall like TV.
+/* Host bar above the header toolbar — holds the strip; 35px tall.
  * Background is the window-chrome fill (mock's `.app.active`), NOT the chart
  * color: the active tab is painted `--color-container-fill-secondary-inverse`
  * (#0f0f0f dark) to connect down to the chart pane, so the bar behind it must
@@ -14,8 +14,8 @@
   display: flex;
   flex-flow: row nowrap;
   align-items: stretch;
-  /* TV shell is 38px: a 35px tab strip over a full-width 3px #0f0f0f
-     underline (`.underline` in the shell) that connects the active tab to
+  /* The shell is 38px: a 35px tab strip over a full-width 3px #0f0f0f
+     underline that connects the active tab to
      the page. The padding-bottom keeps children 35px tall; the gradient
      paints the strip. */
   height: 38px;
@@ -256,8 +256,8 @@
   display: none;
 }
 
-/* Main-menu cluster between the tabs and window controls (TV's
- * `tab-panel-actions`). The button is the meatballs main-menu trigger. */
+/* Main-menu cluster between the tabs and window controls. The button is the
+ * meatballs main-menu trigger. */
 .tab-panel-actions {
   -webkit-app-region: no-drag;
   display: flex;
@@ -494,5 +494,5 @@
   background-color: var(--color-white);
   transition: transform 120ms ease-out;
 }
-.switch-view.checked { background-color: var(--color-tv-blue-500); }
+.switch-view.checked { background-color: var(--color-ot-blue-500); }
 .switch-view.checked .switch-thumb { transform: translateX(12px); }

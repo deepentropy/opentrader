@@ -178,7 +178,7 @@ export function getUserIndicatorEntry(id: string): IndicatorRegistryEntry | unde
 
 /** Editor-side hook: a script was renamed — refresh the entry's display name
  *  (dialog rows, object tree). The legend keeps showing the script-declared
- *  metadata title, like TV. */
+ *  metadata title. */
 export function notifyScriptRenamed(scriptId: string): void {
   const rt = runtimes.get(scriptId);
   if (!rt) return;

@@ -1,8 +1,7 @@
 /*
  * Alert engine — client-side evaluation of the configured alert rules.
  *
- * TradingView evaluates alerts on its servers and pushes Fire records over a
- * WebSocket. We have no backend, so this module does the evaluation in the
+ * There is no alert backend, so this module does the evaluation in the
  * frontend: it listens to the same live tick stream the watchlist/chart use
  * (data/datafeed-live.ts), evaluates each enabled rule whose symbol just ticked,
  * respects the rule's trigger frequency, and records a fire (toast + OS
@@ -51,8 +50,8 @@ const lastFiredBucket = new Map<string, number>();
 const barCloseState = new Map<string, { bucket: number; ctx: EvalContext }>();
 
 // ── Per-alert webhook URLs ──
-// Kept out of alert-store (its AlertRule shape mirrors TV's Fire/Alert records
-// verbatim); keyed by rule id and persisted like the other kv maps. The dialog
+// Kept out of alert-store (its AlertRule shape follows the Fire/Alert record
+// layout); keyed by rule id and persisted like the other kv maps. The dialog
 // writes it, fire() posts to it, the delete paths remove it.
 const WEBHOOKS_KEY = "tv:alert-webhooks:v1";
 function loadWebhooks(): Record<string, string> {
@@ -89,7 +88,7 @@ export function setAlertWebhook(id: string, url: string | null): void {
   }
 }
 
-/** Parse a TV resolution id into bar length ms. Bare numbers and "m" are
+/** Parse a resolution id into bar length ms. Bare numbers and "m" are
  *  minutes; "S" seconds, "H" hours, "D" days, "W" weeks, "M" months (~30d).
  *  Case-sensitive so "1M" (month) ≠ "1m" (minute). Defaults to one minute. */
 function resolutionMs(res: string): number {

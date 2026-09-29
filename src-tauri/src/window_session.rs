@@ -1,19 +1,19 @@
 /*
  * Window session — windows come back after a restart with their size,
- * position and maximized state (TV Desktop saves every window's normal
- * bounds, state and tabs, and restores them at start).
+ * position and maximized state (every window's normal bounds, state and tabs
+ * are saved and restored at start).
  *
  *  - Each window's NORMAL bounds (not the maximized ones), its maximized flag
  *    and the focused window are kept here and written to
  *    `<app config dir>/window-session.json`: 500 ms after a move / resize,
  *    and at once when a window closes.
  *  - A window the user closes while other windows stay open is forgotten.
- *    The last window (closing it quits the app) is kept, like TV.
+ *    The last window (closing it quits the app) is kept.
  *  - At start the main window takes its saved bounds before it is shown, and
  *    every other saved window is created again with its label, so its
  *    label-scoped tabs (localStorage `tv:tabs:<label>`) load with it.
  *  - A window whose saved position is on no monitor opens at the default
- *    position (TV drops x/y in that case).
+ *    position (x/y are dropped in that case).
  *  - "main" always exists (it runs the alert engine). When the user had closed
  *    main while other windows stayed open, main takes the first saved window's
  *    bounds, and the frontend moves that window's tabs into main
@@ -294,7 +294,7 @@ fn build_window(app: &AppHandle, st: &WindowState) -> tauri::Result<WebviewWindo
     Ok(win)
 }
 
-/// Open the calling window's developer tools (TV tab menu "Developer tools").
+/// Open the calling window's developer tools (tab menu "Developer tools").
 /// Available in debug builds (Tauri's `devtools` feature is not enabled).
 #[tauri::command]
 #[specta::specta]

@@ -1,5 +1,5 @@
 /*
- * SegmentedControl — TV's iOS-style toggle pill. One shared CSS module,
+ * SegmentedControl — iOS-style toggle pill. One shared CSS module,
  * used verbatim across panels.
  */
 import { For } from "solid-js";
@@ -22,7 +22,7 @@ export function SegmentedControl<Id extends string>(props: Props<Id>) {
     <div
       role="tablist"
       aria-label={props.ariaLabel}
-      class={`tv-segmented-control${props.class ? " " + props.class : ""}`}
+      class={`ot-segmented-control${props.class ? " " + props.class : ""}`}
     >
       <For each={props.items}>
         {(it) => {
@@ -32,7 +32,7 @@ export function SegmentedControl<Id extends string>(props: Props<Id>) {
               type="button"
               role="tab"
               aria-selected={selected()}
-              class={`tv-segmented-control__segment${selected() ? " selected" : ""}`}
+              class={`ot-segmented-control__segment${selected() ? " selected" : ""}`}
               onClick={() => props.onChange(it.id)}
             >
               {it.label}

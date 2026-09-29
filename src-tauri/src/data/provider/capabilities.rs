@@ -1,8 +1,7 @@
 /*
  * Provider capabilities — what the active data provider can serve, reported to
- * the frontend instead of hardcoded there. Modelled on TradingView's Datafeed
- * `onReady` configuration plus the `data_status` / `delay` fields of its
- * `LibrarySymbolInfo`.
+ * the frontend instead of hardcoded there. Modelled on a datafeed `onReady`
+ * configuration plus the `data_status` / `delay` fields of the symbol info.
  *
  * Two halves with different costs:
  *   • the static part (`ProviderCapabilities` minus `entitlements`) is what the
@@ -66,7 +65,7 @@ pub struct ReferenceCaps {
     pub icons: bool,
 }
 
-/// TradingView's `data_status` values.
+/// Symbol `data_status` values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum DataStatus {
@@ -162,7 +161,7 @@ mod tests {
         assert_eq!(f.get(BarFamily::Day), None);
     }
 
-    /// TradingView spells the statuses "streaming" / "delayed_streaming" /
+    /// The statuses serialize as "streaming" / "delayed_streaming" /
     /// "endofday".
     #[test]
     fn data_status_uses_tv_names() {

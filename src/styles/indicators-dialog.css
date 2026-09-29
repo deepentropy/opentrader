@@ -1,11 +1,9 @@
 /*
  * Indicators, metrics, and strategies dialog.
- * Reverse-engineered from TV Desktop's [data-name="indicators-dialog"]
- * (wrapper-b8SxMnzX).  Captured 29/05/2026 (DOM tree + CSS rules).
  *
- * Probed geometry & colours (all values traced to the capture):
- *   shell    : 840 × 638, bg rgb(31,31,31), 6px radius (sibling of the
- *              symbol-search dialog — same wrapper-b8SxMnzX shell)
+ * Geometry & colours:
+ *   shell    : 840 × 638, bg rgb(31,31,31), 6px radius (same shell as the
+ *              symbol-search dialog)
  *   header   : 68px, padding 0 20px, title 20px/600 rgb(219,219,219)
  *   search   : 40px, margin 0 20px, 1px border rgb(74,74,74), 8px radius,
  *              16px font, magnifier rgb(140,140,140)
@@ -43,7 +41,7 @@
   overflow: hidden;
 }
 
-/* ── Header (container-BZKENkhT) ──────────────────────────────────────── */
+/* ── Header ───────────────────────────────────────────────────────────── */
 .indicators-header {
   height: 68px;
   flex-shrink: 0;
@@ -53,7 +51,7 @@
   justify-content: space-between;
 }
 
-/* title-BZKENkhT / ellipsis-BZKENkhT — 20px/600, rgb(219,219,219). */
+/* Title — 20px/600, rgb(219,219,219). */
 .indicators-title {
   font-size: 20px;
   font-weight: 600;
@@ -81,7 +79,7 @@
   background-color: var(--color-cold-gray-800, #2e2e2e);
 }
 
-/* ── Search (searchInputWrapper-I087YV6b) ─────────────────────────────── */
+/* ── Search ───────────────────────────────────────────────────────────── */
 .indicators-search-wrap {
   flex-shrink: 0;
   margin: 0 20px;
@@ -96,7 +94,7 @@
 }
 
 .indicators-search-wrap:focus-within {
-  border-color: var(--color-tv-blue-500, #2962ff);
+  border-color: var(--color-ot-blue-500, #2962ff);
 }
 
 .indicators-search-icon {
@@ -125,14 +123,14 @@
   color: var(--color-cold-gray-400, #8c8c8c);
 }
 
-/* ── Content: sidebar + list (contentWrapper-I087YV6b) ────────────────── */
+/* ── Content: sidebar + list ──────────────────────────────────────────── */
 .indicators-content {
   flex: 1;
   min-height: 0;
   display: flex;
 }
 
-/* sidebarWrapper-I087YV6b: width 230 (200 inner + 30 padding). */
+/* Sidebar: width 230 (200 inner + 30 padding). */
 .indicators-sidebar {
   width: 230px;
   flex-shrink: 0;
@@ -149,7 +147,7 @@
   flex-direction: column;
 }
 
-/* title-hLJm2ZAt: 11px, rgb(140,140,140), padding 7 0 7 12, uppercase. */
+/* Sidebar group title: 11px, rgb(140,140,140), padding 7 0 7 12, uppercase. */
 .indicators-sidebar-title {
   font-size: 11px;
   font-weight: 400;
@@ -160,7 +158,7 @@
   letter-spacing: 0.4px;
 }
 
-/* sidebarItem-S0GY3DS4: 40px, padding 0 8px, flex row. */
+/* Sidebar item: 40px, padding 0 8px, flex row. */
 .indicators-sidebar-item {
   height: 40px;
   flex-shrink: 0;
@@ -182,7 +180,7 @@
   background-color: var(--color-cold-gray-800, #2e2e2e);
 }
 
-/* active-S0GY3DS4: bg rgb(61,61,61). */
+/* Active sidebar item: bg rgb(61,61,61). */
 .indicators-sidebar-item.is-active {
   background-color: var(--color-cold-gray-750, #3d3d3d);
 }
@@ -202,7 +200,7 @@
   text-overflow: ellipsis;
 }
 
-/* ── List pane (contentContainer-I087YV6b) ────────────────────────────── */
+/* ── List pane ────────────────────────────────────────────────────────── */
 .indicators-list-pane {
   flex: 1;
   min-width: 0;
@@ -234,13 +232,13 @@
   padding-right: 5px;
 }
 
-/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+/* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
 .indicators-empty {
   margin-top: 24px;
 }
 
-/* Purchased tab — TV's own empty-state (title + body + Store CTA). */
+/* Purchased tab — empty-state (title + body + Store CTA). */
 .indicators-empty-state {
   display: flex;
   flex-direction: column;
@@ -269,7 +267,7 @@
   padding: 0 16px;
   border: 0;
   border-radius: 8px;
-  background-color: var(--color-tv-blue-500, #2962ff);
+  background-color: var(--color-ot-blue-500, #2962ff);
   color: #fff;
   font-family: inherit;
   font-size: 14px;
@@ -277,7 +275,7 @@
 }
 
 .indicators-empty-action:hover {
-  background-color: var(--color-tv-blue-600, #1e53e5);
+  background-color: var(--color-ot-blue-600, #1e53e5);
 }
 
 .indicators-list {
@@ -285,7 +283,7 @@
   flex-direction: column;
 }
 
-/* container-WeNdU0sq: 32px, 8px radius; selected rgb(19,32,66). */
+/* Row: 32px, 8px radius; selected rgb(19,32,66). */
 .indicators-row {
   display: grid;
   grid-template-columns: 320px 120px 80px;
@@ -297,7 +295,7 @@
 }
 
 .indicators-row.is-highlighted {
-  background-color: var(--color-tv-blue-a900, #132042);
+  background-color: var(--color-ot-blue-a900, #132042);
 }
 
 /* Registry-backed rows are clickable (click adds/removes the study). */
@@ -307,7 +305,7 @@
 
 /* An added study: the favorite-star slot becomes a green check. */
 .indicators-favorite.is-added {
-  color: var(--color-tv-green-500, #089981);
+  color: var(--color-ot-green-500, #089981);
 }
 
 .indicators-cell {
@@ -321,7 +319,7 @@
   gap: 8px;
 }
 
-/* favorite-WeNdU0sq.isActive: rgb(242,242,242), 22×22, 4px radius. */
+/* Active favorite star: rgb(242,242,242), 22×22, 4px radius. */
 .indicators-favorite {
   width: 22px;
   height: 22px;
@@ -349,7 +347,7 @@
   text-overflow: ellipsis;
 }
 
-/* badge-SzX7mZwu — "EP" Editors'-pick pill. */
+/* Badge — "EP" Editors'-pick pill. */
 .indicators-badge {
   flex-shrink: 0;
   height: 16px;
@@ -369,7 +367,7 @@
   text-overflow: ellipsis;
 }
 
-/* author-u47LxHP9: rgb(91,156,246). */
+/* Author: rgb(91,156,246). */
 .indicators-author {
   color: var(--color-link-primary-default, #5b9cf6);
   text-decoration: none;
@@ -380,13 +378,13 @@
   text-decoration: underline;
 }
 
-/* likes-WeNdU0sq: rgb(219,219,219). */
+/* Likes: rgb(219,219,219). */
 .indicators-boosts-cell {
   font-size: 14px;
   color: var(--color-cold-gray-200, #dbdbdb);
 }
 
-/* ── Fundamentals tab (roundTabButton-FF3hu1GK + container-vQ6ueYak) ───────── */
+/* ── Fundamentals tab ─────────────────────────────────────────────────── */
 .indicators-fund {
   display: flex;
   flex-direction: column;
@@ -401,7 +399,7 @@
   flex-wrap: wrap;
 }
 
-/* Round-pill tabs — geometry from TV's .roundTabButton-FF3hu1GK. */
+/* Round-pill tabs. */
 .indicators-subtab {
   height: 28px;
   padding: 0 11px;
@@ -440,9 +438,9 @@
   padding-right: 5px;
 }
 
-/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+/* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
-/* container-vQ6ueYak: 32px metric rows; depth-1 children indented + dotted. */
+/* Metric rows: 32px; depth-1 children indented + dotted. */
 .indicators-metric {
   display: flex;
   align-items: center;
@@ -455,7 +453,7 @@
 }
 
 .indicators-metric:hover {
-  background-color: var(--color-tv-blue-a900, #132042);
+  background-color: var(--color-ot-blue-a900, #132042);
 }
 
 .indicators-metric.depth-1 {
@@ -484,7 +482,7 @@
   padding: 0 20px 0 0;
 }
 
-/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+/* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
 .indicators-store-row {
   display: grid;
@@ -497,7 +495,7 @@
 }
 
 .indicators-store-row:hover {
-  background-color: var(--color-tv-blue-a900, #132042);
+  background-color: var(--color-ot-blue-a900, #132042);
 }
 
 .indicators-store-avatar {

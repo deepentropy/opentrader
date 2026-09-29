@@ -1,6 +1,6 @@
 /*
- * Shared model for a pane's two floating button boxes (TV's
- * `ControlBarNavigation`, dumped live off Desktop 3.3.0.7992):
+ * Shared model for a pane's two floating button boxes (the navigation
+ * controls):
  *
  *   • the centred group bar   — zoom out/in, maximize, scroll left/right, reset
  *   • the "back" button       — bottom-right "Scroll to the most recent bar"
@@ -10,38 +10,37 @@
  * and the Navigation setting. That common part lives here; ChartView owns the
  * state and ChartControlBar renders the group bar.
  *
- * Every constant below is measured, not guessed. See the doc for provenance.
+ * Every constant below is measured, not guessed.
  */
 import type { IChartApi } from "lightweight-charts";
 import type { NavButtonsBehavior } from "../header/chart-settings";
 
-/** Wrapper height: TV's 24px content box + 5px padding top and bottom. */
+/** Wrapper height: a 24px content box + 5px padding top and bottom. */
 export const CONTROL_BAR_H = 34;
-/** TV `_bottomMargin()`: extra lift for a pane holding the main series. */
+/** Bottom margin: extra lift for a pane holding the main series. */
 export const MAIN_PANE_MARGIN = 27;
 
-/** Bar-spacing step per zoom click. TV animates a width/5 pinch whose compound
- *  effect works out to ≈e^0.2; measured 1.2227 across six samples, and
- *  width-independent (the pinch scales with the pane). */
+/** Bar-spacing step per zoom click. The zoom animates a width/5 pinch whose
+ *  compound effect works out to ≈e^0.2; measured 1.2227 across six samples,
+ *  and width-independent (the pinch scales with the pane). */
 export const ZOOM_FACTOR = 1.2227;
 /** Zoom animation, measured: 250ms, easeOutCubic, linear in log(barSpacing). */
 export const ZOOM_MS = 250;
-/** TV `scrollToRealtime(animated)`: 1s of easeInOutQuint. */
+/** Animated scroll to realtime: 1s of easeInOutQuint. */
 export const GOTO_MS = 1000;
-/** TV `resetScales()` restores this bar spacing (also lightweight-charts' default). */
+/** Reset scales restores this bar spacing (also lightweight-charts' default). */
 export const DEFAULT_BAR_SPACING = 6;
 
-// ── TV `ScrollHelper.move` (held Ctrl/Alt + arrow) ──────────────────────────
-// `const t = .003, i = 1.1, s = Math.round(i/t)` — accelerate at 0.003 px/ms²
-// until 1.1 px/ms, reached at 367ms, then coast. Distances are PIXELS; callers
-// divide by bar spacing. TV starts this once on keydown and ignores key repeats,
-// which is what lets the speed build.
+// ── Scroll move (held Ctrl/Alt + arrow) ─────────────────────────────────────
+// Accelerate at 0.003 px/ms² until 1.1 px/ms, reached at 367ms, then coast.
+// Distances are PIXELS; callers divide by bar spacing. The move starts once on
+// keydown and ignores key repeats, which is what lets the speed build.
 export const MOVE_ACCEL = 0.003; // px/ms²
 export const MOVE_VMAX = 1.1; // px/ms
 export const MOVE_RAMP = Math.round(MOVE_VMAX / MOVE_ACCEL); // 367ms to top speed
 
 /**
- * TV's `move` position function, verbatim: unsigned pixels travelled at
+ * The move position function: unsigned pixels travelled at
  * `elapsed`, given `remaining` ms until the run ends (Infinity while held).
  *
  * Releasing does not cut the motion off. `stopMoveAt` pushes the end out by
@@ -57,15 +56,14 @@ export function movePixels(elapsed: number, remaining: number): number {
   return accel + (elapsed - a - c) * MOVE_VMAX + (MOVE_VMAX * c - (MOVE_ACCEL * c * c) / 2);
 }
 
-/** TV `_moveImpl`'s stop hook: when a run released at `elapsed` should finish. */
+/** Move stop hook: when a run released at `elapsed` should finish. */
 export const moveEndAfterStop = (elapsed: number) => Math.max(0, MOVE_RAMP - elapsed) + MOVE_RAMP;
 
 export const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 export const easeInOutQuint = (t: number) => (t < 0.5 ? 16 * t ** 5 : 1 - Math.pow(-2 * t + 2, 5) / 2);
 
-/** The four groups, in TV's *priority* order (`_initGroupDescriptions`) — when
- *  the pane is too narrow the later ones drop first. `width` is TV's own
- *  space-budget figure, which runs a little wider than the rendered box. */
+/** The four groups, in *priority* order: when the pane is too narrow the
+ *  later ones drop first. `width` is the space-budget figure, which runs a little wider than the rendered box. */
 export type GroupId = "maximize" | "reset" | "zoom" | "scroll";
 export const GROUPS: readonly { id: GroupId; width: number }[] = [
   { id: "maximize", width: 50 },
@@ -75,9 +73,9 @@ export const GROUPS: readonly { id: GroupId; width: number }[] = [
 ];
 
 /**
- * TV `_checkIsPointerNearBox`: the box padded 100px left/right/bottom and
+ * Pointer-near-box test: the box padded 100px left/right/bottom and
  * `100 - MAIN_PANE_MARGIN` on top. Returns `undefined` to mean "leave the
- * current state alone" — that's how TV freezes visibility while a mouse button
+ * current state alone": that is how visibility freezes while a mouse button
  * is held or a drawing is mid-placement, rather than hiding mid-drag.
  */
 export function pointerNearBox(e: MouseEvent, box: DOMRect, frozen: boolean): boolean | undefined {
@@ -101,11 +99,11 @@ export type BarAnchor = {
 };
 
 /**
- * TV `updatePosition` + `_updateBackBtnPosition` + `_updateBtnGroupVisibility`,
- * expressed against lightweight-charts' pane/scale API.
+ * Bar position, back-button position and group visibility, expressed against
+ * lightweight-charts' pane/scale API.
  *
- * Returns null when no pane is tall enough to hold the bar, which is TV's
- * `_getTargetPaneWidget() === null` — it leaves the anchor untouched.
+ * Returns null when no pane is tall enough to hold the bar (no target pane),
+ * which leaves the anchor untouched.
  */
 export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: number): BarAnchor | null {
   const panes = chart.panes();
@@ -116,7 +114,7 @@ export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: numbe
   const stacked = heights.reduce((a, b) => a + b, 0);
   const sep = panes.length > 1 ? Math.max(0, hostHeight - axis - stacked) / (panes.length - 1) : 0;
 
-  // TV `_getTargetPaneWidget`: the bottom-most pane with room for the bar.
+  // Target pane: the bottom-most pane with room for the bar.
   // Short indicator panes get skipped, so on a busy layout the bar lands on the
   // price pane rather than the bottom of the widget. Pane 0 holds the main
   // series here, which is what earns the 27px lift.
@@ -140,11 +138,11 @@ export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: numbe
   return {
     bottom,
     // 14px clear of the scale + the wrapper's own 2px inset. Both widths read 0
-    // when that scale is hidden, which is the fallback TV lands on too.
+    // when that scale is hidden, which is the intended fallback.
     right: rightScale + 16,
-    // TV `_updateControlBarPosition`: centred on the whole widget, scales included.
+    // Control bar position: centred on the whole widget, scales included.
     centre: (visibleWidth: number) => hostWidth / 2 - Math.ceil(visibleWidth / 2),
-    // TV `_updateBtnGroupVisibility`: the widest centred span that still fits
+    // Group visibility: the widest centred span that still fits
     // inside the pane, less 100px of reserve, spent in priority order. Once one
     // group misses, everything after it is dropped too.
     fits: (available) => {
@@ -181,9 +179,9 @@ export function liveBarSpacing(chart: IChartApi): number | null {
 
 /**
  * Resolve the Navigation setting into "may these buttons show at all". Only
- * `visibleOnMouseOver` consults the pointer; the other two pin it. TV also
- * forces `alwaysOff` when the series fails to load — we have no equivalent of
- * its series-display-error channel, so that leg is not ported.
+ * `visibleOnMouseOver` consults the pointer; the other two pin it. Forcing
+ * `alwaysOff` when the series fails to load is not implemented: there is no
+ * series-display-error channel here.
  */
 export function canShow(behavior: NavButtonsBehavior, pointerNear: boolean): boolean {
   if (behavior === "alwaysOn") return true;

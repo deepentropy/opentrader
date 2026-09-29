@@ -6,8 +6,8 @@
  *
  * Vendor-specific frontend transforms:
  *   • exchange-code normalization — Massive's reference endpoint reports the
- *     primary exchange as an ISO-10383 MIC ("XNAS"); TV's UI shows the friendly
- *     name ("NASDAQ"), as confirmed against the live desktop detail panel.
+ *     primary exchange as an ISO-10383 MIC ("XNAS"); the UI shows the friendly
+ *     name ("NASDAQ").
  *   • symbol-search mapping — turning raw `search_tickers` results (Massive
  *     security-type / market codes) into dialog rows, plus the Type-filter
  *     dropdown options. The generic ranking/filtering stays in ../symbol-search.
@@ -18,7 +18,7 @@ import type { SymbolRow, SymbolCategoryId, TypeFilter } from "../symbol-search";
 /** Bare tickers with no "EXCHANGE:" prefix default to this exchange. */
 export const defaultExchange = "NASDAQ";
 
-/** ISO-10383 MIC → TV's common exchange name. Unmapped codes fall through
+/** ISO-10383 MIC → common exchange name. Unmapped codes fall through
  *  unchanged (they may already be a friendly name). */
 const EXCHANGE_NAMES: Record<string, string> = {
   XNAS: "NASDAQ",
@@ -38,7 +38,7 @@ const EXCHANGE_NAMES: Record<string, string> = {
   OTCM: "OTC",
 };
 
-/** Map a primary-exchange MIC code to TV's display name, falling back to the
+/** Map a primary-exchange MIC code to its display name, falling back to the
  *  raw value when there's no mapping (or it's already a friendly name). */
 export function exchangeName(code: string | null | undefined): string {
   if (!code) return "";
@@ -66,9 +66,9 @@ export const typeFilters: TypeFilter[] = [
 ];
 
 /** Massive MIC (primary_exchange) → display exchange label for search rows.
- *  Distinct from `EXCHANGE_NAMES` above (the detail-panel map): the two were
- *  captured from TV separately and differ for a few codes (e.g. XASE), so they
- *  are kept apart to preserve each surface's observed labels. */
+ *  Distinct from `EXCHANGE_NAMES` above (the detail-panel map): the two
+ *  differ for a few codes (e.g. XASE), so they are kept apart to preserve each
+ *  surface's labels. */
 const SEARCH_EXCHANGE_NAMES: Record<string, string> = {
   XNAS: "NASDAQ", XNGS: "NASDAQ", XNCM: "NASDAQ", XNMS: "NASDAQ",
   XNYS: "NYSE", ARCX: "NYSE ARCA", XASE: "NYSE AMERICAN",
@@ -92,7 +92,7 @@ const MARKET_CATEGORY: Record<string, SymbolCategoryId> = {
 };
 
 /** Massive security type → category-tab override (takes priority over the market
- *  mapping). Mirrors TV's tab routing: ETF/ETN/funds → Funds, indices → Indices,
+ *  mapping). Tab routing: ETF/ETN/funds → Funds, indices → Indices,
  *  bonds → Bonds. Common stock + depositary receipts (CS/ADRC/…) fall through to
  *  the Stocks tab via the market mapping. */
 const TYPE_CATEGORY: Partial<Record<string, SymbolCategoryId>> = {

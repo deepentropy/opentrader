@@ -15,11 +15,11 @@
  *                      feeds 1-minute bars (up/down split by the minute's
  *                      direction — the standard aggregate approximation).
  *                      Bars without sub-data render as plain candles.
- *   • hlcArea        — TV's HLC Area: high + low lines with a band fill
+ *   • hlcArea        — HLC Area: high + low lines with a band fill
  *                      between them and the close line on top.
- *   • volCandles     — TV's Volume Candles: standard candles whose BODY WIDTH
+ *   • volCandles     — Volume Candles: standard candles whose BODY WIDTH
  *                      scales with the bar's volume relative to the window max.
- *   • hilo           — TV's High-Low: per-bar high↔low column + close tick,
+ *   • hilo           — High-Low: per-bar high↔low column + close tick,
  *                      coloured by close vs the previous close, with H/L value
  *                      labels at wide bar spacing.
  */
@@ -354,7 +354,7 @@ export function toProfile(raw: OHLC[], mode: "svp" | "tpo", st?: SvpStyle): Prof
   return items;
 }
 
-/** Session volume profile (TV svpStyle rows) and TPO block profile. SVP:
+/** Session volume profile (svpStyle rows) and TPO block profile. SVP:
  *  candles (Candles rows), per session a histogram box, up / down (or
  *  total / delta) volume rows — value-area rows in the value-area colours —
  *  grown from the session's left or right edge to Width % of the session,
@@ -508,7 +508,7 @@ export class ProfilePaneView implements ICustomSeriesPaneView<Time, ProfileItem,
       }
     }
   }
-  /** TPO: block profile (no TV style rows ported). */
+  /** TPO: block profile (no style rows). */
   private drawTpo(ctx: CanvasRenderingContext2D, p: ProfileBlock, x0: number, width: number, ptc: PriceToCoordinateConverter) {
     const maxW = width * 0.9;
     for (let k = 0; k < p.up.length; k++) {
@@ -738,7 +738,7 @@ export function toHlcArea(raw: OHLC[]): HlcAreaItem[] {
   return raw.map((r) => ({ time: r.time, high: r.high, low: r.low, close: r.close }));
 }
 
-/** TV's HLC Area (hlcAreaStyle): high / low / close lines, the band between
+/** HLC Area (hlcAreaStyle): high / low / close lines, the band between
  *  high and close filled with highCloseFillColor and the band between close
  *  and low with closeLowFillColor; high and low lines can be hidden. */
 export class HlcAreaPaneView implements ICustomSeriesPaneView<Time, HlcAreaItem, CustomSeriesOptions> {
@@ -839,7 +839,7 @@ export function toVolCandles(raw: OHLC[]): VolCandleItem[] {
   }));
 }
 
-/** TV's Volume Candles: standard OHLC candles whose BODY WIDTH scales with the
+/** Volume Candles: standard OHLC candles whose BODY WIDTH scales with the
  *  bar's volume relative to the series max — the busiest bar fills the bar
  *  slot, quiet bars shrink toward a sliver. Wick + colours as normal candles. */
 export class VolCandlePaneView implements ICustomSeriesPaneView<Time, VolCandleItem, CustomSeriesOptions> {
@@ -924,7 +924,7 @@ export function toHiLo(raw: OHLC[]): HiLoItem[] {
   return raw.map((r) => ({ time: r.time, high: r.high, low: r.low, close: r.close }));
 }
 
-/** TV's High-Low (module 364399 SeriesHiLoPaneView): a candle whose body
+/** High-Low: a candle whose body
  *  spans high to low, width 0.4 x bar spacing, body / border in the style
  *  colours (no direction colouring, no close tick), and the high / low
  *  values printed above / below once the bar spacing exceeds 5 px; font

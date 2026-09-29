@@ -1,7 +1,6 @@
 /*
- * ColorPanel — TV's color-picker panel, captured live from Desktop 3.2.0.7916
- * over CDP (menuWrap 248-250px wide):
- *   • palette mode — the 8 captured swatch rows (17×17 swatches on a 23px
+ * ColorPanel — the color-picker panel (menuWrap 248-250px wide):
+ *   • palette mode — the 8 swatch rows (17×17 swatches on a 23px
  *     pitch), then a persisted CUSTOM-colors row whose last tile is the
  *     17×17 "+ Add custom color" button, then "Opacity" (gradient track
  *     169×10 + drag pointer + 47×26 numeric input + "%"), then — for the
@@ -15,7 +14,7 @@
  */
 import { createSignal, For, Show } from "solid-js";
 import type { LineStyle } from "lightweight-charts-drawing/tv/types";
-import { TV_COLOR_ROWS } from "./palette";
+import { COLOR_ROWS } from "./palette";
 import * as kv from "../../data/kv";
 import { applyOpacity, hexToRgb, parseColor } from "lightweight-charts-drawing/tv/color";
 
@@ -46,7 +45,7 @@ function hsvToHex(h: number, s: number, v: number): string {
   return ("#" + to(r) + to(g) + to(b)).toUpperCase();
 }
 
-// ── Persisted custom colors (TV keeps them as an extra swatch row). ─────────
+// ── Persisted custom colors (kept as an extra swatch row). ──────────────────
 const CUSTOM_KEY = "tv:custom-colors";
 const MAX_CUSTOM = 20;
 function loadCustom(): string[] {
@@ -77,7 +76,7 @@ type Props = {
   onChange: (c: string) => void;
   /** Fired after a swatch pick or custom Add — the host popover may close. */
   onPicked?: () => void;
-  /** Hide the Opacity section (default shown, like TV). */
+  /** Hide the Opacity section (shown by default). */
   noOpacity?: boolean;
   /** Show the in-dialog Thickness section. */
   thickness?: number;
@@ -102,7 +101,7 @@ export function ColorPanel(props: Props) {
     props.onChange(applyOpacity(hex(), v));
   };
 
-  // Opacity track drag (TV: gradient track + 12px pointer).
+  // Opacity track drag (gradient track + 12px pointer).
   let trackEl: HTMLDivElement | undefined;
   const trackFromEvent = (e: PointerEvent) => {
     if (!trackEl) return;
@@ -130,7 +129,7 @@ export function ColorPanel(props: Props) {
       />
     }>
       <div class="cp-grid" role="group" aria-label="Color swatches">
-        <For each={TV_COLOR_ROWS}>
+        <For each={COLOR_ROWS}>
           {(row, i) => (
             <div class={"cp-row" + (i() === 1 ? " cp-row-gap" : "")}>
               <For each={row}>
@@ -147,7 +146,7 @@ export function ColorPanel(props: Props) {
             </div>
           )}
         </For>
-        {/* Custom colors + the inline "+" tile (TV keeps both in one row). */}
+        {/* Custom colors + the inline "+" tile, both in one row. */}
         <div class="cp-row cp-row-custom">
           <For each={customColors()}>
             {(c) => (

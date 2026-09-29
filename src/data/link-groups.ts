@@ -1,15 +1,15 @@
 /*
- * Link groups — port of TV Desktop's main-process Linker. One group per link
- * colour, spanning every tab of every window. The GROUP owns the channel
+ * Link groups — one group per link colour, spanning every tab of every
+ * window. The GROUP owns the channel
  * switches and the last symbol / interval values; a tab only carries its
  * colour.
  *
  *  - A new (empty) group starts with the Symbol channel only.
  *  - A tab joining a group that has members takes the group values at once;
  *    joining an empty group makes the tab's values the group values.
- *  - Time and date-range values are not kept (TV strips them on save).
+ *  - Time and date-range values are not kept (stripped on save).
  *
- * Stored in kv (store file, live across windows) like TV's `linking.groups`.
+ * Stored in kv (store file, live across windows).
  * Group membership is read from the tabs themselves (tabs.ts), so a group
  * whose last member left is simply reset on the next join.
  */
@@ -25,7 +25,7 @@ export type LinkGroup = {
 
 type Groups = Partial<Record<LinkColor, LinkGroup>>;
 
-/** TV default channels of a new group (shell Linker: symbol only). */
+/** Default channels of a new group (symbol only). */
 export const LINK_CHANNELS_DEFAULT: LinkChannels = {
   symbol: true,
   interval: false,

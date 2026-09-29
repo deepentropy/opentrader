@@ -2,12 +2,12 @@
  * Datafeed — the app's single normalized entry point for market data,
  * independent of which vendor the backend is wired to.
  *
- * Modelled on TradingView's Datafeed contract (resolveSymbol / getBars /
- * subscribeBars), but adapted to our stack: lightweight-charts pulls nothing,
- * so these are plain async methods returning data rather than callback-style
- * `IBasicDataFeed` signatures. The point is normalization — every access path
- * (REST second/minute aggs, daily history, scroll-back pagers, the live
- * aggregate stream) is routed here behind one resolution-keyed contract.
+ * Datafeed contract (resolveSymbol / getBars / subscribeBars), adapted to our
+ * stack: lightweight-charts pulls nothing, so these are plain async methods
+ * returning data rather than callback-style signatures. The point is
+ * normalization — every access path (REST second/minute aggs, daily history,
+ * scroll-back pagers, the live aggregate stream) is routed here behind one
+ * resolution-keyed contract.
  * Consumers (ChartView, watchlist detail, …) ask for a resolution and a symbol
  * and get bars; they never learn which Rust command served them, and the Rust
  * side in turn hides which vendor served it (see `data/provider` — the
@@ -44,7 +44,7 @@ export type { AggregateUnit } from "../window/chart/chart-aggregate";
 // The live-symbol subscription lifecycle is part of the feed contract; expose
 // it under the feed's vocabulary while delegating to the existing wrapper.
 export { setChartSubscription as setLiveSymbol } from "./datafeed-live";
-// Quote feed (TradingView's IDatafeedQuotesApi half): the per-symbol trade-tick
+// Quote feed (the quotes half of the contract): the per-symbol trade-tick
 // stream and the shared watchlist subscription slot it rides on. Watchlist rows
 // and the alert engine consume these; the subscriptions coordinator drives the
 // shared slot. All route through the feed rather than reaching into datafeed-live.
@@ -58,7 +58,7 @@ export type { TickerInfo, Snapshot } from "./datafeed-rest";
 export type { SymbolSearchResult } from "../bindings";
 
 // ── Resolution map ────────────────────────────────────────────────────────
-// The canonical routing table: a TV interval id → which source serves it and
+// The canonical routing table: an interval id → which source serves it and
 // how much history to pull. This was previously inlined in ChartView; it is
 // the heart of the normalization.
 
@@ -75,7 +75,7 @@ const SECOND_INTERVALS: Record<string, { mult: number; days: number }> = {
   "45S": { mult: 45, days: 3 },
 };
 
-/** Intraday TV interval ids → (lookback days, bucket minutes). Served by
+/** Intraday interval ids → (lookback days, bucket minutes). Served by
  *  the backend's minute aggregates (server-side bucketing). */
 const INTRADAY_INTERVALS: Record<string, { days: number; mins: number }> = {
   "1": { days: 5, mins: 1 },
@@ -276,13 +276,12 @@ export async function getEvents(symbol: string): Promise<ChartEvent[]> {
 }
 
 // ── Session (regular vs extended hours) ──────────────────────────────────────
-// The bottom-bar RTH/ETH toggle. TradingView resolves this server-side (its
-// datafeed returns session-correct bars); our backend aggregates carry NO
-// session flag — they always include extended hours (premarket from 04:00) and
-// are midnight-aligned. So we compute the session ourselves (generic US-equity
+// The bottom-bar RTH/ETH toggle. Our backend aggregates carry NO session flag
+// — they always include extended hours (premarket from 04:00) and are
+// midnight-aligned. So we compute the session ourselves (generic US-equity
 // session logic, not vendor-specific):
 //   • ETH → bars as-is (midnight-aligned hour buckets already break at 04:00,
-//     the extended-session open, matching TV).
+//     the extended-session open).
 //   • RTH → keep only 09:30–16:00 ET. For seconds + 1/5/15/30-min that's an
 //     exact filter (09:30 is already a bucket edge). For 1H/2H/4H the hour
 //     buckets straddle the open (the 09:00 bar mixes premarket + open), so we
@@ -371,7 +370,7 @@ function needsSessionReaggregation(mins: number): boolean {
 
 const ADJUSTED_KEY = "tv:adjusted";
 
-/** Current split-adjustment preference (default ON, TV's default). */
+/** Current split-adjustment preference (default ON). */
 export function isAdjusted(): boolean {
   return getItem(ADJUSTED_KEY) !== "false";
 }
@@ -548,9 +547,9 @@ export function bucketLiveTick(
   // Session-independent, like the historical daily path (no RTH variant).
   const dailyCfg = DAILY_INTERVALS[resolution];
   if (dailyCfg) {
-    // Day-bar only: pre-market snapshots carry no day bar yet (TV shows
-    // today's daily candle only once the regular session trades), and the
-    // minute bar would fabricate one from pre-market prices.
+    // Day-bar only: pre-market snapshots carry no day bar yet (today's daily
+    // candle shows only once the regular session trades), and the minute bar
+    // would fabricate one from pre-market prices.
     const src = tick.day;
     if (!src) return null;
     // A day-only tick (no minute bar in the snapshot) stamps time=0; fall back

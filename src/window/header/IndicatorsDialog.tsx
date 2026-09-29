@@ -1,10 +1,9 @@
 /*
  * IndicatorsDialog — the "Indicators, metrics, and strategies" modal opened from
  * the header's `open-indicators-dialog` button (hotkey "/"). Ported to SolidJS
- * from the reference mock, reverse-engineered from TV Desktop's
- * `[data-name="indicators-dialog"]`.
+ * from the reference mock.
  *
- * Layout kept 1:1 with the live dialog (840×638): header, bordered search, a
+ * Layout (840×638): header, bordered search, a
  * sidebar (Personal / Built-In / Community), and a NAME · AUTHOR · BOOSTS list.
  * Registry-backed rows are clickable: clicking adds/removes the study on the
  * chart. Keyboard: ↑/↓ move highlight · Enter toggles · Esc closes.
@@ -36,7 +35,7 @@ type Props = {
   onToggleIndicator?: (indicatorId: string) => void;
 };
 
-/** Render the exact FontIcon glyph probed for a sidebar item. */
+/** Render the FontIcon glyph for a sidebar item. */
 function Glyph(props: { id: string }) {
   const def = () => SIDEBAR_ICONS[props.id];
   return (
@@ -85,7 +84,7 @@ function FundamentalsView(props: { subtabs: FundamentalSubtab[]; query: string }
       <div class="indicators-fund-list">
         <Show
           when={metrics().length > 0}
-          fallback={<div class="tv-empty-state indicators-empty">No matches</div>}
+          fallback={<div class="ot-empty-state indicators-empty">No matches</div>}
         >
           <For each={metrics()}>
             {(m) => (
@@ -270,7 +269,7 @@ export function IndicatorsDialog(props: Props) {
                     </Show>
 
                     <Show when={c().kind === "placeholder" || c().kind === "gap"}>
-                      <div class="tv-empty-state indicators-empty">{(c() as any).note}</div>
+                      <div class="ot-empty-state indicators-empty">{(c() as any).note}</div>
                     </Show>
 
                     <Show when={c().kind === "fundamentals"}>
@@ -281,7 +280,7 @@ export function IndicatorsDialog(props: Props) {
                       <Show
                         when={rows().length > 0}
                         fallback={
-                          <div class="tv-empty-state indicators-empty">{query() ? "No matches" : "No indicators"}</div>
+                          <div class="ot-empty-state indicators-empty">{query() ? "No matches" : "No indicators"}</div>
                         }
                       >
                         <div class="indicators-list" ref={listRef} role="listbox">
@@ -309,7 +308,7 @@ export function IndicatorsDialog(props: Props) {
                                             role="button"
                                             onClick={(e) => {
                                               // Star toggles the favourite without
-                                              // adding the study (TV idiom).
+                                              // adding the study.
                                               if (!row.indicatorId) return;
                                               e.stopPropagation();
                                               toggleFavoriteIndicator(row.indicatorId);

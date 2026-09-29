@@ -35,8 +35,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "Odyssée",
-    "copyright": "© 2026 Odyssée. MIT License.",
+    "publisher": "OpenTrader",
+    "copyright": "© 2026 OpenTrader contributors. MIT License.",
     "category": "Finance",
     "shortDescription": "Desktop charting app",
     "macOS": {

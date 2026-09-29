@@ -1,7 +1,7 @@
 /*
  * Session-breaks primitive — full-height vertical separators at the start of
- * each trading session (TV's "Session breaks", Events tab). On intraday frames
- * TV draws a thin vertical line wherever the calendar day rolls over between
+ * each trading session ("Session breaks", Events tab). On intraday frames
+ * a thin vertical line is drawn wherever the calendar day rolls over between
  * two adjacent bars; daily+ frames show nothing (one bar per session already).
  *
  * Built on the same series-primitive pattern as the indicator renderers

@@ -1,17 +1,16 @@
 /*
- * AlertsPanel inventory — captured from TradingView's live right rail.
+ * AlertsPanel inventory.
  *
  * The component that consumes it (window/right-rail/AlertsPanel.tsx) is
- * hand-maintained.  Probed 27/05/2026.
+ * hand-maintained.
  *
- * The Log entries are a one-shot snapshot from probe time.  The Alerts
- * (configured) view is empty — TV's configured-alerts list needs its own
- * probe pass.
+ * The Log entries are static sample data.  The Alerts (configured) view is
+ * empty.
  */
-import type { TvIconName } from '../components/TvIcon';
+import type { IconName } from '../components/Icon';
 
 export type Tab = { id: 'alerts' | 'log'; label: string };
-export type ToolbarItem = { dataName: string; label: string | null; iconName: TvIconName | null };
+export type ToolbarItem = { dataName: string; label: string | null; iconName: IconName | null };
 export type LogEntry = { message: string | null; ticker: string | null; logoUrl: string | null; time: string | null };
 
 export const TABS: Tab[] = [

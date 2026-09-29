@@ -1,19 +1,13 @@
 /*
- * Chart "Settings" (series-properties) dialog — data model.
- *
- * Source of truth: TV Desktop 3.4.1.8194, captured 25/09/2026 over CDP:
- * live dialog rows + option lists, TV's own definition code (modules
- * 951860 = Symbol-tab style rows per chart type, 814678 = Symbol tab,
- * 714494 = other tabs) and its factory defaults. Earlier captures: 3.1
- * (30/05/2026), 3.3 (25/07/2026).
+ * Chart "Settings" (series-properties) dialog — data model: dialog rows,
+ * option lists and factory defaults.
  *
  * Rows carry a stable `id` (default: the label) — drafts are keyed by it, so
  * inserting a row no longer invalidates saved settings (see chart-settings).
  *
  * 7 sidebar tabs (data-qa-id) with their exact FontIcon svgs, one `FormItem[]`
  * per tab, plus one `style.<group>` form per chart type: the Symbol tab shows
- * the form of the pane's chart type (TV `getSeriesStylePropertiesDefinitions`)
- * above its own "Data modification" rows.
+ * the form of the pane's chart type above its own "Data modification" rows.
  */
 import type { ChartTypeId } from "../window/chart/chart-types";
 import { TIMEZONES } from "./timezones";
@@ -33,31 +27,31 @@ export const SETTINGS_TABS: SettingsTab[] = [
 
 export const DEFAULT_SETTINGS_TAB = 'symbol';
 
-/** TV factory up/down (candles, bars, renko…). */
+/** Factory up/down colours (candles, bars, renko…). */
 export const CANDLE_COLORS = { up: "#089981", down: "#F23645" };
 const UP = CANDLE_COLORS.up;
 const DOWN = CANDLE_COLORS.down;
-/** TV factory projection colours (renko / line break / kagi / P&F / range). */
+/** Factory projection colours (renko / line break / kagi / P&F / range). */
 const UP_PROJ = "#A9DCC3";
 const DOWN_PROJ = "#F5A6AE";
 
 /* ── Control / row model ────────────────────────────────────────────────────
- * Controls mirror TV's property-definition renderers:
- *   select      — ui-lib select (menu of options).
- *   multicheck  — TV 3.3+ check-list select ("Value, line" / "Hidden").
+ * Controls map to property-definition renderers:
+ *   select      — select (menu of options).
+ *   multicheck  — check-list select ("Value, line" / "Hidden").
  *   color       — `color-select`: 34×34 box, palette popup (+ Opacity unless
- *                 `noOpacity`). With `width` and/or `style` it becomes TV's
+ *                 `noOpacity`). With `width` and/or `style` it becomes the
  *                 75×34 combined button (`color-with-thickness-select` /
  *                 line-style variant): swatch + line preview, the popup adds
- *                 Thickness (1–4) / Line style sections. `color: ""` = TV's
+ *                 Thickness (1–4) / Line style sections. `color: ""` = the
  *                 automatic colour (red/teal placeholder swatch).
  *   colorPair   — two `color-select` boxes (up / down, fill / border…).
- *   lineColor   — TV line colour with a Solid/Gradient type select
- *                 (line-family chart types, 346022 `$e`).
- *   input       — text/number field; `num` makes it a TV number input
+ *   lineColor   — line colour with a Solid/Gradient type select
+ *                 (line-family chart types).
+ *   input       — text/number field; `num` makes it a number input
  *                 (100×34 with spin buttons), `unit` sits outside.
- *   slider      — TV Transparency slider (value = transparency 0–100).
- * Line style enum everywhere: 0 solid, 1 dashed, 2 dotted (TV's menu order). */
+ *   slider      — Transparency slider (value = transparency 0–100).
+ * Line style enum everywhere: 0 solid, 1 dashed, 2 dotted (menu order). */
 export type Control =
   | { c: 'select'; value: string; options: string[]; disabled?: boolean }
   | { c: 'color'; color: string; noOpacity?: boolean; width?: number; style?: number }
@@ -78,15 +72,16 @@ export type FormRow = {
   /** Leading checkbox (before the label). */
   cb?: boolean;
   checked?: boolean;
-  /** Nest under the previous row (TV `offset`, 26 px). */
+  /** Nest under the previous row (26 px offset). */
   indent?: boolean;
-  /** TV "grouped" cell: 4 px cell padding (42 px row), e.g. Events rows. */
+  /** "Grouped" cell: 4 px cell padding (42 px row), e.g. Events rows. */
   grouped?: boolean;
-  /** Child row of a checkable set / continuation row (TV wrapRowInner,
-   *  margin-top −8 px): sits 42 px under its parent. */
+  /** Child row of a checkable set / continuation row (margin-top −8 px):
+   *  sits 42 px under its parent. */
   child?: boolean;
-  /** Trailing (?) help icon after the label. A string is its TV hover text;
-   *  `true` is an icon without hover text (TV Positions and orders, Execution marks). */
+  /** Trailing (?) help icon after the label. A string is its hover text;
+   *  `true` is an icon without hover text (Positions and orders, Execution
+   *  marks). */
   help?: boolean | string;
   /** Muted helper line rendered under the label. */
   desc?: string;
@@ -99,7 +94,7 @@ export type FormRow = {
 
 export type FormItem =
   | { kind: 'section'; text: string }
-  /** TV group separator without a title (16 px). */
+  /** Group separator without a title (16 px). */
   | { kind: 'gap' }
   | ({ kind: 'row' } & FormRow);
 
@@ -109,7 +104,7 @@ const row = (r: FormRow): FormItem => ({ kind: 'row', ...r });
 
 export const rowIdOf = (r: FormRow): string => r.id ?? r.label ?? '';
 
-/* ── Option catalogs (TV 3.4 menus) ────────────────────────────────────── */
+/* ── Option catalogs ───────────────────────────────────────────────────── */
 export const PRECISION_OPTIONS = [
   "Default", "Integer",
   "1 decimal", "2 decimals", "3 decimals", "4 decimals", "5 decimals", "6 decimals",
@@ -125,17 +120,17 @@ const DATE_FORMAT = [
   "Mon 29/09/1997", "Mon 09/29/97", "Mon 09/29/1997",
 ];
 const FONT_SIZES = ["8", "10", "11", "12", "14", "16", "18", "20", "22", "24", "28", "32", "40"];
-/** TV basePriceSources (module 35755), in TV's order. */
+/** Base price sources, in menu order. */
 export const PRICE_SOURCES = ["Open", "High", "Low", "Close", "(H + L)/2", "(H + L + C)/3", "(O + H + L + C)/4"];
 const BOX_METHODS = ["ATR", "Traditional", "Percentage LTP"];
-/** Session select: TV lists Regular / Extended / 24 hours. "24 hours" needs
+/** Session select: Regular / Extended. A "24 hours" option would need
  *  overnight (Blue Ocean) bars, which the Polygon plan does not carry — the
  *  same two sessions as the bottom-bar session menu. */
 export const SESSION_OPTIONS = ["Regular", "Extended"];
-/** TV's timezone menu (UTC, Exchange, then the offset-prefixed zones). */
+/** Timezone menu (UTC, Exchange, then the offset-prefixed zones). */
 const TIMEZONE_OPTIONS = TIMEZONES.map((t) => t.label);
 
-/* ── Per-chart-type style forms (TV 951860 + factory defaults) ─────────── */
+/* ── Per-chart-type style forms (+ factory defaults) ───────────────────── */
 
 /** Style-form key of each OT chart type. */
 export type StyleGroup =
@@ -147,7 +142,7 @@ export type StyleGroup =
 
 export const styleGroupOf = (t: ChartTypeId): StyleGroup => t as StyleGroup;
 
-/** TV chart-style names (getTranslatedChartStyleName) — the Symbol tab's
+/** Chart-style names — the Symbol tab's
  *  first section title. */
 export const STYLE_TITLES: Record<StyleGroup, string> = {
   bar: 'Bars', candle: 'Candles', volCandles: 'Volume candles', hollowCandle: 'Hollow candles', ha: 'Heikin Ashi',
@@ -184,9 +179,9 @@ const barSetRows = (border: boolean): FormItem[] => border
     ];
 const num = (value: number | string, min: number, max: number, step = 1, int = false, unit?: string): Control =>
   ({ c: 'input', value: String(value), unit, num: { min, max, step, int } });
-/** Box-size inputs (TV chart-style study metainfo).
- *  The method select is labelled "Box size assignment method" for every type
- *  (814678 `w`), each size field visible only for its method. */
+/** Box-size inputs (chart-style study inputs).
+ *  The method select is labelled "Box size assignment method" for every type,
+ *  each size field visible only for its method. */
 const boxInputs = (sizeLabel: 'Box size' | 'Reversal amount', sizeDefault: number): FormItem[] => [
   row({ id: 'Style', label: 'Box size assignment method', controls: [{ c: 'select', value: 'ATR', options: BOX_METHODS }] }),
   row({ label: sizeLabel, controls: [num(sizeDefault, 0.000001, 1e9, 0.01)], visibleWhen: { id: 'Style', values: ['Traditional'] } }),
@@ -216,7 +211,7 @@ export const STYLE_FORMS: Record<StyleGroup, FormItem[]> = {
   area: [
     row({ label: 'Price source', controls: [{ c: 'select', value: 'Close', options: PRICE_SOURCES }] }),
     row({ label: 'Line', controls: [{ c: 'color', color: '#2962FF', width: 2, style: 0 }] }),
-    // TV areaStyle color1 / color2 (top / bottom), both at `transparency`.
+    // Area fill color1 / color2 (top / bottom), both at `transparency`.
     row({ label: 'Fill', controls: [{ c: 'colorPair', up: 'rgba(41, 98, 255, 0.28)', down: 'rgba(41, 98, 255, 0)' }] }),
   ],
   hlcArea: [
@@ -280,14 +275,13 @@ export const STYLE_FORMS: Record<StyleGroup, FormItem[]> = {
     row({ label: 'Projection candles', controls: [{ c: 'colorPair', up: UP_PROJ, down: DOWN_PROJ }], visibleWhen: { id: 'Style', values: ['Candles'] } }),
     row({ cb: true, checked: false, label: 'Phantom bars' }),
   ],
-  // Volume footprint and TPO: TV loads separate pages (modules 311193 /
-  // 756034) built for renderers this app does not have (tick-based
-  // imbalance / stacked levels / summary rows; TPO letters, blocks, initial
-  // balance). No rows until those renderers exist.
+  // Volume footprint and TPO: their settings pages need renderers this app
+  // does not have (tick-based imbalance / stacked levels / summary rows; TPO
+  // letters, blocks, initial balance). No rows until those renderers exist.
   volFootprint: [],
   tpo: [],
-  // Session volume profile — TV module 637744 (three groups, no chart-type
-  // title), factory svpStyle / VbPSessions inputs.
+  // Session volume profile (three groups, no chart-type title), factory
+  // svpStyle / VbPSessions inputs.
   svp: [
     section('Volume Profile'),
     row({ cb: true, checked: false, label: 'Values', controls: [{ c: 'color', color: '#DBDBDB' }] }),
@@ -325,15 +319,15 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
   symbol: [
     section('Data modification'),
     row({ label: 'Session', controls: [{ c: 'select', value: 'Regular', options: SESSION_OPTIONS }] }),
-    // TV `_createPrePostMarketDefinition`: shown while the session is not
-    // Regular (intraday only — the dialog also hides it on D/W/M).
+    // Shown while the session is not Regular (intraday only — the dialog also
+    // hides it on D/W/M).
     row({ label: 'Pre/post market hours background', controls: [{ c: 'color', color: 'rgba(255, 152, 0, 0.08)' }, { c: 'color', color: 'rgba(41, 98, 255, 0.08)' }], visibleWhen: { id: 'Session', values: ['Extended'] } }),
     row({ cb: true, checked: false, label: 'Adjust data for dividends', help: 'Click here to learn more' }),
     row({ label: 'Precision', controls: [{ c: 'select', value: 'Default', options: PRECISION_OPTIONS }] }),
     row({ label: 'Timezone', controls: [{ c: 'select', value: 'Exchange', options: TIMEZONE_OPTIONS }] }),
   ],
 
-  // ── Status line (TV 714494 legend page) ──────────────────────────────────
+  // ── Status line ──────────────────────────────────────────────────────────
   legend: [
     section('Instrument'),
     row({ cb: true, checked: true, label: 'Logo' }),
@@ -343,7 +337,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'Bar change values' }),
     row({ cb: true, checked: false, label: 'Volume' }),
     row({ cb: true, checked: false, label: 'Last day change values' }),
-    // Same property as Trading → "Buy/sell buttons" (TV sellBuyButtonsVisibilityService);
+    // Same property as Trading → "Buy/sell buttons";
     // no trading surface in this app.
     row({ id: 'Buy/sell buttons', cb: true, checked: false, label: 'Buy/sell buttons', desc: 'Displays buy and sell buttons directly on the chart', inert: true }),
     section('Indicators'),
@@ -351,7 +345,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'Inputs', indent: true, child: true }),
     row({ cb: true, checked: true, label: 'Values' }),
     gap(),
-    // TV legendBgTransparency: checkbox + transparency slider (factory 50).
+    // Legend background: checkbox + transparency slider (factory 50).
     row({ cb: true, checked: true, label: 'Background', controls: [{ c: 'slider', value: 50 }] }),
   ],
 
@@ -367,7 +361,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'No overlapping labels' }),
     row({ cb: true, checked: true, label: 'Plus button', help: 'Click here to learn more' }),
     row({ cb: true, checked: true, label: 'Countdown to bar close' }),
-    // Check lists (TV 3.3+). Symbol: check list + price-line colour / width
+    // Check lists. Symbol: check list + price-line colour / width
     // (priceLineColor "" = bar direction, priceLineWidth 1), then the
     // last-value mode select as a grouped continuation row.
     row({ label: 'Symbol', controls: [{ c: 'multicheck', options: ['Name', 'Value', 'Line'], on: ['Value', 'Line'] }, { c: 'color', color: '', width: 1, noOpacity: true }] }),
@@ -388,14 +382,14 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
   canvas: [
     section('Chart basic styles'),
     // Solid shows the first swatch only; Gradient shows top + bottom. The
-    // background swatch has no Opacity section (TV colorpop canvas-0).
+    // background swatch has no Opacity section.
     row({ label: 'Background', controls: [{ c: 'select', value: 'Solid', options: ['Solid', 'Gradient'] }, { c: 'color', color: 'rgb(15, 15, 15)', noOpacity: true }, { c: 'color', color: 'rgb(30, 34, 45)', noOpacity: true }] }),
     // Grid: colour + Opacity + Line style (no thickness). Crosshair: colour +
-    // Opacity + Thickness + Line style (TV colorpop canvas-1..3).
+    // Opacity + Thickness + Line style.
     row({ cb: true, checked: true, label: 'Vertical grid lines', controls: [{ c: 'color', color: 'rgba(242, 242, 242, 0.2)', style: 2 }] }),
     row({ cb: true, checked: true, label: 'Horizontal grid lines', controls: [{ c: 'color', color: 'rgba(242, 242, 242, 0.2)', style: 2 }] }),
     row({ label: 'Crosshair', controls: [{ c: 'color', color: 'rgb(156, 156, 156)', width: 1, style: 1 }] }),
-    // TV watermark: check-list select (Ticker / Interval / Description /
+    // Watermark: check-list select (Ticker / Interval / Description /
     // Replay mode) + colour. Replay mode is omitted (no replay in this app).
     row({ label: 'Watermark', controls: [{ c: 'multicheck', options: ['Ticker', 'Interval', 'Description'], on: [] }, { c: 'color', color: 'rgba(80, 83, 94, 0.3)' }] }),
     section('Scales'),
@@ -435,7 +429,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
   // ── Alerts ───────────────────────────────────────────────────────────────
   alerts: [
     section('Chart line visibility'),
-    // TV: ONE colour (colorAlertsLine, palette without Opacity).
+    // ONE colour (colorAlertsLine, palette without Opacity).
     row({ cb: true, checked: true, label: 'Alert lines', controls: [{ c: 'color', color: UP, noOpacity: true }] }),
     row({ cb: true, checked: true, label: 'Only active alerts' }),
     section('Notifications'),
@@ -448,7 +442,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: false, label: 'Ideas', help: 'Click here to learn more', controls: [{ c: 'select', value: 'Ideas of followed users', options: ['Ideas of followed users'], disabled: true }], inert: true }),
     row({ cb: true, checked: true, label: 'Dividends', child: true }),
     row({ cb: true, checked: true, label: 'Splits', child: true }),
-    // Session breaks: colour + Opacity + Thickness + Line style (TV colorpop events-0).
+    // Session breaks: colour + Opacity + Thickness + Line style.
     row({ cb: true, checked: false, label: 'Session breaks', controls: [{ c: 'color', color: 'rgb(73, 133, 231)', width: 1, style: 1 }] }),
     row({ cb: true, checked: true, label: 'Latest news' }),
     row({ cb: true, checked: false, label: 'News notification' }),

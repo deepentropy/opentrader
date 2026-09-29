@@ -96,7 +96,7 @@ export function detachTabToWindow(tab: TabChart, screenX: number, screenY: numbe
 let newWindowSeq = 0;
 
 /**
- * Open a fresh app window (TV's "New window", Ctrl+N). Unlike detach, it writes
+ * Open a fresh app window ("New window", Ctrl+N). Unlike detach, it writes
  * no handoff payload — the new window's label-scoped storage is empty, so it
  * boots with a single default tab (see loadTabs). Frameless like the main
  * window; cascaded a little so stacked windows don't perfectly overlap.
@@ -142,7 +142,7 @@ function clearWindowStorage(label: string): void {
 /**
  * Wire localStorage cleanup for this window and return a disposer:
  *  - a window the user closes while other windows stay open clears its own
- *    label-scoped state (the Rust window session forgets it too, like TV);
+ *    label-scoped state (the Rust window session forgets it too);
  *    the last window, whose close quits the app, keeps its tabs for the
  *    restart (src-tauri/src/window_session.rs recreates it);
  *  - the main window, on launch, sweeps any `chart-*` state whose window is no
@@ -157,7 +157,7 @@ export async function initWindowStorageCleanup(label: string): Promise<() => voi
   try {
     unlisten = await getCurrentWebviewWindow().onCloseRequested(async () => {
       if ((await getAllWebviewWindows()).length <= 1) return;
-      // TV: a window the user closes goes on the undo stack ("Reopen closed
+      // A window the user closes goes on the undo stack ("Reopen closed
       // window"); one that closes because its last tab moved out does not.
       if (!closingAfterMove) await recordClosedWindow(label);
       clearWindowStorage(label);
@@ -202,7 +202,7 @@ async function recordClosedWindow(label: string): Promise<void> {
 }
 
 /**
- * Reopen a closed window (TV "Reopen closed window"): its tabs go under its
+ * Reopen a closed window ("Reopen closed window"): its tabs go under its
  * label (a fresh label if that one is open again), then the Rust window
  * session opens it at its saved bounds, or a default window is opened.
  */
@@ -253,7 +253,7 @@ export async function adoptSavedWindowTabs(): Promise<void> {
 }
 
 /**
- * Toggle this window's fullscreen state (TV's Shift+F / header fullscreen
+ * Toggle this window's fullscreen state (Shift+F / header fullscreen
  * button). Inside the Tauri shell this flips the native webview-window flag;
  * in a plain browser (vite dev / verify harness) it falls back to the DOM
  * Fullscreen API so the shortcut still does something. Best-effort either way.

@@ -1,15 +1,15 @@
 /*
- * `.tv-rail-panel` — shared base for every right-rail widget body
- * (Watchlist, Alerts, Object Tree, Chats, …).  TV: `.widgetbar-widget`
- * is a single class used by every panel; mock follows that.
+ * `.ot-rail-panel` — shared base for every right-rail widget body
+ * (Watchlist, Alerts, Object Tree, Chats, …): a single class used by every
+ * panel.
  *
  * Surface-specific files only add panel-unique rules (column grids, row
  * heights, etc.).  The width + bg + flex column live here.
  */
-.tv-rail-panel {
+.ot-rail-panel {
   width: 331px;
   flex-shrink: 0;
-  background-color: var(--tv-chart-bg);
+  background-color: var(--ot-chart-bg);
   color: var(--color-toolbar-button-text);
   display: flex;
   flex-direction: column;

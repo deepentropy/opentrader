@@ -1,23 +1,22 @@
 /*
- * TV prompt dialogs — `showRename` (a name field with the list of existing
- * names) and `showConfirm`, as TradingView Desktop 3.4.1 draws them
- * (popupDialog-xKF9ptKN, measured 26/09/2026): 480 px wide, #1F1F1F, r6,
- * padding 40, title 20/600, centred in the window, no dimming behind.
+ * Prompt dialogs — `showRename` (a name field with the list of existing
+ * names) and `showConfirm`: 480 px wide, #1F1F1F, r6, padding 40,
+ * title 20/600, centred in the window, no dimming behind.
  * Used by the drawing / chart / indicator template menus.
  *
- * Imperative API (TV's showRename / showConfirm): call from anywhere; the
- * <TvDialogHost/> mounted once in App renders the open dialogs, newest on top.
+ * Imperative API (showRename / showConfirm): call from anywhere; the
+ * <DialogHost/> mounted once in App renders the open dialogs, newest on top.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 
 export type ConfirmOptions = {
-  /** Title (TV default "Confirmation"). */
+  /** Title (default "Confirmation"). */
   title?: string;
   text: string;
-  /** Main button (TV default "Yes"). */
+  /** Main button (default "Yes"). */
   mainText?: string;
-  /** Other button (TV default "No"). */
+  /** Other button (default "No"). */
   cancelText?: string;
   /** Main button colour: success = #089981 (default), danger = #F23645. */
   intent?: "success" | "danger";
@@ -53,7 +52,7 @@ export function showRename(opts: RenameOptions): void {
   setStack((s) => [...s, { id: nextId++, kind: "rename", opts }]);
 }
 
-/** Case-insensitive "contains" filter (TV autocompleteFilter, module 209807). */
+/** Case-insensitive "contains" filter. */
 const matches = (typed: string, name: string) => typed === "" || name.toLowerCase().includes(typed.toLowerCase());
 
 const CloseIcon = () => (
@@ -64,10 +63,10 @@ const CloseIcon = () => (
 
 function Frame(props: { title: string; onClose: () => void; children: import("solid-js").JSX.Element; label: string }) {
   return (
-    <div class="tv-dlg-layer" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-      <div class="tv-dlg" role="dialog" aria-label={props.label}>
-        <div class="tv-dlg-title">{props.title}</div>
-        <button type="button" class="tv-dlg-close" aria-label="close" onClick={() => props.onClose()}>
+    <div class="ot-dlg-layer" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <div class="ot-dlg" role="dialog" aria-label={props.label}>
+        <div class="ot-dlg-title">{props.title}</div>
+        <button type="button" class="ot-dlg-close" aria-label="close" onClick={() => props.onClose()}>
           <CloseIcon />
         </button>
         {props.children}
@@ -83,10 +82,10 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
   useKeys(props.entry.id, cancel, confirm);
   return (
     <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={cancel}>
-      <div class="tv-dlg-content tv-dlg-text">{o.text}</div>
-      <div class="tv-dlg-footer">
-        <button type="button" class="tv-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>
-        <button type="button" class={`tv-dlg-btn is-main is-${o.intent ?? "success"}`} data-name="submit-button" onClick={confirm}>
+      <div class="ot-dlg-content ot-dlg-text">{o.text}</div>
+      <div class="ot-dlg-footer">
+        <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>
+        <button type="button" class={`ot-dlg-btn is-main is-${o.intent ?? "success"}`} data-name="submit-button" onClick={confirm}>
           {o.mainText ?? "Yes"}
         </button>
       </div>
@@ -116,14 +115,14 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
   onMount(() => input.focus());
   return (
     <Frame title={o.title} label={o.title} onClose={cancel}>
-      <div class="tv-dlg-content">
-        <label class="tv-dlg-label" for={`tv-dlg-input-${props.entry.id}`}>{o.label}</label>
-        <div class="tv-dlg-field">
-          <span class="tv-dlg-input-box">
+      <div class="ot-dlg-content">
+        <label class="ot-dlg-label" for={`ot-dlg-input-${props.entry.id}`}>{o.label}</label>
+        <div class="ot-dlg-field">
+          <span class="ot-dlg-input-box">
             <input
               ref={input}
-              id={`tv-dlg-input-${props.entry.id}`}
-              class="tv-dlg-input"
+              id={`ot-dlg-input-${props.entry.id}`}
+              class="ot-dlg-input"
               type="text"
               maxLength={o.maxLength}
               value={value()}
@@ -132,7 +131,7 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
               onInput={(e) => { setValue(e.currentTarget.value); setListOpen(shown().length > 0 && e.currentTarget.value !== ""); }}
             />
             <Show when={o.names.length > 0}>
-              <button type="button" class={`tv-dlg-list-btn${listOpen() ? " is-open" : ""}`} aria-label="Show names" tabIndex={-1} onClick={() => { setListOpen(!listOpen()); input.focus(); }}>
+              <button type="button" class={`ot-dlg-list-btn${listOpen() ? " is-open" : ""}`} aria-label="Show names" tabIndex={-1} onClick={() => { setListOpen(!listOpen()); input.focus(); }}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
                   <path fill="currentColor" d="M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z" />
                 </svg>
@@ -140,10 +139,10 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
             </Show>
           </span>
           <Show when={listOpen() && shown().length > 0}>
-            <div class="tv-dlg-suggestions" role="listbox">
+            <div class="ot-dlg-suggestions" role="listbox">
               <For each={shown()}>
                 {(n) => (
-                  <div role="option" class="tv-dlg-suggestion" onMouseDown={(e) => e.preventDefault()} onClick={() => { setValue(n); setListOpen(false); input.focus(); }}>
+                  <div role="option" class="ot-dlg-suggestion" onMouseDown={(e) => e.preventDefault()} onClick={() => { setValue(n); setListOpen(false); input.focus(); }}>
                     {n}
                   </div>
                 )}
@@ -152,9 +151,9 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
           </Show>
         </div>
       </div>
-      <div class="tv-dlg-footer">
-        <button type="button" class="tv-dlg-btn is-secondary" onClick={cancel}>Cancel</button>
-        <button type="button" class="tv-dlg-btn is-main is-neutral" data-name="submit-button" aria-disabled={!name()} disabled={!name()} onClick={save}>
+      <div class="ot-dlg-footer">
+        <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>Cancel</button>
+        <button type="button" class="ot-dlg-btn is-main is-neutral" data-name="submit-button" aria-disabled={!name()} disabled={!name()} onClick={save}>
           Save
         </button>
       </div>
@@ -176,7 +175,7 @@ function useKeys(id: number, onEscape: () => void, onEnter: () => void) {
   });
 }
 
-export function TvDialogHost() {
+export function DialogHost() {
   return (
     <Portal mount={document.body}>
       <For each={stack()}>

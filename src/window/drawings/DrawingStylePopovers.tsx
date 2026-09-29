@@ -2,7 +2,7 @@
  * Floating-toolbar popovers — the color palette, line-width, line-style and
  * templates dropdowns that open from the per-drawing SelectedToolbar. Solid
  * port of the reference mock's DrawingStylePopovers; they replace the earlier
- * OS `<input type=color>` + click-to-cycle stand-ins with TV's actual widgets.
+ * OS `<input type=color>` + click-to-cycle stand-ins with dedicated widgets.
  *
  * Each renders inside the toolbar (whose root stops pointerdown), so an outside
  * click — handled by the toolbar — closes them.
@@ -11,7 +11,7 @@ import { createSignal, For, Show } from "solid-js";
 import type { DrawingStyle, LineStyle } from "lightweight-charts-drawing/tv/types";
 import { ColorPanel } from "./ColorPanel";
 import { deleteTemplate, loadTemplates, saveTemplate, type DrawingTemplate } from "./templates";
-import { showConfirm, showRename } from "../../components/TvDialogs";
+import { showConfirm, showRename } from "../../components/Dialogs";
 
 export function ColorPopover(props: { value: string; onChange: (c: string) => void; onClose: () => void }) {
   return (
@@ -76,21 +76,21 @@ export function StylePopover(props: { value: LineStyle; onPick: (s: LineStyle) =
   );
 }
 
-/** Drawing templates menu — TV 3.4.1 (read 26/09/2026):
- *  - "toolbar" (floating toolbar, module 491350): "Save Drawing Template As…"
+/** Drawing templates menu:
+ *  - "toolbar" (floating toolbar): "Save Drawing Template As…"
  *    (one finished drawing only), "Apply Default Drawing Template", then the
  *    tool's templates with a remove cross on hover; remove asks "Delete this
  *    template?" (Delete / Cancel).
- *  - "dialog" (drawing Settings footer "Template", module 511963): "Save as…",
+ *  - "dialog" (drawing Settings footer "Template"): "Save as…",
  *    "Apply defaults", then the templates with a remove trash on hover; remove
  *    asks "Do you really want to delete drawing template 'X' ?" (Yes / No).
- *  Save opens TV's "Save drawing template" name dialog (64 chars, list of the
+ *  Save opens the "Save drawing template" name dialog (64 chars, list of the
  *  tool's names, replace confirmation). "Apply defaults" = factory style. */
 export function TemplatesMenu(props: {
   variant: "toolbar" | "dialog";
-  /** Tool whose templates are listed (TV templates are per tool). */
+  /** Tool whose templates are listed (templates are per tool). */
   kind: string;
-  /** Style + text to save; undefined hides Save (TV: one finished drawing). */
+  /** Style + text to save; undefined hides Save (one finished drawing only). */
   getTemplate?: () => { style: DrawingStyle; text?: string };
   onApply: (tpl: DrawingTemplate) => void;
   onApplyDefault: () => void;
@@ -102,7 +102,7 @@ export function TemplatesMenu(props: {
     const get = props.getTemplate;
     if (!get) return;
     // Snapshot now: the drawing's component may be gone when the name is
-    // confirmed (TV saves the template of the drawing the menu opened on).
+    // confirmed (the template is saved from the drawing the menu opened on).
     const snapshot = get();
     const kind = props.kind;
     props.onClose();

@@ -1,10 +1,9 @@
 /*
- * Tab linking — port of the desktop's link-channel + colour-tag model (its
- * linking-colors and tab-linking-item modules).
+ * Tab linking — link-channel + colour-tag model.
  *
  * "Linking" marks several tabs (across tabs AND windows) with the same colour
- * tag. The channels belong to the colour's GROUP (data/link-groups.ts), like
- * TV's Linker: `symbol` / `interval` are applied by App onto linked tabs,
+ * tag. The channels belong to the colour's GROUP (data/link-groups.ts):
+ * `symbol` / `interval` are applied by App onto linked tabs,
  * `time` (the clicked time) and `dateRange` (visible from/to window) travel on
  * the cross-window bus (data/tab-link-bus.ts).
  */
@@ -20,7 +19,7 @@ export type LinkColor =
   | "Rose"
   | "Purple";
 
-// Order, names and hexes copied verbatim from the desktop linking-colors.ts.
+// Link colours: order, names and hexes.
 export const LINK_PALETTE: Array<{ color: LinkColor; backgroundColor: string }> = [
   { color: "Red", backgroundColor: "#F23645" },
   { color: "Green", backgroundColor: "#4CAF50" },

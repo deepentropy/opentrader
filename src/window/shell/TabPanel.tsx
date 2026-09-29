@@ -17,7 +17,7 @@
  *   - new-tab "+" button
  */
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { quoteFor } from "../../data/quotes";
 import { setSubscription, clearSubscription } from "../../data/subscriptions";
 import { TabContextMenu, type TabMenuAnchor } from "./TabContextMenu";
@@ -49,13 +49,13 @@ type Props = {
    *  screenX/screenY are global cursor coords for placing the new window. */
   onDetach: (id: string, screenX: number, screenY: number) => void;
   /** Drop outside this window: move the tab to the window whose tab strip is
-   *  under the cursor (TV merge). Resolves true when it moved. */
+   *  under the cursor (merge). Resolves true when it moved. */
   onDropOnWindow?: (id: string, screenX: number, screenY: number) => Promise<boolean>;
-  /** TV "Reload tab". */
+  /** "Reload tab". */
   onReload: (id: string) => void;
-  /** TV "Pin tab" / "Unpin tab". */
+  /** "Pin tab" / "Unpin tab". */
   onTogglePin: (id: string) => void;
-  /** TV "Developer tools" (shown when the menu opens with Shift held). */
+  /** "Developer tools" (shown when the menu opens with Shift held). */
   onDevTools: () => void;
   /** Whether detach is possible (Tauri shell). When false the drag stays a
    *  pure reorder — no ghost, no tear-off. */
@@ -241,7 +241,7 @@ export function TabPanel(props: Props) {
                     x: e.clientX,
                     y: e.clientY,
                     isChart: tab.isChart,
-                    // TV with-menu.ts visibility rules (pinned tabs are kept).
+                    // Visibility rules (pinned tabs are kept).
                     isCloseOtherVisible: props.tabs.length > 1 && props.tabs.some((t) => t.id !== tab.id && !t.pinned),
                     isCloseToRightVisible:
                       props.tabs.length > 1 && idx() < props.tabs.length - 1 && props.tabs.some((t) => !t.pinned),
@@ -260,8 +260,8 @@ export function TabPanel(props: Props) {
                     <For each={(props.titleParts ?? DEFAULT_TAB_TITLE_PARTS).filter((p) => p.visible)}>
                       {(part) => {
                         // Price parts come from the live quote store and stay
-                        // hidden until a tick arrives (matches TV with no
-                        // quote). Logo / ticker / layout-name derive from the tab.
+                        // hidden until a tick arrives (no quote, no price).
+                        // Logo / ticker / layout-name derive from the tab.
                         switch (part.id) {
                           case "symbolLogo":
                             return <span class="empty-logo"><span class="empty-logo-symbol">{tickerInitial(activePaneOf(tab).symbol)}</span></span>;
@@ -286,7 +286,7 @@ export function TabPanel(props: Props) {
                               </Show>
                             );
                           case "layoutName":
-                            // TV shows the SAVED layout's name; unsaved charts
+                            // Shows the SAVED layout's name; unsaved charts
                             // fall back to the interval-derived label.
                             return <span class="tab-part tab-part-layout">/ {tab.savedLayoutName ?? layoutNameFromInterval(activePaneOf(tab).interval)}</span>;
                           default:
@@ -307,14 +307,14 @@ export function TabPanel(props: Props) {
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); props.onClose(tab.id); }}
                     >
-                      <TvIcon name="tab-close" size={12} />
+                      <Icon name="tab-close" size={12} />
                     </button>
                   </Show>
                 </div>
                 <div class="tab-panel-divider" />
                 <div class="extenders">
-                  <div class="extender left"><TvIcon name="tab-extender" size={6} /></div>
-                  <div class="extender right"><TvIcon name="tab-extender" size={6} /></div>
+                  <div class="extender left"><Icon name="tab-extender" size={6} /></div>
+                  <div class="extender right"><Icon name="tab-extender" size={6} /></div>
                 </div>
               </div>
             );
@@ -322,7 +322,7 @@ export function TabPanel(props: Props) {
         </For>
       </div>
       <button class="create-new-tab-button" title="New tab" onClick={props.onNewTab}>
-        <TvIcon name="tab-new" size={14} />
+        <Icon name="tab-new" size={14} />
       </button>
       <div class="draggable-area" data-tauri-drag-region />
 

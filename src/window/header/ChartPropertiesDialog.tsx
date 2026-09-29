@@ -3,18 +3,17 @@
  * from the header gear (`header-toolbar-properties`) and the chart right-click →
  * Settings… (via the `chart-open-settings` window event).
  *
- * Layout + controls follow TV Desktop 3.4.1.8194 (measured 25/09/2026):
- * 750-wide shell, 68 px header, 226 px rail
+ * Layout + controls: 750-wide shell, 68 px header, 226 px rail
  * (20 px inset, 206 px tabs), a `auto 1fr` property grid (16/20 padding, 8 px
  * cell padding → 50 px rows, 42 px for grouped rows, 16 px group gaps), 67 px
- * footer. Controls are TV's ui-lib ones: white check boxes, transparent r8
+ * footer. Controls: white check boxes, transparent r8
  * selects with the 18 px chevron and a r10 option menu, 34 px colour boxes
  * (24 px swatch on the dark opacity pattern) or the 75 px colour + line
  * button, the shared colour panel (palette, custom colours, Opacity,
  * Thickness, Line style), 100 px number fields with spin buttons.
  *
- * The Symbol tab shows the style rows of the pane's chart type (TV
- * `getSeriesStylePropertiesDefinitions`) above "Data modification".
+ * The Symbol tab shows the style rows of the pane's chart type above "Data
+ * modification".
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
@@ -48,26 +47,26 @@ import { TransparencySlider } from "../drawings/ImageDialog";
 import type { LineStyle } from "lightweight-charts-drawing/tv/types";
 import * as kv from "../../data/kv";
 import { usMarketSession } from "../../data/market-session";
-import { showConfirm, showRename } from "../../components/TvDialogs";
+import { showConfirm, showRename } from "../../components/Dialogs";
 
 type Props = {
   onClose: () => void;
   /** The focused pane's committed settings to seed the draft from (undefined →
-   *  captured defaults). */
+   *  factory defaults). */
   seed?: Draft;
   /** The focused pane's chart type — selects the Symbol tab's style rows. */
   chartType?: ChartTypeId;
-  /** Intraday interval: TV shows the pre/post background row only then. */
+  /** Intraday interval: the pre/post background row shows only then. */
   intraday?: boolean;
   /** Commit the edited draft to the focused pane ("active") or every pane in the
    *  layout ("all", from the "Apply to all" button). */
   onCommit: (draft: Draft, scope: "active" | "all") => void;
-  /** Tab to open on (TV `showGeneralChartProperties(tab)`: the axis menus'
+  /** Tab to open on (the axis menus'
    *  "More settings…" opens "scales"). Default: the Symbol tab. */
   initialTab?: string;
 };
 
-// ── Glyphs (TV ui-lib, captured 25/09/2026) ──
+// ── Glyphs ──
 function TabGlyph(props: { icon: SettingsTabIcon }) {
   return (
     <svg class="settings-tab-icon" width="28" height="28" viewBox={props.icon.viewBox} fill={props.icon.fill} aria-hidden="true" innerHTML={props.icon.inner} />
@@ -134,7 +133,7 @@ function createDismiss(getRefs: () => (HTMLElement | undefined)[], onClose: () =
   });
 }
 
-// ── Check box (TV ui-lib: 18 px, #f2f2f2 box / #2e2e2e mark) ──
+// ── Check box (18 px, #f2f2f2 box / #2e2e2e mark) ──
 export function CheckBox(props: { checked: boolean; disabled?: boolean; onToggle: () => void }) {
   return (
     <span
@@ -150,7 +149,7 @@ export function CheckBox(props: { checked: boolean; disabled?: boolean; onToggle
   );
 }
 
-// ── Select (TV ui-lib: 34 px, r8, transparent, chevron; menu r10 under it) ──
+// ── Select (34 px, r8, transparent, chevron; menu r10 under it) ──
 function OptionsMenu(props: {
   anchor: Anchor;
   trigger: () => HTMLElement | undefined;
@@ -160,7 +159,7 @@ function OptionsMenu(props: {
 }) {
   let ref: HTMLDivElement | undefined;
   createDismiss(() => [ref, props.trigger()], props.onClose);
-  // TV opens the menu flush under the trigger, trigger-wide; flip above when
+  // The menu opens flush under the trigger, trigger-wide; flip above when
   // there is no room below.
   const [top, setTop] = createSignal(props.anchor.bottom);
   onMount(() => {
@@ -221,16 +220,15 @@ export function SelectControl(props: { value: string; options: string[]; width: 
 }
 
 /** Closed-control text for a check list: checked options in catalog order,
- *  the first as is and the rest lower-cased ("Value, line" — TV renders the
- *  parts separately and lower-cases the following ones); none checked reads
- *  "Hidden". */
+ *  the first as is and the rest lower-cased ("Value, line"); none checked
+ *  reads "Hidden". */
 function multiSummary(options: string[], on: string[]): string {
   const picked = options.filter((o) => on.includes(o));
   if (picked.length === 0) return "Hidden";
   return picked.map((o, i) => (i === 0 ? o : o.toLowerCase())).join(", ");
 }
 
-/** TV check-list select: toggling an option keeps the menu open. */
+/** Check-list select: toggling an option keeps the menu open. */
 function MultiCheckControl(props: { options: string[]; on: string[]; width: number; onChange: (on: string[]) => void }) {
   let btn: HTMLButtonElement | undefined;
   const [anchor, setAnchor] = createSignal<Anchor | null>(null);
@@ -287,7 +285,7 @@ function ColorPanelHost(props: { anchor: () => HTMLElement | undefined; onDismis
   );
 }
 
-/** TV `color-select` (34 px box) or, with width / style, the 75 px colour +
+/** `color-select` (34 px box) or, with width / style, the 75 px colour +
  *  line button (`color-with-thickness-select`). `color === ""` = automatic. */
 export function ColorControl(props: {
   color: string;
@@ -337,7 +335,7 @@ export function ColorControl(props: {
   );
 }
 
-// ── Number field (TV ui-lib number input: 100×34, r8, spin buttons) ──
+// ── Number field (number input: 100×34, r8, spin buttons) ──
 export function NumberField(props: {
   value: string;
   unit?: string;
@@ -392,7 +390,7 @@ export function NumberField(props: {
   );
 }
 
-// Default control widths (TV 3.4).
+// Default control widths.
 const SELECT_W: Record<string, number> = {
   "Currency and Unit": 180, "Scale modes (A and L)": 180, "Symbol value mode": 180,
   Navigation: 180, Pane: 180, "Time hours format": 100, Text: 100, Ideas: 100,
@@ -452,7 +450,7 @@ function ControlView(props: {
               </>
             );
           case "lineColor":
-            // TV 346022 `$e`: type select, then Solid → colour + thickness,
+            // Type select, then Solid → colour + thickness,
             // Gradient → start / end colours + line width select.
             return (
               <>
@@ -506,7 +504,7 @@ export function ChartPropertiesDialog(props: Props) {
     const g = group();
     const st = styleTab(g);
     const form = TAB_FORMS[st] ?? [];
-    // TV titles the style group with the chart-type name, except pages that
+    // The style group is titled with the chart-type name, except pages that
     // bring their own group titles (Session volume profile).
     const titled = form.length > 0 && form[0].kind !== "section";
     return [
@@ -519,17 +517,17 @@ export function ChartPropertiesDialog(props: Props) {
   const toggle = (key: string) => setDraft(key, "checked", (c) => !c);
   const setControl = (key: string, idx: number, nv: CtrlValue) => setDraft(key, "controls", idx, nv);
 
-  /** Row visibility: `visibleWhen` select value + TV's intraday-only rule
+  /** Row visibility: `visibleWhen` select value + the intraday-only rule
    *  for the pre/post background row. */
   const visible = (tab: string, r: FormRow): boolean => {
     if (tab === "symbol" && r.label === "Pre/post market hours background" && props.intraday === false) return false;
-    // TV (714494): "Open market status" only while the market is open.
+    // "Open market status" only while the market is open.
     if (tab === "legend" && r.label === "Open market status" && usMarketSession() !== "open") return false;
     if (!r.visibleWhen) return true;
     const c = draft[keyOf(tab, r.visibleWhen.id)]?.controls?.[0];
     return !!c && c.kind === "select" && r.visibleWhen.values.includes(c.value);
   };
-  /** Controls greyed out by their row's own state (TV: a checkable row's
+  /** Controls greyed out by their row's own state (a checkable row's
    *  controls follow its check box; the lock-ratio field is editable only
    *  while locked; check-list colours only while something is shown). */
   const controlsDisabled = (r: FormRow, key: string): boolean => {
@@ -616,7 +614,7 @@ export function ChartPropertiesDialog(props: Props) {
     );
   };
 
-  // Vertical position, TV rule (measured 26/09/2026, TV Desktop 3.4.1): the
+  // Vertical position rule: the
   // dialog is centred once for the tab it opens on; on a later height change
   // (tab switch) its top stays, and it only moves up when the new height
   // would pass the window bottom (20 px margin, top never above 20 px). It
@@ -721,9 +719,9 @@ export function ChartPropertiesDialog(props: Props) {
   );
 }
 
-// TV's series-theme-manager menu (module 342610, read 26/09/2026): "Apply
-// defaults", "Save as…", then the saved chart templates sorted by name with a
-// remove trash on hover. "Save as…" opens TV's "Save template as" name dialog
+// Series-theme-manager menu: "Apply defaults", "Save as…", then the saved
+// chart templates sorted by name with a remove trash on hover. "Save as…"
+// opens the "Save template as" name dialog
 // (128 chars, list of the names, replace confirmation); remove asks "Do you
 // really want to delete Chart Template 'X' ?" (Yes / No). Opens upward — the
 // button sits in the dialog footer.

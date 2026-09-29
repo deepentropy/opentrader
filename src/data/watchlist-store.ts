@@ -1,8 +1,8 @@
 /*
  * Multi-list watchlist store — holds several named lists (each with its own
  * sections + ungrouped "extras"), tracks the active one, and persists the whole
- * thing to localStorage. Seeded from the captured WATCHLIST_TABS + GROUPS: the
- * active "Strong" list gets the probed sections; the others start empty.
+ * thing to localStorage. Seeded from WATCHLIST_TABS + GROUPS: the active
+ * "Strong" list gets the seed sections; the others start empty.
  *
  * This backs the watchlist-menu actions (Create / Make a copy / Rename / Add
  * section / Clear list / Upload) and the quick-switch toolbar. It is a process
@@ -33,15 +33,15 @@ export type WatchList = {
    *  clipboard); persisted so the switch survives reloads. */
   shared: boolean;
   /** Flagged/favourited — drives the "Flagged lists" section of the list
-   *  manager (TV's favourite-watchlist star). */
+   *  manager (favourite-watchlist star). */
   favorite: boolean;
   /** Per-list sort order (table-header / "Sort by" menu). "default" keeps the
-   *  list's manual/file order. Each list remembers its own, like TV desktop. */
+   *  list's manual/file order. Each list remembers its own. */
   sort: SortKey;
 };
 
 /** Per-list price-move alert: notify when any symbol's |change%| ≥ threshold.
- *  Keyed by list id; absent = no alert. A local stand-in for TV's list alerts. */
+ *  Keyed by list id; absent = no alert. A local list alert. */
 type AlertMap = Record<string, number>;
 
 type StoreShape = { lists: WatchList[]; activeId: string; alerts: AlertMap };
@@ -62,7 +62,7 @@ function seed(): StoreShape {
     name: t.name,
     flag: t.flag,
     emoji: t.emoji,
-    // Only the captured (active) list carries section data; the rest are empty
+    // Only the seeded (active) list carries section data; the rest are empty
     // until the user adds symbols.
     groups: t.active ? cloneGroups(GROUPS) : [],
     extras: [],
@@ -205,7 +205,7 @@ function mutateActive(fn: (l: WatchList) => void): void {
   if (i >= 0) setState("lists", i, produce(fn));
 }
 
-/** Where "Add symbol" inserts (TV `addSymbolsThunk` anchor, module 704346):
+/** Where "Add symbol" inserts:
  *  `{ section }` = right after that section's header (section right-click),
  *  `{ section, after }` = right after that row (row right-click; `section` is
  *  the row's section, null = extras), `null` = end of the list (header button). */
@@ -358,12 +358,12 @@ export const watchlistStore = {
       if (g) g.rows = g.rows.filter((r) => r.ticker !== ticker);
     });
   },
-  /** Insert rows into the active list at `anchor` (TV `addSymbolsThunk`).
+  /** Insert rows into the active list at `anchor`.
    *  Rows already in the list are skipped: same full name, or a row stored
-   *  under the new row's short name (TV checks both). A missing anchor falls
+   *  under the new row's short name (both are checked). A missing anchor falls
    *  back to the end of the list. The end of the list is the extras when they
-   *  hold rows (they render last), else the last section, like TV where an
-   *  appended symbol joins the last section. Returns the added tickers. */
+   *  hold rows (they render last), else the last section, so an appended
+   *  symbol joins the last section. Returns the added tickers. */
   addSymbols(rows: Row[], anchor: AddAnchor): string[] {
     const added: string[] = [];
     mutateActive((l) => {
@@ -437,7 +437,7 @@ export const watchlistStore = {
     });
   },
   /** Set (or clear, with `null`) a symbol row's colour flag — the per-row
-   *  marker TV's watchlist context menu "Flag" submenu toggles. Searches the
+   *  marker the watchlist context menu "Flag" submenu toggles. Searches the
    *  active list's sections and extras for the row by full ticker. */
   setRowFlag(ticker: string, flag: FlagColor | null): void {
     mutateActive((l) => {
@@ -449,14 +449,14 @@ export const watchlistStore = {
       if (e) e.flag = flag;
     });
   },
-  /** Clear every row flag in the active list (TV: "Unflag all symbols"). */
+  /** Clear every row flag in the active list ("Unflag all symbols"). */
   clearAllFlags(): void {
     mutateActive((l) => {
       for (const g of l.groups) for (const r of g.rows) r.flag = null;
       for (const r of l.extras) r.flag = null;
     });
   },
-  /** Append a row to ANOTHER list's extras (TV: "Add X to watchlist" submenu).
+  /** Append a row to ANOTHER list's extras ("Add X to watchlist" submenu).
    *  Deduped by full ticker across the target's sections and extras. Returns
    *  true when the row was added, false when it already existed (a no-op) so the
    *  caller can word its toast truthfully. */
@@ -481,7 +481,7 @@ export const watchlistStore = {
     const m = (r: Row) => r.ticker === ticker || r.ticker === shortOf(ticker);
     return l.groups.some((g) => g.rows.some(m)) || l.extras.some(m);
   },
-  /** Remove a symbol (full or short name) from any list (TV legend "Add X to
+  /** Remove a symbol (full or short name) from any list (legend "Add X to
    *  watchlist" submenu: a checked list row removes the symbol). */
   removeRowFrom(listId: string, ticker: string): void {
     const i = state.lists.findIndex((l) => l.id === listId);
@@ -493,7 +493,7 @@ export const watchlistStore = {
     }));
   },
   /** Create a new list seeded with one row WITHOUT switching the active list
-   *  (TV: "Add X to watchlist → Create new list…"). Returns the new name. */
+   *  ("Add X to watchlist → Create new list…"). Returns the new name. */
   createListWith(row: Row): string {
     const nm = uniqueName("New list");
     const id = uniqueId(nm);

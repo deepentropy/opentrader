@@ -59,7 +59,7 @@ import {
   pointerNearBox,
   type GroupId,
 } from "./control-bar";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { hasClipboardDrawing, pasteAsNew } from "../drawings/clipboard";
 import { appearanceFrom, type Draft, type NavButtonsBehavior, type PriceSource } from "../header/chart-settings";
@@ -130,7 +130,7 @@ import type { CursorMode } from "../../data/drawing-toolbar";
 type Props = {
   theme?: "dark" | "light";
   symbol?: string;
-  /** TV interval id ("1", "5", "60", "1D", "1W", "1M", ...). Drives which
+  /** Interval id ("1", "5", "60", "1D", "1W", "1M", ...). Drives which
    *  Rust command (minute_aggs vs day_aggs) the chart fetches from. */
   interval?: string;
   /** Bottom-bar session (RTH/ETH). Drives datafeed session filtering on
@@ -141,15 +141,15 @@ type Props = {
   /** Cursor-group interaction mode; drives the chart-host cursor + overlay
    *  erase/laser behaviour. */
   cursorMode?: CursorMode;
-  /** A mouse-wheel time zoom happened (TV chart widget `onZoom`); `mod` =
+  /** A mouse-wheel time zoom happened; `mod` =
    *  Ctrl / Cmd held (focused zoom). Drives the grid's zoom hint. */
   onWheelZoom?: (mod: boolean) => void;
-  /** Main series hidden (legend eye; TV series `visible`). */
+  /** Main series hidden (legend eye; series `visible`). */
   seriesHidden?: boolean;
   onToggleSeries?: () => void;
-  /** Legend symbol title clicked (TV "Change symbol"). */
+  /** Legend symbol title clicked ("Change symbol"). */
   onChangeSymbol?: () => void;
-  /** Legend interval clicked (TV "Change interval"). */
+  /** Legend interval clicked ("Change interval"). */
   onChangeInterval?: () => void;
   armedGlyph?: string;
   magnet?: boolean;
@@ -197,19 +197,19 @@ type Props = {
   timeZoneLabel?: string;
   /** TRUE when this is the focused pane. Keyboard chart shortcuts (pan/zoom/
    *  scale/snapshot/reset) are broadcast to every pane but only the active one
-   *  acts on them, mirroring TV's focused-pane behaviour. */
+   *  acts on them (focused-pane behaviour). */
   active?: boolean;
   /** False while this pane's tab is hidden. App keeps every opened tab's grid
-   *  mounted (TV keeps each tab page alive), so a tab switch only shows it. */
+   *  mounted (each tab page stays alive), so a tab switch only shows it. */
   shown?: boolean;
-  /** Control bar → maximize. `canMaximize` is TV's `fullscreenable`: false in a
+  /** Control bar → maximize. `canMaximize` is false in a
    *  single-cell layout, where the group is dropped entirely. */
   canMaximize?: boolean;
   maximized?: boolean;
   onToggleMaximize?: () => void;
   /** This pane's committed chart Settings (the dialog draft). Drives candle /
    *  grid / crosshair / scale / margin / session-break appearance for THIS pane
-   *  only; undefined = captured defaults. */
+   *  only; undefined = defaults. */
   settings?: Draft;
   /** Persisted visible logical range (bar-index based) for THIS pane. Restored
    *  when new data loads instead of snapping to the latest bars; undefined or
@@ -228,12 +228,12 @@ const LOAD_MORE_THRESHOLD = 12;
  *  collapse the old sync path could persist, not a user choice. Same floor as
  *  the wheel zoom (onWheel). */
 const MIN_VISIBLE_BARS = 5;
-/** Fewest bars a date-range sync target frames: TV's timeScale
- *  minVisibleBarCount(), read live 23/09/2026. */
+/** Fewest bars a date-range sync target frames (the time scale's minimum
+ *  visible bar count). */
 const SYNC_MIN_BARS = 2;
 /** Depth cap for history loaded on behalf of date-range sync (display bars).
- *  TV's 1m follower stopped at ~20k bars in the 23/09/2026 capture; the user's
- *  own scroll-back pager is not capped. */
+ *  A 1m follower stops at ~20k bars; the user's own scroll-back pager is not
+ *  capped. */
 const SYNC_LOAD_MAX_BARS = 20_000;
 /** Pause after the last landed history page before studies recompute. */
 const INDICATOR_RENDER_DEBOUNCE_MS = 150;
@@ -241,13 +241,13 @@ const INDICATOR_RENDER_DEBOUNCE_MS = 150;
 /** Time-axis formatting from the Settings dialog (Scales tab). */
 type AxisFmt = { dateFormat?: string; timeFormat?: string; dayOfWeek?: boolean };
 
-/** Crosshair time-axis label, in the chosen IANA timezone: TV's chart
+/** Crosshair time-axis label, in the chosen IANA timezone: the chart
  *  date-time text ("Wed 23 Sep '26   14:00"; date only on daily+ bars). */
 function formatAxisTime(time: UTCTimestamp, timeZone: string, intraday: boolean, seconds: boolean, fmt: AxisFmt = {}): string {
   return formatChartTime(time as number, timeZone, intraday, seconds, fmt);
 }
 
-/** Time-axis tick label in the chosen IANA timezone (TV tick-mark text). */
+/** Time-axis tick label in the chosen IANA timezone (tick-mark text). */
 function formatTick(time: UTCTimestamp, type: TickMarkType, timeZone: string, fmt: AxisFmt = {}): string {
   const kind =
     type === TickMarkType.Year ? "Year"
@@ -303,8 +303,8 @@ function mixColor(a: string, b: string, t: number): string {
   return `rgb(${v[0]}, ${v[1]}, ${v[2]})`;
 }
 
-/** TV's colorFromBackground: brightness .199R + .687G + .114B below 150
- *  gets white text, otherwise black (desktop bundle, read 23/09/2026). */
+/** Text colour from background: brightness .199R + .687G + .114B below 150
+ *  gets white text, otherwise black. */
 function textColorOn(color: string): string {
   const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(color.trim());
   const h = /^#([0-9a-f]{6})/i.exec(color.trim());
@@ -328,8 +328,8 @@ function appearanceOptions(t: ReturnType<typeof readChartTokens>) {
   // priceScaleId binds to the visible scale ('right' if visible, else 'left'),
   // so toggling visibility before (re)building the series moves the price axis.
   const onLeft = t.scalesPlacement === "left";
-  // Scales → "No overlapping labels" = the library's alignLabels (TV
-  // axisProperties.alignLabels, the same restacking of colliding labels).
+  // Scales → "No overlapping labels" = the library's alignLabels (the
+  // restacking of colliding labels).
   const scaleOpts = {
     borderColor: t.scaleLinesColor,
     scaleMargins: { top: t.marginTop, bottom: t.marginBottom },
@@ -349,9 +349,9 @@ function appearanceOptions(t: ReturnType<typeof readChartTokens>) {
       },
     },
     grid: {
-      // Grid "dotted" maps to SparseDotted (1px on / 4 off): TV renders its
-      // dotted grid at 1 on / 3 off (pixel-measured 26/07/2026), and the
-      // library's Dotted (1 on / 1 off) reads twice as heavy.
+      // Grid "dotted" maps to SparseDotted (1px on / 4 off): the target dotted
+      // grid is 1 on / 3 off, and the library's Dotted (1 on / 1 off) reads
+      // twice as heavy.
       vertLines: {
         color: t.gridVertColor,
         visible: t.gridVertVisible,
@@ -410,7 +410,7 @@ type ChartMenuCtx = {
   drawingCount: number;
   indicatorCount: number;
   cursorLockByTime: boolean;
-  /** FALSE grays "Paste" (nothing on the drawings clipboard — TV behaviour). */
+  /** FALSE grays "Paste" (nothing on the drawings clipboard). */
   canPaste: boolean;
 };
 type ChartMenuActions = {
@@ -432,9 +432,9 @@ type ChartMenuActions = {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** Build the chart context-menu node list — order/separators/shortcuts/icons
- *  captured verbatim from TV Desktop; the
- *  price/symbol/counts are interpolated from the live chart. */
+/** Build the chart context-menu node list: static order/separators/
+ *  shortcuts/icons; the price/symbol/counts are interpolated from the live
+ *  chart. */
 function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[] {
   const sym = ctx.symbol;
   const p = ctx.price;
@@ -469,9 +469,7 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
   return nodes;
 }
 
-/** TV pane-control icons (modules 860353 / 613918 / 925313 / 921905 /
- *  530972 / 75149, 15 px) and their menu icons (254989 / 181042 / 484813 /
- *  613304 / 687537, 28 px). */
+/** Pane-control icons (15 px) and their menu icons (28 px). */
 const PANE_ICONS = {
   close: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\"><path fill=\"currentColor\" d=\"M6.5 2a.5.5 0 0 0-.5.5V3h3v-.5a.5.5 0 0 0-.5-.5h-2ZM10 3h3v1h-1.05l-.86 8.65A1.5 1.5 0 0 1 9.59 14H5.4a1.5 1.5 0 0 1-1.49-1.35L3.05 4H2V3h3v-.5C5 1.67 5.67 1 6.5 1h2c.83 0 1.5.67 1.5 1.5V3ZM4.05 4l.86 8.55a.5.5 0 0 0 .5.45H9.6a.5.5 0 0 0 .5-.45L10.94 4h-6.9Z\"/></svg>",
   up: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\"><path fill=\"currentColor\" d=\"M11.83 6.12l-.66.76L8 4.1V12H7V4.1L3.83 6.88l-.66-.76L7.5 2.34l4.33 3.78z\"/></svg>",
@@ -515,8 +513,8 @@ export function ChartView(props: Props) {
   // handler, so add/removeEventListener get the same function.
   // Hidden tab (design 1): live data keeps
   // merging into `raw`, but nothing is drawn and the cosmetic timers skip;
-  // the tab catches up once when shown (catchUpOnShow), like TV, whose hidden
-  // tab pages run no animation frames.
+  // the tab catches up once when shown (catchUpOnShow): hidden tab pages run
+  // no animation frames.
   const hidden = () => props.shown === false;
   /** Work to redo when the tab is shown again (footprint cells, news). */
   const onShownHooks = new Set<() => void>();
@@ -538,11 +536,10 @@ export function ChartView(props: Props) {
   // crosshair / range event isn't re-broadcast (which would echo-loop).
   let suppressCrosshairBroadcast = false;
   let suppressRangeBroadcast = false;
-  // "Date range" sync follows TV's rules (decompiled chart-widget
-  // collection): ONLY the active pane drives, it broadcasts only
-  // when a whole bar enters/leaves the view (TV visibleBarsStrictRangeChanged),
-  // and followers apply the LATEST target in a later task, loading any missing
-  // history to the target in one request first (TV gotoTimeRange/loadDataTo).
+  // "Date range" sync rules: ONLY the active pane drives, it broadcasts only
+  // when a whole bar enters/leaves the view, and followers apply the LATEST
+  // target in a later task, loading any missing history to the target in one
+  // request first.
   // Whole-bar key (first/last visible bar times) of the last broadcast.
   let lastRangeKey = "";
   // Latest inbound target; a newer one replaces it before it is applied.
@@ -565,7 +562,7 @@ export function ChartView(props: Props) {
   };
   // Held for two frames after new data framed the view (load, tab switch,
   // interval switch): that view is not a user change, so it is not sent to
-  // linked tabs (TV sends the active chart's range changes, and a TV tab
+  // linked tabs (only the active chart's range changes are sent, and a tab
   // switch reloads nothing).
   let linkQuiet = false;
   let linkQuietSeq = 0;
@@ -626,7 +623,7 @@ export function ChartView(props: Props) {
   let raw: OHLC[] = [];
   // Lets markers fall back to gap-aware positioning when a date isn't on a bar.
   eventMarkers.setBarsAccessor(() => raw);
-  // Events -> Latest news: one lollipop on the last bar (TV LatestUpdatesSource).
+  // Events -> Latest news: one lollipop on the last bar.
   const newsLollipop = new NewsLollipopPrimitive();
   newsLollipop.setLastTimeAccessor(() => (raw.length ? (raw[raw.length - 1].time as number) : null));
   // Per-bar close of the previous trading day (tz-aware), for the legend's
@@ -670,7 +667,7 @@ export function ChartView(props: Props) {
   // percent mode) come from this series primitive (scale-watch.ts).
   // The focused pane exposes its live price/bar ratio to the Settings dialog.
   const probeOwner = {};
-  // Legend eye: hide / show the main series (TV series `visible` property).
+  // Legend eye: hide / show the main series (series `visible` property).
   createEffect(() => {
     const visible = !props.seriesHidden;
     series?.applyOptions({ visible });
@@ -682,7 +679,7 @@ export function ChartView(props: Props) {
   onCleanup(() => clearActiveChartProbe(probeOwner));
   const scaleWatch = new PriceScaleWatch(() => {
     setCoordEpoch((n) => n + 1);
-    // Pixel-anchored styles follow the price scale (TV base level, gradient
+    // Pixel-anchored styles follow the price scale (base level, gradient
     // label colour, the last label's percentage row).
     syncBaseline();
     syncGradientLabel();
@@ -692,8 +689,8 @@ export function ChartView(props: Props) {
     refreshPaneBoxes();
   });
   /** Locked ratio, other direction: a price-scale change (axis drag, pane
-   *  resize) sets the bar spacing that keeps the ratio (TV
-   *  barSpacingByScaleRatio: spacing = height ÷ range × ratio). */
+   *  resize) sets the bar spacing that keeps the ratio
+   *  (spacing = height ÷ range × ratio). */
   function lockedSpacingFromScale() {
     const t = currentTokens();
     if (!t.lockRatio || !chart || !series || lockApplying) return;
@@ -729,7 +726,7 @@ export function ChartView(props: Props) {
   function refreshIndicatorLegend(time?: number) {
     setIndLegend(controller?.getLegend(time) ?? []);
   }
-  /** Top of the legend stack inside its pane (`.tv-legend-stack` top). */
+  /** Top of the legend stack inside its pane (`.ot-legend-stack` top). */
   const LEGEND_TOP = 4;
   /** Studies legend of one pane (0 = the price pane, under the series row). */
   const studyLegend = (pane: number) => (
@@ -782,8 +779,8 @@ export function ChartView(props: Props) {
   // trading rows of the pane menu).
   const [scaleSeriesOnly, setScaleSeriesOnly] = createSignal(false);
 
-  // Control bars (see control-bar.ts + the onMount block). `gotoShown` mirrors
-  // TV's `_backButtonVisible`, `barShown` its `_controlBarVisible`; the boxes
+  // Control bars (see control-bar.ts + the onMount block). `gotoShown` is the
+  // back button's visibility, `barShown` the control bar's; the boxes
   // are the wrappers' pane-relative anchors, recomputed as panes/scales move.
   const [gotoShown, setGotoShown] = createSignal(false);
   const [gotoBox, setGotoBox] = createSignal({ bottom: 32, right: 16 });
@@ -794,7 +791,7 @@ export function ChartView(props: Props) {
   /** Set by onMount so the actions below can re-resolve bar visibility. */
   let refreshBarsRef: (() => void) | undefined;
 
-  /** Right-edge-anchored zoom, in bar-spacing terms: TV holds `rightOffset` and
+  /** Right-edge-anchored zoom, in bar-spacing terms: holds `rightOffset` and
    *  scales the span, so `span` is the reciprocal of the bar-spacing factor. */
   let zoomAnim: number | null = null;
   const zoomSpan = (factor: number) => {
@@ -808,7 +805,7 @@ export function ChartView(props: Props) {
     const started = performance.now();
     const step = (now: number) => {
       const k = Math.min(1, (now - started) / ZOOM_MS);
-      // Progress is linear in log(barSpacing) — TV's pinch compounds, so the
+      // Progress is linear in log(barSpacing) — the pinch compounds, so the
       // eased fraction is an exponent, not a lerp.
       const span = span0 * Math.pow(factor, easeOutCubic(k));
       const cur = chart?.timeScale().getVisibleLogicalRange();
@@ -818,9 +815,9 @@ export function ChartView(props: Props) {
     zoomAnim = requestAnimationFrame(step);
   };
 
-  /** Animate the view back to the last bar — TV `TimeScale.scrollToRealtime`
-   *  with `animated`: 1s of easeInOutQuint onto the configured right margin.
-   *  TV falls back to 10 bars when that margin is negative. */
+  /** Animate the view back to the last bar: 1s of easeInOutQuint onto the
+   *  configured right margin. Falls back to 10 bars when that margin is
+   *  negative. */
   let gotoAnim: number | null = null;
   const scrollToRealtime = () => {
     if (!chart) return;
@@ -838,8 +835,8 @@ export function ChartView(props: Props) {
     gotoAnim = requestAnimationFrame(step);
   };
 
-  // ── Held scrolling (TV `ScrollHelper`) ────────────────────────────────────
-  // TV runs both scroll gestures through one `_moveImpl` with a single
+  // ── Held scrolling ─────────────────────────────────────────────────────────
+  // Both scroll gestures run through one move implementation with a single
   // animation slot, so starting either replaces the other and one `stopMove`
   // ends whichever is live — via that run's OWN stop rule (immediate for
   // moveByBar, a deceleration ramp for move). Same shape here.
@@ -876,22 +873,22 @@ export function ChartView(props: Props) {
     scrollAnim = requestAnimationFrame(step);
   };
 
-  /** TV `stopMove`: end the live run on its own terms. */
+  /** Stop move: end the live run on its own terms. */
   const stopScroll = () => {
     if (scrollAnim === null) return;
     scrollEnd = performance.now() + scrollStopAfter(performance.now() - scrollStarted);
   };
 
-  /** TV `moveByBar` — plain ←/→ and the control bar's scroll buttons. Holds at
+  /** Move by bar — plain ←/→ and the control bar's scroll buttons. Holds at
    *  one bar for the first 300ms, then adds another every 100ms. Stops dead on
-   *  release. `dir` -1 walks into history (TV's "Scroll to the left"). It snaps
+   *  release. `dir` -1 walks into history ("Scroll to the left"). It snaps
    *  to a whole bar first when the last bar isn't flush with the edge. */
   const moveBars = (dir: -1 | 1) =>
     runScroll((elapsed) => dir * (Math.floor(Math.max(0, elapsed - 300) / 100) + 1), () => 0, true);
 
-  /** TV `move` — held Ctrl+←/→. Accelerates to a top speed and coasts; releasing
-   *  ramps back to zero rather than cutting out. TV measures it in pixels, so
-   *  bar spacing (fixed for the run) converts. */
+  /** Move — held Ctrl+←/→. Accelerates to a top speed and coasts; releasing
+   *  ramps back to zero rather than cutting out. The move is measured in
+   *  pixels, so bar spacing (fixed for the run) converts. */
   const startPan = (dir: -1 | 1) => {
     if (!chart) return;
     const bs = liveBarSpacing(chart);
@@ -899,9 +896,9 @@ export function ChartView(props: Props) {
     runScroll((elapsed, remaining) => dir * (movePixels(elapsed, remaining) / bs), moveEndAfterStop, false);
   };
 
-  /** TV `scrollToFirstBar` walks its full history first; we page history in, so
-   *  this jumps to the oldest bar loaded and lets maybeLoadOlder pull the next
-   *  page — repeat presses keep walking back. Not animated, like TV. */
+  /** Scroll to first bar. History is paged in, so this jumps to the oldest bar
+   *  loaded and lets maybeLoadOlder pull the next page — repeat presses keep
+   *  walking back. Not animated. */
   const scrollToFirstBar = () => {
     if (!chart || raw.length === 0) return;
     const ts = chart.timeScale();
@@ -910,7 +907,7 @@ export function ChartView(props: Props) {
     ts.setVisibleLogicalRange({ from: 0, to: r.to - r.from });
   };
 
-  /** TV `resetScales()` (the Alt+R / context-menu / control-bar action):
+  /** Reset scales (the Alt+R / context-menu / control-bar action):
    *  default bar spacing, default right margin, price scale back to auto.
    *
    *  Bar spacing and right offset are driven through the visible range, not
@@ -918,7 +915,7 @@ export function ChartView(props: Props) {
    *  already hold their default values (zooming moves internal state, not the
    *  option), so re-applying them would silently do nothing. Span and edge set
    *  the same two quantities and always land. */
-  /** TV `resetTimeScale` (Ctrl+Alt+Q): default bar spacing + right offset,
+  /** Reset time scale (Ctrl+Alt+Q): default bar spacing + right offset,
    *  price scale untouched. */
   const resetTimeScale = () => {
     if (!chart) return;
@@ -937,7 +934,7 @@ export function ChartView(props: Props) {
       ts.setVisibleLogicalRange({ from: to - span, to });
     }
   };
-  /** TV "Reset chart view" (Alt+R): time scale + price auto-scale. */
+  /** "Reset chart view" (Alt+R): time scale + price auto-scale. */
   const resetChartView = () => {
     if (!chart) return;
     resetTimeScale();
@@ -945,14 +942,14 @@ export function ChartView(props: Props) {
     refreshBarsRef?.();
   };
 
-  /** TV `resetScalesAvailable()`: true when bar spacing, right offset OR price
+  /** Reset available: true when bar spacing, right offset OR price
    *  auto-scale is off default — that's exactly when the reset button shows. */
   const scalesOffDefault = () => {
     if (!chart) return false;
     if (timeScaleOffDefault()) return true;
     return !chart.priceScale(currentTokens().scalesPlacement).options().autoScale;
   };
-  /** TV `timeScale().resetAvailable()`: bar spacing or right offset off default. */
+  /** Time-scale reset available: bar spacing or right offset off default. */
   const timeScaleOffDefault = () => {
     if (!chart) return false;
     const bs = liveBarSpacing(chart);
@@ -968,10 +965,10 @@ export function ChartView(props: Props) {
     if (scrollAnim !== null) cancelAnimationFrame(scrollAnim);
   });
 
-  /** Right-click on the PRICE AXIS → TV's price-scale menu (captured live
-   *  25/07/2026: Auto, Lock ratio, Scale price chart only, Invert, the four
-   *  mode radios, Move scale, Labels/Lines submenus, Plus button, Session on
-   *  intraday, More settings…). Rows we have no surface for (bid-ask
+  /** Right-click on the PRICE AXIS → the price-scale menu (Auto, Lock ratio,
+   *  Scale price chart only, Invert, the four mode radios, Move scale,
+   *  Labels/Lines submenus, Plus button, Session on intraday, More
+   *  settings…). Rows we have no surface for (bid-ask
    *  labels+lines, no-overlapping-labels) are omitted;
    *  Lock ratio / Scale price chart only / Plus button are accepted no-ops
    *  like the trading items of the pane menu. */
@@ -983,13 +980,13 @@ export function ChartView(props: Props) {
     const setMode = (mode: PriceScaleMode) => () => ps.applyOptions({ mode });
     const patch = (p: Record<string, unknown>) =>
       window.dispatchEvent(new CustomEvent("chart-patch-scale-settings", { detail: { patch: p } }));
-    // TV's ratio (module 36402): bar spacing × price range ÷ pane height.
+    // Ratio: bar spacing × price range ÷ pane height.
     const ratio = liveScaleRatio() ?? null;
     const nodes: CtxNode[] = [
       { kind: "item", id: "auto", label: "Auto (fits data to screen)", checked: cur.autoScale,
         onSelect: () => ps.applyOptions({ autoScale: !cur.autoScale }) },
-      // Locking stores the current ratio in the Scales row (TV locks the
-      // ratio in effect when it is turned on).
+      // Locking stores the current ratio in the Scales row (the lock keeps
+      // the ratio in effect when it is turned on).
       { kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
         shortcut: ratio != null ? String(Number(ratio.toFixed(7))) : undefined,
         onSelect: () => patch(t.lockRatio ? { lockRatio: false } : { lockRatio: true, lockRatioValue: ratio ?? undefined }) },
@@ -1054,15 +1051,14 @@ export function ChartView(props: Props) {
     setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
   }
 
-  /** TV `scalesProperties` action (both axis menus): Settings on the Scales tab. */
+  /** Scale properties action (both axis menus): Settings on the Scales tab. */
   const moreScaleSettingsNode = (): CtxNode => ({
     kind: "item", id: "more-settings", label: "More settings…", icon: CtxIcons.settings,
     onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings", { detail: { tab: "scales" } })),
   });
 
-  /** Right-click on the TIME AXIS → TV's time-axis menu (TV Desktop 3.4.1
-   *  time axis widget `getContextMenuActions`, read 28/09/2026): "Reset time
-   *  scale" + separator only when the time scale is off default, "Time zone"
+  /** Right-click on the TIME AXIS → the time-axis menu: "Reset time scale" +
+   *  separator only when the time scale is off default, "Time zone"
    *  submenu (the bottom-bar list), "Session breaks" (checkable, disabled on
    *  D/W/M), "Session" submenu on intraday, separator, "More settings…". */
   function openTimeScaleMenu(e: MouseEvent) {
@@ -1102,10 +1098,9 @@ export function ChartView(props: Props) {
     return v.toFixed(a >= 1 ? 2 : a >= 0.01 ? 4 : 6);
   };
 
-  /** Legend series "More" → TV `_contextMenuActionsForSeries` (module 702415,
-   *  TV Desktop 3.4.1, read 28/09/2026), opened under the button (TV
-   *  `_calcNewPosition`: button left, bottom + 3). No cursor price here, so
-   *  the prices are the last close (TV `lastValueData`). Rows with no OT
+  /** Legend series "More" → the series actions menu, opened under the button
+   *  (button left, bottom + 3). No cursor price here, so the prices are the
+   *  last close. Rows with no OT
    *  feature are left out: Add order, Add financial metric, Symbol info,
    *  Metrics, Table view, Visual order, Move to, Pin to scale, Add text note. */
   function openSeriesMoreMenu(anchor: DOMRect) {
@@ -1115,7 +1110,7 @@ export function ChartView(props: Props) {
     const p = last == null ? "—" : menuPrice(last);
     const hidden = !!props.seriesHidden;
     const row = { ticker: full, short: full.split(":").pop() || full, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null };
-    // TV watchlist submenu (module 312069): the active list first (Alt + W),
+    // Watchlist submenu: the active list first (Alt + W),
     // then the other lists by name; a row adds or removes the symbol and the
     // menu stays open; separator; "Create new list…".
     const activeId = watchlistStore.activeId();
@@ -1166,7 +1161,7 @@ export function ChartView(props: Props) {
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
   }
 
-  /** Legend study "More" → TV `_contextMenuActionsForStudy` (module 702415).
+  /** Legend study "More" → the study actions menu.
    *  Rows with no OT feature are left out: Add alert on the study, Add
    *  indicator/strategy on the study, Visual order, Visibility on intervals,
    *  Move to, Pin to scale, Copy. */
@@ -1174,7 +1169,7 @@ export function ChartView(props: Props) {
     const row = indLegend().find((r) => r.id === id);
     if (!row) return;
     const nodes: CtxNode[] = [];
-    // TV has no favorites row for studies it cannot star (compare/overlay).
+    // No favorites row for studies that cannot be starred (compare/overlay).
     if (getIndicatorEntry(id)) {
       const fav = isFavoriteIndicator(id);
       nodes.push(
@@ -1334,18 +1329,18 @@ export function ChartView(props: Props) {
   }
 
   // ── Price-axis overlays (Scales tab rows) ────────────────────────────
-  // TV draws these as DOM on the price axis: the currency label at its top
+  // These are DOM on the price axis: the currency label at its top
   // ("Currency and Unit"), the A / L buttons at its bottom ("Scale modes (A
   // and L)"), both "Visible on mouse over" by default = while the pointer is
   // over the chart; and the crosshair "+" button (Scales → "Plus button").
-  // Pane index whose price axis is under the pointer (TV: A / L buttons
+  // Pane index whose price axis is under the pointer (A / L buttons
   // "Visible on mouse over" = that axis hovered; currency label = any price
-  // axis of the chart hovered, module 879505).
+  // axis of the chart hovered).
   const [axisHover, setAxisHover] = createSignal<number | null>(null);
   const [scaleGeom, setScaleGeom] = createSignal<{ w: number; h: number; left: boolean } | null>(null);
   const [scaleModes, setScaleModes] = createSignal({ auto: true, log: false });
   const [plusY, setPlusY] = createSignal<number | null>(null);
-  // TV draws the plus inside the pane and hit-tests it there, so the button
+  // The plus is drawn inside the pane and hit-tested there, so the button
   // takes no pointer events (the crosshair keeps tracking under it) and the
   // host hit-tests its rect in the capture phase.
   let plusEl: HTMLButtonElement | undefined;
@@ -1376,7 +1371,7 @@ export function ChartView(props: Props) {
     ps.applyOptions({ mode: log ? PriceScaleMode.Normal : PriceScaleMode.Logarithmic });
     refreshScaleOverlays();
   }
-  /** Plus button → TV crosshair menu (module 879505 `_getMenuItems`): "Add
+  /** Plus button → crosshair menu: "Add
    *  alert on SYMBOL at PRICE…", then (no trading items: no broker) "Draw
    *  horizontal line at PRICE". */
   function openPlusMenu(r: DOMRect, y: number) {
@@ -1390,7 +1385,7 @@ export function ChartView(props: Props) {
       { kind: "item", id: "plus-alert", label: `Add alert on ${sym} at ${priceStr}…`, icon: CtxIcons.alert,
         onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: sym, price: p } })) },
       { kind: "separator" },
-      { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, icon: <TvIcon name="draw-horizontal-line" size={18} />,
+      { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, icon: <Icon name="draw-horizontal-line" size={18} />,
         onSelect: () => {
           const last = raw.length > 0 ? raw[raw.length - 1] : null;
           if (!last) return;
@@ -1402,14 +1397,14 @@ export function ChartView(props: Props) {
   }
 
   // ── Pane controls (Canvas → Buttons → Pane) ───────────────────────────
-  // TV PaneControlsWidget (module 783812): shown on a pane while the pointer
+  // Pane controls: shown on a pane while the pointer
   // is over it (or always / never), only with more than one pane. 24 px
   // buttons 4 px apart, 4 px from the pane top and the price axis; a pane
   // narrower than 666.65 px shows the single "Manage panes" button (menu),
   // narrower than 356 px none. Buttons: move up / down (study panes; the
   // price pane stays on top here), delete (study panes), collapse (to
-  // max(2·4 + 24, 33) px) / restore. "Maximize pane" is not offered: TV hides
-  // the other panes, and the chart library keeps every pane ≥ ~30 px.
+  // max(2·4 + 24, 33) px) / restore. "Maximize pane" is not offered: it would
+  // hide the other panes, and the chart library keeps every pane ≥ ~30 px.
   type PaneBox = { index: number; top: number; height: number };
   const [paneBoxes, setPaneBoxes] = createSignal<PaneBox[]>([]);
   const [hoverPane, setHoverPane] = createSignal<number | null>(null);
@@ -1481,18 +1476,18 @@ export function ChartView(props: Props) {
     const a = paneActions(i);
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const nodes: CtxNode[] = [];
-    const ico = (svg: string) => <span class="tv-pane-menu-icon" innerHTML={svg} />;
+    const ico = (svg: string) => <span class="ot-pane-menu-icon" innerHTML={svg} />;
     if (a.collapse) nodes.push({ kind: "item", id: "pane-collapse", label: "Collapse pane", shortcut: "Ctrl + Double click", icon: ico(PANE_MENU_ICONS.collapse), onSelect: () => toggleCollapse(i) });
     if (a.restore) nodes.push({ kind: "item", id: "pane-restore", label: "Restore pane", shortcut: "Ctrl + Double click", icon: ico(PANE_MENU_ICONS.restore), onSelect: () => toggleCollapse(i) });
     if (a.up) nodes.push({ kind: "item", id: "pane-up", label: "Move pane up", icon: ico(PANE_MENU_ICONS.up), onSelect: () => movePane(i, -1) });
     if (a.down) nodes.push({ kind: "item", id: "pane-down", label: "Move pane down", icon: ico(PANE_MENU_ICONS.down), onSelect: () => movePane(i, 1) });
     if (a.close) nodes.push({ kind: "item", id: "pane-delete", label: "Delete pane", icon: ico(PANE_MENU_ICONS.del), onSelect: () => deletePane(i) });
-    // TV attaches the menu under the button, right-aligned (clientX = right).
+    // The menu attaches under the button, right-aligned (clientX = right).
     setCtxMenu({ x: r.right, y: r.bottom + 3, nodes });
   }
 
   /** The newest bar is still forming (its countdown runs): price-based
-   *  types draw what it built as projection bars (TV). */
+   *  types draw what it built as projection bars. */
   function lastBarForming(): boolean {
     const last = raw.length > 0 ? raw[raw.length - 1] : null;
     if (!last || typeof last.time !== "number") return false;
@@ -1507,8 +1502,8 @@ export function ChartView(props: Props) {
     syncGradientLabel();
   }
 
-  /** Baseline: TV places the base level at `Base level` % of the pane height
-   *  from the bottom (SeriesBaselinePaneView: height · (100 − level) / 100)
+  /** Baseline: the base level sits at `Base level` % of the pane height
+   *  from the bottom (height · (100 − level) / 100)
    *  and draws a sparse-dotted waterline there. The library takes a PRICE,
    *  so the price under that pixel row is re-derived whenever the visible
    *  price range can have moved. */
@@ -1533,7 +1528,7 @@ export function ChartView(props: Props) {
   }
 
   /** Gradient line: the last-value label takes the gradient colour at the
-   *  last price's height (TV `_lineColorAtYPercentFromTop`). */
+   *  last price's height. */
   function syncGradientLabel() {
     if (!chart || !series || (activeType !== "line" && activeType !== "lineWithMarkers" && activeType !== "stepline")) return;
     const s = currentTokens().styles[activeType];
@@ -1545,7 +1540,7 @@ export function ChartView(props: Props) {
     series.applyOptions({ color: mixColor(s.start, s.end, Math.max(0, Math.min(1, (y as number) / h))) } as never);
   }
 
-  /** TV mainSeriesScaleRatio (module 36402 `scaleRatio`): bar spacing ×
+  /** Main series scale ratio: bar spacing ×
    *  visible price range ÷ pane height — price units per bar at a 1:1 pixel
    *  aspect. Undefined before the chart has data. */
   function liveScaleRatio(): number | undefined {
@@ -1560,8 +1555,8 @@ export function ChartView(props: Props) {
   }
 
   /** "Lock price to bar ratio": while locked, a bar-spacing change resizes
-   *  the price range around its centre so the ratio holds (TV
-   *  priceRangeByScaleRatio: range = height ÷ (spacing ÷ ratio)). */
+   *  the price range around its centre so the ratio holds
+   *  (range = height ÷ (spacing ÷ ratio)). */
   let lockApplying = false;
   function applyLockedRatio() {
     const t = currentTokens();
@@ -1618,13 +1613,13 @@ export function ChartView(props: Props) {
     // Bind the price axis to the chosen side (Scales placement). The visible
     // scale already drives the default; this pins it explicitly too.
     series.applyOptions({ priceScaleId: tokens.scalesPlacement });
-    // Legend eye (TV series `visible`): a rebuilt series keeps the hidden state
+    // Legend eye (series `visible`): a rebuilt series keeps the hidden state
     // (the live toggle is the seriesHidden effect below).
     series.applyOptions({ visible: !untrack(() => props.seriesHidden) });
     // Scales → Price labels → Symbol: last-value axis label + price line
     // (picker enum 0/1/2 → library Solid/Dashed/Dotted). "Name" puts the
     // ticker inside the price-scale label (the library's series title).
-    // TV draws the price line LINESTYLE_DOTTED (813264); its colour "" follows
+    // The price line is dotted by default; its colour "" follows
     // the last bar (library default), a picked colour overrides it.
     series.applyOptions({
       lastValueVisible: tokens.symbolLastValue,
@@ -1718,7 +1713,7 @@ export function ChartView(props: Props) {
   /** Scales → "Previous day close": one price line at the close of the LAST
    *  bar's previous trading day (the tail of {@link prevDayClose}, so it
    *  follows the recompute above). Memo key skips the createPriceLine churn
-   *  like the high/low updater below. TV's badge is the row's gray by
+   *  like the high/low updater below. The badge is the row's gray by
    *  default; the line carries no title. */
   function updatePrevClosePriceLine() {
     if (!series) return;
@@ -1746,8 +1741,7 @@ export function ChartView(props: Props) {
   }
 
   /** Scales → "Pre/post/night market": the latest extended-hours trade as a
-   *  "Pre"/"Post" price label + dotted line, per TV's PrePostMarket source
-   *  (desktop bundle, read 23/09/2026): shown only while the market is in
+   *  "Pre"/"Post" price label + dotted line: shown only while the market is in
    *  pre- or post-market, and only when the chart does not draw that trade
    *  itself (daily/weekly/monthly, or intraday on the regular session).
    *  Colour by session; label text black/white from the background. No
@@ -1789,7 +1783,7 @@ export function ChartView(props: Props) {
       price: price!,
       color,
       title: session === "pre" ? "Pre" : "Post",
-      // TV: LINESTYLE_DOTTED, width 1 (drawn 1 px on / 3 px off; the
+      // Dotted, width 1 (drawn 1 px on / 3 px off; the
       // library's SparseDotted 1/4 is the closest, as for the grid).
       lineStyle: LineStyle.SparseDotted,
       lineWidth: 1,
@@ -1816,9 +1810,8 @@ export function ChartView(props: Props) {
   });
 
   /** Scales → "High and low": two price lines at the highest high / lowest
-   *  low of the VISIBLE bars (TV parity: IONQ 1D on the desktop showed High
-   *  73.65 = the 03/06/2026 bar at the left edge while the loaded maximum was
-   *  84.64, 23/09/2026), honouring the row's label/line modes + colorPair.
+   *  low of the VISIBLE bars (not of all loaded bars), honouring the row's
+   *  label/line modes + colorPair.
    *  Runs on data changes, live extreme pushes and every visible-range change,
    *  so an unchanged key is a no-op and a moved extreme only re-prices the two
    *  existing lines. */
@@ -1865,7 +1858,7 @@ export function ChartView(props: Props) {
       lowLine!.applyOptions({ price: lo });
       return;
     }
-    // TV high/low views (813264 `Qt`/`Kt`, dark): dotted line, colour = the
+    // High/low views (dark): dotted line, colour = the
     // row colour or #808080, label background = the row colour or #142E61
     // with a contrasting text colour.
     const lineStyle = LineStyle.Dotted;
@@ -1889,7 +1882,7 @@ export function ChartView(props: Props) {
   }
 
   // ── Alert lines (Settings → Alerts tab) ────────────────────────────────
-  // TV draws a dashed price line for every price-level alert on the charted
+  // A dashed price line for every price-level alert on the charted
   // symbol, coloured by the rule's state (colorPair up = active, down =
   // inactive; "Only active alerts" hides the inactive ones). Read-only — no
   // drag-to-edit. Series-owned, so a series rebuild drops them; rebuildSeries
@@ -1957,7 +1950,7 @@ export function ChartView(props: Props) {
   function updateCountdown() {
     const t = currentTokens();
     const last = raw.length > 0 ? raw[raw.length - 1] : null;
-    // TV shows the countdown for time-based styles only (renko, line break,
+    // The countdown shows for time-based styles only (renko, line break,
     // kagi, P&F and range bars have no bar close to count to).
     const timeBased = !isTransformType(activeType);
     const text = last && timeBased
@@ -1979,7 +1972,7 @@ export function ChartView(props: Props) {
       if (ha) { labelPrice = ha.close; labelUp = ha.close >= ha.open; }
     }
     // "Price and percentage value": a second row with the change from the
-    // first visible bar (TV getOppositeModePriceText, regular scale).
+    // first visible bar (regular scale).
     let pctText = "";
     if (t.symbolValuePercent && timeBased && last && chart) {
       const lr = chart.timeScale().getVisibleLogicalRange();
@@ -1995,7 +1988,7 @@ export function ChartView(props: Props) {
     countdown.setState({
       visible: active,
       price: labelPrice,
-      // Row 1 of TV's combined label — empty when the Symbol price-label
+      // Row 1 of the combined label — empty when the Symbol price-label
       // setting is off (the plate then shows the countdown row alone). The
       // "Name" option prefixes the ticker, like the library label it replaces.
       priceText:
@@ -2010,8 +2003,8 @@ export function ChartView(props: Props) {
       fontSize: t.scaleFontSize,
       fontFamily: readFontFamily(),
     });
-    // The plate REPLACES the library's last-value label while it shows (TV
-    // draws ONE label: price row + percentage row + countdown row) — toggle
+    // The plate REPLACES the library's last-value label while it shows (ONE
+    // label: price row + percentage row + countdown row) — toggle
     // the library label off/on as the market opens/closes. Read-compare so
     // the 1s timer doesn't spam applyOptions.
     if (series) {
@@ -2194,7 +2187,7 @@ export function ChartView(props: Props) {
     return ans;
   }
 
-  /** Index of the oldest loaded bar at or after `targetSec` (TV lowerbound);
+  /** Index of the oldest loaded bar at or after `targetSec` (lower bound);
    *  the newest bar when the target is past every bar. */
   function indexAtOrAfter(targetSec: number): number {
     let lo = 0,
@@ -2212,12 +2205,12 @@ export function ChartView(props: Props) {
 
   // ── Date-range sync, driver side ────────────────────────────────────────
   /** Broadcast this pane's visible dates when it is the ACTIVE pane and a
-   *  whole bar entered or left the view (TV: only the active chart drives, on
-   *  visibleBarsStrictRangeChanged). Dates, not logical indices, so panes on
+   *  whole bar entered or left the view (only the active chart drives).
+   *  Dates, not logical indices, so panes on
    *  other intervals line up. `force` re-sends an unchanged range (pane just
    *  became active, or sync was just switched on). A change the user made is
-   *  also sent to linked tabs when the group's Date range channel is on (TV
-   *  sync_date_range), independent of this layout's own toggle. */
+   *  also sent to linked tabs when the group's Date range channel is on,
+   *  independent of this layout's own toggle. */
   function broadcastRange(force: boolean) {
     if (!chart || !props.active || swapping || suppressRangeBroadcast) return;
     const toLayout = layoutSync().dateRange;
@@ -2235,9 +2228,8 @@ export function ChartView(props: Props) {
     }
     if (toLink) postLinkRange(r.from as number, r.to as number);
   }
-  // TV re-syncs every chart to the newly active chart's range when the active
-  // chart changes or date-range sync is switched on (setActive →
-  // _subscribeToProperties → _onmodel → _syncChartsDateRangesWithActiveChartRange).
+  // Every chart re-syncs to the newly active chart's range when the active
+  // chart changes or date-range sync is switched on.
   createEffect(() => {
     chartReady();
     if (!props.active || !layoutSync().dateRange) return;
@@ -2247,8 +2239,7 @@ export function ChartView(props: Props) {
   // ── Date-range sync, follower side ──────────────────────────────────────
   /** Queue an inbound date-range target. Only the latest target is kept, and
    *  it is applied in a later task so the driving pane's gesture never waits
-   *  on its followers (TV: setTimeout → gotoTimeRange, superseding the
-   *  previous request). */
+   *  on its followers (a newer target supersedes the previous request). */
   function queueSyncRange(from: number, to: number) {
     syncTarget = { from, to };
     scheduleSyncRun(0);
@@ -2297,8 +2288,8 @@ export function ChartView(props: Props) {
     return days;
   }
 
-  /** Load history back to the target time in ONE request that reaches it
-   *  (TV loadDataTo), keeping the current view on the same bars meanwhile.
+  /** Load history back to the target time in ONE request that reaches it,
+   *  keeping the current view on the same bars meanwhile.
    *  `target` is re-read after each await, so a newer target that arrived
    *  during the load is honoured; normally one round, more only when the
    *  trading-day estimate fell short (holidays) or the target moved further
@@ -2385,7 +2376,7 @@ export function ChartView(props: Props) {
   }
 
   /** Bar index holding a synced time on this pane: the bar of that day on
-   *  daily/weekly/monthly (TV snaps DWM targets to the trading day), the first
+   *  daily/weekly/monthly (DWM targets snap to the trading day), the first
    *  bar at/after it on intraday frames. */
   function syncIndex(sec: number): number {
     const iv = props.interval ?? "1D";
@@ -2393,7 +2384,7 @@ export function ChartView(props: Props) {
     return dwm ? indexAtOrBefore(sec) : indexAtOrAfter(sec);
   }
 
-  /** Frame [fromSec, toSec] on this pane (TV gotoTimeRange → zoomToBarsRange):
+  /** Frame [fromSec, toSec] on this pane:
    *  the same dates as the driving pane, bar spacing adapting to fit (the
    *  library's min bar spacing then keeps the right edge). */
   function applySyncRange(fromSec: number, toSec: number) {
@@ -2413,8 +2404,7 @@ export function ChartView(props: Props) {
     const i = syncIndex(fromSec);
     let l = Math.max(i, syncIndex(toSec));
     if (l - i + 1 < SYNC_MIN_BARS) l = i + SYNC_MIN_BARS - 1;
-    // A range reaching the latest bar keeps the pane's right margin (TV
-    // targetDefaultRightOffset).
+    // A range reaching the latest bar keeps the pane's right margin.
     if (l >= last) l = Math.max(l, last + (ts.options().rightOffset ?? 0));
     holdSyncGuard();
     ts.setVisibleLogicalRange({ from: i - 0.5, to: l + 0.5 });
@@ -2422,8 +2412,8 @@ export function ChartView(props: Props) {
 
   /** Bumped per goToTime call so a newer jump supersedes an in-flight older one. */
   let gotoGen = 0;
-  /** Receiving side of "Time" sync (TV syncTimeWithModel → gotoTime with
-   *  targetPointAlignment "center", alignIfTargetPointIsVisible false): when the
+  /** Receiving side of "Time" sync (target aligned to the centre, no
+   *  alignment when already visible): when the
    *  clicked time is already in view nothing moves; otherwise the pane loads
    *  history back to it if needed (one request, capped) and centres it at the
    *  current bar spacing. It only scrolls: the crosshair is the crosshair
@@ -2479,7 +2469,7 @@ export function ChartView(props: Props) {
       crosshair: { ...base.crosshair, mode: CrosshairMode.Normal },
       timeScale: { ...base.timeScale, timeVisible: false },
       // Disable the library's cursor-anchored mouse-wheel zoom; we replace it
-      // below with a right-edge-anchored zoom (TV parity — see onWheel).
+      // below with a right-edge-anchored zoom (see onWheel).
       handleScale: { mouseWheel: false },
     });
     // Start empty; real candles arrive from the Massive resource below.
@@ -2504,16 +2494,14 @@ export function ChartView(props: Props) {
       });
       setCoordEpoch((n) => n + 1);
       // Pane heights and the scale width both move with the pane — re-anchor
-      // and re-fit the control bars (TV calls updatePosition on resize too).
+      // and re-fit the control bars on resize.
       refreshBarsRef?.();
     });
     ro.observe(host);
 
     // ── Control bars ────────────────────────────────────────────────────────
     // The centred group bar and the bottom-right "Scroll to the most recent
-    // bar" button, ported from TV's ControlBarNavigation (probed live off
-    // Desktop 3.3.0.7992; see control-bar.ts
-    // for the shared geometry). The rules carried over verbatim:
+    // bar" button (see control-bar.ts for the shared geometry). The rules:
     //   • the goto button shows only while `rightOffset < 0`, i.e. the last bar
     //     has left the right edge. Empty right margin still reads as realtime.
     //   • both also need the Navigation setting to allow it: `alwaysOn` pins
@@ -2521,8 +2509,8 @@ export function ChartView(props: Props) {
     //     around each wrapper (73px on top). Each bar tests its OWN box. A held
     //     button or an armed tool freezes the state instead of hiding.
     //   • the anchor follows the bottom-most pane tall enough to hold the bar.
-    let nearGoto = false; // TV `_backButtonCanBeVisible`
-    let nearBar = false; // TV `_controlBarVisible`
+    let nearGoto = false; // back button can be visible
+    let nearBar = false; // control bar visible
     let gotoPoll: number | undefined;
 
     const refreshBars = () => {
@@ -2544,7 +2532,7 @@ export function ChartView(props: Props) {
       setResetAvailable(scalesOffDefault());
     };
 
-    // TV polls the goto button at 1s to catch new bars pushing the last bar
+    // The goto button is polled at 1s to catch new bars pushing the last bar
     // off-screen. It can't show while the pointer is away (and the pinned modes
     // don't depend on scroll at all), so only poll where it can change the
     // answer — same result, no idle timer per pane.
@@ -2573,8 +2561,8 @@ export function ChartView(props: Props) {
     };
     // Bound to the pane root, not the canvas host: the buttons are siblings of
     // the host, so hovering one would fire `mouseleave` on the host, hide it,
-    // put the cursor back over the canvas and flicker forever. TV binds to
-    // `.chart-widget`, which likewise wraps both.
+    // put the cursor back over the canvas and flicker forever. The pane root
+    // wraps both.
     paneRoot.addEventListener("mousemove", onBarPointer);
     paneRoot.addEventListener("mouseleave", onBarPointer);
     onCleanup(() => {
@@ -2636,13 +2624,12 @@ export function ChartView(props: Props) {
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onStyleRange);
 
-    // ── Right-edge-anchored wheel zoom (TV parity) ──────────────────────────
-    // TradingView pins the most recent bar to the right edge when zooming with
-    // the wheel, so history expands/contracts to the LEFT only — unlike
-    // lightweight-charts' default cursor-anchored zoom. We hold the visible
-    // range's right edge (`to`) fixed and scale the left edge (`from`).
-    // The whole wheel follows TV's chart widget `_onMousewheel` (879505) through
-    // its helper (./wheel-helper): vertical → zoom (bar spacing x (1 + t/10),
+    // ── Right-edge-anchored wheel zoom ──────────────────────────────────────
+    // The wheel zoom pins the most recent bar to the right edge, so history
+    // expands/contracts to the LEFT only — unlike lightweight-charts' default
+    // cursor-anchored zoom. We hold the visible range's right edge (`to`) fixed
+    // and scale the left edge (`from`). The whole wheel goes through the wheel
+    // helper (./wheel-helper): vertical → zoom (bar spacing x (1 + t/10),
     // |t| <= 1 per event); Ctrl → "focused zoom", the bar under the cursor
     // stays put; horizontal (and Shift + vertical, swapped by the helper) →
     // scrollChart(-80 x deltaX) px. The library's own wheel scroll is replaced,
@@ -2663,7 +2650,7 @@ export function ChartView(props: Props) {
       e.preventDefault();
       e.stopPropagation();
       if (w.deltaX !== 0) {
-        // TV scrollChart(-80 · deltaX): the content moves that many pixels
+        // Scroll by -80 · deltaX: the content moves that many pixels
         // (positive = to the right, i.e. toward older bars).
         const px = -80 * w.deltaX;
         const shift = px / (ts.width() / span);
@@ -2677,8 +2664,8 @@ export function ChartView(props: Props) {
       // Wheel up (t > 0) → zoom in (smaller span); down → zoom out.
       const newSpan = Math.max(5, span / (1 + t / 10));
       if (e.ctrlKey || e.metaKey) {
-        // Focused zoom (TV zoomTime(x, t, mod)): the logical index under the
-        // cursor keeps its screen position. x clamped like TV to [1, width - 2].
+        // Focused zoom: the logical index under the cursor keeps its screen
+        // position. x clamped to [1, width - 2].
         const g = scaleGeom();
         const r = host.getBoundingClientRect();
         const x = Math.max(1, Math.min(e.clientX - r.left - (g?.left ? g.w : 0), ts.width() - 2));
@@ -2688,13 +2675,12 @@ export function ChartView(props: Props) {
         ts.setVisibleLogicalRange({ from: at - f * newSpan, to: at - f * newSpan + newSpan });
         return;
       }
-      // Measured off TV Desktop (25/07/2026): with the right edge ON data the
-      // wheel zoom holds the right edge exactly (fixedFrac 1.0 both ways);
-      // with the right edge PAST the last bar (right margin / whitespace) a
-      // zoom-in holds the LEFT edge and eats the margin instead. Zoom-out in
-      // the whitespace state is applied with the same left-edge rule — the
-      // one unmeasured cell, and the only rule consistent with the three
-      // measured ones. Kagi/PnF draw a synthetic column axis where raw bar
+      // With the right edge ON data the wheel zoom holds the right edge
+      // exactly (fixedFrac 1.0 both ways); with the right edge PAST the last
+      // bar (right margin / whitespace) a zoom-in holds the LEFT edge and eats
+      // the margin instead. Zoom-out in the whitespace state is applied with
+      // the same left-edge rule, the only rule consistent with the other
+      // three cases. Kagi/PnF draw a synthetic column axis where raw bar
       // counts don't map, so they keep the plain right-edge anchor.
       const lastIndex =
         activeType === "kagi" || activeType === "pnf" ? Infinity : raw.length - 1;
@@ -2708,12 +2694,11 @@ export function ChartView(props: Props) {
         ts.setVisibleLogicalRange({ from: range.to - newSpan, to: range.to });
       }
     };
-    // Wheel over a price axis (TV price-axis `_onMousewheel`, 879505, on with
-    // handleScale.mouseWheel): scales that pane's price like an axis drag from
+    // Wheel over a price axis (on with handleScale.mouseWheel): scales that pane's price like an axis drag from
     // the cursor — startScale(y), scaleTo(y + 15 · deltaY), deltaY from its own
     // wheel helper: the price range is scaled around its centre by
     // (s0 + 0.2(h − 1)) / (s1 + 0.2(h − 1)), s = h − y (≥ 0), at least 0.1.
-    // Not in percent / indexed-to-100 mode (TV returns and the chart gets it).
+    // Not in percent / indexed-to-100 mode (the chart gets the wheel then).
     // TRUE when handled.
     function onPriceAxisWheel(e: WheelEvent): boolean {
       const g = scaleGeom();
@@ -2820,7 +2805,7 @@ export function ChartView(props: Props) {
       for (const t of plusUpEvents) host.removeEventListener(t, onPlusUp, true);
     });
 
-    // Shift+Click on empty chart → arm the Measure tool (TV's Shift+drag-to-
+    // Shift+Click on empty chart → arm the Measure tool (Shift+drag-to-
     // measure; this app's measure is two-click, so the click arms it and the
     // user clicks the two endpoints). Only on the focused pane and when no tool
     // is already armed. Capture phase + preventDefault so it doesn't also start
@@ -2835,10 +2820,9 @@ export function ChartView(props: Props) {
     onCleanup(() => host.removeEventListener("pointerdown", onShiftMeasure, true));
 
     // Ctrl+double click on an empty pane area → collapse / restore that pane
-    // (TV _mouseDoubleClickOrDoubleTapEvent: no source under the cursor, no
-    // drawing tool, empty selection). The plain double click (maximize pane)
+    // (no source under the cursor, no drawing tool, empty selection). The plain double click (maximize pane)
     // is not offered here. Only drawings are excluded as sources: a series /
-    // study hit (TV opens its settings) is not tested.
+    // study hit (which would open its settings) is not tested.
     const onCtrlDblClick = (e: MouseEvent) => {
       if (!(e.ctrlKey || e.metaKey) || props.armedTool) return;
       if (props.selectedDrawingId || (props.selectedDrawingIds?.length ?? 0) > 0) return;
@@ -2868,7 +2852,7 @@ export function ChartView(props: Props) {
       // Sync-in-layout (panes) OR "Sync crosshair across windows": mirror the
       // crosshair by time. tab-link-bus relays this same window event to the
       // other windows; each receiver applies it only when its own layout's
-      // Crosshair sync is on (TV ChartWidgetsCollection broadcast).
+      // Crosshair sync is on.
       if (
         pointerOverHost &&
         !suppressCrosshairBroadcast &&
@@ -2906,14 +2890,14 @@ export function ChartView(props: Props) {
     };
     chart.subscribeCrosshairMove(onCrosshair);
     // Plus button: follows the crosshair on the main pane while the pointer
-    // is over the chart (TV `_isOnHoveredChartWidget`), not while a drawing
+    // is over the chart, not while a drawing
     // tool is armed.
     const onPlusCrosshair = (param: MouseEventParams<Time>) => {
       const onMain = param.point && ((param as { paneIndex?: number }).paneIndex ?? 0) === 0;
       setPlusY(onMain && pointerOverHost && !props.armedTool ? param.point!.y : null);
     };
     chart.subscribeCrosshairMove(onPlusCrosshair);
-    // Latest news lollipop: hover state + TV hideCrosshairLinesOnHover.
+    // Latest news lollipop: hover state + crosshair lines hidden on hover.
     let newsHovered = false;
     const onNewsCrosshair = (param: MouseEventParams<Time>) => {
       const hov = param.hoveredObjectId === NEWS_LOLLIPOP_ID;
@@ -2924,7 +2908,7 @@ export function ChartView(props: Props) {
     };
     chart.subscribeCrosshairMove(onNewsCrosshair);
     // Click on the lollipop toggles its card; any other chart click closes it
-    // (TV processClickOutside). A DOM click, not the library's click event:
+    // (click outside). A DOM click, not the library's click event:
     // the library drops a click that follows another within 500 ms (it is
     // counted as a double click).
     const onNewsClick = (e: MouseEvent) => {
@@ -2935,19 +2919,17 @@ export function ChartView(props: Props) {
       else if (newsCardOpen()) setNewsCardOpen(false);
     };
     host.addEventListener("click", onNewsClick, true);
-    // The card closes on scroll / zoom (TV customCloseSubscriptions).
+    // The card closes on scroll / zoom.
     const onNewsRange = () => { if (newsCardOpen()) setNewsCardOpen(false); };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onNewsRange);
 
-    // "Time" sync, driver side (TV syncScroll): every left mouse-up inside the
-    // plot area of a pane that was pressed there, including the end of a drag,
-    // sends the time under the pointer. Not on a drawing, not while a tool is
-    // armed, and not at all while date-range sync is on (TV returns early when
-    // _dateRangeLock is set). Whitespace right of the last bar extrapolates the
-    // time from the bar step, like TV's roughTime. The same click is sent to
-    // linked tabs when the group's Time channel is on and its Date range
-    // channel is off (TV emits sync_time before its lock check; the Linker
-    // drops time when date range is on).
+    // "Time" sync, driver side: every left mouse-up inside the plot area of a
+    // pane that was pressed there, including the end of a drag, sends the time
+    // under the pointer. Not on a drawing, not while a tool is armed, and not
+    // at all while date-range sync is on. Whitespace right of the last bar
+    // extrapolates the time from the bar step (rough time). The same click is
+    // sent to linked tabs when the group's Time channel is on and its Date
+    // range channel is off (the Linker drops time when date range is on).
     let pressedHere = false;
     const onTimePress = (e: PointerEvent) => {
       // Shift+press arms Measure, Alt+press toggles maximize: not time clicks.
@@ -2997,11 +2979,11 @@ export function ChartView(props: Props) {
         if (d.time == null) {
           chart.clearCrosshairPosition();
         } else if (raw.length === 0 || (d.time as number) < (raw[0].time as number)) {
-          // TV hides the mirrored crosshair on a chart whose loaded history
+          // Hide the mirrored crosshair on a chart whose loaded history
           // doesn't reach the synced time. Without this, setCrosshairPosition
-          // clamps to the FIRST loaded bar and the label stands there stale —
-          // captured live 25/07/2026: a 1D hover at 13 Feb left the 5m/1m
-          // panes labelled at their oldest bars (21 Jul / 23 Jul).
+          // clamps to the FIRST loaded bar and the label stands there stale
+          // (e.g. a 1D hover at 13 Feb left the 5m/1m panes labelled at their
+          // oldest bars, 21 Jul / 23 Jul).
           chart.clearCrosshairPosition();
         } else {
           // Vertical line aligns by time; the horizontal line uses the source
@@ -3021,8 +3003,8 @@ export function ChartView(props: Props) {
       queueSyncRange(d.from, d.to);
     };
     // Tab link (tab-link-bus): a linked tab's range lands on the ACTIVE pane,
-    // and this layout's own Date range sync spreads it (TV
-    // activeChart().syncDateRange with its link events muted).
+    // and this layout's own Date range sync spreads it (with its link events
+    // muted).
     const onLinkRange = (e: Event) => {
       const d = (e as CustomEvent<{ from: number; to: number }>).detail;
       if (!chart || !props.active) return;
@@ -3032,7 +3014,7 @@ export function ChartView(props: Props) {
       }
     };
     // Tab link time: every pane when this layout's Time sync is on, else the
-    // active pane only (TV: syncTime on all charts or on the active chart).
+    // active pane only.
     const onLinkTime = (e: Event) => {
       const d = (e as CustomEvent<{ time: number }>).detail;
       if (!chart || !series || !(props.active || layoutSync().time)) return;
@@ -3110,7 +3092,7 @@ export function ChartView(props: Props) {
     window.addEventListener("chart-set-range", whenShown(onSetRangeSpan));
     onCleanup(() => window.removeEventListener("chart-set-range", whenShown(onSetRangeSpan)));
 
-    // ── Keyboard chart actions (TV parity) ─────────────────────────────────
+    // ── Keyboard chart actions ─────────────────────────────────────────────
     // App.tsx broadcasts these as window events; only the FOCUSED pane reacts
     // (props.active), so multi-pane layouts pan/zoom/scale the chart the user
     // is on — not all of them at once.
@@ -3133,9 +3115,9 @@ export function ChartView(props: Props) {
       ps.applyOptions({ mode: cur.mode === target ? PriceScaleMode.Normal : target });
     };
     // Snapshot (Alt+S): grab the chart canvas and copy it to the clipboard
-    // (TV's "Copy chart image"); fall back to a PNG download where the async
+    // ("Copy chart image"); fall back to a PNG download where the async
     // clipboard image API isn't available. "open" is the local backing for
-    // TV's cloud "Open image in new tab": temp file + OS default viewer.
+    // "Open image in new tab": temp file + OS default viewer.
     const takeSnapshot = (action: "copy" | "download" | "open" = "copy") => {
       if (!chart) return;
       const canvas = chart.takeScreenshot();
@@ -3168,16 +3150,16 @@ export function ChartView(props: Props) {
       }, "image/png");
     };
 
-    // Ctrl+↑/↓ is the same action as the control bar's zoom buttons in TV, so
-    // both go through zoomSpan (animated, TV's measured step).
+    // Ctrl+↑/↓ is the same action as the control bar's zoom buttons, so
+    // both go through zoomSpan (animated, the measured step).
     const onZoom = (e: Event) => {
       if (!props.active) return;
       zoomSpan((e as CustomEvent<{ dir: "in" | "out" }>).detail.dir === "in" ? 1 / ZOOM_FACTOR : ZOOM_FACTOR);
     };
     const onGotoRealtime = () => { if (props.active) scrollToRealtime(); };
     const onGotoFirst = () => { if (props.active) scrollToFirstBar(); };
-    // Held ←/→ ("bar") and Ctrl+←/→ ("smooth"). One stop for both, like TV's
-    // single stopMove. Start is pane-gated; stop is not — a pane that started a
+    // Held ←/→ ("bar") and Ctrl+←/→ ("smooth"). One stop for both, as a
+    // single stop move. Start is pane-gated; stop is not — a pane that started a
     // run must still be able to end it if focus moved in between.
     const onScrollStart = (e: Event) => {
       if (!props.active) return;
@@ -3333,7 +3315,7 @@ export function ChartView(props: Props) {
   // Events toggles change. (The primitive retains this across series rebuilds.)
   createEffect(() => {
     const a = appearance();
-    // Dividends + Splits default ON (TV) — shown until explicitly unchecked.
+    // Dividends + Splits default ON — shown until explicitly unchecked.
     eventMarkers.setData(eventsRes() ?? [], a.eventsDividends ?? true, a.eventsSplits ?? true);
   });
 
@@ -3405,8 +3387,7 @@ export function ChartView(props: Props) {
   let swapping = false;
   // Pre-switch bar spacing + right offset (bars between the last bar and the
   // right edge), captured when the interval/session changes on the SAME symbol.
-  // TV keeps both across an interval change and lets the dates move: measured
-  // live 23/09/2026, e.g.
+  // Both are kept across an interval change and the dates move, e.g.
   // 1D scrolled back 300 bars → 60 still 300 bars back at the same spacing, and
   // back to 1D on the exact previous dates. Null for symbol changes / first load.
   // With Scales → "Save chart left edge position when changing interval" on,
@@ -3465,7 +3446,7 @@ export function ChartView(props: Props) {
       console.log(`[symbol-effect] ${sym} ${int} ${sess}${sinceClick}`);
     }
     // Interval/session switch on the SAME symbol: keep the bar spacing and the
-    // right offset (TV, see pendingScaleKeep). Captured now, while the old
+    // right offset (see pendingScaleKeep). Captured now, while the old
     // interval is still painted. A symbol change frames its own window.
     if (chart && sym === lastClearedSym && (int !== lastClearedInt || sess !== lastClearedSess)) {
       const bs = liveBarSpacing(chart);
@@ -3482,7 +3463,7 @@ export function ChartView(props: Props) {
     lastClearedSess = sess;
     if (!chart || !series) return;
     // Keep the previous symbol's candles painted (the dim overlay covers them)
-    // until the new data lands — a TradingView-style stale-while-loading
+    // until the new data lands — a stale-while-loading
     // transition instead of a blank flash. We only invalidate paging and any
     // in-flight page here; the apply effect swaps the data when it arrives.
     // Bumping the generation token makes a page launched for the previous series
@@ -3649,7 +3630,7 @@ export function ChartView(props: Props) {
       startPrefetch(props.symbol ?? "", props.interval ?? "1D", fetchGen, firstOldest);
   });
 
-  // Dim-and-hold transition (TradingView-style): rather than a spinner on a
+  // Dim-and-hold transition: rather than a spinner on a
   // blanked chart, keep the previous candles painted and fade a dim overlay over
   // them while the new symbol loads. Debounced ~160ms so cached/instant loads
   // never flash the overlay; only dim when there's an outgoing chart to hold.
@@ -3701,8 +3682,8 @@ export function ChartView(props: Props) {
   // ── Compare symbols (header "Compare symbols") ─────────────────────────
   // Each compared symbol is a line series on a shared overlay price scale
   // ("compare"), auto-scaled independently of the main series so differently-
-  // priced symbols share one visual frame. TV compares on a percent scale; the
-  // overlay autoscale is the local stand-in. Series are keyed by symbol so the
+  // priced symbols share one visual frame. A percent scale is the usual
+  // compare mode; the overlay autoscale is the local stand-in. Series are keyed by symbol so the
   // effect only fetches/creates/removes the delta on each change.
   const compareSeries = new Map<string, ISeriesApi<"Line">>();
   const COMPARE_COLORS = ["#ff9800", "#9c27b0", "#00bcd4", "#8bc34a", "#e91e63", "#3f51b5"];
@@ -4069,7 +4050,7 @@ export function ChartView(props: Props) {
   });
 
   // Canvas → Watermark: centered pane text assembled from the checked parts
-  // (ticker / interval / description — TV's checkable-list model). The
+  // (ticker / interval / description — a checkable-list model). The
   // description line needs the ticker-info name, fetched lazily only while
   // that part is enabled.
   // Status line → Title: the "Name" / "Symbol and name" modes need the
@@ -4085,7 +4066,7 @@ export function ChartView(props: Props) {
   const [legendDesc, setLegendDesc] = createSignal("");
 
   // -- Latest news (Events tab) ------------------------------------------
-  // TV LatestUpdatesSource: the newest headline of the symbol, refreshed
+  // Latest updates: the newest headline of the symbol, refreshed
   // every 5 min; none if it is older than 31 days; not on seconds
   // intervals. A headline that arrives after the first load raises the red
   // "new" dot until the lollipop is clicked.
@@ -4147,7 +4128,7 @@ export function ChartView(props: Props) {
     wasShown = shown;
   });
 
-  // Interval change closes the card (TV onSymbolIntervalChanged).
+  // Interval change closes the card.
   createEffect(() => { void props.interval; setNewsCardOpen(false); });
   createEffect(() => {
     newsLollipop.setState({ visible: news() !== null, hasNew: newsHasNew(), active: newsCardOpen() });
@@ -4156,7 +4137,7 @@ export function ChartView(props: Props) {
     if (!newsCardOpen()) setNewsHasNew(false);
     setNewsCardOpen(!newsCardOpen());
   }
-  /** Card anchor (viewport px): TV point = lollipop centre - 10.5 - 8, card
+  /** Card anchor (viewport px): point = lollipop centre - 10.5 - 8, card
    *  centred on it, bottom 6 px above it (measured on the earnings card). */
   const newsCardPos = () => {
     if (!newsCardOpen() || !chart || !paneRoot) return null;
@@ -4300,29 +4281,29 @@ export function ChartView(props: Props) {
       <Show when={scaleGeom()}>
         {(g) => (
           <>
-            {/* Currency label (TV price-axis-currency-label, 12 px row). */}
+            {/* Currency label (12 px row). */}
             <Show when={currency() && overlayVisible(appearance().currencyUnit ?? "visibleOnMouseOver", axisHover() !== null)}>
-              <div class="tv-price-currency" style={{ [g().left ? "left" : "right"]: "0px", width: `${g().w}px` }}>
-                <div class="tv-price-currency-box" style={{ "background-color": readChartTokens(appearance()).bg }}>
-                  <div class="tv-price-currency-row" style={{ "font-size": `${readChartTokens(appearance()).scaleFontSize}px` }} title="Currency">
+              <div class="ot-price-currency" style={{ [g().left ? "left" : "right"]: "0px", width: `${g().w}px` }}>
+                <div class="ot-price-currency-box" style={{ "background-color": readChartTokens(appearance()).bg }}>
+                  <div class="ot-price-currency-row" style={{ "font-size": `${readChartTokens(appearance()).scaleFontSize}px` }} title="Currency">
                     <span>{currency()}</span>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7 5" width="7" height="5" fill="none" aria-hidden="true"><path stroke="currentColor" stroke-width="1.2" d="M1 1.5l2.5 2 2.5-2" /></svg>
                   </div>
                 </div>
               </div>
             </Show>
-            {/* Auto / Log buttons (TV priceScaleModeButtons). */}
+            {/* Auto / Log buttons (price-scale mode buttons). */}
             <Show when={overlayVisible(appearance().scaleModes ?? "visibleOnMouseOver", axisHover() === 0)}>
-              <div class="tv-price-modes" style={{ [g().left ? "left" : "right"]: "0px", top: `${g().h - 30}px`, width: `${g().w}px` }}>
-                <div class="tv-price-mode-wrap">
-                  <button type="button" class={`tv-price-mode${scaleModes().auto ? " is-on" : ""}`} title="Auto (fits data to screen)" aria-label="Toggle auto scale" onClick={toggleAutoScale}>A</button>
+              <div class="ot-price-modes" style={{ [g().left ? "left" : "right"]: "0px", top: `${g().h - 30}px`, width: `${g().w}px` }}>
+                <div class="ot-price-mode-wrap">
+                  <button type="button" class={`ot-price-mode${scaleModes().auto ? " is-on" : ""}`} title="Auto (fits data to screen)" aria-label="Toggle auto scale" onClick={toggleAutoScale}>A</button>
                 </div>
-                <div class="tv-price-mode-wrap">
-                  <button type="button" class={`tv-price-mode${scaleModes().log ? " is-on" : ""}`} title="Logarithmic" aria-label="Toggle log scale" onClick={toggleLogScale}>L</button>
+                <div class="ot-price-mode-wrap">
+                  <button type="button" class={`ot-price-mode${scaleModes().log ? " is-on" : ""}`} title="Logarithmic" aria-label="Toggle log scale" onClick={toggleLogScale}>L</button>
                 </div>
               </div>
             </Show>
-            {/* Crosshair plus button (TV LabelIcon.Plus on the pane side of
+            {/* Crosshair plus button (on the pane side of
                 the crosshair price label). */}
             <Show when={appearance().plusButton !== false && plusY() !== null ? plusY() : null}>
               {(y) => {
@@ -4332,7 +4313,7 @@ export function ChartView(props: Props) {
                     ref={plusEl}
                     type="button"
                     tabIndex={-1}
-                    class={`tv-price-plus${g().left ? " is-left" : ""}`}
+                    class={`ot-price-plus${g().left ? " is-left" : ""}`}
                     style={{
                       [g().left ? "left" : "right"]: `${g().w}px`,
                       top: `${Math.round(y() - size() / 2)}px`,
@@ -4353,40 +4334,40 @@ export function ChartView(props: Props) {
           </>
         )}
       </Show>
-      {/* Latest news card (TV lollipop tooltip, 61637 LollipopTooltipContent
-          type "news"): "Latest updates" title, newest headline card. */}
+      {/* Latest news card (lollipop tooltip, type "news"): "Latest updates"
+          title, newest headline card. */}
       <Show when={news() && newsCardPos()}>
         {(pos) => (
           <div
-            class="tv-news-card"
+            class="ot-news-card"
             style={{ left: `${pos().left}px`, bottom: `${pos().bottom}px`, "max-height": `${pos().maxHeight}px` }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            <div class="tv-news-card-title">
-              <svg class="tv-news-card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
+            <div class="ot-news-card-title">
+              <svg class="ot-news-card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
                 <path fill="currentColor" d="M24.5 14A10.5 10.5 0 1 0 14 24.5V26a12 12 0 1 1 0-24 12 12 0 0 1 0 24v-1.5c5.8 0 10.5-4.7 10.5-10.5" />
                 <path fill="currentColor" d="m17.03 7.5 1.02.9-4.02 4.93h5.29l-8.35 7.17-1.02-.9 4.02-4.93H8.68z" />
               </svg>
-              <span class="tv-news-card-heading">Latest updates</span>
+              <span class="ot-news-card-heading">Latest updates</span>
             </div>
-            <div class="tv-news-card-main">
-              {/* TV closes the card and opens its news dialog; OT has no news
-                  view yet, so the headline opens the article in the browser. */}
+            <div class="ot-news-card-main">
+              {/* OT has no news view yet, so the headline opens the article
+                  in the browser. */}
               <button
                 type="button"
-                class="tv-news-item"
+                class="ot-news-item"
                 onClick={() => {
                   const url = news()?.url;
                   setNewsCardOpen(false);
                   if (url) void openUrl(url).catch((e) => console.warn("[news] open article failed", e));
                 }}
               >
-                <div class="tv-news-item-header">
+                <div class="ot-news-item-header">
                   <span><time title={formatNewsDate(news()!.published)}>{formatAgo(news()!.published, Date.now())}</time></span>
                   <span>{news()!.publisher}</span>
                 </div>
-                <div class="tv-news-item-title">{news()!.title}</div>
-                <div class="tv-news-item-footer">
+                <div class="ot-news-item-title">{news()!.title}</div>
+                <div class="ot-news-item-footer">
                   <div>See all</div>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
                     <path fill="currentColor" d="M2.77 0v.01h.01l3 3.67.26.32-.25.32-3 3.67h-.01L2.77 8 2 7.37 4.72 4 2 .63z" />
@@ -4406,22 +4387,22 @@ export function ChartView(props: Props) {
             };
             const compact = () => (host?.clientWidth ?? 0) < 666.65;
             const a = () => paneActions(b.index);
-            // TV pane buttons: common tooltip; collapse / restore carry the
-            // "Ctrl + Double click" hint (data-tooltip-hotkey). Tooltip side
-            // not measured on TV (its pane buttons ignore a synthetic hover).
+            // Pane buttons: common tooltip; collapse / restore carry the
+            // "Ctrl + Double click" hint (data-tooltip-hotkey). The tooltip
+            // side is not verified.
             const btn = (svg: string, title: string, run: () => void, active = false, hint = false) => (
               <Tooltip text={title} hotkey={hint ? "Ctrl" : undefined} hotkeyText={hint ? "{0} + Double click" : undefined} side="bottom">
-                <div class={`tv-pane-btn${active ? " is-active" : ""}`} aria-label={title} onMouseDown={(e) => e.stopPropagation()} onClick={run} innerHTML={svg} />
+                <div class={`ot-pane-btn${active ? " is-active" : ""}`} aria-label={title} onMouseDown={(e) => e.stopPropagation()} onClick={run} innerHTML={svg} />
               </Tooltip>
             );
             return (
               <Show when={shown()}>
-                <div class="tv-pane-controls" style={{ top: `${b.top + 4}px`, [scaleGeom()!.left ? "left" : "right"]: `${scaleGeom()!.w + 4}px` }}>
+                <div class="ot-pane-controls" style={{ top: `${b.top + 4}px`, [scaleGeom()!.left ? "left" : "right"]: `${scaleGeom()!.w + 4}px` }}>
                   <Show
                     when={!compact()}
                     fallback={
                       <Tooltip text="Manage panes" side="bottom">
-                        <div class="tv-pane-btn" aria-label="Manage panes" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => openPaneMenu(e, b.index)} innerHTML={PANE_ICONS.more} />
+                        <div class="ot-pane-btn" aria-label="Manage panes" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => openPaneMenu(e, b.index)} innerHTML={PANE_ICONS.more} />
                       </Tooltip>
                     }
                   >
@@ -4471,26 +4452,26 @@ export function ChartView(props: Props) {
       />
       {/* "Scroll to the most recent bar". The wrapper is always mounted — its
           box is what the pointer-proximity test measures — and only the button
-          fades. Sits above the canvas but below the legends, like TV. */}
+          fades. Sits above the canvas but below the legends. */}
       <div
         ref={gotoWrap}
-        class="tv-control-bar"
+        class="ot-control-bar"
         style={{ bottom: `${gotoBox().bottom}px`, right: `${gotoBox().right}px` }}
       >
         <Tooltip text="Scroll to the most recent bar" hotkey="Alt + Shift + →" side="top">
           <div
-            class="tv-control-bar__btn"
-            classList={{ "tv-control-bar__btn--hidden": !gotoShown() }}
+            class="ot-control-bar__btn"
+            classList={{ "ot-control-bar__btn--hidden": !gotoShown() }}
             onClick={scrollToRealtime}
             onContextMenu={(e) => e.preventDefault()}
           >
-            <TvIcon name="chart-goto-realtime" />
+            <Icon name="chart-goto-realtime" />
           </div>
         </Tooltip>
       </div>
-      {/* One column, like TV's legend: the studies stack under the series
+      {/* One column: the studies stack under the series
           row whatever its height (it wraps to two lines on narrow panes). */}
-      <div class="tv-legend-stack">
+      <div class="ot-legend-stack">
         <ChartLegend
           ticker={splitSymbol(props.symbol ?? "").ticker}
           interval={intervalLabel(props.interval ?? "1D")}
@@ -4516,11 +4497,11 @@ export function ChartView(props: Props) {
         {studyLegend(0)}
       </div>
       {/* Study panes: each pane's legend at its own top-left, same offset
-          as the main legend (TV legend-quatTGAC). */}
+          as the main legend. */}
       <For each={paneBoxes().filter((b) => b.index > 0)}>
         {(b) => (
           <Show when={indLegend().some((r) => r.pane === b.index)}>
-            <div class="tv-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px` }}>
+            <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px` }}>
               {studyLegend(b.index)}
             </div>
           </Show>

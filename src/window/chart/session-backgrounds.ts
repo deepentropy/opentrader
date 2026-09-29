@@ -1,13 +1,12 @@
 /*
- * Session-backgrounds primitive — TV's pre-market / post-market pane tint on
+ * Session-backgrounds primitive — the pre-market / post-market pane tint on
  * intraday charts that show extended hours (Sessions study, "sessionHighlight
- * .backgrounds"; available only when the chart session is not regular). Read
- * off the desktop 23/09/2026: preMarket #FF9800 and postMarket #2962FF at
- * transparency 92, each run of extended bars tinted edge to edge (half a bar
+ * .backgrounds"; available only when the chart session is not regular).
+ * preMarket #FF9800 and postMarket #2962FF at transparency 92, each run of extended bars tinted edge to edge (half a bar
  * either side of the first/last bar), full pane height, under the grid.
  *
  * Bars are classed by their start in exchange time (America/New_York):
- * 04:00–09:30 pre, 16:00–20:00 post. The plan has no overnight data, so TV's
+ * 04:00–09:30 pre, 16:00–20:00 post. The plan has no overnight data, so the
  * night-market tint has nothing to cover.
  */
 import type {
@@ -89,7 +88,7 @@ export class SessionBackgroundsPrimitive implements ISeriesPrimitive<Time> {
 
 class SessionBackgroundsPaneView implements IPrimitivePaneView {
   constructor(private _source: SessionBackgroundsPrimitive) {}
-  // Under the grid and the candles, like TV's session highlight.
+  // Under the grid and the candles, like a session highlight.
   zOrder(): 'bottom' { return 'bottom'; }
   renderer(): IPrimitivePaneRenderer | null { return new SessionBackgroundsRenderer(this._source); }
 }

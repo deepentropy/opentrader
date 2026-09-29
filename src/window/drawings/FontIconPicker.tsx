@@ -8,7 +8,7 @@
  * closes; the next chart click places it as a `font-icon` drawing.
  */
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { TV_ICON_CATEGORIES, TV_STICKERS } from "./font-icons-catalog";
+import { ICON_CATEGORIES, STICKERS } from "./font-icons-catalog";
 import { EMOJI_CATEGORIES } from "./emoji-catalog";
 
 export type FontIconTab = "emoji" | "sticker" | "icon";
@@ -29,7 +29,7 @@ type GridCell = { key: string; value: string; isSvg: boolean };
 const EMOJI_PICKER_CATEGORIES: PickerCategory[] = EMOJI_CATEGORIES.map((c) => ({
   id: c.id, label: c.label, symbol: c.symbol, isSvg: false,
 }));
-const ICON_PICKER_CATEGORIES: PickerCategory[] = TV_ICON_CATEGORIES.map((c) => ({
+const ICON_PICKER_CATEGORIES: PickerCategory[] = ICON_CATEGORIES.map((c) => ({
   id: c.id, label: c.label, symbol: c.glyphs[0]?.svg ?? "", isSvg: true,
 }));
 
@@ -45,7 +45,7 @@ function GlyphContent(props: { value: string; isSvg: boolean }) {
 export function FontIconPicker(props: Props) {
   const [tab, setTab] = createSignal<FontIconTab>(props.initialTab);
   const [emojiCat, setEmojiCat] = createSignal<string>(EMOJI_CATEGORIES[0].id);
-  const [iconCat, setIconCat] = createSignal<string>(TV_ICON_CATEGORIES[0].id);
+  const [iconCat, setIconCat] = createSignal<string>(ICON_CATEGORIES[0].id);
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); props.onClose(); } };
@@ -65,15 +65,15 @@ export function FontIconPicker(props: Props) {
       return glyphs.map((g, i) => ({ key: `emoji-${i}-${g}`, value: g, isSvg: false }));
     }
     if (tab() === "sticker") {
-      return TV_STICKERS.map((s) => ({ key: `sticker-${s.name}`, value: s.svg, isSvg: true }));
+      return STICKERS.map((s) => ({ key: `sticker-${s.name}`, value: s.svg, isSvg: true }));
     }
-    const glyphs = TV_ICON_CATEGORIES.find((c) => c.id === iconCat())?.glyphs ?? [];
+    const glyphs = ICON_CATEGORIES.find((c) => c.id === iconCat())?.glyphs ?? [];
     return glyphs.map((g) => ({ key: `icon-${iconCat()}-${g.name}`, value: g.svg, isSvg: true }));
   });
 
   const sectionHeader = () =>
     tab() === "emoji" ? EMOJI_CATEGORIES.find((c) => c.id === emojiCat())?.label :
-    tab() === "icon" ? TV_ICON_CATEGORIES.find((c) => c.id === iconCat())?.label :
+    tab() === "icon" ? ICON_CATEGORIES.find((c) => c.id === iconCat())?.label :
     "Stickers";
 
   const pick = (value: string) => { props.onPick(value); props.onClose(); };

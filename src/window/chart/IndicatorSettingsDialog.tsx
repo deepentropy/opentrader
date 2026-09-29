@@ -5,13 +5,11 @@
  * and `plotConfig` (Style tab), so each indicator gets a working dialog with
  * no per-indicator code.
  *
- * Look: TV Desktop 3.4.1 study dialog (measured 26/09/2026):
- * width fits the content,
- * header 68 px (title 20/600), underlined tabs 16/600 with a 4 px #F2F2F2 bar
- * on a 4 px #4A4A4A track, rows of 34 px TV controls (white check boxes,
- * outlined selects / number fields, boxed colour swatches), footer "Defaults"
- * menu + Cancel / Ok. The controls are the chart Settings dialog's (same TV
- * ui-lib components). Edits a local draft; Cancel discards, Ok commits.
+ * Look: width fits the content, header 68 px (title 20/600), underlined tabs
+ * 16/600 with a 4 px #F2F2F2 bar on a 4 px #4A4A4A track, rows of 34 px
+ * controls (white check boxes, outlined selects / number fields, boxed colour
+ * swatches), footer "Defaults" menu + Cancel / Ok. The controls are the chart
+ * Settings dialog's. Edits a local draft; Cancel discards, Ok commits.
  */
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { createStore } from "solid-js/store";
@@ -53,8 +51,7 @@ type Props = {
   onClose: () => void;
 };
 
-// TV price-source choices and their labels (TV 3.4.1 source select, read
-// 26/09/2026). Values stay the PineScript names.
+// Price-source choices and their labels. Values stay the PineScript names.
 const SOURCE_OPTIONS = ["open", "high", "low", "close", "hl2", "hlc3", "ohlc4", "hlcc4"];
 const SOURCE_LABELS: Record<string, string> = {
   open: "Open", high: "High", low: "Low", close: "Close",
@@ -65,8 +62,8 @@ const Chevron = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z" /></svg>
 );
 
-/** TV select width: the SHOWN value + button padding (content 7 left, 6
- *  before the 20 px caret, 2 right), 100 px minimum. TV's "Close" source
+/** Select width: the SHOWN value + button padding (content 7 left, 6
+ *  before the 20 px caret, 2 right), 100 px minimum. The "Close" source
  *  select is 100 px although its list holds "(H + L + C + C)/4", so the
  *  width follows the value, not the longest option. */
 let measureCtx: CanvasRenderingContext2D | null = null;
@@ -78,8 +75,8 @@ function selectWidth(labels: string[]): number {
   return Math.max(100, Math.ceil(text + 7 + 6 + 20 + 2 + 2));
 }
 
-/** TV plot types (Settings -> Style plot-type menu, read 26/09/2026, with
- *  their 28 px icons) -> the Pine style ids the renderer draws. */
+/** Plot types (Settings -> Style plot-type menu, with their 28 px icons)
+ *  -> the Pine style ids the renderer draws. */
 const PLOT_TYPES: ReadonlyArray<{ id: string; label: string; icon: string }> = [
   { id: "line", label: "Line", icon: '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none"><path stroke="currentColor" d="M5.5 16.5l4.586-4.586a2 2 0 0 1 2.828 0l3.172 3.172a2 2 0 0 0 2.828 0L23.5 10.5"/></svg>' },
   { id: "linebr", label: "Line with breaks", icon: '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none"><path stroke="currentColor" d="M5.5 16.5l5-5a1.414 1.414 0 0 1 2 0m11-1l-5 5a1.414 1.414 0 0 1-2 0"/><path fill="currentColor" d="M14 5h1v2h-1zM14 10h1v2h-1zM14 15h1v2h-1zM14 20h1v2h-1z"/></svg>' },
@@ -95,7 +92,7 @@ const PLOT_TYPES: ReadonlyArray<{ id: string; label: string; icon: string }> = [
 ];
 const plotTypeOf = (id: string) => PLOT_TYPES.find((t) => t.id === id) ?? PLOT_TYPES[0];
 
-/** TV plot-type button (34 x 34 box, the current type's 28 px icon) and its
+/** Plot-type button (34 x 34 box, the current type's 28 px icon) and its
  *  menu: "Price line" switch row, separator, the plot types (selected row
  *  #F2F2F2 / black). Menu under the button, kept inside the window. */
 function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t: string) => void; onPriceLine: (v: boolean) => void }) {
@@ -170,7 +167,7 @@ function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t:
   );
 }
 
-/** Visibility rows with a range (TV units and maxima). */
+/** Visibility rows with a range (units and maxima). */
 const VIS_UNITS: ReadonlyArray<readonly [keyof IntervalVisibility, string, number]> = [
   ["seconds", "Seconds", 59],
   ["minutes", "Minutes", 59],
@@ -180,7 +177,7 @@ const VIS_UNITS: ReadonlyArray<readonly [keyof IntervalVisibility, string, numbe
   ["months", "Months", 12],
 ];
 
-/** Full-width 34 px check row (TV Style-tab output / input options). */
+/** Full-width 34 px check row (Style-tab output / input options). */
 function checkRow(label: string, checked: () => boolean, toggle: () => void) {
   return (
     <div class="cp3-cell cp3-label is-full ind3-check-row">
@@ -192,7 +189,7 @@ function checkRow(label: string, checked: () => boolean, toggle: () => void) {
   );
 }
 
-/** One Visibility row: check + from / slider / to (TV 50 px row, fields
+/** One Visibility row: check + from / slider / to (50 px row, fields
  *  100 x 34, slider 109 px, 8 px before "to"). The slider moves the fields
  *  while dragging and commits on release. */
 function UnitRow(props: { label: string; max: number; unit: UnitVisibility; onChange: (u: UnitVisibility) => void }) {
@@ -279,7 +276,7 @@ export function IndicatorSettingsDialog(props: Props) {
     props.onApply(current());
     props.onClose();
   };
-  // TV "Defaults" menu (PropertyActions, module 653097): Reset settings /
+  // "Defaults" menu: Reset settings /
   // Save as default. Opens upward from the footer button.
   const [defaultsOpen, setDefaultsOpen] = createSignal(false);
   let defaultsBtn: HTMLButtonElement | undefined;
@@ -363,7 +360,7 @@ export function IndicatorSettingsDialog(props: Props) {
           </button>
         </header>
 
-        {/* TV underline tabs (study dialog: a top bar, not the left rail). */}
+        {/* Underline tabs (study dialog: a top bar, not the left rail). */}
         <div class="ind3-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={tab() === "inputs"} class={`ind3-tab${tab() === "inputs" ? " is-active" : ""}`} onClick={() => setTab("inputs")}>Inputs</button>
           <button type="button" role="tab" aria-selected={tab() === "style"} class={`ind3-tab${tab() === "style" ? " is-active" : ""}`} onClick={() => setTab("style")}>Style</button>
@@ -375,7 +372,7 @@ export function IndicatorSettingsDialog(props: Props) {
           <Show when={tab() === "inputs"}>
             <Show
               when={props.inputConfig.length > 0}
-              fallback={<div class="tv-empty-state ind3-empty">This indicator has no inputs.</div>}
+              fallback={<div class="ot-empty-state ind3-empty">This indicator has no inputs.</div>}
             >
               <div class="ind3-grid">
                 <For each={props.inputConfig}>
@@ -404,7 +401,7 @@ export function IndicatorSettingsDialog(props: Props) {
           </Show>
 
           {/* ── Style ── one row per plot: visible check box + colour and
-              thickness (TV color-with-thickness button; thickness is in its
+              thickness (color-with-thickness button; thickness is in its
               colour panel). */}
           <Show when={tab() === "style"}>
             <div class="ind3-grid">
@@ -436,7 +433,7 @@ export function IndicatorSettingsDialog(props: Props) {
                   </>
                 )}
               </For>
-              {/* TV Style sections (26/09/2026): OUTPUT VALUES — Precision,
+              {/* Style sections: OUTPUT VALUES — Precision,
                   Labels on price scale, Values in status line; INPUT VALUES —
                   Inputs in status line. Check rows 34 px. */}
               <div class={`cp3-section ind3-section${stylePlots.length === 0 ? " is-first" : " ind3-after-plots"}`}>Output values</div>
@@ -451,7 +448,7 @@ export function IndicatorSettingsDialog(props: Props) {
             </div>
           </Show>
 
-          {/* ── Visibility ── TV intervalsVisibilities matrix (same as the
+          {/* ── Visibility ── intervals visibility matrix (same as the
               drawing Visibility tab): Ticks / Ranges check only; Seconds ..
               Months check + from (100 px) + range slider + to (100 px). */}
           <Show when={tab() === "visibility"}>

@@ -1,25 +1,22 @@
 /*
- * TradingView's timezone catalog — the exact list and order the live web app
- * shows in the chart-controls-bar timezone menu.
- *
- * Captured 2026-05-28 from a live OS-click on `[data-name="time-zone-menu"]`.
+ * Timezone catalog — the list and order shown in the chart-controls-bar
+ * timezone menu (`[data-name="time-zone-menu"]`).
  *
  * Each entry pairs the visible label (what the popup row prints, verbatim)
  * with an IANA timezone name so the bottom-bar wall clock can format the time
- * via `Intl.DateTimeFormat(...).format()`.  TV's UTC-offset prefix is fixed
+ * via `Intl.DateTimeFormat(...).format()`.  The UTC-offset prefix is fixed
  * text per row — we don't try to recompute it from the offset (that would
- * change with DST), we just trust TV's snapshot.  The wall-clock string is
- * derived from the IANA timezone, so DST is still correct.
+ * change with DST).  The wall-clock string is derived from the IANA timezone,
+ * so DST is still correct.
  *
  * Special rows:
  *   "UTC"      → IANA "UTC"
  *   "Exchange" → IANA varies per symbol; in this mock it falls back to the
  *                user's local zone since we don't model per-symbol exchange
- *                metadata.  TV's real implementation looks up the exchange
- *                from the active symbol descriptor.
+ *                metadata.
  */
 export type TimezoneEntry = {
-  /** The literal label TV shows in the popup row.  Treat as opaque. */
+  /** The literal label shown in the popup row.  Treat as opaque. */
   label: string;
   /** IANA name passed to `Intl.DateTimeFormat({ timeZone: ... })`. */
   iana: string;
@@ -127,7 +124,7 @@ export const TIMEZONES: readonly TimezoneEntry[] = [
   { label: '(UTC+13) Tokelau',             iana: 'Pacific/Fakaofo' },
 ];
 
-/** TV's initial pick — matches the screenshot the menu was probed from. */
+/** Initial pick. */
 export const DEFAULT_TIMEZONE_LABEL = '(UTC-4) New York';
 
 export function findTimezone(label: string): TimezoneEntry | undefined {

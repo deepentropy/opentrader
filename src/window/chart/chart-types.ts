@@ -8,16 +8,16 @@
  * ./custom-series.ts.
  *
  * Every type reads its Symbol-tab style rows from `tokens.styles`
- * (chart-settings SeriesStyles, TV factory defaults when uncommitted).
+ * (chart-settings SeriesStyles, factory defaults when uncommitted).
  *
  * Notes on specific types:
- *   • renko / pb / kagi / pnf / range — series-transforms.ts (TV box-size
+ *   • renko / pb / kagi / pnf / range — series-transforms.ts (box-size
  *                    methods, projection bars from the forming bar).
  *   • line family  — Solid = library line; Gradient = GradientLinePaneView.
  *   • column       — ColumnPaneView (columns stand on the pane bottom).
- *   • volCandles   — candle BODY WIDTH scales with volume/max-volume (TV model).
- *   • hlcArea      — high/low/close lines + two band fills (TV model).
- *   • hilo         — TV SeriesHiLoPaneView: high→low body + value labels.
+ *   • volCandles   — candle BODY WIDTH scales with volume/max-volume.
+ *   • hlcArea      — high/low/close lines + two band fills.
+ *   • hilo         — high→low body + value labels.
  *   • volFootprint — per-bar buy/sell cells need 1-minute sub-bars; ChartView
  *                    passes them via setDataForType's `extras` (intraday only;
  *                    bars without sub-data render as plain candles).
@@ -101,7 +101,7 @@ export const CHART_TYPE_IDS: ReadonlySet<ChartTypeId> = new Set<ChartTypeId>([
 ]);
 
 /** Icon name (in src/assets/icons) for each chart type. Only the 9 we ship
- *  actually have icons on disk; the rest reference a name TvIcon will no-op
+ *  actually have icons on disk; the rest reference a name Icon will no-op
  *  on, so the header button stays usable but icon-less for unsupported types. */
 export const CHART_TYPE_ICON: Record<ChartTypeId, string> = {
   bar: "menu-candles-bars",
@@ -135,7 +135,7 @@ export type AnySeries = ISeriesApi<
 >;
 
 /** TRUE when the top-left legend collapses to a single value instead of the
- *  full O/H/L/C row. Mirrors TV: the line/area/baseline/column family is built
+ *  full O/H/L/C row. The line/area/baseline/column family is built
  *  from one price per bar (the close), so its legend shows just that value;
  *  the bar/candle family (and the algorithmic candle transforms) show all
  *  four. */
@@ -161,7 +161,7 @@ export function libLineStyle(style: number): LineStyle {
 const width4 = (w: number) => Math.max(1, Math.min(4, Math.round(w))) as 1 | 2 | 3 | 4;
 const TRANSPARENT = "rgba(0,0,0,0)";
 
-/** Candlestick options of a Body / Borders / Wick style (TV candle rows). */
+/** Candlestick options of a Body / Borders / Wick style (candle rows). */
 function candleOptions(c: CandleStyleS) {
   return {
     upColor: c.body ? c.bodyUp : TRANSPARENT,
@@ -189,7 +189,7 @@ export function createSeriesForType(
   const st = tokens.styles;
   switch (type) {
     case "bar":
-      // TV Bars: up / down colours, "HLC bars" hides the open tick, thin bars.
+      // Bars: up / down colours, "HLC bars" hides the open tick, thin bars.
       return chart.addSeries(BarSeries, {
         upColor: st.bar.up,
         downColor: st.bar.down,
@@ -197,7 +197,7 @@ export function createSeriesForType(
         thinBars: st.bar.thin,
       });
     case "hollowCandle":
-      // Per-bar colours in setDataForType (TV hollow rule).
+      // Per-bar colours in setDataForType (hollow rule).
       return chart.addSeries(CandlestickSeries, candleOptions(st.hollowCandle));
     case "line":
     case "lineWithMarkers":
@@ -237,10 +237,10 @@ export function createSeriesForType(
     case "baseline": {
       const b = st.baseline;
       // baseValue follows the Base level % of the pane (ChartView keeps it
-      // in sync with the visible price range, TV SeriesBaselinePaneView).
+      // in sync with the visible price range).
       return chart.addSeries(BaselineSeries, {
         // The library draws both halves with ONE width / style: the Top
-        // line's (TV keeps them separate).
+        // line's (the settings keep them separate).
         topLineColor: b.top.color,
         bottomLineColor: b.bottom.color,
         lineWidth: width4(b.top.width),
@@ -380,7 +380,7 @@ export function setDataForType(
       }
       (series as ISeriesApi<"Line">).setData(d);
       if (type === "lineWithMarkers") {
-        // TV markers: filled circles in the line colour, radius width + 2,
+        // Markers: filled circles in the line colour, radius width + 2,
         // only while they fit the bar spacing (library markers size to the
         // bar spacing).
         ensureMarkers(series).setMarkers(
@@ -409,7 +409,7 @@ export function setDataForType(
       return;
     }
     case "hollowCandle": {
-      // TV hollow candles: colour = close vs the PREVIOUS close, fill = close
+      // Hollow candles: colour = close vs the PREVIOUS close, fill = close
       // vs the bar's own open (close > open → hollow).
       const c = st.hollowCandle;
       const data: CandlestickData[] = raw.map((r, i) => {

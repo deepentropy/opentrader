@@ -1,20 +1,20 @@
 /*
- * Overflow tooltip — TV's `apply-overflow-tooltip` (module 986210, TV Desktop
- * 3.4.1, read 28/09/2026). One document-level `mouseenter` listener (capture):
- * an element with the class shows the common tooltip ONLY when its text is
- * cut (`offsetWidth < scrollWidth`), so menu labels that fit show nothing.
- * TV marks the standard menu-row labels (interval, chart type, favorite
- * indicators, snapshot, Manage layouts, template actions, drawing flyouts and
- * option menus, watchlist menus); context menus do not have it.
+ * Overflow tooltip — `apply-overflow-tooltip`. One document-level
+ * `mouseenter` listener (capture): an element with the class shows the common
+ * tooltip ONLY when its text is cut (`offsetWidth < scrollWidth`), so menu
+ * labels that fit show nothing. The standard menu-row labels carry the class
+ * (interval, chart type, favorite indicators, snapshot, Manage layouts,
+ * template actions, drawing flyouts and option menus, watchlist menus);
+ * context menus do not have it.
  *
- * Modifiers (TV names):
+ * Modifiers:
  *   --check-children               a direct child is cut
  *   --check-children-recursively   any descendant is cut
  *   --allow-text                   tooltip text = textContent (else: own text nodes)
  *   --direction_y / --direction_both   check the height too
  *   data-overflow-tooltip-text     explicit tooltip text
  *
- * Tooltip = TV common tooltip `showOnElement` defaults (module 712501):
+ * Tooltip placement:
  * horizontal, above the element when there is room (10 px + tooltip height),
  * else below; centred, kept 10 px inside the window; 8 px from the element
  * when it is under 20 px tall (`--farther`), else 4 px; 500 ms delay; hidden
@@ -80,9 +80,9 @@ function place(el: HTMLElement, text: string) {
   const r = el.getBoundingClientRect();
   const t = document.createElement("div");
   t.setAttribute("role", "tooltip");
-  t.className = "tv-tooltip tv-tooltip-normal tv-overflow-tooltip";
+  t.className = "ot-tooltip ot-tooltip-normal ot-overflow-tooltip";
   const label = document.createElement("span");
-  label.className = "tv-tooltip-label";
+  label.className = "ot-tooltip-label";
   label.textContent = text;
   t.append(label);
   // Measure first (no side class = no transform), then place.
@@ -98,7 +98,7 @@ function place(el: HTMLElement, text: string) {
   const margin = W - w - 20 <= 0 ? (W - w) / 2 : 10;
   const left = Math.max(margin, Math.min(r.left + r.width / 2 - w / 2, W - margin - w));
   // The side classes translate by -50% / -100%: give them the centre / edge.
-  t.classList.add(above ? "tv-tooltip-top" : "tv-tooltip-bottom");
+  t.classList.add(above ? "ot-tooltip-top" : "ot-tooltip-bottom");
   t.style.left = `${Math.floor(left + w / 2)}px`;
   t.style.top = `${Math.floor(above ? r.top - gap : r.bottom + gap)}px`;
   t.style.visibility = "";

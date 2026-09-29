@@ -1,9 +1,7 @@
 /*
- * ChangeIntervalDialog — TV's "Change interval" popup dialog (module 744094,
- * TV Desktop 3.4.1, read and measured 28/09/2026). Opened by typing a digit
- * 1-9 on the chart (TV keypress handler 613634: `initVal` = the digit, caret at
- * the end) and by clicking the legend interval (initVal = the chart interval,
- * selected). The input is upper-cased, max 8 characters; the hint under it is
+ * ChangeIntervalDialog: the "Change interval" popup dialog. Opened by typing a
+ * digit 1-9 on the chart (`initVal` = the digit, caret at the end) and by
+ * clicking the legend interval (initVal = the chart interval, selected). The input is upper-cased, max 8 characters; the hint under it is
  * the interval name ("7 minutes") or "Not applicable" (red) when the value is
  * not a valid, supported interval. Enter applies a valid, changed interval and
  * closes; Escape and a click outside close. Centred in the window, no backdrop.
@@ -13,7 +11,7 @@ import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { longIntervalLabel } from "./interval-favorites";
 
-/** TV Interval.parse / normalize (module 342288): "<n?><T|S|H|D|W|M|R>" or
+/** Interval parse / normalize: "<n?><T|S|H|D|W|M|R>" or
  *  "<n>" minutes; an empty number is 1; H = minutes x 60; minutes stay a bare
  *  number, the others keep their letter ("D" → "1D", "2H" → "120"). Null when
  *  invalid. */
@@ -34,7 +32,7 @@ export function normalizeInterval(raw: string): string | null {
   return null;
 }
 
-/** TV infoHint title (string 21205, the seconds-enabled variant). */
+/** Info hint title (the seconds-enabled variant). */
 const INFO_TEXT =
   "Type the interval number for minute charts (i.e. 5 if it's going to be a five minute chart). Or number plus letter for other intervals: S for 1 second chart (15S for 15 second chart, etc.), H (Hourly), D (Daily), W (Weekly), M (Monthly) intervals (i.e. D or 2H)";
 

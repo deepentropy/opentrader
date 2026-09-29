@@ -1,5 +1,5 @@
 /*
- * In-app drawing clipboard — TV's Copy (Ctrl+C) / Paste (Ctrl+V) for drawings.
+ * In-app drawing clipboard — Copy (Ctrl+C) / Paste (Ctrl+V) for drawings.
  * Holds one drawing snapshot; paste returns an id-less payload that goes
  * through the normal add path (same data coords, fresh id, never locked,
  * hidden, or interval-restricted on arrival).
@@ -8,11 +8,10 @@ import { createSignal } from "solid-js";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/tv/types";
 import { labelForKind } from "./labels";
 
-/** Marker of a copied drawing in the system clipboard HTML. TV clipboardCopy
- *  writes the drawing to the system clipboard (text = its title, html = the
- *  app data), so a paste can tell whether the newest clipboard content is a
- *  drawing or something copied elsewhere (an image, TV pastes as an Image
- *  drawing). */
+/** Marker of a copied drawing in the system clipboard HTML. Copy writes the
+ *  drawing to the system clipboard (text = its title, html = the app data),
+ *  so a paste can tell whether the newest clipboard content is a drawing or
+ *  something copied elsewhere (an image, pasted as an Image drawing). */
 export const DRAWING_CLIP_MARK = "data-opentrader-drawing";
 
 const [clip, setClip] = createSignal<Drawing | null>(null);
@@ -21,7 +20,7 @@ export const hasClipboardDrawing = (): boolean => clip() !== null;
 
 export function copyDrawing(d: Drawing): void {
   setClip(JSON.parse(JSON.stringify(d)) as Drawing);
-  // TV copy path (module 264966): a capturing "copy" listener fills the
+  // Copy path: a capturing "copy" listener fills the
   // system clipboard during document.execCommand("copy").
   const onCopy = (e: ClipboardEvent) => {
     e.stopImmediatePropagation();

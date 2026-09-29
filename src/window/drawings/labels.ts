@@ -1,10 +1,10 @@
 /*
- * Human-readable label per DrawingKind. Sourced from the live TV
- * drawing-toolbar inventory (data/drawing-toolbar.ts) at module load
- * time, so a future toolbar re-capture flows through here automatically.
+ * Human-readable label per DrawingKind. Sourced from the drawing-toolbar
+ * inventory (data/drawing-toolbar.ts) at module load time, so a future
+ * toolbar change flows through here automatically.
  */
 import { GROUPS, groupTools } from "../../data/drawing-toolbar";
-import type { TvIconName } from "../../components/TvIcon";
+import type { IconName } from "../../components/Icon";
 import type { DrawingKind } from "lightweight-charts-drawing/tv/types";
 
 const LABEL_BY_ID: Record<string, string> = (() => {
@@ -13,8 +13,8 @@ const LABEL_BY_ID: Record<string, string> = (() => {
   return out;
 })();
 
-const ICON_BY_ID: Record<string, TvIconName> = (() => {
-  const out: Record<string, TvIconName> = {};
+const ICON_BY_ID: Record<string, IconName> = (() => {
+  const out: Record<string, IconName> = {};
   for (const g of GROUPS) for (const t of groupTools(g)) out[t.id] = t.iconName ?? g.defaultIcon;
   return out;
 })();
@@ -32,6 +32,6 @@ export function labelForKind(kind: DrawingKind): string {
 
 /** Toolbar glyph (`draw-*` icon name) for a kind — the same icon the drawing
  *  toolbar shows, used as the object-tree row icon. Falls back to the trendline. */
-export function iconForKind(kind: DrawingKind): TvIconName {
+export function iconForKind(kind: DrawingKind): IconName {
   return ICON_BY_ID[kind] ?? "draw-trend-line";
 }

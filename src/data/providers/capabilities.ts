@@ -1,6 +1,6 @@
 /*
  * Provider capabilities — what the backend's active data provider can serve
- * (TradingView `onReady` equivalent), read instead of hardcoded.
+ * (the datafeed `onReady` equivalent), read instead of hardcoded.
  *
  * A Solid signal, so gates that read it (the interval picker's greyed rows)
  * update when the backend pushes a change: the `provider-capabilities` event

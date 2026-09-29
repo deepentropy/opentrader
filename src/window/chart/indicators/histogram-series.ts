@@ -1,6 +1,5 @@
 /*
- * Study "Histogram" plot type — TV's study histogram renderer (module 855787
- * class R, read 26/09/2026), as a custom series. TV draws, per value, a
+ * Study "Histogram" plot type, as a custom series. Draws, per value, a
  * vertical bar `lineWidth` px wide (not the bar slot like Columns) from the
  * plot's histogram base to the value:
  *   width  n = max(1, floor(lineWidth * hpr)), centre round(x * hpr) (+0.5

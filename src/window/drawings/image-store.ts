@@ -22,7 +22,7 @@ setImageReader(async (name) => {
   return new Blob([bytes], { type: imageMimeOf(name) });
 });
 
-/** Store a chosen file (TV checks: type and 2 MB) and return its name and
+/** Store a chosen file (checks: type and 2 MB) and return its name and
  *  natural size. Throws with a user message on a bad file. */
 export async function saveDrawingImage(file: File): Promise<{ name: string; width: number; height: number }> {
   const ext = IMAGE_TYPES[file.type];

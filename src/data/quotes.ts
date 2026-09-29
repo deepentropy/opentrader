@@ -21,7 +21,7 @@ import { setSubscription } from "./subscriptions";
 import { watchlistStore } from "./watchlist-store";
 
 /** Live per-symbol quote. Fields stay null until a tick carries them, so the
- *  static probe value shows until then. `last`/`change`/`changePercent`/`volume`
+ *  static seed value shows until then. `last`/`change`/`changePercent`/`volume`
  *  are the regular session; `extChangePercent` is the pre/post-market move. */
 export type LiveQuote = {
   last: number;

@@ -2,10 +2,10 @@
  * Favourite intervals — a global, persisted store (ported from the reference
  * mock's interval-favorites.ts, adapted to a SolidJS module-level signal).
  *
- * In TradingView the favourited-interval set drives BOTH the quick-access
+ * The favourited-interval set drives BOTH the quick-access
  * buttons on the header strip and the filled stars in the chart-interval
  * dropdown. It's a single global preference shared across charts and persisted
- * to localStorage. Keyed by canonical TV interval id ("10S", "60", "1D") — the
+ * to localStorage. Keyed by canonical interval id ("10S", "60", "1D") — the
  * same ids the chart-interval dropdown rows + ChartView's `interval` prop use.
  */
 import { createSignal } from "solid-js";
@@ -79,7 +79,7 @@ export function shortIntervalLabel(id: string): string {
   return id;
 }
 
-/** Long interval name — TV's header-strip tooltip ("10S"→"10 seconds",
+/** Long interval name — the header-strip tooltip ("10S"→"10 seconds",
  *  "60"→"1 hour", "1D"→"1 day"); same wording as the interval menu rows. */
 export function longIntervalLabel(id: string): string {
   const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;

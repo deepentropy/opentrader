@@ -1,5 +1,5 @@
 /*
- * Tab-title parts — the configurable pieces of a tab's title (TV's TabTitleId).
+ * Tab-title parts — the configurable pieces of a tab's title.
  * The App-settings "Tabs" tab reorders / hides these; TabPanel renders them in
  * the configured order. Shared so AppSettingsDialog (the editor) and TabPanel
  * (the renderer) agree on the part set + default order/visibility.
@@ -31,7 +31,7 @@ export const TAB_TITLE_LABEL: Record<TabTitlePartId, string> = Object.fromEntrie
 
 export type TabTitlePartState = { id: TabTitlePartId; visible: boolean };
 
-/** Default = every part visible, in the captured order. */
+/** Default = every part visible, in the listed order. */
 export const DEFAULT_TAB_TITLE_PARTS: TabTitlePartState[] = TAB_TITLE_PARTS.map((p) => ({
   id: p.id,
   visible: true,

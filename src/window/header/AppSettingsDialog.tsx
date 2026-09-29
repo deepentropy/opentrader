@@ -13,7 +13,7 @@
 import { createEffect, createRoot, createSignal, For, Show, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore } from "solid-js/store";
 import { Portal } from "solid-js/web";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import {
   DEFAULT_TAB_TITLE_PARTS,
   TAB_TITLE_LABEL,
@@ -30,7 +30,7 @@ const SETTINGS_KEY = "tv:app-settings";
 type AppSettings = {
   autofillCredentials: boolean; // inert: no broker plumbing
   /** "Sync crosshair across windows": the crosshair goes to every other
-   *  window, no link colour needed (data/tab-link-bus.ts, TV default on). */
+   *  window, no link colour needed (data/tab-link-bus.ts, default on). */
   crosshairSync: boolean;
   askDownloadPath: boolean; // inert: downloads not wired
   camera: string; // inert: no media capture
@@ -47,7 +47,7 @@ type AppSettings = {
 
 const SETTINGS_DEFAULTS: AppSettings = {
   autofillCredentials: false,
-  // ON by default, like TV Desktop's crosshairSyncEnabled.
+  // ON by default.
   crosshairSync: true,
   askDownloadPath: false,
   camera: "Default",
@@ -293,7 +293,7 @@ function TabsTab(props: { parts: TabTitlePartState[]; onChange: (p: TabTitlePart
                   onPointerMove={onHandleMove}
                   onPointerUp={onHandleUp}
                 >
-                  <TvIcon name="settings-drag" size={18} />
+                  <Icon name="settings-drag" size={18} />
                 </span>
               </div>
             )}
@@ -533,7 +533,7 @@ export function AppSettingsDialog(props: Props) {
                     aria-selected={tab() === t.id}
                     onClick={() => setTab(t.id)}
                   >
-                    <TvIcon name={t.icon} size={24} />
+                    <Icon name={t.icon} size={24} />
                     <span>{t.label}</span>
                   </button>
                 )}

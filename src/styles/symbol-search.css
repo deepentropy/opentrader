@@ -1,7 +1,5 @@
 /*
- * Symbol-search dialog styles — reverse-engineered from TV Desktop's
- *   [data-name="symbol-search-items-dialog"]   (wrapper-b8SxMnzX)
- * Captured 28/05/2026.
+ * Symbol-search dialog styles ([data-name="symbol-search-items-dialog"]).
  *
  *   shell    : 840px × ≤680px, var(--color-cold-gray-800) bg,
  *              6px radius bottom corners, drop shadow
@@ -12,7 +10,7 @@
  *   results  : 436px tall scrollable, each row 56px (3-cell grid)
  *   footer   : 40px tall, rgb(46,46,46) bg, hint text rgb(140,140,140)
  *
- * Row internals (probed):
+ * Row internals:
  *   itemInfoCell    — blue corner marker + logo + ticker title
  *   descriptionCell — long name
  *   exchangeCell    — market type (top), primaryIcon + exchange (bottom),
@@ -55,8 +53,7 @@
   justify-content: space-between;
 }
 
-/* Title font lifted verbatim from TV's `.ellipsis-BZKENkhT` (20px / 600
- * — probed 2026-05-28).  Was 18px. */
+/* Title font: 20px / 600.  Was 18px. */
 .symbol-search-title {
   font-size: 20px;
   font-weight: 600;
@@ -83,7 +80,7 @@
 }
 
 /* ── Search input ───────────────────────────────────────────────────────── *
- * TV wraps the field in a rounded box whose 1px border lights up (cold-gray-600)
+ * The field sits in a rounded box whose 1px border lights up (cold-gray-600)
  * only while focused — no persistent border-bottom. */
 .symbol-search-input-wrap {
   padding: 4px 20px 12px;
@@ -163,9 +160,8 @@
   overflow: hidden;
 }
 
-/* Round-tab pills — geometry probed from TV's `.roundTabButton-FF3hu1GK`
- * (2026-05-28): height 28, padding 0 11px, border-radius 14px, font-size
- * 14, font-weight 400.  Unselected has cold-gray-750 background (not
+/* Round-tab pills — height 28, padding 0 11px, border-radius 14px,
+ * font-size 14, font-weight 400.  Unselected has cold-gray-750 background (not
  * transparent); selected is light cold-gray-50 with dark text. */
 .symbol-search-tab {
   height: 28px;
@@ -270,7 +266,7 @@
 }
 
 .symbol-search-type-option.selected {
-  color: var(--color-tv-blue, #2962ff);
+  color: var(--color-ot-blue, #2962ff);
 }
 
 /* Dropdown caret on the Type chip. */
@@ -292,12 +288,12 @@
   flex-direction: column;
 }
 
-/* `.symbol-search-empty` uses the shared `.tv-empty-state` class. */
+/* `.symbol-search-empty` uses the shared `.ot-empty-state` class. */
 
 .symbol-search-row {
   display: grid;
   /* Ticker column sizes to its content (the widest visible ticker) so symbols
-   * are never truncated — TV only ellipsizes the description (middle, 1fr).
+   * are never truncated — only the description ellipsizes (middle, 1fr).
    * Was a fixed 92px, which fit "INTC" but clipped longer tickers (GOOGL,
    * BRK.B, …). */
   grid-template-columns: max-content minmax(0, 1fr) auto;
@@ -309,7 +305,7 @@
   position: relative;
 }
 
-/* TV's result rows have no dividers — the hover/active highlight is the only
+/* Result rows have no dividers — the hover/active highlight is the only
  * row separator. */
 
 .symbol-search-row.is-highlighted {
@@ -339,7 +335,7 @@
 }
 
 .symbol-search-row.is-active-symbol .symbol-search-marker {
-  color: var(--color-tv-blue, #2962ff);
+  color: var(--color-ot-blue, #2962ff);
 }
 
 .symbol-search-logo {
@@ -377,7 +373,7 @@
 
 .symbol-search-title-cell em {
   font-style: normal;
-  color: var(--color-tv-blue, #2962ff);
+  color: var(--color-ot-blue, #2962ff);
 }
 
 /* ── Description cell (middle) ────────────────────────────────── */
@@ -391,11 +387,11 @@
 
 .symbol-search-desc-cell em {
   font-style: normal;
-  color: var(--color-tv-blue, #2962ff);
+  color: var(--color-ot-blue, #2962ff);
 }
 
 /* ── Exchange cell (right) ────────────────────────────────────── */
-/* TV lays the right cell out as a single inline row (type · exchange · flag),
+/* The right cell is a single inline row (type · exchange · flag),
  * right-aligned — not the old stacked 2×2 grid. */
 .symbol-search-exchange-cell {
   display: flex;
@@ -454,9 +450,8 @@
   border-radius: 0 0 6px 6px;
 }
 
-/* ── Watchlist "Add symbol" mode (TV `watchlist-symbol-search-dialog`,
- * captured 25/09/2026) ── */
-/* Actions column: TV `actionsCell` (padding-inline-end 12px) after the
+/* ── Watchlist "Add symbol" mode ── */
+/* Actions column (padding-inline-end 12px) after the
  * exchange cell's 20px end padding; each action is 28px + 8px end margin. */
 .symbol-search-list.is-watchlist .symbol-search-row {
   grid-template-columns: max-content minmax(0, 1fr) auto auto;
@@ -469,7 +464,7 @@
   margin-left: 8px;
   overflow: visible;
 }
-/* TV's rows share one grid: the column is two actions wide as soon as one
+/* The rows share one grid: the column is two actions wide as soon as one
  * visible row is already in the list (remove + go to). */
 .symbol-search-list.has-list-actions .symbol-search-actions-cell {
   width: 72px;
@@ -502,18 +497,18 @@
   width: 28px;
   height: 28px;
 }
-/* A just-added row flashes (TV `highlight-animation-theme-dark`: 1s ease,
- * peak #132042 at 50%; the class is dropped after 500 ms, as in TV). */
+/* A just-added row flashes (1s ease, peak #132042 at 50%; the class is
+ * dropped after 500 ms). */
 .symbol-search-row.is-flashed {
   animation: symbol-search-flash 1s ease 1;
 }
 @keyframes symbol-search-flash {
   50% {
-    background-color: var(--color-tv-blue-a900, #132042);
+    background-color: var(--color-ot-blue-a900, #132042);
   }
 }
 
-/* Keyboard-hint footer (TV `footer-kReVM2Bx` + `kbd.button-kReVM2Bx`). */
+/* Keyboard-hint footer. */
 .symbol-search-footer--keys {
   height: auto;
   min-height: 40px;

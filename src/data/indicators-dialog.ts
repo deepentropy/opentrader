@@ -1,24 +1,23 @@
 /*
  * Indicators, metrics, and strategies dialog — data model.
  *
- * The chrome (sidebar groups, captured icons, the Fundamentals metric tree) is
- * reverse-engineered from the live TV Desktop dialog.  The indicator lists are
- * NOT fabricated: Built-In → Technicals and Community come from the real
- * indicator library
+ * The chrome is static data: sidebar groups, icons, the Fundamentals metric
+ * tree.  The indicator lists are NOT fabricated: Built-In → Technicals and
+ * Community come from the real indicator library
  *   github.com/deepentropy/lightweight-charts-indicators
  * (via ../window/chart/indicators/registry.ts), so every listed indicator is
  * one the chart can actually compute.  Those rows carry the registry
  * `indicatorId`; clicking one adds the study to the chart.
  *
- * Sidebar uses TV's data-qa-id="indicator-sidebar-item-<id>".  Each tab's
+ * Sidebar uses data-qa-id="indicator-sidebar-item-<id>".  Each tab's
  * content is one of:
  *   rows         — NAME (+ optional indicatorId) · AUTHOR · BOOSTS
- *   empty        — TV's own empty-state (Purchased)
- *   placeholder  — captured but operator-private, not committed (My scripts,
+ *   empty        — empty-state (Purchased)
+ *   placeholder  — operator-private list, not committed (My scripts,
  *                  Invite-only)
  *   fundamentals — 4 sub-tabs × hierarchical metric list
  *
- * SIDEBAR_ICONS hold the exact FontIcon <svg> markup pulled from the live DOM.
+ * SIDEBAR_ICONS hold the FontIcon <svg> markup.
  */
 import { STANDARD_ROWS, COMMUNITY_ROWS } from '../window/chart/indicators/registry';
 
@@ -68,7 +67,7 @@ export const SIDEBAR_ICONS: Record<string, IconDef> = {
   "top": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" d=\"M22.002 23H5v-4h4v-3h4v-4h4V8h5.002zM6 22h3v-2H6zm4 0h3v-5h-3zm4 0h3v-9h-3zm4 0h3.002V9H18zM15 9h-1V6.665l-8.342 7.339-.66-.75L13.244 6H11V5h4z\"></path>" },
   "trending": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M12.184 2.112a.5.5 0 0 1 .535-.061c1.825.89 3.823 2.451 5.024 4.597 1.112 1.984 1.528 4.446.527 7.265a2.47 2.47 0 0 0 1.614-1.196c.446-.781.545-1.878.143-3.055a.5.5 0 0 1 .822-.52l.088.086c.85.828 1.836 1.79 2.497 3.08.695 1.357 1.016 3.044.556 5.292-.705 3.44-3.17 6.396-6.342 7.378a.5.5 0 0 1-.372-.03c-1.03-.516-1.867-1.085-2.436-1.955-.433-.662-.686-1.461-.788-2.47-.752.68-1.234 1.299-1.54 1.87-.394.736-.512 1.422-.512 2.107a.5.5 0 0 1-.623.485c-3.382-.86-6.083-3.428-7.053-6.987-.693-2.547-.107-5.096 1.087-7.21 1.192-2.11 3.013-3.832 4.87-4.737a.5.5 0 0 1 .664.677c-.631 1.232-.563 1.822-.473 2.057l.01.026c.888-.905 1.43-1.649 1.695-2.48.294-.925.268-2.032-.162-3.707a.5.5 0 0 1 .169-.512m-1.84 7.863h-.002l-.005-.002-.01-.004a1 1 0 0 1-.105-.045 1.3 1.3 0 0 1-.215-.137 1.5 1.5 0 0 1-.468-.643c-.145-.375-.177-.855-.029-1.472a11.3 11.3 0 0 0-3.228 3.608c-1.099 1.945-1.601 4.222-.993 6.455.817 2.998 2.988 5.204 5.745 6.11a5.2 5.2 0 0 1 .596-1.924c.483-.902 1.288-1.828 2.563-2.816a.5.5 0 0 1 .807.39c.011 1.41.253 2.302.677 2.95.399.61.994 1.062 1.865 1.515 2.692-.919 4.841-3.503 5.468-6.56.418-2.04.119-3.495-.466-4.637-.341-.665-.783-1.235-1.266-1.764.02.808-.158 1.57-.526 2.214C20.13 14.305 18.99 15 17.5 15a.5.5 0 0 1-.458-.701c1.253-2.853.895-5.26-.171-7.163-.88-1.57-2.253-2.815-3.647-3.668.22 1.234.2 2.242-.094 3.166-.374 1.176-1.17 2.14-2.281 3.224a.5.5 0 0 1-.503.118z\"></path>" },
   "store": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M14.002 2A4 4 0 0 1 18 5.999V7h4.001l1 17h-18l1-17h4.002V5.998A4 4 0 0 1 14.002 2m-7.41 20.5H21.41l-.823-14H18V11h-1.5V8.5h-4.997V11h-1.5V8.5H7.415zm7.41-19a2.5 2.5 0 0 0-2.5 2.498V7H16.5V5.999A2.5 2.5 0 0 0 14.002 3.5\"></path>" },
-  // Community reuses the captured "trending" flame glyph.
+  // Community reuses the "trending" flame glyph.
   "community": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M12.184 2.112a.5.5 0 0 1 .535-.061c1.825.89 3.823 2.451 5.024 4.597 1.112 1.984 1.528 4.446.527 7.265a2.47 2.47 0 0 0 1.614-1.196c.446-.781.545-1.878.143-3.055a.5.5 0 0 1 .822-.52l.088.086c.85.828 1.836 1.79 2.497 3.08.695 1.357 1.016 3.044.556 5.292-.705 3.44-3.17 6.396-6.342 7.378a.5.5 0 0 1-.372-.03c-1.03-.516-1.867-1.085-2.436-1.955-.433-.662-.686-1.461-.788-2.47-.752.68-1.234 1.299-1.54 1.87-.394.736-.512 1.422-.512 2.107a.5.5 0 0 1-.623.485c-3.382-.86-6.083-3.428-7.053-6.987-.693-2.547-.107-5.096 1.087-7.21 1.192-2.11 3.013-3.832 4.87-4.737a.5.5 0 0 1 .664.677c-.631 1.232-.563 1.822-.473 2.057l.01.026c.888-.905 1.43-1.649 1.695-2.48.294-.925.268-2.032-.162-3.707a.5.5 0 0 1 .169-.512m-1.84 7.863h-.002l-.005-.002-.01-.004a1 1 0 0 1-.105-.045 1.3 1.3 0 0 1-.215-.137 1.5 1.5 0 0 1-.468-.643c-.145-.375-.177-.855-.029-1.472a11.3 11.3 0 0 0-3.228 3.608c-1.099 1.945-1.601 4.222-.993 6.455.817 2.998 2.988 5.204 5.745 6.11a5.2 5.2 0 0 1 .596-1.924c.483-.902 1.288-1.828 2.563-2.816a.5.5 0 0 1 .807.39c.011 1.41.253 2.302.677 2.95.399.61.994 1.062 1.865 1.515 2.692-.919 4.841-3.503 5.468-6.56.418-2.04.119-3.495-.466-4.637-.341-.665-.783-1.235-1.266-1.764.02.808-.158 1.57-.526 2.214C20.13 14.305 18.99 15 17.5 15a.5.5 0 0 1-.458-.701c1.253-2.853.895-5.26-.171-7.163-.88-1.57-2.253-2.815-3.647-3.668.22 1.234.2 2.242-.094 3.166-.374 1.176-1.17 2.14-2.281 3.224a.5.5 0 0 1-.503.118z\"></path>" },
 };
 
@@ -87,11 +86,10 @@ export type TabContent =
   | { kind: 'gap'; note: string };
 
 export const TAB_CONTENT: Record<string, TabContent> = {
-  // Favorites is user-curated and starts empty (the live app persists picks
-  // server-side; we don't, so no fabricated rows).
+  // Favorites is user-curated and starts empty (no fabricated rows).
   'favorites': { kind: 'rows', rows: [] },
-  'my-scripts': { kind: 'placeholder', note: 'Captured live (61 rows) but intentionally not committed — operator-private script list. Re-probe + bake in on request.' },
-  'invite-only-scripts': { kind: 'placeholder', note: 'Captured live (7 rows) but intentionally not committed — operator-private script list. Re-probe + bake in on request.' },
+  'my-scripts': { kind: 'placeholder', note: 'No scripts here yet.' },
+  'invite-only-scripts': { kind: 'placeholder', note: 'No invite-only scripts here yet.' },
   'purchased': { kind: 'empty', title: 'No scripts here yet — discover the Store', body: 'Our trusted creators offer paid indicators and strategies — find the ones that work for you.', action: 'Go to Store' },
   // Built-In > Technicals — the library standard indicators (registry).
   'built-ins': { kind: 'rows', rows: STANDARD_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })) },
@@ -382,6 +380,6 @@ export const TAB_CONTENT: Record<string, TabContent> = {
       { name: "Days sales outstanding", depth: 0 },
     ] },
   ] },
-  // Community — indicators ported from public TradingView sources (registry).
+  // Community — community indicators from the registry.
   'community': { kind: 'rows', rows: COMMUNITY_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })) },
 };

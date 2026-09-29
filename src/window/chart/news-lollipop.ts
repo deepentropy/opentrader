@@ -1,9 +1,8 @@
 /*
- * Latest news lollipop — TV LatestUpdatesSource (module 681199) + its base
- * LollipopPaneView / LollipopRenderer (776072 / 515255), read 26/09/2026.
+ * Latest news lollipop.
  *
  * One lightning lollipop on the LAST bar, 2 px above the bottom of the price
- * pane, while the newest headline is less than 31 days old (TV MonthDiff).
+ * pane, while the newest headline is less than 31 days old.
  * Dark theme colours: background #0F0F0F (cold-gray-900), foreground #AB47BC
  * (grapes-purple-400), active icon #EDE7F6 (deep-blue-50), "new items" dot
  * #F23645 (ripe-red-500).
@@ -29,22 +28,22 @@ import type { CanvasRenderingTarget2D } from "fancy-canvas";
 
 export const NEWS_LOLLIPOP_ID = "news-lollipop";
 
-/** Lollipop size (TV style.lollipop width/height) and its gap to the pane bottom. */
+/** Lollipop size (width/height) and its gap to the pane bottom. */
 const SIZE = 21;
 const BOTTOM = 2;
-/** TV MonthDiff: history older than this shows no lollipop. */
+/** Max age: history older than this shows no lollipop. */
 export const NEWS_MAX_AGE_MS = 26784e5;
-/** TV UpdateFrequency: the news thread refreshes every 5 minutes. */
+/** Update frequency: the news thread refreshes every 5 minutes. */
 export const NEWS_UPDATE_MS = 3e5;
 
 const BG = "#0F0F0F";
 const FG = "#AB47BC";
 const ACTIVE_ICON = "#EDE7F6";
 const NEW_DOT = "#F23645";
-/** TV hovered disc: blendColors(bg, applyAlpha(fg, 0.15)) over #0F0F0F. */
+/** Hovered disc: blendColors(bg, applyAlpha(fg, 0.15)) over #0F0F0F. */
 const HOVER_BG = "rgb(38, 23, 41)";
 
-/** Lightning icon (TV path D), drawn at (-4.5, -5.5) from the centre. */
+/** Lightning icon path, drawn at (-4.5, -5.5) from the centre. */
 const ICON = "m7.06 0 .87.77-3.4 4.17H9L1.94 11l-.87-.77 3.4-4.17H0L7.06 0Z";
 
 export type NewsLollipopState = { visible: boolean; hovered: boolean; active: boolean; hasNew: boolean };
@@ -118,11 +117,11 @@ class NewsLollipopRenderer implements IPrimitivePaneRenderer {
       const c = this._source.center(mediaSize.height);
       if (!c) return;
       const st = this._source.state();
-      // TV LollipopRenderer.draw: pixel-aligned centre.
+      // Pixel-aligned centre.
       const cx = Math.round(c.x * hpr) + (Math.max(1, Math.floor(hpr)) % 2) / 2;
       const cy = Math.round(c.y * vpr) - (Math.max(1, Math.floor(vpr)) % 2) / 2;
       if (st.hovered || st.active) {
-        // Bar line: pane top → lollipop top (TV VerticalLineRenderer, dashed).
+        // Bar line: pane top → lollipop top (dashed).
         const x = Math.round(c.x * hpr) + 0.5;
         ctx.save();
         ctx.strokeStyle = FG;
@@ -175,8 +174,7 @@ class NewsLollipopRenderer implements IPrimitivePaneRenderer {
   }
 }
 
-/** TV AgoDateFormatter (module 892659 formatTime, style "long",
- *  numeric "auto"): "2 hours ago", "yesterday", "3 days ago"… */
+/** Relative "ago" date format (style "long", numeric "auto"): "2 hours ago", "yesterday", "3 days ago"… */
 export function formatAgo(eventMs: number, nowMs: number): string {
   const diffSec = Math.floor((eventMs - nowMs) / 1000);
   const sign = Math.sign(diffSec);
@@ -196,7 +194,7 @@ export function formatAgo(eventMs: number, nowMs: number): string {
   return new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "long" }).format(sign * v, unit);
 }
 
-/** TV relative-time title: "Sep 25, 2026, 14:30 GMT+2" style full date. */
+/** Relative-time title: "Sep 25, 2026, 14:30 GMT+2" style full date. */
 export function formatNewsDate(ms: number): string {
   return new Intl.DateTimeFormat("en-u-hc-h23", {
     year: "numeric", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", calendar: "gregory", timeZoneName: "short",

@@ -1,10 +1,9 @@
 /*
- * `.tv-panel-header` — shared header strip for right-rail widgets.
- * Probed from TV's `.widgetHeader-X9EuSe_t` (2026-05-28): 48 px tall,
- * 0 16 px padding, flex row, align-items center.  No border-bottom (the
+ * `.ot-panel-header` — shared header strip for right-rail widgets.
+ * 48 px tall, 0 16 px padding, flex row, align-items center.  No border-bottom (the
  * widget's own content provides the divider line).
  */
-.tv-panel-header {
+.ot-panel-header {
   height: 48px;
   flex-shrink: 0;
   padding: 7px 16px;
@@ -14,14 +13,14 @@
   box-sizing: border-box;
 }
 
-.tv-panel-header__left {
+.ot-panel-header__left {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
 }
 
-.tv-panel-header__right {
+.ot-panel-header__right {
   flex-shrink: 0;
   display: flex;
   align-items: center;

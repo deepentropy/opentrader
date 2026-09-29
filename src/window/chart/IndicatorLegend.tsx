@@ -1,9 +1,9 @@
 /*
- * IndicatorLegend — the studies legend TradingView draws under the main-series
- * legend row, one row per active indicator. Ported to SolidJS from the
- * reference mock, itself distilled from a live probe.
+ * IndicatorLegend: the studies legend drawn under the main-series legend
+ * row, one row per active indicator. Ported to SolidJS from the reference
+ * mock.
  *
- * Each row (TV `item-… study-…`, h:24) is:
+ * Each row (h:24) is:
  *   <title>   <v1> <v2> …        [eye settings delete more]
  * Action buttons revealed on hover. Eye, settings (gear), delete and more
  * (the study menu, opened by ChartView) are wired.
@@ -51,7 +51,7 @@ function rgbaFill(color: string | undefined, opacity: number | undefined): strin
   return undefined;
 }
 
-// Action-button icons captured verbatim from the live study legend — 18-viewBox.
+// Action-button icons of the study legend, 18-viewBox.
 const ICON_EYE = (
   <svg viewBox="0 0 18 18" width="18" height="18">
     <path fill="currentColor" fill-rule="evenodd" d="M12 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm-1 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" />
@@ -81,7 +81,7 @@ const ICON_MORE = (
   </svg>
 );
 
-/** Compact value format mirroring TV's study legend ("773.19 M", "82.50"). */
+/** Compact study legend value format ("773.19 M", "82.50"). */
 function fmtVal(v: number): string {
   const a = Math.abs(v);
   if (a >= 1e9) return `${(v / 1e9).toFixed(2)} B`;
@@ -94,7 +94,7 @@ function ActionButton(props: { qa: string; title: string; onClick?: (e: MouseEve
   return (
     <button
       type="button"
-      class="tv-ind-legend-action"
+      class="ot-ind-legend-action"
       data-qa-id={props.qa}
       title={props.title}
       aria-label={props.title}
@@ -109,20 +109,20 @@ function ActionButton(props: { qa: string; title: string; onClick?: (e: MouseEve
 export function IndicatorLegend(props: Props) {
   return (
     <Show when={props.rows.length > 0}>
-      <div class="tv-ind-legend" data-name="legend-sources">
+      <div class="ot-ind-legend" data-name="legend-sources">
         <For each={props.rows}>
           {(row) => (
             <div
-              class={`tv-ind-legend-row${row.hidden ? " is-hidden" : ""}`}
+              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}`}
               data-qa-id="legend-source-item"
               data-entity-id={row.id}
               role="toolbar"
               style={{ "background-color": rgbaFill(props.bgColor, props.bgOpacity) }}
             >
               <Show when={props.showTitles ?? true}>
-                <span class="tv-ind-legend-title" data-qa-id="legend-source-title">
+                <span class="ot-ind-legend-title" data-qa-id="legend-source-title">
                   {splitTitle(row.title).name}
-                  {/* TV status line: title, then the input values separated by
+                  {/* Status line: title, then the input values separated by
                       spaces (Status line -> Inputs AND the study's "Inputs in
                       status line"). */}
                   <Show when={(props.showInputs ?? true) && row.showInputs && (splitTitle(row.title).inputs || row.inputs)}>
@@ -131,20 +131,20 @@ export function IndicatorLegend(props: Props) {
                 </span>
               </Show>
               {/* Values + the hover toolbar share a relative box so the toolbar
-                  can float over the values (TV: the rounded action pill OVERLAYS
+                  can float over the values (the rounded action pill OVERLAYS
                   the metrics, anchored right after the title — it doesn't push
                   them right). */}
-              <div class="tv-ind-legend-rest">
+              <div class="ot-ind-legend-rest">
                 <Show when={!row.hidden && (props.showValues ?? true) && row.showValues}>
-                  <span class="tv-ind-legend-values">
+                  <span class="ot-ind-legend-values">
                     <For each={row.plots}>
-                      {(p) => <span class="tv-ind-legend-val" style={{ color: p.color }}>{row.precision !== null ? p.value.toFixed(row.precision) : fmtVal(p.value)}</span>}
+                      {(p) => <span class="ot-ind-legend-val" style={{ color: p.color }}>{row.precision !== null ? p.value.toFixed(row.precision) : fmtVal(p.value)}</span>}
                     </For>
                   </span>
                 </Show>
                 {/* Rounded pill filled with the chart background so it cleanly
                     covers the metric values underneath (theme-aware). */}
-                <span class="tv-ind-legend-actions" data-name="actions" style={{ "background-color": props.bgColor }}>
+                <span class="ot-ind-legend-actions" data-name="actions" style={{ "background-color": props.bgColor }}>
                   <ActionButton qa="legend-show-hide-action" title={row.eyeHidden ? "Show" : "Hide"} onClick={() => props.onToggleHide(row.id)}>
                     {row.eyeHidden ? ICON_EYE_CROSSED : ICON_EYE}
                   </ActionButton>

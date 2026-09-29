@@ -42,9 +42,9 @@ export type IndicatorLegendRow = {
   hidden: boolean;
   plots: IndicatorLegendPlot[];
   /** Pane whose legend lists the study: 0 for overlays, else its own pane
-   *  (TV draws a study pane's legend at that pane's top-left). */
+   *  (a study pane's legend sits at that pane's top-left). */
   pane: number;
-  /** Input values shown after the title (TV status line), "" = none. */
+  /** Input values shown after the title (status line), "" = none. */
   inputs: string;
   /** Style -> "Values in status line" / "Inputs in status line". */
   showValues: boolean;
@@ -74,7 +74,7 @@ export class IndicatorController {
    *  lifetime rules as {@link inputs}. */
   private styles = new Map<string, IndicatorStyleOverrides>();
   /** Scales → "Indicators and financials": last-value axis labels on the study
-   *  plot series. Default ON (the captured row ships "Value"). */
+   *  plot series. Default ON (the row ships "Value"). */
   private lastValueVisible = true;
   /** Per-study Style-tab options + Visibility tab. Same lifetime rules as
    *  {@link inputs}. */
@@ -129,7 +129,7 @@ export class IndicatorController {
   }
 
   /** The chart interval changed: studies whose Visibility tab excludes it
-   *  stop drawing (TV isActualInterval), the others come back. */
+   *  stop drawing, the others come back. */
   setChartInterval(interval: string | undefined): void {
     if (interval === this.interval) return;
     const before = new Map([...this.instances.keys()].map((id) => [id, this.onInterval(id)]));
@@ -212,7 +212,7 @@ export class IndicatorController {
       rows.push({
         id,
         title: inst.layer.title,
-        // TV legend: a study off its intervals shows as hidden (663945).
+        // Legend: a study off its intervals shows as hidden.
         hidden: this.hidden.has(id) || offInterval,
         plots: inst.layer.legendPlots(time),
         pane: inst.overlay ? 0 : inst.paneIndex,

@@ -40,7 +40,7 @@
 @import "./styles/chart-legend.css";
 @import "./styles/chart-control-bar.css";
 @import "./styles/news-card.css";
-@import "./styles/tv-dialogs.css";
+@import "./styles/dialogs.css";
 @import "./styles/indicators-dialog.css";
 @import "./styles/chart-properties.css";
 @import "./styles/chart-context-menu.css";
@@ -64,8 +64,8 @@ body,
   overflow: hidden;
 }
 
-/* Drawing anchor hover halo (TV shows a 20%-alpha ring around the hovered
-   anchor). The ring circle is always rendered; CSS reveals it on hover. */
+/* Drawing anchor hover halo (a 20%-alpha ring around the hovered anchor).
+   The ring circle is always rendered; CSS reveals it on hover. */
 .drawing-handle .drawing-handle-ring {
   opacity: 0;
 }
@@ -73,14 +73,14 @@ body,
   opacity: 1;
 }
 
-/* Settings dialog: per-level grid. TV: one level per line (check box,
+/* Settings dialog: per-level grid. One level per line (check box,
    value, line button) for pitchforks, circles, time zones...; two per line
    (check box, value, colour) for the fib retracement family, Gann box,
    speed fan and Gann squares (.two-col). */
-/* TV level rows: one per line = a 50 px row each (34 px controls, 16 px
+/* Level rows: one per line = a 50 px row each (34 px controls, 16 px
    apart); two per line = items of check box + value + colour, the second
    column 48 px after the first, 8 px between lines, in a 412 px block (the
-   TV dialog is 457 px wide with these grids). */
+   dialog is 457 px wide with these grids). */
 .drawing-settings-levels {
   display: grid;
   grid-template-columns: max-content;
@@ -100,7 +100,7 @@ body,
   gap: 8px;
   min-height: 34px;
 }
-/* TV value field: 100 x 34, 1 px #575757, radius 6, 14 px. */
+/* Value field: 100 x 34, 1 px #575757, radius 6, 14 px. */
 .drawing-settings-level-coeff {
   width: 100px;
   height: 34px;
@@ -112,7 +112,7 @@ body,
   font-size: 14px;
   padding: 0 2px 0 5px;
 }
-/* TV Gann square ratio title: 52 px before the line button. */
+/* Gann square ratio title: 52 px before the line button. */
 .drawing-settings-level-coeff.is-fixed {
   width: 52px;
   border-color: transparent;
@@ -120,9 +120,9 @@ body,
   display: inline-flex;
   align-items: center;
 }
-/* TV level row off (sampled 25/09/2026): value field and colour button on a
- * #2e2e2e background, border kept, value text #575757, colour at 50 %; a
- * fixed title (Gann square ratios) stays bright. */
+/* Level row off: value field and colour button on a #2e2e2e background,
+ * border kept, value text #575757, colour at 50 %; a fixed title (Gann
+ * square ratios) stays bright. */
 .drawing-settings-level-row.off .drawing-settings-level-coeff:not(.is-fixed) {
   background-color: #2e2e2e;
   color: #575757;
@@ -135,7 +135,7 @@ body,
 .drawing-settings-level-row.off .dlg-color-thickness-btn > * {
   opacity: 0.5;
 }
-/* Titled level rows (TV Gann fan ratios): check box + 52 px title, the
+/* Titled level rows (Gann fan ratios): check box + 52 px title, the
  * line button 8 px after (x = 106 in a 380 px dialog). */
 .drawing-settings-level-title {
   flex: 0 0 78px;

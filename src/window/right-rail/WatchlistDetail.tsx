@@ -1,6 +1,6 @@
 /*
- * WatchlistDetail — the "Details" widget below the watchlist (TV's
- * `.widgetbar-widget-detail`). Feature 6a port of the mock's 319-LOC panel.
+ * WatchlistDetail — the "Details" widget below the watchlist. Feature 6a
+ * port of the mock's 319-LOC panel.
  *
  * Data sources (all per-ticker, light):
  *   • reference info → get_ticker_info  (Massive /v3/reference/tickers)
@@ -28,13 +28,13 @@ import { usMarketSession, type MarketSession } from "../../data/market-session";
 
 const DASH = "—";
 
-/** TV's pre/post-market crescent-moon glyph (probed from `icon-dN1e2L_g`),
- *  shown left of the "Pre-market"/"Post-market" label. */
+/** Pre/post-market crescent-moon glyph, shown left of the
+ *  "Pre-market"/"Post-market" label. */
 const MOON_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="14" height="14">' +
   '<path fill="currentColor" d="M12.57 5.5h-.07a3.5 3.5 0 1 0 .07 7A4.98 4.98 0 0 1 4 9a5 5 0 0 1 8.57-3.5z"></path></svg>';
 
-/** Pre-market sun glyph (core disc + 8 rays) — TV shows a sun for the morning
+/** Pre-market sun glyph (core disc + 8 rays) — a sun for the morning
  *  pre-market session, vs the moon for after-hours. */
 const SUN_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="14" height="14">' +
@@ -113,7 +113,7 @@ type Props = {
   /** Panel height in px (driven by the rail's drag-to-resize divider).
    *  Overrides the CSS default; the body scrolls internally. */
   height?: number;
-  /** TV renders the details as an accordion widget under the list — a 48px
+  /** The details render as an accordion widget under the list — a 48px
    *  header (chevron + logo + symbol) that collapses the body away. */
   collapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -127,8 +127,7 @@ type QuoteData = {
 const PERIODS = ["1W", "1M", "3M", "6M", "YTD", "1Y"] as const;
 
 // ── Detail-panel preferences (Settings header button) ──
-// The desktop app's exact button behaviour wasn't probed, so these are local
-// stand-ins matching TV's mental model: Settings toggles which sections show.
+// Settings toggles which sections show.
 // Persists to localStorage, alongside per-symbol notes (the "Add note" button).
 const PREFS_KEY = "tv:watchlist:detail-prefs:v1";
 const NOTES_KEY = "tv:watchlist:notes:v1";
@@ -292,17 +291,16 @@ export function WatchlistDetail(props: Props) {
   };
 
   // Live ET-clock tick (60s) so the session label flips at session boundaries
-  // without a symbol change — TV's detail panel updates the label in place.
+  // without a symbol change — the detail panel updates the label in place.
   const [now, setNow] = createSignal(new Date());
   onMount(() => {
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     onCleanup(() => window.clearInterval(id));
   });
 
-  // Current US session, from the wall clock (America/New_York), matching TV's
+  // Current US session, from the wall clock (America/New_York), matching the
   // detail-panel states. Pre/Post render in accent-blue; Open/Closed in grey
-  // (probed live 2026-06-02: "Post-market" = rgb(41,98,255); "Market closed" =
-  // rgb(140,140,140)).
+  // ("Post-market" = rgb(41,98,255); "Market closed" = rgb(140,140,140)).
   const marketSession = (): MarketSession => usMarketSession(now());
   const SESSION_LABEL: Record<MarketSession, string> = {
     open: "Market open",
@@ -311,7 +309,7 @@ export function WatchlistDetail(props: Props) {
     closed: "Market closed",
   };
   const marketState = () => (s() ? SESSION_LABEL[marketSession()] : "");
-  /** Pre/Post are TV's "extended" sessions — rendered in accent blue. */
+  /** Pre/Post are the "extended" sessions — rendered in accent blue. */
   const sessionActive = () => {
     const sx = marketSession();
     return sx === "pre" || sx === "post";
@@ -320,7 +318,7 @@ export function WatchlistDetail(props: Props) {
   const lastUpdate = () => {
     const snap = s();
     if (!snap || snap.updatedNs <= 0) return "";
-    // Local time + the GMT offset (e.g. "21:59 GMT+2"), matching TV's
+    // Local time + the GMT offset (e.g. "21:59 GMT+2"), as in
     // "Last update at HH:MM GMT±X".
     const parts = new Intl.DateTimeFormat([], {
       hour: "2-digit",
@@ -362,7 +360,7 @@ export function WatchlistDetail(props: Props) {
         <Show
           when={quote()?.info?.iconUrl}
           fallback={
-            <span class="tv-ticker-logo tv-ticker-logo--md watchlist-detail-logo" aria-hidden="true">
+            <span class="ot-ticker-logo ot-ticker-logo--md watchlist-detail-logo" aria-hidden="true">
               {short().charAt(0) || DASH}
             </span>
           }
@@ -445,8 +443,8 @@ export function WatchlistDetail(props: Props) {
       <Show when={!props.collapsed}>
       <div class="watchlist-detail-body">
         {/* Company name · exchange — inline, dot-separated, with the MIC mapped
-            to its common name (XNAS → NASDAQ). Mirrors TV's `descriptions` row
-            (`main` link · `dotWrap` · exchange span). */}
+            to its common name (XNAS → NASDAQ): name link · dot · exchange
+            span. */}
         <div class="watchlist-detail-row">
           <span class="watchlist-detail-company">{i()?.name ?? DASH}</span>
           <Show when={i()?.exchange}>
@@ -463,7 +461,7 @@ export function WatchlistDetail(props: Props) {
 
         {/* Price line — big 28px price, then currency, ±change and ±change% all
             inline and left-packed at the price's baseline. (No realtime "R"
-            badge: our data is delayed, and the user's TV doesn't show it.) */}
+            badge: our data is delayed.) */}
         <div class="watchlist-detail-price-row">
           <span class="watchlist-detail-price">{fmtPrice(s()?.last)}</span>
           <span class="watchlist-detail-currency">{i()?.currency ?? ""}</span>
@@ -471,9 +469,9 @@ export function WatchlistDetail(props: Props) {
           <span class={`watchlist-detail-change${changeSign()}`}>{fmtSignedPercent(s()?.changePercent)}</span>
         </div>
 
-        {/* Session state + last update on ONE row, TV's order (captured
-            25/07/2026): "— Market closed  Last update at …". Closed gets TV's
-            dash glyph; pre/post keep their sun/moon icons. */}
+        {/* Session state + last update on ONE row, in this order:
+            "— Market closed  Last update at …". Closed gets a dash glyph;
+            pre/post keep their sun/moon icons. */}
         <Show when={marketState() || lastUpdate()}>
           <div class="watchlist-detail-market-state">
             <span

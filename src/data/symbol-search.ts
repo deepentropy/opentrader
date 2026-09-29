@@ -1,13 +1,10 @@
 /*
- * Symbol-search mock data — backs the symbol-search dialog.
- *
- * Captured 28/05/2026 from the live TV Desktop dialog
- *   (data-name="symbol-search-items-dialog")
+ * Symbol-search mock data — backs the symbol-search dialog
+ *   (data-name="symbol-search-items-dialog").
  *
  * The live backend returns server-ranked rows on each keystroke; the mock
- * filters this static table client-side, which is enough to reproduce the
- * look and feel.  The schema mirrors the captured row 1:1 (data-symbol-name,
- * data-type, marketType, exchange, logo, country flag).
+ * filters this static table client-side.  Row schema: data-symbol-name,
+ * data-type, marketType, exchange, logo, country flag.
  */
 export type SymbolType =
   | 'stock' | 'fund' | 'futures' | 'forex' | 'crypto'
@@ -36,13 +33,13 @@ export type SymbolRow = {
   logoSrc?: string;
   /** Country / exchange flag URL. Unset — the flag is omitted when absent. */
   flagSrc?: string;
-  /** Tab routing — the live app maps "dr" rows into the Stocks tab too. */
+  /** Tab routing — "dr" rows map into the Stocks tab too. */
   category: SymbolCategoryId;
   /** Initial-load "recent" list flag — these float to the top with no query. */
   recent?: boolean;
 };
 
-/** Tabs as captured from the live dialog's `.bubblesContainer-k2RBvLVM`. */
+/** Category tabs of the dialog. */
 export const CATEGORIES: { id: SymbolCategoryId; label: string }[] = [
   { id: 'all',      label: 'All' },
   { id: 'stocks',   label: 'Stocks' },
@@ -67,13 +64,13 @@ export type TypeFilter = { label: string; code: string | null };
 export { typeFilters as TYPE_FILTERS } from "./providers";
 
 /*
- * A focused, retail-trader-relevant catalogue.  The "INTC" group is taken
- * verbatim from the live probe (NASDAQ + BOATS primary/derivative pairs)
- * so the default load matches what TV Desktop showed.  The remaining rows
- * cover each tab so users can switch categories and see content.
+ * A focused, retail-trader-relevant catalogue.  The "INTC" group holds
+ * NASDAQ + BOATS primary/derivative pairs for the default load.  The
+ * remaining rows cover each tab so users can switch categories and see
+ * content.
  */
 export const SYMBOLS: SymbolRow[] = [
-  // ── Stocks (recent / probe-captured) ────────────────────────────────────
+  // ── Stocks (recent) ─────────────────────────────────────────────────────
   {
     symbolName: 'NASDAQ:INTC', ticker: 'INTC', description: 'Intel Corporation',
     marketType: 'stock', exchange: 'NASDAQ',
@@ -280,7 +277,7 @@ export const SYMBOLS: SymbolRow[] = [
 /**
  * Filter the catalogue by an active tab + query string.  Highlight ranges
  * are returned alongside so the renderer can wrap `<em>` around matched
- * substrings, matching TV's titleHTML.
+ * substrings.
  */
 export type FilteredRow = SymbolRow & {
   titleHighlight: [number, number] | null;
@@ -294,7 +291,7 @@ export function filterSymbols(
   const q = query.trim().toUpperCase();
   const base = SYMBOLS.filter((s) => category === 'all' || s.category === category);
   if (!q) {
-    // No query → return the same order as captured; recent first if any.
+    // No query → return the catalogue order; recent first if any.
     const recent = base.filter((s) => s.recent);
     const others = base.filter((s) => !s.recent);
     return [...recent, ...others].map((s) => ({ ...s, titleHighlight: null, descriptionHighlight: null }));

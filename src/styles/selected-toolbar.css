@@ -1,6 +1,6 @@
 /*
- * Floating action strip above the selected drawing. Geometry + colours
- * mirror TV's [data-name="drawing-toolbar"] capture:
+ * Floating action strip above the selected drawing
+ * ([data-name="drawing-toolbar"]). Geometry + colours:
  *   shell  38px tall, 6px corner radius, 0 2px 4px rgba(0,0,0,0.4) shadow
  *   bg     var(--color-cold-gray-850, #1f1f1f)
  *   text   var(--color-cold-gray-200, #dbdbdb)
@@ -29,8 +29,8 @@
  * Reuses the `.selected-toolbar` shell tokens (38px tall, 6px radius, #1f1f1f,
  * shadow). Floats over the chart canvas: default dock is top-centre of the
  * positioned `.chart-pane-canvas` ancestor; once dragged, the component sets
- * inline `left/top` px and `transform: none`. z-index 20 matches the captured
- * `tv-floating-toolbar`. */
+ * inline `left/top` px and `transform: none`. z-index 20, as for
+ * `ot-floating-toolbar`. */
 .favorites-toolbar {
   position: absolute;
   top: 6px;
@@ -185,7 +185,7 @@
 }
 
 /* Color palette popover — the shared ColorPanel (color-panel.css) renders the
- * TV-captured grid/opacity inside this shell. */
+ * grid/opacity inside this shell. */
 .dt-color-popover { width: 248px; box-sizing: border-box; }
 
 /* Width / style menus — a stack of preview + label rows. */
@@ -220,9 +220,8 @@
 .dt-templates-popover { width: 232px; }
 .dt-templates-action { font-size: 13px; }
 .dt-templates-item { justify-content: space-between; }
-/* Remove button (TV RemoveButton button-WMpKKUCq, 26/09/2026): 22 px, r4,
-   icon grey, hover #4A4A4A fill + #DBDBDB icon; hidden until the row is
-   hovered (TV showToolboxOnHover). */
+/* Remove button: 22 px, r4, icon grey, hover #4A4A4A fill + #DBDBDB icon;
+   hidden until the row is hovered. */
 .dt-templates-del {
   display: inline-flex;
   align-items: center;
@@ -237,7 +236,7 @@
 .dt-templates-del:hover { color: #dbdbdb; background-color: #4a4a4a; }
 .dt-menu-sep { height: 1px; background: var(--color-cold-gray-800, #2a2e39); margin: 4px 0; }
 
-/* "More" menu (TV's captured 214px dropdown) + its Visual-order submenu.
+/* "More" menu (214px dropdown) + its Visual-order submenu.
  * Right-aligned under the last button so it never spills past the toolbar. */
 .dt-more-popover { width: 214px; left: auto; right: 0; }
 .dt-more-submenu-host { position: relative; }

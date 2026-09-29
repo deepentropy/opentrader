@@ -1,17 +1,15 @@
 /*
- * Right-click context menu for a tab, TV Desktop 3.4.1 order
- * (menu-items.tsx getTabMenuItems): Duplicate tab, Reload tab, Pin / Unpin
+ * Right-click context menu for a tab, in this order:
+ * Duplicate tab, Reload tab, Pin / Unpin
  * tab, Detach tab, Customize tab title..., Close, Close other tabs, Close tabs
  * to the right, Developer tools (Shift held), then the "Tab linking" section
  * (9-colour picker + per-channel switches). Copy symbol is an opentrader row.
- * Not shown, as TV hides them in the same case: "Copy link" (TV shows it only
- * for a page hosted on tradingview.com; opentrader layouts are local) and
- * "Go back" / "Go forward" (TV shows them only when the tab page has
- * navigation history; loading a layout replaces the history entry, and
- * opentrader tabs do not navigate).
+ * Not shown: "Copy link" (opentrader layouts are local, there is no hosted
+ * page to link to) and "Go back" / "Go forward" (opentrader tabs do not
+ * navigate, so there is no navigation history).
  */
 import { onCleanup, onMount, For, Show, createSignal } from "solid-js";
-import { TvIcon, type TvIconName } from "../../components/TvIcon";
+import { Icon, type IconName } from "../../components/Icon";
 import { LINK_PALETTE, type LinkChannel, type LinkColor, type TabLinkingState } from "./tab-linking";
 
 export type TabMenuAnchor = {
@@ -24,12 +22,12 @@ export type TabMenuAnchor = {
   /** Detach is offered only inside Tauri and when >1 tab exists. */
   isDetachVisible: boolean;
   pinned: boolean;
-  /** Shift held when the menu opened: shows "Developer tools" (TV). */
+  /** Shift held when the menu opened: shows "Developer tools". */
   hasShiftKey: boolean;
 };
 
 type Row =
-  | { kind: "item"; label: string; icon?: TvIconName; iconSize?: number | null; hotkey?: string; onClick: () => void }
+  | { kind: "item"; label: string; icon?: IconName; iconSize?: number | null; hotkey?: string; onClick: () => void }
   | { kind: "separator" }
   | { kind: "section"; label: string };
 
@@ -88,7 +86,7 @@ export function TabContextMenu(props: Props) {
     {
       kind: "item",
       label: a.pinned ? "Unpin tab" : "Pin tab",
-      // TV draws the pin glyphs at their own size (15x20 / 20x21).
+      // The pin glyphs draw at their own size (15x20 / 20x21).
       icon: a.pinned ? "tab-menu-unpin" : "tab-menu-pin",
       iconSize: null,
       onClick: () => props.onTogglePin(id),
@@ -100,7 +98,7 @@ export function TabContextMenu(props: Props) {
       ? [{
           kind: "item" as const,
           label: "Detach tab",
-          icon: "tab-new" as TvIconName,
+          icon: "tab-new" as IconName,
           onClick: () => props.onDetach(id, a.x + window.screenX, a.y + window.screenY),
         }]
       : []),
@@ -125,7 +123,7 @@ export function TabContextMenu(props: Props) {
   return (
     <div
       ref={root}
-      class="tv-popover tab-context-menu"
+      class="ot-popover tab-context-menu"
       role="menu"
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 9000 }}
       onContextMenu={(e) => e.preventDefault()}
@@ -151,7 +149,7 @@ export function TabContextMenu(props: Props) {
                 >
                   <span class="tab-menu-item-icon">
                     <Show when={item().icon}>
-                      {(ic) => <TvIcon name={ic()} size={item().iconSize === null ? undefined : (item().iconSize ?? 18)} />}
+                      {(ic) => <Icon name={ic()} size={item().iconSize === null ? undefined : (item().iconSize ?? 18)} />}
                     </Show>
                   </span>
                   <span class="tab-menu-item-title">{item().label}</span>

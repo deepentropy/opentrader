@@ -30,7 +30,7 @@
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { PanelHeader } from "../../components/PanelHeader";
 import { SegmentedControl } from "../../components/SegmentedControl";
-import { TvIcon, type TvIconName } from "../../components/TvIcon";
+import { Icon, type IconName } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { Tooltip } from "../../components/Tooltip";
 import { labelForKind, iconForKind } from "../drawings/labels";
@@ -63,8 +63,8 @@ function fmtVolume(v: number): string {
     a >= 1e9 ? [1e9, " B"] : a >= 1e6 ? [1e6, " M"] : a >= 1e3 ? [1e3, " K"] : [1, ""];
   return parseFloat((v / div).toFixed(2)).toString() + suffix;
 }
-/** Compact value format for indicator plots ("773.19 M", "82.50"), mirroring
- *  TV's study legend. */
+/** Compact value format for indicator plots ("773.19 M", "82.50"), as in the
+ *  study legend. */
 function fmtVal(v: number): string {
   if (!Number.isFinite(v)) return "—";
   const a = Math.abs(v);
@@ -114,7 +114,7 @@ function DataWindow() {
     <Show
       when={dataWindow()}
       fallback={
-        <div class="tv-empty-state object-tree-panel-empty">
+        <div class="ot-empty-state object-tree-panel-empty">
           Hover the chart to see values.
         </div>
       }
@@ -122,7 +122,7 @@ function DataWindow() {
       {(s) => (
         <div class="data-window">
           {/* Date + time first, then a separator (the section border), then the
-              symbol header, then the bar data — TV's data-window order. */}
+              symbol header, then the bar data. */}
           <div class="data-window-section">
             <DwRow label="Date" value={fmtDate(s().time, s().timeZone)} />
             <Show when={s().intraday}>
@@ -131,7 +131,7 @@ function DataWindow() {
           </div>
           <div class="data-window-section">
             <div class="data-window-header">
-              <TvIcon name={s().chartTypeIcon as TvIconName} size={16} />
+              <Icon name={s().chartTypeIcon as IconName} size={16} />
               <span class="data-window-symbol">{s().ticker}</span>
               <span class="data-window-sub">
                 {[s().interval, s().exchange].filter(Boolean).join(" · ")}
@@ -294,8 +294,8 @@ export function ObjectTreePanel(props: Props) {
   }
 
   return (
-    <aside class="tv-rail-panel object-tree-panel" aria-label="Object tree">
-      {/* TV stacks the header: the Object tree / Data window toggle on top, the
+    <aside class="ot-rail-panel object-tree-panel" aria-label="Object tree">
+      {/* Stacked header: the Object tree / Data window toggle on top, the
           action icons in a toolbar row directly below it. */}
       <PanelHeader
         ariaLabel="Object tree header"
@@ -316,7 +316,7 @@ export function ObjectTreePanel(props: Props) {
             disabled={!manage() || checked().size < 2}
             onClick={makeGroup}
           >
-            <TvIcon name="ot-header-group" size={18} />
+            <Icon name="ot-header-group" size={18} />
           </IconButton>
         </Tooltip>
         <Tooltip text="Clone, Copy" side="bottom">
@@ -329,12 +329,12 @@ export function ObjectTreePanel(props: Props) {
               if (id) props.onClone(id);
             }}
           >
-            <TvIcon name="ot-header-copy-clone" size={18} />
+            <Icon name="ot-header-copy-clone" size={18} />
           </IconButton>
         </Tooltip>
         <Tooltip text="Move to" side="bottom">
           <IconButton data-name="move-to-button" aria-label="Move to" disabled>
-            <TvIcon name="ot-header-move-to" size={18} />
+            <Icon name="ot-header-move-to" size={18} />
           </IconButton>
         </Tooltip>
         <Tooltip text="Manage layout drawings" side="bottom">
@@ -345,7 +345,7 @@ export function ObjectTreePanel(props: Props) {
             disabled={props.drawings.length === 0 && !manage()}
             onClick={toggleManage}
           >
-            <TvIcon name="ot-header-manage-drawings" size={18} />
+            <Icon name="ot-header-manage-drawings" size={18} />
           </IconButton>
         </Tooltip>
 
@@ -359,7 +359,7 @@ export function ObjectTreePanel(props: Props) {
               disabled={checked().size === 0}
               onClick={() => bulkSet("hidden")}
             >
-              <TvIcon name="draw-hide" size={18} />
+              <Icon name="draw-hide" size={18} />
             </IconButton>
           </Tooltip>
           <Tooltip text="Lock / unlock checked" side="bottom">
@@ -369,7 +369,7 @@ export function ObjectTreePanel(props: Props) {
               disabled={checked().size === 0}
               onClick={() => bulkSet("locked")}
             >
-              <TvIcon name="draw-lock" size={18} />
+              <Icon name="draw-lock" size={18} />
             </IconButton>
           </Tooltip>
           <Tooltip text="Remove checked" side="bottom">
@@ -379,7 +379,7 @@ export function ObjectTreePanel(props: Props) {
               disabled={checked().size === 0}
               onClick={bulkDelete}
             >
-              <TvIcon name="draw-trash" size={18} />
+              <Icon name="draw-trash" size={18} />
             </IconButton>
           </Tooltip>
         </Show>
@@ -387,13 +387,13 @@ export function ObjectTreePanel(props: Props) {
       <div class="object-tree-panel-body">
         <Show when={view() === "tree"} fallback={<DataWindow />}>
             {/* Chart-source primary row — the symbol/interval the chart renders.
-                Icon is the symbol's logo badge (TV shows the instrument logo
-                here), not a colour swatch. */}
+                Icon is the symbol's logo badge (the instrument logo), not a
+                colour swatch. */}
             <Show when={props.chartSource}>
               {(src) => (
                 <div class="object-tree-row primary" data-name="object-tree-row">
                   <span class="object-tree-row-icon" aria-hidden="true">
-                    <span class="tv-ticker-logo tv-ticker-logo--sm">
+                    <span class="ot-ticker-logo ot-ticker-logo--sm">
                       {src().trim().charAt(0).toUpperCase()}
                     </span>
                   </span>
@@ -409,7 +409,7 @@ export function ObjectTreePanel(props: Props) {
               {(id) => (
                 <div class="object-tree-row" data-name="object-tree-row">
                   <span class="object-tree-row-icon" aria-hidden="true">
-                    <TvIcon name="header-indicators-metrics-and-strategies" size={18} />
+                    <Icon name="header-indicators-metrics-and-strategies" size={18} />
                   </span>
                   <span class="object-tree-row-label">{getIndicatorEntry(id)?.name ?? id}</span>
                   <span class="object-tree-row-actions">
@@ -421,7 +421,7 @@ export function ObjectTreePanel(props: Props) {
                       title="Remove"
                       onClick={() => props.onRemoveIndicator(id)}
                     >
-                      <TvIcon name="draw-trash" size={18} />
+                      <Icon name="draw-trash" size={18} />
                     </button>
                   </span>
                 </div>
@@ -430,7 +430,7 @@ export function ObjectTreePanel(props: Props) {
 
             {/* Empty hint only when nothing at all is on the chart. */}
             <Show when={!props.chartSource && props.indicators.length === 0 && props.drawings.length === 0}>
-              <div class="tv-empty-state object-tree-panel-empty">No objects yet.</div>
+              <div class="ot-empty-state object-tree-panel-empty">No objects yet.</div>
             </Show>
 
             {/* Drawing rows (drag-to-reorder), topmost first. A contiguous run
@@ -464,7 +464,7 @@ export function ObjectTreePanel(props: Props) {
                     {(g) => (
                       <div class="object-tree-group" data-name="object-tree-group">
                         <span class="object-tree-row-icon" aria-hidden="true">
-                          <TvIcon name="ot-header-group" size={18} />
+                          <Icon name="ot-header-group" size={18} />
                         </span>
                         <span class="object-tree-group-label">{g()}</span>
                         <button
@@ -517,7 +517,7 @@ export function ObjectTreePanel(props: Props) {
                       />
                     </Show>
                     <span class="object-tree-row-icon" aria-hidden="true">
-                      <TvIcon name={iconForKind(d.kind)} size={18} />
+                      <Icon name={iconForKind(d.kind)} size={18} />
                     </span>
                     <span class="object-tree-row-label">{labelForKind(d.kind)}</span>
                     <span class="object-tree-row-actions">
@@ -533,7 +533,7 @@ export function ObjectTreePanel(props: Props) {
                           toggleLocked(d);
                         }}
                       >
-                        <TvIcon name="draw-lock" size={18} />
+                        <Icon name="draw-lock" size={18} />
                       </button>
                       <button
                         type="button"
@@ -547,7 +547,7 @@ export function ObjectTreePanel(props: Props) {
                           toggleHidden(d);
                         }}
                       >
-                        <TvIcon name={d.hidden ? "draw-hide" : "draw-show"} size={18} />
+                        <Icon name={d.hidden ? "draw-hide" : "draw-show"} size={18} />
                       </button>
                       <button
                         type="button"
@@ -560,7 +560,7 @@ export function ObjectTreePanel(props: Props) {
                           props.onRemove(d.id);
                         }}
                       >
-                        <TvIcon name="draw-trash" size={18} />
+                        <Icon name="draw-trash" size={18} />
                       </button>
                     </span>
                   </div>

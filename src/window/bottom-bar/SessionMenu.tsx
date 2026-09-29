@@ -56,7 +56,7 @@ export function SessionMenu(props: Props) {
     <Portal>
       <div
         ref={popupRef}
-        class="tv-popover session-menu context-menu"
+        class="ot-popover session-menu context-menu"
         role="menu"
         aria-label="Session"
         style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : { left: "-9999px", top: "-9999px" }}

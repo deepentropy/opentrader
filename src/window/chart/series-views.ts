@@ -1,14 +1,13 @@
 /*
- * Custom-series renderers for TV styles the library cannot draw natively:
+ * Custom-series renderers for styles the library cannot draw natively:
  *
- *   • GradientLinePaneView — Line / Line with markers / Step line with TV's
+ *   • GradientLinePaneView — Line / Line with markers / Step line with the
  *     "Gradient" colour type: one vertical linear gradient over the pane
- *     height, start colour at the top and end colour at the bottom (TV
- *     applyColor, module 822838). Markers (with-markers style) are filled
- *     circles of radius lineWidth + 2, drawn only while 2 · radius < bar
- *     spacing (TV PaneRendererLine, module 47814).
- *   • ColumnPaneView — TV Columns: a column per bar from the value down to the
- *     BOTTOM of the pane (TV histogramBase = pane height, module 250114), so
+ *     height, start colour at the top and end colour at the bottom. Markers
+ *     (with-markers style) are filled circles of radius lineWidth + 2, drawn
+ *     only while 2 · radius < bar spacing.
+ *   • ColumnPaneView — Columns: a column per bar from the value down to the
+ *     BOTTOM of the pane (histogram base = pane height), so
  *     the price scale fits the values only (the library histogram would pull
  *     the scale down to its base price).
  */

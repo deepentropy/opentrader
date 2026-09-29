@@ -1,7 +1,6 @@
 /*
- * Settings dialog for a selected drawing. Ported from TV Desktop's
- * `source-properties-editor` capture (380px shell, 68px header, 32px tabs
- * w/ underline, 16/20px body padding, 67px footer).
+ * Settings dialog for a selected drawing (380px shell, 68px header, 32px
+ * tabs w/ underline, 16/20px body padding, 67px footer).
  */
 .drawing-settings-backdrop {
   position: fixed;
@@ -13,7 +12,7 @@
   z-index: 200;
 }
 
-/* TV dialog: 380 px minimum, 550 px maximum, otherwise as wide as its tab
+/* Dialog: 380 px minimum, 550 px maximum, otherwise as wide as its tab
  * page (Gann box 457 px, Visibility 453 px). */
 .drawing-settings-dialog {
   width: max-content;
@@ -50,7 +49,7 @@
   min-width: 0;
 }
 
-/* TV title pencil (editIcon): 34 px box, 5 px after the title, 28 px icon. */
+/* Title pencil: 34 px box, 5 px after the title, 28 px icon. */
 .drawing-settings-edit {
   width: 34px;
   height: 34px;
@@ -70,7 +69,7 @@
   background-color: #2e2e2e;
 }
 
-/* TV rename field: replaces the title and the close button; 34 px, 1 px
+/* Rename field: replaces the title and the close button; 34 px, 1 px
  * #575757 border (blue when focused), radius 6, 20 px / 600 text. */
 .drawing-settings-rename {
   flex: 1;
@@ -117,7 +116,7 @@
 }
 
 /* Tabs (underline style) */
-/* TV tabs: 16 px / 600 #dbdbdb, 24 px apart, a 4 px #4a4a4a track under
+/* Tabs: 16 px / 600 #dbdbdb, 24 px apart, a 4 px #4a4a4a track under
  * the row (20 px in from both sides), the selected tab's 4 px #f2f2f2
  * underline on it. */
 .drawing-settings-tabs {
@@ -167,9 +166,8 @@
 }
 
 /* Body */
-/* TV tab page (`content`): a grid "auto 1fr". Column 1 = the row titles
- * (check box + label or plain label, 20 px gap after the widest), column 2 =
- * the controls; rows without controls, section titles, level grids and text
+/* Tab page: a grid "auto 1fr". Column 1 = the row titles (check box +
+ * label or plain label, 20 px gap after the widest), column 2 = the controls; rows without controls, section titles, level grids and text
  * boxes span both columns. Every row cell has 8 px above and below (34 px
  * control -> 50 px row). */
 .drawing-settings-body {
@@ -208,9 +206,8 @@
   grid-column: 1 / -1;
 }
 
-/* TV group title: 11 px uppercase #8c8c8c in a 32 px cell. A property
- * group (level grids, Info, position levels) ends with a 16 px separator
- * (groupSeparator big). */
+/* Group title: 11 px uppercase #8c8c8c in a 32 px cell. A property
+ * group (level grids, Info, position levels) ends with a 16 px separator. */
 .drawing-settings-section-title {
   display: flex;
   align-items: center;
@@ -278,7 +275,7 @@
   padding: 8px 0;
 }
 
-/* TV bold / italic buttons (fontStyleButton): 34 x 34, 1 px #575757,
+/* Bold / italic buttons: 34 x 34, 1 px #575757,
  * radius 6, 28 px icon; pressed = #8c8c8c background, white icon. */
 .drawing-settings-text-toggle {
   width: 34px;
@@ -302,7 +299,7 @@
 }
 
 /* Multi-line text box for the text family. */
-/* TV text box: 1 px #575757, radius 8, text 8 px in (5 px from the top),
+/* Text box: 1 px #575757, radius 8, text 8 px in (5 px from the top),
  * 14 / 18 px, no resize; 5 lines = 100 px, 9 lines = 172 px; 8 px above and
  * below like a row cell. */
 .drawing-settings-textarea {
@@ -328,7 +325,7 @@
   border-color: var(--color-cold-gray-300, #b2b5be);
 }
 
-/* Plain text input (TV small input: 100 x 34, 1 px #575757, radius 6,
+/* Plain text input (small input: 100 x 34, 1 px #575757, radius 6,
  * 14 px text, padding 0 2 0 5). */
 .drawing-settings-input {
   flex: 0 0 auto;
@@ -357,7 +354,7 @@
   flex: 1;
 }
 
-/* TV colour button: 34 x 34, 1 px #575757 border, radius 6, the colour in a
+/* Colour button: 34 x 34, 1 px #575757 border, radius 6, the colour in a
  * 24 x 24 square (radius 3) 4 px inside. */
 .drawing-settings-color-swatch {
   position: relative;
@@ -374,7 +371,7 @@
   overflow: hidden;
   flex-shrink: 0;
 }
-/* The colour over TV's opacity pattern (8 px #2A2E39 at 0.4 checker on
+/* The colour over the opacity pattern (8 px #2A2E39 at 0.4 checker on
  * black, drawn at 50 % = 12 px tiles), seen through transparent colours. */
 .drawing-settings-color-swatch-fill {
   width: 24px;
@@ -422,12 +419,12 @@
   cursor: pointer;
   font-size: 14px;
 }
-/* TV select: 100 px; Extend / Stats / Stats position 180 px. Long values
- * are cut with an ellipsis (TV "Standar..."). */
+/* Select: 100 px; Extend / Stats / Stats position 180 px. Long values
+ * are cut with an ellipsis ("Standar..."). */
 .drawing-settings-select {
   width: 100px;
   text-overflow: ellipsis;
-  /* TV chevron: 18 px, #8c8c8c, 4 px from the right edge; text 8 px in. */
+  /* Chevron: 18 px, #8c8c8c, 4 px from the right edge; text 8 px in. */
   padding: 0 26px 0 8px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' width='18' height='18'%3E%3Cpath fill='%238c8c8c' d='M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -442,7 +439,7 @@
 }
 
 /* Checkbox row */
-/* TV check box: 18 px box, label 8 px after it. */
+/* Check box: 18 px box, label 8 px after it. */
 .drawing-settings-checkbox-row {
   display: flex;
   align-items: center;
@@ -487,7 +484,7 @@
 }
 
 /* Footer */
-/* TV footer: 1 px #4a4a4a line above, 16 / 20 px padding. */
+/* Footer: 1 px #4a4a4a line above, 16 / 20 px padding. */
 .drawing-settings-footer {
   display: flex;
   align-items: center;
@@ -507,7 +504,7 @@
 }
 
 /* "Template" dropdown trigger in the footer. */
-/* TV Template button: 100 x 34, 1 px #575757, radius 6, 14 px, chevron. */
+/* Template button: 100 x 34, 1 px #575757, radius 6, 14 px, chevron. */
 .drawing-settings-template-btn {
   display: inline-flex;
   align-items: center;
@@ -567,9 +564,9 @@
   background-color: rgb(235, 235, 235);
 }
 
-/* ── Visibility tab — per-interval matrix (captured from TV 3.2.0.7916:
- * dialog widens to 453px, 50px row pitch, checkbox + two 70×28 inputs;
- * Ticks/Ranges rows carry the checkbox only). ── */
+/* ── Visibility tab — per-interval matrix (dialog widens to 453px, 50px row
+ * pitch, checkbox + two 70×28 inputs; Ticks/Ranges rows carry the checkbox
+ * only). ── */
 
 .drawing-settings-vis-row {
   justify-content: space-between;
@@ -587,8 +584,8 @@
   justify-content: flex-end;
 }
 
-/* TV Visibility row: from field (100) + slider (9 px in, >= 100 px) + 8 px +
- * to field (100); fields as every TV input (100 x 34). */
+/* Visibility row: from field (100) + slider (9 px in, >= 100 px) + 8 px +
+ * to field (100); fields as every input (100 x 34). */
 .drawing-settings-vis-range {
   gap: 0;
   flex-wrap: nowrap;
@@ -601,8 +598,8 @@
   color: #575757;
 }
 
-/* TV range slider (Visibility): see RangeSlider. */
-.tv-range {
+/* Range slider (Visibility): see RangeSlider. */
+.ot-range {
   display: flex;
   align-items: center;
   flex: 1 0 auto;
@@ -610,11 +607,11 @@
   min-width: 100px;
   padding-left: 9px;
 }
-.tv-range.disabled {
+.ot-range.disabled {
   opacity: 0.5;
   pointer-events: none;
 }
-.tv-range-track {
+.ot-range-track {
   position: relative;
   flex: 1 0 auto;
   height: 10px;
@@ -622,25 +619,25 @@
   background-color: #3d3d3d;
   touch-action: none;
 }
-.tv-range-middle-wrap {
+.ot-range-middle-wrap {
   position: relative;
   height: 100%;
   margin: 0 6px;
 }
-.tv-range-middle {
+.ot-range-middle {
   position: absolute;
   top: 0;
   height: 100%;
   background-color: #dbdbdb;
   transition: left 0.1s, width 0.1s;
 }
-.tv-range-pointer-wrap {
+.ot-range-pointer-wrap {
   position: absolute;
   left: 0;
   top: 0;
   width: calc(100% - 12px);
 }
-.tv-range-pointer {
+.ot-range-pointer {
   position: absolute;
   top: -1px;
   width: 12px;
@@ -652,14 +649,14 @@
   box-shadow: rgba(0, 0, 0, 0.5) 0 1px 2px;
   transition: left 0.1s;
 }
-.tv-range.dragged .tv-range-middle,
-.tv-range.dragged .tv-range-pointer {
+.ot-range.dragged .ot-range-middle,
+.ot-range.dragged .ot-range-pointer {
   transition: none;
 }
 
-/* ── TV composite `color-with-thickness-select` (captured 75×34) + the
+/* ── Composite `color-with-thickness-select` (75×34) + the
  * fixed-position color panel it opens (250px wide; scrolls when clamped). ── */
-/* TV colour + line button: 75 x 34, 1 px #575757, radius 6; colour square
+/* Colour + line button: 75 x 34, 1 px #575757, radius 6; colour square
  * 24 x 24 at 5 px, then 8 px, then the 30 px line area. */
 .dlg-color-thickness-btn {
   display: inline-flex;
@@ -708,7 +705,7 @@
 }
 
 
-/* ── Stats multi-select (TV's Info → Stats control) ── */
+/* ── Stats multi-select (Info → Stats control) ── */
 .drawing-settings-multiselect {
   position: relative;
   flex: 1;
@@ -750,7 +747,7 @@
   height: 30px;
 }
 
-/* ── Line end select (TV "Line" row left / right end) ── */
+/* ── Line end select ("Line" row left / right end) ── */
 .drawing-settings-end-btn {
   display: inline-flex;
   align-items: center;
@@ -765,7 +762,7 @@
   cursor: pointer;
 }
 .drawing-settings-end-btn.open {
-  border-color: var(--color-tv-blue-500, #2962ff);
+  border-color: var(--color-ot-blue-500, #2962ff);
 }
 .drawing-settings-end-menu {
   padding: 4px 0;
@@ -787,7 +784,7 @@
 .drawing-settings-end-option.selected {
   background: var(--color-cold-gray-750, #2e2e2e);
 }
-/* TV: the end selects follow the colour / thickness button directly. */
+/* The end selects follow the colour / thickness button directly. */
 .drawing-settings-row-inputs:has(.drawing-settings-end-btn) .drawing-settings-color-thickness {
   flex: 0 0 auto;
 }
@@ -796,9 +793,9 @@
   font-size: 13px;
 }
 
-/* ── Image dialog (TV chart.imageDialog, captured 25/09/2026: 380×403,
- * drop zone 340×190 #2E2E2E with a 1px dashed #8C8C8C border, radius 4;
- * Transparency row: title left, 180px slider right). ── */
+/* ── Image dialog (380×403, drop zone 340×190 #2E2E2E with a 1px dashed
+ * #8C8C8C border, radius 4; Transparency row: title left, 180px slider
+ * right). ── */
 .image-dialog-content {
   padding: 0 20px;
 }
@@ -882,10 +879,10 @@
   border-top: 1px solid #2e2e2e;
 }
 
-/* TV Transparency control (Opacity slider without input, tv-blue-500):
+/* Transparency control (Opacity slider without input, ot-blue-500):
  * 180×10 track, radius 5, checkerboard under a transparent → blue gradient
  * with a 1px blue border; 12px thumb, 2px white ring. */
-.tv-transparency {
+.ot-transparency {
   position: relative;
   width: 148px;
   height: 10px;
@@ -899,14 +896,14 @@
   background-size: 6px 6px;
   background-position: 0 0, 3px 3px;
 }
-.tv-transparency-gradient {
+.ot-transparency-gradient {
   position: absolute;
   inset: 0;
   border: 1px solid #2962ff;
   border-radius: 5px;
   background: linear-gradient(90deg, rgba(41, 98, 255, 0), #2962ff);
 }
-.tv-transparency-thumb {
+.ot-transparency-thumb {
   position: absolute;
   top: -1px;
   width: 12px;
@@ -937,12 +934,12 @@
   max-width: 114px;
   object-fit: contain;
 }
-/* TV lineWidthSelect (76px) / lineStyleSelect (34px) buttons. */
+/* Line width (76px) / line style (34px) select buttons. */
 .drawing-settings-glyph-btn.wide {
   width: 76px;
 }
 
-/* TV input info icon (anchored VWAP "Bands Calculation Mode"): 18px, #575757,
+/* Input info icon (anchored VWAP "Bands Calculation Mode"): 18px, #575757,
  * the explanation in its tooltip. */
 .drawing-settings-info {
   display: inline-flex;
@@ -953,14 +950,14 @@
   cursor: default;
 }
 
-/* TV select chevron (18 px, #8c8c8c). */
+/* Select chevron (18 px, #8c8c8c). */
 .drawing-settings-chevron {
   display: inline-flex;
   flex-shrink: 0;
   color: #8c8c8c;
 }
 
-/* TV checkable style row that is off: its colour / line button is disabled
+/* Checkable style row that is off: its colour / line button is disabled
  * (#2e2e2e background, colour at 50 %, cannot open) and its transparency
  * slider at 50 % opacity. */
 .drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs :is(.drawing-settings-color-swatch, .dlg-color-thickness-btn) {
@@ -970,7 +967,7 @@
 .drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs :is(.drawing-settings-color-swatch-fill, .dlg-color-thickness-btn > *) {
   opacity: 0.5;
 }
-.drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs .tv-transparency {
+.drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs .ot-transparency {
   opacity: 0.5;
   pointer-events: none;
 }

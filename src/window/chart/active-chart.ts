@@ -4,7 +4,7 @@
  * while it is the active pane and clears it on blur / unmount.
  */
 export type ActiveChartProbe = {
-  /** TV mainSeriesScaleRatio: price units per bar (price range ÷ visible bars
+  /** Main series scale ratio: price units per bar (price range ÷ visible bars
    *  scaled by the pane's pixel aspect), undefined before the chart has data. */
   scaleRatio: () => number | undefined;
 };

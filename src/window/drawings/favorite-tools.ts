@@ -10,7 +10,7 @@
  * the drawing specs match on). Toolbar visibility is persisted alongside it.
  */
 import { createSignal } from "solid-js";
-import type { TvIconName } from "../../components/TvIcon";
+import type { IconName } from "../../components/Icon";
 import { GROUPS, groupTools, type Group, type Tool } from "../../data/drawing-toolbar";
 import * as kv from "../../data/kv";
 
@@ -22,9 +22,8 @@ const POS_KEY = "tv:favorite-tools-pos";
  *  offsetParent-relative coords. null = still at the CSS dock (never dragged). */
 export type FavoritesToolbarPos = { x: number; y: number };
 
-/** Initial favourites — mirrors the set captured from the live TV Desktop
- *  install (Ray, Trendline, Horizontal ray, Arrow mark down/up, Text,
- *  Anchored VWAP, Vertical line), used here as a populated-by-default seed. */
+/** Initial favourites (Ray, Trendline, Horizontal ray, Arrow mark down/up,
+ *  Text, Anchored VWAP, Vertical line), used as a populated-by-default seed. */
 export const DEFAULT_FAVORITE_TOOL_IDS = [
   "ray", "trend-line", "horizontal-ray", "arrow-mark-down",
   "arrow-mark-up", "text", "anchored-vwap", "vertical-line",
@@ -43,7 +42,7 @@ const TOOL_INDEX: Record<string, { tool: Tool; group: Group }> = (() => {
  *  group default), or null if the id isn't a known drawing tool. */
 export function findToolMeta(
   id: string,
-): { title: string; iconName: TvIconName; hotkey?: string } | null {
+): { title: string; iconName: IconName; hotkey?: string } | null {
   const hit = TOOL_INDEX[id];
   if (!hit) return null;
   return {
@@ -97,7 +96,7 @@ kv.onExternalChange(VISIBLE_KEY, () => setVisible(loadVisible()));
 kv.onExternalChange(POS_KEY, () => setPos(loadPos()));
 
 /** Live, ordered list of favourited tool ids (global + persisted). New
- *  favourites append at the end, matching TV's favouriting order. */
+ *  favourites append at the end (favouriting order). */
 export const favoriteToolIds = favorites;
 
 /** Whether the favorite drawing tools toolbar is shown. The bar only renders

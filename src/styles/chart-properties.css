@@ -1,9 +1,5 @@
 /*
  * Chart "Settings" (series-properties) dialog.
- * Reverse-engineered from TV Desktop's series-properties-dialog
- * (withSidebar-F0WBLDV5).  Captured 29/05/2026 (full sweep, then
- * tabs/form/colours over CDP).
- * Chrome re-measured 25/07/2026 against TV Desktop 3.3.0.7992:
  *
  *   shell   : 750px wide on EVERY tab, bg rgb(31,31,31), 6px radius,
  *             shadow 0 2px 4px rgba(0,0,0,.4)
@@ -13,9 +9,8 @@
  *   footer  : Template ▾ (left) · Apply to all · Cancel (outlined) · Ok (fill)
  */
 
-/* TV draws no dimming behind the chart and indicator Settings dialogs
-   (measured 26/09/2026: no full-window coloured layer); the layer stays to
-   catch outside clicks. */
+/* No dimming behind the chart and indicator Settings dialogs (no
+   full-window coloured layer); the layer stays to catch outside clicks. */
 .settings-backdrop {
   position: fixed;
   inset: 0;
@@ -29,8 +24,8 @@
 .settings-dialog {
   width: 750px;
   max-width: 96vw;
-  /* Height fits the active tab's content (like the live app, which resizes per
-     tab), capped to the viewport — the content column scrolls past that. */
+  /* Height fits the active tab's content (resized per tab), capped to the
+     viewport — the content column scrolls past that. */
   height: auto;
   max-height: 92vh;
   background-color: var(--color-cold-gray-850, #1f1f1f);
@@ -102,7 +97,7 @@
 .settings-toptab:hover { color: var(--color-cold-gray-200, #dbdbdb); }
 .settings-toptab.is-active {
   color: var(--color-cold-gray-200, #dbdbdb);
-  border-bottom-color: var(--color-tv-blue-500, #2962ff);
+  border-bottom-color: var(--color-ot-blue-500, #2962ff);
 }
 
 /* ── Body ───────────────────────────────────────────────────────────────── */
@@ -112,7 +107,7 @@
   display: flex;
 }
 
-/* Left rail tabs (TV 3.3: 206px rail, item h40 r8, active #2e2e2e/600). */
+/* Left rail tabs (206px rail, item h40 r8, active #2e2e2e/600). */
 .settings-tabs {
   width: 206px;
   flex-shrink: 0;
@@ -159,10 +154,10 @@
   padding: 8px 20px 20px;
 }
 
-/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+/* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
 /* ── Unified form: a 2-col grid (label | controls) shared across all rows so
- * the control column aligns, like the live dialog.  Section titles + row
+ * the control column aligns.  Section titles + row
  * descriptions span both columns; rows with no control let the label span
  * both (a long checkbox label must not widen the label column). */
 .settings-form {
@@ -188,7 +183,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 50px; /* TV 3.3 row pitch */
+  min-height: 50px; /* Row pitch */
 }
 .settings-row-head.is-full { grid-column: 1 / -1; }
 .settings-row-head.is-indent { padding-left: 28px; }
@@ -205,8 +200,8 @@
   color: #fff;
 }
 .settings-checkbox.is-checked {
-  background-color: var(--color-tv-blue-500, #2962ff);
-  border-color: var(--color-tv-blue-500, #2962ff);
+  background-color: var(--color-ot-blue-500, #2962ff);
+  border-color: var(--color-ot-blue-500, #2962ff);
 }
 
 .settings-row-label {
@@ -237,10 +232,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 50px; /* TV 3.3 row pitch */
+  min-height: 50px; /* Row pitch */
 }
 
-/* Select / dropdown — TV 3.3: filled #2e2e2e, subtle border, 34px. */
+/* Select / dropdown — filled #2e2e2e, subtle border, 34px. */
 .settings-select {
   min-width: 140px;
   max-width: 220px;
@@ -265,7 +260,7 @@
 .settings-select.is-disabled:hover { border-color: var(--color-cold-gray-650, #575757); }
 
 /* Colour swatch + diagonal up/down pair.  A checkerboard backing shows through
-   transparent / low-opacity colours, like TV. */
+   transparent / low-opacity colours. */
 .settings-swatch {
   position: relative;
   width: 34px;
@@ -320,7 +315,7 @@
 .settings-linepick svg { color: var(--color-cold-gray-200, #dbdbdb); }
 .settings-linepick-opt { display: inline-flex; align-items: center; }
 
-/* Numeric input; the unit ("%", "bars") sits OUTSIDE the border like TV. */
+/* Numeric input; the unit ("%", "bars") sits OUTSIDE the border. */
 .settings-input {
   height: 34px;
   display: inline-flex;
@@ -365,7 +360,7 @@
   top: 0;
   height: 100%;
   border-radius: 2px;
-  background: var(--color-tv-blue-500, #2962ff);
+  background: var(--color-ot-blue-500, #2962ff);
 }
 .settings-slider-thumb {
   position: absolute;
@@ -383,7 +378,7 @@
 .settings-colorpicker {
   position: fixed;
   z-index: 300;
-  background: var(--tv-popover-bg, #1f1f1f);
+  background: var(--ot-popover-bg, #1f1f1f);
   border-radius: 6px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.4);
   padding: 4px 0;
@@ -405,7 +400,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-tv-blue-500, #2962ff);
+  color: var(--color-ot-blue-500, #2962ff);
 }
 
 .settings-colorpicker { padding: 10px; width: 184px; }
@@ -422,7 +417,7 @@
   cursor: pointer;
   padding: 0;
 }
-.settings-colorpicker-cell:hover { outline: 2px solid var(--color-tv-blue-500, #2962ff); }
+.settings-colorpicker-cell:hover { outline: 2px solid var(--color-ot-blue-500, #2962ff); }
 .settings-colorpicker-hex {
   display: flex;
   gap: 6px;
@@ -446,7 +441,7 @@
   padding: 0 12px;
   border: 0;
   border-radius: 6px;
-  background: var(--color-tv-blue-500, #2962ff);
+  background: var(--color-ot-blue-500, #2962ff);
   color: #fff;
   font-family: inherit;
   font-size: 13px;
@@ -499,8 +494,7 @@
   text-overflow: ellipsis;
   max-width: 220px;
 }
-/* Remove button (TV MenuRemoveButton -> RemoveButton button-WMpKKUCq,
-   26/09/2026): 22 px, r4, trash icon grey, hover #4A4A4A + #DBDBDB; shown
+/* Remove button: 22 px, r4, trash icon grey, hover #4A4A4A + #DBDBDB; shown
    while the row is hovered. */
 .settings-template-remove {
   display: inline-flex;
@@ -529,7 +523,7 @@
   gap: 8px;
 }
 
-/* TV 3.3: Cancel / Apply to all are OUTLINED (1px, current text colour). */
+/* Cancel / Apply to all are OUTLINED (1px, current text colour). */
 .settings-btn {
   height: 34px;
   padding: 0 11px;
@@ -545,7 +539,7 @@
 
 .settings-btn:hover { background-color: var(--color-cold-gray-800, #2e2e2e); }
 
-/* Primary "Ok" — light fill, dark text (TV's neutral-primary button). */
+/* Primary "Ok" — light fill, dark text (neutral-primary button). */
 .settings-btn.is-primary {
   background-color: rgb(242, 242, 242);
   color: rgb(15, 15, 15);
@@ -554,8 +548,7 @@
 
 .settings-btn.is-primary:hover { background-color: #fff; }
 
-/* ══ Chart Settings dialog — TV Desktop 3.4.1.8194 (measured 25/09/2026).
- * Scoped to .cp3-*; the indicator and app
+/* ══ Chart Settings dialog. Scoped to .cp3-*; the indicator and app
  * settings dialogs keep the .settings-* rules above.
  *   shell  750 wide, header 68 (title 20/20, 20px/600/28), close 34 at 699/17
  *   rail   226 (padding 8 0 0 20), tabs 206×40 r8, no gap
@@ -605,7 +598,7 @@
   flex-direction: column;
   overflow-y: auto;
 }
-/* TV tab: 28 px icon in the text colour, label 4 px after it. */
+/* Tab: 28 px icon in the text colour, label 4 px after it. */
 .cp3-tabs .settings-tab { width: 206px; box-sizing: border-box; gap: 4px; }
 .cp3-tabs .settings-tab-icon { color: inherit; }
 
@@ -614,7 +607,7 @@
   min-width: 0;
   overflow-y: auto;
 }
-/* Bottom padding 32 = content padding 16 + TV's trailing 16 px group
+/* Bottom padding 32 = content padding 16 + the trailing 16 px group
    separator. */
 .cp3-grid {
   display: grid;
@@ -662,7 +655,7 @@
 }
 .cp3-title { line-height: 16px; cursor: default; }
 .cp3-checkbox + .cp3-title { cursor: pointer; }
-/* TV row description: 13/18 px #8c8c8c right under the 34 px label block. */
+/* Row description: 13/18 px #8c8c8c right under the 34 px label block. */
 .cp3-desc {
   font-size: 13px;
   line-height: 18px;
@@ -670,7 +663,7 @@
   max-width: 340px;
 }
 /* Controls never wrap: their full width is the column's minimum, so the
-   label column shrinks and long labels wrap (TV "Lock price to bar / ratio"). */
+   label column shrinks and long labels wrap ("Lock price to bar / ratio"). */
 .cp3-controls {
   grid-column: 2;
   display: flex;
@@ -680,7 +673,7 @@
 }
 .cp3-help { display: inline-flex; color: #575757; }
 
-/* Check box (TV ui-lib checkboxView). */
+/* Check box. */
 .cp3-checkbox {
   position: relative;
   width: 18px;
@@ -698,7 +691,7 @@
 .cp3-checkbox.is-checked { background-color: #f2f2f2; color: #2e2e2e; }
 .cp3-checkbox.is-disabled { opacity: 0.5; cursor: default; }
 
-/* Select (ui-lib button: 34 px, r8, 1px #575757, text at 8 px, caret slot 20). */
+/* Select (button: 34 px, r8, 1px #575757, text at 8 px, caret slot 20). */
 .cp3-select {
   height: 34px;
   box-sizing: border-box;
@@ -732,7 +725,7 @@
 .cp3-select.is-disabled { color: #575757; border-color: #3d3d3d; cursor: default; }
 .cp3-select.is-disabled .cp3-select-caret { color: #575757; }
 
-/* Option menu (TV ui-lib list: r10, padding 6, items 32 r6, selected #f2f2f2). */
+/* Option menu (list: r10, padding 6, items 32 r6, selected #f2f2f2). */
 .cp3-menu {
   position: fixed;
   z-index: 300;
@@ -793,7 +786,7 @@
     url("data:image/svg+xml,%3Csvg width='8' height='8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%232A2E39' fill-opacity='0.4' d='M0 0h4v4H0zM4 4h4v4H4z'/%3E%3C/svg%3E") 0 0 / 12px 12px,
     #000;
 }
-/* TV automatic colour placeholder: #F7525F with a #22AB94 top-left triangle. */
+/* Automatic colour placeholder: #F7525F with a #22AB94 top-left triangle. */
 .cp3-swatch-auto {
   position: relative;
   overflow: hidden;
@@ -816,7 +809,7 @@
 }
 .cp3-color-panel { z-index: 310; }
 
-/* Number field (ui-lib number input: 100×34 r8, spin buttons on hover). */
+/* Number field (number input: 100×34 r8, spin buttons on hover). */
 .cp3-number-wrap { display: inline-flex; align-items: center; gap: 9px; }
 .cp3-number {
   position: relative;
@@ -917,9 +910,9 @@
 .cp3-btn.is-primary { background-color: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
 .cp3-btn.is-primary:hover { background-color: #ffffff; }
 
-/* ── Colour panel inside the chart Settings dialog — TV 3.4 popup
- * (Canvas → Crosshair, captured 25/09/2026): 250 wide, no border, r6,
- * shadow 0 2px 4px; body padding 12 (6 + 6 menu padding) × 12; swatches
+/* ── Colour panel inside the chart Settings dialog (Canvas → Crosshair):
+ * 250 wide, no border, r6, shadow 0 2px 4px; body padding 12 (6 + 6 menu
+ * padding) × 12; swatches
  * 17 px on a 23 px pitch, hover ring #575757 / selected ring #dbdbdb (2 px,
  * 5 px out, r6); 1 px #4a4a4a separator (12 px margins) above the custom
  * row; "+" = 13 px cross, 17 px box r2; section titles 12/14 px #8c8c8c;
@@ -1031,7 +1024,7 @@
   color: #000000;
 }
 
-/* Chart Settings placement (TV 3.4.1, 26/09/2026): centred horizontally;
+/* Chart Settings placement: centred horizontally;
    the vertical top is set by ChartPropertiesDialog (centred at open, then
    kept across tab switches, moved up only when a taller tab would pass the
    window bottom); max height = window - 40 px (20 px margins). */
@@ -1045,8 +1038,8 @@
 }
 
 
-/* Indicator Settings "Defaults" menu (TV PropertyActions: Reset settings /
-   Save as default), opening upward from the footer button. */
+/* Indicator Settings "Defaults" menu (Reset settings / Save as default),
+   opening upward from the footer button. */
 .settings-defaults { position: relative; }
 .settings-defaults-menu {
   position: absolute;
@@ -1054,11 +1047,10 @@
   bottom: calc(100% + 4px);
 }
 
-/* Indicator Settings dialog — TV 3.4.1 study dialog (measured 26/09/2026):
-   width fits the
-   content; tabs row 32 px, 20 px side margins, tabs 16/600 lh 24 padding
-   0 0 8, 24 px apart, active bar 4 px #F2F2F2 r2 over a 4 px #4A4A4A track;
-   content padding 16 20; rows = the chart dialog's 34 px TV controls. */
+/* Indicator Settings dialog: width fits the content; tabs row 32 px, 20 px
+   side margins, tabs 16/600 lh 24 padding 0 0 8, 24 px apart, active bar
+   4 px #F2F2F2 r2 over a 4 px #4A4A4A track; content padding 16 20; rows =
+   the chart dialog's 34 px controls. */
 .settings-dialog.ind3-dialog {
   width: max-content;
   min-width: 300px;
@@ -1130,7 +1122,7 @@
 }
 .ind3-empty { padding: 16px 20px; }
 
-/* Indicator Style sections + Visibility tab (TV 3.4.1, 26/09/2026):
+/* Indicator Style sections + Visibility tab:
    plots, then 24 px, "OUTPUT VALUES" (32 px title), Precision (50 px row),
    check rows 34 px, "INPUT VALUES" right after, "Inputs in status line".
    Visibility rows 50 px: from 100 px, slider 109 px (9 px + 100 px track),
@@ -1147,8 +1139,7 @@
 }
 
 
-/* Indicator Style: plot-type button + menu (TV 3.4.1, measured 26/09/2026):
-   button 34 x 34, 1 px #575757 r8, 28 px icon; menu #1F1F1F r6, shadow
+/* Indicator Style: plot-type button + menu: button 34 x 34, 1 px #575757 r8, 28 px icon; menu #1F1F1F r6, shadow
    0 2px 4px rgba(0,0,0,.4), padding 6 0; "Price line" row 32 px (padding
    6 10 2 12) with a 38 x 20 switch (off: #636363 track; on: #F2F2F2 track,
    thumb right; thumb 14 px #2E2E2E, 3 px inset); 1 px #4A4A4A separator

@@ -60,7 +60,7 @@ export function TimezoneMenu(props: Props) {
     <Portal>
       <div
         ref={popupRef}
-        class="tv-popover tv-popover--scrollable tz-menu-wrap context-menu"
+        class="ot-popover ot-popover--scrollable tz-menu-wrap context-menu"
         role="menu"
         aria-label="Timezone"
         style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : { left: "-9999px", top: "-9999px" }}

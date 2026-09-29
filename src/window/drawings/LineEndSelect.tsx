@@ -1,8 +1,8 @@
 /*
- * Line end select (TV settings "Line" row, `left-end-select` /
- * `right-end-select`, captured 24/09/2026 on TV 3.4.1): a square button with
- * the current end's icon, opening a two-row list "Normal" / "Arrow" (icon +
- * label). The icons are TV's; the right-end control shows them mirrored.
+ * Line end select (settings "Line" row, `left-end-select` /
+ * `right-end-select`): a square button with the current end's icon, opening a
+ * two-row list "Normal" / "Arrow" (icon + label). The right-end control shows
+ * the icons mirrored.
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 
@@ -83,7 +83,7 @@ export function LineEndSelect(props: { side: "left" | "right"; value: 0 | 1; onC
   );
 }
 
-/** TV lineWidthSelect / lineStyleSelect (fib "Levels line"): a button with
+/** Line width / line style select (fib "Levels line"): a button with
  *  the current line (width 76px / style 34px) and a list of lines. */
 export function LineGlyphSelect<T extends string | number>(props: {
   kind: "width" | "style";

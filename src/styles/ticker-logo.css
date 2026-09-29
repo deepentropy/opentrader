@@ -1,14 +1,13 @@
 /*
- * `.tv-ticker-logo` — the circular ticker-letter badge that appears next
- * to symbols (watchlist row, watchlist detail header, alerts log row).
- * TV's source class is `.logo-m0C6Ivpo` + `.letter-…` variant for the
- * single-letter fallback.
+ * `.ot-ticker-logo` — the circular ticker-letter badge that appears next
+ * to symbols (watchlist row, watchlist detail header, alerts log row), used
+ * as the single-letter fallback.
  *
  * Two size modifiers cover the cases we have today:
- *   .tv-ticker-logo--sm  →  16 × 16, 10 px font  (watchlist rows, alerts)
- *   .tv-ticker-logo--md  →  24 × 24, 12 px font  (watchlist detail header)
+ *   .ot-ticker-logo--sm  →  16 × 16, 10 px font  (watchlist rows, alerts)
+ *   .ot-ticker-logo--md  →  24 × 24, 12 px font  (watchlist detail header)
  */
-.tv-ticker-logo {
+.ot-ticker-logo {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -19,7 +18,7 @@
   font-weight: 600;
 }
 
-/* TV row logos are 18×18 (captured IMG in symbol rows); the letter badge
+/* Row logos are 18×18 (IMG in symbol rows); the letter badge
  * matches that footprint so a future image swap is layout-neutral. */
-.tv-ticker-logo--sm { width: 18px; height: 18px; font-size: 10px; }
-.tv-ticker-logo--md { width: 24px; height: 24px; font-size: 12px; }
+.ot-ticker-logo--sm { width: 18px; height: 18px; font-size: 10px; }
+.ot-ticker-logo--md { width: 24px; height: 24px; font-size: 12px; }

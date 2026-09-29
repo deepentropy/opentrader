@@ -1,30 +1,30 @@
 /*
- * Watchlist inventory — captured from TradingView's live right-rail.
+ * Watchlist inventory — the default right-rail watchlist.
  *
  * The component that consumes it (window/right-rail/Watchlist.tsx) is
- * hand-maintained.  Probed 27/05/2026.
+ * hand-maintained.
  *
- * The captured ROWS array is a one-shot snapshot of pre-market quotes at
- * probe time; in a real port this would be replaced with a live data feed.
+ * The ROWS array is a one-shot snapshot of pre-market quotes; the live data
+ * feed replaces the values.
  */
-import type { TvIconName } from '../components/TvIcon';
+import type { IconName } from '../components/Icon';
 
 export type Row = {
   ticker: string;
   short: string;
   last: string;
-  /** Absolute change — hidden by default (TV reveals it only in "Advanced
-   *  view"). Absent in the sectioned capture → falls back to "—". */
+  /** Absolute change — hidden by default (revealed only in "Advanced
+   *  view"). Absent in the sectioned seed → falls back to "—". */
   change?: string;
   changePercent: string;
-  /** Volume — also hidden by default; absent in the sectioned capture. */
+  /** Volume — also hidden by default; absent in the sectioned seed. */
   volume?: string;
   prePostChange: string;
   /** Left-edge colour flag, or null/absent when the symbol is unflagged. */
   flag?: FlagColor | null;
 };
 
-/** A named, collapsible section of the watchlist (TV's section separators). */
+/** A named, collapsible section of the watchlist (section separators). */
 export type Group = {
   name: string;
   rows: Row[];
@@ -41,13 +41,11 @@ export type HeaderItem = {
   dataName: string;
   label: string | null;
   currentValue: string | null;
-  iconName: TvIconName | null;
+  iconName: IconName | null;
 };
 
-// Column-header strip — labels captured from the live TV right-rail
-// watchlist (probed 27/05/2026).
-// Live DOM: `.wrap-Nz1M1_XP > .tableHeader-Nz1M1_XP > .columnHeader-k67yvGbk`
-// 4 right-aligned spans, 14px text, 27px row with a 1px bottom divider.
+// Column-header strip: 4 right-aligned spans, 14px text, 27px row with a 1px
+// bottom divider.
 export const COLUMN_HEADERS: { key: 'symbol' | 'last' | 'changePercent' | 'prePost'; label: string }[] = [
   { key: 'symbol', label: 'Symbol' },
   { key: 'last', label: 'Last' },
@@ -76,10 +74,10 @@ export const HEADER_ITEMS: HeaderItem[] = [
   }
 ];
 
-// Sectioned watchlist — captured from the live TV right-rail (probe 2026-05-29,
-// active list "Strong"). Sections in display order; every symbol is flagged
-// blue in this snapshot. `change`/`volume` aren't captured here (hidden columns)
-// → those cells show "—" until a live snapshot lands. The flat ROWS export
+// Sectioned watchlist — default seed (active list "Strong"). Sections in
+// display order; every symbol is flagged blue in this snapshot.
+// `change`/`volume` aren't included here (hidden columns) → those cells show
+// "—" until a live snapshot lands. The flat ROWS export
 // below drives the Massive subscription and any section-agnostic consumer.
 export const GROUPS: Group[] = [
   {
@@ -171,15 +169,14 @@ export const GROUPS: Group[] = [
 export const ROWS: Row[] = GROUPS.flatMap((g) => g.rows);
 
 // ── Watchlist settings (gear popover) ────────────────────────────────────────
-// Ported from the reference mock, probed from the live right-rail settings
-// menu.
+// Ported from the reference mock.
 
 export const WL_SETTINGS_ICONS = {
   check:
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 9" fill="none"><path stroke="currentColor" stroke-width="2" d="M0.999878 4L3.99988 7L9.99988 1"></path></svg>',
 };
 
-/** Customize-columns checkbox keys (TV `data-qa-id`s). */
+/** Customize-columns checkbox keys (`data-qa-id`s). */
 export type WlColumnKey = "last" | "change" | "change_percent" | "volume" | "rchp";
 /** Symbol-display radio value (`ticker` = symbol, `description` = company name). */
 export type WlSymbolDisplay = "ticker" | "description";
@@ -195,7 +192,7 @@ export interface WlSettings {
   symbolDisplay: WlSymbolDisplay;
 }
 
-/** Captured default checkbox/toggle/radio states. */
+/** Default checkbox/toggle/radio states. */
 export const WL_SETTINGS_DEFAULTS: WlSettings = {
   tableView: true,
   columns: { last: true, change: false, change_percent: true, volume: false, rchp: true },
@@ -213,7 +210,7 @@ export const WL_COLUMNS: { key: WlColumnKey; menuLabel: string; header: string }
   { key: "rchp", menuLabel: "Extended Hours", header: "Ext" },
 ];
 
-/** Symbol-display radio options (probed order: Symbol then Name). */
+/** Symbol-display radio options (order: Symbol then Name). */
 export const WL_SYMBOL_DISPLAY: { value: WlSymbolDisplay; label: string }[] = [
   { value: "ticker", label: "Symbol" },
   { value: "description", label: "Name" },
@@ -221,32 +218,30 @@ export const WL_SYMBOL_DISPLAY: { value: WlSymbolDisplay; label: string }[] = [
 
 /* ── Watchlists dropdown-menu data (ported from the mock) ──────────────── */
 export const WL_ICONS = {
-  // `uiMarker-… flag-RsFlttSS` — a banner notched on its right edge (vb 14×12).
+  // Flag marker — a banner notched on its right edge (vb 14×12).
   flag: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 12" fill="currentColor" focusable="false" preserveAspectRatio="none"><path d="M14 12l-4-6 4-6H0v12z"></path></svg>',
-  // `expandHandle-eCC6Skn5` section chevron (vb 18×18).
+  // Section chevron (vb 18×18).
   chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="m4.67 7.38.66-.76L9 9.84l3.67-3.22.66.76L9 11.16 4.67 7.38Z"></path></svg>',
-  // `button-w6lVe_oI` trash/delete glyph (vb 18×18) — revealed on hover for
+  // Trash/delete glyph (vb 18×18) — revealed on hover for
   // both a row (remove symbol) and a section header (delete section).
   trash: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M12 4h3v1h-1.04l-.88 9.64a1.5 1.5 0 0 1-1.5 1.36H6.42a1.5 1.5 0 0 1-1.5-1.36L4.05 5H3V4h3v-.5C6 2.67 6.67 2 7.5 2h3c.83 0 1.5.67 1.5 1.5V4ZM7.5 3a.5.5 0 0 0-.5.5V4h4v-.5a.5.5 0 0 0-.5-.5h-3ZM5.05 5l.87 9.55a.5.5 0 0 0 .5.45h5.17a.5.5 0 0 0 .5-.45L12.94 5h-7.9Z"></path></svg>',
-  // `arrow-merBkM5y` down-caret on the watchlists menu button (vb 16×8, rendered
-  // 8×4 — the standard TV dropdown caret size). Captured verbatim from the live
-  // header — NOT the flag glyph the mock previously (mis)used here.
+  // Down-caret on the watchlists menu button (vb 16×8, rendered 8×4 — the
+  // standard dropdown caret size). NOT the flag glyph the mock previously
+  // (mis)used here.
   menuArrow: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 8"><path fill="currentColor" d="M0 1.475l7.396 6.04.596.485.593-.49L16 1.39 14.807 0 7.393 6.122 8.58 6.12 1.186.08z"></path></svg>',
-  // `sortArrow-k67yvGbk` column-sort indicator (vb 18×18) — an up-arrow captured
-  // verbatim from the live table header. Shown only on the active sort column;
-  // ascending renders as-is (up), descending flips it vertically (TV's `desc`
-  // class applies `transform: scaleY(-1)`).
+  // Column-sort indicator (vb 18×18) — an up-arrow. Shown only on the active
+  // sort column; ascending renders as-is (up), descending flips it vertically
+  // (the `desc` class applies `transform: scaleY(-1)`).
   sortArrow: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" d="M8.5 3.84l.34.28 4 3.5-.66.76L9.01 5.6V14H8V5.6L4.84 8.38l-.66-.76 4-3.5.33-.28z"></path></svg>',
-  // Column-header tooltip glyphs (vb 7×9), TV modules 34655 (up) / 496452
-  // (down), captured 24/09/2026. The tooltip shows the direction the NEXT
-  // click applies: down when the column is sorted ascending, else up.
+  // Column-header tooltip glyphs (vb 7×9), up / down. The tooltip shows the
+  // direction the NEXT click applies: down when the column is sorted
+  // ascending, else up.
   sortTipUp: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7 9" width="7" height="9" fill="none"><path stroke="currentColor" d="M6 4L3.5 1.5L1 4M3.5 9V2"/></svg>',
   sortTipDown: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7 9" width="7" height="9" fill="none"><path stroke="currentColor" d="M6 5L3.5 7.5L1 5M3.5 7.5V0"/></svg>',
 };
 
-/* Watchlists dropdown-menu icons — captured verbatim from the live menu
- * (`watchlistMenu-mQBvegEO`, probe 2026-05-29).  28×28 row icons + the 18×18
- * favourite star on the recently-used lists. */
+/* Watchlists dropdown-menu icons — 28×28 row icons + the 18×18 favourite
+ * star on the recently-used lists. */
 export const WL_MENU_ICONS = {
   addAlert: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28"><path fill="currentColor" d="m19.54 4.5 3.96 4.32-.74.68-3.96-4.32.74-.68ZM7.46 4.5 3.5 8.82l.74.68L8.2 5.18l-.74-.68ZM19.74 10.33A7.5 7.5 0 0 1 21 14.5v.5h1v-.5a8.5 8.5 0 1 0-8.5 8.5h.5v-1h-.5a7.5 7.5 0 1 1 6.24-11.67Z"></path><path fill="currentColor" d="M13 9v5h-3v1h4V9h-1ZM19 20v-4h1v4h4v1h-4v4h-1v-4h-4v-1h4Z"></path></svg>',
   makeCopy: '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none"><path stroke="currentColor" d="M8 9.5H6.5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V20m-8-1.5h11a1 1 0 0 0 1-1v-11a1 1 0 0 0-1-1h-11a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1z"></path></svg>',
@@ -263,7 +258,7 @@ export const WL_MENU_ICONS = {
 export interface WlMenuAction {
   value: string;
   label: string;
-  /** Captured leading icon SVG; omitted for the toggle row. */
+  /** Leading icon SVG; omitted for the toggle row. */
   icon?: string;
   /** Renders a right-aligned switch instead of nothing (Share list). */
   toggle?: boolean;
@@ -298,13 +293,12 @@ export const WL_MENU_GROUPS: { actions?: WlMenuAction[]; recentlyUsed?: boolean 
   },
 ];
 
-/** Watchlist flag-marker palette (the `uiMarker-…<colour>` set, probed live —
- *  see EXTRACTION.md).  Only `blue` is used by the captured list. */
+/** Watchlist flag-marker palette.  Only `blue` is used by the default
+ *  list. */
 export type FlagColor = 'red' | 'blue' | 'green' | 'orange' | 'purple' | 'cyan' | 'pink' | 'yellow';
 
-/** Flag sort order — TV's `LIST_COLORS` (module 908652, captured 24/09/2026).
- *  Yellow is not a TV list colour; it sorts after pink. Unflagged rows always
- *  sort last, in both directions (TV `getSortByColorComparator`). */
+/** Flag sort order. Yellow sorts after pink. Unflagged rows always sort
+ *  last, in both directions. */
 export const FLAG_SORT_ORDER: FlagColor[] = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'pink', 'yellow'];
 
 export const FLAG_HEX: Record<FlagColor, string> = {

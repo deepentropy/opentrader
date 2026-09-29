@@ -13,7 +13,7 @@ pub fn get_data_provider(provider: State<'_, Provider>) -> String {
     provider.name().to_string()
 }
 
-/// What the active provider can serve (TradingView `onReady` equivalent):
+/// What the active provider can serve (the datafeed `onReady` equivalent):
 /// the static capabilities plus the last probed entitlements (`None` until the
 /// first probe settles). No I/O — later changes arrive as the
 /// `provider-capabilities` event.
@@ -24,7 +24,7 @@ pub fn get_provider_capabilities(provider: State<'_, Provider>) -> ProviderCapab
 }
 
 /// Write a PNG snapshot to a temp file and open it with the OS default viewer
-/// (the local backing for TV's cloud "Open image in new tab").
+/// (the local backing for "Open image in new tab").
 #[tauri::command]
 #[specta::specta]
 pub fn open_snapshot(app: tauri::AppHandle, png_base64: String) -> Result<(), String> {

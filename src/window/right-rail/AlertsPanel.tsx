@@ -13,7 +13,7 @@
  * the store's Fire records stay untouched.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { PanelHeader } from "../../components/PanelHeader";
@@ -48,7 +48,8 @@ export function AlertsPanel() {
   // Deleted-drawing detection for drawing-operand rules: re-checked on each
   // render of the rules list and whenever another window edits any symbol's
   // drawings (kv prefix change). Same-window deletes catch up on the next
-  // rules-list render — good enough per TV, which only flags, never disables.
+  // rules-list render — good enough, since a missing drawing only flags the
+  // rule, never disables it.
   const [drawingsRev, setDrawingsRev] = createSignal(0);
   onCleanup(kv.onExternalChangePrefix("tv:drawings:", () => setDrawingsRev((n) => n + 1)));
   const drawingMissing = (rule: AlertRule): boolean => {
@@ -113,7 +114,7 @@ export function AlertsPanel() {
   };
 
   return (
-    <aside class="tv-rail-panel alerts-panel" aria-label="Alerts">
+    <aside class="ot-rail-panel alerts-panel" aria-label="Alerts">
       <PanelHeader
         ariaLabel="Alerts header"
         left={<SegmentedControl items={TABS} value={view()} onChange={setView} ariaLabel="Alerts view" />}
@@ -142,7 +143,7 @@ export function AlertsPanel() {
                         </span>
                       }
                     >
-                      <TvIcon name={t.iconName!} size={18} />
+                      <Icon name={t.iconName!} size={18} />
                     </Show>
                   </IconButton>
                 </Tooltip>
@@ -151,35 +152,35 @@ export function AlertsPanel() {
 
             {/* Options menu */}
             <Show when={optionsOpen()}>
-              <div class="tv-popover alerts-panel-menu" role="menu" aria-label="Alert log options">
+              <div class="ot-popover alerts-panel-menu" role="menu" aria-label="Alert log options">
                 <button
                   type="button"
                   role="menuitem"
-                  class="tv-menu-item"
+                  class="ot-menu-item"
                   onClick={() => {
                     markAllRead();
                     setOptionsOpen(false);
                   }}
                 >
-                  <span class="tv-menu-item__label">Mark all as read</span>
+                  <span class="ot-menu-item__label">Mark all as read</span>
                 </button>
                 <button
                   type="button"
                   role="menuitem"
-                  class="tv-menu-item"
+                  class="ot-menu-item"
                   onClick={() => {
                     clearLog();
                     setOptionsOpen(false);
                   }}
                 >
-                  <span class="tv-menu-item__label">Clear log</span>
+                  <span class="ot-menu-item__label">Clear log</span>
                 </button>
               </div>
             </Show>
 
             {/* Filters popover */}
             <Show when={filtersOpen()}>
-              <div class="tv-popover alerts-panel-menu alerts-panel-filters" aria-label="Alert log filters">
+              <div class="ot-popover alerts-panel-menu alerts-panel-filters" aria-label="Alert log filters">
                 <label class="alerts-panel-filter-row">
                   <span>Symbol</span>
                   <select
@@ -202,13 +203,13 @@ export function AlertsPanel() {
                 <Show when={filterCount() > 0}>
                   <button
                     type="button"
-                    class="tv-menu-item alerts-panel-filter-reset"
+                    class="ot-menu-item alerts-panel-filter-reset"
                     onClick={() => {
                       setFilterSymbol("");
                       setFilterActive(false);
                     }}
                   >
-                    <span class="tv-menu-item__label">Reset filters</span>
+                    <span class="ot-menu-item__label">Reset filters</span>
                   </button>
                 </Show>
               </div>
@@ -222,7 +223,7 @@ export function AlertsPanel() {
           <Show
             when={alertStore.rules().length > 0}
             fallback={
-              <div class="tv-empty-state alerts-panel-empty">
+              <div class="ot-empty-state alerts-panel-empty">
                 No alerts yet. Right-click the chart or use the header “Alert” button to create one.
               </div>
             }
@@ -293,7 +294,7 @@ export function AlertsPanel() {
           <Show
             when={visibleFires().length > 0}
             fallback={
-              <div class="tv-empty-state alerts-panel-empty">
+              <div class="ot-empty-state alerts-panel-empty">
                 {alertStore.fires().length > 0 ? "No events match the filters" : "No events yet"}
               </div>
             }
@@ -311,7 +312,7 @@ export function AlertsPanel() {
                       when={e.logoUrl}
                       fallback={<span class="alerts-panel-log-logo placeholder" />}
                     >
-                      <img src={e.logoUrl!} alt="" class="tv-ticker-logo tv-ticker-logo--sm alerts-panel-log-logo" crossorigin="anonymous" referrerpolicy="no-referrer" />
+                      <img src={e.logoUrl!} alt="" class="ot-ticker-logo ot-ticker-logo--sm alerts-panel-log-logo" crossorigin="anonymous" referrerpolicy="no-referrer" />
                     </Show>
                     <span class="alerts-panel-log-ticker">{`${e.symbol}, ${e.resolution}`}</span>
                     <span class="alerts-panel-log-time">{clockTime(e.fireTime)}</span>

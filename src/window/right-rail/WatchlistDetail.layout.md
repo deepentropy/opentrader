@@ -1,18 +1,15 @@
 # Details (info) panel — field placement spec
 
-Authoritative layout for `WatchlistDetail.tsx`, extracted from **TradingView
-Desktop 3.1.0.7818** over CDP. Two states were captured live:
+Authoritative layout for `WatchlistDetail.tsx`. Two states:
 
-- **Regular / closed** — captured 28/05/2026, symbol INTC, "Market closed".
-- **Post-market** — captured 02/06/2026 16:09 ET, symbol AXTI, "Post-market".
+- **Regular / closed** — "Market closed".
+- **Post-market** — "Post-market".
 
-Widget = `.widgetbar-widget-detail[data-test-id-widget-type="detail"]`, 331px wide,
-sits below the watchlist. Body padding `0 16px`. Default text `#dbdbdb`; secondary
+Widget = the details panel, 331px wide, sits below the watchlist. Body padding `0 16px`. Default text `#dbdbdb`; secondary
 `#8c8c8c` (rgb 140); tertiary/timestamp `#707070` (rgb 112).
 
-> **We build to the user's TV, which is a simpler variant than the probe account
-> (the captures above were a Pro account with extras).** Deltas we follow:
-> **no `R` realtime badge** (our data is delayed too); **no extended-hours
+> Rules we follow:
+> **no `R` realtime badge** (our data is delayed); **no extended-hours
 > dual-price block** — only the single price line; sector/industry are
 > **Title-cased**; the pre/post label carries a **moon icon**; the last-update
 > time includes the **GMT offset**.
@@ -21,8 +18,8 @@ sits below the watchlist. Body padding `0 16px`. Default text `#dbdbdb`; seconda
 
 | # | Block | Notes |
 |---|-------|-------|
-| 1 | Header (48px) | logo 24×24 · ticker `title-tcaG7iiW` **14px / 600** · note/settings buttons |
-| 2 | Name · exchange | `Company Name`(12/400 #dbdbdb) ` · ` exchange(12/400 #dbdbdb), inline, dot = `dotWrap` margin `0 6px 0 3px` |
+| 1 | Header (48px) | logo 24×24 · ticker **14px / 600** · note/settings buttons |
+| 2 | Name · exchange | `Company Name`(12/400 #dbdbdb) ` · ` exchange(12/400 #dbdbdb), inline, dot margin `0 6px 0 3px` |
 | 3 | Sector · industry | two `<a>` links, 12/400, **#8c8c8c** |
 | 4 | Price row | see below |
 | 5 | Market-state row | see below |
@@ -32,9 +29,9 @@ sits below the watchlist. Body padding `0 16px`. Default text `#dbdbdb`; seconda
 | 9 | Performance | heading 13/600; 2×3 grid, value 13/600 over period 11/400; green `#089981` / red `#f2363f` |
 | 10 | Profile | heading 13/600; Website/Employees/FIGI rows (label left, value right 13/600); description 13/400 |
 
-(TV has many more sections between Key stats and Profile — Earnings, Dividends,
-Income statement, Seasonals, Technicals, Analyst rating, Bonds, ATM IV — all
-backed by feeds Polygon Standard doesn't provide, so we omit them.)
+(Other possible sections between Key stats and Profile — Earnings, Dividends,
+Income statement, Seasonals, Technicals, Analyst rating, Bonds, ATM IV — need
+feeds Polygon Standard doesn't provide, so we omit them.)
 
 ## Price row (as we render it)
 
@@ -48,11 +45,10 @@ A single left-packed, bottom-aligned flex row — **no `R` badge**:
   sign: up `#22ab94`, down `#f7525f` (symbol-change tokens, distinct from the
   performance grid's `#089981` / `#f23645`).
 
-## Market-state row — `statusWrapper-dN1e2L_g`
+## Market-state row
 
 `label` + `Last update at HH:MM GMT±X` (timestamp 13px, `#707070`). The
-pre/post label is preceded by a **crescent-moon icon** (`icon-dN1e2L_g`,
-viewBox `0 0 18 18`, path `M12.57 5.5h-.07a3.5 3.5 0 1 0 .07 7A4.98 4.98 0 0 1 4 9a5 5 0 0 1 8.57-3.5z`).
+pre/post label is preceded by a **crescent-moon icon** (viewBox `0 0 18 18`, path `M12.57 5.5h-.07a3.5 3.5 0 1 0 .07 7A4.98 4.98 0 0 1 4 9a5 5 0 0 1 8.57-3.5z`).
 
 **The label is session-dependent (the dynamic pre/post behaviour):**
 
@@ -70,8 +66,7 @@ boundaries. `lastUpdate()` formats the time with `timeZoneName: "shortOffset"`
 
 ## Not rendered: extended-hours dual-price block
 
-The Pro probe account showed a second price block in pre/post (the extended last,
-`lastPrice-dN1e2L_g`). **The user's TV does not show it**, so we render only the
-single price line, in every session. (History: it was briefly added behind a
+A second price block in pre/post (the extended last) is not shown: we render
+only the single price line, in every session. (History: it was briefly added behind a
 `min.c`-derived `ext_last` snapshot field, then removed at the user's request —
 both the block and the backend field are gone.)

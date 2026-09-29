@@ -1,10 +1,8 @@
 /*
- * ChartEventHint — TV's ChartEventHintRenderer (module 288002): a blue pill
- * centred at the bottom of the chart (32 px up), text + close button (TV
- * TooltipWidget without arrow). Measured on TV Desktop 3.4.1, 28/09/2026:
- * #2962FF, radius 4, padding 8, text 14/21 px white with 4px 8px padding,
- * 18 px close icon; the row spans the chart less 10 px each side and only the
- * pill takes the pointer.
+ * ChartEventHint — a blue pill centred at the bottom of the chart (32 px up),
+ * text + close button (a tooltip without arrow): #2962FF, radius 4, padding 8,
+ * text 14/21 px white with 4px 8px padding, 18 px close icon; the row spans
+ * the chart less 10 px each side and only the pill takes the pointer.
  */
 import type { JSX } from "solid-js";
 

@@ -103,7 +103,7 @@ export function saveScript(script: OakScript): void {
 
 export function createScript(name?: string): OakScript {
   if (!name) {
-    // "Untitled script", "Untitled script 2", ... (TV numbers new scripts).
+    // "Untitled script", "Untitled script 2", ... (new scripts are numbered).
     const taken = new Set(readIndex().map((m) => m.name));
     name = DEFAULT_SCRIPT_NAME;
     for (let n = 2; taken.has(name); n++) name = `${DEFAULT_SCRIPT_NAME} ${n}`;

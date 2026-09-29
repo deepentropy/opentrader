@@ -1,6 +1,6 @@
 /*
  * RightRail — container that pairs the vertical tab strip with the active
- * panel. Panel sits to the LEFT of the strip (TradingView's idiom). When
+ * panel. Panel sits to the LEFT of the strip. When
  * activeTab is null, only the 45-px strip remains.
  */
 import { Match, Show, Switch, createEffect, createSignal } from "solid-js";
@@ -51,9 +51,9 @@ function loadDetailHeight(): number {
 function RailPlaceholderPanel(props: { tabId: string }) {
   const label = () => findRightRailTab(props.tabId)?.label ?? "Panel";
   return (
-    <aside class="tv-rail-panel" aria-label={label()}>
+    <aside class="ot-rail-panel" aria-label={label()}>
       <PanelHeader ariaLabel={`${label()} header`} left={<span class="rail-panel-title">{label()}</span>} />
-      <div class="tv-empty-state">{label()} is not available in this build yet.</div>
+      <div class="ot-empty-state">{label()} is not available in this build yet.</div>
     </aside>
   );
 }
@@ -61,7 +61,7 @@ function RailPlaceholderPanel(props: { tabId: string }) {
 export function RightRail(props: Props) {
   // Resizable detail panel: the watchlist flexes to fill, the detail holds a
   // persisted fixed height, and the divider between them drags to adjust it.
-  // TV renders the details as an accordion — collapsing leaves a 48px header.
+  // The details render as an accordion — collapsing leaves a 48px header.
   const [detailHeight, setDetailHeight] = createSignal<number>(loadDetailHeight());
   const [detailCollapsed, setDetailCollapsed] = createSignal(kv.getItem(DETAIL_COLLAPSED_KEY) === "1");
   let stackRef: HTMLDivElement | undefined;

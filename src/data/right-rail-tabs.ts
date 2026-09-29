@@ -1,17 +1,15 @@
 /*
- * Right-rail tab inventory — captured from TradingView's live chart.
+ * Right-rail tab inventory.
  *
- * This file is the codegen target; the component that consumes it
- * (window/right-rail/RightRailTabs.tsx) is hand-maintained.
- *
- * Probed 27/05/2026.
+ * The component that consumes it (window/right-rail/RightRailTabs.tsx) is
+ * hand-maintained.
  */
-import type { TvIconName } from '../components/TvIcon';
+import type { IconName } from '../components/Icon';
 
 export type Tab = {
   id: string;
   label: string;
-  iconName: TvIconName | null;
+  iconName: IconName | null;
 };
 
 export const TOP_TABS: Tab[] = [
@@ -30,14 +28,13 @@ export const TOP_TABS: Tab[] = [
     "label": "Object tree and data window",
     "iconName": "rr-object_tree"
   },
-  // NOTE: the probe also lists "screener-dialog-button" (Screeners) here, but
+  // NOTE: a "screener-dialog-button" (Screeners) tab belongs here, but
   // its icon asset (rr-screener-dialog-button.svg) hasn't been synced into
   // src/assets/icons yet and the rail renders icon-only buttons — add the tab
   // back once the icon lands.
   {
-    // TV's Pine editor button — opentrader's port runs oakscriptjs, so the
-    // label is ours while the id/icon stay as captured (App.tsx intercepts
-    // this id to toggle the bottom editor drawer instead of a rail panel).
+    // Script editor button — runs oakscriptjs (App.tsx intercepts this id to
+    // toggle the bottom editor drawer instead of a rail panel).
     "id": "pine-dialog-button",
     "label": "OakScript Editor",
     "iconName": "rr-pine-dialog-button"
@@ -57,10 +54,8 @@ export const BOTTOM_TABS: Tab[] = [
   }
 ];
 
-/** Tabs kept in the captured inventory above but not surfaced in this build.
- *  Their panels still exist — delete an id here to bring its button back.
- *  Alerts unhidden 26/07/2026 (design-gap pass): TV shows it second on the
- *  rail and our AlertsPanel already backs it. */
+/** Tabs kept in the inventory above but not surfaced in this build.
+ *  Their panels still exist — delete an id here to bring its button back. */
 const HIDDEN_TABS = new Set(["calendar-dialog-button", "help-button"]);
 
 export const VISIBLE_TOP_TABS: Tab[] = TOP_TABS.filter((t) => !HIDDEN_TABS.has(t.id));

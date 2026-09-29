@@ -1,8 +1,7 @@
 /*
  * Watchlist context menus — right-click on a symbol row / on a section header.
  *
- * Captured live from TV Desktop 3.2.0.7916 over CDP (2026-06-11), in-page menu
- * `menuWrap-XktvVkFF` (252px wide, 32px rows):
+ * Symbol-row menu (252px wide, 32px rows):
  *   Flag/Unflag {SYM}        Alt + ↵     (no icon)
  *   [● ● ● ● ● ● ●]                      inline colour row — 7 buttons 28×28,
  *                                        data-color order: red blue green
@@ -14,17 +13,17 @@
  *   ─
  *   Add section
  *   Add symbol
- * TV has NO Remove / Copy / per-symbol alert here — row removal stays on the
- * hover ×. "Add {SYM} to compare" and "Financials…" exist in TV but their
+ * NO Remove / Copy / per-symbol alert here — row removal stays on the
+ * hover ×. No "Add {SYM} to compare" or "Financials…" rows: their
  * subsystems are not in this app, so those rows are omitted rather than dead.
  *
- * Section header menu (captured 160×121): Rename / Remove section / Add symbol.
+ * Section header menu (160×121): Rename / Remove section / Add symbol.
  */
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { FLAG_HEX, WL_ICONS, type FlagColor, type Row } from "../../data/watchlist";
 import type { WatchList } from "../../data/watchlist-store";
 
-/** TV's 7 flag colours, in the captured `data-color` order. */
+/** The 7 flag colours, in `data-color` order. */
 const FLAG_COLORS: FlagColor[] = ["red", "blue", "green", "orange", "purple", "cyan", "pink"];
 
 const ICON_PLUS =
@@ -111,18 +110,18 @@ export function WatchlistContextMenu(props: Props) {
   return (
     <div
       ref={root}
-      class="tv-popover watchlist-ctx-menu"
+      class="ot-popover watchlist-ctx-menu"
       role="menu"
       aria-label={`${sym()} actions`}
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 1000 }}
     >
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(() => props.onToggleFlag(props.row))}>
-        <span class="tv-menu-item__icon" aria-hidden="true" />
-        <span class="tv-menu-item__label">Flag/Unflag {sym()}</span>
-        <span class="tv-menu-item__hotkey">Alt + ↵</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onToggleFlag(props.row))}>
+        <span class="ot-menu-item__icon" aria-hidden="true" />
+        <span class="ot-menu-item__label">Flag/Unflag {sym()}</span>
+        <span class="ot-menu-item__hotkey">Alt + ↵</span>
       </button>
 
-      {/* Inline flag-colour row — TV renders the 7 swatches as a menu row. */}
+      {/* Inline flag-colour row — the 7 swatches render as a menu row. */}
       <div class="watchlist-ctx-flag-row" role="group" aria-label="Flag colour">
         <For each={FLAG_COLORS}>
           {(c) => (
@@ -141,12 +140,12 @@ export function WatchlistContextMenu(props: Props) {
         </For>
       </div>
 
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(props.onUnflagAll)}>
-        <span class="tv-menu-item__icon" aria-hidden="true" />
-        <span class="tv-menu-item__label">Unflag all symbols</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onUnflagAll)}>
+        <span class="ot-menu-item__icon" aria-hidden="true" />
+        <span class="ot-menu-item__label">Unflag all symbols</span>
       </button>
 
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
 
       {/* Add to watchlist — submenu of the other lists + "Create new list…". */}
       <div
@@ -161,18 +160,18 @@ export function WatchlistContextMenu(props: Props) {
         <button
           type="button"
           role="menuitem"
-          class="tv-menu-item"
+          class="ot-menu-item"
           aria-haspopup="menu"
           aria-expanded={listsOpen()}
           onClick={() => setListsOpen((o) => !o)}
         >
-          <span class="tv-menu-item__icon" aria-hidden="true" innerHTML={ICON_LIST_ADD} />
-          <span class="tv-menu-item__label">Add {sym()} to watchlist</span>
-          <span class="tv-menu-item__submenu-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
+          <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_LIST_ADD} />
+          <span class="ot-menu-item__label">Add {sym()} to watchlist</span>
+          <span class="ot-menu-item__submenu-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
         </button>
         <Show when={listsOpen()}>
           <div
-            class="tv-popover watchlist-ctx-lists"
+            class="ot-popover watchlist-ctx-lists"
             classList={{ "opens-left": listsLeft() }}
             role="menu"
             aria-label="Target watchlist"
@@ -182,44 +181,44 @@ export function WatchlistContextMenu(props: Props) {
                 <button
                   type="button"
                   role="menuitem"
-                  class="tv-menu-item"
+                  class="ot-menu-item"
                   onClick={() => run(() => props.onAddToList(l.id, props.row))}
                 >
-                  <span class="tv-menu-item__icon watchlist-ctx-list-marker" aria-hidden="true">
+                  <span class="ot-menu-item__icon watchlist-ctx-list-marker" aria-hidden="true">
                     <Show when={listMarker(l)} fallback={<span class="watchlist-ctx-list-initial">{l.name.slice(0, 1).toUpperCase()}</span>}>
                       {listMarker(l)}
                     </Show>
                   </span>
-                  <span class="tv-menu-item__label">{l.name}</span>
+                  <span class="ot-menu-item__label">{l.name}</span>
                 </button>
               )}
             </For>
             <Show when={props.otherLists.length > 0}>
-              <div class="tv-popover__divider" />
+              <div class="ot-popover__divider" />
             </Show>
-            <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(() => props.onCreateListWith(props.row))}>
-              <span class="tv-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
-              <span class="tv-menu-item__label">Create new list…</span>
+            <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onCreateListWith(props.row))}>
+              <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
+              <span class="ot-menu-item__label">Create new list…</span>
             </button>
           </div>
         </Show>
       </div>
 
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(() => props.onAddNote(props.row))}>
-        <span class="tv-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
-        <span class="tv-menu-item__label">Add note for {sym()}</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row))}>
+        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
+        <span class="ot-menu-item__label">Add note for {sym()}</span>
       </button>
 
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
 
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(props.onAddSection)}>
-        <span class="tv-menu-item__icon" aria-hidden="true" innerHTML={ICON_SECTION} />
-        <span class="tv-menu-item__label">Add section</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSection)}>
+        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_SECTION} />
+        <span class="ot-menu-item__label">Add section</span>
       </button>
 
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(props.onAddSymbol)}>
-        <span class="tv-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
-        <span class="tv-menu-item__label">Add symbol</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSymbol)}>
+        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
+        <span class="ot-menu-item__label">Add symbol</span>
       </button>
     </div>
   );
@@ -235,7 +234,7 @@ type SectionProps = {
   onClose: () => void;
 };
 
-/** Right-click menu on a section header (TV: Rename / Remove section / Add symbol). */
+/** Right-click menu on a section header (Rename / Remove section / Add symbol). */
 export function SectionContextMenu(props: SectionProps) {
   let root!: HTMLDivElement;
   const pos = useMenuShell(() => ({ x: props.x, y: props.y }), () => props.onClose(), () => root);
@@ -244,23 +243,23 @@ export function SectionContextMenu(props: SectionProps) {
   return (
     <div
       ref={root}
-      class="tv-popover watchlist-ctx-menu watchlist-ctx-menu--section"
+      class="ot-popover watchlist-ctx-menu watchlist-ctx-menu--section"
       role="menu"
       aria-label={`${props.name} section actions`}
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 1000 }}
     >
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(() => props.onRename(props.name))}>
-        <span class="tv-menu-item__icon" aria-hidden="true" />
-        <span class="tv-menu-item__label">Rename</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onRename(props.name))}>
+        <span class="ot-menu-item__icon" aria-hidden="true" />
+        <span class="ot-menu-item__label">Rename</span>
       </button>
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(() => props.onRemove(props.name))}>
-        <span class="tv-menu-item__icon" aria-hidden="true" />
-        <span class="tv-menu-item__label">Remove section</span>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onRemove(props.name))}>
+        <span class="ot-menu-item__icon" aria-hidden="true" />
+        <span class="ot-menu-item__label">Remove section</span>
       </button>
-      <div class="tv-popover__divider" />
-      <button type="button" role="menuitem" class="tv-menu-item" onClick={() => run(props.onAddSymbol)}>
-        <span class="tv-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
-        <span class="tv-menu-item__label">Add symbol</span>
+      <div class="ot-popover__divider" />
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSymbol)}>
+        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
+        <span class="ot-menu-item__label">Add symbol</span>
       </button>
     </div>
   );

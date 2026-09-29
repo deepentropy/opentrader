@@ -1,5 +1,5 @@
 /*
- * Tooltip — TradingView-style hover label.
+ * Tooltip — hover label.
  *
  * Solid divergence from the React mock: React's version uses cloneElement
  * to attach handlers directly to the child. Solid has no cloneElement, so
@@ -7,7 +7,7 @@
  * That span has no layout box, so we measure
  * `wrapper.firstElementChild.getBoundingClientRect()` for positioning.
  *
- * Visual spec probed from TV (.common-tooltip*-EJBD96zX, 2026-05-28):
+ * Visual spec:
  *   13px / line-height 18px, 3px 8px padding, 2px radius,
  *   --color-common-tooltip-bg / --color-common-tooltip-text,
  *   4px margin from anchor, max-width 200/310/640.
@@ -21,7 +21,7 @@ interface Props {
   text: string;
   /** "Alt + T", "Ctrl + Alt + H", ... — split on "+" into key caps. */
   hotkey?: string;
-  /** TV hotkey text template: `{N}` is the N-th key of `hotkey`, " + " draws a
+  /** Hotkey text template: `{N}` is the N-th key of `hotkey`, " + " draws a
    *  plus sign, anything else stays plain text ("{0} + Click on the chart",
    *  "Number or {0}"). Without it the keys are joined with " + ". */
   hotkeyText?: string;
@@ -31,13 +31,13 @@ interface Props {
   /** Inline SVG markup drawn after the text, e.g. the sort-direction glyph of
    *  the watchlist column headers ("Click to sort by Last ↑"). */
   icon?: string;
-  /** TV's `common-tooltip--farther`: 8px from the anchor instead of 4px. */
+  /** 8px from the anchor instead of 4px. */
   farther?: boolean;
   children: JSX.Element;
 }
 
-/** TV's hotkey block (common tooltip, module 712501): the template's `{N}`
- *  placeholders become key caps, then every " + " becomes a plus sign. */
+/** Hotkey block: the template's `{N}` placeholders become key caps, then
+ *  every " + " becomes a plus sign. */
 function hotkeyParts(hotkey: string, template?: string): JSX.Element[] {
   const keys = hotkey.split("+").map((k) => k.trim()).filter(Boolean);
   const text = template ?? keys.map((_, i) => `{${i}}`).join(" + ");
@@ -46,8 +46,8 @@ function hotkeyParts(hotkey: string, template?: string): JSX.Element[] {
     .filter(Boolean)
     .map((tok) => {
       const m = /^\{(\d+)\}$/.exec(tok);
-      if (m) return <kbd class="tv-tooltip-hotkey-key">{keys[Number(m[1])] ?? ""}</kbd>;
-      if (/^\s\+\s$/.test(tok)) return <span class="tv-tooltip-hotkey-plus">+</span>;
+      if (m) return <kbd class="ot-tooltip-hotkey-key">{keys[Number(m[1])] ?? ""}</kbd>;
+      if (/^\s\+\s$/.test(tok)) return <span class="ot-tooltip-hotkey-plus">+</span>;
       return tok;
     });
 }
@@ -135,22 +135,22 @@ export function Tooltip(props: Props) {
           <div
             ref={clampIntoView}
             role="tooltip"
-            class={`tv-tooltip tv-tooltip-${side()} tv-tooltip-${width()}${hasHotkey() ? " tv-tooltip-with-hotkey" : ""}`}
+            class={`ot-tooltip ot-tooltip-${side()} ot-tooltip-${width()}${hasHotkey() ? " ot-tooltip-with-hotkey" : ""}`}
             style={style()}
           >
-            <span class="tv-tooltip-label">
+            <span class="ot-tooltip-label">
               {props.text}
               <Show when={props.icon}>
                 {(icon) => (
                   <>
                     {" "}
-                    <span class="tv-tooltip-icon" innerHTML={icon()} />
+                    <span class="ot-tooltip-icon" innerHTML={icon()} />
                   </>
                 )}
               </Show>
             </span>
             <Show when={hasHotkey()}>
-              <span class="tv-tooltip-hotkey-block">{hotkeyParts(props.hotkey ?? "", props.hotkeyText)}</span>
+              <span class="ot-tooltip-hotkey-block">{hotkeyParts(props.hotkey ?? "", props.hotkeyText)}</span>
             </Show>
           </div>
         </Portal>

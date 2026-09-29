@@ -1,10 +1,10 @@
 /*
- * Indicator defaults — TV indicator Settings "Defaults" menu → "Save as
- * default" (StudyPropertiesDialog, module 897761: properties().saveDefaults()).
- * The saved inputs + styles of an indicator are what a NEWLY added instance
- * of it starts with; studies already on a chart keep their own settings.
- * "Reset settings" in the same menu restores the factory values (TV
- * restorePropertiesForSource -> study factory defaults), not these.
+ * Indicator defaults — indicator Settings "Defaults" menu → "Save as
+ * default". The saved inputs + styles of an indicator are what a NEWLY added
+ * instance of it starts with; studies already on a chart keep their own
+ * settings.
+ * "Reset settings" in the same menu restores the study factory defaults, not
+ * these.
  *
  * Keyed by registry id, persisted in the app key-value store.
  */

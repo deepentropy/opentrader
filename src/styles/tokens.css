@@ -1,13 +1,10 @@
 /*
- * AUTO-GENERATED — do not edit by hand.
+ * Colour palette and theme tokens.
  *
- * Source: app.asar → 5539.js bundle → @tradingview/ui-lib@1.4.1/color-palette.css
- * Snapshot:  TradingView Desktop 3.1.0.7818 (MSIX)
- * Generated: 2026-05-27T06:14:35.768Z
  * Counts:    palette=185, light=832, dark=825
  *
  * Font stacks live in fonts.css (hand-written; @font-face needs literal URLs).
- * Mock-specific additions (e.g. --tv-chart-*) live in base.css.
+ * App-specific additions (e.g. --ot-chart-*) live in base.css.
  */
 
 :root {
@@ -97,23 +94,23 @@
   --color-banana-yellow-a200: #ff0;
   --color-banana-yellow-a400: #ffea00;
   --color-banana-yellow-a700: #eeda01;
-  --color-tv-blue-50: #e3effd;
-  --color-tv-blue-100: #bbd9fb;
-  --color-tv-blue-200: #90bff9;
-  --color-tv-blue-300: #5b9cf6;
-  --color-tv-blue-400: #3179f5;
-  --color-tv-blue-500: #2962ff;
-  --color-tv-blue-600: #1e53e5;
-  --color-tv-blue-700: #1848cc;
-  --color-tv-blue-800: #143eb2;
-  --color-tv-blue-900: #0c3299;
-  --color-tv-blue-a100: #82b1ff;
-  --color-tv-blue-a200: #448aff;
-  --color-tv-blue-a400: #2979ff;
-  --color-tv-blue-a600: #2962ff;
-  --color-tv-blue-a700: #143a87;
-  --color-tv-blue-a800: #142e61;
-  --color-tv-blue-a900: #132042;
+  --color-ot-blue-50: #e3effd;
+  --color-ot-blue-100: #bbd9fb;
+  --color-ot-blue-200: #90bff9;
+  --color-ot-blue-300: #5b9cf6;
+  --color-ot-blue-400: #3179f5;
+  --color-ot-blue-500: #2962ff;
+  --color-ot-blue-600: #1e53e5;
+  --color-ot-blue-700: #1848cc;
+  --color-ot-blue-800: #143eb2;
+  --color-ot-blue-900: #0c3299;
+  --color-ot-blue-a100: #82b1ff;
+  --color-ot-blue-a200: #448aff;
+  --color-ot-blue-a400: #2979ff;
+  --color-ot-blue-a600: #2962ff;
+  --color-ot-blue-a700: #143a87;
+  --color-ot-blue-a800: #142e61;
+  --color-ot-blue-a900: #132042;
   --color-deep-blue-50: #ede7f6;
   --color-deep-blue-100: #d1c4e9;
   --color-deep-blue-200: #b39ddb;
@@ -241,7 +238,7 @@ html.theme-light {
   --color-depthrenderer-stroke-style: #f2f2f2;
   --color-halal: #66bb6a;
   --color-continuous: grey;
-  --color-tv-calculated-pair: #ab47bc;
+  --color-ot-calculated-pair: #ab47bc;
   --color-highlight-new: #fff3e0;
   --color-input-bg: #fff;
   --color-input-publish-bg: #fff;
@@ -285,8 +282,8 @@ html.theme-light {
   --color-popup-element-toolbox-background-hover: #ebebeb;
   --color-popup-element-toolbox-background-active-hover: #1848cc;
   --color-tooltip-bg: #2e2e2e;
-  --color-tv-dialog-caption: #575757;
-  --color-tv-dropdown-item-hover-bg: #f2f2f2;
+  --color-ot-dialog-caption: #575757;
+  --color-ot-dropdown-item-hover-bg: #f2f2f2;
   --color-underlined-text: #707070;
   --color-widget-pages-bg: #fff;
   --color-warning: #ff9800;
@@ -330,7 +327,7 @@ html.theme-light {
   --color-tag-active-bg: #dbdbdb;
   --color-tag-hover-bg: #ebebeb;
   --color-text-regular: #4a4a4a;
-  --color-tv-button-checked: #707070;
+  --color-ot-button-checked: #707070;
   --color-scroll-bg: #9c9c9c;
   --color-scroll-border: #f2f2f2;
   --color-widget-border: #f2f2f2;
@@ -1006,14 +1003,14 @@ html.theme-light {
   --color-heatmap-deep-blue-xxl: #673ab7;
   --color-heatmap-deep-blue-empty: #f2f2f2;
   --color-heatmap-deep-blue-border: #311b92;
-  --color-heatmap-tv-blue-xs: #e3effd;
-  --color-heatmap-tv-blue-s: #bbd9fb;
-  --color-heatmap-tv-blue-m: #90bff9;
-  --color-heatmap-tv-blue-l: #5b9cf6;
-  --color-heatmap-tv-blue-xl: #3179f5;
-  --color-heatmap-tv-blue-xxl: #2962ff;
-  --color-heatmap-tv-blue-empty: #f2f2f2;
-  --color-heatmap-tv-blue-border: #0c3299;
+  --color-heatmap-ot-blue-xs: #e3effd;
+  --color-heatmap-ot-blue-s: #bbd9fb;
+  --color-heatmap-ot-blue-m: #90bff9;
+  --color-heatmap-ot-blue-l: #5b9cf6;
+  --color-heatmap-ot-blue-xl: #3179f5;
+  --color-heatmap-ot-blue-xxl: #2962ff;
+  --color-heatmap-ot-blue-empty: #f2f2f2;
+  --color-heatmap-ot-blue-border: #0c3299;
   --color-heatmap-berry-pink-xs: #fce4ec;
   --color-heatmap-berry-pink-s: #f8bbd0;
   --color-heatmap-berry-pink-m: #f48fb1;
@@ -1067,7 +1064,7 @@ html.theme-dark {
   --color-depthrenderer-stroke-style: #575757;
   --color-halal: #66bb6a;
   --color-continuous: grey;
-  --color-tv-calculated-pair: #ab47bc;
+  --color-ot-calculated-pair: #ab47bc;
   --color-highlight-new: #142e61;
   --color-input-bg: #2e2e2e;
   --color-input-publish-bg: #0f0f0f;
@@ -1111,8 +1108,8 @@ html.theme-dark {
   --color-popup-element-toolbox-background-hover: #3d3d3d;
   --color-popup-element-toolbox-background-active-hover: #1848cc;
   --color-tooltip-bg: #3d3d3d;
-  --color-tv-dialog-caption: #f9f9f9;
-  --color-tv-dropdown-item-hover-bg: #2e2e2e;
+  --color-ot-dialog-caption: #f9f9f9;
+  --color-ot-dropdown-item-hover-bg: #2e2e2e;
   --color-underlined-text: #8c8c8c;
   --color-widget-pages-bg: #0f0f0f;
   --color-warning: #f57c00;
@@ -1156,7 +1153,7 @@ html.theme-dark {
   --color-tag-active-bg: #3d3d3d;
   --color-tag-hover-bg: #2e2e2e;
   --color-text-regular: #dbdbdb;
-  --color-tv-button-checked: #8c8c8c;
+  --color-ot-button-checked: #8c8c8c;
   --color-scroll-bg: #3d3d3d;
   --color-scroll-border: #1f1f1f;
   --color-widget-border: #2e2e2e;
@@ -1832,14 +1829,14 @@ html.theme-dark {
   --color-heatmap-deep-blue-xxl: #9575cd;
   --color-heatmap-deep-blue-empty: #2e2e2e;
   --color-heatmap-deep-blue-border: #d1c4e9;
-  --color-heatmap-tv-blue-xs: #132042;
-  --color-heatmap-tv-blue-s: #142e61;
-  --color-heatmap-tv-blue-m: #143a87;
-  --color-heatmap-tv-blue-l: #2962ff;
-  --color-heatmap-tv-blue-xl: #2979ff;
-  --color-heatmap-tv-blue-xxl: #448aff;
-  --color-heatmap-tv-blue-empty: #2e2e2e;
-  --color-heatmap-tv-blue-border: #bbd9fb;
+  --color-heatmap-ot-blue-xs: #132042;
+  --color-heatmap-ot-blue-s: #142e61;
+  --color-heatmap-ot-blue-m: #143a87;
+  --color-heatmap-ot-blue-l: #2962ff;
+  --color-heatmap-ot-blue-xl: #2979ff;
+  --color-heatmap-ot-blue-xxl: #448aff;
+  --color-heatmap-ot-blue-empty: #2e2e2e;
+  --color-heatmap-ot-blue-border: #bbd9fb;
   --color-heatmap-berry-pink-xs: #880e4f;
   --color-heatmap-berry-pink-s: #c2185b;
   --color-heatmap-berry-pink-m: #d81b60;

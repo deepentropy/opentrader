@@ -1,11 +1,8 @@
 /*
- * UnsavedLayoutDialog — TV's "unsaved-changes" warning, shown before another
- * layout replaces the active tab while it has unsaved changes (TV's
- * loadChart: showWarning when chartWidgetCollection.hasChanges()).
+ * UnsavedLayoutDialog — the "unsaved-changes" warning, shown before another
+ * layout replaces the active tab while it has unsaved changes.
  *
- * Captured from the desktop 3.4.1 on 23/09/2026 by rendering TV's own
- * showWarning: a 480px
- * #1F1F1F panel, radius 6, centred, no dimmed backdrop; 40px margins; title
+ * A 480px #1F1F1F panel, radius 6, centred, no dimmed backdrop; 40px margins; title
  * 20/600, text 16/400; footer buttons right-aligned Cancel / Don't save /
  * Save (34px, radius 6, 12px apart); a 34px close button top-right.
  * Save = save then switch, Don't save = switch, Cancel / close / Esc = stay.
@@ -33,7 +30,7 @@ export function UnsavedLayoutDialog(props: Props) {
 
   return (
     <Portal mount={document.body}>
-      {/* Transparent click-blocker, like TV's (no dimming). */}
+      {/* Transparent click-blocker (no dimming). */}
       <div class="unsaved-layout-overlay">
         <div class="unsaved-layout-dialog" role="dialog" aria-modal="true" data-name="warning-dialog"
           aria-labelledby="unsaved-layout-title">

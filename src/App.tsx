@@ -82,7 +82,7 @@ import { isAdjusted, isIntradayInterval, isIntradayResolution, isSupportedResolu
 import { requestDataWindow } from "./data/data-window-store";
 import { bindLayoutSync, defaultLayoutSync, rememberCrosshair, reviveLayoutSync, type LayoutSyncKey } from "./window/chart/layout-sync";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
-import { TvDialogHost } from "./components/TvDialogs";
+import { DialogHost } from "./components/Dialogs";
 import { getIndicatorEntry } from "./window/chart/indicators/registry";
 import { loadIndicatorDefault } from "./data/indicator-defaults";
 import { defaultIndicatorOptions } from "./window/chart/indicators/indicator-options";
@@ -139,8 +139,8 @@ function App() {
   const activeTab = () => tabs().find((t) => t.id === activeTabId()) ?? tabs()[0];
   createEffect(() => saveTabs(windowLabel, tabs(), activeTabId()));
   // Tabs whose chart grid is mounted. A tab mounts the first time it is shown
-  // and then stays mounted while hidden (TV keeps every tab page alive and
-  // loads a background tab on its first display), so a later switch only
+  // and then stays mounted while hidden (every tab page stays alive and a
+  // background tab loads on its first display), so a later switch only
   // shows it. Closed tabs drop out.
   const [mountedTabs, setMountedTabs] = createSignal<Set<string>>(new Set([initial.activeId]));
   createEffect(() => {
@@ -197,7 +197,7 @@ function App() {
   // pane-focus stay tab-level.
   const activePaneState = () => activePaneOf(activeTab());
   const interval = () => activePaneState().interval;
-  // ── Sync in layout (per tab, TV saves it per layout) ───────────────────
+  // ── Sync in layout (per tab, saved per layout) ─────────────────────────
   const layoutSync = () => activeTab().sync;
   const toggleLayoutSync = (key: LayoutSyncKey) => {
     const next = { ...layoutSync(), [key]: !layoutSync()[key] };
@@ -208,7 +208,7 @@ function App() {
 
   // ── Tab syncing (colour link) ──────────────────────────────────────────
   // A linked value lands on the tab's ACTIVE pane, and the tab's own layout
-  // Symbol / Interval sync then spreads it (TV: activeChart().setSymbol).
+  // Symbol / Interval sync then spreads it.
   function withLinkedValue(t: TabChart, field: "symbol" | "interval", value: string): TabChart {
     const spread = t.sync[field];
     return {
@@ -263,7 +263,7 @@ function App() {
   };
 
   // Link tag mutators (driven by the tab right-click → Tab syncing widget).
-  // TV Linker join: a tab joining a group with members takes the group values;
+  // Linker join: a tab joining a group with members takes the group values;
   // joining an empty group starts it (Symbol channel only) with the tab's values.
   const linkTab = (id: string, color: LinkColor) => {
     const tab = tabs().find((t) => t.id === id);
@@ -310,8 +310,8 @@ function App() {
   });
   const chartType = () => activePaneState().chartType;
   const setChartType = (v: ChartTypeId) => patchActivePane({ chartType: v });
-  // Bottom-bar RTH/ETH session — per focused pane (not a layout-sync channel in
-  // TV), so it only ever patches the active pane.
+  // Bottom-bar RTH/ETH session — per focused pane (not a layout-sync
+  // channel), so it only ever patches the active pane.
   const session = () => activePaneState().session;
   const setSession = (v: SessionId) => patchActivePane({ session: v });
   const layout = () => activeTab().layout;
@@ -371,7 +371,7 @@ function App() {
     const t = activeTab();
     const saved = t.savedLayoutId ? getLayout(t.savedLayoutId) : undefined;
     // A named layout overwrites in place silently; a still-"Unnamed" (or unsaved)
-    // one prompts for a real name first — TV never silently saves an Unnamed.
+    // one prompts for a real name first — an Unnamed is never saved silently.
     if (saved && !isUnnamedLayout(saved.name)) {
       updateLayoutSnapshot(saved.id, snapshotActive());
       return true;
@@ -390,8 +390,8 @@ function App() {
     const created = createLayout(name, snapshotActive());
     patchActive({ savedLayoutId: created.id, savedLayoutName: created.name });
   }
-  // Switching layouts with unsaved changes asks first (TV loadChart →
-  // "Save layout before switching?"). `pendingOpenId` = the layout waiting on
+  // Switching layouts with unsaved changes asks first ("Save layout before
+  // switching?"). `pendingOpenId` = the layout waiting on
   // that answer; `openAfterNaming` = the one to open once a Save that needed a
   // name dialog is submitted (cleared if that dialog is cancelled).
   const [pendingOpenId, setPendingOpenId] = createSignal<string | null>(null);
@@ -438,7 +438,7 @@ function App() {
     }
   }
   // "Create new layout" — reset the active tab to a default single-pane chart
-  // and save it under `name`. TV creates it immediately as "Unnamed" (no
+  // and save it under `name`. It is created immediately as "Unnamed" (no
   // prompt); the caller passes nextUnnamedName() for the suffix sequence.
   function createNewLayoutNamed(name: string) {
     const fresh = makeTab();
@@ -528,7 +528,7 @@ function App() {
   // When the dialog is opened by typing a character (rather than clicking the
   // symbol pill), the query is seeded with that character. `null` = clicked open.
   const [symbolSearchSeed, setSymbolSearchSeed] = createSignal<string | null>(null);
-  // TV "Change interval" dialog (digit keys, legend interval click).
+  // "Change interval" dialog (digit keys, legend interval click).
   const [intervalDialog, setIntervalDialog] = createSignal<{ initVal: string; selectOnInit: boolean } | null>(null);
   const [indicatorsDialogOpen, setIndicatorsDialogOpen] = createSignal(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = createSignal(false);
@@ -541,7 +541,7 @@ function App() {
   >(null);
   // Transient banner shown when an alert fires (in addition to the log + sound).
   const [alertToast, setAlertToast] = createSignal<{ title: string; message: string } | null>(null);
-  // Chart display timezone (bottom-bar TimezoneMenu), persisted. Default to TV's
+  // Chart display timezone (bottom-bar TimezoneMenu), persisted. Default to the
   // "Exchange" zone (US equities → New York).
   const TZ_KEY = "tv:timezone";
   const loadTz = (): { label: string; iana: string } => {
@@ -623,8 +623,8 @@ function App() {
   const [cursorMode, setCursorMode] = createSignal<CursorMode>("cross");
   // Glyph staged by the FontIconPicker, consumed when a `font-icon` is placed.
   const [armedGlyph, setArmedGlyph] = createSignal<string>("");
-  // Drawing-sync scope (TV's drawingSyncMode-button), App-owned + persisted so
-  // the toolbar dropdown and the store key agree. Default "global" = TV's
+  // Drawing-sync scope (drawingSyncMode button), App-owned + persisted so
+  // the toolbar dropdown and the store key agree. Default "global" = the
   // out-of-box behaviour. Live cross-window sync of the choice itself.
   const [syncMode, setSyncModeRaw] = createSignal<SyncMode>(
     ((): SyncMode => {
@@ -642,7 +642,7 @@ function App() {
   }));
 
   // Drawings are keyed by a SCOPE KEY derived from the sync mode, so the same
-  // drawing can be shared at three scopes (matching TV):
+  // drawing can be shared at three scopes:
   //   none   → per pane   (`p:<paneId>:<symbol>`) — independent even same-symbol
   //   layout → per layout (`l:<tabId>:<symbol>`)  — shared across the tab's panes
   //   global → per symbol (`<symbol>`)            — shared across tabs + windows
@@ -663,12 +663,12 @@ function App() {
   });
   const drawingsFor = (key: string): Drawing[] => drawingStore[key] ?? [];
   const drawings = () => drawingsFor(activeDrawingKey());
-  // ── Drawing undo/redo (TV's header Undo/Redo + Ctrl+Z / Ctrl+Y) ────────
+  // ── Drawing undo/redo (header Undo/Redo + Ctrl+Z / Ctrl+Y) ─────────────
   // Session-scoped snapshot history over the drawing slices: every mutation
   // that flows through setSlice records {key, before, after}. Drag streams
   // (updateDrawing per pointer-move) coalesce into ONE entry via coalesceId +
-  // a sliding 800ms window, so one gesture = one undo step. TV also persists
-  // the stack with the layout — not ported (session-only).
+  // a sliding 800ms window, so one gesture = one undo step. The stack is not
+  // persisted with the layout (session-only).
   type DrawingUndoEntry = {
     key: string;
     before: Drawing[];
@@ -772,7 +772,7 @@ function App() {
     if (key in drawingStore) setDrawingStore(key, loadDrawings(key));
   }));
   const newDrawingId = () => `dw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
-  // Multi-select (TV: Ctrl/Cmd+click adds to the selection). Ordered; the LAST
+  // Multi-select (Ctrl/Cmd+click adds to the selection). Ordered; the LAST
   // id is the primary — it anchors the floating toolbar and single-drawing
   // surfaces (settings, object-tree highlight), so the single-id accessor
   // below keeps every legacy consumer working unchanged.
@@ -785,9 +785,9 @@ function App() {
   const toggleSelectedDrawing = (id: string) =>
     setSelectedDrawingIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
   const [activeRailTab, setActiveRailTab] = createSignal<string | null>("base");
-  // OakScript editor drawer (bottom of the chart pane). The right-rail Pine
-  // button toggles it like TV's Pine editor — it never becomes the active rail
-  // tab (TV opens a dialog from that button rather than a rail panel).
+  // OakScript editor drawer (bottom of the chart pane). The right-rail script
+  // button toggles it — it never becomes the active rail tab (the button
+  // opens the drawer rather than a rail panel).
   const [oakPanelOpen, setOakPanelOpenRaw] = createSignal(kv.getItem("tv:oakscript:panelOpen") === "1");
   const setOakPanelOpen = (open: boolean) => {
     setOakPanelOpenRaw(open);
@@ -860,7 +860,7 @@ function App() {
 
   /** Place a new drawing onto a specific pane's scope key. While Lock-all /
    *  Hide-all mode is active the new drawing inherits the flag, so the toggles
-   *  keep applying to drawings created after they were turned on (TV behaviour). */
+   *  keep applying to drawings created after they were turned on. */
   function addDrawingToSymbol(key: string, d: NewDrawing): string {
     const id = newDrawingId();
     const placed = { id, style: defaultStyleFor(d.kind), ...d } as Drawing;
@@ -935,7 +935,7 @@ function App() {
   const removeDrawing = (id: string) => removeDrawingForSymbol(activeDrawingKey(), id);
   const cloneDrawing = (id: string) => cloneDrawingForSymbol(activeDrawingKey(), id);
 
-  // Lock-all / Hide-all are PERSISTENT toggle modes (TV behaviour): they stay
+  // Lock-all / Hide-all are PERSISTENT toggle modes: they stay
   // on even with zero drawings and auto-apply to drawings placed later (see
   // addDrawingToSymbol), so the buttons are always meaningful to click. The
   // mode signals — not a derived "every drawing has the flag" read — drive the
@@ -1031,7 +1031,7 @@ function App() {
       return;
     }
     // A newly added study starts with the user's saved default ("Save as
-    // default"), else the factory values (TV: a new study never inherits the
+    // default"), else the factory values (a new study never inherits the
     // settings of an earlier, removed instance).
     const entry = getIndicatorEntry(id);
     const seed = loadIndicatorDefault(id) ?? (entry ? { inputs: { ...entry.defaultInputs }, styles: {}, options: defaultIndicatorOptions() } : undefined);
@@ -1116,12 +1116,12 @@ function App() {
       sync: { ...src.sync },
     };
     const arr = tabs().slice();
-    // An unpinned copy goes after the pinned block (TV insert rule).
+    // An unpinned copy goes after the pinned block.
     arr.splice(insertPosition(arr, false, arr.findIndex((t) => t.id === id) + 1), 0, clone);
     setTabs(arr);
     activateTab(clone.id);
   }
-  /** Record a tab closed by the user for "Reopen closed tab" (TV undo stack). */
+  /** Record a tab closed by the user for "Reopen closed tab" (undo stack). */
   function recordClosedTab(tab: TabChart, position: number) {
     pushClosed({ kind: "tab", win: windowLabel, position, active: tab.id === activeTabId(), tab });
   }
@@ -1135,9 +1135,9 @@ function App() {
     if (active) activateTab(t.id);
     if (isTauri()) void getCurrentWebviewWindow().setFocus().catch(() => undefined);
   }
-  /** TV "Reopen closed tab / window" (main menu, Ctrl+Shift+T): the newest
+  /** "Reopen closed tab / window" (main menu, Ctrl+Shift+T): the newest
    *  closed tab comes back in its own window (nothing opens when that window
-   *  is gone, like TV); a closed window opens again with its tabs. */
+   *  is gone); a closed window opens again with its tabs. */
   async function reopenClosed() {
     const e = popClosed();
     if (!e) return;
@@ -1165,7 +1165,7 @@ function App() {
     return index;
   }
   /** Drop of a dragged tab outside this window: if it lands on another
-   *  window's tab strip, move the tab there (TV dragTabIn). The main window
+   *  window's tab strip, move the tab there. The main window
    *  keeps at least one tab. Returns true when the tab moved. */
   async function dropTabOnWindow(id: string, sx: number, sy: number): Promise<boolean> {
     const tab = tabs().find((t) => t.id === id);
@@ -1221,8 +1221,7 @@ function App() {
     const arr = tabs();
     for (let i = arr.length - 1; i >= 0; i--) if (ids.has(arr[i].id)) recordClosedTab(arr[i], i);
   }
-  // Pinned tabs survive "Close other tabs" and "Close tabs to the right"
-  // (TV closeOtherTabs / closeTabsToTheRight).
+  // Pinned tabs survive "Close other tabs" and "Close tabs to the right".
   function closeOthers(id: string) {
     const keep = tabs().filter((t) => t.pinned || t.id === id);
     if (!keep.some((t) => t.id === id) || keep.length === tabs().length) return;
@@ -1247,7 +1246,7 @@ function App() {
     arr.splice(target, 0, t);
     setTabs(arr);
   }
-  /** TV "Pin tab" / "Unpin tab" (TabbedWindow.togglePinnedTab): a pinned tab
+  /** "Pin tab" / "Unpin tab": a pinned tab
    *  moves to the end of the pinned block, an unpinned one to just after it. */
   function togglePinTab(id: string) {
     const arr = tabs().slice();
@@ -1264,13 +1263,13 @@ function App() {
     }
     setTabs(arr);
   }
-  /** TV "Reload tab" (Ctrl+R): the tab's charts are built again with fresh
+  /** "Reload tab" (Ctrl+R): the tab's charts are built again with fresh
    *  data. A hidden tab unmounts and loads again on its next display. */
   function reloadTab(id: string) {
     setMountedTabs((cur) => new Set([...cur].filter((x) => x !== id)));
     if (id === activeTabId()) queueMicrotask(() => setMountedTabs((cur) => new Set([...cur, id])));
   }
-  /** TV "Developer tools" (tab menu with Shift held): this window's devtools. */
+  /** "Developer tools" (tab menu with Shift held): this window's devtools. */
   function openDevTools() {
     if (!isTauri()) return;
     void import("./bindings").then(({ commands }) => commands.openDevtools()).catch(() => undefined);
@@ -1281,7 +1280,7 @@ function App() {
   }
 
   function openMenuAt(id: string, anchor: DOMRect) {
-    // Toggle: clicking the same opener twice closes it (TV idiom).
+    // Toggle: clicking the same opener twice closes it.
     if (openMenu() === id) {
       setOpenMenu(null);
       setAnchorRect(null);
@@ -1307,7 +1306,7 @@ function App() {
     } else if (which === "save-load-menu") {
       onManageLayoutsSelect(rowId);
     } else if (which === "take-a-snapshot") {
-      // TV's snapshot menu. Copy link / Tweet are cloud actions with no
+      // Snapshot menu. Copy link / Tweet are cloud actions with no
       // backing here — left as no-ops. "Open in new tab" opens the PNG in
       // the OS default viewer (temp file via the open_snapshot command).
       if (rowId === "save-chart-image") {
@@ -1319,8 +1318,8 @@ function App() {
       }
     } else if (which === "show-favorite-indicators") {
       // A favourite row toggles that study on the focused pane (checked rows
-      // are already on the chart, so a second click removes — TV adds-only,
-      // but our studies are an id-set, not instances).
+      // are already on the chart, so a second click removes; studies are an
+      // id-set, not instances).
       toggleIndicator(rowId);
     } else if (which === "indicator-templates") {
       if (rowId === SAVE_TEMPLATE_ROW_ID) setTemplateNameDialogOpen(true);
@@ -1357,7 +1356,7 @@ function App() {
         downloadActiveLayout();
         break;
       case "save-load-menu-item-create":
-        // TV creates the new layout immediately as "Unnamed" (no prompt);
+        // The new layout is created immediately as "Unnamed" (no prompt);
         // duplicates get a numeric suffix ("Unnamed1", "Unnamed2", …).
         createNewLayoutNamed(nextUnnamedName());
         break;
@@ -1385,7 +1384,7 @@ function App() {
       });
     }
     // Live menus (the static registry entries for these ids are placeholders
-    // captured from TV — the real rows come from the local stores).
+    // — the real rows come from the local stores).
     if (id === "show-favorite-indicators")
       return buildFavoriteIndicatorsMenu(new Set(indicators()));
     if (id === "indicator-templates") return buildIndicatorTemplatesMenu();
@@ -1419,7 +1418,7 @@ function App() {
       document.documentElement.classList.add(`theme-${t}`);
     }));
 
-    // Global keyboard shortcuts (TV parity). Window/alert shortcuts fire
+    // Global keyboard shortcuts. Window/alert shortcuts fire
     // regardless of chart focus; everything else is suppressed while a text
     // field is focused or a modal dialog already owns the keyboard:
     //   Alt+A         → Create alert;       Ctrl/Cmd+N → new window;
@@ -1430,21 +1429,19 @@ function App() {
     //   Ctrl+↑/↓      → zoom in / out;      Ctrl+←/→   → jump left / right;
     //   Space/Shift+Sp → next / prev watchlist symbol (even off the list);
     //   ←/→           → scroll one bar;     ","        → chart-interval menu;
-    //   any digit     → chart-interval menu (TV: type a number to change frame);
+    //   any digit     → chart-interval menu (type a number to change frame);
     //   any letter    → Symbol search seeded with that character.
     // Chart pan/zoom/scale/snapshot are dispatched as window events; the
     // focused ChartView pane handles them (see ChartView's chart-* listeners).
     const dispatch = (type: string, detail?: unknown) =>
       window.dispatchEvent(new CustomEvent(type, detail === undefined ? undefined : { detail }));
     // Arrow key currently driving a held scroll — plain (moveByBar) or Ctrl
-    // (move). One slot for both, mirroring TV's single `_pressedKeyCode`: the
-    // two gestures share one animation, so only one can be live.
+    // (move). One slot for both: the two gestures share one animation, so
+    // only one can be live.
     let pannedKey: string | null = null;
     const onKey = (e: KeyboardEvent) => {
-      // TV desktop shell hotkeys (hotkey-service.ts). The shell handles them
-      // before the page (Electron before-input-event), so they apply whatever
-      // holds focus: tab cycling wraps around (setNextTab), Ctrl+1..8 picks tab
-      // N, Ctrl+9 the last one.
+      // Shell hotkeys. They apply whatever holds focus: tab cycling wraps
+      // around, Ctrl+1..8 picks tab N, Ctrl+9 the last one.
       if (e.ctrlKey && !e.metaKey && !e.altKey) {
         const list = tabs();
         const cur = list.findIndex((t) => t.id === activeTabId());
@@ -1478,13 +1475,13 @@ function App() {
           return;
         }
       }
-      // F5 → reload the active tab (TV reload-tab-no-darwin), not the webview.
+      // F5 → reload the active tab, not the webview.
       if (e.code === "F5" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
         e.preventDefault();
         reloadTab(activeTabId());
         return;
       }
-      // Ctrl+Alt+Q → reset the time scale only (TV ChartTimeScaleReset). AltGr
+      // Ctrl+Alt+Q → reset the time scale only. AltGr
       // reports as Ctrl+Alt on Windows intl layouts: ignore it, as for Ctrl+Alt+S.
       if (e.ctrlKey && e.altKey && !e.shiftKey && !e.metaKey && e.code === "KeyQ" && !e.getModifierState?.("AltGraph")) {
         const tgt = e.target as HTMLElement | null;
@@ -1495,7 +1492,7 @@ function App() {
           return;
         }
       }
-      // Snapshot combos (TV): Ctrl+Alt+S → download image, Ctrl+Shift+S → copy
+      // Snapshot combos: Ctrl+Alt+S → download image, Ctrl+Shift+S → copy
       // image. Skip while a text field is focused or a modal owns the keyboard
       // (so the keystroke isn't eaten), and ignore AltGr+S — on Windows intl
       // layouts AltGr reports as Ctrl+Alt, so typing e.g. 'ś' must not download.
@@ -1516,7 +1513,7 @@ function App() {
           }
         }
       }
-      // Alt+A → Create alert (matches TV). Handled before the modifier guard.
+      // Alt+A → Create alert. Handled before the modifier guard.
       if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "a" || e.key === "A")) {
         if (document.querySelector('[role="dialog"]')) return;
         e.preventDefault();
@@ -1524,7 +1521,7 @@ function App() {
         return;
       }
       // Ctrl/Cmd+Z → undo drawing change; Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y →
-      // redo (TV). Skipped while typing / while a modal owns the keyboard.
+      // redo. Skipped while typing / while a modal owns the keyboard.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "z" || e.key === "Z")) {
         const tgt = e.target as HTMLElement | null;
         const typing = !!(tgt && (tgt.tagName === "INPUT" || tgt.tagName === "TEXTAREA" || tgt.isContentEditable));
@@ -1542,27 +1539,27 @@ function App() {
         redoDrawing();
         return;
       }
-      // Ctrl/Cmd+R → reload the active tab (TV reload-tab; also stops the
+      // Ctrl/Cmd+R → reload the active tab (also stops the
       // webview's own page reload).
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "r" || e.key === "R")) {
         e.preventDefault();
         reloadTab(activeTabId());
         return;
       }
-      // Ctrl/Cmd+Shift+T → reopen the newest closed tab / window (TV).
+      // Ctrl/Cmd+Shift+T → reopen the newest closed tab / window.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.shiftKey && (e.key === "t" || e.key === "T")) {
         if (document.querySelector('[role="dialog"]')) return;
         e.preventDefault();
         void reopenClosed();
         return;
       }
-      // Ctrl/Cmd+N → open a new window (TV). No-op off-shell, where we let the
+      // Ctrl/Cmd+N → open a new window. No-op off-shell, where we let the
       // browser keep its native shortcut.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "n" || e.key === "N")) {
         if (openNewWindow()) e.preventDefault();
         return;
       }
-      // Ctrl/Cmd+S → save the active chart layout (TV "Save layout").
+      // Ctrl/Cmd+S → save the active chart layout ("Save layout").
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "s" || e.key === "S")) {
         if (document.querySelector('[role="dialog"]')) return;
         e.preventDefault();
@@ -1589,7 +1586,7 @@ function App() {
       const editable = !!(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable || t.closest?.(".monaco-editor")));
       const blocked = editable || !!document.querySelector('[role="dialog"]');
       // Space / Shift+Space → load the next / previous watchlist symbol, even
-      // when the chart (not the watchlist) holds focus (TV). When the watchlist
+      // when the chart (not the watchlist) holds focus. When the watchlist
       // itself is focused, its own key handler runs — defer to it here so the
       // symbol doesn't advance twice.
       if ((e.code === "Space" || e.key === " ") && !e.altKey && !e.ctrlKey && !e.metaKey) {
@@ -1599,14 +1596,14 @@ function App() {
         window.dispatchEvent(new CustomEvent("watchlist-navigate", { detail: { dir: e.shiftKey ? -1 : 1 } }));
         return;
       }
-      // Shift+F → toggle fullscreen (TV). Skip while typing so capital F works.
+      // Shift+F → toggle fullscreen. Skip while typing so capital F works.
       if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "F" || e.key === "f")) {
         if (blocked) return;
         e.preventDefault();
         void toggleFullscreen();
         return;
       }
-      // Shift+W → open the watchlist "Open list" picker (TV). Surface the rail's
+      // Shift+W → open the watchlist "Open list" picker. Surface the rail's
       // watchlist tab first, then flag the request the panel consumes on mount.
       if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "W" || e.key === "w")) {
         if (blocked) return;
@@ -1616,15 +1613,15 @@ function App() {
         return;
       }
       // Alt+Shift+→ / ← → jump to the most recent / the first bar on the focused
-      // pane (TV's control-bar hotkey, the same action as its goto-realtime
-      // arrow). Kept above the Alt-only block, which requires !shiftKey.
-      // Repeat-guarded like the held gestures: TV's `_pressedKeyCode` covers all
-      // four arrow branches, and without it holding the key would restart the 1s
-      // ease every repeat, so the chart would only ever creep along its slow
+      // pane (control-bar hotkey, the same action as its goto-realtime arrow).
+      // Kept above the Alt-only block, which requires !shiftKey.
+      // Repeat-guarded like the held gestures: the guard covers all four arrow
+      // branches, and without it holding the key would restart the 1s ease
+      // every repeat, so the chart would only ever creep along its slow
       // opening frames.
       if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
         if (blocked) return;
-        // Alt+Shift+E → next session (TV _switchSubSession): intraday only,
+        // Alt+Shift+E → next session: intraday only,
         // cycles the symbol's sessions (Regular → Extended → Regular).
         if (e.code === "KeyE") {
           e.preventDefault();
@@ -1643,7 +1640,7 @@ function App() {
       }
       // Alt+{R,I,L,P} → reset view / scale toggles on the focused pane. Other
       // Alt combos belong to drawing tools (Alt+T/H/F/V/C/J), Alt+G / Alt+Enter
-      // (bottom bar), and Alt+Shift+R — left untouched here. TV's Alt+S is "copy
+      // (bottom bar), and Alt+Shift+R — left untouched here. Alt+S is "copy
       // link" (a cloud action with no backing here), so it stays unbound rather
       // than aliasing the image snapshot — the menu would otherwise mislabel it.
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
@@ -1652,7 +1649,7 @@ function App() {
         if (e.code === "KeyI") { e.preventDefault(); dispatch("chart-scale", { mode: "invert" }); return; }
         if (e.code === "KeyL") { e.preventDefault(); dispatch("chart-scale", { mode: "log" }); return; }
         if (e.code === "KeyP") { e.preventDefault(); dispatch("chart-scale", { mode: "percent" }); return; }
-        // Alt+D → Object tree page on its Data window view (TV showChartObjectsWidget).
+        // Alt+D → Object tree page on its Data window view.
         if (e.code === "KeyD") {
           e.preventDefault();
           setActiveRailTab("object_tree");
@@ -1660,7 +1657,7 @@ function App() {
           return;
         }
         // Alt+W → add the focused symbol to the end of the active watchlist
-        // (TV: addSymbols with no anchor), deduped by the store.
+        // (no anchor), deduped by the store.
         if (e.code === "KeyW") {
           e.preventDefault();
           const full = symbol();
@@ -1675,10 +1672,9 @@ function App() {
         return;
       }
       // Ctrl/Cmd + arrows → zoom (↑/↓) and the held accelerating pan (←/→) on
-      // the focused pane. The pan starts on the FIRST keydown only: TV guards
-      // with `if (this._pressedKeyCode !== null) return`, because the motion
-      // builds speed off its own elapsed time and a repeat would restart it at
-      // zero. `keyup` (below) ends it.
+      // the focused pane. The pan starts on the FIRST keydown only, because
+      // the motion builds speed off its own elapsed time and a repeat would
+      // restart it at zero. `keyup` (below) ends it.
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
         if (blocked) return;
         if (e.key === "ArrowUp") { e.preventDefault(); dispatch("chart-zoom", { dir: "in" }); return; }
@@ -1694,7 +1690,7 @@ function App() {
       }
       if (e.altKey || e.ctrlKey || e.metaKey) return;
       if (blocked) return;
-      // Tab / Shift+Tab → cycle the focused pane (TV "switch between charts").
+      // Tab / Shift+Tab → cycle the focused pane ("switch between charts").
       // Single-pane layouts fall through to native focus traversal.
       if (e.key === "Tab") {
         const count = activeTab().panes.length;
@@ -1704,7 +1700,7 @@ function App() {
         setActivePaneIndex(e.shiftKey ? (cur - 1 + count) % count : (cur + 1) % count);
         return;
       }
-      // Shift+→ / Shift+← → switch focused pane (TV's alternate binding for Tab).
+      // Shift+→ / Shift+← → switch focused pane (alternate binding for Tab).
       if (e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
         const count = activeTab().panes.length;
         if (count <= 1) return;
@@ -1713,9 +1709,9 @@ function App() {
         setActivePaneIndex(e.key === "ArrowRight" ? (cur + 1) % count : (cur - 1 + count) % count);
         return;
       }
-      // ←↑→↓ → nudge the selected drawing 1px (TV); with nothing selected,
-      // ←/→ scroll the chart (↑/↓ do nothing — TV doesn't pan vertically).
-      // Held ←/→ is TV's moveByBar: a run that walks one bar, then speeds up the
+      // ←↑→↓ → nudge the selected drawing 1px; with nothing selected,
+      // ←/→ scroll the chart (↑/↓ do nothing — no vertical pan).
+      // Held ←/→ is moveByBar: a run that walks one bar, then speeds up the
       // longer it's held. Like the Ctrl variant it starts on the FIRST keydown
       // only and ends on keyup, so repeats must not restart it.
       if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -1736,30 +1732,29 @@ function App() {
         e.preventDefault();
         setIndicatorsDialogOpen(true);
       } else if (e.key === ".") {
-        // "." → open the saved-layout browser (TV "Open layout").
+        // "." → open the saved-layout browser ("Open layout").
         e.preventDefault();
         setLayoutBrowserOpen(true);
       } else if (e.key.length === 1 && /[1-9]/.test(e.key)) {
-        // A digit 1-9 → TV "Change interval" dialog with that digit, caret at
-        // the end (TV keypress handler 613634, show_interval_dialog_on_key_press).
+        // A digit 1-9 → "Change interval" dialog with that digit, caret at
+        // the end.
         e.preventDefault();
         setIntervalDialog({ initVal: e.key, selectOnInit: false });
       } else if (e.key === ",") {
-        // "," → the chart-interval menu. (TV help lists "," for Change
-        // interval; its handler is not in the loaded TV code, so the menu stays.)
+        // "," → the chart-interval menu.
         e.preventDefault();
         const btn = document.querySelector<HTMLButtonElement>('[data-name="chart-interval"]');
         if (!btn) return;
         openMenuAt("chart-interval", btn.getBoundingClientRect());
       } else if (e.key.length === 1 && /[a-zA-Z0]/.test(e.key)) {
-        // A letter (or 0, which is not an interval key in TV) starts a symbol
-        // lookup anywhere (TV symbol_search_hot_key).
+        // A letter (or 0, which is not an interval key) starts a symbol
+        // lookup anywhere.
         e.preventDefault();
         setSymbolSearchSeed(e.key);
         setSymbolDialogOpen(true);
       }
     };
-    // Ends the held scroll. Keyed on the ARROW alone, like TV, so letting go of
+    // Ends the held scroll. Keyed on the ARROW alone, so letting go of
     // Ctrl first still stops it. `blur` covers releasing the key while the
     // window is in the background, which never delivers a keyup.
     const onKeyUp = (e: KeyboardEvent) => {
@@ -1806,15 +1801,15 @@ function App() {
       if (!patch) return;
       const settings = patchDraftScales(activePaneState().settings, patch);
       patchActivePane({ settings, settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV });
-      // Price-scale menu edits are chart setting edits too (TV saves them as
-      // the defaults of new charts).
+      // Price-scale menu edits are chart setting edits too (saved as the
+      // defaults of new charts).
       saveChartSettingsDefaults(settings);
     };
     const onSetSession = (e: Event) => {
       const id = (e as CustomEvent<{ id?: SessionId }>).detail?.id;
       if (id === "RTH" || id === "ETH") setSession(id);
     };
-    // Legend series More → "Add indicator/strategy on …" (TV showIndicators).
+    // Legend series More → "Add indicator/strategy on …".
     const onOpenIndicators = () => setIndicatorsDialogOpen(true);
     // Time-axis menu → "Time zone" row: the app-wide display timezone (same
     // signal as the bottom-bar timezone menu).
@@ -1939,10 +1934,10 @@ function App() {
         style={{
           "min-height": 0,
           "min-width": 0,
-          "background-color": "var(--tv-chart-bg)",
+          "background-color": "var(--ot-chart-bg)",
           position: "relative",
-          // 4px separator under the header toolbar — TV insets the whole body
-          // row (drawing toolbar + chart + rail) 4px below the header, the gap
+          // 4px separator under the header toolbar — the whole body row
+          // (drawing toolbar + chart + rail) sits 4px below the header, the gap
           // revealing the #2e2e2e window background. Mirrors mock `.chart-area`.
           "border-top": "4px solid var(--color-widget-border, #2e2e2e)",
         }}
@@ -1998,7 +1993,7 @@ function App() {
           <div
             class="flex-1"
             style={{
-              "background-color": "var(--tv-chart-bg)",
+              "background-color": "var(--ot-chart-bg)",
               "min-height": 0,
               position: "relative",
             }}
@@ -2147,7 +2142,7 @@ function App() {
           onClose={() => setTemplateNameDialogOpen(false)}
         />
       </Show>
-      <TvDialogHost />
+      <DialogHost />
       <Show when={pendingOpenId()}>
         <UnsavedLayoutDialog
           onSave={() => resolvePendingOpen("save")}
@@ -2236,7 +2231,7 @@ function App() {
               settingsFp: SETTINGS_FINGERPRINT,
               settingsRev: SETTINGS_REV,
             });
-            // TV saves chart settings edits as the defaults of new charts.
+            // Chart settings edits are saved as the defaults of new charts.
             saveChartSettingsDefaults(draft);
           }}
         />

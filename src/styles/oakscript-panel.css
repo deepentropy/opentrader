@@ -1,9 +1,7 @@
 /*
  * .oak-panel — the bottom-docked OakScript editor drawer inside the chart-pane
- * column (chart canvas | this | BottomBar). Chrome copied from TradingView's
- * Pine Editor bottom-dock mode (Desktop 3.3.0, probed live). Panel/status
- * backgrounds follow the app theme tokens rather than TV's hardcoded #000 so
- * light theme works.
+ * column (chart canvas | this | BottomBar). Panel/status backgrounds follow
+ * the app theme tokens rather than a hardcoded #000 so light theme works.
  */
 .oak-panel {
   position: relative;
@@ -11,7 +9,7 @@
   flex-direction: column;
   flex-shrink: 0;
   min-height: 0;
-  background-color: var(--tv-chart-bg);
+  background-color: var(--ot-chart-bg);
   /* Seam between chart and editor — same 4px widget gutter as the pane edges. */
   border-top: 4px solid var(--color-widget-border, #2e2e2e);
 }
@@ -83,7 +81,7 @@
   user-select: none;
 }
 
-.oak-script-menu__danger .tv-menu-item__label {
+.oak-script-menu__danger .ot-menu-item__label {
   color: var(--color-ripe-red-500, #f23645);
 }
 
@@ -138,7 +136,7 @@
   color: var(--color-text-primary);
 }
 
-/* Labeled header action (Add to chart) — bordered like TV's header buttons. */
+/* Labeled header action (Add to chart) — bordered, like the header buttons. */
 .oak-panel__action-btn {
   height: 24px;
   padding: 0 8px;

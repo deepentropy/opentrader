@@ -1,16 +1,16 @@
 /*
- * HeaderToolbar inventory — captured from TV Desktop.
- * Section layout + per-item icon names / hotkeys / labels are verbatim.
+ * HeaderToolbar inventory: section layout + per-item icon names / hotkeys /
+ * labels.
  */
-import type { TvIconName } from "../components/TvIcon";
+import type { IconName } from "../components/Icon";
 
 export type Item = {
   id: string;
   label: string;
   text?: string;
-  iconName?: TvIconName;
+  iconName?: IconName;
   hotkey?: string;
-  /** TV hotkey text template (see Tooltip `hotkeyText`). */
+  /** Hotkey text template (see Tooltip `hotkeyText`). */
   hotkeyText?: string;
   /** Narrow button whose only content is a 16×8 dropdown-arrow icon. */
   chevron?: boolean;
@@ -27,7 +27,7 @@ export type Section = {
   items: Item[];
 };
 
-/** Mapping from interval-shortcut slug ids to TV interval ids. */
+/** Mapping from interval-shortcut slug ids to interval ids. */
 export const SLUG_TO_INTERVAL: Record<string, string> = {
   "10-seconds": "10S",
   "1-minute": "1",

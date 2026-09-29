@@ -35,8 +35,8 @@ pub(crate) type DayMemo<K, V> = OnceLock<Mutex<HashMap<K, (NaiveDate, Arc<V>)>>>
 /// get` builds a fresh client — and therefore a fresh TCP+TLS handshake — on
 /// every request, which was the bulk of each load's latency (~300ms warm,
 /// ~2.3s on the first call). A single keep-alive client reuses the warm
-/// connection (and multiplexes over HTTP/2) the way TradingView's one
-/// persistent socket does, so repeat requests skip the handshake entirely.
+/// connection (and multiplexes over HTTP/2), so repeat requests skip the
+/// handshake entirely.
 fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
@@ -783,8 +783,8 @@ struct RefBranding {
     icon_url: Option<String>,
 }
 
-/// One news headline for the chart's "Latest news" lollipop (TV
-/// LatestUpdatesSource): publisher, publish time (UNIX ms) and title.
+/// One news headline for the chart's "Latest news" lollipop: publisher,
+/// publish time (UNIX ms) and title.
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NewsItem {
@@ -1112,7 +1112,7 @@ struct SnapBar {
     v: f64,
 }
 
-/// The values TV's right rail shows for one ticker, distilled from a snapshot.
+/// The values the right rail shows for one ticker, distilled from a snapshot.
 struct Shaped {
     last: f64,
     change: f64,
@@ -1134,8 +1134,8 @@ struct Shaped {
 ///     session's close vs the session-*before* it (`prior_close`), falling back
 ///     to the session's own open→close when no baseline is available.
 ///   • `ext_change_percent` is the pre/post-market move: the latest trade
-///     (`min.c`, which includes extended hours) vs that regular close — what TV
-///     puts in the "Ext" column.
+///     (`min.c`, which includes extended hours) vs that regular close, shown
+///     in the "Ext" column.
 fn shape_snapshot(t: &SnapEntry, prior_close: Option<f64>) -> Option<Shaped> {
     let prev = t.prev_day.as_ref();
     // Today's regular session, but only once it has actually traded.
@@ -1309,7 +1309,7 @@ pub async fn fetch_ticker_snapshot(ticker: &str) -> Result<Snapshot> {
 pub struct LiveTick {
     pub ticker: String,
     /// Regular-session close (today's once traded, else the prior session's) —
-    /// the watchlist's "Last", matching what TV shows pre-market.
+    /// the watchlist's "Last", also pre-market.
     pub last: f64,
     /// Absolute regular-session change (close vs prior close).
     pub change: f64,

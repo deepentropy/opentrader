@@ -20,7 +20,7 @@ import { timeToXFallback } from "../drawings/coords";
 
 export type EventMarker = { time: number; kind: "dividend" | "split"; label: string };
 
-// Badge colours (chosen — TV-ish: dividend teal, split blue-violet).
+// Badge colours: dividend teal, split blue-violet.
 const COLORS = { dividend: "rgb(38, 166, 154)", split: "rgb(103, 58, 183)" };
 
 export class EventMarkersPrimitive implements ISeriesPrimitive<Time> {

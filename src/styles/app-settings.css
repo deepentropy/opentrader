@@ -1,8 +1,7 @@
 /*
  * App Settings dialog — desktop "App settings" modal (AppSettingsDialog.tsx),
- * opened from the chart account menu.  Mirrors TV's dialog-window
- * `.dialog-settings`: a left tab rail (`tabs-section`) + content (`page-
- * section`), no footer.  Namespaced `.app-settings-*` to avoid colliding with
+ * opened from the chart account menu: a left tab rail + content, no
+ * footer.  Namespaced `.app-settings-*` to avoid colliding with
  * the chart-properties `.settings-*` classes.
  */
 
@@ -246,7 +245,7 @@
 }
 .app-settings-path.disabled { color: var(--color-cold-gray-500, #6a6d78); cursor: default; }
 
-/* Tab title order — draggable checkbox rows (TV's TabTitleOrderSettings). */
+/* Tab title order — draggable checkbox rows. */
 .app-settings-tab-order {
   display: flex;
   flex-direction: column;
@@ -262,7 +261,7 @@
   padding: 0 6px;
   margin: 0 -6px;
 }
-/* The row being dragged lifts off the page (TV's react-draggable feel). */
+/* The row being dragged lifts off the page. */
 .app-settings-drag-row.is-dragging {
   background: var(--color-cold-gray-800, #2a2a2a);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);

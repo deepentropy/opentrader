@@ -2,7 +2,7 @@
  * SettingsDialog — modal opened from the SelectedToolbar Settings button or
  * the context menu's Settings… row.
  *
- * 4 tabs mirror TV's `source-properties-editor`:
+ * 4 tabs (`source-properties-editor`):
  *   • Style       — color/width/lineStyle, plus the line-family toggles
  *                   (extend, middle point, end arrows, stats group), each
  *                   gated to the kinds that support it.
@@ -11,7 +11,7 @@
  *   • Coordinates — read-only price + time per point
  *   • Visibility  — Lock + Hide checkboxes
  *
- * Field coverage is intentionally narrow vs TV's full dialog — toggles are
+ * Field coverage is intentionally narrow — toggles are
  * added as the matching DrawingStyle fields + renderers land.
  */
 import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
@@ -32,29 +32,27 @@ import { drawingImage, imageInitialSize } from "lightweight-charts-drawing/tv/ki
 import { imagesVersion } from "./image-store";
 
 const TABS = ["Style", "Text", "Coordinates", "Visibility"] as const;
-/** TV page order: Inputs (tools with study-like inputs), Style, Text,
+/** Page order: Inputs (tools with study-like inputs), Style, Text,
  *  Coordinates, Visibility. */
 type Tab = (typeof TABS)[number] | "Inputs";
 const INPUTS_KINDS = new Set<string>(["ghost-feed", "regression-trend", "long-position", "short-position", "anchored-vwap"]);
-/** Tools whose TV dialog has no Style page (Text is their first page). */
+/** Tools whose dialog has no Style page (Text is their first page). */
 const NO_STYLE_KINDS = new Set<string>(["text", "callout", "comment"]);
-/** Tools whose TV dialog has no Coordinates page (`_coordinatesPropertyDefinitions`
- *  null / `hasEditableCoordinates` false): path and polyline (captured live
- *  24/09/2026: tabs Style + Visibility), bars pattern (its source code). */
+/** Tools whose dialog has no Coordinates page (no editable coordinates): path
+ *  and polyline (tabs Style + Visibility), bars pattern. */
 const NO_COORDINATES_KINDS = new Set<string>([
   "path", "polyline", "bar-pattern",
-  // TV dialog tabs survey (24/09/2026)
+  // Dialog tabs per tool
   "fib-wedge", "brush", "highlighter", "rotated-rectangle", "ellipse", "arc", "font-icon",
   "flat-top-bottom", "disjoint-channel", "long-position", "short-position", "anchored-vwap", "text",
   "sector",
-  // TV table / image (captured 25/09/2026): Style + Visibility.
+  // Table / image: Style + Visibility.
   "table", "image",
 ]);
 
 const FONT_SIZES = ["10", "11", "12", "13", "14", "16", "18", "20", "24"];
-/** TV Style page rows per tool, in TV's order (captured 25/09/2026).
- *  Row ids are
- *  rendered by SettingsDialog `styleRow`; "id:Title" ids carry TV's row title. */
+/** Style page rows per tool, in display order. Row ids are rendered by
+ *  SettingsDialog `styleRow`; "id:Title" ids carry the row title. */
 const LINE_TOOL_ROWS = ["line+ends:Line", "extend", "middlePoint", "priceLabel:Price labels", "stats"];
 const PITCHFORK_ROWS = ["pitchforkExtend", "line:Median", "levels", "pitchforkStyle"];
 const STYLE_ROWS: Record<string, string[]> = {
@@ -143,43 +141,43 @@ const STYLE_ROWS: Record<string, string[]> = {
   "font-icon": ["color:Color"],
 };
 const styleRowsFor = (kind: string): string[] => STYLE_ROWS[kind] ?? ["line:Line"];
-/** TV Extend list titles per tool (read live 25/09/2026). */
+/** Extend list titles per tool. */
 const EXTEND_TITLES: Record<string, [string, string]> = {
   rectangle: ["Extend left", "Extend right"],
   "fib-channel": ["Extend left", "Extend right"],
   "fib-retracement": ["Extend lines left", "Extend lines right"],
   "trend-based-fib-extension": ["Extend lines left", "Extend lines right"],
 };
-/** TV pitchfork styles and the OpenTrader kind of each. */
+/** Pitchfork styles and the OpenTrader kind of each. */
 const PITCHFORK_STYLES: [string, string][] = [["pitchfork", "Original"], ["schiff-pitchfork", "Schiff"], ["modified-schiff-pitchfork", "Modified Schiff"], ["inside-pitchfork", "Inside"]];
 /** Text tools with Background / Border rows on the Text page. */
 const TEXT_BOX_KINDS = new Set<string>(["text", "callout", "comment", "pin"]);
-/** Factory background transparency when a drawing has none stored (TV text
+/** Factory background transparency when a drawing has none stored (text
  *  rgba(41,98,255,0.25), callout 50, comment / pin 0). */
 const TEXT_BOX_TRANSPARENCY: Record<string, number> = { text: 75, callout: 50, comment: 0, pin: 0 };
-/** Factory border colours (TV text #707070, comment tv-blue-500, pin
+/** Factory border colours (text #707070, comment ot-blue-500, pin
  *  cold-gray-700). */
 const TEXT_BORDER_DEFAULT: Record<string, string> = { text: "#707070", comment: "#2962ff", pin: "#4a4a4a" };
-/** TV Coordinates row titles: "#N (price)", "#N (bar)", else price and bar. */
+/** Coordinates row titles: "#N (price)", "#N (bar)", else price and bar. */
 const COORD_MODES: Record<string, "price" | "bar" | "price, bar" | "vertical position %, bar"> = {
   signpost: "vertical position %, bar",
   "horizontal-line": "price",
   "vertical-line": "bar",
   "regression-trend": "bar",
 };
-/** TV highlighter thickness options (px). */
+/** Highlighter thickness options (px). */
 const HIGHLIGHTER_WIDTHS = [10, 20, 30, 40];
 
 
-// Which line-family kinds expose each toggle group (TV shows different fields
-// per tool). Gated so a rectangle/fib/etc. doesn't sprout line-only options.
-// NOTE: TV 3.2 no longer shows arrowhead checkboxes on the trendline Style
-// tab (captured) — the leftEnd/rightEnd style fields stay render-supported
-// and reachable via templates, but the rows are gone.
+// Which line-family kinds expose each toggle group (different fields per
+// tool). Gated so a rectangle/fib/etc. doesn't sprout line-only options.
+// NOTE: the trendline Style tab has no arrowhead checkboxes — the
+// leftEnd/rightEnd style fields stay render-supported and reachable via
+// templates, but the rows are gone.
 const EXTEND_KINDS = new Set<string>([
   "trend-line", "ray", "extended-line", "info-line",
   // Fib level tools: the extend flags stretch the level span to the pane edges
-  // (TV `extendLines`/`extendLinesLeft`, default off).
+  // (default off).
   "fib-retracement", "trend-based-fib-extension", "fib-channel",
   // Bézier curves: the extend flags continue the curve parametrically.
   "curve", "double-curve",
@@ -205,15 +203,15 @@ const LEVEL_KIND_DEFAULTS: Record<string, LevelDef[]> = {
   "fib-speed-resistance-fan": SPEED_FAN_LEVEL_DEFAULTS,
   "fib-speed-resistance-arcs": SPEED_ARC_LEVEL_DEFAULTS,
   // Anchored VWAP: the ±σ band ladder (coeff = multiplier) rides the same
-  // grid — TV shows "Upper/Lower Band #1..#3" line rows with a checkbox,
+  // grid — "Upper/Lower Band #1..#3" line rows with a checkbox,
   // colour + width per band.
   "anchored-vwap": VWAP_BAND_DEFAULTS,
 };
 
-/** Anchored VWAP source select (studyAvailablePriceSources, module 202637). */
+/** Anchored VWAP source select (available price sources). */
 const VWAP_SOURCES = ["open", "high", "low", "close", "hl2", "hlc3", "ohlc4", "hlcc4"] as const;
-/** Price source option texts of TV selects (regression trend, anchored
- *  VWAP; read live, 24/09/2026). */
+/** Price source option texts of the selects (regression trend, anchored
+ *  VWAP). */
 const PRICE_SOURCE_LABELS: Record<(typeof VWAP_SOURCES)[number], string> = {
   open: "Open",
   high: "High",
@@ -224,38 +222,38 @@ const PRICE_SOURCE_LABELS: Record<(typeof VWAP_SOURCES)[number], string> = {
   ohlc4: "(O + H + L + C)/4",
   hlcc4: "(H + L + C + C)/4",
 };
-/** Position QTY precision select: TV values and texts (read live). */
+/** Position QTY precision select: values and texts. */
 const QTY_PRECISION_OPTIONS: { value: string; label: string }[] = [
   { value: "default", label: "Default" },
   { value: "0", label: "Integer" },
   ...Array.from({ length: 10 }, (_, k) => ({ value: String(k + 1), label: k === 0 ? "1 decimal" : `${k + 1} decimals` })),
 ];
-/** TV level grid with value + colour, two per line, and a "Levels line"
+/** Level grid with value + colour, two per line, and a "Levels line"
  *  row (width + style of every level). */
 const LEVEL_FRAGMENT_KINDS = new Set<string>(["fib-retracement", "trend-based-fib-extension", "fib-channel", "gann-box"]);
 const LEVELS_LINE_KINDS = new Set<string>(["fib-retracement", "trend-based-fib-extension", "fib-channel"]);
-// Position tools: risk inputs driving the Qty readout (TV's accountSize/risk).
+// Position tools: risk inputs driving the Qty readout (accountSize/risk).
 const POSITION_KINDS = new Set<string>(["long-position", "short-position"]);
-/** TV bars pattern modes, in TV's option order (labels from the TV
- *  translations: HL bars, OC bars, Line - close / open / high / low / HL/2). */
+/** Bars pattern modes, in option order (labels: HL bars, OC bars,
+ *  Line - close / open / high / low / HL/2). */
 const BAR_PATTERN_MODE_VALUES = ["bars", "oc", "line", "line-open", "line-high", "line-low", "line-hl2"] as const;
 const BAR_PATTERN_MODE_LABELS = ["HL bars", "OC bars", "Line - close", "Line - open", "Line - high", "Line - low", "Line - HL/2"] as const;
-/** TV StatsPosition options (value = index). */
+/** Stats position options (value = index). */
 const STATS_POSITIONS = ["Left", "Center", "Right", "Auto"] as const;
 // Line-family kinds that carry an on-line label (text stored on `style.text`).
-// Includes the axis-line family + arrow-marker (TV: all expose a Text tab
-// whose string renders on/next to the line).
-/** Vertical text alignment each renderer uses when the style has none (TV
- *  factory): horizontal line / vertical line middle, horizontal ray top,
+// Includes the axis-line family + arrow-marker (all expose a Text tab whose
+// string renders on/next to the line).
+/** Vertical text alignment each renderer uses when the style has none
+ *  (factory): horizontal line / vertical line middle, horizontal ray top,
  *  trend lines and channels bottom. */
-/** TV names the vertical alignment by where the text sits: the stored
- *  `bottom` (box above the point) shows as "Top", `top` as "Bottom" (read
- *  live on trend line, price note, rectangle, horizontal / vertical line). */
+/** The vertical alignment is named by where the text sits: the stored
+ *  `bottom` (box above the point) shows as "Top", `top` as "Bottom" (trend
+ *  line, price note, rectangle, horizontal / vertical line). */
 const VERT_ALIGN_TITLE: Record<string, string> = { top: "Bottom", middle: "Middle", bottom: "Top" };
 function vertAlignFromTitle(t: string): "top" | "middle" | "bottom" {
   return t === "Top" ? "bottom" : t === "Bottom" ? "top" : "middle";
 }
-/** The rectangle calls the middle "Inside" (TV rectangle alignment items). */
+/** The rectangle calls the middle "Inside" (rectangle alignment items). */
 function vertTitle(v: string, kind: string): string {
   return v === "middle" && kind === "rectangle" ? "Inside" : VERT_ALIGN_TITLE[v];
 }
@@ -267,27 +265,26 @@ function labelVertDefault(kind: string): string {
 const LINE_LABEL_KINDS = new Set<string>([
   "trend-line", "ray", "extended-line", "info-line",
   "horizontal-line", "horizontal-ray", "vertical-line", "arrow-marker",
-  // TV channel labels (labelText + alignment): parallel channel, flat
+  // Channel labels (labelText + alignment): parallel channel, flat
   // top/bottom, disjoint channel; the arrow shares the trend-line label.
   "parallel-channel", "flat-top-bottom", "disjoint-channel", "arrow",
 ]);
-// TV range tools: a `customText` (own colour / size / bold / italic, no
+// Range tools: a `customText` (own colour / size / bold / italic, no
 // alignment), centred in the box.
 const RANGE_TEXT_KINDS = new Set<string>(["price-range", "date-range", "date-and-price-range"]);
 // Text-annotation kinds — the editable string lives at the drawing's top-level
 // `text` and the colour is the drawing's main `style.color`.
 const TEXT_ANNOTATION_KINDS = new Set<string>(["text", "note", "pin", "comment", "price-note", "signpost", "callout"]);
-// Shapes with in-shape text (TV): the string lives at the drawing's top-level
+// Shapes with in-shape text: the string lives at the drawing's top-level
 // `text` (like annotations) but the colour is the separate `textColor`.
-// Arrow marks (TV): text + colour / size / bold / italic, no alignment.
+// Arrow marks: text + colour / size / bold / italic, no alignment.
 const SHAPE_TEXT_KINDS = new Set<string>(["rectangle", "circle", "ellipse", "arrow-mark-up", "arrow-mark-down"]);
 // Any kind that exposes the Text tab.
 const TEXT_KINDS = new Set<string>([...LINE_LABEL_KINDS, ...TEXT_ANNOTATION_KINDS, ...SHAPE_TEXT_KINDS, ...RANGE_TEXT_KINDS]);
 
 
-// Stats options for the multi-select (TV's captured summary reads
-// "Price range, Percent change, Bars range" — those three labels are
-// verbatim; the rest keep their existing names).
+// Stats options for the multi-select (the summary reads "Price range,
+// Percent change, Bars range"; the rest keep their existing names).
 const STAT_FIELDS: ReadonlyArray<readonly [keyof DrawingStyle, string]> = [
   ["showPriceRange", "Price range"],
   ["showPercentPriceRange", "Percent change"],
@@ -314,9 +311,8 @@ type Props = {
 };
 
 export function SettingsDialog(props: Props) {
-  /** TV page order Inputs / Style / Text / Coordinates / Visibility; a page is
-   *  added only when the tool has content for it (TV builds each page only
-   *  when its definitions are not null): Text only for tools with text,
+  /** Page order Inputs / Style / Text / Coordinates / Visibility; a page is
+   *  added only when the tool has content for it: Text only for tools with text,
    *  Coordinates only for tools with editable coordinates. */
   const dialogTabs = (): Tab[] => {
     const k = props.drawing.kind;
@@ -339,11 +335,11 @@ export function SettingsDialog(props: Props) {
 
   function patchStyle(patch: Partial<DrawingStyle>) {
     const style = { ...props.drawing.style, ...patch };
-    // TV saves the tool's defaults on every UI property edit.
+    // The tool's defaults are saved on every UI property edit.
     saveKindDefault(props.drawing.kind, style);
     props.onUpdate({ ...props.drawing, style } as Drawing);
   }
-  // Visibility tab (TV's per-interval matrix). Reads fall back to the full
+  // Visibility tab (per-interval matrix). Reads fall back to the full
   // default matrix; the first edit materialises the field on the drawing.
   const vis = (): IntervalVisibility => props.drawing.visibility ?? DEFAULT_VISIBILITY;
   function patchVisibility(patch: Partial<IntervalVisibility>) {
@@ -357,7 +353,7 @@ export function SettingsDialog(props: Props) {
   }
 
   const kind = () => props.drawing.kind as string;
-  // TV risk unit options: "%" and the symbol currency ("Cash" when unknown).
+  // Risk unit options: "%" and the symbol currency ("Cash" when unknown).
   const [tickerInfo] = createResource(
     () => (POSITION_KINDS.has(props.drawing.kind) && props.symbol ? props.symbol : null),
     (sym) => getTickerInfo(sym).catch(() => null),
@@ -371,7 +367,7 @@ export function SettingsDialog(props: Props) {
     const st = props.drawing.style;
     if ((st.riskDisplayMode ?? "percents") === mode) return;
     const account = st.accountSize ?? POSITION_DEFAULTS.accountSize;
-    // TV recalculateRisk: convert the value to the new unit (2 decimals).
+    // Recalculate risk: convert the value to the new unit (2 decimals).
     const round2 = (v: number) => parseFloat(v.toFixed(2));
     if (mode === "money") patchStyle({ riskDisplayMode: mode, riskAmount: round2((account / 100) * (st.riskPercent ?? POSITION_DEFAULTS.risk)) });
     else patchStyle({ riskDisplayMode: mode, riskPercent: account > 0 ? round2((positionRiskSize(st) / account) * 100) : 0 });
@@ -401,9 +397,9 @@ export function SettingsDialog(props: Props) {
       : patchStyle({ text: v });
   // Text colour: annotation kinds colour their text with `color`, except the
   // callout (its bubble is `color`, the text `textColor`); range tools use
-  // their own custom-text fields (TV `customText`).
+  // their own custom-text fields (`customText`).
   const isRangeText = () => RANGE_TEXT_KINDS.has(kind());
-  // TV text tool: the text colour is its `color`; the other annotation
+  // Text tool: the text colour is its `color`; the other annotation
   // tools keep a separate text colour.
   const textInColor = () => kind() === "text";
   const textColorValue = () =>
@@ -420,7 +416,7 @@ export function SettingsDialog(props: Props) {
   const toggleItalic = () => (isRangeText() ? patchStyle({ customTextItalic: !textItalic() }) : patchStyle({ italic: !textItalic() }));
 
   /** Coordinates rows: parallel channel and trend angle show fewer points
-   *  (TV Price offset / Angle rows stand for the rest). */
+   *  (Price offset / Angle rows stand for the rest). */
   const coordPoints = () => {
     const k = kind();
     return k === "parallel-channel" || k === "trend-angle" ? props.drawing.points.slice(0, k === "trend-angle" ? 1 : 2) : props.drawing.points;
@@ -470,7 +466,7 @@ export function SettingsDialog(props: Props) {
       </Show>
     </DialogRow>
   );
-  // TV Extend: a list of two checks (per-tool titles), "Don't extend" when
+  // Extend: a list of two checks (per-tool titles), "Don't extend" when
   // none is on.
   const extendRow = () => {
     const [l, r] = EXTEND_TITLES[kind()] ?? ["Extend left line", "Extend right line"];
@@ -485,7 +481,7 @@ export function SettingsDialog(props: Props) {
       </DialogRow>
     );
   };
-  /** One Style row (ids in STYLE_ROWS). `kind:Label` ids carry the TV title. */
+  /** One Style row (ids in STYLE_ROWS). `kind:Label` ids carry the row title. */
   function styleRow(id: string): import("solid-js").JSX.Element {
     const [key, label = ""] = id.split(":");
     const st = () => props.drawing.style;
@@ -494,7 +490,7 @@ export function SettingsDialog(props: Props) {
         return lineRow(label, false);
       case "line+ends":
         return lineRow(label, true);
-      // TV position forecast: ten colour rows. The source background swatch
+      // Position forecast: ten colour rows. The source background swatch
       // carries the drawing's transparency (its opacity sets `transparency`).
       case "forecastColors": {
         type K = "sourceTextColor" | "sourceBackColor" | "sourceStrokeColor" | "targetTextColor" | "targetBackColor" | "targetStrokeColor" | "successTextColor" | "successBackground" | "failureTextColor" | "failureBackground";
@@ -531,7 +527,7 @@ export function SettingsDialog(props: Props) {
           </For>
         );
       }
-      // TV chart patterns "Label": text colour, font size, bold, italic.
+      // Chart patterns "Label": text colour, font size, bold, italic.
       case "patternLabel":
         return (
           <DialogRow label="Label">
@@ -542,14 +538,14 @@ export function SettingsDialog(props: Props) {
             </div>
           </DialogRow>
         );
-      // TV polyline "Border": colour + thickness (no line style).
+      // Polyline "Border": colour + thickness (no line style).
       case "lineNoStyle":
         return (
           <DialogRow label={label}>
             <ColorThicknessPicker color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
           </DialogRow>
         );
-      // Colour-only rows (TV arrow marks "Arrow", flag "Flag", arrow marker /
+      // Colour-only rows (arrow marks "Arrow", flag "Flag", arrow marker /
       // bars pattern / Elliott / icon "Color", pin "Label", highlighter
       // "Line": the colour panel opacity is part of the colour).
       case "color":
@@ -558,7 +554,7 @@ export function SettingsDialog(props: Props) {
             <DialogColorButton color={st().color} onColor={(c) => patchStyle({ color: c })} />
           </DialogRow>
         );
-      // TV highlighter "Thickness" (factory 20px).
+      // Highlighter "Thickness" (factory 20px).
       case "thickness":
         return (
           <DialogRow label="Thickness">
@@ -573,13 +569,13 @@ export function SettingsDialog(props: Props) {
         return <CheckboxRow checked={!!st().showPriceLabels} onChange={(v) => patchStyle({ showPriceLabels: v })} label={label} />;
       case "timeLabel":
         return <CheckboxRow checked={!!st().showTime} onChange={(v) => patchStyle({ showTime: v })} label="Time label" />;
-      // TV vertical line "Extend" (extendLine, factory on): draws the line
+      // Vertical line "Extend" (extendLine, factory on): draws the line
       // through every pane of the chart.
       case "vlineExtend":
         return <CheckboxRow checked={st().extendLine !== false} onChange={(v) => patchStyle({ extendLine: v })} label="Extend" />;
-      // TV Elliott "Wave" (showWave, factory on): the wave lines; off = the
+      // Elliott "Wave" (showWave, factory on): the wave lines; off = the
       // labels only.
-      // TV Elliott "Wave": [x] showWave + the wave line width select
+      // Elliott "Wave": [x] showWave + the wave line width select
       // (line-width-select, 76 x 34; linewidth factory 2).
       case "wave":
         return (
@@ -596,7 +592,7 @@ export function SettingsDialog(props: Props) {
             <div class="drawing-settings-section-title">Info</div>
             <DialogRow label="Stats">
               <StatsMultiSelect
-                // TV trend angle: price and bars stats only.
+                // Trend angle: price and bars stats only.
                 fields={kind() === "trend-angle" ? STAT_FIELDS.slice(0, 4) : STAT_FIELDS}
                 isOn={(k) => !!st()[k as keyof DrawingStyle]}
                 onToggle={(k, v) => patchStyle({ [k]: v } as Partial<DrawingStyle>)}
@@ -645,7 +641,7 @@ export function SettingsDialog(props: Props) {
             />
           </DialogRow>
         );
-      // TV anchored VWAP Style (module 59628): Lower / Upper band #1,
+      // Anchored VWAP Style: Lower / Upper band #1,
       // Background #1, Lower / Upper band #2, #3 (visible + colour + width),
       // Price label.
       case "vwapBands": {
@@ -708,7 +704,7 @@ export function SettingsDialog(props: Props) {
       }
       case "gannSquare":
         return <GannStyleRows drawing={props.drawing} coords={props.coords} patchStyle={patchStyle} onUpdate={props.onUpdate} />;
-      // TV table Style (captured 25/09/2026): Background, Border, Text
+      // Table Style: Background, Border, Text
       // (colour + size), Text alignment (factory Left).
       case "table":
         return (
@@ -730,7 +726,7 @@ export function SettingsDialog(props: Props) {
         );
       case "image":
         return <ImageStyleRows drawing={props.drawing} coords={props.coords} onUpdate={props.onUpdate} patchStyle={patchStyle} />;
-      // TV sector (projection): Background = the two gradient colours
+      // Sector (projection): Background = the two gradient colours
       // (shared transparency), Border = colour + width.
       case "sector":
         return (
@@ -765,7 +761,7 @@ export function SettingsDialog(props: Props) {
         );
       case "reverse":
         return <CheckboxRow checked={!!st().reverse} onChange={(v) => patchStyle({ reverse: v })} label="Reverse" />;
-      // TV fib channel label rows: Prices, Levels (Values / Percents),
+      // Fib channel label rows: Prices, Levels (Values / Percents),
       // Labels (horizontal + vertical), Font size (8 ... 24).
       case "fibChannelLabels":
         return (
@@ -786,7 +782,7 @@ export function SettingsDialog(props: Props) {
             </DialogRow>
           </>
         );
-      // TV fib retracement / extension labels: [x] Prices, [x] Levels
+      // Fib retracement / extension labels: [x] Prices, [x] Levels
       // (Values / Percents), Labels (horizontal + vertical), [x] Text
       // (level texts, horizontal + vertical), Font size.
       case "fibLabels":
@@ -815,7 +811,7 @@ export function SettingsDialog(props: Props) {
             </DialogRow>
           </>
         );
-      // TV fib circles / speed arcs / wedge "Levels" (showCoeffs, factory on).
+      // Fib circles / speed arcs / wedge "Levels" (showCoeffs, factory on).
       case "showCoeffs":
         return <CheckboxRow checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />;
       case "coeffsAsPercents":
@@ -824,14 +820,15 @@ export function SettingsDialog(props: Props) {
         return <CheckboxRow checked={!!st().fullCircles} onChange={(v) => patchStyle({ fullCircles: v })} label="Full circles" />;
       case "counterclockwise":
         return <CheckboxRow checked={!!st().counterclockwise} onChange={(v) => patchStyle({ counterclockwise: v })} label="Counterclockwise" />;
-      // TV Gann fan "Labels" (showLabels, factory on).
+      // Gann fan "Labels" (showLabels, factory on).
       case "labels":
         return <CheckboxRow checked={st().showLabels !== false} onChange={(v) => patchStyle({ showLabels: v })} label="Labels" />;
-      // TV pitchfork "Extend lines" (extendLines: the lines also run back).
+      // Pitchfork "Extend lines" (extendLines: the lines also run back).
       case "pitchforkExtend":
         return <CheckboxRow checked={!!st().extendLines} onChange={(v) => patchStyle({ extendLines: v })} label="Extend lines" />;
-      // TV pitchfork "Style": Original / Schiff / Modified Schiff / Inside
-      // (one TV tool; OpenTrader switches between its four pitchfork kinds).
+      // Pitchfork "Style": Original / Schiff / Modified Schiff / Inside
+      // (one tool in the UI; OpenTrader switches between its four pitchfork
+      // kinds).
       case "pitchforkStyle":
         return (
           <DialogRow label="Style">
@@ -845,11 +842,11 @@ export function SettingsDialog(props: Props) {
             />
           </DialogRow>
         );
-      // TV fibLevelsBasedOnLogScale: level prices in ln(price) space, only
+      // fibLevelsBasedOnLogScale: level prices in ln(price) space, only
       // on a logarithmic price scale.
       case "fibLog":
         return <CheckboxRow checked={!!st().fibLevelsBasedOnLogScale} onChange={(v) => patchStyle({ fibLevelsBasedOnLogScale: v })} label="Fib levels based on log scale" />;
-      // TV regression trend Style: Base / Up / Down (check box + line).
+      // Regression trend Style: Base / Up / Down (check box + line).
       case "regressionLines":
         return (
           <For each={[["base", "Base"], ["up", "Up"], ["down", "Down"]] as const}>
@@ -874,7 +871,7 @@ export function SettingsDialog(props: Props) {
         return <CheckboxRow checked={!!st().extendRight} onChange={(v) => patchStyle({ extendRight: v })} label="Extend lines" />;
       case "pearsons":
         return <CheckboxRow checked={st().showPearsons !== false} onChange={(v) => patchStyle({ showPearsons: v })} label="Pearson's R" />;
-      // Bars pattern (TV): Mode, Mirrored, Flipped.
+      // Bars pattern: Mode, Mirrored, Flipped.
       case "barPattern":
         return (
           <>
@@ -892,7 +889,7 @@ export function SettingsDialog(props: Props) {
             <CheckboxRow checked={!!st().flipped} onChange={(v) => patchStyle({ flipped: v })} label="Flipped" />
           </>
         );
-      // Ghost feed Style (TV): Candles (up / down), [x] Borders (up / down),
+      // Ghost feed Style: Candles (up / down), [x] Borders (up / down),
       // [x] Wick (colour), Transparency (factory 50).
       case "ghostFeed": {
         const cs = () => st().ghostCandle ?? GHOST_CANDLE_DEFAULTS;
@@ -922,7 +919,7 @@ export function SettingsDialog(props: Props) {
           </>
         );
       }
-      // TV fib time zone / trend-based fib time "Labels": check box +
+      // Fib time zone / trend-based fib time "Labels": check box +
       // horizontal + vertical (not swapped: stored top = "Top").
       case "ftzLabels":
         return (
@@ -934,7 +931,7 @@ export function SettingsDialog(props: Props) {
             </div>
           </div>
         );
-      // TV price note Style: Label text (colour, size, B, I), Label
+      // Price note Style: Label text (colour, size, B, I), Label
       // background, Label border, Line color.
       case "priceNote":
         return (
@@ -957,7 +954,7 @@ export function SettingsDialog(props: Props) {
             </DialogRow>
           </>
         );
-      // TV long / short position Style: Lines, Stop / Target color, Text,
+      // Long / short position Style: Lines, Stop / Target color, Text,
       // Price labels, Info (Stats, Compact stats mode, Always show stats).
       case "position":
         return (
@@ -998,7 +995,7 @@ export function SettingsDialog(props: Props) {
             <div class="drawing-settings-group-sep" />
           </>
         );
-      // TV flat top/bottom, disjoint channel: [x] Prices (colour, size, B, I).
+      // Flat top/bottom, disjoint channel: [x] Prices (colour, size, B, I).
       case "channelPrices":
         return (
           <div class="drawing-settings-row">
@@ -1010,7 +1007,7 @@ export function SettingsDialog(props: Props) {
             </div>
           </div>
         );
-      // TV range tools: Extend = a list of two checks (price range left /
+      // Range tools: Extend = a list of two checks (price range left /
       // right, date range top / bottom; "Don't extend" when none).
       case "rangeExtend": {
         const fields: [string, string][] = kind() === "date-range" ? [["extendTop", "Extend top"], ["extendBottom", "Extend bottom"]] : [["extendLeft", "Extend left"], ["extendRight", "Extend right"]];
@@ -1020,7 +1017,7 @@ export function SettingsDialog(props: Props) {
           </DialogRow>
         );
       }
-      // TV range tools Info: Stats (price range: Price range, Percent change,
+      // Range tools Info: Stats (price range: Price range, Percent change,
       // Change in pips; date range: Bars range, Date/time range, Volume;
       // date and price range: all six; factory all on).
       case "rangeStats": {
@@ -1036,7 +1033,7 @@ export function SettingsDialog(props: Props) {
           </>
         );
       }
-      // TV range tools: Label (colour + size), [x] Label background.
+      // Range tools: Label (colour + size), [x] Label background.
       case "rangeLabel":
         return (
           <>
@@ -1053,8 +1050,8 @@ export function SettingsDialog(props: Props) {
             <div class="drawing-settings-group-sep" />
           </>
         );
-      // TV date and price range: [x] Border (colour + width; factory off,
-      // tv-blue-500, 1px).
+      // Date and price range: [x] Border (colour + width; factory off,
+      // ot-blue-500, 1px).
       case "rangeBorder":
         return (
           <div class="drawing-settings-row">
@@ -1064,7 +1061,7 @@ export function SettingsDialog(props: Props) {
             </div>
           </div>
         );
-      // TV signpost Style: [x] Emoji pin (showImage) + the plate colour.
+      // Signpost Style: [x] Emoji pin (showImage) + the plate colour.
       case "emojiPin":
         return (
           <div class="drawing-settings-row">
@@ -1074,7 +1071,7 @@ export function SettingsDialog(props: Props) {
             </div>
           </div>
         );
-      // TV note (LineToolTextNote) Style: [x] Label background, [x] Label
+      // Note Style: [x] Label background, [x] Label
       // border, Line color.
       case "noteLabel":
         return (
@@ -1096,7 +1093,7 @@ export function SettingsDialog(props: Props) {
             </DialogRow>
           </>
         );
-      // TV price label Style: Text (colour + size), Background (its opacity =
+      // Price label Style: Text (colour + size), Background (its opacity =
       // transparency), Border.
       case "priceLabelTool":
         return (
@@ -1124,10 +1121,9 @@ export function SettingsDialog(props: Props) {
     }
   }
 
-  // TV title rename (pencil): the field replaces the title and the close
+  // Title rename (pencil): the field replaces the title and the close
   // button with the whole name selected; Enter or leaving the field saves,
-  // Escape cancels, an empty name keeps the old one (checked live
-  // 25/09/2026).
+  // Escape cancels, an empty name keeps the old one.
   const [renaming, setRenaming] = createSignal(false);
   const displayName = () => props.drawing.name ?? labelForKind(props.drawing.kind);
   let renameCancelled = false;
@@ -1237,7 +1233,7 @@ export function SettingsDialog(props: Props) {
 
         <div class="drawing-settings-body" role="tabpanel">
           <Show when={activeTab() === "Inputs"}>
-            {/* TV regression trend Inputs (captured): Upper / Lower Deviation. */}
+            {/* Regression trend Inputs: Upper / Lower Deviation. */}
             <Show when={kind() === "regression-trend"}>
               <DialogRow label="Upper Deviation">
                 <DecimalInput narrow value={props.drawing.style.upperDeviation ?? 2} onCommit={(v) => patchStyle({ upperDeviation: v })} />
@@ -1267,7 +1263,7 @@ export function SettingsDialog(props: Props) {
               </DialogRow>
             </Show>
             {/* Position tool: the risk model feeding the Qty readout
-                (qty = accountSize · risk% / stop distance — TV's inputs). */}
+                (qty = accountSize · risk% / stop distance). */}
             <Show when={POSITION_KINDS.has(kind())}>
               <DialogRow label="Account size">
                 <DecimalInput
@@ -1275,14 +1271,14 @@ export function SettingsDialog(props: Props) {
                   onCommit={(v) => patchStyle({ accountSize: Math.min(1e9, Math.max(1e-9, v)) })}
                 />
               </DialogRow>
-              {/* TV's lot size: the displayed Qty = risk units / lot size. */}
+              {/* Lot size: the displayed Qty = risk units / lot size. */}
               <DialogRow label="Lot size">
                 <DecimalInput
                   value={props.drawing.style.lotSize ?? POSITION_DEFAULTS.lotSize}
                   onCommit={(v) => patchStyle({ lotSize: Math.min(1e8, Math.max(1e-9, v)) })}
                 />
               </DialogRow>
-              {/* TV Risk: value + unit select (% / symbol currency); percent
+              {/* Risk: value + unit select (% / symbol currency); percent
                   mode 0.01 step, 2 decimals, max 100; money mode step 1,
                   capped at the account size. */}
               <DialogRow label="Risk">
@@ -1320,9 +1316,9 @@ export function SettingsDialog(props: Props) {
                   onCommit={(v) => patchStyle({ leverage: Math.min(10000, Math.max(1, v)) })}
                 />
               </DialogRow>
-              {/* TV profit / stop level: ticks from the entry and the price;
+              {/* Profit / stop level: ticks from the entry and the price;
                   a typed price is rounded to the tick and kept one tick past
-                  the entry (prepare*Price). */}
+                  the entry. */}
               <div class="drawing-settings-group-sep" />
               <For each={["profit", "stop"] as const}>
                 {(leg) => {
@@ -1362,11 +1358,11 @@ export function SettingsDialog(props: Props) {
               </DialogRow>
               <div class="drawing-settings-group-sep" />
             </Show>
-            {/* TV anchored VWAP Inputs (captured): BANDS SETTINGS, Bands
-                Calculation Mode (+ info tooltip, TV text), "Bands Multiplier
+            {/* Anchored VWAP Inputs: BANDS SETTINGS, Bands Calculation Mode
+                (+ info tooltip), "Bands Multiplier
                 #k" = band computed checkbox + multiplier, then Source. */}
             <Show when={kind() === "anchored-vwap"}>
-              {/* TV study Inputs page: the group title is a 50 px row. */}
+              {/* Study Inputs page: the group title is a 50 px row. */}
               <div class="drawing-settings-section-title tall">BANDS SETTINGS</div>
               <DialogRow label="Bands Calculation Mode">
                 <Dropdown
@@ -1395,8 +1391,8 @@ export function SettingsDialog(props: Props) {
                   );
                 }}
               </For>
-            {/* Anchored VWAP source (TV study input; hlc3 factory), TV option
-                texts (read live); a new group. */}
+            {/* Anchored VWAP source (study input; hlc3 factory); a new
+                group. */}
               <div class="drawing-settings-group-sep" />
               <DialogRow label="Source">
                 <Dropdown
@@ -1409,7 +1405,7 @@ export function SettingsDialog(props: Props) {
                 />
               </DialogRow>
             </Show>
-            {/* TV ghost feed Inputs: "Avg HL in minticks" (integer 1-50000,
+            {/* Ghost feed Inputs: "Avg HL in minticks" (integer 1-50000,
                 the frozen candle amplitude in ticks) and "Variance" (1-100). */}
             <Show when={kind() === "ghost-feed"}>
               <DialogRow label="Avg HL in minticks">
@@ -1445,8 +1441,8 @@ export function SettingsDialog(props: Props) {
           </Show>
 
           <Show when={activeTab() === "Style"}>
-            {/* TV Style page: the rows of each tool in TV's order (STYLE_ROWS,
-                captured 25/09/2026). */}
+            {/* Style page: the rows of each tool in display order
+                (STYLE_ROWS). */}
             <For each={styleRowsFor(kind())}>{(id) => styleRow(id)}</For>
           </Show>
 
@@ -1456,7 +1452,7 @@ export function SettingsDialog(props: Props) {
               fallback={<div class="drawing-settings-section-title">No text options for this drawing.</div>}
             >
               {/* Formatting toolbar — colour, font size, bold, italic — sits
-                  ABOVE the text box (TV's text-properties layout). Single
+                  ABOVE the text box (text-properties layout). Single
                   no-wrap row so "Font size" never breaks onto two lines. */}
               <div class="drawing-settings-text-format">
                 <Show when={kind() === "note" || kind() === "comment"}>
@@ -1474,7 +1470,7 @@ export function SettingsDialog(props: Props) {
                   <FontStyleToggles bold={textBold()} italic={textItalic()} onBold={() => toggleBold()} onItalic={() => toggleItalic()} />
                 </Show>
               </div>
-              {/* TV text box: 9 lines for the Text and Callout tools, 5 for
+              {/* Text box: 9 lines for the Text and Callout tools, 5 for
                   the others. */}
               <textarea
                 class={"drawing-settings-textarea" + (kind() === "text" || kind() === "callout" ? " tall" : "")}
@@ -1484,7 +1480,7 @@ export function SettingsDialog(props: Props) {
                 onInput={(e) => setText(e.currentTarget.value)}
               />
               {/* arrow-marker anchors its text to the arrow direction — no
-                  alignment options (TV). */}
+                  alignment options. */}
               <Show when={(LINE_LABEL_KINDS.has(kind()) && kind() !== "arrow-marker") || kind() === "price-note" || kind() === "rectangle"}>
                 <DialogRow label="Text alignment">
                   <Dropdown
@@ -1499,7 +1495,7 @@ export function SettingsDialog(props: Props) {
                   />
                 </DialogRow>
               </Show>
-              {/* TV vertical line "Text orientation" (factory Vertical). */}
+              {/* Vertical line "Text orientation" (factory Vertical). */}
               <Show when={kind() === "vertical-line"}>
                 <DialogRow label="Text orientation">
                   <Dropdown
@@ -1512,7 +1508,7 @@ export function SettingsDialog(props: Props) {
             </Show>
           </Show>
 
-          {/* TV text tools, Text page rows after the text (captured):
+          {/* Text tools, Text page rows after the text:
               text = [x] Background, [x] Border, [x] Text wrap; callout =
               Background, Border (colour + width), [x] Text wrap; comment =
               Background, Border; pin = [x] Background, [x] Border. */}
@@ -1557,8 +1553,8 @@ export function SettingsDialog(props: Props) {
           </Show>
 
           <Show when={activeTab() === "Coordinates"}>
-            {/* One row per anchor, "#N (price, bar)" then its inputs. TV
-                variants (captured): horizontal line price only, vertical line
+            {/* One row per anchor, "#N (price, bar)" then its inputs.
+                Variants: horizontal line price only, vertical line
                 and regression trend bar only, trend angle #1 + "Angle",
                 parallel channel #1, #2 + "Price offset". */}
             <For each={coordPoints()}>
@@ -1613,7 +1609,7 @@ export function SettingsDialog(props: Props) {
                 );
               }}
             </For>
-            {/* TV parallel channel "Price offset": the second line's price
+            {/* Parallel channel "Price offset": the second line's price
                 distance (OpenTrader p2 sits at p0's time). */}
             <Show when={kind() === "parallel-channel" && props.drawing.points[2]}>
               <DialogRow label="Price offset">
@@ -1624,7 +1620,7 @@ export function SettingsDialog(props: Props) {
                 />
               </DialogRow>
             </Show>
-            {/* TV trend angle "Angle": turns p1 around p0 in screen space,
+            {/* Trend angle "Angle": turns p1 around p0 in screen space,
                 keeping the length. */}
             <Show when={kind() === "trend-angle"}>
               <DialogRow label="Angle">
@@ -1634,10 +1630,9 @@ export function SettingsDialog(props: Props) {
           </Show>
 
           <Show when={activeTab() === "Visibility"}>
-            {/* TV's matrix (captured): checkbox + from/to inputs per unit row;
-                Ticks and Ranges carry the checkbox only. 50px row pitch,
-                70×28 inputs. Lock/Hide moved out (toolbar + context menu),
-                matching TV. */}
+            {/* Matrix: checkbox + from/to inputs per unit row; Ticks and
+                Ranges carry the checkbox only. 50px row pitch, 70×28 inputs.
+                Lock/Hide moved out (toolbar + context menu). */}
             <CheckboxRow
               checked={vis().ticks}
               onChange={(v) => patchVisibility({ ticks: v })}
@@ -1672,8 +1667,8 @@ export function SettingsDialog(props: Props) {
 
         <footer class="drawing-settings-footer">
           {/* Template dropdown — save the current style as a named template,
-              apply a saved one, or reset to the kind's defaults. Mirrors TV's
-              footer "Template" control. Opens upward (footer is at the bottom). */}
+              apply a saved one, or reset to the kind's defaults (footer
+              "Template" control). Opens upward (footer is at the bottom). */}
           <div class="drawing-settings-footer-template" ref={footerTemplateEl}>
             <button
               type="button"
@@ -1699,7 +1694,7 @@ export function SettingsDialog(props: Props) {
                   } as Drawing)
                 }
                 // "Apply defaults" = factory style; the tool's saved default is
-                // cleared (TV restoreLineToolsFactoryDefaults).
+                // cleared.
                 onApplyDefault={() => {
                   clearKindDefault(props.drawing.kind);
                   props.onUpdate({ ...props.drawing, style: factoryStyleFor(props.drawing.kind) } as Drawing);
@@ -1742,7 +1737,7 @@ function DialogRow(props: { label?: string; children: import("solid-js").JSX.Ele
   );
 }
 
-/** TV select: 100 px; `wide` = 180 px (Stats position), `mid` = 150 px
+/** Select: 100 px; `wide` = 180 px (Stats position), `mid` = 150 px
  *  (Elliott Degree). */
 function Dropdown(props: { value: string; options: string[]; onChange: (v: string) => void; wide?: boolean; mid?: boolean }) {
   return (
@@ -1756,10 +1751,10 @@ function Dropdown(props: { value: string; options: string[]; onChange: (v: strin
   );
 }
 
-/** Decimal field written with a dot and fixed decimals like TV (a
+/** Decimal field written with a dot and fixed decimals (a
  *  type="number" input would follow the system locale, e.g. "25,00").
  *  `digits` unset = the plain number ("0.382"). Invalid text reverts on
- *  commit. TV: every value field is 100 x 34 (`narrow` kept for callers). */
+ *  commit. Every value field is 100 x 34 (`narrow` kept for callers). */
 function DecimalInput(props: { value: number; digits?: number; narrow?: boolean; onCommit: (v: number) => void }) {
   const text = () => (props.digits == null ? String(props.value) : props.value.toFixed(props.digits));
   return (
@@ -1778,11 +1773,10 @@ function DecimalInput(props: { value: number; digits?: number; narrow?: boolean;
 }
 
 
-/** TV Gann square / Gann square fixed Style page (GannComplexAndFixed
- *  definitions, captured): LEVELS / FANS / ARCS grids (checkbox, title,
+/** Gann square / Gann square fixed Style page: LEVELS / FANS / ARCS grids (checkbox, title,
  *  colour + width; two columns), Use one color, Background (arcs fill +
- *  transparency), Reverse; Gann square adds Price/bar ratio (moves p1's price,
- *  TV `_correctPoint`) and "Ranges and ratio" (labels on / size / B / I). */
+ *  transparency), Reverse; Gann square adds Price/bar ratio (moves p1's
+ *  price) and "Ranges and ratio" (labels on / size / B / I). */
 function GannStyleRows(props: {
   drawing: Drawing;
   coords?: import("./coords").Coords | null;
@@ -1829,7 +1823,7 @@ function GannStyleRows(props: {
     const i1 = c.timeToBarIndex(p1.time);
     if (i0 == null || i1 == null) return;
     const bars = Math.abs(i1 - i0);
-    // TV moves p1 (p0 when reversed), keeping its side of the other point.
+    // Moves p1 (p0 when reversed), keeping its side of the other point.
     if (st().reverse) {
       const sign = p0.price - p1.price >= 0 ? 1 : -1;
       props.onUpdate({ ...props.drawing, points: [{ ...p0, price: p1.price + sign * bars * v }, p1] } as Drawing);
@@ -1839,7 +1833,7 @@ function GannStyleRows(props: {
     }
   };
   const setReverse = (v: boolean) => {
-    // TV Gann square fixed swaps its stored points; Gann square draws swapped.
+    // Gann square fixed swaps its stored points; Gann square draws swapped.
     if (props.drawing.kind === "gann-square-fixed") {
       const [p0, p1] = props.drawing.points;
       props.onUpdate({ ...props.drawing, points: [p1, p0], style: { ...st(), reverse: v } } as Drawing);
@@ -1896,8 +1890,7 @@ function GannStyleRows(props: {
   );
 }
 
-/** TV Gann box Style page (module 972364 definitions, captured 25/09/2026):
- *  PRICE LEVELS grid (checkbox, value, colour; two columns), Left / Right
+/** Gann box Style page: PRICE LEVELS grid (checkbox, value, colour; two columns), Left / Right
  *  labels, Background (+ transparency); TIME LEVELS grid, Top / Bottom
  *  labels, Background; Use one color (drawing, angles and every level
  *  colour); Angles (checkbox + colour); Reverse. */
@@ -1933,7 +1926,7 @@ function GannBoxStyleRows(props: { style: DrawingStyle; patchStyle: (p: Partial<
       </div>
     </div>
   );
-  // TV lineColorsProperty: color, fans.color and every level colour.
+  // Line colors: color, fans.color and every level colour.
   const allColors = () => [props.style.color, fans().color, ...hLevels().map((l) => l.color), ...vLevels().map((l) => l.color)];
   const sameColor = () => allColors().every((c) => parseColor(c).hex === parseColor(allColors()[0]).hex);
   return (
@@ -1975,7 +1968,7 @@ function GannBoxStyleRows(props: { style: DrawingStyle; patchStyle: (p: Partial<
   );
 }
 
-/** TV fib speed resistance fan Style page (captured): PRICE LEVELS grid
+/** Fib speed resistance fan Style page: PRICE LEVELS grid
  *  (checkbox, value, colour; two columns) + Left / Right labels, TIME LEVELS
  *  grid + Top / Bottom labels, Use one color (every level and the grid),
  *  Background (checkbox + transparency), Grid (checkbox + line), Reverse. */
@@ -2051,7 +2044,7 @@ function SpeedFanStyleRows(props: { style: DrawingStyle; patchStyle: (p: Partial
   );
 }
 
-/** Bold / italic toggle buttons (TV text style rows). */
+/** Bold / italic toggle buttons (text style rows). */
 function FontStyleToggles(props: { bold: boolean; italic: boolean; onBold: (v: boolean) => void; onItalic: (v: boolean) => void }) {
   return (
     <>
@@ -2065,7 +2058,7 @@ function FontStyleToggles(props: { bold: boolean; italic: boolean; onBold: (v: b
   );
 }
 
-/** TV check box without a title (level rows). */
+/** Check box without a title (level rows). */
 function CheckBox(props: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <label class={"drawing-settings-checkbox-row" + (props.disabled ? " disabled" : "")}>
@@ -2101,11 +2094,11 @@ function CheckboxRow(props: { checked: boolean; onChange: (v: boolean) => void; 
   );
 }
 
-/** TV-style stats multi-select: a select-look button whose label is the
+/** Stats multi-select: a select-look button whose label is the
  *  comma-joined enabled stats; opens a checklist of the 7 stat flags. */
 function StatsMultiSelect(props: {
   fields: ReadonlyArray<readonly [string, string]>;
-  /** Summary when nothing is on (TV "Hidden"; extend lists "Don't extend"). */
+  /** Summary when nothing is on ("Hidden"; extend lists "Don't extend"). */
   emptyLabel?: string;
   isOn: (key: string) => boolean;
   onToggle: (key: string, on: boolean) => void;
@@ -2201,7 +2194,7 @@ function UnitVisibilityRow(props: {
 }) {
   const clamp = (n: number) => Math.max(1, Math.min(props.max, n));
   // Slider drag in progress: the fields follow it, the drawing is updated
-  // on release (TV).
+  // on release.
   const [live, setLive] = createSignal<{ from: number; to: number } | null>(null);
   const commit = (field: "from" | "to", raw: string, el: HTMLInputElement) => {
     const n = parseInt(raw, 10);
@@ -2262,7 +2255,7 @@ function UnitVisibilityRow(props: {
   );
 }
 
-/** TV Visibility range slider (captured 25/09/2026): 10 px track
+/** Visibility range slider: 10 px track
  *  (#3d3d3d, radius 5, at least 100 px), the #dbdbdb band between two 12 px
  *  thumbs (black, 2 px white border, shadow), thumb centres 6 px in from the
  *  ends. Value = min + round((x - 6) / (width - 12) * (max - min)); a thumb
@@ -2294,7 +2287,7 @@ export function RangeSlider(props: {
     e.stopPropagation();
     let which = thumb;
     if (!which) {
-      // Track press: the nearest thumb (TV).
+      // Track press: the nearest thumb.
       const r = track.getBoundingClientRect();
       const px = (v: number) => r.left + 6 + frac(v) * (r.width - 12);
       which = Math.abs(e.clientX - px(props.from)) <= Math.abs(e.clientX - px(props.to)) ? "from" : "to";
@@ -2310,7 +2303,7 @@ export function RangeSlider(props: {
     const el = e.currentTarget as HTMLElement;
     el.setPointerCapture(e.pointerId);
     setDragging(true);
-    // TV: the press itself sets the value (on a thumb too).
+    // The press itself sets the value (on a thumb too).
     apply(e.clientX);
     const move = (ev: PointerEvent) => apply(ev.clientX);
     const up = () => {
@@ -2325,16 +2318,16 @@ export function RangeSlider(props: {
     el.addEventListener("pointercancel", up);
   };
   return (
-    <div class={"tv-range" + (props.disabled ? " disabled" : "") + (dragging() ? " dragged" : "")}>
-      <div class="tv-range-track" ref={track} onPointerDown={(e) => onDown(e)}>
-        <div class="tv-range-middle-wrap">
-          <div class="tv-range-middle" style={{ left: `${frac(props.from) * 100}%`, width: `${(frac(props.to) - frac(props.from)) * 100}%` }} />
+    <div class={"ot-range" + (props.disabled ? " disabled" : "") + (dragging() ? " dragged" : "")}>
+      <div class="ot-range-track" ref={track} onPointerDown={(e) => onDown(e)}>
+        <div class="ot-range-middle-wrap">
+          <div class="ot-range-middle" style={{ left: `${frac(props.from) * 100}%`, width: `${(frac(props.to) - frac(props.from)) * 100}%` }} />
         </div>
-        <div class="tv-range-pointer-wrap">
-          <div class="tv-range-pointer" style={{ left: `${frac(props.from) * 100}%` }} onPointerDown={(e) => onDown(e, "from")} />
+        <div class="ot-range-pointer-wrap">
+          <div class="ot-range-pointer" style={{ left: `${frac(props.from) * 100}%` }} onPointerDown={(e) => onDown(e, "from")} />
         </div>
-        <div class="tv-range-pointer-wrap">
-          <div class="tv-range-pointer" style={{ left: `${frac(props.to) * 100}%` }} onPointerDown={(e) => onDown(e, "to")} />
+        <div class="ot-range-pointer-wrap">
+          <div class="ot-range-pointer" style={{ left: `${frac(props.to) * 100}%` }} onPointerDown={(e) => onDown(e, "to")} />
         </div>
       </div>
     </div>
@@ -2342,7 +2335,7 @@ export function RangeSlider(props: {
 }
 
 /** Fixed-position ColorPanel host: opens under an anchor button, clamped to
- *  the viewport, scrolls internally (TV's panel extends past the dialog). */
+ *  the viewport, scrolls internally (the panel extends past the dialog). */
 function FixedColorPanel(props: {
   anchor: () => HTMLElement | undefined;
   onDismiss: () => void;
@@ -2380,7 +2373,7 @@ function FixedColorPanel(props: {
 }
 
 /** Plain color swatch button (text color / fill color) opening the panel. */
-/** TV image Style rows: "Image" (the current picture; a click opens the Image
+/** Image Style rows: "Image" (the current picture; a click opens the Image
  *  dialog to replace it) and "Transparency". */
 function ImageStyleRows(props: {
   drawing: Drawing;
@@ -2409,8 +2402,7 @@ function ImageStyleRows(props: {
         <ImageDialog
           transparency={props.drawing.style.transparency ?? 0}
           onConfirm={(r) => {
-            // The new picture fits the current box (TV's replace path is not
-            // captured; see the gap report).
+            // The new picture fits the current box.
             const cur = props.drawing.image;
             const size = cur ? imageInitialSize(r.width, r.height, cur.cssWidth * 4, cur.cssHeight * 4) : { cssWidth: r.width, cssHeight: r.height };
             props.onUpdate({
@@ -2426,7 +2418,7 @@ function ImageStyleRows(props: {
   );
 }
 
-/** TV Background row for shapes: check box + colour button; the colour
+/** Background row for shapes: check box + colour button; the colour
  *  panel opacity is 100 - transparency. */
 function BackgroundColorRow(props: { style: DrawingStyle; patchStyle: (p: Partial<DrawingStyle>) => void; fallbackColor?: string }) {
   const color = () => applyOpacity(parseColor(props.style.backgroundColor ?? props.fallbackColor ?? props.style.color).hex, 100 - (props.style.transparency ?? 50));
@@ -2446,7 +2438,7 @@ function BackgroundColorRow(props: { style: DrawingStyle; patchStyle: (p: Partia
   );
 }
 
-/** TV level grid + "Use one color" + "Background" (see the call site). */
+/** Level grid + "Use one color" + "Background" (see the call site). */
 function LevelGridRows(props: { kind: string; style: DrawingStyle; defaults: LevelDef[]; patchStyle: (p: Partial<DrawingStyle>) => void; extendRow?: import("solid-js").JSX.Element }) {
   const levels = () => props.style.levels ?? props.defaults;
   const patchLevel = (i: number, patch: Partial<LevelDef>) => {
@@ -2477,7 +2469,7 @@ function LevelGridRows(props: { kind: string; style: DrawingStyle; defaults: Lev
               <Show
                 when={!lvl.label}
                 fallback={
-                  // TV Gann fan: the ratio is the row title (label column).
+                  // Gann fan: the ratio is the row title (label column).
                   <span class="drawing-settings-level-title">
                     <CheckboxRow checked={lvl.visible} onChange={(v) => patchLevel(i(), { visible: v })} label={lvl.label ?? ""} />
                   </span>
@@ -2485,7 +2477,7 @@ function LevelGridRows(props: { kind: string; style: DrawingStyle; defaults: Lev
               >
                 <CheckBox
                   checked={lvl.visible}
-                  // TV parallel channel: levels 0 and 1 (rows 2 and 6) are locked on.
+                  // Parallel channel: levels 0 and 1 (rows 2 and 6) are locked on.
                   disabled={props.kind === "parallel-channel" && (i() === 1 || i() === 5)}
                   onChange={(v) => patchLevel(i(), { visible: v })}
                 />
@@ -2544,7 +2536,7 @@ function DialogColorButton(props: { color: string; onColor: (c: string) => void;
       >
         <span
           class="drawing-settings-color-swatch-fill"
-          // TV mixed-colour placeholder: red / teal split along the diagonal.
+          // Mixed-colour placeholder: red / teal split along the diagonal.
           style={props.mixed ? { background: "linear-gradient(to top right, #f7525f 50%, #22ab94 50%)" } : { "--swatch-color": props.color }}
         />
       </button>
@@ -2557,16 +2549,16 @@ function DialogColorButton(props: { color: string; onColor: (c: string) => void;
   );
 }
 
-/** TV's composite `color-with-thickness-select` (75×34: swatch + current-width
+/** Composite `color-with-thickness-select` (75×34: swatch + current-width
  *  line preview) — opens ONE panel carrying swatches + opacity + Thickness +
- *  Line style sections (captured 250×436). */
+ *  Line style sections (250×436). */
 function ColorThicknessPicker(props: {
   color: string;
   width: number;
   lineStyle?: LineStyle;
   onColor: (c: string) => void;
   onWidth: (w: number) => void;
-  /** Omitted → no "Line style" section (TV polyline). */
+  /** Omitted → no "Line style" section (polyline). */
   onLineStyle?: (s: LineStyle) => void;
 }) {
   const [open, setOpen] = createSignal(false);

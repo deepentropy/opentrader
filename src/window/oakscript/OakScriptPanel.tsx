@@ -1,7 +1,6 @@
 /*
- * OakScriptPanel — bottom-docked script editor drawer, the OakScript port of
- * TradingView's Pine Editor in its "Move script to bottom" mode (Desktop
- * 3.3.0, geometry and chrome probed live).
+ * OakScriptPanel — bottom-docked OakScript editor drawer ("Move script to
+ * bottom" mode).
  *
  * Vertical layout: resize handle | header | editor body | console (toggle) |
  * status bar. The header's script-name button opens the script menu (copy /
@@ -9,7 +8,7 @@
  * in the kv script store and execute in the shared worker engine.
  */
 import { For, Show, Suspense, createEffect, createSignal, lazy, on } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
 import * as scripts from "../../data/oakscript-store";
@@ -30,7 +29,7 @@ const HEIGHT_KEY = "tv:oakscript:panelHeight";
 const MINIMIZED_KEY = "tv:oakscript:panelMinimized";
 const CONSOLE_KEY = "tv:oakscript:consoleOpen";
 const MAX_LOG_ENTRIES = 200;
-/** TV's bottom-dock default (275px on a 994px window). */
+/** Bottom-dock default (275px on a 994px window). */
 const DEFAULT_HEIGHT = 275;
 const MIN_HEIGHT = 120;
 /** Keep the chart at least this tall when the editor grows or maximizes off. */
@@ -56,7 +55,7 @@ type Props = {
 export function OakScriptPanel(props: Props) {
   const [height, setHeight] = createSignal<number>(loadHeight());
   const [minimized, setMinimized] = createSignal(kv.getItem(MINIMIZED_KEY) === "1");
-  // Maximized fills the chart-pane column; not persisted (TV restores docked).
+  // Maximized fills the chart-pane column; not persisted (restores docked).
   const [maximized, setMaximized] = createSignal(false);
   const [cursor, setCursor] = createSignal<{ line: number; col: number } | null>(null);
   let rootRef: HTMLElement | undefined;
@@ -268,7 +267,7 @@ export function OakScriptPanel(props: Props) {
               onClick={() => setMenuOpen((o) => !o)}
             >
               <span class="oak-panel__logo">
-                <TvIcon name="rr-pine-dialog-button" size={18} />
+                <Icon name="rr-pine-dialog-button" size={18} />
               </span>
               <span class="oak-panel__title">{currentScript().name}</span>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -356,14 +355,14 @@ export function OakScriptPanel(props: Props) {
               aria-label="Close"
               onClick={props.onClose}
             >
-              <TvIcon name="tab-close" size={16} />
+              <Icon name="tab-close" size={16} />
             </button>
           </Tooltip>
         </div>
       </header>
       <Show when={!minimized()}>
         <div class="oak-panel__body">
-          <Suspense fallback={<div class="tv-empty-state">Loading editor…</div>}>
+          <Suspense fallback={<div class="ot-empty-state">Loading editor…</div>}>
             <OakScriptEditor
               theme={props.theme}
               scriptId={currentScript().id}
@@ -399,7 +398,7 @@ export function OakScriptPanel(props: Props) {
                 aria-pressed={consoleOpen()}
                 onClick={() => setConsoleOpen((o) => !o)}
               >
-                <TvIcon name="oak-console" size={16} />
+                <Icon name="oak-console" size={16} />
               </button>
             </Tooltip>
           </div>

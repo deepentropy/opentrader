@@ -1,8 +1,8 @@
 /*
- * `.tv-toolbar-button` — base for any TradingView toolbar button that
- * shows the rounded hover/active pill on a transparent surface.  Mirrors
- * TV's `.button-GwQQdU8S` (probed 2026-05-28): one CSS rule, parent sets
- * `--tv-toolbar-explicit-hover-*` to control the pill geometry per surface.
+ * `.ot-toolbar-button` — base for any toolbar button that shows the
+ * rounded hover/active pill on a transparent surface: one CSS rule, parent
+ * sets `--ot-toolbar-explicit-hover-*` to control the pill geometry per
+ * surface.
  *
  * Add this class alongside a surface-specific class that handles the
  * button's own dimensions / padding (e.g. `.drawing-tool-btn`,
@@ -10,12 +10,12 @@
  * one that overrides the CSS variables below; the base class only
  * supplies the pill itself + the activated/hovered fill.
  *
- * Variables (all optional; defaults match TV's neutral toolbar buttons):
- *   --tv-tb-pill-inset       — same on all sides (shorthand; 2px default)
- *   --tv-tb-pill-{top,bottom,left,right} — per-side override
- *   --tv-tb-pill-radius      — pill corner radius (6px default)
+ * Variables (all optional; defaults match the neutral toolbar buttons):
+ *   --ot-tb-pill-inset       — same on all sides (shorthand; 2px default)
+ *   --ot-tb-pill-{top,bottom,left,right} — per-side override
+ *   --ot-tb-pill-radius      — pill corner radius (6px default)
  */
-.tv-toolbar-button {
+.ot-toolbar-button {
   position: relative;
   z-index: 0;
   display: flex;
@@ -32,114 +32,113 @@
   transition: color 60ms ease;
 }
 
-.tv-toolbar-button::before {
+.ot-toolbar-button::before {
   content: "";
   position: absolute;
-  top:    var(--tv-tb-pill-top,    var(--tv-tb-pill-inset, 2px));
-  bottom: var(--tv-tb-pill-bottom, var(--tv-tb-pill-inset, 2px));
-  left:   var(--tv-tb-pill-left,   var(--tv-tb-pill-inset, 2px));
-  right:  var(--tv-tb-pill-right,  var(--tv-tb-pill-inset, 2px));
-  border-radius: var(--tv-tb-pill-radius, 6px);
+  top:    var(--ot-tb-pill-top,    var(--ot-tb-pill-inset, 2px));
+  bottom: var(--ot-tb-pill-bottom, var(--ot-tb-pill-inset, 2px));
+  left:   var(--ot-tb-pill-left,   var(--ot-tb-pill-inset, 2px));
+  right:  var(--ot-tb-pill-right,  var(--ot-tb-pill-inset, 2px));
+  border-radius: var(--ot-tb-pill-radius, 6px);
   background-color: transparent;
   z-index: -1;
   pointer-events: none;
   transition: background-color 60ms ease;
 }
 
-.tv-toolbar-button:hover {
+.ot-toolbar-button:hover {
   color: var(--color-toolbar-button-text-hover);
 }
 
 /* Plain hover (button not selected) — neutral gray pill. */
-.tv-toolbar-button:hover:not(.is-disabled)::before {
+.ot-toolbar-button:hover:not(.is-disabled)::before {
   background-color: var(--color-toolbar-button-background-hover);
 }
 
 /* Toggle "active" (magnet / lock / hide / favorites-toggle, header interval,
- * right-rail tabs) — dedicated blue-tinted pill. TV keeps separate
- * `-background-active` and `-background-hover` tokens precisely so the active
- * button stays distinguishable from one that's merely hovered; reusing the
- * hover token here made the active tab invisible at rest. */
-.tv-toolbar-button.active::before,
-.tv-toolbar-button[aria-pressed="true"]::before {
+ * right-rail tabs) — dedicated blue-tinted pill. Separate `-background-active`
+ * and `-background-hover` tokens exist so the active button stays
+ * distinguishable from one that's merely hovered; reusing the hover token here
+ * made the active tab invisible at rest. */
+.ot-toolbar-button.active::before,
+.ot-toolbar-button[aria-pressed="true"]::before {
   background-color: var(--color-toolbar-button-background-active);
 }
 
 /* Active + hover — slightly stronger tint (higher specificity wins). */
-.tv-toolbar-button.active:hover:not(.is-disabled)::before,
-.tv-toolbar-button[aria-pressed="true"]:hover:not(.is-disabled)::before {
+.ot-toolbar-button.active:hover:not(.is-disabled)::before,
+.ot-toolbar-button[aria-pressed="true"]:hover:not(.is-disabled)::before {
   background-color: var(--color-toolbar-button-background-active-hover);
 }
 
-.tv-toolbar-button.active,
-.tv-toolbar-button[aria-pressed="true"] {
+.ot-toolbar-button.active,
+.ot-toolbar-button[aria-pressed="true"] {
   color: var(--color-toolbar-button-text-active);
 }
 
-.tv-toolbar-button.active:hover:not(.is-disabled),
-.tv-toolbar-button[aria-pressed="true"]:hover:not(.is-disabled) {
+.ot-toolbar-button.active:hover:not(.is-disabled),
+.ot-toolbar-button[aria-pressed="true"]:hover:not(.is-disabled) {
   color: var(--color-toolbar-button-text-active-hover);
 }
 
-/* Selected DRAWING TOOL — NOT blue. The live TradingView drawing toolbar leaves
- * the armed tool's icon at its default colour and marks it only with a neutral
- * grey pill (verified via DevTools on the real app: isActive button icon
- * #dbdbdb, pill #3d3d3d = the secondary-hover token). So `.selected` keeps the
- * default text colour (no rule) and just gets the grey pill, at rest and on
- * hover. Placed after the plain-hover rule so it wins on hover by source order. */
-.tv-toolbar-button.selected::before,
-.tv-toolbar-button.selected:hover:not(.is-disabled)::before {
+/* Selected DRAWING TOOL — NOT blue. The drawing toolbar leaves the armed
+ * tool's icon at its default colour and marks it only with a neutral grey pill
+ * (icon #dbdbdb, pill #3d3d3d = the secondary-hover token). So `.selected`
+ * keeps the default text colour (no rule) and just gets the grey pill, at rest
+ * and on hover. Placed after the plain-hover rule so it wins on hover by source order. */
+.ot-toolbar-button.selected::before,
+.ot-toolbar-button.selected:hover:not(.is-disabled)::before {
   background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
 }
 
 /* Selected TIMEFRAME on the header interval strip — the same neutral grey
- * treatment as the armed drawing tool, NOT the blue toggle pill (TV Desktop
- * marks the active interval with a grey pill + default-colour label). Three
+ * treatment as the armed drawing tool, NOT the blue toggle pill (the active
+ * interval gets a grey pill + default-colour label). Three
  * classes so it outranks the generic `.active` blue pill + text rules above,
  * at rest and on hover. */
-.tv-toolbar-button.header-toolbar-btn.active::before,
-.tv-toolbar-button.header-toolbar-btn.active:hover:not(.is-disabled)::before {
+.ot-toolbar-button.header-toolbar-btn.active::before,
+.ot-toolbar-button.header-toolbar-btn.active:hover:not(.is-disabled)::before {
   background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
 }
-.tv-toolbar-button.header-toolbar-btn.active {
+.ot-toolbar-button.header-toolbar-btn.active {
   color: var(--color-toolbar-button-text);
 }
-.tv-toolbar-button.header-toolbar-btn.active:hover:not(.is-disabled) {
+.ot-toolbar-button.header-toolbar-btn.active:hover:not(.is-disabled) {
   color: var(--color-toolbar-button-text-hover);
 }
 
 /* Selected RIGHT-RAIL TAB — neutral grey pill + default icon colour, the same
- * treatment as the armed drawing tool (NOT the blue toggle pill). TV Desktop
- * marks the open widget tab this way. Specificity beats the generic `.active` /
+ * treatment as the armed drawing tool (NOT the blue toggle pill), for the
+ * open widget tab. Specificity beats the generic `.active` /
  * `[aria-pressed="true"]` blue rules above; covers rest + hover. */
-.tv-toolbar-button.right-rail-tab.active::before,
-.tv-toolbar-button.right-rail-tab[aria-pressed="true"]::before,
-.tv-toolbar-button.right-rail-tab.active:hover:not(.is-disabled)::before,
-.tv-toolbar-button.right-rail-tab[aria-pressed="true"]:hover:not(.is-disabled)::before {
+.ot-toolbar-button.right-rail-tab.active::before,
+.ot-toolbar-button.right-rail-tab[aria-pressed="true"]::before,
+.ot-toolbar-button.right-rail-tab.active:hover:not(.is-disabled)::before,
+.ot-toolbar-button.right-rail-tab[aria-pressed="true"]:hover:not(.is-disabled)::before {
   background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
 }
-.tv-toolbar-button.right-rail-tab.active,
-.tv-toolbar-button.right-rail-tab[aria-pressed="true"] {
+.ot-toolbar-button.right-rail-tab.active,
+.ot-toolbar-button.right-rail-tab[aria-pressed="true"] {
   color: var(--color-toolbar-button-text);
 }
-.tv-toolbar-button.right-rail-tab.active:hover:not(.is-disabled),
-.tv-toolbar-button.right-rail-tab[aria-pressed="true"]:hover:not(.is-disabled) {
+.ot-toolbar-button.right-rail-tab.active:hover:not(.is-disabled),
+.ot-toolbar-button.right-rail-tab[aria-pressed="true"]:hover:not(.is-disabled) {
   color: var(--color-toolbar-button-text-hover);
 }
 
-/* Favourite-drawings toggle (left toolbar star) — TV keeps the neutral icon
+/* Favourite-drawings toggle (left toolbar star) — keeps the neutral icon
  * colour with a grey pill when active, never the blue toggle. */
-.tv-toolbar-button.drawing-fav-toggle.active::before,
-.tv-toolbar-button.drawing-fav-toggle.active:hover:not(.is-disabled)::before {
+.ot-toolbar-button.drawing-fav-toggle.active::before,
+.ot-toolbar-button.drawing-fav-toggle.active:hover:not(.is-disabled)::before {
   background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
 }
-.tv-toolbar-button.drawing-fav-toggle.active {
+.ot-toolbar-button.drawing-fav-toggle.active {
   color: var(--color-toolbar-button-text);
 }
-.tv-toolbar-button.drawing-fav-toggle.active:hover:not(.is-disabled) {
+.ot-toolbar-button.drawing-fav-toggle.active:hover:not(.is-disabled) {
   color: var(--color-toolbar-button-text-hover);
 }
 
-.tv-toolbar-button.is-disabled {
+.ot-toolbar-button.is-disabled {
   opacity: 0.4;
 }

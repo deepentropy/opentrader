@@ -1,10 +1,9 @@
 /*
  * FavoritesToolbar — the "favorite drawing tools toolbar": a floating,
  * draggable horizontal strip holding the drawing tools the user has starred,
- * for one-click access. Solid port of the reference mock's FavoritesToolbar
- * (reverse-engineered from TradingView Desktop 3.1.0.7818).
+ * for one-click access. Solid port of the reference mock's FavoritesToolbar.
  *
- * Fidelity notes (captured from the live `tv-floating-toolbar`):
+ * Fidelity notes (`ot-floating-toolbar`):
  *   - shell: 38px tall, 6px radius, bg #1f1f1f, shadow 0 2px 4px rgba(0,0,0,.4)
  *     — identical tokens to the selected-drawing toolbar, so it reuses the
  *     `.selected-toolbar` shell styles.
@@ -21,7 +20,7 @@
  * "Show …" lives on the left toolbar's context menu — see DrawingToolbar).
  */
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import {
   favoriteToolIds,
   favoritesToolbarPos,
@@ -39,8 +38,8 @@ type Props = {
 export function FavoritesToolbar(props: Props) {
   // Position is a free offset from the default dock (top-centre of the chart
   // pane). Persisted to storage (favorite-tools.ts) so it survives reloads and
-  // syncs across windows; reset is not exposed (matches TV, which keeps the bar
-  // where you drag it).
+  // syncs across windows; reset is not exposed (the bar stays where you drag
+  // it).
   const pos = favoritesToolbarPos;
   const setPos = setFavoritesToolbarPos;
   let drag: null | { startX: number; startY: number; baseX: number; baseY: number } = null;
@@ -124,8 +123,8 @@ export function FavoritesToolbar(props: Props) {
       .filter((t): t is { id: string; meta: NonNullable<ReturnType<typeof findToolMeta>> } => t.meta !== null),
   );
 
-  // Only render when shown AND there is ≥1 favourite (matches TV: an empty
-  // favourites set shows no bar).
+  // Only render when shown AND there is ≥1 favourite (an empty favourites set
+  // shows no bar).
   const show = () => favoritesToolbarVisible() && tools().length > 0;
 
   return (
@@ -145,7 +144,7 @@ export function FavoritesToolbar(props: Props) {
           onPointerUp={onDragUp}
           aria-label="Drag"
         >
-          {/* 6-dot grip, captured viewBox 0 0 8 12. */}
+          {/* 6-dot grip, viewBox 0 0 8 12. */}
           <svg viewBox="0 0 8 12" width="8" height="12" fill="currentColor" aria-hidden="true">
             <rect width="2" height="2" rx="1" />
             <rect width="2" height="2" rx="1" y="5" />
@@ -166,7 +165,7 @@ export function FavoritesToolbar(props: Props) {
                 aria-label={meta.title}
                 onClick={() => window.dispatchEvent(new CustomEvent("select-drawing-tool", { detail: { toolId: id } }))}
               >
-                <TvIcon name={meta.iconName} size={28} />
+                <Icon name={meta.iconName} size={28} />
               </button>
             )}
           </For>
@@ -176,7 +175,7 @@ export function FavoritesToolbar(props: Props) {
           {(m) => (
             <div
               ref={menuEl}
-              class="tv-popover drawing-toolbar-context-menu"
+              class="ot-popover drawing-toolbar-context-menu"
               role="menu"
               style={{ position: "fixed", left: `${m().x}px`, top: `${m().y}px` }}
             >

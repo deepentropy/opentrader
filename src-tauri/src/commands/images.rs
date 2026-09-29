@@ -1,15 +1,14 @@
 /*
- * Drawing images (TV Image tool). TradingView uploads the chosen file to its
- * own storage; OpenTrader keeps it in the app data folder instead
- * (`<app data>/drawing-images/<content hash>.<ext>`), so the drawing itself
- * only stores the file name and the drawings store / cross-window sync never
- * carries image bytes.
+ * Drawing images (Image tool). OpenTrader keeps the chosen file in the app
+ * data folder (`<app data>/drawing-images/<content hash>.<ext>`), so the
+ * drawing itself only stores the file name and the drawings store /
+ * cross-window sync never carries image bytes.
  */
 use base64::Engine as _;
 use std::hash::{Hash, Hasher};
 use tauri::Manager as _;
 
-/// TV limits: JPG, PNG or WEBP, max 2 MB (`getMaxImageSizeInBytes` = 2e6).
+/// Limits: JPG, PNG or WEBP, max 2 MB.
 const MAX_BYTES: usize = 2_000_000;
 const EXTS: [&str; 4] = ["png", "jpg", "jpeg", "webp"];
 

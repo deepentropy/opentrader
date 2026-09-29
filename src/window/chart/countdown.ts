@@ -1,6 +1,6 @@
 /*
  * Countdown-to-bar-close primitive — the Scales row "Countdown to bar close".
- * TV renders the remaining time as a second row INSIDE the last-price label,
+ * The remaining time renders as a second row INSIDE the last-price label,
  * ticking every second. Built on the series-primitive pattern
  * (session-breaks.ts) as a priceAxisPaneViews() plate drawn on the axis
  * canvas (the axis-view API can't do a two-row label).
@@ -27,7 +27,7 @@ export type CountdownState = {
   /** Anchor price (the last bar's close — the plate centres its price row here,
    *  where the library's own last-value label would sit). */
   price: number;
-  /** Formatted last price — row 1 of the plate (TV's combined label). Empty
+  /** Formatted last price — row 1 of the plate (the combined label). Empty
    *  when the Symbol price-label setting is off: the plate then shows only
    *  the countdown row. */
   priceText: string;
@@ -42,9 +42,9 @@ export type CountdownState = {
   fontFamily: string;
 };
 
-/** Draws TV's combined last-price label on the price axis: one plate, price
- *  row on top and the countdown row under it (TV renders the countdown as a
- *  second row INSIDE the price label, not as a separate badge). While this
+/** Draws the combined last-price label on the price axis: one plate, price
+ *  row on top and the countdown row under it (the countdown is a second row
+ *  INSIDE the price label, not a separate badge). While this
  *  plate is visible ChartView turns the library's own last-value label off so
  *  the two don't double-draw. */
 export class CountdownPrimitive implements ISeriesPrimitive<Time> {
@@ -145,7 +145,7 @@ class CountdownPaneRenderer implements IPrimitivePaneRenderer {
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
       for (let i = 0; i < rows.length; i++) {
-        // TV's third line (countdown) uses the text colour at 25 %
+        // The third line (countdown) uses the text colour at 25 %
         // transparency; price and percentage rows use it as is.
         const isCountdown = rows[i] === s.text && i === rows.length - 1 && s.text.length > 0;
         ctx.globalAlpha = isCountdown ? 0.75 : 1;
@@ -187,9 +187,9 @@ const SESSION_CLOSE = 16 * 3600; // 16:00 ET
 const ETH_OPEN = 4 * 3600; // 04:00 ET (datafeed's extended window)
 const ETH_CLOSE = 20 * 3600; // 20:00 ET
 
-/** TV shows the countdown only while a bar is forming — with the market
- *  closed the label disappears entirely (desktop capture 25/07/2026: closed
- *  market, showCountdown on, no label on any interval). Intraday bars form
+/** The countdown shows only while a bar is forming: with the market closed
+ *  the label disappears entirely (showCountdown on, no label on any
+ *  interval). Intraday bars form
  *  across the CHOSEN session's hours (ETH 04:00-20:00), so the gate follows
  *  the bottom-bar session toggle; holidays are not modelled (same limitation
  *  as the daily walk). */
@@ -226,7 +226,7 @@ function formatRemaining(sec: number): string {
   return h > 0 ? `${h}:${mm}:${pad}` : `${mm}:${pad}`;
 }
 
-/** Remaining time to the current bar's close for a TV interval id, or null
+/** Remaining time to the current bar's close for an interval id, or null
  *  when the interval takes no countdown (unknown/custom ids). `lastBarSec` is
  *  the newest loaded bar's bucket start (aligns intraday buckets, e.g.
  *  RTH-anchored hours); intraday falls back to the wall-clock grid without

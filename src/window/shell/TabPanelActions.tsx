@@ -1,11 +1,11 @@
 /*
  * TabPanelActions — the cluster between the tabs and the window controls in
- * the merged title bar. Mirrors TV desktop's `tab-panel-actions`; we ship the
+ * the merged title bar (`tab-panel-actions`); we ship the
  * main-menu button (meatballs glyph for a signed-in user) which opens the
  * account / app main menu (reusing the header's ProfileMenu).
  */
 import { createSignal, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { ProfileMenu } from "../header/ProfileMenu";
 import { isTauri, openNewWindow } from "./window-bridge";
 
@@ -34,7 +34,7 @@ export function TabPanelActions(props: Props) {
           aria-label="New window"
           onClick={() => openNewWindow()}
         >
-          <TvIcon name="tab-new-window" size={28} />
+          <Icon name="tab-new-window" size={28} />
         </button>
       </Show>
       <button
@@ -48,7 +48,7 @@ export function TabPanelActions(props: Props) {
           setAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()))
         }
       >
-        <TvIcon name="main-menu-meatballs" size={28} />
+        <Icon name="main-menu-meatballs" size={28} />
       </button>
       <Show when={anchor()}>
         {(a) => (

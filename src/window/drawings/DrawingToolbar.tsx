@@ -6,14 +6,14 @@
  * (Magnet / Stay-mode / Lock / Hide), Measure button, and Trash button all
  * land in Feature 5a/5b.
  *
- * Click model (per the live app):
+ * Click model:
  *   • Click the icon button → activate the group's current default tool.
  *   • Click the chevron arrow → open/close the submenu.
  * Click a submenu row → close the submenu, activate that tool, and promote
- * it to be the group's displayed default (TV's per-group MRU behaviour).
+ * it to be the group's displayed default (per-group MRU behaviour).
  */
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import {
   CURSOR_MODE_TOOL,
@@ -35,15 +35,13 @@ import { findOverlaySpec } from "lightweight-charts-drawing/tv/specs";
 import { PLACE_AT_CURSOR_EVENT, type PlaceAtCursorDetail } from "./DrawingsOverlay";
 import type { DrawingKind } from "lightweight-charts-drawing/tv/types";
 
-/** Hotkey tools that TV creates at once at the cursor (Alt+H/J/V/C), measured
- *  24/09/2026. */
+/** Hotkey tools created at once at the cursor (Alt+H/J/V/C). */
 const PLACE_NOW = new Set(["horizontal-line", "horizontal-ray", "vertical-line", "cross-line"]);
 
-/** Main-button tooltip hotkey hints — TV `lineToolsInfo` `hotKey` (module
- *  771377, read 27/09/2026). NOT the tool-select hotkeys (Alt+T, Alt+F…):
- *  those show on the flyout rows only. The Shift gestures themselves live in
- *  lightweight-charts-drawing interact/shift. TV's LineToolGannSquare is the
- *  "Gann box" (OT gann-box). */
+/** Main-button tooltip hotkey hints. NOT the tool-select hotkeys (Alt+T,
+ *  Alt+F…): those show on the flyout rows only. The Shift gestures themselves
+ *  live in lightweight-charts-drawing interact/shift. The "Gann box" is OT
+ *  gann-box. */
 const SHIFT_45 = { hotkey: "Shift", hotkeyText: "{0} — drawing a straight line at angles of 45" };
 const SHIFT_CIRCLE = { hotkey: "Shift", hotkeyText: "{0} — circle" };
 const SHIFT_SQUARE = { hotkey: "Shift", hotkeyText: "{0} — square" };
@@ -76,9 +74,9 @@ const REGION_TOOLS = new Set<string>(["measure", "zoom"]);
 
 /** Whether picking a tool actually does anything: it places a drawing (has an
  *  overlay spec), sets a cursor mode, opens the font-icon picker, or runs a
- *  region gesture. Several tools are listed for TradingView parity but have no
- *  implementation yet — those render disabled (greyed) in the submenu and arm
- *  nothing if reached by any other path. */
+ *  region gesture. Several tools are listed but have no implementation yet —
+ *  those render disabled (greyed) in the submenu and arm nothing if reached
+ *  by any other path. */
 function isToolImplemented(toolId: string): boolean {
   return (
     !!findOverlaySpec(toolId) ||
@@ -125,12 +123,12 @@ type Props = {
   onToggleHideIndicators: () => void;
   onToggleHideBoth: () => void;
   /** Remove-objects dropdown actions: drawings only, indicators only, or both.
-   *  Mirrors TV's `removeAllDrawingTools` split control. The icon click defaults
-   *  to "remove drawings" (`onRemoveAll`). */
+   *  Split control: the icon click defaults to "remove drawings"
+   *  (`onRemoveAll`). */
   onRemoveAll: () => void;
   onRemoveIndicators: () => void;
   onRemoveAllObjects: () => void;
-  /** Counts in the Remove rows (TV "Remove 112 drawings & 8 indicators"):
+  /** Counts in the Remove rows ("Remove 112 drawings & 8 indicators"):
    *  the active drawings and the active pane's indicators, the sets the
    *  rows remove. */
   drawingCount: number;
@@ -141,16 +139,16 @@ type Props = {
   setSyncMode: (m: SyncMode) => void;
 };
 
-/** Drawing-sync scope — TV's `drawingSyncMode-button`. Controls how drawings are
- *  shared across the layout's panes: per pane / per layout / globally by symbol. */
+/** Drawing-sync scope — the `drawingSyncMode-button`. Controls how drawings
+ *  are shared across the layout's panes: per pane / per layout / globally by
+ *  symbol. */
 export type SyncMode = "none" | "layout" | "global";
 const SYNC_LABELS: Record<SyncMode, string> = {
   none: "No sync",
   layout: "New drawings sync in layout",
   global: "New drawings sync globally",
 };
-/** Sync button tooltip per mode — TV `drawingSyncMode-button` buttonTitle
- *  (module 871866, strings 173108 / 355519 / 734472). */
+/** Sync button tooltip per mode (`drawingSyncMode-button` title). */
 const SYNC_TOOLTIPS: Record<SyncMode, string> = {
   none: "New drawings will not be synced",
   layout: "New drawings are replicated to all charts in the layout and shown when the same ticker is selected",
@@ -161,8 +159,8 @@ const SYNC_TOOLTIPS: Record<SyncMode, string> = {
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function DrawingToolbar(props: Props) {
-  // Which tool each group displays on its toolbar button — TV's per-group
-  // MRU behaviour. Pure UI state, stays local.
+  // Which tool each group displays on its toolbar button — per-group MRU
+  // behaviour. Pure UI state, stays local.
   const [groupDefault, setGroupDefault] = createSignal<Record<string, string>>(
     Object.fromEntries(GROUPS.map((g) => [g.id, groupTools(g)[0]?.id ?? ""])),
   );
@@ -182,7 +180,7 @@ export function DrawingToolbar(props: Props) {
   const [removeMenuOpen, setRemoveMenuOpen] = createSignal(false);
   // FontIconPicker — open on this tab when an Icon/Emoji/Sticker tool is picked.
   const [pickerTab, setPickerTab] = createSignal<FontIconTab | null>(null);
-  // Magnet strength dropdown (Weak / Strong + Snap to indicator). TV's magnet
+  // Magnet strength dropdown (Weak / Strong + Snap to indicator). The magnet
   // button is a split control: the icon toggles magnet, the caret opens this.
   const [magnetMenuOpen, setMagnetMenuOpen] = createSignal(false);
   // Right-click context menu on the toolbar background — its single item is the
@@ -193,7 +191,7 @@ export function DrawingToolbar(props: Props) {
   let toolbarMenuEl: HTMLDivElement | undefined;
 
   function pickTool(toolId: string) {
-    // Tools listed for TV parity but not yet implemented arm nothing — bail
+    // Tools listed but not yet implemented arm nothing — bail
     // before touching selection so a stray favorites/hotkey path can't strand
     // the user on an inert tool. (The submenu rows are disabled too.)
     if (!isToolImplemented(toolId)) return;
@@ -320,7 +318,7 @@ export function DrawingToolbar(props: Props) {
       if (!groupId || !toolId) return;
       e.preventDefault();
       setGroupDefault({ ...groupDefault(), [groupId]: toolId });
-      // TV: Alt+H / J / V / C create the line at once at the cursor (the pane
+      // Alt+H / J / V / C create the line at once at the cursor (the pane
       // under the pointer handles it); Alt+T / F / Shift+R only arm the tool.
       // With the pointer outside every chart, the tool is armed instead.
       if (PLACE_NOW.has(toolId)) {
@@ -332,7 +330,7 @@ export function DrawingToolbar(props: Props) {
     };
     document.addEventListener("keydown", onHotkey);
 
-    // Ctrl+Alt+H toggles Hide-all-drawings, mirroring TV's hotkey.
+    // Ctrl+Alt+H toggles Hide-all-drawings.
     const onHideAllHotkey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
@@ -387,14 +385,14 @@ export function DrawingToolbar(props: Props) {
                     <button
                       type="button"
                       class={
-                        "tv-toolbar-button drawing-tool-btn" +
+                        "ot-toolbar-button drawing-tool-btn" +
                         (isSelected() ? " selected" : "")
                       }
                       aria-label={defaultTool()!.title}
                       onClick={() => pickTool(defaultTool()!.id)}
                     >
                       <span class="drawing-tool-icon">
-                        <TvIcon
+                        <Icon
                           name={defaultTool()!.iconName ?? group.defaultIcon}
                           size={28}
                         />
@@ -404,7 +402,7 @@ export function DrawingToolbar(props: Props) {
                   <Tooltip text={group.title} side="right">
                     <button
                       type="button"
-                      class="tv-toolbar-button drawing-tool-arrow"
+                      class="ot-toolbar-button drawing-tool-arrow"
                       aria-label={group.title}
                       aria-haspopup="menu"
                       aria-expanded={isOpen()}
@@ -423,7 +421,7 @@ export function DrawingToolbar(props: Props) {
                   </Tooltip>
                   <Show when={isOpen()}>
                     <div
-                      class="tv-popover drawing-tool-submenu"
+                      class="ot-popover drawing-tool-submenu"
                       role="menu"
                       aria-label={group.title}
                     >
@@ -443,8 +441,8 @@ export function DrawingToolbar(props: Props) {
                                 const isCurrent = () =>
                                   tool.id === groupDefault()[group.id];
                                 const fav = () => isFavoriteTool(tool.id);
-                                // Tools listed for TV parity but not yet wired up
-                                // render disabled (greyed) and can't be picked or
+                                // Tools listed but not yet wired up render
+                                // disabled (greyed) and can't be picked or
                                 // favorited.
                                 const impl = isToolImplemented(tool.id);
                                 return (
@@ -463,7 +461,7 @@ export function DrawingToolbar(props: Props) {
                                       onClick={() => pickFromSubmenu(group, tool)}
                                     >
                                       <span class="drawing-tool-submenu-icon">
-                                        <TvIcon
+                                        <Icon
                                           name={tool.iconName ?? group.defaultIcon}
                                           size={28}
                                         />
@@ -477,7 +475,7 @@ export function DrawingToolbar(props: Props) {
                                         </span>
                                       </Show>
                                     </button>
-                                    {/* Favorite star — TV's
+                                    {/* Favorite star —
                                      * `preset-menu-favorite-button`. Revealed on
                                      * row hover; stays filled once favorited.
                                      * Toggles toolbar membership without arming. */}
@@ -497,9 +495,9 @@ export function DrawingToolbar(props: Props) {
                                         toggleFavoriteTool(tool.id);
                                       }}
                                     >
-                                      {/* 5-point star, captured viewBox 0 0 18 18 — rendered
-                                       * at its native 18×18 to match TV Desktop's
-                                       * preset-menu-favorite-button. */}
+                                      {/* 5-point star, viewBox 0 0 18 18 — rendered
+                                       * at its native 18×18 (the
+                                       * preset-menu-favorite-button size). */}
                                       <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
                                         <path
                                           fill={fav() ? "currentColor" : "none"}
@@ -526,20 +524,20 @@ export function DrawingToolbar(props: Props) {
         </For>
       </div>
 
-      {/* Measure + Zoom in (one section, matching TV's grouping) */}
+      {/* Measure + Zoom in (one section) */}
       <div class="drawing-toolbar-section">
         <Tooltip text="Measure" hotkey="Shift" hotkeyText="{0} + Click on the chart" side="right">
           <button
             type="button"
             class={
-              "tv-toolbar-button drawing-tool-btn" +
+              "ot-toolbar-button drawing-tool-btn" +
               (props.armedTool === "measure" ? " selected" : "")
             }
             aria-label="Measure"
             onClick={() => pickTool("measure")}
           >
             <span class="drawing-tool-icon">
-              <TvIcon name="draw-measure" size={28} />
+              <Icon name="draw-measure" size={28} />
             </span>
           </button>
         </Tooltip>
@@ -547,14 +545,14 @@ export function DrawingToolbar(props: Props) {
           <button
             type="button"
             class={
-              "tv-toolbar-button drawing-tool-btn" +
+              "ot-toolbar-button drawing-tool-btn" +
               (props.armedTool === "zoom" ? " selected" : "")
             }
             aria-label="Zoom in"
             onClick={() => pickTool("zoom")}
           >
             <span class="drawing-tool-icon">
-              <TvIcon name="draw-zoom" size={28} />
+              <Icon name="draw-zoom" size={28} />
             </span>
           </button>
         </Tooltip>
@@ -563,8 +561,7 @@ export function DrawingToolbar(props: Props) {
       {/* Toggles — Magnet / Keep drawing / Lock all / Hide all */}
       <div class="drawing-toolbar-section">
         {/* Magnet — split control: the icon toggles magnet on/off, the caret
-         *  opens a Weak/Strong strength menu + a "Snap to indicator" checkbox
-         *  (mirrors TV's magnet button). */}
+         *  opens a Weak/Strong strength menu + a "Snap to indicator" checkbox. */}
         <div class={"drawing-tool-group" + (magnetMenuOpen() ? " open" : "")}>
           <Tooltip
             text="Magnet mode snaps drawings placed near price bars to the closest OHLC value"
@@ -575,7 +572,7 @@ export function DrawingToolbar(props: Props) {
             <button
               type="button"
               class={
-                "tv-toolbar-button drawing-tool-btn" +
+                "ot-toolbar-button drawing-tool-btn" +
                 (props.magnet ? " active" : "")
               }
               aria-label="Magnet mode"
@@ -583,14 +580,14 @@ export function DrawingToolbar(props: Props) {
               onClick={() => props.setMagnet(!props.magnet)}
             >
               <span class="drawing-tool-icon">
-                <TvIcon name="draw-magnet" size={28} />
+                <Icon name="draw-magnet" size={28} />
               </span>
             </button>
           </Tooltip>
           <Tooltip text="Magnets" side="right">
             <button
               type="button"
-              class="tv-toolbar-button drawing-tool-arrow"
+              class="ot-toolbar-button drawing-tool-arrow"
               aria-label="Magnets"
               aria-haspopup="menu"
               aria-expanded={magnetMenuOpen()}
@@ -608,7 +605,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={magnetMenuOpen()}>
-            <div class="tv-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
+            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
               <For each={[["weak", "Weak magnet"], ["strong", "Strong magnet"]] as const}>
                 {([id, label]) => (
                   <button
@@ -621,13 +618,13 @@ export function DrawingToolbar(props: Props) {
                     }
                     onClick={() => {
                       props.setMagnetMode(id);
-                      // Picking a strength enables magnet (matches TV).
+                      // Picking a strength enables magnet.
                       if (!props.magnet) props.setMagnet(true);
                       setMagnetMenuOpen(false);
                     }}
                   >
                     <span class="drawing-tool-submenu-icon">
-                      <TvIcon name="draw-magnet" size={20} />
+                      <Icon name="draw-magnet" size={20} />
                     </span>
                     <span class="drawing-tool-submenu-label apply-overflow-tooltip">{label}</span>
                   </button>
@@ -645,7 +642,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => props.setMagnetSnapsToIndicators(!props.magnetSnapsToIndicators)}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-magnet" size={20} />
+                  <Icon name="draw-magnet" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Snap to indicators</span>
               </button>
@@ -656,7 +653,7 @@ export function DrawingToolbar(props: Props) {
           <button
             type="button"
             class={
-              "tv-toolbar-button drawing-tool-btn" +
+              "ot-toolbar-button drawing-tool-btn" +
               (props.stayMode ? " active" : "")
             }
             aria-label="Keep drawing"
@@ -664,7 +661,7 @@ export function DrawingToolbar(props: Props) {
             onClick={() => props.setStayMode(!props.stayMode)}
           >
             <span class="drawing-tool-icon">
-              <TvIcon name="draw-stay-mode" size={28} />
+              <Icon name="draw-stay-mode" size={28} />
             </span>
           </button>
         </Tooltip>
@@ -672,7 +669,7 @@ export function DrawingToolbar(props: Props) {
           <button
             type="button"
             class={
-              "tv-toolbar-button drawing-tool-btn" +
+              "ot-toolbar-button drawing-tool-btn" +
               (props.lockAllActive ? " active" : "")
             }
             aria-label="Lock all drawings"
@@ -680,11 +677,11 @@ export function DrawingToolbar(props: Props) {
             onClick={props.onToggleLockAll}
           >
             <span class="drawing-tool-icon">
-              <TvIcon name="draw-lock" size={28} />
+              <Icon name="draw-lock" size={28} />
             </span>
           </button>
         </Tooltip>
-        {/* Hide all — split control (TV's `hide-all` dropdown): the icon toggles
+        {/* Hide all — split control (`hide-all` dropdown): the icon toggles
          *  Hide-all-drawings (Ctrl+Alt+H), the caret opens a scope menu mirroring
          *  the Remove control (drawings / indicators / both). All three are
          *  persistent toggles, so they stay meaningful with zero drawings. */}
@@ -693,7 +690,7 @@ export function DrawingToolbar(props: Props) {
             <button
               type="button"
               class={
-                "tv-toolbar-button drawing-tool-btn" +
+                "ot-toolbar-button drawing-tool-btn" +
                 (props.hideAllActive ? " active" : "")
               }
               aria-label="Hide all drawings"
@@ -701,14 +698,14 @@ export function DrawingToolbar(props: Props) {
               onClick={props.onToggleHideAll}
             >
               <span class="drawing-tool-icon">
-                <TvIcon name="draw-hide" size={28} />
+                <Icon name="draw-hide" size={28} />
               </span>
             </button>
           </Tooltip>
           <Tooltip text="Hide options" side="right">
             <button
               type="button"
-              class="tv-toolbar-button drawing-tool-arrow"
+              class="ot-toolbar-button drawing-tool-arrow"
               aria-label="Hide options"
               aria-haspopup="menu"
               aria-expanded={hideMenuOpen()}
@@ -726,7 +723,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={hideMenuOpen()}>
-            <div class="tv-popover drawing-tool-submenu" role="menu" aria-label="Hide options">
+            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Hide options">
               <button
                 type="button"
                 role="menuitemcheckbox"
@@ -735,7 +732,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setHideMenuOpen(false); props.onToggleHideAll(); }}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-hide" size={20} />
+                  <Icon name="draw-hide" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Hide drawings</span>
               </button>
@@ -747,7 +744,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setHideMenuOpen(false); props.onToggleHideIndicators(); }}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-hide" size={20} />
+                  <Icon name="draw-hide" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Hide indicators</span>
               </button>
@@ -759,14 +756,14 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setHideMenuOpen(false); props.onToggleHideBoth(); }}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-hide" size={20} />
+                  <Icon name="draw-hide" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Hide all</span>
               </button>
             </div>
           </Show>
         </div>
-        {/* Sync drawings — TV's `drawingSyncMode-button`. A pure dropdown: both
+        {/* Sync drawings — `drawingSyncMode-button`. A pure dropdown: both
          *  the icon and the caret open the No-sync / Sync-in-layout / Sync-
          *  globally menu. Single-chart app, so the choice is persisted for
          *  parity but has no cross-chart effect yet. */}
@@ -774,7 +771,7 @@ export function DrawingToolbar(props: Props) {
           <Tooltip text={SYNC_TOOLTIPS[syncMode()]} side="right">
             <button
               type="button"
-              class="tv-toolbar-button drawing-tool-btn"
+              class="ot-toolbar-button drawing-tool-btn"
               aria-label={SYNC_TOOLTIPS[syncMode()]}
               aria-haspopup="menu"
               aria-expanded={syncMenuOpen()}
@@ -787,14 +784,14 @@ export function DrawingToolbar(props: Props) {
               }}
             >
               <span class="drawing-tool-icon">
-                <TvIcon name="draw-drawingSyncMode-button" size={28} />
+                <Icon name="draw-drawingSyncMode-button" size={28} />
               </span>
             </button>
           </Tooltip>
           <Tooltip text="Sync drawings options" side="right">
             <button
               type="button"
-              class="tv-toolbar-button drawing-tool-arrow"
+              class="ot-toolbar-button drawing-tool-arrow"
               aria-label="Sync drawings options"
               aria-haspopup="menu"
               aria-expanded={syncMenuOpen()}
@@ -812,7 +809,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={syncMenuOpen()}>
-            <div class="tv-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
+            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
               <For each={["none", "layout", "global"] as const}>
                 {(id) => (
                   <button
@@ -825,11 +822,11 @@ export function DrawingToolbar(props: Props) {
                       setSyncMenuOpen(false);
                     }}
                   >
-                    {/* No leading glyph (TV shows none); the selected row carries
+                    {/* No leading glyph; the selected row carries
                      *  a checkmark in the icon slot, the rest leave it empty. */}
                     <span class="drawing-tool-submenu-icon">
                       <Show when={syncMode() === id}>
-                        <TvIcon name="dt-cm-sync-globally" size={16} />
+                        <Icon name="dt-cm-sync-globally" size={16} />
                       </Show>
                     </span>
                     <span class="drawing-tool-submenu-label apply-overflow-tooltip">{SYNC_LABELS[id]}</span>
@@ -841,15 +838,15 @@ export function DrawingToolbar(props: Props) {
         </div>
       </div>
 
-      {/* Remove objects (standalone section) — TV's `removeAllDrawingTools`
-       *  split control: the icon clears drawings; the caret opens a menu to
-       *  scope the removal (drawings / indicators / both). */}
+      {/* Remove objects (standalone section) — split control: the icon clears
+       *  drawings; the caret opens a menu to scope the removal (drawings /
+       *  indicators / both). */}
       <div class="drawing-toolbar-section">
         <div class={"drawing-tool-group" + (removeMenuOpen() ? " open" : "")}>
           <Tooltip text="Remove objects" side="right">
             <button
               type="button"
-              class="tv-toolbar-button drawing-tool-btn"
+              class="ot-toolbar-button drawing-tool-btn"
               aria-label="Remove objects"
               onClick={() => {
                 setRemoveMenuOpen(false);
@@ -857,14 +854,14 @@ export function DrawingToolbar(props: Props) {
               }}
             >
               <span class="drawing-tool-icon">
-                <TvIcon name="draw-trash" size={28} />
+                <Icon name="draw-trash" size={28} />
               </span>
             </button>
           </Tooltip>
           <Tooltip text="Remove options" side="right">
             <button
               type="button"
-              class="tv-toolbar-button drawing-tool-arrow"
+              class="ot-toolbar-button drawing-tool-arrow"
               aria-label="Remove options"
               aria-haspopup="menu"
               aria-expanded={removeMenuOpen()}
@@ -882,7 +879,7 @@ export function DrawingToolbar(props: Props) {
             </button>
           </Tooltip>
           <Show when={removeMenuOpen()}>
-            <div class="tv-popover drawing-tool-submenu" role="menu" aria-label="Remove options">
+            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Remove options">
               <button
                 type="button"
                 role="menuitem"
@@ -890,7 +887,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveAll(); }}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-trash" size={20} />
+                  <Icon name="draw-trash" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Remove {plural(props.drawingCount, "drawing")}</span>
               </button>
@@ -901,7 +898,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveIndicators(); }}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-trash" size={20} />
+                  <Icon name="draw-trash" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Remove {plural(props.indicatorCount, "indicator")}</span>
               </button>
@@ -912,7 +909,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveAllObjects(); }}
               >
                 <span class="drawing-tool-submenu-icon">
-                  <TvIcon name="draw-trash" size={20} />
+                  <Icon name="draw-trash" size={20} />
                 </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">
                   Remove {plural(props.drawingCount, "drawing")} &amp; {plural(props.indicatorCount, "indicator")}
@@ -924,22 +921,21 @@ export function DrawingToolbar(props: Props) {
       </div>
 
       {/* Flex spacer — pushes the favorites toggle to the very bottom of the
-       *  rail (TV's `fill-BfVZxb4b`); the toggle sits below Remove with a gap,
-       *  not a separator. */}
+       *  rail; the toggle sits below Remove with a gap, not a separator. */}
       <div style={{ flex: "1 1 auto" }} />
 
       {/* Show / hide the floating favorite-drawing-tools toolbar (bottom of the
-       *  rail — TV's `lastGroup`). Mirrors the same `favoritesToolbarVisible`
-       *  signal as the right-click menu and the bar's own "Hide …" item, so all
-       *  three stay in sync. Active (blue) while the bar is shown. */}
+       *  rail). Mirrors the same `favoritesToolbarVisible` signal as the
+       *  right-click menu and the bar's own "Hide …" item, so all three stay in
+       *  sync. Active (blue) while the bar is shown. */}
       <div class="drawing-toolbar-section">
-        {/* TV: static title (871866 `bt`), whatever the bar's state; the
+        {/* Static title, whatever the bar's state; the
          *  button's active state shows whether the bar is visible. */}
         <Tooltip text="Show Favorite Drawing Tools Toolbar" side="right">
           <button
             type="button"
             class={
-              "tv-toolbar-button drawing-tool-btn drawing-fav-toggle" +
+              "ot-toolbar-button drawing-tool-btn drawing-fav-toggle" +
               (favoritesToolbarVisible() ? " active" : "")
             }
             aria-label="Show Favorite Drawing Tools Toolbar"
@@ -947,7 +943,7 @@ export function DrawingToolbar(props: Props) {
             onClick={() => setFavoritesToolbarVisible(!favoritesToolbarVisible())}
           >
             <span class="drawing-tool-icon">
-              <TvIcon name="draw-show-favorite-drawing-tools-toolbar" size={28} />
+              <Icon name="draw-show-favorite-drawing-tools-toolbar" size={28} />
             </span>
           </button>
         </Tooltip>
@@ -960,7 +956,7 @@ export function DrawingToolbar(props: Props) {
         {(m) => (
           <div
             ref={toolbarMenuEl}
-            class="tv-popover drawing-toolbar-context-menu"
+            class="ot-popover drawing-toolbar-context-menu"
             role="menu"
             style={{ position: "fixed", left: `${m().x}px`, top: `${m().y}px` }}
           >

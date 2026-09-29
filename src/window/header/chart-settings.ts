@@ -30,11 +30,11 @@ export type CtrlValue =
   | { kind: 'lineColor'; type: 'Solid' | 'Gradient'; color: string; start: string; end: string; width: number; style: number }
   | { kind: 'input'; value: string }
   | { kind: 'slider'; value: number }
-  // Check-list dropdown (TV 3.3+ price-label rows): the set of checked options.
+  // Check-list dropdown (price-label rows): the set of checked options.
   | { kind: 'multicheck'; on: string[] };
 
-/** TV's three navigation-button behaviours (`ControlBarNavigation`'s
- *  `_visibilityTypeProperty`), in the same order as the dialog's select. */
+/** The three navigation-button behaviours, in the same order as the
+ *  dialog's select. */
 export type NavButtonsBehavior = 'visibleOnMouseOver' | 'alwaysOn' | 'alwaysOff';
 
 export type RowState = { checked: boolean | null; controls: CtrlValue[] };
@@ -66,7 +66,7 @@ export function rowKey(tab: string, i: number): string {
   return keyOf(tab, it && it.kind === 'row' ? rowIdOf(it) : `#${i}`);
 }
 
-/** Build a fresh draft from the captured defaults. */
+/** Build a fresh draft from the factory defaults. */
 export function makeDefaultDraft(): Draft {
   const d: Draft = {};
   for (const [tab, items] of Object.entries(TAB_FORMS)) {
@@ -122,8 +122,8 @@ function reviveCtrl(raw: unknown, def: CtrlValue): CtrlValue {
 
 /** Revision of the draft VALUES. Rev 3 (25/09/2026) = first id-keyed format;
  *  older revisions only exist in legacy (index-keyed) drafts. Rev 4
- *  (26/09/2026): Events → Latest news default is ON (TV factory
- *  showLastNews); earlier drafts stored OFF only because the row was inert. */
+ *  (26/09/2026): Events → Latest news default is ON (factory value);
+ *  earlier drafts stored OFF only because the row was inert. */
 export const SETTINGS_REV = 4;
 
 function migrateValues(rows: Record<string, StoredRow>, rev: number): Record<string, StoredRow> {
@@ -214,7 +214,7 @@ function convertLegacy(raw: Record<string, StoredRow>, rev: number): Record<stri
     out['legend:Background'] = { checked: bg.checked, controls: [{ kind: 'slider', value: 100 - op }] };
   }
   // 4. Scales: Symbol / High and low / Previous day close now carry one
-  //    colour + width (TV) instead of colour(s) + line style; the value-mode
+  //    colour + width instead of colour(s) + line style; the value-mode
   //    select got an id; the lock-ratio field is live (not stored).
   const sym = get('scales', 'Symbol');
   if (sym) out['scales:Symbol'] = { checked: null, controls: [ctrls(sym)[0]] };
@@ -326,7 +326,7 @@ function reader(d: Draft, tab: string): Reader {
 }
 
 /**
- * Canvas → Margins → Right, read out of the captured form.
+ * Canvas → Margins → Right, read out of the default form.
  *
  * A pane with no committed draft gets `appearanceFrom(undefined) === {}`, so
  * `readChartTokens` has to supply its own default. The right margin has no
@@ -338,7 +338,7 @@ export const DEFAULT_RIGHT_OFFSET: number = (() => {
   return n !== undefined ? n : 10;
 })();
 
-/** Canvas → Navigation / Pane select label → TV behaviour id. */
+/** Canvas → Navigation / Pane select label → behaviour id. */
 const NAV_BEHAVIOR: Record<string, NavButtonsBehavior | undefined> = {
   'Visible on mouse over': 'visibleOnMouseOver',
   'Always visible': 'alwaysOn',
@@ -385,7 +385,7 @@ export type SeriesStyles = {
     projCandles: { up: string; down: string };
     phantom: boolean;
   };
-  /** Footprint candles follow the Candles rows (TV page not ported). */
+  /** Footprint candles follow the Candles rows (no page of their own). */
   volFootprint: CandleStyleS;
   svp: SvpStyle;
 };
@@ -407,7 +407,7 @@ export type BoxInputs = { method: BoxMethod; size: number; atrLength: number; pe
 function seriesStylesFrom(d: Draft): SeriesStyles {
   const R = (g: StyleGroup) => reader(d, styleTab(g));
   const def = (g: StyleGroup) => reader(DEFAULTS, styleTab(g));
-  // Read with a per-field fallback to the captured default (always defined).
+  // Read with a per-field fallback to the factory default (always defined).
   const pick = <T>(g: StyleGroup, f: (r: Reader) => T | undefined): T => (f(R(g)) ?? f(def(g))) as T;
   const src = (g: StyleGroup, id = 'Price source'): PriceSource => SOURCE_IDS[pick(g, (r) => r.sel(id)) ?? 'Close'] ?? 'close';
   const spec = (g: StyleGroup, id: string): LineSpec => {
@@ -523,7 +523,7 @@ function seriesStylesFrom(d: Draft): SeriesStyles {
 
 /** Default draft, built once (read-only use). */
 const DEFAULTS: Draft = makeDefaultDraft();
-/** Series styles of an uncommitted pane (TV factory values). */
+/** Series styles of an uncommitted pane (factory values). */
 export const DEFAULT_SERIES_STYLES: SeriesStyles = seriesStylesFrom(DEFAULTS);
 
 export type ChartAppearance = {
@@ -614,7 +614,7 @@ export type ChartAppearance = {
   symbolLastValue?: boolean;
   symbolPriceLine?: boolean;
   symbolNameLabel?: boolean;
-  /** "" = bar direction (TV priceLineColor ""). */
+  /** "" = bar direction. */
   symbolPriceLineColor?: string;
   symbolPriceLineWidth?: number;
   /** Symbol last-value label mode: true = "Price and percentage value". */
@@ -630,7 +630,7 @@ export type ChartAppearance = {
   postMarketColor?: string;
   highLowLabels?: boolean;
   highLowLines?: boolean;
-  /** "" = TV automatic (label colour of the bar direction). */
+  /** "" = automatic (label colour of the bar direction). */
   highLowColor?: string;
   highLowWidth?: number;
   watermarkColor?: string;
@@ -650,7 +650,7 @@ export type ChartAppearance = {
 };
 
 /** Appearance of a chart with no stored settings = the dialog's defaults
- *  (TV factory values), so pressing Ok on an untouched dialog changes
+ *  (factory values), so pressing Ok on an untouched dialog changes
  *  nothing on the chart. */
 let defaultAppearance: ChartAppearance | null = null;
 
@@ -802,7 +802,7 @@ export type ScaleMenuPatch = {
   sessionBreaks?: boolean;
 };
 
-/** Clone `d` (or the captured defaults) with the given scale-menu fields
+/** Clone `d` (or the factory defaults) with the given scale-menu fields
  *  folded into their dialog rows. The price-label rows are check lists, so
  *  label and line are independent memberships. */
 export function patchDraftScales(d: Draft | undefined, p: ScaleMenuPatch): Draft {
@@ -850,7 +850,7 @@ export function patchDraftScales(d: Draft | undefined, p: ScaleMenuPatch): Draft
  *  timezone / ADJ flag, the pane's session and its current price/bar ratio. */
 export type DialogSeed = { timezone: string; adjusted: boolean; session: 'RTH' | 'ETH'; scaleRatio?: number };
 
-/** Clone `d` (or the captured defaults) with the live values folded in, so the
+/** Clone `d` (or the factory defaults) with the live values folded in, so the
  *  dialog opens in sync with the bottom bar and the chart. */
 export function seedDraft(d: Draft | undefined, s: DialogSeed): Draft {
   const base = d ? cloneDraft(d) : makeDefaultDraft();
@@ -865,17 +865,16 @@ export function seedDraft(d: Draft | undefined, s: DialogSeed): Draft {
   return base;
 }
 
-/** TV shows the ratio with up to 7 decimals (`limitedPrecision(7)`). */
+/** The ratio shows with up to 7 decimals. */
 export function formatRatio(v: number): string {
   return String(Number(v.toFixed(7)));
 }
 
 /* ── Chart settings defaults ──────────────────────────────────────────────
- * TV saves the chart properties as the user's defaults on every edit
- * (DefaultProperty "chartproperties" -> saveDefaults), and a NEW chart starts
- * with them; charts that already exist keep their own settings. OpenTrader:
- * the draft committed with Ok / Apply to all is stored here, and a new tab's
- * panes are seeded from it (tabs.ts makeTab). */
+ * The chart properties are saved as the user's defaults on every edit, and a
+ * NEW chart starts with them; charts that already exist keep their own
+ * settings. The draft committed with Ok / Apply to all is stored here, and a
+ * new tab's panes are seeded from it (tabs.ts makeTab). */
 const DEFAULTS_KEY = 'tv:chart-settings-defaults';
 
 export function saveChartSettingsDefaults(d: Draft): void {

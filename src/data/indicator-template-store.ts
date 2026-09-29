@@ -1,11 +1,11 @@
 /*
- * Indicator templates — the header "Indicator templates" dropdown (TV's
- * study-template model, local stand-in: templates live in localStorage, not
- * the cloud). A template captures the active pane's indicator set plus each
- * study's edited inputs/styles, so applying one restores the exact studies.
+ * Indicator templates — the header "Indicator templates" dropdown (a
+ * study-template model; templates live in localStorage, not the cloud). A
+ * template captures the active pane's indicator set plus each study's edited
+ * inputs/styles, so applying one restores the exact studies.
  *
  * Favourited templates surface as round letter badges on the header strip
- * (TV's 20×20 template badges, e.g. "S" for Scalping) — one-click apply.
+ * (20×20 template badges, e.g. "S" for Scalping) — one-click apply.
  */
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
@@ -63,7 +63,7 @@ export function getIndicatorTemplate(id: string): IndicatorTemplate | undefined 
 }
 
 /** Save the current studies under `name`. A template with the same name is
- *  overwritten in place (TV replaces after its confirm prompt). */
+ *  overwritten in place. */
 export function saveIndicatorTemplate(
   name: string,
   indicators: string[],

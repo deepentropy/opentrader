@@ -3,7 +3,7 @@
  * the header "Manage layouts" actions that need a name: Save (when the active
  * chart is still untitled), Rename, and Make a copy.
  *
- * Mirrors TV's name-prompt dialog with the shared dialog tokens (same look as
+ * A name-prompt dialog with the shared dialog tokens (same look as
  * GoToDateDialog): titlebar + close, a single labelled text input, and a
  * Cancel / <submit> footer. Enter submits, Escape / backdrop click cancels.
  */
@@ -58,7 +58,7 @@ export function LayoutNameDialog(props: Props) {
       <div class="layout-name-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) props.onClose(); }}>
         <div
           ref={root}
-          class="tv-popover layout-name-dialog"
+          class="ot-popover layout-name-dialog"
           role="dialog"
           aria-label={props.title}
           data-name="layout-name-dialog"

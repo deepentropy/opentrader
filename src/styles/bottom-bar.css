@@ -1,24 +1,15 @@
 /*
- * BottomBar styles — verbatim from TV's `.chart-controls-bar` ruleset.
- * Captured 28/05/2026.
+ * BottomBar styles (`.chart-controls-bar`).
  *
- * The TV source uses hashed class names (.toolbar-BXXUwft2, .button-merBkM5y,
- * .button-GwQQdU8S, .item-k2h4OAz8, .item-BXXUwft2, .separator-yDfG9Ccu,
- * .fullscreenButton-BXXUwft2, .button-uToIfRbZ, .button-xNqEcuN2,
- * .seriesControlWrapper-BXXUwft2, .inline-BXXUwft2, .arrow-merBkM5y,
- * .arrowWrap-merBkM5y, .wrap-k2h4OAz8, .dateRangeWrapper-BXXUwft2,
- * .dateRangeExpanded-BXXUwft2, .dateRange-BXXUwft2).
- *
- * We collapse those into readable, stable class names prefixed `bottom-bar-`
- * while preserving every numeric value (39 px bar height, 38 px fullscreen
- * width, 8 px date-range margin-inline-start, 6 px hover border-radius,
- * 2 px hover margin, 14 px / 18 px typography, calc(100% - 16px) separator
- * height, 8 px 4 px separator margin) and every token reference.
+ * Class names are prefixed `bottom-bar-`. Key values: 39 px bar height,
+ * 38 px fullscreen width, 8 px date-range margin-inline-start, 6 px hover
+ * border-radius, 2 px hover margin, 14 px / 18 px typography,
+ * calc(100% - 16px) separator height, 8 px 4 px separator margin.
  */
 
 .chart-controls-bar.bottom-bar {
   background-color: var(--color-pane-bg);
-  /* TV desktop 26/07/2026: the bar is its own 4px-rounded card, separated
+  /* The bar is its own 4px-rounded card, separated
      from the chart panel by 2px of window background (shows through the
      margin — the parent chart-pane column is painted #2e2e2e). */
   margin-top: 2px;
@@ -80,7 +71,7 @@
   vertical-align: top;
 }
 
-/* ── Buttons (mirrors `.item-k2h4OAz8` + `.button-GwQQdU8S` family) ─────── */
+/* ── Buttons ───────────────────────────────────────────────────────────── */
 
 .bottom-bar-tab,
 .bottom-bar-item,
@@ -110,25 +101,25 @@
 }
 
 .bottom-bar-text-button {
-  /* Same dims as `.item-BXXUwft2` — keep the explicit 0 6px so timezone /
+  /* Same dims as the other bar items — keep the explicit 0 6px so timezone /
      RTH / ADJ buttons match the date-range tabs exactly. */
   padding: 0 6px;
 }
 
-/* TV hover idiom — a child ::before paints a rounded-rect highlight inside
-   2 px margins (or whatever overrides via --tv-toolbar-explicit-hover-margin-*).
+/* Hover idiom — a child ::before paints a rounded-rect highlight inside
+   2 px margins (or whatever overrides via --ot-toolbar-explicit-hover-margin-*).
    z-index:-1 keeps the highlight behind the button text/icon. */
 
 .bottom-bar-tab::before,
 .bottom-bar-item::before,
 .bottom-bar-icon-button::before {
-  border-radius: var(--tv-toolbar-explicit-hover-border-radius, 6px);
-  bottom: var(--tv-toolbar-explicit-hover-margin-bottom, var(--tv-toolbar-explicit-hover-margin, 2px));
+  border-radius: var(--ot-toolbar-explicit-hover-border-radius, 6px);
+  bottom: var(--ot-toolbar-explicit-hover-margin-bottom, var(--ot-toolbar-explicit-hover-margin, 2px));
   display: block;
-  inset-inline-end: var(--tv-toolbar-explicit-hover-margin-right, var(--tv-toolbar-explicit-hover-margin, 2px));
-  inset-inline-start: var(--tv-toolbar-explicit-hover-margin-left, var(--tv-toolbar-explicit-hover-margin, 2px));
+  inset-inline-end: var(--ot-toolbar-explicit-hover-margin-right, var(--ot-toolbar-explicit-hover-margin, 2px));
+  inset-inline-start: var(--ot-toolbar-explicit-hover-margin-left, var(--ot-toolbar-explicit-hover-margin, 2px));
   position: absolute;
-  top: var(--tv-toolbar-explicit-hover-margin-top, var(--tv-toolbar-explicit-hover-margin, 2px));
+  top: var(--ot-toolbar-explicit-hover-margin-top, var(--ot-toolbar-explicit-hover-margin, 2px));
   z-index: -1;
   content: '';
   background-color: transparent;
@@ -141,9 +132,8 @@
   background-color: var(--color-toolbar-button-background-hover);
 }
 
-/* Active state — selected date-range tab, ADJ on, chart maximized. TV
-   `.button-zm3YRUFG.isInteractive.isActive` (TV 3.4.1, measured 24/09/2026):
-   the text keeps its normal colour (no blue); the rounded plate is
+/* Active state — selected date-range tab, ADJ on, chart maximized. The
+   text keeps its normal colour (no blue); the rounded plate is
    --color-container-fill-primary-neutral-light (#3d3d3d), and
    -neutral-normal (#4a4a4a) on hover. */
 
@@ -158,7 +148,7 @@
 }
 
 /* Opened state — the button's menu is open (Date Range, timezone, session).
-   TV `.isOpened`: a square plate over the whole button (no 2px margin, no
+   A square plate over the whole button (no 2px margin, no
    radius) in --color-toolbar-opened-element-bg (#2e2e2e), unchanged on hover. */
 
 .bottom-bar-item.is-opened::before,
@@ -169,8 +159,8 @@
 }
 
 .bottom-bar-tab-text {
-  /* The literal `<div class="js-button-text text-GwQQdU8S">` wrapper in TV;
-     a flex item with no margin so the hover ::before sits flush around it. */
+  /* The button text wrapper: a flex item with no margin so the hover
+     ::before sits flush around it. */
   display: inline-flex;
   align-items: center;
 }
@@ -191,7 +181,7 @@
   height: 28px;
 }
 
-/* Maximize-chart icon is 18×18 in the TV bundle; the button is 38px square. */
+/* Maximize-chart icon is 18×18; the button is 38px square. */
 
 .bottom-bar-fullscreen {
   justify-content: center;
@@ -216,7 +206,7 @@
   vertical-align: middle;
 }
 
-/* ── Collapsed "Date Range" mode (TV's narrow-bar `date-ranges-menu`) ──
+/* ── Collapsed "Date Range" mode (narrow-bar `date-ranges-menu`) ──
  * Both variants stay rendered: the expanded strip turns measure-only
  * (hidden but still sized) so the ResizeObserver can decide when to
  * re-expand. */

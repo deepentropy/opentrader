@@ -1,8 +1,8 @@
 /*
  * Favourite indicators — a global, persisted store (same model as
- * interval-favorites). In TradingView, starring an indicator in the
- * Indicators dialog adds it to the header's "Favorite indicators" dropdown;
- * the set is a single global preference shared across charts/windows.
+ * interval-favorites). Starring an indicator in the Indicators dialog adds it
+ * to the header's "Favorite indicators" dropdown; the set is a single global
+ * preference shared across charts/windows.
  * Keyed by the library registry id (see window/chart/indicators/registry.ts).
  */
 import { createSignal } from "solid-js";
@@ -74,6 +74,6 @@ export function buildFavoriteIndicatorsMenu(activeIds: ReadonlySet<string>): Hea
             disabled: true,
           },
         ];
-  // TV section title (shown with favourites; TV's empty state was not seen).
+  // Section title, shown only with favourites.
   return { width: 314, sections: [{ header: favs.length > 0 ? "Favorite Indicators" : null, items }] };
 }

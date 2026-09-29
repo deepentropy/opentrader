@@ -1,29 +1,26 @@
 /*
- * `.tv-control-bar` — the two floating button boxes a chart pane owns:
+ * `.ot-control-bar` — the two floating button boxes a chart pane owns:
  *
  *   • the centred group bar (ChartControlBar.tsx) — zoom, maximize, scroll,
  *     reset.  Anchored by `left`; the whole row fades as one.
  *   • the bottom-right "Scroll to the most recent bar" button (ChartView) —
  *     anchored by `right`; only that button fades.
  *
- * TV source (Desktop 3.3.0.7992, probed live): both are `.control-bar-wrapper`
- * boxes, and TV calls the second one the "back" button
- * (`ControlBarNavigation._back`, wrapper `--back-present`).  Geometry, colours
- * and timings below are copied from that probe.
+ * Both are `.control-bar-wrapper` boxes; the second one is the "back"
+ * button (wrapper `--back-present`).
  *
- * The wrapper keeps pointer-events off (like TV) so it never eats a drag over
+ * The wrapper keeps pointer-events off so it never eats a drag over
  * the pane; only the buttons opt back in.  ChartView positions the wrappers —
  * `bottom` tracks the target pane's bottom edge, `right` tracks the price-scale
  * width, `left` centres the group bar — and toggles the visibility modifiers.
  */
-.tv-control-bar {
+.ot-control-bar {
   position: absolute;
-  /* TV uses z-index 1, but its control bar has no drawings canvas stacked over
-     it. Ours needs to clear the drawings overlay (5/6) and stay under the
-     legends (10) — same slot, different neighbours. Only the button takes
-     pointer events, so a hidden one never shadows the canvas underneath. */
+  /* The control bar needs to clear the drawings overlay (5/6) and stay under
+     the legends (10). Only the button takes pointer events, so a hidden one
+     never shadows the canvas underneath. */
   z-index: 7;
-  /* TV's 24px is the content height; the 5px padding sits outside it, so the
+  /* The 24px is the content height; the 5px padding sits outside it, so the
      wrapper measures 34px. Tailwind's preflight would fold the padding in. */
   box-sizing: content-box;
   height: 24px;
@@ -32,27 +29,27 @@
   pointer-events: none;
 }
 
-/* TV `.control-bar`: the group row. Hiding it hides its buttons too, so their
+/* `.control-bar`: the group row. Hiding it hides its buttons too, so their
    own .4s opacity transition doesn't fight the row's .3s one. */
-.tv-control-bar__row {
+.ot-control-bar__row {
   display: flex;
   visibility: visible;
   transition: opacity 0.3s, visibility 0.3s;
 }
 
-.tv-control-bar__row--hidden,
-.tv-control-bar__row--hidden .tv-control-bar__btn {
+.ot-control-bar__row--hidden,
+.ot-control-bar__row--hidden .ot-control-bar__btn {
   opacity: 0;
   visibility: hidden;
 }
 
-.tv-control-bar__group {
+.ot-control-bar__group {
   display: flex;
   align-items: center;
   margin: 0 4px;
 }
 
-.tv-control-bar__btn {
+.ot-control-bar__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -71,46 +68,46 @@
   transition: color 0.3s, visibility 0.4s, opacity 0.4s;
 }
 
-.tv-control-bar__btn--hidden {
+.ot-control-bar__btn--hidden {
   opacity: 0;
   visibility: hidden;
 }
 
-/* Maximized: TV inverts the button while the chart is full-screen. */
-.tv-control-bar__btn--activated {
+/* Maximized: the button is inverted while the chart is full-screen. */
+.ot-control-bar__btn--activated {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
   color: var(--color-content-secondary-inverse);
 }
 
-/* Both scroll buttons share one chevron; TV rotates the left one. */
-.tv-control-bar__btn--move-left svg {
+/* Both scroll buttons share one chevron; the left one is rotated. */
+.ot-control-bar__btn--move-left svg {
   transform: rotate(180deg);
 }
 
 @media (any-hover: hover) {
-  .tv-control-bar__btn:hover {
+  .ot-control-bar__btn:hover {
     background-color: var(--color-container-fill-primary-neutral-extra-light);
   }
-  .tv-control-bar__btn--activated:hover {
+  .ot-control-bar__btn--activated:hover {
     background-color: var(--color-container-fill-primary-neutral-bold);
     color: var(--color-content-secondary-inverse);
   }
 }
 
-.tv-control-bar__btn:active {
+.ot-control-bar__btn:active {
   background-color: var(--color-container-fill-primary-neutral-light);
   transition: none;
 }
 
-/* TV keeps the icon out of hit-testing so the button is always the hit target
-   (`.control-bar__btn svg`). TvIcon adds a <span> wrapper TV doesn't have, so
-   it needs the same treatment. */
-.tv-control-bar__btn > span,
-.tv-control-bar__btn svg {
+/* Keep the icon out of hit-testing so the button is always the hit target
+   (`.control-bar__btn svg`). Icon adds a <span> wrapper, so it needs the
+   same treatment. */
+.ot-control-bar__btn > span,
+.ot-control-bar__btn svg {
   pointer-events: none;
 }
 
-/* ── Price-axis overlays (Scales tab rows; TV 3.4, captured 25/09/2026) ──
+/* ── Price-axis overlays (Scales tab rows) ──
  * Currency label: wrapper padding 4 across the axis width; box 1 px #4a4a4a
  *   r4 on the chart background; row 24 px r3 padding 0 3, text at the left,
  *   7×5 chevron at the right; 12 px text.
@@ -119,7 +116,7 @@
  *   14/18 px; active = #f2f2f2 fill + border, #0f0f0f text.
  * Plus button: square label box on the pane side of the crosshair price
  *   label, crosshair-label background, outer corners r2. */
-.tv-price-currency {
+.ot-price-currency {
   position: absolute;
   top: 0;
   z-index: 5;
@@ -127,11 +124,11 @@
   padding: 4px;
   pointer-events: auto;
 }
-.tv-price-currency-box {
+.ot-price-currency-box {
   border: 1px solid #4a4a4a;
   border-radius: 4px;
 }
-.tv-price-currency-row {
+.ot-price-currency-row {
   height: 24px;
   justify-content: space-between;
   box-sizing: border-box;
@@ -145,7 +142,7 @@
   cursor: default;
   user-select: none;
 }
-.tv-price-modes {
+.ot-price-modes {
   position: absolute;
   z-index: 5;
   height: 30px;
@@ -153,10 +150,10 @@
   display: flex;
   justify-content: center;
 }
-.tv-price-mode-wrap { flex: 1 1 0%; display: flex; padding: 4px; }
-.tv-price-mode-wrap:first-child { justify-content: flex-end; padding-right: 2px; }
-.tv-price-mode-wrap:last-child { justify-content: flex-start; padding-left: 2px; }
-.tv-price-mode {
+.ot-price-mode-wrap { flex: 1 1 0%; display: flex; padding: 4px; }
+.ot-price-mode-wrap:first-child { justify-content: flex-end; padding-right: 2px; }
+.ot-price-mode-wrap:last-child { justify-content: flex-start; padding-left: 2px; }
+.ot-price-mode {
   width: 20px;
   height: 22px;
   box-sizing: border-box;
@@ -170,11 +167,11 @@
   line-height: 18px;
   cursor: default;
 }
-.tv-price-mode:hover { background-color: #2e2e2e; }
-.tv-price-mode:active { background-color: #3d3d3d; }
-.tv-price-mode.is-on { background-color: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
-.tv-price-mode.is-on:hover { background-color: #dbdbdb; border-color: #dbdbdb; }
-.tv-price-plus {
+.ot-price-mode:hover { background-color: #2e2e2e; }
+.ot-price-mode:active { background-color: #3d3d3d; }
+.ot-price-mode.is-on { background-color: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
+.ot-price-mode.is-on:hover { background-color: #dbdbdb; border-color: #dbdbdb; }
+.ot-price-plus {
   position: absolute;
   z-index: 5;
   box-sizing: border-box;
@@ -187,12 +184,12 @@
   justify-content: center;
   pointer-events: none;
 }
-.tv-price-plus.is-left { border-radius: 0 2px 2px 0; }
+.ot-price-plus.is-left { border-radius: 0 2px 2px 0; }
 
-/* Pane controls (TV PaneControlsWidget, dark theme, 25/09/2026): buttons
+/* Pane controls (dark theme): buttons
  * 24×24 r4, 1 px #4a4a4a on #0f0f0f, #dbdbdb icon 15 px, 4 px apart;
  * hover #2e2e2e; activated (restore) #f2f2f2 fill, #0f0f0f icon, no border. */
-.tv-pane-controls {
+.ot-pane-controls {
   position: absolute;
   z-index: 6;
   display: flex;
@@ -200,7 +197,7 @@
   column-gap: 4px;
   pointer-events: auto;
 }
-.tv-pane-btn {
+.ot-pane-btn {
   width: 24px;
   height: 24px;
   box-sizing: border-box;
@@ -213,10 +210,10 @@
   color: #dbdbdb;
   cursor: default;
 }
-.tv-pane-btn:hover { background-color: #2e2e2e; }
-.tv-pane-btn:active { background-color: #3d3d3d; border-width: 0; }
-.tv-pane-btn.is-active { background-color: #f2f2f2; color: #0f0f0f; border-width: 0; }
-.tv-pane-btn.is-active:hover { background-color: #dbdbdb; }
-.tv-pane-btn svg { display: block; }
-.tv-pane-menu-icon { display: inline-flex; }
-.tv-pane-menu-icon svg { width: 18px; height: 18px; }
+.ot-pane-btn:hover { background-color: #2e2e2e; }
+.ot-pane-btn:active { background-color: #3d3d3d; border-width: 0; }
+.ot-pane-btn.is-active { background-color: #f2f2f2; color: #0f0f0f; border-width: 0; }
+.ot-pane-btn.is-active:hover { background-color: #dbdbdb; }
+.ot-pane-btn svg { display: block; }
+.ot-pane-menu-icon { display: inline-flex; }
+.ot-pane-menu-icon svg { width: 18px; height: 18px; }

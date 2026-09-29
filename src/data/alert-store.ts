@@ -1,16 +1,14 @@
 /*
  * Alert store — the configured alert *rules* plus the fired-event *log*.
  *
- * A local stand-in for TradingView's server-side alerts subsystem
- * (pricealerts.tradingview.com): TV evaluates rules on its backend and pushes
- * `Fire` records over a WebSocket. We have no such backend, so the alert engine
+ * A local alerts subsystem: there is no alert backend, so the alert engine
  * (data/alert-engine.ts) evaluates rules client-side against the live tick
  * stream and appends fires here.
  *
- * The shapes deliberately mirror TV's: an `AlertRule` is a (left · operator ·
- * right) condition over price / drawing / indicator operands; an `AlertFire`
- * matches TV's `Fire` record. This keeps the door open to swap in a real
- * backend later without reshaping the UI.
+ * The shapes are backend-ready: an `AlertRule` is a (left · operator · right)
+ * condition over price / drawing / indicator operands; an `AlertFire` is a
+ * `Fire` record. This keeps the door open to swap in a real backend later
+ * without reshaping the UI.
  *
  * Process singleton with a createRoot autosave effect, same pattern as
  * watchlist-store.ts.
@@ -40,7 +38,7 @@ export type AlertOperator =
   | "moving_up_pct"
   | "moving_down_pct";
 
-/** How often a rule may fire. Mirrors TV's trigger-frequency options. */
+/** How often a rule may fire (trigger-frequency options). */
 export type AlertFrequency =
   | "only_once"
   | "once_per_bar"
@@ -72,8 +70,8 @@ export type AlertRule = {
   expiresAt: number | null;
 };
 
-/** A fired event. Matches TV's `Fire` record, trimmed to the fields we can
- *  populate locally. */
+/** A fired event: a `Fire` record, trimmed to the fields we can populate
+ *  locally. */
 export type AlertFire = {
   fireId: string;
   alertId: string;

@@ -6,7 +6,7 @@
  * panel, leaves the strip visible).
  */
 import { For, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { VISIBLE_BOTTOM_TABS, VISIBLE_TOP_TABS, type Tab } from "../../data/right-rail-tabs";
 
@@ -29,10 +29,10 @@ export function RightRailTabs(props: Props) {
           data-name={t.id}
           aria-label={t.label}
           aria-pressed={isActive()}
-          class={"tv-toolbar-button right-rail-tab" + (isActive() ? " active" : "")}
+          class={"ot-toolbar-button right-rail-tab" + (isActive() ? " active" : "")}
           onClick={() => select(t.id)}
         >
-          {t.iconName && <TvIcon name={t.iconName} size={44} />}
+          {t.iconName && <Icon name={t.iconName} size={44} />}
         </button>
       </Tooltip>
     );

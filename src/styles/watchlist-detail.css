@@ -1,6 +1,6 @@
 /*
  * WatchlistDetail — the "Details" widget below the watchlist. Ported from
- * the mock's watchlist.css detail block (TV's `.widgetbar-widget-detail`).
+ * the mock's watchlist.css detail block.
  */
 /* Drag-to-resize divider between the watchlist and the detail panel. Sits
  * over the detail's 4px separator (negative margin → zero net layout cost), so
@@ -23,20 +23,19 @@
   height: 246px;
   display: flex;
   flex-direction: column;
-  background-color: var(--tv-chart-bg);
-  /* Separator = TV's `.widgetbar-widget-detail` border-top: 4px solid #2e2e2e
-   * (probed live). The wider band reads as a soft inset gutter between the
-   * watchlist and its detail pane, matching the chart-area/chart-pane seams. */
+  background-color: var(--ot-chart-bg);
+  /* Separator = border-top: 4px solid #2e2e2e. The wider band reads as a soft
+   * inset gutter between the watchlist and its detail pane, matching the
+   * chart-area/chart-pane seams. */
   border-top: 4px solid var(--color-widget-border, #2e2e2e);
   color: var(--color-toolbar-button-text);
   font-size: 13px;
 }
 
 .watchlist-detail-header {
-  /* TV's VISIBLE header (`.widgetHeader-CKFlKjU2`) is 48px — the 62px
-   * `.container-tcaG7iiW` measured earlier overflows and gets clipped by it
-   * (re-probed 25/07/2026). Left inset 16px aligns the logo/title with the
-   * body content; right inset 8px hugs the action group like TV. */
+  /* The visible header is 48px; a taller 62px inner container would overflow
+   * and get clipped by it. Left inset 16px aligns the logo/title with the
+   * body content; right inset 8px hugs the action group. */
   height: 48px;
   flex-shrink: 0;
   display: flex;
@@ -49,7 +48,7 @@
   flex: 1;
   min-width: 0;
   font-size: 14px;
-  /* Probed live: `.title-tcaG7iiW` is 14px / 600 (not 700), letter-spacing normal. */
+  /* Title is 14px / 600 (not 700), letter-spacing normal. */
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -64,7 +63,7 @@
 }
 
 .watchlist-detail-action {
-  /* Probed: action buttons are 36–38px hit-boxes (`.wrap-pirXP_rc`, 38px live). */
+  /* Action buttons are 36–38px hit-boxes. */
   width: 36px;
   height: 36px;
   display: inline-flex;
@@ -183,7 +182,7 @@
 
 .watchlist-detail-company {
   font-weight: 400;
-  /* Probed: the descriptions row runs at line-height 22px. */
+  /* The descriptions row runs at line-height 22px. */
   line-height: 22px;
   color: var(--color-text-primary, #dbdbdb);
   overflow: hidden;
@@ -192,8 +191,8 @@
   min-width: 0;
 }
 
-/* "·" between the company name and the exchange (TV's `dotWrap`: ~6px right /
- * 3px left breathing room). */
+/* "·" between the company name and the exchange (~6px right / 3px left
+ * breathing room). */
 .watchlist-detail-dot {
   flex-shrink: 0;
   margin: 0 6px 0 3px;
@@ -234,7 +233,7 @@
 
 /* Price line — a single left-packed, bottom-aligned row:
  * [price 28px] [currency 12px] [±change 16px] [±change% 16px]. */
-/* Probed: TV centre-aligns the price row (`align-items: center`), so the
+/* The price row is centre-aligned (`align-items: center`), so the
  * ±change sits vertically centred against the 36px price rather than baseline-
  * packed. The currency/change `margin-bottom` tweaks (for the old flex-end
  * baseline) are zeroed here. */
@@ -275,15 +274,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Price change uses TV's symbol-change greens/reds (probed: up rgb(34,171,148)
+/* Price change uses the symbol-change greens/reds (up rgb(34,171,148)
  * #22ab94, down rgb(247,82,95) #f7525f) — distinct from the performance grid's
  * #089981 / #f23645. */
 .watchlist-detail-change.up { color: var(--color-symbol-change-positive, #22ab94); }
 .watchlist-detail-change.down { color: var(--color-symbol-change-negative, #f7525f); }
 
-/* Last-update text — now INLINE on the state row after the status (TV puts
- * "— Market closed  Last update at …" on one line, captured 25/07/2026).
- * Probed: 13px / line-height 18px / #707070 (a darker grey than #8c8c8c). */
+/* Last-update text — now INLINE on the state row after the status
+ * ("— Market closed  Last update at …" on one line).
+ * 13px / line-height 18px / #707070 (a darker grey than #8c8c8c). */
 .watchlist-detail-regular-update {
   font-size: 13px;
   line-height: 18px;
@@ -317,8 +316,8 @@
   align-items: baseline;
   justify-content: flex-start;
   gap: 8px;
-  /* TV runs the status at 13px, left-packed with the last-update text after
-   * it (captured 25/07/2026: "Market closed" 13px #8c8c8c). */
+  /* The status runs at 13px, left-packed with the last-update text after
+   * it ("Market closed" 13px #8c8c8c). */
   font-size: 13px;
 }
 
@@ -329,15 +328,15 @@
   gap: 4px;
   color: #8c8c8c;
 }
-/* Post-market reads in accent blue; pre-market reads warm (the sun), matching TV. */
+/* Post-market reads in accent blue; pre-market reads warm (the sun). */
 .watchlist-detail-state.is-extended { color: var(--color-accent, #2962ff); }
-.watchlist-detail-state.is-pre { color: #ffa726; } /* probed pre-market amber rgb(255,167,38) */
+.watchlist-detail-state.is-pre { color: #ffa726; } /* pre-market amber rgb(255,167,38) */
 .watchlist-detail-state-icon {
   display: inline-flex;
   align-items: center;
 }
 .watchlist-detail-state-icon svg { display: block; width: 14px; height: 14px; }
-/* TV prefixes the closed state with a dash glyph ("— Market closed"). */
+/* The closed state is prefixed with a dash glyph ("— Market closed"). */
 .watchlist-detail-state-dash { color: inherit; }
 .watchlist-detail-last-time { color: #707070; }
 
@@ -374,9 +373,7 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  /* TV's profile rows measured 13px/400 label + 13px/600 value on the
-   * 25/07/2026 capture (Website / Employees rows), superseding the older
-   * 14px probe of `.item-DVns3SZf`. */
+  /* Profile rows (Website / Employees): 13px/400 label + 13px/600 value. */
   font-size: 13px;
   padding: 3px 0;
   font-variant-numeric: tabular-nums;
@@ -457,7 +454,7 @@
   text-overflow: ellipsis;
 }
 
-/* ── Accordion mode (TV: details widget collapses to a 48px header) ── */
+/* ── Accordion mode (details widget collapses to a 48px header) ── */
 .watchlist-detail.is-collapsed {
   height: 48px;
   flex: 0 0 48px;
@@ -487,7 +484,7 @@
   transition: transform 0.12s ease;
 }
 
-/* Real branding icon in the header (24px circle, like TV's 24×24 logo). */
+/* Real branding icon in the header (24×24 circle). */
 .watchlist-detail-logo-img {
   width: 24px;
   height: 24px;

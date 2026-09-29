@@ -1,5 +1,5 @@
 /*
- * HeaderToolbar — the top strip of TradingView's chart UI (Feature 1 port).
+ * HeaderToolbar — the top strip of the chart UI (Feature 1).
  *
  * Scope: visual only. Clicks on menu-buttons (Candles, chart-interval,
  * layout-setup, show-favorite-indicators, save-load-menu) and
@@ -14,7 +14,7 @@
  *   text           → visible text only (e.g. "10s", "D", "DailySave").
  */
 import { createSignal, For, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { avatarHue, ProfileMenu } from "./ProfileMenu";
 import { SECTIONS, SLUG_TO_INTERVAL, type Item, type Section } from "../../data/header-toolbar";
@@ -27,13 +27,13 @@ import { favoriteLayouts } from "../../data/layout-store";
 type Props = {
   /** Active tab title fragment shown in the Symbol widget (e.g. "INTC"). */
   symbol?: string;
-  /** Active interval id (TV interval id like "60" for 1 hour). Drives which
+  /** Active interval id (e.g. "60" for 1 hour). Drives which
    *  shortcut button in the 10s..1W strip is highlighted. */
   interval?: string;
   /** Active chart type — drives the icon shown on the Candles button. */
   chartType?: ChartTypeId;
   /** Active multi-chart layout — drives the icon shown on the layout-setup
-   *  button (TV swaps it to match the selected template). */
+   *  button (it matches the selected template). */
   layout?: LayoutId;
   /** User clicked an interval shortcut button. */
   onIntervalChange?: (id: string) => void;
@@ -66,15 +66,15 @@ type Props = {
   /** User clicked the save-status badge — triggers a layout save. */
   onSaveLayout?: () => void;
   /** User clicked a favourite-template letter badge — applies that indicator
-   *  template to the focused pane (one-click, TV behaviour). */
+   *  template to the focused pane (one-click). */
   onApplyIndicatorTemplate?: (id: string) => void;
   /** Saved layout the active tab shows (its favorite circle renders filled). */
   activeLayoutId?: string;
   /** User clicked a favorite-layout circle — loads that layout into the
-   *  active tab (TV: item.openAction). */
+   *  active tab. */
   onOpenLayout?: (id: string) => void;
   /** Drawing undo/redo (header buttons; Ctrl+Z / Ctrl+Y do the same). The
-   *  labels are dynamic, TV-style ("Undo create trend line"). */
+   *  labels are dynamic ("Undo create trend line"). */
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -85,7 +85,7 @@ type Props = {
   onCompare?: () => void;
 };
 
-/** Ids of buttons that have a dropdown menu in TV. Used for the chevron
+/** Ids of buttons that have a dropdown menu. Used for the chevron
  *  affordance + the aria-haspopup attribute. The menus themselves are
  *  stubs until Feature 3. */
 const MENU_OWNERS = new Set([
@@ -99,7 +99,7 @@ const MENU_OWNERS = new Set([
 ]);
 
 /** First user-perceived character of a layout name (a leading emoji stays
- *  whole), as TV's LeadingEmojiText firstSegmentOnly; case kept. */
+ *  whole); case kept. */
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 function firstSegment(name: string): string {
   const first = graphemes.segment(name.trim())[Symbol.iterator]().next();
@@ -140,12 +140,12 @@ export function HeaderToolbar(props: Props) {
     }
 
     // Save-status badge — the layout name, with a small blue "Save" label
-    // stacked beneath it while the chart has unsaved changes (TV's "<name>"
-    // over "Save"). Clicking saves the active layout.
+    // stacked beneath it while the chart has unsaved changes ("<name>" over
+    // "Save"). Clicking saves the active layout.
     if (item.id === "all-changes-saved") {
       const dirty = () => !!props.layoutDirty;
       const name = () => props.layoutName ?? item.text ?? "Unnamed";
-      // TV: the dirty tooltip carries the Ctrl+S hotkey; "All changes saved" has none.
+      // The dirty tooltip carries the Ctrl+S hotkey; "All changes saved" has none.
       const tip = () => (dirty() ? "Save all charts for all symbols and intervals on your layout" : "All changes saved");
       return (
         <Tooltip text={tip()} hotkey={dirty() ? "Ctrl + S" : undefined} side="bottom">
@@ -153,7 +153,7 @@ export function HeaderToolbar(props: Props) {
             type="button"
             data-name={item.id}
             aria-label={tip()}
-            class={"tv-toolbar-button header-toolbar-btn header-toolbar-save-status" + (dirty() ? " is-dirty" : "")}
+            class={"ot-toolbar-button header-toolbar-btn header-toolbar-save-status" + (dirty() ? " is-dirty" : "")}
             onClick={() => props.onSaveLayout?.()}
           >
             <span class="header-toolbar-save-name">{name()}</span>
@@ -176,11 +176,11 @@ export function HeaderToolbar(props: Props) {
             type="button"
             data-name={item.id}
             aria-label={label()}
-            class={"tv-toolbar-button header-toolbar-btn" + (enabled() ? "" : " is-disabled")}
+            class={"ot-toolbar-button header-toolbar-btn" + (enabled() ? "" : " is-disabled")}
             disabled={!enabled()}
             onClick={() => (isUndo ? props.onUndo?.() : props.onRedo?.())}
           >
-            <TvIcon name={item.iconName!} size={28} />
+            <Icon name={item.iconName!} size={28} />
           </button>
         </Tooltip>
       );
@@ -192,7 +192,7 @@ export function HeaderToolbar(props: Props) {
 
     const cls = () =>
       [
-        "tv-toolbar-button",
+        "ot-toolbar-button",
         "header-toolbar-btn",
         item.chevron ? "is-chevron" : "",
         item.iconName && item.text ? "is-iconText" : "",
@@ -232,7 +232,7 @@ export function HeaderToolbar(props: Props) {
           }}
         >
           <Show when={item.iconName}>
-            <TvIcon
+            <Icon
               name={
                 item.id === "candles" && props.chartType
                   ? CHART_TYPE_ICON[props.chartType]
@@ -262,8 +262,8 @@ export function HeaderToolbar(props: Props) {
   return (
     <div class="header-toolbar" role="toolbar" aria-label="Chart header">
       {/* Account/main menu — circular avatar at the far left, before the
-          symbol field (TV's chart `data-qa-id="main-menu-button"`). */}
-      {/* TV: data-tooltip = aria-label = "Logged in as <user>\nActive layout: <name>". */}
+          symbol field. */}
+      {/* Tooltip = aria-label = "Logged in as <user>\nActive layout: <name>". */}
       <Tooltip text={avatarTip()} side="bottom">
         <button
           type="button"
@@ -301,7 +301,7 @@ export function HeaderToolbar(props: Props) {
             </Show>
             <div class="header-toolbar-section">
               {/* Indicators section: after the static buttons, the favourited
-                  indicator templates render as live letter badges (TV's 20×20
+                  indicator templates render as live letter badges (20×20
                   round template favourites) — one click applies the template. */}
               <Show when={section.sectionIndex === 3}>
                 <For each={section.items}>{(item) => renderItem(item)}</For>
@@ -312,7 +312,7 @@ export function HeaderToolbar(props: Props) {
                         type="button"
                         data-name={`indicator-template-favorite-${tpl.id}`}
                         aria-label={`Apply indicator template ${tpl.name}`}
-                        class="tv-toolbar-button header-toolbar-btn is-template"
+                        class="ot-toolbar-button header-toolbar-btn is-template"
                         onClick={() => props.onApplyIndicatorTemplate?.(tpl.id)}
                       >
                         <span class="header-toolbar-template-badge">
@@ -332,7 +332,7 @@ export function HeaderToolbar(props: Props) {
                         <>
                           {renderItem(item)}
                           {/* Favorite layouts sit right after Manage layouts,
-                              inside TV's save-load group, sorted by name. */}
+                              inside the save-load group, sorted by name. */}
                           <Show when={item.id === "save-load-menu"}>
                             <For each={favoriteLayouts()}>
                               {(l, i) => (
@@ -375,7 +375,7 @@ export function HeaderToolbar(props: Props) {
                         type="button"
                         data-name={`interval-${id}`}
                         aria-label={id}
-                        class={`tv-toolbar-button header-toolbar-btn${props.interval === id ? " active" : ""}`}
+                        class={`ot-toolbar-button header-toolbar-btn${props.interval === id ? " active" : ""}`}
                         onClick={() => props.onIntervalChange?.(id)}
                       >
                         <span class="header-toolbar-label">{shortIntervalLabel(id)}</span>
@@ -383,7 +383,7 @@ export function HeaderToolbar(props: Props) {
                     </Tooltip>
                   )}
                 </For>
-                {/* Active interval that isn't favourited: TV surfaces it as a
+                {/* Active interval that isn't favourited: it surfaces as a
                     highlighted button right before the chevron, so the current
                     timeframe is always visible without opening the dropdown. */}
                 <Show when={props.interval && !favoriteIntervals().includes(props.interval)}>
@@ -392,7 +392,7 @@ export function HeaderToolbar(props: Props) {
                       type="button"
                       data-name={`interval-${props.interval}`}
                       aria-label={props.interval}
-                      class="tv-toolbar-button header-toolbar-btn active"
+                      class="ot-toolbar-button header-toolbar-btn active"
                       onClick={() => props.onIntervalChange?.(props.interval!)}
                     >
                       <span class="header-toolbar-label">{shortIntervalLabel(props.interval!)}</span>

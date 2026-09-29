@@ -1,6 +1,6 @@
 /*
- * OpenListDialog — the watchlist "Open list…" action: TV's Watchlists manager.
- * Captured from TV Desktop 3.2.0.7916 over CDP (840×638 dialog, left sidebar
+ * OpenListDialog — the watchlist "Open list…" action: the Watchlists manager
+ * (840×638 dialog, left sidebar
  * "My watchlists / Hotlists", a SYMBOLS column, and lists split into "Flagged
  * lists" (those with a colour flag) and "Created lists" (the rest)). Each row
  * leads with a favourite star, then the flag marker + name + an inline rename
@@ -9,7 +9,7 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { FLAG_HEX, WL_ICONS } from "../../data/watchlist";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { watchlistStore, type WatchList } from "../../data/watchlist-store";
 
 type Props = {
@@ -46,7 +46,7 @@ export function OpenListDialog(props: Props) {
     const q = query().trim().toLowerCase();
     return q ? props.lists.filter((l) => l.name.toLowerCase().includes(q)) : props.lists;
   };
-  // TV splits by colour flag: flagged (has a flag) vs created (no flag).
+  // Split by colour flag: flagged (has a flag) vs created (no flag).
   const flagged = () => filtered().filter((l) => l.flag);
   const created = () => filtered().filter((l) => !l.flag);
   const count = (l: WatchList) => l.groups.reduce((n, g) => n + g.rows.length, 0) + l.extras.length;
@@ -99,7 +99,7 @@ export function OpenListDialog(props: Props) {
             aria-pressed={l.favorite}
             onClick={(e) => { e.stopPropagation(); watchlistStore.toggleFavorite(l.id); }}
           >
-            <TvIcon name={l.favorite ? "draw-remove-from-favorites" : "draw-add-to-favorites"} size={16} />
+            <Icon name={l.favorite ? "draw-remove-from-favorites" : "draw-add-to-favorites"} size={16} />
           </button>
           <span class="wl-lm-marker"><Marker list={l} /></span>
           <Show when={editingId() === l.id} fallback={<span class="wl-lm-name">{l.name}</span>}>
@@ -115,17 +115,17 @@ export function OpenListDialog(props: Props) {
           </Show>
           <Show when={editingId() !== l.id}>
             <button type="button" class="wl-lm-action wl-lm-rename" title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(l); }}>
-              <TvIcon name="menu-manage-layouts-rename" size={16} />
+              <Icon name="menu-manage-layouts-rename" size={16} />
             </button>
           </Show>
           <span class="wl-lm-spacer" />
           <span class="wl-lm-count">{count(l)}</span>
           <span class="wl-lm-actions" onClick={(e) => e.stopPropagation()}>
             <button type="button" class="wl-lm-action" title="Make a copy" aria-label="Make a copy" onClick={() => watchlistStore.copyList(l.id)}>
-              <TvIcon name="wl-copy" size={16} />
+              <Icon name="wl-copy" size={16} />
             </button>
             <button type="button" class="wl-lm-action wl-lm-action-danger" title="Delete" aria-label="Delete" disabled={props.lists.length <= 1} onClick={() => setConfirmingId(l.id)}>
-              <TvIcon name="draw-trash" size={16} />
+              <Icon name="draw-trash" size={16} />
             </button>
           </span>
         </Show>

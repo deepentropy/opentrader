@@ -166,7 +166,7 @@ export type PlotStyleOverride = {
   color?: string;
   lineWidth?: number;
   visible?: boolean;
-  /** Settings -> Style plot-type button (TV plot types: line, linebr,
+  /** Settings -> Style plot-type button (plot types: line, linebr,
    *  stepline, steplinebr, steplinediamond, histogram, cross, area, areabr,
    *  columns, circles). */
   plotType?: string;
@@ -223,7 +223,7 @@ export class IndicatorLayer {
     return this.lastValueVisible && this.labelsOnScale;
   }
 
-  /** Study "Precision" (TV): fixed decimals on the plot series' axis label. */
+  /** Study "Precision": fixed decimals on the plot series' axis label. */
   private applyPrecision(series: { applyOptions(o: { priceFormat: { type: 'price'; precision: number; minMove: number } }): void }): void {
     if (this.precision === null) return;
     series.applyOptions({ priceFormat: { type: 'price', precision: this.precision, minMove: 10 ** -this.precision } });
@@ -263,8 +263,8 @@ export class IndicatorLayer {
     this.lastResult = result;
     if (!draw) {
       // A study in its own pane that draws nothing (eye off, or off its
-      // Visibility intervals) keeps its pane and status line, like TV: the
-      // library drops a pane once its last series goes, so hold it with an
+      // Visibility intervals) keeps its pane and status line. The library
+      // drops a pane once its last series goes, so hold it with an
       // empty, invisible series.
       if (this.paneIndex > 0) {
         const holder = this.chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false });
@@ -289,7 +289,7 @@ export class IndicatorLayer {
 
       switch (style) {
         case 'histogram':
-          // TV study Histogram: thin bars of the plot's line width from its
+          // Study Histogram: thin bars of the plot's line width from its
           // histogram base (histogram-series.ts).
           this.addThinHistogram(plotData, color, lineWidth, (plotDef as { histbase?: number }).histbase ?? 0);
           break;
@@ -367,7 +367,7 @@ export class IndicatorLayer {
   /** Per-plot current values at `time` (or the latest bar), each coloured by
    *  its plot's configured colour — the study legend's value cells.  Only
    *  visible, finite-valued line/area/histogram plots are returned (crosses and
-   *  hidden plots are skipped), mirroring TV's study legend. */
+   *  hidden plots are skipped). */
   legendPlots(time?: number): IndicatorLegendPlot[] {
     const entry = this.entry;
     const result = this.lastResult;
@@ -394,11 +394,9 @@ export class IndicatorLayer {
       if (ov?.visible === false) continue; // hidden via the Style tab
       const pt = result.plots[p.id]?.[idx];
       if (!pt || pt.value == null || Number.isNaN(pt.value)) continue;
-      // TV: the value takes the bar's own plot colour (palette / per-point
-      // colorer) with its transparency reset — `resetTransparency(
-      // getPlotColor(...))` in the desktop's legend values provider, read
-      // 23/09/2026. Per-point colours also win on the canvas, so the legend
-      // matches the drawn column.
+      // The value takes the bar's own plot colour (palette / per-point
+      // colorer) with its transparency reset. Per-point colours also win on
+      // the canvas, so the legend matches the drawn column.
       const color = (pt as { color?: string }).color ?? ov?.color ?? p.color ?? '#787b86';
       out.push({ color: resetTransparency(color), value: pt.value });
     }
@@ -418,7 +416,7 @@ export class IndicatorLayer {
   // ── Series builders ───────────────────────────────────────────────────────
 
   /** Pin a plot series to the entry's dedicated hidden scale when its
-   *  metadata asks for one (`ownScaleId`) — TV's Volume draws inside the
+   *  metadata asks for one (`ownScaleId`) — Volume draws inside the
    *  price pane but on its own axis pinned to the bottom quarter, never on
    *  the symbol scale. */
   private applyOwnScale(series: {

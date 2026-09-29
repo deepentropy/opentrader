@@ -1,10 +1,9 @@
 /*
- * TV "Image" dialog (chart.imageDialog, module 484731; captured 25/09/2026):
- * opened when the Image tool is armed
- * and from the image settings. A drop zone (click = file picker, or drop a
+ * "Image" dialog: opened when the Image tool is armed and from the image
+ * settings. A drop zone (click = file picker, or drop a
  * file) "Choose image / JPG, PNG or WEBP / Max size 2MB", a Transparency
  * slider, Cancel / Ok. Ok without an image shows "Image is required"; a click
- * outside confirms (when an image is chosen) and closes, like TV.
+ * outside confirms (when an image is chosen) and closes.
  */
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/tv/kinds/images";
@@ -31,7 +30,7 @@ export function ImageDialog(props: {
     setBusy(true);
     try {
       const r = await saveDrawingImage(file);
-      // TV checkImageSize: natural size above 2000 x 2000 is refused.
+      // Image size check: natural size above 2000 x 2000 is refused.
       if (r.width > IMAGE_MAX_SIDE || r.height > IMAGE_MAX_SIDE) {
         setError("The image being pasted is way too large");
         setPicked(null);
@@ -66,7 +65,7 @@ export function ImageDialog(props: {
     <div
       class="drawing-settings-backdrop"
       role="presentation"
-      // TV onClickOutside: confirm (when an image is chosen) and close.
+      // Click outside: confirm (when an image is chosen) and close.
       onClick={() => { submit(); props.onClose(); }}
       onPointerDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
@@ -143,8 +142,8 @@ export function ImageDialog(props: {
   );
 }
 
-/** TV Transparency control (module 102987): the Opacity slider without its
- *  input, tv-blue-500, value = transparency (0 = opaque, thumb at the right). */
+/** Transparency control: the Opacity slider without its
+ *  input, ot-blue-500, value = transparency (0 = opaque, thumb at the right). */
 export function TransparencySlider(props: { value: number; onChange: (t: number) => void; class?: string }) {
   let track: HTMLDivElement | undefined;
   const opacity = () => Math.max(0, Math.min(100, 100 - props.value));
@@ -157,7 +156,7 @@ export function TransparencySlider(props: { value: number; onChange: (t: number)
   return (
     <div
       ref={track}
-      class={"tv-transparency" + (props.class ? ` ${props.class}` : "")}
+      class={"ot-transparency" + (props.class ? ` ${props.class}` : "")}
       role="slider"
       aria-label="Transparency"
       aria-valuemin={0}
@@ -169,8 +168,8 @@ export function TransparencySlider(props: { value: number; onChange: (t: number)
       }}
       onPointerMove={(e) => { if (e.buttons & 1) setFrom(e.clientX); }}
     >
-      <div class="tv-transparency-gradient" />
-      <div class="tv-transparency-thumb" style={{ left: `calc((100% - 12px) * ${opacity() / 100})` }} />
+      <div class="ot-transparency-gradient" />
+      <div class="ot-transparency-thumb" style={{ left: `calc((100% - 12px) * ${opacity() / 100})` }} />
     </div>
   );
 }

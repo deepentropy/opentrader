@@ -52,7 +52,7 @@ src/bindings.ts
 .playwright-mcp/
 
 # Private working material, kept locally only: research probes and captures of
-# the TradingView app, development log and backlog.
+# third-party apps, development log and backlog.
 research/
 DEVLOG.md
 BACKLOG.md

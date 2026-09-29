@@ -8,7 +8,7 @@
  * left drawing toolbar via the shared `drawing-panel` signal (persisted).
  */
 import { For, onCleanup, onMount, Show } from "solid-js";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
 
 type Row =
@@ -50,12 +50,11 @@ type Props = {
   /** Fired with a row's `action` id (e.g. 'app-settings') before close. */
   onAction?: (action: string) => void;
   /** Desktop main menu only: label of the undo row ("Reopen closed tab" /
-   *  "Reopen closed window", TV menu-items.tsx reopenWindowItem, after New
-   *  window). Absent or null: no row. */
+   *  "Reopen closed window", after New window). Absent or null: no row. */
   reopenLabel?: string | null;
 };
 
-/** TV's no-photo avatar colour: hsl(<hash-of-name>, 25%, 50%). */
+/** No-photo avatar colour: hsl(<hash-of-name>, 25%, 50%). */
 export function avatarHue(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
@@ -85,7 +84,7 @@ export function ProfileMenu(props: Props) {
   return (
     <div
       ref={root}
-      class="tv-popover profile-menu"
+      class="ot-popover profile-menu"
       role="menu"
       aria-label="Main menu"
       style={{ position: "fixed", left: `${Math.round(Math.max(8, Math.min(props.anchor.left, window.innerWidth - 260 - 8)))}px`, top: `${Math.round(props.anchor.bottom + 4)}px`, "z-index": 1000 }}
@@ -108,7 +107,7 @@ export function ProfileMenu(props: Props) {
                   props.onClose();
                 }}
               >
-                <span class="profile-menu-icon"><Show when={item().icon}>{(ic) => <TvIcon name={ic()} size={18} />}</Show></span>
+                <span class="profile-menu-icon"><Show when={item().icon}>{(ic) => <Icon name={ic()} size={18} />}</Show></span>
                 <span class="profile-menu-label">{item().label}</span>
                 <Show when={item().value}><span class="profile-menu-value">{item().value}</span></Show>
                 <Show when={item().hotkey}><span class="profile-menu-hotkey">{item().hotkey}</span></Show>

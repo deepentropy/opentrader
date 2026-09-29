@@ -1,20 +1,19 @@
 /*
- * Per-study display options — TV study properties behind the indicator
- * Settings "Style" sections and "Visibility" tab (TV 3.4.1, read 26/09/2026):
+ * Per-study display options: the study properties behind the indicator
+ * Settings "Style" sections and "Visibility" tab:
  *   Output values : Precision (Default, 0..8), Labels on price scale,
  *                   Values in status line
  *   Input values  : Inputs in status line
  *   Visibility    : intervalsVisibilities (same matrix as drawings; a study
  *                   outside its intervals is not drawn and its status-line row
- *                   shows as hidden — TV `isActualInterval`, modules 880101 /
- *                   663945).
+ *                   shows as hidden).
  * Stored per study with its inputs / styles (PaneIndicatorSettings.options).
  */
 import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/tv/types";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 
 export type IndicatorOptions = {
-  /** "Default" or "0".."8" decimals (TV precision select). */
+  /** "Default" or "0".."8" decimals (precision select). */
   precision: string;
   labelsOnScale: boolean;
   valuesInStatusLine: boolean;
@@ -22,7 +21,7 @@ export type IndicatorOptions = {
   visibility: IntervalVisibility;
 };
 
-/** TV Precision select, read from the live dialog. */
+/** Precision select options. */
 export const PRECISION_OPTIONS = ["Default", "0", "1", "2", "3", "4", "5", "6", "7", "8"];
 
 const cloneVisibility = (v: IntervalVisibility): IntervalVisibility => ({
@@ -36,7 +35,7 @@ const cloneVisibility = (v: IntervalVisibility): IntervalVisibility => ({
   ranges: v.ranges,
 });
 
-/** TV defaults: every option on, precision Default, visible on all intervals. */
+/** Defaults: every option on, precision Default, visible on all intervals. */
 export function defaultIndicatorOptions(): IndicatorOptions {
   return {
     precision: "Default",
@@ -91,9 +90,9 @@ export function precisionDigits(p: string): number | null {
   return p !== "Default" && Number.isInteger(n) && n >= 0 && n <= 8 ? n : null;
 }
 
-/** The input values TV shows after a study title in the status line: every
- *  input except bool / colour (TV hides bool, color, time and text_area
- *  inputs by default, module 514571), numbers formatted, others as text,
+/** The input values shown after a study title in the status line: every
+ *  input except bool / colour (bool, color, time and text_area inputs are
+ *  hidden by default), numbers formatted, others as text,
  *  space-separated (titleInParts). */
 export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<string, unknown>): string {
   const out: string[] = [];

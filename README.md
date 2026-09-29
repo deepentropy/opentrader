@@ -4,15 +4,15 @@
 
 # OpenTrader
 
-**An attempt at an open trading app.** OpenTrader is a free, open-source desktop charting application modeled on TradingView and tuned for speed. The goal is to see how close an independent, hackable project can get to a polished commercial charting platform, with the whole thing out in the open for anyone to read, run, and extend.
+**An attempt at an open trading app.** OpenTrader is a free, open-source desktop charting application built for speed. It is an open-source alternative to commercial trading software, out in the open for anyone to read, run, and extend.
 
 It is an early work in progress: some features are stubbed or partially wired. Contributions, issues, and ideas are welcome.
 
-> **Disclaimer:** OpenTrader is not affiliated with, endorsed by, or connected to TradingView, TC2000, or Massive (formerly Polygon.io). It is for charting and research only and is **not financial advice**. Provided "as is", without warranty. See [LICENSE](LICENSE).
+> **Disclaimer:** OpenTrader is an independent project, not affiliated with any commercial trading platform or data provider. It is for charting and research only and is **not financial advice**. Provided "as is", without warranty. See [LICENSE](LICENSE).
 
 ## Download
 
-Installers are attached to each [GitHub Release](https://github.com/deepentropy/opentrader/releases):
+Download the installer for your system from the [latest GitHub Release](https://github.com/deepentropy/opentrader/releases/latest) and run it. Nothing else to set up: no account, no API key, no token. Market data works out of the box.
 
 | OS | File |
 |---|---|
@@ -33,7 +33,7 @@ Windows is the main development platform. The macOS and Linux builds are produce
 - **Frontend:** SolidJS + TypeScript + Vite + Tailwind CSS v4
 - **Backend:** in-process Rust in `src-tauri/`
 - **Typed IPC:** `tauri-specta` generates `src/bindings.ts` from the Rust commands
-- **Charts:** [`deepentropy/lightweight-charts`](https://github.com/deepentropy/lightweight-charts) (a fork of TradingView Lightweight Charts)
+- **Charts:** [`deepentropy/lightweight-charts`](https://github.com/deepentropy/lightweight-charts) (a fork of [Lightweight Charts](https://github.com/tradingview/lightweight-charts), Apache-2.0)
 - **Drawing tools:** [`deepentropy/lightweight-charts-drawing`](https://github.com/deepentropy/lightweight-charts-drawing), imported from source
 - **Indicators and scripts:** [`lightweight-charts-indicators`](https://www.npmjs.com/package/lightweight-charts-indicators), [`oakscriptjs`](https://www.npmjs.com/package/oakscriptjs), Monaco editor
 - **Market data:** Massive (formerly Polygon.io), through the OpenTrader gateway (`src-tauri/src/data/gateway.rs`)
@@ -58,9 +58,9 @@ cd opentrader
 npm ci
 ```
 
-### Market data token
+### Market data token (source builds only)
 
-Market data goes through the OpenTrader gateway, which needs an app token compiled into the build. Copy `.env.example` to `.env` and set `OPENTRADER_GATEWAY_TOKEN`, or set it as an environment variable. A build without a token runs, but charts get no data. `.env` is gitignored: never commit it.
+The released installers already contain the gateway token. Only a build from source needs one: market data goes through the OpenTrader gateway, and the app token is compiled into the build. Copy `.env.example` to `.env` and set `OPENTRADER_GATEWAY_TOKEN`, or set it as an environment variable. A build without a token runs, but charts get no data. `.env` is gitignored: never commit it.
 
 ### Run and build
 
@@ -94,4 +94,4 @@ The workflow needs the repository secret `OPENTRADER_GATEWAY_TOKEN`.
 
 ## License
 
-[MIT](LICENSE) © 2026 Odyssée
+[MIT](LICENSE)

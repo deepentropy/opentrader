@@ -1,7 +1,7 @@
 /*
  * IconButton — 28×28 compact button used by panel headers.
- * Composes the shared `.tv-toolbar-button` base for the hover pill;
- * `.tv-icon-button` only adds dimensions + a 4px pill radius.
+ * Composes the shared `.ot-toolbar-button` base for the hover pill;
+ * `.ot-icon-button` only adds dimensions + a 4px pill radius.
  */
 import type { JSX } from "solid-js";
 import { splitProps } from "solid-js";
@@ -16,7 +16,7 @@ export function IconButton(props: Props) {
   return (
     <button
       type={local.type ?? "button"}
-      class={`tv-toolbar-button tv-icon-button${local.class ? " " + local.class : ""}`}
+      class={`ot-toolbar-button ot-icon-button${local.class ? " " + local.class : ""}`}
       {...rest}
     >
       {local.children}

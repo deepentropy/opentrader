@@ -1,5 +1,5 @@
 /*
- * Table UI state (TV inplaceEditableCellIndexes + the text edit mode): the
+ * Table UI state (the in-place editable cell + the text edit mode): the
  * active cell of the selected table, whether its editor is open, the hovered
  * resize edge. OpenTrader-only (SolidJS signal); the table geometry is in
  * the shared core (lightweight-charts-drawing/tv/kinds/table).

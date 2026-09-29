@@ -2,7 +2,7 @@
  * AddAlertDialog — the watchlist menu's "Add alert on the list…" action. A small
  * modal to set a local price-move alert for the active list: notify when any
  * symbol's absolute change% crosses the threshold. Evaluated against the live
- * tick stream in Watchlist.tsx. Local stand-in for TV's server-side alerts.
+ * tick stream in Watchlist.tsx. Local alerts (no server side).
  */
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";

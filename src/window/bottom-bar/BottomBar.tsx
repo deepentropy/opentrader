@@ -8,7 +8,7 @@
  * "Maximize chart" (data-name=layoutFullscreen, hotkey Alt+Enter) enlarges the
  * FOCUSED pane over the others inside the active layout — it is NOT browser
  * fullscreen. The owning App holds the maximize state and applies it in
- * ChartGrid; this bar only renders the toggle (mirrors the desktop app).
+ * ChartGrid; this bar only renders the toggle.
  */
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -26,7 +26,7 @@ const DATE_RANGES: {
   id: DateRangeId;
   label: string;
   tooltip: string;
-  /** Interval id this tab sets (matches the mock's probe). */
+  /** Interval id this tab sets. */
   interval: string;
 }[] = [
   { id: "1D",  label: "1D",  tooltip: "1 day in 1 minute intervals",     interval: "1"   },
@@ -88,7 +88,7 @@ type Props = {
   interval: string;
   setInterval: (id: string) => void;
   /** Focused pane's session (RTH/ETH) + its setter. Only meaningful on intraday
-   *  frames; the button is hidden on daily+ (matches TV). */
+   *  frames; the button is hidden on daily+. */
   session: SessionId;
   onSessionChange: (id: SessionId) => void;
   /** Display timezone label (TimezoneMenu) + IANA id (clock + chart axis). */
@@ -110,9 +110,9 @@ export function BottomBar(props: Props) {
   // Popover anchors (drop-up menus open above their trigger).
   const [tzAnchor, setTzAnchor] = createSignal<DOMRect | null>(null);
   const [sessionAnchor, setSessionAnchor] = createSignal<DOMRect | null>(null);
-  // Session applies only to intraday frames; daily/weekly/monthly hide it (TV).
+  // Session applies only to intraday frames; daily/weekly/monthly hide it.
   const sessionEnabled = () => isIntradayInterval(props.interval);
-  // ADJ toggle (TV's split/dividend adjustment). The flag lives in kv where the
+  // ADJ toggle (split/dividend adjustment). The flag lives in kv where the
   // datafeed reads it per fetch; toggling asks every pane to refetch — no
   // App-level wiring needed.
   const [adjusted, setAdjusted] = createSignal(isAdjusted());
@@ -133,9 +133,9 @@ export function BottomBar(props: Props) {
   const openGoTo = () => setGoToAnchor(goToButton.getBoundingClientRect());
   const closeGoTo = () => setGoToAnchor(null);
 
-  // TV's narrow-bar mode: when the expanded range tabs would collide with the
+  // Narrow-bar mode: when the expanded range tabs would collide with the
   // right cluster, they collapse into a single "Date Range" drop-up button
-  // (captured `date-ranges-menu`, 107×38). Both variants stay rendered — the
+  // (`date-ranges-menu`, 107×38). Both variants stay rendered — the
   // expanded strip is visibility-hidden while collapsed so it stays measurable.
   const [rangesCollapsed, setRangesCollapsed] = createSignal(false);
   const [rangesAnchor, setRangesAnchor] = createSignal<DOMRect | null>(null);
@@ -162,7 +162,7 @@ export function BottomBar(props: Props) {
     if (barEl) ro.observe(barEl);
     measure();
     onCleanup(() => ro.disconnect());
-    // Alt+G toggles the Go-to dialog; Alt+Enter toggles maximize (matches TV),
+    // Alt+G toggles the Go-to dialog; Alt+Enter toggles maximize,
     // unless focus is in a field.
     const onKey = (e: KeyboardEvent) => {
       if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -231,7 +231,7 @@ export function BottomBar(props: Props) {
                         onClick={() => {
                           setPickedRange(r.id);
                           props.setInterval(r.interval);
-                          // TV: a range tab sets the visible span AND the
+                          // A range tab sets the visible span AND the
                           // interval. The focused ChartView frames the span
                           // once the new interval's bars land.
                           window.dispatchEvent(
@@ -255,7 +255,7 @@ export function BottomBar(props: Props) {
               ref={goToButton}
               type="button"
               tabIndex={-1}
-              // No state while the dialog is open (TV 3.4.1, measured 24/09/2026).
+              // No state while the dialog is open.
               class="bottom-bar-item bottom-bar-icon-button bottom-bar-icon-button--small"
               data-name="go-to-date"
               aria-label="Go to"
@@ -270,7 +270,7 @@ export function BottomBar(props: Props) {
           </Tooltip>
         </div>
 
-        {/* Right group, TV order (captured 25/07/2026):
+        {/* Right group, in order:
             [HH:MM:SS UTC-4] [RTH] [|] [ADJ] [maximize]. */}
         <div class="bottom-bar-series-control-wrapper" ref={rightEl}>
           <div class="bottom-bar-inline">
@@ -421,10 +421,10 @@ export function BottomBar(props: Props) {
   );
 }
 
-/** Drop-up listing the range presets when the tab strip is collapsed (TV's
- *  `date-ranges-menu` narrow-bar mode). Mirrors SessionMenu's mechanics;
+/** Drop-up listing the range presets when the tab strip is collapsed
+ *  (`date-ranges-menu` narrow-bar mode). Mirrors SessionMenu's mechanics;
  *  row text uses each preset's descriptive tooltip (the compact label set
- *  was only captured in expanded mode). */
+ *  is for expanded mode only). */
 function RangesMenu(props: {
   anchor: DOMRect;
   activeId: DateRangeId | null;
@@ -460,7 +460,7 @@ function RangesMenu(props: {
     <Portal>
     <div
       ref={root}
-      class="tv-popover session-menu context-menu"
+      class="ot-popover session-menu context-menu"
       role="menu"
       aria-label="Date range"
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 200 }}

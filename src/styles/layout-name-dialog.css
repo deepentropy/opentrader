@@ -15,7 +15,7 @@
   background: rgba(0, 0, 0, 0.5);
 }
 
-/* .tv-popover supplies bg + radius + shadow; width/layout overridden here. */
+/* .ot-popover supplies bg + radius + shadow; width/layout overridden here. */
 .layout-name-dialog {
   position: relative;
   width: 360px;

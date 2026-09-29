@@ -1,8 +1,8 @@
 /*
  * SelectedToolbar — floating action strip above the selected drawing.
  *
- * Color / width / style now open TV's real popover widgets (ColorPopover with a
- * swatch grid + opacity, WidthPopover, StylePopover) instead of the earlier
+ * Color / width / style now open dedicated popover widgets (ColorPopover with
+ * a swatch grid + opacity, WidthPopover, StylePopover) instead of the earlier
  * native `<input type=color>` + click-to-cycle stand-ins, plus a Templates menu
  * to save/apply named style snapshots. Settings / lock / remove unchanged.
  *
@@ -19,7 +19,7 @@ import { createEffect, createSignal, onCleanup, onMount, Show, untrack } from "s
 import { type Drawing, type DrawingStyle } from "lightweight-charts-drawing/tv/types";
 import { factoryStyleFor, REGRESSION_LINE_DEFAULTS } from "lightweight-charts-drawing/tv/specs";
 import { clearKindDefault, saveKindDefault, type DrawingTemplate } from "./templates";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { ColorPopover, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
 import * as kv from "../../data/kv";
 
@@ -44,20 +44,19 @@ type Props = {
   onReorder: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
   /** Opens the alert dialog prefilled with the drawing's first-point price. */
   onAddAlert?: (d: Drawing) => void;
-  /** TV "Anchor drawing" toggle (anchorable tools only). */
+  /** "Anchor drawing" toggle (anchorable tools only). */
   onToggleAnchor?: () => void;
-  /** Table insert buttons (TV "Add column to right" / "Add row below"). */
+  /** Table insert buttons ("Add column to right" / "Add row below"). */
   onTableOp?: (op: "insert-column" | "insert-row") => void;
 };
 
 const PADDING = 8;
 const TOOLBAR_OFFSET_Y = 48;
 
-/* ── Persistent toolbar position (TV `properties_toolbar.position`) ─────────
- * TV's floating line-tool toolbar is ONE window: a `{left, top}` in viewport
+/* ── Persistent toolbar position ────────────────────────────────────────────
+ * The floating line-tool toolbar is ONE window: a `{left, top}` in viewport
  * px saved on every drag stop and restored for every future selection +
- * session (floating-toolbars chunk `_savePosition`/`_loadPosition`), clamped
- * back on-screen via `checkPosition`. Until the user's first drag we keep the
+ * session, clamped back on-screen. Until the user's first drag we keep the
  * per-selection auto-anchor above the drawing. */
 const POS_KEY = "tv:drawing-toolbar-pos";
 type ToolbarPos = { left: number; top: number };
@@ -91,28 +90,27 @@ const ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "ba
 ];
 
 /** Kinds whose renderers actually use `style.textColor` (on-line text label /
- *  angle label) — the text-color button only shows for these, mirroring TV's
- *  per-tool floating toolbar. */
+ *  angle label) — the text-color button only shows for these (per-tool
+ *  floating toolbar). */
 const TEXT_COLOR_KINDS = new Set<string>(["trend-line", "ray", "extended-line", "info-line", "trend-angle", "table"]);
-/** Kinds with a background colour button (TV table: line / background / text
- *  colours, captured 25/09/2026). */
+/** Kinds with a background colour button (table: line / background / text
+ *  colours). */
 const BACKGROUND_COLOR_KINDS = new Set<string>(["table"]);
-/** Kinds without line width / line style buttons (TV table; the image has
+/** Kinds without line width / line style buttons (table; the image has
  *  no line, background or text property). */
 const NO_WIDTH_STYLE_KINDS = new Set<string>(["table", "image"]);
-/** Kinds without the add-alert button (TV table toolbar, captured). */
+/** Kinds without the add-alert button (table and image toolbars). */
 const NO_ALERT_KINDS = new Set<string>(["table", "image"]);
 
-/** Kinds whose toolbar line colour / width is copied to every level (TV
- *  `collectedPropertyChildNames`: lineColor / lineWidth = levelN.color /
- *  levelN.lineWidth). */
+/** Kinds whose toolbar line colour / width is copied to every level
+ *  (lineColor / lineWidth = levelN.color / levelN.lineWidth). */
 const COLLECTED_LEVEL_KINDS = new Set<string>(["parallel-channel"]);
-/** Kinds whose TV floating toolbar has no line colour / line style button
+/** Kinds whose floating toolbar has no line colour / line style button
  *  (regression trend: templates, width, settings, lock, remove, more). */
 const NO_COLOR_STYLE_KINDS = new Set<string>(["regression-trend", "image"]);
 function withCollectedLevels(d: Drawing, patch: Partial<DrawingStyle>): DrawingStyle {
   const next = { ...d.style, ...patch };
-  // TV regression trend: the toolbar width sets the up / down / base lines.
+  // Regression trend: the toolbar width sets the up / down / base lines.
   if (d.kind === "regression-trend" && patch.width != null) {
     const rl = d.style.regressionLines ?? REGRESSION_LINE_DEFAULTS;
     const w = patch.width;
@@ -133,7 +131,7 @@ export function SelectedToolbar(props: Props) {
   const toggle = (p: Exclude<OpenPopover, null>) =>
     setOpenPopover((cur) => (cur === p ? null : p));
 
-  // Frozen base position (pre-drag mode only). TV's floating toolbar does NOT
+  // Frozen base position (pre-drag mode only). The floating toolbar does NOT
   // follow the drawing on pan / object-move — it stays where it first appeared.
   // We capture the anchor once per selection, keyed on the drawing id and read
   // untracked so the pan-driven `anchor` updates don't re-freeze it.
@@ -149,15 +147,14 @@ export function SelectedToolbar(props: Props) {
 
   // Once the user drags the grip the toolbar is PINNED: one viewport-space
   // `{left, top}` shared by every selection and persisted across sessions
-  // (kv `tv:drawing-toolbar-pos`, TV's `properties_toolbar.position` model).
+  // (kv `tv:drawing-toolbar-pos`).
   // Null until the first-ever drag → the auto-anchor path above applies.
   const [pinned, setPinned] = createSignal<ToolbarPos | null>(loadToolbarPos());
   let rootEl: HTMLDivElement | undefined;
 
   // Keep every open popover (templates, colour, width, style, More and its
-  // submenu) inside the window: TV's PopupMenu opens under its button, then
-  // clamps x / y into the window (module 671464 _handleMeasure) and scrolls
-  // when taller than the window.
+  // submenu) inside the window: a popup menu opens under its button, then
+  // clamps x / y into the window and scrolls when taller than the window.
   const clampPopovers = () => {
     if (!rootEl) return;
     for (const el of rootEl.querySelectorAll<HTMLElement>(".dt-popover, .dt-order-submenu")) {
@@ -184,7 +181,7 @@ export function SelectedToolbar(props: Props) {
     onCleanup(() => { mo.disconnect(); cancelAnimationFrame(raf); window.removeEventListener("resize", schedule); });
   });
 
-  // Clamp a saved position back into the viewport (TV `checkPosition`) so a
+  // Clamp a saved position back into the viewport so a
   // toolbar dragged on a large window can't restore off-screen on a small one.
   const clampPos = (p: ToolbarPos): ToolbarPos => {
     const w = rootEl?.offsetWidth ?? 320;
@@ -233,12 +230,12 @@ export function SelectedToolbar(props: Props) {
   const isGroup = () => groupTargets().length > 1;
 
   /** Style patch across the whole selection (color / text color / width /
-   *  line-style buttons — TV applies these to every selected drawing). */
+   *  line-style buttons — these apply to every selected drawing). */
   function patchStyle(patch: Partial<DrawingStyle>) {
     const targets = groupTargets();
     const next = targets.map((d) => ({ ...d, style: withCollectedLevels(d, patch) } as Drawing));
-    // TV saves a tool's defaults on every UI property edit (DefaultProperty
-    // saveDefaults), so the next drawing of the tool starts with this style.
+    // A tool's defaults are saved on every UI property edit, so the next
+    // drawing of the tool starts with this style.
     for (const d of next) saveKindDefault(d.kind, d.style);
     if (next.length > 1 && props.onUpdateMany) {
       props.onUpdateMany(next);
@@ -248,7 +245,7 @@ export function SelectedToolbar(props: Props) {
   }
 
   /** Templates menu → a saved template on the selection's drawings of the
-   *  same tool (TV applyLineToolsTemplate): style over the factory style,
+   *  same tool: style over the factory style,
    *  plus the text of text tools. */
   function applyTemplate(tpl: DrawingTemplate) {
     const targets = groupTargets().filter((d) => d.kind === props.drawing.kind);
@@ -262,8 +259,7 @@ export function SelectedToolbar(props: Props) {
   }
 
   /** "Apply Default Drawing Template": factory style on every selected
-   *  drawing, and the tools' saved defaults are cleared (TV
-   *  restoreLineToolsFactoryDefaults). */
+   *  drawing, and the tools' saved defaults are cleared. */
   function applyFactoryDefaults() {
     const targets = groupTargets();
     for (const d of targets) clearKindDefault(d.kind);
@@ -320,7 +316,7 @@ export function SelectedToolbar(props: Props) {
 
   // Inline icons that react to drawing state — width thickness bar + style
   // dash pattern.
-  // TV regression trend: the width button shows the collected up-line width.
+  // Regression trend: the width button shows the collected up-line width.
   const shownWidth = () =>
     props.drawing.kind === "regression-trend"
       ? (props.drawing.style.regressionLines ?? REGRESSION_LINE_DEFAULTS).up.width
@@ -345,7 +341,7 @@ export function SelectedToolbar(props: Props) {
     >
       <div class="selected-toolbar-content">
         {/* Drag grip — repositions the toolbar; the position persists across
-            selections AND sessions (kv, TV `properties_toolbar.position`). */}
+            selections AND sessions (kv). */}
         <span
           class="selected-toolbar-drag"
           data-name="drag"
@@ -353,9 +349,9 @@ export function SelectedToolbar(props: Props) {
           aria-label="Drag toolbar"
           onPointerDown={onGripDown}
         >
-          {/* 6-dot grip — the same captured TV SVG (viewBox 0 0 8 12) the
+          {/* 6-dot grip — the same SVG (viewBox 0 0 8 12) the
            *  favorites toolbar uses, rendered at its native 8×12 so the dots
-           *  stay round + correctly spaced (rendering it via TvIcon squished the
+           *  stay round + correctly spaced (rendering it via Icon squished the
            *  8×12 art into a square). */}
           <svg viewBox="0 0 8 12" width="8" height="12" fill="currentColor" aria-hidden="true">
             <rect width="2" height="2" rx="1" />
@@ -367,7 +363,7 @@ export function SelectedToolbar(props: Props) {
           </svg>
         </span>
 
-        {/* Templates FIRST — TV's captured widget order (templates, color,
+        {/* Templates FIRST — widget order (templates, color,
             text color, width, style, settings, add-alert, lock, remove, more). */}
         <span class="selected-toolbar-control">
           <button
@@ -379,13 +375,13 @@ export function SelectedToolbar(props: Props) {
             aria-expanded={openPopover() === "templates"}
             onClick={() => toggle("templates")}
           >
-            <TvIcon name="dt-templates" size={28} />
+            <Icon name="dt-templates" size={28} />
           </button>
           <Show when={openPopover() === "templates"}>
             <TemplatesMenu
               variant="toolbar"
               kind={props.drawing.kind}
-              // TV: Save As only for one selected drawing.
+              // Save As only for one selected drawing.
               getTemplate={isGroup() ? undefined : () => ({ style: props.drawing.style, text: (props.drawing as { text?: string }).text })}
               onApply={applyTemplate}
               onApplyDefault={applyFactoryDefaults}
@@ -394,7 +390,7 @@ export function SelectedToolbar(props: Props) {
           </Show>
         </span>
 
-        {/* Table insert buttons (TV toggle-insert-cells-button-*): a column
+        {/* Table insert buttons (toggle-insert-cells-button-*): a column
             right of / a row below the active cell, else at the end. */}
         <Show when={props.drawing.kind === "table" && props.onTableOp}>
           <button
@@ -405,7 +401,7 @@ export function SelectedToolbar(props: Props) {
             aria-label="Add column to right"
             onClick={() => props.onTableOp?.("insert-column")}
           >
-            <TvIcon name="dt-table-insert-column" size={28} />
+            <Icon name="dt-table-insert-column" size={28} />
           </button>
           <button
             type="button"
@@ -415,7 +411,7 @@ export function SelectedToolbar(props: Props) {
             aria-label="Add row below"
             onClick={() => props.onTableOp?.("insert-row")}
           >
-            <TvIcon name="dt-table-insert-row" size={28} />
+            <Icon name="dt-table-insert-row" size={28} />
           </button>
         </Show>
 
@@ -432,7 +428,7 @@ export function SelectedToolbar(props: Props) {
             onClick={() => toggle("line-tool-color")}
           >
             <span class="selected-toolbar-icon-wrap">
-              <TvIcon name="dt-line-tool-color" size={16} />
+              <Icon name="dt-line-tool-color" size={16} />
               <span class="selected-toolbar-color-bar">
                 <span class="selected-toolbar-color-bar-fill" style={{ "background-color": props.drawing.style.color }} />
               </span>
@@ -448,7 +444,7 @@ export function SelectedToolbar(props: Props) {
         </span>
         </Show>
 
-        {/* Background colour (TV "Line tool backgrounds"). */}
+        {/* Background colour ("Line tool backgrounds"). */}
         <Show when={BACKGROUND_COLOR_KINDS.has(props.drawing.kind)}>
           <span class="selected-toolbar-control">
             <button
@@ -461,7 +457,7 @@ export function SelectedToolbar(props: Props) {
               onClick={() => toggle("background-color")}
             >
               <span class="selected-toolbar-icon-wrap">
-                <TvIcon name="dt-background-color" size={20} />
+                <Icon name="dt-background-color" size={20} />
                 <span class="selected-toolbar-color-bar">
                   <span class="selected-toolbar-color-bar-fill" style={{ "background-color": props.drawing.style.backgroundColor ?? props.drawing.style.color }} />
                 </span>
@@ -492,7 +488,7 @@ export function SelectedToolbar(props: Props) {
               onClick={() => toggle("text-color")}
             >
               <span class="selected-toolbar-icon-wrap">
-                <TvIcon name="dt-text-color" size={16} />
+                <Icon name="dt-text-color" size={16} />
                 <span class="selected-toolbar-color-bar">
                   <span class="selected-toolbar-color-bar-fill" style={{ "background-color": props.drawing.style.textColor ?? props.drawing.style.color }} />
                 </span>
@@ -576,7 +572,7 @@ export function SelectedToolbar(props: Props) {
           aria-label="Settings"
           onClick={() => props.onOpenSettings(props.drawing.id)}
         >
-          <TvIcon name="dt-settings" size={28} />
+          <Icon name="dt-settings" size={28} />
         </button>
 
         {/* Add alert — prefilled with the drawing's first-point price. */}
@@ -589,7 +585,7 @@ export function SelectedToolbar(props: Props) {
             aria-label="Add alert"
             onClick={() => props.onAddAlert?.(props.drawing)}
           >
-            <TvIcon name="dt-add-alert" size={28} />
+            <Icon name="dt-add-alert" size={28} />
           </button>
         </Show>
 
@@ -603,10 +599,10 @@ export function SelectedToolbar(props: Props) {
           aria-pressed={!!props.drawing.locked}
           onClick={toggleLocked}
         >
-          <TvIcon name="dt-lock" size={28} />
+          <Icon name="dt-lock" size={28} />
         </button>
 
-        {/* Anchor drawing (TV toggle-anchor, after Lock; active = anchored). */}
+        {/* Anchor drawing (toggle-anchor, after Lock; active = anchored). */}
         <Show when={props.onToggleAnchor && !isGroup()}>
           <button
             type="button"
@@ -617,7 +613,7 @@ export function SelectedToolbar(props: Props) {
             aria-pressed={!!props.drawing.anchored}
             onClick={() => props.onToggleAnchor?.()}
           >
-            <TvIcon name="dt-anchor" size={28} />
+            <Icon name="dt-anchor" size={28} />
           </button>
         </Show>
 
@@ -631,10 +627,10 @@ export function SelectedToolbar(props: Props) {
           aria-label="Remove"
           onClick={removeSelection}
         >
-          <TvIcon name="dt-remove" size={28} />
+          <Icon name="dt-remove" size={28} />
         </button>
 
-        {/* More — TV's captured menu (Visual order ▸ / Visibility on
+        {/* More — menu (Visual order ▸ / Visibility on
             intervals… / Clone / Copy / Hide; per-drawing sync omitted — no
             backing in this app). */}
         <span class="selected-toolbar-control">
@@ -647,7 +643,7 @@ export function SelectedToolbar(props: Props) {
             aria-expanded={openPopover() === "more"}
             onClick={() => toggle("more")}
           >
-            <TvIcon name="dt-more" size={28} />
+            <Icon name="dt-more" size={28} />
           </button>
           <Show when={openPopover() === "more"}>
             <MoreMenu
@@ -665,8 +661,8 @@ export function SelectedToolbar(props: Props) {
   );
 }
 
-/** The "More" dropdown — row set captured from TV's floating toolbar
- *  (214×307; sync radios omitted, see header comment). */
+/** The "More" dropdown of the floating toolbar (214×307; sync radios
+ *  omitted, see header comment). */
 function MoreMenu(props: {
   drawing: Drawing;
   onReorder: (dir: "front" | "forward" | "backward" | "back") => void;

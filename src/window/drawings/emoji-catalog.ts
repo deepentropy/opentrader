@@ -1,5 +1,5 @@
-/* Emoji catalog for the FontIconPicker — hand-rolled Unicode grid (TV renders
- * emoji via Twemoji from any codepoint). Ported verbatim from the mock. */
+/* Emoji catalog for the FontIconPicker — hand-rolled Unicode grid (emoji
+ * render from any codepoint). Ported verbatim from the mock. */
 export type EmojiCategory = { id: string; label: string; symbol: string; glyphs: string[] };
 
 export const EMOJI_CATEGORIES: EmojiCategory[] = [

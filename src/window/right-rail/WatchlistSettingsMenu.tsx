@@ -64,7 +64,7 @@ export function WatchlistSettingsMenu(props: Props) {
     props.onChange({ ...props.settings, symbolDisplay: value });
 
   return (
-    <div ref={ref} class="tv-popover watchlist-settings" role="menu" aria-label="Watchlist settings">
+    <div ref={ref} class="ot-popover watchlist-settings" role="menu" aria-label="Watchlist settings">
       <button
         type="button"
         role="menuitemcheckbox"
@@ -77,9 +77,9 @@ export function WatchlistSettingsMenu(props: Props) {
         <Switch on={props.settings.tableView} />
       </button>
 
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
 
-      <div class="tv-popover__section-title">Customize columns</div>
+      <div class="ot-popover__section-title">Customize columns</div>
       <For each={WL_COLUMNS}>
         {(c) => (
           <button
@@ -97,9 +97,9 @@ export function WatchlistSettingsMenu(props: Props) {
         )}
       </For>
 
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
 
-      <div class="tv-popover__section-title">Symbol display</div>
+      <div class="ot-popover__section-title">Symbol display</div>
       <button
         type="button"
         role="menuitemcheckbox"

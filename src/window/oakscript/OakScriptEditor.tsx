@@ -10,8 +10,7 @@
  * after a switch. One monaco model per script id (cached by URI) keeps each
  * script's undo stack alive across switches and drawer close/reopen.
  *
- * Editor metrics follow TV's Pine editor (Menlo/Consolas 13px/18px, no
- * minimap — DESIGN.md).
+ * Editor metrics: Menlo/Consolas 13px/18px, no minimap (DESIGN.md).
  */
 import { createEffect, onCleanup, onMount } from "solid-js";
 import { monaco, setupMonaco, applyOakTheme } from "./monaco-setup";

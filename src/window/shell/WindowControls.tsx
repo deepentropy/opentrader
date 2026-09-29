@@ -2,7 +2,7 @@
  * WindowControls — minimize / maximize-restore / close buttons for the
  * frameless window. Now that native decorations are off (tauri.conf.json),
  * these live at the right edge of the `.tab-bar`, merging the OS title bar
- * into the chart-tab strip (TV desktop's `'tabs … window-controls'` header).
+ * into the chart-tab strip.
  *
  * Tauri-only: outside the shell (plain browser / verify harness) the native
  * chrome — if any — still applies, so we render nothing and stay a no-op.

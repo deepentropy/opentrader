@@ -1,5 +1,4 @@
-/* TV "Change interval" dialog (dialog-yWGN5P58 + ui-lib PopupDialog / Input
- * large), measured on TV Desktop 3.4.1 28/09/2026. */
+/* "Change interval" dialog (popup dialog with a large input). */
 .change-interval-dialog {
   position: fixed;
   left: 50%;
@@ -54,7 +53,7 @@
   width: 198px;
   max-width: 200px;
 }
-/* ui-lib Input, large: 48 px, 1 px #575757 border, radius 8; the 2 px focus
+/* Large input: 48 px, 1 px #575757 border, radius 8; the 2 px focus
  * ring is blue, red when the value is not applicable (intent-danger). */
 .change-interval-input-wrap {
   position: relative;

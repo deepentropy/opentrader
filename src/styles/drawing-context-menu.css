@@ -1,7 +1,6 @@
 /*
- * Right-click context menu for drawings. Mirrors TV's `[data-qa-id="more-
- * menu"]` portal popup: dark shell, 36px icon column, label + shortcut,
- * 1px separator rows.
+ * Right-click context menu for drawings. Portal popup: dark shell, 36px
+ * icon column, label + shortcut, 1px separator rows.
  */
 .drawing-context-menu {
   min-width: 214px;
@@ -87,7 +86,7 @@
   min-width: 160px;
 }
 
-/* Disabled row (TV table "Remove row" / "Remove column" on the last one). */
+/* Disabled row (table "Remove row" / "Remove column" on the last one). */
 .drawing-context-menu-item.disabled {
   opacity: 0.4;
   cursor: default;

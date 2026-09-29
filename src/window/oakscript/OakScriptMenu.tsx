@@ -1,12 +1,11 @@
 /*
  * OakScriptMenu — the dropdown opened from the script-name button in the
- * OakScript drawer header. Mirrors TV's Pine editor script menu (probed live):
- * actions, a
+ * OakScript drawer header: actions, a
  * "Recently used" script list with the current one highlighted, then open/
- * import/export. Same .tv-popover / .tv-menu-item idiom as WatchlistMenu;
+ * import/export. Same .ot-popover / .ot-menu-item idiom as WatchlistMenu;
  * opens UPWARD (the drawer hugs the window bottom).
  *
- * "Open built-in source" (TV: Create new → Built-in...) is deliberately
+ * "Open built-in source" (Create new → Built-in...) is deliberately
  * absent: the lightweight-charts-indicators npm package ships dist/ only, so
  * there is no per-indicator source to open until the package publishes src/.
  */
@@ -50,26 +49,26 @@ export function OakScriptMenu(props: Props) {
     <button
       type="button"
       role="menuitem"
-      class={`tv-menu-item${danger ? " oak-script-menu__danger" : ""}`}
+      class={`ot-menu-item${danger ? " oak-script-menu__danger" : ""}`}
       onClick={() => {
         action();
         props.onClose();
       }}
     >
-      {/* .tv-menu-item is a 28px|1fr|auto grid — keep the icon cell even
+      {/* .ot-menu-item is a 28px|1fr|auto grid — keep the icon cell even
           when empty so the label lands in the text column. */}
-      <span class="tv-menu-item__icon" aria-hidden="true" />
-      <span class="tv-menu-item__label">{label}</span>
+      <span class="ot-menu-item__icon" aria-hidden="true" />
+      <span class="ot-menu-item__label">{label}</span>
     </button>
   );
 
   return (
-    <div ref={root} class="tv-popover oak-script-menu" role="menu" aria-label="Script menu">
+    <div ref={root} class="ot-popover oak-script-menu" role="menu" aria-label="Script menu">
       {item("Make a copy", props.onCopy)}
       {item("Rename…", props.onRename)}
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
       {item("Create new indicator", props.onCreateNew)}
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
       <Show when={props.scriptsList.length > 0}>
         <div class="oak-script-menu__section">Recently used</div>
         <For each={props.scriptsList}>
@@ -77,22 +76,22 @@ export function OakScriptMenu(props: Props) {
             <button
               type="button"
               role="menuitem"
-              class={`tv-menu-item${s.id === props.currentId ? " tv-menu-item--current" : ""}`}
+              class={`ot-menu-item${s.id === props.currentId ? " ot-menu-item--current" : ""}`}
               onClick={() => {
                 props.onSelect(s.id);
                 props.onClose();
               }}
             >
-              <span class="tv-menu-item__icon" aria-hidden="true" />
-              <span class="tv-menu-item__label">{s.name}</span>
+              <span class="ot-menu-item__icon" aria-hidden="true" />
+              <span class="ot-menu-item__label">{s.name}</span>
             </button>
           )}
         </For>
-        <div class="tv-popover__divider" />
+        <div class="ot-popover__divider" />
       </Show>
       {item("Export script…", props.onExport)}
       {item("Import script…", props.onImport)}
-      <div class="tv-popover__divider" />
+      <div class="ot-popover__divider" />
       {item("Delete script", props.onDelete, true)}
     </div>
   );

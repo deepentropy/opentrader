@@ -1,15 +1,15 @@
 /*
  * Layout sync — the "SYNC IN LAYOUT" toggles in the header layout dropdown.
  * When a key is on, that aspect is mirrored across every pane of the tab's
- * multi-chart layout (TV Desktop's layout-sync section). Symbol / interval
+ * multi-chart layout. Symbol / interval
  * sync happen in App (broadcast the change to all panes); crosshair / time /
  * date-range sync happen in ChartView via a window-event bus.
  *
- * The toggles belong to each tab (TV saves them per layout, in the layout
+ * The toggles belong to each tab (saved per layout, in the layout
  * content: symbolLock / intervalLock / crosshairLock / trackTimeLock /
  * dateRangeLock). A new tab starts
  * with everything off except Crosshair, which takes the global crosshair
- * setting (TV `chart.syncCrosshair`, default on, written on every Crosshair
+ * setting (`chart.syncCrosshair`, default on, written on every Crosshair
  * toggle).
  *
  * App owns the tabs, so it registers the active tab's state and toggle here;
@@ -24,8 +24,7 @@ export type LayoutSyncKey = "symbol" | "interval" | "crosshair" | "time" | "date
 
 export type LayoutSyncState = Record<LayoutSyncKey, boolean>;
 
-/** Display order + labels + info-icon tooltips of the toggles. Strings are
- *  verbatim from the live desktop "Sync in layout" section (probed via CDP). */
+/** Display order + labels + info-icon tooltips of the toggles. */
 export const LAYOUT_SYNC_ITEMS: { key: LayoutSyncKey; label: string; tip: string }[] = [
   { key: "symbol", label: "Symbol", tip: "Symbol changes on all charts within the layout" },
   { key: "interval", label: "Interval", tip: "Interval changes on all charts within the layout" },
@@ -34,7 +33,7 @@ export const LAYOUT_SYNC_ITEMS: { key: LayoutSyncKey; label: string; tip: string
   { key: "dateRange", label: "Date range", tip: "Date range changes on all charts within the layout" },
 ];
 
-/** Global crosshair default for new layouts (TV chart.syncCrosshair). */
+/** Global crosshair default for new layouts (chart.syncCrosshair). */
 const CROSSHAIR_KEY = "tv:sync-crosshair";
 /** The one global state used before the toggles moved into the tabs. */
 const LEGACY_KEY = "tv:layout-sync";
@@ -72,8 +71,8 @@ export function reviveLayoutSync(raw: unknown): LayoutSyncState {
   return out;
 }
 
-/** Every Crosshair toggle also sets the global default (TV writes
- *  chart.syncCrosshair on each change). */
+/** Every Crosshair toggle also sets the global default (chart.syncCrosshair
+ *  is written on each change). */
 export function rememberCrosshair(on: boolean): void {
   kv.setItem(CROSSHAIR_KEY, on ? "1" : "0");
 }

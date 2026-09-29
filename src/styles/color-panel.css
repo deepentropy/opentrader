@@ -1,5 +1,5 @@
 /*
- * ColorPanel — TV's color picker, metrics captured live (3.2.0.7916):
+ * ColorPanel — the color picker. Metrics:
  * swatches 17×17 on a 23px pitch (6px gaps); custom row with inline "+" tile;
  * "Opacity" gradient track 169×10 + 12px pointer + 47×26 numeric input + "%";
  * in-dialog extras: "Thickness" (4 radio bars 31×1..4, items 57×32) and
@@ -17,7 +17,7 @@
   display: flex;
   gap: 6px;
 }
-/* TV splits the base block (grays + hues) from the tint/shade block. */
+/* Split the base block (grays + hues) from the tint/shade block. */
 .cp-row-gap {
   margin-bottom: 6px;
 }
@@ -197,7 +197,7 @@
   padding: 0 10px;
   border: 0;
   border-radius: 4px;
-  background: var(--color-tv-blue-500, #2962ff);
+  background: var(--color-ot-blue-500, #2962ff);
   color: #fff;
   font-size: 13px;
   cursor: pointer;

@@ -2,7 +2,7 @@
  * AlertDialog — create or edit a single alert rule.
  *
  * A real, condition-based alert (the per-symbol counterpart to the watchlist's
- * list-level AddAlertDialog). Ports TV's create-alert dialog shape: a
+ * list-level AddAlertDialog). Create-alert dialog shape: a
  * (left · operator · right) condition over price / drawing / indicator
  * operands, plus trigger frequency, name, message, sound and an optional
  * expiry. Saving writes to alert-store; the engine evaluates it live.
@@ -268,8 +268,8 @@ export function AlertDialog(props: Props) {
         e.stopPropagation();
         props.onClose();
       } else if (existing && e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
-        // TV shortcuts page: "Save changes in the Edit alert dialog" = Ctrl+Enter.
-        // (Not verified for the Create dialog, so it is bound for Edit only.)
+        // "Save changes in the Edit alert dialog" = Ctrl+Enter (bound for the
+        // Edit dialog only).
         e.preventDefault();
         e.stopPropagation();
         save();

@@ -1,11 +1,10 @@
 /*
- * TV drawing color palette — captured verbatim from the live floating-toolbar
- * line-color picker (TV Desktop 3.1.0.7818). 8 rows × 10:
+ * Drawing color palette of the floating-toolbar line-color picker. 8 rows × 10:
  *   row 0    = grayscale (white → black)
  *   row 1    = base hues
  *   rows 2-7 = tints (light) → shades (dark) of each hue column
  */
-export const TV_COLOR_ROWS: readonly (readonly string[])[] = [
+export const COLOR_ROWS: readonly (readonly string[])[] = [
   ["#FFFFFF", "#DBDBDB", "#B8B8B8", "#9C9C9C", "#808080", "#636363", "#4A4A4A", "#2E2E2E", "#0F0F0F", "#000000"],
   ["#F23645", "#FF9800", "#FFEB3B", "#4CAF50", "#089981", "#00BCD4", "#2962FF", "#673AB7", "#9C27B0", "#E91E63"],
   ["#FCCBCD", "#FFE0B2", "#FFF9C4", "#C8E6C9", "#ACE5DC", "#B2EBF2", "#BBD9FB", "#D1C4E9", "#E1BEE7", "#F8BBD0"],

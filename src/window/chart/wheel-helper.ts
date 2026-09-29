@@ -1,6 +1,5 @@
 /*
- * TV's chart mouse-wheel helper (main_chart module 879505, class `ye` + its
- * normalizer `fe`, read 27/09/2026 from TV Desktop 3.4.1).
+ * Chart mouse-wheel helper and its delta normalizer.
  *
  *  - Outside macOS, Shift swaps the axes (vertical wheel → horizontal move):
  *    deltaX = -deltaY, deltaY = deltaX. macOS swaps natively.

@@ -1,7 +1,6 @@
 /*
- * TV prompt dialogs (components/TvDialogs.tsx) — TradingView Desktop 3.4.1
- * popupDialog-xKF9ptKN, measured 26/09/2026 ("Save template as", chart
- * template delete confirmation):
+ * Prompt dialogs (components/Dialogs.tsx): "Save template as", chart
+ * template delete confirmation:
  *   box 480 x auto, #1F1F1F, r6, centred, no dimming behind;
  *   title 20/600 lh 24 at 40,40; close 34 x 34 at top 8 right 8;
  *   content padding 8 40 (label 14/21 #8C8C8C, text 16/24);
@@ -13,7 +12,7 @@
  *   secondary 1 px #4A4A4A white text; Save #F2F2F2 / #0F0F0F, disabled
  *   #3D3D3D / #575757; Yes #089981; danger #F23645.
  */
-.tv-dlg-layer {
+.ot-dlg-layer {
   position: fixed;
   inset: 0;
   z-index: 1200;
@@ -21,7 +20,7 @@
   align-items: center;
   justify-content: center;
 }
-.tv-dlg {
+.ot-dlg {
   position: relative;
   box-sizing: border-box;
   width: 480px;
@@ -34,13 +33,13 @@
   font-family: var(--font-family-base);
   font-size: 14px;
 }
-.tv-dlg-title {
+.ot-dlg-title {
   margin: 0 49px 0 40px;
   font-size: 20px;
   font-weight: 600;
   line-height: 24px;
 }
-.tv-dlg-close {
+.ot-dlg-close {
   all: unset;
   position: absolute;
   top: 8px;
@@ -54,21 +53,21 @@
   color: #dbdbdb;
   cursor: default;
 }
-.tv-dlg-content {
+.ot-dlg-content {
   margin-top: 8px;
   padding: 8px 40px;
   font-size: 16px;
   line-height: 24px;
 }
-.tv-dlg-text { overflow-wrap: anywhere; }
-.tv-dlg-label {
+.ot-dlg-text { overflow-wrap: anywhere; }
+.ot-dlg-label {
   display: block;
   color: #8c8c8c;
   font-size: 14px;
   line-height: 21px;
 }
-.tv-dlg-field { position: relative; }
-.tv-dlg-input-box {
+.ot-dlg-field { position: relative; }
+.ot-dlg-input-box {
   position: relative;
   box-sizing: border-box;
   display: flex;
@@ -78,11 +77,11 @@
   border: 1px solid #575757;
   border-radius: 8px;
 }
-.tv-dlg-input-box:focus-within {
+.ot-dlg-input-box:focus-within {
   border-color: transparent;
   box-shadow: inset 0 0 0 2px #2962ff;
 }
-.tv-dlg-input {
+.ot-dlg-input {
   flex: 1;
   min-width: 0;
   height: 28px;
@@ -95,7 +94,7 @@
   font-size: 16px;
   line-height: 24px;
 }
-.tv-dlg-list-btn {
+.ot-dlg-list-btn {
   all: unset;
   width: 20px;
   height: 28px;
@@ -106,9 +105,9 @@
   color: #8c8c8c;
   cursor: default;
 }
-.tv-dlg-list-btn:hover { background: #3d3d3d; }
-.tv-dlg-list-btn.is-open svg { transform: rotate(180deg); }
-.tv-dlg-suggestions {
+.ot-dlg-list-btn:hover { background: #3d3d3d; }
+.ot-dlg-list-btn.is-open svg { transform: rotate(180deg); }
+.ot-dlg-suggestions {
   position: absolute;
   left: 0;
   right: 0;
@@ -121,7 +120,7 @@
   background: #1f1f1f;
   box-shadow: 0 1px 2px 1px rgba(0, 0, 0, 0.275);
 }
-.tv-dlg-suggestion {
+.ot-dlg-suggestion {
   padding: 10px 15px;
   color: #dbdbdb;
   font-size: 13px;
@@ -131,15 +130,15 @@
   text-overflow: ellipsis;
   cursor: default;
 }
-.tv-dlg-suggestion:hover { background: #2e2e2e; }
-.tv-dlg-footer {
+.ot-dlg-suggestion:hover { background: #2e2e2e; }
+.ot-dlg-footer {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 16px;
   padding: 0 40px;
 }
-.tv-dlg-btn {
+.ot-dlg-btn {
   all: unset;
   box-sizing: border-box;
   height: 34px;
@@ -153,8 +152,8 @@
   line-height: 24px;
   cursor: default;
 }
-.tv-dlg-btn.is-secondary { border-color: #4a4a4a; color: #ffffff; }
-.tv-dlg-btn.is-neutral { background: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
-.tv-dlg-btn.is-success { background: #089981; border-color: #089981; color: #ffffff; }
-.tv-dlg-btn.is-danger { background: #f23645; border-color: #f23645; color: #ffffff; }
-.tv-dlg-btn.is-main[aria-disabled="true"] { background: #3d3d3d; border-color: #3d3d3d; color: #575757; }
+.ot-dlg-btn.is-secondary { border-color: #4a4a4a; color: #ffffff; }
+.ot-dlg-btn.is-neutral { background: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
+.ot-dlg-btn.is-success { background: #089981; border-color: #089981; color: #ffffff; }
+.ot-dlg-btn.is-danger { background: #f23645; border-color: #f23645; color: #ffffff; }
+.ot-dlg-btn.is-main[aria-disabled="true"] { background: #3d3d3d; border-color: #3d3d3d; color: #575757; }

@@ -1,5 +1,5 @@
 /*
- * Reads the `--tv-chart-*` CSS custom properties off `<html>` so the chart
+ * Reads the `--ot-chart-*` CSS custom properties off `<html>` so the chart
  * picks up the same palette as the rest of the chrome. The fallbacks match
  * the dark theme so calls before tokens.css loads still render sensibly.
  *
@@ -25,9 +25,9 @@ export type ChartTokens = {
   wickUpColor: string;
   wickDownColor: string;
   wickVisible: boolean;
-  // Grid lines: two independent checkable rows (TV 3.3), each with its own
-  // colour + line style. `grid` above is their shared colour fallback; the
-  // scale border has its own default (transparent, like TV).
+  // Grid lines: two independent checkable rows, each with its own colour +
+  // line style. `grid` above is their shared colour fallback; the scale
+  // border has its own default (transparent).
   gridVertColor: string;
   gridHorzColor: string;
   gridVertVisible: boolean;
@@ -39,8 +39,8 @@ export type ChartTokens = {
   crosshairColor: string;
   crosshairStyle: number; // 0 solid, 1 dashed, 2 dotted
   crosshairWidth: number;
-  // Crosshair axis-label plate (TV themes it per scheme; the library default
-  // is a fixed #131722 that only suits TV's navy dark theme).
+  // Crosshair axis-label plate (themed per scheme; the library default is a
+  // fixed #131722 that only suits a navy dark theme).
   crosshairLabelBg: string;
   // Divider between stacked panes inside ONE chart (indicator panes). The
   // library default is the light-theme #E0E3EB.
@@ -67,7 +67,7 @@ export type ChartTokens = {
   symbolLastValue: boolean;
   symbolPriceLine: boolean;
   symbolNameLabel: boolean;
-  /** "" = the last bar's direction colour (TV priceLineColor ""). */
+  /** "" = the last bar's direction colour. */
   symbolPriceLineColor: string;
   symbolPriceLineWidth: number;
   /** Symbol last-value label: "Price and percentage value" mode. */
@@ -136,7 +136,7 @@ export type AppearanceOverride = ChartAppearance;
 export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
   // Panes OK'd in the Settings dialog before 26/07/2026 froze that day's
   // dialog defaults into their committed draft: grid rgba(242,242,242,0.06)
-  // solid (the TV capture has since been corrected to 0.2 dotted). That
+  // solid (the default has since been corrected to 0.2 dotted). That
   // exact combination was never a deliberate user choice — treat it as
   // unset so the corrected defaults apply.
   const STALE_GRID = "rgba(242, 242, 242, 0.06)";
@@ -146,11 +146,11 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
   if (o.gridHorzColor === STALE_GRID && !o.gridHorzStyle)
     o = { ...o, gridHorzColor: undefined, gridHorzStyle: undefined };
   const s = getComputedStyle(document.documentElement);
-  const grid = o.grid || s.getPropertyValue("--tv-chart-grid").trim() || "#2e2e2e";
-  const text = s.getPropertyValue("--tv-chart-text").trim() || "#dbdbdb";
-  const up = o.up || s.getPropertyValue("--tv-chart-up").trim() || "#4caf50";
-  const down = o.down || s.getPropertyValue("--tv-chart-down").trim() || "#f23645";
-  const bg = o.bg || s.getPropertyValue("--tv-chart-bg").trim() || "#0f0f0f";
+  const grid = o.grid || s.getPropertyValue("--ot-chart-grid").trim() || "#2e2e2e";
+  const text = s.getPropertyValue("--ot-chart-text").trim() || "#dbdbdb";
+  const up = o.up || s.getPropertyValue("--ot-chart-up").trim() || "#4caf50";
+  const down = o.down || s.getPropertyValue("--ot-chart-down").trim() || "#f23645";
+  const bg = o.bg || s.getPropertyValue("--ot-chart-bg").trim() || "#0f0f0f";
   return {
     bg,
     bgGradient: o.bgGradient ?? false,
@@ -170,24 +170,24 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     gridHorzColor: o.gridHorzColor || grid,
     gridVertVisible: o.gridVertVisible ?? true,
     gridHorzVisible: o.gridHorzVisible ?? true,
-    // TV desktop dark default (live 26/07/2026): both grids dotted.
+    // Dark default: both grids dotted.
     gridVertStyle: o.gridVertStyle ?? 2,
     gridHorzStyle: o.gridHorzStyle ?? 2,
     crosshairColor: o.crosshairColor || "rgb(156, 156, 156)",
     crosshairStyle: o.crosshairStyle ?? 1,
     crosshairWidth: o.crosshairWidth ?? 1,
     crosshairLabelBg:
-      s.getPropertyValue("--tv-chart-crosshair-label-bg").trim() || "#3d3d3d",
-    paneSeparator: s.getPropertyValue("--tv-chart-pane-separator").trim() || "#4a4a4a",
-    // TV desktop scales (live 26/07/2026): text #B8B8B8, border lines fully
-    // transparent — both differ from the general chart text/grid colours.
+      s.getPropertyValue("--ot-chart-crosshair-label-bg").trim() || "#3d3d3d",
+    paneSeparator: s.getPropertyValue("--ot-chart-pane-separator").trim() || "#4a4a4a",
+    // Scales: text #B8B8B8, border lines fully transparent. Both differ from
+    // the general chart text/grid colours.
     scaleTextColor: o.scaleTextColor || "#b8b8b8",
     scaleFontSize: o.scaleFontSize ?? 12,
     scaleLinesColor: o.scaleLinesColor || "rgba(242, 242, 242, 0)",
     marginTop: o.marginTop ?? 0.1,
     marginBottom: o.marginBottom ?? 0.08,
-    // Not `?? 0`: an uncommitted pane must match the captured Canvas → Margins →
-    // Right row (10 bars), or the chart has no right margin until the Settings
+    // Not `?? 0`: an uncommitted pane must match the dialog's Canvas → Margins
+    // → Right row (10 bars), or the chart has no right margin until the Settings
     // dialog happens to be OK'd once.
     rightOffset: o.rightOffset ?? DEFAULT_RIGHT_OFFSET,
     scalesPlacement: o.scalesPlacement ?? "right",
@@ -196,35 +196,35 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     precision: o.precision || "Default",
     sessionBreaksVisible: o.sessionBreaksVisible ?? false,
     sessionBreaksColor: o.sessionBreaksColor || "rgb(73, 133, 231)",
-    // TV desktop: session breaks dashed, 1 px (colour popup 25/09/2026).
+    // Session breaks: dashed, 1 px.
     sessionBreaksStyle: o.sessionBreaksStyle ?? 1,
     sessionBreaksWidth: o.sessionBreaksWidth ?? 1,
     colorBarsOnPrevClose: o.colorBarsOnPrevClose ?? false,
     symbolLastValue: o.symbolLastValue ?? true,
     symbolPriceLine: o.symbolPriceLine ?? true,
-    // Live desktop 25/07/2026 runs the Symbol check list with "Name" on (the
-    // ticker inside the price label) — the captured dialog default matches.
+    // The Symbol check list defaults to "Name" on (the ticker inside the
+    // price label), matching the dialog default.
     symbolNameLabel: o.symbolNameLabel ?? true,
     symbolPriceLineColor: o.symbolPriceLineColor ?? "",
     symbolPriceLineWidth: o.symbolPriceLineWidth ?? 1,
     symbolValuePercent: o.symbolValuePercent ?? false,
-    // Countdown defaults ON (the captured Scales row ships checked).
+    // Countdown defaults ON (the Scales row ships checked).
     countdownVisible: o.countdown ?? true,
-    // "Previous day close" ships Hidden (both options unchecked on the live
-    // desktop 25/07/2026); the swatch default is TV's gray.
+    // "Previous day close" ships Hidden (both options unchecked); the swatch
+    // default is gray.
     prevCloseLabel: o.prevCloseLabel ?? false,
     prevCloseLine: o.prevCloseLine ?? false,
     prevCloseColor: o.prevCloseColor || "#555555",
     prevCloseWidth: o.prevCloseWidth ?? 1,
-    // "Pre/post/night market" ships Value + Line on (TV's series default
+    // "Pre/post/night market" ships Value + Line on (series default
     // prePostMarket.visible true + scalesProperties.showPrePostMarketPriceLabel
-    // true, bundle + live desktop 23/09/2026); colours are TV's defaults.
+    // true); colours are the defaults.
     prePostLabel: o.prePostLabel ?? true,
     prePostLine: o.prePostLine ?? true,
     preMarketColor: o.preMarketColor || "rgb(251, 140, 0)",
     postMarketColor: o.postMarketColor || "rgb(41, 98, 255)",
-    // "High and low" labels default ON — the live desktop runs
-    // highLowPriceLabelsVisible: true (captured 25/07/2026); lines stay off.
+    // "High and low" labels default ON (highLowPriceLabelsVisible: true);
+    // lines stay off.
     highLowLabels: o.highLowLabels ?? true,
     highLowLines: o.highLowLines ?? false,
     highLowColor: o.highLowColor ?? "",
@@ -233,11 +233,11 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     watermarkTicker: o.watermarkTicker ?? false,
     watermarkInterval: o.watermarkInterval ?? false,
     watermarkDescription: o.watermarkDescription ?? false,
-    // "Indicators and financials" value labels default OFF — the live desktop
-    // runs showStudyLastValue: false (captured 25/07/2026), and stacked study
-    // badges have no overlap management here. The dialog row re-enables them.
+    // "Indicators and financials" value labels default OFF
+    // (showStudyLastValue: false), and stacked study badges have no overlap
+    // management here. The dialog row re-enables them.
     indLastValue: o.indLastValue ?? false,
-    // Alerts tab rows both ship checked (captured defaults).
+    // Alerts tab rows both ship checked.
     alertLinesVisible: o.alertLines ?? true,
     alertLinesOnlyActive: o.alertLinesOnlyActive ?? true,
     alertLineColor: o.alertLineColor || up,

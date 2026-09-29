@@ -10,7 +10,7 @@ import { getUserIndicatorEntry, isUserIndicatorId } from './user-scripts';
 import { VOLUME_ENTRY } from './volume';
 
 const byId = new Map<string, IndicatorRegistryEntry>(indicatorRegistry.map((e) => [e.id, e]));
-// Local built-ins the library doesn't ship (TV's basic Volume study).
+// Local built-ins the library doesn't ship (the basic Volume study).
 byId.set(VOLUME_ENTRY.id, VOLUME_ENTRY);
 
 export function getIndicatorEntry(id: string): IndicatorRegistryEntry | undefined {
@@ -36,5 +36,5 @@ export const STANDARD_ROWS: IndicatorListRow[] = [
   { id: VOLUME_ENTRY.id, name: VOLUME_ENTRY.name },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
-/** Community: indicators ported from public TradingView/PineScript sources. */
+/** Community: indicators ported from public PineScript sources. */
 export const COMMUNITY_ROWS: IndicatorListRow[] = rowsForGroup('community');

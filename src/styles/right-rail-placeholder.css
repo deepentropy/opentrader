@@ -1,7 +1,7 @@
 /*
  * Right-rail placeholder — shown while non-Watchlist panels (Alerts,
  * Object tree, Chats, Pine, Calendars, Macro Maps, Products,
- * Help) await their own probe + codegen passes.
+ * Help) await their own implementation.
  *
  * Width matches the Watchlist column so the layout doesn't jump as the
  * user clicks between rail tabs.
@@ -10,7 +10,7 @@
 .right-rail-placeholder {
   width: 331px;
   flex-shrink: 0;
-  background-color: var(--tv-chart-bg);
+  background-color: var(--ot-chart-bg);
   border-left: 1px solid var(--color-toolbar-divider-background);
   display: flex;
   align-items: center;

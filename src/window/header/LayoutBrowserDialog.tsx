@@ -4,7 +4,7 @@
  * search filter; choosing one loads it into the active tab. Each row also
  * exposes a delete (trash) affordance, so this doubles as the layout manager.
  *
- * Local stand-in for TV's cloud layout-manager window — see data/layout-store.ts
+ * Local layout-manager window — see data/layout-store.ts
  * for the persistence model. Mirrors the watchlist OpenListDialog pattern.
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
@@ -106,9 +106,9 @@ export function LayoutBrowserDialog(props: Props) {
                   aria-selected={l.id === props.activeId}
                   class={`layout-browser-row${l.id === props.activeId ? " active" : ""}`}
                 >
-                  {/* TV load-layout dialog: star cell at the row start, shown
+                  {/* Load-layout dialog: star cell at the row start, shown
                       on row hover, kept (filled) when favorited. Icons are
-                      TV's 18px star paths (desktop 3.4.1, 23/09/2026). */}
+                      18px star paths. */}
                   <button
                     type="button"
                     class={`layout-browser-row-favorite${l.favorite ? " is-favorite" : ""}`}

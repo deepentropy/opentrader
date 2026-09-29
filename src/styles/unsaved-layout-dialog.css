@@ -1,6 +1,6 @@
 /*
- * "Save layout before switching?" — TV warning dialog (desktop 3.4.1,
- * 23/09/2026: popupDialog-xKF9ptKN + squareButton small black/gray).
+ * "Save layout before switching?" — warning dialog (popup dialog + small
+ * black/gray square buttons).
  */
 .unsaved-layout-overlay {
   position: fixed;
@@ -74,7 +74,7 @@
   outline: none;
 }
 .unsaved-layout-btn:focus-visible {
-  outline: 2px solid var(--color-tv-blue-500, #2962ff);
+  outline: 2px solid var(--color-ot-blue-500, #2962ff);
   outline-offset: 2px;
 }
 /* black primary: #F2F2F2 fill, dark text; hover #DBDBDB. */

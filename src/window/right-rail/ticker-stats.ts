@@ -3,7 +3,7 @@
  * client-side from the daily candle series (Feature 6a). Avoids a third
  * backend endpoint — the daily aggregates already power the chart.
  *
- * Performance lookbacks are in trading days (TV's convention):
+ * Performance lookbacks are in trading days:
  *   1W=5, 1M=21, 3M=63, 6M=126, 1Y=252. YTD anchors on the first close of
  *   the current calendar year.
  */

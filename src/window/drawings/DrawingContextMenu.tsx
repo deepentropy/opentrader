@@ -1,24 +1,23 @@
 /*
  * Right-click context menu for a selected drawing.
  *
- * Item set follows TV Desktop 3.2.0.7916 — the drawing's own menu could not
- * be right-click-captured (2px hit target), but its content is the captured
- * floating-toolbar "More" menu (214×307: Visual order ▸, Visibility on
- * intervals ▸, Clone [Ctrl + Drag], Copy [Ctrl + C], sync radios, Hide) plus
- * the standing Settings… / Lock / Remove rows. Deviations, recorded:
+ * Item set: the floating-toolbar "More" menu (214×307: Visual order ▸,
+ * Visibility on intervals ▸, Clone [Ctrl + Drag], Copy [Ctrl + C], sync
+ * radios, Hide) plus the standing Settings… / Lock / Remove rows.
+ * Deviations, recorded:
  *   • per-drawing sync radios omitted — this app has no per-drawing sync
  *     backing (the toolbar's sync menu sets the new-drawings default);
  *   • "Visibility on intervals" opens the Settings dialog on its Visibility
- *     tab instead of an uncaptured hover submenu.
+ *     tab instead of a hover submenu.
  *
- * Mounted at fixed-viewport coords, fitted into the window like TV's popup
- * menus (components/menu-fit.ts). Outside-click / Escape close. Stops
+ * Mounted at fixed-viewport coords, fitted into the window like the other
+ * popup menus (components/menu-fit.ts). Outside-click / Escape close. Stops
  * the bubbled pointerdown so the overlay's "click empty area = deselect"
  * doesn't fire while interacting with the menu.
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Drawing } from "lightweight-charts-drawing/tv/types";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { fitMenuRef } from "../../components/menu-fit";
 import { ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, ELLIOTT_KINDS } from "lightweight-charts-drawing/tv/specs";
 import { tableCanRemove, type TableCellRef } from "lightweight-charts-drawing/tv/kinds/table";
@@ -67,19 +66,18 @@ const ROWS: Row[] = [
   { kind: "item", id: "remove", label: "Remove", shortcut: "Del" },
 ];
 
-/** TV Elliott waves add a "Degree" submenu after all the items
- *  (additionalActions, ActionPlacement.AfterAllAction). */
+/** Elliott waves add a "Degree" submenu after all the items. */
 const DEGREE_ROWS: Row[] = [{ kind: "separator" }, { kind: "item", id: "degree", label: "Degree", submenu: true }];
-/** TV bars pattern: checkable "Mirrored" / "Flipped" after all the items. */
+/** Bars pattern: checkable "Mirrored" / "Flipped" after all the items. */
 const BARS_PATTERN_ROWS: Row[] = [
   { kind: "separator" },
   { kind: "item", id: "mirrored", label: "Mirrored", checked: (d) => !!d.style.mirrored },
   { kind: "item", id: "flipped", label: "Flipped", checked: (d) => !!d.style.flipped },
 ];
 
-/** TV table actions (module 652390, ActionPlacement.BeforeAllAction): insert
- *  column / row, and with an active cell remove row / column (disabled when
- *  it is the last one). */
+/** Table actions, placed before all the items: insert column / row, and
+ *  with an active cell remove row / column (disabled when it is the last
+ *  one). */
 const TABLE_ROWS: Row[] = [
   { kind: "item", id: "table-insert-column", label: "Add column to right", iconName: "dt-table-insert-column" },
   { kind: "item", id: "table-insert-row", label: "Add row below", iconName: "dt-table-insert-row" },
@@ -113,7 +111,7 @@ type Props = {
   onRemoveMany?: (ids: string[]) => void;
   /** Open the settings dialog, optionally on a specific tab. */
   onOpenSettings: (id: string, tab?: "Style" | "Text" | "Coordinates" | "Visibility") => void;
-  /** Table: the active cell (TV inplaceEditableCellIndexes) and the cell
+  /** Table: the active cell (the in-place editable cell) and the cell
    *  operations of the table actions. */
   tableCell?: TableCellRef | null;
   onTableOp?: (op: "insert-column" | "insert-row" | "remove-row" | "remove-column") => void;
@@ -240,7 +238,7 @@ export function DrawingContextMenu(props: Props) {
                   }}
                 >
                   <td class="drawing-context-menu-icon-cell">
-                    <Show when={isChecked} fallback={row.iconName && <TvIcon name={row.iconName} size={20} />}>
+                    <Show when={isChecked} fallback={row.iconName && <Icon name={row.iconName} size={20} />}>
                       <span class="drawing-context-menu-checkmark">
                         <svg viewBox="0 0 28 28" width="20" height="20">
                           <path fill="currentColor" d="M22 9.06 11 20 6 14.7l1.09-1.02 3.94 4.16L20.94 8 22 9.06Z" />

@@ -1,9 +1,8 @@
 /*
  * ChartLegend — the data window overlaid on the top-left of the main chart
- * pane. Ported to SolidJS from the reference mock, itself distilled from a
- * live probe of TradingView Desktop 3.1.0.7818.
+ * pane. Ported to SolidJS from the reference mock.
  *
- * The main source row is ONE flex line (TV `item-… series-…`, h:24):
+ * The main source row is ONE flex line (h:24):
  *
  *   [logo] <symbol> · <interval> · <exchange>  [flag link eye more]   O H L C  <change>
  *   └────────── noWrapWrapper (titles + actions) ─────────────┘       └─ valuesWrapper ─┘
@@ -53,7 +52,7 @@ type Props = {
   /** Resolved O/H/L/C + change, or null while the pane is still loading. */
   values: LegendValues | null;
   /** Status line → Title select: "Name" (company name) | "Symbol" | "Symbol
-   *  and name" (TV symbolTextSource: description / ticker /
+   *  and name" (title source: description / ticker /
    *  ticker-and-description). Undefined = ticker. */
   titleMode?: string;
   /** Company name for the "Name" modes ("" until the ticker-info fetch lands —
@@ -69,28 +68,28 @@ type Props = {
   /** US market session now (data/market-session). */
   marketStatus?: "open" | "pre" | "post" | "closed";
   /** Status line → "Open market status": hides only the OPEN icon; pre /
-   *  post / closed statuses always show (TV showMarketOpenStatusProperty). */
+   *  post / closed statuses always show. */
   showOpenStatus?: boolean;
   /** Status line hides bar-change / last-day-change for High-low and
-   *  Session volume profile (TV 714494). */
+   *  Session volume profile. */
   hideChangeValues?: boolean;
-  /** Main series hidden by the legend eye (TV series `visible` = false):
+  /** Main series hidden by the legend eye (series `visible` = false):
    *  dimmed titles, no values, "Show" + crossed eye. */
   seriesHidden?: boolean;
-  /** Legend eye clicked (TV onToggleDisabled). */
+  /** Legend eye clicked. */
   onToggleSeries?: () => void;
-  /** Symbol title clicked (TV "Change symbol": symbol search). */
+  /** Symbol title clicked ("Change symbol": symbol search). */
   onChangeSymbol?: () => void;
-  /** Interval clicked (TV "Change interval": the change interval dialog). */
+  /** Interval clicked ("Change interval": the change interval dialog). */
   onChangeInterval?: () => void;
-  /** More button clicked (TV `_onShowMoreActions`: the series menu under the
-   *  button); gets the button rect. */
+  /** More button clicked (the series menu under the button); gets the button
+   *  rect. */
   onMore?: (anchor: DOMRect) => void;
 };
 
-/** Exchange full names of the legend exchange piece (TV title, seen on TV
- *  Desktop 3.4.1: "Arca — NYSE Arca", and in the symbol search). Only
- *  names seen in TV; other exchanges get no tooltip. */
+/** Exchange full names of the legend exchange piece (its title, e.g.
+ *  "Arca — NYSE Arca", as in the symbol search). Other exchanges get no
+ *  tooltip. */
 const EXCHANGE_TITLES: Record<string, string> = {
   NASDAQ: "NASDAQ — NASDAQ Stock Market",
   NYSE: "NYSE — New York Stock Exchange",
@@ -99,8 +98,7 @@ const EXCHANGE_TITLES: Record<string, string> = {
   AMEX: "AMEX — NYSE American",
 };
 
-/** TV market-status pill items (module 258810 iconMap "small" + 138362
- *  classes; colours resolved from the desktop theme 25/09/2026). */
+/** Market-status pill items (small icons; colours from the dark theme). */
 const STATUS_ITEMS: Record<"open" | "pre" | "post" | "closed", { title: string; color: string; overlay: string; path: string }> = {
   open: { title: "Market open", color: "#42bda8", overlay: "#22ab9433", path: "M9 5a4 4 0 1 1 0 8 4 4 0 0 1 0-8" },
   pre: { title: "Pre-market", color: "#ff9100", overlay: "#ff980033", path: "M9 7.2a3.48 3.48 0 0 1 3.22 4.8 7 7 0 0 0-6.44 0A3.47 3.47 0 0 1 9 7.2M4.4 8.59l-.33 1.24L2 9.27l.33-1.24zm11.6.68-2.06.56-.34-1.24 2.07-.56zM7.55 5.94l-1.17.55-.9-1.94L6.64 4zm4.97-1.4-.9 1.94-1.17-.54.9-1.94z" },
@@ -117,14 +115,14 @@ function fmtVolume(v: number): string {
   return `${v}`;
 }
 
-// Unicode minus (U+2212) — TV renders negative changes with it, not the ASCII
+// Unicode minus (U+2212): negative changes render with it, not the ASCII
 // hyphen-minus, so "−8.84" lines up with the digits.
 const MINUS = "−";
 
-// Action-button icons, captured verbatim from the live legend buttonsWrapper.
-// flag is a 12-viewBox glyph; the rest are
-// 18-viewBox. Components, not module-level JSX: a JSX constant is ONE DOM node,
-// which the next legend (another chart) would take away.
+// Action-button icons of the legend buttonsWrapper. flag is a 12-viewBox
+// glyph; the rest are 18-viewBox. Components, not module-level JSX: a JSX
+// constant is ONE DOM node, which the next legend (another chart) would take
+// away.
 const ICON_FLAG = () => (
   <svg viewBox="0 0 12 12" width="14" height="14" fill="none">
     <path fill="currentColor" d="M11.57 0H1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10.57a.5.5 0 0 0 .41-.78l-3.3-4.94a.5.5 0 0 1 0-.56l3.3-4.94a.5.5 0 0 0-.41-.78z" />
@@ -155,9 +153,9 @@ const ICON_MORE = () => (
   </svg>
 );
 
-/** Decimals for a price, picked from its magnitude. TV derives this from the
- *  instrument's min-tick; we approximate from the value. (GAP: pull the real
- *  precision from the symbol info.) */
+/** Decimals for a price, picked from its magnitude. The exact value comes
+ *  from the instrument's min-tick; we approximate from the value. (GAP: pull
+ *  the real precision from the symbol info.) */
 function priceDecimals(p: number): number {
   const a = Math.abs(p);
   if (a >= 1) return 2;
@@ -180,9 +178,9 @@ function fmtSigned(n: number, decimals: number): string {
 /** One O/H/L/C cell: a dim letter title hugging its coloured value. */
 function ValueItem(props: { letter: string; value: string; dir: "up" | "down" }) {
   return (
-    <span class="tv-legend-value-item">
-      <span class="tv-legend-value-title">{props.letter}</span>
-      <span class={`tv-legend-value-value tv-legend-${props.dir}`}>{props.value}</span>
+    <span class="ot-legend-value-item">
+      <span class="ot-legend-value-title">{props.letter}</span>
+      <span class={`ot-legend-value-value ot-legend-${props.dir}`}>{props.value}</span>
     </span>
   );
 }
@@ -192,7 +190,7 @@ function ActionButton(props: { name: string; title: string; children: JSX.Elemen
   return (
     <button
       type="button"
-      class={`tv-legend-action${props.flagged ? " is-flagged" : ""}`}
+      class={`ot-legend-action${props.flagged ? " is-flagged" : ""}`}
       data-action={props.name}
       title={props.title}
       aria-label={props.title}
@@ -220,34 +218,34 @@ export function ChartLegend(props: Props) {
     props.values ? (props.values.single ? props.values.changeDir : props.values.barDir) : "up";
 
   return (
-    <div class="tv-legend">
-      <div class="tv-legend-source">
+    <div class="ot-legend">
+      <div class="ot-legend-source">
         {/* item — one flex line: titles + actions, then the values. */}
-        <div class={`tv-legend-item${props.seriesHidden ? " is-disabled" : ""}`} data-name="legend-source-item">
-          <div class="tv-legend-nowrap">
-            <div class="tv-legend-titles">
-              {/* TV mainTitle "Change symbol" (withAction): opens the symbol search. */}
+        <div class={`ot-legend-item${props.seriesHidden ? " is-disabled" : ""}`} data-name="legend-source-item">
+          <div class="ot-legend-nowrap">
+            <div class="ot-legend-titles">
+              {/* Main title "Change symbol" (withAction): opens the symbol search. */}
               <Tooltip text="Change symbol" side="bottom">
                 <span
-                  class="tv-legend-title-piece tv-legend-main tv-legend-with-action"
+                  class="ot-legend-title-piece ot-legend-main ot-legend-with-action"
                   onMouseDown={(e) => { if (props.onChangeSymbol) e.stopPropagation(); }}
                   onClick={(e) => { if (!props.onChangeSymbol) return; e.stopPropagation(); props.onChangeSymbol(); }}
                 >
                   <Show when={props.showLogo ?? true}>
-                    <span class="tv-ticker-logo tv-legend-logo" aria-hidden="true">
+                    <span class="ot-ticker-logo ot-legend-logo" aria-hidden="true">
                       {props.ticker.charAt(0)}
                     </span>
                   </Show>
                   <Show when={props.showTitle ?? true}>
-                    <span class="tv-legend-symbol">{titleText()}</span>
+                    <span class="ot-legend-symbol">{titleText()}</span>
                   </Show>
                 </span>
               </Tooltip>
-              {/* TV description field: the same "Change symbol" action. */}
+              {/* Description field: the same "Change symbol" action. */}
               <Show when={showNamePiece()}>
                 <Tooltip text="Change symbol" side="bottom">
                   <span
-                    class="tv-legend-title-piece tv-legend-dot tv-legend-with-action"
+                    class="ot-legend-title-piece ot-legend-dot ot-legend-with-action"
                     onMouseDown={(e) => { if (props.onChangeSymbol) e.stopPropagation(); }}
                     onClick={(e) => { if (!props.onChangeSymbol) return; e.stopPropagation(); props.onChangeSymbol(); }}
                   >
@@ -257,7 +255,7 @@ export function ChartLegend(props: Props) {
               </Show>
               <Tooltip text="Change interval" side="bottom">
                 <span
-                  class="tv-legend-title-piece tv-legend-dot tv-legend-with-action"
+                  class="ot-legend-title-piece ot-legend-dot ot-legend-with-action"
                   onMouseDown={(e) => { if (props.onChangeInterval) e.stopPropagation(); }}
                   onClick={(e) => { if (!props.onChangeInterval) return; e.stopPropagation(); props.onChangeInterval(); }}
                 >
@@ -266,16 +264,16 @@ export function ChartLegend(props: Props) {
               </Tooltip>
               <Show
                 when={EXCHANGE_TITLES[props.exchange.toUpperCase()]}
-                fallback={<span class="tv-legend-title-piece tv-legend-dot">{props.exchange}</span>}
+                fallback={<span class="ot-legend-title-piece ot-legend-dot">{props.exchange}</span>}
               >
                 {(t) => (
                   <Tooltip text={t()} side="bottom">
-                    <span class="tv-legend-title-piece tv-legend-dot">{props.exchange}</span>
+                    <span class="ot-legend-title-piece ot-legend-dot">{props.exchange}</span>
                   </Tooltip>
                 )}
               </Show>
             </div>
-            <div class="tv-legend-actions" data-name="actions">
+            <div class="ot-legend-actions" data-name="actions">
               <ActionButton name="flag" title="Flag symbol"><ICON_FLAG /></ActionButton>
               <ActionButton name="link" title="Symbol/interval chart syncing"><ICON_LINK /></ActionButton>
               <ActionButton name="eye" title={props.seriesHidden ? "Show" : "Hide"} onClick={props.onToggleSeries}>
@@ -288,9 +286,9 @@ export function ChartLegend(props: Props) {
             </div>
             <Show when={props.marketStatus && (props.marketStatus !== "open" || (props.showOpenStatus ?? true)) ? STATUS_ITEMS[props.marketStatus!] : null}>
               {(st) => (
-                <div class="tv-legend-statuses">
-                  <span class="tv-legend-status-pill" data-role="statuses-pill" title={st().title} data-qa-id="legend-source-item-status">
-                    <span class="tv-legend-status-item" style={{ color: st().color, "--status-overlay": st().overlay }} aria-hidden="true">
+                <div class="ot-legend-statuses">
+                  <span class="ot-legend-status-pill" data-role="statuses-pill" title={st().title} data-qa-id="legend-source-item-status">
+                    <span class="ot-legend-status-item" style={{ color: st().color, "--status-overlay": st().overlay }} aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" d={st().path} /></svg>
                     </span>
                   </span>
@@ -301,12 +299,12 @@ export function ChartLegend(props: Props) {
 
           <Show when={!props.seriesHidden && props.values}>
             {(v) => (
-              <div class="tv-legend-values">
+              <div class="ot-legend-values">
                 <Show when={props.showChartValues ?? true}>
                   <Show
                     when={!v().single}
                     fallback={
-                      <span class={`tv-legend-value-value tv-legend-${valueDir()}`}>{fmtPrice(v().close)}</span>
+                      <span class={`ot-legend-value-value ot-legend-${valueDir()}`}>{fmtPrice(v().close)}</span>
                     }
                   >
                     <ValueItem letter="O" value={fmtPrice(v().open)} dir={v().barDir} />
@@ -316,16 +314,16 @@ export function ChartLegend(props: Props) {
                   </Show>
                 </Show>
                 <Show when={(props.showBarChange ?? true) && !props.hideChangeValues}>
-                  <span class={`tv-legend-change tv-legend-${valueDir()}`}>{changeText()}</span>
+                  <span class={`ot-legend-change ot-legend-${valueDir()}`}>{changeText()}</span>
                 </Show>
                 <Show when={(props.showVolume ?? false) && v().volume != null}>
-                  <span class="tv-legend-value-item">
-                    <span class="tv-legend-value-title">Vol</span>
-                    <span class={`tv-legend-value-value tv-legend-${v().barDir}`}>{fmtVolume(v().volume as number)}</span>
+                  <span class="ot-legend-value-item">
+                    <span class="ot-legend-value-title">Vol</span>
+                    <span class={`ot-legend-value-value ot-legend-${v().barDir}`}>{fmtVolume(v().volume as number)}</span>
                   </span>
                 </Show>
                 <Show when={(props.showLastDayChange ?? false) && !props.hideChangeValues}>
-                  <span class={`tv-legend-change tv-legend-${v().lastDayChangeDir}`}>
+                  <span class={`ot-legend-change ot-legend-${v().lastDayChangeDir}`}>
                     {`${fmtSigned(v().lastDayChangeAbs, priceDecimals(v().close))} (${fmtSigned(v().lastDayChangePct, 2)}%)`}
                   </span>
                 </Show>

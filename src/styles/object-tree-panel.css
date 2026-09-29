@@ -1,8 +1,7 @@
 /*
- * Object tree panel — drawing list in the right rail. Geometry/colors
- * from TV's `.widgetbar-widget-object_tree` capture.
+ * Object tree panel — drawing list in the right rail.
  */
-/* Action-icon toolbar row, stacked directly under the view toggle (TV's
+/* Action-icon toolbar row, stacked directly under the view toggle (the
  * object-tree header is two rows: toggle on top, these icons below). */
 .object-tree-toolbar {
   flex-shrink: 0;
@@ -238,7 +237,7 @@
 }
 
 /* Active toggle — the lock on a locked row / the eye on a hidden row read as
- * "on" in the accent colour (TV parity). */
+ * "on" in the accent colour. */
 .object-tree-row.locked-state .object-tree-row-action[data-name="lock"],
 .object-tree-row.hidden-state .object-tree-row-action[data-name="hide"] {
   color: var(--color-toolbar-button-text-active, #2962ff);

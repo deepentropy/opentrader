@@ -21,7 +21,7 @@
 
 .alert-dialog-label {
   font-size: 12px;
-  color: var(--tv-color-text-secondary, #868993);
+  color: var(--ot-color-text-secondary, #868993);
 }
 
 /* left · operator · right, stacked vertically so long selects don't overflow. */
@@ -67,12 +67,12 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--tv-color-text-secondary, #868993);
+  color: var(--ot-color-text-secondary, #868993);
   cursor: pointer;
 }
 
 .alert-dialog-check input {
-  accent-color: var(--tv-color-accent, #2962ff);
+  accent-color: var(--ot-color-accent, #2962ff);
 }
 
 /* Transient fire banner (bottom-right). */

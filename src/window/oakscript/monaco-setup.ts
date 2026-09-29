@@ -12,9 +12,8 @@
  * reaches into node_modules directly because the package's exports map only
  * exposes "." and "./runtime", not the individual declaration files.
  *
- * Theme: token colors copied from TV's Pine editor (Desktop 3.3.0, probed
- * live), backgrounds from the app
- * theme tokens at apply time so light/dark switches follow the app.
+ * Theme: fixed token colors, backgrounds from the app theme tokens at apply
+ * time so light/dark switches follow the app.
  */
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
@@ -142,9 +141,9 @@ function scriptGlobalNames(dts: string): string[] {
 /** (Re)define + activate the oak theme for the given app theme. Re-run on
  *  theme switches: backgrounds re-read the app tokens at call time. */
 export function applyOakTheme(theme: "dark" | "light"): void {
-  const bg = cssHexColor("--tv-chart-bg", theme === "dark" ? "#0f0f0f" : "#ffffff");
+  const bg = cssHexColor("--ot-chart-bg", theme === "dark" ? "#0f0f0f" : "#ffffff");
   if (theme === "dark") {
-    // Token palette measured off TV's Pine editor (DESIGN.md).
+    // Token palette (DESIGN.md).
     monaco.editor.defineTheme("oak-dark", {
       base: "vs-dark",
       inherit: true,
@@ -164,7 +163,7 @@ export function applyOakTheme(theme: "dark" | "light"): void {
     });
     monaco.editor.setTheme("oak-dark");
   } else {
-    // Light Pine palette wasn't extracted — monaco's stock light plus our bg.
+    // No light token palette — monaco's stock light plus our bg.
     monaco.editor.defineTheme("oak-light", {
       base: "vs",
       inherit: true,

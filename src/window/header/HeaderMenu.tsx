@@ -1,9 +1,8 @@
 /*
  * HeaderMenu — popup dropdown rendered when HeaderToolbar's onMenuOpen fires.
  *
- * Looks up its contents in HEADER_MENUS (1400-line static registry copied
- * from the reverse-engineered TradingView probe). Positioned below the
- * opener's bounding rect; closes on Escape, on mousedown outside, or when
+ * Looks up its contents in HEADER_MENUS (1400-line static registry).
+ * Positioned below the opener's bounding rect; closes on Escape, on mousedown outside, or when
  * the parent unmounts it (e.g. opener clicked twice).
  *
  * Scope today: rendering + selection. Wired to chart-interval in App.
@@ -12,7 +11,7 @@
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
-import { TvIcon } from "../../components/TvIcon";
+import { Icon } from "../../components/Icon";
 import { favoriteIntervals, toggleFavoriteInterval } from "../chart/interval-favorites";
 import { LAYOUT_SYNC_ITEMS, layoutSync, toggleLayoutSync } from "../chart/layout-sync";
 import { isSupportedResolution } from "../../data/datafeed";
@@ -94,7 +93,7 @@ export function HeaderMenu(props: Props) {
     <Portal mount={document.body}>
       <div
         ref={root}
-        class="tv-popover header-menu"
+        class="ot-popover header-menu"
         data-menu-id={props.menuId}
         role="menu"
         style={{ top: `${pos().top}px`, left: `${pos().left}px`, width: `${props.menu.width}px` }}
@@ -132,7 +131,7 @@ export function HeaderMenu(props: Props) {
                   const isTemplateRow = () =>
                     props.menuId === "indicator-templates" && row.id.startsWith(APPLY_TEMPLATE_PREFIX);
                   const templateId = () => row.id.slice(APPLY_TEMPLATE_PREFIX.length);
-                  // Saved-layout rows of Manage layouts: TV's recent rows
+                  // Saved-layout rows of Manage layouts: the recent rows
                   // carry a favorite star (shown on hover, kept when starred).
                   const isLayoutRow = () =>
                     props.menuId === "save-load-menu" && row.id.startsWith(OPEN_LAYOUT_PREFIX);
@@ -146,7 +145,7 @@ export function HeaderMenu(props: Props) {
                     if (isLayoutRow()) return !!getLayout(layoutId())?.favorite;
                     return !!row.favorited;
                   };
-                  // TV shows the star tooltip on interval, template and layout
+                  // The star tooltip shows on interval, template and layout
                   // rows; the favourite-indicators star has none.
                   const starTip = () => (isFav() ? "Remove from favorites" : "Add to favorites");
                   const star = () => (
@@ -156,7 +155,7 @@ export function HeaderMenu(props: Props) {
                       aria-label={starTip()}
                       onClick={(e) => {
                         // Toggle the favourite without selecting the row /
-                        // closing the menu (TV idiom).
+                        // closing the menu.
                         e.stopPropagation();
                         toggleStar();
                       }}
@@ -211,7 +210,7 @@ export function HeaderMenu(props: Props) {
                                   }}
                                 >
                                   <Show when={v.iconName}>
-                                    <TvIcon name={v.iconName!} size={22} />
+                                    <Icon name={v.iconName!} size={22} />
                                   </Show>
                                 </button>
                               );
@@ -238,7 +237,7 @@ export function HeaderMenu(props: Props) {
                     >
                       <span class="header-menu-icon">
                         <Show when={row.iconName}>
-                          <TvIcon name={row.iconName!} size={iconSize()} />
+                          <Icon name={row.iconName!} size={iconSize()} />
                         </Show>
                       </span>
                       <span class={`header-menu-label${isTemplateRow() ? "" : " apply-overflow-tooltip"}`}>{row.label}</span>
@@ -259,7 +258,7 @@ export function HeaderMenu(props: Props) {
                             role="button"
                             aria-label="Remove"
                             onClick={(e) => {
-                              // Delete without closing (TV's hover Remove).
+                              // Delete without closing (hover Remove).
                               e.stopPropagation();
                               removeIndicatorTemplate(templateId());
                             }}
@@ -283,7 +282,7 @@ export function HeaderMenu(props: Props) {
             switch without closing the menu. */}
         <Show when={props.menuId === "layout-setup"}>
           <div class="header-menu-divider" role="separator" />
-          {/* Sentence-case (matches the desktop "Sync in layout" title). */}
+          {/* Sentence-case "Sync in layout" title. */}
           <div class="header-menu-section-title is-sync-title">Sync in layout</div>
           <For each={LAYOUT_SYNC_ITEMS}>
             {(item) => (
@@ -299,7 +298,7 @@ export function HeaderMenu(props: Props) {
                 }}
               >
                 <span class="header-menu-label">{item.label}</span>
-                {/* Info icon carrying the per-toggle tooltip (desktop ⓘ). */}
+                {/* Info icon (ⓘ) carrying the per-toggle tooltip. */}
                 <span class="header-menu-sync-info" title={item.tip} aria-label={item.tip}>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="16" height="16">
                     <path

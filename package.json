@@ -1,7 +1,7 @@
 {
   "name": "opentrader",
   "version": "0.1.0",
-  "description": "Desktop charting app: a fast Rust + SolidJS take on TradingView.",
+  "description": "Free, open-source desktop charting and trading app (Rust + SolidJS).",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "tauri": "tauri"
   },
   "license": "MIT",
-  "author": "Odyssée",
+  "author": "OpenTrader contributors",
   "repository": {
     "type": "git",
     "url": "https://github.com/deepentropy/opentrader.git"

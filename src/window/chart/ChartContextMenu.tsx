@@ -2,8 +2,8 @@
  * ChartContextMenu — the menu that opens on right-clicking the chart pane.
  * Ported to SolidJS from the reference mock. Renders in the
  * chart page DOM (not a separate window): 32px rows, 36px icon cell, 14px text,
- * bg #1f1f1f, 6px radius. Items/order/separators/shortcuts/icons are captured
- * verbatim; dynamic pieces are filled by buildChartContextMenu in ChartView.
+ * bg #1f1f1f, 6px radius. Items/order/separators/shortcuts/icons are static;
+ * dynamic pieces are filled by buildChartContextMenu in ChartView.
  *
  * Purely presentational: ChartView owns open/close + supplies the node list.
  */
@@ -24,11 +24,11 @@ export type CtxNode =
       disabled?: boolean;
       submenu?: CtxNode[];
       onSelect?: () => void;
-      /** TV `doNotCloseOnClick`: the menu stays open after the row acts. */
+      /** The menu stays open after the row acts. */
       keepOpen?: boolean;
     };
 
-// ── Captured icons (verbatim from the live context menu's iconCell) ──
+// ── Icons of the context menu's iconCell ──
 export const CtxIcons = {
   reset: (
     <svg viewBox="0 0 28 28" width="18" height="18">
@@ -65,8 +65,7 @@ export const CtxIcons = {
       <path fill-rule="evenodd" d="M8.5 5h11l5 9-5 9h-11l-5-9 5-9Zm-3.86 9L9.1 6h9.82l4.45 8-4.45 8H9.1l-4.45-8Z" />
     </svg>
   ),
-  // Legend More menus (TV module 702415 rows; icons 879207 / 249290 /
-  // 184656 / 635179 / 558979, TV Desktop 3.4.1, read 28/09/2026).
+  // Legend More menus.
   hide: (
     <svg viewBox="0 0 28 28" width="18" height="18">
       <path fill="currentColor" d="M18.15 7.02A9.05 9.05 0 0014 6c-3.45 0-6.08 2-7.8 3.92a18.18 18.18 0 00-2.64 3.84v.02h-.01L4 14l-.45-.21-.1.21.1.21L4 14l-.45.21.01.03a5.85 5.85 0 00.16.32c.11.2.28.51.5.87a18.18 18.18 0 002.4 3.12l.71-.71A17.18 17.18 0 014.56 14a10.05 10.05 0 01.52-.91c.41-.69 1.04-1.6 1.85-2.5C8.58 8.75 10.95 7 14 7a8 8 0 013.4.77l.75-.75zm-3.11 3.12a4 4 0 00-4.9 4.9l.86-.87V14a3 3 0 013.17-3l.87-.86zm1.96 3.7l.86-.88a4 4 0 01-4.9 4.9l.87-.86A3 3 0 0017 13.83zm-6.4 6.4A8 8 0 0014 21c3.05 0 5.42-1.76 7.07-3.58A17.18 17.18 0 0023.44 14a9.47 9.47 0 00-.52-.91 17.18 17.18 0 00-2.25-2.93l.7-.7a18.18 18.18 0 013.06 4.3l.02.02L24 14l.45.21-.01.03a7.03 7.03 0 01-.16.32c-.11.2-.28.51-.5.87-.44.72-1.1 1.69-1.97 2.65C20.08 20.01 17.45 22 14 22c-1.55 0-2.94-.4-4.15-1.02l.75-.75zM24 14l.45-.21.1.21-.1.21L24 14zM22.2 6.5L6.5 22.2l-.7-.7L21.5 5.8l.7.7z" />
@@ -99,7 +98,7 @@ export const CtxIcons = {
       <path fill="currentColor" d="M18 7h5v1h-2.01l-1.33 14.64a1.5 1.5 0 0 1-1.5 1.36H9.84a1.5 1.5 0 0 1-1.49-1.36L7.01 8H5V7h5V6c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v1Zm-6-2a1 1 0 0 0-1 1v1h6V6a1 1 0 0 0-1-1h-4ZM8.02 8l1.32 14.54a.5.5 0 0 0 .5.46h8.33a.5.5 0 0 0 .5-.46L19.99 8H8.02Z" />
     </svg>
   ),
-  // A leading checkmark for a toggled-on item (TV swaps the iconCell glyph).
+  // A leading checkmark for a toggled-on item (swaps the iconCell glyph).
   check: (
     <svg viewBox="0 0 28 28" width="18" height="18">
       <path fill="currentColor" d="m11.18 18.3-4.6-4.6.71-.7 3.89 3.89 9.13-9.13.7.7-9.83 9.84Z" />
@@ -116,9 +115,9 @@ const CheckGlyph = () => (
   </svg>
 );
 
-// The submenu chevron (captured as a 10×16 glyph in the trailing cell).
+// The submenu chevron (a 10×16 glyph in the trailing cell).
 const SubmenuArrow = () => (
-  <svg viewBox="0 0 10 16" width="6" height="10" class="tv-chart-ctx-arrow" aria-hidden="true">
+  <svg viewBox="0 0 10 16" width="6" height="10" class="ot-chart-ctx-arrow" aria-hidden="true">
     <path fill="currentColor" d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
   </svg>
 );
@@ -142,7 +141,7 @@ export function ChartContextMenu(props: Props) {
     // mousedown of any submenu click, before the item's onClick could fire.
     const onDown = (e: MouseEvent) => {
       const el = e.target as Element | null;
-      if (el?.closest?.(".tv-chart-ctx-menu")) return;
+      if (el?.closest?.(".ot-chart-ctx-menu")) return;
       props.onClose();
     };
     window.addEventListener("keydown", onKey);
@@ -162,12 +161,12 @@ export function ChartContextMenu(props: Props) {
 
   const renderItems = (list: CtxNode[], isSub: boolean) =>
     list.map((n, i) => {
-      if (n.kind === "separator") return <div class="tv-chart-ctx-separator" role="separator" data-sep={i} />;
+      if (n.kind === "separator") return <div class="ot-chart-ctx-separator" role="separator" data-sep={i} />;
       const checked = () => (typeof n.checked === "function" ? n.checked() : n.checked);
       const leading = () => (checked() ? <CheckGlyph /> : n.icon);
       return (
         <div
-          class={`tv-chart-ctx-item${n.disabled ? " is-disabled" : ""}${openSub() === n.id ? " is-active" : ""}`}
+          class={`ot-chart-ctx-item${n.disabled ? " is-disabled" : ""}${openSub() === n.id ? " is-active" : ""}`}
           role="menuitem"
           aria-disabled={n.disabled || undefined}
           aria-haspopup={n.submenu ? "menu" : undefined}
@@ -182,9 +181,9 @@ export function ChartContextMenu(props: Props) {
           }}
           onClick={() => select(n)}
         >
-          <span class="tv-chart-ctx-icon">{leading()}</span>
-          <span class="tv-chart-ctx-label">{n.label}</span>
-          {n.shortcut && <span class="tv-chart-ctx-shortcut">{n.shortcut}</span>}
+          <span class="ot-chart-ctx-icon">{leading()}</span>
+          <span class="ot-chart-ctx-label">{n.label}</span>
+          {n.shortcut && <span class="ot-chart-ctx-shortcut">{n.shortcut}</span>}
           {n.submenu && <SubmenuArrow />}
         </div>
       );
@@ -200,7 +199,7 @@ export function ChartContextMenu(props: Props) {
     <>
       <div
         ref={fitMenuRef(() => ({ x: props.x, y: props.y }))}
-        class="tv-chart-ctx-menu"
+        class="ot-chart-ctx-menu"
         role="menu"
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -209,7 +208,7 @@ export function ChartContextMenu(props: Props) {
       {subParent()?.submenu && (
         <div
           ref={fitMenuRef(() => ({ x: subPos().left, y: subPos().top }))}
-          class="tv-chart-ctx-menu tv-chart-ctx-submenu"
+          class="ot-chart-ctx-menu ot-chart-ctx-submenu"
           role="menu"
           onContextMenu={(e) => e.preventDefault()}
         >

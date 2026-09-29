@@ -1,11 +1,9 @@
 /*
- * Latest news card — TV lollipop tooltip (dark theme), read 26/09/2026 from
- * TV CSS modules: card-dsVeX1Gr + wrap-fl6cmy99 (popup card), lollipop
- * TooltipTitle (title row), mainNews-rWlwzr90, PreviewCard block-LSXQE8KP
- * + newsItem-JlnTME3l (headline card). Border colour = the lollipop
- * foreground (#AB47BC, grapes-purple-400).
+ * Latest news card — lollipop tooltip (dark theme): popup card, title row
+ * and headline card. Border colour = the lollipop foreground (#AB47BC,
+ * grapes-purple-400).
  */
-.tv-news-card {
+.ot-news-card {
   position: fixed;
   z-index: 1000;
   box-sizing: border-box;
@@ -20,7 +18,7 @@
   font-family: var(--font-family-base);
   font-size: 14px;
 }
-.tv-news-card-title {
+.ot-news-card-title {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -28,23 +26,23 @@
   padding: 4px 0;
   margin-bottom: 12px;
 }
-.tv-news-card-icon {
+.ot-news-card-icon {
   display: flex;
   flex: none;
   color: #ab47bc;
 }
-.tv-news-card-heading {
+.ot-news-card-heading {
   font-size: 18px;
   font-weight: 600;
   line-height: 24px;
 }
-.tv-news-card-main {
+.ot-news-card-main {
   display: flex;
   flex-direction: column;
   row-gap: 8px;
   margin-bottom: -4px;
 }
-.tv-news-item {
+.ot-news-item {
   appearance: none;
   display: flex;
   flex-direction: column;
@@ -62,9 +60,9 @@
   text-align: start;
   cursor: default;
 }
-.tv-news-item:hover { background-color: #2e2e2e; }
-.tv-news-item:active { background-color: #3d3d3d; }
-.tv-news-item-header {
+.ot-news-item:hover { background-color: #2e2e2e; }
+.ot-news-item:active { background-color: #3d3d3d; }
+.ot-news-item-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -73,11 +71,11 @@
   font-weight: 400;
   line-height: 16px;
 }
-.tv-news-item-header > :not(:last-child)::after {
+.ot-news-item-header > :not(:last-child)::after {
   content: "·";
   margin: 0 4px;
 }
-.tv-news-item-title {
+.ot-news-item-title {
   display: -webkit-box;
   overflow: hidden;
   -webkit-line-clamp: 4;
@@ -87,7 +85,7 @@
   font-weight: 500;
   line-height: 18px;
 }
-.tv-news-item-footer {
+.ot-news-item-footer {
   display: flex;
   align-items: baseline;
   gap: 2px;
@@ -96,7 +94,7 @@
   font-size: 12px;
   line-height: 16px;
 }
-.tv-news-item-footer svg {
+.ot-news-item-footer svg {
   display: inline-flex;
   width: 8px;
   height: 8px;

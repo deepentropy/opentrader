@@ -1,7 +1,7 @@
 /*
- * Popup menu placement = TV PopupMenu `_handleMeasure` (module 671464): the
- * menu keeps its requested position (a context menu opens at the cursor, a
- * submenu next to its row), then is clamped into the window with no margin:
+ * Popup menu placement: the menu keeps its requested position (a context
+ * menu opens at the cursor, a submenu next to its row), then is clamped into
+ * the window with no margin:
  *   left = clamp(x, 0, windowWidth − menuWidth)
  *   top  = clamp(y, 0, windowHeight − menuHeight)
  * A menu taller than the window gets the window height and scrolls.

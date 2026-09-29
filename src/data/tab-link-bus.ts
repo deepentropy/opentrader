@@ -1,22 +1,22 @@
 /*
  * Tab-link bus — cross-window transport for the tab-syncing (colour link)
- * feature, following TV Desktop's Linker. Windows share one origin,
- * so a BroadcastChannel reaches them all; messages are tagged with the
- * originating window label so a window never re-applies its own broadcast.
+ * feature. Windows share one origin, so a BroadcastChannel reaches them all;
+ * messages are tagged with the originating window label so a window never
+ * re-applies its own broadcast.
  *
  *  - symbol / interval: App posts on change and applies inbound to its tabs.
- *  - time: the time clicked in a chart of the focused tab (TV sync_time). Not
- *    sent while the group's date-range channel is on (TV drops it).
- *  - dateRange: the active pane's visible from/to (TV sync_date_range).
- *  - crosshair: NOT a link channel. TV mirrors the crosshair to every window
+ *  - time: the time clicked in a chart of the focused tab. Not sent while the
+ *    group's date-range channel is on.
+ *  - dateRange: the active pane's visible from/to.
+ *  - crosshair: NOT a link channel. The crosshair is mirrored to every window
  *    through its own channel, gated by "Sync crosshair across windows" and by
  *    the receiving layout's Crosshair toggle.
  *
  * Inbound time / dateRange land on the ACTIVE pane of the linked tab
  * (`chart-link-time` / `chart-link-range` window events); the tab's own layout
  * sync then spreads them. A linked tab that is not shown keeps the latest value
- * and applies it when it becomes active (TV applies it at once to its live
- * hidden page; opentrader does not mount hidden tabs).
+ * and applies it when it becomes active (opentrader does not mount hidden
+ * tabs).
  */
 import { createEffect, createRoot, createSignal } from "solid-js";
 import { currentWindowLabel } from "../window/shell/window-bridge";
@@ -102,8 +102,8 @@ function deliver(color: LinkColor, value: Pending, skipActive: boolean): void {
   }
 }
 
-/** Only the focused window sends time / range (TV Linker accepts changes from
- *  the focused tab only), so a view applied by a link never echoes back. */
+/** Only the focused window sends time / range, so a view applied by a link
+ *  never echoes back. */
 function canSend(): boolean {
   return typeof document === "undefined" || document.hasFocus();
 }

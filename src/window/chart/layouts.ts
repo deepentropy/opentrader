@@ -1,8 +1,8 @@
 /*
  * Multi-chart layout templates.
  *
- * TradingView's layout-setup menu (registry "layout-setup") exposes tile
- * variants whose ids look like `layouts-list-item-<token>`.  The trailing
+ * The layout-setup menu exposes tile variants whose ids look like
+ * `layouts-list-item-<token>`.  The trailing
  * <token> matches the `layout` field of the persisted ChartLayout content
  * blob.
  *
@@ -92,7 +92,7 @@ function rowSplit(...rowCounts: number[]): LayoutSpec {
   return { cols, rows: rowCounts.length, cells };
 }
 
-/* The 55 templates exposed by TV's layout-setup dropdown. */
+/* The 55 templates exposed by the layout-setup dropdown. */
 export const LAYOUT_SPECS = {
   // Single pane.
   's': grid(1, 1),
@@ -255,9 +255,9 @@ export function variantIdForLayout(layout: LayoutId): string {
   return `layouts-list-item-${layout}`;
 }
 
-/* Icon name shown on the header toolbar's layout-setup button — TV swaps
- * this to match the active layout (probed live: with layout="3s" the
- * button renders menu-layout-setup-layouts-list-item-3s.svg).
+/* Icon name shown on the header toolbar's layout-setup button, swapped to
+ * match the active layout (with layout="3s" the button renders
+ * menu-layout-setup-layouts-list-item-3s.svg).
  *
  * Most variants use a per-id variant icon; the two exceptions ride on the
  * parent group icon because they have no variant-specific SVG:

@@ -1,9 +1,9 @@
 /*
- * `.tv-empty-state` — centred, dimmed, italic placeholder text shown when
+ * `.ot-empty-state` — centred, dimmed, italic placeholder text shown when
  * a panel has no rows to display.  Used by Alerts (no events), Object
  * Tree (data window pending), Symbol Search (no results).
  */
-.tv-empty-state {
+.ot-empty-state {
   padding: 32px 16px;
   text-align: center;
   font-style: italic;
