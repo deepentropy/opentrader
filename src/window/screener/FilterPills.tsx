@@ -1,5 +1,5 @@
 /*
- * FilterPills — the pill rows under the screener topbar (TradingView Desktop
+ * FilterPills: the pill rows under the screener topbar (TradingView Desktop
  * 3.4.1): US market pill, Watchlist pill + divider, one pill per filter, then
  * "Add new filter" (+) and "Reset options" (…).
  *
@@ -47,8 +47,8 @@ export function FilterPills(props: Props) {
   const updateFilter = (f: Filter) =>
     screenerStore.update((s) => ({ ...s, filters: s.filters.map((x) => (x.id === f.id ? f : x)) }));
   const removeFilter = (id: string) => {
-    screenerStore.update((s) => ({ ...s, filters: s.filters.filter((x) => x.id !== id) }));
     close();
+    screenerStore.update((s) => ({ ...s, filters: s.filters.filter((x) => x.id !== id) }));
   };
   const resetFilter = (f: Filter) => {
     const e = emptyFilter(f.left);
@@ -139,13 +139,13 @@ export function FilterPills(props: Props) {
       <div class="scr-pills-watchlist">
         <div ref={wlEl} class="scr-pill" classList={{ "is-active": !!watchlist(), "is-open": openId() === "watchlist" }}>
           <button type="button" class="scr-pill-main" aria-expanded={openId() === "watchlist"} onClick={() => toggle("watchlist")}>
-            <Show when={watchlist()} fallback={<span class="scr-pill-text">Watchlist</span>}>
+            <Show when={watchlist()} keyed fallback={<span class="scr-pill-text">Watchlist</span>}>
               {(l) => (
                 <>
-                  <Show when={l().flag}>
-                    <span class="scr-pill-flag" style={{ color: FLAG_HEX[l().flag!] }}><Icon name="scr-flag" /></span>
+                  <Show when={l.flag}>
+                    <span class="scr-pill-flag" style={{ color: FLAG_HEX[l.flag!] }}><Icon name="scr-flag" /></span>
                   </Show>
-                  <span class="scr-pill-value">{l().name.length > 32 ? `${l().name.slice(0, 32)}…` : l().name}</span>
+                  <span class="scr-pill-value">{l.name.length > 32 ? `${l.name.slice(0, 32)}…` : l.name}</span>
                 </>
               )}
             </Show>
@@ -225,14 +225,14 @@ export function FilterPills(props: Props) {
           </div>
         </Popover>
       </Show>
+      {/* Plain condition (no narrowed accessor): the editor reads the filter
+          from the store, so a late read while the popover closes is safe. */}
       <For each={ids()}>
         {(id) => (
-          <Show when={openId() === id && byId(id)}>
-            {(f) => (
-              <Popover anchor={els.get(id)} onClose={close} width={320}>
-                <FilterEditor filter={f()} has={props.has} onChange={updateFilter} onRemove={() => removeFilter(id)} onClose={close} />
-              </Popover>
-            )}
+          <Show when={openId() === id && !!byId(id)}>
+            <Popover anchor={els.get(id)} onClose={close} width={320}>
+              <FilterEditor filter={byId(id)!} has={props.has} onChange={updateFilter} onRemove={() => removeFilter(id)} onClose={close} />
+            </Popover>
           </Show>
         )}
       </For>

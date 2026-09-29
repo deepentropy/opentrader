@@ -1,5 +1,5 @@
 /*
- * ScreenerTable — the results table (TradingView Desktop 3.4.1):
+ * ScreenerTable: the results table (TradingView Desktop 3.4.1):
  *   header 50 px (#000, 1 px #4a4a4a bottom), 13/15 px #8c8c8c titles, a 10 px
  *   second line for params ("High" / "1M"), the active sort column in #dbdbdb
  *   with its arrow; the other sort arrows show on header hover.
@@ -13,7 +13,7 @@
  * Only the rows in view (+ overscan) are in the DOM: fixed 41 px rows with
  * spacer rows above and below keep scrolling at 60 fps with any match count.
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
 import {
@@ -30,6 +30,24 @@ import type { ScanController } from "./scan-controller";
 import { CategoryMenu } from "./CategoryMenu";
 import { EditorHeader } from "./FilterEditor";
 import { PopDivider, PopItem, Popover } from "./Popover";
+
+// Column widths: TV sizes its table columns to their content. Here a column
+// starts at its catalog width, widened so the header title fits on one line
+// (13 px title + 18 px sort arrow + 2 px gap + 20 px padding) and so the cells
+// on screen fit (14 px value + 10 px unit + 24 px padding). Widths only grow
+// until the plan changes, so scrolling never makes columns jump back.
+const FONT = '-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif';
+let measureCtx: CanvasRenderingContext2D | null = null;
+function textWidth(text: string, font: string): number {
+  if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
+  if (!measureCtx) return 0;
+  measureCtx.font = font;
+  return measureCtx.measureText(text).width;
+}
+function headerWidth(c: ColumnRef): number {
+  const def = COLUMN_BY_ID[c.id];
+  return Math.max(def?.width ?? 90, Math.ceil(textWidth(def?.short ?? c.id, `13px ${FONT}`)) + 18 + 2 + 20 + 2);
+}
 
 export const ROW_H = 41;
 const HEAD_H = 50;
@@ -116,7 +134,43 @@ export function ScreenerTable(props: Props) {
     const i = idx().get(f);
     return row && i !== undefined ? row.d[i] : null;
   };
-  const tableWidth = () => SYMBOL_W + props.columns.reduce((a, c) => a + (COLUMN_BY_ID[c.id]?.width ?? 90), 0) + SETUP_W;
+  // Content widths per column key, grown from the rows on screen.
+  const [grown, setGrown] = createSignal<Record<string, number>>({});
+  const colKey = (c: ColumnRef) => JSON.stringify(c);
+  createEffect(
+    on([() => props.resetKey, () => props.columns], () => setGrown({}), { defer: true }),
+  );
+  createEffect(() => {
+    props.ctl.rev();
+    const r = range();
+    const next = { ...untrack(grown) };
+    let changed = false;
+    props.columns.forEach((c, ci) => {
+      const def = COLUMN_BY_ID[c.id];
+      let w = next[colKey(c)] ?? 0;
+      for (let i = r.first; i <= r.last; i++) {
+        const row = untrack(() => props.ctl.row(i));
+        if (!row) continue;
+        const cur = extra(row, "currency");
+        const f = formatCell(def?.fmt ?? "text", row.d[ci], typeof cur === "string" ? cur : null);
+        let px = textWidth(f.text, `14px ${FONT}`);
+        if (f.unit && f.text !== DASH) px += textWidth(` ${f.unit}`, `500 10px ${FONT}`);
+        w = Math.max(w, Math.ceil(px) + 24 + 1);
+      }
+      if (w !== (next[colKey(c)] ?? 0)) {
+        next[colKey(c)] = w;
+        changed = true;
+      }
+    });
+    if (changed) setGrown(next);
+  });
+  const columnWidth = (c: ColumnRef) => {
+    const def = COLUMN_BY_ID[c.id];
+    // Text columns (sector, industry) keep their width and ellipsize.
+    const content = def?.fmt === "text" ? 0 : grown()[colKey(c)] ?? 0;
+    return Math.max(headerWidth(c), content);
+  };
+  const tableWidth = () => SYMBOL_W + props.columns.reduce((a, c) => a + columnWidth(c), 0) + SETUP_W;
 
   const isSorted = (c: ColumnRef) => sameColumn(props.sort.sortBy, c);
   const sortClick = (c: ColumnRef, e: MouseEvent) => {
@@ -175,17 +229,21 @@ export function ScreenerTable(props: Props) {
       const cur = extra(r, "currency");
       return formatCell(def?.fmt ?? "text", r.d[ci()], typeof cur === "string" ? cur : null);
     };
+    // Plain accessors (no Show): a row can vanish while its cells update.
+    const text = () => f()?.text ?? "";
+    const unit = () => {
+      const x = f();
+      return x && x.unit && x.text !== DASH ? x.unit : "";
+    };
+    const tone = () => {
+      const t = f()?.tone;
+      return t === "up" ? "scr-up" : t === "down" ? "scr-down" : undefined;
+    };
     return (
       <td class="scr-td" classList={{ "is-right": def?.align !== "left" }}>
-        <Show when={f()}>
-          {(x) => (
-            <>
-              <span class={x().tone === "up" ? "scr-up" : x().tone === "down" ? "scr-down" : undefined}>{x().text}</span>
-              <Show when={x().unit && x().text !== DASH}>
-                <span class="scr-currency"> {x().unit}</span>
-              </Show>
-            </>
-          )}
+        <span class={tone()}>{text()}</span>
+        <Show when={unit()}>
+          <span class="scr-currency"> {unit()}</span>
         </Show>
       </td>
     );
@@ -203,11 +261,12 @@ export function ScreenerTable(props: Props) {
 
   return (
     <div class="scr-table-scroll" ref={scroller} onScroll={onScroll} classList={{ "is-scrolled-x": scrolledX() }}>
-      <table class="scr-table" style={{ width: `${tableWidth()}px` }}>
+      <table class="scr-table" style={{ width: `max(${tableWidth()}px, 100%)` }}>
         <colgroup>
           <col style={{ width: `${SYMBOL_W}px` }} />
-          <For each={props.columns}>{(c) => <col style={{ width: `${COLUMN_BY_ID[c.id]?.width ?? 90}px` }} />}</For>
-          <col style={{ width: `${SETUP_W}px` }} />
+          <For each={props.columns}>{(c) => <col style={{ width: `${columnWidth(c)}px` }} />}</For>
+          {/* Last column takes the width left over (TV table fills the panel). */}
+          <col />
         </colgroup>
         <thead>
           <tr>
@@ -263,9 +322,9 @@ export function ScreenerTable(props: Props) {
                   <td class="scr-td scr-td-symbol">
                     <Show when={row()}>
                       <span class="scr-ticker-cell">
-                        <Show when={flag()}>
+                        <Show when={flag()} keyed>
                           {(fl) => (
-                            <span class="scr-row-flag" style={{ color: FLAG_HEX[fl()] }}>
+                            <span class="scr-row-flag" style={{ color: FLAG_HEX[fl] }}>
                               <Icon name="scr-flag" />
                             </span>
                           )}
@@ -287,54 +346,57 @@ export function ScreenerTable(props: Props) {
       <Show when={props.ctl.total() === 0}>
         <div class="scr-empty">No symbols match your filters</div>
       </Show>
-      <Show when={props.ctl.error()}>
-        {(e) => <div class="scr-empty scr-error">{e()}</div>}
+      <Show when={props.ctl.error()} keyed>
+        {(e) => <div class="scr-empty scr-error">{e}</div>}
       </Show>
 
-      <Show when={columnMenu()}>
+      <Show when={columnMenu()} keyed>
         {(x) => (
-          <Popover anchor={x().m.el} onClose={() => setMenu(null)} width={260}>
+          <Popover anchor={x.m.el} onClose={() => setMenu(null)} width={260}>
             <EditorHeader
-              col={x().c}
+              col={x.c}
               has={props.has}
               onRemove={() => {
-                props.onRemoveColumn(x().m.index);
+                const i = x.m.index;
                 setMenu(null);
+                props.onRemoveColumn(i);
               }}
-              onParam={(col) => props.onReplaceColumn(x().m.index, col)}
+              onParam={(col) => props.onReplaceColumn(x.m.index, col)}
             />
             <PopDivider />
             <PopItem
               title="Sort ascending"
               icon="scr-menu-sort-asc"
-              selected={isSorted(x().c) && props.sort.sortOrder === "asc"}
+              selected={isSorted(x.c) && props.sort.sortOrder === "asc"}
               onClick={() => {
-                props.onSort(x().c, "asc");
+                const c = x.c;
                 setMenu(null);
+                props.onSort(c, "asc");
               }}
             />
             <PopItem
               title="Sort descending"
               icon="scr-menu-sort-desc"
-              selected={isSorted(x().c) && props.sort.sortOrder === "desc"}
+              selected={isSorted(x.c) && props.sort.sortOrder === "desc"}
               onClick={() => {
-                props.onSort(x().c, "desc");
+                const c = x.c;
                 setMenu(null);
+                props.onSort(c, "desc");
               }}
             />
-            <Show when={x().n > 1}>
+            <Show when={x.n > 1}>
               <PopDivider />
-              <Show when={x().m.index > 0}>
-                <PopItem title="Move left" icon="scr-menu-move-left" onClick={() => { props.onMoveColumn(x().m.index, "prev"); setMenu(null); }} />
+              <Show when={x.m.index > 0}>
+                <PopItem title="Move left" icon="scr-menu-move-left" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "prev"); }} />
               </Show>
-              <Show when={x().m.index < x().n - 1}>
-                <PopItem title="Move right" icon="scr-menu-move-right" onClick={() => { props.onMoveColumn(x().m.index, "next"); setMenu(null); }} />
+              <Show when={x.m.index < x.n - 1}>
+                <PopItem title="Move right" icon="scr-menu-move-right" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "next"); }} />
               </Show>
-              <Show when={x().m.index > 0}>
-                <PopItem title="Move to the start" icon="scr-menu-move-start" onClick={() => { props.onMoveColumn(x().m.index, "start"); setMenu(null); }} />
+              <Show when={x.m.index > 0}>
+                <PopItem title="Move to the start" icon="scr-menu-move-start" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "start"); }} />
               </Show>
-              <Show when={x().m.index < x().n - 1}>
-                <PopItem title="Move to the end" icon="scr-menu-move-end" onClick={() => { props.onMoveColumn(x().m.index, "end"); setMenu(null); }} />
+              <Show when={x.m.index < x.n - 1}>
+                <PopItem title="Move to the end" icon="scr-menu-move-end" onClick={() => { const i = x.m.index; setMenu(null); props.onMoveColumn(i, "end"); }} />
               </Show>
             </Show>
           </Popover>

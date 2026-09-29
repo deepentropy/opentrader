@@ -28,10 +28,13 @@ export const TOP_TABS: Tab[] = [
     "label": "Object tree and data window",
     "iconName": "rr-object_tree"
   },
-  // NOTE: a "screener-dialog-button" (Screeners) tab belongs here, but
-  // its icon asset (rr-screener-dialog-button.svg) hasn't been synced into
-  // src/assets/icons yet and the rail renders icon-only buttons — add the tab
-  // back once the icon lands.
+  {
+    // Stock screener: opens as a right split-view panel (App.tsx toggles it
+    // instead of making it the active rail tab).
+    "id": "screener-dialog-button",
+    "label": "Screeners",
+    "iconName": "rr-screener-dialog-button"
+  },
   {
     // Script editor button — runs oakscriptjs (App.tsx intercepts this id to
     // toggle the bottom editor drawer instead of a rail panel).

@@ -77,6 +77,8 @@ import { loadDrawings, saveDrawings } from "./window/drawings/persistence";
 import { RightRail } from "./window/right-rail/RightRail";
 import { BottomBar } from "./window/bottom-bar/BottomBar";
 import { OakScriptPanel } from "./window/oakscript/OakScriptPanel";
+import { ScreenerPanel } from "./window/screener/ScreenerPanel";
+import { screenerPanel } from "./data/screener-store";
 import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
 import { isAdjusted, isIntradayInterval, isIntradayResolution, isSupportedResolution, type SessionId } from "./data/datafeed";
 import { requestDataWindow } from "./data/data-window-store";
@@ -796,6 +798,11 @@ function App() {
   const onRailTabSelect = (id: string | null) => {
     if (id === "pine-dialog-button") {
       setOakPanelOpen(!oakPanelOpen());
+      return;
+    }
+    // Screeners: toggles the stock screener split view (right of the layout).
+    if (id === "screener-dialog-button") {
+      screenerPanel.toggle();
       return;
     }
     setActiveRailTab(id);
@@ -1895,6 +1902,19 @@ function App() {
         />
         <WindowControls />
       </div>
+      {/* Main layout (header toolbar + chart area) | screener split view.
+          The split view takes its width from the right; in its fullscreen
+          mode the main layout is hidden (kept mounted). */}
+      <div class="flex flex-1 flex-row" style={{ "min-height": 0, "min-width": 0 }}>
+      <div
+        class="flex flex-1 flex-col"
+        style={{
+          "min-height": 0,
+          "min-width": 0,
+          overflow: "hidden",
+          display: screenerPanel.open() && screenerPanel.fullscreen() ? "none" : undefined,
+        }}
+      >
       <HeaderToolbar
         symbol={symbol()}
         interval={interval()}
@@ -2101,7 +2121,13 @@ function App() {
           onRemoveIndicator={toggleIndicator}
           chartSource={`${symbol()}, ${interval()}`}
           cloneDrawing={cloneDrawing}
+          pressedTab={(id) => id === "screener-dialog-button" && screenerPanel.open()}
         />
+      </div>
+      </div>
+      <Show when={screenerPanel.open()}>
+        <ScreenerPanel windowLabel={windowLabel} onSymbolPicked={onSymbolPicked} />
+      </Show>
       </div>
       <Show when={openMenu() && currentMenuDef() && anchorRect()}>
         <HeaderMenu

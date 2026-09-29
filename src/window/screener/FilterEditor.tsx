@@ -1,5 +1,5 @@
 /*
- * FilterEditor — content of a filter pill popover (TradingView Desktop 3.4.1):
+ * FilterEditor: content of a filter pill popover (TradingView Desktop 3.4.1):
  *   header: column long title, Reset (when active), divider, trash (remove);
  *           a second row with one text button per column param ("1 month ▾").
  *   Condition with presets: Search + preset list (value + description) +
@@ -28,7 +28,7 @@ import {
   type Filter,
   type Operation,
 } from "../../data/screener-catalog";
-import { parseValue } from "../../data/screener-format";
+import { abbrev, parseValue } from "../../data/screener-format";
 import { isActive, presetFilter, presetTitle } from "../../data/screener-query";
 import { PopDivider, PopItem, PopSearch, Popover, SelectButton } from "./Popover";
 
@@ -125,9 +125,16 @@ function valueUnit(col: ColumnRef): string | null {
   return null;
 }
 
+/** Input text of a value: volumes and money in K / M / B ("500 K"), as TV. */
+function inputText(col: ColumnRef, v: number | null): string {
+  if (v === null) return "";
+  const fmt = COLUMN_BY_ID[col.id]?.fmt;
+  return fmt === "volume" || fmt === "money" ? abbrev(v) : String(v);
+}
+
 /** Number input with the TV stepper (increase / decrease). */
-function ValueInput(props: { value: number | null; placeholder: string; unit: string | null; onValue: (v: number | null) => void }) {
-  const [text, setText] = createSignal(props.value === null ? "" : String(props.value));
+function ValueInput(props: { col: ColumnRef; value: number | null; placeholder: string; unit: string | null; onValue: (v: number | null) => void }) {
+  const [text, setText] = createSignal(inputText(props.col, props.value));
   let input!: HTMLInputElement;
   let timer: number | undefined;
   // External changes (Reset, operation switch) refresh the text unless typing.
@@ -135,22 +142,33 @@ function ValueInput(props: { value: number | null; placeholder: string; unit: st
     on(
       () => props.value,
       (v) => {
-        if (document.activeElement !== input) setText(v === null ? "" : String(v));
+        if (document.activeElement !== input) setText(inputText(props.col, v));
       },
       { defer: true },
     ),
   );
   const commit = () => {
     window.clearTimeout(timer);
+    timer = undefined;
     const v = parseValue(text());
     if (text().trim() === "" || v !== null) props.onValue(text().trim() === "" ? null : v);
   };
+  // A value still waiting for its debounce is applied after the popover
+  // closes (never during the disposal itself).
   onCleanup(() => {
-    if (timer !== undefined) commit();
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timer = undefined;
+      const t = text();
+      queueMicrotask(() => {
+        const v = parseValue(t);
+        if (t.trim() === "" || v !== null) props.onValue(t.trim() === "" ? null : v);
+      });
+    }
   });
   const step = (dir: 1 | -1) => {
     const v = (parseValue(text()) ?? 0) + dir;
-    setText(String(Math.round(v * 1e6) / 1e6));
+    setText(inputText(props.col, Math.round(v * 1e6) / 1e6));
     commit();
   };
   return (
@@ -268,6 +286,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
           when={range()}
           fallback={
             <ValueInput
+              col={props.filter.left}
               value={"value" in right() ? (right() as { value: number | null }).value : null}
               placeholder="Enter value"
               unit={valueUnit(props.filter.left)}
@@ -277,6 +296,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
         >
           <div class="scr-range-values">
             <ValueInput
+              col={props.filter.left}
               value={"left" in right() ? (right() as { left: number | null }).left : null}
               placeholder="From"
               unit={null}
@@ -286,6 +306,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
               }}
             />
             <ValueInput
+              col={props.filter.left}
               value={"right" in right() ? (right() as { right: number | null }).right : null}
               placeholder="To"
               unit={valueUnit(props.filter.left)}

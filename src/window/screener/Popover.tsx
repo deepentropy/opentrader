@@ -1,5 +1,5 @@
 /*
- * Screener popovers — TradingView ui-lib popover look (Desktop 3.4.1):
+ * Screener popovers: TradingView ui-lib popover look (Desktop 3.4.1):
  * #1f1f1f, 10px radius, 6px padding, shadow 0 2px 4px rgba(0,0,0,.4),
  * 32px rows (48px with a description line), 6px row radius, hover #2e2e2e,
  * selected #f2f2f2 / #0f0f0f text, 11px #8c8c8c section titles.
@@ -92,6 +92,8 @@ type ItemProps = {
   title: string;
   description?: string;
   icon?: string;
+  /** Keep the 28 px icon column empty (menus whose other rows have icons). */
+  iconSpace?: boolean;
   /** Right-side slot (counts, arrows). */
   right?: JSX.Element;
   selected?: boolean;
@@ -110,8 +112,12 @@ export function PopItem(props: ItemProps) {
       classList={{ "is-selected": !!props.selected, "is-disabled": !!props.disabled, "has-desc": !!props.description }}
       onClick={() => !props.disabled && props.onClick?.()}
     >
-      <Show when={props.icon}>
-        <span class="scr-item-icon"><Icon name={props.icon!} size={28} /></span>
+      <Show when={props.icon || props.iconSpace}>
+        <span class="scr-item-icon">
+          <Show when={props.icon}>
+            <Icon name={props.icon!} size={28} />
+          </Show>
+        </span>
       </Show>
       <span class="scr-item-text">
         <span class="scr-item-title">{props.title}</span>

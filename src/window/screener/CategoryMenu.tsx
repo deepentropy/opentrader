@@ -1,5 +1,5 @@
 /*
- * CategoryMenu — the "Add new filter" (+ next to the pills) and "Column setup"
+ * CategoryMenu: the "Add new filter" (+ next to the pills) and "Column setup"
  * (+ at the table header right) popovers (TradingView Desktop 3.4.1):
  * title ("Filters" / "Columns"), Search, then the categories with their icon
  * and item count; a category opens its items under a back row. Typing in
@@ -60,6 +60,7 @@ export function CategoryMenu(props: Props) {
     <Popover anchor={props.anchor} onClose={props.onClose} width={320} class="scr-category-menu">
       <Show
         when={config()}
+        keyed
         fallback={
           <>
             <div class="scr-menu-title">{props.kind === "filters" ? "Filters" : "Columns"}</div>
@@ -94,21 +95,21 @@ export function CategoryMenu(props: Props) {
       >
         {(c) => (
           <div class="scr-column-config">
-            <PopBack title={c().def.title} onClick={() => setConfig(null)} />
+            <PopBack title={c.def.title} onClick={() => setConfig(null)} />
             <PopDivider />
             <div class="scr-manual">
-              <For each={visibleParams(c().def, props.has)}>
+              <For each={visibleParams(c.def, props.has)}>
                 {(p) => (
                   <SelectButton
                     class="scr-select--stretch"
-                    label={p.options.find((o) => o.value === (c().col.params[p.key] ?? p.default))?.label ?? p.options[0].label}
+                    label={p.options.find((o) => o.value === (c.col.params[p.key] ?? p.default))?.label ?? p.options[0].label}
                     options={p.options.map((o) => ({ value: o.value, label: o.label }))}
-                    value={c().col.params[p.key] ?? p.default}
-                    onChange={(v) => setConfig({ def: c().def, col: { id: c().col.id, params: { ...c().col.params, [p.key]: v } } })}
+                    value={c.col.params[p.key] ?? p.default}
+                    onChange={(v) => setConfig({ def: c.def, col: { id: c.col.id, params: { ...c.col.params, [p.key]: v } } })}
                   />
                 )}
               </For>
-              <button type="button" class="scr-primary-btn" onClick={() => props.onPick(c().col)}>
+              <button type="button" class="scr-primary-btn" onClick={() => props.onPick(c.col)}>
                 Add column
               </button>
             </div>

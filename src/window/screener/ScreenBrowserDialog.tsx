@@ -1,5 +1,5 @@
 /*
- * ScreenBrowserDialog — "Open screen…" of the screen menu: every local saved
+ * ScreenBrowserDialog: "Open screen…" of the screen menu: every local saved
  * screen with a search filter; a row opens the screen, the trash deletes it.
  * Same modal as the "Open layout" dialog (layout-browser styles).
  */

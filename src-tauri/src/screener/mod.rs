@@ -32,6 +32,8 @@ const POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// How often to ask the gateway for a newer state file while the one held is
 /// older than the last closed session.
 const STATE_RECHECK: Duration = Duration::from_secs(15 * 60);
+/// Wait before asking again for a reference list that failed.
+const REFS_RETRY: Duration = Duration::from_secs(5 * 60);
 
 /// Sent after every poll (new table or error).
 #[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
@@ -108,6 +110,7 @@ async fn run(app: AppHandle, inner: Arc<Inner>) {
         refs_day = Some(day);
     }
     let mut refs_task: Option<tauri::async_runtime::JoinHandle<Option<Vec<RefTicker>>>> = None;
+    let mut refs_failed: Option<Instant> = None;
     let mut state: Option<Arc<StateFile>> = state::read_cache().map(Arc::new);
     let mut state_checked: Option<Instant> = None;
 
@@ -123,16 +126,10 @@ async fn run(app: AppHandle, inner: Arc<Inner>) {
         let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64);
 
         // Reference list: once per New York day, in the background so the
-        // first table does not wait for its ~13 pages.
-        if let Some(task) = refs_task.as_ref() {
-            if task.inner().is_finished() {
-                if let Ok(Some(list)) = refs_task.take().expect("refs task").await {
-                    write_refs_cache(today, &list);
-                    refs = Arc::new(list);
-                    refs_day = today;
-                }
-            }
-        } else if refs_day != today {
+        // first table does not wait for its ~13 pages. Its arrival ends the
+        // wait below, so the table gains names and types at once.
+        let refs_retry = refs_failed.map_or(true, |t: Instant| t.elapsed() >= REFS_RETRY);
+        if refs_task.is_none() && refs_day != today && refs_retry {
             refs_task = Some(tauri::async_runtime::spawn(async {
                 match massive_rest::fetch_reference_tickers().await {
                     Ok(list) => Some(list),
@@ -191,7 +188,26 @@ async fn run(app: AppHandle, inner: Arc<Inner>) {
             }
         };
         let _ = update.emit(&app);
-        tokio::time::sleep(POLL_INTERVAL.saturating_sub(started.elapsed())).await;
+        let wait = tokio::time::sleep(POLL_INTERVAL.saturating_sub(started.elapsed()));
+        match refs_task.as_mut() {
+            Some(task) => {
+                tokio::select! {
+                    _ = wait => {}
+                    res = task => {
+                        refs_task = None;
+                        match res {
+                            Ok(Some(list)) => {
+                                write_refs_cache(today, &list);
+                                refs = Arc::new(list);
+                                refs_day = today;
+                            }
+                            _ => refs_failed = Some(Instant::now()),
+                        }
+                    }
+                }
+            }
+            None => wait.await,
+        }
     }
 }
 
@@ -212,7 +228,15 @@ fn refs_cache_path() -> PathBuf {
 fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
     let c: RefsCache = serde_json::from_slice(&std::fs::read(refs_cache_path()).ok()?).ok()?;
     let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64)?;
-    (c.day == today).then_some((c.day, c.tickers))
+    let tickers = c
+        .tickers
+        .into_iter()
+        .map(|mut r| {
+            r.currency_name = r.currency_name.to_uppercase();
+            r
+        })
+        .collect();
+    (c.day == today).then_some((c.day, tickers))
 }
 
 fn write_refs_cache(day: Option<NaiveDate>, list: &[RefTicker]) {

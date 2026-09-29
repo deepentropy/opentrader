@@ -1,5 +1,5 @@
 /*
- * ScreenerTopbar — screen name menu, Save button, Undo / Redo (TradingView
+ * ScreenerTopbar: screen name menu, Save button, Undo / Redo (TradingView
  * Desktop 3.4.1 topbar: padding 8 20 12, 20 px / 600 title with an 18 px
  * caret, 34 px buttons).
  *
@@ -84,7 +84,7 @@ export function ScreenerTopbar() {
 
       <Show when={menuOpen()}>
         <Popover anchor={nameBtn} onClose={() => setMenuOpen(false)} width={320} class="scr-screen-menu">
-          <PopItem title="Save screen" disabled={!screenerStore.unsaved()} onClick={() => run(save)} />
+          <PopItem title="Save screen" iconSpace disabled={!screenerStore.unsaved()} onClick={() => run(save)} />
           <PopItem
             title="Make a copy…"
             icon="scr-menu-copy"
@@ -92,7 +92,7 @@ export function ScreenerTopbar() {
           />
           <PopItem title="Rename…" icon="scr-menu-rename" onClick={() => run(() => setDialog({ mode: "rename", initial: screenerStore.screen().title }))} />
           <PopDivider />
-          <PopItem title="Create new screen…" onClick={() => run(() => setDialog({ mode: "create", initial: "" }))} />
+          <PopItem title="Create new screen…" iconSpace onClick={() => run(() => setDialog({ mode: "create", initial: "" }))} />
           <Show when={screenerStore.recentScreens().length > 0}>
             <PopDivider />
             <PopSectionTitle title="Recently used" />
@@ -106,13 +106,13 @@ export function ScreenerTopbar() {
           <PopItem title="Open screen…" icon="scr-menu-open" onClick={() => run(() => setBrowserOpen(true))} />
         </Popover>
       </Show>
-      <Show when={dialog()}>
+      <Show when={dialog()} keyed>
         {(d) => (
           <LayoutNameDialog
-            title={d().mode === "rename" ? "Rename screen" : d().mode === "create" ? "Create new screen" : "Save screen as"}
-            submitLabel={d().mode === "rename" ? "Rename" : "Save"}
+            title={d.mode === "rename" ? "Rename screen" : d.mode === "create" ? "Create new screen" : "Save screen as"}
+            submitLabel={d.mode === "rename" ? "Rename" : "Save"}
             fieldLabel="New screen name"
-            initialValue={d().initial}
+            initialValue={d.initial}
             onSubmit={submitName}
             onClose={() => setDialog(null)}
           />

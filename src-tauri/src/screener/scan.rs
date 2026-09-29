@@ -536,3 +536,39 @@ mod live_step {
         std::fs::write(std::env::var("SCREENER_OUT").unwrap(), out).unwrap();
     }
 }
+
+#[cfg(test)]
+mod live_pullback {
+    use super::*;
+    use crate::screener::state::StateFile;
+    use std::sync::Arc;
+
+    /// The user's TV "Pullback" screen (captured 29/09/2026) on the live table
+    /// + a state file (env SCREENER_STATE); tickers to env SCREENER_OUT.
+    #[tokio::test]
+    #[ignore]
+    async fn screener_live_pullback() {
+        let state: StateFile =
+            serde_json::from_slice(&std::fs::read(std::env::var("SCREENER_STATE").unwrap()).unwrap()).unwrap();
+        let rows = crate::data::massive_rest::fetch_market_snapshot().await.unwrap();
+        let t = Table::build(1, rows, Arc::new(Vec::new()), Some(Arc::new(state)));
+        let c = |l: &str, op: Op, r: Operand| Clause { left: l.into(), operation: op, right: r };
+        let req = ScanRequest {
+            columns: vec!["close".into()],
+            filter: vec![
+                c("ADRP", Op::EGreater, Operand::Num(5.0)),
+                c("close", Op::EGreater, Operand::Text("EMA50".into())),
+                c("close", Op::EGreater, Operand::Num(5.0)),
+                c("average_volume_30d_calc", Op::Greater, Operand::Num(500000.0)),
+            ],
+            sort: None,
+            range: (0, 100000),
+            tickers: None,
+        };
+        let t0 = std::time::Instant::now();
+        let r = run(&t, &req).unwrap();
+        println!("matches {} in {:?}", r.total_count, t0.elapsed());
+        let list: Vec<String> = r.rows.into_iter().map(|r| r.s).collect();
+        std::fs::write(std::env::var("SCREENER_OUT").unwrap(), list.join("\n")).unwrap();
+    }
+}
