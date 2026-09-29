@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Windows application manifest for EVERY target in this package — the app binary
+  AND test binaries — embedded by the linker. See build.rs.
+
+  Content is identical to tauri-build's own default (its
+  src/windows-app-manifest.xml). build.rs disables that default via
+  WindowsAttributes::new_without_app_manifest(), so this is the single manifest
+  source; two sources would collide as CVT1100 "duplicate resource". Keep this
+  in sync if tauri's default ever gains entries.
+
+  Why tests need it: the tauri dependency tree statically imports
+  comctl32!TaskDialogIndirect, which only ComCtl32 v6 exports. This
+  Common-Controls v6 dependency is what binds v6. Without it the loader picks
+  comctl32 5.82 from System32 and the process dies at load with
+  STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139) before main. tauri-build embedded it
+  into the app binary only, which is why `cargo test` never worked on Windows.
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+        type="win32"
+        name="Microsoft.Windows.Common-Controls"
+        version="6.0.0.0"
+        processorArchitecture="*"
+        publicKeyToken="6595b64144ccf1df"
+        language="*"
+      />
+    </dependentAssembly>
+  </dependency>
+</assembly>

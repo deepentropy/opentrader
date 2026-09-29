@@ -1,0 +1,49 @@
+/*
+ * `.tv-popover` — shared shell for every floating panel (drawing-toolbar
+ * submenu, header menu, tab-context menu, timezone menu, etc.).  Probed
+ * from TV's popup classes (2026-05-28): one set of background / radius /
+ * shadow / padding tokens used everywhere.
+ *
+ * `--tv-popover-bg` and `--tv-popover-shadow` resolve to the theme-aware
+ * popup colors defined in `base.css`.  Per-call code is still responsible
+ * for `position: fixed|absolute` + `top/left/right/bottom` coordinates.
+ */
+.tv-popover {
+  background-color: var(--tv-popover-bg);
+  border-radius: 6px;
+  box-shadow: var(--tv-popover-shadow);
+  padding: 6px 0;
+  color: var(--color-popup-element-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  -webkit-app-region: no-drag;
+}
+
+/* Convenience modifier for menus that need to scroll (timezone list,
+ * long-tail dropdowns).  Keeps the rounded shell + clip the rows. */
+.tv-popover--scrollable {
+  max-height: 80vh;
+  overflow: hidden;
+}
+.tv-popover--scrollable > .tv-popover__scroll {
+  max-height: inherit;
+  overflow-y: auto;
+}
+
+/* Hairline separator between sections inside a popover (matches TV's
+ * 1 px line in --color-toolbar-divider-background with 4 px side margin). */
+.tv-popover__divider {
+  height: 1px;
+  margin: 4px 8px;
+  background-color: var(--color-toolbar-divider-background);
+}
+
+/* Section header — small, muted, all-caps. */
+.tv-popover__section-title {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-popup-element-secondary-text, var(--color-content-primary-neutral));
+  pointer-events: none;
+}

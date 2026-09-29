@@ -1,0 +1,64 @@
+/*
+ * `.tv-menu-item` — generic row inside a `.tv-popover`.  Three-column
+ * grid: icon | label | trailing (hotkey, checkmark, submenu arrow).
+ * Probed from TV's `.item-*` rows in drawing-toolbar submenu, header
+ * dropdowns, timezone menu, tab-context menu (2026-05-28).
+ *
+ * Caller adds optional modifier classes:
+ *   .tv-menu-item--current   — currently-selected / MRU row
+ *   .tv-menu-item--disabled  — dimmed, no hover
+ */
+.tv-menu-item {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 8px 2px 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--color-popup-element-text, var(--color-toolbar-button-text));
+  font: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: start;
+  cursor: default;
+  width: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.tv-menu-item:hover:not(.tv-menu-item--disabled) {
+  background-color: var(--color-popup-element-background-hover);
+}
+
+.tv-menu-item--current {
+  background-color: var(--color-popup-element-background-hover);
+}
+
+.tv-menu-item--disabled {
+  opacity: 0.4;
+}
+
+.tv-menu-item__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: currentColor;
+}
+
+.tv-menu-item__label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-menu-item__hotkey {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--color-content-primary-neutral);
+  font-size: 11px;
+  white-space: nowrap;
+}

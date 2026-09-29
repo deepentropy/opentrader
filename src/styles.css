@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+@import "./styles/fonts.css";
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/tabs.css";
+@import "./styles/toolbar-button.css";
+@import "./styles/header-toolbar.css";
+@import "./styles/tooltip.css";
+@import "./styles/chart-event-hint.css";
+@import "./styles/change-interval-dialog.css";
+@import "./styles/icon-button.css";
+@import "./styles/popover.css";
+@import "./styles/menu-item.css";
+@import "./styles/ticker-logo.css";
+@import "./styles/segmented-control.css";
+@import "./styles/header-menu.css";
+@import "./styles/empty-state.css";
+@import "./styles/symbol-search.css";
+@import "./styles/app-settings.css";
+@import "./styles/font-icon-picker.css";
+@import "./styles/goto-dialog.css";
+@import "./styles/layout-name-dialog.css";
+@import "./styles/unsaved-layout-dialog.css";
+@import "./styles/drawing-toolbar.css";
+@import "./styles/selected-toolbar.css";
+@import "./styles/drawing-context-menu.css";
+@import "./styles/drawing-settings.css";
+@import "./styles/drawing-text-input.css";
+@import "./styles/color-panel.css";
+@import "./styles/rail-panel.css";
+@import "./styles/panel-header.css";
+@import "./styles/right-rail-tabs.css";
+@import "./styles/right-rail-placeholder.css";
+@import "./styles/object-tree-panel.css";
+@import "./styles/watchlist.css";
+@import "./styles/watchlist-detail.css";
+@import "./styles/bottom-bar.css";
+@import "./styles/chart-grid.css";
+@import "./styles/chart-legend.css";
+@import "./styles/chart-control-bar.css";
+@import "./styles/news-card.css";
+@import "./styles/tv-dialogs.css";
+@import "./styles/indicators-dialog.css";
+@import "./styles/chart-properties.css";
+@import "./styles/chart-context-menu.css";
+@import "./styles/chart-loading.css";
+@import "./styles/alerts-panel.css";
+@import "./styles/alert-dialog.css";
+@import "./styles/timezone-menu.css";
+@import "./styles/oakscript-panel.css";
+
+:root {
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto,
+    Ubuntu, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* Drawing anchor hover halo (TV shows a 20%-alpha ring around the hovered
+   anchor). The ring circle is always rendered; CSS reveals it on hover. */
+.drawing-handle .drawing-handle-ring {
+  opacity: 0;
+}
+.drawing-handle:hover .drawing-handle-ring {
+  opacity: 1;
+}
+
+/* Settings dialog: per-level grid. TV: one level per line (check box,
+   value, line button) for pitchforks, circles, time zones...; two per line
+   (check box, value, colour) for the fib retracement family, Gann box,
+   speed fan and Gann squares (.two-col). */
+/* TV level rows: one per line = a 50 px row each (34 px controls, 16 px
+   apart); two per line = items of check box + value + colour, the second
+   column 48 px after the first, 8 px between lines, in a 412 px block (the
+   TV dialog is 457 px wide with these grids). */
+.drawing-settings-levels {
+  display: grid;
+  grid-template-columns: max-content;
+  row-gap: 16px;
+  padding: 8px 0;
+  margin: 0;
+}
+.drawing-settings-levels.two-col {
+  grid-template-columns: repeat(2, max-content);
+  column-gap: 48px;
+  row-gap: 8px;
+  width: 412px;
+}
+.drawing-settings-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+/* TV value field: 100 x 34, 1 px #575757, radius 6, 14 px. */
+.drawing-settings-level-coeff {
+  width: 100px;
+  height: 34px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 14px;
+  padding: 0 2px 0 5px;
+}
+/* TV Gann square ratio title: 52 px before the line button. */
+.drawing-settings-level-coeff.is-fixed {
+  width: 52px;
+  border-color: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+/* TV level row off (sampled 25/09/2026): value field and colour button on a
+ * #2e2e2e background, border kept, value text #575757, colour at 50 %; a
+ * fixed title (Gann square ratios) stays bright. */
+.drawing-settings-level-row.off .drawing-settings-level-coeff:not(.is-fixed) {
+  background-color: #2e2e2e;
+  color: #575757;
+}
+.drawing-settings-level-row.off .drawing-settings-color-swatch,
+.drawing-settings-level-row.off .dlg-color-thickness-btn {
+  background-color: #2e2e2e;
+}
+.drawing-settings-level-row.off .drawing-settings-color-swatch-fill,
+.drawing-settings-level-row.off .dlg-color-thickness-btn > * {
+  opacity: 0.5;
+}
+/* Titled level rows (TV Gann fan ratios): check box + 52 px title, the
+ * line button 8 px after (x = 106 in a 380 px dialog). */
+.drawing-settings-level-title {
+  flex: 0 0 78px;
+  margin-right: 0;
+}

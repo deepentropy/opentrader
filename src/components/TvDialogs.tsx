@@ -1,0 +1,187 @@
+/*
+ * TV prompt dialogs — `showRename` (a name field with the list of existing
+ * names) and `showConfirm`, as TradingView Desktop 3.4.1 draws them
+ * (popupDialog-xKF9ptKN, measured 26/09/2026): 480 px wide, #1F1F1F, r6,
+ * padding 40, title 20/600, centred in the window, no dimming behind.
+ * Used by the drawing / chart / indicator template menus.
+ *
+ * Imperative API (TV's showRename / showConfirm): call from anywhere; the
+ * <TvDialogHost/> mounted once in App renders the open dialogs, newest on top.
+ */
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { Portal } from "solid-js/web";
+
+export type ConfirmOptions = {
+  /** Title (TV default "Confirmation"). */
+  title?: string;
+  text: string;
+  /** Main button (TV default "Yes"). */
+  mainText?: string;
+  /** Other button (TV default "No"). */
+  cancelText?: string;
+  /** Main button colour: success = #089981 (default), danger = #F23645. */
+  intent?: "success" | "danger";
+  onConfirm: () => void;
+  onCancel?: () => void;
+};
+
+export type RenameOptions = {
+  title: string;
+  /** Label above the field. */
+  label: string;
+  maxLength: number;
+  /** Existing names: the field's drop-down list, and the "replace?" check. */
+  names: string[];
+  /** Confirm text when the typed name already exists (Yes = replace). */
+  replaceText: (name: string) => string;
+  onSave: (name: string) => void;
+};
+
+type Entry =
+  | { id: number; kind: "confirm"; opts: ConfirmOptions }
+  | { id: number; kind: "rename"; opts: RenameOptions };
+
+const [stack, setStack] = createSignal<Entry[]>([]);
+let nextId = 1;
+const close = (id: number) => setStack((s) => s.filter((e) => e.id !== id));
+
+export function showConfirm(opts: ConfirmOptions): void {
+  setStack((s) => [...s, { id: nextId++, kind: "confirm", opts }]);
+}
+
+export function showRename(opts: RenameOptions): void {
+  setStack((s) => [...s, { id: nextId++, kind: "rename", opts }]);
+}
+
+/** Case-insensitive "contains" filter (TV autocompleteFilter, module 209807). */
+const matches = (typed: string, name: string) => typed === "" || name.toLowerCase().includes(typed.toLowerCase());
+
+const CloseIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
+  </svg>
+);
+
+function Frame(props: { title: string; onClose: () => void; children: import("solid-js").JSX.Element; label: string }) {
+  return (
+    <div class="tv-dlg-layer" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <div class="tv-dlg" role="dialog" aria-label={props.label}>
+        <div class="tv-dlg-title">{props.title}</div>
+        <button type="button" class="tv-dlg-close" aria-label="close" onClick={() => props.onClose()}>
+          <CloseIcon />
+        </button>
+        {props.children}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
+  const o = props.entry.opts;
+  const cancel = () => { close(props.entry.id); o.onCancel?.(); };
+  const confirm = () => { close(props.entry.id); o.onConfirm(); };
+  useKeys(props.entry.id, cancel, confirm);
+  return (
+    <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={cancel}>
+      <div class="tv-dlg-content tv-dlg-text">{o.text}</div>
+      <div class="tv-dlg-footer">
+        <button type="button" class="tv-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>
+        <button type="button" class={`tv-dlg-btn is-main is-${o.intent ?? "success"}`} data-name="submit-button" onClick={confirm}>
+          {o.mainText ?? "Yes"}
+        </button>
+      </div>
+    </Frame>
+  );
+}
+
+function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
+  const o = props.entry.opts;
+  const [value, setValue] = createSignal("");
+  const [listOpen, setListOpen] = createSignal(false);
+  let input!: HTMLInputElement;
+  const name = () => value().trim();
+  const shown = createMemo(() => o.names.filter((n) => matches(value(), n)));
+  const cancel = () => close(props.entry.id);
+  const save = () => {
+    const n = name();
+    if (!n) return;
+    if (o.names.includes(n)) {
+      showConfirm({ text: o.replaceText(n), onConfirm: () => { o.onSave(n); close(props.entry.id); }, onCancel: () => input.focus() });
+      return;
+    }
+    o.onSave(n);
+    close(props.entry.id);
+  };
+  useKeys(props.entry.id, () => (listOpen() ? setListOpen(false) : cancel()), save);
+  onMount(() => input.focus());
+  return (
+    <Frame title={o.title} label={o.title} onClose={cancel}>
+      <div class="tv-dlg-content">
+        <label class="tv-dlg-label" for={`tv-dlg-input-${props.entry.id}`}>{o.label}</label>
+        <div class="tv-dlg-field">
+          <span class="tv-dlg-input-box">
+            <input
+              ref={input}
+              id={`tv-dlg-input-${props.entry.id}`}
+              class="tv-dlg-input"
+              type="text"
+              maxLength={o.maxLength}
+              value={value()}
+              spellcheck={false}
+              autocomplete="off"
+              onInput={(e) => { setValue(e.currentTarget.value); setListOpen(shown().length > 0 && e.currentTarget.value !== ""); }}
+            />
+            <Show when={o.names.length > 0}>
+              <button type="button" class={`tv-dlg-list-btn${listOpen() ? " is-open" : ""}`} aria-label="Show names" tabIndex={-1} onClick={() => { setListOpen(!listOpen()); input.focus(); }}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                  <path fill="currentColor" d="M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z" />
+                </svg>
+              </button>
+            </Show>
+          </span>
+          <Show when={listOpen() && shown().length > 0}>
+            <div class="tv-dlg-suggestions" role="listbox">
+              <For each={shown()}>
+                {(n) => (
+                  <div role="option" class="tv-dlg-suggestion" onMouseDown={(e) => e.preventDefault()} onClick={() => { setValue(n); setListOpen(false); input.focus(); }}>
+                    {n}
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
+      </div>
+      <div class="tv-dlg-footer">
+        <button type="button" class="tv-dlg-btn is-secondary" onClick={cancel}>Cancel</button>
+        <button type="button" class="tv-dlg-btn is-main is-neutral" data-name="submit-button" aria-disabled={!name()} disabled={!name()} onClick={save}>
+          Save
+        </button>
+      </div>
+    </Frame>
+  );
+}
+
+/** Escape / Enter for the TOP dialog only. */
+function useKeys(id: number, onEscape: () => void, onEnter: () => void) {
+  onMount(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const s = stack();
+      if (!s.length || s[s.length - 1].id !== id) return;
+      if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); onEscape(); }
+      else if (e.key === "Enter") { e.stopPropagation(); e.preventDefault(); onEnter(); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => window.removeEventListener("keydown", onKey, true));
+  });
+}
+
+export function TvDialogHost() {
+  return (
+    <Portal mount={document.body}>
+      <For each={stack()}>
+        {(e) => (e.kind === "confirm" ? <ConfirmDialog entry={e} /> : <RenameDialog entry={e} />)}
+      </For>
+    </Portal>
+  );
+}

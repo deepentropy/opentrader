@@ -1,0 +1,11 @@
+/*
+ * `.tv-icon-button` — compact 28 × 28 action button used by panel
+ * headers and inline action strips.  Pairs with `.tv-toolbar-button`
+ * which supplies the rounded hover pill.
+ */
+.tv-icon-button {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  --tv-tb-pill-radius: 4px;
+}

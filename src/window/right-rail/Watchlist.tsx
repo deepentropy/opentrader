@@ -1,0 +1,1611 @@
+/*
+ * Watchlist — right-rail panel listing tracked symbols with last price and
+ * change. Static values from the captured probe; live last-price overlay via
+ * Feature 9 (Massive trades). Row click → updates the active chart symbol.
+ *
+ * Settings (Feature: watchlist settings, ported from the reference mock): the
+ * header gear opens WatchlistSettingsMenu — Table/tile view, customizable
+ * columns, logo toggle, Symbol/Name display. Persisted to localStorage.
+ */
+import { For, Show, createEffect, createRoot, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { TvIcon } from "../../components/TvIcon";
+import { Tooltip } from "../../components/Tooltip";
+import { PanelHeader } from "../../components/PanelHeader";
+import { IconButton } from "../../components/IconButton";
+import {
+  COLUMN_HEADERS,
+  FLAG_HEX,
+  FLAG_SORT_ORDER,
+  HEADER_ITEMS,
+  WL_COLUMNS,
+  WL_ICONS,
+  WL_SETTINGS_DEFAULTS,
+  type FlagColor,
+  type Group,
+  type Row,
+  type SortField,
+  type SortKey,
+  type WlColumnKey,
+  type WlSettings,
+} from "../../data/watchlist";
+import {
+  watchlistStore,
+  consumeOpenListRequest,
+  firedAlerts,
+  saveFiredAlerts,
+  clearFiredForList,
+  type AddAnchor,
+  type WatchList,
+} from "../../data/watchlist-store";
+import { currentWindowLabel } from "../shell/window-bridge";
+import { WatchlistSettingsMenu } from "./WatchlistSettingsMenu";
+import { WatchlistMenu } from "./WatchlistMenu";
+import { SectionContextMenu, WatchlistContextMenu } from "./WatchlistContextMenu";
+import { SymbolSearchDialog } from "../header/SymbolSearchDialog";
+import { OpenListDialog } from "./OpenListDialog";
+import { AddAlertDialog } from "./AddAlertDialog";
+import { quoteFor as liveQuoteFor, type LiveQuote } from "../../data/quotes";
+import { getTickerInfo, resolveSymbol } from "../../data/datafeed";
+import * as kv from "../../data/kv";
+import { usMarketSession } from "../../data/market-session";
+
+const SETTINGS_KEY = "tv:watchlist:settings";
+
+// Resizable column widths (px), persisted. The Symbol column flexes to fill the
+// slack but has a resizable minimum (keyed SYMBOL_COL_KEY); data columns are
+// fixed px. All draggable from the column dividers.
+const COL_WIDTHS_KEY = "tv:watchlist:col-widths";
+const SYMBOL_COL_KEY = "__symbol";
+const DEFAULT_COL_W = 64;
+const DEFAULT_SYMBOL_W = 110;
+const MIN_COL_W = 40;
+const MAX_COL_W = 280;
+function loadColWidths(): Record<string, number> {
+  try {
+    const raw = kv.getItem(COL_WIDTHS_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, number>;
+  } catch {
+    /* malformed / unavailable — fall back to defaults */
+  }
+  return {};
+}
+
+function isNegative(v: string): boolean {
+  return v.startsWith("−") || v.startsWith("-");
+}
+function formatLast(price: number): string {
+  return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+/** Signed change, 2 decimals, TV's Unicode minus (e.g. "0.76", "−3.04"). */
+function fmtChange(v: number): string {
+  return (v < 0 ? "−" : "") + Math.abs(v).toFixed(2);
+}
+/** Signed percent with TV's Unicode minus (e.g. "6.92%", "−3.07%"). */
+function fmtPercent(v: number): string {
+  return (v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%";
+}
+/** Compact volume with a K/M/B suffix, trailing zeros trimmed (e.g. "11.95 M",
+ *  "4 M", "577.2 K") — mirrors the captured probe's formatting. */
+function fmtVolume(v: number): string {
+  const abs = Math.abs(v);
+  const [div, suffix] =
+    abs >= 1e9 ? [1e9, " B"] : abs >= 1e6 ? [1e6, " M"] : abs >= 1e3 ? [1e3, " K"] : [1, ""];
+  return parseFloat((v / div).toFixed(2)).toString() + suffix;
+}
+
+
+/** Watchlist view of the US session: "extended" = pre/post-market (Ext
+ *  column + amber status dot), "closed" = grey dot. */
+type MarketState = "regular" | "extended" | "closed";
+function marketState(now: Date = new Date()): MarketState {
+  const s = usMarketSession(now);
+  return s === "open" ? "regular" : s === "closed" ? "closed" : "extended";
+}
+
+function loadSettings(): WlSettings {
+  try {
+    const raw = kv.getItem(SETTINGS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw) as Partial<WlSettings>;
+      return {
+        ...WL_SETTINGS_DEFAULTS,
+        ...s,
+        columns: { ...WL_SETTINGS_DEFAULTS.columns, ...(s.columns ?? {}) },
+      };
+    }
+  } catch {
+    /* malformed / unavailable — fall back to defaults */
+  }
+  return { ...WL_SETTINGS_DEFAULTS, columns: { ...WL_SETTINGS_DEFAULTS.columns } };
+}
+
+type Props = {
+  /** Active chart symbol in full form (e.g. "NASDAQ:TSLA"). May be undefined
+   *  for tickers absent from the symbol-search dataset (e.g. watchlist-only
+   *  names), which is why `activeTicker` exists for selection. */
+  activeSymbol?: string;
+  /** Active chart symbol in BARE form (e.g. "TSLA"). The chart symbol after a
+   *  row click is always the bare ticker, so this is what reliably matches a
+   *  row's `short` for the selection highlight. */
+  activeTicker?: string;
+  /** Fires with the full ticker ("NASDAQ:INTC") on row click. */
+  onSymbolSelect?: (ticker: string) => void;
+  /** Active chart interval (currently unused here; kept for future per-symbol
+   *  actions that need it). */
+  interval?: string;
+};
+
+/** Left-edge colour flag — TV's `uiMarker-…<colour> flag-RsFlttSS`. The SVG
+ *  markup is captured verbatim (WL_ICONS.flag); CSS `color` does the tint. */
+function FlagMarker(props: { flag: FlagColor }) {
+  return (
+    <span
+      class="watchlist-flag"
+      aria-hidden="true"
+      style={{ color: FLAG_HEX[props.flag] }}
+      innerHTML={WL_ICONS.flag}
+    />
+  );
+}
+
+/** A saved list's marker: its colour flag, else its emoji, else its initial —
+ *  used in the header title and the quick-switch toolbar. */
+function ListMarker(props: { flag: FlagColor | null; emoji: string | null; name: string }) {
+  return (
+    <Show
+      when={props.flag}
+      fallback={
+        props.emoji
+          ? <span class="watchlist-name-emoji">{props.emoji}</span>
+          : <span class="watchlist-tab-initial">{props.name.charAt(0).toUpperCase()}</span>
+      }
+    >
+      {(f) => <FlagMarker flag={f()} />}
+    </Show>
+  );
+}
+
+/** Parse an uploaded watchlist file into sections + ungrouped rows. Follows
+ *  TradingView's text format: a line starting with `###` names a section, and
+ *  the symbols that follow (comma/space/semicolon/newline-separated) belong to
+ *  it until the next `###`. Symbols before any `###` are ungrouped. Tokens may
+ *  be bare ("AAPL") or exchange-qualified ("NASDAQ:AAPL"); dupes are dropped,
+ *  and empty sections (e.g. a leading title line) are discarded. */
+function parseWatchlistFile(text: string): { groups: Group[]; extras: Row[] } {
+  const seen = new Set<string>();
+  const groups: Group[] = [];
+  const extras: Row[] = [];
+  let current = extras; // rows before the first section header stay ungrouped
+
+  const addTokens = (chunk: string, target: Row[]) => {
+    for (const raw of chunk.split(/[\s,;]+/)) {
+      const tok = raw.trim().toUpperCase();
+      if (!tok || seen.has(tok)) continue;
+      seen.add(tok);
+      const short = tok.includes(":") ? tok.slice(tok.indexOf(":") + 1) : tok;
+      target.push({ ticker: tok, short, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
+    }
+  };
+
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith("###")) {
+      const g: Group = { name: trimmed.replace(/^#+/, "").trim(), rows: [] };
+      groups.push(g);
+      current = g.rows;
+      continue;
+    }
+    addTokens(trimmed, current);
+  }
+
+  return { groups: groups.filter((g) => g.rows.length > 0), extras };
+}
+
+// ── Sort model ── shared by the table-view column headers (click to sort) and
+// the tile-view "Sort by" menu. The SortField/SortKey types live in the data
+// layer (watchlist.ts) since the store persists the active list's sort.
+/** A sortable table-header item: the flag button, the fixed Symbol column, or
+ *  a data column. */
+type HeaderCol = "flag" | "symbol" | WlColumnKey;
+/** Maps a table column (incl. the fixed Symbol column) to its sort field. */
+const COL_SORT: Record<HeaderCol, SortField> = {
+  flag: "flag",
+  symbol: "symbol",
+  last: "last",
+  change: "chg",
+  change_percent: "change",
+  volume: "volume",
+  rchp: "ext",
+};
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "default", label: "Default" },
+  { key: "symbol-asc", label: "Symbol A→Z" },
+  { key: "symbol-desc", label: "Symbol Z→A" },
+  { key: "change-desc", label: "Change % ↓" },
+  { key: "change-asc", label: "Change % ↑" },
+  { key: "last-desc", label: "Price ↓" },
+  { key: "last-asc", label: "Price ↑" },
+  { key: "volume-desc", label: "Volume ↓" },
+];
+/** Parse a captured display string ("−3.07%", "1,641.64") to a number. */
+function numFromStr(s?: string): number {
+  if (!s) return NaN;
+  return parseFloat(s.replace(/−/g, "-").replace(/,/g, "").replace(/[%\s]/g, ""));
+}
+
+// ── List alerts (module singleton) ───────────────────────────────────────────
+// Notify when an active-list symbol's |change%| crosses the list's threshold.
+// The evaluation loop must not depend on the panel being mounted (RightRail
+// unmounts it with the tab), so it lives in a detached root at module scope —
+// the same hoisting pattern as data/quotes.ts. The fired (list, symbol) dedupe
+// set lives in watchlist-store (so deleteList can clear a removed list's
+// entries); saving a new threshold re-arms the list (clearFiredForList, from
+// saveAlert).
+
+// Mounted panels subscribe here for the in-panel toast; the OS notification
+// below fires whether or not any panel is showing.
+type ListAlertListener = (title: string, body: string) => void;
+const listAlertListeners = new Set<ListAlertListener>();
+
+function fireListAlert(title: string, body: string): void {
+  try {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification(title, { body });
+    }
+  } catch {
+    /* notifications unavailable — a mounted panel's toast still covers it */
+  }
+  for (const fn of [...listAlertListeners]) {
+    try {
+      fn(title, body);
+    } catch {
+      /* a bad listener must not break firing */
+    }
+  }
+}
+
+// App-lifetime evaluation: re-runs when the active list, its threshold, or any
+// member quote changes (quotes.ts keeps the subscription alive for these rows).
+// Main window ONLY — detached windows load this same module, and a second
+// evaluator would double-fire every list alert (the kv dedupe set only syncs
+// after its 120ms debounce). Secondary windows still render the panel UI.
+createRoot(() => {
+  createEffect(() => {
+    if (currentWindowLabel() !== "main") return;
+    const list = watchlistStore.active();
+    if (!list) return;
+    const threshold = watchlistStore.alertFor(list.id);
+    if (threshold == null) return;
+    const rows = [...list.groups.flatMap((g) => g.rows), ...list.extras];
+    for (const r of rows) {
+      const cp = liveQuoteFor(r.short)?.changePercent ?? null;
+      if (cp == null || Math.abs(cp) < threshold) continue;
+      const key = `${list.id}:${r.short.toUpperCase()}`;
+      if (firedAlerts.has(key)) continue;
+      firedAlerts.add(key);
+      saveFiredAlerts();
+      fireListAlert(
+        `Alert · ${list.name}`,
+        `${r.short.toUpperCase()} ${cp >= 0 ? "+" : ""}${cp.toFixed(2)}%`,
+      );
+    }
+  });
+});
+
+export function Watchlist(props: Props) {
+  const watchlistsHeader = HEADER_ITEMS.find((h) => h.dataName === "watchlists-button");
+  const activeWatchlist = watchlistsHeader?.currentValue ?? "Watchlist";
+  const actionItems = HEADER_ITEMS.filter((h) => h.dataName !== "watchlists-button");
+
+  // ── Active list (multi-list store) ──
+  // The store owns the lists + which one is active and persists to localStorage.
+  // Its sections/extras drive the rows; its marker drives the header + toolbar.
+  const active = (): WatchList | undefined => watchlistStore.active();
+  const groups = () => active()?.groups ?? [];
+  const extras = () => active()?.extras ?? [];
+  const listName = () => active()?.name ?? activeWatchlist;
+  const allRows = () => groups().flatMap((g) => g.rows).concat(extras());
+
+  // Inline header rename (the menu's "Rename" action edits the active list name).
+  const [renamingList, setRenamingList] = createSignal(false);
+  const [listDraft, setListDraft] = createSignal("");
+
+  const [settings, setSettings] = createSignal<WlSettings>(loadSettings());
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [menuOpen, setMenuOpen] = createSignal(false);
+  // "Add symbol" search dialog + where its symbols are inserted (TV anchor:
+  // header button = end of list, section menu = top of that section, row
+  // menu = right after that row).
+  const [addOpen, setAddOpen] = createSignal(false);
+  const [addAnchor, setAddAnchor] = createSignal<AddAnchor>(null);
+  const openAdd = (anchor: AddAnchor) => {
+    setAddAnchor(anchor);
+    setAddOpen(true);
+  };
+  // "Open list…" picker + "Add alert…" dialog (watchlist menu actions).
+  const [openListOpen, setOpenListOpen] = createSignal(false);
+  const [alertOpen, setAlertOpen] = createSignal(false);
+  // Tile-view "Sort by" menu. The sort order lives per-list in the store (each
+  // list remembers its own, like TV desktop); these read/write the active list.
+  const sortBy = (): SortKey => active()?.sort ?? "default";
+  const setSortBy = (next: SortKey | ((cur: SortKey) => SortKey)): void =>
+    watchlistStore.setSort(typeof next === "function" ? next(sortBy()) : next);
+  const [sortMenuOpen, setSortMenuOpen] = createSignal(false);
+  let sortWrapEl: HTMLDivElement | undefined;
+  onMount(() => {
+    const onDown = (e: PointerEvent) => {
+      if (sortMenuOpen() && sortWrapEl && !sortWrapEl.contains(e.target as Node)) setSortMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown);
+    onCleanup(() => window.removeEventListener("pointerdown", onDown));
+  });
+  // Hidden file input backing the menu's "Upload list…" action.
+  let uploadInput: HTMLInputElement | undefined;
+
+  // ── Transient toast (share confirmation, alert firing) ──
+  const [toast, setToast] = createSignal<string | null>(null);
+  let toastTimer: number | undefined;
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => setToast(null), 3000);
+  };
+  onCleanup(() => {
+    if (toastTimer) clearTimeout(toastTimer);
+  });
+  // Surface module-singleton list-alert fires as an in-panel toast while mounted
+  // (the singleton raises the OS notification itself, mounted or not).
+  onMount(() => {
+    const onFire: ListAlertListener = (title, body) => showToast(`${title}: ${body}`);
+    listAlertListeners.add(onFire);
+    onCleanup(() => listAlertListeners.delete(onFire));
+  });
+  createEffect(() => {
+    try {
+      kv.setItem(SETTINGS_KEY, JSON.stringify(settings()));
+    } catch {
+      /* best-effort */
+    }
+  });
+  // Live cross-window sync for the view prefs (raw signal setters; the persist
+  // effects above then re-write identical strings, which kv.setItem dedups).
+  onCleanup(kv.onExternalChange(SETTINGS_KEY, () => setSettings(loadSettings())));
+  // (Sort is per-list now — synced via the watchlist store's own cross-window sync.)
+
+  /** Visible data columns (after the fixed Symbol column), in display order —
+   *  driven by the gear's per-column checkboxes. */
+  const visibleCols = () =>
+    WL_COLUMNS.filter((c) => settings().columns[c.key]);
+
+  /** Favourited lists — shown icon-only in the quick-switch bar under the title. */
+  const favoriteLists = () => watchlistStore.lists().filter((l) => l.favorite);
+
+  // Per-column widths (px), keyed by column key, drag-resizable from the column
+  // dividers and persisted. Symbol flexes to fill the slack but has a resizable
+  // minimum (so it hugs the left while the data columns hug the right).
+  const [colWidths, setColWidths] = createSignal<Record<string, number>>(loadColWidths());
+  onCleanup(kv.onExternalChange(COL_WIDTHS_KEY, () => setColWidths(loadColWidths())));
+  const symbolW = () => colWidths()[SYMBOL_COL_KEY] ?? DEFAULT_SYMBOL_W;
+  const gridTemplate = () =>
+    `minmax(${symbolW()}px, 1fr) ${visibleCols().map((c) => `${colWidths()[c.key] ?? DEFAULT_COL_W}px`).join(" ")}`;
+
+  // Root <aside> + column-header refs, and the guide line under a column
+  // divider (x = divider centre, top = header bottom, both px from the aside).
+  // TV (`separator-ulEgLB3r`, measured 24/09/2026) draws it while a divider is
+  // hovered or dragged: 2px #132042 from the header's bottom to the list's.
+  let asideEl!: HTMLElement;
+  let headersEl!: HTMLDivElement;
+  const [guide, setGuide] = createSignal<{ x: number; top: number } | null>(null);
+  let resizing = false;
+  const showGuide = (handle: HTMLElement) => {
+    const a = asideEl.getBoundingClientRect();
+    const h = handle.getBoundingClientRect();
+    // -1: the guide starts at the bottom of the header cells, over the
+    // header's 1px border (TV separator top = 27 of the 28px strip).
+    setGuide({ x: h.left + h.width / 2 - a.left, top: headersEl.getBoundingClientRect().bottom - 1 - a.top });
+  };
+
+  /** Drag a column's right-edge divider to resize that column (clamped);
+   *  persists on release. The shared grid template repaints both header and
+   *  rows; the guide line follows the divider while dragging. */
+  function startColResize(e: PointerEvent, key: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget as HTMLElement;
+    const startX = e.clientX;
+    const isSymbol = key === SYMBOL_COL_KEY;
+    const startW = colWidths()[key] ?? (isSymbol ? DEFAULT_SYMBOL_W : DEFAULT_COL_W);
+    const min = isSymbol ? 60 : MIN_COL_W;
+    const max = isSymbol ? MAX_COL_W : MAX_COL_W;
+    resizing = true;
+    showGuide(handle);
+    const onMove = (ev: PointerEvent) => {
+      const w = Math.max(min, Math.min(max, startW + (ev.clientX - startX)));
+      setColWidths((prev) => ({ ...prev, [key]: w }));
+      showGuide(handle);
+    };
+    const onUp = (ev: PointerEvent) => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      resizing = false;
+      // Released over the divider: it is still hovered, keep its guide.
+      if (!handle.contains(document.elementFromPoint(ev.clientX, ev.clientY))) setGuide(null);
+      try {
+        kv.setItem(COL_WIDTHS_KEY, JSON.stringify(colWidths()));
+      } catch {
+        /* best-effort */
+      }
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }
+  /** Column divider in the header: the resize grab area plus the hover line.
+   *  Hidden (CSS) on the last column: TV has no divider there
+   *  (`placeholder:last-child`), so the last column is not resizable. */
+  const colResizeHandle = (key: string) => (
+    <span
+      class="watchlist-col-resize"
+      role="separator"
+      aria-orientation="vertical"
+      onPointerDown={(e) => startColResize(e, key)}
+      onPointerEnter={(e) => {
+        if (!resizing) showGuide(e.currentTarget);
+      }}
+      onPointerLeave={() => {
+        if (!resizing) setGuide(null);
+      }}
+    />
+  );
+
+  // ── Feature 9: live quote overlay (last + Chg/Chg%/Vol) on the static rows. ──
+  // Quotes live in the process-singleton store (data/quotes.ts), which owns the
+  // subscription and the trade-tick feed for the app's lifetime. The panel just
+  // reads them, so closing/reopening keeps prices and never refetches.
+  const quoteFor = (short: string): LiveQuote | undefined => liveQuoteFor(short);
+
+  // (List-alert evaluation runs in the module-level singleton above — it must
+  // keep firing while this panel is unmounted.)
+
+  function lastForRow(row: { short: string; last: string }): string {
+    const q = quoteFor(row.short);
+    if (q?.last != null) return formatLast(q.last);
+    return row.last;
+  }
+
+  // ── Company names (the "Name" symbol-display + tile sub-line) ──
+  // Resolved lazily from Massive reference (get_ticker_info) and cached; falls
+  // back to the ticker while loading or when the provider has no name. Fetched
+  // only when needed: tile view, or table view with the "Name" radio selected.
+  const [names, setNames] = createSignal<Record<string, string>>({});
+  const needNames = () => !settings().tableView || settings().symbolDisplay === "description";
+  const nameFor = (r: Row) => names()[r.short] || "";
+  createEffect(() => {
+    if (!needNames()) return; // tracks settings + the active list's rows
+    const rows = allRows();
+    const cached = untrack(names);
+    const pending = rows.filter((r) => cached[r.short] === undefined);
+    if (pending.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      pending.map((r) =>
+        getTickerInfo(r.short)
+          .then((info) => ({ short: r.short, name: info?.name ?? "" }))
+          .catch(() => ({ short: r.short, name: "" })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setNames((prev) => {
+        const next = { ...prev };
+        for (const { short, name } of results) next[short] = name;
+        return next;
+      });
+    });
+    onCleanup(() => {
+      cancelled = true;
+    });
+  });
+
+  /** Primary row label — company name when the "Name" radio is on and a name
+   *  has resolved, otherwise the ticker. */
+  const primaryLabel = (r: Row) =>
+    settings().symbolDisplay === "description" && nameFor(r) ? nameFor(r) : r.short;
+
+  /** The "Ext" column — pre/post-market move. Has a value only during the
+   *  extended-hours sessions; blank during the regular session and while the
+   *  market is fully closed (overnight / weekend). Prefers the live ext move,
+   *  falling back to the captured probe value. */
+  function extForRow(r: Row): { text: string; tint?: "up" | "down" } {
+    const q = quoteFor(r.short);
+    const text = marketState() !== "extended"
+      ? ""
+      : q?.extChangePercent != null
+        ? fmtPercent(q.extChangePercent)
+        : r.prePostChange;
+    return { text, tint: text ? (isNegative(text) ? "down" : "up") : undefined };
+  }
+
+  /** Market-status dot beside the ticker: grey while the market is fully closed
+   *  (every row), amber on a row carrying an extended-hours quote, none during
+   *  the regular session. Returns the modifier class, or "" for no dot. */
+  function dotClass(r: Row): string {
+    if (marketState() === "closed") return "watchlist-status-dot closed";
+    return extForRow(r).text !== "" ? "watchlist-status-dot" : "";
+  }
+
+  /** Map a column key to its display value + tint for a row, preferring the live
+   *  quote and falling back to the captured probe value. */
+  function cellFor(r: Row, key: WlColumnKey): { text: string; tint?: "up" | "down" } {
+    const q = quoteFor(r.short);
+    switch (key) {
+      case "last": return { text: lastForRow(r) };
+      case "change": {
+        // No static fallback in the sectioned capture → "—" (untinted) until a
+        // live snapshot lands.
+        const text = q?.change != null ? fmtChange(q.change) : r.change ?? "—";
+        return { text, tint: text === "—" ? undefined : isNegative(text) ? "down" : "up" };
+      }
+      case "change_percent": {
+        // No live quote yet (e.g. at the open) → blank, not a misleading 0.00%.
+        if (q?.changePercent == null) return { text: "" };
+        const text = fmtPercent(q.changePercent);
+        return { text, tint: isNegative(text) ? "down" : "up" };
+      }
+      case "volume": {
+        return { text: q?.volume != null ? fmtVolume(q.volume) : r.volume ?? "—" };
+      }
+      case "rchp": return extForRow(r);
+    }
+  }
+
+  // ── Sorting (tile-view "Sort by") ── prefer the live quote, fall back to the
+  // captured display value; missing values sort to the end either direction.
+  const sortNumber = (r: Row, field: Exclude<SortField, "symbol" | "flag">): number => {
+    const q = quoteFor(r.short);
+    switch (field) {
+      case "change": return q?.changePercent ?? numFromStr(r.changePercent);
+      case "chg": return q?.change ?? numFromStr(r.change);
+      case "last": return q?.last ?? numFromStr(r.last);
+      case "volume": return q?.volume ?? numFromStr(r.volume);
+      case "ext": return q?.extChangePercent ?? numFromStr(r.prePostChange);
+    }
+  };
+  const sortRows = (rows: Row[]): Row[] => {
+    const key = sortBy();
+    if (key === "default") return rows;
+    const dash = key.lastIndexOf("-");
+    const field = key.slice(0, dash);
+    const sign = key.slice(dash + 1) === "asc" ? 1 : -1;
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      if (field === "symbol") return sign * a.short.localeCompare(b.short);
+      if (field === "flag") {
+        // TV: LIST_COLORS index; unflagged = +∞ ascending / −∞ descending, so
+        // it lands last either way.
+        const none = sign === 1 ? Infinity : -Infinity;
+        const ai = a.flag ? FLAG_SORT_ORDER.indexOf(a.flag) : none;
+        const bi = b.flag ? FLAG_SORT_ORDER.indexOf(b.flag) : none;
+        return ai === bi ? 0 : sign * (ai - bi);
+      }
+      const av = sortNumber(a, field as Exclude<SortField, "symbol" | "flag">);
+      const bv = sortNumber(b, field as Exclude<SortField, "symbol" | "flag">);
+      const aMissing = !Number.isFinite(av);
+      const bMissing = !Number.isFinite(bv);
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1; // missing values always last
+      if (bMissing) return -1;
+      return sign * (av - bv);
+    });
+    return copy;
+  };
+  const sortLabel = () => SORT_OPTIONS.find((o) => o.key === sortBy())?.label ?? "Default";
+
+  // ── Table-header sort ── clicking a column header sorts by it: first click
+  // ascending, then it toggles asc⇄desc (TV parity — no header gesture returns
+  // to manual order; the tile "Sort by → Default" clears it). Sorting runs
+  // within each section (sortRows is applied per-group), matching the desktop.
+  const sortDirFor = (col: HeaderCol): "asc" | "desc" | null => {
+    const f = COL_SORT[col];
+    const cur = sortBy();
+    return cur === `${f}-asc` ? "asc" : cur === `${f}-desc` ? "desc" : null;
+  };
+  const toggleSort = (col: HeaderCol) => {
+    const f = COL_SORT[col];
+    setSortBy((cur) => (cur === `${f}-asc` ? `${f}-desc` : `${f}-asc`));
+  };
+  // TV shows the sort arrow and the blue label for 5 s only, each time the
+  // sort lands on a column (also on mount with a saved sort), then fades back
+  // to the plain header (`sortActivated` / `visible` state in its header code).
+  const [flashField, setFlashField] = createSignal<SortField | null>(null);
+  createEffect(() => {
+    const key = sortBy();
+    if (key === "default") {
+      setFlashField(null);
+      return;
+    }
+    setFlashField(key.slice(0, key.lastIndexOf("-")) as SortField);
+    const t = setTimeout(() => setFlashField(null), 5000);
+    onCleanup(() => clearTimeout(t));
+  });
+  const isFlashing = (col: HeaderCol) => flashField() === COL_SORT[col];
+  const sortArrow = (col: HeaderCol) => (
+    <span
+      class="watchlist-sort-arrow"
+      classList={{ active: isFlashing(col), desc: sortDirFor(col) !== "asc" }}
+      aria-hidden="true"
+      innerHTML={WL_ICONS.sortArrow}
+    />
+  );
+  /** Header tooltip glyph: the direction the next click applies. */
+  const sortTipIcon = (col: HeaderCol) => (sortDirFor(col) === "asc" ? WL_ICONS.sortTipDown : WL_ICONS.sortTipUp);
+
+  const headerLabel = (key: WlColumnKey) =>
+    WL_COLUMNS.find((c) => c.key === key)?.header ?? COLUMN_HEADERS.find((c) => c.key === key)?.label ?? key;
+
+  // ── Row selection highlight ── TV keeps an explicit row-selection set (its
+  // `viewModel.selection()`) rather than deriving the highlight purely from the
+  // charted symbol, so the clicked row stays lit even for watchlist-only
+  // symbols that don't round-trip through the chart-symbol set. We mirror that:
+  // a click selects optimistically (below, in selectRow), and any *external*
+  // symbol change re-syncs the highlight to the matching row — or clears it when
+  // the charted symbol isn't in the list.
+  const [selectedTicker, setSelectedTicker] = createSignal<string | null>(null);
+  createEffect(() => {
+    const full = props.activeSymbol;
+    const bare = props.activeTicker;
+    const match = allRows().find(
+      (r) => r.ticker === full || r.short === full || (!!bare && r.short === bare),
+    );
+    setSelectedTicker(match ? match.ticker : null);
+  });
+  const isSelected = (r: Row) => selectedTicker() === r.ticker;
+
+  // ── Section UI state (transient view-state; the section *data* is in the
+  // store). These track which sections are collapsed / selected / being renamed.
+  // A header click selects the section (blue bg + trash); a second click on the
+  // already-selected title enters rename. Selecting a symbol drops the section
+  // selection. Switching lists clears all of it.
+  const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
+  const [renaming, setRenaming] = createSignal<string | null>(null);
+  const [draft, setDraft] = createSignal("");
+  const [selectedSection, setSelectedSection] = createSignal<string | null>(null);
+  createEffect(() => {
+    watchlistStore.activeId(); // track: reset interaction state on list switch
+    setCollapsed(new Set<string>());
+    setSelectedSection(null);
+    setRenaming(null);
+    setRenamingList(false);
+  });
+
+  const isCollapsed = (name: string) => collapsed().has(name);
+  const toggleCollapse = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+  const deleteSection = (name: string) => {
+    watchlistStore.deleteSection(name);
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
+    if (selectedSection() === name) setSelectedSection(null);
+  };
+  const startRename = (name: string) => {
+    setRenaming(name);
+    setDraft(name);
+  };
+  const commitRename = () => {
+    const cur = renaming();
+    if (cur) {
+      const nextName = draft().trim() || cur;
+      watchlistStore.renameSection(cur, nextName);
+      setSelectedSection(nextName);
+    }
+    setRenaming(null);
+  };
+  // Title click: select on the first click, edit on the second (when already
+  // selected) — matching the live app's select→edit model.
+  const onTitleClick = (name: string) => {
+    if (renaming() === name) return; // already editing — clicks inside must not reset
+    if (selectedSection() === name) startRename(name);
+    else setSelectedSection(name);
+  };
+
+  // Remove a symbol from its section (the hover trash on each row).
+  const removeRow = (groupName: string, ticker: string) =>
+    watchlistStore.removeRow(groupName, ticker);
+
+  // ── Drag-and-drop reorder ── symbols can be dragged within a section, across
+  // sections, and to/from the ungrouped extras (TV's watchlist DnD). `null`
+  // section = extras. Disabled while a non-default sort is active, since manual
+  // order can't survive a sort. `dragRow` is the symbol in flight; `dropTarget`
+  // is the resolved insertion point, used both for the store move and the
+  // drop-indicator line.
+  const [dragRow, setDragRow] = createSignal<{ ticker: string; from: string | null } | null>(null);
+  const [dropTarget, setDropTarget] = createSignal<{ section: string | null; index: number } | null>(null);
+  const canDrag = () => sortBy() === "default";
+
+  const onRowDragStart = (e: DragEvent, r: Row, from: string | null) => {
+    if (!canDrag()) {
+      e.preventDefault();
+      return;
+    }
+    setDragRow({ ticker: r.ticker, from });
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", r.ticker);
+    }
+  };
+  // Container-level drag-over: the WHOLE list is a drop zone, so the no-drop
+  // cursor never shows over gaps/padding — we always preventDefault while a row
+  // is in flight and snap the insertion point to the *closest* slot. Candidates
+  // are the symbol rows (`data-dnd-index`) and section headers (`data-dnd-header`,
+  // which target the top of an otherwise-empty section); proximity is measured
+  // from the pointer to each candidate's vertical midpoint.
+  const onRowsDragOver = (e: DragEvent) => {
+    if (!dragRow()) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    const container = e.currentTarget as HTMLElement;
+    const candidates = container.querySelectorAll<HTMLElement>("[data-dnd-index], [data-dnd-header]");
+    let best: { section: string | null; index: number } | null = null;
+    let bestDist = Infinity;
+    for (const el of candidates) {
+      const rect = el.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const dist = Math.abs(e.clientY - mid);
+      if (dist >= bestDist) continue;
+      bestDist = dist;
+      const section = el.getAttribute("data-dnd-section") || null;
+      if (el.hasAttribute("data-dnd-header")) {
+        best = { section, index: 0 }; // drop at the top of this section
+      } else {
+        const baseIndex = Number(el.getAttribute("data-dnd-index"));
+        best = { section, index: baseIndex + (e.clientY > mid ? 1 : 0) };
+      }
+    }
+    // No candidates yet (e.g. a brand-new empty list) → first section, else extras.
+    setDropTarget(best ?? { section: groups()[0]?.name ?? null, index: 0 });
+  };
+  const onRowsDrop = (e: DragEvent) => {
+    const d = dragRow();
+    const t = dropTarget();
+    if (d && t) {
+      e.preventDefault();
+      watchlistStore.moveRow(d.from, d.ticker, t.section, t.index);
+    }
+    setDragRow(null);
+    setDropTarget(null);
+  };
+  const onRowsDragEnd = () => {
+    setDragRow(null);
+    setDropTarget(null);
+  };
+  const isDragging = (r: Row) => dragRow()?.ticker === r.ticker;
+  // Drop-line above row `index` of `section` (and below the last row when the
+  // insertion index lands past the end).
+  const dropBefore = (section: string | null, index: number) => {
+    const t = dropTarget();
+    return !!t && t.section === section && t.index === index;
+  };
+  const dropAfterLast = (section: string | null, index: number, isLast: boolean) => {
+    const t = dropTarget();
+    return isLast && !!t && t.section === section && t.index === index + 1;
+  };
+
+  // ── Added / found rows: TV highlights them for 500 ms and scrolls the last
+  // one into view (`highlightedSymbols` + `scrollToId`, module 704346).
+  const [highlighted, setHighlighted] = createSignal<Set<string>>(new Set());
+  let highlightTimer: number | undefined;
+  onCleanup(() => window.clearTimeout(highlightTimer));
+  const highlightRows = (tickers: string[]) => {
+    setHighlighted(new Set(tickers));
+    window.clearTimeout(highlightTimer);
+    highlightTimer = window.setTimeout(() => setHighlighted(new Set<string>()), 500);
+    const last = tickers[tickers.length - 1];
+    if (!last) return;
+    queueMicrotask(() => {
+      const el = [...(rowsEl?.querySelectorAll<HTMLElement>("[data-symbol-full]") ?? [])].find(
+        (e) => e.dataset.symbolFull === last,
+      );
+      el?.scrollIntoView({ block: "nearest" });
+    });
+  };
+  const isHighlighted = (r: Row) => highlighted().has(r.ticker);
+
+  // Add a symbol from the search dialog at the current anchor (deduped). TV
+  // keeps the chart symbol and the dialog as they are.
+  const addSymbol = (name: string) => {
+    const short = name.split(":").pop() || name;
+    const added = watchlistStore.addSymbols(
+      [{ ticker: name, short, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }],
+      addAnchor(),
+    );
+    if (added.length) highlightRows(added);
+  };
+  // Comma mode: resolve each bare name to "EXCHANGE:TICKER" (TV
+  // `resolveSymbolNameForAllDistinct`; a name that does not resolve is kept as
+  // typed), then insert them all, in order, at the anchor.
+  const addMany = (names: string[]) => {
+    const anchor = addAnchor();
+    void Promise.all(
+      names.map((n) => (n.includes(":") ? Promise.resolve(n) : resolveSymbol(n).then((i) => i.fullName).catch(() => n))),
+    ).then((full) => {
+      const added = watchlistStore.addSymbols(
+        full.map((name) => ({
+          ticker: name, short: name.split(":").pop() || name, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null,
+        })),
+        anchor,
+      );
+      if (added.length) highlightRows(added);
+    });
+  };
+  // Remove from the dialog. Removing the anchor row sends later adds to the
+  // end of the list (TV `clearTargetSymbol`).
+  const removeSymbolFromDialog = (name: string) => {
+    watchlistStore.removeSymbol(name);
+    const a = addAnchor();
+    if (a && a.after === name) setAddAnchor(null);
+  };
+  // "Go to symbol" (TV `findInWatchlistThunk`): open its section if collapsed,
+  // then highlight and scroll to it.
+  const goToSymbol = (name: string) => {
+    const g = groups().find((g) => g.rows.some((r) => r.ticker === name));
+    if (g && isCollapsed(g.name)) toggleCollapse(g.name);
+    highlightRows([name]);
+  };
+
+  // ── Watchlist-menu actions (wired to the multi-list store) ──
+  // "Rename": inline-edit the active list's name in the header.
+  const renameList = () => {
+    setListDraft(listName());
+    setRenamingList(true);
+  };
+  const commitListRename = () => {
+    watchlistStore.renameActive(listDraft());
+    setRenamingList(false);
+  };
+  // "Add section": append a uniquely-named empty section and drop straight into
+  // its inline rename (TV adds a section, then lets you name it).
+  const addSection = () => {
+    const base = "New section";
+    let name = base;
+    for (let n = 2; groups().some((g) => g.name === name); n++) name = `${base} ${n}`;
+    watchlistStore.addSection(name);
+    setSelectedSection(name);
+    startRename(name);
+  };
+  // "Clear list": remove every symbol from the active list.
+  const clearList = () => watchlistStore.clearActive();
+  // "Create new list…": new empty list, switched-to. (Named "New list"; the
+  // user renames via the menu — auto-renaming here would be cancelled by the
+  // list-switch reset effect.)
+  const createList = () => watchlistStore.createList();
+  // "Make a copy…": duplicate the active list (sections + extras).
+  const copyList = () => watchlistStore.copyActive();
+  // "Upload list…": open the hidden file picker; parsed in onUploadFile.
+  const uploadList = () => uploadInput?.click();
+  const onUploadFile = (file: File) => {
+    void file.text().then((text) => {
+      const { groups, extras } = parseWatchlistFile(text);
+      if (groups.length || extras.length) {
+        // Imported lists start in "default" (file) order — see importList — so
+        // rows keep the file's order and don't reshuffle as live quotes arrive.
+        watchlistStore.importList(file.name.replace(/\.[^.]+$/, ""), groups, extras);
+      }
+    });
+  };
+  // "Share list": local stand-in — toggling ON copies the list (name + tickers)
+  // to the clipboard so it can be pasted/shared; the switch state persists.
+  const toggleShare = () => {
+    const next = !active()?.shared;
+    watchlistStore.setShared(next);
+    if (next) {
+      const text = watchlistStore.shareText();
+      void navigator.clipboard?.writeText(text).catch(() => {});
+      showToast("List copied to clipboard");
+    }
+  };
+  // "Open list…": the search-and-switch picker.
+  const openList = () => setOpenListOpen(true);
+  // Shift+W (global, handled in App) routes here: App switches the rail to the
+  // watchlist tab and flags a request, which this effect consumes once we're
+  // mounted — opening the picker whether we were already showing or just mounted.
+  createEffect(() => {
+    if (consumeOpenListRequest()) setOpenListOpen(true);
+  });
+  // "Add alert on the list…": the threshold dialog.
+  const addAlert = () => setAlertOpen(true);
+  const saveAlert = (threshold: number) => {
+    const listId = watchlistStore.activeId();
+    watchlistStore.setAlert(listId, threshold);
+    // Re-arm: clear any previously-fired entries for this list.
+    clearFiredForList(listId);
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      void Notification.requestPermission().catch(() => {});
+    }
+    showToast(`Alert set: ±${threshold}% on ${active()?.name ?? "list"}`);
+  };
+  const removeAlert = () => {
+    watchlistStore.clearAlert(watchlistStore.activeId());
+    showToast("Alert removed");
+  };
+
+  // ── Keyboard navigation (TV parity, ported from the reference mock) ──
+  // When the list is focused: ↓ / Space load the next symbol, ↑ / Shift+Space
+  // the previous one. Navigation is relative to the currently-loaded symbol and
+  // runs over the *visible* rows (collapsed sections skipped) in display order.
+  // The list container is made focusable (tabIndex=0) and a row click focuses
+  // it so Space is delivered here next.
+  let rowsEl: HTMLDivElement | undefined;
+  // Nav order = rows of expanded sections, flattened in display order.
+  const orderedRows = () =>
+    groups()
+      .filter((g) => !isCollapsed(g.name))
+      .flatMap((g) => sortRows(g.rows))
+      .concat(sortRows(extras()));
+  const navigate = (dir: 1 | -1) => {
+    const rows = orderedRows();
+    if (!props.onSymbolSelect || rows.length === 0) return;
+    const cur = rows.findIndex((r) => isSelected(r));
+    // No current selection in the list → enter at the appropriate end.
+    const next =
+      cur < 0
+        ? dir === 1
+          ? 0
+          : rows.length - 1
+        : Math.min(rows.length - 1, Math.max(0, cur + dir));
+    if (next !== cur) props.onSymbolSelect(rows[next].ticker);
+  };
+  // App dispatches this when Space / Shift+Space is pressed while focus is on the
+  // chart (not the list), so the watchlist still flips to the next/prev symbol.
+  onMount(() => {
+    const onNav = (e: Event) => {
+      const dir = (e as CustomEvent<{ dir?: number }>).detail?.dir;
+      navigate(dir === -1 ? -1 : 1);
+    };
+    window.addEventListener("watchlist-navigate", onNav);
+    onCleanup(() => window.removeEventListener("watchlist-navigate", onNav));
+  });
+  const onListKeyDown = (e: KeyboardEvent) => {
+    // While renaming a section (its input sits inside the keydown-bearing
+    // `.watchlist-rows` grid) the nav keys must yield to the field — otherwise
+    // Space / arrows scrub symbols mid-rename instead of editing the text.
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    const isSpace = e.code === "Space" || e.key === " ";
+    if (e.code === "ArrowDown" || (isSpace && !e.shiftKey)) {
+      e.preventDefault();
+      navigate(1);
+    } else if (e.code === "ArrowUp" || (isSpace && e.shiftKey)) {
+      e.preventDefault();
+      navigate(-1);
+    } else if (e.altKey && e.key === "Enter") {
+      // TV: Alt+↵ flags/unflags the selected symbol. The bottom bar's maximize
+      // (also Alt+↵) defers to the list whenever `.watchlist-rows` holds focus —
+      // a Solid-delegated handler here can't cancel its sibling document
+      // listener, so the deferral lives there, not in a useless stopPropagation.
+      const row = orderedRows().find((r) => isSelected(r));
+      if (row) {
+        e.preventDefault();
+        toggleRowFlag(row);
+      }
+    }
+  };
+  // Select a row's symbol AND focus the list so Space / arrows flip next.
+  const selectRow = (ticker: string) => {
+    setSelectedTicker(ticker); // optimistic: highlight immediately, even for
+                               // watchlist-only symbols absent from the chart set
+    props.onSymbolSelect?.(ticker);
+    setSelectedSection(null); // selecting a symbol drops any section selection
+    rowsEl?.focus();
+  };
+
+  // ── Context menus (right-click) ── one open menu at a time. The symbol-row
+  // menu follows TV's captured item set (flag toggle + colour row + add-to-list
+  // submenu + note); rows are removed via the hover ×, not the menu. Section
+  // headers get TV's Rename / Remove section / Add symbol menu.
+  const [ctxMenu, setCtxMenu] = createSignal<{ row: Row; section: string | null; x: number; y: number } | null>(null);
+  const [sectionCtx, setSectionCtx] = createSignal<{ name: string; x: number; y: number } | null>(null);
+  const openContext = (e: MouseEvent, row: Row, section: string | null) => {
+    e.preventDefault();
+    setSelectedTicker(row.ticker); // right-click selects the row, like TV
+    setCtxMenu({ row, section, x: e.clientX, y: e.clientY });
+  };
+  const openSectionContext = (e: MouseEvent, name: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedSection(name);
+    setSectionCtx({ name, x: e.clientX, y: e.clientY });
+  };
+  // "Flag/Unflag": toggles the default red flag (TV's Alt+↵ behaviour).
+  const toggleRowFlag = (row: Row) =>
+    watchlistStore.setRowFlag(row.ticker, row.flag ? null : "red");
+  const addRowToList = (listId: string, row: Row) => {
+    const added = watchlistStore.addRowTo(listId, row);
+    const nm = watchlistStore.lists().find((l) => l.id === listId)?.name ?? "list";
+    showToast(added ? `Added ${row.short} to ${nm}` : `${row.short} is already in ${nm}`);
+  };
+  const createListWithRow = (row: Row) => {
+    const nm = watchlistStore.createListWith(row);
+    showToast(`Added ${row.short} to ${nm}`);
+  };
+  // "Add note": the editor lives in the details pane and shows the SELECTED
+  // symbol's note — select the row, then ask the pane to open its note editor.
+  const openNoteFor = (row: Row) => {
+    selectRow(row.ticker);
+    window.dispatchEvent(new CustomEvent("wl-open-note"));
+  };
+
+  // ── Per-section + per-row renderers (shared by table and tile views) ──
+  // One section header: chevron (collapse), label / inline rename input, and a
+  // delete-section trash revealed while the section is selected.
+  const groupHeader = (g: Group) => (
+    <div
+      class="watchlist-group"
+      classList={{
+        renaming: renaming() === g.name,
+        selected: selectedSection() === g.name && renaming() !== g.name,
+        "drop-into": dropTarget()?.section === g.name && g.rows.length === 0,
+      }}
+      role="row"
+      data-dnd-header
+      data-dnd-section={g.name}
+      onClick={() => onTitleClick(g.name)}
+      onContextMenu={(e) => openSectionContext(e, g.name)}
+    >
+      <button
+        type="button"
+        class="watchlist-group-expand"
+        classList={{ collapsed: isCollapsed(g.name) }}
+        aria-label={isCollapsed(g.name) ? "Expand section" : "Collapse section"}
+        aria-expanded={!isCollapsed(g.name)}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleCollapse(g.name);
+        }}
+        innerHTML={WL_ICONS.chevron}
+      />
+      <Show
+        when={renaming() === g.name}
+        fallback={<span class="watchlist-group-label">{g.name}</span>}
+      >
+        <input
+          class="watchlist-group-rename"
+          value={draft()}
+          aria-label="Rename section"
+          ref={(el) => queueMicrotask(() => el.focus())}
+          onClick={(e) => e.stopPropagation()}
+          onInput={(e) => setDraft(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitRename();
+            else if (e.key === "Escape") setRenaming(null);
+          }}
+          onBlur={commitRename}
+        />
+      </Show>
+      <button
+        type="button"
+        class="watchlist-group-delete"
+        aria-label="Delete section"
+        title="Delete section"
+        onClick={(e) => {
+          e.stopPropagation();
+          deleteSection(g.name);
+        }}
+        innerHTML={WL_ICONS.trash}
+      />
+    </div>
+  );
+
+  // Remove-from-list trash — hidden until the row is hovered (TV's
+  // `button-w6lVe_oI`). Stops propagation so removing doesn't also select.
+  const removeButton = (onRemove: () => void) => (
+    <button
+      type="button"
+      class="watchlist-row-remove"
+      aria-label="Remove from list"
+      title="Remove from list"
+      innerHTML={WL_ICONS.trash}
+      onClick={(e) => {
+        e.stopPropagation();
+        onRemove();
+      }}
+    />
+  );
+
+  // One table-view symbol row (dynamic column grid). `index`/`isLast` are
+  // accessors so reordering (which moves rows without re-invoking this fn) keeps
+  // the DnD data attributes + drop indicators in sync.
+  const tableRow = (
+    r: Row,
+    onRemove: () => void,
+    section: string | null,
+    index: () => number,
+    isLast: () => boolean,
+  ) => (
+    <div
+      role="row"
+      class="watchlist-row"
+      classList={{
+        selected: isSelected(r),
+        highlighted: isHighlighted(r),
+        dragging: isDragging(r),
+        "drop-before": dropBefore(section, index()),
+        "drop-after": dropAfterLast(section, index(), isLast()),
+      }}
+      data-symbol-full={r.ticker}
+      data-symbol-short={r.short}
+      data-dnd-section={section ?? ""}
+      data-dnd-index={index()}
+      aria-selected={isSelected(r) || undefined}
+      style={{ "grid-template-columns": gridTemplate() }}
+      draggable={canDrag()}
+      onClick={() => selectRow(r.ticker)}
+      onContextMenu={(e) => openContext(e, r, section)}
+      onDragStart={(e) => onRowDragStart(e, r, section)}
+    >
+      <Show when={r.flag}>{(f) => <FlagMarker flag={f()} />}</Show>
+      <div class="watchlist-cell watchlist-symbol">
+        <Show when={settings().logo}>
+          <span class="tv-ticker-logo tv-ticker-logo--sm watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
+        </Show>
+        <span class="watchlist-ticker">{primaryLabel(r)}</span>
+        <Show when={dotClass(r)}>
+          {(c) => <span class={c()} aria-hidden="true" />}
+        </Show>
+      </div>
+      <For each={visibleCols()}>
+        {(c) => {
+          // Derived accessor (not a one-shot const): each JSX read re-runs
+          // cellFor → lastForRow → quoteFor, so live ticks re-render the cell.
+          const cell = () => cellFor(r, c.key);
+          return (
+            <div class={`watchlist-cell ${cell().tint ?? ""}`} style={{ "text-align": "right" }}>
+              {cell().text}
+            </div>
+          );
+        }}
+      </For>
+      {removeButton(onRemove)}
+    </div>
+  );
+
+  // One tile-view symbol row (two-line card): ticker + last on top, company
+  // name + abs-change + change% below.
+  const tileRow = (
+    r: Row,
+    onRemove: () => void,
+    section: string | null,
+    index: () => number,
+    isLast: () => boolean,
+  ) => {
+    const chg = () => cellFor(r, "change");
+    const pct = () => cellFor(r, "change_percent");
+    return (
+      <div
+        role="row"
+        class="watchlist-tile"
+        classList={{
+          selected: isSelected(r),
+          highlighted: isHighlighted(r),
+          dragging: isDragging(r),
+          "drop-before": dropBefore(section, index()),
+          "drop-after": dropAfterLast(section, index(), isLast()),
+        }}
+        data-symbol-full={r.ticker}
+        data-dnd-section={section ?? ""}
+        data-dnd-index={index()}
+        draggable={canDrag()}
+        onClick={() => selectRow(r.ticker)}
+        onContextMenu={(e) => openContext(e, r, section)}
+        onDragStart={(e) => onRowDragStart(e, r, section)}
+      >
+        <Show when={r.flag}>{(f) => <FlagMarker flag={f()} />}</Show>
+        <Show when={settings().logo}>
+          <span class="tv-ticker-logo tv-ticker-logo--md watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
+        </Show>
+        <div class="watchlist-tile-main">
+          <div class="watchlist-tile-line">
+            <span class="watchlist-tile-ticker">{r.short}</span>
+            <Show when={dotClass(r)}>
+              {(c) => <span class={c()} aria-hidden="true" />}
+            </Show>
+            <span class="watchlist-tile-last">{lastForRow(r)}</span>
+          </div>
+          <div class="watchlist-tile-line watchlist-tile-line--sub">
+            <span class="watchlist-tile-name">{nameFor(r)}</span>
+            <span class={`watchlist-tile-change ${chg().tint ?? ""}`}>{chg().text}</span>
+            <span class={`watchlist-tile-pct ${pct().tint ?? ""}`}>{pct().text}</span>
+          </div>
+        </div>
+        {removeButton(onRemove)}
+      </div>
+    );
+  };
+
+  return (
+    <aside ref={asideEl} class="tv-rail-panel watchlist" aria-label="Watchlist" style={{ position: "relative" }}>
+      {/* Guide line under a hovered or dragged column divider. */}
+      <Show when={guide()}>
+        {(g) => <div class="watchlist-col-guide" aria-hidden="true" style={{ left: `${g().x}px`, top: `${g().top}px` }} />}
+      </Show>
+      <PanelHeader
+        ariaLabel="Watchlist header"
+        left={
+          <Show
+            when={renamingList()}
+            fallback={
+              <button
+                class={"watchlist-name" + (menuOpen() ? " is-open" : "")}
+                data-name="watchlists-button"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen()}
+                onClick={() => setMenuOpen((o) => !o)}
+              >
+                <ListMarker flag={active()?.flag ?? null} emoji={active()?.emoji ?? null} name={listName()} />
+                <span class="watchlist-name-label">{listName()}</span>
+                <span class="watchlist-name-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
+              </button>
+            }
+          >
+            <input
+              class="watchlist-name-rename"
+              value={listDraft()}
+              aria-label="Rename list"
+              ref={(el) => queueMicrotask(() => { el.focus(); el.select(); })}
+              onInput={(e) => setListDraft(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitListRename();
+                else if (e.key === "Escape") setRenamingList(false);
+              }}
+              onBlur={commitListRename}
+            />
+          </Show>
+        }
+        right={
+          <For each={actionItems}>
+            {(h) => (
+              <Tooltip text={h.label ?? ""} side="bottom">
+                <IconButton
+                  data-name={h.dataName}
+                  aria-label={h.label ?? undefined}
+                  class={
+                    h.dataName === "settings-button" && settingsOpen()
+                      ? "is-active"
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (h.dataName === "settings-button") setSettingsOpen((o) => !o);
+                    else if (h.dataName === "add-symbol-button") openAdd(null);
+                  }}
+                >
+                  {h.iconName && <TvIcon name={h.iconName} size={18} />}
+                </IconButton>
+              </Tooltip>
+            )}
+          </For>
+        }
+      />
+
+      <Show when={menuOpen()}>
+        <WatchlistMenu
+          lists={watchlistStore.lists()}
+          activeId={watchlistStore.activeId()}
+          shared={active()?.shared ?? false}
+          onSelectList={(id) => watchlistStore.setActive(id)}
+          onClose={() => setMenuOpen(false)}
+          onRenameList={renameList}
+          onAddSection={addSection}
+          onClearList={clearList}
+          onCreateList={createList}
+          onCopyList={copyList}
+          onUploadList={uploadList}
+          onToggleShare={toggleShare}
+          onAddAlert={addAlert}
+          onOpenList={openList}
+        />
+      </Show>
+
+      <Show when={settingsOpen()}>
+        <WatchlistSettingsMenu
+          settings={settings()}
+          onChange={setSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      </Show>
+
+      {/* Quick-switch list toolbar — one round button per saved list; the
+          active one is a white pill with the list's marker. Clicking switches
+          the active list (multi-list store). */}
+      {/* Favourite-lists quick bar: the flagged/favourited lists shown icon-only
+          for one-click switching (TV's row of list markers under the title). */}
+      <Show when={favoriteLists().length}>
+        <div class="watchlist-tabs" role="toolbar" aria-label="Favourite watchlists">
+          <For each={favoriteLists()}>
+            {(t) => (
+              <Tooltip text={t.name} side="bottom">
+                <button
+                  type="button"
+                  class="watchlist-tab"
+                  classList={{ active: t.id === watchlistStore.activeId() }}
+                  aria-label={t.name}
+                  aria-pressed={t.id === watchlistStore.activeId() || undefined}
+                  onClick={() => watchlistStore.setActive(t.id)}
+                >
+                  <span class="watchlist-tab-round">
+                    <ListMarker flag={t.flag} emoji={t.emoji} name={t.name} />
+                  </span>
+                </button>
+              </Tooltip>
+            )}
+          </For>
+        </div>
+      </Show>
+
+      <Show
+        when={settings().tableView}
+        fallback={
+          /* ── Tile view (two-line rows, grouped by section) ── */
+          <>
+          {/* Header: "Symbol" left, "Sort by ⌄" right (probed 2026-05-30). The
+              live app's sort submenu is a separate window we couldn't probe —
+              this is a local stand-in that sorts the rows in place. */}
+          <div class="watchlist-tile-header" role="row">
+            <span role="columnheader" class="watchlist-tile-header-symbol">Symbol</span>
+            <div class="watchlist-sortby-wrap" ref={sortWrapEl}>
+              <button
+                type="button"
+                class="watchlist-sortby"
+                classList={{ "is-active": sortMenuOpen() || sortBy() !== "default" }}
+                aria-haspopup="menu"
+                aria-expanded={sortMenuOpen()}
+                title={`Sort by${sortBy() === "default" ? "" : ` — ${sortLabel()}`}`}
+                onClick={() => setSortMenuOpen((o) => !o)}
+              >
+                <span>Sort by</span>
+                <span class="watchlist-sortby-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
+              </button>
+              <Show when={sortMenuOpen()}>
+                <div class="watchlist-sort-menu" role="menu">
+                  <For each={SORT_OPTIONS}>
+                    {(opt) => (
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        class="watchlist-sort-item"
+                        classList={{ selected: sortBy() === opt.key }}
+                        aria-checked={sortBy() === opt.key}
+                        onClick={() => {
+                          setSortBy(opt.key);
+                          setSortMenuOpen(false);
+                        }}
+                      >
+                        <span class="watchlist-sort-item-check" aria-hidden="true">
+                          {sortBy() === opt.key ? "✓" : ""}
+                        </span>
+                        <span>{opt.label}</span>
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+          </div>
+          <div
+            class="watchlist-rows"
+            role="grid"
+            tabindex={0}
+            ref={rowsEl}
+            onKeyDown={onListKeyDown}
+            onDragOver={onRowsDragOver}
+            onDrop={onRowsDrop}
+            onDragEnd={onRowsDragEnd}
+          >
+            <For each={groups()}>
+              {(g) => (
+                <>
+                  {groupHeader(g)}
+                  <Show when={!isCollapsed(g.name)}>
+                    <For each={sortRows(g.rows)}>
+                      {(r, i) =>
+                        tileRow(r, () => removeRow(g.name, r.ticker), g.name, i, () => i() === g.rows.length - 1)
+                      }
+                    </For>
+                  </Show>
+                </>
+              )}
+            </For>
+            <For each={sortRows(extras())}>
+              {(r, i) =>
+                tileRow(r, () => watchlistStore.removeExtra(r.ticker), null, i, () => i() === extras().length - 1)
+              }
+            </For>
+          </div>
+          </>
+        }
+      >
+        {/* ── Table view (grouped by section) ── */}
+        <div
+          ref={headersEl}
+          class="watchlist-column-headers"
+          role="row"
+          style={{ "grid-template-columns": gridTemplate() }}
+        >
+          <span
+            role="columnheader"
+            class="watchlist-column-header watchlist-column-symbol"
+            aria-sort={sortDirFor("symbol") ? (sortDirFor("symbol") === "asc" ? "ascending" : "descending") : "none"}
+          >
+            {/* Flag-sort button in the 12px gutter left of "Symbol" (TV's
+                `flagWrap` — no arrow, no blue state; tooltip only). */}
+            <span class="watchlist-column-flag">
+              <Tooltip text="Click to sort by Flag" icon={sortTipIcon("flag")} side="top" farther>
+                <button
+                  type="button"
+                  class="watchlist-column-flag-btn"
+                  aria-label="Sort by flag"
+                  onClick={() => toggleSort("flag")}
+                  innerHTML={WL_ICONS.flag}
+                />
+              </Tooltip>
+            </span>
+            <Tooltip text="Click to sort by Symbol" icon={sortTipIcon("symbol")} side="top" farther>
+              <button
+                type="button"
+                class="watchlist-column-label"
+                classList={{ sorted: isFlashing("symbol") }}
+                onClick={() => toggleSort("symbol")}
+              >
+                Symbol
+              </button>
+            </Tooltip>
+            {sortArrow("symbol")}
+            {colResizeHandle(SYMBOL_COL_KEY)}
+          </span>
+          <For each={visibleCols()}>
+            {(c) => (
+              <span
+                role="columnheader"
+                class="watchlist-column-header watchlist-column-header--num"
+                aria-sort={sortDirFor(c.key) ? (sortDirFor(c.key) === "asc" ? "ascending" : "descending") : "none"}
+              >
+                {sortArrow(c.key)}
+                <Tooltip text={`Click to sort by ${headerLabel(c.key)}`} icon={sortTipIcon(c.key)} side="top" farther>
+                  <button
+                    type="button"
+                    class="watchlist-column-label"
+                    classList={{ sorted: isFlashing(c.key) }}
+                    onClick={() => toggleSort(c.key)}
+                  >
+                    {headerLabel(c.key)}
+                  </button>
+                </Tooltip>
+                {colResizeHandle(c.key)}
+              </span>
+            )}
+          </For>
+        </div>
+        <div
+          class="watchlist-rows"
+          role="grid"
+          tabindex={0}
+          ref={rowsEl}
+          onKeyDown={onListKeyDown}
+          onDragOver={onRowsDragOver}
+          onDrop={onRowsDrop}
+          onDragEnd={onRowsDragEnd}
+        >
+          <For each={groups()}>
+            {(g) => (
+              <>
+                {groupHeader(g)}
+                <Show when={!isCollapsed(g.name)}>
+                  <For each={sortRows(g.rows)}>
+                    {(r, i) =>
+                      tableRow(r, () => removeRow(g.name, r.ticker), g.name, i, () => i() === g.rows.length - 1)
+                    }
+                  </For>
+                </Show>
+              </>
+            )}
+          </For>
+          <For each={sortRows(extras())}>
+            {(r, i) =>
+              tableRow(r, () => watchlistStore.removeExtra(r.ticker), null, i, () => i() === extras().length - 1)
+            }
+          </For>
+        </div>
+      </Show>
+
+      <Show when={addOpen()}>
+        <SymbolSearchDialog
+          activeSymbol={props.activeSymbol}
+          onSelect={addSymbol}
+          onClose={() => setAddOpen(false)}
+          watchlist={{
+            has: (name) => allRows().some((r) => r.ticker === name),
+            add: addSymbol,
+            addMany,
+            remove: removeSymbolFromDialog,
+            goTo: goToSymbol,
+          }}
+        />
+      </Show>
+
+      {/* Hidden picker backing the menu's "Upload list…" action. */}
+      <input
+        ref={uploadInput}
+        type="file"
+        accept=".txt,.csv,text/plain"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.currentTarget.files?.[0];
+          if (file) onUploadFile(file);
+          e.currentTarget.value = ""; // allow re-uploading the same file
+        }}
+      />
+
+      <Show when={openListOpen()}>
+        <OpenListDialog
+          lists={watchlistStore.lists()}
+          activeId={watchlistStore.activeId()}
+          onSelect={(id) => watchlistStore.setActive(id)}
+          onClose={() => setOpenListOpen(false)}
+        />
+      </Show>
+
+      <Show when={alertOpen()}>
+        <AddAlertDialog
+          listName={listName()}
+          initial={watchlistStore.alertFor(watchlistStore.activeId())}
+          onSave={saveAlert}
+          onRemove={removeAlert}
+          onClose={() => setAlertOpen(false)}
+        />
+      </Show>
+
+      <Show when={ctxMenu()}>
+        {(m) => (
+          <WatchlistContextMenu
+            row={m().row}
+            x={m().x}
+            y={m().y}
+            otherLists={watchlistStore.lists().filter((l) => l.id !== watchlistStore.activeId())}
+            onToggleFlag={toggleRowFlag}
+            onSetFlag={(r, flag) => watchlistStore.setRowFlag(r.ticker, flag)}
+            onUnflagAll={() => watchlistStore.clearAllFlags()}
+            onAddToList={addRowToList}
+            onCreateListWith={createListWithRow}
+            onAddNote={openNoteFor}
+            onAddSection={addSection}
+            onAddSymbol={() => openAdd({ section: m().section, after: m().row.ticker })}
+            onClose={() => setCtxMenu(null)}
+          />
+        )}
+      </Show>
+
+      <Show when={sectionCtx()}>
+        {(m) => (
+          <SectionContextMenu
+            name={m().name}
+            x={m().x}
+            y={m().y}
+            onRename={(name) => startRename(name)}
+            onRemove={(name) => deleteSection(name)}
+            onAddSymbol={() => openAdd({ section: m().name })}
+            onClose={() => setSectionCtx(null)}
+          />
+        )}
+      </Show>
+
+      <Show when={toast()}>
+        <div class="watchlist-toast" role="status">{toast()}</div>
+      </Show>
+    </aside>
+  );
+}

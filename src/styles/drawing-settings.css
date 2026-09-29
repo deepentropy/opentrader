@@ -1,0 +1,976 @@
+/*
+ * Settings dialog for a selected drawing. Ported from TV Desktop's
+ * `source-properties-editor` capture (380px shell, 68px header, 32px tabs
+ * w/ underline, 16/20px body padding, 67px footer).
+ */
+.drawing-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+/* TV dialog: 380 px minimum, 550 px maximum, otherwise as wide as its tab
+ * page (Gann box 457 px, Visibility 453 px). */
+.drawing-settings-dialog {
+  width: max-content;
+  min-width: 380px;
+  max-width: min(550px, 92vw);
+  max-height: 92vh;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  border-radius: 6px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, sans-serif);
+  font-size: 14px;
+}
+
+/* Header */
+.drawing-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 68px;
+  flex-shrink: 0;
+}
+
+.drawing-settings-title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+/* TV title pencil (editIcon): 34 px box, 5 px after the title, 28 px icon. */
+.drawing-settings-edit {
+  width: 34px;
+  height: 34px;
+  margin-inline-start: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #dbdbdb;
+  cursor: default;
+}
+.drawing-settings-edit:hover {
+  background-color: #2e2e2e;
+}
+
+/* TV rename field: replaces the title and the close button; 34 px, 1 px
+ * #575757 border (blue when focused), radius 6, 20 px / 600 text. */
+.drawing-settings-rename {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  background: transparent;
+  color: #dbdbdb;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  outline: none;
+}
+.drawing-settings-rename:focus {
+  border-color: #2962ff;
+}
+
+.drawing-settings-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawing-settings-close {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.drawing-settings-close:hover {
+  background-color: var(--color-cold-gray-800, #2a2e39);
+}
+
+/* Tabs (underline style) */
+/* TV tabs: 16 px / 600 #dbdbdb, 24 px apart, a 4 px #4a4a4a track under
+ * the row (20 px in from both sides), the selected tab's 4 px #f2f2f2
+ * underline on it. */
+.drawing-settings-tabs {
+  display: flex;
+  flex-direction: row;
+  height: 32px;
+  padding: 0 20px;
+  position: relative;
+  gap: 24px;
+}
+.drawing-settings-tabs::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 0;
+  height: 4px;
+  background-color: #4a4a4a;
+}
+
+.drawing-settings-tab {
+  background: transparent;
+  border: 0;
+  color: #dbdbdb;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0 0 8px;
+  cursor: pointer;
+  position: relative;
+  line-height: 24px;
+}
+
+.drawing-settings-tab.selected {
+  color: #dbdbdb;
+}
+
+.drawing-settings-tab.selected::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background-color: #f2f2f2;
+  border-radius: 2px 2px 0 0;
+}
+
+/* Body */
+/* TV tab page (`content`): a grid "auto 1fr". Column 1 = the row titles
+ * (check box + label or plain label, 20 px gap after the widest), column 2 =
+ * the controls; rows without controls, section titles, level grids and text
+ * boxes span both columns. Every row cell has 8 px above and below (34 px
+ * control -> 50 px row). */
+.drawing-settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: start;
+}
+.drawing-settings-body > * {
+  grid-column: 1 / -1;
+}
+.drawing-settings-body > .drawing-settings-row {
+  display: contents;
+}
+.drawing-settings-body > .drawing-settings-row > *,
+.drawing-settings-body > .drawing-settings-checkbox-row {
+  box-sizing: border-box;
+  min-height: 50px;
+  height: auto;
+  padding: 8px 0;
+  margin: 0;
+}
+.drawing-settings-body > .drawing-settings-row > .drawing-settings-row-label,
+.drawing-settings-body > .drawing-settings-row > .drawing-settings-checkbox-row {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  padding-inline-end: 20px;
+}
+.drawing-settings-body > .drawing-settings-row > .drawing-settings-row-inputs {
+  grid-column: 2;
+}
+.drawing-settings-body > .drawing-settings-row > :only-child {
+  grid-column: 1 / -1;
+}
+
+/* TV group title: 11 px uppercase #8c8c8c in a 32 px cell. A property
+ * group (level grids, Info, position levels) ends with a 16 px separator
+ * (groupSeparator big). */
+.drawing-settings-section-title {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 8px 0;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  color: #8c8c8c;
+  margin: 0;
+}
+.drawing-settings-group-sep {
+  height: 16px;
+}
+.drawing-settings-section-title.tall {
+  height: 50px;
+}
+
+/* Row: horizontal flex with a label + inputs */
+.drawing-settings-row {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.drawing-settings-row-label {
+  flex: 0 0 95px;
+  font-size: 14px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  /* Keep multi-word labels (e.g. "Font size") on a single line. */
+  white-space: nowrap;
+}
+
+/* Coordinates rows — the "#N (price, bar)" label sizes to its content so it
+ * isn't clipped by the fixed label column, keeping the row inline. */
+.drawing-settings-coord-label {
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+
+.drawing-settings-row-inputs {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* Text tab — formatting toolbar (colour / font size / bold / italic) sitting
+ * above the multi-line text box. Never wraps. */
+.drawing-settings-text-format {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+/* The Text tab format bar is a 50 px row (8 px above and below). */
+.drawing-settings-body > .drawing-settings-text-format {
+  box-sizing: border-box;
+  min-height: 50px;
+  padding: 8px 0;
+}
+
+/* TV bold / italic buttons (fontStyleButton): 34 x 34, 1 px #575757,
+ * radius 6, 28 px icon; pressed = #8c8c8c background, white icon. */
+.drawing-settings-text-toggle {
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: #dbdbdb;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.drawing-settings-text-toggle.active {
+  background-color: #8c8c8c;
+  border-color: #8c8c8c;
+  color: #ffffff;
+}
+
+/* Multi-line text box for the text family. */
+/* TV text box: 1 px #575757, radius 8, text 8 px in (5 px from the top),
+ * 14 / 18 px, no resize; 5 lines = 100 px, 9 lines = 172 px; 8 px above and
+ * below like a row cell. */
+.drawing-settings-textarea {
+  width: 100%;
+  height: 100px;
+  resize: none;
+  box-sizing: border-box;
+  background-color: transparent;
+  color: inherit;
+  border: 1px solid #575757;
+  border-radius: 8px;
+  padding: 4px 7px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 18px;
+  margin: 8px 0;
+}
+.drawing-settings-textarea.tall {
+  height: 172px;
+}
+.drawing-settings-textarea:focus {
+  outline: none;
+  border-color: var(--color-cold-gray-300, #b2b5be);
+}
+
+/* Plain text input (TV small input: 100 x 34, 1 px #575757, radius 6,
+ * 14 px text, padding 0 2 0 5). */
+.drawing-settings-input {
+  flex: 0 0 auto;
+  width: 100px;
+  height: 34px;
+  box-sizing: border-box;
+  background-color: transparent;
+  color: inherit;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  padding: 0 2px 0 5px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.drawing-settings-input:focus {
+  outline: none;
+  border-color: var(--color-cold-gray-300, #b2b5be);
+}
+
+/* Color + thickness picker */
+.drawing-settings-color-thickness {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+/* TV colour button: 34 x 34, 1 px #575757 border, radius 6, the colour in a
+ * 24 x 24 square (radius 3) 4 px inside. */
+.drawing-settings-color-swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid #575757;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+/* The colour over TV's opacity pattern (8 px #2A2E39 at 0.4 checker on
+ * black, drawn at 50 % = 12 px tiles), seen through transparent colours. */
+.drawing-settings-color-swatch-fill {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  background:
+    linear-gradient(var(--swatch-color, transparent), var(--swatch-color, transparent)),
+    url("data:image/svg+xml,%3Csvg width='8' height='8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%232A2E39' fill-opacity='0.4' d='M0 0h4v4H0zM4 4h4v4H4z'/%3E%3C/svg%3E") 0 0 / 12px 12px,
+    #000;
+}
+
+.drawing-settings-color-swatch input[type="color"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+.drawing-settings-line-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 28px;
+  border: 1px solid var(--color-cold-gray-700, #434651);
+  border-radius: 4px;
+}
+
+.drawing-settings-width-select,
+.drawing-settings-style-select,
+.drawing-settings-select {
+  appearance: none;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  color: inherit;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  padding: 0 8px;
+  height: 34px;
+  box-sizing: border-box;
+  font: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+/* TV select: 100 px; Extend / Stats / Stats position 180 px. Long values
+ * are cut with an ellipsis (TV "Standar..."). */
+.drawing-settings-select {
+  width: 100px;
+  text-overflow: ellipsis;
+  /* TV chevron: 18 px, #8c8c8c, 4 px from the right edge; text 8 px in. */
+  padding: 0 26px 0 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18' width='18' height='18'%3E%3Cpath fill='%238c8c8c' d='M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  background-size: 18px 18px;
+}
+.drawing-settings-select.wide {
+  width: 180px;
+}
+.drawing-settings-select.mid {
+  width: 150px;
+}
+
+/* Checkbox row */
+/* TV check box: 18 px box, label 8 px after it. */
+.drawing-settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+}
+
+.drawing-settings-checkbox-box {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgb(242, 242, 242);
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-color: transparent;
+  box-sizing: border-box;
+}
+
+.drawing-settings-checkbox-box.checked {
+  background-color: rgb(242, 242, 242);
+  color: var(--color-cold-gray-900, #131722);
+}
+
+.drawing-settings-checkbox-box input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.drawing-settings-checkbox-label {
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+
+/* Footer */
+/* TV footer: 1 px #4a4a4a line above, 16 / 20 px padding. */
+.drawing-settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-top: 1px solid #4a4a4a;
+  box-sizing: border-box;
+  height: 67px;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.drawing-settings-footer-template {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+/* "Template" dropdown trigger in the footer. */
+/* TV Template button: 100 x 34, 1 px #575757, radius 6, 14 px, chevron. */
+.drawing-settings-template-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 4px 0 8px;
+  background: transparent;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  color: #dbdbdb;
+  font: inherit;
+  font-size: 14px;
+  cursor: default;
+}
+.drawing-settings-template-btn:hover {
+  background-color: var(--color-toolbar-button-background-hover, rgba(255, 255, 255, 0.08));
+}
+/* The reused TemplatesMenu popover opens DOWNWARD by default; flip it up so it
+   doesn't spill below the modal's bottom edge. */
+.drawing-settings-footer-template .dt-popover {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.drawing-settings-footer-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.drawing-settings-btn {
+  height: 34px;
+  background: transparent;
+  color: rgb(255, 255, 255);
+  border: 1px solid rgb(255, 255, 255);
+  border-radius: 6px;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  min-width: 44px;
+}
+
+.drawing-settings-btn.secondary:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.drawing-settings-btn.primary {
+  background-color: #f2f2f2;
+  border-color: #f2f2f2;
+  color: rgb(15, 15, 15);
+}
+
+.drawing-settings-btn.primary:hover {
+  background-color: rgb(235, 235, 235);
+}
+
+/* ── Visibility tab — per-interval matrix (captured from TV 3.2.0.7916:
+ * dialog widens to 453px, 50px row pitch, checkbox + two 70×28 inputs;
+ * Ticks/Ranges rows carry the checkbox only). ── */
+
+.drawing-settings-vis-row {
+  justify-content: space-between;
+  min-height: 40px;
+  margin-bottom: 10px;
+}
+
+.drawing-settings-vis-check {
+  flex: 0 0 auto;
+  height: auto;
+}
+
+.drawing-settings-vis-range {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+/* TV Visibility row: from field (100) + slider (9 px in, >= 100 px) + 8 px +
+ * to field (100); fields as every TV input (100 x 34). */
+.drawing-settings-vis-range {
+  gap: 0;
+  flex-wrap: nowrap;
+}
+.drawing-settings-vis-range .drawing-settings-input:last-child {
+  margin-left: 8px;
+}
+.drawing-settings-input:disabled {
+  background-color: #2e2e2e;
+  color: #575757;
+}
+
+/* TV range slider (Visibility): see RangeSlider. */
+.tv-range {
+  display: flex;
+  align-items: center;
+  flex: 1 0 auto;
+  box-sizing: content-box;
+  min-width: 100px;
+  padding-left: 9px;
+}
+.tv-range.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.tv-range-track {
+  position: relative;
+  flex: 1 0 auto;
+  height: 10px;
+  border-radius: 5px;
+  background-color: #3d3d3d;
+  touch-action: none;
+}
+.tv-range-middle-wrap {
+  position: relative;
+  height: 100%;
+  margin: 0 6px;
+}
+.tv-range-middle {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background-color: #dbdbdb;
+  transition: left 0.1s, width 0.1s;
+}
+.tv-range-pointer-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% - 12px);
+}
+.tv-range-pointer {
+  position: absolute;
+  top: -1px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background-color: #000;
+  border: 2px solid #fff;
+  box-shadow: rgba(0, 0, 0, 0.5) 0 1px 2px;
+  transition: left 0.1s;
+}
+.tv-range.dragged .tv-range-middle,
+.tv-range.dragged .tv-range-pointer {
+  transition: none;
+}
+
+/* ── TV composite `color-with-thickness-select` (captured 75×34) + the
+ * fixed-position color panel it opens (250px wide; scrolls when clamped). ── */
+/* TV colour + line button: 75 x 34, 1 px #575757, radius 6; colour square
+ * 24 x 24 at 5 px, then 8 px, then the 30 px line area. */
+.dlg-color-thickness-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 75px;
+  height: 34px;
+  padding: 0 7px 0 4px;
+  background: transparent;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.dlg-color-thickness-btn:hover {
+  background-color: var(--color-cold-gray-800, #2a2e39);
+}
+.dlg-ct-swatch {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  flex-shrink: 0;
+  background:
+    linear-gradient(var(--swatch-color, transparent), var(--swatch-color, transparent)),
+    url("data:image/svg+xml,%3Csvg width='8' height='8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%232A2E39' fill-opacity='0.4' d='M0 0h4v4H0zM4 4h4v4H4z'/%3E%3C/svg%3E") 0 0 / 12px 12px,
+    #000;
+}
+.dlg-ct-line {
+  flex: 0 0 30px;
+  height: 0;
+  border-top-style: solid;
+}
+.dlg-color-panel {
+  width: 250px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  z-index: 260; /* above the dialog (200) */
+}
+
+/* Swatch button (text / fill color) — was a native input host, now a plain
+ * button opening the ColorPanel. */
+.drawing-settings-color-swatch {
+  cursor: pointer;
+  padding: 0;
+}
+
+
+/* ── Stats multi-select (TV's Info → Stats control) ── */
+.drawing-settings-multiselect {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.drawing-settings-multiselect-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 180px;
+  height: 34px;
+  padding: 0 8px;
+  background: var(--color-cold-gray-850, #1f1f1f);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border: 1px solid #575757;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.drawing-settings-multiselect-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawing-settings-multiselect-menu {
+  /* Positioned fixed inline (JS anchors it under the button) so the scrolling
+     dialog body can't clip it. */
+  position: fixed;
+  z-index: 260;
+  background: var(--color-cold-gray-850, #1f1f1f);
+  border: 1px solid var(--color-cold-gray-700, #363a45);
+  border-radius: 6px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  padding: 4px 8px;
+}
+.drawing-settings-multiselect-option {
+  height: 30px;
+}
+
+/* ── Line end select (TV "Line" row left / right end) ── */
+.drawing-settings-end-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border: 1px solid var(--color-cold-gray-650, #4a4a4a);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.drawing-settings-end-btn.open {
+  border-color: var(--color-tv-blue-500, #2962ff);
+}
+.drawing-settings-end-menu {
+  padding: 4px 0;
+}
+.drawing-settings-end-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px 0 8px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border: 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.drawing-settings-end-option:hover,
+.drawing-settings-end-option.selected {
+  background: var(--color-cold-gray-750, #2e2e2e);
+}
+/* TV: the end selects follow the colour / thickness button directly. */
+.drawing-settings-row-inputs:has(.drawing-settings-end-btn) .drawing-settings-color-thickness {
+  flex: 0 0 auto;
+}
+.drawing-settings-unit {
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-size: 13px;
+}
+
+/* ── Image dialog (TV chart.imageDialog, captured 25/09/2026: 380×403,
+ * drop zone 340×190 #2E2E2E with a 1px dashed #8C8C8C border, radius 4;
+ * Transparency row: title left, 180px slider right). ── */
+.image-dialog-content {
+  padding: 0 20px;
+}
+.image-dropzone {
+  position: relative;
+  height: 190px;
+  max-width: 340px;
+  margin-top: 8px;
+  box-sizing: border-box;
+  background: #2e2e2e;
+  border: 1px dashed #8c8c8c;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.image-dropzone-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #b8b8b8;
+  font-size: 14px;
+  line-height: 21px;
+}
+.image-dropzone-headline {
+  color: #dbdbdb;
+  font-size: 16px;
+  line-height: 24px;
+  padding: 8px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+.image-dropzone:hover .image-dropzone-headline {
+  color: #2962ff;
+}
+.image-dropzone-headline.error,
+.image-dropzone:hover .image-dropzone-headline.error {
+  color: #f23645;
+}
+.image-dropzone-img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.image-dropzone-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(46, 46, 46, 0.9);
+  text-align: center;
+}
+.image-dropzone-backdrop p {
+  margin: 0;
+  font-size: 16px;
+  color: #dbdbdb;
+}
+.image-dialog-transparency {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 0;
+  margin-bottom: 24px;
+}
+.image-dialog-transparency-title {
+  margin-top: 10px;
+  margin-inline-end: auto;
+  font-size: 14px;
+}
+.image-dialog-transparency-control {
+  margin-top: 10px;
+  margin-inline-start: auto;
+  width: 180px;
+}
+.image-dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid #2e2e2e;
+}
+
+/* TV Transparency control (Opacity slider without input, tv-blue-500):
+ * 180×10 track, radius 5, checkerboard under a transparent → blue gradient
+ * with a 1px blue border; 12px thumb, 2px white ring. */
+.tv-transparency {
+  position: relative;
+  width: 148px;
+  height: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  touch-action: none;
+  background-color: #000;
+  background-image:
+    linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%),
+    linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%);
+  background-size: 6px 6px;
+  background-position: 0 0, 3px 3px;
+}
+.tv-transparency-gradient {
+  position: absolute;
+  inset: 0;
+  border: 1px solid #2962ff;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(41, 98, 255, 0), #2962ff);
+}
+.tv-transparency-thumb {
+  position: absolute;
+  top: -1px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #000;
+  pointer-events: none;
+}
+
+/* Image settings: the current picture as a 34px-high button. */
+.drawing-settings-image-thumb {
+  height: 34px;
+  min-width: 34px;
+  max-width: 120px;
+  padding: 2px;
+  background: #2e2e2e;
+  border: 1px solid #4a4a4a;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.drawing-settings-image-thumb img {
+  max-height: 28px;
+  max-width: 114px;
+  object-fit: contain;
+}
+/* TV lineWidthSelect (76px) / lineStyleSelect (34px) buttons. */
+.drawing-settings-glyph-btn.wide {
+  width: 76px;
+}
+
+/* TV input info icon (anchored VWAP "Bands Calculation Mode"): 18px, #575757,
+ * the explanation in its tooltip. */
+.drawing-settings-info {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  margin-left: 8px;
+  color: #575757;
+  cursor: default;
+}
+
+/* TV select chevron (18 px, #8c8c8c). */
+.drawing-settings-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: #8c8c8c;
+}
+
+/* TV checkable style row that is off: its colour / line button is disabled
+ * (#2e2e2e background, colour at 50 %, cannot open) and its transparency
+ * slider at 50 % opacity. */
+.drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs :is(.drawing-settings-color-swatch, .dlg-color-thickness-btn) {
+  background-color: #2e2e2e;
+  pointer-events: none;
+}
+.drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs :is(.drawing-settings-color-swatch-fill, .dlg-color-thickness-btn > *) {
+  opacity: 0.5;
+}
+.drawing-settings-row:has(> .drawing-settings-checkbox-row .drawing-settings-checkbox-box:not(.checked)) > .drawing-settings-row-inputs .tv-transparency {
+  opacity: 0.5;
+  pointer-events: none;
+}

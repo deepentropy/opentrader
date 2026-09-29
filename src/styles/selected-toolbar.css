@@ -1,0 +1,281 @@
+/*
+ * Floating action strip above the selected drawing. Geometry + colours
+ * mirror TV's [data-name="drawing-toolbar"] capture:
+ *   shell  38px tall, 6px corner radius, 0 2px 4px rgba(0,0,0,0.4) shadow
+ *   bg     var(--color-cold-gray-850, #1f1f1f)
+ *   text   var(--color-cold-gray-200, #dbdbdb)
+ *   button 38×38 default; line-tool-width is 68×38 (icon + label).
+ */
+.selected-toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  height: 38px;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  border-radius: 6px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  user-select: none;
+  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, sans-serif);
+}
+
+.selected-toolbar-content {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+/* ── Favorite drawing tools toolbar ────────────────────────────────────── *
+ * Reuses the `.selected-toolbar` shell tokens (38px tall, 6px radius, #1f1f1f,
+ * shadow). Floats over the chart canvas: default dock is top-centre of the
+ * positioned `.chart-pane-canvas` ancestor; once dragged, the component sets
+ * inline `left/top` px and `transform: none`. z-index 20 matches the captured
+ * `tv-floating-toolbar`. */
+.favorites-toolbar {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+
+.selected-toolbar-drag {
+  width: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(87, 87, 87);
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.selected-toolbar-drag:active {
+  cursor: grabbing;
+}
+
+.selected-toolbar-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: default;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.selected-toolbar-btn:hover {
+  background-color: var(--color-cold-gray-800, #2a2e39);
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+
+.selected-toolbar-btn.active {
+  color: var(--color-toolbar-button-text-active, #2962ff);
+}
+
+/* Armed favourite on the favorites toolbar — match the left toolbar's selected
+ * drawing tool (neutral grey pill + default icon colour), NOT blue. Arming a
+ * favourite is the same act as picking the tool on the left rail, so the two
+ * highlights must read identically. Scoped to `.favorites-toolbar-btn` and
+ * placed after the blue `.active` rule so source order wins. */
+.favorites-toolbar-btn.active {
+  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  color: inherit;
+}
+
+.selected-toolbar-btn:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.selected-toolbar-btn:last-child {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.selected-toolbar-btn-remove,
+.selected-toolbar-btn-settings {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+/* ── Color picker: icon over a colour bar; native <input type=color> sits
+ *    invisibly over the icon to receive the click. */
+.selected-toolbar-color-btn {
+  cursor: pointer;
+}
+
+.selected-toolbar-icon-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.selected-toolbar-color-bar {
+  width: 22px;
+  height: 4px;
+  border-radius: 1px;
+  background-color: #000;
+  overflow: hidden;
+  display: inline-block;
+}
+.selected-toolbar-color-bar-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.selected-toolbar-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+}
+
+/* ── Width cycler: thickness bar + "<n>px" label, side-by-side. */
+.selected-toolbar-btn-line-tool-width {
+  width: 68px;
+}
+
+.selected-toolbar-width-wrap {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.selected-toolbar-width-label {
+  font-size: 12px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
+/* ── Floating-toolbar popovers (color / width / style / templates) ──────────
+ * A dark popover anchored under the owning button. The control wrapper is the
+ * positioning context for the absolutely-placed popover. */
+.selected-toolbar-control {
+  position: relative;
+  display: inline-flex;
+}
+
+.dt-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  border: 1px solid var(--color-cold-gray-700, #363a45);
+  border-radius: 6px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  cursor: default;
+}
+
+/* Color palette popover — the shared ColorPanel (color-panel.css) renders the
+ * TV-captured grid/opacity inside this shell. */
+.dt-color-popover { width: 248px; box-sizing: border-box; }
+
+/* Width / style menus — a stack of preview + label rows. */
+.dt-width-popover { width: 78px; }
+.dt-style-popover { width: 134px; }
+.dt-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.dt-menu-row:hover { background-color: var(--color-cold-gray-800, #2a2e39); }
+.dt-menu-row.selected { color: var(--color-toolbar-button-text-active, #2962ff); }
+.dt-menu-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  flex-shrink: 0;
+}
+.dt-menu-label { font-size: 13px; white-space: nowrap; }
+
+/* Templates menu — Save As… / Apply Default / saved list. */
+.dt-templates-popover { width: 232px; }
+.dt-templates-action { font-size: 13px; }
+.dt-templates-item { justify-content: space-between; }
+/* Remove button (TV RemoveButton button-WMpKKUCq, 26/09/2026): 22 px, r4,
+   icon grey, hover #4A4A4A fill + #DBDBDB icon; hidden until the row is
+   hovered (TV showToolboxOnHover). */
+.dt-templates-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: grey;
+  visibility: hidden;
+}
+.dt-templates-item:hover .dt-templates-del { visibility: visible; }
+.dt-templates-del:hover { color: #dbdbdb; background-color: #4a4a4a; }
+.dt-menu-sep { height: 1px; background: var(--color-cold-gray-800, #2a2e39); margin: 4px 0; }
+
+/* "More" menu (TV's captured 214px dropdown) + its Visual-order submenu.
+ * Right-aligned under the last button so it never spills past the toolbar. */
+.dt-more-popover { width: 214px; left: auto; right: 0; }
+.dt-more-submenu-host { position: relative; }
+.dt-order-submenu {
+  position: absolute;
+  top: -8px;
+  left: calc(100% + 2px);
+  width: 160px;
+  z-index: 11;
+}
+/* Bridge the 2px gap to the parent row so a slow/diagonal hover doesn't cross
+   dead space and fire pointerleave (which would close the submenu mid-travel). */
+.dt-order-submenu::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 6px;
+}
+/* Flip to the left of the row when a rightward open would leave the viewport. */
+.dt-order-submenu.opens-left {
+  left: auto;
+  right: calc(100% + 2px);
+}
+.dt-order-submenu.opens-left::before {
+  left: auto;
+  right: -6px;
+}
+.dt-menu-shortcut {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-cold-gray-400, #868993);
+  white-space: nowrap;
+}
+.dt-menu-subarrow {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.7;
+}

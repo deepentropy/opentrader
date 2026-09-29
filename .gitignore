@@ -1,0 +1,61 @@
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# pnpm
+.pnpm-store/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust / Cargo
+target/
+**/*.rs.bk
+
+# Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Generated bindings (re-emitted on each cargo build)
+src/bindings.ts
+
+# Logs
+*.log
+
+# Scratch / temp (verify harness, screenshots, etc.)
+.tmp/
+
+# Claude / agent session artifacts
+.claude/
+.playwright-mcp/
+
+# Private working material, kept locally only: research probes and captures of
+# the TradingView app, development log and backlog.
+research/
+DEVLOG.md
+BACKLOG.md
+
+# Stale internal notes (describe the pre-gateway data layer)
+docs/PERFORMANCE.md

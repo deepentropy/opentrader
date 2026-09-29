@@ -1,0 +1,339 @@
+/*
+ * Layout-management modals — naming (LayoutNameDialog) and the open/manage
+ * browser (LayoutBrowserDialog). Both reuse the shared dialog tokens (same
+ * palette/buttons as goto-dialog.css); the backdrop dims + centres the panel
+ * since these are true modals (unlike the anchored go-to popover).
+ */
+
+.layout-name-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* .tv-popover supplies bg + radius + shadow; width/layout overridden here. */
+.layout-name-dialog {
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  color: var(--color-text-primary);
+  user-select: none;
+}
+
+.layout-name-titlebar {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  padding: 0 20px;
+}
+
+.layout-name-title {
+  flex-grow: 1;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  padding: 17px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-name-close {
+  all: unset;
+  align-items: center;
+  cursor: default;
+  display: inline-flex;
+  height: 32px;
+  width: 32px;
+  justify-content: center;
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+.layout-name-close:hover {
+  background-color: var(--color-bg-primary-hover);
+}
+
+.layout-name-body {
+  padding: 4px 20px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layout-name-field-label {
+  color: var(--color-default-gray);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.layout-name-input {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-bg-primary-hover);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+.layout-name-input:focus {
+  border-color: var(--color-brand);
+}
+
+.layout-name-footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--color-bg-primary-hover);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.layout-name-btn {
+  all: unset;
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 18px;
+  cursor: default;
+  transition: background-color 0.18s ease;
+  box-sizing: border-box;
+}
+
+.layout-name-btn.is-secondary {
+  border: 1px solid var(--color-bg-primary-hover);
+  color: var(--color-text-primary);
+}
+.layout-name-btn.is-secondary:hover {
+  background-color: var(--color-bg-primary-hover);
+}
+
+.layout-name-btn.is-primary {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-primary-inverse);
+}
+.layout-name-btn.is-primary:hover {
+  background-color: var(--color-brand);
+  color: var(--color-content-primary-inverse);
+}
+
+/* ── LayoutBrowserDialog (Open layout) ──────────────────────────────────── */
+
+.layout-browser-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.layout-browser {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-popup-background, var(--color-bg-primary));
+  border: 1px solid var(--color-widget-border, #2e2e2e);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  color: var(--color-text-primary);
+  user-select: none;
+  overflow: hidden;
+}
+
+.layout-browser-header {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  flex: 0 0 auto;
+}
+.layout-browser-title {
+  flex: 1 1 auto;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.layout-browser-close {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: default;
+  color: var(--color-default-gray);
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.layout-browser-close:hover {
+  background-color: var(--color-bg-primary-hover);
+  color: var(--color-text-primary);
+}
+
+.layout-browser-search {
+  padding: 0 16px 12px;
+  flex: 0 0 auto;
+}
+.layout-browser-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-bg-primary-hover);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s ease;
+}
+.layout-browser-input:focus {
+  border-color: var(--color-brand);
+}
+
+.layout-browser-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 8px 8px;
+}
+
+.layout-browser-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--color-default-gray);
+  font-size: 13px;
+}
+
+.layout-browser-row {
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+}
+.layout-browser-row:hover {
+  background: var(--color-bg-primary-hover);
+}
+.layout-browser-row.active {
+  background: var(--color-popup-element-background-hover, rgba(255, 255, 255, 0.08));
+}
+
+.layout-browser-row-favorite {
+  all: unset;
+  flex: 0 0 22px;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0 4px 0 6px;
+  border-radius: 4px;
+  cursor: default;
+  color: var(--color-popup-element-toolbox-text, grey);
+  opacity: 0;
+}
+.layout-browser-row:hover .layout-browser-row-favorite,
+.layout-browser-row-favorite:focus-visible {
+  opacity: 1;
+}
+.layout-browser-row-favorite:hover {
+  background-color: var(--color-container-fill-primary-neutral-normal, #4a4a4a);
+  color: var(--color-popup-element-toolbox-text-hover, #dbdbdb);
+}
+.layout-browser-row-favorite.is-favorite {
+  opacity: 1;
+  color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+}
+
+.layout-browser-row-main {
+  all: unset;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px 8px 0;
+  cursor: default;
+  min-width: 0;
+}
+
+.layout-browser-row-marker {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--color-bg-primary-hover);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.layout-browser-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.layout-browser-row-name {
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layout-browser-row-sub {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-default-gray);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-browser-row-current {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-brand, #2962ff);
+  padding-right: 4px;
+}
+
+.layout-browser-row-delete {
+  all: unset;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  border-radius: 6px;
+  cursor: default;
+  color: var(--color-default-gray);
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.18s ease, background-color 0.18s ease;
+}
+.layout-browser-row:hover .layout-browser-row-delete {
+  opacity: 1;
+}
+.layout-browser-row-delete:hover {
+  color: var(--color-red, #f23645);
+  background-color: var(--color-bg-primary);
+}

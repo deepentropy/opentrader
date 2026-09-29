@@ -1,0 +1,518 @@
+/*
+ * WatchlistDetail — the "Details" widget below the watchlist. Ported from
+ * the mock's watchlist.css detail block (TV's `.widgetbar-widget-detail`).
+ */
+/* Drag-to-resize divider between the watchlist and the detail panel. Sits
+ * over the detail's 4px separator (negative margin → zero net layout cost), so
+ * the grab area coincides with the visible seam. */
+.rail-detail-resizer {
+  flex-shrink: 0;
+  height: 6px;
+  margin-bottom: -6px;
+  position: relative;
+  z-index: 2;
+  cursor: row-resize;
+}
+.rail-detail-resizer:hover {
+  background: var(--color-accent, #2962ff);
+  opacity: 0.4;
+}
+
+.watchlist-detail {
+  flex-shrink: 0;
+  height: 246px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--tv-chart-bg);
+  /* Separator = TV's `.widgetbar-widget-detail` border-top: 4px solid #2e2e2e
+   * (probed live). The wider band reads as a soft inset gutter between the
+   * watchlist and its detail pane, matching the chart-area/chart-pane seams. */
+  border-top: 4px solid var(--color-widget-border, #2e2e2e);
+  color: var(--color-toolbar-button-text);
+  font-size: 13px;
+}
+
+.watchlist-detail-header {
+  /* TV's VISIBLE header (`.widgetHeader-CKFlKjU2`) is 48px — the 62px
+   * `.container-tcaG7iiW` measured earlier overflows and gets clipped by it
+   * (re-probed 25/07/2026). Left inset 16px aligns the logo/title with the
+   * body content; right inset 8px hugs the action group like TV. */
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 16px;
+}
+
+.watchlist-detail-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  /* Probed live: `.title-tcaG7iiW` is 14px / 600 (not 700), letter-spacing normal. */
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watchlist-detail-actions {
+  position: relative; /* anchor for the Note / Settings popovers */
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.watchlist-detail-action {
+  /* Probed: action buttons are 36–38px hit-boxes (`.wrap-pirXP_rc`, 38px live). */
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-toolbar-button-text);
+  cursor: default;
+  border-radius: 4px;
+}
+
+.watchlist-detail-action:hover {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+
+.watchlist-detail-action svg {
+  width: 22px;
+  height: 22px;
+}
+.watchlist-detail-action.is-active {
+  background-color: var(--color-toolbar-button-background-hover, #2e2e2e);
+  color: var(--color-main-text, #dbdbdb);
+}
+
+/* Header popovers (Settings checkboxes, Add-note editor). */
+.watchlist-detail-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 70;
+  min-width: 200px;
+  padding: 6px;
+  background-color: var(--color-popup-background, #1e222d);
+  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.watchlist-detail-popover-title {
+  padding: 4px 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-default-gray, #8c8c8c);
+}
+.watchlist-detail-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--color-main-text, #dbdbdb);
+  border-radius: 4px;
+  cursor: default;
+}
+.watchlist-detail-check:hover {
+  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+}
+.watchlist-detail-check input {
+  accent-color: var(--color-accent, #2962ff);
+}
+.watchlist-detail-note-popover {
+  min-width: 240px;
+}
+.watchlist-detail-note-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  padding: 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-main-text, #dbdbdb);
+  background: var(--color-input-background, #0f0f0f);
+  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-radius: 6px;
+  outline: none;
+}
+.watchlist-detail-note-input:focus {
+  border-color: var(--color-accent, #2962ff);
+}
+/* Saved-note block under the price/market-state. */
+.watchlist-detail-note {
+  margin: 2px 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-main-text, #dbdbdb);
+  background-color: rgba(41, 98, 255, 0.08);
+  border-left: 2px solid var(--color-accent, #2962ff);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.watchlist-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.watchlist-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start; /* name · exchange packed at the left edge */
+  gap: 0;
+  font-size: 12px;
+}
+
+.watchlist-detail-company {
+  font-weight: 400;
+  /* Probed: the descriptions row runs at line-height 22px. */
+  line-height: 22px;
+  color: var(--color-text-primary, #dbdbdb);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* "·" between the company name and the exchange (TV's `dotWrap`: ~6px right /
+ * 3px left breathing room). */
+.watchlist-detail-dot {
+  flex-shrink: 0;
+  margin: 0 6px 0 3px;
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.watchlist-detail-exchange {
+  font-weight: 400;
+  color: var(--color-text-primary, #dbdbdb);
+  flex-shrink: 0;
+}
+
+.watchlist-detail-tags {
+  font-size: 12px;
+  gap: 12px; /* sector / industry links sit left-packed with a gap, not edge-to-edge */
+}
+
+.watchlist-detail-link {
+  color: #8c8c8c;
+  text-decoration: none;
+}
+
+.watchlist-detail-link:hover {
+  color: var(--color-text-primary, #dbdbdb);
+  text-decoration: underline;
+}
+
+/* Greyed-out, non-interactive label for unimplemented functionality (no sector/
+ * industry screener to link to). Keeps pointer events so the title tooltip
+ * explains why it's inert. */
+.watchlist-detail-link--disabled,
+.watchlist-detail-link--disabled:hover {
+  color: var(--color-content-primary-neutral, #6a6d78);
+  cursor: default;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+/* Price line — a single left-packed, bottom-aligned row:
+ * [price 28px] [currency 12px] [±change 16px] [±change% 16px]. */
+/* Probed: TV centre-aligns the price row (`align-items: center`), so the
+ * ±change sits vertically centred against the 36px price rather than baseline-
+ * packed. The currency/change `margin-bottom` tweaks (for the old flex-end
+ * baseline) are zeroed here. */
+.watchlist-detail-price-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.watchlist-detail-price-row .watchlist-detail-currency,
+.watchlist-detail-price-row .watchlist-detail-change {
+  margin-bottom: 0;
+}
+.watchlist-detail-price-row .watchlist-detail-change {
+  line-height: 24px;
+}
+
+.watchlist-detail-price {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 36px;
+  color: var(--color-text-primary, #dbdbdb);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Currency sits right after the price, baseline-aligned with the change. */
+.watchlist-detail-currency {
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.watchlist-detail-change {
+  margin-bottom: 1px;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Price change uses TV's symbol-change greens/reds (probed: up rgb(34,171,148)
+ * #22ab94, down rgb(247,82,95) #f7525f) — distinct from the performance grid's
+ * #089981 / #f23645. */
+.watchlist-detail-change.up { color: var(--color-symbol-change-positive, #22ab94); }
+.watchlist-detail-change.down { color: var(--color-symbol-change-negative, #f7525f); }
+
+/* Last-update text — now INLINE on the state row after the status (TV puts
+ * "— Market closed  Last update at …" on one line, captured 25/07/2026).
+ * Probed: 13px / line-height 18px / #707070 (a darker grey than #8c8c8c). */
+.watchlist-detail-regular-update {
+  font-size: 13px;
+  line-height: 18px;
+  color: #707070;
+}
+
+/* Secondary pre/post-market price line, under the last-update. Smaller, left-
+ * packed (price · currency · change · change%); the session icon is on the
+ * state row below. */
+.watchlist-detail-ext-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.watchlist-detail-ext-price {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary, #dbdbdb);
+}
+.watchlist-detail-ext-row .watchlist-detail-currency {
+  margin-bottom: 1px;
+}
+.watchlist-detail-ext-row .watchlist-detail-change {
+  font-size: 14px;
+}
+
+.watchlist-detail-market-state {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 8px;
+  /* TV runs the status at 13px, left-packed with the last-update text after
+   * it (captured 25/07/2026: "Market closed" 13px #8c8c8c). */
+  font-size: 13px;
+}
+
+/* The state label is itself a row so the pre/post moon icon sits left of it. */
+.watchlist-detail-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #8c8c8c;
+}
+/* Post-market reads in accent blue; pre-market reads warm (the sun), matching TV. */
+.watchlist-detail-state.is-extended { color: var(--color-accent, #2962ff); }
+.watchlist-detail-state.is-pre { color: #ffa726; } /* probed pre-market amber rgb(255,167,38) */
+.watchlist-detail-state-icon {
+  display: inline-flex;
+  align-items: center;
+}
+.watchlist-detail-state-icon svg { display: block; width: 14px; height: 14px; }
+/* TV prefixes the closed state with a dash glyph ("— Market closed"). */
+.watchlist-detail-state-dash { color: inherit; }
+.watchlist-detail-last-time { color: #707070; }
+
+.watchlist-detail-range {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.watchlist-detail-range-label {
+  text-align: center;
+  font-size: 11px;
+  color: #9c9c9c;
+}
+
+.watchlist-detail-range-low,
+.watchlist-detail-range-high {
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.watchlist-detail-section-heading {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-widget-border, #2e2e2e);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.watchlist-detail-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  /* TV's profile rows measured 13px/400 label + 13px/600 value on the
+   * 25/07/2026 capture (Website / Employees rows), superseding the older
+   * 14px probe of `.item-DVns3SZf`. */
+  font-size: 13px;
+  padding: 3px 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.watchlist-detail-stat-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 400;
+  color: var(--color-text-primary, #dbdbdb);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.watchlist-detail-stat-value {
+  flex-shrink: 0;
+  margin-left: auto;
+  text-align: right;
+  font-weight: 600;
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.watchlist-detail-perf-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  row-gap: 4px;
+  column-gap: 8px;
+  margin-top: 6px;
+}
+
+.watchlist-detail-perf-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.watchlist-detail-perf-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.watchlist-detail-perf-value.up { color: var(--color-success); }
+.watchlist-detail-perf-value.down { color: var(--color-falling); }
+
+.watchlist-detail-perf-period {
+  font-size: 11px;
+  color: var(--color-text-secondary, #9c9c9c);
+}
+
+.watchlist-detail-link-strong {
+  font-weight: 600;
+  color: var(--color-text-primary, #dbdbdb);
+  text-decoration: none;
+}
+
+.watchlist-detail-link-strong:hover {
+  text-decoration: underline;
+}
+
+.watchlist-detail-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.watchlist-detail-description {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-primary, #dbdbdb);
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Accordion mode (TV: details widget collapses to a 48px header) ── */
+.watchlist-detail.is-collapsed {
+  height: 48px;
+  flex: 0 0 48px;
+  overflow: hidden;
+}
+.watchlist-detail-header {
+  cursor: pointer;
+}
+.watchlist-detail-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-right: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--color-default-gray, #8c8c8c);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.watchlist-detail-collapse:hover {
+  color: var(--color-text-primary, #dbdbdb);
+}
+.watchlist-detail-collapse svg {
+  transition: transform 0.12s ease;
+}
+
+/* Real branding icon in the header (24px circle, like TV's 24×24 logo). */
+.watchlist-detail-logo-img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #fff;
+  object-fit: contain;
+}
+
+/* Identifier copy button (FIGI etc.) — appears inline after the value. */
+.watchlist-detail-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-left: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--color-default-gray, #8c8c8c);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.watchlist-detail-copy:hover {
+  color: var(--color-text-primary, #dbdbdb);
+  background: var(--color-toolbar-button-background-hover, #2e2e2e);
+}

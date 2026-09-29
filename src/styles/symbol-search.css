@@ -1,0 +1,578 @@
+/*
+ * Symbol-search dialog styles — reverse-engineered from TV Desktop's
+ *   [data-name="symbol-search-items-dialog"]   (wrapper-b8SxMnzX)
+ * Captured 28/05/2026.
+ *
+ *   shell    : 840px × ≤680px, var(--color-cold-gray-800) bg,
+ *              6px radius bottom corners, drop shadow
+ *   header   : 68px tall, padding 0 20px, title "Symbol search" 18px/600
+ *   input    : 48px tall (16px font), magnifier icon left
+ *   tabs     : 44px tall, "round bubble" buttons (28px tall)
+ *   filters  : 44px tall, dropdown chips (All tab only)
+ *   results  : 436px tall scrollable, each row 56px (3-cell grid)
+ *   footer   : 40px tall, rgb(46,46,46) bg, hint text rgb(140,140,140)
+ *
+ * Row internals (probed):
+ *   itemInfoCell    — blue corner marker + logo + ticker title
+ *   descriptionCell — long name
+ *   exchangeCell    — market type (top), primaryIcon + exchange (bottom),
+ *                     country/exchange flag (right)
+ */
+
+.symbol-search-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+}
+
+.symbol-search-dialog {
+  width: 840px;
+  max-width: 96vw;
+  height: 680px;
+  max-height: 92vh;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border-radius: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.symbol-search-header {
+  height: 68px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Title font lifted verbatim from TV's `.ellipsis-BZKENkhT` (20px / 600
+ * — probed 2026-05-28).  Was 18px. */
+.symbol-search-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+
+.symbol-search-close {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.symbol-search-close:hover {
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+
+/* ── Search input ───────────────────────────────────────────────────────── *
+ * TV wraps the field in a rounded box whose 1px border lights up (cold-gray-600)
+ * only while focused — no persistent border-bottom. */
+.symbol-search-input-wrap {
+  padding: 4px 20px 12px;
+  flex-shrink: 0;
+}
+.symbol-search-input-box {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.symbol-search-input-box:focus-within {
+  border-color: var(--color-cold-gray-600, #636363);
+}
+.symbol-search-clear {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.symbol-search-clear:hover {
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+
+.symbol-search-input-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  flex-shrink: 0;
+}
+
+.symbol-search-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  text-transform: uppercase;
+  font-family: inherit;
+  padding: 0;
+}
+
+/* Suppress the native type=search clear "×" — we render our own disc. */
+.symbol-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.symbol-search-input::placeholder {
+  color: var(--color-cold-gray-500, #707070);
+  text-transform: none;
+}
+
+/* ── Category tabs (pill bubbles) ───────────────────────────────────────── */
+.symbol-search-tabs {
+  height: 44px;
+  flex-shrink: 0;
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+/* Round-tab pills — geometry probed from TV's `.roundTabButton-FF3hu1GK`
+ * (2026-05-28): height 28, padding 0 11px, border-radius 14px, font-size
+ * 14, font-weight 400.  Unselected has cold-gray-750 background (not
+ * transparent); selected is light cold-gray-50 with dark text. */
+.symbol-search-tab {
+  height: 28px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 14px;
+  background-color: var(--color-cold-gray-750, #2e2e2e);
+  color: var(--color-toolbar-button-text, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.symbol-search-tab:hover:not(.selected) {
+  background-color: var(--color-cold-gray-700, #4a4a4a);
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+
+.symbol-search-tab.selected {
+  background-color: rgb(242, 242, 242);
+  color: rgb(15, 15, 15);
+}
+
+/* ── Filter chips strip (All tab) ───────────────────────────────────────── */
+.symbol-search-filters {
+  height: 44px;
+  flex-shrink: 0;
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.symbol-search-filter {
+  height: 28px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--color-cold-gray-700, #4a4a4a);
+  border-radius: 4px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.symbol-search-filter:hover {
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+}
+
+/* Active (non-default) Type filter — brighter border + text. */
+.symbol-search-filter.is-active {
+  border-color: var(--color-cold-gray-500, #707070);
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+
+/* ── Type dropdown ──────────────────────────────────────────────────────── */
+.symbol-search-filter-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.symbol-search-type-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  border: 1px solid var(--color-cold-gray-700, #4a4a4a);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.symbol-search-type-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.symbol-search-type-option:hover {
+  background-color: var(--color-cold-gray-700, #4a4a4a);
+}
+
+.symbol-search-type-option.selected {
+  color: var(--color-tv-blue, #2962ff);
+}
+
+/* Dropdown caret on the Type chip. */
+.symbol-search-filter-caret {
+  color: var(--color-cold-gray-400, #8c8c8c);
+  flex-shrink: 0;
+}
+
+/* ── Results list ───────────────────────────────────────────────────────── */
+.symbol-search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 0 0;  /* leave room for scrollbar */
+}
+
+.symbol-search-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* `.symbol-search-empty` uses the shared `.tv-empty-state` class. */
+
+.symbol-search-row {
+  display: grid;
+  /* Ticker column sizes to its content (the widest visible ticker) so symbols
+   * are never truncated — TV only ellipsizes the description (middle, 1fr).
+   * Was a fixed 92px, which fit "INTC" but clipped longer tickers (GOOGL,
+   * BRK.B, …). */
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  align-items: center;
+  height: 40px;
+  padding: 0 20px;
+  cursor: pointer;
+  gap: 12px;
+  position: relative;
+}
+
+/* TV's result rows have no dividers — the hover/active highlight is the only
+ * row separator. */
+
+.symbol-search-row.is-highlighted {
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+}
+
+.symbol-search-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ── Info cell (left) ─────────────────────────────────────────── */
+.symbol-search-info-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.symbol-search-marker {
+  width: 14px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  flex-shrink: 0;
+}
+
+.symbol-search-row.is-active-symbol .symbol-search-marker {
+  color: var(--color-tv-blue, #2962ff);
+}
+
+.symbol-search-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.symbol-search-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.symbol-search-logo-letter {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
+.symbol-search-title-cell {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-cold-gray-100, #f0f3fa);
+  /* Show the full ticker (the max-content column is sized to fit it). */
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.symbol-search-title-cell em {
+  font-style: normal;
+  color: var(--color-tv-blue, #2962ff);
+}
+
+/* ── Description cell (middle) ────────────────────────────────── */
+.symbol-search-desc-cell {
+  font-size: 13px;
+  color: var(--color-cold-gray-300, #b2b5be);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.symbol-search-desc-cell em {
+  font-style: normal;
+  color: var(--color-tv-blue, #2962ff);
+}
+
+/* ── Exchange cell (right) ────────────────────────────────────── */
+/* TV lays the right cell out as a single inline row (type · exchange · flag),
+ * right-aligned — not the old stacked 2×2 grid. */
+.symbol-search-exchange-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.symbol-search-market-type {
+  font-size: 12px;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  text-transform: lowercase;
+}
+
+.symbol-search-exchange-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+
+.symbol-search-primary-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-cold-gray-400, #8c8c8c);
+}
+
+.symbol-search-flag {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.symbol-search-flag img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Footer hint ────────────────────────────────────────────────────────── */
+.symbol-search-footer {
+  height: 40px;
+  flex-shrink: 0;
+  padding: 9px 20px;
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  color: var(--color-cold-gray-400, #8c8c8c);
+  font-size: 13px;
+  line-height: 17px;
+  border-radius: 0 0 6px 6px;
+}
+
+/* ── Watchlist "Add symbol" mode (TV `watchlist-symbol-search-dialog`,
+ * captured 25/09/2026) ── */
+/* Actions column: TV `actionsCell` (padding-inline-end 12px) after the
+ * exchange cell's 20px end padding; each action is 28px + 8px end margin. */
+.symbol-search-list.is-watchlist .symbol-search-row {
+  grid-template-columns: max-content minmax(0, 1fr) auto auto;
+  padding-right: 12px;
+}
+.symbol-search-actions-cell {
+  display: flex;
+  align-items: center;
+  width: 36px;
+  margin-left: 8px;
+  overflow: visible;
+}
+/* TV's rows share one grid: the column is two actions wide as soon as one
+ * visible row is already in the list (remove + go to). */
+.symbol-search-list.has-list-actions .symbol-search-actions-cell {
+  width: 72px;
+}
+.symbol-search-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-inline-end: 8px;
+  border-radius: 4px;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  color: var(--color-popup-element-toolbox-text, grey);
+  cursor: pointer;
+}
+.symbol-search-action:hover {
+  background-color: var(--color-container-fill-primary-neutral-normal, #4a4a4a);
+  color: var(--color-popup-element-toolbox-text-hover, #dbdbdb);
+}
+.symbol-search-action.is-add,
+.symbol-search-action.is-add:hover {
+  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+}
+.symbol-search-action.is-remove:hover {
+  color: var(--color-ripe-red-500, #f23645);
+}
+.symbol-search-action svg {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+/* A just-added row flashes (TV `highlight-animation-theme-dark`: 1s ease,
+ * peak #132042 at 50%; the class is dropped after 500 ms, as in TV). */
+.symbol-search-row.is-flashed {
+  animation: symbol-search-flash 1s ease 1;
+}
+@keyframes symbol-search-flash {
+  50% {
+    background-color: var(--color-tv-blue-a900, #132042);
+  }
+}
+
+/* Keyboard-hint footer (TV `footer-kReVM2Bx` + `kbd.button-kReVM2Bx`). */
+.symbol-search-footer--keys {
+  height: auto;
+  min-height: 40px;
+  max-height: 65px;
+  display: flex;
+  flex-flow: wrap;
+  align-items: center;
+  justify-content: center;
+  row-gap: 9px;
+  text-align: center;
+  cursor: default;
+}
+.symbol-search-shortcuts,
+.symbol-search-kbd-group {
+  display: inline-flex;
+  align-items: center;
+  margin-inline: 13px;
+}
+.symbol-search-kbd-group:first-child {
+  margin-inline-start: 0;
+}
+.symbol-search-kbd-group:last-child {
+  margin-inline-end: 0;
+}
+.symbol-search-kbd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 21px;
+  min-width: 21px;
+  margin-inline: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--color-cold-gray-700, #4a4a4a);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--color-cold-gray-750, #3d3d3d);
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  white-space: nowrap;
+}
+.symbol-search-kbd:first-child {
+  margin-inline-start: 0;
+}
+.symbol-search-kbd:last-child {
+  margin-inline-end: 0;
+}
+
+/* Make the symbol widget on the header behave like a real button. */
+.header-toolbar-widget.is-symbol {
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.header-toolbar-widget.is-symbol:hover {
+  background-color: var(--color-toolbar-button-background-hover, #2e2e2e);
+  color: var(--color-toolbar-button-text-hover, #fff);
+}
+
+.header-toolbar-widget.is-symbol.is-open {
+  background-color: var(--color-toolbar-opened-element-bg, #2e2e2e);
+}

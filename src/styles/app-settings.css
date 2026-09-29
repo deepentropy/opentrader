@@ -1,0 +1,318 @@
+/*
+ * App Settings dialog — desktop "App settings" modal (AppSettingsDialog.tsx),
+ * opened from the chart account menu.  Mirrors TV's dialog-window
+ * `.dialog-settings`: a left tab rail (`tabs-section`) + content (`page-
+ * section`), no footer.  Namespaced `.app-settings-*` to avoid colliding with
+ * the chart-properties `.settings-*` classes.
+ */
+
+.app-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 260;
+}
+
+.app-settings-dialog {
+  width: 720px;
+  max-width: 96vw;
+  height: 560px;
+  max-height: 92vh;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border-radius: 6px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.app-settings-header {
+  height: 56px;
+  flex-shrink: 0;
+  padding: 0 16px 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-cold-gray-800, #2a2a2a);
+}
+.app-settings-dialog-title {
+  font-size: 20px;
+  font-weight: 600;
+}
+.app-settings-close {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-cold-gray-400, #a3a6af);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.app-settings-close:hover {
+  background: var(--color-cold-gray-800, #2a2a2a);
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
+.app-settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+
+/* ── Left tab rail ──────────────────────────────────────────────────────── */
+.app-settings-tabs {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--color-cold-gray-800, #2a2a2a);
+  overflow-y: auto;
+}
+.app-settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-cold-gray-300, #b2b5be);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.app-settings-tab:hover {
+  background: var(--color-cold-gray-800, #2a2a2a);
+}
+.app-settings-tab.selected {
+  background: var(--color-cold-gray-750, #3d3d3d);
+  color: var(--color-cold-gray-100, #f0f3fa);
+}
+.app-settings-tab span {
+  white-space: nowrap;
+}
+
+/* ── Content page ───────────────────────────────────────────────────────── */
+.app-settings-page {
+  flex: 1;
+  min-width: 0;
+  padding: 16px 24px 24px;
+  overflow-y: auto;
+}
+
+.app-settings-section {
+  padding: 12px 0 16px;
+}
+.app-settings-section-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  margin-bottom: 10px;
+}
+.app-settings-section-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Checkbox row */
+.app-settings-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.app-settings-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.app-settings-checkbox {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--color-cold-gray-500, #6a6d78);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.app-settings-checkbox.is-checked {
+  background: var(--color-accent, #2962ff);
+  border-color: var(--color-accent, #2962ff);
+}
+.app-settings-check-label {
+  font-size: 14px;
+}
+
+/* Theme pills */
+.app-settings-theme {
+  display: inline-flex;
+  gap: 8px;
+}
+.app-settings-theme-pill {
+  min-width: 72px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid var(--color-cold-gray-700, #4a4a4a);
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-size: 13px;
+  cursor: pointer;
+}
+.app-settings-theme-pill.selected {
+  border-color: var(--color-accent, #2962ff);
+  background: color-mix(in srgb, var(--color-accent, #2962ff) 16%, transparent);
+}
+
+/* Generic select / input / button */
+.app-settings-select,
+.app-settings-input {
+  width: 100%;
+  max-width: 320px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-cold-gray-700, #4a4a4a);
+  background: var(--color-cold-gray-900, #131722);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-size: 14px;
+}
+.app-settings-input:disabled {
+  opacity: 0.5;
+}
+.app-settings-btn {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 6px;
+  border: 0;
+  background: var(--color-cold-gray-750, #3d3d3d);
+  color: var(--color-cold-gray-100, #f0f3fa);
+  font-size: 13px;
+  cursor: pointer;
+}
+.app-settings-btn:hover { background: var(--color-cold-gray-700, #4a4a4a); }
+.app-settings-btn:disabled { opacity: 0.5; cursor: default; }
+/* Armed state of the two-click confirm buttons (Clear cache / Factory reset). */
+.app-settings-btn.is-armed { background: var(--color-ripe-red-500, #f23645); color: #fff; }
+.app-settings-btn.is-armed:hover { background: var(--color-ripe-red-400, #f7525f); }
+
+/* Field (label above control) */
+.app-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+.app-settings-field-label {
+  font-size: 13px;
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+
+/* Downloads path row */
+.app-settings-path-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-settings-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-accent, #2962ff);
+  cursor: pointer;
+}
+.app-settings-path.disabled { color: var(--color-cold-gray-500, #6a6d78); cursor: default; }
+
+/* Tab title order — draggable checkbox rows (TV's TabTitleOrderSettings). */
+.app-settings-tab-order {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+.app-settings-drag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  border-radius: 6px;
+  padding: 0 6px;
+  margin: 0 -6px;
+}
+/* The row being dragged lifts off the page (TV's react-draggable feel). */
+.app-settings-drag-row.is-dragging {
+  background: var(--color-cold-gray-800, #2a2a2a);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  position: relative;
+  z-index: 1;
+}
+.app-settings-drag-row.is-dragging .app-settings-drag-handle {
+  cursor: grabbing;
+}
+.app-settings-drag-row .app-settings-check {
+  flex: 1;
+  min-width: 0;
+}
+.app-settings-drag-handle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-cold-gray-500, #6a6d78);
+  cursor: grab;
+}
+.app-settings-drag-row:active .app-settings-drag-handle { cursor: grabbing; }
+.app-settings-control-button { padding-top: 16px; }
+
+/* Service action rows */
+.app-settings-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 360px;
+}
+.app-settings-action-label { font-size: 14px; }
+
+/* Alert volume slider */
+.app-settings-slider {
+  width: 220px;
+  accent-color: var(--color-accent, #2962ff);
+}
+
+/* About */
+.app-settings-about {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.app-settings-about-app { font-size: 18px; font-weight: 600; }
+.app-settings-about-version { color: var(--color-cold-gray-400, #8c8c8c); }
+.app-settings-about-copyright {
+  margin-top: 16px;
+  color: var(--color-cold-gray-500, #6a6d78);
+  font-size: 13px;
+}

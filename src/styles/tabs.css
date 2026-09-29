@@ -1,0 +1,498 @@
+/*
+ * Tab strip — adapted from the reference mock's tabs.css. Simplified to drop
+ * the Electron window-chrome `.app.active/.win/.darwin` ancestor selectors
+ * (we have no traffic-light controls); the active/hover backgrounds are keyed
+ * directly off `.tab`/`.tab.active`/`.tab:hover`.
+ */
+
+/* Host bar above the header toolbar — holds the strip; 35px tall like TV.
+ * Background is the window-chrome fill (mock's `.app.active`), NOT the chart
+ * color: the active tab is painted `--color-container-fill-secondary-inverse`
+ * (#0f0f0f dark) to connect down to the chart pane, so the bar behind it must
+ * be lighter or the active tab is invisible. */
+.tab-bar {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: stretch;
+  /* TV shell is 38px: a 35px tab strip over a full-width 3px #0f0f0f
+     underline (`.underline` in the shell) that connects the active tab to
+     the page. The padding-bottom keeps children 35px tall; the gradient
+     paints the strip. */
+  height: 38px;
+  box-sizing: border-box;
+  background-color: var(--color-container-fill-primary-neutral-light, #3d3d3d);
+  border-bottom: 3px solid var(--color-container-fill-secondary-inverse, #0f0f0f);
+  -webkit-app-region: drag;
+}
+
+.tabs {
+  -webkit-app-region: none;
+  max-width: 100%;
+  display: flex;
+  flex-flow: row nowrap;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tabs-container {
+  display: inherit;
+  align-items: stretch;
+}
+
+.draggable-area {
+  -webkit-app-region: drag;
+  width: 100%;
+  min-width: 50px;
+  flex-shrink: 10;
+}
+
+.tab {
+  -webkit-app-region: none;
+  position: relative;
+  min-width: 25px;
+  height: 100%;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, auto) 1fr auto;
+  grid-template-rows: 1fr 3px;
+  align-items: center;
+  flex-basis: 250px;
+  flex-shrink: 1;
+  border-radius: 4px 4px 0 0;
+  cursor: default;
+  grid-template-areas: "layout-icon title close";
+  padding: 0 8px 0 12px;
+  background-color: transparent;
+}
+
+.tab:not(.active):hover {
+  background-color: var(--color-container-fill-secondary-neutral-thin);
+  z-index: 1;
+}
+
+.tab.active {
+  background-color: var(--color-container-fill-secondary-inverse);
+  z-index: 2;
+}
+
+/* xxsmall active tab — collapse to close button only. */
+.tab.active.xxsmall {
+  grid-template-columns: 1fr;
+  grid-template-areas: "close";
+  justify-content: center;
+  padding: 0 10px;
+}
+.tab.active.xxsmall > .tab-title { display: none; }
+
+.tab-title {
+  display: flex;
+  align-items: center;
+  grid-area: title;
+  grid-row: 1 / span 2;
+  overflow: hidden;
+  white-space: nowrap;
+  justify-content: flex-start;
+}
+
+.tab-title > .title-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.tab-title .tab-part {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.tab-title .tab-part-ticker {
+  font-weight: 600;
+  color: var(--color-content-primary-neutral-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tab-title .tab-part-layout {
+  color: var(--color-content-primary-neutral, #8c8c8c);
+}
+.tab-title .tab-part-last {
+  color: var(--color-content-primary-neutral-bold);
+}
+.tab-title .tab-part-change.up,
+.tab-title .tab-part-icon.up {
+  color: var(--color-success, #089981);
+}
+.tab-title .tab-part-change.down,
+.tab-title .tab-part-icon.down {
+  color: var(--color-falling, #f23645);
+}
+.tab-title .tab-part-icon {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tab-title .empty-logo {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The ticker text is all-caps and rides high in its line-box, so a
+   * box-centered disc looks ~1px low next to the letters. Lift it onto the
+   * cap line. translateY keeps it out of layout (no reflow). */
+  transform: translateY(-1px);
+  border-radius: 50%;
+  background-color: var(--color-container-fill-primary-neutral-light);
+  color: var(--color-white, #fff);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+.tab-title .empty-logo-symbol {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: normal;
+}
+
+.tab-link-indicator {
+  height: 3px;
+  box-sizing: border-box;
+  background-color: transparent;
+  grid-row: 2;
+  grid-column: 1 / -1;
+  align-self: center;
+  margin: 0;
+  border-radius: 3px;
+}
+
+.tab-close-button-container {
+  grid-area: close;
+  grid-row: 1 / span 2;
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab-close-btn {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--color-content-primary-neutral);
+  cursor: default;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.tab-close-btn:hover {
+  background-color: var(--color-container-fill-primary-neutral-light);
+  color: var(--color-content-primary-neutral-bold);
+}
+
+/* Gradient mask before the close button, fading the tail of long titles. */
+.fadeout {
+  position: absolute;
+  width: 36px;
+  height: 18px;
+  left: -36px;
+}
+.tab.small > .tab-close-button-container > .fadeout { width: 24px; left: -24px; }
+.tab.xsmall > .tab-close-button-container > .fadeout,
+.tab.xxsmall > .tab-close-button-container > .fadeout { width: 16px; left: -16px; }
+.tab.active.xxsmall > .tab-close-button-container > .fadeout { display: none; }
+.tab:not(.active) > .tab-close-button-container > .fadeout {
+  background: linear-gradient(90deg, transparent, var(--color-container-fill-primary-neutral-light, #3d3d3d));
+}
+.tab:not(.active):hover > .tab-close-button-container > .fadeout {
+  background: linear-gradient(90deg, transparent, var(--color-container-fill-secondary-neutral-thin));
+}
+.tab.active > .tab-close-button-container > .fadeout {
+  background: linear-gradient(90deg, transparent, var(--color-container-fill-secondary-inverse));
+}
+
+.extenders { display: contents; }
+.extender {
+  position: absolute;
+  display: none;
+  bottom: 0;
+  width: 6px;
+  height: 6px;
+  overflow: hidden;
+}
+.extender.left { left: -6px; }
+.extender.right { right: -6px; }
+.extender.right > span { display: inline-flex; transform: scale(-1, 1); }
+.tab:not(.active):hover .extender {
+  display: flex;
+  color: var(--color-container-fill-secondary-neutral-thin);
+}
+.tab.active .extender {
+  display: flex;
+  color: var(--color-container-fill-secondary-inverse);
+}
+
+.tab-panel-divider {
+  position: absolute;
+  right: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background-color: var(--color-cold-gray-700);
+  opacity: 0.5;
+}
+.tab.active > .tab-panel-divider,
+.tab:has(+ .tab.active) > .tab-panel-divider,
+.tab:not(.active):hover > .tab-panel-divider,
+.tab:has(+ .tab:not(.active):hover) > .tab-panel-divider {
+  display: none;
+}
+
+/* Main-menu cluster between the tabs and window controls (TV's
+ * `tab-panel-actions`). The button is the meatballs main-menu trigger. */
+.tab-panel-actions {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.action-button {
+  -webkit-app-region: no-drag;
+  width: 50px;
+  height: 35px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-content-primary-neutral);
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  cursor: default;
+}
+.action-button:hover,
+.action-button.opened {
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
+  color: var(--color-content-primary-neutral-bold);
+}
+
+/* Window controls — minimize / maximize / close at the right edge of the
+ * merged title-bar/tab-strip. Frameless window only (rendered just in Tauri). */
+.window-controls {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: stretch;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+.window-control {
+  -webkit-app-region: no-drag;
+  width: 46px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-content-primary-neutral-bold);
+  cursor: default;
+  padding: 0;
+}
+.window-control svg { stroke-width: 1px; }
+.window-control:hover {
+  background-color: var(--color-container-fill-secondary-neutral-thin);
+}
+.window-control-close:hover {
+  background-color: #e81123;
+  color: #fff;
+}
+
+.create-new-tab-button {
+  -webkit-app-region: none;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-content-primary-neutral);
+  cursor: default;
+}
+.create-new-tab-button:hover {
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
+}
+
+.tab.dragging {
+  z-index: 5;
+  cursor: grabbing;
+}
+.tabs:has(.tab.dragging) {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Floating tear-off preview while a tab is dragged below the header band. */
+.tab-detach-ghost {
+  position: fixed;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  background-color: var(--color-container-fill-secondary-inverse);
+  border: 1px solid var(--color-container-fill-secondary-neutral-extra-light);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  z-index: 9999;
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tab-detach-ghost-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tab-detach-ghost .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Tab right-click context menu ──────────────────────────────────────── */
+.tab-context-menu {
+  min-width: 220px;
+  padding: 4px 0;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tab-menu-list { display: flex; flex-direction: column; }
+.tab-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background-color: var(--color-cold-gray-700);
+  opacity: 0.5;
+}
+.tab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 30px;
+  padding: 0 12px;
+  cursor: default;
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 13px;
+}
+.tab-menu-item:hover {
+  background-color: var(--color-toolbar-button-background-hover, var(--color-container-fill-secondary-neutral-thin));
+}
+.tab-menu-item-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-content-primary-neutral);
+}
+.tab-menu-item-title { flex: 1; white-space: nowrap; }
+.tab-menu-item-hotkey {
+  color: var(--color-content-primary-neutral);
+  font-size: 11px;
+  flex-shrink: 0;
+  padding-left: 16px;
+}
+
+/* ── Tab syncing (colour link) widget ──────────────────────────────────── */
+.tab-menu-section-label {
+  margin: 4px 14px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-content-primary-neutral);
+}
+.linking-color-picker {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  margin: 0;
+  list-style: none;
+}
+.linking-color-picker li { display: flex; }
+.linking-color-button {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  color: var(--color-white);
+  border-radius: 50%;
+  cursor: default;
+}
+.linking-color-button::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: inherit;
+  border-radius: 50%;
+  transform-origin: center;
+  transition: transform 150ms ease-in;
+}
+.linking-color-button:hover::before { transform: scale(1.222); }
+.linking-color-button-icon {
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-white);
+}
+.switch-view {
+  display: inline-flex;
+  align-items: center;
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
+  background-color: var(--color-container-fill-primary-neutral-light);
+  position: relative;
+  transition: background-color 120ms ease-out;
+  margin-left: 12px;
+  flex-shrink: 0;
+}
+.switch-view .switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--color-white);
+  transition: transform 120ms ease-out;
+}
+.switch-view.checked { background-color: var(--color-tv-blue-500); }
+.switch-view.checked .switch-thumb { transform: translateX(12px); }

@@ -1,0 +1,110 @@
+/* AlertDialog — layout for the create/edit alert modal. Reuses the .wl-dialog
+ * chrome (backdrop, header, footer, buttons, inputs); this file only adds the
+ * form's row grid and the condition row. */
+
+.alert-dialog {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+}
+
+.alert-dialog-body {
+  gap: 12px;
+}
+
+/* A labelled form row: fixed-width label, control fills the rest. */
+.alert-dialog-row {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+
+.alert-dialog-label {
+  font-size: 12px;
+  color: var(--tv-color-text-secondary, #868993);
+}
+
+/* left · operator · right, stacked vertically so long selects don't overflow. */
+.alert-dialog-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.alert-dialog-right,
+.alert-dialog-pct {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.alert-dialog-right > .wl-dialog-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.alert-dialog-right-kind {
+  flex: 0 0 auto;
+  width: 110px;
+}
+
+.alert-dialog-pct .wl-dialog-input {
+  width: 90px;
+}
+
+.alert-dialog-message {
+  resize: vertical;
+  min-height: 38px;
+  font-family: inherit;
+  padding-top: 7px;
+}
+
+/* Checkbox row spans both columns. */
+.alert-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tv-color-text-secondary, #868993);
+  cursor: pointer;
+}
+
+.alert-dialog-check input {
+  accent-color: var(--tv-color-accent, #2962ff);
+}
+
+/* Transient fire banner (bottom-right). */
+.alert-toast {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 400;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--color-popup-background, #1e222d);
+  border: 1px solid var(--color-toolbar-divider-background, #2a2e39);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  animation: alert-toast-in 160ms ease-out;
+}
+
+@keyframes alert-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.alert-toast-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-toolbar-button-text, #d1d4dc);
+  margin-bottom: 3px;
+}
+
+.alert-toast-message {
+  font-size: 12px;
+  color: var(--color-content-primary-neutral, #868993);
+  line-height: 1.4;
+}

@@ -1,0 +1,245 @@
+/*
+ * Object tree panel — drawing list in the right rail. Geometry/colors
+ * from TV's `.widgetbar-widget-object_tree` capture.
+ */
+/* Action-icon toolbar row, stacked directly under the view toggle (TV's
+ * object-tree header is two rows: toggle on top, these icons below). */
+.object-tree-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  box-sizing: border-box;
+}
+
+/* Manage-mode checked count, between the mode toggle and the bulk actions. */
+.object-tree-toolbar-count {
+  margin-left: 6px;
+  margin-right: 2px;
+  font-size: 11px;
+  color: var(--color-content-primary-neutral, #b2b5be);
+  white-space: nowrap;
+}
+
+.object-tree-panel-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Manage-mode per-row checkbox (leads the row, before the kind icon). */
+.object-tree-row-check {
+  flex-shrink: 0;
+  accent-color: var(--color-toolbar-button-text-active, #2962ff);
+  cursor: pointer;
+}
+
+/* Group header — one per contiguous run of same-group drawings. */
+.object-tree-group {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-content-primary-neutral, #b2b5be);
+  background-color: var(--color-toolbar-button-background-secondary-hover, #1e222d);
+}
+
+.object-tree-group-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.object-tree-group-ungroup {
+  border: none;
+  background: transparent;
+  color: var(--color-content-primary-neutral, #b2b5be);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 6px;
+  opacity: 0;
+}
+.object-tree-group:hover .object-tree-group-ungroup {
+  opacity: 1;
+}
+.object-tree-group-ungroup:hover {
+  background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
+  color: var(--color-toolbar-button-text, #f0f3fa);
+}
+
+/* Grouped rows indent under their header. */
+.object-tree-row.in-group {
+  padding-left: 22px;
+}
+
+/* ── Data window view ─────────────────────────────────────────────────────── */
+.data-window {
+  padding: 4px 0;
+}
+
+.data-window-section {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-divider-line-primary, #3d3d3d);
+}
+.data-window-section:last-child {
+  border-bottom: none;
+}
+
+.data-window-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 4px;
+  color: var(--color-toolbar-button-text, #f0f3fa);
+}
+.data-window-symbol {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-toolbar-button-text, #f0f3fa);
+}
+.data-window-sub {
+  font-size: 11px;
+  color: var(--color-content-primary-neutral, #b2b5be);
+}
+
+.data-window-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 24px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+.data-window-label {
+  color: var(--color-content-primary-neutral, #b2b5be);
+  white-space: nowrap;
+}
+.data-window-value {
+  color: var(--color-toolbar-button-text, #dbdbdb);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.data-window-value.up {
+  color: var(--color-growing, #089981);
+}
+.data-window-value.down {
+  color: var(--color-falling, #f23645);
+}
+
+.object-tree-row {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid transparent;
+  cursor: default;
+  color: var(--color-toolbar-button-text, #dbdbdb);
+  background: transparent;
+  border-left: 2px solid transparent;
+}
+
+.object-tree-row:hover {
+  background-color: var(--color-toolbar-button-background-hover, #2a2e39);
+}
+
+/* Drag-to-reorder: only drawing rows are draggable (grab cursor); the chart-
+ * source + indicator rows keep the default cursor. */
+.object-tree-row.is-draggable {
+  cursor: grab;
+}
+
+.object-tree-row.dragging {
+  opacity: 0.45;
+}
+
+.object-tree-row.drag-over-above {
+  box-shadow: inset 0 2px 0 0 var(--color-toolbar-button-text-active, #2962ff);
+}
+
+.object-tree-row.drag-over-below {
+  box-shadow: inset 0 -2px 0 0 var(--color-toolbar-button-text-active, #2962ff);
+}
+
+.object-tree-row.selected {
+  background-color: var(--color-toolbar-button-background-hover, #2a2e39);
+  border-left-color: var(--color-toolbar-button-text-active, #2962ff);
+}
+
+/* Chart-source row sits at the top of the tree and reads as the heading for
+ * everything drawn on that series. Non-draggable, slightly emphasized. */
+.object-tree-row.primary {
+  cursor: default;
+  font-weight: 600;
+  color: var(--color-toolbar-button-text, #f0f3fa);
+}
+
+.object-tree-row.hidden-state .object-tree-row-label,
+.object-tree-row.hidden-state .object-tree-row-icon {
+  opacity: 0.4;
+}
+
+.object-tree-row-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.object-tree-row-label {
+  flex: 1;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.object-tree-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+}
+
+/** Reveal actions on hover OR when the row is selected, so a selected
+ *  drawing's hide-toggle is still reachable without re-hovering. */
+.object-tree-row:hover .object-tree-row-actions,
+.object-tree-row.selected .object-tree-row-actions {
+  opacity: 1;
+}
+
+.object-tree-row-action {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-content-primary-neutral, #b2b5be);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.object-tree-row-action:hover {
+  background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
+  color: var(--color-toolbar-button-text, #f0f3fa);
+}
+
+/* Active toggle — the lock on a locked row / the eye on a hidden row read as
+ * "on" in the accent colour (TV parity). */
+.object-tree-row.locked-state .object-tree-row-action[data-name="lock"],
+.object-tree-row.hidden-state .object-tree-row-action[data-name="hide"] {
+  color: var(--color-toolbar-button-text-active, #2962ff);
+}

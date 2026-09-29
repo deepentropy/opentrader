@@ -1,0 +1,105 @@
+/* TV "Change interval" dialog (dialog-yWGN5P58 + ui-lib PopupDialog / Input
+ * large), measured on TV Desktop 3.4.1 28/09/2026. */
+.change-interval-dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 150;
+  display: flex;
+  min-width: 254px;
+  padding: 40px;
+  box-sizing: border-box;
+  background: #1f1f1f;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  color: var(--color-main-text, #dbdbdb);
+  font-size: 14px;
+  outline: none;
+}
+.change-interval-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.change-interval-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  max-width: 100%;
+}
+.change-interval-title {
+  color: var(--color-main-text, #dbdbdb);
+  cursor: default;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.change-interval-info {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin-inline-start: 8px;
+  color: #8c8c8c;
+}
+.change-interval-info svg {
+  display: block;
+}
+.change-interval-form {
+  display: flex;
+  width: 198px;
+  max-width: 200px;
+}
+/* ui-lib Input, large: 48 px, 1 px #575757 border, radius 8; the 2 px focus
+ * ring is blue, red when the value is not applicable (intent-danger). */
+.change-interval-input-wrap {
+  position: relative;
+  display: flex;
+  flex-grow: 1;
+  height: 48px;
+  box-sizing: border-box;
+  border: 1px solid #575757;
+  border-radius: 8px;
+}
+.change-interval-input-wrap:focus-within::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid #2962ff;
+  border-radius: 8px;
+  pointer-events: none;
+}
+.change-interval-input-wrap.is-danger:focus-within::after {
+  border-color: #f23645;
+}
+.change-interval-input {
+  flex: 1;
+  min-width: 0;
+  margin: 2px;
+  padding: 0 5px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-main-text, #dbdbdb);
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+}
+.change-interval-hint {
+  margin-top: 3px;
+  max-width: 100%;
+  color: #8c8c8c;
+  cursor: default;
+  font-size: 12px;
+  line-height: 18px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.change-interval-hint.is-error {
+  color: #f23645;
+}

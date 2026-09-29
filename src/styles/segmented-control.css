@@ -1,0 +1,42 @@
+/*
+ * SegmentedControl — visual spec lifted from TV's `.segmentedControls-
+ * o_82Y4Ra` and `.segmentedControlBase-gC6hmGPw` (probed 2026-05-28).
+ *
+ * Used by AlertsPanel, ObjectTreePanel, and any other surface that needs
+ * the two/three-pill toggle.  Keep the shared rule here; do NOT duplicate
+ * these declarations into per-panel stylesheets.
+ */
+.tv-segmented-control {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  background-color: var(--color-cold-gray-750);
+  border-radius: 4px;
+  padding: 3px;
+  height: 34px;
+  box-sizing: border-box;
+}
+
+.tv-segmented-control__segment {
+  flex: 1;
+  height: 28px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-cold-gray-300, #b8b8b8);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: default;
+  border-radius: 2px;
+  transition: background-color 60ms ease, color 60ms ease;
+}
+
+.tv-segmented-control__segment:hover:not(.selected) {
+  color: var(--color-toolbar-button-text);
+}
+
+.tv-segmented-control__segment.selected {
+  background-color: var(--color-cold-gray-650, #4a4a4a);
+  color: #fff;
+}

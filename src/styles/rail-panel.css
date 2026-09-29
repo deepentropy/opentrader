@@ -1,0 +1,28 @@
+/*
+ * `.tv-rail-panel` — shared base for every right-rail widget body
+ * (Watchlist, Alerts, Object Tree, Chats, …).  TV: `.widgetbar-widget`
+ * is a single class used by every panel; mock follows that.
+ *
+ * Surface-specific files only add panel-unique rules (column grids, row
+ * heights, etc.).  The width + bg + flex column live here.
+ */
+.tv-rail-panel {
+  width: 331px;
+  flex-shrink: 0;
+  background-color: var(--tv-chart-bg);
+  color: var(--color-toolbar-button-text);
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  -webkit-app-region: no-drag;
+}
+
+/* Plain header title for panels without a switcher control. */
+.rail-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-toolbar-button-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

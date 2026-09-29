@@ -1,0 +1,1239 @@
+/*
+ * Chart "Settings" (series-properties) dialog.
+ * Reverse-engineered from TV Desktop's series-properties-dialog
+ * (withSidebar-F0WBLDV5).  Captured 29/05/2026 (full sweep, then
+ * tabs/form/colours over CDP).
+ * Chrome re-measured 25/07/2026 against TV Desktop 3.3.0.7992:
+ *
+ *   shell   : 750px wide on EVERY tab, bg rgb(31,31,31), 6px radius,
+ *             shadow 0 2px 4px rgba(0,0,0,.4)
+ *   header  : "Settings" 20px/600 + close
+ *   tabs    : 206px left rail; item h40 r8; active bg #2e2e2e, white, 600
+ *   rows    : 50px pitch; checkbox 18×18 r3; selects filled #2e2e2e h34
+ *   footer  : Template ▾ (left) · Apply to all · Cancel (outlined) · Ok (fill)
+ */
+
+/* TV draws no dimming behind the chart and indicator Settings dialogs
+   (measured 26/09/2026: no full-window coloured layer); the layer stays to
+   catch outside clicks. */
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+}
+
+.settings-dialog {
+  width: 750px;
+  max-width: 96vw;
+  /* Height fits the active tab's content (like the live app, which resizes per
+     tab), capped to the viewport — the content column scrolls past that. */
+  height: auto;
+  max-height: 92vh;
+  background-color: var(--color-cold-gray-850, #1f1f1f);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.settings-header {
+  height: 62px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
+.settings-close {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.settings-close:hover { background-color: var(--color-cold-gray-800, #2e2e2e); }
+
+/* ── Indicator (study) settings dialog ──────────────────────────────────────
+ * Narrower than the chart-properties shell, with a top "Inputs" tab bar instead
+ * of the left rail. Reuses every settings-* control below. */
+.settings-dialog-indicator { width: 440px; }
+
+.settings-toptabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--color-cold-gray-800, #2e2e2e);
+}
+.settings-toptab {
+  height: 40px;
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-cold-gray-300, #b8b8b8);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.settings-toptab:hover { color: var(--color-cold-gray-200, #dbdbdb); }
+.settings-toptab.is-active {
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border-bottom-color: var(--color-tv-blue-500, #2962ff);
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Left rail tabs (TV 3.3: 206px rail, item h40 r8, active #2e2e2e/600). */
+.settings-tabs {
+  width: 206px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 8px 8px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.settings-tab {
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-tab:hover { background-color: var(--color-cold-gray-800, #2e2e2e); }
+.settings-tab.is-active {
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  color: #fff;
+  font-weight: 600;
+}
+
+.settings-tab-icon { flex-shrink: 0; color: var(--color-cold-gray-300, #b8b8b8); }
+.settings-tab.is-active .settings-tab-icon { color: #fff; }
+
+/* Content. */
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+}
+
+/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+
+/* ── Unified form: a 2-col grid (label | controls) shared across all rows so
+ * the control column aligns, like the live dialog.  Section titles + row
+ * descriptions span both columns; rows with no control let the label span
+ * both (a long checkbox label must not widen the label column). */
+.settings-form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  column-gap: 24px;
+}
+
+.settings-section-title {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  padding: 14px 0 6px;
+}
+.settings-form > .settings-section-title:first-child { padding-top: 4px; }
+
+.settings-gap { margin-top: 32px; }
+
+.settings-row-head {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 50px; /* TV 3.3 row pitch */
+}
+.settings-row-head.is-full { grid-column: 1 / -1; }
+.settings-row-head.is-indent { padding-left: 28px; }
+
+.settings-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-cold-gray-400, #8c8c8c);
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.settings-checkbox.is-checked {
+  background-color: var(--color-tv-blue-500, #2962ff);
+  border-color: var(--color-tv-blue-500, #2962ff);
+}
+
+.settings-row-label {
+  flex: 0 1 auto;
+  font-size: 14px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
+.settings-help {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-cold-gray-400, #8c8c8c);
+}
+
+.settings-row-desc {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  margin: -4px 0 8px 26px;
+  max-width: 360px;
+}
+
+/* Trailing controls cluster (grid col 2, left-aligned at the column). */
+.settings-row-controls {
+  grid-column: 2;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px; /* TV 3.3 row pitch */
+}
+
+/* Select / dropdown — TV 3.3: filled #2e2e2e, subtle border, 34px. */
+.settings-select {
+  min-width: 140px;
+  max-width: 220px;
+  height: 34px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--color-cold-gray-650, #575757);
+  border-radius: 6px;
+  background: var(--color-cold-gray-800, #2e2e2e);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.settings-select .settings-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-select:hover { border-color: var(--color-cold-gray-400, #8c8c8c); }
+.settings-select svg { flex-shrink: 0; color: var(--color-cold-gray-400, #8c8c8c); }
+.settings-select.is-disabled { opacity: 0.45; cursor: default; }
+.settings-select.is-disabled:hover { border-color: var(--color-cold-gray-650, #575757); }
+
+/* Colour swatch + diagonal up/down pair.  A checkerboard backing shows through
+   transparent / low-opacity colours, like TV. */
+.settings-swatch {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%),
+    linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 6px 6px;
+}
+.settings-swatch > span {
+  position: absolute;
+  inset: 0;
+}
+/* Editable up/down pair: two triangular halves, each its own colour button. */
+.settings-swatch-half {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.settings-swatch-half > span { position: absolute; inset: 0; }
+.settings-swatch-half:first-child { clip-path: polygon(0 0, 100% 0, 0 100%); }
+.settings-swatch-half:last-child { clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+
+/* Line-style picker (preview line + chevron, bordered like a select). */
+.settings-linepick {
+  height: 34px;
+  min-width: 56px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border-primary-neutral-light, #4a4a4a);
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  cursor: pointer;
+}
+.settings-linepick:hover { border-color: var(--color-cold-gray-400, #8c8c8c); }
+.settings-linepick svg { color: var(--color-cold-gray-200, #dbdbdb); }
+.settings-linepick-opt { display: inline-flex; align-items: center; }
+
+/* Numeric input; the unit ("%", "bars") sits OUTSIDE the border like TV. */
+.settings-input {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--color-cold-gray-650, #575757);
+  border-radius: 6px;
+  background: var(--color-cold-gray-800, #2e2e2e);
+  overflow: hidden;
+}
+.settings-input input {
+  width: 90px;
+  height: 100%;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.settings-input-unit {
+  color: var(--color-cold-gray-400, #8c8c8c);
+  font-size: 14px;
+}
+.settings-input.is-disabled { opacity: 0.45; }
+/* Narrow numeric (indicator Style → plot thickness 1–4). */
+.settings-input-thin input { width: 48px; }
+
+/* Opacity / value slider (track + fill + draggable thumb). */
+.settings-slider {
+  position: relative;
+  width: 150px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-cold-gray-700, #404040);
+  cursor: pointer;
+  touch-action: none;
+}
+.settings-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-tv-blue-500, #2962ff);
+}
+.settings-slider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Floating popovers (select options + colour picker) ───────────────────── */
+.settings-popup,
+.settings-colorpicker {
+  position: fixed;
+  z-index: 300;
+  background: var(--tv-popover-bg, #1f1f1f);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 4px 0;
+}
+
+.settings-popup-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px 0 6px;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.settings-popup-item:hover { background-color: var(--color-popup-element-background-hover); }
+.settings-popup-check {
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-tv-blue-500, #2962ff);
+}
+
+.settings-colorpicker { padding: 10px; width: 184px; }
+.settings-colorpicker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.settings-colorpicker-cell {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+.settings-colorpicker-cell:hover { outline: 2px solid var(--color-tv-blue-500, #2962ff); }
+.settings-colorpicker-hex {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.settings-colorpicker-hex input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-primary-neutral-light, #4a4a4a);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.settings-colorpicker-apply {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--color-tv-blue-500, #2962ff);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.settings-footer {
+  height: 62px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--color-cold-gray-800, #2e2e2e);
+}
+
+.settings-template {
+  height: 36px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border-primary-neutral-light, #4a4a4a);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.settings-template:hover { background-color: var(--color-cold-gray-800, #2e2e2e); }
+.settings-template svg { color: var(--color-cold-gray-400, #8c8c8c); }
+
+/* Template menu — Apply default / Save as… / saved templates (hover ✕). */
+.settings-template-menu { min-width: 180px; }
+.settings-popup-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-cold-gray-800, #2e2e2e);
+}
+.settings-template-action { padding-left: 12px; }
+.settings-template-item {
+  justify-content: space-between;
+  padding: 0 8px 0 12px;
+}
+.settings-template-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+/* Remove button (TV MenuRemoveButton -> RemoveButton button-WMpKKUCq,
+   26/09/2026): 22 px, r4, trash icon grey, hover #4A4A4A + #DBDBDB; shown
+   while the row is hovered. */
+.settings-template-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: grey;
+  cursor: default;
+  visibility: hidden;
+}
+.settings-template-item:hover .settings-template-remove { visibility: visible; }
+.settings-template-remove:hover {
+  color: #dbdbdb;
+  background: #4a4a4a;
+}
+.settings-colorpicker-apply:disabled { opacity: 0.5; cursor: default; }
+
+.settings-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* TV 3.3: Cancel / Apply to all are OUTLINED (1px, current text colour). */
+.settings-btn {
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-cold-gray-150, #f2f2f2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.settings-btn:hover { background-color: var(--color-cold-gray-800, #2e2e2e); }
+
+/* Primary "Ok" — light fill, dark text (TV's neutral-primary button). */
+.settings-btn.is-primary {
+  background-color: rgb(242, 242, 242);
+  color: rgb(15, 15, 15);
+  border-color: rgb(242, 242, 242);
+}
+
+.settings-btn.is-primary:hover { background-color: #fff; }
+
+/* ══ Chart Settings dialog — TV Desktop 3.4.1.8194 (measured 25/09/2026).
+ * Scoped to .cp3-*; the indicator and app
+ * settings dialogs keep the .settings-* rules above.
+ *   shell  750 wide, header 68 (title 20/20, 20px/600/28), close 34 at 699/17
+ *   rail   226 (padding 8 0 0 20), tabs 206×40 r8, no gap
+ *   grid   content padding 16 20, `auto 1fr`, max-width 550; cell padding
+ *          8 0 (grouped 4 0); label column padding-right 20, wraps
+ *   groups 16 px before a section / gap; section title 32 px, 11px #8c8c8c
+ *   footer 67 (padding 16 20, border-top #4a4a4a), buttons 34 r8 */
+.cp3-header {
+  flex-shrink: 0;
+  height: 68px;
+  box-sizing: border-box;
+  padding: 20px 20px 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.cp3-header-title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+.cp3-close {
+  width: 34px;
+  height: 34px;
+  margin: -3px -1px 0 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  cursor: pointer;
+}
+.cp3-close:hover { background-color: var(--color-cold-gray-800, #2e2e2e); }
+
+.cp3-body { flex: 1; min-height: 0; display: flex; }
+.cp3-tabs {
+  width: 226px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 8px 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+/* TV tab: 28 px icon in the text colour, label 4 px after it. */
+.cp3-tabs .settings-tab { width: 206px; box-sizing: border-box; gap: 4px; }
+.cp3-tabs .settings-tab-icon { color: inherit; }
+
+.cp3-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+/* Bottom padding 32 = content padding 16 + TV's trailing 16 px group
+   separator. */
+.cp3-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  max-width: 550px;
+  box-sizing: border-box;
+  padding: 16px 20px 32px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-size: 14px;
+}
+
+.cp3-section {
+  grid-column: 1 / -1;
+  height: 32px;
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 12px;
+  text-transform: uppercase;
+  color: var(--color-cold-gray-400, #8c8c8c);
+}
+.cp3-section.is-first { margin-top: 0; }
+.cp3-group-gap { grid-column: 1 / -1; height: 16px; }
+
+.cp3-cell { box-sizing: border-box; padding: 8px 0; }
+.cp3-cell.is-grouped { padding: 4px 0; }
+.cp3-cell.is-child { margin-top: -8px; }
+.cp3-label {
+  grid-column: 1;
+  min-width: 0;
+  padding-right: 20px;
+  overflow-wrap: break-word;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.cp3-label.is-full { grid-column: 1 / -1; padding-right: 0; }
+.cp3-label.is-offset { padding-left: 26px; }
+.cp3-label-inner {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cp3-title { line-height: 16px; cursor: default; }
+.cp3-checkbox + .cp3-title { cursor: pointer; }
+/* TV row description: 13/18 px #8c8c8c right under the 34 px label block. */
+.cp3-desc {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  max-width: 340px;
+}
+/* Controls never wrap: their full width is the column's minimum, so the
+   label column shrinks and long labels wrap (TV "Lock price to bar / ratio"). */
+.cp3-controls {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.cp3-help { display: inline-flex; color: #575757; }
+
+/* Check box (TV ui-lib checkboxView). */
+.cp3-checkbox {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border: 1px solid #f2f2f2;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.35s, border-color 0.35s;
+}
+.cp3-checkbox.is-checked { background-color: #f2f2f2; color: #2e2e2e; }
+.cp3-checkbox.is-disabled { opacity: 0.5; cursor: default; }
+
+/* Select (ui-lib button: 34 px, r8, 1px #575757, text at 8 px, caret slot 20). */
+.cp3-select {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 1px 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #575757;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+  text-align: left;
+}
+.cp3-select:hover, .cp3-select.is-open { border-color: #8c8c8c; }
+.cp3-select-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp3-select-caret {
+  width: 20px;
+  height: 28px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #8c8c8c;
+  transition: transform 0.2s;
+}
+.cp3-select.is-open .cp3-select-caret { transform: rotate(180deg); }
+.cp3-select.is-disabled { color: #575757; border-color: #3d3d3d; cursor: default; }
+.cp3-select.is-disabled .cp3-select-caret { color: #575757; }
+
+/* Option menu (TV ui-lib list: r10, padding 6, items 32 r6, selected #f2f2f2). */
+.cp3-menu {
+  position: fixed;
+  z-index: 300;
+  box-sizing: border-box;
+  padding: 6px;
+  background: #1f1f1f;
+  border-radius: 10px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.cp3-menu-item {
+  height: 32px;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cp3-menu-item:hover { background-color: #2e2e2e; }
+.cp3-menu-item.is-selected { background-color: #f2f2f2; color: #0f0f0f; }
+.cp3-menu-title { padding: 5px 4px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; }
+.cp3-menu-check { padding-left: 8px; }
+.cp3-menu-check .cp3-menu-title { padding-left: 2px; }
+
+/* Colour box (color-select 34×34) and colour + line (75×34). */
+.cp3-color {
+  position: relative;
+  height: 34px;
+  width: 34px;
+  box-sizing: border-box;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #575757;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cp3-color:hover, .cp3-color.is-open { border-color: #8c8c8c; }
+.cp3-color.is-combined { width: 75px; }
+.cp3-color.is-disabled { cursor: default; background-color: #1f1f1f; border-color: #3d3d3d; }
+.cp3-color.is-disabled > * { opacity: 0.5; }
+.cp3-swatch {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  border-radius: 3px;
+  background:
+    linear-gradient(var(--swatch-color, transparent), var(--swatch-color, transparent)),
+    url("data:image/svg+xml,%3Csvg width='8' height='8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%232A2E39' fill-opacity='0.4' d='M0 0h4v4H0zM4 4h4v4H4z'/%3E%3C/svg%3E") 0 0 / 12px 12px,
+    #000;
+}
+/* TV automatic colour placeholder: #F7525F with a #22AB94 top-left triangle. */
+.cp3-swatch-auto {
+  position: relative;
+  overflow: hidden;
+  background: #f7525f;
+}
+.cp3-swatch-auto::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  border-top: 24px solid #22ab94;
+  border-right: 24px solid transparent;
+}
+.cp3-line {
+  flex: 0 0 30px;
+  height: 0;
+  margin: 0 3px 0 8px;
+  border-top-color: #dbdbdb !important;
+}
+.cp3-color-panel { z-index: 310; }
+
+/* Number field (ui-lib number input: 100×34 r8, spin buttons on hover). */
+.cp3-number-wrap { display: inline-flex; align-items: center; gap: 9px; }
+.cp3-number {
+  position: relative;
+  width: 100px;
+  height: 34px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #575757;
+  border-radius: 8px;
+}
+.cp3-number:hover { border-color: #8c8c8c; }
+.cp3-number:focus-within { border-color: #2962ff; }
+.cp3-number input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin-left: 2px;
+  padding: 0 2px 0 5px;
+  border: 0;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.cp3-number.is-disabled { background-color: #1f1f1f; border-color: #575757; }
+.cp3-number.is-disabled input { color: #575757; }
+.cp3-spin {
+  width: 22px;
+  height: 28px;
+  margin-right: 2px;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+}
+.cp3-number:hover .cp3-spin, .cp3-number:focus-within .cp3-spin { opacity: 1; }
+.cp3-spin-btn {
+  height: 50%;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #8c8c8c;
+  cursor: default;
+}
+.cp3-spin-btn:hover { background-color: #2e2e2e; color: #dbdbdb; }
+.cp3-spin-btn svg { width: 14px; height: 14px; }
+.cp3-spin-up svg { transform: rotate(180deg); }
+.cp3-unit { color: var(--color-cold-gray-200, #dbdbdb); }
+
+.cp3-slider { display: inline-flex; align-items: center; height: 34px; }
+.cp3-slider.is-disabled { opacity: 0.5; pointer-events: none; }
+
+/* Footer (67 px: padding 16 20, border-top #4a4a4a). */
+.cp3-footer {
+  flex-shrink: 0;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #4a4a4a;
+}
+.cp3-footer-actions { display: flex; align-items: center; gap: 12px; }
+.cp3-template {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 1px 0 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid #575757;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.cp3-template:hover { border-color: #8c8c8c; }
+.cp3-btn {
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 11px;
+  border: 1px solid #ffffff;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.cp3-btn:hover { background-color: #2e2e2e; }
+.cp3-btn.is-primary { background-color: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
+.cp3-btn.is-primary:hover { background-color: #ffffff; }
+
+/* ── Colour panel inside the chart Settings dialog — TV 3.4 popup
+ * (Canvas → Crosshair, captured 25/09/2026): 250 wide, no border, r6,
+ * shadow 0 2px 4px; body padding 12 (6 + 6 menu padding) × 12; swatches
+ * 17 px on a 23 px pitch, hover ring #575757 / selected ring #dbdbdb (2 px,
+ * 5 px out, r6); 1 px #4a4a4a separator (12 px margins) above the custom
+ * row; "+" = 13 px cross, 17 px box r2; section titles 12/14 px #8c8c8c;
+ * opacity input 47×26 r4 1 px #575757 with "%" inside; Thickness / Line
+ * style = segmented 32 px items, 1 px #575757, outer corners r3, selected
+ * #f2f2f2 fill with a black line. Scoped to .cp3-color-panel so the drawing
+ * dialogs keep their own panel. */
+.cp3-color-panel.dt-popover {
+  width: 250px;
+  padding: 12px;
+  border: 0;
+  border-radius: 6px;
+  background-color: #1f1f1f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+.cp3-color-panel .cp-grid { gap: 6px; }
+.cp3-color-panel .cp-row { gap: 6px; }
+.cp3-color-panel .cp-swatch {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+}
+.cp3-color-panel .cp-swatch:hover { transform: none; }
+.cp3-color-panel .cp-swatch::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.cp3-color-panel .cp-swatch:hover::after { border-color: #575757; }
+.cp3-color-panel .cp-swatch.selected { outline: none; }
+.cp3-color-panel .cp-swatch.selected::after { border-color: #dbdbdb; z-index: 1; }
+.cp3-color-panel .cp-row-custom {
+  margin-top: 6px;
+  padding-top: 13px;
+  border-top: 1px solid #4a4a4a;
+}
+.cp3-color-panel .cp-add {
+  position: relative;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: transparent;
+  font-size: 0;
+}
+.cp3-color-panel .cp-add::before,
+.cp3-color-panel .cp-add::after {
+  content: "";
+  position: absolute;
+  inset: auto;
+  border: 0;
+  border-radius: 0;
+  background-color: #dbdbdb;
+}
+.cp3-color-panel .cp-add::before { width: 1px; height: 13px; left: calc(50% - 0.5px); top: calc(50% - 6.5px); }
+.cp3-color-panel .cp-add::after { width: 13px; height: 1px; left: calc(50% - 6.5px); top: calc(50% - 0.5px); }
+.cp3-color-panel .cp-add:hover { background-color: #2e2e2e; }
+.cp3-color-panel .cp-section-title {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  line-height: 14px;
+  color: #8c8c8c;
+}
+.cp3-color-panel .cp-opacity { gap: 0; }
+.cp3-color-panel .cp-opacity-input-wrap { position: relative; gap: 0; }
+.cp3-color-panel .cp-opacity-input {
+  width: 47px;
+  height: 26px;
+  margin-left: 8px;
+  padding: 0 14px 0 5px;
+  line-height: 24px;
+  text-align: right;
+  background: transparent;
+  border: 1px solid #575757;
+  border-radius: 4px;
+  color: #dbdbdb;
+  font-size: 14px;
+}
+.cp3-color-panel .cp-opacity-input:focus { border-color: #2962ff; outline: none; }
+.cp3-color-panel .cp-opacity-pct {
+  position: absolute;
+  left: 40px;
+  top: 5px;
+  pointer-events: none;
+  font-size: 14px;
+  color: #dbdbdb;
+}
+.cp3-color-panel .cp-items { gap: 0; }
+.cp3-color-panel .cp-item {
+  height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #575757;
+  border-radius: 0;
+  margin-left: -1px;
+  color: #f2f2f2;
+}
+.cp3-color-panel .cp-item:first-child { margin-left: 0; border-radius: 3px 0 0 3px; }
+.cp3-color-panel .cp-item:last-child { border-radius: 0 3px 3px 0; }
+.cp3-color-panel .cp-item:hover { background-color: #2e2e2e; }
+.cp3-color-panel .cp-item.selected {
+  position: relative;
+  z-index: 1;
+  background-color: #f2f2f2;
+  border-color: #f2f2f2;
+  color: #000000;
+}
+
+/* Chart Settings placement (TV 3.4.1, 26/09/2026): centred horizontally;
+   the vertical top is set by ChartPropertiesDialog (centred at open, then
+   kept across tab switches, moved up only when a taller tab would pass the
+   window bottom); max height = window - 40 px (20 px margins). */
+.settings-backdrop.cp3-backdrop { display: block; }
+.settings-backdrop.cp3-backdrop .cp3-dialog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  max-height: calc(100vh - 40px);
+}
+
+
+/* Indicator Settings "Defaults" menu (TV PropertyActions: Reset settings /
+   Save as default), opening upward from the footer button. */
+.settings-defaults { position: relative; }
+.settings-defaults-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+}
+
+/* Indicator Settings dialog — TV 3.4.1 study dialog (measured 26/09/2026):
+   width fits the
+   content; tabs row 32 px, 20 px side margins, tabs 16/600 lh 24 padding
+   0 0 8, 24 px apart, active bar 4 px #F2F2F2 r2 over a 4 px #4A4A4A track;
+   content padding 16 20; rows = the chart dialog's 34 px TV controls. */
+.settings-dialog.ind3-dialog {
+  width: max-content;
+  min-width: 300px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 40px);
+}
+.ind3-title {
+  flex: 1;
+  min-width: 0;
+  margin-right: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ind3-tabs {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  gap: 24px;
+  height: 32px;
+  margin: 0 20px;
+}
+.ind3-tabs::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: #4a4a4a;
+}
+.ind3-tab {
+  position: relative;
+  z-index: 1;
+  padding: 0 0 8px;
+  border: 0;
+  background: none;
+  color: #dbdbdb;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  cursor: default;
+}
+.ind3-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: #f2f2f2;
+}
+.ind3-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ind3-grid {
+  display: grid;
+  /* Full-width check box rows must not widen the label column. */
+  grid-template-columns: max-content 1fr;
+  box-sizing: border-box;
+  padding: 16px 20px;
+  color: #dbdbdb;
+  font-size: 14px;
+}
+.ind3-empty { padding: 16px 20px; }
+
+/* Indicator Style sections + Visibility tab (TV 3.4.1, 26/09/2026):
+   plots, then 24 px, "OUTPUT VALUES" (32 px title), Precision (50 px row),
+   check rows 34 px, "INPUT VALUES" right after, "Inputs in status line".
+   Visibility rows 50 px: from 100 px, slider 109 px (9 px + 100 px track),
+   8 px, to 100 px. */
+.ind3-section { margin-top: 0; }
+.ind3-section.ind3-after-plots { margin-top: 24px; }
+.ind3-check-row { padding: 8px 0; }
+.ind3-check-row .cp3-label-inner { min-height: 18px; }
+.ind3-vis-controls { gap: 0; }
+.ind3-vis-slider {
+  display: flex;
+  width: 109px;
+  margin-right: 8px;
+}
+
+
+/* Indicator Style: plot-type button + menu (TV 3.4.1, measured 26/09/2026):
+   button 34 x 34, 1 px #575757 r8, 28 px icon; menu #1F1F1F r6, shadow
+   0 2px 4px rgba(0,0,0,.4), padding 6 0; "Price line" row 32 px (padding
+   6 10 2 12) with a 38 x 20 switch (off: #636363 track; on: #F2F2F2 track,
+   thumb right; thumb 14 px #2E2E2E, 3 px inset); 1 px #4A4A4A separator
+   with 6 px around; rows 32 px (padding 2 10 2 0, icon at 4, label 6 px
+   after it, 14 px), selected #F2F2F2 / black. */
+.ind3-plottype {
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #575757;
+  border-radius: 8px;
+  background: transparent;
+  color: #dbdbdb;
+  cursor: default;
+}
+.ind3-plottype:hover { border-color: #8c8c8c; }
+.ind3-plottype-icon { display: inline-flex; width: 28px; height: 28px; flex: none; }
+.ind3-plottype-menu {
+  position: fixed;
+  z-index: 300;
+  box-sizing: border-box;
+  padding: 6px 0;
+  border-radius: 6px;
+  background: #1f1f1f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: #dbdbdb;
+  font-size: 14px;
+}
+.ind3-plottype-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 6px 10px 2px 12px;
+  cursor: default;
+}
+.ind3-plottype-switch-label { line-height: 16px; }
+.ind3-switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid #636363;
+  border-radius: 20px;
+  background: #636363;
+}
+.ind3-switch input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: default;
+}
+.ind3-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2e2e2e;
+  transition: transform 0.25s;
+}
+.ind3-switch.is-on { background: #f2f2f2; border-color: #f2f2f2; }
+.ind3-switch.is-on .ind3-switch-thumb { transform: translateX(18px); }
+.ind3-plottype-sep { height: 1px; margin: 6px 0; background: #4a4a4a; }
+.ind3-plottype-item {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 2px 10px 2px 4px;
+  white-space: nowrap;
+  cursor: default;
+}
+.ind3-plottype-item:hover { background: #2e2e2e; }
+.ind3-plottype-item.is-selected { background: #f2f2f2; color: #000000; }
+.ind3-plottype-label { padding-left: 6px; line-height: 16px; }

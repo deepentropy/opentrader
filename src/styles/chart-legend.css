@@ -1,0 +1,352 @@
+/*
+ * `.tv-legend` — the data-window legend overlaid on the top-left of the main
+ * chart pane.  Geometry/typography mirror the live probe (TV source:
+ * `.chart-gui-wrapper__legend` → `legendMainSourceWrapper` →
+ * `item-… series-…`).
+ *
+ * The main source row is a SINGLE flex line: the title block (logo + symbol ·
+ * interval · exchange + hover action buttons) and the O/H/L/C + change sit
+ * side by side at the same baseline; the values wrap below only when the pane
+ * is too narrow (TV's `wrappable-` modifier).
+ *
+ * Anchored at the pane's top-left by ChartView (position:absolute). The wrapper
+ * keeps pointer-events off so the chart can be dragged underneath; the action
+ * buttons opt back in.
+ */
+/* The series row and the studies legend share one column anchored at the
+   pane's top-left (TV: `legend` → `legendMainSourceWrapper` + `sourcesWrapper`
+   in a single flex column), so a wrapped series row pushes the studies down
+   instead of overlapping them. Study panes get their own stack at their
+   top-left, same offsets (TV legend-quatTGAC, measured 26/09/2026: series
+   logo at 9,7 and study titles at x 9 from the pane corner). */
+.tv-legend-stack {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+.tv-legend {
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-family-base);
+  color: var(--color-main-text);
+}
+
+/* item — the single source row. */
+.tv-legend-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 24px;
+  column-gap: 8px;
+  width: fit-content;
+}
+
+/* TV backs the legend with the pane background at 50% (legendProperties
+   showBackground / backgroundTransparency 50) PER PART — titlesWrapper and
+   valuesWrapper each carry their own content-sized plate (desktop 3.4.1,
+   23/09/2026). A plate on the whole row would stretch to the pane width once
+   the values wrap and dim the price labels under it. */
+.tv-legend-titles,
+.tv-legend-values {
+  background: color-mix(in srgb, var(--tv-chart-bg, #0f0f0f) 50%, transparent);
+  border-radius: 4px;
+}
+
+/* noWrapWrapper — title pieces + action buttons; never splits internally. */
+.tv-legend-nowrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ---- Title block -------------------------------------------------------- */
+
+.tv-legend-titles {
+  display: flex;
+  align-items: center;
+  /* TV titlesWrapper plate: 24px tall around the 20px title pieces. */
+  min-height: 24px;
+  padding: 0 4px 0 1px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 20px;
+  /* TV's title row is dimmer than the values (measured #B2B5BE on the
+     desktop dark theme; values keep --color-main-text). */
+  color: var(--tv-legend-title-color, #b2b5be);
+}
+
+/* TV paints the ACTIVE chart's legend title brighter (#DBDBDB measured live
+   26/07/2026; inactive charts keep #B2B5BE). */
+.chart-grid-cell.is-active .tv-legend-titles {
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
+.tv-legend-title-piece {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  column-gap: 4px;
+  min-height: 20px;
+}
+
+/* 18×18 letter-avatar — TV pulls a real symbol logo with the first letter as
+   fallback (GAP: wire the real s3-symbol-logo image); we render the letter. */
+.tv-legend-logo {
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+}
+
+/* Dot separator — every piece after the first is preceded by a centred
+   middle-dot sitting in a 12px gutter (withDot:not(:first-child)). */
+.tv-legend-dot {
+  padding-left: 12px;
+}
+.tv-legend-dot::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  width: 12px;
+  text-align: center;
+  font-size: 16px;
+}
+
+/* TV withAction title parts (Change symbol / Change interval): clickable in
+   the click-through legend, arrow cursor (TV cursor: default). */
+.tv-legend-with-action {
+  pointer-events: auto;
+  cursor: default;
+}
+
+/* ---- Action buttons (flag / link / eye / more) -------------------------- */
+
+.tv-legend-actions {
+  /* Revealed on hover, like TV's blockHidden buttons.  display:none (not just
+     opacity) so an unhovered legend keeps the values tight against the title,
+     matching the official app; hovering reveals the row and shifts the values
+     right, exactly as TV does. */
+  display: none;
+  align-items: center;
+  margin-left: 2px;
+}
+.tv-legend-item:hover .tv-legend-actions {
+  display: flex;
+}
+
+.tv-legend-action {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--color-cold-gray-400, #9c9c9c);
+}
+.tv-legend-action:hover {
+  color: var(--color-main-text);
+}
+/* A flagged symbol keeps its flag lit (blue) even when not hovering. */
+.tv-legend-action.is-flagged {
+  color: var(--color-tv-blue-500, #2962ff);
+}
+
+/* Hidden main series (legend eye; TV .disabled-quatTGAC, dark theme): titles
+ * cold-gray-650, no values (ChartLegend), the action buttons stay shown. */
+.chart-grid-cell .tv-legend-item.is-disabled .tv-legend-titles {
+  color: var(--color-cold-gray-650, #575757);
+}
+.tv-legend-item.is-disabled .tv-legend-actions {
+  display: flex;
+}
+
+/* ---- Values line (OHLC + change) --------------------------------------- */
+
+.tv-legend-values {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+}
+
+.tv-legend-value-item {
+  display: inline-flex;
+  align-items: center;
+  /* inter-item gap (valueItem padding-right:6px). */
+  padding-right: 6px;
+}
+
+/* The O/H/L/C letters. */
+.tv-legend-value-title {
+  padding-right: 1px;
+  color: var(--color-main-text);
+}
+
+/* The numbers + the change item — coloured by direction. */
+.tv-legend-value-value,
+.tv-legend-change {
+  white-space: nowrap;
+}
+
+.tv-legend-up {
+  color: var(--color-growing, #089981);
+}
+.tv-legend-down {
+  color: var(--color-falling, #f23645);
+}
+
+/* ---- Studies (indicator) legend ---------------------------------------- *
+ * TV stacks active studies in a `sourcesWrapper` under the main series row,
+ * one `item study` per study. Probed: no gap under the series row; the shared
+ * `.tv-legend-stack` column does the placement.                              */
+.tv-ind-legend {
+  pointer-events: none;
+  user-select: none;
+  font-family: var(--font-family-base);
+  display: flex;
+  flex-direction: column;
+}
+
+.tv-ind-legend-row {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  /* Probed: title→values gap is 4px (TV's `titlesWrapper` padding 0 4px 0 1px),
+   * not 8px. */
+  column-gap: 4px;
+  /* Opt the whole row back into pointer events (the wrapper turns them off so
+     the chart can be dragged through the empty legend area). Without this only
+     the action buttons are hoverable, so the gear/eye/trash appeared only when
+     the cursor was over their slot — not over the title. */
+  pointer-events: auto;
+  width: fit-content;
+  /* Same 50% pane-bg plate as the series row. */
+  background: color-mix(in srgb, var(--tv-chart-bg, #0f0f0f) 50%, transparent);
+  border-radius: 4px;
+}
+
+/* Study title — 13px/400 #dbdbdb, dimmed when the study is hidden. */
+.tv-ind-legend-title {
+  /* TV title at x 9 from the pane corner (series logo also at 9). */
+  padding-left: 1px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--color-main-text, #dbdbdb);
+  white-space: nowrap;
+}
+.tv-ind-legend-row.is-hidden .tv-ind-legend-title {
+  color: var(--color-cold-gray-400, #9c9c9c);
+}
+
+/* Per-plot values, each coloured by its plot's own colour (inline style). */
+.tv-ind-legend-values {
+  display: flex;
+  align-items: center;
+  column-gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+}
+.tv-ind-legend-val {
+  white-space: nowrap;
+}
+
+/* Values + hover toolbar share this relative box, so the toolbar floats over
+   the values instead of pushing them right. Anchored right after the title. */
+.tv-ind-legend-rest {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Action buttons — a rounded pill revealed on row hover that OVERLAYS the
+   metric values, exactly like TV Desktop (captured 2026-06-10 over CDP, v3.2.0:
+   `.buttonsWrapper` is width:0 / z-index:2 so the buttons overflow over the
+   values; on hover the `.buttons` box gets opacity:1, a 4px right-rounded
+   corner, and a legend-secondary background — there `--color-cold-gray-900`,
+   here the chart bg so the cover is theme/custom-bg safe). Pinned to the left
+   of the values box (= just after the study title). */
+.tv-ind-legend-actions {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  border-radius: 4px;
+  /* Fallback if no chart bg is passed inline (kept opaque so values are hidden). */
+  background-color: var(--color-cold-gray-900, #0f0f0f);
+  /* Hairline + soft shadow so the pill reads as a floating box even when its
+     fill matches the chart background (neutral in both themes). */
+  border: 1px solid rgba(127, 127, 127, 0.18);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.08s;
+}
+.tv-ind-legend-row:hover .tv-ind-legend-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+.tv-ind-legend-action {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--color-cold-gray-400, #9c9c9c);
+}
+.tv-ind-legend-action:hover {
+  color: var(--color-main-text);
+}
+
+/* Market status pill (TV statusesWrapper 48×24, pill 18 px r9, item 18×18
+ * + 2 px end padding, tinted ::after overlay; 25/09/2026). */
+.tv-legend-statuses {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 4px;
+}
+.tv-legend-status-pill {
+  display: flex;
+  height: 18px;
+  border-radius: 9px;
+  overflow: hidden;
+  cursor: default;
+  pointer-events: auto;
+}
+.tv-legend-status-item {
+  position: relative;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  padding: 0 1px;
+  z-index: 0;
+}
+.tv-legend-status-item::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--status-overlay);
+}

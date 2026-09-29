@@ -1,0 +1,37 @@
+/* TV chart event hint (.container-J1MQyoSo / .container-MVhEgRXu), probed
+ * 28/09/2026 from TV Desktop 3.4.1. */
+.chart-event-hint {
+  position: absolute;
+  inset-inline: 10px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 7;
+}
+.chart-event-hint-center {
+  pointer-events: auto;
+  z-index: 1;
+}
+.chart-event-hint-pill {
+  display: flex;
+  align-items: flex-start;
+  background: #2962ff;
+  border-radius: 4px;
+  cursor: default;
+  overflow: auto;
+  padding: 8px;
+}
+.chart-event-hint-content {
+  padding: 4px 8px;
+}
+.chart-event-hint-text {
+  color: var(--color-white, #ffffff);
+  font-size: 14px;
+  line-height: 21px;
+  margin-bottom: auto;
+  overflow-wrap: break-word;
+}
+.chart-event-hint-close {
+  display: block;
+  color: var(--color-white, #ffffff);
+}

@@ -1,0 +1,160 @@
+/*
+ * TV prompt dialogs (components/TvDialogs.tsx) — TradingView Desktop 3.4.1
+ * popupDialog-xKF9ptKN, measured 26/09/2026 ("Save template as", chart
+ * template delete confirmation):
+ *   box 480 x auto, #1F1F1F, r6, centred, no dimming behind;
+ *   title 20/600 lh 24 at 40,40; close 34 x 34 at top 8 right 8;
+ *   content padding 8 40 (label 14/21 #8C8C8C, text 16/24);
+ *   field 34 px, 1 px #575757 r8, focus ring 2 px #2962FF, input 16/24;
+ *   name list: #1F1F1F r3, shadow 0 1px 2px 1px rgba(0,0,0,.275), padding
+ *   10 0, rows 13 px padding 10 15, hover #2E2E2E; list button hover
+ *   #3D3D3D, chevron up while the list is open;
+ *   footer 16 px below, buttons 34 px r8 padding 0 11 text 16/24, gap 12:
+ *   secondary 1 px #4A4A4A white text; Save #F2F2F2 / #0F0F0F, disabled
+ *   #3D3D3D / #575757; Yes #089981; danger #F23645.
+ */
+.tv-dlg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tv-dlg {
+  position: relative;
+  box-sizing: border-box;
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  padding: 40px 0 40px;
+  border-radius: 6px;
+  background: #1f1f1f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: #dbdbdb;
+  font-family: var(--font-family-base);
+  font-size: 14px;
+}
+.tv-dlg-title {
+  margin: 0 49px 0 40px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.tv-dlg-close {
+  all: unset;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #dbdbdb;
+  cursor: default;
+}
+.tv-dlg-content {
+  margin-top: 8px;
+  padding: 8px 40px;
+  font-size: 16px;
+  line-height: 24px;
+}
+.tv-dlg-text { overflow-wrap: anywhere; }
+.tv-dlg-label {
+  display: block;
+  color: #8c8c8c;
+  font-size: 14px;
+  line-height: 21px;
+}
+.tv-dlg-field { position: relative; }
+.tv-dlg-input-box {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid #575757;
+  border-radius: 8px;
+}
+.tv-dlg-input-box:focus-within {
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px #2962ff;
+}
+.tv-dlg-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 2px 0 5px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #dbdbdb;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+}
+.tv-dlg-list-btn {
+  all: unset;
+  width: 20px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #8c8c8c;
+  cursor: default;
+}
+.tv-dlg-list-btn:hover { background: #3d3d3d; }
+.tv-dlg-list-btn.is-open svg { transform: rotate(180deg); }
+.tv-dlg-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 1;
+  max-height: 245px;
+  overflow-y: auto;
+  padding: 10px 0;
+  border-radius: 3px;
+  background: #1f1f1f;
+  box-shadow: 0 1px 2px 1px rgba(0, 0, 0, 0.275);
+}
+.tv-dlg-suggestion {
+  padding: 10px 15px;
+  color: #dbdbdb;
+  font-size: 13px;
+  line-height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+.tv-dlg-suggestion:hover { background: #2e2e2e; }
+.tv-dlg-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 0 40px;
+}
+.tv-dlg-btn {
+  all: unset;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  cursor: default;
+}
+.tv-dlg-btn.is-secondary { border-color: #4a4a4a; color: #ffffff; }
+.tv-dlg-btn.is-neutral { background: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
+.tv-dlg-btn.is-success { background: #089981; border-color: #089981; color: #ffffff; }
+.tv-dlg-btn.is-danger { background: #f23645; border-color: #f23645; color: #ffffff; }
+.tv-dlg-btn.is-main[aria-disabled="true"] { background: #3d3d3d; border-color: #3d3d3d; color: #575757; }

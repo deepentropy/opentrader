@@ -1,0 +1,52 @@
+[package]
+name = "opentrader"
+version = "0.1.0"
+description = "OpenTrader: desktop charting app"
+authors = ["Odyssée"]
+license = "MIT"
+repository = "https://github.com/deepentropy/opentrader"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "opentrader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+# Durable, file-backed persistence for UI prefs + user data (drawings, layouts,
+# alerts, watchlists). Replaces localStorage, which has a ~5 MB origin quota.
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = "2.0.0-rc.25"
+specta-typescript = "0.0.12"
+tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
+chrono = "0.4.44"
+dirs = "6.0.0"
+dotenvy = "0.15.7"
+tokio = { version = "1.52.3", features = ["full"] }
+anyhow = "1.0.102"
+# Async methods in the `DataProvider` trait (the provider-agnostic data seam).
+# Needed for `dyn DataProvider` since native async-fn-in-trait isn't dyn-safe.
+async-trait = "0.1"
+# Polygon WebSocket (Feature 9 — live ticks). native-tls so wss:// works
+# without bundling rustls roots.
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
+# Polygon REST aggregates (Feature 8b — sub-minute / second bars). Returns
+# just the requested ticker, unlike the whole-market trades flat files.
+reqwest = { version = "0.12", features = ["json"] }
+# Encode/decode the bare Polygon branding URL into the `ticker-icon` custom
+# scheme path so the API key stays server-side.
+percent-encoding = "2"
+base64 = "0.22"
+

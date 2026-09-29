@@ -1,0 +1,148 @@
+/*
+ * Tooltip — visual spec lifted from TV's `.common-tooltip__body-EJBD96zX`
+ * and friends (probed 2026-05-28).  Used by <Tooltip> in components/.
+ *
+ * Sizing tokens (font-size 13px / line-height 18px) come from the
+ * --ui-lib-typography-* family TV uses on its tooltip wrapper.
+ */
+.tv-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background-color: var(--color-common-tooltip-bg);
+  color: var(--color-common-tooltip-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  /* Size to content (so short labels stay on one line) but never exceed the
+   * width cap below, at which point long text wraps. `max-content` is what stops
+   * a tooltip anchored near the viewport's right edge — e.g. the right-rail
+   * object-tree / data-window buttons — from being squeezed thin and wrapping. */
+  width: max-content;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  /* `visible` (not hidden) so the ::after caret can sit outside the body; the
+   * width cap + break-word already keep the text itself inside the box. */
+  overflow: visible;
+  text-align: start;
+}
+
+/* Caret pointing at the anchored icon — a small triangle on the side of the
+ * body that faces the anchor, in the tooltip's own background colour. TV's
+ * `common-tooltip__ear-holder::after` is 12px wide and 4px deep on every side
+ * (re-read from its CSS 24/09/2026). */
+.tv-tooltip::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.tv-tooltip-bottom::after {
+  bottom: 100%;
+  left: 50%;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 4px solid var(--color-common-tooltip-bg);
+}
+.tv-tooltip-top::after {
+  top: 100%;
+  left: 50%;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 4px solid var(--color-common-tooltip-bg);
+}
+.tv-tooltip-right::after {
+  right: 100%;
+  top: 50%;
+  margin-top: -6px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 4px solid var(--color-common-tooltip-bg);
+}
+.tv-tooltip-left::after {
+  left: 100%;
+  top: 50%;
+  margin-top: -6px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 4px solid var(--color-common-tooltip-bg);
+}
+
+/* Trailing inline icon (7×9 sort-direction glyph), text baseline like TV. */
+.tv-tooltip-icon svg {
+  display: inline;
+  vertical-align: baseline;
+}
+
+/* Width variants — match `.common-tooltip__body--width_{narrow,wide}-`. */
+.tv-tooltip-narrow { max-width: 200px; }
+.tv-tooltip-normal { max-width: 310px; }
+.tv-tooltip-wide   { max-width: 640px; }
+
+/* Side translates — coordinate is the anchor's edge; transform places the
+ * tooltip on the appropriate side.  4 px gap is handled by the JS that sets
+ * left/top (mirrors TV's `.common-tooltip--vertical/horizontal { margin }`). */
+.tv-tooltip-right  { transform: translateY(-50%); }
+.tv-tooltip-left   { transform: translate(-100%, -50%); }
+.tv-tooltip-top    { transform: translate(-50%, -100%); }
+.tv-tooltip-bottom { transform: translateX(-50%); }
+
+/* With-hotkey variant — body becomes flex, label and key block sit side by
+ * side separated by a 1px vertical divider.  Numbers lifted from TV's
+ * `.common-tooltip__body--with-hotkey-EJBD96zX` and the `__hotkey-*` family
+ * (probed 2026-05-28).  Cold-gray-600 is the key-cap background, cold-gray-
+ * 450 the bottom-border highlight for the key-cap. */
+.tv-tooltip-with-hotkey {
+  display: flex; /* default stretch: the key block's divider spans its height */
+  padding: 0;
+  max-width: 420px;
+}
+.tv-tooltip-with-hotkey .tv-tooltip-label {
+  display: inline-flex;
+  align-items: center;
+  margin: 3px 8px;
+}
+/* Keys are separated by TV's plus-sign spans (13px wide), not a gap; plain
+ * template words ("Click on the chart") sit inline. Re-probed 27/09/2026
+ * (.common-tooltip__hotkey-block / __plus-sign-Hp4KzOJw). */
+.tv-tooltip-hotkey-block {
+  display: inline-flex;
+  flex: 1 0 auto;
+  align-items: center;
+  justify-content: center;
+  margin: 3px 0;
+  line-height: 12px;
+  padding-inline-end: 8px;
+  color: var(--color-cold-gray-100);
+}
+.tv-tooltip-hotkey-block::before {
+  content: "";
+  display: block;
+  width: 1px;
+  height: 100%;
+  background-color: var(--color-cold-gray-600);
+  margin-inline-end: 8px;
+}
+.tv-tooltip-hotkey-plus {
+  width: 13px;
+  height: 15px;
+  line-height: 14px;
+  text-align: center;
+}
+.tv-tooltip-hotkey-key {
+  background-color: var(--color-cold-gray-600);
+  border-bottom: 1px solid var(--color-cold-gray-450);
+  border-radius: 4px;
+  box-sizing: border-box;
+  height: 18px;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}

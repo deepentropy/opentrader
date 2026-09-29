@@ -1,0 +1,202 @@
+/*
+ * WatchlistMenu — the dropdown opened from the watchlists ("Strong ▾") button.
+ * Solid port of the reference mock: Share list (toggle) · list actions · Create/
+ * Upload · Recently-used saved lists · Open list.
+ *
+ * Every row is wired to the multi-list store via props: the recently-used list,
+ * Create / Make a copy / Rename / Add section / Clear / Upload, plus Share list
+ * (local clipboard export), Add alert (local price-move alert) and Open list
+ * (picker). "Add alert on the list…" is the only row with no real backend
+ * equivalent beyond the local stand-in.
+ */
+import { For, onCleanup, onMount, Show } from "solid-js";
+import {
+  FLAG_HEX,
+  WL_ICONS,
+  WL_MENU_GROUPS,
+  type FlagColor,
+  type WlMenuAction,
+} from "../../data/watchlist";
+import { TvIcon } from "../../components/TvIcon";
+import { watchlistStore, type WatchList } from "../../data/watchlist-store";
+
+type Props = {
+  /** All saved lists + which one is active (drives the "Recently used" group). */
+  lists: WatchList[];
+  activeId: string;
+  onSelectList: (id: string) => void;
+  onClose: () => void;
+  /** Persisted "Share list" state of the active list (drives the switch). */
+  shared: boolean;
+  /** "Rename" — start an inline rename of the active list (header title). */
+  onRenameList?: () => void;
+  /** "Add section" — append a new, immediately-editable section. */
+  onAddSection?: () => void;
+  /** "Clear list" — remove every symbol from the active list. */
+  onClearList?: () => void;
+  /** "Create new list…" — make a new empty list and switch to it. */
+  onCreateList?: () => void;
+  /** "Make a copy…" — duplicate the active list. */
+  onCopyList?: () => void;
+  /** "Upload list…" — import symbols from a text file. */
+  onUploadList?: () => void;
+  /** "Share list" — toggle (local: copies the list to the clipboard). */
+  onToggleShare?: () => void;
+  /** "Add alert on the list…" — open the alert-threshold dialog. */
+  onAddAlert?: () => void;
+  /** "Open list…" — open the list picker. */
+  onOpenList?: () => void;
+};
+
+type ActionHandlerKey =
+  | "onRenameList"
+  | "onAddSection"
+  | "onClearList"
+  | "onCreateList"
+  | "onCopyList"
+  | "onUploadList"
+  | "onAddAlert"
+  | "onOpenList";
+
+/** Action rows wired to a real handler; the rest stay visual stubs. */
+const ACTION_HANDLERS: Record<string, ActionHandlerKey> = {
+  rename: "onRenameList",
+  "add-section": "onAddSection",
+  "clear-list": "onClearList",
+  "create-list": "onCreateList",
+  "make-copy": "onCopyList",
+  "upload-list": "onUploadList",
+  "add-alert": "onAddAlert",
+  "open-list": "onOpenList",
+};
+
+/** A list's menu marker — colour flag, else emoji, else its initial letter. */
+function ListMarker(props: { flag: FlagColor | null; emoji: string | null; name: string }) {
+  return (
+    <Show
+      when={props.flag}
+      fallback={
+        props.emoji
+          ? <span class="watchlist-menu-emoji">{props.emoji}</span>
+          : <span class="watchlist-menu-initial">{props.name.charAt(0).toUpperCase()}</span>
+      }
+    >
+      {(flag) => <span class="watchlist-menu-flag" style={{ color: FLAG_HEX[flag()] }} innerHTML={WL_ICONS.flag} />}
+    </Show>
+  );
+}
+
+export function WatchlistMenu(props: Props) {
+  let root!: HTMLDivElement;
+
+  onMount(() => {
+    // Outside-click / Esc dismiss; ignore the trigger button (it toggles itself).
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element;
+      if (root.contains(t) || t.closest?.('[data-name="watchlists-button"]')) return;
+      props.onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    });
+  });
+
+  const renderAction = (a: WlMenuAction) => (
+    <button
+      type="button"
+      role="menuitem"
+      class="tv-menu-item"
+      data-value={a.value}
+      onClick={() => {
+        if (a.toggle) { props.onToggleShare?.(); return; } // keep menu open
+        const handlerKey = ACTION_HANDLERS[a.value];
+        if (handlerKey) props[handlerKey]?.(); // wired action; others are stubs
+        props.onClose();
+      }}
+    >
+      <span class="tv-menu-item__icon" aria-hidden="true">
+        <Show when={a.icon}>{(icon) => <span innerHTML={icon()} />}</Show>
+      </span>
+      <span class="tv-menu-item__label apply-overflow-tooltip">{a.label}</span>
+      <Show when={a.toggle}>
+        <span class={`watchlist-menu-switch${props.shared ? " on" : ""}`} aria-hidden="true">
+          <span class="watchlist-menu-switch-thumb" />
+        </span>
+      </Show>
+      <Show when={a.shortcut}><span class="tv-menu-item__hotkey">{a.shortcut}</span></Show>
+    </button>
+  );
+
+  // Active list first, then favourites pinned above the rest (the per-row star
+  // toggles the store's persisted `favorite` flag, shared with the Watchlists
+  // manager + the quick-switch bar).
+  const recentLists = () => {
+    const others = props.lists.filter((l) => l.id !== props.activeId);
+    return [
+      ...props.lists.filter((l) => l.id === props.activeId),
+      ...others.filter((l) => l.favorite),
+      ...others.filter((l) => !l.favorite),
+    ];
+  };
+
+  return (
+    <div ref={root} class="tv-popover watchlist-menu" role="menu" aria-label="Watchlists">
+      <For each={WL_MENU_GROUPS}>
+        {(g, gi) => (
+          <>
+            <Show when={gi() > 0}><div class="tv-popover__divider" /></Show>
+            <Show
+              when={g.recentlyUsed}
+              fallback={<For each={g.actions!}>{(a) => renderAction(a)}</For>}
+            >
+              <div class="watchlist-menu-section">Recently used</div>
+              <For each={recentLists()}>
+                {(t) => (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class={`tv-menu-item${t.id === props.activeId ? " tv-menu-item--current" : ""}`}
+                    onClick={() => { props.onSelectList(t.id); props.onClose(); }}
+                  >
+                    <span class="tv-menu-item__icon" aria-hidden="true">
+                      <ListMarker flag={t.flag} emoji={t.emoji} name={t.name} />
+                    </span>
+                    <span class="tv-menu-item__label apply-overflow-tooltip">{t.name}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      class={`watchlist-menu-star${t.favorite ? " is-on" : ""}`}
+                      title={t.favorite ? "Remove from favorites" : "Add to favorites"}
+                      aria-label={t.favorite ? "Remove from favorites" : "Add to favorites"}
+                      aria-pressed={t.favorite}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        watchlistStore.toggleFavorite(t.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          watchlistStore.toggleFavorite(t.id);
+                        }
+                      }}
+                    >
+                      <TvIcon
+                        name={t.favorite ? "draw-remove-from-favorites" : "draw-add-to-favorites"}
+                        size={18}
+                      />
+                    </span>
+                  </button>
+                )}
+              </For>
+            </Show>
+          </>
+        )}
+      </For>
+    </div>
+  );
+}

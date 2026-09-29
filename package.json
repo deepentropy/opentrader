@@ -1,0 +1,44 @@
+{
+  "name": "opentrader",
+  "version": "0.1.0",
+  "description": "Desktop charting app: a fast Rust + SolidJS take on TradingView.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "tauri": "tauri"
+  },
+  "license": "MIT",
+  "author": "Odyssée",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deepentropy/opentrader.git"
+  },
+  "overrides": {
+    "lightweight-charts-indicators": {
+      "oakscriptjs": "$oakscriptjs"
+    }
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2",
+    "fancy-canvas": "^2.1.0",
+    "lightweight-charts": "github:deepentropy/lightweight-charts",
+    "lightweight-charts-indicators": "^0.5.0",
+    "monaco-editor": "^0.55.1",
+    "oakscriptjs": "^0.5.0",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@tauri-apps/cli": "^2",
+    "tailwindcss": "^4.3.0",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0"
+  }
+}

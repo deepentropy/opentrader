@@ -1,0 +1,56 @@
+/*
+ * Chart loading wheel — faithful port of TradingView's chart spinner
+ * (ui-lib CircleProgressbar, intent=neutral, size=Large). A 64x64 centred
+ * SVG with a faint background track and a foreground arc; the whole SVG
+ * rotates 1s linear infinite. Neutral colours flip with the theme:
+ * foreground #0f0f0f (light) / #dbdbdb (dark), track #ebebeb / #3d3d3d.
+ */
+.tv-chart-loader {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  transform: translate(-50%, -50%);
+  z-index: 11;
+  pointer-events: none;
+
+  /* neutral intent — matches TV's --ui-lib progressbar colours */
+  --tv-loader-fg: #0f0f0f;
+  --tv-loader-track: #ebebeb;
+}
+
+html.theme-dark .tv-chart-loader {
+  --tv-loader-fg: #dbdbdb;
+  --tv-loader-track: #3d3d3d;
+}
+
+.tv-chart-loader__svg {
+  width: 64px;
+  height: 64px;
+  animation: tv-chart-loader-spin 1s linear infinite;
+}
+
+/* radius 30, stroke-width 4 -> circumference ~188.5; foreground shows ~25% */
+.tv-chart-loader__track {
+  fill: none;
+  stroke: var(--tv-loader-track);
+  stroke-width: 4;
+}
+
+.tv-chart-loader__arc {
+  fill: none;
+  stroke: var(--tv-loader-fg);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 47 142;
+}
+
+@keyframes tv-chart-loader-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg);
+  }
+}

@@ -1,0 +1,127 @@
+/*
+ * "Save layout before switching?" — TV warning dialog (desktop 3.4.1,
+ * 23/09/2026: popupDialog-xKF9ptKN + squareButton small black/gray).
+ */
+.unsaved-layout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.unsaved-layout-dialog {
+  position: relative;
+  display: flex;
+  width: calc(100% - 20px);
+  max-width: 480px;
+  max-height: calc(100% - 20px);
+  overflow: hidden;
+  background-color: var(--color-popup-background, #1f1f1f);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  cursor: default;
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  user-select: none;
+}
+
+.unsaved-layout-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  margin: 40px 0 40px 40px;
+  color: var(--color-text-primary, #dbdbdb);
+}
+
+.unsaved-layout-title {
+  width: calc(100% - 9px);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.unsaved-layout-content {
+  margin-top: 8px;
+  padding: 8px 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+.unsaved-layout-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.unsaved-layout-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  cursor: default;
+  outline: none;
+}
+.unsaved-layout-btn:focus-visible {
+  outline: 2px solid var(--color-tv-blue-500, #2962ff);
+  outline-offset: 2px;
+}
+/* black primary: #F2F2F2 fill, dark text; hover #DBDBDB. */
+.unsaved-layout-btn.is-primary {
+  background-color: #f2f2f2;
+  border-color: #f2f2f2;
+  color: #0f0f0f;
+}
+.unsaved-layout-btn.is-primary:hover {
+  background-color: #dbdbdb;
+  border-color: #dbdbdb;
+}
+/* black secondary: white outline; hover fills #F2F2F2 with dark text. */
+.unsaved-layout-btn.is-stroke {
+  border-color: #fff;
+  color: #fff;
+}
+.unsaved-layout-btn.is-stroke:hover {
+  background-color: #f2f2f2;
+  border-color: #f2f2f2;
+  color: #0f0f0f;
+}
+/* gray secondary: #4A4A4A outline; hover fills #2E2E2E. */
+.unsaved-layout-btn.is-gray {
+  border-color: #4a4a4a;
+  color: #fff;
+}
+.unsaved-layout-btn.is-gray:hover {
+  background-color: #2e2e2e;
+  border-color: #2e2e2e;
+}
+
+.unsaved-layout-close {
+  all: unset;
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  margin: 8px 8px 0 -2px;
+  border-radius: 8px;
+  color: var(--color-text-primary, #dbdbdb);
+  cursor: default;
+}
+.unsaved-layout-close:hover {
+  background-color: var(--color-bg-primary-hover);
+}

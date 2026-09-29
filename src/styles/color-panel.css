@@ -1,0 +1,258 @@
+/*
+ * ColorPanel — TV's color picker, metrics captured live (3.2.0.7916):
+ * swatches 17×17 on a 23px pitch (6px gaps); custom row with inline "+" tile;
+ * "Opacity" gradient track 169×10 + 12px pointer + 47×26 numeric input + "%";
+ * in-dialog extras: "Thickness" (4 radio bars 31×1..4, items 57×32) and
+ * "Line style" (3 radio previews, items 76×32). Custom picker: form row
+ * [26×26 preview | #hex | Add 40×28] over a 200×184 saturation square and a
+ * vertical 17×184 hue strip (pointer 21×9).
+ */
+
+.cp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cp-row {
+  display: flex;
+  gap: 6px;
+}
+/* TV splits the base block (grays + hues) from the tint/shade block. */
+.cp-row-gap {
+  margin-bottom: 6px;
+}
+.cp-row-custom {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.cp-swatch {
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.cp-swatch:hover {
+  transform: scale(1.15);
+}
+.cp-swatch.selected {
+  outline: 2px solid var(--color-toolbar-button-text-active, #2962ff);
+  outline-offset: 1px;
+}
+.cp-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-cold-gray-300, #b2b5be);
+  font-size: 13px;
+  line-height: 1;
+  background: transparent;
+  border-style: dashed;
+}
+.cp-add:hover {
+  color: var(--color-cold-gray-100, #f0f3fa);
+  transform: none;
+}
+
+.cp-section-title {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+
+/* Opacity — gradient track + pointer + numeric input. */
+.cp-opacity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cp-opacity-track {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  /* Checkerboard under the transparency gradient. */
+  background-image:
+    linear-gradient(45deg, #3a3a3a 25%, transparent 25%, transparent 75%, #3a3a3a 75%),
+    linear-gradient(45deg, #3a3a3a 25%, #262626 25%, #262626 75%, #3a3a3a 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+  cursor: pointer;
+  touch-action: none;
+}
+.cp-opacity-gradient {
+  position: absolute;
+  inset: 0;
+  border-radius: 5px;
+}
+.cp-opacity-pointer {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cp-opacity-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.cp-opacity-input {
+  width: 40px;
+  height: 26px;
+  padding: 0 4px;
+  text-align: right;
+  background: var(--color-cold-gray-900, #131722);
+  color: var(--color-cold-gray-200, #dbdbdb);
+  border: 1px solid var(--color-cold-gray-700, #363a45);
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.cp-opacity-pct {
+  font-size: 12px;
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+
+/* Thickness / Line style — rows of radio tiles. */
+.cp-items {
+  display: flex;
+  gap: 0;
+}
+.cp-item {
+  flex: 1;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  cursor: pointer;
+  padding: 0;
+}
+.cp-item:hover {
+  background-color: var(--color-cold-gray-800, #2a2e39);
+}
+.cp-item.selected {
+  background-color: var(--color-cold-gray-800, #2a2e39);
+  color: var(--color-toolbar-button-text-active, #2962ff);
+}
+.cp-bar {
+  width: 31px;
+  border-top-style: solid;
+  border-top-color: currentColor;
+}
+
+/* Custom-color picker. */
+.cp-custom {
+  width: 224px;
+}
+.cp-custom-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cp-custom-preview {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+.cp-custom-hex {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  height: 26px;
+  background: var(--color-cold-gray-900, #131722);
+  border: 1px solid var(--color-cold-gray-700, #363a45);
+  border-radius: 4px;
+  padding: 0 6px;
+  gap: 4px;
+}
+.cp-custom-hash {
+  color: var(--color-cold-gray-300, #b2b5be);
+  font-size: 13px;
+}
+.cp-custom-hex input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-size: 13px;
+}
+.cp-custom-add {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--color-tv-blue-500, #2962ff);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cp-custom-add:hover {
+  background: var(--color-brand-hover, #1e53e5);
+}
+.cp-custom-area {
+  display: flex;
+  gap: 7px;
+}
+.cp-custom-sat {
+  position: relative;
+  width: 200px;
+  height: 184px;
+  border-radius: 4px;
+  /* White → hue across, transparent → black down (standard SV square). */
+  background-image:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #fff, transparent);
+  background-blend-mode: normal;
+  cursor: crosshair;
+  touch-action: none;
+}
+.cp-custom-sat-pointer {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cp-custom-hue {
+  position: relative;
+  width: 17px;
+  height: 184px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to bottom,
+    #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%
+  );
+  cursor: pointer;
+  touch-action: none;
+}
+.cp-custom-hue-pointer {
+  position: absolute;
+  left: -2px;
+  width: 21px;
+  height: 9px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  transform: translateY(-50%);
+  pointer-events: none;
+}

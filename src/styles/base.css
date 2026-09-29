@@ -1,0 +1,128 @@
+/*
+ * Base / global styles + mock-specific token additions.
+ *
+ * The TradingView shell applies these rules in src/index.css (recovered in
+ * chunk 6754):
+ *   html { font-family: <base stack> }
+ *   html, body { user-select: none; margin: 0; height: max-content; }
+ *   * { --font-family-base: <base stack> }
+ *
+ * tokens.css is auto-generated and only contains :root + theme blocks. CSS
+ * RULES (selectors with declarations applied to elements, not custom
+ * properties on :root) belong here.
+ *
+ * The --tv-chart-* variables are mock additions — TradingView's real chart
+ * is rendered server-side via the web app's BrowserView, not via
+ * lightweight-charts. We expose them so ChartView.tsx can read theme-reactive
+ * colours through a single `getComputedStyle().getPropertyValue()` call.
+ */
+
+html, body {
+  font-family: var(--font-family-base);
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  margin: 0;
+  padding: 0;
+  /* Real app uses height: max-content on html+body; we don't need the
+   * intrinsic-sizing behaviour for the mock and want viewport-sized roots,
+   * so we leave height at its default (auto/100% via the .app rule). */
+}
+
+body {
+  color: var(--color-main-text);
+  background: var(--color-container-fill-secondary-neutral-thin);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * Scrollbars — one global treatment matching TV Desktop, identical across
+ * every scroll surface (watchlist, timezone menu, object tree, dialogs, …):
+ *   5px bar · transparent track · #3d3d3d (--color-scroll-bg) thumb, inset 1px
+ *   via a transparent border + content-box clip · 3px radius · no corner.
+ *
+ * `scrollbar-width`/`scrollbar-color` are deliberately scoped to Firefox
+ * (`@supports (-moz-appearance:none)`): in Chromium (the Tauri WebView2)
+ * setting `scrollbar-width` switches the element to the NATIVE scrollbar and
+ * the `::-webkit-scrollbar` styling is ignored — so the webkit pseudo-elements
+ * are the sole styling path there, exactly as TV does. (Per-widget
+ * `scrollbar-width: thin` rules were what forced the chunky native bars.)
+ */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-thumb {
+  background-clip: content-box;
+  background-color: var(--color-scroll-bg, #3d3d3d);
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-track {
+  background-color: transparent;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-corner {
+  display: none;
+}
+@supports (-moz-appearance: none) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scroll-bg) transparent;
+  }
+}
+
+/*
+ * --color-main-text — referenced by src/app/window/app.css (.window-title)
+ * and a handful of recovered renderers, but NOT defined in
+ * @tradingview/ui-lib/color-palette.css. In the real desktop, the chart
+ * BrowserView's web app sets it on <html> via the live tradingview.com
+ * stylesheet, and the chrome inherits it because both share the same
+ * Electron session storage. We define it here so the mock has visible text
+ * without depending on a web view.
+ */
+html.theme-light {
+  --color-main-text: var(--color-cold-gray-900);
+}
+
+html.theme-dark {
+  --color-main-text: var(--color-cold-gray-200);
+}
+
+/* Chart-pane tokens — referenced by ChartView.tsx through getComputedStyle. */
+html.theme-light {
+  --tv-chart-bg: #ffffff;
+  --tv-chart-text: var(--color-cold-gray-900);
+  --tv-chart-grid: var(--color-cold-gray-150);
+  --tv-chart-up: var(--color-minty-green-500);
+  --tv-chart-down: var(--color-ripe-red-500);
+  /* TV scalesProperties.crosshairLabelBgColorLight (desktop capture 25/07/2026). */
+  --tv-chart-crosshair-label-bg: #0f0f0f;
+  --tv-chart-pane-separator: var(--color-cold-gray-150);
+  --tv-legend-title-color: var(--color-main-text);
+
+  /* Popover surface shorthand — used by menu.css. */
+  --tv-popover-bg: #fff;
+  --tv-popover-shadow: 0 2px 4px #0003;
+}
+
+html.theme-dark {
+  --tv-chart-bg: #0f0f0f;
+  --tv-chart-text: var(--color-cold-gray-200);
+  /* TV desktop standard dark grid, measured live 26/07/2026:
+     rgba(242,242,242,0.2) dotted (reads ~#3C3C3C on the #0f0f0f pane). */
+  --tv-chart-grid: rgba(242, 242, 242, 0.2);
+  --tv-chart-up: var(--color-minty-green-500);
+  --tv-chart-down: var(--color-ripe-red-500);
+  /* TV scalesProperties.crosshairLabelBgColorDark (desktop capture 25/07/2026). */
+  --tv-chart-crosshair-label-bg: #3d3d3d;
+  --tv-chart-pane-separator: var(--color-divider, #4a4a4a);
+  /* TV's legend symbol title (measured #B2B5BE on the desktop, values stay
+     --color-main-text). */
+  --tv-legend-title-color: #b2b5be;
+
+  --tv-popover-bg: #1f1f1f;
+  --tv-popover-shadow: 0 2px 4px #0006;
+}

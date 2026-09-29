@@ -1,0 +1,197 @@
+/*
+ * Timezone popup — verbatim from TV's `.menuWrap-XktvVkFF` / `.menu-Tx5xMZww`
+ * ruleset (captured 28/05/2026).
+ *
+ * Source classes (hashed) → our names:
+ *   .menuWrap-XktvVkFF       → .tz-menu-wrap
+ *   .scrollWrap-XktvVkFF     → .tz-menu-scroll
+ *   .menuBox-XktvVkFF        → .tz-menu-box
+ *   .item-GJX1EXhk.normal    → .tz-menu-item   (32 px tall)
+ *   .iconCell-GJX1EXhk       → .tz-menu-icon-cell
+ *   .icon-GJX1EXhk           → .tz-menu-icon   (28 px wide, padding-start 8 px)
+ *   .content-GJX1EXhk        → .tz-menu-content
+ *   .label-GJX1EXhk          → .tz-menu-label  (14 px, padding-start 2 px)
+ *   .subMenu-GJX1EXhk        → .tz-menu-sub    (height:0 spacer)
+ *
+ * Tokens used (all already in tokens.css):
+ *   --color-popup-background, --color-popup-element-text,
+ *   --color-popup-element-background-hover, --color-shadow-primary-neutral-extra-heavy,
+ *   --color-scroll-bg, --color-tv-blue-500
+ */
+
+/* Shell (bg / radius / shadow / padding) comes from the shared
+ * `.tv-popover` class; we only own positioning + size constraints. */
+.tz-menu-wrap {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  text-align: start;
+  -webkit-user-select: none;
+  user-select: none;
+  max-height: min(calc(100vh - 64px), 540px);
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tz-menu-wrap:focus { outline: none; }
+
+.tz-menu-scroll {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: inherit;
+}
+
+/* Scrollbar: global TV treatment from base.css (5px, #3d3d3d thumb). */
+
+.tz-menu-box {
+  padding: 6px 0;
+}
+
+.tz-menu-box table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+}
+
+.tz-menu-box td { padding: 0; }
+
+/* ── Rows ────────────────────────────────────────────────────────────────── */
+
+.tz-menu-item {
+  vertical-align: middle;
+  white-space: nowrap;
+  height: 32px;
+  cursor: default;
+  color: var(--color-popup-element-text);
+  outline: none;
+  position: relative;
+}
+
+.tz-menu-item:hover {
+  background-color: var(--color-popup-element-background-hover);
+}
+
+/* TV's focus ring — 2 px tv-blue-500 border with 6 px radius via ::after,
+   hidden by default; only shown for keyboard focus.  Kept here for
+   parity even though the mock doesn't yet wire keyboard navigation. */
+.tz-menu-item::after {
+  border-style: solid;
+  border-width: 2px;
+  border-color: var(--color-tv-blue-500);
+  border-radius: 6px;
+  box-sizing: border-box;
+  content: '';
+  display: none;
+  height: 100%;
+  inset-inline-start: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 1;
+}
+.tz-menu-item:focus-visible::after { display: block; }
+
+/* ── Cells ──────────────────────────────────────────────────────────────── */
+
+.tz-menu-icon-cell {
+  min-width: 6px;
+}
+
+.tz-menu-icon {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding-inline-start: 8px;
+  width: 28px;
+  color: var(--color-popup-element-text);
+}
+
+.tz-menu-icon svg {
+  width: 28px;
+  height: 28px;
+  display: block;
+}
+
+.tz-menu-content {
+  align-items: center;
+  display: flex;
+  max-width: 365px;
+  padding-inline-end: 20px;
+  padding-inline-start: 4px;
+}
+
+.tz-menu-label {
+  flex: 1 1 auto;
+  font-size: 14px;
+  line-height: 18px;
+  overflow-x: hidden;
+  padding-inline-start: 2px;
+  text-align: start;
+}
+
+.tz-menu-label-checked {
+  /* TV doesn't actually restyle the label beyond the check icon — kept as
+     a hook in case downstream rules want to bolden / colour the selected
+     row.  Left a no-op for now. */
+}
+
+.tz-menu-sub {
+  height: 0;
+}
+
+.tz-menu-sub > td {
+  padding: 0;
+  height: 0;
+  border: 0;
+}
+
+/* ── Session menu (drop-up popover) ── */
+.session-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 120px;
+}
+
+.session-menu-box {
+  display: flex;
+  flex-direction: column;
+}
+
+/* title-GlrQ9d9L: rgb(128,128,128), 11px, padding 0 12px, margin 6px 0. */
+.session-menu-title {
+  color: var(--color-cold-gray-400, #808080);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 12px;
+  margin: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* item-BOZdoKo9: 14px, hover bg rgb(46,46,46); the current session highlighted. */
+.session-menu-item {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.session-menu-item:hover {
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+  color: rgb(201, 201, 201);
+}
+
+.session-menu-item.is-active {
+  background-color: var(--color-cold-gray-800, #2e2e2e);
+}

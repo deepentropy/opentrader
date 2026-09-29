@@ -1,0 +1,242 @@
+/*
+ * .oak-panel — the bottom-docked OakScript editor drawer inside the chart-pane
+ * column (chart canvas | this | BottomBar). Chrome copied from TradingView's
+ * Pine Editor bottom-dock mode (Desktop 3.3.0, probed live). Panel/status
+ * backgrounds follow the app theme tokens rather than TV's hardcoded #000 so
+ * light theme works.
+ */
+.oak-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+  background-color: var(--tv-chart-bg);
+  /* Seam between chart and editor — same 4px widget gutter as the pane edges. */
+  border-top: 4px solid var(--color-widget-border, #2e2e2e);
+}
+
+/* Invisible grab zone straddling the top seam. */
+.oak-panel__resizer {
+  position: absolute;
+  top: -6px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: row-resize;
+  z-index: 3;
+}
+
+/* Compact bottom-dock header: script icon + title left, window chrome right. */
+.oak-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+}
+
+.oak-panel__header-left {
+  position: relative; /* anchors the script menu popover */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Script-name button — icon + name + chevron, opens the script menu. */
+.oak-panel__name-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  min-width: 0;
+}
+
+.oak-panel__name-btn:hover {
+  background-color: var(--color-toolbar-button-background-hover, rgba(134, 137, 147, 0.2));
+  color: var(--color-text-primary);
+}
+
+/* The drawer hugs the window bottom — the menu opens upward. */
+.oak-script-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 220px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.oak-script-menu__section {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  user-select: none;
+}
+
+.oak-script-menu__danger .tv-menu-item__label {
+  color: var(--color-ripe-red-500, #f23645);
+}
+
+.oak-panel__rename-input {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-radius: 4px;
+  background: transparent;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  outline: none;
+  width: 220px;
+}
+
+.oak-panel__logo {
+  display: inline-flex;
+  color: var(--color-text-primary);
+}
+
+.oak-panel__title {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oak-panel__header-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.oak-panel__chrome-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+}
+
+.oak-panel__chrome-btn:hover {
+  background-color: var(--color-toolbar-button-background-hover, rgba(134, 137, 147, 0.2));
+  color: var(--color-text-primary);
+}
+
+/* Toggled-on state (console button in the status bar). */
+.oak-panel__chrome-btn[aria-pressed="true"] {
+  color: var(--color-text-primary);
+}
+
+/* Labeled header action (Add to chart) — bordered like TV's header buttons. */
+.oak-panel__action-btn {
+  height: 24px;
+  padding: 0 8px;
+  margin-right: 6px;
+  border: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.oak-panel__action-btn:hover {
+  background-color: var(--color-toolbar-button-background-hover, rgba(134, 137, 147, 0.2));
+}
+
+.oak-panel__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Monaco mount point — fills the body; monaco's automaticLayout tracks it. */
+.oak-editor-host {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Console strip — between editor and status bar (DESIGN.md: monospace
+   13px/18px rows, 4px padding, timestamp column, red error rows with an
+   "Error at L:C" badge on #4D191D). */
+.oak-console {
+  height: 160px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  font-family: Menlo, "Ubuntu Mono", Consolas, "Courier New", monospace;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.oak-console__row {
+  display: flex;
+  align-items: baseline;
+  padding: 4px 8px 4px 4px;
+  color: var(--color-text-secondary);
+}
+
+.oak-console__time {
+  flex-shrink: 0;
+  width: 78px;
+  user-select: none;
+}
+
+.oak-console__msg {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.oak-console__row--error .oak-console__msg {
+  color: var(--color-ripe-red-500, #f23645);
+}
+
+.oak-console__badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background-color: #4d191d;
+  color: var(--color-ripe-red-500, #f23645);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Status bar: 23px, hairline on top, 12px text (DESIGN.md). */
+.oak-panel__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 23px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+}
+
+.oak-panel__status-left,
+.oak-panel__status-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oak-panel__status-item {
+  white-space: nowrap;
+}

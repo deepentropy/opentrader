@@ -1,0 +1,47 @@
+/*
+ * Bundled fonts (SIL Open Font License 1.1, license text next to the files):
+ *
+ *   Inter Medium          (weight 600)  src/assets/fonts/Inter-OFL.txt
+ *   Inter Regular         (weight 400)
+ *   JetBrains Mono        (weight 400)  src/assets/fonts/JetBrainsMono-OFL.txt
+ *
+ * Without this file `--font-family-base` was undefined and the app fell back to
+ * the UA default typeface. The vars are defined here, alongside the
+ * @font-face blocks; tokens.css references them.
+ *
+ * Note: the Medium variant uses `font-style: normal`, not `bold`; bold is a
+ * weight, so `font-style: bold` would be invalid CSS.
+ */
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../assets/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('../assets/fonts/Inter-Medium.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto,
+    SegoeUI, Ubuntu, sans-serif;
+  /* Accent font — used by accent classes (big numbers / marketing). */
+  --font-family-accent: 'Inter', -apple-system, BlinkMacSystemFont,
+    'Trebuchet MS', Roboto, SegoeUI, Ubuntu, sans-serif;
+  --font-family-mono: 'JetBrains Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+}

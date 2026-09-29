@@ -1,0 +1,182 @@
+/*
+ * FontIconPicker — the Icon / Emoji / Sticker drawing-tool picker.
+ *
+ * Reverse-engineered from the live desktop app (CDP probe 2026-05-29).
+ * TV renders it as a LEFT-DOCKED panel
+ * flush against the 52px drawing toolbar — NOT a floating modal.  Real
+ * metrics: 354px wide, full height, bg #1f1f1f, dividers #4a4a4a, accent
+ * #2962ff.  Layout is three stacked rows:
+ *   • category strip (top, 48px, 38×38 icon buttons, active = blue underline)
+ *   • scrollable list (section header + 9-col glyph grid, 38px cells/24px glyph)
+ *   • tab strip (bottom, 48px, centered Emojis/Stickers/Icons, active = blue)
+ */
+
+.font-icon-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  /* Transparent — only there to catch outside clicks; the chart stays visible. */
+  background: transparent;
+}
+
+/* Docked flush against the toolbar's right edge (the toolbar is 52px wide and
+ * position:relative), spanning its full height — same `left: 100%` spill the
+ * tool submenus use. */
+.font-icon-picker {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  bottom: 0;
+  margin-left: 1px;
+  width: 354px;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary, #1f1f1f);
+  color: var(--color-main-text, #dbdbdb);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-family-base, sans-serif);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* ── Category strip (top) ───────────────────────────────────────────────── */
+.font-icon-picker-category-bar {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 6px 6px 3px;
+  border-bottom: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+}
+
+.font-icon-picker-cat {
+  flex: 1;
+  height: 38px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--color-main-text, #dbdbdb);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.font-icon-picker-cat:hover { color: #fff; }
+
+.font-icon-picker-cat.active {
+  color: var(--color-tv-blue-500, #2962ff);
+  border-bottom-color: var(--color-tv-blue-500, #2962ff);
+}
+
+/* ── Scrollable glyph list (middle) ─────────────────────────────────────── */
+.font-icon-picker-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0 6px;
+}
+
+.font-icon-picker-section-header {
+  padding: 6px 6px 4px 18px;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-cold-gray-500, #808080);
+}
+
+.font-icon-picker-grid {
+  display: grid;
+  gap: 0;
+  padding: 0 6px;
+}
+
+/* Emoji + monochrome icons pack 9 across (38px cells); full-colour stickers
+ * get more room. */
+.font-icon-picker-grid.grid-emoji,
+.font-icon-picker-grid.grid-icon {
+  grid-template-columns: repeat(9, 1fr);
+}
+
+.font-icon-picker-grid.grid-sticker {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.font-icon-picker-cell {
+  background: transparent;
+  border: none;
+  color: var(--color-main-text, #dbdbdb);
+  font-size: 20px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  line-height: 1;
+}
+
+.font-icon-picker-cell:hover { background: var(--color-bg-primary-hover, #2e2e2e); }
+
+/* Inline SVG glyph wrapper.  Icons inherit the cell colour via
+   fill="currentColor"; stickers carry their own colours.  Emoji/icon glyphs
+   render at 24px inside the 38px cell; stickers fill the larger cell. */
+.font-icon-picker-svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.font-icon-picker-svg svg { width: 100%; height: 100%; }
+
+.font-icon-picker-grid.grid-sticker .font-icon-picker-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Tab strip (bottom) ─────────────────────────────────────────────────── */
+.font-icon-picker-tabs {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  height: 48px;
+  flex-shrink: 0;
+  padding: 0 6px 4px;
+  border-top: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+}
+
+.font-icon-picker-tab {
+  background: transparent;
+  border: none;
+  border-top: 2px solid transparent;
+  color: var(--color-main-text, #dbdbdb);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 12px;
+}
+
+.font-icon-picker-tab:hover { color: #fff; }
+
+.font-icon-picker-tab.active {
+  color: var(--color-tv-blue-500, #2962ff);
+  border-top-color: var(--color-tv-blue-500, #2962ff);
+}
+
+/* Placed font-icon glyph on the chart overlay (inside an SVG foreignObject). */
+.drawing-font-icon-glyph {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.drawing-font-icon-glyph svg { width: 100%; height: 100%; display: block; }

@@ -1,0 +1,310 @@
+/*
+ * Drawing toolbar — vertical strip on the left edge of the chart pane.
+ *
+ * Visual reference: TradingView Desktop's live chart BrowserView. The real
+ * widget is shipped by the web app (not the desktop chrome), so this is a
+ * hand-built approximation that re-uses the same ui-lib tokens loaded in
+ * tokens.css.  Toolbar/button dimensions match production exactly so the
+ * recovered 28×28 SVG icons render at their authored scale (52px wide
+ * toolbar, 52×38 buttons, 28×28 icon glyphs).
+ */
+
+.drawing-toolbar {
+  width: 52px;
+  flex-shrink: 0;
+  /* Positioning context for the FontIconPicker, which docks at `left: 100%`
+   * (its full-height panel spills into the chart-pane area). */
+  position: relative;
+  /* Background flush with the chart pane — TV's drawing toolbar has no
+   * distinct surface colour; it sits directly on top of the chart canvas. */
+  background-color: var(--tv-chart-bg);
+  /* No right border — TV's drawing toolbar carries none; the 4px #2e2e2e gap
+   * to the chart pane (`.chart-pane` border-left) is the only seam. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* Must stay `visible` — the submenu popover positions itself at
+   * `left: calc(100% + 1px)` to spill into the chart-pane area; any
+   * non-visible overflow on either axis clips it. */
+  overflow: visible;
+}
+
+/* TV's left drawing bar stacks visual "sections" (tool dropdowns, measure,
+ * toggles, trash) separated by a single 1px line via `.group + .group::before`.
+ * Padding inside each section: 6px top + 6px bottom on the first; subsequent
+ * sections drop the top padding so the separator sits flush.  These numbers
+ * are lifted verbatim from TV's `.group-BfVZxb4b` rule (probe 2026-05-28). */
+.drawing-toolbar-section {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+.drawing-toolbar-section + .drawing-toolbar-section {
+  padding-top: 0;
+}
+.drawing-toolbar-section + .drawing-toolbar-section::before {
+  content: "";
+  display: block;
+  height: 1px;
+  margin: 0 8px 6px;
+  background-color: var(--color-toolbar-divider-background);
+}
+/* The .drawing-toolbar-sep div we used to insert manually is now obsolete;
+ * keep the rule for any stragglers but render nothing. */
+.drawing-toolbar-sep { display: none; }
+
+/* Drawing-toolbar button — dimensions only; the rounded hover pill comes
+ * from the shared `.tv-toolbar-button` base.  CSS variables set the pill
+ * geometry exact to TV's --tv-toolbar-explicit-hover-* overrides on
+ * `.inner-BfVZxb4b` (probed 2026-05-28): 9 px left/right, 2 px top/bottom,
+ * 6 px corner radius — yields a 34 × 34 pill inside the 52 × 38 cell. */
+.drawing-tool-btn {
+  width: 52px;
+  height: 38px;
+  --tv-tb-pill-left: 9px;
+  --tv-tb-pill-right: 9px;
+  --tv-tb-pill-top: 2px;
+  --tv-tb-pill-bottom: 2px;
+  --tv-tb-pill-radius: 6px;
+}
+
+.drawing-tool-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+/* Each group is just a relative-positioning anchor so we can render the
+ * submenu popover beside it. */
+.drawing-tool-group {
+  position: relative;
+}
+
+/* Note: when the submenu is open we highlight only the arrow button, not
+ * the icon — matches TV's behaviour where opening the menu doesn't activate
+ * the icon's tool. */
+
+/* Arrow button — independent click target on the right edge, opens the
+ * submenu.  Geometry from TV's `.arrow-pbhJWNrt` (probed 2026-05-28):
+ *   11px wide, 34px tall, positioned at the right edge with 2px top/bottom.
+ *   Hover pill: 7×32 with 4px radius (2px side / 1px top-bottom insets).
+ *
+ * Visibility: idle state is opacity:0 (matches TV's `.arrow-pbhJWNrt
+ * { opacity: 0 }`); revealed when the user hovers the group cell, when the
+ * submenu is open, or when the arrow itself receives keyboard focus. */
+/* Arrow positioning + visibility only; the rounded pill comes from the
+ * shared `.tv-toolbar-button` base (this rule sets `position: absolute`
+ * which wins over the base's `position: relative` by import order). */
+.drawing-tool-arrow {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  right: 0;
+  width: 11px;
+  z-index: 1;
+  opacity: 0;
+  /* TV `.arrow-pbhJWNrt` computed border-radius (probed 26/07/2026). */
+  border-radius: 4px 0 0 4px;
+  transition: opacity 60ms ease, color 60ms ease;
+  /* Pill insets 0 so the hover fill covers the full 11×34 box (NOT an inset
+   * pill); the asymmetric radius below makes it read as a tab from the toolbar
+   * edge. Corrected from the old 7×32 symmetric pill (re-probed from the live
+   * desktop app). */
+  --tv-tb-pill-left: 0px;
+  --tv-tb-pill-right: 0px;
+  --tv-tb-pill-top: 0px;
+  --tv-tb-pill-bottom: 0px;
+}
+/* Asymmetric corners: rounded on the left, square against the toolbar edge. */
+.drawing-tool-arrow::before {
+  border-radius: 4px 0 0 4px;
+}
+.drawing-tool-group:hover .drawing-tool-arrow,
+.drawing-tool-group.open .drawing-tool-arrow,
+.drawing-tool-arrow:focus-visible {
+  opacity: 1;
+}
+.drawing-tool-group.open .drawing-tool-arrow::before {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+.drawing-tool-arrow svg { fill: currentColor; display: block; }
+
+/* Submenu — popover anchored to the right of the group.  Shell styles
+ * (bg / radius / shadow / padding) come from the shared `.tv-popover`
+ * class; we only own the positioning and minimum width. */
+.drawing-tool-submenu {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 1px);
+  /* TV's flyouts are content-sized per group (captured 190px for Annotation up
+   * to 354px for Icons); 190 is the floor so short menus shrink like TV's. */
+  min-width: 190px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Section header inside the popover — TV renders these normal-case, muted,
+ * in a 24px row ("Lines / Channels / Pitchforks", captured customListItem
+ * 249×24 with a 16px-line title). */
+.drawing-tool-submenu-section-header {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-content-primary-neutral);
+  pointer-events: none;
+}
+
+.drawing-tool-submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px 6px 8px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-toolbar-button-text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+
+.drawing-tool-submenu-item:hover {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+
+.drawing-tool-submenu-item.current {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+
+/* Unimplemented tools (listed for TV parity, not yet wired up): greyed and
+ * non-interactive. */
+.drawing-tool-submenu-item:disabled,
+.drawing-tool-submenu-item.disabled {
+  opacity: 0.38;
+  cursor: default;
+  pointer-events: none;
+}
+
+.drawing-tool-submenu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.drawing-tool-submenu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.drawing-tool-submenu-hotkey {
+  color: var(--color-content-primary-neutral);
+  font-size: 12px; /* TV's hint renders on a 16px line (captured 36×16 "Alt + T") */
+  line-height: 16px;
+  flex-shrink: 0;
+  padding-left: 12px;
+}
+
+/* ── Submenu row: tool button + favorite star ──────────────────────────── *
+ * Each flyout row wraps the tool button and a right-edge favorite-toggle
+ * (TV's `preset-menu-favorite-button`). The row — not the inner button — is
+ * the highlight surface, so hovering the label OR the star lights the whole
+ * row as one unit (matching TV). */
+.drawing-tool-submenu-row {
+  display: flex;
+  align-items: center;
+}
+/* Drawing-tool flyout rows render the tool glyph at its native 28×28 (the same
+ * size TV uses on the toolbar button and the favorites bar) and label at TV's
+ * standard 14px menu font — NOT the 20px/13px the toggle-option menus (magnet /
+ * hide / trash) use. Scoped to `-row` so those option menus stay untouched. */
+.drawing-tool-submenu-row .drawing-tool-submenu-item {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+.drawing-tool-submenu-row .drawing-tool-submenu-icon {
+  width: 28px;
+  height: 28px;
+}
+.drawing-tool-submenu-row:hover,
+.drawing-tool-submenu-row:has(.drawing-tool-submenu-item.current) {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+/* The inner button no longer paints its own highlight — the row owns it. */
+.drawing-tool-submenu-row .drawing-tool-submenu-item:hover,
+.drawing-tool-submenu-row .drawing-tool-submenu-item.current {
+  background-color: transparent;
+}
+/* A disabled tool's row never lights up, and its favorite star stays hidden. */
+.drawing-tool-submenu-row:has(.drawing-tool-submenu-item:disabled):hover {
+  background-color: transparent;
+}
+.drawing-tool-submenu-row:has(.drawing-tool-submenu-item:disabled):hover .drawing-tool-submenu-fav {
+  opacity: 0;
+}
+
+/* Favorite star — outline by default, filled once favorited. Hidden
+ * until the row is hovered (or the button is keyboard-focused); always shown
+ * while favorited. TV's star button is 22×22 (captured iconButton). */
+.drawing-tool-submenu-fav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--color-content-primary-neutral);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 60ms ease, color 60ms ease;
+  -webkit-app-region: no-drag;
+}
+.drawing-tool-submenu-row:hover .drawing-tool-submenu-fav,
+.drawing-tool-submenu-fav.favorited,
+.drawing-tool-submenu-fav:focus-visible {
+  opacity: 1;
+}
+.drawing-tool-submenu-fav:hover {
+  color: var(--color-toolbar-button-text);
+}
+/* Favorited star — filled, but neutral grey (the toolbar's default light icon
+ * colour #dbdbdb), NOT blue. Matches the grey treatment used for the selected
+ * drawing tool and armed favourite, so nothing in the drawing UI reads blue. */
+.drawing-tool-submenu-fav.favorited {
+  color: var(--color-toolbar-button-text, #dbdbdb);
+}
+.drawing-tool-submenu-fav svg {
+  display: block;
+}
+
+/* ── Drawing-toolbar / favorites-bar right-click context menu ───────────── *
+ * Single-item "Show / Hide Favorite Drawing Tools Toolbar" toggle. Shell
+ * (bg / radius / shadow / padding) is the shared `.tv-popover`; rows reuse
+ * `.drawing-tool-submenu-item`. Positioned `fixed` at the click point inline. */
+.drawing-toolbar-context-menu {
+  min-width: 248px;
+  z-index: 1000;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.drawing-toolbar-context-menu .drawing-tool-submenu-item {
+  width: 100%;
+}
