@@ -30,7 +30,7 @@ serde_json = "1"
 specta = "2.0.0-rc.25"
 specta-typescript = "0.0.12"
 tauri-specta = { version = "2.0.0-rc.25", features = ["derive", "typescript"] }
-chrono = "0.4.44"
+chrono = { version = "0.4.44", features = ["serde"] }
 dirs = "6.0.0"
 dotenvy = "0.15.7"
 tokio = { version = "1.52.3", features = ["full"] }
@@ -44,7 +44,7 @@ tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
 # Polygon REST aggregates (Feature 8b — sub-minute / second bars). Returns
 # just the requested ticker, unlike the whole-market trades flat files.
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "gzip"] }
 # Encode/decode the bare Polygon branding URL into the `ticker-icon` custom
 # scheme path so the API key stays server-side.
 percent-encoding = "2"

@@ -1,5 +1,6 @@
 mod commands;
 mod data;
+mod screener;
 mod window_session;
 
 use data::provider;
@@ -39,6 +40,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::images::save_drawing_image,
             commands::images::read_drawing_image,
             commands::alerts::post_webhook,
+            commands::screener::screener_open,
+            commands::screener::screener_close,
+            commands::screener::screener_scan,
+            commands::screener::screener_fields,
             window_session::take_adopted_window,
             window_session::take_closed_window_bounds,
             window_session::open_window,
@@ -49,6 +54,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             data::types::TradeTick,
             data::types::SecondAggregate,
             data::provider::capabilities::ProviderCapabilities,
+            screener::ScreenerUpdate,
         ])
 }
 
@@ -140,6 +146,7 @@ pub fn run() {
             // the background when missing or stale.
             provider::entitlements::init(app.handle(), provider.clone());
             app.manage(provider);
+            app.manage(screener::Screener::default());
             Ok(())
         })
         .run(tauri::generate_context!())

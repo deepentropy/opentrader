@@ -4,4 +4,5 @@ pub mod history;
 pub mod images;
 pub mod meta;
 pub mod realtime;
+pub mod screener;
 pub mod ticker;

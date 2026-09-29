@@ -44,6 +44,67 @@ function ariaDay(d: Date): string {
   return d.toLocaleString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
+// ─── Typing rules (TV DatePicker 368690 / TimeInput 282695) ─────────────────
+/** Keys the date field accepts (TV `inputRegex`); others are blocked. */
+const DATE_KEY = /[0-9.]/;
+/** TV `_fixValue`, run on key release (not after Backspace): at most 10
+ *  chars, repeated dashes collapsed, a dash added after `YYYY` and `YYYY-MM`. */
+function fixDate(v: string): string {
+  let s = v.substring(0, 10).replace(/-+/g, "-");
+  if (/^\d{4}$/.test(s) || /^\d{4}-\d{2}$/.test(s)) s += "-";
+  return s;
+}
+
+/** TV's input mask engine for the time field (mask "09:00": `0` = digit,
+ *  `9` = optional digit, anything else = literal). */
+const MASK_TOKENS: Record<string, { pattern: RegExp; optional?: boolean }> = {
+  "0": { pattern: /\d/ },
+  "9": { pattern: /\d/, optional: true },
+};
+const TIME_MASK = "09:00";
+function applyMask(mask: string, value: string): string {
+  const out: string[] = [];
+  let i = 0;
+  let r = 0;
+  let pending: string | undefined;
+  while (i < mask.length && r < value.length) {
+    const m = mask.charAt(i);
+    const ch = value.charAt(r);
+    const tok = MASK_TOKENS[m];
+    if (tok) {
+      if (ch.match(tok.pattern)) {
+        out.push(ch);
+        i++;
+      } else if (ch === pending) {
+        pending = undefined;
+      } else if (tok.optional) {
+        i++;
+        r--;
+      }
+      r++;
+    } else {
+      out.push(m);
+      if (ch === m) r++;
+      else pending = m;
+      i++;
+    }
+  }
+  const last = mask.charAt(mask.length - 1);
+  if (mask.length === value.length + 1 && !MASK_TOKENS[last]) out.push(last);
+  return out.join("");
+}
+/** TV time commit on blur: hours padded left, minutes padded right, then
+ *  clamped to 00-23 / 00-59 when not a valid HH:MM. */
+function normalizeTime(v: string): string {
+  const [h = "", m = ""] = v.split(":");
+  const t = `${h.slice(0, 2).padStart(2, "0")}:${m.slice(0, 2).padEnd(2, "0")}`;
+  if (/^(0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(t)) return t;
+  const [a, b] = t.split(":");
+  const hh = Math.min(23, Math.max(0, parseInt(a) || 0));
+  const mm = Math.min(59, Math.max(0, parseInt(b) || 0));
+  return `${String(hh).padStart(2, "0")}:${String(mm).padEnd(2, "0")}`;
+}
+
 /** Visible weeks for a month — first/last weeks are short (partial); CSS pins
  *  them right/left via the `.week:first-child`/`:last-child` rules. */
 function monthWeeks(year: number, month: number): Date[][] {
@@ -183,6 +244,40 @@ export function GoToDateDialog(props: Props) {
       ? `${delta < 0 ? "Previous" : "Next"} year, ${viewYear() + delta}`
       : `${delta < 0 ? "Previous" : "Next"} month, ${monthLabel(viewYear(), viewMonth() + delta)}`;
 
+  // Date fields: block other keys, add the dashes on key release (TV).
+  const onDateKeyPress = (e: KeyboardEvent) => {
+    if (e.key.length === 1 && !DATE_KEY.test(e.key)) e.preventDefault();
+  };
+  const onDateKeyUp = (e: KeyboardEvent & { currentTarget: HTMLInputElement }, set: (v: string) => void) => {
+    if (e.key === "Backspace") return;
+    const v = e.currentTarget.value;
+    const fixed = fixDate(v);
+    if (fixed !== v) {
+      e.currentTarget.value = fixed;
+      set(fixed);
+    }
+  };
+  // Time field: mask while typing, HH:MM on leave. The caret stays where it
+  // was unless it was at the end.
+  const onTimeInput = (e: InputEvent & { currentTarget: HTMLInputElement }) => {
+    const el = e.currentTarget;
+    const v = el.value;
+    const masked = applyMask(TIME_MASK, v);
+    if (masked !== v) {
+      const atEnd = el.selectionStart === v.length;
+      const pos = el.selectionStart ?? masked.length;
+      el.value = masked;
+      const caret = atEnd ? masked.length : Math.min(pos, masked.length);
+      el.setSelectionRange(caret, caret);
+    }
+    setTimeText(masked);
+  };
+  const onTimeBlur = (e: FocusEvent & { currentTarget: HTMLInputElement }) => {
+    const t = normalizeTime(e.currentTarget.value);
+    e.currentTarget.value = t;
+    setTimeText(t);
+  };
+
   const submit = () => {
     if (tab() === "customrange") {
       const a = parseYmd(fromText());
@@ -195,7 +290,7 @@ export function GoToDateDialog(props: Props) {
       return;
     }
     const d = parseYmd(dateText()) ?? selected();
-    const m = timeText().match(/^(\d{1,2}):(\d{2})$/);
+    const m = normalizeTime(timeText()).match(/^(\d{1,2}):(\d{2})$/);
     if (m) d.setHours(+m[1], +m[2], 0, 0);
     props.onSubmit(d);
     props.onClose();
@@ -258,6 +353,8 @@ export function GoToDateDialog(props: Props) {
                     >
                       <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={fromText()}
                         onFocus={() => setArmedField("from")}
+                        onKeyPress={onDateKeyPress}
+                        onKeyUp={(e) => onDateKeyUp(e, setFromText)}
                         onInput={(e) => setFromText(e.currentTarget.value)} spellcheck={false} />
                       <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                     </label>
@@ -266,6 +363,8 @@ export function GoToDateDialog(props: Props) {
                     >
                       <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={toText()}
                         onFocus={() => setArmedField("to")}
+                        onKeyPress={onDateKeyPress}
+                        onKeyUp={(e) => onDateKeyUp(e, setToText)}
                         onInput={(e) => setToText(e.currentTarget.value)} spellcheck={false} />
                       <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                     </label>
@@ -275,12 +374,14 @@ export function GoToDateDialog(props: Props) {
                 <div class="goto-dialog-row">
                   <label class="goto-dialog-input-wrap is-date">
                     <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={dateText()}
+                      onKeyPress={onDateKeyPress}
+                      onKeyUp={(e) => onDateKeyUp(e, setDateText)}
                       onInput={(e) => setDateText(e.currentTarget.value)} spellcheck={false} />
                     <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                   </label>
                   <label class="goto-dialog-input-wrap is-time">
-                    <input class="goto-dialog-input" placeholder="00:00" value={timeText()}
-                      onInput={(e) => setTimeText(e.currentTarget.value)} spellcheck={false} />
+                    <input class="goto-dialog-input" placeholder="00:00" value={timeText()} maxLength={5}
+                      onInput={onTimeInput} onBlur={onTimeBlur} spellcheck={false} />
                     <span class="goto-dialog-input-icon" aria-hidden="true"><ClockIcon /></span>
                   </label>
                 </div>

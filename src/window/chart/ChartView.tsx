@@ -229,10 +229,12 @@ const MIN_VISIBLE_BARS = 5;
 /** Fewest bars a date-range sync target frames (the time scale's minimum
  *  visible bar count). */
 const SYNC_MIN_BARS = 2;
-/** Depth cap for history loaded on behalf of date-range sync (display bars).
- *  A 1m follower stops at ~20k bars; the user's own scroll-back pager is not
- *  capped. */
-const SYNC_LOAD_MAX_BARS = 20_000;
+/** Depth cap for history loaded on behalf of date-range / time sync (display
+ *  bars); the user's own scroll-back pager is not capped. Measured 29/09/2026
+ *  (research/goto-sync): a 1m pane at ~94k bars blocks the main thread up to
+ *  ~190 ms per load, at 250k bars up to 853 ms. 100k = about one year of 1m
+ *  regular-session bars (20k reached only ~50 sessions back). */
+const SYNC_LOAD_MAX_BARS = 100_000;
 /** Pause after the last landed history page before studies recompute. */
 const INDICATOR_RENDER_DEBOUNCE_MS = 150;
 
@@ -2294,16 +2296,15 @@ export function ChartView(props: Props) {
    *  `target` is re-read after each await, so a newer target that arrived
    *  during the load is honoured; normally one round, more only when the
    *  trading-day estimate fell short (holidays) or the target moved further
-   *  back. Sync-driven depth is capped at SYNC_LOAD_MAX_BARS. Returns false
-   *  when the series changed underneath (the caller must stop). */
+   *  back. Every round must add older bars, else the loop stops. Sync-driven
+   *  depth is capped at SYNC_LOAD_MAX_BARS. Returns false when the series
+   *  changed underneath (the caller must stop). */
   async function loadHistoryTo(target: () => number | null, wanted: () => boolean): Promise<boolean> {
     const reqGen = fetchGen;
     const reqSym = props.symbol ?? "";
     const reqInt = props.interval ?? "1D";
-    let rounds = 0;
     let t = target();
-    while (t != null && needsSyncLoad(t) && rounds < 4 && wanted()) {
-      rounds++;
+    while (t != null && needsSyncLoad(t) && wanted()) {
       const beforeSec = raw[0].time as number;
       // Size the request so the depth cap holds: bars per day measured on the
       // loaded bars, window clipped to the bars still allowed.
