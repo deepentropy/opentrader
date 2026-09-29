@@ -6,6 +6,7 @@
  */
 import { createSignal, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
+import { Tooltip } from "../../components/Tooltip";
 import { ProfileMenu } from "../header/ProfileMenu";
 import { isTauri, openNewWindow } from "./window-bridge";
 
@@ -24,6 +25,10 @@ export function TabPanelActions(props: Props) {
 
   return (
     <div class="tab-panel-actions">
+      {/* Market data delay notice (the gateway serves 15-minute delayed data). */}
+      <Tooltip text="Market data is delayed by 15 minutes." side="bottom">
+        <span class="data-delay-badge" data-qa-id="data-delay-badge">Delayed 15 min</span>
+      </Tooltip>
       {/* New window (Ctrl+N) — multi-window only, so hidden off-shell. */}
       <Show when={isTauri()}>
         <button

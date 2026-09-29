@@ -21,10 +21,18 @@ void hydrateKv().finally(async () => {
   hideSplash();
 });
 
-/** Fade out the startup splash (index.html) once the App has rendered. */
+/** Minimum time the startup splash stays up, from page start, so its delay
+ *  warning can be read. The App renders and loads data underneath meanwhile. */
+const SPLASH_MIN_MS = 1500;
+
+/** Fade out the startup splash (index.html) once the App has rendered and the
+ *  minimum time has passed. */
 function hideSplash(): void {
   const splash = document.getElementById("splash");
   if (!splash) return;
-  splash.classList.add("is-hidden");
-  splash.addEventListener("transitionend", () => splash.remove(), { once: true });
+  const fade = () => {
+    splash.classList.add("is-hidden");
+    splash.addEventListener("transitionend", () => splash.remove(), { once: true });
+  };
+  window.setTimeout(fade, Math.max(0, SPLASH_MIN_MS - performance.now()));
 }

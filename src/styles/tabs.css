@@ -264,6 +264,25 @@
   align-items: center;
   flex-shrink: 0;
 }
+/* Market data delay notice, left of the New window button. */
+.data-delay-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin: 0 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background-color: var(--color-tan-orange-50);
+  color: var(--color-tan-orange-800, #ef6c00);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: default;
+}
+html.theme-dark .data-delay-badge {
+  background-color: rgba(255, 152, 0, 0.16);
+  color: var(--color-tan-orange-400);
+}
 .action-button {
   -webkit-app-region: no-drag;
   width: 50px;
