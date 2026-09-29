@@ -1,5 +1,5 @@
 /*
- * Chart-type mapping for lightweight-charts (v5.1.0 fork).
+ * Chart-type mapping for lightweight-charts (v5).
  *
  * Ported from the reference mock.
  * Every id in the union renders for real. The types without a built-in series

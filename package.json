@@ -27,7 +27,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2",
     "fancy-canvas": "^2.1.0",
-    "lightweight-charts": "github:deepentropy/lightweight-charts",
+    "lightweight-charts": "^5.2.1",
     "lightweight-charts-indicators": "^0.5.0",
     "monaco-editor": "^0.55.1",
     "oakscriptjs": "^0.5.0",

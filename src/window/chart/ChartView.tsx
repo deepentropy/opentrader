@@ -1,7 +1,5 @@
 /*
- * ChartView — single chart pane backed by the deepentropy WebGL fork of
- * lightweight-charts (v5.1.0). Synthetic data only for now; real Massive
- * data lands in Feature 8/9.
+ * ChartView — single chart pane backed by lightweight-charts (v5).
  *
  * Chart and series are imperative state held in plain `let` bindings.
  * Theme + chart-type changes both flow in via Solid effects that swap the
@@ -340,6 +338,9 @@ function appearanceOptions(t: ReturnType<typeof readChartTokens>) {
       background,
       textColor: t.scaleTextColor,
       fontSize: t.scaleFontSize,
+      // No logo on the chart: the library's attribution notice and link are
+      // in the README ("Third-party notices"), as its licence allows.
+      attributionLogo: false,
       // The library defaults are light-theme (#E0E3EB separator) — theme the
       // stacked-pane divider like the rest of the chrome.
       panes: {

@@ -81,8 +81,6 @@ jobs:
         with:
           workspaces: 'opentrader/src-tauri -> target'
 
-      # 22: the lightweight-charts fork declares engines.node >=22.3. npm builds
-      # the fork from source during npm ci (its "prepare" script).
       - name: Install Node
         uses: actions/setup-node@v4
         with:

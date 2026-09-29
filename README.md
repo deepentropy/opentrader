@@ -33,7 +33,7 @@ Windows is the main development platform. The macOS and Linux builds are produce
 - **Frontend:** SolidJS + TypeScript + Vite + Tailwind CSS v4
 - **Backend:** in-process Rust in `src-tauri/`
 - **Typed IPC:** `tauri-specta` generates `src/bindings.ts` from the Rust commands
-- **Charts:** [`deepentropy/lightweight-charts`](https://github.com/deepentropy/lightweight-charts) (a fork of [Lightweight Charts](https://github.com/tradingview/lightweight-charts), Apache-2.0)
+- **Charts:** [Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0)
 - **Drawing tools:** [`deepentropy/lightweight-charts-drawing`](https://github.com/deepentropy/lightweight-charts-drawing), imported from source
 - **Indicators and scripts:** [`lightweight-charts-indicators`](https://www.npmjs.com/package/lightweight-charts-indicators), [`oakscriptjs`](https://www.npmjs.com/package/oakscriptjs), Monaco editor
 - **Market data:** Massive (formerly Polygon.io), through the OpenTrader gateway (`src-tauri/src/data/gateway.rs`)
@@ -43,7 +43,7 @@ Windows is the main development platform. The macOS and Linux builds are produce
 ### Prerequisites
 
 - Rust stable: https://rustup.rs/
-- Node.js 22.3 or newer (npm)
+- Node.js 22 or newer (npm)
 - Tauri system dependencies for your OS: https://v2.tauri.app/start/prerequisites/
   (Windows: MSVC Build Tools and WebView2; Linux: `libwebkit2gtk-4.1-dev` and friends; macOS: Xcode Command Line Tools)
 
@@ -91,6 +91,13 @@ docs/assets/          README images
 3. The [Release workflow](.github/workflows/release.yml) builds Windows, macOS and Linux installers and attaches them to a draft release. Review the draft and publish it.
 
 The workflow needs the repository secret `OPENTRADER_GATEWAY_TOKEN`.
+
+## Third-party notices
+
+OpenTrader uses [TradingView Lightweight Charts™](https://github.com/tradingview/lightweight-charts), licensed under the Apache License 2.0:
+
+> TradingView Lightweight Charts™  
+> Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
 
 ## License
 
