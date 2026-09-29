@@ -131,9 +131,13 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      # Manual runs only: on a tag push the installers are already in the draft
+      # release, and a second copy would count against the artifact storage quota.
       - name: Upload installers
+        if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
+          retention-days: 7
           name: opentrader-${{ matrix.platform }}
           if-no-files-found: warn
           path: |
