@@ -14,13 +14,15 @@ It is an early work in progress: some features are stubbed or partially wired. C
 
 ## Download
 
-Download the installer for your system from the [latest GitHub Release](https://github.com/deepentropy/opentrader/releases/latest) and run it. Nothing else to set up: no account, no API key, no token. Market data works out of the box.
+Download the installer for your system and run it. Nothing else to set up: no account, no API key, no token. Market data works out of the box.
 
-| OS | File |
+| OS | Download |
 |---|---|
-| Windows | `OpenTrader_<version>_x64-setup.exe` (or the `.msi`) |
-| macOS (Intel and Apple Silicon) | `OpenTrader_<version>_universal.dmg` |
-| Linux | `.AppImage`, `.deb` or `.rpm` |
+| Windows | [Installer (.exe)](https://github.com/deepentropy/opentrader/releases/latest/download/OpenTrader_windows_x64-setup.exe) or [.msi](https://github.com/deepentropy/opentrader/releases/latest/download/OpenTrader_windows_x64.msi) |
+| macOS (Intel and Apple Silicon) | [Disk image (.dmg)](https://github.com/deepentropy/opentrader/releases/latest/download/OpenTrader_darwin_universal.dmg) |
+| Linux | [.AppImage](https://github.com/deepentropy/opentrader/releases/latest/download/OpenTrader_linux_amd64.AppImage), [.deb](https://github.com/deepentropy/opentrader/releases/latest/download/OpenTrader_linux_amd64.deb) or [.rpm](https://github.com/deepentropy/opentrader/releases/latest/download/OpenTrader_linux_x86_64.rpm) |
+
+All versions and release notes: [GitHub Releases](https://github.com/deepentropy/opentrader/releases).
 
 The installers are not signed with a paid certificate:
 

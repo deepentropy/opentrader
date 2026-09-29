@@ -56,8 +56,8 @@ export const COLUMN_HEADERS: { key: 'symbol' | 'last' | 'changePercent' | 'prePo
 export const HEADER_ITEMS: HeaderItem[] = [
   {
     "dataName": "watchlists-button",
-    "label": "Strong",
-    "currentValue": "Strong",
+    "label": "Watchlist",
+    "currentValue": "Watchlist",
     "iconName": "wl-watchlists"
   },
   {
@@ -74,92 +74,30 @@ export const HEADER_ITEMS: HeaderItem[] = [
   }
 ];
 
-// Sectioned watchlist — default seed (active list "Strong"). Sections in
-// display order; every symbol is flagged blue in this snapshot.
-// `change`/`volume` aren't included here (hidden columns) → those cells show
-// "—" until a live snapshot lands. The flat ROWS export
-// below drives the Massive subscription and any section-agnostic consumer.
+// Default watchlist for a new profile (the "Watchlist" list): broad index
+// ETFs and large caps. Quote fields are placeholders; the live feed fills
+// them in. The flat ROWS export below drives the quote subscription and any
+// section-agnostic consumer.
 export const GROUPS: Group[] = [
   {
     name: "INDEX",
     rows: [
-      { ticker: "AMEX:SPY", short: "SPY", last: "754.60", changePercent: "0.55%", prePostChange: "0.11%", flag: "blue" },
-      { ticker: "NASDAQ:QQQ", short: "QQQ", last: "735.60", changePercent: "0.84%", prePostChange: "0.07%", flag: "blue" },
-      { ticker: "AMEX:IWM", short: "IWM", last: "292.03", changePercent: "0.57%", prePostChange: "−0.15%", flag: "blue" },
+      { ticker: "AMEX:SPY", short: "SPY", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:QQQ", short: "QQQ", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "AMEX:DIA", short: "DIA", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "AMEX:IWM", short: "IWM", last: "—", changePercent: "", prePostChange: "" },
     ],
   },
   {
-    name: "LONGS",
+    name: "LARGE CAPS",
     rows: [
-      { ticker: "AMEX:UMAC", short: "UMAC", last: "29.60", changePercent: "57.20%", prePostChange: "−1.42%", flag: "blue" },
-    ],
-  },
-  {
-    name: "1ST WL",
-    rows: [
-      { ticker: "NASDAQ:AXTI", short: "AXTI", last: "115.70", changePercent: "−5.76%", prePostChange: "1.12%", flag: "blue" },
-      { ticker: "NASDAQ:INTC", short: "INTC", last: "120.89", changePercent: "−0.72%", prePostChange: "0.66%", flag: "blue" },
-      { ticker: "NASDAQ:QUBT", short: "QUBT", last: "12.24", changePercent: "7.18%", prePostChange: "−0.33%", flag: "blue" },
-      { ticker: "NASDAQ:INOD", short: "INOD", last: "99.35", changePercent: "11.63%", prePostChange: "1.60%", flag: "blue" },
-      { ticker: "NASDAQ:FLNC", short: "FLNC", last: "21.36", changePercent: "0.66%", prePostChange: "−0.14%", flag: "blue" },
-      { ticker: "NASDAQ:FCEL", short: "FCEL", last: "24.39", changePercent: "2.95%", prePostChange: "1.97%", flag: "blue" },
-    ],
-  },
-  {
-    name: "2ND WL",
-    rows: [
-      { ticker: "NASDAQ:AMD", short: "AMD", last: "518.09", changePercent: "4.55%", prePostChange: "0.91%", flag: "blue" },
-      { ticker: "NASDAQ:AAOI", short: "AAOI", last: "169.02", changePercent: "−6.01%", prePostChange: "1.06%", flag: "blue" },
-      { ticker: "NYSE:BW", short: "BW", last: "19.18", changePercent: "−1.13%", prePostChange: "0.26%", flag: "blue" },
-      { ticker: "NASDAQ:ARM", short: "ARM", last: "335.27", changePercent: "10.76%", prePostChange: "3.33%", flag: "blue" },
-    ],
-  },
-  {
-    name: "SEMICONDUCTORS",
-    rows: [
-      { ticker: "NASDAQ:TSEM", short: "TSEM", last: "275.50", changePercent: "−0.82%", prePostChange: "1.56%", flag: "blue" },
-      { ticker: "NASDAQ:NVTS", short: "NVTS", last: "28.51", changePercent: "−1.28%", prePostChange: "0.82%", flag: "blue" },
-    ],
-  },
-  {
-    name: "QUANTUM",
-    rows: [
-      { ticker: "NYSE:INFQ", short: "INFQ", last: "17.77", changePercent: "14.94%", prePostChange: "3.21%", flag: "blue" },
-      { ticker: "NASDAQ:GFS", short: "GFS", last: "80.63", changePercent: "−0.59%", prePostChange: "0.73%", flag: "blue" },
-      { ticker: "NASDAQ:RGTI", short: "RGTI", last: "27.03", changePercent: "9.79%", prePostChange: "0.30%", flag: "blue" },
-      { ticker: "NYSE:QBTS", short: "QBTS", last: "29.49", changePercent: "7.31%", prePostChange: "−0.24%", flag: "blue" },
-      { ticker: "NASDAQ:QS", short: "QS", last: "9.13", changePercent: "0.22%", prePostChange: "0.00%", flag: "blue" },
-      { ticker: "NYSE:IONQ", short: "IONQ", last: "70.14", changePercent: "7.25%", prePostChange: "−0.29%", flag: "blue" },
-    ],
-  },
-  {
-    name: "QUANTUM SUPPLY CHAIN",
-    rows: [
-      { ticker: "NASDAQ:IPGP", short: "IPGP", last: "117.35", changePercent: "0.31%", prePostChange: "0.56%", flag: "blue" },
-      { ticker: "NYSE:COHR", short: "COHR", last: "376.95", changePercent: "−0.85%", prePostChange: "0.49%", flag: "blue" },
-      { ticker: "NASDAQ:LITE", short: "LITE", last: "860.62", changePercent: "−4.62%", prePostChange: "1.81%", flag: "blue" },
-    ],
-  },
-  {
-    name: "MEMORY CHIP",
-    rows: [
-      { ticker: "NASDAQ:MRAM", short: "MRAM", last: "31.26", changePercent: "4.30%", prePostChange: "0.77%", flag: "blue" },
-      { ticker: "NASDAQ:SNDK", short: "SNDK", last: "1,641.64", changePercent: "3.25%", prePostChange: "2.10%", flag: "blue" },
-    ],
-  },
-  {
-    name: "DATA CENTER INFRASTRUCTURE",
-    rows: [
-      { ticker: "NASDAQ:CRDO", short: "CRDO", last: "222.35", changePercent: "0.51%", prePostChange: "2.75%", flag: "blue" },
-      { ticker: "NYSE:VRT", short: "VRT", last: "314.18", changePercent: "−1.75%", prePostChange: "1.97%", flag: "blue" },
-      { ticker: "NASDAQ:STX", short: "STX", last: "880.72", changePercent: "1.16%", prePostChange: "1.17%", flag: "blue" },
-    ],
-  },
-  {
-    name: "PHOTONICS/OPTICAL NETWORKING",
-    rows: [
-      { ticker: "NASDAQ:POET", short: "POET", last: "13.26", changePercent: "−0.15%", prePostChange: "0.53%", flag: "blue" },
-      { ticker: "NYSE:CIEN", short: "CIEN", last: "570.18", changePercent: "−2.04%", prePostChange: "0.57%", flag: "blue" },
+      { ticker: "NASDAQ:AAPL", short: "AAPL", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:MSFT", short: "MSFT", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:NVDA", short: "NVDA", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:AMZN", short: "AMZN", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:GOOGL", short: "GOOGL", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:META", short: "META", last: "—", changePercent: "", prePostChange: "" },
+      { ticker: "NASDAQ:TSLA", short: "TSLA", last: "—", changePercent: "", prePostChange: "" },
     ],
   },
 ];
@@ -317,7 +255,5 @@ export const FLAG_HEX: Record<FlagColor, string> = {
 export type WatchlistTab = { name: string; emoji: string | null; flag: FlagColor | null; active: boolean };
 
 export const WATCHLIST_TABS: WatchlistTab[] = [
-  { name: 'Main', emoji: '🎡', flag: null, active: false },
-  { name: 'Strong', emoji: null, flag: 'blue', active: true },
-  { name: '9EMA', emoji: '⚡', flag: null, active: false },
+  { name: 'Watchlist', emoji: null, flag: null, active: true },
 ];

@@ -8,7 +8,7 @@ name: Release
 #     the installers as workflow artifacts only. No release is created.
 #
 # Outputs: Windows .exe (NSIS) + .msi, macOS universal .dmg + .app,
-# Linux .AppImage + .deb + .rpm.
+# Linux .AppImage + .deb + .rpm, named OpenTrader_<platform>_<arch>.<ext>.
 on:
   push:
     tags: ['v*']
@@ -130,6 +130,9 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+          # Version-free names, so the README can link to
+          # releases/latest/download/<name> (e.g. OpenTrader_windows_x64-setup.exe).
+          assetNamePattern: '[name]_[platform]_[arch][setup][ext]'
 
       # Manual runs only: on a tag push the installers are already in the draft
       # release, and a second copy would count against the artifact storage quota.

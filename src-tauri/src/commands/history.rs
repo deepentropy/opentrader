@@ -313,7 +313,7 @@ mod tests {
         let to = Utc::now().date_naive();
         let from = *trading_calendar::last_trading_days(252).first().unwrap_or(&to);
 
-        for sym in ["AMD", "AXTI", "TSLA"] {
+        for sym in ["AMD", "NVDA", "TSLA"] {
             let t0 = std::time::Instant::now();
             let bars = provider
                 .daily_aggs(sym, from, to, true)
