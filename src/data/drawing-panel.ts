@@ -7,7 +7,7 @@
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
 
-const STORAGE_KEY = "tv:drawing-panel-visible";
+const STORAGE_KEY = "ot:drawing-panel-visible";
 
 function load(): boolean {
   try {

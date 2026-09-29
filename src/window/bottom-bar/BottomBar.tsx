@@ -119,7 +119,7 @@ export function BottomBar(props: Props) {
   const toggleAdjusted = () => {
     const next = !adjusted();
     setAdjusted(next);
-    setItem("tv:adjusted", String(next));
+    setItem("ot:adjusted", String(next));
     window.dispatchEvent(new CustomEvent("chart-reload-data"));
   };
   // The Settings dialog's "Adjust data for dividends" writes the same flag —

@@ -49,12 +49,12 @@ import { getTickerInfo, resolveSymbol } from "../../data/datafeed";
 import * as kv from "../../data/kv";
 import { usMarketSession } from "../../data/market-session";
 
-const SETTINGS_KEY = "tv:watchlist:settings";
+const SETTINGS_KEY = "ot:watchlist:settings";
 
 // Resizable column widths (px), persisted. The Symbol column flexes to fill the
 // slack but has a resizable minimum (keyed SYMBOL_COL_KEY); data columns are
 // fixed px. All draggable from the column dividers.
-const COL_WIDTHS_KEY = "tv:watchlist:col-widths";
+const COL_WIDTHS_KEY = "ot:watchlist:col-widths";
 const SYMBOL_COL_KEY = "__symbol";
 const DEFAULT_COL_W = 64;
 const DEFAULT_SYMBOL_W = 110;

@@ -51,8 +51,8 @@ export type SavedLayout = {
   favorite?: boolean;
 };
 
-const LAYOUTS_KEY = "tv:layouts";
-const AUTOSAVE_KEY = "tv:layout-autosave";
+const LAYOUTS_KEY = "ot:layouts";
+const AUTOSAVE_KEY = "ot:layout-autosave";
 
 // ── Persistence ─────────────────────────────────────────────────────────────
 

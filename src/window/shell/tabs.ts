@@ -282,8 +282,8 @@ export function layoutNameFromInterval(interval: string): string {
 
 // Per-window storage (Tauri WebView2 windows share one localStorage origin, so
 // each window scopes its tab state by its window label — see window-bridge.ts).
-const tabsKey = (label: string) => `tv:tabs:${label}`;
-const activeKey = (label: string) => `tv:active-tab:${label}`;
+const tabsKey = (label: string) => `ot:tabs:${label}`;
+const activeKey = (label: string) => `ot:active-tab:${label}`;
 
 type Persisted = { tabs: TabChart[]; activeId: string };
 
@@ -362,7 +362,7 @@ export function linkedTabCountInOtherWindows(color: LinkColor, exceptLabel: stri
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (!key?.startsWith("tv:tabs:") || key === tabsKey(exceptLabel)) continue;
+      if (!key?.startsWith("ot:tabs:") || key === tabsKey(exceptLabel)) continue;
       const parsed = JSON.parse(localStorage.getItem(key) ?? "[]");
       if (!Array.isArray(parsed)) continue;
       for (const t of parsed) if (t?.link?.color === color) n++;

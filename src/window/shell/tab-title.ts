@@ -37,7 +37,7 @@ export const DEFAULT_TAB_TITLE_PARTS: TabTitlePartState[] = TAB_TITLE_PARTS.map(
   visible: true,
 }));
 
-const STORAGE_KEY = "tv:tab-title-parts";
+const STORAGE_KEY = "ot:tab-title-parts";
 
 export function loadTabTitleParts(): TabTitlePartState[] {
   try {

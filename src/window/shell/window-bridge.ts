@@ -11,7 +11,7 @@
  *
  * State handoff: Tauri's WebView2 windows share the same localStorage origin,
  * so per-window tab state must be label-scoped (see tabs.ts). A detach writes
- * the torn-off tab under `tv:detach:<newLabel>`; the new window reads + clears
+ * the torn-off tab under `ot:detach:<newLabel>`; the new window reads + clears
  * it on mount (takeDetachPayload) and seeds its single tab from it.
  */
 import { getAllWebviewWindows, getCurrentWebviewWindow, WebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -19,7 +19,7 @@ import type { TabChart } from "./tabs";
 import { clearTabs, tabTitle } from "./tabs";
 import { pushClosed, type ClosedWindow } from "./closed-stack";
 
-const DETACH_PREFIX = "tv:detach:";
+const DETACH_PREFIX = "ot:detach:";
 
 /** True inside the Tauri shell (where the window APIs are wired up). */
 export function isTauri(): boolean {
@@ -172,7 +172,7 @@ export async function initWindowStorageCleanup(label: string): Promise<() => voi
     const open = new Set((await getAllWebviewWindows()).map((w) => w.label));
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      const m = key?.match(/^tv:(?:tabs|active-tab|detach):(chart-.+)$/);
+      const m = key?.match(/^ot:(?:tabs|active-tab|detach):(chart-.+)$/);
       if (m && !open.has(m[1])) localStorage.removeItem(key!);
     }
   } catch {
@@ -190,9 +190,9 @@ export function markClosingAfterMove(): void {
 /** Push this closing window (tabs + normal bounds) on the closed stack. */
 async function recordClosedWindow(label: string): Promise<void> {
   try {
-    const tabs = JSON.parse(localStorage.getItem(`tv:tabs:${label}`) ?? "[]") as TabChart[];
+    const tabs = JSON.parse(localStorage.getItem(`ot:tabs:${label}`) ?? "[]") as TabChart[];
     if (!Array.isArray(tabs) || tabs.length === 0) return;
-    const activeId = localStorage.getItem(`tv:active-tab:${label}`) ?? tabs[0].id;
+    const activeId = localStorage.getItem(`ot:active-tab:${label}`) ?? tabs[0].id;
     const { commands } = await import("../../bindings");
     const bounds = (await commands.takeClosedWindowBounds(label)) ?? undefined;
     pushClosed({ kind: "window", win: label, tabs, activeId, bounds });
@@ -210,8 +210,8 @@ export async function reopenClosedWindow(entry: ClosedWindow): Promise<void> {
   if (!isTauri()) return;
   const open = new Set((await getAllWebviewWindows()).map((w) => w.label));
   const label = open.has(entry.win) ? `chart-${Date.now().toString(36)}-${detachSeq++}` : entry.win;
-  localStorage.setItem(`tv:tabs:${label}`, JSON.stringify(entry.tabs));
-  localStorage.setItem(`tv:active-tab:${label}`, entry.activeId);
+  localStorage.setItem(`ot:tabs:${label}`, JSON.stringify(entry.tabs));
+  localStorage.setItem(`ot:active-tab:${label}`, entry.activeId);
   if (entry.bounds) {
     const { commands } = await import("../../bindings");
     const res = await commands.openWindow({ ...entry.bounds, label });
@@ -242,7 +242,7 @@ export async function adoptSavedWindowTabs(): Promise<void> {
     const { commands } = await import("../../bindings");
     const from = await commands.takeAdoptedWindow();
     if (!from) return;
-    for (const key of ["tv:tabs:", "tv:active-tab:"]) {
+    for (const key of ["ot:tabs:", "ot:active-tab:"]) {
       const v = localStorage.getItem(key + from);
       if (v !== null) localStorage.setItem(key + "main", v);
       localStorage.removeItem(key + from);

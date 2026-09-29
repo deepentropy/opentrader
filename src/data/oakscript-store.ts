@@ -2,7 +2,7 @@
  * oakscript-store — kv-backed persistence for user OakScript indicators.
  *
  * Layout mirrors the other kv stores: an index of {id, name} under one key,
- * each script body under its own `tv:oakscript:script:<id>` key so saving one
+ * each script body under its own `ot:oakscript:script:<id>` key so saving one
  * script never rewrites the others. Scripts follow the
  * lightweight-charts-indicators file convention (metadata / inputConfig /
  * plotConfig / defaultInputs / calculate) so a saved script can be fed to the
@@ -24,9 +24,9 @@ export type OakScript = {
 
 export type OakScriptMeta = { id: string; name: string };
 
-const INDEX_KEY = "tv:oakscript:scripts";
-const CURRENT_KEY = "tv:oakscript:currentScript";
-const SCRIPT_PREFIX = "tv:oakscript:script:";
+const INDEX_KEY = "ot:oakscript:scripts";
+const CURRENT_KEY = "ot:oakscript:currentScript";
+const SCRIPT_PREFIX = "ot:oakscript:script:";
 
 /** New-script template — the PineScript-style script API, used as implicit
  *  globals (no import; the worker injects them). An explicit

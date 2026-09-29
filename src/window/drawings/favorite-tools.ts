@@ -14,9 +14,9 @@ import type { IconName } from "../../components/Icon";
 import { GROUPS, groupTools, type Group, type Tool } from "../../data/drawing-toolbar";
 import * as kv from "../../data/kv";
 
-const FAV_KEY = "tv:favorite-tools";
-const VISIBLE_KEY = "tv:favorite-tools-visible";
-const POS_KEY = "tv:favorite-tools-pos";
+const FAV_KEY = "ot:favorite-tools";
+const VISIBLE_KEY = "ot:favorite-tools-visible";
+const POS_KEY = "ot:favorite-tools-pos";
 
 /** Free offset of the favorites toolbar from its default dock, in
  *  offsetParent-relative coords. null = still at the CSS dock (never dragged). */

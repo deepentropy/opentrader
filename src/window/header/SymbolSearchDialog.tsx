@@ -25,7 +25,7 @@ import { Tooltip } from "../../components/Tooltip";
 /** Durable key for the Type filter chip, so the chosen filter survives both a
  *  query change (already independent state) and closing/reopening the modal or
  *  an app reload. Stores the Massive `type` code; absent = "All types" (null). */
-const TYPE_FILTER_KEY = "tv:symbol-search:type-filter";
+const TYPE_FILTER_KEY = "ot:symbol-search:type-filter";
 
 /** Read the persisted Type filter, ignoring anything not in the current catalog. */
 function loadTypeCode(): string | null {

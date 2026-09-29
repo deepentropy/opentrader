@@ -11,7 +11,7 @@
 import * as kv from "./kv";
 import type { PaneIndicatorSettings } from "../window/shell/tabs";
 
-const KEY = "tv:indicator-defaults";
+const KEY = "ot:indicator-defaults";
 
 function loadAll(): Record<string, PaneIndicatorSettings> {
   try {

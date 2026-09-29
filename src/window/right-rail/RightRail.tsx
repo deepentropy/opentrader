@@ -35,8 +35,8 @@ type Props = {
   cloneDrawing: (id: string) => void;
 };
 
-const DETAIL_HEIGHT_KEY = "tv:rail:detailHeight";
-const DETAIL_COLLAPSED_KEY = "tv:rail:detailCollapsed";
+const DETAIL_HEIGHT_KEY = "ot:rail:detailHeight";
+const DETAIL_COLLAPSED_KEY = "ot:rail:detailCollapsed";
 const DETAIL_MIN = 140;
 /** Keep the watchlist at least this tall when the detail panel grows. */
 const WATCHLIST_MIN = 160;

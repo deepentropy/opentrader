@@ -11,7 +11,7 @@
 import { createSignal } from "solid-js";
 import * as kv from "../../data/kv";
 
-const STORAGE_KEY = "tv:favorite-intervals";
+const STORAGE_KEY = "ot:favorite-intervals";
 
 /** Live default-favourite ids — match the original static header strip. */
 export const DEFAULT_FAVORITE_INTERVALS = ["10S", "1", "5", "15", "60", "240", "1D", "1W"];

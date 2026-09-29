@@ -89,7 +89,7 @@ const HelpIcon = (p: { tip?: string }) => (
 // ── Settings templates (footer "Template" menu) ──
 // One kv blob: [{ name, fingerprint, draft }]. `fingerprint` is the draft
 // format stamp; reviveDraft converts older formats and refuses unknown ones.
-const TEMPLATES_KEY = "tv:chart-settings-templates";
+const TEMPLATES_KEY = "ot:chart-settings-templates";
 type SettingsTemplate = { name: string; fingerprint: string; rev?: number; draft: unknown };
 
 function loadTemplates(): SettingsTemplate[] {

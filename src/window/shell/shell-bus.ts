@@ -22,7 +22,7 @@ type Msg =
   | { kind: "reopen-tab"; to: string; tab: TabChart; position: number; active: boolean };
 
 const bus: BroadcastChannel | null =
-  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tv:shell") : null;
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("ot:shell") : null;
 
 let seq = 0;
 const newId = () => `${currentWindowLabel()}:${Date.now().toString(36)}:${seq++}`;

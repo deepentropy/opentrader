@@ -19,7 +19,7 @@ import * as kv from "../../data/kv";
 /** A saved drawing template: the style (+ the text of text tools). */
 export type DrawingTemplate = { name: string; style: DrawingStyle; text?: string };
 
-const KEY = "tv:drawing-templates-by-tool";
+const KEY = "ot:drawing-templates-by-tool";
 
 function loadAll(): Record<string, DrawingTemplate[]> {
   try {
@@ -62,7 +62,7 @@ export function deleteTemplate(kind: string, name: string): DrawingTemplate[] {
  * defaults; every new drawing of that kind starts with it (`defaultStyleFor`).
  * Cached in-memory so the per-render preview reads don't hit the store each
  * frame. */
-const KIND_DEFAULTS_KEY = "tv:drawing-kind-defaults";
+const KIND_DEFAULTS_KEY = "ot:drawing-kind-defaults";
 let kindDefaultsCache: Record<string, DrawingStyle> | null = null;
 
 // Live cross-window sync: drop the in-memory cache when another window saves a

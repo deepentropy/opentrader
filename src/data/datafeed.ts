@@ -368,7 +368,7 @@ function needsSessionReaggregation(mins: number): boolean {
 // bar to each chart is needed — BottomBar flips the flag and dispatches
 // "chart-reload-data", and every subsequent fetch uses the new basis.
 
-const ADJUSTED_KEY = "tv:adjusted";
+const ADJUSTED_KEY = "ot:adjusted";
 
 /** Current split-adjustment preference (default ON). */
 export function isAdjusted(): boolean {

@@ -11,7 +11,7 @@
  *    The last window (closing it quits the app) is kept.
  *  - At start the main window takes its saved bounds before it is shown, and
  *    every other saved window is created again with its label, so its
- *    label-scoped tabs (localStorage `tv:tabs:<label>`) load with it.
+ *    label-scoped tabs (localStorage `ot:tabs:<label>`) load with it.
  *  - A window whose saved position is on no monitor opens at the default
  *    position (x/y are dropped in that case).
  *  - "main" always exists (it runs the alert engine). When the user had closed

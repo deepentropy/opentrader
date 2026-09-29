@@ -90,8 +90,8 @@ export type AlertFire = {
 
 type StoreShape = { rules: AlertRule[]; fires: AlertFire[] };
 
-const RULES_KEY = "tv:alerts:v1";
-const FIRES_KEY = "tv:alert-fires:v1";
+const RULES_KEY = "ot:alerts:v1";
+const FIRES_KEY = "ot:alert-fires:v1";
 /** Cap the persisted log so it can't grow without bound. */
 const MAX_FIRES = 200;
 

@@ -39,7 +39,7 @@ export type ClosedWindow = {
 
 export type ClosedEntry = ClosedTab | ClosedWindow;
 
-const KEY = "tv:closed-stack";
+const KEY = "ot:closed-stack";
 const MAX = 30;
 
 function load(): ClosedEntry[] {

@@ -11,7 +11,7 @@ import { createSignal } from "solid-js";
 import * as kv from "./kv";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 
-const STORAGE_KEY = "tv:indicator-templates";
+const STORAGE_KEY = "ot:indicator-templates";
 
 export type IndicatorTemplate = {
   id: string;

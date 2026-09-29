@@ -18,7 +18,7 @@ export type AlertSettings = {
   systemNotifications: boolean;
 };
 
-const KEY = "tv:alert-settings:v1";
+const KEY = "ot:alert-settings:v1";
 
 const DEFAULTS: AlertSettings = {
   soundEnabled: true,

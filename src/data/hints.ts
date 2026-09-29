@@ -12,7 +12,7 @@ const cache = new Map<string, { dismissed: Accessor<boolean>; dismiss: () => voi
 export function hintState(key: string): { dismissed: Accessor<boolean>; dismiss: () => void } {
   const hit = cache.get(key);
   if (hit) return hit;
-  const storageKey = `tv:${key}`;
+  const storageKey = `ot:${key}`;
   const [dismissed, setDismissed] = createSignal(kv.getItem(storageKey) === "1");
   kv.onExternalChange(storageKey, () => setDismissed(kv.getItem(storageKey) === "1"));
   const state = {

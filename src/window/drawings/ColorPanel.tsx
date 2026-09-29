@@ -46,7 +46,7 @@ function hsvToHex(h: number, s: number, v: number): string {
 }
 
 // ── Persisted custom colors (kept as an extra swatch row). ──────────────────
-const CUSTOM_KEY = "tv:custom-colors";
+const CUSTOM_KEY = "ot:custom-colors";
 const MAX_CUSTOM = 20;
 function loadCustom(): string[] {
   try {

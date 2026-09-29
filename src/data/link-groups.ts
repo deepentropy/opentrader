@@ -33,7 +33,7 @@ export const LINK_CHANNELS_DEFAULT: LinkChannels = {
   dateRange: false,
 };
 
-const KEY = "tv:link-groups";
+const KEY = "ot:link-groups";
 
 function load(): Groups {
   try {

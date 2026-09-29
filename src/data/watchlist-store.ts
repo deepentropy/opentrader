@@ -46,7 +46,7 @@ type AlertMap = Record<string, number>;
 
 type StoreShape = { lists: WatchList[]; activeId: string; alerts: AlertMap };
 
-const STORAGE_KEY = "tv:watchlist:lists:v1";
+const STORAGE_KEY = "ot:watchlist:lists:v1";
 
 function slug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "list";
@@ -158,7 +158,7 @@ export const consumeOpenListRequest = (): boolean => {
 // deleteList can clear a removed list's entries without an import cycle.
 // Persists to kv so a reload doesn't re-fire; saving a new threshold re-arms
 // the list (clearFiredForList, from the watchlist's saveAlert).
-const FIRED_ALERTS_KEY = "tv:watchlist:list-alert-fired:v1";
+const FIRED_ALERTS_KEY = "ot:watchlist:list-alert-fired:v1";
 function loadFiredAlerts(): Set<string> {
   try {
     const raw = kv.getItem(FIRED_ALERTS_KEY);

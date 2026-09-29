@@ -53,7 +53,7 @@ const barCloseState = new Map<string, { bucket: number; ctx: EvalContext }>();
 // Kept out of alert-store (its AlertRule shape follows the Fire/Alert record
 // layout); keyed by rule id and persisted like the other kv maps. The dialog
 // writes it, fire() posts to it, the delete paths remove it.
-const WEBHOOKS_KEY = "tv:alert-webhooks:v1";
+const WEBHOOKS_KEY = "ot:alert-webhooks:v1";
 function loadWebhooks(): Record<string, string> {
   try {
     const raw = kv.getItem(WEBHOOKS_KEY);

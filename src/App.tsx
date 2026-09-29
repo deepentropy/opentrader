@@ -121,7 +121,7 @@ function App() {
   // swaps the <html> class live, so changes are observed off that class (see
   // the MutationObserver in onMount) rather than via a second channel.
   const loadTheme = (): "dark" | "light" => {
-    try { return kv.getItem("tv:theme") === "light" ? "light" : "dark"; } catch { return "dark"; }
+    try { return kv.getItem("ot:theme") === "light" ? "light" : "dark"; } catch { return "dark"; }
   };
   const [theme, setThemeSignal] = createSignal<"dark" | "light">(loadTheme());
 
@@ -543,7 +543,7 @@ function App() {
   const [alertToast, setAlertToast] = createSignal<{ title: string; message: string } | null>(null);
   // Chart display timezone (bottom-bar TimezoneMenu), persisted. Default to the
   // "Exchange" zone (US equities → New York).
-  const TZ_KEY = "tv:timezone";
+  const TZ_KEY = "ot:timezone";
   const loadTz = (): { label: string; iana: string } => {
     try {
       const raw = kv.getItem(TZ_KEY);
@@ -628,16 +628,16 @@ function App() {
   // out-of-box behaviour. Live cross-window sync of the choice itself.
   const [syncMode, setSyncModeRaw] = createSignal<SyncMode>(
     ((): SyncMode => {
-      const v = kv.getItem("tv:drawing-sync");
+      const v = kv.getItem("ot:drawing-sync");
       return v === "none" || v === "layout" || v === "global" ? v : "global";
     })(),
   );
   const setSyncMode = (m: SyncMode) => {
     setSyncModeRaw(m);
-    kv.setItem("tv:drawing-sync", m);
+    kv.setItem("ot:drawing-sync", m);
   };
-  onCleanup(kv.onExternalChange("tv:drawing-sync", () => {
-    const v = kv.getItem("tv:drawing-sync");
+  onCleanup(kv.onExternalChange("ot:drawing-sync", () => {
+    const v = kv.getItem("ot:drawing-sync");
     if (v === "none" || v === "layout" || v === "global") setSyncModeRaw(v);
   }));
 
@@ -767,8 +767,8 @@ function App() {
   // setSlice — no re-persist). Keys we haven't loaded are fetched lazily on
   // first access, so they need no handling here. (Only global/symbol keys are
   // shared across windows; none/layout keys are window-local by construction.)
-  onCleanup(kv.onExternalChangePrefix("tv:drawings:", (storeKey) => {
-    const key = storeKey.slice("tv:drawings:".length);
+  onCleanup(kv.onExternalChangePrefix("ot:drawings:", (storeKey) => {
+    const key = storeKey.slice("ot:drawings:".length);
     if (key in drawingStore) setDrawingStore(key, loadDrawings(key));
   }));
   const newDrawingId = () => `dw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -788,10 +788,10 @@ function App() {
   // OakScript editor drawer (bottom of the chart pane). The right-rail script
   // button toggles it — it never becomes the active rail tab (the button
   // opens the drawer rather than a rail panel).
-  const [oakPanelOpen, setOakPanelOpenRaw] = createSignal(kv.getItem("tv:oakscript:panelOpen") === "1");
+  const [oakPanelOpen, setOakPanelOpenRaw] = createSignal(kv.getItem("ot:oakscript:panelOpen") === "1");
   const setOakPanelOpen = (open: boolean) => {
     setOakPanelOpenRaw(open);
-    kv.setItem("tv:oakscript:panelOpen", open ? "1" : "0");
+    kv.setItem("ot:oakscript:panelOpen", open ? "1" : "0");
   };
   const onRailTabSelect = (id: string | null) => {
     if (id === "pine-dialog-button") {
@@ -805,24 +805,24 @@ function App() {
   // Magnet strength + "snap to indicator" — the split-control sub-options.
   // Persisted (desktop preference) unlike the session-only on/off toggle.
   const [magnetMode, setMagnetModeRaw] = createSignal<"weak" | "strong">(
-    kv.getItem("tv:magnet-mode") === "strong" ? "strong" : "weak",
+    kv.getItem("ot:magnet-mode") === "strong" ? "strong" : "weak",
   );
   const setMagnetMode = (m: "weak" | "strong") => {
     setMagnetModeRaw(m);
-    kv.setItem("tv:magnet-mode", m);
+    kv.setItem("ot:magnet-mode", m);
   };
   const [magnetSnapsToIndicators, setMagnetSnapsRaw] = createSignal(
-    kv.getItem("tv:magnet-snap-indicators") === "true",
+    kv.getItem("ot:magnet-snap-indicators") === "true",
   );
   const setMagnetSnapsToIndicators = (v: boolean) => {
     setMagnetSnapsRaw(v);
-    kv.setItem("tv:magnet-snap-indicators", String(v));
+    kv.setItem("ot:magnet-snap-indicators", String(v));
   };
   // Live cross-window sync for the two magnet sub-options (raw setters, no echo).
-  onCleanup(kv.onExternalChange("tv:magnet-mode", () =>
-    setMagnetModeRaw(kv.getItem("tv:magnet-mode") === "strong" ? "strong" : "weak")));
-  onCleanup(kv.onExternalChange("tv:magnet-snap-indicators", () =>
-    setMagnetSnapsRaw(kv.getItem("tv:magnet-snap-indicators") === "true")));
+  onCleanup(kv.onExternalChange("ot:magnet-mode", () =>
+    setMagnetModeRaw(kv.getItem("ot:magnet-mode") === "strong" ? "strong" : "weak")));
+  onCleanup(kv.onExternalChange("ot:magnet-snap-indicators", () =>
+    setMagnetSnapsRaw(kv.getItem("ot:magnet-snap-indicators") === "true")));
   const [stayMode, setStayMode] = createSignal(false);
 
   // Lazily load each scope key shown by the mounted tabs' panes into the store
@@ -1410,9 +1410,9 @@ function App() {
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     onCleanup(() => themeObserver.disconnect());
-    // Cross-window live theme sync: another window's picker writes tv:theme;
+    // Cross-window live theme sync: another window's picker writes ot:theme;
     // apply the class here (the observer above then updates the signal).
-    onCleanup(kv.onExternalChange("tv:theme", () => {
+    onCleanup(kv.onExternalChange("ot:theme", () => {
       const t = loadTheme();
       document.documentElement.classList.remove("theme-dark", "theme-light");
       document.documentElement.classList.add(`theme-${t}`);
@@ -2215,10 +2215,10 @@ function App() {
               if (tz) setTimezone({ label: tz.label, iana: tz.iana });
             }
             // Symbol → "Adjust data for dividends" is the SAME app-wide flag
-            // as the bottom-bar ADJ toggle (kv tv:adjusted) — one feature,
+            // as the bottom-bar ADJ toggle (kv ot:adjusted) — one feature,
             // two surfaces. Apply + refetch + let the button re-read.
             if (appearance.adjustDividends !== undefined && appearance.adjustDividends !== isAdjusted()) {
-              kv.setItem("tv:adjusted", String(appearance.adjustDividends));
+              kv.setItem("ot:adjusted", String(appearance.adjustDividends));
               window.dispatchEvent(new CustomEvent("chart-reload-data"));
               window.dispatchEvent(new CustomEvent("adjusted-changed"));
             }

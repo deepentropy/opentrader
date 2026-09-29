@@ -5,8 +5,8 @@
  * (no footer).
  *
  * Every control persists: alerts via alert-settings.ts, tab-title parts via
- * App (tv:tab-title-parts), the theme as an <html> class + tv:theme, and the
- * rest in one tv:app-settings blob (some of those have no consumer yet — each
+ * App (ot:tab-title-parts), the theme as an <html> class + ot:theme, and the
+ * rest in one ot:app-settings blob (some of those have no consumer yet — each
  * is marked inert below). The **Tabs** tab edits the tab-title parts (order +
  * visibility) that the tab strip actually renders, controlled by App.
  */
@@ -25,7 +25,7 @@ import * as kv from "../../data/kv";
 // ── Persisted dialog settings ────────────────────────────────────────────────
 // One kv blob for every control here that has no dedicated store. Process
 // singleton + createRoot autosave, the alert-settings.ts pattern.
-const SETTINGS_KEY = "tv:app-settings";
+const SETTINGS_KEY = "ot:app-settings";
 
 type AppSettings = {
   autofillCredentials: boolean; // inert: no broker plumbing
@@ -161,10 +161,10 @@ function Select(props: { value: string; options: string[]; onChange: (v: string)
 }
 
 /** Theme is applied as the <html> class the stylesheets key on (tokens.css:
- *  html.theme-dark / html.theme-light) and persisted under tv:theme. App's
+ *  html.theme-dark / html.theme-light) and persisted under ot:theme. App's
  *  chart-canvas `theme` signal (App.tsx) is still a fixed "dark" — it has to
  *  seed from this key for the lightweight-charts canvases to follow. */
-const THEME_KEY = "tv:theme";
+const THEME_KEY = "ot:theme";
 
 function ThemePicker() {
   const current = () => (document.documentElement.classList.contains("theme-light") ? "light" : "dark");
@@ -358,13 +358,13 @@ function AlertsTab() {
 }
 
 // kv keys that are transient / re-derivable — dropped by "Clear cache". Layout
-// (tv:layouts, tv:layout-autosave), drawings (tv:drawings:*, tv:drawing-templates,
-// tv:drawing-kind-defaults) and every settings blob are deliberately NOT listed.
-// NOT caches (audit 12/07): tv:drawing-sync is the drawing sync-scope
-// preference and tv:layout-sync the per-layout sync toggles; tv:tab-link is a
+// (ot:layouts, ot:layout-autosave), drawings (ot:drawings:*, ot:drawing-templates,
+// ot:drawing-kind-defaults) and every settings blob are deliberately NOT listed.
+// NOT caches (audit 12/07): ot:drawing-sync is the drawing sync-scope
+// preference and ot:layout-sync the per-layout sync toggles; ot:tab-link is a
 // BroadcastChannel name, never a kv key.
 const CACHE_KEYS = [
-  "tv:symbol-search:type-filter", // last symbol-search Type chip
+  "ot:symbol-search:type-filter", // last symbol-search Type chip
 ];
 
 /** Two-click confirm: the first click arms the button (label swaps to

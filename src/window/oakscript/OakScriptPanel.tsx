@@ -25,9 +25,9 @@ import {
 // editor-sized loads until the drawer first opens.
 const OakScriptEditor = lazy(() => import("./OakScriptEditor"));
 
-const HEIGHT_KEY = "tv:oakscript:panelHeight";
-const MINIMIZED_KEY = "tv:oakscript:panelMinimized";
-const CONSOLE_KEY = "tv:oakscript:consoleOpen";
+const HEIGHT_KEY = "ot:oakscript:panelHeight";
+const MINIMIZED_KEY = "ot:oakscript:panelMinimized";
+const CONSOLE_KEY = "ot:oakscript:consoleOpen";
 const MAX_LOG_ENTRIES = 200;
 /** Bottom-dock default (275px on a 994px window). */
 const DEFAULT_HEIGHT = 275;

@@ -8,7 +8,7 @@ import type { Drawing } from "lightweight-charts-drawing/tv/types";
 import { parseDrawings } from "lightweight-charts-drawing/tv/serialize";
 import * as kv from "../../data/kv";
 
-const PREFIX = "tv:drawings:";
+const PREFIX = "ot:drawings:";
 
 export function loadDrawings(symbol: string): Drawing[] {
   if (!symbol) return [];

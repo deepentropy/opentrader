@@ -10,7 +10,7 @@ import * as kv from "./kv";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 
-const STORAGE_KEY = "tv:favorite-indicators";
+const STORAGE_KEY = "ot:favorite-indicators";
 
 function load(): string[] {
   try {

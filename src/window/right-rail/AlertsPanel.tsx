@@ -24,7 +24,7 @@ import { describeCondition, ruleDrawingMissing } from "../../data/alert-conditio
 import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
 import * as kv from "../../data/kv";
 
-const LOG_READ_KEY = "tv:alerts:log-read:v1";
+const LOG_READ_KEY = "ot:alerts:log-read:v1";
 function loadLastRead(): number {
   const n = Number(kv.getItem(LOG_READ_KEY));
   return Number.isFinite(n) ? n : 0;
@@ -51,7 +51,7 @@ export function AlertsPanel() {
   // rules-list render — good enough, since a missing drawing only flags the
   // rule, never disables it.
   const [drawingsRev, setDrawingsRev] = createSignal(0);
-  onCleanup(kv.onExternalChangePrefix("tv:drawings:", () => setDrawingsRev((n) => n + 1)));
+  onCleanup(kv.onExternalChangePrefix("ot:drawings:", () => setDrawingsRev((n) => n + 1)));
   const drawingMissing = (rule: AlertRule): boolean => {
     drawingsRev();
     return ruleDrawingMissing(rule);

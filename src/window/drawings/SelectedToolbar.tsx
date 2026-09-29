@@ -58,7 +58,7 @@ const TOOLBAR_OFFSET_Y = 48;
  * px saved on every drag stop and restored for every future selection +
  * session, clamped back on-screen. Until the user's first drag we keep the
  * per-selection auto-anchor above the drawing. */
-const POS_KEY = "tv:drawing-toolbar-pos";
+const POS_KEY = "ot:drawing-toolbar-pos";
 type ToolbarPos = { left: number; top: number };
 
 function loadToolbarPos(): ToolbarPos | null {
@@ -147,7 +147,7 @@ export function SelectedToolbar(props: Props) {
 
   // Once the user drags the grip the toolbar is PINNED: one viewport-space
   // `{left, top}` shared by every selection and persisted across sessions
-  // (kv `tv:drawing-toolbar-pos`).
+  // (kv `ot:drawing-toolbar-pos`).
   // Null until the first-ever drag → the auto-anchor path above applies.
   const [pinned, setPinned] = createSignal<ToolbarPos | null>(loadToolbarPos());
   let rootEl: HTMLDivElement | undefined;

@@ -34,9 +34,9 @@ export const LAYOUT_SYNC_ITEMS: { key: LayoutSyncKey; label: string; tip: string
 ];
 
 /** Global crosshair default for new layouts (chart.syncCrosshair). */
-const CROSSHAIR_KEY = "tv:sync-crosshair";
+const CROSSHAIR_KEY = "ot:sync-crosshair";
 /** The one global state used before the toggles moved into the tabs. */
-const LEGACY_KEY = "tv:layout-sync";
+const LEGACY_KEY = "ot:layout-sync";
 
 function readLegacy(): Partial<LayoutSyncState> | null {
   try {

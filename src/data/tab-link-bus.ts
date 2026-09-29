@@ -31,7 +31,7 @@ type LinkMsg =
   | { kind: "time"; color: LinkColor; time: number; win: string };
 
 const bus: BroadcastChannel | null =
-  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("tv:tab-link") : null;
+  typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("ot:tab-link") : null;
 
 // The active (focused) tab's link state in THIS window: its colour plus the
 // group's channels. App keeps it current.
