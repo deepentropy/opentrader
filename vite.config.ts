@@ -3,6 +3,7 @@ import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { fileURLToPath } from "node:url";
 import solid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
+import tauriConf from "./src-tauri/tauri.conf.json";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -19,6 +20,9 @@ export default defineConfig(async () => ({
     tailwindcss(),
     // Vite watches only this project: also watch the drawing core so edits
     // there hot-reload here.
+    // The splash in index.html shows the app version (the installer's, from
+    // tauri.conf.json).
+    { name: "app-version", transformIndexHtml: (html: string) => html.replace("__APP_VERSION__", tauriConf.version) },
     { name: "watch-drawing-core", configureServer: (server: { watcher: { add: (p: string) => void } }) => { server.watcher.add(drawingCore); server.watcher.add(drawingRuntime); } },
   ],
   resolve: {

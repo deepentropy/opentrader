@@ -6,10 +6,69 @@
     <meta name="theme-color" content="#000000" />
     <link rel="icon" type="image/svg+xml" href="/src/assets/logo.svg" />
     <title>OpenTrader</title>
+    <!-- Splash: plain HTML + inline CSS so it paints before any script loads.
+         index.tsx fades it out once the App has rendered. -->
+    <style>
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0f0f0f;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        transition: opacity 200ms ease;
+      }
+      #splash.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .splash-card {
+        width: 440px;
+        padding: 24px 28px 20px;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        text-align: center;
+      }
+      .splash-card img {
+        display: block;
+        width: 100%;
+      }
+      .splash-version {
+        margin-top: 8px;
+        color: #6a6d78;
+        font-size: 13px;
+      }
+      .splash-warning {
+        margin-top: 16px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: #fff3e0;
+        color: #8a4b00;
+        font-size: 13px;
+        line-height: 18px;
+      }
+    </style>
   </head>
 
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="splash" role="status">
+      <div class="splash-card">
+        <img src="/docs/assets/banner.png" alt="OpenTrader" />
+        <div class="splash-version">Version __APP_VERSION__</div>
+        <div class="splash-warning">Market data is delayed by 15 minutes.</div>
+      </div>
+    </div>
+    <script>
+      // Only the main window shows the splash; detached chart windows load
+      // straight into their tabs.
+      if ((window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? "main") !== "main") {
+        document.getElementById("splash")?.remove();
+      }
+    </script>
     <div id="root"></div>
 
     <script src="/src/index.tsx" type="module"></script>

@@ -18,4 +18,13 @@ void hydrateKv().finally(async () => {
   const { render } = await import("solid-js/web");
   const { default: App } = await import("./App");
   render(() => <App />, document.getElementById("root") as HTMLElement);
+  hideSplash();
 });
+
+/** Fade out the startup splash (index.html) once the App has rendered. */
+function hideSplash(): void {
+  const splash = document.getElementById("splash");
+  if (!splash) return;
+  splash.classList.add("is-hidden");
+  splash.addEventListener("transitionend", () => splash.remove(), { once: true });
+}
