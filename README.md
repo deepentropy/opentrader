@@ -8,6 +8,8 @@
 
 It is an early work in progress: some features are stubbed or partially wired. Contributions, issues, and ideas are welcome.
 
+![OpenTrader](docs/assets/screenshot.png)
+
 > **Disclaimer:** OpenTrader is an independent project, not affiliated with any commercial trading platform or data provider. It is for charting and research only and is **not financial advice**. Provided "as is", without warranty. See [LICENSE](LICENSE).
 
 ## Download
@@ -26,17 +28,6 @@ The installers are not signed with a paid certificate:
 - **macOS:** the app is ad-hoc signed. On first launch macOS blocks it. Open *System Settings > Privacy & Security* and click *Open Anyway*.
 
 Windows is the main development platform. The macOS and Linux builds are produced by the same code but are less tested.
-
-## Stack
-
-- **Shell:** Tauri 2 (Rust + system WebView)
-- **Frontend:** SolidJS + TypeScript + Vite + Tailwind CSS v4
-- **Backend:** in-process Rust in `src-tauri/`
-- **Typed IPC:** `tauri-specta` generates `src/bindings.ts` from the Rust commands
-- **Charts:** [Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache-2.0)
-- **Drawing tools:** [`deepentropy/lightweight-charts-drawing`](https://github.com/deepentropy/lightweight-charts-drawing), imported from source
-- **Indicators and scripts:** [`lightweight-charts-indicators`](https://www.npmjs.com/package/lightweight-charts-indicators), [`oakscriptjs`](https://www.npmjs.com/package/oakscriptjs), Monaco editor
-- **Market data:** Massive (formerly Polygon.io), through the OpenTrader gateway (`src-tauri/src/data/gateway.rs`)
 
 ## Build from source
 
@@ -76,10 +67,8 @@ The first run is slow (cold Rust build, a few minutes). Later runs take seconds.
 ## Layout
 
 ```
-src/                  SolidJS frontend (window/, components/, data/, styles/, assets/)
-src-tauri/            Rust backend and Tauri config
-  src/commands/       IPC commands called by the frontend
-  src/data/           market data: gateway, REST, WebSocket, providers
+src/                  frontend (window/, components/, data/, styles/, assets/)
+src-tauri/            backend and app config
 docs/assets/          README images
 .github/workflows/    release build
 ```
