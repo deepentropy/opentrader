@@ -1,6 +1,6 @@
 /*
- * Screener field catalog. Field ids are TradingView scanner names so the
- * frontend can map TV columns and filters 1:1.
+ * Screener field catalog. Field ids are the reference app scanner names so the
+ * frontend can map the reference app columns and filters 1:1.
  *
  *   live       from the full-market snapshot (every 10 s)
  *   reference  from the reference ticker list (once a day)
@@ -46,8 +46,8 @@ pub enum Reference {
 }
 
 /// How a state field becomes a live value on the session after D (S).
-/// Formulas matched on TradingView values of 29/09/2026 (74 symbols,
-/// research/screener/doc/TV-SCREENER-FORMULAS-2026-09-29.md).
+/// Formulas matched on the reference app values of 29/09/2026 (74 symbols,
+/// research/screener/doc).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     /// Pine `ta.ema`: prev + 2/(n+1) * (price - prev).
@@ -115,7 +115,7 @@ const REFERENCE: &[(&str, Reference)] = &[
 ];
 
 /// State fields and how each steps to the next session. The definitions
-/// match TradingView's values (research/screener/doc, 29/09/2026).
+/// match the reference app's values (research/screener/doc, 29/09/2026).
 const STATE: &[(&str, Step)] = &[
     ("EMA5", Step::Ema(5)),
     ("EMA9", Step::Ema(9)),

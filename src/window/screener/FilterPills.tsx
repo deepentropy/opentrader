@@ -1,5 +1,5 @@
 /*
- * FilterPills: the pill rows under the screener topbar (TradingView Desktop
+ * FilterPills: the pill rows under the screener topbar (the reference desktop app
  * 3.4.1): US market pill, Watchlist pill + divider, one pill per filter, then
  * "Add new filter" (+) and "Reset options" (…).
  *

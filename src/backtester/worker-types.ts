@@ -12,7 +12,7 @@ export interface BacktestRequest {
 
 export interface BacktestError {
   message: string;
-  /** TradingView runtime error code (e.g. RE10141) and bar, when the strategy stopped. */
+  /** The reference app runtime error code (e.g. RE10141) and bar, when the strategy stopped. */
   code?: string;
   bar?: number;
 }

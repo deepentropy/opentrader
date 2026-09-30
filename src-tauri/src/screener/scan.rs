@@ -1,7 +1,7 @@
 /*
  * Scan: filter, sort and page the in-memory table. The request mirrors
- * TradingView's `/scan` grammar (columns, filter clauses, sort, range) so
- * the frontend maps TV filters 1:1. Runs synchronously on a snapshot of the
+ * the reference app's `/scan` grammar (columns, filter clauses, sort, range) so
+ * the frontend maps the reference app filters 1:1. Runs synchronously on a snapshot of the
  * table (13k rows: a few milliseconds).
  */
 use crate::screener::fields::{Field, Val};
@@ -454,7 +454,7 @@ mod tests {
         let sectors = Operand::List(vec![Operand::Text("Energy".into()), Operand::Text("Tech".into())]);
         let r = run(&t, &req(vec![clause("sector", Op::InRange, sectors)], None)).unwrap();
         assert_eq!(tickers(&r), vec!["BBB"]);
-        // close within 100%..103% of EMA50 (TV `in_range%`).
+        // close within 100%..103% of EMA50 (the reference app `in_range%`).
         let band = Operand::List(vec![Operand::Text("EMA50".into()), Operand::Num(1.0), Operand::Num(1.2)]);
         let r = run(&t, &req(vec![clause("close", Op::InRangePct, band)], None)).unwrap();
         assert_eq!(tickers(&r), vec!["AAA"]);
@@ -560,7 +560,7 @@ mod live_popular {
     use super::*;
     use std::sync::Arc;
 
-    /// TV popular screen "Most capitalized" (market cap >= 10 B, sorted by
+    /// The reference app popular screen "Most capitalized" (market cap >= 10 B, sorted by
     /// market cap) on the live table + a state file (env SCREENER_STATE);
     /// tickers to env SCREENER_OUT.
     #[tokio::test]

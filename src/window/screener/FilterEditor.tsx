@@ -1,5 +1,5 @@
 /*
- * FilterEditor: content of a filter pill popover (TradingView Desktop 3.4.1):
+ * FilterEditor: content of a filter pill popover (the reference desktop app 3.4.1):
  *   header: column long title, Reset (when active), divider, trash (remove);
  *           a second row with one text button per column param ("1 month ▾").
  *   Condition with presets: Search + preset list (value + description) +
@@ -126,14 +126,14 @@ function valueUnit(col: ColumnRef): string | null {
   return null;
 }
 
-/** Input text of a value: volumes and money in K / M / B ("500 K"), as TV. */
+/** Input text of a value: volumes and money in K / M / B ("500 K"), as the reference app. */
 function inputText(col: ColumnRef, v: number | null): string {
   if (v === null) return "";
   const fmt = COLUMN_BY_ID[col.id]?.fmt;
   return fmt === "volume" || fmt === "money" ? abbrev(v) : String(v);
 }
 
-/** Number input with the TV stepper (increase / decrease). */
+/** Number input with the reference app stepper (increase / decrease). */
 function ValueInput(props: { col: ColumnRef; value: number | null; placeholder: string; unit: string | null; onValue: (v: number | null) => void }) {
   const [text, setText] = createSignal(inputText(props.col, props.value));
   let input!: HTMLInputElement;
@@ -221,7 +221,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
     props.filter.operation === "abovePercent" ? "above" : props.filter.operation === "belowPercent" ? "below" : props.filter.operation;
   const range = () => op() === "between" || op() === "outside";
   const opOptions = () => (cfg()?.operations ?? []).map((o) => ({ value: o, label: OPERATION_LABEL[o], icon: `scr-op-lg-${OPERATION_ICON[o]}` }));
-  // Target groups: "Value" + offered columns, a divider between TV groups.
+  // Target groups: "Value" + offered columns, a divider between the reference app groups.
   const targetOptions = createMemo(() => {
     const out: { value: string; label: string; divider?: boolean }[] = [];
     (cfg()?.targets ?? []).forEach((group, gi) => {

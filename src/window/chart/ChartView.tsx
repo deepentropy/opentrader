@@ -2442,8 +2442,8 @@ export function ChartView(props: Props) {
     ts.setVisibleLogicalRange({ from: i - 0.5, to: l + 0.5 });
   }
 
-  /** Bar index for a "Go to" date (TV `_gotoTimeImpl`): intraday, the bar
-   *  holding the time (TV aligns the target to its bar start), else the first
+  /** Bar index for a "Go to" date (the reference app `_gotoTimeImpl`): intraday, the bar
+   *  holding the time (the reference app aligns the target to its bar start), else the first
    *  bar after it; the first bar at/after the date on DWM. */
   function gotoDateIndex(sec: number): number {
     const iv = props.interval ?? "1D";
@@ -2455,7 +2455,7 @@ export function ChartView(props: Props) {
   }
 
   type GotoOpts = {
-    /** Centre the target even when it is already in view (TV Go to). */
+    /** Centre the target even when it is already in view (the reference app Go to). */
     alignIfVisible?: boolean;
     /** The user's own move (Go to): the new view is persisted and sent to
      *  synced panes / linked tabs like a scroll. Sync followers leave it off. */
@@ -2473,7 +2473,7 @@ export function ChartView(props: Props) {
    *  history back to it if needed (one request, capped) and centres it at the
    *  current bar spacing. It only scrolls: the crosshair is the crosshair
    *  sync's business. The Go to dialog uses it with `alignIfVisible` and
-   *  `driver` (TV `gotoTime`). */
+   *  `driver` (the reference app `gotoTime`). */
   async function goToTime(targetSec: number, opts: GotoOpts = {}) {
     if (!chart || !series || raw.length === 0) return;
     const ts = chart.timeScale();
@@ -2508,7 +2508,7 @@ export function ChartView(props: Props) {
     }
   }
 
-  /** Go to "Custom range" (TV `setTimeFrame` with a time range): load history
+  /** Go to "Custom range" (the reference app `setTimeFrame` with a time range): load history
    *  back to `fromSec` if needed, then frame [fromSec, toSec] like a date-range
    *  sync target. The user's own move: persisted and sent to synced panes. */
   async function goToRange(fromSec: number, toSec: number) {
@@ -2522,7 +2522,7 @@ export function ChartView(props: Props) {
     try {
       if (!(await loadHistoryTo(() => fromSec, () => myGoto === gotoGen))) return;
       if (myGoto !== gotoGen || !chart) return;
-      // TV `gotoTimeRange`: both ends go to the first bar at/after their time.
+      // The reference app `gotoTimeRange`: both ends go to the first bar at/after their time.
       applySyncRange(fromSec, toSec, true, indexAtOrAfter);
     } finally {
       clearTimeout(dimTimer);
@@ -3120,14 +3120,14 @@ export function ChartView(props: Props) {
     });
 
     // "Go to" dialog (bottom-bar GoToDateDialog). The dialog sends wall-clock
-    // dates; each pane reads them in its own time zone (TV converts in the
+    // dates; each pane reads them in its own time zone (the reference app converts in the
     // chart time zone). DWM targets are calendar dates.
     const isDwm = () => {
       const iv = props.interval ?? "1D";
       return !isIntradayResolution(iv) && !isSecondResolution(iv);
     };
     const wallSec = (w: WallDate, h = 0, mi = 0) => wallTimeToUtc(props.timeZone ?? "UTC", w.y, w.m, w.d, h, mi);
-    // Date tab (TV `gotoTime`): the active chart only; history loads back to
+    // Date tab (the reference app `gotoTime`): the active chart only; history loads back to
     // the date, and the target is centred even when already in view.
     const onGoToDate = (e: Event) => {
       const d = (e as CustomEvent<{ date?: WallDate; minutes?: number }>).detail;
@@ -3141,7 +3141,7 @@ export function ChartView(props: Props) {
     window.addEventListener("chart-goto-date", whenShown(onGoToDate));
     onCleanup(() => window.removeEventListener("chart-goto-date", whenShown(onGoToDate)));
 
-    // Custom range tab (TV `setTimeFrame`): the active chart, or every chart
+    // Custom range tab (the reference app `setTimeFrame`): the active chart, or every chart
     // when Interval sync is on. Frames [From, To] (date + time; DWM: dates).
     const onGoToRange = (e: Event) => {
       const d = (e as CustomEvent<{ from?: WallTime; to?: WallTime }>).detail;
@@ -3152,7 +3152,7 @@ export function ChartView(props: Props) {
       void goToRange(at(d.from), at(d.to));
     };
     // The dialog asks the active chart, when it opens, for its first and last
-    // fully visible bars (TV `visibleBarsStrictRange`: the Custom range
+    // fully visible bars (the reference app `visibleBarsStrictRange`: the Custom range
     // start values) and whether it is DWM (date only, time fields disabled).
     const onGoToQuery = (e: Event) => {
       const q = (e as CustomEvent<GotoQuery>).detail;
@@ -3406,7 +3406,7 @@ export function ChartView(props: Props) {
       window.removeEventListener("chart-patch-study-inputs", onPatchInputs);
     });
   });
-  // Strategies: filled orders as trade marks on the price series (TradingView:
+  // Strategies: filled orders as trade marks on the price series (the reference app:
   // buy = #2962ff arrow up below the bar, sell = #ff1744 arrow down above it,
   // with the order signal and the signed quantity).
   /** Settings dialog config of a strategy study: effective and script

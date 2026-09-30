@@ -1,7 +1,7 @@
 /*
  * Metrics the Strategy Tester shows that are not fields of the report. Each
- * formula was checked against the numbers TradingView 3.4.1 displayed for a
- * captured report (research/backtester/design, Supertrend strategy on
+ * formula was checked against the numbers the reference app 3.4.1 displayed for a
+ * captured report (.tmp/backtester/design, Supertrend strategy on
  * BATS:BE 1D, 30/09/2026). Metrics whose formula could not be matched are
  * not shown (see the design doc "Open").
  */
@@ -105,7 +105,7 @@ export function distribution(r: BacktestReport): { total: number; winners: numbe
 }
 
 /** Cumulative PnL curve: one point per trade at its exit time (the open trade
- *  at the last bar), starting at 0. TradingView's last point = Total PnL
+ *  at the last bar), starting at 0. The reference app's last point = Total PnL
  *  (133,192.12 on the captured report). */
 export function equityPoints(r: BacktestReport): { time: number; value: number; buyHold: number }[] {
   const pts: { time: number; value: number; buyHold: number }[] = [];

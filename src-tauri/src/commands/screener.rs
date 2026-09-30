@@ -25,7 +25,7 @@ pub async fn screener_close(screener: State<'_, Screener>, owner: String) -> Res
     Ok(())
 }
 
-/// Filter, sort and page the current table (TradingView `/scan` grammar).
+/// Filter, sort and page the current table (the reference app `/scan` grammar).
 #[tauri::command]
 #[specta::specta]
 pub async fn screener_scan(

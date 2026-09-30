@@ -1,5 +1,5 @@
 /*
- * Report toolbar (TradingView 3.4.1): Metrics / Trades icon switch, testing
+ * Report toolbar (the reference app 3.4.1): Metrics / Trades icon switch, testing
  * period pill, initial capital pill, divider, Settings.
  *
  * Not built (engine has no counterpart yet, see the design doc): the Bar

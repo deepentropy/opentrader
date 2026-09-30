@@ -541,7 +541,7 @@
   white-space: nowrap;
 }
 
-/* Strategy rows: TradingView's scriptType marker after the name (18 px,
+/* Strategy rows: the reference app's scriptType marker after the name (18 px,
    #dbdbdb, captured 30/09/2026; the gap to the title was not measured). */
 .indicators-script-type {
   flex-shrink: 0;

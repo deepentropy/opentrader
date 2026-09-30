@@ -1,5 +1,5 @@
 /*
- * Screener popovers: TradingView ui-lib popover look (Desktop 3.4.1):
+ * Screener popovers: the reference app ui-lib popover look (Desktop 3.4.1):
  * #1f1f1f, 10px radius, 6px padding, shadow 0 2px 4px rgba(0,0,0,.4),
  * 32px rows (48px with a description line), 6px row radius, hover #2e2e2e,
  * selected #f2f2f2 / #0f0f0f text, 11px #8c8c8c section titles.

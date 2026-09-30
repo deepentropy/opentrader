@@ -1046,7 +1046,7 @@ function App() {
     // settings of an earlier, removed instance).
     const entry = getIndicatorEntry(id);
     const seed = loadIndicatorDefault(id) ?? (entry ? { inputs: { ...entry.defaultInputs }, styles: {}, options: defaultIndicatorOptions() } : undefined);
-    // Adding a strategy opens its report (TradingView opens the footer panel).
+    // Adding a strategy opens its report (the reference app opens the footer panel).
     if (isStrategyId(id)) strategyTester.setCollapsed(false);
     patchActivePane({
       indicators: [...pane.indicators, id],
@@ -2105,7 +2105,7 @@ function App() {
             maximized={maximized()}
             onToggleMaximize={toggleMaximize}
           />
-          {/* Strategy Tester: TradingView's footer report, shown while the
+          {/* Strategy Tester: the reference app's footer report, shown while the
               active chart holds a strategy. */}
           <StrategyTesterPanel
             strategyIds={indicators().filter(isStrategyId)}

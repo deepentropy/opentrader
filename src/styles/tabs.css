@@ -304,9 +304,9 @@ html.theme-dark .data-delay-badge {
   background-color: var(--color-container-fill-primary-neutral-extra-light);
   color: var(--color-content-primary-neutral-bold);
 }
-/* Update downloaded: TV's green "Update the app" button (ui-lib button,
+/* Update downloaded: the reference app's green "Update the app" button (ui-lib button,
  * primary green xsmall, main-menu glyph as end slot) in place of the
- * main-menu button. Measured on TV 3.4.1: 28px high, radius 6, padding 0 7. */
+ * main-menu button. Measured on the reference app 3.4.1: 28px high, radius 6, padding 0 7. */
 .main-menu-update-app-button {
   -webkit-app-region: no-drag;
   display: inline-flex;

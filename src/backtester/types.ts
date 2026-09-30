@@ -1,7 +1,7 @@
 /**
- * Backtester types. Names follow Pine's strategy() arguments and TradingView's
+ * Backtester types. Names follow Pine's strategy() arguments and the reference app's
  * Strategy Tester report (reportData), so a report can be compared field by
- * field with the one TradingView computes.
+ * field with the one the reference app computes.
  */
 
 export interface Bar {
@@ -65,7 +65,7 @@ export const DEFAULT_SYMBOL: SymbolInfo = { mintick: 0.01, pointValue: 1, qtySte
 
 export type OrderType = 'MARKET' | 'LIMIT' | 'STOP';
 
-/** One executed fill (TradingView `filledOrders` item). */
+/** One executed fill (the reference app `filledOrders` item). */
 export interface FilledOrder {
   /** Bar index of the fill. */
   bar: number;
@@ -75,7 +75,7 @@ export interface FilledOrder {
   id: string;
   comment: string;
   buy: boolean;
-  /** true = entry, false = exit, null = strategy.order (TradingView `e`). */
+  /** true = entry, false = exit, null = strategy.order (the reference app `e`). */
   entry: boolean | null;
   price: number;
   qty: number;
@@ -87,11 +87,11 @@ export interface TradeLeg {
   signal: string;
   price: number;
   bar: number;
-  /** Bar open time, UNIX milliseconds (TradingView report unit). */
+  /** Bar open time, UNIX milliseconds (the reference app report unit). */
   time: number;
 }
 
-/** One trade (TradingView `trades` item). Open trades have `exit` marked to the last close. */
+/** One trade (the reference app `trades` item). Open trades have `exit` marked to the last close. */
 export interface Trade {
   direction: Direction;
   entryId: string;
@@ -112,7 +112,7 @@ export interface Trade {
   drawdown: number;
   drawdownPercent: number;
   cumProfit: number;
-  /** Profit / equity before the trade (closed trades), TradingView `cp.p`. */
+  /** Profit / equity before the trade (closed trades), the reference app `cp.p`. */
   profitPercentOfEquity: number;
 }
 

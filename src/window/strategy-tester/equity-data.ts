@@ -1,6 +1,6 @@
 /*
- * Performance (equity) chart data, as TradingView 3.4.1 builds it
- * (research/backtester/design/doc §14.9 - §14.13, TradingView modules 240420,
+ * Performance (equity) chart data, as the reference app 3.4.1 builds it
+ * (.tmp/backtester/design/doc §14.9 - §14.13, the reference app modules 240420,
  * 408422, 40578, 459650):
  * - one Cumulative PnL point per trade (the open trade included) at its exit
  *   time; trades exiting at the same time are shifted +1 ms each;
@@ -101,7 +101,7 @@ type Dd = { startIndex: number; startValue: number; startTime: number; minValue:
 type Ru = { startIndex: number; startValue: number; startTime: number; endIndex: number; endValue: number; endTime: number };
 
 /**
- * Run-up and drawdown periods of the cumulative PnL (TradingView module
+ * Run-up and drawdown periods of the cumulative PnL (the reference app module
  * 408422 generateRunupDrawdownPeriods, minimum 2 trades). The first trade is
  * the starting reference, the open trade is skipped. A drawdown is kept when
  * its low is 2+ trades after its start or deeper than 5 % of the equity at

@@ -319,7 +319,7 @@
   background: var(--color-popup-element-divider-background, #2a2a2a);
 }
 
-/* Update downloaded: TV's "Relaunch to update" row (update-app-menu-item). */
+/* Update downloaded: the reference app's "Relaunch to update" row (update-app-menu-item). */
 .update-app-menu-item {
   display: flex;
   align-items: center;

@@ -131,7 +131,7 @@ export function IndicatorLegend(props: Props) {
                   </Show>
                 </span>
               </Show>
-              {/* Strategies: TradingView's "Active strategy" status pill (18 px, #82b1ff). */}
+              {/* Strategies: the reference app's "Active strategy" status pill (18 px, #82b1ff). */}
               <Show when={row.id.startsWith("strategy:")}>
                 <span class="ot-ind-legend-status" data-qa-id="legend-statuses-wrapper">
                   <span class="ot-ind-legend-status-pill" title="Active strategy" aria-label="Active strategy" data-role="statuses-pill">

@@ -2,13 +2,13 @@
  * Stock screener screens: the current screen (draft), the local saved screens
  * and the undo/redo history, plus the split-view panel state.
  *
- * TradingView keeps screens in the account; OpenTrader keeps them in kv:
+ * the reference app keeps screens in the account; OpenTrader keeps them in kv:
  *   ot:screener:screens:v1  saved screens + recently used order
  *   ot:screener:draft:v1    the current screen and the saved screen it came from
  *   ot:screener:open / ot:screener:width  split-view panel
- * With autosave off (TV default) a change marks the screen unsaved and the
+ * With autosave off (the reference app default) a change marks the screen unsaved and the
  * topbar shows the Save button until it is saved. Undo/redo hold up to 100
- * steps (TV HISTORY_MAX_SIZE) and are cleared when another screen is opened.
+ * steps (the reference app HISTORY_MAX_SIZE) and are cleared when another screen is opened.
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
@@ -189,7 +189,7 @@ export const screenerStore = {
     load(s.screen, id);
   },
 
-  /** Open a TV popular screen (not saved: Save asks for a name). */
+  /** Open a reference app popular screen (not saved: Save asks for a name). */
   openPopular(id: string): void {
     const p = POPULAR_SCREENS.find((x) => x.id === id);
     if (p) load(p.screen(), null, id);

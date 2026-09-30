@@ -1,6 +1,6 @@
 /*
- * Stock screener: screen → scan request, and the TradingView filter texts
- * (pill label, preset titles). Grammar follows the TV `/scan` request the
+ * Stock screener: screen → scan request, and the reference app filter texts
+ * (pill label, preset titles). Grammar follows the reference app `/scan` request the
  * desktop app sends (research/screener/data/tv/scan-requests.json).
  */
 import type { Clause, Operand, ScanRequest } from "../bindings";
@@ -23,7 +23,7 @@ import { valueText } from "./screener-format";
 
 // ── Filter state ──────────────────────────────────────────────────────────
 
-/** Active = the filter restricts the scan (TV `isColumnFilterConditionValid`). */
+/** Active = the filter restricts the scan (the reference app `isColumnFilterConditionValid`). */
 export function isActive(f: Filter): boolean {
   if (f.type === "CheckboxGroup") return f.values.length > 0;
   const r = f.right;
@@ -62,7 +62,7 @@ const OFFSET_LABEL: Record<OffsetRangeId, string> = {
   offset_range_20: "20% or more",
 };
 
-/** Pill texts: primary (column title) + active value, TV style
+/** Pill texts: primary (column title) + active value, the reference app style
  *  ("Price" ≥ "5 USD", "ADR" ≥ "5%", "Price" > "EMA, 50"). */
 export function pillTexts(f: Filter): { primary: string; value: string | null } {
   const def = COLUMN_BY_ID[f.left.id];
@@ -90,7 +90,7 @@ export function pillTexts(f: Filter): { primary: string; value: string | null } 
   return { primary, value: `${valueText(fmt, one)}${u}` };
 }
 
-/** Preset row title (TV `wd`): "Above 30%", "0% to 5%", "10 to 100",
+/** Preset row title (the reference app `wd`): "Above 30%", "0% to 5%", "10 to 100",
  *  "200 B and above", "Above EMA, 50", "Below Price by 0% to 10%",
  *  "50 above EMA, 100". */
 export function presetTitle(columnId: string, p: Preset): string {
@@ -127,7 +127,7 @@ export function presetTitle(columnId: string, p: Preset): string {
   return `${valueText(fmt, r.right as number)} and below`;
 }
 
-/** The filter a preset produces on a pill (left params synced like TV
+/** The filter a preset produces on a pill (left params synced like the reference app
  *  `syncConfig`, except where the preset fixes them). */
 export function presetFilter(base: Filter, p: Preset): ConditionFilter {
   const left: ColumnRef = { id: base.left.id, params: { ...base.left.params, ...(p.leftParams ?? {}) } };
@@ -177,7 +177,7 @@ export function filterClauses(f: Filter): Clause[] | null {
     return [];
   }
   if (f.operation === "abovePercent" || f.operation === "belowPercent") {
-    // Left deviates from the right field by a % band (TV offset ranges).
+    // Left deviates from the right field by a % band (the reference app offset ranges).
     const up = f.operation === "abovePercent";
     switch (f.offsetRangeId) {
       case "offset_range_0_10":
@@ -200,7 +200,7 @@ export function activeColumns(s: Screen): ColumnRef[] {
   return COLUMN_SETS.find((c) => c.id === s.activeColumnSetId)?.columns ?? COLUMN_SETS[0].columns;
 }
 
-/** TV's implicit stock-screen universe (scan `filter2`: common and preferred
+/** The reference app's implicit stock-screen universe (scan `filter2`: common and preferred
  *  stock, depositary receipts, funds that are not ETF / mutual) as Massive
  *  reference `type` codes. Sent with every scan when the field exists. */
 export const UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["CS", "PFD", "SP", "ADRC", "FUND", "UNIT"] };

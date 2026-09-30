@@ -1,6 +1,6 @@
 /*
- * Strategy Tester number / date formats, as TradingView 3.4.1 renders them
- * (research/backtester/design/doc §3.1): thousands ",", 2 decimals for money
+ * Strategy Tester number / date formats, as the reference app 3.4.1 renders them
+ * (.tmp/backtester/design/doc §3.1): thousands ",", 2 decimals for money
  * and percent, 3 for ratios, "+" on signed colored values, U+2212 for
  * negatives, U+202F before the K / M / B suffix, U+2014 when not available.
  */

@@ -24,7 +24,7 @@ export const stGreedStrategy: StrategyDefinition<StGreedInputs> = {
   source: { id: 'PUB;d38c058c844b4634b85ddf13c1487e8e', name: 'ST_greed_spot_example', author: 'Ushel-v-telegu' },
   properties: { initialCapital: 1000, pyramiding: 20, commissionValue: 0.06, defaultQtyType: 'percent_of_equity', defaultQtyValue: 100 },
   defaultInputs: {
-    // input.time(timestamp("01 Jan 2001 00:00")) and ("01 Jan 2101 00:00"), as sent by TradingView.
+    // input.time(timestamp("01 Jan 2001 00:00")) and ("01 Jan 2101 00:00"), as sent by the reference app.
     start: 978307200000,
     finish: 4133980800000,
     lowPeriod: 50,

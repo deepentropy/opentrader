@@ -1,7 +1,7 @@
 /**
  * Broker emulator: Pine's strategy.* order model, run bar by bar.
  *
- * Per bar i (TradingView's historical-bar model, calc_on_every_tick off):
+ * Per bar i (the reference app's historical-bar model, calc_on_every_tick off):
  *   1. `processBar(i)`: fill orders placed before bar i. Market orders fill at
  *      the open. Stop / limit orders are checked along the intrabar path:
  *      open -> high -> low -> close when the high is closer to the open than
@@ -11,7 +11,7 @@
  *   3. `processClose(i)` (process_orders_on_close only): market orders placed
  *      at this close fill at the close.
  *
- * Rules matched on TradingView reports (research/backtester):
+ * Rules matched on the reference app reports (.tmp/backtester):
  *   - bar prices are rounded to mintick (nearest, on the exact binary value)
  *     before orders are checked; fills are on the tick grid; slippage (ticks)
  *     is added to market and stop fills, against the trader;
@@ -171,7 +171,7 @@ interface PriceOrder {
 const EPS = 1e-9;
 
 
-/** A strategy runtime error, as TradingView stops the script (e.g. RE10141). */
+/** A strategy runtime error, as the reference app stops the script (e.g. RE10141). */
 export class StrategyRuntimeError extends Error {
   constructor(
     readonly bar: number,
@@ -427,7 +427,7 @@ export class Broker {
       const hit = this.priceOrders()
         .filter((o) => (o.buy === o.isStop ? p >= o.level - EPS : p <= o.level + EPS))
         // Several orders crossed at once (gap): the one closest to the price fills first
-        // (TradingView: a 0.26 sell limit before a 0.24 one on a 0.31 open).
+        // (the reference app: a 0.26 sell limit before a 0.24 one on a 0.31 open).
         .sort((a, b) => Math.abs(p - a.level) - Math.abs(p - b.level) || a.seq - b.seq);
       let filled = false;
       for (const o of hit) {
@@ -689,7 +689,7 @@ export class Broker {
     };
   }
 
-  /** Open trades marked at the last close (exit commission included, like the TV report). */
+  /** Open trades marked at the last close (exit commission included, like the reference app report). */
   openTradeReports(): Trade[] {
     const close = this.roundPrice(this.bars[this.bar].close);
     return this.openTrades.map((t) => {
@@ -761,7 +761,7 @@ export class Broker {
     }
     const price = orderPrice === null || isStop ? this.slip(base, buy) : base;
     // Equity without binary noise (65828.48, not 65828.47999999998): on an exact share
-    // boundary TradingView's floor behaves like the decimal value (3 cases checked).
+    // boundary the reference app's floor behaves like the decimal value (3 cases checked).
     const equity = Number(this.equity.toFixed(10));
     const cash = p.defaultQtyType === 'cash' ? p.defaultQtyValue : (equity * p.defaultQtyValue) / 100;
     if (p.defaultQtyType === 'percent_of_equity' && cash < 0) {
@@ -806,11 +806,11 @@ export class Broker {
 
   private floorQty(q: number): number {
     const step = this.sym.qtyStep;
-    // Plain floor on the binary value, as TradingView (822855.9999... gives 822855).
+    // Plain floor on the binary value, as the reference app (822855.9999... gives 822855).
     return Math.max(0, Math.floor(q / step) * step);
   }
 
-  /** Nearest tick, on the exact binary value (148.045 -> 148.04, 161.145 -> 161.15, as TradingView). */
+  /** Nearest tick, on the exact binary value (148.045 -> 148.04, 161.145 -> 161.15, as the reference app). */
   roundPrice(p: number): number {
     return this.ticks(Math.round(p / this.sym.mintick));
   }
@@ -822,7 +822,7 @@ export class Broker {
   }
 
   /**
-   * n ticks as a price: n * mintick, keeping the binary value as TradingView does
+   * n ticks as a price: n * mintick, keeping the binary value as the reference app does
    * (35 * 0.01 = 0.35000000000000003; scripts reading position_avg_price see it).
    */
   private ticks(n: number): number {

@@ -1,6 +1,6 @@
 /*
- * TimeInput — the Go to dialog's time field, a port of TV's desktop
- * TimeInput (module 282695, checked live 30/09/2026 in TV 3.4.1):
+ * TimeInput — the Go to dialog's time field, a port of the reference app's desktop
+ * TimeInput (module 282695, checked live 30/09/2026 in the reference app 3.4.1):
  *
  *   • typing goes through the mask "09:00" (`0930` → `09:30`, max 5 chars);
  *     leaving the field commits it as HH:MM (hours padded left, minutes
@@ -18,7 +18,7 @@
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
 
 // ─── Mask + commit rules ────────────────────────────────────────────────────
-/** TV's input mask engine (`0` = digit, `9` = optional digit, anything else
+/** The reference app's input mask engine (`0` = digit, `9` = optional digit, anything else
  *  = literal). */
 const MASK_TOKENS: Record<string, { pattern: RegExp; optional?: boolean }> = {
   "0": { pattern: /\d/ },
@@ -57,7 +57,7 @@ export function applyMask(mask: string, value: string): string {
   return out.join("");
 }
 
-/** TV commit rule: hours padded left, minutes padded right, then clamped to
+/** The reference app commit rule: hours padded left, minutes padded right, then clamped to
  *  00-23 / 00-59 when not a valid HH:MM. */
 export function normalizeTime(v: string): string {
   const [h = "", m = ""] = v.split(":");
@@ -82,7 +82,7 @@ type Props = {
   value: string;
   /** Committed HH:MM (leave, Enter, row click). */
   onChange: (v: string) => void;
-  /** DWM chart: TV disables the time fields (date only). */
+  /** DWM chart: the reference app disables the time fields (date only). */
   disabled?: boolean;
 };
 
@@ -133,7 +133,7 @@ export function TimeInput(props: Props) {
     if (!list || !row) return;
     const lr = list.getBoundingClientRect();
     const rr = row.getBoundingClientRect();
-    // Row to the top of the list (TV scrollIntoView). The list scrolls
+    // Row to the top of the list (the reference app scrollIntoView). The list scrolls
     // itself only: scrollIntoView would also scroll the dialog body.
     if (lr.top > rr.top || lr.bottom < rr.bottom) list.scrollTo({ top: row.offsetTop, behavior });
   };
@@ -151,7 +151,7 @@ export function TimeInput(props: Props) {
   const onFocus = () => {
     place();
     setFocused(true);
-    // TV selects the whole text on focus.
+    // The reference app selects the whole text on focus.
     window.setTimeout(() => input.setSelectionRange(0, input.value.length), 0);
     queueMicrotask(() => reveal("auto"));
   };

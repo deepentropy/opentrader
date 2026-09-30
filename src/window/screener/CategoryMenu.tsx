@@ -1,12 +1,12 @@
 /*
  * CategoryMenu: the "Add new filter" (+ next to the pills) and "Column setup"
- * (+ at the table header right) popovers (TradingView Desktop 3.4.1):
+ * (+ at the table header right) popovers (the reference desktop app 3.4.1):
  * title ("Filters" / "Columns"), Search, then the categories with their icon
  * and item count; a category opens its items under a back row. Typing in
  * Search lists the matching items of every category.
  *
  * Only catalog columns the backend serves are listed (`has`), so the counts
- * are OpenTrader's, not TradingView's.
+ * are OpenTrader's, not the reference app's.
  * Column setup: a column with a choice of params opens a configuration view
  * (param selects + "Add column") before it is added.
  */

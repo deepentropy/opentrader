@@ -1,16 +1,16 @@
 /*
- * Strategy Settings > Properties tab (TradingView Desktop 3.4.1, design doc
+ * Strategy Settings > Properties tab (the reference desktop app 3.4.1, design doc
  * §5 and §14.2 - §14.5): GENERAL (Initial capital + currency, Default order
  * size + unit, Pyramiding), DETALIZATION AND EXECUTION (Bar detalization,
  * Script execution), BROKER EMULATOR (Commission + unit, Long / Short
  * leverage, Slippage, Limit order execution, Order execution delay). Rows of
  * 34 px controls: number fields and unit selects 126 px, full-width selects
- * 260 px, (i) icons 18 px #575757 with TradingView's tooltips.
+ * 260 px, (i) icons 18 px #575757 with the reference app's tooltips.
  *
  * Options the backtest engine does not simulate are listed but disabled:
  * other currencies (no FX conversion), High bar detalization (lower
  * timeframe data), extra script executions, and "Requested price and 1 tick
- * beyond". TradingView's (?) help links are not shown (no Help Center).
+ * beyond". The reference app's (?) help links are not shown (no Help Center).
  */
 import type { JSX } from "solid-js";
 import type { CommissionType, QtyType, StrategyProperties } from "../../backtester/types";
@@ -35,7 +35,7 @@ const EXECUTIONS = ["On bar close", "On order fill", "On history bar tick", "On 
 const LIMIT_EXECUTION = ["Requested price", "Requested price and 1 tick beyond"];
 const DELAYS = ["None", "One tick"];
 
-/** High detalization ticks per bar by chart interval (TradingView module 470379). */
+/** High detalization ticks per bar by chart interval (the reference app module 470379). */
 function highTicks(interval: string): number {
   const m = /^(\d*)([SDWM]?)$/i.exec(interval.trim());
   const n = Number(m?.[1] || 1);

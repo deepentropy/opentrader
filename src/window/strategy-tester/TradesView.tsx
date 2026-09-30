@@ -1,12 +1,12 @@
 /*
- * List of trades (TradingView 3.4.1): header "List of trades" + Column setup,
+ * List of trades (the reference app 3.4.1): header "List of trades" + Column setup,
  * sticky 40 px header row, one 98 px row per trade (Exit half above, Entry
  * half below), sortable by trade number (newest first), "Show on chart" on
  * the hovered half. Rows are windowed: only the visible ones are in the DOM
  * (thousands of trades stay instant).
  *
  * Download .csv (tooltip "Download .csv", before Column setup) writes
- * TradingView's file (trades-csv.ts): all 17 columns whatever the Column
+ * the reference app's file (trades-csv.ts): all 17 columns whatever the Column
  * setup, trade 1 first whatever the sort.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
@@ -22,7 +22,7 @@ const ROW = 98;
 const OVERSCAN = 6;
 
 type OptionalCol = "Date and time" | "Signal" | "Price" | "Size" | "Net PnL" | "Return" | "Commission" | "Favorable excursion" | "Adverse excursion" | "Cumulative PnL" | "Duration (bars)";
-/** Column setup menu, in TradingView's order; checked = shown by default. */
+/** Column setup menu, in the reference app's order; checked = shown by default. */
 const COLUMNS: { name: OptionalCol; on: boolean; width: string; align: "start" | "end"; half: boolean }[] = [
   { name: "Date and time", on: true, width: "minmax(130px, 0.8fr)", align: "start", half: true },
   { name: "Signal", on: false, width: "minmax(120px, 0.8fr)", align: "start", half: true },
@@ -65,7 +65,7 @@ export function TradesView(props: Props) {
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewH, setViewH] = createSignal(400);
 
-  // Trade numbers follow TradingView: entry order, open trades last.
+  // Trade numbers follow the reference app: entry order, open trades last.
   const numbered = createMemo(() => props.report.trades.map((t, i) => ({ t, n: i + 1 })));
   const ordered = createMemo(() => (desc() ? numbered().slice().reverse() : numbered()));
   const cols = () => COLUMNS.filter((c) => shown().has(c.name));

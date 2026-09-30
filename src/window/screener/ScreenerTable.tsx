@@ -1,5 +1,5 @@
 /*
- * ScreenerTable: the results table (TradingView Desktop 3.4.1):
+ * ScreenerTable: the results table (the reference desktop app 3.4.1):
  *   header 50 px (#000, 1 px #4a4a4a bottom), 13/15 px #8c8c8c titles, a 10 px
  *   second line for params ("High" / "1M"), the active sort column in #dbdbdb
  *   with its arrow; the other sort arrows show on header hover.
@@ -31,7 +31,7 @@ import { CategoryMenu } from "./CategoryMenu";
 import { EditorHeader } from "./FilterEditor";
 import { PopDivider, PopItem, Popover } from "./Popover";
 
-// Column widths: TV sizes its table columns to their content. Here a column
+// Column widths: the reference app sizes its table columns to their content. Here a column
 // starts at its catalog width, widened so the header title fits on one line
 // (13 px title + 18 px sort arrow + 2 px gap + 20 px padding) and so the cells
 // on screen fit (14 px value + 10 px unit + 24 px padding). Widths only grow
@@ -265,7 +265,7 @@ export function ScreenerTable(props: Props) {
         <colgroup>
           <col style={{ width: `${SYMBOL_W}px` }} />
           <For each={props.columns}>{(c) => <col style={{ width: `${columnWidth(c)}px` }} />}</For>
-          {/* Last column takes the width left over (TV table fills the panel). */}
+          {/* Last column takes the width left over (the reference app table fills the panel). */}
           <col />
         </colgroup>
         <thead>

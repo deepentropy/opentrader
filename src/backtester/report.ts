@@ -1,8 +1,8 @@
 /**
- * Strategy Tester metrics, computed like TradingView's reportData.performance.
- * Percent fields are fractions (0.25 = 25 %), as in the TradingView report.
+ * Strategy Tester metrics, computed like the reference app's reportData.performance.
+ * Percent fields are fractions (0.25 = 25 %), as in the reference app report.
  *
- * Rules matched on TradingView reports (research/backtester):
+ * Rules matched on the reference app reports (.tmp/backtester):
  *   - the entry commission of an open trade is already paid: it counts in
  *     net profit, gross loss and commission paid;
  *   - bars in trade count both the entry and the exit bar;
@@ -53,7 +53,7 @@ function side(trades: Trade[], open: Trade[], initialCapital: number, maxContrac
     avgWinTradePercent: avg(wins, (t) => t.profitPercent),
     avgLosTrade: avgLoss,
     avgLosTradePercent: avg(losses, (t) => -t.profitPercent),
-    // TradingView: null without losing trades, 0 with losses but no wins.
+    // The reference app: null without losing trades, 0 with losses but no wins.
     ratioAvgWinAvgLoss: avgLoss ? (avgWin ?? 0) / avgLoss : null,
     largestWinTrade: max(wins, (t) => t.profit),
     largestWinTradePercent: max(wins, (t) => t.profitPercent),
@@ -127,7 +127,7 @@ export function computePerformance(
     maxStrategyRunUp: ext.ru,
     maxStrategyRunUpPercent: ext.ruPct,
     buyHoldReturn,
-    // TradingView: the percent fields are null without trades.
+    // The reference app: the percent fields are null without trades.
     buyHoldReturnPercent: first ? buyHoldReturn / initialCapital : null,
     buyHoldGainPercent,
   };

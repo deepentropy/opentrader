@@ -1,5 +1,5 @@
 /*
- * Scan controller: loads screener rows by pages of 100 (TradingView sends
+ * Scan controller: loads screener rows by pages of 100 (the reference app sends
  * `range:[0,100]`, then the next pages as the table scrolls) and keeps one
  * scan in flight at a time, so a burst of changes costs one extra scan.
  *

@@ -488,7 +488,7 @@ function AboutTab() {
   const [info, setInfo] = createSignal<BuildInfo | null>(null);
   onMount(() => {
     void buildInfo().then(setInfo);
-    // TV checks for an update each time About opens.
+    // The reference app checks for an update each time About opens.
     checkForUpdates();
   });
   /** "2026-09-30" → "30/09/2026". */
@@ -499,7 +499,7 @@ function AboutTab() {
       <Show when={info()}>
         {(i) => <div class="app-settings-about-version">{`Version ${i().version} · ${date(i().buildDate)}`}</div>}
       </Show>
-      {/* TV hides its update block on Linux (no in-app update there). */}
+      {/* The reference app hides its update block on Linux (no in-app update there). */}
       <Show when={!/Linux/.test(navigator.userAgent)}>
         <UpdateAppBlock />
       </Show>
@@ -557,9 +557,9 @@ function FundingBlock() {
   );
 }
 
-/** TV's About update status block (`update-app`): one row per update state,
+/** The reference app's About update status block (`update-app`): one row per update state,
  *  "Relaunch" once the new version is downloaded. Error shows as up to date,
- *  like TV. */
+ *  like the reference app. */
 function UpdateAppBlock() {
   const state = () => appUpdateStatus().state;
   const view = (): { text: string; icon: JSX.Element } => {
@@ -594,7 +594,7 @@ function UpdateAppBlock() {
   );
 }
 
-/** TV ui-lib progress spinner, size small (24px), intent neutral. */
+/** The reference app ui-lib progress spinner, size small (24px), intent neutral. */
 function UpdateSpinner() {
   return (
     <svg class="update-app-spinner" width="24" height="24" viewBox="0 0 24 24" role="progressbar" aria-label="Loading">

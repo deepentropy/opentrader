@@ -1,6 +1,6 @@
 /*
- * Strategy Tester — TradingView Desktop 3.4.1 footer report panel
- * (research/backtester/design/doc/STRATEGY-TESTER-DESIGN-3.4.1.md).
+ * Strategy Tester — the reference desktop app 3.4.1 footer report panel
+ * (.tmp/backtester/design/doc/STRATEGY-TESTER-DESIGN-3.4.1.md).
  *
  * Shown under the chart only while the active chart holds a strategy: a 38 px
  * footer bar with one tab per strategy (icon + short title + caret menu) and

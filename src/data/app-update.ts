@@ -1,8 +1,8 @@
 /*
  * App update state for the UI (the Rust side is src-tauri/src/app_update.rs):
  * the title-bar "Update the app" button, the main-menu "Relaunch to update"
- * row and the Settings > About block. TV design + rules:
- * research/app-update/doc/TV-UPDATE-UI-CAPTURE-2026-09-30.md.
+ * row and the Settings > About block. The reference app design + rules:
+ * research/app-update/doc.
  */
 import { createSignal } from "solid-js";
 import { commands, events, type AppUpdateStatus, type BuildInfo } from "../bindings";
@@ -35,7 +35,7 @@ export function initAppUpdate(): void {
   });
 }
 
-/** Check now (Settings > About opened, like TV). */
+/** Check now (Settings > About opened, like the reference app). */
 export function checkForUpdates(): void {
   if (isTauri()) void commands.appUpdateCheck();
 }

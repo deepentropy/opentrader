@@ -1549,7 +1549,7 @@ pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
             } else {
                 t.prev_day.as_ref().map(|p| p.c).filter(|c| *c > 0.0)
             };
-            // TradingView's `change` is close vs previous close. Massive's
+            // The reference app's `change` is close vs previous close. Massive's
             // todaysChange follows the latest trade, post-market included
             // (29/09/2026: 16 of 73 symbols off after the close).
             let (change, change_percent) = match prev_close {

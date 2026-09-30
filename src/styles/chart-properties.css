@@ -1234,7 +1234,7 @@
 .ind3-plottype-item.is-selected { background: #f2f2f2; color: #000000; }
 .ind3-plottype-label { padding-left: 6px; line-height: 16px; }
 
-/* Strategy settings (TradingView 3.4.1, research/backtester/design §14.5 /
+/* Strategy settings (the reference app 3.4.1, .tmp/backtester/design §14.5 /
    §14.7): (i) icons 18 px #575757 (#8c8c8c on hover) after the controls;
    a gap after each Pine input group; input.time = date field (150 px, with
    a calendar popup) + HH:MM field (100 px), the Go to dialog's controls. */

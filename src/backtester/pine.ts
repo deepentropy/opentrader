@@ -1,7 +1,7 @@
 /**
  * Pine built-ins used by the strategy ports, on plain arrays (NaN = na).
  * Each follows the Pine reference implementation, including how na values
- * start a series, so signals land on the same bars as in TradingView.
+ * start a series, so signals land on the same bars as in the reference app.
  * (oakscriptjs `ta.tr` returns high - low on bar 0, where Pine returns na.)
  */
 import type { Bar } from './types';
@@ -21,7 +21,7 @@ export const nz = (v: number, r = 0): number => (Number.isNaN(v) ? r : v);
 /**
  * Pine's float comparison operators (<, >, <=, >=) treat values closer than
  * 1e-10 as equal; builtins such as ta.crossover compare exactly. Seen on
- * TradingView: 489.2914285714285 < 489.2914285714286 is false in a script
+ * the reference app: 489.2914285714285 < 489.2914285714286 is false in a script
  * expression, while ta.crossunder fires on the same two values.
  * Comparisons with na are false.
  */

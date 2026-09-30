@@ -1,8 +1,8 @@
 /*
- * ScreenBrowserDialog: "Open screen…" of the screen menu, TradingView
+ * ScreenBrowserDialog: "Open screen…" of the screen menu, the reference app
  * Desktop 3.4.1 `screener-custom-screens-dialog` (480 × 600): title, search,
  * "My screens" (local saved screens, most recently used first) then "Popular
- * screens" (TV presets with a data source here, title + description). The
+ * screens" (the reference app presets with a data source here, title + description). The
  * current screen row is highlighted; "Make a copy" (and "Delete" on saved
  * screens) show on row hover.
  */

@@ -1,5 +1,5 @@
 /*
- * Stock screener number formats (TradingView Desktop 3.4.1 table):
+ * Stock screener number formats (the reference desktop app 3.4.1 table):
  *   price 14.82 (4 decimals under 1), volume 9.07 M / 810 K / 6 M,
  *   change +6.47% / −1.36% / 0.00%, percent 5.22%, ratio 1.79.
  * Abbreviated values keep up to 2 decimals with trailing zeros removed and a

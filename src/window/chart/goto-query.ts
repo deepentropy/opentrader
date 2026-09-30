@@ -1,5 +1,5 @@
 /*
- * Go to dialog ↔ active chart (TV module 810812).
+ * Go to dialog ↔ active chart (the reference app module 810812).
  *
  * When the dialog opens it asks the active chart (window event
  * "chart-goto-query", answered synchronously by the shown active ChartView)
@@ -7,7 +7,7 @@
  * its first and last fully visible bars (the Custom range start values).
  *
  * The Date tab's last submitted date + time is kept for the app session
- * (TV sessionStorage `GoToDateTabLastPickedDate`) and is the next opening's
+ * (the reference app sessionStorage `GoToDateTabLastPickedDate`) and is the next opening's
  * start value; without it the dialog starts on today 00:00.
  */
 import type { WallTime } from "./day-key";

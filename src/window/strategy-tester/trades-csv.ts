@@ -1,6 +1,6 @@
 /*
- * "Download .csv" of the List of trades, byte for byte as TradingView
- * Desktop 3.4.1 writes it (research/backtester/design/doc §15; TradingView
+ * "Download .csv" of the List of trades, byte for byte as the reference app
+ * Desktop 3.4.1 writes it (.tmp/backtester/design/doc §15; the reference app
  * modules 362566 generateTradesJSON, 380072 formatExportedValue, 568642
  * ExcelReportSaver, SheetJS 0.20.4 `sheet_to_csv` + General number format):
  * - UTF-8 with BOM, `,`, LF, no line end after the last row, a field quoted
@@ -13,7 +13,7 @@
  * - money: 2 decimals (below 0.01, the first of 2..8 decimals that is not 0),
  *   ASCII minus, no grouping, no trailing zeros; percents: x 100, always 2
  *   decimals, no `%`; Cumulative PnL % = cumulative PnL / initial capital.
- * Validated against TradingView's own files: research/backtester/ui-check/code/check-csv.ts.
+ * Validated against the reference app's own files: .tmp/backtester/ui-check/code/check-csv.ts.
  */
 import type { Trade } from "../../backtester/types";
 
@@ -54,7 +54,7 @@ export function general(e: number): string {
   return trimZeros(t);
 }
 
-/** Round to `d` decimals (TradingView 380072). */
+/** Round to `d` decimals (the reference app 380072). */
 const roundTo = (v: number, d: number) => {
   const m = parseFloat(Math.pow(10, d || 0).toFixed(d < 0 ? -d : 0));
   return Math.round(v * m) / m;
@@ -134,7 +134,7 @@ export function tradesCsv(c: CsvContext): string {
 }
 
 /** File name: `<short title, spaces as _>_<EXCHANGE_TICKER>_<local yyyy-MM-dd>.csv`
- *  (TradingView asks for `NASDAQ:GTLB`; the browser saves `:` as `_`). */
+ *  (the reference app asks for `NASDAQ:GTLB`; the browser saves `:` as `_`). */
 export function tradesCsvFileName(title: string, symbol: string, now = new Date()): string {
   const p2 = (x: number) => String(x).padStart(2, "0");
   const day = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}`;

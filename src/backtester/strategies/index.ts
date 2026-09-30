@@ -13,7 +13,7 @@ import { stGreedStrategy } from './st-greed';
 import { trendCatcherStrategy } from './trend-catcher';
 import { zscoreStrategy } from './zscore';
 
-/** Strategy ports, validated against TradingView (research/backtester). */
+/** Strategy ports, validated against the reference app (.tmp/backtester). */
 export const STRATEGIES: StrategyDefinition<any>[] = [
   alphatrendStrategy,
   bollingerStopStrategy,

@@ -1,5 +1,5 @@
 /*
- * "Run-ups and drawdowns" strip of the Performance chart (TradingView module
+ * "Run-ups and drawdowns" strip of the Performance chart (the reference app module
  * 240420 classes D / L / N / P; design doc §14.11):
  * - one 4 px line per period at the bottom of the pane (rows paneHeight - 6
  *   .. paneHeight - 3), butt caps, run-up #089981 / drawdown #F23645 at 50 %,

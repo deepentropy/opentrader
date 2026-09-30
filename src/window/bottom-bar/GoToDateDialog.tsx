@@ -62,10 +62,10 @@ export function ariaDay(d: Date): string {
   return d.toLocaleString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-// ─── Date typing rules (TV DatePicker 368690) ───────────────────────────────
-/** Keys the date field accepts (TV `inputRegex`); others are blocked. */
+// ─── Date typing rules (the reference app DatePicker 368690) ───────────────────────────────
+/** Keys the date field accepts (the reference app `inputRegex`); others are blocked. */
 export const DATE_KEY = /[0-9.]/;
-/** TV `_fixValue`, run on key release (not after Backspace): at most 10
+/** The reference app `_fixValue`, run on key release (not after Backspace): at most 10
  *  chars, repeated dashes collapsed, a dash added after `YYYY` and `YYYY-MM`. */
 export function fixDate(v: string): string {
   let s = v.substring(0, 10).replace(/-+/g, "-");
@@ -113,7 +113,7 @@ export const CalendarIcon = () => (
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10 4h1v2h6V4h1v2h2.5A2.5 2.5 0 0 1 23 8.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 5 19.5v-11A2.5 2.5 0 0 1 7.5 6H10V4zm8 3H7.5C6.67 7 6 7.67 6 8.5v11c0 .83.67 1.5 1.5 1.5h13c.83 0 1.5-.67 1.5-1.5v-11c0-.83-.67-1.5-1.5-1.5H18zm-3 2h-2v2h2V9zm-7 4h2v2H8v-2zm12-4h-2v2h2V9zm-7 4h2v2h-2v-2zm-3 4H8v2h2v-2zm3 0h2v2h-2v-2zm7-4h-2v2h2v-2z" />
   </svg>
 );
-// TV's dialog icons (research/goto-sync/data/tv-goto-icons.json): the close
+// The reference app's dialog icons (research/goto-sync/data/tv-goto-icons.json): the close
 // cross is drawn at 18 px, the month arrows at 28 px (next = mirrored).
 const CloseIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 14" width="18" height="18">
@@ -126,7 +126,7 @@ export const ChevronIcon = () => (
   </svg>
 );
 
-/** Last active tab, kept across restarts (TV user setting
+/** Last active tab, kept across restarts (the reference app user setting
  *  GoToDialog.activeTab). */
 const TAB_KEY = "ot:goto-dialog-tab";
 
@@ -135,7 +135,7 @@ type TabId = "date" | "customrange";
 export function GoToDateDialog(props: Props) {
   const today = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; })();
   // Date tab start: the last submitted date + time of the session, else today
-  // 00:00; a DWM chart shows it at 00:00 (TV `resetToDayStart`).
+  // 00:00; a DWM chart shows it at 00:00 (the reference app `resetToDayStart`).
   const initial = props.initial ? wallToDate(props.initial) : today;
   const [tab, setTab] = createSignal<TabId>(kv.getItem(TAB_KEY) === "customrange" ? "customrange" : "date");
   let dateInput: HTMLInputElement | undefined;
@@ -166,7 +166,7 @@ export function GoToDateDialog(props: Props) {
     return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate(), minutes: props.dateOnly ? 0 : h * 60 + m };
   };
   const wallKey = (w: WallTime) => Date.UTC(w.y, w.m, w.d) / 60000 + w.minutes;
-  // TV disables "Go to" while From is after To.
+  // The reference app disables "Go to" while From is after To.
   const rangeValid = createMemo(() => {
     const a = rangeEnd(fromText(), fromTime());
     const b = rangeEnd(toText(), toTime());
@@ -205,7 +205,7 @@ export function GoToDateDialog(props: Props) {
     setPos({ left, top });
   };
 
-  /** Show a tab: remember it and focus its first date field (TV). */
+  /** Show a tab: remember it and focus its first date field (the reference app). */
   const selectTab = (id: TabId) => {
     setTab(id);
     kv.setItem(TAB_KEY, id);
@@ -244,7 +244,7 @@ export function GoToDateDialog(props: Props) {
       ? `${delta < 0 ? "Previous" : "Next"} year, ${viewYear() + delta}`
       : `${delta < 0 ? "Previous" : "Next"} month, ${monthLabel(viewYear(), viewMonth() + delta)}`;
 
-  // Date fields: block other keys, add the dashes on key release (TV).
+  // Date fields: block other keys, add the dashes on key release (the reference app).
   const onDateKeyPress = (e: KeyboardEvent) => {
     if (e.key.length === 1 && !DATE_KEY.test(e.key)) e.preventDefault();
   };
@@ -275,7 +275,7 @@ export function GoToDateDialog(props: Props) {
     props.onClose();
   };
 
-  /** Custom range: arm a field and show its month (TV: focusing a date
+  /** Custom range: arm a field and show its month (the reference app: focusing a date
    *  field moves the calendar to that date). */
   const arm = (field: "from" | "to") => {
     setArmedField(field);
@@ -285,7 +285,7 @@ export function GoToDateDialog(props: Props) {
     setViewMonth(d.getMonth());
   };
 
-  /** Calendar limits (TV calendar minDate / maxDate): the Date tab stops at
+  /** Calendar limits (the reference app calendar minDate / maxDate): the Date tab stops at
    *  today; on Custom range, while From is armed the last day is To, while To
    *  is armed the first day is From. */
   const limits = (): { min: Date | null; max: Date | null } => {
@@ -296,10 +296,10 @@ export function GoToDateDialog(props: Props) {
     const { min, max } = limits();
     return (!!min && d < min) || (!!max && d > max);
   };
-  /** A month is blocked when all its days are (TV DateLevel.Month). */
+  /** A month is blocked when all its days are (the reference app DateLevel.Month). */
   const monthBlocked = (year: number, month: number): boolean =>
     dayBlocked(new Date(year, month, 1)) && dayBlocked(new Date(year, month + 1, 0));
-  /** TV: an arrow is disabled when the day (days view) or month (months
+  /** The reference app: an arrow is disabled when the day (days view) or month (months
    *  view) just past the shown one is blocked. */
   const navBlocked = (delta: number): boolean => {
     if (calView() === "months") {
@@ -309,7 +309,7 @@ export function GoToDateDialog(props: Props) {
       ? dayBlocked(new Date(viewYear(), viewMonth() + 1, 1))
       : dayBlocked(new Date(viewYear(), viewMonth(), 0));
   };
-  /** TV (GoToDateProvider): "Go to" is disabled for a date after today. */
+  /** The reference app (GoToDateProvider): "Go to" is disabled for a date after today. */
   const dateValid = createMemo(() => {
     const d = parseYmd(dateText());
     return !d || d <= today;
@@ -317,7 +317,7 @@ export function GoToDateDialog(props: Props) {
 
   /** Calendar-day click: Date tab picks the single date; Custom range fills
    *  the armed date (its time is kept). A From pick then arms To; a To pick
-   *  stays on To (TV). */
+   *  stays on To (the reference app). */
   const pickDay = (d: Date) => {
     if (tab() === "customrange") {
       if (armedField() === "from") {
@@ -457,7 +457,7 @@ export function GoToDateDialog(props: Props) {
                             {(d) => {
                               // Date tab marks the single pick; Custom range
                               // marks both ends, fills the days between and
-                              // disables the days past the other end (TV).
+                              // disables the days past the other end (the reference app).
                               const isSelected = () =>
                                 tab() === "customrange"
                                   ? ymd(d) === fromText() || ymd(d) === toText()
@@ -469,7 +469,7 @@ export function GoToDateDialog(props: Props) {
                                 return !!a && !!b && d > a && d < b;
                               };
                               const isDisabled = () => dayBlocked(d);
-                              // TV: a disabled day never shows the accent.
+                              // The reference app: a disabled day never shows the accent.
                               const isAccent = () => isSelected() && !isDisabled();
                               const isToday = ymd(d) === ymd(today);
                               return (

@@ -80,7 +80,7 @@ export type IndicatorRow = {
   badges?: string[];
   author?: string;
   boosts?: string;
-  /** Strategy rows show TradingView's strategy marker icon after the name. */
+  /** Strategy rows show the reference app's strategy marker icon after the name. */
   scriptType?: 'strategy';
 };
 /** A Fundamentals metric; depth 0 = parent, 1 = nested (dotted) child. */
@@ -391,7 +391,7 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   ] },
   // Community — community indicators from the registry.
   // Community indicators, then the backtester's strategy ports (community
-  // scripts too, marked with the strategy icon like TradingView's rows).
+  // scripts too, marked with the strategy icon like the reference app's rows).
   'community': {
     kind: 'rows',
     rows: [

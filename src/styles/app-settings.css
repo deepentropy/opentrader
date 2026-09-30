@@ -340,7 +340,7 @@
   color: var(--color-cold-gray-300, #b2b5be);
 }
 .app-settings-funding-links { display: flex; gap: 8px; margin-top: 4px; }
-/* Update status block, TV's About `update-app` (TV 3.4.1: 52px high, padding
+/* Update status block, the reference app's About `update-app` (the reference app 3.4.1: 52px high, padding
  * 12, radius 12, icon 28 + gap 8, text 14/18). */
 .update-app {
   display: flex;
@@ -381,7 +381,7 @@
   font-size: 14px;
   line-height: 18px;
 }
-/* Downloading: the arrow bobs (TV download-icon.css). */
+/* Downloading: the arrow bobs (the reference app download-icon.css). */
 .update-app-status-icon .download-icon-arrow {
   animation: update-app-download-arrow 1.1s linear infinite;
 }
@@ -390,7 +390,7 @@
   50% { transform: translate(0, calc(-11.75px * (1 - 0.83) - 1px)); animation-timing-function: ease-in-out; }
   100% { transform: translate(0, 0); animation-timing-function: ease-in-out; }
 }
-/* TV ui-lib spinner, small: 24px, r 11, stroke 2, half arc, 1 s turn. */
+/* The reference app ui-lib spinner, small: 24px, r 11, stroke 2, half arc, 1 s turn. */
 .update-app-spinner {
   display: block;
   flex-shrink: 0;
@@ -413,7 +413,7 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(-1turn); }
 }
-/* "Relaunch": ui-lib button secondary black xsmall (TV 3.4.1: 28px, radius 6,
+/* "Relaunch": ui-lib button secondary black xsmall (the reference app 3.4.1: 28px, radius 6,
  * padding 0 7, 1px border). */
 .update-app-relaunch {
   flex-shrink: 0;

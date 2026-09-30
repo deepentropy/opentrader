@@ -346,7 +346,7 @@
   background-color: var(--status-overlay);
 }
 
-/* Strategy "Active strategy" status (TradingView 3.4.1: 26 x 24 wrapper,
+/* Strategy "Active strategy" status (the reference app 3.4.1: 26 x 24 wrapper,
    padding-left 4px, 18 px pill, icon #82b1ff). */
 .ot-ind-legend-status {
   display: flex;

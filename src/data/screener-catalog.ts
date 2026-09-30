@@ -1,16 +1,16 @@
 /*
- * Stock screener catalog: the TradingView screener columns that the backend
+ * Stock screener catalog: the reference app screener columns that the backend
  * table can fill, with their titles, formats, filter configs, filter presets,
  * column sets and the default screen.
  *
- * Source: TradingView Desktop 3.4.1, read over CDP on 29/09/2026 from the
+ * Source: the reference desktop app 3.4.1, read over CDP on 29/09/2026 from the
  * screener's own modules (getColumnConfig, getColumnFilterConfig, column
  * titles, presets data, redux store). Raw captures and the design notes are in
- * research/screener/ (doc/TV-SCREENER-DESIGN-3.4.1.md).
+ * research/screener/ (doc/the reference app-SCREENER-DESIGN-3.4.1.md).
  *
- * A column is a TradingView table column id + params (`{ id: "Ema", params:
- * { length: "50" } }`), stored like TV stores it in a screen. Each param
- * option maps to one backend field id (TradingView scanner name, e.g. EMA50).
+ * A column is a reference app table column id + params (`{ id: "Ema", params:
+ * { length: "50" } }`), stored like the reference app stores it in a screen. Each param
+ * option maps to one backend field id (the reference app scanner name, e.g. EMA50).
  * Options whose field is missing from `screenerFields()` are dropped at
  * runtime (see `offered*` helpers), so the UI never offers a column or filter
  * the backend cannot serve.
@@ -31,7 +31,7 @@ export type Fmt =
 
 export type Category = "securityInfo" | "marketData" | "technicals" | "valuation";
 
-/** TV filter operations the backend can evaluate (crosses and the % offset
+/** The reference app filter operations the backend can evaluate (crosses and the % offset
  *  manual operations are left out). */
 export type Operation = "above" | "aboveOrEqual" | "below" | "belowOrEqual" | "equal" | "nequal" | "between" | "outside";
 /** Operations only used by presets (EMA/SMA deviation from price). */
@@ -45,7 +45,7 @@ export type ParamDef = { key: string; title: string; default: string; options: P
 export type Preset = {
   operation: Operation | OffsetOperation;
   offsetRangeId?: OffsetRangeId;
-  /** "value" or the TV id of the right column. */
+  /** "value" or the reference app id of the right column. */
   target: string;
   right: { value: number } | { left: number | null; right: number | null } | { column: ColumnRef };
   /** Params forced on the left column (e.g. EMA 50 for "50 above EMA, 100"). */
@@ -71,7 +71,7 @@ export type ColumnDef = {
     | { type: "Condition"; operations: Operation[]; defaultOperation: Operation; targets: string[][]; presets?: Preset[] }
     /** `"data"`: the distinct values of `field` in the loaded data. */
     | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data" };
-  /** Kept out of the Column setup list (TV `isExcludedFromColumnsList`). */
+  /** Kept out of the Column setup list (the reference app `isExcludedFromColumnsList`). */
   noColumn?: boolean;
 };
 
@@ -104,7 +104,7 @@ const MA_PARAMS = (prefix: "EMA" | "SMA"): ParamDef[] => [
   { key: "resolution", title: "Interval", default: "TimeResolution1D", options: [{ value: "TimeResolution1D", label: "1 day", short: "1D", field: "" }] },
 ];
 
-// ── Presets (TV presets data, crosses left out) ───────────────────────────
+// ── Presets (the reference app presets data, crosses left out) ───────────────────────────
 const d = (description: string) => ({ description });
 const BANDS: Preset[] = [
   { operation: "above", target: "value", right: { value: 30 }, ...d("Exceptional up") },
@@ -136,7 +136,7 @@ const MA_PRESETS = (id: "Ema" | "Ma"): Preset[] => [
   { operation: "below", target: id, leftParams: { length: "50" }, right: { column: { id, params: { length: "100", resolution: "TimeResolution1D" } } }, ...d("Bearish alignment") },
 ];
 
-// Price-like right-hand targets (TV groups: Value | Open High Low Price | EMA SMA).
+// Price-like right-hand targets (the reference app groups: Value | Open High Low Price | EMA SMA).
 const PRICE_TARGETS = (self: string) => [["value"], ["Open", "High", "Low", "Price"].filter((x) => x !== self), ["Ema", "Ma"]];
 const ALL_OPS: Operation[] = ["above", "aboveOrEqual", "below", "belowOrEqual", "between", "outside", "equal"];
 const CHANGE_OPS: Operation[] = ["above", "below", "between", "outside", "equal"];
@@ -276,11 +276,11 @@ export const COLUMNS: ColumnDef[] = [
 
 export const COLUMN_BY_ID: Record<string, ColumnDef> = Object.fromEntries(COLUMNS.map((c) => [c.id, c]));
 
-/** The sticky first column (TV `TickerUniversal`). Sorting by it sends `name`. */
+/** The sticky first column (the reference app `TickerUniversal`). Sorting by it sends `name`. */
 export const TICKER_COLUMN: ColumnRef = { id: "TickerUniversal", params: {} };
 export const TICKER_SORT_FIELD = "name";
 
-/** Add filter / Column setup categories, in TV order, with their icons. */
+/** Add filter / Column setup categories, in the reference app order, with their icons. */
 export const CATEGORIES: { id: Category; title: string; icon: string }[] = [
   { id: "securityInfo", title: "Security info", icon: "scr-cat-security-info" },
   { id: "marketData", title: "Market data", icon: "scr-cat-market-data" },
@@ -378,14 +378,14 @@ export function paramShorts(col: ColumnRef): string[] {
   return out;
 }
 
-/** "EMA, 50" / "High, 1M" / "Chg %": TV configured short title. */
+/** "EMA, 50" / "High, 1M" / "Chg %": the reference app configured short title. */
 export function configuredShort(col: ColumnRef): string {
   const def = COLUMN_BY_ID[col.id];
   if (!def) return col.id;
   return [def.short, ...paramShorts(col)].join(", ");
 }
 
-/** "Price change %, 1 day": TV configured long title (header tooltip). */
+/** "Price change %, 1 day": the reference app configured long title (header tooltip). */
 export function configuredLong(col: ColumnRef): string {
   const def = COLUMN_BY_ID[col.id];
   if (!def) return col.id;
@@ -407,10 +407,10 @@ export function sameColumn(a: ColumnRef, b: ColumnRef): boolean {
   return Object.keys(pa).every((k) => pa[k] === pb[k]);
 }
 
-// ── Column sets (TV presets restricted to the catalog) ────────────────────
+// ── Column sets (the reference app presets restricted to the catalog) ────────────────────
 const C = (id: string, params: Record<string, string> = {}): ColumnRef => ({ id, params });
 const R1D = { resolution: "TimeResolution1D" };
-/** TV column-set presets, in TV menu order. Columns without a data source
+/** The reference app column-set presets, in the reference app menu order. Columns without a data source
  *  are left out; a preset with no column left is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("Sector")] },
@@ -424,7 +424,7 @@ export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] 
 export const CUSTOM_SET_ID = "custom";
 export const CUSTOM_SET_TITLE = "Custom";
 
-// ── Screen model (TV shape) ───────────────────────────────────────────────
+// ── Screen model (the reference app shape) ───────────────────────────────────────────────
 export type ConditionFilter = {
   id: string;
   type: "Condition";
@@ -473,7 +473,7 @@ export function emptyFilter(col: ColumnRef): Filter | null {
   };
 }
 
-/** TV default screen ("Untitled screen") restricted to the catalog: Price,
+/** The reference app default screen ("Untitled screen") restricted to the catalog: Price,
  *  Chg % 1D, Mkt cap, Sector and Perf % YTD pills, Overview columns, sorted by
  *  market cap. */
 export function defaultScreen(title = DEFAULT_SCREEN_TITLE): Screen {
@@ -489,11 +489,11 @@ export function defaultScreen(title = DEFAULT_SCREEN_TITLE): Screen {
 }
 
 // ── Popular screens ───────────────────────────────────────────────────────
-/** TV "Popular screens" (module `popularScreens`, TV Desktop 3.4.1,
+/** The reference app "Popular screens" (module `popularScreens`, the reference desktop app 3.4.1,
  *  30/09/2026) whose filters, columns and sort exist in this catalog. The
  *  other 12 (net income, cash, P/E, EPS and revenue growth, dividends, debt,
  *  ROE, revenue per employee, market-cap performance, technical rating) have
- *  no data source and are left out. Filters = TV's default pills with the
+ *  no data source and are left out. Filters = the reference app's default pills with the
  *  screen's own values. */
 export type PopularScreen = { id: string; title: string; description: string; screen: () => Screen };
 

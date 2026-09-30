@@ -1,8 +1,8 @@
 /*
- * Metrics view (TradingView 3.4.1): Key stats, Performance (equity chart),
+ * Metrics view (the reference app 3.4.1): Key stats, Performance (equity chart),
  * Performance analysis and Trades analysis with their round sub-tabs.
  *
- * Only metrics whose value was matched against TradingView are shown; the
+ * Only metrics whose value was matched against the reference app are shown; the
  * others of each sub-tab (Commission load, Sharpe / Sortino, Correlation,
  * run-up / drawdown durations, best hour / day, margin figures, returns
  * histogram) are listed as open in the design doc.
@@ -206,7 +206,7 @@ export function MetricsView(props: ViewProps) {
   );
 }
 
-/** Profits and losses by signal / by side, with TradingView's split bars. */
+/** Profits and losses by signal / by side, with the reference app's split bars. */
 function ProfitsAndLosses(props: { report: BacktestReport }) {
   const [by, setBy] = createSignal<"signal" | "side">("signal");
   const rows = createMemo(() => pnlBy(props.report, by()));

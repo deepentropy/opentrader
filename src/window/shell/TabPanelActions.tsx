@@ -45,7 +45,7 @@ export function TabPanelActions(props: Props) {
           <Icon name="tab-new-window" size={28} />
         </button>
       </Show>
-      {/* A downloaded update swaps the main-menu button for TV's green
+      {/* A downloaded update swaps the main-menu button for the reference app's green
           "Update the app" button; it opens the same menu. */}
       <Show
         when={updateReady()}

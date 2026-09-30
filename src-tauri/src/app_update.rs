@@ -1,9 +1,9 @@
 /*
- * In-app update, after TradingView Desktop's AutoUpdateService (capture and
- * rules: research/app-update/doc/TV-UPDATE-UI-CAPTURE-2026-09-30.md).
+ * In-app update, after the reference desktop app's AutoUpdateService (capture and
+ * rules: research/app-update/doc).
  *
- *  - Check at startup, then every hour (TV's appinstaller HoursBetweenUpdateChecks
- *    = 1), and again when Settings > About opens. Not on Linux (TV skips it too).
+ *  - Check at startup, then every hour (the reference app's appinstaller HoursBetweenUpdateChecks
+ *    = 1), and again when Settings > About opens. Not on Linux (the reference app skips it too).
  *  - A found update is downloaded silently (signature checked by the updater
  *    plugin). The user is told only when it is ready to install.
  *  - Install on request: every window first writes its pending settings, then
@@ -23,7 +23,7 @@ use tauri_plugin_store::StoreExt;
 use tauri_plugin_updater::{Update, Updater, UpdaterExt};
 use tauri_specta::Event;
 
-/// TV's statuses (`system-requirements-unmet` is macOS-only in TV and has no
+/// The reference app's statuses (`system-requirements-unmet` is macOS-only in the reference app and has no
 /// source here).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
@@ -86,7 +86,7 @@ const FLUSH_TIMEOUT: Duration = Duration::from_secs(3);
 const STORE_FILE: &str = "opentrader.json";
 
 /// Release builds on Windows / macOS. A dev build checks only with
-/// `OPENTRADER_DEV_UPDATE=1` (TV's forceDevUpdate).
+/// `OPENTRADER_DEV_UPDATE=1` (the reference app's forceDevUpdate).
 fn enabled() -> bool {
     if cfg!(target_os = "linux") {
         return false;
@@ -97,7 +97,7 @@ fn enabled() -> bool {
 fn updater(app: &AppHandle) -> Result<Updater, String> {
     #[allow(unused_mut)]
     let mut builder = app.updater_builder();
-    // Dev builds may point at a local latest.json (TV's dev-app-update.yml).
+    // Dev builds may point at a local latest.json (the reference app's dev-app-update.yml).
     #[cfg(debug_assertions)]
     if let Ok(url) = std::env::var("OPENTRADER_UPDATE_ENDPOINT") {
         let url = url.parse().map_err(|e| format!("OPENTRADER_UPDATE_ENDPOINT: {e}"))?;
@@ -128,7 +128,7 @@ pub fn init(app: &AppHandle) {
     });
 }
 
-/// Start a check unless one is running or an install started (TV runs it only
+/// Start a check unless one is running or an install started (the reference app runs it only
 /// from up-to-date, ready-to-install or error).
 fn check(app: &AppHandle) {
     let update = app.state::<AppUpdate>();

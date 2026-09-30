@@ -1,7 +1,7 @@
 /*
- * Stock screener split-view panel (TradingView Desktop 3.4.1, measured over
- * CDP on 29/09/2026, research/screener/doc/TV-SCREENER-DESIGN-3.4.1.md).
- * Colours use the TV semantic tokens (dark values in comments).
+ * Stock screener split-view panel (the reference desktop app 3.4.1, measured over
+ * CDP on 29/09/2026, research/screener/doc).
+ * Colours use the reference app semantic tokens (dark values in comments).
  */
 
 /* ── Split view ─────────────────────────────────────────────────────────── */
@@ -69,7 +69,7 @@
   flex: 0 0 auto;
 }
 
-/* ── Light buttons (TV lightButton, small = 34 px) ──────────────────────── */
+/* ── Light buttons (the reference app lightButton, small = 34 px) ──────────────────────── */
 .scr-light-btn {
   display: inline-flex;
   align-items: center;
@@ -639,7 +639,7 @@
   font-size: 13px;
 }
 
-/* ── Popovers (TV ui-lib) ───────────────────────────────────────────────── */
+/* ── Popovers (the reference app ui-lib) ───────────────────────────────────────────────── */
 .scr-popover {
   position: fixed;
   z-index: 1000;
@@ -977,7 +977,7 @@
   background: var(--color-ot-blue-600, #1e53e5);
 }
 
-/* ── Open screen dialog (TV `screener-custom-screens-dialog`, 3.4.1) ──
+/* ── Open screen dialog (the reference app `screener-custom-screens-dialog`, 3.4.1) ──
  * 480 × 600; header 68 (20 px / 600 title), search 40 with a #4A4A4A
  * bottom border (input 16 px, #A8A8A8, 28 px icon at left 15), section
  * headers 11/16 #8C8C8C padding 16 20 8, rows 32 (padding 5 20, 14/18) or

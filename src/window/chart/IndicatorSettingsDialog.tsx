@@ -54,7 +54,7 @@ export type StrategyDialogConfig = {
   timeZone: string;
 };
 
-/** Last tab clicked in a strategy's settings (TradingView setting
+/** Last tab clicked in a strategy's settings (the reference app setting
  *  properties_dialog.active_tab.study): the dialog opens on it unless the
  *  caller asks for a tab (report toolbar gear = Properties). */
 const TAB_KEY = "ot:strategy-settings:tab";

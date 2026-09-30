@@ -1,5 +1,5 @@
 /*
- * ScreenerPanel: the Stock Screener as a right split-view panel (TradingView
+ * ScreenerPanel: the Stock Screener as a right split-view panel (the reference app
  * Desktop 3.4.1, opened by the right-rail "Screeners" button):
  *   a 4 px resizer at its left edge (drag, width persisted), a 50 px header
  *   (title "Stock Screener", Fullscreen mode, Close), then the screener:
@@ -11,7 +11,7 @@
  * Data: `screenerOpen(owner)` starts the backend's 10 s polling while the
  * panel is mounted; every `screener-update` re-runs the scan (visible pages),
  * every screen change re-plans it. The Refresh badge counts down the seconds
- * to the next update ("Time to refresh"), like TV's 10 s auto refresh.
+ * to the next update ("Time to refresh"), like the reference app's 10 s auto refresh.
  */
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
@@ -106,7 +106,7 @@ export function ScreenerPanel(props: Props) {
     });
   });
 
-  // Seconds to the next backend update (TV "Time to refresh").
+  // Seconds to the next backend update (the reference app "Time to refresh").
   const countdown = () => {
     const t = lastUpdate();
     if (t === null) return null;
@@ -122,7 +122,7 @@ export function ScreenerPanel(props: Props) {
     }));
   const setTitle = () =>
     screen().activeColumnSetId === CUSTOM_SET_ID ? CUSTOM_SET_TITLE : COLUMN_SETS.find((s) => s.id === screen().activeColumnSetId)?.title ?? "";
-  /** Write a new column list: TV stores it as the "custom" set and selects it. */
+  /** Write a new column list: the reference app stores it as the "custom" set and selects it. */
   const setColumns = (fn: (cols: ColumnRef[]) => ColumnRef[]) =>
     screenerStore.update((s) => ({ ...s, customColumns: fn([...activeColumns(s)]), activeColumnSetId: CUSTOM_SET_ID }));
 

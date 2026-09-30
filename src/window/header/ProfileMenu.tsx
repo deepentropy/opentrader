@@ -90,7 +90,7 @@ export function ProfileMenu(props: Props) {
       aria-label="Main menu"
       style={{ position: "fixed", left: `${Math.round(Math.max(8, Math.min(props.anchor.left, window.innerWidth - 260 - 8)))}px`, top: `${Math.round(props.anchor.bottom + 4)}px`, "z-index": 1000 }}
     >
-      {/* Update downloaded: TV's "Relaunch to update" row, above Settings. */}
+      {/* Update downloaded: the reference app's "Relaunch to update" row, above Settings. */}
       <Show when={updateReady()}>
         <button
           type="button"

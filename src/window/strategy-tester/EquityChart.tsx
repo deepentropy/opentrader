@@ -1,5 +1,5 @@
 /*
- * Performance chart of the Metrics view (TradingView 3.4.1; design doc §3.3
+ * Performance chart of the Metrics view (the reference app 3.4.1; design doc §3.3
  * and §14.9 - §14.15). A lightweight-charts instance: transparent over
  * #0f0f0f, text #b8b8b8 12px, dotted horizontal grid, vertical crosshair
  * #4a4a4a without labels, no scroll / zoom, right scale min width 80.
@@ -44,13 +44,13 @@ const FONT = `-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu,
 const UP = "#089981";
 const DOWN = "#F23645";
 const BUY_HOLD = "#5B9CF6";
-/** Autoscale margins (px) and the room kept around the zero line (TradingView `I()` / `E`). */
+/** Autoscale margins (px) and the room kept around the zero line (the reference app `I()` / `E`). */
 const MARGINS = { above: 10, below: 10 };
 const MAX_ZERO_PAD = 65;
 
 /**
  * Price range that keeps 0 inside with `zeroPad` px between the zero line and
- * the pane edge on the empty side (TradingView equity autoscale, padding
+ * the pane edge on the empty side (the reference app equity autoscale, padding
  * ratio at most 0.1 of the scale).
  */
 function zeroPaddedRange(min: number, max: number, height: number, zeroPad: number): { minValue: number; maxValue: number } {
@@ -146,7 +146,7 @@ export function EquityChart(props: Props) {
   onMount(() => {
     chart = createChart(host, {
       autoSize: true,
-      // Solid #0F0F0F as in TradingView: the strip hover blend needs an opaque canvas.
+      // Solid #0F0F0F as in the reference app: the strip hover blend needs an opaque canvas.
       layout: { background: { color: "#0F0F0F" }, textColor: "#B8B8B8", fontSize: 12, fontFamily: FONT, attributionLogo: false },
       localization: { locale: "en-US", priceFormatter },
       grid: { vertLines: { visible: false }, horzLines: { color: "rgba(219, 219, 219, 0.2)", style: LineStyle.SparseDotted } },
@@ -196,7 +196,7 @@ export function EquityChart(props: Props) {
       chart?.applyOptions({ crosshair: { mode: h ? CrosshairMode.Hidden : CrosshairMode.Normal } });
       if (h) setCard(null);
     });
-    // The strip rides on an empty series added last (TradingView's
+    // The strip rides on an empty series added last (the reference app's
     // runupDrawdownSegment series): its hover dimming paints over the lines.
     chart.addSeries(BaselineSeries, { lineWidth: 3, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).attachPrimitive(strip);
 
@@ -271,7 +271,7 @@ export function EquityChart(props: Props) {
     } else {
       ts.applyOptions({ minBarSpacing: 0, fixRightEdge: true });
       ts.fitContent();
-      // TradingView sets the minimum spacing on the next frame, after the fit.
+      // The reference app sets the minimum spacing on the next frame, after the fit.
       requestAnimationFrame(() => {
         if (!chart) return;
         chart.timeScale().fitContent();

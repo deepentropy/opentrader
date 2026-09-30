@@ -33,15 +33,15 @@ export interface StrategyDefinition<I extends object = Record<string, unknown>> 
   title: string;
   /** strategy(shorttitle=) when the script sets one: the legend / report tab label. */
   shortTitle?: string;
-  /** Pine source this port follows (TradingView script id). */
+  /** Pine source this port follows (the reference app script id). */
   source: { id: string; name: string; author: string };
   /** strategy() declaration arguments that differ from the Pine defaults. */
   properties: Partial<StrategyProperties>;
   defaultInputs: I;
   /** The script's inputs in Pine order (Inputs tab of the strategy settings),
-   *  from TradingView's compiled metaInfo (research/backtester/settings). */
+   *  from the reference app's compiled metaInfo (.tmp/backtester/settings). */
   inputs: StrategyInput<I>[];
-  /** Indicator series drawn by the Pine script, keyed by TradingView plot id (plot_0, ...). */
+  /** Indicator series drawn by the Pine script, keyed by the reference app plot id (plot_0, ...). */
   plots?(bars: Bar[], inputs: I, symbol: SymbolInfo): Record<string, number[]>;
   /** Precompute series, return the per-bar script body. */
   setup(bars: Bar[], inputs: I, symbol: SymbolInfo): OnBar;

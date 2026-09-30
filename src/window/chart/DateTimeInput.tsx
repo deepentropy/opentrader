@@ -1,9 +1,9 @@
 /*
  * DateTimeInput — the control of a Pine `input.time` in the study Settings
- * Inputs tab: TradingView draws two controls side by side, a date field with
+ * Inputs tab: the reference app draws two controls side by side, a date field with
  * a calendar popup (DatePicker + DateInput) and an HH:MM time field
  * (TimeInput), the value shown in the chart time zone with seconds at 0
- * (research/backtester/design/doc §14.7). The date field follows the Go to
+ * (.tmp/backtester/design/doc §14.7). The date field follows the Go to
  * dialog's typing rules and calendar (GoToDateDialog helpers); the time
  * field is the Go to dialog's TimeInput.
  */

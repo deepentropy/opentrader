@@ -25,7 +25,7 @@ const EQUITY_KEY = "ot:strategy-tester:equity";
 
 export type ReportView = "metrics" | "trades";
 
-/** Performance chart settings (TradingView keeps them per user in
+/** Performance chart settings (the reference app keeps them per user in
  *  localStorage: backtesting_overview_data_type / _equity_whitespace_mode /
  *  _widget_legend_collapsed / _overview_visibility). */
 export type EquitySettings = {

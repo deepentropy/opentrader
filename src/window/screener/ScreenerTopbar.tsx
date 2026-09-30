@@ -1,5 +1,5 @@
 /*
- * ScreenerTopbar: screen name menu, Save button, Undo / Redo (TradingView
+ * ScreenerTopbar: screen name menu, Save button, Undo / Redo (the reference app
  * Desktop 3.4.1 topbar: padding 8 20 12, 20 px / 600 title with an 18 px
  * caret, 34 px buttons).
  *

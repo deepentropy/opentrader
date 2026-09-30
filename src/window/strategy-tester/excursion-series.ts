@@ -1,7 +1,7 @@
 /*
- * "Trades excursions" bars of the Performance chart: TradingView's
+ * "Trades excursions" bars of the Performance chart: the reference app's
  * DualRangeHistogramSeries (module 583850; design doc §14.10), for the case
- * TradingView uses (values not bound to the price scale).
+ * the reference app uses (values not bound to the price scale).
  *
  * Each point holds [run-up, profit > 0, -drawdown, loss < 0]; the 4 bars are
  * painted in that order at the same x (profit over run-up, loss over
