@@ -49,6 +49,7 @@
 @import "./styles/alert-dialog.css";
 @import "./styles/timezone-menu.css";
 @import "./styles/oakscript-panel.css";
+@import "./styles/screener.css";
 
 :root {
   --font-family-base: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto,

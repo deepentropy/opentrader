@@ -33,6 +33,8 @@ type Props = {
   onRemoveIndicator: (id: string) => void;
   chartSource?: string;
   cloneDrawing: (id: string) => void;
+  /** Rail buttons shown pressed without owning the panel (screener). */
+  pressedTab?: (id: string) => boolean;
 };
 
 const DETAIL_HEIGHT_KEY = "ot:rail:detailHeight";
@@ -145,7 +147,7 @@ export function RightRail(props: Props) {
           </Match>
         </Switch>
       </Show>
-      <RightRailTabs active={props.activeTab} setActive={props.setActiveTab} />
+      <RightRailTabs active={props.activeTab} setActive={props.setActiveTab} pressed={props.pressedTab} />
     </div>
   );
 }

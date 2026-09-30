@@ -1485,6 +1485,147 @@ pub async fn fetch_snapshots(tickers: &[String]) -> Result<Vec<LiveTick>> {
         .collect())
 }
 
+// ── Full-market snapshot (/v2/snapshot, no ticker list) ──────────────────
+//
+// The screener's live table: every US ticker in one call (13,256 tickers,
+// 5.3 MB JSON, ~1.35 MB gzip, 1.2-2.1 s through the gateway, measured
+// 29/09/2026). Shaped with the same rules as the watchlist (`shape_snapshot`)
+// so both surfaces show the same last / change.
+
+/// One ticker of the full-market snapshot, shaped for the screener.
+pub struct MarketRow {
+    pub ticker: String,
+    /// Regular-session close (today's once traded, else the prior session's).
+    pub last: f64,
+    pub change: f64,
+    pub change_percent: f64,
+    /// The shown session's open / high / low / volume.
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub volume: f64,
+    /// Close of the session before the shown one (the change baseline);
+    /// `None` when no baseline is known.
+    pub prev_close: Option<f64>,
+    /// True when the shown session is today's (it has traded), false when the
+    /// row shows the previous completed session (pre-open, closed day).
+    pub live: bool,
+    /// Snapshot update stamp, UNIX milliseconds.
+    pub updated_ms: f64,
+}
+
+/// Fetch and shape the whole-market delayed snapshot.
+pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
+    let token = gateway::token().context(NO_TOKEN)?;
+    let url = format!("{BASE}/v2/snapshot/locale/us/markets/stocks/tickers?apiKey={token}");
+    let resp = http().get(&url).send().await.context("massive market snapshot request")?;
+    let http_status = resp.status();
+    let body: MultiSnapResponse = resp.json().await.context("massive market snapshot: parse json")?;
+    if !http_status.is_success() {
+        return Err(anyhow!(
+            "massive market snapshot {http_status}: {}",
+            body.error.unwrap_or_else(|| body.status.clone())
+        ));
+    }
+    let prior = if body.tickers.iter().any(is_closed) {
+        Some(prior_session_closes(token).await)
+    } else {
+        None
+    };
+    Ok(body
+        .tickers
+        .iter()
+        .filter_map(|t| {
+            let closed = is_closed(t);
+            let prior_close = if closed {
+                prior.as_ref().and_then(|m| m.get(&t.ticker.to_uppercase()).copied())
+            } else {
+                None
+            };
+            let s = shape_snapshot(t, prior_close)?;
+            let src = if closed { t.prev_day.as_ref() } else { t.day.as_ref() }?;
+            let prev_close = if closed {
+                prior_close
+            } else {
+                t.prev_day.as_ref().map(|p| p.c).filter(|c| *c > 0.0)
+            };
+            // TradingView's `change` is close vs previous close. Massive's
+            // todaysChange follows the latest trade, post-market included
+            // (29/09/2026: 16 of 73 symbols off after the close).
+            let (change, change_percent) = match prev_close {
+                Some(pc) => (s.last - pc, (s.last / pc - 1.0) * 100.0),
+                None => (s.change, s.change_percent),
+            };
+            Some(MarketRow {
+                ticker: t.ticker.clone(),
+                last: s.last,
+                change,
+                change_percent,
+                open: src.o,
+                high: src.h,
+                low: src.l,
+                volume: src.v,
+                prev_close,
+                live: !closed,
+                updated_ms: t.updated / 1e6,
+            })
+        })
+        .collect())
+}
+
+// ── Reference ticker list (/v3/reference/tickers) ────────────────────────
+
+/// One active US stock-market ticker from the reference list.
+#[derive(Deserialize, Serialize, Clone)]
+pub struct RefTicker {
+    pub ticker: String,
+    #[serde(default)]
+    pub name: String,
+    /// Massive type code: CS, PFD, ADRC, ETF, ETN, FUND, WARRANT, RIGHT, UNIT…
+    #[serde(default, rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub primary_exchange: String,
+    #[serde(default)]
+    pub currency_name: String,
+}
+
+#[derive(Deserialize)]
+struct RefListResponse {
+    #[serde(default)]
+    results: Vec<RefTicker>,
+    #[serde(default)]
+    next_url: Option<String>,
+}
+
+/// Every active ticker of the US stocks market (~13 pages of 1000). `next_url`
+/// comes back pointing at the gateway without the token, so it is re-added.
+pub async fn fetch_reference_tickers() -> Result<Vec<RefTicker>> {
+    let token = gateway::token().context(NO_TOKEN)?;
+    let mut url = format!(
+        "{BASE}/v3/reference/tickers?market=stocks&active=true&limit=1000&apiKey={token}"
+    );
+    let mut out = Vec::new();
+    for _page in 0..40 {
+        let resp = http().get(&url).send().await.context("massive reference tickers request")?;
+        let http_status = resp.status();
+        if !http_status.is_success() {
+            return Err(anyhow!("massive reference tickers {http_status}"));
+        }
+        let body: RefListResponse =
+            resp.json().await.context("massive reference tickers: parse json")?;
+        out.extend(body.results.into_iter().map(|mut r| {
+            r.currency_name = r.currency_name.to_uppercase();
+            r
+        }));
+        match body.next_url {
+            Some(next) if !next.is_empty() => url = format!("{next}&apiKey={token}"),
+            _ => return Ok(out),
+        }
+    }
+    Err(anyhow!("massive reference tickers: too many pages"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

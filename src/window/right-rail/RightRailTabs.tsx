@@ -13,6 +13,9 @@ import { VISIBLE_BOTTOM_TABS, VISIBLE_TOP_TABS, type Tab } from "../../data/righ
 type Props = {
   active: string | null;
   setActive: (id: string | null) => void;
+  /** Buttons shown pressed without being the active panel tab (the
+   *  screener split view while it is open). */
+  pressed?: (id: string) => boolean;
 };
 
 export function RightRailTabs(props: Props) {
@@ -21,7 +24,7 @@ export function RightRailTabs(props: Props) {
   };
 
   const renderTab = (t: Tab) => {
-    const isActive = () => props.active === t.id;
+    const isActive = () => props.active === t.id || !!props.pressed?.(t.id);
     return (
       <Tooltip text={t.label} side="left">
         <button
