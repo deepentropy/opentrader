@@ -210,7 +210,7 @@ export function TimeInput(props: Props) {
       />
       <span class="goto-dialog-input-icon" aria-hidden="true">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
-          <path fill="currentColor" fill-rule="evenodd" d="M14 23a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 1a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm.5-17h-1v7.5l5 3 .5-.87-4.5-2.7V7Z" />
+          <path fill="currentColor" d="M14 3c6.075 0 11 4.925 11 11s-4.925 11-11 11S3 20.075 3 14 7.925 3 14 3m0 1C8.477 4 4 8.477 4 14s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4m1 12h-5v-1h4V8h1z" />
         </svg>
       </span>
       <Show when={focused() && pos()}>
