@@ -3,7 +3,8 @@
  * to the date-range tabs in the bottom bar (hotkey Alt+G). Solid port of the
  * reference mock: Date / Custom-range tabs, a date + time input, a Monday-first
  * month calendar with month nav, and a Cancel / Go to footer. Submitting calls
- * `onSubmit(Date)`; the bottom bar relays it to the chart as a jump-to-date.
+ * `onSubmit(date, minutes)`; the bottom bar relays it to the chart as a
+ * jump-to-date. The time field is TimeInput (mask + 15-minute list).
  *
  * The Custom-range tab picks a [from, to] date pair and submits it via
  * `onSubmitRange`; the bottom bar frames the chart on that span. Anchored as a
@@ -11,14 +12,18 @@
  */
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
+import type { WallDate } from "../chart/day-key";
+import { normalizeTime, TimeInput } from "./TimeInput";
 
 type Props = {
   anchor: DOMRect;
   initialDate?: Date;
   initialTime?: string;
-  onSubmit: (date: Date) => void;
+  /** Date tab submit: the picked calendar date and time (minutes after
+   *  midnight), read by each chart in its own time zone. */
+  onSubmit: (date: WallDate, minutes: number) => void;
   /** Custom-range tab submit — frame the chart on [from, to]. */
-  onSubmitRange?: (from: Date, to: Date) => void;
+  onSubmitRange?: (from: WallDate, to: WallDate) => void;
   onClose: () => void;
 };
 
@@ -42,6 +47,17 @@ function monthLabel(year: number, month: number): string {
 }
 function ariaDay(d: Date): string {
   return d.toLocaleString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// ─── Date typing rules (TV DatePicker 368690) ───────────────────────────────
+/** Keys the date field accepts (TV `inputRegex`); others are blocked. */
+const DATE_KEY = /[0-9.]/;
+/** TV `_fixValue`, run on key release (not after Backspace): at most 10
+ *  chars, repeated dashes collapsed, a dash added after `YYYY` and `YYYY-MM`. */
+function fixDate(v: string): string {
+  let s = v.substring(0, 10).replace(/-+/g, "-");
+  if (/^\d{4}$/.test(s) || /^\d{4}-\d{2}$/.test(s)) s += "-";
+  return s;
 }
 
 /** Visible weeks for a month — first/last weeks are short (partial); CSS pins
@@ -82,11 +98,6 @@ function monthWeeks(year: number, month: number): Date[][] {
 const CalendarIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10 4h1v2h6V4h1v2h2.5A2.5 2.5 0 0 1 23 8.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 5 19.5v-11A2.5 2.5 0 0 1 7.5 6H10V4zm8 3H7.5C6.67 7 6 7.67 6 8.5v11c0 .83.67 1.5 1.5 1.5h13c.83 0 1.5-.67 1.5-1.5v-11c0-.83-.67-1.5-1.5-1.5H18zm-3 2h-2v2h2V9zm-7 4h2v2H8v-2zm12-4h-2v2h2V9zm-7 4h2v2h-2v-2zm-3 4H8v2h2v-2zm3 0h2v2h-2v-2zm7-4h-2v2h2v-2z" />
-  </svg>
-);
-const ClockIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
-    <path fill="currentColor" fill-rule="evenodd" d="M14 23a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 1a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm.5-17h-1v7.5l5 3 .5-.87-4.5-2.7V7Z" />
   </svg>
 );
 const CloseIcon = () => (
@@ -183,6 +194,21 @@ export function GoToDateDialog(props: Props) {
       ? `${delta < 0 ? "Previous" : "Next"} year, ${viewYear() + delta}`
       : `${delta < 0 ? "Previous" : "Next"} month, ${monthLabel(viewYear(), viewMonth() + delta)}`;
 
+  // Date fields: block other keys, add the dashes on key release (TV).
+  const onDateKeyPress = (e: KeyboardEvent) => {
+    if (e.key.length === 1 && !DATE_KEY.test(e.key)) e.preventDefault();
+  };
+  const onDateKeyUp = (e: KeyboardEvent & { currentTarget: HTMLInputElement }, set: (v: string) => void) => {
+    if (e.key === "Backspace") return;
+    const v = e.currentTarget.value;
+    const fixed = fixDate(v);
+    if (fixed !== v) {
+      e.currentTarget.value = fixed;
+      set(fixed);
+    }
+  };
+  const wall = (d: Date): WallDate => ({ y: d.getFullYear(), m: d.getMonth(), d: d.getDate() });
+
   const submit = () => {
     if (tab() === "customrange") {
       const a = parseYmd(fromText());
@@ -190,14 +216,13 @@ export function GoToDateDialog(props: Props) {
       if (!a || !b) return;
       // Order-agnostic: swap if the user picked them backwards.
       const [from, to] = a.getTime() <= b.getTime() ? [a, b] : [b, a];
-      props.onSubmitRange?.(from, to);
+      props.onSubmitRange?.(wall(from), wall(to));
       props.onClose();
       return;
     }
     const d = parseYmd(dateText()) ?? selected();
-    const m = timeText().match(/^(\d{1,2}):(\d{2})$/);
-    if (m) d.setHours(+m[1], +m[2], 0, 0);
-    props.onSubmit(d);
+    const [h, m] = normalizeTime(timeText()).split(":").map(Number);
+    props.onSubmit(wall(d), h * 60 + m);
     props.onClose();
   };
 
@@ -258,6 +283,8 @@ export function GoToDateDialog(props: Props) {
                     >
                       <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={fromText()}
                         onFocus={() => setArmedField("from")}
+                        onKeyPress={onDateKeyPress}
+                        onKeyUp={(e) => onDateKeyUp(e, setFromText)}
                         onInput={(e) => setFromText(e.currentTarget.value)} spellcheck={false} />
                       <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                     </label>
@@ -266,6 +293,8 @@ export function GoToDateDialog(props: Props) {
                     >
                       <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={toText()}
                         onFocus={() => setArmedField("to")}
+                        onKeyPress={onDateKeyPress}
+                        onKeyUp={(e) => onDateKeyUp(e, setToText)}
                         onInput={(e) => setToText(e.currentTarget.value)} spellcheck={false} />
                       <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                     </label>
@@ -275,14 +304,12 @@ export function GoToDateDialog(props: Props) {
                 <div class="goto-dialog-row">
                   <label class="goto-dialog-input-wrap is-date">
                     <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={dateText()}
+                      onKeyPress={onDateKeyPress}
+                      onKeyUp={(e) => onDateKeyUp(e, setDateText)}
                       onInput={(e) => setDateText(e.currentTarget.value)} spellcheck={false} />
                     <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                   </label>
-                  <label class="goto-dialog-input-wrap is-time">
-                    <input class="goto-dialog-input" placeholder="00:00" value={timeText()}
-                      onInput={(e) => setTimeText(e.currentTarget.value)} spellcheck={false} />
-                    <span class="goto-dialog-input-icon" aria-hidden="true"><ClockIcon /></span>
-                  </label>
+                  <TimeInput value={timeText()} onChange={setTimeText} />
                 </div>
               </Show>
 

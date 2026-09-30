@@ -166,9 +166,45 @@ pub fn last_trading_days(n: usize) -> Vec<NaiveDate> {
     trading_days_before(Utc::now().date_naive() - Duration::days(1), n)
 }
 
+/// New York calendar date of UNIX seconds `sec` (US DST rule in force since
+/// 2007: second Sunday of March 02:00 local to first Sunday of November 02:00
+/// local). A session's bars (04:00-20:00 New York) share this date, while
+/// their UTC date splits in winter (19:00-20:00 New York = 00:00-01:00 UTC).
+pub fn ny_date(sec: i64) -> Option<NaiveDate> {
+    let utc = chrono::DateTime::from_timestamp(sec, 0)?;
+    let year = utc.year();
+    let first_sunday = |month: u32| {
+        let first = NaiveDate::from_ymd_opt(year, month, 1).expect("valid month start");
+        first + Duration::days(((7 - first.weekday().num_days_from_sunday()) % 7) as i64)
+    };
+    // DST starts 02:00 EST (07:00 UTC) and ends 02:00 EDT (06:00 UTC).
+    let start = (first_sunday(3) + Duration::days(7)).and_hms_opt(7, 0, 0)?.and_utc();
+    let end = first_sunday(11).and_hms_opt(6, 0, 0)?.and_utc();
+    let offset = if utc >= start && utc < end { -4 } else { -5 };
+    Some((utc + Duration::hours(offset)).date_naive())
+}
+
+/// Today's New York date.
+pub fn ny_today() -> NaiveDate {
+    ny_date(Utc::now().timestamp()).unwrap_or_else(|| Utc::now().date_naive())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ny_date_keeps_winter_post_market_on_its_session() {
+        // 03/11/2025 19:30 New York (EST) = 04/11/2025 00:30 UTC.
+        let t = NaiveDate::from_ymd_opt(2025, 11, 4).unwrap().and_hms_opt(0, 30, 0).unwrap().and_utc().timestamp();
+        assert_eq!(ny_date(t), NaiveDate::from_ymd_opt(2025, 11, 3));
+        // 29/09/2026 19:59 New York (EDT) = 29/09/2026 23:59 UTC.
+        let t = NaiveDate::from_ymd_opt(2026, 9, 29).unwrap().and_hms_opt(23, 59, 0).unwrap().and_utc().timestamp();
+        assert_eq!(ny_date(t), NaiveDate::from_ymd_opt(2026, 9, 29));
+        // 08/03/2026 04:30 UTC is before the 07:00 UTC switch: 23:30 EST on 07/03.
+        let t = NaiveDate::from_ymd_opt(2026, 3, 8).unwrap().and_hms_opt(4, 30, 0).unwrap().and_utc().timestamp();
+        assert_eq!(ny_date(t), NaiveDate::from_ymd_opt(2026, 3, 7));
+    }
 
     #[test]
     fn skips_weekends() {

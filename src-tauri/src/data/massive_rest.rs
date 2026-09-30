@@ -75,8 +75,15 @@ struct AggResponse {
     /// reason because only `error`/`status` were surfaced.
     #[serde(default)]
     message: Option<String>,
-    #[serde(default, rename = "resultsCount")]
-    results_count: Option<u64>,
+    /// Base units read (minutes for a 5-minute range). The 50k `limit` applies
+    /// to this count, not to `resultsCount` (the multiplied bars returned).
+    #[serde(default, rename = "queryCount")]
+    query_count: Option<u64>,
+    /// Present when the range holds more than `limit` base units: the older
+    /// part was cut (sort=desc). Measured 29/09/2026: 30-minute AAPL
+    /// 05/01-15/05/2026 returned resultsCount 2175, queryCount 50000, next_url.
+    #[serde(default)]
+    next_url: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -136,7 +143,7 @@ async fn fetch_aggs(
     }
 
     let bars = body.results.unwrap_or_default();
-    let truncated = body.results_count.map(|n| n >= 50_000).unwrap_or(false);
+    let truncated = body.next_url.is_some() || body.query_count.is_some_and(|n| n >= 50_000);
     if truncated {
         eprintln!(
             "[massive_rest] {ticker} {mult}{timespan} aggs hit the 50k base-unit cap — \
@@ -293,6 +300,34 @@ pub async fn probe_oldest_bar(ticker: &str, timespan: &str) -> Result<(Option<Na
 //    — and their no-trade days can't be sentineled (can't prove they're empty
 //    rather than dropped), so a truncated range stays on the cold path.
 
+/// Cache root folder. `rest_aggs` (before 29/09/2026) detected truncation
+/// from `resultsCount`, so the days cut from a truncated multi-minute range
+/// were cached as empty no-trade days and the cut oldest day as a full day:
+/// scroll-back and time sync stopped there ("history exhausted"). It also
+/// keyed days by UTC date (see `bar_date`); `rest_aggs_v2` (dev builds of
+/// 29-30/09/2026) still did. The new root drops those files; the old roots
+/// are deleted once per run.
+const REST_CACHE_DIR: &str = "rest_aggs_v3";
+const LEGACY_REST_CACHE_DIRS: &[&str] = &["rest_aggs", "rest_aggs_v2"];
+
+fn rest_cache_root() -> PathBuf {
+    dirs::cache_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("opentrader")
+}
+
+/// Delete the legacy cache roots in the background, once per process.
+fn remove_legacy_cache_once() {
+    static DONE: OnceLock<()> = OnceLock::new();
+    DONE.get_or_init(|| {
+        tokio::spawn(async {
+            for dir in LEGACY_REST_CACHE_DIRS {
+                let _ = tokio::fs::remove_dir_all(rest_cache_root().join(dir)).await;
+            }
+        });
+    });
+}
+
 fn rest_cache_path(
     ticker: &str,
     epoch: &str,
@@ -300,9 +335,8 @@ fn rest_cache_path(
     mult: u32,
     date: NaiveDate,
 ) -> PathBuf {
-    let base = dirs::cache_dir().unwrap_or_else(std::env::temp_dir);
-    base.join("opentrader")
-        .join("rest_aggs")
+    rest_cache_root()
+        .join(REST_CACHE_DIR)
         .join(ticker.to_uppercase())
         .join(epoch)
         .join(format!("{timespan}{mult}"))
@@ -338,9 +372,12 @@ async fn write_day_cache(
     }
 }
 
-/// UTC calendar date of a bar (its bucket start is unix seconds).
+/// Session (New York) date of a bar (its bucket start is unix seconds): the
+/// cache key of a day. The UTC date split a winter session (its 19:00-20:00
+/// post-market is 00:00-01:00 UTC next day), so a range ending on day D wrote a
+/// "D+1" file holding only those bars, which could replace D+1's full file.
 fn bar_date(bar: &Candle) -> Option<NaiveDate> {
-    DateTime::from_timestamp(bar.time as i64, 0).map(|dt| dt.date_naive())
+    trading_calendar::ny_date(bar.time as i64)
 }
 
 /// Persist each *closed* day's slice of an oldest-first ranged response. Bars
@@ -358,7 +395,11 @@ async fn persist_closed_days(
     truncated: bool,
     today: NaiveDate,
 ) {
-    // Write each closed day that has bars.
+    // Write each closed day that has bars. A truncated response cuts its
+    // oldest returned day part way (only the newest minutes of it came back),
+    // so that day is not written: caching it would serve the partial day as
+    // complete.
+    let partial = if truncated { bars.first().and_then(bar_date) } else { None };
     let mut i = 0;
     while i < bars.len() {
         let Some(d) = bar_date(&bars[i]) else {
@@ -369,7 +410,7 @@ async fn persist_closed_days(
         while j < bars.len() && bar_date(&bars[j]) == Some(d) {
             j += 1;
         }
-        if d < today {
+        if d < today && Some(d) != partial {
             write_day_cache(ticker, epoch, timespan, mult, d, &bars[i..j]).await;
         }
         i = j;
@@ -603,11 +644,7 @@ fn epoch_of(splits: &[Split]) -> String {
 /// again (the namespace moved on), so this reclaims that bounded disk. A missing
 /// directory or any per-entry failure is ignored — cleanup is best-effort.
 async fn prune_stale_epochs(ticker: &str, current_epoch: &str) {
-    let dir = dirs::cache_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("opentrader")
-        .join("rest_aggs")
-        .join(ticker.to_uppercase());
+    let dir = rest_cache_root().join(REST_CACHE_DIR).join(ticker.to_uppercase());
     let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
         return;
     };
@@ -650,7 +687,8 @@ async fn fetch_aggs_cached(
 ) -> Result<Vec<Candle>> {
     let mult = mult.max(1);
     let ticker = ticker.to_uppercase();
-    let today = Utc::now().date_naive();
+    let today = trading_calendar::ny_today();
+    remove_legacy_cache_once();
     // Adjusted and raw bars are different series — namespace them apart so a
     // toggle never reads the other basis's cached sessions.
     let timespan_ns = if adjusted {

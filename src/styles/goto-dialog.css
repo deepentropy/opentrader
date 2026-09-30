@@ -464,3 +464,51 @@
   display: inline-flex;
   align-items: center;
 }
+
+/* ── Time list (TimeInput) ──────────────────────────────────────────────────
+ * TV PopupMenu (menuWrap / menuBox) + PopupMenuItem rules, measured
+ * 30/09/2026 in TV 3.4.1: 231 px high, as wide as the field, 32 px rows,
+ * 14 px text, padding 2px 10px 2px 8px (+4 px label inset), active row
+ * #F2F2F2 on black. */
+.goto-time-list {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  overflow: hidden auto;
+  background-color: var(--color-popup-background);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy);
+  text-align: start;
+  user-select: none;
+}
+.goto-time-list-box {
+  padding: 6px 0;
+}
+.goto-time-item {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 32px;
+  padding-block: 2px;
+  padding-inline: 12px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: default;
+  color: var(--color-popup-element-text);
+  background-color: var(--color-popup-background);
+}
+.goto-time-item.is-hovered {
+  color: var(--color-popup-element-text-hover);
+  background-color: var(--color-popup-element-background-hover);
+}
+@media (any-hover: hover) {
+  .goto-time-item:hover {
+    color: var(--color-popup-element-text-hover);
+    background-color: var(--color-popup-element-background-hover);
+  }
+}
+.goto-time-item.is-active,
+.goto-time-item.is-active:hover {
+  color: var(--tv-color-popup-element-text-active, var(--color-content-primary-inverse));
+  background-color: var(--tv-color-popup-element-background-active, var(--color-container-fill-primary-neutral-extra-bold));
+}

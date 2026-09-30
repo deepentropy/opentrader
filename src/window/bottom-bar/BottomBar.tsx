@@ -396,22 +396,13 @@ export function BottomBar(props: Props) {
         {(rect) => (
           <GoToDateDialog
             anchor={rect()}
-            onSubmit={(date) =>
-              window.dispatchEvent(
-                new CustomEvent("chart-goto-date", { detail: { time: Math.floor(date.getTime() / 1000) } }),
-              )
+            onSubmit={(date, minutes) =>
+              // Wall-clock date: each chart reads it in its own time zone.
+              window.dispatchEvent(new CustomEvent("chart-goto-date", { detail: { date, minutes } }))
             }
             onSubmitRange={(from, to) =>
-              // Frame [from 00:00, end of the To day] so the To date's bars
-              // are inside the view.
-              window.dispatchEvent(
-                new CustomEvent("chart-goto-range", {
-                  detail: {
-                    from: Math.floor(from.getTime() / 1000),
-                    to: Math.floor(to.getTime() / 1000) + 86400,
-                  },
-                }),
-              )
+              // The chart frames [From 00:00, end of the To day].
+              window.dispatchEvent(new CustomEvent("chart-goto-range", { detail: { from, to } }))
             }
             onClose={closeGoTo}
           />

@@ -178,6 +178,46 @@ fn aggregates_before_window(to: NaiveDate, span_days: u32) -> (NaiveDate, NaiveD
     (from, to)
 }
 
+/// Trading days per minute-family request. Massive reads at most 50 000 base
+/// minutes per request and drops the OLDEST ones beyond that; 50 full extended
+/// sessions (16 h = 960 minutes each) stay under it, so a chunk is never cut.
+const MINUTE_CHUNK_DAYS: usize = 50;
+/// Chunk requests in flight at once.
+const CHUNK_CONCURRENCY: usize = 6;
+
+/// Minute bars over `[from, to]`, split into [`MINUTE_CHUNK_DAYS`] windows
+/// fetched concurrently, so a long window (a time-sync or go-to target months
+/// back) comes back complete in about one request's time instead of cut at
+/// 50 000 minutes. Chunks are calendar-contiguous; bars come back oldest-first.
+async fn minute_aggs_chunked(
+    provider: &Provider,
+    sym: &str,
+    mult: u32,
+    from: NaiveDate,
+    to: NaiveDate,
+    adjusted: bool,
+) -> anyhow::Result<Vec<Candle>> {
+    use futures_util::stream::{self, StreamExt, TryStreamExt};
+    let days = trading_calendar::trading_days_in_range(from, to);
+    if days.len() <= MINUTE_CHUNK_DAYS {
+        return provider.minute_aggs(sym, mult, from, to, adjusted).await;
+    }
+    let mut windows = Vec::new();
+    let mut start = from;
+    for chunk in days.chunks(MINUTE_CHUNK_DAYS) {
+        let last = *chunk.last().unwrap_or(&to);
+        let end = if last >= to || chunk.len() < MINUTE_CHUNK_DAYS { to } else { last };
+        windows.push((start, end));
+        start = end + Duration::days(1);
+    }
+    let pages: Vec<Vec<Candle>> = stream::iter(windows)
+        .map(|(a, b)| provider.minute_aggs(sym, mult, a, b, adjusted))
+        .buffered(CHUNK_CONCURRENCY)
+        .try_collect()
+        .await?;
+    Ok(pages.into_iter().flatten().collect())
+}
+
 /// Scroll-back pager for the REST-sourced frames (seconds + minutes): one older
 /// window of `mult`-`timespan` bars strictly before `before_sec` (the time, in
 /// seconds, of the chart's oldest loaded bar). `span_days` sizes the window (in
@@ -214,7 +254,7 @@ pub async fn get_aggregates_before(
 
     let bars = match timespan.as_str() {
         "second" => provider.second_aggs(&sym, mult, from, to, adjusted).await,
-        "minute" => provider.minute_aggs(&sym, mult, from, to, adjusted).await,
+        "minute" => minute_aggs_chunked(&provider, &sym, mult, from, to, adjusted).await,
         other => return Err(format!("unsupported timespan for aggregates-before: {other}")),
     }
     .map_err(|e| e.to_string())?;
