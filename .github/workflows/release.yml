@@ -9,6 +9,10 @@ name: Release
 #
 # Outputs: Windows .exe (NSIS) + .msi, macOS universal .dmg + .app,
 # Linux .AppImage + .deb + .rpm, named OpenTrader_<platform>_<arch>.<ext>.
+# Plus the in-app update files (src-tauri/src/app_update.rs): a .sig per
+# updater bundle and latest.json in the release. Installed apps read
+# releases/latest/download/latest.json, so an update reaches users only once
+# the draft is published.
 on:
   push:
     tags: ['v*']
@@ -39,6 +43,12 @@ jobs:
       # Compiled into the app by src-tauri/build.rs. Without it the app has no
       # market data. Set it in Settings -> Secrets and variables -> Actions.
       OPENTRADER_GATEWAY_TOKEN: ${{ secrets.OPENTRADER_GATEWAY_TOKEN }}
+      # Signs the in-app update files (bundle.createUpdaterArtifacts). The
+      # public half is plugins.updater.pubkey in tauri.conf.json. Without the
+      # key the build fails, and with another key installed apps reject the
+      # update.
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       # Two checkouts side by side, the layout vite.config.ts expects:
@@ -56,12 +66,16 @@ jobs:
           ref: ${{ env.DRAWING_REF }}
           path: lightweight-charts-drawing
 
-      - name: Check gateway token and version
+      - name: Check secrets and version
         shell: bash
         working-directory: opentrader
         run: |
           if [ -z "$OPENTRADER_GATEWAY_TOKEN" ]; then
             echo "::error::OPENTRADER_GATEWAY_TOKEN secret is not set: the app would have no market data."
+            exit 1
+          fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ -z "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets are not set: the update files cannot be signed."
             exit 1
           fi
           version=$(node -p "require('./src-tauri/tauri.conf.json').version")
@@ -133,6 +147,10 @@ jobs:
           # Version-free names, so the README can link to
           # releases/latest/download/<name> (e.g. OpenTrader_windows_x64-setup.exe).
           assetNamePattern: '[name]_[platform]_[arch][setup][ext]'
+          # latest.json has one entry per installer (windows-x86_64-nsis / -msi),
+          # and the app picks the one it was installed with. This sets only the
+          # plain windows-x86_64 fallback: the NSIS installer (README download).
+          updaterJsonPreferNsis: true
 
       # Manual runs only: on a tag push the installers are already in the draft
       # release, and a second copy would count against the artifact storage quota.

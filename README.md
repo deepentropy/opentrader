@@ -31,6 +31,17 @@ The installers are not signed with a paid certificate:
 
 Windows is the main development platform. The macOS and Linux builds are produced by the same code but are less tested.
 
+## Support the project
+
+OpenTrader is free, but running it is not: market data, servers and development tools are paid every month. Donations pay these costs. Only the monthly total is published.
+
+[![Monthly costs](https://img.shields.io/endpoint?url=https%3A%2F%2Fopentrader-gateway.cloudflare-breeder165.workers.dev%2Ffunding%2Fv1%2Fbadge)](https://github.com/sponsors/deepentropy)
+
+- [Sponsor on GitHub](https://github.com/sponsors/deepentropy)
+- [Buy Me a Coffee](https://buymeacoffee.com/opentrader)
+
+The same status is in the app: *Settings > About*.
+
 ## Build from source
 
 ### Prerequisites
@@ -59,10 +70,12 @@ The released installers already contain the gateway token. Only a build from sou
 
 ```bash
 npm run tauri dev      # opens the app with hot reload
-npm run tauri build    # installers under src-tauri/target/release/bundle/
+npm run tauri build -- --no-sign   # installers under src-tauri/target/release/bundle/
 ```
 
 The first run is slow (cold Rust build, a few minutes). Later runs take seconds.
+
+`--no-sign` skips the signing of the in-app update files, which needs the project's private key. A build without it runs normally.
 
 `src/bindings.ts` is written on each debug run of the app. For a release build from a fresh clone, generate it first with `cargo test --lib export_bindings` in `src-tauri/`. Do not edit it by hand.
 
@@ -80,8 +93,9 @@ docs/assets/          README images
 1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json`.
 2. Commit, then push a matching tag: `git tag v0.1.0 && git push origin v0.1.0`.
 3. The [Release workflow](.github/workflows/release.yml) builds Windows, macOS and Linux installers and attaches them to a draft release. Review the draft and publish it.
+4. Installed apps (Windows and macOS) find the new version at their next start or within an hour, download it, and offer "Update the app". This starts only once the release is published.
 
-The workflow needs the repository secret `OPENTRADER_GATEWAY_TOKEN`.
+The workflow needs the repository secrets `OPENTRADER_GATEWAY_TOKEN`, `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (update signing key; its public key is `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`).
 
 ## Third-party notices
 

@@ -446,8 +446,9 @@ export function getBarsBefore(
   beforeSec: number,
   session: SessionId = "ETH",
   /** Window size in trading days, overriding the interval's page size. Used by
-   *  date-range sync to reach a target date in ONE request (the backend still
-   *  caps a request at 50k base units, keeping the most recent ones). */
+   *  date-range / time sync to reach a target date in ONE request (the backend
+   *  splits a long minute window into uncut 50-day requests fetched in
+   *  parallel). */
   spanDays?: number,
 ): Promise<Candle[]> {
   const regular = session === "RTH";

@@ -99,7 +99,8 @@ import {
 } from "./chart-types";
 import { ChartLegend, type LegendValues } from "./ChartLegend";
 import { layoutSync } from "./layout-sync";
-import { dayKeyer } from "./day-key";
+import { dayKeyer, utcToWall, wallTimeToUtc, type WallDate, type WallTime } from "./day-key";
+import type { GotoQuery } from "./goto-query";
 import { quoteFor } from "../../data/quotes";
 import { usMarketSession } from "../../data/market-session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
@@ -2388,8 +2389,11 @@ export function ChartView(props: Props) {
 
   /** Frame [fromSec, toSec] on this pane:
    *  the same dates as the driving pane, bar spacing adapting to fit (the
-   *  library's min bar spacing then keeps the right edge). */
-  function applySyncRange(fromSec: number, toSec: number) {
+   *  library's min bar spacing then keeps the right edge). `driver`: the
+   *  user's own move (Go to custom range), not guarded like an inbound sync.
+   *  `indexOf`: bar index of a time (default: the sync rule). */
+  function applySyncRange(fromSec: number, toSec: number, driver = false, indexOf: (sec: number) => number = syncIndex) {
+    const guard = () => { if (!driver) holdSyncGuard(); };
     if (!chart || raw.length === 0) return;
     const ts = chart.timeScale();
     const last = raw.length - 1;
@@ -2399,39 +2403,64 @@ export function ChartView(props: Props) {
     if (toSec < (raw[0].time as number)) {
       const cur = ts.getVisibleLogicalRange();
       const span = cur ? Math.max(MIN_VISIBLE_BARS, cur.to - cur.from) : 100;
-      holdSyncGuard();
+      guard();
       ts.setVisibleLogicalRange({ from: -0.5, to: span - 0.5 });
       return;
     }
-    const i = syncIndex(fromSec);
-    let l = Math.max(i, syncIndex(toSec));
+    const i = indexOf(fromSec);
+    let l = Math.max(i, indexOf(toSec));
     if (l - i + 1 < SYNC_MIN_BARS) l = i + SYNC_MIN_BARS - 1;
     // A range reaching the latest bar keeps the pane's right margin.
     if (l >= last) l = Math.max(l, last + (ts.options().rightOffset ?? 0));
-    holdSyncGuard();
+    guard();
     ts.setVisibleLogicalRange({ from: i - 0.5, to: l + 0.5 });
   }
 
-  /** Bumped per goToTime call so a newer jump supersedes an in-flight older one. */
+  /** Bar index for a "Go to" date (TV `_gotoTimeImpl`): intraday, the bar
+   *  holding the time (TV aligns the target to its bar start), else the first
+   *  bar after it; the first bar at/after the date on DWM. */
+  function gotoDateIndex(sec: number): number {
+    const iv = props.interval ?? "1D";
+    if (!isIntradayResolution(iv) && !isSecondResolution(iv)) return indexAtOrAfter(sec);
+    const step = parseInt(iv, 10) * (/S$/.test(iv) ? 1 : 60);
+    const i = indexAtOrBefore(sec);
+    const t = raw[i].time as number;
+    return t <= sec && sec < t + step ? i : indexAtOrAfter(sec);
+  }
+
+  type GotoOpts = {
+    /** Centre the target even when it is already in view (TV Go to). */
+    alignIfVisible?: boolean;
+    /** The user's own move (Go to): the new view is persisted and sent to
+     *  synced panes / linked tabs like a scroll. Sync followers leave it off. */
+    driver?: boolean;
+    /** Bar index of the target (default: the sync rule). */
+    index?: (sec: number) => number;
+  };
+
+  /** Bumped per goToTime / goToRange call so a newer jump supersedes an
+   *  in-flight older one. */
   let gotoGen = 0;
   /** Receiving side of "Time" sync (target aligned to the centre, no
    *  alignment when already visible): when the
    *  clicked time is already in view nothing moves; otherwise the pane loads
    *  history back to it if needed (one request, capped) and centres it at the
    *  current bar spacing. It only scrolls: the crosshair is the crosshair
-   *  sync's business. */
-  async function goToTime(targetSec: number) {
+   *  sync's business. The Go to dialog uses it with `alignIfVisible` and
+   *  `driver` (TV `gotoTime`). */
+  async function goToTime(targetSec: number, opts: GotoOpts = {}) {
     if (!chart || !series || raw.length === 0) return;
     const ts = chart.timeScale();
+    const indexOf = opts.index ?? syncIndex;
     const loaded = (raw[0].time as number) <= targetSec || rawDaily.length > 0 || historyExhausted;
     const cur = ts.getVisibleLogicalRange();
-    if (loaded && cur) {
-      const idx = syncIndex(targetSec);
+    if (loaded && cur && !opts.alignIfVisible) {
+      const idx = indexOf(targetSec);
       if (idx >= cur.from && idx <= cur.to) return;
     }
     // Another loader is prepending: retry once it is done.
     if (loadingMore) {
-      window.setTimeout(() => void goToTime(targetSec), 50);
+      window.setTimeout(() => void goToTime(targetSec, opts), 50);
       return;
     }
     const myGoto = ++gotoGen;
@@ -2443,12 +2472,34 @@ export function ChartView(props: Props) {
       if (myGoto !== gotoGen || !chart) return;
       const r = ts.getVisibleLogicalRange();
       const span = r ? r.to - r.from : 120;
-      const idx = syncIndex(targetSec);
-      holdSyncGuard();
+      const idx = indexOf(targetSec);
+      if (!opts.driver) holdSyncGuard();
       ts.setVisibleLogicalRange({ from: idx - span / 2, to: idx + span / 2 });
     } finally {
       clearTimeout(dimTimer);
       // Only the latest jump clears the dim.
+      if (myGoto === gotoGen) setDimmed(false);
+    }
+  }
+
+  /** Go to "Custom range" (TV `setTimeFrame` with a time range): load history
+   *  back to `fromSec` if needed, then frame [fromSec, toSec] like a date-range
+   *  sync target. The user's own move: persisted and sent to synced panes. */
+  async function goToRange(fromSec: number, toSec: number) {
+    if (!chart || !series || raw.length === 0) return;
+    if (loadingMore) {
+      window.setTimeout(() => void goToRange(fromSec, toSec), 50);
+      return;
+    }
+    const myGoto = ++gotoGen;
+    const dimTimer = needsSyncLoad(fromSec) ? window.setTimeout(() => setDimmed(true), 160) : 0;
+    try {
+      if (!(await loadHistoryTo(() => fromSec, () => myGoto === gotoGen))) return;
+      if (myGoto !== gotoGen || !chart) return;
+      // TV `gotoTimeRange`: both ends go to the first bar at/after their time.
+      applySyncRange(fromSec, toSec, true, indexAtOrAfter);
+    } finally {
+      clearTimeout(dimTimer);
       if (myGoto === gotoGen) setDimmed(false);
     }
   }
@@ -3042,38 +3093,58 @@ export function ChartView(props: Props) {
       window.removeEventListener("chart-sync-time", whenShown(onSyncTime));
     });
 
-    // "Go to date" (bottom-bar GoToDateDialog) — center the view on the target
-    // time. Best-effort: setVisibleRange uses numeric timestamps; if the target
-    // is outside loaded data the chart keeps the nearest in-range view.
+    // "Go to" dialog (bottom-bar GoToDateDialog). The dialog sends wall-clock
+    // dates; each pane reads them in its own time zone (TV converts in the
+    // chart time zone). DWM targets are calendar dates.
+    const isDwm = () => {
+      const iv = props.interval ?? "1D";
+      return !isIntradayResolution(iv) && !isSecondResolution(iv);
+    };
+    const wallSec = (w: WallDate, h = 0, mi = 0) => wallTimeToUtc(props.timeZone ?? "UTC", w.y, w.m, w.d, h, mi);
+    // Date tab (TV `gotoTime`): the active chart only; history loads back to
+    // the date, and the target is centred even when already in view.
     const onGoToDate = (e: Event) => {
-      const sec = (e as CustomEvent<{ time?: number }>).detail?.time;
-      if (sec == null || !chart) return;
-      const span = 30 * 24 * 60 * 60; // ±30 days around the target
-      try {
-        chart.timeScale().setVisibleRange({
-          from: (sec - span) as UTCTimestamp,
-          to: (sec + span) as UTCTimestamp,
-        });
-      } catch {
-        /* target out of range / no data — best-effort */
-      }
+      const d = (e as CustomEvent<{ date?: WallDate; minutes?: number }>).detail;
+      if (!d?.date || !chart || !props.active) return;
+      const sec = isDwm()
+        ? Date.UTC(d.date.y, d.date.m, d.date.d) / 1000
+        : wallSec(d.date, Math.floor((d.minutes ?? 0) / 60), (d.minutes ?? 0) % 60);
+      if (raw.length === 0 || history.loading || swapping) return;
+      void goToTime(sec, { alignIfVisible: true, driver: true, index: gotoDateIndex });
     };
     window.addEventListener("chart-goto-date", whenShown(onGoToDate));
     onCleanup(() => window.removeEventListener("chart-goto-date", whenShown(onGoToDate)));
 
-    // Go-to "Custom range": frame exactly the picked [from, to] span.
+    // Custom range tab (TV `setTimeFrame`): the active chart, or every chart
+    // when Interval sync is on. Frames [From, To] (date + time; DWM: dates).
     const onGoToRange = (e: Event) => {
-      const d = (e as CustomEvent<{ from?: number; to?: number }>).detail;
-      if (!chart || d?.from == null || d?.to == null) return;
-      try {
-        chart.timeScale().setVisibleRange({
-          from: d.from as UTCTimestamp,
-          to: d.to as UTCTimestamp,
-        });
-      } catch {
-        /* span outside loaded data — best-effort */
-      }
+      const d = (e as CustomEvent<{ from?: WallTime; to?: WallTime }>).detail;
+      if (!chart || !d?.from || !d?.to || !(props.active || layoutSync().interval)) return;
+      if (raw.length === 0 || history.loading || swapping) return;
+      const at = (w: WallTime) =>
+        isDwm() ? Date.UTC(w.y, w.m, w.d) / 1000 : wallSec(w, Math.floor(w.minutes / 60), w.minutes % 60);
+      void goToRange(at(d.from), at(d.to));
     };
+    // The dialog asks the active chart, when it opens, for its first and last
+    // fully visible bars (TV `visibleBarsStrictRange`: the Custom range
+    // start values) and whether it is DWM (date only, time fields disabled).
+    const onGoToQuery = (e: Event) => {
+      const q = (e as CustomEvent<GotoQuery>).detail;
+      if (!chart || !props.active || !q) return;
+      q.dateOnly = isDwm();
+      const lr = chart.timeScale().getVisibleLogicalRange();
+      if (!lr || raw.length === 0) return;
+      const first = Math.max(0, Math.ceil(lr.from));
+      const lastBar = Math.min(raw.length - 1, Math.floor(lr.to));
+      if (first > lastBar) return;
+      // DWM bars sit on their date (noon UTC is inside the day in any zone
+      // the exchange date is read in).
+      const wall = (sec: number): WallTime =>
+        isDwm() ? { ...utcToWall("UTC", sec + 43200), minutes: 0 } : utcToWall(props.timeZone ?? "UTC", sec);
+      q.visible = { from: wall(raw[first].time as number), to: wall(raw[lastBar].time as number) };
+    };
+    window.addEventListener("chart-goto-query", whenShown(onGoToQuery));
+    onCleanup(() => window.removeEventListener("chart-goto-query", whenShown(onGoToQuery)));
     window.addEventListener("chart-goto-range", whenShown(onGoToRange));
     onCleanup(() => window.removeEventListener("chart-goto-range", whenShown(onGoToRange)));
 

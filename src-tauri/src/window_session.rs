@@ -84,6 +84,13 @@ impl Session {
     }
 }
 
+/// Save now (before an update install, which exits without close events).
+pub fn save(app: &AppHandle) {
+    if let Some(session) = app.try_state::<Session>() {
+        session.save_now();
+    }
+}
+
 /// Save 500 ms after the last burst of moves / resizes (one writer at a time).
 fn schedule_save(app: &AppHandle) {
     let Some(session) = app.try_state::<Session>() else { return };

@@ -3,7 +3,8 @@
  * to the date-range tabs in the bottom bar (hotkey Alt+G). Solid port of the
  * reference mock: Date / Custom-range tabs, a date + time input, a Monday-first
  * month calendar with month nav, and a Cancel / Go to footer. Submitting calls
- * `onSubmit(Date)`; the bottom bar relays it to the chart as a jump-to-date.
+ * `onSubmit(date, minutes)`; the bottom bar relays it to the chart as a
+ * jump-to-date. The time field is TimeInput (mask + 15-minute list).
  *
  * The Custom-range tab picks a [from, to] date pair and submits it via
  * `onSubmitRange`; the bottom bar frames the chart on that span. Anchored as a
@@ -11,14 +12,24 @@
  */
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
+import type { WallDate, WallTime } from "../chart/day-key";
+import { normalizeTime, TimeInput } from "./TimeInput";
+import * as kv from "../../data/kv";
 
 type Props = {
   anchor: DOMRect;
-  initialDate?: Date;
-  initialTime?: string;
-  onSubmit: (date: Date) => void;
+  /** Date tab start value (the session's last submitted date + time). */
+  initial?: WallTime | null;
+  /** Active chart is DWM: time fields disabled, dates at 00:00. */
+  dateOnly?: boolean;
+  /** Custom range start values: the active chart's first / last fully
+   *  visible bars. */
+  initialRange?: { from: WallTime; to: WallTime } | null;
+  /** Date tab submit: the picked calendar date and time (minutes after
+   *  midnight), read by each chart in its own time zone. */
+  onSubmit: (date: WallDate, minutes: number) => void;
   /** Custom-range tab submit — frame the chart on [from, to]. */
-  onSubmitRange?: (from: Date, to: Date) => void;
+  onSubmitRange?: (from: WallTime, to: WallTime) => void;
   onClose: () => void;
 };
 
@@ -30,6 +41,13 @@ const dowMondayFirst = (d: Date) => (d.getDay() + 6) % 7;
 function ymd(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function wallToDate(w: WallDate): Date {
+  return new Date(w.y, w.m, w.d);
+}
+function hhmm(minutes: number): string {
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 function parseYmd(s: string): Date | null {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -44,7 +62,7 @@ function ariaDay(d: Date): string {
   return d.toLocaleString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-// ─── Typing rules (TV DatePicker 368690 / TimeInput 282695) ─────────────────
+// ─── Date typing rules (TV DatePicker 368690) ───────────────────────────────
 /** Keys the date field accepts (TV `inputRegex`); others are blocked. */
 const DATE_KEY = /[0-9.]/;
 /** TV `_fixValue`, run on key release (not after Backspace): at most 10
@@ -53,56 +71,6 @@ function fixDate(v: string): string {
   let s = v.substring(0, 10).replace(/-+/g, "-");
   if (/^\d{4}$/.test(s) || /^\d{4}-\d{2}$/.test(s)) s += "-";
   return s;
-}
-
-/** TV's input mask engine for the time field (mask "09:00": `0` = digit,
- *  `9` = optional digit, anything else = literal). */
-const MASK_TOKENS: Record<string, { pattern: RegExp; optional?: boolean }> = {
-  "0": { pattern: /\d/ },
-  "9": { pattern: /\d/, optional: true },
-};
-const TIME_MASK = "09:00";
-function applyMask(mask: string, value: string): string {
-  const out: string[] = [];
-  let i = 0;
-  let r = 0;
-  let pending: string | undefined;
-  while (i < mask.length && r < value.length) {
-    const m = mask.charAt(i);
-    const ch = value.charAt(r);
-    const tok = MASK_TOKENS[m];
-    if (tok) {
-      if (ch.match(tok.pattern)) {
-        out.push(ch);
-        i++;
-      } else if (ch === pending) {
-        pending = undefined;
-      } else if (tok.optional) {
-        i++;
-        r--;
-      }
-      r++;
-    } else {
-      out.push(m);
-      if (ch === m) r++;
-      else pending = m;
-      i++;
-    }
-  }
-  const last = mask.charAt(mask.length - 1);
-  if (mask.length === value.length + 1 && !MASK_TOKENS[last]) out.push(last);
-  return out.join("");
-}
-/** TV time commit on blur: hours padded left, minutes padded right, then
- *  clamped to 00-23 / 00-59 when not a valid HH:MM. */
-function normalizeTime(v: string): string {
-  const [h = "", m = ""] = v.split(":");
-  const t = `${h.slice(0, 2).padStart(2, "0")}:${m.slice(0, 2).padEnd(2, "0")}`;
-  if (/^(0?[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/.test(t)) return t;
-  const [a, b] = t.split(":");
-  const hh = Math.min(23, Math.max(0, parseInt(a) || 0));
-  const mm = Math.min(59, Math.max(0, parseInt(b) || 0));
-  return `${String(hh).padStart(2, "0")}:${String(mm).padEnd(2, "0")}`;
 }
 
 /** Visible weeks for a month — first/last weeks are short (partial); CSS pins
@@ -145,42 +113,65 @@ const CalendarIcon = () => (
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10 4h1v2h6V4h1v2h2.5A2.5 2.5 0 0 1 23 8.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 5 19.5v-11A2.5 2.5 0 0 1 7.5 6H10V4zm8 3H7.5C6.67 7 6 7.67 6 8.5v11c0 .83.67 1.5 1.5 1.5h13c.83 0 1.5-.67 1.5-1.5v-11c0-.83-.67-1.5-1.5-1.5H18zm-3 2h-2v2h2V9zm-7 4h2v2H8v-2zm12-4h-2v2h2V9zm-7 4h2v2h-2v-2zm-3 4H8v2h2v-2zm3 0h2v2h-2v-2zm7-4h-2v2h2v-2z" />
   </svg>
 );
-const ClockIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
-    <path fill="currentColor" fill-rule="evenodd" d="M14 23a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 1a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm.5-17h-1v7.5l5 3 .5-.87-4.5-2.7V7Z" />
-  </svg>
-);
+// TV's dialog icons (research/goto-sync/data/tv-goto-icons.json): the close
+// cross is drawn at 18 px, the month arrows at 28 px (next = mirrored).
 const CloseIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 14" width="18" height="18">
+    <path stroke="currentColor" stroke-width="1.2" d="m1.5 1.5 11 11m0-11-11 11" vector-effect="non-scaling-stroke" />
+  </svg>
+);
+const ChevronIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
-    <path fill="currentColor" d="M19.78 8.22 14 14l5.78 5.78-1.06 1.06L13 15.06l-5.78 5.78-1.06-1.06L11.94 14 6.16 8.22l1.06-1.06L13 12.94l5.72-5.78 1.06 1.06Z" />
+    <path fill="currentColor" d="m16.47 7.47 1.06 1.06L12.06 14l5.47 5.47-1.06 1.06L9.94 14l6.53-6.53Z" />
   </svg>
 );
-const ChevronLeftIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
-    <path fill="currentColor" d="M10.97 4.97 6.94 9l4.03 4.03-1.06 1.06L4.82 9l5.09-5.09 1.06 1.06Z" />
-  </svg>
-);
-const ChevronRightIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
-    <path fill="currentColor" d="m5.03 4.97 5.09 5.09-5.09 5.09L3.97 14.09 8 10.06 3.97 6.03Z" />
-  </svg>
-);
+
+/** Last active tab, kept across restarts (TV user setting
+ *  GoToDialog.activeTab). */
+const TAB_KEY = "ot:goto-dialog-tab";
 
 type TabId = "date" | "customrange";
 
 export function GoToDateDialog(props: Props) {
   const today = (() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; })();
-  const initial = props.initialDate ?? today;
-  const [tab, setTab] = createSignal<TabId>("date");
+  // Date tab start: the last submitted date + time of the session, else today
+  // 00:00; a DWM chart shows it at 00:00 (TV `resetToDayStart`).
+  const initial = props.initial ? wallToDate(props.initial) : today;
+  const [tab, setTab] = createSignal<TabId>(kv.getItem(TAB_KEY) === "customrange" ? "customrange" : "date");
+  let dateInput: HTMLInputElement | undefined;
+  let fromInput: HTMLInputElement | undefined;
   const [selected, setSelected] = createSignal<Date>(new Date(initial));
   const [dateText, setDateText] = createSignal<string>(ymd(initial));
-  const [timeText, setTimeText] = createSignal<string>(props.initialTime ?? "00:00");
-  // Custom-range fields. Calendar clicks fill the armed one, then arm the
-  // other (first click = From, second = To). Defaults frame the last month.
-  const monthAgo = (() => { const d = new Date(initial); d.setDate(d.getDate() - 30); return d; })();
-  const [fromText, setFromText] = createSignal<string>(ymd(monthAgo));
-  const [toText, setToText] = createSignal<string>(ymd(initial));
+  const [timeText, setTimeText] = createSignal<string>(
+    props.initial && !props.dateOnly ? hhmm(props.initial.minutes) : "00:00",
+  );
+  // Custom-range fields (date + time each). Calendar clicks fill the armed
+  // date, then arm the other (first click = From, second = To). They start on
+  // the active chart's first / last fully visible bars, else on now.
+  const nowWall = (): WallTime => {
+    const n = new Date();
+    return { y: n.getFullYear(), m: n.getMonth(), d: n.getDate(), minutes: n.getHours() * 60 + n.getMinutes() };
+  };
+  const rangeStart = props.initialRange ?? { from: nowWall(), to: nowWall() };
+  const [fromText, setFromText] = createSignal<string>(ymd(wallToDate(rangeStart.from)));
+  const [fromTime, setFromTime] = createSignal<string>(props.dateOnly ? "00:00" : hhmm(rangeStart.from.minutes));
+  const [toText, setToText] = createSignal<string>(ymd(wallToDate(rangeStart.to)));
+  const [toTime, setToTime] = createSignal<string>(props.dateOnly ? "00:00" : hhmm(rangeStart.to.minutes));
   const [armedField, setArmedField] = createSignal<"from" | "to">("from");
+  /** A Custom range end as date + time; null while its date does not parse. */
+  const rangeEnd = (date: string, time: string): WallTime | null => {
+    const d = parseYmd(date);
+    if (!d) return null;
+    const [h, m] = normalizeTime(time).split(":").map(Number);
+    return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate(), minutes: props.dateOnly ? 0 : h * 60 + m };
+  };
+  const wallKey = (w: WallTime) => Date.UTC(w.y, w.m, w.d) / 60000 + w.minutes;
+  // TV disables "Go to" while From is after To.
+  const rangeValid = createMemo(() => {
+    const a = rangeEnd(fromText(), fromTime());
+    const b = rangeEnd(toText(), toTime());
+    return !!a && !!b && wallKey(a) <= wallKey(b);
+  });
   const [viewYear, setViewYear] = createSignal<number>(initial.getFullYear());
   const [viewMonth, setViewMonth] = createSignal<number>(initial.getMonth());
   // Month-label click switches the calendar body to a 12-month grid (the nav
@@ -214,8 +205,17 @@ export function GoToDateDialog(props: Props) {
     setPos({ left, top });
   };
 
+  /** Show a tab: remember it and focus its first date field (TV). */
+  const selectTab = (id: TabId) => {
+    setTab(id);
+    kv.setItem(TAB_KEY, id);
+    queueMicrotask(() => (id === "date" ? dateInput : fromInput)?.focus());
+  };
+
   onMount(() => {
     reposition();
+    if (tab() === "customrange") arm("from");
+    (tab() === "date" ? dateInput : fromInput)?.focus();
     const onDown = (e: PointerEvent) => { if (!popup.contains(e.target as Node)) props.onClose(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); props.onClose(); } };
     // Defer the outside-click listener a tick so the opening click doesn't close it.
@@ -257,55 +257,74 @@ export function GoToDateDialog(props: Props) {
       set(fixed);
     }
   };
-  // Time field: mask while typing, HH:MM on leave. The caret stays where it
-  // was unless it was at the end.
-  const onTimeInput = (e: InputEvent & { currentTarget: HTMLInputElement }) => {
-    const el = e.currentTarget;
-    const v = el.value;
-    const masked = applyMask(TIME_MASK, v);
-    if (masked !== v) {
-      const atEnd = el.selectionStart === v.length;
-      const pos = el.selectionStart ?? masked.length;
-      el.value = masked;
-      const caret = atEnd ? masked.length : Math.min(pos, masked.length);
-      el.setSelectionRange(caret, caret);
-    }
-    setTimeText(masked);
-  };
-  const onTimeBlur = (e: FocusEvent & { currentTarget: HTMLInputElement }) => {
-    const t = normalizeTime(e.currentTarget.value);
-    e.currentTarget.value = t;
-    setTimeText(t);
-  };
+  const wall = (d: Date): WallDate => ({ y: d.getFullYear(), m: d.getMonth(), d: d.getDate() });
 
   const submit = () => {
     if (tab() === "customrange") {
-      const a = parseYmd(fromText());
-      const b = parseYmd(toText());
-      if (!a || !b) return;
-      // Order-agnostic: swap if the user picked them backwards.
-      const [from, to] = a.getTime() <= b.getTime() ? [a, b] : [b, a];
+      const from = rangeEnd(fromText(), fromTime());
+      const to = rangeEnd(toText(), toTime());
+      if (!from || !to || !rangeValid()) return;
       props.onSubmitRange?.(from, to);
       props.onClose();
       return;
     }
+    if (!dateValid()) return;
     const d = parseYmd(dateText()) ?? selected();
-    const m = normalizeTime(timeText()).match(/^(\d{1,2}):(\d{2})$/);
-    if (m) d.setHours(+m[1], +m[2], 0, 0);
-    props.onSubmit(d);
+    const [h, m] = normalizeTime(timeText()).split(":").map(Number);
+    props.onSubmit(wall(d), h * 60 + m);
     props.onClose();
   };
 
-  /** Calendar-day click: Date tab picks the single date; Custom-range fills
-   *  the armed endpoint then arms the other one. */
+  /** Custom range: arm a field and show its month (TV: focusing a date
+   *  field moves the calendar to that date). */
+  const arm = (field: "from" | "to") => {
+    setArmedField(field);
+    const d = parseYmd(field === "from" ? fromText() : toText());
+    if (!d) return;
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  };
+
+  /** Calendar limits (TV calendar minDate / maxDate): the Date tab stops at
+   *  today; on Custom range, while From is armed the last day is To, while To
+   *  is armed the first day is From. */
+  const limits = (): { min: Date | null; max: Date | null } => {
+    if (tab() === "date") return { min: null, max: today };
+    return armedField() === "from" ? { min: null, max: parseYmd(toText()) } : { min: parseYmd(fromText()), max: null };
+  };
+  const dayBlocked = (d: Date): boolean => {
+    const { min, max } = limits();
+    return (!!min && d < min) || (!!max && d > max);
+  };
+  /** A month is blocked when all its days are (TV DateLevel.Month). */
+  const monthBlocked = (year: number, month: number): boolean =>
+    dayBlocked(new Date(year, month, 1)) && dayBlocked(new Date(year, month + 1, 0));
+  /** TV: an arrow is disabled when the day (days view) or month (months
+   *  view) just past the shown one is blocked. */
+  const navBlocked = (delta: number): boolean => {
+    if (calView() === "months") {
+      return delta > 0 ? monthBlocked(viewYear() + 1, 0) : monthBlocked(viewYear() - 1, 11);
+    }
+    return delta > 0
+      ? dayBlocked(new Date(viewYear(), viewMonth() + 1, 1))
+      : dayBlocked(new Date(viewYear(), viewMonth(), 0));
+  };
+  /** TV (GoToDateProvider): "Go to" is disabled for a date after today. */
+  const dateValid = createMemo(() => {
+    const d = parseYmd(dateText());
+    return !d || d <= today;
+  });
+
+  /** Calendar-day click: Date tab picks the single date; Custom range fills
+   *  the armed date (its time is kept). A From pick then arms To; a To pick
+   *  stays on To (TV). */
   const pickDay = (d: Date) => {
     if (tab() === "customrange") {
       if (armedField() === "from") {
         setFromText(ymd(d));
-        setArmedField("to");
+        arm("to");
       } else {
         setToText(ymd(d));
-        setArmedField("from");
       }
       return;
     }
@@ -334,10 +353,10 @@ export function GoToDateDialog(props: Props) {
           <div class="goto-dialog-tablist" role="tablist">
             <button type="button" role="tab" aria-selected={tab() === "date"}
               class={`goto-dialog-tab${tab() === "date" ? " is-selected" : ""}`}
-              onClick={() => setTab("date")}>Date</button>
+              onClick={() => selectTab("date")}>Date</button>
             <button type="button" role="tab" aria-selected={tab() === "customrange"}
               class={`goto-dialog-tab${tab() === "customrange" ? " is-selected" : ""}`}
-              onClick={() => setTab("customrange")}>Custom range</button>
+              onClick={() => selectTab("customrange")}>Custom range</button>
             <div class={`goto-dialog-underline is-${tab()}`} />
           </div>
         </div>
@@ -347,60 +366,62 @@ export function GoToDateDialog(props: Props) {
               <Show
                 when={tab() === "date"}
                 fallback={
-                  <div class="goto-dialog-row">
-                    <label
-                      class={"goto-dialog-input-wrap is-date" + (armedField() === "from" ? " is-armed" : "")}
-                    >
-                      <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={fromText()}
-                        onFocus={() => setArmedField("from")}
-                        onKeyPress={onDateKeyPress}
-                        onKeyUp={(e) => onDateKeyUp(e, setFromText)}
-                        onInput={(e) => setFromText(e.currentTarget.value)} spellcheck={false} />
-                      <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
-                    </label>
-                    <label
-                      class={"goto-dialog-input-wrap is-date" + (armedField() === "to" ? " is-armed" : "")}
-                    >
-                      <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={toText()}
-                        onFocus={() => setArmedField("to")}
-                        onKeyPress={onDateKeyPress}
-                        onKeyUp={(e) => onDateKeyUp(e, setToText)}
-                        onInput={(e) => setToText(e.currentTarget.value)} spellcheck={false} />
-                      <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
-                    </label>
-                  </div>
+                  <>
+                    <div class="goto-dialog-row">
+                      <label
+                        class={"goto-dialog-input-wrap is-date" + (armedField() === "from" ? " is-active" : "")}
+                      >
+                        <input ref={fromInput} class="goto-dialog-input" placeholder="YYYY-MM-DD" value={fromText()}
+                          onFocus={() => arm("from")}
+                          onKeyPress={onDateKeyPress}
+                          onKeyUp={(e) => onDateKeyUp(e, setFromText)}
+                          onInput={(e) => setFromText(e.currentTarget.value)} spellcheck={false} />
+                        <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
+                      </label>
+                      <TimeInput value={fromTime()} onChange={setFromTime} disabled={props.dateOnly} />
+                    </div>
+                    <div class="goto-dialog-row">
+                      <label
+                        class={"goto-dialog-input-wrap is-date" + (armedField() === "to" ? " is-active" : "")}
+                      >
+                        <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={toText()}
+                          onFocus={() => arm("to")}
+                          onKeyPress={onDateKeyPress}
+                          onKeyUp={(e) => onDateKeyUp(e, setToText)}
+                          onInput={(e) => setToText(e.currentTarget.value)} spellcheck={false} />
+                        <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
+                      </label>
+                      <TimeInput value={toTime()} onChange={setToTime} disabled={props.dateOnly} />
+                    </div>
+                  </>
                 }
               >
                 <div class="goto-dialog-row">
-                  <label class="goto-dialog-input-wrap is-date">
-                    <input class="goto-dialog-input" placeholder="YYYY-MM-DD" value={dateText()}
+                  <label class="goto-dialog-input-wrap is-date is-active">
+                    <input ref={dateInput} class="goto-dialog-input" placeholder="YYYY-MM-DD" value={dateText()}
                       onKeyPress={onDateKeyPress}
                       onKeyUp={(e) => onDateKeyUp(e, setDateText)}
                       onInput={(e) => setDateText(e.currentTarget.value)} spellcheck={false} />
                     <span class="goto-dialog-input-icon" aria-hidden="true"><CalendarIcon /></span>
                   </label>
-                  <label class="goto-dialog-input-wrap is-time">
-                    <input class="goto-dialog-input" placeholder="00:00" value={timeText()} maxLength={5}
-                      onInput={onTimeInput} onBlur={onTimeBlur} spellcheck={false} />
-                    <span class="goto-dialog-input-icon" aria-hidden="true"><ClockIcon /></span>
-                  </label>
+                  <TimeInput value={timeText()} onChange={setTimeText} disabled={props.dateOnly} />
                 </div>
               </Show>
 
               <div class="goto-dialog-calendar">
                 <div class="goto-dialog-cal-header">
                   <button type="button" class="goto-dialog-cal-nav"
-                    aria-label={navLabel(-1)}
-                    onClick={() => stepNav(-1)}><ChevronLeftIcon /></button>
+                    aria-label={navLabel(-1)} disabled={navBlocked(-1)}
+                    onClick={() => stepNav(-1)}><ChevronIcon /></button>
                   <button type="button" class="goto-dialog-cal-monthbtn"
                     aria-label={calView() === "days" ? "Switch to months view" : "Switch to days view"}
                     aria-expanded={calView() === "months"}
                     onClick={() => setCalView(calView() === "days" ? "months" : "days")}>
                     <span>{calView() === "days" ? monthLabel(viewYear(), viewMonth()) : viewYear()}</span>
                   </button>
-                  <button type="button" class="goto-dialog-cal-nav"
-                    aria-label={navLabel(1)}
-                    onClick={() => stepNav(1)}><ChevronRightIcon /></button>
+                  <button type="button" class="goto-dialog-cal-nav is-next"
+                    aria-label={navLabel(1)} disabled={navBlocked(1)}
+                    onClick={() => stepNav(1)}><ChevronIcon /></button>
                 </div>
 
                 <Show when={calView() === "days"}>
@@ -416,7 +437,8 @@ export function GoToDateDialog(props: Props) {
                         <button
                           type="button"
                           tabIndex={-1}
-                          class={"goto-dialog-cal-month" + (i() === viewMonth() ? " is-accent" : "")}
+                          class={"goto-dialog-cal-month" + (i() === viewMonth() && !monthBlocked(viewYear(), i()) ? " is-accent" : "")}
+                          disabled={monthBlocked(viewYear(), i())}
                           aria-label={monthLabel(viewYear(), i())}
                           onClick={() => { setViewMonth(i()); setCalView("days"); }}
                         >{m}</button>
@@ -433,12 +455,22 @@ export function GoToDateDialog(props: Props) {
                         <div role="row" class="goto-dialog-cal-week">
                           <For each={week}>
                             {(d) => {
-                              // Date tab highlights the single pick; Custom
-                              // range highlights both endpoints.
+                              // Date tab marks the single pick; Custom range
+                              // marks both ends, fills the days between and
+                              // disables the days past the other end (TV).
                               const isSelected = () =>
                                 tab() === "customrange"
                                   ? ymd(d) === fromText() || ymd(d) === toText()
                                   : ymd(d) === ymd(selected());
+                              const inRange = () => {
+                                if (tab() !== "customrange") return false;
+                                const a = parseYmd(fromText());
+                                const b = parseYmd(toText());
+                                return !!a && !!b && d > a && d < b;
+                              };
+                              const isDisabled = () => dayBlocked(d);
+                              // TV: a disabled day never shows the accent.
+                              const isAccent = () => isSelected() && !isDisabled();
                               const isToday = ymd(d) === ymd(today);
                               return (
                                 <button
@@ -446,11 +478,14 @@ export function GoToDateDialog(props: Props) {
                                   tabIndex={-1}
                                   data-day={ymd(d)}
                                   aria-label={ariaDay(d)}
-                                  aria-selected={isSelected()}
+                                  aria-selected={isSelected() || inRange()}
+                                  disabled={isDisabled()}
                                   aria-colindex={dowMondayFirst(d) + 1}
                                   class={
                                     "goto-dialog-cal-day" +
-                                    (isSelected() ? " is-accent" : "") +
+                                    (isAccent() ? " is-accent" : "") +
+                                    (inRange() ? " is-in-range" : "") +
+                                    (isDisabled() ? " is-disabled" : "") +
                                     (isToday ? " is-current" : "")
                                   }
                                   role="cell"
@@ -475,7 +510,8 @@ export function GoToDateDialog(props: Props) {
               <span class="goto-dialog-btn-content">Cancel</span>
             </button>
             <span class="goto-dialog-submit-wrap">
-              <button type="button" class="goto-dialog-btn is-primary" data-name="submit-button" onClick={submit}>
+              <button type="button" class="goto-dialog-btn is-primary" data-name="submit-button" onClick={submit}
+                disabled={tab() === "customrange" ? !rangeValid() : !dateValid()}>
                 <span class="goto-dialog-btn-content">Go to</span>
               </button>
             </span>

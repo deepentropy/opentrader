@@ -315,3 +315,126 @@
   color: var(--color-cold-gray-500, #6a6d78);
   font-size: 13px;
 }
+/* Update status block, TV's About `update-app` (TV 3.4.1: 52px high, padding
+ * 12, radius 12, icon 28 + gap 8, text 14/18). */
+.update-app {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
+}
+.update-app.up-to-date,
+.update-app.ready-to-install,
+.update-app.error {
+  background-color: var(--color-container-fill-primary-success-extra-light);
+}
+.update-app-text-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.update-app-status-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--color-content-primary-neutral-bold);
+}
+.update-app.up-to-date .update-app-status-icon,
+.update-app.ready-to-install .update-app-status-icon,
+.update-app.installing .update-app-status-icon,
+.update-app.error .update-app-status-icon {
+  color: var(--color-minty-green-400);
+}
+.update-app-status-text {
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 14px;
+  line-height: 18px;
+}
+/* Downloading: the arrow bobs (TV download-icon.css). */
+.update-app-status-icon .download-icon-arrow {
+  animation: update-app-download-arrow 1.1s linear infinite;
+}
+@keyframes update-app-download-arrow {
+  0% { transform: translate(0, 0); animation-timing-function: ease-in-out; }
+  50% { transform: translate(0, calc(-11.75px * (1 - 0.83) - 1px)); animation-timing-function: ease-in-out; }
+  100% { transform: translate(0, 0); animation-timing-function: ease-in-out; }
+}
+/* TV ui-lib spinner, small: 24px, r 11, stroke 2, half arc, 1 s turn. */
+.update-app-spinner {
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
+  animation: update-app-spin 1s linear infinite;
+}
+.update-app-spinner circle {
+  fill: none;
+  stroke-width: 2px;
+}
+.update-app-spinner-bg {
+  stroke: var(--color-container-fill-primary-neutral-light);
+}
+.update-app-spinner-fg {
+  stroke: var(--color-container-fill-secondary-neutral-heavy);
+  stroke-dasharray: 69.115;
+  stroke-dashoffset: 34.558;
+}
+@keyframes update-app-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-1turn); }
+}
+/* "Relaunch": ui-lib button secondary black xsmall (TV 3.4.1: 28px, radius 6,
+ * padding 0 7, 1px border). */
+.update-app-relaunch {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--color-border-primary-neutral-extra-heavy);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-content-secondary-neutral-bold);
+  font-size: 14px;
+  line-height: 18px;
+  outline: none;
+  cursor: default;
+}
+.update-app-relaunch:hover {
+  border-color: var(--color-container-fill-primary-neutral-extra-bold);
+  background: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-secondary-inverse);
+}
+.update-app-relaunch:active {
+  border-color: var(--color-container-fill-primary-neutral-bold);
+  background: var(--color-container-fill-primary-neutral-bold);
+  color: var(--color-content-secondary-inverse);
+}
+/* Support OpenTrader: monthly cost covered by donations (data/funding.ts). */
+.app-settings-funding {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-cold-gray-800, #2a2a2a);
+}
+.app-settings-funding-title { font-size: 15px; font-weight: 600; }
+.app-settings-funding-text { font-size: 13px; color: var(--color-cold-gray-300, #b2b5be); }
+.app-settings-funding-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-cold-gray-750, #3d3d3d);
+  overflow: hidden;
+}
+.app-settings-funding-fill { height: 100%; background: var(--color-ot-blue-500, #2962ff); }
+.app-settings-funding-numbers {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+.app-settings-funding-links { display: flex; gap: 8px; margin-top: 4px; }

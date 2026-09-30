@@ -1,7 +1,11 @@
-/* Go-to date dialog. */
+/* Go-to date dialog.
+ *
+ * Sizes and colours are TV's (Go to dialog + ui-lib rules, TV 3.4.1, captured
+ * 30/09/2026: research/goto-sync/data/tv-goto-css.css, tv-goto-layout.json):
+ * 302 px wide, 566 px high on the Date tab (616 on Custom range). */
 
-/* The shared .ot-popover gives us bg + radius + shadow.  We override width
- * (302 px) and add `position: fixed`. */
+/* The shared .ot-popover gives us bg + radius + shadow. TV's dialog has no
+ * inner padding (the title bar is 68 px from the top edge). */
 .goto-dialog-wrapper {
   position: fixed;
   z-index: 1000;
@@ -10,6 +14,7 @@
   flex-direction: column;
   height: auto;
   max-height: calc(100vh - 64px);
+  padding: 0;
   color: var(--color-text-primary);
   user-select: none;
 }
@@ -37,16 +42,21 @@
   text-overflow: ellipsis;
 }
 
+/* TV navButton medium: 34 px, radius 8, margin 17px -3px 17px 0 (so the
+ * title bar is 68 px), 18 px cross. */
 .goto-dialog-close {
   all: unset;
   align-items: center;
   cursor: default;
   display: inline-flex;
-  height: 32px;
-  width: 32px;
+  flex-shrink: 0;
+  height: 34px;
+  width: 34px;
+  margin-block: 17px;
+  margin-inline: 0 -3px;
   justify-content: center;
   color: var(--color-text-primary);
-  border-radius: 6px;
+  border-radius: 8px;
   transition: background-color 0.2s ease;
 }
 
@@ -58,12 +68,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
 }
 .goto-dialog-close-icon svg {
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
@@ -80,9 +90,9 @@
   width: 100%;
 }
 
-/* The 4 px baseline behind the underline (sits behind both tab labels). */
+/* The 4 px baseline behind the underline (TV scroll-wrap::before, #4A4A4A). */
 .goto-dialog-tablist::before {
-  background-color: var(--color-bg-primary-hover);
+  background-color: var(--color-cold-gray-700);
   border-radius: 2px;
   bottom: 0;
   content: '';
@@ -92,55 +102,56 @@
   position: absolute;
 }
 
+/* TV underline-tab size-small: 16/24 semibold on both tabs, 8 px under the
+ * text (32 px high); hover greys the label. */
 .goto-dialog-tab {
   all: unset;
   align-items: center;
   background: transparent;
   border: none;
-  color: var(--color-text-primary);
+  border-radius: 4px;
+  color: var(--color-content-primary-neutral-bold);
   display: inline-grid;
   flex-shrink: 0;
   grid-auto-flow: column;
   justify-content: center;
-  padding: 16px 0 14px;
+  padding: 0 0 8px;
   font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
   font-feature-settings: 'tnum' on, 'lnum' on;
   font-size: 16px;
-  font-weight: 400;
+  font-weight: 600;
   line-height: 24px;
   position: relative;
   cursor: default;
+}
+@media (any-hover: hover) {
+  .goto-dialog-tab:hover {
+    color: var(--color-content-primary-neutral);
+  }
 }
 
 .goto-dialog-tab + .goto-dialog-tab {
   margin-inline-start: 24px;
 }
 
-.goto-dialog-tab.is-selected {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-
-/* The 4 px brand-coloured underline that slides between tabs.  We position
- * by hand (no DOM measurement) — the "Date" tab is the first label
- * (4-character pixel width ~38 px) and "Custom range" is roughly 102 px.
- * The padding-inline-start of 0 on the first tab anchors both. */
+/* The 4 px underline under the selected tab (TV: #F2F2F2, the tab's width:
+ * Date 34.3 px, Custom range 101.6 px, 24 px apart). */
 .goto-dialog-underline {
-  background: var(--color-brand);
+  background: var(--color-container-fill-primary-neutral-extra-bold);
   bottom: 0;
   height: 4px;
   position: absolute;
   border-radius: 2px;
-  transition: transform 0.18s ease-in-out, width 0.18s ease-in-out;
+  transition: transform 0.1s ease-in-out, width 0.1s ease-in-out;
   pointer-events: none;
 }
 .goto-dialog-underline.is-date {
   inset-inline-start: 0;
-  width: 36px;
+  width: 34.3px;
 }
 .goto-dialog-underline.is-customrange {
-  inset-inline-start: 60px;
-  width: 102px;
+  inset-inline-start: 58.3px;
+  width: 101.6px;
 }
 
 /* ── Content / body ─────────────────────────────────────────────────────── */
@@ -167,62 +178,77 @@
   padding-inline-start: 20px;
 }
 
-/* Custom range: the armed field (the one the next calendar click fills) reads
- * like a focused input — accent border. */
-.goto-dialog-input-wrap.is-armed {
-  border-color: var(--color-brand, #2962ff);
-}
-
+/* TV ui-lib control, size small: 34 px box, 1 px #575757 border, radius 8;
+ * inner slots 2 px inside (text inset 5 px, 28 px icon slot, 2 px gap).
+ * Hover (not while focused): border #707070 and the icon brightens. */
 .goto-dialog-input-wrap {
   display: inline-flex;
   align-items: center;
-  height: 32px;
-  padding: 0 8px;
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-bg-primary-hover);
-  border-radius: 6px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 2px;
+  background: transparent;
+  border: 1px solid var(--color-control-intent-default);
+  border-radius: 8px;
   font-size: 14px;
   cursor: text;
-  transition: border-color 0.18s ease;
+  --goto-slot-color: var(--color-default-gray);
+}
+@media (any-hover: hover) {
+  .goto-dialog-input-wrap:hover:not(:focus-within) {
+    border-color: var(--color-cold-gray-550);
+    --goto-slot-color: var(--color-text-primary);
+  }
 }
 
+/* Rings (TV highlight: 2 px over the border). The active date field (always
+ * on the Date tab, the armed one on Custom range) shows it grey; the
+ * focused field shows it blue. */
+.goto-dialog-input-wrap.is-active {
+  border-color: var(--color-default-gray);
+  box-shadow: inset 0 0 0 1px var(--color-default-gray);
+}
 .goto-dialog-input-wrap:focus-within {
-  border-color: var(--color-brand);
+  border-color: var(--color-control-intent-primary);
+  box-shadow: inset 0 0 0 1px var(--color-control-intent-primary);
 }
 
 .goto-dialog-input {
   flex: 1 1 auto;
   min-width: 0;
+  height: 28px;
+  margin-inline-end: 2px;
   border: none;
   outline: none;
   background: transparent;
   color: var(--color-text-primary);
   font-size: 14px;
   font-family: inherit;
-  padding: 0;
+  padding: 0 2px 0 5px;
 }
 
 .goto-dialog-input::placeholder {
-  color: var(--color-default-gray);
+  color: var(--color-text-field-placeholder-default, var(--color-default-gray));
 }
 
 .goto-dialog-input-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  color: var(--color-default-gray);
+  width: 28px;
+  height: 28px;
+  color: var(--goto-slot-color);
   flex: 0 0 auto;
-  margin-inline-start: 4px;
 }
 .goto-dialog-input-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
 }
 
 /* ── Calendar ───────────────────────────────────────────────────────────── */
 
+/* TV calendar: 286 px wide inset 8 px, padding 1px 12px 15px, at least
+ * 332 px high whatever the number of weeks. */
 .goto-dialog-calendar {
   background-color: var(--color-bg-primary);
   box-sizing: border-box;
@@ -233,8 +259,10 @@
   flex-direction: column;
   flex-grow: 0;
   flex-shrink: 0;
-  min-height: 226px;
-  padding: 0 20px 16px;
+  width: 286px;
+  min-height: 332px;
+  margin-inline: 8px;
+  padding: 1px 12px 15px;
 }
 
 .goto-dialog-cal-header {
@@ -243,59 +271,74 @@
   justify-content: space-between;
   padding-inline-end: 3px;
   padding-inline-start: 3px;
-  height: 32px;
+  height: 34px;
 }
 
+/* TV lightButton small ghost gray: 34 px, radius 8, 28 px arrow. */
 .goto-dialog-cal-nav {
   all: unset;
   align-items: center;
+  box-sizing: border-box;
   display: inline-flex;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   color: var(--color-text-primary);
   cursor: default;
 }
-.goto-dialog-cal-nav:hover { background-color: var(--color-bg-primary-hover); }
-.goto-dialog-cal-nav svg { width: 16px; height: 16px; }
+.goto-dialog-cal-nav:hover:not(:disabled) {
+  background-color: var(--color-button-fill_border-ghost-neutral-hover);
+  border-color: var(--color-button-fill_border-ghost-neutral-hover);
+  color: var(--color-button-content-ghost-neutral-hover);
+}
+.goto-dialog-cal-nav:disabled { color: var(--color-control-intent-default); }
+.goto-dialog-cal-nav svg { width: 28px; height: 28px; }
+.goto-dialog-cal-nav.is-next svg { transform: scaleX(-1); }
 
 .goto-dialog-cal-monthbtn {
   all: unset;
   align-items: center;
+  box-sizing: border-box;
   display: inline-flex;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 400;
+  line-height: 24px;
   color: var(--color-text-primary);
   cursor: default;
 }
-.goto-dialog-cal-monthbtn:hover { background-color: var(--color-bg-primary-hover); }
+.goto-dialog-cal-monthbtn:hover {
+  background-color: var(--color-button-fill_border-ghost-neutral-hover);
+  border-color: var(--color-button-fill_border-ghost-neutral-hover);
+  color: var(--color-button-content-ghost-neutral-hover);
+}
 
+/* TV sub-header: 14/18 regular, 2 px padding, 12 px above and below, labels
+ * spaced around (not equal columns). */
 .goto-dialog-cal-sub-header {
   align-items: center;
   background-color: var(--color-bg-primary-hover);
   border-radius: 6px;
   color: var(--color-default-gray);
   display: flex;
+  justify-content: space-around;
   font-family: -apple-system, BlinkMacSystemFont, 'Trebuchet MS', Roboto, Ubuntu, sans-serif;
   font-feature-settings: 'tnum' on, 'lnum' on;
-  font-size: 12px;
-  font-weight: 600;
-  height: 24px;
-  margin: 8px 0 4px;
-}
-.goto-dialog-cal-sub-header > span {
-  flex: 1 1 0;
-  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  padding: 2px 0;
+  margin: 12px 0;
 }
 
 .goto-dialog-cal-view-month {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
 }
 
 /* Months view (month-label click): 4x3 grid of month cells, same cell
@@ -306,6 +349,7 @@
   gap: 4px;
   flex: 1 1 auto;
   align-content: start;
+  margin-top: 12px;
 }
 .goto-dialog-cal-month {
   all: unset;
@@ -313,18 +357,24 @@
   align-items: center;
   justify-content: center;
   height: 40px;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 8px;
+  font-size: 16px;
   font-weight: 400;
   color: var(--color-text-primary);
   cursor: default;
 }
-.goto-dialog-cal-month:hover {
-  background-color: var(--color-bg-primary-hover);
+.goto-dialog-cal-month:hover:not(:disabled) {
+  background-color: var(--color-button-fill_border-ghost-neutral-hover);
+  color: var(--color-button-content-ghost-neutral-hover);
+}
+/* Out of the calendar limits (TV DateLevel.Month). */
+.goto-dialog-cal-month:disabled {
+  color: var(--color-control-intent-default);
 }
 .goto-dialog-cal-month.is-accent {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
   color: var(--color-content-primary-inverse);
+  font-weight: 600;
 }
 
 .goto-dialog-cal-weeks {
@@ -354,33 +404,39 @@
 
 /* ── Day cells ──────────────────────────────────────────────────────────── */
 
+/* TV lightButton small ghost gray: 34 px (38 px pitch), radius 8, 16/24. */
 .goto-dialog-cal-day {
   all: unset;
   align-items: center;
   display: inline-flex;
   justify-content: center;
-  height: 32px;
-  width: 32px;
-  border-radius: 6px;
-  font-size: 14px;
+  height: 34px;
+  width: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 16px;
   font-weight: 400;
+  line-height: 24px;
   color: var(--color-text-primary);
   cursor: default;
   padding: 0;
   position: relative;
-  flex: 0 0 32px;
+  flex: 0 0 34px;
   box-sizing: border-box;
-  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.goto-dialog-cal-day:hover {
-  background-color: var(--color-bg-primary-hover);
+.goto-dialog-cal-day:hover:not(:disabled) {
+  background-color: var(--color-button-fill_border-ghost-neutral-hover);
+  border-color: var(--color-button-fill_border-ghost-neutral-hover);
+  color: var(--color-button-content-ghost-neutral-hover);
 }
 
-/* Today — 2 px high underline pinned just below the cell (::before with
- * margin-top: -6px lifts it back into the cell). */
+/* Today — semibold (TV, seen on an unselected today 30/09/2026) with a 2 px
+ * underline pinned just below the cell (::before with margin-top: -6px lifts
+ * it back into the cell). */
 .goto-dialog-cal-day.is-current {
   position: relative;
+  font-weight: 600;
 }
 .goto-dialog-cal-day.is-current::before {
   background: currentColor;
@@ -394,73 +450,171 @@
   top: 100%;
 }
 
-/* Selected (accent) — solid pill in `--color-container-fill-primary-neutral-extra-bold`
- * which is the "max contrast" container token (dark in light mode, light in
- * dark mode); paired with the inverse content token. */
-.goto-dialog-cal-day.is-accent {
+/* Selected (accent, both Custom range ends): #F2F2F2 pill, inverse text,
+ * semibold. */
+.goto-dialog-cal-day.is-accent,
+.goto-dialog-cal-day.is-accent:hover:not(:disabled) {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--color-container-fill-primary-neutral-extra-bold);
   color: var(--color-content-primary-inverse);
-}
-.goto-dialog-cal-day.is-accent:hover {
-  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  font-weight: 600;
 }
 .goto-dialog-cal-day.is-accent.is-current::before {
   /* Today + selected — underline still visible in inverse colour. */
   background: var(--color-content-primary-inverse);
 }
 
+/* Custom range days between the ends (TV quiet-primary selected:
+ * #2E2E2E, white, semibold). */
+.goto-dialog-cal-day.is-in-range,
+.goto-dialog-cal-day.is-in-range:hover:not(:disabled) {
+  background-color: var(--color-button-fill_border-ghost-neutral-hover);
+  border-color: var(--color-button-fill_border-ghost-neutral-hover);
+  color: var(--color-button-content-ghost-neutral-hover);
+  font-weight: 600;
+}
+
+/* Past the other end of the range (TV calendar min / max date). */
+.goto-dialog-cal-day.is-disabled {
+  color: var(--color-control-intent-default);
+}
+
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 
+/* TV: 1 px #4A4A4A line, 16px 20px padding, buttons 12 px apart. */
 .goto-dialog-footer {
   flex: 0 0 auto;
-  border-top: 1px solid var(--color-bg-primary-hover);
-  padding: 12px 20px;
+  border-top: 1px solid var(--color-cold-gray-700);
+  padding: 16px 20px;
 }
 
 .goto-dialog-footer-buttons {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .goto-dialog-submit-wrap {
   display: inline-flex;
 }
 
+/* TV squareButton small (black): 34 px, radius 8, 1 px border, 16/24. */
 .goto-dialog-btn {
   all: unset;
   align-items: center;
   display: inline-flex;
   justify-content: center;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 6px;
-  font-size: 14px;
-  line-height: 18px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 24px;
   cursor: default;
-  transition: background-color 0.18s ease;
   box-sizing: border-box;
 }
 
+/* Cancel (black secondary): white outline; hover fills #F2F2F2. */
 .goto-dialog-btn.is-secondary {
-  border: 1px solid var(--color-bg-primary-hover);
-  color: var(--color-text-primary);
+  background-color: transparent;
+  border-color: var(--color-border-primary-neutral-extra-heavy);
+  color: var(--color-content-secondary-neutral-bold);
 }
-.goto-dialog-btn.is-secondary:hover {
-  background-color: var(--color-bg-primary-hover);
+@media (any-hover: hover) {
+  .goto-dialog-btn.is-secondary:hover {
+    background-color: var(--color-container-fill-primary-neutral-extra-bold);
+    border-color: var(--color-container-fill-primary-neutral-extra-bold);
+    color: var(--color-content-secondary-inverse);
+  }
 }
 
+/* Go to (black primary): #F2F2F2 on #0F0F0F; hover #DBDBDB. */
 .goto-dialog-btn.is-primary {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
-  color: var(--color-content-primary-inverse);
+  border-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-secondary-inverse);
 }
-.goto-dialog-btn.is-primary:hover {
-  background-color: var(--color-brand);
-  color: var(--color-content-primary-inverse);
+@media (any-hover: hover) {
+  .goto-dialog-btn.is-primary:hover {
+    background-color: var(--color-container-fill-primary-neutral-bold);
+    border-color: var(--color-container-fill-primary-neutral-bold);
+  }
+}
+/* Custom range with From after To (TV, measured 30/09/2026: #3D3D3D on
+ * #575757). */
+.goto-dialog-btn.is-primary:disabled,
+.goto-dialog-btn.is-primary:disabled:hover {
+  background-color: var(--color-cold-gray-750);
+  border-color: var(--color-cold-gray-750);
+  color: var(--color-cold-gray-650);
 }
 
 .goto-dialog-btn-content {
   display: inline-flex;
   align-items: center;
+}
+
+/* ── Time list (TimeInput) ──────────────────────────────────────────────────
+ * TV PopupMenu (menuWrap / menuBox) + PopupMenuItem rules, measured
+ * 30/09/2026 in TV 3.4.1: 231 px high, as wide as the field, 32 px rows,
+ * 14 px text, padding 2px 10px 2px 8px (+4 px label inset), active row
+ * #F2F2F2 on black. */
+.goto-time-list {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  overflow: hidden auto;
+  background-color: var(--color-popup-background);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy);
+  text-align: start;
+  user-select: none;
+}
+.goto-time-list-box {
+  padding: 6px 0;
+}
+.goto-time-item {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 32px;
+  padding-block: 2px;
+  padding-inline: 12px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: default;
+  color: var(--color-popup-element-text);
+  background-color: var(--color-popup-background);
+}
+.goto-time-item.is-hovered {
+  color: var(--color-popup-element-text-hover);
+  background-color: var(--color-popup-element-background-hover);
+}
+@media (any-hover: hover) {
+  .goto-time-item:hover {
+    color: var(--color-popup-element-text-hover);
+    background-color: var(--color-popup-element-background-hover);
+  }
+}
+.goto-time-item.is-active,
+.goto-time-item.is-active:hover {
+  color: var(--tv-color-popup-element-text-active, var(--color-content-primary-inverse));
+  background-color: var(--tv-color-popup-element-background-active, var(--color-container-fill-primary-neutral-extra-bold));
+}
+
+/* Disabled time field on DWM charts (TV ui-lib control, dark theme:
+ * background cold-gray-800, border control-intent-default, text
+ * cold-gray-650, icon text-secondary). */
+.goto-dialog-input-wrap.is-disabled,
+.goto-dialog-input-wrap.is-disabled:hover {
+  cursor: default;
+  background-color: var(--color-cold-gray-800);
+  border-color: var(--color-control-intent-default);
+  box-shadow: none;
+  --goto-slot-color: var(--color-text-secondary);
+}
+.goto-dialog-input-wrap.is-disabled .goto-dialog-input {
+  color: var(--color-cold-gray-650);
+  cursor: default;
 }

@@ -16,6 +16,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { TimezoneMenu } from "./TimezoneMenu";
 import { SessionMenu, type SessionId } from "./SessionMenu";
 import { GoToDateDialog } from "./GoToDateDialog";
+import { lastGotoDate, queryGotoContext, rememberGotoDate } from "../chart/goto-query";
 import type { TimezoneEntry } from "../../data/timezones";
 import { isAdjusted, isIntradayInterval } from "../../data/datafeed";
 import { setItem } from "../../data/kv";
@@ -393,29 +394,28 @@ export function BottomBar(props: Props) {
         )}
       </Show>
       <Show when={goToAnchor()}>
-        {(rect) => (
-          <GoToDateDialog
-            anchor={rect()}
-            onSubmit={(date) =>
-              window.dispatchEvent(
-                new CustomEvent("chart-goto-date", { detail: { time: Math.floor(date.getTime() / 1000) } }),
-              )
-            }
-            onSubmitRange={(from, to) =>
-              // Frame [from 00:00, end of the To day] so the To date's bars
-              // are inside the view.
-              window.dispatchEvent(
-                new CustomEvent("chart-goto-range", {
-                  detail: {
-                    from: Math.floor(from.getTime() / 1000),
-                    to: Math.floor(to.getTime() / 1000) + 86400,
-                  },
-                }),
-              )
-            }
-            onClose={closeGoTo}
-          />
-        )}
+        {(rect) => {
+          // Read once per opening: the active chart's DWM state and visible
+          // bars, and the session's last submitted date.
+          const ctx = queryGotoContext();
+          return (
+            <GoToDateDialog
+              anchor={rect()}
+              initial={lastGotoDate()}
+              dateOnly={ctx.dateOnly}
+              initialRange={ctx.visible}
+              onSubmit={(date, minutes) => {
+                rememberGotoDate({ ...date, minutes });
+                // Wall-clock date: each chart reads it in its own time zone.
+                window.dispatchEvent(new CustomEvent("chart-goto-date", { detail: { date, minutes } }));
+              }}
+              onSubmitRange={(from, to) =>
+                window.dispatchEvent(new CustomEvent("chart-goto-range", { detail: { from, to } }))
+              }
+              onClose={closeGoTo}
+            />
+          );
+        }}
       </Show>
     </div>
   );
