@@ -18,6 +18,8 @@ export const screenerOpen = (owner: string): Promise<ScreenerStatus> => unwrap(c
 export const screenerClose = (owner: string): Promise<null> => unwrap(commands.screenerClose(owner));
 export const screenerScan = (req: ScanRequest): Promise<ScanResult> => unwrap(commands.screenerScan(req));
 export const screenerFields = (): Promise<FieldInfo[]> => unwrap(commands.screenerFields());
+/** Distinct values of a text field (sector, industry) in the loaded data. */
+export const screenerValues = (field: string): Promise<string[]> => unwrap(commands.screenerValues(field));
 
 /** Subscribe to the per-poll update event. Returns the unlisten function. */
 export function onScreenerUpdate(cb: (u: ScreenerUpdate) => void): Promise<() => void> {

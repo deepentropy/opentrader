@@ -46,6 +46,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::screener::screener_close,
             commands::screener::screener_scan,
             commands::screener::screener_fields,
+            commands::screener::screener_values,
             window_session::take_adopted_window,
             window_session::take_closed_window_bounds,
             window_session::open_window,

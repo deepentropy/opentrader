@@ -6,7 +6,7 @@
  * narrow no-break space before the unit letter. Negative numbers use the
  * minus sign U+2212. A missing value is "—".
  */
-import { ENUM_LABEL, type Fmt } from "./screener-catalog";
+import type { Fmt } from "./screener-catalog";
 
 export const DASH = "—";
 const MINUS = "−";
@@ -47,7 +47,7 @@ export type Cell = { text: string; unit?: string; tone?: "up" | "down" };
 /** Format one table cell. `currency` is the row currency (unit suffix). */
 export function formatCell(fmt: Fmt, v: number | string | null | undefined, currency: string | null): Cell {
   if (v === null || v === undefined || v === "") return { text: DASH };
-  if (typeof v === "string") return { text: fmt === "text" ? ENUM_LABEL[v] ?? v : v };
+  if (typeof v === "string") return { text: v };
   if (!Number.isFinite(v)) return { text: DASH };
   const unit = currency ? currency.toUpperCase() : undefined;
   const tone = v > 0 ? "up" : v < 0 ? "down" : undefined;

@@ -12,7 +12,7 @@
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
-import { defaultScreen, type Screen } from "./screener-catalog";
+import { POPULAR_SCREENS, defaultScreen, type Screen } from "./screener-catalog";
 
 export type SavedScreen = { id: string; screen: Screen; updatedAt: number };
 
@@ -24,7 +24,8 @@ const HISTORY_MAX = 100;
 const RECENT_MAX = 5;
 
 type Persisted = { screens: SavedScreen[]; recent: string[] };
-type Draft = { savedId: string | null; screen: Screen };
+/** `popularId`: the popular screen the current one was opened from. */
+type Draft = { savedId: string | null; popularId?: string | null; screen: Screen };
 
 function readJson<T>(key: string): T | null {
   try {
@@ -55,25 +56,27 @@ const store = createRoot(() => {
   const draft = readJson<Draft>(DRAFT_KEY);
   const [screen, setScreenRaw] = createSignal<Screen>(draft && isScreen(draft.screen) ? draft.screen : defaultScreen());
   const [savedId, setSavedId] = createSignal<string | null>(draft?.savedId ?? null);
+  const [popularId, setPopularId] = createSignal<string | null>(draft?.popularId ?? null);
   const [past, setPast] = createSignal<Screen[]>([]);
   const [future, setFuture] = createSignal<Screen[]>([]);
-  return { screens, setScreens, recent, setRecent, screen, setScreenRaw, savedId, setSavedId, past, setPast, future, setFuture };
+  return { screens, setScreens, recent, setRecent, screen, setScreenRaw, savedId, setSavedId, popularId, setPopularId, past, setPast, future, setFuture };
 });
 
 function persistScreens(): void {
   kv.setItem(SCREENS_KEY, JSON.stringify({ screens: store.screens(), recent: store.recent() }));
 }
 function persistDraft(): void {
-  kv.setItem(DRAFT_KEY, JSON.stringify({ savedId: store.savedId(), screen: store.screen() }));
+  kv.setItem(DRAFT_KEY, JSON.stringify({ savedId: store.savedId(), popularId: store.popularId(), screen: store.screen() }));
 }
 function touchRecent(id: string): void {
   store.setRecent([id, ...store.recent().filter((x) => x !== id)].slice(0, 50));
 }
 
 /** Replace the current screen without touching the history (open / new). */
-function load(s: Screen, savedId: string | null): void {
+function load(s: Screen, savedId: string | null, popularId: string | null = null): void {
   store.setScreenRaw(clone(s));
   store.setSavedId(savedId);
+  store.setPopularId(popularId);
   store.setPast([]);
   store.setFuture([]);
   persistDraft();
@@ -82,6 +85,7 @@ function load(s: Screen, savedId: string | null): void {
 export const screenerStore = {
   screen: store.screen,
   savedId: store.savedId,
+  popularId: store.popularId,
   savedScreens: store.screens,
 
   /** Saved screen the current one came from, if any. */
@@ -90,12 +94,14 @@ export const screenerStore = {
     return id ? store.screens().find((s) => s.id === id) : undefined;
   },
 
-  /** Unsaved changes: differs from its saved copy, or (never saved) from the
-   *  default screen of the same title. */
+  /** Unsaved changes: differs from its saved copy, from the popular screen
+   *  it was opened from, or (neither) from the default screen of its title. */
   unsaved(): boolean {
     const saved = screenerStore.saved();
     const cur = store.screen();
-    return saved ? !same(content(cur), content(saved.screen)) : !same(content(cur), content(defaultScreen(cur.title)));
+    const popular = POPULAR_SCREENS.find((p) => p.id === store.popularId());
+    const base = saved ? saved.screen : popular ? popular.screen() : defaultScreen(cur.title);
+    return !same(content(cur), content(base));
   },
 
   /** Apply a change as one undoable step. */
@@ -150,6 +156,7 @@ export const screenerStore = {
     persistScreens();
     store.setScreenRaw(clone(snap));
     store.setSavedId(id);
+    store.setPopularId(null);
     persistDraft();
   },
 
@@ -180,6 +187,20 @@ export const screenerStore = {
     touchRecent(id);
     persistScreens();
     load(s.screen, id);
+  },
+
+  /** Open a TV popular screen (not saved: Save asks for a name). */
+  openPopular(id: string): void {
+    const p = POPULAR_SCREENS.find((x) => x.id === id);
+    if (p) load(p.screen(), null, id);
+  },
+
+  /** Save a copy of a saved or popular screen under `name`, without opening
+   *  it (the "Make a copy" row action of Open screen). */
+  copyOf(screen: Screen, name: string): void {
+    const id = newId();
+    store.setScreens([...store.screens(), { id, screen: { ...clone(screen), title: name }, updatedAt: Date.now() }]);
+    persistScreens();
   },
 
   remove(id: string): void {

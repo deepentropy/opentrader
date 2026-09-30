@@ -69,7 +69,8 @@ export type ColumnDef = {
   params?: ParamDef[];
   filter?:
     | { type: "Condition"; operations: Operation[]; defaultOperation: Operation; targets: string[][]; presets?: Preset[] }
-    | { type: "CheckboxGroup"; options: [value: string, label: string][] };
+    /** `"data"`: the distinct values of `field` in the loaded data. */
+    | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data" };
   /** Kept out of the Column setup list (TV `isExcludedFromColumnsList`). */
   noColumn?: boolean;
 };
@@ -140,79 +141,12 @@ const PRICE_TARGETS = (self: string) => [["value"], ["Open", "High", "Low", "Pri
 const ALL_OPS: Operation[] = ["above", "aboveOrEqual", "below", "belowOrEqual", "between", "outside", "equal"];
 const CHANGE_OPS: Operation[] = ["above", "below", "between", "outside", "equal"];
 
-const SECTORS: [string, string][] = [
-  ["Commercial Services", "Commercial services"], ["Communications", "Communications"], ["Consumer Durables", "Consumer durables"],
-  ["Consumer Non-Durables", "Consumer non-durables"], ["Consumer Services", "Consumer services"], ["Distribution Services", "Distribution services"],
-  ["Electronic Technology", "Electronic technology"], ["Energy Minerals", "Energy minerals"], ["Finance", "Finance"], ["Government", "Government"],
-  ["Health Services", "Health services"], ["Health Technology", "Health technology"], ["Industrial Services", "Industrial services"],
-  ["Miscellaneous", "Miscellaneous"], ["Non-Energy Minerals", "Non-energy minerals"], ["Process Industries", "Process industries"],
-  ["Producer Manufacturing", "Producer manufacturing"], ["Retail Trade", "Retail trade"], ["Technology Services", "Technology services"],
-  ["Transportation", "Transportation"], ["Utilities", "Utilities"],
-];
-// TV value → display label (sentence case) is the same rule for industries:
-// only the first letter of each word after the first one is lowered, except
-// acronyms and words after a slash or colon keep TV's case. The explicit list
-// below is the TV list verbatim.
-const INDUSTRIES: [string, string][] = ([
-  "Advertising/Marketing Services|Advertising/Marketing services", "Aerospace & Defense|Aerospace & defense",
-  "Agricultural Commodities/Milling|Agricultural commodities/Milling", "Air Freight/Couriers|Air freight/Couriers", "Airlines|Airlines",
-  "Alternative Power Generation|Alternative power generation", "Aluminum|Aluminum", "Apparel/Footwear|Apparel/Footwear",
-  "Apparel/Footwear Retail|Apparel/Footwear retail", "Auto Parts: OEM|Auto parts: OEM", "Automotive Aftermarket|Automotive aftermarket",
-  "Beverages: Alcoholic|Beverages: alcoholic", "Beverages: Non-Alcoholic|Beverages: non-alcoholic", "Biotechnology|Biotechnology",
-  "Broadcasting|Broadcasting", "Building Products|Building products", "Cable/Satellite TV|Cable/Satellite TV", "Casinos/Gaming|Casinos/Gaming",
-  "Catalog/Specialty Distribution|Catalog/Specialty distribution", "Chemicals: Agricultural|Chemicals: agricultural",
-  "Chemicals: Major Diversified|Chemicals: major diversified", "Chemicals: Specialty|Chemicals: specialty", "Coal|Coal",
-  "Commercial Printing/Forms|Commercial printing/Forms", "Computer Communications|Computer communications",
-  "Computer Peripherals|Computer peripherals", "Computer Processing Hardware|Computer processing hardware",
-  "Construction Materials|Construction materials", "Consumer Sundries|Consumer sundries", "Containers/Packaging|Containers/Packaging",
-  "Contract Drilling|Contract drilling", "Data Processing Services|Data processing services", "Department Stores|Department stores",
-  "Discount Stores|Discount stores", "Drugstore Chains|Drugstore chains", "Electric Utilities|Electric utilities",
-  "Electrical Products|Electrical products", "Electronic Components|Electronic components",
-  "Electronic Equipment/Instruments|Electronic equipment/Instruments", "Electronic Production Equipment|Electronic production equipment",
-  "Electronics Distributors|Electronics distributors", "Electronics/Appliance Stores|Electronics/Appliance stores",
-  "Electronics/Appliances|Electronics/Appliances", "Engineering & Construction|Engineering & construction",
-  "Environmental Services|Environmental services", "Finance/Rental/Leasing|Finance/Rental/Leasing",
-  "Financial Conglomerates|Financial conglomerates", "Financial Publishing/Services|Financial publishing/Services",
-  "Food Distributors|Food distributors", "Food Retail|Food retail", "Food: Major Diversified|Food: major diversified",
-  "Food: Meat/Fish/Dairy|Food: meat/fish/dairy", "Food: Specialty/Candy|Food: specialty/candy", "Forest Products|Forest products",
-  "Gas Distributors|Gas distributors", "General Government|General government", "Home Furnishings|Home furnishings",
-  "Home Improvement Chains|Home improvement chains", "Homebuilding|Homebuilding", "Hospital/Nursing Management|Hospital/Nursing management",
-  "Hotels/Resorts/Cruise lines|Hotels/Resorts/Cruise lines", "Household/Personal Care|Household/Personal care",
-  "Industrial Conglomerates|Industrial conglomerates", "Industrial Machinery|Industrial machinery",
-  "Industrial Specialties|Industrial specialties", "Information Technology Services|Information technology services",
-  "Insurance Brokers/Services|Insurance brokers/Services", "Integrated Oil|Integrated oil", "Internet Retail|Internet retail",
-  "Internet Software/Services|Internet software/Services", "Investment Banks/Brokers|Investment banks/Brokers",
-  "Investment Managers|Investment managers", "Investment Trusts/Mutual Funds|Investment trusts", "Life/Health Insurance|Life/Health insurance",
-  "Major Banks|Major banks", "Major Telecommunications|Major telecommunications", "Managed Health Care|Managed health care",
-  "Marine Shipping|Marine shipping", "Media Conglomerates|Media conglomerates", "Medical Distributors|Medical distributors",
-  "Medical Specialties|Medical specialties", "Medical/Nursing Services|Medical/Nursing services", "Metal Fabrication|Metal fabrication",
-  "Miscellaneous|Miscellaneous", "Miscellaneous Commercial Services|Miscellaneous commercial services",
-  "Miscellaneous Manufacturing|Miscellaneous manufacturing", "Motor Vehicles|Motor vehicles", "Movies/Entertainment|Movies/Entertainment",
-  "Multi-Line Insurance|Multi-line insurance", "Office Equipment/Supplies|Office equipment/Supplies",
-  "Oil & Gas Pipelines|Oil & gas pipelines", "Oil & Gas Production|Oil & gas production", "Oil Refining/Marketing|Oil refining/Marketing",
-  "Oilfield Services/Equipment|Oilfield services/Equipment", "Other Consumer Services|Other consumer services",
-  "Other Consumer Specialties|Other consumer specialties", "Other Metals/Minerals|Other metals/Minerals",
-  "Other Transportation|Other transportation", "Packaged Software|Packaged software", "Personnel Services|Personnel services",
-  "Pharmaceuticals: Generic|Pharmaceuticals: generic", "Pharmaceuticals: Major|Pharmaceuticals: major",
-  "Pharmaceuticals: Other|Pharmaceuticals: other", "Precious Metals|Precious metals", "Property/Casualty Insurance|Property/Casualty insurance",
-  "Publishing: Books/Magazines|Publishing: books/magazines", "Publishing: Newspapers|Publishing: newspapers", "Pulp & Paper|Pulp & paper",
-  "Railroads|Railroads", "Real Estate Development|Real estate development", "Real Estate Investment Trusts|Real estate investment trusts",
-  "Recreational Products|Recreational products", "Regional Banks|Regional banks", "Restaurants|Restaurants", "Savings Banks|Savings banks",
-  "Semiconductors|Semiconductors", "Services to the Health Industry|Services to the health industry", "Specialty Insurance|Specialty insurance",
-  "Specialty Stores|Specialty stores", "Specialty Telecommunications|Specialty telecommunications", "Steel|Steel",
-  "Telecommunications Equipment|Telecommunications equipment", "Textiles|Textiles", "Tobacco|Tobacco", "Tools & Hardware|Tools & hardware",
-  "Trucking|Trucking", "Trucks/Construction/Farm Machinery|Trucks/Construction/Farm machinery", "Water Utilities|Water utilities",
-  "Wholesale Distributors|Wholesale distributors", "Wireless Telecommunications|Wireless telecommunications",
-] as const).map((s) => s.split("|") as [string, string]);
-
-/** TV value → table label for text enums (sector/industry cells). */
-export const ENUM_LABEL: Record<string, string> = Object.fromEntries([...SECTORS, ...INDUSTRIES]);
 
 // ── Column catalog ────────────────────────────────────────────────────────
 export const COLUMNS: ColumnDef[] = [
   // Security info
-  { id: "Sector", title: "Sector", short: "Sector", category: "securityInfo", align: "left", fmt: "text", width: 175, field: "sector", filter: { type: "CheckboxGroup", options: SECTORS } },
-  { id: "Industry", title: "Industry", short: "Industry", category: "securityInfo", align: "left", fmt: "text", width: 200, field: "industry", filter: { type: "CheckboxGroup", options: INDUSTRIES } },
+  { id: "Sector", title: "Sector", short: "Sector", category: "securityInfo", align: "left", fmt: "text", width: 175, field: "sector", filter: { type: "CheckboxGroup", options: "data" } },
+  { id: "Industry", title: "Industry", short: "Industry", category: "securityInfo", align: "left", fmt: "text", width: 200, field: "industry", filter: { type: "CheckboxGroup", options: "data" } },
   { id: "Exchange", title: "Exchange", short: "Exchange", category: "securityInfo", align: "left", fmt: "text", width: 99, field: "exchange" },
   // Market data (regular hours)
   { id: "AverageVolume", title: "Average volume", short: "Avg vol", category: "marketData", align: "right", fmt: "volume", width: 90,
@@ -553,3 +487,35 @@ export function defaultScreen(title = DEFAULT_SCREEN_TITLE): Screen {
     watchlistId: null,
   };
 }
+
+// ── Popular screens ───────────────────────────────────────────────────────
+/** TV "Popular screens" (module `popularScreens`, TV Desktop 3.4.1,
+ *  30/09/2026) whose filters, columns and sort exist in this catalog. The
+ *  other 12 (net income, cash, P/E, EPS and revenue growth, dividends, debt,
+ *  ROE, revenue per employee, market-cap performance, technical rating) have
+ *  no data source and are left out. Filters = TV's default pills with the
+ *  screen's own values. */
+export type PopularScreen = { id: string; title: string; description: string; screen: () => Screen };
+
+export const POPULAR_SCREENS: PopularScreen[] = [
+  {
+    id: "14",
+    title: "All stocks",
+    description: "Complete list of stocks by market cap",
+    screen: () => defaultScreen("All stocks"),
+  },
+  {
+    id: "1",
+    title: "Most capitalized",
+    description: "Largest companies by market cap",
+    screen: () => {
+      const s = defaultScreen("Most capitalized");
+      s.filters = s.filters.map((f) =>
+        f.left.id === "MarketCap"
+          ? { id: f.id, type: "Condition", left: f.left, operation: "aboveOrEqual", target: "value", right: { value: 1e10 } }
+          : f,
+      );
+      return s;
+    },
+  },
+];

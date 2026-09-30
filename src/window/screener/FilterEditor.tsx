@@ -11,8 +11,9 @@
  *   CheckboxGroup: Search + checkbox list.
  * Typed values apply on Enter, on blur, and 400 ms after the last key.
  */
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
 import { Icon } from "../../components/Icon";
+import { screenerValues } from "../../data/screener-api";
 import {
   COLUMN_BY_ID,
   OPERATION_ICON,
@@ -333,9 +334,20 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
 
 function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => void }) {
   const [q, setQ] = createSignal("");
-  const options = () => {
-    const d = COLUMN_BY_ID[props.filter.left.id]?.filter;
-    return d?.type === "CheckboxGroup" ? d.options : [];
+  const def = () => COLUMN_BY_ID[props.filter.left.id];
+  // Sector / industry: the values present in the loaded data (SIC names).
+  const fromData = () => {
+    const d = def();
+    return d?.filter?.type === "CheckboxGroup" && d.filter.options === "data" ? d.field : undefined;
+  };
+  const [dataValues] = createResource(
+    fromData,
+    (field) => screenerValues(field).catch(() => [] as string[]),
+  );
+  const options = (): [string, string][] => {
+    const d = def()?.filter;
+    if (d?.type !== "CheckboxGroup") return [];
+    return d.options === "data" ? (dataValues() ?? []).map((v) => [v, v]) : d.options;
   };
   const shown = () => {
     const s = q().trim().toLowerCase();

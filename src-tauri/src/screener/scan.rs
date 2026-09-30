@@ -463,6 +463,13 @@ mod tests {
     }
 
     #[test]
+    fn text_values_are_distinct_and_sorted() {
+        let t = table(Some(state((2026, 9, 28))));
+        assert_eq!(crate::screener::fields::text_values(&t, "sector").unwrap(), vec!["Energy", "Finance"]);
+        assert!(crate::screener::fields::text_values(&t, "close").is_err());
+    }
+
+    #[test]
     fn nulls_sort_last_both_ways() {
         let t = table(Some(state((2026, 9, 28))));
         for order in [SortOrder::Asc, SortOrder::Desc] {
@@ -504,6 +511,16 @@ mod live_step {
     use crate::screener::state::StateFile;
     use std::sync::Arc;
 
+    /// Env SCREENER_STATE: a state file path, or "gateway" for the live
+    /// `/screener/v1/state` (the app's own fetch).
+    pub(super) async fn load_state() -> StateFile {
+        let src = std::env::var("SCREENER_STATE").unwrap();
+        if src == "gateway" {
+            return crate::screener::state::fetch().await.unwrap().expect("gateway serves the state");
+        }
+        serde_json::from_slice(&std::fs::read(src).unwrap()).unwrap()
+    }
+
     /// Live step check: a state file built at D-1 (env SCREENER_STATE) plus the
     /// live snapshot of D, evaluated for the tickers in env SCREENER_TICKERS;
     /// writes a CSV to env SCREENER_OUT for research/screener/code/check_state.py.
@@ -511,7 +528,7 @@ mod live_step {
     #[ignore]
     async fn screener_live_step_csv() {
         let state: StateFile =
-            serde_json::from_slice(&std::fs::read(std::env::var("SCREENER_STATE").unwrap()).unwrap()).unwrap();
+            load_state().await;
         let tickers: Vec<String> =
             std::env::var("SCREENER_TICKERS").unwrap().split(',').map(|s| s.to_string()).collect();
         let rows = crate::data::massive_rest::fetch_market_snapshot().await.unwrap();
@@ -538,30 +555,28 @@ mod live_step {
 }
 
 #[cfg(test)]
-mod live_pullback {
+mod live_popular {
+    use super::live_step::load_state;
     use super::*;
-    use crate::screener::state::StateFile;
     use std::sync::Arc;
 
-    /// The user's TV "Pullback" screen (captured 29/09/2026) on the live table
-    /// + a state file (env SCREENER_STATE); tickers to env SCREENER_OUT.
+    /// TV popular screen "Most capitalized" (market cap >= 10 B, sorted by
+    /// market cap) on the live table + a state file (env SCREENER_STATE);
+    /// tickers to env SCREENER_OUT.
     #[tokio::test]
     #[ignore]
-    async fn screener_live_pullback() {
-        let state: StateFile =
-            serde_json::from_slice(&std::fs::read(std::env::var("SCREENER_STATE").unwrap()).unwrap()).unwrap();
+    async fn screener_live_most_capitalized() {
+        let state = load_state().await;
         let rows = crate::data::massive_rest::fetch_market_snapshot().await.unwrap();
         let t = Table::build(1, rows, Arc::new(Vec::new()), Some(Arc::new(state)));
-        let c = |l: &str, op: Op, r: Operand| Clause { left: l.into(), operation: op, right: r };
         let req = ScanRequest {
-            columns: vec!["close".into()],
-            filter: vec![
-                c("ADRP", Op::EGreater, Operand::Num(5.0)),
-                c("close", Op::EGreater, Operand::Text("EMA50".into())),
-                c("close", Op::EGreater, Operand::Num(5.0)),
-                c("average_volume_30d_calc", Op::Greater, Operand::Num(500000.0)),
-            ],
-            sort: None,
+            columns: vec!["close".into(), "market_cap_basic".into()],
+            filter: vec![Clause {
+                left: "market_cap_basic".into(),
+                operation: Op::EGreater,
+                right: Operand::Num(1e10),
+            }],
+            sort: Some(SortSpec { sort_by: "market_cap_basic".into(), sort_order: SortOrder::Desc }),
             range: (0, 100000),
             tickers: None,
         };

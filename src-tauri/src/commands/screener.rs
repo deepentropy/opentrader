@@ -42,3 +42,11 @@ pub async fn screener_scan(
 pub async fn screener_fields(screener: State<'_, Screener>) -> Result<Vec<FieldInfo>, String> {
     Ok(fields::catalog(&screener.table()))
 }
+
+/// Distinct values of a text field (sector, industry, type, exchange) in the
+/// current table, sorted: the options of the checkbox filters.
+#[tauri::command]
+#[specta::specta]
+pub async fn screener_values(screener: State<'_, Screener>, field: String) -> Result<Vec<String>, String> {
+    fields::text_values(&screener.table(), &field)
+}

@@ -11,10 +11,12 @@ import { For, Show, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { LayoutNameDialog } from "../header/LayoutNameDialog";
 import { screenerStore } from "../../data/screener-store";
+import type { Screen } from "../../data/screener-catalog";
 import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenBrowserDialog } from "./ScreenBrowserDialog";
 
-type NameDialog = { mode: "saveAs" | "copy" | "rename" | "create"; initial: string };
+/** `copyOf`: "Make a copy" of an Open screen row (`source`), not opened. */
+type NameDialog = { mode: "saveAs" | "copy" | "copyOf" | "rename" | "create"; initial: string; source?: Screen };
 
 export function ScreenerTopbar() {
   const [menuOpen, setMenuOpen] = createSignal(false);
@@ -30,6 +32,7 @@ export function ScreenerTopbar() {
     if (!d) return;
     if (d.mode === "rename") screenerStore.rename(name);
     else if (d.mode === "create") screenerStore.createNew(name);
+    else if (d.mode === "copyOf" && d.source) screenerStore.copyOf(d.source, name);
     else screenerStore.saveAs(name);
   };
   const run = (fn: () => void) => {
@@ -119,7 +122,10 @@ export function ScreenerTopbar() {
         )}
       </Show>
       <Show when={browserOpen()}>
-        <ScreenBrowserDialog onClose={() => setBrowserOpen(false)} />
+        <ScreenBrowserDialog
+          onClose={() => setBrowserOpen(false)}
+          onCopy={(src) => setDialog({ mode: "copyOf", initial: `${src.title} copy`, source: src })}
+        />
       </Show>
     </div>
   );
