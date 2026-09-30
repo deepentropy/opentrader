@@ -10,9 +10,6 @@ function body(): void {
     overlay: true,
     initial_capital: 10000,
     currency: 'USD',
-    // Pine v6 defaults of the reference app for what the source does not declare (oakscriptjs 0.8.0 has v5 values).
-    default_qty_type: strategy.percent_of_equity,
-    default_qty_value: 100,
   });
 
   const ewoFast = input.int(5, 'EWO Fast');
@@ -20,19 +17,22 @@ function body(): void {
   const rsiLen = input.int(14, 'RSI Length');
   const mfiLen = input.int(14, 'MFI Length');
   const volMaLen = input.int(20, 'Volume MA Length');
-  const lookbackLen = input.int(10, 'Breakout Lookback Bars');
-  const rsiOversold = input.int(30, 'Exhaustion RSI Level');
+  const lookbackLen = input.int(10, 'Breakout Lookback Bars', {
+    tooltip: 'Requires price to break the highest high of this many bars before buying to avoid falling knives.',
+  });
+  const rsiOversold = input.int(30, 'Exhaustion RSI Level', { tooltip: 'The deep oversold level that triggers a potential trend reset zone.' });
   // Alert inputs: a backtest sends no alerts.
-  input.bool(true, 'Alert: Pre-Buy Signal');
-  input.bool(true, 'Alert: BUY NOW Signal');
-  input.bool(true, 'Alert: Pre-Sell Signal');
-  input.bool(true, 'Alert: SELL NOW Signal');
-  input.bool(true, 'Alert: Strategy Entry');
-  input.bool(true, 'Alert: Strategy Exit');
+  const alerts = { group: 'Alert Settings' };
+  input.bool(true, 'Alert: Pre-Buy Signal', alerts);
+  input.bool(true, 'Alert: BUY NOW Signal', alerts);
+  input.bool(true, 'Alert: Pre-Sell Signal', alerts);
+  input.bool(true, 'Alert: SELL NOW Signal', alerts);
+  input.bool(true, 'Alert: Strategy Entry', alerts);
+  input.bool(true, 'Alert: Strategy Exit', alerts);
 
   const ewo = ta.sma(hl2, ewoFast).sub(ta.sma(hl2, ewoSlow));
   const rsi = ta.rsi(close, rsiLen);
-  const mfi = ta.mfi(hlc3, mfiLen, volume);
+  const mfi = ta.mfi(hlc3, mfiLen);
   const volMa = ta.sma(volume, volMaLen);
   const barrier = ta.highest(high, lookbackLen);
   const rsiUp = ta.crossover(rsi, 40);

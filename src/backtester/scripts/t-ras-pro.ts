@@ -9,10 +9,6 @@ function body(): void {
   strategy('Trend Reversal Alerts Strategy PRO by @nocachy', {
     shorttitle: 'T-RAS-PRO',
     overlay: false,
-    // Pine v6 defaults of the reference app for what the source does not declare (oakscriptjs 0.8.0 has v5 values).
-    initial_capital: 100000,
-    default_qty_type: strategy.percent_of_equity,
-    default_qty_value: 100,
   });
 
   const delta = input.float(1, 'Delta', { minval: 0.01, maxval: 1, step: 0.01 });

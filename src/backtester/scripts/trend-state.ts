@@ -2,7 +2,6 @@
 import { compare } from 'oakscriptjs';
 import { barcolor, close, color, eachBar, fill, high, hl2, input, low, nz, open, plot, plotshape, seriesOf, strategy, ta } from 'oakscriptjs/script';
 import type { ScriptStrategy } from '../oakscript';
-import { colorNew } from './colors';
 
 const { gt, lt } = compare;
 
@@ -15,7 +14,7 @@ function body(): void {
     default_qty_value: 100,
   });
 
-  const srcType = input.string('Custom', 'Source Type', { options: ['Close', 'HL2', 'HLC3', 'OHLC4', 'OCC3', 'HLCC4', 'Custom'] });
+  const srcType = input.string('Custom', 'Source Type', { options: ['Close', 'HL2', 'HLC3', 'OHLC4', 'OCC3', 'HLCC4', 'Custom'], group: 'Calculation' });
   const src =
     srcType === 'Close'
       ? close
@@ -31,18 +30,18 @@ function body(): void {
                 ? open.add(close.mul(2)).div(3)
                 : open.add(high.mul(2)).add(low.mul(2)).add(close.mul(2)).div(7);
 
-  const length = input.int(5, 'Sensitivity Length', { minval: 1 });
-  const multiplier = input.float(2, 'Range Multiplier', { minval: 0.1, step: 0.025 });
-  const offset = input.float(0.5, 'Offset', { minval: 0.5, step: 0.025 });
-  const sigma = input.float(1, 'Sigma', { minval: 1, step: 0.025 });
-  const confirmClose = input.bool(true, 'Confirm Signals On Bar Close');
-  const bullColor = input.color('#00FFAA', 'Bullish Color');
-  const bearColor = input.color('#FF0000', 'Bearish Color');
-  const showGlow = input.bool(true, 'Show Line Glow');
-  const showRibbon = input.bool(true, 'Show Gradient Ribbon');
-  const showLabels = input.bool(true, 'Show Bullish/Bearish Labels');
-  const labelDist = input.float(1.0, 'Label Vertical Distance', { minval: 0, maxval: 5, step: 0.1 });
-  const paintCandles = input.bool(true, 'Color Candles');
+  const length = input.int(5, 'Sensitivity Length', { minval: 1, group: 'Calculation' });
+  const multiplier = input.float(2, 'Range Multiplier', { minval: 0.1, step: 0.025, group: 'Calculation' });
+  const offset = input.float(0.5, 'Offset', { minval: 0.5, step: 0.025, group: 'Calculation' });
+  const sigma = input.float(1, 'Sigma', { minval: 1, step: 0.025, group: 'Calculation' });
+  const confirmClose = input.bool(true, 'Confirm Signals On Bar Close', { group: 'Calculation' });
+  const bullColor = input.color('#00FFAA', 'Bullish Color', { group: 'Visuals' });
+  const bearColor = input.color('#FF0000', 'Bearish Color', { group: 'Visuals' });
+  const showGlow = input.bool(true, 'Show Line Glow', { group: 'Visuals' });
+  const showRibbon = input.bool(true, 'Show Gradient Ribbon', { group: 'Visuals' });
+  const showLabels = input.bool(true, 'Show Bullish/Bearish Labels', { group: 'Visuals' });
+  const labelDist = input.float(1.0, 'Label Vertical Distance', { minval: 0, maxval: 5, step: 0.1, group: 'Visuals' });
+  const paintCandles = input.bool(true, 'Color Candles', { group: 'Visuals' });
 
   // Adaptive range
   const movement = eachBar((c) => Math.abs(c.get(src) - c.get(src, 1)));
@@ -82,10 +81,10 @@ function body(): void {
   // Visualization
   const trendValues = trend.toArray();
   const trendColor = trendValues.map((t) => (t === 1 ? bullColor : t === -1 ? bearColor : color.gray));
-  plot(showGlow ? filter : eachBar(() => NaN), 'Trend Line Glow', { color: trendColor.map((c) => colorNew(c, 82)), linewidth: 7 });
+  plot(showGlow ? filter : eachBar(() => NaN), 'Trend Line Glow', { color: trendColor.map((c) => color.new(c, 82)), linewidth: 7 });
   const filterPlot = plot(filter, 'Trend State Line', { color: trendColor, linewidth: 3 });
   const pricePlot = plot(hl2, 'Price Midpoint', { display: 'none' });
-  const ribbonColor = trendColor.map((c) => (showRibbon ? colorNew(c, 20) : undefined));
+  const ribbonColor = trendColor.map((c) => (showRibbon ? color.new(c, 20) : undefined));
   fill(filterPlot, pricePlot, hl2, filter, null, ribbonColor, 'Trend State Ribbon');
 
   const bulls = bullSignal.toArray();

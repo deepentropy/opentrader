@@ -37,7 +37,7 @@ const MIN_HEIGHT = 120;
 const CHART_MIN = 150;
 /** Engine version shown in the status bar (kept in sync with the oakscriptjs
  *  dependency; its exports map doesn't expose package.json to import). */
-const ENGINE_LABEL = "OakScript v0.8.0";
+const ENGINE_LABEL = "OakScript v0.8.1";
 
 function loadHeight(): number {
   const n = Number(kv.getItem(HEIGHT_KEY));

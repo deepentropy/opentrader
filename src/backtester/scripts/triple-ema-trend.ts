@@ -29,22 +29,24 @@ function body(): void {
     default_qty_value: 5,
     commission_type: strategy.commission.percent,
     commission_value: 0.075,
-    // Pine v6 defaults of the reference app for what the source does not declare (oakscriptjs 0.8.0 has v5 values).
-    initial_capital: 100000,
   });
 
-  const adxLen = input.int(14, 'ADX Length');
-  const adxThresh = input.float(43.0, 'ADX Threshold');
-  const emaFastLen = input.int(30, 'EMA Fast Length');
-  const emaMidLen = input.int(46, 'EMA Mid Length');
-  const emaSlowLen = input.int(80, 'EMA Slow Length');
-  const atrLen = input.int(14, 'ATR Length');
-  const slMult = input.float(1.8, 'Stop Loss ATR Multiplier');
-  const tpMult = input.float(3.3, 'Take Profit ATR Multiplier');
-  const startDate = input.time(timestamp('01 Jan 2021 00:00 +0300'), 'Start Date');
-  const endDate = input.time(timestamp('20 Jul 2030 00:00 +0300'), 'End Date');
-  const enableLongs = input.bool(true, 'Go Long');
-  const enableShorts = input.bool(false, 'Go Short');
+  const trendGroup = { group: 'Trend Conditions' };
+  const adxLen = input.int(14, 'ADX Length', trendGroup);
+  const adxThresh = input.float(43.0, 'ADX Threshold', trendGroup);
+  const emaGroup = { group: 'EMA Conditions' };
+  const emaFastLen = input.int(30, 'EMA Fast Length', emaGroup);
+  const emaMidLen = input.int(46, 'EMA Mid Length', emaGroup);
+  const emaSlowLen = input.int(80, 'EMA Slow Length', emaGroup);
+  const riskGroup = { group: 'Risk Management' };
+  const atrLen = input.int(14, 'ATR Length', riskGroup);
+  const slMult = input.float(1.8, 'Stop Loss ATR Multiplier', riskGroup);
+  const tpMult = input.float(3.3, 'Take Profit ATR Multiplier', riskGroup);
+  const backtestGroup = { group: 'Backtesting' };
+  const startDate = input.time(timestamp('01 Jan 2021 00:00 +0300'), 'Start Date', backtestGroup);
+  const endDate = input.time(timestamp('20 Jul 2030 00:00 +0300'), 'End Date', backtestGroup);
+  const enableLongs = input.bool(true, 'Go Long', backtestGroup);
+  const enableShorts = input.bool(false, 'Go Short', backtestGroup);
 
   // dirmov(len) / adx(dilen, adxlen)
   const up = ta.change(high);

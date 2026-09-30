@@ -2,7 +2,6 @@
 import { compare } from 'oakscriptjs';
 import { barcolor, bgcolor, close, color, fill, input, plot, plotshape, seriesOf, strategy, ta } from 'oakscriptjs/script';
 import type { ScriptStrategy } from '../oakscript';
-import { colorNew } from './colors';
 
 const { gt, lt } = compare;
 
@@ -17,26 +16,32 @@ function body(): void {
     slippage: 1,
   });
 
-  const atrPeriod = input.int(10, 'Supertrend ATR Length');
-  const factor = input.float(1.8, 'Supertrend Factor', { step: 0.1 });
-  const emaLen = input.int(200, 'EMA Trend Filter Length');
-  const enableSL = input.bool(false, 'Enable Stop Loss');
-  const enableTP = input.bool(false, 'Enable Take Profit');
-  const slPct = input.float(4.0, 'Stop Loss %', { step: 0.1 }) / 100;
-  const tpPct = input.float(8.0, 'Take Profit %', { step: 0.1 }) / 100;
-  const enableADX = input.bool(false, 'Enable ADX Filter');
-  const adxLen = input.int(14, 'ADX Length', { minval: 1 });
-  const adxSmooth = input.int(14, 'ADX Smoothing', { minval: 1 });
-  const adxThresh = input.float(20.0, 'ADX Threshold', { step: 1.0 });
-  const showFill = input.bool(true, 'Show Gradient Fill');
-  const showMarkers = input.bool(true, 'Show Flip Markers');
-  const colorPreset = input.string('Custom', 'Color Preset', { options: ['Classic', 'Aqua', 'Cosmic', 'Cyber', 'Neon', 'Custom'] });
-  const bullishInput = input.color('#00ffaa', 'Bullish Color');
-  const bearishInput = input.color('#ff0000', 'Bearish Color');
-  const showCandles = input.bool(false, 'Enable Bar Coloring');
-  const barTrans = input.int(0, 'Bar Color Transparency', { minval: 0, maxval: 100 });
-  const showBgcolor = input.bool(false, 'Enable Background Coloring');
-  const bgTrans = input.int(90, 'Background Color Transparency', { minval: 0, maxval: 100 });
+  const gStrategy = '════════ Strategy Settings ════════';
+  const gAdx = '════════ ADX Filter ════════';
+  const gVisual = '════════ Visual Settings ════════';
+  const atrPeriod = input.int(10, 'Supertrend ATR Length', { group: gStrategy });
+  const factor = input.float(1.8, 'Supertrend Factor', { step: 0.1, group: gStrategy });
+  const emaLen = input.int(200, 'EMA Trend Filter Length', { group: gStrategy });
+  const enableSL = input.bool(false, 'Enable Stop Loss', { group: gStrategy });
+  const enableTP = input.bool(false, 'Enable Take Profit', { group: gStrategy });
+  const slPct = input.float(4.0, 'Stop Loss %', { step: 0.1, group: gStrategy }) / 100;
+  const tpPct = input.float(8.0, 'Take Profit %', { step: 0.1, group: gStrategy }) / 100;
+  const enableADX = input.bool(false, 'Enable ADX Filter', {
+    group: gAdx,
+    tooltip: 'Only take signals when ADX is above the threshold, filtering out low-conviction/choppy conditions.',
+  });
+  const adxLen = input.int(14, 'ADX Length', { minval: 1, group: gAdx });
+  const adxSmooth = input.int(14, 'ADX Smoothing', { minval: 1, group: gAdx });
+  const adxThresh = input.float(20.0, 'ADX Threshold', { step: 1.0, group: gAdx });
+  const showFill = input.bool(true, 'Show Gradient Fill', { group: gVisual });
+  const showMarkers = input.bool(true, 'Show Flip Markers', { group: gVisual });
+  const colorPreset = input.string('Custom', 'Color Preset', { options: ['Classic', 'Aqua', 'Cosmic', 'Cyber', 'Neon', 'Custom'], group: gVisual });
+  const bullishInput = input.color('#00ffaa', 'Bullish Color', { group: gVisual });
+  const bearishInput = input.color('#ff0000', 'Bearish Color', { group: gVisual });
+  const showCandles = input.bool(false, 'Enable Bar Coloring', { group: gVisual });
+  const barTrans = input.int(0, 'Bar Color Transparency', { minval: 0, maxval: 100, group: gVisual });
+  const showBgcolor = input.bool(false, 'Enable Background Coloring', { group: gVisual });
+  const bgTrans = input.int(90, 'Background Color Transparency', { minval: 0, maxval: 100, group: gVisual });
 
   const presets: Record<string, [string, string]> = {
     Classic: ['#00ff00', '#ff0000'],
@@ -89,11 +94,11 @@ function body(): void {
   const trendColor = dir.map((d) => (lt(d, 0) ? bullishColor : bearishColor));
   const stUp = dir.map((d, i) => (lt(d, 0) ? st[i]! : NaN));
   const stDn = dir.map((d, i) => (gt(d, 0) ? st[i]! : NaN));
-  plot(seriesOf(stUp), 'Glow Up', { color: colorNew(bullishColor, 70), linewidth: 6, style: 'linebr' });
-  plot(seriesOf(stDn), 'Glow Down', { color: colorNew(bearishColor, 70), linewidth: 6, style: 'linebr' });
+  plot(seriesOf(stUp), 'Glow Up', { color: color.new(bullishColor, 70), linewidth: 6, style: 'linebr' });
+  plot(seriesOf(stDn), 'Glow Down', { color: color.new(bearishColor, 70), linewidth: 6, style: 'linebr' });
   const pStUp = plot(seriesOf(stUp), 'Bullish Supertrend', { color: bullishColor, linewidth: 2, style: 'linebr' });
   const pStDn = plot(seriesOf(stDn), 'Bearish Supertrend', { color: bearishColor, linewidth: 2, style: 'linebr' });
-  plot(trendEMA, 'EMA Trend Filter', { color: colorNew(color.orange, 20), linewidth: 1 });
+  plot(trendEMA, 'EMA Trend Filter', { color: color.new(color.orange, 20), linewidth: 1 });
   const pPrice = plot(close, 'Price Anchor', { display: 'none' });
   const grad = (line: number[], k: number) =>
     seriesOf(line.map((v, i) => (showFill && !Number.isNaN(v) ? v + ((cl[i]! - v) / 4.0) * k : NaN)));
@@ -103,7 +108,7 @@ function body(): void {
   const pG1d = plot(grad(stDn, 1), 'Plot', { display: 'none' });
   const pG2d = plot(grad(stDn, 2), 'Plot', { display: 'none' });
   const pG3d = plot(grad(stDn, 3), 'Plot', { display: 'none' });
-  const fillColor = (base: string, transp: number) => (showFill ? colorNew(base, transp) : null);
+  const fillColor = (base: string, transp: number) => (showFill ? color.new(base, transp) : null);
   fill(pStUp, pG1u, fillColor(bullishColor, 65), 'Up Gradient 1');
   fill(pG1u, pG2u, fillColor(bullishColor, 78), 'Up Gradient 2');
   fill(pG2u, pG3u, fillColor(bullishColor, 88), 'Up Gradient 3');
@@ -115,10 +120,10 @@ function body(): void {
   const flipAt = (flips: number[]) => seriesOf(flips.map((f, i) => (showMarkers && f === 1 ? st[i]! : NaN)));
   plotshape(flipAt(bullFlip.toArray()), 'Bullish Flip', { style: 'triangleup', location: 'belowbar', color: bullishColor, size: 'small' });
   plotshape(flipAt(bearFlip.toArray()), 'Bearish Flip', { style: 'triangledown', location: 'abovebar', color: bearishColor, size: 'small' });
-  plotshape(seriesOf(longSignals), 'Long Entry', { style: 'circle', location: 'belowbar', color: colorNew(bullishColor, 0), size: 'tiny' });
-  plotshape(seriesOf(shortSignals), 'Short Entry', { style: 'circle', location: 'abovebar', color: colorNew(bearishColor, 0), size: 'tiny' });
-  if (showCandles) barcolor(trendColor.map((c) => colorNew(c, barTrans)), { title: 'Trend Bar Color' });
-  if (showBgcolor) bgcolor(trendColor.map((c) => colorNew(c, bgTrans)), { title: 'Trend Background Color' });
+  plotshape(seriesOf(longSignals), 'Long Entry', { style: 'circle', location: 'belowbar', color: color.new(bullishColor, 0), size: 'tiny' });
+  plotshape(seriesOf(shortSignals), 'Short Entry', { style: 'circle', location: 'abovebar', color: color.new(bearishColor, 0), size: 'tiny' });
+  if (showCandles) barcolor(trendColor.map((c) => color.new(c, barTrans)), { title: 'Trend Bar Color' });
+  if (showBgcolor) bgcolor(trendColor.map((c) => color.new(c, bgTrans)), { title: 'Trend Background Color' });
 }
 
 export const bitcoinSuperflip: ScriptStrategy = {

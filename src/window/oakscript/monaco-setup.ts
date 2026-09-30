@@ -91,7 +91,7 @@ export function setupMonaco(): void {
     js.addExtraLib(source, `file:///node_modules/${rel.replace(/\\/g, "/")}`);
   }
   js.addExtraLib(
-    JSON.stringify({ name: "oakscriptjs", version: "0.8.0", types: "./dist/index.d.ts" }),
+    JSON.stringify({ name: "oakscriptjs", version: "0.8.1", types: "./dist/index.d.ts" }),
     "file:///node_modules/oakscriptjs/package.json",
   );
 

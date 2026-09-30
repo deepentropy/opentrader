@@ -1,8 +1,7 @@
 /** Gaussian Channel Strategy (RezzoRedPriest): N-pole Gaussian filter channel, close then reverse. */
-import { compare } from 'oakscriptjs';
+import { callsite, compare } from 'oakscriptjs';
 import { barcolor, color, eachBar, fill, input, nz, plot, strategy, ta, time, timestamp } from 'oakscriptjs/script';
 import type { ScriptStrategy } from '../oakscript';
-import { colorNew, colorRgb } from './colors';
 
 const { ge, gt, le, lt } = compare;
 
@@ -37,23 +36,11 @@ function filt9x(a: number, i: number): (s: number) => number {
   };
 }
 
-/** One ta.barssince() call site: counts its own calls (na until it sees a true condition). */
-function barssinceSite(): (cond: boolean) => number {
-  let count = NaN;
-  return (cond) => {
-    if (cond) count = 0;
-    else if (!Number.isNaN(count)) count++;
-    return count;
-  };
-}
-
 function body(): void {
   strategy('Gaussian Channel Strategy', {
     overlay: true,
     default_qty_type: strategy.percent_of_equity,
     default_qty_value: 100,
-    // Pine v6 defaults of the reference app for what the source does not declare (oakscriptjs 0.8.0 has v5 values).
-    initial_capital: 100000,
   });
 
   const startDate = input.time(timestamp('1970-01-01T00:00:00'), 'Start trading date (exchange time)');
@@ -111,10 +98,10 @@ function body(): void {
 
   // `a or (b and ta.barssince(x) <= n)`: the operands are evaluated lazily, so each barssince call site
   // only runs on the bars where the left operands let it run.
-  const sinceLongUp = barssinceSite();
-  const sinceLongDown = barssinceSite();
-  const sinceShortUp = barssinceSite();
-  const sinceShortDown = barssinceSite();
+  const sinceLongUp = callsite.barssince();
+  const sinceLongDown = callsite.barssince();
+  const sinceShortUp = callsite.barssince();
+  const sinceShortDown = callsite.barssince();
   strategy.eachBar((c) => {
     const s = c.get(src);
     const sigL = c.get(sigLineL);
@@ -145,10 +132,10 @@ function body(): void {
     }
   });
 
-  const upCol = colorRgb(0, 195, 255);
+  const upCol = color.rgb(0, 195, 255);
   const upDarkCol = '#092ae4';
-  const dnCol = colorRgb(214, 10, 255);
-  const dnDarkCol = colorRgb(135, 0, 153);
+  const dnCol = color.rgb(214, 10, 255);
+  const dnDarkCol = color.rgb(135, 0, 153);
   const f = filt.toArray();
   const h = hBand.toArray();
   const l = lBand.toArray();
@@ -159,13 +146,13 @@ function body(): void {
     return gt(s, s1) && gt(s, f[i]!) && lt(s, h[i]!)
       ? upCol
       : gt(s, s1) && ge(s, h[i]!)
-        ? colorNew(upCol, 20)
+        ? color.new(upCol, 20)
         : le(s, s1) && gt(s, f[i]!)
           ? upDarkCol
           : lt(s, s1) && lt(s, f[i]!) && gt(s, l[i]!)
             ? dnCol
             : lt(s, s1) && le(s, l[i]!)
-              ? colorNew(dnCol, 20)
+              ? color.new(dnCol, 20)
               : ge(s, s1) && lt(s, f[i]!)
                 ? dnDarkCol
                 : color.gray;
@@ -173,7 +160,7 @@ function body(): void {
   plot(filt, 'Filter', { color: fCol, linewidth: 3 });
   const hP = plot(hBand, 'Filtered TR High', { color: fCol });
   const lP = plot(lBand, 'Filtered TR Low', { color: fCol });
-  fill(hP, lP, { color: fCol.map((c) => colorNew(c, 80)) });
+  fill(hP, lP, { color: fCol.map((c) => color.new(c, 80)) });
   barcolor(barCol);
 }
 

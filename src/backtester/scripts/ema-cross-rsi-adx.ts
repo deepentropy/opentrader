@@ -1,8 +1,7 @@
 /** EMA Cross + RSI + ADX - Autotrade Strategy V2 (varuns_back): fixed quantity, stop loss from the signal close. */
 import { compare } from 'oakscriptjs';
-import { close, color, input, plot, plotshape, seriesOf, strategy, ta } from 'oakscriptjs/script';
+import { close, color, input, plot, plotarrow, plotshape, seriesOf, strategy, ta } from 'oakscriptjs/script';
 import type { ScriptStrategy } from '../oakscript';
-import { colorNew } from './colors';
 
 const { ge, gt, le, lt } = compare;
 
@@ -40,6 +39,8 @@ function body(): void {
   const longEntries: number[] = [];
   const shortEntries: number[] = [];
   const longStops: number[] = [];
+  const closeLongs: number[] = [];
+  const closeShorts: number[] = [];
   const shortStops: number[] = [];
   strategy.eachBar((c) => {
     const bull = c.get(bullCross) === 1;
@@ -80,6 +81,8 @@ function body(): void {
     longEntries.push(longCondition ? 1 : 0);
     shortEntries.push(shortCondition ? 1 : 0);
     longStops.push(longSLHit ? 1 : 0);
+    closeLongs.push(closeLongCondition ? -1 : NaN);
+    closeShorts.push(closeShortCondition ? 1 : NaN);
     shortStops.push(shortSLHit ? 1 : 0);
   });
 
@@ -87,10 +90,12 @@ function body(): void {
   plot(ema21, 'EMA 21', { color: color.red, linewidth: 2 });
   plot(seriesOf(longSLPlot), 'Long SL', { color: color.orange, linewidth: 2, style: 'linebr' });
   plot(seriesOf(shortSLPlot), 'Short SL', { color: color.orange, linewidth: 2, style: 'linebr' });
-  plotshape(seriesOf(longEntries), 'Long Entry', { style: 'triangleup', location: 'belowbar', color: colorNew(color.green, 0), size: 'large' });
-  plotshape(seriesOf(shortEntries), 'Short Entry', { style: 'triangledown', location: 'abovebar', color: colorNew(color.red, 0), size: 'large' });
-  plotshape(seriesOf(longStops), 'Long SL Hit', { style: 'xcross', location: 'belowbar', color: colorNew(color.orange, 0), size: 'normal' });
-  plotshape(seriesOf(shortStops), 'Short SL Hit', { style: 'xcross', location: 'abovebar', color: colorNew(color.orange, 0), size: 'normal' });
+  plotshape(seriesOf(longEntries), 'Long Entry', { style: 'triangleup', location: 'belowbar', color: color.new(color.green, 0), size: 'large' });
+  plotshape(seriesOf(shortEntries), 'Short Entry', { style: 'triangledown', location: 'abovebar', color: color.new(color.red, 0), size: 'large' });
+  plotarrow(seriesOf(closeLongs), 'Close Long', { colorup: color.red, minheight: 15, maxheight: 15 });
+  plotarrow(seriesOf(closeShorts), 'Close Short', { colorup: color.green, minheight: 15, maxheight: 15 });
+  plotshape(seriesOf(longStops), 'Long SL Hit', { style: 'xcross', location: 'belowbar', color: color.new(color.orange, 0), size: 'normal' });
+  plotshape(seriesOf(shortStops), 'Short SL Hit', { style: 'xcross', location: 'abovebar', color: color.new(color.orange, 0), size: 'normal' });
 }
 
 export const emaCrossRsiAdx: ScriptStrategy = {

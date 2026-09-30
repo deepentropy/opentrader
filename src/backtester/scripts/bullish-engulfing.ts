@@ -2,7 +2,6 @@
 import { callsite, compare } from 'oakscriptjs';
 import { bgcolor, close, color, eachBar, input, open, plotshape, seriesOf, strategy, ta } from 'oakscriptjs/script';
 import type { ScriptStrategy } from '../oakscript';
-import { colorNew, colorRgb } from './colors';
 
 const { ge, gt, le, lt } = compare;
 
@@ -20,18 +19,24 @@ function body(): void {
     close_entries_rule: 'ANY',
   });
 
-  const profit = input.float(2.0, 'Target profit [%]', { minval: 0, step: 0.1 });
-  const stoploss = input.float(2.0, 'Stop Loss [%]', { minval: 0, step: 0.1 });
-  const ordersSize = input.float(30.0, 'Position Order Size [%]', { minval: 0.1, maxval: 100, step: 0.1 });
-  const showBg = input.bool(true, 'Highlight Pattern Background');
-  const colorBull = input.color(colorRgb(59, 255, 69), 'Color: Bullish Signal');
-  const colorBg = input.color(colorNew(colorRgb(59, 255, 69), 85), 'Background Color Pattern');
+  const profit = input.float(2.0, 'Target profit [%]', { minval: 0, step: 0.1, group: 'Settings' });
+  const stoploss = input.float(2.0, 'Stop Loss [%]', { minval: 0, step: 0.1, group: 'Settings' });
+  const ordersSize = input.float(30.0, 'Position Order Size [%]', {
+    minval: 0.1,
+    maxval: 100,
+    step: 0.1,
+    group: 'Settings',
+    tooltip: 'Percentage size of each order calculated based on starting initial capital.',
+  });
+  const showBg = input.bool(true, 'Highlight Pattern Background', { group: 'Design Settings' });
+  const colorBull = input.color(color.rgb(59, 255, 69), 'Color: Bullish Signal', { group: 'Design Settings' });
+  const colorBg = input.color(color.new(color.rgb(59, 255, 69), 85), 'Background Color Pattern', { group: 'Design Settings' });
 
   const equityTrades = strategy.initial_capital;
 
   const trendRule1 = 'SMA50';
   const trendRule2 = 'SMA50, SMA200';
-  const trendRule = input.string(trendRule1, 'Detect Trends Based On', { options: [trendRule1, trendRule2, 'No detection'] });
+  const trendRule = input.string(trendRule1, 'Detect Trends Based On', { options: [trendRule1, trendRule2, 'No detection'], group: 'Design Settings' });
   const sma50 = trendRule !== 'No detection' ? ta.sma(close, 50) : undefined;
   const sma200 = trendRule === trendRule2 ? ta.sma(close, 200) : undefined;
 
