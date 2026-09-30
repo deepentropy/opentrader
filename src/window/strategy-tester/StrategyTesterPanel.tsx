@@ -62,7 +62,8 @@ export function StrategyTesterPanel(props: Props) {
 
   const title = (id: string) => {
     const def = STRATEGIES.find((s) => s.key === strategyKeyOf(id));
-    return def?.shortTitle ?? getStrategyEntry(id)?.name ?? id;
+    const entry = getStrategyEntry(id) as { name?: string; shortName?: string } | undefined;
+    return def?.shortTitle ?? entry?.shortName ?? entry?.name ?? id;
   };
   const run = createMemo(() => {
     const id = selected();

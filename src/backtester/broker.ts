@@ -42,6 +42,25 @@
  *   - trailing stops: activation at entry + trail_points (rounded like a
  *     limit), best price = exact prices after activation, stop = best -
  *     trunc(trail_offset) ticks, rounded like a stop.
+ *
+ *   - trade excursions also count the exit fill price (slippage included) of a
+ *     trade that saw prices after its entry; a trade closed by a market order
+ *     at the open does not see the raw open;
+ *   - a strategy.close does not fill when an earlier market order of the same
+ *     bar filled (strategy.order then strategy.close, bb-mean-reversion).
+ *
+ * Margin (margin_long / margin_short above 0, the Pine v6 default of 100;
+ * rules matched on .tmp/oakscript-strategies):
+ *   - an entry fills only if the margin of its new trade (qty * fill price *
+ *     margin %) fits in the equity at the last script run minus the margin of
+ *     the trades it does not close; else it is not filled at all (not resized,
+ *     a reversal keeps the open position). An entry that fills after a close
+ *     order of the same bar is not checked;
+ *   - margin calls are checked at each point of the intrabar path (open,
+ *     high / low, close) with Pine's documented formula: when the available
+ *     funds are below 0, 4 times the quantity that covers the loss (at least
+ *     one quantity step) is closed at that price, oldest trade first (order
+ *     "Margin call <n>").
  */
 import type {
   Bar,
@@ -198,6 +217,8 @@ export interface EquityEvent {
   flat: boolean;
   /** Entry event: the trade was opened from flat. */
   first?: boolean;
+  /** Close event of a margin call. */
+  marginCall?: boolean;
 }
 
 /** Pine na (NaN) or undefined as "not set". */
@@ -216,6 +237,10 @@ export class Broker {
   private tradeSeq = 0;
   /** Bar of the last entry-order fill: one entry fill per bar. */
   private entryFillBar = -1;
+  /** Margin call events so far (order ids "Margin call <n>"). */
+  private marginCalls = 0;
+  /** Equity at the last script run (the bar close before the fills): the funds an entry fill is checked against. */
+  private scriptEquity = 0;
 
   readonly closedTrades: Trade[] = [];
   readonly filledOrders: FilledOrder[] = [];
@@ -362,6 +387,7 @@ export class Broker {
 
   /** Fill the orders placed before bar `i` along bar i's price path. */
   processBar(i: number): void {
+    this.scriptEquity = i > 0 ? this.equity : this.props.initialCapital;
     this.bar = i;
     this.dropOrphanExits();
     const b = this.bars[i];
@@ -369,18 +395,24 @@ export class Broker {
     const open = this.roundPrice(b.open);
     const high = this.roundPrice(b.high);
     const low = this.roundPrice(b.low);
-    this.touch(open, b.open);
+    // The open reaches the trades still open after the market fills: a trade closed at the open sees
+    // its fill price only (slippage included), a trade opened at the open sees the prices after it.
+    const held = [...this.openTrades];
+    this.touchEquity(open);
     this.fillMarketOrders(open);
+    this.touchTrades(open, b.open, held.filter((t) => this.openTrades.includes(t)));
     const upFirst = Math.abs(b.high - b.open) < Math.abs(b.low - b.open);
     const close = this.roundPrice(b.close);
     // [price on the tick grid, exact price] (trailing stops follow the exact price).
     const path: [number, number][] = upFirst ? [[high, b.high], [low, b.low], [close, b.close]] : [[low, b.low], [high, b.high], [close, b.close]];
     let cur = open;
     this.fillAt(cur, b.open);
+    this.checkMargin(open);
     for (const [to, raw] of path) {
       this.walk(cur, to);
       cur = to;
       this.touch(to, raw);
+      this.checkMargin(to);
     }
   }
 
@@ -396,12 +428,14 @@ export class Broker {
   /** process_orders_on_close: fill the orders just placed at bar i's close. */
   processClose(i: number): void {
     this.bar = i;
+    this.scriptEquity = this.equity;
     const close = this.roundPrice(this.bars[i].close);
     this.touch(close, this.bars[i].close);
     this.fillMarketOrders(close);
     this.fillAt(close, this.bars[i].close);
     // Trades filled at this close see the close as their first price after the fill.
     this.touch(close, this.bars[i].close);
+    this.checkMargin(close);
   }
 
   /** Market orders (market entries and closes) in the order they were placed. */
@@ -410,12 +444,16 @@ export class Broker {
     for (const e of this.entries.values()) if (e.limit === null && e.stop === null) market.push(e);
     market.sort((a, b) => a.seq - b.seq);
     this.closes = [];
+    // An entry that fills after a close order of the same batch is not checked against the funds
+    // (the reference fills it, then margin-calls it: gaussian-channel, 5 cases).
+    let afterClose = false;
+    const fills = this.filledOrders.length;
     for (const o of market) {
       if (o.kind === 'entry') {
         this.entries.delete(o.id);
-        this.fillEntry(o, this.slip(base, o.direction === 'long'), 'MARKET');
-      } else {
-        this.fillClose(o, this.slip(base, this.positionSize < 0));
+        this.fillEntry(o, this.slip(base, o.direction === 'long'), 'MARKET', afterClose);
+      } else if (this.filledOrders.length === fills) {
+        afterClose ||= this.fillClose(o, this.slip(base, this.positionSize < 0));
       }
     }
   }
@@ -547,16 +585,19 @@ export class Broker {
     return same < Math.max(1, this.props.pyramiding);
   }
 
-  private fillEntry(o: EntryOrder, price: number, type: OrderType): void {
+  private fillEntry(o: EntryOrder, price: number, type: OrderType, unchecked = false): void {
     if (o.isOrder) return this.fillOrder(o, price, type);
     if (!this.canEnter(o.direction)) return;
     const buy = o.direction === 'long';
     const pos = this.positionSize;
     // A zero quantity (e.g. cash sizing below one share) only closes an opposite position.
     if (o.qty <= 0 && (pos === 0 || (pos > 0) === buy)) return;
+    const reverses = pos !== 0 && (pos > 0) !== buy;
+    // Not enough funds for the new trade: the order is not filled (a reversal keeps the open position).
+    if (o.qty > 0 && !unchecked && !this.fundsCover(o.direction, o.qty, price, reverses)) return;
     this.entryFillBar = this.bar;
     let closed = 0;
-    if (pos !== 0 && (pos > 0) !== buy) {
+    if (reverses) {
       for (const t of [...this.openTrades]) {
         closed += t.qty;
         this.closeTradeQty(t, t.qty, price, o.comment);
@@ -576,13 +617,69 @@ export class Broker {
       left -= q;
       this.closeTradeQty(t, q, price, o.comment);
     }
-    if (left > 0) this.openTrade({ ...o, qty: left }, price);
-    this.recordFill(o.id, o.comment, buy, null, price, o.qty, type);
+    let filled = o.qty;
+    if (left > 0) {
+      if (this.fundsCover(o.direction, left, price)) this.openTrade({ ...o, qty: left }, price);
+      else filled -= left;
+    }
+    if (filled > 0) this.recordFill(o.id, o.comment, buy, null, price, filled, type);
   }
 
-  private fillClose(o: CloseOrder, price: number): void {
+  private marginRatio(direction: Direction): number {
+    return (direction === 'long' ? this.props.marginLong : this.props.marginShort) / 100;
+  }
+
+  /**
+   * Margin: a new trade of `qty` in `direction` at `price` fits in the available funds: the equity at the
+   * last script run minus the margin of the open trades (none when the fill closes them first). Always
+   * true without margin.
+   */
+  private fundsCover(direction: Direction, qty: number, price: number, closesOpenTrades = false): boolean {
+    const ratio = this.marginRatio(direction);
+    if (ratio <= 0) return true;
+    const pv = this.sym.pointValue;
+    let used = 0;
+    if (!closesOpenTrades) for (const t of this.openTrades) used += t.qty * price * pv * this.marginRatio(t.direction);
+    const available = this.scriptEquity - used;
+    return qty * price * pv * ratio <= available;
+  }
+
+  /** Margin call at price p (a point of the intrabar path), Pine's algorithm. */
+  private checkMargin(p: number): void {
+    const pos = this.positionSize;
+    if (pos === 0) return;
+    const long = pos > 0;
+    const ratio = this.marginRatio(long ? 'long' : 'short');
+    if (ratio <= 0) return;
+    const pv = this.sym.pointValue;
+    // Pine's order of operations (the binary noise decides the calls at 0 available funds, a 100 % long):
+    // open profit = MVS - money spent, available = equity - MVS * margin ratio.
+    const mvs = Math.abs(pos) * p * pv;
+    let spent = 0;
+    for (const t of this.openTrades) spent += t.qty * t.price * pv;
+    const openProfit = long ? mvs - spent : spent - mvs;
+    const equity = this.props.initialCapital + this.netProfit + openProfit;
+    const available = equity - mvs * ratio;
+    if (available >= 0) return;
+    const loss = available / ratio;
+    const step = this.sym.qtyStep;
+    const cover = Math.trunc(Math.abs(loss / (p * pv)) / step) * step;
+    const size = Math.min(Math.abs(pos), cover > 0 ? cover * 4 : step);
+    let left = size;
+    for (const t of [...this.openTrades]) {
+      if (left <= 0) break;
+      const q = Math.min(left, t.qty);
+      left -= q;
+      this.closeTradeQty(t, q, p, 'Margin call');
+      this.equityEvents[this.equityEvents.length - 1].marginCall = true;
+    }
+    this.recordFill(`Margin call ${this.marginCalls++}`, 'Margin call', !long, null, p, size, 'MARKET');
+  }
+
+  /** Returns true when the order filled. */
+  private fillClose(o: CloseOrder, price: number): boolean {
     const targets = this.openTrades.filter((t) => o.entryId === null || t.entryId === o.entryId);
-    if (targets.length === 0) return;
+    if (targets.length === 0) return false;
     const total = targets.reduce((s, t) => s + t.qty, 0);
     let left = o.qty !== null ? Math.min(o.qty, total) : o.qtyPercent !== null ? this.floorQty((total * o.qtyPercent) / 100) : total;
     const buy = targets[0].direction === 'short';
@@ -594,6 +691,7 @@ export class Broker {
       this.closeTradeQty(t, q, price, o.comment);
     }
     this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
+    return true;
   }
 
   private openTrade(o: EntryOrder, price: number): void {
@@ -660,10 +758,13 @@ export class Broker {
     const pv = this.sym.pointValue;
     const cost = t.price * qty * pv + entryCm;
     const profit = sign * (price - t.price) * qty * pv - entryCm - exitCm;
-    const best = t.direction === 'long' ? t.high : t.low;
-    const worst = t.direction === 'long' ? t.low : t.high;
+    // The exit fill price (slippage included) is part of the range of a trade that saw prices after its entry.
+    const seen = Number.isFinite(t.high);
+    const high = open || !seen ? t.high : Math.max(t.high, price);
+    const low = open || !seen ? t.low : Math.min(t.low, price);
+    const best = t.direction === 'long' ? high : low;
+    const worst = t.direction === 'long' ? low : high;
     // Excursions include the entry commission, floored at 0.
-    const seen = Number.isFinite(best);
     const favorable = seen ? sign * (best - t.price) : 0;
     const adverse = seen ? -sign * (worst - t.price) : 0;
     const runUp = seen ? Math.max(0, favorable * qty * pv - entryCm) : 0;
@@ -706,8 +807,13 @@ export class Broker {
     return s;
   }
 
-  /** Record a price reached on the path (trade excursions). */
+  /** Record a price reached on the path (equity events, trade excursions). */
   private touch(p: number, raw = p): void {
+    this.touchEquity(p);
+    this.touchTrades(p, raw, this.openTrades);
+  }
+
+  private touchEquity(p: number): void {
     const r = this.roundPrice(p);
     if (this.openTrades.length) {
       this.equityEvents.push({
@@ -717,7 +823,11 @@ export class Broker {
         realized: this.props.initialCapital + this.netProfit,
       });
     }
-    for (const t of this.openTrades) {
+  }
+
+  private touchTrades(p: number, raw: number, trades: OpenTrade[]): void {
+    const r = this.roundPrice(p);
+    for (const t of trades) {
       if (r > t.high) t.high = r;
       if (r < t.low) t.low = r;
       // Trailing stops follow the exact price, not the tick-rounded one.

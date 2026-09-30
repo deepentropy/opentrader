@@ -11,9 +11,10 @@
  *   - max drawdown / run-up use the equity marked to market at each price
  *     reached after a fill (Broker.equityEvents). The peak is the realized
  *     equity after each trade close (partial closes too); the trough is the
- *     realized equity when the position becomes flat or after the entry
- *     commission of a trade opened from flat. Checked on 56 runs (7 datasets,
- *     5 m to 1 W): drawdown 56 / 56, run-up 55 / 56.
+ *     realized equity when the position becomes flat, after a margin call or
+ *     after the entry commission of a trade opened from flat. Checked on 56
+ *     runs (7 datasets, 5 m to 1 W): drawdown 56 / 56, run-up 55 / 56; the
+ *     margin call trough on the ut-bot-v2 runs (.tmp/oakscript-strategies).
  */
 import type { EquityEvent } from './broker';
 import type { Bar, Direction, Performance, SidePerformance, Trade } from './types';
@@ -88,7 +89,7 @@ function equityExtremes(events: EquityEvent[], initialCapital: number) {
       high(e.v);
     }
     if (e.t === 'c') peak = Math.max(peak, e.realized);
-    if ((e.t === 'c' && e.flat) || (e.t === 'e' && e.first)) trough = Math.min(trough, e.realized);
+    if ((e.t === 'c' && (e.flat || e.marginCall)) || (e.t === 'e' && e.first)) trough = Math.min(trough, e.realized);
   }
   return r;
 }

@@ -32,6 +32,7 @@ export interface StrategyProperties {
   slippage: number;
   processOrdersOnClose: boolean;
   closeEntriesRule: 'FIFO' | 'ANY';
+  /** Margin percent of long / short positions; 0 = no margin (no margin calls, no funds check). */
   marginLong: number;
   marginShort: number;
 }
@@ -47,8 +48,9 @@ export const DEFAULT_PROPERTIES: StrategyProperties = {
   slippage: 0,
   processOrdersOnClose: false,
   closeEntriesRule: 'FIFO',
-  marginLong: 100,
-  marginShort: 100,
+  // Pine v5 default (the TypeScript ports are v5 scripts); v6 scripts default to 100.
+  marginLong: 0,
+  marginShort: 0,
 };
 
 export interface SymbolInfo {

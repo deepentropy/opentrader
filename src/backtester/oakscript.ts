@@ -246,6 +246,17 @@ export class BrokerEngine implements StrategyEngine {
   }
 }
 
+/** A built-in strategy written as an OakScript script (src/backtester/scripts/). Its title, inputs and
+ *  strategy() properties are the ones the script declares. */
+export interface ScriptStrategy {
+  /** Stable id, e.g. "ut-bot-v2". */
+  key: string;
+  /** Pine source this script follows (the reference app script id). */
+  source: { id: string; name: string; author: string };
+  /** The script body (oakscriptjs/script API). */
+  body: () => void;
+}
+
 export interface OakScriptRunOptions {
   inputs?: Record<string, unknown>;
   /** Overrides of the script's strategy() properties (Strategy Tester / Properties tab). */

@@ -4,6 +4,10 @@
  * added, persisted, listed in the legend and recomputed (load, history
  * paging, live bars) by the same pipeline as any indicator.
  *
+ * Built-in OakScript strategies (backtester/scripts) are listed with the ports
+ * (id `strategy:<key>`) and run in the backtest worker too; their title,
+ * inputs and properties come from a run of the script on zero bars.
+ *
  * OakScript strategies (editor panel scripts that declare strategy()) use the
  * same pipeline with key `user:<scriptId>` (id `strategy:user:<scriptId>`):
  * they run in the OakScript worker through the backtester's oakscriptjs
@@ -19,7 +23,8 @@
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import type { StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
-import { brokerProperties } from "../../../backtester/oakscript";
+import { brokerProperties, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
+import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
 import { STRATEGIES } from "../../../backtester/strategies";
 import { DEFAULT_PROPERTIES, type BacktestReport, type Bar, type StrategyProperties } from "../../../backtester/types";
 import type { BacktestError } from "../../../backtester/worker-types";
@@ -195,6 +200,50 @@ export function dropUserStrategy(scriptId: string): void {
   compiledGen.delete(scriptId);
 }
 
+// ── Built-in OakScript strategies ────────────────────────────────────────────
+
+type ScriptDeclaration = { title: string; shortTitle: string; inputConfig: unknown[]; defaultInputs: Record<string, unknown>; properties: StrategyProperties };
+const declarations = new Map<string, ScriptDeclaration>();
+
+/** What the script declares (title, inputs, strategy() properties): a run on zero bars, cached. */
+function scriptDeclaration(def: ScriptStrategy): ScriptDeclaration {
+  let d = declarations.get(def.key);
+  if (!d) {
+    const { script } = runOakScriptStrategy(def.body, []);
+    const title = script.metadata.title;
+    d = {
+      title,
+      shortTitle: script.metadata.shortTitle ?? title,
+      inputConfig: script.inputConfig,
+      defaultInputs: script.defaultInputs,
+      properties: brokerProperties(script.strategyConfig!),
+    };
+    declarations.set(def.key, d);
+  }
+  return d;
+}
+
+function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistryEntry {
+  const d = scriptDeclaration(def);
+  return {
+    id,
+    group: "community",
+    category: "Trend",
+    name: d.title,
+    shortName: d.shortTitle,
+    overlay: true,
+    metadata: { title: d.title, shortTitle: d.shortTitle, overlay: true },
+    inputConfig: d.inputConfig,
+    plotConfig: [],
+    defaultInputs: d.defaultInputs,
+    calculate: makeCalculate(
+      def.key,
+      () => d.defaultInputs,
+      (channel, bars, inputs, properties) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties }),
+    ),
+  } as unknown as IndicatorRegistryEntry;
+}
+
 /** strategy() properties of a strategy study before overrides: the port's
  *  declaration, or the compiled OakScript declaration (undefined when not
  *  compiled yet or not supported by the broker). */
@@ -212,7 +261,9 @@ export function strategyDefaults(id: string): StrategyProperties | undefined {
     }
   }
   const def = STRATEGIES.find((d) => d.key === key);
-  return def ? { ...DEFAULT_PROPERTIES, ...def.properties } : undefined;
+  if (def) return { ...DEFAULT_PROPERTIES, ...def.properties };
+  const script = SCRIPT_STRATEGIES.find((d) => d.key === key);
+  return script ? scriptDeclaration(script).properties : undefined;
 }
 
 /** Resolve `strategy:<key>` (undefined for an unknown key). */
@@ -227,7 +278,13 @@ export function getStrategyEntry(id: string): IndicatorRegistryEntry | undefined
     return user;
   }
   const def = STRATEGIES.find((s) => s.key === strategyKeyOf(id));
-  if (!def) return undefined;
+  if (!def) {
+    const script = SCRIPT_STRATEGIES.find((s) => s.key === strategyKeyOf(id));
+    if (!script) return undefined;
+    const entry = scriptStrategyEntry(id, script);
+    entries.set(id, entry);
+    return entry;
+  }
   const entry = {
     id,
     group: "community",
@@ -251,7 +308,7 @@ export function getStrategyEntry(id: string): IndicatorRegistryEntry | undefined
   return entry;
 }
 
-/** Every strategy port, for the Indicators dialog. */
+/** Every built-in strategy (ports and OakScript scripts), for the Indicators dialog. */
 export function strategyRows(): { id: string; name: string; author: string }[] {
-  return STRATEGIES.map((s) => ({ id: strategyId(s.key), name: s.source.name, author: s.source.author }));
+  return [...STRATEGIES, ...SCRIPT_STRATEGIES].map((s) => ({ id: strategyId(s.key), name: s.source.name, author: s.source.author }));
 }
