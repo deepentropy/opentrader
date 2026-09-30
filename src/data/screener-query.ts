@@ -1,7 +1,7 @@
 /*
  * Stock screener: screen → scan request, and the reference app filter texts
  * (pill label, preset titles). Grammar follows the reference app `/scan` request the
- * desktop app sends (research/screener/data/tv/scan-requests.json).
+ * desktop app sends (.tmp/screener/data/tv/scan-requests.json).
  */
 import type { Clause, Operand, ScanRequest } from "../bindings";
 import {

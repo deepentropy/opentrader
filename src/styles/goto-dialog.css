@@ -1,7 +1,7 @@
 /* Go-to date dialog.
  *
  * Sizes and colours are the reference app's (Go to dialog + ui-lib rules, the reference app 3.4.1, captured
- * 30/09/2026: research/goto-sync/data/tv-goto-css.css, tv-goto-layout.json):
+ * 30/09/2026: .tmp/goto-sync/data/tv-goto-css.css, tv-goto-layout.json):
  * 302 px wide, 566 px high on the Date tab (616 on Custom range). */
 
 /* The shared .ot-popover gives us bg + radius + shadow. The reference app's dialog has no

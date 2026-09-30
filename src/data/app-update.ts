@@ -2,7 +2,7 @@
  * App update state for the UI (the Rust side is src-tauri/src/app_update.rs):
  * the title-bar "Update the app" button, the main-menu "Relaunch to update"
  * row and the Settings > About block. The reference app design + rules:
- * research/app-update/doc.
+ * .tmp/app-update/doc.
  */
 import { createSignal } from "solid-js";
 import { commands, events, type AppUpdateStatus, type BuildInfo } from "../bindings";

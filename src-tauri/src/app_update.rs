@@ -1,6 +1,6 @@
 /*
  * In-app update, after the reference desktop app's AutoUpdateService (capture and
- * rules: research/app-update/doc).
+ * rules: .tmp/app-update/doc).
  *
  *  - Check at startup, then every hour (the reference app's appinstaller HoursBetweenUpdateChecks
  *    = 1), and again when Settings > About opens. Not on Linux (the reference app skips it too).

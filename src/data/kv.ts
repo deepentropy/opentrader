@@ -28,9 +28,6 @@ const STORE_FILE = "opentrader.json";
 const MIGRATED_SENTINEL = "ot:_migrated:v1";
 /** Keys that intentionally stay on raw localStorage (window coordination). */
 const SKIP_PREFIXES = ["ot:tabs:", "ot:active-tab:", "ot:detach:"];
-/** Key prefix used before 0.1.0. Entries still under it are moved to `ot:` at
- *  boot (see renameLegacyLocalStorage / renameLegacyStoreKeys). */
-const LEGACY_PREFIX = "tv:";
 const PREFIX = "ot:";
 
 /** Minimal structural view of the tauri-plugin-store Store we depend on. */
@@ -167,7 +164,6 @@ export function flushKv(): Promise<void> {
  * blocking the app from rendering).
  */
 export async function hydrateKv(): Promise<void> {
-  renameLegacyLocalStorage();
   if (!isTauri()) {
     useStore = false;
     return;
@@ -180,7 +176,6 @@ export async function hydrateKv(): Promise<void> {
       if (typeof v === "string") mem.set(k, v);
     }
     useStore = true;
-    renameLegacyStoreKeys();
     await migrateFromLocalStorage();
     // Live cross-window sync over an app-global Tauri event (see CHANGE_EVENT).
     const { emit, listen } = await import("@tauri-apps/api/event");
@@ -192,45 +187,6 @@ export async function hydrateKv(): Promise<void> {
     console.error("[kv] store hydration failed; falling back to localStorage", e);
     useStore = false;
     store = null;
-  }
-}
-
-/** Move every `tv:*` localStorage entry to `ot:*`. A value already stored under
- *  the new key wins. Runs at every boot; once nothing is left under the legacy
- *  prefix it only scans the keys. */
-function renameLegacyLocalStorage(): void {
-  try {
-    if (typeof localStorage === "undefined") return;
-    const legacy: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith(LEGACY_PREFIX)) legacy.push(key);
-    }
-    for (const key of legacy) {
-      const next = PREFIX + key.slice(LEGACY_PREFIX.length);
-      const val = localStorage.getItem(key);
-      if (val != null && localStorage.getItem(next) == null) localStorage.setItem(next, val);
-      localStorage.removeItem(key);
-    }
-  } catch (e) {
-    console.error("[kv] localStorage key rename failed", e);
-  }
-}
-
-/** Move every `tv:*` store entry to `ot:*` (same rule as the localStorage
- *  rename). Runs after the store is mirrored into `mem`, before any read. */
-function renameLegacyStoreKeys(): void {
-  if (!store) return;
-  for (const key of [...mem.keys()]) {
-    if (!key.startsWith(LEGACY_PREFIX)) continue;
-    const next = PREFIX + key.slice(LEGACY_PREFIX.length);
-    const val = mem.get(key) as string;
-    if (!mem.has(next)) {
-      mem.set(next, val);
-      store.set(next, val).catch((e) => console.error(`[kv] persist failed for ${next}`, e));
-    }
-    mem.delete(key);
-    store.delete(key).catch((e) => console.error(`[kv] remove failed for ${key}`, e));
   }
 }
 

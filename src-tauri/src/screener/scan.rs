@@ -523,7 +523,7 @@ mod live_step {
 
     /// Live step check: a state file built at D-1 (env SCREENER_STATE) plus the
     /// live snapshot of D, evaluated for the tickers in env SCREENER_TICKERS;
-    /// writes a CSV to env SCREENER_OUT for research/screener/code/check_state.py.
+    /// writes a CSV to env SCREENER_OUT for .tmp/screener/code/check_state.py.
     #[tokio::test]
     #[ignore]
     async fn screener_live_step_csv() {

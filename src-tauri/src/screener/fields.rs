@@ -47,7 +47,7 @@ pub enum Reference {
 
 /// How a state field becomes a live value on the session after D (S).
 /// Formulas matched on the reference app values of 29/09/2026 (74 symbols,
-/// research/screener/doc).
+/// .tmp/screener/doc).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     /// Pine `ta.ema`: prev + 2/(n+1) * (price - prev).
@@ -115,7 +115,7 @@ const REFERENCE: &[(&str, Reference)] = &[
 ];
 
 /// State fields and how each steps to the next session. The definitions
-/// match the reference app's values (research/screener/doc, 29/09/2026).
+/// match the reference app's values (.tmp/screener/doc, 29/09/2026).
 const STATE: &[(&str, Step)] = &[
     ("EMA5", Step::Ema(5)),
     ("EMA9", Step::Ema(9)),

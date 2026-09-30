@@ -238,7 +238,7 @@ const MIN_VISIBLE_BARS = 5;
 const SYNC_MIN_BARS = 2;
 /** Depth cap for history loaded on behalf of date-range / time sync (display
  *  bars); the user's own scroll-back pager is not capped. Measured 29/09/2026
- *  (research/goto-sync): a 1m pane at ~94k bars blocks the main thread up to
+ *  (.tmp/goto-sync): a 1m pane at ~94k bars blocks the main thread up to
  *  ~190 ms per load, at 250k bars up to 853 ms. 100k = about one year of 1m
  *  regular-session bars (20k reached only ~50 sessions back). */
 const SYNC_LOAD_MAX_BARS = 100_000;

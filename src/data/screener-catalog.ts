@@ -6,7 +6,7 @@
  * Source: the reference desktop app 3.4.1, read over CDP on 29/09/2026 from the
  * screener's own modules (getColumnConfig, getColumnFilterConfig, column
  * titles, presets data, redux store). Raw captures and the design notes are in
- * research/screener/ (doc/the reference app-SCREENER-DESIGN-3.4.1.md).
+ * .tmp/screener/ (doc).
  *
  * A column is a reference app table column id + params (`{ id: "Ema", params:
  * { length: "50" } }`), stored like the reference app stores it in a screen. Each param
