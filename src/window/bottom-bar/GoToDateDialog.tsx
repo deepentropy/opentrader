@@ -268,6 +268,7 @@ export function GoToDateDialog(props: Props) {
       props.onClose();
       return;
     }
+    if (!dateValid()) return;
     const d = parseYmd(dateText()) ?? selected();
     const [h, m] = normalizeTime(timeText()).split(":").map(Number);
     props.onSubmit(wall(d), h * 60 + m);
@@ -284,24 +285,35 @@ export function GoToDateDialog(props: Props) {
     setViewMonth(d.getMonth());
   };
 
-  /** Custom range limits (TV): while From is armed, days after To are
-   *  disabled; while To is armed, days before From. */
+  /** Calendar limits (TV calendar minDate / maxDate): the Date tab stops at
+   *  today; on Custom range, while From is armed the last day is To, while To
+   *  is armed the first day is From. */
+  const limits = (): { min: Date | null; max: Date | null } => {
+    if (tab() === "date") return { min: null, max: today };
+    return armedField() === "from" ? { min: null, max: parseYmd(toText()) } : { min: parseYmd(fromText()), max: null };
+  };
   const dayBlocked = (d: Date): boolean => {
-    if (tab() !== "customrange") return false;
-    if (armedField() === "from") {
-      const b = parseYmd(toText());
-      return !!b && d > b;
-    }
-    const a = parseYmd(fromText());
-    return !!a && d < a;
+    const { min, max } = limits();
+    return (!!min && d < min) || (!!max && d > max);
   };
-  /** A month arrow is disabled when every day of that month is blocked. */
+  /** A month is blocked when all its days are (TV DateLevel.Month). */
+  const monthBlocked = (year: number, month: number): boolean =>
+    dayBlocked(new Date(year, month, 1)) && dayBlocked(new Date(year, month + 1, 0));
+  /** TV: an arrow is disabled when the day (days view) or month (months
+   *  view) just past the shown one is blocked. */
   const navBlocked = (delta: number): boolean => {
-    if (tab() !== "customrange" || calView() !== "days") return false;
-    const first = new Date(viewYear(), viewMonth() + delta, 1);
-    const last = new Date(viewYear(), viewMonth() + delta + 1, 0);
-    return delta > 0 ? dayBlocked(first) : dayBlocked(last);
+    if (calView() === "months") {
+      return delta > 0 ? monthBlocked(viewYear() + 1, 0) : monthBlocked(viewYear() - 1, 11);
+    }
+    return delta > 0
+      ? dayBlocked(new Date(viewYear(), viewMonth() + 1, 1))
+      : dayBlocked(new Date(viewYear(), viewMonth(), 0));
   };
+  /** TV (GoToDateProvider): "Go to" is disabled for a date after today. */
+  const dateValid = createMemo(() => {
+    const d = parseYmd(dateText());
+    return !d || d <= today;
+  });
 
   /** Calendar-day click: Date tab picks the single date; Custom range fills
    *  the armed date (its time is kept). A From pick then arms To; a To pick
@@ -425,7 +437,8 @@ export function GoToDateDialog(props: Props) {
                         <button
                           type="button"
                           tabIndex={-1}
-                          class={"goto-dialog-cal-month" + (i() === viewMonth() ? " is-accent" : "")}
+                          class={"goto-dialog-cal-month" + (i() === viewMonth() && !monthBlocked(viewYear(), i()) ? " is-accent" : "")}
+                          disabled={monthBlocked(viewYear(), i())}
                           aria-label={monthLabel(viewYear(), i())}
                           onClick={() => { setViewMonth(i()); setCalView("days"); }}
                         >{m}</button>
@@ -456,6 +469,8 @@ export function GoToDateDialog(props: Props) {
                                 return !!a && !!b && d > a && d < b;
                               };
                               const isDisabled = () => dayBlocked(d);
+                              // TV: a disabled day never shows the accent.
+                              const isAccent = () => isSelected() && !isDisabled();
                               const isToday = ymd(d) === ymd(today);
                               return (
                                 <button
@@ -468,7 +483,7 @@ export function GoToDateDialog(props: Props) {
                                   aria-colindex={dowMondayFirst(d) + 1}
                                   class={
                                     "goto-dialog-cal-day" +
-                                    (isSelected() ? " is-accent" : "") +
+                                    (isAccent() ? " is-accent" : "") +
                                     (inRange() ? " is-in-range" : "") +
                                     (isDisabled() ? " is-disabled" : "") +
                                     (isToday ? " is-current" : "")
@@ -496,7 +511,7 @@ export function GoToDateDialog(props: Props) {
             </button>
             <span class="goto-dialog-submit-wrap">
               <button type="button" class="goto-dialog-btn is-primary" data-name="submit-button" onClick={submit}
-                disabled={tab() === "customrange" && !rangeValid()}>
+                disabled={tab() === "customrange" ? !rangeValid() : !dateValid()}>
                 <span class="goto-dialog-btn-content">Go to</span>
               </button>
             </span>

@@ -363,9 +363,13 @@
   color: var(--color-text-primary);
   cursor: default;
 }
-.goto-dialog-cal-month:hover {
+.goto-dialog-cal-month:hover:not(:disabled) {
   background-color: var(--color-button-fill_border-ghost-neutral-hover);
   color: var(--color-button-content-ghost-neutral-hover);
+}
+/* Out of the calendar limits (TV DateLevel.Month). */
+.goto-dialog-cal-month:disabled {
+  color: var(--color-control-intent-default);
 }
 .goto-dialog-cal-month.is-accent {
   background-color: var(--color-container-fill-primary-neutral-extra-bold);
