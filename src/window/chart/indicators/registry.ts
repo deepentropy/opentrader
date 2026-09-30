@@ -7,6 +7,7 @@
  */
 import { indicatorRegistry, type IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getUserIndicatorEntry, isUserIndicatorId } from './user-scripts';
+import { getStrategyEntry, isStrategyId } from './strategy-entries';
 import { VOLUME_ENTRY } from './volume';
 
 const byId = new Map<string, IndicatorRegistryEntry>(indicatorRegistry.map((e) => [e.id, e]));
@@ -16,6 +17,8 @@ byId.set(VOLUME_ENTRY.id, VOLUME_ENTRY);
 export function getIndicatorEntry(id: string): IndicatorRegistryEntry | undefined {
   // `user:<scriptId>` — OakScript indicators written in the editor panel.
   if (isUserIndicatorId(id)) return getUserIndicatorEntry(id);
+  // `strategy:<key>` — backtester strategy ports (Strategy Tester).
+  if (isStrategyId(id)) return getStrategyEntry(id);
   return byId.get(id);
 }
 

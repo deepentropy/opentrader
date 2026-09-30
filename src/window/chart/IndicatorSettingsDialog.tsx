@@ -24,6 +24,40 @@ import {
   PRECISION_OPTIONS,
   type IndicatorOptions,
 } from "./indicators/indicator-options";
+import type { StrategyProperties } from "../../backtester/types";
+import { DEFAULT_STRATEGY_STYLE, PROPERTIES_INPUT, STYLE_INPUT, type StrategyStyle } from "./indicators/strategy-entries";
+import { StrategyPropertiesTab } from "./StrategyPropertiesTab";
+import { DateTimeInput } from "./DateTimeInput";
+import { Icon } from "../../components/Icon";
+import { Tooltip } from "../../components/Tooltip";
+import * as kv from "../../data/kv";
+
+/** Input schema entry; strategies add Pine's `time` type, groups, inline rows and tooltips. */
+export type DialogInput = Omit<InputConfig, "type"> & {
+  type: InputConfig["type"] | "time";
+  group?: string;
+  inline?: string;
+  tooltip?: string;
+};
+
+export type DialogTab = "inputs" | "properties" | "style" | "visibility";
+
+/** Strategy studies: Properties tab and the trade-marks Style tab. */
+export type StrategyDialogConfig = {
+  /** Effective strategy() properties (script values + the study overrides). */
+  properties: StrategyProperties;
+  /** Script values (Defaults > Reset settings; overrides are stored as the difference). */
+  defaults: StrategyProperties;
+  style: StrategyStyle;
+  chartCurrency: string;
+  interval: string;
+  timeZone: string;
+};
+
+/** Last tab clicked in a strategy's settings (TradingView setting
+ *  properties_dialog.active_tab.study): the dialog opens on it unless the
+ *  caller asks for a tab (report toolbar gear = Properties). */
+const TAB_KEY = "ot:strategy-settings:tab";
 
 type Next = { inputs: Record<string, unknown>; styles: IndicatorStyleOverrides; options: IndicatorOptions };
 
@@ -34,7 +68,7 @@ type Props = {
   /** Study display name, shown in the header. */
   title: string;
   /** The indicator's input schema (registry entry's inputConfig). */
-  inputConfig: InputConfig[];
+  inputConfig: DialogInput[];
   /** The indicator's plot schema (registry entry's plotConfig) — Style tab. */
   plotConfig: PlotConfig[];
   /** Current inputs (registry defaults merged with the study's overrides). */
@@ -49,6 +83,10 @@ type Props = {
    *  added instance of this indicator starts with. */
   onSaveAsDefault: (next: Next) => void;
   onClose: () => void;
+  /** Strategy study: Properties tab + strategy Style tab. */
+  strategy?: StrategyDialogConfig;
+  /** Tab to open on (otherwise: strategies the last clicked tab, else Inputs). */
+  initialTab?: DialogTab;
 };
 
 // Price-source choices and their labels. Values stay the PineScript names.
@@ -239,12 +277,33 @@ function seedWidth(w: number | undefined): number {
   return w && w >= 1 && w <= 4 ? w : 1;
 }
 
+/** (i) icon after a control, with the input tooltip. */
+function InfoIcon(props: { text: string }) {
+  return (
+    <Tooltip text={props.text} side="top">
+      <span class="ind3-info" aria-label={props.text}>
+        <Icon name="st-settings-info" size={18} />
+      </span>
+    </Tooltip>
+  );
+}
+
 export function IndicatorSettingsDialog(props: Props) {
   // Plots shown in the Style tab — every plot except the registry's explicitly
   // hidden helpers (display:'none'), which aren't user-facing.
   const stylePlots = props.plotConfig.filter((p) => p.display !== "none");
 
-  const [tab, setTab] = createSignal<"inputs" | "style" | "visibility">("inputs");
+  const tabs = (): DialogTab[] => (props.strategy ? ["inputs", "properties", "style", "visibility"] : ["inputs", "style", "visibility"]);
+  const TAB_TITLES: Record<DialogTab, string> = { inputs: "Inputs", properties: "Properties", style: "Style", visibility: "Visibility" };
+  const stored = props.strategy ? (kv.getItem(TAB_KEY) as DialogTab | null) : null;
+  const [tab, setTabRaw] = createSignal<DialogTab>(props.initialTab ?? (stored && tabs().includes(stored) ? stored : "inputs"));
+  const setTab = (t: DialogTab) => {
+    setTabRaw(t);
+    if (props.strategy) kv.setItem(TAB_KEY, t);
+  };
+  // Strategy drafts: properties and trade-mark style.
+  const [propDraft, setPropDraft] = createStore<StrategyProperties>({ ...(props.strategy?.properties ?? ({} as StrategyProperties)) });
+  const [stratStyle, setStratStyle] = createStore<StrategyStyle>({ ...(props.strategy?.style ?? DEFAULT_STRATEGY_STYLE) });
 
   // Working copies, seeded from the study's current inputs + plot styles.
   const [inputDraft, setInputDraft] = createStore<Record<string, unknown>>({ ...props.inputs });
@@ -270,7 +329,15 @@ export function IndicatorSettingsDialog(props: Props) {
   const current = (): Next => {
     const styles: IndicatorStyleOverrides = {};
     for (const id of Object.keys(styleDraft)) styles[id] = { ...styleDraft[id] };
-    return { inputs: { ...inputDraft }, styles, options: cloneIndicatorOptions(optDraft) };
+    const inputs: Record<string, unknown> = { ...inputDraft };
+    if (props.strategy) {
+      // Properties are stored as the difference from the script values.
+      const diff: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(propDraft)) if ((props.strategy.defaults as unknown as Record<string, unknown>)[k] !== v) diff[k] = v;
+      inputs[PROPERTIES_INPUT] = diff;
+      inputs[STYLE_INPUT] = { ...stratStyle };
+    }
+    return { inputs, styles, options: cloneIndicatorOptions(optDraft) };
   };
   const ok = () => {
     props.onApply(current());
@@ -294,6 +361,10 @@ export function IndicatorSettingsDialog(props: Props) {
     const inputs: Record<string, unknown> = {};
     for (const cfg of props.inputConfig) inputs[cfg.id] = cfg.defval;
     setInputDraft(inputs);
+    if (props.strategy) {
+      setPropDraft({ ...props.strategy.defaults });
+      setStratStyle({ ...DEFAULT_STRATEGY_STYLE });
+    }
     for (const p of stylePlots) setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: true, plotType: p.style ?? "line", priceLine: false });
     setOptDraft(defaultIndicatorOptions());
   };
@@ -312,7 +383,29 @@ export function IndicatorSettingsDialog(props: Props) {
   const istr = (id: string) => String(inputDraft[id] ?? "");
   const toggleInput = (id: string) => setInputDraft(id, (v: unknown) => !v);
 
-  const inputControl = (cfg: InputConfig) => {
+  // Inputs tab rows: Pine groups get a title row (11px uppercase) and a gap
+  // after their last row; inputs sharing an `inline` id share one row.
+  type InputRow = { kind: "group"; title: string; first: boolean } | { kind: "gap" } | { kind: "row"; items: DialogInput[] };
+  const inputRows = (): InputRow[] => {
+    const rows: InputRow[] = [];
+    let group: string | undefined;
+    props.inputConfig.forEach((cfg, i) => {
+      if (cfg.group !== group) {
+        if (group !== undefined) rows.push({ kind: "gap" });
+        if (cfg.group !== undefined) rows.push({ kind: "group", title: cfg.group, first: i === 0 });
+        group = cfg.group;
+      }
+      const last = rows[rows.length - 1];
+      if (cfg.inline && last?.kind === "row" && last.items[0].inline === cfg.inline) last.items.push(cfg);
+      else rows.push({ kind: "row", items: [cfg] });
+    });
+    return rows;
+  };
+
+  const inputControl = (cfg: DialogInput) => {
+    if (cfg.type === "time") {
+      return <DateTimeInput value={Number(inputDraft[cfg.id])} timeZone={props.strategy?.timeZone ?? "America/New_York"} onChange={(ms) => setInputDraft(cfg.id, ms)} />;
+    }
     if (cfg.type === "int" || cfg.type === "float") {
       return (
         <NumberField
@@ -362,9 +455,11 @@ export function IndicatorSettingsDialog(props: Props) {
 
         {/* Underline tabs (study dialog: a top bar, not the left rail). */}
         <div class="ind3-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={tab() === "inputs"} class={`ind3-tab${tab() === "inputs" ? " is-active" : ""}`} onClick={() => setTab("inputs")}>Inputs</button>
-          <button type="button" role="tab" aria-selected={tab() === "style"} class={`ind3-tab${tab() === "style" ? " is-active" : ""}`} onClick={() => setTab("style")}>Style</button>
-          <button type="button" role="tab" aria-selected={tab() === "visibility"} class={`ind3-tab${tab() === "visibility" ? " is-active" : ""}`} onClick={() => setTab("visibility")}>Visibility</button>
+          <For each={tabs()}>
+            {(t) => (
+              <button type="button" role="tab" aria-selected={tab() === t} class={`ind3-tab${tab() === t ? " is-active" : ""}`} onClick={() => setTab(t)}>{TAB_TITLES[t]}</button>
+            )}
+          </For>
         </div>
 
         <div class="ind3-content">
@@ -375,23 +470,41 @@ export function IndicatorSettingsDialog(props: Props) {
               fallback={<div class="ot-empty-state ind3-empty">This indicator has no inputs.</div>}
             >
               <div class="ind3-grid">
-                <For each={props.inputConfig}>
-                  {(cfg) => {
-                    const label = cfg.title ?? cfg.id;
-                    if (cfg.type === "bool") {
+                <For each={inputRows()}>
+                  {(row) => {
+                    if (row.kind === "group") return <div class={`cp3-section ind3-group${row.first ? " is-first" : ""}`}>{row.title}</div>;
+                    if (row.kind === "gap") return <div class="ind3-group-gap" />;
+                    const [first, ...rest] = row.items;
+                    const tip = [...row.items].reverse().find((c) => c.tooltip)?.tooltip;
+                    const info = () => (tip ? <InfoIcon text={tip} /> : null);
+                    const more = () => (
+                      <For each={rest}>
+                        {(cfg) => (
+                          <>
+                            <Show when={cfg.type !== "bool" && cfg.title}>
+                              <span class="cp3-title">{cfg.title}</span>
+                            </Show>
+                            {cfg.type === "bool" ? <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} /> : inputControl(cfg)}
+                          </>
+                        )}
+                      </For>
+                    );
+                    if (first.type === "bool") {
                       return (
                         <div class="cp3-cell cp3-label is-full">
                           <div class="cp3-label-inner">
-                            <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} />
-                            <span class="cp3-title" onClick={() => toggleInput(cfg.id)}>{label}</span>
+                            <CheckBox checked={!!inputDraft[first.id]} onToggle={() => toggleInput(first.id)} />
+                            <span class="cp3-title" onClick={() => toggleInput(first.id)}>{first.title ?? first.id}</span>
+                            {more()}
+                            {info()}
                           </div>
                         </div>
                       );
                     }
                     return (
                       <>
-                        <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">{label}</span></div></div>
-                        <div class="cp3-cell cp3-controls">{inputControl(cfg)}</div>
+                        <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">{first.title ?? first.id}</span></div></div>
+                        <div class="cp3-cell cp3-controls">{inputControl(first)}{more()}{info()}</div>
                       </>
                     );
                   }}
@@ -400,10 +513,34 @@ export function IndicatorSettingsDialog(props: Props) {
             </Show>
           </Show>
 
+          {/* ── Properties (strategies) ── */}
+          <Show when={tab() === "properties" && props.strategy}>
+            {(st) => (
+              <StrategyPropertiesTab
+                value={propDraft}
+                chartCurrency={st().chartCurrency}
+                interval={st().interval}
+                onChange={(patch) => setPropDraft(patch)}
+              />
+            )}
+          </Show>
+
+          {/* ── Style (strategies) ── trade marks on the price pane, then
+              INPUT VALUES / Inputs in status line. */}
+          <Show when={tab() === "style" && props.strategy}>
+            <div class="ind3-grid">
+              {checkRow("Trades on chart", () => stratStyle.tradesOnChart, () => setStratStyle("tradesOnChart", (v) => !v))}
+              {checkRow("Signal labels", () => stratStyle.signalLabels, () => setStratStyle("signalLabels", (v) => !v))}
+              {checkRow("Quantity", () => stratStyle.quantity, () => setStratStyle("quantity", (v) => !v))}
+              <div class="cp3-section ind3-section">Input values</div>
+              {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
+            </div>
+          </Show>
+
           {/* ── Style ── one row per plot: visible check box + colour and
               thickness (color-with-thickness button; thickness is in its
               colour panel). */}
-          <Show when={tab() === "style"}>
+          <Show when={tab() === "style" && !props.strategy}>
             <div class="ind3-grid">
               <For each={stylePlots}>
                 {(p) => (

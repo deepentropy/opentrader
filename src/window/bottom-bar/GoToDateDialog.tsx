@@ -34,11 +34,11 @@ type Props = {
 };
 
 // ─── Calendar primitives (Monday-first week) ────────────────────────────────
-const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const;
+export const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
-const dowMondayFirst = (d: Date) => (d.getDay() + 6) % 7;
+export const dowMondayFirst = (d: Date) => (d.getDay() + 6) % 7;
 
-function ymd(d: Date): string {
+export function ymd(d: Date): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
@@ -49,25 +49,25 @@ function hhmm(minutes: number): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
-function parseYmd(s: string): Date | null {
+export function parseYmd(s: string): Date | null {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
   const d = new Date(+m[1], +m[2] - 1, +m[3]);
   return isNaN(d.getTime()) ? null : d;
 }
-function monthLabel(year: number, month: number): string {
+export function monthLabel(year: number, month: number): string {
   return new Date(year, month, 1).toLocaleString("en-US", { month: "long", year: "numeric" });
 }
-function ariaDay(d: Date): string {
+export function ariaDay(d: Date): string {
   return d.toLocaleString("en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 // ─── Date typing rules (TV DatePicker 368690) ───────────────────────────────
 /** Keys the date field accepts (TV `inputRegex`); others are blocked. */
-const DATE_KEY = /[0-9.]/;
+export const DATE_KEY = /[0-9.]/;
 /** TV `_fixValue`, run on key release (not after Backspace): at most 10
  *  chars, repeated dashes collapsed, a dash added after `YYYY` and `YYYY-MM`. */
-function fixDate(v: string): string {
+export function fixDate(v: string): string {
   let s = v.substring(0, 10).replace(/-+/g, "-");
   if (/^\d{4}$/.test(s) || /^\d{4}-\d{2}$/.test(s)) s += "-";
   return s;
@@ -75,7 +75,7 @@ function fixDate(v: string): string {
 
 /** Visible weeks for a month — first/last weeks are short (partial); CSS pins
  *  them right/left via the `.week:first-child`/`:last-child` rules. */
-function monthWeeks(year: number, month: number): Date[][] {
+export function monthWeeks(year: number, month: number): Date[][] {
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
   const firstCol = dowMondayFirst(first);
@@ -108,7 +108,7 @@ function monthWeeks(year: number, month: number): Date[][] {
   return out;
 }
 
-const CalendarIcon = () => (
+export const CalendarIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
     <path fill="currentColor" fill-rule="evenodd" clip-rule="evenodd" d="M10 4h1v2h6V4h1v2h2.5A2.5 2.5 0 0 1 23 8.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 5 19.5v-11A2.5 2.5 0 0 1 7.5 6H10V4zm8 3H7.5C6.67 7 6 7.67 6 8.5v11c0 .83.67 1.5 1.5 1.5h13c.83 0 1.5-.67 1.5-1.5v-11c0-.83-.67-1.5-1.5-1.5H18zm-3 2h-2v2h2V9zm-7 4h2v2H8v-2zm12-4h-2v2h2V9zm-7 4h2v2h-2v-2zm-3 4H8v2h2v-2zm3 0h2v2h-2v-2zm7-4h-2v2h2v-2z" />
   </svg>
@@ -120,7 +120,7 @@ const CloseIcon = () => (
     <path stroke="currentColor" stroke-width="1.2" d="m1.5 1.5 11 11m0-11-11 11" vector-effect="non-scaling-stroke" />
   </svg>
 );
-const ChevronIcon = () => (
+export const ChevronIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
     <path fill="currentColor" d="m16.47 7.47 1.06 1.06L12.06 14l5.47 5.47-1.06 1.06L9.94 14l6.53-6.53Z" />
   </svg>

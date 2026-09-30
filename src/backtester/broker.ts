@@ -1,0 +1,831 @@
+/**
+ * Broker emulator: Pine's strategy.* order model, run bar by bar.
+ *
+ * Per bar i (TradingView's historical-bar model, calc_on_every_tick off):
+ *   1. `processBar(i)`: fill orders placed before bar i. Market orders fill at
+ *      the open. Stop / limit orders are checked along the intrabar path:
+ *      open -> high -> low -> close when the high is closer to the open than
+ *      the low, else open -> low -> high -> close. A gap through the order
+ *      price fills at the open.
+ *   2. The strategy script runs at the bar close and places / changes orders.
+ *   3. `processClose(i)` (process_orders_on_close only): market orders placed
+ *      at this close fill at the close.
+ *
+ * Rules matched on TradingView reports (research/backtester):
+ *   - bar prices are rounded to mintick (nearest, on the exact binary value)
+ *     before orders are checked; fills are on the tick grid; slippage (ticks)
+ *     is added to market and stop fills, against the trader;
+ *   - stop / limit prices are rounded to mintick away from the market (buy
+ *     stop and sell limit up, sell stop and buy limit down);
+ *   - default quantity is computed when the order is placed: fixed, cash /
+ *     price, or equity * % / price, commission included, rounded down to the
+ *     quantity step. Equity values open trades at the rounded close. The price
+ *     is the close for market orders; for stop / limit orders the order price,
+ *     or the close when the order price is already crossed;
+ *   - an entry against the open position closes it and opens the new one in
+ *     the same fill; entries beyond `pyramiding` are not filled; at most one
+ *     entry order fills per bar (exit orders are not limited);
+ *   - strategy.exit brackets attach to each open trade of `from_entry`; a
+ *     partial exit (qty_percent, rounded down) splits the trade in two;
+ *   - trade excursions count the prices after the fill only (the close for a
+ *     fill at the close) and include the entry commission;
+ *   - tick prices are n * mintick on the binary value (35 * 0.01 =
+ *     0.35000000000000003), quantities are floored without epsilon, and the
+ *     sizing equity is taken without binary noise (10 decimals);
+ *   - an entry with quantity 0 only closes an opposite position;
+ *   - strategy.order is not limited by pyramiding, nets against the position
+ *     and is reported with entry = null;
+ *   - pending strategy.exit orders are cancelled when a fill leaves the
+ *     position flat, and dropped at the next bar when flat with no pending
+ *     entry they could apply to;
+ *   - several orders crossed by a gap fill the one closest to the open first;
+ *   - trailing stops: activation at entry + trail_points (rounded like a
+ *     limit), best price = exact prices after activation, stop = best -
+ *     trunc(trail_offset) ticks, rounded like a stop.
+ */
+import type {
+  Bar,
+  Direction,
+  FilledOrder,
+  OrderType,
+  StrategyProperties,
+  SymbolInfo,
+  Trade,
+} from './types';
+
+export interface EntryOptions {
+  qty?: number;
+  limit?: number;
+  stop?: number;
+  comment?: string;
+  /** Pine `when=` (deprecated argument): the call is ignored when false. */
+  when?: boolean;
+}
+
+export interface CloseOptions {
+  comment?: string;
+  qty?: number;
+  qtyPercent?: number;
+  when?: boolean;
+}
+
+export interface ExitOptions {
+  fromEntry?: string;
+  qty?: number;
+  qtyPercent?: number;
+  /** Take profit distance, ticks. */
+  profit?: number;
+  /** Stop loss distance, ticks. */
+  loss?: number;
+  limit?: number;
+  stop?: number;
+  /** Trailing stop: activation distance from the entry price, ticks. */
+  trailPoints?: number;
+  /** Trailing stop: activation price. */
+  trailPrice?: number;
+  /** Trailing stop: distance from the best price after activation, ticks. */
+  trailOffset?: number;
+  comment?: string;
+  commentProfit?: string;
+  commentLoss?: string;
+  commentTrailing?: string;
+  when?: boolean;
+}
+
+interface EntryOrder {
+  kind: 'entry';
+  /** strategy.order: no pyramiding limit, no reversal (it nets against the position). */
+  isOrder: boolean;
+  seq: number;
+  id: string;
+  direction: Direction;
+  qty: number;
+  limit: number | null;
+  stop: number | null;
+  comment: string;
+}
+
+interface CloseOrder {
+  kind: 'close';
+  seq: number;
+  /** Order id in the filled orders: "Close entry(s) order <id>" / "Close position order". */
+  orderId: string;
+  /** null = whole position (strategy.close_all). */
+  entryId: string | null;
+  qty: number | null;
+  qtyPercent: number | null;
+  comment: string;
+}
+
+interface ExitOrder {
+  kind: 'exit';
+  seq: number;
+  id: string;
+  /** '' = every open trade. */
+  fromEntry: string;
+  qty: number | null;
+  qtyPercent: number | null;
+  profit: number | null;
+  loss: number | null;
+  limit: number | null;
+  stop: number | null;
+  trailPoints: number | null;
+  trailPrice: number | null;
+  trailOffset: number | null;
+  comment: string;
+  commentProfit: string;
+  commentLoss: string;
+  commentTrailing: string;
+}
+
+interface OpenTrade {
+  seq: number;
+  entryId: string;
+  direction: Direction;
+  qty: number;
+  price: number;
+  bar: number;
+  signal: string;
+  /** Entry commission not yet charged to a closed part. */
+  entryCommission: number;
+  high: number;
+  low: number;
+  /** Exit ids already filled for this trade (an exit fills once per trade). */
+  exitsDone: Set<string>;
+  /** Quantity of each exit bracket, fixed when the bracket first applies. */
+  exitQty: Map<string, number>;
+  /** Trailing stops of this trade: best price since activation, per exit id. */
+  trail: Map<string, number>;
+}
+
+/** A stop / limit order on the path, `level` on the tick grid. */
+interface PriceOrder {
+  seq: number;
+  buy: boolean;
+  isStop: boolean;
+  level: number;
+  /** price = fill price, slippage included; raw = exact price reached (trailing activation). */
+  fill(price: number, raw: number): boolean;
+}
+
+const EPS = 1e-9;
+
+
+/** A strategy runtime error, as TradingView stops the script (e.g. RE10141). */
+export class StrategyRuntimeError extends Error {
+  constructor(
+    readonly bar: number,
+    readonly code: string,
+    message: string,
+    /** The invalid value, when the error is about one. */
+    readonly value?: number,
+  ) {
+    super(`Error on bar ${bar}: ${message}`);
+  }
+}
+
+/**
+ * 'p' = a price reached on the path while trades are open, 'c' = after a trade
+ * record closes, 'e' = after an entry fill (commission paid).
+ */
+export interface EquityEvent {
+  t: 'p' | 'c' | 'e';
+  /** Equity marked to market at that price. */
+  v: number;
+  /** initial capital + net profit (closed trades, entry commissions paid). */
+  realized: number;
+  /** No open trade after the event. */
+  flat: boolean;
+  /** Entry event: the trade was opened from flat. */
+  first?: boolean;
+}
+
+/** Pine na (NaN) or undefined as "not set". */
+const val = (v: number | undefined): number | null => (v === undefined || Number.isNaN(v) ? null : v);
+
+export class Broker {
+  readonly long = 'long' as const;
+  readonly short = 'short' as const;
+
+  private seq = 0;
+  private bar = 0;
+  private entries = new Map<string, EntryOrder>();
+  private closes: CloseOrder[] = [];
+  private exits = new Map<string, ExitOrder>();
+  private openTrades: OpenTrade[] = [];
+  private tradeSeq = 0;
+  /** Bar of the last entry-order fill: one entry fill per bar. */
+  private entryFillBar = -1;
+
+  readonly closedTrades: Trade[] = [];
+  readonly filledOrders: FilledOrder[] = [];
+  netProfit = 0;
+  commissionPaid = 0;
+  /** Equity events for the max drawdown / run-up metrics (see EquityEvent). */
+  readonly equityEvents: EquityEvent[] = [];
+  maxContractsHeld = { all: 0, long: 0, short: 0 };
+
+  constructor(
+    private readonly bars: Bar[],
+    readonly props: StrategyProperties,
+    readonly sym: SymbolInfo,
+  ) {}
+
+  // ------------------------------------------------------------ script API
+
+  get positionSize(): number {
+    let s = 0;
+    for (const t of this.openTrades) s += t.direction === 'long' ? t.qty : -t.qty;
+    return s;
+  }
+
+  get positionAvgPrice(): number {
+    let q = 0;
+    let v = 0;
+    for (const t of this.openTrades) {
+      q += t.qty;
+      v += t.qty * t.price;
+    }
+    return q > 0 ? v / q : NaN;
+  }
+
+  /** Number of open trades (strategy.opentrades). */
+  get openTradesCount(): number {
+    return this.openTrades.length;
+  }
+
+  /** Open profit at the current close, rounded to the tick (as the equity used for order sizing). */
+  get openProfit(): number {
+    return this.openProfitAt(this.roundPrice(this.bars[this.bar].close));
+  }
+
+  get equity(): number {
+    return this.props.initialCapital + this.netProfit + this.openProfit;
+  }
+
+  entry(id: string, direction: Direction, opts: EntryOptions = {}): void {
+    this.placeEntry(id, direction, opts, false, 'strategy.entry');
+  }
+
+  /** strategy.order: a raw order, not limited by pyramiding; it reduces an opposite position first. */
+  order(id: string, direction: Direction, opts: EntryOptions = {}): void {
+    this.placeEntry(id, direction, opts, true, 'strategy.order');
+  }
+
+  private placeEntry(id: string, direction: Direction, opts: EntryOptions, isOrder: boolean, fn: string): void {
+    if (opts.when === false) return;
+    const limit = val(opts.limit);
+    const stop = val(opts.stop);
+    if (limit !== null && stop !== null) throw new Error(`${fn}("${id}"): stop-limit orders are not supported`);
+    const buy = direction === 'long';
+    const orderPrice = stop !== null ? this.roundOrderPrice(stop, buy, true) : limit !== null ? this.roundOrderPrice(limit, buy, false) : null;
+    const explicit = val(opts.qty);
+    const qty = explicit !== null ? this.checkQty(explicit, fn) : this.defaultQty(buy, orderPrice, stop !== null, fn);
+    const prev = this.entries.get(id);
+    this.entries.set(id, {
+      kind: 'entry',
+      isOrder,
+      seq: prev?.seq ?? ++this.seq,
+      id,
+      direction,
+      qty,
+      limit,
+      stop,
+      comment: opts.comment ?? id,
+    });
+  }
+
+  close(id: string, opts: CloseOptions = {}): void {
+    if (opts.when === false) return;
+    if (!this.openTrades.some((t) => t.entryId === id)) return;
+    this.closes.push({
+      kind: 'close',
+      seq: ++this.seq,
+      orderId: `Close entry(s) order ${id}`,
+      entryId: id,
+      qty: opts.qty ?? null,
+      qtyPercent: opts.qtyPercent ?? null,
+      comment: opts.comment ?? `Close entry(s) order ${id}`,
+    });
+  }
+
+  closeAll(opts: { comment?: string; when?: boolean } = {}): void {
+    if (opts.when === false) return;
+    if (this.openTrades.length === 0) return;
+    this.closes.push({
+      kind: 'close',
+      seq: ++this.seq,
+      orderId: 'Close position order',
+      entryId: null,
+      qty: null,
+      qtyPercent: null,
+      comment: opts.comment ?? 'Close position order',
+    });
+  }
+
+  exit(id: string, opts: ExitOptions = {}): void {
+    if (opts.when === false) return;
+    const prev = this.exits.get(id);
+    const comment = opts.comment ?? id;
+    this.exits.set(id, {
+      kind: 'exit',
+      seq: prev?.seq ?? ++this.seq,
+      id,
+      fromEntry: opts.fromEntry ?? '',
+      qty: val(opts.qty),
+      qtyPercent: val(opts.qtyPercent),
+      profit: val(opts.profit),
+      loss: val(opts.loss),
+      limit: val(opts.limit),
+      stop: val(opts.stop),
+      trailPoints: val(opts.trailPoints),
+      trailPrice: val(opts.trailPrice),
+      trailOffset: val(opts.trailOffset),
+      comment,
+      commentProfit: opts.commentProfit ?? comment,
+      commentLoss: opts.commentLoss ?? comment,
+      commentTrailing: opts.commentTrailing ?? comment,
+    });
+  }
+
+  cancel(id: string): void {
+    this.entries.delete(id);
+    this.exits.delete(id);
+  }
+
+  cancelAll(): void {
+    this.entries.clear();
+    this.exits.clear();
+  }
+
+  // ------------------------------------------------------------ emulation
+
+  /** Fill the orders placed before bar `i` along bar i's price path. */
+  processBar(i: number): void {
+    this.bar = i;
+    this.dropOrphanExits();
+    const b = this.bars[i];
+    // Orders are checked on the bar prices rounded to the tick.
+    const open = this.roundPrice(b.open);
+    const high = this.roundPrice(b.high);
+    const low = this.roundPrice(b.low);
+    this.touch(open, b.open);
+    this.fillMarketOrders(open);
+    const upFirst = Math.abs(b.high - b.open) < Math.abs(b.low - b.open);
+    const close = this.roundPrice(b.close);
+    // [price on the tick grid, exact price] (trailing stops follow the exact price).
+    const path: [number, number][] = upFirst ? [[high, b.high], [low, b.low], [close, b.close]] : [[low, b.low], [high, b.high], [close, b.close]];
+    let cur = open;
+    this.fillAt(cur, b.open);
+    for (const [to, raw] of path) {
+      this.walk(cur, to);
+      cur = to;
+      this.touch(to, raw);
+    }
+  }
+
+  /** Flat: exit orders that no pending entry can open a trade for are dropped. */
+  private dropOrphanExits(): void {
+    if (this.openTrades.length || !this.exits.size) return;
+    for (const [id, x] of this.exits) {
+      const used = [...this.entries.values()].some((e) => x.fromEntry === '' || e.id === x.fromEntry);
+      if (!used) this.exits.delete(id);
+    }
+  }
+
+  /** process_orders_on_close: fill the orders just placed at bar i's close. */
+  processClose(i: number): void {
+    this.bar = i;
+    const close = this.roundPrice(this.bars[i].close);
+    this.touch(close, this.bars[i].close);
+    this.fillMarketOrders(close);
+    this.fillAt(close, this.bars[i].close);
+    // Trades filled at this close see the close as their first price after the fill.
+    this.touch(close, this.bars[i].close);
+  }
+
+  /** Market orders (market entries and closes) in the order they were placed. */
+  private fillMarketOrders(base: number): void {
+    const market: (EntryOrder | CloseOrder)[] = [...this.closes];
+    for (const e of this.entries.values()) if (e.limit === null && e.stop === null) market.push(e);
+    market.sort((a, b) => a.seq - b.seq);
+    this.closes = [];
+    for (const o of market) {
+      if (o.kind === 'entry') {
+        this.entries.delete(o.id);
+        this.fillEntry(o, this.slip(base, o.direction === 'long'), 'MARKET');
+      } else {
+        this.fillClose(o, this.slip(base, this.positionSize < 0));
+      }
+    }
+  }
+
+  /** Fill every price order already crossed at price p (gaps, new brackets). p was touched by the caller. */
+  private fillAt(p: number, raw = p): void {
+    const market = this.roundPrice(p);
+    for (let guard = 0; guard < 1000; guard++) {
+      const hit = this.priceOrders()
+        .filter((o) => (o.buy === o.isStop ? p >= o.level - EPS : p <= o.level + EPS))
+        // Several orders crossed at once (gap): the one closest to the price fills first
+        // (TradingView: a 0.26 sell limit before a 0.24 one on a 0.31 open).
+        .sort((a, b) => Math.abs(p - a.level) - Math.abs(p - b.level) || a.seq - b.seq);
+      let filled = false;
+      for (const o of hit) {
+        const price = o.isStop ? this.slip(market, o.buy) : market;
+        if (o.fill(price, raw)) {
+          filled = true;
+          break;
+        }
+      }
+      if (!filled) return;
+    }
+  }
+
+  /** Move the price from `from` to `to`, filling orders at their level. */
+  private walk(from: number, to: number): void {
+    const up = to > from;
+    let cur = from;
+    for (let guard = 0; guard < 1000; guard++) {
+      const hit = this.priceOrders()
+        .filter((o) => {
+          const triggersUp = o.buy === o.isStop; // buy stop, sell limit
+          if (triggersUp !== up) return false;
+          return up ? o.level > cur + EPS && o.level <= to + EPS : o.level < cur - EPS && o.level >= to - EPS;
+        })
+        .sort((a, b) => (up ? a.level - b.level : b.level - a.level) || a.seq - b.seq);
+      let filled = false;
+      for (const o of hit) {
+        const price = o.isStop ? this.slip(o.level, o.buy) : o.level;
+        this.touch(o.level);
+        if (o.fill(price, o.level)) {
+          cur = o.level;
+          filled = true;
+          this.fillAt(cur);
+          break;
+        }
+      }
+      if (!filled) return;
+    }
+  }
+
+  /** Active stop / limit orders: pending entries and exit brackets of open trades. */
+  private priceOrders(): PriceOrder[] {
+    const out: PriceOrder[] = [];
+    for (const e of this.entries.values()) {
+      if (e.limit === null && e.stop === null) continue;
+      if (!e.isOrder && this.entryFillBar === this.bar) continue;
+      const buy = e.direction === 'long';
+      const isStop = e.stop !== null;
+      out.push({
+        seq: e.seq,
+        buy,
+        isStop,
+        level: this.roundOrderPrice((isStop ? e.stop : e.limit) as number, buy, isStop),
+        fill: (price) => {
+          if (!e.isOrder && !this.canEnter(e.direction)) return false;
+          this.entries.delete(e.id);
+          this.fillEntry(e, price, isStop ? 'STOP' : 'LIMIT');
+          return true;
+        },
+      });
+    }
+    for (const x of this.exits.values()) {
+      for (const t of this.openTrades) {
+        if (x.fromEntry !== '' && x.fromEntry !== t.entryId) continue;
+        if (t.exitsDone.has(x.id)) continue;
+        let qty = t.exitQty.get(x.id);
+        if (qty === undefined) {
+          qty = x.qty !== null ? x.qty : x.qtyPercent !== null ? this.floorQty((t.qty * x.qtyPercent) / 100) : t.qty;
+          t.exitQty.set(x.id, qty);
+        }
+        if (qty <= 0) continue;
+        const buy = t.direction === 'short';
+        const sign = t.direction === 'long' ? 1 : -1;
+        const tick = this.sym.mintick;
+        const limit = x.limit ?? (x.profit !== null ? t.price + sign * x.profit * tick : null);
+        const stop = x.stop ?? (x.loss !== null ? t.price - sign * x.loss * tick : null);
+        const q = qty;
+        const fill = (price: number, type: OrderType, comment: string) => {
+          const filled = Math.min(q, t.qty);
+          t.exitsDone.add(x.id);
+          t.trail.delete(x.id);
+          this.closeTradeQty(t, filled, price, comment);
+          this.recordFill(x.id, comment, buy, false, price, filled, type);
+          return true;
+        };
+        const push = (isStop: boolean, level: number, f: (p: number, raw: number) => boolean) => {
+          if (Number.isFinite(level)) out.push({ seq: x.seq, buy, isStop, level, fill: f });
+        };
+        if (limit !== null) push(false, this.roundOrderPrice(limit, buy, false), (p) => fill(p, 'LIMIT', x.commentProfit));
+        if (stop !== null) push(true, this.roundOrderPrice(stop, buy, true), (p) => fill(p, 'STOP', x.commentLoss));
+        if (x.trailOffset !== null && (x.trailPoints !== null || x.trailPrice !== null)) {
+          const best = t.trail.get(x.id);
+          if (best === undefined) {
+            // Activation: the price reaches trail_price, or entry + trail_points (it moves like a limit order).
+            const activation = x.trailPrice ?? t.price + sign * (x.trailPoints as number) * tick;
+            push(false, this.roundOrderPrice(activation, buy, false), (_p, raw) => {
+              // The best price starts at the exact price reached (the exact open on a gap).
+              t.trail.set(x.id, raw);
+              return true;
+            });
+          } else {
+            // trail_offset counts whole ticks (0.76 tick behaves as 0: exit at the best price).
+            const trailStop = best - sign * Math.trunc(x.trailOffset) * tick;
+            // Rounded like a stop order (away from the market): 141.6875 - 0.10 gives 141.58.
+            push(true, this.roundOrderPrice(trailStop, buy, true), (p) => fill(p, 'STOP', x.commentTrailing));
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  private canEnter(direction: Direction): boolean {
+    const pos = this.positionSize;
+    if (pos === 0 || (pos > 0) !== (direction === 'long')) return true;
+    const same = this.openTrades.filter((t) => t.direction === direction).length;
+    return same < Math.max(1, this.props.pyramiding);
+  }
+
+  private fillEntry(o: EntryOrder, price: number, type: OrderType): void {
+    if (o.isOrder) return this.fillOrder(o, price, type);
+    if (!this.canEnter(o.direction)) return;
+    const buy = o.direction === 'long';
+    const pos = this.positionSize;
+    // A zero quantity (e.g. cash sizing below one share) only closes an opposite position.
+    if (o.qty <= 0 && (pos === 0 || (pos > 0) === buy)) return;
+    this.entryFillBar = this.bar;
+    let closed = 0;
+    if (pos !== 0 && (pos > 0) !== buy) {
+      for (const t of [...this.openTrades]) {
+        closed += t.qty;
+        this.closeTradeQty(t, t.qty, price, o.comment);
+      }
+    }
+    if (o.qty > 0) this.openTrade(o, price);
+    this.recordFill(o.id, o.comment, buy, true, price, closed + o.qty, type);
+  }
+
+  /** strategy.order fill: closes opposite trades first (FIFO), the rest opens a trade. Reported with entry = null. */
+  private fillOrder(o: EntryOrder, price: number, type: OrderType): void {
+    const buy = o.direction === 'long';
+    let left = o.qty;
+    for (const t of [...this.openTrades]) {
+      if (left <= 0 || (t.direction === 'long') === buy) continue;
+      const q = Math.min(left, t.qty);
+      left -= q;
+      this.closeTradeQty(t, q, price, o.comment);
+    }
+    if (left > 0) this.openTrade({ ...o, qty: left }, price);
+    this.recordFill(o.id, o.comment, buy, null, price, o.qty, type);
+  }
+
+  private fillClose(o: CloseOrder, price: number): void {
+    const targets = this.openTrades.filter((t) => o.entryId === null || t.entryId === o.entryId);
+    if (targets.length === 0) return;
+    const total = targets.reduce((s, t) => s + t.qty, 0);
+    let left = o.qty !== null ? Math.min(o.qty, total) : o.qtyPercent !== null ? this.floorQty((total * o.qtyPercent) / 100) : total;
+    const buy = targets[0].direction === 'short';
+    const qty = left;
+    for (const t of targets) {
+      if (left <= 0) break;
+      const q = Math.min(left, t.qty);
+      left -= q;
+      this.closeTradeQty(t, q, price, o.comment);
+    }
+    this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
+  }
+
+  private openTrade(o: EntryOrder, price: number): void {
+    const entryCommission = this.commission(o.qty, price);
+    // Entry commission is realized at the fill (it counts in net profit while the trade is open).
+    this.netProfit -= entryCommission;
+    this.commissionPaid += entryCommission;
+    const t: OpenTrade = {
+      seq: ++this.tradeSeq,
+      entryId: o.id,
+      direction: o.direction,
+      qty: o.qty,
+      price,
+      bar: this.bar,
+      signal: o.comment,
+      entryCommission,
+      // Excursions count the prices after the fill only.
+      high: -Infinity,
+      low: Infinity,
+      exitsDone: new Set(),
+      exitQty: new Map(),
+      trail: new Map(),
+    };
+    this.openTrades.push(t);
+    this.equityEvents.push({
+      t: 'e',
+      v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
+      flat: false,
+      realized: this.props.initialCapital + this.netProfit,
+      first: this.openTrades.length === 1,
+    });
+    const long = this.openTrades.filter((x) => x.direction === 'long').reduce((s, x) => s + x.qty, 0);
+    const short = this.openTrades.filter((x) => x.direction === 'short').reduce((s, x) => s + x.qty, 0);
+    this.maxContractsHeld.long = Math.max(this.maxContractsHeld.long, long);
+    this.maxContractsHeld.short = Math.max(this.maxContractsHeld.short, short);
+    this.maxContractsHeld.all = Math.max(this.maxContractsHeld.all, long + short);
+  }
+
+  /** Close `qty` of trade t at `price`; a partial close splits the trade. */
+  private closeTradeQty(t: OpenTrade, qty: number, price: number, signal: string): void {
+    if (qty <= 0) return;
+    const share = qty / t.qty;
+    const entryCm = t.entryCommission * share;
+    const exitCm = this.commission(qty, price);
+    const trade = this.makeTrade(t, qty, price, signal, entryCm, exitCm, false);
+    this.netProfit += trade.profit + entryCm;
+    this.commissionPaid += exitCm;
+    trade.cumProfit = this.netProfit;
+    trade.profitPercentOfEquity = trade.profit / Math.abs(this.props.initialCapital + this.netProfit - trade.profit);
+    this.closedTrades.push(trade);
+    t.entryCommission -= entryCm;
+    t.qty -= qty;
+    if (t.qty <= EPS) this.openTrades = this.openTrades.filter((x) => x !== t);
+    this.equityEvents.push({
+      t: 'c',
+      v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
+      flat: this.openTrades.length === 0,
+      realized: this.props.initialCapital + this.netProfit,
+    });
+  }
+
+  private makeTrade(t: OpenTrade, qty: number, price: number, signal: string, entryCm: number, exitCm: number, open: boolean): Trade {
+    const sign = t.direction === 'long' ? 1 : -1;
+    const pv = this.sym.pointValue;
+    const cost = t.price * qty * pv + entryCm;
+    const profit = sign * (price - t.price) * qty * pv - entryCm - exitCm;
+    const best = t.direction === 'long' ? t.high : t.low;
+    const worst = t.direction === 'long' ? t.low : t.high;
+    // Excursions include the entry commission, floored at 0.
+    const seen = Number.isFinite(best);
+    const favorable = seen ? sign * (best - t.price) : 0;
+    const adverse = seen ? -sign * (worst - t.price) : 0;
+    const runUp = seen ? Math.max(0, favorable * qty * pv - entryCm) : 0;
+    const drawdown = seen ? Math.max(0, adverse * qty * pv + entryCm) : 0;
+    return {
+      direction: t.direction,
+      entryId: t.entryId,
+      entry: { signal: t.signal, price: t.price, bar: t.bar, time: this.bars[t.bar].time * 1000 },
+      exit: { signal: open ? '' : signal, price, bar: this.bar, time: this.bars[this.bar].time * 1000 },
+      open,
+      qty,
+      profit,
+      profitPercent: profit / cost,
+      // An open trade reports its entry commission only; its profit deducts the exit commission too.
+      commission: open ? entryCm : entryCm + exitCm,
+      entryCommission: entryCm,
+      runUp,
+      runUpPercent: runUp / cost,
+      drawdown,
+      drawdownPercent: drawdown / cost,
+      cumProfit: 0,
+      profitPercentOfEquity: 0,
+    };
+  }
+
+  /** Open trades marked at the last close (exit commission included, like the TV report). */
+  openTradeReports(): Trade[] {
+    const close = this.roundPrice(this.bars[this.bar].close);
+    return this.openTrades.map((t) => {
+      const tr = this.makeTrade(t, t.qty, close, '', t.entryCommission, this.commission(t.qty, close), true);
+      tr.cumProfit = this.netProfit + tr.profit;
+      tr.profitPercentOfEquity = tr.profit / Math.abs(this.props.initialCapital + this.netProfit);
+      return tr;
+    });
+  }
+
+  openProfitAt(price: number): number {
+    let s = 0;
+    for (const t of this.openTrades) s += (t.direction === 'long' ? 1 : -1) * (price - t.price) * t.qty * this.sym.pointValue;
+    return s;
+  }
+
+  /** Record a price reached on the path (trade excursions). */
+  private touch(p: number, raw = p): void {
+    const r = this.roundPrice(p);
+    if (this.openTrades.length) {
+      this.equityEvents.push({
+        t: 'p',
+        v: this.props.initialCapital + this.netProfit + this.openProfitAt(r),
+        flat: false,
+        realized: this.props.initialCapital + this.netProfit,
+      });
+    }
+    for (const t of this.openTrades) {
+      if (r > t.high) t.high = r;
+      if (r < t.low) t.low = r;
+      // Trailing stops follow the exact price, not the tick-rounded one.
+      for (const [id, best] of t.trail) {
+        if (t.direction === 'long' ? raw > best : raw < best) t.trail.set(id, raw);
+      }
+    }
+  }
+
+  private recordFill(id: string, comment: string, buy: boolean, entry: boolean | null, price: number, qty: number, type: OrderType): void {
+    this.filledOrders.push({ bar: this.bar, time: this.bars[this.bar].time * 1000, id, comment, buy, entry, price, qty, type });
+    // Pending strategy.exit orders are cancelled when a fill leaves the position flat.
+    if (this.openTrades.length === 0) this.exits.clear();
+  }
+
+  // ------------------------------------------------------------ sizing, costs, rounding
+
+  /** Explicit qty: RE10024 when negative, rounded down to the quantity step. */
+  private checkQty(q: number, fn: string): number {
+    if (q < 0 || q > 1e12) {
+      throw new StrategyRuntimeError(
+        this.bar,
+        'RE10024',
+        `Invalid \`qty\` value (${q}) in the \`${fn}()\` call. Use a positive number less or equal to 1000000000000.`,
+        q,
+      );
+    }
+    return this.floorQty(q);
+  }
+
+  private defaultQty(buy: boolean, orderPrice: number | null, isStop: boolean, fn: string): number {
+    const p = this.props;
+    if (p.defaultQtyType === 'fixed') return this.checkQty(p.defaultQtyValue, fn);
+    // Price the order would fill at if triggered now: the close for market orders;
+    // for stop / limit orders the order price, or the close when it is already crossed.
+    const close = this.roundPrice(this.bars[this.bar].close);
+    let base = close;
+    if (orderPrice !== null) {
+      const higher = buy === isStop; // buy stop / sell limit fill at or above their price
+      base = higher ? Math.max(orderPrice, close) : Math.min(orderPrice, close);
+    }
+    const price = orderPrice === null || isStop ? this.slip(base, buy) : base;
+    // Equity without binary noise (65828.48, not 65828.47999999998): on an exact share
+    // boundary TradingView's floor behaves like the decimal value (3 cases checked).
+    const equity = Number(this.equity.toFixed(10));
+    const cash = p.defaultQtyType === 'cash' ? p.defaultQtyValue : (equity * p.defaultQtyValue) / 100;
+    if (p.defaultQtyType === 'percent_of_equity' && cash < 0) {
+      throw new StrategyRuntimeError(
+        this.bar,
+        'RE10141',
+        'Cannot create an order with negative quantity. Current qty_type is percent_of_equity and equity is less than 0.',
+      );
+    }
+    let q: number;
+    switch (p.commissionType) {
+      case 'percent':
+        q = cash / (price * this.sym.pointValue * (1 + p.commissionValue / 100));
+        break;
+      case 'cash_per_contract':
+        q = cash / (price * this.sym.pointValue + p.commissionValue);
+        break;
+      case 'cash_per_order':
+        q = (cash - p.commissionValue) / (price * this.sym.pointValue);
+        break;
+    }
+    return this.checkQty(q, fn);
+  }
+
+  private commission(qty: number, price: number): number {
+    const p = this.props;
+    switch (p.commissionType) {
+      case 'percent':
+        return (qty * price * this.sym.pointValue * p.commissionValue) / 100;
+      case 'cash_per_contract':
+        return qty * p.commissionValue;
+      case 'cash_per_order':
+        return p.commissionValue;
+    }
+  }
+
+  /** price is on the tick grid; slippage moves it against the trader. */
+  private slip(price: number, buy: boolean): number {
+    const n = Math.round(price / this.sym.mintick);
+    return this.ticks(buy ? n + this.props.slippage : n - this.props.slippage);
+  }
+
+  private floorQty(q: number): number {
+    const step = this.sym.qtyStep;
+    // Plain floor on the binary value, as TradingView (822855.9999... gives 822855).
+    return Math.max(0, Math.floor(q / step) * step);
+  }
+
+  /** Nearest tick, on the exact binary value (148.045 -> 148.04, 161.145 -> 161.15, as TradingView). */
+  roundPrice(p: number): number {
+    return this.ticks(Math.round(p / this.sym.mintick));
+  }
+
+  /** Order prices are rounded away from the market: buy stop / sell limit up, sell stop / buy limit down. */
+  private roundOrderPrice(p: number, buy: boolean, isStop: boolean): number {
+    const n = p / this.sym.mintick;
+    return this.ticks(buy === isStop ? Math.ceil(n - EPS) : Math.floor(n + EPS));
+  }
+
+  /**
+   * n ticks as a price: n * mintick, keeping the binary value as TradingView does
+   * (35 * 0.01 = 0.35000000000000003; scripts reading position_avg_price see it).
+   */
+  private ticks(n: number): number {
+    return n * this.sym.mintick;
+  }
+}

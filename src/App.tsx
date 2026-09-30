@@ -77,6 +77,10 @@ import { loadDrawings, saveDrawings } from "./window/drawings/persistence";
 import { RightRail } from "./window/right-rail/RightRail";
 import { BottomBar } from "./window/bottom-bar/BottomBar";
 import { OakScriptPanel } from "./window/oakscript/OakScriptPanel";
+import { StrategyTesterPanel } from "./window/strategy-tester/StrategyTesterPanel";
+import { intervalSeconds } from "./window/strategy-tester/equity-data";
+import { strategyTester } from "./data/strategy-tester-store";
+import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strategy-entries";
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { screenerPanel } from "./data/screener-store";
 import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
@@ -1042,6 +1046,8 @@ function App() {
     // settings of an earlier, removed instance).
     const entry = getIndicatorEntry(id);
     const seed = loadIndicatorDefault(id) ?? (entry ? { inputs: { ...entry.defaultInputs }, styles: {}, options: defaultIndicatorOptions() } : undefined);
+    // Adding a strategy opens its report (TradingView opens the footer panel).
+    if (isStrategyId(id)) strategyTester.setCollapsed(false);
     patchActivePane({
       indicators: [...pane.indicators, id],
       ...(seed ? { indicatorSettings: { ...pane.indicatorSettings, [id]: seed } } : {}),
@@ -2098,6 +2104,23 @@ function App() {
             onTimezoneChange={(e) => setTimezone({ label: e.label, iana: e.iana })}
             maximized={maximized()}
             onToggleMaximize={toggleMaximize}
+          />
+          {/* Strategy Tester: TradingView's footer report, shown while the
+              active chart holds a strategy. */}
+          <StrategyTesterPanel
+            strategyIds={indicators().filter(isStrategyId)}
+            intraday={isIntradayInterval(interval())}
+            intervalSec={intervalSeconds(interval())}
+            interval={interval()}
+            symbol={activeFullSymbol() ?? symbol()}
+            properties={(id) => ((activePaneState().indicatorSettings?.[id]?.inputs as Record<string, unknown> | undefined)?.[PROPERTIES_INPUT] ?? {}) as Record<string, unknown>}
+            onPatchProperties={(id, patch) => {
+              const cur = ((activePaneState().indicatorSettings?.[id]?.inputs as Record<string, unknown> | undefined)?.[PROPERTIES_INPUT] ?? {}) as Record<string, unknown>;
+              window.dispatchEvent(new CustomEvent("chart-patch-study-inputs", { detail: { id, patch: { [PROPERTIES_INPUT]: { ...cur, ...patch } } } }));
+            }}
+            onSettings={(id, tab) => window.dispatchEvent(new CustomEvent("chart-open-study-settings", { detail: { id, tab } }))}
+            onAddStrategy={() => window.dispatchEvent(new CustomEvent("chart-open-indicators"))}
+            onShowOnChart={(time) => window.dispatchEvent(new CustomEvent("chart-link-time", { detail: { time } }))}
           />
         </div>
         {/* activeSymbol falls back to the bare ticker: most watchlist symbols
