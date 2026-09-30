@@ -114,6 +114,7 @@ import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
 import { getIndicatorEntry } from "./indicators/registry";
 import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail } from "./indicators/user-scripts";
+import { scriptChartContext } from "./indicators/script-chart";
 import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { registerChartState, unregisterChartState } from "../../data/chart-state-registry";
@@ -3850,6 +3851,12 @@ export function ChartView(props: Props) {
     if (props.indicatorSettings) controller?.seedSettings(props.indicatorSettings);
     controller?.sync(ids);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+  });
+
+  // OakScript chart context (timeframe, session, tickerid) of the studies.
+  createEffect(() => {
+    chartReady();
+    controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session));
   });
 
   // Indicator Visibility tab: studies off the chart interval stop drawing.

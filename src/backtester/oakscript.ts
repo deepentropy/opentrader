@@ -266,6 +266,21 @@ export interface OakScriptRunOptions {
   chart?: ChartContext;
 }
 
+const NY_TIME = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' });
+
+/**
+ * The bars as a Pine script sees them: a daily, weekly or monthly bar is stamped at the session open (09:30 New York,
+ * as the reference app's US equity bars), not at midnight as the datafeed stamps them. Other bars are unchanged.
+ * Only the times the script reads change; the broker and the report keep the chart's bar times.
+ */
+export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] {
+  if (!chart?.timeframe || !/^\d*[DWM]$/i.test(chart.timeframe)) return bars;
+  return bars.map((b) => {
+    const [h, m] = NY_TIME.format(new Date(b.time * 1000)).split(':').map(Number);
+    return (h % 24) * 60 + m === 0 ? { ...b, time: b.time + 9.5 * 3600 } : b;
+  });
+}
+
 export interface OakScriptRunResult {
   /** undefined when the script did not declare strategy() or did not run strategy.eachBar(). */
   report?: BacktestReport;
@@ -285,7 +300,7 @@ export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScr
     mincontract: symbol.qtyStep,
   };
   let engine: BrokerEngine | undefined;
-  const script = executeScript(body, bars, opts.inputs ?? {}, chart, {
+  const script = executeScript(body, scriptBars(bars, opts.chart), opts.inputs ?? {}, chart, {
     strategyEngine: ({ properties }) =>
       (engine = new BrokerEngine(bars, { ...brokerProperties(properties), ...opts.properties }, symbol)),
   });

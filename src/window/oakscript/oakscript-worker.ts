@@ -180,7 +180,7 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   }
   try {
     if (entry.kind === "script") {
-      const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {});
+      const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, req.chart ?? {});
       return { id: req.id, type: "run", ok: true, result: run.result };
     }
     const result = entry.mod.calculate!(req.bars, req.inputs ?? {});
@@ -208,6 +208,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
     const { report } = runOakScriptStrategy(entry.run, req.bars, {
       inputs: req.inputs ?? {},
       properties: req.properties,
+      chart: req.chart,
     });
     if (!report) {
       return {

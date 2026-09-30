@@ -12,6 +12,7 @@
  */
 import OakWorkerCtor from "./oakscript-worker?worker";
 import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import type { ChartContext } from "oakscriptjs/script";
 import type { BacktestReport, StrategyProperties } from "../../backtester/types";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
@@ -107,9 +108,9 @@ export class OakEngine {
   /** Run a previously compiled script over `bars`. Returns the raw
    *  IndicatorResult-shaped object the script produced (validated by the
    *  chart layer in phase 6). */
-  async run(scriptId: string, bars: OakBar[], inputs?: Record<string, unknown>): Promise<unknown> {
+  async run(scriptId: string, bars: OakBar[], inputs?: Record<string, unknown>, chart?: ChartContext): Promise<unknown> {
     const res = await this.request(
-      { id: ++this.seq, type: "run", scriptId, bars, inputs },
+      { id: ++this.seq, type: "run", scriptId, bars, inputs, chart },
       RUN_TIMEOUT_MS,
     );
     if (res.type !== "run") throw new OakEngineError({ message: "Protocol mismatch." }, true);
@@ -124,9 +125,10 @@ export class OakEngine {
     bars: OakBar[],
     inputs?: Record<string, unknown>,
     properties?: Partial<StrategyProperties>,
+    chart?: ChartContext,
   ): Promise<BacktestReport> {
     const res = await this.request(
-      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties },
+      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart },
       BACKTEST_TIMEOUT_MS,
     );
     if (res.type !== "backtest") throw new OakEngineError({ message: "Protocol mismatch." }, true);

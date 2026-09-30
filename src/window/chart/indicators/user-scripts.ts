@@ -21,6 +21,7 @@
  * the study instead.
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
+import type { ChartContext } from "oakscriptjs/script";
 import * as scripts from "../../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta } from "../../oakscript/engine-types";
@@ -40,7 +41,7 @@ export function userIndicatorId(scriptId: string): string {
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
 
-type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; key: string };
+type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; key: string };
 
 type Runtime = {
   entry: IndicatorRegistryEntry;
@@ -99,6 +100,7 @@ async function runInWorker(
   scriptId: string,
   bars: OakBar[],
   inputs: Record<string, unknown>,
+  chart: ChartContext | undefined,
   key: string,
 ): Promise<void> {
   const engine = getOakEngine();
@@ -111,7 +113,7 @@ async function runInWorker(
       scripts.saveCompiledMeta(scriptId, meta);
       applyMeta(rt.entry, script.name, meta);
     }
-    rt.result = await engine.run(scriptId, bars, inputs);
+    rt.result = await engine.run(scriptId, bars, inputs, chart);
     rt.key = key;
   } catch (err) {
     // Cache the failure under this key too — otherwise every render would
@@ -125,7 +127,7 @@ async function runInWorker(
     rt.queued = null;
     if (next && next.key !== rt.key) {
       rt.running = true;
-      void runInWorker(rt, scriptId, next.bars, next.inputs, next.key);
+      void runInWorker(rt, scriptId, next.bars, next.inputs, next.chart, next.key);
     } else {
       dispatchUpdated(scriptId, false);
     }
@@ -133,20 +135,21 @@ async function runInWorker(
 }
 
 function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
-  return (bars: unknown, inputs?: unknown) => {
+  return (bars: unknown, inputs?: unknown, ctx?: unknown) => {
     const rt = runtimes.get(scriptId);
     if (!rt) return EMPTY_RESULT;
     const typedBars = bars as OakBar[];
     const typedInputs = (inputs ?? {}) as Record<string, unknown>;
-    const key = stalenessKey(typedBars, typedInputs);
+    const chart = (ctx as { chart?: ChartContext } | undefined)?.chart;
+    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart ?? null)}`;
     if (rt.key !== key) {
       // Snapshot the array (ChartView mutates `raw` in place on live ticks).
       const snapshot = typedBars.slice();
       if (rt.running) {
-        rt.queued = { bars: snapshot, inputs: typedInputs, key };
+        rt.queued = { bars: snapshot, inputs: typedInputs, chart, key };
       } else {
         rt.running = true;
-        void runInWorker(rt, scriptId, snapshot, typedInputs, key);
+        void runInWorker(rt, scriptId, snapshot, typedInputs, chart, key);
       }
     }
     return rt.result ?? EMPTY_RESULT;

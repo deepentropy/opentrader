@@ -1,3 +1,4 @@
+import type { ChartContext } from 'oakscriptjs/script';
 import type { BacktestReport, Bar, StrategyProperties, SymbolInfo } from './types';
 
 export interface BacktestRequest {
@@ -8,6 +9,8 @@ export interface BacktestRequest {
   inputs?: Record<string, unknown>;
   properties?: Partial<StrategyProperties>;
   symbol?: Partial<SymbolInfo>;
+  /** Chart context of OakScript strategies (timeframe, session...); the ports ignore it. */
+  chart?: ChartContext;
 }
 
 export interface BacktestError {

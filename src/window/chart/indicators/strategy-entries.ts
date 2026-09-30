@@ -21,8 +21,9 @@
  * and STRATEGY_UPDATED_EVENT makes that chart re-render.
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
-import type { StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
+import type { ChartContext, StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
+import { scriptChartContext } from "./script-chart";
 import { brokerProperties, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
 import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
 import { STRATEGIES } from "../../../backtester/strategies";
@@ -61,7 +62,7 @@ type Runtime = {
   /** Staleness key of the last requested run. */
   key: string | null;
   running: boolean;
-  queued: { bars: Bar[]; inputs: Record<string, unknown>; key: string } | null;
+  queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; key: string } | null;
 };
 
 const runtimes = new Map<string, Runtime>();
@@ -78,6 +79,7 @@ type Execute = (
   bars: Bar[],
   inputs: Record<string, unknown>,
   properties: Partial<StrategyProperties>,
+  chart: ChartContext | undefined,
 ) => Promise<BacktestReport | null>;
 
 async function run(
@@ -87,6 +89,7 @@ async function run(
   rt: Runtime,
   bars: Bar[],
   allInputs: Record<string, unknown>,
+  chart: ChartContext | undefined,
   key: string,
 ): Promise<void> {
   const { [PROPERTIES_INPUT]: properties, ...inputs } = allInputs;
@@ -95,7 +98,7 @@ async function run(
   const prev = strategyTester.run(chartId, strategyKey);
   strategyTester.setRun(chartId, strategyKey, { status: "running", report: prev?.report ?? null, error: null, bars: bars.length });
   try {
-    const report = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>);
+    const report = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart);
     if (report) strategyTester.setRun(chartId, strategyKey, { status: "done", report, error: null, bars: bars.length });
   } catch (err) {
     const error: BacktestError =
@@ -105,7 +108,7 @@ async function run(
     rt.running = false;
     const next = rt.queued;
     rt.queued = null;
-    if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.key);
+    if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.chart, next.key);
     else window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key: strategyKey } }));
   }
 }
@@ -115,21 +118,22 @@ function makeCalculate(
   defaultInputs: () => Record<string, unknown>,
   execute: Execute,
 ): IndicatorRegistryEntry["calculate"] {
-  return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: { chartId?: string }) => {
+  return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: { chartId?: string; chart?: ChartContext }) => {
     const chartId = ctx?.chartId ?? "";
+    const chart = ctx?.chart;
     // Strategy properties (Strategy Tester pills / Properties) ride in the
     // study inputs under PROPERTIES_INPUT, so they persist with the pane.
     const { [PROPERTIES_INPUT]: props, [STYLE_INPUT]: _style, ...rest } = (inputs ?? {}) as Record<string, unknown>;
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
-    const key = stalenessKey(bars, typedInputs);
+    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart ?? null)}`;
     const rtKey = `${chartId}|${strategyKey}`;
     let rt = runtimes.get(rtKey);
     if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null }));
     if (bars.length && rt.key !== key && rt.queued?.key !== key) {
       // Snapshot: ChartView mutates its bar array in place on live ticks.
       const snapshot = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
-      if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, key };
-      else void run(strategyKey, execute, chartId, rt, snapshot, typedInputs, key);
+      if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, key };
+      else void run(strategyKey, execute, chartId, rt, snapshot, typedInputs, chart, key);
     }
     return EMPTY_RESULT;
   }) as IndicatorRegistryEntry["calculate"];
@@ -151,7 +155,7 @@ function applyUserMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCom
 }
 
 function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
-  return async (_channel, bars, inputs, properties) => {
+  return async (_channel, bars, inputs, properties, chart) => {
     const engine = getOakEngine();
     if (compiledGen.get(scriptId) !== engine.generation) {
       const script = scripts.loadScript(scriptId);
@@ -161,7 +165,7 @@ function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
       scripts.saveCompiledMeta(scriptId, meta);
       applyUserMeta(entry, script.name, meta);
     }
-    return engine.backtest(scriptId, bars, inputs, properties);
+    return engine.backtest(scriptId, bars, inputs, properties, chart);
   };
 }
 
@@ -209,7 +213,8 @@ const declarations = new Map<string, ScriptDeclaration>();
 function scriptDeclaration(def: ScriptStrategy): ScriptDeclaration {
   let d = declarations.get(def.key);
   if (!d) {
-    const { script } = runOakScriptStrategy(def.body, []);
+    // Zero bars; a chart context for the scripts whose declarations need one (daily pivot levels).
+    const { script } = runOakScriptStrategy(def.body, [], { chart: scriptChartContext(undefined, undefined, undefined) });
     const title = script.metadata.title;
     d = {
       title,
@@ -239,7 +244,7 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
     calculate: makeCalculate(
       def.key,
       () => d.defaultInputs,
-      (channel, bars, inputs, properties) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties }),
+      (channel, bars, inputs, properties, chart) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart }),
     ),
   } as unknown as IndicatorRegistryEntry;
 }
@@ -301,7 +306,7 @@ export function getStrategyEntry(id: string): IndicatorRegistryEntry | undefined
     calculate: makeCalculate(
       def.key,
       () => def.defaultInputs as Record<string, unknown>,
-      (channel, bars, inputs, properties) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties }),
+      (channel, bars, inputs, properties, chart) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart }),
     ),
   } as unknown as IndicatorRegistryEntry;
   entries.set(id, entry);

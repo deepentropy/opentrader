@@ -35,6 +35,7 @@ import {
   type WhitespaceData,
 } from 'lightweight-charts';
 import type { Bar, HLineConfig, FillConfig, FillData } from 'oakscriptjs';
+import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry, MarkerData } from 'lightweight-charts-indicators';
 import type { OwnScaleMeta } from './volume';
 import { ThinHistogramPaneView } from './histogram-series';
@@ -53,6 +54,8 @@ import {
 } from './indicator-primitives';
 
 type PlotPoint = { time: number; value: number; color?: string };
+/** Third argument of `calculate` (ignored by the library indicators). */
+export type StudyCalcContext = { chartId: string; chart?: ChartContext };
 /** oakscriptjs plotarrow output (result.arrows) and declaration (arrowConfig). */
 type ScriptArrow = { time: number; id: string; value: number; color: string };
 type ScriptArrowConfig = { id: string; minheight?: number; maxheight?: number; display?: string };
@@ -209,8 +212,10 @@ export class IndicatorLayer {
   // series builders.
   private plotPriceLine = false;
 
-  /** Passed to `calculate` as a third argument ({ chartId }), for studies with per-chart state. */
+  /** Passed to `calculate` as a third argument ({ chartId, chart }): the chart id for studies with
+   *  per-chart state, the chart context (timeframe, session...) for OakScript scripts. */
   private chartId: string;
+  private scriptChart: ChartContext | undefined;
 
   constructor(chart: IChartApi, paneIndex: number, chartId = "") {
     this.chart = chart;
@@ -220,6 +225,10 @@ export class IndicatorLayer {
 
   setLastValueVisible(v: boolean): void {
     this.lastValueVisible = v;
+  }
+
+  setScriptChart(chart: ChartContext | undefined): void {
+    this.scriptChart = chart;
   }
 
   /** Per-study options, applied to the plot series at the next render. */
@@ -262,7 +271,10 @@ export class IndicatorLayer {
 
     let result: any;
     try {
-      result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: { chartId: string }) => unknown)(bars, inputs, { chartId: this.chartId });
+      result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(bars, inputs, {
+        chartId: this.chartId,
+        chart: this.scriptChart,
+      });
     } catch (err) {
       // A single indicator throwing must not break the chart or its siblings.
       // eslint-disable-next-line no-console

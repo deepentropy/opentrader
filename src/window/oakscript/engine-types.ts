@@ -18,6 +18,7 @@ export type OakBar = {
 /** A script failure, mapped back to user-source coordinates when the runtime
  *  exposed them (blob stack frames keep the original line numbers — the
  *  import rewrite preserves line structure). */
+import type { ChartContext } from "oakscriptjs/script";
 import type { BacktestReport, StrategyProperties } from "../../backtester/types";
 
 export type OakScriptError = {
@@ -57,7 +58,7 @@ export type OakBacktestError = OakScriptError & { code?: string; bar?: number };
 
 export type OakRequest =
   | { id: number; type: "compile"; scriptId: string; source: string }
-  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown> }
+  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown>; chart?: ChartContext }
   | {
       id: number;
       type: "backtest";
@@ -66,6 +67,8 @@ export type OakRequest =
       inputs?: Record<string, unknown>;
       /** Overrides of the script's strategy() properties. */
       properties?: Partial<StrategyProperties>;
+      /** Chart context (timeframe, session...). */
+      chart?: ChartContext;
     };
 
 export type OakResponse =

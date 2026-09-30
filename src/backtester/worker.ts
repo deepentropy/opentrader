@@ -20,6 +20,7 @@ function runStrategy(req: BacktestRequest): BacktestReport | string {
     inputs: req.inputs,
     properties: req.properties,
     symbol: req.symbol,
+    chart: req.chart,
   });
   return report ?? `Strategy "${req.strategy}" did not run.`;
 }
