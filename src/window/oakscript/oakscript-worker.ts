@@ -16,6 +16,7 @@
 import * as oak from "oakscriptjs";
 import * as oakScript from "oakscriptjs/script";
 import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
 import { BrokerEngine, brokerProperties, runOakScriptStrategy } from "../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
@@ -30,7 +31,8 @@ const ctx = self as unknown as {
 
 // Every value the script API exports, made implicit globals (Pine has no
 // imports). Injected as a module-scope import so a user's local `const close`
-// simply shadows it — no redeclaration error. `executeScript` is host-only.
+// simply shadows it, and names the user imports are left out of it (no
+// redeclaration error). `executeScript` is host-only.
 const SCRIPT_GLOBALS = Object.keys(oakScript as Record<string, unknown>).filter(
   (k) => k !== "default" && k !== "executeScript" && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k),
 );
@@ -62,42 +64,6 @@ function rewriteImports(source: string): string {
       return `${pre}${q}${url}${q}`;
     },
   );
-}
-
-// ── PineScript-style scripts (oakscriptjs/script) ────────────────────────────
-
-/** Convention-style (lightweight-charts-indicators) sources export a
- *  `calculate()` function. Everything else is script-style: its whole body
- *  re-runs per recalculation, with the script API available as implicit
- *  globals (no import needed, though an explicit one still works). */
-function isConventionStyle(source: string): boolean {
-  return (
-    /export\s+(?:async\s+)?function\s+calculate\b/.test(source) ||
-    /export\s+(?:const|let|var)\s+calculate\b/.test(source) ||
-    /export\s*\{[^}]*\bcalculate\b[^}]*\}/.test(source)
-  );
-}
-
-/** Matches static import statements (incl. multi-line and side-effect form). */
-const IMPORT_RE = /^[ \t]*import\b[\s\S]*?from[ \t]*["'][^"']+["'][ \t]*;?|^[ \t]*import[ \t]*["'][^"']+["'][ \t]*;?/gm;
-
-/** Make the module body re-runnable: put the injected script-API import plus
- *  any of the user's own imports onto generated line 1, and wrap everything
- *  else in `export function __run()`. The user's `oakscriptjs/script` imports
- *  are dropped — the injected globals supersede them (and shadow-safely, since
- *  they sit at module scope). Every original line N lands on generated line
- *  N+1 (SCRIPT_LINE_OFFSET), keeping error positions exact. */
-const SCRIPT_LINE_OFFSET = 1;
-function wrapScriptStyle(source: string): string {
-  const otherImports: string[] = [];
-  const blanked = source.replace(IMPORT_RE, (m) => {
-    // Keep non-script imports (e.g. base "oakscriptjs" for types); drop the
-    // user's own oakscriptjs/script import since the globals cover it.
-    if (!/["']oakscriptjs\/script["']/.test(m)) otherImports.push(m.replace(/\n/g, " ").trim());
-    return m.replace(/[^\n]/g, "");
-  });
-  const preamble = `import { ${SCRIPT_GLOBALS.join(", ")} } from "oakscriptjs/script"; ${otherImports.join(" ")}`;
-  return `${preamble} export function __run() {\n${blanked}\n}`;
 }
 
 /** Best-effort mapping of a thrown value to user-source coordinates: the
@@ -162,7 +128,7 @@ function scriptMetaOf(run: oakScript.ScriptRunResult): OakCompiledMeta {
 
 async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Promise<OakResponse> {
   const scriptStyle = !isConventionStyle(req.source);
-  const source = scriptStyle ? wrapScriptStyle(req.source) : req.source;
+  const source = scriptStyle ? wrapScriptStyle(req.source, SCRIPT_GLOBALS) : req.source;
   const lineOffset = scriptStyle ? SCRIPT_LINE_OFFSET : 0;
   const url = URL.createObjectURL(new Blob([rewriteImports(source)], { type: "text/javascript" }));
   try {
