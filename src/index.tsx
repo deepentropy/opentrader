@@ -15,6 +15,9 @@ void hydrateKv().finally(async () => {
   // Restart: main may take over a saved window's tabs (window session).
   const { adoptSavedWindowTabs } = await import("./window/shell/window-bridge");
   await adoptSavedWindowTabs();
+  // Update state for the title bar, main menu and Settings > About.
+  const { initAppUpdate } = await import("./data/app-update");
+  initAppUpdate();
   const { render } = await import("solid-js/web");
   const { default: App } = await import("./App");
   render(() => <App />, document.getElementById("root") as HTMLElement);

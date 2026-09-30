@@ -59,10 +59,12 @@ The released installers already contain the gateway token. Only a build from sou
 
 ```bash
 npm run tauri dev      # opens the app with hot reload
-npm run tauri build    # installers under src-tauri/target/release/bundle/
+npm run tauri build -- --no-sign   # installers under src-tauri/target/release/bundle/
 ```
 
 The first run is slow (cold Rust build, a few minutes). Later runs take seconds.
+
+`--no-sign` skips the signing of the in-app update files, which needs the project's private key. A build without it runs normally.
 
 `src/bindings.ts` is written on each debug run of the app. For a release build from a fresh clone, generate it first with `cargo test --lib export_bindings` in `src-tauri/`. Do not edit it by hand.
 
@@ -80,8 +82,9 @@ docs/assets/          README images
 1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json`.
 2. Commit, then push a matching tag: `git tag v0.1.0 && git push origin v0.1.0`.
 3. The [Release workflow](.github/workflows/release.yml) builds Windows, macOS and Linux installers and attaches them to a draft release. Review the draft and publish it.
+4. Installed apps (Windows and macOS) find the new version at their next start or within an hour, download it, and offer "Update the app". This starts only once the release is published.
 
-The workflow needs the repository secret `OPENTRADER_GATEWAY_TOKEN`.
+The workflow needs the repository secrets `OPENTRADER_GATEWAY_TOKEN`, `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (update signing key; its public key is `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`).
 
 ## Third-party notices
 

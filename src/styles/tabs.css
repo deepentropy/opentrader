@@ -304,6 +304,36 @@ html.theme-dark .data-delay-badge {
   background-color: var(--color-container-fill-primary-neutral-extra-light);
   color: var(--color-content-primary-neutral-bold);
 }
+/* Update downloaded: TV's green "Update the app" button (ui-lib button,
+ * primary green xsmall, main-menu glyph as end slot) in place of the
+ * main-menu button. Measured on TV 3.4.1: 28px high, radius 6, padding 0 7. */
+.main-menu-update-app-button {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 28px;
+  margin: 0 4px 0 0;
+  padding: 0 7px;
+  border: 1px solid var(--color-container-fill-primary-success);
+  border-radius: 6px;
+  background-color: var(--color-container-fill-primary-success);
+  color: var(--color-content-tertiary-inverse);
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  outline: none;
+  cursor: default;
+}
+.main-menu-update-app-button:hover,
+.main-menu-update-app-button.opened {
+  border-color: var(--color-container-fill-primary-success-semi-bold);
+  background-color: var(--color-container-fill-primary-success-semi-bold);
+}
+.main-menu-update-app-button:active {
+  border-color: var(--color-container-fill-primary-success-bold);
+  background-color: var(--color-container-fill-primary-success-bold);
+}
 
 /* Window controls — minimize / maximize / close at the right edge of the
  * merged title-bar/tab-strip. Frameless window only (rendered just in Tauri). */

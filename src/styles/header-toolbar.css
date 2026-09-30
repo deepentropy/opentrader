@@ -319,6 +319,39 @@
   background: var(--color-popup-element-divider-background, #2a2a2a);
 }
 
+/* Update downloaded: TV's "Relaunch to update" row (update-app-menu-item). */
+.update-app-menu-item {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: calc(100% - 8px);
+  height: 32px;
+  margin: 0 4px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  outline: none;
+  font-size: 14px;
+  text-align: left;
+  cursor: default;
+  -webkit-app-region: no-drag;
+}
+.update-app-menu-item.available {
+  background-color: var(--color-container-fill-primary-success-extra-light);
+}
+.update-app-menu-item.available:hover {
+  background-color: var(--color-container-fill-primary-success-light);
+}
+/* The icon inherits the row colour (Icon sets color: inherit); the label
+ * keeps the text colour. */
+.update-app-menu-item.available {
+  color: var(--color-content-primary-success);
+}
+.update-app-menu-item > span:last-child {
+  margin-left: 4px;
+  color: var(--color-content-secondary-neutral-bold);
+}
+
 .profile-menu-row {
   display: flex;
   align-items: center;

@@ -138,18 +138,26 @@ function scheduleFlush(): void {
   flushTimer = setTimeout(flushPending, wait);
 }
 
-function flushPending(): void {
+function flushPending(): Promise<void> {
   if (flushTimer !== null) { clearTimeout(flushTimer); flushTimer = null; }
+  const writes: Promise<unknown>[] = [];
   for (const [key, value] of pending) {
     if (value === null) {
-      store?.delete(key).catch((e) => console.error(`[kv] remove failed for ${key}`, e));
+      if (store) writes.push(store.delete(key).catch((e) => console.error(`[kv] remove failed for ${key}`, e)));
       broadcast?.({ key, value: null });
     } else {
-      store?.set(key, value).catch((e) => console.error(`[kv] persist failed for ${key}`, e));
+      if (store) writes.push(store.set(key, value).catch((e) => console.error(`[kv] persist failed for ${key}`, e)));
       broadcast?.({ key, value });
     }
   }
   pending.clear();
+  return Promise.all(writes).then(() => undefined);
+}
+
+/** Write every pending change to the store now; resolves once the store has
+ *  them (before an update install, see data/app-update.ts). */
+export function flushKv(): Promise<void> {
+  return flushPending();
 }
 
 /**

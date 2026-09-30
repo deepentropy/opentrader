@@ -10,6 +10,7 @@
 import { For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
+import { installUpdate, updateReady } from "../../data/app-update";
 
 type Row =
   | { type: "sep" }
@@ -89,6 +90,21 @@ export function ProfileMenu(props: Props) {
       aria-label="Main menu"
       style={{ position: "fixed", left: `${Math.round(Math.max(8, Math.min(props.anchor.left, window.innerWidth - 260 - 8)))}px`, top: `${Math.round(props.anchor.bottom + 4)}px`, "z-index": 1000 }}
     >
+      {/* Update downloaded: TV's "Relaunch to update" row, above Settings. */}
+      <Show when={updateReady()}>
+        <button
+          type="button"
+          role="menuitem"
+          class="update-app-menu-item available"
+          onClick={() => {
+            installUpdate();
+            props.onClose();
+          }}
+        >
+          <Icon name="update-app-check" size={28} />
+          <span>Relaunch to update</span>
+        </button>
+      </Show>
       <For each={rows(props.reopenLabel)}>
         {(r) => (
           <Show when={r.type === "item" ? (r as Extract<Row, { type: "item" }>) : null} fallback={<div class="profile-menu-sep" />}>

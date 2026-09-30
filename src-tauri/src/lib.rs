@@ -1,3 +1,4 @@
+mod app_update;
 mod commands;
 mod data;
 mod window_session;
@@ -43,12 +44,19 @@ fn specta_builder() -> Builder<tauri::Wry> {
             window_session::take_closed_window_bounds,
             window_session::open_window,
             window_session::open_devtools,
+            app_update::app_update_status,
+            app_update::app_update_check,
+            app_update::app_update_flushed,
+            app_update::app_update_install,
+            app_update::app_build_info,
         ])
         .events(collect_events![
             data::types::ChartAggregate,
             data::types::TradeTick,
             data::types::SecondAggregate,
             data::provider::capabilities::ProviderCapabilities,
+            app_update::AppUpdateStatus,
+            app_update::AppUpdateBeforeInstall,
         ])
 }
 
@@ -84,6 +92,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // A destroyed window can no longer clear its own subscription slots
         // (its webview is gone) — drop everything it owned so its symbols
         // don't stay subscribed forever.
@@ -140,6 +149,8 @@ pub fn run() {
             // the background when missing or stale.
             provider::entitlements::init(app.handle(), provider.clone());
             app.manage(provider);
+            // Update check at startup, then hourly (app_update).
+            app_update::init(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

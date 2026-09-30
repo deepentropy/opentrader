@@ -21,6 +21,8 @@ import {
 } from "../shell/tab-title";
 import { alertSettings } from "../../data/alert-settings";
 import * as kv from "../../data/kv";
+import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
+import type { BuildInfo } from "../../bindings";
 
 // ── Persisted dialog settings ────────────────────────────────────────────────
 // One kv blob for every control here that has no dedicated store. Process
@@ -481,12 +483,73 @@ function NetworkTab() {
 }
 
 function AboutTab() {
+  const [info, setInfo] = createSignal<BuildInfo | null>(null);
+  onMount(() => {
+    void buildInfo().then(setInfo);
+    // TV checks for an update each time About opens.
+    checkForUpdates();
+  });
+  /** "2026-09-30" → "30/09/2026". */
+  const date = (iso: string) => iso.split("-").reverse().join("/");
   return (
     <div class="app-settings-about">
       <div class="app-settings-about-app">OpenTrader</div>
-      <div class="app-settings-about-version">Version 3.1.0.7818</div>
+      <Show when={info()}>
+        {(i) => <div class="app-settings-about-version">{`Version ${i().version} · ${date(i().buildDate)}`}</div>}
+      </Show>
+      {/* TV hides its update block on Linux (no in-app update there). */}
+      <Show when={!/Linux/.test(navigator.userAgent)}>
+        <UpdateAppBlock />
+      </Show>
       <div class="app-settings-about-copyright">Copyright © 2026 OpenTrader</div>
     </div>
+  );
+}
+
+/** TV's About update status block (`update-app`): one row per update state,
+ *  "Relaunch" once the new version is downloaded. Error shows as up to date,
+ *  like TV. */
+function UpdateAppBlock() {
+  const state = () => appUpdateStatus().state;
+  const view = (): { text: string; icon: JSX.Element } => {
+    switch (state()) {
+      case "checking":
+        return { text: "Checking for updates", icon: <UpdateSpinner /> };
+      case "downloading":
+        return { text: "New version is downloading", icon: <Icon name="update-app-download" size={28} /> };
+      case "ready-to-install":
+        return { text: "Relaunch to update the app", icon: <Icon name="update-app-check" size={28}/> };
+      case "installing":
+        return { text: "Relaunching the app to install new version", icon: <Icon name="update-app-check" size={28}/> };
+      default:
+        return { text: "OpenTrader is up to date", icon: <Icon name="update-app-check" size={28}/> };
+    }
+  };
+  return (
+    <div class={`update-app ${state()}`}>
+      <div class="update-app-text-container">
+        <div class="update-app-status-icon">{view().icon}</div>
+        <span class="update-app-status-text">{view().text}</span>
+      </div>
+      <Show when={state() === "installing"}>
+        <UpdateSpinner />
+      </Show>
+      <Show when={state() === "ready-to-install"}>
+        <button type="button" class="update-app-relaunch" onClick={installUpdate}>
+          Relaunch
+        </button>
+      </Show>
+    </div>
+  );
+}
+
+/** TV ui-lib progress spinner, size small (24px), intent neutral. */
+function UpdateSpinner() {
+  return (
+    <svg class="update-app-spinner" width="24" height="24" viewBox="0 0 24 24" role="progressbar" aria-label="Loading">
+      <circle class="update-app-spinner-bg" cx="12" cy="12" r="11" />
+      <circle class="update-app-spinner-fg" cx="12" cy="12" r="11" />
+    </svg>
   );
 }
 

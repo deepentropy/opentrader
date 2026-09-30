@@ -8,6 +8,7 @@ import { createSignal, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { ProfileMenu } from "../header/ProfileMenu";
+import { updateReady } from "../../data/app-update";
 import { isTauri, openNewWindow } from "./window-bridge";
 
 type Props = {
@@ -22,6 +23,8 @@ type Props = {
 export function TabPanelActions(props: Props) {
   const [anchor, setAnchor] = createSignal<DOMRect | null>(null);
   const userName = () => props.userName ?? "Trader";
+  const toggleMenu = (e: MouseEvent & { currentTarget: HTMLButtonElement }) =>
+    setAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()));
 
   return (
     <div class="tab-panel-actions">
@@ -42,19 +45,35 @@ export function TabPanelActions(props: Props) {
           <Icon name="tab-new-window" size={28} />
         </button>
       </Show>
-      <button
-        type="button"
-        class={"action-button main-menu-button" + (anchor() ? " opened" : "")}
-        data-qa-id="main-menu-button"
-        title="Main menu"
-        aria-label="Main menu"
-        aria-haspopup="menu"
-        onClick={(e) =>
-          setAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()))
+      {/* A downloaded update swaps the main-menu button for TV's green
+          "Update the app" button; it opens the same menu. */}
+      <Show
+        when={updateReady()}
+        fallback={
+          <button
+            type="button"
+            class={"action-button main-menu-button" + (anchor() ? " opened" : "")}
+            data-qa-id="main-menu-button"
+            title="Main menu"
+            aria-label="Main menu"
+            aria-haspopup="menu"
+            onClick={toggleMenu}
+          >
+            <Icon name="main-menu-meatballs" size={28} />
+          </button>
         }
       >
-        <Icon name="main-menu-meatballs" size={28} />
-      </button>
+        <button
+          type="button"
+          class={"main-menu-button main-menu-update-app-button" + (anchor() ? " opened" : "")}
+          data-qa-id="main-menu-update-app-button"
+          aria-haspopup="menu"
+          onClick={toggleMenu}
+        >
+          <span class="main-menu-update-app-text">Update the app</span>
+          <Icon name="main-menu-meatballs" size={28} />
+        </button>
+      </Show>
       <Show when={anchor()}>
         {(a) => (
           <ProfileMenu
@@ -64,8 +83,7 @@ export function TabPanelActions(props: Props) {
             reopenLabel={props.reopenLabel}
             onAction={(action) => {
               if (action === "app-settings") props.onOpenAppSettings?.();
-              if (action === "reopen-closed") props.onReopen?.();
-            }}
+              if (action === "reopen-closed") props.onReopen?.();            }}
           />
         )}
       </Show>
