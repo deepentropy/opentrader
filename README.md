@@ -31,6 +31,17 @@ The installers are not signed with a paid certificate:
 
 Windows is the main development platform. The macOS and Linux builds are produced by the same code but are less tested.
 
+## Support the project
+
+OpenTrader is free, but running it is not: market data, servers and development tools are paid every month. Donations pay these costs. Only the monthly total is published.
+
+[![Monthly costs](https://img.shields.io/endpoint?url=https%3A%2F%2Fopentrader-gateway.cloudflare-breeder165.workers.dev%2Ffunding%2Fv1%2Fbadge)](https://github.com/sponsors/deepentropy)
+
+- [Sponsor on GitHub](https://github.com/sponsors/deepentropy)
+- [Buy Me a Coffee](https://buymeacoffee.com/opentrader)
+
+The same status is in the app: *Settings > About*.
+
 ## Build from source
 
 ### Prerequisites

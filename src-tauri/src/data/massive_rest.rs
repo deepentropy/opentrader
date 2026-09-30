@@ -37,7 +37,7 @@ pub(crate) type DayMemo<K, V> = OnceLock<Mutex<HashMap<K, (NaiveDate, Arc<V>)>>>
 /// ~2.3s on the first call). A single keep-alive client reuses the warm
 /// connection (and multiplexes over HTTP/2), so repeat requests skip the
 /// handshake entirely.
-fn http() -> &'static reqwest::Client {
+pub(crate) fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()

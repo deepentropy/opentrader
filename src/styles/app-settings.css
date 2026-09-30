@@ -315,6 +315,31 @@
   color: var(--color-cold-gray-500, #6a6d78);
   font-size: 13px;
 }
+/* Support OpenTrader: monthly cost covered by donations (data/funding.ts). */
+.app-settings-funding {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-cold-gray-800, #2a2a2a);
+}
+.app-settings-funding-title { font-size: 15px; font-weight: 600; }
+.app-settings-funding-text { font-size: 13px; color: var(--color-cold-gray-300, #b2b5be); }
+.app-settings-funding-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-cold-gray-750, #3d3d3d);
+  overflow: hidden;
+}
+.app-settings-funding-fill { height: 100%; background: var(--color-ot-blue-500, #2962ff); }
+.app-settings-funding-numbers {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-cold-gray-300, #b2b5be);
+}
+.app-settings-funding-links { display: flex; gap: 8px; margin-top: 4px; }
 /* Update status block, TV's About `update-app` (TV 3.4.1: 52px high, padding
  * 12, radius 12, icon 28 + gap 8, text 14/18). */
 .update-app {

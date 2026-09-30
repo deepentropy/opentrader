@@ -37,6 +37,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meta::get_data_provider,
             commands::meta::get_provider_capabilities,
             commands::meta::open_snapshot,
+            commands::funding::get_funding_status,
             commands::images::save_drawing_image,
             commands::images::read_drawing_image,
             commands::alerts::post_webhook,

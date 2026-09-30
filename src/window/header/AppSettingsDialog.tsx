@@ -23,6 +23,8 @@ import { alertSettings } from "../../data/alert-settings";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
 import type { BuildInfo } from "../../bindings";
+import { fundingStatus, type Funding } from "../../data/funding";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 // ── Persisted dialog settings ────────────────────────────────────────────────
 // One kv blob for every control here that has no dedicated store. Process
@@ -502,7 +504,56 @@ function AboutTab() {
         <UpdateAppBlock />
       </Show>
       <div class="app-settings-about-copyright">Copyright © 2026 OpenTrader</div>
+      <FundingBlock />
     </div>
+  );
+}
+
+/** This month's running cost and how much donations cover (data/funding.ts).
+ *  Hidden while loading and when the gateway has no status. */
+function FundingBlock() {
+  const [status, setStatus] = createSignal<Funding | null>(null);
+  onMount(() => void fundingStatus().then(setStatus));
+  const money = (n: number, currency: string) => `${Math.round(n)} ${currency}`;
+  const monthName = (m: string) =>
+    new Date(`${m}-01T00:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const open = (url: string) => void openUrl(url).catch((e) => console.warn("[funding] open link failed", e));
+  return (
+    <Show when={status()}>
+      {(s) => (
+        <div class="app-settings-funding">
+          <div class="app-settings-funding-title">Support OpenTrader</div>
+          <div class="app-settings-funding-text">
+            OpenTrader is free. Market data, servers and development tools cost{" "}
+            {money(s().total, s().currency)} in {monthName(s().month)}.
+          </div>
+          <div class="app-settings-funding-bar">
+            <div
+              class="app-settings-funding-fill"
+              style={{ width: `${s().total > 0 ? Math.min(100, (s().raised / s().total) * 100) : 100}%` }}
+            />
+          </div>
+          <div class="app-settings-funding-numbers">
+            <span>{money(s().raised, s().currency)} covered</span>
+            <span>
+              {s().remaining > 0 ? `${money(s().remaining, s().currency)} left to cover` : "Covered, thank you"}
+            </span>
+          </div>
+          <div class="app-settings-funding-links">
+            <Show when={s().links.github}>
+              <button type="button" class="app-settings-btn" onClick={() => open(s().links.github)}>
+                Sponsor on GitHub
+              </button>
+            </Show>
+            <Show when={s().links.bmc}>
+              <button type="button" class="app-settings-btn" onClick={() => open(s().links.bmc)}>
+                Buy Me a Coffee
+              </button>
+            </Show>
+          </div>
+        </div>
+      )}
+    </Show>
   );
 }
 
