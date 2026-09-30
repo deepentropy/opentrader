@@ -102,6 +102,7 @@ function metaOf(mod: UserModule): OakCompiledMeta {
     fillConfig: Array.isArray(mod.fillConfig) ? mod.fillConfig : undefined,
     shapeConfig: Array.isArray(mod.shapeConfig) ? mod.shapeConfig : undefined,
     barColorConfig: Array.isArray(mod.barColorConfig) ? mod.barColorConfig : undefined,
+    arrowConfig: Array.isArray(mod.arrowConfig) ? mod.arrowConfig : undefined,
     defaultInputs:
       mod.defaultInputs && typeof mod.defaultInputs === "object"
         ? (mod.defaultInputs as Record<string, unknown>)
@@ -121,6 +122,7 @@ function scriptMetaOf(run: oakScript.ScriptRunResult): OakCompiledMeta {
     fillConfig: run.fillConfig.length ? run.fillConfig : undefined,
     shapeConfig: run.shapeConfig.length ? run.shapeConfig : undefined,
     barColorConfig: run.barColorConfig.length ? run.barColorConfig : undefined,
+    arrowConfig: run.arrowConfig.length ? run.arrowConfig : undefined,
     defaultInputs: run.defaultInputs,
     strategy: run.strategyConfig as Record<string, unknown> | undefined,
   };

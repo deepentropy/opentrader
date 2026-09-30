@@ -90,6 +90,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.fillConfig = meta?.fillConfig;
   e.shapeConfig = meta?.shapeConfig;
   e.barColorConfig = meta?.barColorConfig;
+  e.arrowConfig = meta?.arrowConfig;
   e.defaultInputs = meta?.defaultInputs ?? {};
 }
 

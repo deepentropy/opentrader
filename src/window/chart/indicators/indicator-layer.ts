@@ -10,7 +10,8 @@
  * renderer the library ships in example/src/indicator-ui.ts (recalculate()),
  * trimmed to the plot styles we draw: line / histogram / area / circles /
  * stepline / linebr / cross, plus hlines, hline-fills, plot-to-plot fills,
- * markers, and the Tier 1 bgcolor / barcolor outputs (oakscriptjs 0.5.0).
+ * markers, the Tier 1 bgcolor / barcolor outputs (oakscriptjs 0.5.0) and
+ * plotarrow arrows (oakscriptjs 0.8.1, main pane only).
  * Facets we don't yet draw (boxes, labels, line drawings, tables, plotcandle)
  * are ignored.
  */
@@ -38,18 +39,23 @@ import type { IndicatorRegistryEntry, MarkerData } from 'lightweight-charts-indi
 import type { OwnScaleMeta } from './volume';
 import { ThinHistogramPaneView } from './histogram-series';
 import {
+  ArrowPrimitive,
   BarColorPrimitive,
   BgColorPrimitive,
   CrossPlotPrimitive,
   ExtendedMarkerPrimitive,
   LineBrPrimitive,
   PlotFillPrimitive,
+  type ArrowSet,
   type BarColorCandle,
   type BarColorPoint,
   type PlotFillBar,
 } from './indicator-primitives';
 
 type PlotPoint = { time: number; value: number; color?: string };
+/** oakscriptjs plotarrow output (result.arrows) and declaration (arrowConfig). */
+type ScriptArrow = { time: number; id: string; value: number; color: string };
+type ScriptArrowConfig = { id: string; minheight?: number; maxheight?: number; display?: string };
 
 // Built-in marker shapes that lightweight-charts' createSeriesMarkers renders
 // natively; everything else is drawn by ExtendedMarkerPrimitive.
@@ -360,6 +366,13 @@ export class IndicatorLayer {
     if (this.paneIndex === 0 && Array.isArray(result.barcolors) && result.barcolors.length) {
       this.addBarColors(result.barcolors as BarColorPoint[], bars);
     }
+
+    // ── Arrows (plotarrow) — anchored on the bar high / low, so only on the
+    //    main pane with the price bars. ─────────────────────────────────────
+    const arrows = (result as { arrows?: ScriptArrow[] }).arrows;
+    if (this.paneIndex === 0 && Array.isArray(arrows) && arrows.length) {
+      this.addArrows(arrows, (entry as { arrowConfig?: ScriptArrowConfig[] }).arrowConfig ?? [], bars);
+    }
   }
 
   /** The study's legend title (short name preferred), e.g. "RSI", "SMA". */
@@ -631,6 +644,30 @@ export class IndicatorLayer {
     const primitive = new BgColorPrimitive();
     anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
     primitive.setData(bgcolors);
+    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
+  }
+
+  /** Draw plotarrow() output: one arrow set per plotarrow call (its own height scaling). */
+  private addArrows(arrows: ScriptArrow[], configs: ScriptArrowConfig[], bars: Bar[]): void {
+    const byTime = new Map(bars.map((b) => [b.time as unknown as number, b]));
+    const sets = new Map<string, ArrowSet>();
+    for (const a of arrows) {
+      const b = byTime.get(a.time);
+      if (!b) continue;
+      let set = sets.get(a.id);
+      if (!set) {
+        const cfg = configs.find((c) => c.id === a.id);
+        if (cfg?.display === 'none') continue;
+        set = { minHeight: cfg?.minheight ?? 5, maxHeight: cfg?.maxheight ?? 100, points: [] };
+        sets.set(a.id, set);
+      }
+      set.points.push({ time: a.time, value: a.value, color: a.color, high: b.high, low: b.low });
+    }
+    if (!sets.size) return;
+    const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.close })) as LineData<Time>[]);
+    const primitive = new ArrowPrimitive();
+    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
+    primitive.setData([...sets.values()]);
     this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
   }
 

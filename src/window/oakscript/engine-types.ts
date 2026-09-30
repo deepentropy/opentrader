@@ -43,6 +43,8 @@ export type OakCompiledMeta = {
   // only the declarations (for legend/settings).
   shapeConfig?: unknown[];
   barColorConfig?: unknown[];
+  /** plotarrow declarations (colors, min / max heights); the arrows ride in the run result. */
+  arrowConfig?: unknown[];
   defaultInputs?: Record<string, unknown>;
   /** strategy() properties (oakscriptjs StrategyProperties) when the script
    *  declares a strategy: it then runs in the Strategy Tester. */

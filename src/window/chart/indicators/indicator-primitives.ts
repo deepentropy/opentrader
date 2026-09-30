@@ -473,3 +473,141 @@ function drawExtendedShape(ctx: CanvasRenderingContext2D, shape: string, x: numb
       break;
   }
 }
+
+// ─── Arrows (plotarrow) ──────────────────────────────────────────────────────
+//
+// Behaviour of the reference app (observed 01/10/2026, .tmp/plotarrow):
+//   - a positive value draws an up arrow under the bar low, a negative value a
+//     down arrow over the bar high, a gap of round(barSpacing / 4) px away;
+//   - arrow length = |value| * (maxheight - minheight) / (largest |value| on the
+//     visible bars) + minheight, in px;
+//   - width w = round(barSpacing / 2): below 4 px the arrow is drawn with lines
+//     (head, shaft and a tail bar); else it is a filled head (w long, 2w wide)
+//     on a w-wide shaft, outlined in black at the transparency of the fill.
+
+export type ArrowPoint = { time: number; value: number; color: string; high: number; low: number };
+export type ArrowSet = { minHeight: number; maxHeight: number; points: ArrowPoint[] };
+
+export class ArrowPrimitive extends BasePrimitive {
+  private _sets: ArrowSet[] = [];
+  private _views: IPrimitivePaneView[] = [new ArrowPaneView(this)];
+
+  setData(sets: ArrowSet[]): void {
+    this._sets = sets;
+    this._requestUpdate?.();
+  }
+
+  getData() { return this._sets; }
+  getChart() { return this._chart; }
+  getSeries() { return this._series; }
+
+  updateAllViews(): void {}
+  paneViews(): readonly IPrimitivePaneView[] { return this._views; }
+}
+
+class ArrowPaneView implements IPrimitivePaneView {
+  constructor(private _source: ArrowPrimitive) {}
+  zOrder(): 'normal' { return 'normal'; }
+  renderer(): IPrimitivePaneRenderer | null { return new ArrowRenderer(this._source); }
+}
+
+/** Alpha (0..1) of a CSS color: #rgb(a), #rrggbb(aa), rgb(), rgba(). */
+function colorAlpha(color: string): number {
+  const c = color.trim();
+  if (c.startsWith('#')) {
+    const h = c.slice(1);
+    if (h.length === 4) return parseInt(h[3] + h[3], 16) / 255;
+    if (h.length === 8) return parseInt(h.slice(6, 8), 16) / 255;
+    return 1;
+  }
+  const m = c.match(/^rgba\s*\(([^)]*)\)/i);
+  if (m) {
+    const a = parseFloat(m[1].split(',')[3] ?? '1');
+    return Number.isFinite(a) ? a : 1;
+  }
+  return 1;
+}
+
+class ArrowRenderer implements IPrimitivePaneRenderer {
+  constructor(private _source: ArrowPrimitive) {}
+
+  draw(target: CanvasRenderingTarget2D): void {
+    const chart = this._source.getChart();
+    const series = this._source.getSeries();
+    if (!chart || !series) return;
+    const timeScale = chart.timeScale();
+    const range = timeScale.getVisibleRange();
+    if (!range) return;
+    const from = range.from as unknown as number;
+    const to = range.to as unknown as number;
+    const barSpacing = timeScale.options().barSpacing;
+    const width = Math.round(barSpacing / 2);
+    const gap = Math.round(barSpacing / 4);
+
+    target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio: hpr, verticalPixelRatio: vpr }) => {
+      const lineWidth = Math.max(1, Math.floor(hpr));
+      for (const set of this._source.getData()) {
+        const lo = Math.min(Math.abs(set.minHeight), Math.abs(set.maxHeight));
+        const hi = Math.max(Math.abs(set.minHeight), Math.abs(set.maxHeight));
+        const visible = set.points.filter((p) => p.time >= from && p.time <= to);
+        let largest = 0;
+        for (const p of visible) largest = Math.max(largest, Math.abs(p.value));
+        if (!largest) continue;
+        for (const p of visible) {
+          const x = timeScale.timeToCoordinate(p.time as unknown as Time);
+          const up = p.value > 0;
+          const anchor = series.priceToCoordinate(up ? p.low : p.high);
+          if (x == null || anchor == null) continue;
+          const length = (Math.abs(p.value) * (hi - lo)) / largest + lo;
+          // dir: +1 = the arrow body extends downwards (an up arrow under the low).
+          const dir = up ? 1 : -1;
+          const tipX = Math.round((x as number) * hpr);
+          const tipY = Math.round(((anchor as number) + dir * gap) * vpr);
+          const len = Math.round(length * vpr);
+          ctx.save();
+          ctx.translate(tipX, tipY);
+          ctx.beginPath();
+          if (width < 4) {
+            // Thin arrow: head lines, shaft, tail bar.
+            const half = Math.max(1, Math.round((width / 2) * hpr));
+            ctx.moveTo(-half, dir * half);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(half, dir * half);
+            ctx.moveTo(0, 0);
+            ctx.lineTo(0, dir * len);
+            ctx.moveTo(-half, dir * len);
+            ctx.lineTo(half, dir * len);
+            ctx.lineWidth = Math.max(1, Math.round((width / 2) * hpr));
+            ctx.lineCap = 'butt';
+            ctx.strokeStyle = p.color;
+            ctx.stroke();
+          } else {
+            const headHalf = Math.round(width * hpr);
+            const shaftHalf = Math.max(1, Math.round(headHalf / 2));
+            const headLen = Math.round(width * vpr);
+            ctx.moveTo(0, 0);
+            if (len < headLen) {
+              ctx.lineTo(headHalf, dir * len);
+              ctx.lineTo(-headHalf, dir * len);
+            } else {
+              ctx.lineTo(headHalf, dir * headLen);
+              ctx.lineTo(shaftHalf, dir * headLen);
+              ctx.lineTo(shaftHalf, dir * len);
+              ctx.lineTo(-shaftHalf, dir * len);
+              ctx.lineTo(-shaftHalf, dir * headLen);
+              ctx.lineTo(-headHalf, dir * headLen);
+            }
+            ctx.closePath();
+            // Outline first, the fill over its inner half.
+            ctx.lineWidth = lineWidth;
+            ctx.strokeStyle = `rgba(0, 0, 0, ${colorAlpha(p.color)})`;
+            ctx.stroke();
+            ctx.fillStyle = p.color;
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+      }
+    });
+  }
+}
