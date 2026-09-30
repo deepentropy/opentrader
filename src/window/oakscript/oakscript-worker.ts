@@ -16,6 +16,9 @@
 import * as oak from "oakscriptjs";
 import * as oakScript from "oakscriptjs/script";
 import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import { StrategyRuntimeError } from "../../backtester/broker";
+import { BrokerEngine, brokerProperties, runOakScriptStrategy } from "../../backtester/oakscript";
+import { DEFAULT_SYMBOL } from "../../backtester/types";
 
 const ctx = self as unknown as {
   postMessage(message: OakResponse): void;
@@ -153,6 +156,7 @@ function scriptMetaOf(run: oakScript.ScriptRunResult): OakCompiledMeta {
     shapeConfig: run.shapeConfig.length ? run.shapeConfig : undefined,
     barColorConfig: run.barColorConfig.length ? run.barColorConfig : undefined,
     defaultInputs: run.defaultInputs,
+    strategy: run.strategyConfig as Record<string, unknown> | undefined,
   };
 }
 
@@ -169,7 +173,10 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
       }
       // Dry run on zero bars registers the declarations (metadata, inputs,
       // plots) without computing anything — Pine's compile step.
-      const dry = oakScript.executeScript(mod.__run, [], {});
+      // A strategy gets an engine on the same zero bars, so strategy.eachBar() runs (no bar).
+      const dry = oakScript.executeScript(mod.__run, [], {}, {}, {
+        strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
+      });
       compiled.set(req.scriptId, { kind: "script", run: mod.__run });
       return { id: req.id, type: "compile", ok: true, meta: scriptMetaOf(dry) };
     }
@@ -220,10 +227,43 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   }
 }
 
+/** Backtest of a compiled strategy script on the OpenTrader broker. */
+function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResponse {
+  const entry = compiled.get(req.scriptId);
+  if (!entry || entry.kind !== "script") {
+    const message = entry
+      ? "Only scripts written with the oakscriptjs/script API can declare a strategy."
+      : "Script is not compiled — save it (or fix compile errors) first.";
+    return { id: req.id, type: "backtest", ok: false, error: { message } };
+  }
+  try {
+    const { report } = runOakScriptStrategy(entry.run, req.bars, {
+      inputs: req.inputs ?? {},
+      properties: req.properties,
+    });
+    if (!report) {
+      return {
+        id: req.id,
+        type: "backtest",
+        ok: false,
+        error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
+      };
+    }
+    return { id: req.id, type: "backtest", ok: true, report };
+  } catch (err) {
+    if (err instanceof StrategyRuntimeError) {
+      return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };
+    }
+    return { id: req.id, type: "backtest", ok: false, error: toScriptError(err, SCRIPT_LINE_OFFSET) };
+  }
+}
+
 ctx.onmessage = (e: MessageEvent<OakRequest>) => {
   const req = e.data;
   if (req.type === "compile") {
     void handleCompile(req).then((res) => ctx.postMessage(res));
+  } else if (req.type === "backtest") {
+    ctx.postMessage(handleBacktest(req));
   } else {
     ctx.postMessage(handleRun(req));
   }

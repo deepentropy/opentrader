@@ -11,16 +11,19 @@
  * fetched lazily on the first request.
  */
 import OakWorkerCtor from "./oakscript-worker?worker";
-import type { OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import type { BacktestReport, StrategyProperties } from "../../backtester/types";
 
-export type { OakBar, OakCompiledMeta, OakScriptError };
+export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
 
 const COMPILE_TIMEOUT_MS = 10_000;
 const RUN_TIMEOUT_MS = 5_000;
+/** Same budget as the backtest worker of the strategy ports. */
+const BACKTEST_TIMEOUT_MS = 20_000;
 
 export class OakEngineError extends Error {
   constructor(
-    public readonly detail: OakScriptError,
+    public readonly detail: OakBacktestError,
     /** True when the worker was killed (timeout/crash) rather than the
      *  script failing normally — compiled state was lost. */
     public readonly fatal: boolean = false,
@@ -39,6 +42,13 @@ export class OakEngine {
   private worker: Worker | null = null;
   private pending = new Map<number, Pending>();
   private seq = 0;
+  private gen = 0;
+
+  /** Worker generation: bumped when the worker is killed, so callers know
+   *  their compiled scripts are gone. */
+  get generation(): number {
+    return this.gen;
+  }
 
   private ensureWorker(): Worker {
     if (this.worker) return this.worker;
@@ -59,6 +69,7 @@ export class OakEngine {
   private restart(reason: string): void {
     this.worker?.terminate();
     this.worker = null;
+    this.gen++;
     const failed = [...this.pending.values()];
     this.pending.clear();
     for (const p of failed) {
@@ -104,6 +115,23 @@ export class OakEngine {
     if (res.type !== "run") throw new OakEngineError({ message: "Protocol mismatch." }, true);
     if (!res.ok) throw new OakEngineError(res.error);
     return res.result;
+  }
+
+  /** Backtest a compiled strategy script over `bars` on the OpenTrader broker.
+   *  `properties` overrides the script's strategy() properties. */
+  async backtest(
+    scriptId: string,
+    bars: OakBar[],
+    inputs?: Record<string, unknown>,
+    properties?: Partial<StrategyProperties>,
+  ): Promise<BacktestReport> {
+    const res = await this.request(
+      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties },
+      BACKTEST_TIMEOUT_MS,
+    );
+    if (res.type !== "backtest") throw new OakEngineError({ message: "Protocol mismatch." }, true);
+    if (!res.ok) throw new OakEngineError(res.error);
+    return res.report;
   }
 
   dispose(): void {

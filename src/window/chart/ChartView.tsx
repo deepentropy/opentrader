@@ -109,13 +109,12 @@ import { usMarketSession } from "../../data/market-session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
 import { IndicatorLegend } from "./IndicatorLegend";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
-import { STRATEGIES } from "../../backtester/strategies";
-import { DEFAULT_PROPERTIES, DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
+import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
 import { getIndicatorEntry } from "./indicators/registry";
 import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail } from "./indicators/user-scripts";
-import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
+import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { registerChartState, unregisterChartState } from "../../data/chart-state-registry";
 import { alertStore } from "../../data/alert-store";
@@ -3415,9 +3414,8 @@ export function ChartView(props: Props) {
    *  exchange time zone (the backtest's symbol defaults). */
   function strategyDialogConfig(id: string, inputs: Record<string, unknown>): StrategyDialogConfig | undefined {
     if (!isStrategyId(id)) return undefined;
-    const def = STRATEGIES.find((d) => d.key === strategyKeyOf(id));
-    if (!def) return undefined;
-    const defaults = { ...DEFAULT_PROPERTIES, ...def.properties };
+    const defaults = strategyDefaults(id);
+    if (!defaults) return undefined;
     const overrides = (inputs[PROPERTIES_INPUT] ?? {}) as Partial<StrategyProperties>;
     return {
       properties: { ...defaults, ...overrides },

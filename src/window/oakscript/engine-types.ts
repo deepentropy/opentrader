@@ -18,6 +18,8 @@ export type OakBar = {
 /** A script failure, mapped back to user-source coordinates when the runtime
  *  exposed them (blob stack frames keep the original line numbers — the
  *  import rewrite preserves line structure). */
+import type { BacktestReport, StrategyProperties } from "../../backtester/types";
+
 export type OakScriptError = {
   message: string;
   line?: number;
@@ -42,14 +44,32 @@ export type OakCompiledMeta = {
   shapeConfig?: unknown[];
   barColorConfig?: unknown[];
   defaultInputs?: Record<string, unknown>;
+  /** strategy() properties (oakscriptjs StrategyProperties) when the script
+   *  declares a strategy: it then runs in the Strategy Tester. */
+  strategy?: Record<string, unknown>;
 };
+
+/** A backtest failure: a script error, or a strategy runtime error (Pine
+ *  code such as RE10141, with the bar it stopped on). */
+export type OakBacktestError = OakScriptError & { code?: string; bar?: number };
 
 export type OakRequest =
   | { id: number; type: "compile"; scriptId: string; source: string }
-  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown> };
+  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown> }
+  | {
+      id: number;
+      type: "backtest";
+      scriptId: string;
+      bars: OakBar[];
+      inputs?: Record<string, unknown>;
+      /** Overrides of the script's strategy() properties. */
+      properties?: Partial<StrategyProperties>;
+    };
 
 export type OakResponse =
   | { id: number; type: "compile"; ok: true; meta: OakCompiledMeta }
   | { id: number; type: "compile"; ok: false; error: OakScriptError }
   | { id: number; type: "run"; ok: true; result: unknown }
-  | { id: number; type: "run"; ok: false; error: OakScriptError };
+  | { id: number; type: "run"; ok: false; error: OakScriptError }
+  | { id: number; type: "backtest"; ok: true; report: BacktestReport }
+  | { id: number; type: "backtest"; ok: false; error: OakBacktestError };

@@ -49,8 +49,9 @@ type Runtime = {
   result: unknown | null;
   running: boolean;
   queued: QueuedRun | null;
-  /** Whether the CURRENT worker holds this script compiled. */
-  compiled: boolean;
+  /** Worker generation this script was compiled in (-1 = not compiled); the
+   *  compile cache dies with the worker. */
+  compiledGen: number;
 };
 
 const runtimes = new Map<string, Runtime>();
@@ -101,11 +102,11 @@ async function runInWorker(
 ): Promise<void> {
   const engine = getOakEngine();
   try {
-    if (!rt.compiled) {
+    if (rt.compiledGen !== engine.generation) {
       const script = scripts.loadScript(scriptId);
       if (!script) throw new OakEngineError({ message: "Script no longer exists." });
       const meta = await engine.compile(scriptId, script.source);
-      rt.compiled = true;
+      rt.compiledGen = engine.generation;
       scripts.saveCompiledMeta(scriptId, meta);
       applyMeta(rt.entry, script.name, meta);
     }
@@ -116,10 +117,6 @@ async function runInWorker(
     // re-schedule a doomed run in a hot loop.
     rt.result = null;
     rt.key = key;
-    if (err instanceof OakEngineError && err.fatal) {
-      // Worker was killed — its compile cache died with it.
-      for (const r of runtimes.values()) r.compiled = false;
-    }
     console.warn(`[oakscript] "${scriptId}" run failed:`, err instanceof Error ? err.message : err);
   } finally {
     rt.running = false;
@@ -172,7 +169,7 @@ export function getUserIndicatorEntry(id: string): IndicatorRegistryEntry | unde
     calculate: makeCalculate(scriptId),
   } as unknown as IndicatorRegistryEntry;
   applyMeta(entry, script.name, script.meta);
-  runtimes.set(scriptId, { entry, key: null, result: null, running: false, queued: null, compiled: false });
+  runtimes.set(scriptId, { entry, key: null, result: null, running: false, queued: null, compiledGen: -1 });
   return entry;
 }
 
@@ -204,7 +201,7 @@ export function notifyScriptCompiled(scriptId: string, meta: OakCompiledMeta): v
   const structural = (rt.entry.overlay ?? true) !== meta.overlay;
   const script = scripts.loadScript(scriptId);
   applyMeta(rt.entry, script?.name ?? meta.title, meta);
-  rt.compiled = true; // same shared worker the panel compiled on
+  rt.compiledGen = getOakEngine().generation; // same shared worker the panel compiled on
   rt.key = null; // force a fresh run on the next render
   rt.result = null; // old plots may not match the new plotConfig
   dispatchUpdated(scriptId, structural);

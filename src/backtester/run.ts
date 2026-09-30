@@ -67,6 +67,12 @@ export function runBacktest<I extends object>(bars: Bar[], def: StrategyDefiniti
     if (properties.processOrdersOnClose) broker.processClose(i);
     equity[i] = broker.equity;
   }
+  return backtestReport(bars, broker, equity, t0);
+}
+
+/** The report of a finished run: `equity` holds the equity at each bar close, `t0` the start time (performance.now()). */
+export function backtestReport(bars: Bar[], broker: Broker, equity: number[], t0: number): BacktestReport {
+  const properties = broker.props;
   const open = bars.length ? broker.openTradeReports() : [];
   const trades = [...broker.closedTrades, ...open];
   const first = trades.reduce<Trade | null>((a, t) => (!a || t.entry.bar < a.entry.bar ? t : a), null);

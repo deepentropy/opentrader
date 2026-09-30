@@ -20,6 +20,7 @@ import {
   notifyScriptRenamed,
   userIndicatorId,
 } from "../chart/indicators/user-scripts";
+import { dropUserStrategy, notifyUserStrategyCompiled, userStrategyId } from "../chart/indicators/strategy-entries";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -36,7 +37,7 @@ const MIN_HEIGHT = 120;
 const CHART_MIN = 150;
 /** Engine version shown in the status bar (kept in sync with the oakscriptjs
  *  dependency; its exports map doesn't expose package.json to import). */
-const ENGINE_LABEL = "OakScript v0.5.0";
+const ENGINE_LABEL = "OakScript v0.8.0";
 
 function loadHeight(): number {
   const n = Number(kv.getItem(HEIGHT_KEY));
@@ -73,6 +74,7 @@ export function OakScriptPanel(props: Props) {
     if (!s) return;
     scripts.setCurrentScriptId(id);
     setCurrentScript(s);
+    setIsStrategy(!!s.meta?.strategy);
   }
 
   // ── Console + execution engine ────────────────────────────────────────────
@@ -87,7 +89,17 @@ export function OakScriptPanel(props: Props) {
   let consoleRef: HTMLDivElement | undefined;
   // Shared with the chart layer — a script compiled here is hot for chart runs.
   const engine = getOakEngine();
-  const onChart = () => props.indicators.includes(userIndicatorId(currentScript().id));
+  // A script that declares strategy() goes on the chart as a strategy
+  // (Strategy Tester) rather than as an indicator.
+  const [isStrategy, setIsStrategy] = createSignal(!!currentScript().meta?.strategy);
+  const chartIdsOf = (scriptId: string) => [userIndicatorId(scriptId), userStrategyId(scriptId)];
+  /** The id this script is on the chart with, if any. */
+  const idOnChart = () => chartIdsOf(currentScript().id).find((id) => props.indicators.includes(id));
+  const onChart = () => idOnChart() !== undefined;
+  function toggleOnChart(): void {
+    const id = currentScript().id;
+    props.onToggleIndicator(idOnChart() ?? (isStrategy() ? userStrategyId(id) : userIndicatorId(id)));
+  }
 
   function log(kind: LogEntry["kind"], text: string, loc?: LogEntry["loc"]): void {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
@@ -101,6 +113,8 @@ export function OakScriptPanel(props: Props) {
       const meta = await engine.compile(scriptId, source);
       // Persist the compiled shape and redraw the study on any chart using it.
       notifyScriptCompiled(scriptId, meta);
+      notifyUserStrategyCompiled(scriptId, meta);
+      if (scriptId === currentScript().id) setIsStrategy(!!meta.strategy);
       log("info", `"${name}" compiled.`);
     } catch (err) {
       if (err instanceof OakEngineError) {
@@ -172,9 +186,11 @@ export function OakScriptPanel(props: Props) {
 
   function deleteScript(): void {
     const s = currentScript();
-    const uid = userIndicatorId(s.id);
-    if (props.indicators.includes(uid)) props.onToggleIndicator(uid); // pull it off the chart
+    for (const uid of chartIdsOf(s.id)) {
+      if (props.indicators.includes(uid)) props.onToggleIndicator(uid); // pull it off the chart
+    }
     dropUserScriptRuntime(s.id);
+    dropUserStrategy(s.id);
     scripts.deleteScript(s.id);
     refreshList();
     log("info", `"${s.name}" deleted.`);
@@ -182,7 +198,9 @@ export function OakScriptPanel(props: Props) {
     const next = scripts.listScripts()[0];
     if (next) openScript(next.id);
     else {
-      setCurrentScript(scripts.ensureCurrentScript());
+      const fresh = scripts.ensureCurrentScript();
+      setCurrentScript(fresh);
+      setIsStrategy(!!fresh.meta?.strategy);
       refreshList();
     }
   }
@@ -305,7 +323,7 @@ export function OakScriptPanel(props: Props) {
           <button
             type="button"
             class="oak-panel__action-btn"
-            onClick={() => props.onToggleIndicator(userIndicatorId(currentScript().id))}
+            onClick={toggleOnChart}
           >
             {onChart() ? "Remove from chart" : "Add to chart"}
           </button>
