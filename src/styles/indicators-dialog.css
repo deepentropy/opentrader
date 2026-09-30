@@ -540,3 +540,14 @@
   color: var(--color-cold-gray-200, #dbdbdb);
   white-space: nowrap;
 }
+
+/* Strategy rows: TradingView's scriptType marker after the name (18 px,
+   #dbdbdb, captured 30/09/2026; the gap to the title was not measured). */
+.indicators-script-type {
+  flex-shrink: 0;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  color: #dbdbdb;
+}

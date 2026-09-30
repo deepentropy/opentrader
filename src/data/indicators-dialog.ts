@@ -20,6 +20,7 @@
  * SIDEBAR_ICONS hold the FontIcon <svg> markup.
  */
 import { STANDARD_ROWS, COMMUNITY_ROWS } from '../window/chart/indicators/registry';
+import { strategyRows } from '../window/chart/indicators/strategy-entries';
 
 export type SidebarItem = { id: string; label: string };
 export type SidebarGroup = { key: string; title: string; items: SidebarItem[] };
@@ -73,7 +74,15 @@ export const SIDEBAR_ICONS: Record<string, IconDef> = {
 
 /** A list row.  `indicatorId`, when set, is the library registry id — the row
  *  is a real, plottable indicator and clicking it adds the study. */
-export type IndicatorRow = { name: string; indicatorId?: string; badges?: string[]; author?: string; boosts?: string };
+export type IndicatorRow = {
+  name: string;
+  indicatorId?: string;
+  badges?: string[];
+  author?: string;
+  boosts?: string;
+  /** Strategy rows show TradingView's strategy marker icon after the name. */
+  scriptType?: 'strategy';
+};
 /** A Fundamentals metric; depth 0 = parent, 1 = nested (dotted) child. */
 export type FundamentalMetric = { name: string; depth: number };
 export type FundamentalSubtab = { label: string; metrics: FundamentalMetric[] };
@@ -381,5 +390,13 @@ export const TAB_CONTENT: Record<string, TabContent> = {
     ] },
   ] },
   // Community — community indicators from the registry.
-  'community': { kind: 'rows', rows: COMMUNITY_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })) },
+  // Community indicators, then the backtester's strategy ports (community
+  // scripts too, marked with the strategy icon like TradingView's rows).
+  'community': {
+    kind: 'rows',
+    rows: [
+      ...COMMUNITY_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })),
+      ...strategyRows().map((r) => ({ name: r.name, indicatorId: r.id, author: r.author, scriptType: 'strategy' as const })),
+    ],
+  },
 };

@@ -8,6 +8,7 @@
  * Action buttons revealed on hover. Eye, settings (gear), delete and more
  * (the study menu, opened by ChartView) are wired.
  */
+import { Icon } from "../../components/Icon";
 import { For, Show, type JSX } from "solid-js";
 import type { IndicatorLegendRow } from "./indicators/indicator-controller";
 
@@ -128,6 +129,14 @@ export function IndicatorLegend(props: Props) {
                   <Show when={(props.showInputs ?? true) && row.showInputs && (splitTitle(row.title).inputs || row.inputs)}>
                     {" "}{splitTitle(row.title).inputs || row.inputs}
                   </Show>
+                </span>
+              </Show>
+              {/* Strategies: TradingView's "Active strategy" status pill (18 px, #82b1ff). */}
+              <Show when={row.id.startsWith("strategy:")}>
+                <span class="ot-ind-legend-status" data-qa-id="legend-statuses-wrapper">
+                  <span class="ot-ind-legend-status-pill" title="Active strategy" aria-label="Active strategy" data-role="statuses-pill">
+                    <Icon name="st-legend-active-strategy-status" size={18} />
+                  </span>
                 </span>
               </Show>
               {/* Values + the hover toolbar share a relative box so the toolbar

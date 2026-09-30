@@ -1,0 +1,185 @@
+/**
+ * Backtester types. Names follow Pine's strategy() arguments and TradingView's
+ * Strategy Tester report (reportData), so a report can be compared field by
+ * field with the one TradingView computes.
+ */
+
+export interface Bar {
+  /** Bar open time, UNIX seconds (UTC). */
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+export type Direction = 'long' | 'short';
+export type QtyType = 'fixed' | 'cash' | 'percent_of_equity';
+export type CommissionType = 'percent' | 'cash_per_contract' | 'cash_per_order';
+
+/** strategy() declaration arguments (Properties tab of the strategy settings). */
+export interface StrategyProperties {
+  initialCapital: number;
+  currency: string;
+  defaultQtyType: QtyType;
+  defaultQtyValue: number;
+  /** Max entries in the same direction. 0 behaves like 1 (Pine default). */
+  pyramiding: number;
+  commissionType: CommissionType;
+  commissionValue: number;
+  /** Slippage in ticks, applied to market and stop fills. */
+  slippage: number;
+  processOrdersOnClose: boolean;
+  closeEntriesRule: 'FIFO' | 'ANY';
+  marginLong: number;
+  marginShort: number;
+}
+
+export const DEFAULT_PROPERTIES: StrategyProperties = {
+  initialCapital: 1_000_000,
+  currency: 'USD',
+  defaultQtyType: 'fixed',
+  defaultQtyValue: 1,
+  pyramiding: 1,
+  commissionType: 'percent',
+  commissionValue: 0,
+  slippage: 0,
+  processOrdersOnClose: false,
+  closeEntriesRule: 'FIFO',
+  marginLong: 100,
+  marginShort: 100,
+};
+
+export interface SymbolInfo {
+  /** Minimum price move. Order and fill prices are rounded to it. */
+  mintick: number;
+  pointValue: number;
+  /** Order quantity step (1 = whole shares). Quantities are rounded down to it. */
+  qtyStep: number;
+  /** Exchange time zone (syminfo.timezone): sessions, timestamp() inputs. */
+  timezone: string;
+}
+
+export const DEFAULT_SYMBOL: SymbolInfo = { mintick: 0.01, pointValue: 1, qtyStep: 1, timezone: 'America/New_York' };
+
+export type OrderType = 'MARKET' | 'LIMIT' | 'STOP';
+
+/** One executed fill (TradingView `filledOrders` item). */
+export interface FilledOrder {
+  /** Bar index of the fill. */
+  bar: number;
+  /** Open time of the fill bar, UNIX ms. */
+  time: number;
+  /** Order id (Pine `id=`). */
+  id: string;
+  comment: string;
+  buy: boolean;
+  /** true = entry, false = exit, null = strategy.order (TradingView `e`). */
+  entry: boolean | null;
+  price: number;
+  qty: number;
+  type: OrderType;
+}
+
+export interface TradeLeg {
+  /** Signal: the order id or comment. */
+  signal: string;
+  price: number;
+  bar: number;
+  /** Bar open time, UNIX milliseconds (TradingView report unit). */
+  time: number;
+}
+
+/** One trade (TradingView `trades` item). Open trades have `exit` marked to the last close. */
+export interface Trade {
+  direction: Direction;
+  entryId: string;
+  entry: TradeLeg;
+  exit: TradeLeg;
+  open: boolean;
+  qty: number;
+  /** Net profit including commission. */
+  profit: number;
+  profitPercent: number;
+  commission: number;
+  /** Commission paid at the entry (part of `commission`). */
+  entryCommission: number;
+  /** Max favorable excursion (run-up), currency. */
+  runUp: number;
+  runUpPercent: number;
+  /** Max adverse excursion (drawdown), currency, positive. */
+  drawdown: number;
+  drawdownPercent: number;
+  cumProfit: number;
+  /** Profit / equity before the trade (closed trades), TradingView `cp.p`. */
+  profitPercentOfEquity: number;
+}
+
+export interface SidePerformance {
+  netProfit: number;
+  netProfitPercent: number;
+  grossProfit: number;
+  grossProfitPercent: number;
+  grossLoss: number;
+  grossLossPercent: number;
+  /** Gross profit / loss of the trades before commission. */
+  grossProfitWC: number;
+  grossLossWC: number;
+  commissionPaid: number;
+  profitFactor: number | null;
+  totalTrades: number;
+  totalOpenTrades: number;
+  numberOfWiningTrades: number;
+  numberOfLosingTrades: number;
+  percentProfitable: number | null;
+  avgTrade: number | null;
+  avgTradePercent: number | null;
+  avgWinTrade: number | null;
+  avgWinTradePercent: number | null;
+  avgLosTrade: number | null;
+  avgLosTradePercent: number | null;
+  ratioAvgWinAvgLoss: number | null;
+  largestWinTrade: number | null;
+  largestWinTradePercent: number | null;
+  largestLosTrade: number | null;
+  largestLosTradePercent: number | null;
+  avgBarsInTrade: number | null;
+  avgBarsInWinTrade: number | null;
+  avgBarsInLossTrade: number | null;
+  maxContractsHeld: number;
+}
+
+export interface Performance {
+  all: SidePerformance;
+  long: SidePerformance;
+  short: SidePerformance;
+  openPL: number;
+  openPLPercent: number;
+  maxStrategyDrawDown: number;
+  maxStrategyDrawDownPercent: number;
+  maxStrategyRunUp: number;
+  maxStrategyRunUpPercent: number;
+  buyHoldReturn: number;
+  buyHoldReturnPercent: number | null;
+  /** Price change from the first entry price to the last close. */
+  buyHoldGainPercent: number | null;
+}
+
+export interface BacktestReport {
+  currency: string;
+  properties: StrategyProperties;
+  /** Closed trades first (chronological), then open trades. */
+  trades: Trade[];
+  filledOrders: FilledOrder[];
+  performance: Performance;
+  /** Equity at each bar close. */
+  equity: number[];
+  /** Buy & hold PnL at each bar close: whole shares bought with the initial
+   *  capital at the first entry price (0 before the first entry). */
+  buyHold: number[];
+  /** First and last bar open times, UNIX ms (the testing period). */
+  range: { from: number; to: number };
+  /** Time spent in the run, milliseconds. */
+  elapsedMs: number;
+}

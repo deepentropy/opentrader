@@ -345,3 +345,19 @@
   z-index: -1;
   background-color: var(--status-overlay);
 }
+
+/* Strategy "Active strategy" status (TradingView 3.4.1: 26 x 24 wrapper,
+   padding-left 4px, 18 px pill, icon #82b1ff). */
+.ot-ind-legend-status {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 4px;
+}
+.ot-ind-legend-status-pill {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  color: #82b1ff;
+}

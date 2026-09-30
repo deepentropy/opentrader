@@ -25,6 +25,7 @@ import {
 } from "../../data/indicator-favorites";
 import { getIndicatorEntry } from "../../window/chart/indicators/registry";
 import { Tooltip } from "../../components/Tooltip";
+import { Icon } from "../../components/Icon";
 
 type Props = {
   onClose: () => void;
@@ -328,6 +329,11 @@ export function IndicatorsDialog(props: Props) {
                                       </span>
                                     </Show>
                                     <span class="indicators-name">{row.name}</span>
+                                    <Show when={row.scriptType === "strategy"}>
+                                      <span class="indicators-script-type" aria-label="Strategy">
+                                        <Icon name="st-indicators-dialog-strategy-scriptType" size={18} />
+                                      </span>
+                                    </Show>
                                     <For each={row.badges ?? []}>
                                       {(b) => <span class={`indicators-badge badge-${b.toLowerCase()}`}>{b}</span>}
                                     </For>

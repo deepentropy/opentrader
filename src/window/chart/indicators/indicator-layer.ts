@@ -203,9 +203,13 @@ export class IndicatorLayer {
   // series builders.
   private plotPriceLine = false;
 
-  constructor(chart: IChartApi, paneIndex: number) {
+  /** Passed to `calculate` as a third argument ({ chartId }), for studies with per-chart state. */
+  private chartId: string;
+
+  constructor(chart: IChartApi, paneIndex: number, chartId = "") {
     this.chart = chart;
     this.paneIndex = paneIndex;
+    this.chartId = chartId;
   }
 
   setLastValueVisible(v: boolean): void {
@@ -252,7 +256,7 @@ export class IndicatorLayer {
 
     let result: any;
     try {
-      result = entry.calculate(bars, inputs);
+      result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: { chartId: string }) => unknown)(bars, inputs, { chartId: this.chartId });
     } catch (err) {
       // A single indicator throwing must not break the chart or its siblings.
       // eslint-disable-next-line no-console

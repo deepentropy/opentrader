@@ -753,6 +753,11 @@
 .cp3-menu-item:hover { background-color: #2e2e2e; }
 .cp3-menu-item.is-selected { background-color: #f2f2f2; color: #0f0f0f; }
 .cp3-menu-title { padding: 5px 4px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; }
+.cp3-menu-item.is-disabled { color: #575757; cursor: default; }
+.cp3-menu-item.is-disabled:hover { background-color: transparent; }
+.cp3-menu-tag { margin-left: auto; padding: 0 4px 0 12px; font-size: 12px; color: #8c8c8c; }
+.cp3-menu-item.is-selected .cp3-menu-tag { color: #0f0f0f; }
+.cp3-suffix { flex: none; padding-right: 8px; font-size: 14px; line-height: 18px; color: #8c8c8c; }
 .cp3-menu-check { padding-left: 8px; }
 .cp3-menu-check .cp3-menu-title { padding-left: 2px; }
 
@@ -1228,3 +1233,28 @@
 .ind3-plottype-item:hover { background: #2e2e2e; }
 .ind3-plottype-item.is-selected { background: #f2f2f2; color: #000000; }
 .ind3-plottype-label { padding-left: 6px; line-height: 16px; }
+
+/* Strategy settings (TradingView 3.4.1, research/backtester/design §14.5 /
+   §14.7): (i) icons 18 px #575757 (#8c8c8c on hover) after the controls;
+   a gap after each Pine input group; input.time = date field (150 px, with
+   a calendar popup) + HH:MM field (100 px), the Go to dialog's controls. */
+.ind3-info {
+  display: inline-flex;
+  flex: none;
+  color: #575757;
+  cursor: default;
+}
+.ind3-info:hover { color: #8c8c8c; }
+.ind3-group-gap { grid-column: 1 / -1; height: 10px; }
+.ind3-datetime { display: inline-flex; align-items: center; gap: 8px; }
+.ind3-date { width: 150px; }
+.ind3-time { display: inline-flex; width: 100px; }
+.ind3-time > .goto-dialog-input-wrap { width: 100%; }
+.goto-dialog-calendar.ind3-calendar {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  border-radius: 6px;
+  background: #1f1f1f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}

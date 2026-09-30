@@ -179,7 +179,19 @@ function OptionsMenu(props: {
   );
 }
 
-export function SelectControl(props: { value: string; options: string[]; width: number; disabled?: boolean; onPick: (v: string) => void }) {
+export function SelectControl(props: {
+  value: string;
+  options: string[];
+  width: number;
+  disabled?: boolean;
+  /** Options shown but not selectable. */
+  disabledOptions?: string[];
+  /** Right-aligned tag of an option (e.g. the chart currency). */
+  optionTag?: (o: string) => string | undefined;
+  /** Closed-control text when it differs from the value. */
+  display?: string;
+  onPick: (v: string) => void;
+}) {
   let btn: HTMLButtonElement | undefined;
   const [anchor, setAnchor] = createSignal<Anchor | null>(null);
   return (
@@ -194,7 +206,7 @@ export function SelectControl(props: { value: string; options: string[]; width: 
         disabled={props.disabled}
         onClick={() => (anchor() ? setAnchor(null) : setAnchor(anchorOf(btn!)))}
       >
-        <span class="cp3-select-value">{props.value}</span>
+        <span class="cp3-select-value">{props.display ?? props.value}</span>
         <span class="cp3-select-caret"><Chevron /></span>
       </button>
       <Show when={anchor()} keyed>
@@ -205,10 +217,14 @@ export function SelectControl(props: { value: string; options: string[]; width: 
                 <div
                   role="option"
                   aria-checked={o === props.value}
-                  class={`cp3-menu-item${o === props.value ? " is-selected" : ""}`}
-                  onClick={() => { props.onPick(o); setAnchor(null); }}
+                  aria-disabled={props.disabledOptions?.includes(o) || undefined}
+                  class={`cp3-menu-item${o === props.value ? " is-selected" : ""}${props.disabledOptions?.includes(o) ? " is-disabled" : ""}`}
+                  onClick={() => { if (props.disabledOptions?.includes(o)) return; props.onPick(o); setAnchor(null); }}
                 >
                   <span class="cp3-menu-title">{o}</span>
+                  <Show when={props.optionTag?.(o)}>
+                    {(tag) => <span class="cp3-menu-tag">{tag()}</span>}
+                  </Show>
                 </div>
               )}
             </For>
@@ -339,6 +355,12 @@ export function ColorControl(props: {
 export function NumberField(props: {
   value: string;
   unit?: string;
+  /** End slot inside the field (Slippage "ticks"). */
+  suffix?: string;
+  /** No up / down buttons. */
+  noSpin?: boolean;
+  /** Thousands separators in the shown value ("100,000"). */
+  grouping?: boolean;
   disabled?: boolean;
   width?: number;
   num?: { min: number; max: number; step: number; int?: boolean };
@@ -351,12 +373,13 @@ export function NumberField(props: {
     if (r.int) v = Math.round(v);
     return v;
   };
+  const shown = () => (props.grouping && Number.isFinite(parseFloat(props.value)) ? Number(props.value).toLocaleString("en-US", { maximumFractionDigits: 8 }) : props.value);
   const commit = (text: string, el?: HTMLInputElement) => {
-    const n = parseFloat(text);
-    if (!Number.isFinite(n)) { if (el) el.value = props.value; return; }
+    const n = parseFloat(props.grouping ? text.replace(/,/g, "") : text);
+    if (!Number.isFinite(n)) { if (el) el.value = shown(); return; }
     const v = String(Number(clamp(n).toFixed(8)));
     props.onChange(v);
-    if (el) el.value = v;
+    if (el) el.value = props.grouping ? Number(v).toLocaleString("en-US", { maximumFractionDigits: 8 }) : v;
   };
   const step = (dir: 1 | -1) => {
     const n = parseFloat(props.value);
@@ -369,7 +392,7 @@ export function NumberField(props: {
         <input
           type="text"
           inputmode="decimal"
-          value={props.value}
+          value={shown()}
           disabled={props.disabled}
           onChange={(e) => commit(e.currentTarget.value, e.currentTarget)}
           onKeyDown={(e) => {
@@ -378,7 +401,8 @@ export function NumberField(props: {
             else if (e.key === "Enter") commit(e.currentTarget.value, e.currentTarget);
           }}
         />
-        <Show when={props.num && !props.disabled}>
+        <Show when={props.suffix}><span class="cp3-suffix">{props.suffix}</span></Show>
+        <Show when={props.num && !props.disabled && !props.noSpin}>
           <span class="cp3-spin">
             <button type="button" tabIndex={-1} aria-label="Increase" class="cp3-spin-btn cp3-spin-up" onClick={() => step(1)}><Chevron /></button>
             <button type="button" tabIndex={-1} aria-label="Decrease" class="cp3-spin-btn" onClick={() => step(-1)}><Chevron /></button>

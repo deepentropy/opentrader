@@ -20,7 +20,10 @@ import {
   PriceScaleMode,
   TickMarkType,
   createChart,
+  createSeriesMarkers,
   createTextWatermark,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
   type IChartApi,
   type ISeriesApi,
   type ITextWatermarkPluginApi,
@@ -105,11 +108,15 @@ import { quoteFor } from "../../data/quotes";
 import { usMarketSession } from "../../data/market-session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
 import { IndicatorLegend } from "./IndicatorLegend";
-import { IndicatorSettingsDialog } from "./IndicatorSettingsDialog";
+import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
+import { STRATEGIES } from "../../backtester/strategies";
+import { DEFAULT_PROPERTIES, DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
 import { getIndicatorEntry } from "./indicators/registry";
 import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail } from "./indicators/user-scripts";
+import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
+import { strategyTester } from "../../data/strategy-tester-store";
 import { registerChartState, unregisterChartState } from "../../data/chart-state-registry";
 import { alertStore } from "../../data/alert-store";
 import { describeCondition, isPercentOperator } from "../../data/alert-condition";
@@ -601,6 +608,9 @@ export function ChartView(props: Props) {
   let barWrap!: HTMLDivElement;
   let chart: IChartApi | null = null;
   let series: AnySeries | null = null;
+  // Strategy trade marks on `series` (see applyStrategyMarkers).
+  let tradeMarkers: ISeriesMarkersPluginApi<Time> | null = null;
+  let tradeMarkersSeries: ISeriesApi<any> | null = null;
   // Session-breaks separators (Events tab). One instance per chart, re-attached
   // to the price series whenever it's rebuilt (chart-type change).
   const sessionBreaks = new SessionBreaksPrimitive();
@@ -681,6 +691,15 @@ export function ChartView(props: Props) {
     else clearActiveChartProbe(probeOwner);
   });
   onCleanup(() => clearActiveChartProbe(probeOwner));
+  // Strategy Tester: the active pane's id selects which chart's report shows.
+  createEffect(() => {
+    // Every open tab keeps its grid mounted: only the SHOWN tab's active pane counts.
+    if (props.active && props.shown !== false) strategyTester.setActiveChartId(String(paneId));
+  });
+  onCleanup(() => {
+    if (strategyTester.activeChartId() === String(paneId)) strategyTester.setActiveChartId(null);
+    strategyTester.dropChart(String(paneId));
+  });
   const scaleWatch = new PriceScaleWatch(() => {
     setCoordEpoch((n) => n + 1);
     // Pixel-anchored styles follow the price scale (base level, gradient
@@ -726,6 +745,8 @@ export function ChartView(props: Props) {
   const [indLegend, setIndLegend] = createSignal<IndicatorLegendRow[]>([]);
   /** Registry id of the study whose Settings dialog is open (null = closed). */
   const [settingsForId, setSettingsForId] = createSignal<string | null>(null);
+  /** Tab the next Settings dialog opens on (report toolbar gear = Properties). */
+  const [settingsTab, setSettingsTab] = createSignal<DialogTab | undefined>(undefined);
 
   function refreshIndicatorLegend(time?: number) {
     setIndLegend(controller?.getLegend(time) ?? []);
@@ -744,6 +765,7 @@ export function ChartView(props: Props) {
       onToggleHide={(id) => {
         controller?.toggleHidden(id);
         refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+        if (isStrategyId(id)) applyStrategyMarkers();
       }}
       onSettings={(id) => setSettingsForId(id)}
       onRemove={(id) => props.onRemoveIndicator?.(id)}
@@ -1187,6 +1209,7 @@ export function ChartView(props: Props) {
         onSelect: () => {
           controller?.toggleHidden(id);
           refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+          if (isStrategyId(id)) applyStrategyMarkers();
         } },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
         onSelect: () => props.onRemoveIndicator?.(id) },
@@ -1637,6 +1660,10 @@ export function ChartView(props: Props) {
     // their boundaries against the current bars.
     series.attachPrimitive(sessionBreaks);
     series.attachPrimitive(sessionBackgrounds);
+    // Strategy trade marks belong to the series: re-attach to the new one.
+    tradeMarkersSeries = null;
+    tradeMarkers = null;
+    applyStrategyMarkers();
     // The old series took its price lines with it — force a rebuild.
     highLine = null;
     lowLine = null;
@@ -2531,7 +2558,7 @@ export function ChartView(props: Props) {
 
     // The controller reads bars from `raw` on demand, so it always recomputes
     // against the freshest dataset without threading bars in.
-    controller = new IndicatorController(chart, () => raw as unknown as Bar[]);
+    controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
     setChartReady((n) => n + 1);
 
     hostW = host.clientWidth;
@@ -3354,6 +3381,96 @@ export function ChartView(props: Props) {
     window.addEventListener(OAKSCRIPT_UPDATED_EVENT, onOakScriptUpdated);
     onCleanup(() => window.removeEventListener(OAKSCRIPT_UPDATED_EVENT, onOakScriptUpdated));
   });
+  // Strategy Tester requests for the active chart: open a study's Settings
+  // dialog, or merge input values into a study (strategy properties).
+  onMount(() => {
+    const onOpenSettings = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; tab?: DialogTab }>).detail;
+      const id = d?.id;
+      if (!props.active || props.shown === false || !id || !(props.indicators ?? []).includes(id)) return;
+      setSettingsTab(d.tab);
+      setSettingsForId(id);
+    };
+    const onPatchInputs = (e: Event) => {
+      const d = (e as CustomEvent<{ id: string; patch: Record<string, unknown> }>).detail;
+      if (!props.active || props.shown === false || !d || !controller || !(props.indicators ?? []).includes(d.id)) return;
+      const inputs = { ...(controller.getInputs(d.id) ?? {}), ...d.patch };
+      const styles = controller.getStyles(d.id) ?? {};
+      const options = controller.getOptions(d.id);
+      controller.applySettings(d.id, inputs, styles, options);
+      props.onIndicatorSettings?.(d.id, { inputs, styles, options });
+    };
+    window.addEventListener("chart-open-study-settings", onOpenSettings);
+    window.addEventListener("chart-patch-study-inputs", onPatchInputs);
+    onCleanup(() => {
+      window.removeEventListener("chart-open-study-settings", onOpenSettings);
+      window.removeEventListener("chart-patch-study-inputs", onPatchInputs);
+    });
+  });
+  // Strategies: filled orders as trade marks on the price series (TradingView:
+  // buy = #2962ff arrow up below the bar, sell = #ff1744 arrow down above it,
+  // with the order signal and the signed quantity).
+  /** Settings dialog config of a strategy study: effective and script
+   *  strategy() properties, trade-mark style, chart currency / interval /
+   *  exchange time zone (the backtest's symbol defaults). */
+  function strategyDialogConfig(id: string, inputs: Record<string, unknown>): StrategyDialogConfig | undefined {
+    if (!isStrategyId(id)) return undefined;
+    const def = STRATEGIES.find((d) => d.key === strategyKeyOf(id));
+    if (!def) return undefined;
+    const defaults = { ...DEFAULT_PROPERTIES, ...def.properties };
+    const overrides = (inputs[PROPERTIES_INPUT] ?? {}) as Partial<StrategyProperties>;
+    return {
+      properties: { ...defaults, ...overrides },
+      defaults,
+      style: strategyStyleOf(inputs),
+      chartCurrency: defaults.currency,
+      interval: props.interval ?? "1D",
+      timeZone: DEFAULT_SYMBOL.timezone,
+    };
+  }
+  function applyStrategyMarkers() {
+    if (!series) return;
+    const marks: SeriesMarker<Time>[] = [];
+    for (const id of (props.indicators ?? []).filter(isStrategyId)) {
+      // Settings > Style: Trades on chart / Signal labels / Quantity; nothing
+      // while the study is eye-hidden or off its Visibility intervals.
+      const style = strategyStyleOf(controller?.getInputs(id));
+      if (!style.tradesOnChart || (controller && !controller.isDrawn(id))) continue;
+      const report = strategyTester.run(String(paneId), strategyKeyOf(id))?.report;
+      for (const o of report?.filledOrders ?? []) {
+        const qty = style.quantity ? `${o.buy ? "+" : "−"}${o.qty}` : "";
+        const signal = style.signalLabels ? o.comment : "";
+        const text = (o.buy ? [signal, qty] : [qty, signal]).filter(Boolean).join(" ");
+        marks.push(
+          o.buy
+            ? { time: (o.time / 1000) as Time, position: "belowBar", shape: "arrowUp", color: "#2962ff", text }
+            : { time: (o.time / 1000) as Time, position: "aboveBar", shape: "arrowDown", color: "#ff1744", text },
+        );
+      }
+    }
+    marks.sort((a, b) => (a.time as number) - (b.time as number));
+    if (tradeMarkersSeries !== series) {
+      tradeMarkers?.detach();
+      tradeMarkers = marks.length ? createSeriesMarkers(series, marks) : null;
+      tradeMarkersSeries = tradeMarkers ? series : null;
+    } else tradeMarkers?.setMarkers(marks);
+  }
+  createEffect(() => {
+    props.indicators;
+    applyStrategyMarkers();
+  });
+  // Strategies: a backtest of this chart finished — redraw its trade marks.
+  onMount(() => {
+    const onStrategyUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<StrategyUpdatedDetail>).detail;
+      if (!detail || detail.chartId !== String(paneId)) return;
+      controller?.renderAll();
+      refreshIndicatorLegend();
+      applyStrategyMarkers();
+    };
+    window.addEventListener(STRATEGY_UPDATED_EVENT, onStrategyUpdated);
+    onCleanup(() => window.removeEventListener(STRATEGY_UPDATED_EVENT, onStrategyUpdated));
+  });
   const [history] = createResource<BarsResult | null, string>(
     () =>
       `${props.symbol ?? "INTC"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`,
@@ -3743,6 +3860,7 @@ export function ChartView(props: Props) {
     const iv = props.interval ?? "1D";
     controller?.setChartInterval(iv);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+    applyStrategyMarkers();
   });
 
   // Scales → "Indicators and financials": last-value axis labels on the study
@@ -4585,10 +4703,15 @@ export function ChartView(props: Props) {
           const entry = getIndicatorEntry(id());
           const values = controller?.getInputs(id());
           const styles = controller?.getStyles(id());
+          // Read once: the dialog's controls may call back while it closes.
+          const strategy = values ? strategyDialogConfig(id(), values) : undefined;
+          const tab = settingsTab();
           return (
             <Show when={entry && values && styles}>
               <IndicatorSettingsDialog
-                title={entry!.name}
+                title={isStrategyId(id()) ? (entry!.shortName ?? entry!.name) : entry!.name}
+                strategy={strategy}
+                initialTab={tab}
                 inputConfig={entry!.inputConfig}
                 plotConfig={entry!.plotConfig}
                 inputs={values!}
@@ -4598,9 +4721,13 @@ export function ChartView(props: Props) {
                   controller?.applySettings(id(), inputs, s, options);
                   props.onIndicatorSettings?.(id(), { inputs, styles: s, options });
                   refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+                  if (isStrategyId(id())) applyStrategyMarkers();
                 }}
                 onSaveAsDefault={(next) => saveIndicatorDefault(id(), next)}
-                onClose={() => setSettingsForId(null)}
+                onClose={() => {
+                  setSettingsForId(null);
+                  setSettingsTab(undefined);
+                }}
               />
             </Show>
           );
