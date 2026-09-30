@@ -55,6 +55,16 @@ export function dayKeyer(timeZone: string): (sec: number) => number {
  *  time zone by the receiver. */
 export type WallDate = { y: number; m: number; d: number };
 
+/** A calendar date + time of day (minutes after midnight). */
+export type WallTime = WallDate & { minutes: number };
+
+/** Wall-clock date and time of UNIX-seconds `sec` in `timeZone`. */
+export function utcToWall(timeZone: string, sec: number): WallTime {
+  const local = sec + offsetFinder(timeZone)(sec);
+  const d = new Date(local * 1000);
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+
 /** UNIX seconds of a wall-clock time in `timeZone` (month 0-based). A time
  *  skipped by a DST jump resolves one offset step later. */
 export function wallTimeToUtc(timeZone: string, y: number, mo: number, d: number, h: number, mi: number): number {

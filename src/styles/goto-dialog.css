@@ -459,6 +459,13 @@
   background-color: var(--color-brand);
   color: var(--color-content-primary-inverse);
 }
+/* Custom range with From after To (TV, measured 30/09/2026: #3D3D3D on
+ * #575757). */
+.goto-dialog-btn.is-primary:disabled,
+.goto-dialog-btn.is-primary:disabled:hover {
+  background-color: var(--color-cold-gray-750);
+  color: var(--color-cold-gray-650);
+}
 
 .goto-dialog-btn-content {
   display: inline-flex;
@@ -511,4 +518,20 @@
 .goto-time-item.is-active:hover {
   color: var(--tv-color-popup-element-text-active, var(--color-content-primary-inverse));
   background-color: var(--tv-color-popup-element-background-active, var(--color-container-fill-primary-neutral-extra-bold));
+}
+
+/* Disabled time field on DWM charts (TV ui-lib control, dark theme:
+ * background cold-gray-800, border control-intent-default, text
+ * cold-gray-650, icon text-secondary). */
+.goto-dialog-input-wrap.is-disabled {
+  cursor: default;
+  background-color: var(--color-cold-gray-800);
+  border-color: var(--color-control-intent-default);
+}
+.goto-dialog-input-wrap.is-disabled .goto-dialog-input {
+  color: var(--color-cold-gray-650);
+  cursor: default;
+}
+.goto-dialog-input-wrap.is-disabled .goto-dialog-input-icon {
+  color: var(--color-text-secondary);
 }

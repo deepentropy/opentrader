@@ -12,7 +12,8 @@
  *   • ↑/↓ move the highlighted row (wrapping; the mouse only paints a CSS
  *     hover), Enter or a click commits it and leaves the field;
  *   • the list sits under the field, as wide as it, 231 px high, flipped
- *     above when there is no room below.
+ *     above when there is no room below;
+ *   • `disabled` (DWM charts): no typing, no list.
  */
 import { createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
 
@@ -81,6 +82,8 @@ type Props = {
   value: string;
   /** Committed HH:MM (leave, Enter, row click). */
   onChange: (v: string) => void;
+  /** DWM chart: TV disables the time fields (date only). */
+  disabled?: boolean;
 };
 
 export function TimeInput(props: Props) {
@@ -187,10 +190,11 @@ export function TimeInput(props: Props) {
   };
 
   return (
-    <label ref={wrap} class="goto-dialog-input-wrap is-time">
+    <label ref={wrap} class={"goto-dialog-input-wrap is-time" + (props.disabled ? " is-disabled" : "")}>
       <input
         ref={input}
         class="goto-dialog-input"
+        disabled={props.disabled}
         role="combobox"
         aria-expanded={focused()}
         aria-activedescendant={focused() ? `goto-time-${hovered()}` : undefined}
