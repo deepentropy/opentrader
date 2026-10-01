@@ -51,6 +51,9 @@ type Props = {
   exchange: string;
   /** Resolved O/H/L/C + change, or null while the pane is still loading. */
   values: LegendValues | null;
+  /** Price text of the main series (its Precision format); magnitude-based
+   *  decimals when absent. */
+  formatPrice?: (price: number) => string;
   /** Status line → Title select: "Name" (company name) | "Symbol" | "Symbol
    *  and name" (title source: description / ticker /
    *  ticker-and-description). Undefined = ticker. */
@@ -210,9 +213,12 @@ export function ChartLegend(props: Props) {
     props.titleMode === "Name" ? props.description || props.ticker : props.ticker;
   const showNamePiece = () =>
     (props.showTitle ?? true) && props.titleMode === "Symbol and name" && !!props.description;
+  const price = (p: number) => (props.formatPrice ? props.formatPrice(p) : fmtPrice(p));
+  /** A price change with its sign ("+1.23", "−1,204.50"). */
+  const signedPrice = (n: number) => (n < 0 ? MINUS : "+") + price(Math.abs(n));
   const changeText = () =>
     props.values
-      ? `${fmtSigned(props.values.changeAbs, priceDecimals(props.values.close))} (${fmtSigned(props.values.changePct, 2)}%)`
+      ? `${signedPrice(props.values.changeAbs)} (${fmtSigned(props.values.changePct, 2)}%)`
       : "";
   const valueDir = () =>
     props.values ? (props.values.single ? props.values.changeDir : props.values.barDir) : "up";
@@ -304,13 +310,13 @@ export function ChartLegend(props: Props) {
                   <Show
                     when={!v().single}
                     fallback={
-                      <span class={`ot-legend-value-value ot-legend-${valueDir()}`}>{fmtPrice(v().close)}</span>
+                      <span class={`ot-legend-value-value ot-legend-${valueDir()}`}>{price(v().close)}</span>
                     }
                   >
-                    <ValueItem letter="O" value={fmtPrice(v().open)} dir={v().barDir} />
-                    <ValueItem letter="H" value={fmtPrice(v().high)} dir={v().barDir} />
-                    <ValueItem letter="L" value={fmtPrice(v().low)} dir={v().barDir} />
-                    <ValueItem letter="C" value={fmtPrice(v().close)} dir={v().barDir} />
+                    <ValueItem letter="O" value={price(v().open)} dir={v().barDir} />
+                    <ValueItem letter="H" value={price(v().high)} dir={v().barDir} />
+                    <ValueItem letter="L" value={price(v().low)} dir={v().barDir} />
+                    <ValueItem letter="C" value={price(v().close)} dir={v().barDir} />
                   </Show>
                 </Show>
                 <Show when={(props.showBarChange ?? true) && !props.hideChangeValues}>
@@ -324,7 +330,7 @@ export function ChartLegend(props: Props) {
                 </Show>
                 <Show when={(props.showLastDayChange ?? false) && !props.hideChangeValues}>
                   <span class={`ot-legend-change ot-legend-${v().lastDayChangeDir}`}>
-                    {`${fmtSigned(v().lastDayChangeAbs, priceDecimals(v().close))} (${fmtSigned(v().lastDayChangePct, 2)}%)`}
+                    {`${signedPrice(v().lastDayChangeAbs)} (${fmtSigned(v().lastDayChangePct, 2)}%)`}
                   </span>
                 </Show>
               </div>

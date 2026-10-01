@@ -101,6 +101,7 @@ import {
   type OHLC,
 } from "./chart-types";
 import { ChartLegend, type LegendValues } from "./ChartLegend";
+import { chartPriceFormat } from "./price-format";
 import { layoutSync } from "./layout-sync";
 import { dayKeyer, utcToWall, wallTimeToUtc, type WallDate, type WallTime } from "./day-key";
 import type { GotoQuery } from "./goto-query";
@@ -288,16 +289,6 @@ function indexOfTime(bars: OHLC[], time: number): number {
  *  Shared by createChart and the theme/appearance effect so both stay in lockstep.
  *  `rightOffset` is applied only off the initial mount (it nudges the view
  *  framing, so we don't force it at create time). */
-/** Map a Symbol → Precision selection to a lightweight-charts price format.
- *  Returns null for "Default" (keep the library default) and for the fractional
- *  formats (1/2, 1/4, …), which 'price' can't express — those stay a GAP. */
-function parsePriceFormat(s: string): { precision: number; minMove: number } | null {
-  if (!s || s === "Default") return null;
-  if (s === "Integer") return { precision: 0, minMove: 1 };
-  const m = /^(\d+)\s+decimal/.exec(s);
-  if (m) { const n = +m[1]; return { precision: n, minMove: 1 / 10 ** n }; }
-  return null;
-}
 
 /** Colour at fraction `t` (0..1) between two hex / rgb(a) colours. */
 function mixColor(a: string, b: string, t: number): string {
@@ -1647,6 +1638,9 @@ export function ChartView(props: Props) {
     }
   }
 
+  /** Price text of the main series (Precision choice), shared with the legend. */
+  const [legendPriceFormat, setLegendPriceFormat] = createSignal<((p: number) => string) | undefined>(undefined);
+
   function rebuildSeries() {
     if (!chart) return;
     // Preserve the user's scroll position across the series swap. Creating a
@@ -1680,13 +1674,12 @@ export function ChartView(props: Props) {
     builtType = activeType;
     setDataForType(series, activeType, raw, tokens, dataExtras());
     afterSeriesData();
-    // Symbol → Precision: the picked format; "Default" follows the symbol's
-    // tick grid (decimals and rounding step of each price's tick band).
-    const pf = parsePriceFormat(tokens.precision);
-    const grid = cachedSymbolSessions(props.symbol ?? "");
-    if (pf) series.applyOptions({ priceFormat: { type: "price", precision: pf.precision, minMove: pf.minMove } });
-    else if (grid && (tokens.precision || "Default") === "Default")
-      series.applyOptions({ priceFormat: { type: "custom", formatter: (p: number) => grid.formatPrice(p), minMove: grid.mintick } });
+    // Symbol → Precision: the picked decimals ("Default" follows the
+    // symbol's tick grid), thousands grouped; the legend uses the same text.
+    // The fractional choices (1/2 …) keep the library format (GAP).
+    const fmt = chartPriceFormat(tokens.precision, cachedSymbolSessions(props.symbol ?? ""));
+    if (fmt) series.applyOptions({ priceFormat: { type: "custom", formatter: fmt.format, minMove: fmt.minMove } });
+    setLegendPriceFormat(() => fmt?.format);
     // Bind the price axis to the chosen side (Scales placement). The visible
     // scale already drives the default; this pins it explicitly too.
     series.applyOptions({ priceScaleId: tokens.scalesPlacement });
@@ -4759,6 +4752,7 @@ export function ChartView(props: Props) {
           interval={intervalLabel(props.interval ?? "1D")}
           exchange={splitSymbol(props.symbol ?? "").exchange}
           values={legend()}
+          formatPrice={legendPriceFormat()}
           titleMode={appearance().legendTitleMode}
           description={legendDesc()}
           showLogo={appearance().legendLogo}
