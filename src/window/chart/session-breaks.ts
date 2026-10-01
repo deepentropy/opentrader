@@ -1,8 +1,11 @@
 /*
  * Session-breaks primitive — full-height vertical separators at the start of
  * each trading session ("Session breaks", Events tab). On intraday frames
- * a thin vertical line is drawn wherever the calendar day rolls over between
- * two adjacent bars; daily+ frames show nothing (one bar per session already).
+ * a thin vertical line is drawn on the first bar of each trading day of the
+ * chosen session, in the symbol's exchange zone (US extended 04:00, regular
+ * 09:30, FX 17:00 the day before, crypto 00:00 UTC; one per day, none after
+ * a lunch break), whatever the display time zone — as the reference app's
+ * session breaks (observed 01/10/2026). Daily+ frames show nothing.
  *
  * Built on the same series-primitive pattern as the indicator renderers
  * (window/chart/indicators/indicator-primitives.ts): attach to the price series
@@ -18,7 +21,7 @@ import type {
   SeriesType,
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import { dayKeyer } from './day-key';
+import type { SessionSpec } from '../../data/session';
 
 /** Day boundaries (bar times where a new session starts), as UTC seconds. */
 export class SessionBreaksPrimitive implements ISeriesPrimitive<Time> {
@@ -103,17 +106,18 @@ class SessionBreaksRenderer implements IPrimitivePaneRenderer {
 }
 
 /**
- * Day-rollover boundaries for {@link SessionBreaksPrimitive}: the time of every
- * bar whose calendar day (in `timeZone`) differs from the previous bar's. Empty
- * on non-intraday frames (one bar already spans a whole session).
+ * Session boundaries for {@link SessionBreaksPrimitive}: the time of every
+ * bar whose trading day (in `spec`, the chart's session of the symbol)
+ * differs from the previous bar's. Empty on non-intraday frames (one bar
+ * already spans a whole session).
  */
 export function computeSessionBoundaries(
   bars: ReadonlyArray<{ time: number }>,
   intraday: boolean,
-  timeZone: string,
+  spec: SessionSpec,
 ): number[] {
   if (!intraday || bars.length < 2) return [];
-  const dayOf = dayKeyer(timeZone);
+  const dayOf = (sec: number) => spec.at(sec)?.day ?? spec.tradingDay(sec);
   const out: number[] = [];
   let prevDay = dayOf(bars[0].time);
   for (let i = 1; i < bars.length; i++) {

@@ -1776,13 +1776,13 @@ export function ChartView(props: Props) {
   function updateSessionBreaks() {
     const t = currentTokens();
     const intraday = isIntradayInterval(props.interval ?? "1D");
-    const times = t.sessionBreaksVisible
-      ? computeSessionBoundaries(raw as readonly { time: number }[], intraday, props.timeZone ?? "UTC")
+    const sessions = cachedSymbolSessions(props.symbol ?? "");
+    const times = t.sessionBreaksVisible && sessions
+      ? computeSessionBoundaries(raw as readonly { time: number }[], intraday, sessions.spec(props.session ?? "RTH"))
       : [];
     sessionBreaks.setData(times, t.sessionBreaksColor, t.sessionBreaksVisible, t.sessionBreaksStyle, t.sessionBreaksWidth);
     // Pre/post-market tint: only when the chart draws extended-hours bars.
     sessionBackgrounds.setColors(t.preMarketBgColor, t.postMarketBgColor);
-    const sessions = cachedSymbolSessions(props.symbol ?? "");
     sessionBackgrounds.setRuns(
       intraday && sessions && (props.session ?? "RTH") === "ETH"
         ? computeSessionRuns(raw as readonly { time: number }[], sessions)
