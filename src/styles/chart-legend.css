@@ -78,10 +78,10 @@
   color: var(--ot-legend-title-color, #b2b5be);
 }
 
-/* The ACTIVE chart's legend title is brighter (#DBDBDB; inactive charts
-   keep #B2B5BE). */
+/* The ACTIVE chart's legend title is brighter on the dark theme (#DBDBDB;
+   inactive charts keep #B2B5BE); #0F0F0F on the light theme. */
 .chart-grid-cell.is-active .ot-legend-titles {
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--ot-legend-title-active-color, #dbdbdb);
 }
 
 .ot-legend-title-piece {

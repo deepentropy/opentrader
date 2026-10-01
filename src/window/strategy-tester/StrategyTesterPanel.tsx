@@ -15,7 +15,7 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { Popover, PopItem, PopDivider } from "../screener/Popover";
 import { strategyTester } from "../../data/strategy-tester-store";
-import { getStrategyEntry, strategyKeyOf } from "../chart/indicators/strategy-entries";
+import { getStrategyEntry, strategyDefKeyOf, strategyKeyOf } from "../chart/indicators/strategy-entries";
 import { STRATEGIES } from "../../backtester/strategies";
 import { ReportToolbar } from "./ReportToolbar";
 import { KeyStatsInline, MetricsView } from "./MetricsView";
@@ -61,7 +61,7 @@ export function StrategyTesterPanel(props: Props) {
   });
 
   const title = (id: string) => {
-    const def = STRATEGIES.find((s) => s.key === strategyKeyOf(id));
+    const def = STRATEGIES.find((s) => s.key === strategyDefKeyOf(id));
     const entry = getStrategyEntry(id) as { name?: string; shortName?: string } | undefined;
     return def?.shortTitle ?? entry?.shortName ?? entry?.name ?? id;
   };

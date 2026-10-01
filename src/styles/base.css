@@ -91,6 +91,8 @@ html.theme-light {
   --ot-chart-crosshair-label-bg: #0f0f0f;
   --ot-chart-pane-separator: var(--color-cold-gray-150);
   --ot-legend-title-color: var(--color-main-text);
+  /* Active chart's legend title (cold-gray-900 on the light theme). */
+  --ot-legend-title-active-color: var(--color-cold-gray-900);
 
   /* Popover surface shorthand — used by menu.css. */
   --ot-popover-bg: #fff;
@@ -110,6 +112,7 @@ html.theme-dark {
   --ot-chart-pane-separator: var(--color-divider, #4a4a4a);
   /* Legend symbol title is #B2B5BE (values stay --color-main-text). */
   --ot-legend-title-color: #b2b5be;
+  --ot-legend-title-active-color: var(--color-cold-gray-200);
 
   --ot-popover-bg: #1f1f1f;
   --ot-popover-shadow: 0 2px 4px #0006;

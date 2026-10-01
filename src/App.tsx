@@ -10,7 +10,7 @@ import { SymbolSearchDialog } from "./window/header/SymbolSearchDialog";
 import { ChangeIntervalDialog } from "./window/chart/ChangeIntervalDialog";
 import { IndicatorsDialog } from "./window/header/IndicatorsDialog";
 import { ChartPropertiesDialog } from "./window/header/ChartPropertiesDialog";
-import { appearanceFrom, cloneDraft, patchDraftScales, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, type ScaleMenuPatch } from "./window/header/chart-settings";
+import { appearanceFrom, cloneDraft, patchDraftScales, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, stdThemeOf, withStdTheme, type ScaleMenuPatch, type StdTheme } from "./window/header/chart-settings";
 import { activeChartProbe } from "./window/chart/active-chart";
 import { TIMEZONES, findTimezone } from "./data/timezones";
 import { ChartGrid } from "./window/chart/ChartGrid";
@@ -95,13 +95,14 @@ import { displayTimeZone } from "./data/session";
 import { requestDataWindow } from "./data/data-window-store";
 import { bindLayoutSync, defaultLayoutSync, rememberCrosshair, reviveLayoutSync, type LayoutSyncKey } from "./window/chart/layout-sync";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
-import { DialogHost } from "./components/Dialogs";
+import { DialogHost, showConfirm } from "./components/Dialogs";
 import { getIndicatorEntry } from "./window/chart/indicators/registry";
 import { loadIndicatorDefault } from "./data/indicator-defaults";
 import { defaultIndicatorOptions } from "./window/chart/indicators/indicator-options";
 import { UnsavedLayoutDialog } from "./window/header/UnsavedLayoutDialog";
 import { LayoutBrowserDialog } from "./window/header/LayoutBrowserDialog";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
+import { newStudyId, typeIdOf } from "./window/chart/indicators/study-id";
 import {
   APPLY_TEMPLATE_PREFIX,
   buildIndicatorTemplatesMenu,
@@ -137,6 +138,10 @@ function App() {
     try { return kv.getItem("ot:theme") === "light" ? "light" : "dark"; } catch { return "dark"; }
   };
   const [theme, setThemeSignal] = createSignal<"dark" | "light">(loadTheme());
+  // Set before the charts are created: a pane with no stored settings reads
+  // its default colours from this class.
+  document.documentElement.classList.remove("theme-dark", "theme-light");
+  document.documentElement.classList.add(`theme-${theme()}`);
 
   // ── Multi-tab shell ───────────────────────────────────────────────────
   // Each tab is an independent chart (symbol/interval/chartType/layout/
@@ -203,6 +208,52 @@ function App() {
     const tab = activeTab();
     patchActive({ panes: tab.panes.map((p) => ({ ...p, ...patch })) });
   }
+
+  // ── App theme and chart theme ──────────────────────────────────────────
+  // The chart colours are chart settings. A chart that still uses a standard
+  // theme's values follows the app theme; one with custom colours keeps them
+  // unless the user agrees to switch it too.
+  function applyUiTheme(t: StdTheme) {
+    document.documentElement.classList.remove("theme-dark", "theme-light");
+    document.documentElement.classList.add(`theme-${t}`);
+    kv.setItem("ot:theme", t);
+  }
+  const usesStdTheme = (tab: TabChart) => tab.panes.every((p) => stdThemeOf(p.settings) !== null);
+  /** Re-colour every pane of a tab with the standard theme `t`. */
+  function applyChartTheme(tabId: string, t: StdTheme) {
+    const tab = tabs().find((x) => x.id === tabId);
+    if (!tab) return;
+    patchTab(tabId, {
+      panes: tab.panes.map((p) =>
+        p.settings && stdThemeOf(p.settings) !== t
+          ? { ...p, settings: withStdTheme(p.settings, t), settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV }
+          : p),
+    });
+  }
+  /** App Settings theme picker. Charts of the shown layout that use a
+   *  standard theme switch with it (effect below); custom colours ask first. */
+  function switchTheme(next: StdTheme) {
+    if (usesStdTheme(activeTab())) { applyUiTheme(next); return; }
+    const tabId = activeTabId();
+    showConfirm({
+      title: "Theme",
+      text: `The interface is switching to the ${next === "light" ? "Light" : "Dark"} theme. Switch the chart theme too?`,
+      onConfirm: () => { applyUiTheme(next); applyChartTheme(tabId, next); },
+      onCancel: () => applyUiTheme(next),
+    });
+  }
+  // A shown layout whose charts all use a standard theme takes the app theme
+  // (app start, tab switch, theme switch, new panes).
+  const activePaneSettings = createMemo(() => activeTab().panes.map((p) => p.settings), undefined, {
+    equals: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]),
+  });
+  createEffect(() => {
+    const t = theme();
+    activePaneSettings();
+    const tab = untrack(activeTab);
+    if (!usesStdTheme(tab)) return;
+    if (tab.panes.some((p) => p.settings && stdThemeOf(p.settings) !== t)) untrack(() => applyChartTheme(tab.id, t));
+  });
 
   // Active-pane-backed accessors. Each multi-chart layout cell is its own
   // independent chart; the header / right-rail / drawing tools act on the
@@ -1230,25 +1281,43 @@ function App() {
     return s && isFullSymbol(s) ? s : undefined;
   };
 
-  /** Add/remove an indicator (by registry id). Also the studies-legend trash. */
-  function toggleIndicator(id: string) {
+  /** Add a study of type `typeId` (registry id) to the focused pane. Every
+   *  call adds a new instance with its own settings, like the reference app
+   *  (the same indicator can be on a chart several times). */
+  function addIndicator(typeId: string) {
     const pane = activePaneState();
-    if (pane.indicators.includes(id)) {
-      const tab = activeTab();
-      removeStudies(tab.id, tab.activePane, [id]);
-      return;
-    }
+    const tab = activeTab();
+    // Ids still held by undo/redo entries of this pane are not reused: undo
+    // would otherwise restore over the new instance.
+    const held: string[] = [];
+    for (const e of [...undoStack(), ...redoStack()])
+      if (e.kind === "study" && e.tabId === tab.id && e.paneIndex === tab.activePane) held.push(...e.ids);
+    const id = newStudyId(typeId, [...pane.indicators, ...held]);
     // A newly added study starts with the user's saved default ("Save as
     // default"), else the factory values (a new study never inherits the
     // settings of an earlier, removed instance).
-    const entry = getIndicatorEntry(id);
-    const seed = loadIndicatorDefault(id) ?? (entry ? { inputs: { ...entry.defaultInputs }, styles: {}, options: defaultIndicatorOptions() } : undefined);
+    const entry = getIndicatorEntry(typeId);
+    const seed = loadIndicatorDefault(typeId) ?? (entry ? { inputs: { ...entry.defaultInputs }, styles: {}, options: defaultIndicatorOptions() } : undefined);
     // Adding a strategy opens its report (the reference app opens the footer panel).
-    if (isStrategyId(id)) strategyTester.setCollapsed(false);
+    if (isStrategyId(typeId)) strategyTester.setCollapsed(false);
     patchActivePane({
       indicators: [...pane.indicators, id],
       ...(seed ? { indicatorSettings: { ...pane.indicatorSettings, [id]: seed } } : {}),
     });
+  }
+  /** Remove one study instance from the focused pane. */
+  function removeIndicator(id: string) {
+    const tab = activeTab();
+    removeStudies(tab.id, tab.activePane, [id]);
+  }
+  /** OakScript panel: add the script to the chart, or take every instance of
+   *  it off the chart. */
+  function toggleScriptOnChart(typeId: string) {
+    const on = activePaneState().indicators.filter((x) => typeIdOf(x) === typeId);
+    if (on.length) {
+      const tab = activeTab();
+      removeStudies(tab.id, tab.activePane, on);
+    } else addIndicator(typeId);
   }
 
   // ── Indicator templates (header "Indicator templates" dropdown) ─────────
@@ -1526,10 +1595,9 @@ function App() {
         window.dispatchEvent(new CustomEvent("chart-snapshot", { detail: { action: "open" } }));
       }
     } else if (which === "show-favorite-indicators") {
-      // A favourite row toggles that study on the focused pane (checked rows
-      // are already on the chart, so a second click removes; studies are an
-      // id-set, not instances).
-      toggleIndicator(rowId);
+      // A favourite row adds that study to the focused pane (one more
+      // instance when it is already on the chart).
+      addIndicator(rowId);
     } else if (which === "indicator-templates") {
       if (rowId === SAVE_TEMPLATE_ROW_ID) setTemplateNameDialogOpen(true);
       else if (rowId.startsWith(APPLY_TEMPLATE_PREFIX))
@@ -1595,7 +1663,7 @@ function App() {
     // Live menus (the static registry entries for these ids are placeholders
     // — the real rows come from the local stores).
     if (id === "show-favorite-indicators")
-      return buildFavoriteIndicatorsMenu(new Set(indicators()));
+      return buildFavoriteIndicatorsMenu();
     if (id === "indicator-templates") return buildIndicatorTemplatesMenu();
     return HEADER_MENUS[id];
   }
@@ -1609,8 +1677,6 @@ function App() {
   }
 
   onMount(() => {
-    document.documentElement.classList.remove("theme-dark", "theme-light");
-    document.documentElement.classList.add(`theme-${theme()}`);
     // The App-Settings theme picker re-themes by swapping this class; follow
     // it so the chart canvases (props.theme → token re-read) update too.
     const themeObserver = new MutationObserver(() => {
@@ -2290,7 +2356,7 @@ function App() {
             <OakScriptPanel
               theme={theme()}
               indicators={indicators()}
-              onToggleIndicator={toggleIndicator}
+              onToggleIndicator={toggleScriptOnChart}
               onClose={() => setOakPanelOpen(false)}
             />
           </Show>
@@ -2341,7 +2407,7 @@ function App() {
           removeDrawing={removeDrawing}
           moveDrawing={moveDrawingToDisplayIndex}
           indicators={indicators()}
-          onRemoveIndicator={toggleIndicator}
+          onRemoveIndicator={removeIndicator}
           chartSource={`${symbol()}, ${interval()}`}
           cloneDrawing={cloneDrawing}
           pressedTab={(id) => id === "screener-dialog-button" && screenerPanel.open()}
@@ -2447,8 +2513,7 @@ function App() {
       </Show>
       <Show when={indicatorsDialogOpen()}>
         <IndicatorsDialog
-          activeIndicatorIds={new Set(indicators())}
-          onToggleIndicator={toggleIndicator}
+          onAddIndicator={addIndicator}
           onClose={() => setIndicatorsDialogOpen(false)}
         />
       </Show>
@@ -2505,6 +2570,8 @@ function App() {
             initialTab={initialTab()}
             tabParts={tabTitleParts()}
             onTabPartsChange={setTabTitleParts}
+            theme={theme()}
+            onThemeChange={switchTheme}
             onClose={() => setAppSettingsTab(null)}
           />
         )}

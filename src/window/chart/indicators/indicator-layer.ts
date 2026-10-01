@@ -55,7 +55,7 @@ import {
 
 type PlotPoint = { time: number; value: number; color?: string };
 /** Third argument of `calculate` (ignored by the library indicators). */
-export type StudyCalcContext = { chartId: string; chart?: ChartContext };
+export type StudyCalcContext = { chartId: string; chart?: ChartContext; studyId?: string };
 /**
  * Plot points with an na point at each skipped bar: OakScript plot() output leaves the na bars out, and a
  * line-break plot must break there.
@@ -233,11 +233,14 @@ export class IndicatorLayer {
    *  per-chart state, the chart context (timeframe, session...) for OakScript scripts. */
   private chartId: string;
   private scriptChart: ChartContext | undefined;
+  /** Study instance id ("rsi#2"): studies with run state keep one per instance. */
+  private studyId: string | undefined;
 
-  constructor(chart: IChartApi, paneIndex: number, chartId = "") {
+  constructor(chart: IChartApi, paneIndex: number, chartId = "", studyId?: string) {
     this.chart = chart;
     this.paneIndex = paneIndex;
     this.chartId = chartId;
+    this.studyId = studyId;
   }
 
   setLastValueVisible(v: boolean): void {
@@ -312,6 +315,7 @@ export class IndicatorLayer {
       result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(bars, inputs, {
         chartId: this.chartId,
         chart: this.scriptChart,
+        studyId: this.studyId,
       });
     } catch (err) {
       // A single indicator throwing must not break the chart or its siblings.

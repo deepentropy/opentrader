@@ -31,9 +31,12 @@ export const DEFAULT_SETTINGS_TAB = 'symbol';
 export const CANDLE_COLORS = { up: "#089981", down: "#F23645" };
 const UP = CANDLE_COLORS.up;
 const DOWN = CANDLE_COLORS.down;
-/** Factory projection colours (renko / line break / kagi / P&F / range). */
-const UP_PROJ = "#A9DCC3";
-const DOWN_PROJ = "#F5A6AE";
+/** Factory projection colours (renko / line break / kagi / P&F / range) of
+ *  the dark standard theme; the light theme uses LIGHT_PROJECTION_COLORS. */
+export const PROJECTION_COLORS = { up: "#336854", down: "#7F323F" };
+export const LIGHT_PROJECTION_COLORS = { up: "#A9DCC3", down: "#F5A6AE" };
+const UP_PROJ = PROJECTION_COLORS.up;
+const DOWN_PROJ = PROJECTION_COLORS.down;
 
 /* ── Control / row model ────────────────────────────────────────────────────
  * Controls map to property-definition renderers:

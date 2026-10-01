@@ -32,6 +32,7 @@ import type { BacktestError, BacktestOutput } from "../../../backtester/worker-t
 import * as scripts from "../../../data/oakscript-store";
 import { strategyTester } from "../../../data/strategy-tester-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
+import { typeIdOf } from "./study-id";
 import type { OakCompiledMeta } from "../../oakscript/engine-types";
 
 export const STRATEGY_PREFIX = "strategy:";
@@ -49,7 +50,11 @@ export type StrategyUpdatedDetail = { chartId: string; key: string };
 
 export const isStrategyId = (id: string): boolean => id.startsWith(STRATEGY_PREFIX);
 export const strategyId = (key: string): string => STRATEGY_PREFIX + key;
+/** Run key of a strategy study: its key plus the instance suffix ("ma-cross#2"),
+ *  so each instance has its own backtest and report. */
 export const strategyKeyOf = (id: string): string => id.slice(STRATEGY_PREFIX.length);
+/** Definition key of a strategy study (instance suffix dropped). */
+export const strategyDefKeyOf = (id: string): string => strategyKeyOf(typeIdOf(id));
 
 /** OakScript strategies: key `user:<scriptId>`, id `strategy:user:<scriptId>`. */
 const USER_KEY_PREFIX = "user:";
@@ -124,22 +129,25 @@ function makeCalculate(
   defaultInputs: () => Record<string, unknown>,
   execute: Execute,
 ): IndicatorRegistryEntry["calculate"] {
-  return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: { chartId?: string; chart?: ChartContext }) => {
+  return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: { chartId?: string; chart?: ChartContext; studyId?: string }) => {
     const chartId = ctx?.chartId ?? "";
     const chart = ctx?.chart;
+    // One backtest per study instance: two instances of a strategy on a chart
+    // run (and report) separately.
+    const runKey = ctx?.studyId ? strategyKeyOf(ctx.studyId) : strategyKey;
     // Strategy properties (Strategy Tester pills / Properties) ride in the
     // study inputs under PROPERTIES_INPUT, so they persist with the pane.
     const { [PROPERTIES_INPUT]: props, [STYLE_INPUT]: _style, ...rest } = (inputs ?? {}) as Record<string, unknown>;
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
     const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart ?? null)}`;
-    const rtKey = `${chartId}|${strategyKey}`;
+    const rtKey = `${chartId}|${runKey}`;
     let rt = runtimes.get(rtKey);
     if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null }));
     if (bars.length && rt.key !== key && rt.queued?.key !== key) {
       // Snapshot: ChartView mutates its bar array in place on live ticks.
       const snapshot = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
       if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, key };
-      else void run(strategyKey, execute, chartId, rt, snapshot, typedInputs, chart, key);
+      else void run(runKey, execute, chartId, rt, snapshot, typedInputs, chart, key);
     }
     return rt.visuals ?? EMPTY_RESULT;
   }) as IndicatorRegistryEntry["calculate"];
@@ -219,10 +227,13 @@ export function notifyUserStrategyCompiled(scriptId: string, meta: OakCompiledMe
   applyUserMeta(entry, scripts.loadScript(scriptId)?.name ?? meta.title, meta);
   const key = USER_KEY_PREFIX + scriptId;
   for (const [rtKey, rt] of runtimes) {
-    if (!rtKey.endsWith(`|${key}`)) continue;
+    // `${chartId}|${runKey}`, the run key carrying the instance suffix.
+    const bar = rtKey.indexOf("|");
+    const runKey = rtKey.slice(bar + 1);
+    if (typeIdOf(runKey) !== key) continue;
     rt.key = null; // rerun on the next render
-    const chartId = rtKey.slice(0, rtKey.length - key.length - 1);
-    window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key } }));
+    const chartId = rtKey.slice(0, bar);
+    window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key: runKey } }));
   }
 }
 
@@ -293,7 +304,7 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
  *  compiled yet or not supported by the broker). */
 export function strategyDefaults(id: string): StrategyProperties | undefined {
   if (!isStrategyId(id)) return undefined;
-  const key = strategyKeyOf(id);
+  const key = strategyDefKeyOf(id);
   const scriptId = userScriptIdOf(key);
   if (scriptId !== null) {
     const declared = scripts.loadScript(scriptId)?.meta?.strategy;
@@ -311,8 +322,9 @@ export function strategyDefaults(id: string): StrategyProperties | undefined {
 }
 
 /** Resolve `strategy:<key>` (undefined for an unknown key). */
-export function getStrategyEntry(id: string): IndicatorRegistryEntry | undefined {
-  if (!isStrategyId(id)) return undefined;
+export function getStrategyEntry(studyId: string): IndicatorRegistryEntry | undefined {
+  if (!isStrategyId(studyId)) return undefined;
+  const id = typeIdOf(studyId);
   const cached = entries.get(id);
   if (cached) return cached;
   const scriptId = userScriptIdOf(strategyKeyOf(id));

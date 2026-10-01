@@ -12,6 +12,8 @@
  * converted by {@link LEGACY_PIL70I} instead of being discarded.
  */
 import {
+  LIGHT_PROJECTION_COLORS,
+  PROJECTION_COLORS,
   STYLE_FORMS,
   TAB_FORMS,
   rowIdOf,
@@ -66,8 +68,19 @@ export function rowKey(tab: string, i: number): string {
   return keyOf(tab, it && it.kind === 'row' ? rowIdOf(it) : `#${i}`);
 }
 
-/** Build a fresh draft from the factory defaults. */
-export function makeDefaultDraft(): Draft {
+/** The two standard chart themes. */
+export type StdTheme = 'dark' | 'light';
+
+/** The app theme: the <html> class the stylesheets key on. */
+export function uiTheme(): StdTheme {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('theme-light') ? 'light' : 'dark';
+}
+
+/** Build a fresh draft from the factory defaults, in the colours of the
+ *  standard theme `theme` (default: the app theme). The form rows hold the
+ *  dark theme; the light theme differs on the canvas, scales and projection
+ *  colours only. */
+export function makeDefaultDraft(theme: StdTheme = uiTheme()): Draft {
   const d: Draft = {};
   for (const [tab, items] of Object.entries(TAB_FORMS)) {
     items.forEach((it: FormItem) => {
@@ -78,7 +91,125 @@ export function makeDefaultDraft(): Draft {
       };
     });
   }
+  if (theme === 'light') paintLight(d);
   return d;
+}
+
+/** Overwrite the factory (dark) values that differ in the light theme. */
+function paintLight(d: Draft): void {
+  const setColor = (key: string, i: number, color: string) => {
+    const c = d[key]?.controls[i];
+    if (c?.kind === 'color') c.color = color;
+  };
+  setColor('canvas:Background', 1, 'rgb(255, 255, 255)');
+  setColor('canvas:Background', 2, 'rgb(255, 255, 255)');
+  setColor('canvas:Vertical grid lines', 0, 'rgba(46, 46, 46, 0.2)');
+  setColor('canvas:Horizontal grid lines', 0, 'rgba(46, 46, 46, 0.2)');
+  setColor('canvas:Text', 0, 'rgb(15, 15, 15)');
+  setColor('canvas:Lines', 0, 'rgba(46, 46, 46, 0)');
+  const proj = (c: string) =>
+    c === PROJECTION_COLORS.up ? LIGHT_PROJECTION_COLORS.up : c === PROJECTION_COLORS.down ? LIGHT_PROJECTION_COLORS.down : c;
+  for (const [key, row] of Object.entries(d)) {
+    if (!key.startsWith('style.') || !key.includes(':Projection ')) continue;
+    for (const c of row.controls) {
+      if (c.kind === 'color') c.color = proj(c.color);
+      else if (c.kind === 'colorPair') { c.up = proj(c.up); c.down = proj(c.down); }
+    }
+  }
+}
+
+/* ── Chart theme ──────────────────────────────────────────────────────────
+ * The theme of a chart is part of its settings: the colours of the canvas
+ * (background, grid, crosshair), the scales, the session rows and the series
+ * styles. The watermark, status line, alert and trading rows are not. A
+ * chart "uses a standard theme" while all those values equal the theme's
+ * defaults; switching the app theme only re-colours such charts unless the
+ * user agrees to overwrite custom colours. */
+function isThemeRow(key: string): boolean {
+  const tab = key.slice(0, key.indexOf(':'));
+  if (tab === 'canvas') return key !== 'canvas:Watermark';
+  return tab === 'symbol' || tab === 'scales' || tab === 'events' || tab.startsWith('style.');
+}
+
+/** The theme values of one control (its colours; the background type select). */
+function themeFields(key: string, c: CtrlValue): string[] {
+  switch (c.kind) {
+    case 'color': return [c.color];
+    case 'colorPair': return [c.up, c.down];
+    case 'lineColor': return [c.type, c.color, c.start, c.end];
+    case 'select': return key === 'canvas:Background' ? [c.value] : [];
+    default: return [];
+  }
+}
+
+/** Colour string -> comparable "r,g,b,a" (hex, rgb() and rgba()); other
+ *  strings compare as they are. */
+function colorKey(v: string): string {
+  const s = v.trim().toLowerCase();
+  const hex = /^#([0-9a-f]{3,8})$/.exec(s);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3 || h.length === 4) h = [...h].map((x) => x + x).join('');
+    if (h.length !== 6 && h.length !== 8) return s;
+    const n = (i: number) => parseInt(h.slice(i, i + 2), 16);
+    const a = h.length === 8 ? Math.round((n(6) / 255) * 1000) / 1000 : 1;
+    return `${n(0)},${n(2)},${n(4)},${a}`;
+  }
+  const fn = /^rgba?\(([^)]*)\)$/.exec(s);
+  if (fn) {
+    const p = fn[1].split(',').map((x) => parseFloat(x));
+    if (p.length >= 3 && p.every((x) => Number.isFinite(x))) return `${p[0]},${p[1]},${p[2]},${p.length > 3 ? p[3] : 1}`;
+  }
+  return s;
+}
+
+const themeDrafts: Partial<Record<StdTheme, Draft>> = {};
+/** Reference draft of a standard theme (private, never handed out). */
+const themeDraft = (t: StdTheme): Draft => (themeDrafts[t] ??= makeDefaultDraft(t));
+
+/** The standard theme whose values the draft uses (null = custom colours).
+ *  An unset draft follows the app theme. */
+export function stdThemeOf(d: Draft | undefined): StdTheme | null {
+  if (!d) return uiTheme();
+  for (const t of ['dark', 'light'] as const) {
+    const ref = themeDraft(t);
+    let same = true;
+    for (const key of Object.keys(ref)) {
+      if (!isThemeRow(key)) continue;
+      const a = ref[key].controls;
+      const b = d[key]?.controls;
+      if (!b) continue;
+      for (let i = 0; i < a.length && same; i++) {
+        if (!b[i] || b[i].kind !== a[i].kind) continue;
+        const fa = themeFields(key, a[i]);
+        const fb = themeFields(key, b[i]);
+        same = fa.every((v, j) => colorKey(v) === colorKey(fb[j] ?? ''));
+      }
+      if (!same) break;
+    }
+    if (same) return t;
+  }
+  return null;
+}
+
+/** Clone `d` with every theme value set to the standard theme `t` (the
+ *  other settings are kept). */
+export function withStdTheme(d: Draft, t: StdTheme): Draft {
+  const next = cloneDraft(d);
+  const ref = themeDraft(t);
+  for (const key of Object.keys(ref)) {
+    if (!isThemeRow(key) || !next[key]) continue;
+    next[key].controls = next[key].controls.map((c, i): CtrlValue => {
+      const r = ref[key].controls[i];
+      if (!r || r.kind !== c.kind || themeFields(key, r).length === 0) return c;
+      if (r.kind === 'color' && c.kind === 'color') return { ...c, color: r.color };
+      if (r.kind === 'colorPair' && c.kind === 'colorPair') return { ...c, up: r.up, down: r.down };
+      if (r.kind === 'lineColor' && c.kind === 'lineColor') return { ...c, type: r.type, color: r.color, start: r.start, end: r.end };
+      if (r.kind === 'select' && c.kind === 'select') return { ...c, value: r.value };
+      return c;
+    });
+  }
+  return next;
 }
 
 // ── Persistence ──────────────────────────────────────────────────────────────
@@ -123,14 +254,36 @@ function reviveCtrl(raw: unknown, def: CtrlValue): CtrlValue {
 /** Revision of the draft VALUES. Rev 3 (25/09/2026) = first id-keyed format;
  *  older revisions only exist in legacy (index-keyed) drafts. Rev 4
  *  (26/09/2026): Events → Latest news default is ON (factory value);
- *  earlier drafts stored OFF only because the row was inert. */
-export const SETTINGS_REV = 4;
+ *  earlier drafts stored OFF only because the row was inert. Rev 5
+ *  (01/10/2026): the factory projection colours are the dark theme's;
+ *  earlier drafts stored the light theme's pair as the factory value. */
+export const SETTINGS_REV = 5;
 
 function migrateValues(rows: Record<string, StoredRow>, rev: number): Record<string, StoredRow> {
-  if (rev >= 4) return rows;
+  if (rev >= 5) return rows;
   const out = { ...rows };
-  const news = out['events:Latest news'];
-  out['events:Latest news'] = { ...(news ?? {}), checked: true };
+  if (rev < 4) {
+    const news = out['events:Latest news'];
+    out['events:Latest news'] = { ...(news ?? {}), checked: true };
+  }
+  const proj = (v: unknown) =>
+    typeof v !== 'string' ? v
+      : v.toUpperCase() === LIGHT_PROJECTION_COLORS.up ? PROJECTION_COLORS.up
+      : v.toUpperCase() === LIGHT_PROJECTION_COLORS.down ? PROJECTION_COLORS.down
+      : v;
+  for (const [key, row] of Object.entries(out)) {
+    if (!key.startsWith('style.') || !key.includes(':Projection ') || !row || !Array.isArray(row.controls)) continue;
+    out[key] = {
+      ...row,
+      controls: (row.controls as unknown[]).map((c) => {
+        const o = c && typeof c === 'object' ? (c as Record<string, unknown>) : undefined;
+        if (!o) return c;
+        const m = { ...o };
+        for (const f of ['color', 'up', 'down']) if (f in m) m[f] = proj(m[f]);
+        return m;
+      }),
+    };
+  }
   return out;
 }
 
@@ -650,12 +803,12 @@ export type ChartAppearance = {
 };
 
 /** Appearance of a chart with no stored settings = the dialog's defaults
- *  (factory values), so pressing Ok on an untouched dialog changes
- *  nothing on the chart. */
-let defaultAppearance: ChartAppearance | null = null;
+ *  (factory values in the app theme's colours), so pressing Ok on an
+ *  untouched dialog changes nothing on the chart. */
+const defaultAppearance: Partial<Record<StdTheme, ChartAppearance>> = {};
 
 export function appearanceFrom(d: Draft | undefined): ChartAppearance {
-  if (!d) return (defaultAppearance ??= appearanceFrom(makeDefaultDraft()));
+  if (!d) return (defaultAppearance[uiTheme()] ??= appearanceFrom(makeDefaultDraft()));
   const S = reader(d, 'symbol');
   const L = reader(d, 'legend');
   const Sc = reader(d, 'scales');

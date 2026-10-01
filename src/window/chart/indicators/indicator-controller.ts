@@ -435,7 +435,7 @@ export class IndicatorController {
     const entry = getIndicatorEntry(id);
     if (!entry) return;
     const paneIndex = entry.overlay ? 0 : this.claimPane();
-    const layer = new IndicatorLayer(this.chart, paneIndex, this.chartId);
+    const layer = new IndicatorLayer(this.chart, paneIndex, this.chartId, id);
     layer.setLastValueVisible(this.lastValueVisible);
     layer.setScriptChart(this.scriptChart);
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;

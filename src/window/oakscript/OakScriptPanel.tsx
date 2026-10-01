@@ -21,6 +21,7 @@ import {
   userIndicatorId,
 } from "../chart/indicators/user-scripts";
 import { dropUserStrategy, notifyUserStrategyCompiled, userStrategyId } from "../chart/indicators/strategy-entries";
+import { typeIdOf } from "../chart/indicators/study-id";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -93,8 +94,8 @@ export function OakScriptPanel(props: Props) {
   // (Strategy Tester) rather than as an indicator.
   const [isStrategy, setIsStrategy] = createSignal(!!currentScript().meta?.strategy);
   const chartIdsOf = (scriptId: string) => [userIndicatorId(scriptId), userStrategyId(scriptId)];
-  /** The id this script is on the chart with, if any. */
-  const idOnChart = () => chartIdsOf(currentScript().id).find((id) => props.indicators.includes(id));
+  /** The type id this script is on the chart with (any instance), if any. */
+  const idOnChart = () => chartIdsOf(currentScript().id).find((id) => props.indicators.some((x) => typeIdOf(x) === id));
   const onChart = () => idOnChart() !== undefined;
   function toggleOnChart(): void {
     const id = currentScript().id;
@@ -187,7 +188,7 @@ export function OakScriptPanel(props: Props) {
   function deleteScript(): void {
     const s = currentScript();
     for (const uid of chartIdsOf(s.id)) {
-      if (props.indicators.includes(uid)) props.onToggleIndicator(uid); // pull it off the chart
+      if (props.indicators.some((x) => typeIdOf(x) === uid)) props.onToggleIndicator(uid); // pull it off the chart
     }
     dropUserScriptRuntime(s.id);
     dropUserStrategy(s.id);

@@ -12,6 +12,8 @@
  * overlay for parity with the other 13 kinds.
  */
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { createStore, reconcile } from "solid-js/store";
+import { typeIdOf } from "./indicators/study-id";
 import {
   ColorType,
   CrosshairMode,
@@ -514,7 +516,9 @@ export function ChartView(props: Props) {
   // back to the latest bar (the "click jumps the synced chart to today" bug).
   // The structural equals makes the memo notify only on a genuine settings
   // change. AppearanceOverride is flat primitives, so JSON compare is sound.
-  const appearance = createMemo(() => appearanceFrom(props.settings), undefined, {
+  // A pane with no stored settings takes the app theme's defaults, so the
+  // memo also tracks the theme.
+  const appearance = createMemo(() => (void props.theme, appearanceFrom(props.settings)), undefined, {
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
   // Current tokens WITHOUT subscribing to `appearance()` — so the imperative
@@ -749,15 +753,18 @@ export function ChartView(props: Props) {
   let controller: IndicatorController | null = null;
   /** Bumped once the chart + controller exist so the indicator effects run. */
   const [chartReady, setChartReady] = createSignal(0);
-  /** Studies legend rows (one per active indicator). */
-  const [indLegend, setIndLegend] = createSignal<IndicatorLegendRow[]>([]);
+  /** Studies legend rows (one per active indicator). A store reconciled by
+   *  row id: a live tick updates the values in place, so the rows (and their
+   *  hover buttons) are not recreated on every refresh. */
+  const [indLegendStore, setIndLegendStore] = createStore<{ rows: IndicatorLegendRow[] }>({ rows: [] });
+  const indLegend = () => indLegendStore.rows;
   /** Registry id of the study whose Settings dialog is open (null = closed). */
   const [settingsForId, setSettingsForId] = createSignal<string | null>(null);
   /** Tab the next Settings dialog opens on (report toolbar gear = Properties). */
   const [settingsTab, setSettingsTab] = createSignal<DialogTab | undefined>(undefined);
 
   function refreshIndicatorLegend(time?: number) {
-    setIndLegend([...(controller?.getLegend(time) ?? []), ...compareLegendRows(time)]);
+    setIndLegendStore("rows", reconcile([...(controller?.getLegend(time) ?? []), ...compareLegendRows(time)], { key: "id" }));
   }
   /** Compared-symbol Settings dialog (entry id; null = closed). */
   const [compareSettingsFor, setCompareSettingsFor] = createSignal<string | null>(null);
@@ -1210,10 +1217,10 @@ export function ChartView(props: Props) {
     const nodes: CtxNode[] = [];
     // No favorites row for studies that cannot be starred (compare/overlay).
     if (getIndicatorEntry(id)) {
-      const fav = isFavoriteIndicator(id);
+      const fav = isFavoriteIndicator(typeIdOf(id));
       nodes.push(
         { kind: "item", id: "favorite", label: fav ? "Remove this indicator from favorites" : "Add this indicator to favorites",
-          icon: CtxIcons.favorite, onSelect: () => toggleFavoriteIndicator(id) },
+          icon: CtxIcons.favorite, onSelect: () => toggleFavoriteIndicator(typeIdOf(id)) },
         { kind: "separator" },
       );
     }
@@ -4750,6 +4757,9 @@ export function ChartView(props: Props) {
         "min-height": 0,
         overflow: "hidden",
         cursor: props.armedTool ? "crosshair" : undefined,
+        // The legend plates are backed with THIS chart's background (a chart
+        // keeps custom colours when the app theme changes).
+        "--ot-chart-bg": appearance().bg,
       }}
       onContextMenu={openContextMenu}
       onMouseEnter={() => { refreshScaleOverlays(); refreshPaneBoxes(); }}
@@ -5060,7 +5070,7 @@ export function ChartView(props: Props) {
                   refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
                   if (isStrategyId(id())) applyStrategyMarkers();
                 }}
-                onSaveAsDefault={(next) => saveIndicatorDefault(id(), next)}
+                onSaveAsDefault={(next) => saveIndicatorDefault(typeIdOf(id()), next)}
                 onClose={() => {
                   setSettingsForId(null);
                   setSettingsTab(undefined);

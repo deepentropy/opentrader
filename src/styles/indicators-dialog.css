@@ -298,14 +298,9 @@
   background-color: var(--color-ot-blue-a900, #132042);
 }
 
-/* Registry-backed rows are clickable (click adds/removes the study). */
+/* Registry-backed rows are clickable (each click adds the study). */
 .indicators-row.is-addable {
   cursor: pointer;
-}
-
-/* An added study: the favorite-star slot becomes a green check. */
-.indicators-favorite.is-added {
-  color: var(--color-ot-green-500, #089981);
 }
 
 .indicators-cell {

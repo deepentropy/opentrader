@@ -54,17 +54,16 @@ export function toggleFavoriteIndicator(id: string): void {
   }
 }
 
-/** Live "Favorite indicators" dropdown. Rows are the favourited registry ids
- *  (check marks the ones already on the chart); with no favourites yet, one
- *  disabled hint row explains where stars live. */
-export function buildFavoriteIndicatorsMenu(activeIds: ReadonlySet<string>): HeaderMenuDef {
+/** Live "Favorite indicators" dropdown. Rows are the favourited registry ids;
+ *  a click adds one more instance, so no row is marked as on the chart. With
+ *  no favourites yet, one disabled hint row explains where stars live. */
+export function buildFavoriteIndicatorsMenu(): HeaderMenuDef {
   const favs = favoriteIndicators();
   const items =
     favs.length > 0
       ? favs.map((id) => ({
           id,
           label: getIndicatorEntry(id)?.name ?? id,
-          checked: activeIds.has(id),
           favorited: true,
         }))
       : [

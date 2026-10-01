@@ -5,8 +5,9 @@
  *
  * Layout (840×638): header, bordered search, a
  * sidebar (Personal / Built-In / Community), and a NAME · AUTHOR · BOOSTS list.
- * Registry-backed rows are clickable: clicking adds/removes the study on the
- * chart. Keyboard: ↑/↓ move highlight · Enter toggles · Esc closes.
+ * Registry-backed rows are clickable: each click adds one more instance of
+ * the study to the chart (rows of studies already on the chart look the
+ * same). Keyboard: ↑/↓ move highlight · Enter adds · Esc closes.
  */
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
@@ -29,11 +30,8 @@ import { Icon } from "../../components/Icon";
 
 type Props = {
   onClose: () => void;
-  /** Registry ids of indicators currently on the chart — drives the per-row
-   *  "added" check. */
-  activeIndicatorIds?: ReadonlySet<string>;
-  /** Add/remove an indicator (by registry id) on the chart. */
-  onToggleIndicator?: (indicatorId: string) => void;
+  /** Add an instance of an indicator (by registry id) to the chart. */
+  onAddIndicator?: (indicatorId: string) => void;
 };
 
 /** Render the FontIcon glyph for a sidebar item. */
@@ -163,7 +161,7 @@ export function IndicatorsDialog(props: Props) {
         setHighlightIdx((i) => Math.max(0, i - 1));
       } else if (e.key === "Enter") {
         const id = rows()[highlightIdx()]?.indicatorId;
-        if (id && props.onToggleIndicator) { e.preventDefault(); props.onToggleIndicator(id); }
+        if (id && props.onAddIndicator) { e.preventDefault(); props.onAddIndicator(id); }
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -287,47 +285,35 @@ export function IndicatorsDialog(props: Props) {
                         <div class="indicators-list" ref={listRef} role="listbox">
                           <For each={rows()}>
                             {(row, i) => {
-                              const addable = () => !!row.indicatorId && !!props.onToggleIndicator;
-                              const added = () => !!row.indicatorId && !!props.activeIndicatorIds?.has(row.indicatorId);
+                              const addable = () => !!row.indicatorId && !!props.onAddIndicator;
                               const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
                               return (
                                 <div
-                                  class={`indicators-row${i() === highlightIdx() ? " is-highlighted" : ""}${addable() ? " is-addable" : ""}${added() ? " is-added" : ""}`}
+                                  class={`indicators-row${i() === highlightIdx() ? " is-highlighted" : ""}${addable() ? " is-addable" : ""}`}
                                   role="option"
                                   aria-selected={i() === highlightIdx()}
                                   onMouseEnter={() => setHighlightIdx(i())}
-                                  onClick={addable() ? () => props.onToggleIndicator!(row.indicatorId!) : undefined}
+                                  onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
                                 >
                                   <div class="indicators-cell indicators-name-cell">
-                                    <Show
-                                      when={added()}
-                                      fallback={
-                                        <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
-                                          <span
-                                            class={`indicators-favorite${favorited() ? " is-active" : ""}`}
-                                            aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
-                                            role="button"
-                                            onClick={(e) => {
-                                              // Star toggles the favourite without
-                                              // adding the study.
-                                              if (!row.indicatorId) return;
-                                              e.stopPropagation();
-                                              toggleFavoriteIndicator(row.indicatorId);
-                                            }}
-                                          >
-                                            <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
-                                              <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
-                                            </svg>
-                                          </span>
-                                        </Tooltip>
-                                      }
-                                    >
-                                      <span class="indicators-favorite is-added" aria-label="Added" role="img">
-                                        <svg viewBox="0 0 18 18" width="16" height="16" fill="none" aria-hidden="true">
-                                          <path d="M3.5 9.5l3.5 3.5 7.5-8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                                    <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
+                                      <span
+                                        class={`indicators-favorite${favorited() ? " is-active" : ""}`}
+                                        aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
+                                        role="button"
+                                        onClick={(e) => {
+                                          // Star toggles the favourite without
+                                          // adding the study.
+                                          if (!row.indicatorId) return;
+                                          e.stopPropagation();
+                                          toggleFavoriteIndicator(row.indicatorId);
+                                        }}
+                                      >
+                                        <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
+                                          <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
                                         </svg>
                                       </span>
-                                    </Show>
+                                    </Tooltip>
                                     <span class="indicators-name">{row.name}</span>
                                     <Show when={row.scriptType === "strategy"}>
                                       <span class="indicators-script-type" aria-label="Strategy">

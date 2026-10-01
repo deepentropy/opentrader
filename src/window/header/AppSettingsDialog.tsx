@@ -117,6 +117,10 @@ type Props = {
    *  edits the same config the tab strip renders. */
   tabParts: TabTitlePartState[];
   onTabPartsChange: (parts: TabTitlePartState[]) => void;
+  /** Theme picker: App switches the app theme and decides what happens to
+   *  the chart theme. */
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
 };
 
 const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
@@ -164,21 +168,11 @@ function Select(props: { value: string; options: string[]; onChange: (v: string)
   );
 }
 
-/** Theme is applied as the <html> class the stylesheets key on (tokens.css:
- *  html.theme-dark / html.theme-light) and persisted under ot:theme. App's
- *  chart-canvas `theme` signal (App.tsx) is still a fixed "dark" — it has to
- *  seed from this key for the lightweight-charts canvases to follow. */
-const THEME_KEY = "ot:theme";
-
-function ThemePicker() {
-  const current = () => (document.documentElement.classList.contains("theme-light") ? "light" : "dark");
-  const [theme, setTheme] = createSignal<"dark" | "light">(current());
-  const apply = (t: "dark" | "light") => {
-    setTheme(t);
-    document.documentElement.classList.remove("theme-dark", "theme-light");
-    document.documentElement.classList.add(`theme-${t}`);
-    kv.setItem(THEME_KEY, t);
-  };
+/** The app theme is App's (App.tsx switchTheme): it sets the <html> class the
+ *  stylesheets key on, persists it and re-themes the charts. */
+function ThemePicker(props: { theme: "dark" | "light"; onChange: (t: "dark" | "light") => void }) {
+  const theme = () => props.theme;
+  const apply = (t: "dark" | "light") => { if (t !== props.theme) props.onChange(t); };
   return (
     <div class="app-settings-theme">
       <For each={["light", "dark"] as const}>
@@ -196,14 +190,14 @@ function ThemePicker() {
   );
 }
 
-function GeneralTab() {
+function GeneralTab(props: { theme: "dark" | "light"; onThemeChange: (t: "dark" | "light") => void }) {
   return (
     <>
       <Section label="CREDENTIALS AND CROSSHAIR">
         <Checkbox label="Auto-fill broker credentials" checked={settings.autofillCredentials} onChange={() => setSettings("autofillCredentials", !settings.autofillCredentials)} />
         <Checkbox label="Sync crosshair across windows" checked={settings.crosshairSync} onChange={() => setSettings("crosshairSync", !settings.crosshairSync)} />
       </Section>
-      <Section label="THEME"><ThemePicker /></Section>
+      <Section label="THEME"><ThemePicker theme={props.theme} onChange={props.onThemeChange} /></Section>
       <Section label="DOWNLOADS">
         <div class="app-settings-path-row">
           <a class={`app-settings-path${settings.askDownloadPath ? " disabled" : ""}`}>C:\\Users\\trader\\Downloads</a>
@@ -621,7 +615,7 @@ export function AppSettingsDialog(props: Props) {
       case "service": return <ServiceTab />;
       case "network": return <NetworkTab />;
       case "about": return <AboutTab />;
-      default: return <GeneralTab />;
+      default: return <GeneralTab theme={props.theme} onThemeChange={props.onThemeChange} />;
     }
   };
 

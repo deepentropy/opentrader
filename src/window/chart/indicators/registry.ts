@@ -9,12 +9,15 @@ import { indicatorRegistry, type IndicatorRegistryEntry } from 'lightweight-char
 import { getUserIndicatorEntry, isUserIndicatorId } from './user-scripts';
 import { getStrategyEntry, isStrategyId } from './strategy-entries';
 import { VOLUME_ENTRY } from './volume';
+import { typeIdOf } from './study-id';
 
 const byId = new Map<string, IndicatorRegistryEntry>(indicatorRegistry.map((e) => [e.id, e]));
 // Local built-ins the library doesn't ship (the basic Volume study).
 byId.set(VOLUME_ENTRY.id, VOLUME_ENTRY);
 
-export function getIndicatorEntry(id: string): IndicatorRegistryEntry | undefined {
+export function getIndicatorEntry(studyId: string): IndicatorRegistryEntry | undefined {
+  // A study instance ("rsi#2") resolves to its type's entry.
+  const id = typeIdOf(studyId);
   // `user:<scriptId>` — OakScript indicators written in the editor panel.
   if (isUserIndicatorId(id)) return getUserIndicatorEntry(id);
   // `strategy:<key>` — backtester strategy ports (Strategy Tester).
