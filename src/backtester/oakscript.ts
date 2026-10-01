@@ -167,11 +167,8 @@ export class BrokerEngine implements StrategyEngine {
 
   get(variable: StrategyVariable): number | string | undefined {
     const b = this.broker;
-    const closed = b.closedTrades;
-    const wins = closed.filter((t) => t.profit > 0);
-    const losses = closed.filter((t) => t.profit < 0);
-    const sum = (xs: Trade[], f: (t: Trade) => number) => xs.reduce((s, t) => s + f(t), 0);
-    const avg = (xs: Trade[], f: (t: Trade) => number) => (xs.length ? sum(xs, f) / xs.length : NaN);
+    const { all, win, loss } = b.closedStats;
+    const avg = (sum: number, count: number) => (count ? sum / count : NaN);
     const capital = this.properties.initialCapital;
     switch (variable) {
       case 'position_size':
@@ -194,35 +191,35 @@ export class BrokerEngine implements StrategyEngine {
       case 'openprofit_percent':
         return this.bars.length ? (b.openProfit / (capital + b.netProfit)) * 100 : 0;
       case 'grossprofit':
-        return sum(wins, (t) => t.profit);
+        return win.profit;
       case 'grossprofit_percent':
-        return (sum(wins, (t) => t.profit) / capital) * 100;
+        return (win.profit / capital) * 100;
       case 'grossloss':
-        return -sum(losses, (t) => t.profit);
+        return -loss.profit;
       case 'grossloss_percent':
-        return (-sum(losses, (t) => t.profit) / capital) * 100;
+        return (-loss.profit / capital) * 100;
       case 'opentrades':
         return b.openTradesCount;
       case 'closedtrades':
-        return closed.length;
+        return all.count;
       case 'wintrades':
-        return wins.length;
+        return win.count;
       case 'losstrades':
-        return losses.length;
+        return loss.count;
       case 'eventrades':
-        return closed.length - wins.length - losses.length;
+        return all.count - win.count - loss.count;
       case 'avg_trade':
-        return avg(closed, (t) => t.profit);
+        return avg(all.profit, all.count);
       case 'avg_trade_percent':
-        return avg(closed, (t) => t.profitPercent * 100);
+        return avg(all.percent, all.count);
       case 'avg_winning_trade':
-        return avg(wins, (t) => t.profit);
+        return avg(win.profit, win.count);
       case 'avg_winning_trade_percent':
-        return avg(wins, (t) => t.profitPercent * 100);
+        return avg(win.percent, win.count);
       case 'avg_losing_trade':
-        return -avg(losses, (t) => t.profit);
+        return -avg(loss.profit, loss.count);
       case 'avg_losing_trade_percent':
-        return -avg(losses, (t) => t.profitPercent * 100);
+        return -avg(loss.percent, loss.count);
       case 'max_contracts_held_all':
         return b.maxContractsHeld.all;
       case 'max_contracts_held_long':

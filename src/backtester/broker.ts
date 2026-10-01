@@ -272,6 +272,12 @@ export class Broker {
   /** Equity events for the max drawdown / run-up metrics (see EquityEvent). */
   readonly equityEvents: EquityEvent[] = [];
   maxContractsHeld = { all: 0, long: 0, short: 0 };
+  /** Running sums over closedTrades (profit, profitPercent) for all, winning (> 0) and losing (< 0) trades. */
+  readonly closedStats = {
+    all: { count: 0, profit: 0, percent: 0 },
+    win: { count: 0, profit: 0, percent: 0 },
+    loss: { count: 0, profit: 0, percent: 0 },
+  };
 
   constructor(
     private readonly bars: Bar[],
@@ -857,6 +863,12 @@ export class Broker {
     trade.cumProfit = this.netProfit;
     trade.profitPercentOfEquity = trade.profit / Math.abs(this.props.initialCapital + this.netProfit - trade.profit);
     this.closedTrades.push(trade);
+    const s = this.closedStats;
+    for (const g of trade.profit > 0 ? [s.all, s.win] : trade.profit < 0 ? [s.all, s.loss] : [s.all]) {
+      g.count++;
+      g.profit += trade.profit;
+      g.percent += trade.profitPercent * 100;
+    }
     t.entryCommission -= entryCm;
     t.qty -= qty;
     if (t.qty <= EPS) this.openTrades = this.openTrades.filter((x) => x !== t);
