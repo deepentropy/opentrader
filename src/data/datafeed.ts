@@ -514,8 +514,8 @@ export type LiveBar = {
 
 /** Daily-bar stamp of the trading day `timeSec` belongs to: local midnight
  *  of that day in the symbol's exchange time zone, the timestamp convention
- *  of the provider's daily bars (verified for Massive: daily aggs stamp
- *  04:00/05:00 UTC = 00:00 New York). The day is the one of the extended
+ *  of the provider's daily bars (verified on the current provider: US daily
+ *  bars stamp 04:00/05:00 UTC = 00:00 New York). The day is the one of the extended
  *  session in progress at `timeSec`, else of the last one that closed. */
 function dailyBarStamp(spec: SessionSpec, timeSec: number): number {
   const day = spec.currentOrPrevious(timeSec)?.day ?? localDay(spec.timeZone, timeSec);
