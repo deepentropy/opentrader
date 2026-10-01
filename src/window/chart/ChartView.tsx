@@ -3734,6 +3734,11 @@ export function ChartView(props: Props) {
     setDataForType(series, activeType, raw, currentTokens(), dataExtras());
       afterSeriesData();
     updateSessionBreaks();
+    // Recompute every active study against the freshly-loaded bars BEFORE
+    // framing: study series add their times to the time scale (with a
+    // transform type their real times sit between the synthetic ones), so
+    // the saved range is checked and the view set on the final axis.
+    controller?.renderAll();
     // Restore the user's last anchored view for this pane (persisted across tab
     // switches + reloads) when it still references loaded bars; otherwise fall
     // back to default framing. Read untracked so this effect re-runs only on new
@@ -3797,8 +3802,15 @@ export function ChartView(props: Props) {
       // mark paging exhausted — scrolling back reveals already-loaded bars with no
       // network round-trip. Second/minute (rawDaily empty) keep lazy scroll-back.
       const view = initialViewBars(props.interval ?? "1D");
+      // Transform types end the axis with their own last item, not at the
+      // source bar count.
+      let to = raw.length;
+      if (isTransformType(activeType)) {
+        const items = series.data();
+        const last = items.length ? chart.timeScale().timeToIndex(items[items.length - 1].time, true) : null;
+        if (last != null) to = (last as number) + 1;
+      }
       if (view !== null && raw.length > view) {
-        const to = raw.length;
         chart.timeScale().setVisibleLogicalRange({ from: to - view, to });
       } else {
         chart.timeScale().fitContent();
@@ -3830,8 +3842,6 @@ export function ChartView(props: Props) {
       void goToTime(t);
     }
     if (!crosshairActive) refreshLegend();
-    // Recompute every active study against the freshly-loaded bars.
-    controller?.renderAll();
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
     // Warm a read-ahead window now so the first scroll-back doesn't wait on the
     // network (idempotent — startPrefetch dedupes the same gen + beforeSec).
