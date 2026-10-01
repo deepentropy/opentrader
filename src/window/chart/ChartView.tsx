@@ -3482,7 +3482,8 @@ export function ChartView(props: Props) {
       style: strategyStyleOf(inputs),
       chartCurrency: defaults.currency,
       interval: props.interval ?? "1D",
-      timeZone: DEFAULT_SYMBOL.timezone,
+      // The engine runs in the charted symbol's exchange zone (chart context).
+      timeZone: cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? DEFAULT_SYMBOL.timezone,
     };
   }
   function applyStrategyMarkers() {

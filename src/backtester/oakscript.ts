@@ -32,6 +32,8 @@ import {
 } from 'oakscriptjs/script';
 import { Broker } from './broker';
 import { backtestReport } from './run';
+import { SessionSpec } from '../data/session/spec';
+import { localDay, localToUtc } from '../data/session/zone';
 import {
   DEFAULT_SYMBOL,
   type BacktestReport,
@@ -266,18 +268,24 @@ export interface OakScriptRunOptions {
   chart?: ChartContext;
 }
 
-const NY_TIME = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' });
-
 /**
- * The bars as a Pine script sees them: a daily, weekly or monthly bar is stamped at the session open (09:30 New York,
- * as the reference app's US equity bars), not at midnight as the datafeed stamps them. Other bars are unchanged.
- * Only the times the script reads change; the broker and the report keep the chart's bar times.
+ * The bars as a Pine script sees them: a daily, weekly or monthly bar is stamped at the open of its trading day's
+ * regular session in the symbol's exchange zone (US equities: 09:30 New York, as the reference app's bars), not at
+ * local midnight as the datafeed stamps them. Other bars (and bars not at local midnight) are unchanged. Only the
+ * times the script reads change; the broker and the report keep the chart's bar times.
  */
 export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] {
   if (!chart?.timeframe || !/^\d*[DWM]$/i.test(chart.timeframe)) return bars;
+  const tz = chart.timezone;
+  const regular = chart.regularSession ?? chart.session;
+  if (!tz || typeof regular !== 'string') return bars;
+  const spec = new SessionSpec(tz, regular);
+  if (spec.always) return bars;
   return bars.map((b) => {
-    const [h, m] = NY_TIME.format(new Date(b.time * 1000)).split(':').map(Number);
-    return (h % 24) * 60 + m === 0 ? { ...b, time: b.time + 9.5 * 3600 } : b;
+    const day = localDay(tz, b.time);
+    if (localToUtc(tz, day, 0) !== b.time) return b;
+    const open = spec.dayBounds(day)?.start;
+    return open === undefined || open === b.time ? b : { ...b, time: open };
   });
 }
 
@@ -307,10 +315,16 @@ export interface OakScriptRunResult {
   script: ScriptRunResult;
 }
 
+/** `{ timezone }` of a chart context, or nothing when it has none. */
+export function zoneOf(chart: ChartContext | undefined): Partial<SymbolInfo> {
+  return chart?.timezone ? { timezone: chart.timezone } : {};
+}
+
 /** Runs an OakScript strategy (a script body using oakscriptjs/script) on the OpenTrader broker. */
 export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScriptRunOptions = {}): OakScriptRunResult {
   const t0 = performance.now();
-  const symbol = { ...DEFAULT_SYMBOL, ...opts.symbol };
+  // The chart context carries the charted symbol's exchange zone.
+  const symbol = { ...DEFAULT_SYMBOL, ...zoneOf(opts.chart), ...opts.symbol };
   const chart: ChartContext = {
     timezone: symbol.timezone,
     ...opts.chart,
