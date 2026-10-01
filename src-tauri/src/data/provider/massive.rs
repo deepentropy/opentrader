@@ -76,8 +76,12 @@ impl ReferenceProvider for MassiveProvider {
     async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo> {
         massive_rest::fetch_ticker_info(&sym.ticker).await
     }
-    async fn symbol_session(&self, _sym: &SymbolRef) -> Result<SymbolSession> {
-        Ok(us_equity_session())
+    async fn symbol_session(&self, sym: &SymbolRef) -> Result<SymbolSession> {
+        let mut session = us_equity_session();
+        if sym.exchange == "OTC" {
+            session.variable_tick_size = OTC_TICKS.into();
+        }
+        Ok(session)
     }
     async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot> {
         massive_rest::fetch_ticker_snapshot(&sym.ticker).await
@@ -138,6 +142,10 @@ fn us_equity_session() -> SymbolSession {
             };
             SymbolSession {
                 timezone: "America/New_York".into(),
+                // 0.01, and 0.0001 under 1 (the reference app's US stock grid).
+                pricescale: 100,
+                minmov: 1,
+                variable_tick_size: "0.0001 1 0.01".into(),
                 session: "0930-1600".into(),
                 subsessions: vec![
                     corrected("regular", "Regular Trading Hours", "0930-1600", "0930-1300"),
@@ -151,6 +159,9 @@ fn us_equity_session() -> SymbolSession {
         })
         .clone()
 }
+
+/// Tick bands of OTC listings (the reference app's OTC:TCEHY grid).
+const OTC_TICKS: &str = "0.000001 0.0001 0.0001 1 0.01";
 
 /// Ticker used by the entitlement probes: listed long before any plan's
 /// history floor, so its first bar marks the plan floor.
@@ -303,6 +314,17 @@ mod tests {
         assert!(sub("regular").starts_with("0930-1300:"));
         assert!(sub("postmarket").starts_with("1300-1700:"));
         assert!(sub("extended").starts_with("0400-1700:"));
+    }
+
+    /// Price grid as the reference app's US stocks (AAPL, IBM: 100 / 1,
+    /// "0.0001 1 0.01") and OTC listings (TCEHY), resolved 01/10/2026.
+    #[test]
+    fn us_equity_price_grid_matches_reference() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let aapl = rt.block_on(MassiveProvider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL"))).unwrap();
+        assert_eq!((aapl.pricescale, aapl.minmov, aapl.variable_tick_size.as_str()), (100, 1, "0.0001 1 0.01"));
+        let otc = rt.block_on(MassiveProvider.symbol_session(&SymbolRef::parse("OTC:TCEHY"))).unwrap();
+        assert_eq!(otc.variable_tick_size, "0.000001 0.0001 0.0001 1 0.01");
     }
 
     /// Live entitlement probe through the gateway (token compiled in by

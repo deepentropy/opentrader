@@ -146,6 +146,9 @@ mod tests {
             subsessions: vec![Subsession::new("regular", "Regular", spec)],
             holidays: holidays.into(),
             corrections: corrections.into(),
+            pricescale: 100,
+            minmov: 1,
+            variable_tick_size: String::new(),
         }
     }
 

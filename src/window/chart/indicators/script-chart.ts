@@ -21,6 +21,7 @@ export function scriptChartContext(symbol: string | undefined, interval: string 
     ctx.timezone = sessions.timeZone;
     ctx.session = extended ? sessions.extendedSpec : sessions.regularSpec;
     ctx.regularSession = sessions.regularSpec;
+    ctx.mintick = sessions.mintick;
   }
   return ctx;
 }

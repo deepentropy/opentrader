@@ -4,7 +4,7 @@
  * supersedes older requests.
  */
 import { StrategyRuntimeError } from './broker';
-import { runOakScriptStrategy, zoneOf } from './oakscript';
+import { runOakScriptStrategy, symbolOf } from './oakscript';
 import { runBacktest } from './run';
 import { SCRIPT_STRATEGIES } from './scripts';
 import { STRATEGIES } from './strategies';
@@ -13,8 +13,8 @@ import type { BacktestOutput, BacktestRequest, BacktestResponse } from './worker
 function runStrategy(req: BacktestRequest): BacktestOutput | string {
   const def = STRATEGIES.find((s) => s.key === req.strategy);
   if (def) {
-    // syminfo.timezone of the port = the charted symbol's exchange zone.
-    const symbol = { ...zoneOf(req.chart), ...req.symbol };
+    // syminfo.timezone / mintick of the port = the charted symbol's.
+    const symbol = { ...symbolOf(req.chart), ...req.symbol };
     return { report: runBacktest(req.bars, def, { inputs: req.inputs, properties: req.properties, symbol }) };
   }
   const script = SCRIPT_STRATEGIES.find((s) => s.key === req.strategy);

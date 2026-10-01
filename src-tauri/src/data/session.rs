@@ -7,6 +7,9 @@
  * session-anchored bars, countdown, pre/post tint and market status all read
  * the session of the symbol on screen.
  *
+ * The same reply carries the symbol's price grid (tick size), also needed
+ * before the first bars (script `syminfo.mintick`, backtest fill rounding).
+ *
  * Spec strings use the common datafeed session grammar, parsed on the frontend
  * (src/data/session/spec.ts documents it): "0930-1600" (Mon-Fri),
  * "0930-1600:23456" (explicit days, 1 = Sunday), "1700-1600" (overnight,
@@ -14,8 +17,8 @@
  */
 use serde::{Deserialize, Serialize};
 
-/// Sessions of a symbol. `session` is the regular session; `subsessions`
-/// names the parts of the trading day the provider serves.
+/// Sessions and price grid of a symbol. `session` is the regular session;
+/// `subsessions` names the parts of the trading day the provider serves.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolSession {
@@ -32,6 +35,15 @@ pub struct SymbolSession {
     /// Days with other hours for the regular session:
     /// "spec:YYYYMMDD,…;dayoff:YYYYMMDD,…" (empty = none).
     pub corrections: String,
+    /// Price grid at the current price: one tick = `minmov / pricescale`
+    /// (100 / 1 = 0.01; NSE stocks at 1,000-5,000 INR: 10 / 1 = 0.1).
+    pub pricescale: u32,
+    pub minmov: u32,
+    /// Tick by price band, "t0 b1 t1 b2 t2 …": tick t0 below price b1, t1
+    /// below b2, …, the last tick above the last bound ("0.0001 1 0.01": US
+    /// stocks under 1 trade in 0.0001). Empty = the `minmov / pricescale`
+    /// tick at every price.
+    pub variable_tick_size: String,
 }
 
 /// One named part of the trading day.

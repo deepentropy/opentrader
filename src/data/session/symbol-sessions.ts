@@ -37,6 +37,12 @@ export class SymbolSessions {
   readonly regularSpec: string;
   /** Extended session spec string (the regular one when there is none). */
   readonly extendedSpec: string;
+  /** Tick at the current price (minmov / pricescale): script
+   *  `syminfo.mintick`, backtest fill rounding. */
+  readonly mintick: number;
+  /** Tick bands [upper price bound, tick] ascending, the last bound
+   *  Infinity; empty when the tick does not depend on the price. */
+  readonly tickBands: ReadonlyArray<readonly [number, number]>;
 
   constructor(info: SymbolSession) {
     const tz = info.timezone;
@@ -53,6 +59,17 @@ export class SymbolSessions {
     this.premarket = pre ? spec(pre.session, pre.corrections) : null;
     this.postmarket = post ? spec(post.session, post.corrections) : null;
     this.hasExtendedHours = ext !== undefined && ext.session !== info.session;
+    this.mintick = info.minmov / info.pricescale;
+    const v = info.variableTickSize.trim().split(/\s+/).filter(Boolean).map(Number);
+    const bands: [number, number][] = [];
+    for (let i = 0; i < v.length; i += 2) bands.push([i + 1 < v.length ? v[i + 1] : Infinity, v[i]]);
+    this.tickBands = bands;
+  }
+
+  /** Tick at `price` (the band's tick, else the current-price tick). */
+  tickAt(price: number): number {
+    for (const [bound, tick] of this.tickBands) if (Math.abs(price) < bound) return tick;
+    return this.mintick;
   }
 
   /** Schedule of the bottom-bar session choice. */

@@ -315,16 +315,19 @@ export interface OakScriptRunResult {
   script: ScriptRunResult;
 }
 
-/** `{ timezone }` of a chart context, or nothing when it has none. */
-export function zoneOf(chart: ChartContext | undefined): Partial<SymbolInfo> {
-  return chart?.timezone ? { timezone: chart.timezone } : {};
+/** The symbol fields a chart context carries (`timezone`, `mintick`). */
+export function symbolOf(chart: ChartContext | undefined): Partial<SymbolInfo> {
+  const out: Partial<SymbolInfo> = {};
+  if (chart?.timezone) out.timezone = chart.timezone;
+  if (chart?.mintick) out.mintick = chart.mintick;
+  return out;
 }
 
 /** Runs an OakScript strategy (a script body using oakscriptjs/script) on the OpenTrader broker. */
 export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScriptRunOptions = {}): OakScriptRunResult {
   const t0 = performance.now();
-  // The chart context carries the charted symbol's exchange zone.
-  const symbol = { ...DEFAULT_SYMBOL, ...zoneOf(opts.chart), ...opts.symbol };
+  // The chart context carries the charted symbol's exchange zone and tick.
+  const symbol = { ...DEFAULT_SYMBOL, ...symbolOf(opts.chart), ...opts.symbol };
   const chart: ChartContext = {
     timezone: symbol.timezone,
     ...opts.chart,
