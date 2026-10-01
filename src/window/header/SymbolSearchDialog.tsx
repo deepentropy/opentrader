@@ -31,6 +31,12 @@ import type { ComparePlacement } from "../shell/tabs";
  *  query change (already independent state) and closing/reopening the modal or
  *  an app reload. Stores the Massive `type` code; absent = "All types" (null). */
 const TYPE_FILTER_KEY = "ot:symbol-search:type-filter";
+/** The symbol search opens on the category tab used last (All at first). */
+const CATEGORY_KEY = "ot:symbol-search:category";
+function loadCategory(): SymbolCategoryId {
+  const raw = kv.getItem(CATEGORY_KEY);
+  return raw && CATEGORIES.some((c) => c.id === raw) ? (raw as SymbolCategoryId) : "all";
+}
 
 /** Read the persisted Type filter, ignoring anything not in the current catalog. */
 function loadTypeCode(): string | null {
@@ -131,7 +137,11 @@ function renderHighlighted(text: string, range: [number, number] | null): JSX.El
 }
 
 export function SymbolSearchDialog(props: Props) {
-  const [category, setCategory] = createSignal<SymbolCategoryId>(props.compare ? "all" : "stocks");
+  const [category, setCategoryRaw] = createSignal<SymbolCategoryId>(props.compare ? "all" : props.watchlist ? "stocks" : loadCategory());
+  const setCategory = (c: SymbolCategoryId) => {
+    setCategoryRaw(c);
+    if (!props.compare && !props.watchlist) kv.setItem(CATEGORY_KEY, c);
+  };
   const initialQuery = (() => {
     // A typed character (seedQuery) takes precedence over the active ticker —
     // the user started typing a new lookup, so don't pre-fill the old symbol.
@@ -259,7 +269,8 @@ export function SymbolSearchDialog(props: Props) {
   createEffect(() => {
     const i = highlightIdx();
     const el = listEl?.children[i] as HTMLElement | undefined;
-    el?.scrollIntoView({ block: "nearest" });
+    // Rows of the main list are display: contents (no box): scroll a cell.
+    ((el?.firstElementChild as HTMLElement | null) ?? el)?.scrollIntoView({ block: "nearest" });
   });
 
   // Watchlist mode: a row just added flashes for 500 ms.
@@ -495,8 +506,8 @@ export function SymbolSearchDialog(props: Props) {
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 28 28"
-                  width="20"
-                  height="20"
+                  width="28"
+                  height="28"
                   fill="none"
                 >
                   <path
@@ -576,7 +587,7 @@ export function SymbolSearchDialog(props: Props) {
               provider's reference search has no sector filter, so they are
               omitted rather than rendered dead. Only the working Type chip
               (provider `type` filter) remains. */}
-          <Show when={!props.compare && (category() === "stocks" || category() === "all")}>
+          <Show when={!props.compare && category() === "stocks"}>
             <div class="symbol-search-filters">
               {/* Type — functional dropdown (Massive `type` filter). */}
               <div class="symbol-search-filter-wrap" ref={typeWrap}>
