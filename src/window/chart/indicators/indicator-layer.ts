@@ -408,6 +408,11 @@ export class IndicatorLayer {
     }
   }
 
+  /** First series this layer drew (its plots' price scale), or null. */
+  firstSeries(): ISeriesApi<'Line' | 'Histogram' | 'Area' | 'Baseline'> | null {
+    return this.series[0] ?? null;
+  }
+
   /** The study's legend title (short name preferred), e.g. "RSI", "SMA". */
   get title(): string {
     if (!this.entry) return '';

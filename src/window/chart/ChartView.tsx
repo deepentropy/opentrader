@@ -129,6 +129,7 @@ import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../data/indicat
 import type { Bar } from "oakscriptjs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import { makeCoords, type Coords } from "../drawings/coords";
+import { studyPaneCoords, type DrawingPane } from "../drawings/pane-coords";
 import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
 import type { CursorMode } from "../../data/drawing-toolbar";
@@ -1454,12 +1455,39 @@ export function ChartView(props: Props) {
     for (const b of paneBoxes()) if (y >= b.top && y < b.top + b.height) return b.index;
     return null;
   }
+  // Panes the drawings live in (Drawing.owner): pane 0 = the main series, a
+  // study pane = its first study, with that pane's price scale. Rebuilt when
+  // the pane boxes, the studies or their panes change.
+  const [paneEpoch, setPaneEpoch] = createSignal(0);
+  const drawingPanes = createMemo<DrawingPane[]>(() => {
+    const main = coords();
+    const boxes = paneBoxes();
+    void paneEpoch();
+    if (!main) return [];
+    const out: DrawingPane[] = [];
+    for (const b of boxes) {
+      if (b.index === 0) {
+        out.push({ key: null, top: b.top, height: b.height, coords: main });
+        continue;
+      }
+      const owner = untrack(() => controller?.ownerOfPane(b.index) ?? null);
+      if (!owner) continue;
+      out.push({
+        key: owner,
+        top: b.top,
+        height: b.height,
+        coords: studyPaneCoords(main, () => controller?.studySeries(owner) ?? null, (sec) => controller?.paneValuesAt(owner, sec) ?? []),
+      });
+    }
+    return out;
+  });
   function movePane(i: number, dir: -1 | 1) {
     const j = i + dir;
     if (!controller || i < 1 || j < 1 || j >= (chart?.panes().length ?? 0)) return;
     const a = controller.idsInPane(i);
     const b = controller.idsInPane(j);
     controller.swapPanes(i, j);
+    setPaneEpoch((n) => n + 1);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
     // Persist: stacked panes are claimed in list order, so swap the two
     // panes' studies in the pane's indicator list.
@@ -3883,6 +3911,9 @@ export function ChartView(props: Props) {
     // with the user's saved values (sync → add reads the seeded maps).
     if (props.indicatorSettings) controller?.seedSettings(props.indicatorSettings);
     controller?.sync(ids);
+    // Study panes added / removed: the drawing panes follow.
+    setPaneEpoch((n) => n + 1);
+    queueMicrotask(refreshPaneBoxes);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
   });
 
@@ -4484,6 +4515,7 @@ export function ChartView(props: Props) {
         interval={props.interval}
         symbol={splitSymbol(props.symbol ?? "").ticker}
         coords={coords()}
+        panes={drawingPanes()}
         coordEpoch={coordEpoch()}
         drawings={props.drawings ?? []}
         armedTool={props.armedTool ?? null}

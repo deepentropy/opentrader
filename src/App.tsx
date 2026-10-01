@@ -567,26 +567,15 @@ function App() {
 
   // Active indicators on the chart — an ordered list of library registry ids
   // (see window/chart/indicators/registry.ts). Per-PANE now (each chart cell
-  // carries its own studies). Setter accepts a value or an updater, mirroring
-  // the old createSignal API used by toggleIndicator / clear-indicators, and
-  // targets the focused pane.
+  // carries its own studies). Removals go through removeStudies (one undo
+  // step with the drawings the studies own).
   const indicators = () => activePaneState().indicators;
-  const setIndicators = (v: string[] | ((cur: string[]) => string[])) => {
-    const next = typeof v === "function" ? v(activePaneState().indicators) : v;
-    patchActivePane({ indicators: next });
-  };
   // The per-pane callbacks below name their tab: every opened tab keeps its
   // grid mounted, so a pane writes into its own tab, shown or not.
   const tabOf = (tabId: string) => tabs().find((t) => t.id === tabId);
   /** Remove a study from a SPECIFIC pane (the per-pane legend's trash). */
   function removeIndicatorFromPane(tabId: string, paneIndex: number, id: string) {
-    const tab = tabOf(tabId);
-    if (!tab) return;
-    patchTab(tabId, {
-      panes: tab.panes.map((p, i) =>
-        i === paneIndex ? { ...p, indicators: p.indicators.filter((x) => x !== id) } : p,
-      ),
-    });
+    removeStudies(tabId, paneIndex, [id]);
   }
   /** Reorder a SPECIFIC pane's studies (pane controls: move pane up / down —
    *  stacked panes are allocated in list order). */
@@ -676,6 +665,7 @@ function App() {
   // a sliding 800ms window, so one gesture = one undo step. The stack is not
   // persisted with the layout (session-only).
   type DrawingUndoEntry = {
+    kind?: undefined;
     key: string;
     before: Drawing[];
     after: Drawing[];
@@ -683,9 +673,25 @@ function App() {
     at: number;
     coalesceId?: string;
   };
+  /** Studies removed from a chart, with the drawings they owned (removed with
+   *  them): one undo step brings both back, settings included. Only these
+   *  studies are put back / removed again (a study added since is kept). */
+  type StudyUndoEntry = {
+    kind: "study";
+    tabId: string;
+    paneIndex: number;
+    /** Removed study ids and their index in the list before the removal. */
+    ids: string[];
+    positions: number[];
+    settings: NonNullable<PaneChart["indicatorSettings"]>;
+    slices: { key: string; before: Drawing[]; after: Drawing[] }[];
+    label: string;
+    at: number;
+  };
+  type UndoEntry = DrawingUndoEntry | StudyUndoEntry;
   const UNDO_CAP = 100;
-  const [undoStack, setUndoStack] = createSignal<DrawingUndoEntry[]>([]);
-  const [redoStack, setRedoStack] = createSignal<DrawingUndoEntry[]>([]);
+  const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
+  const [redoStack, setRedoStack] = createSignal<UndoEntry[]>([]);
   const canUndoDrawing = () => undoStack().length > 0;
   const canRedoDrawing = () => redoStack().length > 0;
   const undoDrawingLabel = () => {
@@ -715,6 +721,7 @@ function App() {
     if (
       meta.coalesceId &&
       last &&
+      !last.kind &&
       last.coalesceId === meta.coalesceId &&
       last.key === key &&
       lastEntryEpoch === gestureEpoch &&
@@ -737,13 +744,22 @@ function App() {
     saveDrawings(key, list);
     setSelectedDrawingIds((cur) => cur.filter((id) => list.some((d) => d.id === id)));
   }
+  /** Apply one side of an undo entry. */
+  function applyUndoEntry(e: UndoEntry, side: "before" | "after") {
+    if (e.kind === "study") {
+      setPaneStudies(e, side === "before");
+      for (const sl of e.slices) restoreSlice(sl.key, sl[side]);
+      return;
+    }
+    restoreSlice(e.key, e[side]);
+  }
   function undoDrawing() {
     const stack = undoStack();
     const e = stack[stack.length - 1];
     if (!e) return;
     setUndoStack(stack.slice(0, -1));
     setRedoStack([...redoStack(), e]);
-    restoreSlice(e.key, e.before);
+    applyUndoEntry(e, "before");
   }
   function redoDrawing() {
     const stack = redoStack();
@@ -751,7 +767,48 @@ function App() {
     if (!e) return;
     setRedoStack(stack.slice(0, -1));
     setUndoStack([...undoStack(), e]);
-    restoreSlice(e.key, e.after);
+    applyUndoEntry(e, "after");
+  }
+  /** Put the entry's studies back (at their old positions, with their
+   *  settings) or remove them again. */
+  function setPaneStudies(e: StudyUndoEntry, restore: boolean) {
+    const tab = tabOf(e.tabId);
+    const pane = tab?.panes[e.paneIndex];
+    if (!tab || !pane) return;
+    let indicators = pane.indicators.filter((x) => !e.ids.includes(x));
+    let indicatorSettings = pane.indicatorSettings;
+    if (restore) {
+      indicators = indicators.slice();
+      e.ids.forEach((id, k) => indicators.splice(Math.min(e.positions[k], indicators.length), 0, id));
+      indicatorSettings = { ...pane.indicatorSettings, ...e.settings };
+    }
+    patchTab(e.tabId, { panes: tab.panes.map((p, i) => (i === e.paneIndex ? { ...p, indicators, indicatorSettings } : p)) });
+  }
+  /** Remove studies from a chart as one undo step. The drawings they own on
+   *  the chart's current symbol go with them (a drawing lives in its owner's
+   *  pane); undo restores the studies, their settings and the drawings. */
+  function removeStudies(tabId: string, paneIndex: number, ids: string[]) {
+    const pane = tabOf(tabId)?.panes[paneIndex];
+    if (!pane) return;
+    // List order, so re-inserting at the old indexes rebuilds the same order.
+    const gone = pane.indicators.filter((id) => ids.includes(id));
+    if (gone.length === 0) return;
+    const positions = gone.map((id) => pane.indicators.indexOf(id));
+    const settings: StudyUndoEntry["settings"] = {};
+    for (const id of gone) {
+      const st = pane.indicatorSettings?.[id];
+      if (st) settings[id] = st;
+    }
+    const key = drawingKeyFor(pane, tabId);
+    const list = drawingsFor(key);
+    const kept = list.filter((d) => !d.owner || !gone.includes(d.owner));
+    const slices = kept.length !== list.length ? [{ key, before: list, after: kept }] : [];
+    const name = gone.length === 1 ? getIndicatorEntry(gone[0])?.name ?? gone[0] : "indicators";
+    const entry: StudyUndoEntry = { kind: "study", tabId, paneIndex, ids: gone, positions, settings, slices, label: `remove ${name}`, at: Date.now() };
+    applyUndoEntry(entry, "after");
+    const stack = undoStack();
+    setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
+    if (redoStack().length) setRedoStack([]);
   }
 
   /** Replace a scope key's drawings + persist. The per-pane mutators target the
@@ -990,7 +1047,8 @@ function App() {
   }
   /** Remove-objects dropdown actions. Indicators live on the active pane. */
   function removeAllIndicators() {
-    setIndicators([]);
+    const tab = activeTab();
+    removeStudies(tab.id, tab.activePane, activePaneState().indicators);
   }
   function removeAllObjects() {
     removeAllDrawings();
@@ -1038,7 +1096,8 @@ function App() {
   function toggleIndicator(id: string) {
     const pane = activePaneState();
     if (pane.indicators.includes(id)) {
-      setIndicators((cur) => cur.filter((x) => x !== id));
+      const tab = activeTab();
+      removeStudies(tab.id, tab.activePane, [id]);
       return;
     }
     // A newly added study starts with the user's saved default ("Save as
@@ -1796,7 +1855,7 @@ function App() {
     };
     // Chart ctx menu → Chart template → "Save as…" (indicator-template name dialog).
     const onSaveTemplate = () => setTemplateNameDialogOpen(true);
-    const onClearIndicators = () => setIndicators([]);
+    const onClearIndicators = () => removeAllIndicators();
     const onOpenPanel = (e: Event) => {
       const id = (e as CustomEvent<{ id?: string }>).detail?.id;
       if (id) setActiveRailTab(id);

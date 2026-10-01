@@ -11,7 +11,7 @@
  * studies (RSI, MACD, …) each get their own stacked pane below, allocated here
  * and freed when the study is removed.
  */
-import type { IChartApi } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, SeriesType } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
@@ -108,6 +108,23 @@ export class IndicatorController {
       if (this.instances.has(id)) continue;
       this.add(id);
     }
+    this.orderPanes(ids);
+  }
+
+  /** Stacked panes in list order (the order a fresh load gives): a study
+   *  put back in the middle of the list (undo of a removal) opens at the
+   *  bottom, then moves up to its place. Panes not drawn yet are left. */
+  private orderPanes(ids: string[]): void {
+    const stacked = ids.filter((id) => {
+      const inst = this.instances.get(id);
+      return !!inst && !inst.overlay;
+    });
+    const n = this.chart.panes().length;
+    stacked.forEach((id, k) => {
+      const want = k + 1;
+      const inst = this.instances.get(id)!;
+      if (inst.paneIndex !== want && inst.paneIndex < n && want < n) this.swapPanes(inst.paneIndex, want);
+    });
   }
 
   /** Toggle the studies' last-value axis labels (Settings → Scales →
@@ -260,6 +277,41 @@ export class IndicatorController {
     return out;
   }
 
+  /** Owner of chart pane `paneIndex` (>= 1) for drawings: the first study
+   *  (add order) with a series in that pane; null when none. Read from the
+   *  chart, not the stored pane index. */
+  ownerOfPane(paneIndex: number): string | null {
+    const pane = this.chart.panes()[paneIndex];
+    if (!pane) return null;
+    const inPane = new Set<unknown>(pane.getSeries());
+    for (const [id, inst] of this.instances) {
+      const s = inst.layer.firstSeries();
+      if (!inst.overlay && s && inPane.has(s)) return id;
+    }
+    return null;
+  }
+
+  /** The series a study's drawings are mapped with (its first plot), or
+   *  null. A redraw replaces the series: read it at use time. */
+  studySeries(id: string): ISeriesApi<SeriesType> | null {
+    return this.instances.get(id)?.layer.firstSeries() ?? null;
+  }
+
+  /** Plot values at `time` of the shown studies in the pane of study `id`
+   *  (the drawing magnet's "Snap to indicator" in an indicator pane). */
+  paneValuesAt(id: string, time?: number): number[] {
+    const s = this.studySeries(id);
+    if (!s) return [];
+    const inPane = new Set<unknown>(s.getPane().getSeries());
+    const out: number[] = [];
+    for (const [sid, inst] of this.instances) {
+      const fs = inst.layer.firstSeries();
+      if (inst.overlay || this.hidden.has(sid) || !fs || !inPane.has(fs)) continue;
+      for (const p of inst.layer.legendPlots(time)) out.push(p.value);
+    }
+    return out;
+  }
+
   /** Studies drawn in stacked pane `paneIndex` (>= 1). */
   idsInPane(paneIndex: number): string[] {
     const out: string[] = [];
@@ -318,11 +370,23 @@ export class IndicatorController {
   private remove(id: string): void {
     const inst = this.instances.get(id);
     if (!inst) return;
+    const panesBefore = this.chart.panes().length;
     inst.layer.clear();
     this.instances.delete(id);
     if (!inst.overlay) {
       this.usedPanes.delete(inst.paneIndex);
       this.removeEmptyPanes();
+      // Its pane is gone: the panes below move up one index. Renumber the
+      // studies there, else their next redraw re-creates the old index and
+      // leaves an empty pane.
+      if (this.chart.panes().length < panesBefore) {
+        for (const other of this.instances.values()) {
+          if (other.overlay || other.paneIndex <= inst.paneIndex) continue;
+          other.paneIndex -= 1;
+          other.layer.setPaneIndex(other.paneIndex);
+        }
+        this.usedPanes = new Set([...this.instances.values()].filter((o) => !o.overlay).map((o) => o.paneIndex));
+      }
     }
   }
 

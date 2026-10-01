@@ -25,6 +25,7 @@
 import { createContext, createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, useContext } from "solid-js";
 import type { IPriceLine } from "lightweight-charts";
 import type { Coords } from "./coords";
+import { offsetCoords, type DrawingPane } from "./pane-coords";
 import { defaultStyleFor, findOverlaySpec } from "lightweight-charts-drawing/core/specs";
 import { isVisibleOnInterval, type DataPoint, type Drawing, type DrawingKind } from "lightweight-charts-drawing/core/types";
 import {
@@ -74,7 +75,11 @@ import type { CursorMode } from "../../data/drawing-toolbar";
 import { hintState, lineToolHint, PATH_HINT, POLYLINE_HINT, setLineToolHint } from "../../data/hints";
 
 type Props = {
+  /** Main series pane coords. */
   coords: Coords | null;
+  /** Chart panes the drawings live in (Drawing.owner). Absent = one pane,
+   *  the main series, over the whole overlay. */
+  panes?: DrawingPane[];
   /** Bumped on time-scale changes; the overlay re-renders to re-project. */
   coordEpoch: number;
   drawings: Drawing[];
@@ -198,6 +203,8 @@ export function DrawingsOverlay(props: Props) {
     points: DataPoint[];
     pos: Pt;
     value: string;
+    /** Pane of a create-mode placement (Frame key). */
+    frameKey?: string | null;
   } | null>(null);
   /** Settings dialog open for the drawing with this id. */
   const [settingsId, setSettingsId] = createSignal<string | null>(null);
@@ -244,9 +251,9 @@ export function DrawingsOverlay(props: Props) {
   /** "Anchor drawing" toggle (core interact/anchor: text, pin, table). */
   function toggleAnchored(id: string) {
     const d = props.drawings.find((x) => x.id === id);
-    const c = props.coords;
-    if (!d || !c) return;
-    const next = toggleAnchoredDrawing(d, c, paneDims());
+    const f = d ? frameOf(d) : null;
+    if (!d || !f) return;
+    const next = toggleAnchoredDrawing(d, f.coords, f.dims);
     if (next) props.onUpdate(next);
   }
 
@@ -261,15 +268,15 @@ export function DrawingsOverlay(props: Props) {
     if (!u?.editing || !u.cell) return null;
     void props.coordEpoch;
     void size();
-    const c = props.coords;
     const d = props.drawings.find((x) => x.id === u.id);
-    if (!c || !d || d.kind !== "table" || notShown(d)) return null;
-    const p = screenPoints(c, d, paneDims())?.[0];
+    const f = d ? frameOf(d) : null;
+    if (!f || !d || d.kind !== "table" || notShown(d)) return null;
+    const p = screenPoints(f.coords, d, f.dims)?.[0];
     if (!p) return null;
     const l = tableLayout(d, p);
     const [r, col] = u.cell;
     if (r >= l.ys.length - 1 || col >= l.xs.length - 1) return null;
-    return { d, l, r, col };
+    return { d, l, r, col, top: f.top };
   });
 
   // ── Image ─────────────────────────────────────────────────────────────
@@ -281,9 +288,10 @@ export function DrawingsOverlay(props: Props) {
     if (props.armedTool === "image" && props.active !== false) setImageDialog(true);
   });
   function placeImage(r: { name: string; width: number; height: number; transparency: number }) {
-    const c = props.coords;
-    if (!c) return;
-    const { w, h } = paneDims();
+    const f = mainFrame();
+    if (!f) return;
+    const c = f.coords;
+    const { w, h } = f.dims;
     const dp = unproject(c, { x: w / 2, y: h / 2 });
     if (!dp) return;
     const id = props.onPlace({
@@ -486,14 +494,14 @@ export function DrawingsOverlay(props: Props) {
     if (!root) return;
     const onMovePt = (e: PointerEvent) => {
       const p = eventPoint(svg, e);
-      const { w, h } = paneDims();
+      const { w, h } = chartDims();
       setDemoCursor(p.x >= 0 && p.y >= 0 && p.x <= w && p.y <= h ? p : null);
     };
     const onLeave = () => setDemoCursor(null);
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0 || !e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
       const p = eventPoint(svg, e);
-      const { w, h } = paneDims();
+      const { w, h } = chartDims();
       if (p.x < 0 || p.y < 0 || p.x > w || p.y > h) return;
       e.preventDefault();
       e.stopPropagation();
@@ -515,11 +523,11 @@ export function DrawingsOverlay(props: Props) {
     setSize({ w: r.width, h: r.height });
   }
 
-  /** The chart pane inside the overlay (the SVG also spans the price and
+  /** The drawing area inside the overlay (the SVG also spans the price and
    *  time axes): width = the time scale width, height = overlay height less
-   *  the time axis. Every drawing is drawn in the pane (its media size) and
-   *  clipped there; renderers, hit tests and placement use this size. */
-  function paneDims(): { w: number; h: number } {
+   *  the time axis, i.e. every pane. The region tools (measure, zoom) and
+   *  the demonstration highlighter use it. */
+  function chartDims(): { w: number; h: number } {
     const sz = size();
     const ax = props.coords?.timeAxis();
     const aw = axisWidth();
@@ -542,15 +550,65 @@ export function DrawingsOverlay(props: Props) {
   });
   const paneClipId = `pane-clip-${createUniqueId()}`;
 
-  function dataAt(p: Pt): DataPoint | null {
+  // ── Drawing panes ────────────────────────────────────────────────────────
+  // A drawing lives in its owner's pane (Drawing.owner = study id, absent =
+  // the main series pane): drawn, clipped and hit-tested there, in the pane's
+  // own pixel space (y = 0 at the pane top) and price scale. A placement
+  // stays in the pane of its first click. A vertical line with "Extend" on
+  // runs through every pane.
+  type Frame = { key: string | null; top: number; dims: { w: number; h: number }; coords: Coords; clip: string };
+  const frames = createMemo<Frame[]>(() => {
+    const all = chartDims();
+    const list = props.panes;
     const c = props.coords;
-    if (!c) return null;
-    const dp = unproject(c, p);
+    if (!list || list.length === 0) return c ? [{ key: null, top: 0, dims: all, coords: c, clip: `${paneClipId}-0` }] : [];
+    return list.map((p, i) => ({ key: p.key, top: p.top, dims: { w: all.w, h: p.height }, coords: p.coords, clip: `${paneClipId}-${i}` }));
+  });
+  const frameByKey = (key: string | null | undefined): Frame | null => frames().find((f) => f.key === (key ?? null)) ?? null;
+  const mainFrame = () => frameByKey(null);
+  /** Pane of a drawing (its owner); null when the owner is not on the chart. */
+  const frameOf = (d: Drawing): Frame | null => frameByKey(d.owner);
+  /** Frame a drawing is drawn and hit in: its pane, or every pane for a
+   *  vertical line with "Extend" on (its price still maps in its pane). */
+  function drawFrame(d: Drawing): Frame | null {
+    const f = frameOf(d);
+    if (!f) return null;
+    if (d.kind === "vertical-line" && d.style.extendLine !== false) {
+      return { key: f.key, top: 0, dims: chartDims(), coords: offsetCoords(f.coords, f.top), clip: `${paneClipId}-all` };
+    }
+    return f;
+  }
+  /** Pane under an overlay point, or null (axes, separators). */
+  const frameAt = (p: Pt): Frame | null =>
+    frames().find((f) => p.x >= 0 && p.x <= f.dims.w && p.y >= f.top && p.y < f.top + f.dims.h) ?? null;
+  /** Overlay point -> frame-local point. */
+  const toLocal = (p: Pt, f: Frame): Pt => ({ x: p.x, y: p.y - f.top });
+  /** Overlay point -> frame-local point kept inside the frame. */
+  const toLocalClamped = (p: Pt, f: Frame): Pt => ({
+    x: Math.max(0, Math.min(f.dims.w, p.x)),
+    y: Math.max(0, Math.min(f.dims.h, p.y - f.top)),
+  });
+  /** Owner of the placement in progress (the pane of its first point). */
+  const [placeKey, setPlaceKey] = createSignal<string | null>(null);
+  /** Pane of a placement: the locked pane once a point is down, else the
+   *  pane under the pointer. */
+  const placeFrame = (p: Pt | null): Frame | null =>
+    pending().length > 0 ? frameByKey(placeKey()) : p ? frameAt(p) : null;
+  /** Owner field of a new drawing placed in `f`. */
+  const ownerOf = (f: Frame): { owner?: string } => (f.key ? { owner: f.key } : {});
+
+  /** Magnet snap in frame `f`: OHLC in the main pane; in a study pane only
+   *  the pane's study values, with "Snap to indicator" on. */
+  function snapIn(f: Frame, dp: DataPoint, mode: "weak" | "strong"): DataPoint | null {
+    return magnetSnap(dp, f.coords, mode, !!props.magnetSnapsToIndicators, f.key === null);
+  }
+
+  /** Data point at frame-local point `p` of frame `f` (magnet applied). */
+  function dataAt(p: Pt, f: Frame): DataPoint | null {
+    const dp = unproject(f.coords, p);
     if (!dp) return null;
     const m = effectiveMagnet();
-    return m.enabled
-      ? magnetSnap(dp, c, m.mode, !!props.magnetSnapsToIndicators) ?? dp
-      : dp;
+    return m.enabled ? snapIn(f, dp, m.mode) ?? dp : dp;
   }
 
   /** Screen point the placement preview/crosshair should track: the raw cursor,
@@ -559,14 +617,14 @@ export function DrawingsOverlay(props: Props) {
    *  the modifier signals so it updates live when Shift/Ctrl change with a
    *  stationary cursor. Returns null alongside `engaged=false` when the magnet
    *  doesn't catch, so the caller keeps the free cursor. */
-  function aimAt(cur: Pt): { pt: Pt; engaged: boolean } {
-    const c = props.coords;
-    if (!c) return { pt: cur, engaged: false };
+  function aimAt(cur: Pt, f: Frame | null = mainFrame()): { pt: Pt; engaged: boolean } {
+    if (!f) return { pt: cur, engaged: false };
+    const c = f.coords;
     const m = effectiveMagnet();
     if (!m.enabled) return { pt: cur, engaged: false };
     const dp = unproject(c, cur);
     if (!dp) return { pt: cur, engaged: false };
-    const snapped = magnetSnap(dp, c, m.mode, !!props.magnetSnapsToIndicators);
+    const snapped = snapIn(f, dp, m.mode);
     if (!snapped) return { pt: cur, engaged: false };
     const sp = projectPoint(c, snapped);
     return sp ? { pt: sp, engaged: true } : { pt: cur, engaged: false };
@@ -578,17 +636,23 @@ export function DrawingsOverlay(props: Props) {
     // Image: placed from its dialog (opened when the tool is armed), not by a
     // click.
     if (spec.kind === "image") return;
-    const sp = eventPoint(svg, e);
+    const spG = eventPoint(svg, e);
     const pend = pending();
+    // The placement stays in the pane of its first click; later clicks are
+    // kept inside that pane.
+    const f = placeFrame(spG);
+    if (!f) return;
+    if (pend.length === 0) setPlaceKey(f.key);
+    const sp = toLocalClamped(spG, f);
     // Variable-length finish gesture (polyline / path): a click within the
     // vertex tolerance of the LAST placed point commits the drawing instead of
     // appending; polyline ALSO commits on the FIRST point (closing the shape,
     // `filled` is set there). Path only finishes on the last point.
     // Double-click keeps working (on:dblclick). The tolerance is the minimum
     // distance between points = 5px with a mouse (10px on touch).
-    if (spec.variableLength && pend.length >= 1 && props.coords) {
+    if (spec.variableLength && pend.length >= 1) {
       const nearVertex = (v: DataPoint) => {
-        const p = projectPoint(props.coords!, v);
+        const p = projectPoint(f.coords, v);
         return !!p && Math.hypot(p.x - sp.x, p.y - sp.y) < MIN_DISTANCE_BETWEEN_POINTS;
       };
       // Last point first (checked first): finishing on the last point
@@ -604,12 +668,12 @@ export function DrawingsOverlay(props: Props) {
         return;
       }
     }
-    const dp0 = dataAt(sp);
+    const dp0 = dataAt(sp, f);
     if (!dp0) return;
     // Shift: the per-tool placement rule (lib interact/shift: 45° against
     // the previous point, square, Gann fixed increments; the ellipse ends as a
     // circle on its 2nd click).
-    const sh = shiftDown() && props.coords ? shiftPlacementPoint(spec.kind, pend, dp0, props.coords) : { point: dp0 };
+    const sh = shiftDown() ? shiftPlacementPoint(spec.kind, pend, dp0, f.coords) : { point: dp0 };
     const dp = sh.point;
     const next = sh.extra ? [...pending(), dp, sh.extra] : [...pending(), dp];
     // Variable-length tools (path/polyline/brush/highlighter) keep appending on
@@ -642,15 +706,15 @@ export function DrawingsOverlay(props: Props) {
           textInput?.select();
         }, 0);
       }, { once: true, capture: true });
-      setTextEdit({ mode: "create", kind: spec.kind, points: next, pos: sp, value: "" });
+      setTextEdit({ mode: "create", kind: spec.kind, points: next, pos: spG, value: "", frameKey: f.key });
       setPending([]);
       setCursor(null);
       return;
     }
     // Finalize (fixed-length): the core adds the data computed at
     // placement; font-icon placements carry the staged glyph.
-    const placed = finishPlacement(spec.kind, next, props.coords, paneDims(), { glyph: props.armedGlyph });
-    if (placed) placeNew(placed);
+    const placed = finishPlacement(spec.kind, next, f.coords, f.dims, { glyph: props.armedGlyph });
+    if (placed) placeNew(placed, f);
     setPending([]);
     setCursor(null);
     // Stay-in-drawing-mode keeps the same tool armed for back-to-back
@@ -666,22 +730,23 @@ export function DrawingsOverlay(props: Props) {
   function startFreehand(e: PointerEvent) {
     const spec = armedSpec();
     if (!spec?.freehand) return;
-    const c = props.coords;
-    if (!c) return;
+    const spG = eventPoint(svg, e);
+    const f = frameAt(spG);
+    if (!f) return;
     e.stopPropagation();
-    const sp0 = eventPoint(svg, e);
-    const dp0 = unproject(c, sp0);
+    const sp0 = toLocal(spG, f);
+    const dp0 = unproject(f.coords, sp0);
     if (!dp0) return;
+    setPlaceKey(f.key);
     setPending([dp0]);
-    setCursor(sp0);
+    setCursor(spG);
     let last = sp0;
     const onDocMove = (ev: PointerEvent) => {
-      const cc = props.coords;
-      if (!cc) return;
-      const cur = eventPoint(svg, ev);
-      setCursor(cur);
+      const curG = eventPoint(svg, ev);
+      setCursor(curG);
+      const cur = toLocalClamped(curG, f);
       if (Math.hypot(cur.x - last.x, cur.y - last.y) < FREEHAND_SAMPLE_PX) return;
-      const dp = unproject(cc, cur);
+      const dp = unproject(f.coords, cur);
       if (!dp) return;
       last = cur;
       setPending((prev) => [...prev, dp]);
@@ -694,7 +759,7 @@ export function DrawingsOverlay(props: Props) {
       setCursor(null);
       if (pts.length >= 2) {
         const placed = buildNewDrawing(spec.kind, pts);
-        if (placed) placeNew(placed);
+        if (placed) placeNew(placed, f);
       }
       if (!props.stayMode) props.onDisarm();
     };
@@ -708,10 +773,11 @@ export function DrawingsOverlay(props: Props) {
     const spec = armedSpec();
     if (!spec?.variableLength) return false;
     const pts = pending();
-    if (pts.length < 2) return false;
+    const f = frameByKey(placeKey());
+    if (pts.length < 2 || !f) return false;
     // The core stores polyline `closed` and freezes the ghost-feed seed.
-    const placed = finishPlacement(spec.kind, pts, props.coords, paneDims(), { closed });
-    if (placed) placeNew(placed);
+    const placed = finishPlacement(spec.kind, pts, f.coords, f.dims, { closed });
+    if (placed) placeNew(placed, f);
     // Drawing finished: the shown path / polyline hint is dismissed for good.
     const hint = lineToolHint();
     if (hint) {
@@ -727,8 +793,8 @@ export function DrawingsOverlay(props: Props) {
   /** Place a freshly drawn drawing. Every new drawing is selected (anchors +
    *  floating toolbar) once placement finishes. Keep-drawing mode is left as
    *  before (the tool stays armed for the next placement). */
-  function placeNew(nd: import("lightweight-charts-drawing/core/types").NewDrawing) {
-    const id = props.onPlace(nd);
+  function placeNew(nd: import("lightweight-charts-drawing/core/types").NewDrawing, f: Frame) {
+    const id = props.onPlace({ ...nd, ...ownerOf(f) });
     if (id && !props.stayMode) props.setSelectedId(id);
   }
 
@@ -740,12 +806,13 @@ export function DrawingsOverlay(props: Props) {
     setTextEdit(null);
     const text = te.value;
     if (te.mode === "create") {
-      let placed = buildNewDrawing(te.kind, te.points);
+      const f = frameByKey(te.frameKey);
+      let placed = f ? buildNewDrawing(te.kind, te.points) : null;
       // Signpost: the click height sets the label position.
-      if (placed && te.kind === "signpost" && props.coords) {
-        placed = { ...placed, style: { ...defaultStyleFor("signpost"), signpostPosition: signpostPositionFor(props.coords, te.points[0], paneDims().h) } };
+      if (placed && f && te.kind === "signpost") {
+        placed = { ...placed, style: { ...defaultStyleFor("signpost"), signpostPosition: signpostPositionFor(f.coords, te.points[0], f.dims.h) } };
       }
-      if (placed) placeNew({ ...placed, text });
+      if (placed && f) placeNew({ ...placed, text }, f);
       if (!props.stayMode) props.onDisarm();
     } else if (te.id) {
       const d = props.drawings.find((x) => x.id === te.id);
@@ -776,19 +843,20 @@ export function DrawingsOverlay(props: Props) {
   /** Topmost-first hit test across every drawing on the chart. Skips
    *  hidden drawings entirely so the cursor passes through to whatever is
    *  underneath (incl. the chart for pan). */
-  function hitTopmost(sp: Pt): { drawing: Drawing; mode: HitResult; pts: Pt[] } | null {
-    const c = props.coords;
-    if (!c) return null;
-    const { w, h } = paneDims();
-    // Drawings are clipped to the pane: nothing hits over the axes.
-    if (sp.x < 0 || sp.x > w || sp.y < 0 || sp.y > h) return null;
+  function hitTopmost(spG: Pt): { drawing: Drawing; mode: HitResult; pts: Pt[]; frame: Frame } | null {
     for (let i = props.drawings.length - 1; i >= 0; i--) {
       const d = props.drawings[i];
       if (notShown(d)) continue;
-      const pts = screenPoints(c, d, { w, h });
+      // Drawings are clipped to their pane: nothing hits outside it.
+      const f = drawFrame(d);
+      if (!f) continue;
+      const { w, h } = f.dims;
+      const sp = toLocal(spG, f);
+      if (sp.x < 0 || sp.x > w || sp.y < 0 || sp.y > h) continue;
+      const pts = screenPoints(f.coords, d, f.dims);
       if (!pts) continue;
-      const r = hitTestKind(d, pts, sp, w, h, c, selIds().includes(d.id));
-      if (r) return { drawing: d, mode: r, pts };
+      const r = hitTestKind(d, pts, sp, w, h, f.coords, selIds().includes(d.id));
+      if (r) return { drawing: d, mode: r, pts, frame: f };
     }
     return null;
   }
@@ -817,10 +885,8 @@ export function DrawingsOverlay(props: Props) {
 
   function onSelectionPointerDown(e: PointerEvent) {
     if (armedSpec()) return;
-    const c = props.coords;
-    if (!c) return;
-    const sp = eventPoint(svg, e);
-    const hit = hitTopmost(sp);
+    const spG = eventPoint(svg, e);
+    const hit = hitTopmost(spG);
     // Middle (wheel) click on a drawing removes it: an
     // unselected drawing becomes the selection first, then the selection is
     // removed like Delete. OT hit tests do not tell a shape's fill from its
@@ -848,6 +914,11 @@ export function DrawingsOverlay(props: Props) {
     const ids = selIds();
     const wasSelected = ids.includes(hit.drawing.id);
     const inGroup = wasSelected && ids.length > 1;
+    // The drag runs in the hit drawing's pane (frame-local points).
+    const hf = hit.frame;
+    const sp = toLocal(spG, hf);
+    /** Pane of each group member (members may sit in different panes). */
+    const memberFrames = new Map<string, Frame>();
     if (!multiKey && !wasSelected) props.setSelectedId(hit.drawing.id);
     e.stopPropagation();
     // Locked drawings can join/leave the selection but never drag. A plain
@@ -866,7 +937,11 @@ export function DrawingsOverlay(props: Props) {
         ? ids
             .map((id) => props.drawings.find((d) => d.id === id))
             .filter((d): d is Drawing => !!d && !d.locked && !intervalHidden(d))
-            .map((d) => ({ start: d, startScreen: screenPoints(c, d, paneDims()) }))
+            .map((d) => {
+              const mf = drawFrame(d);
+              if (mf) memberFrames.set(d.id, mf);
+              return { start: d, startScreen: mf ? screenPoints(mf.coords, d, mf.dims) : null };
+            })
             .filter((m): m is { start: Drawing; startScreen: Pt[] } => !!m.startScreen)
         : undefined;
     // Body-drags are gated on selection: clicking an unselected drawing's body
@@ -885,7 +960,7 @@ export function DrawingsOverlay(props: Props) {
       group,
       pendingToggle: multiKey,
       pendingCollapse: !multiKey && inGroup,
-      pane: paneDims(),
+      pane: hf.dims,
     });
     // Defer drawing writes for the duration of the drag: the reactive store
     // still updates every frame (panes mirror the move live), but the JSON
@@ -894,7 +969,7 @@ export function DrawingsOverlay(props: Props) {
     const onDocMove = (ev: PointerEvent) => {
       const state = drag();
       if (!state) return;
-      const cur = eventPoint(svg, ev);
+      const cur = toLocal(eventPoint(svg, ev), hf);
       if (!state.active) {
         if (!canDrag) return;
         if (Math.hypot(cur.x - state.startCursor.x, cur.y - state.startCursor.y) < DRAG_THRESHOLD) {
@@ -914,8 +989,7 @@ export function DrawingsOverlay(props: Props) {
         }
         setDrag({ ...state, active: true, pendingToggle: false, pendingCollapse: false });
       }
-      const cc = props.coords;
-      if (!cc) return;
+      const cc = hf.coords;
       // Group body drag: translate every member by the cursor delta. No
       // per-point snapping — snapping members individually would tear the
       // group apart (same rule as the single body drag).
@@ -926,7 +1000,8 @@ export function DrawingsOverlay(props: Props) {
         const { dx, dy } = shiftDown() ? lockAxisDelta(d0.dx, d0.dy) : d0;
         const moved: Drawing[] = [];
         for (const m of st.group) {
-          const nd = translateDrawing(cc, m.start, m.startScreen, dx, dy, paneDims());
+          const mf = memberFrames.get(m.start.id);
+          const nd = mf ? translateDrawing(mf.coords, m.start, m.startScreen, dx, dy, mf.dims) : null;
           if (nd) moved.push(nd);
         }
         if (moved.length) {
@@ -937,7 +1012,7 @@ export function DrawingsOverlay(props: Props) {
       }
       const m = effectiveMagnet();
       const snap = m.enabled
-        ? (p: DataPoint) => magnetSnap(p, cc, m.mode, !!props.magnetSnapsToIndicators) ?? p
+        ? (p: DataPoint) => snapIn(hf, p, m.mode) ?? p
         : (p: DataPoint) => p;
       const updated = applyDrag(state, cur, cc, snap, shiftDown());
       if (updated) props.onUpdate(updated);
@@ -1099,17 +1174,17 @@ export function DrawingsOverlay(props: Props) {
     // point, shift by (dx, dy) px, unproject. Skips locked drawings.
     const onNudge = (e: Event) => {
       if (props.shown === false || !props.active || selIds().length === 0) return;
-      const c = props.coords;
-      if (!c) return;
       const { dx, dy } = (e as CustomEvent<{ dx: number; dy: number }>).detail;
       // Every movable selected drawing nudges together (multi-select).
       const moved: Drawing[] = [];
       for (const id of selIds()) {
         const target = props.drawings.find((d) => d.id === id);
         if (!target || target.locked || intervalHidden(target)) continue;
-        const screen = screenPoints(c, target, paneDims());
+        const f = drawFrame(target);
+        if (!f) continue;
+        const screen = screenPoints(f.coords, target, f.dims);
         if (!screen) continue;
-        const nd = translateDrawing(c, target, screen, dx, dy, paneDims());
+        const nd = translateDrawing(f.coords, target, screen, dx, dy, f.dims);
         if (nd) moved.push(nd);
       }
       if (moved.length > 1 && props.onUpdateMany) props.onUpdateMany(moved);
@@ -1156,14 +1231,16 @@ export function DrawingsOverlay(props: Props) {
       const x = lastPointer.x - r.left;
       const y = lastPointer.y - r.top;
       if (r.width <= 0 || x < 0 || y < 0 || x > r.width || y > r.height) return;
-      const dp = dataAt({ x, y });
+      const f = frameAt({ x, y });
+      if (!f) return;
+      const dp = dataAt(toLocal({ x, y }, f), f);
       if (!dp) return;
       const placed = buildNewDrawing(detail.kind, [dp]);
       if (!placed) return;
       detail.handled = true;
       setPending([]);
       setCursor(null);
-      const id = props.onPlace(placed);
+      const id = props.onPlace({ ...placed, ...ownerOf(f) });
       if (id) props.setSelectedId(id);
     };
     window.addEventListener(PLACE_AT_CURSOR_EVENT, onPlaceAtCursor);
@@ -1208,6 +1285,9 @@ export function DrawingsOverlay(props: Props) {
       setCursor(null);
     }
   });
+  createEffect(() => {
+    if (pending().length === 0) setPlaceKey(null);
+  });
 
   // ── Right-axis price pills (showPriceLabels) ───────────────────────────
   // For each endpoint of every drawing with `showPriceLabels` we create a
@@ -1220,7 +1300,9 @@ export function DrawingsOverlay(props: Props) {
   let priceLineCoords: Coords | null = null;
   createEffect(() => {
     const coords = props.coords;
-    const list = props.drawings;
+    // Axis pills of the main pane's drawings (a study pane's series is
+    // replaced on every study redraw).
+    const list = props.drawings.filter((d) => !d.owner);
     if (coords !== priceLineCoords) {
       priceLines = new Map();
       priceLineCoords = coords;
@@ -1278,15 +1360,18 @@ export function DrawingsOverlay(props: Props) {
   // rectangle shows its fill.
   function previewElement(): import("solid-js").JSX.Element {
     const p = pending();
-    const rawCur = cursor();
+    const rawG = cursor();
     const spec = armedSpec();
-    const coords = props.coords;
-    if (!spec || p.length === 0 || !rawCur || !coords) return null;
+    const f = frameByKey(placeKey());
+    if (!spec || p.length === 0 || !rawG || !f) return null;
+    const coords = f.coords;
+    // In the pane of the first point, the cursor kept inside it.
+    const rawCur = toLocalClamped(rawG, f);
     // Re-project the already-placed anchors on every pan/zoom (coordEpoch bumps),
     // so a committed first point tracks its price/time as the chart scrolls
     // instead of sticking to its old screen position.
     void props.coordEpoch;
-    const { w, h } = paneDims();
+    const { w, h } = f.dims;
     // Project every point placed so far.
     const placed: Pt[] = [];
     for (const dp of p) {
@@ -1299,7 +1384,7 @@ export function DrawingsOverlay(props: Props) {
     const baseStyle = defaultStyleFor(spec.kind);
     // Magnet-snapped aim point (locks onto the candle's OHLC point when the
     // magnet engages, else the free cursor); a dot marks the lock.
-    const aim = aimAt(rawCur);
+    const aim = aimAt(rawCur, f);
     const cur = aim.pt;
     const magnetDot = aim.engaged
       ? <circle class="drawing-crosshair-magnet" cx={cur.x} cy={cur.y} r={4} fill={PREVIEW_STROKE} pointer-events="none" />
@@ -1322,7 +1407,7 @@ export function DrawingsOverlay(props: Props) {
     ) {
       // Shift: the same per-tool rule as the click (onPlacementClick), so the
       // preview shows what the click will commit.
-      const cur0 = dataAt(cur);
+      const cur0 = dataAt(cur, f);
       const sh = cur0 && shiftDown() ? shiftPlacementPoint(spec.kind, p, cur0, coords) : null;
       const curData = sh ? sh.point : cur0;
       if (curData) {
@@ -1391,10 +1476,10 @@ export function DrawingsOverlay(props: Props) {
     if (hs.length === 0 || !c) return null;
     void props.coordEpoch; // re-project on pan / zoom
     const now = fadeClock();
-    const { w, h } = paneDims();
+    const { w, h } = chartDims();
     const style = { ...defaultStyleFor("brush"), color: HIGHLIGHTER_COLOR, width: HIGHLIGHTER_WIDTH, fillBackground: false };
     return (
-      <g pointer-events="none" clip-path={`url(#${paneClipId})`}>
+      <g pointer-events="none" clip-path={`url(#${paneClipId}-all)`}>
         {hs.map((hl) => {
           const pts = projectAll(c, hl.points);
           if (!pts || pts.length < 2) return null;
@@ -1432,15 +1517,20 @@ export function DrawingsOverlay(props: Props) {
    *  mock's `.drawing-crosshair-line` (stroke #9598a1, 1px, 6/6 dash). */
   function crosshairElement(): import("solid-js").JSX.Element {
     if (!armedSpec()) return null;
-    const rawCur = cursor();
-    if (!rawCur) return null;
-    const { w, h } = paneDims();
-    const aim = aimAt(rawCur);
+    const rawG = cursor();
+    if (!rawG) return null;
+    // The vertical line runs through every pane; the horizontal one stays in
+    // the placement pane (the cursor kept inside it once a point is down).
+    const f = placeFrame(rawG);
+    if (!f) return null;
+    const { w, h } = chartDims();
+    const rawCur = toLocalClamped(rawG, f);
+    const aim = aimAt(rawCur, f);
     // Magnet pulls ONLY the horizontal (price) line to the nearest OHLC level.
     // The vertical (time) line stays on the raw cursor, and no snap dot is
     // drawn — the crosshair always reads as a full cross, never collapsing to
     // a point.
-    const yLine = aim.engaged ? aim.pt.y : rawCur.y;
+    const yLine = f.top + (aim.engaged ? aim.pt.y : rawCur.y);
     return (
       <g pointer-events="none">
         <line x1={rawCur.x} y1={0} x2={rawCur.x} y2={h} stroke="#9598a1" stroke-width={1} stroke-dasharray="6 6" />
@@ -1573,8 +1663,6 @@ export function DrawingsOverlay(props: Props) {
   function selectedAnchor(): { drawing: Drawing; pos: Pt } | null {
     const id = props.selectedId;
     if (!id) return null;
-    const c = props.coords;
-    if (!c) return null;
     void size();
     void props.coordEpoch;
     const d = props.drawings.find((x) => x.id === id);
@@ -1582,7 +1670,10 @@ export function DrawingsOverlay(props: Props) {
     // A drawing filtered off this interval by its Visibility matrix isn't
     // painted — anchor no toolbar over the empty chart.
     if (intervalHidden(d)) return null;
-    const pts = screenPoints(c, d, paneDims());
+    const f = drawFrame(d);
+    if (!f) return null;
+    // Overlay coordinates (the pane top added).
+    const pts = screenPoints(f.coords, d, f.dims)?.map((p) => ({ x: p.x, y: p.y + f.top }));
     if (!pts) return null;
     let minY = Infinity;
     let sumX = 0;
@@ -1676,7 +1767,7 @@ export function DrawingsOverlay(props: Props) {
               id: hit.drawing.id,
               kind: hit.drawing.kind,
               points: hit.drawing.points,
-              pos: textAnchorScreen(hit.drawing, hit.pts),
+              pos: (() => { const a = textAnchorScreen(hit.drawing, hit.pts); return { x: a.x, y: a.y + hit.frame.top }; })(),
               value: hit.drawing.text ?? "",
             });
           } else if (hit) {
@@ -1688,11 +1779,18 @@ export function DrawingsOverlay(props: Props) {
       onContextMenu={onContextMenu}
     >
       <defs>
-        <clipPath id={paneClipId}>
-          <rect x={0} y={0} width={paneDims().w} height={paneDims().h} />
+        {/* One clip per pane (overlay coordinates) + the whole drawing area. */}
+        <For each={frames()}>
+          {(f) => (
+            <clipPath id={f.clip}>
+              <rect x={0} y={f.top} width={f.dims.w} height={f.dims.h} />
+            </clipPath>
+          )}
+        </For>
+        <clipPath id={`${paneClipId}-all`}>
+          <rect x={0} y={0} width={chartDims().w} height={chartDims().h} />
         </clipPath>
       </defs>
-      <g clip-path={`url(#${paneClipId})`}>
       <For each={props.drawings}>
         {(d) => {
           // Re-project this drawing whenever the time/price scale changes
@@ -1703,10 +1801,10 @@ export function DrawingsOverlay(props: Props) {
           const view = createMemo(() => {
             void props.coordEpoch;
             void size();
-            const c = props.coords;
-            if (notShown(d) || !c) return null;
-            const pts = screenPoints(c, d, paneDims());
-            return pts ? { c, pts } : null;
+            const f = drawFrame(d);
+            if (notShown(d) || !f) return null;
+            const pts = screenPoints(f.coords, d, f.dims);
+            return pts ? { c: f.coords, pts, f } : null;
           });
           const selected = () => selIds().includes(d.id);
           // A drawing's anchors show on hover too (not just selection) —
@@ -1716,26 +1814,30 @@ export function DrawingsOverlay(props: Props) {
           return (
             <Show when={view()}>
               {(v) => {
-                const { w, h } = paneDims();
                 // Locked drawings stay selectable (the pointerdown handler sets
                 // the selection but never arms a drag), so show the normal arrow
                 // rather than "not-allowed", which reads as non-interactive.
                 const cursor = d.locked ? "default" : selected() ? "move" : "pointer";
+                // Drawn in its pane: clipped there (overlay coordinates), in
+                // the pane's own space (shifted down by the pane top).
                 return (
-                  <g
-                    data-drawing-id={d.id}
-                    style={{ "pointer-events": "visiblePainted", cursor }}
-                    onPointerEnter={() => setHoveredId(d.id)}
-                    onPointerLeave={() => setHoveredId((cur) => (cur === d.id ? null : cur))}
-                  >
-                    {/* Locked drawings never show the normal grab handles —
-                        selection paints lock glyphs on the anchors instead. */}
-                    <AnchorCtx.Provider value={{ fillAt: anchorFillAt, selected }}>
-                      {renderKind(d, v().pts, active() && !d.locked, w, h, v().c, hoveredId() === d.id && !d.locked)}
-                    </AnchorCtx.Provider>
-                    <Show when={selected() && d.locked}>
-                      {renderLockedAnchors(v().pts, d.style.color)}
-                    </Show>
+                  <g clip-path={`url(#${v().f.clip})`}>
+                    <g
+                      data-drawing-id={d.id}
+                      transform={v().f.top ? `translate(0 ${v().f.top})` : undefined}
+                      style={{ "pointer-events": "visiblePainted", cursor }}
+                      onPointerEnter={() => setHoveredId(d.id)}
+                      onPointerLeave={() => setHoveredId((cur) => (cur === d.id ? null : cur))}
+                    >
+                      {/* Locked drawings never show the normal grab handles —
+                          selection paints lock glyphs on the anchors instead. */}
+                      <AnchorCtx.Provider value={{ fillAt: (y: number) => anchorFillAt(y + v().f.top), selected }}>
+                        {renderKind(d, v().pts, active() && !d.locked, v().f.dims.w, v().f.dims.h, v().c, hoveredId() === d.id && !d.locked)}
+                      </AnchorCtx.Provider>
+                      <Show when={selected() && d.locked}>
+                        {renderLockedAnchors(v().pts, d.style.color)}
+                      </Show>
+                    </g>
                   </g>
                 );
               }}
@@ -1745,8 +1847,13 @@ export function DrawingsOverlay(props: Props) {
       </For>
 
       {crosshairElement()}
-      {previewElement()}
-      </g>
+      <Show when={frameByKey(placeKey())}>
+        {(f) => (
+          <g clip-path={`url(#${f().clip})`}>
+            <g transform={f().top ? `translate(0 ${f().top})` : undefined}>{previewElement()}</g>
+          </g>
+        )}
+      </Show>
       {/* Axis parts of drawings (drawn in the axis panes, outside the pane
           clip): vertical / cross line time label, position price
           labels. */}
@@ -1756,12 +1863,12 @@ export function DrawingsOverlay(props: Props) {
             if (!AXIS_PART_KINDS.has(d.kind)) return null;
             void props.coordEpoch;
             void size();
-            const c = props.coords;
-            if (notShown(d) || !c) return null;
-            const pts = screenPoints(c, d, paneDims());
-            return pts ? { c, pts } : null;
+            const f = drawFrame(d);
+            if (notShown(d) || !f) return null;
+            const pts = screenPoints(f.coords, d, f.dims);
+            return pts ? { c: f.coords, pts, f } : null;
           });
-          return <Show when={view()}>{(v) => renderAxisParts(d, v().pts, paneDims(), size().w, v().c)}</Show>;
+          return <Show when={view()}>{(v) => renderAxisParts(d, v().pts, chartDims(), size().w, v().c, v().f.top)}</Show>;
         }}
       </For>
       {highlighterElement()}
@@ -1812,7 +1919,7 @@ export function DrawingsOverlay(props: Props) {
           const { l, r, col } = te;
           return {
             left: l.xs[col] + TABLE_BORDER + TABLE_PAD,
-            top: l.ys[r] + TABLE_BORDER + TABLE_PAD,
+            top: te.top + l.ys[r] + TABLE_BORDER + TABLE_PAD,
             width: Math.max(0, l.xs[col + 1] - l.xs[col] - 2 * (TABLE_BORDER + TABLE_PAD)),
             height: Math.max(0, l.ys[r + 1] - l.ys[r] - 2 * (TABLE_BORDER + TABLE_PAD)),
             fs: l.fs,
@@ -1939,7 +2046,7 @@ export function DrawingsOverlay(props: Props) {
       {(d) => (
         <SettingsDialog
           drawing={d()}
-          coords={props.coords}
+          coords={frameOf(d())?.coords ?? props.coords}
           symbol={props.symbol}
           initialTab={settingsTab()}
           onClose={() => setSettingsId(null)}
@@ -1960,7 +2067,7 @@ const AXIS_PART_KINDS = new Set<string>(["vertical-line", "cross-line", "long-po
  *  time axis (show time) and the entry / target / stop price pills of a
  *  position on the price axis (axis labels for the three levels).
  *  `pane` = the pane size, `svgW` = the overlay width (pane + price axis). */
-function renderAxisParts(d: Drawing, pts: Pt[], pane: { w: number; h: number }, svgW: number, coords: Coords | null) {
+function renderAxisParts(d: Drawing, pts: Pt[], pane: { w: number; h: number }, svgW: number, coords: Coords | null, top = 0) {
   const s = d.style;
   if (d.kind === "vertical-line" || d.kind === "cross-line") {
     const t0 = d.points[0];
@@ -1987,9 +2094,9 @@ function renderAxisParts(d: Drawing, pts: Pt[], pane: { w: number; h: number }, 
     };
     return (
       <>
-        {pill(pts[0].y, entry, "#787b86")}
-        {pill(pa.yTarget, entry + sign * pa.profit, "#089981")}
-        {pill(pa.yStop, entry - sign * pa.stop, "#f23645")}
+        {pill(top + pts[0].y, entry, "#787b86")}
+        {pill(top + pa.yTarget, entry + sign * pa.profit, "#089981")}
+        {pill(top + pa.yStop, entry - sign * pa.stop, "#f23645")}
       </>
     );
   }

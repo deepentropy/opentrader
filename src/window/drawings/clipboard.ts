@@ -47,5 +47,8 @@ export function pasteAsNew(): NewDrawing | null {
   // interval it lands on — otherwise a "days-only" source pasted on a 5m chart
   // appends an invisible, unselectable duplicate every time.
   delete copy.visibility;
+  // A paste lands in the main series pane, like a paste from the chart
+  // (same data coordinates, the main price scale).
+  delete copy.owner;
   return copy as unknown as NewDrawing;
 }
