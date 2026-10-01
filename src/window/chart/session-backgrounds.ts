@@ -5,9 +5,10 @@
  * preMarket #FF9800 and postMarket #2962FF at transparency 92, each run of extended bars tinted edge to edge (half a bar
  * either side of the first/last bar), full pane height, under the grid.
  *
- * Bars are classed by their start in exchange time (America/New_York):
- * 04:00–09:30 pre, 16:00–20:00 post. The plan has no overnight data, so the
- * night-market tint has nothing to cover.
+ * Bars are classed by their start against the charted symbol's own
+ * pre-market and post-market sessions (data/session; US stocks: 04:00–09:30
+ * and 16:00–20:00 New York). No overnight session is served, so there is no
+ * night-market tint.
  */
 import type {
   IChartApi,
@@ -19,7 +20,7 @@ import type {
   SeriesType,
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
-import { minuteOfDayer } from './day-key';
+import type { SymbolSessions } from '../../data/session';
 
 export type SessionRun = { from: number; to: number; kind: 'pre' | 'post' };
 
@@ -27,17 +28,13 @@ export type SessionRun = { from: number; to: number; kind: 'pre' | 'post' };
 const PRE_COLOR = 'rgba(255, 152, 0, 0.08)';
 const POST_COLOR = 'rgba(41, 98, 255, 0.08)';
 
-// One instance for the app: its per-slot zone-offset cache is reused by every
-// recompute instead of being rebuilt per call.
-const etMinute = minuteOfDayer('America/New_York');
-
 /** Runs of consecutive pre- or post-market bars (bar start times, UNIX s). */
-export function computeSessionRuns(bars: ReadonlyArray<{ time: number }>): SessionRun[] {
+export function computeSessionRuns(bars: ReadonlyArray<{ time: number }>, sessions: SymbolSessions): SessionRun[] {
   const out: SessionRun[] = [];
+  if (!sessions.hasExtendedHours) return out;
   let cur: SessionRun | null = null;
   for (const b of bars) {
-    const m = etMinute(b.time);
-    const kind = m >= 240 && m < 570 ? 'pre' : m >= 960 && m < 1200 ? 'post' : null;
+    const kind = sessions.extendedPart(b.time);
     if (kind && cur && cur.kind === kind) {
       cur.to = b.time;
     } else {

@@ -46,7 +46,7 @@ import { LineGlyphSelect } from "../drawings/LineEndSelect";
 import { TransparencySlider } from "../drawings/ImageDialog";
 import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
-import { usMarketSession } from "../../data/market-session";
+import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
 
 type Props = {
@@ -58,6 +58,9 @@ type Props = {
   chartType?: ChartTypeId;
   /** Intraday interval: the pre/post background row shows only then. */
   intraday?: boolean;
+  /** The focused pane's symbol: "Open market status" shows only while its
+   *  market is open. */
+  symbol?: string;
   /** Commit the edited draft to the focused pane ("active") or every pane in the
    *  layout ("all", from the "Apply to all" button). */
   onCommit: (draft: Draft, scope: "active" | "all") => void;
@@ -545,8 +548,8 @@ export function ChartPropertiesDialog(props: Props) {
    *  for the pre/post background row. */
   const visible = (tab: string, r: FormRow): boolean => {
     if (tab === "symbol" && r.label === "Pre/post market hours background" && props.intraday === false) return false;
-    // "Open market status" only while the market is open.
-    if (tab === "legend" && r.label === "Open market status" && usMarketSession() !== "open") return false;
+    // "Open market status" only while the symbol's market is open.
+    if (tab === "legend" && r.label === "Open market status" && marketSession(props.symbol ?? "") !== "open") return false;
     if (!r.visibleWhen) return true;
     const c = draft[keyOf(tab, r.visibleWhen.id)]?.controls?.[0];
     return !!c && c.kind === "select" && r.visibleWhen.values.includes(c.value);

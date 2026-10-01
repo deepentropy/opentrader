@@ -47,7 +47,7 @@ import { AddAlertDialog } from "./AddAlertDialog";
 import { quoteFor as liveQuoteFor, type LiveQuote } from "../../data/quotes";
 import { getTickerInfo, resolveSymbol } from "../../data/datafeed";
 import * as kv from "../../data/kv";
-import { usMarketSession } from "../../data/market-session";
+import { marketSession } from "../../data/market-session";
 
 const SETTINGS_KEY = "ot:watchlist:settings";
 
@@ -94,12 +94,13 @@ function fmtVolume(v: number): string {
 }
 
 
-/** Watchlist view of the US session: "extended" = pre/post-market (Ext
- *  column + amber status dot), "closed" = grey dot. */
+/** Watchlist view of a symbol's own session: "extended" = pre/post-market
+ *  (Ext column + amber status dot), "closed" = grey dot. A symbol whose
+ *  session is not resolved yet shows neither (as "regular"). */
 type MarketState = "regular" | "extended" | "closed";
-function marketState(now: Date = new Date()): MarketState {
-  const s = usMarketSession(now);
-  return s === "open" ? "regular" : s === "closed" ? "closed" : "extended";
+function marketState(symbol: string, now: Date = new Date()): MarketState {
+  const s = marketSession(symbol, now);
+  return s === "closed" ? "closed" : s === "pre" || s === "post" ? "extended" : "regular";
 }
 
 function loadSettings(): WlSettings {
@@ -517,7 +518,7 @@ export function Watchlist(props: Props) {
    *  falling back to the stored static value. */
   function extForRow(r: Row): { text: string; tint?: "up" | "down" } {
     const q = quoteFor(r.short);
-    const text = marketState() !== "extended"
+    const text = marketState(r.ticker) !== "extended"
       ? ""
       : q?.extChangePercent != null
         ? fmtPercent(q.extChangePercent)
@@ -525,11 +526,11 @@ export function Watchlist(props: Props) {
     return { text, tint: text ? (isNegative(text) ? "down" : "up") : undefined };
   }
 
-  /** Market-status dot beside the ticker: grey while the market is fully closed
-   *  (every row), amber on a row carrying an extended-hours quote, none during
+  /** Market-status dot beside the ticker: grey while the row's market is fully
+   *  closed, amber on a row carrying an extended-hours quote, none during
    *  the regular session. Returns the modifier class, or "" for no dot. */
   function dotClass(r: Row): string {
-    if (marketState() === "closed") return "watchlist-status-dot closed";
+    if (marketState(r.ticker) === "closed") return "watchlist-status-dot closed";
     return extForRow(r).text !== "" ? "watchlist-status-dot" : "";
   }
 

@@ -1,29 +1,15 @@
 /*
- * US-equity market session from the wall clock (America/New_York, Mon–Fri):
- * pre-market 04:00–09:30, regular 09:30–16:00, post-market 16:00–20:00, else
- * closed (overnight / weekend). Holidays are not modelled. One source for the
- * watchlist status dot + Ext column, the Details market state and the chart's
- * pre/post-market price label.
+ * Market state of a symbol from its own sessions (./session): regular session
+ * "open", "pre" / "post" market, else "closed" (overnight, weekend, holiday).
+ * One source for the watchlist status dot + Ext column, the Details market
+ * state, the chart legend status and the chart's pre/post-market price label.
  */
+import { cachedSymbolSessions, type MarketSession } from "./session";
 
-export type MarketSession = "open" | "pre" | "post" | "closed";
+export type { MarketSession } from "./session";
 
-const fmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-export function usMarketSession(now: Date = new Date()): MarketSession {
-  const parts = fmt.formatToParts(now);
-  const get = (t: string): string => parts.find((p) => p.type === t)?.value ?? "";
-  const wd = get("weekday");
-  if (wd === "Sat" || wd === "Sun") return "closed";
-  const mins = Number(get("hour")) * 60 + Number(get("minute"));
-  if (mins >= 9 * 60 + 30 && mins < 16 * 60) return "open";
-  if (mins >= 4 * 60 && mins < 9 * 60 + 30) return "pre";
-  if (mins >= 16 * 60 && mins < 20 * 60) return "post";
-  return "closed";
+/** Market state of `symbol` at `now`, or null until its sessions resolve.
+ *  Reactive: re-reads once the session arrives (sessionsVersion). */
+export function marketSession(symbol: string, now: Date = new Date()): MarketSession | null {
+  return cachedSymbolSessions(symbol)?.status(now.getTime() / 1000) ?? null;
 }

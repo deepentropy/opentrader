@@ -105,7 +105,8 @@ import { layoutSync } from "./layout-sync";
 import { dayKeyer, utcToWall, wallTimeToUtc, type WallDate, type WallTime } from "./day-key";
 import type { GotoQuery } from "./goto-query";
 import { quoteFor } from "../../data/quotes";
-import { usMarketSession } from "../../data/market-session";
+import { marketSession as marketSessionOf } from "../../data/market-session";
+import { cachedSymbolSessions } from "../../data/session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
 import { IndicatorLegend } from "./IndicatorLegend";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
@@ -1549,9 +1550,14 @@ export function ChartView(props: Props) {
   function lastBarForming(): boolean {
     const last = raw.length > 0 ? raw[raw.length - 1] : null;
     if (!last || typeof last.time !== "number") return false;
-    return countdownText(props.interval ?? "1D", Date.now() / 1000, last.time as number, props.session ?? "RTH") != null;
+    const sessions = cachedSymbolSessions(props.symbol ?? "");
+    return countdownText(props.interval ?? "1D", Date.now() / 1000, last.time as number, props.session ?? "RTH", sessions) != null;
   }
-  const dataExtras = () => ({ subMinute: subMinute ?? undefined, lastForming: lastBarForming() });
+  const dataExtras = () => ({
+    subMinute: subMinute ?? undefined,
+    lastForming: lastBarForming(),
+    sessions: cachedSymbolSessions(props.symbol ?? ""),
+  });
 
   /** Style work that depends on the series data: the Baseline base level
    *  and the gradient line's label colour. */
@@ -1776,8 +1782,11 @@ export function ChartView(props: Props) {
     sessionBreaks.setData(times, t.sessionBreaksColor, t.sessionBreaksVisible, t.sessionBreaksStyle, t.sessionBreaksWidth);
     // Pre/post-market tint: only when the chart draws extended-hours bars.
     sessionBackgrounds.setColors(t.preMarketBgColor, t.postMarketBgColor);
+    const sessions = cachedSymbolSessions(props.symbol ?? "");
     sessionBackgrounds.setRuns(
-      intraday && (props.session ?? "RTH") === "ETH" ? computeSessionRuns(raw as readonly { time: number }[]) : [],
+      intraday && sessions && (props.session ?? "RTH") === "ETH"
+        ? computeSessionRuns(raw as readonly { time: number }[], sessions)
+        : [],
     );
     recomputePrevDayClose();
     updatePrevClosePriceLine();
@@ -1820,9 +1829,11 @@ export function ChartView(props: Props) {
    *  itself (daily/weekly/monthly, or intraday on the regular session).
    *  Colour by session; label text black/white from the background. No
    *  overnight ("night") price: the data plan has none. */
-  const [marketSession, setMarketSession] = createSignal(usMarketSession());
+  const [statusClock, setStatusClock] = createSignal(Date.now());
+  /** Market state of the charted symbol's own market (re-read every 15 s). */
+  const marketSession = () => marketSessionOf(props.symbol ?? "", new Date(statusClock())) ?? undefined;
   onMount(() => {
-    const id = window.setInterval(() => { if (!hidden()) setMarketSession(usMarketSession()); }, 15_000);
+    const id = window.setInterval(() => { if (!hidden()) setStatusClock(Date.now()); }, 15_000);
     onCleanup(() => window.clearInterval(id));
   });
 
@@ -2033,6 +2044,7 @@ export function ChartView(props: Props) {
           Date.now() / 1000,
           typeof last.time === "number" ? (last.time as number) : undefined,
           props.session ?? "RTH",
+          cachedSymbolSessions(props.symbol ?? ""),
         )
       : null;
     const showCountdown = t.countdownVisible && text != null;
@@ -4378,7 +4390,7 @@ export function ChartView(props: Props) {
       paintLive(null, appended);
     }
     updateCountdown();
-    setMarketSession(usMarketSession());
+    setStatusClock(Date.now());
     for (const f of [...onShownHooks]) f();
   }
   let wasShown = !hidden();

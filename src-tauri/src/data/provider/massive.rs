@@ -19,9 +19,11 @@ use crate::data::types::{
     Candle, DividendEvent, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
-use crate::data::{gateway, massive_poll, massive_rest, massive_ws};
+use crate::data::session::{Subsession, SymbolSession};
+use crate::data::{gateway, massive_poll, massive_rest, massive_ws, trading_calendar};
 use anyhow::Result;
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate, Utc};
+use std::sync::OnceLock;
 use tauri::AppHandle;
 
 pub struct MassiveProvider;
@@ -73,6 +75,9 @@ impl ReferenceProvider for MassiveProvider {
     async fn ticker_info(&self, ticker: &str) -> Result<TickerInfo> {
         massive_rest::fetch_ticker_info(ticker).await
     }
+    async fn symbol_session(&self, _exchange: &str, _ticker: &str) -> Result<SymbolSession> {
+        Ok(us_equity_session())
+    }
     async fn ticker_snapshot(&self, ticker: &str) -> Result<Snapshot> {
         massive_rest::fetch_ticker_snapshot(ticker).await
     }
@@ -112,6 +117,32 @@ impl RealtimeProvider for MassiveProvider {
             massive_ws::spawn_second_bars(app),
         ])
     }
+}
+
+/// Session of the US equities Massive serves (the app reads the stocks
+/// market only): 09:30-16:00 New York, extended 04:00-20:00, NYSE/NASDAQ
+/// holidays from the computed calendar. Early closes are not modelled (the
+/// calendar has no rule for them). Built once: the holiday list runs from the
+/// calendar floor to next year.
+fn us_equity_session() -> SymbolSession {
+    static SESSION: OnceLock<SymbolSession> = OnceLock::new();
+    SESSION
+        .get_or_init(|| SymbolSession {
+            timezone: "America/New_York".into(),
+            session: "0930-1600".into(),
+            subsessions: vec![
+                Subsession::new("regular", "Regular Trading Hours", "0930-1600"),
+                Subsession::new("extended", "Extended Trading Hours", "0400-2000"),
+                Subsession::new("premarket", "Premarket", "0400-0930"),
+                Subsession::new("postmarket", "Postmarket", "1600-2000"),
+            ],
+            holidays: trading_calendar::holidays_spec(
+                trading_calendar::floor_year(),
+                Utc::now().year() + 1,
+            ),
+            corrections: String::new(),
+        })
+        .clone()
 }
 
 /// Ticker used by the entitlement probes: listed long before any plan's
@@ -222,6 +253,26 @@ mod tests {
         assert_eq!(r.seconds, vec![1, 5, 10, 15, 30, 45]);
         assert_eq!(r.minutes, vec![1, 5, 15, 30, 60, 120, 240]);
         assert!(r.daily && r.weekly_monthly_from_daily);
+    }
+
+    /// The US session matches the reference app's symbol info for US stocks
+    /// (NASDAQ:AAPL, NYSE:IBM resolved 01/10/2026): New York, regular
+    /// 09:30-16:00, extended 04:00-20:00, and the same 2025-2026 holidays.
+    #[test]
+    fn us_equity_session_matches_reference() {
+        let s = us_equity_session();
+        assert_eq!(s.timezone, "America/New_York");
+        assert_eq!(s.session, "0930-1600");
+        let ext = s.subsessions.iter().find(|x| x.id == "extended").unwrap();
+        assert_eq!(ext.session, "0400-2000");
+        let reference = "20250101,20250120,20250217,20250418,20250526,20250619,20250704,20250901,20251127,20251225,\
+                         20260101,20260119,20260216,20260403,20260525,20260619,20260703,20260907,20261126,20261225";
+        let ours: Vec<&str> = s
+            .holidays
+            .split(',')
+            .filter(|d| *d >= "20250101" && *d < "20270101")
+            .collect();
+        assert_eq!(ours.join(","), reference);
     }
 
     /// Live entitlement probe through the gateway (token compiled in by

@@ -38,6 +38,7 @@ import { LAYOUT_SPECS, type LayoutId } from "./layouts";
 import type { PaneChart, PaneIndicatorSettings } from "../shell/tabs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "../../data/drawing-toolbar";
+import { displayTimeZone } from "../../data/session";
 
 type Props = {
   /** False while this grid's tab is hidden. App keeps every opened tab's grid
@@ -240,7 +241,7 @@ export function ChartGrid(props: Props) {
                 settings={pane().settings}
                 indicatorsHidden={props.indicatorsHidden}
                 theme={props.theme}
-                timeZone={props.timeZone}
+                timeZone={displayTimeZone(props.timeZoneLabel ?? "", props.timeZone ?? "UTC", pane().symbol)}
                 timeZoneLabel={props.timeZoneLabel}
                 active={isActive()}
                 shown={live()}

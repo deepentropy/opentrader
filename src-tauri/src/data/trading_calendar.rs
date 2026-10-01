@@ -105,6 +105,19 @@ fn holidays_for_years(from_year: i32, to_year: i32) -> HashSet<NaiveDate> {
 /// short of the 10 years the key can read (29/09/2016, probed 27/09/2026).
 const CALENDAR_FLOOR_YEAR: i32 = 2000;
 
+/// Full-close days of `[from_year, to_year]` as a session holiday list
+/// ("YYYYMMDD,…", ascending), for the symbol session of US equities.
+pub fn holidays_spec(from_year: i32, to_year: i32) -> String {
+    let mut days: Vec<NaiveDate> = holidays_for_years(from_year, to_year).into_iter().collect();
+    days.sort();
+    days.iter().map(|d| d.format("%Y%m%d").to_string()).collect::<Vec<_>>().join(",")
+}
+
+/// First year of the calendar (see `CALENDAR_FLOOR_YEAR`).
+pub fn floor_year() -> i32 {
+    CALENDAR_FLOOR_YEAR
+}
+
 fn is_trading_day(date: NaiveDate, holidays: &HashSet<NaiveDate>) -> bool {
     let weekday = date.weekday();
     if weekday == Weekday::Sat || weekday == Weekday::Sun {

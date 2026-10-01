@@ -129,6 +129,7 @@ export const CHART_TYPE_ICON: Record<ChartTypeId, string> = {
 
 export type { OHLC } from "lightweight-charts-drawing/core/coords";
 import type { OHLC } from "lightweight-charts-drawing/core/coords";
+import type { SymbolSessions } from "../../data/session";
 
 export type AnySeries = ISeriesApi<
   "Candlestick" | "Bar" | "Line" | "Area" | "Baseline" | "Histogram" | "Custom"
@@ -317,7 +318,7 @@ export function setDataForType(
   type: ChartTypeId,
   raw: OHLC[],
   tokens: ChartTokens,
-  extras?: { subMinute?: OHLC[]; lastForming?: boolean },
+  extras?: { subMinute?: OHLC[]; lastForming?: boolean; sessions?: SymbolSessions | null },
 ): void {
   const st = tokens.styles;
   const forming = !!extras?.lastForming;
@@ -335,7 +336,7 @@ export function setDataForType(
     }
     case "svp":
     case "tpo":
-      custom.setData(toProfile(raw, type, st.svp));
+      custom.setData(toProfile(raw, type, st.svp, extras?.sessions ?? null));
       return;
     case "volFootprint":
       custom.setData(toFootprint(raw, extras?.subMinute));

@@ -85,6 +85,7 @@ import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { screenerPanel } from "./data/screener-store";
 import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
 import { isAdjusted, isIntradayInterval, isIntradayResolution, isSupportedResolution, type SessionId } from "./data/datafeed";
+import { displayTimeZone } from "./data/session";
 import { requestDataWindow } from "./data/data-window-store";
 import { bindLayoutSync, defaultLayoutSync, rememberCrosshair, reviveLayoutSync, type LayoutSyncKey } from "./window/chart/layout-sync";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
@@ -548,7 +549,9 @@ function App() {
   // Transient banner shown when an alert fires (in addition to the log + sound).
   const [alertToast, setAlertToast] = createSignal<{ title: string; message: string } | null>(null);
   // Chart display timezone (bottom-bar TimezoneMenu), persisted. Default to the
-  // "Exchange" zone (US equities → New York).
+  // "Exchange" zone: each chart shows its symbol's exchange zone (see
+  // displayTimeZone); the stored IANA name is the fallback until the symbol's
+  // session resolves.
   const TZ_KEY = "ot:timezone";
   const loadTz = (): { label: string; iana: string } => {
     try {
@@ -2159,7 +2162,7 @@ function App() {
             session={session()}
             onSessionChange={setSession}
             timezoneLabel={timezone().label}
-            timezoneIana={timezone().iana}
+            timezoneIana={displayTimeZone(timezone().label, timezone().iana, activeFullSymbol() ?? symbol())}
             onTimezoneChange={(e) => setTimezone({ label: e.label, iana: e.iana })}
             maximized={maximized()}
             onToggleMaximize={toggleMaximize}
@@ -2311,15 +2314,14 @@ function App() {
           })}
           chartType={chartType()}
           intraday={isIntradayResolution(interval())}
+          symbol={activeFullSymbol() ?? symbol()}
           onCommit={(draft, scope) => {
             // Symbol → Timezone drives the app-wide display timezone (one
             // axis timezone for the whole app, same signal as the bottom bar).
             const appearance = appearanceFrom(draft);
             const tzLabel = appearance.timezone;
             if (tzLabel && tzLabel !== timezone().label) {
-              const tz = tzLabel === "Exchange"
-                ? { label: "Exchange", iana: "America/New_York" }
-                : findTimezone(tzLabel);
+              const tz = findTimezone(tzLabel);
               if (tz) setTimezone({ label: tz.label, iana: tz.iana });
             }
             // Symbol → "Adjust data for dividends" is the SAME app-wide flag

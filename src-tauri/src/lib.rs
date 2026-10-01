@@ -30,6 +30,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::realtime::set_chart_subscription,
             commands::realtime::set_watchlist_subscription,
             commands::ticker::get_ticker_info,
+            commands::ticker::get_symbol_session,
             commands::ticker::get_ticker_snapshot,
             commands::ticker::search_tickers,
             commands::events::get_dividends,

@@ -11,9 +11,9 @@
  *
  * Special rows:
  *   "UTC"      → IANA "UTC"
- *   "Exchange" → IANA varies per symbol; in this mock it falls back to the
- *                user's local zone since we don't model per-symbol exchange
- *                metadata.
+ *   "Exchange" → each chart uses its symbol's exchange zone (from the
+ *                symbol session, see data/session); the IANA name here is
+ *                only the fallback until that session resolves.
  */
 export type TimezoneEntry = {
   /** The literal label shown in the popup row.  Treat as opaque. */

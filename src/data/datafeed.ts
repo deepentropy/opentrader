@@ -32,8 +32,10 @@ import {
   type ChartAggregate,
   type SecondAggregate,
 } from "./datafeed-live";
-import { exchangeName, defaultExchange } from "./providers";
-import { providerServes } from "./providers/capabilities";
+import { exchangeName } from "./providers";
+import { splitSymbol } from "./symbol-name";
+import { providerCapabilities, providerServes } from "./providers/capabilities";
+import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec } from "./session";
 import { aggregateCandles, bucketStart, type AggregateUnit } from "../window/chart/chart-aggregate";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
@@ -139,14 +141,9 @@ export function isSupportedResolution(resolution: string): boolean {
   const second = SECOND_INTERVALS[resolution];
   if (second) return providerServes("second", second.mult);
   const intra = INTRADAY_INTERVALS[resolution];
-  if (intra) {
-    // 1H/2H/4H in RTH are built from a 30-min base (see getBars), so the
-    // provider must serve both.
-    return (
-      providerServes("minute", intra.mins) &&
-      (!needsSessionReaggregation(intra.mins) || providerServes("minute", 30))
-    );
-  }
+  // A bar size whose buckets straddle the session open is rebuilt from a
+  // finer served base (see sessionBaseMinutes).
+  if (intra) return providerServes("minute", intra.mins);
   const daily = DAILY_INTERVALS[resolution];
   if (daily) return providerServes(daily.aggregate ? "weekMonth" : "day");
   return false;
@@ -169,16 +166,7 @@ export function aggregateUnitFor(resolution: string): AggregateUnit | null {
 
 // ── Symbol helpers ──────────────────────────────────────────────────────────
 
-/** "EXCHANGE:TICKER" → its parts; bare tickers default to NASDAQ (mirrors the
- *  mock's splitSymbol). */
-export function splitSymbol(symbol: string): { exchange: string; ticker: string } {
-  const head = symbol.split(",")[0].trim();
-  if (head.includes(":")) {
-    const [exchange, ticker] = head.split(":");
-    return { exchange, ticker };
-  }
-  return { exchange: defaultExchange(), ticker: head };
-}
+export { splitSymbol } from "./symbol-name";
 
 // Exchange-code naming is the one vendor-specific presentation transform; it
 // lives in the active provider adapter (./providers) and is re-exported here so
@@ -276,76 +264,74 @@ export async function getEvents(symbol: string): Promise<ChartEvent[]> {
 }
 
 // ── Session (regular vs extended hours) ──────────────────────────────────────
-// The bottom-bar RTH/ETH toggle. Our backend aggregates carry NO session flag
-// — they always include extended hours (premarket from 04:00) and are
-// midnight-aligned. So we compute the session ourselves (generic US-equity
-// session logic, not vendor-specific):
-//   • ETH → bars as-is (midnight-aligned hour buckets already break at 04:00,
-//     the extended-session open).
-//   • RTH → keep only 09:30–16:00 ET. For seconds + 1/5/15/30-min that's an
-//     exact filter (09:30 is already a bucket edge). For 1H/2H/4H the hour
-//     buckets straddle the open (the 09:00 bar mixes premarket + open), so we
-//     fetch a 30-min base, filter, and re-aggregate anchored at 09:30.
+// The bottom-bar RTH/ETH toggle. Provider aggregates carry NO session flag and
+// are aligned on the clock, so the session comes from the symbol's own
+// schedule (./session, reported by the provider per symbol):
+//   • bars outside the chosen session (regular, or the extended day) are
+//     dropped;
+//   • when the bar size divides every session open (minutes after local
+//     midnight), the provider's clock-aligned buckets already break there and
+//     the filter is exact;
+//   • otherwise (US 1H/2H/4H RTH: 09:30 open) the buckets straddle the open,
+//     so a finer base that divides it is fetched, filtered, and re-aggregated
+//     ANCHORED AT EACH SESSION INTERVAL's start (09:30, 10:30, …).
 
-export type SessionId = "RTH" | "ETH";
+export type { SessionId } from "./session";
 
-/** Regular US-equity session, defined in EXCHANGE-local time (independent of the
- *  chart's display timezone): 09:30–16:00 America/New_York. */
-const RTH_TZ = "America/New_York";
-const RTH_OPEN_MIN = 9 * 60 + 30; // 570
-const RTH_CLOSE_MIN = 16 * 60; // 960
-
-// Reused formatters (DST-correct): a bar's UNIX seconds → ET time-of-day / date.
-const etTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: RTH_TZ, hour12: false, hour: "2-digit", minute: "2-digit",
-});
-const etDateFmt = new Intl.DateTimeFormat("en-CA", {
-  timeZone: RTH_TZ, year: "numeric", month: "2-digit", day: "2-digit",
-});
-
-/** Minutes since ET midnight for a bar time (UNIX seconds). */
-function etMinutes(timeSec: number): number {
-  const parts = etTimeFmt.formatToParts(new Date(timeSec * 1000));
-  let h = 0, m = 0;
-  for (const p of parts) {
-    if (p.type === "hour") h = +p.value;
-    else if (p.type === "minute") m = +p.value;
+/** Minutes after local midnight of every session open in `spec` over the
+ *  week before `sec` (so day-of-week variants are seen). */
+function sessionOpenMinutes(spec: SessionSpec, sec: number): number[] {
+  const out = new Set<number>();
+  const d = localDay(spec.timeZone, sec);
+  for (let day = d - 7; day <= d; day++) {
+    for (const iv of spec.dayIntervals(day)) {
+      const m = Math.round((iv.start - localToUtc(spec.timeZone, day, 0)) / 60);
+      out.add(((m % 1440) + 1440) % 1440);
+    }
   }
-  if (h === 24) h = 0; // midnight prints as "24" in some locales
-  return h * 60 + m;
+  return [...out];
 }
 
-/** True when a bar's ET time-of-day falls in the regular 09:30–16:00 window. */
-function isRegularHours(timeSec: number): boolean {
-  const min = etMinutes(timeSec);
-  return min >= RTH_OPEN_MIN && min < RTH_CLOSE_MIN;
+/** Base bar size (minutes) to rebuild `mins` bars anchored at the session
+ *  open, or null when the provider's own `mins` buckets already break at
+ *  every open. The base is the largest served size that divides `mins` and
+ *  every open. */
+function sessionBaseMinutes(spec: SessionSpec, mins: number): number | null {
+  if (spec.always) return null;
+  const opens = sessionOpenMinutes(spec, Date.now() / 1000);
+  if (opens.every((m) => m % mins === 0)) return null;
+  const served = providerCapabilities()?.resolutions.minutes ?? Object.values(INTRADAY_INTERVALS).map((i) => i.mins);
+  const fits = served.filter((m) => m < mins && mins % m === 0 && opens.every((o) => o % m === 0));
+  if (fits.length === 0) throw new Error(`no base bar size to build ${mins}-minute session bars`);
+  return Math.max(...fits);
 }
 
-/** Drop bars outside the regular session (used for the exact-filter family:
- *  seconds + 1/5/15/30-min, whose buckets already break at 09:30). */
-function regularHoursOnly(rows: Candle[]): Candle[] {
-  return rows.filter((c) => c.time != null && isRegularHours(c.time as number));
+/** Drop bars that start outside `spec`'s sessions. */
+function inSession(rows: Candle[], spec: SessionSpec): Candle[] {
+  if (spec.always) return rows;
+  return rows.filter((c) => c.time != null && spec.contains(c.time as number));
 }
 
-/** Aggregate regular-session minute bars (already filtered to 09:30–16:00,
- *  time-ascending, on a granularity that breaks at 09:30 — we use 30-min) into
- *  `targetMins` buckets ANCHORED AT THE SESSION OPEN. This is how 1H/2H/4H RTH
- *  bars line up at 09:30, 10:30, … (the raw provider bars can't — their hour buckets are
- *  midnight-aligned). The last bucket of a day may be short (15:30–16:00). */
-function aggregateSessionMinutes(rows: Candle[], targetMins: number): Candle[] {
+/** Aggregate in-session base bars (time-ascending, on a size that divides the
+ *  session opens) into `targetMins` buckets ANCHORED AT THEIR SESSION
+ *  INTERVAL's start. The last bucket of an interval may be short (15:30–16:00).
+ *  Each bucket is stamped with its start, even when its first base bar is
+ *  missing. */
+function aggregateSessionMinutes(rows: Candle[], spec: SessionSpec, targetMins: number): Candle[] {
   const out: Candle[] = [];
-  let curKey = "";
+  const step = targetMins * 60;
+  let curStart = NaN;
   let cur: Candle | null = null;
   for (const b of rows) {
     if (b.time == null || b.open == null || b.high == null || b.low == null || b.close == null) continue;
     const t = b.time as number;
-    const day = etDateFmt.format(new Date(t * 1000));
-    const bucket = Math.floor((etMinutes(t) - RTH_OPEN_MIN) / targetMins);
-    const key = `${day}#${bucket}`;
-    if (key !== curKey) {
+    const iv = spec.at(t);
+    if (!iv) continue;
+    const start = iv.start + Math.floor((t - iv.start) / step) * step;
+    if (start !== curStart) {
       if (cur) out.push(cur);
-      cur = { ...b };
-      curKey = key;
+      cur = { ...b, time: start };
+      curStart = start;
     } else if (cur) {
       cur.high = Math.max(cur.high as number, b.high as number);
       cur.low = Math.min(cur.low as number, b.low as number);
@@ -355,12 +341,6 @@ function aggregateSessionMinutes(rows: Candle[], targetMins: number): Candle[] {
   }
   if (cur) out.push(cur);
   return out;
-}
-
-/** True when this intraday resolution needs the 30-min-base re-aggregation for
- *  RTH (1H/2H/4H), as opposed to the exact filter (≤30-min + seconds). */
-function needsSessionReaggregation(mins: number): boolean {
-  return mins >= 60;
 }
 
 // ── Split adjustment (bottom-bar ADJ toggle) ─────────────────────────────────
@@ -405,30 +385,30 @@ export async function getBars(
   if (!isSupportedResolution(resolution)) {
     throw new Error(`unsupported resolution: ${resolution}`);
   }
-  const regular = session === "RTH";
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
   if (second) {
-    const bars = await getSecondHistory(symbol, second.mult, second.days, adjusted);
-    // Second buckets always break at 09:30, so an exact filter suffices.
-    return { bars: regular ? regularHoursOnly(bars) : bars, daily: null, aggregate: null };
+    const [bars, sessions] = await Promise.all([
+      getSecondHistory(symbol, second.mult, second.days, adjusted),
+      symbolSessions(symbol),
+    ]);
+    // Second buckets divide every minute open, so an exact filter suffices.
+    return { bars: inSession(bars, sessions.spec(session)), daily: null, aggregate: null };
   }
   const intra = INTRADAY_INTERVALS[resolution];
   if (intra) {
-    // 1H/2H/4H RTH: fetch a 30-min base, filter to the session, re-aggregate
-    // anchored at the open (the raw hour buckets straddle 09:30).
-    if (regular && needsSessionReaggregation(intra.mins)) {
-      const res = await commands.getMinuteHistory(symbol, intra.days, 30, adjusted);
-      if (res.status === "error") throw new Error(res.error);
-      const bars = aggregateSessionMinutes(regularHoursOnly(res.data), intra.mins);
-      return { bars, daily: null, aggregate: null };
-    }
-    const res = await commands.getMinuteHistory(symbol, intra.days, intra.mins, adjusted);
+    const spec = (await symbolSessions(symbol)).spec(session);
+    const base = sessionBaseMinutes(spec, intra.mins);
+    const res = await commands.getMinuteHistory(symbol, intra.days, base ?? intra.mins, adjusted);
     if (res.status === "error") throw new Error(res.error);
-    return { bars: regular ? regularHoursOnly(res.data) : res.data, daily: null, aggregate: null };
+    const rows = inSession(res.data, spec);
+    return { bars: base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows, daily: null, aggregate: null };
   }
   const cfg = dailyConfig(resolution);
-  const res = await commands.getDailyHistory(symbol, cfg.days, adjusted);
+  // The session is not needed to fetch daily bars, but resolving it with them
+  // (in parallel) means every loaded chart knows its symbol's session (status,
+  // countdown, profile periods).
+  const [res] = await Promise.all([commands.getDailyHistory(symbol, cfg.days, adjusted), symbolSessions(symbol)]);
   if (res.status === "error") throw new Error(res.error);
   const daily = res.data;
   const bars = cfg.aggregate ? aggregateCandles(daily, cfg.aggregate) : daily;
@@ -440,7 +420,7 @@ export async function getBars(
  *  the daily family these are raw daily candles (the caller prepends to its
  *  daily series and re-aggregates with {@link aggregateUnitFor}); for
  *  second/minute they are the displayed bars. Returns `[]` when exhausted. */
-export function getBarsBefore(
+export async function getBarsBefore(
   symbol: string,
   resolution: string,
   beforeSec: number,
@@ -451,25 +431,23 @@ export function getBarsBefore(
    *  parallel). */
   spanDays?: number,
 ): Promise<Candle[]> {
-  const regular = session === "RTH";
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
-  if (second)
-    return getAggregatesBefore(symbol, "second", second.mult, beforeSec, spanDays ?? second.days, adjusted).then(
-      (rows) => (regular ? regularHoursOnly(rows) : rows),
-    );
+  if (second) {
+    const [rows, sessions] = await Promise.all([
+      getAggregatesBefore(symbol, "second", second.mult, beforeSec, spanDays ?? second.days, adjusted),
+      symbolSessions(symbol),
+    ]);
+    return inSession(rows, sessions.spec(session));
+  }
   const intra = INTRADAY_INTERVALS[resolution];
   if (intra) {
     const days = spanDays ?? intra.days;
     // Mirror getBars' session handling so older pages stay session-consistent.
-    if (regular && needsSessionReaggregation(intra.mins)) {
-      return getAggregatesBefore(symbol, "minute", 30, beforeSec, days, adjusted).then((rows) =>
-        aggregateSessionMinutes(regularHoursOnly(rows), intra.mins),
-      );
-    }
-    return getAggregatesBefore(symbol, "minute", intra.mins, beforeSec, days, adjusted).then(
-      (rows) => (regular ? regularHoursOnly(rows) : rows),
-    );
+    const spec = (await symbolSessions(symbol)).spec(session);
+    const base = sessionBaseMinutes(spec, intra.mins);
+    const rows = inSession(await getAggregatesBefore(symbol, "minute", base ?? intra.mins, beforeSec, days, adjusted), spec);
+    return base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows;
   }
   return getDailyHistoryBefore(symbol, beforeSec, spanDays ?? dailyConfig(resolution).days, adjusted);
 }
@@ -487,9 +465,8 @@ export function getSecondBarsTail(
 ): Promise<Candle[]> | null {
   const second = SECOND_INTERVALS[resolution];
   if (!second) return null;
-  const regular = session === "RTH";
-  return getSecondHistoryTail(symbol, second.mult, sinceSec, isAdjusted()).then((rows) =>
-    regular ? regularHoursOnly(rows) : rows,
+  return Promise.all([getSecondHistoryTail(symbol, second.mult, sinceSec, isAdjusted()), symbolSessions(symbol)]).then(
+    ([rows, sessions]) => inSession(rows, sessions.spec(session)),
   );
 }
 
@@ -503,7 +480,7 @@ export type LiveBar = {
   low: number;
   close: number;
   volume: number;
-  /** Midnight-ET stamp of the tick's trading day (daily family only). For
+  /** Daily-bar stamp of the tick's trading day (daily family only). For
    *  1W/1M the tick's `volume` covers TODAY only, not the forming bucket's
    *  cumulative — this lets the consumer reset its per-day volume baseline
    *  when the day advances (see ChartView's applyLiveBar). */
@@ -513,19 +490,14 @@ export type LiveBar = {
   volumeIsIncrement?: boolean;
 };
 
-/** Midnight ET of the ET calendar date containing `timeSec`, in UNIX seconds —
- *  the timestamp convention of the provider's daily bars (verified: Massive
- *  daily aggs stamp 04:00/05:00 UTC = 00:00 New York). DST-safe: probes the
- *  two possible offsets and keeps the one that formats back to 00:00 on the
- *  same ET date. */
-function etMidnightUtcSec(timeSec: number): number {
-  const dstr = etDateFmt.format(new Date(timeSec * 1000)); // en-CA → YYYY-MM-DD
-  const [y, m, d] = dstr.split("-").map(Number);
-  for (const off of [4, 5]) {
-    const cand = Date.UTC(y, m - 1, d, off) / 1000;
-    if (etMinutes(cand) === 0 && etDateFmt.format(new Date(cand * 1000)) === dstr) return cand;
-  }
-  return Date.UTC(y, m - 1, d, 5) / 1000; // unreachable (EST fallback)
+/** Daily-bar stamp of the trading day `timeSec` belongs to: local midnight
+ *  of that day in the symbol's exchange time zone, the timestamp convention
+ *  of the provider's daily bars (verified for Massive: daily aggs stamp
+ *  04:00/05:00 UTC = 00:00 New York). The day is the one of the extended
+ *  session in progress at `timeSec`, else of the last one that closed. */
+function dailyBarStamp(spec: SessionSpec, timeSec: number): number {
+  const day = spec.currentOrPrevious(timeSec)?.day ?? localDay(spec.timeZone, timeSec);
+  return localToUtc(spec.timeZone, day, 0);
 }
 
 /** Bucket a raw per-minute aggregate tick into a bar for `resolution`. Returns
@@ -544,8 +516,12 @@ export function bucketLiveTick(
   // along on the tick, so the update is exact (open/high/low cover the whole
   // session even when the app attached mid-day — a warm daily history load
   // deliberately skips today's forming bar and this fills it). Bucketed to
-  // midnight-ET (the daily-bar stamp), then to the week/month key for 1W/1M.
+  // the daily-bar stamp, then to the week/month key for 1W/1M.
   // Session-independent, like the historical daily path (no RTH variant).
+  // Sessions resolve before the first bars of a symbol: none yet means no
+  // loaded series to update.
+  const sessions = cachedSymbolSessions(tick.symbol);
+  if (!sessions) return null;
   const dailyCfg = DAILY_INTERVALS[resolution];
   if (dailyCfg) {
     // Day-bar only: pre-market snapshots carry no day bar yet (today's daily
@@ -554,8 +530,8 @@ export function bucketLiveTick(
     const src = tick.day;
     if (!src) return null;
     // A day-only tick (no minute bar in the snapshot) stamps time=0; fall back
-    // to the day bar's own update stamp for the ET-date derivation.
-    const dayTime = etMidnightUtcSec(tick.time > 0 ? tick.time : src.time);
+    // to the day bar's own update stamp for the trading-day derivation.
+    const dayTime = dailyBarStamp(sessions.extended, tick.time > 0 ? tick.time : src.time);
     return {
       time: dailyCfg.aggregate ? bucketStart(dayTime, dailyCfg.aggregate) : dayTime,
       open: src.open,
@@ -571,22 +547,18 @@ export function bucketLiveTick(
   // Day-only fallback ticks (time=0) carry day OHLC, not a minute bar — they
   // must never form an intraday bucket.
   if (tick.time <= 0) return null;
-  const regular = session === "RTH";
-  // RTH: a premarket/after-hours tick has no regular-session bar to extend.
-  if (regular && !isRegularHours(tick.time)) return null;
-  let bucketTime: number;
-  if (regular && needsSessionReaggregation(intra.mins)) {
-    // 1H/2H/4H RTH buckets anchor at 09:30, not the UTC hour. Floor to the
-    // minute, then subtract the tick's offset INTO its session bucket (whole
-    // minutes — DST-safe, and matches the minute-aligned historical bars).
-    const tMin = Math.floor(tick.time / 60) * 60;
-    const intoBucket = (((etMinutes(tick.time) - RTH_OPEN_MIN) % intra.mins) + intra.mins) % intra.mins;
-    bucketTime = tMin - intoBucket * 60;
-  } else {
-    // ≤30-min + seconds: midnight/UTC-hour-aligned floor already breaks at 09:30.
-    const bucketSecs = intra.mins * 60;
-    bucketTime = Math.floor(tick.time / bucketSecs) * bucketSecs;
-  }
+  const spec = sessions.spec(session);
+  // A tick outside the chosen session has no bar to extend (RTH: pre/post).
+  const iv = spec.at(tick.time);
+  if (!iv) return null;
+  const bucketSecs = intra.mins * 60;
+  // Re-aggregated sizes (US 1H/2H/4H RTH) anchor at the session interval's
+  // start like the history; the others keep the provider's clock grid, which
+  // already breaks at the open.
+  const bucketTime =
+    sessionBaseMinutes(spec, intra.mins) !== null
+      ? iv.start + Math.floor((tick.time - iv.start) / bucketSecs) * bucketSecs
+      : Math.floor(tick.time / bucketSecs) * bucketSecs;
   return {
     time: bucketTime,
     open: tick.open,
@@ -599,7 +571,7 @@ export function bucketLiveTick(
 
 /** Bucket a 1-second stream bar into a bar for a second-family `resolution`
  *  (1S…45S). Null for any other family (minute / daily charts stay on the
- *  per-minute aggregates) and, in RTH, outside 09:30–16:00 ET. For buckets
+ *  per-minute aggregates) and outside the chosen session. For buckets
  *  wider than one second the bar carries `volumeIsIncrement`. */
 export function bucketSecondBar(
   resolution: string,
@@ -608,7 +580,8 @@ export function bucketSecondBar(
 ): LiveBar | null {
   const second = SECOND_INTERVALS[resolution];
   if (!second) return null;
-  if (session === "RTH" && !isRegularHours(bar.time)) return null;
+  const sessions = cachedSymbolSessions(bar.symbol);
+  if (!sessions || !sessions.spec(session).contains(bar.time)) return null;
   return {
     time: Math.floor(bar.time / second.mult) * second.mult,
     open: bar.open,

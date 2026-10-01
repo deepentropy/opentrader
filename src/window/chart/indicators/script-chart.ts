@@ -2,22 +2,25 @@
  * The chart context OakScript scripts see (oakscriptjs ChartContext): chart
  * timeframe (timeframe.period), exchange time zone and session of the bars
  * (time(tf, session), session.*, calendar, timeframe.change...), tickerid.
+ * Time zone and sessions are the charted symbol's own (data/session); until
+ * they resolve the script gets the library defaults. Reactive: read inside an
+ * effect, the context updates once the symbol's session arrives.
  */
 import type { ChartContext } from "oakscriptjs/script";
-import type { SessionId } from "../../../data/datafeed";
-
-/** US equity sessions in exchange time (the datafeed's RTH / ETH bars). */
-const REGULAR_SESSION = "0930-1600";
-const EXTENDED_SESSION = "0400-2000";
+import { cachedSymbolSessions, type SessionId } from "../../../data/session";
 
 export function scriptChartContext(symbol: string | undefined, interval: string | undefined, session: SessionId | undefined): ChartContext {
   const extended = session === "ETH";
-  return {
+  const ctx: ChartContext = {
     timeframe: interval ?? "1D",
-    timezone: "America/New_York",
     tickerid: symbol || undefined,
     sessionType: extended ? "extended" : "regular",
-    session: extended ? EXTENDED_SESSION : REGULAR_SESSION,
-    regularSession: REGULAR_SESSION,
   };
+  const sessions = symbol ? cachedSymbolSessions(symbol) : null;
+  if (sessions) {
+    ctx.timezone = sessions.timeZone;
+    ctx.session = extended ? sessions.extendedSpec : sessions.regularSpec;
+    ctx.regularSession = sessions.regularSpec;
+  }
+  return ctx;
 }

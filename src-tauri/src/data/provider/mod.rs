@@ -21,6 +21,7 @@ mod massive;
 pub use massive::MassiveProvider;
 
 use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
+use crate::data::session::SymbolSession;
 use crate::data::types::{
     Candle, DividendEvent, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
@@ -75,6 +76,12 @@ pub trait HistoryProvider: Send + Sync {
 #[async_trait::async_trait]
 pub trait ReferenceProvider: Send + Sync {
     async fn ticker_info(&self, ticker: &str) -> Result<TickerInfo>;
+    /// Trading sessions of a symbol (time zone, regular / extended hours,
+    /// holidays). `exchange` is the symbol's exchange prefix ("NASDAQ" in
+    /// "NASDAQ:AAPL"; the provider's default exchange for a bare ticker), for
+    /// providers that serve several markets. Called before the first bars of
+    /// a symbol, so it should answer fast (no I/O when the provider can).
+    async fn symbol_session(&self, exchange: &str, ticker: &str) -> Result<SymbolSession>;
     async fn ticker_snapshot(&self, ticker: &str) -> Result<Snapshot>;
     async fn search(
         &self,

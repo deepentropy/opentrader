@@ -24,7 +24,7 @@ import {
 } from "../../data/datafeed";
 import { computeYearRange, type YearRange } from "./ticker-stats";
 import * as kv from "../../data/kv";
-import { usMarketSession, type MarketSession } from "../../data/market-session";
+import { marketSession as marketSessionOf, type MarketSession } from "../../data/market-session";
 
 const DASH = "—";
 
@@ -290,7 +290,7 @@ export function WatchlistDetail(props: Props) {
     return e == null ? "" : e < 0 ? " down" : e > 0 ? " up" : "";
   };
 
-  // Live ET-clock tick (60s) so the session label flips at session boundaries
+  // Live clock tick (60s) so the session label flips at session boundaries
   // without a symbol change — the detail panel updates the label in place.
   const [now, setNow] = createSignal(new Date());
   onMount(() => {
@@ -298,17 +298,20 @@ export function WatchlistDetail(props: Props) {
     onCleanup(() => window.clearInterval(id));
   });
 
-  // Current US session, from the wall clock (America/New_York), matching the
-  // detail-panel states. Pre/Post render in accent-blue; Open/Closed in grey
+  // Current session of the symbol's own market, matching the detail-panel
+  // states. Pre/Post render in accent-blue; Open/Closed in grey
   // ("Post-market" = rgb(41,98,255); "Market closed" = rgb(140,140,140)).
-  const marketSession = (): MarketSession => usMarketSession(now());
+  const marketSession = (): MarketSession | null => marketSessionOf(props.activeSymbol ?? "", now());
   const SESSION_LABEL: Record<MarketSession, string> = {
     open: "Market open",
     pre: "Pre-market",
     post: "Post-market",
     closed: "Market closed",
   };
-  const marketState = () => (s() ? SESSION_LABEL[marketSession()] : "");
+  const marketState = () => {
+    const sx = marketSession();
+    return s() && sx ? SESSION_LABEL[sx] : "";
+  };
   /** Pre/Post are the "extended" sessions — rendered in accent blue. */
   const sessionActive = () => {
     const sx = marketSession();

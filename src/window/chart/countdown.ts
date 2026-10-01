@@ -6,10 +6,11 @@
  * canvas (the axis-view API can't do a two-row label).
  *
  * The remaining time is derived from the bar grid (last bar time + interval),
- * not the wall-clock bucket, so RTH-anchored hour buckets stay aligned; the
- * daily family counts to the 16:00 ET session close (next trading weekday
- * when past close), and weekly/monthly show whole days once the horizon
- * exceeds a day (holidays are not modelled — weekend-only skips).
+ * not the wall-clock bucket, so session-anchored hour buckets stay aligned,
+ * and a bar never runs past its session's close. All session times come from
+ * the charted symbol's own sessions (data/session): the daily family counts
+ * to the close of the trading day, weekly / monthly show whole days once the
+ * horizon exceeds a day.
  */
 import type {
   IPrimitivePaneRenderer,
@@ -21,6 +22,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
+import { localDay, weekdayOf, type SessionId, type SymbolSessions } from "../../data/session";
 
 export type CountdownState = {
   visible: boolean;
@@ -159,61 +161,6 @@ class CountdownPaneRenderer implements IPrimitivePaneRenderer {
 
 // ── Remaining-time derivation ────────────────────────────────────────────────
 
-const ET = "America/New_York";
-const etParts = new Intl.DateTimeFormat("en-US", {
-  timeZone: ET,
-  hour12: false,
-  weekday: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-});
-
-/** ET weekday (0=Sun..6=Sat) + seconds since ET midnight for a UNIX time. */
-function etClock(sec: number): { dow: number; secOfDay: number } {
-  const parts = etParts.formatToParts(new Date(sec * 1000));
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  let h = +get("hour");
-  if (h === 24) h = 0;
-  return {
-    dow: Math.max(0, days.indexOf(get("weekday"))),
-    secOfDay: h * 3600 + +get("minute") * 60 + +get("second"),
-  };
-}
-
-const SESSION_OPEN = 9 * 3600 + 30 * 60; // 09:30 ET
-const SESSION_CLOSE = 16 * 3600; // 16:00 ET
-const ETH_OPEN = 4 * 3600; // 04:00 ET (datafeed's extended window)
-const ETH_CLOSE = 20 * 3600; // 20:00 ET
-
-/** The countdown shows only while a bar is forming: with the market closed
- *  the label disappears entirely (showCountdown on, no label on any
- *  interval). Intraday bars form
- *  across the CHOSEN session's hours (ETH 04:00-20:00), so the gate follows
- *  the bottom-bar session toggle; holidays are not modelled (same limitation
- *  as the daily walk). */
-function isSessionOpen(nowSec: number, session: "RTH" | "ETH"): boolean {
-  const { dow, secOfDay } = etClock(nowSec);
-  if (dow < 1 || dow > 5) return false;
-  const open = session === "ETH" ? ETH_OPEN : SESSION_OPEN;
-  const close = session === "ETH" ? ETH_CLOSE : SESSION_CLOSE;
-  return secOfDay >= open && secOfDay < close;
-}
-
-/** Seconds until the next regular-session close (16:00 ET), skipping
- *  weekends. Holiday closures are not modelled. */
-function secondsToNextDailyClose(nowSec: number): number {
-  const { dow, secOfDay } = etClock(nowSec);
-  if (dow >= 1 && dow <= 5 && secOfDay < SESSION_CLOSE) return SESSION_CLOSE - secOfDay;
-  // Past close (or weekend): walk to the next weekday's close. Calendar-day
-  // steps of 86400s — off by an hour across a DST transition, acceptable for
-  // a countdown label.
-  let days = 1;
-  while (((dow + days) % 7) === 0 || ((dow + days) % 7) === 6) days++;
-  return days * 86400 - secOfDay + SESSION_CLOSE;
-}
-
 /** "H:MM:SS" under a day, "MM:SS" under an hour, whole days above a day. */
 function formatRemaining(sec: number): string {
   const s = Math.max(0, Math.floor(sec));
@@ -226,47 +173,60 @@ function formatRemaining(sec: number): string {
   return h > 0 ? `${h}:${mm}:${pad}` : `${mm}:${pad}`;
 }
 
+/** Whole days to a closing trading day, or the clock time on that day. */
+function daysOrClock(sessions: SymbolSessions, nowSec: number, closeDay: number): string | null {
+  const bounds = sessions.regular.dayBounds(closeDay);
+  if (!bounds) return null;
+  const days = closeDay - localDay(sessions.timeZone, nowSec);
+  return days > 0 ? `${days}d` : formatRemaining(bounds.end - nowSec);
+}
+
 /** Remaining time to the current bar's close for an interval id, or null
- *  when the interval takes no countdown (unknown/custom ids). `lastBarSec` is
- *  the newest loaded bar's bucket start (aligns intraday buckets, e.g.
- *  RTH-anchored hours); intraday falls back to the wall-clock grid without
- *  it. */
+ *  when no bar is forming: outside the symbol's session (the label then
+ *  disappears entirely), sessions not resolved yet, or an interval that takes
+ *  no countdown (unknown/custom ids). Intraday bars form across the CHOSEN
+ *  session (`session`: regular or extended hours); daily+ bars belong to the
+ *  regular session regardless of the toggle. `lastBarSec` is the newest
+ *  loaded bar's bucket start (aligns intraday buckets, e.g. session-anchored
+ *  hours); intraday falls back to the wall-clock grid without it. */
 export function countdownText(
   interval: string,
   nowSec: number,
   lastBarSec: number | undefined,
-  session: "RTH" | "ETH" = "RTH",
+  session: SessionId,
+  sessions: SymbolSessions | null,
 ): string | null {
+  if (!sessions) return null;
   const id = interval.toUpperCase();
   const intraday = /^\d+S$/.test(id) || /^\d+$/.test(id);
-  // Daily+ bars belong to the regular session regardless of the toggle.
-  if (!isSessionOpen(nowSec, intraday ? session : "RTH")) return null;
+  const iv = sessions.spec(intraday ? session : "RTH").at(nowSec);
+  if (!iv) return null;
   if (intraday) {
     const step = /S$/.test(id) ? parseInt(id, 10) : parseInt(id, 10) * 60;
     if (!Number.isFinite(step) || step <= 0) return null;
     const base = lastBarSec ?? Math.floor(nowSec / step) * step;
     const into = ((nowSec - base) % step + step) % step;
-    return formatRemaining(step - into);
+    // The bar closes with its session interval at the latest.
+    return formatRemaining(Math.min(step - into, iv.end - nowSec));
   }
-  if (id === "1D") return formatRemaining(secondsToNextDailyClose(nowSec));
+  if (id === "1D") {
+    const bounds = sessions.regular.dayBounds(iv.day);
+    return bounds ? formatRemaining(bounds.end - nowSec) : null;
+  }
   if (id === "1W") {
-    // Days until the Friday session close (H:MM:SS on Friday itself).
-    const { dow } = etClock(nowSec);
-    const toClose = secondsToNextDailyClose(nowSec);
-    if (dow === 5 && toClose < 86400) return formatRemaining(toClose);
-    const daysToFri = (5 - dow + 7) % 7 || 7;
-    return `${daysToFri}d`;
+    // To the close of the week's last trading day (weeks run Monday-Sunday).
+    let close = iv.day;
+    for (let d = iv.day + 1; weekdayOf(d) !== 2; d++) if (sessions.regular.isTradingDay(d)) close = d;
+    return daysOrClock(sessions, nowSec, close);
   }
   if (id === "1M") {
-    // Days until the month rolls over on the ET calendar.
-    const d = new Date(nowSec * 1000);
-    const fmt = new Intl.DateTimeFormat("en-CA", {
-      timeZone: ET, year: "numeric", month: "2-digit", day: "2-digit",
-    });
-    const [y, m, day] = fmt.format(d).split("-").map(Number);
-    const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    const left = daysInMonth - day;
-    return left > 0 ? `${left}d` : formatRemaining(secondsToNextDailyClose(nowSec));
+    // Days until the month rolls over on the exchange calendar; the clock
+    // time on the month's last day.
+    const today = localDay(sessions.timeZone, nowSec);
+    const date = new Date(today * 86400000);
+    const lastOfMonth = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0) / 86400000;
+    const left = lastOfMonth - today;
+    return left > 0 ? `${left}d` : daysOrClock(sessions, nowSec, iv.day);
   }
   return null;
 }

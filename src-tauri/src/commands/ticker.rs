@@ -4,6 +4,7 @@
  * (`TickerInfo`, `Snapshot`, `SymbolSearchResult`) are vendor-neutral.
  */
 use crate::data::provider::Provider;
+use crate::data::session::SymbolSession;
 use crate::data::types::{Snapshot, SymbolSearchResult, TickerInfo};
 use tauri::State;
 
@@ -15,6 +16,22 @@ pub async fn get_ticker_info(
 ) -> Result<TickerInfo, String> {
     provider
         .ticker_info(&symbol.to_uppercase())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Trading sessions of a symbol (time zone, regular / extended hours,
+/// holidays) — read before its first bars, so every session-dependent view
+/// follows the symbol's own market.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_symbol_session(
+    provider: State<'_, Provider>,
+    exchange: String,
+    ticker: String,
+) -> Result<SymbolSession, String> {
+    provider
+        .symbol_session(&exchange.to_uppercase(), &ticker.to_uppercase())
         .await
         .map_err(|e| e.to_string())
 }
