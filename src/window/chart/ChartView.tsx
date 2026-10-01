@@ -27,6 +27,7 @@ import {
   type SeriesMarker,
   type IChartApi,
   type ISeriesApi,
+  type SeriesType,
   type ITextWatermarkPluginApi,
   type MouseEventParams,
   type Time,
@@ -35,6 +36,7 @@ import {
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { IPriceLine, Logical } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
+import { chartBackgroundAt } from "./selection-markers";
 import { formatChartTime, formatTickMark } from "./time-format";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "./session-breaks";
 import { SessionBackgroundsPrimitive, computeSessionRuns } from "./session-backgrounds";
@@ -763,6 +765,27 @@ export function ChartView(props: Props) {
   /** Tab the next Settings dialog opens on (report toolbar gear = Properties). */
   const [settingsTab, setSettingsTab] = createSignal<DialogTab | undefined>(undefined);
 
+  /** Selected study or compared symbol (reference: one selected source per
+   *  chart, studies never multi-selected). Selected by a click on its legend
+   *  title or on one of its plots, or by opening its settings; selecting it
+   *  clears the drawing selection and selecting a drawing clears it. Delete /
+   *  Backspace remove it, Escape or a click on the empty chart clear it. */
+  const [selectedStudy, setSelectedStudy] = createSignal<string | null>(null);
+  /** Chart background at a height, for the selection markers. */
+  const studySelectionBg = createMemo(() => {
+    const t = readChartTokens(appearance());
+    return chartBackgroundAt(t.bg, t.bgBottom, t.bgGradient);
+  });
+  function selectStudy(id: string) {
+    setSelectedStudy(id);
+    if (props.selectedDrawingId || (props.selectedDrawingIds?.length ?? 0) > 0) props.setSelectedDrawingId?.(null);
+  }
+  /** Remove a study or a compared symbol (same path as the legend trash). */
+  function removeStudy(id: string) {
+    if (compareEntry(id)) props.onRemoveCompare?.(id);
+    else props.onRemoveIndicator?.(id);
+  }
+
   function refreshIndicatorLegend(time?: number) {
     setIndLegendStore("rows", reconcile([...(controller?.getLegend(time) ?? []), ...compareLegendRows(time)], { key: "id" }));
   }
@@ -786,8 +809,14 @@ export function ChartView(props: Props) {
         refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
         if (isStrategyId(id)) applyStrategyMarkers();
       }}
-      onSettings={(id) => (compareEntry(id) ? setCompareSettingsFor(id) : setSettingsForId(id))}
-      onRemove={(id) => (compareEntry(id) ? props.onRemoveCompare?.(id) : props.onRemoveIndicator?.(id))}
+      onSettings={(id) => {
+        selectStudy(id);
+        if (compareEntry(id)) setCompareSettingsFor(id);
+        else setSettingsForId(id);
+      }}
+      onRemove={removeStudy}
+      selectedId={selectedStudy()}
+      onSelect={selectStudy}
       onMore={(id, r) => (compareEntry(id) ? openCompareMoreMenu(id, r) : openIndicatorMoreMenu(id, r))}
       onTitleClick={(id) => { if (compareEntry(id)) props.onChangeCompareSymbol?.(id); }}
     />
@@ -3099,6 +3128,18 @@ export function ChartView(props: Props) {
       chart?.applyOptions({ crosshair: { vertLine: { visible: !hov }, horzLine: { visible: !hov } } });
     };
     chart.subscribeCrosshairMove(onNewsCrosshair);
+    // Click on a plot selects its study (or compared symbol); a click on the
+    // empty chart or the main series clears the selection. The library counts
+    // a click within 500 ms of another as a double click: both select.
+    const onStudyClick = (param: MouseEventParams<Time>) => {
+      if (props.armedTool) return;
+      const s = (param.hoveredInfo?.series ?? param.hoveredSeries) as ISeriesApi<SeriesType> | undefined;
+      const id = s ? studyOfSeries(s) : null;
+      if (id) selectStudy(id);
+      else if (selectedStudy()) setSelectedStudy(null);
+    };
+    chart.subscribeClick(onStudyClick);
+    chart.subscribeDblClick(onStudyClick);
     // Click on the lollipop toggles its card; any other chart click closes it
     // (click outside). A DOM click, not the library's click event:
     // the library drops a click that follows another within 500 ms (it is
@@ -3423,6 +3464,8 @@ export function ChartView(props: Props) {
       chart?.unsubscribeCrosshairMove(onCrosshair);
       chart?.unsubscribeCrosshairMove(onPlusCrosshair);
       chart?.unsubscribeCrosshairMove(onNewsCrosshair);
+      chart?.unsubscribeClick(onStudyClick);
+      chart?.unsubscribeDblClick(onStudyClick);
       host.removeEventListener("click", onNewsClick, true);
       chart?.timeScale().unsubscribeVisibleLogicalRangeChange(onNewsRange);
       controller?.destroy();
@@ -4127,6 +4170,7 @@ export function ChartView(props: Props) {
           while (chart.panes().length < layer.paneIndex) chart.addPane(true);
         }
         compareLayers.set(e.id, layer);
+        if (untrack(selectedStudy) === e.id) layer.setSelected(untrack(studySelectionBg));
         startCompareLive(layer);
         created = true;
       } else {
@@ -4177,6 +4221,49 @@ export function ChartView(props: Props) {
       setLiveSymbol(null, slot).catch(() => {});
     });
   }
+  /** Study or compared symbol drawing the series `s`, or null. */
+  function studyOfSeries(s: ISeriesApi<SeriesType>): string | null {
+    const id = controller?.studyOfSeries(s) ?? null;
+    if (id) return id;
+    for (const [cid, layer] of compareLayers) if (layer.firstSeries() === s) return cid;
+    return null;
+  }
+  // Selection markers on the selected study's plots.
+  createEffect(() => {
+    chartReady();
+    const id = selectedStudy();
+    const bg = studySelectionBg();
+    untrack(() => {
+      controller?.setSelected(id, bg);
+      for (const [cid, layer] of compareLayers) layer.setSelected(cid === id ? bg : null);
+    });
+  });
+  // A selected drawing clears the study selection.
+  createEffect(() => {
+    if (props.selectedDrawingId || (props.selectedDrawingIds?.length ?? 0) > 0) setSelectedStudy(null);
+  });
+  // A removed study is no longer selected.
+  createEffect(() => {
+    const id = selectedStudy();
+    if (id && !indLegend().some((r) => r.id === id)) setSelectedStudy(null);
+  });
+  // Delete / Backspace remove the selected study, Escape clears it (focused
+  // chart only, not while typing or with a dialog open).
+  const onStudyKey = (e: KeyboardEvent) => {
+    const id = selectedStudy();
+    if (!id || props.active === false) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (document.querySelector('[role="dialog"]')) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      removeStudy(id);
+    } else if (e.key === "Escape") {
+      setSelectedStudy(null);
+    }
+  };
+  document.addEventListener("keydown", whenShown(onStudyKey));
+  onCleanup(() => document.removeEventListener("keydown", whenShown(onStudyKey)));
   function dropCompareLayer(id: string) {
     const layer = compareLayers.get(id);
     if (!layer) return;

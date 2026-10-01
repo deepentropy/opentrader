@@ -112,9 +112,10 @@ const STYLE_ROWS: Record<string, string[]> = {
   "anchored-vwap": ["lineNoStyle:VWAP", "vwapBands"],
   "fixed-range-volume-profile": ["line:Line"],
   "anchored-volume-profile": ["line:Line"],
-  "price-range": ["line:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
-  "date-range": ["line:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
-  "date-and-price-range": ["line:Line", "rangeBorder", "background", "rangeStats", "rangeLabel"],
+  // Range tools "Line": colour + width (no line style; the lines are solid).
+  "price-range": ["lineNoStyle:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
+  "date-range": ["lineNoStyle:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
+  "date-and-price-range": ["lineNoStyle:Line", "rangeBorder", "background", "rangeStats", "rangeLabel"],
   brush: ["line+ends:Line", "background"],
   highlighter: ["color:Line", "thickness"],
   "arrow-marker": ["color:Color"],

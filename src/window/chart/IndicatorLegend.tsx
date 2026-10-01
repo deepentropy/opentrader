@@ -7,6 +7,10 @@
  *   <title>   <v1> <v2> …        [eye settings delete more]
  * Action buttons revealed on hover. Eye, settings (gear), delete and more
  * (the study menu, opened by ChartView) are wired.
+ *
+ * A click on the title selects the study (a compared symbol's title also
+ * changes the symbol), a double click opens its settings. The selected row
+ * keeps its buttons shown, framed in blue (reference legend `selected`).
  */
 import { Icon } from "../../components/Icon";
 import { For, Show, type JSX } from "solid-js";
@@ -24,6 +28,9 @@ type Props = {
   onMore?: (id: string, anchor: DOMRect) => void;
   /** Title clicked (compared symbol rows: "Change symbol"). */
   onTitleClick?: (id: string) => void;
+  /** Selected study (null = none) and the title click that selects one. */
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
   // Status line → Indicators (Settings). Undefined = shown / no background.
   showTitles?: boolean;
   showInputs?: boolean;
@@ -117,7 +124,7 @@ export function IndicatorLegend(props: Props) {
         <For each={props.rows}>
           {(row) => (
             <div
-              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}`}
+              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${props.selectedId === row.id ? " is-selected" : ""}`}
               data-qa-id="legend-source-item"
               data-entity-id={row.id}
               role="toolbar"
@@ -128,13 +135,18 @@ export function IndicatorLegend(props: Props) {
                   class="ot-ind-legend-title is-clickable"
                   data-qa-id="legend-source-title"
                   title="Change symbol"
-                  onClick={() => props.onTitleClick?.(row.id)}
+                  onClick={() => { props.onSelect?.(row.id); props.onTitleClick?.(row.id); }}
                 >
                   {row.title}
                 </span>
               </Show>
               <Show when={!row.compare && (props.showTitles ?? true)}>
-                <span class="ot-ind-legend-title" data-qa-id="legend-source-title">
+                <span
+                  class="ot-ind-legend-title"
+                  data-qa-id="legend-source-title"
+                  onClick={() => props.onSelect?.(row.id)}
+                  onDblClick={() => props.onSettings(row.id)}
+                >
                   {splitTitle(row.title).name}
                   {/* Status line: title, then the input values separated by
                       spaces (Status line -> Inputs AND the study's "Inputs in

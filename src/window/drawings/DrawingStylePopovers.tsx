@@ -22,10 +22,12 @@ export function ColorPopover(props: { value: string; onChange: (c: string) => vo
 }
 
 const WIDTHS = [1, 2, 3, 4] as const;
-export function WidthPopover(props: { value: number; onPick: (w: number) => void }) {
+/** Highlighter widths of the floating toolbar (rows without a preview). */
+export const HIGHLIGHTER_WIDTHS = [8, 12, 20, 32, 48, 64, 80, 96] as const;
+export function WidthPopover(props: { value: number; onPick: (w: number) => void; options?: readonly number[] }) {
   return (
     <div class="dt-popover dt-width-popover" role="menu" aria-label="Line tool width" data-name="line-tool-width-menu">
-      <For each={WIDTHS}>
+      <For each={props.options ?? WIDTHS}>
         {(w) => (
           <button
             type="button"
@@ -34,9 +36,11 @@ export function WidthPopover(props: { value: number; onPick: (w: number) => void
             class={`dt-menu-row${props.value === w ? " selected" : ""}`}
             onClick={() => props.onPick(w)}
           >
-            <span class="dt-menu-preview">
-              <svg viewBox={`0 0 18 ${w}`} width={18} height={w}><rect width={18} height={w} rx={w / 2} fill="currentColor" /></svg>
-            </span>
+            <Show when={!props.options}>
+              <span class="dt-menu-preview">
+                <svg viewBox={`0 0 18 ${w}`} width={18} height={w}><rect width={18} height={w} rx={w / 2} fill="currentColor" /></svg>
+              </span>
+            </Show>
             <span class="dt-menu-label">{w}px</span>
           </button>
         )}

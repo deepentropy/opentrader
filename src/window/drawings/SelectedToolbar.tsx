@@ -15,12 +15,13 @@
  * Delete key); templates / settings / add-alert / More keep acting on the
  * primary, flagged in their tooltips.
  */
-import { createEffect, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
-import { type Drawing, type DrawingStyle } from "lightweight-charts-drawing/core/types";
-import { factoryStyleFor, REGRESSION_LINE_DEFAULTS } from "lightweight-charts-drawing/core/specs";
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import { type Drawing, type LineStyle } from "lightweight-charts-drawing/core/types";
+import { factoryStyleFor } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, saveKindDefault, type DrawingTemplate } from "./templates";
 import { Icon } from "../../components/Icon";
-import { ColorPopover, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
+import { ColorPopover, HIGHLIGHTER_WIDTHS, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
+import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, type Group } from "./toolbar-groups";
 import * as kv from "../../data/kv";
 
 type Props = {
@@ -79,8 +80,9 @@ function saveToolbarPos(pos: ToolbarPos): void {
   kv.setItem(POS_KEY, JSON.stringify(pos));
 }
 
-/** Which popover (if any) is open, keyed by the button that owns it. */
-type OpenPopover = "line-tool-color" | "background-color" | "text-color" | "line-tool-width" | "style" | "templates" | "more" | null;
+/** Which popover (if any) is open, keyed by the button that owns it
+ *  ("color:<slot>" for the colour buttons). */
+type OpenPopover = string | null;
 
 const ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "back", string]> = [
   ["front", "Bring to front"],
@@ -89,42 +91,24 @@ const ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "ba
   ["back", "Send to back"],
 ];
 
-/** Kinds whose renderers actually use `style.textColor` (on-line text label /
- *  angle label) — the text-color button only shows for these (per-tool
- *  floating toolbar). */
-const TEXT_COLOR_KINDS = new Set<string>(["trend-line", "ray", "extended-line", "info-line", "trend-angle", "table"]);
-/** Kinds with a background colour button (table: line / background / text
- *  colours). */
-const BACKGROUND_COLOR_KINDS = new Set<string>(["table"]);
-/** Kinds without line width / line style buttons (table; the image has
- *  no line, background or text property). */
-const NO_WIDTH_STYLE_KINDS = new Set<string>(["table", "image"]);
 /** Kinds without the add-alert button (table and image toolbars). */
 const NO_ALERT_KINDS = new Set<string>(["table", "image"]);
 
-/** Kinds whose toolbar line colour / width is copied to every level
- *  (lineColor / lineWidth = levelN.color / levelN.lineWidth). */
-const COLLECTED_LEVEL_KINDS = new Set<string>(["parallel-channel"]);
-/** Kinds whose floating toolbar has no line colour / line style button
- *  (regression trend: templates, width, settings, lock, remove, more). */
-const NO_COLOR_STYLE_KINDS = new Set<string>(["regression-trend", "image"]);
-function withCollectedLevels(d: Drawing, patch: Partial<DrawingStyle>): DrawingStyle {
-  const next = { ...d.style, ...patch };
-  // Regression trend: the toolbar width sets the up / down / base lines.
-  if (d.kind === "regression-trend" && patch.width != null) {
-    const rl = d.style.regressionLines ?? REGRESSION_LINE_DEFAULTS;
-    const w = patch.width;
-    next.regressionLines = { base: { ...rl.base, width: w }, up: { ...rl.up, width: w }, down: { ...rl.down, width: w } };
-    return next;
-  }
-  if (!COLLECTED_LEVEL_KINDS.has(d.kind) || !d.style.levels || (patch.color == null && patch.width == null)) return next;
-  next.levels = d.style.levels.map((l) => ({
-    ...l,
-    ...(patch.color != null ? { color: patch.color } : {}),
-    ...(patch.width != null ? { width: patch.width } : {}),
-  }));
-  return next;
-}
+/** A style group of one selected drawing. */
+type Target<T> = { d: Drawing; group: Group<T> };
+/** One colour button: the group of every selected drawing that has it. */
+type ColorSlot = { key: string; id: ColorButton["id"]; title: string; targets: Target<string>[] };
+/** Colour buttons of a multi-selection: one per group kind, default titles. */
+const MULTI_COLOR_TITLES: Record<ColorButton["id"], string> = {
+  "line-tool-color": "Line tool colors",
+  "background-color": "Line tool backgrounds",
+  "text-color": "Line tool text colors",
+};
+const COLOR_ICONS: Record<ColorButton["id"], [string, number]> = {
+  "line-tool-color": ["dt-line-tool-color", 16],
+  "background-color": ["dt-background-color", 20],
+  "text-color": ["dt-text-color", 16],
+};
 
 export function SelectedToolbar(props: Props) {
   const [openPopover, setOpenPopover] = createSignal<OpenPopover>(null);
@@ -229,11 +213,14 @@ export function SelectedToolbar(props: Props) {
   };
   const isGroup = () => groupTargets().length > 1;
 
-  /** Style patch across the whole selection (color / text color / width /
-   *  line-style buttons — these apply to every selected drawing). */
-  function patchStyle(patch: Partial<DrawingStyle>) {
-    const targets = groupTargets();
-    const next = targets.map((d) => ({ ...d, style: withCollectedLevels(d, patch) } as Drawing));
+  /** Writes one value to a button's groups (colour / width / style buttons
+   *  act on every selected drawing that has the group). */
+  function applyGroup<T>(targets: Target<T>[], v: T) {
+    const byId = new Map(targets.map((t) => [t.d.id, t]));
+    const next = groupTargets()
+      .filter((d) => byId.has(d.id))
+      .map((d) => ({ ...d, style: byId.get(d.id)!.group.set(d, d.style, v) } as Drawing));
+    if (next.length === 0) return;
     // A tool's defaults are saved on every UI property edit, so the next
     // drawing of the tool starts with this style.
     for (const d of next) saveKindDefault(d.kind, d.style);
@@ -243,6 +230,41 @@ export function SelectedToolbar(props: Props) {
     }
     props.onUpdate(next.find((d) => d.id === props.drawing.id) ?? next[0]);
   }
+
+  // Style buttons of the selection (per-tool groups, toolbar-groups.ts). One
+  // drawing: its own buttons and titles; several: one button per group kind
+  // over every drawing that has it.
+  const colorSlots = createMemo((): ColorSlot[] => {
+    const ds = groupTargets();
+    if (ds.length === 1) {
+      return visibleColors(ds[0]).map((b, i) => ({ key: `${b.id}:${i}`, id: b.id, title: b.title, targets: [{ d: ds[0], group: b.group }] }));
+    }
+    const out: ColorSlot[] = [];
+    for (const id of ["line-tool-color", "background-color", "text-color"] as const) {
+      const targets = ds.flatMap((d) => {
+        const b = visibleColors(d).find((x) => x.id === id);
+        return b ? [{ d, group: b.group }] : [];
+      });
+      if (targets.length) out.push({ key: id, id, title: MULTI_COLOR_TITLES[id], targets });
+    }
+    return out;
+  });
+  const widthTargets = (highlighter: boolean) => createMemo((): Target<number>[] =>
+    groupTargets().flatMap((d) => {
+      const w = toolbarGroups(d).width;
+      return w && !!w.highlighter === highlighter ? [{ d, group: w }] : [];
+    }));
+  const lineWidthTargets = widthTargets(false);
+  const highlighterWidthTargets = widthTargets(true);
+  const styleTargets = createMemo((): Target<LineStyle>[] =>
+    groupTargets().flatMap((d) => {
+      const st = toolbarGroups(d).style;
+      return st ? [{ d, group: st }] : [];
+    }));
+  const valuesOf = <T,>(targets: Target<T>[]) => targets.flatMap((t) => t.group.get(t.d));
+  const colorOf = (slot: ColorSlot) => groupValue(valuesOf(slot.targets), sameColor);
+  /** Width button title: "Line tool widths" when several drawings share it. */
+  const widthTitle = (targets: Target<number>[]) => (targets.length > 1 ? "Line tool widths" : "Line tool width");
 
   /** Templates menu → a saved template on the selection's drawings of the
    *  same tool: style over the factory style,
@@ -314,16 +336,11 @@ export function SelectedToolbar(props: Props) {
     return p ? clampPos(p).top : Math.max(PADDING, base().y - TOOLBAR_OFFSET_Y);
   };
 
-  // Inline icons that react to drawing state — width thickness bar + style
-  // dash pattern.
-  // Regression trend: the width button shows the collected up-line width.
-  const shownWidth = () =>
-    props.drawing.kind === "regression-trend"
-      ? (props.drawing.style.regressionLines ?? REGRESSION_LINE_DEFAULTS).up.width
-      : props.drawing.style.width;
-  const widthBarHeight = () => Math.max(1, Math.min(5, shownWidth()));
+  // Inline icons that react to the values — width thickness bar + style dash
+  // pattern ("mixed" when the group's values differ).
+  const styleValue = () => groupValue(valuesOf(styleTargets()));
   const styleDash = () => {
-    const ls = props.drawing.style.lineStyle;
+    const ls = styleValue();
     if (ls === "dashed") return "6 4";
     if (ls === "dotted") return "2 3";
     return undefined;
@@ -336,7 +353,9 @@ export function SelectedToolbar(props: Props) {
       data-name="drawing-toolbar"
       // Pinned coordinates are viewport-space → `fixed`; the auto-anchor is
       // relative to the pane container → `absolute`.
-      style={{ position: pinned() ? "fixed" : "absolute", left: `${left()}px`, top: `${top()}px`, "z-index": pinned() ? 24 : 4 }}
+      // Above the drawings layer (z-index 5) in both modes, so its popovers are
+      // not covered by the drawing they edit.
+      style={{ position: pinned() ? "fixed" : "absolute", left: `${left()}px`, top: `${top()}px`, "z-index": 24 }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div class="selected-toolbar-content">
@@ -415,124 +434,93 @@ export function SelectedToolbar(props: Props) {
           </button>
         </Show>
 
-        <Show when={!NO_COLOR_STYLE_KINDS.has(props.drawing.kind)}>
-        {/* Color — opens the swatch-grid popover */}
-        <span class="selected-toolbar-control">
-          <button
-            type="button"
-            class="selected-toolbar-btn selected-toolbar-btn-line-tool-color"
-            data-name="line-tool-color"
-            title="Line tool colors"
-            aria-label="Line tool colors"
-            aria-expanded={openPopover() === "line-tool-color"}
-            onClick={() => toggle("line-tool-color")}
-          >
-            <span class="selected-toolbar-icon-wrap">
-              <Icon name="dt-line-tool-color" size={16} />
-              <span class="selected-toolbar-color-bar">
-                <span class="selected-toolbar-color-bar-fill" style={{ "background-color": props.drawing.style.color }} />
+        {/* Colour buttons of the tool (line colours, backgrounds, text
+            colours; per-tool groups and titles, toolbar-groups.ts). The bar
+            shows the group's colour, empty when its colours differ. */}
+        <For each={colorSlots()}>
+          {(slot) => {
+            const key = `color:${slot.key}`;
+            const value = () => colorOf(slot);
+            return (
+              <span class="selected-toolbar-control">
+                <button
+                  type="button"
+                  class={`selected-toolbar-btn selected-toolbar-btn-${slot.id}`}
+                  data-name={slot.id}
+                  title={slot.title}
+                  aria-label={slot.title}
+                  aria-expanded={openPopover() === key}
+                  onClick={() => toggle(key)}
+                >
+                  <span class="selected-toolbar-icon-wrap">
+                    <Icon name={COLOR_ICONS[slot.id][0]} size={COLOR_ICONS[slot.id][1]} />
+                    <span class="selected-toolbar-color-bar">
+                      <span class="selected-toolbar-color-bar-fill" style={{ "background-color": value() === "mixed" ? "transparent" : value() }} />
+                    </span>
+                  </span>
+                </button>
+                <Show when={openPopover() === key}>
+                  <ColorPopover
+                    value={value() === "mixed" ? "" : value()}
+                    onChange={(c) => applyGroup(slot.targets, c)}
+                    onClose={() => setOpenPopover(null)}
+                  />
+                </Show>
               </span>
-            </span>
-          </button>
-          <Show when={openPopover() === "line-tool-color"}>
-            <ColorPopover
-              value={props.drawing.style.color}
-              onChange={(c) => patchStyle({ color: c })}
-              onClose={() => setOpenPopover(null)}
-            />
-          </Show>
-        </span>
-        </Show>
+            );
+          }}
+        </For>
 
-        {/* Background colour ("Line tool backgrounds"). */}
-        <Show when={BACKGROUND_COLOR_KINDS.has(props.drawing.kind)}>
-          <span class="selected-toolbar-control">
-            <button
-              type="button"
-              class="selected-toolbar-btn selected-toolbar-btn-background-color"
-              data-name="background-color"
-              title="Line tool backgrounds"
-              aria-label="Line tool backgrounds"
-              aria-expanded={openPopover() === "background-color"}
-              onClick={() => toggle("background-color")}
-            >
-              <span class="selected-toolbar-icon-wrap">
-                <Icon name="dt-background-color" size={20} />
-                <span class="selected-toolbar-color-bar">
-                  <span class="selected-toolbar-color-bar-fill" style={{ "background-color": props.drawing.style.backgroundColor ?? props.drawing.style.color }} />
+        {/* Width — the 1/2/3/4px popover (highlighter: its own sizes). */}
+        <For each={[{ key: "line-tool-width", targets: lineWidthTargets, options: undefined }, { key: "highlighter-width", targets: highlighterWidthTargets, options: HIGHLIGHTER_WIDTHS }] as const}>
+          {(w) => {
+            const value = () => groupValue(valuesOf(w.targets()));
+            const barH = () => { const v = value(); return v === "mixed" ? 1 : Math.max(1, Math.min(5, v)); };
+            return (
+              <Show when={w.targets().length > 0}>
+                <span class="selected-toolbar-control">
+                  <button
+                    type="button"
+                    class="selected-toolbar-btn selected-toolbar-btn-line-tool-width"
+                    data-name={w.key}
+                    title={widthTitle(w.targets())}
+                    aria-label={widthTitle(w.targets())}
+                    aria-expanded={openPopover() === w.key}
+                    onClick={() => toggle(w.key)}
+                  >
+                    <span class="selected-toolbar-width-wrap">
+                      <Show
+                        when={value() !== "mixed"}
+                        fallback={
+                          // Mixed widths: three bars of growing thickness, no label.
+                          <svg viewBox="0 0 18 12" width="18" height="12" fill="currentColor" aria-hidden="true">
+                            <rect y="1" width="18" height="1" rx=".5" />
+                            <rect y="5" width="18" height="2" rx="1" />
+                            <rect y="9" width="18" height="3" rx="1.5" />
+                          </svg>
+                        }
+                      >
+                        <svg viewBox={`0 0 18 ${barH()}`} width="18" height={barH()}>
+                          <rect width="18" height={barH()} fill="currentColor" rx={barH() / 2} />
+                        </svg>
+                        <span class="selected-toolbar-width-label">{value()}px</span>
+                      </Show>
+                    </span>
+                  </button>
+                  <Show when={openPopover() === w.key}>
+                    <WidthPopover
+                      value={value() === "mixed" ? 0 : (value() as number)}
+                      options={w.options}
+                      onPick={(v) => { applyGroup(w.targets(), v); setOpenPopover(null); }}
+                    />
+                  </Show>
                 </span>
-              </span>
-            </button>
-            <Show when={openPopover() === "background-color"}>
-              <ColorPopover
-                value={props.drawing.style.backgroundColor ?? props.drawing.style.color}
-                onChange={(c) => patchStyle({ backgroundColor: c })}
-                onClose={() => setOpenPopover(null)}
-              />
-            </Show>
-          </span>
-        </Show>
+              </Show>
+            );
+          }}
+        </For>
 
-        {/* Text color — only for kinds that render text (on-line label / angle
-            label). Edits style.textColor; falls back to the line colour for the
-            swatch + popover when unset (matches the effective render). */}
-        <Show when={TEXT_COLOR_KINDS.has(props.drawing.kind)}>
-          <span class="selected-toolbar-control">
-            <button
-              type="button"
-              class="selected-toolbar-btn selected-toolbar-btn-text-color"
-              data-name="text-color"
-              title="Line tool text colors"
-              aria-label="Line tool text colors"
-              aria-expanded={openPopover() === "text-color"}
-              onClick={() => toggle("text-color")}
-            >
-              <span class="selected-toolbar-icon-wrap">
-                <Icon name="dt-text-color" size={16} />
-                <span class="selected-toolbar-color-bar">
-                  <span class="selected-toolbar-color-bar-fill" style={{ "background-color": props.drawing.style.textColor ?? props.drawing.style.color }} />
-                </span>
-              </span>
-            </button>
-            <Show when={openPopover() === "text-color"}>
-              <ColorPopover
-                value={props.drawing.style.textColor ?? props.drawing.style.color}
-                onChange={(c) => patchStyle({ textColor: c })}
-                onClose={() => setOpenPopover(null)}
-              />
-            </Show>
-          </span>
-        </Show>
-
-        {/* Width — opens the 1/2/3/4px popover */}
-        <Show when={!NO_WIDTH_STYLE_KINDS.has(props.drawing.kind)}>
-        <span class="selected-toolbar-control">
-          <button
-            type="button"
-            class="selected-toolbar-btn selected-toolbar-btn-line-tool-width"
-            data-name="line-tool-width"
-            title="Line tool width"
-            aria-label="Line tool width"
-            aria-expanded={openPopover() === "line-tool-width"}
-            onClick={() => toggle("line-tool-width")}
-          >
-            <span class="selected-toolbar-width-wrap">
-              <svg viewBox={`0 0 18 ${widthBarHeight()}`} width="18" height={widthBarHeight()}>
-                <rect width="18" height={widthBarHeight()} fill="currentColor" rx={widthBarHeight() / 2} />
-              </svg>
-              <span class="selected-toolbar-width-label">{shownWidth()}px</span>
-            </span>
-          </button>
-          <Show when={openPopover() === "line-tool-width"}>
-            <WidthPopover
-              value={shownWidth()}
-              onPick={(w) => { patchStyle({ width: w }); setOpenPopover(null); }}
-            />
-          </Show>
-        </span>
-        </Show>
-
-        <Show when={!NO_COLOR_STYLE_KINDS.has(props.drawing.kind) && !NO_WIDTH_STYLE_KINDS.has(props.drawing.kind)}>
+        <Show when={styleTargets().length > 0}>
         {/* Style — opens the Line/Dashed/Dotted popover */}
         <span class="selected-toolbar-control">
           <button
@@ -544,20 +532,32 @@ export function SelectedToolbar(props: Props) {
             aria-expanded={openPopover() === "style"}
             onClick={() => toggle("style")}
           >
-            <svg width="28" height="28" fill="none">
-              <path
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-dasharray={styleDash()}
-                d="M4 14h20"
-              />
-            </svg>
+            <Show
+              when={styleValue() !== "mixed"}
+              fallback={
+                // Mixed styles: a solid, a dashed and a dotted line.
+                <svg width="28" height="28" fill="none" aria-hidden="true">
+                  <path stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M4 8h20" />
+                  <path stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3" d="M4 14h20" />
+                  <path stroke="currentColor" stroke-width="1.5" stroke-dasharray="1.5 2.5" d="M4 20h20" />
+                </svg>
+              }
+            >
+              <svg width="28" height="28" fill="none">
+                <path
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-dasharray={styleDash()}
+                  d="M4 14h20"
+                />
+              </svg>
+            </Show>
           </button>
           <Show when={openPopover() === "style"}>
             <StylePopover
-              value={props.drawing.style.lineStyle}
-              onPick={(s) => { patchStyle({ lineStyle: s }); setOpenPopover(null); }}
+              value={styleValue() === "mixed" ? ("" as LineStyle) : (styleValue() as LineStyle)}
+              onPick={(s) => { applyGroup(styleTargets(), s); setOpenPopover(null); }}
             />
           </Show>
         </span>

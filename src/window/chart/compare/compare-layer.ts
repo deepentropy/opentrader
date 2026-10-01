@@ -16,6 +16,7 @@ import { priceOf } from "../series-transforms";
 import type { IndicatorLegendPlot } from "../indicators/indicator-layer";
 import type { CompareEntry } from "../../shell/tabs";
 import { chartTypeOf, compareColor, compareSeriesStyles, compareSource } from "./compare-style";
+import { SelectionMarkers, type BackgroundAt } from "../selection-markers";
 
 export class CompareLayer {
   private series: AnySeries | null = null;
@@ -25,6 +26,9 @@ export class CompareLayer {
   private drawn: OHLC[] = [];
   /** Style key the series was built with (rebuild when it changes). */
   private builtKey = "";
+  /** Selection markers while selected (on the drawn price source). */
+  private selectionBg: BackgroundAt | null = null;
+  private markers: { series: AnySeries; m: SelectionMarkers } | null = null;
   paneIndex: number;
 
   constructor(
@@ -121,6 +125,29 @@ export class CompareLayer {
     });
     this.drawn = keep ? this.bars.filter((b) => keep.has(b.time as number)) : this.bars;
     setDataForType(s, type, this.drawn, ct);
+    if (this.selectionBg && this.markers?.series !== s) this.setSelected(this.selectionBg);
+  }
+
+  /** Selected (markers on the series) or not (null). */
+  setSelected(bgAt: BackgroundAt | null): void {
+    if (this.markers) {
+      try { this.markers.series.detachPrimitive(this.markers.m); } catch { /* series gone */ }
+      this.markers = null;
+    }
+    this.selectionBg = bgAt;
+    const s = this.series;
+    if (!bgAt || !s) return;
+    const src = compareSource(this.entry.style);
+    const valueAt = (i: number): number | null => {
+      const t = this.chart.timeScale();
+      const time = (s.dataByIndex(i) as { time?: number } | null)?.time;
+      if (time == null || t.timeToIndex(time as never) !== i) return null;
+      const v = this.valueAt(time);
+      return v && v.index >= 0 && (this.drawn[v.index]?.time as number) === time ? priceOf(this.drawn[v.index], src) : null;
+    };
+    const m = new SelectionMarkers(valueAt, bgAt);
+    s.attachPrimitive(m);
+    this.markers = { series: s, m };
   }
 
   /** Value of the drawn price source at `time` (the bar at or before it), or
@@ -163,6 +190,10 @@ export class CompareLayer {
 
   clear(): void {
     this.drawn = [];
+    if (this.markers) {
+      try { this.markers.series.detachPrimitive(this.markers.m); } catch { /* series gone */ }
+      this.markers = null;
+    }
     if (!this.series) return;
     try { this.chart.removeSeries(this.series); } catch { /* chart disposed */ }
     this.series = null;

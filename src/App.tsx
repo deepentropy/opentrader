@@ -1887,6 +1887,17 @@ function App() {
         requestOpenList();
         return;
       }
+      // Trading hotkeys (reference app, bound whether or not a broker is
+      // connected): Shift+B buy, Shift+S sell, Shift+T order ticket, and
+      // Alt+Shift+B / Alt+Shift+S limit orders (the Alt+Shift block below).
+      // They run the chart menu's Buy / Sell / Add order rows, which have no
+      // trading backend in this app, so they do nothing; they no longer
+      // start a symbol search with that letter.
+      if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && (e.code === "KeyB" || e.code === "KeyS" || e.code === "KeyT")) {
+        if (blocked) return;
+        e.preventDefault();
+        return;
+      }
       // Alt+Shift+→ / ← → jump to the most recent / the first bar on the focused
       // pane (control-bar hotkey, the same action as its goto-realtime arrow).
       // Kept above the Alt-only block, which requires !shiftKey.
@@ -1898,6 +1909,8 @@ function App() {
         if (blocked) return;
         // Alt+Shift+E → next session: intraday only,
         // cycles the symbol's sessions (Regular → Extended → Regular).
+        // Alt+Shift+B / Alt+Shift+S: trading hotkeys (see Shift+B above).
+        if (e.code === "KeyB" || e.code === "KeyS") { e.preventDefault(); return; }
         if (e.code === "KeyE") {
           e.preventDefault();
           if (!isIntradayInterval(interval())) return;

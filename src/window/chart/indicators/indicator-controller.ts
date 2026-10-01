@@ -17,6 +17,7 @@ import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
 import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides } from './indicator-layer';
+import type { BackgroundAt } from '../selection-markers';
 import { isVisibleOnInterval } from 'lightweight-charts-drawing/core/types';
 import {
   cloneIndicatorOptions,
@@ -76,6 +77,8 @@ export class IndicatorController {
   private chart: IChartApi;
   private getBars: () => Bar[];
   private instances = new Map<string, Instance>();
+  /** Selected study and the chart background its markers use. */
+  private selected: { id: string; bgAt: BackgroundAt } | null = null;
   /** Pane indices (>=1) currently claimed by a non-overlay study. */
   private usedPanes = new Set<number>();
   /** Studies whose plots are toggled off via the legend eye. */
@@ -338,6 +341,22 @@ export class IndicatorController {
     return null;
   }
 
+  /** Study drawing the series `s` (pane owners excluded), or null. */
+  studyOfSeries(s: ISeriesApi<SeriesType>): string | null {
+    for (const [id, inst] of this.instances) {
+      if (!inst.owner && inst.layer.ownsSeries(s)) return id;
+    }
+    return null;
+  }
+
+  /** Selected study (markers on its plots); null = none. */
+  setSelected(id: string | null, bgAt: BackgroundAt): void {
+    this.selected = id ? { id, bgAt } : null;
+    for (const [instId, inst] of this.instances) {
+      if (!inst.owner) inst.layer.setSelected(instId === id ? bgAt : null);
+    }
+  }
+
   /** The series a study's drawings are mapped with (its first plot), or
    *  null. A redraw replaces the series: read it at use time. */
   studySeries(id: string): ISeriesApi<SeriesType> | null {
@@ -441,6 +460,7 @@ export class IndicatorController {
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
     const inst: Instance = { layer, paneIndex, overlay: entry.overlay, ownScale };
     this.instances.set(id, inst);
+    if (this.selected?.id === id) layer.setSelected(this.selected.bgAt);
     this.renderOne(id, inst, entry, this.getBars());
   }
 

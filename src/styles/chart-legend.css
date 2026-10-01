@@ -364,3 +364,36 @@
 
 /* Compared-symbol row: the title changes the symbol on click. */
 .ot-ind-legend-title.is-clickable { cursor: pointer; }
+
+/* Selected study (title click / plot click): the buttons stay shown and the
+ * title + buttons are framed in blue (reference legend `selected`:
+ * ot-blue-700 on a dark chart, ot-blue-500 on a light one). */
+.ot-ind-legend-row.is-selected {
+  --ot-ind-selected-border: var(--color-ot-blue-700, #1848cc);
+}
+html.theme-light .ot-ind-legend-row.is-selected {
+  --ot-ind-selected-border: var(--color-ot-blue-500, #2962ff);
+}
+.ot-ind-legend-row.is-selected .ot-ind-legend-title {
+  position: relative;
+}
+.ot-ind-legend-row.is-selected .ot-ind-legend-title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: -4px;
+  top: -4px;
+  bottom: -4px;
+  border: 1px solid var(--ot-ind-selected-border);
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+  pointer-events: none;
+}
+.ot-ind-legend-row.is-selected .ot-ind-legend-actions {
+  opacity: 1;
+  pointer-events: auto;
+  border-color: var(--ot-ind-selected-border);
+  border-left-width: 0;
+  border-radius: 0 4px 4px 0;
+  box-shadow: none;
+}

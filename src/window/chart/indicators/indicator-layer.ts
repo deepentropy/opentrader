@@ -31,6 +31,7 @@ import {
   type ISeriesPrimitive,
   type LineData,
   type SeriesMarker,
+  type SeriesType,
   type Time,
   type WhitespaceData,
 } from 'lightweight-charts';
@@ -39,6 +40,7 @@ import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry, MarkerData } from 'lightweight-charts-indicators';
 import type { OwnScaleMeta } from './volume';
 import { ThinHistogramPaneView } from './histogram-series';
+import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
 import {
   ArrowPrimitive,
   BarColorPrimitive,
@@ -208,6 +210,12 @@ export class IndicatorLayer {
   /** Every series this layer created, removed wholesale on clear(). */
   private series: ISeriesApi<'Line' | 'Histogram' | 'Area' | 'Baseline'>[] = [];
   private detachers: Array<() => void> = [];
+  /** First series of each drawn plot with the plot's points (selection
+   *  markers sit on the plot values). */
+  private plotSeries: { series: ISeriesApi<SeriesType>; data: PlotPoint[] }[] = [];
+  /** Selection markers while the study is selected (null = not selected). */
+  private selectionBg: BackgroundAt | null = null;
+  private markerDetachers: Array<() => void> = [];
   // Retained so the legend can read per-plot values at the crosshair time even
   // when the study isn't (re)drawing (e.g. hidden).
   private entry: IndicatorRegistryEntry | null = null;
@@ -350,6 +358,7 @@ export class IndicatorLayer {
       const lineWidth = ov?.lineWidth ?? plotDef.lineWidth;
       const style = ov?.plotType ?? plotDef.style ?? 'line';
       this.plotPriceLine = ov?.priceLine ?? false;
+      const firstNew = this.series.length;
 
       switch (style) {
         case 'histogram':
@@ -392,7 +401,10 @@ export class IndicatorLayer {
           this.addLine(plotData, color, lineWidth, {});
           break;
       }
+      const ps = this.series[firstNew];
+      if (ps) this.plotSeries.push({ series: ps as ISeriesApi<SeriesType>, data: plotData });
     }
+    if (this.selectionBg) this.attachMarkers();
 
     // ── Horizontal levels + their fills ────────────────────────────────────
     if (entry.hlineConfig?.length) {
@@ -426,6 +438,41 @@ export class IndicatorLayer {
     const arrows = (result as { arrows?: ScriptArrow[] }).arrows;
     if (this.paneIndex === 0 && Array.isArray(arrows) && arrows.length) {
       this.addArrows(arrows, (entry as { arrowConfig?: ScriptArrowConfig[] }).arrowConfig ?? [], bars);
+    }
+  }
+
+  /** True when `s` is one of this study's series. */
+  ownsSeries(s: ISeriesApi<SeriesType>): boolean {
+    return (this.series as ISeriesApi<SeriesType>[]).includes(s);
+  }
+
+  /** Study selected (markers on every drawn plot) or not (null). */
+  setSelected(bgAt: BackgroundAt | null): void {
+    this.detachMarkers();
+    this.selectionBg = bgAt;
+    if (bgAt) this.attachMarkers();
+  }
+
+  private attachMarkers(): void {
+    const bgAt = this.selectionBg;
+    if (!bgAt) return;
+    for (const { series, data } of this.plotSeries) {
+      const valueAt = (i: number): number | null => {
+        // Plot points are one per bar in bar order: point i is bar i when
+        // its time maps back to index i.
+        const pt = data[i];
+        if (!pt || pt.value == null || Number.isNaN(pt.value)) return null;
+        return this.chart.timeScale().timeToIndex(pt.time as Time) === i ? pt.value : null;
+      };
+      const m = new SelectionMarkers(valueAt, bgAt);
+      series.attachPrimitive(m);
+      this.markerDetachers.push(() => series.detachPrimitive(m));
+    }
+  }
+
+  private detachMarkers(): void {
+    for (const d of this.markerDetachers.splice(0)) {
+      try { d(); } catch { /* series already gone */ }
     }
   }
 
@@ -481,6 +528,8 @@ export class IndicatorLayer {
 
   /** Tear down every series + primitive this layer owns. */
   clear(): void {
+    this.detachMarkers();
+    this.plotSeries = [];
     for (const detach of this.detachers.splice(0)) {
       try { detach(); } catch { /* series already gone */ }
     }
