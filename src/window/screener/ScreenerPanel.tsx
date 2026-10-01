@@ -27,8 +27,8 @@ import {
 } from "../../data/screener-catalog";
 import { activeColumns, planScreen, type Plan } from "../../data/screener-query";
 import { PANEL_MIN_WIDTH, screenerPanel, screenerStore } from "../../data/screener-store";
-import { watchlistStore } from "../../data/watchlist-store";
 import type { FlagColor } from "../../data/watchlist";
+import { allFlags } from "../../data/symbol-flags";
 import { FilterPills, watchlistTickers } from "./FilterPills";
 import { PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenerTable } from "./ScreenerTable";
@@ -128,12 +128,9 @@ export function ScreenerPanel(props: Props) {
 
   // Flags of the rows = flags of the symbols in the OpenTrader watchlists.
   const flags = createMemo(() => {
+    // Symbol flags (one per symbol), keyed by ticker for the scan rows.
     const m = new Map<string, FlagColor>();
-    for (const l of watchlistStore.lists()) {
-      for (const r of [...l.groups.flatMap((g) => g.rows), ...l.extras]) {
-        if (r.flag) m.set(r.ticker.split(":").pop() ?? r.ticker, r.flag);
-      }
-    }
+    for (const [sym, c] of Object.entries(allFlags())) m.set(sym.split(":").pop() ?? sym, c);
     return m;
   });
 

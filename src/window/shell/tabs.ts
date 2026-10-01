@@ -117,6 +117,11 @@ export type PaneChart = {
    *  compared-symbol ids, top to bottom). Ids not listed follow; absent =
    *  studies in list order, then compared symbols. */
   paneOrder?: string[];
+  /** Chart syncing group in its layout (legend "Symbol/interval chart
+   *  syncing": 0..4 = the group icons); with Symbol / Interval sync on, a
+   *  change reaches only the charts of the same group. Absent = no group
+   *  (the charts without a group sync together). */
+  linkGroup?: number;
   /** Per-indicator settings overrides (Settings dialog → Inputs/Style), keyed by
    *  indicator registry id. Persisted so a study's inputs/colours survive
    *  reloads and ride along in saved layouts. Absent = registry defaults. */
@@ -261,6 +266,7 @@ export function migrateTab(raw: any): TabChart {
         p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
       compare: reviveCompare(p.compare),
       paneOrder: Array.isArray(p.paneOrder) ? p.paneOrder.filter((x): x is string => typeof x === "string") : undefined,
+      linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
       visibleLogicalRange:
         p.visibleLogicalRange &&
         typeof p.visibleLogicalRange.from === "number" &&

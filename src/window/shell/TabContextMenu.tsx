@@ -112,7 +112,9 @@ export function TabContextMenu(props: Props) {
     ...(a.isCloseToRightVisible
       ? [{ kind: "item" as const, label: "Close tabs to the right", onClick: () => props.onCloseToRight(id) }]
       : []),
-    ...(a.hasShiftKey
+    // Developer tools: debug builds only (the open_devtools command is a
+    // debug-build feature).
+    ...(a.hasShiftKey && import.meta.env.DEV
       ? [{ kind: "item" as const, label: "Developer tools", onClick: () => props.onDevTools() }]
       : []),
     ...(a.isChart

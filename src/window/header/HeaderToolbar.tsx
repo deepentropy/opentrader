@@ -1,10 +1,10 @@
 /*
- * HeaderToolbar — the top strip of the chart UI (Feature 1).
+ * HeaderToolbar — the top strip of the chart UI.
  *
- * Scope: visual only. Clicks on menu-buttons (Candles, chart-interval,
- * layout-setup, show-favorite-indicators, save-load-menu) and
- * the symbol-search widget are stubbed via the onMenuOpen / onSymbolSearch
- * callbacks. Dropdown menus + symbol search dialog land in Features 3 + 4.
+ * Menu buttons (Candles, chart-interval, layout-setup,
+ * show-favorite-indicators, save-load-menu) and the symbol-search widget
+ * report through the onMenuOpen / onSymbolSearch callbacks; App opens the
+ * dropdown menus (HeaderMenu) and the symbol search dialog.
  *
  * Per-item rendering is driven by flags on each Item, in priority order:
  *   widget         → inline placeholder box (Symbol search).
@@ -41,8 +41,8 @@ type Props = {
    *  Passes the button's bounding rect so the parent can position the
    *  HeaderMenu popover. */
   onMenuOpen?: (itemId: string, anchor: DOMRect) => void;
-  /** User clicked the Symbol-search widget — Feature 4 wires this to open
-   *  the SymbolSearchDialog. */
+  /** User clicked the Symbol-search widget (App opens the
+   *  SymbolSearchDialog). */
   onSymbolSearch?: () => void;
   /** User clicked the "Indicators, metrics, and strategies" button (hotkey "/")
    *  — opens the IndicatorsDialog. */
@@ -86,8 +86,7 @@ type Props = {
 };
 
 /** Ids of buttons that have a dropdown menu. Used for the chevron
- *  affordance + the aria-haspopup attribute. The menus themselves are
- *  stubs until Feature 3. */
+ *  affordance + the aria-haspopup attribute. */
 const MENU_OWNERS = new Set([
   "candles",
   "chart-interval",

@@ -252,9 +252,9 @@ export const GROUPS: Group[] = [
       {
         header: "Content",
         tools: [
+          // Image only: the Post and Idea tools publish to an online
+          // community, which this app does not have.
           { id: "image", title: "Image", iconName: "draw-image" },
-          { id: "post", title: "Post", iconName: "draw-post" },
-          { id: "idea", title: "Idea", iconName: "draw-idea" },
         ],
       },
     ],

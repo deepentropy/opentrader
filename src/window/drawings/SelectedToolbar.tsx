@@ -20,7 +20,7 @@ import { type Drawing, type LineStyle } from "lightweight-charts-drawing/core/ty
 import { factoryStyleFor } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, saveKindDefault, type DrawingTemplate } from "./templates";
 import { Icon } from "../../components/Icon";
-import { ColorPopover, HIGHLIGHTER_WIDTHS, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
+import { ColorPopover, FontSizePopover, HIGHLIGHTER_WIDTHS, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
 import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, type Group } from "./toolbar-groups";
 import * as kv from "../../data/kv";
 
@@ -260,6 +260,11 @@ export function SelectedToolbar(props: Props) {
     groupTargets().flatMap((d) => {
       const st = toolbarGroups(d).style;
       return st ? [{ d, group: st }] : [];
+    }));
+  const fontSizeTargets = createMemo((): Target<number>[] =>
+    groupTargets().flatMap((d) => {
+      const f = toolbarGroups(d).fontSize;
+      return f ? [{ d, group: f }] : [];
     }));
   const valuesOf = <T,>(targets: Target<T>[]) => targets.flatMap((t) => t.group.get(t.d));
   const colorOf = (slot: ColorSlot) => groupValue(valuesOf(slot.targets), sameColor);
@@ -519,6 +524,30 @@ export function SelectedToolbar(props: Props) {
             );
           }}
         </For>
+
+        {/* Font size — the size as text, a menu of sizes (text tools, pin,
+            signpost). */}
+        <Show when={fontSizeTargets().length > 0}>
+          <span class="selected-toolbar-control">
+            <button
+              type="button"
+              class="selected-toolbar-btn selected-toolbar-btn-font-size"
+              data-name="font-size"
+              title="Font size"
+              aria-label="Font size"
+              aria-expanded={openPopover() === "font-size"}
+              onClick={() => toggle("font-size")}
+            >
+              <span class="selected-toolbar-font-size">{groupValue(valuesOf(fontSizeTargets())) === "mixed" ? "—" : String(groupValue(valuesOf(fontSizeTargets())))}</span>
+            </button>
+            <Show when={openPopover() === "font-size"}>
+              <FontSizePopover
+                value={(() => { const v = groupValue(valuesOf(fontSizeTargets())); return v === "mixed" ? 0 : (v as number); })()}
+                onPick={(s) => { applyGroup(fontSizeTargets(), s); setOpenPopover(null); }}
+              />
+            </Show>
+          </span>
+        </Show>
 
         <Show when={styleTargets().length > 0}>
         {/* Style — opens the Line/Dashed/Dotted popover */}

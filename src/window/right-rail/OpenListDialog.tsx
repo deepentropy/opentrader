@@ -1,7 +1,7 @@
 /*
  * OpenListDialog — the watchlist "Open list…" action: the Watchlists manager
  * (840×638 dialog, left sidebar
- * "My watchlists / Hotlists", a SYMBOLS column, and lists split into "Flagged
+ * "My watchlists", a SYMBOLS column, and lists split into "Flagged
  * lists" (those with a colour flag) and "Created lists" (the rest)). Each row
  * leads with a favourite star, then the flag marker + name + an inline rename
  * pencil, and reveals copy / delete on hover. Choosing a row switches lists.
@@ -36,7 +36,8 @@ function Marker(props: { list: WatchList }) {
 
 export function OpenListDialog(props: Props) {
   const [query, setQuery] = createSignal("");
-  const [tab, setTab] = createSignal<"mine" | "hotlists">("mine");
+  // One sidebar tab here ("Hotlists" needs a data source this app lacks).
+  const [tab, setTab] = createSignal<"mine">("mine");
   const [editingId, setEditingId] = createSignal<string | null>(null);
   const [draft, setDraft] = createSignal("");
   const [confirmingId, setConfirmingId] = createSignal<string | null>(null);
@@ -151,10 +152,9 @@ export function OpenListDialog(props: Props) {
           <div class="wl-lm-body">
             <nav class="wl-lm-sidebar" aria-label="Watchlist groups">
               <button type="button" class={`wl-lm-tab${tab() === "mine" ? " active" : ""}`} onClick={() => setTab("mine")}>My watchlists</button>
-              <button type="button" class={`wl-lm-tab${tab() === "hotlists" ? " active" : ""}`} onClick={() => setTab("hotlists")}>Hotlists</button>
             </nav>
             <div class="wl-lm-main">
-              <Show when={tab() === "mine"} fallback={<div class="wl-dialog-empty">Hotlists are unavailable on this plan.</div>}>
+              <Show when={tab() === "mine"}>
                 <div class="wl-lm-colhead"><span class="wl-lm-colhead-symbols">Symbols</span></div>
                 <div class="wl-lm-list" role="listbox">
                   <Show when={filtered().length} fallback={<div class="wl-dialog-empty">No lists found</div>}>

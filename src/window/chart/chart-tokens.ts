@@ -110,6 +110,8 @@ export type ChartTokens = {
   scaleModes: NavButtonsBehavior;
   lockRatio: boolean;
   lockRatioValue: number | undefined;
+  /** Auto-scale the main series' scale on the series alone. */
+  scaleSeriesOnly: boolean;
   alignLabels: boolean;
   plusButton: boolean;
   saveLeftEdge: boolean;
@@ -245,6 +247,7 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     scaleModes: o.scaleModes ?? "visibleOnMouseOver",
     lockRatio: o.lockRatio ?? false,
     lockRatioValue: o.lockRatioValue,
+    scaleSeriesOnly: o.scaleSeriesOnly ?? false,
     alignLabels: o.alignLabels ?? true,
     plusButton: o.plusButton ?? true,
     saveLeftEdge: o.saveLeftEdge ?? false,

@@ -971,3 +971,9 @@
   opacity: 0.5;
   pointer-events: none;
 }
+
+/* Child rows (volume profile Style page): label cell 26 px in, as the
+ * reference child row container. */
+.drawing-settings-body > .drawing-settings-row.is-child > :first-child {
+  padding-inline-start: 26px;
+}

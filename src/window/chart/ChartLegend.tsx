@@ -81,6 +81,15 @@ type Props = {
   seriesHidden?: boolean;
   /** Legend eye clicked. */
   onToggleSeries?: () => void;
+  /** The symbol's flag colour (hex), null = not flagged. */
+  flagColor?: string | null;
+  /** Flag button clicked (gets the button). */
+  onFlag?: (button: HTMLElement) => void;
+  /** "Symbol/interval chart syncing" button shown, the chart's group icon
+   *  (null = no group), and its click (gets the button rect). */
+  linkVisible?: boolean;
+  linkIcon?: string | null;
+  onLink?: (anchor: DOMRect) => void;
   /** Symbol title clicked ("Change symbol": symbol search). */
   onChangeSymbol?: () => void;
   /** Interval clicked ("Change interval": the change interval dialog). */
@@ -189,11 +198,12 @@ function ValueItem(props: { letter: string; value: string; dir: "up" | "down" })
 }
 
 /** One legend action button (flag / link / eye / more). */
-function ActionButton(props: { name: string; title: string; children: JSX.Element; flagged?: boolean; onClick?: (e: MouseEvent) => void }) {
+function ActionButton(props: { name: string; title: string; children: JSX.Element; flagged?: boolean; color?: string; onClick?: (e: MouseEvent) => void }) {
   return (
     <button
       type="button"
       class={`ot-legend-action${props.flagged ? " is-flagged" : ""}`}
+      style={props.color ? { color: props.color } : undefined}
       data-action={props.name}
       title={props.title}
       aria-label={props.title}
@@ -227,7 +237,7 @@ export function ChartLegend(props: Props) {
     <div class="ot-legend">
       <div class="ot-legend-source">
         {/* item — one flex line: titles + actions, then the values. */}
-        <div class={`ot-legend-item${props.seriesHidden ? " is-disabled" : ""}`} data-name="legend-source-item">
+        <div class={`ot-legend-item${props.seriesHidden ? " is-disabled" : ""}${props.flagColor ? " is-flagged" : ""}${props.linkVisible && props.linkIcon ? " is-linked" : ""}`} data-name="legend-source-item">
           <div class="ot-legend-nowrap">
             <div class="ot-legend-titles">
               {/* Main title "Change symbol" (withAction): opens the symbol search. */}
@@ -280,8 +290,26 @@ export function ChartLegend(props: Props) {
               </Show>
             </div>
             <div class="ot-legend-actions" data-name="actions">
-              <ActionButton name="flag" title="Flag symbol"><ICON_FLAG /></ActionButton>
-              <ActionButton name="link" title="Symbol/interval chart syncing"><ICON_LINK /></ActionButton>
+              <ActionButton
+                name="flag"
+                title={props.flagColor ? "Unflag symbol" : "Flag symbol"}
+                flagged={!!props.flagColor}
+                color={props.flagColor ?? undefined}
+                onClick={props.onFlag && ((e) => props.onFlag!(e.currentTarget as HTMLElement))}
+              >
+                <ICON_FLAG />
+              </ActionButton>
+              <Show when={props.linkVisible}>
+                <ActionButton
+                  name="link"
+                  title="Symbol/interval chart syncing"
+                  onClick={props.onLink && ((e) => props.onLink!((e.currentTarget as HTMLElement).getBoundingClientRect()))}
+                >
+                  <Show when={props.linkIcon} fallback={<ICON_LINK />}>
+                    {(ic) => <span class="ot-legend-sync-emoji">{ic()}</span>}
+                  </Show>
+                </ActionButton>
+              </Show>
               <ActionButton name="eye" title={props.seriesHidden ? "Show" : "Hide"} onClick={props.onToggleSeries}>
                 {props.seriesHidden ? <ICON_EYE_CROSSED /> : <ICON_EYE />}
               </ActionButton>

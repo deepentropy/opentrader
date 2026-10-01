@@ -49,6 +49,28 @@ export function WidthPopover(props: { value: number; onPick: (w: number) => void
   );
 }
 
+/** Font sizes of the floating toolbar "Font size" menu (reference list). */
+export const FONT_SIZES = [8, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 40] as const;
+export function FontSizePopover(props: { value: number; onPick: (s: number) => void }) {
+  return (
+    <div class="dt-popover dt-font-size-popover" role="menu" aria-label="Font size" data-name="font-size-menu">
+      <For each={FONT_SIZES}>
+        {(s) => (
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={props.value === s}
+            class={`dt-menu-row${props.value === s ? " selected" : ""}`}
+            onClick={() => props.onPick(s)}
+          >
+            <span class="dt-menu-label">{s}</span>
+          </button>
+        )}
+      </For>
+    </div>
+  );
+}
+
 const STYLES: ReadonlyArray<readonly [LineStyle, string]> = [
   ["solid", "Line"], ["dashed", "Dashed line"], ["dotted", "Dotted line"],
 ];

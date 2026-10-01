@@ -1279,3 +1279,8 @@
 .cmp3-symbol-icon { display: inline-flex; color: #8c8c8c; }
 .cmp3-symbol:hover .cmp3-symbol-icon { color: #dbdbdb; }
 .cmp3-price-line { margin-top: 16px; }
+
+/* Inert rows (no backing feature): shown disabled. */
+.cp3-label.is-inert .cp3-title,
+.cp3-label.is-inert .cp3-desc { color: #575757; }
+.cp3-label.is-inert .cp3-checkbox + .cp3-title { cursor: default; }

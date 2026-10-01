@@ -1047,25 +1047,9 @@ export const HEADER_MENUS: Record<string, HeaderMenuDef> = {
             "favorited": false
           },
           {
-            "id": "copy-link-to-the-chart-image",
-            "label": "Copy link",
-            "iconName": "menu-take-a-snapshot-copy-link",
-            "hotkey": "Alt + S",
-            "checked": false,
-            "favorited": false
-          },
-          {
             "id": "open-image-in-new-tab",
             "label": "Open in new tab",
             "iconName": "menu-take-a-snapshot-open-in-new-tab",
-            "hotkey": null,
-            "checked": false,
-            "favorited": false
-          },
-          {
-            "id": "tweet-chart-image",
-            "label": "Tweet image",
-            "iconName": "menu-take-a-snapshot-tweet-image",
             "hotkey": null,
             "checked": false,
             "favorited": false

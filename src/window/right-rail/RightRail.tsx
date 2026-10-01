@@ -49,7 +49,7 @@ function loadDetailHeight(): number {
 }
 
 /** Titled empty-state panel for rail tabs without a data backing yet (Pine /
- *  Calendars), same pattern as the Hotlists placeholder in OpenListDialog. */
+ *  Calendars). */
 function RailPlaceholderPanel(props: { tabId: string }) {
   const label = () => findRightRailTab(props.tabId)?.label ?? "Panel";
   return (

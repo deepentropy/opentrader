@@ -397,3 +397,88 @@ html.theme-light .ot-ind-legend-row.is-selected {
   border-radius: 0 4px 4px 0;
   box-shadow: none;
 }
+
+/* Flagged symbol: the flag button stays shown (no hover needed), in the
+ * flag colour (reference legend `flagged`). */
+.ot-legend-item.is-flagged .ot-legend-actions {
+  display: flex;
+}
+.ot-legend-item.is-flagged:not(:hover) .ot-legend-action:not([data-action="flag"]) {
+  display: none;
+}
+
+/* Flag colour popup (FlagColorPopup): right of the flag button, centred on
+ * it, a left arrow, one row of colours. */
+.ot-flag-popup {
+  position: fixed;
+  z-index: 9500;
+  transform: translate(8px, -50%);
+  padding: 4px 6px;
+  background: var(--ot-popover-bg);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.ot-flag-popup-arrow {
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  background: var(--ot-popover-bg);
+  transform: rotate(45deg);
+}
+.ot-flag-popup-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Linked chart (a syncing group): the link button stays shown. */
+.ot-legend-item.is-linked .ot-legend-actions {
+  display: flex;
+}
+.ot-legend-item.is-linked:not(:hover) .ot-legend-action:not([data-action="link"]):not([data-action="flag"]) {
+  display: none;
+}
+.ot-legend-item.is-linked:not(:hover):not(.is-flagged) .ot-legend-action[data-action="flag"] {
+  display: none;
+}
+.ot-legend-sync-emoji {
+  font-size: 15px;
+  line-height: 18px;
+}
+
+/* "Chart syncing" menu (ChartSyncMenu): uppercase 11 px title, one row of
+ * group icons (7 px padding, radius 4, hover / active background). */
+.ot-chart-sync-menu {
+  padding: 4px 8px;
+}
+.ot-chart-sync-title {
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 4px 0;
+  color: var(--color-cold-gray-450, #8c8c8c);
+}
+.ot-chart-sync-row {
+  display: flex;
+}
+.ot-chart-sync-item {
+  all: unset;
+  padding: 7px;
+  border-radius: 4px;
+  cursor: default;
+  display: inline-flex;
+}
+.ot-chart-sync-item:hover,
+.ot-chart-sync-item.is-active {
+  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+}
+.ot-chart-sync-emoji {
+  font-size: 15px;
+  line-height: 18px;
+  width: 18px;
+  text-align: center;
+}

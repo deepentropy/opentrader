@@ -16,20 +16,31 @@ const STORAGE_KEY = "ot:favorite-intervals";
 /** Live default-favourite ids — match the original static header strip. */
 export const DEFAULT_FAVORITE_INTERVALS = ["10S", "1", "5", "15", "60", "240", "1D", "1W"];
 
-/** Canonical ascending order (shortest → longest) for the header strip. */
-const ORDER = [
-  "1T", "10T", "100T", "1000T",
-  "1S", "5S", "10S", "15S", "30S", "45S",
-  "1", "2", "3", "4", "5", "10", "15", "30", "45",
-  "60", "120", "180", "240",
-  "1D", "1W", "1M",
-];
-const rank = (id: string) => {
-  const i = ORDER.indexOf(id);
-  return i < 0 ? ORDER.length : i;
-};
+/** Order of the interval kinds (ticks, seconds, minutes, hours, days, weeks,
+ *  months, ranges). */
+const KIND_RANK: Record<string, number> = { T: 0, S: 1, "": 2, H: 3, D: 4, W: 5, M: 6, R: 7 };
+
+/** Kind and multiplier of an interval id; minute ids that are whole hours
+ *  are hours ("H", n in hours). */
+export function intervalKind(id: string): { kind: string; n: number } {
+  const m = /^(\d+)([TSDWMR]?)$/.exec(id);
+  if (!m) return { kind: "?", n: 0 };
+  const n = Number(m[1]);
+  if (m[2] === "" && n % 60 === 0) return { kind: "H", n: n / 60 };
+  return { kind: m[2], n };
+}
+
+/** Menu order: by kind (… minutes, hours, days, weeks, months, range), then
+ *  by multiplier. */
+export function compareIntervals(a: string, b: string): number {
+  const ka = intervalKind(a);
+  const kb = intervalKind(b);
+  if (ka.kind !== kb.kind) return (KIND_RANK[ka.kind] ?? 9) - (KIND_RANK[kb.kind] ?? 9);
+  return ka.n - kb.n;
+}
+
 function sortIntervals(ids: string[]): string[] {
-  return [...new Set(ids)].sort((a, b) => rank(a) - rank(b));
+  return [...new Set(ids)].sort(compareIntervals);
 }
 
 function load(): string[] {

@@ -24,6 +24,7 @@ import {
   LineStyle,
   LineType,
   type AreaData,
+  type AutoscaleInfo,
   type BaselineData,
   type HistogramData,
   type IChartApi,
@@ -216,6 +217,9 @@ export class IndicatorLayer {
   /** Selection markers while the study is selected (null = not selected). */
   private selectionBg: BackgroundAt | null = null;
   private markerDetachers: Array<() => void> = [];
+  /** "Scale price chart only": id of the main series' price scale whose
+   *  auto-scale leaves this study out (null = included). */
+  private seriesOnlyScale: string | null = null;
   // Retained so the legend can read per-plot values at the crosshair time even
   // when the study isn't (re)drawing (e.g. hidden).
   private entry: IndicatorRegistryEntry | null = null;
@@ -405,6 +409,7 @@ export class IndicatorLayer {
       if (ps) this.plotSeries.push({ series: ps as ISeriesApi<SeriesType>, data: plotData });
     }
     if (this.selectionBg) this.attachMarkers();
+    this.applyAutoscale();
 
     // ── Horizontal levels + their fills ────────────────────────────────────
     if (entry.hlineConfig?.length) {
@@ -446,6 +451,24 @@ export class IndicatorLayer {
     return (this.series as ISeriesApi<SeriesType>[]).includes(s);
   }
 
+  /** "Scale price chart only" on the main series' scale `scaleId` (null =
+   *  off): series of this study on that scale leave its auto-scale. */
+  setSeriesOnlyScale(scaleId: string | null): void {
+    this.seriesOnlyScale = scaleId;
+    this.applyAutoscale();
+  }
+
+  private applyAutoscale(): void {
+    for (const s of this.series) {
+      // On the main series' scale: no explicit scale id, or a side id (an
+      // own hidden scale, e.g. Volume, keeps its auto-scale).
+      const id = s.options().priceScaleId;
+      const onMain = id === undefined || id === "" || id === "left" || id === "right";
+      const out = this.seriesOnlyScale !== null && this.paneIndex === 0 && onMain;
+      s.applyOptions({ autoscaleInfoProvider: out ? () => null : (base: () => AutoscaleInfo | null) => base() });
+    }
+  }
+
   /** Study selected (markers on every drawn plot) or not (null). */
   setSelected(bgAt: BackgroundAt | null): void {
     this.detachMarkers();
@@ -479,6 +502,28 @@ export class IndicatorLayer {
   /** First series this layer drew (its plots' price scale), or null. */
   firstSeries(): ISeriesApi<'Line' | 'Histogram' | 'Area' | 'Baseline'> | null {
     return this.series[0] ?? null;
+  }
+
+  /** The study's drawn plots for "Download chart data": plot title and
+   *  values by bar time (the plots the chart shows; hidden ones excluded). */
+  exportPlots(): { title: string; values: Map<number, number> }[] {
+    const entry = this.entry;
+    const result = this.lastResult;
+    if (!entry || !result?.plots) return [];
+    const out: { title: string; values: Map<number, number> }[] = [];
+    for (const plotDef of entry.plotConfig) {
+      const data: PlotPoint[] | undefined = result.plots[plotDef.id];
+      if (!data || data.length === 0) continue;
+      if (!this.isPlotVisible(plotDef, result, this.lastInputs)) continue;
+      if (this.lastStyles[plotDef.id]?.visible === false) continue;
+      const values = new Map<number, number>();
+      for (const p of data) {
+        const v = (p as { value?: number }).value;
+        if (v != null) values.set(p.time as number, v);
+      }
+      out.push({ title: plotDef.title || plotDef.id, values });
+    }
+    return out;
   }
 
   /** The study's legend title (short name preferred), e.g. "RSI", "SMA". */

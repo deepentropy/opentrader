@@ -194,6 +194,8 @@ export function SelectControl(props: {
   optionTag?: (o: string) => string | undefined;
   /** Closed-control text when it differs from the value. */
   display?: string;
+  /** Option text when the options are ids (default: the option itself). */
+  labelOf?: (o: string) => string;
   onPick: (v: string) => void;
 }) {
   let btn: HTMLButtonElement | undefined;
@@ -210,7 +212,7 @@ export function SelectControl(props: {
         disabled={props.disabled}
         onClick={() => (anchor() ? setAnchor(null) : setAnchor(anchorOf(btn!)))}
       >
-        <span class="cp3-select-value">{props.display ?? props.value}</span>
+        <span class="cp3-select-value">{props.display ?? props.labelOf?.(props.value) ?? props.value}</span>
         <span class="cp3-select-caret"><Chevron /></span>
       </button>
       <Show when={anchor()} keyed>
@@ -225,7 +227,7 @@ export function SelectControl(props: {
                   class={`cp3-menu-item${o === props.value ? " is-selected" : ""}${props.disabledOptions?.includes(o) ? " is-disabled" : ""}`}
                   onClick={() => { if (props.disabledOptions?.includes(o)) return; props.onPick(o); setAnchor(null); }}
                 >
-                  <span class="cp3-menu-title">{o}</span>
+                  <span class="cp3-menu-title">{props.labelOf?.(o) ?? o}</span>
                   <Show when={props.optionTag?.(o)}>
                     {(tag) => <span class="cp3-menu-tag">{tag()}</span>}
                   </Show>
@@ -530,15 +532,17 @@ export function FormRowView(p: {
 }) {
   const controls = p.r.controls ?? [];
   const full = controls.length === 0;
+  // Inert rows (no backing feature) are shown disabled.
+  const inert = !!p.r.inert;
   return (
     <>
-      <div class={`cp3-cell cp3-label${full ? " is-full" : ""}${p.r.indent ? " is-offset" : ""}${p.r.grouped ? " is-grouped" : ""}${p.r.child ? " is-child" : ""}`}>
+      <div class={`cp3-cell cp3-label${full ? " is-full" : ""}${p.r.indent ? " is-offset" : ""}${p.r.grouped ? " is-grouped" : ""}${p.r.child ? " is-child" : ""}${inert ? " is-inert" : ""}`}>
         <div class="cp3-label-inner">
           <Show when={p.r.cb}>
-            <CheckBox checked={!!p.state?.checked} onToggle={p.onToggle} />
+            <CheckBox checked={!!p.state?.checked} disabled={inert} onToggle={p.onToggle} />
           </Show>
           <Show when={p.r.label != null}>
-            <span class="cp3-title" onClick={() => p.r.cb && p.onToggle()}>{p.r.label}</span>
+            <span class="cp3-title" onClick={() => p.r.cb && !inert && p.onToggle()}>{p.r.label}</span>
           </Show>
           <Show when={p.r.help}><HelpIcon tip={typeof p.r.help === "string" ? p.r.help : undefined} /></Show>
         </div>
@@ -553,7 +557,7 @@ export function FormRowView(p: {
                   rowId={rowIdOf(p.r)}
                   c={c}
                   v={p.state!.controls[j()]}
-                  disabled={p.disabled && c.c !== "multicheck"}
+                  disabled={inert || (p.disabled && c.c !== "multicheck")}
                   onChange={(nv) => p.onControl(j(), nv)}
                 />
               </Show>
@@ -597,6 +601,7 @@ export function ChartPropertiesDialog(props: Props) {
   /** Row visibility: `visibleWhen` select value + the intraday-only rule
    *  for the pre/post background row. */
   const visible = (tab: string, r: FormRow): boolean => {
+    if (r.hidden) return false;
     if (tab === "symbol" && r.label === "Pre/post market hours background" && props.intraday === false) return false;
     // "Open market status" only while the symbol's market is open.
     if (tab === "legend" && r.label === "Open market status" && marketSession(props.symbol ?? "") !== "open") return false;

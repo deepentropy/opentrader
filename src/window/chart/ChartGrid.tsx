@@ -84,6 +84,10 @@ type Props = {
   onVisibleRange?: (paneIndex: number, range: { from: number; to: number }) => void;
   /** Legend eye of pane `paneIndex` (hide / show its main series). */
   onToggleSeries?: (paneIndex: number) => void;
+  /** Legend "Symbol/interval chart syncing" shown (several charts and Symbol
+   *  or Interval sync on), and the group setter of pane `paneIndex`. */
+  linkSyncVisible?: boolean;
+  onLinkGroup?: (paneIndex: number, group: number | undefined) => void;
   /** Legend symbol title clicked ("Change symbol"). */
   onChangeSymbol?: () => void;
   /** Legend interval clicked ("Change interval"). */
@@ -270,6 +274,9 @@ export function ChartGrid(props: Props) {
                 onWheelZoom={onWheelZoom}
                 seriesHidden={!!pane().seriesHidden}
                 onToggleSeries={() => props.onToggleSeries?.(i)}
+                linkGroup={pane().linkGroup}
+                linkSyncVisible={!!props.linkSyncVisible}
+                onLinkGroup={(g) => props.onLinkGroup?.(i, g)}
                 onChangeSymbol={props.onChangeSymbol}
                 onChangeInterval={props.onChangeInterval}
                 // Every pane is interactive; callbacks bind to this pane's

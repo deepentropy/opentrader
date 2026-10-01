@@ -24,7 +24,7 @@ import { FLAG_HEX, WL_ICONS, type FlagColor, type Row } from "../../data/watchli
 import type { WatchList } from "../../data/watchlist-store";
 
 /** The 7 flag colours, in `data-color` order. */
-const FLAG_COLORS: FlagColor[] = ["red", "blue", "green", "orange", "purple", "cyan", "pink"];
+import { FLAG_COLORS, flagOf } from "../../data/symbol-flags";
 
 const ICON_PLUS =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M8.5 4h1v4.5H14v1H9.5V14h-1V9.5H4v-1h4.5V4Z"></path></svg>';
@@ -128,9 +128,9 @@ export function WatchlistContextMenu(props: Props) {
             <button
               type="button"
               role="menuitemradio"
-              aria-checked={props.row.flag === c}
+              aria-checked={flagOf(props.row.ticker) === c}
               class="watchlist-ctx-flag-swatch"
-              classList={{ selected: props.row.flag === c }}
+              classList={{ selected: flagOf(props.row.ticker) === c }}
               aria-label={`Set ${c} flag`}
               onClick={() => run(() => props.onSetFlag(props.row, c))}
             >

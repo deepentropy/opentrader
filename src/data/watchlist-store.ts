@@ -18,6 +18,7 @@ import {
   type Row,
   type SortKey,
 } from "./watchlist";
+import * as symbolFlags from "./symbol-flags";
 import * as kv from "./kv";
 import { isFullSymbol, tickerOf, toFullSymbol } from "./datafeed";
 
@@ -30,9 +31,6 @@ export type WatchList = {
   groups: Group[];
   /** Symbols added via "Add symbol" — ungrouped, shown after the sections. */
   extras: Row[];
-  /** "Share list" state — local stand-in (toggling it copies the list to the
-   *  clipboard); persisted so the switch survives reloads. */
-  shared: boolean;
   /** Flagged/favourited — drives the "Flagged lists" section of the list
    *  manager (favourite-watchlist star). */
   favorite: boolean;
@@ -67,7 +65,6 @@ function seed(): StoreShape {
     // until the user adds symbols.
     groups: t.active ? cloneGroups(GROUPS) : [],
     extras: [],
-    shared: false,
     favorite: false,
     sort: "default",
   }));
@@ -96,7 +93,6 @@ function load(): StoreShape {
           ...l,
           groups: l.groups ?? [],
           extras: l.extras ?? [],
-          shared: l.shared ?? false,
           favorite: l.favorite ?? false,
           sort: l.sort ?? "default",
         }));
@@ -115,6 +111,17 @@ function load(): StoreShape {
 }
 
 const [state, setState] = createStore<StoreShape>(load());
+
+// Flags moved to one flag per symbol (symbol-flags.ts): the first run takes
+// the row flags of every list (first colour found wins).
+if (symbolFlags.needsMigration()) {
+  const pairs: [string, FlagColor][] = [];
+  for (const l of state.lists) {
+    for (const g of l.groups) for (const r of g.rows) if (r.flag) pairs.push([r.ticker, r.flag]);
+    for (const r of l.extras) if (r.flag) pairs.push([r.ticker, r.flag]);
+  }
+  symbolFlags.seedFlags(pairs);
+}
 
 // Autosave: a root-scoped effect serialises the store on every change.
 createRoot(() => {
@@ -263,7 +270,7 @@ export const watchlistStore = {
   createList(name = "New list"): string {
     const nm = uniqueName(name);
     const id = uniqueId(nm);
-    setState("lists", (ls) => [...ls, { id, name: nm, flag: null, emoji: null, groups: [], extras: [], shared: false, favorite: false, sort: "default" }]);
+    setState("lists", (ls) => [...ls, { id, name: nm, flag: null, emoji: null, groups: [], extras: [], favorite: false, sort: "default" }]);
     setState("activeId", id);
     return id;
   },
@@ -276,7 +283,7 @@ export const watchlistStore = {
     const id = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id, name: nm, flag: null, emoji: null, groups: cloneGroups(a.groups), extras: a.extras.map((r) => ({ ...r })), shared: false, favorite: false, sort: a.sort },
+      { id, name: nm, flag: null, emoji: null, groups: cloneGroups(a.groups), extras: a.extras.map((r) => ({ ...r })), favorite: false, sort: a.sort },
     ]);
     setState("activeId", id);
     return id;
@@ -291,7 +298,7 @@ export const watchlistStore = {
     const cid = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id: cid, name: nm, flag: null, emoji: null, groups: cloneGroups(src.groups), extras: src.extras.map((r) => ({ ...r })), shared: false, favorite: false, sort: src.sort },
+      { id: cid, name: nm, flag: null, emoji: null, groups: cloneGroups(src.groups), extras: src.extras.map((r) => ({ ...r })), favorite: false, sort: src.sort },
     ]);
     return cid;
   },
@@ -337,7 +344,7 @@ export const watchlistStore = {
       finalGroups = [{ name: "IMPORTED", rows: extras }];
       finalExtras = [];
     }
-    setState("lists", (ls) => [...ls, { id, name: nm, flag: null, emoji: null, groups: finalGroups, extras: finalExtras, shared: false, favorite: false, sort: "default" }]);
+    setState("lists", (ls) => [...ls, { id, name: nm, flag: null, emoji: null, groups: finalGroups, extras: finalExtras, favorite: false, sort: "default" }]);
     setState("activeId", id);
     return id;
   },
@@ -460,25 +467,14 @@ export const watchlistStore = {
       l.extras = l.extras.filter((r) => r.ticker !== ticker);
     });
   },
-  /** Set (or clear, with `null`) a symbol row's colour flag — the per-row
-   *  marker the watchlist context menu "Flag" submenu toggles. Searches the
-   *  active list's sections and extras for the row by full ticker. */
+  /** Set (or clear, with `null`) a symbol's colour flag. Flags belong to
+   *  the symbol (symbol-flags.ts): it shows in every list holding it. */
   setRowFlag(ticker: string, flag: FlagColor | null): void {
-    mutateActive((l) => {
-      for (const g of l.groups) {
-        const r = g.rows.find((r) => r.ticker === ticker);
-        if (r) { r.flag = flag; return; }
-      }
-      const e = l.extras.find((r) => r.ticker === ticker);
-      if (e) e.flag = flag;
-    });
+    symbolFlags.setFlag(ticker, flag);
   },
-  /** Clear every row flag in the active list ("Unflag all symbols"). */
+  /** Unflag every symbol, in all lists ("Unflag all symbols"). */
   clearAllFlags(): void {
-    mutateActive((l) => {
-      for (const g of l.groups) for (const r of g.rows) r.flag = null;
-      for (const r of l.extras) r.flag = null;
-    });
+    symbolFlags.clearAllFlags();
   },
   /** Append a row to ANOTHER list's extras ("Add X to watchlist" submenu).
    *  Deduped by full ticker across the target's sections and extras. Returns
@@ -523,23 +519,9 @@ export const watchlistStore = {
     const id = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id, name: nm, flag: null, emoji: null, groups: [], extras: [{ ...row, flag: null }], shared: false, favorite: false, sort: "default" },
+      { id, name: nm, flag: null, emoji: null, groups: [], extras: [{ ...row, flag: null }], favorite: false, sort: "default" },
     ]);
     return nm;
-  },
-
-  // ── "Share list" (local stand-in) ──
-  setShared(shared: boolean): void {
-    mutateActive((l) => {
-      l.shared = shared;
-    });
-  },
-  /** A shareable plain-text export of the active list (name + one ticker/line). */
-  shareText(): string {
-    const a = state.lists[activeIndex()];
-    if (!a) return "";
-    const tickers = [...a.groups.flatMap((g) => g.rows), ...a.extras].map((r) => r.ticker);
-    return [a.name, ...tickers].join("\n");
   },
 
   // ── List alerts (local price-move alert per list) ──

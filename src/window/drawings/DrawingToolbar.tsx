@@ -1,10 +1,8 @@
 /*
- * DrawingToolbar — vertical strip on the left edge of the chart pane.
- *
- * Feature 5 scope: visual rail + submenus + tool-arm signal only. Actual
- * drawing creation, hit-testing, persistence, the bottom toggles
- * (Magnet / Stay-mode / Lock / Hide), Measure button, and Trash button all
- * land in Feature 5a/5b.
+ * DrawingToolbar — vertical strip on the left edge of the chart pane: the
+ * tool groups with their submenus (arming a tool), Measure / Zoom, the
+ * magnet, keep drawing, lock, hide, remove and sync toggles. Drawing
+ * creation and hit-testing live in DrawingsOverlay; the toggles' state in App.
  *
  * Click model:
  *   • Click the icon button → activate the group's current default tool.
@@ -765,8 +763,8 @@ export function DrawingToolbar(props: Props) {
         </div>
         {/* Sync drawings — `drawingSyncMode-button`. A pure dropdown: both
          *  the icon and the caret open the No-sync / Sync-in-layout / Sync-
-         *  globally menu. Single-chart app, so the choice is persisted for
-         *  parity but has no cross-chart effect yet. */}
+         *  globally menu; App keys the drawings store by the mode
+         *  (drawingKeyFor). */}
         <div class={"drawing-tool-group" + (syncMenuOpen() ? " open" : "")}>
           <Tooltip text={SYNC_TOOLTIPS[syncMode()]} side="right">
             <button

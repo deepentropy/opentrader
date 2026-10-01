@@ -130,7 +130,7 @@
 }
 .ot-price-currency-row {
   height: 24px;
-  justify-content: space-between;
+  justify-content: center;
   box-sizing: border-box;
   padding: 0 3px;
   display: flex;

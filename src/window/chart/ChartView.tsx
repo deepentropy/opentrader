@@ -37,6 +37,13 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import type { IPriceLine, Logical } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
 import { chartBackgroundAt } from "./selection-markers";
+import { MOVE_STUDY_EVENT, SELECT_STUDY_EVENT, setFocusedStudySelection } from "./study-selection";
+import { flagOf, lastFlagColor, setFlag } from "../../data/symbol-flags";
+import { FlagColorPopup } from "./FlagColorPopup";
+import { ChartSyncMenu, SYNC_GROUPS } from "./ChartSyncMenu";
+import { FLAG_HEX } from "../../data/watchlist";
+import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime, setCrosshairLockTime } from "./crosshair-lock";
+import { textOnColor } from "lightweight-charts-drawing/core/color";
 import { formatChartTime, formatTickMark } from "./time-format";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "./session-breaks";
 import { SessionBackgroundsPrimitive, computeSessionRuns } from "./session-backgrounds";
@@ -69,10 +76,11 @@ import { hasClipboardDrawing, pasteAsNew } from "../drawings/clipboard";
 import { appearanceFrom, type Draft, type NavButtonsBehavior, type PriceSource } from "../header/chart-settings";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { priceOf } from "./series-transforms";
+import { registerChartExport, type ExportColumn } from "./chart-export";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import type { CompareEntry, PaneIndicatorSettings } from "../shell/tabs";
 import { CompareLayer } from "./compare/compare-layer";
-import { compareColor, type CompareStyleState } from "./compare/compare-style";
+import { compareColor, compareSource, type CompareStyleState } from "./compare/compare-style";
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import { isVisibleOnInterval } from "lightweight-charts-drawing/core/types";
 import {
@@ -216,6 +224,11 @@ type Props = {
   indicatorSettings?: Record<string, PaneIndicatorSettings>;
   /** Persist a study's edited inputs/styles (Settings dialog → Ok). */
   onIndicatorSettings?: (id: string, settings: PaneIndicatorSettings) => void;
+  /** Chart syncing group (0..4, undefined = none), its legend button shown,
+   *  and the setter. */
+  linkGroup?: number;
+  linkSyncVisible?: boolean;
+  onLinkGroup?: (group: number | undefined) => void;
   /** IANA timezone for the time axis (crosshair label + tick marks). */
   timeZone?: string;
   /** The timezone row label ("Exchange", "(UTC-4) New York", …). */
@@ -632,6 +645,30 @@ export function ChartView(props: Props) {
   // "Countdown to bar close" axis label (Scales tab). Re-attached on rebuild;
   // its text ticks on a 1s timer (see updateCountdown).
   const countdown = new CountdownPrimitive();
+  /** "Lock vertical cursor line by time" views (crosshair-lock.ts): the
+   *  time label on the main series, the line + padlock in every pane. */
+  let lockViews: CrosshairLockViews | null = null;
+  let lockAxis: CrosshairLockAxisPrimitive | null = null;
+  const lockPanes = new Map<unknown, CrosshairLockPanePrimitive>();
+  /** Attach the lock line to every pane (panes come and go). */
+  function syncLockPanes() {
+    if (!chart || !lockViews) return;
+    const panes = chart.panes();
+    for (const [pane, prim] of [...lockPanes]) {
+      if (!panes.includes(pane as never)) lockPanes.delete(pane);
+      else if (crosshairLockTime() === null) {
+        try { (pane as { detachPrimitive(p: unknown): void }).detachPrimitive(prim); } catch { /* pane gone */ }
+        lockPanes.delete(pane);
+      }
+    }
+    if (crosshairLockTime() === null) return;
+    for (const pane of panes) {
+      if (lockPanes.has(pane)) continue;
+      const prim = new CrosshairLockPanePrimitive(lockViews);
+      pane.attachPrimitive(prim);
+      lockPanes.set(pane, prim);
+    }
+  }
   // "High and low" price lines (Scales tab) over the LOADED data's extremes.
   // Series-owned, so a series rebuild drops them; refs + the memo key reset there.
   let highLine: IPriceLine | null = null;
@@ -771,6 +808,10 @@ export function ChartView(props: Props) {
    *  clears the drawing selection and selecting a drawing clears it. Delete /
    *  Backspace remove it, Escape or a click on the empty chart clear it. */
   const [selectedStudy, setSelectedStudy] = createSignal<string | null>(null);
+  /** Legend flag colour popup (its flag button), null = closed. */
+  const [flagPopup, setFlagPopup] = createSignal<HTMLElement | null>(null);
+  /** Legend "Chart syncing" menu (its button rect), null = closed. */
+  const [syncMenu, setSyncMenu] = createSignal<DOMRect | null>(null);
   /** Chart background at a height, for the selection markers. */
   const studySelectionBg = createMemo(() => {
     const t = readChartTokens(appearance());
@@ -847,12 +888,6 @@ export function ChartView(props: Props) {
 
   // Right-click context menu: open position + resolved node list (null = closed).
   const [ctxMenu, setCtxMenu] = createSignal<{ x: number; y: number; nodes: CtxNode[] } | null>(null);
-  // Backs the "Lock vertical cursor line by time" toggle (visual state only).
-  const [cursorLock, setCursorLock] = createSignal(false);
-  // Backs the price-scale menu's "Scale price chart only" toggle — visual
-  // state only (no lightweight-charts backing; accepted no-op like the
-  // trading rows of the pane menu).
-  const [scaleSeriesOnly, setScaleSeriesOnly] = createSignal(false);
 
   // Control bars (see control-bar.ts + the onMount block). `gotoShown` is the
   // back button's visibility, `barShown` the control bar's; the boxes
@@ -1044,9 +1079,7 @@ export function ChartView(props: Props) {
    *  Scale price chart only, Invert, the four mode radios, Move scale,
    *  Labels/Lines submenus, Plus button, Session on intraday, More
    *  settings…). Rows we have no surface for (bid-ask
-   *  labels+lines, no-overlapping-labels) are omitted;
-   *  Lock ratio / Scale price chart only / Plus button are accepted no-ops
-   *  like the trading items of the pane menu. */
+   *  labels+lines, no-overlapping-labels) are omitted. */
   function openPriceScaleMenu(e: MouseEvent) {
     if (!chart) return;
     const t = currentTokens();
@@ -1065,8 +1098,10 @@ export function ChartView(props: Props) {
       { kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
         shortcut: ratio != null ? String(Number(ratio.toFixed(7))) : undefined,
         onSelect: () => patch(t.lockRatio ? { lockRatio: false } : { lockRatio: true, lockRatioValue: ratio ?? undefined }) },
+      // Auto-scale of the main series' scale on the series alone (chart
+      // setting, saved like the lock ratio).
       { kind: "item", id: "series-only", label: "Scale price chart only",
-        checked: scaleSeriesOnly(), onSelect: () => setScaleSeriesOnly((v) => !v) },
+        checked: t.scaleSeriesOnly, onSelect: () => patch({ scaleSeriesOnly: !t.scaleSeriesOnly }) },
       { kind: "item", id: "invert", label: "Invert scale", shortcut: "Alt + I",
         checked: cur.invertScale, onSelect: () => ps.applyOptions({ invertScale: !cur.invertScale }) },
       { kind: "separator" },
@@ -1322,7 +1357,7 @@ export function ChartView(props: Props) {
         price: priceStr,
         drawingCount: ds.length,
         indicatorCount: (props.indicators ?? []).length,
-        cursorLockByTime: cursorLock(),
+        cursorLockByTime: crosshairLockTime() !== null,
         canPaste: hasClipboardDrawing(),
       },
       {
@@ -1347,7 +1382,13 @@ export function ChartView(props: Props) {
         buy: noop,
         sell: noop,
         addOrder: noop,
-        toggleCursorLock: () => setCursorLock((v) => !v),
+        // Lock: the bar under the right click (its time); again = unlock.
+        toggleCursorLock: () => {
+          if (crosshairLockTime() !== null) { setCrosshairLockTime(null); return; }
+          const xRel = host ? e.clientX - host.getBoundingClientRect().left : null;
+          const t = xRel != null ? chart?.timeScale().coordinateToTime(xRel) : null;
+          if (t != null) setCrosshairLockTime(t as number);
+        },
         tableView: noop,
         objectTree: () => openPanel("object_tree"),
         saveTemplateAs: () => window.dispatchEvent(new CustomEvent("chart-save-template")),
@@ -1365,6 +1406,16 @@ export function ChartView(props: Props) {
 
   /** Re-resolve the legend for a crosshair time (or the latest bar when
    *  omitted). Reads the live `raw` + `activeType` closures. */
+  /** Price source of a single-value main series (Symbol tab "Price source"). */
+  function mainPriceSource(): PriceSource {
+    const st = currentTokens().styles;
+    return activeType === "line" || activeType === "lineWithMarkers" || activeType === "stepline" ? st[activeType].source
+      : activeType === "area" ? st.area.source
+      : activeType === "baseline" ? st.baseline.source
+      : activeType === "column" ? st.column.source
+      : "close";
+  }
+
   function refreshLegend(time?: number) {
     if (raw.length === 0) {
       setLegend(null);
@@ -1376,14 +1427,7 @@ export function ChartView(props: Props) {
       const hit = indexOfTime(raw, time);
       if (hit >= 0) idx = hit;
     }
-    const st = currentTokens().styles;
-    const src: PriceSource =
-      activeType === "line" || activeType === "lineWithMarkers" || activeType === "stepline" ? st[activeType].source
-      : activeType === "area" ? st.area.source
-      : activeType === "baseline" ? st.baseline.source
-      : activeType === "column" ? st.column.source
-      : "close";
-    setLegend(buildLegend(raw, idx, activeType, prevDayClose[idx] ?? null, src));
+    setLegend(buildLegend(raw, idx, activeType, prevDayClose[idx] ?? null, mainPriceSource()));
     publishDataWindowIfOwner(idx, time);
   }
 
@@ -1787,6 +1831,7 @@ export function ChartView(props: Props) {
     // their boundaries against the current bars.
     series.attachPrimitive(sessionBreaks);
     series.attachPrimitive(sessionBackgrounds);
+    if (lockAxis) series.attachPrimitive(lockAxis);
     // Strategy trade marks belong to the series: re-attach to the new one.
     tradeMarkersSeries = null;
     tradeMarkers = null;
@@ -2312,10 +2357,10 @@ export function ChartView(props: Props) {
         if (isDaily) {
           const unit = aggregateUnitFor(reqInt);
           // Resolved with the first daily load (getBars).
-          const tz = cachedSymbolSessions(props.symbol ?? "")?.timeZone;
-          if (unit && !tz) return;
+          const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
+          if (unit && !spec) return;
           rawDaily = [...older, ...rawDaily];
-          raw = toOHLC(unit ? aggregateCandles(rawDaily, unit, tz!) : rawDaily);
+          raw = toOHLC(unit ? aggregateCandles(rawDaily, unit, spec!) : rawDaily);
         } else {
           raw = [...toOHLC(older), ...raw];
         }
@@ -2691,6 +2736,17 @@ export function ChartView(props: Props) {
       // below with a right-edge-anchored zoom (see onWheel).
       handleScale: { mouseWheel: false },
     });
+    lockViews = new CrosshairLockViews(chart, () => {
+      const t = readChartTokens(untrack(appearance));
+      return {
+        color: t.crosshairColor,
+        width: Math.max(1, Math.min(4, t.crosshairWidth)),
+        dash: t.crosshairStyle === 0 ? [] : t.crosshairStyle === 2 ? [1, 1] : [4, 4],
+        labelBg: t.crosshairLabelBg,
+        dark: textOnColor(t.bg).toUpperCase() === "#FFFFFF",
+      };
+    });
+    lockAxis = new CrosshairLockAxisPrimitive(lockViews);
     // Start empty; real candles arrive from the Massive resource below.
     raw = [];
     rebuildSeries();
@@ -3067,7 +3123,11 @@ export function ChartView(props: Props) {
     // moving off the pane (no `time`) falls back to the latest bar.
     const onCrosshair = (param: MouseEventParams) => {
       crosshairActive = param.time != null;
-      lastLegendTime = param.time as number | undefined;
+      // Locked cursor line: the legend shows the locked bar.
+      const locked = crosshairLockTime();
+      if (lockViews) lockViews.shown = !!param.point;
+      if (locked !== null) syncLockPanes();
+      lastLegendTime = (crosshairActive && locked !== null ? locked : param.time) as number | undefined;
       refreshLegend(lastLegendTime);
       refreshIndicatorLegend(lastLegendTime);
       // Sync-in-layout (panes) OR "Sync crosshair across windows": mirror the
@@ -3125,7 +3185,7 @@ export function ChartView(props: Props) {
       if (hov === newsHovered) return;
       newsHovered = hov;
       newsLollipop.setState({ hovered: hov });
-      chart?.applyOptions({ crosshair: { vertLine: { visible: !hov }, horzLine: { visible: !hov } } });
+      chart?.applyOptions({ crosshair: { vertLine: { visible: !hov && crosshairLockTime() === null }, horzLine: { visible: !hov } } });
     };
     chart.subscribeCrosshairMove(onNewsCrosshair);
     // Click on a plot selects its study (or compared symbol); a click on the
@@ -4086,6 +4146,48 @@ export function ChartView(props: Props) {
     const name = compareNames()[e.symbol] || ticker;
     return exchange ? `${name} · ${exchange}` : name;
   };
+  // "Download chart data" source: time, the main series values, the visible
+  // studies' plots, then the compared symbols (chart-export.ts).
+  const exportData = (): { times: number[]; columns: ExportColumn[] } => {
+    const bars = raw;
+    const times = bars.map((b) => b.time as number);
+    const col = (title: string, rows: OHLC[], f: (b: OHLC) => number): ExportColumn => ({
+      title,
+      values: new Map(rows.map((b) => [b.time as number, f(b)])),
+    });
+    const ohlcColumns = (type: string, src: PriceSource, rows: OHLC[], prefix: string): ExportColumn[] => {
+      const t = (s: string) => prefix + s;
+      if (type === "hilo") return [col(t("high"), rows, (b) => b.high), col(t("low"), rows, (b) => b.low)];
+      if (type === "hlcArea" || type === "hlcBars")
+        return [col(t("high"), rows, (b) => b.high), col(t("low"), rows, (b) => b.low), col(t("close"), rows, (b) => b.close)];
+      if (legendShowsSingleValue(type as ChartTypeId)) return [col(t(src), rows, (b) => priceOf(b, src))];
+      return [
+        col(t("open"), rows, (b) => b.open),
+        col(t("high"), rows, (b) => b.high),
+        col(t("low"), rows, (b) => b.low),
+        col(t("close"), rows, (b) => b.close),
+      ];
+    };
+    const columns = ohlcColumns(activeType, mainPriceSource(), bars, "");
+    columns.push(...(controller?.exportColumns() ?? []));
+    for (const e of compareEntries()) {
+      const layer = compareLayers.get(e.id);
+      if (!layer || e.hidden) continue;
+      columns.push(...ohlcColumns(e.style.style, compareSource(e.style), layer.loadedBars, `${compareTitle(e)}: `));
+    }
+    return { times, columns };
+  };
+  onCleanup(
+    registerChartExport(paneId, {
+      title: () => `${props.symbol ?? ""}, ${props.interval ?? "1D"}`,
+      shown: () => props.shown !== false,
+      active: () => !!props.active,
+      host: () => host,
+      timeZone: () => props.timeZone ?? "UTC",
+      dwm: () => !isIntradayInterval(props.interval ?? "1D"),
+      data: exportData,
+    }),
+  );
   const otherSide = (side: "left" | "right") => (side === "right" ? "left" : "right");
   /** Scale id of every entry (placement rules above). */
   function compareScaleIds(): Map<string, string> {
@@ -4171,6 +4273,7 @@ export function ChartView(props: Props) {
         }
         compareLayers.set(e.id, layer);
         if (untrack(selectedStudy) === e.id) layer.setSelected(untrack(studySelectionBg));
+        layer.setSeriesOnlyScale(untrack(seriesOnlyScale));
         startCompareLive(layer);
         created = true;
       } else {
@@ -4228,6 +4331,30 @@ export function ChartView(props: Props) {
     for (const [cid, layer] of compareLayers) if (layer.firstSeries() === s) return cid;
     return null;
   }
+  // Locked cursor line: the library's vertical line (and its time label)
+  // give way to the lock views.
+  createEffect(() => {
+    chartReady();
+    const locked = crosshairLockTime() !== null;
+    untrack(() => {
+      chart?.applyOptions({ crosshair: { vertLine: { visible: !locked, labelVisible: !locked } } });
+      syncLockPanes();
+    });
+  });
+  // "Scale price chart only": studies and compared symbols on the main
+  // series' scale leave its auto-scale.
+  const seriesOnlyScale = () => {
+    const t = readChartTokens(appearance());
+    return t.scaleSeriesOnly ? t.scalesPlacement : null;
+  };
+  createEffect(() => {
+    chartReady();
+    const id = seriesOnlyScale();
+    untrack(() => {
+      controller?.setSeriesOnlyScale(id);
+      for (const layer of compareLayers.values()) layer.setSeriesOnlyScale(id);
+    });
+  });
   // Selection markers on the selected study's plots.
   createEffect(() => {
     chartReady();
@@ -4247,6 +4374,47 @@ export function ChartView(props: Props) {
     const id = selectedStudy();
     if (id && !indLegend().some((r) => r.id === id)) setSelectedStudy(null);
   });
+  // The focused chart publishes its selected study (Object tree rows and
+  // its "Move to" button) and serves the Object tree's requests.
+  createEffect(() => {
+    if (props.active === false || props.shown === false) return;
+    const id = selectedStudy();
+    paneEpoch();
+    untrack(() => {
+      const movable = !!id && !compareEntry(id) && !!controller?.canMoveToNewPane(id);
+      // New pane above the price pane: not offered here (the price series
+      // stays in the top pane).
+      setFocusedStudySelection(id ? { id, moveAbove: false, moveBelow: movable } : null);
+    });
+  });
+  const onSelectStudyRequest = (e: Event) => {
+    if (props.active === false) return;
+    const id = (e as CustomEvent<{ id: string }>).detail?.id;
+    if (id && indLegend().some((r) => r.id === id)) selectStudy(id);
+  };
+  window.addEventListener(SELECT_STUDY_EVENT, whenShown(onSelectStudyRequest));
+  onCleanup(() => window.removeEventListener(SELECT_STUDY_EVENT, whenShown(onSelectStudyRequest)));
+  const onMoveStudyRequest = (e: Event) => {
+    if (props.active === false || !controller) return;
+    const { id, where } = (e as CustomEvent<{ id: string; where: "above" | "below" }>).detail ?? {};
+    if (!id || where !== "below") return;
+    const options = controller.moveToNewPane(id);
+    if (!options) return;
+    // The new pane goes right below the price pane: first in the stacking order.
+    const order = [id, ...controller.stackedOrder().filter((x) => x !== id)];
+    controller.setPaneOrder(order);
+    props.onPaneOrder?.(order);
+    props.onIndicatorSettings?.(id, {
+      inputs: controller.getInputs(id) ?? {},
+      styles: controller.getStyles(id) ?? {},
+      options,
+    });
+    setPaneEpoch((n) => n + 1);
+    queueMicrotask(refreshPaneBoxes);
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+  };
+  window.addEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest));
+  onCleanup(() => window.removeEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest)));
   // Delete / Backspace remove the selected study, Escape clears it (focused
   // chart only, not while typing or with a dialog open).
   const onStudyKey = (e: KeyboardEvent) => {
@@ -4909,8 +5077,10 @@ export function ChartView(props: Props) {
               <div class="ot-price-currency" style={{ [g().left ? "left" : "right"]: "0px", width: `${g().w}px` }}>
                 <div class="ot-price-currency-box" style={{ "background-color": readChartTokens(appearance()).bg }}>
                   <div class="ot-price-currency-row" style={{ "font-size": `${readChartTokens(appearance()).scaleFontSize}px` }} title="Currency">
+                    {/* No dropdown arrow: the reference menu converts the chart to
+                        another currency, which needs intraday exchange rates
+                        the data plan does not serve. */}
                     <span>{currency()}</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7 5" width="7" height="5" fill="none" aria-hidden="true"><path stroke="currentColor" stroke-width="1.2" d="M1 1.5l2.5 2 2.5-2" /></svg>
                   </div>
                 </div>
               </div>
@@ -4990,12 +5160,7 @@ export function ChartView(props: Props) {
                   <span>{news()!.publisher}</span>
                 </div>
                 <div class="ot-news-item-title">{news()!.title}</div>
-                <div class="ot-news-item-footer">
-                  <div>See all</div>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="8" height="8" aria-hidden="true">
-                    <path fill="currentColor" d="M2.77 0v.01h.01l3 3.67.26.32-.25.32-3 3.67h-.01L2.77 8 2 7.37 4.72 4 2 .63z" />
-                  </svg>
-                </div>
+                {/* No "See all" footer: there is no news list view. */}
               </button>
             </div>
           </div>
@@ -5114,10 +5279,39 @@ export function ChartView(props: Props) {
           hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
           seriesHidden={!!props.seriesHidden}
           onToggleSeries={props.onToggleSeries}
+          flagColor={(() => { const f = props.symbol ? flagOf(props.symbol) : null; return f ? FLAG_HEX[f] : null; })()}
+          onFlag={(btn) => {
+            // Reference marker click: an unflagged symbol is flagged in the
+            // last used colour and the colour popup opens; a flagged one is
+            // unflagged.
+            const sym = props.symbol;
+            if (!sym) return;
+            if (flagOf(sym)) { setFlag(sym, null); setFlagPopup(null); return; }
+            setFlag(sym, lastFlagColor());
+            setFlagPopup(btn);
+          }}
           onChangeSymbol={props.onChangeSymbol}
           onChangeInterval={props.onChangeInterval}
           onMore={openSeriesMoreMenu}
+          linkVisible={!!props.linkSyncVisible}
+          linkIcon={props.linkGroup != null ? SYNC_GROUPS[props.linkGroup]?.icon ?? null : null}
+          onLink={(r) => setSyncMenu(syncMenu() ? null : r)}
         />
+        <Show when={syncMenu()}>
+          {(r) => (
+            <ChartSyncMenu anchor={r()} group={props.linkGroup} onPick={(g) => props.onLinkGroup?.(g)} onClose={() => setSyncMenu(null)} />
+          )}
+        </Show>
+        <Show when={flagPopup()}>
+          {(btn) => (
+            <FlagColorPopup
+              anchor={btn()}
+              value={props.symbol ? flagOf(props.symbol) : null}
+              onPick={(c) => { if (props.symbol) setFlag(props.symbol, c); }}
+              onClose={() => setFlagPopup(null)}
+            />
+          )}
+        </Show>
         {studyLegend(0)}
       </div>
       {/* Study panes: each pane's legend at its own top-left, same offset

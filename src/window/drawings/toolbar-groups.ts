@@ -43,7 +43,12 @@ export type ToolbarGroups = {
   colors: ColorButton[];
   width?: Group<number> & { highlighter?: boolean };
   style?: Group<LineStyle>;
+  /** "Font size" button (text tools, pin, signpost; after the colours). */
+  fontSize?: Group<number>;
 };
+
+/** Font size of a text tool, with the size its renderer uses when unset. */
+const fontSize = (fallback: number) => field("fontSize", () => fallback);
 
 // ── Group builders ─────────────────────────────────────────────────────────
 
@@ -351,13 +356,14 @@ export function toolbarGroups(d: Drawing): ToolbarGroups {
           bgBtn(colorWithTransparency("stopColor", "stopTransparency", () => "#f23645", 80), "Stop background color"),
         ],
       };
-    // Text tools: text colour and background (font size not here).
+    // Text tools: text colour, background and font size.
     case "text":
       return {
         colors: [
           textBtn(color, "Text color"),
           bgBtn(colorWithTransparency("backgroundColor", "transparency", (s) => s.color, 75), "Background color"),
         ],
+        fontSize: fontSize(14),
       };
     case "comment":
       return {
@@ -365,6 +371,7 @@ export function toolbarGroups(d: Drawing): ToolbarGroups {
           textBtn(field("textColor", () => "#ffffff"), "Text color"),
           bgBtn(colorWithTransparency("backgroundColor", "transparency", (s) => s.color, 0), "Background color"),
         ],
+        fontSize: fontSize(16),
       };
     case "callout":
       return {
@@ -372,6 +379,7 @@ export function toolbarGroups(d: Drawing): ToolbarGroups {
           textBtn(field("textColor", () => "#ffffff"), "Text color"),
           bgBtn(colorWithTransparency("backgroundColor", "transparency", (s) => s.color, 50), "Background color"),
         ],
+        fontSize: fontSize(14),
       };
     case "price-label":
       return {
@@ -379,10 +387,14 @@ export function toolbarGroups(d: Drawing): ToolbarGroups {
           textBtn(field("textColor", () => "#ffffff"), "Text color"),
           bgBtn(colorWithTransparency("backgroundColor", "transparency", (s) => s.color, 0), "Background color"),
         ],
+        fontSize: fontSize(14),
       };
-    // Pin (reference Note): marker colour + text colour.
+    // Pin (reference Note): marker colour, text colour, font size.
     case "pin":
-      return { colors: [lineBtn(color, "Marker color"), textBtn(field("textColor", () => "#dbdbdb"), "Text color")] };
+      return {
+        colors: [lineBtn(color, "Marker color"), textBtn(field("textColor", () => "#dbdbdb"), "Text color")],
+        fontSize: fontSize(14),
+      };
     // Note (reference text note): line, background, text.
     case "note":
       return groups({ line: color, bg: field("backgroundColor", () => "#2e2e2e"), text: field("textColor", () => "#dbdbdb") });
@@ -412,7 +424,7 @@ export function toolbarGroups(d: Drawing): ToolbarGroups {
         width,
       };
     case "signpost":
-      return { colors: d.style.showImage ? [bgBtn(field("plateColor", () => "#2962ff"))] : [] };
+      return { colors: d.style.showImage ? [bgBtn(field("plateColor", () => "#2962ff"))] : [], fontSize: fontSize(12) };
     case "font-icon":
       return { colors: isIconGlyph(d) ? [bgBtn(color)] : [] };
     case "ghost-feed":

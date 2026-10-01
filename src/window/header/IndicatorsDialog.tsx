@@ -25,6 +25,9 @@ import {
   toggleFavoriteIndicator,
 } from "../../data/indicator-favorites";
 import { getIndicatorEntry } from "../../window/chart/indicators/registry";
+import { listScripts, loadScript } from "../../data/oakscript-store";
+import { userIndicatorId } from "../../window/chart/indicators/user-scripts";
+import { userStrategyId } from "../../window/chart/indicators/strategy-entries";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
 
@@ -119,6 +122,17 @@ export function IndicatorsDialog(props: Props) {
           indicatorId: id,
         })),
       };
+    }
+    // My scripts: the user's OakScript scripts (a strategy() script goes on
+    // the chart as a strategy, like the editor's Add to chart).
+    if (activeItem() === "my-scripts") {
+      const mine: IndicatorRow[] = listScripts().map((m) => {
+        const strategy = !!loadScript(m.id)?.meta?.strategy;
+        return strategy
+          ? { name: m.name, indicatorId: userStrategyId(m.id), scriptType: "strategy" as const }
+          : { name: m.name, indicatorId: userIndicatorId(m.id) };
+      });
+      if (mine.length) return { kind: "rows", rows: mine };
     }
     return TAB_CONTENT[activeItem()];
   };
@@ -228,9 +242,11 @@ export function IndicatorsDialog(props: Props) {
                       <button
                         type="button"
                         data-qa-id={`indicator-sidebar-item-${item.id}`}
-                        class={`indicators-sidebar-item${activeItem() === item.id ? " is-active" : ""}`}
+                        class={`indicators-sidebar-item${activeItem() === item.id ? " is-active" : ""}${item.disabled ? " is-disabled" : ""}`}
                         aria-current={activeItem() === item.id}
-                        onClick={() => setActiveItem(item.id)}
+                        aria-disabled={item.disabled || undefined}
+                        disabled={item.disabled}
+                        onClick={() => { if (!item.disabled) setActiveItem(item.id); }}
                       >
                         <Glyph id={item.id} />
                         <span class="indicators-sidebar-label">{item.label}</span>
@@ -326,7 +342,7 @@ export function IndicatorsDialog(props: Props) {
                                   </div>
                                   <div class="indicators-cell indicators-author-cell">
                                     <Show when={row.author}>
-                                      <a class="indicators-author" href="#" onClick={(e) => e.preventDefault()}>{row.author}</a>
+                                      <span class="indicators-author">{row.author}</span>
                                     </Show>
                                   </div>
                                   <div class="indicators-cell indicators-boosts-cell">{row.boosts}</div>

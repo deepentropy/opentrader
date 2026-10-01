@@ -1210,6 +1210,8 @@ export function DrawingsOverlay(props: Props) {
       ".drawing-toolbar", // the left drawing toolbar
       ".ot-table-cell-input", // the table cell editor
       ".ot-dlg-layer", // name / confirm dialogs (template save, delete)
+      ".object-tree-panel", // the Object tree (shares the selection)
+      ".ot-chart-ctx-menu", // its Clone, Copy / Move to menus
     ].join(",");
     const onOutsideDown = (e: PointerEvent) => {
       if (props.shown === false || selIds().length === 0) return;

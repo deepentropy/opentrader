@@ -15,9 +15,9 @@
  * added as the matching DrawingStyle fields + renderers land.
  */
 import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { DEFAULT_VISIBILITY, type DataPoint, type Drawing, type DrawingStyle, type GannLine, type GannRatioLine, type PositionStatKey, type GhostCandleStyle, type IntervalVisibility, type LevelDef, type LineStyle, type RegressionLine, type UnitVisibility } from "lightweight-charts-drawing/core/types";
+import { DEFAULT_VISIBILITY, type DataPoint, type Drawing, type DrawingKind, type DrawingStyle, type VolumeProfileStyle, type GannLine, type GannRatioLine, type PositionStatKey, type GhostCandleStyle, type IntervalVisibility, type LevelDef, type LineStyle, type RegressionLine, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import { labelForKind } from "./labels";
-import { factoryStyleFor, FIB_TREND_LINE_DEFAULT, FIB_WEDGE_TREND_LINE_DEFAULT } from "lightweight-charts-drawing/core/specs";
+import { factoryStyleFor, FIB_TREND_LINE_DEFAULT, FIB_WEDGE_TREND_LINE_DEFAULT, volumeProfileStyle } from "lightweight-charts-drawing/core/specs";
 import { vwapBandLine } from "lightweight-charts-drawing/core/kinds/data-series";
 import { defaultStyleFor, GHOST_CANDLE_DEFAULTS, ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, FIB_CIRCLE_LEVEL_DEFAULTS, FIB_LEVEL_DEFAULTS, FIB_TIMEZONE_LEVEL_DEFAULTS, FIB_WEDGE_LEVEL_DEFAULTS, GANN_BOX_LEVEL_DEFAULTS, GANN_FAN_LEVEL_DEFAULTS, PARALLEL_CHANNEL_LEVEL_DEFAULTS, PITCHFAN_LEVEL_DEFAULTS, PITCHFORK_LEVEL_DEFAULTS, REGRESSION_LINE_DEFAULTS, SPEED_ARC_LEVEL_DEFAULTS, SPEED_FAN_GRID_DEFAULT, SPEED_FAN_LEVEL_DEFAULTS, VWAP_BAND_DEFAULTS, TREND_FIB_TIME_LEVEL_DEFAULTS, TREND_FIB_TIME_TREND_DEFAULT, GANN_LEVEL_DEFAULTS, GANN_FAN_DEFAULTS, GANN_ARC_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, saveKindDefault } from "./templates";
@@ -35,7 +35,7 @@ const TABS = ["Style", "Text", "Coordinates", "Visibility"] as const;
 /** Page order: Inputs (tools with study-like inputs), Style, Text,
  *  Coordinates, Visibility. */
 type Tab = (typeof TABS)[number] | "Inputs";
-const INPUTS_KINDS = new Set<string>(["ghost-feed", "regression-trend", "long-position", "short-position", "anchored-vwap"]);
+const INPUTS_KINDS = new Set<string>(["ghost-feed", "regression-trend", "long-position", "short-position", "anchored-vwap", "fixed-range-volume-profile", "anchored-volume-profile"]);
 /** Tools whose dialog has no Style page (Text is their first page). */
 const NO_STYLE_KINDS = new Set<string>(["text", "callout", "comment"]);
 /** Tools whose dialog has no Coordinates page (no editable coordinates): path
@@ -110,8 +110,9 @@ const STYLE_ROWS: Record<string, string[]> = {
   "ghost-feed": ["ghostFeed"],
   sector: ["sector"],
   "anchored-vwap": ["lineNoStyle:VWAP", "vwapBands"],
-  "fixed-range-volume-profile": ["line:Line"],
-  "anchored-volume-profile": ["line:Line"],
+  // Volume profiles: the reference VbP study Style tab (Inputs page below).
+  "fixed-range-volume-profile": ["vpStyle"],
+  "anchored-volume-profile": ["vpStyle"],
   // Range tools "Line": colour + width (no line style; the lines are solid).
   "price-range": ["lineNoStyle:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
   "date-range": ["lineNoStyle:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
@@ -572,6 +573,8 @@ export function SettingsDialog(props: Props) {
         return <CheckboxRow checked={!!st().showTime} onChange={(v) => patchStyle({ showTime: v })} label="Time label" />;
       // Vertical line "Extend" (extendLine, factory on): draws the line
       // through every pane of the chart.
+      case "vpStyle":
+        return <VolumeProfileStyleRows kind={props.drawing.kind} style={st()} patchStyle={patchStyle} />;
       case "vlineExtend":
         return <CheckboxRow checked={st().extendLine !== false} onChange={(v) => patchStyle({ extendLine: v })} label="Extend" />;
       // Elliott "Wave" (showWave, factory on): the wave lines; off = the
@@ -1408,6 +1411,9 @@ export function SettingsDialog(props: Props) {
             </Show>
             {/* Ghost feed Inputs: "Avg HL in minticks" (integer 1-50000,
                 the frozen candle amplitude in ticks) and "Variance" (1-100). */}
+            <Show when={kind() === "fixed-range-volume-profile" || kind() === "anchored-volume-profile"}>
+              <VolumeProfileInputRows kind={props.drawing.kind} style={props.drawing.style} patchStyle={patchStyle} />
+            </Show>
             <Show when={kind() === "ghost-feed"}>
               <DialogRow label="Avg HL in minticks">
                 <input
@@ -2594,5 +2600,139 @@ function ColorThicknessPicker(props: {
         </FixedColorPanel>
       </Show>
     </span>
+  );
+}
+
+// ── Volume profile tools (reference VbPFixed / VbPAnchored study) ──────────
+
+const VP_ROWS_LAYOUTS = [["rows", "Number Of Rows"], ["ticks", "Ticks Per Row"]] as const;
+const VP_VOLUMES = [["upDown", "Up/Down"], ["total", "Total"], ["delta", "Delta"]] as const;
+const labelOf = <T extends string>(list: ReadonlyArray<readonly [T, string]>, v: T) => list.find(([k]) => k === v)?.[1] ?? "";
+const valueOf = <T extends string>(list: ReadonlyArray<readonly [T, string]>, label: string) => list.find(([, l]) => l === label)?.[0];
+
+/** Inputs page: Rows Layout, Row Size, Volume, Value Area Volume, and Extend
+ *  Right (fixed range only). */
+function VolumeProfileInputRows(props: { kind: DrawingKind; style: DrawingStyle; patchStyle: (p: Partial<DrawingStyle>) => void }) {
+  const vp = () => volumeProfileStyle(props.kind, props.style);
+  const patch = (p: Partial<VolumeProfileStyle>) => props.patchStyle({ vp: { ...vp(), ...p } });
+  const int = (v: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(v)));
+  return (
+    <>
+      <DialogRow label="Rows Layout">
+        <Dropdown
+          value={labelOf(VP_ROWS_LAYOUTS, vp().rowsLayout)}
+          options={VP_ROWS_LAYOUTS.map(([, l]) => l)}
+          onChange={(l) => { const v = valueOf(VP_ROWS_LAYOUTS, l); if (v) patch({ rowsLayout: v }); }}
+          mid
+        />
+      </DialogRow>
+      <DialogRow label="Row Size">
+        <DecimalInput value={vp().rows} onCommit={(v) => patch({ rows: int(v, 1, 1000000) })} />
+      </DialogRow>
+      <DialogRow label="Volume">
+        <Dropdown
+          value={labelOf(VP_VOLUMES, vp().volume)}
+          options={VP_VOLUMES.map(([, l]) => l)}
+          onChange={(l) => { const v = valueOf(VP_VOLUMES, l); if (v) patch({ volume: v }); }}
+        />
+      </DialogRow>
+      <DialogRow label="Value Area Volume">
+        <DecimalInput value={vp().vaVolume} onCommit={(v) => patch({ vaVolume: int(v, 0, 100) })} />
+      </DialogRow>
+      <Show when={props.kind === "fixed-range-volume-profile"}>
+        <CheckboxRow checked={vp().extendRight} onChange={(v) => patch({ extendRight: v })} label="Extend Right" />
+      </Show>
+    </>
+  );
+}
+
+/** Style page: Volume profile (visible), its child rows Values (+ colour),
+ *  Width (% of the box), Placement, Up / Down Volume, Value Area Up / Down;
+ *  then VAH, VAL, POC, Developing POC, Developing VA (checkbox + line) and
+ *  Histogram Box (colour). */
+function VolumeProfileStyleRows(props: { kind: DrawingKind; style: DrawingStyle; patchStyle: (p: Partial<DrawingStyle>) => void }) {
+  const vp = () => volumeProfileStyle(props.kind, props.style);
+  const patch = (p: Partial<VolumeProfileStyle>) => props.patchStyle({ vp: { ...vp(), ...p } });
+  const lineRow = (title: string, key: "vah" | "val" | "poc" | "developingPoc") => (
+    <div class="drawing-settings-row">
+      <CheckboxRow checked={vp()[key].visible} onChange={(v) => patch({ [key]: { ...vp()[key], visible: v } })} label={title} />
+      <div class="drawing-settings-row-inputs">
+        <ColorThicknessPicker
+          color={vp()[key].color}
+          width={vp()[key].width}
+          lineStyle={vp()[key].style}
+          onColor={(c) => patch({ [key]: { ...vp()[key], color: c } })}
+          onWidth={(w) => patch({ [key]: { ...vp()[key], width: w } })}
+          onLineStyle={(s) => patch({ [key]: { ...vp()[key], style: s } })}
+        />
+      </div>
+    </div>
+  );
+  const colorRow = (title: string, key: "upColor" | "downColor" | "vaUpColor" | "vaDownColor") => (
+    <div class="drawing-settings-row is-child">
+      <div class="drawing-settings-row-label">{title}</div>
+      <div class="drawing-settings-row-inputs">
+        <DialogColorButton color={vp()[key]} onColor={(c) => patch({ [key]: c })} />
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <CheckboxRow checked={vp().visible} onChange={(v) => patch({ visible: v })} label="Volume profile" />
+      <div class="drawing-settings-row is-child">
+        <CheckboxRow checked={vp().showValues} onChange={(v) => patch({ showValues: v })} label="Values" />
+        <div class="drawing-settings-row-inputs">
+          <DialogColorButton color={vp().valuesColor} onColor={(c) => patch({ valuesColor: c })} />
+        </div>
+      </div>
+      <div class="drawing-settings-row is-child">
+        <div class="drawing-settings-row-label">Width (% of the box)</div>
+        <div class="drawing-settings-row-inputs">
+          <DecimalInput value={vp().percentWidth} onCommit={(v) => patch({ percentWidth: Math.min(100, Math.max(0, Math.round(v))) })} />
+        </div>
+      </div>
+      <div class="drawing-settings-row is-child">
+        <div class="drawing-settings-row-label">Placement</div>
+        <div class="drawing-settings-row-inputs">
+          <Dropdown
+            value={vp().placement === "right" ? "Right" : "Left"}
+            options={["Right", "Left"]}
+            onChange={(v) => patch({ placement: v === "Right" ? "right" : "left" })}
+          />
+        </div>
+      </div>
+      {colorRow("Up Volume", "upColor")}
+      {colorRow("Down Volume", "downColor")}
+      {colorRow("Value Area Up", "vaUpColor")}
+      {colorRow("Value Area Down", "vaDownColor")}
+      {lineRow("VAH", "vah")}
+      {lineRow("VAL", "val")}
+      {lineRow("POC", "poc")}
+      {lineRow("Developing POC", "developingPoc")}
+      {/* Developing VA: one row for the VA high and low plots. */}
+      <div class="drawing-settings-row">
+        <CheckboxRow
+          checked={vp().developingVah.visible}
+          onChange={(v) => patch({ developingVah: { ...vp().developingVah, visible: v }, developingVal: { ...vp().developingVal, visible: v } })}
+          label="Developing VA"
+        />
+        <div class="drawing-settings-row-inputs">
+          <ColorThicknessPicker
+            color={vp().developingVah.color}
+            width={vp().developingVah.width}
+            lineStyle={vp().developingVah.style}
+            onColor={(c) => patch({ developingVah: { ...vp().developingVah, color: c }, developingVal: { ...vp().developingVal, color: c } })}
+            onWidth={(w) => patch({ developingVah: { ...vp().developingVah, width: w }, developingVal: { ...vp().developingVal, width: w } })}
+            onLineStyle={(s) => patch({ developingVah: { ...vp().developingVah, style: s }, developingVal: { ...vp().developingVal, style: s } })}
+          />
+        </div>
+      </div>
+      <div class="drawing-settings-row">
+        <div class="drawing-settings-row-label">Histogram Box</div>
+        <div class="drawing-settings-row-inputs">
+          <DialogColorButton color={vp().boxColor} onColor={(c) => patch({ boxColor: c })} />
+        </div>
+      </div>
+    </>
   );
 }

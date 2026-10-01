@@ -196,10 +196,8 @@ export const WL_MENU_ICONS = {
 export interface WlMenuAction {
   value: string;
   label: string;
-  /** Leading icon SVG; omitted for the toggle row. */
+  /** Leading icon SVG. */
   icon?: string;
-  /** Renders a right-aligned switch instead of nothing (Share list). */
-  toggle?: boolean;
   /** Right-aligned keyboard hint (Open list…). */
   shortcut?: string;
 }
@@ -209,7 +207,6 @@ export interface WlMenuAction {
 export const WL_MENU_GROUPS: { actions?: WlMenuAction[]; recentlyUsed?: boolean }[] = [
   {
     actions: [
-      { value: 'share-switcher', label: 'Share list', toggle: true },
       { value: 'add-alert', label: 'Add alert on the list…', icon: WL_MENU_ICONS.addAlert },
       { value: 'make-copy', label: 'Make a copy…', icon: WL_MENU_ICONS.makeCopy },
       { value: 'rename', label: 'Rename', icon: WL_MENU_ICONS.rename },

@@ -38,6 +38,8 @@ import {
   type WatchList,
 } from "../../data/watchlist-store";
 import { currentWindowLabel } from "../shell/window-bridge";
+import { flagOf, lastFlagColor } from "../../data/symbol-flags";
+import { showConfirm } from "../../components/Dialogs";
 import { WatchlistSettingsMenu } from "./WatchlistSettingsMenu";
 import { WatchlistMenu } from "./WatchlistMenu";
 import { SectionContextMenu, WatchlistContextMenu } from "./WatchlistContextMenu";
@@ -584,8 +586,10 @@ export function Watchlist(props: Props) {
         // LIST_COLORS index; unflagged = +∞ ascending / −∞ descending, so
         // it lands last either way.
         const none = sign === 1 ? Infinity : -Infinity;
-        const ai = a.flag ? FLAG_SORT_ORDER.indexOf(a.flag) : none;
-        const bi = b.flag ? FLAG_SORT_ORDER.indexOf(b.flag) : none;
+        const af = flagOf(a.ticker);
+        const bf = flagOf(b.ticker);
+        const ai = af ? FLAG_SORT_ORDER.indexOf(af) : none;
+        const bi = bf ? FLAG_SORT_ORDER.indexOf(bf) : none;
         return ai === bi ? 0 : sign * (ai - bi);
       }
       const av = sortNumber(a, field as Exclude<SortField, "symbol" | "flag">);
@@ -900,17 +904,6 @@ export function Watchlist(props: Props) {
       }
     });
   };
-  // "Share list": local stand-in — toggling ON copies the list (name + tickers)
-  // to the clipboard so it can be pasted/shared; the switch state persists.
-  const toggleShare = () => {
-    const next = !active()?.shared;
-    watchlistStore.setShared(next);
-    if (next) {
-      const text = watchlistStore.shareText();
-      void navigator.clipboard?.writeText(text).catch(() => {});
-      showToast("List copied to clipboard");
-    }
-  };
   // "Open list…": the search-and-switch picker.
   const openList = () => setOpenListOpen(true);
   // Shift+W (global, handled in App) routes here: App switches the rail to the
@@ -1023,9 +1016,9 @@ export function Watchlist(props: Props) {
     setSelectedSection(name);
     setSectionCtx({ name, x: e.clientX, y: e.clientY });
   };
-  // "Flag/Unflag": toggles the default red flag (same as Alt+↵).
+  // "Flag/Unflag" (same as Alt+↵): unflag, or flag in the last used colour.
   const toggleRowFlag = (row: Row) =>
-    watchlistStore.setRowFlag(row.ticker, row.flag ? null : "red");
+    watchlistStore.setRowFlag(row.ticker, flagOf(row.ticker) ? null : lastFlagColor());
   const addRowToList = (listId: string, row: Row) => {
     const added = watchlistStore.addRowTo(listId, row);
     const nm = watchlistStore.lists().find((l) => l.id === listId)?.name ?? "list";
@@ -1150,7 +1143,7 @@ export function Watchlist(props: Props) {
       onContextMenu={(e) => openContext(e, r, section)}
       onDragStart={(e) => onRowDragStart(e, r, section)}
     >
-      <Show when={r.flag}>{(f) => <FlagMarker flag={f()} />}</Show>
+      <Show when={flagOf(r.ticker)}>{(f) => <FlagMarker flag={f()} />}</Show>
       <div class="watchlist-cell watchlist-symbol">
         <Show when={settings().logo}>
           <span class="ot-ticker-logo ot-ticker-logo--sm watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
@@ -1206,7 +1199,7 @@ export function Watchlist(props: Props) {
         onContextMenu={(e) => openContext(e, r, section)}
         onDragStart={(e) => onRowDragStart(e, r, section)}
       >
-        <Show when={r.flag}>{(f) => <FlagMarker flag={f()} />}</Show>
+        <Show when={flagOf(r.ticker)}>{(f) => <FlagMarker flag={f()} />}</Show>
         <Show when={settings().logo}>
           <span class="ot-ticker-logo ot-ticker-logo--md watchlist-logo" aria-hidden="true">{r.short.charAt(0)}</span>
         </Show>
@@ -1298,7 +1291,6 @@ export function Watchlist(props: Props) {
         <WatchlistMenu
           lists={watchlistStore.lists()}
           activeId={watchlistStore.activeId()}
-          shared={active()?.shared ?? false}
           onSelectList={(id) => watchlistStore.setActive(id)}
           onClose={() => setMenuOpen(false)}
           onRenameList={renameList}
@@ -1307,7 +1299,6 @@ export function Watchlist(props: Props) {
           onCreateList={createList}
           onCopyList={copyList}
           onUploadList={uploadList}
-          onToggleShare={toggleShare}
           onAddAlert={addAlert}
           onOpenList={openList}
         />
@@ -1579,7 +1570,16 @@ export function Watchlist(props: Props) {
             otherLists={watchlistStore.lists().filter((l) => l.id !== watchlistStore.activeId())}
             onToggleFlag={toggleRowFlag}
             onSetFlag={(r, flag) => watchlistStore.setRowFlag(r.ticker, flag)}
-            onUnflagAll={() => watchlistStore.clearAllFlags()}
+            onUnflagAll={() =>
+              showConfirm({
+                title: "Unflag all symbols?",
+                text: "Doing this will unflag all symbols from all your watchlists.",
+                mainText: "Unflag",
+                cancelText: "Cancel",
+                intent: "danger",
+                onConfirm: () => watchlistStore.clearAllFlags(),
+              })
+            }
             onAddToList={addRowToList}
             onCreateListWith={createListWithRow}
             onAddNote={openNoteFor}

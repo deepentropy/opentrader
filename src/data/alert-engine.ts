@@ -21,7 +21,7 @@
 import { createRoot, createEffect } from "solid-js";
 import { onTradeTick, getBars, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
 import { cachedSymbolSessions, localToUtc } from "./session";
-import { bucketStart } from "../window/chart/chart-aggregate";
+import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
 import { alertStore, type AlertRule } from "./alert-store";
 import { alertSettings } from "./alert-settings";
@@ -126,14 +126,15 @@ function barBucket(symbol: string, res: string, timeMs: number): number | null {
   const sessions = cachedSymbolSessions(symbol);
   if (!sessions) return null;
   const sec = timeMs / 1000;
-  const unit = /^\d+\s*([a-zA-Z]?)$/.exec(res.trim())?.[1] ?? "";
+  const m = /^(\d*)\s*([a-zA-Z]?)$/.exec(res.trim());
+  const unit = m?.[2] ?? "";
+  const n = Number(m?.[1] || 1);
   if (unit === "D" || unit === "d" || unit === "W" || unit === "w" || unit === "M") {
     const iv = sessions.regular.currentOrNext(sec);
     if (!iv) return null;
     const day = localToUtc(sessions.timeZone, iv.day, 0);
-    const key = unit === "W" || unit === "w" ? bucketStart(day, "week", sessions.timeZone)
-      : unit === "M" ? bucketStart(day, "month", sessions.timeZone)
-      : day;
+    const period = unit === "W" || unit === "w" ? "week" : unit === "M" ? "month" : "day";
+    const key = period === "day" && n === 1 ? day : periodStart(day, { unit: period, n }, sessions.regular);
     return key * 1000;
   }
   const iv = sessions.extended.currentOrNext(sec);

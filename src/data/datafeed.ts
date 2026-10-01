@@ -36,13 +36,13 @@ import { exchangeCode, exchangeName } from "./providers";
 import { isFullSymbol, splitSymbol } from "./symbol-name";
 import { providerCapabilities, providerServes } from "./providers/capabilities";
 import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec } from "./session";
-import { aggregateCandles, bucketStart, type AggregateUnit } from "../window/chart/chart-aggregate";
+import { aggregateCandles, periodStart, type AggregatePeriod } from "../window/chart/chart-aggregate";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 // Re-export so consumers have one import surface for the daily-aggregation
 // helpers as well as the feed itself.
 export { aggregateCandles } from "../window/chart/chart-aggregate";
-export type { AggregateUnit } from "../window/chart/chart-aggregate";
+export type { AggregatePeriod } from "../window/chart/chart-aggregate";
 // The live-symbol subscription lifecycle is part of the feed contract; expose
 // it under the feed's vocabulary while delegating to the existing wrapper.
 export { setChartSubscription as setLiveSymbol } from "./datafeed-live";
@@ -90,8 +90,9 @@ const INTRADAY_INTERVALS: Record<string, { days: number; mins: number }> = {
 };
 
 /** Daily-or-coarser intervals → (lookback trading days, optional client
- *  aggregation, initial view window). `1W`/`1M` fetch daily bars and aggregate
- *  them client-side (the backend serves only daily + minute).
+ *  aggregation, initial view window). `1W`/`1M` (and every other N-day, N-week
+ *  or N-month id, see {@link dailyConfig}) fetch daily bars and aggregate them
+ *  client-side (the backend serves only daily + minute).
  *
  *  The whole available daily history is loaded up-front (the backend clamps the
  *  request to the key's probed history floor — 10 years on the current plan,
@@ -100,14 +101,46 @@ const INTRADAY_INTERVALS: Record<string, { days: number; mins: number }> = {
  *  many of the most-recent *display* bars to frame on load (null → fit all):
  *  `1D` opens on ~1 year with the rest preloaded behind it. */
 const DAILY_FULL_DAYS = 5040;
-const DAILY_INTERVALS: Record<string, { days: number; aggregate?: AggregateUnit; view: number | null }> = {
+type DailyConfig = { days: number; aggregate?: AggregatePeriod; view: number | null };
+const DAILY_INTERVALS: Record<string, DailyConfig> = {
   "1D": { days: DAILY_FULL_DAYS, view: 252 },
-  "1W": { days: DAILY_FULL_DAYS, aggregate: "week", view: null },
-  "1M": { days: DAILY_FULL_DAYS, aggregate: "month", view: null },
+  "1W": { days: DAILY_FULL_DAYS, aggregate: { unit: "week", n: 1 }, view: null },
+  "1M": { days: DAILY_FULL_DAYS, aggregate: { unit: "month", n: 1 }, view: null },
 };
 
-function dailyConfig(resolution: string): { days: number; aggregate?: AggregateUnit; view: number | null } {
-  return DAILY_INTERVALS[resolution] ?? { days: DAILY_FULL_DAYS, view: 252 };
+/** Largest multiplier of each custom-interval type (the reference app's
+ *  "Add custom interval" limits). */
+const MAX_MULTIPLIER = { minute: 1440, day: 365, week: 52, month: 12 } as const;
+
+/** Minute-family interval of any id: the table entry, or a custom N-minute
+ *  id (hours are ids in minutes: "180" = 3H) whose lookback is the one of the
+ *  largest table size at or under N. Null for other ids. */
+function minuteConfig(resolution: string): { days: number; mins: number } | null {
+  const known = INTRADAY_INTERVALS[resolution];
+  if (known) return known;
+  if (!/^[1-9]\d*$/.test(resolution)) return null;
+  const mins = Number(resolution);
+  if (mins > MAX_MULTIPLIER.minute) return null;
+  let days = INTRADAY_INTERVALS["1"].days;
+  for (const iv of Object.values(INTRADAY_INTERVALS)) if (iv.mins <= mins) days = iv.days;
+  return { days, mins };
+}
+
+/** Daily-family interval of any id: the table entry, or a custom "ND" / "NW"
+ *  / "NM" id built from daily bars. Null for other ids. */
+function dailyFamily(resolution: string): DailyConfig | null {
+  const known = DAILY_INTERVALS[resolution];
+  if (known) return known;
+  const m = /^([1-9]\d*)([DWM])$/.exec(resolution);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const unit = m[2] === "D" ? "day" : m[2] === "W" ? "week" : "month";
+  if (n > MAX_MULTIPLIER[unit]) return null;
+  return { days: DAILY_FULL_DAYS, aggregate: { unit, n }, view: null };
+}
+
+function dailyConfig(resolution: string): DailyConfig {
+  return dailyFamily(resolution) ?? { days: DAILY_FULL_DAYS, view: 252 };
 }
 
 /** Number of most-recent display bars to frame on the initial daily load, or
@@ -124,29 +157,34 @@ export function isSecondResolution(resolution: string): boolean {
 /** True when this resolution is served as intraday minute aggregates (the only
  *  family that takes live per-minute bar updates — see {@link bucketLiveTick}). */
 export function isIntradayResolution(resolution: string): boolean {
-  return resolution in INTRADAY_INTERVALS;
+  return minuteConfig(resolution) !== null;
 }
 
-/** The single source of truth for what the feed can actually serve: an
- *  interval id in the second, intraday, or daily-family table AND served by
- *  the active provider (its reported capabilities — see
- *  ./providers/capabilities). This is our `onReady.supported_resolutions`
- *  equivalent: the interval picker gates on it (so unservable intervals aren't
- *  selectable) and {@link getBars} validates against it (so an unknown id
- *  errors instead of silently falling back to daily bars). Resolutions the UI
- *  offers but the feed cannot serve — ticks, 2/3/4/10/45-min, 3H, 3M/6M,
- *  custom — are NOT in the tables by design. Reactive: reads the capabilities
- *  signal. */
+/** The single source of truth for what the feed can actually serve: a
+ *  second-table id, any N-minute id (N ≤ 1440), or any daily-family id
+ *  (N ≤ 365 days, 52 weeks, 12 months) AND served by the active provider (its
+ *  reported capabilities — see ./providers/capabilities). This is our
+ *  `onReady.supported_resolutions` equivalent: the interval picker gates on it
+ *  (so unservable intervals aren't selectable) and {@link getBars} validates
+ *  against it (so an unknown id errors instead of silently falling back to
+ *  daily bars). Ticks and ranges are not served. Reactive: reads the
+ *  capabilities signal. */
 export function isSupportedResolution(resolution: string): boolean {
   const second = SECOND_INTERVALS[resolution];
   if (second) return providerServes("second", second.mult);
-  const intra = INTRADAY_INTERVALS[resolution];
-  // A bar size whose buckets straddle the session open is rebuilt from a
-  // finer served base (see sessionBaseMinutes).
-  if (intra) return providerServes("minute", intra.mins);
-  const daily = DAILY_INTERVALS[resolution];
+  const intra = minuteConfig(resolution);
+  // A size the provider does not serve, or whose buckets straddle the session
+  // open, is rebuilt from a finer served base (see sessionBaseMinutes); 1 is
+  // the finest.
+  if (intra) return servedMinutes().some((m) => intra.mins % m === 0);
+  const daily = dailyFamily(resolution);
   if (daily) return providerServes(daily.aggregate ? "weekMonth" : "day");
   return false;
+}
+
+/** Minute bar sizes the provider serves. */
+function servedMinutes(): number[] {
+  return providerCapabilities()?.resolutions.minutes ?? Object.values(INTRADAY_INTERVALS).map((i) => i.mins);
 }
 
 /** All served interval ids (second → intraday → daily order). */
@@ -158,9 +196,10 @@ export function supportedResolutions(): string[] {
   ].filter(isSupportedResolution);
 }
 
-/** Client-side aggregation unit applied to the daily series for this
- *  resolution (`week`/`month`), or null when the raw daily bars are shown. */
-export function aggregateUnitFor(resolution: string): AggregateUnit | null {
+/** Client-side aggregation period applied to the daily series for this
+ *  resolution (N days with N > 1, N weeks, N months), or null when the raw
+ *  daily bars are shown. */
+export function aggregateUnitFor(resolution: string): AggregatePeriod | null {
   return dailyConfig(resolution).aggregate ?? null;
 }
 
@@ -315,14 +354,13 @@ function sessionOpenMinutes(spec: SessionSpec, sec: number): number[] {
 }
 
 /** Base bar size (minutes) to rebuild `mins` bars anchored at the session
- *  open, or null when the provider's own `mins` buckets already break at
- *  every open. The base is the largest served size that divides `mins` and
- *  every open. */
+ *  open, or null when the provider serves `mins` and its own buckets already
+ *  break at every open. The base is the largest served size that divides
+ *  `mins` and every open. */
 function sessionBaseMinutes(spec: SessionSpec, mins: number): number | null {
-  if (spec.always) return null;
-  const opens = sessionOpenMinutes(spec, Date.now() / 1000);
-  if (opens.every((m) => m % mins === 0)) return null;
-  const served = providerCapabilities()?.resolutions.minutes ?? Object.values(INTRADAY_INTERVALS).map((i) => i.mins);
+  const served = servedMinutes();
+  const opens = spec.always ? [0] : sessionOpenMinutes(spec, Date.now() / 1000);
+  if (served.includes(mins) && (spec.always || opens.every((m) => m % mins === 0))) return null;
   const fits = served.filter((m) => m < mins && mins % m === 0 && opens.every((o) => o % m === 0));
   if (fits.length === 0) throw new Error(`no base bar size to build ${mins}-minute session bars`);
   return Math.max(...fits);
@@ -380,20 +418,22 @@ export function isAdjusted(): boolean {
 // ── Historical bars ──────────────────────────────────────────────────────────
 
 export type BarsResult = {
-  /** Display bars: aggregated for 1W/1M, raw otherwise. Time-ascending. */
+  /** Display bars: aggregated for N days (N > 1) / weeks / months, raw
+   *  otherwise. Time-ascending. */
   bars: Candle[];
-  /** Underlying daily bars for the daily family (1D/1W/1M); null for
-   *  second/minute. Kept so scroll-back can re-aggregate the *full* set (a
-   *  boundary week/month never mis-buckets). */
+  /** Underlying daily bars for the daily family; null for second/minute.
+   *  Kept so scroll-back can re-aggregate the *full* set (a boundary
+   *  period never mis-buckets). */
   daily: Candle[] | null;
-  /** Aggregation unit applied to produce `bars` from `daily`; null otherwise. */
-  aggregate: AggregateUnit | null;
+  /** Aggregation period applied to produce `bars` from `daily`; null otherwise. */
+  aggregate: AggregatePeriod | null;
 };
 
 /** Fetch the initial window of bars for a resolution. Routes:
  *   • second (1S…45S)          → REST second aggregates
- *   • intraday (1…240 min)     → REST minute aggregates (S3 fallback in Rust)
- *   • daily family (1D/1W/1M)  → S3 daily flat files, aggregated client-side
+ *   • intraday (1…1440 min)    → REST minute aggregates (S3 fallback in Rust),
+ *                                rebuilt from a served base when needed
+ *   • daily family (ND/NW/NM)  → S3 daily flat files, aggregated client-side
  *  Throws on backend error (the caller decides how to degrade). */
 export async function getBars(
   symbol: string,
@@ -401,9 +441,9 @@ export async function getBars(
   session: SessionId = "ETH",
 ): Promise<BarsResult> {
   // Guard the catch-all daily branch below: an unservable resolution (tick,
-  // 2/3/4/10/45-min, 3H, 3M/6M, custom) must error here rather than silently
+  // range, too large a multiplier) must error here rather than silently
   // resolve to daily bars. The picker gates on the same set, so this is a
-  // defense-in-depth backstop (e.g. a persisted/typed/custom interval).
+  // defense-in-depth backstop (e.g. a persisted/typed interval).
   if (!isSupportedResolution(resolution)) {
     throw new Error(`unsupported resolution: ${resolution}`);
   }
@@ -417,7 +457,7 @@ export async function getBars(
     // Second buckets divide every minute open, so an exact filter suffices.
     return { bars: inSession(bars, sessions.spec(session)), daily: null, aggregate: null };
   }
-  const intra = INTRADAY_INTERVALS[resolution];
+  const intra = minuteConfig(resolution);
   if (intra) {
     const spec = (await symbolSessions(symbol)).spec(session);
     const base = sessionBaseMinutes(spec, intra.mins);
@@ -433,7 +473,7 @@ export async function getBars(
   const [res, sessions] = await Promise.all([commands.getDailyHistory(symbol, cfg.days, adjusted), symbolSessions(symbol)]);
   if (res.status === "error") throw new Error(res.error);
   const daily = res.data;
-  const bars = cfg.aggregate ? aggregateCandles(daily, cfg.aggregate, sessions.timeZone) : daily;
+  const bars = cfg.aggregate ? aggregateCandles(daily, cfg.aggregate, sessions.regular) : daily;
   return { bars, daily, aggregate: cfg.aggregate ?? null };
 }
 
@@ -462,7 +502,7 @@ export async function getBarsBefore(
     ]);
     return inSession(rows, sessions.spec(session));
   }
-  const intra = INTRADAY_INTERVALS[resolution];
+  const intra = minuteConfig(resolution);
   if (intra) {
     const days = spanDays ?? intra.days;
     // Mirror getBars' session handling so older pages stay session-consistent.
@@ -544,7 +584,7 @@ export function bucketLiveTick(
   // loaded series to update.
   const sessions = cachedSymbolSessions(tick.symbol);
   if (!sessions) return null;
-  const dailyCfg = DAILY_INTERVALS[resolution];
+  const dailyCfg = dailyFamily(resolution);
   if (dailyCfg) {
     // Day-bar only: pre-market snapshots carry no day bar yet (today's daily
     // candle shows only once the regular session trades), and the minute bar
@@ -555,7 +595,7 @@ export function bucketLiveTick(
     // to the day bar's own update stamp for the trading-day derivation.
     const dayTime = dailyBarStamp(sessions.extended, tick.time > 0 ? tick.time : src.time);
     return {
-      time: dailyCfg.aggregate ? bucketStart(dayTime, dailyCfg.aggregate, sessions.timeZone) : dayTime,
+      time: dailyCfg.aggregate ? periodStart(dayTime, dailyCfg.aggregate, sessions.regular) : dayTime,
       open: src.open,
       high: src.high,
       low: src.low,
@@ -564,7 +604,7 @@ export function bucketLiveTick(
       dayTime,
     };
   }
-  const intra = INTRADAY_INTERVALS[resolution];
+  const intra = minuteConfig(resolution);
   if (!intra) return null;
   // Day-only fallback ticks (time=0) carry day OHLC, not a minute bar — they
   // must never form an intraday bucket.

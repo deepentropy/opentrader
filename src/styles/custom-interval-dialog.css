@@ -1,0 +1,102 @@
+/*
+ * "Add custom interval" dialog (AddCustomIntervalDialog): the layout-name
+ * dialog shell, 400 px wide, rows of an 80 px title + a 180 px control
+ * (the reference dialog's measures).
+ */
+.custom-interval-dialog {
+  width: 400px;
+}
+
+.custom-interval-content {
+  border-top: 1px solid var(--color-bg-primary-hover);
+  box-sizing: border-box;
+  padding: 20px;
+}
+
+.custom-interval-row {
+  display: flex;
+  margin-top: 12px;
+}
+.custom-interval-row:first-child {
+  margin-top: 0;
+}
+
+.custom-interval-title {
+  display: flex;
+  flex: none;
+  width: 80px;
+  margin-top: 8px;
+  margin-inline-end: 28px;
+  line-height: 21px;
+  word-break: break-word;
+}
+
+.custom-interval-input-wrap {
+  max-width: 180px;
+}
+
+.cp3-number.custom-interval-input {
+  width: 180px;
+}
+.cp3-number.custom-interval-input.has-error,
+.cp3-number.custom-interval-input.has-error:focus-within {
+  border-color: #f23645;
+}
+
+.custom-interval-error {
+  margin-top: 4px;
+  color: #f23645;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.layout-name-btn.is-primary.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Interval menu: a just-added custom row flashes (0.8 s, highlight 0→30→60→100 %). */
+.header-menu-row.is-signaling {
+  animation: header-menu-row-signal 0.8s 1 forwards;
+}
+@keyframes header-menu-row-signal {
+  0% { background-color: transparent; }
+  30% { background-color: var(--color-bg-primary-hover); }
+  60% { background-color: transparent; }
+  to { background-color: var(--color-bg-primary-hover); }
+}
+
+/* A greyed custom row (a range) keeps its Remove button usable. */
+.header-menu-row.is-disabled.is-removable {
+  pointer-events: auto;
+}
+.header-menu-row.is-disabled.is-removable:hover {
+  background: transparent;
+}
+
+/* "Download chart data" dialog (DownloadChartDataDialog): description, then
+ * rows of a title over a full-width select (reference: rows 16 px apart,
+ * 4 px title gap, 16/24 px description). */
+.chart-export-dialog {
+  width: 400px;
+}
+.chart-export-content {
+  display: flex;
+  flex-direction: column;
+  row-gap: 16px;
+  padding: 4px 20px 20px;
+}
+.chart-export-description {
+  font-size: 16px;
+  line-height: 24px;
+}
+.chart-export-row {
+  display: flex;
+  flex-direction: column;
+  row-gap: 4px;
+}
+.chart-export-title {
+  font-size: 14px;
+  line-height: 18px;
+  word-break: break-word;
+}

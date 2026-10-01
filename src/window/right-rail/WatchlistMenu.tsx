@@ -1,11 +1,11 @@
 /*
  * WatchlistMenu — the dropdown opened from the watchlists ("Strong ▾") button.
- * Solid port of the reference mock: Share list (toggle) · list actions · Create/
+ * Solid port of the reference mock: list actions · Create/
  * Upload · Recently-used saved lists · Open list.
  *
  * Every row is wired to the multi-list store via props: the recently-used list,
- * Create / Make a copy / Rename / Add section / Clear / Upload, plus Share list
- * (local clipboard export), Add alert (local price-move alert) and Open list
+ * Create / Make a copy / Rename / Add section / Clear / Upload, plus Add alert
+ * (local price-move alert) and Open list
  * (picker). "Add alert on the list…" is the only row with no real backend
  * equivalent beyond the local stand-in.
  */
@@ -26,8 +26,6 @@ type Props = {
   activeId: string;
   onSelectList: (id: string) => void;
   onClose: () => void;
-  /** Persisted "Share list" state of the active list (drives the switch). */
-  shared: boolean;
   /** "Rename" — start an inline rename of the active list (header title). */
   onRenameList?: () => void;
   /** "Add section" — append a new, immediately-editable section. */
@@ -40,8 +38,6 @@ type Props = {
   onCopyList?: () => void;
   /** "Upload list…" — import symbols from a text file. */
   onUploadList?: () => void;
-  /** "Share list" — toggle (local: copies the list to the clipboard). */
-  onToggleShare?: () => void;
   /** "Add alert on the list…" — open the alert-threshold dialog. */
   onAddAlert?: () => void;
   /** "Open list…" — open the list picker. */
@@ -58,7 +54,7 @@ type ActionHandlerKey =
   | "onAddAlert"
   | "onOpenList";
 
-/** Action rows wired to a real handler; the rest stay visual stubs. */
+/** Action rows and their handlers. */
 const ACTION_HANDLERS: Record<string, ActionHandlerKey> = {
   rename: "onRenameList",
   "add-section": "onAddSection",
@@ -112,9 +108,8 @@ export function WatchlistMenu(props: Props) {
       class="ot-menu-item"
       data-value={a.value}
       onClick={() => {
-        if (a.toggle) { props.onToggleShare?.(); return; } // keep menu open
         const handlerKey = ACTION_HANDLERS[a.value];
-        if (handlerKey) props[handlerKey]?.(); // wired action; others are stubs
+        if (handlerKey) props[handlerKey]?.();
         props.onClose();
       }}
     >
@@ -122,11 +117,6 @@ export function WatchlistMenu(props: Props) {
         <Show when={a.icon}>{(icon) => <span innerHTML={icon()} />}</Show>
       </span>
       <span class="ot-menu-item__label apply-overflow-tooltip">{a.label}</span>
-      <Show when={a.toggle}>
-        <span class={`watchlist-menu-switch${props.shared ? " on" : ""}`} aria-hidden="true">
-          <span class="watchlist-menu-switch-thumb" />
-        </span>
-      </Show>
       <Show when={a.shortcut}><span class="ot-menu-item__hotkey">{a.shortcut}</span></Show>
     </button>
   );

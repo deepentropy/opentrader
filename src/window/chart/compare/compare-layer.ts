@@ -9,7 +9,7 @@
  *             panes and compare panes share one numbering.
  * Bars come from ChartView (fetched per symbol / interval / session).
  */
-import type { IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
+import type { AutoscaleInfo, IChartApi, ISeriesApi, SeriesType } from "lightweight-charts";
 import { createSeriesForType, libLineStyle, setDataForType, type AnySeries, type OHLC } from "../chart-types";
 import type { ChartTokens } from "../chart-tokens";
 import { priceOf } from "../series-transforms";
@@ -29,6 +29,8 @@ export class CompareLayer {
   /** Selection markers while selected (on the drawn price source). */
   private selectionBg: BackgroundAt | null = null;
   private markers: { series: AnySeries; m: SelectionMarkers } | null = null;
+  /** "Scale price chart only": the main series' scale id (null = off). */
+  private seriesOnlyScale: string | null = null;
   paneIndex: number;
 
   constructor(
@@ -126,6 +128,21 @@ export class CompareLayer {
     this.drawn = keep ? this.bars.filter((b) => keep.has(b.time as number)) : this.bars;
     setDataForType(s, type, this.drawn, ct);
     if (this.selectionBg && this.markers?.series !== s) this.setSelected(this.selectionBg);
+    this.applyAutoscale();
+  }
+
+  /** "Scale price chart only" on the main series' scale `scaleId` (null =
+   *  off): on that scale the compared symbol leaves its auto-scale. */
+  setSeriesOnlyScale(scaleId: string | null): void {
+    this.seriesOnlyScale = scaleId;
+    this.applyAutoscale();
+  }
+
+  private applyAutoscale(): void {
+    const s = this.series;
+    if (!s) return;
+    const out = this.seriesOnlyScale !== null && this.paneIndex === 0 && this.scaleId === this.seriesOnlyScale;
+    s.applyOptions({ autoscaleInfoProvider: out ? () => null : (base: () => AutoscaleInfo | null) => base() });
   }
 
   /** Selected (markers on the series) or not (null). */

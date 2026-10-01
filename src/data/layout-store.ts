@@ -12,8 +12,8 @@
  * Deliberately out of scope (local-only limitations, see project memory):
  *   - Drawings stay symbol-keyed globally (loadDrawings/saveDrawings), not
  *     captured per-layout.
- *   - Share layout / Download-from-server are cloud features; the menu keeps
- *     the rows but Share is a no-op and Download exports a local JSON file.
+ *   - Share layout is a cloud feature and is not offered. "Download chart
+ *     data…" opens the CSV export dialog (DownloadChartDataDialog).
  *
  * Module-level Solid signals + localStorage, mirroring layout-sync.ts /
  * interval-favorites.ts so any component can read/mutate without prop drilling.
@@ -269,7 +269,6 @@ export function buildSaveLoadMenu(args: BuildArgs): HeaderMenuDef {
         items: [
           { id: "save-load-menu-item-save", label: "Save layout", iconName: null, hotkey: "Ctrl + S", checked: false, favorited: false, disabled: !args.dirty },
           { id: "save-load-menu-item-auto-save", label: "Autosave", iconName: null, hotkey: null, checked: args.autosave, favorited: false },
-          { id: "save-load-menu-item-sharing", label: "Share layout", iconName: "menu-manage-layouts-share-layout", hotkey: null, checked: false, favorited: false },
           { id: "save-load-menu-item-clone", label: "Make a copy…", iconName: "menu-manage-layouts-make-a-copy", hotkey: null, checked: false, favorited: false },
           { id: "save-load-menu-item-rename", label: "Rename…", iconName: "menu-manage-layouts-rename", hotkey: null, checked: false, favorited: false },
           { id: "save-load-menu-item-download", label: "Download chart data…", iconName: "menu-manage-layouts-download-chart-data", hotkey: null, checked: false, favorited: false },

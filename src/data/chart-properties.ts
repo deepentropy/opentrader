@@ -91,8 +91,10 @@ export type FormRow = {
   /** Right-aligned controls, in order. */
   controls?: Control[];
   visibleWhen?: VisibleWhen;
-  /** Rendered but inert — no ported surface (e.g. Trading). */
+  /** Shown disabled (greyed, not editable): no ported surface (e.g. Trading). */
   inert?: boolean;
+  /** Stored chart setting with no dialog row (set from a chart menu). */
+  hidden?: boolean;
 };
 
 export type FormItem =
@@ -359,6 +361,9 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ label: 'Scale modes (A and L)', controls: [{ c: 'select', value: 'Visible on mouse over', options: VISIBILITY }] }),
     // Value = the pane's live price/bar ratio (seeded by the dialog host).
     row({ cb: true, checked: false, label: 'Lock price to bar ratio', controls: [{ c: 'input', value: '', disabled: true, num: { min: 0, max: 1e12, step: 0.0000001 } }] }),
+    // Price scale menu "Scale price chart only" (chart property
+    // scalesProperties.scaleSeriesOnly; no Settings row).
+    row({ cb: true, checked: false, label: 'Scale price chart only', hidden: true }),
     row({ label: 'Scales placement', controls: [{ c: 'select', value: 'Auto', options: ["Stack on the left", "Stack on the right", "Auto"] }] }),
     section('Price labels & lines'),
     row({ cb: true, checked: true, label: 'No overlapping labels' }),
@@ -448,7 +453,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     // Session breaks: colour + Opacity + Thickness + Line style.
     row({ cb: true, checked: false, label: 'Session breaks', controls: [{ c: 'color', color: 'rgb(73, 133, 231)', width: 1, style: 1 }] }),
     row({ cb: true, checked: true, label: 'Latest news' }),
-    row({ cb: true, checked: false, label: 'News notification' }),
+    // News notification: disabled (no news notification service).
+    row({ cb: true, checked: false, label: 'News notification', inert: true }),
   ],
 };
 

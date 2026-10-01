@@ -438,3 +438,12 @@
   background: var(--color-container-fill-primary-neutral-bold);
   color: var(--color-content-secondary-inverse);
 }
+
+/* Disabled rows (features this app has no backing for): greyed, inert. */
+.app-settings-check.is-disabled,
+.app-settings-field.is-disabled .app-settings-field-label,
+.app-settings-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
+}

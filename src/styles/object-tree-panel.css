@@ -202,6 +202,24 @@
   text-overflow: ellipsis;
 }
 
+/* Inline rename field (28 px, 8 px side margins, as the reference tree). */
+.object-tree-rename-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  margin: 0 8px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-brand);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  user-select: text;
+}
+
 .object-tree-row-actions {
   display: inline-flex;
   align-items: center;

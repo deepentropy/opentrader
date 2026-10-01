@@ -1057,32 +1057,6 @@
   height: 18px;
 }
 
-/* Share-list toggle — a compact pill switch (off by default). */
-.watchlist-menu-switch {
-  margin-left: auto;
-  width: 32px;
-  height: 18px;
-  border-radius: 9px;
-  background-color: var(--color-toolbar-divider-background, #4a4a4a);
-  flex-shrink: 0;
-  transition: background-color 0.15s ease;
-}
-.watchlist-menu-switch.on {
-  background-color: var(--color-accent, #2962ff);
-}
-.watchlist-menu-switch-thumb {
-  display: block;
-  width: 14px;
-  height: 14px;
-  margin: 2px;
-  border-radius: 50%;
-  background-color: #fff;
-  transition: transform 0.15s ease;
-}
-.watchlist-menu-switch.on .watchlist-menu-switch-thumb {
-  transform: translateX(14px);
-}
-
 /* ── Watchlist dialogs (Open list…, Add alert…) + toast ─────────────────── */
 .wl-dialog-backdrop {
   position: fixed;

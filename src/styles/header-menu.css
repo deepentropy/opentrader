@@ -11,7 +11,9 @@
   overflow-y: auto;
   overflow-x: hidden;
   font-size: 13px;
-}
+}
+
+
 
 /* "Sync in layout" title — sentence case (not the uppercase section title). */
 .header-menu-section-title.is-sync-title {
@@ -236,3 +238,77 @@
   font-size: 12px;
   padding-left: 16px;
 }
+
+/* ── Interval menu (reference measures, 01/10/2026) ──────────────────────
+ * The menu is as wide as its widest row (at least 140 px of rows), with
+ * 6 px padding and the scrollbar outside the rows. Rows 32 px, 6 px corner
+ * radius, 2/4 px padding, 14 px text 8 px from the row edge; the star (and
+ * a custom row's Remove) is a 24 px button 6 px from the right edge; the
+ * "Add custom interval…" icon is 28 px with the text 4 px after it.
+ * Dividers: a 1 px line with 6 px above and below. */
+.header-menu[data-menu-id="chart-interval"] {
+  width: max-content;
+  min-width: 152px;
+  padding: 6px;
+  scrollbar-gutter: stable;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-row {
+  gap: 0;
+  min-height: 32px;
+  height: 32px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-row .header-menu-icon {
+  flex: 0 0 28px;
+  height: 28px;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-row .header-menu-icon:empty {
+  display: none;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-row .header-menu-label {
+  padding: 0 4px;
+  line-height: 18px;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-star {
+  flex: 0 0 24px;
+  height: 24px;
+  margin-right: 2px;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-remove {
+  margin-right: 0;
+}
+.header-menu[data-menu-id="chart-interval"] .header-menu-divider {
+  margin: 6px 0;
+}
+/* Section title rows (reference: 24 px, radius 6, 11 px uppercase text with
+ * 0.4 px spacing 8 px from the edge, an 18 px chevron 8 px from the right:
+ * up when open, down when folded). A click folds / opens the section. */
+.header-menu-fold-title {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: default;
+  color: var(--color-popup-element-secondary-text);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.header-menu-fold-title:hover {
+  background: var(--color-popup-element-background-hover);
+}
+.header-menu-fold-label {
+  flex: 1;
+  white-space: nowrap;
+}
+.header-menu-fold-chevron {
+  flex: 0 0 18px;
+}
+

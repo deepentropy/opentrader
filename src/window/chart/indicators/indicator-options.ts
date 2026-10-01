@@ -19,6 +19,8 @@ export type IndicatorOptions = {
   valuesInStatusLine: boolean;
   inputsInStatusLine: boolean;
   visibility: IntervalVisibility;
+  /** An overlay study moved to its own pane (Object tree "Move to"). */
+  ownPane: boolean;
 };
 
 /** Precision select options. */
@@ -43,6 +45,7 @@ export function defaultIndicatorOptions(): IndicatorOptions {
     valuesInStatusLine: true,
     inputsInStatusLine: true,
     visibility: cloneVisibility(DEFAULT_VISIBILITY),
+    ownPane: false,
   };
 }
 
@@ -71,6 +74,7 @@ export function reviveIndicatorOptions(raw: unknown): IndicatorOptions {
     labelsOnScale: bool(r.labelsOnScale, d.labelsOnScale),
     valuesInStatusLine: bool(r.valuesInStatusLine, d.valuesInStatusLine),
     inputsInStatusLine: bool(r.inputsInStatusLine, d.inputsInStatusLine),
+    ownPane: bool(r.ownPane, d.ownPane),
     visibility: {
       ticks: bool(vis.ticks, d.visibility.ticks),
       seconds: unit(vis.seconds, d.visibility.seconds),

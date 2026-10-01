@@ -1,7 +1,7 @@
 /*
  * ObjectTreePanel — right-rail "object_tree" tab content.
  *
- * Feature 5c (current): real-data drawing rows backed by App's drawings
+ * Drawing rows backed by App's drawings
  * array. Row click selects the drawing on the chart; per-row icons
  * toggle lock / hide / remove. This is the only UI that can unhide an
  * individually-hidden drawing — without it, the per-drawing Hide flag
@@ -20,14 +20,12 @@
  * per-item onUpdate/onRemove callbacks the row icons use). Group names the
  * checked drawings (a `group` tag persisted on each drawing via onUpdate) and
  * makes them adjacent, so they render under a shared header with an Ungroup
- * action. Move-to stays disabled pending multi-layout targets.
+ * action. Move to puts the selected study in a new pane (study-selection.ts).
  *
  * Deferred (vs. the mock):
- *   • move-to action (needs multi-layout targets).
  *   • Per-indicator hide + settings rows.
- *   • Data window tab — depends on indicators; placeholder for now.
  */
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { PanelHeader } from "../../components/PanelHeader";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { Icon, type IconName } from "../../components/Icon";
@@ -35,6 +33,9 @@ import { IconButton } from "../../components/IconButton";
 import { Tooltip } from "../../components/Tooltip";
 import { labelForKind, iconForKind } from "../drawings/labels";
 import { getIndicatorEntry } from "../chart/indicators/registry";
+import { focusedStudySelection, requestMoveStudy, requestSelectStudy } from "../chart/study-selection";
+import { ChartContextMenu } from "../chart/ChartContextMenu";
+import { copyDrawing } from "../drawings/clipboard";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { consumeDataWindowRequest, dataWindow } from "../../data/data-window-store";
 
@@ -230,6 +231,30 @@ export function ObjectTreePanel(props: Props) {
 
   // ── Manage mode ── per-row checkboxes + bulk actions over the checked set.
   const [manage, setManage] = createSignal(false);
+  /** "Move to" menu position (null = closed). */
+  const [moveMenu, setMoveMenu] = createSignal<{ x: number; y: number } | null>(null);
+  /** "Clone, Copy" menu position (null = closed). */
+  const [copyMenu, setCopyMenu] = createSignal<{ x: number; y: number } | null>(null);
+  const selectedDrawing = () => props.drawings.find((d) => d.id === props.selectedId) ?? null;
+
+  // Inline rename (the reference tree): a click on the already selected row
+  // starts it after 500 ms (a double click in between does not); Enter or
+  // leaving the field saves, Escape cancels, an empty name keeps the old one.
+  const [renamingId, setRenamingId] = createSignal<string | null>(null);
+  let renameTimer = 0;
+  const cancelRenameTimer = () => {
+    window.clearTimeout(renameTimer);
+    renameTimer = 0;
+  };
+  onCleanup(cancelRenameTimer);
+  const nameOf = (d: Drawing) => d.name ?? labelForKind(d.kind);
+  const endRename = (d: Drawing, save: boolean, value: string) => {
+    if (renamingId() !== d.id) return;
+    setRenamingId(null);
+    const v = value.trim();
+    if (!save || !v || v === nameOf(d)) return;
+    props.onUpdate({ ...d, name: v !== labelForKind(d.kind) ? v : undefined } as Drawing);
+  };
   const [checked, setChecked] = createSignal<Set<string>>(new Set());
   const toggleManage = () => {
     setManage((m) => !m);
@@ -319,24 +344,68 @@ export function ObjectTreePanel(props: Props) {
             <Icon name="ot-header-group" size={18} />
           </IconButton>
         </Tooltip>
+        {/* Clone, Copy: a menu with Copy (the drawing clipboard, as Ctrl+C)
+            and Clone, for the selected drawing. */}
         <Tooltip text="Clone, Copy" side="bottom">
           <IconButton
             data-name="copy-clone-button"
             aria-label="Clone, Copy"
-            disabled={!props.selectedId}
-            onClick={() => {
-              const id = props.selectedId;
-              if (id) props.onClone(id);
+            aria-expanded={!!copyMenu()}
+            disabled={!selectedDrawing()}
+            onClick={(e: MouseEvent) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setCopyMenu(copyMenu() ? null : { x: r.left, y: r.bottom + 2 });
             }}
           >
             <Icon name="ot-header-copy-clone" size={18} />
           </IconButton>
         </Tooltip>
+        <Show when={copyMenu()}>
+          {(m) => (
+            <ChartContextMenu
+              x={m().x}
+              y={m().y}
+              onClose={() => setCopyMenu(null)}
+              nodes={[
+                { kind: "item", id: "copy", label: "Copy",
+                  onSelect: () => { const d = selectedDrawing(); if (d) copyDrawing(d); } },
+                { kind: "item", id: "clone", label: "Clone",
+                  onSelect: () => { const d = selectedDrawing(); if (d) props.onClone(d.id); } },
+              ]}
+            />
+          )}
+        </Show>
+        {/* Move to: the selected study (shared with the chart selection)
+            to a new pane above / below its pane. */}
         <Tooltip text="Move to" side="bottom">
-          <IconButton data-name="move-to-button" aria-label="Move to" disabled>
+          <IconButton
+            data-name="move-to-button"
+            aria-label="Move to"
+            aria-expanded={!!moveMenu()}
+            disabled={!focusedStudySelection()?.moveAbove && !focusedStudySelection()?.moveBelow}
+            onClick={(e: MouseEvent) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setMoveMenu(moveMenu() ? null : { x: r.left, y: r.bottom + 2 });
+            }}
+          >
             <Icon name="ot-header-move-to" size={18} />
           </IconButton>
         </Tooltip>
+        <Show when={moveMenu()}>
+          {(m) => (
+            <ChartContextMenu
+              x={m().x}
+              y={m().y}
+              onClose={() => setMoveMenu(null)}
+              nodes={[
+                { kind: "item", id: "new-pane-above", label: "New pane above", disabled: !focusedStudySelection()?.moveAbove,
+                  onSelect: () => { const s = focusedStudySelection(); if (s) requestMoveStudy(s.id, "above"); } },
+                { kind: "item", id: "new-pane-below", label: "New pane below", disabled: !focusedStudySelection()?.moveBelow,
+                  onSelect: () => { const s = focusedStudySelection(); if (s) requestMoveStudy(s.id, "below"); } },
+              ]}
+            />
+          )}
+        </Show>
         <Tooltip text="Manage layout drawings" side="bottom">
           <IconButton
             data-name="manage-drawings-button"
@@ -407,7 +476,11 @@ export function ObjectTreePanel(props: Props) {
                 hidden state yet). */}
             <For each={props.indicators}>
               {(id) => (
-                <div class="object-tree-row" data-name="object-tree-row">
+                <div
+                  class={"object-tree-row" + (focusedStudySelection()?.id === id ? " selected" : "")}
+                  data-name="object-tree-row"
+                  onClick={() => requestSelectStudy(id)}
+                >
                   <span class="object-tree-row-icon" aria-hidden="true">
                     <Icon name="header-indicators-metrics-and-strategies" size={18} />
                   </span>
@@ -419,7 +492,7 @@ export function ObjectTreePanel(props: Props) {
                       aria-label="Remove indicator"
                       class="object-tree-row-action"
                       title="Remove"
-                      onClick={() => props.onRemoveIndicator(id)}
+                      onClick={(e) => { e.stopPropagation(); props.onRemoveIndicator(id); }}
                     >
                       <Icon name="draw-trash" size={18} />
                     </button>
@@ -484,8 +557,21 @@ export function ObjectTreePanel(props: Props) {
                     role="button"
                     tabIndex={0}
                     data-name="object-tree-row"
-                    draggable={!manage()}
-                    onClick={() => (manage() ? toggleChecked(d.id) : props.setSelectedId(d.id))}
+                    draggable={!manage() && renamingId() !== d.id}
+                    onClick={() => {
+                      if (manage()) return toggleChecked(d.id);
+                      if (renamingId() === d.id) return;
+                      const wasSelected = isSelected();
+                      props.setSelectedId(d.id);
+                      cancelRenameTimer();
+                      if (wasSelected) {
+                        renameTimer = window.setTimeout(() => {
+                          renameTimer = 0;
+                          if (props.selectedId === d.id) setRenamingId(d.id);
+                        }, 500);
+                      }
+                    }}
+                    onDblClick={cancelRenameTimer}
                     onDragStart={(e) => {
                       setDragId(d.id);
                       e.dataTransfer?.setData("text/plain", d.id);
@@ -519,7 +605,24 @@ export function ObjectTreePanel(props: Props) {
                     <span class="object-tree-row-icon" aria-hidden="true">
                       <Icon name={iconForKind(d.kind)} size={18} />
                     </span>
-                    <span class="object-tree-row-label">{labelForKind(d.kind)}</span>
+                    <Show when={renamingId() === d.id} fallback={<span class="object-tree-row-label">{nameOf(d)}</span>}>
+                      <input
+                        ref={(el) => queueMicrotask(() => { el.focus(); el.select(); })}
+                        class="object-tree-rename-input"
+                        type="text"
+                        value={nameOf(d)}
+                        spellcheck={false}
+                        autocomplete="off"
+                        aria-label="Rename"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Escape") { e.preventDefault(); endRename(d, false, ""); }
+                          else if (e.key === "Enter") { e.preventDefault(); endRename(d, true, e.currentTarget.value); }
+                        }}
+                        onBlur={(e) => endRename(d, true, e.currentTarget.value)}
+                      />
+                    </Show>
                     <span class="object-tree-row-actions">
                       <button
                         type="button"

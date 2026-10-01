@@ -760,6 +760,9 @@ export type ChartAppearance = {
   lockRatio?: boolean;
   /** The ratio typed / shown in the lock row (price units per bar). */
   lockRatioValue?: number;
+  /** Price scale menu "Scale price chart only": the auto-scale of the main
+   *  series' scale uses the series alone. */
+  scaleSeriesOnly?: boolean;
   alignLabels?: boolean;
   plusButton?: boolean;
   // Scales → Price labels → Symbol (check list): "Value" = last-value label,
@@ -894,6 +897,7 @@ export function appearanceFrom(d: Draft | undefined): ChartAppearance {
     scaleModes: NAV_BEHAVIOR[Sc.sel('Scale modes (A and L)') ?? ''],
     lockRatio: Sc.checked('Lock price to bar ratio'),
     lockRatioValue: Sc.num('Lock price to bar ratio'),
+    scaleSeriesOnly: Sc.checked('Scale price chart only'),
     alignLabels: Sc.checked('No overlapping labels'),
     plusButton: Sc.checked('Plus button'),
     symbolLastValue: Sc.member('Symbol', 'Value'),
@@ -949,6 +953,7 @@ export type ScaleMenuPatch = {
   scalesPlacement?: 'left' | 'right';
   lockRatio?: boolean;
   lockRatioValue?: number;
+  scaleSeriesOnly?: boolean;
   alignLabels?: boolean;
   plusButton?: boolean;
   /** Time-axis menu "Session breaks" = the Events tab row. */
@@ -986,6 +991,7 @@ export function patchDraftScales(d: Draft | undefined, p: ScaleMenuPatch): Draft
   setMember('Indicators and financials', 'Value', p.indLastValue);
   setChecked('Countdown to bar close', p.countdown);
   setChecked('Lock price to bar ratio', p.lockRatio);
+  setChecked('Scale price chart only', p.scaleSeriesOnly);
   if (p.lockRatioValue !== undefined) {
     const c = next[keyOf('scales', 'Lock price to bar ratio')]?.controls?.[0];
     if (c && c.kind === 'input') c.value = formatRatio(p.lockRatioValue);

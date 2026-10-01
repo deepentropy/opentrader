@@ -85,17 +85,3 @@
   font-weight: 500;
   line-height: 18px;
 }
-.ot-news-item-footer {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  padding-block: 1px;
-  color: #b8b8b8;
-  font-size: 12px;
-  line-height: 16px;
-}
-.ot-news-item-footer svg {
-  display: inline-flex;
-  width: 8px;
-  height: 8px;
-}

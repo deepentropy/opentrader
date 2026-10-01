@@ -362,15 +362,10 @@
   text-overflow: ellipsis;
 }
 
-/* Author: rgb(91,156,246). */
+/* Author: plain text (no author pages here). */
 .indicators-author {
-  color: var(--color-link-primary-default, #5b9cf6);
-  text-decoration: none;
+  color: var(--color-main-text, #dbdbdb);
   font-size: 14px;
-}
-
-.indicators-author:hover {
-  text-decoration: underline;
 }
 
 /* Likes: rgb(219,219,219). */
@@ -545,4 +540,11 @@
   height: 18px;
   margin-left: 4px;
   color: #dbdbdb;
+}
+
+/* Disabled sidebar item (Invite-only): greyed, not selectable. */
+.indicators-sidebar-item.is-disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
 }

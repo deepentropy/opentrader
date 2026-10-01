@@ -163,6 +163,16 @@
   color: var(--color-cold-gray-200, #dbdbdb);
 }
 
+/* Font size button: the size as text. */
+.selected-toolbar-btn-font-size {
+  min-width: 32px;
+  padding: 0 6px;
+}
+.selected-toolbar-font-size {
+  font-size: 14px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+}
+
 /* ── Floating-toolbar popovers (color / width / style / templates) ──────────
  * A dark popover anchored under the owning button. The control wrapper is the
  * positioning context for the absolutely-placed popover. */
@@ -190,6 +200,7 @@
 
 /* Width / style menus — a stack of preview + label rows. */
 .dt-width-popover { width: 78px; }
+.dt-font-size-popover { width: 64px; max-height: 320px; overflow-y: auto; }
 .dt-style-popover { width: 134px; }
 .dt-menu-row {
   display: flex;

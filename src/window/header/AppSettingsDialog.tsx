@@ -148,10 +148,10 @@ function Section(props: { label: string; children: JSX.Element }) {
   );
 }
 
-function Checkbox(props: { label: string; checked: boolean; onChange: () => void }) {
+function Checkbox(props: { label: string; checked: boolean; onChange: () => void; disabled?: boolean }) {
   return (
-    <label class="app-settings-check">
-      <input type="checkbox" checked={props.checked} onChange={props.onChange} />
+    <label class={`app-settings-check${props.disabled ? " is-disabled" : ""}`}>
+      <input type="checkbox" checked={props.checked} disabled={props.disabled} onChange={props.onChange} />
       <span class={`app-settings-checkbox${props.checked ? " is-checked" : ""}`}>
         <Show when={props.checked}><Check /></Show>
       </span>
@@ -160,9 +160,9 @@ function Checkbox(props: { label: string; checked: boolean; onChange: () => void
   );
 }
 
-function Select(props: { value: string; options: string[]; onChange: (v: string) => void }) {
+function Select(props: { value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean }) {
   return (
-    <select class="app-settings-select" value={props.value} onChange={(e) => props.onChange(e.currentTarget.value)}>
+    <select class="app-settings-select" value={props.value} disabled={props.disabled} onChange={(e) => props.onChange(e.currentTarget.value)}>
       <For each={props.options}>{(o) => <option value={o}>{o}</option>}</For>
     </select>
   );
@@ -305,19 +305,20 @@ function TabsTab(props: { parts: TabTitlePartState[]; onChange: (p: TabTitlePart
   );
 }
 
+// Video / audio: disabled (no media capture in this app).
 function VideoAudioTab() {
   return (
     <>
       <Section label="VIDEO">
-        <div class="app-settings-field">
+        <div class="app-settings-field is-disabled">
           <label class="app-settings-field-label">Camera</label>
-          <Select value={settings.camera} options={["Default", "No camera"]} onChange={(v) => setSettings("camera", v)} />
+          <Select value={settings.camera} options={["Default", "No camera"]} disabled onChange={(v) => setSettings("camera", v)} />
         </div>
       </Section>
       <Section label="AUDIO">
-        <div class="app-settings-field">
+        <div class="app-settings-field is-disabled">
           <label class="app-settings-field-label">Microphone</label>
-          <Select value={settings.microphone} options={["Default", "No microphone"]} onChange={(v) => setSettings("microphone", v)} />
+          <Select value={settings.microphone} options={["Default", "No microphone"]} disabled onChange={(v) => setSettings("microphone", v)} />
         </div>
       </Section>
     </>
@@ -419,7 +420,8 @@ function ServiceTab() {
   return (
     <>
       <Section label="PERFORMANCE">
-        <Checkbox label="Disable hardware acceleration" checked={settings.disableHwAccel} onChange={() => setSettings("disableHwAccel", !settings.disableHwAccel)} />
+        {/* Disabled: the WebView has no switch for it. */}
+        <Checkbox label="Disable hardware acceleration" checked={settings.disableHwAccel} disabled onChange={() => setSettings("disableHwAccel", !settings.disableHwAccel)} />
       </Section>
       <Section label="APP DATA">
         <div class="app-settings-action-row">
@@ -452,22 +454,23 @@ function NetworkTab() {
     ["Username", "text", "proxyUsername"],
     ["Password", "password", "proxyPassword"],
   ] as const;
+  // The whole proxy group is disabled: no request layer reads it.
   return (
     <>
       <Section label="PROXY SETTINGS">
-        <Checkbox label="Use a proxy server" checked={settings.proxyEnabled} onChange={() => setSettings("proxyEnabled", !settings.proxyEnabled)} />
+        <Checkbox label="Use a proxy server" checked={settings.proxyEnabled} disabled onChange={() => setSettings("proxyEnabled", !settings.proxyEnabled)} />
       </Section>
       <Section label="Proxy protocol">
-        <Select value={settings.proxyProtocol} options={["HTTP", "HTTPS", "SOCKS4", "SOCKS5"]} onChange={(v) => setSettings("proxyProtocol", v)} />
+        <Select value={settings.proxyProtocol} options={["HTTP", "HTTPS", "SOCKS4", "SOCKS5"]} disabled onChange={(v) => setSettings("proxyProtocol", v)} />
       </Section>
       <For each={fields}>
         {([label, type, key]) => (
-          <div class="app-settings-field">
+          <div class="app-settings-field is-disabled">
             <label class="app-settings-field-label">{label}</label>
             <input
               class="app-settings-input"
               type={type}
-              disabled={!settings.proxyEnabled}
+              disabled
               value={settings[key]}
               onInput={(e) => setSettings(key, e.currentTarget.value)}
             />

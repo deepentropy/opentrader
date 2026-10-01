@@ -13,8 +13,8 @@
  * content is one of:
  *   rows         — NAME (+ optional indicatorId) · AUTHOR · BOOSTS
  *   empty        — empty-state (Purchased)
- *   placeholder  — operator-private list, not committed (My scripts,
- *                  Invite-only)
+ *   placeholder  — empty list note (Invite-only; My scripts until the
+ *                  user saves an OakScript script, then its rows)
  *   fundamentals — 4 sub-tabs × hierarchical metric list
  *
  * SIDEBAR_ICONS hold the FontIcon <svg> markup.
@@ -22,7 +22,8 @@
 import { STANDARD_ROWS, COMMUNITY_ROWS } from '../window/chart/indicators/registry';
 import { strategyRows } from '../window/chart/indicators/strategy-entries';
 
-export type SidebarItem = { id: string; label: string };
+/** `disabled`: listed greyed, not selectable (no backing service). */
+export type SidebarItem = { id: string; label: string; disabled?: boolean };
 export type SidebarGroup = { key: string; title: string; items: SidebarItem[] };
 
 export const SIDEBAR: SidebarGroup[] = [
@@ -32,7 +33,8 @@ export const SIDEBAR: SidebarGroup[] = [
     items: [
       { id: "favorites", label: "Favorites" },
       { id: "my-scripts", label: "My scripts" },
-      { id: "invite-only-scripts", label: "Invite-only" },
+      // Invite-only needs script accounts this app does not have.
+      { id: "invite-only-scripts", label: "Invite-only", disabled: true },
       { id: "purchased", label: "Purchased" },
     ],
   },
@@ -40,8 +42,9 @@ export const SIDEBAR: SidebarGroup[] = [
     key: "builtIn",
     title: "Built-In",
     items: [
+      // Technicals only: the Fundamentals metrics need financial data this
+      // app does not load (their tab content below is kept, not listed).
       { id: "built-ins", label: "Technicals" },
-      { id: "fundamentals", label: "Fundamentals" },
     ],
   },
   {
@@ -99,7 +102,8 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   'favorites': { kind: 'rows', rows: [] },
   'my-scripts': { kind: 'placeholder', note: 'No scripts here yet.' },
   'invite-only-scripts': { kind: 'placeholder', note: 'No invite-only scripts here yet.' },
-  'purchased': { kind: 'empty', title: 'No scripts here yet — discover the Store', body: 'Our trusted creators offer paid indicators and strategies — find the ones that work for you.', action: 'Go to Store' },
+  // No store here: the empty state without its "Go to Store" button.
+  'purchased': { kind: 'empty', title: 'No scripts here yet — discover the Store', body: 'Our trusted creators offer paid indicators and strategies — find the ones that work for you.' },
   // Built-In > Technicals — the library standard indicators (registry).
   'built-ins': { kind: 'rows', rows: STANDARD_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })) },
   'fundamentals': { kind: 'fundamentals', subtabs: [

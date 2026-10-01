@@ -5,6 +5,8 @@ import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, 
 import { createStore } from "solid-js/store";
 import { HeaderToolbar } from "./window/header/HeaderToolbar";
 import { HeaderMenu } from "./window/header/HeaderMenu";
+import { DownloadChartDataDialog } from "./window/header/DownloadChartDataDialog";
+import { buildIntervalMenu } from "./window/chart/custom-intervals";
 import { HEADER_MENUS } from "./window/header/header-menus/registry";
 import { SymbolSearchDialog } from "./window/header/SymbolSearchDialog";
 import { ChangeIntervalDialog } from "./window/chart/ChangeIntervalDialog";
@@ -208,6 +210,13 @@ function App() {
     const tab = activeTab();
     patchActive({ panes: tab.panes.map((p) => ({ ...p, ...patch })) });
   }
+  /** Symbol / Interval sync in layout: the focused chart and the charts of
+   *  its syncing group (no group = the charts without one). */
+  function patchSyncGroupPanes(patch: Partial<PaneChart>) {
+    const tab = activeTab();
+    const g = tab.panes[tab.activePane]?.linkGroup;
+    patchActive({ panes: tab.panes.map((p, i) => (i === tab.activePane || p.linkGroup === g ? { ...p, ...patch } : p)) });
+  }
 
   // ── App theme and chart theme ──────────────────────────────────────────
   // The chart colours are chart settings. A chart that still uses a standard
@@ -266,6 +275,16 @@ function App() {
   const toggleLayoutSync = (key: LayoutSyncKey) => {
     const next = { ...layoutSync(), [key]: !layoutSync()[key] };
     patchActive({ sync: next });
+    // Symbol / Interval sync turned on: every syncing group takes the value
+    // of its focused chart, else of its first chart.
+    if ((key === "symbol" || key === "interval") && next[key]) {
+      const tab = activeTab();
+      const ref = new Map<number | undefined, string>();
+      const active = tab.panes[tab.activePane];
+      if (active) ref.set(active.linkGroup, active[key]);
+      for (const p of tab.panes) if (!ref.has(p.linkGroup)) ref.set(p.linkGroup, p[key]);
+      patchActive({ panes: tab.panes.map((p) => (p[key] === ref.get(p.linkGroup) ? p : { ...p, [key]: ref.get(p.linkGroup) })) });
+    }
     if (key === "crosshair") rememberCrosshair(next.crosshair);
   };
   bindLayoutSync(layoutSync, toggleLayoutSync);
@@ -277,7 +296,8 @@ function App() {
     const spread = t.sync[field];
     return {
       ...t,
-      panes: t.panes.map((p, idx) => (spread || idx === t.activePane ? { ...p, [field]: value } : p)),
+      // The tab's layout sync spreads it within the focused chart's group.
+      panes: t.panes.map((p, idx) => (idx === t.activePane || (spread && p.linkGroup === t.panes[t.activePane]?.linkGroup) ? { ...p, [field]: value } : p)),
     };
   }
   // Mirror a value onto every tab in THIS window linked to `color` (optionally
@@ -302,13 +322,13 @@ function App() {
   // mirrors to every pane of the layout instead of just the focused one. Either
   // way the change then propagates to colour-linked tabs.
   const setInterval = (v: string) => {
-    // Source-level gate: ignore intervals the datafeed can't serve (tick,
-    // 2/3/4/10/45-min, 3H, 3M/6M, custom). The picker greys these out and
+    // Source-level gate: ignore intervals the datafeed can't serve (ticks,
+    // ranges, too large a multiplier). The picker greys these out and
     // getBars rejects them too; this stops the remaining paths — keyboard
-    // digit-entry, "Add custom interval", a stale persisted favourite — from
-    // ever applying an unservable id.
+    // digit-entry, a stale persisted favourite — from ever applying an
+    // unservable id.
     if (!isSupportedResolution(v)) return;
-    if (layoutSync().interval) patchAllPanes({ interval: v });
+    if (layoutSync().interval) patchSyncGroupPanes({ interval: v });
     else patchActivePane({ interval: v });
     broadcastLink("interval", v);
   };
@@ -321,7 +341,7 @@ function App() {
     w.__clickT = performance.now();
     w.__clickSym = v;
     console.log(`[select] ${v} @ ${w.__clickT.toFixed(0)}ms`);
-    if (layoutSync().symbol) patchAllPanes({ symbol: v });
+    if (layoutSync().symbol) patchSyncGroupPanes({ symbol: v });
     else patchActivePane({ symbol: v });
     broadcastLink("symbol", v);
   };
@@ -418,6 +438,8 @@ function App() {
     createSignal<null | { mode: "save" | "rename" | "copy"; initial: string; persist?: boolean }>(null);
   // "Open layout" browser modal (lists every saved layout; load / delete).
   const [layoutBrowserOpen, setLayoutBrowserOpen] = createSignal(false);
+  // Manage layouts → "Download chart data…" (CSV export dialog).
+  const [downloadDataOpen, setDownloadDataOpen] = createSignal(false);
 
   // Delete a saved layout; if it's the one the active tab shows, detach the tab
   // (the badge falls back to "Untitled").
@@ -516,20 +538,6 @@ function App() {
     });
     const created = createLayout(name, snapshotActive());
     patchActive({ savedLayoutId: created.id, savedLayoutName: created.name });
-  }
-  // "Download chart data" — the cloud download is unavailable locally, so export
-  // the active snapshot as a JSON file the user keeps (a faithful local stand-in).
-  function downloadActiveLayout() {
-    const data = JSON.stringify({ name: layoutName(), snapshot: snapshotActive() }, null, 2);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${layoutName().replace(/[^\w.-]+/g, "_") || "layout"}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
   }
   function submitLayoutName(name: string) {
     const dlg = layoutNameDialog();
@@ -1584,9 +1592,9 @@ function App() {
     } else if (which === "save-load-menu") {
       onManageLayoutsSelect(rowId);
     } else if (which === "take-a-snapshot") {
-      // Snapshot menu. Copy link / Tweet are cloud actions with no
-      // backing here — left as no-ops. "Open in new tab" opens the PNG in
-      // the OS default viewer (temp file via the open_snapshot command).
+      // Snapshot menu (the link and tweet rows are cloud actions, not
+      // offered). "Open in new tab" opens the PNG in the OS default viewer
+      // (temp file via the open_snapshot command).
       if (rowId === "save-chart-image") {
         window.dispatchEvent(new CustomEvent("chart-snapshot", { detail: { action: "download" } }));
       } else if (rowId === "copy-chart-image") {
@@ -1630,7 +1638,7 @@ function App() {
         });
         break;
       case "save-load-menu-item-download":
-        downloadActiveLayout();
+        setDownloadDataOpen(true);
         break;
       case "save-load-menu-item-create":
         // The new layout is created immediately as "Unnamed" (no prompt);
@@ -1640,7 +1648,7 @@ function App() {
       case "save-load-menu-item-load":
         setLayoutBrowserOpen(true);
         break;
-      // "save-load-menu-item-sharing" (cloud-only) + the empty placeholder: no-op.
+      // The empty placeholder row: nothing to do.
       default:
         break;
     }
@@ -1665,6 +1673,7 @@ function App() {
     if (id === "show-favorite-indicators")
       return buildFavoriteIndicatorsMenu();
     if (id === "indicator-templates") return buildIndicatorTemplatesMenu();
+    if (id === "chart-interval") return buildIntervalMenu();
     return HEADER_MENUS[id];
   }
 
@@ -1928,9 +1937,8 @@ function App() {
       }
       // Alt+{R,I,L,P} → reset view / scale toggles on the focused pane. Other
       // Alt combos belong to drawing tools (Alt+T/H/F/V/C/J), Alt+G / Alt+Enter
-      // (bottom bar), and Alt+Shift+R — left untouched here. Alt+S is "copy
-      // link" (a cloud action with no backing here), so it stays unbound rather
-      // than aliasing the image snapshot — the menu would otherwise mislabel it.
+      // (bottom bar), and Alt+Shift+R — left untouched here. Alt+S ("copy
+      // link", a cloud action) is not offered.
       if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
         if (blocked) return;
         if (e.code === "KeyR") { e.preventDefault(); dispatch("chart-reset"); return; }
@@ -2325,6 +2333,12 @@ function App() {
                 setSymbolDialogOpen(true);
               }}
               onVisibleRange={(i, r) => setVisibleRangeForPane(tabId, i, r)}
+              linkSyncVisible={tab().panes.length > 1 && (tab().sync.symbol || tab().sync.interval)}
+              onLinkGroup={(i, g) => {
+                const tab = tabOf(tabId);
+                if (!tab) return;
+                patchTab(tabId, { panes: tab.panes.map((p, k) => (k === i ? { ...p, linkGroup: g } : p)) });
+              }}
               onToggleSeries={(i) => {
                 const tab = tabOf(tabId);
                 if (!tab) return;
@@ -2477,6 +2491,9 @@ function App() {
           onDontSave={() => resolvePendingOpen("dontSave")}
           onCancel={() => resolvePendingOpen("cancel")}
         />
+      </Show>
+      <Show when={downloadDataOpen()}>
+        <DownloadChartDataDialog onClose={() => setDownloadDataOpen(false)} />
       </Show>
       <Show when={layoutBrowserOpen()}>
         <LayoutBrowserDialog

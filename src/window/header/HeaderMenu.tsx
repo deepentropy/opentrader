@@ -5,14 +5,26 @@
  * Positioned below the opener's bounding rect; closes on Escape, on mousedown outside, or when
  * the parent unmounts it (e.g. opener clicked twice).
  *
- * Scope today: rendering + selection. Wired to chart-interval in App.
- * Other menu ids' onSelect is currently a no-op handled by the parent.
+ * Rendering + selection; App's onMenuSelect runs the picked row (chart
+ * interval, chart type, layout, favourite indicators, snapshot, layouts).
  */
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
 import { favoriteIntervals, toggleFavoriteInterval } from "../chart/interval-favorites";
+import {
+  addCustomInterval,
+  customIntervals,
+  intervalMenuHas,
+  isSectionFolded,
+  lastAddedInterval,
+  removeCustomInterval,
+  sectionOf,
+  setLastAddedInterval,
+  setSectionFolded,
+} from "../chart/custom-intervals";
+import { AddCustomIntervalDialog } from "./AddCustomIntervalDialog";
 import { LAYOUT_SYNC_ITEMS, layoutSync, toggleLayoutSync } from "../chart/layout-sync";
 import { isSupportedResolution } from "../../data/datafeed";
 import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../data/indicator-favorites";
@@ -54,12 +66,15 @@ function StarIcon(props: { filled: boolean }) {
 export function HeaderMenu(props: Props) {
   let root!: HTMLDivElement;
   const [pos, setPos] = createSignal<{ top: number; left: number }>({ top: 0, left: 0 });
+  // "Add custom interval…" opens its dialog over the open interval menu; the
+  // menu stays open behind it and shows the added row.
+  const [addIntervalOpen, setAddIntervalOpen] = createSignal(false);
 
   // Per-menu icon-size override mirrors the mock: candles uses 28px (preview
   // chart-style glyphs); layout-setup uses 36px (layout thumbnails); other
   // menus use the 24px action-row size.
   const iconSize = () =>
-    props.menuId === "candles" ? 28 : props.menuId === "layout-setup" ? 36 : 24;
+    props.menuId === "candles" || props.menuId === "chart-interval" ? 28 : props.menuId === "layout-setup" ? 36 : 24;
 
   // Positioning — below the anchor, horizontally flipped if it would overflow
   // the viewport's right edge (buttons at x > 1300 with a 428px-wide menu).
@@ -75,17 +90,18 @@ export function HeaderMenu(props: Props) {
 
   onMount(() => {
     const onMouseDown = (e: MouseEvent) => {
-      if (root.contains(e.target as Node)) return;
+      if (addIntervalOpen() || root.contains(e.target as Node)) return;
       props.onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
+      if (e.key === "Escape" && !addIntervalOpen()) props.onClose();
     };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKey);
     onCleanup(() => {
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("keydown", onKey);
+      setLastAddedInterval(null);
     });
   });
 
@@ -96,17 +112,57 @@ export function HeaderMenu(props: Props) {
         class="ot-popover header-menu"
         data-menu-id={props.menuId}
         role="menu"
-        style={{ top: `${pos().top}px`, left: `${pos().left}px`, width: `${props.menu.width}px` }}
+        style={{
+          top: `${pos().top}px`,
+          left: `${pos().left}px`,
+          // The interval menu sizes to its rows, like the reference menu
+          // (header-menu.css); the others keep their registry width.
+          ...(props.menuId === "chart-interval" ? {} : { width: `${props.menu.width}px` }),
+        }}
       >
         <For each={props.menu.sections}>
-          {(section, si) => (
+          {(section, si) => {
+            // Interval menu: every section has a title row that folds it
+            // (state kept per section, all open by default).
+            const fold = () =>
+              props.menuId === "chart-interval" && section.header && section.items[0]
+                ? sectionOf(section.items[0].id)
+                : null;
+            const folded = () => {
+              const f = fold();
+              return f ? isSectionFolded(f) : false;
+            };
+            return (
             <>
-              <Show when={si() > 0 && !section.header}>
+              <Show when={si() > 0 && (!section.header || fold())}>
                 <div class="header-menu-divider" role="separator" />
               </Show>
-              <Show when={section.header}>
+              <Show when={section.header && !fold()}>
                 <div class="header-menu-section-title">{section.header}</div>
               </Show>
+              <Show when={fold()}>
+                {(f) => (
+                  <button
+                    type="button"
+                    class="header-menu-fold-title"
+                    data-name={`section-${f()}`}
+                    aria-label={section.header ?? ""}
+                    aria-expanded={!folded()}
+                    onClick={() => setSectionFolded(f(), !folded())}
+                  >
+                    <span class="header-menu-fold-label">{section.header}</span>
+                    <svg class="header-menu-fold-chevron" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                      <path
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1"
+                        d={folded() ? "M5 7.5 9 11l4-3.5" : "M5 10.5 9 7l4 3.5"}
+                      />
+                    </svg>
+                  </button>
+                )}
+              </Show>
+              <Show when={!folded()}>
               <For each={section.items}>
                 {(row) => {
                   const hasVariants = !!(row.variants && row.variants.length);
@@ -117,11 +173,17 @@ export function HeaderMenu(props: Props) {
                   // Chart-interval rows are the text-only (no icon) rows.
                   const isIntervalRow = () => props.menuId === "chart-interval" && !row.iconName;
                   // Gate the picker to what the feed can actually serve: an
-                  // interval the datafeed doesn't support (tick, 2/3/4/10/45-min,
-                  // 3H, 3M/6M, …) renders greyed + non-selectable rather than
-                  // silently loading daily bars. Mirrors getBars' validation.
+                  // interval the datafeed doesn't support (ticks, ranges)
+                  // renders greyed + non-selectable rather than silently
+                  // loading daily bars. Mirrors getBars' validation.
                   const disabled = () =>
                     !!row.disabled || (isIntervalRow() && !isSupportedResolution(row.id));
+                  // Custom interval rows carry a Remove button (also on a
+                  // greyed row, so the row is not natively disabled).
+                  const isCustomRow = () => isIntervalRow() && customIntervals().includes(row.id);
+                  const isAddIntervalRow = () =>
+                    props.menuId === "chart-interval" && row.id === "add-custom-interval-button";
+                  const signaling = () => isIntervalRow() && lastAddedInterval() === row.id;
                   // Rows with a live, interactive star: interval rows, the
                   // favourite-indicators rows, and saved indicator-template
                   // rows. Other menus keep the static `favorited` flag
@@ -176,6 +238,8 @@ export function HeaderMenu(props: Props) {
                       isFav() ? "is-favorited" : "",
                       hasVariants ? "has-variants" : "",
                       disabled() ? "is-disabled" : "",
+                      isCustomRow() ? "is-removable" : "",
+                      signaling() ? "is-signaling" : "",
                     ]
                       .filter(Boolean)
                       .join(" ");
@@ -222,15 +286,25 @@ export function HeaderMenu(props: Props) {
                   }
                   return (
                     <button
+                      ref={(el) => {
+                        // The just-added custom row scrolls into view.
+                        createEffect(() => {
+                          if (signaling()) el.scrollIntoView({ block: "nearest" });
+                        });
+                      }}
                       type="button"
                       role="menuitem"
                       data-name={row.id}
                       aria-selected={isChecked() || undefined}
                       aria-disabled={disabled() || undefined}
-                      disabled={disabled()}
+                      disabled={disabled() && !isCustomRow()}
                       class={cls()}
                       onClick={() => {
                         if (disabled()) return;
+                        if (isAddIntervalRow()) {
+                          setAddIntervalOpen(true);
+                          return;
+                        }
                         props.onSelect?.(row.id);
                         props.onClose();
                       }}
@@ -243,6 +317,24 @@ export function HeaderMenu(props: Props) {
                       <span class={`header-menu-label${isTemplateRow() ? "" : " apply-overflow-tooltip"}`}>{row.label}</span>
                       <Show when={row.hotkey}>
                         <span class="header-menu-hotkey">{row.hotkey}</span>
+                      </Show>
+                      <Show when={isCustomRow()}>
+                        <Tooltip text="Remove" side="bottom">
+                          <span
+                            class="header-menu-star header-menu-remove"
+                            role="button"
+                            aria-label="Remove"
+                            data-name="remove-interval-button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeCustomInterval(row.id);
+                            }}
+                          >
+                            <svg viewBox="0 0 18 18" width="14" height="14">
+                              <path stroke="currentColor" stroke-width="1.2" fill="none" d="m4 4 10 10m0-10L4 14" />
+                            </svg>
+                          </span>
+                        </Tooltip>
                       </Show>
                       <Show when={favoritable()}>
                         <Show when={!isFavIndicatorRow()} fallback={star()}>
@@ -273,9 +365,27 @@ export function HeaderMenu(props: Props) {
                   );
                 }}
               </For>
+              </Show>
             </>
-          )}
+            );
+          }}
         </For>
+        <Show when={addIntervalOpen()}>
+          <AddCustomIntervalDialog
+            exists={intervalMenuHas}
+            onAdd={(id) => {
+              addCustomInterval(id);
+              // The added row's section opens; its row flashes for 1.6 s.
+              const s = sectionOf(id);
+              if (s) setSectionFolded(s, false);
+              setLastAddedInterval(id);
+              window.setTimeout(() => {
+                if (lastAddedInterval() === id) setLastAddedInterval(null);
+              }, 1600);
+            }}
+            onClose={() => setAddIntervalOpen(false)}
+          />
+        </Show>
         {/* "Sync in layout" — only on the layout picker. Toggles mirror an
             aspect (symbol / interval / crosshair / time / date range) across
             every pane of the active multi-chart layout. Clicking flips the

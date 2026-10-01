@@ -29,8 +29,6 @@ type Row =
 const ROWS: Row[] = [
   { type: "item", label: "Settings", icon: "profile-app-settings", hotkey: "Ctrl + ,", action: "app-settings" },
   { type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true },
-  { type: "sep" },
-  { type: "item", label: "Sign out", icon: "profile-sign-out", danger: true },
 ];
 
 /** ROWS plus the reopen row (Ctrl + Shift + T) after "Settings" when there

@@ -79,6 +79,7 @@ export class IndicatorController {
   private instances = new Map<string, Instance>();
   /** Selected study and the chart background its markers use. */
   private selected: { id: string; bgAt: BackgroundAt } | null = null;
+  private seriesOnlyScale: string | null = null;
   /** Pane indices (>=1) currently claimed by a non-overlay study. */
   private usedPanes = new Set<number>();
   /** Studies whose plots are toggled off via the legend eye. */
@@ -314,6 +315,18 @@ export class IndicatorController {
     return rows;
   }
 
+  /** "Download chart data": the visible studies' plots, in the order the
+   *  studies were added (hidden studies and those off their intervals are
+   *  left out). */
+  exportColumns(): { title: string; values: Map<number, number> }[] {
+    const out: { title: string; values: Map<number, number> }[] = [];
+    for (const [id, inst] of this.instances) {
+      if (inst.owner || this.hidden.has(id) || !this.onInterval(id)) continue;
+      out.push(...inst.layer.exportPlots());
+    }
+    return out;
+  }
+
   /** Price-pane (overlay) study plot values at `time`, for the drawing magnet's
    *  "Snap to indicator" option. Oscillator panes are excluded — they live on a
    *  different price scale, so snapping the price axis to them is meaningless.
@@ -341,12 +354,36 @@ export class IndicatorController {
     return null;
   }
 
+  /** "Move to" is available for a study drawn over the price series (the
+   *  price pane holds the series and it: more than one source). */
+  canMoveToNewPane(id: string): boolean {
+    const inst = this.instances.get(id);
+    return !!inst && !inst.owner && inst.overlay;
+  }
+
+  /** Move an overlay study to a new pane (re-created there; the caller puts
+   *  the pane in the stacking order and saves the options). Returns the
+   *  study's options to persist, or null when it cannot move. */
+  moveToNewPane(id: string): IndicatorOptions | null {
+    if (!this.canMoveToNewPane(id)) return null;
+    const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: true };
+    this.options.set(id, cloneIndicatorOptions(options));
+    this.refresh(id);
+    return this.getOptions(id);
+  }
+
   /** Study drawing the series `s` (pane owners excluded), or null. */
   studyOfSeries(s: ISeriesApi<SeriesType>): string | null {
     for (const [id, inst] of this.instances) {
       if (!inst.owner && inst.layer.ownsSeries(s)) return id;
     }
     return null;
+  }
+
+  /** "Scale price chart only" on the main series' scale (null = off). */
+  setSeriesOnlyScale(scaleId: string | null): void {
+    this.seriesOnlyScale = scaleId;
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setSeriesOnlyScale(scaleId);
   }
 
   /** Selected study (markers on its plots); null = none. */
@@ -453,14 +490,17 @@ export class IndicatorController {
   private add(id: string): void {
     const entry = getIndicatorEntry(id);
     if (!entry) return;
-    const paneIndex = entry.overlay ? 0 : this.claimPane();
+    // An overlay moved to its own pane ("Move to") is drawn like a pane study.
+    const overlay = entry.overlay && !this.options.get(id)?.ownPane;
+    const paneIndex = overlay ? 0 : this.claimPane();
     const layer = new IndicatorLayer(this.chart, paneIndex, this.chartId, id);
     layer.setLastValueVisible(this.lastValueVisible);
     layer.setScriptChart(this.scriptChart);
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
-    const inst: Instance = { layer, paneIndex, overlay: entry.overlay, ownScale };
+    const inst: Instance = { layer, paneIndex, overlay, ownScale };
     this.instances.set(id, inst);
     if (this.selected?.id === id) layer.setSelected(this.selected.bgAt);
+    layer.setSeriesOnlyScale(this.seriesOnlyScale);
     this.renderOne(id, inst, entry, this.getBars());
   }
 
