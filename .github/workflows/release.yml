@@ -136,6 +136,9 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The frontend build peaks between 1.5 and 2 GB of JS heap (measured
+          # 01/10/2026); Node's default limit on the macOS runner ran out.
+          NODE_OPTIONS: --max-old-space-size=4096
         with:
           projectPath: opentrader
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
