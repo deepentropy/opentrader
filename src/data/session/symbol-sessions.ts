@@ -72,6 +72,16 @@ export class SymbolSessions {
     return this.mintick;
   }
 
+  /** "Default" chart precision: `price` rounded to the tick of its band and
+   *  shown with that tick's decimals (US stocks: 0.5000 under 1, 123.46
+   *  above; NSE: 500.10, 1374.7, 25000), as the reference app's default
+   *  price formatter (checked 01/10/2026 on 11 symbols). */
+  formatPrice(price: number): string {
+    const tick = this.tickAt(price);
+    const d = tickDecimals(tick);
+    return (Math.round(price / tick) * tick).toFixed(d);
+  }
+
   /** Schedule of the bottom-bar session choice. */
   spec(session: SessionId): SessionSpec {
     return session === "ETH" ? this.extended : this.regular;
@@ -92,6 +102,15 @@ export class SymbolSessions {
     if (this.postmarket?.contains(sec)) return "post";
     return null;
   }
+}
+
+/** Decimals of a tick (0.05 → 2, 0.25 → 2, 0.1 → 1, 5 → 0). */
+function tickDecimals(tick: number): number {
+  for (let d = 0; d < 15; d++) {
+    const v = tick * 10 ** d;
+    if (Math.abs(Math.round(v) - v) < 1e-9 * Math.max(1, v)) return d;
+  }
+  return 15;
 }
 
 const resolved = new Map<string, SymbolSessions>();

@@ -1680,10 +1680,13 @@ export function ChartView(props: Props) {
     builtType = activeType;
     setDataForType(series, activeType, raw, tokens, dataExtras());
     afterSeriesData();
-    // Symbol → Precision: override the price format when the user picked one
-    // ("Default" leaves the library's magnitude-derived precision).
+    // Symbol → Precision: the picked format; "Default" follows the symbol's
+    // tick grid (decimals and rounding step of each price's tick band).
     const pf = parsePriceFormat(tokens.precision);
+    const grid = cachedSymbolSessions(props.symbol ?? "");
     if (pf) series.applyOptions({ priceFormat: { type: "price", precision: pf.precision, minMove: pf.minMove } });
+    else if (grid && (tokens.precision || "Default") === "Default")
+      series.applyOptions({ priceFormat: { type: "custom", formatter: (p: number) => grid.formatPrice(p), minMove: grid.mintick } });
     // Bind the price axis to the chosen side (Scales placement). The visible
     // scale already drives the default; this pins it explicitly too.
     series.applyOptions({ priceScaleId: tokens.scalesPlacement });
