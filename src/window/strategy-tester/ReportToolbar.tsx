@@ -13,12 +13,15 @@ import { Popover, PopSectionTitle } from "../screener/Popover";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { DEFAULT_PROPERTIES, type BacktestReport } from "../../backtester/types";
 import { compact, dateRange } from "./format";
+import { cachedSymbolSessions } from "../../data/session";
 
 type Props = {
   report: BacktestReport | null;
   properties: Record<string, unknown>;
   onPatchProperties: (patch: Record<string, unknown>) => void;
   onSettings: () => void;
+  /** Charted symbol: the testing period shows in its exchange time zone. */
+  symbol?: string;
 };
 
 export function ReportToolbar(props: Props) {
@@ -26,6 +29,11 @@ export function ReportToolbar(props: Props) {
   const [capitalOpen, setCapitalOpen] = createSignal(false);
   const capital = () => props.report?.properties.initialCapital ?? (props.properties.initialCapital as number | undefined) ?? DEFAULT_PROPERTIES.initialCapital;
   const currency = () => props.report?.currency ?? "USD";
+  const period = () => {
+    const r = props.report;
+    const zone = cachedSymbolSessions(props.symbol ?? "")?.timeZone;
+    return r && zone ? dateRange(r.range.from, r.range.to, zone) : "";
+  };
 
   return (
     <div class="st-toolbar">
@@ -58,14 +66,14 @@ export function ReportToolbar(props: Props) {
         </div>
 
         <Show when={props.report}>
-          {(r) => (
+          {(
             <div class="st-pill st-pill-static" data-name="date-range-pill">
               <span class="st-pill-hover-tip">
                 <span class="st-pill-tip-title">Testing period</span>
-                <span class="st-pill-tip-range">{dateRange(r().range.from, r().range.to)}</span>
+                <span class="st-pill-tip-range">{period()}</span>
               </span>
               <Icon name="st-pill-date-range-icon" size={28} />
-              <span class="st-pill-text">{dateRange(r().range.from, r().range.to)}</span>
+              <span class="st-pill-text">{period()}</span>
             </div>
           )}
         </Show>

@@ -85,6 +85,8 @@ type Props = {
   onClose: () => void;
   /** Strategy study: Properties tab + strategy Style tab. */
   strategy?: StrategyDialogConfig;
+  /** Exchange time zone of the charted symbol: time inputs of indicators. */
+  timeZone?: string;
   /** Tab to open on (otherwise: strategies the last clicked tab, else Inputs). */
   initialTab?: DialogTab;
 };
@@ -404,7 +406,7 @@ export function IndicatorSettingsDialog(props: Props) {
 
   const inputControl = (cfg: DialogInput) => {
     if (cfg.type === "time") {
-      return <DateTimeInput value={Number(inputDraft[cfg.id])} timeZone={props.strategy?.timeZone ?? "America/New_York"} onChange={(ms) => setInputDraft(cfg.id, ms)} />;
+      return <DateTimeInput value={Number(inputDraft[cfg.id])} timeZone={props.strategy?.timeZone ?? props.timeZone ?? "UTC"} onChange={(ms) => setInputDraft(cfg.id, ms)} />;
     }
     if (cfg.type === "int" || cfg.type === "float") {
       return (

@@ -58,19 +58,30 @@ export function tone(v: number | null | undefined): "" | "is-positive" | "is-neg
   return v > 0 ? "is-positive" : "is-negative";
 }
 
-const dateFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
-const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/New_York" });
+/** One formatter per (options, zone), reused across rows. */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+export function zoneFormat(locale: string, options: Intl.DateTimeFormatOptions, timeZone: string): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}|${timeZone}`;
+  let f = formatters.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, { ...options, timeZone });
+    formatters.set(key, f);
+  }
+  return f;
+}
 
-/** UNIX ms -> "Sep 8, 2026" (daily and above) or "Sep 8, 2026 09:30" (intraday). */
-export function tradeDate(ms: number, intraday: boolean, timeZone = "America/New_York"): string {
+/** UNIX ms -> "Sep 8, 2026" (daily and above) or "Sep 8, 2026 09:30"
+ *  (intraday), in `timeZone` (the symbol's exchange zone). */
+export function tradeDate(ms: number, intraday: boolean, timeZone: string): string {
   const d = new Date(ms);
-  const date = timeZone === "America/New_York" ? dateFmt.format(d) : new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone }).format(d);
+  const date = zoneFormat("en-US", { month: "short", day: "numeric", year: "numeric" }, timeZone).format(d);
   if (!intraday) return date;
-  const time = timeZone === "America/New_York" ? timeFmt.format(d) : new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone }).format(d);
+  const time = zoneFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }, timeZone).format(d);
   return `${date} ${time}`;
 }
 
-/** Testing period pill: "Jul 25, 2018 — Sep 29, 2026". */
-export function dateRange(fromMs: number, toMs: number): string {
-  return `${dateFmt.format(new Date(fromMs))} ${DASH} ${dateFmt.format(new Date(toMs))}`;
+/** Testing period pill: "Jul 25, 2018 — Sep 29, 2026", in `timeZone`. */
+export function dateRange(fromMs: number, toMs: number, timeZone: string): string {
+  const f = zoneFormat("en-US", { month: "short", day: "numeric", year: "numeric" }, timeZone);
+  return `${f.format(new Date(fromMs))} ${DASH} ${f.format(new Date(toMs))}`;
 }

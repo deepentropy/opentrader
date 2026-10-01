@@ -2229,9 +2229,12 @@ export function ChartView(props: Props) {
         const prevTimes = isTransformType(activeType) ? ts.getVisibleRange() : null;
         const prevLen = raw.length;
         if (isDaily) {
-          rawDaily = [...older, ...rawDaily];
           const unit = aggregateUnitFor(reqInt);
-          raw = toOHLC(unit ? aggregateCandles(rawDaily, unit) : rawDaily);
+          // Resolved with the first daily load (getBars).
+          const tz = cachedSymbolSessions(props.symbol ?? "")?.timeZone;
+          if (unit && !tz) return;
+          rawDaily = [...older, ...rawDaily];
+          raw = toOHLC(unit ? aggregateCandles(rawDaily, unit, tz!) : rawDaily);
         } else {
           raw = [...toOHLC(older), ...raw];
         }
@@ -4793,6 +4796,7 @@ export function ChartView(props: Props) {
               <IndicatorSettingsDialog
                 title={isStrategyId(id()) ? (entry!.shortName ?? entry!.name) : entry!.name}
                 strategy={strategy}
+                timeZone={cachedSymbolSessions(props.symbol ?? "")?.timeZone}
                 initialTab={tab}
                 inputConfig={entry!.inputConfig}
                 plotConfig={entry!.plotConfig}

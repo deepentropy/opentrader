@@ -61,6 +61,8 @@ type ViewProps = {
   intraday: boolean;
   intervalSec: number;
   onShowOnChart: (timeSec: number) => void;
+  /** Charted symbol: dates show in its exchange time zone. */
+  symbol?: string;
 };
 
 /** Key stats values (the 4 cells, or the inline strip of the expanded chart). */
@@ -120,7 +122,7 @@ export function MetricsView(props: ViewProps) {
   const best = createMemo(() => bestMonth(r()));
   const trades = (n: number | null) => (n == null ? DASH : `${Number(n.toFixed(1))} trades`);
 
-  const chart = () => <EquityChart report={r()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} />;
+  const chart = () => <EquityChart report={r()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} symbol={props.symbol} />;
 
   return (
     <Show when={!strategyTester.equityExpanded()} fallback={<div class="st-equity-expanded">{chart()}</div>}>

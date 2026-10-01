@@ -38,7 +38,8 @@ import { commands } from "../../bindings";
 import { EXCURSION_COLORS, ExcursionSeries, type ExcursionData } from "./excursion-series";
 import { EquityStrip, type StripHover } from "./equity-strip";
 import { equityPoints, reportPeriods, whitespaceTimes, type EquityPoint } from "./equity-data";
-import { DASH, MINUS, money, percent as pct } from "./format";
+import { DASH, MINUS, money, percent as pct, zoneFormat } from "./format";
+import { cachedSymbolSessions } from "../../data/session";
 
 const FONT = `-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif`;
 const UP = "#089981";
@@ -91,11 +92,12 @@ function zeroPaddedRange(min: number, max: number, height: number, zeroPad: numb
   return { minValue: bottom, maxValue: top };
 }
 
-const weekdayDate = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
-const weekdayDateTime = new Intl.DateTimeFormat("en-US", {
-  weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/New_York",
-});
-const dayDate = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" });
+// Dates in the symbol's exchange time zone.
+const WEEKDAY_DATE: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", year: "numeric" };
+const WEEKDAY_DATE_TIME: Intl.DateTimeFormatOptions = {
+  weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+};
+const DAY_DATE: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
 
 type Props = {
   report: BacktestReport;
@@ -103,6 +105,8 @@ type Props = {
   /** Chart interval in seconds (Whitespaces grid step). */
   intervalSec: number;
   onShowOnChart: (timeSec: number) => void;
+  /** Charted symbol: dates show in its exchange time zone. */
+  symbol?: string;
 };
 
 type TradeCard = { point: EquityPoint; x: number; y: number };
@@ -130,6 +134,12 @@ export function EquityChart(props: Props) {
   const points = createMemo(() => equityPoints(props.report, settings().percent));
   const periods = createMemo(() => reportPeriods(props.report, equityPoints(props.report, false)));
   const cur = () => props.report.currency;
+  /** Exchange zone of the charted symbol (resolved with its bars). */
+  const zone = () => cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? null;
+  const fmtDate = (options: Intl.DateTimeFormatOptions, ms: number) => {
+    const z = zone();
+    return z ? zoneFormat("en-US", options, z).format(new Date(ms)) : "";
+  };
   const fmt = (v: number) => (settings().percent ? pct(v) : money(v));
 
   const priceFormatter = (v: number) =>
@@ -342,7 +352,7 @@ export function EquityChart(props: Props) {
       rows.push({ label: "Adverse excursion", color: EXCURSION_COLORS[2], value: fmt(c.point.excursions[2]) });
     }
     if (vis().buyHold) rows.push({ label: "Buy and hold", color: BUY_HOLD, value: fmt(c.point.buyHold) });
-    const date = t.open ? "Open" : (props.intraday ? weekdayDateTime : weekdayDate).format(new Date(t.exit.time)).replace(/(\d{4}) at /, "$1, ");
+    const date = t.open ? "Open" : fmtDate(props.intraday ? WEEKDAY_DATE_TIME : WEEKDAY_DATE, t.exit.time).replace(/(\d{4}) at /, "$1, ");
     return { title: `Trade ${c.point.tradeIndex + 1} ${t.direction}`, rows, date };
   });
 
@@ -473,7 +483,7 @@ export function EquityChart(props: Props) {
               </div>
               <div class="st-period-percent">{pct(h().period.relativeChange)}</div>
               <div class="st-equity-card-foot">
-                {dayDate.format(new Date(h().period.startTime * 1000))} {DASH} {dayDate.format(new Date(h().period.endTime * 1000))}
+                {fmtDate(DAY_DATE, h().period.startTime * 1000)} {DASH} {fmtDate(DAY_DATE, h().period.endTime * 1000)}
               </div>
             </div>
           )}

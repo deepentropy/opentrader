@@ -201,6 +201,7 @@ export function StrategyTesterPanel(props: Props) {
                         properties={props.properties(id())}
                         onPatchProperties={(patch) => props.onPatchProperties(id(), patch)}
                         onSettings={() => props.onSettings(id(), "properties")}
+                        symbol={props.symbol}
                       />
                     }
                   >
@@ -229,7 +230,7 @@ export function StrategyTesterPanel(props: Props) {
                             />
                           }
                         >
-                          <MetricsView report={report()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} />
+                          <MetricsView report={report()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} symbol={props.symbol} />
                         </Show>
                       )}
                     </Show>

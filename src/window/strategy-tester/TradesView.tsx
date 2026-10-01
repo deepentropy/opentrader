@@ -17,6 +17,7 @@ import type { BacktestReport, Trade } from "../../backtester/types";
 import { DASH, compact, count, money, percent, tone, tradeDate } from "./format";
 import { tradesCsv, tradesCsvFileName } from "./trades-csv";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
+import { cachedSymbolSessions } from "../../data/session";
 
 const ROW = 98;
 const OVERSCAN = 6;
@@ -84,11 +85,15 @@ export function TradesView(props: Props) {
   };
   const visible = createMemo(() => ordered().slice(range().first, range().last));
   const cur = () => props.report.currency;
+  /** Exchange zone of the charted symbol (resolved with its bars). */
+  const timeZone = () => cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? null;
 
   const cell = (col: OptionalCol, t: Trade, half: "exit" | "entry" | null) => {
     switch (col) {
-      case "Date and time":
-        return half === "exit" && t.open ? <span class="st-muted">Open</span> : tradeDate(half === "exit" ? t.exit.time : t.entry.time, props.intraday);
+      case "Date and time": {
+        const zone = timeZone();
+        return half === "exit" && t.open ? <span class="st-muted">Open</span> : zone ? tradeDate(half === "exit" ? t.exit.time : t.entry.time, props.intraday, zone) : "";
+      }
       case "Signal":
         return half === "exit" ? (t.open ? DASH : t.exit.signal) : t.entry.signal;
       case "Price":
@@ -132,6 +137,8 @@ export function TradesView(props: Props) {
               aria-label="Download .csv"
               onClick={() => {
                 const r = props.report;
+                const zone = timeZone();
+                if (!zone) return;
                 const csv = tradesCsv({
                   trades: r.trades,
                   currency: r.currency,
@@ -139,7 +146,7 @@ export function TradesView(props: Props) {
                   initialCapital: r.properties.initialCapital,
                   mintick: DEFAULT_SYMBOL.mintick,
                   pointValue: DEFAULT_SYMBOL.pointValue,
-                  timeZone: DEFAULT_SYMBOL.timezone,
+                  timeZone: zone,
                   interval: props.interval,
                 });
                 download(tradesCsvFileName(props.title, props.symbol), csv);
