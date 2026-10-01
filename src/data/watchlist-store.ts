@@ -19,6 +19,7 @@ import {
   type SortKey,
 } from "./watchlist";
 import * as kv from "./kv";
+import { isFullSymbol, tickerOf, toFullSymbol } from "./datafeed";
 
 export type WatchList = {
   id: string;
@@ -125,6 +126,29 @@ createRoot(() => {
       );
     } catch {
       /* best-effort */
+    }
+  });
+});
+
+// Rows holding a bare ticker (lists saved before full names, imported files)
+// get their primary listing: quotes, sessions and the chart key on the full
+// name. Runs again whenever such a row appears.
+createRoot(() => {
+  createEffect(() => {
+    const bare = new Set<string>();
+    for (const l of state.lists) {
+      for (const r of [...l.groups.flatMap((g) => g.rows), ...l.extras]) if (!isFullSymbol(r.ticker)) bare.add(r.ticker);
+    }
+    for (const b of bare) {
+      void toFullSymbol(b).then(
+        (full) => {
+          const fix = (r: Row) => (r.ticker === b ? { ...r, ticker: full, short: tickerOf(full) } : r);
+          setState("lists", (ls) =>
+            ls.map((l) => ({ ...l, groups: l.groups.map((g) => ({ ...g, rows: g.rows.map(fix) })), extras: l.extras.map(fix) })),
+          );
+        },
+        () => undefined, // lookup failed (offline): kept as typed, retried on the next start
+      );
     }
   });
 });

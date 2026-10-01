@@ -20,6 +20,7 @@ use crate::data::types::{
     WsHandle,
 };
 use crate::data::session::{Subsession, SymbolSession};
+use crate::data::symbol::SymbolRef;
 use crate::data::{gateway, massive_poll, massive_rest, massive_ws, trading_calendar};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate, Utc};
@@ -32,54 +33,54 @@ pub struct MassiveProvider;
 impl HistoryProvider for MassiveProvider {
     async fn daily_aggs(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         from: NaiveDate,
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_daily_aggs(ticker, from, to, adjusted).await
+        massive_rest::fetch_daily_aggs(&sym.ticker, from, to, adjusted).await
     }
     async fn minute_aggs(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         mult: u32,
         from: NaiveDate,
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_minute_aggs(ticker, mult, from, to, adjusted).await
+        massive_rest::fetch_minute_aggs(&sym.ticker, mult, from, to, adjusted).await
     }
     async fn second_aggs(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         mult: u32,
         from: NaiveDate,
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_second_aggs(ticker, mult, from, to, adjusted).await
+        massive_rest::fetch_second_aggs(&sym.ticker, mult, from, to, adjusted).await
     }
     async fn second_tail(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         mult: u32,
         since_sec: f64,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_second_tail(ticker, mult, since_sec, adjusted).await
+        massive_rest::fetch_second_tail(&sym.ticker, mult, since_sec, adjusted).await
     }
 }
 
 #[async_trait::async_trait]
 impl ReferenceProvider for MassiveProvider {
-    async fn ticker_info(&self, ticker: &str) -> Result<TickerInfo> {
-        massive_rest::fetch_ticker_info(ticker).await
+    async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo> {
+        massive_rest::fetch_ticker_info(&sym.ticker).await
     }
-    async fn symbol_session(&self, _exchange: &str, _ticker: &str) -> Result<SymbolSession> {
+    async fn symbol_session(&self, _sym: &SymbolRef) -> Result<SymbolSession> {
         Ok(us_equity_session())
     }
-    async fn ticker_snapshot(&self, ticker: &str) -> Result<Snapshot> {
-        massive_rest::fetch_ticker_snapshot(ticker).await
+    async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot> {
+        massive_rest::fetch_ticker_snapshot(&sym.ticker).await
     }
     async fn search(
         &self,
@@ -88,14 +89,14 @@ impl ReferenceProvider for MassiveProvider {
     ) -> Result<Vec<SymbolSearchResult>> {
         massive_rest::search_tickers(query, type_filter).await
     }
-    async fn dividends(&self, ticker: &str) -> Vec<DividendEvent> {
-        massive_rest::dividend_events(ticker).await
+    async fn dividends(&self, sym: &SymbolRef) -> Vec<DividendEvent> {
+        massive_rest::dividend_events(&sym.ticker).await
     }
-    async fn splits(&self, ticker: &str) -> Vec<SplitEvent> {
-        massive_rest::split_events(ticker).await
+    async fn splits(&self, sym: &SymbolRef) -> Vec<SplitEvent> {
+        massive_rest::split_events(&sym.ticker).await
     }
-    async fn latest_news(&self, ticker: &str, limit: u32) -> Vec<NewsItem> {
-        massive_rest::latest_news(ticker, limit).await
+    async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem> {
+        massive_rest::latest_news(&sym.ticker, limit).await
     }
     async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)> {
         massive_rest::fetch_icon(encoded).await

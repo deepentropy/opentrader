@@ -779,10 +779,10 @@ export function ChartView(props: Props) {
   );
 
   // Expose this chart's latest price + indicator values to the alert engine,
-  // keyed by bare ticker. Re-keys on symbol change; provider reads the mutable
+  // keyed by the full name ("NASDAQ:AAPL"). Re-keys on symbol change; provider reads the mutable
   // `raw`/`controller` lazily so values are always current. (chart-state-registry.ts)
   createEffect(() => {
-    const key = splitSymbol(props.symbol ?? "").ticker.toUpperCase();
+    const key = (props.symbol ?? "").toUpperCase();
     if (!key) return;
     registerChartState(key, {
       lastPrice: () => (raw.length ? raw[raw.length - 1].close : null),
@@ -1274,7 +1274,7 @@ export function ChartView(props: Props) {
         addAlert: () =>
           window.dispatchEvent(
             new CustomEvent("chart-open-alert-dialog", {
-              detail: { symbol: splitSymbol(props.symbol ?? "").ticker, price: rawPrice ?? undefined },
+              detail: { symbol: props.symbol ?? "", price: rawPrice ?? undefined },
             }),
           ),
         // Accepted no-ops: Buy / Sell / Add order / Table view need a trading
@@ -1415,7 +1415,7 @@ export function ChartView(props: Props) {
     const sym = splitSymbol(props.symbol ?? "").ticker;
     const nodes: CtxNode[] = [
       { kind: "item", id: "plus-alert", label: `Add alert on ${sym} at ${priceStr}…`, icon: CtxIcons.alert,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: sym, price: p } })) },
+        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: props.symbol ?? "", price: p } })) },
       { kind: "separator" },
       { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, icon: <Icon name="draw-horizontal-line" size={18} />,
         onSelect: () => {
@@ -1841,7 +1841,7 @@ export function ChartView(props: Props) {
     if (!series) return;
     const t = currentTokens();
     const session = marketSession();
-    const q = quoteFor(splitSymbol(props.symbol ?? "").ticker);
+    const q = quoteFor(props.symbol ?? "");
     const onChartAlready =
       isIntradayInterval(props.interval ?? "1D") && (props.session ?? "RTH") === "ETH";
     const price =
@@ -1883,7 +1883,7 @@ export function ChartView(props: Props) {
     chartReady();
     appearance();
     marketSession();
-    const q = quoteFor(splitSymbol(props.symbol ?? "").ticker);
+    const q = quoteFor(props.symbol ?? "");
     q?.last;
     q?.extChangePercent;
     props.interval;
@@ -1979,7 +1979,7 @@ export function ChartView(props: Props) {
    *  a tracking caller re-runs on enable/name/level edits, not just on list
    *  membership changes. */
   function alertLineSpecs(): { level: number; title: string; enabled: boolean }[] {
-    const key = splitSymbol(props.symbol ?? "").ticker.toUpperCase();
+    const key = (props.symbol ?? "").toUpperCase();
     const out: { level: number; title: string; enabled: boolean }[] = [];
     if (!key) return out;
     for (const r of alertStore.rules()) {
@@ -4337,6 +4337,8 @@ export function ChartView(props: Props) {
   // watermark effects below re-run only on a real change instead of clearing
   // and re-fetching the name (the legend flashing the ticker) on each scroll.
   const ticker = createMemo(() => splitSymbol(props.symbol ?? "").ticker);
+  /** Full name for reference / news lookups (the provider tells listings apart). */
+  const fullSymbol = createMemo(() => props.symbol ?? "");
   const intervalText = createMemo(() => intervalLabel(props.interval ?? "1D"));
   const [legendDesc, setLegendDesc] = createSignal("");
 
@@ -4350,7 +4352,7 @@ export function ChartView(props: Props) {
   const [newsCardOpen, setNewsCardOpen] = createSignal(false);
   const newsAvailable = createMemo(() => !isSecondResolution(props.interval ?? "1D"));
   createEffect(() => {
-    const sym = ticker();
+    const sym = fullSymbol();
     const on = appearance().latestNews ?? true;
     const available = newsAvailable();
     setNews(null);
@@ -4432,7 +4434,7 @@ export function ChartView(props: Props) {
   };
   createEffect(() => {
     const mode = appearance().legendTitleMode;
-    const sym = ticker();
+    const sym = fullSymbol();
     setLegendDesc("");
     if (!sym || (mode !== "Name" && mode !== "Symbol and name")) return;
     let alive = true;
@@ -4444,7 +4446,7 @@ export function ChartView(props: Props) {
 
   // Price-axis currency label: the symbol's currency (ticker info).
   createEffect(() => {
-    const sym = ticker();
+    const sym = fullSymbol();
     setCurrency("");
     if (!sym) return;
     let alive = true;
@@ -4458,7 +4460,7 @@ export function ChartView(props: Props) {
   const [wmDesc, setWmDesc] = createSignal("");
   createEffect(() => {
     const a = appearance();
-    const sym = ticker();
+    const sym = fullSymbol();
     setWmDesc("");
     if (!a.watermarkDescription || !sym) return;
     let alive = true;
@@ -4528,7 +4530,7 @@ export function ChartView(props: Props) {
         active={props.active}
         shown={props.shown}
         interval={props.interval}
-        symbol={splitSymbol(props.symbol ?? "").ticker}
+        symbol={props.symbol ?? ""}
         coords={coords()}
         panes={drawingPanes()}
         coordEpoch={coordEpoch()}

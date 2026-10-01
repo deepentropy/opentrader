@@ -49,6 +49,7 @@ use crate::data::gateway;
 use crate::data::massive_rest::Candle;
 use crate::data::provider::capabilities::StreamCaps;
 use crate::data::provider::entitlements;
+use crate::data::symbol::SymbolRef;
 use anyhow::{anyhow, Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -149,7 +150,9 @@ pub enum SubscribeMsg {
 
 /// Owner-keyed desired-subscription state shared by the REST poller and the
 /// WS transport: applies `SubscribeMsg`s and exposes the union views the
-/// transports consume.
+/// transports consume. Symbols are full names ("NASDAQ:AAPL"); the vendor
+/// subscribes the ticker part and events go back under every full name that
+/// subscribed that ticker.
 #[derive(Debug, Default)]
 pub struct SubscriptionState {
     /// "<window>:<pane>" → charted symbol.
@@ -205,6 +208,36 @@ impl SubscriptionState {
     pub fn is_chart_symbol(&self, sym: &str) -> bool {
         self.charts.values().any(|s| s == sym)
     }
+
+    /// Vendor tickers of the charted symbols.
+    pub fn chart_tickers(&self) -> HashSet<String> {
+        self.charts.values().map(|s| ticker_of(s)).collect()
+    }
+
+    /// Vendor tickers of the watchlist union.
+    pub fn watch_tickers(&self) -> HashSet<String> {
+        self.watch_union().iter().map(|s| ticker_of(s)).collect()
+    }
+
+    /// Vendor tickers of everything subscribed.
+    pub fn all_tickers(&self) -> HashSet<String> {
+        self.all_symbols().iter().map(|s| ticker_of(s)).collect()
+    }
+
+    /// Charted full names whose vendor ticker is `ticker`.
+    pub fn chart_symbols_for(&self, ticker: &str) -> Vec<String> {
+        self.chart_symbols().into_iter().filter(|s| ticker_of(s) == ticker).collect()
+    }
+
+    /// Subscribed full names (charts + watchlists) whose vendor ticker is `ticker`.
+    pub fn symbols_for(&self, ticker: &str) -> Vec<String> {
+        self.all_symbols().into_iter().filter(|s| ticker_of(s) == ticker).collect()
+    }
+}
+
+/// Vendor ticker of a full name ("NASDAQ:AAPL" → "AAPL").
+fn ticker_of(symbol: &str) -> String {
+    SymbolRef::parse(symbol).ticker
 }
 
 /// State managed by the connection task — exposed via app state so the
@@ -420,12 +453,12 @@ async fn run_session(
 
     // Replay desired subscription state. The frontend may have churned
     // the chart slots / watchlists while we were disconnected.
-    let charts = channels(mode.chart, &state.chart_symbols());
+    let charts = channels(mode.chart, &state.chart_tickers());
     if !charts.is_empty() {
         send_action(&mut write, "subscribe", &charts.join(",")).await?;
     }
     if let Some(prefix) = mode.watch {
-        let watch = channels(prefix, &state.watch_union());
+        let watch = channels(prefix, &state.watch_tickers());
         if !watch.is_empty() {
             send_action(&mut write, "subscribe", &watch.join(",")).await?;
         }
@@ -440,14 +473,14 @@ async fn run_session(
                 let Some(sub) = sub else { return Ok(SessionExit::ShuttingDown); };
                 // Diff the UNION views before/after applying — an owner update
                 // only touches the wire when it changes the merged sets.
-                let prev_c = state.chart_symbols();
-                let prev_w = state.watch_union();
+                let prev_c = state.chart_tickers();
+                let prev_w = state.watch_tickers();
                 state.apply(sub);
                 if mode.lazy && !has_work(mode, state) {
                     return Ok(SessionExit::Idle);
                 }
-                let next_c = state.chart_symbols();
-                let next_w = state.watch_union();
+                let next_c = state.chart_tickers();
+                let next_w = state.watch_tickers();
                 let mut drops = channels(mode.chart, &prev_c.difference(&next_c).cloned().collect());
                 let mut adds = channels(mode.chart, &next_c.difference(&prev_c).cloned().collect());
                 if let Some(p) = mode.watch {
@@ -475,7 +508,7 @@ async fn run_session(
                 let Some(frame) = frame else { return Ok(SessionExit::WsClosed); };
                 let frame = frame.context("ws read error")?;
                 if let Message::Text(txt) = frame {
-                    if handle_text(app, &txt) {
+                    if handle_text(app, state, &txt) {
                         return Ok(SessionExit::Kicked);
                     }
                 }
@@ -608,10 +641,10 @@ pub async fn probe_channels(url: &str, api_key: &str, channels: &[&str]) -> Resu
     Ok(out)
 }
 
-/// Parse one text frame and emit its events. Returns `true` when the frame
-/// says another connection on the same key closed this one
-/// (`max_connections`).
-fn handle_text(app: &AppHandle, txt: &str) -> bool {
+/// Parse one text frame and emit its events, once per subscribed full name
+/// of the event's ticker. Returns `true` when the frame says another
+/// connection on the same key closed this one (`max_connections`).
+fn handle_text(app: &AppHandle, state: &SubscriptionState, txt: &str) -> bool {
     let arr: serde_json::Value = match serde_json::from_str(txt) {
         Ok(v) => v,
         Err(_) => return false,
@@ -625,17 +658,23 @@ fn handle_text(app: &AppHandle, txt: &str) -> bool {
         match kind {
             "AM" => {
                 if let Some(agg) = parse_aggregate(ev) {
-                    let _ = agg.emit(app);
+                    for symbol in state.chart_symbols_for(&agg.symbol) {
+                        let _ = ChartAggregate { symbol, ..agg.clone() }.emit(app);
+                    }
                 }
             }
             "A" => {
                 if let Some(bar) = parse_second(ev) {
-                    let _ = bar.emit(app);
+                    for symbol in state.chart_symbols_for(&bar.symbol) {
+                        let _ = SecondAggregate { symbol, ..bar.clone() }.emit(app);
+                    }
                 }
             }
             "T" => {
                 if let Some(tick) = parse_trade(ev) {
-                    let _ = tick.emit(app);
+                    for symbol in state.symbols_for(&tick.symbol) {
+                        let _ = TradeTick { symbol, ..tick.clone() }.emit(app);
+                    }
                 }
             }
             "status" => {
@@ -764,6 +803,23 @@ mod subscription_state_tests {
         set_chart(&mut s, "chart:9", Some("DIA"));
         s.apply(SubscribeMsg::DropOwner { owner: "char".into() });
         assert!(s.is_chart_symbol("DIA"));
+    }
+
+    /// Full names subscribe their vendor ticker; events map back to every
+    /// full name of that ticker.
+    #[test]
+    fn full_names_map_to_tickers_and_back() {
+        let mut s = SubscriptionState::default();
+        set_chart(&mut s, "main:1", Some("NASDAQ:INTC"));
+        set_chart(&mut s, "main:2", Some("BOATS:INTC"));
+        set_watch(&mut s, "main", &["NYSE:IBM", "NASDAQ:INTC"]);
+        assert_eq!(s.chart_tickers(), HashSet::from(["INTC".to_string()]));
+        assert!(s.watch_tickers().contains("IBM"));
+        let mut charts = s.chart_symbols_for("INTC");
+        charts.sort();
+        assert_eq!(charts, vec!["BOATS:INTC", "NASDAQ:INTC"]);
+        assert_eq!(s.symbols_for("IBM"), vec!["NYSE:IBM"]);
+        assert!(s.chart_symbols_for("IBM").is_empty());
     }
 
     #[test]

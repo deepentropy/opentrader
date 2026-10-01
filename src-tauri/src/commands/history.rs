@@ -9,6 +9,7 @@
 use crate::data::provider::capabilities::BarFamily;
 use crate::data::provider::{entitlements, Provider};
 use crate::data::massive_rest::DayMemo;
+use crate::data::symbol::SymbolRef;
 use crate::data::trading_calendar;
 use crate::data::types::Candle;
 use chrono::{DateTime, Duration, NaiveDate, Utc};
@@ -20,7 +21,7 @@ use tokio::sync::Mutex;
 /// Process-memory cache of assembled daily series. The Tauri backend process
 /// outlives a front-end reload (Ctrl+R), so a ticker loaded once this session
 /// re-displays instantly instead of re-reading ~1254 per-day cache files from
-/// disk. Keyed by (ticker, days, adjusted); rebuilt once per UTC day so new
+/// disk. Keyed by (full symbol, days, adjusted); rebuilt once per UTC day so new
 /// closed bars and today's bar are picked up — today's still-forming bar is
 /// corrected live by the poller, so a slightly stale snapshot here is harmless.
 static DAILY_MEM: DayMemo<(String, u32, bool), Vec<Candle>> = OnceLock::new();
@@ -47,12 +48,12 @@ pub async fn get_daily_history(
     days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    let sym = symbol.to_uppercase();
+    let sym = SymbolRef::parse(&symbol);
     let to = Utc::now().date_naive();
 
     // Instant path: same (ticker, days, adjusted) already assembled today.
     let mem = DAILY_MEM.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some((as_of, series)) = mem.lock().await.get(&(sym.clone(), days, adjusted)) {
+    if let Some((as_of, series)) = mem.lock().await.get(&(sym.full(), days, adjusted)) {
         if *as_of == to {
             return Ok((**series).clone());
         }
@@ -76,7 +77,7 @@ pub async fn get_daily_history(
     }
     mem.lock()
         .await
-        .insert((sym, days, adjusted), (to, Arc::new(bars.clone())));
+        .insert((sym.full(), days, adjusted), (to, Arc::new(bars.clone())));
     Ok(bars)
 }
 
@@ -95,7 +96,7 @@ pub async fn get_minute_history(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let dates = trading_calendar::last_trading_days(days.max(1) as usize);
-    let sym = symbol.to_uppercase();
+    let sym = SymbolRef::parse(&symbol);
     let to = Utc::now().date_naive();
     let from = *dates.first().unwrap_or(&to);
     let Some((from, to)) = clamp_to_floor(BarFamily::Minute, from, to).await else {
@@ -133,7 +134,7 @@ pub async fn get_second_history(
         return Ok(Vec::new());
     };
     provider
-        .second_aggs(&symbol.to_uppercase(), mult, from, to, adjusted)
+        .second_aggs(&SymbolRef::parse(&symbol), mult, from, to, adjusted)
         .await
         .map_err(|e| e.to_string())
 }
@@ -153,7 +154,7 @@ pub async fn get_second_history_tail(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     provider
-        .second_tail(&symbol.to_uppercase(), mult, since_sec, adjusted)
+        .second_tail(&SymbolRef::parse(&symbol), mult, since_sec, adjusted)
         .await
         .map_err(|e| e.to_string())
 }
@@ -191,7 +192,7 @@ const CHUNK_CONCURRENCY: usize = 6;
 /// 50 000 minutes. Chunks are calendar-contiguous; bars come back oldest-first.
 async fn minute_aggs_chunked(
     provider: &Provider,
-    sym: &str,
+    sym: &SymbolRef,
     mult: u32,
     from: NaiveDate,
     to: NaiveDate,
@@ -238,7 +239,7 @@ pub async fn get_aggregates_before(
     span_days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    let sym = symbol.to_uppercase();
+    let sym = SymbolRef::parse(&symbol);
     let to = DateTime::from_timestamp(before_sec as i64 - 1, 0)
         .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?
         .date_naive();
@@ -278,7 +279,7 @@ pub async fn get_daily_history_before(
     span_days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    let sym = symbol.to_uppercase();
+    let sym = SymbolRef::parse(&symbol);
     let end = DateTime::from_timestamp(before_sec as i64 - 1, 0)
         .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?
         .date_naive();
@@ -356,7 +357,7 @@ mod tests {
         for sym in ["AMD", "NVDA", "TSLA"] {
             let t0 = std::time::Instant::now();
             let bars = provider
-                .daily_aggs(sym, from, to, true)
+                .daily_aggs(&SymbolRef::parse(sym), from, to, true)
                 .await
                 .unwrap_or_else(|e| panic!("{sym} daily load failed: {e}"));
             let cold_ms = t0.elapsed().as_millis();
@@ -364,7 +365,7 @@ mod tests {
             let last = bars.last().unwrap();
 
             let t1 = std::time::Instant::now();
-            let warm = provider.daily_aggs(sym, from, to, true).await.unwrap();
+            let warm = provider.daily_aggs(&SymbolRef::parse(sym), from, to, true).await.unwrap();
             let warm_ms = t1.elapsed().as_millis();
 
             eprintln!(

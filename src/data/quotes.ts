@@ -32,7 +32,7 @@ export type LiveQuote = {
   source: "live" | "prev" | null;
 };
 
-// Keyed by upper-case symbol. A solid-store so consumers get fine-grained
+// Keyed by upper-case full name ("NASDAQ:AAPL", as live events carry it). A solid-store so consumers get fine-grained
 // reactivity per field (a row only re-renders the cell whose value changed).
 const [quotes, setQuotes] = createStore<Record<string, LiveQuote>>({});
 
@@ -65,7 +65,7 @@ createRoot(() => {
   createEffect(() => {
     const a = watchlistStore.active();
     const rows = a ? [...a.groups.flatMap((g) => g.rows), ...a.extras] : [];
-    const symbols = [...new Set(rows.map((r) => r.short.toUpperCase()))];
+    const symbols = [...new Set(rows.map((r) => r.ticker.toUpperCase()))];
     setSubscription("watchlist", symbols);
   });
 

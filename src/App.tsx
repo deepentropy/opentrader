@@ -13,7 +13,6 @@ import { ChartPropertiesDialog } from "./window/header/ChartPropertiesDialog";
 import { appearanceFrom, cloneDraft, patchDraftScales, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, type ScaleMenuPatch } from "./window/header/chart-settings";
 import { activeChartProbe } from "./window/chart/active-chart";
 import { TIMEZONES, findTimezone } from "./data/timezones";
-import { SYMBOLS } from "./data/symbol-search";
 import { ChartGrid } from "./window/chart/ChartGrid";
 import { layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
 import { DrawingToolbar, type SyncMode } from "./window/drawings/DrawingToolbar";
@@ -84,7 +83,8 @@ import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strate
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { screenerPanel } from "./data/screener-store";
 import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
-import { isAdjusted, isIntradayInterval, isIntradayResolution, isSupportedResolution, type SessionId } from "./data/datafeed";
+import { isAdjusted, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
+import { migrateDrawingKey } from "./window/drawings/persistence";
 import { displayTimeZone } from "./data/session";
 import { requestDataWindow } from "./data/data-window-store";
 import { bindLayoutSync, defaultLayoutSync, rememberCrosshair, reviveLayoutSync, type LayoutSyncKey } from "./window/chart/layout-sync";
@@ -655,6 +655,41 @@ function App() {
     }
   };
   const activeDrawingKey = () => drawingKeyFor(activePaneState());
+
+  // Symbols saved as bare tickers (before panes kept "EXCHANGE:TICKER") get
+  // their primary listing once, in every tab (incl. compare lists); their
+  // drawings move to the full-name keys first so nothing is lost.
+  createEffect(() => {
+    const bare = new Set<string>();
+    for (const t of tabs()) {
+      for (const p of t.panes) {
+        if (p.symbol && !isFullSymbol(p.symbol)) bare.add(p.symbol);
+        for (const c of p.compare ?? []) if (!isFullSymbol(c)) bare.add(c);
+      }
+    }
+    if (bare.size === 0) return;
+    void Promise.allSettled([...bare].map(async (b) => [b, await toFullSymbol(b)] as const)).then((rs) => {
+      const full = new Map(rs.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])));
+      if (full.size === 0) return;
+      const fix = (s: string) => full.get(s) ?? s;
+      for (const t of tabs()) {
+        for (const p of t.panes) {
+          const to = full.get(p.symbol);
+          if (!to) continue;
+          migrateDrawingKey(p.symbol, to);
+          migrateDrawingKey(`l:${t.id}:${p.symbol}`, `l:${t.id}:${to}`);
+          migrateDrawingKey(`p:${p.id}:${p.symbol}`, `p:${p.id}:${to}`);
+        }
+      }
+      setTabs(
+        tabs().map((t) =>
+          t.panes.some((p) => full.has(p.symbol) || p.compare?.some((c) => full.has(c)))
+            ? { ...t, panes: t.panes.map((p) => ({ ...p, symbol: fix(p.symbol), compare: p.compare?.map(fix) })) }
+            : t,
+        ),
+      );
+    });
+  });
   const initialKey = activeDrawingKey();
   const [drawingStore, setDrawingStore] = createStore<Record<string, Drawing[]>>({
     [initialKey]: loadDrawings(initialKey),
@@ -1090,10 +1125,12 @@ function App() {
     setActiveDrawings(display.reverse(), { label: `reorder ${labelForKind(d.kind)}` });
   }
 
-  /** Full "EXCHANGE:TICKER" form derived from the active ticker, so the
-   *  symbol dialog can match the active row by symbolName. */
-  const activeFullSymbol = () =>
-    SYMBOLS.find((s) => s.ticker === symbol())?.symbolName;
+  /** The focused pane's full name "EXCHANGE:TICKER" (the pane symbol itself
+   *  once saved bare tickers are migrated, see the effect below). */
+  const activeFullSymbol = (): string | undefined => {
+    const s = symbol();
+    return s && isFullSymbol(s) ? s : undefined;
+  };
 
   /** Add/remove an indicator (by registry id). Also the studies-legend trash. */
   function toggleIndicator(id: string) {
@@ -1145,27 +1182,27 @@ function App() {
   // search; picking a symbol TOGGLES it in the focused pane's compare list
   // (re-picking an already-compared symbol removes its overlay).
   const [compareMode, setCompareMode] = createSignal(false);
-  function toggleCompareSymbol(ticker: string) {
+  function toggleCompareSymbol(symbol: string) {
     const cur = activePaneState().compare ?? [];
-    const next = cur.includes(ticker) ? cur.filter((t) => t !== ticker) : [...cur, ticker];
+    const next = cur.includes(symbol) ? cur.filter((t) => t !== symbol) : [...cur, symbol];
     patchActivePane({ compare: next });
   }
 
-  function onSymbolPicked(symbolName: string) {
-    const ticker = symbolName.includes(":")
-      ? symbolName.split(":").pop()!
-      : symbolName;
-    if (compareMode()) {
+  /** A picked symbol: the full name "EXCHANGE:TICKER" from the search dialog,
+   *  the watchlist and the static catalog; a bare ticker (screener rows) gets
+   *  its primary listing first. */
+  function onSymbolPicked(picked: string) {
+    const compare = compareMode();
+    if (compare) {
       // Add (or, if already compared, remove) the symbol's overlay on the
       // focused pane. The dialog closes after the pick (its commit closes it),
       // so it's one symbol per "Compare symbols" press — re-open to add more.
-      toggleCompareSymbol(ticker);
       setCompareMode(false);
-      setSymbolDialogOpen(false);
-      return;
     }
-    setSymbol(ticker);
     setSymbolDialogOpen(false);
+    const apply = (full: string) => (compare ? toggleCompareSymbol(full) : setSymbol(full));
+    if (isFullSymbol(picked)) apply(picked.toUpperCase());
+    else void toFullSymbol(picked).then(apply, (e) => console.warn(`[symbol] ${picked}: ${e}`));
   }
 
   // ── Tab operations ─────────────────────────────────────────────────────
@@ -1738,7 +1775,7 @@ function App() {
           const full = symbol();
           if (full) {
             watchlistStore.addSymbols(
-              [{ ticker: full, short: full.split(":").pop() || full, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }],
+              [{ ticker: full, short: tickerOf(full), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }],
               null,
             );
           }
@@ -1984,7 +2021,7 @@ function App() {
         }}
       >
       <HeaderToolbar
-        symbol={symbol()}
+        symbol={tickerOf(symbol())}
         interval={interval()}
         chartType={chartType()}
         layout={layout()}

@@ -4,6 +4,7 @@
  * an empty list rather than an error.
  */
 use crate::data::provider::Provider;
+use crate::data::symbol::SymbolRef;
 use crate::data::types::{DividendEvent, NewsItem, SplitEvent};
 use tauri::State;
 
@@ -13,7 +14,7 @@ pub async fn get_dividends(
     provider: State<'_, Provider>,
     symbol: String,
 ) -> Result<Vec<DividendEvent>, String> {
-    Ok(provider.dividends(&symbol.to_uppercase()).await)
+    Ok(provider.dividends(&SymbolRef::parse(&symbol)).await)
 }
 
 #[tauri::command]
@@ -22,7 +23,7 @@ pub async fn get_splits(
     provider: State<'_, Provider>,
     symbol: String,
 ) -> Result<Vec<SplitEvent>, String> {
-    Ok(provider.splits(&symbol.to_uppercase()).await)
+    Ok(provider.splits(&SymbolRef::parse(&symbol)).await)
 }
 
 /// Newest headlines for `symbol` (Events → Latest news lollipop).
@@ -33,5 +34,5 @@ pub async fn get_latest_news(
     symbol: String,
     limit: u32,
 ) -> Result<Vec<NewsItem>, String> {
-    Ok(provider.latest_news(&symbol.to_uppercase(), limit.clamp(1, 50)).await)
+    Ok(provider.latest_news(&SymbolRef::parse(&symbol), limit.clamp(1, 50)).await)
 }

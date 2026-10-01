@@ -13,6 +13,7 @@
  * the store's Fire records stay untouched.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { tickerOf } from "../../data/symbol-name";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { SegmentedControl } from "../../components/SegmentedControl";
@@ -246,7 +247,7 @@ export function AlertsPanel() {
                   </label>
                   <div class="alerts-panel-rule-main">
                     <div class="alerts-panel-rule-title">
-                      <span class="alerts-panel-rule-symbol">{r.symbol}</span>
+                      <span class="alerts-panel-rule-symbol">{tickerOf(r.symbol)}</span>
                       <Show when={r.name}>
                         <span class="alerts-panel-rule-name">{r.name}</span>
                       </Show>
@@ -314,7 +315,7 @@ export function AlertsPanel() {
                     >
                       <img src={e.logoUrl!} alt="" class="ot-ticker-logo ot-ticker-logo--sm alerts-panel-log-logo" crossorigin="anonymous" referrerpolicy="no-referrer" />
                     </Show>
-                    <span class="alerts-panel-log-ticker">{`${e.symbol}, ${e.resolution}`}</span>
+                    <span class="alerts-panel-log-ticker">{`${tickerOf(e.symbol)}, ${e.resolution}`}</span>
                     <span class="alerts-panel-log-time">{clockTime(e.fireTime)}</span>
                   </div>
                 </div>

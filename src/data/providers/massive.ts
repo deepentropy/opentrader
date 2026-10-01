@@ -36,6 +36,7 @@ const EXCHANGE_NAMES: Record<string, string> = {
   IEXG: "IEX",
   OTC: "OTC",
   OTCM: "OTC",
+  OTCLINK: "OTC",
 };
 
 /** Map a primary-exchange MIC code to its display name, falling back to the
@@ -43,6 +44,26 @@ const EXCHANGE_NAMES: Record<string, string> = {
 export function exchangeName(code: string | null | undefined): string {
   if (!code) return "";
   return EXCHANGE_NAMES[code.toUpperCase()] ?? code;
+}
+
+/** MIC → exchange prefix of the symbol's full name: the listing exchange as
+ *  the reference app names it (listed_exchange / pro_name, resolved
+ *  01/10/2026): NYSE Arca listings are "AMEX" (AMEX:SPY, AMEX:IWM), like NYSE
+ *  American; Cboe BZX listings are "CBOE" (CBOE:AAAU, CBOE:AAPE); OTC
+ *  listings "OTC" (OTC:TCEHY). */
+const EXCHANGE_CODES: Record<string, string> = {
+  XNAS: "NASDAQ", XNGS: "NASDAQ", XNCM: "NASDAQ", XNMS: "NASDAQ",
+  XNYS: "NYSE", ARCX: "AMEX", XASE: "AMEX", AMEX: "AMEX",
+  BATS: "CBOE", BATY: "CBOE", EDGX: "CBOE", EDGA: "CBOE",
+  IEXG: "IEX", OTC: "OTC", OTCM: "OTC", OTCLINK: "OTC", XOTC: "OTC", PSGM: "OTC", PINX: "OTC",
+};
+
+/** Exchange prefix of a symbol's full name for a primary-exchange MIC (the
+ *  default exchange when unknown). */
+export function exchangeCode(code: string | null | undefined): string {
+  if (!code) return defaultExchange;
+  const c = code.toUpperCase();
+  return EXCHANGE_CODES[c] ?? c.replace(/\s+/g, "");
 }
 
 // ── Symbol search ────────────────────────────────────────────────────────────
@@ -73,7 +94,7 @@ const SEARCH_EXCHANGE_NAMES: Record<string, string> = {
   XNAS: "NASDAQ", XNGS: "NASDAQ", XNCM: "NASDAQ", XNMS: "NASDAQ",
   XNYS: "NYSE", ARCX: "NYSE ARCA", XASE: "NYSE AMERICAN",
   BATS: "CBOE BZX", BATY: "CBOE BYX", EDGX: "CBOE EDGX", EDGA: "CBOE EDGA",
-  IEXG: "IEX", OTCM: "OTC", XOTC: "OTC", PSGM: "OTC", PINX: "OTC",
+  IEXG: "IEX", OTCM: "OTC", OTCLINK: "OTC", XOTC: "OTC", PSGM: "OTC", PINX: "OTC",
 };
 
 /** Massive security type code → the short marketType label shown on the chip. */
@@ -104,12 +125,14 @@ const TYPE_CATEGORY: Partial<Record<string, SymbolCategoryId>> = {
  *  half of symbol search; ../symbol-search applies the generic ranking. */
 export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
   const ex = (r.primaryExchange && SEARCH_EXCHANGE_NAMES[r.primaryExchange]) || r.primaryExchange || "";
+  // The row shows the descriptive name; the symbol's identity uses the code.
+  const code = r.primaryExchange ? exchangeCode(r.primaryExchange) : "";
   const market = r.market ?? "stocks";
   const marketType =
     (r.type && TYPE_LABELS[r.type]) ||
     (market === "crypto" ? "crypto" : market === "fx" ? "forex" : market === "indices" ? "index" : "stock");
   return {
-    symbolName: ex ? `${ex}:${r.ticker}` : r.ticker,
+    symbolName: code ? `${code}:${r.ticker}` : r.ticker,
     ticker: r.ticker,
     description: r.name ?? "",
     marketType,
@@ -132,6 +155,7 @@ export const massive: FrontendProvider = {
   name: "massive",
   defaultExchange,
   exchangeName,
+  exchangeCode,
   searchResultToRow,
   typeFilters,
 };

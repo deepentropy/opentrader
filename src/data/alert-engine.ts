@@ -17,7 +17,7 @@
  *    resolution (no exchange session calendar).
  */
 import { createRoot, createEffect } from "solid-js";
-import { onTradeTick, getBars, isSupportedResolution, type TradeTick } from "./datafeed";
+import { onTradeTick, getBars, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
 import { setSubscription } from "./subscriptions";
 import { alertStore, type AlertRule } from "./alert-store";
 import { alertSettings } from "./alert-settings";
@@ -177,8 +177,8 @@ function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
   const condText = describeCondition(rule);
   const message = rule.message?.trim()
     ? rule.message
-    : `${rule.symbol} ${condText} (last ${ctx.price})`;
-  const title = rule.name?.trim() ? rule.name : `Alert · ${rule.symbol}`;
+    : `${tickerOf(rule.symbol)} ${condText} (last ${ctx.price})`;
+  const title = rule.name?.trim() ? rule.name : `Alert · ${tickerOf(rule.symbol)}`;
 
   alertStore.recordFire({
     alertId: rule.id,

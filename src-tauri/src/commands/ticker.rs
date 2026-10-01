@@ -5,6 +5,7 @@
  */
 use crate::data::provider::Provider;
 use crate::data::session::SymbolSession;
+use crate::data::symbol::SymbolRef;
 use crate::data::types::{Snapshot, SymbolSearchResult, TickerInfo};
 use tauri::State;
 
@@ -15,7 +16,7 @@ pub async fn get_ticker_info(
     symbol: String,
 ) -> Result<TickerInfo, String> {
     provider
-        .ticker_info(&symbol.to_uppercase())
+        .ticker_info(&SymbolRef::parse(&symbol))
         .await
         .map_err(|e| e.to_string())
 }
@@ -27,11 +28,10 @@ pub async fn get_ticker_info(
 #[specta::specta]
 pub async fn get_symbol_session(
     provider: State<'_, Provider>,
-    exchange: String,
-    ticker: String,
+    symbol: String,
 ) -> Result<SymbolSession, String> {
     provider
-        .symbol_session(&exchange.to_uppercase(), &ticker.to_uppercase())
+        .symbol_session(&SymbolRef::parse(&symbol))
         .await
         .map_err(|e| e.to_string())
 }
@@ -43,7 +43,7 @@ pub async fn get_ticker_snapshot(
     symbol: String,
 ) -> Result<Snapshot, String> {
     provider
-        .ticker_snapshot(&symbol.to_uppercase())
+        .ticker_snapshot(&SymbolRef::parse(&symbol))
         .await
         .map_err(|e| e.to_string())
 }

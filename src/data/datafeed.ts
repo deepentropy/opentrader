@@ -32,8 +32,8 @@ import {
   type ChartAggregate,
   type SecondAggregate,
 } from "./datafeed-live";
-import { exchangeName } from "./providers";
-import { splitSymbol } from "./symbol-name";
+import { exchangeCode, exchangeName } from "./providers";
+import { isFullSymbol, splitSymbol } from "./symbol-name";
 import { providerCapabilities, providerServes } from "./providers/capabilities";
 import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec } from "./session";
 import { aggregateCandles, bucketStart, type AggregateUnit } from "../window/chart/chart-aggregate";
@@ -166,7 +166,7 @@ export function aggregateUnitFor(resolution: string): AggregateUnit | null {
 
 // ── Symbol helpers ──────────────────────────────────────────────────────────
 
-export { splitSymbol } from "./symbol-name";
+export { splitSymbol, tickerOf, isFullSymbol } from "./symbol-name";
 
 // Exchange-code naming is the one vendor-specific presentation transform; it
 // lives in the active provider adapter (./providers) and is re-exported here so
@@ -207,18 +207,36 @@ export type SymbolInfo = {
 
 /** Resolve a symbol (bare ticker or "EXCHANGE:TICKER") to its display metadata
  *  via the backend reference lookup. The normalized place to turn a user's
- *  symbol into exchange/description/currency. */
+ *  symbol into exchange/description/currency. A full name keeps its exchange;
+ *  a bare ticker gets its primary listing. */
 export async function resolveSymbol(symbol: string): Promise<SymbolInfo> {
-  const { exchange, ticker } = splitSymbol(symbol);
-  const info = await getTickerInfo(ticker);
-  const ex = exchangeName(info.exchange) || exchange;
+  const { ticker } = splitSymbol(symbol);
+  const info = await getTickerInfo(symbol);
+  const code = isFullSymbol(symbol) ? splitSymbol(symbol).exchange.toUpperCase() : exchangeCode(info.exchange);
   return {
-    exchange: ex,
+    exchange: exchangeName(info.exchange) || code,
     ticker,
-    fullName: `${ex}:${ticker}`,
+    fullName: `${code}:${ticker.toUpperCase()}`,
     description: info.name ?? "",
     currency: info.currency,
   };
+}
+
+const fullNames = new Map<string, Promise<string>>();
+
+/** Full name ("NASDAQ:AAPL") of a symbol: as is when it has an exchange,
+ *  else its primary listing from the provider's reference data (one lookup
+ *  per ticker per run). Rejects when the lookup fails. */
+export function toFullSymbol(symbol: string): Promise<string> {
+  const s = symbol.trim().toUpperCase();
+  if (isFullSymbol(s)) return Promise.resolve(s);
+  let p = fullNames.get(s);
+  if (!p) {
+    p = resolveSymbol(s).then((r) => r.fullName);
+    p.catch(() => fullNames.delete(s));
+    fullNames.set(s, p);
+  }
+  return p;
 }
 
 /** Symbol typeahead via the backend symbol search. `type` is an optional

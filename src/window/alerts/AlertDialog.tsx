@@ -25,6 +25,7 @@ import {
   priceableDrawings,
 } from "../../data/alert-condition";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
+import { isFullSymbol, toFullSymbol } from "../../data/datafeed";
 import { SOUND_OPTIONS, playAlertSound } from "../../data/alert-sounds";
 import {
   alertWebhook,
@@ -36,7 +37,7 @@ import {
 type Props = {
   /** When set, edit this existing rule instead of creating one. */
   editId?: string;
-  /** Prefill symbol (bare ticker) for new rules. */
+  /** Prefill symbol (full name "EXCHANGE:TICKER") for new rules. */
   symbol?: string;
   /** Prefill the right-hand value (e.g. the clicked chart price). */
   price?: number;
@@ -232,8 +233,9 @@ export function AlertDialog(props: Props) {
       expiresAt = e?.ms != null ? Date.now() + e.ms : null;
     }
 
+    const typed = symbol().trim().toUpperCase();
     const rule = {
-      symbol: symbol().trim().toUpperCase(),
+      symbol: typed,
       resolution: existing?.resolution ?? props.interval,
       left: buildLeft(),
       op: op(),
@@ -248,17 +250,25 @@ export function AlertDialog(props: Props) {
 
     if (popup()) ensureNotificationPermission();
 
-    let id: string;
-    if (existing) {
-      alertStore.update(existing.id, { ...rule, enabled: true });
-      // The condition may have changed — drop the stale crossing baseline so the
-      // next tick re-establishes it instead of manufacturing a spurious cross.
-      resetRuleEvalState(existing.id);
-      id = existing.id;
-    } else {
-      id = alertStore.add(rule);
-    }
-    setAlertWebhook(id, webhookOn() ? webhookUrl() : null);
+    const webhook = webhookOn() ? webhookUrl() : null;
+    const commit = (sym: string) => {
+      const r = { ...rule, symbol: sym };
+      let id: string;
+      if (existing) {
+        alertStore.update(existing.id, { ...r, enabled: true });
+        // The condition may have changed — drop the stale crossing baseline so the
+        // next tick re-establishes it instead of manufacturing a spurious cross.
+        resetRuleEvalState(existing.id);
+        id = existing.id;
+      } else {
+        id = alertStore.add(r);
+      }
+      setAlertWebhook(id, webhook);
+    };
+    // A typed bare ticker gets its primary listing (rules are keyed by the
+    // full name); if the lookup fails it is kept and migrated on a later start.
+    if (isFullSymbol(typed)) commit(typed);
+    else void toFullSymbol(typed).then(commit, () => commit(typed));
     props.onClose();
   }
 

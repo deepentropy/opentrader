@@ -4,5 +4,6 @@ pub mod massive_rest;
 pub mod massive_ws;
 pub mod provider;
 pub mod session;
+pub mod symbol;
 pub mod trading_calendar;
 pub mod types;

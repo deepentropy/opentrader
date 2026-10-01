@@ -100,7 +100,7 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
   if (done) return Promise.resolve(done);
   let p = pending.get(key);
   if (!p) {
-    p = commands.getSymbolSession(exchange, ticker).then((r) => {
+    p = commands.getSymbolSession(`${exchange}:${ticker}`).then((r) => {
       if (r.status === "error") throw new Error(r.error);
       const s = new SymbolSessions(r.data);
       resolved.set(key, s);

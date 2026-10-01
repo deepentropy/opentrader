@@ -57,6 +57,16 @@ export function resumeDrawingPersist(): void {
   deferred.clear();
 }
 
+/** Move the drawings saved under `from` to `to` (a bare-ticker key to its
+ *  full-name key) unless `to` already has some. */
+export function migrateDrawingKey(from: string, to: string): void {
+  if (from === to) return;
+  const raw = kv.getItem(PREFIX + from);
+  if (!raw) return;
+  if (!kv.getItem(PREFIX + to)) kv.setItem(PREFIX + to, raw);
+  kv.removeItem(PREFIX + from);
+}
+
 export function saveDrawings(symbol: string, drawings: Drawing[]): void {
   if (!symbol) return;
   if (persistSuspended) {

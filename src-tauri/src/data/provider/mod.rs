@@ -22,6 +22,7 @@ pub use massive::MassiveProvider;
 
 use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
 use crate::data::session::SymbolSession;
+use crate::data::symbol::SymbolRef;
 use crate::data::types::{
     Candle, DividendEvent, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
@@ -31,7 +32,8 @@ use chrono::NaiveDate;
 use std::sync::Arc;
 use tauri::AppHandle;
 
-/// Historical OHLCV bars. Callers pass an inclusive `[from, to]` calendar range
+/// Historical OHLCV bars of a symbol (`SymbolRef`: exchange + provider
+/// ticker). Callers pass an inclusive `[from, to]` calendar range
 /// (the command layer derives it from the trading calendar / scroll anchor).
 /// `adjusted` selects split-adjusted (true — the default UI state) vs raw
 /// prices; it is part of every history fetch so a toggled series never mixes
@@ -40,14 +42,14 @@ use tauri::AppHandle;
 pub trait HistoryProvider: Send + Sync {
     async fn daily_aggs(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         from: NaiveDate,
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>>;
     async fn minute_aggs(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         mult: u32,
         from: NaiveDate,
         to: NaiveDate,
@@ -55,7 +57,7 @@ pub trait HistoryProvider: Send + Sync {
     ) -> Result<Vec<Candle>>;
     async fn second_aggs(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         mult: u32,
         from: NaiveDate,
         to: NaiveDate,
@@ -65,7 +67,7 @@ pub trait HistoryProvider: Send + Sync {
     /// seconds chart's refresh loop, which must not refetch whole sessions.
     async fn second_tail(
         &self,
-        ticker: &str,
+        sym: &SymbolRef,
         mult: u32,
         since_sec: f64,
         adjusted: bool,
@@ -75,14 +77,12 @@ pub trait HistoryProvider: Send + Sync {
 /// Symbol reference data, snapshots, corporate-action events, and branding icon.
 #[async_trait::async_trait]
 pub trait ReferenceProvider: Send + Sync {
-    async fn ticker_info(&self, ticker: &str) -> Result<TickerInfo>;
+    async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo>;
     /// Trading sessions of a symbol (time zone, regular / extended hours,
-    /// holidays). `exchange` is the symbol's exchange prefix ("NASDAQ" in
-    /// "NASDAQ:AAPL"; the provider's default exchange for a bare ticker), for
-    /// providers that serve several markets. Called before the first bars of
-    /// a symbol, so it should answer fast (no I/O when the provider can).
-    async fn symbol_session(&self, exchange: &str, ticker: &str) -> Result<SymbolSession>;
-    async fn ticker_snapshot(&self, ticker: &str) -> Result<Snapshot>;
+    /// holidays). Called before the first bars of a symbol, so it should
+    /// answer fast (no I/O when the provider can).
+    async fn symbol_session(&self, sym: &SymbolRef) -> Result<SymbolSession>;
+    async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot>;
     async fn search(
         &self,
         query: &str,
@@ -90,11 +90,11 @@ pub trait ReferenceProvider: Send + Sync {
     ) -> Result<Vec<SymbolSearchResult>>;
     /// Dividend / split markers are decorative, so these return `Vec` (a failing
     /// endpoint contributes nothing) rather than `Result`.
-    async fn dividends(&self, ticker: &str) -> Vec<DividendEvent>;
-    async fn splits(&self, ticker: &str) -> Vec<SplitEvent>;
+    async fn dividends(&self, sym: &SymbolRef) -> Vec<DividendEvent>;
+    async fn splits(&self, sym: &SymbolRef) -> Vec<SplitEvent>;
     /// Newest headlines for the "Latest news" lollipop (newest first); empty on
     /// failure, like the event markers.
-    async fn latest_news(&self, ticker: &str, limit: u32) -> Vec<NewsItem>;
+    async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem>;
     /// Fetch a branding icon by its encoded proxy path → `(bytes, content_type)`.
     async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)>;
 }

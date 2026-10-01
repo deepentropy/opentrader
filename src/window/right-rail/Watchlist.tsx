@@ -280,7 +280,7 @@ createRoot(() => {
     if (threshold == null) return;
     const rows = [...list.groups.flatMap((g) => g.rows), ...list.extras];
     for (const r of rows) {
-      const cp = liveQuoteFor(r.short)?.changePercent ?? null;
+      const cp = liveQuoteFor(r.ticker)?.changePercent ?? null;
       if (cp == null || Math.abs(cp) < threshold) continue;
       const key = `${list.id}:${r.short.toUpperCase()}`;
       if (firedAlerts.has(key)) continue;
@@ -463,13 +463,13 @@ export function Watchlist(props: Props) {
   // Quotes live in the process-singleton store (data/quotes.ts), which owns the
   // subscription and the trade-tick feed for the app's lifetime. The panel just
   // reads them, so closing/reopening keeps prices and never refetches.
-  const quoteFor = (short: string): LiveQuote | undefined => liveQuoteFor(short);
+  const quoteFor = (symbol: string): LiveQuote | undefined => liveQuoteFor(symbol);
 
   // (List-alert evaluation runs in the module-level singleton above — it must
   // keep firing while this panel is unmounted.)
 
-  function lastForRow(row: { short: string; last: string }): string {
-    const q = quoteFor(row.short);
+  function lastForRow(row: { ticker: string; last: string }): string {
+    const q = quoteFor(row.ticker);
     if (q?.last != null) return formatLast(q.last);
     return row.last;
   }
@@ -480,25 +480,25 @@ export function Watchlist(props: Props) {
   // only when needed: tile view, or table view with the "Name" radio selected.
   const [names, setNames] = createSignal<Record<string, string>>({});
   const needNames = () => !settings().tableView || settings().symbolDisplay === "description";
-  const nameFor = (r: Row) => names()[r.short] || "";
+  const nameFor = (r: Row) => names()[r.ticker] || "";
   createEffect(() => {
     if (!needNames()) return; // tracks settings + the active list's rows
     const rows = allRows();
     const cached = untrack(names);
-    const pending = rows.filter((r) => cached[r.short] === undefined);
+    const pending = rows.filter((r) => cached[r.ticker] === undefined);
     if (pending.length === 0) return;
     let cancelled = false;
     Promise.all(
       pending.map((r) =>
-        getTickerInfo(r.short)
-          .then((info) => ({ short: r.short, name: info?.name ?? "" }))
-          .catch(() => ({ short: r.short, name: "" })),
+        getTickerInfo(r.ticker)
+          .then((info) => ({ symbol: r.ticker, name: info?.name ?? "" }))
+          .catch(() => ({ symbol: r.ticker, name: "" })),
       ),
     ).then((results) => {
       if (cancelled) return;
       setNames((prev) => {
         const next = { ...prev };
-        for (const { short, name } of results) next[short] = name;
+        for (const { symbol, name } of results) next[symbol] = name;
         return next;
       });
     });
@@ -517,7 +517,7 @@ export function Watchlist(props: Props) {
    *  market is fully closed (overnight / weekend). Prefers the live ext move,
    *  falling back to the stored static value. */
   function extForRow(r: Row): { text: string; tint?: "up" | "down" } {
-    const q = quoteFor(r.short);
+    const q = quoteFor(r.ticker);
     const text = marketState(r.ticker) !== "extended"
       ? ""
       : q?.extChangePercent != null
@@ -537,7 +537,7 @@ export function Watchlist(props: Props) {
   /** Map a column key to its display value + tint for a row, preferring the live
    *  quote and falling back to the stored static value. */
   function cellFor(r: Row, key: WlColumnKey): { text: string; tint?: "up" | "down" } {
-    const q = quoteFor(r.short);
+    const q = quoteFor(r.ticker);
     switch (key) {
       case "last": return { text: lastForRow(r) };
       case "change": {
@@ -562,7 +562,7 @@ export function Watchlist(props: Props) {
   // ── Sorting (tile-view "Sort by") ── prefer the live quote, fall back to the
   // stored display value; missing values sort to the end either direction.
   const sortNumber = (r: Row, field: Exclude<SortField, "symbol" | "flag">): number => {
-    const q = quoteFor(r.short);
+    const q = quoteFor(r.ticker);
     switch (field) {
       case "change": return q?.changePercent ?? numFromStr(r.changePercent);
       case "chg": return q?.change ?? numFromStr(r.change);
@@ -653,9 +653,11 @@ export function Watchlist(props: Props) {
   createEffect(() => {
     const full = props.activeSymbol;
     const bare = props.activeTicker;
-    const match = allRows().find(
-      (r) => r.ticker === full || r.short === full || (!!bare && r.short === bare),
-    );
+    // The row of the charted listing; a row still holding a bare ticker
+    // matches by ticker.
+    const match =
+      allRows().find((r) => r.ticker === full) ??
+      allRows().find((r) => !r.ticker.includes(":") && !!bare && r.ticker === bare);
     setSelectedTicker(match ? match.ticker : null);
   });
   const isSelected = (r: Row) => selectedTicker() === r.ticker;

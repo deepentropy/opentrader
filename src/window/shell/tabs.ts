@@ -164,7 +164,7 @@ export const DEFAULT_INDICATORS: string[] = ["colored-volume"];
 export function makeTab(partial: MakeTabPartial = {}): TabChart {
   const { layout = DEFAULT_LAYOUT, isChart = true, ...pane } = partial;
   const base: Omit<PaneChart, "id"> = {
-    symbol: pane.symbol ?? "INTC",
+    symbol: pane.symbol ?? "NASDAQ:INTC",
     interval: pane.interval ?? "1D",
     chartType: pane.chartType ?? DEFAULT_CHART_TYPE,
     session: pane.session ?? "RTH",
@@ -197,7 +197,7 @@ export function migrateTab(raw: any): TabChart {
   if (Array.isArray(raw?.panes) && raw.panes.length > 0) {
     panes = raw.panes.map((p: Partial<PaneChart>) => ({
       id: typeof p.id === "string" ? p.id : newPaneId(),
-      symbol: p.symbol ?? "INTC",
+      symbol: p.symbol ?? "NASDAQ:INTC",
       interval: p.interval ?? "1D",
       chartType: p.chartType ?? DEFAULT_CHART_TYPE,
       session: p.session ?? "RTH",
@@ -216,7 +216,7 @@ export function migrateTab(raw: any): TabChart {
   } else {
     const base: PaneChart = {
       id: newPaneId(),
-      symbol: raw?.symbol ?? "INTC",
+      symbol: raw?.symbol ?? "NASDAQ:INTC",
       interval: raw?.interval ?? "1D",
       chartType: raw?.chartType ?? DEFAULT_CHART_TYPE,
       session: raw?.session ?? "RTH",
@@ -246,9 +246,11 @@ export function migrateTab(raw: any): TabChart {
   return { id, isChart, ...reconciled, sync, link, pinned, savedLayoutId, savedLayoutName };
 }
 
-/** Full "EXCHANGE:TICKER" for a bare ticker, falling back to the ticker. */
-export function fullSymbolFor(ticker: string): string {
-  return SYMBOLS.find((s) => s.ticker === ticker)?.symbolName ?? ticker;
+/** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:
+ *  the static catalog's listing, else the ticker). */
+export function fullSymbolFor(symbol: string): string {
+  if (symbol.includes(":")) return symbol;
+  return SYMBOLS.find((s) => s.ticker === symbol)?.symbolName ?? symbol;
 }
 
 /** Tab strip title — "EXCHANGE:TICKER, INTERVAL" of the tab's active pane
@@ -327,9 +329,9 @@ export function loadTabs(label: string, seed?: TabChart | null): Persisted {
   const tabs =
     label === "main"
       ? [
-          makeTab({ symbol: "INTC", interval: "1D" }),
-          makeTab({ symbol: "AAPL", interval: "60" }),
-          makeTab({ symbol: "TSLA", interval: "240" }),
+          makeTab({ symbol: "NASDAQ:INTC", interval: "1D" }),
+          makeTab({ symbol: "NASDAQ:AAPL", interval: "60" }),
+          makeTab({ symbol: "NASDAQ:TSLA", interval: "240" }),
         ]
       : [makeTab()];
   return { tabs, activeId: tabs[0].id };

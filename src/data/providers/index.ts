@@ -26,6 +26,10 @@ export interface FrontendProvider {
   defaultExchange: string;
   /** Normalize a primary-exchange code to a display name. */
   exchangeName(code: string | null | undefined): string;
+  /** Exchange prefix of a symbol's full name ("NASDAQ" in "NASDAQ:AAPL") for
+   *  a primary-exchange code: one token, no spaces, one spelling per listing
+   *  (it is the symbol's identity in charts, watchlists, drawings, alerts). */
+  exchangeCode(code: string | null | undefined): string;
   /** Map one raw `search_tickers` result into a dialog row. */
   searchResultToRow(r: SymbolSearchResult): SymbolRow;
   /** "All types" dropdown options for the symbol-search filter chip. */
@@ -48,6 +52,7 @@ export function activeProvider(): FrontendProvider {
 // backend's choice once syncProvider() completes. Functions stay functions;
 // the two value hooks are exposed as accessors for the same reason.
 export const exchangeName = (code: string | null | undefined): string => active.exchangeName(code);
+export const exchangeCode = (code: string | null | undefined): string => active.exchangeCode(code);
 export const searchResultToRow = (r: SymbolSearchResult): SymbolRow => active.searchResultToRow(r);
 export const defaultExchange = (): string => active.defaultExchange;
 export const typeFilters = (): TypeFilter[] => active.typeFilters;

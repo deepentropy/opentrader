@@ -71,12 +71,13 @@ async fn run_poller(app: AppHandle, mut rx: mpsc::Receiver<SubscribeMsg>) {
 }
 
 async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
-    // Union of everything we care about — one bulk request covers it all.
-    let symbols = state.all_symbols();
-    if symbols.is_empty() {
+    // Union of everything we care about — one bulk request covers it all
+    // (vendor tickers; events go back under each subscribed full name).
+    let tickers = state.all_tickers();
+    if tickers.is_empty() {
         return;
     }
-    let symbols: Vec<String> = symbols.into_iter().collect();
+    let symbols: Vec<String> = tickers.into_iter().collect();
 
     let ticks = match massive_rest::fetch_snapshots(&symbols).await {
         Ok(t) => t,
@@ -91,20 +92,22 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
         // last + change / Chg% / Vol, plus the pre/post Ext move and session
         // source so the UI can blank Ext during regular hours.
         if t.last > 0.0 {
-            let _ = TradeTick {
-                symbol: t.ticker.clone(),
-                price: t.last,
-                change: Some(t.change),
-                change_percent: Some(t.change_percent),
-                ext_change_percent: t.ext_change_percent,
-                volume: Some(t.volume),
-                source: Some(t.source.clone()),
+            for symbol in state.symbols_for(&t.ticker) {
+                let _ = TradeTick {
+                    symbol,
+                    price: t.last,
+                    change: Some(t.change),
+                    change_percent: Some(t.change_percent),
+                    ext_change_percent: t.ext_change_percent,
+                    volume: Some(t.volume),
+                    source: Some(t.source.clone()),
+                }
+                .emit(app);
             }
-            .emit(app);
         }
-        // Chart minute bar — for every symbol some pane currently charts
-        // (any window; the frontend filters aggregates by symbol).
-        if state.is_chart_symbol(t.ticker.as_str()) {
+        // Chart minute bar — for every full name some pane currently charts
+        // with this ticker (any window; the frontend filters by symbol).
+        for symbol in state.chart_symbols_for(&t.ticker) {
             // Prefer the minute bar; when the snapshot has no minute bar but
             // DOES have a day bar (illiquid minute edge case), still emit so
             // daily-family charts keep updating. The fallback stamps `time: 0`
@@ -114,7 +117,7 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
             let base = t.minute.clone().or_else(|| t.day.clone());
             if let Some(bar) = base {
                 let _ = ChartAggregate {
-                    symbol: t.ticker.clone(),
+                    symbol,
                     time: if day_only { 0.0 } else { bar.time },
                     open: bar.open,
                     high: bar.high,
@@ -123,7 +126,7 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
                     volume: bar.volume,
                     // Today's full daily bar rides along so daily/weekly/
                     // monthly charts update exactly (see bucketLiveTick).
-                    day: t.day,
+                    day: t.day.clone(),
                 }
                 .emit(app);
             }

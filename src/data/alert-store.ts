@@ -15,6 +15,8 @@
  */
 import { createRoot, createEffect } from "solid-js";
 import { createStore, produce } from "solid-js/store";
+import { isFullSymbol, toFullSymbol } from "./datafeed";
+import { migrateDrawingKey } from "../window/drawings/persistence";
 import * as kv from "./kv";
 
 /** A side of the condition. Price = the symbol's last/close; value = a fixed
@@ -47,7 +49,8 @@ export type AlertFrequency =
 
 export type AlertRule = {
   id: string;
-  /** Bare ticker, uppercased (e.g. "AAPL"). */
+  /** Full name, uppercased ("NASDAQ:AAPL"); rules saved before full names
+   *  hold a bare ticker until migrated (see below). */
   symbol: string;
   /** Interval label the rule was created on, for once-per-bar semantics and
    *  display (e.g. "1D", "5m"). */
@@ -140,6 +143,22 @@ function load(): StoreShape {
 }
 
 const [state, setState] = createStore<StoreShape>(load());
+
+// Rules saved with a bare ticker get their primary listing once (the live
+// events and the chart state are keyed by the full name); the drawings an
+// operand points at move with them.
+void (async () => {
+  const bare = [...new Set(state.rules.map((r) => r.symbol).filter((s) => !isFullSymbol(s)))];
+  for (const b of bare) {
+    try {
+      const full = await toFullSymbol(b);
+      migrateDrawingKey(b, full);
+      setState("rules", (r) => r.symbol === b, "symbol", full);
+    } catch {
+      /* lookup failed (offline): retried on the next start */
+    }
+  }
+})();
 
 // Autosave: root-scoped effects mirror rules + fires to storage on change.
 createRoot(() => {

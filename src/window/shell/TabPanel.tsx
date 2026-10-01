@@ -24,6 +24,7 @@ import { TabContextMenu, type TabMenuAnchor } from "./TabContextMenu";
 import { linkColorHex, type LinkChannel, type LinkColor } from "./tab-linking";
 import { groupChannels } from "../../data/link-groups";
 import { activePaneOf, clampMoveIndex, layoutNameFromInterval, tabTitle, tickerInitial, type TabChart } from "./tabs";
+import { tickerOf } from "../../data/symbol-name";
 import { DEFAULT_TAB_TITLE_PARTS, type TabTitlePartState } from "./tab-title";
 
 const PRICE_PARTS = new Set(["priceChangeIcon", "lastPrice", "priceChange"]);
@@ -264,9 +265,9 @@ export function TabPanel(props: Props) {
                         // Logo / ticker / layout-name derive from the tab.
                         switch (part.id) {
                           case "symbolLogo":
-                            return <span class="empty-logo"><span class="empty-logo-symbol">{tickerInitial(activePaneOf(tab).symbol)}</span></span>;
+                            return <span class="empty-logo"><span class="empty-logo-symbol">{tickerInitial(tickerOf(activePaneOf(tab).symbol))}</span></span>;
                           case "ticker":
-                            return <span class="tab-part tab-part-ticker">{activePaneOf(tab).symbol}</span>;
+                            return <span class="tab-part tab-part-ticker">{tickerOf(activePaneOf(tab).symbol)}</span>;
                           case "priceChangeIcon":
                             return (
                               <Show when={quote()}>
