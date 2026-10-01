@@ -665,6 +665,9 @@ export function ChartView(props: Props) {
    *  enough and the chart could park on year-old bars). */
   let fetchGen = 0;
   let activeType: ChartTypeId = props.chartType ?? "candle";
+  // Type the current `series` was built with (rebuildSeries compares it with
+  // the new type to choose how the view carries over).
+  let builtType: ChartTypeId | null = null;
   // 1-minute sub-bars feeding the volume-footprint cells (fetched on demand
   // when that type is active on an intraday frame; null otherwise).
   let subMinute: OHLC[] | null = null;
@@ -1625,12 +1628,22 @@ export function ChartView(props: Props) {
     // the library throws on a detached series' price scale.
     const old = series;
     series = null;
+    // The library deletes a pane left empty while other panes exist: with a
+    // study pane open, removing the main series would delete pane 0, and the
+    // new series would land in the study pane (wrong height, study moved to
+    // a new pane). Keep the main pane alive across the swap.
+    const mainPane = old ? old.getPane() : null;
+    const preserved = mainPane?.preserveEmptyPane() ?? false;
+    mainPane?.setPreserveEmptyPane(true);
     if (old) chart.removeSeries(old);
     // The old series took its baseline waterline with it.
     baselineWaterline = null;
     baselineLevelPrice = null;
     const tokens = currentTokens();
     series = createSeriesForType(chart, activeType, tokens);
+    mainPane?.setPreserveEmptyPane(preserved);
+    const prevType = builtType;
+    builtType = activeType;
     setDataForType(series, activeType, raw, tokens, dataExtras());
     afterSeriesData();
     // Symbol → Precision: override the price format when the user picked one
@@ -1699,10 +1712,12 @@ export function ChartView(props: Props) {
     if (!crosshairActive) refreshLegend();
     // Renko / line break / kagi / P&F / range emit a DIFFERENT number of
     // items than the source bars (synthetic times ending at the last bar), so
-    // the source view's logical range no longer maps — show the newest items
-    // instead of restoring it. The other types keep one bar per source bar,
-    // so their view is preserved.
-    if (isTransformType(activeType)) {
+    // a logical range taken on either side of such a switch no longer maps:
+    // leaving one, the saved range still counts its synthetic times and
+    // points past the last bar. Show the newest items instead of restoring
+    // it. The other types keep one bar per source bar, so their view is
+    // preserved.
+    if (isTransformType(activeType) || (prevType !== null && isTransformType(prevType))) {
       // Frame the newest items at the current bar spacing, right margin kept
       // (set directly: scrollToRealTime animates and loses to later updates).
       const ts = chart.timeScale();
@@ -3722,17 +3737,25 @@ export function ChartView(props: Props) {
     // Restore the user's last anchored view for this pane (persisted across tab
     // switches + reloads) when it still references loaded bars; otherwise fall
     // back to default framing. Read untracked so this effect re-runs only on new
-    // data, not on every scroll that updates the saved range. A range whose
-    // window has slid entirely past the loaded bars (e.g. a shorter-history
-    // symbol) is treated as out of bounds.
+    // data, not on every scroll that updates the saved range. A range that
+    // shows fewer than MIN_VISIBLE_BARS of the loaded bars (e.g. a
+    // shorter-history symbol, or a view saved past the last bar) is treated
+    // as out of bounds.
     const saved = untrack(() => props.visibleLogicalRange);
     // A saved view narrower than MIN_VISIBLE_BARS is the 1-bar collapse the old
     // sync path could persist, not a user choice: frame by default instead.
-    const savedInBounds =
-      !!saved &&
-      saved.to - saved.from >= MIN_VISIBLE_BARS &&
-      saved.to > 0 &&
-      saved.from < raw.length;
+    let savedInBounds = !!saved && saved.to - saved.from >= MIN_VISIBLE_BARS;
+    if (savedInBounds) {
+      // Overlap, in time-scale indices, between the saved range and the
+      // series. Transform types have their own items (data() copies, so only
+      // there).
+      const ts = chart.timeScale();
+      const items: readonly { time: Time }[] = isTransformType(activeType) ? series.data() : raw;
+      const first = items.length ? ts.timeToIndex(items[0].time, true) : null;
+      const last = items.length ? ts.timeToIndex(items[items.length - 1].time, true) : null;
+      const shown = first != null && last != null ? Math.min(saved!.to, last) - Math.max(saved!.from, first) + 1 : 0;
+      savedInBounds = shown >= MIN_VISIBLE_BARS;
+    }
     // Describes the framing applied, for the [apply] perf log below.
     let framed: string;
     if (pendingRangeSpan) {

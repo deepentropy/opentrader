@@ -263,6 +263,27 @@ export class IndicatorLayer {
     draw = true,
     styles: IndicatorStyleOverrides = {},
   ): void {
+    // The library deletes a pane left empty while other panes exist: the
+    // clear() below would delete this study's pane and the redraw would open
+    // a new one at the default height, losing the user's pane size. Keep the
+    // pane alive across the redraw.
+    const pane = this.paneIndex > 0 ? this.chart.panes()[this.paneIndex] : undefined;
+    const preserved = pane?.preserveEmptyPane() ?? false;
+    pane?.setPreserveEmptyPane(true);
+    try {
+      this.redraw(entry, bars, inputs, draw, styles);
+    } finally {
+      pane?.setPreserveEmptyPane(preserved);
+    }
+  }
+
+  private redraw(
+    entry: IndicatorRegistryEntry,
+    bars: Bar[],
+    inputs: Record<string, unknown>,
+    draw: boolean,
+    styles: IndicatorStyleOverrides,
+  ): void {
     this.clear();
     this.entry = entry;
     this.lastInputs = inputs;
