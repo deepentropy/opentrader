@@ -904,7 +904,7 @@ function App() {
       order.push(entry.id);
       patchTab(tabId, { panes: tabOf(tabId)!.panes.map((p, i) => (i === paneIndex ? { ...p, paneOrder: order } : p)) });
     }
-    recordRecentSymbol(symbol);
+    recordRecentSymbol("compare", symbol);
     changeCompare(tabId, paneIndex, [...cur, entry], `insert ${tickerOf(symbol)}`);
   }
   /** Pane controls moved a pane: persist the stacking order. */
@@ -938,7 +938,7 @@ function App() {
   }
   /** Recent symbols of the Compare dialog, with their descriptions. */
   function compareRecent() {
-    const list = recentSymbols();
+    const list = recentSymbols("compare");
     for (const s of list) {
       if (s in compareNames()) continue;
       setCompareNames((m) => ({ ...m, [s]: "" }));
@@ -1290,9 +1290,13 @@ function App() {
     setCompareTarget(null);
     setSymbolDialogOpen(false);
     const apply = (full: string) => {
-      recordRecentSymbol(full);
-      if (target) patchCompare(target.tabId, target.paneIndex, target.id, { symbol: full });
-      else setSymbol(full);
+      if (target) {
+        recordRecentSymbol("compare", full);
+        patchCompare(target.tabId, target.paneIndex, target.id, { symbol: full });
+      } else {
+        recordRecentSymbol("search", full);
+        setSymbol(full);
+      }
     };
     if (isFullSymbol(picked)) apply(picked.toUpperCase());
     else void toFullSymbol(picked).then(apply, (e) => console.warn(`[symbol] ${picked}: ${e}`));

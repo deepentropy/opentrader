@@ -7,7 +7,7 @@
  * the All-tab filter-chip strip, the active-symbol blue corner marker,
  * and recent-symbol pinning (handled in `filterSymbols`).
  */
-import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, type JSX, onCleanup, onMount, Show, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
 import {
   CATEGORIES,
@@ -19,7 +19,8 @@ import {
   type SymbolRow,
   type SymbolCategoryId,
 } from "../../data/symbol-search";
-import { searchSymbols } from "../../data/datafeed";
+import { getTickerInfo, searchSymbols } from "../../data/datafeed";
+import { recentSymbols } from "../../data/recent-symbols";
 import type { SymbolSearchResult } from "../../bindings";
 import * as kv from "../../data/kv";
 import { Tooltip } from "../../components/Tooltip";
@@ -202,12 +203,36 @@ export function SymbolSearchDialog(props: Props) {
   // without a refetch. With an explicit type filter, Massive already constrains
   // the results, so the tab/category client filter is skipped (an ETF type would
   // otherwise be dropped by the Stocks tab, since ETF→funds category).
+  // Empty query, All tab (symbol search only): the symbols picked before
+  // come first, then the usual list (duplicates kept, as in the reference).
+  const [historyNames, setHistoryNames] = createSignal<Record<string, string>>({});
+  const historyRows = createMemo<FilteredRow[]>(() => {
+    if (props.watchlist || props.compare) return [];
+    return recentSymbols("search").map((sym) => {
+      const cat = SYMBOLS.find((x) => x.symbolName === sym);
+      if (cat) return { ...cat, titleHighlight: null, descriptionHighlight: null };
+      const colon = sym.indexOf(":");
+      const ticker = colon >= 0 ? sym.slice(colon + 1) : sym;
+      const exchange = colon >= 0 ? sym.slice(0, colon) : "";
+      return { symbolName: sym, ticker, description: historyNames()[sym] ?? "", marketType: "", exchange, category: "all" as SymbolCategoryId, titleHighlight: null, descriptionHighlight: null };
+    });
+  });
+  createEffect(() => {
+    for (const r of historyRows()) {
+      if (r.description || r.symbolName in untrack(historyNames)) continue;
+      setHistoryNames((m) => ({ ...m, [r.symbolName]: "" }));
+      getTickerInfo(r.symbolName).then((info) => setHistoryNames((m) => ({ ...m, [r.symbolName]: info?.name ?? "" }))).catch(() => {});
+    }
+  });
   const rows = createMemo<FilteredRow[]>(() => {
     const q = searchText().trim();
     const cat = category();
     const type = typeCode();
     const raw = liveRaw();
-    if (!HAS_TAURI || q.length < 1 || raw == null) return filterSymbols(cat, q);
+    if (!HAS_TAURI || q.length < 1 || raw == null) {
+      const base = filterSymbols(cat, q);
+      return q.length < 1 && cat === "all" ? [...historyRows(), ...base] : base;
+    }
     return liveResultsToRows(raw, type ? "all" : cat, q);
   });
 
