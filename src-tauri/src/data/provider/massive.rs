@@ -120,28 +120,34 @@ impl RealtimeProvider for MassiveProvider {
     }
 }
 
-/// Session of the US equities Massive serves (the app reads the stocks
-/// market only): 09:30-16:00 New York, extended 04:00-20:00, NYSE/NASDAQ
-/// holidays from the computed calendar. Early closes are not modelled (the
-/// calendar has no rule for them). Built once: the holiday list runs from the
-/// calendar floor to next year.
+/// Session of the US equities this provider serves (the app reads the
+/// stocks market only): 09:30-16:00 New York, extended 04:00-20:00, NYSE/NASDAQ
+/// holidays and early closes from the computed calendar (early-close days:
+/// regular 09:30-13:00, post-market 13:00-17:00, extended 04:00-17:00, as the
+/// reference app's corrections). Built once: the lists run from the calendar
+/// floor to next year.
 fn us_equity_session() -> SymbolSession {
     static SESSION: OnceLock<SymbolSession> = OnceLock::new();
     SESSION
-        .get_or_init(|| SymbolSession {
-            timezone: "America/New_York".into(),
-            session: "0930-1600".into(),
-            subsessions: vec![
-                Subsession::new("regular", "Regular Trading Hours", "0930-1600"),
-                Subsession::new("extended", "Extended Trading Hours", "0400-2000"),
-                Subsession::new("premarket", "Premarket", "0400-0930"),
-                Subsession::new("postmarket", "Postmarket", "1600-2000"),
-            ],
-            holidays: trading_calendar::holidays_spec(
-                trading_calendar::floor_year(),
-                Utc::now().year() + 1,
-            ),
-            corrections: String::new(),
+        .get_or_init(|| {
+            let (from, to) = (trading_calendar::floor_year(), Utc::now().year() + 1);
+            let early = trading_calendar::early_closes_spec(from, to);
+            let corrected = |id: &str, name: &str, session: &str, short_day: &str| Subsession {
+                corrections: format!("{short_day}:{early}"),
+                ..Subsession::new(id, name, session)
+            };
+            SymbolSession {
+                timezone: "America/New_York".into(),
+                session: "0930-1600".into(),
+                subsessions: vec![
+                    corrected("regular", "Regular Trading Hours", "0930-1600", "0930-1300"),
+                    corrected("extended", "Extended Trading Hours", "0400-2000", "0400-1700"),
+                    Subsession::new("premarket", "Premarket", "0400-0930"),
+                    corrected("postmarket", "Postmarket", "1600-2000", "1300-1700"),
+                ],
+                holidays: trading_calendar::holidays_spec(from, to),
+                corrections: format!("0930-1300:{early}"),
+            }
         })
         .clone()
 }
@@ -271,9 +277,32 @@ mod tests {
         let ours: Vec<&str> = s
             .holidays
             .split(',')
-            .filter(|d| *d >= "20250101" && *d < "20270101")
+            // 09/01/2025 is a "dayoff" correction in the reference, not a holiday.
+            .filter(|d| *d >= "20250101" && *d < "20270101" && *d != "20250109")
             .collect();
         assert_eq!(ours.join(","), reference);
+        // 09/01/2025 (a one-off day off in the reference corrections) is closed.
+        assert!(s.holidays.contains("20250109"));
+    }
+
+    /// Early closes match the reference app's US correction list for 2019 and
+    /// 2021-2026 (its list has no 2020 entries; 2027 differs, see
+    /// trading_calendar). Hours as its corrections.
+    #[test]
+    fn us_equity_early_closes_match_reference() {
+        let s = us_equity_session();
+        let reference = "20190703,20191129,20191224,20211126,20221125,20230703,20231124,20240703,\
+                         20241129,20241224,20250703,20251128,20251224,20261127,20261224";
+        let dates = s.corrections.trim_start_matches("0930-1300:");
+        let ours: Vec<&str> = dates
+            .split(',')
+            .filter(|d| (*d >= "20190101" && *d < "20200101") || (*d >= "20210101" && *d < "20270101"))
+            .collect();
+        assert_eq!(ours.join(","), reference);
+        let sub = |id: &str| s.subsessions.iter().find(|x| x.id == id).unwrap().corrections.clone();
+        assert!(sub("regular").starts_with("0930-1300:"));
+        assert!(sub("postmarket").starts_with("1300-1700:"));
+        assert!(sub("extended").starts_with("0400-1700:"));
     }
 
     /// Live entitlement probe through the gateway (token compiled in by

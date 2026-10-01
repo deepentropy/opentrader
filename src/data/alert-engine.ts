@@ -13,11 +13,15 @@
  *    the chart's configured inputs); uncharted symbols fall back to a 60s
  *    getBars poll computed with the study's DEFAULT inputs.
  *  • Crossing is sampled between polls (~15s cadence), not tick-exact.
- *  • once_per_bar_close closes bars on wall-clock buckets of the rule's
- *    resolution (no exchange session calendar).
+ *  • once_per_bar(_close) buckets follow the symbol's own session (intraday:
+ *    anchored at each extended-session interval, as the rule stores no
+ *    RTH/ETH choice; daily+: the trading day / week / month in the exchange
+ *    zone). Ticks wait until the symbol's session is known.
  */
 import { createRoot, createEffect } from "solid-js";
 import { onTradeTick, getBars, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
+import { cachedSymbolSessions, localToUtc } from "./session";
+import { bucketStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
 import { alertStore, type AlertRule } from "./alert-store";
 import { alertSettings } from "./alert-settings";
@@ -111,10 +115,32 @@ function resolutionMs(res: string): number {
   }
 }
 
-/** Which bar bucket a timestamp falls into, for once-per-bar throttling. */
-function barBucket(res: string, timeMs: number): number {
-  const ms = resolutionMs(res);
-  return Math.floor(timeMs / ms) * ms;
+/** Which bar bucket (its open time, UNIX ms) a timestamp falls into, for
+ *  once-per-bar throttling, in the symbol's own session: intraday bars
+ *  anchored at the start of the extended-session interval; daily / weekly /
+ *  monthly bars by trading day in the exchange zone. Once a session ends, the
+ *  time belongs to the next session's first bar, so the last bar closes at the
+ *  session end (not at the next tick of the next session). Null until the
+ *  symbol's session is known. */
+function barBucket(symbol: string, res: string, timeMs: number): number | null {
+  const sessions = cachedSymbolSessions(symbol);
+  if (!sessions) return null;
+  const sec = timeMs / 1000;
+  const unit = /^\d+\s*([a-zA-Z]?)$/.exec(res.trim())?.[1] ?? "";
+  if (unit === "D" || unit === "d" || unit === "W" || unit === "w" || unit === "M") {
+    const iv = sessions.regular.currentOrNext(sec);
+    if (!iv) return null;
+    const day = localToUtc(sessions.timeZone, iv.day, 0);
+    const key = unit === "W" || unit === "w" ? bucketStart(day, "week", sessions.timeZone)
+      : unit === "M" ? bucketStart(day, "month", sessions.timeZone)
+      : day;
+    return key * 1000;
+  }
+  const iv = sessions.extended.currentOrNext(sec);
+  if (!iv) return null;
+  const step = resolutionMs(res) / 1000;
+  const t = Math.max(sec, iv.start);
+  return (iv.start + Math.floor((t - iv.start) / step) * step) * 1000;
 }
 
 /** True when the rule's condition is satisfied for the current sample. Updates
@@ -164,8 +190,8 @@ function frequencyAllows(rule: AlertRule, barRefMs: number): boolean {
     // once_per_bar_close never reaches here (onTick fires it from its own
     // bar-close branch); kept so the switch stays exhaustive.
     case "once_per_bar_close": {
-      const bucket = barBucket(rule.resolution, barRefMs);
-      if (lastFiredBucket.get(rule.id) === bucket) return false;
+      const bucket = barBucket(rule.symbol, rule.resolution, barRefMs);
+      if (bucket === null || lastFiredBucket.get(rule.id) === bucket) return false;
       lastFiredBucket.set(rule.id, bucket);
       return true;
     }
@@ -187,7 +213,7 @@ function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
     name: rule.name?.trim() ? rule.name : null,
     message,
     fireTime: now,
-    barTime: barBucket(rule.resolution, barRefMs),
+    barTime: barBucket(rule.symbol, rule.resolution, barRefMs) ?? barRefMs,
     soundFile: rule.sound,
     logoUrl: null,
   });
@@ -279,7 +305,8 @@ function onTick(t: TradeTick): void {
     // lands past the bar's end the buffered bar has closed — evaluate on ITS
     // final values (close-to-close crossings) and fire at most once per bar.
     if (rule.frequency === "once_per_bar_close") {
-      const bucket = barBucket(rule.resolution, now);
+      const bucket = barBucket(rule.symbol, rule.resolution, now);
+      if (bucket === null) continue; // session not known yet
       const st = barCloseState.get(rule.id);
       barCloseState.set(rule.id, { bucket, ctx });
       if (!st || st.bucket === bucket) continue; // still forming — wait for the close

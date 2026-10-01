@@ -11,10 +11,15 @@
  * (except New Year's — a Dec 31 close would land in the prior year, so NYSE
  * skips the makeup, e.g. 2022) and Sunday holidays the following Monday.
  *
- * One-off full closes (e.g. presidential funerals) are not modelled: a missed
- * close is harmless — that date's fetch simply returns no bars and the empty
- * sentinel takes over — so the calendar is an optimization, not a correctness
- * requirement.
+ * One-off full closes are listed in `ONE_OFF_CLOSES` (only those with
+ * evidence); a missed one is harmless here — that date's fetch simply returns
+ * no bars and the empty sentinel takes over.
+ *
+ * Early closes (13:00 New York) follow the NYSE rules: the day after
+ * Thanksgiving, and July 3 / December 24 when they fall Monday to Thursday.
+ * Checked against the reference app's US correction list (01/10/2026): same
+ * dates for 2019 and 2021-2026 (its list has no 2020 entries, and adds
+ * 23/12/2027, which no rule here produces).
  */
 use chrono::{Datelike, Duration, NaiveDate, Utc, Weekday};
 use std::collections::HashSet;
@@ -71,6 +76,10 @@ fn observed(date: NaiveDate, skip_saturday: bool) -> Option<NaiveDate> {
     }
 }
 
+/// One-off full closes: 09/01/2025, national day of mourning (in the
+/// reference app's US corrections as a day off, 01/10/2026).
+const ONE_OFF_CLOSES: &[(i32, u32, u32)] = &[(2025, 1, 9)];
+
 /// NYSE/NASDAQ full-close dates for one year, weekend-observance applied.
 fn holidays_for_year(year: i32) -> Vec<NaiveDate> {
     let fixed = |m: u32, d: u32| NaiveDate::from_ymd_opt(year, m, d).expect("valid fixed date");
@@ -95,9 +104,43 @@ fn holidays_for_year(year: i32) -> Vec<NaiveDate> {
     out
 }
 
-/// Holiday set covering `[from_year, to_year]` (inclusive).
+/// Holiday set covering `[from_year, to_year]` (inclusive), one-off closes
+/// included.
 fn holidays_for_years(from_year: i32, to_year: i32) -> HashSet<NaiveDate> {
-    (from_year..=to_year).flat_map(holidays_for_year).collect()
+    let mut out: HashSet<NaiveDate> = (from_year..=to_year).flat_map(holidays_for_year).collect();
+    for &(y, m, d) in ONE_OFF_CLOSES {
+        if (from_year..=to_year).contains(&y) {
+            out.extend(NaiveDate::from_ymd_opt(y, m, d));
+        }
+    }
+    out
+}
+
+/// Early-close (13:00 New York) days of one year: the day after
+/// Thanksgiving, and July 3 / December 24 on Monday to Thursday when not a
+/// holiday.
+fn early_closes_for_year(year: i32, holidays: &HashSet<NaiveDate>) -> Vec<NaiveDate> {
+    let mut out = vec![nth_weekday(year, 11, Weekday::Thu, 4) + Duration::days(1)];
+    for (m, d) in [(7, 3), (12, 24)] {
+        let date = NaiveDate::from_ymd_opt(year, m, d).expect("valid fixed date");
+        let mon_to_thu = date.weekday().num_days_from_monday() <= 3;
+        if mon_to_thu && !holidays.contains(&date) {
+            out.push(date);
+        }
+    }
+    out.sort();
+    out
+}
+
+/// Early-close days of `[from_year, to_year]` as a session date list
+/// ("YYYYMMDD,…", ascending).
+pub fn early_closes_spec(from_year: i32, to_year: i32) -> String {
+    let holidays = holidays_for_years(from_year, to_year);
+    (from_year..=to_year)
+        .flat_map(|y| early_closes_for_year(y, &holidays))
+        .map(|d| d.format("%Y%m%d").to_string())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// Loop-safety bound of the backward walk, below any plan's history floor
@@ -169,14 +212,6 @@ pub fn trading_days_in_range(from: NaiveDate, to: NaiveDate) -> Vec<NaiveDate> {
         cursor += Duration::days(1);
     }
     out
-}
-
-/// Returns the last `n` US-equities trading days, ending no later than
-/// yesterday (today's bar isn't published until ~11 AM ET the next day).
-/// Result is sorted ascending (oldest first → most recent last).
-pub fn last_trading_days(n: usize) -> Vec<NaiveDate> {
-    // Start from yesterday — daily aggs aren't published for today.
-    trading_days_before(Utc::now().date_naive() - Duration::days(1), n)
 }
 
 /// New York calendar date of UNIX seconds `sec` (US DST rule in force since
@@ -264,6 +299,8 @@ mod tests {
             (2027, 1, 1), (2027, 1, 18), (2027, 2, 15), (2027, 3, 26),
             (2027, 5, 31), (2027, 6, 18), (2027, 7, 5), (2027, 9, 6),
             (2027, 11, 25), (2027, 12, 24),
+            // One-off close (ONE_OFF_CLOSES).
+            (2025, 1, 9),
         ];
         let want: HashSet<NaiveDate> = expected
             .iter()
@@ -314,7 +351,7 @@ mod tests {
 
     #[test]
     fn returns_n_days() {
-        let v = last_trading_days(10);
+        let v = trading_days_before(NaiveDate::from_ymd_opt(2026, 9, 30).unwrap(), 10);
         assert_eq!(v.len(), 10);
         // Ascending: first < last.
         assert!(v[0] < v[v.len() - 1]);

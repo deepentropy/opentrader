@@ -3,6 +3,8 @@
  * is fetched through the injected `DataProvider` (the provider-agnostic seam);
  * the generic parts — trading-calendar date math, the daily memo, and the
  * scroll-back `before_sec` → range conversion — stay here, independent of vendor.
+ * Windows are counted in the symbol's own trading calendar and exchange dates
+ * (`SessionCalendar`, from the provider's symbol session).
  * For the Massive provider a cold load is a single HTTP request and warm loads
  * read its per-session disk cache.
  */
@@ -10,9 +12,9 @@ use crate::data::provider::capabilities::BarFamily;
 use crate::data::provider::{entitlements, Provider};
 use crate::data::massive_rest::DayMemo;
 use crate::data::symbol::SymbolRef;
-use crate::data::trading_calendar;
+use crate::data::calendar::SessionCalendar;
 use crate::data::types::Candle;
-use chrono::{DateTime, Duration, NaiveDate, Utc};
+use chrono::{Duration, NaiveDate};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tauri::State;
@@ -25,6 +27,12 @@ use tokio::sync::Mutex;
 /// closed bars and today's bar are picked up — today's still-forming bar is
 /// corrected live by the poller, so a slightly stale snapshot here is harmless.
 static DAILY_MEM: DayMemo<(String, u32, bool), Vec<Candle>> = OnceLock::new();
+
+/// The symbol's trading calendar (its session: weekdays, holidays, zone).
+async fn calendar_of(provider: &Provider, sym: &SymbolRef) -> Result<SessionCalendar, String> {
+    let session = provider.symbol_session(sym).await.map_err(|e| e.to_string())?;
+    Ok(SessionCalendar::new(&session))
+}
 
 /// Clamp `[from, to]` to the key's oldest available bar for `family` (probed
 /// entitlement). `None` when the whole window is older than that floor, so
@@ -49,7 +57,8 @@ pub async fn get_daily_history(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
-    let to = Utc::now().date_naive();
+    let cal = calendar_of(&provider, &sym).await?;
+    let to = cal.window_end();
 
     // Instant path: same (ticker, days, adjusted) already assembled today.
     let mem = DAILY_MEM.get_or_init(|| Mutex::new(HashMap::new()));
@@ -59,7 +68,7 @@ pub async fn get_daily_history(
         }
     }
 
-    let dates = trading_calendar::last_trading_days(days.max(1) as usize);
+    let dates = cal.last_trading_days(days.max(1) as usize);
     let from = *dates.first().unwrap_or(&to);
     let Some((from, to)) = clamp_to_floor(BarFamily::Day, from, to).await else {
         return Err(format!("no daily data for {sym} in last {days} days"));
@@ -95,9 +104,10 @@ pub async fn get_minute_history(
     interval_min: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    let dates = trading_calendar::last_trading_days(days.max(1) as usize);
     let sym = SymbolRef::parse(&symbol);
-    let to = Utc::now().date_naive();
+    let cal = calendar_of(&provider, &sym).await?;
+    let dates = cal.last_trading_days(days.max(1) as usize);
+    let to = cal.window_end();
     let from = *dates.first().unwrap_or(&to);
     let Some((from, to)) = clamp_to_floor(BarFamily::Minute, from, to).await else {
         return Err(format!("no minute data for {sym} in last {days} days"));
@@ -126,7 +136,8 @@ pub async fn get_second_history(
     days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    let to = Utc::now().date_naive();
+    let sym = SymbolRef::parse(&symbol);
+    let to = calendar_of(&provider, &sym).await?.window_end();
     // Pad the lookback by a day so a `days = 1` request still spans the
     // most recent full session even before today's bars exist.
     let from = to - Duration::days((days.max(1) as i64) + 1);
@@ -134,7 +145,7 @@ pub async fn get_second_history(
         return Ok(Vec::new());
     };
     provider
-        .second_aggs(&SymbolRef::parse(&symbol), mult, from, to, adjusted)
+        .second_aggs(&sym, mult, from, to, adjusted)
         .await
         .map_err(|e| e.to_string())
 }
@@ -171,9 +182,9 @@ pub async fn get_second_history_tail(
 /// weekend, so it comes back empty and the renderer latches "history exhausted".
 /// Walking the trading calendar guarantees at least one prior session is in the
 /// window. `+1` because `trading_days_before` includes `to` itself.
-fn aggregates_before_window(to: NaiveDate, span_days: u32) -> (NaiveDate, NaiveDate) {
+fn aggregates_before_window(cal: &SessionCalendar, to: NaiveDate, span_days: u32) -> (NaiveDate, NaiveDate) {
     let span = span_days.max(1) as usize;
-    let from = *trading_calendar::trading_days_before(to, span + 1)
+    let from = *cal.trading_days_before(to, span + 1)
         .first()
         .unwrap_or(&to);
     (from, to)
@@ -192,6 +203,7 @@ const CHUNK_CONCURRENCY: usize = 6;
 /// 50 000 minutes. Chunks are calendar-contiguous; bars come back oldest-first.
 async fn minute_aggs_chunked(
     provider: &Provider,
+    cal: &SessionCalendar,
     sym: &SymbolRef,
     mult: u32,
     from: NaiveDate,
@@ -199,7 +211,7 @@ async fn minute_aggs_chunked(
     adjusted: bool,
 ) -> anyhow::Result<Vec<Candle>> {
     use futures_util::stream::{self, StreamExt, TryStreamExt};
-    let days = trading_calendar::trading_days_in_range(from, to);
+    let days = cal.trading_days_in_range(from, to);
     if days.len() <= MINUTE_CHUNK_DAYS {
         return provider.minute_aggs(sym, mult, from, to, adjusted).await;
     }
@@ -240,10 +252,12 @@ pub async fn get_aggregates_before(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
-    let to = DateTime::from_timestamp(before_sec as i64 - 1, 0)
-        .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?
-        .date_naive();
-    let (from, to) = aggregates_before_window(to, span_days);
+    let cal = calendar_of(&provider, &sym).await?;
+    // The exchange date of the oldest loaded bar.
+    let to = cal
+        .date_of(before_sec as i64 - 1)
+        .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?;
+    let (from, to) = aggregates_before_window(&cal, to, span_days);
     let family = match timespan.as_str() {
         "second" => BarFamily::Second,
         _ => BarFamily::Minute,
@@ -255,7 +269,7 @@ pub async fn get_aggregates_before(
 
     let bars = match timespan.as_str() {
         "second" => provider.second_aggs(&sym, mult, from, to, adjusted).await,
-        "minute" => minute_aggs_chunked(&provider, &sym, mult, from, to, adjusted).await,
+        "minute" => minute_aggs_chunked(&provider, &cal, &sym, mult, from, to, adjusted).await,
         other => return Err(format!("unsupported timespan for aggregates-before: {other}")),
     }
     .map_err(|e| e.to_string())?;
@@ -280,10 +294,11 @@ pub async fn get_daily_history_before(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
-    let end = DateTime::from_timestamp(before_sec as i64 - 1, 0)
-        .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?
-        .date_naive();
-    let dates = trading_calendar::trading_days_before(end, span_days.max(1) as usize);
+    let cal = calendar_of(&provider, &sym).await?;
+    let end = cal
+        .date_of(before_sec as i64 - 1)
+        .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?;
+    let dates = cal.trading_days_before(end, span_days.max(1) as usize);
     let Some(&from) = dates.first() else {
         return Ok(Vec::new());
     };
@@ -305,7 +320,13 @@ pub async fn get_daily_history_before(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::provider::{HistoryProvider, MassiveProvider};
+    use crate::data::provider::{HistoryProvider, MassiveProvider, ReferenceProvider};
+
+    /// The US equities calendar the current provider reports.
+    fn us() -> SessionCalendar {
+        let session = tauri::async_runtime::block_on(MassiveProvider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL"))).unwrap();
+        SessionCalendar::new(&session)
+    }
 
     /// Regression for the sub-minute scroll-back stall: a 1S page (span_days = 1)
     /// whose oldest bar sits on a Monday open must still reach back to the prior
@@ -317,10 +338,10 @@ mod tests {
         let fri = NaiveDate::from_ymd_opt(2025, 5, 9).unwrap();
         // span_days = 1 (1S/5S) — the calendar-day window [Sun, Mon] returned an
         // empty older page; the trading-day window must include Friday.
-        assert_eq!(aggregates_before_window(mon, 1), (fri, mon));
+        assert_eq!(aggregates_before_window(&us(), mon, 1), (fri, mon));
         // span_days = 2 (10S/15S) reaches one more session back (Thursday the 8th).
         let thu = NaiveDate::from_ymd_opt(2025, 5, 8).unwrap();
-        assert_eq!(aggregates_before_window(mon, 2), (thu, mon));
+        assert_eq!(aggregates_before_window(&us(), mon, 2), (thu, mon));
     }
 
     /// Mid-week the window is just the prior `span_days` sessions — no surprises.
@@ -329,7 +350,7 @@ mod tests {
         // 2025-05-14 Wed → span 1 reaches Tuesday the 13th.
         let wed = NaiveDate::from_ymd_opt(2025, 5, 14).unwrap();
         let tue = NaiveDate::from_ymd_opt(2025, 5, 13).unwrap();
-        assert_eq!(aggregates_before_window(wed, 1), (tue, wed));
+        assert_eq!(aggregates_before_window(&us(), wed, 1), (tue, wed));
     }
 
     /// Exercises the real daily-load path against the on-disk cache (no network
@@ -351,8 +372,9 @@ mod tests {
         );
 
         let provider = MassiveProvider;
-        let to = Utc::now().date_naive();
-        let from = *trading_calendar::last_trading_days(252).first().unwrap_or(&to);
+        let cal = us();
+        let to = cal.window_end();
+        let from = *cal.last_trading_days(252).first().unwrap_or(&to);
 
         for sym in ["AMD", "NVDA", "TSLA"] {
             let t0 = std::time::Instant::now();
