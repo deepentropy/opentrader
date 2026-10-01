@@ -205,7 +205,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
     return { id: req.id, type: "backtest", ok: false, error: { message } };
   }
   try {
-    const { report } = runOakScriptStrategy(entry.run, req.bars, {
+    const { report, script } = runOakScriptStrategy(entry.run, req.bars, {
       inputs: req.inputs ?? {},
       properties: req.properties,
       chart: req.chart,
@@ -218,7 +218,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
         error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
       };
     }
-    return { id: req.id, type: "backtest", ok: true, report };
+    return { id: req.id, type: "backtest", ok: true, report, visuals: script.result };
   } catch (err) {
     if (err instanceof StrategyRuntimeError) {
       return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };

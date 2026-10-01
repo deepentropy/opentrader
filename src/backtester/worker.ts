@@ -8,21 +8,20 @@ import { runOakScriptStrategy } from './oakscript';
 import { runBacktest } from './run';
 import { SCRIPT_STRATEGIES } from './scripts';
 import { STRATEGIES } from './strategies';
-import type { BacktestReport } from './types';
-import type { BacktestRequest, BacktestResponse } from './worker-types';
+import type { BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
 
-function runStrategy(req: BacktestRequest): BacktestReport | string {
+function runStrategy(req: BacktestRequest): BacktestOutput | string {
   const def = STRATEGIES.find((s) => s.key === req.strategy);
-  if (def) return runBacktest(req.bars, def, { inputs: req.inputs, properties: req.properties, symbol: req.symbol });
+  if (def) return { report: runBacktest(req.bars, def, { inputs: req.inputs, properties: req.properties, symbol: req.symbol }) };
   const script = SCRIPT_STRATEGIES.find((s) => s.key === req.strategy);
   if (!script) return `Unknown strategy "${req.strategy}".`;
-  const { report } = runOakScriptStrategy(script.body, req.bars, {
+  const { report, script: run } = runOakScriptStrategy(script.body, req.bars, {
     inputs: req.inputs,
     properties: req.properties,
     symbol: req.symbol,
     chart: req.chart,
   });
-  return report ?? `Strategy "${req.strategy}" did not run.`;
+  return report ? { report, visuals: run.result } : `Strategy "${req.strategy}" did not run.`;
 }
 
 self.onmessage = (e: MessageEvent<BacktestRequest>) => {
@@ -30,7 +29,7 @@ self.onmessage = (e: MessageEvent<BacktestRequest>) => {
   let res: BacktestResponse;
   try {
     const out = runStrategy(req);
-    res = typeof out === 'string' ? { id: req.id, ok: false, error: { message: out } } : { id: req.id, ok: true, report: out };
+    res = typeof out === 'string' ? { id: req.id, ok: false, error: { message: out } } : { id: req.id, ok: true, ...out };
   } catch (err) {
     res =
       err instanceof StrategyRuntimeError

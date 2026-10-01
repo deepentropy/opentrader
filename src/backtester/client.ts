@@ -5,8 +5,7 @@
  * resolves with null).
  */
 import BacktestWorkerCtor from './worker?worker';
-import type { BacktestError, BacktestRequest, BacktestResponse } from './worker-types';
-import type { BacktestReport } from './types';
+import type { BacktestError, BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
 
 export type { BacktestError };
 
@@ -20,7 +19,7 @@ export class BacktestFailed extends Error {
 
 type Pending = {
   channel: string;
-  resolve: (report: BacktestReport | null) => void;
+  resolve: (output: BacktestOutput | null) => void;
   reject: (err: BacktestFailed) => void;
   timer: ReturnType<typeof setTimeout>;
 };
@@ -38,7 +37,7 @@ export class BacktestClient {
       if (!p) return; // superseded or timed out
       this.pending.delete(e.data.id);
       clearTimeout(p.timer);
-      if (e.data.ok) p.resolve(e.data.report);
+      if (e.data.ok) p.resolve({ report: e.data.report, visuals: e.data.visuals });
       else p.reject(new BacktestFailed(e.data.error));
     };
     worker.onerror = () => this.restart('The backtest worker crashed.');
@@ -61,7 +60,7 @@ export class BacktestClient {
    * Run a backtest. `channel` identifies the consumer (e.g. a chart id): a
    * newer run on the same channel resolves the older one with null.
    */
-  run(channel: string, req: Omit<BacktestRequest, 'id'>): Promise<BacktestReport | null> {
+  run(channel: string, req: Omit<BacktestRequest, 'id'>): Promise<BacktestOutput | null> {
     for (const [id, p] of this.pending) {
       if (p.channel !== channel) continue;
       this.pending.delete(id);

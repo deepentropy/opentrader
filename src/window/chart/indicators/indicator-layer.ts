@@ -56,6 +56,23 @@ import {
 type PlotPoint = { time: number; value: number; color?: string };
 /** Third argument of `calculate` (ignored by the library indicators). */
 export type StudyCalcContext = { chartId: string; chart?: ChartContext };
+/**
+ * Plot points with an na point at each skipped bar: OakScript plot() output leaves the na bars out, and a
+ * line-break plot must break there.
+ */
+function withGaps(data: PlotPoint[], bars: Bar[]): PlotPoint[] {
+  const index = new Map(bars.map((b, i) => [b.time as unknown as number, i]));
+  const out: PlotPoint[] = [];
+  let prev = -1;
+  for (const p of data) {
+    const i = index.get(p.time);
+    if (i !== undefined && prev >= 0 && i > prev + 1) out.push({ time: bars[prev + 1].time as unknown as number, value: NaN });
+    out.push(p);
+    if (i !== undefined) prev = i;
+  }
+  return out;
+}
+
 /** oakscriptjs plotarrow output (result.arrows) and declaration (arrowConfig). */
 type ScriptArrow = { time: number; id: string; value: number; color: string };
 type ScriptArrowConfig = { id: string; minheight?: number; maxheight?: number; display?: string };
@@ -349,7 +366,7 @@ export class IndicatorLayer {
           this.addLine(plotData, color, lineWidth, { lineType: LineType.WithSteps });
           break;
         case 'steplinebr':
-          this.addLineBr(plotData, color, lineWidth, LineType.WithSteps);
+          this.addLineBr(withGaps(plotData, bars), color, lineWidth, LineType.WithSteps);
           break;
         case 'area':
           this.addArea(plotData, color, lineWidth, false);
@@ -364,7 +381,7 @@ export class IndicatorLayer {
           this.addDiamonds(plotData, color);
           break;
         case 'linebr':
-          this.addLineBr(plotData, color, lineWidth, LineType.Simple);
+          this.addLineBr(withGaps(plotData, bars), color, lineWidth, LineType.Simple);
           break;
         case 'line':
         default:

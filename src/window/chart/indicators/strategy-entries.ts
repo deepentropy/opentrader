@@ -27,8 +27,8 @@ import { scriptChartContext } from "./script-chart";
 import { brokerProperties, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
 import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
 import { STRATEGIES } from "../../../backtester/strategies";
-import { DEFAULT_PROPERTIES, type BacktestReport, type Bar, type StrategyProperties } from "../../../backtester/types";
-import type { BacktestError } from "../../../backtester/worker-types";
+import { DEFAULT_PROPERTIES, type Bar, type StrategyProperties } from "../../../backtester/types";
+import type { BacktestError, BacktestOutput } from "../../../backtester/worker-types";
 import * as scripts from "../../../data/oakscript-store";
 import { strategyTester } from "../../../data/strategy-tester-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
@@ -63,6 +63,8 @@ type Runtime = {
   key: string | null;
   running: boolean;
   queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; key: string } | null;
+  /** Drawing output of the last finished run (OakScript strategies), what calculate() returns. */
+  visuals: unknown;
 };
 
 const runtimes = new Map<string, Runtime>();
@@ -80,7 +82,7 @@ type Execute = (
   inputs: Record<string, unknown>,
   properties: Partial<StrategyProperties>,
   chart: ChartContext | undefined,
-) => Promise<BacktestReport | null>;
+) => Promise<BacktestOutput | null>;
 
 async function run(
   strategyKey: string,
@@ -98,11 +100,15 @@ async function run(
   const prev = strategyTester.run(chartId, strategyKey);
   strategyTester.setRun(chartId, strategyKey, { status: "running", report: prev?.report ?? null, error: null, bars: bars.length });
   try {
-    const report = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart);
-    if (report) strategyTester.setRun(chartId, strategyKey, { status: "done", report, error: null, bars: bars.length });
+    const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart);
+    if (out) {
+      rt.visuals = out.visuals ?? null;
+      strategyTester.setRun(chartId, strategyKey, { status: "done", report: out.report, error: null, bars: bars.length });
+    }
   } catch (err) {
     const error: BacktestError =
       err instanceof BacktestFailed || err instanceof OakEngineError ? err.detail : { message: String(err) };
+    rt.visuals = null;
     strategyTester.setRun(chartId, strategyKey, { status: "error", report: null, error, bars: bars.length });
   } finally {
     rt.running = false;
@@ -128,14 +134,14 @@ function makeCalculate(
     const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart ?? null)}`;
     const rtKey = `${chartId}|${strategyKey}`;
     let rt = runtimes.get(rtKey);
-    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null }));
+    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null }));
     if (bars.length && rt.key !== key && rt.queued?.key !== key) {
       // Snapshot: ChartView mutates its bar array in place on live ticks.
       const snapshot = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
       if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, key };
       else void run(strategyKey, execute, chartId, rt, snapshot, typedInputs, chart, key);
     }
-    return EMPTY_RESULT;
+    return rt.visuals ?? EMPTY_RESULT;
   }) as IndicatorRegistryEntry["calculate"];
 }
 
@@ -149,10 +155,32 @@ function applyUserMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCom
   const e = entry as unknown as Record<string, unknown>;
   e.name = name;
   e.shortName = meta?.shortTitle ?? name;
-  e.metadata = { title: meta?.title ?? name, shortTitle: meta?.shortTitle ?? name, overlay: true };
+  const overlay = meta?.overlay ?? true;
+  e.overlay = overlay;
+  e.metadata = { title: meta?.title ?? name, shortTitle: meta?.shortTitle ?? name, overlay };
   e.inputConfig = meta?.inputConfig ?? [];
   e.defaultInputs = meta?.defaultInputs ?? {};
+  applyDrawingConfigs(e, meta ?? {});
 }
+
+/** The plot / hline / fill / shape / bar color / arrow declarations a script's drawing output needs. */
+function applyDrawingConfigs(e: Record<string, unknown>, c: DrawingConfigs): void {
+  e.plotConfig = c.plotConfig ?? [];
+  e.hlineConfig = c.hlineConfig?.length ? c.hlineConfig : undefined;
+  e.fillConfig = c.fillConfig?.length ? c.fillConfig : undefined;
+  e.shapeConfig = c.shapeConfig?.length ? c.shapeConfig : undefined;
+  e.barColorConfig = c.barColorConfig?.length ? c.barColorConfig : undefined;
+  e.arrowConfig = c.arrowConfig?.length ? c.arrowConfig : undefined;
+}
+
+type DrawingConfigs = {
+  plotConfig?: unknown[];
+  hlineConfig?: unknown[];
+  fillConfig?: unknown[];
+  shapeConfig?: unknown[];
+  barColorConfig?: unknown[];
+  arrowConfig?: unknown[];
+};
 
 function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
   return async (_channel, bars, inputs, properties, chart) => {
@@ -206,7 +234,15 @@ export function dropUserStrategy(scriptId: string): void {
 
 // ── Built-in OakScript strategies ────────────────────────────────────────────
 
-type ScriptDeclaration = { title: string; shortTitle: string; inputConfig: unknown[]; defaultInputs: Record<string, unknown>; properties: StrategyProperties };
+type ScriptDeclaration = {
+  title: string;
+  shortTitle: string;
+  overlay: boolean;
+  inputConfig: unknown[];
+  defaultInputs: Record<string, unknown>;
+  properties: StrategyProperties;
+  drawings: DrawingConfigs;
+};
 const declarations = new Map<string, ScriptDeclaration>();
 
 /** What the script declares (title, inputs, strategy() properties): a run on zero bars, cached. */
@@ -219,6 +255,8 @@ function scriptDeclaration(def: ScriptStrategy): ScriptDeclaration {
     d = {
       title,
       shortTitle: script.metadata.shortTitle ?? title,
+      overlay: script.metadata.overlay,
+      drawings: script,
       inputConfig: script.inputConfig,
       defaultInputs: script.defaultInputs,
       properties: brokerProperties(script.strategyConfig!),
@@ -230,23 +268,24 @@ function scriptDeclaration(def: ScriptStrategy): ScriptDeclaration {
 
 function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistryEntry {
   const d = scriptDeclaration(def);
-  return {
+  const entry = {
     id,
     group: "community",
     category: "Trend",
     name: d.title,
     shortName: d.shortTitle,
-    overlay: true,
-    metadata: { title: d.title, shortTitle: d.shortTitle, overlay: true },
+    overlay: d.overlay,
+    metadata: { title: d.title, shortTitle: d.shortTitle, overlay: d.overlay },
     inputConfig: d.inputConfig,
-    plotConfig: [],
     defaultInputs: d.defaultInputs,
     calculate: makeCalculate(
       def.key,
       () => d.defaultInputs,
       (channel, bars, inputs, properties, chart) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart }),
     ),
-  } as unknown as IndicatorRegistryEntry;
+  } as Record<string, unknown>;
+  applyDrawingConfigs(entry, d.drawings);
+  return entry as unknown as IndicatorRegistryEntry;
 }
 
 /** strategy() properties of a strategy study before overrides: the port's

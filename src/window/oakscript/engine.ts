@@ -13,7 +13,8 @@
 import OakWorkerCtor from "./oakscript-worker?worker";
 import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
 import type { ChartContext } from "oakscriptjs/script";
-import type { BacktestReport, StrategyProperties } from "../../backtester/types";
+import type { StrategyProperties } from "../../backtester/types";
+import type { BacktestOutput } from "../../backtester/worker-types";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
 
@@ -126,14 +127,14 @@ export class OakEngine {
     inputs?: Record<string, unknown>,
     properties?: Partial<StrategyProperties>,
     chart?: ChartContext,
-  ): Promise<BacktestReport> {
+  ): Promise<BacktestOutput> {
     const res = await this.request(
       { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart },
       BACKTEST_TIMEOUT_MS,
     );
     if (res.type !== "backtest") throw new OakEngineError({ message: "Protocol mismatch." }, true);
     if (!res.ok) throw new OakEngineError(res.error);
-    return res.report;
+    return { report: res.report, visuals: res.visuals };
   }
 
   dispose(): void {

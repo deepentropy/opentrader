@@ -20,4 +20,10 @@ export interface BacktestError {
   bar?: number;
 }
 
-export type BacktestResponse = { id: number; ok: true; report: BacktestReport } | { id: number; ok: false; error: BacktestError };
+/** A finished run: the report, and the script's drawing output (plots, markers...) for OakScript strategies. */
+export interface BacktestOutput {
+  report: BacktestReport;
+  visuals?: unknown;
+}
+
+export type BacktestResponse = ({ id: number; ok: true } & BacktestOutput) | { id: number; ok: false; error: BacktestError };

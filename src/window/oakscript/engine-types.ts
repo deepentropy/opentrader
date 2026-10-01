@@ -76,5 +76,5 @@ export type OakResponse =
   | { id: number; type: "compile"; ok: false; error: OakScriptError }
   | { id: number; type: "run"; ok: true; result: unknown }
   | { id: number; type: "run"; ok: false; error: OakScriptError }
-  | { id: number; type: "backtest"; ok: true; report: BacktestReport }
+  | { id: number; type: "backtest"; ok: true; report: BacktestReport; visuals?: unknown }
   | { id: number; type: "backtest"; ok: false; error: OakBacktestError };

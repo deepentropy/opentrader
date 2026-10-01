@@ -281,6 +281,25 @@ export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] 
   });
 }
 
+/** The script's drawing output back on the chart's bar times (plots, markers, bar / background colors, arrows). */
+function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
+  const back = new Map<number, number>();
+  seen.forEach((b, i) => back.set(b.time, bars[i].time));
+  const fix = (items: unknown) => {
+    if (!Array.isArray(items)) return;
+    for (const item of items as { time?: number }[]) {
+      const t = item && typeof item.time === 'number' ? back.get(item.time) : undefined;
+      if (t !== undefined) item.time = t;
+    }
+  };
+  const r = result as Record<string, unknown>;
+  for (const series of Object.values((r.plots ?? {}) as Record<string, unknown>)) fix(series);
+  fix(r.markers);
+  fix(r.bgcolors);
+  fix(r.barcolors);
+  fix(r.arrows);
+}
+
 export interface OakScriptRunResult {
   /** undefined when the script did not declare strategy() or did not run strategy.eachBar(). */
   report?: BacktestReport;
@@ -300,10 +319,12 @@ export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScr
     mincontract: symbol.qtyStep,
   };
   let engine: BrokerEngine | undefined;
-  const script = executeScript(body, scriptBars(bars, opts.chart), opts.inputs ?? {}, chart, {
+  const seen = scriptBars(bars, opts.chart);
+  const script = executeScript(body, seen, opts.inputs ?? {}, chart, {
     strategyEngine: ({ properties }) =>
       (engine = new BrokerEngine(bars, { ...brokerProperties(properties), ...opts.properties }, symbol)),
   });
+  if (seen !== bars) restoreTimes(script.result, seen, bars);
   const ran = engine !== undefined && !engine.equity.some(Number.isNaN);
   return { script, report: ran ? backtestReport(bars, engine!.broker, engine!.equity, t0) : undefined };
 }
