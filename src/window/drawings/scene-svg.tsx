@@ -1,13 +1,13 @@
 /*
- * SVG host of the shared drawing scenes (lightweight-charts-drawing/tv/scene):
+ * SVG host of the shared drawing scenes (lightweight-charts-drawing/core/scene):
  * one SVG element per scene item, same elements and attributes as the
  * former hand-written renderers (checked by golden render
  * runs). Anchors are drawn by the overlay's Handles (hover ring, cursor,
  * selected-state stroke).
  */
 import { createUniqueId, type JSX } from "solid-js";
-import type { Paint, SceneItem, Shadow } from "lightweight-charts-drawing/tv/scene/types";
-import type { Pt } from "lightweight-charts-drawing/tv/_shared";
+import type { Paint, SceneItem, Shadow } from "lightweight-charts-drawing/core/scene/types";
+import type { Pt } from "lightweight-charts-drawing/core/_shared";
 
 type HandlesFn = (props: { pts: Pt[]; color: string; squares?: readonly number[] }) => JSX.Element;
 

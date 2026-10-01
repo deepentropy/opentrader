@@ -4,8 +4,8 @@
  * intraday/UTC-timestamp charts; for business-day strings it round-trips
  * through JSON unchanged).
  */
-import type { Drawing } from "lightweight-charts-drawing/tv/types";
-import { parseDrawings } from "lightweight-charts-drawing/tv/serialize";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
+import { parseDrawings } from "lightweight-charts-drawing/core/serialize";
 import * as kv from "../../data/kv";
 
 const PREFIX = "ot:drawings:";

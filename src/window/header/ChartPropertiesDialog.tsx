@@ -44,7 +44,7 @@ import type { ChartTypeId } from "../chart/chart-types";
 import { ColorPanel } from "../drawings/ColorPanel";
 import { LineGlyphSelect } from "../drawings/LineEndSelect";
 import { TransparencySlider } from "../drawings/ImageDialog";
-import type { LineStyle } from "lightweight-charts-drawing/tv/types";
+import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
 import { usMarketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";

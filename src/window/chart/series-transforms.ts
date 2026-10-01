@@ -16,7 +16,7 @@
  * no time axis of their own.
  */
 import type { Time, UTCTimestamp } from "lightweight-charts";
-import type { OHLC } from "lightweight-charts-drawing/tv/coords";
+import type { OHLC } from "lightweight-charts-drawing/core/coords";
 import type { BoxInputs, PriceSource } from "../header/chart-settings";
 
 // ── Common helpers ──────────────────────────────────────────────────────────

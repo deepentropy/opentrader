@@ -6,7 +6,7 @@
  * outside confirms (when an image is chosen) and closes.
  */
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
-import { IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/tv/kinds/images";
+import { IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { saveDrawingImage } from "./image-store";
 
 export type ImageDialogResult = { name: string; width: number; height: number; transparency: number };

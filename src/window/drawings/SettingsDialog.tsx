@@ -15,20 +15,20 @@
  * added as the matching DrawingStyle fields + renderers land.
  */
 import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { DEFAULT_VISIBILITY, type DataPoint, type Drawing, type DrawingStyle, type GannLine, type GannRatioLine, type PositionStatKey, type GhostCandleStyle, type IntervalVisibility, type LevelDef, type LineStyle, type RegressionLine, type UnitVisibility } from "lightweight-charts-drawing/tv/types";
+import { DEFAULT_VISIBILITY, type DataPoint, type Drawing, type DrawingStyle, type GannLine, type GannRatioLine, type PositionStatKey, type GhostCandleStyle, type IntervalVisibility, type LevelDef, type LineStyle, type RegressionLine, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import { labelForKind } from "./labels";
-import { factoryStyleFor, FIB_TREND_LINE_DEFAULT, FIB_WEDGE_TREND_LINE_DEFAULT } from "lightweight-charts-drawing/tv/specs";
-import { vwapBandLine } from "lightweight-charts-drawing/tv/kinds/data-series";
-import { defaultStyleFor, GHOST_CANDLE_DEFAULTS, ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, FIB_CIRCLE_LEVEL_DEFAULTS, FIB_LEVEL_DEFAULTS, FIB_TIMEZONE_LEVEL_DEFAULTS, FIB_WEDGE_LEVEL_DEFAULTS, GANN_BOX_LEVEL_DEFAULTS, GANN_FAN_LEVEL_DEFAULTS, PARALLEL_CHANNEL_LEVEL_DEFAULTS, PITCHFAN_LEVEL_DEFAULTS, PITCHFORK_LEVEL_DEFAULTS, REGRESSION_LINE_DEFAULTS, SPEED_ARC_LEVEL_DEFAULTS, SPEED_FAN_GRID_DEFAULT, SPEED_FAN_LEVEL_DEFAULTS, VWAP_BAND_DEFAULTS, TREND_FIB_TIME_LEVEL_DEFAULTS, TREND_FIB_TIME_TREND_DEFAULT, GANN_LEVEL_DEFAULTS, GANN_FAN_DEFAULTS, GANN_ARC_DEFAULTS } from "lightweight-charts-drawing/tv/specs";
+import { factoryStyleFor, FIB_TREND_LINE_DEFAULT, FIB_WEDGE_TREND_LINE_DEFAULT } from "lightweight-charts-drawing/core/specs";
+import { vwapBandLine } from "lightweight-charts-drawing/core/kinds/data-series";
+import { defaultStyleFor, GHOST_CANDLE_DEFAULTS, ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, FIB_CIRCLE_LEVEL_DEFAULTS, FIB_LEVEL_DEFAULTS, FIB_TIMEZONE_LEVEL_DEFAULTS, FIB_WEDGE_LEVEL_DEFAULTS, GANN_BOX_LEVEL_DEFAULTS, GANN_FAN_LEVEL_DEFAULTS, PARALLEL_CHANNEL_LEVEL_DEFAULTS, PITCHFAN_LEVEL_DEFAULTS, PITCHFORK_LEVEL_DEFAULTS, REGRESSION_LINE_DEFAULTS, SPEED_ARC_LEVEL_DEFAULTS, SPEED_FAN_GRID_DEFAULT, SPEED_FAN_LEVEL_DEFAULTS, VWAP_BAND_DEFAULTS, TREND_FIB_TIME_LEVEL_DEFAULTS, TREND_FIB_TIME_TREND_DEFAULT, GANN_LEVEL_DEFAULTS, GANN_FAN_DEFAULTS, GANN_ARC_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, saveKindDefault } from "./templates";
 import { TemplatesMenu } from "./DrawingStylePopovers";
 import { ColorPanel, applyOpacity, parseColor } from "./ColorPanel";
 import { LineEndSelect, LineGlyphSelect } from "./LineEndSelect";
 import type { Time } from "lightweight-charts";
 import { getTickerInfo } from "../../data/datafeed";
-import { levelFromPrice, positionLevels, positionRiskSize, positionStatOn, POSITION_DEFAULTS, POSITION_STATS } from "lightweight-charts-drawing/tv/kinds/position";
+import { levelFromPrice, positionLevels, positionRiskSize, positionStatOn, POSITION_DEFAULTS, POSITION_STATS } from "lightweight-charts-drawing/core/kinds/position";
 import { ImageDialog, TransparencySlider } from "./ImageDialog";
-import { drawingImage, imageInitialSize } from "lightweight-charts-drawing/tv/kinds/images";
+import { drawingImage, imageInitialSize } from "lightweight-charts-drawing/core/kinds/images";
 import { imagesVersion } from "./image-store";
 
 const TABS = ["Style", "Text", "Coordinates", "Visibility"] as const;

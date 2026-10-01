@@ -4,4 +4,4 @@
  * once per series instance and published as a signal by ChartView.
  */
 export { makeCoords, timeToXFallback } from "lightweight-charts-drawing/runtime/coords";
-export type { Coords } from "lightweight-charts-drawing/tv/coords";
+export type { Coords } from "lightweight-charts-drawing/core/coords";

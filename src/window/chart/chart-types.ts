@@ -127,8 +127,8 @@ export const CHART_TYPE_ICON: Record<ChartTypeId, string> = {
   range: "menu-candles-range",
 };
 
-export type { OHLC } from "lightweight-charts-drawing/tv/coords";
-import type { OHLC } from "lightweight-charts-drawing/tv/coords";
+export type { OHLC } from "lightweight-charts-drawing/core/coords";
+import type { OHLC } from "lightweight-charts-drawing/core/coords";
 
 export type AnySeries = ISeriesApi<
   "Candlestick" | "Bar" | "Line" | "Area" | "Baseline" | "Histogram" | "Custom"

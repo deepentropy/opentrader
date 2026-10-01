@@ -7,7 +7,7 @@
  * by the drawings' time-axis labels (vertical line, cross line).
  */
 
-import { partsOf, type Parts } from "lightweight-charts-drawing/tv/time";
+import { partsOf, type Parts } from "lightweight-charts-drawing/core/time";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WEEKDAY_PREFIX = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+/;

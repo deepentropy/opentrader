@@ -16,11 +16,11 @@
  * doesn't fire while interacting with the menu.
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import type { Drawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { Icon } from "../../components/Icon";
 import { fitMenuRef } from "../../components/menu-fit";
-import { ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, ELLIOTT_KINDS } from "lightweight-charts-drawing/tv/specs";
-import { tableCanRemove, type TableCellRef } from "lightweight-charts-drawing/tv/kinds/table";
+import { ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, ELLIOTT_KINDS } from "lightweight-charts-drawing/core/specs";
+import { tableCanRemove, type TableCellRef } from "lightweight-charts-drawing/core/kinds/table";
 
 type Row =
   | {

@@ -25,8 +25,8 @@
 import { createContext, createEffect, createMemo, createSignal, createUniqueId, For, on, onCleanup, onMount, Show, useContext } from "solid-js";
 import type { IPriceLine } from "lightweight-charts";
 import type { Coords } from "./coords";
-import { defaultStyleFor, findOverlaySpec } from "lightweight-charts-drawing/tv/specs";
-import { isVisibleOnInterval, type DataPoint, type Drawing, type DrawingKind } from "lightweight-charts-drawing/tv/types";
+import { defaultStyleFor, findOverlaySpec } from "lightweight-charts-drawing/core/specs";
+import { isVisibleOnInterval, type DataPoint, type Drawing, type DrawingKind } from "lightweight-charts-drawing/core/types";
 import {
   HANDLE_RADIUS,
   HIT_TOLERANCE,
@@ -35,29 +35,29 @@ import {
   timeToSec,
   type HitResult,
   type Pt,
-} from "lightweight-charts-drawing/tv/_shared";
+} from "lightweight-charts-drawing/core/_shared";
 import { suspendDrawingPersist, resumeDrawingPersist } from "./persistence";
-import { hitTestKind } from "lightweight-charts-drawing/tv/kinds/hit-tests";
-import { positionAnchors } from "lightweight-charts-drawing/tv/kinds/position";
-import { parseColor, textOnColor } from "lightweight-charts-drawing/tv/color";
-import { sceneImage, sceneTable, sceneTextTool } from "lightweight-charts-drawing/tv/scene/text-tools";
+import { hitTestKind } from "lightweight-charts-drawing/core/kinds/hit-tests";
+import { positionAnchors } from "lightweight-charts-drawing/core/kinds/position";
+import { parseColor, textOnColor } from "lightweight-charts-drawing/core/color";
+import { sceneImage, sceneTable, sceneTextTool } from "lightweight-charts-drawing/core/scene/text-tools";
 import { sceneSvg } from "./scene-svg";
-import { sceneLockedAnchors, sceneOf } from "lightweight-charts-drawing/tv/scene";
-import { DRAG_THRESHOLD, FREEHAND_SAMPLE_PX, MIN_DISTANCE_BETWEEN_POINTS } from "lightweight-charts-drawing/tv/interact/constants";
-import { magnetSnap, projectAll, projectPoint, screenPoints, translateDrawing, unproject } from "lightweight-charts-drawing/tv/interact/project";
-import { lockAxisDelta, shiftPlacementPoint } from "lightweight-charts-drawing/tv/interact/shift";
-import { buildNewDrawing, finishPlacement, SEGMENT_PREVIEW_KINDS, snapGannSquare } from "lightweight-charts-drawing/tv/interact/placement";
-import { anchorCursor, applyDrag, type DragState } from "lightweight-charts-drawing/tv/interact/drag";
-import { isAnchorable, toggleAnchored as toggleAnchoredDrawing } from "lightweight-charts-drawing/tv/interact/anchor";
-import { measureTextFont } from "lightweight-charts-drawing/tv/scene/text";
-import { signpostPositionFor } from "lightweight-charts-drawing/tv/kinds/signpost";
-import { TEXT_PLACEHOLDER } from "lightweight-charts-drawing/tv/kinds/text-tools";
-import { tableAnchors, tableCanRemove, tableHitCell, tableInsert, tableLayout, tableNextCell, tableRemove, tableWithText, TABLE_BORDER, TABLE_LINE_HEIGHT, TABLE_PAD, type TableCellRef, type TableLayout } from "lightweight-charts-drawing/tv/kinds/table";
+import { sceneLockedAnchors, sceneOf } from "lightweight-charts-drawing/core/scene";
+import { DRAG_THRESHOLD, FREEHAND_SAMPLE_PX, MIN_DISTANCE_BETWEEN_POINTS } from "lightweight-charts-drawing/core/interact/constants";
+import { magnetSnap, projectAll, projectPoint, screenPoints, translateDrawing, unproject } from "lightweight-charts-drawing/core/interact/project";
+import { lockAxisDelta, shiftPlacementPoint } from "lightweight-charts-drawing/core/interact/shift";
+import { buildNewDrawing, finishPlacement, SEGMENT_PREVIEW_KINDS, snapGannSquare } from "lightweight-charts-drawing/core/interact/placement";
+import { anchorCursor, applyDrag, type DragState } from "lightweight-charts-drawing/core/interact/drag";
+import { isAnchorable, toggleAnchored as toggleAnchoredDrawing } from "lightweight-charts-drawing/core/interact/anchor";
+import { measureTextFont } from "lightweight-charts-drawing/core/scene/text";
+import { signpostPositionFor } from "lightweight-charts-drawing/core/kinds/signpost";
+import { TEXT_PLACEHOLDER } from "lightweight-charts-drawing/core/kinds/text-tools";
+import { tableAnchors, tableCanRemove, tableHitCell, tableInsert, tableLayout, tableNextCell, tableRemove, tableWithText, TABLE_BORDER, TABLE_LINE_HEIGHT, TABLE_PAD, type TableCellRef, type TableLayout } from "lightweight-charts-drawing/core/kinds/table";
 import { setTableUi, tableUi } from "./table-ui";
-import { drawingImageFailed, imageInitialSize, IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/tv/kinds/images";
+import { drawingImageFailed, imageInitialSize, IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { imagesVersion, saveDrawingImage } from "./image-store";
 import { ImageDialog } from "./ImageDialog";
-import { barsBetween, vwapLastValue } from "lightweight-charts-drawing/tv/kinds/data-series";
+import { barsBetween, vwapLastValue } from "lightweight-charts-drawing/core/kinds/data-series";
 import { SelectedToolbar } from "./SelectedToolbar";
 import { DrawingContextMenu } from "./DrawingContextMenu";
 import { SettingsDialog } from "./SettingsDialog";
@@ -103,7 +103,7 @@ type Props = {
    *  Driven by the Keep-drawing toggle. */
   stayMode: boolean;
   /** Places a new drawing and returns its assigned id (so paste can select it). */
-  onPlace: (d: import("lightweight-charts-drawing/tv/types").NewDrawing) => string | void;
+  onPlace: (d: import("lightweight-charts-drawing/core/types").NewDrawing) => string | void;
   onDisarm: () => void;
   selectedId: string | null;
   /** Full multi-selection (ordered, last = primary = selectedId). Absent →
@@ -194,7 +194,7 @@ export function DrawingsOverlay(props: Props) {
   const [textEdit, setTextEdit] = createSignal<{
     mode: "create" | "edit";
     id?: string;
-    kind: import("lightweight-charts-drawing/tv/types").DrawingKind;
+    kind: import("lightweight-charts-drawing/core/types").DrawingKind;
     points: DataPoint[];
     pos: Pt;
     value: string;
@@ -727,7 +727,7 @@ export function DrawingsOverlay(props: Props) {
   /** Place a freshly drawn drawing. Every new drawing is selected (anchors +
    *  floating toolbar) once placement finishes. Keep-drawing mode is left as
    *  before (the tool stays armed for the next placement). */
-  function placeNew(nd: import("lightweight-charts-drawing/tv/types").NewDrawing) {
+  function placeNew(nd: import("lightweight-charts-drawing/core/types").NewDrawing) {
     const id = props.onPlace(nd);
     if (id && !props.stayMode) props.setSelectedId(id);
   }

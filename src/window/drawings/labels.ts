@@ -5,7 +5,7 @@
  */
 import { GROUPS, groupTools } from "../../data/drawing-toolbar";
 import type { IconName } from "../../components/Icon";
-import type { DrawingKind } from "lightweight-charts-drawing/tv/types";
+import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 
 const LABEL_BY_ID: Record<string, string> = (() => {
   const out: Record<string, string> = {};

@@ -17,7 +17,7 @@ import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
 import { CheckBox, ColorControl, NumberField, SelectControl } from "../header/ChartPropertiesDialog";
 import { RangeSlider } from "../drawings/SettingsDialog";
-import type { IntervalVisibility, UnitVisibility } from "lightweight-charts-drawing/tv/types";
+import type { IntervalVisibility, UnitVisibility } from "lightweight-charts-drawing/core/types";
 import {
   cloneIndicatorOptions,
   defaultIndicatorOptions,

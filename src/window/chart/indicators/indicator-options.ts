@@ -9,7 +9,7 @@
  *                   shows as hidden).
  * Stored per study with its inputs / styles (PaneIndicatorSettings.options).
  */
-import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/tv/types";
+import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 
 export type IndicatorOptions = {

@@ -17,7 +17,7 @@ import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
 import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides } from './indicator-layer';
-import { isVisibleOnInterval } from 'lightweight-charts-drawing/tv/types';
+import { isVisibleOnInterval } from 'lightweight-charts-drawing/core/types';
 import {
   cloneIndicatorOptions,
   defaultIndicatorOptions,

@@ -31,9 +31,9 @@ import {
   toggleFavoriteTool,
 } from "./favorite-tools";
 import { FontIconPicker, type FontIconTab } from "./FontIconPicker";
-import { findOverlaySpec } from "lightweight-charts-drawing/tv/specs";
+import { findOverlaySpec } from "lightweight-charts-drawing/core/specs";
 import { PLACE_AT_CURSOR_EVENT, type PlaceAtCursorDetail } from "./DrawingsOverlay";
-import type { DrawingKind } from "lightweight-charts-drawing/tv/types";
+import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 
 /** Hotkey tools created at once at the cursor (Alt+H/J/V/C). */
 const PLACE_NOW = new Set(["horizontal-line", "horizontal-ray", "vertical-line", "cross-line"]);

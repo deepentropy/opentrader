@@ -8,7 +8,7 @@
  * click — handled by the toolbar — closes them.
  */
 import { createSignal, For, Show } from "solid-js";
-import type { DrawingStyle, LineStyle } from "lightweight-charts-drawing/tv/types";
+import type { DrawingStyle, LineStyle } from "lightweight-charts-drawing/core/types";
 import { ColorPanel } from "./ColorPanel";
 import { deleteTemplate, loadTemplates, saveTemplate, type DrawingTemplate } from "./templates";
 import { showConfirm, showRename } from "../../components/Dialogs";

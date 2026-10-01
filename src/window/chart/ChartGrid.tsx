@@ -36,7 +36,7 @@ import {
 import { ChartView } from "./ChartView";
 import { LAYOUT_SPECS, type LayoutId } from "./layouts";
 import type { PaneChart, PaneIndicatorSettings } from "../shell/tabs";
-import type { Drawing, NewDrawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "../../data/drawing-toolbar";
 
 type Props = {

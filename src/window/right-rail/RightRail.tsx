@@ -11,7 +11,7 @@ import { ObjectTreePanel } from "./ObjectTreePanel";
 import { AlertsPanel } from "./AlertsPanel";
 import { PanelHeader } from "../../components/PanelHeader";
 import { findRightRailTab } from "../../data/right-rail-tabs";
-import type { Drawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
 
 type Props = {

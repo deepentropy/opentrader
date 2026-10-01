@@ -5,7 +5,7 @@
  * hidden, or interval-restricted on arrival).
  */
 import { createSignal } from "solid-js";
-import type { Drawing, NewDrawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import { labelForKind } from "./labels";
 
 /** Marker of a copied drawing in the system clipboard HTML. Copy writes the

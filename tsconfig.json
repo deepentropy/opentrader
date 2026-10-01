@@ -25,7 +25,7 @@
        lightweight-charts type imports resolve to this project's build. */
     "paths": {
       "lightweight-charts": ["./node_modules/lightweight-charts"],
-      "lightweight-charts-drawing/tv/*": ["../lightweight-charts-drawing/src/tv/*"],
+      "lightweight-charts-drawing/core/*": ["../lightweight-charts-drawing/src/core/*"],
       "lightweight-charts-drawing/runtime/*": ["../lightweight-charts-drawing/src/runtime/*"]
     }
   },

@@ -9,7 +9,7 @@
 import type { AlertOperator, AlertRule, Operand } from "./alert-store";
 import { indicatorPlotValue } from "./chart-state-registry";
 import { loadDrawings } from "../window/drawings/persistence";
-import type { Drawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",

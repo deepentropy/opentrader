@@ -16,8 +16,8 @@
  * primary, flagged in their tooltips.
  */
 import { createEffect, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
-import { type Drawing, type DrawingStyle } from "lightweight-charts-drawing/tv/types";
-import { factoryStyleFor, REGRESSION_LINE_DEFAULTS } from "lightweight-charts-drawing/tv/specs";
+import { type Drawing, type DrawingStyle } from "lightweight-charts-drawing/core/types";
+import { factoryStyleFor, REGRESSION_LINE_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, saveKindDefault, type DrawingTemplate } from "./templates";
 import { Icon } from "../../components/Icon";
 import { ColorPopover, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";

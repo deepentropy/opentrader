@@ -35,7 +35,7 @@ import { IconButton } from "../../components/IconButton";
 import { Tooltip } from "../../components/Tooltip";
 import { labelForKind, iconForKind } from "../drawings/labels";
 import { getIndicatorEntry } from "../chart/indicators/registry";
-import type { Drawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { consumeDataWindowRequest, dataWindow } from "../../data/data-window-store";
 
 type View = "tree" | "data-window";

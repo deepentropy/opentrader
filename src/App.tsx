@@ -69,9 +69,9 @@ import {
   toggleFullscreen,
 } from "./window/shell/window-bridge";
 import { watchlistStore, requestOpenList } from "./data/watchlist-store";
-import type { Drawing, NewDrawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "./data/drawing-toolbar";
-import { defaultStyleFor } from "lightweight-charts-drawing/tv/specs";
+import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { labelForKind } from "./window/drawings/labels";
 import { loadDrawings, saveDrawings } from "./window/drawings/persistence";
 import { RightRail } from "./window/right-rail/RightRail";

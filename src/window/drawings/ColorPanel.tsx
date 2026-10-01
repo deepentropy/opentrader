@@ -13,10 +13,10 @@
  *     to the palette.
  */
 import { createSignal, For, Show } from "solid-js";
-import type { LineStyle } from "lightweight-charts-drawing/tv/types";
+import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import { COLOR_ROWS } from "./palette";
 import * as kv from "../../data/kv";
-import { applyOpacity, hexToRgb, parseColor } from "lightweight-charts-drawing/tv/color";
+import { applyOpacity, hexToRgb, parseColor } from "lightweight-charts-drawing/core/color";
 
 // Color helpers (hex or rgba() values) live in the drawing core.
 export { applyOpacity, hexToRgb, parseColor };

@@ -9,9 +9,9 @@ import tauriConf from "./src-tauri/tauri.conf.json";
 const host = process.env.TAURI_DEV_HOST;
 
 // Shared drawing core: the sibling repo deepentropy/lightweight-charts-drawing
-// (its src/tv, and src/runtime for the chart bridge), read from source so
+// (its src/core, and src/runtime for the chart bridge), read from source so
 // edits there reload here without a build.
-const drawingCore = fileURLToPath(new URL("../lightweight-charts-drawing/src/tv", import.meta.url));
+const drawingCore = fileURLToPath(new URL("../lightweight-charts-drawing/src/core", import.meta.url));
 const drawingRuntime = fileURLToPath(new URL("../lightweight-charts-drawing/src/runtime", import.meta.url));
 
 export default defineConfig(async () => ({
@@ -27,7 +27,7 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: [
-      { find: /^lightweight-charts-drawing\/tv/, replacement: drawingCore },
+      { find: /^lightweight-charts-drawing\/core/, replacement: drawingCore },
       { find: /^lightweight-charts-drawing\/runtime/, replacement: drawingRuntime },
     ],
   },

@@ -23,7 +23,7 @@ import type { LayoutId } from "../window/chart/layouts";
 import type { LayoutSyncState } from "../window/chart/layout-sync";
 import { revivePaneSettings, type PaneChart } from "../window/shell/tabs";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
-import type { Drawing } from "lightweight-charts-drawing/tv/types";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "./kv";
 
 /** The serialisable chart state a saved layout captures (one tab). */

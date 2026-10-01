@@ -6,7 +6,7 @@
  */
 import { createSignal } from "solid-js";
 import { commands } from "../../bindings";
-import { cacheImage, decodeImage, IMAGE_MAX_BYTES, IMAGE_TYPES, imageMimeOf, onImagesChanged, setImageReader } from "lightweight-charts-drawing/tv/kinds/images";
+import { cacheImage, decodeImage, IMAGE_MAX_BYTES, IMAGE_TYPES, imageMimeOf, onImagesChanged, setImageReader } from "lightweight-charts-drawing/core/kinds/images";
 
 const [version, setVersion] = createSignal(0);
 export const imagesVersion = version;

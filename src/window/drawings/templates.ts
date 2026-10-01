@@ -12,8 +12,8 @@
  *
  * Persisted in the app key-value store, shared by all windows.
  */
-import type { DrawingStyle } from "lightweight-charts-drawing/tv/types";
-import { setDefaultStyleOverride } from "lightweight-charts-drawing/tv/specs";
+import type { DrawingStyle } from "lightweight-charts-drawing/core/types";
+import { setDefaultStyleOverride } from "lightweight-charts-drawing/core/specs";
 import * as kv from "../../data/kv";
 
 /** A saved drawing template: the style (+ the text of text tools). */
