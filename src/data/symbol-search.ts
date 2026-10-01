@@ -33,6 +33,9 @@ export type SymbolRow = {
   logoSrc?: string;
   /** Country / exchange flag URL. Unset — the flag is omitted when absent. */
   flagSrc?: string;
+  /** Listing country (ISO 3166 alpha-2) from the search data; rows without
+   *  it fall back to their exchange's country (data/country-flags.ts). */
+  country?: string;
   /** Tab routing — "dr" rows map into the Stocks tab too. */
   category: SymbolCategoryId;
   /** Initial-load "recent" list flag — these float to the top with no query. */

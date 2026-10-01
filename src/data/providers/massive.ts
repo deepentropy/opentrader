@@ -142,6 +142,9 @@ export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
     // Security type wins over the market bucket so ETFs/ETNs/funds land in Funds
     // (Massive files them under the "stocks" market) rather than the Stocks tab.
     category: (r.type && TYPE_CATEGORY[r.type]) || MARKET_CATEGORY[market] || "stocks",
+    // Listing country: US-locale stocks / OTC / indices (forex pairs and
+    // crypto have no listing country).
+    country: r.locale === "us" && market !== "fx" && market !== "crypto" ? "US" : undefined,
   };
 }
 

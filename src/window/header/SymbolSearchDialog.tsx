@@ -21,6 +21,7 @@ import {
 } from "../../data/symbol-search";
 import { getTickerInfo, searchSymbols } from "../../data/datafeed";
 import { recentSymbols } from "../../data/recent-symbols";
+import { countryOfExchange, flagUrl } from "../../data/country-flags";
 import type { SymbolSearchResult } from "../../bindings";
 import * as kv from "../../data/kv";
 import { Tooltip } from "../../components/Tooltip";
@@ -122,6 +123,12 @@ function tokenAt(text: string, pos: number): { value: string; offset: number } |
 }
 /** Names that contain a spread operator are quoted. */
 const TOKEN_ESCAPE_RE = /[+\-/*]/;
+
+/** Flag of a row: its own flag, else its country's (search data, else the
+ *  exchange). */
+function rowFlag(row: { flagSrc?: string; country?: string; exchange?: string }): string | undefined {
+  return row.flagSrc ?? flagUrl(row.country ?? countryOfExchange(row.exchange));
+}
 
 /** Split `text` so the matched `[a, b)` range renders inside an <em>. */
 function renderHighlighted(text: string, range: [number, number] | null): JSX.Element {
@@ -448,9 +455,9 @@ export function SymbolSearchDialog(props: Props) {
           <div class="symbol-search-exchange-source">
             <span class="symbol-search-exchange" title={row.exchangeTooltip ?? row.exchange}>{row.exchange}</span>
           </div>
-          <Show when={row.flagSrc}>
+          <Show when={rowFlag(row)}>
             <span class="symbol-search-flag" aria-hidden="true">
-              <img src={row.flagSrc!} alt="" crossOrigin="anonymous" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
+              <img src={rowFlag(row)!} alt="" crossOrigin="anonymous" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
             </span>
           </Show>
         </div>
@@ -646,6 +653,9 @@ export function SymbolSearchDialog(props: Props) {
                           <div class="symbol-search-cell symbol-search-exchange-cell cmp-search-exchange">
                             <div class="symbol-search-market-type">{cat()?.marketType ?? ""}</div>
                             <div class="symbol-search-exchange-source"><span class="symbol-search-exchange">{exchange}</span></div>
+                            <Show when={rowFlag({ exchange })}>
+                              {(src) => <span class="symbol-search-flag" aria-hidden="true"><img src={src()} alt="" /></span>}
+                            </Show>
                           </div>
                           <span class="cmp-search-check">
                             <CheckBox checked={true} onToggle={() => props.compare!.remove(a.id)} />
@@ -757,10 +767,10 @@ export function SymbolSearchDialog(props: Props) {
                               {row.exchange}
                             </span>
                           </div>
-                          <Show when={row.flagSrc}>
+                          <Show when={rowFlag(row)}>
                             <span class="symbol-search-flag" aria-hidden="true">
                               <img
-                                src={row.flagSrc!}
+                                src={rowFlag(row)!}
                                 alt=""
                                 crossOrigin="anonymous"
                                 onError={(e) =>
