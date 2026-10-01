@@ -96,6 +96,10 @@ export class IndicatorController {
   private options = new Map<string, IndicatorOptions>();
   /** Chart interval, for the studies' Visibility tab. */
   private interval: string | undefined;
+  /** Stacked panes order (study and pane-owner ids, top to bottom); ids not
+   *  listed follow, studies before pane owners. */
+  private paneOrder: string[] = [];
+  private lastIds: string[] = [];
 
   /** Identifies the chart for studies that keep per-chart state (strategies). */
   private chartId: string;
@@ -122,21 +126,45 @@ export class IndicatorController {
       if (this.instances.has(id)) continue;
       this.add(id);
     }
+    this.lastIds = ids;
     this.orderPanes(ids);
+  }
+
+  /** Persisted stacking order (pane controls move up / down; add order of
+   *  study panes and compared symbols in "New pane"). */
+  setPaneOrder(order: string[]): void {
+    this.paneOrder = order;
+    this.orderPanes(this.lastIds);
+  }
+
+  /** Re-apply the stacking order (panes drawn after the last sync). */
+  applyPaneOrder(): void {
+    this.orderPanes(this.lastIds);
+  }
+
+  /** Stacked pane ids, top to bottom (pane index order). */
+  stackedOrder(): string[] {
+    return [...this.instances].filter(([, inst]) => !inst.overlay).sort((a, b) => a[1].paneIndex - b[1].paneIndex).map(([id]) => id);
   }
 
   /** Stacked panes in list order (the order a fresh load gives): a study
    *  put back in the middle of the list (undo of a removal) opens at the
    *  bottom, then moves up to its place. Panes not drawn yet are left. */
   private orderPanes(ids: string[]): void {
-    // Studies first, then the other pane owners in add order.
-    const stacked = [
+    // The persisted order first; the others follow (studies in list order,
+    // then the other pane owners in add order).
+    const rest = [
       ...ids.filter((id) => {
         const inst = this.instances.get(id);
         return !!inst && !inst.overlay && !inst.owner;
       }),
       ...[...this.instances].filter(([, inst]) => !!inst.owner).map(([id]) => id),
     ];
+    const rank = (id: string) => {
+      const k = this.paneOrder.indexOf(id);
+      return k >= 0 ? k : this.paneOrder.length + rest.indexOf(id);
+    };
+    const stacked = rest.slice().sort((a, b) => rank(a) - rank(b));
     const n = this.chart.panes().length;
     stacked.forEach((id, k) => {
       const want = k + 1;

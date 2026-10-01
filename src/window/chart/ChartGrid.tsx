@@ -78,6 +78,7 @@ type Props = {
   onCompareChange?: (paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) => void;
   onRemoveCompare?: (paneIndex: number, id: string) => void;
   onChangeCompareSymbol?: (paneIndex: number, id: string) => void;
+  onPaneOrder?: (paneIndex: number, order: string[]) => void;
   /** Persist a specific pane's settled visible logical range (its scroll/zoom
    *  anchor), so it survives tab switches + reloads. */
   onVisibleRange?: (paneIndex: number, range: { from: number; to: number }) => void;
@@ -262,6 +263,8 @@ export function ChartGrid(props: Props) {
                 onCompareChange={(id, patch) => live() && props.onCompareChange?.(i, id, patch)}
                 onRemoveCompare={(id) => live() && props.onRemoveCompare?.(i, id)}
                 onChangeCompareSymbol={(id) => live() && props.onChangeCompareSymbol?.(i, id)}
+                paneOrder={pane().paneOrder}
+                onPaneOrder={(order) => live() && props.onPaneOrder?.(i, order)}
                 onReorderIndicators={(ids) => live() && props.onReorderIndicators?.(i, ids)}
                 cursorMode={props.cursorMode}
                 onWheelZoom={onWheelZoom}

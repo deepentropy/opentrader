@@ -195,6 +195,10 @@ type Props = {
   onRemoveCompare?: (id: string) => void;
   /** Legend title of a compared symbol clicked ("Change symbol"). */
   onChangeCompareSymbol?: (id: string) => void;
+  /** Persisted stacking order of the panes (study and compared-symbol ids). */
+  paneOrder?: string[];
+  /** Pane controls moved a pane: the new stacking order. */
+  onPaneOrder?: (order: string[]) => void;
   /** When true, suppress all study layers without removing them from the active
    *  set (Hide-all dropdown's "Hide indicators"); restored when toggled off. */
   indicatorsHidden?: boolean;
@@ -1519,6 +1523,7 @@ export function ChartView(props: Props) {
     const a = controller.idsInPane(i);
     const b = controller.idsInPane(j);
     controller.swapPanes(i, j);
+    props.onPaneOrder?.(controller.stackedOrder());
     setPaneEpoch((n) => n + 1);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
     // Persist: stacked panes are claimed in list order, so swap the two
@@ -4017,7 +4022,13 @@ export function ChartView(props: Props) {
   let comparePercentOn = false;
   /** Description of each compared symbol (legend / dialog titles). */
   const [compareNames, setCompareNames] = createSignal<Record<string, string>>({});
-  const compareEntries = () => props.compare ?? [];
+  /** Settings dialog draft drawn live (Cancel drops it). */
+  const [comparePreview, setComparePreview] = createSignal<{ id: string; symbol: string; style: CompareStyleState } | null>(null);
+  const compareEntries = (): CompareEntry[] => {
+    const list = props.compare ?? [];
+    const pv = comparePreview();
+    return pv ? list.map((e) => (e.id === pv.id ? { ...e, symbol: pv.symbol, style: pv.style } : e)) : list;
+  };
   const compareEntry = (id: string) => compareEntries().find((e) => e.id === id);
   /** Legend / dialog title: "description · exchange". */
   const compareTitle = (e: CompareEntry) => {
@@ -4071,7 +4082,14 @@ export function ChartView(props: Props) {
    *  the new bar times. */
   function renderCompareAll() {
     for (const layer of compareLayers.values()) renderCompare(layer);
+    // Study panes drawn after the last sync take their stacking place.
+    controller?.applyPaneOrder();
   }
+  createEffect(() => {
+    chartReady();
+    const order = props.paneOrder ?? [];
+    untrack(() => controller?.setPaneOrder(order));
+  });
   /** Reconcile the layers with the entries (structure, style, scales). */
   function syncCompare() {
     if (!chart) return;
@@ -4102,6 +4120,7 @@ export function ChartView(props: Props) {
           while (chart.panes().length < layer.paneIndex) chart.addPane(true);
         }
         compareLayers.set(e.id, layer);
+        startCompareLive(layer);
         created = true;
       } else {
         layer.entry = e;
@@ -4116,6 +4135,7 @@ export function ChartView(props: Props) {
       loadCompareBars(layer);
     }
     syncCompareScaleVisibility();
+    controller?.applyPaneOrder();
     // Same % scale: the main scale shows percent while such an entry exists.
     const percent = want.some((e) => e.placement === "percent");
     if (percent !== comparePercentOn) {
@@ -4127,9 +4147,34 @@ export function ChartView(props: Props) {
     queueMicrotask(refreshPaneBoxes);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
   }
+  // Live ticks of the compared symbols: one subscription slot per entry.
+  const compareLive = new Map<string, () => void>();
+  /** Live bars merged while the tab was hidden (drawn when shown). */
+  let compareLiveDirty = false;
+  function startCompareLive(layer: CompareLayer) {
+    const id = layer.entry.id;
+    const slot = `${paneId}:cmp:${id}`;
+    const sym = layer.entry.symbol;
+    setLiveSymbol(sym, slot).catch(() => {});
+    let off: UnlistenFn | null = null;
+    let dead = false;
+    subscribeBars(() => sym, () => props.interval ?? "1D", (bar) => {
+      if (compareLayers.get(id) !== layer || !layer.mergeLive(bar)) return;
+      if (hidden()) { compareLiveDirty = true; return; }
+      renderCompare(layer);
+      if (!crosshairActive) refreshIndicatorLegend();
+    }, () => props.session ?? "RTH").then((u) => { if (dead) u(); else off = u; });
+    compareLive.set(id, () => {
+      dead = true;
+      off?.();
+      setLiveSymbol(null, slot).catch(() => {});
+    });
+  }
   function dropCompareLayer(id: string) {
     const layer = compareLayers.get(id);
     if (!layer) return;
+    compareLive.get(id)?.();
+    compareLive.delete(id);
     compareLayers.delete(id);
     if (layer.entry.placement === "pane" && controller) controller.releasePane(id);
     else layer.clear();
@@ -4147,7 +4192,7 @@ export function ChartView(props: Props) {
     p.then((bars) => {
       // The pane may have moved on, or the layer gone, before the fetch lands.
       if (basis !== compareBasis || compareLayers.get(layer.entry.id) !== layer) return;
-      if (layer.loadedBars === bars) return;
+      if (layer.source === bars) return;
       layer.setBars(bars);
       renderCompare(layer);
       refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
@@ -4166,6 +4211,7 @@ export function ChartView(props: Props) {
   createEffect(() => {
     chartReady();
     void props.compare;
+    void comparePreview();
     void props.interval;
     void props.session;
     void reloadTick();
@@ -4276,7 +4322,7 @@ export function ChartView(props: Props) {
     // track the live bar instead of lagging until the next reload.
     controller?.renderAll();
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    if (appended) updateSessionBreaks();
+    if (appended) { updateSessionBreaks(); renderCompareAll(); }
     // A forming bar can push a new visible extreme without appending.
     else updateHighLowLines();
     // Keep the legend on the latest bar unless the user is hovering one.
@@ -4586,6 +4632,10 @@ export function ChartView(props: Props) {
     onCleanup(() => { alive = false; clearInterval(timer); onShownHooks.delete(onShow); });
   });
   function catchUpOnShow() {
+    if (compareLiveDirty) {
+      compareLiveDirty = false;
+      renderCompareAll();
+    }
     if (liveDirty) {
       const appended = liveAppendedWhileHidden;
       liveDirty = false;
@@ -5020,12 +5070,13 @@ export function ChartView(props: Props) {
           );
         }}
       </Show>
-      <Show when={compareSettingsFor() ? compareEntry(compareSettingsFor()!) : undefined} keyed>
+      <Show when={compareSettingsFor() ? (props.compare ?? []).find((x) => x.id === compareSettingsFor()) : undefined} keyed>
         {(e) => (
           <CompareSettingsDialog
             entry={e}
             title={compareTitle(e)}
             onApply={({ symbol, style }) => props.onCompareChange?.(e.id, symbol !== e.symbol ? { symbol, style } : { style })}
+            onPreview={(next) => setComparePreview(next ? { id: e.id, ...next } : null)}
             onClose={() => setCompareSettingsFor(null)}
           />
         )}

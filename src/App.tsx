@@ -43,7 +43,8 @@ import {
   type PaneIndicatorSettings,
   type TabChart,
 } from "./window/shell/tabs";
-import { COMPARE_COLORS, defaultCompareStyle, type CompareStyleState } from "./window/chart/compare/compare-style";
+import { COMPARE_COLORS, newCompareStyle, type CompareStyleState } from "./window/chart/compare/compare-style";
+import { recentSymbols, recordRecentSymbol } from "./data/recent-symbols";
 import { AppSettingsDialog, type AppSettingsTabId } from "./window/header/AppSettingsDialog";
 import { AlertDialog } from "./window/alerts/AlertDialog";
 import { startAlertEngine, onAlertFire } from "./data/alert-engine";
@@ -890,10 +891,27 @@ function App() {
   function addCompare(symbol: string, placement: ComparePlacement) {
     const tabId = activeTab().id;
     const paneIndex = activeTab().activePane;
-    const cur = activePaneState().compare ?? [];
+    const pane = activePaneState();
+    const cur = pane.compare ?? [];
     const color = COMPARE_COLORS[cur.length % COMPARE_COLORS.length];
-    const entry: CompareEntry = { id: newCompareId(), symbol, placement, color, style: defaultCompareStyle(color) };
+    const entry: CompareEntry = { id: newCompareId(), symbol, placement, color, style: newCompareStyle(color) };
+    // A new pane goes below the existing ones: record the current order with
+    // it last, so a study added later goes below it in turn.
+    if (placement === "pane") {
+      const order = (pane.paneOrder ?? []).filter((id) => pane.indicators.includes(id) || cur.some((c) => c.id === id));
+      for (const id of pane.indicators) if (!order.includes(id)) order.push(id);
+      for (const c of cur) if (c.placement === "pane" && !order.includes(c.id)) order.push(c.id);
+      order.push(entry.id);
+      patchTab(tabId, { panes: tabOf(tabId)!.panes.map((p, i) => (i === paneIndex ? { ...p, paneOrder: order } : p)) });
+    }
+    recordRecentSymbol(symbol);
     changeCompare(tabId, paneIndex, [...cur, entry], `insert ${tickerOf(symbol)}`);
+  }
+  /** Pane controls moved a pane: persist the stacking order. */
+  function setPaneOrderForPane(tabId: string, paneIndex: number, order: string[]) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
+    patchTab(tabId, { panes: tab.panes.map((p, i) => (i === paneIndex ? { ...p, paneOrder: order } : p)) });
   }
   function removeCompare(tabId: string, paneIndex: number, id: string) {
     const cur = tabOf(tabId)?.panes[paneIndex]?.compare ?? [];
@@ -917,6 +935,16 @@ function App() {
       getTickerInfo(c.symbol).then((info) => setCompareNames((m) => ({ ...m, [c.symbol]: info?.name ?? "" }))).catch(() => {});
     }
     return list.map((c) => ({ id: c.id, symbol: c.symbol, description: compareNames()[c.symbol] || undefined }));
+  }
+  /** Recent symbols of the Compare dialog, with their descriptions. */
+  function compareRecent() {
+    const list = recentSymbols();
+    for (const s of list) {
+      if (s in compareNames()) continue;
+      setCompareNames((m) => ({ ...m, [s]: "" }));
+      getTickerInfo(s).then((info) => setCompareNames((m) => ({ ...m, [s]: info?.name ?? "" }))).catch(() => {});
+    }
+    return list.map((s) => ({ symbol: s, description: compareNames()[s] || undefined }));
   }
 
   /** Replace a scope key's drawings + persist. The per-pane mutators target the
@@ -1261,7 +1289,11 @@ function App() {
     const target = compareTarget();
     setCompareTarget(null);
     setSymbolDialogOpen(false);
-    const apply = (full: string) => (target ? patchCompare(target.tabId, target.paneIndex, target.id, { symbol: full }) : setSymbol(full));
+    const apply = (full: string) => {
+      recordRecentSymbol(full);
+      if (target) patchCompare(target.tabId, target.paneIndex, target.id, { symbol: full });
+      else setSymbol(full);
+    };
     if (isFullSymbol(picked)) apply(picked.toUpperCase());
     else void toFullSymbol(picked).then(apply, (e) => console.warn(`[symbol] ${picked}: ${e}`));
   }
@@ -2203,6 +2235,7 @@ function App() {
               onIndicatorSettings={(i, id, st) => setIndicatorSettingsForPane(tabId, i, id, st)}
               onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
               onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
+              onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}
               onChangeCompareSymbol={(i, id) => {
                 setCompareTarget({ tabId, paneIndex: i, id });
                 setSymbolSearchSeed(null);
@@ -2397,6 +2430,7 @@ function App() {
         <SymbolSearchDialog
           compare={{
             added: compareAdded,
+            recent: compareRecent,
             add: (picked, placement) => {
               if (isFullSymbol(picked)) addCompare(picked.toUpperCase(), placement);
               else void toFullSymbol(picked).then((full) => addCompare(full, placement), (e) => console.warn(`[symbol] ${picked}: ${e}`));

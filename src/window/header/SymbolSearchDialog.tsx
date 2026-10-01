@@ -12,9 +12,11 @@ import { Portal } from "solid-js/web";
 import {
   CATEGORIES,
   TYPE_FILTERS,
+  SYMBOLS,
   filterSymbols,
   liveResultsToRows,
   type FilteredRow,
+  type SymbolRow,
   type SymbolCategoryId,
 } from "../../data/symbol-search";
 import { searchSymbols } from "../../data/datafeed";
@@ -72,6 +74,8 @@ type Props = {
    *  clears after an add. */
   compare?: {
     added: () => { id: string; symbol: string; description?: string }[];
+    /** Recently used symbols, most recent first. */
+    recent: () => { symbol: string; description?: string }[];
     add: (symbolName: string, placement: ComparePlacement) => void;
     remove: (id: string) => void;
   };
@@ -313,8 +317,20 @@ export function SymbolSearchDialog(props: Props) {
   const dialogTitle = () => (props.compare ? "Compare symbols" : props.watchlist ? "Add symbol" : "Symbol search");
   /** Compare mode with an empty query: the ADDED / RECENT sections. */
   const compareHome = () => !!props.compare && !query().trim();
-  /** Rows of the list (compare home: the recent symbols only). */
-  const listRows = () => (compareHome() ? rows().filter((r) => r.recent) : rows());
+  /** Compare home: the recently used symbols (catalogue row when known). */
+  const recentRows = createMemo<FilteredRow[]>(() => {
+    if (!props.compare) return [];
+    return props.compare.recent().map((r) => {
+      const cat = SYMBOLS.find((s) => s.symbolName === r.symbol);
+      const colon = r.symbol.indexOf(":");
+      const ticker = colon >= 0 ? r.symbol.slice(colon + 1) : r.symbol;
+      const exchange = colon >= 0 ? r.symbol.slice(0, colon) : "";
+      const base: SymbolRow = cat ?? { symbolName: r.symbol, ticker, description: "", marketType: "", exchange, category: "all" as SymbolCategoryId };
+      return { ...base, description: r.description || base.description, titleHighlight: null, descriptionHighlight: null };
+    });
+  });
+  /** Rows of the list (compare home: the recent symbols). */
+  const listRows = () => (compareHome() ? recentRows() : rows());
 
   onMount(() => {
     input.focus();
@@ -603,7 +619,9 @@ export function SymbolSearchDialog(props: Props) {
                     }}
                   </For>
                 </Show>
-                <div class="cmp-search-section">Recent symbols</div>
+                <Show when={listRows().length > 0}>
+                  <div class="cmp-search-section">Recent symbols</div>
+                </Show>
                 <For each={listRows()}>{(row, i) => compareRow(row, i)}</For>
               </div>
             </Show>

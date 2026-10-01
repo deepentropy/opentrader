@@ -5,7 +5,7 @@
  * (intervals matrix); footer Defaults / Cancel / Ok. Edits a local draft like
  * the indicator Settings dialog: Cancel discards, Ok commits.
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import type { IntervalVisibility, UnitVisibility } from "lightweight-charts-drawing/core/types";
 import { CheckBox, FormRowView, SelectControl } from "../../header/ChartPropertiesDialog";
@@ -19,13 +19,17 @@ import {
   cloneCompareStyle,
   compareForms,
   defaultCompareStyle,
+  saveCompareDefault,
   type CompareStyleState,
 } from "./compare-style";
+import * as kv from "../../../data/kv";
 import type { CompareEntry } from "../../shell/tabs";
 import { toFullSymbol } from "../../../data/datafeed";
 import { isFullSymbol } from "../../../data/symbol-name";
 
 type Tab = "inputs" | "style" | "visibility";
+/** The dialog opens on the tab clicked last. */
+const TAB_KEY = "ot:compare-settings:tab";
 const TAB_TITLES: Record<Tab, string> = { inputs: "Inputs", style: "Style", visibility: "Visibility" };
 
 type Props = {
@@ -33,6 +37,8 @@ type Props = {
   /** "description · exchange". */
   title: string;
   onApply: (next: { symbol: string; style: CompareStyleState }) => void;
+  /** Every draft change (live preview on the chart; Cancel drops it). */
+  onPreview: (next: { symbol: string; style: CompareStyleState } | null) => void;
   onClose: () => void;
 };
 
@@ -46,15 +52,26 @@ const Pencil = () => (
 );
 
 export function CompareSettingsDialog(props: Props) {
-  const [tab, setTab] = createSignal<Tab>("inputs");
+  const stored = kv.getItem(TAB_KEY) as Tab | null;
+  const [tab, setTabRaw] = createSignal<Tab>(stored && stored in TAB_TITLES ? stored : "inputs");
+  const setTab = (t: Tab) => { setTabRaw(t); kv.setItem(TAB_KEY, t); };
   const [symbol, setSymbol] = createSignal(props.entry.symbol);
   const [searchOpen, setSearchOpen] = createSignal(false);
   const [draft, setDraft] = createStore<CompareStyleState>(cloneCompareStyle(props.entry.style));
   const forms = compareForms(props.entry.color);
   const styleTitle = createMemo(() => COMPARE_STYLES.find((s) => s.id === draft.style)?.title ?? "Line");
 
+  // Live preview: the chart draws the draft while the dialog is open.
+  createEffect(() => {
+    const next = { symbol: symbol(), style: cloneCompareStyle(JSON.parse(JSON.stringify(draft)) as CompareStyleState) };
+    untrack(() => props.onPreview(next));
+  });
+  let committed = false;
+  onCleanup(() => { if (!committed) props.onPreview(null); });
   const ok = () => {
+    committed = true;
     props.onApply({ symbol: symbol(), style: cloneCompareStyle(draft) });
+    props.onPreview(null);
     props.onClose();
   };
   const reset = () => setDraft(reconcile(defaultCompareStyle(props.entry.color)));
@@ -205,6 +222,9 @@ export function CompareSettingsDialog(props: Props) {
               <div ref={defaultsMenu} class="cp3-menu settings-template-menu settings-defaults-menu" role="menu">
                 <div role="menuitem" class="cp3-menu-item" onClick={() => { reset(); setDefaultsOpen(false); }}>
                   <span class="cp3-menu-title">Reset settings</span>
+                </div>
+                <div role="menuitem" class="cp3-menu-item" onClick={() => { saveCompareDefault(cloneCompareStyle(draft)); setDefaultsOpen(false); }}>
+                  <span class="cp3-menu-title">Save as default</span>
                 </div>
               </div>
             </Show>

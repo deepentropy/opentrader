@@ -22,6 +22,7 @@ import {
   type SeriesStyles,
 } from "../../header/chart-settings";
 import type { ChartTypeId } from "../chart-types";
+import * as kv from "../../../data/kv";
 
 /** Chart styles of a compared symbol, in the Style select's order. */
 export type CompareStyleId =
@@ -45,9 +46,12 @@ export const COMPARE_STYLES: ReadonlyArray<{ id: CompareStyleId; title: string }
 ];
 export const DEFAULT_COMPARE_STYLE: CompareStyleId = "line";
 
-/** Line colour of a new compared symbol, by add order on the chart. Only
- *  these four were observed; the sequence repeats after them. */
-export const COMPARE_COLORS = ["#3179F5", "#00C853", "#FF9800", "#26C6DA"];
+/** Line colour of a new compared symbol, by add order on the chart (ten
+ *  observed; the sequence repeats after them). */
+export const COMPARE_COLORS = [
+  "#3179F5", "#00C853", "#FF9800", "#26C6DA", "#C51162",
+  "#FBC02D", "#2BD9BC", "#FF4081", "#82B1FF", "#AA00FF",
+];
 
 /** Override min tick choices (the Precision list of the chart settings). */
 export const MIN_TICK_OPTIONS = PRECISION_OPTIONS;
@@ -172,6 +176,28 @@ const cloneVisibility = (v: IntervalVisibility): IntervalVisibility => ({
   months: { ...v.months },
   ranges: v.ranges,
 });
+
+// ── Defaults menu → "Save as default" ──────────────────────────────────────
+// The saved style is what a NEWLY added compared symbol starts with; the
+// Line style's colour still follows the add order. "Reset settings" restores
+// the factory style, not this one.
+const DEFAULT_KEY = "ot:compare-style-default";
+
+export function saveCompareDefault(s: CompareStyleState): void {
+  kv.setItem(DEFAULT_KEY, JSON.stringify(s));
+}
+
+/** Style of a new compared symbol drawn in `color`: the saved default (if
+ *  any) with the add-order line colour, else the factory style. */
+export function newCompareStyle(color: string): CompareStyleState {
+  let raw: unknown;
+  try { raw = JSON.parse(kv.getItem(DEFAULT_KEY) ?? "null"); } catch { raw = null; }
+  if (!raw) return defaultCompareStyle(color);
+  const s = reviveCompareStyle(raw, color);
+  const line = s.rows[keyOf("line", "Line")]?.controls?.[0];
+  if (line?.kind === "color") line.color = color;
+  return s;
+}
 
 /** Factory style of a compared symbol drawn in `color`. */
 export function defaultCompareStyle(color: string): CompareStyleState {

@@ -113,6 +113,10 @@ export type PaneChart = {
   indicators: string[];
   /** Compared symbols of this pane (header "Compare symbols"), in add order. */
   compare?: CompareEntry[];
+  /** Stacking order of the panes below the price pane (study and
+   *  compared-symbol ids, top to bottom). Ids not listed follow; absent =
+   *  studies in list order, then compared symbols. */
+  paneOrder?: string[];
   /** Per-indicator settings overrides (Settings dialog → Inputs/Style), keyed by
    *  indicator registry id. Persisted so a study's inputs/colours survive
    *  reloads and ride along in saved layouts. Absent = registry defaults. */
@@ -256,6 +260,7 @@ export function migrateTab(raw: any): TabChart {
       indicatorSettings:
         p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
       compare: reviveCompare(p.compare),
+      paneOrder: Array.isArray(p.paneOrder) ? p.paneOrder.filter((x): x is string => typeof x === "string") : undefined,
       visibleLogicalRange:
         p.visibleLogicalRange &&
         typeof p.visibleLogicalRange.from === "number" &&

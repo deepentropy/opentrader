@@ -50,9 +50,30 @@ export class CompareLayer {
     return this.bars;
   }
 
+  /** The fetched array the bars came from (live merges copy it). */
+  source: OHLC[] | null = null;
+
   /** New bars (drawn by the next render). */
   setBars(bars: OHLC[]): void {
     this.bars = bars;
+    this.source = bars;
+  }
+
+  /** Merge one live bar (bucketed to the chart interval): extend the last
+   *  bar or append a newer one. False when it is older than the last bar. */
+  mergeLive(bar: { time: number; open: number; high: number; low: number; close: number; volume?: number }): boolean {
+    const b = this.bars;
+    const last = b.length ? b[b.length - 1] : null;
+    const lastTime = last ? (last.time as number) : -1;
+    if (bar.time < lastTime) return false;
+    // Copy on write: the fetched array is shared by entries of one symbol.
+    if (this.bars === this.source) this.bars = b.slice();
+    if (last && bar.time === lastTime) {
+      this.bars[this.bars.length - 1] = { ...last, high: Math.max(last.high, bar.high), low: Math.min(last.low, bar.low), close: bar.close };
+    } else {
+      this.bars.push({ time: bar.time as OHLC["time"], open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume });
+    }
+    return true;
   }
 
   setScaleId(id: string): void {
