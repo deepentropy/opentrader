@@ -39,6 +39,7 @@ import {
   SETTINGS_REV,
   type Draft,
   type CtrlValue,
+  type RowState,
 } from "./chart-settings";
 import type { ChartTypeId } from "../chart/chart-types";
 import { ColorPanel } from "../drawings/ColorPanel";
@@ -427,7 +428,7 @@ const selectWidth = (rowId: string, c: Control) =>
   c.c === "multicheck" ? 180 : SELECT_W[rowId] ?? 150;
 
 // ── One control (controlled by the draft) ──
-function ControlView(props: {
+export function ControlView(props: {
   rowId: string;
   c: Control;
   v: CtrlValue;
@@ -512,6 +513,55 @@ function ControlView(props: {
         }
       }}
     </Show>
+  );
+}
+
+/** One form row (label cell + controls cell) over its draft state. Shared
+ *  with the compared-symbol Style tab. */
+export function FormRowView(p: {
+  r: FormRow;
+  state: RowState | undefined;
+  /** Controls greyed out (row unchecked…). */
+  disabled: boolean;
+  onToggle: () => void;
+  onControl: (idx: number, nv: CtrlValue) => void;
+  /** Controls not shown (Canvas background: the gradient's 2nd colour). */
+  hideControl?: (idx: number) => boolean;
+}) {
+  const controls = p.r.controls ?? [];
+  const full = controls.length === 0;
+  return (
+    <>
+      <div class={`cp3-cell cp3-label${full ? " is-full" : ""}${p.r.indent ? " is-offset" : ""}${p.r.grouped ? " is-grouped" : ""}${p.r.child ? " is-child" : ""}`}>
+        <div class="cp3-label-inner">
+          <Show when={p.r.cb}>
+            <CheckBox checked={!!p.state?.checked} onToggle={p.onToggle} />
+          </Show>
+          <Show when={p.r.label != null}>
+            <span class="cp3-title" onClick={() => p.r.cb && p.onToggle()}>{p.r.label}</span>
+          </Show>
+          <Show when={p.r.help}><HelpIcon tip={typeof p.r.help === "string" ? p.r.help : undefined} /></Show>
+        </div>
+        <Show when={p.r.desc}><div class="cp3-desc">{p.r.desc}</div></Show>
+      </div>
+      <Show when={!full}>
+        <div class={`cp3-cell cp3-controls${p.r.grouped ? " is-grouped" : ""}${p.r.child ? " is-child" : ""}`}>
+          <For each={controls}>
+            {(c, j) => (
+              <Show when={!p.hideControl?.(j()) && p.state?.controls[j()]}>
+                <ControlView
+                  rowId={rowIdOf(p.r)}
+                  c={c}
+                  v={p.state!.controls[j()]}
+                  disabled={p.disabled && c.c !== "multicheck"}
+                  onChange={(nv) => p.onControl(j(), nv)}
+                />
+              </Show>
+            )}
+          </For>
+        </div>
+      </Show>
+    </>
   );
 }
 
@@ -603,40 +653,16 @@ export function ChartPropertiesDialog(props: Props) {
 
   const RowView = (p: { tab: string; r: FormRow }) => {
     const key = keyOf(p.tab, rowIdOf(p.r));
-    const controls = p.r.controls ?? [];
-    const full = controls.length === 0;
-    const dis = () => controlsDisabled(p.r, key);
     return (
       <Show when={visible(p.tab, p.r)}>
-        <div class={`cp3-cell cp3-label${full ? " is-full" : ""}${p.r.indent ? " is-offset" : ""}${p.r.grouped ? " is-grouped" : ""}${p.r.child ? " is-child" : ""}`}>
-          <div class="cp3-label-inner">
-            <Show when={p.r.cb}>
-              <CheckBox checked={!!draft[key]?.checked} onToggle={() => toggle(key)} />
-            </Show>
-            <Show when={p.r.label != null}>
-              <span class="cp3-title" onClick={() => p.r.cb && toggle(key)}>{p.r.label}</span>
-            </Show>
-            <Show when={p.r.help}><HelpIcon tip={typeof p.r.help === "string" ? p.r.help : undefined} /></Show>
-          </div>
-          <Show when={p.r.desc}><div class="cp3-desc">{p.r.desc}</div></Show>
-        </div>
-        <Show when={!full}>
-          <div class={`cp3-cell cp3-controls${p.r.grouped ? " is-grouped" : ""}${p.r.child ? " is-child" : ""}`}>
-            <For each={controls}>
-              {(c, j) => (
-                <Show when={!(p.tab === "canvas" && p.r.label === "Background" && j() === 2 && draft[key]?.controls?.[0]?.kind === "select" && (draft[key].controls[0] as { value: string }).value !== "Gradient")}>
-                  <ControlView
-                    rowId={rowIdOf(p.r)}
-                    c={c}
-                    v={draft[key].controls[j()]}
-                    disabled={dis() && c.c !== "multicheck"}
-                    onChange={(nv) => setControl(key, j(), nv)}
-                  />
-                </Show>
-              )}
-            </For>
-          </div>
-        </Show>
+        <FormRowView
+          r={p.r}
+          state={draft[key]}
+          disabled={controlsDisabled(p.r, key)}
+          onToggle={() => toggle(key)}
+          onControl={(j, nv) => setControl(key, j, nv)}
+          hideControl={(j) => p.tab === "canvas" && p.r.label === "Background" && j === 2 && draft[key]?.controls?.[0]?.kind === "select" && (draft[key].controls[0] as { value: string }).value !== "Gradient"}
+        />
       </Show>
     );
   };

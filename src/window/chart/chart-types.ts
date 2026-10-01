@@ -186,12 +186,18 @@ export function createSeriesForType(
   chart: IChartApi,
   type: ChartTypeId,
   tokens: ChartTokens,
+  /** Pane of the series (compared symbols in their own pane); default 0. */
+  paneIndex?: number,
 ): AnySeries {
+  // The library's addSeries / addCustomSeries take the pane last.
+  const pane = paneIndex ?? 0;
+  const add: IChartApi["addSeries"] = (def, opts) => chart.addSeries(def, opts, pane);
+  const addCustom: IChartApi["addCustomSeries"] = (view, opts) => chart.addCustomSeries(view, opts, pane);
   const st = tokens.styles;
   switch (type) {
     case "bar":
       // Bars: up / down colours, "HLC bars" hides the open tick, thin bars.
-      return chart.addSeries(BarSeries, {
+      return add(BarSeries, {
         upColor: st.bar.up,
         downColor: st.bar.down,
         openVisible: !st.bar.hlc,
@@ -199,18 +205,18 @@ export function createSeriesForType(
       });
     case "hollowCandle":
       // Per-bar colours in setDataForType (hollow rule).
-      return chart.addSeries(CandlestickSeries, candleOptions(st.hollowCandle));
+      return add(CandlestickSeries, candleOptions(st.hollowCandle));
     case "line":
     case "lineWithMarkers":
     case "stepline": {
       const s = st[type];
       if (s.type === "Gradient") {
-        return chart.addCustomSeries(
+        return addCustom(
           new GradientLinePaneView({ start: s.start, end: s.end, width: s.width, style: s.style, step: type === "stepline", markers: type === "lineWithMarkers" }),
           { priceLineVisible: true, color: s.end, priceLineStyle: LineStyle.Dotted },
         );
       }
-      return chart.addSeries(LineSeries, {
+      return add(LineSeries, {
         color: s.color,
         lineWidth: width4(s.width),
         lineStyle: libLineStyle(s.style),
@@ -218,7 +224,7 @@ export function createSeriesForType(
       });
     }
     case "area":
-      return chart.addSeries(AreaSeries, {
+      return add(AreaSeries, {
         lineColor: st.area.line.color,
         lineWidth: width4(st.area.line.width),
         lineStyle: libLineStyle(st.area.line.style),
@@ -226,12 +232,12 @@ export function createSeriesForType(
         bottomColor: st.area.bottom,
       });
     case "hlcArea":
-      return chart.addCustomSeries(new HlcAreaPaneView(tokens), {
+      return addCustom(new HlcAreaPaneView(tokens), {
         priceLineVisible: true,
         color: st.hlcArea.close.color,
       });
     case "hilo":
-      return chart.addCustomSeries(new HiLoPaneView(tokens), {
+      return addCustom(new HiLoPaneView(tokens), {
         priceLineVisible: true,
         color: st.hilo.bodyColor,
       });
@@ -239,7 +245,7 @@ export function createSeriesForType(
       const b = st.baseline;
       // baseValue follows the Base level % of the pane (ChartView keeps it
       // in sync with the visible price range).
-      return chart.addSeries(BaselineSeries, {
+      return add(BaselineSeries, {
         // The library draws both halves with ONE width / style: the Top
         // line's (the settings keep them separate).
         topLineColor: b.top.color,
@@ -253,32 +259,32 @@ export function createSeriesForType(
       });
     }
     case "column":
-      return chart.addCustomSeries(new ColumnPaneView(), { priceLineVisible: true, color: st.column.up });
+      return addCustom(new ColumnPaneView(), { priceLineVisible: true, color: st.column.up });
     case "kagi":
-      return chart.addCustomSeries(new KagiPaneView(tokens), { priceLineVisible: true });
+      return addCustom(new KagiPaneView(tokens), { priceLineVisible: true });
     case "pnf":
-      return chart.addCustomSeries(new PnfPaneView(tokens), { priceLineVisible: true });
+      return addCustom(new PnfPaneView(tokens), { priceLineVisible: true });
     case "svp":
-      return chart.addCustomSeries(new ProfilePaneView(tokens, "svp"), { priceLineVisible: true });
+      return addCustom(new ProfilePaneView(tokens, "svp"), { priceLineVisible: true });
     case "tpo":
-      return chart.addCustomSeries(new ProfilePaneView(tokens, "tpo"), { priceLineVisible: true });
+      return addCustom(new ProfilePaneView(tokens, "tpo"), { priceLineVisible: true });
     case "volFootprint":
-      return chart.addCustomSeries(new FootprintPaneView(tokens), { priceLineVisible: true });
+      return addCustom(new FootprintPaneView(tokens), { priceLineVisible: true });
     case "volCandles":
-      return chart.addCustomSeries(new VolCandlePaneView(tokens), {
+      return addCustom(new VolCandlePaneView(tokens), {
         priceLineVisible: true,
         color: st.volCandles.bodyUp,
       });
     case "range":
       if (st.range.style === "Bars") {
-        return chart.addSeries(BarSeries, {
+        return add(BarSeries, {
           upColor: st.range.up,
           downColor: st.range.down,
           openVisible: true,
           thinBars: st.range.thin,
         });
       }
-      return chart.addSeries(CandlestickSeries, {
+      return add(CandlestickSeries, {
         upColor: st.range.body.up,
         downColor: st.range.body.down,
         borderUpColor: st.range.border.up,
@@ -293,7 +299,7 @@ export function createSeriesForType(
       // Up / Down bars = fill + border; per-brick colours (incl. projection)
       // in setDataForType. Renko wicks follow the Wick row.
       const s = st[type];
-      return chart.addSeries(CandlestickSeries, {
+      return add(CandlestickSeries, {
         upColor: s.up.fill,
         downColor: s.down.fill,
         borderUpColor: s.up.border,
@@ -305,9 +311,9 @@ export function createSeriesForType(
       });
     }
     case "ha":
-      return chart.addSeries(CandlestickSeries, candleOptions(st.ha));
+      return add(CandlestickSeries, candleOptions(st.ha));
     default:
-      return chart.addSeries(CandlestickSeries, candleOptions(st.candle));
+      return add(CandlestickSeries, candleOptions(st.candle));
   }
 }
 

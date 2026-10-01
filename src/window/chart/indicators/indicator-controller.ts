@@ -27,8 +27,19 @@ import {
   type IndicatorOptions,
 } from './indicator-options';
 
+/** A stacked-pane owner that is not a study (a compared symbol drawn in
+ *  "New pane"): it shares the pane numbering with the studies. */
+export interface PaneOwner {
+  setPaneIndex(i: number): void;
+  clear(): void;
+  firstSeries(): ISeriesApi<SeriesType> | null;
+  legendPlots(time?: number): IndicatorLegendPlot[];
+}
+
 type Instance = {
   layer: IndicatorLayer;
+  /** Set for a pane owner that is not a study (`layer` unused then). */
+  owner?: PaneOwner;
   paneIndex: number;
   overlay: boolean;
   /** Overlay study on its OWN hidden scale (Volume) — draws in pane 0 but its
@@ -56,6 +67,9 @@ export type IndicatorLegendRow = {
   offInterval: boolean;
   /** The legend eye state alone (hidden also covers offInterval). */
   eyeHidden: boolean;
+  /** Set on a compared symbol's row: its value texts (in the line colour);
+   *  the title is shown as is and its click changes the symbol. */
+  compare?: { texts: { text: string; color: string }[] };
 };
 
 export class IndicatorController {
@@ -98,9 +112,9 @@ export class IndicatorController {
   sync(ids: string[]): void {
     const desired = new Set(ids);
 
-    // Remove studies no longer wanted.
-    for (const id of [...this.instances.keys()]) {
-      if (!desired.has(id)) { this.remove(id); this.hidden.delete(id); }
+    // Remove studies no longer wanted (pane owners are not studies).
+    for (const [id, inst] of [...this.instances]) {
+      if (!inst.owner && !desired.has(id)) { this.remove(id); this.hidden.delete(id); }
     }
 
     // Add newly-wanted studies (in list order, so pane stacking is stable).
@@ -115,10 +129,14 @@ export class IndicatorController {
    *  put back in the middle of the list (undo of a removal) opens at the
    *  bottom, then moves up to its place. Panes not drawn yet are left. */
   private orderPanes(ids: string[]): void {
-    const stacked = ids.filter((id) => {
-      const inst = this.instances.get(id);
-      return !!inst && !inst.overlay;
-    });
+    // Studies first, then the other pane owners in add order.
+    const stacked = [
+      ...ids.filter((id) => {
+        const inst = this.instances.get(id);
+        return !!inst && !inst.overlay && !inst.owner;
+      }),
+      ...[...this.instances].filter(([, inst]) => !!inst.owner).map(([id]) => id),
+    ];
     const n = this.chart.panes().length;
     stacked.forEach((id, k) => {
       const want = k + 1;
@@ -134,7 +152,7 @@ export class IndicatorController {
   setLastValueVisible(v: boolean): void {
     if (v === this.lastValueVisible) return;
     this.lastValueVisible = v;
-    for (const inst of this.instances.values()) inst.layer.setLastValueVisible(v);
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setLastValueVisible(v);
     this.renderAll();
   }
 
@@ -157,7 +175,7 @@ export class IndicatorController {
   setScriptChart(chart: ChartContext): void {
     if (JSON.stringify(chart) === JSON.stringify(this.scriptChart)) return;
     this.scriptChart = chart;
-    for (const inst of this.instances.values()) inst.layer.setScriptChart(chart);
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setScriptChart(chart);
   }
 
   /** The chart interval changed: studies whose Visibility tab excludes it
@@ -243,6 +261,7 @@ export class IndicatorController {
   getLegend(time?: number): IndicatorLegendRow[] {
     const rows: IndicatorLegendRow[] = [];
     for (const [id, inst] of this.instances) {
+      if (inst.owner) continue;
       const o = this.options.get(id) ?? defaultIndicatorOptions();
       const entry = getIndicatorEntry(id);
       const offInterval = !this.onInterval(id);
@@ -271,7 +290,7 @@ export class IndicatorController {
   overlayValuesAt(time?: number): number[] {
     const out: number[] = [];
     for (const [id, inst] of this.instances) {
-      if (!inst.overlay || inst.ownScale || this.hidden.has(id)) continue;
+      if (inst.owner || !inst.overlay || inst.ownScale || this.hidden.has(id)) continue;
       for (const p of inst.layer.legendPlots(time)) out.push(p.value);
     }
     return out;
@@ -285,7 +304,7 @@ export class IndicatorController {
     if (!pane) return null;
     const inPane = new Set<unknown>(pane.getSeries());
     for (const [id, inst] of this.instances) {
-      const s = inst.layer.firstSeries();
+      const s = this.seriesOf(inst);
       if (!inst.overlay && s && inPane.has(s)) return id;
     }
     return null;
@@ -294,7 +313,32 @@ export class IndicatorController {
   /** The series a study's drawings are mapped with (its first plot), or
    *  null. A redraw replaces the series: read it at use time. */
   studySeries(id: string): ISeriesApi<SeriesType> | null {
-    return this.instances.get(id)?.layer.firstSeries() ?? null;
+    const inst = this.instances.get(id);
+    return inst ? this.seriesOf(inst) : null;
+  }
+
+  private seriesOf(inst: Instance): ISeriesApi<SeriesType> | null {
+    return inst.owner ? inst.owner.firstSeries() : inst.layer.firstSeries();
+  }
+  private plotsOf(inst: Instance, time?: number): IndicatorLegendPlot[] {
+    return inst.owner ? inst.owner.legendPlots(time) : inst.layer.legendPlots(time);
+  }
+
+  /** Claim the next stacked pane for a pane owner that is not a study (a
+   *  compared symbol in "New pane"). Returns the pane index; the owner draws
+   *  there. Released with {@link releasePane}. */
+  claimPaneFor(id: string, owner: PaneOwner): number {
+    const existing = this.instances.get(id);
+    if (existing?.owner) return existing.paneIndex;
+    const paneIndex = this.claimPane();
+    this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false });
+    return paneIndex;
+  }
+
+  /** Remove a pane owner: its series goes, its pane closes, the panes below
+   *  move up. */
+  releasePane(id: string): void {
+    if (this.instances.get(id)?.owner) this.remove(id);
   }
 
   /** Plot values at `time` of the shown studies in the pane of study `id`
@@ -305,9 +349,9 @@ export class IndicatorController {
     const inPane = new Set<unknown>(s.getPane().getSeries());
     const out: number[] = [];
     for (const [sid, inst] of this.instances) {
-      const fs = inst.layer.firstSeries();
+      const fs = this.seriesOf(inst);
       if (inst.overlay || this.hidden.has(sid) || !fs || !inPane.has(fs)) continue;
-      for (const p of inst.layer.legendPlots(time)) out.push(p.value);
+      for (const p of this.plotsOf(inst, time)) out.push(p.value);
     }
     return out;
   }
@@ -325,9 +369,14 @@ export class IndicatorController {
     this.chart.swapPanes(a, b);
     for (const inst of this.instances.values()) {
       if (inst.overlay) continue;
-      if (inst.paneIndex === a) { inst.paneIndex = b; inst.layer.setPaneIndex(b); }
-      else if (inst.paneIndex === b) { inst.paneIndex = a; inst.layer.setPaneIndex(a); }
+      if (inst.paneIndex === a) { inst.paneIndex = b; this.setPaneOf(inst, b); }
+      else if (inst.paneIndex === b) { inst.paneIndex = a; this.setPaneOf(inst, a); }
     }
+  }
+
+  private setPaneOf(inst: Instance, i: number): void {
+    if (inst.owner) inst.owner.setPaneIndex(i);
+    else inst.layer.setPaneIndex(i);
   }
 
   /** Toggle a study's plot visibility (legend eye). Returns the new hidden state. */
@@ -345,7 +394,7 @@ export class IndicatorController {
    *  script recompiles with a different shape — its overlay flag (and so its
    *  pane assignment, fixed at add time) may have changed. */
   refresh(id: string): void {
-    if (!this.instances.has(id)) return;
+    if (!this.instances.has(id) || this.instances.get(id)?.owner) return;
     this.remove(id);
     this.add(id);
   }
@@ -371,7 +420,8 @@ export class IndicatorController {
     const inst = this.instances.get(id);
     if (!inst) return;
     const panesBefore = this.chart.panes().length;
-    inst.layer.clear();
+    if (inst.owner) inst.owner.clear();
+    else inst.layer.clear();
     this.instances.delete(id);
     if (!inst.overlay) {
       this.usedPanes.delete(inst.paneIndex);
@@ -383,7 +433,7 @@ export class IndicatorController {
         for (const other of this.instances.values()) {
           if (other.overlay || other.paneIndex <= inst.paneIndex) continue;
           other.paneIndex -= 1;
-          other.layer.setPaneIndex(other.paneIndex);
+          this.setPaneOf(other, other.paneIndex);
         }
         this.usedPanes = new Set([...this.instances.values()].filter((o) => !o.overlay).map((o) => o.paneIndex));
       }

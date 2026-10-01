@@ -132,8 +132,10 @@ export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: numbe
   for (let j = panes.length - 1; j > target; j--) bottom += heights[j] + sep;
   bottom += target === 0 ? MAIN_PANE_MARGIN : 0;
 
-  const rightScale = chart.priceScale("right").width();
-  const leftScale = chart.priceScale("left").width();
+  // A scale shown before the first layout has no widget yet (width throws).
+  const widthOf = (side: "left" | "right") => { try { return chart.priceScale(side).width(); } catch { return 0; } };
+  const rightScale = widthOf("right");
+  const leftScale = widthOf("left");
 
   return {
     bottom,

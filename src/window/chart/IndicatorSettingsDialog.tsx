@@ -208,7 +208,7 @@ function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t:
 }
 
 /** Visibility rows with a range (units and maxima). */
-const VIS_UNITS: ReadonlyArray<readonly [keyof IntervalVisibility, string, number]> = [
+export const VIS_UNITS: ReadonlyArray<readonly [keyof IntervalVisibility, string, number]> = [
   ["seconds", "Seconds", 59],
   ["minutes", "Minutes", 59],
   ["hours", "Hours", 24],
@@ -232,7 +232,7 @@ function checkRow(label: string, checked: () => boolean, toggle: () => void) {
 /** One Visibility row: check + from / slider / to (50 px row, fields
  *  100 x 34, slider 109 px, 8 px before "to"). The slider moves the fields
  *  while dragging and commits on release. */
-function UnitRow(props: { label: string; max: number; unit: UnitVisibility; onChange: (u: UnitVisibility) => void }) {
+export function UnitRow(props: { label: string; max: number; unit: UnitVisibility; onChange: (u: UnitVisibility) => void }) {
   const [live, setLive] = createSignal<{ from: number; to: number } | null>(null);
   const clamp = (n: number) => Math.max(1, Math.min(props.max, Math.round(n)));
   const setField = (field: "from" | "to", v: string) => {

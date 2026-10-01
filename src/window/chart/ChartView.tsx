@@ -15,7 +15,6 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import {
   ColorType,
   CrosshairMode,
-  LineSeries,
   LineStyle,
   PriceScaleMode,
   TickMarkType,
@@ -67,7 +66,11 @@ import { appearanceFrom, type Draft, type NavButtonsBehavior, type PriceSource }
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { priceOf } from "./series-transforms";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
-import type { PaneIndicatorSettings } from "../shell/tabs";
+import type { CompareEntry, PaneIndicatorSettings } from "../shell/tabs";
+import { CompareLayer } from "./compare/compare-layer";
+import { compareColor, type CompareStyleState } from "./compare/compare-style";
+import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
+import { isVisibleOnInterval } from "lightweight-charts-drawing/core/types";
 import {
   aggregateCandles,
   aggregateUnitFor,
@@ -184,9 +187,14 @@ type Props = {
   removeDrawings?: (ids: string[]) => void;
   /** Ordered registry ids of indicators active on this chart. */
   indicators?: string[];
-  /** Compared symbols (header "Compare symbols") overlaid as line series on a
-   *  shared, auto-scaled overlay price scale. */
-  compare?: string[];
+  /** Compared symbols (header "Compare symbols") of this pane. */
+  compare?: CompareEntry[];
+  /** Patch one compared symbol (legend eye, Settings → Ok). */
+  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) => void;
+  /** Remove one compared symbol (legend trash, More → Remove, Delete pane). */
+  onRemoveCompare?: (id: string) => void;
+  /** Legend title of a compared symbol clicked ("Change symbol"). */
+  onChangeCompareSymbol?: (id: string) => void;
   /** When true, suppress all study layers without removing them from the active
    *  set (Hide-all dropdown's "Hide indicators"); restored when toggled off. */
   indicatorsHidden?: boolean;
@@ -745,8 +753,10 @@ export function ChartView(props: Props) {
   const [settingsTab, setSettingsTab] = createSignal<DialogTab | undefined>(undefined);
 
   function refreshIndicatorLegend(time?: number) {
-    setIndLegend(controller?.getLegend(time) ?? []);
+    setIndLegend([...(controller?.getLegend(time) ?? []), ...compareLegendRows(time)]);
   }
+  /** Compared-symbol Settings dialog (entry id; null = closed). */
+  const [compareSettingsFor, setCompareSettingsFor] = createSignal<string | null>(null);
   /** Top of the legend stack inside its pane (`.ot-legend-stack` top). */
   const LEGEND_TOP = 4;
   /** Studies legend of one pane (0 = the price pane, under the series row). */
@@ -759,13 +769,16 @@ export function ChartView(props: Props) {
       bgColor={appearance().bg}
       bgOpacity={appearance().legendIndBgOpacity}
       onToggleHide={(id) => {
+        const cmp = compareEntry(id);
+        if (cmp) { props.onCompareChange?.(id, { hidden: !cmp.hidden }); return; }
         controller?.toggleHidden(id);
         refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
         if (isStrategyId(id)) applyStrategyMarkers();
       }}
-      onSettings={(id) => setSettingsForId(id)}
-      onRemove={(id) => props.onRemoveIndicator?.(id)}
-      onMore={openIndicatorMoreMenu}
+      onSettings={(id) => (compareEntry(id) ? setCompareSettingsFor(id) : setSettingsForId(id))}
+      onRemove={(id) => (compareEntry(id) ? props.onRemoveCompare?.(id) : props.onRemoveIndicator?.(id))}
+      onMore={(id, r) => (compareEntry(id) ? openCompareMoreMenu(id, r) : openIndicatorMoreMenu(id, r))}
+      onTitleClick={(id) => { if (compareEntry(id)) props.onChangeCompareSymbol?.(id); }}
     />
   );
 
@@ -1218,6 +1231,27 @@ export function ChartView(props: Props) {
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
   }
 
+  /** Legend compared-symbol "More" → its actions menu. Rows with no OT
+   *  feature are left out (same rule as the study menu): Add indicator /
+   *  financial metric on the symbol, Symbol info, Visual order, Visibility on
+   *  intervals, Move to, Pin to scale, Copy. */
+  function openCompareMoreMenu(id: string, anchor: DOMRect) {
+    const e = compareEntry(id);
+    if (!e) return;
+    const nodes: CtxNode[] = [
+      { kind: "item", id: "hide", label: e.hidden ? "Show" : "Hide", icon: e.hidden ? CtxIcons.show : CtxIcons.hide,
+        onSelect: () => props.onCompareChange?.(id, { hidden: !e.hidden }) },
+      { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
+        onSelect: () => props.onRemoveCompare?.(id) },
+      { kind: "separator" },
+      { kind: "item", id: "object-tree", label: "Object tree",
+        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id: "object_tree" } })) },
+      { kind: "separator" },
+      { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setCompareSettingsFor(id) },
+    ];
+    setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
+  }
+
   /** Right-click → open the chart context menu at the cursor. "Copy price" /
    *  "Buy …@ price" use the price under the cursor (yToPrice via the coord
    *  bridge); the counts come from the live drawings + indicators. */
@@ -1369,8 +1403,14 @@ export function ChartView(props: Props) {
   let plusEl: HTMLButtonElement | undefined;
   let plusPressed = false;
   const [currency, setCurrency] = createSignal("");
+  /** Width of a visible left price scale: the legends start right of it. */
+  const [legendLeft, setLegendLeft] = createSignal(0);
   function refreshScaleOverlays() {
     if (!chart) return;
+    let lw = 0;
+    // The scale widget is not built before the first layout (width throws).
+    try { lw = chart.options().leftPriceScale.visible ? chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
+    setLegendLeft((v) => (v === lw ? v : lw));
     const side = currentTokens().scalesPlacement;
     const ps = chart.priceScale(side);
     const w = ps.width();
@@ -1498,7 +1538,10 @@ export function ChartView(props: Props) {
   }
   function deletePane(i: number) {
     if (!controller) return;
-    for (const id of controller.idsInPane(i)) props.onRemoveIndicator?.(id);
+    for (const id of controller.idsInPane(i)) {
+      if (compareEntry(id)) props.onRemoveCompare?.(id);
+      else props.onRemoveIndicator?.(id);
+    }
   }
   function toggleCollapse(i: number) {
     if (!chart) return;
@@ -2136,6 +2179,7 @@ export function ChartView(props: Props) {
     indicatorRenderTimer = window.setTimeout(() => {
       indicatorRenderTimer = undefined;
       controller?.renderAll();
+      renderCompareAll();
       refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
     }, INDICATOR_RENDER_DEBOUNCE_MS);
   }
@@ -2717,6 +2761,8 @@ export function ChartView(props: Props) {
 
     const onRangeChange = () => {
       setCoordEpoch((n) => n + 1);
+      // Same % scale values are measured from the first visible bar.
+      if (!crosshairActive && compareEntries().some((e) => e.placement === "percent")) refreshIndicatorLegend();
       refreshBarsRef?.();
       // High/Low follow the visible bars, on followers too.
       updateHighLowLines();
@@ -3759,6 +3805,7 @@ export function ChartView(props: Props) {
       updateSessionBreaks();
       if (!crosshairActive) refreshLegend();
       controller?.renderAll();
+      renderCompareAll();
       refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
       swapping = false;
       return;
@@ -3779,6 +3826,7 @@ export function ChartView(props: Props) {
     // transform type their real times sit between the synthetic ones), so
     // the saved range is checked and the view set on the final axis.
     controller?.renderAll();
+    renderCompareAll();
     // Restore the user's last anchored view for this pane (persisted across tab
     // switches + reloads) when it still references loaded bars; otherwise fall
     // back to default framing. Read untracked so this effect re-runs only on new
@@ -3952,77 +4000,228 @@ export function ChartView(props: Props) {
   });
 
   // ── Compare symbols (header "Compare symbols") ─────────────────────────
-  // Each compared symbol is a line series on a shared overlay price scale
-  // ("compare"), auto-scaled independently of the main series so differently-
-  // priced symbols share one visual frame. A percent scale is the usual
-  // compare mode; the overlay autoscale is the local stand-in. Series are keyed by symbol so the
-  // effect only fetches/creates/removes the delta on each change.
-  const compareSeries = new Map<string, ISeriesApi<"Line">>();
-  const COMPARE_COLORS = ["#ff9800", "#9c27b0", "#00bcd4", "#8bc34a", "#e91e63", "#3f51b5"];
-  // Interval|session|reload basis the current compare lines were fetched under.
-  // When it moves, every existing line holds the OLD timeframe/ADJ basis —
-  // drop them all so the add loop below refetches on the current one. Live
-  // ticks for compare symbols stay out of scope (lines refresh on fetch only).
+  // One CompareLayer per entry (compare/compare-layer.ts). Placement:
+  //   percent : the main series' scale, switched to Percent while at least
+  //             one such entry exists, back to Regular when the last goes;
+  //   scale   : the scale on the other side (the library has one scale per
+  //             side: a 2nd "New price scale" entry gets its own unlabelled
+  //             overlay scale);
+  //   pane    : a stacked pane claimed through the indicator controller.
+  // Bars are fetched per symbol under the pane's interval / session; live
+  // ticks for compared symbols stay out of scope (lines refresh on fetch).
+  const compareLayers = new Map<string, CompareLayer>();
+  /** Bars per symbol under `compareBasis`. */
+  const compareFetch = new Map<string, Promise<OHLC[]>>();
   let compareBasis = "";
-  createEffect(() => {
-    chartReady();
-    const want = props.compare ?? [];
-    const interval = props.interval ?? "1D";
-    const session = props.session ?? "RTH";
-    const basis = `${interval}|${session}|${reloadTick()}`;
+  /** Main scale switched to Percent by a "Same % scale" entry. */
+  let comparePercentOn = false;
+  /** Description of each compared symbol (legend / dialog titles). */
+  const [compareNames, setCompareNames] = createSignal<Record<string, string>>({});
+  const compareEntries = () => props.compare ?? [];
+  const compareEntry = (id: string) => compareEntries().find((e) => e.id === id);
+  /** Legend / dialog title: "description · exchange". */
+  const compareTitle = (e: CompareEntry) => {
+    const { ticker, exchange } = splitSymbol(e.symbol);
+    const name = compareNames()[e.symbol] || ticker;
+    return exchange ? `${name} · ${exchange}` : name;
+  };
+  const otherSide = (side: "left" | "right") => (side === "right" ? "left" : "right");
+  /** Scale id of every entry (placement rules above). */
+  function compareScaleIds(): Map<string, string> {
+    const main = currentTokens().scalesPlacement;
+    const out = new Map<string, string>();
+    let sideUsed = false;
+    for (const e of compareEntries()) {
+      if (e.placement === "percent" || e.placement === "pane") out.set(e.id, main);
+      else if (!sideUsed) { out.set(e.id, otherSide(main)); sideUsed = true; }
+      else out.set(e.id, `cmp:${e.id}`);
+    }
+    return out;
+  }
+  /** The other side's scale is shown while a "New price scale" entry uses it. */
+  function syncCompareScaleVisibility() {
     if (!chart) return;
+    const main = currentTokens().scalesPlacement;
+    const used = compareEntries().some((e) => e.placement === "scale");
+    const opts = { visible: used };
+    chart.applyOptions(otherSide(main) === "left" ? { leftPriceScale: opts } : { rightPriceScale: opts });
+  }
+  function compareVisible(e: CompareEntry): boolean {
+    return !e.hidden && isVisibleOnInterval(e.style.visibility, props.interval);
+  }
+  function compareFormat(e: CompareEntry) {
+    return chartPriceFormat(e.style.minTick, cachedSymbolSessions(e.symbol));
+  }
+  // Bar times of the main series (cached per bars array / length).
+  let mainTimesOf: OHLC[] | null = null;
+  let mainTimesLen = -1;
+  let mainTimes = new Set<number>();
+  function mainTimeSet(): Set<number> {
+    if (raw !== mainTimesOf || raw.length !== mainTimesLen) {
+      mainTimes = new Set(raw.map((b) => b.time as number));
+      mainTimesOf = raw;
+      mainTimesLen = raw.length;
+    }
+    return mainTimes;
+  }
+  function renderCompare(layer: CompareLayer) {
+    layer.render(currentTokens(), compareVisible(layer.entry), compareFormat(layer.entry), mainTimeSet());
+  }
+  /** Main bars changed (load, scroll-back): redraw the compared symbols on
+   *  the new bar times. */
+  function renderCompareAll() {
+    for (const layer of compareLayers.values()) renderCompare(layer);
+  }
+  /** Reconcile the layers with the entries (structure, style, scales). */
+  function syncCompare() {
+    if (!chart) return;
+    const want = compareEntries();
+    const basis = `${props.interval ?? "1D"}|${props.session ?? "RTH"}|${reloadTick()}`;
     if (basis !== compareBasis) {
       compareBasis = basis;
-      for (const [sym, s] of [...compareSeries]) {
-        try { chart.removeSeries(s); } catch { /* already gone */ }
-        compareSeries.delete(sym);
-      }
+      compareFetch.clear();
+      // The loaded bars belong to the old interval / session.
+      for (const layer of compareLayers.values()) layer.setBars([]);
     }
-    // Remove series no longer wanted.
-    for (const [sym, s] of [...compareSeries]) {
-      if (!want.includes(sym)) {
-        try { chart.removeSeries(s); } catch { /* already gone */ }
-        compareSeries.delete(sym);
-      }
+    // Removed entries, and entries whose placement or symbol changed (rebuilt).
+    for (const [id, layer] of [...compareLayers]) {
+      const e = want.find((x) => x.id === id);
+      if (!e || e.placement !== layer.entry.placement || e.symbol !== layer.entry.symbol) dropCompareLayer(id);
     }
-    // Add series newly wanted; fetch this pane's resolution/session.
-    want.forEach((sym, i) => {
-      if (compareSeries.has(sym) || !chart) return;
-      const s = chart.addSeries(LineSeries, {
-        color: COMPARE_COLORS[i % COMPARE_COLORS.length],
-        lineWidth: 2,
-        priceScaleId: "compare",
-        lastValueVisible: true,
-        priceLineVisible: false,
-      });
-      compareSeries.set(sym, s);
-      getBars(sym, interval, session)
-        .then((r) => {
-          // Pane may have moved on / the series removed before the fetch lands.
-          if (compareSeries.get(sym) !== s) return;
-          s.setData(
-            r.bars
-              .filter((c) => c.time != null && c.close != null)
-              .map((c) => ({ time: c.time as unknown as UTCTimestamp, value: c.close as number })),
-          );
+    const scaleIds = compareScaleIds();
+    for (const e of want) {
+      let layer = compareLayers.get(e.id);
+      const scaleId = scaleIds.get(e.id) ?? currentTokens().scalesPlacement;
+      let created = false;
+      if (!layer) {
+        layer = new CompareLayer(chart, e, 0, scaleId);
+        if (e.placement === "pane" && controller) {
+          layer.setPaneIndex(controller.claimPaneFor(e.id, layer));
+          // Studies above it may not be drawn yet (no bars): open their panes
+          // now, else the library puts this series in the next new pane.
+          while (chart.panes().length < layer.paneIndex) chart.addPane(true);
+        }
+        compareLayers.set(e.id, layer);
+        created = true;
+      } else {
+        layer.entry = e;
+        layer.setScaleId(scaleId);
+      }
+      renderCompare(layer);
+      // A new pane copies the main scale's mode (Percent with a same % scale
+      // entry): its own scale starts Regular.
+      if (created && e.placement === "pane") {
+        try { chart.priceScale(scaleId, layer.paneIndex).applyOptions({ mode: PriceScaleMode.Normal }); } catch { /* pane not built yet */ }
+      }
+      loadCompareBars(layer);
+    }
+    syncCompareScaleVisibility();
+    // Same % scale: the main scale shows percent while such an entry exists.
+    const percent = want.some((e) => e.placement === "percent");
+    if (percent !== comparePercentOn) {
+      comparePercentOn = percent;
+      chart.priceScale(currentTokens().scalesPlacement).applyOptions({ mode: percent ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
+      refreshScaleOverlays();
+    }
+    setPaneEpoch((n) => n + 1);
+    queueMicrotask(refreshPaneBoxes);
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+  }
+  function dropCompareLayer(id: string) {
+    const layer = compareLayers.get(id);
+    if (!layer) return;
+    compareLayers.delete(id);
+    if (layer.entry.placement === "pane" && controller) controller.releasePane(id);
+    else layer.clear();
+  }
+  function loadCompareBars(layer: CompareLayer) {
+    const sym = layer.entry.symbol;
+    let p = compareFetch.get(sym);
+    if (!p) {
+      p = getBars(sym, props.interval ?? "1D", props.session ?? "RTH").then((r) =>
+        toOHLC(r.bars.filter((c) => c.time != null && c.close != null)),
+      );
+      compareFetch.set(sym, p);
+    }
+    const basis = compareBasis;
+    p.then((bars) => {
+      // The pane may have moved on, or the layer gone, before the fetch lands.
+      if (basis !== compareBasis || compareLayers.get(layer.entry.id) !== layer) return;
+      if (layer.loadedBars === bars) return;
+      layer.setBars(bars);
+      renderCompare(layer);
+      refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+    }).catch(() => { /* symbol not found / transient: the series stays empty */ });
+    // Description for the legend title.
+    if (!(sym in untrack(compareNames))) {
+      setCompareNames((m) => ({ ...m, [sym]: "" }));
+      getTickerInfo(sym)
+        .then((info) => {
+          setCompareNames((m) => ({ ...m, [sym]: info?.name ?? "" }));
+          refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
         })
-        .catch(() => { /* symbol not found / transient — leave the empty line */ });
-    });
-    // Keep the overlay scale out of the main scale's margins. The scale only
-    // exists once at least one compare series uses it — applying options
-    // before that throws ("incorrect ID").
-    if (compareSeries.size > 0) {
-      try {
-        chart.priceScale("compare").applyOptions({ scaleMargins: { top: 0.1, bottom: 0.1 } });
-      } catch { /* scale not materialized yet */ }
+        .catch(() => {});
     }
+  }
+  createEffect(() => {
+    chartReady();
+    void props.compare;
+    void props.interval;
+    void props.session;
+    void reloadTick();
+    untrack(syncCompare);
   });
   onCleanup(() => {
-    for (const s of compareSeries.values()) {
-      try { chart?.removeSeries(s); } catch { /* chart already disposed */ }
-    }
-    compareSeries.clear();
+    for (const id of [...compareLayers.keys()]) dropCompareLayer(id);
   });
+
+  /** Legend rows of the compared symbols at `time` (or the last bar). */
+  function compareLegendRows(time?: number): IndicatorLegendRow[] {
+    const rows: IndicatorLegendRow[] = [];
+    if (!chart) return rows;
+    const visFrom = chart.timeScale().getVisibleRange()?.from as number | undefined;
+    for (const e of compareEntries()) {
+      const layer = compareLayers.get(e.id);
+      if (!layer) continue;
+      const color = compareColor(e.style);
+      const v = layer.valueAt(time);
+      const texts: { text: string; color: string }[] = [];
+      if (v) {
+        if (e.placement === "percent") {
+          // Percent from the first visible value (the scale's base).
+          const base = visFrom != null ? layer.baseAt(visFrom) : null;
+          if (base) {
+            const pct = (v.value / base - 1) * 100;
+            texts.push({ text: `${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`, color });
+          }
+        } else {
+          const f = compareFormat(e)?.format ?? ((n: number) => n.toFixed(2));
+          texts.push({ text: f(v.value), color });
+          if (v.prev != null && v.prev !== 0) {
+            const d = v.value - v.prev;
+            const sign = d < 0 ? "−" : "+";
+            texts.push({ text: `${sign}${f(Math.abs(d))} (${sign}${Math.abs((d / v.prev) * 100).toFixed(2)}%)`, color });
+          }
+        }
+      }
+      const offInterval = !isVisibleOnInterval(e.style.visibility, props.interval);
+      rows.push({
+        id: e.id,
+        title: compareTitle(e),
+        hidden: !!e.hidden || offInterval,
+        plots: [],
+        pane: e.placement === "pane" ? layer.paneIndex : 0,
+        inputs: "",
+        showValues: true,
+        showInputs: false,
+        precision: null,
+        offInterval,
+        eyeHidden: !!e.hidden,
+        compare: { texts },
+      });
+    }
+    return rows;
+  }
 
   // ── Feature 9: live ticks from Massive WS ─────────────────────────
   // Mirror the chart's `symbol` into the Rust WS task's subscription set,
@@ -4319,6 +4518,8 @@ export function ChartView(props: Props) {
     // Right margin (bars) nudges the view, so apply it off the initial mount.
     chart.timeScale().applyOptions({ rightOffset: t.rightOffset });
     rebuildSeries();
+    // Compared symbols: scale sides and visibility follow the placement.
+    syncCompare();
   });
 
   // Canvas → Watermark: centered pane text assembled from the checked parts
@@ -4746,7 +4947,7 @@ export function ChartView(props: Props) {
       </div>
       {/* One column: the studies stack under the series
           row whatever its height (it wraps to two lines on narrow panes). */}
-      <div class="ot-legend-stack">
+      <div class="ot-legend-stack" style={{ left: `${8 + legendLeft()}px` }}>
         <ChartLegend
           ticker={splitSymbol(props.symbol ?? "").ticker}
           interval={intervalLabel(props.interval ?? "1D")}
@@ -4777,7 +4978,7 @@ export function ChartView(props: Props) {
       <For each={paneBoxes().filter((b) => b.index > 0)}>
         {(b) => (
           <Show when={indLegend().some((r) => r.pane === b.index)}>
-            <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px` }}>
+            <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px`, left: `${8 + legendLeft()}px` }}>
               {studyLegend(b.index)}
             </div>
           </Show>
@@ -4818,6 +5019,16 @@ export function ChartView(props: Props) {
             </Show>
           );
         }}
+      </Show>
+      <Show when={compareSettingsFor() ? compareEntry(compareSettingsFor()!) : undefined} keyed>
+        {(e) => (
+          <CompareSettingsDialog
+            entry={e}
+            title={compareTitle(e)}
+            onApply={({ symbol, style }) => props.onCompareChange?.(e.id, symbol !== e.symbol ? { symbol, style } : { style })}
+            onClose={() => setCompareSettingsFor(null)}
+          />
+        )}
       </Show>
       <Show when={ctxMenu()}>
         {(m) => (

@@ -22,6 +22,7 @@
  * slice, so an edit on one shows on the others. The global `selectedDrawingId`
  * is rendered by whichever pane owns that drawing.
  */
+import type { CompareStyleState } from "./compare/compare-style";
 import { createEffect, createSignal, Index, on, Show, untrack } from "solid-js";
 import { ChartEventHint } from "../../components/ChartEventHint";
 import {
@@ -73,6 +74,10 @@ type Props = {
   onReorderIndicators?: (paneIndex: number, ids: string[]) => void;
   /** Persist a study's edited inputs/styles onto a specific pane (Settings → Ok). */
   onIndicatorSettings?: (paneIndex: number, id: string, settings: PaneIndicatorSettings) => void;
+  /** Compared symbols of a pane: patch / remove one, change its symbol. */
+  onCompareChange?: (paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) => void;
+  onRemoveCompare?: (paneIndex: number, id: string) => void;
+  onChangeCompareSymbol?: (paneIndex: number, id: string) => void;
   /** Persist a specific pane's settled visible logical range (its scroll/zoom
    *  anchor), so it survives tab switches + reloads. */
   onVisibleRange?: (paneIndex: number, range: { from: number; to: number }) => void;
@@ -254,6 +259,9 @@ export function ChartGrid(props: Props) {
                 onToggleMaximize={() => props.onToggleMaximize?.()}
                 drawings={props.drawingsFor(props.drawingKeyForPane(pane()))}
                 onRemoveIndicator={(id) => live() && props.onRemoveIndicator?.(i, id)}
+                onCompareChange={(id, patch) => live() && props.onCompareChange?.(i, id, patch)}
+                onRemoveCompare={(id) => live() && props.onRemoveCompare?.(i, id)}
+                onChangeCompareSymbol={(id) => live() && props.onChangeCompareSymbol?.(i, id)}
                 onReorderIndicators={(ids) => live() && props.onReorderIndicators?.(i, ids)}
                 cursorMode={props.cursorMode}
                 onWheelZoom={onWheelZoom}

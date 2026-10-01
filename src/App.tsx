@@ -35,10 +35,15 @@ import {
   linkedTabCountInOtherWindows,
   clampMoveIndex,
   insertPosition,
+  newCompareId,
+  reviveCompare,
+  type CompareEntry,
+  type ComparePlacement,
   type PaneChart,
   type PaneIndicatorSettings,
   type TabChart,
 } from "./window/shell/tabs";
+import { COMPARE_COLORS, defaultCompareStyle, type CompareStyleState } from "./window/chart/compare/compare-style";
 import { AppSettingsDialog, type AppSettingsTabId } from "./window/header/AppSettingsDialog";
 import { AlertDialog } from "./window/alerts/AlertDialog";
 import { startAlertEngine, onAlertFire } from "./data/alert-engine";
@@ -83,7 +88,7 @@ import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strate
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { screenerPanel } from "./data/screener-store";
 import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
-import { isAdjusted, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
+import { getTickerInfo, isAdjusted, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { migrateDrawingKey } from "./window/drawings/persistence";
 import { displayTimeZone } from "./data/session";
 import { requestDataWindow } from "./data/data-window-store";
@@ -429,7 +434,7 @@ function App() {
     if (!l) return;
     patchActive({
       layout: l.snapshot.layout,
-      panes: l.snapshot.panes.map((p) => ({ ...p, id: p.id ?? newPaneId(), indicators: [...p.indicators], ...revivePaneSettings(p) })),
+      panes: l.snapshot.panes.map((p) => ({ ...p, id: p.id ?? newPaneId(), indicators: [...p.indicators], compare: reviveCompare(p.compare), ...revivePaneSettings(p) })),
       activePane: Math.min(l.snapshot.activePane, l.snapshot.panes.length - 1),
       // Layouts saved before per-tab sync keep the tab's current toggles.
       sync: l.snapshot.sync ? reviveLayoutSync(l.snapshot.sync) : activeTab().sync,
@@ -664,7 +669,7 @@ function App() {
     for (const t of tabs()) {
       for (const p of t.panes) {
         if (p.symbol && !isFullSymbol(p.symbol)) bare.add(p.symbol);
-        for (const c of p.compare ?? []) if (!isFullSymbol(c)) bare.add(c);
+        for (const c of p.compare ?? []) if (!isFullSymbol(c.symbol)) bare.add(c.symbol);
       }
     }
     if (bare.size === 0) return;
@@ -683,8 +688,8 @@ function App() {
       }
       setTabs(
         tabs().map((t) =>
-          t.panes.some((p) => full.has(p.symbol) || p.compare?.some((c) => full.has(c)))
-            ? { ...t, panes: t.panes.map((p) => ({ ...p, symbol: fix(p.symbol), compare: p.compare?.map(fix) })) }
+          t.panes.some((p) => full.has(p.symbol) || p.compare?.some((c) => full.has(c.symbol)))
+            ? { ...t, panes: t.panes.map((p) => ({ ...p, symbol: fix(p.symbol), compare: p.compare?.map((c) => ({ ...c, symbol: fix(c.symbol) })) })) }
             : t,
         ),
       );
@@ -726,7 +731,18 @@ function App() {
     label: string;
     at: number;
   };
-  type UndoEntry = DrawingUndoEntry | StudyUndoEntry;
+  /** Compared symbols added / removed: the pane's compare list before and
+   *  after. */
+  type CompareUndoEntry = {
+    kind: "compare";
+    tabId: string;
+    paneIndex: number;
+    before: CompareEntry[] | undefined;
+    after: CompareEntry[] | undefined;
+    label: string;
+    at: number;
+  };
+  type UndoEntry = DrawingUndoEntry | StudyUndoEntry | CompareUndoEntry;
   const UNDO_CAP = 100;
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
   const [redoStack, setRedoStack] = createSignal<UndoEntry[]>([]);
@@ -784,6 +800,10 @@ function App() {
   }
   /** Apply one side of an undo entry. */
   function applyUndoEntry(e: UndoEntry, side: "before" | "after") {
+    if (e.kind === "compare") {
+      setPaneCompare(e.tabId, e.paneIndex, e[side]);
+      return;
+    }
     if (e.kind === "study") {
       setPaneStudies(e, side === "before");
       for (const sl of e.slices) restoreSlice(sl.key, sl[side]);
@@ -847,6 +867,56 @@ function App() {
     const stack = undoStack();
     setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
     if (redoStack().length) setRedoStack([]);
+  }
+
+  /** Write a pane's compare list (no undo record). */
+  function setPaneCompare(tabId: string, paneIndex: number, list: CompareEntry[] | undefined) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
+    patchTab(tabId, { panes: tab.panes.map((p, i) => (i === paneIndex ? { ...p, compare: list && list.length ? list : undefined } : p)) });
+  }
+  /** Change a pane's compare list as one undo step. */
+  function changeCompare(tabId: string, paneIndex: number, next: CompareEntry[], label: string) {
+    const pane = tabOf(tabId)?.panes[paneIndex];
+    if (!pane) return;
+    const entry: CompareUndoEntry = { kind: "compare", tabId, paneIndex, before: pane.compare, after: next.length ? next : undefined, label, at: Date.now() };
+    applyUndoEntry(entry, "after");
+    const stack = undoStack();
+    setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
+    if (redoStack().length) setRedoStack([]);
+  }
+  /** Compare dialog: add a symbol to the focused pane. Line colour by add
+   *  order on the pane. */
+  function addCompare(symbol: string, placement: ComparePlacement) {
+    const tabId = activeTab().id;
+    const paneIndex = activeTab().activePane;
+    const cur = activePaneState().compare ?? [];
+    const color = COMPARE_COLORS[cur.length % COMPARE_COLORS.length];
+    const entry: CompareEntry = { id: newCompareId(), symbol, placement, color, style: defaultCompareStyle(color) };
+    changeCompare(tabId, paneIndex, [...cur, entry], `insert ${tickerOf(symbol)}`);
+  }
+  function removeCompare(tabId: string, paneIndex: number, id: string) {
+    const cur = tabOf(tabId)?.panes[paneIndex]?.compare ?? [];
+    const gone = cur.find((c) => c.id === id);
+    if (!gone) return;
+    changeCompare(tabId, paneIndex, cur.filter((c) => c.id !== id), `remove ${tickerOf(gone.symbol)}`);
+  }
+  /** Legend eye / Settings → Ok on one compared symbol. */
+  function patchCompare(tabId: string, paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) {
+    const cur = tabOf(tabId)?.panes[paneIndex]?.compare ?? [];
+    if (!cur.some((c) => c.id === id)) return;
+    setPaneCompare(tabId, paneIndex, cur.map((c) => (c.id === id ? { ...c, ...patch, hidden: patch.hidden ?? c.hidden } : c)));
+  }
+  /** Compared-symbol descriptions for the Compare dialog's added rows. */
+  const [compareNames, setCompareNames] = createSignal<Record<string, string>>({});
+  function compareAdded() {
+    const list = activePaneState().compare ?? [];
+    for (const c of list) {
+      if (c.symbol in compareNames()) continue;
+      setCompareNames((m) => ({ ...m, [c.symbol]: "" }));
+      getTickerInfo(c.symbol).then((info) => setCompareNames((m) => ({ ...m, [c.symbol]: info?.name ?? "" }))).catch(() => {});
+    }
+    return list.map((c) => ({ id: c.id, symbol: c.symbol, description: compareNames()[c.symbol] || undefined }));
   }
 
   /** Replace a scope key's drawings + persist. The per-pane mutators target the
@@ -1178,29 +1248,20 @@ function App() {
     touchIndicatorTemplate(id);
   }
 
-  // Compare mode: the header "Compare symbols" button reuses the symbol
-  // search; picking a symbol TOGGLES it in the focused pane's compare list
-  // (re-picking an already-compared symbol removes its overlay).
-  const [compareMode, setCompareMode] = createSignal(false);
-  function toggleCompareSymbol(symbol: string) {
-    const cur = activePaneState().compare ?? [];
-    const next = cur.includes(symbol) ? cur.filter((t) => t !== symbol) : [...cur, symbol];
-    patchActivePane({ compare: next });
-  }
+  // Header "Compare symbols": the symbol search in its compare mode.
+  const [compareDialogOpen, setCompareDialogOpen] = createSignal(false);
+  // Legend title of a compared symbol ("Change symbol"): the symbol search
+  // replaces that entry's symbol.
+  const [compareTarget, setCompareTarget] = createSignal<{ tabId: string; paneIndex: number; id: string } | null>(null);
 
   /** A picked symbol: the full name "EXCHANGE:TICKER" from the search dialog,
    *  the watchlist and the static catalog; a bare ticker (screener rows) gets
    *  its primary listing first. */
   function onSymbolPicked(picked: string) {
-    const compare = compareMode();
-    if (compare) {
-      // Add (or, if already compared, remove) the symbol's overlay on the
-      // focused pane. The dialog closes after the pick (its commit closes it),
-      // so it's one symbol per "Compare symbols" press — re-open to add more.
-      setCompareMode(false);
-    }
+    const target = compareTarget();
+    setCompareTarget(null);
     setSymbolDialogOpen(false);
-    const apply = (full: string) => (compare ? toggleCompareSymbol(full) : setSymbol(full));
+    const apply = (full: string) => (target ? patchCompare(target.tabId, target.paneIndex, target.id, { symbol: full }) : setSymbol(full));
     if (isFullSymbol(picked)) apply(picked.toUpperCase());
     else void toFullSymbol(picked).then(apply, (e) => console.warn(`[symbol] ${picked}: ${e}`));
   }
@@ -2045,11 +2106,7 @@ function App() {
         canRedo={canRedoDrawing()}
         undoLabel={undoDrawingLabel()}
         redoLabel={redoDrawingLabel()}
-        onCompare={() => {
-          setCompareMode(true);
-          setSymbolSearchSeed(null);
-          setSymbolDialogOpen(true);
-        }}
+        onCompare={() => setCompareDialogOpen(true)}
       />
       {/* chart-area — flex row: drawing toolbar | chart-pane | right rail.
           Mirrors the mock's `.chart-area` (App.tsx) so the right rail spans
@@ -2144,6 +2201,13 @@ function App() {
               onRemoveIndicator={(i, id) => removeIndicatorFromPane(tabId, i, id)}
               onReorderIndicators={(i, ids) => reorderIndicatorsForPane(tabId, i, ids)}
               onIndicatorSettings={(i, id, st) => setIndicatorSettingsForPane(tabId, i, id, st)}
+              onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
+              onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
+              onChangeCompareSymbol={(i, id) => {
+                setCompareTarget({ tabId, paneIndex: i, id });
+                setSymbolSearchSeed(null);
+                setSymbolDialogOpen(true);
+              }}
               onVisibleRange={(i, r) => setVisibleRangeForPane(tabId, i, r)}
               onToggleSeries={(i) => {
                 const tab = tabOf(tabId);
@@ -2326,7 +2390,21 @@ function App() {
           activeSymbol={activeFullSymbol()}
           seedQuery={symbolSearchSeed()}
           onSelect={onSymbolPicked}
-          onClose={() => { setSymbolDialogOpen(false); setCompareMode(false); }}
+          onClose={() => { setSymbolDialogOpen(false); setCompareTarget(null); }}
+        />
+      </Show>
+      <Show when={compareDialogOpen()}>
+        <SymbolSearchDialog
+          compare={{
+            added: compareAdded,
+            add: (picked, placement) => {
+              if (isFullSymbol(picked)) addCompare(picked.toUpperCase(), placement);
+              else void toFullSymbol(picked).then((full) => addCompare(full, placement), (e) => console.warn(`[symbol] ${picked}: ${e}`));
+            },
+            remove: (id) => removeCompare(activeTab().id, activeTab().activePane, id),
+          }}
+          onSelect={() => {}}
+          onClose={() => setCompareDialogOpen(false)}
         />
       </Show>
       <Show when={indicatorsDialogOpen()}>

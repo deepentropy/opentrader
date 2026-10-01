@@ -18,6 +18,7 @@ import { cloneDraft, loadChartSettingsDefaults, reviveDraft, SETTINGS_FINGERPRIN
 import type { SessionId } from "../../data/datafeed";
 import type { IndicatorStyleOverrides } from "../chart/indicators/indicator-layer";
 import type { IndicatorOptions } from "../chart/indicators/indicator-options";
+import { COMPARE_COLORS, reviveCompareStyle, type CompareStyleState } from "../chart/compare/compare-style";
 
 /** A study's persisted overrides — the inputs + plot styles the user set in the
  *  indicator Settings dialog. Keyed by indicator registry id on the pane. */
@@ -43,6 +44,58 @@ export function revivePaneSettings(
     : { settings: undefined, settingsFp: undefined, settingsRev: undefined };
 }
 
+/** Where a compared symbol is drawn (Compare dialog row buttons):
+ *  "percent" = Same % scale (the main price scale, switched to Percent),
+ *  "scale" = New price scale, "pane" = New pane. */
+export type ComparePlacement = "percent" | "scale" | "pane";
+export const COMPARE_PLACEMENTS: ReadonlySet<ComparePlacement> = new Set(["percent", "scale", "pane"]);
+
+/** One compared symbol of a pane (header "Compare symbols"). */
+export type CompareEntry = {
+  /** Stable id (legend row, settings dialog, drawings owner). */
+  id: string;
+  /** Full name "EXCHANGE:TICKER". */
+  symbol: string;
+  placement: ComparePlacement;
+  /** Line colour given at add time (add order), the Line style's factory colour. */
+  color: string;
+  /** Legend eye. */
+  hidden?: boolean;
+  style: CompareStyleState;
+};
+
+export function newCompareId(): string {
+  return `cmp-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** Persisted compare list → entries. Entries saved as a bare symbol string
+ *  (before per-symbol settings) become "Same % scale" entries, the default
+ *  add of the Compare dialog. */
+export function reviveCompare(raw: unknown): CompareEntry[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: CompareEntry[] = [];
+  raw.forEach((r: unknown, i) => {
+    const fallbackColor = COMPARE_COLORS[i % COMPARE_COLORS.length];
+    if (typeof r === "string") {
+      if (r) out.push({ id: newCompareId(), symbol: r, placement: "percent", color: fallbackColor, style: reviveCompareStyle(undefined, fallbackColor) });
+      return;
+    }
+    if (!r || typeof r !== "object") return;
+    const e = r as Partial<CompareEntry>;
+    if (typeof e.symbol !== "string" || !e.symbol) return;
+    const color = typeof e.color === "string" ? e.color : fallbackColor;
+    out.push({
+      id: typeof e.id === "string" ? e.id : newCompareId(),
+      symbol: e.symbol,
+      placement: e.placement && COMPARE_PLACEMENTS.has(e.placement) ? e.placement : "percent",
+      color,
+      hidden: e.hidden === true ? true : undefined,
+      style: reviveCompareStyle(e.style, color),
+    });
+  });
+  return out.length ? out : undefined;
+}
+
 /** One chart pane inside a tab's layout — its own symbol / interval / chart-type
  *  / indicators, so every cell of a multi-pane layout is a fully independent
  *  chart (each pane has its own symbol). */
@@ -58,10 +111,8 @@ export type PaneChart = {
    *  affects intraday frames; daily+ ignore it. Defaults to RTH. */
   session: SessionId;
   indicators: string[];
-  /** Compared symbols overlaid as line series on this pane (header "Compare
-   *  symbols"). Rendered on a shared overlay price scale with its own
-   *  autoscale (not a percentage scale). */
-  compare?: string[];
+  /** Compared symbols of this pane (header "Compare symbols"), in add order. */
+  compare?: CompareEntry[];
   /** Per-indicator settings overrides (Settings dialog → Inputs/Style), keyed by
    *  indicator registry id. Persisted so a study's inputs/colours survive
    *  reloads and ride along in saved layouts. Absent = registry defaults. */
@@ -204,6 +255,7 @@ export function migrateTab(raw: any): TabChart {
       indicators: Array.isArray(p.indicators) ? [...p.indicators] : [],
       indicatorSettings:
         p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
+      compare: reviveCompare(p.compare),
       visibleLogicalRange:
         p.visibleLogicalRange &&
         typeof p.visibleLogicalRange.from === "number" &&

@@ -571,3 +571,93 @@
 .header-toolbar-widget.is-symbol.is-open {
   background-color: var(--color-toolbar-opened-element-bg, #2e2e2e);
 }
+
+/* ── Compare symbols dialog ([data-name="compare-dialog"]) ────────────────
+ * 840 x 565, no footer. Sections "ADDED SYMBOLS" / "RECENT SYMBOLS":
+ * 11/16 uppercase #8C8C8C, padding 16 20 8. Rows 52 px: 24 px logo + 8,
+ * ticker 16/24 over description 12/17 #8C8C8C; right: exchange 14/21 over
+ * type 12/17. Hover: the three placement buttons (28 px, padding 0 7,
+ * 1 px #4A4A4A, r8, #1F1F1F, white 14 px, 8 px apart) replace the exchange
+ * cell. Added rows end with a checked check box. */
+.symbol-search-dialog.is-compare { height: 565px; }
+.cmp-search-section {
+  padding: 16px 20px 8px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  text-transform: uppercase;
+}
+.symbol-search-list.is-compare .cmp-search-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  height: 52px;
+  padding: 0 20px;
+  gap: 0;
+}
+.cmp-search-info {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.cmp-search-row .symbol-search-logo {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin-right: 8px;
+}
+.cmp-search-titles { min-width: 0; }
+.cmp-search-ticker {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-cold-gray-200, #dbdbdb);
+  white-space: nowrap;
+}
+.cmp-search-desc {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--color-cold-gray-400, #8c8c8c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-search-ticker em,
+.cmp-search-desc em {
+  font-style: normal;
+  color: var(--color-ot-blue, #2962ff);
+}
+.cmp-search-exchange {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas: "ex flag" "type flag";
+  gap: 0 8px;
+  align-items: center;
+  align-content: center;
+  text-align: right;
+}
+.cmp-search-exchange .symbol-search-exchange-source { grid-area: ex; justify-content: flex-end; height: 21px; margin: 0; font-size: 14px; line-height: 21px; color: var(--color-cold-gray-200, #dbdbdb); }
+.cmp-search-exchange .symbol-search-market-type { grid-area: type; height: 17px; margin: 0; line-height: 17px; }
+.cmp-search-exchange .symbol-search-flag { grid-area: flag; }
+.cmp-search-buttons {
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.cmp-search-row:not(.is-added):hover .cmp-search-buttons { display: flex; }
+.cmp-search-row:not(.is-added):hover .cmp-search-exchange { display: none; }
+.cmp-search-button {
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: 1px solid #4a4a4a;
+  border-radius: 8px;
+  background: #1f1f1f;
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: default;
+}
+.cmp-search-check {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}

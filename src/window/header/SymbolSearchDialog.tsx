@@ -21,6 +21,8 @@ import { searchSymbols } from "../../data/datafeed";
 import type { SymbolSearchResult } from "../../bindings";
 import * as kv from "../../data/kv";
 import { Tooltip } from "../../components/Tooltip";
+import { CheckBox } from "./ChartPropertiesDialog";
+import type { ComparePlacement } from "../shell/tabs";
 
 /** Durable key for the Type filter chip, so the chosen filter survives both a
  *  query change (already independent state) and closing/reopening the modal or
@@ -63,7 +65,24 @@ type Props = {
     remove: (symbolName: string) => void;
     goTo: (symbolName: string) => void;
   };
+  /** "Compare symbols" mode. Empty query: ADDED SYMBOLS (check box
+   *  removes) then RECENT SYMBOLS; a query shows the category tabs and the
+   *  results. A row click adds the symbol on the same % scale; the row's
+   *  hover buttons pick the placement. The dialog stays open and the query
+   *  clears after an add. */
+  compare?: {
+    added: () => { id: string; symbol: string; description?: string }[];
+    add: (symbolName: string, placement: ComparePlacement) => void;
+    remove: (id: string) => void;
+  };
 };
+
+/** Compare dialog row buttons. */
+const COMPARE_BUTTONS: { placement: ComparePlacement; label: string }[] = [
+  { placement: "percent", label: "Same % scale" },
+  { placement: "scale", label: "New price scale" },
+  { placement: "pane", label: "New pane" },
+];
 
 // Row action icons of the watchlist search dialog.
 const ICON_ADD =
@@ -107,12 +126,12 @@ function renderHighlighted(text: string, range: [number, number] | null): JSX.El
 }
 
 export function SymbolSearchDialog(props: Props) {
-  const [category, setCategory] = createSignal<SymbolCategoryId>("stocks");
+  const [category, setCategory] = createSignal<SymbolCategoryId>(props.compare ? "all" : "stocks");
   const initialQuery = (() => {
     // A typed character (seedQuery) takes precedence over the active ticker —
     // the user started typing a new lookup, so don't pre-fill the old symbol.
     if (props.seedQuery != null) return props.seedQuery;
-    if (props.watchlist) return ""; // the Add-symbol dialog opens empty
+    if (props.watchlist || props.compare) return ""; // the Add-symbol / Compare dialogs open empty
     const a = props.activeSymbol;
     if (!a) return "";
     const colon = a.indexOf(":");
@@ -262,7 +281,19 @@ export function SymbolSearchDialog(props: Props) {
     props.onClose();
   }
 
+  /** Compare mode: add with a placement, clear the query, keep the dialog. */
+  function addCompare(symbolName: string, placement: ComparePlacement) {
+    props.compare!.add(symbolName, placement);
+    setQuery("");
+    input.value = "";
+    input.focus();
+  }
+
   function commit(row: FilteredRow | undefined, shift = false) {
+    if (props.compare) {
+      if (row) addCompare(row.symbolName, "percent");
+      return;
+    }
     const wl = props.watchlist;
     if (wl && multiMode()) {
       if (row) insertToken(row);
@@ -278,6 +309,12 @@ export function SymbolSearchDialog(props: Props) {
     props.onSelect(row.symbolName);
     props.onClose();
   }
+
+  const dialogTitle = () => (props.compare ? "Compare symbols" : props.watchlist ? "Add symbol" : "Symbol search");
+  /** Compare mode with an empty query: the ADDED / RECENT sections. */
+  const compareHome = () => !!props.compare && !query().trim();
+  /** Rows of the list (compare home: the recent symbols only). */
+  const listRows = () => (compareHome() ? rows().filter((r) => r.recent) : rows());
 
   onMount(() => {
     input.focus();
@@ -295,19 +332,79 @@ export function SymbolSearchDialog(props: Props) {
         props.onClose();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        setHighlightIdx((i) => Math.min(rows().length - 1, i + 1));
+        setHighlightIdx((i) => Math.min(listRows().length - 1, i + 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         setHighlightIdx((i) => Math.max(0, i - 1));
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (multiMode()) submitMany();
-        else commit(rows()[highlightIdx()], e.shiftKey);
+        else commit(listRows()[highlightIdx()], e.shiftKey);
       }
     };
     document.addEventListener("keydown", onKey, true);
     onCleanup(() => document.removeEventListener("keydown", onKey, true));
   });
+
+  /** Compare row: logo, ticker over description. */
+  function compareInfo(ticker: string, description: string, logo?: string | null, tr?: [number, number] | null, dr?: [number, number] | null) {
+    return (
+      <div class="symbol-search-cell cmp-search-info">
+        <span class="symbol-search-logo" aria-hidden="true">
+          <Show when={logo} fallback={<span class="symbol-search-logo-letter">{ticker[0]}</span>}>
+            <img src={logo!} alt="" crossOrigin="anonymous" decoding="async" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
+          </Show>
+        </span>
+        <div class="cmp-search-titles">
+          <div class="cmp-search-ticker" data-name="list-item-title">{renderHighlighted(ticker, tr ?? null)}</div>
+          <div class="cmp-search-desc">{renderHighlighted(description, dr ?? null)}</div>
+        </div>
+      </div>
+    );
+  }
+  /** Compare result / recent row: click = Same % scale; hover shows the
+   *  three placement buttons over the exchange cell. */
+  function compareRow(row: FilteredRow, i: () => number) {
+    return (
+      <div
+        data-name="symbol-search-dialog-content-item"
+        data-role={compareHome() ? "recent-symbol-item" : "list-item"}
+        data-symbol-name={row.symbolName}
+        data-type={row.marketType}
+        role="option"
+        aria-selected={i() === highlightIdx()}
+        class={"symbol-search-row cmp-search-row" + (i() === highlightIdx() ? " is-highlighted" : "")}
+        onMouseEnter={() => setHighlightIdx(i())}
+        onClick={() => addCompare(row.symbolName, "percent")}
+      >
+        {compareInfo(row.ticker, row.description, row.logoSrc, row.titleHighlight, row.descriptionHighlight)}
+        <div class="cmp-search-buttons" data-name="compare-buttons-group">
+          <For each={COMPARE_BUTTONS}>
+            {(b) => (
+              <button
+                type="button"
+                class="cmp-search-button"
+                onClick={(e) => { e.stopPropagation(); addCompare(row.symbolName, b.placement); }}
+              >
+                {b.label}
+              </button>
+            )}
+          </For>
+        </div>
+        <div class="symbol-search-cell symbol-search-exchange-cell cmp-search-exchange">
+          <div class="symbol-search-market-type">{row.marketType}</div>
+          <div class="symbol-search-exchange-source">
+            <span class="symbol-search-exchange" title={row.exchangeTooltip ?? row.exchange}>{row.exchange}</span>
+          </div>
+          <Show when={row.flagSrc}>
+            <span class="symbol-search-flag" aria-hidden="true">
+              <img src={row.flagSrc!} alt="" crossOrigin="anonymous" onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")} />
+            </span>
+          </Show>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Portal mount={document.body}>
@@ -318,14 +415,15 @@ export function SymbolSearchDialog(props: Props) {
       >
         <div
           class="symbol-search-dialog"
+          classList={{ "is-compare": !!props.compare }}
           role="dialog"
-          data-name={props.watchlist ? "watchlist-symbol-search-dialog" : "symbol-search-items-dialog"}
-          aria-label={props.watchlist ? "Add symbol" : "Symbol search"}
+          data-name={props.compare ? "compare-dialog" : props.watchlist ? "watchlist-symbol-search-dialog" : "symbol-search-items-dialog"}
+          aria-label={dialogTitle()}
           onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Header */}
           <header class="symbol-search-header">
-            <span class="symbol-search-title">{props.watchlist ? "Add symbol" : "Symbol search"}</span>
+            <span class="symbol-search-title">{dialogTitle()}</span>
             <button
               type="button"
               aria-label="Close menu"
@@ -408,7 +506,8 @@ export function SymbolSearchDialog(props: Props) {
             </div>
           </div>
 
-          {/* Category tabs */}
+          {/* Category tabs (compare mode: only while searching) */}
+          <Show when={!compareHome()}>
           <div class="symbol-search-tabs" role="tablist">
             <For each={CATEGORIES}>
               {(c) => (
@@ -429,13 +528,14 @@ export function SymbolSearchDialog(props: Props) {
             {/* No "More" overflow tab: all ten tabs fit at this dialog
                 width. */}
           </div>
+          </Show>
 
           {/* Filter chips — Stocks + All tabs. No Country and Sector chips:
               both are plan-dependent: this feed is US-only and the
               provider's reference search has no sector filter, so they are
               omitted rather than rendered dead. Only the working Type chip
               (provider `type` filter) remains. */}
-          <Show when={category() === "stocks" || category() === "all"}>
+          <Show when={!props.compare && (category() === "stocks" || category() === "all")}>
             <div class="symbol-search-filters">
               {/* Type — functional dropdown (Massive `type` filter). */}
               <div class="symbol-search-filter-wrap" ref={typeWrap}>
@@ -478,10 +578,46 @@ export function SymbolSearchDialog(props: Props) {
 
           {/* Results list */}
           <div class="symbol-search-results">
+            <Show when={props.compare && compareHome()}>
+              <div class="symbol-search-list is-compare" role="listbox" ref={listEl}>
+                <Show when={props.compare!.added().length > 0}>
+                  <div class="cmp-search-section">Added symbols</div>
+                  <For each={props.compare!.added()}>
+                    {(a) => {
+                      const cat = () => rows().find((r) => r.symbolName === a.symbol);
+                      const colon = a.symbol.indexOf(":");
+                      const exchange = colon >= 0 ? a.symbol.slice(0, colon) : "";
+                      const ticker = colon >= 0 ? a.symbol.slice(colon + 1) : a.symbol;
+                      return (
+                        <div class="symbol-search-row cmp-search-row is-added" data-role="added-symbol-item" data-symbol-name={a.symbol} role="option">
+                          {compareInfo(ticker, a.description || cat()?.description || "", cat()?.logoSrc)}
+                          <div class="symbol-search-cell symbol-search-exchange-cell cmp-search-exchange">
+                            <div class="symbol-search-market-type">{cat()?.marketType ?? ""}</div>
+                            <div class="symbol-search-exchange-source"><span class="symbol-search-exchange">{exchange}</span></div>
+                          </div>
+                          <span class="cmp-search-check">
+                            <CheckBox checked={true} onToggle={() => props.compare!.remove(a.id)} />
+                          </span>
+                        </div>
+                      );
+                    }}
+                  </For>
+                </Show>
+                <div class="cmp-search-section">Recent symbols</div>
+                <For each={listRows()}>{(row, i) => compareRow(row, i)}</For>
+              </div>
+            </Show>
+            <Show when={props.compare && !compareHome()}>
+              <Show when={rows().length > 0} fallback={<Show when={!searching()}><div class="ot-empty-state symbol-search-empty">No matches</div></Show>}>
+                <div class="symbol-search-list is-compare" role="listbox" ref={listEl}>
+                  <For each={rows()}>{(row, i) => compareRow(row, i)}</For>
+                </div>
+              </Show>
+            </Show>
             <Show
-              when={rows().length > 0}
+              when={!props.compare && rows().length > 0}
               fallback={
-                <Show when={!searching()}>
+                <Show when={!props.compare && !searching()}>
                   <div class="ot-empty-state symbol-search-empty">No matches</div>
                 </Show>
               }
@@ -635,13 +771,16 @@ export function SymbolSearchDialog(props: Props) {
             </Show>
           </div>
 
-          {/* Footer hint (watchlist mode: keyboard-hint footer). */}
+          {/* Footer hint (watchlist mode: keyboard-hint footer; the
+              Compare dialog has none). */}
           <Show
             when={props.watchlist}
             fallback={
-              <div class="symbol-search-footer">
-                Search using ISIN and CUSIP codes
-              </div>
+              <Show when={!props.compare}>
+                <div class="symbol-search-footer">
+                  Search using ISIN and CUSIP codes
+                </div>
+              </Show>
             }
           >
             <div class="symbol-search-footer symbol-search-footer--keys">

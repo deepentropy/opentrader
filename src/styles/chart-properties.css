@@ -1258,3 +1258,24 @@
   background: #1f1f1f;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
+
+/* Compared-symbol Settings: Inputs "Symbol" field (dark box, symbol +
+   pencil), "Price line" row after the style rows. */
+.cmp3-symbol {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: #0f0f0f;
+  color: #dbdbdb;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: default;
+}
+.cmp3-symbol-icon { display: inline-flex; color: #8c8c8c; }
+.cmp3-symbol:hover .cmp3-symbol-icon { color: #dbdbdb; }
+.cmp3-price-line { margin-top: 16px; }
