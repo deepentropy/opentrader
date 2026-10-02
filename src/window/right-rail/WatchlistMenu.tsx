@@ -121,21 +121,16 @@ export function WatchlistMenu(props: Props) {
     </button>
   );
 
-  // Active list first, then favourites pinned above the rest (the per-row star
-  // toggles the store's persisted `favorite` flag, shared with the Watchlists
-  // manager + the quick-switch bar).
-  const recentLists = () => {
-    const others = props.lists.filter((l) => l.id !== props.activeId);
-    return [
-      ...props.lists.filter((l) => l.id === props.activeId),
-      ...others.filter((l) => l.favorite),
-      ...others.filter((l) => !l.favorite),
-    ];
-  };
+  // The recently opened lists, newest first, among the lists shown in menus
+  // (the per-row star toggles the store's persisted `favorite` flag, shared
+  // with the Watchlists manager + the quick-switch bar). The section is
+  // hidden while empty.
+  const recentLists = () => watchlistStore.recentLists().filter((l) => props.lists.some((x) => x.id === l.id));
+  const groups = () => WL_MENU_GROUPS.filter((g) => !g.recentlyUsed || recentLists().length > 0);
 
   return (
     <div ref={root} class="ot-popover watchlist-menu" role="menu" aria-label="Watchlists">
-      <For each={WL_MENU_GROUPS}>
+      <For each={groups()}>
         {(g, gi) => (
           <>
             <Show when={gi() > 0}><div class="ot-popover__divider" /></Show>

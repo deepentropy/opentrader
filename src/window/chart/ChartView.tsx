@@ -11,6 +11,7 @@
  * (native priceLine through Feature 5a); Feature 5c moved it to the
  * overlay for parity with the other 13 kinds.
  */
+import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { typeIdOf } from "./indicators/study-id";
@@ -77,6 +78,7 @@ import { appearanceFrom, type Draft, type NavButtonsBehavior, type PriceSource }
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { priceOf } from "./series-transforms";
 import { registerChartExport, type ExportColumn } from "./chart-export";
+import { chartTemplates } from "../header/chart-templates";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import type { CompareEntry, PaneIndicatorSettings } from "../shell/tabs";
 import { CompareLayer } from "./compare/compare-layer";
@@ -440,6 +442,9 @@ function buildLegend(bars: OHLC[], idx: number, type: ChartTypeId, prevDayClose:
 type ChartMenuCtx = {
   symbol: string;
   price: string;
+  /** Right click in a study pane: the study title (the alert is on it, the
+   *  trading rows are the price pane's only). */
+  study?: string | null;
   drawingCount: number;
   indicatorCount: number;
   cursorLockByTime: boolean;
@@ -477,18 +482,30 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     { kind: "item", id: "copy-price", label: `Copy price ${p}`, onSelect: a.copyPrice },
     { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !ctx.canPaste, onSelect: a.paste },
     { kind: "separator" },
-    { kind: "item", id: "alert", label: `Add alert on ${sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
-    { kind: "item", id: "buy", label: `Buy 1 ${sym} @ ${p} limit`, shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
-    { kind: "item", id: "sell", label: `Sell 1 ${sym} @ ${p} stop`, icon: CtxIcons.sell, onSelect: a.sell },
-    { kind: "item", id: "order", label: `Add order on ${sym} at ${p}…`, shortcut: "Shift + T", icon: CtxIcons.order, onSelect: a.addOrder },
+    { kind: "item", id: "alert", label: `Add alert on ${ctx.study ?? sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
+    ...(ctx.study ? [] : [
+      { kind: "item", id: "buy", label: `Buy 1 ${sym} @ ${p} limit`, shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
+      { kind: "item", id: "sell", label: `Sell 1 ${sym} @ ${p} stop`, icon: CtxIcons.sell, onSelect: a.sell },
+      { kind: "item", id: "order", label: `Add order on ${sym} at ${p}…`, shortcut: "Shift + T", icon: CtxIcons.order, onSelect: a.addOrder },
+    ] as CtxNode[]),
     { kind: "separator" },
     { kind: "item", id: "lock-cursor", label: "Lock vertical cursor line by time", checked: ctx.cursorLockByTime, onSelect: a.toggleCursorLock },
     { kind: "separator" },
     { kind: "item", id: "table-view", label: "Table view", onSelect: a.tableView },
     { kind: "item", id: "object-tree", label: "Object tree", onSelect: a.objectTree },
+    // Chart template: "Save as…", then the saved chart templates (a row
+    // applies it to this chart, its trash removes it).
     {
       kind: "item", id: "chart-template", label: "Chart template",
-      submenu: [{ kind: "item", id: "template-save-as", label: "Save as…", onSelect: a.saveTemplateAs }],
+      submenu: [
+        { kind: "item", id: "template-save-as", label: "Save as…", onSelect: a.saveTemplateAs },
+        ...(chartTemplates().length ? [{ kind: "separator" } as CtxNode] : []),
+        ...chartTemplates().map((tpl): CtxNode => ({
+          kind: "item", id: `template:${tpl.name}`, label: tpl.name,
+          onSelect: () => window.dispatchEvent(new CustomEvent("chart-apply-template", { detail: { name: tpl.name } })),
+          onRemove: () => window.dispatchEvent(new CustomEvent("chart-remove-template", { detail: { name: tpl.name } })),
+        })),
+      ],
     },
   ];
   const removeRows: CtxNode[] = [];
@@ -1083,7 +1100,13 @@ export function ChartView(props: Props) {
   function openPriceScaleMenu(e: MouseEvent) {
     if (!chart) return;
     const t = currentTokens();
-    const ps = chart.priceScale(t.scalesPlacement);
+    // The axis of a study pane: its items act on that pane's own scale (the
+    // study's), and "Lock price to bar ratio" is the main axis' only.
+    const yRel = host ? e.clientY - host.getBoundingClientRect().top : 0;
+    const paneIdx = paneAtY(yRel) ?? 0;
+    const owner = paneIdx > 0 ? controller?.ownerOfPane(paneIdx) ?? null : null;
+    const studySeries = owner ? controller?.studySeries(owner) ?? null : null;
+    const ps = studySeries ? studySeries.priceScale() : chart.priceScale(t.scalesPlacement);
     const cur = ps.options();
     const setMode = (mode: PriceScaleMode) => () => ps.applyOptions({ mode });
     const patch = (p: Record<string, unknown>) =>
@@ -1095,9 +1118,9 @@ export function ChartView(props: Props) {
         onSelect: () => ps.applyOptions({ autoScale: !cur.autoScale }) },
       // Locking stores the current ratio in the Scales row (the lock keeps
       // the ratio in effect when it is turned on).
-      { kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
+      ...(studySeries ? [] : [{ kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
         shortcut: ratio != null ? String(Number(ratio.toFixed(7))) : undefined,
-        onSelect: () => patch(t.lockRatio ? { lockRatio: false } : { lockRatio: true, lockRatioValue: ratio ?? undefined }) },
+        onSelect: () => patch(t.lockRatio ? { lockRatio: false } : { lockRatio: true, lockRatioValue: ratio ?? undefined }) } as CtxNode]),
       // Auto-scale of the main series' scale on the series alone (chart
       // setting, saved like the lock ratio).
       { kind: "item", id: "series-only", label: "Scale price chart only",
@@ -1131,6 +1154,8 @@ export function ChartView(props: Props) {
           checked: t.highLowLabels, onSelect: () => patch({ highLowLabels: !t.highLowLabels }) },
         { kind: "item", id: "lbl-ind", label: "Indicators and financials value labels",
           checked: t.indLastValue, onSelect: () => patch({ indLastValue: !t.indLastValue }) },
+        { kind: "item", id: "lbl-ind-name", label: "Indicators and financials name labels",
+          checked: t.indNameLabel, onSelect: () => patch({ indNameLabel: !t.indNameLabel }) },
         { kind: "item", id: "lbl-countdown", label: "Countdown to bar close",
           checked: t.countdownVisible, onSelect: () => patch({ countdown: !t.countdownVisible }) },
       ] },
@@ -1225,8 +1250,8 @@ export function ChartView(props: Props) {
     // menu stays open; separator; "Create new list…".
     const activeId = watchlistStore.activeId();
     const lists = [
-      ...watchlistStore.lists().filter((l) => l.id === activeId),
-      ...watchlistStore.lists().filter((l) => l.id !== activeId)
+      ...watchlistStore.shownLists().filter((l) => l.id === activeId),
+      ...watchlistStore.shownLists().filter((l) => l.id !== activeId)
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     ];
     const listRows: CtxNode[] = lists.map((l) => ({
@@ -1242,7 +1267,7 @@ export function ChartView(props: Props) {
     }));
     const nodes: CtxNode[] = [
       { kind: "item", id: "alert", label: `Add alert on ${sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: sym, price: last ?? undefined } })) },
+        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: full, price: last ?? undefined } })) },
       { kind: "item", id: "add-indicator", label: `Add indicator/strategy on ${sym}…`, icon: CtxIcons.addIndicator,
         onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-indicators")) },
       { kind: "separator" },
@@ -1262,7 +1287,7 @@ export function ChartView(props: Props) {
       { kind: "item", id: "watchlist", label: `Add ${sym} to watchlist`, submenu: [
         ...listRows,
         { kind: "separator" },
-        { kind: "item", id: "wl-create", label: "Create new list…", onSelect: () => { watchlistStore.createListWith(row); } },
+        { kind: "item", id: "wl-create", label: "Create new list…", onSelect: () => promptNewWatchlist((name) => watchlistStore.createListWith(row, name)) },
       ] },
       { kind: "separator" },
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings,
@@ -1344,7 +1369,13 @@ export function ChartView(props: Props) {
       if (yFromBottom <= chart.timeScale().height()) { openTimeScaleMenu(e); return; }
     }
     const yRel = host ? e.clientY - host.getBoundingClientRect().top : 0;
-    const rawPrice = coords()?.yToPrice(yRel) ?? null;
+    // In a study pane the price is that pane's (its study's scale) and the
+    // alert is on the study (the reference pane menu's main source).
+    const paneIdx = paneAtY(yRel) ?? 0;
+    const studyPane = paneIdx > 0 ? drawingPanes().find((p) => p.key && yRel >= p.top && yRel < p.top + p.height) : undefined;
+    const studyId = studyPane?.key ?? null;
+    const studyTitle = studyId ? controller?.getLegend().find((r) => r.id === studyId)?.title ?? null : null;
+    const rawPrice = (studyPane ? studyPane.coords.yToPrice(yRel - studyPane.top) : coords()?.yToPrice(yRel)) ?? null;
     const a = Math.abs(rawPrice ?? 0);
     const decimals = a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
     const priceStr = rawPrice == null ? "—" : rawPrice.toFixed(decimals);
@@ -1355,6 +1386,7 @@ export function ChartView(props: Props) {
       {
         symbol: splitSymbol(props.symbol ?? "").ticker,
         price: priceStr,
+        study: studyTitle,
         drawingCount: ds.length,
         indicatorCount: (props.indicators ?? []).length,
         cursorLockByTime: crosshairLockTime() !== null,
@@ -1374,7 +1406,7 @@ export function ChartView(props: Props) {
         addAlert: () =>
           window.dispatchEvent(
             new CustomEvent("chart-open-alert-dialog", {
-              detail: { symbol: props.symbol ?? "", price: rawPrice ?? undefined },
+              detail: { symbol: props.symbol ?? "", price: rawPrice ?? undefined, indicatorId: studyId ?? undefined },
             }),
           ),
         // Accepted no-ops: Buy / Sell / Add order / Table view need a trading
@@ -1693,6 +1725,7 @@ export function ChartView(props: Props) {
   let baselineWaterline: IPriceLine | null = null;
   let baselineLevelPrice: number | null = null;
   function syncBaseline() {
+    for (const layer of compareLayers.values()) layer.syncBaseline();
     if (!chart || !series || activeType !== "baseline") return;
     const b = currentTokens().styles.baseline;
     const h = chart.paneSize(0).height;
@@ -1804,7 +1837,7 @@ export function ChartView(props: Props) {
     afterSeriesData();
     // Symbol → Precision: the picked decimals ("Default" follows the
     // symbol's tick grid), thousands grouped; the legend uses the same text.
-    // The fractional choices (1/2 …) keep the library format (GAP).
+    // The fractional choices (1/2 …) use the fractional format (123'16).
     const fmt = chartPriceFormat(tokens.precision, cachedSymbolSessions(props.symbol ?? ""));
     if (fmt) series.applyOptions({ priceFormat: { type: "custom", formatter: fmt.format, minMove: fmt.minMove } });
     setLegendPriceFormat(() => fmt?.format);
@@ -2754,6 +2787,7 @@ export function ChartView(props: Props) {
     // The controller reads bars from `raw` on demand, so it always recomputes
     // against the freshest dataset without threading bars in.
     controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
+    controller.setLastBarOpenProbe(lastBarForming);
     setChartReady((n) => n + 1);
 
     hostW = host.clientWidth;
@@ -3430,7 +3464,7 @@ export function ChartView(props: Props) {
     // Snapshot (Alt+S): grab the chart canvas and copy it to the clipboard
     // ("Copy chart image"); fall back to a PNG download where the async
     // clipboard image API isn't available. "open" is the local backing for
-    // "Open image in new tab": temp file + OS default viewer.
+    // "Open image in new tab": temp page in the default web browser.
     const takeSnapshot = (action: "copy" | "download" | "open" = "copy") => {
       if (!chart) return;
       const canvas = chart.takeScreenshot();
@@ -3639,6 +3673,7 @@ export function ChartView(props: Props) {
       style: strategyStyleOf(inputs),
       chartCurrency: defaults.currency,
       interval: props.interval ?? "1D",
+      chartStyle: props.chartType ?? "candle",
       // The engine runs in the charted symbol's exchange zone (chart context).
       timeZone: cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? DEFAULT_SYMBOL.timezone,
     };
@@ -4098,6 +4133,12 @@ export function ChartView(props: Props) {
     controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session));
   });
 
+  // Strategies on a Heikin Ashi chart run on its Heikin Ashi bars.
+  createEffect(() => {
+    chartReady();
+    controller?.setHeikinAshi((props.chartType ?? "candle") === "ha");
+  });
+
   // Indicator Visibility tab: studies off the chart interval stop drawing.
   createEffect(() => {
     chartReady();
@@ -4111,7 +4152,9 @@ export function ChartView(props: Props) {
   // series. Re-runs on settings commit; the controller no-ops when unchanged.
   createEffect(() => {
     chartReady();
-    controller?.setLastValueVisible(readChartTokens(appearance()).indLastValue);
+    const t = readChartTokens(appearance());
+    controller?.setLastValueVisible(t.indLastValue);
+    controller?.setNameLabelsVisible(t.indNameLabel);
   });
 
   // ── Compare symbols (header "Compare symbols") ─────────────────────────
@@ -4190,10 +4233,15 @@ export function ChartView(props: Props) {
   );
   const otherSide = (side: "left" | "right") => (side === "right" ? "left" : "right");
   /** Scale id of every entry (placement rules above). */
+  // Scales placement: Auto puts the first extra scale on the side with fewer
+  // scales (the main scale is on the right, so the left); the "Stack on …"
+  // choices keep every scale on the main side, where the library has one
+  // scale per side: an extra scale there is an unlabelled overlay scale.
   function compareScaleIds(): Map<string, string> {
-    const main = currentTokens().scalesPlacement;
+    const t = currentTokens();
+    const main = t.scalesPlacement;
     const out = new Map<string, string>();
-    let sideUsed = false;
+    let sideUsed = t.scalesMode !== "auto";
     for (const e of compareEntries()) {
       if (e.placement === "percent" || e.placement === "pane") out.set(e.id, main);
       else if (!sideUsed) { out.set(e.id, otherSide(main)); sideUsed = true; }
@@ -4201,11 +4249,12 @@ export function ChartView(props: Props) {
     }
     return out;
   }
-  /** The other side's scale is shown while a "New price scale" entry uses it. */
+  /** The other side's scale is shown while a "New price scale" entry uses it
+   *  (Auto only). */
   function syncCompareScaleVisibility() {
     if (!chart) return;
     const main = currentTokens().scalesPlacement;
-    const used = compareEntries().some((e) => e.placement === "scale");
+    const used = currentTokens().scalesMode === "auto" && compareEntries().some((e) => e.placement === "scale");
     const opts = { visible: used };
     chart.applyOptions(otherSide(main) === "left" ? { leftPriceScale: opts } : { rightPriceScale: opts });
   }

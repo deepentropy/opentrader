@@ -27,9 +27,9 @@
   max-width: calc(100vw - 32px);
   padding: 40px 0 40px;
   border-radius: 6px;
-  background: #1f1f1f;
+  background: var(--color-bg-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-family: var(--font-family-base);
   font-size: 14px;
 }
@@ -50,7 +50,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   cursor: default;
 }
 .ot-dlg-content {
@@ -62,7 +62,7 @@
 .ot-dlg-text { overflow-wrap: anywhere; }
 .ot-dlg-label {
   display: block;
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
   font-size: 14px;
   line-height: 21px;
 }
@@ -74,7 +74,7 @@
   align-items: center;
   height: 34px;
   padding: 2px;
-  border: 1px solid #575757;
+  border: 1px solid var(--color-border-hover);
   border-radius: 8px;
 }
 .ot-dlg-input-box:focus-within {
@@ -89,7 +89,7 @@
   border: 0;
   outline: none;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-family: inherit;
   font-size: 16px;
   line-height: 24px;
@@ -102,10 +102,10 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
   cursor: default;
 }
-.ot-dlg-list-btn:hover { background: #3d3d3d; }
+.ot-dlg-list-btn:hover { background: var(--color-container-fill-primary-neutral-light); }
 .ot-dlg-list-btn.is-open svg { transform: rotate(180deg); }
 .ot-dlg-suggestions {
   position: absolute;
@@ -117,12 +117,12 @@
   overflow-y: auto;
   padding: 10px 0;
   border-radius: 3px;
-  background: #1f1f1f;
+  background: var(--color-bg-primary);
   box-shadow: 0 1px 2px 1px rgba(0, 0, 0, 0.275);
 }
 .ot-dlg-suggestion {
   padding: 10px 15px;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-size: 13px;
   line-height: 15px;
   white-space: nowrap;
@@ -130,7 +130,7 @@
   text-overflow: ellipsis;
   cursor: default;
 }
-.ot-dlg-suggestion:hover { background: #2e2e2e; }
+.ot-dlg-suggestion:hover { background: var(--color-bg-primary-hover); }
 .ot-dlg-footer {
   display: flex;
   justify-content: flex-end;
@@ -152,8 +152,8 @@
   line-height: 24px;
   cursor: default;
 }
-.ot-dlg-btn.is-secondary { border-color: #4a4a4a; color: #ffffff; }
-.ot-dlg-btn.is-neutral { background: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
+.ot-dlg-btn.is-secondary { border-color: var(--color-divider); color: var(--ot-text-max); }
+.ot-dlg-btn.is-neutral { background: var(--color-container-fill-primary-neutral-extra-bold); border-color: var(--ot-strong); color: var(--ot-text-inverse); }
 .ot-dlg-btn.is-success { background: #089981; border-color: #089981; color: #ffffff; }
 .ot-dlg-btn.is-danger { background: #f23645; border-color: #f23645; color: #ffffff; }
-.ot-dlg-btn.is-main[aria-disabled="true"] { background: #3d3d3d; border-color: #3d3d3d; color: #575757; }
+.ot-dlg-btn.is-main[aria-disabled="true"] { background: var(--color-container-fill-primary-neutral-light); border-color: var(--color-divider-line-primary); color: var(--color-text-disabled); }

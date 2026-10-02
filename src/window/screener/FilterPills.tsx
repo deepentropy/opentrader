@@ -69,7 +69,7 @@ export function FilterPills(props: Props) {
     return id ? watchlistStore.lists().find((l) => l.id === id) : undefined;
   };
   const watchlistOptions = () => {
-    const lists = [...watchlistStore.lists()];
+    const lists = [...watchlistStore.shownLists()];
     const sel = lists.findIndex((l) => l.id === screen().watchlistId);
     if (sel > 0) lists.unshift(...lists.splice(sel, 1));
     return lists;

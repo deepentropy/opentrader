@@ -85,10 +85,11 @@ function audioContext(): AudioContext | null {
   }
 }
 
-/** Play a sound-bank key. No-op when sound is disabled, the key is empty/
- *  unknown, or Web Audio is unavailable. */
-export function playAlertSound(key: string): void {
-  if (!key || !alertSettings.soundEnabled()) return;
+/** Play a sound-bank key. No-op when sound is disabled (except a `preview`,
+ *  the dialog's Test button), the key is empty/unknown, or Web Audio is
+ *  unavailable. */
+export function playAlertSound(key: string, opts: { preview?: boolean } = {}): void {
+  if (!key || (!opts.preview && !alertSettings.soundEnabled())) return;
   const pattern = BANK[key];
   if (!pattern) return;
   const ac = audioContext();

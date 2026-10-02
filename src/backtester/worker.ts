@@ -9,13 +9,18 @@ import { runBacktest } from './run';
 import { SCRIPT_STRATEGIES } from './scripts';
 import { STRATEGIES } from './strategies';
 import type { BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
+import { intervalSeconds } from './magnifier';
+import { intrabarsOf } from './intrabar-cache';
 
 function runStrategy(req: BacktestRequest): BacktestOutput | string {
+  const intrabars = intrabarsOf(req.intrabars);
+  const intrabarSeconds = req.intrabars ? intervalSeconds(req.intrabars.interval) : undefined;
+  const common = { intrabars, intrabarSeconds, heikinAshi: req.heikinAshi, realtime: req.chart?.realtime === true };
   const def = STRATEGIES.find((s) => s.key === req.strategy);
   if (def) {
     // syminfo.timezone / mintick of the port = the charted symbol's.
     const symbol = { ...symbolOf(req.chart), ...req.symbol };
-    return { report: runBacktest(req.bars, def, { inputs: req.inputs, properties: req.properties, symbol }) };
+    return { report: runBacktest(req.bars, def, { inputs: req.inputs, properties: req.properties, symbol, ...common }) };
   }
   const script = SCRIPT_STRATEGIES.find((s) => s.key === req.strategy);
   if (!script) return `Unknown strategy "${req.strategy}".`;
@@ -24,6 +29,9 @@ function runStrategy(req: BacktestRequest): BacktestOutput | string {
     properties: req.properties,
     symbol: req.symbol,
     chart: req.chart,
+    intrabars,
+    intrabarSeconds,
+    heikinAshi: req.heikinAshi,
   });
   return report ? { report, visuals: run.result } : `Strategy "${req.strategy}" did not run.`;
 }

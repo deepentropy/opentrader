@@ -26,6 +26,7 @@ import {
   favoritesToolbarVisible,
   isFavoriteTool,
   setFavoritesToolbarVisible,
+  setRailSelectedTool,
   toggleFavoriteTool,
 } from "./favorite-tools";
 import { FontIconPicker, type FontIconTab } from "./FontIconPicker";
@@ -221,10 +222,13 @@ export function DrawingToolbar(props: Props) {
       if (!(selectedTool() in CURSOR_TOOL_MODES)) {
         setSelectedTool(CURSOR_MODE_TOOL[props.cursorMode]);
       }
-    } else if (armed !== selectedTool()) {
+    } else if (armed !== selectedTool() && !(armed === "font-icon" && selectedTool() in FONT_ICON_TOOLS)) {
+      // A glyph picked in the icon / emoji / sticker picker arms font-icon:
+      // the picker's tool stays the selected one.
       setSelectedTool(armed);
     }
   });
+  createEffect(() => setRailSelectedTool(selectedTool()));
 
   /** Promote a tool to its group's button (MRU), then arm it. Shared by the
    *  submenu picks and the favorites toolbar's `select-drawing-tool` event. */

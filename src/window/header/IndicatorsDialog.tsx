@@ -4,7 +4,7 @@
  * from the reference mock.
  *
  * Layout (840×638): header, bordered search, a
- * sidebar (Personal / Built-In / Community), and a NAME · AUTHOR · BOOSTS list.
+ * sidebar (Personal / Built-In / Community), and a NAME · AUTHOR list.
  * Registry-backed rows are clickable: each click adds one more instance of
  * the study to the chart (rows of studies already on the chart look the
  * same). Keyboard: ↑/↓ move highlight · Enter adds · Esc closes.
@@ -263,7 +263,6 @@ export function IndicatorsDialog(props: Props) {
               <div class="indicators-list-head">
                 <span class="indicators-col-name">Name</span>
                 <span class="indicators-col-author">Author</span>
-                <span class="indicators-col-boosts">Boosts</span>
               </div>
             </Show>
             <div class="indicators-list-scroll">
@@ -345,7 +344,6 @@ export function IndicatorsDialog(props: Props) {
                                       <span class="indicators-author">{row.author}</span>
                                     </Show>
                                   </div>
-                                  <div class="indicators-cell indicators-boosts-cell">{row.boosts}</div>
                                 </div>
                               );
                             }}

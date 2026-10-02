@@ -51,7 +51,8 @@ export type ChartTokens = {
   marginTop: number; // price-scale top margin, 0..1
   marginBottom: number; // price-scale bottom margin, 0..1
   rightOffset: number; // time-scale right margin, in bars (committed only)
-  scalesPlacement: "left" | "right"; // Scales → Scales placement
+  scalesPlacement: "left" | "right"; // Scales → Scales placement (main scale side)
+  scalesMode: "auto" | "left" | "right"; // Auto / Stack on the left / Stack on the right
   navButtons: NavButtonsBehavior; // Canvas → Buttons → Navigation
   paneButtons: NavButtonsBehavior; // Canvas → Buttons → Pane
   precision: string; // Symbol → Precision (e.g. "Default", "2 decimals", "Integer")
@@ -97,8 +98,10 @@ export type ChartTokens = {
   watermarkTicker: boolean;
   watermarkInterval: boolean;
   watermarkDescription: boolean;
-  // Scales → "Indicators and financials": study-series last-value axis labels.
+  // Scales → "Indicators and financials": study-series last-value axis labels
+  // ("Value") and plot-name labels next to them ("Name").
   indLastValue: boolean;
+  indNameLabel: boolean;
   // Alerts tab: price lines for the charted symbol's price-level alert rules
   // (colorPair up = active rules, down = inactive; "Only active alerts" hides
   // the inactive ones entirely).
@@ -193,6 +196,7 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     // dialog happens to be OK'd once.
     rightOffset: o.rightOffset ?? DEFAULT_RIGHT_OFFSET,
     scalesPlacement: o.scalesPlacement ?? "right",
+    scalesMode: o.scalesMode ?? "auto",
     navButtons: o.navButtons ?? "visibleOnMouseOver",
     paneButtons: o.paneButtons ?? "visibleOnMouseOver",
     precision: o.precision || "Default",
@@ -239,6 +243,8 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     // (showStudyLastValue: false), and stacked study badges have no overlap
     // management here. The dialog row re-enables them.
     indLastValue: o.indLastValue ?? false,
+    // "Name" defaults OFF too (showStudyPlotLabels: false).
+    indNameLabel: o.indNameLabel ?? false,
     // Alerts tab rows both ship checked.
     alertLinesVisible: o.alertLines ?? true,
     alertLinesOnlyActive: o.alertLinesOnlyActive ?? true,

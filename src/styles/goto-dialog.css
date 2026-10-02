@@ -92,7 +92,7 @@
 
 /* The 4 px baseline behind the underline (the reference app scroll-wrap::before, #4A4A4A). */
 .goto-dialog-tablist::before {
-  background-color: var(--color-cold-gray-700);
+  background-color: var(--color-container-fill-primary-neutral-normal);
   border-radius: 2px;
   bottom: 0;
   content: '';
@@ -484,7 +484,7 @@
 /* The reference app: 1 px #4A4A4A line, 16px 20px padding, buttons 12 px apart. */
 .goto-dialog-footer {
   flex: 0 0 auto;
-  border-top: 1px solid var(--color-cold-gray-700);
+  border-top: 1px solid var(--color-divider);
   padding: 16px 20px;
 }
 
@@ -545,9 +545,9 @@
  * #575757). */
 .goto-dialog-btn.is-primary:disabled,
 .goto-dialog-btn.is-primary:disabled:hover {
-  background-color: var(--color-cold-gray-750);
-  border-color: var(--color-cold-gray-750);
-  color: var(--color-cold-gray-650);
+  background-color: var(--color-container-fill-primary-neutral-light);
+  border-color: var(--color-divider-line-primary);
+  color: var(--color-text-disabled);
 }
 
 .goto-dialog-btn-content {
@@ -609,12 +609,12 @@
 .goto-dialog-input-wrap.is-disabled,
 .goto-dialog-input-wrap.is-disabled:hover {
   cursor: default;
-  background-color: var(--color-cold-gray-800);
+  background-color: var(--color-bg-primary-hover);
   border-color: var(--color-control-intent-default);
   box-shadow: none;
   --goto-slot-color: var(--color-text-secondary);
 }
 .goto-dialog-input-wrap.is-disabled .goto-dialog-input {
-  color: var(--color-cold-gray-650);
+  color: var(--color-text-disabled);
   cursor: default;
 }

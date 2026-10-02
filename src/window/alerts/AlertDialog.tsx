@@ -25,8 +25,10 @@ import {
   priceableDrawings,
 } from "../../data/alert-condition";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
+import { getIndicatorEntry } from "../chart/indicators/registry";
 import { isFullSymbol, toFullSymbol } from "../../data/datafeed";
 import { SOUND_OPTIONS, playAlertSound } from "../../data/alert-sounds";
+import { alertSettings } from "../../data/alert-settings";
 import {
   alertWebhook,
   ensureNotificationPermission,
@@ -41,6 +43,8 @@ type Props = {
   symbol?: string;
   /** Prefill the right-hand value (e.g. the clicked chart price). */
   price?: number;
+  /** New alert on a study (chart menu in a study pane): the left operand. */
+  indicatorId?: string;
   /** Chart interval to stamp onto the rule as its resolution. */
   interval: string;
   onClose: () => void;
@@ -127,11 +131,12 @@ export function AlertDialog(props: Props) {
 
   // ── Left operand ── price or an indicator plot.
   const [leftKind, setLeftKind] = createSignal<"price" | "indicator">(
-    existing?.left.kind === "indicator" ? "indicator" : "price",
+    existing?.left.kind === "indicator" || (!existing && props.indicatorId) ? "indicator" : "price",
   );
   const [leftIndicator, setLeftIndicator] = createSignal(
-    existing?.left.kind === "indicator" ? existing.left.indicatorId : "",
+    existing?.left.kind === "indicator" ? existing.left.indicatorId : (!existing && props.indicatorId) || "",
   );
+  const [leftPlot, setLeftPlot] = createSignal(existing?.left.kind === "indicator" ? (existing.left.plot ?? 0) : 0);
 
   const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? "crossing");
 
@@ -156,6 +161,11 @@ export function AlertDialog(props: Props) {
   const [rightIndicator, setRightIndicator] = createSignal(
     existing?.right.kind === "indicator" ? existing.right.indicatorId : "",
   );
+  const [rightPlot, setRightPlot] = createSignal(existing?.right.kind === "indicator" ? (existing.right.plot ?? 0) : 0);
+  /** Plots of an indicator (title per plotConfig index), for the plot select
+   *  shown next to a study with 2 or more plots. */
+  const plotsOf = (indicatorId: string) =>
+    (getIndicatorEntry(indicatorId)?.plotConfig ?? []).map((p, i) => ({ index: i, title: p.title || p.id }));
 
   // ── % threshold (for moving_up_pct / moving_down_pct) ──
   const [pct, setPct] = createSignal(
@@ -163,6 +173,13 @@ export function AlertDialog(props: Props) {
       ? String(existing.right.value)
       : "5",
   );
+  // "in N bars" of the Moving % operators (1-300; 2 minimum on a study).
+  const [bars, setBars] = createSignal(String(existing?.bars ?? 1));
+  const barsValue = () => {
+    const n = Math.round(Number(bars()));
+    const min = leftKind() === "indicator" ? 2 : 1;
+    return Number.isFinite(n) ? Math.max(min, Math.min(300, n)) : min;
+  };
 
   const [frequency, setFrequency] = createSignal<AlertFrequency>(existing?.frequency ?? "once_per_bar");
   const [name, setName] = createSignal(existing?.name ?? "");
@@ -182,7 +199,7 @@ export function AlertDialog(props: Props) {
   function buildLeft(): Operand {
     if (leftKind() === "indicator" && leftIndicator()) {
       const o = indicatorOptions().find((x) => x.id === leftIndicator());
-      return { kind: "indicator", indicatorId: leftIndicator(), plot: 0, label: o?.label };
+      return { kind: "indicator", indicatorId: leftIndicator(), plot: leftPlot(), label: plotLabel(o?.label, leftIndicator(), leftPlot()) };
     }
     return { kind: "price" };
   }
@@ -196,17 +213,24 @@ export function AlertDialog(props: Props) {
       }
       case "indicator": {
         const o = indicatorOptions().find((x) => x.id === rightIndicator());
-        return { kind: "indicator", indicatorId: rightIndicator(), plot: 0, label: o?.label };
+        return { kind: "indicator", indicatorId: rightIndicator(), plot: rightPlot(), label: plotLabel(o?.label, rightIndicator(), rightPlot()) };
       }
       default:
         return { kind: "value", value: parseFloat(rightValue()) || 0 };
     }
   }
 
+  /** Operand label: the study title, with the plot title for a study with
+   *  several plots ("BB 20 2: Upper"). */
+  function plotLabel(title: string | undefined, indicatorId: string, plot: number): string | undefined {
+    const plots = plotsOf(indicatorId);
+    return plots.length >= 2 && title ? `${title}: ${plots[plot]?.title ?? ""}` : title;
+  }
+
   /** Live preview of the condition, used as the message placeholder. */
   const preview = createMemo(() => {
     const sym = symbol() || "—";
-    return `${sym} ${describeCondition({ left: buildLeft(), op: op(), right: buildRight() })}`;
+    return `${sym} ${describeCondition({ left: buildLeft(), op: op(), right: buildRight(), bars: barsValue() })}`;
   });
 
   // The webhook only saves (and the dialog only closes) with an http(s) URL —
@@ -240,6 +264,7 @@ export function AlertDialog(props: Props) {
       left: buildLeft(),
       op: op(),
       right: buildRight(),
+      bars: isPct() ? barsValue() : undefined,
       frequency: frequency(),
       name: name().trim(),
       message: message().trim(),
@@ -333,6 +358,7 @@ export function AlertDialog(props: Props) {
                     else {
                       setLeftKind("indicator");
                       setLeftIndicator(v.slice(4));
+                      setLeftPlot(0);
                     }
                   }}
                 >
@@ -341,6 +367,19 @@ export function AlertDialog(props: Props) {
                     {(r) => <option value={`ind:${r.id}`}>{r.label}</option>}
                   </For>
                 </select>
+                {/* Plot select: a study with 2 or more plots. */}
+                <Show when={leftKind() === "indicator" && plotsOf(leftIndicator()).length >= 2}>
+                  <select
+                    class="wl-dialog-input"
+                    aria-label="Plot"
+                    value={String(leftPlot())}
+                    onChange={(e) => setLeftPlot(Number(e.currentTarget.value))}
+                  >
+                    <For each={plotsOf(leftIndicator())}>
+                      {(p) => <option value={String(p.index)}>{p.title}</option>}
+                    </For>
+                  </select>
+                </Show>
 
                 <select
                   class="wl-dialog-input"
@@ -365,6 +404,18 @@ export function AlertDialog(props: Props) {
                         onInput={(e) => setPct(e.currentTarget.value)}
                       />
                       <span class="wl-dialog-suffix">%</span>
+                      <span class="wl-dialog-suffix">in</span>
+                      <input
+                        class="wl-dialog-input alert-dialog-bars"
+                        type="number"
+                        step="1"
+                        min={leftKind() === "indicator" ? 2 : 1}
+                        max="300"
+                        aria-label="Bars"
+                        value={bars()}
+                        onInput={(e) => setBars(e.currentTarget.value)}
+                      />
+                      <span class="wl-dialog-suffix">{barsValue() === 1 ? "bar" : "bars"}</span>
                     </div>
                   }
                 >
@@ -408,13 +459,25 @@ export function AlertDialog(props: Props) {
                       <select
                         class="wl-dialog-input"
                         value={rightIndicator()}
-                        onChange={(e) => setRightIndicator(e.currentTarget.value)}
+                        onChange={(e) => { setRightIndicator(e.currentTarget.value); setRightPlot(0); }}
                       >
                         <option value="">Select indicator…</option>
                         <For each={indicatorOptions()}>
                           {(r) => <option value={r.id}>{r.label}</option>}
                         </For>
                       </select>
+                      <Show when={plotsOf(rightIndicator()).length >= 2}>
+                        <select
+                          class="wl-dialog-input"
+                          aria-label="Plot"
+                          value={String(rightPlot())}
+                          onChange={(e) => setRightPlot(Number(e.currentTarget.value))}
+                        >
+                          <For each={plotsOf(rightIndicator())}>
+                            {(p) => <option value={String(p.index)}>{p.title}</option>}
+                          </For>
+                        </select>
+                      </Show>
                     </Show>
                   </div>
                 </Show>
@@ -489,7 +552,7 @@ export function AlertDialog(props: Props) {
                 <button
                   type="button"
                   class="wl-dialog-btn"
-                  onClick={() => playAlertSound(sound())}
+                  onClick={() => playAlertSound(sound(), { preview: true })}
                   disabled={!sound()}
                   title="Preview sound"
                 >
@@ -497,6 +560,9 @@ export function AlertDialog(props: Props) {
                 </button>
               </div>
             </label>
+            <Show when={sound() && !alertSettings.soundEnabled()}>
+              <div class="alert-dialog-hint">Alert sounds are off in Settings: this alert fires without sound.</div>
+            </Show>
 
             <label class="alert-dialog-check">
               <input type="checkbox" checked={popup()} onChange={() => setPopup((v) => !v)} />

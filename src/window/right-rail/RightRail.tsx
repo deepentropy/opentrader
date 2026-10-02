@@ -9,8 +9,6 @@ import { Watchlist } from "./Watchlist";
 import { WatchlistDetail } from "./WatchlistDetail";
 import { ObjectTreePanel } from "./ObjectTreePanel";
 import { AlertsPanel } from "./AlertsPanel";
-import { PanelHeader } from "../../components/PanelHeader";
-import { findRightRailTab } from "../../data/right-rail-tabs";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
 
@@ -46,18 +44,6 @@ const WATCHLIST_MIN = 160;
 function loadDetailHeight(): number {
   const n = Number(kv.getItem(DETAIL_HEIGHT_KEY));
   return Number.isFinite(n) && n >= DETAIL_MIN ? n : 246;
-}
-
-/** Titled empty-state panel for rail tabs without a data backing yet (Pine /
- *  Calendars). */
-function RailPlaceholderPanel(props: { tabId: string }) {
-  const label = () => findRightRailTab(props.tabId)?.label ?? "Panel";
-  return (
-    <aside class="ot-rail-panel" aria-label={label()}>
-      <PanelHeader ariaLabel={`${label()} header`} left={<span class="rail-panel-title">{label()}</span>} />
-      <div class="ot-empty-state">{label()} is not available in this build yet.</div>
-    </aside>
-  );
 }
 
 export function RightRail(props: Props) {
@@ -98,7 +84,7 @@ export function RightRail(props: Props) {
   return (
     <div class="right-rail-container" style={{ display: "flex", "flex-direction": "row" }}>
       <Show when={props.activeTab}>
-        <Switch fallback={<RailPlaceholderPanel tabId={props.activeTab!} />}>
+        <Switch>
           <Match when={props.activeTab === "base"}>
             <div
               ref={stackRef}

@@ -12,7 +12,7 @@ import { SymbolSearchDialog } from "./window/header/SymbolSearchDialog";
 import { ChangeIntervalDialog } from "./window/chart/ChangeIntervalDialog";
 import { IndicatorsDialog } from "./window/header/IndicatorsDialog";
 import { ChartPropertiesDialog } from "./window/header/ChartPropertiesDialog";
-import { appearanceFrom, cloneDraft, patchDraftScales, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, stdThemeOf, withStdTheme, type ScaleMenuPatch, type StdTheme } from "./window/header/chart-settings";
+import { appearanceFrom, cloneDraft, patchDraftScales, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, stdThemeOf, withStdTheme, type Draft, type ScaleMenuPatch, type StdTheme } from "./window/header/chart-settings";
 import { activeChartProbe } from "./window/chart/active-chart";
 import { TIMEZONES, findTimezone } from "./data/timezones";
 import { ChartGrid } from "./window/chart/ChartGrid";
@@ -97,7 +97,8 @@ import { displayTimeZone } from "./data/session";
 import { requestDataWindow } from "./data/data-window-store";
 import { bindLayoutSync, defaultLayoutSync, rememberCrosshair, reviveLayoutSync, type LayoutSyncKey } from "./window/chart/layout-sync";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
-import { DialogHost, showConfirm } from "./components/Dialogs";
+import { DialogHost, showConfirm, showRename } from "./components/Dialogs";
+import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTemplate } from "./window/header/chart-templates";
 import { getIndicatorEntry } from "./window/chart/indicators/registry";
 import { loadIndicatorDefault } from "./data/indicator-defaults";
 import { defaultIndicatorOptions } from "./window/chart/indicators/indicator-options";
@@ -119,7 +120,6 @@ import {
   getLayout,
   isUnnamedLayout,
   layoutAutosave,
-  nextUnnamedName,
   OPEN_LAYOUT_PREFIX,
   toggleFavoriteLayout,
   removeLayout,
@@ -412,8 +412,9 @@ function App() {
     // Reading drawingsFor here keeps the dirty check reactive to drawing edits.
     const drawings: Record<string, Drawing[]> = {};
     for (const p of t.panes) {
-      const key = drawingKeyFor(p);
-      if (!(key in drawings)) drawings[key] = drawingsFor(key);
+      for (const key of scopeKeys(drawingKeyFor(p))) {
+        if (!(key in drawings)) drawings[key] = drawingsFor(key);
+      }
     }
     return { layout: t.layout, activePane: t.activePane, panes: t.panes, drawings, sync: t.sync };
   };
@@ -435,7 +436,10 @@ function App() {
 
   // Naming-dialog state: null = closed. `mode` selects the submit behaviour.
   const [layoutNameDialog, setLayoutNameDialog] =
-    createSignal<null | { mode: "save" | "rename" | "copy"; initial: string; persist?: boolean }>(null);
+    createSignal<null | { mode: "save" | "rename" | "copy" | "create"; initial: string; persist?: boolean }>(null);
+  // "Create layout" dialog: its "Open in new tab" box is remembered (default on).
+  const CREATE_NEW_TAB_KEY = "ot:create-layout-new-tab";
+  const [createInNewTab, setCreateInNewTab] = createSignal(kv.getItem(CREATE_NEW_TAB_KEY) !== "false");
   // "Open layout" browser modal (lists every saved layout; load / delete).
   const [layoutBrowserOpen, setLayoutBrowserOpen] = createSignal(false);
   // Manage layouts → "Download chart data…" (CSV export dialog).
@@ -523,11 +527,16 @@ function App() {
       }
     }
   }
-  // "Create new layout" — reset the active tab to a default single-pane chart
-  // and save it under `name`. It is created immediately as "Unnamed" (no
-  // prompt); the caller passes nextUnnamedName() for the suffix sequence.
-  function createNewLayoutNamed(name: string) {
-    const fresh = makeTab();
+  // "Create new layout…" (the "Create layout" dialog): a default single-pane
+  // chart on the first chart's symbol and interval, saved under `name`, in a
+  // new tab or in the active one.
+  function createNewLayoutNamed(name: string, inNewTab: boolean) {
+    const first = activeTab().panes[0];
+    const fresh = makeTab({ symbol: first?.symbol, interval: first?.interval });
+    if (inNewTab) {
+      setTabs([...tabs(), fresh]);
+      activateTab(fresh.id);
+    }
     patchActive({
       layout: fresh.layout,
       panes: fresh.panes,
@@ -542,6 +551,11 @@ function App() {
   function submitLayoutName(name: string) {
     const dlg = layoutNameDialog();
     if (!dlg) return;
+    if (dlg.mode === "create") {
+      kv.setItem(CREATE_NEW_TAB_KEY, String(createInNewTab()));
+      createNewLayoutNamed(name, createInNewTab());
+      return;
+    }
     if (dlg.mode === "rename") {
       const id = activeTab().savedLayoutId;
       if (id) {
@@ -604,12 +618,52 @@ function App() {
   const [intervalDialog, setIntervalDialog] = createSignal<{ initVal: string; selectOnInit: boolean } | null>(null);
   const [indicatorsDialogOpen, setIndicatorsDialogOpen] = createSignal(false);
   const [settingsDialogOpen, setSettingsDialogOpen] = createSignal(false);
+  /** The active chart's Chart Settings as a draft (the Settings dialog seed). */
+  function activeSettingsDraft() {
+    return seedDraft(activePaneState().settings, {
+      timezone: timezone().label,
+      adjusted: isAdjusted(),
+      session: session(),
+      scaleRatio: activeChartProbe()?.scaleRatio(),
+    });
+  }
+  /** Commit Chart Settings to the active chart or every chart (Settings
+   *  dialog Ok / Apply to all, chart template applied from the chart menu). */
+  function commitChartSettings(draft: Draft, scope: "active" | "all") {
+    // Symbol → Timezone drives the app-wide display timezone (one
+    // axis timezone for the whole app, same signal as the bottom bar).
+    const appearance = appearanceFrom(draft);
+    const tzLabel = appearance.timezone;
+    if (tzLabel && tzLabel !== timezone().label) {
+      const tz = findTimezone(tzLabel);
+      if (tz) setTimezone({ label: tz.label, iana: tz.iana });
+    }
+    // Symbol → "Adjust data for dividends" is the SAME app-wide flag
+    // as the bottom-bar ADJ toggle (kv ot:adjusted) — one feature,
+    // two surfaces. Apply + refetch + let the button re-read.
+    if (appearance.adjustDividends !== undefined && appearance.adjustDividends !== isAdjusted()) {
+      kv.setItem("ot:adjusted", String(appearance.adjustDividends));
+      window.dispatchEvent(new CustomEvent("chart-reload-data"));
+      window.dispatchEvent(new CustomEvent("adjusted-changed"));
+    }
+    // Symbol → Session is the pane's RTH/ETH session (same state as
+    // the bottom-bar session menu).
+    const ses = appearance.session === "Extended" ? "ETH" : "RTH";
+    if (ses !== session()) setSession(ses);
+    (scope === "all" ? patchAllPanes : patchActivePane)({
+      settings: cloneDraft(draft),
+      settingsFp: SETTINGS_FINGERPRINT,
+      settingsRev: SETTINGS_REV,
+    });
+    // Chart settings edits are saved as the defaults of new charts.
+    saveChartSettingsDefaults(draft);
+  }
   // Tab the Settings dialog opens on (axis menus → "More settings…" = Scales).
   const [settingsDialogTab, setSettingsDialogTab] = createSignal<string | undefined>();
   // Create/Edit-alert modal: null = closed; object carries the prefill (symbol +
   // clicked price for new, or editId to edit an existing rule).
   const [alertDialog, setAlertDialog] = createSignal<
-    null | { editId?: string; symbol?: string; price?: number }
+    null | { editId?: string; symbol?: string; price?: number; indicatorId?: string }
   >(null);
   // Transient banner shown when an alert fires (in addition to the log + sound).
   const [alertToast, setAlertToast] = createSignal<{ title: string; message: string } | null>(null);
@@ -709,15 +763,28 @@ function App() {
   //   none   → per pane   (`p:<paneId>:<symbol>`) — independent even same-symbol
   //   layout → per layout (`l:<tabId>:<symbol>`)  — shared across the tab's panes
   //   global → per symbol (`<symbol>`)            — shared across tabs + windows
-  // The store is a reactive key→list map; `drawings()` is the FOCUSED pane's
-  // slice; `drawingsFor(key)` gives any pane its own slice. Two panes resolving
-  // to the same key share the slice, so an edit on one shows on the others.
-  const drawingKeyFor = (pane: PaneChart, tabId: string = activeTab().id): string => {
-    switch (syncMode()) {
-      case "none": return `p:${pane.id}:${pane.symbol}`;
-      case "layout": return `l:${tabId}:${pane.symbol}`;
-      default: return pane.symbol; // global
-    }
+  // The sync scope belongs to each drawing (the reference app keeps a sync
+  // mode per drawing): a chart shows its pane-only, layout and global
+  // drawings together, and the sync mode only picks the scope of NEW
+  // drawings. A chart is addressed by a VIEW key (drawingKeyFor) that maps to
+  // its three scope keys; reads concatenate them and writes put each drawing
+  // back in the scope it lives in (a new one in the current mode's scope).
+  // The store is a reactive scope key→list map; `drawings()` is the FOCUSED
+  // pane's view; `drawingsFor(key)` gives any pane its own view. Two panes
+  // sharing a scope key share those drawings.
+  const VIEW_SEP = "\u001f";
+  const drawingKeyFor = (pane: PaneChart, tabId: string = activeTab().id): string =>
+    ["v", pane.id, tabId, pane.symbol].join(VIEW_SEP);
+  const isViewKey = (key: string) => key.startsWith(`v${VIEW_SEP}`);
+  /** The scope keys of a view key: pane only, layout, global. */
+  const scopeKeys = (view: string): string[] => {
+    const [, paneId, tabId, symbol] = view.split(VIEW_SEP);
+    return [`p:${paneId}:${symbol}`, `l:${tabId}:${symbol}`, symbol];
+  };
+  /** The scope key new drawings of a view go to (the sync mode). */
+  const modeScopeKey = (view: string): string => {
+    const [p, l, g] = scopeKeys(view);
+    return syncMode() === "none" ? p : syncMode() === "layout" ? l : g;
   };
   const activeDrawingKey = () => drawingKeyFor(activePaneState());
 
@@ -755,11 +822,25 @@ function App() {
       );
     });
   });
-  const initialKey = activeDrawingKey();
-  const [drawingStore, setDrawingStore] = createStore<Record<string, Drawing[]>>({
-    [initialKey]: loadDrawings(initialKey),
-  });
-  const drawingsFor = (key: string): Drawing[] => drawingStore[key] ?? [];
+  const [drawingStore, setDrawingStore] = createStore<Record<string, Drawing[]>>(
+    Object.fromEntries(scopeKeys(activeDrawingKey()).map((k) => [k, loadDrawings(k)])),
+  );
+  /** A scope key's drawings, or a view's drawings (global, layout, then
+   *  pane-only ones). */
+  const drawingsFor = (key: string): Drawing[] =>
+    isViewKey(key) ? scopeKeys(key).flatMap((k) => drawingStore[k] ?? []) : drawingStore[key] ?? [];
+  /** Split a view's new list into its scope keys: each drawing stays in the
+   *  scope it lives in; a drawing not in any (new) goes to `newScope`. */
+  function splitView(view: string, next: Drawing[], newScope = modeScopeKey(view)): { key: string; before: Drawing[]; after: Drawing[] }[] {
+    const keys = scopeKeys(view);
+    const owner = new Map<string, string>();
+    for (const k of keys) for (const d of drawingStore[k] ?? []) owner.set(d.id, k);
+    const after = new Map(keys.map((k) => [k, [] as Drawing[]]));
+    for (const d of next) after.get(owner.get(d.id) ?? newScope)?.push(d);
+    return keys
+      .map((k) => ({ key: k, before: drawingStore[k] ?? [], after: after.get(k)! }))
+      .filter((s) => s.before.length !== s.after.length || s.before.some((d, i) => d !== s.after[i]));
+  }
   const drawings = () => drawingsFor(activeDrawingKey());
   // ── Drawing undo/redo (header Undo/Redo + Ctrl+Z / Ctrl+Y) ─────────────
   // Session-scoped snapshot history over the drawing slices: every mutation
@@ -772,6 +853,8 @@ function App() {
     key: string;
     before: Drawing[];
     after: Drawing[];
+    /** A view key's change: the scope slices it touched. */
+    slices?: { key: string; before: Drawing[]; after: Drawing[] }[];
     label: string;
     at: number;
     coalesceId?: string;
@@ -829,6 +912,7 @@ function App() {
     before: Drawing[],
     after: Drawing[],
     meta: { label: string; coalesceId?: string },
+    slices?: { key: string; before: Drawing[]; after: Drawing[] }[],
   ) {
     const stack = undoStack();
     const last = stack[stack.length - 1];
@@ -842,11 +926,20 @@ function App() {
       Date.now() - last.at < 800
     ) {
       // Same gesture continuing — extend the open entry (keep its `before`).
-      setUndoStack([...stack.slice(0, -1), { ...last, after, at: Date.now() }]);
+      let merged = last.slices;
+      if (slices) {
+        merged = [...(last.slices ?? [])];
+        for (const s of slices) {
+          const i = merged.findIndex((m) => m.key === s.key);
+          if (i >= 0) merged[i] = { ...merged[i], after: s.after };
+          else merged.push(s);
+        }
+      }
+      setUndoStack([...stack.slice(0, -1), { ...last, after, slices: merged, at: Date.now() }]);
     } else {
       setUndoStack([
         ...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))),
-        { key, before, after, label: meta.label, at: Date.now(), coalesceId: meta.coalesceId },
+        { key, before, after, slices, label: meta.label, at: Date.now(), coalesceId: meta.coalesceId },
       ]);
     }
     lastEntryEpoch = gestureEpoch;
@@ -866,6 +959,10 @@ function App() {
     }
     if (e.kind === "study") {
       setPaneStudies(e, side === "before");
+      for (const sl of e.slices) restoreSlice(sl.key, sl[side]);
+      return;
+    }
+    if (e.slices) {
       for (const sl of e.slices) restoreSlice(sl.key, sl[side]);
       return;
     }
@@ -920,7 +1017,7 @@ function App() {
     const key = drawingKeyFor(pane, tabId);
     const list = drawingsFor(key);
     const kept = list.filter((d) => !d.owner || !gone.includes(d.owner));
-    const slices = kept.length !== list.length ? [{ key, before: list, after: kept }] : [];
+    const slices = kept.length !== list.length ? splitView(key, kept) : [];
     const name = gone.length === 1 ? getIndicatorEntry(gone[0])?.name ?? gone[0] : "indicators";
     const entry: StudyUndoEntry = { kind: "study", tabId, paneIndex, ids: gone, positions, settings, slices, label: `remove ${name}`, at: Date.now() };
     applyUndoEntry(entry, "after");
@@ -1011,6 +1108,16 @@ function App() {
    *  pass `activeDrawingKey()`. `meta` records the change on the undo stack;
    *  pass null for non-user mutations (loading a saved layout). */
   function setSlice(key: string, next: Drawing[], meta?: { label: string; coalesceId?: string } | null) {
+    if (isViewKey(key)) {
+      // A view: write each scope slice the change touches (one undo entry).
+      const slices = splitView(key, next);
+      if (meta !== null) recordDrawingChange(key, drawingsFor(key), next, meta ?? { label: "drawing change" }, slices);
+      for (const s of slices) {
+        setDrawingStore(s.key, s.after);
+        saveDrawings(s.key, s.after);
+      }
+      return;
+    }
     if (meta !== null) {
       recordDrawingChange(key, drawingsFor(key), next, meta ?? { label: "drawing change" });
     }
@@ -1097,8 +1204,9 @@ function App() {
     for (const t of tabs()) {
       if (!open.has(t.id)) continue;
       for (const p of t.panes) {
-        const key = drawingKeyFor(p, t.id);
-        if (!(key in drawingStore)) setDrawingStore(key, loadDrawings(key));
+        for (const key of scopeKeys(drawingKeyFor(p, t.id))) {
+          if (!(key in drawingStore)) setDrawingStore(key, loadDrawings(key));
+        }
       }
     }
   });
@@ -1188,7 +1296,9 @@ function App() {
       style: { ...src.style },
       points: src.points.map(offsetPrice),
     } as Drawing;
-    setSlice(key, [...drawingsFor(key), cloned], { label: `clone ${labelForKind(src.kind)}` });
+    // The clone keeps the source's sync scope.
+    const scope = isViewKey(key) ? scopeKeys(key).find((k) => (drawingStore[k] ?? []).some((d) => d.id === id)) ?? key : key;
+    setSlice(scope, [...drawingsFor(scope), cloned], { label: `clone ${labelForKind(src.kind)}` });
     setSelectedDrawingId(newId);
   }
 
@@ -1641,9 +1751,7 @@ function App() {
         setDownloadDataOpen(true);
         break;
       case "save-load-menu-item-create":
-        // The new layout is created immediately as "Unnamed" (no prompt);
-        // duplicates get a numeric suffix ("Unnamed1", "Unnamed2", …).
-        createNewLayoutNamed(nextUnnamedName());
+        setLayoutNameDialog({ mode: "create", initial: "" });
         break;
       case "save-load-menu-item-load":
         setLayoutBrowserOpen(true);
@@ -2078,7 +2186,30 @@ function App() {
       setSettingsDialogOpen(true);
     };
     // Chart ctx menu → Chart template → "Save as…" (indicator-template name dialog).
-    const onSaveTemplate = () => setTemplateNameDialogOpen(true);
+    // Chart menu "Chart template": "Save as…" saves the active chart's
+    // settings as a chart template ("Save template as" name dialog, the
+    // Settings dialog Template menu's); a template row applies it to the
+    // active chart; its trash removes it (confirmation).
+    const onSaveTemplate = () =>
+      showRename({
+        title: "Save template as",
+        label: "Template name:",
+        maxLength: 128,
+        names: chartTemplates().map((t) => t.name),
+        replaceText: (n) => `Template '${n}' already exists. Do you really want to replace it?`,
+        onSave: (name) => saveChartTemplate(name, activeSettingsDraft()),
+      });
+    const onApplyTemplate = (e: Event) => {
+      const name = (e as CustomEvent<{ name?: string }>).detail?.name;
+      const t = chartTemplates().find((x) => x.name === name);
+      const draft = t ? chartTemplateDraft(t) : undefined;
+      if (draft) commitChartSettings(draft, "active");
+    };
+    const onRemoveTemplate = (e: Event) => {
+      const name = (e as CustomEvent<{ name?: string }>).detail?.name;
+      if (!name) return;
+      showConfirm({ text: `Do you really want to delete Chart Template '${name}' ?`, onConfirm: () => removeChartTemplate(name) });
+    };
     const onClearIndicators = () => removeAllIndicators();
     const onOpenPanel = (e: Event) => {
       const id = (e as CustomEvent<{ id?: string }>).detail?.id;
@@ -2086,8 +2217,8 @@ function App() {
     };
     // Chart context-menu "Add alert", AlertsPanel "edit", header "Create alert".
     const onOpenAlertDialog = (e: Event) => {
-      const d = (e as CustomEvent<{ editId?: string; symbol?: string; price?: number }>).detail ?? {};
-      setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price });
+      const d = (e as CustomEvent<{ editId?: string; symbol?: string; price?: number; indicatorId?: string }>).detail ?? {};
+      setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price, indicatorId: d.indicatorId });
     };
     // Price-scale context menu (right-click on the price axis): checkable
     // Labels/Lines rows + "Move scale" fold into the focused pane's Settings
@@ -2116,6 +2247,8 @@ function App() {
     };
     window.addEventListener("chart-open-settings", onOpenSettings);
     window.addEventListener("chart-save-template", onSaveTemplate);
+    window.addEventListener("chart-apply-template", onApplyTemplate);
+    window.addEventListener("chart-remove-template", onRemoveTemplate);
     window.addEventListener("chart-clear-indicators", onClearIndicators);
     window.addEventListener("chart-open-panel", onOpenPanel);
     window.addEventListener("chart-open-alert-dialog", onOpenAlertDialog);
@@ -2126,6 +2259,8 @@ function App() {
     onCleanup(() => {
       window.removeEventListener("chart-open-settings", onOpenSettings);
       window.removeEventListener("chart-save-template", onSaveTemplate);
+      window.removeEventListener("chart-apply-template", onApplyTemplate);
+      window.removeEventListener("chart-remove-template", onRemoveTemplate);
       window.removeEventListener("chart-clear-indicators", onClearIndicators);
       window.removeEventListener("chart-open-panel", onOpenPanel);
       window.removeEventListener("chart-open-alert-dialog", onOpenAlertDialog);
@@ -2303,7 +2438,7 @@ function App() {
               position: "relative",
             }}
           >
-            <FavoritesToolbar armedTool={armedTool()} />
+            <FavoritesToolbar />
             <For each={gridTabIds()}>
               {(tabId) => (
             <Show when={tabById().get(tabId)}>
@@ -2463,10 +2598,20 @@ function App() {
                 ? "Rename chart layout"
                 : dlg().mode === "copy"
                   ? "Copy chart layout"
-                  : "Save new chart layout"
+                  : dlg().mode === "create"
+                    ? "Create layout"
+                    : "Save new chart layout"
             }
-            submitLabel={dlg().mode === "rename" ? "Rename" : "Save"}
+            submitLabel={dlg().mode === "rename" ? "Rename" : dlg().mode === "create" ? "Create" : "Save"}
             initialValue={dlg().initial}
+            {...(dlg().mode === "create"
+              ? {
+                  fieldLabel: "New layout name",
+                  placeholder: "My layout",
+                  maxLength: 64,
+                  checkbox: { label: "Open in new tab", checked: createInNewTab(), onChange: setCreateInNewTab },
+                }
+              : {})}
             onSubmit={submitLayoutName}
             onClose={() => {
               openAfterNaming = null;
@@ -2554,44 +2699,11 @@ function App() {
             setSettingsDialogTab(undefined);
           }}
           initialTab={settingsDialogTab()}
-          seed={seedDraft(activePaneState().settings, {
-            timezone: timezone().label,
-            adjusted: isAdjusted(),
-            session: session(),
-            scaleRatio: activeChartProbe()?.scaleRatio(),
-          })}
+          seed={activeSettingsDraft()}
           chartType={chartType()}
           intraday={isIntradayResolution(interval())}
           symbol={activeFullSymbol() ?? symbol()}
-          onCommit={(draft, scope) => {
-            // Symbol → Timezone drives the app-wide display timezone (one
-            // axis timezone for the whole app, same signal as the bottom bar).
-            const appearance = appearanceFrom(draft);
-            const tzLabel = appearance.timezone;
-            if (tzLabel && tzLabel !== timezone().label) {
-              const tz = findTimezone(tzLabel);
-              if (tz) setTimezone({ label: tz.label, iana: tz.iana });
-            }
-            // Symbol → "Adjust data for dividends" is the SAME app-wide flag
-            // as the bottom-bar ADJ toggle (kv ot:adjusted) — one feature,
-            // two surfaces. Apply + refetch + let the button re-read.
-            if (appearance.adjustDividends !== undefined && appearance.adjustDividends !== isAdjusted()) {
-              kv.setItem("ot:adjusted", String(appearance.adjustDividends));
-              window.dispatchEvent(new CustomEvent("chart-reload-data"));
-              window.dispatchEvent(new CustomEvent("adjusted-changed"));
-            }
-            // Symbol → Session is the pane's RTH/ETH session (same state as
-            // the bottom-bar session menu).
-            const ses = appearance.session === "Extended" ? "ETH" : "RTH";
-            if (ses !== session()) setSession(ses);
-            (scope === "all" ? patchAllPanes : patchActivePane)({
-              settings: cloneDraft(draft),
-              settingsFp: SETTINGS_FINGERPRINT,
-              settingsRev: SETTINGS_REV,
-            });
-            // Chart settings edits are saved as the defaults of new charts.
-            saveChartSettingsDefaults(draft);
-          }}
+          onCommit={commitChartSettings}
         />
       </Show>
       <Show when={appSettingsTab()}>
@@ -2612,6 +2724,7 @@ function App() {
             editId={d().editId}
             symbol={d().symbol}
             price={d().price}
+            indicatorId={d().indicatorId}
             interval={interval()}
             onClose={() => setAlertDialog(null)}
           />

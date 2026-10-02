@@ -11,6 +11,7 @@ import { Portal } from "solid-js/web";
 import { FLAG_HEX, WL_ICONS } from "../../data/watchlist";
 import { Icon } from "../../components/Icon";
 import { watchlistStore, type WatchList } from "../../data/watchlist-store";
+import { promptCopyWatchlist } from "./watchlist-prompts";
 
 type Props = {
   lists: WatchList[];
@@ -47,10 +48,13 @@ export function OpenListDialog(props: Props) {
     const q = query().trim().toLowerCase();
     return q ? props.lists.filter((l) => l.name.toLowerCase().includes(q)) : props.lists;
   };
-  // Split by colour flag: flagged (has a flag) vs created (no flag).
-  const flagged = () => filtered().filter((l) => l.flag);
-  const created = () => filtered().filter((l) => !l.flag);
   const count = (l: WatchList) => l.groups.reduce((n, g) => n + g.rows.length, 0) + l.extras.length;
+  // "Flagged lists": the colour lists (symbols flagged with that colour);
+  // the Red list always, the others when they hold symbols (or are open).
+  // "Created lists": the user's lists.
+  const isColorList = (l: WatchList) => l.id.startsWith("color-");
+  const flagged = () => filtered().filter((l) => isColorList(l) && (l.flag === "red" || count(l) > 0 || l.id === props.activeId));
+  const created = () => filtered().filter((l) => !isColorList(l));
 
   onMount(() => {
     input.focus();
@@ -122,12 +126,14 @@ export function OpenListDialog(props: Props) {
           <span class="wl-lm-spacer" />
           <span class="wl-lm-count">{count(l)}</span>
           <span class="wl-lm-actions" onClick={(e) => e.stopPropagation()}>
-            <button type="button" class="wl-lm-action" title="Make a copy" aria-label="Make a copy" onClick={() => watchlistStore.copyList(l.id)}>
+            <button type="button" class="wl-lm-action" title="Make a copy" aria-label="Make a copy" onClick={() => promptCopyWatchlist(`${l.name} copy`, (name) => watchlistStore.copyList(l.id, name))}>
               <Icon name="wl-copy" size={16} />
             </button>
-            <button type="button" class="wl-lm-action wl-lm-action-danger" title="Delete" aria-label="Delete" disabled={props.lists.length <= 1} onClick={() => setConfirmingId(l.id)}>
-              <Icon name="draw-trash" size={16} />
-            </button>
+            <Show when={!isColorList(l)}>
+              <button type="button" class="wl-lm-action wl-lm-action-danger" title="Delete" aria-label="Delete" disabled={props.lists.length <= 1} onClick={() => setConfirmingId(l.id)}>
+                <Icon name="draw-trash" size={16} />
+              </button>
+            </Show>
           </span>
         </Show>
       </div>

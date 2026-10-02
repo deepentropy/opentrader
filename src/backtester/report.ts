@@ -103,6 +103,8 @@ export function computePerformance(
   /** Open trades' price move at the last close, without commission. */
   openPL: number,
   events: EquityEvent[],
+  /** Last close on the tick grid (buy & hold; Heikin Ashi closes are off the grid). Default: the last close. */
+  lastClose?: number,
 ): Performance {
   const by = (d: Direction) => (t: Trade) => t.direction === d;
   const all = side(closed, open, initialCapital, maxContracts.all);
@@ -113,7 +115,7 @@ export function computePerformance(
   let buyHoldGainPercent: number | null = null;
   if (first) {
     const p0 = first.entry.price;
-    const p1 = bars[bars.length - 1].close;
+    const p1 = lastClose ?? bars[bars.length - 1].close;
     buyHoldReturn = Math.floor(initialCapital / p0) * (p1 - p0);
     buyHoldGainPercent = (p1 - p0) / p0;
   }

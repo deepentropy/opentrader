@@ -64,11 +64,9 @@ export function OakScriptPanel(props: Props) {
 
   // ── Script store state ────────────────────────────────────────────────────
   const [currentScript, setCurrentScript] = createSignal(scripts.ensureCurrentScript());
-  const [scriptsList, setScriptsList] = createSignal(scripts.listScripts());
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [renaming, setRenaming] = createSignal(false);
   let importInputRef: HTMLInputElement | undefined;
-  const refreshList = () => setScriptsList(scripts.listScripts());
 
   function openScript(id: string): void {
     const s = scripts.loadScript(id);
@@ -144,13 +142,11 @@ export function OakScriptPanel(props: Props) {
   function copyScript(): void {
     const copy = scripts.duplicateScript(currentScript().id);
     if (!copy) return;
-    refreshList();
     openScript(copy.id);
   }
 
   function createNewScript(): void {
     const s = scripts.createScript();
-    refreshList();
     openScript(s.id);
   }
 
@@ -162,7 +158,6 @@ export function OakScriptPanel(props: Props) {
     if (!s) return;
     notifyScriptRenamed(id);
     setCurrentScript(s);
-    refreshList();
   }
 
   function exportScript(): void {
@@ -180,7 +175,6 @@ export function OakScriptPanel(props: Props) {
       const name = file.name.replace(/\.[^.]*$/, "") || "Imported script";
       const s = scripts.createScript(name);
       scripts.saveSource(s.id, text);
-      refreshList();
       openScript(s.id);
     });
   }
@@ -193,7 +187,6 @@ export function OakScriptPanel(props: Props) {
     dropUserScriptRuntime(s.id);
     dropUserStrategy(s.id);
     scripts.deleteScript(s.id);
-    refreshList();
     log("info", `"${s.name}" deleted.`);
     // Fall back to the next stored script, or a fresh template.
     const next = scripts.listScripts()[0];
@@ -202,7 +195,6 @@ export function OakScriptPanel(props: Props) {
       const fresh = scripts.ensureCurrentScript();
       setCurrentScript(fresh);
       setIsStrategy(!!fresh.meta?.strategy);
-      refreshList();
     }
   }
 
@@ -296,7 +288,7 @@ export function OakScriptPanel(props: Props) {
           </Show>
           <Show when={menuOpen()}>
             <OakScriptMenu
-              scriptsList={scriptsList()}
+              scriptsList={scripts.recentScripts()}
               currentId={currentScript().id}
               onSelect={openScript}
               onCopy={copyScript}

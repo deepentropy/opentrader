@@ -4,7 +4,7 @@
  * shown in the interval menu next to the built-in rows, each removable.
  *
  * Ids use the interval menu's form: minutes "7", hours in minutes ("180" =
- * 3 hours), "2D", "3W", "6M", ranges "50R". The type limits, the "already
+ * 3 hours), "2D", "3W", "6M". No range type: range bars are not served. The type limits, the "already
  * exists" rule and the section order are the reference app's.
  */
 import { createSignal } from "solid-js";
@@ -21,11 +21,10 @@ export const CUSTOM_INTERVAL_TYPES: { suffix: string; label: string }[] = [
   { suffix: "D", label: "days" },
   { suffix: "W", label: "weeks" },
   { suffix: "M", label: "months" },
-  { suffix: "R", label: "range" },
 ];
 
 /** Largest multiplier per type suffix. */
-const MAX: Record<string, number> = { "": 1440, H: 24, D: 365, W: 52, M: 12, R: 1e6 };
+const MAX: Record<string, number> = { "": 1440, H: 24, D: 365, W: 52, M: 12 };
 
 /** True when `value` (digits) is within the type's limit. */
 export function isValidCustomInterval(value: string, suffix: string): boolean {
@@ -60,7 +59,8 @@ function load(): string[] {
   try {
     const raw = kv.getItem(STORAGE_KEY);
     const v = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && sectionOf(x) !== null) : [];
+    // Range ids saved before the range type was dropped are left out.
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && sectionOf(x) !== null && !x.endsWith("R")) : [];
   } catch {
     return [];
   }

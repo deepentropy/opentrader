@@ -79,32 +79,32 @@
 }
 /* black primary: #F2F2F2 fill, dark text; hover #DBDBDB. */
 .unsaved-layout-btn.is-primary {
-  background-color: #f2f2f2;
-  border-color: #f2f2f2;
-  color: #0f0f0f;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--ot-strong);
+  color: var(--ot-text-inverse);
 }
 .unsaved-layout-btn.is-primary:hover {
-  background-color: #dbdbdb;
-  border-color: #dbdbdb;
+  background-color: var(--color-container-fill-primary-neutral-bold);
+  border-color: var(--color-text-primary);
 }
 /* black secondary: white outline; hover fills #F2F2F2 with dark text. */
 .unsaved-layout-btn.is-stroke {
-  border-color: #fff;
-  color: #fff;
+  border-color: var(--color-border-primary-neutral-extra-bold);
+  color: var(--ot-text-max);
 }
 .unsaved-layout-btn.is-stroke:hover {
-  background-color: #f2f2f2;
-  border-color: #f2f2f2;
-  color: #0f0f0f;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--ot-strong);
+  color: var(--ot-text-inverse);
 }
 /* gray secondary: #4A4A4A outline; hover fills #2E2E2E. */
 .unsaved-layout-btn.is-gray {
-  border-color: #4a4a4a;
-  color: #fff;
+  border-color: var(--color-divider);
+  color: var(--ot-text-max);
 }
 .unsaved-layout-btn.is-gray:hover {
-  background-color: #2e2e2e;
-  border-color: #2e2e2e;
+  background-color: var(--color-bg-primary-hover);
+  border-color: var(--color-divider-hover);
 }
 
 .unsaved-layout-close {

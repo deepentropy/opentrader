@@ -27,6 +27,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::history::get_second_history_tail,
             commands::history::get_aggregates_before,
             commands::history::get_daily_history_before,
+            commands::history::clear_cache,
             commands::realtime::set_chart_subscription,
             commands::realtime::set_watchlist_subscription,
             commands::ticker::get_ticker_info,

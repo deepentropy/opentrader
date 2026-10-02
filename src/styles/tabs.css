@@ -246,7 +246,7 @@
   top: 8px;
   bottom: 8px;
   width: 1px;
-  background-color: var(--color-cold-gray-700);
+  background-color: var(--color-container-fill-primary-neutral-normal);
   opacity: 0.5;
 }
 .tab.active > .tab-panel-divider,
@@ -437,7 +437,7 @@ html.theme-dark .data-delay-badge {
 .tab-menu-separator {
   height: 1px;
   margin: 4px 0;
-  background-color: var(--color-cold-gray-700);
+  background-color: var(--color-container-fill-primary-neutral-normal);
   opacity: 0.5;
 }
 .tab-menu-item {

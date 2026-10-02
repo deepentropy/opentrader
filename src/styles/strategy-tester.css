@@ -4,8 +4,8 @@
  */
 .st-panel {
   --st-font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
-  --st-text: #dbdbdb;
-  --st-dim: #8c8c8c;
+  --st-text: var(--color-text-primary);
+  --st-dim: var(--color-text-secondary);
   --st-positive: #22ab94;
   --st-negative: #f7525f;
   --st-positive-strong: #089981;
@@ -16,7 +16,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
   font-family: var(--st-font);
   color: var(--st-text);
 }
@@ -41,7 +41,7 @@
   grid-template-columns: calc(100% - 78px) 78px;
   height: 38px;
   flex-shrink: 0;
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-tabbar {
   display: flex;
@@ -51,22 +51,22 @@
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  background: #1f1f1f;
+  background: var(--color-bg-primary);
   border-top-left-radius: 4px;
 }
 .st-panel.is-collapsed .st-tabs {
-  background: #0f0f0f;
+  background: var(--color-bg-secondary);
 }
 .st-tab {
   position: relative;
   display: flex;
   align-items: center;
   height: 38px;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   border-radius: 4px 4px 0 0;
 }
 .st-tab.is-active {
-  background: #0f0f0f;
+  background: var(--color-bg-secondary);
 }
 /* Concave 8 px corners joining the active tab to the report below. */
 .st-tab.is-active::before,
@@ -76,7 +76,7 @@
   bottom: 0;
   width: 8px;
   height: 8px;
-  background: #0f0f0f;
+  background: var(--color-bg-secondary);
 }
 .st-tab.is-active::before {
   left: -8px;
@@ -128,11 +128,11 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-tab-caret:hover,
 .st-tab-caret.is-open {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-tab-caret.is-open svg {
   transform: rotate(180deg);
@@ -140,7 +140,7 @@
 .st-footer-buttons {
   display: flex;
   align-items: center;
-  background: #1f1f1f;
+  background: var(--color-bg-primary);
   border-top-right-radius: 4px;
   padding-inline-start: 2px;
 }
@@ -152,10 +152,10 @@
   justify-content: center;
   border: 0;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-footer-btn:hover {
-  color: #ffffff;
+  color: var(--ot-text-max);
 }
 
 /* ─── Report ─── */
@@ -164,7 +164,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #0f0f0f;
+  background: var(--color-bg-secondary);
 }
 .st-report-body {
   flex: 1 1 auto;
@@ -200,7 +200,7 @@
   gap: 3px;
   padding: 3px;
   border-radius: 8px;
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-light-tab {
   width: 28px;
@@ -210,18 +210,18 @@
   justify-content: center;
   border: 0;
   border-radius: 5px;
-  background: #2e2e2e;
-  color: #dbdbdb;
+  background: var(--color-bg-primary-hover);
+  color: var(--color-text-primary);
 }
 .st-light-tab:hover:not(.is-selected) {
-  background: #3d3d3d;
+  background: var(--color-container-fill-primary-neutral-light);
 }
 .st-light-tab:active:not(.is-selected) {
-  background: #4a4a4a;
+  background: var(--color-container-fill-primary-neutral-normal);
 }
 .st-light-tab.is-selected {
-  background: #0f0f0f;
-  color: #ffffff;
+  background: var(--color-bg-secondary);
+  color: var(--ot-text-max);
 }
 
 /* Ghost pills: 34 px, radius 8px, hover #2e2e2e, pressed #3d3d3d. */
@@ -234,16 +234,16 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-family: var(--st-font);
   cursor: default;
 }
 .st-pill:not(.st-pill-static):hover {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-pill:not(.st-pill-static):active,
 .st-pill.is-open {
-  background: #3d3d3d;
+  background: var(--color-container-fill-primary-neutral-light);
 }
 .st-pill svg {
   flex-shrink: 0;
@@ -277,7 +277,7 @@
   flex-direction: column;
   padding: 6px 8px;
   border-radius: 4px;
-  background: #3d3d3d;
+  background: var(--color-container-fill-primary-neutral-light);
   font-size: 13px;
   line-height: 18px;
   white-space: nowrap;
@@ -297,7 +297,7 @@
   height: 28px;
   margin: 0;
   border: 0;
-  background: #3d3d3d;
+  background: var(--color-container-fill-primary-neutral-light);
 }
 .st-icon-btn {
   width: 34px;
@@ -308,10 +308,10 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-icon-btn:hover {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-icon-btn-sm {
   width: 28px;
@@ -333,10 +333,10 @@
   min-width: 0;
   height: 34px;
   padding: 0 10px;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-divider);
   border-radius: 8px;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font: 400 14px var(--st-font);
   font-feature-settings: "tnum", "lnum";
 }
@@ -346,7 +346,7 @@
 }
 .st-capital-currency {
   font-size: 14px;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 
 /* ─── Metrics view ─── */
@@ -360,7 +360,7 @@
   margin: 16px 0 12px;
   padding: 0 20px;
   font: 600 20px/24px var(--st-font);
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-section {
   padding: 0 20px;
@@ -384,14 +384,14 @@
 }
 .st-cell-title {
   font: 400 14px/18px var(--st-font);
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-cell-value {
   display: flex;
   align-items: baseline;
   white-space: nowrap;
   font-feature-settings: "tnum", "lnum";
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-value,
 .st-change {
@@ -428,7 +428,7 @@
 .st-block-title {
   padding: 4px 0;
   font: 600 16px/24px var(--st-font);
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 
 /* Round tabs (xsmall): 28 px, radius 14px, padding 0 11px, gap 4px. */
@@ -442,17 +442,17 @@
   height: 28px;
   padding: 0 11px;
   border-radius: 14px;
-  border: 1px solid #2e2e2e;
-  background: #2e2e2e;
-  color: #dbdbdb;
+  border: 1px solid var(--color-divider-hover);
+  background: var(--color-bg-primary-hover);
+  color: var(--color-text-primary);
   font: 400 14px/18px var(--st-font);
   white-space: nowrap;
   cursor: default;
 }
 .st-round-tab.is-selected {
-  background: #f2f2f2;
-  border-color: #f2f2f2;
-  color: #0f0f0f;
+  background: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--ot-strong);
+  color: var(--ot-text-inverse);
 }
 
 /* Performance block: header (title + Scale / snapshot / Expand light
@@ -471,15 +471,15 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   cursor: default;
 }
 .st-light-btn:hover {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-light-btn.is-active {
-  background: #3d3d3d;
-  color: #ffffff;
+  background: var(--color-container-fill-primary-neutral-light);
+  color: var(--ot-text-max);
 }
 .st-equity {
   position: relative;
@@ -530,7 +530,7 @@
   flex: none;
   width: 1px;
   height: 14px;
-  background: #4a4a4a;
+  background: var(--color-container-fill-primary-neutral-normal);
 }
 
 /* Legend (top-left over the chart): lines 24 px, 13px/22px; the eye shows on
@@ -553,21 +553,21 @@
   border: 1px solid transparent;
   border-radius: 4px;
   font: 400 13px/22px var(--st-font);
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }
 .st-equity-legend-line:hover {
-  background: #000000;
-  border-color: #4a4a4a;
+  background: var(--color-body-bg);
+  border-color: var(--color-divider);
 }
 .st-equity-legend-line.is-hidden .st-equity-legend-title {
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
   opacity: 0.5;
 }
 .st-equity-legend-eye {
   display: none;
   border: 0;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   padding: 0;
 }
 .st-equity-legend-line:hover .st-equity-legend-eye,
@@ -583,10 +583,10 @@
   height: 21px;
   margin-top: 4px;
   padding: 2px 3px;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
-  background: rgba(15, 15, 15, 0.5);
-  color: #dbdbdb;
+  background: color-mix(in srgb, var(--ot-chart-bg) 50%, transparent);
+  color: var(--color-text-primary);
   font: 400 12px/16px var(--st-font);
   justify-content: center;
 }
@@ -611,8 +611,8 @@
   align-items: center;
   padding: 6px 12px;
   border-radius: 4px;
-  background: #3d3d3d;
-  color: #b8b8b8;
+  background: var(--color-container-fill-primary-neutral-light);
+  color: var(--color-content-primary-neutral-semi-bold);
   font: 400 12px/16px var(--st-font);
   white-space: nowrap;
   pointer-events: none;
@@ -625,7 +625,7 @@
   grid-template-columns: auto auto;
   column-gap: 12px;
   margin-bottom: 8px;
-  color: #ffffff;
+  color: var(--ot-text-max);
   font-size: 13px;
   line-height: 20px;
 }
@@ -641,7 +641,7 @@
 }
 .st-equity-card-value {
   justify-self: end;
-  color: #ffffff;
+  color: var(--ot-text-max);
   font-size: 13px;
   font-feature-settings: "tnum", "lnum";
 }
@@ -656,14 +656,14 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  color: #ffffff;
+  color: var(--ot-text-max);
   font-size: 13px;
   line-height: 20px;
 }
 .st-period-percent {
   align-self: flex-end;
   margin-bottom: 8px;
-  color: #ffffff;
+  color: var(--ot-text-max);
   font-size: 13px;
   line-height: 20px;
 }
@@ -683,7 +683,7 @@
   cursor: default;
 }
 .st-switch-row:hover {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 
 /* Profits and losses. */
@@ -693,7 +693,7 @@
   gap: 0;
   padding: 3px;
   border-radius: 8px;
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-segment {
   height: 28px;
@@ -701,14 +701,14 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #b8b8b8;
+  color: var(--color-content-primary-neutral-semi-bold);
   font: 500 14px var(--st-font);
   white-space: nowrap;
 }
 .st-segment.is-checked {
-  background: #4a4a4a;
-  color: #ffffff;
-  box-shadow: 0 0 6px 0 #0f0f0f;
+  background: var(--color-container-fill-primary-neutral-normal);
+  color: var(--ot-text-max);
+  box-shadow: 0 0 6px 0 var(--color-border-secondary-inverse);
 }
 .st-pnl-rows {
   display: flex;
@@ -724,12 +724,12 @@
   font: 400 13px/18px var(--st-font);
 }
 .st-pnl-row:hover {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-pnl-row.is-first {
   font-size: 14px;
   font-weight: 500;
-  border-bottom: 1px solid #3d3d3d;
+  border-bottom: 1px solid var(--color-divider-line-primary);
   border-radius: 0;
   margin-bottom: 4px;
 }
@@ -863,10 +863,10 @@
   display: grid;
   height: 40px;
   align-items: center;
-  background: #0f0f0f;
-  border-bottom: 1px solid #4a4a4a;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-divider);
   font: 400 14px/18px var(--st-font);
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
 }
 .st-th {
   padding: 0 12px;
@@ -890,7 +890,7 @@
 }
 .st-sort-glyph {
   font-size: 10px;
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
   margin-left: 2px;
 }
 .st-trades-body {
@@ -902,14 +902,14 @@
   right: 0;
   height: 98px;
   display: grid;
-  border-bottom: 1px solid #2e2e2e;
+  border-bottom: 1px solid var(--color-divider-hover);
   font: 400 14px/18px var(--st-font);
   font-feature-settings: "tnum", "lnum";
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   user-select: text;
 }
 .st-trade-row:hover {
-  background: #2e2e2e;
+  background: var(--color-bg-primary-hover);
 }
 .st-td {
   display: flex;
@@ -948,7 +948,7 @@
 }
 /* Half-row divider (1 px #4a4a4a) spans the per-half columns only. */
 .st-td-halves .st-half:first-child {
-  border-bottom: 1px solid #4a4a4a;
+  border-bottom: 1px solid var(--color-divider);
 }
 .st-goto .st-half {
   padding: 0 11px;
@@ -962,7 +962,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
   opacity: 0;
 }
 .st-goto .st-half:hover .st-goto-btn,
@@ -970,10 +970,10 @@
   opacity: 1;
 }
 .st-goto-btn:hover {
-  background: #4a4a4a;
+  background: var(--color-container-fill-primary-neutral-normal);
 }
 .st-muted {
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
 }
 .st-cur {
   margin-left: 3px;
@@ -989,5 +989,5 @@
 .st-check {
   width: 18px;
   text-align: center;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
 }

@@ -12,9 +12,9 @@
   overflow-y: auto;
   border-left: 4px solid #ab47bc;
   border-radius: 4px;
-  background: #1f1f1f;
+  background: var(--color-bg-primary);
   box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-family: var(--font-family-base);
   font-size: 14px;
 }
@@ -52,7 +52,7 @@
   border: none;
   border-radius: 8px;
   background-color: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-family: inherit;
   font-size: 12px;
   font-weight: 400;
@@ -60,13 +60,13 @@
   text-align: start;
   cursor: default;
 }
-.ot-news-item:hover { background-color: #2e2e2e; }
-.ot-news-item:active { background-color: #3d3d3d; }
+.ot-news-item:hover { background-color: var(--color-bg-primary-hover); }
+.ot-news-item:active { background-color: var(--color-container-fill-primary-neutral-light); }
 .ot-news-item-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  color: #8c8c8c;
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 400;
   line-height: 16px;

@@ -132,7 +132,9 @@ export function StrategyTesterPanel(props: Props) {
                   let caretRef: HTMLButtonElement | undefined;
                   return (
                     <div class="st-tab" classList={{ "is-active": active() }} role="tab" aria-selected={active()}>
-                      <Tooltip text="Close strategy report" side="top">
+                      {/* "Close strategy report" while this tab's report shows
+                          (panel open, tab active), else "Open strategy report". */}
+                      <Tooltip text={active() ? "Close strategy report" : "Open strategy report"} side="top">
                         <button type="button" class="st-tab-btn" onClick={() => onTabClick(id)}>
                           <span class="st-tab-icon"><Icon name="st-footer-tab-strategy-icon" size={24} /></span>
                           <span class="st-tab-title">{title(id)}</span>

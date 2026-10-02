@@ -131,6 +131,12 @@ export function setFavoritesToolbarVisible(v: boolean): void {
 /** Live, persisted free offset of the favorites toolbar (null = default dock). */
 export const favoritesToolbarPos = pos;
 
+/** The drawing toolbar's selected tool (a drawing tool, a cursor tool or an
+ *  icon picker tool): the favorites toolbar highlights the same button. */
+const [railTool, setRailTool] = createSignal<string | null>(null);
+export const railSelectedTool = railTool;
+export const setRailSelectedTool = setRailTool;
+
 /** Persist the favorites toolbar position; notifies all readers + windows. */
 export function setFavoritesToolbarPos(p: FavoritesToolbarPos): void {
   setPos(p);

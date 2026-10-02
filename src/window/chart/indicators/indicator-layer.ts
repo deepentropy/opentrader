@@ -39,7 +39,8 @@ import {
 import type { Bar, HLineConfig, FillConfig, FillData } from 'oakscriptjs';
 import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry, MarkerData } from 'lightweight-charts-indicators';
-import type { OwnScaleMeta } from './volume';
+import type { OwnScaleMeta, PlotDefaultVisible, PlotPalette } from './volume';
+import { applyOpacity } from 'lightweight-charts-drawing/core/color';
 import { ThinHistogramPaneView } from './histogram-series';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
 import {
@@ -53,12 +54,40 @@ import {
   type ArrowSet,
   type BarColorCandle,
   type BarColorPoint,
+  type DrawMarker,
   type PlotFillBar,
 } from './indicator-primitives';
 
 type PlotPoint = { time: number; value: number; color?: string };
+
+/** Whether a plot is drawn: the Style tab check box, else the plot's default
+ *  (`defaultVisible: false` = hidden until checked, e.g. Volume MA). */
+export function plotShown(plotDef: { defaultVisible?: boolean }, ov: PlotStyleOverride | undefined): boolean {
+  return ov?.visible ?? plotDef.defaultVisible ?? true;
+}
+
+/** Palette plots: each point's colour from its `paletteIndex` (the Style tab
+ *  colours, else the palette's) at the palette transparency. Returns a copy of
+ *  the result; the study's own result objects are left untouched. */
+function withPaletteColors(entry: IndicatorRegistryEntry, result: any, styles: IndicatorStyleOverrides): any {
+  let out = result;
+  for (const p of entry.plotConfig as (IndicatorRegistryEntry["plotConfig"][number] & PlotPalette)[]) {
+    const pts = result?.plots?.[p.id] as (PlotPoint & { paletteIndex?: number })[] | undefined;
+    if (!p.palette || !pts) continue;
+    const colors = p.palette.map((c, i) => styles[p.id]?.palette?.[i] ?? c.color);
+    const opacity = 100 - (p.paletteTransparency ?? 0);
+    const shaded = colors.map((c) => (c.startsWith("#") && c.length === 7 ? applyOpacity(c, opacity) : c));
+    if (out === result) out = { ...result, plots: { ...result.plots } };
+    out.plots[p.id] = pts.map((d) => (d.paletteIndex != null && shaded[d.paletteIndex] ? { ...d, color: shaded[d.paletteIndex] } : d));
+  }
+  return out;
+}
 /** Third argument of `calculate` (ignored by the library indicators). */
-export type StudyCalcContext = { chartId: string; chart?: ChartContext; studyId?: string };
+/** `heikinAshi`: the chart shows Heikin Ashi bars (strategies run on them); `lastBarOpen`: the newest bar is
+ *  still forming (a realtime bar for strategies). */
+export type StudyCalcContext = { chartId: string; chart?: ChartContext; studyId?: string; heikinAshi?: boolean; lastBarOpen?: boolean };
+/** Chart type and forming-bar state, read at each calculation. */
+export type StudyChartState = () => { heikinAshi: boolean; lastBarOpen: boolean };
 /**
  * Plot points with an na point at each skipped bar: OakScript plot() output leaves the na bars out, and a
  * line-break plot must break there.
@@ -102,7 +131,7 @@ const SHAPE_STYLE_MAP: Record<string, MarkerData['shape']> = {
   labelup: 'labelUp',
   labeldown: 'labelDown',
 };
-const MARKER_LOCATION_MAP: Record<string, MarkerData['position']> = {
+const MARKER_LOCATION_MAP: Record<string, DrawMarker['position']> = {
   abovebar: 'aboveBar',
   belowbar: 'belowBar',
   top: 'aboveBar',
@@ -120,15 +149,17 @@ const MARKER_SIZE_MAP: Record<string, number> = {
   huge: 2,
 };
 
-/** Normalize a marker from either vocabulary into the internal MarkerData
- *  shape (lightweight-charts `shape`/`position`, numeric size). */
-function normalizeMarker(m: Record<string, unknown>): MarkerData {
+/** Normalize a marker from either vocabulary into the internal DrawMarker
+ *  shape (lightweight-charts `shape`/`position`, numeric size; the pane-edge
+ *  positions top / bottom are drawn above / below the bar). */
+function normalizeMarker(m: Record<string, unknown>): DrawMarker {
   const shape =
     (m.shape as MarkerData['shape']) ??
     SHAPE_STYLE_MAP[m.style as string] ??
     'square';
-  const position =
-    (m.position as MarkerData['position']) ??
+  const raw = m.position as MarkerData['position'] | undefined;
+  const position: DrawMarker['position'] =
+    raw === 'top' ? 'aboveBar' : raw === 'bottom' ? 'belowBar' : raw ??
     MARKER_LOCATION_MAP[m.location as string] ??
     'aboveBar';
   const size =
@@ -144,6 +175,7 @@ function normalizeMarker(m: Record<string, unknown>): MarkerData {
     color: (m.color as string) ?? '#2962FF',
     text: (m.text as string) ?? (m.char as string) ?? '',
     size,
+    ...(typeof m.price === 'number' ? { price: m.price } : {}),
   };
 }
 
@@ -173,7 +205,9 @@ function bsearchTime(arr: Array<{ time: number }>, time: number): number {
 }
 
 /** One legend cell: a plot's current value coloured by the plot's own colour. */
-export type IndicatorLegendPlot = { color: string; value: number };
+/** `index`: the plot's position in the entry's plotConfig (alert operands
+ *  name a plot by it; the legend skips hidden plots). */
+export type IndicatorLegendPlot = { color: string; value: number; index: number };
 
 /** Drop a colour's alpha (#rrggbbaa / #rgba / rgba()), keeping its RGB. */
 function resetTransparency(color: string): string {
@@ -201,6 +235,8 @@ export type PlotStyleOverride = {
   plotType?: string;
   /** Plot-type menu "Price line": a horizontal line at the plot's last value. */
   priceLine?: boolean;
+  /** Palette plots (PlotPalette): the colour of each palette entry. */
+  palette?: string[];
 };
 /** Per-plot style overrides for a study, keyed by plot id. */
 export type IndicatorStyleOverrides = Record<string, PlotStyleOverride>;
@@ -233,6 +269,7 @@ export class IndicatorLayer {
   // values). Applied at series creation; render() re-creates the series, so a
   // change takes effect on the next render.
   private lastValueVisible = true;
+  private nameLabelsVisible = false;
   // Per-study Style options (indicator-options.ts): "Labels on price scale"
   // (ANDed with the global flag above) and "Precision" (null = Default).
   private labelsOnScale = true;
@@ -245,6 +282,7 @@ export class IndicatorLayer {
    *  per-chart state, the chart context (timeframe, session...) for OakScript scripts. */
   private chartId: string;
   private scriptChart: ChartContext | undefined;
+  private chartState: StudyChartState = () => ({ heikinAshi: false, lastBarOpen: false });
   /** Study instance id ("rsi#2"): studies with run state keep one per instance. */
   private studyId: string | undefined;
 
@@ -259,8 +297,18 @@ export class IndicatorLayer {
     this.lastValueVisible = v;
   }
 
+  /** Plot-name labels next to the price labels (the global "Name" option AND
+   *  the study's "Labels on price scale"). */
+  setNameLabelsVisible(v: boolean): void {
+    this.nameLabelsVisible = v;
+  }
+
   setScriptChart(chart: ChartContext | undefined): void {
     this.scriptChart = chart;
+  }
+
+  setChartState(state: StudyChartState): void {
+    this.chartState = state;
   }
 
   /** Per-study options, applied to the plot series at the next render. */
@@ -328,6 +376,7 @@ export class IndicatorLayer {
         chartId: this.chartId,
         chart: this.scriptChart,
         studyId: this.studyId,
+        ...this.chartState(),
       });
     } catch (err) {
       // A single indicator throwing must not break the chart or its siblings.
@@ -336,6 +385,7 @@ export class IndicatorLayer {
       this.lastResult = null;
       return;
     }
+    result = withPaletteColors(entry, result, styles);
     this.lastResult = result;
     if (!draw) {
       // A study in its own pane that draws nothing (eye off, or off its
@@ -356,7 +406,7 @@ export class IndicatorLayer {
       if (!plotData || plotData.length === 0) continue;
       if (!this.isPlotVisible(plotDef, result, inputs)) continue;
       const ov = styles[plotDef.id];
-      if (ov?.visible === false) continue; // user unchecked this plot (Style tab)
+      if (!plotShown(plotDef as PlotDefaultVisible, ov)) continue; // unchecked in the Style tab
 
       const color = ov?.color ?? plotDef.color ?? '#2962FF';
       const lineWidth = ov?.lineWidth ?? plotDef.lineWidth;
@@ -407,6 +457,10 @@ export class IndicatorLayer {
       }
       const ps = this.series[firstNew];
       if (ps) this.plotSeries.push({ series: ps as ISeriesApi<SeriesType>, data: plotData });
+      // "Name": the plot's title as a label next to its price label.
+      if (ps && this.nameLabelsVisible && this.labelsOnScale) {
+        (ps as ISeriesApi<SeriesType>).applyOptions({ title: plotDef.title ?? plotDef.id });
+      }
     }
     if (this.selectionBg) this.attachMarkers();
     this.applyAutoscale();
@@ -515,7 +569,7 @@ export class IndicatorLayer {
       const data: PlotPoint[] | undefined = result.plots[plotDef.id];
       if (!data || data.length === 0) continue;
       if (!this.isPlotVisible(plotDef, result, this.lastInputs)) continue;
-      if (this.lastStyles[plotDef.id]?.visible === false) continue;
+      if (!plotShown(plotDef as PlotDefaultVisible, this.lastStyles[plotDef.id])) continue;
       const values = new Map<number, number>();
       for (const p of data) {
         const v = (p as { value?: number }).value;
@@ -554,19 +608,19 @@ export class IndicatorLayer {
       if (hit >= 0) idx = hit;
     }
     const out: IndicatorLegendPlot[] = [];
-    for (const p of entry.plotConfig) {
+    for (const [index, p] of entry.plotConfig.entries()) {
       const style = this.lastStyles[p.id]?.plotType ?? p.style ?? 'line';
       if (style === 'cross') continue;
       if (!this.isPlotVisible(p, result, this.lastInputs)) continue;
       const ov = this.lastStyles[p.id];
-      if (ov?.visible === false) continue; // hidden via the Style tab
+      if (!plotShown(p as PlotDefaultVisible, ov)) continue; // hidden via the Style tab
       const pt = result.plots[p.id]?.[idx];
       if (!pt || pt.value == null || Number.isNaN(pt.value)) continue;
       // The value takes the bar's own plot colour (palette / per-point
       // colorer) with its transparency reset. Per-point colours also win on
       // the canvas, so the legend matches the drawn column.
       const color = (pt as { color?: string }).color ?? ov?.color ?? p.color ?? '#787b86';
-      out.push({ color: resetTransparency(color), value: pt.value });
+      out.push({ color: resetTransparency(color), value: pt.value, index });
     }
     return out;
   }
@@ -760,23 +814,28 @@ export class IndicatorLayer {
     }
   }
 
-  private addMarkers(markers: MarkerData[], bars: Bar[]): void {
+  private addMarkers(markers: DrawMarker[], bars: Bar[]): void {
     // Markers hang off the layer's own invisible anchor (seeded with closes) so
     // they live in this layer's pane and never clobber another indicator's.
     const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.close })) as LineData<Time>[]);
 
     const builtin: SeriesMarker<Time>[] = [];
-    const extended: MarkerData[] = [];
+    const extended: DrawMarker[] = [];
     for (const m of markers) {
       if (BUILTIN_MARKER_SHAPES.has(m.shape)) {
-        builtin.push({
+        const common = {
           time: m.time as unknown as Time,
-          position: m.position,
           shape: m.shape as 'arrowUp' | 'arrowDown' | 'circle' | 'square',
           color: m.color,
           text: m.text ?? '',
           size: m.size,
-        });
+        };
+        // Price positions carry their price; without one the marker sits in the bar.
+        if (m.position === 'atPriceTop' || m.position === 'atPriceBottom' || m.position === 'atPriceMiddle') {
+          builtin.push(m.price != null ? { ...common, position: m.position, price: m.price } : { ...common, position: 'inBar' });
+        } else {
+          builtin.push({ ...common, position: m.position });
+        }
       } else {
         extended.push(m);
       }
@@ -864,10 +923,10 @@ export class IndicatorLayer {
   /** Diamonds on the value changes of a step line (steplinediamond). */
   private addDiamonds(data: PlotPoint[], color: string): void {
     const points = data.filter((d) => d.value != null && !Number.isNaN(d.value));
-    const marks: MarkerData[] = [];
+    const marks: DrawMarker[] = [];
     for (let i = 0; i < points.length; i++) {
       if (i > 0 && points[i].value === points[i - 1].value) continue;
-      marks.push({ time: points[i].time, position: 'inBar', shape: 'diamond', color, size: 1 } as MarkerData);
+      marks.push({ time: points[i].time, position: 'inBar', shape: 'diamond', color, size: 1 });
     }
     if (!marks.length) return;
     // Anchored on the plot values, so 'inBar' sits on the step level.

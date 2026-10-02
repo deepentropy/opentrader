@@ -22,6 +22,7 @@
  *                    passes them via setDataForType's `extras` (intraday only;
  *                    bars without sub-data render as plain candles).
  */
+import { BaselineLines } from "./baseline-lines";
 import {
   AreaSeries,
   BarSeries,
@@ -245,18 +246,24 @@ export function createSeriesForType(
       const b = st.baseline;
       // baseValue follows the Base level % of the pane (ChartView keeps it
       // in sync with the visible price range).
-      return add(BaselineSeries, {
-        // The library draws both halves with ONE width / style: the Top
-        // line's (the settings keep them separate).
+      // The library strokes both halves with ONE width / style: its line is
+      // off and BaselineLines strokes the Top / Bottom lines with their own
+      // (the line colours still drive the price label and crosshair marker).
+      const series = add(BaselineSeries, {
+        lineVisible: false,
         topLineColor: b.top.color,
         bottomLineColor: b.bottom.color,
         lineWidth: width4(b.top.width),
-        lineStyle: libLineStyle(b.top.style),
         topFillColor1: b.topFill1,
         topFillColor2: b.topFill2,
         bottomFillColor1: b.bottomFill1,
         bottomFillColor2: b.bottomFill2,
       });
+      series.attachPrimitive(new BaselineLines(
+        { color: b.top.color, width: width4(b.top.width), style: libLineStyle(b.top.style) },
+        { color: b.bottom.color, width: width4(b.bottom.width), style: libLineStyle(b.bottom.style) },
+      ));
+      return series;
     }
     case "column":
       return addCustom(new ColumnPaneView(), { priceLineVisible: true, color: st.column.up });

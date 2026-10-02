@@ -109,7 +109,7 @@ body,
   height: 34px;
   box-sizing: border-box;
   background: transparent;
-  border: 1px solid #575757;
+  border: 1px solid var(--color-border-hover);
   border-radius: 6px;
   color: inherit;
   font-size: 14px;
@@ -127,12 +127,12 @@ body,
  * border kept, value text #575757, colour at 50 %; a fixed title (Gann
  * square ratios) stays bright. */
 .drawing-settings-level-row.off .drawing-settings-level-coeff:not(.is-fixed) {
-  background-color: #2e2e2e;
-  color: #575757;
+  background-color: var(--color-bg-primary-hover);
+  color: var(--color-text-disabled);
 }
 .drawing-settings-level-row.off .drawing-settings-color-swatch,
 .drawing-settings-level-row.off .dlg-color-thickness-btn {
-  background-color: #2e2e2e;
+  background-color: var(--color-bg-primary-hover);
 }
 .drawing-settings-level-row.off .drawing-settings-color-swatch-fill,
 .drawing-settings-level-row.off .dlg-color-thickness-btn > * {

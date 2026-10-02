@@ -112,7 +112,7 @@
   margin: 3px 0;
   line-height: 12px;
   padding-inline-end: 8px;
-  color: var(--color-cold-gray-100);
+  color: var(--ot-strong);
 }
 .ot-tooltip-hotkey-block::before {
   content: "";
@@ -130,7 +130,7 @@
 }
 .ot-tooltip-hotkey-key {
   background-color: var(--color-cold-gray-600);
-  border-bottom: 1px solid var(--color-cold-gray-450);
+  border-bottom: 1px solid var(--color-border-primary-neutral-semi-bold);
   border-radius: 4px;
   box-sizing: border-box;
   height: 18px;

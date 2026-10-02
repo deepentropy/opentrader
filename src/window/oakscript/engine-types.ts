@@ -20,6 +20,7 @@ export type OakBar = {
  *  import rewrite preserves line structure). */
 import type { ChartContext } from "oakscriptjs/script";
 import type { BacktestReport, StrategyProperties } from "../../backtester/types";
+import type { IntrabarsRef } from "../../backtester/worker-types";
 
 export type OakScriptError = {
   message: string;
@@ -69,6 +70,10 @@ export type OakRequest =
       properties?: Partial<StrategyProperties>;
       /** Chart context (timeframe, session...). */
       chart?: ChartContext;
+      /** The chart shows Heikin Ashi bars of `bars`. */
+      heikinAshi?: boolean;
+      /** Bar magnifier series. */
+      intrabars?: IntrabarsRef;
     };
 
 export type OakResponse =

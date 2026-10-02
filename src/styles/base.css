@@ -80,6 +80,21 @@ html.theme-dark {
   --color-main-text: var(--color-cold-gray-200);
 }
 
+/* Colours the components used as fixed dark-theme values, with a readable
+ * light-theme counterpart: strongest text / ring (cold-gray-100 on dark),
+ * maximum-contrast text (white on dark) and the text of an inverse (light on
+ * dark, dark on light) button. */
+html.theme-light {
+  --ot-strong: #0f0f0f;
+  --ot-text-max: #0f0f0f;
+  --ot-text-inverse: #fff;
+}
+html.theme-dark {
+  --ot-strong: #f2f2f2;
+  --ot-text-max: #fff;
+  --ot-text-inverse: #0f0f0f;
+}
+
 /* Chart-pane tokens — referenced by ChartView.tsx through getComputedStyle. */
 html.theme-light {
   --ot-chart-bg: #ffffff;

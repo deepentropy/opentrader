@@ -394,7 +394,7 @@ export function SelectedToolbar(props: Props) {
             type="button"
             class="selected-toolbar-btn selected-toolbar-btn-templates"
             data-name="templates"
-            title={isGroup() ? "Templates (applies to the primary drawing)" : "Templates"}
+            title="Templates"
             aria-label="Templates"
             aria-expanded={openPopover() === "templates"}
             onClick={() => toggle("templates")}

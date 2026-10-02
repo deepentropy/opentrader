@@ -33,6 +33,10 @@ export type RenameOptions = {
   names: string[];
   /** Confirm text when the typed name already exists (Yes = replace). */
   replaceText: (name: string) => string;
+  /** Text the field opens with (selected). */
+  initialValue?: string;
+  /** Main button text (default "Save"). */
+  saveText?: string;
   onSave: (name: string) => void;
 };
 
@@ -95,7 +99,7 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
 
 function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
   const o = props.entry.opts;
-  const [value, setValue] = createSignal("");
+  const [value, setValue] = createSignal(o.initialValue ?? "");
   const [listOpen, setListOpen] = createSignal(false);
   let input!: HTMLInputElement;
   const name = () => value().trim();
@@ -112,7 +116,7 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
     close(props.entry.id);
   };
   useKeys(props.entry.id, () => (listOpen() ? setListOpen(false) : cancel()), save);
-  onMount(() => input.focus());
+  onMount(() => { input.focus(); input.select(); });
   return (
     <Frame title={o.title} label={o.title} onClose={cancel}>
       <div class="ot-dlg-content">
@@ -154,7 +158,7 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
       <div class="ot-dlg-footer">
         <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>Cancel</button>
         <button type="button" class="ot-dlg-btn is-main is-neutral" data-name="submit-button" aria-disabled={!name()} disabled={!name()} onClick={save}>
-          Save
+          {o.saveText ?? "Save"}
         </button>
       </div>
     </Frame>

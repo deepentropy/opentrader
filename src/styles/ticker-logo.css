@@ -13,8 +13,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background-color: var(--color-cold-gray-700);
-  color: var(--color-cold-gray-200);
+  background-color: var(--color-container-fill-primary-neutral-normal);
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 

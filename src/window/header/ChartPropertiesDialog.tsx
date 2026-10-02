@@ -16,6 +16,7 @@
  * modification".
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTemplate, type SettingsTemplate } from "./chart-templates";
 import { createStore, reconcile } from "solid-js/store";
 import {
   SETTINGS_TABS,
@@ -33,10 +34,7 @@ import {
 import {
   makeDefaultDraft,
   cloneDraft,
-  reviveDraft,
   keyOf,
-  SETTINGS_FINGERPRINT,
-  SETTINGS_REV,
   type Draft,
   type CtrlValue,
   type RowState,
@@ -46,7 +44,6 @@ import { ColorPanel } from "../drawings/ColorPanel";
 import { LineGlyphSelect } from "../drawings/LineEndSelect";
 import { TransparencySlider } from "../drawings/ImageDialog";
 import type { LineStyle } from "lightweight-charts-drawing/core/types";
-import * as kv from "../../data/kv";
 import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
 
@@ -91,27 +88,6 @@ const HelpIcon = (p: { tip?: string }) => (
 );
 
 // ── Settings templates (footer "Template" menu) ──
-// One kv blob: [{ name, fingerprint, draft }]. `fingerprint` is the draft
-// format stamp; reviveDraft converts older formats and refuses unknown ones.
-const TEMPLATES_KEY = "ot:chart-settings-templates";
-type SettingsTemplate = { name: string; fingerprint: string; rev?: number; draft: unknown };
-
-function loadTemplates(): SettingsTemplate[] {
-  try {
-    const raw = kv.getItem(TEMPLATES_KEY);
-    const arr: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(arr)) return [];
-    return arr.filter(
-      (t): t is SettingsTemplate =>
-        !!t && typeof t === "object" && typeof (t as SettingsTemplate).name === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-const persistTemplates = (list: SettingsTemplate[]) =>
-  kv.setItem(TEMPLATES_KEY, JSON.stringify(list));
-
 // ── Popover plumbing ──
 type Anchor = { left: number; top: number; bottom: number; width: number };
 const anchorOf = (el: HTMLElement): Anchor => {
@@ -138,13 +114,13 @@ function createDismiss(getRefs: () => (HTMLElement | undefined)[], onClose: () =
 }
 
 // ── Check box (18 px, #f2f2f2 box / #2e2e2e mark) ──
-export function CheckBox(props: { checked: boolean; disabled?: boolean; onToggle: () => void }) {
+export function CheckBox(props: { checked: boolean; disabled?: boolean; onToggle: () => void; tabIndex?: number }) {
   return (
     <span
       class={`cp3-checkbox${props.checked ? " is-checked" : ""}${props.disabled ? " is-disabled" : ""}`}
       role="checkbox"
       aria-checked={props.checked}
-      tabIndex={0}
+      tabIndex={props.tabIndex ?? 0}
       onClick={() => !props.disabled && props.onToggle()}
       onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); if (!props.disabled) props.onToggle(); } }}
     >
@@ -272,11 +248,28 @@ function MultiCheckControl(props: { options: string[]; on: string[]; width: numb
       </button>
       <Show when={anchor()} keyed>
         {(a) => (
-          <OptionsMenu anchor={a} trigger={() => btn} onClose={() => setAnchor(null)} role="menu">
+          <OptionsMenu anchor={a} trigger={() => btn} onClose={() => { setAnchor(null); btn?.focus(); }} role="menu">
             <For each={props.options}>
-              {(o) => (
-                <div role="menuitemcheckbox" aria-checked={props.on.includes(o)} class="cp3-menu-item cp3-menu-check" onClick={() => toggle(o)}>
-                  <CheckBox checked={props.on.includes(o)} onToggle={() => {}} />
+              {(o, i) => (
+                <div
+                  ref={(el) => { if (i() === 0) queueMicrotask(() => el.focus()); }}
+                  role="menuitemcheckbox"
+                  aria-checked={props.on.includes(o)}
+                  tabIndex={0}
+                  class="cp3-menu-item cp3-menu-check"
+                  onClick={() => toggle(o)}
+                  onKeyDown={(e) => {
+                    // Space / Enter toggle the row, arrows move between rows.
+                    if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(o); }
+                    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                      e.preventDefault();
+                      const el = e.currentTarget;
+                      const next = (e.key === "ArrowDown" ? el.nextElementSibling : el.previousElementSibling) as HTMLElement | null;
+                      next?.focus();
+                    }
+                  }}
+                >
+                  <CheckBox checked={props.on.includes(o)} onToggle={() => {}} tabIndex={-1} />
                   <span class="cp3-menu-title">{o}</span>
                 </div>
               )}
@@ -626,26 +619,17 @@ export function ChartPropertiesDialog(props: Props) {
   const ok = () => { props.onCommit(draft, "active"); props.onClose(); };
   const reset = () => setDraft(reconcile(makeDefaultDraft()));
 
-  // Template menu — entries whose draft revives under this build.
-  const byName = (a: SettingsTemplate, b: SettingsTemplate) => a.name.localeCompare(b.name, undefined, { numeric: true });
-  const [templates, setTemplates] = createSignal<SettingsTemplate[]>(
-    loadTemplates().filter((t) => reviveDraft(t.draft, t.fingerprint, t.rev) !== undefined).sort(byName),
-  );
+  // Template menu — the saved chart templates (chart-templates.ts, shared
+  // with the chart menu's "Chart template" submenu).
+  const templates = chartTemplates;
   const [tplAnchor, setTplAnchor] = createSignal<Anchor | null>(null);
   let tplBtn: HTMLButtonElement | undefined;
-  const saveTemplate = (name: string) => {
-    const entry: SettingsTemplate = { name, fingerprint: SETTINGS_FINGERPRINT, rev: SETTINGS_REV, draft: cloneDraft(draft) };
-    persistTemplates([...loadTemplates().filter((t) => t.name !== name), entry]);
-    setTemplates((list) => [...list.filter((t) => t.name !== name), entry].sort(byName));
-  };
+  const saveTemplate = (name: string) => saveChartTemplate(name, draft);
   const applyTemplate = (t: SettingsTemplate) => {
-    const revived = reviveDraft(t.draft, t.fingerprint, t.rev);
+    const revived = chartTemplateDraft(t);
     if (revived) setDraft(reconcile(revived));
   };
-  const removeTemplate = (name: string) => {
-    persistTemplates(loadTemplates().filter((t) => t.name !== name));
-    setTemplates((list) => list.filter((t) => t.name !== name));
-  };
+  const removeTemplate = (name: string) => removeChartTemplate(name);
 
   // Dialog-level Escape: popovers stop propagation of their own Escape first.
   onMount(() => {

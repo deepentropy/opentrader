@@ -125,7 +125,7 @@
   pointer-events: auto;
 }
 .ot-price-currency-box {
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
 }
 .ot-price-currency-row {
@@ -137,7 +137,7 @@
   align-items: center;
   gap: 3px;
   border-radius: 3px;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   line-height: 12px;
   cursor: default;
   user-select: none;
@@ -158,19 +158,19 @@
   height: 22px;
   box-sizing: border-box;
   padding: 1px 0;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
   background: transparent;
-  color: #dbdbdb;
+  color: var(--color-text-primary);
   font-family: inherit;
   font-size: 14px;
   line-height: 18px;
   cursor: default;
 }
-.ot-price-mode:hover { background-color: #2e2e2e; }
-.ot-price-mode:active { background-color: #3d3d3d; }
-.ot-price-mode.is-on { background-color: #f2f2f2; border-color: #f2f2f2; color: #0f0f0f; }
-.ot-price-mode.is-on:hover { background-color: #dbdbdb; border-color: #dbdbdb; }
+.ot-price-mode:hover { background-color: var(--color-bg-primary-hover); }
+.ot-price-mode:active { background-color: var(--color-container-fill-primary-neutral-light); }
+.ot-price-mode.is-on { background-color: var(--color-container-fill-primary-neutral-extra-bold); border-color: var(--ot-strong); color: var(--ot-text-inverse); }
+.ot-price-mode.is-on:hover { background-color: var(--color-container-fill-primary-neutral-bold); border-color: var(--color-text-primary); }
 .ot-price-plus {
   position: absolute;
   z-index: 5;
@@ -204,16 +204,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-divider);
   border-radius: 4px;
-  background-color: #0f0f0f;
-  color: #dbdbdb;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
   cursor: default;
 }
-.ot-pane-btn:hover { background-color: #2e2e2e; }
-.ot-pane-btn:active { background-color: #3d3d3d; border-width: 0; }
-.ot-pane-btn.is-active { background-color: #f2f2f2; color: #0f0f0f; border-width: 0; }
-.ot-pane-btn.is-active:hover { background-color: #dbdbdb; }
+.ot-pane-btn:hover { background-color: var(--color-bg-primary-hover); }
+.ot-pane-btn:active { background-color: var(--color-container-fill-primary-neutral-light); border-width: 0; }
+.ot-pane-btn.is-active { background-color: var(--color-container-fill-primary-neutral-extra-bold); color: var(--ot-text-inverse); border-width: 0; }
+.ot-pane-btn.is-active:hover { background-color: var(--color-container-fill-primary-neutral-bold); }
 .ot-pane-btn svg { display: block; }
 .ot-pane-menu-icon { display: inline-flex; }
 .ot-pane-menu-icon svg { width: 18px; height: 18px; }

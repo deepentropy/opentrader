@@ -22,10 +22,6 @@
   align-items: center;
 }
 
-.right-rail-tabs-group-bottom {
-  margin-top: auto;
-}
-
 /* Right-rail tab — dimensions only; the rounded pill comes from the shared
  * `.ot-toolbar-button` base, with
  * `--ot-toolbar-explicit-hover-margin: 3px` and `border-radius: 8px`. */

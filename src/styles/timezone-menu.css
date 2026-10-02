@@ -178,7 +178,7 @@
   padding: 0 12px;
   border: 0;
   background: transparent;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
   font-family: inherit;
   font-size: 14px;
   text-align: left;
@@ -187,10 +187,10 @@
 }
 
 .session-menu-item:hover {
-  background-color: var(--color-cold-gray-800, #2e2e2e);
+  background-color: var(--color-bg-primary-hover);
   color: rgb(201, 201, 201);
 }
 
 .session-menu-item.is-active {
-  background-color: var(--color-cold-gray-800, #2e2e2e);
+  background-color: var(--color-bg-primary-hover);
 }

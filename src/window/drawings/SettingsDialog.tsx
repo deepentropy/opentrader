@@ -17,11 +17,12 @@
 import { createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { DEFAULT_VISIBILITY, type DataPoint, type Drawing, type DrawingKind, type DrawingStyle, type VolumeProfileStyle, type GannLine, type GannRatioLine, type PositionStatKey, type GhostCandleStyle, type IntervalVisibility, type LevelDef, type LineStyle, type RegressionLine, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import { labelForKind } from "./labels";
+import { isIconGlyph } from "./toolbar-groups";
 import { factoryStyleFor, FIB_TREND_LINE_DEFAULT, FIB_WEDGE_TREND_LINE_DEFAULT, volumeProfileStyle } from "lightweight-charts-drawing/core/specs";
 import { vwapBandLine } from "lightweight-charts-drawing/core/kinds/data-series";
 import { defaultStyleFor, GHOST_CANDLE_DEFAULTS, ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, FIB_CIRCLE_LEVEL_DEFAULTS, FIB_LEVEL_DEFAULTS, FIB_TIMEZONE_LEVEL_DEFAULTS, FIB_WEDGE_LEVEL_DEFAULTS, GANN_BOX_LEVEL_DEFAULTS, GANN_FAN_LEVEL_DEFAULTS, PARALLEL_CHANNEL_LEVEL_DEFAULTS, PITCHFAN_LEVEL_DEFAULTS, PITCHFORK_LEVEL_DEFAULTS, REGRESSION_LINE_DEFAULTS, SPEED_ARC_LEVEL_DEFAULTS, SPEED_FAN_GRID_DEFAULT, SPEED_FAN_LEVEL_DEFAULTS, VWAP_BAND_DEFAULTS, TREND_FIB_TIME_LEVEL_DEFAULTS, TREND_FIB_TIME_TREND_DEFAULT, GANN_LEVEL_DEFAULTS, GANN_FAN_DEFAULTS, GANN_ARC_DEFAULTS } from "lightweight-charts-drawing/core/specs";
-import { clearKindDefault, saveKindDefault } from "./templates";
-import { TemplatesMenu } from "./DrawingStylePopovers";
+import { clearKindDefault, kindDefaultOverride, saveKindDefault } from "./templates";
+import { HIGHLIGHTER_WIDTHS, TemplatesMenu } from "./DrawingStylePopovers";
 import { ColorPanel, applyOpacity, parseColor } from "./ColorPanel";
 import { LineEndSelect, LineGlyphSelect } from "./LineEndSelect";
 import type { Time } from "lightweight-charts";
@@ -50,7 +51,13 @@ const NO_COORDINATES_KINDS = new Set<string>([
   "table", "image",
 ]);
 
-const FONT_SIZES = ["10", "11", "12", "13", "14", "16", "18", "20", "24"];
+/** Font size list of the reference drawing dialogs. */
+const FONT_SIZES = ["10", "11", "12", "14", "16", "20", "24", "28", "32", "40"];
+/** A size list with the current value added when the list lacks it (the
+ *  floating toolbar offers other sizes, e.g. 8 or 22). */
+function sizeOptions(list: readonly string[], value: string): string[] {
+  return list.includes(value) ? [...list] : [...list, value].sort((a, b) => parseFloat(a) - parseFloat(b));
+}
 /** Style page rows per tool, in display order. Row ids are rendered by
  *  SettingsDialog `styleRow`; "id:Title" ids carry the row title. */
 const LINE_TOOL_ROWS = ["line+ends:Line", "extend", "middlePoint", "priceLabel:Price labels", "stats"];
@@ -117,7 +124,8 @@ const STYLE_ROWS: Record<string, string[]> = {
   "price-range": ["lineNoStyle:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
   "date-range": ["lineNoStyle:Line", "background", "rangeExtend", "rangeStats", "rangeLabel"],
   "date-and-price-range": ["lineNoStyle:Line", "rangeBorder", "background", "rangeStats", "rangeLabel"],
-  brush: ["line+ends:Line", "background"],
+  // Brush: no line style (the reference brush has none; drawn solid).
+  brush: ["line+endsNoStyle:Line", "background"],
   highlighter: ["color:Line", "thickness"],
   "arrow-marker": ["color:Color"],
   "arrow-mark-up": ["color:Arrow"],
@@ -166,9 +174,12 @@ const COORD_MODES: Record<string, "price" | "bar" | "price, bar" | "vertical pos
   "horizontal-line": "price",
   "vertical-line": "bar",
   "regression-trend": "bar",
+  // Volume profiles are built from the points' bars only ("#N (bar)").
+  "fixed-range-volume-profile": "bar",
+  "anchored-volume-profile": "bar",
 };
-/** Highlighter thickness options (px). */
-const HIGHLIGHTER_WIDTHS = [10, 20, 30, 40];
+/** Highlighter thickness options (px), the floating toolbar's list. */
+const HIGHLIGHTER_PX = HIGHLIGHTER_WIDTHS.map((w) => `${w}px`);
 
 
 // Which line-family kinds expose each toggle group (different fields per
@@ -320,9 +331,13 @@ export function SettingsDialog(props: Props) {
     const k = props.drawing.kind;
     const out: Tab[] = [];
     if (INPUTS_KINDS.has(k)) out.push("Inputs");
-    if (!NO_STYLE_KINDS.has(k)) out.push("Style");
+    // Emoji and sticker glyphs have no Style page (fixed colours); the
+    // icon glyph has its Color row.
+    const fixedGlyph = k === "font-icon" && !isIconGlyph(props.drawing);
+    if (!NO_STYLE_KINDS.has(k) && !fixedGlyph) out.push("Style");
     if (TEXT_KINDS.has(k)) out.push("Text");
-    if (!NO_COORDINATES_KINDS.has(k)) out.push("Coordinates");
+    // An anchored drawing (pane position, Pin) has no editable coordinates.
+    if (!NO_COORDINATES_KINDS.has(k) && !props.drawing.anchored) out.push("Coordinates");
     out.push("Visibility");
     return out;
   };
@@ -334,6 +349,18 @@ export function SettingsDialog(props: Props) {
   // Footer "Template" dropdown (save/apply named styles + reset to defaults).
   const [templatesOpen, setTemplatesOpen] = createSignal(false);
   let footerTemplateEl: HTMLDivElement | undefined;
+
+  // Cancel reverts what the dialog changed (the reference undoes to a
+  // checkpoint taken at open): the drawing as it was and the tool default
+  // it had. Ok, the close button, Escape and an outside click keep the edits.
+  const openedDrawing = JSON.parse(JSON.stringify(props.drawing)) as Drawing;
+  const openedDefault = kindDefaultOverride(props.drawing.kind);
+  const cancel = () => {
+    if (openedDefault) saveKindDefault(openedDrawing.kind, openedDefault);
+    else clearKindDefault(openedDrawing.kind);
+    props.onUpdate(openedDrawing);
+    props.onClose();
+  };
 
   function patchStyle(patch: Partial<DrawingStyle>) {
     const style = { ...props.drawing.style, ...patch };
@@ -452,15 +479,15 @@ export function SettingsDialog(props: Props) {
     return idx == null ? "" : String(idx);
   };
 
-  const lineRow = (label: string, ends: boolean) => (
+  const lineRow = (label: string, ends: boolean, noStyle = false) => (
     <DialogRow label={label}>
       <ColorThicknessPicker
         color={props.drawing.style.color}
         width={props.drawing.style.width}
-        lineStyle={props.drawing.style.lineStyle}
+        lineStyle={noStyle ? undefined : props.drawing.style.lineStyle}
         onColor={(c) => patchStyle({ color: c })}
         onWidth={(w) => patchStyle({ width: w })}
-        onLineStyle={(st) => patchStyle({ lineStyle: st })}
+        onLineStyle={noStyle ? undefined : (st) => patchStyle({ lineStyle: st })}
       />
       <Show when={ends}>
         <LineEndSelect side="left" value={props.drawing.style.leftEnd === 1 ? 1 : 0} onChange={(v) => patchStyle({ leftEnd: v })} />
@@ -492,6 +519,8 @@ export function SettingsDialog(props: Props) {
         return lineRow(label, false);
       case "line+ends":
         return lineRow(label, true);
+      case "line+endsNoStyle":
+        return lineRow(label, true, true);
       // Position forecast: ten colour rows. The source background swatch
       // carries the drawing's transparency (its opacity sets `transparency`).
       case "forecastColors": {
@@ -535,7 +564,7 @@ export function SettingsDialog(props: Props) {
           <DialogRow label="Label">
             <div class="drawing-settings-text-format">
               <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 12)} options={FONT_SIZES} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <Dropdown value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
               <FontStyleToggles bold={!!st().bold} italic={!!st().italic} onBold={(v) => patchStyle({ bold: v })} onItalic={(v) => patchStyle({ italic: v })} />
             </div>
           </DialogRow>
@@ -560,7 +589,7 @@ export function SettingsDialog(props: Props) {
       case "thickness":
         return (
           <DialogRow label="Thickness">
-            <Dropdown value={`${st().width}px`} options={HIGHLIGHTER_WIDTHS.map((w) => `${w}px`)} onChange={(v) => patchStyle({ width: parseInt(v, 10) })} />
+            <Dropdown value={`${st().width}px`} options={sizeOptions(HIGHLIGHTER_PX, `${st().width}px`)} onChange={(v) => patchStyle({ width: parseInt(v, 10) })} />
           </DialogRow>
         );
       case "extend":
@@ -721,7 +750,7 @@ export function SettingsDialog(props: Props) {
             </DialogRow>
             <DialogRow label="Text">
               <DialogColorButton color={st().textColor ?? "#dbdbdb"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 14)} options={FONT_SIZES} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <Dropdown value={String(st().fontSize ?? 14)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 14))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
             </DialogRow>
             <DialogRow label="Text alignment">
               <Dropdown value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
@@ -943,7 +972,7 @@ export function SettingsDialog(props: Props) {
             <DialogRow label="Label text">
               <div class="drawing-settings-text-format">
                 <DialogColorButton color={st().priceLabelTextColor ?? "#ffffff"} onColor={(c) => patchStyle({ priceLabelTextColor: c })} />
-                <Dropdown value={String(st().priceLabelFontSize ?? 12)} options={FONT_SIZES} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
+                <Dropdown value={String(st().priceLabelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().priceLabelFontSize ?? 12))} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
                 <FontStyleToggles bold={!!st().priceLabelBold} italic={!!st().priceLabelItalic} onBold={(v) => patchStyle({ priceLabelBold: v })} onItalic={(v) => patchStyle({ priceLabelItalic: v })} />
               </div>
             </DialogRow>
@@ -982,7 +1011,7 @@ export function SettingsDialog(props: Props) {
             <DialogRow label="Text">
               <div class="drawing-settings-text-format">
                 <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-                <Dropdown value={String(st().fontSize ?? 12)} options={FONT_SIZES} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+                <Dropdown value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
               </div>
             </DialogRow>
             <CheckboxRow checked={st().showPriceLabels !== false} onChange={(v) => patchStyle({ showPriceLabels: v })} label="Price labels" />
@@ -1006,7 +1035,7 @@ export function SettingsDialog(props: Props) {
             <CheckboxRow checked={!!st().showPrices} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
             <div class="drawing-settings-row-inputs drawing-settings-text-format">
               <DialogColorButton color={st().priceLabelTextColor ?? st().color} onColor={(c) => patchStyle({ priceLabelTextColor: c })} />
-              <Dropdown value={String(st().priceLabelFontSize ?? 12)} options={FONT_SIZES} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
+              <Dropdown value={String(st().priceLabelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().priceLabelFontSize ?? 12))} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
               <FontStyleToggles bold={!!st().priceLabelBold} italic={!!st().priceLabelItalic} onBold={(v) => patchStyle({ priceLabelBold: v })} onItalic={(v) => patchStyle({ priceLabelItalic: v })} />
             </div>
           </div>
@@ -1043,7 +1072,7 @@ export function SettingsDialog(props: Props) {
           <>
             <DialogRow label="Label">
               <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 12)} options={FONT_SIZES} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <Dropdown value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
             </DialogRow>
             <div class="drawing-settings-row">
               <CheckboxRow checked={st().fillLabelBackground !== false} onChange={(v) => patchStyle({ fillLabelBackground: v })} label="Label background" />
@@ -1104,7 +1133,7 @@ export function SettingsDialog(props: Props) {
           <>
             <DialogRow label="Text">
               <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 14)} options={FONT_SIZES} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <Dropdown value={String(st().fontSize ?? 14)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 14))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
             </DialogRow>
             <DialogRow label="Background">
               <DialogColorButton
@@ -1470,7 +1499,7 @@ export function SettingsDialog(props: Props) {
                 </Show>
                 <Dropdown
                   value={String(textSize())}
-                  options={FONT_SIZES}
+                  options={sizeOptions(FONT_SIZES, String(textSize()))}
                   onChange={(v) => setTextSize(Number(v))}
                 />
                 <Show when={kind() !== "comment"}>
@@ -1588,11 +1617,11 @@ export function SettingsDialog(props: Props) {
                           type="text"
                           class="drawing-settings-input"
                           aria-label={`Point ${i() + 1} price`}
-                          value={pt.price.toFixed(2)}
+                          value={pt.price.toFixed(priceDigits())}
                           onChange={(e) => {
                             const v = parseFloat(e.currentTarget.value);
                             if (Number.isFinite(v)) updatePoint(i(), { price: v });
-                            else e.currentTarget.value = pt.price.toFixed(2);
+                            else e.currentTarget.value = pt.price.toFixed(priceDigits());
                           }}
                         />
                       </Show>
@@ -1715,7 +1744,7 @@ export function SettingsDialog(props: Props) {
               type="button"
               name="cancel"
               class="drawing-settings-btn secondary"
-              onClick={props.onClose}
+              onClick={cancel}
             >
               Cancel
             </button>
@@ -1883,7 +1912,7 @@ function GannStyleRows(props: {
         <div class="drawing-settings-row">
           <CheckboxRow checked={st().showLabels !== false} onChange={(v) => props.patchStyle({ showLabels: v })} label="Ranges and ratio" />
           <div class="drawing-settings-row-inputs drawing-settings-text-format">
-            <Dropdown value={String(st().labelFontSize ?? 12)} options={FONT_SIZES} onChange={(v) => props.patchStyle({ labelFontSize: Number(v) })} />
+            <Dropdown value={String(st().labelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().labelFontSize ?? 12))} onChange={(v) => props.patchStyle({ labelFontSize: Number(v) })} />
             <button type="button" class={"drawing-settings-text-toggle" + (st().bold ? " active" : "")} style={{ "font-weight": 700 }} aria-pressed={!!st().bold} title="Bold" onClick={() => props.patchStyle({ bold: !st().bold })}>
               B
             </button>

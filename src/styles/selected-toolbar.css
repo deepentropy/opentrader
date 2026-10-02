@@ -11,9 +11,9 @@
   flex-direction: row;
   align-items: stretch;
   height: 38px;
-  background-color: var(--color-cold-gray-850, #1f1f1f);
+  background-color: var(--color-bg-primary);
   border-radius: 6px;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   user-select: none;
   font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, sans-serif);
@@ -44,7 +44,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgb(87, 87, 87);
+  color: var(--color-text-disabled);
   cursor: grab;
   flex-shrink: 0;
   touch-action: none;
@@ -72,8 +72,8 @@
 }
 
 .selected-toolbar-btn:hover {
-  background-color: var(--color-cold-gray-800, #2a2e39);
-  color: var(--color-cold-gray-100, #f0f3fa);
+  background-color: var(--color-bg-primary-hover);
+  color: var(--ot-strong);
 }
 
 .selected-toolbar-btn.active {
@@ -124,7 +124,7 @@
   width: 22px;
   height: 4px;
   border-radius: 1px;
-  background-color: #000;
+  background-color: var(--color-body-bg);
   overflow: hidden;
   display: inline-block;
 }
@@ -160,7 +160,7 @@
 
 .selected-toolbar-width-label {
   font-size: 12px;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 /* Font size button: the size as text. */
@@ -170,7 +170,7 @@
 }
 .selected-toolbar-font-size {
   font-size: 14px;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 /* ── Floating-toolbar popovers (color / width / style / templates) ──────────
@@ -186,8 +186,8 @@
   top: calc(100% + 4px);
   left: 0;
   z-index: 10;
-  background-color: var(--color-cold-gray-850, #1f1f1f);
-  border: 1px solid var(--color-cold-gray-700, #363a45);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-divider);
   border-radius: 6px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
   padding: 8px;
@@ -212,11 +212,11 @@
   background: transparent;
   border: 0;
   border-radius: 4px;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
   cursor: pointer;
   box-sizing: border-box;
 }
-.dt-menu-row:hover { background-color: var(--color-cold-gray-800, #2a2e39); }
+.dt-menu-row:hover { background-color: var(--color-bg-primary-hover); }
 .dt-menu-row.selected { color: var(--color-toolbar-button-text-active, #2962ff); }
 .dt-menu-preview {
   display: inline-flex;
@@ -244,8 +244,8 @@
   visibility: hidden;
 }
 .dt-templates-item:hover .dt-templates-del { visibility: visible; }
-.dt-templates-del:hover { color: #dbdbdb; background-color: #4a4a4a; }
-.dt-menu-sep { height: 1px; background: var(--color-cold-gray-800, #2a2e39); margin: 4px 0; }
+.dt-templates-del:hover { color: var(--color-text-primary); background-color: var(--color-container-fill-primary-neutral-normal); }
+.dt-menu-sep { height: 1px; background: var(--color-bg-primary-hover); margin: 4px 0; }
 
 /* "More" menu (214px dropdown) + its Visual-order submenu.
  * Right-aligned under the last button so it never spills past the toolbar. */

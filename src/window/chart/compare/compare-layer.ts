@@ -31,6 +31,8 @@ export class CompareLayer {
   private markers: { series: AnySeries; m: SelectionMarkers } | null = null;
   /** "Scale price chart only": the main series' scale id (null = off). */
   private seriesOnlyScale: string | null = null;
+  /** Baseline style: the base price last applied (see syncBaseline). */
+  private baseLevelPrice: number | null = null;
   paneIndex: number;
 
   constructor(
@@ -113,6 +115,7 @@ export class CompareLayer {
       this.series = createSeriesForType(this.chart, type, ct, this.paneIndex);
       pane?.setPreserveEmptyPane(kept);
       this.builtKey = key;
+      this.baseLevelPrice = null;
     }
     const s = this.series;
     s.applyOptions({
@@ -129,6 +132,25 @@ export class CompareLayer {
     setDataForType(s, type, this.drawn, ct);
     if (this.selectionBg && this.markers?.series !== s) this.setSelected(this.selectionBg);
     this.applyAutoscale();
+    this.syncBaseline();
+  }
+
+  /** Baseline style: the base level sits at `Base level` % of the pane height
+   *  from the bottom, like the main series' (ChartView syncBaseline). The
+   *  library takes a price, so the price under that pixel row is re-derived
+   *  whenever the scales can have moved. */
+  syncBaseline(): void {
+    const s = this.series;
+    const st = this.entry.style;
+    if (!s || chartTypeOf(st.style) !== "baseline") return;
+    const level = compareSeriesStyles(st).baseline.level;
+    const h = this.chart.paneSize(s.getPane().paneIndex()).height;
+    if (!(h > 0)) return;
+    const price = s.coordinateToPrice((h * Math.abs(100 - level)) / 100);
+    if (price == null || !Number.isFinite(price as number)) return;
+    if (this.baseLevelPrice !== null && Math.abs((price as number) - this.baseLevelPrice) < 1e-9) return;
+    this.baseLevelPrice = price as number;
+    s.applyOptions({ baseValue: { type: "price", price: price as number } } as never);
   }
 
   /** "Scale price chart only" on the main series' scale `scaleId` (null =

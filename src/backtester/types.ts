@@ -35,6 +35,20 @@ export interface StrategyProperties {
   /** Margin percent of long / short positions; 0 = no margin (no margin calls, no funds check). */
   marginLong: number;
   marginShort: number;
+  /** backtest_fill_limits_assumption: a limit order fills only when the price goes this many ticks beyond its
+   *  level (0 = when the price touches it). Properties tab "Limit order execution". */
+  fillLimitsTicks: number;
+  /** use_bar_magnifier: fills on historical bars follow the lower-timeframe bars of each chart bar when they
+   *  are given (Properties tab "Bar detalization" High). */
+  barMagnifier: boolean;
+  /** calc_on_order_fills: an extra script run right after each fill ("On order fill"). */
+  calcOnOrderFills: boolean;
+  /** calc_on_every_tick: script runs on each realtime update ("On realtime bar tick"); no effect on history bars. */
+  calcOnEveryTick: boolean;
+  /** calc_on_every_history_tick: script runs on every tick of history bars ("On history bar tick"). */
+  calcOnEveryHistoryTick: boolean;
+  /** fill_orders_on_standard_ohlc: on Heikin Ashi charts, fills use the standard bars ("Heikin Ashi mode"). */
+  fillOrdersOnStandardOhlc: boolean;
 }
 
 export const DEFAULT_PROPERTIES: StrategyProperties = {
@@ -51,6 +65,12 @@ export const DEFAULT_PROPERTIES: StrategyProperties = {
   // Pine v5 default (the TypeScript ports are v5 scripts); v6 scripts default to 100.
   marginLong: 0,
   marginShort: 0,
+  fillLimitsTicks: 0,
+  barMagnifier: false,
+  calcOnOrderFills: false,
+  calcOnEveryTick: false,
+  calcOnEveryHistoryTick: false,
+  fillOrdersOnStandardOhlc: false,
 };
 
 export interface SymbolInfo {

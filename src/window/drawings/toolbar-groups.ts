@@ -180,7 +180,7 @@ function hasFillSwitch(kind: DrawingKind): boolean {
 }
 
 /** Icon (monochrome glyph) vs emoji / sticker: only the icon has a colour. */
-function isIconGlyph(d: Drawing): boolean {
+export function isIconGlyph(d: Drawing): boolean {
   const g = d.glyph?.trim() ?? "";
   return g.startsWith("<svg") && g.includes("currentColor");
 }

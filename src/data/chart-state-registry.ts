@@ -42,7 +42,8 @@ export function indicatorLegendFor(symbol: string): IndicatorLegendRow[] {
   return providers.get(symbol.toUpperCase())?.indicatorLegend() ?? [];
 }
 
-/** A single indicator plot value, or null when the study/plot/symbol is absent. */
+/** A single indicator plot value (`plot` = plotConfig index), or null when
+ *  the study / plot / symbol is absent or the plot is hidden. */
 export function indicatorPlotValue(
   symbol: string,
   indicatorId: string,
@@ -50,7 +51,7 @@ export function indicatorPlotValue(
 ): number | null {
   const rows = indicatorLegendFor(symbol);
   const row = rows.find((r) => r.id === indicatorId);
-  const v = row?.plots[plot]?.value;
+  const v = row?.plots.find((p) => p.index === plot)?.value;
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 

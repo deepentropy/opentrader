@@ -4,9 +4,9 @@
  */
 .drawing-context-menu {
   min-width: 214px;
-  background-color: var(--color-cold-gray-850, #1f1f1f);
+  background-color: var(--color-bg-primary);
   border-radius: 6px;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
   font-family: var(--font-family-base, -apple-system, BlinkMacSystemFont, sans-serif);
   font-size: 14px;
@@ -24,7 +24,7 @@
 }
 
 .drawing-context-menu-item:hover {
-  background-color: var(--color-cold-gray-800, #2a2e39);
+  background-color: var(--color-bg-primary-hover);
 }
 
 .drawing-context-menu-icon-cell {
@@ -32,7 +32,7 @@
   padding: 0;
   text-align: center;
   vertical-align: middle;
-  color: var(--color-cold-gray-200, #dbdbdb);
+  color: var(--color-text-primary);
 }
 
 .drawing-context-menu-icon-cell > * {
@@ -70,7 +70,7 @@
 
 .drawing-context-menu-separator-line {
   height: 1px;
-  background-color: var(--color-cold-gray-800, #2a2e39);
+  background-color: var(--color-bg-primary-hover);
   margin: 4px 0;
 }
 

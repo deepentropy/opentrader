@@ -11,8 +11,8 @@
  *
  * Sidebar uses data-qa-id="indicator-sidebar-item-<id>".  Each tab's
  * content is one of:
- *   rows         — NAME (+ optional indicatorId) · AUTHOR · BOOSTS
- *   empty        — empty-state (Purchased)
+ *   rows         — NAME (+ optional indicatorId) · AUTHOR
+ *   empty        — empty-state
  *   placeholder  — empty list note (Invite-only; My scripts until the
  *                  user saves an OakScript script, then its rows)
  *   fundamentals — 4 sub-tabs × hierarchical metric list
@@ -35,7 +35,6 @@ export const SIDEBAR: SidebarGroup[] = [
       { id: "my-scripts", label: "My scripts" },
       // Invite-only needs script accounts this app does not have.
       { id: "invite-only-scripts", label: "Invite-only", disabled: true },
-      { id: "purchased", label: "Purchased" },
     ],
   },
   {
@@ -64,7 +63,6 @@ export const SIDEBAR_ICONS: Record<string, IconDef> = {
   "favorites": { viewBox: "0 0 28 28", fill: "currentColor", inner: "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"m17.13 9.74 7.37.9-5.44 5.06L20.4 23 14 19.38 7.6 23l1.34-7.3-5.44-5.06 7.37-.9L14 3l3.13 6.74Zm5.11 1.63-4.26 3.97 1.04 5.74L14 18.24l-5.02 2.84 1.04-5.74-4.26-3.97 5.79-.7L14 5.37l2.45 5.3 5.8.7Z\"></path>" },
   "my-scripts": { viewBox: "0 0 28 28", fill: "currentColor", inner: "<path fill=\"currentColor\" d=\"M11 10.5c0-1.02.27-1.89.8-2.5.54-.6 1.39-1 2.7-1 1.31 0 2.16.4 2.7 1 .53.61.8 1.48.8 2.5s-.27 1.89-.8 2.5c-.54.6-1.39 1-2.7 1-1.31 0-2.16-.4-2.7-1a3.75 3.75 0 0 1-.8-2.5zM14.5 6c-1.53 0-2.68.49-3.44 1.34A4.67 4.67 0 0 0 10 10.5c0 1.19.31 2.32 1.06 3.16.76.85 1.91 1.34 3.44 1.34s2.68-.49 3.44-1.34A4.67 4.67 0 0 0 19 10.5c0-1.19-.31-2.32-1.06-3.16C17.18 6.49 16.03 6 14.5 6zM7 23c0-2.4 1.83-5 5-5h5c3.17 0 5 2.6 5 5h1c0-2.85-2.17-6-6-6h-5c-3.83 0-6 3.15-6 6h1z\"></path>" },
   "invite-only-scripts": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" d=\"M12 16a5 5 0 0 1 5 5h-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4H3a5 5 0 0 1 5-5zm9 1a4 4 0 0 1 4 4h-1a3 3 0 0 0-3-3h-3v-1zm-1.5-9c.464 0 .697 0 .892.025a3 3 0 0 1 2.583 2.583c.025.195.025.428.025.892s0 .697-.025.891l-.044.25a3 3 0 0 1-2.54 2.333l-.156.015c-.169.01-.387.01-.735.01s-.566 0-.735-.01l-.157-.015a3 3 0 0 1-2.539-2.334l-.044-.249C16 12.197 16 11.964 16 11.5s0-.697.025-.892a3 3 0 0 1 2.583-2.583C18.803 8 19.036 8 19.5 8M10 6c.464 0 .696 0 .892.022a3.5 3.5 0 0 1 3.085 3.086C14 9.303 14 9.536 14 10s0 .696-.023.891a3.5 3.5 0 0 1-3.085 3.086C10.696 14 10.464 14 10 14c-.348 0-.566 0-.735-.01l-.157-.013a3.5 3.5 0 0 1-3.039-2.785l-.047-.3C6.001 10.695 6 10.463 6 10c0-.348 0-.566.01-.736l.012-.156A3.5 3.5 0 0 1 8.808 6.07l.3-.047C9.304 6 9.536 6 10 6m9.5 3c-.496 0-.647.002-.76.017a2 2 0 0 0-1.722 1.722c-.015.114-.018.265-.018.76 0 .496.003.648.018.761a2 2 0 0 0 1.721 1.722c.114.015.265.018.761.018s.647-.003.76-.018a2 2 0 0 0 1.722-1.721c.015-.114.018-.266.018-.761 0-.496-.003-.647-.018-.761a2 2 0 0 0-1.721-1.722C20.147 9.002 19.996 9 19.5 9M10 7c-.492 0-.655.001-.78.015A2.5 2.5 0 0 0 7.016 9.22C7 9.345 7 9.51 7 10c0 .492.002.656.016.781a2.5 2.5 0 0 0 2.204 2.204c.125.014.288.016.78.016s.655-.002.78-.016a2.5 2.5 0 0 0 2.204-2.204c.014-.125.016-.289.016-.78s-.002-.655-.016-.78a2.5 2.5 0 0 0-2.204-2.205C10.655 7.001 10.492 7 10 7\"></path>" },
-  "purchased": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" d=\"M18 9h4.999v14.002H4V9.009L18 4zM5 22.002h16.999v-2h-2.998a4.001 4.001 0 0 1 0-8.002h2.998v-2H5zM19.001 13a3.002 3.002 0 0 0 0 6.003h2.998V13zM19 15a1 1 0 1 1 0 2 1 1 0 0 1 0-2M6.993 9H17V5.42z\"></path>" },
   "built-ins": { viewBox: "0 0 28 28", fill: "currentColor", inner: "<path fill=\"currentColor\" d=\"m22.85 7.85-4.58 4.59a2.5 2.5 0 0 1-3.54 0l-3.17-3.17a1.5 1.5 0 0 0-2.12 0l-4.59 4.58-.7-.7 4.58-4.59a2.5 2.5 0 0 1 3.54 0l3.17 3.17a1.5 1.5 0 0 0 2.12 0l4.59-4.58.7.7ZM11 22V22h-1V14h1V22Zm12 0V22h-1V14h1V22ZM8 22V22H7V16h1V22Zm6 0V22h-1V16h1V22Zm6 0V22h-1V16h1V22Zm-3 0V22h-1V18h1V22ZM5 22V22H4V19h1V22Z\"></path>" },
   "fundamentals": { viewBox: "0 0 28 28", fill: "currentColor", inner: "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M17.5 7H17v6h-3v-3H9v6H5v6h17V7h-4.5Zm.5 14h3V8h-3v13Zm-1 0v-7h-3v7h3Zm-4-7.5V21h-3V11h3v2.5ZM9 21v-4H6v4h3Z\"></path>" },
   "editors-picks": { viewBox: "0 0 28 28", fill: "none", inner: "<path fill=\"currentColor\" fill-rule=\"evenodd\" d=\"M7 6h14v17.015l-7-5.384-7 5.384zm1 1v13.985l6-4.616 6 4.616V7z\"></path>" },
@@ -103,7 +101,6 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   'my-scripts': { kind: 'placeholder', note: 'No scripts here yet.' },
   'invite-only-scripts': { kind: 'placeholder', note: 'No invite-only scripts here yet.' },
   // No store here: the empty state without its "Go to Store" button.
-  'purchased': { kind: 'empty', title: 'No scripts here yet — discover the Store', body: 'Our trusted creators offer paid indicators and strategies — find the ones that work for you.' },
   // Built-In > Technicals — the library standard indicators (registry).
   'built-ins': { kind: 'rows', rows: STANDARD_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })) },
   'fundamentals': { kind: 'fundamentals', subtabs: [

@@ -121,11 +121,13 @@ export function operandLabel(op: Operand): string {
   }
 }
 
-/** Human-readable condition, e.g. "Price Crossing up 150". */
-export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right">): string {
+/** Human-readable condition, e.g. "Price Crossing up 150", "Price Moving up
+ *  % 5% in 3 bars". */
+export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" | "bars">): string {
   if (isPercentOperator(rule.op)) {
     const pct = rule.right.kind === "value" ? rule.right.value : 0;
-    return `${OPERATOR_LABELS[rule.op]} ${pct}%`;
+    const n = rule.bars ?? 1;
+    return `${operandLabel(rule.left)} ${OPERATOR_LABELS[rule.op]} ${pct}% in ${n} ${n === 1 ? "bar" : "bars"}`;
   }
   return `${operandLabel(rule.left)} ${OPERATOR_LABELS[rule.op]} ${operandLabel(rule.right)}`;
 }

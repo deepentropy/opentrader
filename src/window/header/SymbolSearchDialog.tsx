@@ -173,6 +173,9 @@ export function SymbolSearchDialog(props: Props) {
   const [typeMenuOpen, setTypeMenuOpen] = createSignal(false);
   const typeLabel = () =>
     TYPE_FILTERS().find((t) => t.code === typeCode())?.label ?? "All types";
+  // The type filter belongs to the Stocks tab (the reference shows it there
+  // only): other tabs and the Compare dialog search without it.
+  const activeType = createMemo(() => (!props.compare && category() === "stocks" ? typeCode() : null));
 
   let input!: HTMLInputElement;
   let listEl: HTMLDivElement | undefined;
@@ -192,7 +195,7 @@ export function SymbolSearchDialog(props: Props) {
   // Network fetch — depends on query + type only, NOT category.
   createEffect(() => {
     const q = searchText().trim();
-    const type = typeCode();
+    const type = activeType();
     if (!HAS_TAURI || q.length < 1) {
       reqSeq++; // cancel any in-flight request
       setLiveRaw(null);
@@ -244,7 +247,7 @@ export function SymbolSearchDialog(props: Props) {
   const rows = createMemo<FilteredRow[]>(() => {
     const q = searchText().trim();
     const cat = category();
-    const type = typeCode();
+    const type = activeType();
     const raw = liveRaw();
     if (!HAS_TAURI || q.length < 1 || raw == null) {
       const base = filterSymbols(cat, q);
@@ -589,7 +592,7 @@ export function SymbolSearchDialog(props: Props) {
           </div>
           </Show>
 
-          {/* Filter chips — Stocks + All tabs. No Country and Sector chips:
+          {/* Filter chips — Stocks tab. No Country and Sector chips:
               both are plan-dependent: this feed is US-only and the
               provider's reference search has no sector filter, so they are
               omitted rather than rendered dead. Only the working Type chip

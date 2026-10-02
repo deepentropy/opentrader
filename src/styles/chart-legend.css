@@ -159,7 +159,7 @@
 /* Hidden main series (legend eye, dark theme): titles
  * cold-gray-650, no values (ChartLegend), the action buttons stay shown. */
 .chart-grid-cell .ot-legend-item.is-disabled .ot-legend-titles {
-  color: var(--color-cold-gray-650, #575757);
+  color: var(--color-text-disabled);
 }
 .ot-legend-item.is-disabled .ot-legend-actions {
   display: flex;
@@ -284,7 +284,7 @@
   padding: 0 2px;
   border-radius: 4px;
   /* Fallback if no chart bg is passed inline (kept opaque so values are hidden). */
-  background-color: var(--color-cold-gray-900, #0f0f0f);
+  background-color: var(--color-bg-secondary);
   /* Hairline + soft shadow so the pill reads as a floating box even when its
      fill matches the chart background (neutral in both themes). */
   border: 1px solid rgba(127, 127, 127, 0.18);
@@ -460,7 +460,7 @@ html.theme-light .ot-ind-legend-row.is-selected {
   letter-spacing: 0.4px;
   text-transform: uppercase;
   padding: 4px 0;
-  color: var(--color-cold-gray-450, #8c8c8c);
+  color: var(--color-text-secondary);
 }
 .ot-chart-sync-row {
   display: flex;

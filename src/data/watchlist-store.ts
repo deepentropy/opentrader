@@ -8,7 +8,7 @@
  * section / Clear list / Upload) and the quick-switch toolbar. It is a process
  * singleton — a createRoot autosave effect mirrors every change to storage.
  */
-import { createRoot, createEffect, createSignal } from "solid-js";
+import { createRoot, createEffect, createSignal, on, untrack } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import {
   GROUPS,
@@ -137,6 +137,32 @@ createRoot(() => {
   });
 });
 
+// Recently used lists (the watchlist menu): a list goes to the top when it is
+// opened, five at most, newest first (the reference app's recent symbol
+// lists); a deleted list leaves it.
+const RECENTS_KEY = "ot:watchlist:recents";
+const RECENTS_MAX = 5;
+function loadRecents(): string[] {
+  try {
+    const v = JSON.parse(kv.getItem(RECENTS_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, RECENTS_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+const [recents, setRecentsRaw] = createSignal<string[]>(loadRecents());
+function setRecents(next: string[]): void {
+  setRecentsRaw(next);
+  kv.setItem(RECENTS_KEY, JSON.stringify(next));
+}
+createRoot(() => {
+  createEffect(
+    on(() => state.activeId, (id) => {
+      if (id) setRecents([id, ...untrack(recents).filter((x) => x !== id)].slice(0, RECENTS_MAX));
+    }, { defer: true }),
+  );
+});
+
 // Rows holding a bare ticker (lists saved before full names, imported files)
 // get their primary listing: quotes, sessions and the chart key on the full
 // name. Runs again whenever such a row appears.
@@ -164,6 +190,85 @@ createRoot(() => {
 // shape (setState merges lists/activeId/alerts; the autosave effect above then
 // re-serialises to an identical string, which kv.setItem dedups to a no-op).
 kv.onExternalChange(STORAGE_KEY, () => setState(load()));
+
+// ── Colour lists ("Red list", "Blue list", …) ────────────────────────────
+// The reference app's flagged lists: one list per flag colour holding the
+// symbols flagged with it. They are store lists (id `color-<colour>`, `flag`
+// = the colour) kept in step with symbol-flags.ts both ways: a flag change
+// rebuilds the colour lists' rows; adding / removing a row of a colour list
+// (any store mutator) flags / unflags the symbol (`syncColorFlags`). The
+// list dialog shows them under "Flagged lists" (Red always, the others when
+// they hold symbols).
+
+export const COLOR_LIST_TITLES: Partial<Record<FlagColor, string>> = {
+  red: "Red list",
+  blue: "Blue list",
+  green: "Green list",
+  orange: "Orange list",
+  purple: "Purple list",
+  cyan: "Cyan list",
+  pink: "Pink list",
+};
+const COLOR_ORDER: FlagColor[] = ["red", "blue", "green", "orange", "purple", "cyan", "pink"];
+export const colorListId = (c: FlagColor) => `color-${c}`;
+const colorOfList = (l: WatchList): FlagColor | null => (l.id.startsWith("color-") ? l.flag : null);
+const rowsOf = (l: WatchList) => [...l.groups.flatMap((g) => g.rows), ...l.extras];
+const newRow = (ticker: string): Row => ({ ticker, short: tickerOf(ticker), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
+
+// Every colour list exists (empty ones are hidden by the dialog).
+{
+  const missing = COLOR_ORDER.filter((c) => !state.lists.some((l) => l.id === colorListId(c)));
+  if (missing.length) {
+    setState("lists", (ls) => [
+      ...ls,
+      ...missing.map((c): WatchList => ({ id: colorListId(c), name: COLOR_LIST_TITLES[c] ?? c, flag: c, emoji: null, groups: [], extras: [], favorite: false, sort: "default" })),
+    ]);
+  }
+}
+
+/** Flags → colour lists: each colour list holds exactly the symbols flagged
+ *  with its colour (rows kept in place, new ones appended). */
+createRoot(() => {
+  createEffect(() => {
+    const flags = symbolFlags.allFlags();
+    const byColor = new Map<FlagColor, string[]>();
+    for (const [sym, c] of Object.entries(flags)) {
+      if (!c) continue;
+      const a = byColor.get(c) ?? [];
+      a.push(sym);
+      byColor.set(c, a);
+    }
+    untrack(() => {
+      state.lists.forEach((l, i) => {
+        const c = colorOfList(l);
+        if (!c) return;
+        const want = new Set(byColor.get(c) ?? []);
+        const have = new Set(rowsOf(l).map((r) => r.ticker));
+        const add = [...want].filter((s) => !have.has(s));
+        const drop = [...have].some((s) => !want.has(s));
+        if (!add.length && !drop) return;
+        setState("lists", i, produce((wl: WatchList) => {
+          for (const g of wl.groups) g.rows = g.rows.filter((r) => want.has(r.ticker));
+          wl.extras = [...wl.extras.filter((r) => want.has(r.ticker)), ...add.map(newRow)];
+        }));
+      });
+    });
+  });
+});
+
+/** Colour lists → flags, after a store mutation: a symbol added to a colour
+ *  list takes its colour; a symbol of that colour missing from it is
+ *  unflagged. */
+function syncColorFlags(): void {
+  const flags = symbolFlags.allFlags();
+  for (const l of state.lists) {
+    const c = colorOfList(l);
+    if (!c) continue;
+    const inList = new Set(rowsOf(l).map((r) => r.ticker));
+    for (const s of inList) if (flags[s] !== c) symbolFlags.setFlag(s, c);
+    for (const [s, fc] of Object.entries(flags)) if (fc === c && !inList.has(s)) symbolFlags.setFlag(s, null);
+  }
+}
 
 // ── UI request bus ─────────────────────────────────────────────────────────
 // Lets a global shortcut (Shift+W) ask the watchlist — which only mounts while
@@ -234,6 +339,7 @@ const activeIndex = () => state.lists.findIndex((l) => l.id === state.activeId);
 function mutateActive(fn: (l: WatchList) => void): void {
   const i = activeIndex();
   if (i >= 0) setState("lists", i, produce(fn));
+  syncColorFlags();
 }
 
 /** Where "Add symbol" inserts:
@@ -259,7 +365,14 @@ function uniqueId(base: string): string {
  *  is fine-grained reactive through the store proxy. */
 export const watchlistStore = {
   lists: () => state.lists,
+  /** Lists shown in pickers and menus: the colour lists only when they hold
+   *  symbols (the Red list always) or are open. */
+  shownLists: (): WatchList[] =>
+    state.lists.filter((l) => !l.id.startsWith("color-") || l.flag === "red" || l.id === state.activeId || rowsOf(l).length > 0),
   activeId: () => state.activeId,
+  /** Recently opened lists, newest first (existing lists only). */
+  recentLists: (): WatchList[] =>
+    recents().map((id) => state.lists.find((l) => l.id === id)).filter((l): l is WatchList => !!l),
   active: (): WatchList | undefined => state.lists.find((l) => l.id === state.activeId),
 
   setActive(id: string): void {
@@ -275,11 +388,11 @@ export const watchlistStore = {
     return id;
   },
 
-  /** Duplicate the active list (sections + extras) and switch to the copy. */
-  copyActive(): string {
+  /** Duplicate the active list (sections + extras) as `name` and switch to the copy. */
+  copyActive(name?: string): string {
     const a = state.lists[activeIndex()];
     if (!a) return state.activeId;
-    const nm = uniqueName(`${a.name} copy`);
+    const nm = uniqueName(name ?? `${a.name} copy`);
     const id = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
@@ -291,10 +404,10 @@ export const watchlistStore = {
 
   /** Duplicate any list by id (sections + extras); does NOT switch active.
    *  Returns the copy's id. */
-  copyList(id: string): string | undefined {
+  copyList(id: string, name?: string): string | undefined {
     const src = state.lists.find((l) => l.id === id);
     if (!src) return undefined;
-    const nm = uniqueName(`${src.name} copy`);
+    const nm = uniqueName(name ?? `${src.name} copy`);
     const cid = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
@@ -308,7 +421,8 @@ export const watchlistStore = {
    *  alert threshold + fired-dedupe entries — a recreated list with the same
    *  name re-slugs to the same id and must not inherit them. */
   deleteList(id: string): void {
-    if (state.lists.length <= 1) return;
+    // Colour lists cannot be deleted (they are the flagged symbols).
+    if (state.lists.length <= 1 || id.startsWith("color-")) return;
     const wasActive = state.activeId === id;
     setState("lists", (ls) => ls.filter((l) => l.id !== id));
     if (wasActive) setState("activeId", state.lists[0]?.id ?? "");
@@ -318,6 +432,7 @@ export const watchlistStore = {
       }));
     }
     clearFiredForList(id);
+    if (recents().includes(id)) setRecents(recents().filter((x) => x !== id));
   },
 
   /** Rename a list by id. */
@@ -491,6 +606,7 @@ export const watchlistStore = {
     setState("lists", i, produce((wl: WatchList) => {
       wl.extras.push({ ...row, flag: null });
     }));
+    syncColorFlags();
     return true;
   },
   /** Whether a list holds a symbol, stored under its full or short name
@@ -511,11 +627,12 @@ export const watchlistStore = {
       for (const g of wl.groups) g.rows = g.rows.filter(keep);
       wl.extras = wl.extras.filter(keep);
     }));
+    syncColorFlags();
   },
   /** Create a new list seeded with one row WITHOUT switching the active list
    *  ("Add X to watchlist → Create new list…"). Returns the new name. */
-  createListWith(row: Row): string {
-    const nm = uniqueName("New list");
+  createListWith(row: Row, name = "New list"): string {
+    const nm = uniqueName(name);
     const id = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,

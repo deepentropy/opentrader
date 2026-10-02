@@ -26,7 +26,8 @@ import { createContext, createEffect, createMemo, createSignal, createUniqueId, 
 import type { IPriceLine } from "lightweight-charts";
 import type { Coords } from "./coords";
 import { offsetCoords, type DrawingPane } from "./pane-coords";
-import { defaultStyleFor, findOverlaySpec } from "lightweight-charts-drawing/core/specs";
+import { defaultStyleFor, FIB_LEVEL_DEFAULTS, findOverlaySpec } from "lightweight-charts-drawing/core/specs";
+import { fibLevelAt } from "lightweight-charts-drawing/core/scene/fib";
 import { isVisibleOnInterval, type DataPoint, type Drawing, type DrawingKind } from "lightweight-charts-drawing/core/types";
 import {
   HANDLE_RADIUS,
@@ -205,6 +206,9 @@ export function DrawingsOverlay(props: Props) {
     value: string;
     /** Pane of a create-mode placement (Frame key). */
     frameKey?: string | null;
+    /** Fib level text: the level's index in the drawing's level list (the
+     *  editor writes `levels[i].text`, one line, 50 characters at most). */
+    level?: number;
   } | null>(null);
   /** Settings dialog open for the drawing with this id. */
   const [settingsId, setSettingsId] = createSignal<string | null>(null);
@@ -816,7 +820,11 @@ export function DrawingsOverlay(props: Props) {
       if (!props.stayMode) props.onDisarm();
     } else if (te.id) {
       const d = props.drawings.find((x) => x.id === te.id);
-      if (d) props.onUpdate({ ...d, text });
+      if (d && te.level != null) {
+        const levels = (d.style.levels ?? FIB_LEVEL_DEFAULTS).map((l) => ({ ...l }));
+        if (levels[te.level]) levels[te.level] = { ...levels[te.level], text: text.slice(0, 50) };
+        props.onUpdate({ ...d, style: { ...d.style, levels } });
+      } else if (d) props.onUpdate({ ...d, text });
     }
   }
 
@@ -1762,7 +1770,24 @@ export function DrawingsOverlay(props: Props) {
         if (!armedSpec()) {
           const sp = eventPoint(svg, e as unknown as PointerEvent);
           const hit = hitTopmost(sp);
-          if (hit && findOverlaySpec(hit.drawing.kind)?.textEditable && !hit.drawing.locked) {
+          // Fib retracement / trend-based extension: a double-click on a
+          // level line edits that level's text on the chart.
+          const fibLevel = hit && !hit.drawing.locked && (hit.drawing.kind === "fib-retracement" || hit.drawing.kind === "trend-based-fib-extension")
+            ? fibLevelAt(hit.drawing, hit.pts, { x: sp.x, y: sp.y - hit.frame.top }, hit.frame.dims.w, hit.frame.coords)
+            : null;
+          if (hit && fibLevel) {
+            e.preventDefault();
+            const lvls = hit.drawing.style.levels ?? FIB_LEVEL_DEFAULTS;
+            setTextEdit({
+              mode: "edit",
+              id: hit.drawing.id,
+              kind: hit.drawing.kind,
+              points: hit.drawing.points,
+              pos: { x: fibLevel.textX, y: fibLevel.y + hit.frame.top },
+              value: lvls[fibLevel.index]?.text ?? "",
+              level: fibLevel.index,
+            });
+          } else if (hit && findOverlaySpec(hit.drawing.kind)?.textEditable && !hit.drawing.locked) {
             e.preventDefault();
             setTextEdit({
               mode: "edit",
@@ -1883,6 +1908,7 @@ export function DrawingsOverlay(props: Props) {
           ref={(el) => { textInput = el; queueMicrotask(() => { el.focus(); el.select(); }); }}
           class="ot-drawing-text-input"
           value={te().value}
+          maxLength={te().level != null ? 50 : undefined}
           placeholder={TEXT_PLACEHOLDER[te().kind] ?? "Text"}
           style={{
             position: "absolute",

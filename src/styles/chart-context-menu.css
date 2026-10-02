@@ -58,9 +58,27 @@
   flex: 1 1 auto;
 }
 
+/* Remove button of a removable row (saved chart templates), shown on hover. */
+.ot-chart-ctx-remove {
+  all: unset;
+  margin-left: auto;
+  padding-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+  visibility: hidden;
+  cursor: default;
+}
+.ot-chart-ctx-item:hover .ot-chart-ctx-remove {
+  visibility: visible;
+}
+.ot-chart-ctx-remove:hover {
+  color: var(--color-text-primary);
+}
+
 .ot-chart-ctx-shortcut {
   margin-left: 24px;
-  color: var(--color-cold-gray-450, #8c8c8c);
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 

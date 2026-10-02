@@ -709,6 +709,9 @@ export type ChartAppearance = {
   marginBottom?: number;
   rightOffset?: number;
   scalesPlacement?: 'left' | 'right';
+  /** Scales placement choice: Auto (main scale right, an extra scale on the
+   *  side with fewer scales) or stacking every scale on one side. */
+  scalesMode?: 'auto' | 'left' | 'right';
   precision?: string;
   /** Canvas → Buttons → Navigation / Pane. */
   navButtons?: NavButtonsBehavior;
@@ -864,6 +867,7 @@ export function appearanceFrom(d: Draft | undefined): ChartAppearance {
     navButtons: NAV_BEHAVIOR[C.sel('Navigation') ?? ''],
     paneButtons: NAV_BEHAVIOR[C.sel('Pane') ?? ''],
     scalesPlacement: Sc.sel('Scales placement') === 'Stack on the left' ? 'left' : 'right',
+    scalesMode: Sc.sel('Scales placement') === 'Stack on the left' ? 'left' : Sc.sel('Scales placement') === 'Stack on the right' ? 'right' : 'auto',
     precision: S.sel('Precision'),
     legendLogo: L.checked('Logo'),
     legendTitle: L.checked('Title'),
@@ -950,6 +954,7 @@ export type ScaleMenuPatch = {
   highLowLines?: boolean;
   countdown?: boolean;
   indLastValue?: boolean;
+  indNameLabel?: boolean;
   scalesPlacement?: 'left' | 'right';
   lockRatio?: boolean;
   lockRatioValue?: number;
@@ -989,6 +994,7 @@ export function patchDraftScales(d: Draft | undefined, p: ScaleMenuPatch): Draft
   setMember('High and low', 'Value', p.highLowLabels);
   setMember('High and low', 'Line', p.highLowLines);
   setMember('Indicators and financials', 'Value', p.indLastValue);
+  setMember('Indicators and financials', 'Name', p.indNameLabel);
   setChecked('Countdown to bar close', p.countdown);
   setChecked('Lock price to bar ratio', p.lockRatio);
   setChecked('Scale price chart only', p.scaleSeriesOnly);

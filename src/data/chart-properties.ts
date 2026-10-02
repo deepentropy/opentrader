@@ -327,7 +327,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     // Shown while the session is not Regular (intraday only — the dialog also
     // hides it on D/W/M).
     row({ label: 'Pre/post market hours background', controls: [{ c: 'color', color: 'rgba(255, 152, 0, 0.08)' }, { c: 'color', color: 'rgba(41, 98, 255, 0.08)' }], visibleWhen: { id: 'Session', values: ['Extended'] } }),
-    row({ cb: true, checked: false, label: 'Adjust data for dividends', help: 'Click here to learn more' }),
+    row({ cb: true, checked: false, label: 'Adjust data for dividends' }),
     row({ label: 'Precision', controls: [{ c: 'select', value: 'Default', options: PRECISION_OPTIONS }] }),
     row({ label: 'Timezone', controls: [{ c: 'select', value: 'Exchange', options: TIMEZONE_OPTIONS }] }),
   ],
@@ -367,7 +367,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ label: 'Scales placement', controls: [{ c: 'select', value: 'Auto', options: ["Stack on the left", "Stack on the right", "Auto"] }] }),
     section('Price labels & lines'),
     row({ cb: true, checked: true, label: 'No overlapping labels' }),
-    row({ cb: true, checked: true, label: 'Plus button', help: 'Click here to learn more' }),
+    row({ cb: true, checked: true, label: 'Plus button' }),
     row({ cb: true, checked: true, label: 'Countdown to bar close' }),
     // Check lists. Symbol: check list + price-line colour / width
     // (priceLineColor "" = bar direction, priceLineWidth 1), then the
@@ -424,7 +424,7 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: false, label: 'Positions and orders', help: true, inert: true }),
     row({ cb: true, checked: true, label: 'Reverse position button', indent: true, child: true, desc: 'Adds the reverse button next to the open position on the chart', inert: true }),
     row({ cb: true, checked: false, label: 'Project order for market orders', desc: 'Shows a project order on the chart before sending a market order', inert: true }),
-    row({ cb: true, checked: false, label: 'Profit and loss value', help: 'Click here to learn more', inert: true }),
+    row({ cb: true, checked: false, label: 'Profit and loss value', inert: true }),
     row({ cb: true, checked: true, label: 'Positions', indent: true, child: true, controls: [{ c: 'select', value: 'Money', options: ['Money', 'Ticks', '%'], disabled: true }], inert: true }),
     row({ cb: true, checked: true, label: 'Brackets', indent: true, child: true, controls: [{ c: 'select', value: 'Money', options: ['Money', 'Ticks', '%'], disabled: true }], inert: true }),
     row({ cb: true, checked: false, label: 'Execution marks', help: true, inert: true }),
@@ -441,13 +441,13 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'Alert lines', controls: [{ c: 'color', color: UP, noOpacity: true }] }),
     row({ cb: true, checked: true, label: 'Only active alerts' }),
     section('Notifications'),
-    row({ cb: true, checked: true, label: 'Automatically hide toasts', help: 'Click here to learn more' }),
+    row({ cb: true, checked: true, label: 'Automatically hide toasts' }),
   ],
 
   // ── Events ───────────────────────────────────────────────────────────────
   events: [
     section('Events'),
-    row({ cb: true, checked: false, label: 'Ideas', help: 'Click here to learn more', controls: [{ c: 'select', value: 'Ideas of followed users', options: ['Ideas of followed users'], disabled: true }], inert: true }),
+    row({ cb: true, checked: false, label: 'Ideas', controls: [{ c: 'select', value: 'Ideas of followed users', options: ['Ideas of followed users'], disabled: true }], inert: true }),
     row({ cb: true, checked: true, label: 'Dividends', child: true }),
     row({ cb: true, checked: true, label: 'Splits', child: true }),
     // Session breaks: colour + Opacity + Thickness + Line style.

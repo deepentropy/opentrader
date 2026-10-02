@@ -255,20 +255,17 @@ export function HeaderToolbar(props: Props) {
   };
 
   const userName = () => props.userName ?? "Trader";
-  const avatarTip = () => `Logged in as ${userName()}\nActive layout: ${props.layoutName ?? "Unnamed"}`;
   const [profileAnchor, setProfileAnchor] = createSignal<DOMRect | null>(null);
 
   return (
     <div class="header-toolbar" role="toolbar" aria-label="Chart header">
       {/* Account/main menu — circular avatar at the far left, before the
-          symbol field. */}
-      {/* Tooltip = aria-label = "Logged in as <user>\nActive layout: <name>". */}
-      <Tooltip text={avatarTip()} side="bottom">
+          symbol field. No tooltip: there is no account to show. */}
         <button
           type="button"
           class={"header-toolbar-profile" + (profileAnchor() ? " is-open" : "")}
           data-qa-id="main-menu-button"
-          aria-label={avatarTip()}
+          aria-label="Main menu"
           aria-haspopup="menu"
           aria-expanded={!!profileAnchor()}
           onClick={(e) =>
@@ -279,7 +276,6 @@ export function HeaderToolbar(props: Props) {
             {userName().charAt(0).toUpperCase()}
           </span>
         </button>
-      </Tooltip>
       <Show when={profileAnchor()}>
         {(anchor) => (
           <ProfileMenu

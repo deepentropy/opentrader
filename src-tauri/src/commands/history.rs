@@ -28,6 +28,17 @@ use tokio::sync::Mutex;
 /// corrected live by the poller, so a slightly stale snapshot here is harmless.
 static DAILY_MEM: DayMemo<(String, u32, bool), Vec<Candle>> = OnceLock::new();
 
+/// Settings > Service > "Clear cache": the market-data disk cache and the
+/// in-memory series and memos.
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_cache() -> Result<(), String> {
+    if let Some(m) = DAILY_MEM.get() {
+        m.lock().await.clear();
+    }
+    crate::data::massive_rest::clear_market_data_cache().await
+}
+
 /// The symbol's trading calendar (its session: weekdays, holidays, zone).
 async fn calendar_of(provider: &Provider, sym: &SymbolRef) -> Result<SessionCalendar, String> {
     let session = provider.symbol_session(sym).await.map_err(|e| e.to_string())?;

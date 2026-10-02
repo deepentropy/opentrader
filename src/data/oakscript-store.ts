@@ -126,6 +126,30 @@ export function currentScriptId(): string | null {
 
 export function setCurrentScriptId(id: string): void {
   kv.setItem(CURRENT_KEY, id);
+  markRecent(id);
+}
+
+// Recently used scripts (the editor's script menu): a script goes to the top
+// when it is opened, four at most, newest first (the reference editor's
+// recently used scripts); a deleted script leaves it.
+const RECENTS_KEY = "ot:oakscript:recents";
+const RECENTS_MAX = 4;
+function readRecents(): string[] {
+  try {
+    const v = JSON.parse(kv.getItem(RECENTS_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function markRecent(id: string): void {
+  kv.setItem(RECENTS_KEY, JSON.stringify([id, ...readRecents().filter((x) => x !== id)].slice(0, RECENTS_MAX)));
+}
+
+/** Recently opened scripts, newest first (existing scripts only). */
+export function recentScripts(): OakScriptMeta[] {
+  const index = readIndex();
+  return readRecents().map((id) => index.find((m) => m.id === id)).filter((m): m is OakScriptMeta => !!m);
 }
 
 /** The script the editor opens on: the persisted current one, else the first
@@ -199,4 +223,5 @@ export function deleteScript(id: string): void {
   kv.removeItem(SCRIPT_PREFIX + id);
   writeIndex(readIndex().filter((m) => m.id !== id));
   if (currentScriptId() === id) kv.removeItem(CURRENT_KEY);
+  kv.setItem(RECENTS_KEY, JSON.stringify(readRecents().filter((x) => x !== id)));
 }

@@ -10,8 +10,7 @@
  *     alert_message / alert_* / disable_alert are ignored (no alerts in a backtest);
  *   - OCA groups, `strategy.close(immediately)`, risk rules and default_entry_qty are not
  *     implemented by the Broker: they throw;
- *   - strategy() properties that change fills and are not implemented by the Broker
- *     (calc_on_order_fills, use_bar_magnifier, backtest_fill_limits_assumption) throw when set;
+ *   - calc_on_order_fills is not implemented (an extra script run inside processBar): it throws when set;
  *   - variables: the Broker state; trade statistics from its closed trades (Pine definitions,
  *     percent in %); max_drawdown / max_runup / margin_liquidation_price are not provided
  *     during the run (the report computes the drawdown at the end).
@@ -31,7 +30,7 @@ import {
   type StrategyVariable,
 } from 'oakscriptjs/script';
 import { Broker } from './broker';
-import { backtestReport } from './run';
+import { backtestReport, binIntrabars, heikinAshiBars } from './run';
 import { SessionSpec } from '../data/session/spec';
 import { localDay, localToUtc } from '../data/session/zone';
 import {
@@ -46,10 +45,6 @@ import {
 /** oakscriptjs strategy() properties to the Broker properties. */
 export function brokerProperties(p: ScriptStrategyProperties): StrategyProperties {
   if (p.calc_on_order_fills) throw new Error('strategy(calc_on_order_fills = true) is not supported by the OpenTrader broker');
-  if (p.use_bar_magnifier) throw new Error('strategy(use_bar_magnifier = true) is not supported by the OpenTrader broker');
-  if (p.backtest_fill_limits_assumption !== 0) {
-    throw new Error('strategy(backtest_fill_limits_assumption) is not supported by the OpenTrader broker');
-  }
   return {
     initialCapital: p.initial_capital,
     currency: p.currency ?? 'USD',
@@ -63,6 +58,12 @@ export function brokerProperties(p: ScriptStrategyProperties): StrategyPropertie
     closeEntriesRule: p.close_entries_rule,
     marginLong: p.margin_long,
     marginShort: p.margin_short,
+    fillLimitsTicks: p.backtest_fill_limits_assumption ?? 0,
+    barMagnifier: p.use_bar_magnifier ?? false,
+    calcOnOrderFills: false,
+    calcOnEveryTick: p.calc_on_every_tick ?? false,
+    calcOnEveryHistoryTick: false,
+    fillOrdersOnStandardOhlc: p.fill_orders_on_standard_ohlc ?? false,
   };
 }
 
@@ -103,8 +104,9 @@ export class BrokerEngine implements StrategyEngine {
     private readonly bars: Bar[],
     readonly properties: StrategyProperties,
     symbol: SymbolInfo,
+    intrabars?: readonly (readonly Bar[] | undefined)[],
   ) {
-    this.broker = new Broker(bars, properties, symbol);
+    this.broker = new Broker(bars, properties, symbol, intrabars);
     this.equity = new Array<number>(bars.length).fill(NaN);
   }
 
@@ -263,6 +265,12 @@ export interface OakScriptRunOptions {
   symbol?: Partial<SymbolInfo>;
   /** Chart context of the script (timeframe, session...); the symbol fields come from `symbol`. */
   chart?: ChartContext;
+  /** Lower-timeframe bars (time ascending) for the bar magnifier (`barMagnifier` property). */
+  intrabars?: Bar[];
+  /** Period of the lower-timeframe bars, seconds (default: inferred from their times). */
+  intrabarSeconds?: number;
+  /** The chart shows Heikin Ashi bars of `bars` (see RunOptions.heikinAshi of run.ts). */
+  heikinAshi?: boolean;
 }
 
 /**
@@ -333,12 +341,35 @@ export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScr
     mincontract: symbol.qtyStep,
   };
   let engine: BrokerEngine | undefined;
-  const seen = scriptBars(bars, opts.chart);
-  const script = executeScript(body, seen, opts.inputs ?? {}, chart, {
-    strategyEngine: ({ properties }) =>
-      (engine = new BrokerEngine(bars, { ...brokerProperties(properties), ...opts.properties }, symbol)),
+  let fills = bars;
+  const ha = opts.heikinAshi ? heikinAshiBars(bars) : bars;
+  let seen = scriptBars(ha, opts.chart);
+  // A realtime last bar: the script does not run on it without calc_on_every_tick ("On realtime bar tick"); the
+  // broker still fills the pending orders on it below. The declared property is read from a zero-bar run.
+  const realtime = chart.realtime === true && bars.length > 0;
+  const everyTick =
+    opts.properties?.calcOnEveryTick ??
+    (realtime
+      ? (executeScript(body, [], opts.inputs ?? {}, chart, {
+          strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), symbol),
+        }).strategyConfig?.calc_on_every_tick ?? false)
+      : true);
+  const skipLast = realtime && !everyTick;
+  if (skipLast) seen = seen.slice(0, -1);
+  const script = executeScript(body, seen, opts.inputs ?? {}, skipLast ? { ...chart, realtime: false, lastBarConfirmed: true } : chart, {
+    strategyEngine: ({ properties }) => {
+      const props = { ...brokerProperties(properties), ...opts.properties };
+      fills = opts.heikinAshi && !props.fillOrdersOnStandardOhlc ? ha : bars;
+      const magnify = props.barMagnifier && !opts.heikinAshi;
+      return (engine = new BrokerEngine(fills, props, symbol, magnify ? binIntrabars(fills, opts.intrabars, opts.intrabarSeconds) : undefined));
+    },
   });
-  if (seen !== bars) restoreTimes(script.result, seen, bars);
+  if (skipLast && engine && seen.length) {
+    const last = bars.length - 1;
+    engine.processBar(last);
+    engine.equity[last] = engine.broker.equity;
+  }
+  if (seen !== ha) restoreTimes(script.result, seen, bars);
   const ran = engine !== undefined && !engine.equity.some(Number.isNaN);
-  return { script, report: ran ? backtestReport(bars, engine!.broker, engine!.equity, t0) : undefined };
+  return { script, report: ran ? backtestReport(fills, engine!.broker, engine!.equity, t0) : undefined };
 }

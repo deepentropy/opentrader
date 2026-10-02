@@ -18,7 +18,7 @@
  *    RTH/ETH choice; daily+: the trading day / week / month in the exchange
  *    zone). Ticks wait until the symbol's session is known.
  */
-import { createRoot, createEffect } from "solid-js";
+import { createRoot, createEffect, createSignal, onCleanup } from "solid-js";
 import { onTradeTick, getBars, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
 import { cachedSymbolSessions, localToUtc } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
@@ -147,10 +147,15 @@ function barBucket(symbol: string, res: string, timeMs: number): number | null {
 /** True when the rule's condition is satisfied for the current sample. Updates
  *  prevDiff as a side effect (needed for crossing). */
 function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
+  // Moving % : the left operand now against its value `bars` bars back (the
+  // reference poll below), in percent of that value.
   if (isPercentOperator(rule.op)) {
-    if (ctx.changePercent == null) return false;
+    const now = operandValue(rule.symbol, rule.left, ctx);
+    const ref = movingRefCache.get(rule.id);
+    if (now == null || ref == null || ref === 0) return false;
+    const change = ((now - ref) / Math.abs(ref)) * 100;
     const pct = rule.right.kind === "value" ? rule.right.value : 0;
-    return rule.op === "moving_up_pct" ? ctx.changePercent >= pct : ctx.changePercent <= -pct;
+    return rule.op === "moving_up_pct" ? change >= pct : change <= -pct;
   }
 
   const left = operandValue(rule.symbol, rule.left, ctx);
@@ -408,8 +413,68 @@ async function pollIndicatorOperands(): Promise<void> {
   }
 }
 
+// ── Moving % reference poll ──
+// "Moving up / down % … in N bars" compares the left operand now with its
+// value N bars back on the rule's interval. The bars come from the datafeed
+// (one getBars per symbol + interval per poll); a price operand uses the
+// closes, an indicator operand its plot computed with the study's default
+// inputs. The value N bars before the last bar is cached per rule.
+const movingRefCache = new Map<string, number | null>();
+let movingPollBusy = false;
+
+async function pollMovingRefs(): Promise<void> {
+  if (movingPollBusy) return;
+  const rules = alertStore.enabledRules().filter((r) => isPercentOperator(r.op) && isSupportedResolution(r.resolution));
+  if (rules.length === 0) return;
+  movingPollBusy = true;
+  try {
+    const barsBy = new Map<string, { time: number; open: number; high: number; low: number; close: number; volume: number }[]>();
+    for (const rule of rules) {
+      const key = `${rule.symbol}|${rule.resolution}`;
+      let bars = barsBy.get(key);
+      if (!bars) {
+        try {
+          const res = await getBars(rule.symbol, rule.resolution);
+          bars = res.bars.flatMap((b) =>
+            b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
+              ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
+              : [],
+          );
+        } catch {
+          continue; // fetch failed: keep the cached reference
+        }
+        barsBy.set(key, bars);
+      }
+      const n = Math.max(1, Math.min(300, Math.round(rule.bars ?? 1)));
+      const at = bars.length - 1 - n;
+      if (at < 0) {
+        movingRefCache.set(rule.id, null);
+        continue;
+      }
+      if (rule.left.kind === "indicator") {
+        const entry = getIndicatorEntry(rule.left.indicatorId);
+        const plotId = entry?.plotConfig[rule.left.plot ?? 0]?.id;
+        if (!entry || !plotId) continue;
+        try {
+          const result = entry.calculate(bars, entry.defaultInputs) as { plots?: Record<string, Array<{ value: number | null }>> };
+          const v = result.plots?.[plotId]?.[at]?.value;
+          movingRefCache.set(rule.id, typeof v === "number" && Number.isFinite(v) ? v : null);
+        } catch (e) {
+          console.warn(`[alerts] moving reference compute failed for ${rule.left.indicatorId}`, e);
+        }
+      } else {
+        movingRefCache.set(rule.id, bars[at].close);
+      }
+    }
+  } finally {
+    movingPollBusy = false;
+  }
+}
+
 let started = false;
 let unlisten: (() => void) | null = null;
+/** Bumped when the nearest alert expiry time is reached (re-runs the expiry effect). */
+const [expiryTick, setExpiryTick] = createSignal(0);
 
 /** Stop the engine's tick listener (the subscription effect lives in a root and
  *  persists). Mainly for tests / teardown; the app runs the engine for life. */
@@ -435,7 +500,11 @@ export function startAlertEngine(): void {
 
   // Uncharted indicator operands: prime once, then refresh every minute.
   void pollIndicatorOperands();
-  indicatorPollTimer = setInterval(() => void pollIndicatorOperands(), INDICATOR_POLL_MS);
+  void pollMovingRefs();
+  indicatorPollTimer = setInterval(() => {
+    void pollIndicatorOperands();
+    void pollMovingRefs();
+  }, INDICATOR_POLL_MS);
 
   // Keep the alert symbol-subscription in sync with the enabled rules so ticks
   // arrive even for symbols that aren't charted or in any watchlist. Contributes
@@ -444,6 +513,23 @@ export function startAlertEngine(): void {
     createEffect(() => {
       const symbols = [...new Set(alertStore.enabledRules().map((r) => r.symbol))];
       setSubscription("alerts", symbols);
+    });
+
+    // Expiry: stop each rule at its expiration time, whether or not its
+    // symbol trades. One timer for the nearest expiry, re-armed on changes
+    // (delay capped: setTimeout overflows past ~24.8 days).
+    createEffect(() => {
+      const now = Date.now();
+      let next = Infinity;
+      for (const r of alertStore.enabledRules()) {
+        if (r.expiresAt == null) continue;
+        if (r.expiresAt <= now) alertStore.setEnabled(r.id, false);
+        else next = Math.min(next, r.expiresAt);
+      }
+      if (next === Infinity) return;
+      const timer = setTimeout(() => setExpiryTick((n) => n + 1), Math.min(next - now, 86_400_000) + 50);
+      expiryTick();
+      onCleanup(() => clearTimeout(timer));
     });
 
     // Eval-state hygiene, tracking the rules list (which also syncs in from
@@ -487,6 +573,9 @@ export function resetRuleEvalState(id: string): void {
   prevDiff.delete(id);
   lastFiredBucket.delete(id);
   barCloseState.delete(id);
+  // A changed Moving % rule needs its reference now, not at the next poll.
+  movingRefCache.delete(id);
+  if (started) void pollMovingRefs();
 }
 
 /** Request OS-notification permission (call from a user gesture, e.g. saving a

@@ -42,7 +42,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  border: 2px solid var(--ot-chart-active-pane-border, #8c8c8c);
+  border: 2px solid var(--color-border-primary-neutral-semi-bold);
   border-radius: 4px;
   box-sizing: border-box;
   pointer-events: none;

@@ -60,6 +60,17 @@
  *   - the legs of one strategy.exit fill in hash order of their entry ids
  *     (updateLegOrder) and close the oldest trades first (FIFO).
  *
+ * Bar magnifier (use_bar_magnifier, lower-timeframe bars per chart bar; rules matched on
+ * .tmp/strategy-properties): the path is the chart open (market orders fill there), then each
+ * lower-timeframe bar (a jump to its open, then open -> nearer extreme -> other extreme -> close), then a
+ * jump to the chart close; a jump fills the orders it crosses at the price reached. A margin call found at
+ * the chart open is sized there and fills at the first lower-timeframe open; trades opened at the chart
+ * open count it in their range once the path moves on.
+ *
+ * Limit fill assumption (backtest_fill_limits_assumption = N): a limit order needs the price N ticks beyond
+ * its level; it fills at its level when the path reaches that price, at the price on a jump (gap) beyond
+ * it. Trades see the level, not the price beyond it.
+ *
  * Margin (margin_long / margin_short above 0, the Pine v6 default of 100;
  * rules matched on .tmp/oakscript-strategies):
  *   - an entry fills only if the margin of its new trade (qty * the higher of
@@ -203,6 +214,8 @@ interface PriceOrder {
   buy: boolean;
   isStop: boolean;
   level: number;
+  /** Price that triggers the fill: the level, or N ticks beyond it for limit orders (backtest_fill_limits_assumption). */
+  trigger: number;
   /** price = fill price, slippage included; raw = exact price reached (trailing activation). */
   fill(price: number, raw: number): boolean;
 }
@@ -283,6 +296,9 @@ export class Broker {
     private readonly bars: Bar[],
     readonly props: StrategyProperties,
     readonly sym: SymbolInfo,
+    /** Bar magnifier: the lower-timeframe bars inside each chart bar (by chart bar index). A bar without them
+     *  uses its own OHLC path. */
+    private readonly intrabars?: readonly (readonly Bar[] | undefined)[],
   ) {}
 
   // ------------------------------------------------------------ script API
@@ -465,29 +481,64 @@ export class Broker {
     this.scriptEquity = i > 0 ? this.equity : this.props.initialCapital;
     this.bar = i;
     this.dropOrphanExits();
-    const b = this.bars[i];
+    // Bar magnifier: the path runs through the lower-timeframe bars of the chart bar (each one open -> nearer
+    // extreme -> other extreme -> close, a gap between two of them fills at the later open).
+    const sub = this.intrabars?.[i];
+    const legs: readonly Bar[] = sub && sub.length ? sub : [this.bars[i]];
+    // The first tick is the chart bar's open (market orders fill at it with the magnifier too).
+    const first = this.bars[i];
     // Orders are checked on the bar prices rounded to the tick.
-    const open = this.roundPrice(b.open);
-    const high = this.roundPrice(b.high);
-    const low = this.roundPrice(b.low);
+    const open = this.roundPrice(first.open);
     // The open reaches the trades still open after the market fills: a trade closed at the open sees
     // its fill price only (slippage included), a trade opened at the open sees the prices after it.
     const held = [...this.openTrades];
     this.touchEquity(open);
     this.fillMarketOrders(open);
-    this.touchTrades(open, b.open, held.filter((t) => this.openTrades.includes(t)));
-    const upFirst = Math.abs(b.high - b.open) < Math.abs(b.low - b.open);
-    const close = this.roundPrice(b.close);
-    // [price on the tick grid, exact price] (trailing stops follow the exact price).
-    const path: [number, number][] = upFirst ? [[high, b.high], [low, b.low], [close, b.close]] : [[low, b.low], [high, b.high], [close, b.close]];
+    this.touchTrades(open, first.open, held.filter((t) => this.openTrades.includes(t)));
     let cur = open;
-    this.fillAt(cur, b.open);
-    this.checkMargin(open);
-    for (const [to, raw] of path) {
-      this.walk(cur, to);
-      cur = to;
-      this.touch(to, raw);
-      this.checkMargin(to);
+    this.fillAt(cur, first.open);
+    // With lower-timeframe bars, trades opened at the chart open and still open at the next tick (the first
+    // lower-timeframe open) count the chart open in their range (rsi-mean-reversion AAPL 3D); a trade closed at
+    // the open itself does not (triple-ema-trend SPY 1h).
+    const fresh = this.openTrades.filter((t) => !held.includes(t));
+    // With lower-timeframe bars, a margin call found at the chart open is sized there and fills at the next tick
+    // (the first lower-timeframe open: ut-bot-v2 AAPL 1D, 80 shares at 32.40 sized at the 32.38 open).
+    const deferMargin = !!(sub && sub.length);
+    if (!deferMargin) this.checkMargin(open);
+    for (let k = 0; k < legs.length; k++) {
+      const b = legs[k];
+      // Each lower-timeframe open is a tick of its own (a gap from the previous tick fills there); a bar
+      // without them starts its path at its open.
+      if (sub && sub.length) {
+        const o = this.roundPrice(b.open);
+        if (k === 0) this.touchTrades(open, first.open, fresh.filter((t) => this.openTrades.includes(t)));
+        this.touch(o, b.open);
+        if (k === 0 && deferMargin) this.checkMargin(open, o);
+        this.fillAt(o, b.open);
+        this.checkMargin(o);
+        cur = o;
+      }
+      const high = this.roundPrice(b.high);
+      const low = this.roundPrice(b.low);
+      const close = this.roundPrice(b.close);
+      const upFirst = Math.abs(b.high - b.open) < Math.abs(b.low - b.open);
+      // [price on the tick grid, exact price] (trailing stops follow the exact price).
+      const path: [number, number][] = upFirst ? [[high, b.high], [low, b.low], [close, b.close]] : [[low, b.low], [high, b.high], [close, b.close]];
+      for (const [to, raw] of path) {
+        this.walk(cur, to);
+        cur = to;
+        this.touch(to, raw);
+        this.checkMargin(to);
+      }
+    }
+    // The last tick is the chart bar's close, reached by a jump like the lower-timeframe opens (an order it
+    // crosses fills at the close).
+    if (sub && sub.length) {
+      const b = this.bars[i];
+      const close = this.roundPrice(b.close);
+      this.touch(close, b.close);
+      this.fillAt(close, b.close);
+      this.checkMargin(close);
     }
   }
 
@@ -537,18 +588,23 @@ export class Broker {
     }
   }
 
-  /** Fill every price order already crossed at price p (gaps, new brackets). p was touched by the caller. */
-  private fillAt(p: number, raw = p): void {
+  /**
+   * Fill every price order already crossed at price p (gaps, new brackets). p was touched by the caller.
+   * `reached`: p is the trigger the path just reached (walk), not a jump to it.
+   */
+  private fillAt(p: number, raw = p, reached = false): void {
     const market = this.roundPrice(p);
     for (let guard = 0; guard < 1000; guard++) {
       const hit = this.priceOrders()
-        .filter((o) => (o.buy === o.isStop ? p >= o.level - EPS : p <= o.level + EPS))
+        .filter((o) => (o.buy === o.isStop ? p >= o.trigger - EPS : p <= o.trigger + EPS))
         // Several orders crossed at once (gap): the one closest to the price fills first
         // (the reference app: a 0.26 sell limit before a 0.24 one on a 0.31 open).
         .sort((a, b) => Math.abs(p - a.level) - Math.abs(p - b.level) || a.seq - b.seq);
       let filled = false;
       for (const o of hit) {
-        const price = o.isStop ? this.slip(market, o.buy) : market;
+        // On the path, a limit whose trigger (N ticks beyond it, fill assumption) is the price reached fills at
+        // its level; a jump (gap) fills at the price.
+        const price = o.isStop ? this.slip(market, o.buy) : reached && Math.abs(o.trigger - market) < EPS ? o.level : market;
         if (o.fill(price, raw)) {
           filled = true;
           break;
@@ -567,17 +623,19 @@ export class Broker {
         .filter((o) => {
           const triggersUp = o.buy === o.isStop; // buy stop, sell limit
           if (triggersUp !== up) return false;
-          return up ? o.level > cur + EPS && o.level <= to + EPS : o.level < cur - EPS && o.level >= to - EPS;
+          return up ? o.trigger > cur + EPS && o.trigger <= to + EPS : o.trigger < cur - EPS && o.trigger >= to - EPS;
         })
-        .sort((a, b) => (up ? a.level - b.level : b.level - a.level) || a.seq - b.seq);
+        .sort((a, b) => (up ? a.trigger - b.trigger : b.trigger - a.trigger) || a.seq - b.seq);
       let filled = false;
       for (const o of hit) {
+        // A limit order fills at its level, also when the price had to go beyond it (fill assumption).
         const price = o.isStop ? this.slip(o.level, o.buy) : o.level;
+        // Trades see the order level, not the price beyond it that triggered a limit (fill assumption).
         this.touch(o.level);
-        if (o.fill(price, o.level)) {
-          cur = o.level;
+        if (o.fill(price, o.trigger)) {
+          cur = o.trigger;
           filled = true;
-          this.fillAt(cur);
+          this.fillAt(cur, cur, true);
           break;
         }
       }
@@ -595,11 +653,13 @@ export class Broker {
       if (!e.isOrder && this.entryFillBar === this.bar && e.direction !== this.entryFillDirection) continue;
       const buy = e.direction === 'long';
       const isStop = e.stop !== null;
+      const level = this.roundOrderPrice((isStop ? e.stop : e.limit) as number, buy, isStop);
       out.push({
         seq: e.seq,
         buy,
         isStop,
-        level: this.roundOrderPrice((isStop ? e.stop : e.limit) as number, buy, isStop),
+        level,
+        trigger: isStop ? level : this.limitTrigger(level, buy),
         fill: (price) => {
           if (!e.isOrder && !this.canEnter(e.direction)) return false;
           this.entries.delete(e.id);
@@ -651,10 +711,13 @@ export class Broker {
           this.recordFill(x.id, comment, buy, false, price, filled, type);
           return true;
         };
-        const push = (isStop: boolean, level: number, f: (p: number, raw: number) => boolean) => {
-          if (Number.isFinite(level)) out.push({ seq: x.seq, buy, isStop, level, fill: f });
+        const push = (isStop: boolean, level: number, f: (p: number, raw: number) => boolean, trigger = level) => {
+          if (Number.isFinite(level)) out.push({ seq: x.seq, buy, isStop, level, trigger, fill: f });
         };
-        if (limit !== null) push(false, this.roundOrderPrice(limit, buy, false), (p) => fill(p, 'LIMIT', x.commentProfit));
+        if (limit !== null) {
+          const level = this.roundOrderPrice(limit, buy, false);
+          push(false, level, (p) => fill(p, 'LIMIT', x.commentProfit), this.limitTrigger(level, buy));
+        }
         if (stop !== null) push(true, this.roundOrderPrice(stop, buy, true), (p) => fill(p, 'STOP', x.commentLoss));
         if (x.trailOffset !== null && (x.trailPoints !== null || x.trailPrice !== null)) {
           const best = t.trail.get(x.id);
@@ -676,6 +739,14 @@ export class Broker {
       }
     }
     return out;
+  }
+
+  /** Price a limit order at `level` needs to fill: `fillLimitsTicks` ticks beyond it (below for a buy). */
+  private limitTrigger(level: number, buy: boolean): number {
+    const n = this.props.fillLimitsTicks;
+    if (!n) return level;
+    const k = Math.round(level / this.sym.mintick);
+    return this.ticks(buy ? k - n : k + n);
   }
 
   private canEnter(direction: Direction): boolean {
@@ -758,8 +829,9 @@ export class Broker {
     return qty * price * pv * ratio <= available;
   }
 
-  /** Margin call at price p (a point of the intrabar path), Pine's algorithm. */
-  private checkMargin(p: number): void {
+  /** Margin call at price p (a point of the intrabar path), Pine's algorithm; it fills at `fill` (default p, see
+   *  processBar for the chart open with lower-timeframe bars). */
+  private checkMargin(p: number, fill = p): void {
     const pos = this.positionSize;
     if (pos === 0) return;
     const long = pos > 0;
@@ -784,10 +856,10 @@ export class Broker {
       if (left <= 0) break;
       const q = Math.min(left, t.qty);
       left -= q;
-      this.closeTradeQty(t, q, p, 'Margin call', true);
+      this.closeTradeQty(t, q, fill, 'Margin call', true);
       this.equityEvents[this.equityEvents.length - 1].marginCall = true;
     }
-    this.recordFill(`Margin call ${this.marginCalls++}`, 'Margin call', !long, null, p, size, 'MARKET');
+    this.recordFill(`Margin call ${this.marginCalls++}`, 'Margin call', !long, null, fill, size, 'MARKET');
   }
 
   /** Returns true when the order filled. */

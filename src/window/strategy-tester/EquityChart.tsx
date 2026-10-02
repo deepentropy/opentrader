@@ -23,6 +23,7 @@ import {
   createSeriesMarkers,
   type AutoscaleInfo,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type ISeriesMarkersPluginApi,
   type MouseEventParams,
@@ -40,11 +41,29 @@ import { EquityStrip, type StripHover } from "./equity-strip";
 import { equityPoints, reportPeriods, whitespaceTimes, type EquityPoint } from "./equity-data";
 import { DASH, MINUS, money, percent as pct, zoneFormat } from "./format";
 import { cachedSymbolSessions } from "../../data/session";
+import { uiTheme } from "../header/chart-settings";
 
 const FONT = `-apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif`;
 const UP = "#089981";
 const DOWN = "#F23645";
 const BUY_HOLD = "#5B9CF6";
+
+/** Canvas colours of the app theme: the dark values are the reference
+ *  report's; the light ones are the theme tokens with the same dark values
+ *  (as in the stylesheets). */
+function themeColors() {
+  const light = uiTheme() === "light";
+  const css = getComputedStyle(document.documentElement);
+  const v = (name: string, dark: string) => (light ? css.getPropertyValue(name).trim() || dark : dark);
+  return {
+    bg: v("--ot-chart-bg", "#0F0F0F"),
+    text: v("--color-content-primary-neutral-semi-bold", "#B8B8B8"),
+    grid: light ? v("--ot-chart-grid", "rgba(219, 219, 219, 0.2)") : "rgba(219, 219, 219, 0.2)",
+    crosshair: v("--color-container-fill-primary-neutral-normal", "#4A4A4A"),
+    zero: v("--color-bg-primary-hover", "#2E2E2E"),
+    markerBorder: light ? v("--ot-chart-bg", "#000000") : "#000000",
+  };
+}
 /** Autoscale margins (px) and the room kept around the zero line (the reference app `I()` / `E`). */
 const MARGINS = { above: 10, below: 10 };
 const MAX_ZERO_PAD = 65;
@@ -118,6 +137,7 @@ export function EquityChart(props: Props) {
   let snapBtn!: HTMLButtonElement;
   let chart: IChartApi | null = null;
   let zero: ISeriesApi<"Baseline"> | null = null;
+  let zeroLine: IPriceLine | null = null;
   let bars: ISeriesApi<"Custom", Time, ExcursionData> | null = null;
   let pnl: ISeriesApi<"Baseline"> | null = null;
   let bh: ISeriesApi<"Line"> | null = null;
@@ -154,14 +174,15 @@ export function EquityChart(props: Props) {
   };
 
   onMount(() => {
+    const colors = themeColors();
     chart = createChart(host, {
       autoSize: true,
       // Solid #0F0F0F as in the reference app: the strip hover blend needs an opaque canvas.
-      layout: { background: { color: "#0F0F0F" }, textColor: "#B8B8B8", fontSize: 12, fontFamily: FONT, attributionLogo: false },
+      layout: { background: { color: colors.bg }, textColor: colors.text, fontSize: 12, fontFamily: FONT, attributionLogo: false },
       localization: { locale: "en-US", priceFormatter },
-      grid: { vertLines: { visible: false }, horzLines: { color: "rgba(219, 219, 219, 0.2)", style: LineStyle.SparseDotted } },
+      grid: { vertLines: { visible: false }, horzLines: { color: colors.grid, style: LineStyle.SparseDotted } },
       crosshair: {
-        vertLine: { color: "#4A4A4A", width: 1, style: LineStyle.Solid, labelVisible: false },
+        vertLine: { color: colors.crosshair, width: 1, style: LineStyle.Solid, labelVisible: false },
         horzLine: { visible: false, labelVisible: false },
       },
       rightPriceScale: { borderVisible: false, minimumWidth: 80, entireTextOnly: true },
@@ -171,8 +192,8 @@ export function EquityChart(props: Props) {
     });
     zero = chart.addSeries(BaselineSeries, {
       baseValue: { type: "price", price: 0 },
-      topLineColor: "#2E2E2E",
-      bottomLineColor: "#2E2E2E",
+      topLineColor: colors.zero,
+      bottomLineColor: colors.zero,
       topFillColor1: "transparent",
       topFillColor2: "transparent",
       bottomFillColor1: "transparent",
@@ -183,7 +204,7 @@ export function EquityChart(props: Props) {
       crosshairMarkerVisible: false,
       autoscaleInfoProvider: autoscale,
     });
-    zero.createPriceLine({ price: 0, color: "#2E2E2E", lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: false });
+    zeroLine = zero.createPriceLine({ price: 0, color: colors.zero, lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: false });
     bars = chart.addCustomSeries(new ExcursionSeries(), { priceLineVisible: false, lastValueVisible: false }) as ISeriesApi<"Custom", Time, ExcursionData>;
     pnl = chart.addSeries(BaselineSeries, {
       baseValue: { type: "price", price: 0 },
@@ -195,7 +216,7 @@ export function EquityChart(props: Props) {
       bottomFillColor1: "rgba(247, 124, 128, 0.05)",
       bottomFillColor2: "rgba(247, 124, 128, 0.05)",
       crosshairMarkerBorderWidth: 3,
-      crosshairMarkerBorderColor: "#000000",
+      crosshairMarkerBorderColor: colors.markerBorder,
       priceLineVisible: false,
       autoscaleInfoProvider: autoscale,
     });
@@ -213,6 +234,20 @@ export function EquityChart(props: Props) {
     chart.subscribeCrosshairMove(onCrosshair);
     chart.subscribeClick(onClick);
     const ro = new ResizeObserver(() => setSize({ w: host.clientWidth, h: host.clientHeight }));
+    // App theme switch (the <html> theme class): re-colour the canvas.
+    const themeWatch = new MutationObserver(() => {
+      const c = themeColors();
+      chart?.applyOptions({
+        layout: { background: { color: c.bg }, textColor: c.text },
+        grid: { horzLines: { color: c.grid } },
+        crosshair: { vertLine: { color: c.crosshair } },
+      });
+      zero?.applyOptions({ topLineColor: c.zero, bottomLineColor: c.zero });
+      zeroLine?.applyOptions({ color: c.zero });
+      pnl?.applyOptions({ crosshairMarkerBorderColor: c.markerBorder });
+    });
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    onCleanup(() => themeWatch.disconnect());
     ro.observe(host);
     onCleanup(() => {
       ro.disconnect();

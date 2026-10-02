@@ -68,22 +68,15 @@ export function exchangeCode(code: string | null | undefined): string {
 
 // ── Symbol search ────────────────────────────────────────────────────────────
 
-/** "All types" dropdown options — Massive `type` codes
+/** Stocks tab "All types" dropdown options (the reference list without
+ *  Pre-IPO, which has no provider type) — provider `type` codes
  *  (/v3/reference/tickers/types); null = no filter. */
 export const typeFilters: TypeFilter[] = [
   { label: 'All types',          code: null },
   { label: 'Common stock',       code: 'CS' },
-  { label: 'ETF',                code: 'ETF' },
-  { label: 'ETN',                code: 'ETN' },
-  { label: 'Fund',               code: 'FUND' },
   { label: 'Preferred stock',    code: 'PFD' },
-  { label: 'Depositary receipt', code: 'ADRC' },
+  { label: 'Depository Receipt', code: 'ADRC' },
   { label: 'Warrant',            code: 'WARRANT' },
-  { label: 'Right',              code: 'RIGHT' },
-  { label: 'Unit',               code: 'UNIT' },
-  { label: 'Structured product', code: 'SP' },
-  { label: 'Bond',               code: 'BOND' },
-  { label: 'Index',              code: 'IX' },
 ];
 
 /** Massive MIC (primary_exchange) → display exchange label for search rows.

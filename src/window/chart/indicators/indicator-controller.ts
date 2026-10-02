@@ -16,6 +16,7 @@ import type { Bar } from 'oakscriptjs';
 import type { ChartContext } from 'oakscriptjs/script';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
+import { isStrategyId } from './strategy-entries';
 import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides } from './indicator-layer';
 import type { BackgroundAt } from '../selection-markers';
 import { isVisibleOnInterval } from 'lightweight-charts-drawing/core/types';
@@ -95,6 +96,7 @@ export class IndicatorController {
   /** Scales → "Indicators and financials": last-value axis labels on the study
    *  plot series. Default ON (the row ships "Value"). */
   private lastValueVisible = true;
+  private nameLabelsVisible = false;
   /** Per-study Style-tab options + Visibility tab. Same lifetime rules as
    *  {@link inputs}. */
   private options = new Map<string, IndicatorOptions>();
@@ -109,6 +111,11 @@ export class IndicatorController {
   private chartId: string;
   /** Chart context of the OakScript scripts (timeframe, session...). */
   private scriptChart: ChartContext | undefined;
+  /** The chart shows Heikin Ashi bars (strategies run on them). */
+  private heikinAshi = false;
+  /** The newest bar is still forming (a realtime bar for strategies). */
+  private lastBarOpen: () => boolean = () => false;
+  private readonly chartState = () => ({ heikinAshi: this.heikinAshi, lastBarOpen: this.lastBarOpen() });
 
   constructor(chart: IChartApi, getBars: () => Bar[], chartId = "") {
     this.chart = chart;
@@ -188,6 +195,15 @@ export class IndicatorController {
     this.renderAll();
   }
 
+  /** Toggle the plot-name labels next to the studies' price labels (Settings →
+   *  Scales → "Indicators and financials" → Name). No-op when unchanged. */
+  setNameLabelsVisible(v: boolean): void {
+    if (v === this.nameLabelsVisible) return;
+    this.nameLabelsVisible = v;
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setNameLabelsVisible(v);
+    this.renderAll();
+  }
+
   /** Recompute every active study against the current bars. */
   renderAll(): void {
     const bars = this.getBars();
@@ -208,6 +224,23 @@ export class IndicatorController {
     if (JSON.stringify(chart) === JSON.stringify(this.scriptChart)) return;
     this.scriptChart = chart;
     for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setScriptChart(chart);
+  }
+
+  /** The chart type changed: strategies rerun on Heikin Ashi bars or back on the standard bars. */
+  setHeikinAshi(on: boolean): void {
+    if (on === this.heikinAshi) return;
+    this.heikinAshi = on;
+    const bars = this.getBars();
+    for (const [id, inst] of this.instances) {
+      if (inst.owner || !isStrategyId(id)) continue;
+      const entry = getIndicatorEntry(id);
+      if (entry) this.renderOne(id, inst, entry, bars);
+    }
+  }
+
+  /** How the chart tells whether its newest bar is still forming. */
+  setLastBarOpenProbe(probe: () => boolean): void {
+    this.lastBarOpen = probe;
   }
 
   /** The chart interval changed: studies whose Visibility tab excludes it
@@ -495,7 +528,9 @@ export class IndicatorController {
     const paneIndex = overlay ? 0 : this.claimPane();
     const layer = new IndicatorLayer(this.chart, paneIndex, this.chartId, id);
     layer.setLastValueVisible(this.lastValueVisible);
+    layer.setNameLabelsVisible(this.nameLabelsVisible);
     layer.setScriptChart(this.scriptChart);
+    layer.setChartState(this.chartState);
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
     const inst: Instance = { layer, paneIndex, overlay, ownScale };
     this.instances.set(id, inst);

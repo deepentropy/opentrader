@@ -88,6 +88,21 @@
 .layout-name-input:focus {
   border-color: var(--color-brand);
 }
+.layout-name-input::placeholder {
+  color: var(--color-default-gray);
+}
+
+/* Create layout: "Open in new tab". */
+.layout-name-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-text-primary);
+  cursor: default;
+}
 
 .layout-name-footer {
   flex: 0 0 auto;
@@ -129,6 +144,10 @@
 .layout-name-btn.is-primary:hover {
   background-color: var(--color-brand);
   color: var(--color-content-primary-inverse);
+}
+.layout-name-btn.is-primary:disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 
 /* ── LayoutBrowserDialog (Open layout) ──────────────────────────────────── */

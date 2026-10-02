@@ -17,7 +17,7 @@ import type { BacktestReport, Trade } from "../../backtester/types";
 import { DASH, compact, count, money, percent, tone, tradeDate } from "./format";
 import { tradesCsv, tradesCsvFileName } from "./trades-csv";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
-import { cachedSymbolSessions } from "../../data/session";
+import { cachedSymbolSessions, symbolSessions } from "../../data/session";
 
 const ROW = 98;
 const OVERSCAN = 6;
@@ -135,16 +135,19 @@ export function TradesView(props: Props) {
               type="button"
               class="st-icon-btn st-icon-btn-csv"
               aria-label="Download .csv"
-              onClick={() => {
+              onClick={async () => {
                 const r = props.report;
-                const zone = timeZone();
-                if (!zone) return;
+                // The symbol's sessions may still be loading: wait for them; the
+                // engine's default zone when the symbol cannot be described.
+                const sym = props.symbol ?? "";
+                const sessions = cachedSymbolSessions(sym) ?? (sym ? await symbolSessions(sym).catch(() => null) : null);
+                const zone = sessions?.timeZone ?? DEFAULT_SYMBOL.timezone;
                 const csv = tradesCsv({
                   trades: r.trades,
                   currency: r.currency,
                   priceCurrency: r.currency,
                   initialCapital: r.properties.initialCapital,
-                  mintick: cachedSymbolSessions(props.symbol ?? "")?.mintick ?? DEFAULT_SYMBOL.mintick,
+                  mintick: sessions?.mintick ?? DEFAULT_SYMBOL.mintick,
                   pointValue: DEFAULT_SYMBOL.pointValue,
                   timeZone: zone,
                   interval: props.interval,

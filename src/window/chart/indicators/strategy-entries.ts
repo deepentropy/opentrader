@@ -24,6 +24,7 @@ import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import type { ChartContext, StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
 import { scriptChartContext } from "./script-chart";
+import type { StudyCalcContext } from "./indicator-layer";
 import { brokerProperties, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
 import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
 import { STRATEGIES } from "../../../backtester/strategies";
@@ -67,7 +68,7 @@ type Runtime = {
   /** Staleness key of the last requested run. */
   key: string | null;
   running: boolean;
-  queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; key: string } | null;
+  queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; heikinAshi: boolean; key: string } | null;
   /** Drawing output of the last finished run (OakScript strategies), what calculate() returns. */
   visuals: unknown;
 };
@@ -80,13 +81,15 @@ function stalenessKey(bars: Bar[], inputs: Record<string, unknown>): string {
   return `${bars.length}:${bars[0]?.time}:${last?.time}:${last?.close}:${last?.high}:${last?.low}:${JSON.stringify(inputs)}`;
 }
 
-/** Runs one backtest: resolves with the report, or null when a newer run superseded it. */
+/** Runs one backtest: resolves with the report, or null when a newer run superseded it. `heikinAshi`: the chart
+ *  shows Heikin Ashi bars of `bars`. */
 type Execute = (
   channel: string,
   bars: Bar[],
   inputs: Record<string, unknown>,
   properties: Partial<StrategyProperties>,
   chart: ChartContext | undefined,
+  heikinAshi: boolean,
 ) => Promise<BacktestOutput | null>;
 
 async function run(
@@ -97,6 +100,7 @@ async function run(
   bars: Bar[],
   allInputs: Record<string, unknown>,
   chart: ChartContext | undefined,
+  heikinAshi: boolean,
   key: string,
 ): Promise<void> {
   const { [PROPERTIES_INPUT]: properties, ...inputs } = allInputs;
@@ -105,7 +109,7 @@ async function run(
   const prev = strategyTester.run(chartId, strategyKey);
   strategyTester.setRun(chartId, strategyKey, { status: "running", report: prev?.report ?? null, error: null, bars: bars.length });
   try {
-    const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart);
+    const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart, heikinAshi);
     if (out) {
       rt.visuals = out.visuals ?? null;
       strategyTester.setRun(chartId, strategyKey, { status: "done", report: out.report, error: null, bars: bars.length });
@@ -119,7 +123,7 @@ async function run(
     rt.running = false;
     const next = rt.queued;
     rt.queued = null;
-    if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.chart, next.key);
+    if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.chart, next.heikinAshi, next.key);
     else window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key: strategyKey } }));
   }
 }
@@ -129,9 +133,11 @@ function makeCalculate(
   defaultInputs: () => Record<string, unknown>,
   execute: Execute,
 ): IndicatorRegistryEntry["calculate"] {
-  return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: { chartId?: string; chart?: ChartContext; studyId?: string }) => {
+  return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: StudyCalcContext) => {
     const chartId = ctx?.chartId ?? "";
-    const chart = ctx?.chart;
+    // A forming newest bar is a realtime bar: the strategy runs on it only with "On realtime bar tick".
+    const chart = ctx?.chart && ctx.lastBarOpen ? { ...ctx.chart, realtime: true, lastBarConfirmed: false } : ctx?.chart;
+    const heikinAshi = ctx?.heikinAshi === true;
     // One backtest per study instance: two instances of a strategy on a chart
     // run (and report) separately.
     const runKey = ctx?.studyId ? strategyKeyOf(ctx.studyId) : strategyKey;
@@ -139,15 +145,15 @@ function makeCalculate(
     // study inputs under PROPERTIES_INPUT, so they persist with the pane.
     const { [PROPERTIES_INPUT]: props, [STYLE_INPUT]: _style, ...rest } = (inputs ?? {}) as Record<string, unknown>;
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
-    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart ?? null)}`;
+    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart ?? null)}:${heikinAshi}`;
     const rtKey = `${chartId}|${runKey}`;
     let rt = runtimes.get(rtKey);
     if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null }));
     if (bars.length && rt.key !== key && rt.queued?.key !== key) {
       // Snapshot: ChartView mutates its bar array in place on live ticks.
       const snapshot = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
-      if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, key };
-      else void run(runKey, execute, chartId, rt, snapshot, typedInputs, chart, key);
+      if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, heikinAshi, key };
+      else void run(runKey, execute, chartId, rt, snapshot, typedInputs, chart, heikinAshi, key);
     }
     return rt.visuals ?? EMPTY_RESULT;
   }) as IndicatorRegistryEntry["calculate"];
@@ -191,7 +197,7 @@ type DrawingConfigs = {
 };
 
 function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
-  return async (_channel, bars, inputs, properties, chart) => {
+  return async (_channel, bars, inputs, properties, chart, heikinAshi) => {
     const engine = getOakEngine();
     if (compiledGen.get(scriptId) !== engine.generation) {
       const script = scripts.loadScript(scriptId);
@@ -201,7 +207,7 @@ function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
       scripts.saveCompiledMeta(scriptId, meta);
       applyUserMeta(entry, script.name, meta);
     }
-    return engine.backtest(scriptId, bars, inputs, properties, chart);
+    return engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties));
   };
 }
 
@@ -292,11 +298,17 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
     calculate: makeCalculate(
       def.key,
       () => d.defaultInputs,
-      (channel, bars, inputs, properties, chart) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart }),
+      (channel, bars, inputs, properties, chart, heikinAshi) =>
+        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi }, { magnify: magnifies(def.key, properties) }),
     ),
   } as Record<string, unknown>;
   applyDrawingConfigs(entry, d.drawings);
   return entry as unknown as IndicatorRegistryEntry;
+}
+
+/** Bar magnifier on for a run: the study override, else the strategy's declaration. */
+function magnifies(key: string, overrides: Partial<StrategyProperties>): boolean {
+  return (overrides.barMagnifier ?? strategyDefaults(strategyId(key))?.barMagnifier) === true;
 }
 
 /** strategy() properties of a strategy study before overrides: the port's
@@ -357,7 +369,8 @@ export function getStrategyEntry(studyId: string): IndicatorRegistryEntry | unde
     calculate: makeCalculate(
       def.key,
       () => def.defaultInputs as Record<string, unknown>,
-      (channel, bars, inputs, properties, chart) => getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart }),
+      (channel, bars, inputs, properties, chart, heikinAshi) =>
+        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi }, { magnify: magnifies(def.key, properties) }),
     ),
   } as unknown as IndicatorRegistryEntry;
   entries.set(id, entry);

@@ -22,6 +22,14 @@ import type {
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import type { MarkerData } from 'lightweight-charts-indicators';
 
+/** A marker as the layer draws it: numeric size (1 = normal) and a bar or price
+ *  position (named Pine sizes and the pane-edge positions are folded in by the
+ *  layer's normalizeMarker). */
+export type DrawMarker = Omit<MarkerData, 'size' | 'position'> & {
+  size?: number;
+  position: 'aboveBar' | 'belowBar' | 'inBar' | 'atPriceTop' | 'atPriceBottom' | 'atPriceMiddle';
+};
+
 /** Base class — holds the chart/series refs handed over on attach. */
 class BasePrimitive implements ISeriesPrimitive<Time> {
   protected _chart: IChartApi | null = null;
@@ -371,10 +379,10 @@ class BarColorRenderer implements IPrimitivePaneRenderer {
 
 // ─── Extended markers — shapes beyond lightweight-charts' built-in four ─────
 export class ExtendedMarkerPrimitive extends BasePrimitive {
-  private _markers: MarkerData[] = [];
+  private _markers: DrawMarker[] = [];
   private _views: IPrimitivePaneView[] = [new ExtendedMarkerPaneView(this)];
 
-  setMarkers(markers: MarkerData[]): void {
+  setMarkers(markers: DrawMarker[]): void {
     this._markers = markers;
     this._requestUpdate?.();
   }

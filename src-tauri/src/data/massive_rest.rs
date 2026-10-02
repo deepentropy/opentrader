@@ -316,6 +316,34 @@ fn rest_cache_root() -> PathBuf {
         .join("opentrader")
 }
 
+/// Market-data folders under the cache root that "Clear cache" deletes: the
+/// REST aggregate cache, its legacy roots and the older per-day caches. The
+/// root itself is never deleted (on Windows it is also the install folder).
+const CLEARABLE_CACHE_DIRS: &[&str] = &[REST_CACHE_DIR, "rest_aggs", "rest_aggs_v2", "day_aggs", "day_ticker", "minute_aggs"];
+
+/// Settings > Service > "Clear cache": delete the market-data disk cache and
+/// forget the in-memory splits, dividends and prior-close memos. Bars are
+/// fetched again on the next load.
+pub async fn clear_market_data_cache() -> Result<(), String> {
+    let root = rest_cache_root();
+    for dir in CLEARABLE_CACHE_DIRS {
+        let path = root.join(dir);
+        if tokio::fs::try_exists(&path).await.unwrap_or(false) {
+            tokio::fs::remove_dir_all(&path).await.map_err(|e| format!("{}: {e}", path.display()))?;
+        }
+    }
+    if let Some(m) = SPLITS.get() {
+        m.lock().await.clear();
+    }
+    if let Some(m) = DIVIDENDS.get() {
+        m.lock().await.clear();
+    }
+    if let Some(m) = PRIOR_CLOSES.get() {
+        *m.lock().await = None;
+    }
+    Ok(())
+}
+
 /// Delete the legacy cache roots in the background, once per process.
 fn remove_legacy_cache_once() {
     static DONE: OnceLock<()> = OnceLock::new();

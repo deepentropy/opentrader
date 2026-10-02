@@ -20,6 +20,8 @@ import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script
 import { StrategyRuntimeError } from "../../backtester/broker";
 import { BrokerEngine, brokerProperties, runOakScriptStrategy } from "../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
+import { intrabarsOf } from "../../backtester/intrabar-cache";
+import { intervalSeconds } from "../../backtester/magnifier";
 
 const ctx = self as unknown as {
   postMessage(message: OakResponse): void;
@@ -209,6 +211,9 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
       inputs: req.inputs ?? {},
       properties: req.properties,
       chart: req.chart,
+      heikinAshi: req.heikinAshi,
+      intrabars: intrabarsOf(req.intrabars),
+      intrabarSeconds: req.intrabars ? intervalSeconds(req.intrabars.interval) : undefined,
     });
     if (!report) {
       return {

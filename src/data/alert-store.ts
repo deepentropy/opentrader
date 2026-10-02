@@ -30,7 +30,8 @@ export type Operand =
 
 /** Condition operators. The `crossing_*` set needs the previous sample to
  *  detect the moment of crossing; `greater`/`less` are level checks;
- *  `moving_*_pct` compares the session change% to a threshold (value operand). */
+ *  `moving_*_pct`: the LEFT operand moved up / down by at least the value
+ *  (right operand, %) within the last `bars` bars. */
 export type AlertOperator =
   | "crossing"
   | "crossing_up"
@@ -58,6 +59,8 @@ export type AlertRule = {
   left: Operand;
   op: AlertOperator;
   right: Operand;
+  /** Moving % operators: the bar count ("in N bars", 1-300; unset = 1). */
+  bars?: number;
   frequency: AlertFrequency;
   /** User-supplied name; "" when unnamed. */
   name: string;

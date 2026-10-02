@@ -22,7 +22,8 @@ import {
 import { alertSettings } from "../../data/alert-settings";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
-import type { BuildInfo } from "../../bindings";
+import { commands, type BuildInfo } from "../../bindings";
+import { downloadDir } from "@tauri-apps/api/path";
 import { fundingStatus, type Funding } from "../../data/funding";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -32,38 +33,14 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 const SETTINGS_KEY = "ot:app-settings";
 
 type AppSettings = {
-  autofillCredentials: boolean; // inert: no broker plumbing
   /** "Sync crosshair across windows": the crosshair goes to every other
    *  window, no link colour needed (data/tab-link-bus.ts, default on). */
   crosshairSync: boolean;
-  askDownloadPath: boolean; // inert: downloads not wired
-  camera: string; // inert: no media capture
-  microphone: string; // inert: no media capture
-  autoRestoreTabs: boolean; // inert: tabs.ts always restores
-  disableHwAccel: boolean; // inert: needs a src-tauri startup flag to honour it
-  proxyEnabled: boolean; // inert (whole proxy group): no request layer reads it
-  proxyProtocol: string;
-  proxyHost: string;
-  proxyPort: string;
-  proxyUsername: string;
-  proxyPassword: string;
 };
 
 const SETTINGS_DEFAULTS: AppSettings = {
-  autofillCredentials: false,
   // ON by default.
   crosshairSync: true,
-  askDownloadPath: false,
-  camera: "Default",
-  microphone: "Default",
-  autoRestoreTabs: true,
-  disableHwAccel: false,
-  proxyEnabled: false,
-  proxyProtocol: "HTTP",
-  proxyHost: "",
-  proxyPort: "",
-  proxyUsername: "",
-  proxyPassword: "",
 };
 
 function loadSettings(): AppSettings {
@@ -72,7 +49,8 @@ function loadSettings(): AppSettings {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object") {
-        const merged = { ...SETTINGS_DEFAULTS, ...parsed };
+        // Only the known fields (older blobs carry removed settings).
+        const merged: AppSettings = { crosshairSync: typeof parsed.crosshairSync === "boolean" ? parsed.crosshairSync : SETTINGS_DEFAULTS.crosshairSync };
         // One-time migration (_v 2): older builds auto-persisted the blob
         // with crosshairSync:false while the checkbox was INERT — a stored
         // false predating the gate cannot be a deliberate choice, and it
@@ -108,7 +86,7 @@ kv.onExternalChange(SETTINGS_KEY, () => setSettings(loadSettings()));
 export const crosshairSyncSetting = () => settings.crosshairSync;
 
 export type AppSettingsTabId =
-  | "general" | "tabs" | "video" | "alerts" | "service" | "network" | "about";
+  | "general" | "tabs" | "alerts" | "service" | "about";
 
 type Props = {
   onClose: () => void;
@@ -126,10 +104,8 @@ type Props = {
 const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
   { id: "general", label: "General", icon: "settings-general" },
   { id: "tabs", label: "Tabs", icon: "settings-tabs" },
-  { id: "video", label: "Video & Audio", icon: "settings-video" },
   { id: "alerts", label: "Alerts", icon: "settings-alerts" },
   { id: "service", label: "Service", icon: "settings-service" },
-  { id: "network", label: "Network", icon: "settings-network" },
   { id: "about", label: "About", icon: "settings-about" },
 ];
 
@@ -160,14 +136,6 @@ function Checkbox(props: { label: string; checked: boolean; onChange: () => void
   );
 }
 
-function Select(props: { value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean }) {
-  return (
-    <select class="app-settings-select" value={props.value} disabled={props.disabled} onChange={(e) => props.onChange(e.currentTarget.value)}>
-      <For each={props.options}>{(o) => <option value={o}>{o}</option>}</For>
-    </select>
-  );
-}
-
 /** The app theme is App's (App.tsx switchTheme): it sets the <html> class the
  *  stylesheets key on, persists it and re-themes the charts. */
 function ThemePicker(props: { theme: "dark" | "light"; onChange: (t: "dark" | "light") => void }) {
@@ -191,20 +159,23 @@ function ThemePicker(props: { theme: "dark" | "light"; onChange: (t: "dark" | "l
 }
 
 function GeneralTab(props: { theme: "dark" | "light"; onThemeChange: (t: "dark" | "light") => void }) {
+  const [downloadPath, setDownloadPath] = createSignal<string | null>(null);
+  onMount(() => {
+    if ("__TAURI_INTERNALS__" in window) void downloadDir().then(setDownloadPath).catch(() => setDownloadPath(null));
+  });
   return (
     <>
-      <Section label="CREDENTIALS AND CROSSHAIR">
-        <Checkbox label="Auto-fill broker credentials" checked={settings.autofillCredentials} onChange={() => setSettings("autofillCredentials", !settings.autofillCredentials)} />
+      <Section label="CROSSHAIR">
         <Checkbox label="Sync crosshair across windows" checked={settings.crosshairSync} onChange={() => setSettings("crosshairSync", !settings.crosshairSync)} />
       </Section>
       <Section label="THEME"><ThemePicker theme={props.theme} onChange={props.onThemeChange} /></Section>
       <Section label="DOWNLOADS">
         <div class="app-settings-path-row">
-          <a class={`app-settings-path${settings.askDownloadPath ? " disabled" : ""}`}>C:\\Users\\trader\\Downloads</a>
+          {/* Files are saved to the system download folder. */}
+          <span class="app-settings-path">{downloadPath() ?? ""}</span>
           {/* Needs an OS folder picker (Tauri dialog plugin) — not wired here. */}
           <button type="button" class="app-settings-btn" disabled title="Choosing a folder needs the OS file dialog, which isn't wired up yet">Change</button>
         </div>
-        <Checkbox label="Always ask where to save files" checked={settings.askDownloadPath} onChange={() => setSettings("askDownloadPath", !settings.askDownloadPath)} />
       </Section>
     </>
   );
@@ -272,9 +243,6 @@ function TabsTab(props: { parts: TabTitlePartState[]; onChange: (p: TabTitlePart
 
   return (
     <>
-      <Section label="ON STARTUP">
-        <Checkbox label="Auto-restore tickers and intervals" checked={settings.autoRestoreTabs} onChange={() => setSettings("autoRestoreTabs", !settings.autoRestoreTabs)} />
-      </Section>
       <Section label="TAB TITLE (DRAG TO REORDER)">
         <div class="app-settings-tab-order" ref={listEl}>
           <For each={props.parts}>
@@ -301,26 +269,6 @@ function TabsTab(props: { parts: TabTitlePartState[]; onChange: (p: TabTitlePart
       <div class="app-settings-control-button">
         <button type="button" class="app-settings-btn" onClick={reset}>Back to defaults</button>
       </div>
-    </>
-  );
-}
-
-// Video / audio: disabled (no media capture in this app).
-function VideoAudioTab() {
-  return (
-    <>
-      <Section label="VIDEO">
-        <div class="app-settings-field is-disabled">
-          <label class="app-settings-field-label">Camera</label>
-          <Select value={settings.camera} options={["Default", "No camera"]} disabled onChange={(v) => setSettings("camera", v)} />
-        </div>
-      </Section>
-      <Section label="AUDIO">
-        <div class="app-settings-field is-disabled">
-          <label class="app-settings-field-label">Microphone</label>
-          <Select value={settings.microphone} options={["Default", "No microphone"]} disabled onChange={(v) => setSettings("microphone", v)} />
-        </div>
-      </Section>
     </>
   );
 }
@@ -355,16 +303,6 @@ function AlertsTab() {
     </>
   );
 }
-
-// kv keys that are transient / re-derivable — dropped by "Clear cache". Layout
-// (ot:layouts, ot:layout-autosave), drawings (ot:drawings:*, ot:drawing-templates,
-// ot:drawing-kind-defaults) and every settings blob are deliberately NOT listed.
-// NOT caches (audit 12/07): ot:drawing-sync is the drawing sync-scope
-// preference and ot:layout-sync the per-layout sync toggles; ot:tab-link is a
-// BroadcastChannel name, never a kv key.
-const CACHE_KEYS = [
-  "ot:symbol-search:type-filter", // last symbol-search Type chip
-];
 
 /** Two-click confirm: the first click arms the button (label swaps to
  *  `confirmLabel`) and a timeout disarms it; the second click runs `action`. */
@@ -419,10 +357,6 @@ function ServiceTab() {
   const [cleared, setCleared] = createSignal(false);
   return (
     <>
-      <Section label="PERFORMANCE">
-        {/* Disabled: the WebView has no switch for it. */}
-        <Checkbox label="Disable hardware acceleration" checked={settings.disableHwAccel} disabled onChange={() => setSettings("disableHwAccel", !settings.disableHwAccel)} />
-      </Section>
       <Section label="APP DATA">
         <div class="app-settings-action-row">
           <span class="app-settings-action-label">App cache</span>
@@ -431,9 +365,13 @@ function ServiceTab() {
               label="Clear cache"
               confirmLabel="Confirm clear"
               onConfirm={() => {
-                for (const k of CACHE_KEYS) kv.removeItem(k);
-                setCleared(true);
-                window.setTimeout(() => setCleared(false), 1500);
+                // The market-data disk cache and in-memory series (bars are
+                // fetched again on the next load).
+                void commands.clearCache().then((r) => {
+                  if (r.status === "error") { console.warn("[settings] clear cache failed", r.error); return; }
+                  setCleared(true);
+                  window.setTimeout(() => setCleared(false), 1500);
+                });
               }}
             />
           </Show>
@@ -443,40 +381,6 @@ function ServiceTab() {
           <ConfirmButton label="Back to defaults" confirmLabel="Erase everything and restart" onConfirm={() => void factoryReset()} />
         </div>
       </Section>
-    </>
-  );
-}
-
-function NetworkTab() {
-  const fields = [
-    ["Server IP address or domain name*", "text", "proxyHost"],
-    ["Port*", "text", "proxyPort"],
-    ["Username", "text", "proxyUsername"],
-    ["Password", "password", "proxyPassword"],
-  ] as const;
-  // The whole proxy group is disabled: no request layer reads it.
-  return (
-    <>
-      <Section label="PROXY SETTINGS">
-        <Checkbox label="Use a proxy server" checked={settings.proxyEnabled} disabled onChange={() => setSettings("proxyEnabled", !settings.proxyEnabled)} />
-      </Section>
-      <Section label="Proxy protocol">
-        <Select value={settings.proxyProtocol} options={["HTTP", "HTTPS", "SOCKS4", "SOCKS5"]} disabled onChange={(v) => setSettings("proxyProtocol", v)} />
-      </Section>
-      <For each={fields}>
-        {([label, type, key]) => (
-          <div class="app-settings-field is-disabled">
-            <label class="app-settings-field-label">{label}</label>
-            <input
-              class="app-settings-input"
-              type={type}
-              disabled
-              value={settings[key]}
-              onInput={(e) => setSettings(key, e.currentTarget.value)}
-            />
-          </div>
-        )}
-      </For>
     </>
   );
 }
@@ -569,6 +473,10 @@ function UpdateAppBlock() {
         return { text: "Relaunch to update the app", icon: <Icon name="update-app-check" size={28}/> };
       case "installing":
         return { text: "Relaunching the app to install new version", icon: <Icon name="update-app-check" size={28}/> };
+      // The update check failed (offline, server down): checked again the
+      // next time About opens.
+      case "error":
+        return { text: "Couldn't check for updates", icon: <Icon name="update-app-error" size={28}/> };
       default:
         return { text: "OpenTrader is up to date", icon: <Icon name="update-app-check" size={28}/> };
     }
@@ -613,10 +521,8 @@ export function AppSettingsDialog(props: Props) {
   const body = () => {
     switch (tab()) {
       case "tabs": return <TabsTab parts={props.tabParts} onChange={props.onTabPartsChange} />;
-      case "video": return <VideoAudioTab />;
       case "alerts": return <AlertsTab />;
       case "service": return <ServiceTab />;
-      case "network": return <NetworkTab />;
       case "about": return <AboutTab />;
       default: return <GeneralTab theme={props.theme} onThemeChange={props.onThemeChange} />;
     }

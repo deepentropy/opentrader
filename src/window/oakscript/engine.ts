@@ -15,6 +15,7 @@ import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse
 import type { ChartContext } from "oakscriptjs/script";
 import type { StrategyProperties } from "../../backtester/types";
 import type { BacktestOutput } from "../../backtester/worker-types";
+import { intrabarsRef } from "../../backtester/intrabars";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
 
@@ -45,6 +46,8 @@ export class OakEngine {
   private pending = new Map<number, Pending>();
   private seq = 0;
   private gen = 0;
+  /** Bar magnifier series version already sent to the current worker, by key. */
+  private sent = new Map<string, number>();
 
   /** Worker generation: bumped when the worker is killed, so callers know
    *  their compiled scripts are gone. */
@@ -70,6 +73,7 @@ export class OakEngine {
   /** Kill the worker and fail everything in flight. */
   private restart(reason: string): void {
     this.worker?.terminate();
+    this.sent.clear();
     this.worker = null;
     this.gen++;
     const failed = [...this.pending.values()];
@@ -80,7 +84,8 @@ export class OakEngine {
     }
   }
 
-  private request(msg: OakRequest, timeoutMs: number): Promise<OakResponse> {
+  /** `onPosted` runs once the message is posted to the worker. */
+  private request(msg: OakRequest, timeoutMs: number, onPosted?: () => void): Promise<OakResponse> {
     const worker = this.ensureWorker();
     return new Promise<OakResponse>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -91,6 +96,7 @@ export class OakEngine {
       }, timeoutMs);
       this.pending.set(msg.id, { resolve, reject, timer });
       worker.postMessage(msg);
+      onPosted?.();
     });
   }
 
@@ -120,17 +126,25 @@ export class OakEngine {
   }
 
   /** Backtest a compiled strategy script over `bars` on the OpenTrader broker.
-   *  `properties` overrides the script's strategy() properties. */
+   *  `properties` overrides the script's strategy() properties; `heikinAshi`:
+   *  the chart shows Heikin Ashi bars of `bars`; `magnify`: the effective bar
+   *  magnifier property (the lower-timeframe bars are fetched here). */
   async backtest(
     scriptId: string,
     bars: OakBar[],
     inputs?: Record<string, unknown>,
     properties?: Partial<StrategyProperties>,
     chart?: ChartContext,
+    heikinAshi?: boolean,
+    magnify = properties?.barMagnifier === true,
   ): Promise<BacktestOutput> {
+    const intrabars = await intrabarsRef(magnify, heikinAshi, bars, chart, this.sent);
     const res = await this.request(
-      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart },
+      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart, heikinAshi, intrabars },
       BACKTEST_TIMEOUT_MS,
+      () => {
+        if (intrabars?.bars) this.sent.set(intrabars.key, intrabars.version);
+      },
     );
     if (res.type !== "backtest") throw new OakEngineError({ message: "Protocol mismatch." }, true);
     if (!res.ok) throw new OakEngineError(res.error);

@@ -26,16 +26,12 @@ import {
   favoritesToolbarPos,
   favoritesToolbarVisible,
   findToolMeta,
+  railSelectedTool,
   setFavoritesToolbarPos,
   setFavoritesToolbarVisible,
 } from "./favorite-tools";
 
-type Props = {
-  /** Currently-armed tool id; highlights the matching favourite button. */
-  armedTool: string | null;
-};
-
-export function FavoritesToolbar(props: Props) {
+export function FavoritesToolbar() {
   // Position is a free offset from the default dock (top-centre of the chart
   // pane). Persisted to storage (favorite-tools.ts) so it survives reloads and
   // syncs across windows; reset is not exposed (the bar stays where you drag
@@ -159,7 +155,7 @@ export function FavoritesToolbar(props: Props) {
             {({ id, meta }) => (
               <button
                 type="button"
-                class={"selected-toolbar-btn favorites-toolbar-btn" + (props.armedTool === id ? " active" : "")}
+                class={"selected-toolbar-btn favorites-toolbar-btn" + (railSelectedTool() === id ? " active" : "")}
                 data-name={`FavoriteToolbar-${id}`}
                 title={meta.title}
                 aria-label={meta.title}

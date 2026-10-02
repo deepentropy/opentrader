@@ -1,6 +1,6 @@
 /*
  * "Add custom interval" dialog (the reference app's interval-menu dialog):
- * a Type select (minutes, hours, days, weeks, months, range) and a numeric
+ * a Type select (minutes, hours, days, weeks, months) and a numeric
  * Interval field (digits only, 6 at most). Add is disabled while the value
  * is empty / 0 or wrong; the errors are "too big" (over the type's limit)
  * and "already exists" (a built-in or custom interval with that id). Enter

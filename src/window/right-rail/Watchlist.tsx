@@ -40,6 +40,7 @@ import {
 import { currentWindowLabel } from "../shell/window-bridge";
 import { flagOf, lastFlagColor } from "../../data/symbol-flags";
 import { showConfirm } from "../../components/Dialogs";
+import { promptCopyWatchlist, promptNewWatchlist } from "./watchlist-prompts";
 import { WatchlistSettingsMenu } from "./WatchlistSettingsMenu";
 import { WatchlistMenu } from "./WatchlistMenu";
 import { SectionContextMenu, WatchlistContextMenu } from "./WatchlistContextMenu";
@@ -47,6 +48,11 @@ import { SymbolSearchDialog } from "../header/SymbolSearchDialog";
 import { OpenListDialog } from "./OpenListDialog";
 import { AddAlertDialog } from "./AddAlertDialog";
 import { quoteFor as liveQuoteFor, type LiveQuote } from "../../data/quotes";
+import { alertStore } from "../../data/alert-store";
+import { alertSettings } from "../../data/alert-settings";
+import { playAlertSound } from "../../data/alert-sounds";
+import { setSubscription } from "../../data/subscriptions";
+import { cachedSymbolSessions, localDay } from "../../data/session";
 import { getTickerInfo, resolveSymbol } from "../../data/datafeed";
 import * as kv from "../../data/kv";
 import { marketSession } from "../../data/market-session";
@@ -238,22 +244,40 @@ function numFromStr(s?: string): number {
 }
 
 // ── List alerts (module singleton) ───────────────────────────────────────────
-// Notify when an active-list symbol's |change%| crosses the list's threshold.
-// The evaluation loop must not depend on the panel being mounted (RightRail
-// unmounts it with the tab), so it lives in a detached root at module scope —
-// the same hoisting pattern as data/quotes.ts. The fired (list, symbol) dedupe
-// set lives in watchlist-store (so deleteList can clear a removed list's
-// entries); saving a new threshold re-arms the list (clearFiredForList, from
-// saveAlert).
+// Notify when a symbol of a list with an alert moves by at least the list's
+// threshold (|session change %|). Every list with an alert is checked, not
+// only the open one (its symbols are kept subscribed below). A symbol fires
+// once per trading day (its exchange day), so the alert re-arms each day.
+// A fire follows the alert settings (system notification, sound) and is
+// written to the Alerts log. The evaluation loop must not depend on the panel
+// being mounted (RightRail unmounts it with the tab), so it lives in a
+// detached root at module scope — the same hoisting pattern as
+// data/quotes.ts. The fired (list, symbol, day) dedupe set lives in
+// watchlist-store (so deleteList can clear a removed list's entries); saving
+// a new threshold re-arms the list (clearFiredForList, from saveAlert).
 
 // Mounted panels subscribe here for the in-panel toast; the OS notification
 // below fires whether or not any panel is showing.
 type ListAlertListener = (title: string, body: string) => void;
+/** Sound of a list alert fire (the alert dialog's default sound). */
+const LIST_ALERT_SOUND = "fired";
 const listAlertListeners = new Set<ListAlertListener>();
 
-function fireListAlert(title: string, body: string): void {
+function fireListAlert(title: string, body: string, listId: string, symbol: string): void {
+  alertStore.recordFire({
+    alertId: `list:${listId}`,
+    symbol,
+    resolution: "1D",
+    name: title,
+    message: body,
+    fireTime: Date.now(),
+    barTime: null,
+    soundFile: LIST_ALERT_SOUND,
+    logoUrl: null,
+  });
+  playAlertSound(LIST_ALERT_SOUND);
   try {
-    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    if (alertSettings.systemNotifications() && typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification(title, { body });
     }
   } catch {
@@ -274,24 +298,51 @@ function fireListAlert(title: string, body: string): void {
 // evaluator would double-fire every list alert (the kv dedupe set only syncs
 // after its 120ms debounce). Secondary windows still render the panel UI.
 createRoot(() => {
+  // Symbols of every list with an alert stay subscribed (quotes.ts keeps
+  // only the open list's symbols).
+  createEffect(() => {
+    const syms = new Set<string>();
+    for (const l of watchlistStore.lists()) {
+      if (watchlistStore.alertFor(l.id) == null) continue;
+      for (const r of [...l.groups.flatMap((g) => g.rows), ...l.extras]) syms.add(r.ticker.toUpperCase());
+    }
+    setSubscription("list-alerts", [...syms]);
+  });
   createEffect(() => {
     if (currentWindowLabel() !== "main") return;
-    const list = watchlistStore.active();
-    if (!list) return;
-    const threshold = watchlistStore.alertFor(list.id);
-    if (threshold == null) return;
-    const rows = [...list.groups.flatMap((g) => g.rows), ...list.extras];
-    for (const r of rows) {
-      const cp = liveQuoteFor(r.ticker)?.changePercent ?? null;
-      if (cp == null || Math.abs(cp) < threshold) continue;
-      const key = `${list.id}:${r.short.toUpperCase()}`;
-      if (firedAlerts.has(key)) continue;
-      firedAlerts.add(key);
-      saveFiredAlerts();
-      fireListAlert(
-        `Alert · ${list.name}`,
-        `${r.short.toUpperCase()} ${cp >= 0 ? "+" : ""}${cp.toFixed(2)}%`,
-      );
+    // Drop fired keys older than a week (one per symbol and day).
+    const today = Math.floor(Date.now() / 86400000);
+    let pruned = false;
+    for (const k of [...firedAlerts]) {
+      const d = Number(k.split(":").pop());
+      if (Number.isFinite(d) && d > 10000 && d < today - 7) {
+        firedAlerts.delete(k);
+        pruned = true;
+      }
+    }
+    if (pruned) saveFiredAlerts();
+    for (const list of watchlistStore.lists()) {
+      const threshold = watchlistStore.alertFor(list.id);
+      if (threshold == null) continue;
+      const rows = [...list.groups.flatMap((g) => g.rows), ...list.extras];
+      for (const r of rows) {
+        const cp = liveQuoteFor(r.ticker)?.changePercent ?? null;
+        if (cp == null || Math.abs(cp) < threshold) continue;
+        // Once per symbol per trading day (exchange day; local day until the
+        // symbol's session is known).
+        const tz = cachedSymbolSessions(r.ticker)?.timeZone;
+        const day = tz ? localDay(tz, Date.now() / 1000) : Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000);
+        const key = `${list.id}:${r.short.toUpperCase()}:${day}`;
+        if (firedAlerts.has(key)) continue;
+        firedAlerts.add(key);
+        saveFiredAlerts();
+        fireListAlert(
+          `Alert · ${list.name}`,
+          `${r.short.toUpperCase()} ${cp >= 0 ? "+" : ""}${cp.toFixed(2)}%`,
+          list.id,
+          r.ticker,
+        );
+      }
     }
   });
 });
@@ -886,12 +937,13 @@ export function Watchlist(props: Props) {
   };
   // "Clear list": remove every symbol from the active list.
   const clearList = () => watchlistStore.clearActive();
-  // "Create new list…": new empty list, switched-to. (Named "New list"; the
-  // user renames via the menu — auto-renaming here would be cancelled by the
-  // list-switch reset effect.)
-  const createList = () => watchlistStore.createList();
-  // "Make a copy…": duplicate the active list (sections + extras).
-  const copyList = () => watchlistStore.copyActive();
+  // "Create new list…": asks the name, then a new empty list, switched-to.
+  const createList = () => promptNewWatchlist((name) => watchlistStore.createList(name));
+  // "Make a copy…": asks the name, then duplicates the active list (sections + extras).
+  const copyList = () => {
+    const a = watchlistStore.active();
+    if (a) promptCopyWatchlist(`${a.name} copy`, (name) => watchlistStore.copyActive(name));
+  };
   // "Upload list…": open the hidden file picker; parsed in onUploadFile.
   const uploadList = () => uploadInput?.click();
   const onUploadFile = (file: File) => {
@@ -1024,10 +1076,11 @@ export function Watchlist(props: Props) {
     const nm = watchlistStore.lists().find((l) => l.id === listId)?.name ?? "list";
     showToast(added ? `Added ${row.short} to ${nm}` : `${row.short} is already in ${nm}`);
   };
-  const createListWithRow = (row: Row) => {
-    const nm = watchlistStore.createListWith(row);
-    showToast(`Added ${row.short} to ${nm}`);
-  };
+  const createListWithRow = (row: Row) =>
+    promptNewWatchlist((name) => {
+      const nm = watchlistStore.createListWith(row, name);
+      showToast(`Added ${row.short} to ${nm}`);
+    });
   // "Add note": the editor lives in the details pane and shows the SELECTED
   // symbol's note — select the row, then ask the pane to open its note editor.
   const openNoteFor = (row: Row) => {
@@ -1289,7 +1342,7 @@ export function Watchlist(props: Props) {
 
       <Show when={menuOpen()}>
         <WatchlistMenu
-          lists={watchlistStore.lists()}
+          lists={watchlistStore.shownLists()}
           activeId={watchlistStore.activeId()}
           onSelectList={(id) => watchlistStore.setActive(id)}
           onClose={() => setMenuOpen(false)}
@@ -1567,7 +1620,7 @@ export function Watchlist(props: Props) {
             row={m().row}
             x={m().x}
             y={m().y}
-            otherLists={watchlistStore.lists().filter((l) => l.id !== watchlistStore.activeId())}
+            otherLists={watchlistStore.shownLists().filter((l) => l.id !== watchlistStore.activeId())}
             onToggleFlag={toggleRowFlag}
             onSetFlag={(r, flag) => watchlistStore.setRowFlag(r.ticker, flag)}
             onUnflagAll={() =>

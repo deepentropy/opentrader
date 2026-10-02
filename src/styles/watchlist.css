@@ -152,8 +152,8 @@
   border: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
 }
 .watchlist-tab.active .watchlist-tab-round {
-  background-color: #f2f2f2;
-  border-color: #f2f2f2;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--ot-strong);
 }
 .watchlist-tab-emoji {
   font-size: 12px;
@@ -693,8 +693,8 @@
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 .wl-settings-switch.on {
-  background-color: var(--color-cold-gray-100, #f2f2f2);
-  border-color: var(--color-cold-gray-100, #f2f2f2);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--ot-strong);
 }
 .wl-settings-switch-track {
   position: absolute;
@@ -712,7 +712,7 @@
   transition: transform 0.15s ease, background-color 0.15s ease;
 }
 .wl-settings-switch.on .wl-settings-switch-thumb {
-  background-color: var(--color-cold-gray-800, #2e2e2e);
+  background-color: var(--color-bg-primary-hover);
   transform: translateX(18px);
 }
 
@@ -726,12 +726,12 @@
   width: 18px;
   height: 18px;
   border-radius: 3px;
-  border: 1px solid var(--color-cold-gray-100, #f2f2f2);
+  border: 1px solid var(--ot-strong);
   box-sizing: border-box;
   color: var(--color-cold-gray-800, #2e2e2e);
 }
 .wl-settings-check.checked {
-  background-color: var(--color-cold-gray-100, #f2f2f2);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
 }
 .wl-settings-check svg {
   display: block;
@@ -748,11 +748,11 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 1px solid var(--color-cold-gray-100, #f2f2f2);
+  border: 1px solid var(--ot-strong);
   box-sizing: border-box;
 }
 .wl-settings-radio.checked {
-  background-color: var(--color-cold-gray-100, #f2f2f2);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
 }
 .wl-settings-radio.checked::before {
   content: '';
@@ -762,7 +762,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--color-cold-gray-800, #2e2e2e);
+  background-color: var(--color-bg-primary-hover);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1049,7 +1049,7 @@
 }
 /* Favourited — filled near-white, matching the manager dialog's star. */
 .watchlist-menu-star.is-on {
-  color: #f2f2f2;
+  color: var(--ot-strong);
 }
 .watchlist-menu-star svg {
   display: block;
@@ -1125,7 +1125,7 @@
 }
 .wl-lm-tab.active {
   background-color: var(--color-toolbar-button-background-secondary-hover, #363a45);
-  color: #fff;
+  color: var(--ot-text-max);
   font-weight: 600;
 }
 
@@ -1200,7 +1200,7 @@
 }
 /* Favourited star — filled near-white (#f2f2f2), not accent blue. */
 .wl-lm-star.is-on {
-  color: #f2f2f2;
+  color: var(--ot-strong);
 }
 .wl-lm-marker {
   flex-shrink: 0;
@@ -1313,7 +1313,7 @@
   font: inherit;
   font-size: 14px;
   color: var(--color-main-text, #dbdbdb);
-  background: var(--color-input-background, #0f0f0f);
+  background: var(--color-bg-secondary);
   border: 1px solid var(--color-divider-line-primary, #3d3d3d);
   border-radius: 6px;
   outline: none;

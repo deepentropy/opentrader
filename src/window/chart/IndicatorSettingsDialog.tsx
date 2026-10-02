@@ -14,6 +14,7 @@
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { createStore } from "solid-js/store";
 import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
+import type { PlotDefaultVisible, PlotPalette } from "./indicators/volume";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
 import { CheckBox, ColorControl, NumberField, SelectControl } from "../header/ChartPropertiesDialog";
 import { RangeSlider } from "../drawings/SettingsDialog";
@@ -51,6 +52,8 @@ export type StrategyDialogConfig = {
   style: StrategyStyle;
   chartCurrency: string;
   interval: string;
+  /** Chart type id (Heikin Ashi mode row, synthetic types disable High detalization). */
+  chartStyle: string;
   timeZone: string;
 };
 
@@ -62,7 +65,9 @@ const TAB_KEY = "ot:strategy-settings:tab";
 type Next = { inputs: Record<string, unknown>; styles: IndicatorStyleOverrides; options: IndicatorOptions };
 
 /** Materialised per-plot style row in the draft (always fully populated). */
-type StyleRow = { color: string; lineWidth: number; visible: boolean; plotType: string; priceLine: boolean };
+type StyleRow = { color: string; lineWidth: number; visible: boolean; plotType: string; priceLine: boolean; palette?: string[] };
+/** Palette entries of a plot coloured per point (PlotPalette). */
+const paletteOf = (p: PlotConfig) => (p as PlotConfig & PlotPalette).palette;
 
 type Props = {
   /** Study display name, shown in the header. */
@@ -316,9 +321,10 @@ export function IndicatorSettingsDialog(props: Props) {
         return [p.id, {
           color: ov?.color ?? p.color,
           lineWidth: ov?.lineWidth ?? seedWidth(p.lineWidth),
-          visible: ov?.visible ?? true,
+          visible: ov?.visible ?? (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? true,
           plotType: ov?.plotType ?? p.style ?? "line",
           priceLine: ov?.priceLine ?? false,
+          ...(paletteOf(p) ? { palette: paletteOf(p)!.map((c, i) => ov?.palette?.[i] ?? c.color) } : {}),
         } as StyleRow];
       }),
     ),
@@ -345,6 +351,45 @@ export function IndicatorSettingsDialog(props: Props) {
     props.onApply(current());
     props.onClose();
   };
+  /** A palette plot (Volume): its visible check row, then one colour row per
+   *  palette entry (the first also holds the plot type button). */
+  const paletteRows = (p: PlotConfig) => (
+    <>
+      <div class="cp3-cell cp3-label is-full">
+        <div class="cp3-label-inner">
+          <CheckBox checked={styleDraft[p.id].visible} onToggle={() => setStyleDraft(p.id, "visible", (v) => !v)} />
+          <span class="cp3-title" onClick={() => setStyleDraft(p.id, "visible", (v) => !v)}>{p.title}</span>
+        </div>
+      </div>
+      <For each={paletteOf(p) ?? []}>
+        {(c, i) => (
+          <>
+            <div class="cp3-cell cp3-label is-offset">
+              <div class="cp3-label-inner"><span class="cp3-title">{c.name}</span></div>
+            </div>
+            <div class="cp3-cell cp3-controls">
+              <ColorControl
+                color={styleDraft[p.id].palette?.[i()] ?? c.color}
+                width={styleDraft[p.id].lineWidth}
+                onChange={(patch) => {
+                  if (patch.color) setStyleDraft(p.id, "palette", i(), patch.color);
+                  if (patch.width !== undefined) setStyleDraft(p.id, "lineWidth", Math.max(1, Math.min(4, Math.round(patch.width))));
+                }}
+              />
+              <Show when={i() === 0}>
+                <PlotTypeControl
+                  value={styleDraft[p.id].plotType}
+                  priceLine={styleDraft[p.id].priceLine}
+                  onPick={(t) => setStyleDraft(p.id, "plotType", t)}
+                  onPriceLine={(v) => setStyleDraft(p.id, "priceLine", v)}
+                />
+              </Show>
+            </div>
+          </>
+        )}
+      </For>
+    </>
+  );
   // "Defaults" menu: Reset settings /
   // Save as default. Opens upward from the footer button.
   const [defaultsOpen, setDefaultsOpen] = createSignal(false);
@@ -367,7 +412,9 @@ export function IndicatorSettingsDialog(props: Props) {
       setPropDraft({ ...props.strategy.defaults });
       setStratStyle({ ...DEFAULT_STRATEGY_STYLE });
     }
-    for (const p of stylePlots) setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: true, plotType: p.style ?? "line", priceLine: false });
+    for (const p of stylePlots) {
+      setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? true, plotType: p.style ?? "line", priceLine: false, palette: paletteOf(p)?.map((c) => c.color) });
+    }
     setOptDraft(defaultIndicatorOptions());
   };
 
@@ -522,6 +569,7 @@ export function IndicatorSettingsDialog(props: Props) {
                 value={propDraft}
                 chartCurrency={st().chartCurrency}
                 interval={st().interval}
+                chartStyle={st().chartStyle}
                 onChange={(patch) => setPropDraft(patch)}
               />
             )}
@@ -546,7 +594,7 @@ export function IndicatorSettingsDialog(props: Props) {
             <div class="ind3-grid">
               <For each={stylePlots}>
                 {(p) => (
-                  <>
+                  <Show when={!paletteOf(p)} fallback={paletteRows(p)}>
                     <div class="cp3-cell cp3-label">
                       <div class="cp3-label-inner">
                         <CheckBox checked={styleDraft[p.id].visible} onToggle={() => setStyleDraft(p.id, "visible", (v) => !v)} />
@@ -569,7 +617,7 @@ export function IndicatorSettingsDialog(props: Props) {
                         onPriceLine={(v) => setStyleDraft(p.id, "priceLine", v)}
                       />
                     </div>
-                  </>
+                  </Show>
                 )}
               </For>
               {/* Style sections: OUTPUT VALUES — Precision,

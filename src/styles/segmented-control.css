@@ -9,7 +9,7 @@
   flex: 1;
   display: flex;
   flex-direction: row;
-  background-color: var(--color-cold-gray-750);
+  background-color: var(--color-container-fill-primary-neutral-light);
   border-radius: 4px;
   padding: 3px;
   height: 34px;
@@ -22,7 +22,7 @@
   background: transparent;
   border: none;
   outline: none;
-  color: var(--color-cold-gray-300, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
   font: inherit;
   font-size: 14px;
   font-weight: 500;
@@ -36,6 +36,6 @@
 }
 
 .ot-segmented-control__segment.selected {
-  background-color: var(--color-cold-gray-650, #4a4a4a);
-  color: #fff;
+  background-color: var(--color-content-primary-neutral-extra-light);
+  color: var(--ot-text-max);
 }

@@ -26,6 +26,9 @@ export type CtxNode =
       onSelect?: () => void;
       /** The menu stays open after the row acts. */
       keepOpen?: boolean;
+      /** A trash button on hover that removes the row's object (saved
+       *  chart templates); the menu closes. */
+      onRemove?: () => void;
     };
 
 // ── Icons of the context menu's iconCell ──
@@ -185,6 +188,17 @@ export function ChartContextMenu(props: Props) {
           <span class="ot-chart-ctx-label">{n.label}</span>
           {n.shortcut && <span class="ot-chart-ctx-shortcut">{n.shortcut}</span>}
           {n.submenu && <SubmenuArrow />}
+          {n.onRemove && (
+            <button
+              type="button"
+              class="ot-chart-ctx-remove"
+              aria-label="Remove"
+              title="Remove"
+              onClick={(e) => { e.stopPropagation(); props.onClose(); n.onRemove!(); }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 4h3v1h-1.04l-.88 9.64a1.5 1.5 0 0 1-1.5 1.36H6.42a1.5 1.5 0 0 1-1.5-1.36L4.05 5H3V4h3v-.5C6 2.67 6.67 2 7.5 2h3c.83 0 1.5.67 1.5 1.5V4ZM7.5 3a.5.5 0 0 0-.5.5V4h4v-.5a.5.5 0 0 0-.5-.5h-3ZM5.05 5l.87 9.55a.5.5 0 0 0 .5.45h5.17a.5.5 0 0 0 .5-.45L12.94 5h-7.9Z" /></svg>
+            </button>
+          )}
         </div>
       );
     });

@@ -206,7 +206,7 @@
   height: 28px;
   min-width: 128px;
   padding: 0 30px 0 12px;
-  background-color: var(--color-cold-gray-750);
+  background-color: var(--color-container-fill-primary-neutral-light);
   border-radius: 14px;
   border: none;
   font-style: normal;
@@ -316,7 +316,7 @@
 .profile-menu-sep {
   height: 1px;
   margin: 4px 8px;
-  background: var(--color-popup-element-divider-background, #2a2a2a);
+  background: var(--color-divider-hover);
 }
 
 /* Update downloaded: the reference app's "Relaunch to update" row (update-app-menu-item). */
@@ -415,7 +415,7 @@
   width: 32px;
   height: 18px;
   border-radius: 9px;
-  background: var(--color-cold-gray-650, #575757);
+  background: var(--color-content-primary-neutral-extra-light);
   position: relative;
   transition: background 0.15s ease;
 }

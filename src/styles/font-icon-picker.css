@@ -63,7 +63,7 @@
   justify-content: center;
 }
 
-.font-icon-picker-cat:hover { color: #fff; }
+.font-icon-picker-cat:hover { color: var(--ot-text-max); }
 
 .font-icon-picker-cat.active {
   color: var(--color-ot-blue-500, #2962ff);
@@ -161,7 +161,7 @@
   padding: 0 12px;
 }
 
-.font-icon-picker-tab:hover { color: #fff; }
+.font-icon-picker-tab:hover { color: var(--ot-text-max); }
 
 .font-icon-picker-tab.active {
   color: var(--color-ot-blue-500, #2962ff);
