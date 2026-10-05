@@ -11,8 +11,8 @@
  * draws it (measured: 7 px left of the center at 14 px spacing). Daily+
  * frames show nothing.
  *
- * Built on the same series-primitive pattern as the indicator renderers
- * (window/chart/indicators/indicator-primitives.ts): attach to the price series
+ * Built on the same series-primitive pattern as the indicator renderer of
+ * lightweight-charts-indicators: attach to the price series
  * and paint in the chart's media-space 2D context, behind the candles.
  */
 import type {

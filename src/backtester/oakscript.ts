@@ -294,23 +294,37 @@ export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] 
   });
 }
 
-/** The script's drawing output back on the chart's bar times (plots, markers, bar / background colors, arrows). */
+/** The script's drawing output back on the chart's bar times (plots, candles, markers, bar / background colors,
+ *  arrows, labels, lines, boxes, linefills, polylines). A time after the last bar (a drawing on a future bar) keeps
+ *  its distance from the last bar. */
 function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
   const back = new Map<number, number>();
   seen.forEach((b, i) => back.set(b.time, bars[i].time));
-  const fix = (items: unknown) => {
+  const lastSeen = seen.length ? seen[seen.length - 1].time : NaN;
+  const lastBar = bars.length ? bars[bars.length - 1].time : NaN;
+  const at = (t: number) => back.get(t) ?? (t > lastSeen ? lastBar + (t - lastSeen) : t);
+  const fix = (items: unknown, keys: string[] = ['time']) => {
     if (!Array.isArray(items)) return;
-    for (const item of items as { time?: number }[]) {
-      const t = item && typeof item.time === 'number' ? back.get(item.time) : undefined;
-      if (t !== undefined) item.time = t;
+    for (const item of items as Record<string, unknown>[]) {
+      if (!item) continue;
+      for (const k of keys) if (typeof item[k] === 'number') item[k] = at(item[k] as number);
     }
   };
   const r = result as Record<string, unknown>;
-  for (const series of Object.values((r.plots ?? {}) as Record<string, unknown>)) fix(series);
+  for (const field of ['plots', 'plotCandles', 'plotBars']) {
+    for (const series of Object.values((r[field] ?? {}) as Record<string, unknown>)) fix(series);
+  }
   fix(r.markers);
-  fix(r.bgcolors);
-  fix(r.barcolors);
+  fix(r.bgColors);
+  fix(r.barColors);
   fix(r.arrows);
+  fix(r.labels);
+  fix(r.lines, ['time1', 'time2']);
+  fix(r.boxes, ['time1', 'time2']);
+  if (Array.isArray(r.linefills)) {
+    for (const f of r.linefills as { line1?: unknown; line2?: unknown }[]) fix([f?.line1, f?.line2], ['time1', 'time2']);
+  }
+  if (Array.isArray(r.polylines)) for (const p of r.polylines as { points?: unknown }[]) fix(p?.points);
 }
 
 export interface OakScriptRunResult {

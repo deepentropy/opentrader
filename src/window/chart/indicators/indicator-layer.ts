@@ -1,64 +1,38 @@
 /*
  * IndicatorLayer — renders ONE indicator-registry entry onto an existing
- * chart, scoped to a single pane.  The heavy lifting (computing plots) is the
- * library's; this layer only routes a `calculate()` IndicatorResult onto
- * lightweight-charts series + the canvas primitives in indicator-primitives.ts.
+ * chart, scoped to a single pane.  The library computes the result
+ * (`calculate()`) and draws it (`IndicatorRenderer` of
+ * lightweight-charts-indicators/render: plots, fills, hlines, markers,
+ * arrows, bar / background colours, plotcandle / plotbar, labels, lines,
+ * boxes, linefills, polylines, tables).  This layer adds what belongs to the
+ * app: the Style tab overrides (palette colours, plot type, price line,
+ * diamonds of a step line), the study options (labels on the price scale,
+ * precision), Volume's own hidden scale, "Scale price chart only", the
+ * selection markers, the legend values and the CSV export.
  *
- * One layer == one active indicator instance.  Each layer owns its own series
+ * One layer == one active indicator instance.  Each layer owns its renderer
  * and (for non-overlay studies) its own pane, so several indicators coexist
- * without clobbering each other.  The plot-routing mirrors the reference
- * renderer the library ships in example/src/indicator-ui.ts (recalculate()),
- * trimmed to the plot styles we draw: line / histogram / area / circles /
- * stepline / linebr / cross, plus hlines, hline-fills, plot-to-plot fills,
- * markers, the Tier 1 bgcolor / barcolor outputs (oakscriptjs 0.5.0) and
- * plotarrow arrows (oakscriptjs 0.8.1, main pane only).
- * Facets we don't yet draw (boxes, labels, line drawings, tables, plotcandle)
- * are ignored.
+ * without clobbering each other.
  */
 import {
-  createSeriesMarkers,
-  AreaSeries,
-  BaselineSeries,
-  HistogramSeries,
   LineSeries,
-  LineStyle,
-  LineType,
-  type AreaData,
-  type AutoscaleInfo,
-  type BaselineData,
-  type HistogramData,
   type IChartApi,
   type ISeriesApi,
   type ISeriesPrimitive,
-  type LineData,
-  type SeriesMarker,
   type SeriesType,
   type Time,
-  type WhitespaceData,
 } from 'lightweight-charts';
-import type { Bar, HLineConfig, FillConfig, FillData } from 'oakscriptjs';
+import type { Bar, PlotConfig, IndicatorResult } from 'oakscriptjs';
 import type { ChartContext } from 'oakscriptjs/script';
-import type { IndicatorRegistryEntry, MarkerData } from 'lightweight-charts-indicators';
+import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
+import { IndicatorRenderer, type PlotOverride } from 'lightweight-charts-indicators/render';
 import type { OwnScaleMeta, PlotDefaultVisible, PlotPalette } from './volume';
 import { applyOpacity } from 'lightweight-charts-drawing/core/color';
-import { ThinHistogramPaneView } from './histogram-series';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
-import {
-  ArrowPrimitive,
-  BarColorPrimitive,
-  BgColorPrimitive,
-  CrossPlotPrimitive,
-  ExtendedMarkerPrimitive,
-  LineBrPrimitive,
-  PlotFillPrimitive,
-  type ArrowSet,
-  type BarColorCandle,
-  type BarColorPoint,
-  type DrawMarker,
-  type PlotFillBar,
-} from './indicator-primitives';
+import { StepDiamondsPrimitive } from './step-diamonds';
 
 type PlotPoint = { time: number; value: number; color?: string };
+type PlotStyle = NonNullable<PlotConfig['style']>;
 
 /** Whether a plot is drawn: the Style tab check box, else the plot's default
  *  (`defaultVisible: false` = hidden until checked, e.g. Volume MA). */
@@ -105,89 +79,14 @@ function withGaps(data: PlotPoint[], bars: Bar[]): PlotPoint[] {
   return out;
 }
 
-/** oakscriptjs plotarrow output (result.arrows) and declaration (arrowConfig). */
-type ScriptArrow = { time: number; id: string; value: number; color: string };
-type ScriptArrowConfig = { id: string; minheight?: number; maxheight?: number; display?: string };
-
-// Built-in marker shapes that lightweight-charts' createSeriesMarkers renders
-// natively; everything else is drawn by ExtendedMarkerPrimitive.
-const BUILTIN_MARKER_SHAPES = new Set(['arrowUp', 'arrowDown', 'circle', 'square']);
-
-// Two marker vocabularies reach this layer: lightweight-charts-indicators
-// markers already use `shape`/`position` (lightweight-charts terms), while
-// oakscriptjs 0.5.0 plotshape/plotchar markers use `style`/`location`/`char`.
-// These maps fold the oakscriptjs vocabulary into the internal MarkerData one.
-const SHAPE_STYLE_MAP: Record<string, MarkerData['shape']> = {
-  triangleup: 'triangleUp',
-  triangledown: 'triangleDown',
-  arrowup: 'arrowUp',
-  arrowdown: 'arrowDown',
-  circle: 'circle',
-  square: 'square',
-  diamond: 'diamond',
-  cross: 'cross',
-  xcross: 'xcross',
-  flag: 'flag',
-  labelup: 'labelUp',
-  labeldown: 'labelDown',
-};
-const MARKER_LOCATION_MAP: Record<string, DrawMarker['position']> = {
-  abovebar: 'aboveBar',
-  belowbar: 'belowBar',
-  top: 'aboveBar',
-  bottom: 'belowBar',
-  absolute: 'inBar',
-};
-// oakscriptjs marker sizes are named; scale them to the numeric size the
-// renderers expect (1 == normal).
-const MARKER_SIZE_MAP: Record<string, number> = {
-  auto: 1,
-  tiny: 0.5,
-  small: 0.75,
-  normal: 1,
-  large: 1.5,
-  huge: 2,
-};
-
-/** Normalize a marker from either vocabulary into the internal DrawMarker
- *  shape (lightweight-charts `shape`/`position`, numeric size; the pane-edge
- *  positions top / bottom are drawn above / below the bar). */
-function normalizeMarker(m: Record<string, unknown>): DrawMarker {
-  const shape =
-    (m.shape as MarkerData['shape']) ??
-    SHAPE_STYLE_MAP[m.style as string] ??
-    'square';
-  const raw = m.position as MarkerData['position'] | undefined;
-  const position: DrawMarker['position'] =
-    raw === 'top' ? 'aboveBar' : raw === 'bottom' ? 'belowBar' : raw ??
-    MARKER_LOCATION_MAP[m.location as string] ??
-    'aboveBar';
-  const size =
-    typeof m.size === 'number'
-      ? m.size
-      : typeof m.size === 'string'
-        ? MARKER_SIZE_MAP[m.size]
-        : undefined;
-  return {
-    time: m.time as number,
-    position,
-    shape,
-    color: (m.color as string) ?? '#2962FF',
-    text: (m.text as string) ?? (m.char as string) ?? '',
-    size,
-    ...(typeof m.price === 'number' ? { price: m.price } : {}),
-  };
+/** Plot type of the Style tab (its ids) as a PineScript plot style. */
+function pineStyle(plotType: string | undefined): PlotStyle | undefined {
+  if (plotType === undefined) return undefined;
+  return (plotType === 'steplinediamond' ? 'stepline_diamond' : plotType) as PlotStyle;
 }
 
-const LINE_STYLE_MAP: Record<string, LineStyle> = {
-  solid: LineStyle.Solid,
-  dashed: LineStyle.Dashed,
-  dotted: LineStyle.Dotted,
-};
-
-function clampWidth(w: number | undefined): 1 | 2 | 3 | 4 {
-  return (w && w >= 1 && w <= 4 ? w : 2) as 1 | 2 | 3 | 4;
-}
+/** Plot styles the renderer draws with a primitive on an anchor series, not with a plot series. */
+const ANCHOR_STYLES = new Set<string>(['cross', 'linebr', 'steplinebr']);
 
 /** Index of the point whose `time` equals `time`, or -1.  Arrays are ascending
  *  and one-point-per-bar, so a binary search resolves the crosshair bar. */
@@ -244,10 +143,14 @@ export type IndicatorStyleOverrides = Record<string, PlotStyleOverride>;
 export class IndicatorLayer {
   private chart: IChartApi;
   private paneIndex: number;
-  /** Every series this layer created, removed wholesale on clear(). */
-  private series: ISeriesApi<'Line' | 'Histogram' | 'Area' | 'Baseline'>[] = [];
+  /** Draws the study's result; re-created when the chart's main series changes. */
+  private renderer: IndicatorRenderer | null = null;
+  private rendererMain: ISeriesApi<SeriesType> | null = null;
+  private mainSeries: () => ISeriesApi<SeriesType> | null = () => null;
+  /** Series this layer adds itself (the pane holder of a hidden study). */
+  private extraSeries: ISeriesApi<SeriesType>[] = [];
   private detachers: Array<() => void> = [];
-  /** First series of each drawn plot with the plot's points (selection
+  /** Plot series of each drawn plot with the plot's points (selection
    *  markers sit on the plot values). */
   private plotSeries: { series: ISeriesApi<SeriesType>; data: PlotPoint[] }[] = [];
   /** Selection markers while the study is selected (null = not selected). */
@@ -257,10 +160,13 @@ export class IndicatorLayer {
    *  auto-scale leaves this study out (null = included). */
   private seriesOnlyScale: string | null = null;
   // Retained so the legend can read per-plot values at the crosshair time even
-  // when the study isn't (re)drawing (e.g. hidden).
+  // when the study isn't (re)drawing (e.g. hidden), and so the study can be
+  // redrawn without recomputing it.
   private entry: IndicatorRegistryEntry | null = null;
   private lastResult: any = null;
   private lastInputs: Record<string, unknown> = {};
+  private lastBars: Bar[] = [];
+  private lastDraw = false;
   // Retained so the legend reflects per-plot colour/visibility overrides even
   // between redraws.
   private lastStyles: IndicatorStyleOverrides = {};
@@ -274,9 +180,6 @@ export class IndicatorLayer {
   // (ANDed with the global flag above) and "Precision" (null = Default).
   private labelsOnScale = true;
   private precision: number | null = null;
-  // "Price line" of the plot being built (plot-type menu), read by the
-  // series builders.
-  private plotPriceLine = false;
 
   /** Passed to `calculate` as a third argument ({ chartId, chart }): the chart id for studies with
    *  per-chart state, the chart context (timeframe, session...) for OakScript scripts. */
@@ -311,6 +214,11 @@ export class IndicatorLayer {
     this.chartState = state;
   }
 
+  /** The chart's main price series (markers next to the bars, bar colours). */
+  setMainSeries(get: () => ISeriesApi<SeriesType> | null): void {
+    this.mainSeries = get;
+  }
+
   /** Per-study options, applied to the plot series at the next render. */
   setPlotOptions(o: { labelsOnScale: boolean; precision: number | null }): void {
     this.labelsOnScale = o.labelsOnScale;
@@ -322,15 +230,10 @@ export class IndicatorLayer {
     return this.lastValueVisible && this.labelsOnScale;
   }
 
-  /** Study "Precision": fixed decimals on the plot series' axis label. */
-  private applyPrecision(series: { applyOptions(o: { priceFormat: { type: 'price'; precision: number; minMove: number } }): void }): void {
-    if (this.precision === null) return;
-    series.applyOptions({ priceFormat: { type: 'price', precision: this.precision, minMove: 10 ** -this.precision } });
-  }
-
   /** The pane moved (Settings pane controls: move up / down). */
   setPaneIndex(i: number): void {
     this.paneIndex = i;
+    this.renderer?.setPaneIndex(i);
   }
 
   /** Recompute the study and (when `draw`) redraw it for the given bars.
@@ -343,184 +246,214 @@ export class IndicatorLayer {
     draw = true,
     styles: IndicatorStyleOverrides = {},
   ): void {
-    // The library deletes a pane left empty while other panes exist: the
-    // clear() below would delete this study's pane and the redraw would open
-    // a new one at the default height, losing the user's pane size. Keep the
-    // pane alive across the redraw.
+    this.inPreservedPane(() => {
+      this.entry = entry;
+      this.lastInputs = inputs;
+      this.lastStyles = styles;
+      this.lastBars = bars;
+      this.lastDraw = draw;
+      this.lastResult = bars.length ? this.calculate(entry, bars, inputs, styles) : null;
+      this.draw();
+    });
+  }
+
+  /** Redraw the last result without recomputing it (main series replaced,
+   *  "Scale price chart only" changed). */
+  redraw(): void {
+    if (!this.entry) return;
+    this.inPreservedPane(() => this.draw());
+  }
+
+  /** The library deletes a pane left empty while other panes exist: clearing
+   *  the study before its redraw would delete its pane and the redraw would
+   *  open a new one at the default height, losing the user's pane size. Keep
+   *  the pane alive across the redraw. */
+  private inPreservedPane(fn: () => void): void {
     const pane = this.paneIndex > 0 ? this.chart.panes()[this.paneIndex] : undefined;
     const preserved = pane?.preserveEmptyPane() ?? false;
     pane?.setPreserveEmptyPane(true);
     try {
-      this.redraw(entry, bars, inputs, draw, styles);
+      fn();
     } finally {
       pane?.setPreserveEmptyPane(preserved);
     }
   }
 
-  private redraw(
-    entry: IndicatorRegistryEntry,
-    bars: Bar[],
-    inputs: Record<string, unknown>,
-    draw: boolean,
-    styles: IndicatorStyleOverrides,
-  ): void {
-    this.clear();
-    this.entry = entry;
-    this.lastInputs = inputs;
-    this.lastStyles = styles;
-    if (bars.length === 0) { this.lastResult = null; return; }
-
-    let result: any;
+  private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): any {
     try {
-      result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(bars, inputs, {
+      const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(bars, inputs, {
         chartId: this.chartId,
         chart: this.scriptChart,
         studyId: this.studyId,
         ...this.chartState(),
       });
+      return withPaletteColors(entry, result, styles);
     } catch (err) {
       // A single indicator throwing must not break the chart or its siblings.
       // eslint-disable-next-line no-console
       console.warn(`[indicators] ${entry.id} failed to calculate`, err);
-      this.lastResult = null;
-      return;
+      return null;
     }
-    result = withPaletteColors(entry, result, styles);
-    this.lastResult = result;
-    if (!draw) {
+  }
+
+  /** Draw the last result (nothing when not drawn or when it failed). */
+  private draw(): void {
+    this.detachMarkers();
+    this.removeExtras();
+    this.plotSeries = [];
+    const entry = this.entry;
+    const result = this.lastResult;
+    const renderer = this.rendererFor();
+    if (!entry || !result || !this.lastDraw) {
+      renderer.clear();
       // A study in its own pane that draws nothing (eye off, or off its
       // Visibility intervals) keeps its pane and status line. The library
       // drops a pane once its last series goes, so hold it with an
       // empty, invisible series.
-      if (this.paneIndex > 0) {
-        const holder = this.chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false });
-        holder.moveToPane(this.paneIndex);
-        this.series.push(holder);
+      if (this.paneIndex > 0 && entry && this.lastBars.length) {
+        this.extraSeries.push(this.chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false }, this.paneIndex));
       }
       return;
     }
 
-    // ── Plots ──────────────────────────────────────────────────────────────
-    for (const plotDef of entry.plotConfig) {
-      const plotData: PlotPoint[] | undefined = result.plots?.[plotDef.id];
-      if (!plotData || plotData.length === 0) continue;
-      if (!this.isPlotVisible(plotDef, result, inputs)) continue;
-      const ov = styles[plotDef.id];
-      if (!plotShown(plotDef as PlotDefaultVisible, ov)) continue; // unchecked in the Style tab
-
-      const color = ov?.color ?? plotDef.color ?? '#2962FF';
-      const lineWidth = ov?.lineWidth ?? plotDef.lineWidth;
-      const style = ov?.plotType ?? plotDef.style ?? 'line';
-      this.plotPriceLine = ov?.priceLine ?? false;
-      const firstNew = this.series.length;
-
-      switch (style) {
-        case 'histogram':
-          // Study Histogram: thin bars of the plot's line width from its
-          // histogram base (histogram-series.ts).
-          this.addThinHistogram(plotData, color, lineWidth, (plotDef as { histbase?: number }).histbase ?? 0);
-          break;
-        case 'columns':
-          this.addHistogram(plotData, color);
-          break;
-        case 'circles':
-          this.addLine(plotData, color, lineWidth, { pointMarkersVisible: true, lineVisible: false });
-          break;
-        case 'cross':
-          this.addCross(plotData, color, lineWidth);
-          break;
-        case 'stepline':
-          this.addLine(plotData, color, lineWidth, { lineType: LineType.WithSteps });
-          break;
-        case 'steplinebr':
-          this.addLineBr(withGaps(plotData, bars), color, lineWidth, LineType.WithSteps);
-          break;
-        case 'area':
-          this.addArea(plotData, color, lineWidth, false);
-          break;
-        case 'areabr':
-          this.addArea(plotData, color, lineWidth, true);
-          break;
-        case 'steplinediamond':
-          // Pine plot.style_stepline_diamond: a step line whose value
-          // changes are marked with diamonds.
-          this.addLine(plotData, color, lineWidth, { lineType: LineType.WithSteps });
-          this.addDiamonds(plotData, color);
-          break;
-        case 'linebr':
-          this.addLineBr(withGaps(plotData, bars), color, lineWidth, LineType.Simple);
-          break;
-        case 'line':
-        default:
-          this.addLine(plotData, color, lineWidth, {});
-          break;
+    const bars = this.lastBars;
+    const styles = this.lastStyles;
+    const ownScale = !!(entry.metadata as OwnScaleMeta | undefined)?.ownScaleId;
+    const overrides: Record<string, PlotOverride> = {};
+    let plots: Record<string, PlotPoint[]> = result.plots ?? {};
+    for (const def of entry.plotConfig) {
+      const ov = styles[def.id];
+      const style = pineStyle(ov?.plotType);
+      overrides[def.id] = {
+        ...(plotShown(def as PlotDefaultVisible, ov) ? {} : { visible: false }),
+        ...(ov?.color !== undefined && { color: ov.color }),
+        ...(ov?.lineWidth !== undefined && { lineWidth: ov.lineWidth }),
+        ...(style && { style }),
+      };
+      const effective = style ?? def.style ?? 'line';
+      if ((effective === 'linebr' || effective === 'steplinebr') && plots[def.id]?.length) {
+        if (plots === result.plots) plots = { ...plots };
+        plots[def.id] = withGaps(plots[def.id], bars);
       }
-      const ps = this.series[firstNew];
-      if (ps) this.plotSeries.push({ series: ps as ISeriesApi<SeriesType>, data: plotData });
-      // "Name": the plot's title as a label next to its price label.
-      if (ps && this.nameLabelsVisible && this.labelsOnScale) {
-        (ps as ISeriesApi<SeriesType>).applyOptions({ title: plotDef.title ?? plotDef.id });
+    }
+
+    renderer.setPaneIndex(this.paneIndex);
+    renderer.render(
+      {
+        overlay: this.paneIndex === 0,
+        plotConfig: entry.plotConfig,
+        hlineConfig: entry.hlineConfig,
+        fillConfig: entry.fillConfig,
+        arrowConfig: (entry as { arrowConfig?: never }).arrowConfig,
+      },
+      { ...result, plots } as IndicatorResult,
+      bars,
+      {
+        inputs: this.lastInputs,
+        plots: overrides,
+        lastValueVisible: this.plotLabel,
+        titleVisible: this.nameLabelsVisible && this.labelsOnScale,
+        precision: this.precision,
+        // Volume's own hidden scale keeps its auto-scale.
+        autoscale: !(this.seriesOnlyScale !== null && !ownScale),
+      },
+    );
+    this.afterRender(entry, result, plots, overrides, ownScale);
+  }
+
+  /** The renderer of the current main series (a new one when it changed). */
+  private rendererFor(): IndicatorRenderer {
+    const main = this.mainSeries();
+    if (!this.renderer || main !== this.rendererMain) {
+      try { this.renderer?.clear(); } catch { /* the old main series is gone */ }
+      this.renderer = new IndicatorRenderer(this.chart, { paneIndex: this.paneIndex, mainSeries: main ?? undefined });
+      this.rendererMain = main;
+    }
+    return this.renderer;
+  }
+
+  /** The series the renderer drew each plot with, then the app's additions
+   *  to them. series() lists the plot series first (plotConfig order), then
+   *  the other series, which start with the anchor series of the plots drawn
+   *  by a primitive (cross, line with breaks), also in plotConfig order. */
+  private afterRender(
+    entry: IndicatorRegistryEntry,
+    result: any,
+    plots: Record<string, PlotPoint[]>,
+    overrides: Record<string, PlotOverride>,
+    ownScale: boolean,
+  ): void {
+    const series = this.renderer!.series();
+    const drawn = entry.plotConfig
+      .filter((def) => plots[def.id]?.length && this.drawnByRenderer(def, overrides[def.id], result))
+      .map((def) => ({ def, style: overrides[def.id].style ?? def.style ?? 'line' }));
+    const plotCount = drawn.filter((d) => !ANCHOR_STYLES.has(d.style)).length;
+    let k = 0;
+    let a = plotCount;
+    for (const { def, style } of drawn) {
+      const anchored = ANCHOR_STYLES.has(style);
+      const s = series[anchored ? a++ : k++] as ISeriesApi<SeriesType> | undefined;
+      if (!s) continue;
+      const data = plots[def.id];
+      // Selection markers: the plot's own points (one per bar, no gap points).
+      this.plotSeries.push({ series: s, data: result.plots?.[def.id] ?? data });
+      const color = overrides[def.id].color ?? def.color ?? '#2962FF';
+      // Plot-type menu "Price line".
+      if (this.lastStyles[def.id]?.priceLine) s.applyOptions({ priceLineVisible: true, priceLineColor: color });
+      if (anchored) continue;
+      if (ownScale) this.applyOwnScale(s, entry);
+      if (style === 'stepline_diamond') {
+        const points = data.filter((d) => d.value != null && !Number.isNaN(d.value));
+        const primitive = new StepDiamondsPrimitive(points, color);
+        s.attachPrimitive(primitive as ISeriesPrimitive<Time>);
+        this.detachers.push(() => s.detachPrimitive(primitive as ISeriesPrimitive<Time>));
       }
     }
     if (this.selectionBg) this.attachMarkers();
-    this.applyAutoscale();
+  }
 
-    // ── Horizontal levels + their fills ────────────────────────────────────
-    if (entry.hlineConfig?.length) {
-      this.addHLines(entry.hlineConfig, bars);
-      if (entry.fillConfig?.length) this.addHLineFills(entry.fillConfig, entry.hlineConfig, bars);
-    }
+  /** The renderer's plot visibility rule (with the overrides passed to it). */
+  private drawnByRenderer(def: PlotConfig, ov: PlotOverride, result: any): boolean {
+    if (ov.visible !== undefined) return ov.visible;
+    if (def.display === 'none' || def.display === 'data_window' || def.display === 'status_line') return false;
+    if (def.visible === undefined || typeof def.visible === 'boolean') return def.visible ?? true;
+    if (this.lastInputs[def.visible] !== undefined) return Boolean(this.lastInputs[def.visible]);
+    if (result.visibility?.[def.visible] !== undefined) return Boolean(result.visibility[def.visible]);
+    return (result.plots?.[def.id] ?? []).some((p: PlotPoint) => p.value != null && !Number.isNaN(p.value));
+  }
 
-    // ── Plot-to-plot fills (clouds/bands) returned by calculate() ──────────
-    if (Array.isArray(result.fills) && result.fills.length) {
-      this.addPlotFills(result.fills, result.plots);
-    }
-
-    // ── Markers (plotshape / plotchar, or library candle-pattern markers) ───
-    if (Array.isArray(result.markers) && result.markers.length) {
-      this.addMarkers(result.markers.map(normalizeMarker), bars);
-    }
-
-    // ── Background color (bgcolor) ─────────────────────────────────────────
-    if (Array.isArray(result.bgcolors) && result.bgcolors.length) {
-      this.addBgColors(result.bgcolors as BarColorPoint[], bars);
-    }
-
-    // ── Bar color (barcolor) — recolors the price candles, so only meaningful
-    //    on the main pane where they live. ───────────────────────────────────
-    if (this.paneIndex === 0 && Array.isArray(result.barcolors) && result.barcolors.length) {
-      this.addBarColors(result.barcolors as BarColorPoint[], bars);
-    }
-
-    // ── Arrows (plotarrow) — anchored on the bar high / low, so only on the
-    //    main pane with the price bars. ─────────────────────────────────────
-    const arrows = (result as { arrows?: ScriptArrow[] }).arrows;
-    if (this.paneIndex === 0 && Array.isArray(arrows) && arrows.length) {
-      this.addArrows(arrows, (entry as { arrowConfig?: ScriptArrowConfig[] }).arrowConfig ?? [], bars);
-    }
+  /** Pin a plot series to the entry's dedicated hidden scale when its
+   *  metadata asks for one (`ownScaleId`) — Volume draws inside the
+   *  price pane but on its own axis pinned to the bottom quarter, never on
+   *  the symbol scale. */
+  private applyOwnScale(series: ISeriesApi<SeriesType>, entry: IndicatorRegistryEntry): void {
+    const md = entry.metadata as OwnScaleMeta | undefined;
+    if (!md?.ownScaleId) return;
+    // The scale is hidden, so a last-value badge would print raw volume
+    // numbers onto the PRICE axis strip — always off, whatever the
+    // "Indicators and financials" setting says.
+    series.applyOptions({ priceScaleId: md.ownScaleId, lastValueVisible: false });
+    series.priceScale().applyOptions({
+      scaleMargins: md.ownScaleMargins ?? { top: 0.75, bottom: 0 },
+      visible: false,
+    });
   }
 
   /** True when `s` is one of this study's series. */
   ownsSeries(s: ISeriesApi<SeriesType>): boolean {
-    return (this.series as ISeriesApi<SeriesType>[]).includes(s);
+    return this.allSeries().includes(s);
+  }
+
+  private allSeries(): ISeriesApi<SeriesType>[] {
+    return [...(this.renderer?.series() ?? []), ...this.extraSeries] as ISeriesApi<SeriesType>[];
   }
 
   /** "Scale price chart only" on the main series' scale `scaleId` (null =
    *  off): series of this study on that scale leave its auto-scale. */
   setSeriesOnlyScale(scaleId: string | null): void {
+    if (scaleId === this.seriesOnlyScale) return;
     this.seriesOnlyScale = scaleId;
-    this.applyAutoscale();
-  }
-
-  private applyAutoscale(): void {
-    for (const s of this.series) {
-      // On the main series' scale: no explicit scale id, or a side id (an
-      // own hidden scale, e.g. Volume, keeps its auto-scale).
-      const id = s.options().priceScaleId;
-      const onMain = id === undefined || id === "" || id === "left" || id === "right";
-      const out = this.seriesOnlyScale !== null && this.paneIndex === 0 && onMain;
-      s.applyOptions({ autoscaleInfoProvider: out ? () => null : (base: () => AutoscaleInfo | null) => base() });
-    }
+    this.redraw();
   }
 
   /** Study selected (markers on every drawn plot) or not (null). */
@@ -539,7 +472,7 @@ export class IndicatorLayer {
         // its time maps back to index i.
         const pt = data[i];
         if (!pt || pt.value == null || Number.isNaN(pt.value)) return null;
-        return this.chart.timeScale().timeToIndex(pt.time as Time) === i ? pt.value : null;
+        return this.chart.timeScale().timeToIndex(pt.time as unknown as Time) === i ? pt.value : null;
       };
       const m = new SelectionMarkers(valueAt, bgAt);
       series.attachPrimitive(m);
@@ -553,9 +486,11 @@ export class IndicatorLayer {
     }
   }
 
-  /** First series this layer drew (its plots' price scale), or null. */
-  firstSeries(): ISeriesApi<'Line' | 'Histogram' | 'Area' | 'Baseline'> | null {
-    return this.series[0] ?? null;
+  /** First series this layer drew in its pane (its plots' price scale), or
+   *  null. Price-pane series of a study in its own pane (force_overlay
+   *  output) are skipped. */
+  firstSeries(): ISeriesApi<SeriesType> | null {
+    return this.allSeries().find((s) => s.getPane().paneIndex() === this.paneIndex) ?? null;
   }
 
   /** The study's drawn plots for "Download chart data": plot title and
@@ -629,340 +564,17 @@ export class IndicatorLayer {
   clear(): void {
     this.detachMarkers();
     this.plotSeries = [];
+    this.removeExtras();
+    try { this.renderer?.clear(); } catch { /* chart already torn down */ }
+  }
+
+  private removeExtras(): void {
     for (const detach of this.detachers.splice(0)) {
       try { detach(); } catch { /* series already gone */ }
     }
-    for (const s of this.series.splice(0)) {
+    for (const s of this.extraSeries.splice(0)) {
       try { this.chart.removeSeries(s); } catch { /* already removed */ }
     }
-  }
-
-  // ── Series builders ───────────────────────────────────────────────────────
-
-  /** Pin a plot series to the entry's dedicated hidden scale when its
-   *  metadata asks for one (`ownScaleId`) — Volume draws inside the
-   *  price pane but on its own axis pinned to the bottom quarter, never on
-   *  the symbol scale. */
-  private applyOwnScale(series: {
-    applyOptions(opts: { priceScaleId?: string; lastValueVisible?: boolean }): void;
-    priceScale(): { applyOptions(opts: { scaleMargins: { top: number; bottom: number }; visible: boolean }): void };
-  }): void {
-    const md = this.entry?.metadata as OwnScaleMeta | undefined;
-    if (!md?.ownScaleId) return;
-    // The scale is hidden, so a last-value badge would print raw volume
-    // numbers onto the PRICE axis strip — always off, whatever the
-    // "Indicators and financials" setting says.
-    series.applyOptions({ priceScaleId: md.ownScaleId, lastValueVisible: false });
-    series.priceScale().applyOptions({
-      scaleMargins: md.ownScaleMargins ?? { top: 0.75, bottom: 0 },
-      visible: false,
-    });
-  }
-
-  private addLine(
-    data: PlotPoint[],
-    color: string,
-    lineWidth: number | undefined,
-    opts: { lineType?: LineType; pointMarkersVisible?: boolean; lineVisible?: boolean },
-  ): void {
-    const series = this.chart.addSeries(LineSeries, {
-      color,
-      lineWidth: clampWidth(lineWidth),
-      lineType: opts.lineType ?? LineType.Simple,
-      pointMarkersVisible: opts.pointMarkersVisible ?? false,
-      lineVisible: opts.lineVisible ?? true,
-      lastValueVisible: this.plotLabel,
-      priceLineVisible: this.plotPriceLine,
-    });
-    series.moveToPane(this.paneIndex);
-    this.applyPrecision(series);
-    this.applyOwnScale(series);
-    series.setData(this.toLineData(data));
-    this.series.push(series);
-  }
-
-  private addArea(data: PlotPoint[], color: string, lineWidth: number | undefined, breaks: boolean): void {
-    const series = this.chart.addSeries(AreaSeries, {
-      lineColor: color,
-      topColor: color + '40',
-      bottomColor: color + '10',
-      lineWidth: clampWidth(lineWidth),
-      lastValueVisible: this.plotLabel,
-      priceLineVisible: this.plotPriceLine,
-    });
-    series.moveToPane(this.paneIndex);
-    this.applyPrecision(series);
-    // "Area with breaks": missing values stay gaps (whitespace) instead of
-    // being bridged.
-    series.setData(
-      (breaks
-        ? data.map((d) => (d.value != null && !Number.isNaN(d.value) ? { time: d.time as unknown as Time, value: d.value } : { time: d.time as unknown as Time }))
-        : data.filter((d) => d.value != null && !Number.isNaN(d.value)).map((d) => ({ time: d.time as unknown as Time, value: d.value }))) as AreaData<Time>[],
-    );
-    this.series.push(series);
-  }
-
-  private addHistogram(data: PlotPoint[], color: string): void {
-    const series = this.chart.addSeries(HistogramSeries, {
-      color,
-      lastValueVisible: this.plotLabel,
-      priceLineVisible: this.plotPriceLine,
-    });
-    series.moveToPane(this.paneIndex);
-    this.applyPrecision(series);
-    this.applyOwnScale(series);
-    series.setData(
-      data
-        .filter((d) => d.value != null && !Number.isNaN(d.value))
-        .map((d) => ({ time: d.time as unknown as Time, value: d.value, ...(d.color ? { color: d.color } : {}) })) as HistogramData<Time>[],
-    );
-    this.series.push(series);
-  }
-
-  private addCross(data: PlotPoint[], color: string, lineWidth: number | undefined): void {
-    const anchor = this.addAnchor(this.toLineData(data));
-    this.anchorPriceLine(anchor, color);
-    const primitive = new CrossPlotPrimitive();
-    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-    primitive.setData(data, color, (lineWidth ?? 2) * 3);
-    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-  }
-
-  private addLineBr(data: PlotPoint[], color: string, lineWidth: number | undefined, lineType: LineType): void {
-    const anchor = this.addAnchor(this.toLineData(data));
-    this.anchorPriceLine(anchor, color);
-    const primitive = new LineBrPrimitive();
-    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-    primitive.setData(data, color, lineWidth ?? 2, 0, lineType === LineType.WithSteps);
-    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-  }
-
-  private addHLines(hlines: HLineConfig[], bars: Bar[]): void {
-    const first = bars[0].time as unknown as Time;
-    const last = bars[bars.length - 1].time as unknown as Time;
-    for (const hline of hlines) {
-      const series = this.chart.addSeries(LineSeries, {
-        color: hline.color ?? '#787B86',
-        lineWidth: clampWidth(hline.linewidth),
-        lineStyle: LINE_STYLE_MAP[hline.linestyle ?? 'solid'] ?? LineStyle.Solid,
-        crosshairMarkerVisible: false,
-        lastValueVisible: false,
-        priceLineVisible: false,
-      });
-      series.moveToPane(this.paneIndex);
-      series.setData([{ time: first, value: hline.price }, { time: last, value: hline.price }] as LineData<Time>[]);
-      this.series.push(series);
-    }
-  }
-
-  private addHLineFills(fills: FillConfig[], hlines: HLineConfig[], bars: Bar[]): void {
-    const first = bars[0].time as unknown as Time;
-    const last = bars[bars.length - 1].time as unknown as Time;
-    const priceOf = new Map(hlines.map((h) => [h.id, h.price]));
-    for (const fill of fills) {
-      const p1 = priceOf.get(fill.plot1);
-      const p2 = priceOf.get(fill.plot2);
-      if (p1 == null || p2 == null) continue;
-      const color = fill.color ?? 'rgba(41,98,255,0.1)';
-      const series = this.chart.addSeries(BaselineSeries, {
-        baseValue: { type: 'price', price: Math.min(p1, p2) },
-        topFillColor1: color,
-        topFillColor2: color,
-        bottomFillColor1: 'transparent',
-        bottomFillColor2: 'transparent',
-        topLineColor: 'transparent',
-        bottomLineColor: 'transparent',
-        lineVisible: false,
-        lastValueVisible: false,
-        priceLineVisible: false,
-        crosshairMarkerVisible: false,
-      });
-      series.moveToPane(this.paneIndex);
-      series.setData([{ time: first, value: Math.max(p1, p2) }, { time: last, value: Math.max(p1, p2) }] as BaselineData<Time>[]);
-      this.series.push(series);
-    }
-  }
-
-  private addPlotFills(fills: FillData[], plots: Record<string, PlotPoint[]>): void {
-    for (const fill of fills) {
-      const p1 = plots[fill.plot1];
-      const p2 = plots[fill.plot2];
-      if (!p1?.length || !p2?.length) continue;
-
-      let fillColor = '#2962FF40';
-      if (fill.options?.color) {
-        const transp = fill.options.transp;
-        fillColor = transp != null
-          ? fill.options.color + Math.round((1 - transp / 100) * 255).toString(16).padStart(2, '0')
-          : fill.options.color + '40';
-      }
-
-      const p2Map = new Map(p2.map((d) => [d.time, d.value]));
-      const bars: PlotFillBar[] = [];
-      for (const d1 of p1) {
-        const v2 = p2Map.get(d1.time);
-        if (d1.value == null || v2 == null || Number.isNaN(d1.value) || Number.isNaN(v2)) continue;
-        bars.push({ time: d1.time, upper: Math.max(d1.value, v2), lower: Math.min(d1.value, v2) });
-      }
-      if (!bars.length) continue;
-
-      const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.upper })) as LineData<Time>[]);
-      const primitive = new PlotFillPrimitive();
-      anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-      primitive.setData(bars, fillColor);
-      this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-    }
-  }
-
-  private addMarkers(markers: DrawMarker[], bars: Bar[]): void {
-    // Markers hang off the layer's own invisible anchor (seeded with closes) so
-    // they live in this layer's pane and never clobber another indicator's.
-    const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.close })) as LineData<Time>[]);
-
-    const builtin: SeriesMarker<Time>[] = [];
-    const extended: DrawMarker[] = [];
-    for (const m of markers) {
-      if (BUILTIN_MARKER_SHAPES.has(m.shape)) {
-        const common = {
-          time: m.time as unknown as Time,
-          shape: m.shape as 'arrowUp' | 'arrowDown' | 'circle' | 'square',
-          color: m.color,
-          text: m.text ?? '',
-          size: m.size,
-        };
-        // Price positions carry their price; without one the marker sits in the bar.
-        if (m.position === 'atPriceTop' || m.position === 'atPriceBottom' || m.position === 'atPriceMiddle') {
-          builtin.push(m.price != null ? { ...common, position: m.position, price: m.price } : { ...common, position: 'inBar' });
-        } else {
-          builtin.push({ ...common, position: m.position });
-        }
-      } else {
-        extended.push(m);
-      }
-    }
-
-    if (builtin.length) createSeriesMarkers(anchor, builtin);
-    if (extended.length) {
-      const primitive = new ExtendedMarkerPrimitive();
-      anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-      primitive.setMarkers(extended);
-      this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-    }
-  }
-
-  /** Paint bgcolor() output as full-height columns behind this pane's bars. */
-  private addBgColors(bgcolors: BarColorPoint[], bars: Bar[]): void {
-    const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.close })) as LineData<Time>[]);
-    const primitive = new BgColorPrimitive();
-    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-    primitive.setData(bgcolors);
-    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-  }
-
-  /** Draw plotarrow() output: one arrow set per plotarrow call (its own height scaling). */
-  private addArrows(arrows: ScriptArrow[], configs: ScriptArrowConfig[], bars: Bar[]): void {
-    const byTime = new Map(bars.map((b) => [b.time as unknown as number, b]));
-    const sets = new Map<string, ArrowSet>();
-    for (const a of arrows) {
-      const b = byTime.get(a.time);
-      if (!b) continue;
-      let set = sets.get(a.id);
-      if (!set) {
-        const cfg = configs.find((c) => c.id === a.id);
-        if (cfg?.display === 'none') continue;
-        set = { minHeight: cfg?.minheight ?? 5, maxHeight: cfg?.maxheight ?? 100, points: [] };
-        sets.set(a.id, set);
-      }
-      set.points.push({ time: a.time, value: a.value, color: a.color, high: b.high, low: b.low });
-    }
-    if (!sets.size) return;
-    const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.close })) as LineData<Time>[]);
-    const primitive = new ArrowPrimitive();
-    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-    primitive.setData([...sets.values()]);
-    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-  }
-
-  /** Paint barcolor() output by repainting each colored bar's OHLC candle. */
-  private addBarColors(barcolors: BarColorPoint[], bars: Bar[]): void {
-    const byTime = new Map(bars.map((b) => [b.time, b]));
-    const candles: BarColorCandle[] = [];
-    for (const bc of barcolors) {
-      const b = byTime.get(bc.time);
-      if (!b) continue;
-      candles.push({ time: bc.time, open: b.open, high: b.high, low: b.low, close: b.close, color: bc.color });
-    }
-    if (!candles.length) return;
-    const anchor = this.addAnchor(bars.map((b) => ({ time: b.time as unknown as Time, value: b.close })) as LineData<Time>[]);
-    const primitive = new BarColorPrimitive();
-    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-    primitive.setData(candles);
-    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-  }
-
-  private addThinHistogram(data: PlotPoint[], color: string, lineWidth: number | undefined, base: number): void {
-    const series = this.chart.addCustomSeries(new ThinHistogramPaneView(), {
-      histColor: color,
-      histWidth: Math.max(1, lineWidth ?? 1),
-      histBase: base,
-      color,
-      lastValueVisible: this.plotLabel,
-      priceLineVisible: this.plotPriceLine,
-    } as never);
-    series.moveToPane(this.paneIndex);
-    this.applyPrecision(series as never);
-    this.applyOwnScale(series as never);
-    series.setData(
-      data
-        .filter((d) => d.value != null && !Number.isNaN(d.value))
-        .map((d) => ({ time: d.time as unknown as Time, value: d.value, ...(d.color ? { fill: d.color } : {}) })) as never,
-    );
-    this.series.push(series as never);
-  }
-
-  /** Diamonds on the value changes of a step line (steplinediamond). */
-  private addDiamonds(data: PlotPoint[], color: string): void {
-    const points = data.filter((d) => d.value != null && !Number.isNaN(d.value));
-    const marks: DrawMarker[] = [];
-    for (let i = 0; i < points.length; i++) {
-      if (i > 0 && points[i].value === points[i - 1].value) continue;
-      marks.push({ time: points[i].time, position: 'inBar', shape: 'diamond', color, size: 1 });
-    }
-    if (!marks.length) return;
-    // Anchored on the plot values, so 'inBar' sits on the step level.
-    const anchor = this.addAnchor(this.toLineData(points));
-    const primitive = new ExtendedMarkerPrimitive();
-    anchor.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-    primitive.setMarkers(marks);
-    this.detachers.push(() => anchor.detachPrimitive(primitive as ISeriesPrimitive<Time>));
-  }
-
-  /** Price line for plots drawn through an invisible anchor series. */
-  private anchorPriceLine(anchor: ISeriesApi<'Line'>, color: string): void {
-    if (this.plotPriceLine) anchor.applyOptions({ priceLineVisible: true, priceLineColor: color });
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
-  /** An invisible LineSeries used to anchor a canvas primitive to this pane. */
-  private addAnchor(data: (LineData<Time> | WhitespaceData<Time>)[]): ISeriesApi<'Line'> {
-    const anchor = this.chart.addSeries(LineSeries, {
-      color: 'transparent',
-      lineVisible: false,
-      lastValueVisible: false,
-      priceLineVisible: false,
-      crosshairMarkerVisible: false,
-    });
-    anchor.moveToPane(this.paneIndex);
-    anchor.setData(data);
-    this.series.push(anchor);
-    return anchor;
-  }
-
-  private toLineData(data: PlotPoint[]): LineData<Time>[] {
-    return data
-      .filter((d) => d.value != null && !Number.isNaN(d.value))
-      .map((d) => ({ time: d.time as unknown as Time, value: d.value, ...(d.color ? { color: d.color } : {}) })) as LineData<Time>[];
   }
 
   /** Mirror of the reference renderer's plot-visibility gate. */

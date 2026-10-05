@@ -1869,6 +1869,9 @@ export function ChartView(props: Props) {
     tradeMarkersSeries = null;
     tradeMarkers = null;
     applyStrategyMarkers();
+    // Study markers and bar colours are drawn on the main series: redraw the
+    // studies on the new one (from their last results).
+    controller?.redrawAll();
     // The old series took its price lines with it — force a rebuild.
     highLine = null;
     lowLine = null;
@@ -2788,6 +2791,7 @@ export function ChartView(props: Props) {
     // against the freshest dataset without threading bars in.
     controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
     controller.setLastBarOpenProbe(lastBarForming);
+    controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
     setChartReady((n) => n + 1);
 
     hostW = host.clientWidth;

@@ -115,6 +115,8 @@ export class IndicatorController {
   private heikinAshi = false;
   /** The newest bar is still forming (a realtime bar for strategies). */
   private lastBarOpen: () => boolean = () => false;
+  /** The chart's main price series (study markers and bar colours). */
+  private mainSeries: () => ISeriesApi<SeriesType> | null = () => null;
   private readonly chartState = () => ({ heikinAshi: this.heikinAshi, lastBarOpen: this.lastBarOpen() });
 
   constructor(chart: IChartApi, getBars: () => Bar[], chartId = "") {
@@ -236,6 +238,17 @@ export class IndicatorController {
       const entry = getIndicatorEntry(id);
       if (entry) this.renderOne(id, inst, entry, bars);
     }
+  }
+
+  /** How the chart reads its main price series. */
+  setMainSeriesProbe(probe: () => ISeriesApi<SeriesType> | null): void {
+    this.mainSeries = probe;
+  }
+
+  /** Redraw every study from its last result (the main series was replaced:
+   *  markers and bar colours move to the new one). */
+  redrawAll(): void {
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.redraw();
   }
 
   /** How the chart tells whether its newest bar is still forming. */
@@ -531,6 +544,7 @@ export class IndicatorController {
     layer.setNameLabelsVisible(this.nameLabelsVisible);
     layer.setScriptChart(this.scriptChart);
     layer.setChartState(this.chartState);
+    layer.setMainSeries(() => this.mainSeries());
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
     const inst: Instance = { layer, paneIndex, overlay, ownScale };
     this.instances.set(id, inst);
