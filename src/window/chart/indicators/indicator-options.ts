@@ -94,6 +94,9 @@ export function precisionDigits(p: string): number | null {
   return p !== "Default" && Number.isInteger(n) && n >= 0 && n <= 8 ? n : null;
 }
 
+// One formatter: the status line is rebuilt on every crosshair move.
+const inputNumberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 });
+
 /** The input values shown after a study title in the status line: every
  *  input except bool / colour (bool, color, time and text_area inputs are
  *  hidden by default), numbers formatted, others as text,
@@ -104,7 +107,7 @@ export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<s
     if (cfg.type === "bool" || cfg.type === "color") continue;
     const v = inputs[cfg.id];
     if (v === undefined || v === null || v === "") continue;
-    out.push(typeof v === "number" ? new Intl.NumberFormat("en-US", { maximumFractionDigits: 10 }).format(v) : String(v));
+    out.push(typeof v === "number" ? inputNumberFormat.format(v) : String(v));
   }
   return out.join(" ");
 }

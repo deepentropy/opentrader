@@ -238,13 +238,16 @@ export class IndicatorLayer {
 
   /** Recompute the study and (when `draw`) redraw it for the given bars.
    *  `styles` carries the user's per-plot colour/width/visibility overrides
-   *  (Settings → Style); empty = registry defaults. */
+   *  (Settings → Style); empty = registry defaults. `live`: only the newest
+   *  bars changed, the drawn series are kept and take the new points (a full
+   *  redraw of every series per live update was 10-200 ms on long histories). */
   render(
     entry: IndicatorRegistryEntry,
     bars: Bar[],
     inputs: Record<string, unknown>,
     draw = true,
     styles: IndicatorStyleOverrides = {},
+    live = false,
   ): void {
     this.inPreservedPane(() => {
       this.entry = entry;
@@ -253,7 +256,7 @@ export class IndicatorLayer {
       this.lastBars = bars;
       this.lastDraw = draw;
       this.lastResult = bars.length ? this.calculate(entry, bars, inputs, styles) : null;
-      this.draw();
+      this.draw(live);
     });
   }
 
@@ -296,8 +299,9 @@ export class IndicatorLayer {
     }
   }
 
-  /** Draw the last result (nothing when not drawn or when it failed). */
-  private draw(): void {
+  /** Draw the last result (nothing when not drawn or when it failed).
+   *  `reuseSeries`: keep the series of the previous draw (live update). */
+  private draw(reuseSeries = false): void {
     this.detachMarkers();
     this.removeExtras();
     this.plotSeries = [];
@@ -356,6 +360,7 @@ export class IndicatorLayer {
         precision: this.precision,
         // Volume's own hidden scale keeps its auto-scale.
         autoscale: !(this.seriesOnlyScale !== null && !ownScale),
+        reuseSeries,
       },
     );
     this.afterRender(entry, result, plots, overrides, ownScale);

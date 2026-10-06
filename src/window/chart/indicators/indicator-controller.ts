@@ -206,12 +206,13 @@ export class IndicatorController {
     this.renderAll();
   }
 
-  /** Recompute every active study against the current bars. */
-  renderAll(): void {
+  /** Recompute every active study against the current bars. `live`: only
+   *  the newest bars changed (a live update), the studies keep their series. */
+  renderAll(live = false): void {
     const bars = this.getBars();
     for (const [id, inst] of this.instances) {
       const entry = getIndicatorEntry(id);
-      if (entry) this.renderOne(id, inst, entry, bars);
+      if (entry) this.renderOne(id, inst, entry, bars, live);
     }
   }
 
@@ -281,10 +282,10 @@ export class IndicatorController {
 
   /** Draw one study with its options: not drawn when eye-hidden or off its
    *  intervals. */
-  private renderOne(id: string, inst: Instance, entry: IndicatorRegistryEntry, bars: Bar[]): void {
+  private renderOne(id: string, inst: Instance, entry: IndicatorRegistryEntry, bars: Bar[], live = false): void {
     const o = this.options.get(id) ?? defaultIndicatorOptions();
     inst.layer.setPlotOptions({ labelsOnScale: o.labelsOnScale, precision: precisionDigits(o.precision) });
-    inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {});
+    inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {}, live);
   }
 
   /** Registry defaults merged with any user input overrides for `id`. */

@@ -279,6 +279,11 @@ const SYNC_MIN_BARS = 2;
 const SYNC_LOAD_MAX_BARS = 100_000;
 /** Pause after the last landed history page before studies recompute. */
 const INDICATOR_RENDER_DEBOUNCE_MS = 150;
+/** Date-range sync: a follower loads missing history once the driving pane
+ *  has been still this long. Each load re-sets the whole series and its
+ *  studies (05/10/2026, .tmp/scroll-lag: 50-200 ms per load on a 5m pane at
+ *  25-43k bars), so loading on every move of a scroll made it lag. */
+const SYNC_LOAD_QUIET_MS = 200;
 
 /** Time-axis formatting from the Settings dialog (Scales tab). */
 type AxisFmt = { dateFormat?: string; timeFormat?: string; dayOfWeek?: boolean };
@@ -597,6 +602,8 @@ export function ChartView(props: Props) {
   // Latest inbound target; a newer one replaces it before it is applied.
   let syncTarget: { from: number; to: number } | null = null;
   let syncTimer: number | undefined;
+  // When the latest target arrived (history loads wait for a still driver).
+  let syncTargetAt = 0;
   // True while the sync loader awaits its history request.
   let syncLoading = false;
   // Guard while an inbound range lands. The library applies setVisibleRange on
@@ -805,6 +812,9 @@ export function ChartView(props: Props) {
   /** Last crosshair time, so indicator-set/bars changes re-resolve at the same
    *  bar the user is hovering. */
   let lastLegendTime: number | undefined;
+  /** Where the crosshair stands in the price pane (the pointer's, or the one
+   *  mirrored by sync), null when not shown there. */
+  let crosshairAt: { time: number; y: number } | null = null;
   /** Owns the active indicators on this chart; created in onMount. */
   let controller: IndicatorController | null = null;
   /** Bumped once the chart + controller exist so the indicator effects run. */
@@ -2300,8 +2310,10 @@ export function ChartView(props: Props) {
     window.clearTimeout(indicatorRenderTimer);
     indicatorRenderTimer = window.setTimeout(() => {
       indicatorRenderTimer = undefined;
-      controller?.renderAll();
-      renderCompareAll();
+      withCrosshairParked(() => {
+        controller?.renderAll();
+        renderCompareAll();
+      });
       refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
     }, INDICATOR_RENDER_DEBOUNCE_MS);
   }
@@ -2493,6 +2505,7 @@ export function ChartView(props: Props) {
    *  on its followers (a newer target supersedes the previous request). */
   function queueSyncRange(from: number, to: number) {
     syncTarget = { from, to };
+    syncTargetAt = performance.now();
     scheduleSyncRun(0);
   }
   function scheduleSyncRun(delayMs: number) {
@@ -2545,9 +2558,11 @@ export function ChartView(props: Props) {
    *  during the load is honoured; normally one round, more only when the
    *  trading-day estimate fell short (holidays) or the target moved further
    *  back. Every round must add older bars, else the loop stops. Sync-driven
-   *  depth is capped at SYNC_LOAD_MAX_BARS. Returns false when the series
-   *  changed underneath (the caller must stop). */
-  async function loadHistoryTo(target: () => number | null, wanted: () => boolean): Promise<boolean> {
+   *  depth is capped at SYNC_LOAD_MAX_BARS. `minDays`: least trading days per
+   *  request (date-range sync loads one more screen, so a continued scroll
+   *  lands on loaded bars instead of prepending on every move). Returns false
+   *  when the series changed underneath (the caller must stop). */
+  async function loadHistoryTo(target: () => number | null, wanted: () => boolean, minDays = 0): Promise<boolean> {
     const reqGen = fetchGen;
     const reqSym = props.symbol ?? "";
     const reqInt = props.interval ?? "1D";
@@ -2559,7 +2574,7 @@ export function ChartView(props: Props) {
       const perDay = Math.max(1, raw.length / loadedSessionDays());
       const allowedDays = Math.floor((SYNC_LOAD_MAX_BARS - raw.length) / perDay);
       if (allowedDays < 1) break;
-      const spanDays = Math.min(tradingDaysBetween(t, beforeSec), allowedDays);
+      const spanDays = Math.min(Math.max(tradingDaysBetween(t, beforeSec), minDays), allowedDays);
       syncLoading = true;
       loadingMore = true;
       let rows: Candle[] | null = null;
@@ -2619,7 +2634,15 @@ export function ChartView(props: Props) {
       scheduleSyncRun(50);
       return;
     }
-    if (!(await loadHistoryTo(() => syncTarget?.from ?? null, () => true))) return;
+    // Missing history: wait until the driver is still, so a scroll loads once
+    // at its end instead of on every move (the pane holds its view meanwhile).
+    const quietIn = SYNC_LOAD_QUIET_MS - (performance.now() - syncTargetAt);
+    if (quietIn > 0 && needsSyncLoad(syncTarget.from)) {
+      scheduleSyncRun(quietIn);
+      return;
+    }
+    const screenDays = tradingDaysBetween(syncTarget.from, syncTarget.to);
+    if (!(await loadHistoryTo(() => syncTarget?.from ?? null, () => true, screenDays))) return;
     const t = syncTarget;
     syncTarget = null;
     if (t) applySyncRange(t.from, t.to);
@@ -3161,6 +3184,10 @@ export function ChartView(props: Props) {
     // moving off the pane (no `time`) falls back to the latest bar.
     const onCrosshair = (param: MouseEventParams) => {
       crosshairActive = param.time != null;
+      crosshairAt =
+        param.point && param.time != null && ((param as { paneIndex?: number }).paneIndex ?? 0) === 0
+          ? { time: param.time as number, y: param.point.y }
+          : null;
       // Locked cursor line: the legend shows the locked bar.
       const locked = crosshairLockTime();
       if (lockViews) lockViews.shown = !!param.point;
@@ -3306,6 +3333,7 @@ export function ChartView(props: Props) {
       const d = (e as CustomEvent<{ time: number | null; price?: number | null; sourceId: number }>).detail;
       if (!chart || !series || d.sourceId === paneId || !layoutSync().crosshair) return;
       suppressCrosshairBroadcast = true;
+      crosshairAt = null;
       try {
         if (d.time == null) {
           chart.clearCrosshairPosition();
@@ -3322,6 +3350,8 @@ export function ChartView(props: Props) {
           // only if no price was sent (older broadcast / off-scale cursor).
           const price = d.price != null ? d.price : (raw.length ? raw[raw.length - 1].close : 0);
           chart.setCrosshairPosition(price, d.time as UTCTimestamp, series);
+          const y = series.priceToCoordinate(price);
+          crosshairAt = y === null ? null : { time: d.time as number, y };
         }
       } catch {
         /* time out of range / series swapped mid-apply — ignore */
@@ -4616,7 +4646,33 @@ export function ChartView(props: Props) {
     }
     paintLive(next, appended);
   }
+  /** Run `fn` (several series data changes) with the crosshair parked. While a
+   *  crosshair is shown, each data change of the library re-runs its hit test,
+   *  which rebuilds every changed series' points over ALL bars (05/10/2026,
+   *  .tmp/scroll-lag: ~280 ms of a 400 ms live update on a 87k-bar pane).
+   *  Put back at the same point afterwards, without crosshair events. */
+  function withCrosshairParked(fn: () => void) {
+    const at = crosshairAt;
+    if (!chart || !series || !at) {
+      fn();
+      return;
+    }
+    chart.clearCrosshairPosition();
+    try {
+      fn();
+    } finally {
+      const s = series;
+      const price = s?.coordinateToPrice(at.y);
+      if (chart && s && price != null && raw.length > 0 && at.time >= (raw[0].time as number)) {
+        try { chart.setCrosshairPosition(price as number, at.time as UTCTimestamp, s); } catch { /* time no longer on the chart */ }
+      }
+    }
+  }
+
   function paintLive(next: OHLC | null, appended: boolean) {
+    withCrosshairParked(() => paintLiveData(next, appended));
+  }
+  function paintLiveData(next: OHLC | null, appended: boolean) {
     if (!series) return;
     const st = currentTokens().styles;
     if (
@@ -4635,7 +4691,7 @@ export function ChartView(props: Props) {
     }
     // Recompute active studies against the mutated bars so indicator lines
     // track the live bar instead of lagging until the next reload.
-    controller?.renderAll();
+    controller?.renderAll(true);
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
     if (appended) { updateSessionBreaks(); renderCompareAll(); }
     // A forming bar can push a new visible extreme without appending.
@@ -4654,6 +4710,7 @@ export function ChartView(props: Props) {
     const lastTime = raw.length > 0 ? (raw[raw.length - 1].time as number) : -1;
     let next: OHLC;
     let appended = false;
+    let unchanged = false;
     if (lastTime === bar.time) {
       const last = raw[raw.length - 1];
       // Volume semantics per source: 1-minute buckets + 1D day bars carry the
@@ -4703,6 +4760,8 @@ export function ChartView(props: Props) {
         volume: vol,
       };
       raw[raw.length - 1] = next;
+      // The feed repeats a bar until it moves: nothing to repaint then.
+      unchanged = next.high === last.high && next.low === last.low && next.close === last.close && next.volume === last.volume;
     } else if (bar.time > lastTime) {
       next = {
         time: bar.time as UTCTimestamp,
@@ -4721,7 +4780,7 @@ export function ChartView(props: Props) {
     } else {
       return null; // stale bar (older than last) — ignore
     }
-    if (repaint) paintLiveOrDefer(next, appended);
+    if (repaint && !unchanged) paintLiveOrDefer(next, appended);
     return { next, appended };
   }
 
@@ -4875,12 +4934,17 @@ export function ChartView(props: Props) {
       return;
     }
     if (!chart) return;
-    chart.applyOptions(appearanceOptions(t));
-    // Right margin (bars) nudges the view, so apply it off the initial mount.
-    chart.timeScale().applyOptions({ rightOffset: t.rightOffset });
-    rebuildSeries();
-    // Compared symbols: scale sides and visibility follow the placement.
-    syncCompare();
+    // Untracked: the rebuild reads other signals (pane props, the 15 s status
+    // clock...). Tracked, every scroll-position save and clock tick re-ran this
+    // effect and rebuilt the series and the studies mid-scroll.
+    untrack(() => {
+      chart!.applyOptions(appearanceOptions(t));
+      // Right margin (bars) nudges the view, so apply it off the initial mount.
+      chart!.timeScale().applyOptions({ rightOffset: t.rightOffset });
+      rebuildSeries();
+      // Compared symbols: scale sides and visibility follow the placement.
+      syncCompare();
+    });
   });
 
   // Canvas → Watermark: centered pane text assembled from the checked parts
