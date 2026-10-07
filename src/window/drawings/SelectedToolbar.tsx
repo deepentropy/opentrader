@@ -23,7 +23,8 @@ import { Icon } from "../../components/Icon";
 import { ColorPopover, FontSizePopover, HIGHLIGHTER_WIDTHS, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
 import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, type Group } from "./toolbar-groups";
 import * as kv from "../../data/kv";
-import { drawingCanAlert } from "../../data/alert-condition";
+import { drawingCanAlert, rulesOfDrawing } from "../../data/alert-condition";
+import { alertStore } from "../../data/alert-store";
 
 type Props = {
   drawing: Drawing;
@@ -211,6 +212,8 @@ export function SelectedToolbar(props: Props) {
     return g && g.length > 1 ? g : [props.drawing];
   };
   const isGroup = () => groupTargets().length > 1;
+  /** The alert that reads this drawing (the first one), if any. */
+  const drawingAlert = () => rulesOfDrawing(alertStore.rules(), props.drawing.id)[0];
 
   /** Writes one value to a button's groups (colour / width / style buttons
    *  act on every selected drawing that has the group). */
@@ -603,15 +606,20 @@ export function SelectedToolbar(props: Props) {
           <Icon name="dt-settings" size={28} />
         </button>
 
-        {/* Add alert — prefilled with the drawing's first-point price. */}
+        {/* Add alert on the drawing; once it carries one, the button edits
+            that alert and stays pressed. */}
         <Show when={props.onAddAlert && drawingCanAlert(props.drawing.kind)}>
           <button
             type="button"
-            class="selected-toolbar-btn selected-toolbar-btn-add-alert"
-            data-name="add-alert"
-            title="Add alert"
-            aria-label="Add alert"
-            onClick={() => props.onAddAlert?.(props.drawing)}
+            class={"selected-toolbar-btn selected-toolbar-btn-add-alert" + (drawingAlert() ? " active" : "")}
+            data-name={drawingAlert() ? "edit-alert" : "add-alert"}
+            title={drawingAlert() ? "Edit alert" : "Add alert"}
+            aria-label={drawingAlert() ? "Edit alert" : "Add alert"}
+            onClick={() => {
+              const rule = drawingAlert();
+              if (rule) window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { editId: rule.id } }));
+              else props.onAddAlert?.(props.drawing);
+            }}
           >
             <Icon name="dt-add-alert" size={28} />
           </button>

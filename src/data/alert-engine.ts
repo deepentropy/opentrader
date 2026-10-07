@@ -26,7 +26,7 @@ import { setSubscription } from "./subscriptions";
 import { alertStore, type AlertRule } from "./alert-store";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
-import { describeCondition, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
+import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
 import { chartLastBarTime, indicatorPlotValue } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { commands } from "../bindings";
@@ -156,6 +156,57 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
     const change = ((now - ref) / Math.abs(ref)) * 100;
     const pct = rule.right.kind === "value" ? rule.right.value : 0;
     return rule.op === "moving_up_pct" ? change >= pct : change <= -pct;
+  }
+
+  // Channel / rectangle: the left operand against the two bounds of the
+  // drawing. Entering / exiting compare with the previous sample (stored as
+  // +1 inside, -1 outside), like a crossing.
+  if (isBandOperator(rule.op)) {
+    const v = operandValue(rule.symbol, rule.left, ctx);
+    if (v == null || rule.right.kind !== "drawing") return false;
+    const band = drawingBand(rule.symbol, rule.right.drawingId, ctx.timeSec, rule.right.level, rule.right.level2);
+    // A rectangle outside its time span has no band: the price is outside it.
+    if (!band && rule.right.band !== "rectangle") return false;
+    const inside = !!band && v >= band.lower && v <= band.upper;
+    if (rule.op === "inside") return inside;
+    if (rule.op === "outside") return !inside;
+    const prev = prevDiff.get(rule.id);
+    prevDiff.set(rule.id, inside ? 1 : -1);
+    if (prev == null) return false;
+    return rule.op === "entering" ? prev < 0 && inside : prev > 0 && !inside;
+  }
+
+  // Vertical line: the time reaches the line (previous sample before it).
+  if (rule.right.kind === "drawing" && rule.right.band === "time") {
+    const t = drawingTime(rule.symbol, rule.right.drawingId);
+    if (t == null) return false;
+    const diff = ctx.timeSec - t;
+    const prev = prevDiff.get(rule.id);
+    prevDiff.set(rule.id, diff);
+    return prev != null && prev < 0 && diff >= 0;
+  }
+
+  // Position: the left operand reaches the entry, stop or target level (the
+  // level lies between the previous sample and this one).
+  if (rule.op === "hits_level") {
+    const v = operandValue(rule.symbol, rule.left, ctx);
+    if (v == null || rule.right.kind !== "drawing") return false;
+    const lv = drawingPositionLevels(rule.symbol, rule.right.drawingId, ctx.timeSec);
+    const prev = prevDiff.get(rule.id);
+    prevDiff.set(rule.id, v);
+    if (!lv || prev == null || prev === v) return false;
+    const lo = Math.min(prev, v);
+    const hi = Math.max(prev, v);
+    return [lv.entry, lv.stop, lv.target].some((p) => p >= lo && p <= hi && p !== prev);
+  }
+
+  // Rectangle, Greater / Less than: above its top, below its bottom (while
+  // the time is within the rectangle).
+  if (rule.right.kind === "drawing" && rule.right.band === "rectangle") {
+    const v = operandValue(rule.symbol, rule.left, ctx);
+    const band = drawingBand(rule.symbol, rule.right.drawingId, ctx.timeSec);
+    if (v == null || !band) return false;
+    return rule.op === "greater" ? v > band.upper : rule.op === "less" ? v < band.lower : false;
   }
 
   const left = operandValue(rule.symbol, rule.left, ctx);

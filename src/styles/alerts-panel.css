@@ -218,3 +218,89 @@
   background-color: var(--color-toolbar-button-background-hover);
   color: var(--color-toolbar-button-text);
 }
+
+/* ── Alerts view: row meta + hover actions, menus, search (AlertRules.tsx) ── */
+.alerts-panel-rule-cond .alerts-panel-rule-name {
+  display: block;
+  font-weight: 600;
+  color: var(--color-toolbar-button-text);
+}
+
+.alerts-panel-rule-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--color-content-primary-neutral);
+}
+
+.alerts-panel-rule-status.is-active {
+  color: var(--color-minty-green-500, #089981);
+}
+
+.alerts-panel-rule-actions {
+  display: flex;
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
+.alerts-panel-rule:hover .alerts-panel-rule-actions {
+  opacity: 1;
+}
+
+.alerts-panel-rule-btn {
+  all: unset;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--color-content-primary-neutral);
+  cursor: pointer;
+}
+
+.alerts-panel-rule-btn:hover {
+  background-color: var(--color-toolbar-button-background-hover);
+  color: var(--color-toolbar-button-text);
+}
+
+.alerts-panel-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.alerts-panel-menu-item.is-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.alerts-panel-menu-check {
+  flex: 0 0 14px;
+  font-size: 12px;
+}
+
+.alerts-panel-menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-toolbar-divider-background);
+}
+
+.alerts-panel-row-menu {
+  position: fixed;
+  right: auto;
+  z-index: 1100;
+}
+
+.alerts-panel-search {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-toolbar-divider-background);
+}
+
+.alerts-panel-search input {
+  width: 100%;
+  box-sizing: border-box;
+}

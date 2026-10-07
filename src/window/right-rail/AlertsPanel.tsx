@@ -1,6 +1,6 @@
 /*
  * AlertsPanel — right-rail "alerts" tab. Two views via the segmented control:
- *   • Alerts — the configured alert *rules* (toggle / edit / delete)
+ *   • Alerts — the configured alert *rules* (./AlertRules: list + toolbar)
  *   • Log    — the fired-event history
  *
  * Both are backed by the local alert-store (data/alert-store.ts); the engine
@@ -21,8 +21,8 @@ import { PanelHeader } from "../../components/PanelHeader";
 import { IconButton } from "../../components/IconButton";
 import { TABS, TOOLBAR } from "../../data/alerts-panel";
 import { alertStore, type AlertRule } from "../../data/alert-store";
-import { describeCondition, ruleDrawingMissing } from "../../data/alert-condition";
-import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
+import { ruleDrawingMissing } from "../../data/alert-condition";
+import { AlertRulesList, AlertRulesToolbar } from "./AlertRules";
 import * as kv from "../../data/kv";
 
 const LOG_READ_KEY = "ot:alerts:log-read:v1";
@@ -37,14 +37,10 @@ function clockTime(ms: number): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-function openEdit(rule: AlertRule): void {
-  window.dispatchEvent(
-    new CustomEvent("chart-open-alert-dialog", { detail: { editId: rule.id } }),
-  );
-}
-
-export function AlertsPanel() {
+export function AlertsPanel(props: { symbol?: string; interval?: string }) {
   const [view, setView] = createSignal<string>("alerts");
+  /** Chart the "Current symbol" / "Current time interval" filters refer to. */
+  const ctx = () => ({ symbol: props.symbol ?? "", interval: props.interval ?? "" });
 
   // Deleted-drawing detection for drawing-operand rules: re-checked on each
   // render of the rules list and whenever another window edits any symbol's
@@ -120,6 +116,7 @@ export function AlertsPanel() {
         ariaLabel="Alerts header"
         left={<SegmentedControl items={TABS} value={view()} onChange={setView} ariaLabel="Alerts view" />}
         right={
+          <Show when={view() === "log"} fallback={<AlertRulesToolbar ctx={ctx()} />}>
           <div class="alerts-panel-toolbar-group" ref={toolbarEl}>
             <For each={TOOLBAR}>
               {(t) => (
@@ -216,78 +213,13 @@ export function AlertsPanel() {
               </div>
             </Show>
           </div>
+          </Show>
         }
       />
       <div class="alerts-panel-body">
         {/* ── Configured rules ── */}
         <Show when={view() === "alerts"}>
-          <Show
-            when={alertStore.rules().length > 0}
-            fallback={
-              <div class="ot-empty-state alerts-panel-empty">
-                No alerts yet. Right-click the chart or use the header “Alert” button to create one.
-              </div>
-            }
-          >
-            <For each={alertStore.rules()}>
-              {(r) => (
-                <div
-                  data-name="alert-rule-item"
-                  class="alerts-panel-rule"
-                  classList={{ "is-disabled": !r.enabled }}
-                  onClick={() => openEdit(r)}
-                >
-                  <label class="alerts-panel-rule-toggle" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={r.enabled}
-                      onChange={() => alertStore.setEnabled(r.id, !r.enabled)}
-                      aria-label={r.enabled ? "Disable alert" : "Enable alert"}
-                    />
-                  </label>
-                  <div class="alerts-panel-rule-main">
-                    <div class="alerts-panel-rule-title">
-                      <span class="alerts-panel-rule-symbol">{tickerOf(r.symbol)}</span>
-                      <Show when={r.name}>
-                        <span class="alerts-panel-rule-name">{r.name}</span>
-                      </Show>
-                      <Show when={drawingMissing(r)}>
-                        <span
-                          class="alerts-panel-rule-warn"
-                          title="Source drawing was deleted — this alert can't trigger"
-                          style={{ color: "var(--color-invalid-symbol)", display: "inline-flex" }}
-                        >
-                          <svg viewBox="0 0 18 18" width="14" height="14" aria-hidden="true">
-                            <path
-                              fill="currentColor"
-                              fill-rule="evenodd"
-                              d="M9 1.5 17 16H1L9 1.5Zm-.75 5.5h1.5v5h-1.5V7Zm.75 8.1a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8Z"
-                            />
-                          </svg>
-                        </span>
-                      </Show>
-                    </div>
-                    <div class="alerts-panel-rule-cond">{describeCondition(r)}</div>
-                  </div>
-                  <button
-                    type="button"
-                    class="alerts-panel-rule-delete"
-                    aria-label="Delete alert"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      resetRuleEvalState(r.id);
-                      setAlertWebhook(r.id, null);
-                      alertStore.remove(r.id);
-                    }}
-                  >
-                    <svg viewBox="0 0 18 18" width="16" height="16">
-                      <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
-                    </svg>
-                  </button>
-                </div>
-              )}
-            </For>
-          </Show>
+          <AlertRulesList ctx={ctx()} drawingMissing={drawingMissing} />
         </Show>
 
         {/* ── Fired-event log ── */}

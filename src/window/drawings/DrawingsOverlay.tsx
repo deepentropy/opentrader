@@ -39,6 +39,8 @@ import {
   type Pt,
 } from "lightweight-charts-drawing/core/_shared";
 import { suspendDrawingPersist, resumeDrawingPersist } from "./persistence";
+import { drawingCanAlert, rulesOfDrawing } from "../../data/alert-condition";
+import { alertStore } from "../../data/alert-store";
 import { hitTestKind } from "lightweight-charts-drawing/core/kinds/hit-tests";
 import { positionAnchors } from "lightweight-charts-drawing/core/kinds/position";
 import { parseColor, textOnColor } from "lightweight-charts-drawing/core/color";
@@ -1900,6 +1902,35 @@ export function DrawingsOverlay(props: Props) {
           </g>
         )}
       </Show>
+      {/* Alert mark: a small alarm clock in the colour of the drawing, 24 px
+          under it, on every drawing an alert reads. */}
+      <For each={props.drawings}>
+        {(d) => {
+          const view = createMemo(() => {
+            if (!drawingCanAlert(d.kind) || rulesOfDrawing(alertStore.rules(), d.id).length === 0) return null;
+            void props.coordEpoch;
+            void size();
+            const f = drawFrame(d);
+            if (notShown(d) || !f) return null;
+            const pts = screenPoints(f.coords, d, f.dims);
+            const at = pts ? alertMarkAnchor(d.kind, pts, f.dims.w) : null;
+            return at ? { at, f } : null;
+          });
+          return (
+            <Show when={view()} keyed>
+              {(v) => (
+                <g clip-path={`url(#${v.f.clip})`} pointer-events="none">
+                  <g transform={`translate(${Math.round(v.at.x)} ${Math.round(v.at.y + v.f.top + ALERT_MARK_GAP)})`}>
+                    <circle r="6" fill={d.style.color} />
+                    <path d="M-6.5 -5.5 -4 -8M6.5 -5.5 4 -8" stroke={d.style.color} stroke-width="1.5" stroke-linecap="round" fill="none" />
+                    <path d="M0 -3V0.5H2.5" stroke="var(--color-bg-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                  </g>
+                </g>
+              )}
+            </Show>
+          );
+        }}
+      </For>
       {/* Axis parts of drawings (drawn in the axis panes, outside the pane
           clip): vertical / cross line time label, position price
           labels. */}
@@ -2111,6 +2142,29 @@ export function DrawingsOverlay(props: Props) {
 
 /** Kinds with parts on an axis (drawn outside the pane clip). */
 const AXIS_PART_KINDS = new Set<string>(["vertical-line", "cross-line", "long-position", "short-position"]);
+
+/** Distance from a drawing to the centre of its alert mark. */
+const ALERT_MARK_GAP = 24;
+
+/** Point of a drawing its alert mark hangs under (pane pixels). A
+ *  horizontal line: the middle of the pane. The other kinds are placed by
+ *  the same idea, the middle of what is drawn: a horizontal ray from its
+ *  start to the right edge, an extended line at the middle of the pane, a
+ *  rectangle under its bottom edge, the rest at the middle of their first
+ *  two points. */
+function alertMarkAnchor(kind: string, pts: Pt[], paneW: number): Pt | null {
+  const [a, b] = pts;
+  if (!a) return null;
+  if (kind === "horizontal-line") return { x: paneW / 2, y: a.y };
+  if (kind === "horizontal-ray") return { x: (Math.max(0, a.x) + paneW) / 2, y: a.y };
+  if (!b) return a;
+  if (kind === "extended-line" && b.x !== a.x) {
+    const x = paneW / 2;
+    return { x, y: a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x) };
+  }
+  if (kind === "rectangle") return { x: (a.x + b.x) / 2, y: Math.max(a.y, b.y) };
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
 
 /** Axis parts of a drawing: the time label of a vertical / cross line on the
  *  time axis (show time) and the entry / target / stop price pills of a

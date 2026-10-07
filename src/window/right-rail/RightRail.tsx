@@ -129,7 +129,7 @@ export function RightRail(props: Props) {
             />
           </Match>
           <Match when={props.activeTab === "alerts"}>
-            <AlertsPanel />
+            <AlertsPanel symbol={props.activeSymbol} interval={props.interval} />
           </Match>
         </Switch>
       </Show>

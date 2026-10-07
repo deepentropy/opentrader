@@ -25,13 +25,32 @@ import * as kv from "./kv";
 export type Operand =
   | { kind: "price" }
   | { kind: "value"; value: number }
-  | { kind: "drawing"; drawingId: string; label?: string }
+  | {
+      kind: "drawing";
+      drawingId: string;
+      label?: string;
+      /** What the drawing gives the condition when it is not one price
+       *  level: two bounds (channel, rectangle), a time (vertical line) or
+       *  the entry / stop / target levels of a position. */
+      band?: DrawingShape;
+      /** Fib tools: the coefficient of the level the alert reads (the upper
+       *  bound of a channel condition). */
+      level?: number;
+      /** Fib tools, channel conditions: the coefficient of the lower bound. */
+      level2?: number;
+    }
   | { kind: "indicator"; indicatorId: string; plot?: number; label?: string };
+
+export type DrawingShape = "channel" | "rectangle" | "time" | "position";
 
 /** Condition operators. The `crossing_*` set needs the previous sample to
  *  detect the moment of crossing; `greater`/`less` are level checks;
  *  `moving_*_pct`: the LEFT operand moved up / down by at least the value
- *  (right operand, %) within the last `bars` bars. */
+ *  (right operand, %) within the last `bars` bars;
+ *  `entering` / `exiting` / `inside` / `outside`: the left operand against
+ *  the band of a channel or rectangle drawing (right operand);
+ *  `hits_level`: the left operand reaches the entry, stop or target level
+ *  of a long / short position drawing. */
 export type AlertOperator =
   | "crossing"
   | "crossing_up"
@@ -39,7 +58,12 @@ export type AlertOperator =
   | "greater"
   | "less"
   | "moving_up_pct"
-  | "moving_down_pct";
+  | "moving_down_pct"
+  | "entering"
+  | "exiting"
+  | "inside"
+  | "outside"
+  | "hits_level";
 
 /** How often a rule may fire (trigger-frequency options). */
 export type AlertFrequency =
