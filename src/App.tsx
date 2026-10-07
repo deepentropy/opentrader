@@ -98,6 +98,8 @@ import { requestDataWindow } from "./data/data-window-store";
 import { bindLayoutSync, defaultLayoutSync, rememberCrosshair, reviveLayoutSync, type LayoutSyncKey } from "./window/chart/layout-sync";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost, showConfirm, showRename } from "./components/Dialogs";
+import { alertStore } from "./data/alert-store";
+import { ruleDrawingIds } from "./data/alert-condition";
 import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTemplate } from "./window/header/chart-templates";
 import { getIndicatorEntry } from "./window/chart/indicators/registry";
 import { loadIndicatorDefault } from "./data/indicator-defaults";
@@ -663,7 +665,7 @@ function App() {
   // Create/Edit-alert modal: null = closed; object carries the prefill (symbol +
   // clicked price for new, or editId to edit an existing rule).
   const [alertDialog, setAlertDialog] = createSignal<
-    null | { editId?: string; symbol?: string; price?: number; indicatorId?: string }
+    null | { editId?: string; symbol?: string; price?: number; indicatorId?: string; drawingId?: string }
   >(null);
   // Transient banner shown when an alert fires (in addition to the log + sound).
   const [alertToast, setAlertToast] = createSignal<{ title: string; message: string } | null>(null);
@@ -1250,12 +1252,35 @@ function App() {
     );
   }
 
-  function removeDrawingForSymbol(key: string, id: string) {
-    const victim = drawingsFor(key).find((d) => d.id === id);
-    setSlice(key, drawingsFor(key).filter((d) => d.id !== id), {
-      label: `remove ${victim ? labelForKind(victim.kind) : "drawing"}`,
+  /** Run a removal of drawings. A drawing that carries alerts is removed
+   *  with them, after a confirmation. */
+  function removingDrawings(ids: string[], run: () => void) {
+    const rules = alertStore.rules().filter((r) => ruleDrawingIds(r).some((id) => ids.includes(id)));
+    if (rules.length === 0) { run(); return; }
+    showConfirm({
+      title: "Remove drawing",
+      text:
+        rules.length === 1
+          ? "This drawing has an alert. Removing the drawing removes the alert too."
+          : `${rules.length} alerts use ${ids.length === 1 ? "this drawing" : "these drawings"}. Removing ${ids.length === 1 ? "it" : "them"} removes the alerts too.`,
+      mainText: "Remove",
+      cancelText: "Cancel",
+      intent: "danger",
+      onConfirm: () => {
+        run();
+        for (const r of rules) alertStore.remove(r.id);
+      },
     });
-    setSelectedDrawingIds((cur) => cur.filter((x) => x !== id));
+  }
+
+  function removeDrawingForSymbol(key: string, id: string) {
+    removingDrawings([id], () => {
+      const victim = drawingsFor(key).find((d) => d.id === id);
+      setSlice(key, drawingsFor(key).filter((d) => d.id !== id), {
+        label: `remove ${victim ? labelForKind(victim.kind) : "drawing"}`,
+      });
+      setSelectedDrawingIds((cur) => cur.filter((x) => x !== id));
+    });
   }
 
   // ── Multi-select bulk mutators ─────────────────────────────────────────
@@ -1274,11 +1299,13 @@ function App() {
   /** Delete several drawings in one undo entry (multi-select Delete). */
   function removeDrawingsForSymbol(key: string, ids: string[]) {
     if (ids.length === 0) return;
-    const set = new Set(ids);
-    setSlice(key, drawingsFor(key).filter((d) => !set.has(d.id)), {
-      label: `remove ${ids.length} drawings`,
+    removingDrawings(ids, () => {
+      const set = new Set(ids);
+      setSlice(key, drawingsFor(key).filter((d) => !set.has(d.id)), {
+        label: `remove ${ids.length} drawings`,
+      });
+      setSelectedDrawingIds((cur) => cur.filter((id) => !set.has(id)));
     });
-    setSelectedDrawingIds((cur) => cur.filter((id) => !set.has(id)));
   }
 
   /** Duplicate a drawing — same kind/style, points offset by a small
@@ -1347,8 +1374,10 @@ function App() {
     });
   }
   function removeAllDrawings() {
-    setActiveDrawings([], { label: "remove all drawings" });
-    setSelectedDrawingId(null);
+    removingDrawings(drawings().map((d) => d.id), () => {
+      setActiveDrawings([], { label: "remove all drawings" });
+      setSelectedDrawingId(null);
+    });
   }
   /** Remove-objects dropdown actions. Indicators live on the active pane. */
   function removeAllIndicators() {
@@ -2217,8 +2246,8 @@ function App() {
     };
     // Chart context-menu "Add alert", AlertsPanel "edit", header "Create alert".
     const onOpenAlertDialog = (e: Event) => {
-      const d = (e as CustomEvent<{ editId?: string; symbol?: string; price?: number; indicatorId?: string }>).detail ?? {};
-      setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price, indicatorId: d.indicatorId });
+      const d = (e as CustomEvent<{ editId?: string; symbol?: string; price?: number; indicatorId?: string; drawingId?: string }>).detail ?? {};
+      setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price, indicatorId: d.indicatorId, drawingId: d.drawingId });
     };
     // Price-scale context menu (right-click on the price axis): checkable
     // Labels/Lines rows + "Move scale" fold into the focused pane's Settings
@@ -2725,6 +2754,7 @@ function App() {
             symbol={d().symbol}
             price={d().price}
             indicatorId={d().indicatorId}
+            drawingId={d().drawingId}
             interval={interval()}
             onClose={() => setAlertDialog(null)}
           />

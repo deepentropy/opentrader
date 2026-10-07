@@ -29,6 +29,16 @@ export function isPercentOperator(op: AlertOperator): boolean {
 /** Drawing kinds whose price level an alert can reference. */
 const PRICEABLE_KINDS = new Set(["horizontal-line", "horizontal-ray", "trend-line", "ray", "extended-line"]);
 
+/** True for a drawing kind an alert can be set on. */
+export function drawingCanAlert(kind: string): boolean {
+  return PRICEABLE_KINDS.has(kind);
+}
+
+/** Ids of the drawings a rule reads. */
+export function ruleDrawingIds(rule: Pick<AlertRule, "left" | "right">): string[] {
+  return [rule.left, rule.right].flatMap((o) => (o.kind === "drawing" ? [o.drawingId] : []));
+}
+
 export type DrawingOption = { id: string; label: string };
 
 /** Drawings on `symbol` that expose a usable price level, for the dialog's
@@ -42,7 +52,7 @@ export function priceableDrawings(symbol: string): DrawingOption[] {
 function drawingLabel(d: Drawing): string {
   const kind = d.kind.replace(/-/g, " ");
   const p = d.points[0]?.price;
-  return typeof p === "number" ? `${kind} @ ${p}` : kind;
+  return typeof p === "number" ? `${kind} @ ${+p.toFixed(4)}` : kind;
 }
 
 /** Resolve a drawing's current price level. Horizontal kinds are a flat level;

@@ -23,6 +23,7 @@ import { Icon } from "../../components/Icon";
 import { ColorPopover, FontSizePopover, HIGHLIGHTER_WIDTHS, StylePopover, TemplatesMenu, WidthPopover } from "./DrawingStylePopovers";
 import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, type Group } from "./toolbar-groups";
 import * as kv from "../../data/kv";
+import { drawingCanAlert } from "../../data/alert-condition";
 
 type Props = {
   drawing: Drawing;
@@ -91,8 +92,6 @@ const ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "ba
   ["back", "Send to back"],
 ];
 
-/** Kinds without the add-alert button (table and image toolbars). */
-const NO_ALERT_KINDS = new Set<string>(["table", "image"]);
 
 /** A style group of one selected drawing. */
 type Target<T> = { d: Drawing; group: Group<T> };
@@ -605,7 +604,7 @@ export function SelectedToolbar(props: Props) {
         </button>
 
         {/* Add alert — prefilled with the drawing's first-point price. */}
-        <Show when={props.onAddAlert && !NO_ALERT_KINDS.has(props.drawing.kind)}>
+        <Show when={props.onAddAlert && drawingCanAlert(props.drawing.kind)}>
           <button
             type="button"
             class="selected-toolbar-btn selected-toolbar-btn-add-alert"

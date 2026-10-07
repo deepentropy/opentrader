@@ -45,6 +45,8 @@ type Props = {
   price?: number;
   /** New alert on a study (chart menu in a study pane): the left operand. */
   indicatorId?: string;
+  /** New alert on a drawing (its "Add alert" button): the right operand. */
+  drawingId?: string;
   /** Chart interval to stamp onto the rule as its resolution. */
   interval: string;
   onClose: () => void;
@@ -142,7 +144,7 @@ export function AlertDialog(props: Props) {
 
   // ── Right operand ── a value, a drawing level, or an indicator plot.
   const [rightKind, setRightKind] = createSignal<SideKind>(
-    existing?.right.kind === "drawing"
+    existing?.right.kind === "drawing" || (!existing && props.drawingId)
       ? "drawing"
       : existing?.right.kind === "indicator"
         ? "indicator"
@@ -156,7 +158,7 @@ export function AlertDialog(props: Props) {
         : "";
   const [rightValue, setRightValue] = createSignal(defaultValue);
   const [rightDrawing, setRightDrawing] = createSignal(
-    existing?.right.kind === "drawing" ? existing.right.drawingId : "",
+    existing?.right.kind === "drawing" ? existing.right.drawingId : (!existing && props.drawingId) || "",
   );
   const [rightIndicator, setRightIndicator] = createSignal(
     existing?.right.kind === "indicator" ? existing.right.indicatorId : "",

@@ -2058,10 +2058,10 @@ export function DrawingsOverlay(props: Props) {
           onTableOp={(op) => tableOp(a().drawing.id, op)}
           onToggleAnchor={isAnchorable(a().drawing.kind) ? () => toggleAnchored(a().drawing.id) : undefined}
           onAddAlert={(d) => {
-            // Same event the chart context menu uses; prefill the drawing's
-            // first-point price on this pane's symbol.
+            // Same event the chart context menu uses; the drawing is the
+            // alert's level, so the alert follows it when it is moved.
             window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", {
-              detail: { symbol: props.symbol, price: d.points[0]?.price },
+              detail: { symbol: props.symbol, drawingId: d.id },
             }));
           }}
         />
