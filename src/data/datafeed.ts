@@ -95,12 +95,16 @@ const INTRADAY_INTERVALS: Record<string, { days: number; mins: number }> = {
  *  client-side (the backend serves only daily + minute).
  *
  *  The whole available daily history is loaded up-front (the backend clamps the
- *  request to the key's probed history floor — 10 years on the current plan,
- *  checked 27/09/2026), so the full series is in memory
- *  and scrolling back is instant — never a network round-trip. `view` is how
+ *  request to the key's probed history floor and puts the archived sessions
+ *  older than it in front, see {@link DAILY_ARCHIVE_START}), so the full series
+ *  is in memory and scrolling back is instant — never a network round-trip.
+ *  30 years of sessions: more than the backend calendar reaches. `view` is how
  *  many of the most-recent *display* bars to frame on load (null → fit all):
  *  `1D` opens on ~1 year with the rest preloaded behind it. */
-const DAILY_FULL_DAYS = 5040;
+const DAILY_FULL_DAYS = 7560;
+/** First session of the daily archive (ISO date). A daily series that starts
+ *  there is cut by the archive, not by the symbol's listing. */
+export const DAILY_ARCHIVE_START = "2003-09-10";
 type DailyConfig = { days: number; aggregate?: AggregatePeriod; view: number | null };
 const DAILY_INTERVALS: Record<string, DailyConfig> = {
   "1D": { days: DAILY_FULL_DAYS, view: 252 },

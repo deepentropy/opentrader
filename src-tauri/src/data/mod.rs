@@ -1,4 +1,5 @@
 pub mod calendar;
+pub mod daily_archive;
 pub mod gateway;
 pub mod massive_poll;
 pub mod massive_rest;

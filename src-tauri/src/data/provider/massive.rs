@@ -21,7 +21,7 @@ use crate::data::types::{
 };
 use crate::data::session::{Subsession, SymbolSession};
 use crate::data::symbol::SymbolRef;
-use crate::data::{gateway, massive_poll, massive_rest, massive_ws, trading_calendar};
+use crate::data::{daily_archive, gateway, massive_poll, massive_rest, massive_ws, trading_calendar};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate, Utc};
 use std::sync::OnceLock;
@@ -39,6 +39,9 @@ impl HistoryProvider for MassiveProvider {
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
         massive_rest::fetch_daily_aggs(&sym.ticker, from, to, adjusted).await
+    }
+    async fn daily_archive(&self, sym: &SymbolRef, adjusted: bool) -> Result<Vec<Candle>> {
+        daily_archive::daily_bars(&sym.ticker, adjusted).await
     }
     async fn minute_aggs(
         &self,

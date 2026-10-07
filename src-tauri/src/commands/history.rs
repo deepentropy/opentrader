@@ -36,6 +36,7 @@ pub async fn clear_cache() -> Result<(), String> {
     if let Some(m) = DAILY_MEM.get() {
         m.lock().await.clear();
     }
+    crate::data::daily_archive::clear_memo().await;
     crate::data::massive_rest::clear_market_data_cache().await
 }
 
@@ -59,6 +60,36 @@ async fn clamp_to_floor(
     (from <= to).then_some((from, to))
 }
 
+/// Longest stretch without a bar inside one listing. A ticker symbol can be
+/// used again by another company years later (one archive file holds both), so
+/// archived bars beyond a longer hole are another listing and are left out.
+const ARCHIVE_MAX_HOLE_SECS: f64 = 366.0 * 86_400.0;
+
+/// `bars` with the archived sessions older than its first bar in front.
+/// Archived bars are kept from `from_sec` on, strictly before the first bar of
+/// `bars` (inside its window the live source wins), and only back to the first
+/// hole longer than [`ARCHIVE_MAX_HOLE_SECS`]. Both inputs oldest first.
+fn prepend_archive(bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64) -> Vec<Candle> {
+    let Some(first) = bars.first().map(|b| b.time) else {
+        return bars;
+    };
+    let mut next = first;
+    let mut older: Vec<Candle> = Vec::new();
+    for bar in archive.into_iter().rev() {
+        if bar.time >= first {
+            continue;
+        }
+        if bar.time < from_sec || next - bar.time > ARCHIVE_MAX_HOLE_SECS {
+            break;
+        }
+        next = bar.time;
+        older.push(bar);
+    }
+    older.reverse();
+    older.extend(bars);
+    older
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_daily_history(
@@ -80,24 +111,38 @@ pub async fn get_daily_history(
     }
 
     let dates = cal.last_trading_days(days.max(1) as usize);
-    let from = *dates.first().unwrap_or(&to);
-    let Some((from, to)) = clamp_to_floor(BarFamily::Day, from, to).await else {
+    let wanted_from = *dates.first().unwrap_or(&to);
+    let Some((from, to)) = clamp_to_floor(BarFamily::Day, wanted_from, to).await else {
         return Err(format!("no daily data for {sym} in last {days} days"));
     };
 
     // One REST call returns the whole daily series (split-adjusted when
     // `adjusted`); closed sessions are then served from the per-day disk cache
-    // on later loads.
-    let bars = provider
-        .daily_aggs(&sym, from, to, adjusted)
-        .await
-        .map_err(|e| e.to_string())?;
+    // on later loads. The sessions older than that series come from the daily
+    // archive, read at the same time.
+    let (bars, archive) =
+        tokio::join!(provider.daily_aggs(&sym, from, to, adjusted), provider.daily_archive(&sym, adjusted));
+    let bars = bars.map_err(|e| e.to_string())?;
     if bars.is_empty() {
         return Err(format!("no daily data for {sym} in last {days} days"));
     }
-    mem.lock()
-        .await
-        .insert((sym.full(), days, adjusted), (to, Arc::new(bars.clone())));
+    // A failed archive read leaves the chart on the recent series, as without
+    // an archive, and is not memoised so the next load reads it again.
+    let (bars, complete) = match archive {
+        Ok(archive) => {
+            let from_sec = wanted_from.and_hms_opt(0, 0, 0).map_or(0.0, |dt| dt.and_utc().timestamp() as f64);
+            (prepend_archive(bars, archive, from_sec), true)
+        }
+        Err(e) => {
+            eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
+            (bars, false)
+        }
+    };
+    if complete {
+        mem.lock()
+            .await
+            .insert((sym.full(), days, adjusted), (to, Arc::new(bars.clone())));
+    }
     Ok(bars)
 }
 
@@ -355,6 +400,42 @@ mod tests {
         assert_eq!(aggregates_before_window(&us(), mon, 2), (thu, mon));
     }
 
+    fn bar(day: i64) -> Candle {
+        Candle { time: (day * 86_400) as f64, open: 1.0, high: 1.0, low: 1.0, close: 1.0, volume: 1.0 }
+    }
+
+    fn days(bars: &[Candle]) -> Vec<i64> {
+        bars.iter().map(|b| b.time as i64 / 86_400).collect()
+    }
+
+    /// Archived sessions go in front of the first live bar; the ones the live
+    /// series already covers are dropped.
+    #[test]
+    fn archive_is_joined_before_the_first_live_bar() {
+        let joined = prepend_archive(vec![bar(1003), bar(1004)], (1000..=1004).map(bar).collect(), 0.0);
+        assert_eq!(days(&joined), vec![1000, 1001, 1002, 1003, 1004]);
+    }
+
+    /// A reused symbol: the bars of the earlier listing sit behind a hole of
+    /// several years, in the archive or between the archive and the live bars.
+    #[test]
+    fn archive_stops_at_a_long_hole() {
+        let archive: Vec<Candle> = [100, 101, 102, 2000, 2001].into_iter().map(bar).collect();
+        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive.clone(), 0.0)), vec![2000, 2001, 2002]);
+        assert_eq!(days(&prepend_archive(vec![bar(5000)], archive, 0.0)), vec![5000]);
+    }
+
+    /// Bars before the requested start are left out; no archive or no live
+    /// bars changes nothing.
+    #[test]
+    fn archive_respects_the_requested_start() {
+        let archive: Vec<Candle> = (1000..=1002).map(bar).collect();
+        let from = (1001 * 86_400) as f64;
+        assert_eq!(days(&prepend_archive(vec![bar(1003)], archive.clone(), from)), vec![1001, 1002, 1003]);
+        assert_eq!(days(&prepend_archive(vec![bar(1003)], Vec::new(), 0.0)), vec![1003]);
+        assert!(prepend_archive(Vec::new(), archive, 0.0).is_empty());
+    }
+
     /// Mid-week the window is just the prior `span_days` sessions — no surprises.
     #[test]
     fn before_window_midweek() {
@@ -362,6 +443,78 @@ mod tests {
         let wed = NaiveDate::from_ymd_opt(2025, 5, 14).unwrap();
         let tue = NaiveDate::from_ymd_opt(2025, 5, 13).unwrap();
         assert_eq!(aggregates_before_window(&us(), wed, 1), (tue, wed));
+    }
+
+    /// The real join on AAPL (network): the series starts on 10/09/2003, the
+    /// archived bars sit on the scale of the adjusted live bars where the two
+    /// overlap, and no split date or the join leaves a step. A ticker without
+    /// an archive yields no archived bars. Run with:
+    ///   cargo test --lib daily_archive_join_live -- --nocapture --ignored
+    #[tokio::test]
+    #[ignore = "hits the gateway; run explicitly"]
+    async fn daily_archive_join_live() {
+        let provider = MassiveProvider;
+        let sym = SymbolRef::parse("NASDAQ:AAPL");
+        let cal = SessionCalendar::new(&provider.symbol_session(&sym).await.unwrap());
+        let to = cal.window_end();
+        let from = clamp_to_floor(BarFamily::Day, *cal.last_trading_days(7560).first().unwrap(), to)
+            .await
+            .unwrap()
+            .0;
+        let live = provider.daily_aggs(&sym, from, to, true).await.unwrap();
+        let t0 = std::time::Instant::now();
+        let archive = provider.daily_archive(&sym, true).await.unwrap();
+        let cold_ms = t0.elapsed().as_millis();
+        let t1 = std::time::Instant::now();
+        provider.daily_archive(&sym, true).await.unwrap();
+        eprintln!("archive: {} bars, first read {cold_ms} ms, memo {} us", archive.len(), t1.elapsed().as_micros());
+
+        // Overlap: archived bars of sessions the live series also has.
+        let by_time: HashMap<i64, &Candle> = live.iter().map(|b| (b.time as i64, b)).collect();
+        let (mut common, mut worst, mut off) = (0, 0.0_f64, 0);
+        for a in &archive {
+            if let Some(l) = by_time.get(&(a.time as i64)) {
+                common += 1;
+                let diff = (a.close / l.close - 1.0).abs();
+                worst = worst.max(diff);
+                if diff > 0.005 {
+                    off += 1;
+                }
+            }
+        }
+        eprintln!("overlap: {common} sessions, closes off by more than 0.5%: {off}, worst {:.4}%", worst * 100.0);
+        assert!(common > 1000 && off == 0);
+
+        let joined = prepend_archive(live.clone(), archive, 0.0);
+        let first = joined.first().unwrap();
+        eprintln!(
+            "joined: {} bars ({} live from {:?}), first {:?} close {:.4} volume {:.0}",
+            joined.len(), live.len(), cal.date_of(live[0].time as i64), cal.date_of(first.time as i64), first.close, first.volume,
+        );
+        assert_eq!(cal.date_of(first.time as i64), NaiveDate::from_ymd_opt(2003, 9, 10));
+        assert!(joined.windows(2).all(|w| w[0].time < w[1].time), "times not strictly ascending");
+        // Largest close-to-close move: a missed split would show as 50% or more.
+        let (mut big, mut at) = (0.0_f64, 0.0);
+        for w in joined.windows(2) {
+            let m = (w[1].close / w[0].close - 1.0).abs();
+            if m > big {
+                (big, at) = (m, w[1].time);
+            }
+        }
+        eprintln!("largest daily close move: {:.2}% on {:?}", big * 100.0, cal.date_of(at as i64));
+        assert!(big < 0.35);
+        for (y, m, d) in [(2005, 2, 28), (2014, 6, 9), (2020, 8, 31)] {
+            let day = NaiveDate::from_ymd_opt(y, m, d);
+            let i = joined.iter().position(|b| cal.date_of(b.time as i64) == day).unwrap();
+            eprintln!("split {day:?}: close before {:.4}, on the day {:.4}", joined[i - 1].close, joined[i].close);
+        }
+        let join = joined.iter().position(|b| b.time == live[0].time).unwrap();
+        eprintln!("join: {:.4} -> {:.4}", joined[join - 1].close, joined[join].close);
+
+        let raw = provider.daily_archive(&sym, false).await.unwrap();
+        assert_eq!((raw[0].close, raw[0].volume), (22.18, 3_957_751.0));
+        let none = provider.daily_archive(&SymbolRef::parse("ZZZZQQ"), true).await.unwrap();
+        assert!(none.is_empty());
     }
 
     /// Exercises the real daily-load path against the on-disk cache (no network

@@ -89,6 +89,7 @@ import { compareColor, compareSource, type CompareStyleState } from "./compare/c
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import { isVisibleOnInterval } from "lightweight-charts-drawing/core/types";
 import {
+  DAILY_ARCHIVE_START,
   aggregateCandles,
   aggregateUnitFor,
   getBars,
@@ -1739,8 +1740,9 @@ export function ChartView(props: Props) {
   }
 
   /** End-of-history icon kind: none until scroll-back has nothing older; then
-   *  "limit" when the oldest bar sits on the data plan's history floor (within
-   *  a week), else "end" (with at least 400 bars). Hidden while the floor is
+   *  "limit" when the oldest bar sits on the data plan's history floor or, for
+   *  the daily family, on the first session of the daily archive (within a
+   *  week), else "end" (with at least 400 bars). Hidden while the floor is
    *  unknown. */
   function historyEndKind(): HistoryEndKind | null {
     if (!historyExhausted || loadingMore || raw.length === 0) return null;
@@ -1752,6 +1754,7 @@ export function ChartView(props: Props) {
     const oldest = (daily ? rawDaily[0].time : raw[0].time) as number;
     const floorSec = floor ? Date.parse(`${floor}T00:00:00Z`) / 1000 : NaN;
     if (Number.isFinite(floorSec) && oldest - floorSec <= 7 * 86400) return "limit";
+    if (daily && oldest - Date.parse(`${DAILY_ARCHIVE_START}T00:00:00Z`) / 1000 <= 7 * 86400) return "limit";
     return raw.length >= HISTORY_END_MIN_BARS ? "end" : null;
   }
   function updateHistoryEnd() {

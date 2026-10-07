@@ -310,16 +310,18 @@ pub async fn probe_oldest_bar(ticker: &str, timespan: &str) -> Result<(Option<Na
 const REST_CACHE_DIR: &str = "rest_aggs_v3";
 const LEGACY_REST_CACHE_DIRS: &[&str] = &["rest_aggs", "rest_aggs_v2"];
 
-fn rest_cache_root() -> PathBuf {
+pub(crate) fn rest_cache_root() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
         .join("opentrader")
 }
 
 /// Market-data folders under the cache root that "Clear cache" deletes: the
-/// REST aggregate cache, its legacy roots and the older per-day caches. The
+/// REST aggregate cache, its legacy roots, the older per-day caches and the
+/// daily archive files. The
 /// root itself is never deleted (on Windows it is also the install folder).
-const CLEARABLE_CACHE_DIRS: &[&str] = &[REST_CACHE_DIR, "rest_aggs", "rest_aggs_v2", "day_aggs", "day_ticker", "minute_aggs"];
+const CLEARABLE_CACHE_DIRS: &[&str] =
+    &[REST_CACHE_DIR, "rest_aggs", "rest_aggs_v2", "day_aggs", "day_ticker", "minute_aggs", crate::data::daily_archive::CACHE_DIR];
 
 /// Settings > Service > "Clear cache": delete the market-data disk cache and
 /// forget the in-memory splits, dividends and prior-close memos. Bars are

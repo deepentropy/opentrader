@@ -47,6 +47,12 @@ pub trait HistoryProvider: Send + Sync {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>>;
+    /// Daily bars kept outside `daily_aggs`: the sessions older than its
+    /// history window, oldest first, on the same price scale (`adjusted`).
+    /// Empty when the provider has none for the symbol.
+    async fn daily_archive(&self, _sym: &SymbolRef, _adjusted: bool) -> Result<Vec<Candle>> {
+        Ok(Vec::new())
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,
