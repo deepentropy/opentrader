@@ -32,9 +32,6 @@ import { isVisibleOnInterval, type DataPoint, type Drawing, type DrawingKind } f
 import {
   HANDLE_RADIUS,
   HIT_TOLERANCE,
-  formatPriceDelta,
-  formatTimeDelta,
-  timeToSec,
   type HitResult,
   type Pt,
 } from "lightweight-charts-drawing/core/_shared";
@@ -53,7 +50,9 @@ import { lockAxisDelta, shiftPlacementPoint } from "lightweight-charts-drawing/c
 import { buildNewDrawing, finishPlacement, SEGMENT_PREVIEW_KINDS, snapGannSquare } from "lightweight-charts-drawing/core/interact/placement";
 import { anchorCursor, applyDrag, type DragState } from "lightweight-charts-drawing/core/interact/drag";
 import { isAnchorable, toggleAnchored as toggleAnchoredDrawing } from "lightweight-charts-drawing/core/interact/anchor";
-import { measureTextFont } from "lightweight-charts-drawing/core/scene/text";
+import { measureText, measureTextFont } from "lightweight-charts-drawing/core/scene/text";
+import { rangeLabelLines } from "lightweight-charts-drawing/core/scene/ranges";
+import { rangeArrowPath } from "lightweight-charts-drawing/core/scene/lines";
 import { signpostPositionFor } from "lightweight-charts-drawing/core/kinds/signpost";
 import { TEXT_PLACEHOLDER } from "lightweight-charts-drawing/core/kinds/text-tools";
 import { tableAnchors, tableCanRemove, tableHitCell, tableInsert, tableLayout, tableNextCell, tableRemove, tableWithText, TABLE_BORDER, TABLE_LINE_HEIGHT, TABLE_PAD, type TableCellRef, type TableLayout } from "lightweight-charts-drawing/core/kinds/table";
@@ -61,7 +60,7 @@ import { setTableUi, tableUi } from "./table-ui";
 import { drawingImageFailed, imageInitialSize, IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { imagesVersion, saveDrawingImage } from "./image-store";
 import { ImageDialog } from "./ImageDialog";
-import { barsBetween, vwapLastValue } from "lightweight-charts-drawing/core/kinds/data-series";
+import { vwapLastValue } from "lightweight-charts-drawing/core/kinds/data-series";
 import { SelectedToolbar } from "./SelectedToolbar";
 import { DrawingContextMenu } from "./DrawingContextMenu";
 import { SettingsDialog } from "./SettingsDialog";
@@ -149,6 +148,11 @@ type Props = {
 
 /** Fallback stroke for the rubber-band placement preview (no drawing yet). */
 const PREVIEW_STROKE = "#2962ff";
+// Measure ruler: label fill (the box is the same colour at 20 %) and line
+// colour per direction; fill of the measured range on the scales.
+const MEASURE_UP = { label: "#2962ff", line: "#1e53e5" };
+const MEASURE_DOWN = { label: "#f7525f", line: "#f7525f" };
+const MEASURE_AXIS_HIGHLIGHT = "rgba(41, 98, 255, 0.25)";
 
 
 /** Last pointer position in viewport coords. The overlay SVG ignores the
@@ -378,7 +382,11 @@ export function DrawingsOverlay(props: Props) {
   // The second click also returns to the cursor. `region` holds the live rect
   // (zoom drag, or the measure rubber-band between its two clicks).
   const [region, setRegion] = createSignal<{ start: Pt; end: Pt } | null>(null);
-  const [measureResult, setMeasureResult] = createSignal<{ start: Pt; end: Pt } | null>(null);
+  // A finished ruler: its pane and its two points as data, so it follows pan
+  // and zoom like a drawing.
+  const [measureResult, setMeasureResult] = createSignal<{ key: string | null; a: DataPoint; b: DataPoint } | null>(null);
+  // Pane of the measure in progress (the pane of its first click).
+  const [measureKey, setMeasureKey] = createSignal<string | null>(null);
   // First (committed) point of an in-progress two-click measure, as a SCREEN
   // point already magnet-snapped at click time. Null between measurements.
   const [measureStart, setMeasureStart] = createSignal<Pt | null>(null);
@@ -408,24 +416,48 @@ export function DrawingsOverlay(props: Props) {
     onCleanup(() => window.removeEventListener("pointerdown", onPress, true));
   });
 
+  /** A pointer position kept inside the drawing area: while a region tool is
+   *  armed the overlay also takes the pointer over the price and time scales,
+   *  and a ruler or zoom box must not reach them. */
+  function plotPoint(e: PointerEvent): Pt {
+    const p = eventPoint(svg, e);
+    const { w, h } = chartDims();
+    return { x: Math.min(Math.max(p.x, 0), w), y: Math.min(Math.max(p.y, 0), h) };
+  }
+
   /** Measure tool — two-click placement. First click commits the
    *  start point (magnet-snapped); the rubber-band follows the cursor; the
    *  second click commits the ruler. Each point runs through the magnet via
    *  `aimAt`, so it locks onto the nearest OHLC level just like a drawing. */
+  /** Pointer position of a measure in pane `f`: kept inside the pane,
+   *  magnet-snapped, in overlay coordinates. */
+  function measurePoint(e: PointerEvent, f: Frame): Pt {
+    const q = aimAt(toLocalClamped(eventPoint(svg, e), f), f).pt;
+    return { x: q.x, y: q.y + f.top };
+  }
+
   function onMeasureClick(e: PointerEvent) {
-    const pt = aimAt(eventPoint(svg, e)).pt;
     const start = measureStart();
     if (!start) {
-      // First click: drop the previous ruler and arm the second click.
+      // First click: drop the previous ruler and arm the second click. The
+      // ruler lives in the pane of this click.
+      const f = frameAt(plotPoint(e)) ?? mainFrame();
+      if (!f) return;
+      const pt = measurePoint(e, f);
       setMeasureResult(null);
+      setMeasureKey(f.key);
       setMeasureStart(pt);
       setRegion({ start: pt, end: pt });
       return;
     }
     // Second click: commit the ruler (ignore a zero-size double-tap) and
     // return to the cursor.
-    if (Math.hypot(pt.x - start.x, pt.y - start.y) > 3) {
-      setMeasureResult({ start, end: pt });
+    const f = frameByKey(measureKey());
+    const pt = f ? measurePoint(e, f) : start;
+    if (f && Math.hypot(pt.x - start.x, pt.y - start.y) > 3) {
+      const a = unproject(f.coords, toLocal(start, f));
+      const b = unproject(f.coords, toLocal(pt, f));
+      if (a && b) setMeasureResult({ key: f.key, a, b });
     }
     setMeasureStart(null);
     setRegion(null);
@@ -434,10 +466,10 @@ export function DrawingsOverlay(props: Props) {
 
   // Zoom press-drag-release (Measure no longer uses this — it's two-click).
   function startRegion(e: PointerEvent) {
-    const sp = eventPoint(svg, e);
+    const sp = plotPoint(e);
     setRegion({ start: sp, end: sp });
     const onDocMove = (ev: PointerEvent) => {
-      setRegion((r) => (r ? { start: r.start, end: eventPoint(svg, ev) } : null));
+      setRegion((r) => (r ? { start: r.start, end: plotPoint(ev) } : null));
     };
     const onDocUp = () => {
       document.removeEventListener("pointermove", onDocMove);
@@ -1094,7 +1126,9 @@ export function DrawingsOverlay(props: Props) {
     // Measure (two-click): once the first point is down, the rubber-band rect
     // tracks the cursor (magnet-snapped) until the second click commits it.
     if (props.armedTool === "measure" && measureStart()) {
-      const end = aimAt(eventPoint(svg, e)).pt;
+      const f = frameByKey(measureKey());
+      if (!f) return;
+      const end = measurePoint(e, f);
       setRegion((r) => (r ? { start: r.start, end } : null));
       return;
     }
@@ -1570,45 +1604,94 @@ export function DrawingsOverlay(props: Props) {
     );
   }
 
-  /** Measure ruler — a green/red box from start→end with a centered badge
-   *  showing the price delta + %, bar count, and duration. Ephemeral (not a
-   *  saved drawing); a transient measure tool. */
-  function renderMeasure(start: Pt, end: Pt): import("solid-js").JSX.Element {
-    const c = props.coords;
-    if (!c) return null;
+  /** Measure ruler (not a saved drawing): a filled box between the two points,
+   *  blue when the price goes up and red when it goes down, a horizontal and a
+   *  vertical line through its middle (arrow at the end point when at least
+   *  50 px long), and a label: price change (percent) pips / bars, time span /
+   *  volume (main pane only). Drawn in its pane `f` (points in the pane's own
+   *  space); the measured range is highlighted on the price and time scales. */
+  function renderMeasure(f: Frame, start: Pt, end: Pt): import("solid-js").JSX.Element {
+    const c = f.coords;
     const sd = unproject(c, start);
     const ed = unproject(c, end);
     if (!sd || !ed) return null;
     const up = ed.price >= sd.price;
-    const color = up ? "#089981" : "#f23645";
+    const tone = up ? MEASURE_UP : MEASURE_DOWN;
     const x = Math.min(start.x, end.x);
     const y = Math.min(start.y, end.y);
     const w = Math.abs(end.x - start.x);
     const h = Math.abs(end.y - start.y);
-    const cx = x + w / 2;
-    const priceLabel = formatPriceDelta(sd.price, ed.price);
-    const sa = timeToSec(sd.time);
-    const sb = timeToSec(ed.time);
-    const barCount = sa != null && sb != null ? Math.max(0, barsBetween(c.bars(), sa, sb).length - 1) : 0;
-    const timeLabel = formatTimeDelta(sd.time, ed.time);
-    const subLabel = timeLabel ? `${barCount} bars, ${timeLabel}` : `${barCount} bars`;
-    const bw = Math.max(120, priceLabel.length * 7.5, subLabel.length * 6.5);
-    const bh = 34;
-    const bx = cx - bw / 2;
-    // Badge above the box, flipped below when it would clip the top edge.
-    const by = y - bh - 8 < 0 ? y + h + 8 : y - bh - 8;
+    const cx = (start.x + end.x) / 2;
+    const midX = Math.round(cx);
+    const midY = Math.round((start.y + end.y) / 2);
+    // First line: change (percent) pips, the change and the pips with
+    // thousands separators and the U+2212 minus sign; then the bars, time
+    // span and volume lines of the range tools.
+    const pip = c.pipSize() || 0.01;
+    const digits = Math.max(0, Math.min(8, Math.round(-Math.log10(pip))));
+    const grouped = (v: number, dg: number) =>
+      `${v < 0 ? "−" : ""}${Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: dg, maximumFractionDigits: dg })}`;
+    const change = ed.price - sd.price;
+    const pct = sd.price !== 0 ? Math.round(((100 * change) / Math.abs(sd.price)) * 100) / 100 : 0;
+    const lines = [
+      `${grouped(change, digits)} (${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%) ${grouped(Math.round(change / pip), 0)}`,
+      ...rangeLabelLines({ points: [sd, ed] } as Drawing, { showVolume: f.key === null } as Drawing["style"], c, false, true),
+    ];
+    const fs = 12;
+    const pad = 9;
+    const bw = Math.max(0, ...lines.map((l) => measureText(l, fs))) + pad * 2;
+    const bh = fs * lines.length + 8 * Math.max(0, lines.length - 1) + pad * 2;
+    // Label centred on the box, 10 px past the end point (above when the ruler
+    // goes up, below when it goes down); moved to the other side when it
+    // would leave the pane and fits there, else held at the edge.
+    const area = chartDims();
+    const paneH = f.dims.h;
+    const half = bh / 2;
+    const off = 10 + half;
+    let cy: number;
+    if (start.y > end.y) {
+      cy = y - off;
+      const over = half - cy;
+      if (over > 0) cy = y + h + off + half <= paneH ? y + h + off : cy + over;
+    } else {
+      cy = y + h + off;
+      const over = cy + half - paneH;
+      if (over > 0) cy = y - off - half >= 0 ? y - off : cy - over;
+    }
+    const by = cy - half;
+    const sz = size();
     return (
       <g pointer-events="none">
-        <rect x={x} y={y} width={w} height={h} fill={color} fill-opacity={0.15} stroke={color} stroke-width={1} />
-        {/* direction arrow from start price to end price */}
-        <line x1={cx} y1={up ? y + h : y} x2={cx} y2={up ? y : y + h} stroke={color} stroke-width={1.5} />
-        <rect x={bx} y={by} width={bw} height={bh} rx={4} fill={color} />
-        <text x={cx} y={by + 14} text-anchor="middle" fill="#ffffff" font-size="12" font-weight="600">
-          {priceLabel}
-        </text>
-        <text x={cx} y={by + 28} text-anchor="middle" fill="#ffffff" font-size="11">
-          {subLabel}
-        </text>
+        {/* Measured range on the time scale and on the price scale. */}
+        <Show when={sz.h > area.h}>
+          <rect x={x} y={area.h} width={w} height={sz.h - area.h} fill={MEASURE_AXIS_HIGHLIGHT} />
+        </Show>
+        <Show when={sz.w > area.w}>
+          <rect x={area.w} y={f.top + y} width={sz.w - area.w} height={h} fill={MEASURE_AXIS_HIGHLIGHT} />
+        </Show>
+        <g clip-path={`url(#${f.clip})`}>
+          <g transform={f.top ? `translate(0 ${f.top})` : undefined}>
+          <rect x={x} y={y} width={w} height={h} fill={tone.label} fill-opacity={0.2} />
+          <line x1={start.x} y1={midY} x2={end.x} y2={midY} stroke={tone.line} stroke-width={1} />
+          <line x1={midX} y1={start.y} x2={midX} y2={end.y} stroke={tone.line} stroke-width={1} />
+          <Show when={w >= 50}>
+            <path d={rangeArrowPath({ x: start.x, y: midY }, { x: end.x, y: midY }, 1)} fill="none" stroke={tone.line} stroke-width={1} />
+          </Show>
+          <Show when={h >= 50}>
+            <path d={rangeArrowPath({ x: midX, y: start.y }, { x: midX, y: end.y }, 1)} fill="none" stroke={tone.line} stroke-width={1} />
+          </Show>
+          <Show when={lines.length > 0}>
+            <rect x={cx - bw / 2} y={by} width={bw} height={bh} rx={4} fill={tone.label} />
+            <For each={lines}>
+              {(line, i) => (
+                <text x={cx} y={by + pad + i() * (fs + 8) + fs / 2} text-anchor="middle" dominant-baseline="central" fill="#ffffff" font-size={String(fs)}>
+                  {line}
+                </text>
+              )}
+            </For>
+          </Show>
+          </g>
+        </g>
       </g>
     );
   }
@@ -1635,11 +1718,22 @@ export function DrawingsOverlay(props: Props) {
           stroke-width={1}
           stroke-dasharray="4 4"
           pointer-events="none"
+          clip-path={`url(#${paneClipId}-all)`}
         />
       );
     }
-    const m = tool === "measure" && live ? live : measureResult();
-    return m ? renderMeasure(m.start, m.end) : null;
+    if (tool === "measure" && live) {
+      const f = frameByKey(measureKey());
+      return f ? renderMeasure(f, toLocal(live.start, f), toLocal(live.end, f)) : null;
+    }
+    const m = measureResult();
+    const f = m ? frameByKey(m.key) : null;
+    if (!m || !f) return null;
+    void props.coordEpoch; // re-project on pan / zoom
+    void size();
+    const a = projectPoint(f.coords, m.a);
+    const b = projectPoint(f.coords, m.b);
+    return a && b ? renderMeasure(f, a, b) : null;
   }
 
   function svgCursor(): string | undefined {
