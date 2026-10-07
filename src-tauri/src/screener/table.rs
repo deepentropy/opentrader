@@ -5,6 +5,7 @@
  * never waits on the network.
  */
 use crate::data::massive_rest::{MarketRow, RefTicker};
+use crate::data::ticker_case;
 use crate::screener::clock;
 use crate::screener::state::StateFile;
 use chrono::NaiveDate;
@@ -77,7 +78,7 @@ impl Table {
         let updated_ms = market.iter().map(|m| m.updated_ms).filter(|t| *t > 0.0).reduce(f64::max);
         let rows = market
             .into_iter()
-            .map(|m| {
+            .map(|mut m| {
                 let r = ref_idx.get(m.ticker.as_str()).copied();
                 let st = st_idx.as_ref().and_then(|ix| ix.get(m.ticker.as_str()).copied());
                 let shown = if m.live { clock::ny_date_ms(m.updated_ms) } else { quiet_day };
@@ -87,6 +88,9 @@ impl Table {
                     }
                     _ => Join::Missing,
                 };
+                // The reference list and the state are keyed by the source's
+                // spelling; from here on the row carries the app's name.
+                m.ticker = ticker_case::to_app(&m.ticker);
                 Row { m, r, st, join }
             })
             .collect();

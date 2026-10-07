@@ -50,6 +50,7 @@ use crate::data::massive_rest::Candle;
 use crate::data::provider::capabilities::StreamCaps;
 use crate::data::provider::entitlements;
 use crate::data::symbol::SymbolRef;
+use crate::data::ticker_case;
 use anyhow::{anyhow, Context, Result};
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -235,9 +236,10 @@ impl SubscriptionState {
     }
 }
 
-/// Vendor ticker of a full name ("NASDAQ:AAPL" → "AAPL").
+/// Vendor ticker of a full name ("NASDAQ:AAPL" → "AAPL", "NYSE:BAC/PB" →
+/// "BACpB": the vendor's spelling, see `ticker_case`).
 fn ticker_of(symbol: &str) -> String {
-    SymbolRef::parse(symbol).ticker
+    ticker_case::to_source(&SymbolRef::parse(symbol).ticker)
 }
 
 /// State managed by the connection task — exposed via app state so the

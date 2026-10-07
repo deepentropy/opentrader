@@ -3607,7 +3607,7 @@ export function ChartView(props: Props) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${ticker}.png`;
+        a.download = `${ticker.replace(/[\/:*?"<>|]/g, "_")}.png`;
         a.click();
         URL.revokeObjectURL(url);
       }, "image/png");

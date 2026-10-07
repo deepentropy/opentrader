@@ -21,7 +21,7 @@ use crate::data::types::{
 };
 use crate::data::session::{Subsession, SymbolSession};
 use crate::data::symbol::SymbolRef;
-use crate::data::{daily_archive, gateway, massive_poll, massive_rest, massive_ws, trading_calendar};
+use crate::data::{daily_archive, gateway, massive_poll, ticker_case, massive_rest, massive_ws, trading_calendar};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate, Utc};
 use std::sync::OnceLock;
@@ -38,10 +38,10 @@ impl HistoryProvider for MassiveProvider {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_daily_aggs(&sym.ticker, from, to, adjusted).await
+        massive_rest::fetch_daily_aggs(&ticker_case::to_source(&sym.ticker), from, to, adjusted).await
     }
     async fn daily_archive(&self, sym: &SymbolRef, adjusted: bool) -> Result<Vec<Candle>> {
-        daily_archive::daily_bars(&sym.ticker, adjusted).await
+        daily_archive::daily_bars(&ticker_case::to_source(&sym.ticker), adjusted).await
     }
     async fn minute_aggs(
         &self,
@@ -51,7 +51,7 @@ impl HistoryProvider for MassiveProvider {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_minute_aggs(&sym.ticker, mult, from, to, adjusted).await
+        massive_rest::fetch_minute_aggs(&ticker_case::to_source(&sym.ticker), mult, from, to, adjusted).await
     }
     async fn second_aggs(
         &self,
@@ -61,7 +61,7 @@ impl HistoryProvider for MassiveProvider {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_second_aggs(&sym.ticker, mult, from, to, adjusted).await
+        massive_rest::fetch_second_aggs(&ticker_case::to_source(&sym.ticker), mult, from, to, adjusted).await
     }
     async fn second_tail(
         &self,
@@ -70,14 +70,17 @@ impl HistoryProvider for MassiveProvider {
         since_sec: f64,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_second_tail(&sym.ticker, mult, since_sec, adjusted).await
+        massive_rest::fetch_second_tail(&ticker_case::to_source(&sym.ticker), mult, since_sec, adjusted).await
     }
 }
 
 #[async_trait::async_trait]
 impl ReferenceProvider for MassiveProvider {
     async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo> {
-        massive_rest::fetch_ticker_info(&sym.ticker).await
+        // Answered under the app's name, not the source's spelling.
+        let mut info = massive_rest::fetch_ticker_info(&ticker_case::to_source(&sym.ticker)).await?;
+        info.ticker = sym.ticker.clone();
+        Ok(info)
     }
     async fn symbol_session(&self, sym: &SymbolRef) -> Result<SymbolSession> {
         let mut session = us_equity_session();
@@ -87,7 +90,9 @@ impl ReferenceProvider for MassiveProvider {
         Ok(session)
     }
     async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot> {
-        massive_rest::fetch_ticker_snapshot(&sym.ticker).await
+        let mut snapshot = massive_rest::fetch_ticker_snapshot(&ticker_case::to_source(&sym.ticker)).await?;
+        snapshot.ticker = sym.ticker.clone();
+        Ok(snapshot)
     }
     async fn search(
         &self,
@@ -97,13 +102,13 @@ impl ReferenceProvider for MassiveProvider {
         massive_rest::search_tickers(query, type_filter).await
     }
     async fn dividends(&self, sym: &SymbolRef) -> Vec<DividendEvent> {
-        massive_rest::dividend_events(&sym.ticker).await
+        massive_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn splits(&self, sym: &SymbolRef) -> Vec<SplitEvent> {
-        massive_rest::split_events(&sym.ticker).await
+        massive_rest::split_events(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem> {
-        massive_rest::latest_news(&sym.ticker, limit).await
+        massive_rest::latest_news(&ticker_case::to_source(&sym.ticker), limit).await
     }
     async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)> {
         massive_rest::fetch_icon(encoded).await

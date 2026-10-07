@@ -7,5 +7,6 @@ pub mod massive_ws;
 pub mod provider;
 pub mod session;
 pub mod symbol;
+pub mod ticker_case;
 pub mod trading_calendar;
 pub mod types;

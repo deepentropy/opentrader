@@ -17,7 +17,7 @@
  * date ranges so this shouldn't happen for the favorited intervals.
  */
 use crate::data::gateway::{self, BASE, NO_TOKEN};
-use crate::data::trading_calendar;
+use crate::data::{ticker_case, trading_calendar};
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, NaiveDate, Utc, Weekday};
 use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
@@ -566,7 +566,7 @@ static SPLITS: DayMemo<String, Vec<Split>> = OnceLock::new();
 /// Memoised already-executed splits for `ticker` (newest-first), or `None` on a
 /// lookup failure.
 pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
-    let ticker = ticker.to_uppercase();
+    let ticker = ticker.to_string();
     let memo = SPLITS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
     {
@@ -622,7 +622,7 @@ static DIVIDENDS: DayMemo<String, Vec<DividendEvent>> = OnceLock::new();
 
 /// Ex-dividend markers for `ticker` (newest-first); empty on any lookup failure.
 pub async fn dividend_events(ticker: &str) -> Vec<DividendEvent> {
-    let ticker = ticker.to_uppercase();
+    let ticker = ticker.to_string();
     let memo = DIVIDENDS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
     {
@@ -716,7 +716,8 @@ async fn fetch_aggs_cached(
     adjusted: bool,
 ) -> Result<Vec<Candle>> {
     let mult = mult.max(1);
-    let ticker = ticker.to_uppercase();
+    // The source's spelling (case-sensitive, see `ticker_case`).
+    let ticker = ticker.to_string();
     let today = trading_calendar::ny_today();
     remove_legacy_cache_once();
     // Adjusted and raw bars are different series — namespace them apart so a
@@ -1056,10 +1057,10 @@ struct SearchRow {
 /// (a prefix range), never the company name: `search=` fuzzy-matches both and
 /// can't disable the name side, so it pulls in noise like "Maui Land & Pineapple"
 /// for a query of "apple". A `[gte, lte]` ticker range gives a pure prefix match:
-/// the upper bound is the query padded with 'Z's — 'Z' sorts at/above every char
-/// Massive allows in a ticker (A–Z, 0–9, '.', ':', '-' all sort ≤ 'Z'), so the
-/// range captures exactly the tickers starting with the prefix. ('~' would sort
-/// higher but Massive rejects it as an invalid ticker character.) An optional
+/// the upper bound is the query padded with 'z's — 'z' sorts at/above every char
+/// Massive allows in a ticker (A–Z, a–z, 0–9, '.', ':', '-' all sort ≤ 'z'), so
+/// the range captures exactly the tickers starting with the prefix. ('~' would
+/// sort higher but Massive rejects it as an invalid ticker character.) An optional
 /// `type_filter` constrains to a security type.
 pub async fn search_tickers(
     query: &str,
@@ -1072,10 +1073,13 @@ pub async fn search_tickers(
     // rows when a prefix genuinely has many (narrow prefixes still return few),
     // and `liveResultsToRows` ranks then slices to a display-sized list.
     let limit = "1000";
-    // Tickers are uppercase; uppercase the query so the range matches. The 'Z'
-    // padding length comfortably exceeds any real ticker's tail.
-    let prefix = query.trim().to_uppercase();
-    let prefix_end = format!("{prefix}ZZZZZZ");
+    // The query is an app name (upper case, a share-class marker written
+    // "/P"): the range runs on the source's spelling ("BAC/P" → "BACp"). A
+    // slash still waiting for its letter is dropped. The 'z' padding sorts
+    // at/above every ticker character, lower-case markers included, and its
+    // length comfortably exceeds any real ticker's tail.
+    let prefix = ticker_case::to_source(query.trim().to_uppercase().trim_end_matches('/'));
+    let prefix_end = format!("{prefix}zzzzzz");
     let mut params: Vec<(&str, &str)> = vec![
         ("ticker.gte", prefix.as_str()),
         ("ticker.lte", prefix_end.as_str()),
@@ -1102,11 +1106,12 @@ pub async fn search_tickers(
             body.error.unwrap_or_default()
         ));
     }
+    // Rows carry the app's name of a ticker ("BACpB" → "BAC/PB").
     Ok(body
         .results
         .into_iter()
         .map(|r| SymbolSearchResult {
-            ticker: r.ticker,
+            ticker: ticker_case::to_app(&r.ticker),
             name: r.name,
             market: r.market,
             locale: r.locale,
@@ -1344,10 +1349,7 @@ pub async fn fetch_ticker_snapshot(ticker: &str) -> Result<Snapshot> {
         .ticker
         .ok_or_else(|| anyhow!("massive snapshot: no ticker for {ticker}"))?;
     let prior_close = if is_closed(&t) {
-        prior_session_closes(token)
-            .await
-            .get(&ticker.to_uppercase())
-            .copied()
+        prior_session_closes(token).await.get(ticker).copied()
     } else {
         None
     };
@@ -1429,18 +1431,14 @@ struct MinBar {
 }
 
 /// Fetch delayed snapshots for many tickers in a single request. Tickers
-/// are uppercased and comma-joined. Returns one `LiveTick` per ticker the
+/// (the source's spelling) are comma-joined. Returns one `LiveTick` per ticker the
 /// API knows about (unknown / halted tickers are simply omitted).
 pub async fn fetch_snapshots(tickers: &[String]) -> Result<Vec<LiveTick>> {
     if tickers.is_empty() {
         return Ok(Vec::new());
     }
     let token = gateway::token().context(NO_TOKEN)?;
-    let joined = tickers
-        .iter()
-        .map(|t| t.to_uppercase())
-        .collect::<Vec<_>>()
-        .join(",");
+    let joined = tickers.join(",");
     let url = format!(
         "{BASE}/v2/snapshot/locale/us/markets/stocks/tickers\
          ?tickers={joined}&apiKey={token}"
@@ -1473,9 +1471,7 @@ pub async fn fetch_snapshots(tickers: &[String]) -> Result<Vec<LiveTick>> {
         .iter()
         .filter_map(|t| {
             let prior_close = if is_closed(t) {
-                prior
-                    .as_ref()
-                    .and_then(|m| m.get(&t.ticker.to_uppercase()).copied())
+                prior.as_ref().and_then(|m| m.get(&t.ticker).copied())
             } else {
                 None
             };
@@ -1568,7 +1564,7 @@ pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
         .filter_map(|t| {
             let closed = is_closed(t);
             let prior_close = if closed {
-                prior.as_ref().and_then(|m| m.get(&t.ticker.to_uppercase()).copied())
+                prior.as_ref().and_then(|m| m.get(&t.ticker).copied())
             } else {
                 None
             };
