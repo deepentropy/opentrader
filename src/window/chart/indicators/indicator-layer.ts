@@ -393,6 +393,12 @@ export class IndicatorLayer {
       .filter((def) => plots[def.id]?.length && this.drawnByRenderer(def, overrides[def.id], result))
       .map((def) => ({ def, style: overrides[def.id].style ?? def.style ?? 'line' }));
     const plotCount = drawn.filter((d) => !ANCHOR_STYLES.has(d.style)).length;
+    // A study on the symbol's price scale with the default precision writes
+    // its values like the symbol (thousands separators, tick decimals): the
+    // scale takes its number format from one of its series, so a second
+    // format on it would change the labels and the scale width.
+    const mainFormat = this.paneIndex === 0 && !ownScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
+    if (mainFormat) for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat: mainFormat });
     let k = 0;
     let a = plotCount;
     for (const { def, style } of drawn) {

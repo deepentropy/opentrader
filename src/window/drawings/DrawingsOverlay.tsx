@@ -83,6 +83,9 @@ type Props = {
   panes?: DrawingPane[];
   /** Bumped on time-scale changes; the overlay re-renders to re-project. */
   coordEpoch: number;
+  /** Width of a price scale on the LEFT of the plot (0 = none): the overlay
+   *  starts after it, so x = 0 is the plot's left edge. */
+  leftInset?: number;
   drawings: Drawing[];
   armedTool: string | null;
   /** Cursor-group interaction mode. `eraser` removes drawings under the pointer
@@ -368,8 +371,9 @@ export function DrawingsOverlay(props: Props) {
   // ── Region tools (Measure / Zoom in) ──────────────────────────────────────
   // Zoom is a transient press-drag-release rectangle (applies a chart zoom on
   // release). Measure is a two-click gesture (click the first point, move,
-  // click the second) that leaves an ephemeral price/bars/% ruler until Escape
-  // or a tool switch — NOT a persisted drawing. `region` holds the live rect
+  // click the second) that leaves an ephemeral price/bars/% ruler until the
+  // next press on the chart, Escape or another tool — NOT a persisted drawing.
+  // The second click also returns to the cursor. `region` holds the live rect
   // (zoom drag, or the measure rubber-band between its two clicks).
   const [region, setRegion] = createSignal<{ start: Pt; end: Pt } | null>(null);
   const [measureResult, setMeasureResult] = createSignal<{ start: Pt; end: Pt } | null>(null);
@@ -380,14 +384,26 @@ export function DrawingsOverlay(props: Props) {
     const t = props.armedTool;
     return t === "measure" || t === "zoom" ? t : null;
   };
-  // Clear the ephemeral ruler + any half-placed measure when leaving the Measure
-  // tool; drop a stray live region whenever no region tool is armed.
+  // Drop any half-placed measure when leaving the Measure tool, and the ruler
+  // when another tool is armed (a finished ruler outlives the tool, which
+  // returns to the cursor); drop a stray live region whenever no region tool
+  // is armed.
   createEffect(() => {
     if (props.armedTool !== "measure") {
-      setMeasureResult(null);
+      if (props.armedTool) setMeasureResult(null);
       setMeasureStart(null);
     }
     if (!regionTool()) setRegion(null);
+  });
+  // The next press on the chart removes a finished ruler.
+  onMount(() => {
+    const onPress = (e: PointerEvent) => {
+      if (!measureResult() || props.armedTool === "measure") return;
+      const root = svg?.parentElement;
+      if (root && e.target instanceof Node && root.contains(e.target)) setMeasureResult(null);
+    };
+    window.addEventListener("pointerdown", onPress, true);
+    onCleanup(() => window.removeEventListener("pointerdown", onPress, true));
   });
 
   /** Measure tool — two-click placement. First click commits the
@@ -404,13 +420,14 @@ export function DrawingsOverlay(props: Props) {
       setRegion({ start: pt, end: pt });
       return;
     }
-    // Second click: commit the ruler (ignore a zero-size double-tap) and reset
-    // for the next measurement. The tool stays armed.
+    // Second click: commit the ruler (ignore a zero-size double-tap) and
+    // return to the cursor.
     if (Math.hypot(pt.x - start.x, pt.y - start.y) > 3) {
       setMeasureResult({ start, end: pt });
     }
     setMeasureStart(null);
     setRegion(null);
+    props.onDisarm();
   }
 
   // Zoom press-drag-release (Measure no longer uses this — it's two-click).
@@ -1125,6 +1142,8 @@ export function DrawingsOverlay(props: Props) {
           setRegion(null);
         } else if (props.armedTool) {
           props.onDisarm();
+        } else if (measureResult()) {
+          setMeasureResult(null);
         } else if (props.selectedId) {
           props.setSelectedId(null);
         }
@@ -1710,8 +1729,8 @@ export function DrawingsOverlay(props: Props) {
       style={{
         position: "absolute",
         top: "0",
-        left: "0",
-        width: "100%",
+        left: `${props.leftInset ?? 0}px`,
+        width: `calc(100% - ${props.leftInset ?? 0}px)`,
         height: "100%",
         "pointer-events":
           armedSpec() || regionTool() || cmode() === "eraser"
@@ -1895,7 +1914,9 @@ export function DrawingsOverlay(props: Props) {
             const pts = screenPoints(f.coords, d, f.dims);
             return pts ? { c: f.coords, pts, f } : null;
           });
-          return <Show when={view()}>{(v) => renderAxisParts(d, v().pts, chartDims(), size().w, v().c, v().f.top)}</Show>;
+          // Keyed: the parts are built from one projection, so each new one
+          // (pan, zoom, resize) rebuilds them.
+          return <Show when={view()} keyed>{(v) => renderAxisParts(d, v.pts, chartDims(), size().w, v.c, v.f.top)}</Show>;
         }}
       </For>
       {highlighterElement()}

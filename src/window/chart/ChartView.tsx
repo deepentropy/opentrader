@@ -267,6 +267,9 @@ type Props = {
 /** Scroll-back: when the visible range's left edge comes within this many bars
  *  of index 0, page one older window in and prepend it (mirrors the mock). */
 const LOAD_MORE_THRESHOLD = 12;
+/** Length of the logical range that shows bars `spacing` px wide on a
+ *  `width` px time scale: a range of length L draws L + 1 bars. */
+const barsSpan = (width: number, spacing: number) => width / spacing - 1;
 /** Fewest bars a restored saved view may show. A narrower range is the 1-bar
  *  collapse the old sync path could persist, not a user choice. Same floor as
  *  the wheel zoom (onWheel). */
@@ -1072,7 +1075,7 @@ export function ChartView(props: Props) {
     const ts = chart.timeScale();
     const len = series?.data().length ?? 0;
     if (len > 0) {
-      const span = ts.width() / DEFAULT_BAR_SPACING;
+      const span = barsSpan(ts.width(), DEFAULT_BAR_SPACING);
       const to = len - 1 + t.rightOffset;
       ts.setVisibleLogicalRange({ from: to - span, to });
     }
@@ -1982,7 +1985,7 @@ export function ChartView(props: Props) {
       const spacing = c0 != null && c1 != null ? Math.abs((c1 as number) - (c0 as number)) : 6;
       if (idx != null && spacing > 0) {
         const ro = currentTokens().rightOffset;
-        ts.setVisibleLogicalRange({ from: (idx as number) + ro - ts.width() / spacing, to: (idx as number) + ro });
+        ts.setVisibleLogicalRange({ from: (idx as number) + ro - barsSpan(ts.width(), spacing), to: (idx as number) + ro });
       }
     } else if (savedRange) {
       chart.timeScale().setVisibleLogicalRange({ from: savedRange.from, to: savedRange.to });
@@ -4116,11 +4119,11 @@ export function ChartView(props: Props) {
         let hi = raw.length;
         while (lo < hi) { const mid = (lo + hi) >> 1; if ((raw[mid].time as number) < keep.leftTime) lo = mid + 1; else hi = mid; }
         const from = lo;
-        ts.setVisibleLogicalRange({ from, to: from + ts.width() / keep.barSpacing });
+        ts.setVisibleLogicalRange({ from, to: from + barsSpan(ts.width(), keep.barSpacing) });
         framed = `keep-left bs=${keep.barSpacing.toFixed(2)} left=${keep.leftTime}`;
       } else {
         const to = raw.length - 1 + keep.rightOffset;
-        ts.setVisibleLogicalRange({ from: to - ts.width() / keep.barSpacing, to });
+        ts.setVisibleLogicalRange({ from: to - barsSpan(ts.width(), keep.barSpacing), to });
         framed = `keep bs=${keep.barSpacing.toFixed(2)} ro=${keep.rightOffset.toFixed(1)}`;
       }
     } else if (savedInBounds) {
@@ -5229,6 +5232,7 @@ export function ChartView(props: Props) {
         interval={props.interval}
         symbol={props.symbol ?? ""}
         coords={coords()}
+        leftInset={scaleGeom()?.left ? scaleGeom()!.w : 0}
         panes={drawingPanes()}
         coordEpoch={coordEpoch()}
         drawings={props.drawings ?? []}
