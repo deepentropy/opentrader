@@ -68,10 +68,17 @@ const ARCHIVE_MAX_HOLE_SECS: f64 = 366.0 * 86_400.0;
 /// `bars` with the archived sessions older than its first bar in front.
 /// Archived bars are kept from `from_sec` on, strictly before the first bar of
 /// `bars` (inside its window the live source wins), and only back to the first
-/// hole longer than [`ARCHIVE_MAX_HOLE_SECS`]. Both inputs oldest first.
-fn prepend_archive(bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64) -> Vec<Candle> {
+/// hole longer than [`ARCHIVE_MAX_HOLE_SECS`] or to the start of the current
+/// listing (`listed_sec`), whichever comes first. A listing date later than
+/// the first live bar is not a start of this series (the live source itself
+/// has older bars) and is ignored. Both inputs oldest first.
+fn prepend_archive(bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64, listed_sec: Option<f64>) -> Vec<Candle> {
     let Some(first) = bars.first().map(|b| b.time) else {
         return bars;
+    };
+    let from_sec = match listed_sec {
+        Some(listed) if listed <= first => from_sec.max(listed),
+        _ => from_sec,
     };
     let mut next = first;
     let mut older: Vec<Candle> = Vec::new();
@@ -120,8 +127,11 @@ pub async fn get_daily_history(
     // `adjusted`); closed sessions are then served from the per-day disk cache
     // on later loads. The sessions older than that series come from the daily
     // archive, read at the same time.
-    let (bars, archive) =
-        tokio::join!(provider.daily_aggs(&sym, from, to, adjusted), provider.daily_archive(&sym, adjusted));
+    let (bars, archive, listed) = tokio::join!(
+        provider.daily_aggs(&sym, from, to, adjusted),
+        provider.daily_archive(&sym, adjusted),
+        provider.listing_date(&sym),
+    );
     let bars = bars.map_err(|e| e.to_string())?;
     if bars.is_empty() {
         return Err(format!("no daily data for {sym} in last {days} days"));
@@ -130,8 +140,9 @@ pub async fn get_daily_history(
     // an archive, and is not memoised so the next load reads it again.
     let (bars, complete) = match archive {
         Ok(archive) => {
-            let from_sec = wanted_from.and_hms_opt(0, 0, 0).map_or(0.0, |dt| dt.and_utc().timestamp() as f64);
-            (prepend_archive(bars, archive, from_sec), true)
+            let midnight = |d: NaiveDate| d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp() as f64);
+            let from_sec = midnight(wanted_from).unwrap_or(0.0);
+            (prepend_archive(bars, archive, from_sec, listed.and_then(midnight)), true)
         }
         Err(e) => {
             eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
@@ -412,7 +423,7 @@ mod tests {
     /// series already covers are dropped.
     #[test]
     fn archive_is_joined_before_the_first_live_bar() {
-        let joined = prepend_archive(vec![bar(1003), bar(1004)], (1000..=1004).map(bar).collect(), 0.0);
+        let joined = prepend_archive(vec![bar(1003), bar(1004)], (1000..=1004).map(bar).collect(), 0.0, None);
         assert_eq!(days(&joined), vec![1000, 1001, 1002, 1003, 1004]);
     }
 
@@ -421,8 +432,8 @@ mod tests {
     #[test]
     fn archive_stops_at_a_long_hole() {
         let archive: Vec<Candle> = [100, 101, 102, 2000, 2001].into_iter().map(bar).collect();
-        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive.clone(), 0.0)), vec![2000, 2001, 2002]);
-        assert_eq!(days(&prepend_archive(vec![bar(5000)], archive, 0.0)), vec![5000]);
+        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive.clone(), 0.0, None)), vec![2000, 2001, 2002]);
+        assert_eq!(days(&prepend_archive(vec![bar(5000)], archive, 0.0, None)), vec![5000]);
     }
 
     /// Bars before the requested start are left out; no archive or no live
@@ -431,9 +442,21 @@ mod tests {
     fn archive_respects_the_requested_start() {
         let archive: Vec<Candle> = (1000..=1002).map(bar).collect();
         let from = (1001 * 86_400) as f64;
-        assert_eq!(days(&prepend_archive(vec![bar(1003)], archive.clone(), from)), vec![1001, 1002, 1003]);
-        assert_eq!(days(&prepend_archive(vec![bar(1003)], Vec::new(), 0.0)), vec![1003]);
-        assert!(prepend_archive(Vec::new(), archive, 0.0).is_empty());
+        assert_eq!(days(&prepend_archive(vec![bar(1003)], archive.clone(), from, None)), vec![1001, 1002, 1003]);
+        assert_eq!(days(&prepend_archive(vec![bar(1003)], Vec::new(), 0.0, None)), vec![1003]);
+        assert!(prepend_archive(Vec::new(), archive, 0.0, None).is_empty());
+    }
+
+    /// A symbol used again without a long hole: the bars before the current
+    /// listing's start are the earlier company's. A listing date after the
+    /// first live bar is no start of this series and changes nothing.
+    #[test]
+    fn archive_starts_at_the_listing_date() {
+        let archive: Vec<Candle> = (1000..=1005).map(bar).collect();
+        let day = |d: i64| Some((d * 86_400) as f64);
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, day(1003))), vec![1003, 1004, 1005, 1006]);
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, day(900))).len(), 7);
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive, 0.0, day(1010))).len(), 7);
     }
 
     /// Mid-week the window is just the prior `span_days` sessions — no surprises.
@@ -485,7 +508,7 @@ mod tests {
         eprintln!("overlap: {common} sessions, closes off by more than 0.5%: {off}, worst {:.4}%", worst * 100.0);
         assert!(common > 1000 && off == 0);
 
-        let joined = prepend_archive(live.clone(), archive, 0.0);
+        let joined = prepend_archive(live.clone(), archive, 0.0, None);
         let first = joined.first().unwrap();
         eprintln!(
             "joined: {} bars ({} live from {:?}), first {:?} close {:.4} volume {:.0}",

@@ -43,6 +43,9 @@ impl HistoryProvider for MassiveProvider {
     async fn daily_archive(&self, sym: &SymbolRef, adjusted: bool) -> Result<Vec<Candle>> {
         daily_archive::daily_bars(&ticker_case::to_source(&sym.ticker), adjusted).await
     }
+    async fn listing_date(&self, sym: &SymbolRef) -> Option<NaiveDate> {
+        massive_rest::listing_date(&ticker_case::to_source(&sym.ticker)).await
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,

@@ -53,6 +53,12 @@ pub trait HistoryProvider: Send + Sync {
     async fn daily_archive(&self, _sym: &SymbolRef, _adjusted: bool) -> Result<Vec<Candle>> {
         Ok(Vec::new())
     }
+    /// Date the symbol's current listing started, when the provider knows
+    /// it. A ticker symbol can be used again by another company: archived
+    /// bars older than this date belong to the earlier one.
+    async fn listing_date(&self, _sym: &SymbolRef) -> Option<NaiveDate> {
+        None
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,

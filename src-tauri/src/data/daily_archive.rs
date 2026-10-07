@@ -61,6 +61,10 @@ struct CachedFile {
 /// the day it was validated.
 static ARCHIVES: DayMemo<String, Option<Archive>> = OnceLock::new();
 
+/// Full file downloads of this run (a 304 is not one).
+#[cfg(test)]
+static FULL_DOWNLOADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// Forget the in-memory archives ("Clear cache").
 pub async fn clear_memo() {
     if let Some(m) = ARCHIVES.get() {
@@ -131,6 +135,8 @@ async fn load(ticker: &str) -> Result<Arc<Option<Archive>>> {
                 .map(|f| Some(f.bars.clone()))
                 .ok_or_else(|| anyhow!("daily archive: 304 without a cached file")),
             status if status.is_success() => {
+                #[cfg(test)]
+                FULL_DOWNLOADS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let etag = resp.headers().get(ETAG).and_then(|v| v.to_str().ok()).map(str::to_string);
                 let bars: Archive = resp.json().await.context("daily archive: parse response json")?;
                 if !bars.is_consistent() {
@@ -265,6 +271,46 @@ mod tests {
         assert_eq!(adjusted[0].volume.round(), 221_634_056.0);
         let raw = to_candles(&archive, None);
         assert_eq!((raw[0].close, raw[0].volume), (22.18, 3_957_751.0));
+    }
+
+    /// A split executed after the archive file was cached (network): the
+    /// displayed archive bars follow the new split list, from the memo and
+    /// again after a restart (memo dropped), without a new download of the
+    /// file. Run with:
+    ///   cargo test --lib split_after_cache_live -- --nocapture --ignored
+    #[tokio::test]
+    #[ignore = "hits the gateway; run explicitly"]
+    async fn split_after_cache_live() {
+        use std::sync::atomic::Ordering;
+        let ticker = "AAPL";
+        let before = daily_bars(ticker, true).await.unwrap();
+        let file = cache_path(ticker);
+        let written = std::fs::metadata(&file).unwrap().modified().unwrap();
+        let downloads = FULL_DOWNLOADS.load(Ordering::SeqCst);
+
+        // A 2:1 split executed yesterday, on top of the real list.
+        let mut splits: Vec<Split> = (*massive_rest::fetch_splits_cached(ticker).await.unwrap()).clone();
+        let yesterday = trading_calendar::ny_today() - chrono::Duration::days(1);
+        splits.insert(0, Split { execution_date: yesterday, from: 1.0, to: 2.0 });
+        massive_rest::set_splits_for_test(ticker, splits).await;
+
+        let after = daily_bars(ticker, true).await.unwrap();
+        clear_memo().await; // an app restart: the disk copy is revalidated (304)
+        let restarted = daily_bars(ticker, true).await.unwrap();
+        let raw = daily_bars(ticker, false).await.unwrap();
+        eprintln!(
+            "first bar close {:.4} volume {:.0} -> {:.4} / {:.0} (after restart {:.4}), raw {:.2}; full downloads during the test: {}",
+            before[0].close, before[0].volume, after[0].close, after[0].volume, restarted[0].close, raw[0].close,
+            FULL_DOWNLOADS.load(Ordering::SeqCst) - downloads,
+        );
+        assert_eq!(before.len(), after.len());
+        for (b, a) in before.iter().zip(&after) {
+            assert!((a.close - b.close / 2.0).abs() < 1e-9 && (a.volume - b.volume * 2.0).abs() < 1e-3);
+        }
+        assert!((restarted[0].close - after[0].close).abs() < 1e-12);
+        assert_eq!(raw[0].close, 22.18);
+        assert_eq!(FULL_DOWNLOADS.load(Ordering::SeqCst), downloads, "the file was downloaded again");
+        assert_eq!(std::fs::metadata(&file).unwrap().modified().unwrap(), written, "the cached file was rewritten");
     }
 
     #[test]

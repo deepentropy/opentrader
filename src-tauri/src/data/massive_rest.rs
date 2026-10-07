@@ -340,6 +340,9 @@ pub async fn clear_market_data_cache() -> Result<(), String> {
     if let Some(m) = DIVIDENDS.get() {
         m.lock().await.clear();
     }
+    if let Some(m) = LISTING_DATES.get() {
+        m.lock().await.clear();
+    }
     if let Some(m) = PRIOR_CLOSES.get() {
         *m.lock().await = None;
     }
@@ -589,6 +592,14 @@ pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
     }
     memo.lock().await.insert(ticker, (today, splits.clone()));
     Some(splits)
+}
+
+/// Test hook: replace the memoised split list of `ticker` (a split that
+/// executes after the archive file was cached).
+#[cfg(test)]
+pub(crate) async fn set_splits_for_test(ticker: &str, splits: Vec<Split>) {
+    let memo = SPLITS.get_or_init(|| Mutex::new(HashMap::new()));
+    memo.lock().await.insert(ticker.to_string(), (Utc::now().date_naive(), Arc::new(splits)));
 }
 
 /// Split markers for the chart (newest-first). Reuses the per-day splits memo.
@@ -843,6 +854,8 @@ struct RefResult {
     #[serde(default)]
     composite_figi: Option<String>,
     #[serde(default)]
+    list_date: Option<String>,
+    #[serde(default)]
     branding: Option<RefBranding>,
 }
 
@@ -925,6 +938,35 @@ async fn fetch_latest_news(ticker: &str, limit: u32) -> Option<Vec<NewsItem>> {
             })
             .collect(),
     )
+}
+
+/// Per-ticker, per-day memo of the listing date (`None` = the reference data
+/// has none).
+static LISTING_DATES: DayMemo<String, Option<NaiveDate>> = OnceLock::new();
+
+/// Date the current listing of `ticker` started, from its reference data.
+/// `None` when unknown or on a lookup failure (not memoised then).
+pub async fn listing_date(ticker: &str) -> Option<NaiveDate> {
+    let memo = LISTING_DATES.get_or_init(|| Mutex::new(HashMap::new()));
+    let today = Utc::now().date_naive();
+    if let Some((as_of, date)) = memo.lock().await.get(ticker) {
+        if *as_of == today {
+            return **date;
+        }
+    }
+    let token = gateway::token()?;
+    let url = format!("{BASE}/v3/reference/tickers/{ticker}?apiKey={token}");
+    let resp = http().get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let body: RefResponse = resp.json().await.ok()?;
+    let date = body
+        .results
+        .and_then(|r| r.list_date)
+        .and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
+    memo.lock().await.insert(ticker.to_string(), (today, Arc::new(date)));
+    date
 }
 
 pub async fn fetch_ticker_info(ticker: &str) -> Result<TickerInfo> {
