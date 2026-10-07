@@ -50,6 +50,9 @@ import { SessionBreaksPrimitive, computeSessionBoundaries } from "./session-brea
 import { SessionBackgroundsPrimitive, computeSessionRuns } from "./session-backgrounds";
 import { EventMarkersPrimitive } from "./event-markers";
 import { NEWS_LOLLIPOP_ID, NEWS_MAX_AGE_MS, NEWS_UPDATE_MS, NewsLollipopPrimitive, formatAgo, formatNewsDate } from "./news-lollipop";
+import { HISTORY_END_ICONS, HISTORY_END_ID, HISTORY_END_MIN_BARS, HistoryEndPrimitive, isDarkColor, type HistoryEndKind } from "./history-end-marker";
+import { providerCapabilities } from "../../data/providers/capabilities";
+import { showNotice } from "../../components/Dialogs";
 import { getLatestNews, type NewsItem } from "../../data/datafeed-rest";
 import { saveIndicatorDefault } from "../../data/indicator-defaults";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -723,6 +726,9 @@ export function ChartView(props: Props) {
    *  backend reports no older bars. Reset on symbol/interval change. */
   let loadingMore = false;
   let historyExhausted = false;
+  /** End-of-history icon left of the first bar, once history is exhausted. */
+  const historyEnd = new HistoryEndPrimitive();
+  let historyEndClose: (() => void) | null = null;
   /** Read-ahead buffer: the window older than the current oldest bar, fetched in
    *  the background after each load (and once after the initial load) so the
    *  next scroll-back prepends instantly instead of waiting on the network.
@@ -1725,6 +1731,47 @@ export function ChartView(props: Props) {
   function afterSeriesData() {
     syncBaseline();
     syncGradientLabel();
+    updateHistoryEnd();
+  }
+
+  /** End-of-history icon kind: none until scroll-back has nothing older; then
+   *  "limit" when the oldest bar sits on the data plan's history floor (within
+   *  a week), else "end" (with at least 400 bars). Hidden while the floor is
+   *  unknown. */
+  function historyEndKind(): HistoryEndKind | null {
+    if (!historyExhausted || loadingMore || raw.length === 0) return null;
+    const ent = providerCapabilities()?.entitlements;
+    if (!ent) return null;
+    const iv = props.interval ?? "1D";
+    const daily = rawDaily.length > 0;
+    const floor = daily ? ent.historyFloor.day : isSecondResolution(iv) ? ent.historyFloor.second : ent.historyFloor.minute;
+    const oldest = (daily ? rawDaily[0].time : raw[0].time) as number;
+    const floorSec = floor ? Date.parse(`${floor}T00:00:00Z`) / 1000 : NaN;
+    if (Number.isFinite(floorSec) && oldest - floorSec <= 7 * 86400) return "limit";
+    return raw.length >= HISTORY_END_MIN_BARS ? "end" : null;
+  }
+  function updateHistoryEnd() {
+    const kind = historyEndKind();
+    if (!kind) historyEndClose?.();
+    historyEnd.setState({ kind, dark: isDarkColor(currentTokens().bg) });
+  }
+  function openHistoryEndDialog() {
+    const kind = historyEnd.state().kind;
+    if (!kind || historyEndClose) return;
+    const sym = splitSymbol(props.symbol ?? "").ticker;
+    historyEnd.setState({ active: true });
+    historyEndClose = showNotice({
+      title: kind === "end" ? "Start of history" : "History limit",
+      text:
+        kind === "end"
+          ? `This is the first bar of ${sym}: there is no older data.`
+          : `Older ${sym} data exists but is not available: history on this interval stops here.`,
+      iconPath: HISTORY_END_ICONS[kind],
+      onClose: () => {
+        historyEndClose = null;
+        historyEnd.setState({ active: false });
+      },
+    });
   }
 
   /** Baseline: the base level sits at `Base level` % of the pane height
@@ -1898,6 +1945,7 @@ export function ChartView(props: Props) {
     // instance and refreshed by the events effect below).
     series.attachPrimitive(eventMarkers);
     series.attachPrimitive(newsLollipop);
+    series.attachPrimitive(historyEnd);
     // Countdown axis label (state retained; the 1s timer keeps it ticking).
     series.attachPrimitive(countdown);
     series.attachPrimitive(scaleWatch);
@@ -2431,6 +2479,7 @@ export function ChartView(props: Props) {
       })
       .finally(() => {
         loadingMore = false;
+        updateHistoryEnd();
       });
   }
 
@@ -2492,10 +2541,15 @@ export function ChartView(props: Props) {
     if (toLink) postLinkRange(r.from as number, r.to as number);
   }
   // Every chart re-syncs to the newly active chart's range when the active
-  // chart changes or date-range sync is switched on.
+  // chart changes or date-range sync is switched on. Memos, so only a real
+  // change counts: `layoutSync()` and `props.active` re-run with every tab
+  // update (a follower's saved view range too), which re-sent the active
+  // range and undid any scroll of a pane that is not the active one.
+  const dateRangeSyncOn = createMemo(() => layoutSync().dateRange);
+  const isActive = createMemo(() => !!props.active);
   createEffect(() => {
     chartReady();
-    if (!props.active || !layoutSync().dateRange) return;
+    if (!isActive() || !dateRangeSyncOn()) return;
     untrack(() => broadcastRange(true));
   });
 
@@ -2589,6 +2643,7 @@ export function ChartView(props: Props) {
       const older = rows.filter((r) => (r.time as number) < beforeSec);
       if (older.length === 0) {
         historyExhausted = true;
+        updateHistoryEnd();
         break;
       }
       const ts = chart.timeScale();
@@ -3013,24 +3068,17 @@ export function ChartView(props: Props) {
         ts.setVisibleLogicalRange({ from: at - f * newSpan, to: at - f * newSpan + newSpan });
         return;
       }
-      // With the right edge ON data the wheel zoom holds the right edge
-      // exactly (fixedFrac 1.0 both ways); with the right edge PAST the last
-      // bar (right margin / whitespace) a zoom-in holds the LEFT edge and eats
-      // the margin instead. Zoom-out in the whitespace state is applied with
-      // the same left-edge rule, the only rule consistent with the other
-      // three cases. Kagi/PnF draw a synthetic column axis where raw bar
-      // counts don't map, so they keep the plain right-edge anchor.
+      // The right margin (in bars) is kept, so the right edge stays put and
+      // the left edge moves. The margin is then clamped to the bars on
+      // screen minus 2: a view that is almost all whitespace past the last
+      // bar slides left instead, keeping the last bar in view. Kagi/PnF draw
+      // a synthetic column axis where raw bar counts don't map, so they keep
+      // the plain right-edge anchor.
       const lastIndex =
         activeType === "kagi" || activeType === "pnf" ? Infinity : raw.length - 1;
-      if (lastIndex >= 0 && range.to > lastIndex && Number.isFinite(lastIndex)) {
-        // Left edge held; a zoom-in eats the margin. Once the margin is gone
-        // the right edge clamps at the last bar and the remainder comes off
-        // the left — the last bar never scrolls out of view mid-zoom.
-        const to = Math.max(range.from + newSpan, lastIndex);
-        ts.setVisibleLogicalRange({ from: to - newSpan, to });
-      } else {
-        ts.setVisibleLogicalRange({ from: range.to - newSpan, to: range.to });
-      }
+      let to: number = range.to;
+      if (lastIndex >= 0 && Number.isFinite(lastIndex)) to = Math.min(to, lastIndex + newSpan - 2);
+      ts.setVisibleLogicalRange({ from: to - newSpan, to });
     };
     // Wheel over a price axis (on with handleScale.mouseWheel): scales that pane's price like an axis drag from
     // the cursor — startScale(y), scaleTo(y + 15 · deltaY), deltaY from its own
@@ -3115,7 +3163,9 @@ export function ChartView(props: Props) {
       if (chart && paneRoot) {
         const root = paneRoot.getBoundingClientRect();
         const leftAxis = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
-        if (newsLollipop.hitTest(e.clientX - root.left - leftAxis, e.clientY - root.top)) return null;
+        const x = e.clientX - root.left - leftAxis;
+        const y = e.clientY - root.top;
+        if (newsLollipop.hitTest(x, y) || historyEnd.hitTest(x, y)) return null;
       }
       return r;
     };
@@ -3253,6 +3303,10 @@ export function ChartView(props: Props) {
       chart?.applyOptions({ crosshair: { vertLine: { visible: !hov && crosshairLockTime() === null }, horzLine: { visible: !hov } } });
     };
     chart.subscribeCrosshairMove(onNewsCrosshair);
+    const onHistoryEndCrosshair = (param: MouseEventParams<Time>) => {
+      historyEnd.setState({ hovered: param.hoveredObjectId === HISTORY_END_ID });
+    };
+    chart.subscribeCrosshairMove(onHistoryEndCrosshair);
     // Click on a plot selects its study (or compared symbol); a click on the
     // empty chart or the main series clears the selection. The library counts
     // a click within 500 ms of another as a double click: both select.
@@ -3273,8 +3327,11 @@ export function ChartView(props: Props) {
       if (e.button !== 0 || !chart || !paneRoot) return;
       const root = paneRoot.getBoundingClientRect();
       const leftAxis = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
-      if (newsLollipop.hitTest(e.clientX - root.left - leftAxis, e.clientY - root.top)) toggleNewsCard();
+      const x = e.clientX - root.left - leftAxis;
+      const y = e.clientY - root.top;
+      if (newsLollipop.hitTest(x, y)) toggleNewsCard();
       else if (newsCardOpen()) setNewsCardOpen(false);
+      if (historyEnd.hitTest(x, y)) openHistoryEndDialog();
     };
     host.addEventListener("click", onNewsClick, true);
     // The card closes on scroll / zoom.
@@ -3946,6 +4003,7 @@ export function ChartView(props: Props) {
     fetchGen++;
     loadingMore = false;
     historyExhausted = false;
+    updateHistoryEnd();
     prefetch = null;
     liveVolBase = null;
     // Drop any anchor-persist queued for the OUTGOING symbol so it can't land on
@@ -4090,6 +4148,7 @@ export function ChartView(props: Props) {
       framed = view === null ? "all" : String(view);
     }
     if (rawDaily.length > 0) historyExhausted = true;
+    updateHistoryEnd();
     {
       const _r = chart.timeScale().getVisibleLogicalRange();
       const now = performance.now();
@@ -5037,6 +5096,14 @@ export function ChartView(props: Props) {
   createEffect(() => {
     newsLollipop.setState({ visible: news() !== null, hasNew: newsHasNew(), active: newsCardOpen() });
   });
+  // End-of-history icon: the history floor arrives with the entitlement
+  // probe; the icon colour follows the chart background.
+  createEffect(() => {
+    void providerCapabilities();
+    void appearance();
+    untrack(updateHistoryEnd);
+  });
+  onCleanup(() => historyEndClose?.());
   function toggleNewsCard() {
     if (!newsCardOpen()) setNewsHasNew(false);
     setNewsCardOpen(!newsCardOpen());

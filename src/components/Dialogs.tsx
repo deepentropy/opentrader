@@ -40,9 +40,20 @@ export type RenameOptions = {
   onSave: (name: string) => void;
 };
 
+/** Message with no buttons: icon + title header, text, close button.
+ *  A click outside does not close it. */
+export type NoticeOptions = {
+  title: string;
+  text: string;
+  /** SVG path data stroked in a 36 x 36 box left of the title. */
+  iconPath?: string;
+  onClose?: () => void;
+};
+
 type Entry =
   | { id: number; kind: "confirm"; opts: ConfirmOptions }
-  | { id: number; kind: "rename"; opts: RenameOptions };
+  | { id: number; kind: "rename"; opts: RenameOptions }
+  | { id: number; kind: "notice"; opts: NoticeOptions };
 
 const [stack, setStack] = createSignal<Entry[]>([]);
 let nextId = 1;
@@ -56,6 +67,15 @@ export function showRename(opts: RenameOptions): void {
   setStack((s) => [...s, { id: nextId++, kind: "rename", opts }]);
 }
 
+/** Opens a notice; returns a function that closes it. */
+export function showNotice(opts: NoticeOptions): () => void {
+  const id = nextId++;
+  setStack((s) => [...s, { id, kind: "notice", opts }]);
+  return () => {
+    if (stack().some((e) => e.id === id)) { close(id); opts.onClose?.(); }
+  };
+}
+
 /** Case-insensitive "contains" filter. */
 const matches = (typed: string, name: string) => typed === "" || name.toLowerCase().includes(typed.toLowerCase());
 
@@ -65,11 +85,18 @@ const CloseIcon = () => (
   </svg>
 );
 
-function Frame(props: { title: string; onClose: () => void; children: import("solid-js").JSX.Element; label: string }) {
+function Frame(props: { title: string; onClose: () => void; children: import("solid-js").JSX.Element; label: string; iconPath?: string }) {
   return (
     <div class="ot-dlg-layer" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
       <div class="ot-dlg" role="dialog" aria-label={props.label}>
-        <div class="ot-dlg-title">{props.title}</div>
+        <div class="ot-dlg-title">
+          <Show when={props.iconPath}>
+            <svg class="ot-dlg-title-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" d={props.iconPath} />
+            </svg>
+          </Show>
+          {props.title}
+        </div>
         <button type="button" class="ot-dlg-close" aria-label="close" onClick={() => props.onClose()}>
           <CloseIcon />
         </button>
@@ -165,6 +192,17 @@ function RenameDialog(props: { entry: Extract<Entry, { kind: "rename" }> }) {
   );
 }
 
+function NoticeDialog(props: { entry: Extract<Entry, { kind: "notice" }> }) {
+  const o = props.entry.opts;
+  const dismiss = () => { close(props.entry.id); o.onClose?.(); };
+  useKeys(props.entry.id, dismiss, dismiss);
+  return (
+    <Frame title={o.title} label={o.title} iconPath={o.iconPath} onClose={dismiss}>
+      <div class="ot-dlg-content ot-dlg-text">{o.text}</div>
+    </Frame>
+  );
+}
+
 /** Escape / Enter for the TOP dialog only. */
 function useKeys(id: number, onEscape: () => void, onEnter: () => void) {
   onMount(() => {
@@ -183,7 +221,9 @@ export function DialogHost() {
   return (
     <Portal mount={document.body}>
       <For each={stack()}>
-        {(e) => (e.kind === "confirm" ? <ConfirmDialog entry={e} /> : <RenameDialog entry={e} />)}
+        {(e) =>
+          e.kind === "confirm" ? <ConfirmDialog entry={e} /> : e.kind === "rename" ? <RenameDialog entry={e} /> : <NoticeDialog entry={e} />
+        }
       </For>
     </Portal>
   );

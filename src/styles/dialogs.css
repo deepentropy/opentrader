@@ -39,6 +39,12 @@
   font-weight: 600;
   line-height: 24px;
 }
+.ot-dlg-title:has(.ot-dlg-title-icon) {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ot-dlg-title-icon { flex: none; }
 .ot-dlg-close {
   all: unset;
   position: absolute;

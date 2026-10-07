@@ -434,19 +434,46 @@ export function IndicatorSettingsDialog(props: Props) {
 
   // Inputs tab rows: Pine groups get a title row (11px uppercase) and a gap
   // after their last row; inputs sharing an `inline` id share one row.
+  // A group collects every input with its name, adjacent or not, at the place
+  // of its first input; an inline row collects every input with its id inside
+  // the same group (ungrouped inputs have their own set of rows).
   type InputRow = { kind: "group"; title: string; first: boolean } | { kind: "gap" } | { kind: "row"; items: DialogInput[] };
   const inputRows = (): InputRow[] => {
-    const rows: InputRow[] = [];
-    let group: string | undefined;
-    props.inputConfig.forEach((cfg, i) => {
-      if (cfg.group !== group) {
-        if (group !== undefined) rows.push({ kind: "gap" });
-        if (cfg.group !== undefined) rows.push({ kind: "group", title: cfg.group, first: i === 0 });
-        group = cfg.group;
+    type Line = { items: DialogInput[] };
+    type Section = { group?: string; lines: Line[]; inlines: Map<string, Line> };
+    const sections: Section[] = [];
+    const groups = new Map<string, Section>();
+    const loose = new Map<string, Line>();
+    for (const cfg of props.inputConfig) {
+      let section: Section;
+      if (cfg.group !== undefined) {
+        let g = groups.get(cfg.group);
+        if (!g) {
+          g = { group: cfg.group, lines: [], inlines: new Map() };
+          groups.set(cfg.group, g);
+          sections.push(g);
+        }
+        section = g;
+      } else {
+        section = { lines: [], inlines: loose };
+        sections.push(section);
       }
-      const last = rows[rows.length - 1];
-      if (cfg.inline && last?.kind === "row" && last.items[0].inline === cfg.inline) last.items.push(cfg);
-      else rows.push({ kind: "row", items: [cfg] });
+      const line = cfg.inline !== undefined ? section.inlines.get(cfg.inline) : undefined;
+      if (line) {
+        line.items.push(cfg);
+        // An ungrouped input that joined an earlier row adds no row of its own.
+        if (section.group === undefined) sections.pop();
+        continue;
+      }
+      const made: Line = { items: [cfg] };
+      if (cfg.inline !== undefined) section.inlines.set(cfg.inline, made);
+      section.lines.push(made);
+    }
+    const rows: InputRow[] = [];
+    sections.forEach((s, i) => {
+      if (i > 0 && sections[i - 1].group !== undefined) rows.push({ kind: "gap" });
+      if (s.group !== undefined) rows.push({ kind: "group", title: s.group, first: i === 0 });
+      for (const l of s.lines) rows.push({ kind: "row", items: l.items });
     });
     return rows;
   };
