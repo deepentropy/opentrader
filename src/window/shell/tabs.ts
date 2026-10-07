@@ -143,7 +143,7 @@ export type PaneChart = {
    *  anchored view instead of snapping to the latest bar. Ignored on restore
    *  when out of bounds for the loaded bar count (e.g. a shorter-history
    *  symbol), in which case the default framing is used. */
-  visibleLogicalRange?: { from: number; to: number };
+  visibleLogicalRange?: { from: number; to: number; last?: number };
   /** Main series hidden with the legend eye (series `visible` property,
    *  saved with the chart). Absent = shown. */
   seriesHidden?: boolean;
@@ -271,7 +271,11 @@ export function migrateTab(raw: any): TabChart {
         p.visibleLogicalRange &&
         typeof p.visibleLogicalRange.from === "number" &&
         typeof p.visibleLogicalRange.to === "number"
-          ? { from: p.visibleLogicalRange.from, to: p.visibleLogicalRange.to }
+          ? {
+              from: p.visibleLogicalRange.from,
+              to: p.visibleLogicalRange.to,
+              ...(typeof p.visibleLogicalRange.last === "number" ? { last: p.visibleLogicalRange.last } : {}),
+            }
           : undefined,
       seriesHidden: p.seriesHidden === true ? true : undefined,
       ...revivePaneSettings(p),

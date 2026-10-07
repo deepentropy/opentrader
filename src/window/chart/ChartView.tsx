@@ -256,12 +256,13 @@ type Props = {
   settings?: Draft;
   /** Persisted visible logical range (bar-index based) for THIS pane. Restored
    *  when new data loads instead of snapping to the latest bars; undefined or
-   *  out-of-bounds falls back to the default framing. */
-  visibleLogicalRange?: { from: number; to: number };
+   *  out-of-bounds falls back to the default framing. `last` = index of the
+   *  last item when saved (price-based types: their item count changes). */
+  visibleLogicalRange?: { from: number; to: number; last?: number };
   /** Report this pane's visible logical range after the user scrolls/zooms, so
    *  the anchor persists across tab switches + reloads. Debounced by the caller's
    *  store write; ChartView emits the settled range. */
-  onVisibleRange?: (range: { from: number; to: number }) => void;
+  onVisibleRange?: (range: { from: number; to: number; last?: number }) => void;
 };
 
 /** Scroll-back: when the visible range's left edge comes within this many bars
@@ -1073,10 +1074,10 @@ export function ChartView(props: Props) {
     }
     const t = currentTokens();
     const ts = chart.timeScale();
-    const len = series?.data().length ?? 0;
-    if (len > 0) {
+    const last = mainLastIndex();
+    if (last != null) {
       const span = barsSpan(ts.width(), DEFAULT_BAR_SPACING);
-      const to = len - 1 + t.rightOffset;
+      const to = last + t.rightOffset;
       ts.setVisibleLogicalRange({ from: to - span, to });
     }
   };
@@ -1862,6 +1863,17 @@ export function ChartView(props: Props) {
   /** Price text of the main series (Precision choice), shared with the legend. */
   const [legendPriceFormat, setLegendPriceFormat] = createSignal<((p: number) => string) | undefined>(undefined);
 
+  /** Time-scale index of the main series' last item. Price-based types have
+   *  their own items, and study series add their times to the axis, so it is
+   *  not the source bar count there. */
+  function mainLastIndex(): number | null {
+    if (!chart || !series) return null;
+    if (!isTransformType(activeType)) return raw.length > 0 ? raw.length - 1 : null;
+    const items = series.data();
+    if (items.length === 0) return null;
+    return chart.timeScale().timeToIndex(items[items.length - 1].time, true) as number | null;
+  }
+
   function rebuildSeries() {
     if (!chart) return;
     // Preserve the user's scroll position across the series swap. Creating a
@@ -2450,8 +2462,9 @@ export function ChartView(props: Props) {
         }
         const prevRange = ts.getVisibleLogicalRange();
         // Brick types re-derive their items from the whole history (item
-        // count unrelated to the bars added): keep the visible TIME window.
-        const prevTimes = isTransformType(activeType) ? ts.getVisibleRange() : null;
+        // count unrelated to the bars added): keep the distance to the last
+        // item, at the same bar spacing.
+        const prevLast = isTransformType(activeType) ? mainLastIndex() : null;
         const prevLen = raw.length;
         if (isDaily) {
           const unit = aggregateUnitFor(reqInt);
@@ -2471,8 +2484,11 @@ export function ChartView(props: Props) {
         // Pin the view by the bars actually added — aggregation can change the
         // count for 1W/1M, so use the length delta, not the raw page length.
         const delta = raw.length - prevLen;
-        if (prevTimes) {
-          ts.setVisibleRange(prevTimes);
+        if (isTransformType(activeType)) {
+          const last = mainLastIndex();
+          if (prevRange && prevLast != null && last != null) {
+            ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
+          }
         } else if (prevRange && delta > 0) {
           ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
         }
@@ -2651,7 +2667,7 @@ export function ChartView(props: Props) {
       }
       const ts = chart.timeScale();
       const prevRange = ts.getVisibleLogicalRange();
-      const prevTimes = isTransformType(activeType) ? ts.getVisibleRange() : null;
+      const prevLast = isTransformType(activeType) ? mainLastIndex() : null;
       const prevLen = raw.length;
       raw = toOHLC(older).concat(raw);
       prefetch = null;
@@ -2665,9 +2681,12 @@ export function ChartView(props: Props) {
       scheduleIndicatorRender();
       if (!crosshairActive) refreshLegend();
       const delta = raw.length - prevLen;
-      if (prevTimes) {
-        holdSyncGuard();
-        ts.setVisibleRange(prevTimes);
+      if (isTransformType(activeType)) {
+        const last = mainLastIndex();
+        if (prevRange && prevLast != null && last != null) {
+          holdSyncGuard();
+          ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
+        }
       } else if (prevRange && delta > 0) {
         holdSyncGuard();
         ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
@@ -3004,7 +3023,10 @@ export function ChartView(props: Props) {
           rangePersistTimer = setTimeout(() => {
             rangePersistTimer = undefined;
             if (props.symbol !== forSym || props.interval !== forInt) return;
-            props.onVisibleRange?.({ from: lr.from, to: lr.to });
+            // Price-based types: the item count changes with the data, so
+            // the view is saved relative to the last item.
+            const last = isTransformType(activeType) ? mainLastIndex() : null;
+            props.onVisibleRange?.(last != null ? { from: lr.from, to: lr.to, last } : { from: lr.from, to: lr.to });
           }, 250);
         }
       }
@@ -3074,13 +3096,10 @@ export function ChartView(props: Props) {
       // The right margin (in bars) is kept, so the right edge stays put and
       // the left edge moves. The margin is then clamped to the bars on
       // screen minus 2: a view that is almost all whitespace past the last
-      // bar slides left instead, keeping the last bar in view. Kagi/PnF draw
-      // a synthetic column axis where raw bar counts don't map, so they keep
-      // the plain right-edge anchor.
-      const lastIndex =
-        activeType === "kagi" || activeType === "pnf" ? Infinity : raw.length - 1;
+      // bar slides left instead, keeping the last bar in view.
+      const lastIndex = mainLastIndex();
       let to: number = range.to;
-      if (lastIndex >= 0 && Number.isFinite(lastIndex)) to = Math.min(to, lastIndex + newSpan - 2);
+      if (lastIndex != null) to = Math.min(to, lastIndex + newSpan - 2);
       ts.setVisibleLogicalRange({ from: to - newSpan, to });
     };
     // Wheel over a price axis (on with handleScale.mouseWheel): scales that pane's price like an axis drag from
@@ -4079,7 +4098,13 @@ export function ChartView(props: Props) {
     // shows fewer than MIN_VISIBLE_BARS of the loaded bars (e.g. a
     // shorter-history symbol, or a view saved past the last bar) is treated
     // as out of bounds.
-    const saved = untrack(() => props.visibleLogicalRange);
+    let saved = untrack(() => props.visibleLogicalRange);
+    // Price-based types: the view follows the last item (its index moves
+    // when the item count changed since the save).
+    if (saved && saved.last !== undefined && isTransformType(activeType)) {
+      const last = mainLastIndex();
+      if (last != null) saved = { from: saved.from + last - saved.last, to: saved.to + last - saved.last, last };
+    }
     // A saved view narrower than MIN_VISIBLE_BARS is the 1-bar collapse the old
     // sync path could persist, not a user choice: frame by default instead.
     let savedInBounds = !!saved && saved.to - saved.from >= MIN_VISIBLE_BARS;
@@ -4112,7 +4137,13 @@ export function ChartView(props: Props) {
       const keep = pendingScaleKeep;
       pendingScaleKeep = null;
       const ts = chart.timeScale();
-      if (keep.leftTime !== undefined) {
+      if (isTransformType(activeType)) {
+        // Price-based types: same bar spacing and right offset, counted from
+        // their own last item (no time of their own for a left edge).
+        const to = (mainLastIndex() ?? raw.length - 1) + keep.rightOffset;
+        ts.setVisibleLogicalRange({ from: to - barsSpan(ts.width(), keep.barSpacing), to });
+        framed = `keep bs=${keep.barSpacing.toFixed(2)} ro=${keep.rightOffset.toFixed(1)}`;
+      } else if (keep.leftTime !== undefined) {
         // Left edge kept: the first bar at / after the old left-edge time
         // stays at the left edge, same bar spacing.
         let lo = 0;
@@ -4139,9 +4170,8 @@ export function ChartView(props: Props) {
       // source bar count.
       let to = raw.length;
       if (isTransformType(activeType)) {
-        const items = series.data();
-        const last = items.length ? chart.timeScale().timeToIndex(items[items.length - 1].time, true) : null;
-        if (last != null) to = (last as number) + 1;
+        const last = mainLastIndex();
+        if (last != null) to = last + 1;
       }
       if (view !== null && raw.length > view) {
         chart.timeScale().setVisibleLogicalRange({ from: to - view, to });

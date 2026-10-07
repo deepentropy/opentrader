@@ -81,7 +81,7 @@ type Props = {
   onPaneOrder?: (paneIndex: number, order: string[]) => void;
   /** Persist a specific pane's settled visible logical range (its scroll/zoom
    *  anchor), so it survives tab switches + reloads. */
-  onVisibleRange?: (paneIndex: number, range: { from: number; to: number }) => void;
+  onVisibleRange?: (paneIndex: number, range: { from: number; to: number; last?: number }) => void;
   /** Legend eye of pane `paneIndex` (hide / show its main series). */
   onToggleSeries?: (paneIndex: number) => void;
   /** Legend "Symbol/interval chart syncing" shown (several charts and Symbol

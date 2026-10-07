@@ -727,11 +727,11 @@ function App() {
    *  switches and full reloads (ChartView restores it on data load). No-op when
    *  the range is unchanged, so it doesn't churn the tabs signal on every
    *  programmatic re-frame that reports the same window. */
-  function setVisibleRangeForPane(tabId: string, paneIndex: number, range: { from: number; to: number }) {
+  function setVisibleRangeForPane(tabId: string, paneIndex: number, range: { from: number; to: number; last?: number }) {
     const tab = tabOf(tabId);
     if (!tab) return;
     const cur = tab.panes[paneIndex]?.visibleLogicalRange;
-    if (cur && cur.from === range.from && cur.to === range.to) return;
+    if (cur && cur.from === range.from && cur.to === range.to && cur.last === range.last) return;
     patchTab(tabId, {
       panes: tab.panes.map((p, i) => (i === paneIndex ? { ...p, visibleLogicalRange: range } : p)),
     });

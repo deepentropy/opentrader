@@ -169,14 +169,15 @@ export const groupsWidth = (fits: Set<GroupId>) =>
 /**
  * Live bar spacing, derived rather than read back: `timeScale().options()`
  * echoes the last *applied* option, so it goes stale the moment the user zooms.
- * Width over the visible span is the same quantity and always current.
+ * Width over the bars drawn is the same quantity and always current (a
+ * logical range of length L draws L + 1 bars).
  */
 export function liveBarSpacing(chart: IChartApi): number | null {
   const ts = chart.timeScale();
   const r = ts.getVisibleLogicalRange();
   if (!r) return null;
   const span = r.to - r.from;
-  return span > 0 ? ts.width() / span : null;
+  return span > 0 ? ts.width() / (span + 1) : null;
 }
 
 /**
