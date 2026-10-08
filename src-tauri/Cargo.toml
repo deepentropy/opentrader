@@ -42,6 +42,7 @@ async-trait = "0.1"
 # without bundling rustls roots.
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
+flate2 = "1"
 # Polygon REST aggregates (Feature 8b — sub-minute / second bars). Returns
 # just the requested ticker, unlike the whole-market trades flat files.
 reqwest = { version = "0.12", features = ["json", "gzip"] }

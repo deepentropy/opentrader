@@ -9,7 +9,7 @@
  * read its per-session disk cache.
  */
 use crate::data::provider::capabilities::BarFamily;
-use crate::data::provider::{entitlements, Provider};
+use crate::data::provider::{entitlements, DataProvider, Provider, SymbolChange};
 use crate::data::massive_rest::DayMemo;
 use crate::data::symbol::SymbolRef;
 use crate::data::calendar::SessionCalendar;
@@ -65,28 +65,104 @@ async fn clamp_to_floor(
 /// archived bars beyond a longer hole are another listing and are left out.
 const ARCHIVE_MAX_HOLE_SECS: f64 = 366.0 * 86_400.0;
 
+/// What the provider knows of the company now behind a symbol, as times
+/// (midnight UTC seconds of the dates): where its bars start in an archive
+/// that holds every company that ever used the symbol.
+#[derive(Debug, Default, PartialEq)]
+struct Listing {
+    /// Start of the current listing, from the reference data.
+    listed_sec: Option<f64>,
+    /// Dates the company took this very symbol.
+    held_since: Vec<f64>,
+    /// Date the company moved to this symbol from another one: its older
+    /// bars are under that other symbol.
+    taken_sec: Option<f64>,
+    /// That other symbol.
+    taken_from: Option<String>,
+}
+
+impl Listing {
+    /// From the listing date and the company's symbol history (newest
+    /// first). The history's dates are not listing dates (a lone entry can
+    /// be years after the first bar), so one is a start only when the
+    /// company came from another symbol.
+    fn new(ticker: &str, listed: Option<NaiveDate>, changes: &[SymbolChange]) -> Self {
+        let midnight = |d: NaiveDate| d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp() as f64);
+        let held_since: Vec<f64> = changes.iter().filter(|c| c.ticker == ticker).filter_map(|c| midnight(c.date)).collect();
+        // Oldest entry with this symbol, when an entry with another symbol precedes it.
+        let taken = changes.iter().rposition(|c| c.ticker == ticker).filter(|&i| i + 1 < changes.len());
+        Self {
+            listed_sec: listed.and_then(midnight),
+            held_since,
+            taken_sec: taken.and_then(|i| midnight(changes[i].date)),
+            taken_from: taken.map(|i| changes[i + 1].ticker.clone()),
+        }
+    }
+}
+
+/// Days before a symbol change in which the earlier symbol must have traded
+/// for the change to count as the start of the company's bars.
+const TAKEN_PROOF_SECS: f64 = 45.0 * 86_400.0;
+
+/// The listing facts of `sym` from the provider. A move from another symbol
+/// is kept only when that symbol's own archive has bars just before the date:
+/// the history can name an earlier spelling of the same symbol on a date the
+/// company already traded under the current one (its bars are then here, and
+/// cutting them would lose real history).
+async fn listing_of<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef) -> Listing {
+    let (listed, changes) = tokio::join!(provider.listing_date(sym), provider.symbol_changes(sym));
+    let mut listing = Listing::new(&sym.ticker, listed, &changes.unwrap_or_default());
+    if let (Some(taken), Some(from)) = (listing.taken_sec, listing.taken_from.clone()) {
+        let earlier = SymbolRef { exchange: sym.exchange.clone(), ticker: from };
+        let proven = provider
+            .daily_archive(&earlier, false)
+            .await
+            .is_ok_and(|bars| bars.iter().any(|b| b.time < taken && b.time >= taken - TAKEN_PROOF_SECS));
+        if !proven {
+            listing.taken_sec = None;
+        }
+    }
+    listing
+}
+
 /// `bars` with the archived sessions older than its first bar in front.
 /// Archived bars are kept from `from_sec` on, strictly before the first bar of
-/// `bars` (inside its window the live source wins), and only back to the first
-/// hole longer than [`ARCHIVE_MAX_HOLE_SECS`] or to the start of the current
-/// listing (`listed_sec`), whichever comes first. A listing date later than
-/// the first live bar is not a start of this series (the live source itself
-/// has older bars) and is ignored. Both inputs oldest first.
-fn prepend_archive(bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64, listed_sec: Option<f64>) -> Vec<Candle> {
+/// `bars` (inside its window the live source wins), and back to where the
+/// current company starts:
+///   - the date it took the symbol from another one (`taken_sec`); the live
+///     bars before that date are another company's too and are dropped;
+///   - the start of its listing (`listed_sec`), unless that date is later
+///     than the first live bar (the live source itself has older bars, so
+///     it is no start of this series);
+///   - the first hole longer than [`ARCHIVE_MAX_HOLE_SECS`], unless the
+///     company already held the symbol before the hole (`held_since`: a
+///     company delisted and listed again under its symbol).
+/// Both inputs oldest first.
+fn prepend_archive(mut bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64, listing: &Listing) -> Vec<Candle> {
+    if let Some(taken) = listing.taken_sec {
+        // Never down to nothing: a date after every bar is not a start.
+        if bars.last().is_some_and(|b| b.time >= taken) {
+            bars.retain(|b| b.time >= taken);
+        }
+    }
     let Some(first) = bars.first().map(|b| b.time) else {
         return bars;
     };
-    let from_sec = match listed_sec {
-        Some(listed) if listed <= first => from_sec.max(listed),
-        _ => from_sec,
-    };
+    let mut from_sec = from_sec;
+    if let Some(listed) = listing.listed_sec.filter(|l| *l <= first) {
+        from_sec = from_sec.max(listed);
+    }
+    if let Some(taken) = listing.taken_sec {
+        from_sec = from_sec.max(taken);
+    }
     let mut next = first;
     let mut older: Vec<Candle> = Vec::new();
     for bar in archive.into_iter().rev() {
         if bar.time >= first {
             continue;
         }
-        if bar.time < from_sec || next - bar.time > ARCHIVE_MAX_HOLE_SECS {
+        let hole = next - bar.time > ARCHIVE_MAX_HOLE_SECS;
+        if bar.time < from_sec || (hole && !listing.held_since.iter().any(|held| *held <= bar.time)) {
             break;
         }
         next = bar.time;
@@ -127,10 +203,10 @@ pub async fn get_daily_history(
     // `adjusted`); closed sessions are then served from the per-day disk cache
     // on later loads. The sessions older than that series come from the daily
     // archive, read at the same time.
-    let (bars, archive, listed) = tokio::join!(
+    let (bars, archive, listing) = tokio::join!(
         provider.daily_aggs(&sym, from, to, adjusted),
         provider.daily_archive(&sym, adjusted),
-        provider.listing_date(&sym),
+        listing_of(provider.inner().as_ref(), &sym),
     );
     let bars = bars.map_err(|e| e.to_string())?;
     if bars.is_empty() {
@@ -140,9 +216,8 @@ pub async fn get_daily_history(
     // an archive, and is not memoised so the next load reads it again.
     let (bars, complete) = match archive {
         Ok(archive) => {
-            let midnight = |d: NaiveDate| d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp() as f64);
-            let from_sec = midnight(wanted_from).unwrap_or(0.0);
-            (prepend_archive(bars, archive, from_sec, listed.and_then(midnight)), true)
+            let from_sec = wanted_from.and_hms_opt(0, 0, 0).map_or(0.0, |dt| dt.and_utc().timestamp() as f64);
+            (prepend_archive(bars, archive, from_sec, &listing), true)
         }
         Err(e) => {
             eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
@@ -377,11 +452,13 @@ pub async fn get_daily_history_before(
     // Unlike the initial load, a scroll-back page never errors the UI: an empty
     // result (no older data, or past the plan's history floor) is reported as
     // Ok([]) so the renderer latches "history exhausted" and stops paging.
-    let bars = provider
-        .daily_aggs(&sym, from, end, adjusted)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(bars.into_iter().filter(|b| b.time < before_sec).collect())
+    let (bars, listing) =
+        tokio::join!(provider.daily_aggs(&sym, from, end, adjusted), listing_of(provider.inner().as_ref(), &sym));
+    let bars = bars.map_err(|e| e.to_string())?;
+    // Same start as the initial load: bars from before the company took the
+    // symbol are another company's.
+    let start = listing.taken_sec.unwrap_or(f64::MIN);
+    Ok(bars.into_iter().filter(|b| b.time < before_sec && b.time >= start).collect())
 }
 
 #[cfg(test)]
@@ -423,7 +500,7 @@ mod tests {
     /// series already covers are dropped.
     #[test]
     fn archive_is_joined_before_the_first_live_bar() {
-        let joined = prepend_archive(vec![bar(1003), bar(1004)], (1000..=1004).map(bar).collect(), 0.0, None);
+        let joined = prepend_archive(vec![bar(1003), bar(1004)], (1000..=1004).map(bar).collect(), 0.0, &Listing::default());
         assert_eq!(days(&joined), vec![1000, 1001, 1002, 1003, 1004]);
     }
 
@@ -432,8 +509,8 @@ mod tests {
     #[test]
     fn archive_stops_at_a_long_hole() {
         let archive: Vec<Candle> = [100, 101, 102, 2000, 2001].into_iter().map(bar).collect();
-        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive.clone(), 0.0, None)), vec![2000, 2001, 2002]);
-        assert_eq!(days(&prepend_archive(vec![bar(5000)], archive, 0.0, None)), vec![5000]);
+        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive.clone(), 0.0, &Listing::default())), vec![2000, 2001, 2002]);
+        assert_eq!(days(&prepend_archive(vec![bar(5000)], archive, 0.0, &Listing::default())), vec![5000]);
     }
 
     /// Bars before the requested start are left out; no archive or no live
@@ -442,9 +519,9 @@ mod tests {
     fn archive_respects_the_requested_start() {
         let archive: Vec<Candle> = (1000..=1002).map(bar).collect();
         let from = (1001 * 86_400) as f64;
-        assert_eq!(days(&prepend_archive(vec![bar(1003)], archive.clone(), from, None)), vec![1001, 1002, 1003]);
-        assert_eq!(days(&prepend_archive(vec![bar(1003)], Vec::new(), 0.0, None)), vec![1003]);
-        assert!(prepend_archive(Vec::new(), archive, 0.0, None).is_empty());
+        assert_eq!(days(&prepend_archive(vec![bar(1003)], archive.clone(), from, &Listing::default())), vec![1001, 1002, 1003]);
+        assert_eq!(days(&prepend_archive(vec![bar(1003)], Vec::new(), 0.0, &Listing::default())), vec![1003]);
+        assert!(prepend_archive(Vec::new(), archive, 0.0, &Listing::default()).is_empty());
     }
 
     /// A symbol used again without a long hole: the bars before the current
@@ -453,10 +530,60 @@ mod tests {
     #[test]
     fn archive_starts_at_the_listing_date() {
         let archive: Vec<Candle> = (1000..=1005).map(bar).collect();
-        let day = |d: i64| Some((d * 86_400) as f64);
-        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, day(1003))), vec![1003, 1004, 1005, 1006]);
-        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, day(900))).len(), 7);
-        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive, 0.0, day(1010))).len(), 7);
+        let listed = |d: i64| Listing { listed_sec: Some((d * 86_400) as f64), ..Listing::default() };
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, &listed(1003))), vec![1003, 1004, 1005, 1006]);
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, &listed(900))).len(), 7);
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive, 0.0, &listed(1010))).len(), 7);
+    }
+
+    fn date(day: i64) -> NaiveDate {
+        chrono::DateTime::from_timestamp(day * 86_400, 0).unwrap().date_naive()
+    }
+
+    fn change(day: i64, ticker: &str) -> SymbolChange {
+        SymbolChange { date: date(day), ticker: ticker.into() }
+    }
+
+    /// A company delisted for more than a year and listed again under its
+    /// symbol: it held the symbol before the hole, so the hole is no cut. A
+    /// hole before the company took the symbol still is.
+    #[test]
+    fn archive_keeps_a_relisted_company_across_the_hole() {
+        let archive: Vec<Candle> = [100, 101, 1000, 1001, 2000, 2001].into_iter().map(bar).collect();
+        // TLF shape: the symbol since day 900, another symbol in between.
+        let listing = Listing::new("TLF", None, &[change(1500, "TLFA"), change(900, "TLF")]);
+        assert_eq!(listing.taken_sec, None);
+        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive.clone(), 0.0, &listing)), vec![1000, 1001, 2000, 2001, 2002]);
+        // GHC shape: the only entry is the end of the hole.
+        let listing = Listing::new("GHC", None, &[change(2000, "GHC")]);
+        assert_eq!(days(&prepend_archive(vec![bar(2002)], archive, 0.0, &listing)), vec![2000, 2001, 2002]);
+    }
+
+    /// A company that moved to the symbol from another one: the bars before
+    /// that date are another company's, with or without a hole. A lone
+    /// entry is no start (its date can be years after the first bar).
+    #[test]
+    fn archive_starts_where_the_company_took_the_symbol() {
+        let archive: Vec<Candle> = (1000..=1005).map(bar).collect();
+        // WEX shape: WXS, then WEX on day 1003.
+        let listing = Listing::new("WEX", Some(date(950)), &[change(1003, "WEX"), change(990, "WXS")]);
+        assert_eq!((listing.taken_sec, listing.taken_from.as_deref()), (Some((1003 * 86_400) as f64), Some("WXS")));
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, &listing)), vec![1003, 1004, 1005, 1006]);
+        // META shape: the symbol taken inside the live window; the live bars
+        // before that date go too.
+        let live: Vec<Candle> = (1006..=1009).map(bar).collect();
+        let listing = Listing::new("META", None, &[change(1008, "META"), change(900, "FB")]);
+        assert_eq!(days(&prepend_archive(live, archive.clone(), 0.0, &listing)), vec![1008, 1009]);
+        // GSL shape: one entry, later than the first bar.
+        let listing = Listing::new("GSL", None, &[change(1004, "GSL")]);
+        assert_eq!(listing.taken_sec, None);
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, &listing)).len(), 7);
+        // Back to a symbol it held before: the first time counts.
+        let listing = Listing::new("ABC", None, &[change(1004, "ABC"), change(1002, "XYZ"), change(900, "ABC")]);
+        assert_eq!(listing.taken_sec, None);
+        // Entries under other symbols only (GOOGL has `GOOG`): nothing known.
+        assert_eq!(Listing::new("GOOGL", None, &[change(1004, "GOOG")]), Listing::default());
+        assert_eq!(days(&prepend_archive(vec![bar(1006)], archive, 0.0, &Listing::default())).len(), 7);
     }
 
     /// Mid-week the window is just the prior `span_days` sessions — no surprises.
@@ -508,7 +635,7 @@ mod tests {
         eprintln!("overlap: {common} sessions, closes off by more than 0.5%: {off}, worst {:.4}%", worst * 100.0);
         assert!(common > 1000 && off == 0);
 
-        let joined = prepend_archive(live.clone(), archive, 0.0, None);
+        let joined = prepend_archive(live.clone(), archive, 0.0, &Listing::default());
         let first = joined.first().unwrap();
         eprintln!(
             "joined: {} bars ({} live from {:?}), first {:?} close {:.4} volume {:.0}",
@@ -538,6 +665,59 @@ mod tests {
         assert_eq!((raw[0].close, raw[0].volume), (22.18, 3_957_751.0));
         let none = provider.daily_archive(&SymbolRef::parse("ZZZZQQ"), true).await.unwrap();
         assert!(none.is_empty());
+    }
+
+    /// Where the daily series of each ticker of `OT_TICKERS` (comma list,
+    /// source spelling) starts, with the listing date alone and with the
+    /// symbol history (network). Prints the tickers whose start differs. Run with:
+    ///   OT_TICKERS=TLF,WEX,GHC cargo test --lib archive_start_live -- --nocapture --ignored
+    #[tokio::test]
+    #[ignore = "hits the gateway; run explicitly"]
+    async fn archive_start_live() {
+        use crate::data::{daily_archive, massive_rest, ticker_case};
+        use futures_util::stream::{self, StreamExt};
+        let tickers: Vec<String> =
+            std::env::var("OT_TICKERS").unwrap_or_else(|_| "TLF,WEX,GHC,META,GSL,AAPL".into()).split(',').map(str::to_string).collect();
+        let to = crate::data::trading_calendar::ny_today();
+        let from = clamp_to_floor(BarFamily::Day, to - Duration::days(30 * 366), to).await.unwrap().0;
+        let day = |sec: f64| chrono::DateTime::from_timestamp(sec as i64, 0).unwrap().date_naive();
+        let rows: Vec<String> = stream::iter(tickers)
+            .map(|t| async move {
+                let live = massive_rest::fetch_daily_aggs(&t, from, to, true).await.unwrap_or_default();
+                let archive = daily_archive::daily_bars(&t, true).await.unwrap_or_default();
+                if live.is_empty() || archive.is_empty() {
+                    return format!("{t},,,,no live bars or no archive");
+                }
+                let sym = SymbolRef::parse(&ticker_case::to_app(&t));
+                let listed = MassiveProvider.listing_date(&sym).await;
+                let Some(changes) = MassiveProvider.symbol_changes(&sym).await else {
+                    return format!("{t},,,,symbol history not read");
+                };
+                let listing = listing_of(&MassiveProvider, &sym).await;
+                let before = prepend_archive(live.clone(), archive.clone(), 0.0, &Listing::new(&sym.ticker, listed, &[]));
+                let after = prepend_archive(live.clone(), archive, 0.0, &listing);
+                let dropped = if listing.taken_from.is_some() && listing.taken_sec.is_none() { " (move not proven, ignored)" } else { "" };
+                let history = changes.iter().map(|c| format!("{} {}", c.ticker, c.date)).collect::<Vec<_>>().join(" < ") + dropped;
+                format!("{t},{},{},{},{history}", day(before[0].time), day(after[0].time), day(live[0].time))
+            })
+            .buffered(8)
+            .collect()
+            .await;
+        let mut changed = 0;
+        for r in &rows {
+            let f: Vec<&str> = r.splitn(5, ',').collect();
+            if f[1] != f[2] {
+                changed += 1;
+                eprintln!("CHANGED {r}");
+            }
+        }
+        eprintln!("{} tickers, start changed for {changed}", rows.len());
+        if let Ok(out) = std::env::var("OT_OUT") {
+            std::fs::write(out, format!("ticker,start_listing_date_only,start_with_symbol_history,first_live_bar,symbol_history
+{}
+", rows.join("
+"))).unwrap();
+        }
     }
 
     /// Exercises the real daily-load path against the on-disk cache (no network

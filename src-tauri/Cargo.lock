@@ -2604,6 +2604,7 @@ dependencies = [
  "chrono-tz",
  "dirs",
  "dotenvy",
+ "flate2",
  "futures-util",
  "percent-encoding",
  "reqwest 0.12.28",

@@ -343,6 +343,9 @@ pub async fn clear_market_data_cache() -> Result<(), String> {
     if let Some(m) = LISTING_DATES.get() {
         m.lock().await.clear();
     }
+    if let Some(m) = TICKER_CHANGES.get() {
+        m.lock().await.clear();
+    }
     if let Some(m) = PRIOR_CLOSES.get() {
         *m.lock().await = None;
     }
@@ -967,6 +970,69 @@ pub async fn listing_date(ticker: &str) -> Option<NaiveDate> {
         .and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok());
     memo.lock().await.insert(ticker.to_string(), (today, Arc::new(date)));
     date
+}
+
+#[derive(Deserialize)]
+struct EventsResponse {
+    results: Option<EventsResult>,
+}
+
+#[derive(Deserialize)]
+struct EventsResult {
+    #[serde(default)]
+    events: Vec<EventRow>,
+}
+
+#[derive(Deserialize)]
+struct EventRow {
+    #[serde(default)]
+    date: Option<String>,
+    #[serde(default)]
+    ticker_change: Option<EventTicker>,
+}
+
+#[derive(Deserialize)]
+struct EventTicker {
+    ticker: String,
+}
+
+/// Per-ticker, per-day memo of the symbol history.
+static TICKER_CHANGES: DayMemo<String, Vec<(NaiveDate, String)>> = OnceLock::new();
+
+/// Symbols of the company now behind `ticker`, each with the date it took it
+/// (newest first, the symbols in the source's spelling). Empty when the
+/// reference data has no history for it; `None` on a lookup failure (not
+/// memoised then).
+pub async fn ticker_changes(ticker: &str) -> Option<Arc<Vec<(NaiveDate, String)>>> {
+    let memo = TICKER_CHANGES.get_or_init(|| Mutex::new(HashMap::new()));
+    let today = Utc::now().date_naive();
+    if let Some((as_of, changes)) = memo.lock().await.get(ticker) {
+        if *as_of == today {
+            return Some(changes.clone());
+        }
+    }
+    let token = gateway::token()?;
+    let url = format!("{BASE}/vX/reference/tickers/{ticker}/events?types=ticker_change&apiKey={token}");
+    let resp = http().get(&url).send().await.ok()?;
+    let changes = if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        Vec::new()
+    } else if resp.status().is_success() {
+        let body: EventsResponse = resp.json().await.ok()?;
+        let mut rows: Vec<(NaiveDate, String)> = body
+            .results
+            .map(|r| r.events)
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|e| Some((NaiveDate::parse_from_str(e.date.as_deref()?, "%Y-%m-%d").ok()?, e.ticker_change?.ticker)))
+            .collect();
+        rows.sort_by(|a, b| b.0.cmp(&a.0));
+        rows
+    } else {
+        return None;
+    };
+    let changes = Arc::new(changes);
+    memo.lock().await.insert(ticker.to_string(), (today, changes.clone()));
+    Some(changes)
 }
 
 pub async fn fetch_ticker_info(ticker: &str) -> Result<TickerInfo> {
@@ -1595,13 +1661,18 @@ pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
             body.error.unwrap_or_else(|| body.status.clone())
         ));
     }
-    let prior = if body.tickers.iter().any(is_closed) {
+    Ok(market_rows(&body.tickers, token).await)
+}
+
+/// Shape snapshot entries into screener rows (the rules of the REST path and
+/// of the live feed).
+async fn market_rows(entries: &[SnapEntry], token: &str) -> Vec<MarketRow> {
+    let prior = if entries.iter().any(is_closed) {
         Some(prior_session_closes(token).await)
     } else {
         None
     };
-    Ok(body
-        .tickers
+    entries
         .iter()
         .filter_map(|t| {
             let closed = is_closed(t);
@@ -1638,7 +1709,46 @@ pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
                 updated_ms: t.updated / 1e6,
             })
         })
-        .collect())
+        .collect()
+}
+
+/// One ticker of the market snapshot as the screener live feed carries it:
+/// the same fields as a REST snapshot entry, a missing one as `None`. Bars
+/// are `[open, high, low, close, volume]`.
+pub struct FeedSnapshot {
+    pub ticker: String,
+    /// Snapshot update stamp, UNIX milliseconds.
+    pub updated_ms: f64,
+    pub todays_change: Option<f64>,
+    pub day: Option<[f64; 5]>,
+    pub prev_day: Option<[f64; 5]>,
+    /// Close of the latest minute bar.
+    pub min_close: Option<f64>,
+}
+
+/// Shape live-feed snapshots with the rules of [`fetch_market_snapshot`], so
+/// a table built from the feed equals one built from the REST snapshot.
+pub async fn shape_feed_snapshots(snapshots: Vec<FeedSnapshot>) -> Result<Vec<MarketRow>> {
+    let token = gateway::token().context(NO_TOKEN)?;
+    let bar = |b: [f64; 5]| SnapBar { o: b[0], h: b[1], l: b[2], c: b[3], v: b[4] };
+    let entries: Vec<SnapEntry> = snapshots
+        .into_iter()
+        .map(|f| {
+            let change = f.todays_change.unwrap_or(0.0);
+            // The feed does not carry the percentage: change / previous close.
+            let prev_close = f.prev_day.map_or(0.0, |p| p[3]);
+            SnapEntry {
+                ticker: f.ticker,
+                todays_change: change,
+                todays_change_perc: if prev_close > 0.0 { change / prev_close * 100.0 } else { 0.0 },
+                updated: f.updated_ms * 1e6,
+                day: f.day.map(bar),
+                prev_day: f.prev_day.map(bar),
+                min: f.min_close.map(|c| MinBar { c, ..MinBar::default() }),
+            }
+        })
+        .collect();
+    Ok(market_rows(&entries, token).await)
 }
 
 // ── Reference ticker list (/v3/reference/tickers) ────────────────────────

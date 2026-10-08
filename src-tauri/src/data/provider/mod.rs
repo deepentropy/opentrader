@@ -59,6 +59,12 @@ pub trait HistoryProvider: Send + Sync {
     async fn listing_date(&self, _sym: &SymbolRef) -> Option<NaiveDate> {
         None
     }
+    /// Symbols of the company now behind the symbol, each with the date it
+    /// took it (newest first), when the provider keeps that history. `None`
+    /// when unknown.
+    async fn symbol_changes(&self, _sym: &SymbolRef) -> Option<Vec<SymbolChange>> {
+        None
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,
@@ -84,6 +90,14 @@ pub trait HistoryProvider: Send + Sync {
         since_sec: f64,
         adjusted: bool,
     ) -> Result<Vec<Candle>>;
+}
+
+/// One step of a company's symbol history: from `date` on it traded as
+/// `ticker` (the app's name of the ticker).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SymbolChange {
+    pub date: NaiveDate,
+    pub ticker: String,
 }
 
 /// Symbol reference data, snapshots, corporate-action events, and branding icon.

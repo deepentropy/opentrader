@@ -21,6 +21,10 @@ pub const BASE: &str = "https://opentrader-gateway.cloudflare-breeder165.workers
 /// The one stream URL. The gateway picks the delayed or real-time upstream.
 pub const WS_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/stocks";
 
+/// The screener's live feed: one full-market table, then its changes every
+/// 10 s, polled once by the gateway for every app (`?apiKey=<token>`).
+pub const SCREENER_LIVE_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/screener/v1/live";
+
 /// Shown when the build has no token. Surfaces in the UI as the reason a chart
 /// failed to load.
 pub const NO_TOKEN: &str =

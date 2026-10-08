@@ -14,7 +14,7 @@ use super::capabilities::{
     StreamCaps,
 };
 use super::entitlements;
-use super::{DataProvider, HistoryProvider, RealtimeProvider, ReferenceProvider};
+use super::{DataProvider, HistoryProvider, RealtimeProvider, ReferenceProvider, SymbolChange};
 use crate::data::types::{
     Candle, DividendEvent, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
@@ -45,6 +45,10 @@ impl HistoryProvider for MassiveProvider {
     }
     async fn listing_date(&self, sym: &SymbolRef) -> Option<NaiveDate> {
         massive_rest::listing_date(&ticker_case::to_source(&sym.ticker)).await
+    }
+    async fn symbol_changes(&self, sym: &SymbolRef) -> Option<Vec<SymbolChange>> {
+        let changes = massive_rest::ticker_changes(&ticker_case::to_source(&sym.ticker)).await?;
+        Some(changes.iter().map(|(date, ticker)| SymbolChange { date: *date, ticker: ticker_case::to_app(ticker) }).collect())
     }
     async fn minute_aggs(
         &self,

@@ -1,6 +1,6 @@
 /*
  * Screener commands. `screener_open` / `screener_close` start and stop the
- * 10 s market poll per panel (owner = "<window label>:screener"); scans run
+ * market table per panel (owner = "<window label>:screener"); scans run
  * on the in-memory table (see `screener/`).
  */
 use crate::screener::fields::{self, FieldInfo};
