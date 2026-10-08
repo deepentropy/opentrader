@@ -50,6 +50,9 @@ impl HistoryProvider for MassiveProvider {
         let changes = massive_rest::ticker_changes(&ticker_case::to_source(&sym.ticker)).await?;
         Some(changes.iter().map(|(date, ticker)| SymbolChange { date: *date, ticker: ticker_case::to_app(ticker) }).collect())
     }
+    async fn executed_splits(&self, sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
+        massive_rest::executed_splits(&ticker_case::to_source(&sym.ticker)).await
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,

@@ -65,6 +65,12 @@ pub trait HistoryProvider: Send + Sync {
     async fn symbol_changes(&self, _sym: &SymbolRef) -> Option<Vec<SymbolChange>> {
         None
     }
+    /// Every executed split of the company now behind the symbol, in any
+    /// order. `None` when the list could not be read (bars must then not be
+    /// scaled with it).
+    async fn executed_splits(&self, _sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
+        Some(Vec::new())
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,

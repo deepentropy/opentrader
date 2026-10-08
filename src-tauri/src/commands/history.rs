@@ -13,7 +13,7 @@ use crate::data::provider::{entitlements, DataProvider, Provider, SymbolChange};
 use crate::data::massive_rest::DayMemo;
 use crate::data::symbol::SymbolRef;
 use crate::data::calendar::SessionCalendar;
-use crate::data::types::Candle;
+use crate::data::types::{Candle, SplitEvent};
 use chrono::{Duration, NaiveDate};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -77,8 +77,29 @@ struct Listing {
     /// Date the company moved to this symbol from another one: its older
     /// bars are under that other symbol.
     taken_sec: Option<f64>,
-    /// That other symbol.
-    taken_from: Option<String>,
+    /// The symbols it traded under before that date, newest first.
+    earlier: Vec<Segment>,
+}
+
+/// An earlier symbol of a company and the stretch of that symbol's bars that
+/// is the company's (the symbol can be used by others before and after).
+#[derive(Debug, Clone, PartialEq)]
+struct Segment {
+    ticker: String,
+    /// Start of the stretch, `f64::MIN` when not known.
+    start_sec: f64,
+    /// Date the company left the symbol (not part of the stretch).
+    end_sec: f64,
+}
+
+/// Midnight UTC of a date, as seconds.
+fn midnight(d: NaiveDate) -> Option<f64> {
+    d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp() as f64)
+}
+
+/// The UTC date of a time in seconds (the date itself for [`midnight`]).
+fn day_of(sec: f64) -> Option<NaiveDate> {
+    chrono::DateTime::from_timestamp(sec as i64, 0).map(|dt| dt.date_naive())
 }
 
 impl Listing {
@@ -87,15 +108,26 @@ impl Listing {
     /// be years after the first bar), so one is a start only when the
     /// company came from another symbol.
     fn new(ticker: &str, listed: Option<NaiveDate>, changes: &[SymbolChange]) -> Self {
-        let midnight = |d: NaiveDate| d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp() as f64);
         let held_since: Vec<f64> = changes.iter().filter(|c| c.ticker == ticker).filter_map(|c| midnight(c.date)).collect();
         // Oldest entry with this symbol, when an entry with another symbol precedes it.
         let taken = changes.iter().rposition(|c| c.ticker == ticker).filter(|&i| i + 1 < changes.len());
+        // Each older entry: that symbol, from its date to the next entry's.
+        let earlier = taken.map_or_else(Vec::new, |i| {
+            (i + 1..changes.len())
+                .filter_map(|j| {
+                    Some(Segment {
+                        ticker: changes[j].ticker.clone(),
+                        start_sec: midnight(changes[j].date)?,
+                        end_sec: midnight(changes[j - 1].date)?,
+                    })
+                })
+                .collect()
+        });
         Self {
             listed_sec: listed.and_then(midnight),
             held_since,
             taken_sec: taken.and_then(|i| midnight(changes[i].date)),
-            taken_from: taken.map(|i| changes[i + 1].ticker.clone()),
+            earlier,
         }
     }
 }
@@ -104,25 +136,220 @@ impl Listing {
 /// for the change to count as the start of the company's bars.
 const TAKEN_PROOF_SECS: f64 = 45.0 * 86_400.0;
 
+/// Where the stretch of bars that ends before `end_sec` starts: the oldest
+/// bar reached going back without a hole longer than
+/// [`ARCHIVE_MAX_HOLE_SECS`] (`end_sec` when no bar precedes it). `bars`
+/// oldest first.
+fn stretch_start(bars: &[Candle], end_sec: f64) -> f64 {
+    let mut start = end_sec;
+    for bar in bars.iter().rev().filter(|b| b.time < end_sec) {
+        if start - bar.time > ARCHIVE_MAX_HOLE_SECS {
+            break;
+        }
+        start = bar.time;
+    }
+    start
+}
+
 /// The listing facts of `sym` from the provider. A move from another symbol
 /// is kept only when that symbol's own archive has bars just before the date:
 /// the history can name an earlier spelling of the same symbol on a date the
 /// company already traded under the current one (its bars are then here, and
-/// cutting them would lose real history).
+/// cutting them would lose real history). The chain of earlier symbols stops
+/// at the first move that is not proven; the oldest symbol kept starts where
+/// its bars do (the date of its entry is not a listing date).
 async fn listing_of<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef) -> Listing {
     let (listed, changes) = tokio::join!(provider.listing_date(sym), provider.symbol_changes(sym));
     let mut listing = Listing::new(&sym.ticker, listed, &changes.unwrap_or_default());
-    if let (Some(taken), Some(from)) = (listing.taken_sec, listing.taken_from.clone()) {
-        let earlier = SymbolRef { exchange: sym.exchange.clone(), ticker: from };
-        let proven = provider
-            .daily_archive(&earlier, false)
-            .await
-            .is_ok_and(|bars| bars.iter().any(|b| b.time < taken && b.time >= taken - TAKEN_PROOF_SECS));
-        if !proven {
-            listing.taken_sec = None;
+    let (mut proven, mut oldest_start) = (0, f64::MIN);
+    for segment in &listing.earlier {
+        let earlier = SymbolRef { exchange: sym.exchange.clone(), ticker: segment.ticker.clone() };
+        let Ok(bars) = provider.daily_archive(&earlier, false).await else {
+            break;
+        };
+        if !bars.iter().any(|b| b.time < segment.end_sec && b.time >= segment.end_sec - TAKEN_PROOF_SECS) {
+            break;
         }
+        proven += 1;
+        oldest_start = stretch_start(&bars, segment.end_sec);
+    }
+    listing.earlier.truncate(proven);
+    match listing.earlier.last_mut() {
+        Some(oldest) => oldest.start_sec = oldest_start,
+        None => listing.taken_sec = None,
     }
     listing
+}
+
+/// A bar family and its bucket width, for a ranged fetch.
+#[derive(Clone, Copy)]
+enum Span {
+    Day,
+    Minute(u32),
+    /// Minutes over a window that can exceed one request (see
+    /// [`minute_aggs_chunked`]).
+    MinuteChunked(u32),
+    Second(u32),
+}
+
+impl Span {
+    fn family(self) -> BarFamily {
+        match self {
+            Span::Day => BarFamily::Day,
+            Span::Minute(_) | Span::MinuteChunked(_) => BarFamily::Minute,
+            Span::Second(_) => BarFamily::Second,
+        }
+    }
+}
+
+/// `span` bars of the symbol `sym` itself over `[from, to]`.
+async fn span_aggs(
+    provider: &Provider,
+    cal: &SessionCalendar,
+    sym: &SymbolRef,
+    span: Span,
+    from: NaiveDate,
+    to: NaiveDate,
+    adjusted: bool,
+) -> anyhow::Result<Vec<Candle>> {
+    match span {
+        Span::Day => provider.daily_aggs(sym, from, to, adjusted).await,
+        Span::Minute(mult) => provider.minute_aggs(sym, mult, from, to, adjusted).await,
+        Span::MinuteChunked(mult) => minute_aggs_chunked(provider, cal, sym, mult, from, to, adjusted).await,
+        Span::Second(mult) => provider.second_aggs(sym, mult, from, to, adjusted).await,
+    }
+}
+
+/// Unadjusted `bars` put on the split-adjusted scale: prices times
+/// `from / to` of every split executed after the bar's session, volume
+/// divided by it.
+fn scale_by_splits(bars: &mut [Candle], splits: &[SplitEvent], cal: &SessionCalendar) {
+    if splits.is_empty() {
+        return;
+    }
+    for bar in bars {
+        let session = cal.date_of(bar.time as i64).and_then(midnight).unwrap_or(bar.time);
+        let factor: f64 =
+            splits.iter().filter(|s| s.date > session && s.from > 0.0 && s.to > 0.0).map(|s| s.from / s.to).product();
+        bar.open *= factor;
+        bar.high *= factor;
+        bar.low *= factor;
+        bar.close *= factor;
+        bar.volume /= factor;
+    }
+}
+
+/// The company's bars over `[from, to]` under its earlier symbols
+/// (`listing.earlier`), oldest first: each symbol is read inside its own
+/// stretch only. With `with_archive` (daily bars) the sessions older than the
+/// recent source come from that symbol's archive. The bars are read
+/// unadjusted and, when `adjusted`, scaled by the splits of `sym`: the
+/// current symbol's list is the company's (an earlier symbol's list can be a
+/// later user's).
+#[allow(clippy::too_many_arguments)]
+async fn earlier_bars(
+    provider: &Provider,
+    cal: &SessionCalendar,
+    sym: &SymbolRef,
+    listing: &Listing,
+    span: Span,
+    from: NaiveDate,
+    to: NaiveDate,
+    adjusted: bool,
+    with_archive: bool,
+) -> anyhow::Result<Vec<Candle>> {
+    let mut parts: Vec<Vec<Candle>> = Vec::new();
+    for segment in &listing.earlier {
+        let Some(end) = day_of(segment.end_sec) else {
+            continue;
+        };
+        let a = day_of(segment.start_sec).map_or(from, |start| start.max(from));
+        let b = to.min(end - Duration::days(1));
+        if a > b {
+            continue;
+        }
+        let earlier = SymbolRef { exchange: sym.exchange.clone(), ticker: segment.ticker.clone() };
+        let recent = match clamp_to_floor(span.family(), a, b).await {
+            Some((a, b)) => span_aggs(provider, cal, &earlier, span, a, b, false).await,
+            None => Ok(Vec::new()),
+        };
+        // The archive reaches the recent sessions too, so with it a failed
+        // recent read (a stretch older than the key's history) costs nothing.
+        let mut bars = match recent {
+            Err(e) if with_archive => {
+                eprintln!("[history] {earlier}: recent bars not loaded, archive only: {e:#}");
+                Vec::new()
+            }
+            other => other?,
+        };
+        if with_archive {
+            let first = bars.first().map_or(f64::MAX, |b| b.time);
+            let mut older: Vec<Candle> =
+                provider.daily_archive(&earlier, false).await?.into_iter().filter(|c| c.time < first).collect();
+            older.extend(bars);
+            bars = older;
+        }
+        bars.retain(|c| cal.date_of(c.time as i64).is_some_and(|d| d >= a && d <= b));
+        parts.push(bars);
+    }
+    let mut out: Vec<Candle> = parts.into_iter().rev().flatten().collect();
+    if adjusted && !out.is_empty() {
+        let splits = provider
+            .executed_splits(sym)
+            .await
+            .ok_or_else(|| anyhow::anyhow!("no split list for {sym}"))?;
+        scale_by_splits(&mut out, &splits, cal);
+    }
+    Ok(out)
+}
+
+/// `span` bars of the company behind `sym` over `[from, to]`: the days
+/// before it took the symbol are read under its earlier symbols, so a window
+/// across a symbol change is one series. `eager` reads the symbol's own bars
+/// while the symbol history is looked up (a window that ends now always
+/// needs them); otherwise the history comes first and a window entirely
+/// before the change costs no request under the current symbol.
+#[allow(clippy::too_many_arguments)]
+async fn chained_aggs(
+    provider: &Provider,
+    cal: &SessionCalendar,
+    sym: &SymbolRef,
+    span: Span,
+    from: NaiveDate,
+    to: NaiveDate,
+    adjusted: bool,
+    eager: bool,
+) -> anyhow::Result<Vec<Candle>> {
+    let (listing, own) = if eager {
+        let (listing, bars) =
+            tokio::join!(listing_of(provider.as_ref(), sym), span_aggs(provider, cal, sym, span, from, to, adjusted));
+        (listing, Some(bars?))
+    } else {
+        (listing_of(provider.as_ref(), sym).await, None)
+    };
+    let Some(taken) = listing.taken_sec.and_then(day_of).filter(|taken| *taken > from) else {
+        return match own {
+            Some(bars) => Ok(bars),
+            None => span_aggs(provider, cal, sym, span, from, to, adjusted).await,
+        };
+    };
+    let mut bars = earlier_bars(provider, cal, sym, &listing, span, from, to, adjusted, false).await?;
+    match own {
+        Some(own) => bars.extend(own.into_iter().filter(|c| cal.date_of(c.time as i64).is_some_and(|d| d >= taken))),
+        None if to >= taken => bars.extend(span_aggs(provider, cal, sym, span, taken, to, adjusted).await?),
+        None => {}
+    }
+    Ok(bars)
+}
+
+/// `bars` with `older` (the company's bars under its earlier symbols) in
+/// front, as far as they end before its first bar. Both oldest first.
+fn prepend_older(bars: Vec<Candle>, mut older: Vec<Candle>) -> Vec<Candle> {
+    if let Some(first) = bars.first().map(|b| b.time) {
+        older.retain(|b| b.time < first);
+    }
+    older.extend(bars);
+    older
 }
 
 /// `bars` with the archived sessions older than its first bar in front.
@@ -130,7 +357,8 @@ async fn listing_of<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef) -> 
 /// `bars` (inside its window the live source wins), and back to where the
 /// current company starts:
 ///   - the date it took the symbol from another one (`taken_sec`); the live
-///     bars before that date are another company's too and are dropped;
+///     bars before that date are another company's too and are dropped (its
+///     own are under the earlier symbol, see [`earlier_bars`]);
 ///   - the start of its listing (`listed_sec`), unless that date is later
 ///     than the first live bar (the live source itself has older bars, so
 ///     it is no start of this series);
@@ -173,6 +401,59 @@ fn prepend_archive(mut bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64, l
     older
 }
 
+/// The daily series of the company behind `sym` from `wanted_from` on: the
+/// recent source over `[from, to]`, the archive before it, and the bars of
+/// its earlier symbols in front. The flag is false when a part older than
+/// the recent series could not be read (the series is then not memoised).
+/// Empty when the recent source has no bar.
+async fn joined_daily(
+    provider: &Provider,
+    cal: &SessionCalendar,
+    sym: &SymbolRef,
+    wanted_from: NaiveDate,
+    from: NaiveDate,
+    to: NaiveDate,
+    adjusted: bool,
+) -> Result<(Vec<Candle>, bool), String> {
+    // One REST call returns the whole daily series (split-adjusted when
+    // `adjusted`); closed sessions are then served from the per-day disk cache
+    // on later loads. The sessions older than that series come from the daily
+    // archive, read at the same time. The sessions before a symbol change
+    // are the earlier symbol's and go in front of both.
+    let (bars, archive, listing) = tokio::join!(
+        provider.daily_aggs(sym, from, to, adjusted),
+        provider.daily_archive(sym, adjusted),
+        listing_of(provider.as_ref(), sym),
+    );
+    let bars = bars.map_err(|e| e.to_string())?;
+    if bars.is_empty() {
+        return Ok((bars, false));
+    }
+    // A failed archive read leaves the chart on the recent series, as without
+    // an archive, and is not memoised so the next load reads it again.
+    Ok(match archive {
+        Ok(archive) => {
+            let from_sec = wanted_from.and_hms_opt(0, 0, 0).map_or(0.0, |dt| dt.and_utc().timestamp() as f64);
+            let bars = prepend_archive(bars, archive, from_sec, &listing);
+            if listing.earlier.is_empty() {
+                (bars, true)
+            } else {
+                match earlier_bars(provider, cal, sym, &listing, Span::Day, wanted_from, to, adjusted, true).await {
+                    Ok(older) => (prepend_older(bars, older), true),
+                    Err(e) => {
+                        eprintln!("[history] {sym}: bars of the earlier symbol not loaded: {e:#}");
+                        (bars, false)
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
+            (bars, false)
+        }
+    })
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_daily_history(
@@ -199,31 +480,10 @@ pub async fn get_daily_history(
         return Err(format!("no daily data for {sym} in last {days} days"));
     };
 
-    // One REST call returns the whole daily series (split-adjusted when
-    // `adjusted`); closed sessions are then served from the per-day disk cache
-    // on later loads. The sessions older than that series come from the daily
-    // archive, read at the same time.
-    let (bars, archive, listing) = tokio::join!(
-        provider.daily_aggs(&sym, from, to, adjusted),
-        provider.daily_archive(&sym, adjusted),
-        listing_of(provider.inner().as_ref(), &sym),
-    );
-    let bars = bars.map_err(|e| e.to_string())?;
+    let (bars, complete) = joined_daily(&provider, &cal, &sym, wanted_from, from, to, adjusted).await?;
     if bars.is_empty() {
         return Err(format!("no daily data for {sym} in last {days} days"));
     }
-    // A failed archive read leaves the chart on the recent series, as without
-    // an archive, and is not memoised so the next load reads it again.
-    let (bars, complete) = match archive {
-        Ok(archive) => {
-            let from_sec = wanted_from.and_hms_opt(0, 0, 0).map_or(0.0, |dt| dt.and_utc().timestamp() as f64);
-            (prepend_archive(bars, archive, from_sec, &listing), true)
-        }
-        Err(e) => {
-            eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
-            (bars, false)
-        }
-    };
     if complete {
         mem.lock()
             .await
@@ -255,8 +515,7 @@ pub async fn get_minute_history(
         return Err(format!("no minute data for {sym} in last {days} days"));
     };
 
-    let bars = provider
-        .minute_aggs(&sym, interval_min.max(1), from, to, adjusted)
+    let bars = chained_aggs(&provider, &cal, &sym, Span::Minute(interval_min.max(1)), from, to, adjusted, true)
         .await
         .map_err(|e| e.to_string())?;
     if bars.is_empty() {
@@ -279,15 +538,15 @@ pub async fn get_second_history(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
-    let to = calendar_of(&provider, &sym).await?.window_end();
+    let cal = calendar_of(&provider, &sym).await?;
+    let to = cal.window_end();
     // Pad the lookback by a day so a `days = 1` request still spans the
     // most recent full session even before today's bars exist.
     let from = to - Duration::days((days.max(1) as i64) + 1);
     let Some((from, to)) = clamp_to_floor(BarFamily::Second, from, to).await else {
         return Ok(Vec::new());
     };
-    provider
-        .second_aggs(&sym, mult, from, to, adjusted)
+    chained_aggs(&provider, &cal, &sym, Span::Second(mult), from, to, adjusted, true)
         .await
         .map_err(|e| e.to_string())
 }
@@ -409,12 +668,12 @@ pub async fn get_aggregates_before(
         return Ok(Vec::new());
     };
 
-    let bars = match timespan.as_str() {
-        "second" => provider.second_aggs(&sym, mult, from, to, adjusted).await,
-        "minute" => minute_aggs_chunked(&provider, &cal, &sym, mult, from, to, adjusted).await,
+    let span = match timespan.as_str() {
+        "second" => Span::Second(mult),
+        "minute" => Span::MinuteChunked(mult),
         other => return Err(format!("unsupported timespan for aggregates-before: {other}")),
-    }
-    .map_err(|e| e.to_string())?;
+    };
+    let bars = chained_aggs(&provider, &cal, &sym, span, from, to, adjusted, false).await.map_err(|e| e.to_string())?;
 
     // The day-rounded `to` can echo the boundary bar; keep strictly-older bars.
     Ok(bars.into_iter().filter(|b| b.time < before_sec).collect())
@@ -452,13 +711,10 @@ pub async fn get_daily_history_before(
     // Unlike the initial load, a scroll-back page never errors the UI: an empty
     // result (no older data, or past the plan's history floor) is reported as
     // Ok([]) so the renderer latches "history exhausted" and stops paging.
-    let (bars, listing) =
-        tokio::join!(provider.daily_aggs(&sym, from, end, adjusted), listing_of(provider.inner().as_ref(), &sym));
-    let bars = bars.map_err(|e| e.to_string())?;
-    // Same start as the initial load: bars from before the company took the
-    // symbol are another company's.
-    let start = listing.taken_sec.unwrap_or(f64::MIN);
-    Ok(bars.into_iter().filter(|b| b.time < before_sec && b.time >= start).collect())
+    // Same series as the initial load: the days before the company took the
+    // symbol are read under its earlier symbol.
+    let bars = chained_aggs(&provider, &cal, &sym, Span::Day, from, end, adjusted, false).await.map_err(|e| e.to_string())?;
+    Ok(bars.into_iter().filter(|b| b.time < before_sec).collect())
 }
 
 #[cfg(test)]
@@ -544,6 +800,54 @@ mod tests {
         SymbolChange { date: date(day), ticker: ticker.into() }
     }
 
+    fn segment(ticker: &str, start: i64, end: i64) -> Segment {
+        Segment { ticker: ticker.into(), start_sec: (start * 86_400) as f64, end_sec: (end * 86_400) as f64 }
+    }
+
+    /// Every older entry of the symbol history is one earlier symbol, from
+    /// its date to the next entry's; none when the company never moved here
+    /// from another symbol.
+    #[test]
+    fn earlier_symbols_follow_the_symbol_history() {
+        let listing = Listing::new("C", None, &[change(1200, "C"), change(1100, "B"), change(1000, "A")]);
+        assert_eq!(listing.earlier, vec![segment("B", 1100, 1200), segment("A", 1000, 1100)]);
+        assert!(Listing::new("GSL", None, &[change(1004, "GSL")]).earlier.is_empty());
+        assert!(Listing::new("TLF", None, &[change(1500, "TLFA"), change(900, "TLF")]).earlier.is_empty());
+    }
+
+    /// The oldest earlier symbol starts where its own bars do: back from the
+    /// change to the first long hole (an earlier user of that symbol).
+    #[test]
+    fn stretch_starts_after_the_last_long_hole() {
+        let bars: Vec<Candle> = [100, 101, 1000, 1001, 1002, 1500].into_iter().map(bar).collect();
+        assert_eq!(stretch_start(&bars, (1003 * 86_400) as f64), (1000 * 86_400) as f64);
+        assert_eq!(stretch_start(&bars, (102 * 86_400) as f64), (100 * 86_400) as f64);
+        assert_eq!(stretch_start(&bars, (50 * 86_400) as f64), (50 * 86_400) as f64);
+    }
+
+    /// Earlier-symbol bars go in front of the series and never over it.
+    #[test]
+    fn older_bars_end_before_the_series() {
+        let older: Vec<Candle> = (1000..=1004).map(bar).collect();
+        assert_eq!(days(&prepend_older(vec![bar(1003), bar(1005)], older.clone())), vec![1000, 1001, 1002, 1003, 1005]);
+        assert_eq!(days(&prepend_older(Vec::new(), older)).len(), 5);
+    }
+
+    /// Unadjusted bars are scaled by the splits executed after their session
+    /// (the execution day itself trades on the new scale).
+    #[test]
+    fn earlier_bars_are_scaled_by_later_splits() {
+        let cal = us();
+        // 16:00 UTC of 16/05 and 17/05/2017, a 2:1 split executed on the 17th.
+        let at = |d: u32| NaiveDate::from_ymd_opt(2017, 5, d).unwrap().and_hms_opt(16, 0, 0).unwrap().and_utc().timestamp() as f64;
+        let candle = |time: f64| Candle { time, open: 80.0, high: 82.0, low: 78.0, close: 80.0, volume: 100.0 };
+        let mut bars = vec![candle(at(16)), candle(at(17))];
+        let split = SplitEvent { date: midnight(NaiveDate::from_ymd_opt(2017, 5, 17).unwrap()).unwrap(), from: 1.0, to: 2.0 };
+        scale_by_splits(&mut bars, &[split], &cal);
+        assert_eq!((bars[0].close, bars[0].high, bars[0].volume), (40.0, 41.0, 200.0));
+        assert_eq!((bars[1].close, bars[1].volume), (80.0, 100.0));
+    }
+
     /// A company delisted for more than a year and listed again under its
     /// symbol: it held the symbol before the hole, so the hole is no cut. A
     /// hole before the company took the symbol still is.
@@ -567,13 +871,17 @@ mod tests {
         let archive: Vec<Candle> = (1000..=1005).map(bar).collect();
         // WEX shape: WXS, then WEX on day 1003.
         let listing = Listing::new("WEX", Some(date(950)), &[change(1003, "WEX"), change(990, "WXS")]);
-        assert_eq!((listing.taken_sec, listing.taken_from.as_deref()), (Some((1003 * 86_400) as f64), Some("WXS")));
+        assert_eq!(listing.taken_sec, Some((1003 * 86_400) as f64));
+        assert_eq!(listing.earlier, vec![segment("WXS", 990, 1003)]);
         assert_eq!(days(&prepend_archive(vec![bar(1006)], archive.clone(), 0.0, &listing)), vec![1003, 1004, 1005, 1006]);
         // META shape: the symbol taken inside the live window; the live bars
         // before that date go too.
         let live: Vec<Candle> = (1006..=1009).map(bar).collect();
         let listing = Listing::new("META", None, &[change(1008, "META"), change(900, "FB")]);
-        assert_eq!(days(&prepend_archive(live, archive.clone(), 0.0, &listing)), vec![1008, 1009]);
+        let cut = prepend_archive(live, archive.clone(), 0.0, &listing);
+        assert_eq!(days(&cut), vec![1008, 1009]);
+        // Its own bars under the earlier symbol then go in front.
+        assert_eq!(days(&prepend_older(cut, vec![bar(1006), bar(1007)])), vec![1006, 1007, 1008, 1009]);
         // GSL shape: one entry, later than the first bar.
         let listing = Listing::new("GSL", None, &[change(1004, "GSL")]);
         assert_eq!(listing.taken_sec, None);
@@ -696,7 +1004,8 @@ mod tests {
                 let listing = listing_of(&MassiveProvider, &sym).await;
                 let before = prepend_archive(live.clone(), archive.clone(), 0.0, &Listing::new(&sym.ticker, listed, &[]));
                 let after = prepend_archive(live.clone(), archive, 0.0, &listing);
-                let dropped = if listing.taken_from.is_some() && listing.taken_sec.is_none() { " (move not proven, ignored)" } else { "" };
+                let named = Listing::new(&sym.ticker, listed, &changes).taken_sec.is_some();
+                let dropped = if named && listing.taken_sec.is_none() { " (move not proven, ignored)" } else { "" };
                 let history = changes.iter().map(|c| format!("{} {}", c.ticker, c.date)).collect::<Vec<_>>().join(" < ") + dropped;
                 format!("{t},{},{},{},{history}", day(before[0].time), day(after[0].time), day(live[0].time))
             })
@@ -717,6 +1026,68 @@ mod tests {
 {}
 ", rows.join("
 "))).unwrap();
+        }
+    }
+
+    /// The series across a symbol change (network), for each ticker of
+    /// `OT_TICKERS`: where the daily series starts, the closes on both sides
+    /// of the change, the largest daily close move, and the 5-minute bars of
+    /// the 20 sessions around the change (which symbols they come from is
+    /// told by the count per side). Run with:
+    ///   OT_TICKERS=META,T,WEX cargo test --lib symbol_chain_live -- --nocapture --ignored
+    #[tokio::test]
+    #[ignore = "hits the gateway; run explicitly"]
+    async fn symbol_chain_live() {
+        let provider: Provider = Arc::new(MassiveProvider);
+        let cal = SessionCalendar::new(&provider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL")).await.unwrap());
+        let to = cal.window_end();
+        let wanted_from = *cal.last_trading_days(7560).first().unwrap();
+        let from = clamp_to_floor(BarFamily::Day, wanted_from, to).await.unwrap().0;
+        // No entitlement store in a test: the oldest minute bar is probed.
+        let probe = provider.probe_history().await.unwrap();
+        let minute_floor = NaiveDate::parse_from_str(&probe.floor.minute.unwrap(), "%Y-%m-%d").unwrap();
+        let tickers = std::env::var("OT_TICKERS").unwrap_or_else(|_| "META,T,WEX,BALL,ELV,COR,KELYA,AAPL,TLF,GHC".into());
+        let mut rows = vec!["ticker,earlier_symbols,bars,first_bar,first_close,last_before_change,close_before,first_after_change,open_after,largest_close_move_pct,largest_move_date,minute_bars_before,minute_bars_after,complete".to_string()];
+        for t in tickers.split(',') {
+            let sym = SymbolRef::parse(t);
+            let listing = listing_of(provider.as_ref(), &sym).await;
+            let (bars, complete) = joined_daily(&provider, &cal, &sym, wanted_from, from, to, true).await.unwrap();
+            assert!(bars.windows(2).all(|w| w[0].time < w[1].time), "{t}: times not strictly ascending");
+            let day = |b: &Candle| cal.date_of(b.time as i64).unwrap().format("%d/%m/%Y").to_string();
+            let (mut big, mut at) = (0.0_f64, String::new());
+            for w in bars.windows(2) {
+                let m = (w[1].close / w[0].close - 1.0).abs();
+                if m > big {
+                    (big, at) = (m, day(&w[1]));
+                }
+            }
+            let earlier = listing.earlier.iter().map(|s| format!("{} {:?}..{:?}", s.ticker, day_of(s.start_sec), day_of(s.end_sec))).collect::<Vec<_>>().join(" | ");
+            let (mut before, mut after, mut minutes) = ((String::new(), 0.0), (String::new(), 0.0), (0, 0));
+            if let Some(taken) = listing.taken_sec {
+                let i = bars.iter().position(|b| b.time >= taken).unwrap();
+                if i > 0 {
+                    before = (day(&bars[i - 1]), bars[i - 1].close);
+                }
+                after = (day(&bars[i]), bars[i].open);
+                let taken_day = day_of(taken).unwrap();
+                let a = *cal.trading_days_before(taken_day, 11).first().unwrap();
+                let b = taken_day + Duration::days(13);
+                if a >= minute_floor {
+                    let m = chained_aggs(&provider, &cal, &sym, Span::MinuteChunked(5), a, b, true, false).await.unwrap();
+                    assert!(m.windows(2).all(|w| w[0].time < w[1].time), "{t}: minute times not strictly ascending");
+                    let n = m.iter().filter(|c| cal.date_of(c.time as i64).unwrap() < taken_day).count();
+                    minutes = (n, m.len() - n);
+                }
+            }
+            let row = format!(
+                "{t},{earlier},{},{},{:.4},{},{:.4},{},{:.4},{:.2},{at},{},{},{complete}",
+                bars.len(), day(&bars[0]), bars[0].close, before.0, before.1, after.0, after.1, big * 100.0, minutes.0, minutes.1,
+            );
+            eprintln!("{row}");
+            rows.push(row);
+        }
+        if let Ok(out) = std::env::var("OT_OUT") {
+            std::fs::write(out, rows.join("\n") + "\n").unwrap();
         }
     }
 

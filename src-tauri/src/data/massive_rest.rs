@@ -605,15 +605,16 @@ pub(crate) async fn set_splits_for_test(ticker: &str, splits: Vec<Split>) {
     memo.lock().await.insert(ticker.to_string(), (Utc::now().date_naive(), Arc::new(splits)));
 }
 
-/// Split markers for the chart (newest-first). Reuses the per-day splits memo.
+/// The executed splits of `ticker` (newest-first), or `None` on a lookup
+/// failure. Reuses the per-day splits memo.
+pub async fn executed_splits(ticker: &str) -> Option<Vec<SplitEvent>> {
+    let splits = fetch_splits_cached(ticker).await?;
+    Some(splits.iter().map(|s| SplitEvent { date: date_to_unix(s.execution_date), from: s.from, to: s.to }).collect())
+}
+
+/// Split markers for the chart (newest-first); empty on a lookup failure.
 pub async fn split_events(ticker: &str) -> Vec<SplitEvent> {
-    match fetch_splits_cached(ticker).await {
-        Some(splits) => splits
-            .iter()
-            .map(|s| SplitEvent { date: date_to_unix(s.execution_date), from: s.from, to: s.to })
-            .collect(),
-        None => Vec::new(),
-    }
+    executed_splits(ticker).await.unwrap_or_default()
 }
 
 #[derive(Deserialize)]
