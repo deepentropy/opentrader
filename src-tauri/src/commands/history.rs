@@ -79,16 +79,20 @@ struct Listing {
     taken_sec: Option<f64>,
     /// The symbols it traded under before that date, newest first.
     earlier: Vec<Segment>,
+    /// The other symbols it traded under after it first held this one, before
+    /// it came back to it, newest first: this symbol has no bar there.
+    between: Vec<Segment>,
 }
 
-/// An earlier symbol of a company and the stretch of that symbol's bars that
+/// Another symbol of a company and the stretch of that symbol's bars that
 /// is the company's (the symbol can be used by others before and after).
 #[derive(Debug, Clone, PartialEq)]
 struct Segment {
     ticker: String,
     /// Start of the stretch, `f64::MIN` when not known.
     start_sec: f64,
-    /// Date the company left the symbol (not part of the stretch).
+    /// Date the company left the symbol (not part of the stretch),
+    /// `f64::MAX` when not known.
     end_sec: f64,
 }
 
@@ -123,11 +127,27 @@ impl Listing {
                 })
                 .collect()
         });
+        // Each entry with another symbol that is newer than the oldest one
+        // with this symbol. The history has no entry for a return to a
+        // symbol, so the newest stretch has no end date.
+        let between = changes.iter().rposition(|c| c.ticker == ticker).map_or_else(Vec::new, |i| {
+            (0..i)
+                .filter(|&j| changes[j].ticker != ticker)
+                .filter_map(|j| {
+                    Some(Segment {
+                        ticker: changes[j].ticker.clone(),
+                        start_sec: midnight(changes[j].date)?,
+                        end_sec: if j > 0 { midnight(changes[j - 1].date)? } else { f64::MAX },
+                    })
+                })
+                .collect()
+        });
         Self {
             listed_sec: listed.and_then(midnight),
             held_since,
             taken_sec: taken.and_then(|i| midnight(changes[i].date)),
             earlier,
+            between,
         }
     }
 }
@@ -157,7 +177,8 @@ fn stretch_start(bars: &[Candle], end_sec: f64) -> f64 {
 /// company already traded under the current one (its bars are then here, and
 /// cutting them would lose real history). The chain of earlier symbols stops
 /// at the first move that is not proven; the oldest symbol kept starts where
-/// its bars do (the date of its entry is not a listing date).
+/// its bars do (the date of its entry is not a listing date). The symbols
+/// used in between are checked one by one (see [`proven_between`]).
 async fn listing_of<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef) -> Listing {
     let (listed, changes) = tokio::join!(provider.listing_date(sym), provider.symbol_changes(sym));
     let mut listing = Listing::new(&sym.ticker, listed, &changes.unwrap_or_default());
@@ -178,7 +199,73 @@ async fn listing_of<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef) -> 
         Some(oldest) => oldest.start_sec = oldest_start,
         None => listing.taken_sec = None,
     }
+    listing.between = proven_between(provider, sym, std::mem::take(&mut listing.between)).await;
     listing
+}
+
+/// First and last time of the bars inside `[start_sec, end_sec)`.
+fn times_inside(bars: &[Candle], start_sec: f64, end_sec: f64) -> Option<(f64, f64)> {
+    let mut inside = bars.iter().filter(|b| b.time >= start_sec && b.time < end_sec).map(|b| b.time);
+    let first = inside.next()?;
+    Some((first, inside.next_back().unwrap_or(first)))
+}
+
+/// The stretches of `candidates` (symbols the company used in between) that
+/// are proven by the bars. A stretch without an end date ends at the next
+/// daily bar of `sym` itself. It is kept when the other symbol has daily bars
+/// inside it that meet the bars of `sym` on one side at least: they start
+/// within [`TAKEN_PROOF_SECS`] of its last bar before the stretch, or end
+/// within that time of its next bar (the company can go without a bar under
+/// any symbol at the start of the stretch).
+async fn proven_between<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef, candidates: Vec<Segment>) -> Vec<Segment> {
+    if candidates.is_empty() {
+        return candidates;
+    }
+    let Ok(own) = provider.daily_archive(sym, false).await else {
+        return Vec::new();
+    };
+    let today = crate::data::trading_calendar::ny_today();
+    let mut proven = Vec::new();
+    for mut segment in candidates {
+        let Some(start) = day_of(segment.start_sec) else {
+            continue;
+        };
+        if segment.end_sec == f64::MAX {
+            // The archive is some days behind: a return it does not hold yet
+            // is in the recent bars.
+            let mut next = own.iter().find(|b| b.time >= segment.start_sec).map(|b| b.time);
+            if next.is_none() {
+                if let Some((a, b)) = clamp_to_floor(BarFamily::Day, start, today).await {
+                    next = provider.daily_aggs(sym, a, b, false).await.ok().and_then(|bars| bars.first().map(|b| b.time));
+                }
+            }
+            let Some(end_sec) = next.and_then(day_of).and_then(midnight) else {
+                continue;
+            };
+            segment.end_sec = end_sec;
+        }
+        let Some(end) = day_of(segment.end_sec).filter(|end| *end > start) else {
+            continue;
+        };
+        let other = SymbolRef { exchange: sym.exchange.clone(), ticker: segment.ticker.clone() };
+        let archived = provider.daily_archive(&other, false).await.unwrap_or_default();
+        let mut span = times_inside(&archived, segment.start_sec, segment.end_sec);
+        if span.is_none() {
+            // No archive for that symbol: its recent bars.
+            if let Some((a, b)) = clamp_to_floor(BarFamily::Day, start, end - Duration::days(1)).await {
+                let recent = provider.daily_aggs(&other, a, b, false).await.unwrap_or_default();
+                span = times_inside(&recent, segment.start_sec, segment.end_sec);
+            }
+        }
+        let Some((first, last)) = span else {
+            continue;
+        };
+        let before = own.iter().rev().find(|b| b.time < segment.start_sec).map(|b| b.time);
+        if last >= segment.end_sec - TAKEN_PROOF_SECS || before.is_some_and(|p| first - p <= TAKEN_PROOF_SECS) {
+            proven.push(segment);
+        }
+    }
+    proven
 }
 
 /// A bar family and its bucket width, for a ranged fetch.
@@ -239,9 +326,9 @@ fn scale_by_splits(bars: &mut [Candle], splits: &[SplitEvent], cal: &SessionCale
     }
 }
 
-/// The company's bars over `[from, to]` under its earlier symbols
-/// (`listing.earlier`), oldest first: each symbol is read inside its own
-/// stretch only. With `with_archive` (daily bars) the sessions older than the
+/// The company's bars over `[from, to]` under its other symbols (`segments`,
+/// newest first), oldest first: each symbol is read inside its own stretch
+/// only. With `with_archive` (daily bars) the sessions older than the
 /// recent source come from that symbol's archive. The bars are read
 /// unadjusted and, when `adjusted`, scaled by the splits of `sym`: the
 /// current symbol's list is the company's (an earlier symbol's list can be a
@@ -251,7 +338,7 @@ async fn earlier_bars(
     provider: &Provider,
     cal: &SessionCalendar,
     sym: &SymbolRef,
-    listing: &Listing,
+    segments: &[Segment],
     span: Span,
     from: NaiveDate,
     to: NaiveDate,
@@ -259,7 +346,7 @@ async fn earlier_bars(
     with_archive: bool,
 ) -> anyhow::Result<Vec<Candle>> {
     let mut parts: Vec<Vec<Candle>> = Vec::new();
-    for segment in &listing.earlier {
+    for segment in segments {
         let Some(end) = day_of(segment.end_sec) else {
             continue;
         };
@@ -304,8 +391,9 @@ async fn earlier_bars(
 }
 
 /// `span` bars of the company behind `sym` over `[from, to]`: the days
-/// before it took the symbol are read under its earlier symbols, so a window
-/// across a symbol change is one series. `eager` reads the symbol's own bars
+/// before it took the symbol are read under its earlier symbols, and the days
+/// it used another symbol in between under that one, so a window across a
+/// symbol change is one series. `eager` reads the symbol's own bars
 /// while the symbol history is looked up (a window that ends now always
 /// needs them); otherwise the history comes first and a window entirely
 /// before the change costs no request under the current symbol.
@@ -327,19 +415,40 @@ async fn chained_aggs(
     } else {
         (listing_of(provider.as_ref(), sym).await, None)
     };
-    let Some(taken) = listing.taken_sec.and_then(day_of).filter(|taken| *taken > from) else {
-        return match own {
-            Some(bars) => Ok(bars),
-            None => span_aggs(provider, cal, sym, span, from, to, adjusted).await,
-        };
+    let bars = match listing.taken_sec.and_then(day_of).filter(|taken| *taken > from) {
+        None => match own {
+            Some(bars) => bars,
+            None => span_aggs(provider, cal, sym, span, from, to, adjusted).await?,
+        },
+        Some(taken) => {
+            let mut bars = earlier_bars(provider, cal, sym, &listing.earlier, span, from, to, adjusted, false).await?;
+            match own {
+                Some(own) => bars.extend(own.into_iter().filter(|c| cal.date_of(c.time as i64).is_some_and(|d| d >= taken))),
+                None if to >= taken => bars.extend(span_aggs(provider, cal, sym, span, taken, to, adjusted).await?),
+                None => {}
+            }
+            bars
+        }
     };
-    let mut bars = earlier_bars(provider, cal, sym, &listing, span, from, to, adjusted, false).await?;
-    match own {
-        Some(own) => bars.extend(own.into_iter().filter(|c| cal.date_of(c.time as i64).is_some_and(|d| d >= taken))),
-        None if to >= taken => bars.extend(span_aggs(provider, cal, sym, span, taken, to, adjusted).await?),
-        None => {}
+    if listing.between.is_empty() {
+        return Ok(bars);
     }
-    Ok(bars)
+    let between = earlier_bars(provider, cal, sym, &listing.between, span, from, to, adjusted, false).await?;
+    Ok(merge_between(bars, between))
+}
+
+/// `bars` with `between` (the company's bars under a symbol it used in
+/// between) at their times (in front of it when the window starts there).
+/// Where both have a bar, the one of `bars` stays. Both oldest first.
+fn merge_between(mut bars: Vec<Candle>, mut between: Vec<Candle>) -> Vec<Candle> {
+    let own: std::collections::HashSet<i64> = bars.iter().map(|b| b.time as i64).collect();
+    between.retain(|b| !own.contains(&(b.time as i64)));
+    if between.is_empty() {
+        return bars;
+    }
+    bars.extend(between);
+    bars.sort_by(|a, b| a.time.total_cmp(&b.time));
+    bars
 }
 
 /// `bars` with `older` (the company's bars under its earlier symbols) in
@@ -402,8 +511,9 @@ fn prepend_archive(mut bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64, l
 }
 
 /// The daily series of the company behind `sym` from `wanted_from` on: the
-/// recent source over `[from, to]`, the archive before it, and the bars of
-/// its earlier symbols in front. The flag is false when a part older than
+/// recent source over `[from, to]`, the archive before it, the bars of its
+/// earlier symbols in front, and the bars of a symbol it used in between in
+/// the hole they left. The flag is false when a part older than
 /// the recent series could not be read (the series is then not memoised).
 /// Empty when the recent source has no bar.
 async fn joined_daily(
@@ -419,7 +529,8 @@ async fn joined_daily(
     // `adjusted`); closed sessions are then served from the per-day disk cache
     // on later loads. The sessions older than that series come from the daily
     // archive, read at the same time. The sessions before a symbol change
-    // are the earlier symbol's and go in front of both.
+    // are the earlier symbol's and go in front of both; the sessions under a
+    // symbol used in between go into the hole of the joined series.
     let (bars, archive, listing) = tokio::join!(
         provider.daily_aggs(sym, from, to, adjusted),
         provider.daily_archive(sym, adjusted),
@@ -434,18 +545,27 @@ async fn joined_daily(
     Ok(match archive {
         Ok(archive) => {
             let from_sec = wanted_from.and_hms_opt(0, 0, 0).map_or(0.0, |dt| dt.and_utc().timestamp() as f64);
-            let bars = prepend_archive(bars, archive, from_sec, &listing);
-            if listing.earlier.is_empty() {
-                (bars, true)
-            } else {
-                match earlier_bars(provider, cal, sym, &listing, Span::Day, wanted_from, to, adjusted, true).await {
-                    Ok(older) => (prepend_older(bars, older), true),
+            let mut bars = prepend_archive(bars, archive, from_sec, &listing);
+            let mut complete = true;
+            if !listing.earlier.is_empty() {
+                match earlier_bars(provider, cal, sym, &listing.earlier, Span::Day, wanted_from, to, adjusted, true).await {
+                    Ok(older) => bars = prepend_older(bars, older),
                     Err(e) => {
                         eprintln!("[history] {sym}: bars of the earlier symbol not loaded: {e:#}");
-                        (bars, false)
+                        complete = false;
                     }
                 }
             }
+            if !listing.between.is_empty() {
+                match earlier_bars(provider, cal, sym, &listing.between, Span::Day, wanted_from, to, adjusted, true).await {
+                    Ok(between) => bars = merge_between(bars, between),
+                    Err(e) => {
+                        eprintln!("[history] {sym}: bars of the symbol used in between not loaded: {e:#}");
+                        complete = false;
+                    }
+                }
+            }
+            (bars, complete)
         }
         Err(e) => {
             eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
@@ -815,6 +935,41 @@ mod tests {
         assert!(Listing::new("TLF", None, &[change(1500, "TLFA"), change(900, "TLF")]).earlier.is_empty());
     }
 
+    /// An entry with another symbol that is newer than the oldest entry of
+    /// the symbol is a stretch in between: to the next entry, or without an
+    /// end when the history does not hold the return.
+    #[test]
+    fn symbols_in_between_follow_the_symbol_history() {
+        let open = |ticker: &str, start: i64| Segment { ticker: ticker.into(), start_sec: (start * 86_400) as f64, end_sec: f64::MAX };
+        let listing = Listing::new("FISV", None, &[change(1500, "FI"), change(900, "FISV")]);
+        assert_eq!((listing.between, listing.taken_sec), (vec![open("FI", 1500)], None));
+        let listing = Listing::new("ABC", None, &[change(1004, "ABC"), change(1002, "XYZ"), change(900, "ABC")]);
+        assert_eq!(listing.between, vec![segment("XYZ", 1002, 1004)]);
+        let listing = Listing::new("C", None, &[change(1300, "E"), change(1250, "D"), change(1200, "C"), change(1100, "B")]);
+        assert_eq!(listing.between, vec![open("E", 1300), segment("D", 1250, 1300)]);
+        assert_eq!(listing.earlier, vec![segment("B", 1100, 1200)]);
+        assert!(Listing::new("META", None, &[change(1008, "META"), change(900, "FB")]).between.is_empty());
+        assert!(Listing::new("GOOGL", None, &[change(1004, "GOOG")]).between.is_empty());
+    }
+
+    /// Bars of a symbol used in between go into the hole of the series (in
+    /// front of it when the window starts inside the hole), never over one
+    /// of its bars.
+    #[test]
+    fn bars_in_between_fill_the_hole() {
+        let series: Vec<Candle> = [1000, 1001, 1005, 1006].into_iter().map(bar).collect();
+        let mut other = bar(1001);
+        other.close = 9.0;
+        let between = vec![bar(999), other, bar(1002), bar(1003), bar(1004)];
+        let merged = merge_between(series.clone(), between.clone());
+        assert_eq!(days(&merged), vec![999, 1000, 1001, 1002, 1003, 1004, 1005, 1006]);
+        assert_eq!(merged[2].close, 1.0);
+        assert_eq!(days(&merge_between(series, Vec::new())).len(), 4);
+        assert_eq!(days(&merge_between(Vec::new(), between)).len(), 5);
+        assert_eq!(times_inside(&merged, (1001 * 86_400) as f64, (1004 * 86_400) as f64), Some(((1001 * 86_400) as f64, (1003 * 86_400) as f64)));
+        assert_eq!(times_inside(&merged, (2000 * 86_400) as f64, (2004 * 86_400) as f64), None);
+    }
+
     /// The oldest earlier symbol starts where its own bars do: back from the
     /// change to the first long hole (an earlier user of that symbol).
     #[test]
@@ -1062,6 +1217,22 @@ mod tests {
                 }
             }
             let earlier = listing.earlier.iter().map(|s| format!("{} {:?}..{:?}", s.ticker, day_of(s.start_sec), day_of(s.end_sec))).collect::<Vec<_>>().join(" | ");
+            for s in &listing.between {
+                let (start, end) = (day_of(s.start_sec).unwrap(), day_of(s.end_sec).unwrap());
+                let (i, j) = (bars.iter().position(|b| cal.date_of(b.time as i64).unwrap() >= start).unwrap(), bars.iter().position(|b| cal.date_of(b.time as i64).unwrap() >= end).unwrap());
+                eprintln!(
+                    "{t}: in between {} {start}..{end}: {} daily bars inside; {} close {:.4} -> {} open {:.4}; {} close {:.4} -> {} open {:.4}",
+                    s.ticker, j - i, day(&bars[i - 1]), bars[i - 1].close, day(&bars[i]), bars[i].open, day(&bars[j - 1]), bars[j - 1].close, day(&bars[j]), bars[j].open,
+                );
+                if end - Duration::days(30) >= minute_floor {
+                    let m = chained_aggs(&provider, &cal, &sym, Span::MinuteChunked(5), end - Duration::days(30), end + Duration::days(13), true, false).await.unwrap();
+                    assert!(m.windows(2).all(|w| w[0].time < w[1].time), "{t}: minute times not strictly ascending");
+                    let n = m.iter().filter(|c| cal.date_of(c.time as i64).unwrap() < end).count();
+                    let lows = m.iter().take(n).map(|c| c.low).fold(f64::MAX, f64::min);
+                    let highs = m.iter().take(n).map(|c| c.high).fold(f64::MIN, f64::max);
+                    eprintln!("{t}: 5-minute bars of the 30 days before {end}: {n} (low {lows:.2}, high {highs:.2}), after: {}", m.len() - n);
+                }
+            }
             let (mut before, mut after, mut minutes) = ((String::new(), 0.0), (String::new(), 0.0), (0, 0));
             if let Some(taken) = listing.taken_sec {
                 let i = bars.iter().position(|b| b.time >= taken).unwrap();
