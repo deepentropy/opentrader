@@ -5268,6 +5268,7 @@ export function ChartView(props: Props) {
         symbol={props.symbol ?? ""}
         coords={coords()}
         leftInset={scaleGeom()?.left ? scaleGeom()!.w : 0}
+        formatPrice={legendPriceFormat()}
         panes={drawingPanes()}
         coordEpoch={coordEpoch()}
         drawings={props.drawings ?? []}
