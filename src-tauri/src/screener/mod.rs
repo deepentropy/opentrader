@@ -5,9 +5,9 @@
  * snapshot current, joins it with the reference list and the daily state
  * file, and swaps the result in as one immutable `Table`. The snapshot comes
  * from the gateway's live feed (`live.rs`: one table, then its changes every
- * 10 s, shared by every app); while the feed is refused, silent or in error
- * the task polls the REST snapshot every 10 s instead and tries the feed
- * again later. Scans (`scan.rs`) read the current table only, so filter / sort /
+ * 10 s, shared by every app); while the feed is refused, silent, in error or
+ * failing its polls for too long the task polls the REST snapshot every 10 s
+ * instead and tries the feed again later. Scans (`scan.rs`) read the current table only, so filter / sort /
  * scroll never wait on the network. Each new table is announced with a
  * `ScreenerUpdate` event; the panel then re-runs its scan.
  */

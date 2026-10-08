@@ -11,7 +11,10 @@
  *   {"type":"error","error":"…"}                                    (the feed has no table)
  *
  * `seq` rises by one per message; a gap means a message was lost and the
- * table held here is no longer the gateway's.
+ * table held here is no longer the gateway's. After a failed poll the gateway
+ * keeps its table and polls again on the next tick, so a change with `error`
+ * is ridden out here too: the feed is left only when its polls have failed
+ * for `STALE_LIMIT`.
  *
  * This file keeps the raw table (`LiveTable`, pure) and reads the socket
  * (`Feed`). The poll loop in `mod.rs` turns the table into rows with the REST
@@ -25,7 +28,7 @@ use futures_util::StreamExt;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::Read;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
@@ -33,6 +36,11 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 /// Longest silence of a healthy feed: it sends a message every 10 s, an empty
 /// one when nothing changed.
 pub const SILENCE_TIMEOUT: Duration = Duration::from_secs(30);
+/// Longest run of failed polls ridden out on the feed, counted from its last
+/// message without `error`. The gateway gives up a poll after 8 s of its 10 s
+/// tick, so the changes with `error` come 18, 28, 38 s after that message: two
+/// failed polls in a row are ridden out, the third leaves the feed.
+pub const STALE_LIMIT: Duration = Duration::from_secs(30);
 /// Longest wait for the connection and for the table that follows it (a
 /// healthy feed sends it at once: 1.3 s measured). Short, because the panel
 /// is empty meanwhile and the REST snapshot can fill it.
@@ -92,13 +100,16 @@ pub struct LiveTable {
     width: usize,
     columns: Columns,
     rows: HashMap<String, Vec<Option<f64>>>,
+    /// When the last message without `error` came.
+    healthy: Option<Instant>,
 }
 
 impl LiveTable {
-    /// Apply one decoded message. `Ok(true)` when the table changed; an error
-    /// when the message cannot be applied (no table yet, a gap in `seq`, a
-    /// failed poll): the caller drops the feed.
-    fn apply(&mut self, msg: FeedMessage) -> Result<bool> {
+    /// Apply one decoded message received at `now`. `Ok(true)` when the table
+    /// changed; an error when the message cannot be applied (no table yet, a
+    /// gap in `seq`) or the polls have failed for too long: the caller drops
+    /// the feed.
+    fn apply(&mut self, msg: FeedMessage, now: Instant) -> Result<bool> {
         match msg {
             FeedMessage::Full { seq, cols, tickers, rows } => {
                 if tickers.len() != rows.len() {
@@ -108,6 +119,7 @@ impl LiveTable {
                 self.width = cols.len();
                 self.columns = Columns::new(&cols);
                 self.rows = tickers.into_iter().zip(rows).collect();
+                self.healthy = Some(now);
                 Ok(true)
             }
             FeedMessage::Delta { seq, set, del, error } => {
@@ -119,8 +131,15 @@ impl LiveTable {
                 }
                 self.seq = seq;
                 if let Some(e) = error {
-                    bail!("screener feed: {e}");
+                    // A failed poll changes nothing: the table stays the last good one.
+                    let failing = self.healthy.map_or(Duration::MAX, |t| now.saturating_duration_since(t));
+                    if failing > STALE_LIMIT {
+                        bail!("screener feed: no good poll for {} s ({e})", failing.as_secs());
+                    }
+                    eprintln!("[screener] live feed: failed poll ({e}); table kept");
+                    return Ok(false);
                 }
+                self.healthy = Some(now);
                 let changed = !set.is_empty() || !del.is_empty();
                 for ticker in del {
                     self.rows.remove(&ticker);
@@ -203,8 +222,9 @@ impl Feed {
     }
 
     /// Wait for the next message and apply it. `Ok(true)` when the table
-    /// changed. An error (silence, closed socket, lost message, failed poll)
-    /// ends this feed: the caller falls back and connects again later.
+    /// changed. An error (silence, closed socket, lost message, polls failing
+    /// for too long) ends this feed: the caller falls back and connects again
+    /// later.
     pub async fn next(&mut self) -> Result<bool> {
         loop {
             let msg = tokio::time::timeout(SILENCE_TIMEOUT, self.ws.next())
@@ -213,7 +233,7 @@ impl Feed {
                 .ok_or_else(|| anyhow!("screener feed: closed"))?
                 .context("screener feed: read")?;
             match msg {
-                Message::Binary(bytes) => return self.table.apply(decode(&bytes)?),
+                Message::Binary(bytes) => return self.table.apply(decode(&bytes)?, Instant::now()),
                 Message::Close(_) => bail!("screener feed: closed by the gateway"),
                 // Ping / pong are answered by the library; nothing else is sent.
                 _ => {}
@@ -248,8 +268,12 @@ mod tests {
             r#"{{"type":"full","version":1,"seq":41,"polled":1,"cols":{COLS},"tickers":["AAPL","BACpB"],
                "rows":[[1000,0.5,10,12,9,11,500,10.5,9,10,8,10.5,400,9.5,11.2,480],[900,null,null,null,null,null,null,null,20,21,19,20.5,50,20.2,null,null]]}}"#
         );
-        assert!(t.apply(msg(&json)).unwrap());
+        assert!(t.apply(msg(&json), Instant::now()).unwrap());
         t
+    }
+
+    fn delta(t: &mut LiveTable, json: &str) -> Result<bool> {
+        t.apply(msg(json), Instant::now())
     }
 
     #[test]
@@ -269,9 +293,8 @@ mod tests {
     #[test]
     fn delta_sets_values_adds_and_removes_tickers() {
         let mut t = full();
-        let changed = t
-            .apply(msg(r#"{"type":"delta","seq":42,"polled":2,"set":{"AAPL":[0,2000,5,11.4,6,650],"NEW":[11,3.5,5,null]},"del":["BACpB"]}"#))
-            .unwrap();
+        let changed =
+            delta(&mut t, r#"{"type":"delta","seq":42,"polled":2,"set":{"AAPL":[0,2000,5,11.4,6,650],"NEW":[11,3.5,5,null]},"del":["BACpB"]}"#).unwrap();
         assert!(changed);
         let s = t.snapshots();
         assert_eq!(s.iter().map(|r| r.ticker.as_str()).collect::<Vec<_>>(), ["AAPL", "NEW"]);
@@ -280,18 +303,48 @@ mod tests {
         // The new ticker holds only what the change gave.
         assert_eq!((s[1].day, s[1].prev_day), (None, Some([0.0, 0.0, 0.0, 3.5, 0.0])));
         // An empty change is applied and changes nothing.
-        assert!(!t.apply(msg(r#"{"type":"delta","seq":43,"polled":3,"set":{},"del":[]}"#)).unwrap());
+        assert!(!delta(&mut t, r#"{"type":"delta","seq":43,"polled":3,"set":{},"del":[]}"#).unwrap());
     }
 
     #[test]
-    fn lost_message_failed_poll_and_error_end_the_feed() {
+    fn lost_message_and_error_end_the_feed() {
         let mut t = full();
-        assert!(t.apply(msg(r#"{"type":"delta","seq":44,"polled":2,"set":{},"del":[]}"#)).is_err());
-        let mut t = full();
-        assert!(t.apply(msg(r#"{"type":"delta","seq":42,"polled":2,"set":{},"del":[],"error":"upstream 502"}"#)).is_err());
-        assert!(t.apply(msg(r#"{"type":"error","error":"no table"}"#)).is_err());
+        assert!(delta(&mut t, r#"{"type":"delta","seq":44,"polled":2,"set":{},"del":[]}"#).is_err());
+        assert!(delta(&mut t, r#"{"type":"error","error":"no table"}"#).is_err());
         // A change before any table cannot be applied.
-        assert!(LiveTable::default().apply(msg(r#"{"type":"delta","seq":1,"set":{},"del":[]}"#)).is_err());
+        assert!(delta(&mut LiveTable::default(), r#"{"type":"delta","seq":1,"set":{},"del":[]}"#).is_err());
+    }
+
+    #[test]
+    fn failed_polls_are_ridden_out_until_the_table_is_too_old() {
+        let failed = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":1,"set":{{}},"del":[],"error":"snapshot: timeout"}}"#));
+        let good = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":2,"set":{{"AAPL":[5,11.4]}},"del":[]}}"#));
+        let empty = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":1,"set":{{}},"del":[]}}"#));
+        let t0 = Instant::now();
+        let at = |s: u64| t0 + Duration::from_secs(s);
+        let mut t = full();
+        assert!(t.apply(good(42), at(0)).unwrap());
+        let before = t.snapshots()[0].day;
+        // One failed poll: nothing changes, the feed goes on and the next good poll applies.
+        assert!(!t.apply(failed(43), at(18)).unwrap());
+        assert_eq!(t.snapshots()[0].day, before);
+        assert!(t.apply(good(44), at(20)).unwrap());
+        // A run of failed polls: the third comes more than 30 s after the last good message.
+        assert!(!t.apply(failed(45), at(38)).unwrap());
+        assert!(!t.apply(failed(46), at(48)).unwrap());
+        assert!(t.apply(failed(47), at(58)).is_err());
+        // The slow period (one poll per 60 s, empty changes in between) counts
+        // from the last message without error, not from the last poll.
+        let mut t = full();
+        for (k, s) in [10, 20, 30, 40, 50].into_iter().enumerate() {
+            assert!(!t.apply(empty(42 + k as u64), at(s)).unwrap());
+        }
+        assert!(!t.apply(failed(47), at(68)).unwrap());
+        assert!(!t.apply(failed(48), at(78)).unwrap());
+        assert!(t.apply(failed(49), at(88)).is_err());
+        // A lost message ends the feed, with or without an error in it.
+        let mut t = full();
+        assert!(t.apply(failed(43), at(5)).is_err());
     }
 
     /// The real feed (network): the rows shaped from its table equal the rows
