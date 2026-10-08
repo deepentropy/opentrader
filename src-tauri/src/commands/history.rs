@@ -224,7 +224,9 @@ async fn proven_between<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef,
     let Ok(own) = provider.daily_archive(sym, false).await else {
         return Vec::new();
     };
-    let today = crate::data::trading_calendar::ny_today();
+    // Last date of the recent bars, in the symbol's own calendar (read on
+    // the first stretch that needs it).
+    let mut window_end: Option<Option<NaiveDate>> = None;
     let mut proven = Vec::new();
     for mut segment in candidates {
         let Some(start) = day_of(segment.start_sec) else {
@@ -235,6 +237,12 @@ async fn proven_between<P: DataProvider + ?Sized>(provider: &P, sym: &SymbolRef,
             // is in the recent bars.
             let mut next = own.iter().find(|b| b.time >= segment.start_sec).map(|b| b.time);
             if next.is_none() {
+                if window_end.is_none() {
+                    window_end = Some(provider.symbol_session(sym).await.ok().map(|s| SessionCalendar::new(&s).window_end()));
+                }
+                let Some(today) = window_end.flatten() else {
+                    continue;
+                };
                 if let Some((a, b)) = clamp_to_floor(BarFamily::Day, start, today).await {
                     next = provider.daily_aggs(sym, a, b, false).await.ok().and_then(|bars| bars.first().map(|b| b.time));
                 }
