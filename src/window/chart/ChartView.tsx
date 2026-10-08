@@ -140,7 +140,7 @@ import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail }
 import { scriptChartContext } from "./indicators/script-chart";
 import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
 import { strategyTester } from "../../data/strategy-tester-store";
-import { registerChartState, unregisterChartState } from "../../data/chart-state-registry";
+import { registerChartState, unregisterChartState, type ChartBar } from "../../data/chart-state-registry";
 import { alertStore } from "../../data/alert-store";
 import { describeCondition, isPercentOperator } from "../../data/alert-condition";
 import { publishDataWindow, type DataWindowState } from "../../data/data-window-store";
@@ -914,6 +914,8 @@ export function ChartView(props: Props) {
         return typeof t === "number" ? t * 1000 : null;
       },
       indicatorLegend: () => controller?.getLegend() ?? [],
+      resolution: () => props.interval ?? "",
+      bars: () => raw as ChartBar[],
     });
     onCleanup(() => unregisterChartState(key));
   });

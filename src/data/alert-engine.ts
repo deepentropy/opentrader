@@ -27,7 +27,7 @@ import { alertStore, type AlertRule } from "./alert-store";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
-import { chartLastBarTime, indicatorPlotValue } from "./chart-state-registry";
+import { chartBars, chartLastBarTime, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { commands } from "../bindings";
 import * as kv from "./kv";
@@ -210,7 +210,7 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
   }
 
   const left = operandValue(rule.symbol, rule.left, ctx);
-  const right = operandValue(rule.symbol, rule.right, ctx);
+  const right = operandValue(rule.symbol, rule.right, ctx, rule.resolution);
   if (left == null || right == null) return false;
 
   switch (rule.op) {
@@ -349,6 +349,7 @@ function onTick(t: TradeTick): void {
     timeSec: Math.floor(now / 1000),
     indicatorFallback: (indicatorId, plot) =>
       indicatorPollCache.get(pollKey(symbol, indicatorId, plot)) ?? null,
+    barsFallback: (resolution) => drawingBarsCache.get(`${symbol}|${resolution}`) ?? null,
   };
 
   for (const rule of rules) {
@@ -464,6 +465,48 @@ async function pollIndicatorOperands(): Promise<void> {
   }
 }
 
+// ── Bars for the drawings computed from bars ──
+// An anchored VWAP has no fixed level: its value comes from the bars since
+// its anchor, on the rule's interval. A chart showing the symbol on that
+// interval serves them live (chart-state-registry); otherwise the bars are
+// fetched here, with the indicator poll, and kept per symbol + interval for
+// operandValue's ctx.barsFallback.
+const drawingBarsCache = new Map<string, ChartBar[]>();
+let drawingPollBusy = false;
+
+/** `onlyMissing`: fetch only the series not cached yet (a rule was added). */
+async function pollDrawingBars(onlyMissing = false): Promise<void> {
+  if (drawingPollBusy) return;
+  const jobs = new Map<string, { symbol: string; resolution: string }>();
+  for (const rule of alertStore.enabledRules()) {
+    if (rule.right.kind !== "drawing" || rule.right.plot == null || !isSupportedResolution(rule.resolution)) continue;
+    jobs.set(`${rule.symbol}|${rule.resolution}`, { symbol: rule.symbol, resolution: rule.resolution });
+  }
+  for (const k of drawingBarsCache.keys()) if (!jobs.has(k)) drawingBarsCache.delete(k);
+  drawingPollBusy = true;
+  try {
+    for (const [key, job] of jobs) {
+      // A chart on that interval already serves live bars: no fetch needed.
+      if (chartBars(job.symbol, job.resolution) || (onlyMissing && drawingBarsCache.has(key))) continue;
+      try {
+        const { bars } = await getBars(job.symbol, job.resolution);
+        drawingBarsCache.set(
+          key,
+          bars.flatMap((b) =>
+            b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
+              ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
+              : [],
+          ),
+        );
+      } catch {
+        /* fetch failed: keep the cached bars */
+      }
+    }
+  } finally {
+    drawingPollBusy = false;
+  }
+}
+
 // ── Moving % reference poll ──
 // "Moving up / down % … in N bars" compares the left operand now with its
 // value N bars back on the rule's interval. The bars come from the datafeed
@@ -552,9 +595,11 @@ export function startAlertEngine(): void {
   // Uncharted indicator operands: prime once, then refresh every minute.
   void pollIndicatorOperands();
   void pollMovingRefs();
+  void pollDrawingBars();
   indicatorPollTimer = setInterval(() => {
     void pollIndicatorOperands();
     void pollMovingRefs();
+    void pollDrawingBars();
   }, INDICATOR_POLL_MS);
 
   // Keep the alert symbol-subscription in sync with the enabled rules so ticks
@@ -613,6 +658,8 @@ export function startAlertEngine(): void {
       for (const k of indicatorPollCache.keys()) {
         if (!wantedPolls.has(k)) indicatorPollCache.delete(k);
       }
+      // A new rule on an anchored VWAP needs its bars now, not at the next poll.
+      void pollDrawingBars(true);
     });
   });
 }

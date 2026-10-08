@@ -38,6 +38,10 @@ export type Operand =
       level?: number;
       /** Fib tools, channel conditions: the coefficient of the lower bound. */
       level2?: number;
+      /** Anchored VWAP: which of its lines the alert reads (index in
+       *  VWAP_PLOTS: the VWAP, the three lower bands, the three upper
+       *  bands). */
+      plot?: number;
     }
   | { kind: "indicator"; indicatorId: string; plot?: number; label?: string };
 

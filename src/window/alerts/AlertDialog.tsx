@@ -25,6 +25,7 @@ import {
   type Operand,
 } from "../../data/alert-store";
 import {
+  LEVEL_OPERATORS,
   OPERATOR_LABELS,
   bandOperatorLabel,
   isBandOperator,
@@ -32,6 +33,7 @@ import {
   describeCondition,
   isPercentOperator,
   priceableDrawings,
+  VWAP_PLOTS,
 } from "../../data/alert-condition";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { getIndicatorEntry } from "../chart/indicators/registry";
@@ -228,7 +230,7 @@ export function AlertDialog(props: Props) {
     const opts = drawings();
     const r = existing?.right;
     if (r && r.kind === "drawing" && !opts.some((o) => o.id === r.drawingId)) {
-      return [...opts, { id: r.drawingId, label: r.label ?? "drawing", band: r.band ?? null }];
+      return [...opts, { id: r.drawingId, label: r.label ?? "drawing", band: r.band ?? null, ...(r.plot != null ? { plots: VWAP_PLOTS } : {}) }];
     }
     return opts;
   });
@@ -327,7 +329,11 @@ export function AlertDialog(props: Props) {
   const drawingOption = () => (rightKind() === "drawing" ? drawingOptions().find((o) => o.id === rightDrawing()) : undefined);
   const band = () => drawingOption()?.band ?? null;
   const fibLevels = () => drawingOption()?.levels ?? [];
-  const operators = () => shapeOperators(band(), fibLevels().length > 0) ?? OPERATORS;
+  // An anchored VWAP: the five level conditions on one of its lines.
+  const vwapPlots = () => drawingOption()?.plots ?? [];
+  const [rightVwapPlot, setRightVwapPlot] = createSignal(existing?.right.kind === "drawing" ? (existing.right.plot ?? 0) : 0);
+  const fixedOperators = () => (vwapPlots().length > 0 ? LEVEL_OPERATORS : shapeOperators(band(), fibLevels().length > 0));
+  const operators = () => fixedOperators() ?? OPERATORS;
   const operatorLabel = (o: AlertOperator) =>
     !isBandOperator(o) ? OPERATOR_LABELS[o] : bandOperatorLabel(o, band() === "rectangle" ? "rectangle" : "channel");
   createEffect(() => {
@@ -375,6 +381,7 @@ export function AlertDialog(props: Props) {
           ...(o?.band ? { band: o.band } : {}),
           ...(lv ? { level: lv.coeff } : {}),
           ...(lv2 ? { level2: lv2.coeff } : {}),
+          ...(o?.plots ? { plot: rightVwapPlot() } : {}),
         };
       }
       case "indicator": {
@@ -593,7 +600,7 @@ export function AlertDialog(props: Props) {
                     variant="box"
                     label="Condition"
                     value={op()}
-                    more={shapeOperators(band(), fibLevels().length > 0) ? undefined : 3}
+                    more={fixedOperators() ? undefined : 3}
                     options={operators().map((o) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o] }))}
                     onPick={(v) => setOp(v as AlertOperator)}
                   />
@@ -650,6 +657,10 @@ export function AlertDialog(props: Props) {
                         />
                       </Show>
                     </div>
+                    {/* Anchored VWAP: which of its lines. */}
+                    <Show when={rightKind() === "drawing" && vwapPlots().length > 0}>
+                      <AdMenu variant="box" label="Line" value={String(rightVwapPlot())} options={vwapPlots().map((p, i) => ({ value: String(i), label: p }))} onPick={(v) => setRightVwapPlot(Number(v))} />
+                    </Show>
                     <Show when={rightKind() === "indicator" && plotsOf(rightIndicator()).length >= 2}>
                       <AdMenu variant="box" label="Plot" value={String(rightPlot())} options={plotOptions(rightIndicator())} onPick={(v) => setRightPlot(Number(v))} />
                     </Show>

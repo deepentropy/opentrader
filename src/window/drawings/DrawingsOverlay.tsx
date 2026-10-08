@@ -60,7 +60,7 @@ import { setTableUi, tableUi } from "./table-ui";
 import { drawingImageFailed, imageInitialSize, IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { imagesVersion, saveDrawingImage } from "./image-store";
 import { ImageDialog } from "./ImageDialog";
-import { vwapLastValue } from "lightweight-charts-drawing/core/kinds/data-series";
+import { vwapLastValue, vwapScreenSeries } from "lightweight-charts-drawing/core/kinds/data-series";
 import { SelectedToolbar } from "./SelectedToolbar";
 import { DrawingContextMenu } from "./DrawingContextMenu";
 import { SettingsDialog } from "./SettingsDialog";
@@ -2007,7 +2007,7 @@ export function DrawingsOverlay(props: Props) {
             const f = drawFrame(d);
             if (notShown(d) || !f) return null;
             const pts = screenPoints(f.coords, d, f.dims);
-            const at = pts ? alertMarkAnchor(d.kind, pts, f.dims.w) : null;
+            const at = d.kind === "anchored-vwap" ? vwapMarkAnchor(vwapScreenSeries(d, f.coords).line, f.dims.w) : pts ? alertMarkAnchor(d.kind, pts, f.dims.w) : null;
             return at ? { at, f } : null;
           });
           return (
@@ -2258,6 +2258,13 @@ function alertMarkAnchor(kind: string, pts: Pt[], paneW: number): Pt | null {
   }
   if (kind === "rectangle") return { x: (a.x + b.x) / 2, y: Math.max(a.y, b.y) };
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+/** Anchored VWAP: the mark hangs under the middle of the part of its line
+ *  that is in view. */
+function vwapMarkAnchor(line: Pt[], paneW: number): Pt | null {
+  const shown = line.filter((p) => p.x >= 0 && p.x <= paneW);
+  return shown.length ? shown[shown.length >> 1] : null;
 }
 
 /** Axis parts of a drawing: the time label of a vertical / cross line on the

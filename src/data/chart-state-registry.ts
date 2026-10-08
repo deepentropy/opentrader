@@ -25,7 +25,13 @@ export type ChartStateProvider = {
   lastBarTime: () => number | null;
   /** Active indicator legend rows valued at the latest bar. */
   indicatorLegend: () => IndicatorLegendRow[];
+  /** Interval id of the chart ("5", "1D"). */
+  resolution: () => string;
+  /** The chart's bars, oldest first (the last one is the forming bar). */
+  bars: () => ChartBar[];
 };
+
+export type ChartBar = { time: number; open: number; high: number; low: number; close: number; volume?: number };
 
 const providers = new Map<string, ChartStateProvider>();
 
@@ -53,6 +59,15 @@ export function indicatorPlotValue(
   const row = rows.find((r) => r.id === indicatorId);
   const v = row?.plots.find((p) => p.index === plot)?.value;
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** Bars of a symbol charted on `resolution`, or null when no chart shows
+ *  it on that interval. */
+export function chartBars(symbol: string, resolution: string): ChartBar[] | null {
+  const p = providers.get(symbol.toUpperCase());
+  if (!p || p.resolution() !== resolution) return null;
+  const bars = p.bars();
+  return bars.length ? bars : null;
 }
 
 /** Latest charted price for a symbol, or null when it isn't charted. */

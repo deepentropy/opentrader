@@ -9,8 +9,11 @@
 import type { AlertOperator, AlertRule, DrawingShape, Operand } from "./alert-store";
 import { cachedSymbolSessions } from "./session";
 import { FIB_LEVEL_DEFAULTS } from "lightweight-charts-drawing/core/specs";
+import { VWAP_BAND_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { positionLevels } from "lightweight-charts-drawing/core/kinds/position";
-import { indicatorPlotValue } from "./chart-state-registry";
+import { vwapLast } from "lightweight-charts-drawing/core/kinds/data-series";
+import type { OHLC } from "lightweight-charts-drawing/core/coords";
+import { chartBars, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { loadDrawings } from "../window/drawings/persistence";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 
@@ -39,7 +42,7 @@ export function bandOperatorLabel(op: AlertOperator, band: DrawingShape): string
   return `${OPERATOR_LABELS[op]} ${band}`;
 }
 
-const LEVEL_OPERATORS: AlertOperator[] = ["crossing", "crossing_up", "crossing_down", "greater", "less"];
+export const LEVEL_OPERATORS: AlertOperator[] = ["crossing", "crossing_up", "crossing_down", "greater", "less"];
 
 /** The operators a drawing offers; null = the level operators of the
  *  dialog. A rectangle adds Greater / Less than (above its top, below its
@@ -80,7 +83,31 @@ export function drawingBandType(kind: string): DrawingShape | null {
 
 /** True for a drawing kind an alert can be set on. */
 export function drawingCanAlert(kind: string): boolean {
-  return PRICEABLE_KINDS.has(kind) || FIB_KINDS.has(kind) || drawingBandType(kind) !== null;
+  return PRICEABLE_KINDS.has(kind) || FIB_KINDS.has(kind) || kind === VWAP_KIND || drawingBandType(kind) !== null;
+}
+
+/** Anchored VWAP: its value comes from the bars since the anchor, not from
+ *  its points. */
+const VWAP_KIND = "anchored-vwap";
+/** The lines of an anchored VWAP an alert can read, in the order of the
+ *  dialog's select (`Operand.plot` is the index). */
+export const VWAP_PLOTS = ["VWAP", "Lower Band", "Lower Band_2", "Lower Band_3", "Upper Band", "Upper Band_2", "Upper Band_3"];
+
+/** Value of line `plot` of an anchored VWAP at the last bar of `bars`; null
+ *  when the drawing is gone, the anchor is past the bars, or the band is
+ *  not calculated (switched off in the drawing's settings). Bands: the VWAP
+ *  plus / minus the band's multiplier times the standard deviation (or 1 %
+ *  of the VWAP in percentage mode), as drawn. */
+export function drawingVwapValue(symbol: string, drawingId: string, plot: number, bars: ChartBar[]): number | null {
+  const d = loadDrawings(symbol).find((x) => x.id === drawingId);
+  if (!d || d.kind !== VWAP_KIND) return null;
+  const last = vwapLast(d, bars as OHLC[]);
+  if (!last) return null;
+  if (plot <= 0) return last.vwap;
+  const band = (d.style.levels ?? VWAP_BAND_DEFAULTS)[(plot - 1) % 3];
+  if (!band?.visible) return null;
+  const unit = d.style.vwapBandsMode === "percent" ? last.vwap * 0.01 : last.sd;
+  return last.vwap + (plot <= 3 ? -1 : 1) * band.coeff * unit;
 }
 
 /** Price of a fib level (linear prices). Retracement: 0 at the second
@@ -153,6 +180,8 @@ export type DrawingOption = {
   band: DrawingShape | null;
   /** Fib tools: the levels to choose from. */
   levels?: { coeff: number; price: number }[];
+  /** Anchored VWAP: the lines to choose from. */
+  plots?: string[];
 };
 
 /** Drawings on `symbol` that expose a usable price level, for the dialog's
@@ -160,10 +189,17 @@ export type DrawingOption = {
 export function priceableDrawings(symbol: string): DrawingOption[] {
   return loadDrawings(symbol)
     .filter((d) => drawingCanAlert(d.kind))
-    .map((d) => ({ id: d.id, label: drawingLabel(d), band: drawingBandType(d.kind), ...(FIB_KINDS.has(d.kind) ? { levels: drawingFibLevels(d) } : {}) }));
+    .map((d) => ({
+      id: d.id,
+      label: drawingLabel(d),
+      band: drawingBandType(d.kind),
+      ...(FIB_KINDS.has(d.kind) ? { levels: drawingFibLevels(d) } : {}),
+      ...(d.kind === VWAP_KIND ? { plots: VWAP_PLOTS } : {}),
+    }));
 }
 
 function drawingLabel(d: Drawing): string {
+  if (d.kind === VWAP_KIND) return "anchored VWAP";
   const kind = d.kind.replace(/-/g, " ");
   if (drawingBandType(d.kind) || FIB_KINDS.has(d.kind)) return kind;
   const p = d.points[0]?.price;
@@ -266,17 +302,26 @@ export type EvalContext = {
   /** Indicator value source used when the symbol isn't charted (the chart
    *  registry has no provider) — the engine's fetched-bars poll cache. */
   indicatorFallback?: (indicatorId: string, plot: number) => number | null;
+  /** Bars of the symbol on an interval no chart shows (the engine's
+   *  fetched-bars poll cache), for the drawings computed from bars. */
+  barsFallback?: (resolution: string) => ChartBar[] | null;
 };
 
-/** Resolve an operand to a number, or null when unavailable. */
-export function operandValue(symbol: string, op: Operand, ctx: EvalContext): number | null {
+/** Resolve an operand to a number, or null when unavailable. `resolution`:
+ *  the interval of the rule, for the operands computed from bars. */
+export function operandValue(symbol: string, op: Operand, ctx: EvalContext, resolution?: string): number | null {
   switch (op.kind) {
     case "price":
       return ctx.price;
     case "value":
       return op.value;
-    case "drawing":
-      return drawingPriceLevel(symbol, op.drawingId, ctx.timeSec, op.level);
+    case "drawing": {
+      if (op.plot == null) return drawingPriceLevel(symbol, op.drawingId, ctx.timeSec, op.level);
+      // Anchored VWAP, on the rule's interval: the chart's bars when a chart
+      // shows the symbol on it (live), the fetched bars otherwise.
+      const bars = resolution == null ? null : (chartBars(symbol, resolution) ?? ctx.barsFallback?.(resolution) ?? null);
+      return bars ? drawingVwapValue(symbol, op.drawingId, op.plot, bars) : null;
+    }
     case "indicator": {
       // Charted value first (live, honours the chart's configured inputs);
       // engine poll cache second (default inputs, ~60s stale) so the alert
