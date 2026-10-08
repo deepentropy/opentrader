@@ -14,7 +14,7 @@
  *    label-scoped tabs (localStorage `ot:tabs:<label>`) load with it.
  *  - A window whose saved position is on no monitor opens at the default
  *    position (x/y are dropped in that case).
- *  - "main" always exists (it runs the alert engine). When the user had closed
+ *  - "main" always exists at start. When the user had closed
  *    main while other windows stayed open, main takes the first saved window's
  *    bounds, and the frontend moves that window's tabs into main
  *    (`take_adopted_window`).

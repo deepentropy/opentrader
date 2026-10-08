@@ -100,6 +100,9 @@ export type AlertRule = {
   popup: boolean;
   enabled: boolean;
   createdAt: number;
+  /** Epoch ms the rule last became active (created, edited, switched on):
+   *  nothing before it counts as missed. Unset on older rules (= createdAt). */
+  activeSince?: number;
   /** Epoch ms after which the rule auto-disables; null = no expiry. */
   expiresAt: number | null;
 };
@@ -120,6 +123,12 @@ export type AlertFire = {
   soundFile: string;
   /** Symbol logo for the log row, when resolvable. */
   logoUrl: string | null;
+  /** Found at start in the bars missed while the app was not running:
+   *  logged, not announced. `fireTime` is then the time of the bar. */
+  offline?: boolean;
+  /** Epoch ms the event entered the log, when it differs from `fireTime`
+   *  (offline events): what the unread mark compares. */
+  receivedAt?: number;
 };
 
 type StoreShape = { rules: AlertRule[]; fires: AlertFire[] };
@@ -240,6 +249,7 @@ export const alertStore = {
       enabled: rule.enabled ?? true,
       id,
       createdAt: Date.now(),
+      activeSince: Date.now(),
     };
     setState("rules", (rs) => [...rs, full]);
     return id;
@@ -249,12 +259,14 @@ export const alertStore = {
   update(id: string, patch: Partial<Omit<AlertRule, "id">>): void {
     const i = state.rules.findIndex((r) => r.id === id);
     if (i < 0) return;
-    setState("rules", i, produce((r: AlertRule) => Object.assign(r, patch)));
+    setState("rules", i, produce((r: AlertRule) => Object.assign(r, patch, { activeSince: Date.now() })));
   },
 
   setEnabled(id: string, enabled: boolean): void {
     const i = state.rules.findIndex((r) => r.id === id);
-    if (i >= 0) setState("rules", i, "enabled", enabled);
+    if (i < 0) return;
+    if (enabled && !state.rules[i].enabled) setState("rules", i, "activeSince", Date.now());
+    setState("rules", i, "enabled", enabled);
   },
 
   remove(id: string): void {
@@ -265,10 +277,14 @@ export const alertStore = {
     setState("rules", []);
   },
 
-  /** Append a fired event to the log (newest first), capped at MAX_FIRES. */
+  /** Add a fired event to the log (newest first; an offline event takes the
+   *  place of its own time), capped at MAX_FIRES. */
   recordFire(fire: Omit<AlertFire, "fireId">): AlertFire {
     const full: AlertFire = { ...fire, fireId: uid("fire") };
-    setState("fires", (fs) => [full, ...fs].slice(0, MAX_FIRES));
+    setState("fires", (fs) => {
+      const at = fs.findIndex((f) => f.fireTime <= full.fireTime);
+      return (at < 0 ? [...fs, full] : [...fs.slice(0, at), full, ...fs.slice(at)]).slice(0, MAX_FIRES);
+    });
     return full;
   },
 

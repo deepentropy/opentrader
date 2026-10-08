@@ -93,6 +93,9 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
         // source so the UI can blank Ext during regular hours.
         if t.last > 0.0 {
             for symbol in state.symbols_for(&t.ticker) {
+                // The backend's alert rules read every quote, with the
+                // minute bar for what happened since the previous one.
+                crate::alerts::on_quote(app, &symbol, t.last, t.ext_change_percent.is_some(), t.minute.as_ref());
                 let _ = TradeTick {
                     symbol,
                     price: t.last,

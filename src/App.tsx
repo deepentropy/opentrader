@@ -50,6 +50,7 @@ import { recentSymbols, recordRecentSymbol } from "./data/recent-symbols";
 import { AppSettingsDialog, type AppSettingsTabId } from "./window/header/AppSettingsDialog";
 import { AlertDialog } from "./window/alerts/AlertDialog";
 import { startAlertEngine, onAlertFire } from "./data/alert-engine";
+import { whenAlertLeader } from "./data/alert-backend";
 import { loadTabTitleParts, saveTabTitleParts, type TabTitlePartState } from "./window/shell/tab-title";
 import { type LinkChannel, type LinkColor } from "./window/shell/tab-linking";
 import { popClosed, pushClosed, reopenLabel } from "./window/shell/closed-stack";
@@ -2299,12 +2300,13 @@ function App() {
       window.removeEventListener("chart-open-indicators", onOpenIndicators);
     });
 
-    // Start the client-side alert engine and surface fires as a transient
-    // toast. ONE engine per app, not per window: detached chart windows load
-    // this same bundle, and a second engine would duplicate every fire
-    // (sound, toast, OS notification, webhook POST) and race the shared kv
-    // fire log. Secondary windows still read the store for their alert UI.
-    if (windowLabel === "main") startAlertEngine();
+    // Start the alert engine and surface fires as a transient toast. ONE
+    // engine per app, not per window: detached chart windows load this same
+    // bundle, and a second engine would duplicate every fire (sound, toast,
+    // OS notification, webhook POST) and race the shared kv fire log. The
+    // backend names the window that runs it (another one takes over when it
+    // is closed). The other windows still read the store for their alert UI.
+    whenAlertLeader(windowLabel, () => startAlertEngine(windowLabel));
     let toastTimer: number | undefined;
     const offFire = onAlertFire((f) => {
       setAlertToast({ title: f.title, message: f.message });

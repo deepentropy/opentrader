@@ -1,3 +1,4 @@
+mod alerts;
 mod app_update;
 mod commands;
 mod data;
@@ -44,6 +45,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::images::save_drawing_image,
             commands::images::read_drawing_image,
             commands::alerts::post_webhook,
+            alerts::alert_engine_claim,
+            alerts::alert_engine_info,
+            alerts::alert_engine_set,
             commands::screener::screener_open,
             commands::screener::screener_close,
             commands::screener::screener_scan,
@@ -65,6 +69,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             data::types::SecondAggregate,
             data::provider::capabilities::ProviderCapabilities,
             screener::ScreenerUpdate,
+            alerts::AlertFired,
+            alerts::AlertLeader,
             app_update::AppUpdateStatus,
             app_update::AppUpdateBeforeInstall,
         ])
@@ -112,6 +118,7 @@ pub fn run() {
             if let tauri::WindowEvent::Destroyed = event {
                 use tauri::Manager;
                 let owner = window.label().to_string();
+                alerts::on_window_destroyed(window.app_handle(), &owner);
                 if let Some(handle) = window.app_handle().try_state::<data::types::WsHandle>() {
                     let tx = handle.tx.clone();
                     tauri::async_runtime::spawn(async move {
@@ -148,6 +155,7 @@ pub fn run() {
             // Restore the saved windows (main's bounds, then the others) and
             // show them; the config creates main hidden for this.
             window_session::init(app.handle());
+            alerts::init(app.handle());
             // Spawn the provider's live-data task and expose its subscription
             // handle (`WsHandle`, an mpsc of `SubscribeMsg`) in app state — the
             // realtime commands push onto it. Then manage the provider itself so

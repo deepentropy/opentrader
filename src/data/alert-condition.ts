@@ -156,11 +156,15 @@ export function drawingTime(symbol: string, drawingId: string): number | null {
  *  outside the dates of the position when `atTimeSec` is given. */
 export function drawingPositionLevels(symbol: string, drawingId: string, atTimeSec?: number): { entry: number; stop: number; target: number } | null {
   const d = loadDrawings(symbol).find((x) => x.id === drawingId);
-  if (!d || !POSITION_KINDS.has(d.kind) || !d.points[0]) return null;
+  return d ? positionLevelsOf(d, cachedSymbolSessions(symbol)?.mintick ?? 0.01, atTimeSec) : null;
+}
+
+function positionLevelsOf(d: Drawing, mintick: number, atTimeSec?: number): { entry: number; stop: number; target: number } | null {
+  if (!POSITION_KINDS.has(d.kind) || !d.points[0]) return null;
   if (atTimeSec !== undefined && !withinDrawingSpan(d, atTimeSec)) return null;
   const entry = d.points[0].price;
   const side = d.kind === "long-position" ? 1 : -1;
-  const { stop, profit } = positionLevels(d, cachedSymbolSessions(symbol)?.mintick ?? 0.01);
+  const { stop, profit } = positionLevels(d, mintick);
   return { entry, stop: entry - side * stop, target: entry + side * profit };
 }
 
@@ -206,14 +210,22 @@ function drawingLabel(d: Drawing): string {
   return typeof p === "number" ? `${kind} @ ${+p.toFixed(4)}` : kind;
 }
 
-/** Price of the line through two points at `atTimeSec` (time-interpolated,
- *  not limited to the segment); the later point's price when the times are
- *  not numeric or equal. */
-function lineAt(p0: { time: unknown; price: number }, p1: { time: unknown; price: number }, atTimeSec: number): number {
+/** Maps a time to the axis a line is straight on: the calendar time, or
+ *  the bar index when the levels are worked out per bar. */
+export type TimeAxis = (timeSec: number) => number;
+const calendarAxis: TimeAxis = (t) => t;
+
+/** Price of the line through two points at `atTimeSec` (interpolated on
+ *  `axis`, not limited to the segment); the later point's price when the
+ *  times are not numeric or equal. */
+function lineAt(p0: { time: unknown; price: number }, p1: { time: unknown; price: number }, atTimeSec: number, axis: TimeAxis = calendarAxis): number {
   const t0 = typeof p0.time === "number" ? p0.time : null;
   const t1 = typeof p1.time === "number" ? p1.time : null;
-  if (t0 == null || t1 == null || t0 === t1) return p1.price;
-  return p0.price + ((p1.price - p0.price) / (t1 - t0)) * (atTimeSec - t0);
+  if (t0 == null || t1 == null) return p1.price;
+  const x0 = axis(t0);
+  const x1 = axis(t1);
+  if (x0 === x1) return p1.price;
+  return p0.price + ((p1.price - p0.price) / (x1 - x0)) * (axis(atTimeSec) - x0);
 }
 
 /** The two bounds of a channel or rectangle drawing at `atTimeSec`, or null
@@ -227,7 +239,10 @@ function lineAt(p0: { time: unknown; price: number }, p1: { time: unknown; price
  *  `level` and `level2`, within the dates the tool covers. */
 export function drawingBand(symbol: string, drawingId: string, atTimeSec: number, level?: number, level2?: number): { lower: number; upper: number } | null {
   const d = loadDrawings(symbol).find((x) => x.id === drawingId);
-  if (!d) return null;
+  return d ? bandOf(d, atTimeSec, level, level2) : null;
+}
+
+function bandOf(d: Drawing, atTimeSec: number, level?: number, level2?: number, axis?: TimeAxis): { lower: number; upper: number } | null {
   const [p0, p1, p2] = d.points;
   let a: number;
   let b: number;
@@ -248,10 +263,10 @@ export function drawingBand(symbol: string, drawingId: string, atTimeSec: number
     b = p1.price;
   } else if (CHANNEL_KINDS.has(d.kind)) {
     if (!p0 || !p1 || !p2) return null;
-    a = lineAt(p0, p1, atTimeSec);
+    a = lineAt(p0, p1, atTimeSec, axis);
     if (d.kind === "flat-top-bottom") b = p2.price;
-    else if (d.kind === "disjoint-channel") b = lineAt({ time: p0.time, price: p2.price + (p1.price - p0.price) }, { time: p1.time, price: p2.price }, atTimeSec);
-    else b = a + (p2.price - lineAt(p0, p1, typeof p2.time === "number" ? p2.time : atTimeSec));
+    else if (d.kind === "disjoint-channel") b = lineAt({ time: p0.time, price: p2.price + (p1.price - p0.price) }, { time: p1.time, price: p2.price }, atTimeSec, axis);
+    else b = a + (p2.price - lineAt(p0, p1, typeof p2.time === "number" ? p2.time : atTimeSec, axis));
   } else {
     return null;
   }
@@ -263,21 +278,45 @@ export function drawingBand(symbol: string, drawingId: string, atTimeSec: number
  *  both endpoints carry numeric times, else fall back to the latest endpoint. */
 export function drawingPriceLevel(symbol: string, drawingId: string, atTimeSec: number, level?: number): number | null {
   const d = loadDrawings(symbol).find((x) => x.id === drawingId);
-  if (!d || d.points.length === 0) return null;
+  return d ? priceLevelOf(d, atTimeSec, level) : null;
+}
+
+function priceLevelOf(d: Drawing, atTimeSec: number, level?: number, axis?: TimeAxis): number | null {
+  if (d.points.length === 0) return null;
   // A fib level only counts within the dates the tool covers.
   if (FIB_KINDS.has(d.kind)) return withinDrawingSpan(d, atTimeSec) ? fibLevelPrice(d, level ?? 0.5) : null;
   const p0 = d.points[0];
-  if (d.points.length === 1) return p0.price;
   const p1 = d.points[1];
-  if (!p1) return p0.price;
-  const t0 = typeof p0.time === "number" ? p0.time : null;
-  const t1 = typeof p1.time === "number" ? p1.time : null;
-  if (t0 == null || t1 == null || t0 === t1) {
-    // Non-numeric (business-day) times or vertical — use the later endpoint.
-    return p1.price;
+  // Non-numeric (business-day) times or vertical: the later endpoint.
+  return p1 ? lineAt(p0, p1, atTimeSec, axis) : p0.price;
+}
+
+/** What the drawing operand `o` of a rule reads on `d` at `atTimeSec`, as
+ *  the backend takes it: [time] (vertical line), [entry, stop, target]
+ *  (position), [bound, bound] (channel conditions, rectangle) or [price];
+ *  null when it has no value then. Lines are followed on `axis`. */
+export function drawingValues(
+  d: Drawing,
+  o: Extract<Operand, { kind: "drawing" }>,
+  op: AlertOperator,
+  atTimeSec: number,
+  axis: TimeAxis | undefined,
+  mintick: number,
+): number[] | null {
+  if (o.band === "time") {
+    const t = d.points[0]?.time;
+    return typeof t === "number" ? [t] : null;
   }
-  const slope = (p1.price - p0.price) / (t1 - t0);
-  return p0.price + slope * (atTimeSec - t0);
+  if (o.band === "position") {
+    const lv = positionLevelsOf(d, mintick, atTimeSec);
+    return lv ? [lv.entry, lv.stop, lv.target] : null;
+  }
+  if (isBandOperator(op) || o.band === "rectangle") {
+    const band = bandOf(d, atTimeSec, o.level, o.level2, axis);
+    return band ? [band.lower, band.upper] : null;
+  }
+  const v = priceLevelOf(d, atTimeSec, o.level, axis);
+  return v == null ? null : [v];
 }
 
 /** True when the rule references a drawing operand whose drawing no longer

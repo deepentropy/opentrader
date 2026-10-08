@@ -237,7 +237,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string }) {
                 <div
                   data-name="alert-log-item"
                   class="alerts-panel-log-item"
-                  classList={{ unread: e.fireTime > lastRead() }}
+                  classList={{ unread: (e.receivedAt ?? e.fireTime) > lastRead() }}
                 >
                   <div class="alerts-panel-log-message">{e.message}</div>
                   <div class="alerts-panel-log-meta">
