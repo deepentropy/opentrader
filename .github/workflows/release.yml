@@ -22,7 +22,7 @@ env:
   # Source of the drawing core (deepentropy/lightweight-charts-drawing, src/core and
   # src/runtime). OpenTrader imports it from source as a sibling folder, see
   # vite.config.ts. Bump this with the lib release OpenTrader is tested against.
-  DRAWING_REF: v0.4.0
+  DRAWING_REF: v0.5.1
 
 jobs:
   build:
