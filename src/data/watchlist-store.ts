@@ -31,6 +31,8 @@ export type WatchList = {
   groups: Group[];
   /** Symbols with no section, shown before the first section. */
   extras: Row[];
+  /** Names of the collapsed sections. */
+  collapsed?: string[];
   /** Flagged/favourited — drives the "Flagged lists" section of the list
    *  manager (favourite-watchlist star). */
   favorite: boolean;
@@ -60,6 +62,18 @@ function slug(name: string): string {
 
 function cloneGroups(gs: Group[]): Group[] {
   return gs.map((g) => ({ name: g.name, rows: g.rows.map((r) => ({ ...r })) }));
+}
+
+/** Section names are unique in a list: a name already in use takes " 2",
+ *  " 3", … (lists saved before the rule, imported files). */
+function dedupeSections(groups: Group[]): Group[] {
+  const used = new Set<string>();
+  return groups.map((g) => {
+    let name = g.name;
+    for (let n = 2; used.has(name); n++) name = `${g.name} ${n}`;
+    used.add(name);
+    return name === g.name ? g : { ...g, name };
+  });
 }
 
 function seed(): StoreShape {
@@ -98,8 +112,9 @@ function load(): StoreShape {
         // Normalise fields added in later versions so older saves still load.
         parsed.lists = parsed.lists.map((l) => ({
           ...l,
-          groups: l.groups ?? [],
+          groups: dedupeSections(l.groups ?? []),
           extras: l.extras ?? [],
+          collapsed: (l.collapsed ?? []).filter((n) => (l.groups ?? []).some((g) => g.name === n)),
           favorite: l.favorite ?? false,
           sort: "default" as SortKey,
         }));
@@ -432,14 +447,39 @@ function dropSort(id: string): void {
 
 /** Mutate the active list in place (via solid-store `produce`). A change of
  *  the list's content ends its sort (`keepSort` for the few that do not
- *  touch the rows). */
+ *  touch the rows). A section that left the list leaves the collapsed ones. */
 function mutateActive(fn: (l: WatchList) => void, keepSort = false): void {
   const i = activeIndex();
   if (i >= 0) {
-    setState("lists", i, produce(fn));
+    setState("lists", i, produce((l: WatchList) => {
+      fn(l);
+      if (l.collapsed?.length) l.collapsed = l.collapsed.filter((n) => l.groups.some((g) => g.name === n));
+    }));
     if (!keepSort) dropSort(state.lists[i].id);
   }
   syncColorFlags();
+}
+
+/** Run a change that adds or removes items of the list at index `i`: a
+ *  collapsed section that holds more rows after it opens. */
+function openGrown(i: number, run: () => void): void {
+  const before = new Map((state.lists[i]?.groups ?? []).map((g) => [g.name, g.rows.length]));
+  run();
+  const l = state.lists[i];
+  if (!l?.collapsed?.length) return;
+  const grown = new Set(l.groups.filter((g) => g.rows.length > (before.get(g.name) ?? 0)).map((g) => g.name));
+  if (l.collapsed.some((n) => grown.has(n))) setState("lists", i, "collapsed", (c) => (c ?? []).filter((n) => !grown.has(n)));
+}
+
+/** A name not in `used`: `base`, then `base 2`, `base 3`, … (`first` = the
+ *  name starts at `base 1`). */
+function freeName(used: readonly string[], base: string, first = false): string {
+  const set = new Set(used);
+  const one = first ? `${base} 1` : base;
+  if (!set.has(one)) return one;
+  let n = 2;
+  while (set.has(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
 }
 
 /** Where "Add symbol" inserts:
@@ -499,7 +539,7 @@ export const watchlistStore = {
     const id = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id, name: nm, flag: null, emoji: null, groups: cloneGroups(a.groups), extras: a.extras.map((r) => ({ ...r })), favorite: false, sort: "default" },
+      { id, name: nm, flag: null, emoji: null, groups: cloneGroups(a.groups), extras: a.extras.map((r) => ({ ...r })), collapsed: [...(a.collapsed ?? [])], favorite: false, sort: "default" },
     ]);
     setState("activeId", id);
     return id;
@@ -514,7 +554,7 @@ export const watchlistStore = {
     const cid = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id: cid, name: nm, flag: null, emoji: null, groups: cloneGroups(src.groups), extras: src.extras.map((r) => ({ ...r })), favorite: false, sort: "default" },
+      { id: cid, name: nm, flag: null, emoji: null, groups: cloneGroups(src.groups), extras: src.extras.map((r) => ({ ...r })), collapsed: [...(src.collapsed ?? [])], favorite: false, sort: "default" },
     ]);
     return cid;
   },
@@ -556,7 +596,7 @@ export const watchlistStore = {
   importList(name: string, groups: Group[], extras: Row[] = []): string {
     const nm = uniqueName(name || "Imported list");
     const id = uniqueId(nm);
-    let finalGroups = groups;
+    let finalGroups = dedupeSections(groups);
     let finalExtras = extras;
     if (!groups.length && extras.length) {
       finalGroups = [{ name: "IMPORTED", rows: extras }];
@@ -615,16 +655,54 @@ export const watchlistStore = {
       l.extras = [];
     });
   },
-  addSection(name: string): void {
+  /** Add a section named "SECTION 1", "SECTION 2", … Its header goes before
+   *  the row `before`, so the section starts at that row and takes the rows
+   *  under it up to the next header; with no such row it goes to the end of
+   *  the list. Returns its name. */
+  addSection(before: string | null): string {
+    let name = "";
     mutateActive((l) => {
-      l.groups.push({ name, rows: [] });
+      name = freeName(l.groups.map((g) => g.name), "SECTION", true);
+      const g: Group = { name, rows: [] };
+      const at = before == null ? -1 : l.extras.findIndex((r) => r.ticker === before);
+      if (at >= 0) {
+        g.rows = l.extras.splice(at);
+        l.groups.unshift(g);
+        return;
+      }
+      for (let i = 0; before != null && i < l.groups.length; i++) {
+        const j = l.groups[i].rows.findIndex((r) => r.ticker === before);
+        if (j < 0) continue;
+        g.rows = l.groups[i].rows.splice(j);
+        l.groups.splice(i + 1, 0, g);
+        return;
+      }
+      l.groups.push(g);
     });
+    return name;
   },
-  renameSection(oldName: string, newName: string): void {
+  /** Rename a section: the name is trimmed and upper-cased, an empty one is
+   *  ignored, and a name another section holds takes " 2", " 3", … A
+   *  collapsed section stays collapsed. Returns the section's name after it. */
+  renameSection(oldName: string, newName: string): string {
+    const wanted = newName.trim().toUpperCase();
+    const cur = state.lists[activeIndex()];
+    if (!wanted || wanted === oldName || !cur?.groups.some((g) => g.name === oldName)) return oldName;
+    const name = freeName(cur.groups.map((g) => g.name), wanted);
     mutateActive((l) => {
       const g = l.groups.find((g) => g.name === oldName);
-      if (g) g.name = newName;
+      if (g) g.name = name;
+      if (l.collapsed) l.collapsed = l.collapsed.map((n) => (n === oldName ? name : n));
     });
+    return name;
+  },
+  /** Collapse / expand sections of the active list. */
+  setSectionsCollapsed(names: readonly string[], value: boolean): void {
+    mutateActive((l) => {
+      const set = new Set(l.collapsed ?? []);
+      for (const n of names) value ? set.add(n) : set.delete(n);
+      l.collapsed = [...set];
+    }, true);
   },
   /** Insert rows into the active list at `anchor`.
    *  Rows already in the list are skipped: same full name, or a row stored
@@ -633,7 +711,7 @@ export const watchlistStore = {
    *  section. Returns the added tickers. */
   addSymbols(rows: Row[], anchor: AddAnchor): string[] {
     const added: string[] = [];
-    mutateActive((l) => {
+    openGrown(activeIndex(), () => mutateActive((l) => {
       const has = (t: string) =>
         l.groups.some((g) => g.rows.some((r) => r.ticker === t || r.ticker === shortOf(t))) ||
         l.extras.some((r) => r.ticker === t || r.ticker === shortOf(t));
@@ -658,7 +736,7 @@ export const watchlistStore = {
         }
       }
       endOf(l).push(...fresh);
-    });
+    }));
     return added;
   },
   /** Remove a symbol from the active list wherever it sits (section or extras). */
@@ -725,10 +803,10 @@ export const watchlistStore = {
       }
       for (const r of g.rows) if (!picked.has(r.ticker)) into.push(r);
     }
-    mutateActive((l) => {
+    openGrown(activeIndex(), () => mutateActive((l) => {
       l.groups = groups;
       l.extras = extras;
-    });
+    }));
   },
   /** Set (or clear, with `null`) a symbol's colour flag. Flags belong to
    *  the symbol (symbol-flags.ts): it shows in every list holding it. */
@@ -751,9 +829,9 @@ export const watchlistStore = {
       l.groups.some((g) => g.rows.some((r) => r.ticker === row.ticker)) ||
       l.extras.some((r) => r.ticker === row.ticker);
     if (exists) return false;
-    setState("lists", i, produce((wl: WatchList) => {
+    openGrown(i, () => setState("lists", i, produce((wl: WatchList) => {
       endOf(wl).push({ ...row, flag: null });
-    }));
+    })));
     dropSort(state.lists[i].id);
     syncColorFlags();
     return true;

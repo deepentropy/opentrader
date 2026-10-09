@@ -636,9 +636,11 @@
   outline: none;
 }
 
-/* Delete-section trash — appears when the section is SELECTED (first click). */
+/* Delete-section trash: shown while the pointer is over the header. */
 .watchlist-group-delete {
-  margin-left: auto;
+  position: absolute;
+  right: 6px;
+  top: 10px;
   display: none;
   align-items: center;
   justify-content: center;
@@ -646,12 +648,16 @@
   height: 22px;
   padding: 0;
   border: 0;
-  background: transparent;
+  border-radius: 4px;
+  background-color: var(--color-border-table, #2e2e2e);
   color: var(--color-default-gray, #8c8c8c);
   cursor: default;
 }
-.watchlist-group.selected .watchlist-group-delete {
+.watchlist-group:hover .watchlist-group-delete {
   display: flex;
+}
+.watchlist-group.highlighted {
+  background-color: var(--color-list-item-bg-highlighted, #132042);
 }
 .watchlist-group-delete:hover {
   color: var(--color-main-text, #dbdbdb);

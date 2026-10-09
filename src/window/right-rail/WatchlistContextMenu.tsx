@@ -248,6 +248,8 @@ type SectionProps = {
   x: number;
   y: number;
   onRename: (name: string) => void;
+  /** False on a collapsed section: no "Remove section" row. */
+  canRemove: boolean;
   onRemove: (name: string) => void;
   onAddSymbol: () => void;
   onClose: () => void;
@@ -271,10 +273,12 @@ export function SectionContextMenu(props: SectionProps) {
         <span class="ot-menu-item__icon" aria-hidden="true" />
         <span class="ot-menu-item__label">Rename</span>
       </button>
-      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onRemove(props.name))}>
-        <span class="ot-menu-item__icon" aria-hidden="true" />
-        <span class="ot-menu-item__label">Remove section</span>
-      </button>
+      <Show when={props.canRemove}>
+        <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onRemove(props.name))}>
+          <span class="ot-menu-item__icon" aria-hidden="true" />
+          <span class="ot-menu-item__label">Remove section</span>
+        </button>
+      </Show>
       <div class="ot-popover__divider" />
       <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSymbol)}>
         <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />

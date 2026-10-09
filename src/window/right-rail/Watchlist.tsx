@@ -743,27 +743,21 @@ export function Watchlist(props: Props) {
   const isSelected = (r: Row) => selectedIds().has(r.ticker);
   const isSectionSelected = (name: string) => selectedIds().has(sectionId(name));
 
-  // ── Section UI state (transient view-state; the section *data* is in the
-  // store). These track which sections are collapsed / being renamed. A header
-  // click selects the section (blue bg + trash); a second click on the
-  // already-selected title enters rename. Switching lists clears all of it.
-  const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
+  // ── Section UI state ── the collapsed sections are saved with the list
+  // (store); which one is being renamed is view state. A header click selects
+  // the section; a second click on the already-selected title enters rename.
+  // Switching lists ends a rename.
+  const collapsed = createMemo(() => new Set(active()?.collapsed ?? []));
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [draft, setDraft] = createSignal("");
   createEffect(() => {
     watchlistStore.activeId(); // track: reset interaction state on list switch
-    setCollapsed(new Set<string>());
     setRenaming(null);
     setRenamingList(false);
   });
 
   const isCollapsed = (name: string) => collapsed().has(name);
-  const setCollapse = (names: string[], value: boolean) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      for (const n of names) value ? next.add(n) : next.delete(n);
-      return next;
-    });
+  const setCollapse = (names: string[], value: boolean) => watchlistStore.setSectionsCollapsed(names, value);
   // The chevron of a selected header folds / unfolds every selected section.
   const toggleCollapse = (name: string) => {
     const picked = selection().filter(isSectionId).map(sectionNameOf);
@@ -835,7 +829,6 @@ export function Watchlist(props: Props) {
     if (!ids.length) return;
     const run = () => {
       watchlistStore.removeItems(ids);
-      setCollapse(ids.filter(isSectionId).map(sectionNameOf), false);
       after?.();
       rowsEl?.focus();
     };
@@ -878,11 +871,7 @@ export function Watchlist(props: Props) {
   };
   const commitRename = () => {
     const cur = renaming();
-    if (cur) {
-      const nextName = draft().trim() || cur;
-      watchlistStore.renameSection(cur, nextName);
-      selectOnly(sectionId(nextName));
-    }
+    if (cur) selectOnly(sectionId(watchlistStore.renameSection(cur, draft())));
     setRenaming(null);
   };
   // Title click: select on the first click, edit on the second (when already
@@ -988,18 +977,12 @@ export function Watchlist(props: Props) {
   const [highlighted, setHighlighted] = createSignal<Set<string>>(new Set());
   let highlightTimer: number | undefined;
   onCleanup(() => window.clearTimeout(highlightTimer));
-  const highlightRows = (tickers: string[]) => {
-    setHighlighted(new Set(tickers));
+  const highlightRows = (ids: string[]) => {
+    setHighlighted(new Set(ids));
     window.clearTimeout(highlightTimer);
     highlightTimer = window.setTimeout(() => setHighlighted(new Set<string>()), 500);
-    const last = tickers[tickers.length - 1];
-    if (!last) return;
-    queueMicrotask(() => {
-      const el = [...(rowsEl?.querySelectorAll<HTMLElement>("[data-symbol-full]") ?? [])].find(
-        (e) => e.dataset.symbolFull === last,
-      );
-      el?.scrollIntoView({ block: "nearest" });
-    });
+    const last = ids[ids.length - 1];
+    if (last) scrollToItem(last);
   };
   const isHighlighted = (r: Row) => highlighted().has(r.ticker);
 
@@ -1055,16 +1038,10 @@ export function Watchlist(props: Props) {
     watchlistStore.renameActive(listDraft());
     setRenamingList(false);
   };
-  // "Add section": append a uniquely-named empty section and drop straight into
-  // its inline rename (add a section, then name it).
-  const addSection = () => {
-    const base = "New section";
-    let name = base;
-    for (let n = 2; groups().some((g) => g.name === name); n++) name = `${base} ${n}`;
-    watchlistStore.addSection(name);
-    selectOnly(sectionId(name));
-    startRename(name);
-  };
+  // "Add section": the new header goes before `before` (the row whose menu
+  // asked for it; from the list menu, the charted symbol's row), at the end
+  // of the list when there is no such row. It is highlighted and scrolled to.
+  const addSection = (before: string | null) => highlightRows([sectionId(watchlistStore.addSection(before))]);
   // "Clear list": remove every symbol from the active list.
   const clearList = () => watchlistStore.clearActive();
   // "Create new list…": asks the name, then a new empty list, switched-to.
@@ -1273,12 +1250,14 @@ export function Watchlist(props: Props) {
 
   // ── Per-section + per-row renderers (shared by table and tile views) ──
   // One section header: chevron (collapse), label / inline rename input, and a
-  // delete-section trash revealed while the section is selected.
+  // remove button shown while the pointer is over the header (none on a
+  // collapsed section).
   const groupHeader = (g: Group) => (
     <div
       class="watchlist-group"
       classList={{
         renaming: renaming() === g.name,
+        highlighted: highlighted().has(sectionId(g.name)),
         selected: isSectionSelected(g.name) && renaming() !== g.name,
         dragging: isDragging(sectionId(g.name)),
         "drop-before": dropBefore(sectionId(g.name)),
@@ -1321,17 +1300,19 @@ export function Watchlist(props: Props) {
           onBlur={commitRename}
         />
       </Show>
-      <button
-        type="button"
-        class="watchlist-group-delete"
-        aria-label="Delete section"
-        title="Delete section"
-        onClick={(e) => {
-          e.stopPropagation();
-          removeFromButton(sectionId(g.name));
-        }}
-        innerHTML={WL_ICONS.trash}
-      />
+      <Show when={!isCollapsed(g.name)}>
+        <button
+          type="button"
+          class="watchlist-group-delete"
+          aria-label="Delete section"
+          title="Delete section"
+          onClick={(e) => {
+            e.stopPropagation();
+            removeFromButton(sectionId(g.name));
+          }}
+          innerHTML={WL_ICONS.trash}
+        />
+      </Show>
     </div>
   );
 
@@ -1522,7 +1503,7 @@ export function Watchlist(props: Props) {
           onSelectList={(id) => watchlistStore.setActive(id)}
           onClose={() => setMenuOpen(false)}
           onRenameList={renameList}
-          onAddSection={addSection}
+          onAddSection={() => addSection(chartRow())}
           onClearList={clearList}
           onCreateList={createList}
           onCopyList={copyList}
@@ -1837,7 +1818,7 @@ export function Watchlist(props: Props) {
             onToggleList={toggleRowsInList}
             onCreateListWith={createListWithRows}
             onAddNote={openNoteFor}
-            onAddSection={addSection}
+            onAddSection={() => addSection(m().row.ticker)}
             onAddSymbol={() => openAdd({ section: m().section, after: m().row.ticker })}
             onClose={() => setCtxMenu(null)}
           />
@@ -1851,6 +1832,7 @@ export function Watchlist(props: Props) {
             x={m().x}
             y={m().y}
             onRename={(name) => startRename(name)}
+            canRemove={!isCollapsed(m().name)}
             onRemove={(name) => removeFromButton(sectionId(name))}
             onAddSymbol={() => openAdd({ section: m().name })}
             onClose={() => setSectionCtx(null)}
