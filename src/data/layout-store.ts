@@ -21,7 +21,7 @@
 import { createSignal } from "solid-js";
 import type { LayoutId } from "../window/chart/layouts";
 import type { LayoutSyncState } from "../window/chart/layout-sync";
-import { revivePaneSettings, type PaneChart } from "../window/shell/tabs";
+import { revivePaneSettings, type LayoutSizes, type PaneChart } from "../window/shell/tabs";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "./kv";
@@ -38,6 +38,8 @@ export type LayoutSnapshot = {
   /** "Sync in layout" toggles (saved in the layout content).
    *  Optional — layouts saved before per-tab sync have none. */
   sync?: LayoutSyncState;
+  /** Chart sizes set with the splitters, per layout template. */
+  layoutSizes?: LayoutSizes;
 };
 
 export type SavedLayout = {
@@ -180,6 +182,8 @@ export function snapshotsEqual(a: LayoutSnapshot, b: LayoutSnapshot): boolean {
   const core = (s: LayoutSnapshot) =>
     JSON.stringify({ layout: s.layout, panes: comparablePanes(s.panes) });
   if (core(a) !== core(b)) return false;
+  // Chart sizes set with the splitters are part of the layout.
+  if (JSON.stringify(a.layoutSizes ?? {}) !== JSON.stringify(b.layoutSizes ?? {})) return false;
   if (a.sync && b.sync && JSON.stringify(a.sync) !== JSON.stringify(b.sync)) return false;
   if (a.drawings && b.drawings) return JSON.stringify(a.drawings) === JSON.stringify(b.drawings);
   return true;

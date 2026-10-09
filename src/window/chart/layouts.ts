@@ -27,7 +27,11 @@
  *     row.  Row heights are equal.
  *   - `NcM` = grid with N total cells in M columns (rest derives rows).
  *   - `2-2`/`2-2-l`/`2-2-r`/`2-3-l`/`2-3-r` = hybrid sidebars (see specs).
+ *
+ * `expr` is the same geometry as a split tree (see layout-sizes.ts): it
+ * places the cells and carries the draggable splitters between them.
  */
+import type { LayoutExpr, LayoutNode } from './layout-sizes';
 
 export type CellSpec = {
   /** CSS `gridColumn` value (e.g. "2", "1 / 3", "1 / span 2").  Omit to let
@@ -41,7 +45,16 @@ export type LayoutSpec = {
   cols: number;
   rows: number;
   cells: CellSpec[];
+  /** Split tree over the cell indexes. */
+  expr: LayoutExpr;
 };
+
+/* `count` cells from `first`, side by side ("h") or stacked ("v"); one cell
+ * is the cell itself. */
+function strip(dir: 'h' | 'v', first: number, count: number): LayoutExpr {
+  if (count === 1) return first;
+  return [dir, ...Array.from({ length: count }, (_, i) => first + i)] as LayoutNode;
+}
 
 /* Build a uniform grid of `cols × rows`, all cells auto-placed.  When
  * `count` is set it overrides the cell count (e.g. for a sparse grid). */
@@ -50,6 +63,9 @@ function grid(cols: number, rows: number, count?: number): LayoutSpec {
     cols,
     rows,
     cells: Array.from({ length: count ?? cols * rows }, () => ({})),
+    expr: rows === 1
+      ? strip('h', 0, cols)
+      : (['v', ...Array.from({ length: rows }, (_, r) => strip('h', r * cols, cols))] as LayoutNode),
   };
 }
 
@@ -64,7 +80,8 @@ function sidebar(side: 'L' | 'R', stack: number): LayoutSpec {
     for (let i = 1; i <= stack; i++) cells.push({ col: '1', row: `${i}` });
     cells.push({ col: '2', row: `1 / span ${stack}` });
   }
-  return { cols: 2, rows: stack, cells };
+  const expr: LayoutNode = side === 'L' ? ['h', 0, strip('v', 1, stack)] : ['h', strip('v', 0, stack), stack];
+  return { cols: 2, rows: stack, cells, expr };
 }
 
 function gcd(a: number, b: number): number {
@@ -89,7 +106,13 @@ function rowSplit(...rowCounts: number[]): LayoutSpec {
       });
     }
   });
-  return { cols, rows: rowCounts.length, cells };
+  let first = 0;
+  const expr = ['v', ...rowCounts.map((n) => {
+    const row = strip('h', first, n);
+    first += n;
+    return row;
+  })] as LayoutNode;
+  return { cols, rows: rowCounts.length, cells, expr };
 }
 
 /* The 55 templates exposed by the layout-setup dropdown. */
@@ -127,6 +150,7 @@ export const LAYOUT_SPECS = {
       { col: '1 / span 2', row: '3' },
       { col: '1 / span 2', row: '4' },
     ],
+    expr: ['v', ['h', 0, 1], ['v', 2, 3]],
   },
   // 2-2-l: 2 full-height left cols + 2 stacked right cells.
   '2-2-l': {
@@ -138,6 +162,7 @@ export const LAYOUT_SPECS = {
       { col: '3', row: '1' },
       { col: '3', row: '2' },
     ],
+    expr: ['h', 0, 1, ['v', 2, 3]],
   },
   // 2-2-r: mirror of 2-2-l.
   '2-2-r': {
@@ -149,6 +174,7 @@ export const LAYOUT_SPECS = {
       { col: '2', row: '1 / span 2' },
       { col: '3', row: '1 / span 2' },
     ],
+    expr: ['h', ['v', 0, 1], 2, 3],
   },
 
   // 5-pane.
@@ -171,6 +197,7 @@ export const LAYOUT_SPECS = {
       { col: '3', row: '2' },
       { col: '3', row: '3' },
     ],
+    expr: ['h', 0, 1, ['v', 2, 3, 4]],
   },
   '2-3-r': {
     cols: 3,
@@ -182,6 +209,7 @@ export const LAYOUT_SPECS = {
       { col: '2', row: '1 / span 3' },
       { col: '3', row: '1 / span 3' },
     ],
+    expr: ['h', ['v', 0, 1, 2], 3, 4],
   },
 
   // 6-pane.

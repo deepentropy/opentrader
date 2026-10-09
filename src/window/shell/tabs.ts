@@ -14,6 +14,7 @@ import { SYMBOLS } from "../../data/symbol-search";
 import type { LinkChannels, LinkColor, TabLink } from "./tab-linking";
 import { linkGroup, setLinkGroup } from "../../data/link-groups";
 import { defaultLayoutSync, reviveLayoutSync, type LayoutSyncState } from "../chart/layout-sync";
+import { sizingFits, type LayoutExpr, type Sizing } from "../chart/layout-sizes";
 import { cloneDraft, loadChartSettingsDefaults, reviveDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, type Draft } from "../header/chart-settings";
 import type { SessionId } from "../../data/datafeed";
 import type { IndicatorStyleOverrides } from "../chart/indicators/indicator-layer";
@@ -172,6 +173,9 @@ export type TabChart = {
   link?: TabLink;
   /** "Sync in layout" toggles of this tab (saved per layout). */
   sync: LayoutSyncState;
+  /** Chart sizes set with the splitters, per layout template (a template
+   *  keeps its sizes while another one is shown). Absent = equal sizes. */
+  layoutSizes?: LayoutSizes;
   /** Pinned ("Pin tab"): kept in the block at the left of the strip, no
    *  close button, spared by "Close other tabs" / "Close tabs to the right". */
   pinned?: boolean;
@@ -182,6 +186,19 @@ export type TabChart = {
    *  without a store lookup. Kept in sync on save / open / rename. */
   savedLayoutName?: string;
 };
+
+export type LayoutSizes = Partial<Record<LayoutId, Sizing>>;
+
+/** Stored sizes read back: only the templates whose state still fits. */
+export function reviveLayoutSizes(raw: unknown): LayoutSizes | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: LayoutSizes = {};
+  for (const [id, sizing] of Object.entries(raw as Record<string, unknown>)) {
+    const spec = (LAYOUT_SPECS as Record<string, { expr: LayoutExpr }>)[id];
+    if (spec && sizingFits(spec.expr, sizing)) out[id as LayoutId] = sizing;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 /** Pane count a layout template requires (one per grid cell). */
 export function paneCountFor(layout: LayoutId): number {
@@ -318,7 +335,8 @@ export function migrateTab(raw: any): TabChart {
   const savedLayoutId = typeof raw?.savedLayoutId === "string" ? raw.savedLayoutId : undefined;
   const savedLayoutName = typeof raw?.savedLayoutName === "string" ? raw.savedLayoutName : undefined;
   const pinned = raw?.pinned === true ? true : undefined;
-  return { id, isChart, ...reconciled, sync, link, pinned, savedLayoutId, savedLayoutName };
+  const layoutSizes = reviveLayoutSizes(raw?.layoutSizes);
+  return { id, isChart, ...reconciled, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName };
 }
 
 /** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:

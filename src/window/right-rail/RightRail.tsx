@@ -2,8 +2,14 @@
  * RightRail — container that pairs the vertical tab strip with the active
  * panel. Panel sits to the LEFT of the strip. When
  * activeTab is null, only the 45-px strip remains.
+ *
+ * Width: a 5 px handle on the panel's left edge drags the panel width (one
+ * width for every panel, saved). 200 px at least; dragged under 50 px the
+ * panel closes, dragged back out it opens again; the chart area keeps
+ * 300 px, so the panel narrows with a small window and hides when even
+ * 200 px do not fit.
  */
-import { Match, Show, Switch, createEffect, createSignal } from "solid-js";
+import { Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { RightRailTabs } from "./RightRailTabs";
 import { Watchlist } from "./Watchlist";
 import { WatchlistDetail } from "./WatchlistDetail";
@@ -32,11 +38,23 @@ type Props = {
   pressedTab?: (id: string) => boolean;
 };
 
+const WIDTH_KEY = "ot:rail:width";
+const WIDTH_DEFAULT = 331;
+const WIDTH_MIN = 200;
+/** Dragged narrower than this, the panel closes. */
+const CLOSE_UNDER = 50;
+/** Width the chart area keeps. */
+const CHART_MIN = 300;
 const DETAIL_HEIGHT_KEY = "ot:rail:detailHeight";
 const DETAIL_COLLAPSED_KEY = "ot:rail:detailCollapsed";
 const DETAIL_MIN = 140;
 /** Keep the watchlist at least this tall when the detail panel grows. */
 const WATCHLIST_MIN = 160;
+
+function loadWidth(): number {
+  const n = Number(kv.getItem(WIDTH_KEY));
+  return Number.isFinite(n) && n > 0 ? Math.max(WIDTH_MIN, n) : WIDTH_DEFAULT;
+}
 
 function loadDetailHeight(): number {
   const n = Number(kv.getItem(DETAIL_HEIGHT_KEY));
@@ -78,9 +96,78 @@ export function RightRail(props: Props) {
     window.addEventListener("mouseup", onUp);
   }
 
+  // ── Panel width ─────────────────────────────────────────────────────────
+  const [width, setWidth] = createSignal(loadWidth());
+  // Width left for the panel next to the chart area (Infinity until measured).
+  const [room, setRoom] = createSignal(Infinity);
+  let containerRef: HTMLDivElement | undefined;
+  let tabsWidth = 45;
+  // Panel reopened by a drag out of the closed state: the last one shown.
+  let lastTab = props.activeTab ?? "base";
+  createEffect(() => {
+    if (props.activeTab) lastTab = props.activeTab;
+  });
+  const shownWidth = () => Math.min(width(), room());
+  const fits = () => room() >= WIDTH_MIN;
+  /** Chart area + panel: what the two share. */
+  const shared = () => {
+    const c = containerRef;
+    const chart = c?.previousElementSibling as HTMLElement | null;
+    if (!c || !chart) return Infinity;
+    tabsWidth = (c.querySelector(".right-rail-tabs") as HTMLElement | null)?.offsetWidth ?? tabsWidth;
+    return chart.offsetWidth + c.offsetWidth - tabsWidth;
+  };
+  onMount(() => {
+    const row = containerRef?.parentElement;
+    if (!row) return;
+    const measure = () => setRoom(shared() - CHART_MIN);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(row);
+    onCleanup(() => ro.disconnect());
+  });
+  function beginWidthResize(e: PointerEvent) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const handle = e.currentTarget as HTMLElement;
+    handle.setPointerCapture(e.pointerId);
+    const startX = e.clientX;
+    const startW = props.activeTab && fits() ? shownWidth() : 0;
+    const max = Math.max(WIDTH_MIN, shared() - CHART_MIN);
+    const onMove = (ev: PointerEvent) => {
+      const w = startW - (ev.clientX - startX);
+      if (w < CLOSE_UNDER) {
+        if (props.activeTab) props.setActiveTab(null);
+        return;
+      }
+      setWidth(Math.min(max, Math.max(WIDTH_MIN, w)));
+      if (!props.activeTab) props.setActiveTab(lastTab);
+    };
+    const onUp = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onUp);
+      document.body.style.cursor = "";
+      try {
+        kv.setItem(WIDTH_KEY, String(Math.round(width())));
+      } catch {
+        /* best-effort */
+      }
+    };
+    document.body.style.cursor = "ew-resize";
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onUp);
+  }
+
   return (
-    <div class="right-rail-container" style={{ display: "flex", "flex-direction": "row" }}>
-      <Show when={props.activeTab}>
+    <div
+      ref={containerRef}
+      class="right-rail-container"
+      style={{ display: "flex", "flex-direction": "row", position: "relative", "--ot-rail-width": `${shownWidth()}px` }}
+    >
+      <div class="rail-width-handle" role="separator" aria-orientation="vertical" onPointerDown={beginWidthResize} />
+      <Show when={props.activeTab && fits()}>
         <Switch>
           <Match when={props.activeTab === "base"}>
             <div
@@ -92,9 +179,8 @@ export function RightRail(props: Props) {
                 height: "100%",
                 "min-height": 0,
                 // Pin the width so async detail data can never balloon the rail
-                // and shove the chart pane left (mock's `.right-rail-watchlist-pane`
-                // uses a hard 331px width + flex-shrink:0).
-                width: "331px",
+                // and shove the chart pane left (the rail width + flex-shrink:0).
+                width: "var(--ot-rail-width, 331px)",
                 "flex-shrink": 0,
                 overflow: "hidden",
               }}

@@ -7,7 +7,9 @@
  * heights, etc.).  The width + bg + flex column live here.
  */
 .ot-rail-panel {
-  width: 331px;
+  /* The rail width (331 px until the user drags the rail's left edge). */
+  width: var(--ot-rail-width, 331px);
+  min-width: 0;
   flex-shrink: 0;
   background-color: var(--ot-chart-bg);
   color: var(--color-toolbar-button-text);
@@ -25,4 +27,17 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Rail width handle: a clear 5 px strip over the panel's left edge. */
+.rail-width-handle {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 5px;
+  height: 100%;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 6;
+  -webkit-app-region: no-drag;
 }

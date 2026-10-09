@@ -5,10 +5,17 @@
  * own symbol / interval / chart-type / indicators / drawings (the mock fed
  * every pane the same active-tab symbol).
  *
- * Geometry (grid-template-columns/rows + per-cell grid-column/grid-row) is
- * driven entirely by LAYOUT_SPECS and applied as inline styles, so chart-grid.css
- * stays template-agnostic. `panes[i]` supplies cell i's data (kept the same
- * length as `spec.cells` by the caller's reconcilePanes).
+ * Geometry comes from the template's split tree (LAYOUT_SPECS[..].expr) and
+ * the tab's sizes for that template (layout-sizes.ts): every cell is placed
+ * by its pixel box, applied as inline styles, so chart-grid.css stays
+ * template-agnostic. `panes[i]` supplies cell i's data (kept the same length
+ * as `spec.cells` by the caller's reconcilePanes).
+ *
+ * Splitters: a 12 px band on every gap between two charts. Dragging one
+ * moves the size between its two neighbours (5 % of their box at least);
+ * with Shift the matching splitter of the sibling rows / columns moves too.
+ * A double click puts the template back to equal sizes. No splitter while a
+ * chart is maximized.
  *
  * EVERY pane is fully interactive: the armed drawing tool, magnet, selection
  * and edit callbacks reach all panes, but each pane's callbacks are bound to
@@ -23,7 +30,7 @@
  * is rendered by whichever pane owns that drawing.
  */
 import type { CompareStyleState } from "./compare/compare-style";
-import { createEffect, createSignal, Index, on, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, Index, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import { ChartEventHint } from "../../components/ChartEventHint";
 import {
   DEMONSTRATION_HINT,
@@ -36,6 +43,18 @@ import {
 } from "../../data/hints";
 import { ChartView } from "./ChartView";
 import { LAYOUT_SPECS, type LayoutId } from "./layouts";
+import {
+  alignSiblings,
+  applyResize,
+  cellRects,
+  cloneSizing,
+  initialSizing,
+  sizingFits,
+  splitters,
+  type Rect,
+  type Sizing,
+  type Splitter,
+} from "./layout-sizes";
 import type { PaneChart, PaneIndicatorSettings } from "../shell/tabs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "../../data/drawing-toolbar";
@@ -59,6 +78,11 @@ type Props = {
   maximized?: boolean;
   /** Toggle maximize (double-click a pane). Wired from App's maximize state. */
   onToggleMaximize?: () => void;
+  /** The tab's sizes of this template (absent = equal sizes). */
+  sizes?: Sizing;
+  /** A splitter drag ended (`sizes`) or a splitter was double-clicked
+   *  (undefined = back to equal sizes). */
+  onSizes?: (sizes: Sizing | undefined) => void;
   theme?: "dark" | "light";
   timeZone?: string;
   /** The timezone row label (the time-axis menu checks it). */
@@ -130,6 +154,123 @@ export function ChartGrid(props: Props) {
   const isMaximized = () => !!props.maximized && spec().cells.length > 1;
   const live = () => props.shown !== false;
 
+  // ── Geometry ────────────────────────────────────────────────────────────
+  // The gap between two charts (the window background shows through).
+  const GAP = 2;
+  let gridEl: HTMLDivElement | undefined;
+  const [box, setBox] = createSignal({ width: 0, height: 0 });
+  onMount(() => {
+    if (!gridEl) return;
+    const el = gridEl;
+    const measure = () => setBox((b) => (b.width === el.clientWidth && b.height === el.clientHeight ? b : { width: el.clientWidth, height: el.clientHeight }));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    onCleanup(() => ro.disconnect());
+  });
+  // Sizes shown: the running drag, else the tab's sizes of this template.
+  const [dragSizing, setDragSizing] = createSignal<Sizing | null>(null);
+  const sizing = createMemo<Sizing>(() => {
+    const expr = spec().expr;
+    const drag = dragSizing();
+    if (drag && sizingFits(expr, drag)) return drag;
+    return sizingFits(expr, props.sizes) ? props.sizes : initialSizing(expr);
+  });
+  const contentBox = (): Rect => ({ left: 0, top: 0, width: box().width, height: box().height });
+  // Until the grid is measured the cells take their share in percent, so a
+  // chart never mounts in an empty box.
+  const UNIT = 100000;
+  const measured = () => box().width > 0 && box().height > 0;
+  const rects = createMemo(() =>
+    measured()
+      ? cellRects(spec().expr, contentBox(), GAP, sizing())
+      : cellRects(spec().expr, { left: 0, top: 0, width: UNIT, height: UNIT }, 0, sizing()),
+  );
+  const cellStyle = (i: number) => {
+    const r = rects()[i];
+    if (!r) return {};
+    const unit = (v: number) => (measured() ? `${Math.max(v, 0)}px` : `${(v / UNIT) * 100}%`);
+    return { left: unit(r.left), top: unit(r.top), width: unit(r.width), height: unit(r.height) };
+  };
+  const bars = createMemo<Splitter[]>(() =>
+    measured() && !isMaximized() ? splitters(spec().expr, contentBox(), GAP, sizing()) : [],
+  );
+
+  // ── Splitter drag ───────────────────────────────────────────────────────
+  // Highlighted splitter (pointer over it or dragged); with Shift every
+  // splitter of its group lights up.
+  const [hot, setHot] = createSignal<{ key: string; group: string; shift: boolean } | null>(null);
+  const barKey = (s: Splitter) => s.indexes.join("-") + s.orientation;
+  const isHot = (s: Splitter) => {
+    const h = hot();
+    return !!h && (h.shift ? h.group === s.group : h.key === barKey(s));
+  };
+  let drag: { splitter: Splitter; x: number; y: number; start: Sizing; aligned: Sizing; delta: number; moved: boolean } | null = null;
+  const applyDrag = (shift: boolean) => {
+    if (!drag) return;
+    const base = cloneSizing(shift ? drag.aligned : drag.start);
+    setDragSizing(applyResize(spec().expr, contentBox(), GAP, drag.delta, drag.splitter, base, shift));
+  };
+  // Shift pressed / released while dragging re-applies the move at once.
+  const onShiftKey = (e: KeyboardEvent) => {
+    if (e.key !== "Shift" || !drag || !drag.moved) return;
+    setHot({ key: barKey(drag.splitter), group: drag.splitter.group, shift: e.type === "keydown" });
+    applyDrag(e.type === "keydown");
+  };
+  const endDrag = () => {
+    window.removeEventListener("keydown", onShiftKey, true);
+    window.removeEventListener("keyup", onShiftKey, true);
+    if (drag) document.body.style.cursor = "";
+    drag = null;
+  };
+  onCleanup(endDrag);
+  // Touch: a tap selects the splitter (lit), a second tap or a touch
+  // elsewhere clears it; only a selected splitter is dragged.
+  const isTouch = (e: PointerEvent) => e.pointerType === "touch";
+  let tap: { key: string; x: number; y: number } | null = null;
+  const onTouchOutside = (e: PointerEvent) => {
+    if (!isTouch(e) || drag || (e.target as Element | null)?.closest?.(".chart-grid-splitter")) return;
+    setHot(null);
+  };
+  window.addEventListener("pointerdown", onTouchOutside, true);
+  onCleanup(() => window.removeEventListener("pointerdown", onTouchOutside, true));
+  const onBarDown = (s: Splitter, e: PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    tap = isTouch(e) ? { key: barKey(s), x: e.clientX, y: e.clientY } : null;
+    if (isTouch(e) && hot()?.key !== barKey(s)) return;
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const start = cloneSizing(sizing());
+    drag = { splitter: s, x: e.clientX, y: e.clientY, start, aligned: alignSiblings(spec().expr, s, cloneSizing(start)), delta: 0, moved: false };
+    setHot({ key: barKey(s), group: s.group, shift: e.shiftKey });
+    document.body.style.cursor = s.orientation === "v" ? "ns-resize" : "ew-resize";
+    window.addEventListener("keydown", onShiftKey, true);
+    window.addEventListener("keyup", onShiftKey, true);
+  };
+  const onBarMove = (e: PointerEvent) => {
+    if (tap && Math.abs(e.clientX - tap.x) + Math.abs(e.clientY - tap.y) > 4) tap = null;
+    if (!drag) return;
+    drag.delta = drag.splitter.orientation === "v" ? e.clientY - drag.y : e.clientX - drag.x;
+    drag.moved = true;
+    setHot({ key: barKey(drag.splitter), group: drag.splitter.group, shift: e.shiftKey });
+    applyDrag(e.shiftKey);
+  };
+  const onBarUp = (s: Splitter, e: PointerEvent) => {
+    const tapped = tap?.key === barKey(s) && e.type === "pointerup";
+    tap = null;
+    if (!drag) {
+      if (tapped) setHot({ key: barKey(s), group: s.group, shift: e.shiftKey });
+      return;
+    }
+    const el = e.currentTarget as HTMLElement;
+    if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    const next = drag.moved ? dragSizing() : null;
+    endDrag();
+    if (next) props.onSizes?.(next);
+    setDragSizing(null);
+    if (isTouch(e) ? tapped : !el.matches(":hover")) setHot(null);
+  };
+
   // Chart event hints: ONE hint for the whole layout, centred 32 px above the
   // bottom of the chart area; a new hint replaces the shown one, a tool change
   // hides it, its close button dismisses its key for good.
@@ -188,9 +329,8 @@ export function ChartGrid(props: Props) {
       // nothing of it shows. The shown grid keeps no stacking context, so its
       // menus still layer above the rest of the window.
       inert={!live()}
+      ref={gridEl}
       style={{
-        "grid-template-columns": `repeat(${spec().cols}, 1fr)`,
-        "grid-template-rows": `repeat(${spec().rows}, 1fr)`,
         visibility: live() ? undefined : "hidden",
         position: live() ? undefined : "absolute",
         inset: live() ? undefined : "0",
@@ -198,7 +338,7 @@ export function ChartGrid(props: Props) {
       }}
     >
       <Index each={spec().cells}>
-        {(cell, i) => {
+        {(_cell, i) => {
           // Each cell's chart state comes from the matching pane (fall back to
           // pane 0 during the brief frame before reconcilePanes catches up).
           const pane = () => props.panes[i] ?? props.panes[0];
@@ -212,8 +352,7 @@ export function ChartGrid(props: Props) {
             <div
               class={`chart-grid-cell${isActive() ? " is-active" : ""}`}
               style={{
-                "grid-column": maxed() ? "1 / -1" : (cell().col || undefined),
-                "grid-row": maxed() ? "1 / -1" : (cell().row || undefined),
+                ...(maxed() ? { left: "0", top: "0", width: "100%", height: "100%" } : cellStyle(i)),
                 display: maxed() && !isActive() ? "none" : undefined,
               }}
               // Capture-phase: the drawings overlay stops pointer propagation
@@ -309,6 +448,29 @@ export function ChartGrid(props: Props) {
             </div>
           );
         }}
+      </Index>
+      <Index each={bars()}>
+        {(bar) => (
+          <div
+            class={`chart-grid-splitter${isHot(bar()) ? " is-hovered" : ""}`}
+            data-splitter={barKey(bar())}
+            aria-hidden="true"
+            style={{
+              left: `${bar().rect.left}px`,
+              top: `${bar().rect.top}px`,
+              width: `${bar().rect.width}px`,
+              height: `${bar().rect.height}px`,
+              cursor: bar().orientation === "v" ? "ns-resize" : "ew-resize",
+            }}
+            onPointerEnter={(e) => !drag && !isTouch(e) && setHot({ key: barKey(bar()), group: bar().group, shift: e.shiftKey })}
+            onPointerLeave={(e) => !drag && !isTouch(e) && setHot(null)}
+            onPointerDown={(e) => onBarDown(bar(), e)}
+            onPointerMove={onBarMove}
+            onPointerUp={(e) => onBarUp(bar(), e)}
+            onPointerCancel={(e) => onBarUp(bar(), e)}
+            onDblClick={() => props.onSizes?.(undefined)}
+          />
+        )}
       </Index>
       <Show when={live() && hint() && !hintState(hint()!.key).dismissed() ? hint() : null}>
         {(h) => <ChartEventHint text={h().text} onClose={() => closeHint(h().key)} />}
