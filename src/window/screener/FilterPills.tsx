@@ -9,8 +9,7 @@
  *   active    #f2f2f2, #575757 title + operation icon + bold #000 value, and a
  *             34 px reset (×) area behind a #8c8c8c divider; hover #dbdbdb.
  *   market    like inactive with #dbdbdb text (US flag + primary listing icon).
- * The market pill is static here (US stocks only); the AI and Index pills are
- * not shown (no data source).
+ * The market pill is static here (US stocks only); the AI pill is not shown.
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
@@ -83,6 +82,11 @@ export function FilterPills(props: Props) {
     { equals: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) },
   );
   const byId = (id: string) => screen().filters.find((x) => x.id === id);
+  /** The code + name checkbox list (Index) opens 360 px wide. */
+  const wide = (id: string) => {
+    const cfg = COLUMN_BY_ID[byId(id)?.left.id ?? ""]?.filter;
+    return cfg?.type === "CheckboxGroup" && !!cfg.codes;
+  };
 
   const filterPill = (id: string) => {
     const f = () => byId(id)!;
@@ -102,8 +106,13 @@ export function FilterPills(props: Props) {
           aria-expanded={openId() === id}
           onClick={() => toggle(id)}
         >
-          <span class="scr-pill-text">{texts().primary}</span>
-          <Show when={active() && f().type === "CheckboxGroup"}>
+          <Show when={texts().primary}>
+            <span class="scr-pill-text">{texts().primary}</span>
+          </Show>
+          <Show when={active() && f().type === "CheckboxGroup" && texts().value}>
+            <span class="scr-pill-value">{texts().value}</span>
+          </Show>
+          <Show when={active() && f().type === "CheckboxGroup" && !texts().value}>
             <span class="scr-pill-counter">{(f() as Extract<Filter, { type: "CheckboxGroup" }>).values.length}</span>
           </Show>
           <Show when={active() && f().type === "Condition"}>
@@ -230,7 +239,7 @@ export function FilterPills(props: Props) {
       <For each={ids()}>
         {(id) => (
           <Show when={openId() === id && !!byId(id)}>
-            <Popover anchor={els.get(id)} onClose={close} width={320}>
+            <Popover anchor={els.get(id)} onClose={close} width={wide(id) ? 360 : 320}>
               <FilterEditor filter={byId(id)!} has={props.has} onChange={updateFilter} onRemove={() => removeFilter(id)} onClose={close} />
             </Popover>
           </Show>

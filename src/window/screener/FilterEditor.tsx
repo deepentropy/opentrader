@@ -349,10 +349,20 @@ function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => 
     if (d?.type !== "CheckboxGroup") return [];
     return d.options === "data" ? (dataValues() ?? []).map((v) => [v, v]) : d.options;
   };
+  const codes = () => {
+    const d = def()?.filter;
+    return d?.type === "CheckboxGroup" && !!d.codes;
+  };
+  // The values checked when the list opens come first, above a divider.
+  const first = new Set(props.filter.values);
   const shown = () => {
     const s = q().trim().toLowerCase();
-    return s ? options().filter(([, l]) => l.toLowerCase().includes(s)) : options();
+    const list = s
+      ? options().filter(([v, l]) => l.toLowerCase().includes(s) || (codes() && v.toLowerCase().includes(s)))
+      : options();
+    return [...list.filter(([v]) => first.has(v)), ...list.filter(([v]) => !first.has(v))];
   };
+  const lastFirst = () => shown().filter(([v]) => first.has(v)).length - 1;
   const toggle = (v: string) => {
     const cur = props.filter.values;
     const values = cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v];
@@ -363,15 +373,31 @@ function CheckboxList(props: { filter: CheckboxFilter; onChange: (f: Filter) => 
       <PopSearch value={q()} onInput={setQ} />
       <div class="scr-pop-scroll" role="listbox">
         <For each={shown()} fallback={<div class="scr-pop-empty">Nothing matches this search</div>}>
-          {([v, label]) => (
-            <div role="option" aria-selected={props.filter.values.includes(v)} class="scr-item" onClick={() => toggle(v)}>
-              <span class="scr-checkbox" classList={{ "is-checked": props.filter.values.includes(v) }}>
-                <Show when={props.filter.values.includes(v)}>
-                  <Icon name="scr-check" />
+          {([v, label], i) => (
+            <>
+              <div role="option" aria-selected={props.filter.values.includes(v)} class="scr-item" onClick={() => toggle(v)}>
+                <span class="scr-checkbox" classList={{ "is-checked": props.filter.values.includes(v) }}>
+                  <Show when={props.filter.values.includes(v)}>
+                    <Icon name="scr-check" />
+                  </Show>
+                </span>
+                <Show when={codes()}>
+                  <span class="scr-item-logo">{label[0]}</span>
                 </Show>
-              </span>
-              <span class="scr-item-text"><span class="scr-item-title">{label}</span></span>
-            </div>
+                <span class="scr-item-text">
+                  <span class="scr-item-title">
+                    <Show when={codes()}>
+                      {v}
+                      <span class="scr-item-sep"> • </span>
+                    </Show>
+                    {label}
+                  </span>
+                </span>
+              </div>
+              <Show when={i() === lastFirst() && i() < shown().length - 1}>
+                <PopDivider />
+              </Show>
+            </>
           )}
         </For>
       </div>

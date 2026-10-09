@@ -227,7 +227,9 @@ export function ScreenerTable(props: Props) {
       const r = row();
       if (!r) return null;
       const cur = extra(r, "currency");
-      return formatCell(def?.fmt ?? "text", r.d[ci()], typeof cur === "string" ? cur : null);
+      const v = r.d[ci()];
+      if (def?.cellText && typeof v === "string" && v) return { text: def.cellText(v) };
+      return formatCell(def?.fmt ?? "text", v, typeof cur === "string" ? cur : null);
     };
     // Plain accessors (no Show): a row can vanish while its cells update.
     const text = () => f()?.text ?? "";
@@ -240,7 +242,7 @@ export function ScreenerTable(props: Props) {
       return t === "up" ? "scr-up" : t === "down" ? "scr-down" : undefined;
     };
     return (
-      <td class="scr-td" classList={{ "is-right": def?.align !== "left" }}>
+      <td class="scr-td" classList={{ "is-right": def?.align !== "left" }} title={def?.cellText ? text() : undefined}>
         <span class={tone()}>{text()}</span>
         <Show when={unit()}>
           <span class="scr-currency"> {unit()}</span>

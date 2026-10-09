@@ -68,7 +68,14 @@ export function pillTexts(f: Filter): { primary: string; value: string | null } 
   const def = COLUMN_BY_ID[f.left.id];
   if (!def) return { primary: f.left.id, value: null };
   if (!isActive(f)) return { primary: def.short, value: null };
-  if (f.type === "CheckboxGroup") return { primary: def.short, value: null };
+  if (f.type === "CheckboxGroup") {
+    // One checked value of an adaptive filter stands for the title.
+    const cfg = def.filter;
+    if (f.values.length === 1 && cfg?.type === "CheckboxGroup" && cfg.adaptive && cfg.options !== "data") {
+      return { primary: "", value: cfg.options.find(([v]) => v === f.values[0])?.[1] ?? f.values[0] };
+    }
+    return { primary: def.short, value: null };
+  }
   const fmt = def.fmt;
   // Active pills show the configured title; a trailing " %" moves into the
   // value ("ADR %" → "ADR" + "5%").

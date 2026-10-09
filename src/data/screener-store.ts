@@ -53,8 +53,8 @@ function isScreen(v: unknown): v is Screen {
 function draftScreen(d: Draft): Screen {
   if (d.savedId) return d.screen;
   const popular = POPULAR_SCREENS.find((p) => p.id === d.popularId);
-  const make = (pills?: typeof LEGACY_DEFAULT_PILLS) => (popular ? popular.screen(pills) : defaultScreen(d.screen.title, pills));
-  return same(content(d.screen), content(make(LEGACY_DEFAULT_PILLS))) ? make() : d.screen;
+  const make = (pills?: (typeof LEGACY_DEFAULT_PILLS)[number]) => (popular ? popular.screen(pills) : defaultScreen(d.screen.title, pills));
+  return LEGACY_DEFAULT_PILLS.some((pills) => same(content(d.screen), content(make(pills)))) ? make() : d.screen;
 }
 
 const store = createRoot(() => {

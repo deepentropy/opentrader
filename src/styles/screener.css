@@ -1120,3 +1120,22 @@
   padding: 24px 20px;
   color: var(--color-text-secondary);
 }
+
+/* Checkbox list with codes (Index): round letter mark, "CODE • Name". */
+.scr-item-logo {
+  display: flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--color-container-fill-primary-neutral-extra-light);
+  color: var(--color-content-primary-neutral-light);
+  font-size: 12px;
+  font-weight: 600;
+}
+.scr-item-sep {
+  color: var(--color-content-primary-neutral-light);
+}

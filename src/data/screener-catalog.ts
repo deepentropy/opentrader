@@ -69,8 +69,13 @@ export type ColumnDef = {
   params?: ParamDef[];
   filter?:
     | { type: "Condition"; operations: Operation[]; defaultOperation: Operation; targets: string[][]; presets?: Preset[] }
-    /** `"data"`: the distinct values of `field` in the loaded data. */
-    | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data" };
+    /** `"data"`: the distinct values of `field` in the loaded data.
+     *  `codes`: the value is a short code shown before the label ("SPX • S&P 500").
+     *  `adaptive`: a single checked value is the pill text (the reference app
+     *  `adaptiveFilterTitle`). */
+    | { type: "CheckboxGroup"; options: [value: string, label: string][] | "data"; codes?: boolean; adaptive?: boolean };
+  /** Text shown for a raw cell value (a list of codes shown as names). */
+  cellText?: (raw: string) => string;
   /** Kept out of the Column setup list (the reference app `isExcludedFromColumnsList`). */
   noColumn?: boolean;
 };
@@ -142,9 +147,26 @@ const ALL_OPS: Operation[] = ["above", "aboveOrEqual", "below", "belowOrEqual", 
 const CHANGE_OPS: Operation[] = ["above", "below", "between", "outside", "equal"];
 
 
+/** Indexes of the reference app Index filter that have a data source, in its
+ *  order (code, name). The other 44 (sector, bank and world indexes) have none. */
+export const INDEXES: [code: string, name: string][] = [
+  ["SPX", "S&P 500"],
+  ["NDX", "NASDAQ 100"],
+  ["IXIC", "NASDAQ Composite"],
+  ["RUT", "Russell 2000"],
+  ["DJI", "Dow Jones Industrial Average"],
+  ["RUA", "Russell 3000"],
+  ["RUI", "Russell 1000"],
+];
+const INDEX_NAME: Record<string, string> = Object.fromEntries(INDEXES);
+/** "SPX,NDX" → "S&P 500, NASDAQ 100" (the Index cell). */
+const indexNames = (raw: string) => raw.split(",").map((c) => INDEX_NAME[c] ?? c).join(", ");
+
 // ── Column catalog ────────────────────────────────────────────────────────
 export const COLUMNS: ColumnDef[] = [
   // Security info
+  { id: "Index", title: "Index", short: "Index", category: "securityInfo", align: "left", fmt: "text", width: 175, field: "indexes",
+    filter: { type: "CheckboxGroup", options: INDEXES, codes: true, adaptive: true }, cellText: indexNames },
   { id: "Sector", title: "Sector", short: "Sector", category: "securityInfo", align: "left", fmt: "text", width: 175, field: "sector", filter: { type: "CheckboxGroup", options: "data" } },
   { id: "Industry", title: "Industry", short: "Industry", category: "securityInfo", align: "left", fmt: "text", width: 200, field: "industry", filter: { type: "CheckboxGroup", options: "data" } },
   { id: "Exchange", title: "Exchange", short: "Exchange", category: "securityInfo", align: "left", fmt: "text", width: 99, field: "exchange" },
@@ -506,9 +528,10 @@ export function emptyFilter(col: ColumnRef): Filter | null {
 }
 
 /** Pills of a new screen: the reference app default pills, in its order, that have a
- *  data source. Left out (no data source): Index, P/E, EPS dil growth,
+ *  data source. Left out (no data source): P/E, EPS dil growth,
  *  Analyst rating, Revenue growth, PEG, ROE, Recent and Upcoming earnings date. */
 const DEFAULT_PILLS: ColumnRef[] = [
+  C("Index"),
   C("Price"),
   C("Change", R1D),
   C("MarketCap"),
@@ -517,9 +540,13 @@ const DEFAULT_PILLS: ColumnRef[] = [
   C("Performance", { interval: "IntervalYTD" }),
   C("Beta", { interval: "Interval5Y" }),
 ];
-/** Default pills before the dividend yield and beta pills were added (a
- *  stored screen still equal to that default moves to the current one). */
-export const LEGACY_DEFAULT_PILLS: ColumnRef[] = [C("Price"), C("Change", R1D), C("MarketCap"), C("Sector"), C("Performance", { interval: "IntervalYTD" })];
+/** Default pills of earlier versions (before dividend yield and beta, then
+ *  before Index). A stored screen still equal to one of those defaults moves
+ *  to the current one. */
+export const LEGACY_DEFAULT_PILLS: ColumnRef[][] = [
+  [C("Price"), C("Change", R1D), C("MarketCap"), C("Sector"), C("Performance", { interval: "IntervalYTD" })],
+  [C("Price"), C("Change", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector"), C("Performance", { interval: "IntervalYTD" }), C("Beta", { interval: "Interval5Y" })],
+];
 
 /** The reference app default screen ("Untitled screen") restricted to the catalog:
  *  default pills, Overview columns, sorted by market cap. */

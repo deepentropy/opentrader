@@ -83,6 +83,10 @@ pub enum Step {
     MarketCap,
     /// Text column (sector, industry): the same value all day.
     Text,
+    /// Text column holding several values joined with commas (the index
+    /// codes of a ticker, "SPX,NDX,IXIC"). A set filter matches when any of
+    /// them is in the set.
+    List,
     /// Value at the close of D that stays the same all session: dividend
     /// yield (cash dividends of the last 12 months / close of D) and beta
     /// (weekly or monthly returns against the S&P 500).
@@ -168,6 +172,7 @@ const STATE: &[(&str, Step)] = &[
     ("market_cap_basic", Step::MarketCap),
     ("sector", Step::Text),
     ("industry", Step::Text),
+    ("indexes", Step::List),
     ("dividends_yield_current", Step::Daily),
     ("beta_1_year", Step::Daily),
     ("beta_3_year", Step::Daily),
@@ -186,7 +191,12 @@ impl Field {
     }
 
     pub fn is_text(&self) -> bool {
-        matches!(self, Field::Reference(_) | Field::State(_, Step::Text))
+        matches!(self, Field::Reference(_) | Field::State(_, Step::Text | Step::List))
+    }
+
+    /// Text field with several comma-joined values (see `Step::List`).
+    pub fn is_list(&self) -> bool {
+        matches!(self, Field::State(_, Step::List))
     }
 
     pub fn eval<'a>(&self, t: &'a Table, row: &'a Row) -> Option<Val<'a>> {
@@ -203,7 +213,7 @@ impl Field {
                 };
                 (!s.is_empty()).then_some(Val::Text(s))
             }
-            Field::State(key, Step::Text) => {
+            Field::State(key, Step::Text | Step::List) => {
                 let s = t.state.as_ref()?;
                 s.text(key, row.st?).filter(|v| !v.is_empty()).map(Val::Text)
             }
@@ -286,7 +296,7 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
             }
             Step::MarketCap => Some(price? * s.num("shares", i)?),
             Step::Daily => s.num(key, i),
-            Step::Text => None,
+            Step::Text | Step::List => None,
         },
     }
 }
@@ -333,7 +343,7 @@ pub fn catalog(t: &Table) -> Vec<FieldInfo> {
         out.push(FieldInfo { id: id.to_string(), kind: "text".into(), source: "reference".into(), available });
     }
     for (id, step) in STATE {
-        let kind = if *step == Step::Text { "text" } else { "number" };
+        let kind = if matches!(step, Step::Text | Step::List) { "text" } else { "number" };
         out.push(FieldInfo { id: id.to_string(), kind: kind.into(), source: "state".into(), available: has_state });
     }
     out

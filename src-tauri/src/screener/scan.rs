@@ -233,6 +233,7 @@ fn holds(t: &Table, row: &Row, c: &Compiled) -> bool {
             (lo <= l && l <= hi) != *neg
         }
         Compiled::TextSet(f, neg, set) => match f.eval(t, row) {
+            Some(Val::Text(l)) if f.is_list() => l.split(',').any(|v| set.iter().any(|s| s == v)) != *neg,
             Some(Val::Text(l)) => set.iter().any(|s| s == l) != *neg,
             _ => false,
         },
@@ -404,6 +405,22 @@ mod tests {
 
     fn tickers(r: &ScanResult) -> Vec<&str> {
         r.rows.iter().map(|r| r.s.as_str()).collect()
+    }
+
+    #[test]
+    fn list_field_matches_any_of_its_values() {
+        let mut st = state((2026, 9, 29));
+        st.text.insert("indexes".to_string(), vec![Some("SPX,NDX".to_string()), Some("RUT".to_string()), None]);
+        let t = table(Some(st));
+        let set = |v: &[&str]| Operand::List(v.iter().map(|s| Operand::Text(s.to_string())).collect());
+        let r = run(&t, &req(vec![clause("indexes", Op::InRange, set(&["NDX", "RUT"]))], Some(("name", SortOrder::Asc)))).unwrap();
+        assert_eq!(tickers(&r), vec!["AAA", "BBB"]);
+        let r = run(&t, &req(vec![clause("indexes", Op::InRange, set(&["SP"]))], None)).unwrap();
+        assert_eq!(r.total_count, 0);
+        let mut cols = req(vec![clause("indexes", Op::InRange, set(&["SPX"]))], None);
+        cols.columns = vec!["indexes".into()];
+        let r = run(&t, &cols).unwrap();
+        assert_eq!(r.rows[0].d[0], Some(Cell::Text("SPX,NDX".into())));
     }
 
     #[test]
