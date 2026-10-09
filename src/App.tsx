@@ -32,6 +32,8 @@ import {
   newTabId,
   newPaneId,
   reconcilePanes,
+  markEditedPanes,
+  savedHiddenPanes,
   revivePaneSettings,
   saveTabs,
   linkedTabCountInOtherWindows,
@@ -198,7 +200,13 @@ function App() {
 
   /** Patch one tab's (tab-level) state. */
   function patchTab(id: string, patch: Partial<TabChart>) {
-    setTabs(tabs().map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setTabs(tabs().map((t) => {
+      if (t.id !== id) return t;
+      // An edit of a chart's own content (not a template / layout change)
+      // makes it a chart saved even while hidden.
+      const panes = patch.panes && patch.layout === undefined ? markEditedPanes(t.panes, patch.panes) : patch.panes;
+      return panes ? { ...t, ...patch, panes } : { ...t, ...patch };
+    }));
   }
   /** Patch the active tab's (tab-level) state. */
   function patchActive(patch: Partial<TabChart>) {
@@ -239,12 +247,12 @@ function App() {
   function applyChartTheme(tabId: string, t: StdTheme) {
     const tab = tabs().find((x) => x.id === tabId);
     if (!tab) return;
-    patchTab(tabId, {
-      panes: tab.panes.map((p) =>
-        p.settings && stdThemeOf(p.settings) !== t
-          ? { ...p, settings: withStdTheme(p.settings, t), settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV }
-          : p),
-    });
+    const recolor = (p: PaneChart): PaneChart =>
+      p.settings && stdThemeOf(p.settings) !== t
+        ? { ...p, settings: withStdTheme(p.settings, t), settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV }
+        : p;
+    // The charts hidden by the template switch too.
+    patchTab(tabId, { panes: tab.panes.map(recolor), hiddenPanes: tab.hiddenPanes?.map(recolor) });
   }
   /** App Settings theme picker. Charts of the shown layout that use a
    *  standard theme switch with it (effect below); custom colours ask first. */
@@ -418,12 +426,14 @@ function App() {
     // Capture each unique pane scope key's drawings so the layout carries them.
     // Reading drawingsFor here keeps the dirty check reactive to drawing edits.
     const drawings: Record<string, Drawing[]> = {};
-    for (const p of t.panes) {
+    // Hidden charts are saved once edited, with their drawings.
+    const hiddenPanes = savedHiddenPanes(t.hiddenPanes);
+    for (const p of hiddenPanes ? [...t.panes, ...hiddenPanes] : t.panes) {
       for (const key of scopeKeys(drawingKeyFor(p))) {
         if (!(key in drawings)) drawings[key] = drawingsFor(key);
       }
     }
-    return { layout: t.layout, activePane: t.activePane, panes: t.panes, drawings, sync: t.sync, layoutSizes: t.layoutSizes, numbering: LAYOUT_NUMBERING };
+    return { layout: t.layout, activePane: t.activePane, panes: t.panes, hiddenPanes, drawings, sync: t.sync, layoutSizes: t.layoutSizes, numbering: LAYOUT_NUMBERING };
   };
   const activeSaved = () => {
     const id = activeTab().savedLayoutId;
@@ -517,9 +527,12 @@ function App() {
   function openSavedLayout(id: string) {
     const l = getLayout(id);
     if (!l) return;
+    const revive = (p: PaneChart): PaneChart =>
+      ({ ...p, id: p.id ?? newPaneId(), indicators: [...p.indicators], compare: reviveCompare(p.compare), ...revivePaneSettings(p) });
     patchActive({
       layout: l.snapshot.layout,
-      panes: l.snapshot.panes.map((p) => ({ ...p, id: p.id ?? newPaneId(), indicators: [...p.indicators], compare: reviveCompare(p.compare), ...revivePaneSettings(p) })),
+      panes: l.snapshot.panes.map(revive),
+      hiddenPanes: savedHiddenPanes(l.snapshot.hiddenPanes?.map(revive)),
       activePane: Math.min(l.snapshot.activePane, l.snapshot.panes.length - 1),
       // Layouts saved before per-tab sync keep the tab's current toggles.
       sync: l.snapshot.sync ? reviveLayoutSync(l.snapshot.sync) : activeTab().sync,
@@ -548,6 +561,7 @@ function App() {
     patchActive({
       layout: fresh.layout,
       panes: fresh.panes,
+      hiddenPanes: undefined,
       activePane: 0,
       sync: defaultLayoutSync(),
       layoutSizes: undefined,
@@ -1296,6 +1310,8 @@ function App() {
     if (lockDrawingsMode()) placed.locked = true;
     if (hideDrawingsMode()) placed.hidden = true;
     setSlice(key, [...drawingsFor(key), placed], { label: `create ${labelForKind(d.kind)}` });
+    // A chart drawn on is saved even while hidden by a smaller template.
+    if (activePaneState().savedWhenHidden === false) patchActivePane({ savedWhenHidden: undefined });
     return id;
   }
 
@@ -1618,6 +1634,7 @@ function App() {
       layout: src.layout,
       activePane: src.activePane,
       panes: src.panes.map((p) => ({ ...p, id: newPaneId(), indicators: [...p.indicators] })),
+      hiddenPanes: src.hiddenPanes?.map((p) => ({ ...p, id: newPaneId(), indicators: [...p.indicators] })),
       numbering: src.numbering,
       isChart: src.isChart,
       sync: { ...src.sync },

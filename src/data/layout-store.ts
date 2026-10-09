@@ -31,6 +31,9 @@ export type LayoutSnapshot = {
   layout: LayoutId;
   activePane: number;
   panes: PaneChart[];
+  /** Charts hidden by the template that the user edited (the ones a larger
+   *  template shows again). Optional: absent = none. */
+  hiddenPanes?: PaneChart[];
   /** Drawings present at save time, keyed by the symbol they belong to (the
    *  unique symbols across `panes`). Restored into the live per-symbol store on
    *  open. Optional — layouts saved before drawing-capture have no map. */
@@ -188,7 +191,7 @@ function comparablePanes(panes: PaneChart[]): unknown[] {
 
 export function snapshotsEqual(a: LayoutSnapshot, b: LayoutSnapshot): boolean {
   const core = (s: LayoutSnapshot) =>
-    JSON.stringify({ layout: s.layout, panes: comparablePanes(s.panes) });
+    JSON.stringify({ layout: s.layout, panes: comparablePanes(s.panes), hidden: comparablePanes(s.hiddenPanes ?? []) });
   if (core(a) !== core(b)) return false;
   // Chart sizes set with the splitters are part of the layout.
   if (JSON.stringify(a.layoutSizes ?? {}) !== JSON.stringify(b.layoutSizes ?? {})) return false;

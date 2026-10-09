@@ -155,6 +155,11 @@ export type PaneChart = {
   /** Main series hidden with the legend eye (series `visible` property,
    *  saved with the chart). Absent = shown. */
   seriesHidden?: boolean;
+  /** `false` on a chart created as a copy of the focused one to fill a larger
+   *  template, until it gets a study, a compared symbol, a drawing or a
+   *  syncing group of its own: such a chart is not saved while a smaller
+   *  template hides it (see `TabChart.hiddenPanes`). Absent = saved. */
+  savedWhenHidden?: false;
 };
 
 export type TabChart = {
@@ -166,6 +171,9 @@ export type TabChart = {
   activePane: number;
   /** One entry per cell of `layout` (kept in sync by `reconcilePanes`). */
   panes: PaneChart[];
+  /** Charts beyond the template's count, in chart order: a smaller template
+   *  hides them, a larger one shows them again before any new chart is made. */
+  hiddenPanes?: PaneChart[];
   /** Chart numbering revision `panes` is stored in (LAYOUT_NUMBERING). */
   numbering: number;
   /** Charts render a symbol; non-chart tabs (future) would render other views. */
@@ -212,20 +220,51 @@ export function activePaneOf(tab: TabChart): PaneChart {
   return tab.panes[tab.activePane] ?? tab.panes[0];
 }
 
-/** Grow/shrink a tab's `panes` to match `layout`'s cell count. New panes clone
- *  `template` (the active pane) so a fresh split shows the same chart; extras
- *  are dropped and `activePane` clamped. Returns the patch to apply. */
+/** Grow/shrink a tab's `panes` to match `layout`'s cell count. The charts
+ *  beyond the count are kept hidden (`hiddenPanes`) and come back first when
+ *  the count grows; the places still empty then clone `template` (the active
+ *  pane) so a fresh split shows the same chart. `activePane` is clamped.
+ *  Returns the patch to apply. */
 export function reconcilePanes(
-  tab: TabChart,
+  tab: Pick<TabChart, "panes" | "hiddenPanes" | "activePane">,
   layout: LayoutId,
-): Pick<TabChart, "layout" | "panes" | "activePane"> {
+): Pick<TabChart, "layout" | "panes" | "hiddenPanes" | "activePane"> {
   const count = paneCountFor(layout);
-  const panes = tab.panes.slice(0, count);
+  const all = tab.hiddenPanes?.length ? [...tab.panes, ...tab.hiddenPanes] : tab.panes;
+  const panes = all.slice(0, count);
+  const hidden = all.slice(count);
   const template = tab.panes[tab.activePane] ?? tab.panes[0];
   while (panes.length < count) {
-    panes.push({ ...template, id: newPaneId(), indicators: [...template.indicators] });
+    panes.push({ ...template, id: newPaneId(), indicators: [...template.indicators], savedWhenHidden: false });
   }
-  return { layout, panes, activePane: Math.min(tab.activePane, count - 1) };
+  return { layout, panes, hiddenPanes: hidden.length ? hidden : undefined, activePane: Math.min(tab.activePane, count - 1) };
+}
+
+/** The hidden charts that are saved: the ones the user edited (see
+ *  `PaneChart.savedWhenHidden`). */
+export function savedHiddenPanes(hidden: PaneChart[] | undefined): PaneChart[] | undefined {
+  const kept = hidden?.filter((p) => p.savedWhenHidden !== false);
+  return kept?.length ? kept : undefined;
+}
+
+/** `next` panes with the "not saved while hidden" mark cleared on every chart
+ *  that got or lost a study or a compared symbol, or changed syncing group,
+ *  compared with `prev` (same pane id). */
+export function markEditedPanes(prev: PaneChart[], next: PaneChart[]): PaneChart[] {
+  if (!next.some((p) => p.savedWhenHidden === false)) return next;
+  const ids = (list: string[] | undefined) => (list ?? []).slice().sort().join("|");
+  return next.map((p) => {
+    if (p.savedWhenHidden !== false) return p;
+    const was = prev.find((x) => x.id === p.id);
+    if (!was || was === p) return p;
+    const edited =
+      ids(was.indicators) !== ids(p.indicators) ||
+      ids(was.compare?.map((c) => c.id)) !== ids(p.compare?.map((c) => c.id)) ||
+      was.linkGroup !== p.linkGroup;
+    if (!edited) return p;
+    const { savedWhenHidden: _s, ...rest } = p;
+    return rest;
+  });
 }
 
 let nextTabId = 1;
@@ -270,6 +309,37 @@ export function makeTab(partial: MakeTabPartial = {}): TabChart {
   return { id: newTabId(), layout, activePane: 0, panes, numbering: LAYOUT_NUMBERING, isChart, sync: defaultLayoutSync() };
 }
 
+/** One stored chart read back into the current shape. */
+function revivePane(p: Partial<PaneChart>): PaneChart {
+  return {
+    id: typeof p.id === "string" ? p.id : newPaneId(),
+    symbol: p.symbol ?? "NASDAQ:INTC",
+    interval: p.interval ?? "1D",
+    chartType: p.chartType ?? DEFAULT_CHART_TYPE,
+    session: p.session ?? "RTH",
+    indicators: Array.isArray(p.indicators) ? [...p.indicators] : [],
+    indicatorSettings:
+      p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
+    compare: reviveCompare(p.compare),
+    paneOrder: Array.isArray(p.paneOrder) ? p.paneOrder.filter((x): x is string => typeof x === "string") : undefined,
+    sourceOrder: Array.isArray(p.sourceOrder) ? p.sourceOrder.filter((x): x is string => typeof x === "string") : undefined,
+    linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
+    visibleLogicalRange:
+      p.visibleLogicalRange &&
+      typeof p.visibleLogicalRange.from === "number" &&
+      typeof p.visibleLogicalRange.to === "number"
+        ? {
+            from: p.visibleLogicalRange.from,
+            to: p.visibleLogicalRange.to,
+            ...(typeof p.visibleLogicalRange.last === "number" ? { last: p.visibleLogicalRange.last } : {}),
+          }
+        : undefined,
+    seriesHidden: p.seriesHidden === true ? true : undefined,
+    savedWhenHidden: p.savedWhenHidden === false ? false : undefined,
+    ...revivePaneSettings(p),
+  };
+}
+
 /** Normalise a persisted/handed-off tab into the current shape — wraps the old
  *  flat {symbol,interval,…} record into a `panes` array, and ensures the pane
  *  count matches the layout (forward-compatible with already-migrated tabs). */
@@ -283,32 +353,7 @@ export function migrateTab(raw: any): TabChart {
   let panes: PaneChart[];
   let activePane = Number.isInteger(raw?.activePane) ? raw.activePane : 0;
   if (Array.isArray(raw?.panes) && raw.panes.length > 0) {
-    panes = raw.panes.map((p: Partial<PaneChart>) => ({
-      id: typeof p.id === "string" ? p.id : newPaneId(),
-      symbol: p.symbol ?? "NASDAQ:INTC",
-      interval: p.interval ?? "1D",
-      chartType: p.chartType ?? DEFAULT_CHART_TYPE,
-      session: p.session ?? "RTH",
-      indicators: Array.isArray(p.indicators) ? [...p.indicators] : [],
-      indicatorSettings:
-        p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
-      compare: reviveCompare(p.compare),
-      paneOrder: Array.isArray(p.paneOrder) ? p.paneOrder.filter((x): x is string => typeof x === "string") : undefined,
-      sourceOrder: Array.isArray(p.sourceOrder) ? p.sourceOrder.filter((x): x is string => typeof x === "string") : undefined,
-      linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
-      visibleLogicalRange:
-        p.visibleLogicalRange &&
-        typeof p.visibleLogicalRange.from === "number" &&
-        typeof p.visibleLogicalRange.to === "number"
-          ? {
-              from: p.visibleLogicalRange.from,
-              to: p.visibleLogicalRange.to,
-              ...(typeof p.visibleLogicalRange.last === "number" ? { last: p.visibleLogicalRange.last } : {}),
-            }
-          : undefined,
-      seriesHidden: p.seriesHidden === true ? true : undefined,
-      ...revivePaneSettings(p),
-    }));
+    panes = raw.panes.map(revivePane);
   } else {
     const base: PaneChart = {
       id: newPaneId(),
@@ -322,7 +367,9 @@ export function migrateTab(raw: any): TabChart {
   }
   // Reconcile to the layout's cell count.
   const sync = reviveLayoutSync(raw?.sync);
-  const stub: TabChart = { id, layout, activePane, panes, numbering: LAYOUT_NUMBERING, isChart, sync };
+  // Hidden charts come back the way a save keeps them: the edited ones only.
+  const hiddenPanes = savedHiddenPanes(Array.isArray(raw?.hiddenPanes) ? raw.hiddenPanes.map(revivePane) : undefined);
+  const stub: TabChart = { id, layout, activePane, panes, hiddenPanes, numbering: LAYOUT_NUMBERING, isChart, sync };
   const reconciled = reconcilePanes(stub, layout);
   const link: TabLink | undefined =
     raw?.link && typeof raw.link.color === "string" ? { color: raw.link.color as LinkColor } : undefined;
