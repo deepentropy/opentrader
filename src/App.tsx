@@ -51,6 +51,7 @@ import { AppSettingsDialog, type AppSettingsTabId } from "./window/header/AppSet
 import { AlertDialog } from "./window/alerts/AlertDialog";
 import { startAlertEngine, onAlertFire } from "./data/alert-engine";
 import { whenAlertLeader } from "./data/alert-backend";
+import { AlertToasts, type AlertToastData } from "./window/alerts/AlertToast";
 import { loadTabTitleParts, saveTabTitleParts, type TabTitlePartState } from "./window/shell/tab-title";
 import { type LinkChannel, type LinkColor } from "./window/shell/tab-linking";
 import { popClosed, pushClosed, reopenLabel } from "./window/shell/closed-stack";
@@ -668,8 +669,8 @@ function App() {
   const [alertDialog, setAlertDialog] = createSignal<
     null | { editId?: string; symbol?: string; price?: number; indicatorId?: string; drawingId?: string }
   >(null);
-  // Transient banner shown when an alert fires (in addition to the log + sound).
-  const [alertToast, setAlertToast] = createSignal<{ title: string; message: string } | null>(null);
+  // Popups of the alerts that fired (in addition to the log + sound), oldest first.
+  const [alertToasts, setAlertToasts] = createSignal<AlertToastData[]>([]);
   // Chart display timezone (bottom-bar TimezoneMenu), persisted. Default to the
   // "Exchange" zone: each chart shows its symbol's exchange zone (see
   // displayTimeZone); the stored IANA name is the fallback until the symbol's
@@ -2307,21 +2308,11 @@ function App() {
     // backend names the window that runs it (another one takes over when it
     // is closed). The other windows still read the store for their alert UI.
     whenAlertLeader(windowLabel, () => startAlertEngine(windowLabel));
-    let toastTimer: number | undefined;
+    let toastSeq = 0;
     const offFire = onAlertFire((f) => {
-      setAlertToast({ title: f.title, message: f.message });
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = undefined;
-      // Settings → Alerts → "Automatically hide toasts" (focused pane's
-      // settings, default on): off keeps the toast until it is clicked away.
-      if (appearanceFrom(activePaneState().settings).autoHideToasts ?? true) {
-        toastTimer = window.setTimeout(() => setAlertToast(null), 5000);
-      }
+      setAlertToasts((list) => [...list, { id: `${f.time}-${++toastSeq}`, alertId: f.alertId, symbol: f.symbol, message: f.message, time: f.time, sound: f.sound }]);
     });
-    onCleanup(() => {
-      offFire();
-      if (toastTimer) clearTimeout(toastTimer);
-    });
+    onCleanup(offFire);
   });
 
   return (
@@ -2762,14 +2753,15 @@ function App() {
           />
         )}
       </Show>
-      <Show when={alertToast()}>
-        {(t) => (
-          <div class="alert-toast" role="status" onClick={() => setAlertToast(null)}>
-            <div class="alert-toast-title">{t().title}</div>
-            <div class="alert-toast-message">{t().message}</div>
-          </div>
-        )}
-      </Show>
+      {/* Settings → Alerts → "Automatically hide toasts" (focused pane, default
+          on): off keeps a popup until it is closed. */}
+      <AlertToasts
+        toasts={alertToasts()}
+        autoHide={appearanceFrom(activePaneState().settings).autoHideToasts ?? true}
+        onRemove={(ids) => setAlertToasts((list) => list.filter((t) => !ids.includes(t.id)))}
+        onEdit={(editId) => setAlertDialog({ editId })}
+        onSymbol={onSymbolPicked}
+      />
     </div>
   );
 }

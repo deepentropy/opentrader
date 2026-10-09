@@ -79,38 +79,255 @@
   accent-color: var(--ot-color-accent, #2962ff);
 }
 
-/* Transient fire banner (bottom-right). */
-.alert-toast {
+/* Popups of fired alerts (window/alerts/AlertToast.tsx): a pile in the
+ * bottom-left corner, 8 px right of the drawing toolbar and 12 px above the
+ * bottom edge of the window. Collapsed, the newest is in front and up to two
+ * more show below it, each 8 px lower and a step smaller (the bottom padding
+ * of the pile grows by 8 px per popup behind); the others are hidden.
+ * Expanded, they form a column 8 px apart, oldest on top. Pointing at the pile
+ * shows a 24 px row above it, right-aligned: "Show more / Show less" + count
+ * (28 px pill) and "Close all" (28 px round), with a drop shadow. A popup
+ * slides in from the left and fades out, 0.5 s each. */
+.alert-toasts {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
+  left: 56px;
+  bottom: 0;
   z-index: 400;
-  width: 300px;
-  max-width: calc(100vw - 32px);
-  padding: 12px 14px;
+  box-sizing: border-box;
+  width: 416px;
+  max-width: calc(100vw - 56px);
+  padding: 0 8px;
+  --alert-toasts-ease: cubic-bezier(0.67, 0, 0.34, 1);
+}
+.alert-toasts-controls {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 24px;
+  filter: drop-shadow(0 2px 4px var(--color-shadow-primary-neutral-extra-heavy));
+  transition: opacity 0.5s var(--alert-toasts-ease), height 0.5s var(--alert-toasts-ease), visibility 0.5s var(--alert-toasts-ease);
+}
+.alert-toasts-controls.is-hidden { height: 0; opacity: 0; visibility: hidden; }
+.alert-toasts-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 7px 0 11px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--color-content-secondary-neutral-bold);
+  font-family: var(--font-family-base);
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: default;
+}
+.alert-toasts-btn.is-icon { width: 28px; padding: 0; }
+.alert-toasts-btn:hover { background: var(--color-container-fill-primary-neutral-extra-light); }
+.alert-toasts-btn:active { background: var(--color-container-fill-primary-neutral-light); }
+.alert-toasts-count {
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 4px;
   border-radius: 8px;
-  background: var(--color-popup-background, #1e222d);
-  border: 1px solid var(--color-toolbar-divider-background, #2a2e39);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  animation: alert-toast-in 160ms ease-out;
+  background: var(--color-content-secondary-neutral-bold);
+  color: var(--color-content-primary-inverse);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+}
+.alert-toasts-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-bottom: calc(var(--alert-toasts-behind, 0) * 8px + 12px);
+  transition: padding-bottom 0.5s var(--alert-toasts-ease);
+}
+.alert-toast-item {
+  transform-origin: center bottom;
+  transition: transform 0.5s var(--alert-toasts-ease), opacity 0.5s var(--alert-toasts-ease);
+}
+.alert-toast-item.is-leaving { opacity: 0; pointer-events: none; }
+.alert-toasts-list.is-collapsed .alert-toast-item:not(.is-front) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--alert-toasts-behind, 0) * 8px + 12px);
+}
+.alert-toasts-list.is-collapsed .alert-toast-item:not(.is-front) .alert-toast { max-height: var(--alert-toast-front-height, 300px); }
+.alert-toasts-list.is-collapsed .alert-toast-item.is-front { position: relative; z-index: 3; }
+.alert-toasts-list.is-collapsed .alert-toast-item[data-depth="1"] { z-index: 2; transform: perspective(48px) translateZ(-2px) translateY(8px); }
+.alert-toasts-list.is-collapsed .alert-toast-item[data-depth="2"] { z-index: 1; transform: perspective(48px) translateZ(-4px) translateY(16px); }
+.alert-toasts-list.is-collapsed .alert-toast-item[data-depth="3"] { opacity: 0; pointer-events: none; transform: perspective(48px) translateZ(-6px) translateY(24px); }
+
+/* One popup: 400 px card, r12, 1 px border, 3 px inner padding; a 46 px strip
+ * (r8 on its outer side) with the 28 px alarm clock on a 10 % tint of its
+ * colour; the content column: title row 16/24 600 + symbol pill 22 px,
+ * message 14/18 (at most 3 lines), then "Edit alert" and the time 14/18 500. */
+.alert-toast {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-height: 300px;
+  padding: 3px 0 3px 3px;
+  overflow: hidden;
+  border: 1px solid var(--color-border-primary-neutral-extra-light);
+  border-radius: 12px;
+  background: var(--color-container-fill-tertiary-inverse);
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-feature-settings: "tnum", "lnum";
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  word-break: break-word;
+  animation: alert-toast-in 0.5s cubic-bezier(0.67, 0, 0.34, 1);
 }
 
 @keyframes alert-toast-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateX(calc(-100% - 72px)); }
+  to { transform: translateX(0); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .alert-toast { animation: none; }
+  .alert-toasts-controls, .alert-toasts-list, .alert-toast-item { transition: none; }
+}
+
+.alert-toast-left {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  overflow: hidden;
+  border-radius: 8px 0 0 8px;
+  color: var(--color-container-fill-primary-accent-alt2-bold);
+}
+.alert-toast-left::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  opacity: 0.1;
+}
+.alert-toast-left svg { position: relative; z-index: 1; }
+
+.alert-toast-body {
+  flex: 1 1 0%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 11px 8px 12px;
+}
+.alert-toast-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.alert-toast-header { min-width: 0; }
 .alert-toast-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-toolbar-button-text, #d1d4dc);
-  margin-bottom: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-top: 5px;
+  font-size: 16px;
+  line-height: 24px;
 }
-
-.alert-toast-message {
-  font-size: 12px;
-  color: var(--color-content-primary-neutral, #868993);
-  line-height: 1.4;
+.alert-toast-title-text { font-weight: 600; }
+.alert-toast-ticker {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  max-width: 148px;
+  padding: 2px 7px 2px 2px;
+  border: 1px solid transparent;
+  border-radius: 30px;
+  background: var(--color-container-fill-primary-neutral-extra-light);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  cursor: pointer;
+}
+.alert-toast-ticker:hover { background: var(--color-container-fill-primary-neutral-light); }
+.alert-toast-ticker-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alert-toast-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  max-height: 54px;
+  margin-top: 8px;
+  overflow: hidden;
+  white-space: pre-wrap;
+}
+.alert-toast-close {
+  all: unset;
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 24px;
+  color: var(--color-button-content-quiet-primary-neutral-default);
+  cursor: default;
+}
+.alert-toast-close::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+.alert-toast-close:hover::before { background: var(--color-container-fill-primary-neutral-extra-light); }
+.alert-toast-close svg { position: relative; }
+.alert-toast-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+}
+.alert-toast-link {
+  all: unset;
+  position: relative;
+  color: var(--color-content-quinary-accent);
+  cursor: default;
+}
+.alert-toast-link::before {
+  content: "";
+  position: absolute;
+  inset: -4px -8px;
+  border-radius: 4px;
+}
+.alert-toast-link:hover::before { background: var(--color-container-fill-secondary-accent-extra-light); }
+.alert-toast-time {
+  color: var(--color-text-secondary);
+  font-weight: 500;
 }
 
 /* Sound row note: alert sounds are off in Settings. */
@@ -185,6 +402,9 @@
 .ad-pair { display: flex; gap: 8px; align-items: center; }
 .ad-pair > * { flex: 1 1 0; min-width: 0; }
 .ad-pair > .ot-dlg-btn { flex: none; }
+/* Sound + its duration: two 150 px selects. */
+.ad-pair--sound > * { flex: none; width: 150px; }
+.ad-pair--sound > .ad-menu:first-child .ad-menu-list { right: auto; width: 308px; }
 .ad-pct > .ad-suffix { flex: none; color: var(--color-text-secondary); }
 .ad-divider { height: 1px; margin: 16px 0 14px; background: var(--color-divider-line-primary); }
 .ad-row--text { min-height: 18px; margin-top: 12px; gap: 8px; }
@@ -284,6 +504,10 @@
 .ad-option-desc, .ad-option-right { font-size: 12px; line-height: 16px; color: var(--color-text-secondary); }
 .ad-option.is-selected .ad-option-desc, .ad-option.is-selected .ad-option-right { color: inherit; }
 .ad-option-right { flex: none; }
+/* Sound rows: a play button at the end; the group title above them. */
+.ad-option-play { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -3px -4px -3px 0; border-radius: 4px; color: var(--color-text-secondary); }
+.ad-option-play:hover { color: inherit; }
+.ad-option-group { padding: 6px 8px 4px; font-size: 11px; line-height: 16px; text-transform: uppercase; color: var(--color-text-secondary); }
 .ad-option-more { margin-top: 6px; border-top: 1px solid var(--color-divider-line-primary); border-radius: 0; color: var(--color-text-secondary); font-size: 11px; text-transform: uppercase; justify-content: space-between; }
 
 /* Text rows opening a sub-view */

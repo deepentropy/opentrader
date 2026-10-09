@@ -38,7 +38,7 @@ import {
 import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { isFullSymbol, toFullSymbol } from "../../data/datafeed";
-import { SOUND_OPTIONS, playAlertSound } from "../../data/alert-sounds";
+import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playAlertSound, stopAlertSound } from "../../data/alert-sounds";
 import { alertSettings } from "../../data/alert-settings";
 import {
   alertWebhook,
@@ -108,7 +108,7 @@ function toLocalInput(ms: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-type MenuOption = { value: string; label: string; desc?: string; right?: string; disabled?: boolean; icon?: string };
+type MenuOption = { value: string; label: string; desc?: string; right?: string; disabled?: boolean; icon?: string; /** A play button at the end of the row (sound preview). */ play?: () => void };
 
 /** Condition icons: stroked 18 x 18 paths. A level is a horizontal line, a
  *  channel two of them; the arrow or the dot is the price. */
@@ -130,7 +130,7 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
 /** Dropdown of the dialog. `box`: a 34 px bordered control showing the value;
  *  `inline`: the value as text with a chevron (Trigger, Expiration). `more`:
  *  the options after this count sit behind a "Show more" row. */
-function AdMenu(props: { variant: "box" | "inline"; value: string; options: MenuOption[]; onPick: (v: string) => void; more?: number; label?: string; placeholder?: string }) {
+function AdMenu(props: { variant: "box" | "inline"; value: string; options: MenuOption[]; onPick: (v: string) => void; more?: number; label?: string; placeholder?: string; group?: string }) {
   const [open, setOpen] = createSignal(false);
   const [all, setAll] = createSignal(false);
   let el: HTMLDivElement | undefined;
@@ -162,6 +162,14 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
         <Show when={o.desc}><span class="ad-option-desc">{o.desc}</span></Show>
       </span>
       <Show when={o.right}><span class="ad-option-right">{o.right}</span></Show>
+      <Show when={o.play}>
+        <span class="ad-option-play" role="button" title="Play" onClick={(e) => { e.stopPropagation(); o.play!(); }}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+            <circle cx="9" cy="9" r="6.9" fill="none" stroke="currentColor" stroke-width="1.2" />
+            <path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" d="M7.4 6.2v5.6L12 9 7.4 6.2Z" />
+          </svg>
+        </span>
+      </Show>
     </button>
   );
   return (
@@ -175,6 +183,7 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
       </button>
       <Show when={open()}>
         <div class="ad-menu-list" role="listbox">
+          <Show when={props.group}><div class="ad-option-group">{props.group}</div></Show>
           <For each={props.options.slice(0, cut())}>{row}</For>
           <Show when={cut() < props.options.length}>
             <button type="button" class="ad-option ad-option-more" onClick={() => setAll(true)}>
@@ -292,6 +301,7 @@ export function AlertDialog(props: Props) {
   const [name, setName] = createSignal(existing?.name ?? "");
   const [message, setMessage] = createSignal(existing?.message ?? "");
   const [sound, setSound] = createSignal(existing?.sound ?? "fired");
+  const [soundDuration, setSoundDuration] = createSignal(existing?.soundDuration ?? 0);
   const [popup, setPopup] = createSignal(existing?.popup ?? true);
   // Webhook — persisted per-rule beside the store (see alert-engine's kv map).
   const existingWebhook = existing ? alertWebhook(existing.id) : null;
@@ -317,6 +327,13 @@ export function AlertDialog(props: Props) {
   const [draftWebhookOn, setDraftWebhookOn] = createSignal(false);
   const [draftWebhookUrl, setDraftWebhookUrl] = createSignal("");
   const [draftSound, setDraftSound] = createSignal("");
+  const [draftSoundDuration, setDraftSoundDuration] = createSignal(0);
+  /** Play button of a sound row: plays it once, or stops it when it is the one playing. */
+  const previewSound = (key: string) => {
+    const was = isAlertSoundPlaying(key);
+    stopAlertSound();
+    if (!was) playAlertSound(key, { preview: true });
+  };
   const [draftSoundOn, setDraftSoundOn] = createSignal(true);
   const [symbolEdit, setSymbolEdit] = createSignal(!((existing?.symbol ?? props.symbol ?? "").trim()));
 
@@ -440,6 +457,7 @@ export function AlertDialog(props: Props) {
       name: name().trim(),
       message: message().trim(),
       sound: sound(),
+      soundDuration: sound() ? soundDuration() : 0,
       popup: popup(),
       expiresAt,
     };
@@ -508,6 +526,7 @@ export function AlertDialog(props: Props) {
     setDraftWebhookUrl(webhookUrl());
     setDraftSoundOn(!!sound());
     setDraftSound(sound() || "fired");
+    setDraftSoundDuration(soundDuration());
     setView("notifications");
   };
   const draftWebhookValid = () => !draftWebhookOn() || isValidWebhookUrl(draftWebhookUrl());
@@ -799,9 +818,9 @@ export function AlertDialog(props: Props) {
                 <span class="ad-check-desc">Plays an audio cue when your alert triggers.</span>
               </label>
               <Show when={draftSoundOn()}>
-                <div class="ad-pair ad-indent">
-                  <AdMenu variant="box" label="Sound" value={draftSound()} options={SOUND_OPTIONS.filter((s) => s.key).map((s) => ({ value: s.key, label: s.label }))} onPick={setDraftSound} />
-                  <button type="button" class="ot-dlg-btn is-secondary" title="Preview sound" onClick={() => playAlertSound(draftSound(), { preview: true })}>Test</button>
+                <div class="ad-pair ad-pair--sound ad-indent">
+                  <AdMenu variant="box" label="Sound" group={SOUND_GROUP} value={draftSound()} options={SOUND_OPTIONS.filter((s) => s.key).map((s) => ({ value: s.key, label: s.label, play: () => previewSound(s.key) }))} onPick={setDraftSound} />
+                  <AdMenu variant="box" label="Sound duration" value={String(draftSoundDuration())} options={SOUND_DURATIONS.map((d) => ({ value: String(d.value), label: d.label }))} onPick={(v) => setDraftSoundDuration(Number(v))} />
                 </div>
                 <Show when={!alertSettings.soundEnabled()}>
                   <div class="ad-hint ad-indent">Alert sounds are off in Settings: this alert fires without sound.</div>
@@ -821,6 +840,7 @@ export function AlertDialog(props: Props) {
                   setWebhookOn(draftWebhookOn());
                   setWebhookUrl(draftWebhookUrl());
                   setSound(draftSoundOn() ? draftSound() : "");
+                  setSoundDuration(draftSoundDuration());
                   setView("main");
                 }}
               >

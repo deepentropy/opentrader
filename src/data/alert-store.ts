@@ -96,6 +96,8 @@ export type AlertRule = {
   message: string;
   /** Sound bank key, e.g. "alert/fired" (see data/alert-sounds.ts). "" = silent. */
   sound: string;
+  /** Seconds the sound keeps playing, started again each time it ends (0 or unset = once). */
+  soundDuration?: number;
   /** Show a desktop/OS notification on fire (vs. toast + log only). */
   popup: boolean;
   enabled: boolean;

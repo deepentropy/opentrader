@@ -41,7 +41,7 @@ import * as kv from "./kv";
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 /** Subscribers notified on every fire — App uses this to show a transient toast. */
-type FireListener = (fire: { symbol: string; title: string; message: string }) => void;
+type FireListener = (fire: { alertId: string; symbol: string; title: string; message: string; time: number; sound: string }) => void;
 const fireListeners = new Set<FireListener>();
 export function onAlertFire(fn: FireListener): () => void {
   fireListeners.add(fn);
@@ -293,7 +293,7 @@ function deliverFire(rule: AlertRule, price: number, barTime: number | null, off
   if (rule.frequency === "only_once") {
     alertStore.setEnabled(rule.id, false);
   }
-  if (!offline) playAlertSound(rule.sound);
+  if (!offline) playAlertSound(rule.sound, { duration: rule.soundDuration ?? 0 });
 
   // Webhook — fire-and-forget; a failing endpoint must not affect local delivery.
   // An offline fire is posted too, with the time it happened and `offline`.
@@ -342,7 +342,7 @@ function deliverFire(rule: AlertRule, price: number, barTime: number | null, off
 
   for (const fn of fireListeners) {
     try {
-      fn({ symbol: rule.symbol, title, message });
+      fn({ alertId: rule.id, symbol: rule.symbol, title, message, time: now, sound: rule.sound });
     } catch {
       /* a bad listener must not break firing */
     }
