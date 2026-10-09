@@ -94,7 +94,17 @@
  *     high / low, close) with Pine's documented formula: when the available
  *     funds are below 0, 4 times the quantity that covers the loss (at least
  *     one quantity step) is closed at that price plus the slippage, oldest
- *     trade first (order "Margin call <n>").
+ *     trade first (order "Margin call <n>");
+ *   - a margin call fills only if the margin of the position it leaves, at its
+ *     fill price, fits in the equity it was sized with; else it is dropped (its
+ *     number is used). The funds are checked once more after the script run:
+ *     that call waits for the next open, after the script's market orders;
+ *   - while a margin call fills, the funds are checked again after each trade
+ *     it closes, at the fill price and without the profit of the trades it
+ *     closed: a shortage there makes one more margin call (the last shortage
+ *     counts), filled at the next tick. The trades left open see the fill price;
+ *   - the trades a margin call does not reach lose their exit legs until the
+ *     exit is called again.
  */
 import type {
   Bar,
@@ -105,6 +115,16 @@ import type {
   SymbolInfo,
   Trade,
 } from './types';
+
+/** A margin call: a market order that closes `size` of the position (less when the position is smaller). */
+interface MarginCallOrder {
+  kind: 'call';
+  seq: number;
+  long: boolean;
+  size: number;
+  /** Equity the call was sized with. */
+  equity: number;
+}
 
 export interface EntryOptions {
   qty?: number;
@@ -215,6 +235,8 @@ interface OpenTrade {
   low: number;
   /** Exit ids already filled for this trade (an exit fills once per trade). */
   exitsDone: Set<string>;
+  /** Exit ids whose leg on this trade a margin call removed (until the exit is called again). */
+  exitsDropped: Set<string>;
   /** Quantity of each exit bracket, fixed when the bracket first applies. */
   exitQty: Map<string, number>;
   /** Trailing stops of this trade: best price since activation, per exit id. */
@@ -295,8 +317,10 @@ export class Broker {
   private entryFillDirection: Direction = 'long';
   /** Fill order of the per-trade legs of each exit id (see updateLegOrder). */
   private legOrder = new Map<string, OpenTrade[]>();
-  /** Margin call events so far (order ids "Margin call <n>"). */
+  /** Margin calls so far, filled or not (order ids "Margin call <n>"). */
   private marginCalls = 0;
+  /** Margin calls that wait for the next tick (made by the fill of another one) or the next open (made at the close). */
+  private pendingCalls: MarginCallOrder[] = [];
   /** Equity at the last script run (the bar close before the fills): the funds an entry fill is checked against. */
   private scriptEquity = 0;
 
@@ -465,6 +489,7 @@ export class Broker {
       commentLoss: opts.commentLoss || comment,
       commentTrailing: opts.commentTrailing || comment,
     });
+    for (const t of this.openTrades) t.exitsDropped.delete(id);
     this.updateLegOrder(id, prev);
   }
 
@@ -505,7 +530,7 @@ export class Broker {
   /** Legs of exit `id` still to fill: open trades, and trades another leg closed that keep their own leg. */
   private activeLegs(id: string): OpenTrade[] {
     return (this.legOrder.get(id) ?? []).filter(
-      (t) => !t.exitsDone.has(id) && t.lotQty > EPS && (this.openTrades.includes(t) || this.displaced.includes(t)),
+      (t) => !t.exitsDone.has(id) && !t.exitsDropped.has(id) && t.lotQty > EPS && (this.openTrades.includes(t) || this.displaced.includes(t)),
     );
   }
 
@@ -524,6 +549,10 @@ export class Broker {
   /** Fill the orders placed before bar `i` along bar i's price path. */
   processBar(i: number): void {
     this.scriptEquity = i > 0 ? this.equity : this.props.initialCapital;
+    // The funds are checked once more after the script run of the last bar, at its close: that margin call
+    // fills at this open, after the script's market orders (5 margin call numbers per bar, the last one filled
+    // at the next open).
+    if (i > 0) this.checkMargin(this.roundPrice(this.bars[i - 1].close), undefined, true);
     this.bar = i;
     this.dropOrphanExits();
     // Bar magnifier: the path runs through the lower-timeframe bars of the chart bar (each one open -> nearer
@@ -560,6 +589,7 @@ export class Broker {
         this.touch(o, b.open);
         if (k === 0 && deferMargin) this.checkMargin(open, o);
         this.fillAt(o, b.open);
+        this.fillPendingCalls(o);
         this.checkMargin(o);
         cur = o;
       }
@@ -573,6 +603,7 @@ export class Broker {
         this.walk(cur, to);
         cur = to;
         this.touch(to, raw);
+        this.fillPendingCalls(to);
         this.checkMargin(to);
       }
     }
@@ -583,6 +614,7 @@ export class Broker {
       const close = this.roundPrice(b.close);
       this.touch(close, b.close);
       this.fillAt(close, b.close);
+      this.fillPendingCalls(close);
       this.checkMargin(close);
     }
   }
@@ -611,10 +643,11 @@ export class Broker {
 
   /** Market orders (market entries and closes) in the order they were placed. */
   private fillMarketOrders(base: number): void {
-    const market: (EntryOrder | CloseOrder)[] = [...this.closes];
+    const market: (EntryOrder | CloseOrder | MarginCallOrder)[] = [...this.closes, ...this.pendingCalls];
     for (const e of this.entries.values()) if (e.limit === null && e.stop === null) market.push(e);
     market.sort((a, b) => a.seq - b.seq);
     this.closes = [];
+    this.pendingCalls = [];
     // An entry that fills after a close order of the same batch is not checked against the funds
     // (the reference fills it, then margin-calls it: gaussian-channel, 5 cases).
     // A close order after a market entry of the same batch does not fill, whether the entry filled or was
@@ -623,7 +656,9 @@ export class Broker {
     let afterClose = false;
     let afterEntry = false;
     for (const o of market) {
-      if (o.kind === 'entry') {
+      if (o.kind === 'call') {
+        this.fillMarginCall(o, base);
+      } else if (o.kind === 'entry') {
         this.entries.delete(o.id);
         this.fillEntry(o, this.slip(base, o.direction === 'long'), 'MARKET', afterClose);
         afterEntry = true;
@@ -695,7 +730,9 @@ export class Broker {
       if (e.limit === null && e.stop === null) continue;
       // After an entry fill on this bar, only entries in the same direction can fill on it: several pyramiding
       // limit entries fill on one bar (pivot-points SPY 4h bar 29), an opposite stop entry does not (bollinger-stop).
-      if (!e.isOrder && this.entryFillBar === this.bar && e.direction !== this.entryFillDirection) continue;
+      // An opposite limit entry fills once the position is flat again (pivot-points SPY 4h bar 8527: `short1` at
+      // the open, its exit, then `long1`).
+      if (!e.isOrder && this.entryFillBar === this.bar && e.direction !== this.entryFillDirection && !(this.positionSize === 0 && e.stop === null)) continue;
       const buy = e.direction === 'long';
       const isStop = e.stop !== null;
       const level = this.roundOrderPrice((isStop ? e.stop : e.limit) as number, buy, isStop);
@@ -721,7 +758,7 @@ export class Broker {
       const legTrades = [...order, ...rest];
       for (const t of legTrades) {
         if (x.fromEntry !== '' && x.fromEntry !== t.entryId) continue;
-        if (t.exitsDone.has(x.id)) continue;
+        if (t.exitsDone.has(x.id) || t.exitsDropped.has(x.id)) continue;
         let qty = t.exitQty.get(x.id);
         if (qty === undefined) {
           // qty_percent counts on the quantity filled at the entry.
@@ -891,13 +928,24 @@ export class Broker {
   }
 
   /** Margin call at price p (a point of the intrabar path), Pine's algorithm; it fills at `fill` (default p, see
-   *  processBar for the chart open with lower-timeframe bars). */
-  private checkMargin(p: number, fill = p): void {
+   *  processBar for the chart open with lower-timeframe bars), or at the next open when `atClose`. */
+  private checkMargin(p: number, fill = p, atClose = false): void {
+    const call = this.marginCallAt(p, this.props.initialCapital + this.netProfit);
+    if (!call) return;
+    if (atClose) this.pendingCalls.push(call);
+    else this.fillMarginCall(call, fill);
+  }
+
+  /**
+   * The margin call the funds ask for with the open trades marked at price p, or null. `realized`: the capital
+   * plus the net profit counted.
+   */
+  private marginCallAt(p: number, realized: number): MarginCallOrder | null {
     const pos = this.positionSize;
-    if (pos === 0) return;
+    if (pos === 0) return null;
     const long = pos > 0;
     const ratio = this.marginRatio(long ? 'long' : 'short');
-    if (ratio <= 0) return;
+    if (ratio <= 0) return null;
     const pv = this.sym.pointValue;
     // Pine's order of operations (the binary noise decides the calls at 0 available funds, a 100 % long):
     // open profit = MVS - money spent, available = equity - MVS * margin ratio.
@@ -905,25 +953,69 @@ export class Broker {
     let spent = 0;
     for (const t of this.openTrades) spent += t.qty * t.price * pv;
     const openProfit = long ? mvs - spent : spent - mvs;
-    const equity = this.props.initialCapital + this.netProfit + openProfit;
+    const equity = realized + openProfit;
     const available = equity - mvs * ratio;
-    if (available >= 0) return;
+    if (available >= 0) return null;
     const loss = available / ratio;
     const step = this.sym.qtyStep;
     const cover = Math.trunc(Math.abs(loss / (p * pv)) / step) * step;
-    const size = Math.min(Math.abs(pos), cover > 0 ? cover * 4 : step);
+    return { kind: 'call', seq: ++this.seq, long, size: cover > 0 ? cover * 4 : step, equity };
+  }
+
+  /** Margin calls made by the fill of another one fill at the next tick. */
+  private fillPendingCalls(p: number): void {
+    if (!this.pendingCalls.length) return;
+    const calls = this.pendingCalls;
+    this.pendingCalls = [];
+    for (const c of calls) this.fillMarginCall(c, p);
+  }
+
+  /** Fill a margin call at tick price p: a market order, oldest trade first. */
+  private fillMarginCall(call: MarginCallOrder, p: number): void {
+    const pos = this.positionSize;
+    // No position left for it (the call that made it closed the rest): no order, no number.
+    if (pos === 0 || pos > 0 !== call.long) return;
+    const id = `Margin call ${this.marginCalls++}`;
+    const long = call.long;
+    const pv = this.sym.pointValue;
+    const ratio = this.marginRatio(long ? 'long' : 'short');
+    const size = Math.min(Math.abs(pos), call.size);
     // The margin call is a market order: it fills with the slippage (pivot-points SPY 1h bar 1533: 204.32 on a
     // 204.35 open, 3 ticks).
-    fill = Math.max(0, this.slip(fill, !long));
+    const fill = Math.max(0, this.slip(p, !long));
+    // It fills only if the margin of the position it leaves, at the fill price, fits in the equity it was sized
+    // with (a short of 1,000 at 0.08, price 0.09, slippage 0.03: 312 fill with an equity of 82.90, 308 do not
+    // with 83.00). A call that does not fill is dropped (not tried at the next tick).
+    if ((Math.abs(pos) - size) * fill * pv * ratio > call.equity + EPS) return;
+    // While it fills, the funds are checked again after each trade it closes, at the fill price and without the
+    // profit of the trades it closed. A shortage makes one more margin call for the next tick; the last shortage
+    // counts (lots of 20, 24, 112, 112 and a call of 172: 92 more; lots of 20, 23, 112, 113: 1 more).
+    const realized = this.props.initialCapital + this.netProfit;
+    let next: MarginCallOrder | null = null;
     let left = size;
-    for (const t of [...this.openTrades]) {
-      if (left <= 0) break;
+    const held = [...this.openTrades];
+    for (const t of held) {
+      if (left <= 0) {
+        // The trades the margin call does not reach lose their exit legs, until the exit is called again
+        // (pivot-points SPY 4h bar 1339: 48 of `short1` closed, `close short2` does not fill with `close short1`
+        // at bar 1342; lots of 200 and 68, a call of 172: the exit of the second lot never fills).
+        for (const x of this.exits.values()) if (x.fromEntry === '' || x.fromEntry === t.entryId) t.exitsDropped.add(x.id);
+        continue;
+      }
+      // A trade it closes a part of has its legs (again: pivot-points SPY 1h bar 8648, `long2` not reached by the
+      // first margin call, 1 share closed by the second, the 14 left closed by `close long2`).
+      t.exitsDropped.clear();
       const q = Math.min(left, t.qty);
       left -= q;
       this.closeTradeQty(t, q, fill, 'Margin call', true);
       this.equityEvents[this.equityEvents.length - 1].marginCall = true;
+      next = this.marginCallAt(fill, realized) ?? next;
     }
-    this.recordFill(`Margin call ${this.marginCalls++}`, 'Margin call', !long, null, fill, size, 'MARKET');
+    if (next) this.pendingCalls.push(next);
+    // The trades left open see the fill price (pivot-points SPY 1h bar 8648: the share closed at the next tick
+    // counts the 308.62 of the first margin call in its drawdown).
+    this.touchTrades(fill, fill, this.openTrades);
+    this.recordFill(id, 'Margin call', !long, null, fill, size, 'MARKET');
   }
 
   /** Returns true when the order filled. */
@@ -970,6 +1062,7 @@ export class Broker {
       high: -Infinity,
       low: Infinity,
       exitsDone: new Set(),
+      exitsDropped: new Set(),
       exitQty: new Map(),
       trail: new Map(),
     };
