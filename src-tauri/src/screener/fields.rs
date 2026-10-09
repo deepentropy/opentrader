@@ -83,6 +83,10 @@ pub enum Step {
     MarketCap,
     /// Text column (sector, industry): the same value all day.
     Text,
+    /// Value at the close of D that stays the same all session: dividend
+    /// yield (cash dividends of the last 12 months / close of D) and beta
+    /// (weekly or monthly returns against the S&P 500).
+    Daily,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -164,6 +168,10 @@ const STATE: &[(&str, Step)] = &[
     ("market_cap_basic", Step::MarketCap),
     ("sector", Step::Text),
     ("industry", Step::Text),
+    ("dividends_yield_current", Step::Daily),
+    ("beta_1_year", Step::Daily),
+    ("beta_3_year", Step::Daily),
+    ("beta_5_year", Step::Daily),
 ];
 
 impl Field {
@@ -277,6 +285,7 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
                 (avg > 0.0).then(|| m.volume / avg)
             }
             Step::MarketCap => Some(price? * s.num("shares", i)?),
+            Step::Daily => s.num(key, i),
             Step::Text => None,
         },
     }

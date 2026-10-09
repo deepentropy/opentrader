@@ -12,7 +12,7 @@
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
-import { POPULAR_SCREENS, defaultScreen, type Screen } from "./screener-catalog";
+import { LEGACY_DEFAULT_PILLS, POPULAR_SCREENS, defaultScreen, type Screen } from "./screener-catalog";
 
 export type SavedScreen = { id: string; screen: Screen; updatedAt: number };
 
@@ -47,6 +47,16 @@ function isScreen(v: unknown): v is Screen {
   return !!s && typeof s.title === "string" && Array.isArray(s.filters) && !!s.sort && typeof s.activeColumnSetId === "string";
 }
 
+/** Screen of a stored draft. A draft that was never changed (still the
+ *  default or popular screen of an earlier version, with fewer default pills)
+ *  becomes the current default, as a new screen would be. */
+function draftScreen(d: Draft): Screen {
+  if (d.savedId) return d.screen;
+  const popular = POPULAR_SCREENS.find((p) => p.id === d.popularId);
+  const make = (pills?: typeof LEGACY_DEFAULT_PILLS) => (popular ? popular.screen(pills) : defaultScreen(d.screen.title, pills));
+  return same(content(d.screen), content(make(LEGACY_DEFAULT_PILLS))) ? make() : d.screen;
+}
+
 const store = createRoot(() => {
   const persisted = readJson<Persisted>(SCREENS_KEY);
   const [screens, setScreens] = createSignal<SavedScreen[]>(
@@ -54,7 +64,7 @@ const store = createRoot(() => {
   );
   const [recent, setRecent] = createSignal<string[]>(persisted?.recent ?? []);
   const draft = readJson<Draft>(DRAFT_KEY);
-  const [screen, setScreenRaw] = createSignal<Screen>(draft && isScreen(draft.screen) ? draft.screen : defaultScreen());
+  const [screen, setScreenRaw] = createSignal<Screen>(draft && isScreen(draft.screen) ? draftScreen(draft) : defaultScreen());
   const [savedId, setSavedId] = createSignal<string | null>(draft?.savedId ?? null);
   const [popularId, setPopularId] = createSignal<string | null>(draft?.popularId ?? null);
   const [past, setPast] = createSignal<Screen[]>([]);

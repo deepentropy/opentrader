@@ -29,7 +29,7 @@ export type Fmt =
   | "number" //      1.79
   | "text";
 
-export type Category = "securityInfo" | "marketData" | "technicals" | "valuation";
+export type Category = "securityInfo" | "marketData" | "technicals" | "valuation" | "dividends";
 
 /** The reference app filter operations the backend can evaluate (crosses and the % offset
  *  manual operations are left out). */
@@ -157,6 +157,21 @@ export const COLUMNS: ColumnDef[] = [
       { value: "Interval90D", label: "90 days", short: "90D", field: "average_volume_90d_calc" },
     ] }],
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value", "Volume", "AverageVolume"]] } },
+  { id: "Beta", title: "Beta", short: "Beta", category: "marketData", align: "right", fmt: "number", width: 74,
+    params: [{ key: "interval", title: "Date Range", default: "Interval5Y", options: [
+      { value: "Interval1Y", label: "1 year", short: "1Y", field: "beta_1_year" },
+      { value: "Interval3Y", label: "3 years", short: "3Y", field: "beta_3_year" },
+      { value: "Interval5Y", label: "5 years", short: "5Y", field: "beta_5_year" },
+    ] }],
+    filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value", "Beta"]], presets: [
+      { operation: "above", target: "value", right: { value: 1.5 }, ...d("Very high volatility") },
+      { operation: "between", target: "value", right: { left: 1.1, right: 1.5 }, ...d("High volatility") },
+      { operation: "between", target: "value", right: { left: 0.9, right: 1.1 }, ...d("Near market volatility") },
+      { operation: "between", target: "value", right: { left: 0.5, right: 0.9 }, ...d("Low volatility") },
+      { operation: "between", target: "value", right: { left: 0, right: 0.5 }, ...d("Very low volatility") },
+      { operation: "above", target: "value", right: { value: 0 }, ...d("Positive sensitivity") },
+      { operation: "below", target: "value", right: { value: 0 }, ...d("Inverse sensitivity") },
+    ] } },
   { id: "Change", title: "Price change %", short: "Chg %", category: "marketData", align: "right", fmt: "change", width: 80, params: RES_1D("change"),
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value", "ChangeFromOpen", "Gap", "Change"]], presets: BANDS } },
   { id: "ChangeAbs", title: "Price change", short: "Chg", category: "marketData", align: "right", fmt: "signedPrice", width: 86, params: RES_1D("change_abs"),
@@ -272,6 +287,20 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "between", target: "value", right: { left: 50e6, right: 300e6 }, ...d("Micro") },
       { operation: "between", target: "value", right: { left: null, right: 50e6 }, ...d("Nano") },
     ] } },
+  // Dividends (the quarterly and annual fiscal periods have no data source)
+  { id: "DividendsYield", title: "Dividend yield %", short: "Div yield %", category: "dividends", align: "right", fmt: "percent", width: 86,
+    params: [{ key: "fiscalPeriod", title: "Fiscal period", default: "ttm", options: [
+      { value: "ttm", label: "Trailing 12 months", short: "TTM", field: "dividends_yield_current" },
+    ] }],
+    filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]], presets: [
+      { operation: "above", target: "value", right: { value: 15 }, ...d("Exceptional") },
+      { operation: "between", target: "value", right: { left: 10, right: 15 }, ...d("Very high") },
+      { operation: "between", target: "value", right: { left: 6, right: 10 }, ...d("High") },
+      { operation: "between", target: "value", right: { left: 4, right: 6 }, ...d("Moderate") },
+      { operation: "between", target: "value", right: { left: 2, right: 4 }, ...d("Low") },
+      { operation: "between", target: "value", right: { left: 0, right: 2 }, ...d("Very low") },
+      { operation: "equal", target: "value", right: { value: 0 }, ...d("No dividend") },
+    ] } },
 ];
 
 export const COLUMN_BY_ID: Record<string, ColumnDef> = Object.fromEntries(COLUMNS.map((c) => [c.id, c]));
@@ -286,6 +315,7 @@ export const CATEGORIES: { id: Category; title: string; icon: string }[] = [
   { id: "marketData", title: "Market data", icon: "scr-cat-market-data" },
   { id: "technicals", title: "Technicals", icon: "scr-cat-technicals" },
   { id: "valuation", title: "Valuation", icon: "scr-cat-valuation" },
+  { id: "dividends", title: "Dividends", icon: "scr-cat-dividends" },
 ];
 
 export const OPERATION_LABEL: Record<Operation, string> = {
@@ -410,16 +440,18 @@ export function sameColumn(a: ColumnRef, b: ColumnRef): boolean {
 // ── Column sets (the reference app presets restricted to the catalog) ────────────────────
 const C = (id: string, params: Record<string, string> = {}): ColumnRef => ({ id, params });
 const R1D = { resolution: "TimeResolution1D" };
+const TTM = { fiscalPeriod: "ttm" };
 /** The reference app column-set presets, in the reference app menu order. Columns without a data source
  *  are left out; a preset with no column left is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
-  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("Sector")] },
+  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: [C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" })] },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
   { id: "forecasts", title: "Forecasts", columns: [C("MarketCap"), C("Price")] },
   { id: "valuation", title: "Valuation", columns: [C("MarketCap")] },
+  { id: "dividends", title: "Dividends", columns: [C("DividendsYield", TTM)] },
 ];
 export const CUSTOM_SET_ID = "custom";
 export const CUSTOM_SET_TITLE = "Custom";
@@ -473,11 +505,25 @@ export function emptyFilter(col: ColumnRef): Filter | null {
   };
 }
 
-/** The reference app default screen ("Untitled screen") restricted to the catalog: Price,
- *  Chg % 1D, Mkt cap, Sector and Perf % YTD pills, Overview columns, sorted by
- *  market cap. */
-export function defaultScreen(title = DEFAULT_SCREEN_TITLE): Screen {
-  const pills = [C("Price"), C("Change", R1D), C("MarketCap"), C("Sector"), C("Performance", { interval: "IntervalYTD" })];
+/** Pills of a new screen: the reference app default pills, in its order, that have a
+ *  data source. Left out (no data source): Index, P/E, EPS dil growth,
+ *  Analyst rating, Revenue growth, PEG, ROE, Recent and Upcoming earnings date. */
+const DEFAULT_PILLS: ColumnRef[] = [
+  C("Price"),
+  C("Change", R1D),
+  C("MarketCap"),
+  C("DividendsYield", TTM),
+  C("Sector"),
+  C("Performance", { interval: "IntervalYTD" }),
+  C("Beta", { interval: "Interval5Y" }),
+];
+/** Default pills before the dividend yield and beta pills were added (a
+ *  stored screen still equal to that default moves to the current one). */
+export const LEGACY_DEFAULT_PILLS: ColumnRef[] = [C("Price"), C("Change", R1D), C("MarketCap"), C("Sector"), C("Performance", { interval: "IntervalYTD" })];
+
+/** The reference app default screen ("Untitled screen") restricted to the catalog:
+ *  default pills, Overview columns, sorted by market cap. */
+export function defaultScreen(title = DEFAULT_SCREEN_TITLE, pills: ColumnRef[] = DEFAULT_PILLS): Screen {
   return {
     title,
     filters: pills.map((c) => emptyFilter(c)).filter((f): f is Filter => f !== null),
@@ -495,21 +541,21 @@ export function defaultScreen(title = DEFAULT_SCREEN_TITLE): Screen {
  *  ROE, revenue per employee, market-cap performance, technical rating) have
  *  no data source and are left out. Filters = the reference app's default pills with the
  *  screen's own values. */
-export type PopularScreen = { id: string; title: string; description: string; screen: () => Screen };
+export type PopularScreen = { id: string; title: string; description: string; screen: (pills?: ColumnRef[]) => Screen };
 
 export const POPULAR_SCREENS: PopularScreen[] = [
   {
     id: "14",
     title: "All stocks",
     description: "Complete list of stocks by market cap",
-    screen: () => defaultScreen("All stocks"),
+    screen: (pills) => defaultScreen("All stocks", pills),
   },
   {
     id: "1",
     title: "Most capitalized",
     description: "Largest companies by market cap",
-    screen: () => {
-      const s = defaultScreen("Most capitalized");
+    screen: (pills) => {
+      const s = defaultScreen("Most capitalized", pills);
       s.filters = s.filters.map((f) =>
         f.left.id === "MarketCap"
           ? { id: f.id, type: "Condition", left: f.left, operation: "aboveOrEqual", target: "value", right: { value: 1e10 } }
