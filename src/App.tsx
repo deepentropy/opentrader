@@ -16,7 +16,7 @@ import { appearanceFrom, cloneDraft, patchDraftScales, saveChartSettingsDefaults
 import { activeChartProbe } from "./window/chart/active-chart";
 import { TIMEZONES, findTimezone } from "./data/timezones";
 import { ChartGrid } from "./window/chart/ChartGrid";
-import { layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
+import { LAYOUT_NUMBERING, layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
 import { DrawingToolbar, type SyncMode } from "./window/drawings/DrawingToolbar";
 import { drawingPanelVisible } from "./data/drawing-panel";
 import * as kv from "./data/kv";
@@ -423,7 +423,7 @@ function App() {
         if (!(key in drawings)) drawings[key] = drawingsFor(key);
       }
     }
-    return { layout: t.layout, activePane: t.activePane, panes: t.panes, drawings, sync: t.sync, layoutSizes: t.layoutSizes };
+    return { layout: t.layout, activePane: t.activePane, panes: t.panes, drawings, sync: t.sync, layoutSizes: t.layoutSizes, numbering: LAYOUT_NUMBERING };
   };
   const activeSaved = () => {
     const id = activeTab().savedLayoutId;
@@ -1616,6 +1616,7 @@ function App() {
       layout: src.layout,
       activePane: src.activePane,
       panes: src.panes.map((p) => ({ ...p, id: newPaneId(), indicators: [...p.indicators] })),
+      numbering: src.numbering,
       isChart: src.isChart,
       sync: { ...src.sync },
       layoutSizes: src.layoutSizes,

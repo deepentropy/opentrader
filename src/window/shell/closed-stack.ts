@@ -17,6 +17,7 @@
  */
 import { createSignal } from "solid-js";
 import type { TabChart } from "./tabs";
+import { renumberCharts } from "../chart/layouts";
 import type { WindowState } from "../../bindings";
 
 export type ClosedTab = {
@@ -46,7 +47,12 @@ function load(): ClosedEntry[] {
   try {
     const raw = localStorage.getItem(KEY);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Tabs closed under an earlier chart numbering keep their charts in place.
+    return parsed.map((e: ClosedEntry) =>
+      e?.kind === "tab" && e.tab ? { ...e, tab: renumberCharts(e.tab) }
+      : e?.kind === "window" && Array.isArray(e.tabs) ? { ...e, tabs: e.tabs.map((t) => renumberCharts(t)) }
+      : e);
   } catch {
     return [];
   }

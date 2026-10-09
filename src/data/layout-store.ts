@@ -19,7 +19,7 @@
  * interval-favorites.ts so any component can read/mutate without prop drilling.
  */
 import { createSignal } from "solid-js";
-import type { LayoutId } from "../window/chart/layouts";
+import { renumberCharts, type LayoutId } from "../window/chart/layouts";
 import type { LayoutSyncState } from "../window/chart/layout-sync";
 import { revivePaneSettings, type LayoutSizes, type PaneChart } from "../window/shell/tabs";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
@@ -40,6 +40,8 @@ export type LayoutSnapshot = {
   sync?: LayoutSyncState;
   /** Chart sizes set with the splitters, per layout template. */
   layoutSizes?: LayoutSizes;
+  /** Chart numbering revision `panes` is stored in (absent = 1). */
+  numbering?: number;
 };
 
 export type SavedLayout = {
@@ -64,11 +66,17 @@ function loadLayouts(): SavedLayout[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (l): l is SavedLayout =>
-        l && typeof l.id === "string" && typeof l.name === "string" && l.snapshot &&
-        Array.isArray(l.snapshot.panes),
-    );
+    return parsed
+      .filter(
+        (l): l is SavedLayout =>
+          l && typeof l.id === "string" && typeof l.name === "string" && l.snapshot &&
+          Array.isArray(l.snapshot.panes),
+      )
+      // Charts saved under an earlier numbering keep their place on screen.
+      .map((l) => {
+        const snapshot = renumberCharts(l.snapshot);
+        return snapshot === l.snapshot ? l : { ...l, snapshot };
+      });
   } catch {
     return [];
   }

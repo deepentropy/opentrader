@@ -8,7 +8,7 @@
  * live per-tab snapshot prices, link channels, title customization) are NOT
  * modelled — see the gap notes in the program memory.
  */
-import { DEFAULT_LAYOUT, LAYOUT_SPECS, type LayoutId } from "../chart/layouts";
+import { DEFAULT_LAYOUT, LAYOUT_NUMBERING, LAYOUT_SPECS, renumberCharts, type LayoutId } from "../chart/layouts";
 import { DEFAULT_CHART_TYPE, type ChartTypeId } from "../chart/chart-types";
 import { SYMBOLS } from "../../data/symbol-search";
 import type { LinkChannels, LinkColor, TabLink } from "./tab-linking";
@@ -166,6 +166,8 @@ export type TabChart = {
   activePane: number;
   /** One entry per cell of `layout` (kept in sync by `reconcilePanes`). */
   panes: PaneChart[];
+  /** Chart numbering revision `panes` is stored in (LAYOUT_NUMBERING). */
+  numbering: number;
   /** Charts render a symbol; non-chart tabs (future) would render other views. */
   isChart: boolean;
   /** Tab-syncing link colour; absent = unlinked. The channels belong to the
@@ -265,7 +267,7 @@ export function makeTab(partial: MakeTabPartial = {}): TabChart {
         ? { settings: cloneDraft(defaults), settingsFp: SETTINGS_FINGERPRINT, settingsRev: SETTINGS_REV }
         : {};
   const panes = Array.from({ length: count }, () => ({ ...base, ...seed(), id: newPaneId(), indicators: [...base.indicators] }));
-  return { id: newTabId(), layout, activePane: 0, panes, isChart, sync: defaultLayoutSync() };
+  return { id: newTabId(), layout, activePane: 0, panes, numbering: LAYOUT_NUMBERING, isChart, sync: defaultLayoutSync() };
 }
 
 /** Normalise a persisted/handed-off tab into the current shape — wraps the old
@@ -273,6 +275,8 @@ export function makeTab(partial: MakeTabPartial = {}): TabChart {
  *  count matches the layout (forward-compatible with already-migrated tabs). */
 // deno-lint-ignore no-explicit-any
 export function migrateTab(raw: any): TabChart {
+  // Charts stored under an earlier numbering keep their place on screen.
+  raw = renumberCharts(raw);
   const layout: LayoutId = raw?.layout ?? DEFAULT_LAYOUT;
   const isChart = raw?.isChart ?? true;
   const id = typeof raw?.id === "string" ? raw.id : newTabId();
@@ -318,7 +322,7 @@ export function migrateTab(raw: any): TabChart {
   }
   // Reconcile to the layout's cell count.
   const sync = reviveLayoutSync(raw?.sync);
-  const stub: TabChart = { id, layout, activePane, panes, isChart, sync };
+  const stub: TabChart = { id, layout, activePane, panes, numbering: LAYOUT_NUMBERING, isChart, sync };
   const reconciled = reconcilePanes(stub, layout);
   const link: TabLink | undefined =
     raw?.link && typeof raw.link.color === "string" ? { color: raw.link.color as LinkColor } : undefined;
@@ -336,7 +340,7 @@ export function migrateTab(raw: any): TabChart {
   const savedLayoutName = typeof raw?.savedLayoutName === "string" ? raw.savedLayoutName : undefined;
   const pinned = raw?.pinned === true ? true : undefined;
   const layoutSizes = reviveLayoutSizes(raw?.layoutSizes);
-  return { id, isChart, ...reconciled, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName };
+  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName };
 }
 
 /** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:
