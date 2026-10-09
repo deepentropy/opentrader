@@ -51,14 +51,24 @@
  *   - an empty comment shows the order id;
  *   - after an entry fill on a bar, only entries in the same direction can
  *     still fill on it;
- *   - an entry placed against a position keeps that reversal part when the
- *     position closes before the fill by exit orders (a close order takes it
- *     out);
+ *   - a stop / limit entry keeps the quantity it was placed with, its own
+ *     plus the position it was placed against (a close order takes that part
+ *     out): it opens both when the position closed before the fill or when it
+ *     pyramids, and one placed while flat only closes the position opened
+ *     since. A market entry closes the position at its fill and opens its own
+ *     quantity;
+ *   - a stop / limit entry is checked when it is placed (pyramiding limit,
+ *     funds for its own quantity), not when it fills;
  *   - exits reserve the trade quantity in creation order; qty_percent counts
  *     on the filled entry quantity; a reversal cancels the exits of the
  *     entries it closed;
  *   - the legs of one strategy.exit fill in hash order of their entry ids
- *     (updateLegOrder) and close the oldest trades first (FIFO).
+ *     (updateLegOrder) and close the oldest trades first (FIFO). A leg belongs
+ *     to its entry fill: it keeps its quantity when another leg closed its
+ *     trade, and legs of entries filled after the exit call fill in entry
+ *     order;
+ *   - a fill that leaves the position flat removes the exits that were live
+ *     on it; an exit still waiting for its entry to fill stays.
  *
  * Bar magnifier (use_bar_magnifier, lower-timeframe bars per chart bar; rules matched on
  * .tmp/strategy-properties): the path is the chart open (market orders fill there), then each
@@ -78,12 +88,13 @@
  *     script run minus the margin of the trades it does not close; else it is
  *     not filled at all (not resized, a reversal keeps the open position). An
  *     entry that fills after a close order of the same bar is checked at its
- *     sizing price only;
+ *     sizing price only. A stop / limit entry is checked at placement instead
+ *     (its own quantity at its sizing price, the open trades at the close);
  *   - margin calls are checked at each point of the intrabar path (open,
  *     high / low, close) with Pine's documented formula: when the available
  *     funds are below 0, 4 times the quantity that covers the loss (at least
- *     one quantity step) is closed at that price, oldest trade first (order
- *     "Margin call <n>").
+ *     one quantity step) is closed at that price plus the slippage, oldest
+ *     trade first (order "Margin call <n>").
  */
 import type {
   Bar,
@@ -166,6 +177,10 @@ interface CloseOrder {
 interface ExitOrder {
   kind: 'exit';
   seq: number;
+  /** Order number of the legs: the call that created them or last changed their price. */
+  legSeq: number;
+  /** The order has had a leg on an open trade (it is live, not waiting for its entry to fill). */
+  attached: boolean;
   id: string;
   /** '' = every open trade. */
   fromEntry: string;
@@ -186,6 +201,8 @@ interface ExitOrder {
 
 interface OpenTrade {
   seq: number;
+  /** Order number of the entry fill (exit legs of this trade count from it). */
+  fillSeq: number;
   entryId: string;
   direction: Direction;
   qty: number;
@@ -202,8 +219,11 @@ interface OpenTrade {
   exitQty: Map<string, number>;
   /** Trailing stops of this trade: best price since activation, per exit id. */
   trail: Map<string, number>;
-  /** Exit id whose leg closed this trade (FIFO): the trade's own leg of that exit stays active. */
-  closedByExit?: string;
+  /**
+   * Quantity of this entry fill its exit legs still hold. A leg closes the oldest trades first (FIFO), not its own
+   * trade, so this is not `qty`: a trade closed by the leg of another entry keeps its own legs.
+   */
+  lotQty: number;
   /** Quantity filled at the entry (qty_percent base; margin calls and partial exits reduce `qty`). */
   filledQty: number;
 }
@@ -267,6 +287,8 @@ export class Broker {
   private closes: CloseOrder[] = [];
   private exits = new Map<string, ExitOrder>();
   private openTrades: OpenTrade[] = [];
+  /** Trades closed by the leg of another trade, while the position is open (their own legs stay active). */
+  private displaced: OpenTrade[] = [];
   private tradeSeq = 0;
   /** Bar and direction of the last entry-order fill (see priceOrders). */
   private entryFillBar = -1;
@@ -364,6 +386,16 @@ export class Broker {
     }
     const prev = this.entries.get(id);
     const pos = this.positionSize;
+    // A stop / limit entry is checked when it is placed, not when it fills: the pyramiding limit and the funds
+    // for its own quantity at the price it was sized at. Once placed it fills whatever the position is by then
+    // (pivot-points SPY 1h: a 6th entry at bar 3350, then the margin call; bar 1991: not placed, never filled).
+    if (!isOrder && orderPrice !== null) {
+      if (!this.canEnter(direction)) return;
+      const reverses = pos !== 0 && (pos > 0) !== buy;
+      // The open trades count at the current close (SPY 4h bar 869: 16 at 106.02 placed with 78 short at 103.82).
+      const close = this.roundPrice(this.bars[this.bar].close);
+      if (qty > 0 && !this.fundsCover(direction, qty, sizePrice, reverses, this.equity, close)) return;
+    }
     this.entries.set(id, {
       sizePrice,
       reverseQty: !isOrder && pos !== 0 && (pos > 0) !== buy ? Math.abs(pos) : 0,
@@ -415,6 +447,8 @@ export class Broker {
     this.exits.set(id, {
       kind: 'exit',
       seq: prev?.seq ?? ++this.seq,
+      legSeq: prev?.legSeq ?? this.seq,
+      attached: false,
       id,
       fromEntry: opts.fromEntry ?? '',
       qty: val(opts.qty),
@@ -447,6 +481,7 @@ export class Broker {
     const level = (v: number | null, isStop: boolean) => (v === null ? null : this.roundOrderPrice(v, buy, isStop));
     const changed = !prev || level(prev.limit, false) !== level(x.limit, false) || level(prev.stop, true) !== level(x.stop, true);
     if (changed) {
+      if (prev) x.legSeq = ++this.seq;
       for (const t of matching) t.exitQty.delete(id);
       const bucket = (text: string) => {
         let h = 0;
@@ -470,7 +505,7 @@ export class Broker {
   /** Legs of exit `id` still to fill: open trades, and trades another leg closed that keep their own leg. */
   private activeLegs(id: string): OpenTrade[] {
     return (this.legOrder.get(id) ?? []).filter(
-      (t) => !t.exitsDone.has(id) && (this.openTrades.includes(t) || (t.closedByExit === id && t.exitQty.has(id))),
+      (t) => !t.exitsDone.has(id) && t.lotQty > EPS && (this.openTrades.includes(t) || this.displaced.includes(t)),
     );
   }
 
@@ -671,7 +706,6 @@ export class Broker {
         level,
         trigger: isStop ? level : this.limitTrigger(level, buy),
         fill: (price) => {
-          if (!e.isOrder && !this.canEnter(e.direction)) return false;
           this.entries.delete(e.id);
           this.fillEntry(e, price, isStop ? 'STOP' : 'LIMIT');
           return true;
@@ -683,21 +717,21 @@ export class Broker {
     const reserved = new Map<OpenTrade, number>();
     for (const x of this.exits.values()) {
       const order = this.activeLegs(x.id);
-      const legTrades = [...order, ...this.openTrades.filter((t) => !order.includes(t))];
+      const rest = [...this.openTrades, ...this.displaced].filter((t) => t.lotQty > EPS && !order.includes(t));
+      const legTrades = [...order, ...rest];
       for (const t of legTrades) {
         if (x.fromEntry !== '' && x.fromEntry !== t.entryId) continue;
         if (t.exitsDone.has(x.id)) continue;
         let qty = t.exitQty.get(x.id);
         if (qty === undefined) {
           // qty_percent counts on the quantity filled at the entry.
-          qty = x.qty !== null ? x.qty : x.qtyPercent !== null ? this.floorQty((t.filledQty * x.qtyPercent) / 100) : t.qty;
+          qty = x.qty !== null ? x.qty : x.qtyPercent !== null ? this.floorQty((t.filledQty * x.qtyPercent) / 100) : t.lotQty;
           t.exitQty.set(x.id, qty);
         }
-        if (this.openTrades.includes(t)) {
-          const taken = reserved.get(t) ?? 0;
-          qty = Math.min(qty, t.qty - taken);
-          reserved.set(t, taken + Math.max(qty, 0));
-        }
+        x.attached = true;
+        const taken = reserved.get(t) ?? 0;
+        qty = Math.min(qty, t.lotQty - taken);
+        reserved.set(t, taken + Math.max(qty, 0));
         if (qty <= 0) continue;
         const buy = t.direction === 'short';
         const sign = t.direction === 'long' ? 1 : -1;
@@ -714,15 +748,19 @@ export class Broker {
           for (const u of [...this.openTrades]) {
             if (rest <= 0) break;
             const c = Math.min(rest, u.qty);
-            if (c >= u.qty - EPS) u.closedByExit = x.id;
-            this.closeTradeQty(u, c, price, comment);
+            this.closeTradeQty(u, c, price, comment, false, true);
+            if (!this.openTrades.includes(u) && u.lotQty > EPS && u !== t) this.displaced.push(u);
             rest -= c;
           }
+          t.lotQty = Math.max(0, t.lotQty - filled);
+          if (!this.openTrades.includes(t) && t.lotQty > EPS && !this.displaced.includes(t)) this.displaced.push(t);
           this.recordFill(x.id, comment, buy, false, price, filled, type);
           return true;
         };
         const push = (isStop: boolean, level: number, f: (p: number, raw: number) => boolean, trigger = level) => {
-          if (Number.isFinite(level)) out.push({ seq: x.seq, buy, isStop, level, trigger, fill: f });
+          // A leg is as old as its exit call or its entry fill, the later of the two: the exits of entries
+          // filled after the call fill in entry order (pivot-points SPY 1h bar 699).
+          if (Number.isFinite(level)) out.push({ seq: Math.max(x.legSeq, t.fillSeq), buy, isStop, level, trigger, fill: f });
         };
         if (limit !== null) {
           const level = this.roundOrderPrice(limit, buy, false);
@@ -768,7 +806,7 @@ export class Broker {
 
   private fillEntry(o: EntryOrder, price: number, type: OrderType, afterClose = false): void {
     if (o.isOrder) return this.fillOrder(o, price, type);
-    if (!this.canEnter(o.direction)) return;
+    if (type === 'MARKET' && !this.canEnter(o.direction)) return;
     const buy = o.direction === 'long';
     const pos = this.positionSize;
     // A zero quantity (e.g. cash sizing below one share) only closes an opposite position.
@@ -776,22 +814,35 @@ export class Broker {
     const reverses = pos !== 0 && (pos > 0) !== buy;
     // The reversal part is fixed at placement: an entry placed against a position that closed before the fill
     // opens its quantity plus that position (pivot-points SPY 15m trade 9: 4 + 8 = 12).
-    const qty = pos === 0 ? o.qty + o.reverseQty : o.qty;
+    // It is also added to an entry that pyramids (pivot-points SPY 1h trade 12: 8 + 8 = 16 on an open short).
+    // A stop / limit entry keeps the quantity it was placed with (its own plus the position it was placed against):
+    // one placed while flat only closes the position opened since (pivot-points SPY 15m trade 74: 3 sold, no short).
+    // A market entry closes the position at its fill and opens its own quantity.
+    const total = o.qty + o.reverseQty;
+    const fixed = reverses && type !== 'MARKET';
+    const qty = !reverses ? total : fixed ? Math.max(0, total - Math.abs(pos)) : o.qty;
     if (qty <= 0 && (pos === 0 || (pos > 0) === buy)) return;
     // Not enough funds for the new trade: the order is not filled (a reversal keeps the open position).
     // Funds: the new trade at the higher of the sizing and fill prices (at the sizing price only after a close
     // order of the same bar).
     const checkPrice = afterClose ? o.sizePrice : Math.max(price, o.sizePrice);
-    if (qty > 0 && !this.fundsCover(o.direction, qty, checkPrice, reverses)) return;
+    // Only the order's own quantity is checked, not its reversal part. Stop / limit entries were checked at
+    // placement (see placeEntry): they fill, and the margin call follows on the same tick (pivot-points SPY 1h
+    // bar 1533: 9 + 16 bought on a full position, 28 sold by the margin call).
+    if (qty > 0 && type === 'MARKET' && !this.fundsCover(o.direction, Math.min(qty, o.qty), checkPrice, reverses)) return;
     this.entryFillBar = this.bar;
     this.entryFillDirection = o.direction;
     let closed = 0;
     if (reverses) {
       const ids = new Set<string>();
+      let left = fixed ? Math.min(total, Math.abs(pos)) : Math.abs(pos);
       for (const t of [...this.openTrades]) {
-        closed += t.qty;
-        ids.add(t.entryId);
-        this.closeTradeQty(t, t.qty, price, o.comment, type === 'MARKET');
+        if (left <= EPS) break;
+        const c = Math.min(left, t.qty);
+        left -= c;
+        closed += c;
+        if (c >= t.qty - EPS) ids.add(t.entryId);
+        this.closeTradeQty(t, c, price, o.comment, type === 'MARKET');
       }
       // The reversal cancels the exits of the entries it closed (no pending entry left for them).
       for (const [xid, x] of this.exits) {
@@ -829,13 +880,13 @@ export class Broker {
    * last script run minus the margin of the open trades (none when the fill closes them first). Always
    * true without margin.
    */
-  private fundsCover(direction: Direction, qty: number, price: number, closesOpenTrades = false): boolean {
+  private fundsCover(direction: Direction, qty: number, price: number, closesOpenTrades = false, equity = this.scriptEquity, mark = price): boolean {
     const ratio = this.marginRatio(direction);
     if (ratio <= 0) return true;
     const pv = this.sym.pointValue;
     let used = 0;
-    if (!closesOpenTrades) for (const t of this.openTrades) used += t.qty * price * pv * this.marginRatio(t.direction);
-    const available = this.scriptEquity - used;
+    if (!closesOpenTrades) for (const t of this.openTrades) used += t.qty * mark * pv * this.marginRatio(t.direction);
+    const available = equity - used;
     return qty * price * pv * ratio <= available;
   }
 
@@ -861,6 +912,9 @@ export class Broker {
     const step = this.sym.qtyStep;
     const cover = Math.trunc(Math.abs(loss / (p * pv)) / step) * step;
     const size = Math.min(Math.abs(pos), cover > 0 ? cover * 4 : step);
+    // The margin call is a market order: it fills with the slippage (pivot-points SPY 1h bar 1533: 204.32 on a
+    // 204.35 open, 3 ticks).
+    fill = Math.max(0, this.slip(fill, !long));
     let left = size;
     for (const t of [...this.openTrades]) {
       if (left <= 0) break;
@@ -902,10 +956,12 @@ export class Broker {
     this.commissionPaid += entryCommission;
     const t: OpenTrade = {
       seq: ++this.tradeSeq,
+      fillSeq: ++this.seq,
       entryId: o.id,
       direction: o.direction,
       qty: o.qty,
       filledQty: o.qty,
+      lotQty: o.qty,
       price,
       bar: this.bar,
       signal: o.comment,
@@ -934,8 +990,10 @@ export class Broker {
 
   /** Close `qty` of trade t at `price`; a partial close splits the trade. */
   /** `market`: a market exit (close, reversal, strategy.order, margin call); see makeTrade. */
-  private closeTradeQty(t: OpenTrade, qty: number, price: number, signal: string, market = false): void {
+  private closeTradeQty(t: OpenTrade, qty: number, price: number, signal: string, market = false, byLeg = false): void {
     if (qty <= 0) return;
+    // An exit leg takes its quantity from its own entry fill (see the leg fill); any other close from this trade.
+    if (!byLeg) t.lotQty = Math.max(0, t.lotQty - qty);
     const share = qty / t.qty;
     const entryCm = t.entryCommission * share;
     const exitCm = this.commission(qty, price);
@@ -1051,8 +1109,14 @@ export class Broker {
 
   private recordFill(id: string, comment: string, buy: boolean, entry: boolean | null, price: number, qty: number, type: OrderType): void {
     this.filledOrders.push({ bar: this.bar, time: this.bars[this.bar].time * 1000, id, comment, buy, entry, price, qty, type });
-    // Pending strategy.exit orders are cancelled when a fill leaves the position flat.
-    if (this.openTrades.length === 0) this.exits.clear();
+    // Pending strategy.exit orders are cancelled when a fill leaves the position flat. An exit still waiting for
+    // its entry to fill stays (pivot-points SPY 15m: the exit of a limit entry placed while the opposite position
+    // was open); one that was live on the closed position goes, whatever entries are pending (st-greed).
+    if (this.openTrades.length === 0) {
+      this.displaced = [];
+      for (const [id, x] of this.exits) if (x.attached) this.exits.delete(id);
+      this.dropOrphanExits();
+    }
   }
 
   // ------------------------------------------------------------ sizing, costs, rounding
