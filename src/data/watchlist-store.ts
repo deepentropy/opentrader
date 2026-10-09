@@ -9,7 +9,7 @@
  * singleton — a createRoot autosave effect mirrors every change to storage.
  */
 import { createRoot, createEffect, createSignal, on, untrack } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { createStore, produce, unwrap } from "solid-js/store";
 import {
   GROUPS,
   WATCHLIST_TABS,
@@ -29,7 +29,7 @@ export type WatchList = {
   flag: FlagColor | null;
   emoji: string | null;
   groups: Group[];
-  /** Symbols added via "Add symbol" — ungrouped, shown after the sections. */
+  /** Symbols with no section, shown before the first section. */
   extras: Row[];
   /** Flagged/favourited — drives the "Flagged lists" section of the list
    *  manager (favourite-watchlist star). */
@@ -46,7 +46,11 @@ export type WatchList = {
  *  Keyed by list id; absent = no alert. A local list alert. */
 type AlertMap = Record<string, number>;
 
-type StoreShape = { lists: WatchList[]; activeId: string; alerts: AlertMap };
+type StoreShape = { lists: WatchList[]; activeId: string; alerts: AlertMap; v?: number };
+
+/** Saved shape version. 2: the rows with no section come before the first
+ *  section (they came after the last one). */
+const SHAPE_VERSION = 2;
 
 const STORAGE_KEY = "ot:watchlist:lists:v1";
 
@@ -72,7 +76,7 @@ function seed(): StoreShape {
     sort: "default",
   }));
   const active = WATCHLIST_TABS.find((t) => t.active) ?? WATCHLIST_TABS[0];
-  return { lists, activeId: slug(active.name), alerts: {} };
+  return { lists, activeId: slug(active.name), alerts: {}, v: SHAPE_VERSION };
 }
 
 function isValid(s: unknown): s is StoreShape {
@@ -100,6 +104,17 @@ function load(): StoreShape {
           sort: "default" as SortKey,
         }));
         parsed.alerts ??= {};
+        // Older saves drew the rows with no section after the last section:
+        // they join it, so every row stays where it was on screen.
+        if ((parsed.v ?? 1) < SHAPE_VERSION) {
+          for (const l of parsed.lists) {
+            if (!l.groups.length || !l.extras.length) continue;
+            const last = l.groups[l.groups.length - 1];
+            last.rows = [...last.rows, ...l.extras];
+            l.extras = [];
+          }
+          parsed.v = SHAPE_VERSION;
+        }
         // Repair a dangling activeId (e.g. the active list was removed).
         if (!parsed.lists.some((l) => l.id === parsed.activeId)) {
           parsed.activeId = parsed.lists[0].id;
@@ -136,6 +151,7 @@ createRoot(() => {
           lists: state.lists.map((l) => ({ ...l, sort: "default" })),
           activeId: state.activeId,
           alerts: state.alerts,
+          v: SHAPE_VERSION,
         }),
       );
     } catch {
@@ -222,7 +238,10 @@ export const COLOR_LIST_TITLES: Partial<Record<FlagColor, string>> = {
 const COLOR_ORDER: FlagColor[] = ["red", "blue", "green", "orange", "purple", "cyan", "pink"];
 export const colorListId = (c: FlagColor) => `color-${c}`;
 const colorOfList = (l: WatchList): FlagColor | null => (l.id.startsWith("color-") ? l.flag : null);
-const rowsOf = (l: WatchList) => [...l.groups.flatMap((g) => g.rows), ...l.extras];
+const rowsOf = (l: WatchList) => [...l.extras, ...l.groups.flatMap((g) => g.rows)];
+/** Where a row appended to a list goes: its last section, or the rows with
+ *  no section when it has no section. */
+const endOf = (l: WatchList): Row[] => (l.groups.length ? l.groups[l.groups.length - 1].rows : l.extras);
 const newRow = (ticker: string): Row => ({ ticker, short: tickerOf(ticker), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null });
 
 // Every colour list exists (empty ones are hidden by the dialog).
@@ -259,7 +278,8 @@ createRoot(() => {
         if (!add.length && !drop) return;
         setState("lists", i, produce((wl: WatchList) => {
           for (const g of wl.groups) g.rows = g.rows.filter((r) => want.has(r.ticker));
-          wl.extras = [...wl.extras.filter((r) => want.has(r.ticker)), ...add.map(newRow)];
+          wl.extras = wl.extras.filter((r) => want.has(r.ticker));
+          endOf(wl).push(...add.map(newRow));
         }));
       });
     });
@@ -278,6 +298,60 @@ function syncColorFlags(): void {
     for (const s of inList) if (flags[s] !== c) symbolFlags.setFlag(s, c);
     for (const [s, fc] of Object.entries(flags)) if (fc === c && !inList.has(s)) symbolFlags.setFlag(s, null);
   }
+}
+
+// ── List items ─────────────────────────────────────────────────────────────
+// A list read as one sequence, the way it is drawn: the rows with no section,
+// then each section header followed by its rows. An item is named by its id:
+// the ticker of a row, `###NAME` for a section header. Selection and drags
+// work on these ids.
+
+const SECTION_ID_PREFIX = "###";
+export const sectionId = (name: string): string => SECTION_ID_PREFIX + name;
+export const isSectionId = (id: string): boolean => id.startsWith(SECTION_ID_PREFIX);
+export const sectionNameOf = (id: string): string => id.slice(SECTION_ID_PREFIX.length);
+
+type ListRows = Pick<WatchList, "groups" | "extras">;
+
+/** Every item of a list, in order. */
+export function listItems(l: ListRows): string[] {
+  return [...l.extras.map((r) => r.ticker), ...l.groups.flatMap((g) => [sectionId(g.name), ...g.rows.map((r) => r.ticker)])];
+}
+
+/** The items on screen: the rows of a collapsed section are left out. */
+export function shownItems(l: ListRows, collapsed: ReadonlySet<string>): string[] {
+  return [
+    ...l.extras.map((r) => r.ticker),
+    ...l.groups.flatMap((g) => [sectionId(g.name), ...(collapsed.has(g.name) ? [] : g.rows.map((r) => r.ticker))]),
+  ];
+}
+
+/** Whether the dragged items `ids` may land before / after `targetId`
+ *  (`shown` = the items on screen). Symbols and expanded section headers go
+ *  anywhere. A collapsed section carries its symbols, so it only lands on a
+ *  section boundary, and it does not travel with symbols or with an expanded
+ *  section that holds rows. */
+export function canMoveItems(
+  shown: readonly string[],
+  collapsed: ReadonlySet<string>,
+  ids: readonly string[],
+  targetId: string,
+  after: boolean,
+): boolean {
+  const isCollapsed = (id: string) => isSectionId(id) && collapsed.has(sectionNameOf(id));
+  const sectionNext = (i: number) => i < shown.length - 1 && isSectionId(shown[i + 1]);
+  if (!ids.some(isCollapsed)) return true;
+  const mixed = ids.some((id) => {
+    if (!isSectionId(id)) return true;
+    if (isCollapsed(id)) return false;
+    const i = shown.indexOf(id);
+    return !(i === shown.length - 1 || sectionNext(i)); // an expanded section with rows
+  });
+  if (mixed) return false;
+  if (isCollapsed(targetId)) return true;
+  const at = shown.indexOf(targetId);
+  if (at === shown.length - 1 && after) return true;
+  return (after && sectionNext(at)) || (!after && isSectionId(targetId));
 }
 
 // ── UI request bus ─────────────────────────────────────────────────────────
@@ -566,9 +640,8 @@ export const watchlistStore = {
   /** Insert rows into the active list at `anchor`.
    *  Rows already in the list are skipped: same full name, or a row stored
    *  under the new row's short name (both are checked). A missing anchor falls
-   *  back to the end of the list. The end of the list is the extras when they
-   *  hold rows (they render last), else the last section, so an appended
-   *  symbol joins the last section. Returns the added tickers. */
+   *  back to the end of the list, so an appended symbol joins the last
+   *  section. Returns the added tickers. */
   addSymbols(rows: Row[], anchor: AddAnchor): string[] {
     const added: string[] = [];
     mutateActive((l) => {
@@ -595,8 +668,7 @@ export const watchlistStore = {
           return;
         }
       }
-      const end = l.extras.length || !l.groups.length ? l.extras : l.groups[l.groups.length - 1].rows;
-      end.push(...fresh);
+      endOf(l).push(...fresh);
     });
     return added;
   },
@@ -607,33 +679,42 @@ export const watchlistStore = {
       l.extras = l.extras.filter((r) => r.ticker !== ticker);
     });
   },
-  /** Move a symbol row within / across sections (drag-and-drop reorder).
-   *  `fromSection`/`toSection` name a section, or `null` for the ungrouped
-   *  "extras" bucket. `toIndex` is the insertion index in the *target* list
-   *  (after the row has been pulled out of its source). A no-op if the row or
-   *  target list can't be found. */
-  moveRow(
-    fromSection: string | null,
-    ticker: string,
-    toSection: string | null,
-    toIndex: number,
-  ): void {
-    mutateActive((l) => {
-      const src = fromSection == null ? l.extras : l.groups.find((g) => g.name === fromSection)?.rows;
-      if (!src) return;
-      const i = src.findIndex((r) => r.ticker === ticker);
-      if (i < 0) return;
-      const [row] = src.splice(i, 1);
-      const dst = toSection == null ? l.extras : l.groups.find((g) => g.name === toSection)?.rows;
-      if (!dst) {
-        src.splice(i, 0, row); // target vanished — put it back where it was
-        return;
+  /** Move the items `ids` (rows and section headers, ids as in `listItems`)
+   *  before / after the item `targetId`, in their order on screen
+   *  (drag-and-drop). A section header moves alone, so the rows around it
+   *  change section: the rows under its new place join it, the rows it leaves
+   *  join the section above. A collapsed section (`collapsed` = their names)
+   *  keeps its rows and moves with them. */
+  moveItems(ids: readonly string[], targetId: string, after: boolean, collapsed: ReadonlySet<string>): void {
+    const cur = state.lists[activeIndex()];
+    if (!cur) return;
+    const shown = shownItems(cur, collapsed);
+    const picked = new Set(ids);
+    const moved = shown.filter((id) => picked.has(id));
+    if (!moved.length || picked.has(targetId) || !shown.includes(targetId)) return;
+    const order = shown.filter((id) => !picked.has(id));
+    order.splice(order.indexOf(targetId) + (after ? 1 : 0), 0, ...moved);
+    // Stored row objects are reused, so a moved row keeps its identity.
+    const raw = unwrap(cur);
+    const rowOf = new Map(rowsOf(raw).map((r) => [r.ticker, r]));
+    const hidden = new Map(raw.groups.filter((g) => collapsed.has(g.name)).map((g) => [g.name, g.rows]));
+    const extras: Row[] = [];
+    const groups: Group[] = [];
+    let into = extras;
+    for (const id of order) {
+      if (isSectionId(id)) {
+        const name = sectionNameOf(id);
+        const g: Group = { name, rows: [...(hidden.get(name) ?? [])] };
+        groups.push(g);
+        into = g.rows;
+      } else {
+        const r = rowOf.get(id);
+        if (r) into.push(r);
       }
-      // Same list: removing an earlier element shifts the insertion point left.
-      let idx = toIndex;
-      if (fromSection === toSection && i < idx) idx--;
-      idx = Math.max(0, Math.min(idx, dst.length));
-      dst.splice(idx, 0, row);
+    }
+    mutateActive((l) => {
+      l.groups = groups;
+      l.extras = extras;
     });
   },
   removeExtra(ticker: string): void {
@@ -650,7 +731,7 @@ export const watchlistStore = {
   clearAllFlags(): void {
     symbolFlags.clearAllFlags();
   },
-  /** Append a row to ANOTHER list's extras ("Add X to watchlist" submenu).
+  /** Append a row to ANOTHER list ("Add X to watchlist" submenu).
    *  Deduped by full ticker across the target's sections and extras. Returns
    *  true when the row was added, false when it already existed (a no-op) so the
    *  caller can word its toast truthfully. */
@@ -663,7 +744,7 @@ export const watchlistStore = {
       l.extras.some((r) => r.ticker === row.ticker);
     if (exists) return false;
     setState("lists", i, produce((wl: WatchList) => {
-      wl.extras.push({ ...row, flag: null });
+      endOf(wl).push({ ...row, flag: null });
     }));
     dropSort(state.lists[i].id);
     syncColorFlags();

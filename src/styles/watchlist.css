@@ -453,22 +453,22 @@
 }
 
 /* ── Drag-and-drop reorder ── the row in flight dims; the resolved insertion
- * point shows a 2px accent line above (`drop-before`) or below the last row
- * (`drop-after`). An empty section header lights up when it's the target. */
+ * point shows a 2px accent line above (`drop-before`) or below (`drop-after`)
+ * the target item, a row or a section header. */
 .watchlist-row.dragging,
-.watchlist-tile.dragging {
+.watchlist-tile.dragging,
+.watchlist-group.dragging {
   opacity: 0.4;
 }
 .watchlist-row.drop-before,
-.watchlist-tile.drop-before {
+.watchlist-tile.drop-before,
+.watchlist-group.drop-before {
   box-shadow: inset 0 2px 0 0 var(--color-brand, #2962ff);
 }
 .watchlist-row.drop-after,
-.watchlist-tile.drop-after {
+.watchlist-tile.drop-after,
+.watchlist-group.drop-after {
   box-shadow: inset 0 -2px 0 0 var(--color-brand, #2962ff);
-}
-.watchlist-group.drop-into {
-  box-shadow: inset 0 0 0 1px var(--color-brand, #2962ff);
 }
 
 .watchlist-cell {

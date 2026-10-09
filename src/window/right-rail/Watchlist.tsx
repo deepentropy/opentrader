@@ -7,7 +7,7 @@
  * header gear opens WatchlistSettingsMenu — Table/tile view, customizable
  * columns, logo toggle, Symbol/Name display. Persisted to localStorage.
  */
-import { For, Show, createEffect, createRoot, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { For, Show, createEffect, createMemo, createRoot, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { PanelHeader } from "../../components/PanelHeader";
@@ -34,6 +34,12 @@ import {
   firedAlerts,
   saveFiredAlerts,
   clearFiredForList,
+  canMoveItems,
+  isSectionId,
+  listItems,
+  sectionId,
+  sectionNameOf,
+  shownItems,
   type AddAnchor,
   type WatchList,
 } from "../../data/watchlist-store";
@@ -356,7 +362,7 @@ export function Watchlist(props: Props) {
   const groups = () => active()?.groups ?? [];
   const extras = () => active()?.extras ?? [];
   const listName = () => active()?.name ?? activeWatchlist;
-  const allRows = () => groups().flatMap((g) => g.rows).concat(extras());
+  const allRows = () => extras().concat(groups().flatMap((g) => g.rows));
 
   // Inline header rename (the menu's "Rename" action edits the active list name).
   const [renamingList, setRenamingList] = createSignal(false);
@@ -696,57 +702,131 @@ export function Watchlist(props: Props) {
   const headerLabel = (key: WlColumnKey) =>
     WL_COLUMNS.find((c) => c.key === key)?.header ?? COLUMN_HEADERS.find((c) => c.key === key)?.label ?? key;
 
-  // ── Row selection highlight ── an explicit row-selection set rather than
-  // a highlight derived purely from the charted symbol, so the clicked row
-  // stays lit even for watchlist-only symbols that don't round-trip through
-  // the chart-symbol set: a click selects optimistically (below, in selectRow), and any *external*
-  // symbol change re-syncs the highlight to the matching row — or clears it when
-  // the charted symbol isn't in the list.
-  const [selectedTicker, setSelectedTicker] = createSignal<string | null>(null);
-  createEffect(() => {
+  // ── Selection ── one selection for the whole list: symbol rows and section
+  // headers, by item id (a row's ticker, `sectionId(name)` for a header). A
+  // plain click selects one item; Ctrl/Cmd + click toggles an item, Shift +
+  // click adds the range from the last touched item (`focusId`), Shift +
+  // Up/Down extends it, Ctrl/Cmd + A takes every item. It is not derived from
+  // the charted symbol, so the clicked row stays lit even for watchlist-only
+  // symbols; a change of the charted symbol or of the list puts it back on
+  // the charted symbol's row (none when the list does not hold it).
+  const [selection, setSelection] = createSignal<string[]>([]);
+  const [focusId, setFocusId] = createSignal<string | null>(null);
+  const selectedIds = createMemo(() => new Set(selection()));
+  const selectOnly = (id: string | null) => {
+    setSelection(id ? [id] : []);
+    setFocusId(id);
+  };
+  // The row of the charted listing; a row still holding a bare ticker
+  // matches by ticker.
+  const chartRow = createMemo((): string | null => {
     const full = props.activeSymbol;
     const bare = props.activeTicker;
-    // The row of the charted listing; a row still holding a bare ticker
-    // matches by ticker.
     const match =
       allRows().find((r) => r.ticker === full) ??
       allRows().find((r) => !r.ticker.includes(":") && !!bare && r.ticker === bare);
-    setSelectedTicker(match ? match.ticker : null);
+    return match ? match.ticker : null;
   });
-  const isSelected = (r: Row) => selectedTicker() === r.ticker;
+  createEffect(
+    on([() => props.activeSymbol, () => props.activeTicker, watchlistStore.activeId, chartRow], () => selectOnly(chartRow())),
+  );
+  // An item that left the list leaves the selection.
+  createEffect(() => {
+    const a = active();
+    const ids = new Set(a ? listItems(a) : []);
+    const cur = untrack(selection);
+    if (cur.some((id) => !ids.has(id))) setSelection(cur.filter((id) => ids.has(id)));
+  });
+  const isSelected = (r: Row) => selectedIds().has(r.ticker);
+  const isSectionSelected = (name: string) => selectedIds().has(sectionId(name));
 
   // ── Section UI state (transient view-state; the section *data* is in the
-  // store). These track which sections are collapsed / selected / being renamed.
-  // A header click selects the section (blue bg + trash); a second click on the
-  // already-selected title enters rename. Selecting a symbol drops the section
-  // selection. Switching lists clears all of it.
+  // store). These track which sections are collapsed / being renamed. A header
+  // click selects the section (blue bg + trash); a second click on the
+  // already-selected title enters rename. Switching lists clears all of it.
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
   const [renaming, setRenaming] = createSignal<string | null>(null);
   const [draft, setDraft] = createSignal("");
-  const [selectedSection, setSelectedSection] = createSignal<string | null>(null);
   createEffect(() => {
     watchlistStore.activeId(); // track: reset interaction state on list switch
     setCollapsed(new Set<string>());
-    setSelectedSection(null);
     setRenaming(null);
     setRenamingList(false);
   });
 
   const isCollapsed = (name: string) => collapsed().has(name);
-  const toggleCollapse = (name: string) =>
+  const setCollapse = (names: string[], value: boolean) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
+      for (const n of names) value ? next.add(n) : next.delete(n);
       return next;
     });
+  // The chevron of a selected header folds / unfolds every selected section.
+  const toggleCollapse = (name: string) => {
+    const picked = selection().filter(isSectionId).map(sectionNameOf);
+    setCollapse(picked.includes(name) ? picked : [name], !isCollapsed(name));
+  };
+
+  // The items on screen, in order (rows of collapsed sections left out).
+  const shown = createMemo(() => {
+    const a = active();
+    return a ? shownItems(a, collapsed()) : [];
+  });
+  const inListOrder = (ids: string[]) => {
+    const set = new Set(ids);
+    return shown().filter((id) => set.has(id));
+  };
+  /** A click on a row or a section header updates the selection. Returns
+   *  true for a click with no modifier key (the one that also acts: loads the
+   *  symbol, renames the section). */
+  const clickItem = (e: MouseEvent, id: string): boolean => {
+    const mod = e.ctrlKey || e.metaKey;
+    const cur = selection();
+    let next: string[];
+    if (mod && !e.shiftKey && !e.altKey) {
+      next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    } else if (e.shiftKey && !mod && !e.altKey && cur.length > 0) {
+      const items = shown();
+      let from = items.indexOf(focusId() ?? "");
+      if (from < 0) from = items.reduce((acc, x, i) => (cur.includes(x) ? i : acc), -1);
+      const to = items.indexOf(id);
+      next = [...cur];
+      if (from >= 0 && to >= 0) {
+        for (let i = Math.min(from, to); i <= Math.max(from, to); i++) if (!next.includes(items[i])) next.push(items[i]);
+      }
+    } else {
+      next = [id];
+    }
+    setSelection(inListOrder(next));
+    setFocusId(id);
+    rowsEl?.focus();
+    return !mod && !e.shiftKey && !e.altKey;
+  };
+  const scrollToItem = (id: string) =>
+    queueMicrotask(() => {
+      const el = [...(rowsEl?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])].find((e) => e.dataset.itemId === id);
+      el?.scrollIntoView({ block: "nearest" });
+    });
+  /** Shift + Up / Down: the selection grows by the next item, or gives back
+   *  the last touched one when the step goes back into it. */
+  const extendSelection = (dir: 1 | -1) => {
+    const items = shown();
+    const n = items.length;
+    if (!n) return;
+    const cur = selection();
+    const focus = focusId();
+    let at = items.indexOf(cur.length === 1 && cur[0] !== focus ? cur[0] : (focus ?? ""));
+    if ((dir === -1 && at === 0) || (dir === 1 && at === n - 1)) return;
+    if (at < 0 && dir === -1) at = n;
+    const id = items[at + dir];
+    if (cur.includes(id) && focus) setSelection(cur.filter((x) => x !== focus));
+    else setSelection(inListOrder([...cur, id]));
+    setFocusId(id);
+    scrollToItem(id);
+  };
   const deleteSection = (name: string) => {
     watchlistStore.deleteSection(name);
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      next.delete(name);
-      return next;
-    });
-    if (selectedSection() === name) setSelectedSection(null);
+    setCollapse([name], false);
   };
   const startRename = (name: string) => {
     setRenaming(name);
@@ -757,93 +837,98 @@ export function Watchlist(props: Props) {
     if (cur) {
       const nextName = draft().trim() || cur;
       watchlistStore.renameSection(cur, nextName);
-      setSelectedSection(nextName);
+      selectOnly(sectionId(nextName));
     }
     setRenaming(null);
   };
   // Title click: select on the first click, edit on the second (when already
-  // selected) — a select→edit model.
-  const onTitleClick = (name: string) => {
+  // selected) — a select→edit model. A click with Ctrl or Shift only changes
+  // the selection.
+  const onTitleClick = (e: MouseEvent, name: string) => {
     if (renaming() === name) return; // already editing — clicks inside must not reset
-    if (selectedSection() === name) startRename(name);
-    else setSelectedSection(name);
+    const wasSelected = isSectionSelected(name);
+    if (clickItem(e, sectionId(name)) && wasSelected) startRename(name);
   };
 
   // Remove a symbol from its section (the hover trash on each row).
   const removeRow = (groupName: string, ticker: string) =>
     watchlistStore.removeRow(groupName, ticker);
 
-  // ── Drag-and-drop reorder ── symbols can be dragged within a section, across
-  // sections, and to/from the ungrouped extras. `null`
-  // section = extras. A sorted list is dragged like any other: the move ends
-  // the sort and the order on screen is the list's order. `dragRow` is the
-  // symbol in flight; `dropTarget` is the resolved insertion point, used both
-  // for the store move and the drop-indicator line.
-  const [dragRow, setDragRow] = createSignal<{ ticker: string; from: string | null } | null>(null);
-  const [dropTarget, setDropTarget] = createSignal<{ section: string | null; index: number } | null>(null);
+  // ── Drag-and-drop reorder ── rows and section headers are dragged. A drag
+  // that starts on a selected item moves the whole selection, in its order on
+  // screen; on any other item it moves that item alone (and selects it). A
+  // section header moves alone, so the rows around it change section; a
+  // collapsed section moves with its rows and only lands on a section
+  // boundary (`canMoveItems`). A sorted list is dragged like any other: the
+  // move ends the sort and the order on screen is the list's order. `dragIds`
+  // are the items in flight; `dropTarget` is the item the insertion line sits
+  // on, before or after it.
+  const [dragIds, setDragIds] = createSignal<string[]>([]);
+  const [dropTarget, setDropTarget] = createSignal<{ id: string; after: boolean } | null>(null);
 
-  const onRowDragStart = (e: DragEvent, r: Row, from: string | null) => {
-    setDragRow({ ticker: r.ticker, from });
+  const onItemDragStart = (e: DragEvent, id: string) => {
+    if (!selectedIds().has(id)) selectOnly(id);
+    setDragIds(inListOrder(selection()));
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", r.ticker);
+      e.dataTransfer.setData("text/plain", isSectionId(id) ? sectionNameOf(id) : id);
     }
   };
   // Container-level drag-over: the WHOLE list is a drop zone, so the no-drop
-  // cursor never shows over gaps/padding — we always preventDefault while a row
-  // is in flight and snap the insertion point to the *closest* slot. Candidates
-  // are the symbol rows (`data-dnd-index`) and section headers (`data-dnd-header`,
-  // which target the top of an otherwise-empty section); proximity is measured
-  // from the pointer to each candidate's vertical midpoint.
+  // cursor never shows over gaps/padding. The target is the item under the
+  // pointer (the closest one over a gap), before it in its top half, after it
+  // in its bottom half. No line over a dragged item; a place the dragged items
+  // cannot take keeps the last valid line.
   const onRowsDragOver = (e: DragEvent) => {
-    if (!dragRow()) return;
+    const ids = dragIds();
+    if (!ids.length) return;
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
     const container = e.currentTarget as HTMLElement;
-    const candidates = container.querySelectorAll<HTMLElement>("[data-dnd-index], [data-dnd-header]");
-    let best: { section: string | null; index: number } | null = null;
-    let bestDist = Infinity;
-    for (const el of candidates) {
-      const rect = el.getBoundingClientRect();
-      const mid = rect.top + rect.height / 2;
-      const dist = Math.abs(e.clientY - mid);
-      if (dist >= bestDist) continue;
-      bestDist = dist;
-      const section = el.getAttribute("data-dnd-section") || null;
-      if (el.hasAttribute("data-dnd-header")) {
-        best = { section, index: 0 }; // drop at the top of this section
-      } else {
-        const baseIndex = Number(el.getAttribute("data-dnd-index"));
-        best = { section, index: baseIndex + (e.clientY > mid ? 1 : 0) };
+    let el = (e.target as HTMLElement | null)?.closest<HTMLElement>("[data-item-id]") ?? null;
+    if (!el) {
+      let bestDist = Infinity;
+      for (const c of container.querySelectorAll<HTMLElement>("[data-item-id]")) {
+        const rect = c.getBoundingClientRect();
+        const dist = Math.abs(e.clientY - (rect.top + rect.height / 2));
+        if (dist >= bestDist) continue;
+        bestDist = dist;
+        el = c;
       }
     }
-    // No candidates yet (e.g. a brand-new empty list) → first section, else extras.
-    setDropTarget(best ?? { section: groups()[0]?.name ?? null, index: 0 });
+    const id = el?.dataset.itemId;
+    if (!el || !id) return;
+    if (ids.includes(id)) {
+      setDropTarget(null);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const after = e.clientY >= rect.top + rect.height / 2;
+    if (canMoveItems(shown(), collapsed(), ids, id, after)) setDropTarget({ id, after });
   };
   const onRowsDrop = (e: DragEvent) => {
-    const d = dragRow();
+    const ids = dragIds();
     const t = dropTarget();
-    if (d && t) {
+    if (ids.length && t) {
       e.preventDefault();
-      watchlistStore.moveRow(d.from, d.ticker, t.section, t.index);
+      watchlistStore.moveItems(ids, t.id, t.after, collapsed());
     }
-    setDragRow(null);
+    setDragIds([]);
     setDropTarget(null);
   };
   const onRowsDragEnd = () => {
-    setDragRow(null);
+    setDragIds([]);
     setDropTarget(null);
   };
-  const isDragging = (r: Row) => dragRow()?.ticker === r.ticker;
-  // Drop-line above row `index` of `section` (and below the last row when the
-  // insertion index lands past the end).
-  const dropBefore = (section: string | null, index: number) => {
+  const isDragging = (id: string) => dragIds().includes(id);
+  // Insertion line above (`drop-before`) or below (`drop-after`) an item.
+  const dropBefore = (id: string) => {
     const t = dropTarget();
-    return !!t && t.section === section && t.index === index;
+    return !!t && t.id === id && !t.after;
   };
-  const dropAfterLast = (section: string | null, index: number, isLast: boolean) => {
+  const dropAfter = (id: string) => {
     const t = dropTarget();
-    return isLast && !!t && t.section === section && t.index === index + 1;
+    return !!t && t.id === id && t.after;
   };
 
   // ── Added / found rows: highlighted for 500 ms, and the last one scrolls
@@ -904,7 +989,7 @@ export function Watchlist(props: Props) {
   // then highlight and scroll to it.
   const goToSymbol = (name: string) => {
     const g = groups().find((g) => g.rows.some((r) => r.ticker === name));
-    if (g && isCollapsed(g.name)) toggleCollapse(g.name);
+    if (g && isCollapsed(g.name)) setCollapse([g.name], false);
     highlightRows([name]);
   };
 
@@ -925,7 +1010,7 @@ export function Watchlist(props: Props) {
     let name = base;
     for (let n = 2; groups().some((g) => g.name === name); n++) name = `${base} ${n}`;
     watchlistStore.addSection(name);
-    setSelectedSection(name);
+    selectOnly(sectionId(name));
     startRename(name);
   };
   // "Clear list": remove every symbol from the active list.
@@ -983,14 +1068,17 @@ export function Watchlist(props: Props) {
   let rowsEl: HTMLDivElement | undefined;
   // Nav order = rows of expanded sections, flattened in display order.
   const orderedRows = () =>
-    groups()
-      .filter((g) => !isCollapsed(g.name))
-      .flatMap((g) => g.rows)
-      .concat(extras());
+    extras().concat(
+      groups()
+        .filter((g) => !isCollapsed(g.name))
+        .flatMap((g) => g.rows),
+    );
   const navigate = (dir: 1 | -1) => {
     const rows = orderedRows();
     if (!props.onSymbolSelect || rows.length === 0) return;
-    const cur = rows.findIndex((r) => isSelected(r));
+    let cur = rows.findIndex((r) => isSelected(r));
+    // No row selected (a section header is): go from the charted symbol.
+    if (cur < 0) cur = rows.findIndex((r) => r.ticker === chartRow());
     // No current selection in the list → enter at the appropriate end.
     const next =
       cur < 0
@@ -1017,7 +1105,18 @@ export function Watchlist(props: Props) {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
     const isSpace = e.code === "Space" || e.key === " ";
-    if (e.code === "ArrowDown" || (isSpace && !e.shiftKey)) {
+    if (e.shiftKey && (e.code === "ArrowDown" || e.code === "ArrowUp")) {
+      e.preventDefault();
+      extendSelection(e.code === "ArrowDown" ? 1 : -1);
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyA") {
+      e.preventDefault();
+      const a = active();
+      if (a) setSelection(listItems(a));
+    } else if (e.key === "Escape") {
+      // Back to the charted symbol's row.
+      e.preventDefault();
+      selectOnly(chartRow());
+    } else if (e.code === "ArrowDown" || (isSpace && !e.shiftKey)) {
       e.preventDefault();
       navigate(1);
     } else if (e.code === "ArrowUp" || (isSpace && e.shiftKey)) {
@@ -1037,10 +1136,9 @@ export function Watchlist(props: Props) {
   };
   // Select a row's symbol AND focus the list so Space / arrows flip next.
   const selectRow = (ticker: string) => {
-    setSelectedTicker(ticker); // optimistic: highlight immediately, even for
-                               // watchlist-only symbols absent from the chart set
+    selectOnly(ticker); // optimistic: highlight immediately, even for
+                        // watchlist-only symbols absent from the chart set
     props.onSymbolSelect?.(ticker);
-    setSelectedSection(null); // selecting a symbol drops any section selection
     rowsEl?.focus();
   };
 
@@ -1052,13 +1150,13 @@ export function Watchlist(props: Props) {
   const [sectionCtx, setSectionCtx] = createSignal<{ name: string; x: number; y: number } | null>(null);
   const openContext = (e: MouseEvent, row: Row, section: string | null) => {
     e.preventDefault();
-    setSelectedTicker(row.ticker); // right-click selects the row
+    if (!isSelected(row)) selectOnly(row.ticker); // right-click selects the row
     setCtxMenu({ row, section, x: e.clientX, y: e.clientY });
   };
   const openSectionContext = (e: MouseEvent, name: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setSelectedSection(name);
+    if (!isSectionSelected(name)) selectOnly(sectionId(name));
     setSectionCtx({ name, x: e.clientX, y: e.clientY });
   };
   // "Flag/Unflag" (same as Alt+↵): unflag, or flag in the last used colour.
@@ -1089,14 +1187,17 @@ export function Watchlist(props: Props) {
       class="watchlist-group"
       classList={{
         renaming: renaming() === g.name,
-        selected: selectedSection() === g.name && renaming() !== g.name,
-        "drop-into": dropTarget()?.section === g.name && g.rows.length === 0,
+        selected: isSectionSelected(g.name) && renaming() !== g.name,
+        dragging: isDragging(sectionId(g.name)),
+        "drop-before": dropBefore(sectionId(g.name)),
+        "drop-after": dropAfter(sectionId(g.name)),
       }}
       role="row"
-      data-dnd-header
-      data-dnd-section={g.name}
-      onClick={() => onTitleClick(g.name)}
+      data-item-id={sectionId(g.name)}
+      draggable={renaming() !== g.name}
+      onClick={(e) => onTitleClick(e, g.name)}
       onContextMenu={(e) => openSectionContext(e, g.name)}
+      onDragStart={(e) => onItemDragStart(e, sectionId(g.name))}
     >
       <button
         type="button"
@@ -1158,36 +1259,29 @@ export function Watchlist(props: Props) {
     />
   );
 
-  // One table-view symbol row (dynamic column grid). `index`/`isLast` are
-  // accessors so reordering (which moves rows without re-invoking this fn) keeps
-  // the DnD data attributes + drop indicators in sync.
-  const tableRow = (
-    r: Row,
-    onRemove: () => void,
-    section: string | null,
-    index: () => number,
-    isLast: () => boolean,
-  ) => (
+  // One table-view symbol row (dynamic column grid).
+  const tableRow = (r: Row, onRemove: () => void, section: string | null) => (
     <div
       role="row"
       class="watchlist-row"
       classList={{
         selected: isSelected(r),
         highlighted: isHighlighted(r),
-        dragging: isDragging(r),
-        "drop-before": dropBefore(section, index()),
-        "drop-after": dropAfterLast(section, index(), isLast()),
+        dragging: isDragging(r.ticker),
+        "drop-before": dropBefore(r.ticker),
+        "drop-after": dropAfter(r.ticker),
       }}
       data-symbol-full={r.ticker}
       data-symbol-short={r.short}
-      data-dnd-section={section ?? ""}
-      data-dnd-index={index()}
+      data-item-id={r.ticker}
       aria-selected={isSelected(r) || undefined}
       style={{ "grid-template-columns": gridTemplate() }}
       draggable={true}
-      onClick={() => selectRow(r.ticker)}
+      onClick={(e) => {
+        if (clickItem(e, r.ticker)) selectRow(r.ticker);
+      }}
       onContextMenu={(e) => openContext(e, r, section)}
-      onDragStart={(e) => onRowDragStart(e, r, section)}
+      onDragStart={(e) => onItemDragStart(e, r.ticker)}
     >
       <Show when={flagOf(r.ticker)}>{(f) => <FlagMarker flag={f()} />}</Show>
       <div class="watchlist-cell watchlist-symbol">
@@ -1217,13 +1311,7 @@ export function Watchlist(props: Props) {
 
   // One tile-view symbol row (two-line card): ticker + last on top, company
   // name + abs-change + change% below.
-  const tileRow = (
-    r: Row,
-    onRemove: () => void,
-    section: string | null,
-    index: () => number,
-    isLast: () => boolean,
-  ) => {
+  const tileRow = (r: Row, onRemove: () => void, section: string | null) => {
     const chg = () => cellFor(r, "change");
     const pct = () => cellFor(r, "change_percent");
     return (
@@ -1233,17 +1321,19 @@ export function Watchlist(props: Props) {
         classList={{
           selected: isSelected(r),
           highlighted: isHighlighted(r),
-          dragging: isDragging(r),
-          "drop-before": dropBefore(section, index()),
-          "drop-after": dropAfterLast(section, index(), isLast()),
+          dragging: isDragging(r.ticker),
+          "drop-before": dropBefore(r.ticker),
+          "drop-after": dropAfter(r.ticker),
         }}
         data-symbol-full={r.ticker}
-        data-dnd-section={section ?? ""}
-        data-dnd-index={index()}
+        data-item-id={r.ticker}
+        aria-selected={isSelected(r) || undefined}
         draggable={true}
-        onClick={() => selectRow(r.ticker)}
+        onClick={(e) => {
+          if (clickItem(e, r.ticker)) selectRow(r.ticker);
+        }}
         onContextMenu={(e) => openContext(e, r, section)}
-        onDragStart={(e) => onRowDragStart(e, r, section)}
+        onDragStart={(e) => onItemDragStart(e, r.ticker)}
       >
         <Show when={flagOf(r.ticker)}>{(f) => <FlagMarker flag={f()} />}</Show>
         <Show when={settings().logo}>
@@ -1463,24 +1553,20 @@ export function Watchlist(props: Props) {
             onDrop={onRowsDrop}
             onDragEnd={onRowsDragEnd}
           >
+            <For each={extras()}>
+              {(r) => tileRow(r, () => watchlistStore.removeExtra(r.ticker), null)}
+            </For>
             <For each={groups()}>
               {(g) => (
                 <>
                   {groupHeader(g)}
                   <Show when={!isCollapsed(g.name)}>
                     <For each={g.rows}>
-                      {(r, i) =>
-                        tileRow(r, () => removeRow(g.name, r.ticker), g.name, i, () => i() === g.rows.length - 1)
-                      }
+                      {(r) => tileRow(r, () => removeRow(g.name, r.ticker), g.name)}
                     </For>
                   </Show>
                 </>
               )}
-            </For>
-            <For each={extras()}>
-              {(r, i) =>
-                tileRow(r, () => watchlistStore.removeExtra(r.ticker), null, i, () => i() === extras().length - 1)
-              }
             </For>
           </div>
           </>
@@ -1570,24 +1656,20 @@ export function Watchlist(props: Props) {
           onDrop={onRowsDrop}
           onDragEnd={onRowsDragEnd}
         >
+          <For each={extras()}>
+            {(r) => tableRow(r, () => watchlistStore.removeExtra(r.ticker), null)}
+          </For>
           <For each={groups()}>
             {(g) => (
               <>
                 {groupHeader(g)}
                 <Show when={!isCollapsed(g.name)}>
                   <For each={g.rows}>
-                    {(r, i) =>
-                      tableRow(r, () => removeRow(g.name, r.ticker), g.name, i, () => i() === g.rows.length - 1)
-                    }
+                    {(r) => tableRow(r, () => removeRow(g.name, r.ticker), g.name)}
                   </For>
                 </Show>
               </>
             )}
-          </For>
-          <For each={extras()}>
-            {(r, i) =>
-              tableRow(r, () => watchlistStore.removeExtra(r.ticker), null, i, () => i() === extras().length - 1)
-            }
           </For>
         </div>
       </Show>
