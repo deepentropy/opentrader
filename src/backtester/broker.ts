@@ -351,7 +351,17 @@ export class Broker {
     const orderPrice = stop !== null ? this.roundOrderPrice(stop, buy, true) : limit !== null ? this.roundOrderPrice(limit, buy, false) : null;
     const explicit = val(opts.qty);
     const sizePrice = this.sizingPrice(buy, orderPrice, stop !== null);
-    const qty = explicit !== null ? this.checkQty(explicit, fn) : this.defaultQty(sizePrice, fn);
+    let qty: number;
+    try {
+      qty = explicit !== null ? this.checkQty(explicit, fn) : this.defaultQty(sizePrice, fn);
+    } catch (e) {
+      // A limit order with no valid default size (price at zero or below, equity below zero) is no order and no
+      // error in the reference app (pivot-points: levels below zero, and no trade once the capital is lost), where
+      // a stop or market order stops the script (RE10024, RE10141).
+      if (!(e instanceof StrategyRuntimeError) || explicit !== null || limit === null) throw e;
+      this.entries.delete(id);
+      return;
+    }
     const prev = this.entries.get(id);
     const pos = this.positionSize;
     this.entries.set(id, {
