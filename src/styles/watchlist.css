@@ -190,6 +190,7 @@
  * column, whose header cell stops 8px short of the row). Hence 12px right
  * padding here against the rows' 8px, plus 4px more on the last cell. */
 .watchlist-column-headers {
+  position: relative; /* anchors the back-to-own-order button */
   height: 28px;
   display: grid;
   grid-template-columns: 1fr 70px 60px 50px;
@@ -375,6 +376,32 @@
 }
 .watchlist-sort-arrow.desc {
   transform: scaleY(-1);
+}
+/* Back to the list's own order: 18×24 at the right end of the header, shown
+ * while the list is sorted. */
+.watchlist-sort-reset-wrap {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  height: 24px;
+}
+.watchlist-sort-reset {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary, #8c8c8c);
+  cursor: default;
+}
+.watchlist-sort-reset:hover {
+  color: var(--color-main-text, #dbdbdb);
+}
+.watchlist-sort-reset svg {
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 .watchlist-rows {
@@ -847,14 +874,24 @@
 .watchlist-sort-item:hover {
   background-color: var(--color-popup-element-background-hover, #2e2e2e);
 }
-.watchlist-sort-item.selected {
-  color: var(--color-accent, #2962ff);
+.watchlist-sort-item:disabled {
+  color: var(--color-text-disabled, #4a4a4a);
+  background-color: transparent;
 }
-.watchlist-sort-item-check {
-  width: 12px;
+.watchlist-sort-item-icon {
+  display: inline-flex;
   flex-shrink: 0;
-  font-size: 11px;
-  text-align: center;
+  margin: -6px 0 -6px -4px;
+}
+.watchlist-sort-item-icon svg {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+.watchlist-sort-separator {
+  height: 1px;
+  margin: 4px -4px;
+  background-color: var(--color-divider-line-primary, #3d3d3d);
 }
 
 /* Two-line tile row. */

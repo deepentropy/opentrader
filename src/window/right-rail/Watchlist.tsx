@@ -227,15 +227,12 @@ const COL_SORT: Record<HeaderCol, SortField> = {
   volume: "volume",
   rchp: "ext",
 };
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: "default", label: "Default" },
-  { key: "symbol-asc", label: "Symbol A→Z" },
-  { key: "symbol-desc", label: "Symbol Z→A" },
-  { key: "change-desc", label: "Change % ↓" },
-  { key: "change-asc", label: "Change % ↑" },
-  { key: "last-desc", label: "Price ↓" },
-  { key: "last-asc", label: "Price ↑" },
-  { key: "volume-desc", label: "Volume ↓" },
+/** Tile-view "Sort by" menu: each field has an ascending and a descending row. */
+const SORT_MENU_FIELDS: { field: SortField; label: string }[] = [
+  { field: "change", label: "Change %" },
+  { field: "chg", label: "Change" },
+  { field: "last", label: "Last" },
+  { field: "symbol", label: "Symbol" },
 ];
 /** Parse a stored display string ("−3.07%", "1,641.64") to a number. */
 function numFromStr(s?: string): number {
@@ -380,11 +377,16 @@ export function Watchlist(props: Props) {
   // "Open list…" picker + "Add alert…" dialog (watchlist menu actions).
   const [openListOpen, setOpenListOpen] = createSignal(false);
   const [alertOpen, setAlertOpen] = createSignal(false);
-  // Tile-view "Sort by" menu. The sort order lives per-list in the store (each
-  // list remembers its own); these read/write the active list.
+  // Sort (table header, tile-view "Sort by" menu). A sort re-orders the rows of
+  // the active list once, with the values of that moment, and the result is
+  // the list's order: later price ticks move no row. "default" goes back to
+  // the order from before the sort.
   const sortBy = (): SortKey => active()?.sort ?? "default";
-  const setSortBy = (next: SortKey | ((cur: SortKey) => SortKey)): void =>
-    watchlistStore.setSort(typeof next === "function" ? next(sortBy()) : next);
+  const setSortBy = (next: SortKey | ((cur: SortKey) => SortKey)): void => {
+    const key = typeof next === "function" ? next(sortBy()) : next;
+    if (key === "default") watchlistStore.resetSort();
+    else watchlistStore.applySort(key, (rows) => sortRows(key, rows));
+  };
   const [sortMenuOpen, setSortMenuOpen] = createSignal(false);
   let sortWrapEl: HTMLDivElement | undefined;
   onMount(() => {
@@ -624,9 +626,7 @@ export function Watchlist(props: Props) {
       case "ext": return q?.extChangePercent ?? numFromStr(r.prePostChange);
     }
   };
-  const sortRows = (rows: Row[]): Row[] => {
-    const key = sortBy();
-    if (key === "default") return rows;
+  const sortRows = (key: Exclude<SortKey, "default">, rows: Row[]): Row[] => {
     const dash = key.lastIndexOf("-");
     const field = key.slice(0, dash);
     const sign = key.slice(dash + 1) === "asc" ? 1 : -1;
@@ -654,12 +654,11 @@ export function Watchlist(props: Props) {
     });
     return copy;
   };
-  const sortLabel = () => SORT_OPTIONS.find((o) => o.key === sortBy())?.label ?? "Default";
 
   // ── Table-header sort ── clicking a column header sorts by it: first click
-  // ascending, then it toggles asc⇄desc (no header gesture returns to manual
-  // order; the tile "Sort by → Default" clears it). Sorting runs within each
-  // section (sortRows is applied per-group).
+  // ascending, then it toggles asc⇄desc. While the list is sorted a button at
+  // the right end of the header returns to the order from before the sort.
+  // Sorting runs within each section.
   const sortDirFor = (col: HeaderCol): "asc" | "desc" | null => {
     const f = COL_SORT[col];
     const cur = sortBy();
@@ -670,8 +669,7 @@ export function Watchlist(props: Props) {
     setSortBy((cur) => (cur === `${f}-asc` ? `${f}-desc` : `${f}-asc`));
   };
   // The sort arrow and the blue label show for 5 s only, each time the sort
-  // lands on a column (also on mount with a saved sort), then fade back to
-  // the plain header.
+  // lands on a column, then fade back to the plain header.
   const [flashField, setFlashField] = createSignal<SortField | null>(null);
   createEffect(() => {
     const key = sortBy();
@@ -777,19 +775,14 @@ export function Watchlist(props: Props) {
 
   // ── Drag-and-drop reorder ── symbols can be dragged within a section, across
   // sections, and to/from the ungrouped extras. `null`
-  // section = extras. Disabled while a non-default sort is active, since manual
-  // order can't survive a sort. `dragRow` is the symbol in flight; `dropTarget`
-  // is the resolved insertion point, used both for the store move and the
-  // drop-indicator line.
+  // section = extras. A sorted list is dragged like any other: the move ends
+  // the sort and the order on screen is the list's order. `dragRow` is the
+  // symbol in flight; `dropTarget` is the resolved insertion point, used both
+  // for the store move and the drop-indicator line.
   const [dragRow, setDragRow] = createSignal<{ ticker: string; from: string | null } | null>(null);
   const [dropTarget, setDropTarget] = createSignal<{ section: string | null; index: number } | null>(null);
-  const canDrag = () => sortBy() === "default";
 
   const onRowDragStart = (e: DragEvent, r: Row, from: string | null) => {
-    if (!canDrag()) {
-      e.preventDefault();
-      return;
-    }
     setDragRow({ ticker: r.ticker, from });
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
@@ -992,8 +985,8 @@ export function Watchlist(props: Props) {
   const orderedRows = () =>
     groups()
       .filter((g) => !isCollapsed(g.name))
-      .flatMap((g) => sortRows(g.rows))
-      .concat(sortRows(extras()));
+      .flatMap((g) => g.rows)
+      .concat(extras());
   const navigate = (dir: 1 | -1) => {
     const rows = orderedRows();
     if (!props.onSymbolSelect || rows.length === 0) return;
@@ -1191,7 +1184,7 @@ export function Watchlist(props: Props) {
       data-dnd-index={index()}
       aria-selected={isSelected(r) || undefined}
       style={{ "grid-template-columns": gridTemplate() }}
-      draggable={canDrag()}
+      draggable={true}
       onClick={() => selectRow(r.ticker)}
       onContextMenu={(e) => openContext(e, r, section)}
       onDragStart={(e) => onRowDragStart(e, r, section)}
@@ -1247,7 +1240,7 @@ export function Watchlist(props: Props) {
         data-symbol-full={r.ticker}
         data-dnd-section={section ?? ""}
         data-dnd-index={index()}
-        draggable={canDrag()}
+        draggable={true}
         onClick={() => selectRow(r.ticker)}
         onContextMenu={(e) => openContext(e, r, section)}
         onDragStart={(e) => onRowDragStart(e, r, section)}
@@ -1409,7 +1402,6 @@ export function Watchlist(props: Props) {
                 classList={{ "is-active": sortMenuOpen() || sortBy() !== "default" }}
                 aria-haspopup="menu"
                 aria-expanded={sortMenuOpen()}
-                title={`Sort by${sortBy() === "default" ? "" : ` — ${sortLabel()}`}`}
                 onClick={() => setSortMenuOpen((o) => !o)}
               >
                 <span>Sort by</span>
@@ -1417,24 +1409,44 @@ export function Watchlist(props: Props) {
               </button>
               <Show when={sortMenuOpen()}>
                 <div class="watchlist-sort-menu" role="menu">
-                  <For each={SORT_OPTIONS}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="watchlist-sort-item"
+                    disabled={sortBy() === "default"}
+                    onClick={() => {
+                      setSortBy("default");
+                      setSortMenuOpen(false);
+                    }}
+                  >
+                    Customized order
+                  </button>
+                  <For each={SORT_MENU_FIELDS}>
                     {(opt) => (
-                      <button
-                        type="button"
-                        role="menuitemradio"
-                        class="watchlist-sort-item"
-                        classList={{ selected: sortBy() === opt.key }}
-                        aria-checked={sortBy() === opt.key}
-                        onClick={() => {
-                          setSortBy(opt.key);
-                          setSortMenuOpen(false);
-                        }}
-                      >
-                        <span class="watchlist-sort-item-check" aria-hidden="true">
-                          {sortBy() === opt.key ? "✓" : ""}
-                        </span>
-                        <span>{opt.label}</span>
-                      </button>
+                      <>
+                        <div class="watchlist-sort-separator" role="separator" />
+                        <For each={["asc", "desc"] as const}>
+                          {(dir) => (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              class="watchlist-sort-item"
+                              data-name={`${opt.field}_${dir}`}
+                              onClick={() => {
+                                setSortBy(`${opt.field}-${dir}`);
+                                setSortMenuOpen(false);
+                              }}
+                            >
+                              <span
+                                class="watchlist-sort-item-icon"
+                                aria-hidden="true"
+                                innerHTML={dir === "asc" ? WL_ICONS.sortAsc : WL_ICONS.sortDesc}
+                              />
+                              <span>{opt.label}</span>
+                            </button>
+                          )}
+                        </For>
+                      </>
                     )}
                   </For>
                 </div>
@@ -1456,7 +1468,7 @@ export function Watchlist(props: Props) {
                 <>
                   {groupHeader(g)}
                   <Show when={!isCollapsed(g.name)}>
-                    <For each={sortRows(g.rows)}>
+                    <For each={g.rows}>
                       {(r, i) =>
                         tileRow(r, () => removeRow(g.name, r.ticker), g.name, i, () => i() === g.rows.length - 1)
                       }
@@ -1465,7 +1477,7 @@ export function Watchlist(props: Props) {
                 </>
               )}
             </For>
-            <For each={sortRows(extras())}>
+            <For each={extras()}>
               {(r, i) =>
                 tileRow(r, () => watchlistStore.removeExtra(r.ticker), null, i, () => i() === extras().length - 1)
               }
@@ -1534,6 +1546,19 @@ export function Watchlist(props: Props) {
               </span>
             )}
           </For>
+          <Show when={sortBy() !== "default"}>
+            <span class="watchlist-sort-reset-wrap">
+              <Tooltip text="Return to custom watchlist order" side="top" farther>
+                <button
+                  type="button"
+                  class="watchlist-sort-reset"
+                  aria-label="Return to custom watchlist order"
+                  onClick={() => setSortBy("default")}
+                  innerHTML={WL_ICONS.sortReset}
+                />
+              </Tooltip>
+            </span>
+          </Show>
         </div>
         <div
           class="watchlist-rows"
@@ -1550,7 +1575,7 @@ export function Watchlist(props: Props) {
               <>
                 {groupHeader(g)}
                 <Show when={!isCollapsed(g.name)}>
-                  <For each={sortRows(g.rows)}>
+                  <For each={g.rows}>
                     {(r, i) =>
                       tableRow(r, () => removeRow(g.name, r.ticker), g.name, i, () => i() === g.rows.length - 1)
                     }
@@ -1559,7 +1584,7 @@ export function Watchlist(props: Props) {
               </>
             )}
           </For>
-          <For each={sortRows(extras())}>
+          <For each={extras()}>
             {(r, i) =>
               tableRow(r, () => watchlistStore.removeExtra(r.ticker), null, i, () => i() === extras().length - 1)
             }

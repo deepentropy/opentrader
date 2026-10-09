@@ -34,8 +34,11 @@ export type WatchList = {
   /** Flagged/favourited — drives the "Flagged lists" section of the list
    *  manager (favourite-watchlist star). */
   favorite: boolean;
-  /** Per-list sort order (table-header / "Sort by" menu). "default" keeps the
-   *  list's manual/file order. Each list remembers its own. */
+  /** The sort last applied to the list (table-header / "Sort by" menu), or
+   *  "default". A sort re-orders the rows once and the new order is the
+   *  list's order; this field only marks which column it was, for the header
+   *  arrow and the back-to-own-order button. Not saved: any change of the
+   *  list's content, a list switch or a restart sets it back to "default". */
   sort: SortKey;
 };
 
@@ -94,7 +97,7 @@ function load(): StoreShape {
           groups: l.groups ?? [],
           extras: l.extras ?? [],
           favorite: l.favorite ?? false,
-          sort: l.sort ?? "default",
+          sort: "default" as SortKey,
         }));
         parsed.alerts ??= {};
         // Repair a dangling activeId (e.g. the active list was removed).
@@ -129,7 +132,11 @@ createRoot(() => {
     try {
       kv.setItem(
         STORAGE_KEY,
-        JSON.stringify({ lists: state.lists, activeId: state.activeId, alerts: state.alerts }),
+        JSON.stringify({
+          lists: state.lists.map((l) => ({ ...l, sort: "default" })),
+          activeId: state.activeId,
+          alerts: state.alerts,
+        }),
       );
     } catch {
       /* best-effort */
@@ -189,7 +196,10 @@ createRoot(() => {
 // Live cross-window sync: when another window edits any list, re-load the whole
 // shape (setState merges lists/activeId/alerts; the autosave effect above then
 // re-serialises to an identical string, which kv.setItem dedups to a no-op).
-kv.onExternalChange(STORAGE_KEY, () => setState(load()));
+kv.onExternalChange(STORAGE_KEY, () => {
+  beforeSort.clear();
+  setState(load());
+});
 
 // ── Colour lists ("Red list", "Blue list", …) ────────────────────────────
 // The reference app's flagged lists: one list per flag colour holding the
@@ -335,10 +345,26 @@ export function clearFiredForList(listId: string): void {
 
 const activeIndex = () => state.lists.findIndex((l) => l.id === state.activeId);
 
-/** Mutate the active list in place (via solid-store `produce`). */
-function mutateActive(fn: (l: WatchList) => void): void {
+/** Row order of a list from before its first sort (tickers per section, then
+ *  the ungrouped rows), keyed by list id. Held in memory only. */
+const beforeSort = new Map<string, { groups: string[][]; extras: string[] }>();
+
+/** Forget a list's sort: its current order is its own order from now on. */
+function dropSort(id: string): void {
+  beforeSort.delete(id);
+  const i = state.lists.findIndex((l) => l.id === id);
+  if (i >= 0 && state.lists[i].sort !== "default") setState("lists", i, "sort", "default");
+}
+
+/** Mutate the active list in place (via solid-store `produce`). A change of
+ *  the list's content ends its sort (`keepSort` for the few that do not
+ *  touch the rows). */
+function mutateActive(fn: (l: WatchList) => void, keepSort = false): void {
   const i = activeIndex();
-  if (i >= 0) setState("lists", i, produce(fn));
+  if (i >= 0) {
+    setState("lists", i, produce(fn));
+    if (!keepSort) dropSort(state.lists[i].id);
+  }
   syncColorFlags();
 }
 
@@ -376,7 +402,10 @@ export const watchlistStore = {
   active: (): WatchList | undefined => state.lists.find((l) => l.id === state.activeId),
 
   setActive(id: string): void {
-    if (state.lists.some((l) => l.id === id)) setState("activeId", id);
+    if (!state.lists.some((l) => l.id === id)) return;
+    // The list left behind keeps its sorted order, not its sort state.
+    if (id !== state.activeId) dropSort(state.activeId);
+    setState("activeId", id);
   },
 
   /** Create a new empty list and switch to it; returns its id. */
@@ -396,7 +425,7 @@ export const watchlistStore = {
     const id = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id, name: nm, flag: null, emoji: null, groups: cloneGroups(a.groups), extras: a.extras.map((r) => ({ ...r })), favorite: false, sort: a.sort },
+      { id, name: nm, flag: null, emoji: null, groups: cloneGroups(a.groups), extras: a.extras.map((r) => ({ ...r })), favorite: false, sort: "default" },
     ]);
     setState("activeId", id);
     return id;
@@ -411,7 +440,7 @@ export const watchlistStore = {
     const cid = uniqueId(nm);
     setState("lists", (ls) => [
       ...ls,
-      { id: cid, name: nm, flag: null, emoji: null, groups: cloneGroups(src.groups), extras: src.extras.map((r) => ({ ...r })), favorite: false, sort: src.sort },
+      { id: cid, name: nm, flag: null, emoji: null, groups: cloneGroups(src.groups), extras: src.extras.map((r) => ({ ...r })), favorite: false, sort: "default" },
     ]);
     return cid;
   },
@@ -464,17 +493,47 @@ export const watchlistStore = {
     return id;
   },
 
-  /** Set the active list's sort order (persisted with the list). */
-  setSort(key: SortKey): void {
+  /** Sort the active list: `sorter` re-orders the rows of each section and of
+   *  the ungrouped rows, once, and that order becomes the list's order. The
+   *  order from before the first sort is kept for `resetSort`. */
+  applySort(key: Exclude<SortKey, "default">, sorter: (rows: Row[]) => Row[]): void {
     mutateActive((l) => {
+      if (l.sort === "default") {
+        beforeSort.set(l.id, {
+          groups: l.groups.map((g) => g.rows.map((r) => r.ticker)),
+          extras: l.extras.map((r) => r.ticker),
+        });
+      }
+      for (const g of l.groups) g.rows = sorter(g.rows);
+      l.extras = sorter(l.extras);
       l.sort = key;
-    });
+    }, true);
+  },
+  /** Back to the order from before the sort. */
+  resetSort(): void {
+    mutateActive((l) => {
+      const snap = beforeSort.get(l.id);
+      if (snap) {
+        // Rows not in the snapshot keep their place after the known ones.
+        const restore = (rows: Row[], order: string[] | undefined): Row[] => {
+          const at = new Map((order ??= []).map((t, i) => [t, i]));
+          const pos = (r: Row) => at.get(r.ticker) ?? order.length;
+          return [...rows].sort((a, b) => pos(a) - pos(b));
+        };
+        l.groups.forEach((g, i) => {
+          g.rows = restore(g.rows, snap.groups[i]);
+        });
+        l.extras = restore(l.extras, snap.extras);
+      }
+      l.sort = "default";
+    }, true);
+    beforeSort.delete(state.activeId);
   },
 
   renameActive(name: string): void {
     mutateActive((l) => {
       l.name = name.trim() || l.name;
-    });
+    }, true);
   },
   clearActive(): void {
     mutateActive((l) => {
@@ -606,6 +665,7 @@ export const watchlistStore = {
     setState("lists", i, produce((wl: WatchList) => {
       wl.extras.push({ ...row, flag: null });
     }));
+    dropSort(state.lists[i].id);
     syncColorFlags();
     return true;
   },
@@ -627,6 +687,7 @@ export const watchlistStore = {
       for (const g of wl.groups) g.rows = g.rows.filter(keep);
       wl.extras = wl.extras.filter(keep);
     }));
+    dropSort(state.lists[i].id);
     syncColorFlags();
   },
   /** Create a new list seeded with one row WITHOUT switching the active list

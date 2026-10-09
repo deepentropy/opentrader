@@ -176,6 +176,12 @@ export const WL_ICONS = {
   // ascending, else up.
   sortTipUp: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7 9" width="7" height="9" fill="none"><path stroke="currentColor" d="M6 4L3.5 1.5L1 4M3.5 9V2"/></svg>',
   sortTipDown: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 7 9" width="7" height="9" fill="none"><path stroke="currentColor" d="M6 5L3.5 7.5L1 5M3.5 7.5V0"/></svg>',
+  // Tile-view "Sort by" menu rows (vb 28): an arrow next to three bars.
+  sortAsc: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none"><path stroke="currentColor" d="M8.5 21V8M4.5 12l4-4 4 4M16 8.5h8M16 13.5h6M16 18.5h4"/></svg>',
+  sortDesc: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none"><path stroke="currentColor" d="M8.5 7v13M4.5 16l4 4 4-4M16 8.5h8M16 13.5h6M16 18.5h4"/></svg>',
+  // Back to the list's own order, shown in the table header of a sorted list
+  // (vb 18): an open circle turning back to its start.
+  sortReset: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" fill="none"><path stroke="currentColor" d="M4.5 10a4.5 4.5 0 1 0 4.5-4.5H7.5"/><path fill="currentColor" d="M9.5 3v5L6 5.5z"/></svg>',
 };
 
 /* Watchlists dropdown-menu icons — 28×28 row icons + the 18×18 favourite
