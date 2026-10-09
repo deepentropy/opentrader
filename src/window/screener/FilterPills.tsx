@@ -13,8 +13,8 @@
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
-import { FLAG_HEX } from "../../data/watchlist";
-import { isDeletedList, watchlistStore } from "../../data/watchlist-store";
+import { FLAG_HEX, FLAG_SORT_ORDER } from "../../data/watchlist";
+import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { COLUMN_BY_ID, OPERATION_ICON, emptyFilter, type ColumnRef, type Filter } from "../../data/screener-catalog";
 import { isActive, pillOperation, pillTexts } from "../../data/screener-query";
 import { screenerStore } from "../../data/screener-store";
@@ -67,9 +67,18 @@ export function FilterPills(props: Props) {
     const id = screen().watchlistId;
     return id ? watchlistStore.lists().find((l) => l.id === id) : undefined;
   };
+  // The lists to screen on: the colour lists first, in colour order (the Red
+  // list always, the others when they hold symbols), then the user's lists
+  // by name; the chosen one goes first. "Deleted symbols" is not one of them.
   const watchlistOptions = () => {
-    // "Deleted symbols" is not a list to screen on.
-    const lists = watchlistStore.shownLists().filter((l) => !isDeletedList(l.id));
+    const all = watchlistStore.lists();
+    const isColor = (l: WatchList) => l.id.startsWith("color-");
+    const size = (l: WatchList) => l.extras.length + l.groups.reduce((n, g) => n + g.rows.length, 0);
+    const at = (l: WatchList) => FLAG_SORT_ORDER.indexOf(l.flag!);
+    const lists = [
+      ...all.filter((l) => isColor(l) && (l.flag === "red" || size(l) > 0)).sort((a, b) => at(a) - at(b)),
+      ...all.filter((l) => !isColor(l) && !isDeletedList(l.id)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    ];
     const sel = lists.findIndex((l) => l.id === screen().watchlistId);
     if (sel > 0) lists.unshift(...lists.splice(sel, 1));
     return lists;
