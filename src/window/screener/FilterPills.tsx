@@ -14,7 +14,7 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { FLAG_HEX } from "../../data/watchlist";
-import { watchlistStore } from "../../data/watchlist-store";
+import { isDeletedList, watchlistStore } from "../../data/watchlist-store";
 import { COLUMN_BY_ID, OPERATION_ICON, emptyFilter, type ColumnRef, type Filter } from "../../data/screener-catalog";
 import { isActive, pillOperation, pillTexts } from "../../data/screener-query";
 import { screenerStore } from "../../data/screener-store";
@@ -68,7 +68,8 @@ export function FilterPills(props: Props) {
     return id ? watchlistStore.lists().find((l) => l.id === id) : undefined;
   };
   const watchlistOptions = () => {
-    const lists = [...watchlistStore.shownLists()];
+    // "Deleted symbols" is not a list to screen on.
+    const lists = watchlistStore.shownLists().filter((l) => !isDeletedList(l.id));
     const sel = lists.findIndex((l) => l.id === screen().watchlistId);
     if (sel > 0) lists.unshift(...lists.splice(sel, 1));
     return lists;

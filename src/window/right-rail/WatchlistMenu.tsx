@@ -18,7 +18,7 @@ import {
   type WlMenuAction,
 } from "../../data/watchlist";
 import { Icon } from "../../components/Icon";
-import { watchlistStore, type WatchList } from "../../data/watchlist-store";
+import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 
 type Props = {
   /** All saved lists + which one is active (drives the "Recently used" group). */
@@ -129,7 +129,7 @@ export function WatchlistMenu(props: Props) {
   // The recently opened lists, newest first, among the lists shown in menus
   // (the per-row star toggles the store's persisted `favorite` flag, shared
   // with the Watchlists manager + the quick-switch bar). The section is
-  // hidden while empty.
+  // hidden while empty. "Deleted symbols" is listed with no star.
   const recentLists = () => watchlistStore.recentLists().filter((l) => props.lists.some((x) => x.id === l.id));
   const groups = () => WL_MENU_GROUPS.filter((g) => !g.recentlyUsed || recentLists().length > 0);
 
@@ -156,6 +156,7 @@ export function WatchlistMenu(props: Props) {
                       <ListMarker flag={t.flag} emoji={t.emoji} name={t.name} />
                     </span>
                     <span class="ot-menu-item__label apply-overflow-tooltip">{t.name}</span>
+                    <Show when={!isDeletedList(t.id)}>
                     <span
                       role="button"
                       tabIndex={0}
@@ -180,6 +181,7 @@ export function WatchlistMenu(props: Props) {
                         size={18}
                       />
                     </span>
+                    </Show>
                   </button>
                 )}
               </For>
