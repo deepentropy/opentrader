@@ -30,6 +30,8 @@ export const ZOOM_HINT = "hint.startFocusedZoom";
 
 export const DEMONSTRATION_HINT = "hint.demonstrationCursorSelected";
 
+/** Shown after the first resize of the charts of a layout. */
+export const RESIZE_HINT = "hint.startResizingChartInLayout";
 export const PATH_HINT = "hint.finishBuildPathByDblClick";
 export const POLYLINE_HINT = "hint.finishBuildPolylineByDblClick";
 

@@ -38,6 +38,7 @@ import {
   lineToolHint,
   PATH_HINT,
   POLYLINE_HINT,
+  RESIZE_HINT,
   setLineToolHint,
   ZOOM_HINT,
 } from "../../data/hints";
@@ -266,7 +267,10 @@ export function ChartGrid(props: Props) {
     if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
     const next = drag.moved ? dragSizing() : null;
     endDrag();
-    if (next) props.onSizes?.(next);
+    if (next) {
+      props.onSizes?.(next);
+      showResizeHint();
+    }
     setDragSizing(null);
     if (isTouch(e) ? tapped : !el.matches(":hover")) setHot(null);
   };
@@ -311,6 +315,13 @@ export function ChartGrid(props: Props) {
       zoomShown = true;
       setHint({ key: ZOOM_HINT, text: "Press and hold Ctrl while zooming to maintain the chart position" });
     }
+  };
+  // Resize hint: after the first splitter drag of this layout page.
+  let resizeShown = false;
+  const showResizeHint = () => {
+    if (resizeShown || hintState(RESIZE_HINT).dismissed()) return;
+    resizeShown = true;
+    setHint({ key: RESIZE_HINT, text: "Double-click any edge to reset layout grid" });
   };
   const closeHint = (key: string) => {
     hintState(key).dismiss();
