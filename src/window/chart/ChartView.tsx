@@ -39,6 +39,15 @@ import type { IPriceLine, Logical } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
 import { chartBackgroundAt } from "./selection-markers";
 import { MOVE_STUDY_EVENT, SELECT_STUDY_EVENT, setFocusedStudySelection } from "./study-selection";
+import {
+  MAIN_SOURCE_ID,
+  TREE_HIDE_EVENT,
+  TREE_MOVE_EVENT,
+  TREE_REMOVE_EVENT,
+  setFocusedTreeSources,
+  type TreeSource,
+} from "./object-tree-sources";
+import { statusLineInputs } from "./indicators/indicator-options";
 import { flagOf, lastFlagColor, setFlag } from "../../data/symbol-flags";
 import { FlagColorPopup } from "./FlagColorPopup";
 import { ChartSyncMenu, SYNC_GROUPS } from "./ChartSyncMenu";
@@ -217,6 +226,10 @@ type Props = {
   paneOrder?: string[];
   /** Pane controls moved a pane: the new stacking order. */
   onPaneOrder?: (order: string[]) => void;
+  /** Persisted drawing order of the sources, front first (Object tree). */
+  sourceOrder?: string[];
+  /** The Object tree moved a source: the new drawing order. */
+  onSourceOrder?: (order: string[]) => void;
   /** When true, suppress all study layers without removing them from the active
    *  set (Hide-all dropdown's "Hide indicators"); restored when toggled off. */
   indicatorsHidden?: boolean;
@@ -859,6 +872,18 @@ export function ChartView(props: Props) {
     setSelectedStudy(id);
     if (props.selectedDrawingId || (props.selectedDrawingIds?.length ?? 0) > 0) props.setSelectedDrawingId?.(null);
   }
+  /** Eye of a source (legend, More menu, Object tree): the main series, a
+   *  compared symbol or a study. The state is saved with the chart. */
+  function toggleSourceHidden(id: string) {
+    if (id === MAIN_SOURCE_ID) { props.onToggleSeries?.(); return; }
+    const cmp = compareEntry(id);
+    if (cmp) { props.onCompareChange?.(id, { hidden: !cmp.hidden }); return; }
+    if (!controller) return;
+    const nowHidden = controller.toggleHidden(id);
+    props.onIndicatorSettings?.(id, { hidden: nowHidden || undefined });
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+    if (isStrategyId(id)) applyStrategyMarkers();
+  }
   /** Remove a study or a compared symbol (same path as the legend trash). */
   function removeStudy(id: string) {
     if (compareEntry(id)) props.onRemoveCompare?.(id);
@@ -881,13 +906,7 @@ export function ChartView(props: Props) {
       showValues={appearance().legendIndValues}
       bgColor={appearance().bg}
       bgOpacity={appearance().legendIndBgOpacity}
-      onToggleHide={(id) => {
-        const cmp = compareEntry(id);
-        if (cmp) { props.onCompareChange?.(id, { hidden: !cmp.hidden }); return; }
-        controller?.toggleHidden(id);
-        refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-        if (isStrategyId(id)) applyStrategyMarkers();
-      }}
+      onToggleHide={toggleSourceHidden}
       onSettings={(id) => {
         selectStudy(id);
         if (compareEntry(id)) setCompareSettingsFor(id);
@@ -1338,11 +1357,7 @@ export function ChartView(props: Props) {
     }
     nodes.push(
       { kind: "item", id: "hide", label: row.eyeHidden ? "Show" : "Hide", icon: row.eyeHidden ? CtxIcons.show : CtxIcons.hide,
-        onSelect: () => {
-          controller?.toggleHidden(id);
-          refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-          if (isStrategyId(id)) applyStrategyMarkers();
-        } },
+        onSelect: () => toggleSourceHidden(id) },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
         onSelect: () => props.onRemoveIndicator?.(id) },
       { kind: "separator" },
@@ -1924,6 +1939,8 @@ export function ChartView(props: Props) {
     // Legend eye (series `visible`): a rebuilt series keeps the hidden state
     // (the live toggle is the seriesHidden effect below).
     series.applyOptions({ visible: !untrack(() => props.seriesHidden) });
+    // A rebuilt series is created in front: back to its place in the order.
+    scheduleSourceOrder();
     // Scales → Price labels → Symbol: last-value axis label + price line
     // (picker enum 0/1/2 → library Solid/Dashed/Dotted). "Name" puts the
     // ticker inside the price-scale label (the library's series title).
@@ -2897,6 +2914,7 @@ export function ChartView(props: Props) {
     controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
     controller.setLastBarOpenProbe(lastBarForming);
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
+    controller.setSeriesChangedHook(scheduleSourceOrder);
     setChartReady((n) => n + 1);
 
     hostW = host.clientWidth;
@@ -4409,6 +4427,7 @@ export function ChartView(props: Props) {
   }
   function renderCompare(layer: CompareLayer) {
     layer.render(currentTokens(), compareVisible(layer.entry), compareFormat(layer.entry), mainTimeSet());
+    scheduleSourceOrder();
   }
   /** Main bars changed (load, scroll-back): redraw the compared symbols on
    *  the new bar times. */
@@ -4595,6 +4614,122 @@ export function ChartView(props: Props) {
   };
   window.addEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest));
   onCleanup(() => window.removeEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest)));
+  // ── Drawing order of the sources (Object tree) ─────────────────────────
+  /** Sources front first: the saved order, then the ones it does not list
+   *  (by default the main series in front, then the studies in list order,
+   *  then the compared symbols; a new source goes behind the others). */
+  function sourceOrderIds(): string[] {
+    const present = [MAIN_SOURCE_ID, ...indLegend().map((r) => r.id)];
+    const saved = (props.sourceOrder ?? []).filter((id) => present.includes(id));
+    return [...saved, ...present.filter((id) => !saved.includes(id))];
+  }
+  /** Series of every pane put in the sources' order (the library draws a
+   *  pane's series in their order, the last one in front). A series with no
+   *  known source (a helper series) stays with the source before it. */
+  function applySourceOrder() {
+    if (!chart) return;
+    const order = untrack(sourceOrderIds);
+    const rank = (id: string) => {
+      const k = order.indexOf(id);
+      return k < 0 ? order.length : k;
+    };
+    for (const pane of chart.panes()) {
+      const list = pane.getSeries() as ISeriesApi<SeriesType>[];
+      if (list.length < 2) continue;
+      let owner = MAIN_SOURCE_ID;
+      const keyed = list.map((s, i) => {
+        const id = s === (series as unknown) ? MAIN_SOURCE_ID : studyOfSeries(s);
+        if (id) owner = id;
+        return { s, i, r: rank(owner) };
+      });
+      const sorted = keyed.slice().sort((a, b) => b.r - a.r || a.i - b.i);
+      if (sorted.every((k, i) => k.i === i)) continue;
+      sorted.forEach((k, i) => k.s.setSeriesOrder(i));
+    }
+  }
+  let sourceOrderQueued = false;
+  /** Re-apply the order once after the current batch of redraws (a redrawn
+   *  source re-creates its series in front). */
+  function scheduleSourceOrder() {
+    if (sourceOrderQueued) return;
+    sourceOrderQueued = true;
+    queueMicrotask(() => {
+      sourceOrderQueued = false;
+      applySourceOrder();
+    });
+  }
+  createEffect(() => {
+    chartReady();
+    props.sourceOrder;
+    scheduleSourceOrder();
+  });
+  /** Object tree rows of this chart: per pane, front source first. */
+  const treeSources = createMemo<TreeSource[]>(() => {
+    const { ticker, exchange } = splitSymbol(props.symbol ?? "");
+    const rows = indLegend();
+    const out: TreeSource[] = [];
+    for (const id of sourceOrderIds()) {
+      if (id === MAIN_SOURCE_ID) {
+        out.push({
+          id,
+          kind: "series",
+          title: `${exchange ? `${ticker} · ${exchange}` : ticker}, ${props.interval ?? "1D"}`,
+          hidden: !!props.seriesHidden,
+          pane: 0,
+        });
+        continue;
+      }
+      const row = rows.find((r) => r.id === id);
+      if (!row) continue;
+      const entry = row.compare ? undefined : getIndicatorEntry(id);
+      const inputs = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ") : "";
+      out.push({
+        id,
+        kind: row.compare ? "compare" : "study",
+        title: inputs ? `${row.title} (${inputs})` : row.title,
+        hidden: row.eyeHidden,
+        pane: row.pane,
+      });
+    }
+    return out.sort((a, b) => a.pane - b.pane);
+  }, [], { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  // The focused chart publishes its sources and serves the tree's requests.
+  createEffect(() => {
+    if (props.active === false || props.shown === false) return;
+    setFocusedTreeSources(treeSources());
+  });
+  const onTreeHideRequest = (e: Event) => {
+    if (props.active === false) return;
+    const id = (e as CustomEvent<{ id: string }>).detail?.id;
+    if (id && treeSources().some((s) => s.id === id)) toggleSourceHidden(id);
+  };
+  const onTreeRemoveRequest = (e: Event) => {
+    if (props.active === false) return;
+    const id = (e as CustomEvent<{ id: string }>).detail?.id;
+    if (id && treeSources().some((s) => s.id === id && s.kind !== "series")) removeStudy(id);
+  };
+  const onTreeMoveRequest = (e: Event) => {
+    if (props.active === false) return;
+    const { id, target, below } = (e as CustomEvent<{ id: string; target: string; below: boolean }>).detail ?? {};
+    const list = treeSources();
+    const from = list.find((s) => s.id === id);
+    const to = list.find((s) => s.id === target);
+    // Within one pane (a source keeps its pane).
+    if (!from || !to || from === to || from.pane !== to.pane) return;
+    const order = sourceOrderIds().filter((x) => x !== id);
+    order.splice(order.indexOf(target) + (below ? 1 : 0), 0, id);
+    // Saved ids of sources not on the chart now ("Hide indicators") are kept.
+    const kept = (props.sourceOrder ?? []).filter((x) => !order.includes(x));
+    props.onSourceOrder?.([...order, ...kept]);
+  };
+  window.addEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
+  window.addEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
+  window.addEventListener(TREE_MOVE_EVENT, whenShown(onTreeMoveRequest));
+  onCleanup(() => {
+    window.removeEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
+    window.removeEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
+    window.removeEventListener(TREE_MOVE_EVENT, whenShown(onTreeMoveRequest));
+  });
   // Delete / Backspace remove the selected study, Escape clears it (focused
   // chart only, not while typing or with a dialog open).
   const onStudyKey = (e: KeyboardEvent) => {

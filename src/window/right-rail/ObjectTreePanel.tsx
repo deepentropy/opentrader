@@ -11,8 +11,11 @@
  * moves the drawing's z-order via App's moveDrawing (display order = topmost
  * first = reverse of the array).
  *
- * Rows: a chart-source primary row, then the active indicators (label from the
- * registry; remove via the chart's global indicators list), then the drawings.
+ * Rows, one block per chart pane: the pane's sources (main series, studies,
+ * compared symbols: published by the focused chart, front source first), then
+ * its drawings. A source row has hide (and remove, but for the main series);
+ * dragging it above / below another source of its pane changes the drawing
+ * order of the two.
  *
  * Header toolbar: copy-clone is wired to App's cloneDrawing (clones the selected
  * drawing). Manage toggles a management mode: per-row checkboxes plus bulk
@@ -21,9 +24,6 @@
  * checked drawings (a `group` tag persisted on each drawing via onUpdate) and
  * makes them adjacent, so they render under a shared header with an Ungroup
  * action. Move to puts the selected study in a new pane (study-selection.ts).
- *
- * Deferred (vs. the mock):
- *   • Per-indicator hide + settings rows.
  */
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { PanelHeader } from "../../components/PanelHeader";
@@ -32,8 +32,14 @@ import { Icon, type IconName } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { Tooltip } from "../../components/Tooltip";
 import { labelForKind, iconForKind } from "../drawings/labels";
-import { getIndicatorEntry } from "../chart/indicators/registry";
 import { focusedStudySelection, requestMoveStudy, requestSelectStudy } from "../chart/study-selection";
+import {
+  focusedTreeSources,
+  requestMoveSource,
+  requestRemoveSource,
+  requestToggleSourceHidden,
+  type TreeSource,
+} from "../chart/object-tree-sources";
 import { ChartContextMenu } from "../chart/ChartContextMenu";
 import { copyDrawing } from "../drawings/clipboard";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
@@ -184,11 +190,6 @@ type Props = {
   onRemove: (id: string) => void;
   /** Move a drawing to an absolute slot in this panel's display order. */
   onMove: (id: string, toDisplayIndex: number) => void;
-  /** Active indicator registry ids — listed below the chart-source row. */
-  indicators: string[];
-  onRemoveIndicator: (id: string) => void;
-  /** Chart-source label (e.g. "INTC, 1D") for the primary top row. */
-  chartSource?: string;
   /** Clone the selected drawing — wired to the header copy-clone button. */
   onClone: (id: string) => void;
 };
@@ -215,10 +216,13 @@ export function ObjectTreePanel(props: Props) {
   // Drag-to-reorder state: the id being dragged + which row (and which half)
   // the cursor is currently over, for the insertion-line affordance.
   const [dragId, setDragId] = createSignal<string | null>(null);
-  const [dragOver, setDragOver] = createSignal<{ index: number; below: boolean } | null>(null);
+  const [dragOver, setDragOver] = createSignal<{ id: string; below: boolean } | null>(null);
+  /** Source row (series, study, compared symbol) being dragged. */
+  const [dragSrc, setDragSrc] = createSignal<string | null>(null);
 
   function endDrag() {
     setDragId(null);
+    setDragSrc(null);
     setDragOver(null);
   }
 
@@ -317,6 +321,266 @@ export function ObjectTreePanel(props: Props) {
       props.onUpdate(withGroup(d, undefined));
     }
   }
+
+  // ── Sources ── the focused chart's main series, studies and compared
+  // symbols (object-tree-sources.ts), per pane, front source first.
+  const sources = focusedTreeSources;
+  const panes = createMemo(() => [...new Set([0, ...sources().map((s) => s.pane)])].sort((a, b) => a - b));
+  /** Pane of a drawing: its owner study's pane (the price pane without one). */
+  const paneOfDrawing = (d: Drawing) => (d.owner ? sources().find((s) => s.id === d.owner)?.pane ?? 0 : 0);
+
+  /** One source row: hide for all, remove for studies and compared symbols.
+   *  A drag puts it above / below another source of its pane (drawing order);
+   *  a double click opens its settings. */
+  const sourceRow = (s: TreeSource) => {
+    const over = () => dragOver();
+    const cls = () =>
+      "object-tree-row is-draggable" +
+      (s.kind === "series" ? " primary" : "") +
+      (focusedStudySelection()?.id === s.id ? " selected" : "") +
+      (s.hidden ? " hidden-state" : "") +
+      (dragSrc() === s.id ? " dragging" : "") +
+      (over()?.id === s.id ? (over()!.below ? " drag-over-below" : " drag-over-above") : "");
+    return (
+      <div
+        class={cls()}
+        data-name="object-tree-row"
+        data-source-id={s.id}
+        draggable={true}
+        onClick={() => { if (s.kind !== "series") requestSelectStudy(s.id); }}
+        onDblClick={() => {
+          if (s.kind === "series") window.dispatchEvent(new CustomEvent("chart-open-settings"));
+          else if (s.kind === "study") window.dispatchEvent(new CustomEvent("chart-open-study-settings", { detail: { id: s.id } }));
+        }}
+        onDragStart={(e) => {
+          setDragSrc(s.id);
+          e.dataTransfer?.setData("text/plain", s.id);
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(e) => {
+          const from = sources().find((x) => x.id === dragSrc());
+          if (!from || from.id === s.id || from.pane !== s.pane) return setDragOver(null);
+          e.preventDefault();
+          const r = e.currentTarget.getBoundingClientRect();
+          setDragOver({ id: s.id, below: e.clientY - r.top > r.height / 2 });
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const from = dragSrc();
+          const o = dragOver();
+          if (from && o) requestMoveSource(from, o.id, o.below);
+          endDrag();
+        }}
+        onDragEnd={endDrag}
+      >
+        <span class="object-tree-row-icon" aria-hidden="true">
+          <Show
+            when={s.kind === "series"}
+            fallback={<Icon name="header-indicators-metrics-and-strategies" size={18} />}
+          >
+            <span class="ot-ticker-logo ot-ticker-logo--sm">{s.title.trim().charAt(0).toUpperCase()}</span>
+          </Show>
+        </span>
+        <span class="object-tree-row-label">{s.title}</span>
+        <span class="object-tree-row-actions">
+          <button
+            type="button"
+            data-name="hide"
+            aria-label={s.hidden ? "Show" : "Hide"}
+            aria-pressed={s.hidden}
+            class="object-tree-row-action"
+            title={s.hidden ? "Show" : "Hide"}
+            onClick={(e) => { e.stopPropagation(); requestToggleSourceHidden(s.id); }}
+          >
+            <Icon name={s.hidden ? "draw-hide" : "draw-show"} size={18} />
+          </button>
+          <Show when={s.kind !== "series"}>
+            <button
+              type="button"
+              data-name="remove"
+              aria-label="Remove"
+              class="object-tree-row-action"
+              title="Remove"
+              onClick={(e) => { e.stopPropagation(); requestRemoveSource(s.id); }}
+            >
+              <Icon name="draw-trash" size={18} />
+            </button>
+          </Show>
+        </span>
+      </div>
+    );
+  };
+
+  /** Drawing rows of one pane (drag-to-reorder), topmost first. A contiguous
+   *  run of same-`group` drawings renders under a shared group header. */
+  const drawingRows = (list: () => Drawing[]) => (
+    <For each={list()}>
+              {(d, i) => {
+                const isSelected = () => props.selectedId === d.id;
+                const over = () => dragOver();
+                const grp = () => groupOf(d);
+                const headerFor = () => {
+                  const g = grp();
+                  if (!g) return null;
+                  const prev = i() > 0 ? list()[i() - 1] : null;
+                  return !prev || groupOf(prev) !== g ? g : null;
+                };
+                const cls = () =>
+                  "object-tree-row is-draggable" +
+                  (isSelected() ? " selected" : "") +
+                  (grp() ? " in-group" : "") +
+                  (d.hidden ? " hidden-state" : "") +
+                  (d.locked ? " locked-state" : "") +
+                  (dragId() === d.id ? " dragging" : "") +
+                  (over()?.id === d.id
+                    ? over()!.below
+                      ? " drag-over-below"
+                      : " drag-over-above"
+                    : "");
+                return (
+                  <>
+                  <Show when={headerFor()}>
+                    {(g) => (
+                      <div class="object-tree-group" data-name="object-tree-group">
+                        <span class="object-tree-row-icon" aria-hidden="true">
+                          <Icon name="ot-header-group" size={18} />
+                        </span>
+                        <span class="object-tree-group-label">{g()}</span>
+                        <button
+                          type="button"
+                          class="object-tree-group-ungroup"
+                          title="Ungroup"
+                          aria-label={`Ungroup ${g()}`}
+                          onClick={() => ungroup(g())}
+                        >
+                          Ungroup
+                        </button>
+                      </div>
+                    )}
+                  </Show>
+                  <div
+                    class={cls()}
+                    role="button"
+                    tabIndex={0}
+                    data-name="object-tree-row"
+                    draggable={!manage() && renamingId() !== d.id}
+                    onClick={() => {
+                      if (manage()) return toggleChecked(d.id);
+                      if (renamingId() === d.id) return;
+                      const wasSelected = isSelected();
+                      props.setSelectedId(d.id);
+                      cancelRenameTimer();
+                      if (wasSelected) {
+                        renameTimer = window.setTimeout(() => {
+                          renameTimer = 0;
+                          if (props.selectedId === d.id) setRenamingId(d.id);
+                        }, 500);
+                      }
+                    }}
+                    onDblClick={cancelRenameTimer}
+                    onDragStart={(e) => {
+                      setDragId(d.id);
+                      e.dataTransfer?.setData("text/plain", d.id);
+                      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => {
+                      // Among the drawings of one pane.
+                      const from = props.drawings.find((x) => x.id === dragId());
+                      if (!from || from.id === d.id || paneOfDrawing(from) !== paneOfDrawing(d)) return setDragOver(null);
+                      e.preventDefault();
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setDragOver({ id: d.id, below: e.clientY - r.top > r.height / 2 });
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = dragId();
+                      const o = dragOver();
+                      const at = o ? displayList().findIndex((x) => x.id === o.id) : -1;
+                      if (from && o && at >= 0) props.onMove(from, o.below ? at + 1 : at);
+                      endDrag();
+                    }}
+                    onDragEnd={endDrag}
+                  >
+                    <Show when={manage()}>
+                      <input
+                        class="object-tree-row-check"
+                        type="checkbox"
+                        checked={checked().has(d.id)}
+                        aria-label="Select drawing"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggleChecked(d.id)}
+                      />
+                    </Show>
+                    <span class="object-tree-row-icon" aria-hidden="true">
+                      <Icon name={iconForKind(d.kind)} size={18} />
+                    </span>
+                    <Show when={renamingId() === d.id} fallback={<span class="object-tree-row-label">{nameOf(d)}</span>}>
+                      <input
+                        ref={(el) => queueMicrotask(() => { el.focus(); el.select(); })}
+                        class="object-tree-rename-input"
+                        type="text"
+                        value={nameOf(d)}
+                        spellcheck={false}
+                        autocomplete="off"
+                        aria-label="Rename"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Escape") { e.preventDefault(); endRename(d, false, ""); }
+                          else if (e.key === "Enter") { e.preventDefault(); endRename(d, true, e.currentTarget.value); }
+                        }}
+                        onBlur={(e) => endRename(d, true, e.currentTarget.value)}
+                      />
+                    </Show>
+                    <span class="object-tree-row-actions">
+                      <button
+                        type="button"
+                        data-name="lock"
+                        aria-label={d.locked ? "Unlock" : "Lock"}
+                        aria-pressed={!!d.locked}
+                        class="object-tree-row-action"
+                        title={d.locked ? "Unlock" : "Lock"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLocked(d);
+                        }}
+                      >
+                        <Icon name="draw-lock" size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        data-name="hide"
+                        aria-label={d.hidden ? "Show" : "Hide"}
+                        aria-pressed={!!d.hidden}
+                        class="object-tree-row-action"
+                        title={d.hidden ? "Show" : "Hide"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleHidden(d);
+                        }}
+                      >
+                        <Icon name={d.hidden ? "draw-hide" : "draw-show"} size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        data-name="remove"
+                        aria-label="Remove"
+                        class="object-tree-row-action"
+                        title="Remove"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          props.onRemove(d.id);
+                        }}
+                      >
+                        <Icon name="draw-trash" size={18} />
+                      </button>
+                    </span>
+                  </div>
+                  </>
+                );
+              }}
+            </For>
+  );
 
   return (
     <aside class="ot-rail-panel object-tree-panel" aria-label="Object tree">
@@ -455,221 +719,23 @@ export function ObjectTreePanel(props: Props) {
       </div>
       <div class="object-tree-panel-body">
         <Show when={view() === "tree"} fallback={<DataWindow />}>
-            {/* Chart-source primary row — the symbol/interval the chart renders.
-                Icon is the symbol's logo badge (the instrument logo), not a
-                colour swatch. */}
-            <Show when={props.chartSource}>
-              {(src) => (
-                <div class="object-tree-row primary" data-name="object-tree-row">
-                  <span class="object-tree-row-icon" aria-hidden="true">
-                    <span class="ot-ticker-logo ot-ticker-logo--sm">
-                      {src().trim().charAt(0).toUpperCase()}
-                    </span>
-                  </span>
-                  <span class="object-tree-row-label">{src()}</span>
-                </div>
-              )}
-            </Show>
-
-            {/* Indicator rows — label from the registry; remove via the chart's
-                global indicators list. No lock/hide (indicators have no per-row
-                hidden state yet). */}
-            <For each={props.indicators}>
-              {(id) => (
-                <div
-                  class={"object-tree-row" + (focusedStudySelection()?.id === id ? " selected" : "")}
-                  data-name="object-tree-row"
-                  onClick={() => requestSelectStudy(id)}
-                >
-                  <span class="object-tree-row-icon" aria-hidden="true">
-                    <Icon name="header-indicators-metrics-and-strategies" size={18} />
-                  </span>
-                  <span class="object-tree-row-label">{getIndicatorEntry(id)?.name ?? id}</span>
-                  <span class="object-tree-row-actions">
-                    <button
-                      type="button"
-                      data-name="remove"
-                      aria-label="Remove indicator"
-                      class="object-tree-row-action"
-                      title="Remove"
-                      onClick={(e) => { e.stopPropagation(); props.onRemoveIndicator(id); }}
-                    >
-                      <Icon name="draw-trash" size={18} />
-                    </button>
-                  </span>
-                </div>
-              )}
-            </For>
-
             {/* Empty hint only when nothing at all is on the chart. */}
-            <Show when={!props.chartSource && props.indicators.length === 0 && props.drawings.length === 0}>
+            <Show when={sources().length === 0 && props.drawings.length === 0}>
               <div class="ot-empty-state object-tree-panel-empty">No objects yet.</div>
             </Show>
 
-            {/* Drawing rows (drag-to-reorder), topmost first. A contiguous run
-                of same-`group` drawings renders under a shared group header. */}
-            <For each={displayList()}>
-              {(d, i) => {
-                const isSelected = () => props.selectedId === d.id;
-                const over = () => dragOver();
-                const grp = () => groupOf(d);
-                const headerFor = () => {
-                  const g = grp();
-                  if (!g) return null;
-                  const prev = i() > 0 ? displayList()[i() - 1] : null;
-                  return !prev || groupOf(prev) !== g ? g : null;
-                };
-                const cls = () =>
-                  "object-tree-row is-draggable" +
-                  (isSelected() ? " selected" : "") +
-                  (grp() ? " in-group" : "") +
-                  (d.hidden ? " hidden-state" : "") +
-                  (d.locked ? " locked-state" : "") +
-                  (dragId() === d.id ? " dragging" : "") +
-                  (over()?.index === i()
-                    ? over()!.below
-                      ? " drag-over-below"
-                      : " drag-over-above"
-                    : "");
-                return (
-                  <>
-                  <Show when={headerFor()}>
-                    {(g) => (
-                      <div class="object-tree-group" data-name="object-tree-group">
-                        <span class="object-tree-row-icon" aria-hidden="true">
-                          <Icon name="ot-header-group" size={18} />
-                        </span>
-                        <span class="object-tree-group-label">{g()}</span>
-                        <button
-                          type="button"
-                          class="object-tree-group-ungroup"
-                          title="Ungroup"
-                          aria-label={`Ungroup ${g()}`}
-                          onClick={() => ungroup(g())}
-                        >
-                          Ungroup
-                        </button>
-                      </div>
-                    )}
+            {/* One block per chart pane (a line between two panes): its
+                sources, then its drawings. */}
+            <For each={panes()}>
+              {(pane, k) => (
+                <>
+                  <Show when={k() > 0}>
+                    <div class="object-tree-separator" role="separator" />
                   </Show>
-                  <div
-                    class={cls()}
-                    role="button"
-                    tabIndex={0}
-                    data-name="object-tree-row"
-                    draggable={!manage() && renamingId() !== d.id}
-                    onClick={() => {
-                      if (manage()) return toggleChecked(d.id);
-                      if (renamingId() === d.id) return;
-                      const wasSelected = isSelected();
-                      props.setSelectedId(d.id);
-                      cancelRenameTimer();
-                      if (wasSelected) {
-                        renameTimer = window.setTimeout(() => {
-                          renameTimer = 0;
-                          if (props.selectedId === d.id) setRenamingId(d.id);
-                        }, 500);
-                      }
-                    }}
-                    onDblClick={cancelRenameTimer}
-                    onDragStart={(e) => {
-                      setDragId(d.id);
-                      e.dataTransfer?.setData("text/plain", d.id);
-                      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                    }}
-                    onDragOver={(e) => {
-                      if (!dragId() || dragId() === d.id) return;
-                      e.preventDefault();
-                      const r = e.currentTarget.getBoundingClientRect();
-                      setDragOver({ index: i(), below: e.clientY - r.top > r.height / 2 });
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const from = dragId();
-                      const o = dragOver();
-                      if (from && o) props.onMove(from, o.below ? o.index + 1 : o.index);
-                      endDrag();
-                    }}
-                    onDragEnd={endDrag}
-                  >
-                    <Show when={manage()}>
-                      <input
-                        class="object-tree-row-check"
-                        type="checkbox"
-                        checked={checked().has(d.id)}
-                        aria-label="Select drawing"
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={() => toggleChecked(d.id)}
-                      />
-                    </Show>
-                    <span class="object-tree-row-icon" aria-hidden="true">
-                      <Icon name={iconForKind(d.kind)} size={18} />
-                    </span>
-                    <Show when={renamingId() === d.id} fallback={<span class="object-tree-row-label">{nameOf(d)}</span>}>
-                      <input
-                        ref={(el) => queueMicrotask(() => { el.focus(); el.select(); })}
-                        class="object-tree-rename-input"
-                        type="text"
-                        value={nameOf(d)}
-                        spellcheck={false}
-                        autocomplete="off"
-                        aria-label="Rename"
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                          if (e.key === "Escape") { e.preventDefault(); endRename(d, false, ""); }
-                          else if (e.key === "Enter") { e.preventDefault(); endRename(d, true, e.currentTarget.value); }
-                        }}
-                        onBlur={(e) => endRename(d, true, e.currentTarget.value)}
-                      />
-                    </Show>
-                    <span class="object-tree-row-actions">
-                      <button
-                        type="button"
-                        data-name="lock"
-                        aria-label={d.locked ? "Unlock" : "Lock"}
-                        aria-pressed={!!d.locked}
-                        class="object-tree-row-action"
-                        title={d.locked ? "Unlock" : "Lock"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleLocked(d);
-                        }}
-                      >
-                        <Icon name="draw-lock" size={18} />
-                      </button>
-                      <button
-                        type="button"
-                        data-name="hide"
-                        aria-label={d.hidden ? "Show" : "Hide"}
-                        aria-pressed={!!d.hidden}
-                        class="object-tree-row-action"
-                        title={d.hidden ? "Show" : "Hide"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleHidden(d);
-                        }}
-                      >
-                        <Icon name={d.hidden ? "draw-hide" : "draw-show"} size={18} />
-                      </button>
-                      <button
-                        type="button"
-                        data-name="remove"
-                        aria-label="Remove"
-                        class="object-tree-row-action"
-                        title="Remove"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          props.onRemove(d.id);
-                        }}
-                      >
-                        <Icon name="draw-trash" size={18} />
-                      </button>
-                    </span>
-                  </div>
-                  </>
-                );
-              }}
+                  <For each={sources().filter((s) => s.pane === pane)}>{sourceRow}</For>
+                  {drawingRows(() => displayList().filter((d) => paneOfDrawing(d) === pane))}
+                </>
+              )}
             </For>
         </Show>
       </div>

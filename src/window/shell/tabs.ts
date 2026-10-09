@@ -27,6 +27,8 @@ export type PaneIndicatorSettings = {
   styles?: IndicatorStyleOverrides;
   /** Style-tab output / input options + Visibility tab (indicator-options.ts). */
   options?: IndicatorOptions;
+  /** Hidden with its eye (legend, Object tree). Absent = shown. */
+  hidden?: boolean;
 };
 
 /** Restore a persisted pane's `settings` only if its fingerprint matches the
@@ -117,6 +119,11 @@ export type PaneChart = {
    *  compared-symbol ids, top to bottom). Ids not listed follow; absent =
    *  studies in list order, then compared symbols. */
   paneOrder?: string[];
+  /** Drawing order of the sources (main series `_series`, study and
+   *  compared-symbol ids), front first: the Object tree order. Ids not
+   *  listed go behind the listed ones; absent = the main series in front,
+   *  then the studies in list order, then the compared symbols. */
+  sourceOrder?: string[];
   /** Chart syncing group in its layout (legend "Symbol/interval chart
    *  syncing": 0..4 = the group icons); with Symbol / Interval sync on, a
    *  change reaches only the charts of the same group. Absent = no group
@@ -266,6 +273,7 @@ export function migrateTab(raw: any): TabChart {
         p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
       compare: reviveCompare(p.compare),
       paneOrder: Array.isArray(p.paneOrder) ? p.paneOrder.filter((x): x is string => typeof x === "string") : undefined,
+      sourceOrder: Array.isArray(p.sourceOrder) ? p.sourceOrder.filter((x): x is string => typeof x === "string") : undefined,
       linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
       visibleLogicalRange:
         p.visibleLogicalRange &&

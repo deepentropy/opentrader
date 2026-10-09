@@ -27,9 +27,6 @@ type Props = {
   updateDrawing: (d: Drawing) => void;
   removeDrawing: (id: string) => void;
   moveDrawing: (id: string, toDisplayIndex: number) => void;
-  indicators: string[];
-  onRemoveIndicator: (id: string) => void;
-  chartSource?: string;
   cloneDrawing: (id: string) => void;
   /** Rail buttons shown pressed without owning the panel (screener). */
   pressedTab?: (id: string) => boolean;
@@ -122,9 +119,6 @@ export function RightRail(props: Props) {
               onUpdate={props.updateDrawing}
               onRemove={props.removeDrawing}
               onMove={props.moveDrawing}
-              indicators={props.indicators}
-              onRemoveIndicator={props.onRemoveIndicator}
-              chartSource={props.chartSource}
               onClone={props.cloneDrawing}
             />
           </Match>

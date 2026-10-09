@@ -101,7 +101,7 @@ const inputNumberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits
  *  input except bool / colour (bool, color, time and text_area inputs are
  *  hidden by default), numbers formatted, others as text,
  *  space-separated (titleInParts). */
-export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<string, unknown>): string {
+export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<string, unknown>, separator = " "): string {
   const out: string[] = [];
   for (const cfg of entry.inputConfig ?? []) {
     if (cfg.type === "bool" || cfg.type === "color") continue;
@@ -109,5 +109,5 @@ export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<s
     if (v === undefined || v === null || v === "") continue;
     out.push(typeof v === "number" ? inputNumberFormat.format(v) : String(v));
   }
-  return out.join(" ");
+  return out.join(separator);
 }

@@ -224,13 +224,19 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  opacity: 0;
 }
 
-/** Reveal actions on hover OR when the row is selected, so a selected
- *  drawing's hide-toggle is still reachable without re-hovering. */
-.object-tree-row:hover .object-tree-row-actions,
-.object-tree-row.selected .object-tree-row-actions {
+/** Actions show on hover OR when the row is selected, so a selected
+ *  drawing's hide-toggle is still reachable without re-hovering. A toggle
+ *  that is on (the eye of a hidden row, the lock of a locked row) stays
+ *  shown, so the state reads without hovering. */
+.object-tree-row-action {
+  opacity: 0;
+}
+.object-tree-row:hover .object-tree-row-action,
+.object-tree-row.selected .object-tree-row-action,
+.object-tree-row.locked-state .object-tree-row-action[data-name="lock"],
+.object-tree-row.hidden-state .object-tree-row-action[data-name="hide"] {
   opacity: 1;
 }
 
@@ -254,9 +260,9 @@
   color: var(--color-toolbar-button-text, #f0f3fa);
 }
 
-/* Active toggle — the lock on a locked row / the eye on a hidden row read as
- * "on" in the accent colour. */
-.object-tree-row.locked-state .object-tree-row-action[data-name="lock"],
-.object-tree-row.hidden-state .object-tree-row-action[data-name="hide"] {
-  color: var(--color-toolbar-button-text-active, #2962ff);
+/* Line between the blocks of two chart panes. */
+.object-tree-separator {
+  height: 1px;
+  margin: 6px 0;
+  background-color: var(--color-divider-line-primary, #3d3d3d);
 }

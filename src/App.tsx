@@ -720,7 +720,7 @@ function App() {
     if (!tab) return;
     patchTab(tabId, {
       panes: tab.panes.map((p, i) =>
-        i === paneIndex ? { ...p, indicatorSettings: { ...p.indicatorSettings, [id]: settings } } : p,
+        i === paneIndex ? { ...p, indicatorSettings: { ...p.indicatorSettings, [id]: { ...p.indicatorSettings?.[id], ...settings } } } : p,
       ),
     });
   }
@@ -1072,6 +1072,12 @@ function App() {
     const tab = tabOf(tabId);
     if (!tab) return;
     patchTab(tabId, { panes: tab.panes.map((p, i) => (i === paneIndex ? { ...p, paneOrder: order } : p)) });
+  }
+  /** Persist a pane's source drawing order (Object tree drag). */
+  function setSourceOrderForPane(tabId: string, paneIndex: number, order: string[]) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
+    patchTab(tabId, { panes: tab.panes.map((p, i) => (i === paneIndex ? { ...p, sourceOrder: order } : p)) });
   }
   function removeCompare(tabId: string, paneIndex: number, id: string) {
     const cur = tabOf(tabId)?.panes[paneIndex]?.compare ?? [];
@@ -1452,12 +1458,10 @@ function App() {
     patchActivePane({
       indicators: [...pane.indicators, id],
       ...(seed ? { indicatorSettings: { ...pane.indicatorSettings, [id]: seed } } : {}),
+      // A new study goes behind the other sources (no place kept from an
+      // earlier, removed instance of the same id).
+      ...(pane.sourceOrder?.includes(id) ? { sourceOrder: pane.sourceOrder.filter((x) => x !== id) } : {}),
     });
-  }
-  /** Remove one study instance from the focused pane. */
-  function removeIndicator(id: string) {
-    const tab = activeTab();
-    removeStudies(tab.id, tab.activePane, [id]);
   }
   /** OakScript panel: add the script to the chart, or take every instance of
    *  it off the chart. */
@@ -2484,6 +2488,7 @@ function App() {
               onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
               onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
               onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}
+              onSourceOrder={(i, order) => setSourceOrderForPane(tabId, i, order)}
               onChangeCompareSymbol={(i, id) => {
                 setCompareTarget({ tabId, paneIndex: i, id });
                 setSymbolSearchSeed(null);
@@ -2590,9 +2595,6 @@ function App() {
           updateDrawing={updateDrawing}
           removeDrawing={removeDrawing}
           moveDrawing={moveDrawingToDisplayIndex}
-          indicators={indicators()}
-          onRemoveIndicator={removeIndicator}
-          chartSource={`${symbol()}, ${interval()}`}
           cloneDrawing={cloneDrawing}
           pressedTab={(id) => id === "screener-dialog-button" && screenerPanel.open()}
         />

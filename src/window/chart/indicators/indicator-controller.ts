@@ -60,6 +60,8 @@ export type IndicatorLegendRow = {
   pane: number;
   /** Input values shown after the title (status line), "" = none. */
   inputs: string;
+  /** The study's inputs (defaults + the user's changes), for an alert on it. */
+  inputValues?: Record<string, unknown>;
   /** Style -> "Values in status line" / "Inputs in status line". */
   showValues: boolean;
   showInputs: boolean;
@@ -106,6 +108,9 @@ export class IndicatorController {
    *  listed follow, studies before pane owners. */
   private paneOrder: string[] = [];
   private lastIds: string[] = [];
+  /** A study re-created its series (full draw): the chart re-applies the
+   *  drawing order of its sources. */
+  private seriesChanged: () => void = () => {};
 
   /** Identifies the chart for studies that keep per-chart state (strategies). */
   private chartId: string;
@@ -141,6 +146,11 @@ export class IndicatorController {
     }
     this.lastIds = ids;
     this.orderPanes(ids);
+  }
+
+  /** How the chart hears that a study re-created its series. */
+  setSeriesChangedHook(hook: () => void): void {
+    this.seriesChanged = hook;
   }
 
   /** Persisted stacking order (pane controls move up / down; add order of
@@ -286,6 +296,7 @@ export class IndicatorController {
     const o = this.options.get(id) ?? defaultIndicatorOptions();
     inst.layer.setPlotOptions({ labelsOnScale: o.labelsOnScale, precision: precisionDigits(o.precision) });
     inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {}, live);
+    if (!live) this.seriesChanged();
   }
 
   /** Registry defaults merged with any user input overrides for `id`. */
@@ -326,12 +337,19 @@ export class IndicatorController {
    *  them the moment `sync()` adds its layer. Does not render on its own; only
    *  touches the ids present in `map`. Idempotent — safe to call before every
    *  sync. */
-  seedSettings(map: Record<string, { inputs?: Record<string, unknown>; styles?: IndicatorStyleOverrides; options?: unknown }>): void {
+  seedSettings(map: Record<string, { inputs?: Record<string, unknown>; styles?: IndicatorStyleOverrides; options?: unknown; hidden?: boolean }>): void {
     for (const id in map) {
       const s = map[id];
       if (s?.inputs) this.inputs.set(id, { ...s.inputs });
       if (s?.styles) this.styles.set(id, { ...s.styles });
       if (s?.options) this.options.set(id, reviveIndicatorOptions(s.options));
+      // The saved eye state; a study already drawn the other way is redrawn.
+      if (!!s?.hidden !== this.hidden.has(id)) {
+        if (s?.hidden) this.hidden.add(id); else this.hidden.delete(id);
+        const inst = this.instances.get(id);
+        const entry = getIndicatorEntry(id);
+        if (inst && !inst.owner && entry) this.renderOne(id, inst, entry, this.getBars());
+      }
     }
   }
 
@@ -352,6 +370,7 @@ export class IndicatorController {
         plots: inst.layer.legendPlots(time),
         pane: inst.overlay ? 0 : inst.paneIndex,
         inputs: entry ? statusLineInputs(entry, this.effectiveInputs(id, entry)) : '',
+        inputValues: entry ? this.effectiveInputs(id, entry) : undefined,
         showValues: o.valuesInStatusLine,
         showInputs: o.inputsInStatusLine,
         precision: precisionDigits(o.precision),
@@ -417,6 +436,11 @@ export class IndicatorController {
     this.options.set(id, cloneIndicatorOptions(options));
     this.refresh(id);
     return this.getOptions(id);
+  }
+
+  /** Hidden with its eye. */
+  isHidden(id: string): boolean {
+    return this.hidden.has(id);
   }
 
   /** Study drawing the series `s` (pane owners excluded), or null. */
