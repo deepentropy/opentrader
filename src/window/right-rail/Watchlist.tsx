@@ -1197,9 +1197,10 @@ export function Watchlist(props: Props) {
   // menu has this item set (flag toggle + colour row + add-to-list submenu +
   // note); rows are removed via the hover ×, not the menu. Section headers get
   // a Rename / Remove section / Add symbol menu.
-  // `selected` = the rows the menu acts on when the clicked row is part of a
-  // selection of several items (null = the clicked row alone).
-  const [ctxMenu, setCtxMenu] = createSignal<{ row: Row; selected: Row[] | null; section: string | null; x: number; y: number } | null>(null);
+  // `selected` = the rows the menu acts on when the clicked item is part of a
+  // selection of several items (null = the clicked row alone). A header of
+  // such a selection opens this same menu (`row` null, `section` = its name).
+  const [ctxMenu, setCtxMenu] = createSignal<{ row: Row | null; selected: Row[] | null; section: string | null; x: number; y: number } | null>(null);
   const [sectionCtx, setSectionCtx] = createSignal<{ name: string; x: number; y: number } | null>(null);
   const openContext = (e: MouseEvent, row: Row, section: string | null) => {
     e.preventDefault();
@@ -1209,19 +1210,31 @@ export function Watchlist(props: Props) {
   const openSectionContext = (e: MouseEvent, name: string) => {
     e.preventDefault();
     e.stopPropagation();
+    if (renaming() === name) return; // no menu while its name is edited
+    if (isSectionSelected(name) && selection().length > 1) {
+      setCtxMenu({ row: null, selected: selectedRows(), section: name, x: e.clientX, y: e.clientY });
+      return;
+    }
     if (!isSectionSelected(name)) selectOnly(sectionId(name));
     setSectionCtx({ name, x: e.clientX, y: e.clientY });
+  };
+  // The items the open row menu acts on, in list order: the selection
+  // (symbols and section headers) or the clicked row.
+  const ctxIds = (m: { row: Row | null; selected: Row[] | null }): string[] => {
+    if (m.selected == null) return m.row ? [m.row.ticker] : [];
+    const a = active();
+    return a ? listItems(a).filter((id) => selectedIds().has(id)) : [];
   };
   // The selected symbols, in list order (section headers left out).
   const selectedRows = () => allRows().filter((r) => selectedIds().has(r.ticker));
   // "Flag/Unflag" (same as Alt+↵): symbols that all carry a flag lose it;
   // otherwise they all take the last used colour. Unflagging several symbols
   // asks first.
-  const toggleFlags = (rows: Row[]) => {
+  const toggleFlags = (rows: Row[], ask = rows.length > 1) => {
     if (!rows.length) return;
     const color = rows.every((r) => flagOf(r.ticker)) ? null : lastFlagColor();
     const run = () => rows.forEach((r) => watchlistStore.setRowFlag(r.ticker, color));
-    if (rows.length === 1 || color) {
+    if (!ask || color) {
       run();
       return;
     }
@@ -1251,16 +1264,36 @@ export function Watchlist(props: Props) {
       ...all.filter((l) => l.id !== id).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     ];
   };
-  const toggleRowsInList = (listId: string, rows: Row[]) => {
-    const missing = rows.filter((r) => !watchlistStore.listHas(listId, r.ticker));
-    if (!missing.length) rows.forEach((r) => watchlistStore.removeRowFrom(listId, r.ticker));
-    else missing.forEach((r) => watchlistStore.addRowTo(listId, r));
+  // A section header among the items is added / removed like a symbol: added
+  // at the end of the list (the symbols after it are its rows); removed, its
+  // rows stay.
+  const toggleItemsInList = (listId: string, ids: string[]) => {
+    const missing = ids.filter((id) => !watchlistStore.listHas(listId, id));
+    if (!missing.length) {
+      for (const id of ids) {
+        if (isSectionId(id)) watchlistStore.removeSectionFrom(listId, sectionNameOf(id));
+        else watchlistStore.removeRowFrom(listId, id);
+      }
+      return;
+    }
+    for (const id of missing) {
+      const r = allRows().find((x) => x.ticker === id);
+      if (isSectionId(id)) watchlistStore.addSectionTo(listId, sectionNameOf(id));
+      else if (r) watchlistStore.addRowTo(listId, r);
+    }
   };
-  const createListWithRows = (rows: Row[]) =>
+  const createListWithItems = (ids: string[]) => {
+    const items = ids.flatMap((id): (Row | string)[] => {
+      if (isSectionId(id)) return [sectionNameOf(id)];
+      const r = allRows().find((x) => x.ticker === id);
+      return r ? [r] : [];
+    });
+    const rows = items.filter((it): it is Row => typeof it !== "string");
     promptNewWatchlist((name) => {
-      const nm = watchlistStore.createListWith(rows, name);
+      const nm = watchlistStore.createListWith(items, name);
       showToast(`Added ${rows.length === 1 ? rows[0].short : `${rows.length} symbols`} to ${nm}`);
     });
+  };
   // "Add note": the editor lives in the details pane and shows the SELECTED
   // symbol's note — select the row, then ask the pane to open its note editor.
   const openNoteFor = (row: Row) => {
@@ -1823,11 +1856,12 @@ export function Watchlist(props: Props) {
           <WatchlistContextMenu
             row={m().row}
             selected={m().selected}
+            ids={ctxIds(m())}
             x={m().x}
             y={m().y}
             lists={ctxLists()}
             listHas={(listId, ticker) => watchlistStore.listHas(listId, ticker)}
-            onToggleFlag={toggleFlags}
+            onToggleFlag={(rows) => toggleFlags(rows, m().selected != null)}
             onSetFlag={(rows, flag) => rows.forEach((r) => watchlistStore.setRowFlag(r.ticker, flag))}
             onUnflagAll={() =>
               showConfirm({
@@ -1839,14 +1873,14 @@ export function Watchlist(props: Props) {
                 onConfirm: () => watchlistStore.clearAllFlags(),
               })
             }
-            onToggleList={toggleRowsInList}
-            onCreateListWith={createListWithRows}
+            onToggleList={(listId) => toggleItemsInList(listId, ctxIds(m()))}
+            onCreateListWith={() => createListWithItems(ctxIds(m()))}
             canCompare={!!props.onAddCompare && (m().selected == null || selection().length <= 10)}
             onAddCompare={(rows) => props.onAddCompare?.(rows.map((r) => r.ticker))}
             onAddNote={openNoteFor}
             canAdd={!inDeleted()}
-            onAddSection={() => addSection(m().row.ticker)}
-            onAddSymbol={() => openAdd({ section: m().section, after: m().row.ticker })}
+            onAddSection={() => addSection(m().row?.ticker ?? sectionId(m().section!))}
+            onAddSymbol={() => openAdd(m().row ? { section: m().section, after: m().row!.ticker } : { section: m().section! })}
             onClose={() => setCtxMenu(null)}
           />
         )}

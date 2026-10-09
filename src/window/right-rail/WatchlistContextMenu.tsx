@@ -21,7 +21,9 @@
  * "Flag/Unflag all selected", the submenu "Add all selected to" (a list
  * holding only some of the symbols shows a dash), the compare row "Add all
  * selected to compare" (no such row above 10 selected items), and there is
- * no note row.
+ * no note row. A right-click on a section header that is part of such a
+ * selection opens this same menu: the header counts as an item for the list
+ * submenu (added to / removed from the target list with the symbols).
  * NO Remove / Copy / per-symbol alert here — row removal stays on the
  * hover ×. No "Financials…" row: its subsystem is not in this app, so the
  * row is omitted rather than dead.
@@ -69,14 +71,20 @@ function useMenuShell(
     const onDown = (e: PointerEvent) => {
       if (!root.contains(e.target as Node)) onClose();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    // Esc closes the menu only: the list under it keeps its selection.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      e.preventDefault();
+      onClose();
+    };
     window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
     window.addEventListener("scroll", onClose, true);
     window.addEventListener("resize", onClose);
     onCleanup(() => {
       window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", onClose, true);
       window.removeEventListener("resize", onClose);
     });
@@ -85,10 +93,15 @@ function useMenuShell(
 }
 
 type Props = {
-  row: Row;
+  /** The clicked symbol; null = the click was on a section header of the
+   *  selection. */
+  row: Row | null;
   /** The selected symbols, when the menu acts on a selection of several
    *  items; null = `row` alone. */
   selected: Row[] | null;
+  /** The items the list submenu acts on (symbols and section headers, in
+   *  list order). */
+  ids: string[];
   /** Viewport-space cursor coordinates the menu opens at. */
   x: number;
   y: number;
@@ -100,8 +113,8 @@ type Props = {
   onUnflagAll: () => void;
   /** A click on a list row: adds the symbols it misses, or removes them all
    *  when it holds every one. */
-  onToggleList: (listId: string, rows: Row[]) => void;
-  onCreateListWith: (rows: Row[]) => void;
+  onToggleList: (listId: string) => void;
+  onCreateListWith: () => void;
   /** False = no compare row (more than 10 items selected). */
   canCompare: boolean;
   onAddCompare: (rows: Row[]) => void;
@@ -122,14 +135,15 @@ export function WatchlistContextMenu(props: Props) {
   // would: root right edge ≈ innerWidth).
   const [listsLeft, setListsLeft] = createSignal(false);
 
-  const sym = () => props.row.short;
+  const sym = () => props.row?.short ?? "";
   const multi = () => props.selected != null;
-  const rows = () => props.selected ?? [props.row];
+  const rows = () => props.selected ?? (props.row ? [props.row] : []);
+  const flag = () => (!multi() && props.row ? flagOf(props.row.ticker) : null);
   const run = (fn: () => void) => { fn(); props.onClose(); };
   /** How many of the menu's symbols a list holds: all, some or none. */
   const held = (l: WatchList): "all" | "some" | "none" => {
-    const n = rows().filter((r) => props.listHas(l.id, r.ticker)).length;
-    return n === 0 ? "none" : n === rows().length ? "all" : "some";
+    const n = props.ids.filter((id) => props.listHas(l.id, id)).length;
+    return n === 0 ? "none" : n === props.ids.length ? "all" : "some";
   };
 
   return (
@@ -137,7 +151,7 @@ export function WatchlistContextMenu(props: Props) {
       ref={root}
       class="ot-popover watchlist-ctx-menu"
       role="menu"
-      aria-label={`${sym()} actions`}
+      aria-label={multi() ? "Selection actions" : `${sym()} actions`}
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 1000 }}
     >
       <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onToggleFlag(rows()))}>
@@ -153,9 +167,9 @@ export function WatchlistContextMenu(props: Props) {
             <button
               type="button"
               role="menuitemradio"
-              aria-checked={!multi() && flagOf(props.row.ticker) === c}
+              aria-checked={flag() === c}
               class="watchlist-ctx-flag-swatch"
-              classList={{ selected: !multi() && flagOf(props.row.ticker) === c }}
+              classList={{ selected: flag() === c }}
               aria-label={`Set ${c} flag`}
               onClick={() => run(() => props.onSetFlag(rows(), c))}
             >
@@ -209,7 +223,7 @@ export function WatchlistContextMenu(props: Props) {
                   aria-checked={held(l) === "some" ? "mixed" : held(l) === "all"}
                   class="ot-menu-item watchlist-ctx-list-row"
                   data-list-id={l.id}
-                  onClick={() => props.onToggleList(l.id, rows())}
+                  onClick={() => props.onToggleList(l.id)}
                 >
                   <span class="watchlist-ctx-check" classList={{ "is-checked": held(l) !== "none" }} aria-hidden="true">
                     <Show when={held(l) === "all"}>
@@ -226,7 +240,7 @@ export function WatchlistContextMenu(props: Props) {
             <Show when={props.lists.length > 0}>
               <div class="ot-popover__divider" />
             </Show>
-            <button type="button" role="menuitem" class="ot-menu-item watchlist-ctx-list-row" onClick={() => run(() => props.onCreateListWith(rows()))}>
+            <button type="button" role="menuitem" class="ot-menu-item watchlist-ctx-list-row" onClick={() => run(props.onCreateListWith)}>
               <span class="ot-menu-item__label">Create new list…</span>
             </button>
           </div>
@@ -240,8 +254,8 @@ export function WatchlistContextMenu(props: Props) {
         </button>
       </Show>
 
-      <Show when={!multi()}>
-        <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row))}>
+      <Show when={!multi() && props.row}>
+        <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row!))}>
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
           <span class="ot-menu-item__label">Add note for {sym()}</span>
         </button>

@@ -711,7 +711,13 @@ export const watchlistStore = {
     mutateActive((l) => {
       name = freeName(l.groups.map((g) => g.name), "SECTION", true);
       const g: Group = { name, rows: [] };
-      const at = before == null ? -1 : l.extras.findIndex((r) => r.ticker === before);
+      // Before a section header: an empty section in front of it.
+      const gi = before != null && isSectionId(before) ? l.groups.findIndex((x) => x.name === sectionNameOf(before)) : -1;
+      if (gi >= 0) {
+        l.groups.splice(gi, 0, g);
+        return;
+      }
+      const at =before == null ? -1 : l.extras.findIndex((r) => r.ticker === before);
       if (at >= 0) {
         g.rows = l.extras.splice(at);
         l.groups.unshift(g);
@@ -895,7 +901,8 @@ export const watchlistStore = {
   listHas(listId: string, ticker: string): boolean {
     const l = state.lists.find((x) => x.id === listId);
     if (!l) return false;
-    const m = (r: Row) => r.ticker === ticker || r.ticker === shortOf(ticker);
+    if (isSectionId(ticker)) return l.groups.some((g) => g.name === sectionNameOf(ticker));
+    const m =(r: Row) => r.ticker === ticker || r.ticker === shortOf(ticker);
     return l.groups.some((g) => g.rows.some(m)) || l.extras.some(m);
   },
   /** Remove a symbol (full or short name) from any list (legend "Add X to
@@ -913,15 +920,47 @@ export const watchlistStore = {
     syncColorFlags();
     keepDeleted(listId, gone);
   },
-  /** Create a new list seeded with one row WITHOUT switching the active list
-   *  ("Add X to watchlist → Create new list…"). Returns the new name. */
-  createListWith(row: Row | Row[], name = "New list"): string {
+  /** Append a section header to any list (a selection holding a header is
+   *  added to a list): an empty section at its end. No-op when the list has
+   *  a section of that name. */
+  addSectionTo(listId: string, name: string): boolean {
+    const i = state.lists.findIndex((l) => l.id === listId);
+    if (i < 0 || isDeletedList(listId) || state.lists[i].groups.some((g) => g.name === name)) return false;
+    setState("lists", i, produce((wl: WatchList) => {
+      wl.groups.push({ name, rows: [] });
+    }));
+    dropSort(listId);
+    return true;
+  },
+  /** Remove a section header from any list: its rows stay and join the
+   *  section above (the rows with no section for the first one). */
+  removeSectionFrom(listId: string, name: string): void {
+    const i = state.lists.findIndex((l) => l.id === listId);
+    if (i < 0) return;
+    setState("lists", i, produce((wl: WatchList) => {
+      const gi = wl.groups.findIndex((g) => g.name === name);
+      if (gi < 0) return;
+      const [g] = wl.groups.splice(gi, 1);
+      (gi > 0 ? wl.groups[gi - 1].rows : wl.extras).push(...g.rows);
+      if (wl.collapsed) wl.collapsed = wl.collapsed.filter((n) => n !== name);
+    }));
+    dropSort(listId);
+  },
+  /** Create a new list seeded with rows WITHOUT switching the active list
+   *  ("Add X to watchlist → Create new list…"). A string among the items is
+   *  a section header: the rows after it are its rows. Returns the new name. */
+  createListWith(row: Row | (Row | string)[], name = "New list"): string {
     const nm = uniqueName(name);
     const id = uniqueId(nm);
-    const rows = (Array.isArray(row) ? row : [row]).map((r) => ({ ...r, flag: null }));
+    const extras: Row[] = [];
+    const groups: Group[] = [];
+    for (const it of Array.isArray(row) ? row : [row]) {
+      if (typeof it !== "string") (groups.length ? groups[groups.length - 1].rows : extras).push({ ...it, flag: null });
+      else if (!groups.some((g) => g.name === it)) groups.push({ name: it, rows: [] });
+    }
     setState("lists", (ls) => [
       ...ls,
-      { id, name: nm, flag: null, emoji: null, groups: [], extras: rows, favorite: false, sort: "default" },
+      { id, name: nm, flag: null, emoji: null, groups, extras, favorite: false, sort: "default" },
     ]);
     return nm;
   },
