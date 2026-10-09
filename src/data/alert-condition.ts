@@ -338,17 +338,17 @@ export type EvalContext = {
   changePercent: number | null;
   /** Evaluation time, epoch seconds. */
   timeSec: number;
-  /** Indicator value source used when the symbol isn't charted (the chart
-   *  registry has no provider) — the engine's fetched-bars poll cache. */
-  indicatorFallback?: (indicatorId: string, plot: number) => number | null;
+  /** Value of an indicator operand on the rule's interval (the engine
+   *  computes the study from the bars of that interval). */
+  indicatorValue?: (op: Extract<Operand, { kind: "indicator" }>, resolution: string, session?: string) => number | null;
   /** Bars of the symbol on an interval no chart shows (the engine's
    *  fetched-bars poll cache), for the drawings computed from bars. */
-  barsFallback?: (resolution: string) => ChartBar[] | null;
+  barsFallback?: (resolution: string, session?: string) => ChartBar[] | null;
 };
 
 /** Resolve an operand to a number, or null when unavailable. `resolution`:
  *  the interval of the rule, for the operands computed from bars. */
-export function operandValue(symbol: string, op: Operand, ctx: EvalContext, resolution?: string): number | null {
+export function operandValue(symbol: string, op: Operand, ctx: EvalContext, resolution?: string, session?: string): number | null {
   switch (op.kind) {
     case "price":
       return ctx.price;
@@ -358,15 +358,14 @@ export function operandValue(symbol: string, op: Operand, ctx: EvalContext, reso
       if (op.plot == null) return drawingPriceLevel(symbol, op.drawingId, ctx.timeSec, op.level);
       // Anchored VWAP, on the rule's interval: the chart's bars when a chart
       // shows the symbol on it (live), the fetched bars otherwise.
-      const bars = resolution == null ? null : (chartBars(symbol, resolution) ?? ctx.barsFallback?.(resolution) ?? null);
+      const bars = resolution == null ? null : (chartBars(symbol, resolution, session) ?? ctx.barsFallback?.(resolution, session) ?? null);
       return bars ? drawingVwapValue(symbol, op.drawingId, op.plot, bars) : null;
     }
     case "indicator": {
-      // Charted value first (live, honours the chart's configured inputs);
-      // engine poll cache second (default inputs, ~60s stale) so the alert
-      // still evaluates while the symbol isn't charted.
-      const live = indicatorPlotValue(symbol, op.indicatorId, op.plot ?? 0);
-      return live ?? ctx.indicatorFallback?.(op.indicatorId, op.plot ?? 0) ?? null;
+      // The study on the rule's own interval, with the inputs saved on the
+      // alert. Without an engine (no interval given): the charted value.
+      if (ctx.indicatorValue && resolution != null) return ctx.indicatorValue(op, resolution, session);
+      return indicatorPlotValue(symbol, op.indicatorId, op.plot ?? 0);
     }
   }
 }

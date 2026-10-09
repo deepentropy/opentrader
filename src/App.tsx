@@ -2828,6 +2828,7 @@ function App() {
             indicatorId={d().indicatorId}
             drawingId={d().drawingId}
             interval={interval()}
+            session={session()}
             onClose={() => setAlertDialog(null)}
           />
         )}

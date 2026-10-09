@@ -13,6 +13,7 @@
  * Process singleton with a createRoot autosave effect, same pattern as
  * watchlist-store.ts.
  */
+import type { SessionId } from "./session/symbol-sessions";
 import { createRoot, createEffect } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { isFullSymbol, toFullSymbol } from "./datafeed";
@@ -43,7 +44,16 @@ export type Operand =
        *  bands). */
       plot?: number;
     }
-  | { kind: "indicator"; indicatorId: string; plot?: number; label?: string };
+  | {
+      kind: "indicator";
+      indicatorId: string;
+      plot?: number;
+      label?: string;
+      /** The study's inputs when the alert was made: the alert reads the
+       *  study computed with them, whatever the chart shows later. Unset on
+       *  older alerts (the charted study, else the factory inputs). */
+      inputs?: Record<string, unknown>;
+    };
 
 export type DrawingShape = "channel" | "rectangle" | "time" | "position";
 
@@ -84,6 +94,9 @@ export type AlertRule = {
   /** Interval label the rule was created on, for once-per-bar semantics and
    *  display (e.g. "1D", "5m"). */
   resolution: string;
+  /** Session of the chart the rule was made on (regular or extended hours),
+   *  for the operands computed from bars. Unset on older rules. */
+  session?: SessionId;
   left: Operand;
   op: AlertOperator;
   right: Operand;

@@ -37,6 +37,8 @@ import {
 } from "../../data/alert-condition";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { getIndicatorEntry } from "../chart/indicators/registry";
+import { statusLineInputs } from "../chart/indicators/indicator-options";
+import type { SessionId } from "../../data/session/symbol-sessions";
 import { isFullSymbol, toFullSymbol } from "../../data/datafeed";
 import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playAlertSound, stopAlertSound } from "../../data/alert-sounds";
 import { alertSettings } from "../../data/alert-settings";
@@ -60,6 +62,8 @@ type Props = {
   drawingId?: string;
   /** Chart interval to stamp onto the rule as its resolution. */
   interval: string;
+  /** Session of the chart (regular or extended hours), kept on a new alert. */
+  session?: SessionId;
   onClose: () => void;
 };
 
@@ -225,11 +229,11 @@ export function AlertDialog(props: Props) {
   // isn't currently charted (or the study/drawing is gone), so editing never
   // silently drops or mis-displays an indicator/drawing operand.
   const indicatorOptions = createMemo(() => {
-    const opts = indicators().map((r) => ({ id: r.id, label: r.title }));
+    const opts: { id: string; label: string; inputs?: Record<string, unknown> }[] = indicators().map((r) => ({ id: r.id, label: r.title, inputs: r.inputValues }));
     const ids = new Set(opts.map((o) => o.id));
     for (const o of [existing?.left, existing?.right]) {
       if (o && o.kind === "indicator" && !ids.has(o.indicatorId)) {
-        opts.push({ id: o.indicatorId, label: o.label ?? "indicator" });
+        opts.push({ id: o.indicatorId, label: o.label ?? "indicator", inputs: o.inputs });
         ids.add(o.indicatorId);
       }
     }
@@ -378,8 +382,7 @@ export function AlertDialog(props: Props) {
 
   function buildLeft(): Operand {
     if (leftKind() === "indicator" && leftIndicator()) {
-      const o = indicatorOptions().find((x) => x.id === leftIndicator());
-      return { kind: "indicator", indicatorId: leftIndicator(), plot: leftPlot(), label: plotLabel(o?.label, leftIndicator(), leftPlot()) };
+      return indicatorOperand(leftIndicator(), leftPlot(), existing?.left);
     }
     return { kind: "price" };
   }
@@ -402,19 +405,31 @@ export function AlertDialog(props: Props) {
         };
       }
       case "indicator": {
-        const o = indicatorOptions().find((x) => x.id === rightIndicator());
-        return { kind: "indicator", indicatorId: rightIndicator(), plot: rightPlot(), label: plotLabel(o?.label, rightIndicator(), rightPlot()) };
+        return indicatorOperand(rightIndicator(), rightPlot(), existing?.right);
       }
       default:
         return { kind: "value", value: parseFloat(rightValue()) || 0 };
     }
   }
 
-  /** Operand label: the study title, with the plot title for a study with
-   *  several plots ("BB 20 2: Upper"). */
-  function plotLabel(title: string | undefined, indicatorId: string, plot: number): string | undefined {
+  /** Operand label: the study title with its inputs, and the plot title for
+   *  a study with several plots ("BB (20, 2): Upper"). */
+  function plotLabel(title: string | undefined, indicatorId: string, plot: number, inputs?: Record<string, unknown>): string | undefined {
     const plots = plotsOf(indicatorId);
-    return plots.length >= 2 && title ? `${title}: ${plots[plot]?.title ?? ""}` : title;
+    const entry = getIndicatorEntry(indicatorId);
+    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ") : "";
+    const name = title && shown ? `${title} (${shown})` : title;
+    return plots.length >= 2 && name ? `${name}: ${plots[plot]?.title ?? ""}` : name;
+  }
+
+  /** An operand on a study. It carries the study's inputs as they are now on
+   *  the chart; an alert being edited keeps the ones it was made with. */
+  function indicatorOperand(indicatorId: string, plot: number, was: Operand | undefined): Operand {
+    const o = indicatorOptions().find((x) => x.id === indicatorId);
+    const kept = was?.kind === "indicator" && was.indicatorId === indicatorId ? was : undefined;
+    const inputs = kept?.inputs ?? (o?.inputs ? { ...o.inputs } : undefined);
+    const label = kept?.inputs && kept.plot === plot && kept.label ? kept.label : plotLabel(kept?.inputs ? kept.label?.replace(/ \(.*$/, "") ?? o?.label : o?.label, indicatorId, plot, inputs);
+    return { kind: "indicator", indicatorId, plot, label, ...(inputs ? { inputs } : {}) };
   }
 
   /** Live preview of the condition, used as the message placeholder. */
@@ -449,6 +464,7 @@ export function AlertDialog(props: Props) {
     const rule = {
       symbol: typed,
       resolution: existing?.resolution ?? props.interval,
+      session: existing ? existing.session : props.session,
       left: buildLeft(),
       op: op(),
       right: buildRight(),

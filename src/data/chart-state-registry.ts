@@ -27,6 +27,8 @@ export type ChartStateProvider = {
   indicatorLegend: () => IndicatorLegendRow[];
   /** Interval id of the chart ("5", "1D"). */
   resolution: () => string;
+  /** Session of the chart: "RTH" (regular hours) or "ETH" (extended). */
+  session?: () => string;
   /** The chart's bars, oldest first (the last one is the forming bar). */
   bars: () => ChartBar[];
 };
@@ -61,11 +63,12 @@ export function indicatorPlotValue(
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-/** Bars of a symbol charted on `resolution`, or null when no chart shows
- *  it on that interval. */
-export function chartBars(symbol: string, resolution: string): ChartBar[] | null {
+/** Bars of a symbol charted on `resolution` (and on `session`, when given),
+ *  or null when no chart shows it that way. */
+export function chartBars(symbol: string, resolution: string, session?: string): ChartBar[] | null {
   const p = providers.get(symbol.toUpperCase());
   if (!p || p.resolution() !== resolution) return null;
+  if (session !== undefined && p.session && p.session() !== session) return null;
   const bars = p.bars();
   return bars.length ? bars : null;
 }

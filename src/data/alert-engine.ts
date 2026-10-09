@@ -27,15 +27,17 @@ import { onTradeTick, getBars, isSupportedResolution, tickerOf, type TradeTick }
 import { cachedSymbolSessions, localToUtc } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
-import { alertStore, type AlertRule } from "./alert-store";
+import { alertStore, type AlertRule, type Operand } from "./alert-store";
+import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
-import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
+import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { commands } from "../bindings";
 import * as kv from "./kv";
+import { REPLAY_MAX_SEC, replayRule } from "./alert-replay";
 
 /** True inside the Tauri shell — gates the native webhook route. */
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -155,7 +157,7 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
   // Moving % : the left operand now against its value `bars` bars back (the
   // reference poll below), in percent of that value.
   if (isPercentOperator(rule.op)) {
-    const now = operandValue(rule.symbol, rule.left, ctx);
+    const now = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
     const ref = movingRefCache.get(rule.id);
     if (now == null || ref == null || ref === 0) return false;
     const change = ((now - ref) / Math.abs(ref)) * 100;
@@ -167,7 +169,7 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
   // drawing. Entering / exiting compare with the previous sample (stored as
   // +1 inside, -1 outside), like a crossing.
   if (isBandOperator(rule.op)) {
-    const v = operandValue(rule.symbol, rule.left, ctx);
+    const v = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
     if (v == null || rule.right.kind !== "drawing") return false;
     const band = drawingBand(rule.symbol, rule.right.drawingId, ctx.timeSec, rule.right.level, rule.right.level2);
     // A rectangle outside its time span has no band: the price is outside it.
@@ -194,7 +196,7 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
   // Position: the left operand reaches the entry, stop or target level (the
   // level lies between the previous sample and this one).
   if (rule.op === "hits_level") {
-    const v = operandValue(rule.symbol, rule.left, ctx);
+    const v = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
     if (v == null || rule.right.kind !== "drawing") return false;
     const lv = drawingPositionLevels(rule.symbol, rule.right.drawingId, ctx.timeSec);
     const prev = prevDiff.get(rule.id);
@@ -208,14 +210,14 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
   // Rectangle, Greater / Less than: above its top, below its bottom (while
   // the time is within the rectangle).
   if (rule.right.kind === "drawing" && rule.right.band === "rectangle") {
-    const v = operandValue(rule.symbol, rule.left, ctx);
+    const v = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
     const band = drawingBand(rule.symbol, rule.right.drawingId, ctx.timeSec);
     if (v == null || !band) return false;
     return rule.op === "greater" ? v > band.upper : rule.op === "less" ? v < band.lower : false;
   }
 
-  const left = operandValue(rule.symbol, rule.left, ctx);
-  const right = operandValue(rule.symbol, rule.right, ctx, rule.resolution);
+  const left = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
+  const right = operandValue(rule.symbol, rule.right, ctx, rule.resolution, rule.session);
   if (left == null || right == null) return false;
 
   switch (rule.op) {
@@ -364,9 +366,8 @@ function onTick(t: TradeTick): void {
     price: t.price,
     changePercent: t.changePercent ?? null,
     timeSec: Math.floor(now / 1000),
-    indicatorFallback: (indicatorId, plot) =>
-      indicatorPollCache.get(pollKey(symbol, indicatorId, plot)) ?? null,
-    barsFallback: (resolution) => drawingBarsCache.get(`${symbol}|${resolution}`) ?? null,
+    indicatorValue: (op, resolution, session) => indicatorOperandValue(symbol, op, resolution, session ?? DEFAULT_SESSION, t.price),
+    barsFallback: (resolution, session) => drawingBarsCache.get(`${symbol}|${resolution}|${session ?? DEFAULT_SESSION}`) ?? null,
   };
 
   for (const rule of rules) {
@@ -398,19 +399,21 @@ function onTick(t: TradeTick): void {
   }
 }
 
-// ── Indicator-operand fallback poll ──
-// Indicator values normally come from the charted study (chart-state-registry).
-// For rules whose symbol isn't charted (or doesn't carry the study), a 60s poll
-// fetches bars via the datafeed and computes the study with its DEFAULT inputs,
-// caching the latest plot value for operandValue's ctx.indicatorFallback.
+// ── Indicator operands ──
+// An alert on a study reads it on the alert's own symbol and interval, with
+// the inputs saved when the alert was made: what the chart shows later (other
+// interval, other symbol, changed or removed study) does not change it. The
+// bars are those of the alert's session (regular or extended hours, the
+// chart's when the alert was made): the chart's when a chart shows the symbol
+// that way (live), else the fetched ones (see the bars poll below), their
+// last bar brought to the current price. The study is computed again when the bars change, at
+// most once a second per operand.
 const INDICATOR_POLL_MS = 60_000;
-const indicatorPollCache = new Map<string, number | null>();
+const INDICATOR_COMPUTE_MS = 1000;
+/** Session of an alert made before alerts kept theirs: a chart's default. */
+const DEFAULT_SESSION: SessionId = "RTH";
+const indicatorValueCache = new Map<string, { sig: string; at: number; value: number | null }>();
 let indicatorPollTimer: ReturnType<typeof setInterval> | null = null;
-let indicatorPollBusy = false;
-
-function pollKey(symbol: string, indicatorId: string, plot: number): string {
-  return `${symbol.toUpperCase()}|${indicatorId}|${plot}`;
-}
 
 /** Latest finite value of one plot series (index per the entry's plotConfig
  *  order — the same order the dialog's plot-0 convention uses). */
@@ -425,88 +428,74 @@ function lastPlotValue(result: unknown, plotId: string): number | null {
   return null;
 }
 
-async function pollIndicatorOperands(): Promise<void> {
-  if (indicatorPollBusy) return; // a slow fetch must not stack polls
-  // Group the wanted (indicator, plot) pairs by symbol+resolution so each poll
-  // does one getBars per series, however many rules reference it.
-  const jobs = new Map<string, { symbol: string; resolution: string; ops: { indicatorId: string; plot: number }[] }>();
-  for (const rule of alertStore.enabledRules()) {
-    if (!isSupportedResolution(rule.resolution)) continue;
-    for (const o of [rule.left, rule.right]) {
-      if (o.kind !== "indicator") continue;
-      const plot = o.plot ?? 0;
-      // Charted studies already serve live values — no fetch needed.
-      if (indicatorPlotValue(rule.symbol, o.indicatorId, plot) != null) continue;
-      if (!getIndicatorEntry(o.indicatorId)) continue;
-      const key = `${rule.symbol}|${rule.resolution}`;
-      let job = jobs.get(key);
-      if (!job) jobs.set(key, (job = { symbol: rule.symbol, resolution: rule.resolution, ops: [] }));
-      if (!job.ops.some((x) => x.indicatorId === o.indicatorId && x.plot === plot)) {
-        job.ops.push({ indicatorId: o.indicatorId, plot });
-      }
-    }
+function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): number | null {
+  const plot = op.plot ?? 0;
+  const entry = getIndicatorEntry(op.indicatorId);
+  const plotId = entry?.plotConfig[plot]?.id;
+  if (!entry || !plotId) return null;
+  const charted = chartBars(symbol, resolution, session);
+  // An older alert has no inputs of its own: the charted study's value while
+  // a chart shows the symbol on the alert's interval, else the factory inputs.
+  if (!op.inputs && charted) {
+    const live = indicatorPlotValue(symbol, op.indicatorId, plot);
+    if (live != null) return live;
   }
-  if (jobs.size === 0) return;
-
-  indicatorPollBusy = true;
+  let bars = charted ?? drawingBarsCache.get(`${symbol}|${resolution}|${session}`) ?? null;
+  if (!bars || bars.length === 0) {
+    // Not fetched yet (the symbol just left the chart): fetch now.
+    void pollDrawingBars(true);
+    return null;
+  }
+  if (!charted) {
+    const last = bars[bars.length - 1];
+    bars = [...bars.slice(0, -1), { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) }];
+  }
+  const last = bars[bars.length - 1];
+  const inputs = op.inputs ?? entry.defaultInputs;
+  const key = `${symbol}|${resolution}|${session}|${op.indicatorId}|${plot}|${JSON.stringify(inputs)}`;
+  const sig = `${bars.length}|${last.time}|${last.close}`;
+  const now = Date.now();
+  const hit = indicatorValueCache.get(key);
+  if (hit && (hit.sig === sig || now - hit.at < INDICATOR_COMPUTE_MS)) return hit.value;
+  let value: number | null = null;
   try {
-    for (const job of jobs.values()) {
-      try {
-        const { bars } = await getBars(job.symbol, job.resolution);
-        // The library wants dense numeric OHLC; drop null-field rows.
-        const clean = bars.flatMap((b) =>
-          b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
-            ? [{ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
-            : [],
-        );
-        if (clean.length === 0) continue;
-        for (const op of job.ops) {
-          const entry = getIndicatorEntry(op.indicatorId)!;
-          try {
-            const result = entry.calculate(clean, entry.defaultInputs);
-            const plotId = entry.plotConfig[op.plot]?.id;
-            indicatorPollCache.set(
-              pollKey(job.symbol, op.indicatorId, op.plot),
-              plotId ? lastPlotValue(result, plotId) : null,
-            );
-          } catch (e) {
-            console.warn(`[alerts] indicator poll compute failed for ${op.indicatorId}`, e);
-          }
-        }
-      } catch {
-        /* fetch failed — keep any stale cached value rather than clearing it */
-      }
-    }
-  } finally {
-    indicatorPollBusy = false;
+    const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    value = lastPlotValue(entry.calculate(dense, inputs), plotId);
+  } catch (e) {
+    console.warn(`[alerts] indicator compute failed for ${op.indicatorId}`, e);
   }
+  indicatorValueCache.set(key, { sig, at: now, value });
+  return value;
 }
 
-// ── Bars for the drawings computed from bars ──
+// ── Bars for the operands computed from bars ──
 // An anchored VWAP has no fixed level: its value comes from the bars since
-// its anchor, on the rule's interval. A chart showing the symbol on that
-// interval serves them live (chart-state-registry); otherwise the bars are
-// fetched here, with the indicator poll, and kept per symbol + interval for
-// operandValue's ctx.barsFallback.
+// its anchor, on the rule's interval; a study is computed from the bars of
+// the rule's interval. Both on the rule's session (regular or extended
+// hours). A chart showing the symbol that way serves them live
+// (chart-state-registry); otherwise the bars are fetched here, once a
+// minute, and kept per symbol + interval + session.
 const drawingBarsCache = new Map<string, ChartBar[]>();
 let drawingPollBusy = false;
 
 /** `onlyMissing`: fetch only the series not cached yet (a rule was added). */
 async function pollDrawingBars(onlyMissing = false): Promise<void> {
   if (drawingPollBusy) return;
-  const jobs = new Map<string, { symbol: string; resolution: string }>();
+  const jobs = new Map<string, { symbol: string; resolution: string; session: SessionId }>();
   for (const rule of alertStore.enabledRules()) {
-    if (rule.right.kind !== "drawing" || rule.right.plot == null || !isSupportedResolution(rule.resolution)) continue;
-    jobs.set(`${rule.symbol}|${rule.resolution}`, { symbol: rule.symbol, resolution: rule.resolution });
+    const fromBars = (rule.right.kind === "drawing" && rule.right.plot != null) || rule.left.kind === "indicator" || rule.right.kind === "indicator";
+    if (!fromBars || !isSupportedResolution(rule.resolution)) continue;
+    const session = rule.session ?? DEFAULT_SESSION;
+    jobs.set(`${rule.symbol}|${rule.resolution}|${session}`, { symbol: rule.symbol, resolution: rule.resolution, session });
   }
   for (const k of drawingBarsCache.keys()) if (!jobs.has(k)) drawingBarsCache.delete(k);
   drawingPollBusy = true;
   try {
     for (const [key, job] of jobs) {
       // A chart on that interval already serves live bars: no fetch needed.
-      if (chartBars(job.symbol, job.resolution) || (onlyMissing && drawingBarsCache.has(key))) continue;
+      if (chartBars(job.symbol, job.resolution, job.session) || (onlyMissing && drawingBarsCache.has(key))) continue;
       try {
-        const { bars } = await getBars(job.symbol, job.resolution);
+        const { bars } = await getBars(job.symbol, job.resolution, job.session);
         drawingBarsCache.set(
           key,
           bars.flatMap((b) =>
@@ -526,10 +515,10 @@ async function pollDrawingBars(onlyMissing = false): Promise<void> {
 
 // ── Moving % reference poll ──
 // "Moving up / down % … in N bars" compares the left operand now with its
-// value N bars back on the rule's interval. The bars come from the datafeed
-// (one getBars per symbol + interval per poll); a price operand uses the
-// closes, an indicator operand its plot computed with the study's default
-// inputs. The value N bars before the last bar is cached per rule.
+// value N bars back on the rule's interval and session. The bars come from
+// the datafeed (one getBars per symbol + interval + session per poll); a price operand uses the
+// closes, an indicator operand its plot computed with the inputs saved on
+// the alert. The value N bars before the last bar is cached per rule.
 const movingRefCache = new Map<string, number | null>();
 let movingPollBusy = false;
 
@@ -541,11 +530,12 @@ async function pollMovingRefs(): Promise<void> {
   try {
     const barsBy = new Map<string, { time: number; open: number; high: number; low: number; close: number; volume: number }[]>();
     for (const rule of rules) {
-      const key = `${rule.symbol}|${rule.resolution}`;
+      const session = rule.session ?? DEFAULT_SESSION;
+      const key = `${rule.symbol}|${rule.resolution}|${session}`;
       let bars = barsBy.get(key);
       if (!bars) {
         try {
-          const res = await getBars(rule.symbol, rule.resolution);
+          const res = await getBars(rule.symbol, rule.resolution, session);
           bars = res.bars.flatMap((b) =>
             b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
               ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
@@ -567,7 +557,7 @@ async function pollMovingRefs(): Promise<void> {
         const plotId = entry?.plotConfig[rule.left.plot ?? 0]?.id;
         if (!entry || !plotId) continue;
         try {
-          const result = entry.calculate(bars, entry.defaultInputs) as { plots?: Record<string, Array<{ value: number | null }>> };
+          const result = entry.calculate(bars, rule.left.inputs ?? entry.defaultInputs) as { plots?: Record<string, Array<{ value: number | null }>> };
           const v = result.plots?.[plotId]?.[at]?.value;
           movingRefCache.set(rule.id, typeof v === "number" && Number.isFinite(v) ? v : null);
         } catch (e) {
@@ -580,6 +570,85 @@ async function pollMovingRefs(): Promise<void> {
   } finally {
     movingPollBusy = false;
   }
+}
+
+// ── The bars missed while the app was not running ──
+// The backend replays its own rules (alert-backend.ts). The rules evaluated
+// here are read again at start, bar by bar on their interval and session
+// (alert-replay.ts); what they find goes to the log and the rule's webhook
+// only, as fires that happened while the app was closed.
+const REPLAYED_KEY = "alerts.replayed-run.v1";
+
+/** Value of a study's plot at the close of every bar. */
+function plotSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[]): (number | null)[] | null {
+  const entry = getIndicatorEntry(op.indicatorId);
+  const plotId = entry?.plotConfig[op.plot ?? 0]?.id;
+  if (!entry || !plotId) return null;
+  try {
+    const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    const result = entry.calculate(dense, op.inputs ?? entry.defaultInputs) as { plots?: Record<string, Array<{ value: number | null }>> };
+    const series = result.plots?.[plotId];
+    if (!series) return null;
+    return bars.map((_, i) => {
+      const v = series[i]?.value;
+      return typeof v === "number" && Number.isFinite(v) ? v : null;
+    });
+  } catch (e) {
+    console.warn(`[alerts] study compute failed for ${op.indicatorId}`, e);
+    return null;
+  }
+}
+
+/** Read the rules evaluated in the window over the bars since the previous
+ *  run and deliver what they find. `previous`: per symbol, the time (UNIX
+ *  seconds) of its last quote in the previous run. Returns the fires found. */
+export async function replayMissedFires(previous: Record<string, number | null | undefined>, nowSec = Math.floor(Date.now() / 1000)): Promise<number> {
+  let found = 0;
+  const barsBy = new Map<string, ChartBar[]>();
+  for (const rule of alertStore.enabledRules()) {
+    if (evaluatedByBackend(rule) || !isSupportedResolution(rule.resolution)) continue;
+    const { left, right } = rule;
+    const vwap = right.kind === "drawing" && right.plot != null;
+    if (!isPercentOperator(rule.op) && left.kind !== "indicator" && right.kind !== "indicator" && !vwap) continue;
+    const since = (rule.activeSince ?? rule.createdAt) / 1000;
+    const from = Math.max(previous[rule.symbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
+    if (nowSec - from < 60) continue;
+    const session = rule.session ?? DEFAULT_SESSION;
+    const key = `${rule.symbol}|${rule.resolution}|${session}`;
+    let bars = barsBy.get(key);
+    if (!bars) {
+      try {
+        const res = await getBars(rule.symbol, rule.resolution, session);
+        bars = res.bars.flatMap((b) =>
+          b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
+            ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
+            : [],
+        );
+      } catch {
+        continue; // no bars: nothing to read
+      }
+      barsBy.set(key, bars);
+    }
+    const stepSec = resolutionMs(rule.resolution) / 1000;
+    const leftSeries = left.kind === "indicator" ? plotSeries(left, bars) : null;
+    if (left.kind === "indicator" && !leftSeries) continue;
+    let rightSeries: (number | null)[] | null;
+    if (right.kind === "indicator") rightSeries = plotSeries(right, bars);
+    else if (right.kind === "value") rightSeries = bars.map(() => right.value);
+    else if (right.kind === "drawing" && right.plot != null) {
+      // The VWAP as it stood at each bar read (and the one before it).
+      const all = bars;
+      const plot = right.plot;
+      const first = all.findIndex((b) => b.time + stepSec > from);
+      rightSeries = all.map((_, i) => (first >= 0 && i >= first - 1 ? drawingVwapValue(rule.symbol, right.drawingId, plot, all.slice(0, i + 1)) : null));
+    } else continue;
+    if (!rightSeries) continue;
+    for (const f of replayRule(rule, bars, leftSeries, rightSeries, from, nowSec, stepSec)) {
+      deliverFire(rule, f.price, f.barTime, { fireTime: f.fireTime });
+      found++;
+    }
+  }
+  return found;
 }
 
 let started = false;
@@ -615,12 +684,23 @@ export function startAlertEngine(windowLabel = "main"): void {
     unlisten = u;
   });
 
-  // Uncharted indicator operands: prime once, then refresh every minute.
-  void pollIndicatorOperands();
+  // Once per run of the app: the fires missed while it was not running.
+  if (HAS_TAURI) {
+    void commands
+      .alertEngineInfo()
+      .then((info) => {
+        const run = JSON.stringify(info.previous);
+        if (kv.getItem(REPLAYED_KEY) === run) return;
+        kv.setItem(REPLAYED_KEY, run);
+        return replayMissedFires(info.previous);
+      })
+      .catch((e) => console.warn("[alerts] missed bars not read", e));
+  }
+
+  // Bars of the uncharted operands: prime once, then refresh every minute.
   void pollMovingRefs();
   void pollDrawingBars();
   indicatorPollTimer = setInterval(() => {
-    void pollIndicatorOperands();
     void pollMovingRefs();
     void pollDrawingBars();
   }, INDICATOR_POLL_MS);
@@ -658,8 +738,8 @@ export function startAlertEngine(windowLabel = "main"): void {
     //    stale crossing baseline can manufacture a spurious cross.
     //  • deleted (here or in another window): prune the per-rule maps so ids
     //    that no longer exist can't leak entries.
-    //  • indicator poll cache: keyed by (symbol, indicator, plot), so drop
-    //    entries no remaining rule references.
+    //  • computed study values: dropped, the rules that are left compute
+    //    theirs again.
     let prevEnabledIds = new Set<string>();
     createEffect(() => {
       const rules = alertStore.rules();
@@ -672,16 +752,8 @@ export function startAlertEngine(windowLabel = "main"): void {
       for (const m of [prevDiff, lastFiredBucket, barCloseState]) {
         for (const id of m.keys()) if (!ids.has(id)) m.delete(id);
       }
-      const wantedPolls = new Set<string>();
-      for (const r of rules) {
-        for (const o of [r.left, r.right]) {
-          if (o.kind === "indicator") wantedPolls.add(pollKey(r.symbol, o.indicatorId, o.plot ?? 0));
-        }
-      }
-      for (const k of indicatorPollCache.keys()) {
-        if (!wantedPolls.has(k)) indicatorPollCache.delete(k);
-      }
-      // A new rule on an anchored VWAP needs its bars now, not at the next poll.
+      indicatorValueCache.clear();
+      // A new rule on an anchored VWAP or a study needs its bars now, not at the next poll.
       void pollDrawingBars(true);
     });
   });
