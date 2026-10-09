@@ -1716,19 +1716,59 @@
   left: auto;
   right: 100%;
 }
-.watchlist-ctx-list-marker {
-  font-size: 14px;
-  line-height: 1;
+/* A list row of the submenu: an 18px check box at 12px, the name at 38px.
+ * The box is filled when the list holds the symbols (a dash when it holds
+ * only some of the selected ones). */
+.watchlist-ctx-lists {
+  width: max-content;
+  min-width: 200px;
+  max-width: 320px;
 }
-.watchlist-ctx-list-initial {
+.watchlist-ctx-menu .watchlist-ctx-list-row {
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  padding-left: 12px;
+}
+.watchlist-ctx-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
-  background: var(--color-toolbar-button-background-hover, #2e2e2e);
+  border: 1px solid var(--ot-strong);
+  border-radius: 3px;
+}
+.watchlist-ctx-check.is-checked {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-bg-primary-hover);
+}
+
+/* ── Drag image ── follows the pointer (its top-left corner) while items are
+ * dragged: one line per item, a symbol's short name or a section's name. */
+.watchlist-drag-image {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  width: 300px;
+  opacity: 0.5;
+  pointer-events: none;
   color: var(--color-main-text, #dbdbdb);
+  font-size: 14px;
+}
+.watchlist-drag-item {
+  padding: 6px 16px;
+  line-height: 16px;
+  background-color: var(--color-list-item-bg-selected, #142e61);
+}
+.watchlist-drag-item--section {
+  display: flex;
+  box-sizing: content-box;
+  align-items: center;
+  height: 30px;
+  padding-block: 0;
+  padding-inline: 16px 8px;
+  border-top: 6px solid var(--color-pane-bg, #0f0f0f);
   font-size: 11px;
-  font-weight: 600;
 }

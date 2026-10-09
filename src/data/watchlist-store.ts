@@ -626,17 +626,6 @@ export const watchlistStore = {
       if (g) g.name = newName;
     });
   },
-  deleteSection(name: string): void {
-    mutateActive((l) => {
-      l.groups = l.groups.filter((g) => g.name !== name);
-    });
-  },
-  removeRow(sectionName: string, ticker: string): void {
-    mutateActive((l) => {
-      const g = l.groups.find((g) => g.name === sectionName);
-      if (g) g.rows = g.rows.filter((r) => r.ticker !== ticker);
-    });
-  },
   /** Insert rows into the active list at `anchor`.
    *  Rows already in the list are skipped: same full name, or a row stored
    *  under the new row's short name (both are checked). A missing anchor falls
@@ -717,9 +706,28 @@ export const watchlistStore = {
       l.extras = extras;
     });
   },
-  removeExtra(ticker: string): void {
+  /** Remove the items `ids` (rows and section headers, ids as in `listItems`)
+   *  from the active list. A removed section header leaves its rows: they
+   *  join the section above, or the rows with no section. */
+  removeItems(ids: readonly string[]): void {
+    const cur = state.lists[activeIndex()];
+    if (!cur) return;
+    const picked = new Set(ids);
+    const raw = unwrap(cur);
+    const extras: Row[] = raw.extras.filter((r) => !picked.has(r.ticker));
+    const groups: Group[] = [];
+    let into = extras;
+    for (const g of raw.groups) {
+      if (!picked.has(sectionId(g.name))) {
+        const kept: Group = { name: g.name, rows: [] };
+        groups.push(kept);
+        into = kept.rows;
+      }
+      for (const r of g.rows) if (!picked.has(r.ticker)) into.push(r);
+    }
     mutateActive((l) => {
-      l.extras = l.extras.filter((r) => r.ticker !== ticker);
+      l.groups = groups;
+      l.extras = extras;
     });
   },
   /** Set (or clear, with `null`) a symbol's colour flag. Flags belong to
@@ -773,12 +781,13 @@ export const watchlistStore = {
   },
   /** Create a new list seeded with one row WITHOUT switching the active list
    *  ("Add X to watchlist → Create new list…"). Returns the new name. */
-  createListWith(row: Row, name = "New list"): string {
+  createListWith(row: Row | Row[], name = "New list"): string {
     const nm = uniqueName(name);
     const id = uniqueId(nm);
+    const rows = (Array.isArray(row) ? row : [row]).map((r) => ({ ...r, flag: null }));
     setState("lists", (ls) => [
       ...ls,
-      { id, name: nm, flag: null, emoji: null, groups: [], extras: [{ ...row, flag: null }], favorite: false, sort: "default" },
+      { id, name: nm, flag: null, emoji: null, groups: [], extras: rows, favorite: false, sort: "default" },
     ]);
     return nm;
   },

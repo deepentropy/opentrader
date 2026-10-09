@@ -8,11 +8,16 @@
  *                                        orange purple cyan pink (no yellow)
  *   Unflag all symbols                   (no icon)
  *   ─
- *   Add {SYM} to watchlist ▸             submenu: other lists + "Create new list…"
+ *   Add {SYM} to watchlist ▸             submenu: the lists, each with a check
+ *                                        box (click adds / removes, the menu
+ *                                        stays open) + "Create new list…"
  *   Add note for {SYM}
  *   ─
  *   Add section
  *   Add symbol
+ * With several items selected and the click on one of them, the first row is
+ * "Flag/Unflag all selected", the submenu "Add all selected to" (a list
+ * holding only some of the symbols shows a dash), and there is no note row.
  * NO Remove / Copy / per-symbol alert here — row removal stays on the
  * hover ×. No "Add {SYM} to compare" or "Financials…" rows: their
  * subsystems are not in this app, so those rows are omitted rather than dead.
@@ -72,23 +77,24 @@ function useMenuShell(
   return pos;
 }
 
-/** A list's small marker for the submenu rows: emoji if set, else initial. */
-function listMarker(l: WatchList): string {
-  return l.emoji ?? "";
-}
-
 type Props = {
   row: Row;
+  /** The selected symbols, when the menu acts on a selection of several
+   *  items; null = `row` alone. */
+  selected: Row[] | null;
   /** Viewport-space cursor coordinates the menu opens at. */
   x: number;
   y: number;
-  /** Every list except the active one — the "Add … to watchlist" targets. */
-  otherLists: WatchList[];
-  onToggleFlag: (row: Row) => void;
-  onSetFlag: (row: Row, flag: FlagColor) => void;
+  /** The "Add … to" targets, in menu order. */
+  lists: WatchList[];
+  listHas: (listId: string, ticker: string) => boolean;
+  onToggleFlag: (rows: Row[]) => void;
+  onSetFlag: (rows: Row[], flag: FlagColor) => void;
   onUnflagAll: () => void;
-  onAddToList: (listId: string, row: Row) => void;
-  onCreateListWith: (row: Row) => void;
+  /** A click on a list row: adds the symbols it misses, or removes them all
+   *  when it holds every one. */
+  onToggleList: (listId: string, rows: Row[]) => void;
+  onCreateListWith: (rows: Row[]) => void;
   onAddNote: (row: Row) => void;
   onAddSection: () => void;
   onAddSymbol: () => void;
@@ -105,7 +111,14 @@ export function WatchlistContextMenu(props: Props) {
   const [listsLeft, setListsLeft] = createSignal(false);
 
   const sym = () => props.row.short;
+  const multi = () => props.selected != null;
+  const rows = () => props.selected ?? [props.row];
   const run = (fn: () => void) => { fn(); props.onClose(); };
+  /** How many of the menu's symbols a list holds: all, some or none. */
+  const held = (l: WatchList): "all" | "some" | "none" => {
+    const n = rows().filter((r) => props.listHas(l.id, r.ticker)).length;
+    return n === 0 ? "none" : n === rows().length ? "all" : "some";
+  };
 
   return (
     <div
@@ -115,9 +128,9 @@ export function WatchlistContextMenu(props: Props) {
       aria-label={`${sym()} actions`}
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 1000 }}
     >
-      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onToggleFlag(props.row))}>
+      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onToggleFlag(rows()))}>
         <span class="ot-menu-item__icon" aria-hidden="true" />
-        <span class="ot-menu-item__label">Flag/Unflag {sym()}</span>
+        <span class="ot-menu-item__label">{multi() ? "Flag/Unflag all selected" : `Flag/Unflag ${sym()}`}</span>
         <span class="ot-menu-item__hotkey">Alt + ↵</span>
       </button>
 
@@ -128,11 +141,11 @@ export function WatchlistContextMenu(props: Props) {
             <button
               type="button"
               role="menuitemradio"
-              aria-checked={flagOf(props.row.ticker) === c}
+              aria-checked={!multi() && flagOf(props.row.ticker) === c}
               class="watchlist-ctx-flag-swatch"
-              classList={{ selected: flagOf(props.row.ticker) === c }}
+              classList={{ selected: !multi() && flagOf(props.row.ticker) === c }}
               aria-label={`Set ${c} flag`}
-              onClick={() => run(() => props.onSetFlag(props.row, c))}
+              onClick={() => run(() => props.onSetFlag(rows(), c))}
             >
               <span class="watchlist-ctx-flag-dot" style={{ "background-color": FLAG_HEX[c] }} />
             </button>
@@ -147,12 +160,12 @@ export function WatchlistContextMenu(props: Props) {
 
       <div class="ot-popover__divider" />
 
-      {/* Add to watchlist — submenu of the other lists + "Create new list…". */}
+      {/* Add to watchlist — submenu of the lists + "Create new list…". */}
       <div
         class="watchlist-ctx-submenu"
         onPointerEnter={(e) => {
           const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          setListsLeft(r.right + 252 > window.innerWidth - 4);
+          setListsLeft(r.right + 320 > window.innerWidth - 4);
           setListsOpen(true);
         }}
         onPointerLeave={() => setListsOpen(false)}
@@ -166,7 +179,7 @@ export function WatchlistContextMenu(props: Props) {
           onClick={() => setListsOpen((o) => !o)}
         >
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_LIST_ADD} />
-          <span class="ot-menu-item__label">Add {sym()} to watchlist</span>
+          <span class="ot-menu-item__label">{multi() ? "Add all selected to" : `Add ${sym()} to watchlist`}</span>
           <span class="ot-menu-item__submenu-arrow" aria-hidden="true" innerHTML={WL_ICONS.menuArrow} />
         </button>
         <Show when={listsOpen()}>
@@ -176,38 +189,44 @@ export function WatchlistContextMenu(props: Props) {
             role="menu"
             aria-label="Target watchlist"
           >
-            <For each={props.otherLists}>
+            <For each={props.lists}>
               {(l) => (
                 <button
                   type="button"
-                  role="menuitem"
-                  class="ot-menu-item"
-                  onClick={() => run(() => props.onAddToList(l.id, props.row))}
+                  role="menuitemcheckbox"
+                  aria-checked={held(l) === "some" ? "mixed" : held(l) === "all"}
+                  class="ot-menu-item watchlist-ctx-list-row"
+                  data-list-id={l.id}
+                  onClick={() => props.onToggleList(l.id, rows())}
                 >
-                  <span class="ot-menu-item__icon watchlist-ctx-list-marker" aria-hidden="true">
-                    <Show when={listMarker(l)} fallback={<span class="watchlist-ctx-list-initial">{l.name.slice(0, 1).toUpperCase()}</span>}>
-                      {listMarker(l)}
+                  <span class="watchlist-ctx-check" classList={{ "is-checked": held(l) !== "none" }} aria-hidden="true">
+                    <Show when={held(l) === "all"}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 9" width="11" height="9" fill="none"><path stroke="currentColor" stroke-width="2" d="M0.999878 4L3.99988 7L9.99988 1" /></svg>
+                    </Show>
+                    <Show when={held(l) === "some"}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 2" width="10" height="2"><path fill="currentColor" d="M0 0h10v2H0z" /></svg>
                     </Show>
                   </span>
-                  <span class="ot-menu-item__label">{l.name}</span>
+                  <span class="ot-menu-item__label">{l.emoji ? `${l.emoji} ${l.name}` : l.name}</span>
                 </button>
               )}
             </For>
-            <Show when={props.otherLists.length > 0}>
+            <Show when={props.lists.length > 0}>
               <div class="ot-popover__divider" />
             </Show>
-            <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onCreateListWith(props.row))}>
-              <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
+            <button type="button" role="menuitem" class="ot-menu-item watchlist-ctx-list-row" onClick={() => run(() => props.onCreateListWith(rows()))}>
               <span class="ot-menu-item__label">Create new list…</span>
             </button>
           </div>
         </Show>
       </div>
 
-      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row))}>
-        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
-        <span class="ot-menu-item__label">Add note for {sym()}</span>
-      </button>
+      <Show when={!multi()}>
+        <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row))}>
+          <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
+          <span class="ot-menu-item__label">Add note for {sym()}</span>
+        </button>
+      </Show>
 
       <div class="ot-popover__divider" />
 

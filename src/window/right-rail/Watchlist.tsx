@@ -8,6 +8,7 @@
  * columns, logo toggle, Symbol/Name display. Persisted to localStorage.
  */
 import { For, Show, createEffect, createMemo, createRoot, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
+import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { PanelHeader } from "../../components/PanelHeader";
@@ -727,9 +728,11 @@ export function Watchlist(props: Props) {
       allRows().find((r) => !r.ticker.includes(":") && !!bare && r.ticker === bare);
     return match ? match.ticker : null;
   });
-  createEffect(
-    on([() => props.activeSymbol, () => props.activeTicker, watchlistStore.activeId, chartRow], () => selectOnly(chartRow())),
-  );
+  // The charted symbol as one value: the props are read through the pane's
+  // state, which also changes for other reasons (a load that ends), and such
+  // a change must not put the selection back.
+  const chartKey = createMemo(() => `${props.activeSymbol ?? ""}|${props.activeTicker ?? ""}`);
+  createEffect(on([chartKey, watchlistStore.activeId, chartRow], () => selectOnly(chartRow())));
   // An item that left the list leaves the selection.
   createEffect(() => {
     const a = active();
@@ -824,9 +827,50 @@ export function Watchlist(props: Props) {
     setFocusId(id);
     scrollToItem(id);
   };
-  const deleteSection = (name: string) => {
-    watchlistStore.deleteSection(name);
-    setCollapse([name], false);
+  // ── Removal ── Delete / Backspace removes the selected items; the remove
+  // button of a selected item removes all of them, of any other item that
+  // item alone. More than one item asks first. A removed section header
+  // leaves its rows in the list.
+  const removeItems = (ids: string[], after?: () => void) => {
+    if (!ids.length) return;
+    const run = () => {
+      watchlistStore.removeItems(ids);
+      setCollapse(ids.filter(isSectionId).map(sectionNameOf), false);
+      after?.();
+      rowsEl?.focus();
+    };
+    if (ids.length === 1) {
+      run();
+      return;
+    }
+    showConfirm({
+      title: "Remove selected symbols?",
+      text: `Doing this will remove ${ids.length} selected symbols from your watchlist.`,
+      mainText: "Remove",
+      cancelText: "Cancel",
+      intent: "danger",
+      onConfirm: run,
+      onCancel: () => rowsEl?.focus(),
+    });
+  };
+  const removeFromButton = (id: string) => removeItems(selectedIds().has(id) ? selection() : [id]);
+  // By key: the selection then goes to the row after the last removed item
+  // (the first row when there is none after it; nothing when that item ended
+  // the list). The charted symbol stays.
+  const removeSelection = () => {
+    const ids = selection();
+    const a = active();
+    if (!ids.length || !a) return;
+    const last = ids[ids.length - 1];
+    const all = listItems(a);
+    let next: string | null = null;
+    if (last !== all[all.length - 1]) {
+      const items = shown();
+      const at = items.indexOf(last);
+      const isRow = (id: string) => !isSectionId(id) && id !== last;
+      next = items.slice(at + 1).find(isRow) ?? items.slice(0, Math.max(at, 0)).find(isRow) ?? null;
+    }
+    removeItems(ids, () => selectOnly(next && !ids.includes(next) ? next : null));
   };
   const startRename = (name: string) => {
     setRenaming(name);
@@ -850,10 +894,6 @@ export function Watchlist(props: Props) {
     if (clickItem(e, sectionId(name)) && wasSelected) startRename(name);
   };
 
-  // Remove a symbol from its section (the hover trash on each row).
-  const removeRow = (groupName: string, ticker: string) =>
-    watchlistStore.removeRow(groupName, ticker);
-
   // ── Drag-and-drop reorder ── rows and section headers are dragged. A drag
   // that starts on a selected item moves the whole selection, in its order on
   // screen; on any other item it moves that item alone (and selects it). A
@@ -865,13 +905,29 @@ export function Watchlist(props: Props) {
   // on, before or after it.
   const [dragIds, setDragIds] = createSignal<string[]>([]);
   const [dropTarget, setDropTarget] = createSignal<{ id: string; after: boolean } | null>(null);
+  // The drag image: one line per item in flight, its top-left corner at the
+  // pointer. It replaces the browser's own image (the row under the pointer).
+  const [dragAt, setDragAt] = createSignal<{ x: number; y: number } | null>(null);
+  const noDragImage = new Image();
+  noDragImage.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+  const trackDrag = (e: DragEvent) => setDragAt({ x: e.clientX, y: e.clientY });
+  const endDrag = () => {
+    document.removeEventListener("dragover", trackDrag);
+    setDragIds([]);
+    setDropTarget(null);
+    setDragAt(null);
+  };
+  onCleanup(() => document.removeEventListener("dragover", trackDrag));
 
   const onItemDragStart = (e: DragEvent, id: string) => {
     if (!selectedIds().has(id)) selectOnly(id);
     setDragIds(inListOrder(selection()));
+    setDragAt({ x: e.clientX, y: e.clientY });
+    document.addEventListener("dragover", trackDrag);
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", isSectionId(id) ? sectionNameOf(id) : id);
+      e.dataTransfer.setDragImage(noDragImage, 0, 0);
     }
   };
   // Container-level drag-over: the WHOLE list is a drop zone, so the no-drop
@@ -913,13 +969,9 @@ export function Watchlist(props: Props) {
       e.preventDefault();
       watchlistStore.moveItems(ids, t.id, t.after, collapsed());
     }
-    setDragIds([]);
-    setDropTarget(null);
+    endDrag();
   };
-  const onRowsDragEnd = () => {
-    setDragIds([]);
-    setDropTarget(null);
-  };
+  const onRowsDragEnd = () => endDrag();
   const isDragging = (id: string) => dragIds().includes(id);
   // Insertion line above (`drop-before`) or below (`drop-after`) an item.
   const dropBefore = (id: string) => {
@@ -1116,6 +1168,9 @@ export function Watchlist(props: Props) {
       // Back to the charted symbol's row.
       e.preventDefault();
       selectOnly(chartRow());
+    } else if ((e.key === "Delete" || e.key === "Backspace") && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      removeSelection();
     } else if (e.code === "ArrowDown" || (isSpace && !e.shiftKey)) {
       e.preventDefault();
       navigate(1);
@@ -1123,14 +1178,14 @@ export function Watchlist(props: Props) {
       e.preventDefault();
       navigate(-1);
     } else if (e.altKey && e.key === "Enter") {
-      // Alt+↵ flags/unflags the selected symbol. The bottom bar's maximize
+      // Alt+↵ flags/unflags the selected symbols. The bottom bar's maximize
       // (also Alt+↵) defers to the list whenever `.watchlist-rows` holds focus —
       // a Solid-delegated handler here can't cancel its sibling document
       // listener, so the deferral lives there, not in a useless stopPropagation.
-      const row = orderedRows().find((r) => isSelected(r));
-      if (row) {
+      const rows = selectedRows();
+      if (rows.length) {
         e.preventDefault();
-        toggleRowFlag(row);
+        toggleFlags(rows);
       }
     }
   };
@@ -1146,12 +1201,14 @@ export function Watchlist(props: Props) {
   // menu has this item set (flag toggle + colour row + add-to-list submenu +
   // note); rows are removed via the hover ×, not the menu. Section headers get
   // a Rename / Remove section / Add symbol menu.
-  const [ctxMenu, setCtxMenu] = createSignal<{ row: Row; section: string | null; x: number; y: number } | null>(null);
+  // `selected` = the rows the menu acts on when the clicked row is part of a
+  // selection of several items (null = the clicked row alone).
+  const [ctxMenu, setCtxMenu] = createSignal<{ row: Row; selected: Row[] | null; section: string | null; x: number; y: number } | null>(null);
   const [sectionCtx, setSectionCtx] = createSignal<{ name: string; x: number; y: number } | null>(null);
   const openContext = (e: MouseEvent, row: Row, section: string | null) => {
     e.preventDefault();
     if (!isSelected(row)) selectOnly(row.ticker); // right-click selects the row
-    setCtxMenu({ row, section, x: e.clientX, y: e.clientY });
+    setCtxMenu({ row, selected: selection().length > 1 ? selectedRows() : null, section, x: e.clientX, y: e.clientY });
   };
   const openSectionContext = (e: MouseEvent, name: string) => {
     e.preventDefault();
@@ -1159,18 +1216,53 @@ export function Watchlist(props: Props) {
     if (!isSectionSelected(name)) selectOnly(sectionId(name));
     setSectionCtx({ name, x: e.clientX, y: e.clientY });
   };
-  // "Flag/Unflag" (same as Alt+↵): unflag, or flag in the last used colour.
-  const toggleRowFlag = (row: Row) =>
-    watchlistStore.setRowFlag(row.ticker, flagOf(row.ticker) ? null : lastFlagColor());
-  const addRowToList = (listId: string, row: Row) => {
-    const added = watchlistStore.addRowTo(listId, row);
-    const nm = watchlistStore.lists().find((l) => l.id === listId)?.name ?? "list";
-    showToast(added ? `Added ${row.short} to ${nm}` : `${row.short} is already in ${nm}`);
+  // The selected symbols, in list order (section headers left out).
+  const selectedRows = () => allRows().filter((r) => selectedIds().has(r.ticker));
+  // "Flag/Unflag" (same as Alt+↵): symbols that all carry a flag lose it;
+  // otherwise they all take the last used colour. Unflagging several symbols
+  // asks first.
+  const toggleFlags = (rows: Row[]) => {
+    if (!rows.length) return;
+    const color = rows.every((r) => flagOf(r.ticker)) ? null : lastFlagColor();
+    const run = () => rows.forEach((r) => watchlistStore.setRowFlag(r.ticker, color));
+    if (rows.length === 1 || color) {
+      run();
+      return;
+    }
+    showConfirm({
+      title: "Unflag selected symbols?",
+      text: "Doing this will unflag selected symbols from your watchlist.",
+      mainText: "Unflag",
+      cancelText: "Cancel",
+      intent: "danger",
+      onConfirm: () => {
+        run();
+        rowsEl?.focus();
+      },
+      onCancel: () => rowsEl?.focus(),
+    });
   };
-  const createListWithRow = (row: Row) =>
+  // "Add … to" submenu: the lists it offers (the open list first, then the
+  // others by name; no colour list) and a click on one of them.
+  // A list holding every symbol loses them; any other list gets the ones it
+  // misses.
+  const ctxLists = () => {
+    const id = watchlistStore.activeId();
+    const all = watchlistStore.lists().filter((l) => !l.id.startsWith("color-"));
+    return [
+      ...all.filter((l) => l.id === id),
+      ...all.filter((l) => l.id !== id).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
+    ];
+  };
+  const toggleRowsInList = (listId: string, rows: Row[]) => {
+    const missing = rows.filter((r) => !watchlistStore.listHas(listId, r.ticker));
+    if (!missing.length) rows.forEach((r) => watchlistStore.removeRowFrom(listId, r.ticker));
+    else missing.forEach((r) => watchlistStore.addRowTo(listId, r));
+  };
+  const createListWithRows = (rows: Row[]) =>
     promptNewWatchlist((name) => {
-      const nm = watchlistStore.createListWith(row, name);
-      showToast(`Added ${row.short} to ${nm}`);
+      const nm = watchlistStore.createListWith(rows, name);
+      showToast(`Added ${rows.length === 1 ? rows[0].short : `${rows.length} symbols`} to ${nm}`);
     });
   // "Add note": the editor lives in the details pane and shows the SELECTED
   // symbol's note — select the row, then ask the pane to open its note editor.
@@ -1236,7 +1328,7 @@ export function Watchlist(props: Props) {
         title="Delete section"
         onClick={(e) => {
           e.stopPropagation();
-          deleteSection(g.name);
+          removeFromButton(sectionId(g.name));
         }}
         innerHTML={WL_ICONS.trash}
       />
@@ -1260,7 +1352,7 @@ export function Watchlist(props: Props) {
   );
 
   // One table-view symbol row (dynamic column grid).
-  const tableRow = (r: Row, onRemove: () => void, section: string | null) => (
+  const tableRow = (r: Row, section: string | null) => (
     <div
       role="row"
       class="watchlist-row"
@@ -1305,13 +1397,13 @@ export function Watchlist(props: Props) {
           );
         }}
       </For>
-      {removeButton(onRemove)}
+      {removeButton(() => removeFromButton(r.ticker))}
     </div>
   );
 
   // One tile-view symbol row (two-line card): ticker + last on top, company
   // name + abs-change + change% below.
-  const tileRow = (r: Row, onRemove: () => void, section: string | null) => {
+  const tileRow = (r: Row, section: string | null) => {
     const chg = () => cellFor(r, "change");
     const pct = () => cellFor(r, "change_percent");
     return (
@@ -1353,7 +1445,7 @@ export function Watchlist(props: Props) {
             <span class={`watchlist-tile-pct ${pct().tint ?? ""}`}>{pct().text}</span>
           </div>
         </div>
-        {removeButton(onRemove)}
+        {removeButton(() => removeFromButton(r.ticker))}
       </div>
     );
   };
@@ -1554,7 +1646,7 @@ export function Watchlist(props: Props) {
             onDragEnd={onRowsDragEnd}
           >
             <For each={extras()}>
-              {(r) => tileRow(r, () => watchlistStore.removeExtra(r.ticker), null)}
+              {(r) => tileRow(r, null)}
             </For>
             <For each={groups()}>
               {(g) => (
@@ -1562,7 +1654,7 @@ export function Watchlist(props: Props) {
                   {groupHeader(g)}
                   <Show when={!isCollapsed(g.name)}>
                     <For each={g.rows}>
-                      {(r) => tileRow(r, () => removeRow(g.name, r.ticker), g.name)}
+                      {(r) => tileRow(r, g.name)}
                     </For>
                   </Show>
                 </>
@@ -1657,7 +1749,7 @@ export function Watchlist(props: Props) {
           onDragEnd={onRowsDragEnd}
         >
           <For each={extras()}>
-            {(r) => tableRow(r, () => watchlistStore.removeExtra(r.ticker), null)}
+            {(r) => tableRow(r, null)}
           </For>
           <For each={groups()}>
             {(g) => (
@@ -1665,7 +1757,7 @@ export function Watchlist(props: Props) {
                 {groupHeader(g)}
                 <Show when={!isCollapsed(g.name)}>
                   <For each={g.rows}>
-                    {(r) => tableRow(r, () => removeRow(g.name, r.ticker), g.name)}
+                    {(r) => tableRow(r, g.name)}
                   </For>
                 </Show>
               </>
@@ -1725,11 +1817,13 @@ export function Watchlist(props: Props) {
         {(m) => (
           <WatchlistContextMenu
             row={m().row}
+            selected={m().selected}
             x={m().x}
             y={m().y}
-            otherLists={watchlistStore.shownLists().filter((l) => l.id !== watchlistStore.activeId())}
-            onToggleFlag={toggleRowFlag}
-            onSetFlag={(r, flag) => watchlistStore.setRowFlag(r.ticker, flag)}
+            lists={ctxLists()}
+            listHas={(listId, ticker) => watchlistStore.listHas(listId, ticker)}
+            onToggleFlag={toggleFlags}
+            onSetFlag={(rows, flag) => rows.forEach((r) => watchlistStore.setRowFlag(r.ticker, flag))}
             onUnflagAll={() =>
               showConfirm({
                 title: "Unflag all symbols?",
@@ -1740,8 +1834,8 @@ export function Watchlist(props: Props) {
                 onConfirm: () => watchlistStore.clearAllFlags(),
               })
             }
-            onAddToList={addRowToList}
-            onCreateListWith={createListWithRow}
+            onToggleList={toggleRowsInList}
+            onCreateListWith={createListWithRows}
             onAddNote={openNoteFor}
             onAddSection={addSection}
             onAddSymbol={() => openAdd({ section: m().section, after: m().row.ticker })}
@@ -1757,10 +1851,26 @@ export function Watchlist(props: Props) {
             x={m().x}
             y={m().y}
             onRename={(name) => startRename(name)}
-            onRemove={(name) => deleteSection(name)}
+            onRemove={(name) => removeFromButton(sectionId(name))}
             onAddSymbol={() => openAdd({ section: m().name })}
             onClose={() => setSectionCtx(null)}
           />
+        )}
+      </Show>
+
+      <Show when={dragIds().length > 0 && dragAt()}>
+        {(at) => (
+          <Portal>
+            <div class="watchlist-drag-image" aria-hidden="true" style={{ transform: `translate(${at().x}px, ${at().y}px)` }}>
+              <For each={dragIds()}>
+                {(id) => (
+                  <div class="watchlist-drag-item" classList={{ "watchlist-drag-item--section": isSectionId(id) }}>
+                    {isSectionId(id) ? sectionNameOf(id) : id.slice(id.indexOf(":") + 1)}
+                  </div>
+                )}
+              </For>
+            </div>
+          </Portal>
         )}
       </Show>
 
