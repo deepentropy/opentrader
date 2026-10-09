@@ -95,7 +95,7 @@ import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strate
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { screenerPanel } from "./data/screener-store";
 import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
-import { getTickerInfo, isAdjusted, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
+import { getTickerInfo, isAdjusted, setAdjusted, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { migrateDrawingKey } from "./window/drawings/persistence";
 import { displayTimeZone } from "./data/session";
 import { requestDataWindow } from "./data/data-window-store";
@@ -648,10 +648,10 @@ function App() {
       if (tz) setTimezone({ label: tz.label, iana: tz.iana });
     }
     // Symbol → "Adjust data for dividends" is the SAME app-wide flag
-    // as the bottom-bar ADJ toggle (kv ot:adjusted) — one feature,
+    // as the bottom-bar ADJ toggle — one feature,
     // two surfaces. Apply + refetch + let the button re-read.
     if (appearance.adjustDividends !== undefined && appearance.adjustDividends !== isAdjusted()) {
-      kv.setItem("ot:adjusted", String(appearance.adjustDividends));
+      setAdjusted(appearance.adjustDividends);
       window.dispatchEvent(new CustomEvent("chart-reload-data"));
       window.dispatchEvent(new CustomEvent("adjusted-changed"));
     }

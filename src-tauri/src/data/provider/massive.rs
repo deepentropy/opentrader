@@ -53,6 +53,9 @@ impl HistoryProvider for MassiveProvider {
     async fn executed_splits(&self, sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
         massive_rest::executed_splits(&ticker_case::to_source(&sym.ticker)).await
     }
+    async fn paid_dividends(&self, sym: &SymbolRef) -> Option<Vec<DividendEvent>> {
+        massive_rest::paid_dividends(&ticker_case::to_source(&sym.ticker)).await
+    }
     async fn minute_aggs(
         &self,
         sym: &SymbolRef,

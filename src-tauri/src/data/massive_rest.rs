@@ -485,8 +485,8 @@ fn empty_sentinel_days(
 
 // ── Splits (REST cache invalidation) ─────────────────────────────────────
 //
-// The REST aggregate path requests `adjusted=true`, so Massive already returns
-// split-adjusted prices — no on-read adjustment is needed. The one thing splits
+// The chart's REST aggregate requests use `adjusted=true`, so Massive already
+// returns split-adjusted prices — no on-read adjustment is needed. The one thing splits
 // still drive is cache invalidation: `adjusted=true` rescales ALL historical
 // bars when a split executes, so the latest executed-split date is folded into
 // the cache namespace (`epoch_of`) and a fresh split transparently invalidates
@@ -637,6 +637,12 @@ static DIVIDENDS: DayMemo<String, Vec<DividendEvent>> = OnceLock::new();
 
 /// Ex-dividend markers for `ticker` (newest-first); empty on any lookup failure.
 pub async fn dividend_events(ticker: &str) -> Vec<DividendEvent> {
+    paid_dividends(ticker).await.unwrap_or_default()
+}
+
+/// The dividends of `ticker` (newest-first, amounts as declared), or `None`
+/// on a lookup failure (not memoised, so the next call asks again).
+pub async fn paid_dividends(ticker: &str) -> Option<Vec<DividendEvent>> {
     let ticker = ticker.to_string();
     let memo = DIVIDENDS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
@@ -644,13 +650,13 @@ pub async fn dividend_events(ticker: &str) -> Vec<DividendEvent> {
         let guard = memo.lock().await;
         if let Some((as_of, evs)) = guard.get(&ticker) {
             if *as_of == today {
-                return (**evs).clone();
+                return Some((**evs).clone());
             }
         }
     }
-    let evs = Arc::new(fetch_dividends(&ticker, today).await.unwrap_or_default());
+    let evs = Arc::new(fetch_dividends(&ticker, today).await?);
     memo.lock().await.insert(ticker, (today, evs.clone()));
-    (*evs).clone()
+    Some((*evs).clone())
 }
 
 async fn fetch_dividends(ticker: &str, today: NaiveDate) -> Option<Vec<DividendEvent>> {

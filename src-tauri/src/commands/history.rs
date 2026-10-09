@@ -13,7 +13,7 @@ use crate::data::provider::{entitlements, DataProvider, Provider, SymbolChange};
 use crate::data::massive_rest::DayMemo;
 use crate::data::symbol::SymbolRef;
 use crate::data::calendar::SessionCalendar;
-use crate::data::types::{Candle, SplitEvent};
+use crate::data::types::{Candle, DividendEvent, SplitEvent};
 use chrono::{Duration, NaiveDate};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -23,10 +23,15 @@ use tokio::sync::Mutex;
 /// Process-memory cache of assembled daily series. The Tauri backend process
 /// outlives a front-end reload (Ctrl+R), so a ticker loaded once this session
 /// re-displays instantly instead of re-reading ~1254 per-day cache files from
-/// disk. Keyed by (full symbol, days, adjusted); rebuilt once per UTC day so new
+/// disk. Keyed by (full symbol, days); rebuilt once per UTC day so new
 /// closed bars and today's bar are picked up — today's still-forming bar is
 /// corrected live by the poller, so a slightly stale snapshot here is harmless.
-static DAILY_MEM: DayMemo<(String, u32, bool), Vec<Candle>> = OnceLock::new();
+/// The series is split-adjusted; the dividend adjustment is applied on a copy.
+static DAILY_MEM: DayMemo<(String, u32), Vec<Candle>> = OnceLock::new();
+
+/// Daily sessions the dividend factors are computed from: the window of the
+/// daily chart, so the series is the memoised one.
+const DIVIDEND_BASIS_DAYS: u32 = 7560;
 
 /// Settings > Service > "Clear cache": the market-data disk cache and the
 /// in-memory series and memos.
@@ -334,6 +339,67 @@ fn scale_by_splits(bars: &mut [Candle], splits: &[SplitEvent], cal: &SessionCale
     }
 }
 
+/// One factor per dividend of `dividends`, as (ex-dividend date, factor):
+/// `1 - amount / close` of the session before the ex-dividend date, both on
+/// the split-adjusted scale (`daily`, oldest first). The amounts are as
+/// declared, so one paid before a split is scaled by `splits` first. A
+/// dividend without an earlier session in `daily` has no factor.
+fn dividend_steps(daily: &[Candle], dividends: &[DividendEvent], splits: &[SplitEvent], cal: &SessionCalendar) -> Vec<(f64, f64)> {
+    let sessions: Vec<f64> = daily.iter().map(|b| cal.date_of(b.time as i64).and_then(midnight).unwrap_or(b.time)).collect();
+    dividends
+        .iter()
+        .filter_map(|d| {
+            let before = sessions.partition_point(|s| *s < d.date).checked_sub(1)?;
+            let close = daily[before].close;
+            let scale: f64 =
+                splits.iter().filter(|s| s.date > d.date && s.from > 0.0 && s.to > 0.0).map(|s| s.from / s.to).product();
+            let amount = d.amount * scale;
+            (amount > 0.0 && amount < close).then(|| (d.date, 1.0 - amount / close))
+        })
+        .collect()
+}
+
+/// Split-adjusted `bars` put on the dividend-adjusted scale: prices times the
+/// factor of every dividend whose ex-dividend date is after the bar's session.
+/// Volume stays as it is.
+fn scale_by_dividends(bars: &mut [Candle], steps: &[(f64, f64)], cal: &SessionCalendar) {
+    if steps.is_empty() {
+        return;
+    }
+    for bar in bars {
+        let session = cal.date_of(bar.time as i64).and_then(midnight).unwrap_or(bar.time);
+        let factor: f64 = steps.iter().filter(|(ex, _)| *ex > session).map(|(_, f)| f).product();
+        bar.open *= factor;
+        bar.high *= factor;
+        bar.low *= factor;
+        bar.close *= factor;
+    }
+}
+
+/// `bars` (split-adjusted) adjusted for dividends too when `dividends`. An
+/// error when a part of the factors could not be read, so the chart never
+/// shows a series adjusted in part.
+async fn with_dividends(
+    provider: &Provider,
+    cal: &SessionCalendar,
+    sym: &SymbolRef,
+    mut bars: Vec<Candle>,
+    dividends: bool,
+) -> Result<Vec<Candle>, String> {
+    if !dividends || bars.is_empty() {
+        return Ok(bars);
+    }
+    let (daily, paid, splits) =
+        tokio::join!(daily_series(provider, cal, sym, DIVIDEND_BASIS_DAYS), provider.paid_dividends(sym), provider.executed_splits(sym));
+    let paid = paid.ok_or_else(|| format!("no dividend list for {sym}"))?;
+    if paid.is_empty() {
+        return Ok(bars);
+    }
+    let splits = splits.ok_or_else(|| format!("no split list for {sym}"))?;
+    scale_by_dividends(&mut bars, &dividend_steps(&daily?, &paid, &splits, cal), cal);
+    Ok(bars)
+}
+
 /// The company's bars over `[from, to]` under its other symbols (`segments`,
 /// newest first), oldest first: each symbol is read inside its own stretch
 /// only. With `with_archive` (daily bars) the sessions older than the
@@ -582,6 +648,39 @@ async fn joined_daily(
     })
 }
 
+/// The split-adjusted daily series of `sym` over its last `days` sessions
+/// (see [`joined_daily`]), memoised for the day.
+async fn daily_series(provider: &Provider, cal: &SessionCalendar, sym: &SymbolRef, days: u32) -> Result<Arc<Vec<Candle>>, String> {
+    let to = cal.window_end();
+
+    // Instant path: same (ticker, days) already assembled today.
+    let mem = DAILY_MEM.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some((as_of, series)) = mem.lock().await.get(&(sym.full(), days)) {
+        if *as_of == to {
+            return Ok(series.clone());
+        }
+    }
+
+    let dates = cal.last_trading_days(days.max(1) as usize);
+    let wanted_from = *dates.first().unwrap_or(&to);
+    let Some((from, to)) = clamp_to_floor(BarFamily::Day, wanted_from, to).await else {
+        return Err(format!("no daily data for {sym} in last {days} days"));
+    };
+
+    let (bars, complete) = joined_daily(provider, cal, sym, wanted_from, from, to, true).await?;
+    if bars.is_empty() {
+        return Err(format!("no daily data for {sym} in last {days} days"));
+    }
+    let bars = Arc::new(bars);
+    if complete {
+        mem.lock().await.insert((sym.full(), days), (to, bars.clone()));
+    }
+    Ok(bars)
+}
+
+/// Daily candles of `symbol` over its last `days` sessions. Prices are always
+/// split-adjusted; `adjusted` adjusts them for dividends too (here and in
+/// every history command below).
 #[tauri::command]
 #[specta::specta]
 pub async fn get_daily_history(
@@ -592,32 +691,8 @@ pub async fn get_daily_history(
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
     let cal = calendar_of(&provider, &sym).await?;
-    let to = cal.window_end();
-
-    // Instant path: same (ticker, days, adjusted) already assembled today.
-    let mem = DAILY_MEM.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some((as_of, series)) = mem.lock().await.get(&(sym.full(), days, adjusted)) {
-        if *as_of == to {
-            return Ok((**series).clone());
-        }
-    }
-
-    let dates = cal.last_trading_days(days.max(1) as usize);
-    let wanted_from = *dates.first().unwrap_or(&to);
-    let Some((from, to)) = clamp_to_floor(BarFamily::Day, wanted_from, to).await else {
-        return Err(format!("no daily data for {sym} in last {days} days"));
-    };
-
-    let (bars, complete) = joined_daily(&provider, &cal, &sym, wanted_from, from, to, adjusted).await?;
-    if bars.is_empty() {
-        return Err(format!("no daily data for {sym} in last {days} days"));
-    }
-    if complete {
-        mem.lock()
-            .await
-            .insert((sym.full(), days, adjusted), (to, Arc::new(bars.clone())));
-    }
-    Ok(bars)
+    let bars = daily_series(&provider, &cal, &sym, days).await?;
+    with_dividends(&provider, &cal, &sym, (*bars).clone(), adjusted).await
 }
 
 /// Fetch minute candles for `symbol` over the last `days` trading days,
@@ -643,13 +718,13 @@ pub async fn get_minute_history(
         return Err(format!("no minute data for {sym} in last {days} days"));
     };
 
-    let bars = chained_aggs(&provider, &cal, &sym, Span::Minute(interval_min.max(1)), from, to, adjusted, true)
+    let bars = chained_aggs(&provider, &cal, &sym, Span::Minute(interval_min.max(1)), from, to, true, true)
         .await
         .map_err(|e| e.to_string())?;
     if bars.is_empty() {
         return Err(format!("no minute data for {sym} in last {days} days"));
     }
-    Ok(bars)
+    with_dividends(&provider, &cal, &sym, bars, adjusted).await
 }
 
 /// Fetch second-granularity bars for `symbol` over the trailing `days`
@@ -674,9 +749,10 @@ pub async fn get_second_history(
     let Some((from, to)) = clamp_to_floor(BarFamily::Second, from, to).await else {
         return Ok(Vec::new());
     };
-    chained_aggs(&provider, &cal, &sym, Span::Second(mult), from, to, adjusted, true)
+    let bars = chained_aggs(&provider, &cal, &sym, Span::Second(mult), from, to, true, true)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    with_dividends(&provider, &cal, &sym, bars, adjusted).await
 }
 
 /// Live-tail refresh for the seconds frames: `mult`-second bars strictly newer
@@ -693,10 +769,13 @@ pub async fn get_second_history_tail(
     since_sec: f64,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    provider
-        .second_tail(&SymbolRef::parse(&symbol), mult, since_sec, adjusted)
-        .await
-        .map_err(|e| e.to_string())
+    let sym = SymbolRef::parse(&symbol);
+    let bars = provider.second_tail(&sym, mult, since_sec, true).await.map_err(|e| e.to_string())?;
+    if !adjusted || bars.is_empty() {
+        return Ok(bars);
+    }
+    let cal = calendar_of(&provider, &sym).await?;
+    with_dividends(&provider, &cal, &sym, bars, true).await
 }
 
 /// The `[from, to]` calendar window a scroll-back page should fetch, given the
@@ -801,10 +880,11 @@ pub async fn get_aggregates_before(
         "minute" => Span::MinuteChunked(mult),
         other => return Err(format!("unsupported timespan for aggregates-before: {other}")),
     };
-    let bars = chained_aggs(&provider, &cal, &sym, span, from, to, adjusted, false).await.map_err(|e| e.to_string())?;
+    let bars = chained_aggs(&provider, &cal, &sym, span, from, to, true, false).await.map_err(|e| e.to_string())?;
 
     // The day-rounded `to` can echo the boundary bar; keep strictly-older bars.
-    Ok(bars.into_iter().filter(|b| b.time < before_sec).collect())
+    let bars = bars.into_iter().filter(|b| b.time < before_sec).collect();
+    with_dividends(&provider, &cal, &sym, bars, adjusted).await
 }
 
 /// Scroll-back pager for the daily family (1D/1W/1M): older daily candles
@@ -841,8 +921,9 @@ pub async fn get_daily_history_before(
     // Ok([]) so the renderer latches "history exhausted" and stops paging.
     // Same series as the initial load: the days before the company took the
     // symbol are read under its earlier symbol.
-    let bars = chained_aggs(&provider, &cal, &sym, Span::Day, from, end, adjusted, false).await.map_err(|e| e.to_string())?;
-    Ok(bars.into_iter().filter(|b| b.time < before_sec).collect())
+    let bars = chained_aggs(&provider, &cal, &sym, Span::Day, from, end, true, false).await.map_err(|e| e.to_string())?;
+    let bars = bars.into_iter().filter(|b| b.time < before_sec).collect();
+    with_dividends(&provider, &cal, &sym, bars, adjusted).await
 }
 
 #[cfg(test)]
@@ -1009,6 +1090,57 @@ mod tests {
         scale_by_splits(&mut bars, &[split], &cal);
         assert_eq!((bars[0].close, bars[0].high, bars[0].volume), (40.0, 41.0, 200.0));
         assert_eq!((bars[1].close, bars[1].volume), (80.0, 100.0));
+    }
+
+    /// A dividend lowers the bars before its ex-dividend date by
+    /// `1 - amount / previous close`; an amount declared before a split is
+    /// put on the split-adjusted scale first; volume is not changed.
+    #[test]
+    fn bars_before_an_ex_date_are_scaled_by_the_dividend() {
+        let cal = us();
+        // 04:00 UTC (midnight New York) of 10/06 to 12/06/2024.
+        let at = |d: u32| NaiveDate::from_ymd_opt(2024, 6, d).unwrap().and_hms_opt(4, 0, 0).unwrap().and_utc().timestamp() as f64;
+        let candle = |time: f64, close: f64| Candle { time, open: close, high: close, low: close, close, volume: 100.0 };
+        let daily = vec![candle(at(10), 100.0), candle(at(11), 101.0), candle(at(12), 102.0)];
+        let ex = |d: u32| midnight(NaiveDate::from_ymd_opt(2024, 6, d).unwrap()).unwrap();
+        // 1.00 on the 11th; 5.00 declared before a 10:1 split of the 12th (0.50 on the adjusted scale).
+        let dividends =
+            vec![DividendEvent { date: ex(12), amount: 5.0 }, DividendEvent { date: ex(11), amount: 1.0 }, DividendEvent { date: ex(10), amount: 1.0 }];
+        let splits = vec![SplitEvent { date: ex(13), from: 1.0, to: 10.0 }];
+        let steps = dividend_steps(&daily, &dividends, &splits, &cal);
+        // No session before the 10th: that dividend has no factor.
+        assert_eq!(steps.len(), 2);
+        assert!((steps[0].1 - (1.0 - 0.5 / 101.0)).abs() < 1e-12 && (steps[1].1 - (1.0 - 0.1 / 100.0)).abs() < 1e-12);
+        let mut bars = daily.clone();
+        scale_by_dividends(&mut bars, &steps, &cal);
+        assert!((bars[0].close - 100.0 * steps[0].1 * steps[1].1).abs() < 1e-9);
+        assert!((bars[1].close - 101.0 * steps[0].1).abs() < 1e-9);
+        assert_eq!((bars[2].close, bars[0].volume), (102.0, 100.0));
+    }
+
+    /// The daily series with and without the dividend adjustment (network),
+    /// written as `time,close,adjusted_close` to `OT_OUT/<ticker>.csv` for
+    /// the tickers of `OT_TICKERS`. Run with:
+    ///   cargo test --lib dividend_adjust_live -- --nocapture --ignored
+    #[tokio::test]
+    #[ignore = "hits the gateway; run explicitly"]
+    async fn dividend_adjust_live() {
+        let provider: Provider = Arc::new(MassiveProvider);
+        let out = std::env::var("OT_OUT").unwrap();
+        for t in std::env::var("OT_TICKERS").unwrap_or_else(|_| "NASDAQ:NFLX,NASDAQ:NVDA,NASDAQ:AAPL,NYSE:KO".into()).split(',') {
+            let sym = SymbolRef::parse(t);
+            let cal = SessionCalendar::new(&provider.symbol_session(&sym).await.unwrap());
+            let plain = daily_series(&provider, &cal, &sym, DIVIDEND_BASIS_DAYS).await.unwrap();
+            let adjusted = with_dividends(&provider, &cal, &sym, (*plain).clone(), true).await.unwrap();
+            let biggest = plain.windows(2).map(|w| (w[1].close / w[0].close - 1.0).abs()).fold(0.0_f64, f64::max);
+            eprintln!(
+                "{t}: {} bars, first close {:.4} (with dividends {:.4}), largest daily close move {:.1}%",
+                plain.len(), plain[0].close, adjusted[0].close, biggest * 100.0
+            );
+            let rows: Vec<String> =
+                plain.iter().zip(&adjusted).map(|(p, a)| format!("{},{},{},{}", p.time, p.close, a.close, a.volume - p.volume)).collect();
+            std::fs::write(format!("{out}/ot-{}.csv", sym.ticker), rows.join("\n")).unwrap();
+        }
     }
 
     /// A company delisted for more than a year and listed again under its

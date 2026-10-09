@@ -35,9 +35,10 @@ use tauri::AppHandle;
 /// Historical OHLCV bars of a symbol (`SymbolRef`: exchange + provider
 /// ticker). Callers pass an inclusive `[from, to]` calendar range
 /// (the command layer derives it from the trading calendar / scroll anchor).
-/// `adjusted` selects split-adjusted (true — the default UI state) vs raw
-/// prices; it is part of every history fetch so a toggled series never mixes
-/// bases across the initial load / scroll-back pages.
+/// `adjusted` selects split-adjusted vs raw prices. The chart always reads
+/// split-adjusted bars (the command layer adds the dividend adjustment); raw
+/// bars are for a company's bars under another symbol, scaled by its own
+/// split list.
 #[async_trait::async_trait]
 pub trait HistoryProvider: Send + Sync {
     async fn daily_aggs(
@@ -69,6 +70,12 @@ pub trait HistoryProvider: Send + Sync {
     /// order. `None` when the list could not be read (bars must then not be
     /// scaled with it).
     async fn executed_splits(&self, _sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
+        Some(Vec::new())
+    }
+    /// Every dividend of the symbol, in any order, amounts as declared.
+    /// `None` when the list could not be read (bars must then not be
+    /// adjusted with it).
+    async fn paid_dividends(&self, _sym: &SymbolRef) -> Option<Vec<DividendEvent>> {
         Some(Vec::new())
     }
     async fn minute_aggs(

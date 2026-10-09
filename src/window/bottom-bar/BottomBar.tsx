@@ -18,8 +18,7 @@ import { SessionMenu, type SessionId } from "./SessionMenu";
 import { GoToDateDialog } from "./GoToDateDialog";
 import { lastGotoDate, queryGotoContext, rememberGotoDate } from "../chart/goto-query";
 import type { TimezoneEntry } from "../../data/timezones";
-import { isAdjusted, isIntradayInterval } from "../../data/datafeed";
-import { setItem } from "../../data/kv";
+import { isAdjusted, isIntradayInterval, setAdjusted as storeAdjusted } from "../../data/datafeed";
 
 type DateRangeId = "1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
 
@@ -113,14 +112,14 @@ export function BottomBar(props: Props) {
   const [sessionAnchor, setSessionAnchor] = createSignal<DOMRect | null>(null);
   // Session applies only to intraday frames; daily/weekly/monthly hide it.
   const sessionEnabled = () => isIntradayInterval(props.interval);
-  // ADJ toggle (split/dividend adjustment). The flag lives in kv where the
+  // ADJ toggle (dividend adjustment). The flag lives in kv where the
   // datafeed reads it per fetch; toggling asks every pane to refetch — no
   // App-level wiring needed.
   const [adjusted, setAdjusted] = createSignal(isAdjusted());
   const toggleAdjusted = () => {
     const next = !adjusted();
     setAdjusted(next);
-    setItem("ot:adjusted", String(next));
+    storeAdjusted(next);
     window.dispatchEvent(new CustomEvent("chart-reload-data"));
   };
   // The Settings dialog's "Adjust data for dividends" writes the same flag —
@@ -314,13 +313,13 @@ export function BottomBar(props: Props) {
             <span class="bottom-bar-separator" />
           </div>
           <div class="bottom-bar-inline">
-            <Tooltip text="Adjust data for splits" side="top">
+            <Tooltip text="Adjust data for dividends" side="top">
               <button
                 type="button"
                 tabIndex={-1}
                 class={"bottom-bar-item bottom-bar-text-button" + (adjusted() ? " is-active" : "")}
                 data-name="adjustments-menu"
-                aria-label="Adjust data for splits"
+                aria-label="Adjust data for dividends"
                 aria-pressed={adjusted()}
                 onClick={toggleAdjusted}
               >

@@ -27,7 +27,8 @@ pub struct ProviderCapabilities {
     pub resolutions: ResolutionCaps,
     /// Max base units one history request returns (Massive: 50 000).
     pub max_bars_per_request: u32,
-    /// The provider serves raw and split-adjusted prices (bottom-bar ADJ).
+    /// The provider lists dividends, so prices can be adjusted for them
+    /// (bottom-bar ADJ).
     pub adjusted_toggle: bool,
     /// Bars include pre/post-market (bottom-bar RTH/ETH).
     pub extended_hours: bool,

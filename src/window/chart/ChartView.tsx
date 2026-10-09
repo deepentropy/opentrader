@@ -3769,7 +3769,7 @@ export function ChartView(props: Props) {
       // The reload flips the fetch basis (e.g. the ADJ toggle): invalidate the
       // scroll-back generation + drop the read-ahead buffer so a page fetched
       // under the previous basis can never prepend into the reloaded series
-      // (mixed raw/adjusted bars on split tickers).
+      // (bars of two bases in one series).
       fetchGen++;
       prefetch = null;
       setReloadTick((n) => n + 1);

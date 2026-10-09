@@ -750,7 +750,7 @@ export type ChartAppearance = {
    *  global timezone signal at commit — it is NOT a per-pane chart token. */
   timezone?: string;
   /** "Adjust data for dividends" — the same app-wide flag as the bottom-bar
-   *  ADJ toggle (kv ot:adjusted). Applied by App at commit. */
+   *  ADJ toggle. Applied by App at commit. */
   adjustDividends?: boolean;
   /** Symbol → Session: "Regular" | "Extended" (the pane's RTH/ETH session,
    *  applied by App at commit). */

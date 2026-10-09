@@ -25,7 +25,7 @@ import {
   getDailyHistoryBefore,
   getTickerInfo,
 } from "./datafeed-rest";
-import { getItem } from "./kv";
+import { getItem, setItem } from "./kv";
 import {
   onChartAggregate,
   onSecondAggregate,
@@ -407,16 +407,22 @@ function aggregateSessionMinutes(rows: Candle[], spec: SessionSpec, targetMins: 
   return out;
 }
 
-// ── Split adjustment (bottom-bar ADJ toggle) ─────────────────────────────────
-// The toggle persists in kv; the feed reads it per fetch so no wiring from the
-// bar to each chart is needed — BottomBar flips the flag and dispatches
+// ── Dividend adjustment (bottom-bar ADJ toggle) ──────────────────────────────
+// Prices are always split-adjusted; the toggle adjusts them for dividends too.
+// It persists in kv; the feed reads it per fetch so no wiring from the bar to
+// each chart is needed — BottomBar flips the flag and dispatches
 // "chart-reload-data", and every subsequent fetch uses the new basis.
 
-const ADJUSTED_KEY = "ot:adjusted";
+const ADJUSTED_KEY = "ot:adjust-dividends";
 
-/** Current split-adjustment preference (default ON). */
+/** Current dividend-adjustment preference (default OFF). */
 export function isAdjusted(): boolean {
-  return getItem(ADJUSTED_KEY) !== "false";
+  return getItem(ADJUSTED_KEY) === "true";
+}
+
+/** Store the dividend-adjustment preference (the caller reloads the charts). */
+export function setAdjusted(on: boolean): void {
+  setItem(ADJUSTED_KEY, String(on));
 }
 
 // ── Historical bars ──────────────────────────────────────────────────────────
