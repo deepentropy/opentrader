@@ -1652,6 +1652,12 @@ export function ChartView(props: Props) {
   // study pane = its first study, with that pane's price scale. Rebuilt when
   // the pane boxes, the studies or their panes change.
   const [paneEpoch, setPaneEpoch] = createSignal(0);
+  /** Studies that own a drawing (Drawing.owner). */
+  const drawingOwners = createMemo<string[]>(
+    () => [...new Set((props.drawings ?? []).map((d) => d.owner).filter((x): x is string => !!x))].sort(),
+    [],
+    { equals: (a, b) => a.join(",") === b.join(",") },
+  );
   const drawingPanes = createMemo<DrawingPane[]>(() => {
     const main = coords();
     const boxes = paneBoxes();
@@ -1670,6 +1676,20 @@ export function ChartView(props: Props) {
         top: b.top,
         height: b.height,
         coords: studyPaneCoords(main, () => controller?.studySeries(owner) ?? null, (sec) => controller?.paneValuesAt(owner, sec) ?? []),
+      });
+    }
+    // A study that owns drawings and is not the first of its pane (it was
+    // moved to another pane): its drawings follow it, on its own scale.
+    for (const id of drawingOwners()) {
+      if (out.some((p) => p.key === id)) continue;
+      const pane = untrack(() => controller?.paneOf(id) ?? null);
+      const b = pane === null ? undefined : boxes.find((x) => x.index === pane);
+      if (!b) continue;
+      out.push({
+        key: id,
+        top: b.top,
+        height: b.height,
+        coords: studyPaneCoords(main, () => controller?.studySeries(id) ?? null, (sec) => controller?.paneValuesAt(id, sec) ?? []),
       });
     }
     return out;
