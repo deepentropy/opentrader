@@ -44,6 +44,7 @@ import { parseColor, textOnColor } from "lightweight-charts-drawing/core/color";
 import { sceneImage, sceneTable, sceneTextTool } from "lightweight-charts-drawing/core/scene/text-tools";
 import { sceneSvg } from "./scene-svg";
 import { sceneLockedAnchors, sceneOf } from "lightweight-charts-drawing/core/scene";
+import { drawScene } from "lightweight-charts-drawing/runtime/scene-canvas";
 import { DRAG_THRESHOLD, FREEHAND_SAMPLE_PX, MIN_DISTANCE_BETWEEN_POINTS } from "lightweight-charts-drawing/core/interact/constants";
 import { magnetSnap, projectAll, projectPoint, screenPoints, translateDrawing, unproject } from "lightweight-charts-drawing/core/interact/project";
 import { lockAxisDelta, shiftPlacementPoint } from "lightweight-charts-drawing/core/interact/shift";
@@ -76,9 +77,23 @@ import {
 import type { CursorMode } from "../../data/drawing-toolbar";
 import { hintState, lineToolHint, PATH_HINT, POLYLINE_HINT, setLineToolHint } from "../../data/hints";
 
+/** Paints drawing `id` on the canvas of the pane `paneKey` (context in CSS
+ *  px, origin at the pane's top-left). */
+export type SunkPainter = (ctx: CanvasRenderingContext2D, id: string, paneKey: string | null) => void;
+
+/** Kinds drawn by components (not a plain scene): they stay in the overlay,
+ *  in front of every series. */
+export const NEVER_SUNK_KINDS: ReadonlySet<string> = new Set(["table", "image"]);
+
 type Props = {
   /** Main series pane coords. */
   coords: Coords | null;
+  /** Drawings the chart paints on its canvas, behind a series (their place
+   *  in the drawing order): here they are transparent pointer targets with
+   *  their anchors. */
+  sunk?: ReadonlySet<string>;
+  /** The painter of those drawings, for the chart (null on unmount). */
+  onPainter?: (paint: SunkPainter | null) => void;
   /** Chart panes the drawings live in (Drawing.owner). Absent = one pane,
    *  the main series, over the whole overlay. */
   panes?: DrawingPane[];
@@ -653,6 +668,36 @@ export function DrawingsOverlay(props: Props) {
     x: Math.max(0, Math.min(f.dims.w, p.x)),
     y: Math.max(0, Math.min(f.dims.h, p.y - f.top)),
   });
+  // ── Drawings painted on the chart canvas ────────────────────────────────
+  // A drawing behind a series (props.sunk) is painted by the chart in its
+  // pane's canvas, at its place in the drawing order: same scene, without the
+  // anchors (they stay in the overlay, in front).
+  let sunkFont = "";
+  const paintSunk: SunkPainter = (ctx, id, paneKey) => {
+    const d = props.drawings.find((x) => x.id === id);
+    const pane = frameByKey(paneKey);
+    const f = d ? drawFrame(d) : null;
+    if (!d || !pane || !f || notShown(d)) return;
+    const pts = screenPoints(f.coords, d, f.dims);
+    if (!pts) return;
+    const scene = d.kind === "text"
+      ? sceneTextTool(d, pts[0], false, false)
+      : sceneOf(d, pts, { w: f.dims.w, h: f.dims.h, coords: f.coords, selected: false, hovered: false });
+    if (!sunkFont && svg) sunkFont = getComputedStyle(svg).fontFamily;
+    ctx.save();
+    // The drawing's frame inside this pane's canvas (an extended vertical
+    // line is laid out over the whole chart).
+    ctx.translate(0, f.top - pane.top);
+    drawScene(ctx, scene, {
+      fontFamily: sunkFont || "sans-serif",
+      anchors: { fillAt: (y) => anchorFillAt(y + f.top), selected: false },
+    });
+    ctx.restore();
+  };
+  props.onPainter?.(paintSunk);
+  onCleanup(() => props.onPainter?.(null));
+  const isSunk = (d: Drawing) => !!props.sunk?.has(d.id);
+
   /** Owner of the placement in progress (the pane of its first point). */
   const [placeKey, setPlaceKey] = createSignal<string | null>(null);
   /** Pane of a placement: the locked pane once a point is down, else the
@@ -2106,7 +2151,7 @@ export function DrawingsOverlay(props: Props) {
                       {/* Locked drawings never show the normal grab handles —
                           selection paints lock glyphs on the anchors instead. */}
                       <AnchorCtx.Provider value={{ fillAt: (y: number) => anchorFillAt(y + v().f.top), selected }}>
-                        {renderKind(d, v().pts, active() && !d.locked, v().f.dims.w, v().f.dims.h, v().c, hoveredId() === d.id && !d.locked)}
+                        {renderKind(d, v().pts, active() && !d.locked, v().f.dims.w, v().f.dims.h, v().c, hoveredId() === d.id && !d.locked, isSunk(d))}
                       </AnchorCtx.Provider>
                       <Show when={selected() && d.locked}>
                         {renderLockedAnchors(v().pts, d.style.color)}
@@ -2452,16 +2497,18 @@ export function renderKind(
   h: number,
   coords: Coords | null,
   hovered = false,
+  /** Painted on the chart canvas: only the anchors show here. */
+  ghost = false,
 ): import("solid-js").JSX.Element {
   switch (d.kind) {
     case "text":
-      return <TextToolView d={d} p={pts[0]} hovered={hovered} />;
+      return <TextToolView d={d} p={pts[0]} hovered={hovered} ghost={ghost} />;
     case "table":
       return <TableView d={d} p={pts[0]} active={selected} />;
     case "image":
       return <ImageView d={d} p={pts[0]} active={selected} />;
   }
-  return sceneSvg(sceneOf(d, pts, { w, h, coords, selected, hovered }), Handles, d.style.color);
+  return sceneSvg(sceneOf(d, pts, { w, h, coords, selected, hovered }), Handles, d.style.color, ghost);
 }
 
 /** Anchor colour (ot-blue-600), the same for every drawing whatever its line
@@ -2662,9 +2709,9 @@ function ImageView(props: { d: Drawing; p: Pt; active: boolean }) {
   );
 }
 
-function TextToolView(props: { d: Drawing; p: Pt; hovered: boolean }) {
+function TextToolView(props: { d: Drawing; p: Pt; hovered: boolean; ghost?: boolean }) {
   const ctx = useContext(AnchorCtx);
-  return <>{sceneSvg(sceneTextTool(props.d, props.p, ctx.selected(), props.hovered), Handles, props.d.style.color)}</>;
+  return <>{sceneSvg(sceneTextTool(props.d, props.p, ctx.selected(), props.hovered), Handles, props.d.style.color, props.ghost)}</>;
 }
 
 /** Andrews pitchfork: median line (handle → midpoint of the prongs) plus two

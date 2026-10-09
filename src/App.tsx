@@ -110,6 +110,7 @@ import { UnsavedLayoutDialog } from "./window/header/UnsavedLayoutDialog";
 import { LayoutBrowserDialog } from "./window/header/LayoutBrowserDialog";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
 import { newStudyId, typeIdOf } from "./window/chart/indicators/study-id";
+import { overOf, type PlacedDrawing } from "./window/chart/tree-order";
 import {
   APPLY_TEMPLATE_PREFIX,
   buildIndicatorTemplatesMenu,
@@ -1413,6 +1414,31 @@ function App() {
     setSlice(key, arr, { label: `reorder ${labelForKind(d.kind)}`, coalesceId: `${key}:order:${id}` });
   }
 
+  /** Object tree drag: the listed drawings (front first) take, in that order,
+   *  the places they hold together in the list, each with the source it now
+   *  sits in front of (`over`; null = behind every source). One undo step. */
+  function placeDrawingsForSymbol(key: string, ids: string[], over: Record<string, string | null>) {
+    const list = drawingsFor(key);
+    const byId = new Map(list.map((d) => [d.id, d]));
+    const backFirst = ids.filter((id) => byId.has(id)).reverse();
+    const moved = new Set(backFirst);
+    let k = 0;
+    let changed = false;
+    const next = list.map((d) => {
+      if (!moved.has(d.id)) return d;
+      const src = byId.get(backFirst[k++])!;
+      const want = over[src.id] ?? undefined;
+      if (src !== d) changed = true;
+      if (overOf(src) === want) return src;
+      changed = true;
+      const placed: PlacedDrawing = { ...src };
+      if (want === undefined) delete placed.over;
+      else placed.over = want;
+      return placed;
+    });
+    if (changed) setSlice(key, next, { label: "move objects" });
+  }
+
   /** Move a drawing to an absolute slot in the ObjectTree's DISPLAY order
    *  (topmost-first = reverse of the array). Used by the panel's drag-to-
    *  reorder; `toDisplayIndex` is the insert position in that display list. */
@@ -2533,6 +2559,7 @@ function App() {
               updateDrawingsForSymbol={updateDrawingsForSymbol}
               cloneDrawingForSymbol={cloneDrawingForSymbol}
               reorderDrawingForSymbol={reorderDrawingForSymbol}
+              placeDrawingsForSymbol={placeDrawingsForSymbol}
               removeDrawingForSymbol={removeDrawingForSymbol}
               removeDrawingsForSymbol={removeDrawingsForSymbol}
             />

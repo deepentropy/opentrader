@@ -21,6 +21,7 @@ import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides 
 import type { BackgroundAt } from '../selection-markers';
 import { isVisibleOnInterval } from 'lightweight-charts-drawing/core/types';
 import {
+  MAIN_PANE_GROUP,
   cloneIndicatorOptions,
   defaultIndicatorOptions,
   precisionDigits,
@@ -43,7 +44,11 @@ type Instance = {
   /** Set for a pane owner that is not a study (`layer` unused then). */
   owner?: PaneOwner;
   paneIndex: number;
+  /** Drawn in the price pane. */
   overlay: boolean;
+  /** Pane group of a stacked pane (the instances with the same group share
+   *  the pane); null in the price pane. */
+  group: string | null;
   /** Overlay study on its OWN hidden scale (Volume) — draws in pane 0 but its
    *  values are not prices, so the magnet must ignore it. */
   ownScale: boolean;
@@ -187,7 +192,17 @@ export class IndicatorController {
       const k = this.paneOrder.indexOf(id);
       return k >= 0 ? k : this.paneOrder.length + rest.indexOf(id);
     };
-    const stacked = rest.slice().sort((a, b) => rank(a) - rank(b));
+    // One entry per pane: the first of the instances sharing it.
+    const groups = new Set<string | null>();
+    const stacked = rest
+      .slice()
+      .sort((a, b) => rank(a) - rank(b))
+      .filter((id) => {
+        const g = this.instances.get(id)!.group;
+        if (groups.has(g)) return false;
+        groups.add(g);
+        return true;
+      });
     const n = this.chart.panes().length;
     stacked.forEach((id, k) => {
       const want = k + 1;
@@ -295,8 +310,20 @@ export class IndicatorController {
   private renderOne(id: string, inst: Instance, entry: IndicatorRegistryEntry, bars: Bar[], live = false): void {
     const o = this.options.get(id) ?? defaultIndicatorOptions();
     inst.layer.setPlotOptions({ labelsOnScale: o.labelsOnScale, precision: precisionDigits(o.precision) });
+    inst.layer.setDetachedScale(this.detachedScale(id, inst, entry));
     inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {}, live);
     if (!live) this.seriesChanged();
+  }
+
+  /** Scale of its own for a study in a pane whose scale shows other values:
+   *  a study that is not a price study in the price pane, and in a shared
+   *  stacked pane every study but the one the pane was made for (else the
+   *  first one). Null = the pane's scale. */
+  private detachedScale(id: string, inst: Instance, entry: IndicatorRegistryEntry): string | null {
+    if (inst.overlay) return entry.overlay ? null : `src:${id}`;
+    const members = [...this.instances].filter(([, i]) => !i.overlay && i.group === inst.group).map(([mid]) => mid);
+    const lead = members.includes(inst.group ?? "") ? inst.group : members[0];
+    return lead === id ? null : `src:${id}`;
   }
 
   /** Registry defaults merged with any user input overrides for `id`. */
@@ -433,6 +460,35 @@ export class IndicatorController {
   moveToNewPane(id: string): IndicatorOptions | null {
     if (!this.canMoveToNewPane(id)) return null;
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: true };
+    delete options.paneGroup;
+    this.options.set(id, cloneIndicatorOptions(options));
+    this.refresh(id);
+    return this.getOptions(id);
+  }
+
+  /** Pane a study is drawn in (0 = the price pane), or null. */
+  paneOf(id: string): number | null {
+    const inst = this.instances.get(id);
+    return inst && !inst.owner ? (inst.overlay ? 0 : inst.paneIndex) : null;
+  }
+
+  /** Move a study into the existing pane `paneIndex` (0 = the price pane;
+   *  Object tree drag): re-created there, next to what the pane holds. Its
+   *  former pane closes when it was alone in it. Returns the study's options
+   *  to persist, or null when it cannot move. */
+  moveToPane(id: string, paneIndex: number): IndicatorOptions | null {
+    const inst = this.instances.get(id);
+    const entry = getIndicatorEntry(id);
+    if (!inst || inst.owner || !entry || this.paneOf(id) === paneIndex) return null;
+    const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: false };
+    delete options.paneGroup;
+    if (paneIndex === 0) {
+      if (!entry.overlay) options.paneGroup = MAIN_PANE_GROUP;
+    } else {
+      const mate = [...this.instances.values()].find((i) => !i.overlay && i.paneIndex === paneIndex);
+      if (!mate?.group) return null;
+      options.paneGroup = mate.group;
+    }
     this.options.set(id, cloneIndicatorOptions(options));
     this.refresh(id);
     return this.getOptions(id);
@@ -486,7 +542,7 @@ export class IndicatorController {
     const existing = this.instances.get(id);
     if (existing?.owner) return existing.paneIndex;
     const paneIndex = this.claimPane();
-    this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false });
+    this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false, group: id });
     return paneIndex;
   }
 
@@ -561,9 +617,13 @@ export class IndicatorController {
   private add(id: string): void {
     const entry = getIndicatorEntry(id);
     if (!entry) return;
-    // An overlay moved to its own pane ("Move to") is drawn like a pane study.
-    const overlay = entry.overlay && !this.options.get(id)?.ownPane;
-    const paneIndex = overlay ? 0 : this.claimPane();
+    // An overlay moved to its own pane ("Move to") is drawn like a pane
+    // study; a study moved to another pane (Object tree drag) joins it.
+    const o = this.options.get(id);
+    const overlay = o?.paneGroup === MAIN_PANE_GROUP || (!o?.paneGroup && entry.overlay && !o?.ownPane);
+    const group = overlay ? null : o?.paneGroup ?? id;
+    const mate = overlay ? undefined : [...this.instances.values()].find((i) => !i.overlay && i.group === group);
+    const paneIndex = overlay ? 0 : mate ? mate.paneIndex : this.claimPane();
     const layer = new IndicatorLayer(this.chart, paneIndex, this.chartId, id);
     layer.setLastValueVisible(this.lastValueVisible);
     layer.setNameLabelsVisible(this.nameLabelsVisible);
@@ -571,7 +631,7 @@ export class IndicatorController {
     layer.setChartState(this.chartState);
     layer.setMainSeries(() => this.mainSeries());
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
-    const inst: Instance = { layer, paneIndex, overlay, ownScale };
+    const inst: Instance = { layer, paneIndex, overlay, ownScale, group };
     this.instances.set(id, inst);
     if (this.selected?.id === id) layer.setSelected(this.selected.bgAt);
     layer.setSeriesOnlyScale(this.seriesOnlyScale);
@@ -585,7 +645,16 @@ export class IndicatorController {
     if (inst.owner) inst.owner.clear();
     else inst.layer.clear();
     this.instances.delete(id);
-    if (!inst.overlay) {
+    // Others share its pane: the pane stays, and one of them takes the
+    // pane's scale when this one had it.
+    const mates = inst.overlay ? [] : [...this.instances].filter(([, i]) => !i.overlay && i.paneIndex === inst.paneIndex);
+    if (mates.length) {
+      const bars = this.getBars();
+      for (const [mid, m] of mates) {
+        const entry = getIndicatorEntry(mid);
+        if (!m.owner && entry) this.renderOne(mid, m, entry, bars);
+      }
+    } else if (!inst.overlay) {
       this.usedPanes.delete(inst.paneIndex);
       this.removeEmptyPanes();
       // Its pane is gone: the panes below move up one index. Renumber the

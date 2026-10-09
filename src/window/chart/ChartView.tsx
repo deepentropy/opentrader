@@ -44,9 +44,13 @@ import {
   TREE_HIDE_EVENT,
   TREE_MOVE_EVENT,
   TREE_REMOVE_EVENT,
+  setFocusedTreePanes,
   setFocusedTreeSources,
+  type TreePane,
   type TreeSource,
 } from "./object-tree-sources";
+import { moveItem, overOf, paneItems, splitItems } from "./tree-order";
+import { SunkDrawings, sameSunkGroups, type SunkGroup } from "./sunk-drawings";
 import { statusLineInputs } from "./indicators/indicator-options";
 import { flagOf, lastFlagColor, setFlag } from "../../data/symbol-flags";
 import { FlagColorPopup } from "./FlagColorPopup";
@@ -162,7 +166,7 @@ import type { Bar } from "oakscriptjs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import { makeCoords, type Coords } from "../drawings/coords";
 import { studyPaneCoords, type DrawingPane } from "../drawings/pane-coords";
-import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
+import { DrawingsOverlay, NEVER_SUNK_KINDS, type SunkPainter } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
 import type { CursorMode } from "../../data/drawing-toolbar";
 
@@ -230,6 +234,9 @@ type Props = {
   sourceOrder?: string[];
   /** The Object tree moved a source: the new drawing order. */
   onSourceOrder?: (order: string[]) => void;
+  /** The Object tree moved a drawing: the pane's drawings in their new
+   *  order (front first) and the source each one sits in front of. */
+  placeDrawings?: (ids: string[], over: Record<string, string | null>) => void;
   /** When true, suppress all study layers without removing them from the active
    *  set (Hide-all dropdown's "Hide indicators"); restored when toggled off. */
   indicatorsHidden?: boolean;
@@ -4646,6 +4653,96 @@ export function ChartView(props: Props) {
       if (sorted.every((k, i) => k.i === i)) continue;
       sorted.forEach((k, i) => k.s.setSeriesOrder(i));
     }
+    syncSunk();
+  }
+  // ── Drawings behind a series (sunk-drawings.ts) ────────────────────────
+  /** Painter of the overlay (it owns the drawings' geometry). */
+  let sunkPainter: SunkPainter | null = null;
+  /** Drawings painted on the canvas now (transparent in the overlay). */
+  const [sunkIds, setSunkIds] = createSignal<ReadonlySet<string>>(new Set(), {
+    equals: (a, b) => a.size === b.size && [...a].every((x) => b.has(x)),
+  });
+  let sunkGroups: SunkGroup[] = [];
+  let sunkPrims: { series: ISeriesApi<SeriesType>; prim: SunkDrawings }[] = [];
+  /** Every drawing behind a shown series goes to a primitive of the nearest
+   *  shown source behind it (or to the back of its pane); the ones in front
+   *  of every shown series stay with the overlay. */
+  function syncSunk() {
+    const groups: SunkGroup[] = [];
+    const sunk = new Set<string>();
+    const paint = sunkPainter;
+    if (chart && paint) {
+      const byId = new Map((props.drawings ?? []).map((d) => [d.id, d]));
+      const paintable = (d: Drawing) =>
+        !d.hidden && isVisibleOnInterval(d.visibility, props.interval) && !NEVER_SUNK_KINDS.has(d.kind);
+      const lwPanes = chart.panes();
+      /** Back group of each pane with a shown series. */
+      const backOf = new Map<number, SunkGroup>();
+      const paneKeys = new Map<number, string | null>();
+      for (const tp of untrack(treePanes)) {
+        const pane = lwPanes[tp.pane];
+        const paneKey = tp.pane === 0 ? null : controller?.ownerOfPane(tp.pane) ?? null;
+        if (!pane || (tp.pane > 0 && !paneKey)) continue;
+        // Shown series of the pane, back to front, each with its source.
+        let owner = MAIN_SOURCE_ID;
+        const shown: ISeriesApi<SeriesType>[] = [];
+        const frontOf = new Map<string, ISeriesApi<SeriesType>>();
+        for (const s of pane.getSeries() as ISeriesApi<SeriesType>[]) {
+          const id = s === (series as unknown) ? MAIN_SOURCE_ID : studyOfSeries(s);
+          if (id) owner = id;
+          if (s.options().visible === false) continue;
+          shown.push(s);
+          frontOf.set(owner, s);
+        }
+        if (shown.length === 0) continue;
+        paneKeys.set(tp.pane, paneKey);
+        const front = shown[shown.length - 1];
+        const back: SunkGroup = { series: shown[0], bottom: true, paneKey, ids: [] };
+        backOf.set(tp.pane, back);
+        const byAnchor = new Map<ISeriesApi<SeriesType>, SunkGroup>();
+        let anchor: ISeriesApi<SeriesType> | null = null;
+        for (let i = tp.items.length - 1; i >= 0; i--) {
+          const it = tp.items[i];
+          if (it.kind === "source") {
+            anchor = frontOf.get(it.id) ?? anchor;
+            continue;
+          }
+          const d = byId.get(it.id);
+          if (!d || !paintable(d) || anchor === front) continue;
+          sunk.add(d.id);
+          if (!anchor) { back.ids.push(d.id); continue; }
+          let g = byAnchor.get(anchor);
+          if (!g) byAnchor.set(anchor, (g = { series: anchor, bottom: false, paneKey, ids: [] }));
+          g.ids.push(d.id);
+        }
+        groups.push(...byAnchor.values());
+      }
+      // A vertical line with "Extend" runs through every pane: behind the
+      // series of the other panes too.
+      for (const id of sunk) {
+        const d = byId.get(id)!;
+        if (d.kind !== "vertical-line" || d.style.extendLine === false) continue;
+        const own = d.owner ?? null;
+        for (const [pane, back] of backOf) if (paneKeys.get(pane) !== own) back.ids.push(id);
+      }
+      for (const back of backOf.values()) if (back.ids.length) groups.push(back);
+    }
+    setSunkIds(sunk);
+    if (sameSunkGroups(groups, sunkGroups)) {
+      for (const p of sunkPrims) p.prim.update();
+      return;
+    }
+    for (const p of sunkPrims) {
+      try { p.series.detachPrimitive(p.prim); } catch { /* its series is gone */ }
+    }
+    sunkGroups = groups;
+    sunkPrims = paint
+      ? groups.map((g) => {
+          const prim = new SunkDrawings(g, paint);
+          g.series.attachPrimitive(prim);
+          return { series: g.series, prim };
+        })
+      : [];
   }
   let sourceOrderQueued = false;
   /** Re-apply the order once after the current batch of redraws (a redrawn
@@ -4661,6 +4758,13 @@ export function ChartView(props: Props) {
   createEffect(() => {
     chartReady();
     props.sourceOrder;
+    // The drawings painted on the canvas follow the drawings, their order,
+    // the panes and what is shown.
+    props.drawings;
+    props.interval;
+    props.seriesHidden;
+    treePanes();
+    paneEpoch();
     scheduleSourceOrder();
   });
   /** Object tree rows of this chart: per pane, front source first. */
@@ -4693,10 +4797,29 @@ export function ChartView(props: Props) {
     }
     return out.sort((a, b) => a.pane - b.pane);
   }, [], { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  /** Pane of a drawing: its owner study's pane (null = owner not on the chart). */
+  const paneOfDrawing = (d: Drawing): number | null => {
+    if (!d.owner) return 0;
+    return treeSources().find((s) => s.id === d.owner)?.pane ?? null;
+  };
+  /** Objects of every pane (sources and drawings in one list), front first. */
+  const treePanes = createMemo<TreePane[]>(() => {
+    const srcs = treeSources();
+    const ds = props.drawings ?? [];
+    const panes = [...new Set([0, ...srcs.map((s) => s.pane)])].sort((a, b) => a - b);
+    return panes.map((pane) => ({
+      pane,
+      items: paneItems(
+        srcs.filter((s) => s.pane === pane).map((s) => s.id),
+        ds.filter((d) => paneOfDrawing(d) === pane).reverse().map((d) => ({ id: d.id, over: overOf(d) })),
+      ),
+    }));
+  }, [], { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
   // The focused chart publishes its sources and serves the tree's requests.
   createEffect(() => {
     if (props.active === false || props.shown === false) return;
     setFocusedTreeSources(treeSources());
+    setFocusedTreePanes(treePanes());
   });
   const onTreeHideRequest = (e: Event) => {
     if (props.active === false) return;
@@ -4711,16 +4834,45 @@ export function ChartView(props: Props) {
   const onTreeMoveRequest = (e: Event) => {
     if (props.active === false) return;
     const { id, target, below } = (e as CustomEvent<{ id: string; target: string; below: boolean }>).detail ?? {};
-    const list = treeSources();
-    const from = list.find((s) => s.id === id);
-    const to = list.find((s) => s.id === target);
-    // Within one pane (a source keeps its pane).
-    if (!from || !to || from === to || from.pane !== to.pane) return;
-    const order = sourceOrderIds().filter((x) => x !== id);
-    order.splice(order.indexOf(target) + (below ? 1 : 0), 0, id);
-    // Saved ids of sources not on the chart now ("Hide indicators") are kept.
-    const kept = (props.sourceOrder ?? []).filter((x) => !order.includes(x));
-    props.onSourceOrder?.([...order, ...kept]);
+    let pane = treePanes().find((p) => p.items.some((x) => x.id === id));
+    const targetPane = treePanes().find((p) => p.items.some((x) => x.id === target));
+    if (!pane || !targetPane) return;
+    if (pane !== targetPane) {
+      // A drop in another pane: only a study changes pane (it joins the
+      // target's pane, its former pane closes when left empty).
+      if (!controller || treeSources().find((s) => s.id === id)?.kind !== "study") return;
+      const options = controller.moveToPane(id, targetPane.pane);
+      if (!options) return;
+      props.onIndicatorSettings?.(id, {
+        inputs: controller.getInputs(id) ?? {},
+        styles: controller.getStyles(id) ?? {},
+        options,
+      });
+      props.onPaneOrder?.(controller.stackedOrder());
+      setPaneEpoch((n) => n + 1);
+      queueMicrotask(refreshPaneBoxes);
+      refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+      pane = treePanes().find((p) => p.items.some((x) => x.id === id));
+      if (!pane) return;
+    }
+    // Its place among the objects of the pane.
+    const next = moveItem(pane.items, id, target, below);
+    if (!next) return;
+    const was = splitItems(pane.items);
+    const now = splitItems(next);
+    if (now.sources.join("\n") !== was.sources.join("\n")) {
+      // The pane's sources take, in their new order, the places they hold
+      // in the chart's order.
+      const inPane = new Set(now.sources);
+      let k = 0;
+      const order = sourceOrderIds().map((x) => (inPane.has(x) ? now.sources[k++] : x));
+      // Saved ids of sources not on the chart now ("Hide indicators") are kept.
+      const kept = (props.sourceOrder ?? []).filter((x) => !order.includes(x));
+      props.onSourceOrder?.([...order, ...kept]);
+    }
+    if (now.drawings.join("\n") !== was.drawings.join("\n") || JSON.stringify(now.over) !== JSON.stringify(was.over)) {
+      props.placeDrawings?.(now.drawings, now.over);
+    }
   };
   window.addEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
   window.addEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
@@ -5405,6 +5557,11 @@ export function ChartView(props: Props) {
         leftInset={scaleGeom()?.left ? scaleGeom()!.w : 0}
         formatPrice={legendPriceFormat()}
         panes={drawingPanes()}
+        sunk={sunkIds()}
+        onPainter={(p) => {
+          sunkPainter = p;
+          scheduleSourceOrder();
+        }}
         coordEpoch={coordEpoch()}
         drawings={props.drawings ?? []}
         armedTool={props.armedTool ?? null}

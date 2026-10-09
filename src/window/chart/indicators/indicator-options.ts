@@ -21,7 +21,14 @@ export type IndicatorOptions = {
   visibility: IntervalVisibility;
   /** An overlay study moved to its own pane (Object tree "Move to"). */
   ownPane: boolean;
+  /** Pane the study was moved to (Object tree drag): studies with the same
+   *  group share a pane; MAIN_PANE_GROUP = the price pane. Absent = its
+   *  default pane (the price pane for an overlay study, else its own). */
+  paneGroup?: string;
 };
+
+/** Pane group of the price pane. */
+export const MAIN_PANE_GROUP = "_series";
 
 /** Precision select options. */
 export const PRECISION_OPTIONS = ["Default", "0", "1", "2", "3", "4", "5", "6", "7", "8"];
@@ -75,6 +82,7 @@ export function reviveIndicatorOptions(raw: unknown): IndicatorOptions {
     valuesInStatusLine: bool(r.valuesInStatusLine, d.valuesInStatusLine),
     inputsInStatusLine: bool(r.inputsInStatusLine, d.inputsInStatusLine),
     ownPane: bool(r.ownPane, d.ownPane),
+    ...(typeof r.paneGroup === "string" && r.paneGroup ? { paneGroup: r.paneGroup } : {}),
     visibility: {
       ticks: bool(vis.ticks, d.visibility.ticks),
       seconds: unit(vis.seconds, d.visibility.seconds),

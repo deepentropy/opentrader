@@ -7,15 +7,15 @@
  * individually-hidden drawing — without it, the per-drawing Hide flag
  * is a one-way trip.
  *
- * Drag-to-reorder: rows are HTML5-draggable; dropping above/below another row
- * moves the drawing's z-order via App's moveDrawing (display order = topmost
- * first = reverse of the array).
+ * Rows, one block per chart pane: the pane's objects in its drawing order,
+ * front object first (sources = main series, studies, compared symbols, and
+ * drawings in one list, published by the focused chart). A source row has
+ * hide (and remove, but for the main series).
  *
- * Rows, one block per chart pane: the pane's sources (main series, studies,
- * compared symbols: published by the focused chart, front source first), then
- * its drawings. A source row has hide (and remove, but for the main series);
- * dragging it above / below another source of its pane changes the drawing
- * order of the two.
+ * Drag-to-reorder: rows are HTML5-draggable; a row dropped above / below
+ * another row of its pane takes that place in the drawing order (a drawing
+ * can go behind a source, a source in front of a drawing). A study dropped
+ * on a row of another pane moves to that pane.
  *
  * Header toolbar: copy-clone is wired to App's cloneDrawing (clones the selected
  * drawing). Manage toggles a management mode: per-row checkboxes plus bulk
@@ -34,6 +34,7 @@ import { Tooltip } from "../../components/Tooltip";
 import { labelForKind, iconForKind } from "../drawings/labels";
 import { focusedStudySelection, requestMoveStudy, requestSelectStudy } from "../chart/study-selection";
 import {
+  focusedTreePanes,
   focusedTreeSources,
   requestMoveSource,
   requestRemoveSource,
@@ -217,13 +218,34 @@ export function ObjectTreePanel(props: Props) {
   // the cursor is currently over, for the insertion-line affordance.
   const [dragId, setDragId] = createSignal<string | null>(null);
   const [dragOver, setDragOver] = createSignal<{ id: string; below: boolean } | null>(null);
-  /** Source row (series, study, compared symbol) being dragged. */
-  const [dragSrc, setDragSrc] = createSignal<string | null>(null);
 
   function endDrag() {
     setDragId(null);
-    setDragSrc(null);
     setDragOver(null);
+  }
+  /** Drag over the row of object `id`: the insertion line shows when the
+   *  dragged object can go there. */
+  function dragOverRow(e: DragEvent & { currentTarget: HTMLElement }, id: string) {
+    const from = dragId();
+    const fromPane = from ? paneOfObject(from) : null;
+    const toPane = paneOfObject(id);
+    // In its own pane; a study can also go to another pane.
+    const allowed =
+      !!from && from !== id && fromPane !== null && toPane !== null &&
+      (fromPane === toPane || sources().find((s) => s.id === from)?.kind === "study");
+    if (!allowed) return setDragOver(null);
+    e.preventDefault();
+    const r = e.currentTarget.getBoundingClientRect();
+    setDragOver({ id, below: e.clientY - r.top > r.height / 2 });
+  }
+  /** Drop: the dragged object goes right above / below the row's object in
+   *  the pane's drawing order (the focused chart applies and saves it). */
+  function dropOnRow(e: DragEvent) {
+    e.preventDefault();
+    const from = dragId();
+    const o = dragOver();
+    if (from && o) requestMoveSource(from, o.id, o.below);
+    endDrag();
   }
 
   function toggleLocked(d: Drawing) {
@@ -325,9 +347,29 @@ export function ObjectTreePanel(props: Props) {
   // ── Sources ── the focused chart's main series, studies and compared
   // symbols (object-tree-sources.ts), per pane, front source first.
   const sources = focusedTreeSources;
-  const panes = createMemo(() => [...new Set([0, ...sources().map((s) => s.pane)])].sort((a, b) => a - b));
-  /** Pane of a drawing: its owner study's pane (the price pane without one). */
-  const paneOfDrawing = (d: Drawing) => (d.owner ? sources().find((s) => s.id === d.owner)?.pane ?? 0 : 0);
+  /** Pane of an object (source or drawing) of the focused chart, or null. */
+  const paneOfObject = (id: string): number | null =>
+    focusedTreePanes().find((p) => p.items.some((x) => x.id === id))?.pane ?? null;
+  /** Rows of every pane, front object first: a source, or a run of drawings
+   *  between two sources (ids only, so the rows stay while a drawing is
+   *  edited). */
+  type Segment = { source: string } | { drawings: string[] };
+  const paneSegments = createMemo<{ pane: number; segments: Segment[] }[]>(
+    () =>
+      focusedTreePanes().map((p) => {
+        const segments: Segment[] = [];
+        for (const it of p.items) {
+          const last = segments[segments.length - 1];
+          if (it.kind === "source") segments.push({ source: it.id });
+          else if (last && "drawings" in last) last.drawings.push(it.id);
+          else segments.push({ drawings: [it.id] });
+        }
+        return { pane: p.pane, segments };
+      }),
+    [],
+    { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) },
+  );
+  const drawingById = createMemo(() => new Map(props.drawings.map((d) => [d.id, d])));
 
   /** One source row: hide for all, remove for studies and compared symbols.
    *  A drag puts it above / below another source of its pane (drawing order);
@@ -339,7 +381,7 @@ export function ObjectTreePanel(props: Props) {
       (s.kind === "series" ? " primary" : "") +
       (focusedStudySelection()?.id === s.id ? " selected" : "") +
       (s.hidden ? " hidden-state" : "") +
-      (dragSrc() === s.id ? " dragging" : "") +
+      (dragId() === s.id ? " dragging" : "") +
       (over()?.id === s.id ? (over()!.below ? " drag-over-below" : " drag-over-above") : "");
     return (
       <div
@@ -353,24 +395,12 @@ export function ObjectTreePanel(props: Props) {
           else if (s.kind === "study") window.dispatchEvent(new CustomEvent("chart-open-study-settings", { detail: { id: s.id } }));
         }}
         onDragStart={(e) => {
-          setDragSrc(s.id);
+          setDragId(s.id);
           e.dataTransfer?.setData("text/plain", s.id);
           if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
         }}
-        onDragOver={(e) => {
-          const from = sources().find((x) => x.id === dragSrc());
-          if (!from || from.id === s.id || from.pane !== s.pane) return setDragOver(null);
-          e.preventDefault();
-          const r = e.currentTarget.getBoundingClientRect();
-          setDragOver({ id: s.id, below: e.clientY - r.top > r.height / 2 });
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          const from = dragSrc();
-          const o = dragOver();
-          if (from && o) requestMoveSource(from, o.id, o.below);
-          endDrag();
-        }}
+        onDragOver={(e) => dragOverRow(e, s.id)}
+        onDrop={dropOnRow}
         onDragEnd={endDrag}
       >
         <span class="object-tree-row-icon" aria-hidden="true">
@@ -483,22 +513,8 @@ export function ObjectTreePanel(props: Props) {
                       e.dataTransfer?.setData("text/plain", d.id);
                       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
                     }}
-                    onDragOver={(e) => {
-                      // Among the drawings of one pane.
-                      const from = props.drawings.find((x) => x.id === dragId());
-                      if (!from || from.id === d.id || paneOfDrawing(from) !== paneOfDrawing(d)) return setDragOver(null);
-                      e.preventDefault();
-                      const r = e.currentTarget.getBoundingClientRect();
-                      setDragOver({ id: d.id, below: e.clientY - r.top > r.height / 2 });
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const from = dragId();
-                      const o = dragOver();
-                      const at = o ? displayList().findIndex((x) => x.id === o.id) : -1;
-                      if (from && o && at >= 0) props.onMove(from, o.below ? at + 1 : at);
-                      endDrag();
-                    }}
+                    onDragOver={(e) => dragOverRow(e, d.id)}
+                    onDrop={dropOnRow}
                     onDragEnd={endDrag}
                   >
                     <Show when={manage()}>
@@ -720,20 +736,29 @@ export function ObjectTreePanel(props: Props) {
       <div class="object-tree-panel-body">
         <Show when={view() === "tree"} fallback={<DataWindow />}>
             {/* Empty hint only when nothing at all is on the chart. */}
-            <Show when={sources().length === 0 && props.drawings.length === 0}>
+            <Show when={paneSegments().every((p) => p.segments.length === 0)}>
               <div class="ot-empty-state object-tree-panel-empty">No objects yet.</div>
             </Show>
 
             {/* One block per chart pane (a line between two panes): its
-                sources, then its drawings. */}
-            <For each={panes()}>
-              {(pane, k) => (
+                sources and drawings in the pane's drawing order, front first. */}
+            <For each={paneSegments()}>
+              {(p, k) => (
                 <>
                   <Show when={k() > 0}>
                     <div class="object-tree-separator" role="separator" />
                   </Show>
-                  <For each={sources().filter((s) => s.pane === pane)}>{sourceRow}</For>
-                  {drawingRows(() => displayList().filter((d) => paneOfDrawing(d) === pane))}
+                  <For each={p.segments}>
+                    {(seg) =>
+                      "source" in seg ? (
+                        <Show when={sources().find((x) => x.id === seg.source)} keyed>
+                          {sourceRow}
+                        </Show>
+                      ) : (
+                        drawingRows(() => seg.drawings.map((id) => drawingById().get(id)).filter((d): d is Drawing => !!d))
+                      )
+                    }
+                  </For>
                 </>
               )}
             </For>

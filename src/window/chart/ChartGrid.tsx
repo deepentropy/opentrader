@@ -117,6 +117,7 @@ type Props = {
   updateDrawingsForSymbol?: (key: string, list: Drawing[]) => void;
   cloneDrawingForSymbol?: (key: string, id: string) => void;
   reorderDrawingForSymbol?: (key: string, id: string, dir: "front" | "forward" | "backward" | "back") => void;
+  placeDrawingsForSymbol?: (key: string, ids: string[], over: Record<string, string | null>) => void;
   removeDrawingForSymbol?: (key: string, id: string) => void;
   /** Bulk delete (multi-select Delete) — one undo entry. */
   removeDrawingsForSymbol?: (key: string, ids: string[]) => void;
@@ -301,6 +302,7 @@ export function ChartGrid(props: Props) {
                 updateDrawings={(list) => live() && props.updateDrawingsForSymbol?.(props.drawingKeyForPane(pane()), list)}
                 cloneDrawing={(id) => live() && props.cloneDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}
                 reorderDrawing={(id, dir) => live() && props.reorderDrawingForSymbol?.(props.drawingKeyForPane(pane()), id, dir)}
+                placeDrawings={(ids, over) => live() && props.placeDrawingsForSymbol?.(props.drawingKeyForPane(pane()), ids, over)}
                 removeDrawing={(id) => live() && props.removeDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}
                 removeDrawings={(ids) => live() && props.removeDrawingsForSymbol?.(props.drawingKeyForPane(pane()), ids)}
               />

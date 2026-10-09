@@ -143,6 +143,7 @@ export type IndicatorStyleOverrides = Record<string, PlotStyleOverride>;
 export class IndicatorLayer {
   private chart: IChartApi;
   private paneIndex: number;
+  private detachedScale: string | null = null;
   /** Draws the study's result; re-created when the chart's main series changes. */
   private renderer: IndicatorRenderer | null = null;
   private rendererMain: ISeriesApi<SeriesType> | null = null;
@@ -228,6 +229,12 @@ export class IndicatorLayer {
   /** Last-value label on a plot series: global setting AND the study's. */
   private get plotLabel(): boolean {
     return this.lastValueVisible && this.labelsOnScale;
+  }
+
+  /** Scale of its own (hidden, over the whole pane) for a study that shares
+   *  a pane whose scale shows other values; null = the pane's scale. */
+  setDetachedScale(id: string | null): void {
+    this.detachedScale = id;
   }
 
   /** The pane moved (Settings pane controls: move up / down). */
@@ -359,7 +366,7 @@ export class IndicatorLayer {
         titleVisible: this.nameLabelsVisible && this.labelsOnScale,
         precision: this.precision,
         // Volume's own hidden scale keeps its auto-scale.
-        autoscale: !(this.seriesOnlyScale !== null && !ownScale),
+        autoscale: !(this.seriesOnlyScale !== null && !ownScale && !this.detachedScale),
         reuseSeries,
       },
     );
@@ -397,8 +404,13 @@ export class IndicatorLayer {
     // its values like the symbol (thousands separators, tick decimals): the
     // scale takes its number format from one of its series, so a second
     // format on it would change the labels and the scale width.
-    const mainFormat = this.paneIndex === 0 && !ownScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
+    const mainFormat = this.paneIndex === 0 && !ownScale && !this.detachedScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
     if (mainFormat) for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat: mainFormat });
+    if (this.detachedScale && !ownScale) {
+      // No axis for this scale: no value label either.
+      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale, lastValueVisible: false });
+      (series[0] as ISeriesApi<SeriesType> | undefined)?.priceScale().applyOptions({ visible: false });
+    }
     let k = 0;
     let a = plotCount;
     for (const { def, style } of drawn) {

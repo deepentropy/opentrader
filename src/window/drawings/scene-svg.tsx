@@ -16,8 +16,10 @@ const px = (v: number) => (v === 0 ? "0" : `${v}px`);
 const dropShadow = (sh: Shadow) => `drop-shadow(${px(sh.dx)} ${px(sh.dy)} ${px(sh.blur)} ${sh.color})`;
 
 /** Scene items as SVG. `Handles` draws the anchor items; clip names map to
- *  ids unique per call. */
-export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string): JSX.Element {
+ *  ids unique per call. `ghost`: everything but the anchors is drawn fully
+ *  transparent (still a pointer target): the drawing itself is painted
+ *  elsewhere (on the chart canvas, behind a series). */
+export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string, ghost = false): JSX.Element {
   const ids = new Map<string, string>();
   /** url(#id) of a named clip / gradient item. */
   const clipUrl = (name?: string) => {
@@ -26,6 +28,10 @@ export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string):
     return id ? `url(#${id})` : undefined;
   };
   const paintFill = (it: Paint) => (it.fillRef ? clipUrl(it.fillRef) : it.fill);
+  const each = (it: SceneItem): JSX.Element =>
+    ghost && it.t !== "anchors" && it.t !== "group" && it.t !== "clip" && it.t !== "clipRect" && it.t !== "radialGradient"
+      ? <g opacity="0">{one(it)}</g>
+      : one(it);
   const one = (it: SceneItem): JSX.Element => {
     switch (it.t) {
       case "clip": {
@@ -142,7 +148,7 @@ export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string):
       case "group":
         return (
           <g transform={it.transform} opacity={it.opacity} clip-path={clipUrl(it.clip)} pointer-events={pe(it.inert)}>
-            {it.items.map(one)}
+            {it.items.map(each)}
           </g>
         );
       case "glyph": {
@@ -162,5 +168,5 @@ export function sceneSvg(items: SceneItem[], Handles: HandlesFn, color: string):
         return <Handles pts={it.pts} color={color} squares={it.squares} />;
     }
   };
-  return items.map(one);
+  return items.map(each);
 }
