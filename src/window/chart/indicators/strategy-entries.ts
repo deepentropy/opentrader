@@ -23,9 +23,8 @@
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import type { ChartContext, StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
-import { scriptChartContext } from "./script-chart";
 import type { StudyCalcContext } from "./indicator-layer";
-import { brokerProperties, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
+import { brokerProperties, DECLARATION_CHART, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
 import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
 import { STRATEGIES } from "../../../backtester/strategies";
 import { DEFAULT_PROPERTIES, type Bar, type StrategyProperties } from "../../../backtester/types";
@@ -267,7 +266,7 @@ function scriptDeclaration(def: ScriptStrategy): ScriptDeclaration {
   let d = declarations.get(def.key);
   if (!d) {
     // Zero bars; a chart context for the scripts whose declarations need one (daily pivot levels).
-    const { script } = runOakScriptStrategy(def.body, [], { chart: scriptChartContext(undefined, undefined, undefined) });
+    const { script } = runOakScriptStrategy(def.body, [], { chart: DECLARATION_CHART });
     const title = script.metadata.title;
     d = {
       title,
@@ -330,7 +329,12 @@ export function strategyDefaults(id: string): StrategyProperties | undefined {
   const def = STRATEGIES.find((d) => d.key === key);
   if (def) return { ...DEFAULT_PROPERTIES, ...def.properties };
   const script = SCRIPT_STRATEGIES.find((d) => d.key === key);
-  return script ? scriptDeclaration(script).properties : undefined;
+  if (!script) return undefined;
+  try {
+    return scriptDeclaration(script).properties;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Resolve `strategy:<key>` (undefined for an unknown key). */
@@ -349,7 +353,14 @@ export function getStrategyEntry(studyId: string): IndicatorRegistryEntry | unde
   if (!def) {
     const script = SCRIPT_STRATEGIES.find((s) => s.key === strategyKeyOf(id));
     if (!script) return undefined;
-    const entry = scriptStrategyEntry(id, script);
+    // A script whose declaration fails is unknown to the callers (dialog rows, favourites, chart), not a crash.
+    let entry: IndicatorRegistryEntry;
+    try {
+      entry = scriptStrategyEntry(id, script);
+    } catch (err) {
+      console.error(`Strategy ${id} could not be read`, err);
+      return undefined;
+    }
     entries.set(id, entry);
     return entry;
   }

@@ -1525,6 +1525,8 @@ function App() {
     // default"), else the factory values (a new study never inherits the
     // settings of an earlier, removed instance).
     const entry = getIndicatorEntry(typeId);
+    // A strategy that cannot be read is not put on the chart (it would be a study without a name or a report).
+    if (!entry && isStrategyId(typeId)) return;
     const seed = loadIndicatorDefault(typeId) ?? (entry ? { inputs: { ...entry.defaultInputs }, styles: {}, options: defaultIndicatorOptions() } : undefined);
     // Adding a strategy opens its report (the reference app opens the footer panel).
     if (isStrategyId(typeId)) strategyTester.setCollapsed(false);

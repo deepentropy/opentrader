@@ -18,7 +18,7 @@ import * as oakScript from "oakscriptjs/script";
 import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
 import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
-import { BrokerEngine, brokerProperties, runOakScriptStrategy } from "../../backtester/oakscript";
+import { BrokerEngine, brokerProperties, DECLARATION_CHART, runOakScriptStrategy } from "../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
 import { intrabarsOf } from "../../backtester/intrabar-cache";
 import { intervalSeconds } from "../../backtester/magnifier";
@@ -144,7 +144,7 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
       // Dry run on zero bars registers the declarations (metadata, inputs,
       // plots) without computing anything — Pine's compile step.
       // A strategy gets an engine on the same zero bars, so strategy.eachBar() runs (no bar).
-      const dry = oakScript.executeScript(mod.__run, [], {}, {}, {
+      const dry = oakScript.executeScript(mod.__run, [], {}, DECLARATION_CHART, {
         strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
       });
       compiled.set(req.scriptId, { kind: "script", run: mod.__run });
