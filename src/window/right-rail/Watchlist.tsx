@@ -37,6 +37,7 @@ import {
   clearFiredForList,
   canMoveItems,
   isSectionId,
+  isDeletedList,
   listItems,
   sectionId,
   sectionNameOf,
@@ -146,6 +147,9 @@ type Props = {
   activeTicker?: string;
   /** Fires with the full ticker ("NASDAQ:INTC") on row click. */
   onSymbolSelect?: (ticker: string) => void;
+  /** Row menu "Add … to compare": the symbols join the focused chart as
+   *  compared symbols, in this order. */
+  onAddCompare?: (tickers: string[]) => void;
   /** Active chart interval (currently unused here; kept for future per-symbol
    *  actions that need it). */
   interval?: string;
@@ -377,7 +381,10 @@ export function Watchlist(props: Props) {
   // menu = right after that row).
   const [addOpen, setAddOpen] = createSignal(false);
   const [addAnchor, setAddAnchor] = createSignal<AddAnchor>(null);
+  // "Deleted symbols" takes no symbol by hand, no section and no new name.
+  const inDeleted = () => isDeletedList(watchlistStore.activeId());
   const openAdd = (anchor: AddAnchor) => {
+    if (inDeleted()) return;
     setAddAnchor(anchor);
     setAddOpen(true);
   };
@@ -1031,6 +1038,7 @@ export function Watchlist(props: Props) {
   // ── Watchlist-menu actions (wired to the multi-list store) ──
   // "Rename": inline-edit the active list's name in the header.
   const renameList = () => {
+    if (inDeleted()) return;
     setListDraft(listName());
     setRenamingList(true);
   };
@@ -1041,9 +1049,20 @@ export function Watchlist(props: Props) {
   // "Add section": the new header goes before `before` (the row whose menu
   // asked for it; from the list menu, the charted symbol's row), at the end
   // of the list when there is no such row. It is highlighted and scrolled to.
-  const addSection = (before: string | null) => highlightRows([sectionId(watchlistStore.addSection(before))]);
-  // "Clear list": remove every symbol from the active list.
-  const clearList = () => watchlistStore.clearActive();
+  const addSection = (before: string | null) => {
+    if (!inDeleted()) highlightRows([sectionId(watchlistStore.addSection(before))]);
+  };
+  // "Clear list": remove every symbol from the active list (they join
+  // "Deleted symbols").
+  const clearList = () =>
+    showConfirm({
+      title: "Clear all symbols?",
+      text: "Doing this will remove all symbols from your watchlist.",
+      mainText: "Clear",
+      cancelText: "Cancel",
+      intent: "danger",
+      onConfirm: () => watchlistStore.clearActive(),
+    });
   // "Create new list…": asks the name, then a new empty list, switched-to.
   const createList = () => promptNewWatchlist((name) => watchlistStore.createList(name));
   // "Make a copy…": asks the name, then duplicates the active list (sections + extras).
@@ -1220,12 +1239,13 @@ export function Watchlist(props: Props) {
     });
   };
   // "Add … to" submenu: the lists it offers (the open list first, then the
-  // others by name; no colour list) and a click on one of them.
+  // others by name; no colour list, "Deleted symbols" only when it is the
+  // open list) and a click on one of them.
   // A list holding every symbol loses them; any other list gets the ones it
   // misses.
   const ctxLists = () => {
     const id = watchlistStore.activeId();
-    const all = watchlistStore.lists().filter((l) => !l.id.startsWith("color-"));
+    const all = watchlistStore.lists().filter((l) => !l.id.startsWith("color-") && (l.id === id || !isDeletedList(l.id)));
     return [
       ...all.filter((l) => l.id === id),
       ...all.filter((l) => l.id !== id).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
@@ -1481,8 +1501,11 @@ export function Watchlist(props: Props) {
                   class={
                     h.dataName === "settings-button" && settingsOpen()
                       ? "is-active"
-                      : undefined
+                      : h.dataName === "add-symbol-button" && inDeleted()
+                        ? "is-disabled"
+                        : undefined
                   }
+                  disabled={h.dataName === "add-symbol-button" && inDeleted()}
                   onClick={() => {
                     if (h.dataName === "settings-button") setSettingsOpen((o) => !o);
                     else if (h.dataName === "add-symbol-button") openAdd(null);
@@ -1502,6 +1525,7 @@ export function Watchlist(props: Props) {
           activeId={watchlistStore.activeId()}
           onSelectList={(id) => watchlistStore.setActive(id)}
           onClose={() => setMenuOpen(false)}
+          disabled={inDeleted() ? ["rename", "add-section"] : []}
           onRenameList={renameList}
           onAddSection={() => addSection(chartRow())}
           onClearList={clearList}
@@ -1817,7 +1841,10 @@ export function Watchlist(props: Props) {
             }
             onToggleList={toggleRowsInList}
             onCreateListWith={createListWithRows}
+            canCompare={!!props.onAddCompare && (m().selected == null || selection().length <= 10)}
+            onAddCompare={(rows) => props.onAddCompare?.(rows.map((r) => r.ticker))}
             onAddNote={openNoteFor}
+            canAdd={!inDeleted()}
             onAddSection={() => addSection(m().row.ticker)}
             onAddSymbol={() => openAdd({ section: m().section, after: m().row.ticker })}
             onClose={() => setCtxMenu(null)}

@@ -1129,6 +1129,17 @@ function App() {
     recordRecentSymbol("compare", symbol);
     changeCompare(tabId, paneIndex, [...cur, entry], `insert ${tickerOf(symbol)}`);
   }
+  /** Watchlist row menu "Add … to compare": each symbol joins the focused
+   *  pane on the % scale, in list order. */
+  async function addCompareFromList(tickers: string[]) {
+    for (const t of tickers) {
+      try {
+        addCompare(isFullSymbol(t) ? t.toUpperCase() : await toFullSymbol(t), "percent");
+      } catch (e) {
+        console.warn(`[symbol] ${t}: ${e}`);
+      }
+    }
+  }
   /** Pane controls moved a pane: persist the stacking order. */
   function setPaneOrderForPane(tabId: string, paneIndex: number, order: string[]) {
     const tab = tabOf(tabId);
@@ -2685,6 +2696,7 @@ function App() {
           activeSymbol={activeFullSymbol() ?? symbol()}
           activeTicker={symbol()}
           onSymbolSelect={onSymbolPicked}
+          onAddCompare={addCompareFromList}
           interval={interval()}
           drawings={drawings()}
           selectedDrawingId={selectedDrawingId()}

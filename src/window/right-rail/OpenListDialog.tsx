@@ -2,15 +2,17 @@
  * OpenListDialog — the watchlist "Open list…" action: the Watchlists manager
  * (840×638 dialog, left sidebar
  * "My watchlists", a SYMBOLS column, and lists split into "Flagged
- * lists" (those with a colour flag) and "Created lists" (the rest)). Each row
- * leads with a favourite star, then the flag marker + name + an inline rename
- * pencil, and reveals copy / delete on hover. Choosing a row switches lists.
+ * lists" (those with a colour flag), "Created lists" (the rest) and "Other"
+ * ("Deleted symbols", once it exists)). Each row leads with a favourite
+ * star, then the flag marker + name + an inline rename pencil, and reveals
+ * copy / delete on hover; the "Deleted symbols" row has its name, its count
+ * and copy only. Choosing a row switches lists.
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { FLAG_HEX, WL_ICONS } from "../../data/watchlist";
 import { Icon } from "../../components/Icon";
-import { watchlistStore, type WatchList } from "../../data/watchlist-store";
+import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { promptCopyWatchlist } from "./watchlist-prompts";
 
 type Props = {
@@ -54,7 +56,8 @@ export function OpenListDialog(props: Props) {
   // "Created lists": the user's lists.
   const isColorList = (l: WatchList) => l.id.startsWith("color-");
   const flagged = () => filtered().filter((l) => isColorList(l) && (l.flag === "red" || count(l) > 0 || l.id === props.activeId));
-  const created = () => filtered().filter((l) => !isColorList(l));
+  const created = () => filtered().filter((l) => !isColorList(l) && !isDeletedList(l.id));
+  const other = () => filtered().filter((l) => isDeletedList(l.id));
 
   onMount(() => {
     input.focus();
@@ -96,6 +99,7 @@ export function OpenListDialog(props: Props) {
             <button type="button" class="wl-dialog-confirm-btn" onClick={() => setConfirmingId(null)}>Cancel</button>
           </span>
         }>
+          <Show when={!isDeletedList(l.id)} fallback={<span class="wl-lm-star-plug" />}>
           <button
             type="button"
             class={`wl-lm-star${l.favorite ? " is-on" : ""}`}
@@ -107,6 +111,7 @@ export function OpenListDialog(props: Props) {
             <Icon name={l.favorite ? "draw-remove-from-favorites" : "draw-add-to-favorites"} size={16} />
           </button>
           <span class="wl-lm-marker"><Marker list={l} /></span>
+          </Show>
           <Show when={editingId() === l.id} fallback={<span class="wl-lm-name">{l.name}</span>}>
             <input
               class="wl-dialog-rename-input"
@@ -118,7 +123,7 @@ export function OpenListDialog(props: Props) {
               ref={(el) => queueMicrotask(() => el.focus())}
             />
           </Show>
-          <Show when={editingId() !== l.id}>
+          <Show when={editingId() !== l.id && !isDeletedList(l.id)}>
             <button type="button" class="wl-lm-action wl-lm-rename" title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(l); }}>
               <Icon name="menu-manage-layouts-rename" size={16} />
             </button>
@@ -129,7 +134,7 @@ export function OpenListDialog(props: Props) {
             <button type="button" class="wl-lm-action" title="Make a copy" aria-label="Make a copy" onClick={() => promptCopyWatchlist(`${l.name} copy`, (name) => watchlistStore.copyList(l.id, name))}>
               <Icon name="wl-copy" size={16} />
             </button>
-            <Show when={!isColorList(l)}>
+            <Show when={!isColorList(l) && !isDeletedList(l.id)}>
               <button type="button" class="wl-lm-action wl-lm-action-danger" title="Delete" aria-label="Delete" disabled={props.lists.length <= 1} onClick={() => setConfirmingId(l.id)}>
                 <Icon name="draw-trash" size={16} />
               </button>
@@ -171,6 +176,10 @@ export function OpenListDialog(props: Props) {
                     <Show when={created().length}>
                       <div class="wl-lm-section">Created lists</div>
                       <For each={created()}>{Row}</For>
+                    </Show>
+                    <Show when={other().length}>
+                      <div class="wl-lm-section">Other</div>
+                      <For each={other()}>{Row}</For>
                     </Show>
                   </Show>
                 </div>

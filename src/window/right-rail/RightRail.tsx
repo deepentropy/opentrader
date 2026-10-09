@@ -25,6 +25,8 @@ type Props = {
   /** Bare active ticker — drives the watchlist row-selection highlight. */
   activeTicker?: string;
   onSymbolSelect: (fullTicker: string) => void;
+  /** Watchlist row menu "Add … to compare". */
+  onAddCompare?: (tickers: string[]) => void;
   /** Active chart interval — threaded to the watchlist for per-symbol alerts. */
   interval?: string;
   drawings: Drawing[];
@@ -185,7 +187,7 @@ export function RightRail(props: Props) {
                 overflow: "hidden",
               }}
             >
-              <Watchlist activeSymbol={props.activeSymbol} activeTicker={props.activeTicker} onSymbolSelect={props.onSymbolSelect} interval={props.interval} />
+              <Watchlist activeSymbol={props.activeSymbol} activeTicker={props.activeTicker} onSymbolSelect={props.onSymbolSelect} onAddCompare={props.onAddCompare} interval={props.interval} />
               <Show when={!detailCollapsed()}>
                 <div class="rail-detail-resizer" onMouseDown={beginDetailResize} title="Resize" role="separator" aria-orientation="horizontal" />
               </Show>

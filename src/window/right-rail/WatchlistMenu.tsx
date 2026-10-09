@@ -42,6 +42,8 @@ type Props = {
   onAddAlert?: () => void;
   /** "Open list…" — open the list picker. */
   onOpenList?: () => void;
+  /** Action rows (their `value`) shown disabled. */
+  disabled?: string[];
 };
 
 type ActionHandlerKey =
@@ -106,8 +108,11 @@ export function WatchlistMenu(props: Props) {
       type="button"
       role="menuitem"
       class="ot-menu-item"
+      classList={{ "ot-menu-item--disabled": !!props.disabled?.includes(a.value) }}
+      aria-disabled={props.disabled?.includes(a.value) ? "true" : undefined}
       data-value={a.value}
       onClick={() => {
+        if (props.disabled?.includes(a.value)) return;
         const handlerKey = ACTION_HANDLERS[a.value];
         if (handlerKey) props[handlerKey]?.();
         props.onClose();

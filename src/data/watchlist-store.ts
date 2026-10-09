@@ -301,6 +301,45 @@ createRoot(() => {
   });
 });
 
+// ── "Deleted symbols" ───────────────────────────────────────────────────────
+// The symbols removed from a list (remove button, Delete key, "Clear list",
+// a list row unchecked in an "Add … to" menu) go to one list named "Deleted
+// symbols", made on the first removal. It keeps the 100 most recent symbols,
+// has no section, and a symbol removed from it is gone. It cannot be renamed,
+// removed or made a favourite, and no "Add … to" menu offers it.
+
+/** Not a value `slug` can give, so no list made by the user takes it. */
+export const DELETED_LIST_ID = "deleted_symbols";
+export const isDeletedList = (id: string | undefined): boolean => id === DELETED_LIST_ID;
+const DELETED_MAX = 100;
+
+/** Rows that left the list `fromId` join "Deleted symbols". */
+function keepDeleted(fromId: string, rows: readonly Row[]): void {
+  if (isDeletedList(fromId) || !rows.length) return;
+  const i = state.lists.findIndex((l) => l.id === DELETED_LIST_ID);
+  const cur = i >= 0 ? rowsOf(unwrap(state.lists[i])) : [];
+  const have = new Set(cur.map((r) => r.ticker));
+  const next = [...cur];
+  for (const r of rows) {
+    if (have.has(r.ticker)) continue;
+    have.add(r.ticker);
+    next.push({ ...r, flag: null });
+  }
+  const extras = next.slice(-DELETED_MAX);
+  if (i < 0) {
+    setState("lists", (ls) => [
+      ...ls,
+      { id: DELETED_LIST_ID, name: "Deleted symbols", flag: null, emoji: null, groups: [], extras, favorite: false, sort: "default" as SortKey },
+    ]);
+    return;
+  }
+  setState("lists", i, produce((wl: WatchList) => {
+    wl.groups = [];
+    wl.extras = extras;
+  }));
+  dropSort(DELETED_LIST_ID);
+}
+
 /** Colour lists → flags, after a store mutation: a symbol added to a colour
  *  list takes its colour; a symbol of that colour missing from it is
  *  unflagged. */
@@ -564,8 +603,9 @@ export const watchlistStore = {
    *  alert threshold + fired-dedupe entries — a recreated list with the same
    *  name re-slugs to the same id and must not inherit them. */
   deleteList(id: string): void {
-    // Colour lists cannot be deleted (they are the flagged symbols).
-    if (state.lists.length <= 1 || id.startsWith("color-")) return;
+    // Colour lists cannot be deleted (they are the flagged symbols), nor
+    // can "Deleted symbols".
+    if (state.lists.length <= 1 || id.startsWith("color-") || isDeletedList(id)) return;
     const wasActive = state.activeId === id;
     setState("lists", (ls) => ls.filter((l) => l.id !== id));
     if (wasActive) setState("activeId", state.lists[0]?.id ?? "");
@@ -581,13 +621,13 @@ export const watchlistStore = {
   /** Rename a list by id. */
   renameList(id: string, name: string): void {
     const i = state.lists.findIndex((l) => l.id === id);
-    if (i >= 0) setState("lists", i, "name", (cur) => name.trim() || cur);
+    if (i >= 0 && !isDeletedList(id)) setState("lists", i, "name", (cur) => name.trim() || cur);
   },
 
   /** Toggle a list's flagged/favourite state (the list-manager star). */
   toggleFavorite(id: string): void {
     const i = state.lists.findIndex((l) => l.id === id);
-    if (i >= 0) setState("lists", i, "favorite", (f) => !f);
+    if (i >= 0 && !isDeletedList(id)) setState("lists", i, "favorite", (f) => !f);
   },
 
   /** Create a list from imported sections (and any ungrouped symbols). A flat
@@ -645,15 +685,21 @@ export const watchlistStore = {
   },
 
   renameActive(name: string): void {
+    if (isDeletedList(state.activeId)) return;
     mutateActive((l) => {
       l.name = name.trim() || l.name;
     }, true);
   },
+  /** Remove every row and section of the active list. */
   clearActive(): void {
+    const cur = state.lists[activeIndex()];
+    if (!cur) return;
+    const gone = rowsOf(unwrap(cur));
     mutateActive((l) => {
       l.groups = [];
       l.extras = [];
     });
+    keepDeleted(cur.id, gone);
   },
   /** Add a section named "SECTION 1", "SECTION 2", … Its header goes before
    *  the row `before`, so the section starts at that row and takes the rows
@@ -661,6 +707,7 @@ export const watchlistStore = {
    *  the list. Returns its name. */
   addSection(before: string | null): string {
     let name = "";
+    if (isDeletedList(state.activeId)) return name;
     mutateActive((l) => {
       name = freeName(l.groups.map((g) => g.name), "SECTION", true);
       const g: Group = { name, rows: [] };
@@ -741,10 +788,14 @@ export const watchlistStore = {
   },
   /** Remove a symbol from the active list wherever it sits (section or extras). */
   removeSymbol(ticker: string): void {
+    const cur = state.lists[activeIndex()];
+    if (!cur) return;
+    const gone = rowsOf(unwrap(cur)).filter((r) => r.ticker === ticker);
     mutateActive((l) => {
       for (const g of l.groups) g.rows = g.rows.filter((r) => r.ticker !== ticker);
       l.extras = l.extras.filter((r) => r.ticker !== ticker);
     });
+    keepDeleted(cur.id, gone);
   },
   /** Move the items `ids` (rows and section headers, ids as in `listItems`)
    *  before / after the item `targetId`, in their order on screen
@@ -786,7 +837,8 @@ export const watchlistStore = {
   },
   /** Remove the items `ids` (rows and section headers, ids as in `listItems`)
    *  from the active list. A removed section header leaves its rows: they
-   *  join the section above, or the rows with no section. */
+   *  join the section above, or the rows with no section. The removed rows
+   *  join "Deleted symbols". */
   removeItems(ids: readonly string[]): void {
     const cur = state.lists[activeIndex()];
     if (!cur) return;
@@ -803,10 +855,12 @@ export const watchlistStore = {
       }
       for (const r of g.rows) if (!picked.has(r.ticker)) into.push(r);
     }
+    const gone = rowsOf(raw).filter((r) => picked.has(r.ticker));
     openGrown(activeIndex(), () => mutateActive((l) => {
       l.groups = groups;
       l.extras = extras;
     }));
+    keepDeleted(cur.id, gone);
   },
   /** Set (or clear, with `null`) a symbol's colour flag. Flags belong to
    *  the symbol (symbol-flags.ts): it shows in every list holding it. */
@@ -850,12 +904,14 @@ export const watchlistStore = {
     const i = state.lists.findIndex((l) => l.id === listId);
     if (i < 0) return;
     const keep = (r: Row) => r.ticker !== ticker && r.ticker !== shortOf(ticker);
+    const gone = rowsOf(unwrap(state.lists[i])).filter((r) => !keep(r));
     setState("lists", i, produce((wl: WatchList) => {
       for (const g of wl.groups) g.rows = g.rows.filter(keep);
       wl.extras = wl.extras.filter(keep);
     }));
     dropSort(state.lists[i].id);
     syncColorFlags();
+    keepDeleted(listId, gone);
   },
   /** Create a new list seeded with one row WITHOUT switching the active list
    *  ("Add X to watchlist → Create new list…"). Returns the new name. */

@@ -11,16 +11,20 @@
  *   Add {SYM} to watchlist ▸             submenu: the lists, each with a check
  *                                        box (click adds / removes, the menu
  *                                        stays open) + "Create new list…"
+ *   Add {SYM} to compare                 the symbol joins the chart as a
+ *                                        compared symbol, on the % scale
  *   Add note for {SYM}
  *   ─
- *   Add section
+ *   Add section                          (these two: not in "Deleted symbols")
  *   Add symbol
  * With several items selected and the click on one of them, the first row is
  * "Flag/Unflag all selected", the submenu "Add all selected to" (a list
- * holding only some of the symbols shows a dash), and there is no note row.
+ * holding only some of the symbols shows a dash), the compare row "Add all
+ * selected to compare" (no such row above 10 selected items), and there is
+ * no note row.
  * NO Remove / Copy / per-symbol alert here — row removal stays on the
- * hover ×. No "Add {SYM} to compare" or "Financials…" rows: their
- * subsystems are not in this app, so those rows are omitted rather than dead.
+ * hover ×. No "Financials…" row: its subsystem is not in this app, so the
+ * row is omitted rather than dead.
  *
  * Section header menu (160×121): Rename / Remove section / Add symbol.
  */
@@ -39,6 +43,9 @@ const ICON_SECTION =
 // Note / pencil-on-card — the "Add note" action.
 const ICON_NOTE =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M4.5 3C3.67 3 3 3.67 3 4.5v9c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5V9h-1v4.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5H9V3H4.5Zm9.85.65a1.2 1.2 0 0 0-1.7 0L7.5 8.79V10.5h1.71l5.14-5.15a1.2 1.2 0 0 0 0-1.7ZM8.5 9.5v-.3l4.85-4.85a.2.2 0 0 1 .3.3L8.79 9.5H8.5Z"></path></svg>';
+// Plus in a circle — the "Add … to compare" action.
+const ICON_COMPARE =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M9 3a6 6 0 1 0 0 12A6 6 0 0 0 9 3ZM2 9a7 7 0 1 1 14 0A7 7 0 0 1 2 9Z"></path><path fill="currentColor" d="M8.5 6h1v2.5H12v1H9.5V12h-1V9.5H6v-1h2.5V6Z"></path></svg>';
 // Plus-in-list — the "Add … to watchlist" action.
 const ICON_LIST_ADD =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M3 4h12v1H3V4Zm0 4h12v1H3V8Zm0 4h6v1H3v-1Zm9.5-1.5h1V9h1.5v1h-1.5v1.5h-1V10H11V9h1.5V8.5Z"></path></svg>';
@@ -95,7 +102,12 @@ type Props = {
    *  when it holds every one. */
   onToggleList: (listId: string, rows: Row[]) => void;
   onCreateListWith: (rows: Row[]) => void;
+  /** False = no compare row (more than 10 items selected). */
+  canCompare: boolean;
+  onAddCompare: (rows: Row[]) => void;
   onAddNote: (row: Row) => void;
+  /** False = no "Add section" / "Add symbol" rows ("Deleted symbols"). */
+  canAdd: boolean;
   onAddSection: () => void;
   onAddSymbol: () => void;
   onClose: () => void;
@@ -221,6 +233,13 @@ export function WatchlistContextMenu(props: Props) {
         </Show>
       </div>
 
+      <Show when={props.canCompare}>
+        <button type="button" role="menuitem" class="ot-menu-item" data-name="add-to-compare" onClick={() => run(() => props.onAddCompare(rows()))}>
+          <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_COMPARE} />
+          <span class="ot-menu-item__label">{multi() ? "Add all selected to compare" : `Add ${sym()} to compare`}</span>
+        </button>
+      </Show>
+
       <Show when={!multi()}>
         <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row))}>
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
@@ -228,17 +247,19 @@ export function WatchlistContextMenu(props: Props) {
         </button>
       </Show>
 
-      <div class="ot-popover__divider" />
+      <Show when={props.canAdd}>
+        <div class="ot-popover__divider" />
 
-      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSection)}>
-        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_SECTION} />
-        <span class="ot-menu-item__label">Add section</span>
-      </button>
+        <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSection)}>
+          <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_SECTION} />
+          <span class="ot-menu-item__label">Add section</span>
+        </button>
 
-      <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSymbol)}>
-        <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
-        <span class="ot-menu-item__label">Add symbol</span>
-      </button>
+        <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(props.onAddSymbol)}>
+          <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_PLUS} />
+          <span class="ot-menu-item__label">Add symbol</span>
+        </button>
+      </Show>
     </div>
   );
 }

@@ -160,7 +160,7 @@ import { publishDataWindow, type DataWindowState } from "../../data/data-window-
 import { ChartContextMenu, CtxIcons, type CtxNode } from "./ChartContextMenu";
 import { WheelHelper } from "./wheel-helper";
 import { TIMEZONES } from "../../data/timezones";
-import { watchlistStore } from "../../data/watchlist-store";
+import { isDeletedList, watchlistStore } from "../../data/watchlist-store";
 import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../data/indicator-favorites";
 import type { Bar } from "oakscriptjs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
@@ -1299,9 +1299,10 @@ export function ChartView(props: Props) {
     // then the other lists by name; a row adds or removes the symbol and the
     // menu stays open; separator; "Create new list…".
     const activeId = watchlistStore.activeId();
+    const offered = watchlistStore.shownLists().filter((l) => !isDeletedList(l.id));
     const lists = [
-      ...watchlistStore.shownLists().filter((l) => l.id === activeId),
-      ...watchlistStore.shownLists().filter((l) => l.id !== activeId)
+      ...offered.filter((l) => l.id === activeId),
+      ...offered.filter((l) => l.id !== activeId)
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
     ];
     const listRows: CtxNode[] = lists.map((l) => ({

@@ -1245,6 +1245,12 @@
 .wl-lm-star.is-on {
   color: var(--ot-strong);
 }
+/* "Deleted symbols": no star and no marker, the name starts where the
+   marker of the other rows does. */
+.wl-lm-star-plug {
+  flex-shrink: 0;
+  width: 22px;
+}
 .wl-lm-marker {
   flex-shrink: 0;
   width: 18px;
