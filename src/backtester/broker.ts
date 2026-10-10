@@ -126,7 +126,12 @@
  *     counts), filled at the next tick on the position of that tick, whatever
  *     its side. The trades left open see the fill price;
  *   - the trades a margin call does not reach lose their exit legs until the
- *     exit is called again.
+ *     exit is called again or another order closes a part of the trade. A
+ *     call that cannot fill takes the legs of every open trade, and the trade
+ *     it would have closed a part of keeps a leg for the rest only;
+ *   - a margin call made by the fill of another one that waits for the bar's
+ *     last tick fills there after the script run: the script sees the
+ *     position before it and strategy.cancel_all() cancels it (number used).
  */
 import type {
   Bar,
@@ -273,6 +278,8 @@ interface OpenTrade {
   lotQty: number;
   /** Quantity filled at the entry (qty_percent base; margin calls and partial exits reduce `qty`). */
   filledQty: number;
+  /** Part of the trade a margin call that did not fill would have closed: it has no exit leg. */
+  callQty: number;
 }
 
 /** A stop / limit order on the path, `level` on the tick grid. */
@@ -341,6 +348,8 @@ export class Broker {
   private marginCalls = 0;
   /** Margin calls that wait for the next tick (made by the fill of another one) or the next open (made at the close). */
   private pendingCalls: MarginCallOrder[] = [];
+  /** Margin calls that wait for the script run of the current bar (see deferPendingCalls). */
+  private deferredCalls: MarginCallOrder[] = [];
   /** Equity at the last script run (the bar close before the fills): the funds an entry fill is checked against. */
   private scriptEquity = 0;
   /** Position (signed) and close at the last script run: the state a market entry fill is checked against. */
@@ -616,6 +625,11 @@ export class Broker {
   cancelAll(): void {
     this.entries.clear();
     this.exits.clear();
+    // A margin call that waits for this script run is an order too: it is cancelled, its number is used.
+    if (this.deferredCalls.length) {
+      if (this.positionSize !== 0) this.marginCalls += this.deferredCalls.length;
+      this.deferredCalls = [];
+    }
   }
 
   // ------------------------------------------------------------ emulation
@@ -625,6 +639,7 @@ export class Broker {
     this.scriptEquity = i > 0 ? this.equity : this.props.initialCapital;
     this.scriptPos = this.positionSize;
     this.scriptClose = i > 0 ? this.roundPrice(this.bars[i - 1].close) : 0;
+    if (i > 0) this.fillDeferredCalls(this.roundPrice(this.bars[i - 1].close));
     // The funds are checked once more after the script run of the last bar, at its close: that margin call
     // fills at this open, after the script's market orders (5 margin call numbers per bar, the last one filled
     // at the next open).
@@ -679,11 +694,14 @@ export class Broker {
       const upFirst = Math.abs(b.high - b.open) < Math.abs(b.low - b.open);
       // [price on the tick grid, exact price] (trailing stops follow the exact price).
       const path: [number, number][] = upFirst ? [[high, b.high], [low, b.low], [close, b.close]] : [[low, b.low], [high, b.high], [close, b.close]];
-      for (const [to, raw] of path) {
+      for (let n = 0; n < path.length; n++) {
+        const [to, raw] = path[n];
         this.walk(cur, to);
         cur = to;
         this.touch(to, raw);
-        this.fillPendingCalls(to);
+        // A margin call that waits for the bar's last tick fills after the script run (see fillDeferredCalls).
+        if (n === path.length - 1 && !(sub && sub.length)) this.deferPendingCalls();
+        else this.fillPendingCalls(to);
         this.checkMargin(to);
       }
     }
@@ -694,7 +712,7 @@ export class Broker {
       const close = this.roundPrice(b.close);
       this.touch(close, b.close);
       this.fillAt(close, b.close);
-      this.fillPendingCalls(close);
+      this.deferPendingCalls();
       this.checkMargin(close);
     }
   }
@@ -1072,6 +1090,26 @@ export class Broker {
     return { kind: 'call', seq: ++this.seq, size: cover > 0 ? cover * 4 : step, equity };
   }
 
+  /**
+   * A margin call made by the fill of another one waits for the next tick. When that tick is the bar's last one
+   * (the close), it fills there but after the script run of the bar: the script sees the position before it, and
+   * strategy.cancel_all() cancels it (its number is used). Shorts of 1,349 and 2,592, a call of 3,208 at the high
+   * of a bar that closes there: 733 more in a strategy that does not call cancel_all, none in one that does.
+   */
+  private deferPendingCalls(): void {
+    if (!this.pendingCalls.length) return;
+    this.deferredCalls.push(...this.pendingCalls);
+    this.pendingCalls = [];
+  }
+
+  /** Fill the margin calls that waited for the script run of the last bar, at its close (`this.bar` is still it). */
+  private fillDeferredCalls(close: number): void {
+    if (!this.deferredCalls.length) return;
+    const calls = this.deferredCalls;
+    this.deferredCalls = [];
+    for (const c of calls) this.fillMarginCall(c, close);
+  }
+
   /** Margin calls made by the fill of another one fill at the next tick. */
   private fillPendingCalls(p: number): void {
     if (!this.pendingCalls.length) return;
@@ -1098,7 +1136,23 @@ export class Broker {
     // It fills only if the margin of the position it leaves, at the fill price, fits in the equity it was sized
     // with (a short of 1,000 at 0.08, price 0.09, slippage 0.03: 312 fill with an equity of 82.90, 308 do not
     // with 83.00). A call that does not fill is dropped (not tried at the next tick).
-    if ((Math.abs(pos) - size) * fill * pv * ratio > call.equity + EPS) return;
+    if ((Math.abs(pos) - size) * fill * pv * ratio > call.equity + EPS) {
+      // A call that does not fill still takes the exit legs: every open trade loses them until the exit is called
+      // again or another order closes a part of the trade, and the trade the call would have closed a part of
+      // keeps a leg for the rest only (shorts of 1,728 and 9,321, a call of 2,448 that cannot fill: no exit
+      // fills on that bar; after a buy of 1,944 the exit of the second lot closes 8,601 = 9,321 - 720, not 9,105).
+      let left = size;
+      for (const t of this.openTrades) {
+        for (const x of this.exits.values()) if (x.fromEntry === '' || x.fromEntry === t.entryId) t.exitsDropped.add(x.id);
+        const reached = Math.min(left, t.qty);
+        left -= reached;
+        if (reached > 0 && reached < t.qty && reached > t.callQty) {
+          t.lotQty = Math.max(0, t.lotQty - (reached - t.callQty));
+          t.callQty = reached;
+        }
+      }
+      return;
+    }
     // While it fills, the funds are checked again after each trade it closes, at the fill price and without the
     // profit of that trade (the trades closed before it count). A shortage makes one more margin call for the
     // next tick; the last shortage counts (lots of 20, 24, 112, 112 and a call of 172: 92 more; lots of 20, 23,
@@ -1167,6 +1221,7 @@ export class Broker {
       qty: o.qty,
       filledQty: o.qty,
       lotQty: o.qty,
+      callQty: 0,
       price,
       bar: this.bar,
       signal: o.comment,
@@ -1197,8 +1252,13 @@ export class Broker {
   /** `market`: a market exit (close, reversal, strategy.order, margin call); see makeTrade. */
   private closeTradeQty(t: OpenTrade, qty: number, price: number, signal: string, market = false, byLeg = false): void {
     if (qty <= 0) return;
-    // An exit leg takes its quantity from its own entry fill (see the leg fill); any other close from this trade.
-    if (!byLeg) t.lotQty = Math.max(0, t.lotQty - qty);
+    // An exit leg takes its quantity from its own entry fill (see the leg fill); any other close from this trade,
+    // first from the part a margin call that did not fill left without a leg.
+    if (!byLeg) {
+      const noLeg = Math.min(t.callQty, qty);
+      t.callQty -= noLeg;
+      t.lotQty = Math.max(0, t.lotQty - (qty - noLeg));
+    }
     const share = qty / t.qty;
     const entryCm = t.entryCommission * share;
     const exitCm = this.commission(qty, price);
@@ -1228,7 +1288,10 @@ export class Broker {
     // A trade another order closed a part of has new exit legs for what is left: they go behind the orders
     // already placed (a sell limit entry closes 3,205 of `long1`, 3,788: `close long2` then fills before
     // `close long1`, 583, on the same tick).
-    else if (!byLeg) t.fillSeq = ++this.seq;
+    else if (!byLeg) {
+      t.fillSeq = ++this.seq;
+      t.exitsDropped.clear();
+    }
     this.equityEvents.push({
       t: 'c',
       v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
