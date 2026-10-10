@@ -12,6 +12,11 @@ It is an early work in progress: some features are stubbed or partially wired. C
 
 > **Disclaimer:** OpenTrader is an independent project, not affiliated with any commercial trading platform or data provider. It is for charting and research only and is **not financial advice**. Provided "as is", without warranty. See [LICENSE](LICENSE).
 
+> [!WARNING]
+> **Market data is delayed by 15 minutes for now.** Once sponsoring starts, we will be able to support live streaming data. See [Support the project](#support-the-project).
+>
+> **Second and minute history is limited to 5 years.** Daily history goes back to 2003.
+
 ## Download
 
 Download the installer for your system and run it. Nothing else to set up: no account, no API key, no token. Market data works out of the box.
