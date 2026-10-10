@@ -643,7 +643,8 @@ export class Broker {
     // The funds are checked once more after the script run of the last bar, at its close: that margin call
     // fills at this open, after the script's market orders (5 margin call numbers per bar, the last one filled
     // at the next open).
-    if (i > 0) this.checkMargin(this.roundPrice(this.bars[i - 1].close), undefined, true);
+    // With process_orders_on_close that check was made after the fills at the close (see processClose).
+    if (i > 0 && !this.props.processOrdersOnClose) this.checkMargin(this.roundPrice(this.bars[i - 1].close), undefined, true);
     this.bar = i;
     this.dropOrphanExits();
     // Bar magnifier: the path runs through the lower-timeframe bars of the chart bar (each one open -> nearer
@@ -738,7 +739,10 @@ export class Broker {
     this.fillAt(close, this.bars[i].close);
     // Trades filled at this close see the close as their first price after the fill.
     this.touch(close, this.bars[i].close);
-    this.checkMargin(close);
+    // The funds check after these fills is the one after the script run: its margin call is sized here and fills
+    // at the next open (a short of 228,000 filled at a 43.44 close with 1.00 of slippage: 12,184 bought back at
+    // the next open, 43.94 + 1.00, not at the close).
+    this.checkMargin(close, undefined, true);
   }
 
   /** Market orders (market entries and closes) in the order they were placed. */
