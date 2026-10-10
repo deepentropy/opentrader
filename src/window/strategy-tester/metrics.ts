@@ -71,10 +71,12 @@ export function cagr(r: BacktestReport): number | null {
 export function outliers(r: BacktestReport): { pnl: number; trades: Trade[] } {
   const closed = closedTrades(r);
   if (closed.length < 2) return { pnl: 0, trades: [] };
-  const rets = closed.map((t) => t.profitPercent);
+  // A trade closed at price 0 has no return (NaN): it counts as 0.
+  const ret = (t: Trade) => (Number.isNaN(t.profitPercent) ? 0 : t.profitPercent);
+  const rets = closed.map(ret);
   const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
   const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) ** 2, 0) / rets.length);
-  const out = closed.filter((t) => Math.abs(t.profitPercent - mean) > 2 * sd);
+  const out = closed.filter((t) => Math.abs(ret(t) - mean) > 2 * sd);
   return { pnl: out.reduce((a, t) => a + t.profit, 0), trades: out };
 }
 

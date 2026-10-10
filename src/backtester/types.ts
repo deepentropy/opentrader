@@ -123,6 +123,7 @@ export interface Trade {
   qty: number;
   /** Net profit including commission. */
   profit: number;
+  /** NaN for a trade closed at price 0 (no value in the reference app report). */
   profitPercent: number;
   commission: number;
   /** Commission paid at the entry (part of `commission`). */

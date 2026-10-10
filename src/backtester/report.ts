@@ -50,7 +50,8 @@ function side(trades: Trade[], open: Trade[], initialCapital: number, maxContrac
     numberOfLosingTrades: losses.length,
     percentProfitable: trades.length ? wins.length / trades.length : null,
     avgTrade: trades.length ? netProfit / trades.length : null,
-    avgTradePercent: avg(trades, (t) => t.profitPercent),
+    // A trade closed at price 0 has no profit percent: it counts as 0.
+    avgTradePercent: avg(trades, (t) => (Number.isNaN(t.profitPercent) ? 0 : t.profitPercent)),
     avgWinTrade: avgWin,
     avgWinTradePercent: avg(wins, (t) => t.profitPercent),
     avgLosTrade: avgLoss,

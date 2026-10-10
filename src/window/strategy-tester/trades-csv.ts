@@ -72,6 +72,7 @@ function money(v: number): number {
 }
 /** Fraction -> percent text: x 100, 2 decimals, "-0.00" printed "0.00". */
 function pct(fraction: number): string {
+  if (Number.isNaN(fraction)) return "";
   let n = roundTo(fraction * 100, 2);
   if (n) {
     const dec = String(n).split(".")[1] ?? "";
