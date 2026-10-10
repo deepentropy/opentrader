@@ -296,6 +296,10 @@ const barsSpan = (width: number, spacing: number) => width / spacing - 1;
  *  collapse the old sync path could persist, not a user choice. Same floor as
  *  the wheel zoom (onWheel). */
 const MIN_VISIBLE_BARS = 5;
+/** A symbol change keeps the distance to the last bar up to this many bars back
+ *  (the reference opens a new symbol on a first window of 300 bars and keeps 2
+ *  of them in view: a chart scrolled back 300 or 528 bars lands 298 bars back). */
+const SYMBOL_CHANGE_MAX_BACK = 298;
 /** Fewest bars a date-range sync target frames (the time scale's minimum
  *  visible bar count). */
 const SYNC_MIN_BARS = 2;
@@ -1584,6 +1588,21 @@ export function ChartView(props: Props) {
     setScaleModes((m) => (m.auto === next.auto && m.log === next.log ? m : next));
   }
   const overlayVisible = (b: NavButtonsBehavior, hovered: boolean) => b === "alwaysOn" || (b === "visibleOnMouseOver" && hovered);
+  /** Symbol change with auto scale off: the price scale is fitted to the new
+   *  symbol's visible bars once, then stays manual (the old symbol's price
+   *  range would leave the new candles out of view). */
+  function fitPriceScaleOnce() {
+    if (!chart) return;
+    const ps = chart.priceScale(currentTokens().scalesPlacement);
+    if (ps.options().autoScale) return;
+    ps.applyOptions({ autoScale: true });
+    // The fitted range exists after the next paint; freezing keeps it.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!chart) return;
+      chart.priceScale(currentTokens().scalesPlacement).applyOptions({ autoScale: false });
+      refreshScaleOverlays();
+    }));
+  }
   function toggleAutoScale() {
     if (!chart) return;
     const ps = chart.priceScale(currentTokens().scalesPlacement);
@@ -3997,7 +4016,10 @@ export function ChartView(props: Props) {
   // back to 1D on the exact previous dates. Null for symbol changes / first load.
   // With Scales → "Save chart left edge position when changing interval" on,
   // `leftTime` (the left edge's bar time) is kept instead of the right offset.
-  let pendingScaleKeep: { barSpacing: number; rightOffset: number; leftTime?: number } | null = null;
+  // A symbol change keeps them too (`symbol`): same bar spacing, same number of
+  // bars back from the last bar, at most SYMBOL_CHANGE_MAX_BACK; and the price
+  // scale is fitted once to the new symbol, also with auto scale off.
+  let pendingScaleKeep: { barSpacing: number; rightOffset: number; leftTime?: number; symbol?: boolean } | null = null;
   // Bottom-bar date-range preset ("1D"…"All") waiting for the tab's interval
   // reload to land; the apply effect frames this span instead of keeping the
   // pre-switch scale. Takes precedence over pendingScaleKeep.
@@ -4058,7 +4080,13 @@ export function ChartView(props: Props) {
       const leftTime = currentTokens().saveLeftEdge ? (chart.timeScale().getVisibleRange()?.from as number | undefined) : undefined;
       pendingScaleKeep = bs ? { barSpacing: bs, rightOffset: chart.timeScale().scrollPosition(), leftTime } : null;
     } else {
-      pendingScaleKeep = null;
+      // Symbol change: the new symbol opens at the same bar spacing and the
+      // same distance from its last bar (no farther back than
+      // SYMBOL_CHANGE_MAX_BACK), not on the old symbol's bar numbers.
+      const bs = chart && raw.length > 0 ? liveBarSpacing(chart) : null;
+      pendingScaleKeep = bs && sym !== lastClearedSym
+        ? { barSpacing: bs, rightOffset: Math.max(chart!.timeScale().scrollPosition(), -SYMBOL_CHANGE_MAX_BACK), symbol: true }
+        : null;
       // A genuine symbol change drops any queued date-range preset — it rode
       // an interval change on the previous symbol.
       pendingRangeSpan = null;
@@ -4205,10 +4233,13 @@ export function ChartView(props: Props) {
         ts.setVisibleLogicalRange({ from, to: from + barsSpan(ts.width(), keep.barSpacing) });
         framed = `keep-left bs=${keep.barSpacing.toFixed(2)} left=${keep.leftTime}`;
       } else {
-        const to = raw.length - 1 + keep.rightOffset;
+        // A shorter history than the kept distance: its first bars stay in view.
+        const ro = keep.symbol ? Math.max(keep.rightOffset, -(raw.length - MIN_VISIBLE_BARS)) : keep.rightOffset;
+        const to = raw.length - 1 + ro;
         ts.setVisibleLogicalRange({ from: to - barsSpan(ts.width(), keep.barSpacing), to });
-        framed = `keep bs=${keep.barSpacing.toFixed(2)} ro=${keep.rightOffset.toFixed(1)}`;
+        framed = `keep bs=${keep.barSpacing.toFixed(2)} ro=${ro.toFixed(1)}`;
       }
+      if (keep.symbol) fitPriceScaleOnce();
     } else if (savedInBounds) {
       chart.timeScale().setVisibleLogicalRange({ from: saved!.from, to: saved!.to });
       framed = `saved ${saved!.from.toFixed(0)}..${saved!.to.toFixed(0)}`;
