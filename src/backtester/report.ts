@@ -12,9 +12,10 @@
  *     reached after a fill (Broker.equityEvents). The peak is the realized
  *     equity after each trade close (partial closes too); the trough is the
  *     realized equity when the position becomes flat, after a margin call or
- *     after the entry commission of a trade opened from flat. Checked on 56
- *     runs (7 datasets, 5 m to 1 W): drawdown 56 / 56, run-up 55 / 56; the
- *     margin call trough on the ut-bot-v2 runs (.tmp/oakscript-strategies).
+ *     after the entry commission of any entry fill. At a tick where an order
+ *     fills, the equity is read after the fill, not before. Checked on the
+ *     121 runs with the same trades as the reference (7 datasets, 5 m to
+ *     1 W): drawdown and run-up 121 / 121 (.tmp/issue34).
  */
 import type { EquityEvent } from './broker';
 import type { Bar, Direction, Performance, SidePerformance, Trade } from './types';
@@ -83,13 +84,17 @@ function equityExtremes(events: EquityEvent[], initialCapital: number) {
     if (ru > r.ru) r.ru = ru;
     if (v > 0 && ru / v > r.ruPct) r.ruPct = ru / v;
   };
-  for (const e of events) {
-    if (e.t !== 'e') {
+  for (let k = 0; k < events.length; k++) {
+    const e = events[k];
+    // The equity of a tick where an order fills is read after the fill: the price event right before a fill
+    // does not count.
+    const beforeFill = e.t === 'p' && k + 1 < events.length && events[k + 1].t !== 'p';
+    if (e.t !== 'e' && !beforeFill) {
       low(e.v);
       high(e.v);
     }
     if (e.t === 'c') peak = Math.max(peak, e.realized);
-    if ((e.t === 'c' && (e.flat || e.marginCall)) || (e.t === 'e' && e.first)) trough = Math.min(trough, e.realized);
+    if ((e.t === 'c' && (e.flat || e.marginCall)) || e.t === 'e') trough = Math.min(trough, e.realized);
   }
   return r;
 }
