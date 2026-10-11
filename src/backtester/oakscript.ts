@@ -276,10 +276,18 @@ export interface OakScriptRunOptions {
 /**
  * Chart context of a declaration run (zero bars): what a script declares (title, inputs, plots, strategy()
  * properties) does not depend on the symbol, but the session functions (timeframe.change, time(tf, session)...)
- * need a session and a time zone to be called at all. No bar is read, so the always-open session in UTC stands in
- * for any symbol.
+ * need a session and a time zone to be called at all, and the symbol values (syminfo.mintick...) must be known to be
+ * read. No bar is read, so the always-open session in UTC and the default symbol stand in for any symbol.
  */
-export const DECLARATION_CHART: ChartContext = { timeframe: '1D', timezone: 'Etc/UTC', sessionType: 'regular', session: '24x7' };
+export const DECLARATION_CHART: ChartContext = {
+  timeframe: '1D',
+  timezone: 'Etc/UTC',
+  sessionType: 'regular',
+  session: '24x7',
+  mintick: DEFAULT_SYMBOL.mintick,
+  pointvalue: DEFAULT_SYMBOL.pointValue,
+  mincontract: DEFAULT_SYMBOL.qtyStep,
+};
 
 /**
  * The bars as a Pine script sees them: a daily, weekly or monthly bar is stamped at the open of its trading day's

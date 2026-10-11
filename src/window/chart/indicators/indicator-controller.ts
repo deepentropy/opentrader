@@ -13,7 +13,7 @@
  */
 import type { IChartApi, ISeriesApi, SeriesType } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
-import type { ChartContext } from 'oakscriptjs/script';
+import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
 import { isStrategyId } from './strategy-entries';
@@ -119,15 +119,21 @@ export class IndicatorController {
 
   /** Identifies the chart for studies that keep per-chart state (strategies). */
   private chartId: string;
-  /** Chart context of the OakScript scripts (timeframe, session...). */
-  private scriptChart: ChartContext | undefined;
+  /** Chart context of the studies (timeframe, session...). */
+  private scriptChart: StudyChart | undefined;
   /** The chart shows Heikin Ashi bars (strategies run on them). */
   private heikinAshi = false;
   /** The newest bar is still forming (a realtime bar for strategies). */
   private lastBarOpen: () => boolean = () => false;
   /** The chart's main price series (study markers and bar colours). */
   private mainSeries: () => ISeriesApi<SeriesType> | null = () => null;
-  private readonly chartState = () => ({ heikinAshi: this.heikinAshi, lastBarOpen: this.lastBarOpen() });
+  /** The newest bar as it was first seen: until it moves, a calculation is its first update. */
+  private firstSeen: { time: unknown; sig: string } | null = null;
+  private readonly chartState = () => {
+    const open = this.lastBarOpen();
+    const isNew = this.lastBarNew();
+    return { heikinAshi: this.heikinAshi, realtime: open, lastBarConfirmed: !open, lastBarNew: !open || isNew };
+  };
 
   constructor(chart: IChartApi, getBars: () => Bar[], chartId = "") {
     this.chart = chart;
@@ -246,9 +252,9 @@ export class IndicatorController {
     return cloneIndicatorOptions(this.options.get(id) ?? defaultIndicatorOptions());
   }
 
-  /** The chart symbol, interval or session changed: the OakScript chart context of every study.
+  /** The chart symbol, interval, session or background changed: the chart context of every study.
    *  The studies recompute with the new bars. */
-  setScriptChart(chart: ChartContext): void {
+  setScriptChart(chart: StudyChart): void {
     if (JSON.stringify(chart) === JSON.stringify(this.scriptChart)) return;
     this.scriptChart = chart;
     for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setScriptChart(chart);
@@ -275,6 +281,15 @@ export class IndicatorController {
    *  markers and bar colours move to the new one). */
   redrawAll(): void {
     for (const inst of this.instances.values()) if (!inst.owner) inst.layer.redraw();
+  }
+
+  private lastBarNew(): boolean {
+    const bars = this.getBars();
+    const last = bars[bars.length - 1];
+    if (!last) return true;
+    const sig = `${last.open}:${last.high}:${last.low}:${last.close}:${last.volume}`;
+    if (this.firstSeen?.time !== last.time) this.firstSeen = { time: last.time, sig };
+    return this.firstSeen.sig === sig;
   }
 
   /** How the chart tells whether its newest bar is still forming. */

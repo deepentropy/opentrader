@@ -23,7 +23,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import type { Bar, PlotConfig, IndicatorResult } from 'oakscriptjs';
-import type { ChartContext } from 'oakscriptjs/script';
+import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { IndicatorRenderer, type PlotOverride } from 'lightweight-charts-indicators/render';
 import type { OwnScaleMeta, PlotDefaultVisible, PlotPalette } from './volume';
@@ -56,12 +56,13 @@ function withPaletteColors(entry: IndicatorRegistryEntry, result: any, styles: I
   }
   return out;
 }
-/** Third argument of `calculate` (ignored by the library indicators). */
-/** `heikinAshi`: the chart shows Heikin Ashi bars (strategies run on them); `lastBarOpen`: the newest bar is
- *  still forming (a realtime bar for strategies). */
-export type StudyCalcContext = { chartId: string; chart?: ChartContext; studyId?: string; heikinAshi?: boolean; lastBarOpen?: boolean };
-/** Chart type and forming-bar state, read at each calculation. */
-export type StudyChartState = () => { heikinAshi: boolean; lastBarOpen: boolean };
+/** Third argument of `calculate`: the chart context (what the library indicators and the OakScript scripts
+ *  read) with the state of the newest bar, plus what the app's own entries need. `heikinAshi`: the chart shows
+ *  Heikin Ashi bars (strategies run on them). */
+export type StudyCalcContext = StudyChart & { chartId: string; studyId?: string; heikinAshi?: boolean };
+/** Chart type and state of the newest bar, read at each calculation. `realtime`: it is still forming;
+ *  `lastBarNew`: this is its first update. */
+export type StudyChartState = () => { heikinAshi: boolean; realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
 /**
  * Plot points with an na point at each skipped bar: OakScript plot() output leaves the na bars out, and a
  * line-break plot must break there.
@@ -182,11 +183,11 @@ export class IndicatorLayer {
   private labelsOnScale = true;
   private precision: number | null = null;
 
-  /** Passed to `calculate` as a third argument ({ chartId, chart }): the chart id for studies with
-   *  per-chart state, the chart context (timeframe, session...) for OakScript scripts. */
+  /** Passed to `calculate` as a third argument: the chart context (timeframe, session...) and the chart id
+   *  for studies with per-chart state. */
   private chartId: string;
-  private scriptChart: ChartContext | undefined;
-  private chartState: StudyChartState = () => ({ heikinAshi: false, lastBarOpen: false });
+  private scriptChart: StudyChart | undefined;
+  private chartState: StudyChartState = () => ({ heikinAshi: false, realtime: false, lastBarConfirmed: true, lastBarNew: true });
   /** Study instance id ("rsi#2"): studies with run state keep one per instance. */
   private studyId: string | undefined;
 
@@ -207,7 +208,7 @@ export class IndicatorLayer {
     this.nameLabelsVisible = v;
   }
 
-  setScriptChart(chart: ChartContext | undefined): void {
+  setScriptChart(chart: StudyChart | undefined): void {
     this.scriptChart = chart;
   }
 
@@ -292,10 +293,10 @@ export class IndicatorLayer {
   private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): any {
     try {
       const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(bars, inputs, {
-        chartId: this.chartId,
-        chart: this.scriptChart,
-        studyId: this.studyId,
+        ...this.scriptChart,
         ...this.chartState(),
+        chartId: this.chartId,
+        studyId: this.studyId,
       });
       return withPaletteColors(entry, result, styles);
     } catch (err) {

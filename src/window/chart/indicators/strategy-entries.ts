@@ -133,18 +133,18 @@ function makeCalculate(
   execute: Execute,
 ): IndicatorRegistryEntry["calculate"] {
   return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: StudyCalcContext) => {
-    const chartId = ctx?.chartId ?? "";
-    // A forming newest bar is a realtime bar: the strategy runs on it only with "On realtime bar tick".
-    const chart = ctx?.chart && ctx.lastBarOpen ? { ...ctx.chart, realtime: true, lastBarConfirmed: false } : ctx?.chart;
-    const heikinAshi = ctx?.heikinAshi === true;
+    // The chart context without the app's own fields. A forming newest bar is a realtime bar (`realtime`):
+    // the strategy runs on it only with "On realtime bar tick".
+    const { chartId = "", studyId, heikinAshi: ha, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    const heikinAshi = ha === true;
     // One backtest per study instance: two instances of a strategy on a chart
     // run (and report) separately.
-    const runKey = ctx?.studyId ? strategyKeyOf(ctx.studyId) : strategyKey;
+    const runKey = studyId ? strategyKeyOf(studyId) : strategyKey;
     // Strategy properties (Strategy Tester pills / Properties) ride in the
     // study inputs under PROPERTIES_INPUT, so they persist with the pane.
     const { [PROPERTIES_INPUT]: props, [STYLE_INPUT]: _style, ...rest } = (inputs ?? {}) as Record<string, unknown>;
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
-    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart ?? null)}:${heikinAshi}`;
+    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart)}:${heikinAshi}`;
     const rtKey = `${chartId}|${runKey}`;
     let rt = runtimes.get(rtKey);
     if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null }));

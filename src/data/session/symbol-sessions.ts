@@ -40,6 +40,9 @@ export class SymbolSessions {
   /** Tick at the current price (minmov / pricescale): script
    *  `syminfo.mintick`, backtest fill rounding. */
   readonly mintick: number;
+  /** The two terms of the tick (script `syminfo.minmove` / `syminfo.pricescale`). */
+  readonly minmove: number;
+  readonly pricescale: number;
   /** Tick bands [upper price bound, tick] ascending, the last bound
    *  Infinity; empty when the tick does not depend on the price. */
   readonly tickBands: ReadonlyArray<readonly [number, number]>;
@@ -60,6 +63,8 @@ export class SymbolSessions {
     this.postmarket = post ? spec(post.session, post.corrections) : null;
     this.hasExtendedHours = ext !== undefined && ext.session !== info.session;
     this.mintick = info.minmov / info.pricescale;
+    this.minmove = info.minmov;
+    this.pricescale = info.pricescale;
     const v = info.variableTickSize.trim().split(/\s+/).filter(Boolean).map(Number);
     const bands: [number, number][] = [];
     for (let i = 0; i < v.length; i += 2) bands.push([i + 1 < v.length ? v[i + 1] : Infinity, v[i]]);

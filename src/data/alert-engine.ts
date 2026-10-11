@@ -35,6 +35,7 @@ import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
 import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
+import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { commands } from "../bindings";
 import * as kv from "./kv";
 import { REPLAY_MAX_SEC, replayRule } from "./alert-replay";
@@ -428,6 +429,19 @@ function lastPlotValue(result: unknown, plotId: string): number | null {
   return null;
 }
 
+/** A study computed off the chart, with the chart context of its symbol, interval and session. */
+function calculateStudy(
+  entry: NonNullable<ReturnType<typeof getIndicatorEntry>>,
+  bars: unknown[],
+  inputs: unknown,
+  symbol: string,
+  resolution: string,
+  session: string,
+): unknown {
+  const calculate = entry.calculate as (bars: unknown[], inputs: unknown, chart: unknown) => unknown;
+  return calculate(bars, inputs, scriptChartContext(symbol, resolution, session));
+}
+
 function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): number | null {
   const plot = op.plot ?? 0;
   const entry = getIndicatorEntry(op.indicatorId);
@@ -460,7 +474,7 @@ function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "ind
   let value: number | null = null;
   try {
     const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
-    value = lastPlotValue(entry.calculate(dense, inputs), plotId);
+    value = lastPlotValue(calculateStudy(entry, dense, inputs, symbol, resolution, session), plotId);
   } catch (e) {
     console.warn(`[alerts] indicator compute failed for ${op.indicatorId}`, e);
   }
@@ -557,7 +571,7 @@ async function pollMovingRefs(): Promise<void> {
         const plotId = entry?.plotConfig[rule.left.plot ?? 0]?.id;
         if (!entry || !plotId) continue;
         try {
-          const result = entry.calculate(bars, rule.left.inputs ?? entry.defaultInputs) as { plots?: Record<string, Array<{ value: number | null }>> };
+          const result = calculateStudy(entry, bars, rule.left.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session) as { plots?: Record<string, Array<{ value: number | null }>> };
           const v = result.plots?.[plotId]?.[at]?.value;
           movingRefCache.set(rule.id, typeof v === "number" && Number.isFinite(v) ? v : null);
         } catch (e) {
@@ -580,13 +594,13 @@ async function pollMovingRefs(): Promise<void> {
 const REPLAYED_KEY = "alerts.replayed-run.v1";
 
 /** Value of a study's plot at the close of every bar. */
-function plotSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[]): (number | null)[] | null {
+function plotSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[], rule: AlertRule, session: string): (number | null)[] | null {
   const entry = getIndicatorEntry(op.indicatorId);
   const plotId = entry?.plotConfig[op.plot ?? 0]?.id;
   if (!entry || !plotId) return null;
   try {
     const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
-    const result = entry.calculate(dense, op.inputs ?? entry.defaultInputs) as { plots?: Record<string, Array<{ value: number | null }>> };
+    const result = calculateStudy(entry, dense, op.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session) as { plots?: Record<string, Array<{ value: number | null }>> };
     const series = result.plots?.[plotId];
     if (!series) return null;
     return bars.map((_, i) => {
@@ -630,10 +644,10 @@ export async function replayMissedFires(previous: Record<string, number | null |
       barsBy.set(key, bars);
     }
     const stepSec = resolutionMs(rule.resolution) / 1000;
-    const leftSeries = left.kind === "indicator" ? plotSeries(left, bars) : null;
+    const leftSeries = left.kind === "indicator" ? plotSeries(left, bars, rule, session) : null;
     if (left.kind === "indicator" && !leftSeries) continue;
     let rightSeries: (number | null)[] | null;
-    if (right.kind === "indicator") rightSeries = plotSeries(right, bars);
+    if (right.kind === "indicator") rightSeries = plotSeries(right, bars, rule, session);
     else if (right.kind === "value") rightSeries = bars.map(() => right.value);
     else if (right.kind === "drawing" && right.plot != null) {
       // The VWAP as it stood at each bar read (and the one before it).

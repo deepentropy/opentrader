@@ -82,7 +82,7 @@ function toScriptError(err: unknown, lineOffset = 0): OakScriptError {
 }
 
 type UserModule = Record<string, unknown> & {
-  calculate?: (bars: unknown[], inputs?: Record<string, unknown>) => unknown;
+  calculate?: (bars: unknown[], inputs?: Record<string, unknown>, chart?: unknown) => unknown;
   __run?: () => void;
 };
 
@@ -157,7 +157,7 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
         ok: false,
         error: {
           message:
-            'Script must export a function "calculate(bars, inputs)" or use the oakscriptjs/script API.',
+            'Script must export a function "calculate(bars, inputs, chart)" or use the oakscriptjs/script API.',
         },
       };
     }
@@ -185,7 +185,7 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
       const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, req.chart ?? {});
       return { id: req.id, type: "run", ok: true, result: run.result };
     }
-    const result = entry.mod.calculate!(req.bars, req.inputs ?? {});
+    const result = entry.mod.calculate!(req.bars, req.inputs ?? {}, req.chart ?? {});
     return { id: req.id, type: "run", ok: true, result };
   } catch (err) {
     return {

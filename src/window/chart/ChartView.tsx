@@ -4336,10 +4336,10 @@ export function ChartView(props: Props) {
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
   });
 
-  // OakScript chart context (timeframe, session, tickerid) of the studies.
+  // Chart context (timeframe, session, tickerid, background) of the studies.
   createEffect(() => {
     chartReady();
-    controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session));
+    controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session, readChartTokens(appearance()).bg));
   });
 
   // Strategies on a Heikin Ashi chart run on its Heikin Ashi bars.

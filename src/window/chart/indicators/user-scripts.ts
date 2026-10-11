@@ -5,7 +5,7 @@
  * dialog, legend, object tree, alerts) treats a user script like any shipped
  * indicator.
  *
- * The pipeline calls `entry.calculate(bars, inputs)` synchronously, but user
+ * The pipeline calls `entry.calculate(bars, inputs, context)` synchronously, but user
  * code runs in the execution worker. The adapter closes the gap with a
  * stale-while-revalidate cache: calculate() returns the last worker result
  * immediately and, when the staleness key (bars tip + inputs) has moved,
@@ -27,6 +27,7 @@ import type { ChartContext } from "oakscriptjs/script";
 import * as scripts from "../../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta } from "../../oakscript/engine-types";
+import type { StudyCalcContext } from "./indicator-layer";
 
 export const USER_INDICATOR_PREFIX = "user:";
 export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated";
@@ -149,12 +150,12 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     if (!rt) return EMPTY_RESULT;
     const typedBars = bars as OakBar[];
     const typedInputs = (inputs ?? {}) as Record<string, unknown>;
-    const c = ctx as { chart?: ChartContext; chartId?: string; studyId?: string } | undefined;
-    const chart = c?.chart;
-    const runKey = `${c?.chartId ?? ""}|${c?.studyId ?? ""}`;
+    // The chart context without the app's own fields.
+    const { chartId, studyId, heikinAshi: _heikinAshi, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
     if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null }));
-    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart ?? null)}`;
+    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart)}`;
     if (run.key !== key) {
       // Snapshot the array (ChartView mutates `raw` in place on live ticks).
       const snapshot = typedBars.slice();
