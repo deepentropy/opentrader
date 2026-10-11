@@ -3806,8 +3806,10 @@ export function ChartView(props: Props) {
       const detail = (e as CustomEvent<OakScriptUpdatedDetail>).detail;
       if (!detail) return;
       const uid = userIndicatorId(detail.scriptId);
-      if (!(props.indicators ?? []).includes(uid)) return;
-      if (detail.structural) controller?.refresh(uid);
+      // Every instance of the script on this chart (a re-added one is "#2"…).
+      const ids = (props.indicators ?? []).filter((id) => typeIdOf(id) === uid);
+      if (!ids.length) return;
+      if (detail.structural) for (const id of ids) controller?.refresh(id);
       else controller?.renderAll();
       refreshIndicatorLegend();
     };

@@ -8,6 +8,7 @@
  * in the kv script store and execute in the shared worker engine.
  */
 import { For, Show, Suspense, createEffect, createSignal, lazy, on } from "solid-js";
+import oakPackage from "../../../node_modules/oakscriptjs/package.json";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
@@ -36,9 +37,8 @@ const DEFAULT_HEIGHT = 275;
 const MIN_HEIGHT = 120;
 /** Keep the chart at least this tall when the editor grows or maximizes off. */
 const CHART_MIN = 150;
-/** Engine version shown in the status bar (kept in sync with the oakscriptjs
- *  dependency; its exports map doesn't expose package.json to import). */
-const ENGINE_LABEL = "OakScript v0.8.1";
+/** Engine version shown in the status bar, read from the installed package. */
+const ENGINE_LABEL = `OakScript v${oakPackage.version}`;
 
 function loadHeight(): number {
   const n = Number(kv.getItem(HEIGHT_KEY));

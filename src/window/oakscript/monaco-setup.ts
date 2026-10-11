@@ -5,7 +5,7 @@
  * ~3 MB never touches the main bundle — the chart startup path is unchanged
  * until the drawer first opens.
  *
- * IntelliSense: every oakscriptjs .d.ts (31 files, ~60 KB) is inlined at
+ * IntelliSense: every oakscriptjs .d.ts (the ESM build's) is inlined at
  * build time via import.meta.glob(?raw) and mounted into monaco's virtual FS
  * under file:///node_modules/oakscriptjs/, so `import { ta } from
  * "oakscriptjs"` in a user script resolves with full typings. The path glob
@@ -21,7 +21,7 @@ import TsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker"
 
 export { monaco };
 
-const OAKSCRIPT_DTS = import.meta.glob("../../../node_modules/oakscriptjs/dist/**/*.d.ts", {
+const OAKSCRIPT_DTS = import.meta.glob("../../../node_modules/oakscriptjs/dist/esm/**/*.d.ts", {
   query: "?raw",
   import: "default",
   eager: true,
@@ -79,9 +79,9 @@ export function setupMonaco(): void {
     // mapping short-circuits it even if that lookup regresses.
     baseUrl: "file:///",
     paths: {
-      oakscriptjs: ["node_modules/oakscriptjs/dist/index"],
-      "oakscriptjs/script": ["node_modules/oakscriptjs/dist/script/index"],
-      "oakscriptjs/runtime": ["node_modules/oakscriptjs/dist/runtime/index"],
+      oakscriptjs: ["node_modules/oakscriptjs/dist/esm/index"],
+      "oakscriptjs/script": ["node_modules/oakscriptjs/dist/esm/script/index"],
+      "oakscriptjs/runtime": ["node_modules/oakscriptjs/dist/esm/runtime/index"],
     },
   });
   js.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
@@ -91,7 +91,7 @@ export function setupMonaco(): void {
     js.addExtraLib(source, `file:///node_modules/${rel.replace(/\\/g, "/")}`);
   }
   js.addExtraLib(
-    JSON.stringify({ name: "oakscriptjs", version: "0.8.1", types: "./dist/index.d.ts" }),
+    JSON.stringify({ name: "oakscriptjs", types: "./dist/esm/index.d.ts" }),
     "file:///node_modules/oakscriptjs/package.json",
   );
 
@@ -100,7 +100,7 @@ export function setupMonaco(): void {
   // oakscriptjs/script as an ambient global so autocomplete + type-check work
   // without an import. Parsed from the installed .d.ts so it tracks the package.
   const scriptDts = Object.entries(OAKSCRIPT_DTS).find(([p]) =>
-    p.replace(/\\/g, "/").endsWith("oakscriptjs/dist/script/index.d.ts"),
+    p.replace(/\\/g, "/").endsWith("oakscriptjs/dist/esm/script/index.d.ts"),
   )?.[1];
   if (scriptDts) {
     const globals = scriptGlobalNames(scriptDts);
