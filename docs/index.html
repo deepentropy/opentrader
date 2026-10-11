@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenTrader: free desktop charting for Windows, macOS and Linux</title>
+  <meta name="description" content="OpenTrader is a free, open-source desktop app for charts, drawings, indicators, stock screening, alerts and strategy testing. No account, no API key.">
+  <meta property="og:title" content="OpenTrader">
+  <meta property="og:description" content="Free, open-source desktop charting. Charts, drawings, indicators, a stock screener, alerts and strategy testing.">
+  <meta property="og:image" content="https://deepentropy.github.io/opentrader/assets/screenshot.png">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="assets/site/icon-64.png">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="top-logo" href="./"><img src="assets/banner.png" alt="OpenTrader" width="190" height="53"></a>
+  <nav aria-label="Main">
+    <a href="#features">Features</a>
+    <a href="#libraries">Libraries</a>
+    <a href="#support">Support the project</a>
+    <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+    <a class="btn btn-main" href="download.html">Download</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Free charting for your desktop.</h1>
+    <p class="hero-lede">OpenTrader is an open-source app for Windows, macOS and Linux. Charts, drawings, indicators, a stock screener, alerts and strategy testing in one window. Install it and it works: no account, no API key.</p>
+    <div class="hero-actions">
+      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span> <small data-version>v0.3.3</small></a>
+      <a class="btn" href="download.html">All installers</a>
+    </div>
+    <p class="hero-note">Quotes are delayed by 15 minutes for now. <a href="#support">Sponsoring is how that changes.</a></p>
+    <div class="window">
+      <img src="assets/screenshot.png" alt="OpenTrader with a daily chart of Intel, a volume indicator and a watchlist" width="1456" height="909">
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="level is-last"><span>Features</span></div>
+    <h2>What you can do with it</h2>
+    <p>It is an early project and some corners are still rough. This is what works today.</p>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>Charts</h3>
+        <p>Candles, bars, lines, areas, Heikin Ashi, Renko, Kagi and range bars. Intervals from 10 seconds to a month, or your own.</p>
+        <p>Put several charts in one layout, drag the borders between them, and link symbol, interval and crosshair. Compare symbols on the same chart. Daily history goes back to 2003.</p>
+      </div>
+      <div class="window">
+        <img src="assets/site/studies.png" alt="Daily chart with two moving averages, a trend-following strategy line and a coloured volume pane" width="1816" height="600">
+      </div>
+    </div>
+
+    <div class="feature is-flipped">
+      <div class="feature-text">
+        <h3>Indicators</h3>
+        <p>More than a thousand, from the usual moving averages and oscillators to a large community collection. Search by name, star the ones you use and save sets as templates.</p>
+      </div>
+      <div class="window">
+        <img src="assets/site/indicators.png" alt="Indicator search dialog listing results for EMA" width="840" height="638">
+      </div>
+    </div>
+
+    <div class="feature is-tall">
+      <div class="feature-text">
+        <h3>Stock screener</h3>
+        <p>Filter close to 7,000 US stocks by price, change, market cap, sector, performance, dividend yield or beta. Sort by any column, choose the columns you want and save the screen for later.</p>
+      </div>
+      <div class="window">
+        <img src="assets/site/screener.png" alt="Stock screener sorted by market cap with filters for price, change, sector and more" width="927" height="992">
+      </div>
+    </div>
+
+    <div class="feature is-flipped">
+      <div class="feature-text">
+        <h3>Strategy tester</h3>
+        <p>Run a strategy over the chart's history. You get the key stats, the equity curve, a breakdown of profits and losses and the full list of trades, with a CSV export.</p>
+      </div>
+      <div class="window">
+        <img src="assets/site/tester.png" alt="Strategy report with key stats, a cumulative profit curve and a profit and loss breakdown" width="1816" height="880">
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>Your own scripts</h3>
+        <p>Write an indicator or a strategy in the built-in OakScript editor and add it to the chart. Your scripts sit next to the built-in ones.</p>
+      </div>
+      <div class="window">
+        <img src="assets/site/editor.png" alt="Script editor open under the chart with a short moving average script" width="1816" height="620">
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <h3>Drawing tools</h3>
+        <p>86 of them: trend lines, channels, pitchforks, Fibonacci, Gann, patterns, Elliott waves, long and short positions, text and shapes. Magnet, lock, templates, and a favourites bar you can park where you like.</p>
+      </div>
+      <div>
+        <h3>Alerts</h3>
+        <p>On a price, an indicator value or a drawing. If the app was closed, it checks what it missed at the next start. Alerts can also be posted to a webhook.</p>
+      </div>
+      <div>
+        <h3>Watchlists</h3>
+        <p>Several lists with sections and colour flags. Select many rows at once, drag them around, and read the key stats of a symbol in the details pane.</p>
+      </div>
+      <div>
+        <h3>Layouts, tabs and windows</h3>
+        <p>Save layouts, work in tabs, open a second window for another screen. Snapshots, chart data export, dark and light themes. The app updates itself.</p>
+      </div>
+    </div>
+
+    <p class="limits">What it does not do: there is no broker connection, no news feed and no social side. OpenTrader is for charting and research.</p>
+  </div>
+</section>
+
+<section class="section" id="libraries">
+  <div class="wrap">
+    <div class="level"><span>Libraries</span></div>
+    <h2>Three libraries you can use on their own</h2>
+    <p>The parts that do the heavy work in OpenTrader are published separately. If you build something with charts, take them.</p>
+
+    <div class="libs">
+      <div class="lib">
+        <h3>lightweight-charts-indicators</h3>
+        <div class="lib-what">1,290 indicators</div>
+        <p>Technical analysis indicators ready to plot on a lightweight-charts chart. The whole indicator list in OpenTrader comes from here.</p>
+        <code>npm install lightweight-charts-indicators</code>
+        <div class="lib-links">
+          <a href="https://deepentropy.github.io/lightweight-charts-indicators/">Website</a>
+          <a href="https://github.com/deepentropy/lightweight-charts-indicators">GitHub</a>
+        </div>
+      </div>
+      <div class="lib">
+        <h3>lightweight-charts-drawing</h3>
+        <div class="lib-what">86 drawing tools</div>
+        <p>Lines, channels, pitchforks, Fibonacci, Gann, patterns, Elliott waves, forecasting, volume profiles, shapes and text, with sensible defaults, labels and hit testing.</p>
+        <code>npm install lightweight-charts-drawing</code>
+        <div class="lib-links">
+          <a href="https://deepentropy.github.io/lightweight-charts-drawing/">Website</a>
+          <a href="https://github.com/deepentropy/lightweight-charts-drawing">GitHub</a>
+        </div>
+      </div>
+      <div class="lib">
+        <h3>oakscriptjs</h3>
+        <div class="lib-what">Scripting for indicators and strategies</div>
+        <p>The engine behind the script editor. Series maths, technical analysis functions, plots and strategy orders, in plain JavaScript or TypeScript.</p>
+        <code>npm install oakscriptjs</code>
+        <div class="lib-links">
+          <a href="https://github.com/deepentropy/oakscriptJS">GitHub</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="support">
+  <div class="wrap">
+    <div class="level"><span>Support the project</span></div>
+    <div class="fund">
+      <div class="fund-text">
+        <h2>The app is free. Running it is not.</h2>
+        <p>Market data, servers and development tools are billed every month. Donations pay that bill. Only the monthly total is published, here and in the app under <em>Settings &gt; About</em>.</p>
+        <p>The data you get today is the plan the project can afford: quotes delayed by 15 minutes, and five years of second and minute history. More funding means a better data plan. Live streaming quotes come first, deeper history after that.</p>
+        <div class="hero-actions">
+          <a class="btn btn-main" href="https://github.com/sponsors/deepentropy">Sponsor on GitHub</a>
+          <a class="btn" href="https://buymeacoffee.com/opentrader">Buy Me a Coffee</a>
+        </div>
+      </div>
+      <div class="ladder" aria-label="What funding pays for">
+        <div class="rung">
+          <div class="level"><span>next</span></div>
+          <h3>Above the monthly costs</h3>
+          <p>Live streaming quotes instead of a 15 minute delay. Then more years of intraday history.</p>
+        </div>
+        <div class="rung">
+          <div class="level"><span>break-even</span></div>
+          <h3>Monthly costs covered</h3>
+          <p>Data, servers and tools are paid and the project runs without a deficit.</p>
+          <a href="https://github.com/sponsors/deepentropy"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fopentrader-gateway.cloudflare-breeder165.workers.dev%2Ffunding%2Fv1%2Fbadge" alt="This month's costs and donations" height="20"></a>
+        </div>
+        <div class="rung is-now">
+          <div class="level"><span>today</span></div>
+          <h3>Delayed data</h3>
+          <p>Quotes 15 minutes late. Second and minute history limited to five years. Daily history from 2003.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <div>
+      <h2>Try it. It takes a minute.</h2>
+      <p>One installer, nothing to configure.</p>
+    </div>
+    <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span> <small data-version>v0.3.3</small></a>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>OpenTrader is an independent project, not affiliated with any trading platform or data provider. It is for charting and research only and is not financial advice. MIT license.</p>
+    <nav aria-label="Footer">
+      <a href="download.html">Download</a>
+      <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+      <a href="https://github.com/deepentropy/opentrader/issues">Report a problem</a>
+      <a href="https://github.com/sponsors/deepentropy">Sponsor</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>
