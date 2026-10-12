@@ -24,12 +24,16 @@ import {
 } from 'lightweight-charts';
 import type { Bar, PlotConfig, IndicatorResult } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
-import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
+import type { ChartContext as IndicatorChartContext, IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { IndicatorRenderer, type PlotOverride } from 'lightweight-charts-indicators/render';
 import type { OwnScaleMeta, PlotDefaultVisible, PlotPalette } from './volume';
 import { applyOpacity } from 'lightweight-charts-drawing/core/color';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
 import { StepDiamondsPrimitive } from './step-diamonds';
+import { restoreTimes, scriptBars } from '../../../backtester/oakscript';
+import { isStrategyId } from './strategy-entries';
+import type { OtherSymbolBars } from './other-symbols';
+import { MissingSymbolDataError } from 'lightweight-charts-indicators';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -59,10 +63,28 @@ function withPaletteColors(entry: IndicatorRegistryEntry, result: any, styles: I
 /** Third argument of `calculate`: the chart context (what the library indicators and the OakScript scripts
  *  read) with the state of the newest bar, plus what the app's own entries need. `heikinAshi`: the chart shows
  *  Heikin Ashi bars (strategies run on them). */
-export type StudyCalcContext = StudyChart & { chartId: string; studyId?: string; heikinAshi?: boolean };
+export type StudyCalcContext = StudyChart & Pick<IndicatorChartContext, 'leftVisibleBarTime' | 'rightVisibleBarTime'> & { chartId: string; studyId?: string; heikinAshi?: boolean };
 /** Chart type and state of the newest bar, read at each calculation. `realtime`: it is still forming;
  *  `lastBarNew`: this is its first update. */
 export type StudyChartState = () => { heikinAshi: boolean; realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
+/** Times (chart bar times) of the first and last bars visible on the chart; null = not known. */
+export type StudyVisibleRange = () => { from: number; to: number } | null;
+/** Results already put back on the chart's bar times: a user script returns its cached result again. */
+const restored = new WeakSet<object>();
+
+/** Index of the first bar at or after `time` (`after`), else of the last bar at or before it; -1 = none. */
+function barIndexAt(bars: Bar[], time: number, after: boolean): number {
+  let lo = 0;
+  let hi = bars.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if ((bars[mid].time as unknown as number) < time) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  // lo = first bar with time >= `time`
+  if (after) return lo < bars.length ? lo : -1;
+  return lo < bars.length && (bars[lo].time as unknown as number) === time ? lo : lo - 1;
+}
 /**
  * Plot points with an na point at each skipped bar: OakScript plot() output leaves the na bars out, and a
  * line-break plot must break there.
@@ -188,6 +210,10 @@ export class IndicatorLayer {
   private chartId: string;
   private scriptChart: StudyChart | undefined;
   private chartState: StudyChartState = () => ({ heikinAshi: false, realtime: false, lastBarConfirmed: true, lastBarNew: true });
+  private visibleRange: StudyVisibleRange = () => null;
+  /** Bars of other symbols (`bars` / `symbolInfo` of the chart context) and the ones the last calculation read. */
+  private otherSymbols: OtherSymbolBars | null = null;
+  private usedSymbols = new Set<string>();
   /** Study instance id ("rsi#2"): studies with run state keep one per instance. */
   private studyId: string | undefined;
 
@@ -214,6 +240,19 @@ export class IndicatorLayer {
 
   setChartState(state: StudyChartState): void {
     this.chartState = state;
+  }
+
+  setVisibleRange(range: StudyVisibleRange): void {
+    this.visibleRange = range;
+  }
+
+  setOtherSymbols(store: OtherSymbolBars | null): void {
+    this.otherSymbols = store;
+  }
+
+  /** Keys (`symbol|interval`) of the other symbols the last calculation read. */
+  symbolsUsed(): ReadonlySet<string> {
+    return this.usedSymbols;
   }
 
   /** The chart's main price series (markers next to the bars, bar colours). */
@@ -292,14 +331,39 @@ export class IndicatorLayer {
 
   private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): any {
     try {
-      const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(bars, inputs, {
-        ...this.scriptChart,
-        ...this.chartState(),
-        chartId: this.chartId,
-        studyId: this.studyId,
-      });
+      const ctx: StudyCalcContext = { ...this.scriptChart, ...this.chartState(), chartId: this.chartId, studyId: this.studyId };
+      const store = this.otherSymbols;
+      const used = new Set<string>();
+      this.usedSymbols = used;
+      if (store) {
+        const interval = ctx.timeframe ?? '1D';
+        ctx.bars = (symbol, timeframe) => {
+          used.add(store.key(symbol, timeframe, interval));
+          return store.bars(symbol, timeframe, interval);
+        };
+        ctx.symbolInfo = (symbol) => store.symbolInfo(symbol);
+      }
+      // Daily and longer bars at the session open, as studies read them (strategies restamp their own bars: the
+      // broker and the report keep the chart's bar times).
+      const seen = isStrategyId(entry.id) ? bars : scriptBars(bars, ctx);
+      const range = this.visibleRange();
+      if (range) {
+        const left = barIndexAt(bars, range.from, true);
+        const right = barIndexAt(bars, range.to, false);
+        if (left >= 0 && right >= left) {
+          ctx.leftVisibleBarTime = (seen[left].time as unknown as number) * 1000;
+          ctx.rightVisibleBarTime = (seen[right].time as unknown as number) * 1000;
+        }
+      }
+      const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+      if (seen !== bars && result && typeof result === 'object' && !restored.has(result)) {
+        restoreTimes(result, seen, bars);
+        restored.add(result);
+      }
       return withPaletteColors(entry, result, styles);
     } catch (err) {
+      // Bars of other symbols still loading: the chart calculates the study again when they arrive.
+      if (err instanceof MissingSymbolDataError) return null;
       // A single indicator throwing must not break the chart or its siblings.
       // eslint-disable-next-line no-console
       console.warn(`[indicators] ${entry.id} failed to calculate`, err);

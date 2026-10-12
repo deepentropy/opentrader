@@ -310,38 +310,35 @@ export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] 
   });
 }
 
-/** The script's drawing output back on the chart's bar times (plots, candles, markers, bar / background colors,
- *  arrows, labels, lines, boxes, linefills, polylines). A time after the last bar (a drawing on a future bar) keeps
- *  its distance from the last bar. */
-function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
+/** The script's output back on the chart's bar times: every `time`, `time1`, `time2`... number in it (plots, candles,
+ *  markers, bar / background colors, arrows, labels, lines, boxes, linefills, polylines, and the result fields of a
+ *  library indicator such as the pivots of a zigzag). A time after the last bar (a drawing on a future bar) keeps its
+ *  distance from the last bar. In place; an object reached twice (the lines of a linefill) moves once. */
+export function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
   const back = new Map<number, number>();
   seen.forEach((b, i) => back.set(b.time, bars[i].time));
   const lastSeen = seen.length ? seen[seen.length - 1].time : NaN;
   const lastBar = bars.length ? bars[bars.length - 1].time : NaN;
   const at = (t: number) => back.get(t) ?? (t > lastSeen ? lastBar + (t - lastSeen) : t);
-  const fix = (items: unknown, keys: string[] = ['time']) => {
-    if (!Array.isArray(items)) return;
-    for (const item of items as Record<string, unknown>[]) {
-      if (!item) continue;
-      for (const k of keys) if (typeof item[k] === 'number') item[k] = at(item[k] as number);
+  const done = new Set<object>();
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object' || done.has(node)) return;
+    done.add(node);
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    const obj = node as Record<string, unknown>;
+    for (const k in obj) {
+      const v = obj[k];
+      if (typeof v === 'number') {
+        if (TIME_KEY.test(k)) obj[k] = at(v);
+      } else if (v && typeof v === 'object') walk(v);
     }
   };
-  const r = result as Record<string, unknown>;
-  for (const field of ['plots', 'plotCandles', 'plotBars']) {
-    for (const series of Object.values((r[field] ?? {}) as Record<string, unknown>)) fix(series);
-  }
-  fix(r.markers);
-  fix(r.bgColors);
-  fix(r.barColors);
-  fix(r.arrows);
-  fix(r.labels);
-  fix(r.lines, ['time1', 'time2']);
-  fix(r.boxes, ['time1', 'time2']);
-  if (Array.isArray(r.linefills)) {
-    for (const f of r.linefills as { line1?: unknown; line2?: unknown }[]) fix([f?.line1, f?.line2], ['time1', 'time2']);
-  }
-  if (Array.isArray(r.polylines)) for (const p of r.polylines as { points?: unknown }[]) fix(p?.points);
+  walk(result);
 }
+const TIME_KEY = /^time\d*$/;
 
 export interface OakScriptRunResult {
   /** undefined when the script did not declare strategy() or did not run strategy.eachBar(). */

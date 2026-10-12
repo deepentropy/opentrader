@@ -12,7 +12,7 @@
  * overlay for parity with the other 13 kinds.
  */
 import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { typeIdOf } from "./indicators/study-id";
 import {
@@ -4341,7 +4341,8 @@ export function ChartView(props: Props) {
   // Chart context (timeframe, session, tickerid, background) of the studies.
   createEffect(() => {
     chartReady();
-    controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session, readChartTokens(appearance()).bg));
+    const t = readChartTokens(appearance());
+    controller?.setScriptChart(scriptChartContext(props.symbol, props.interval, props.session, { top: t.bg, bottom: t.bgGradient ? t.bgBottom : t.bg }));
   });
 
   // Strategies on a Heikin Ashi chart run on its Heikin Ashi bars.
@@ -5001,6 +5002,8 @@ export function ChartView(props: Props) {
     void reloadTick();
     untrack(syncCompare);
   });
+  // A reload (adjustment changed...) fetches the other symbols the studies read again.
+  createEffect(on(reloadTick, () => controller?.reloadOtherSymbols(), { defer: true }));
   onCleanup(() => {
     for (const id of [...compareLayers.keys()]) dropCompareLayer(id);
   });

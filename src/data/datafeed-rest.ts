@@ -81,6 +81,8 @@ export type TickerInfo = {
   totalEmployees: number | null;
   marketCap: number | null;
   figi: string | null;
+  /** Symbol type as scripts read it (`syminfo.type`): "stock", "fund", "dr", "warrant"; null = unknown. */
+  symbolType: string | null;
   /** Branding icon via the `ticker-icon` proxy (Rust adds the token) — usable as <img src>. */
   iconUrl: string | null;
 };

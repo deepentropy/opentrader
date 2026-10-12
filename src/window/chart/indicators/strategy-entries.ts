@@ -135,7 +135,8 @@ function makeCalculate(
   return ((bars: Bar[], inputs?: Record<string, unknown>, ctx?: StudyCalcContext) => {
     // The chart context without the app's own fields. A forming newest bar is a realtime bar (`realtime`):
     // the strategy runs on it only with "On realtime bar tick".
-    const { chartId = "", studyId, heikinAshi: ha, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    // The accessors of other symbols stay out: functions do not cross to the worker.
+    const { chartId = "", studyId, heikinAshi: ha, bars: _symbolBars, symbolInfo: _symbolInfo, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
     const heikinAshi = ha === true;
     // One backtest per study instance: two instances of a strategy on a chart
     // run (and report) separately.

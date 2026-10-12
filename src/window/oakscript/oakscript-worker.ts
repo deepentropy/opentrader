@@ -15,7 +15,7 @@
  */
 import * as oak from "oakscriptjs";
 import * as oakScript from "oakscriptjs/script";
-import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError, OakSymbolData } from "./engine-types";
 import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
 import { BrokerEngine, brokerProperties, DECLARATION_CHART, runOakScriptStrategy } from "../../backtester/oakscript";
@@ -144,7 +144,8 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
       // Dry run on zero bars registers the declarations (metadata, inputs,
       // plots) without computing anything — Pine's compile step.
       // A strategy gets an engine on the same zero bars, so strategy.eachBar() runs (no bar).
-      const dry = oakScript.executeScript(mod.__run, [], {}, DECLARATION_CHART, {
+      // Another symbol of request.security answers one empty bar there (no bars at all = an invalid symbol).
+      const dry = oakScript.executeScript(mod.__run, [], {}, { ...DECLARATION_CHART, bars: () => [DECLARATION_BAR] }, {
         strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
       });
       compiled.set(req.scriptId, { kind: "script", run: mod.__run });
@@ -170,6 +171,19 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
   }
 }
 
+/** The chart context with the accessors of the other symbols' bars the host sent. */
+function withSymbols(chart: oakScript.ChartContext | undefined, symbols: OakSymbolData | undefined): oakScript.ChartContext {
+  if (!symbols) return chart ?? {};
+  return {
+    ...chart,
+    bars: (symbol, timeframe) => symbols.bars[`${symbol}|${timeframe}`],
+    symbolInfo: (symbol) => symbols.info[symbol],
+  };
+}
+
+/** The bar of another symbol in the declaration run. */
+const DECLARATION_BAR = { time: 0, open: 0, high: 0, low: 0, close: 0, volume: 0 };
+
 function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   const entry = compiled.get(req.scriptId);
   if (!entry) {
@@ -182,18 +196,15 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   }
   try {
     if (entry.kind === "script") {
-      const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, req.chart ?? {});
+      const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, withSymbols(req.chart, req.symbols));
       return { id: req.id, type: "run", ok: true, result: run.result };
     }
-    const result = entry.mod.calculate!(req.bars, req.inputs ?? {}, req.chart ?? {});
+    const result = entry.mod.calculate!(req.bars, req.inputs ?? {}, withSymbols(req.chart, req.symbols));
     return { id: req.id, type: "run", ok: true, result };
   } catch (err) {
-    return {
-      id: req.id,
-      type: "run",
-      ok: false,
-      error: toScriptError(err, entry.kind === "script" ? SCRIPT_LINE_OFFSET : 0),
-    };
+    const error = toScriptError(err, entry.kind === "script" ? SCRIPT_LINE_OFFSET : 0);
+    if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe }));
+    return { id: req.id, type: "run", ok: false, error };
   }
 }
 

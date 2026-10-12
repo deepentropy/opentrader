@@ -26,6 +26,16 @@ export type OakScriptError = {
   message: string;
   line?: number;
   col?: number;
+  /** The run needs bars of other symbols the host did not give (`request.security` of another ticker): load
+   *  them and run again with {@link OakSymbolData}. */
+  missing?: { symbol: string; timeframe: string }[];
+};
+
+/** Bars of other symbols for `request.security` (keyed `symbol|timeframe` as the script asks) and the calendar
+ *  and properties of each symbol. */
+export type OakSymbolData = {
+  bars: Record<string, OakBar[]>;
+  info: Record<string, NonNullable<ReturnType<NonNullable<ChartContext["symbolInfo"]>>>>;
 };
 
 /** Declarative surface of a compiled script (the lightweight-charts-indicators
@@ -59,7 +69,7 @@ export type OakBacktestError = OakScriptError & { code?: string; bar?: number };
 
 export type OakRequest =
   | { id: number; type: "compile"; scriptId: string; source: string }
-  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown>; chart?: ChartContext }
+  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown>; chart?: ChartContext; symbols?: OakSymbolData }
   | {
       id: number;
       type: "backtest";

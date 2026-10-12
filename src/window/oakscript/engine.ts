@@ -11,7 +11,7 @@
  * fetched lazily on the first request.
  */
 import OakWorkerCtor from "./oakscript-worker?worker";
-import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
+import type { OakBacktestError, OakBar, OakCompiledMeta, OakRequest, OakResponse, OakScriptError, OakSymbolData } from "./engine-types";
 import type { ChartContext } from "oakscriptjs/script";
 import type { StrategyProperties } from "../../backtester/types";
 import type { BacktestOutput } from "../../backtester/worker-types";
@@ -115,9 +115,9 @@ export class OakEngine {
   /** Run a previously compiled script over `bars`. Returns the raw
    *  IndicatorResult-shaped object the script produced (validated by the
    *  chart layer in phase 6). */
-  async run(scriptId: string, bars: OakBar[], inputs?: Record<string, unknown>, chart?: ChartContext): Promise<unknown> {
+  async run(scriptId: string, bars: OakBar[], inputs?: Record<string, unknown>, chart?: ChartContext, symbols?: OakSymbolData): Promise<unknown> {
     const res = await this.request(
-      { id: ++this.seq, type: "run", scriptId, bars, inputs, chart },
+      { id: ++this.seq, type: "run", scriptId, bars, inputs, chart, symbols },
       RUN_TIMEOUT_MS,
     );
     if (res.type !== "run") throw new OakEngineError({ message: "Protocol mismatch." }, true);

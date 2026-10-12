@@ -18,6 +18,8 @@ import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
 import { isStrategyId } from './strategy-entries';
 import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides } from './indicator-layer';
+import { OtherSymbolBars } from './other-symbols';
+import { intervalSeconds } from '../../../backtester/magnifier';
 import type { BackgroundAt } from '../selection-markers';
 import { isVisibleOnInterval } from 'lightweight-charts-drawing/core/types';
 import {
@@ -29,6 +31,12 @@ import {
   statusLineInputs,
   type IndicatorOptions,
 } from './indicator-options';
+
+/** Quiet time after a scroll or zoom before the studies that read the visible range calculate again. */
+const VISIBLE_RANGE_DELAY_MS = 120;
+
+/** Bars of other symbols arriving together (several loads, a burst of live updates) give one recalculation. */
+const SYMBOLS_DELAY_MS = 50;
 
 /** A stacked-pane owner that is not a study (a compared symbol drawn in
  *  "New pane"): it shares the pane numbering with the studies. */
@@ -135,10 +143,80 @@ export class IndicatorController {
     return { heikinAshi: this.heikinAshi, realtime: open, lastBarConfirmed: !open, lastBarNew: !open || isNew };
   };
 
+  /** Chart bar times of the first and last visible bars (studies that read the visible range). */
+  private readonly visibleRange = (): { from: number; to: number } | null => {
+    const r = this.chart.timeScale().getVisibleRange();
+    return r ? { from: r.from as number, to: r.to as number } : null;
+  };
+  private visibleKey = "";
+  private visibleTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly onVisibleRange = (): void => {
+    if (this.visibleTimer) clearTimeout(this.visibleTimer);
+    this.visibleTimer = setTimeout(() => {
+      this.visibleTimer = null;
+      this.renderVisibleRangeStudies();
+    }, VISIBLE_RANGE_DELAY_MS);
+  };
+
+  /** Bars of the other symbols the studies read; keys that moved wait here for one recalculation. */
+  private readonly otherSymbols: OtherSymbolBars;
+  private symbolsMoved = new Set<string>();
+  private symbolsLive = true;
+  private symbolsTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(chart: IChartApi, getBars: () => Bar[], chartId = "") {
     this.chart = chart;
     this.getBars = getBars;
     this.chartId = chartId;
+    chart.timeScale().subscribeVisibleTimeRangeChange(this.onVisibleRange);
+    this.otherSymbols = new OtherSymbolBars((keys, live) => this.onSymbolsMoved(keys, live), `ind:${chartId}`);
+  }
+
+  /** Bars of other symbols arrived or moved: the studies that read them calculate again (once per burst). */
+  private onSymbolsMoved(keys: Set<string>, live: boolean): void {
+    for (const k of keys) this.symbolsMoved.add(k);
+    this.symbolsLive &&= live;
+    if (this.symbolsTimer) return;
+    this.symbolsTimer = setTimeout(() => {
+      this.symbolsTimer = null;
+      const moved = this.symbolsMoved;
+      const liveOnly = this.symbolsLive;
+      this.symbolsMoved = new Set();
+      this.symbolsLive = true;
+      const bars = this.getBars();
+      for (const [id, inst] of this.instances) {
+        if (inst.owner || ![...inst.layer.symbolsUsed()].some((k) => moved.has(k))) continue;
+        const entry = getIndicatorEntry(id);
+        if (entry) this.renderOne(id, inst, entry, bars, liveOnly);
+      }
+      this.retainSymbols();
+    }, SYMBOLS_DELAY_MS);
+  }
+
+  /** The other symbols no study reads any more are dropped (and their live updates stopped). */
+  private retainSymbols(): void {
+    const used = new Set<string>();
+    for (const inst of this.instances.values()) if (!inst.owner) for (const k of inst.layer.symbolsUsed()) used.add(k);
+    this.otherSymbols.retain(used);
+  }
+
+  /** The chart reloads its bars (adjustment changed...): the other symbols are fetched again. */
+  reloadOtherSymbols(): void {
+    this.otherSymbols.clear();
+  }
+
+  /** Scroll or zoom: the studies that read the visible range calculate again once the range settles. */
+  private renderVisibleRangeStudies(): void {
+    const r = this.visibleRange();
+    const key = r ? `${r.from}|${r.to}` : "";
+    if (key === this.visibleKey) return;
+    this.visibleKey = key;
+    const bars = this.getBars();
+    for (const [id, inst] of this.instances) {
+      if (inst.owner) continue;
+      const entry = getIndicatorEntry(id);
+      if (entry?.usesVisibleRange) this.renderOne(id, inst, entry, bars);
+    }
   }
 
   /** Reconcile the live layers with the desired ordered list of registry ids. */
@@ -241,10 +319,12 @@ export class IndicatorController {
    *  the newest bars changed (a live update), the studies keep their series. */
   renderAll(live = false): void {
     const bars = this.getBars();
+    if (!live) this.otherSymbols.setChartSpan(bars[0]?.time as number | undefined, intervalSeconds(this.scriptChart?.timeframe ?? '1D'));
     for (const [id, inst] of this.instances) {
       const entry = getIndicatorEntry(id);
       if (entry) this.renderOne(id, inst, entry, bars, live);
     }
+    if (!live) this.retainSymbols();
   }
 
   /** The study's options (defaults when never edited). */
@@ -626,6 +706,14 @@ export class IndicatorController {
   }
 
   destroy(): void {
+    if (this.visibleTimer) clearTimeout(this.visibleTimer);
+    if (this.symbolsTimer) clearTimeout(this.symbolsTimer);
+    this.otherSymbols.dispose();
+    try {
+      this.chart.timeScale().unsubscribeVisibleTimeRangeChange(this.onVisibleRange);
+    } catch {
+      // the chart was removed first
+    }
     for (const id of [...this.instances.keys()]) this.remove(id);
   }
 
@@ -644,6 +732,8 @@ export class IndicatorController {
     layer.setNameLabelsVisible(this.nameLabelsVisible);
     layer.setScriptChart(this.scriptChart);
     layer.setChartState(this.chartState);
+    layer.setVisibleRange(this.visibleRange);
+    layer.setOtherSymbols(this.otherSymbols);
     layer.setMainSeries(() => this.mainSeries());
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
     const inst: Instance = { layer, paneIndex, overlay, ownScale, group };

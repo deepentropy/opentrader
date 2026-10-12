@@ -26,7 +26,7 @@ import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import type { ChartContext } from "oakscriptjs/script";
 import * as scripts from "../../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
-import type { OakBar, OakCompiledMeta } from "../../oakscript/engine-types";
+import type { OakBar, OakCompiledMeta, OakSymbolData } from "../../oakscript/engine-types";
 import type { StudyCalcContext } from "./indicator-layer";
 
 export const USER_INDICATOR_PREFIX = "user:";
@@ -44,7 +44,7 @@ export function userIndicatorId(scriptId: string): string {
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
 
-type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; key: string };
+type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; symbols: OakSymbolData | undefined; key: string };
 
 /** Run state of one study instance on one chart. */
 type Run = {
@@ -53,6 +53,8 @@ type Run = {
   result: unknown | null;
   running: boolean;
   queued: QueuedRun | null;
+  /** Bars of other symbols the script asked for (`request.security`): given with every run. */
+  requests: { symbol: string; timeframe: string }[];
 };
 
 type Runtime = {
@@ -111,6 +113,7 @@ async function runInWorker(
   bars: OakBar[],
   inputs: Record<string, unknown>,
   chart: ChartContext | undefined,
+  symbols: OakSymbolData | undefined,
   key: string,
 ): Promise<void> {
   const engine = getOakEngine();
@@ -123,9 +126,18 @@ async function runInWorker(
       scripts.saveCompiledMeta(scriptId, meta);
       applyMeta(rt.entry, script.name, meta);
     }
-    run.result = await engine.run(scriptId, bars, inputs, chart);
+    run.result = await engine.run(scriptId, bars, inputs, chart, symbols);
     run.key = key;
   } catch (err) {
+    const missing = err instanceof OakEngineError ? err.detail.missing : undefined;
+    if (missing?.length) {
+      // The script reads other symbols: ask the chart for them and run again once they are loaded.
+      for (const m of missing) {
+        if (!run.requests.some((r) => r.symbol === m.symbol && r.timeframe === m.timeframe)) run.requests.push(m);
+      }
+      run.key = null;
+      return;
+    }
     // Cache the failure under this key too — otherwise every render would
     // re-schedule a doomed run in a hot loop.
     run.result = null;
@@ -137,7 +149,7 @@ async function runInWorker(
     run.queued = null;
     if (next && next.key !== run.key) {
       run.running = true;
-      void runInWorker(rt, run, scriptId, next.bars, next.inputs, next.chart, next.key);
+      void runInWorker(rt, run, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key);
     } else {
       dispatchUpdated(scriptId, false);
     }
@@ -150,20 +162,36 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     if (!rt) return EMPTY_RESULT;
     const typedBars = bars as OakBar[];
     const typedInputs = (inputs ?? {}) as Record<string, unknown>;
-    // The chart context without the app's own fields.
-    const { chartId, studyId, heikinAshi: _heikinAshi, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    // The chart context without the app's own fields and the accessors (functions do not cross to the worker).
+    const { chartId, studyId, heikinAshi: _heikinAshi, bars: symbolBars, symbolInfo, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
-    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null }));
-    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart)}`;
+    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [] }));
+    // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps
+    // them while a study reads them); one not loaded yet holds the run until it arrives.
+    let symbols: OakSymbolData | undefined;
+    let symbolsKey = "";
+    if (run.requests.length) {
+      symbols = { bars: {}, info: {} };
+      for (const r of run.requests) {
+        const b = symbolBars?.(r.symbol, r.timeframe);
+        if (b === undefined) return run.result ?? EMPTY_RESULT;
+        symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
+        const info = symbolInfo?.(r.symbol);
+        if (info) symbols.info[r.symbol] = info;
+        const last = b[b.length - 1];
+        symbolsKey += `|${r.symbol}:${r.timeframe}:${b.length}:${b[0]?.time}:${last?.time}:${last?.close}:${last?.volume}`;
+      }
+    }
+    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart)}${symbolsKey}`;
     if (run.key !== key) {
       // Snapshot the array (ChartView mutates `raw` in place on live ticks).
       const snapshot = typedBars.slice();
       if (run.running) {
-        run.queued = { bars: snapshot, inputs: typedInputs, chart, key };
+        run.queued = { bars: snapshot, inputs: typedInputs, chart, symbols, key };
       } else {
         run.running = true;
-        void runInWorker(rt, run, scriptId, snapshot, typedInputs, chart, key);
+        void runInWorker(rt, run, scriptId, snapshot, typedInputs, chart, symbols, key);
       }
     }
     return run.result ?? EMPTY_RESULT;

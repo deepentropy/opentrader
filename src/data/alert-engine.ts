@@ -36,6 +36,10 @@ import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, dra
 import { chartBars, chartLastBarTime, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
+import { scriptBars } from "../backtester/oakscript";
+import type { Bar } from "oakscriptjs";
+import type { ChartContext } from "oakscriptjs/script";
+import { OtherSymbolBars } from "../window/chart/indicators/other-symbols";
 import { commands } from "../bindings";
 import * as kv from "./kv";
 import { REPLAY_MAX_SEC, replayRule } from "./alert-replay";
@@ -429,7 +433,41 @@ function lastPlotValue(result: unknown, plotId: string): number | null {
   return null;
 }
 
-/** A study computed off the chart, with the chart context of its symbol, interval and session. */
+/** Bars of other symbols for the studies of the alerts. */
+const alertSymbols = new OtherSymbolBars(() => {}, "alerts");
+
+/** State of the newest bar a study sees (`barstate.*`): closed bars by default. */
+type BarState = { realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
+const CLOSED_BARS: BarState = { realtime: false, lastBarConfirmed: true, lastBarNew: true };
+
+/** Newest bar of each alert series as first seen: until it moves, a calculation is its first update. */
+const firstSeenBar = new Map<string, { time: number; sig: string }>();
+
+/** State of the newest bar of live bars, as the chart gives it to its studies: forming while the clock is inside it
+ *  (before its interval ends and before its session closes; a daily or longer bar while its trading day runs). */
+function liveBarState(symbol: string, resolution: string, session: string, bars: ChartBar[]): BarState {
+  const last = bars[bars.length - 1];
+  const sessions = cachedSymbolSessions(symbol);
+  if (!last || !sessions) return CLOSED_BARS;
+  const now = Date.now();
+  let forming: boolean;
+  if (/[DWM]$/i.test(resolution)) {
+    forming = barBucket(symbol, resolution, now) === last.time * 1000;
+  } else {
+    const iv = sessions.spec(session as SessionId).currentOrNext(last.time);
+    const end = Math.min(last.time + resolutionMs(resolution) / 1000, iv && iv.start <= last.time ? iv.end : Infinity);
+    forming = now / 1000 >= last.time && now / 1000 < end;
+  }
+  if (!forming) return CLOSED_BARS;
+  const key = `${symbol}|${resolution}|${session}`;
+  const sig = `${last.open}:${last.high}:${last.low}:${last.close}:${last.volume}`;
+  let seen = firstSeenBar.get(key);
+  if (seen?.time !== last.time) firstSeenBar.set(key, (seen = { time: last.time, sig }));
+  return { realtime: true, lastBarConfirmed: false, lastBarNew: seen.sig === sig };
+}
+
+/** A study computed off the chart, with the chart context of its symbol, interval and session and the state of the
+ *  newest bar. */
 function calculateStudy(
   entry: NonNullable<ReturnType<typeof getIndicatorEntry>>,
   bars: unknown[],
@@ -437,9 +475,18 @@ function calculateStudy(
   symbol: string,
   resolution: string,
   session: string,
+  state: BarState = CLOSED_BARS,
 ): unknown {
   const calculate = entry.calculate as (bars: unknown[], inputs: unknown, chart: unknown) => unknown;
-  return calculate(bars, inputs, scriptChartContext(symbol, resolution, session));
+  const chart: ChartContext = {
+    ...scriptChartContext(symbol, resolution, session),
+    ...state,
+    // Bars of other symbols (request.security of another ticker): loaded on the first request, read by the next poll.
+    bars: (s, tf) => alertSymbols.bars(s, tf, resolution),
+    symbolInfo: (s) => alertSymbols.symbolInfo(s),
+  };
+  // Daily and longer bars at the session open, as on the chart (the values are read by bar index).
+  return calculate(scriptBars(bars as Bar[], chart), inputs, chart);
 }
 
 function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): number | null {
@@ -474,7 +521,7 @@ function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "ind
   let value: number | null = null;
   try {
     const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
-    value = lastPlotValue(calculateStudy(entry, dense, inputs, symbol, resolution, session), plotId);
+    value = lastPlotValue(calculateStudy(entry, dense, inputs, symbol, resolution, session, liveBarState(symbol, resolution, session, bars)), plotId);
   } catch (e) {
     console.warn(`[alerts] indicator compute failed for ${op.indicatorId}`, e);
   }
@@ -571,7 +618,7 @@ async function pollMovingRefs(): Promise<void> {
         const plotId = entry?.plotConfig[rule.left.plot ?? 0]?.id;
         if (!entry || !plotId) continue;
         try {
-          const result = calculateStudy(entry, bars, rule.left.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session) as { plots?: Record<string, Array<{ value: number | null }>> };
+          const result = calculateStudy(entry, bars, rule.left.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session, liveBarState(rule.symbol, rule.resolution, session, bars)) as { plots?: Record<string, Array<{ value: number | null }>> };
           const v = result.plots?.[plotId]?.[at]?.value;
           movingRefCache.set(rule.id, typeof v === "number" && Number.isFinite(v) ? v : null);
         } catch (e) {

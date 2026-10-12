@@ -830,6 +830,9 @@ pub struct TickerInfo {
     pub total_employees: Option<f64>,
     pub market_cap: Option<f64>,
     pub figi: Option<String>,
+    /// Symbol type as scripts read it (`syminfo.type`): "stock", "fund", "dr",
+    /// "warrant"; None when the security type has no measured equivalent.
+    pub symbol_type: Option<String>,
     /// Massive branding icon (square), wrapped in the `ticker-icon` custom
     /// scheme so the webview can use it as an <img src> without ever seeing the
     /// gateway token — the backend re-attaches the token when it serves the bytes.
@@ -863,6 +866,8 @@ struct RefResult {
     market_cap: Option<f64>,
     #[serde(default)]
     composite_figi: Option<String>,
+    #[serde(default, rename = "type")]
+    kind: Option<String>,
     #[serde(default)]
     list_date: Option<String>,
     #[serde(default)]
@@ -1042,6 +1047,21 @@ pub async fn ticker_changes(ticker: &str) -> Option<Arc<Vec<(NaiveDate, String)>
     Some(changes)
 }
 
+/// Script symbol type (`syminfo.type`) of a security type, as the reference
+/// app names the same securities: common and preferred shares are stocks;
+/// ETFs, ETVs and closed-end funds are funds; ADRs are depositary
+/// receipts. Units are left out: the reference names a SPAC unit a fund and a
+/// partnership unit a stock.
+fn script_symbol_type(kind: &str) -> Option<&'static str> {
+    match kind {
+        "CS" | "PFD" => Some("stock"),
+        "ETF" | "ETV" | "FUND" => Some("fund"),
+        "ADRC" => Some("dr"),
+        "WARRANT" => Some("warrant"),
+        _ => None,
+    }
+}
+
 pub async fn fetch_ticker_info(ticker: &str) -> Result<TickerInfo> {
     let token = gateway::token().context(NO_TOKEN)?;
     let url = format!(
@@ -1073,6 +1093,7 @@ pub async fn fetch_ticker_info(ticker: &str) -> Result<TickerInfo> {
         total_employees: r.total_employees,
         market_cap: r.market_cap,
         figi: r.composite_figi,
+        symbol_type: r.kind.as_deref().and_then(script_symbol_type).map(str::to_string),
         icon_url: r
             .branding
             .and_then(|b| b.icon_url)
