@@ -40,6 +40,8 @@ import type { VbpDraw } from '../profiles/vbp-studies';
 import { TpoPrimitive, type TpoBlockHit } from '../profiles/tpo-primitive';
 import type { TpoDraw } from '../profiles/tpo-engine';
 import { uiTheme } from '../../header/chart-settings';
+import { cachedSymbolSessions } from '../../../data/session';
+import { sessionFutureSlots } from './future-slots';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -481,6 +483,7 @@ export class IndicatorLayer {
     }
 
     renderer.setPaneIndex(this.paneIndex);
+    renderer.setFutureSlots(this.futureSlots());
     renderer.render(
       {
         overlay: this.paneIndex === 0,
@@ -503,6 +506,15 @@ export class IndicatorLayer {
       },
     );
     this.afterRender(entry, result, plots, overrides, ownScale);
+  }
+
+  /** Slots after the last bar of the times a drawing gives (xloc.bar_time) on the symbol's trading calendar, as the
+   *  reference app's time scale continues after the last bar; null (calendar time) until the sessions are known. */
+  private futureSlots() {
+    const chart = this.scriptChart;
+    const sessions = chart?.tickerid ? cachedSymbolSessions(chart.tickerid) : null;
+    if (!sessions || !chart?.timeframe) return null;
+    return sessionFutureSlots(chart.timeframe, chart.sessionType === 'extended' ? sessions.extended : sessions.regular);
   }
 
   /** The renderer of the current main series (a new one when it changed). */
