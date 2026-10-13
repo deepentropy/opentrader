@@ -185,6 +185,10 @@ export class BrokerEngine implements StrategyEngine {
     const { all, win, loss } = b.closedStats;
     const avg = (sum: number, count: number) => (count ? sum / count : NaN);
     const capital = this.properties.initialCapital;
+    // Gross loss counts the entry commission of the open trades; net profit is gross profit - gross loss (the
+    // reference app's values, binary noise included: 137,364.2600000007, not the running sum 137,364.2600000003).
+    const grossLoss = () => -loss.profit + b.openEntryCommission;
+    const netProfit = () => win.profit - grossLoss();
     switch (variable) {
       case 'position_size':
         return b.positionSize;
@@ -198,21 +202,21 @@ export class BrokerEngine implements StrategyEngine {
       case 'initial_capital':
         return capital;
       case 'netprofit':
-        return b.netProfit;
+        return netProfit();
       case 'netprofit_percent':
-        return (b.netProfit / capital) * 100;
+        return (netProfit() / capital) * 100;
       case 'openprofit':
-        return this.bars.length ? b.openProfit : 0;
+        return this.bars.length ? b.scriptOpenProfit : 0;
       case 'openprofit_percent':
-        return this.bars.length ? (b.openProfit / (capital + b.netProfit)) * 100 : 0;
+        return this.bars.length ? (b.scriptOpenProfit / (capital + netProfit())) * 100 : 0;
       case 'grossprofit':
         return win.profit;
       case 'grossprofit_percent':
         return (win.profit / capital) * 100;
       case 'grossloss':
-        return -loss.profit;
+        return grossLoss();
       case 'grossloss_percent':
-        return (-loss.profit / capital) * 100;
+        return (grossLoss() / capital) * 100;
       case 'opentrades':
         return b.openTradesCount;
       case 'closedtrades':

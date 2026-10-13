@@ -482,6 +482,24 @@ export class Broker {
   }
 
   /**
+   * strategy.openprofit: the position against its average price at the current close, commission not counted (a
+   * long of 1,000 at 0.13 and 3,000 at 0.14 marked at 0.16: 49.999999999999936, not the per-trade sum
+   * 49.99999999999993).
+   */
+  get scriptOpenProfit(): number {
+    const pos = this.positionSize;
+    if (pos === 0) return 0;
+    return (this.roundPrice(this.bars[this.bar].close) - this.positionAvgPrice) * pos * this.sym.pointValue;
+  }
+
+  /** Entry commission of the open trades (strategy.grossloss counts it while the trades are open). */
+  get openEntryCommission(): number {
+    let cm = 0;
+    for (const t of this.openTrades) cm += t.entryCommission;
+    return cm;
+  }
+
+  /**
    * Equity the funds checks of orders count: the realized part as for margin calls (see marginRealized) plus the
    * open profit against the position's average price, at the current close. A market buy of 714,286 at a 0.10
    * close after a loss of 28,571.400000000005 on 100,000 is not filled: 71,428.59999999999 < 71,428.60.
@@ -1800,7 +1818,8 @@ export class Broker {
     const p = this.props;
     switch (p.commissionType) {
       case 'percent':
-        return (qty * price * this.sym.pointValue * p.commissionValue) / 100;
+        // Commission value first (0.1 % of 5,000 at 0.07: 0.35 as 0.1 x 5,000 x 0.07 / 100, as the reference app).
+        return (p.commissionValue * qty * price * this.sym.pointValue) / 100;
       case 'cash_per_contract':
         return qty * p.commissionValue;
       case 'cash_per_order':
