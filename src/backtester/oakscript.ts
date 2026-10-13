@@ -18,6 +18,7 @@
 import {
   executeScript,
   type ChartContext,
+  type SymbolInfo as ScriptSymbolInfo,
   type ScriptRunResult,
   type StrategyCloseAllOptions,
   type StrategyCloseOptions,
@@ -271,7 +272,30 @@ export interface OakScriptRunOptions {
   intrabarSeconds?: number;
   /** The chart shows Heikin Ashi bars of `bars` (see RunOptions.heikinAshi of run.ts). */
   heikinAshi?: boolean;
+  /** Bars and properties of other symbols the script reads (`request.security` of another ticker). */
+  symbols?: OtherSymbolData;
 }
+
+/** Bars of other symbols for `request.security` (keyed `symbol|timeframe` as the script asks) and the calendar and
+ *  properties of each symbol: plain data, sent to the workers. */
+export type OtherSymbolData = {
+  bars: Record<string, Bar[]>;
+  info: Record<string, ScriptSymbolInfo>;
+};
+
+/** The chart context with the accessors of the other symbols' bars (a request not in `symbols` is missing: the run
+ *  ends with a MissingSymbolDataError listing it). */
+export function chartWithSymbols(chart: ChartContext | undefined, symbols: OtherSymbolData | undefined): ChartContext {
+  if (!symbols) return chart ?? {};
+  return {
+    ...chart,
+    bars: (symbol, timeframe) => symbols.bars[`${symbol}|${timeframe}`],
+    symbolInfo: (symbol) => symbols.info[symbol],
+  };
+}
+
+/** The bar of another symbol in a declaration run (no bars at all would be an invalid symbol). */
+const DECLARATION_BAR: Bar = { time: 0, open: 0, high: 0, low: 0, close: 0, volume: 0 };
 
 /**
  * Chart context of a declaration run (zero bars): what a script declares (title, inputs, plots, strategy()
@@ -287,6 +311,8 @@ export const DECLARATION_CHART: ChartContext = {
   mintick: DEFAULT_SYMBOL.mintick,
   pointvalue: DEFAULT_SYMBOL.pointValue,
   mincontract: DEFAULT_SYMBOL.qtyStep,
+  // Another symbol of request.security runs on one empty bar.
+  bars: () => [DECLARATION_BAR],
 };
 
 /**
@@ -362,7 +388,7 @@ export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScr
   const symbol = { ...DEFAULT_SYMBOL, ...symbolOf(opts.chart), ...opts.symbol };
   const chart: ChartContext = {
     timezone: symbol.timezone,
-    ...opts.chart,
+    ...chartWithSymbols(opts.chart, opts.symbols),
     mintick: symbol.mintick,
     pointvalue: symbol.pointValue,
     mincontract: symbol.qtyStep,

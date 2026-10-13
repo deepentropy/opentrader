@@ -1,5 +1,6 @@
 import type { ChartContext } from 'oakscriptjs/script';
 import type { BacktestReport, Bar, StrategyProperties, SymbolInfo } from './types';
+import type { OtherSymbolData } from './oakscript';
 
 /** Bar magnifier series: `bars` rides once per worker and version; later requests carry the key and version only. */
 export interface IntrabarsRef {
@@ -25,6 +26,8 @@ export interface BacktestRequest {
   intrabars?: IntrabarsRef;
   /** The chart shows Heikin Ashi bars of `bars` (strategy on them; fills too unless fill_orders_on_standard_ohlc). */
   heikinAshi?: boolean;
+  /** Bars and properties of other symbols the script reads (OakScript strategies). */
+  symbols?: OtherSymbolData;
 }
 
 export interface BacktestError {
@@ -32,6 +35,8 @@ export interface BacktestError {
   /** The reference app runtime error code (e.g. RE10141) and bar, when the strategy stopped. */
   code?: string;
   bar?: number;
+  /** The run needs bars of other symbols that were not given: load them and run again. */
+  missing?: { symbol: string; timeframe: string }[];
 }
 
 /** A finished run: the report, and the script's drawing output (plots, markers...) for OakScript strategies. */

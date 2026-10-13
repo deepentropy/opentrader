@@ -3,6 +3,7 @@
  * over bars off the UI thread. One request = one full run; the client
  * supersedes older requests.
  */
+import { MissingSymbolDataError } from 'oakscriptjs/script';
 import { StrategyRuntimeError } from './broker';
 import { runOakScriptStrategy, symbolOf } from './oakscript';
 import { runBacktest } from './run';
@@ -32,6 +33,7 @@ function runStrategy(req: BacktestRequest): BacktestOutput | string {
     intrabars,
     intrabarSeconds,
     heikinAshi: req.heikinAshi,
+    symbols: req.symbols,
   });
   return report ? { report, visuals: run.result } : `Strategy "${req.strategy}" did not run.`;
 }
@@ -46,7 +48,9 @@ self.onmessage = (e: MessageEvent<BacktestRequest>) => {
     res =
       err instanceof StrategyRuntimeError
         ? { id: req.id, ok: false, error: { message: err.message, code: err.code, bar: err.bar } }
-        : { id: req.id, ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
+        : err instanceof MissingSymbolDataError
+          ? { id: req.id, ok: false, error: { message: err.message, missing: err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe })) } }
+          : { id: req.id, ok: false, error: { message: err instanceof Error ? err.message : String(err) } };
   }
   (self as unknown as Worker).postMessage(res);
 };

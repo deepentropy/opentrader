@@ -24,7 +24,7 @@ import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import type { ChartContext, StrategyProperties as ScriptStrategyProperties } from "oakscriptjs/script";
 import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
 import type { StudyCalcContext } from "./indicator-layer";
-import { brokerProperties, DECLARATION_CHART, runOakScriptStrategy, type ScriptStrategy } from "../../../backtester/oakscript";
+import { brokerProperties, DECLARATION_CHART, runOakScriptStrategy, type OtherSymbolData, type ScriptStrategy } from "../../../backtester/oakscript";
 import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
 import { STRATEGIES } from "../../../backtester/strategies";
 import { DEFAULT_PROPERTIES, type Bar, type StrategyProperties } from "../../../backtester/types";
@@ -67,9 +67,11 @@ type Runtime = {
   /** Staleness key of the last requested run. */
   key: string | null;
   running: boolean;
-  queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; heikinAshi: boolean; key: string } | null;
+  queued: { bars: Bar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; heikinAshi: boolean; symbols: OtherSymbolData | undefined; key: string } | null;
   /** Drawing output of the last finished run (OakScript strategies), what calculate() returns. */
   visuals: unknown;
+  /** Bars of other symbols the script asked for (`request.security`): given with every run. */
+  requests: { symbol: string; timeframe: string }[];
 };
 
 const runtimes = new Map<string, Runtime>();
@@ -89,6 +91,7 @@ type Execute = (
   properties: Partial<StrategyProperties>,
   chart: ChartContext | undefined,
   heikinAshi: boolean,
+  symbols: OtherSymbolData | undefined,
 ) => Promise<BacktestOutput | null>;
 
 async function run(
@@ -100,6 +103,7 @@ async function run(
   allInputs: Record<string, unknown>,
   chart: ChartContext | undefined,
   heikinAshi: boolean,
+  symbols: OtherSymbolData | undefined,
   key: string,
 ): Promise<void> {
   const { [PROPERTIES_INPUT]: properties, ...inputs } = allInputs;
@@ -108,7 +112,7 @@ async function run(
   const prev = strategyTester.run(chartId, strategyKey);
   strategyTester.setRun(chartId, strategyKey, { status: "running", report: prev?.report ?? null, error: null, bars: bars.length });
   try {
-    const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart, heikinAshi);
+    const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart, heikinAshi, symbols);
     if (out) {
       rt.visuals = out.visuals ?? null;
       strategyTester.setRun(chartId, strategyKey, { status: "done", report: out.report, error: null, bars: bars.length });
@@ -116,13 +120,22 @@ async function run(
   } catch (err) {
     const error: BacktestError =
       err instanceof BacktestFailed || err instanceof OakEngineError ? err.detail : { message: String(err) };
+    if (error.missing?.length) {
+      // The script reads other symbols: the chart loads them and the run starts again with them (the run stays
+      // "running" meanwhile).
+      for (const m of error.missing) {
+        if (!rt.requests.some((r) => r.symbol === m.symbol && r.timeframe === m.timeframe)) rt.requests.push(m);
+      }
+      rt.key = null;
+      return;
+    }
     rt.visuals = null;
     strategyTester.setRun(chartId, strategyKey, { status: "error", report: null, error, bars: bars.length });
   } finally {
     rt.running = false;
     const next = rt.queued;
     rt.queued = null;
-    if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.chart, next.heikinAshi, next.key);
+    if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.chart, next.heikinAshi, next.symbols, next.key);
     else window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key: strategyKey } }));
   }
 }
@@ -136,7 +149,7 @@ function makeCalculate(
     // The chart context without the app's own fields. A forming newest bar is a realtime bar (`realtime`):
     // the strategy runs on it only with "On realtime bar tick".
     // The accessors of other symbols stay out: functions do not cross to the worker.
-    const { chartId = "", studyId, heikinAshi: ha, bars: _symbolBars, symbolInfo: _symbolInfo, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    const { chartId = "", studyId, heikinAshi: ha, bars: symbolBars, symbolInfo, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
     const heikinAshi = ha === true;
     // One backtest per study instance: two instances of a strategy on a chart
     // run (and report) separately.
@@ -145,15 +158,31 @@ function makeCalculate(
     // study inputs under PROPERTIES_INPUT, so they persist with the pane.
     const { [PROPERTIES_INPUT]: props, [STYLE_INPUT]: _style, ...rest } = (inputs ?? {}) as Record<string, unknown>;
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
-    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart)}:${heikinAshi}`;
     const rtKey = `${chartId}|${runKey}`;
     let rt = runtimes.get(rtKey);
-    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null }));
+    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null, requests: [] }));
+    // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps them
+    // while a study reads them); one not loaded yet holds the run until it arrives.
+    let symbols: OtherSymbolData | undefined;
+    let symbolsKey = "";
+    if (rt.requests.length) {
+      symbols = { bars: {}, info: {} };
+      for (const r of rt.requests) {
+        const b = symbolBars?.(r.symbol, r.timeframe);
+        if (b === undefined) return rt.visuals ?? EMPTY_RESULT;
+        symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
+        const info = symbolInfo?.(r.symbol);
+        if (info) symbols.info[r.symbol] = info;
+        const last = b[b.length - 1];
+        symbolsKey += `|${r.symbol}:${r.timeframe}:${b.length}:${b[0]?.time}:${last?.time}:${last?.close}:${last?.volume}`;
+      }
+    }
+    const key = `${stalenessKey(bars, typedInputs)}:${JSON.stringify(chart)}:${heikinAshi}${symbolsKey}`;
     if (bars.length && rt.key !== key && rt.queued?.key !== key) {
       // Snapshot: ChartView mutates its bar array in place on live ticks.
       const snapshot = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume }));
-      if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, heikinAshi, key };
-      else void run(runKey, execute, chartId, rt, snapshot, typedInputs, chart, heikinAshi, key);
+      if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, heikinAshi, symbols, key };
+      else void run(runKey, execute, chartId, rt, snapshot, typedInputs, chart, heikinAshi, symbols, key);
     }
     // The last run for these bars and inputs stopped on an error: the chart shows it with the study.
     const last = strategyTester.run(chartId, runKey);
@@ -200,7 +229,7 @@ type DrawingConfigs = {
 };
 
 function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
-  return async (_channel, bars, inputs, properties, chart, heikinAshi) => {
+  return async (_channel, bars, inputs, properties, chart, heikinAshi, symbols) => {
     const engine = getOakEngine();
     if (compiledGen.get(scriptId) !== engine.generation) {
       const script = scripts.loadScript(scriptId);
@@ -210,7 +239,7 @@ function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
       scripts.saveCompiledMeta(scriptId, meta);
       applyUserMeta(entry, script.name, meta);
     }
-    return engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties));
+    return engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties), symbols);
   };
 }
 
@@ -301,8 +330,8 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
     calculate: makeCalculate(
       def.key,
       () => d.defaultInputs,
-      (channel, bars, inputs, properties, chart, heikinAshi) =>
-        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi }, { magnify: magnifies(def.key, properties) }),
+      (channel, bars, inputs, properties, chart, heikinAshi, symbols) =>
+        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi, symbols }, { magnify: magnifies(def.key, properties) }),
     ),
   } as Record<string, unknown>;
   applyDrawingConfigs(entry, d.drawings);

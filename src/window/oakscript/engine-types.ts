@@ -21,6 +21,7 @@ export type OakBar = {
 import type { ChartContext } from "oakscriptjs/script";
 import type { BacktestReport, StrategyProperties } from "../../backtester/types";
 import type { IntrabarsRef } from "../../backtester/worker-types";
+import type { OtherSymbolData } from "../../backtester/oakscript";
 
 export type OakScriptError = {
   message: string;
@@ -33,10 +34,7 @@ export type OakScriptError = {
 
 /** Bars of other symbols for `request.security` (keyed `symbol|timeframe` as the script asks) and the calendar
  *  and properties of each symbol. */
-export type OakSymbolData = {
-  bars: Record<string, OakBar[]>;
-  info: Record<string, NonNullable<ReturnType<NonNullable<ChartContext["symbolInfo"]>>>>;
-};
+export type OakSymbolData = OtherSymbolData;
 
 /** Declarative surface of a compiled script (the lightweight-charts-indicators
  *  convention), echoed back so the host can render legend/inputs without
@@ -84,6 +82,8 @@ export type OakRequest =
       heikinAshi?: boolean;
       /** Bar magnifier series. */
       intrabars?: IntrabarsRef;
+      /** Bars of other symbols the script reads. */
+      symbols?: OakSymbolData;
     };
 
 export type OakResponse =

@@ -137,10 +137,11 @@ export class OakEngine {
     chart?: ChartContext,
     heikinAshi?: boolean,
     magnify = properties?.barMagnifier === true,
+    symbols?: OakSymbolData,
   ): Promise<BacktestOutput> {
     const intrabars = await intrabarsRef(magnify, heikinAshi, bars, chart, this.sent);
     const res = await this.request(
-      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart, heikinAshi, intrabars },
+      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart, heikinAshi, intrabars, symbols },
       BACKTEST_TIMEOUT_MS,
       () => {
         if (intrabars?.bars) this.sent.set(intrabars.key, intrabars.version);
