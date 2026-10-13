@@ -3,8 +3,8 @@
  * `boxLookBack` bars' high / low enters with a market order, exited at a profit target and a stop loss sized on the
  * box width. The original is a version 1 script: one contract, no margin.
  */
-import { compare } from 'oakscriptjs';
-import { bgcolor, close, color, eachBar, fixnan, high, input, low, plot, seriesOf, strategy, ta } from 'oakscriptjs/script';
+import { callsite, compare } from 'oakscriptjs';
+import { bgcolor, color, eachBar, fixnan, high, input, low, plot, seriesOf, strategy, ta } from 'oakscriptjs/script';
 import type { ScriptStrategy } from '../oakscript';
 
 const { eq, gt, lt } = compare;
@@ -55,8 +55,10 @@ function body(): void {
   const lowerLevels: number[] = [];
   const stopLosses: number[] = [];
   const profitTargets: number[] = [];
-  // cross(): crossover or crossunder (an equal previous bar counts: SPY 1h bar 3482).
-  const cross = (a: number, a1: number, b: number, b1: number) => (a > b && a1 <= b1) || (a < b && a1 >= b1);
+  // cross(): the close on the other side of the level than on the last bar it was not equal to it (a close equal
+  // to the level on the bar before counts as a cross only when the close was on the other side before that).
+  const crossUpper = callsite.cross();
+  const crossLower = callsite.cross();
 
   strategy.eachBar((c) => {
     const i = c.i;
@@ -74,9 +76,11 @@ function body(): void {
     stopLosses[i] = stopLoss;
     profitTargets[i] = profitTarget;
 
-    const close1 = c.get(close, 1);
-    const isBuyValid = flat && cross(c.close, close1, boxUpperLevel, upperLevels[i - 1] ?? NaN) && isADXLow;
-    const isSellValid = flat && cross(c.close, close1, boxLowerLevel, lowerLevels[i - 1] ?? NaN) && isADXLow;
+    // Called on every bar (version 1: no lazy evaluation of `and`).
+    const crossesUpper = crossUpper(c.close, boxUpperLevel);
+    const crossesLower = crossLower(c.close, boxLowerLevel);
+    const isBuyValid = flat && crossesUpper && isADXLow;
+    const isSellValid = flat && crossesLower && isADXLow;
 
     const entryLong = isBuyValid && strategy.opentrades === 0 && (enableDirection === 1 || enableDirection === 0);
     if (entryLong) strategy.order('open_long', strategy.long);

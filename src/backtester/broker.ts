@@ -166,6 +166,8 @@ interface MarginCallOrder {
   size: number;
   /** Equity the call was sized with. */
   equity: number;
+  /** Found at an entry's fill price: sized at the tick it fills at (see walk). */
+  sizeAtFill?: boolean;
 }
 
 export type OcaType = 'none' | 'cancel' | 'reduce';
@@ -325,6 +327,8 @@ interface PriceOrder {
   trigger: number;
   /** price = fill price, slippage included; raw = exact price reached (trailing activation). */
   fill(price: number, raw: number): boolean;
+  /** An entry (strategy.entry / strategy.order). */
+  entry?: boolean;
 }
 
 const EPS = 1e-9;
@@ -407,6 +411,9 @@ export class Broker {
   readonly closedTrades: Trade[] = [];
   readonly filledOrders: FilledOrder[] = [];
   netProfit = 0;
+  /** Sums of the closed trades' profits above and below 0: the realized profit the funds check counts. */
+  private grossProfit = 0;
+  private grossLoss = 0;
   commissionPaid = 0;
   /** Equity events for the max drawdown / run-up metrics (see EquityEvent). */
   readonly equityEvents: EquityEvent[] = [];
@@ -459,6 +466,22 @@ export class Broker {
     return this.props.initialCapital + this.netProfit + this.openProfit;
   }
 
+  /**
+   * Equity the funds checks of orders count: the realized part as for margin calls (see marginRealized) plus the
+   * open profit against the position's average price, at the current close. A market buy of 714,286 at a 0.10
+   * close after a loss of 28,571.400000000005 on 100,000 is not filled: 71,428.59999999999 < 71,428.60.
+   */
+  private get fundsEquity(): number {
+    const pos = this.positionSize;
+    const close = this.roundPrice(this.bars[this.bar].close);
+    return this.marginRealized() + (pos === 0 ? 0 : (close - this.positionAvgPrice) * pos * this.sym.pointValue);
+  }
+
+  /** Value of `qty` at `price` for the funds checks, without binary noise (1,125,000 x 0.05 = 56,250). */
+  private orderValue(qty: number, price: number): number {
+    return Number((qty * price * this.sym.pointValue).toFixed(8));
+  }
+
   entry(id: string, direction: Direction, opts: EntryOptions = {}): void {
     this.placeEntry(id, direction, opts, false, 'strategy.entry');
   }
@@ -508,17 +531,19 @@ export class Broker {
     if (!isOrder && this.allowEntryIn !== 'all' && this.allowEntryIn !== direction) qty = 0;
     const prev = this.entries.get(id);
     const pos = this.positionSize;
-    // A stop / limit entry is checked when it is placed, not when it fills: the pyramiding limit and the funds
-    // for its own quantity at the higher of the price it was sized at and the close. Once placed it fills whatever
-    // the position is by then (pivot-points SPY 1h: a 6th entry at bar 3350, then the margin call; bar 1991: not
-    // placed, never filled). One that does not fit and reverses the position only closes it (momentum strategy
-    // SPY 4h: a sell stop below the close sized at its price, 100 % of equity, closes the long and opens nothing).
+    // A stop / limit entry is checked when it is placed: the pyramiding limit and the funds for its own quantity
+    // at the close (a buy stop of 714,286 at 0.10 placed on a 0.08 close with 71,428.59999999999 fills; a buy limit
+    // or a market buy of 714,286 placed on a 0.10 close does not); its fill price is checked when it fills (see
+    // ownFitsAt). Once placed it fills whatever the position is by then (pivot-points SPY 1h: a 6th entry at bar
+    // 3350, then the margin call; bar 1991: not placed, never filled). One that does not fit and reverses the
+    // position only closes it (momentum strategy SPY 4h: a sell stop below the close sized at its price, 100 % of
+    // equity, closes the long and opens nothing).
     if (!isOrder && orderPrice !== null) {
       if (!this.canEnter(direction)) return;
       const reverses = pos !== 0 && (pos > 0) !== buy;
       // The open trades count at the current close (SPY 4h bar 869: 16 at 106.02 placed with 78 short at 103.82).
       const close = this.roundPrice(this.bars[this.bar].close);
-      if (qty > 0 && !this.fundsCover(direction, qty, Math.max(sizePrice, close), reverses, this.equity, close)) {
+      if (qty > 0 && !this.fundsCover(direction, qty, close, reverses, this.fundsEquity, close)) {
         // The call replaces the order of that id: an order placed by an earlier call goes too (price channel
         // strategy SPY 15m: a sell stop placed at bar 20, not placeable again at bars 21-25, never fills).
         if (!reverses) {
@@ -536,7 +561,8 @@ export class Broker {
     this.entries.set(id, {
       sizePrice,
       placedClose: this.roundPrice(this.bars[this.bar].close),
-      placedEquity: this.equity,
+      // The fill check counts this equity without binary noise (see ownFitsAt).
+      placedEquity: Number(this.fundsEquity.toFixed(8)),
       reverseQty,
       kind: 'entry',
       isOrder,
@@ -652,6 +678,23 @@ export class Broker {
       commentTrailing: opts.commentTrailing || comment,
     });
     for (const t of this.openTrades) t.exitsDropped.delete(id);
+    // A call with another trail activation (trail_points / trail_price) re-creates the trailing stop of each trade:
+    // active from the close on the tick grid when the close is already at the new activation level, else waiting
+    // for it (a short at 664.45 with trail_points 198, then 199 / 198 on alternate bars or ATR-based values: no
+    // fill; 198 constant, or changed once before the price gets there: the trailing stop fills; a changed
+    // trail_offset keeps it; doji SPY 1h bar 6028: a 276.625 close gives 276.63, the stop one tick below 276.62).
+    if (prev && (prev.trailPoints !== val(opts.trailPoints) || prev.trailPrice !== val(opts.trailPrice))) {
+      const x = this.exits.get(id)!;
+      const close = this.roundPrice(this.bars[this.bar].close);
+      for (const t of [...this.openTrades, ...this.displaced]) {
+        if (!known(t)) continue;
+        t.trail.delete(id);
+        if (x.trailOffset === null || (x.trailPoints === null && x.trailPrice === null)) continue;
+        const sign = t.direction === 'long' ? 1 : -1;
+        const level = this.trailActivation(x, t);
+        if (sign * (close - level) >= -EPS) t.trail.set(id, close);
+      }
+    }
     this.updateLegOrder(id, prev);
   }
 
@@ -715,7 +758,7 @@ export class Broker {
 
   /** Fill the orders placed before bar `i` along bar i's price path. */
   processBar(i: number): void {
-    this.scriptEquity = i > 0 ? this.equity : this.props.initialCapital;
+    this.scriptEquity = i > 0 ? this.fundsEquity : this.props.initialCapital;
     this.scriptPos = this.positionSize;
     this.scriptClose = i > 0 ? this.roundPrice(this.bars[i - 1].close) : 0;
     if (i > 0) this.fillDeferredCalls(this.roundPrice(this.bars[i - 1].close));
@@ -743,13 +786,17 @@ export class Broker {
     // The open reaches the trades still open after the market fills: a trade closed at the open sees
     // its fill price only (slippage included).
     const held = [...this.openTrades];
+    // The max intraday loss check after the fills at the open counts the realized profit from before them, except
+    // on the day's first tick (bar up/down strategy AAPL 1W bar 12: a short reversed with a profit of 1,410.70 at a
+    // weekly open is not closed).
+    const realizedBefore = this.dayMaxEquity === -Infinity ? undefined : this.props.initialCapital + this.netProfit;
     this.touchEquity(open);
     this.fillMarketOrders(open);
     this.touchTrades(open, first.open, held.filter((t) => this.openTrades.includes(t)));
     let cur = open;
     this.fillAt(cur, first.open);
     this.fillRiskCloseNow(open);
-    this.riskPoint(open);
+    this.riskPoint(open, realizedBefore);
     // With lower-timeframe bars, trades opened at the chart open and still open at the next tick (the first
     // lower-timeframe open) count the chart open in their range (rsi-mean-reversion AAPL 3D); a trade closed at
     // the open itself does not (triple-ema-trend SPY 1h).
@@ -822,11 +869,14 @@ export class Broker {
    * pending orders are cancelled, the position is closed at p and trading stops until the next day (bar-up/down
    * strategy AAPL 1D trade 1: a short of 100,000 at 0.10, the high reaches 0.11, a loss of 1,000 = 1 %, closed
    * there; SPY 4h bar 4445: not the low of the bar before, the loss from it would be 1,090).
+   * `realized`: at the open, the capital plus the net profit before the fills of that tick (a short of 55 to 74
+   * from 133.74 reversed at a 114.59 open is closed by the rule: the day's highest equity counts the short's open
+   * profit at the 114.07 first tick, the equity after the reversal not yet its 1,053 to 1,417 profit; 40 is not).
    */
-  private riskPoint(p: number): void {
+  private riskPoint(p: number, realized = this.props.initialCapital + this.netProfit): void {
     const rule = this.maxIntradayLoss;
     if (!rule || this.halted) return;
-    const equity = this.props.initialCapital + this.netProfit + this.openProfitAt(p);
+    const equity = realized + this.openProfitAt(p);
     if (this.dayMaxEquity === -Infinity) this.dayMaxEquity = equity;
     const limit = rule.type === 'cash' ? rule.value : (rule.value / 100) * this.dayMaxEquity;
     if (this.dayMaxEquity - equity < limit - EPS) return;
@@ -877,7 +927,7 @@ export class Broker {
   /** process_orders_on_close: fill the orders just placed at bar i's close. */
   processClose(i: number): void {
     this.bar = i;
-    this.scriptEquity = this.equity;
+    this.scriptEquity = this.fundsEquity;
     const close = this.roundPrice(this.bars[i].close);
     this.scriptPos = this.positionSize;
     this.scriptClose = close;
@@ -963,6 +1013,15 @@ export class Broker {
         if (o.fill(price, o.trigger)) {
           cur = o.trigger;
           filled = true;
+          // The funds are checked at the fill price of an entry the path reaches; a margin call found there fills
+          // at the next tick and is sized there (a buy stop of 1,552,120 at 0.22 with a capital of 341,466.40: the
+          // open profit against the 0.22000000000000003 average price is below 0, one share sold at the 0.24 high,
+          // 190 probes; channel breakout SPY 4h bar 1214: a sell stop reversal at 101.71, 56 shares bought back at
+          // 102.47, the call those funds ask for, not the 60 of the fill price).
+          if (o.entry) {
+            const call = this.marginCallAt(price, this.marginRealized());
+            if (call) this.pendingCalls.push({ ...call, sizeAtFill: true });
+          }
           this.fillAt(cur, cur, true);
           break;
         }
@@ -988,6 +1047,7 @@ export class Broker {
         isStop,
         level,
         trigger: isStop ? level : this.limitTrigger(level, buy),
+        entry: true,
         fill: (price) => {
           this.entries.delete(e.id);
           this.fillEntry(e, price, isStop ? 'STOP' : 'LIMIT');
@@ -1051,13 +1111,22 @@ export class Broker {
         }
         if (stop !== null) push(true, this.roundOrderPrice(stop, buy, true), (p) => fill(p, 'STOP', x.commentLoss));
         if (x.trailOffset !== null && (x.trailPoints !== null || x.trailPrice !== null)) {
+          const level = this.trailActivation(x, t);
+          // An activation level of 0 counts as reached, at 0, a price the trade then counts as reached (a short at
+          // 0.10 with trail_points 10: the trailing stop fills at the entry, run-up = the whole entry value; 9 or
+          // 11: never).
+          if (level === 0 && !t.trail.has(x.id)) {
+            t.trail.set(x.id, 0);
+            t.low = Math.min(t.low, 0);
+            t.high = Math.max(t.high, 0);
+          }
           const best = t.trail.get(x.id);
           if (best === undefined) {
-            // Activation: the price reaches trail_price, or entry + trail_points (it moves like a limit order).
-            const activation = x.trailPrice ?? t.price + sign * (x.trailPoints as number) * tick;
-            push(false, this.roundOrderPrice(activation, buy, false), (_p, raw) => {
-              // The best price starts at the exact price reached (the exact open on a gap).
-              t.trail.set(x.id, raw);
+            push(false, level, (_p, raw) => {
+              // The best price starts at the exact price reached (the exact open on a gap), the level at most when
+              // only the price on the tick grid reaches it (a short at 0.13 activated at 0.11 by a 0.113839 open:
+              // offset 0 fills at 0.11 there, offset 1 tick at 0.12 on the next bar).
+              t.trail.set(x.id, sign > 0 ? Math.max(raw, level) : Math.min(raw, level));
               return true;
             });
           } else {
@@ -1070,6 +1139,18 @@ export class Broker {
       }
     }
     return out;
+  }
+
+  /**
+   * Trailing stop activation level of exit `x` for trade `t`: trail_price, or the entry price plus trail_points,
+   * rounded like a limit order; a level below 0 rounds toward 0 (a short at 0.10 with trail_points 10.53: activated
+   * at 0, see priceOrders; 11: never).
+   */
+  private trailActivation(x: ExitOrder, t: OpenTrade): number {
+    const sign = t.direction === 'long' ? 1 : -1;
+    const activation = x.trailPrice ?? t.price + sign * (x.trailPoints as number) * this.sym.mintick;
+    if (activation < 0) return this.ticks(Math.trunc(activation / this.sym.mintick)) || 0;
+    return this.roundOrderPrice(activation, t.direction === 'short', false);
   }
 
   /** Price a limit order at `level` needs to fill: `fillLimitsTicks` ticks beyond it (below for a buy). */
@@ -1139,8 +1220,12 @@ export class Broker {
       // no pending entry left. An entry with a trade still open keeps its exits (a sell limit entry that closes
       // the first of two `long1` trades: `close long1` fills on the same tick).
       for (const t of this.openTrades) ids.delete(t.entryId);
+      // An exit for every entry (no from_entry) live on the trades the reversal closed goes too (technical ratings
+      // SPY 5m bar 18858: the long opened by the reversal has no stop loss before the next strategy.exit call).
+      const allClosed = this.openTrades.length === 0;
       for (const [xid, x] of this.exits) {
         if (x.fromEntry !== '' && ids.has(x.fromEntry) && (x.attached || !this.entries.has(x.fromEntry))) this.exits.delete(xid);
+        else if (x.fromEntry === '' && allClosed && (x.attached || this.entries.size === 0)) this.exits.delete(xid);
       }
     }
     if (qty > 0) this.openTrade({ ...o, qty }, price);
@@ -1193,23 +1278,26 @@ export class Broker {
   private fundsCover(direction: Direction, qty: number, price: number, closesOpenTrades = false, equity = this.scriptEquity, mark = price): boolean {
     const ratio = this.marginRatio(direction);
     if (ratio <= 0) return true;
-    const pv = this.sym.pointValue;
     let used = 0;
-    if (!closesOpenTrades) for (const t of this.openTrades) used += t.qty * mark * pv * this.marginRatio(t.direction);
+    if (!closesOpenTrades) for (const t of this.openTrades) used += this.orderValue(t.qty, mark) * this.marginRatio(t.direction);
     const available = equity - used;
-    return qty * price * pv * ratio <= available;
+    return this.orderValue(qty, price) * ratio <= available;
   }
 
   /** Margin: the own quantity of market entry `o` fits in the equity at the close it was placed on (no slippage). */
   private ownFits(o: EntryOrder): boolean {
     const ratio = this.marginRatio(o.direction);
-    return ratio <= 0 || o.qty * o.placedClose * this.sym.pointValue * ratio <= this.scriptEquity;
+    return ratio <= 0 || this.orderValue(o.qty, o.placedClose) * ratio <= this.scriptEquity;
   }
 
-  /** Margin: the own quantity of entry `o` fits in the equity it was placed with, at `price`. */
+  /**
+   * Margin: the own quantity of entry `o` fits in the equity it was placed with, at `price`. That equity is
+   * counted without binary noise: a buy stop of 714,286 at 0.10 placed on 71,428.59999999999 fills, one of
+   * 1,100,000 on 100,000 does not.
+   */
   private ownFitsAt(o: EntryOrder, price: number): boolean {
     const ratio = this.marginRatio(o.direction);
-    return ratio <= 0 || o.qty * price * this.sym.pointValue * ratio <= o.placedEquity;
+    return ratio <= 0 || this.orderValue(o.qty, price) * ratio <= o.placedEquity;
   }
 
   /**
@@ -1228,15 +1316,14 @@ export class Broker {
     if (after === 0 || (before !== 0 && after > 0 === before > 0 && Math.abs(after) <= Math.abs(before))) return true;
     const held = before !== 0 && after > 0 === before > 0 ? Math.abs(before) : 0;
     const checkPrice = Math.max(price, buy ? o.sizePrice : o.placedClose);
-    const pv = this.sym.pointValue;
-    return held * this.scriptClose * pv * ratio + (Math.abs(after) - held) * checkPrice * pv * ratio <= this.scriptEquity;
+    return this.orderValue(held, this.scriptClose) * ratio + this.orderValue(Math.abs(after) - held, checkPrice) * ratio <= this.scriptEquity;
   }
 
   /** Margin call at price p (a point of the intrabar path), Pine's algorithm; it fills at `fill` (default p, see
    *  processBar for the chart open with lower-timeframe bars), at the next open when `atClose`, after the script run
    *  when `lastTick`. */
   private checkMargin(p: number, fill = p, atClose = false, lastTick = false): void {
-    const call = this.marginCallAt(p, this.props.initialCapital + this.netProfit);
+    const call = this.marginCallAt(p, this.marginRealized());
     if (!call) return;
     if (atClose) this.pendingCalls.push(call);
     // Found at the bar's last tick, it fills there after the script run: the script sees the position before it
@@ -1247,10 +1334,31 @@ export class Broker {
   }
 
   /**
-   * The margin call the funds ask for with the open trades marked at price p, or null. `realized`: the capital
-   * plus the net profit counted.
+   * The realized part of the equity the funds check counts: the capital plus the sum of the winning trades' profits
+   * plus the sum of the losing trades' profits (two running sums, not one: their binary noise decides the calls at
+   * exactly 0 available funds, 178 of 179 such checks of the reference reports), less the entry commission of the
+   * open trades.
    */
-  private marginCallAt(p: number, realized: number): MarginCallOrder | null {
+  private marginRealized(): number {
+    let cm = 0;
+    for (const t of this.openTrades) cm += t.entryCommission;
+    return this.props.initialCapital + (this.grossProfit + this.grossLoss) - cm;
+  }
+
+  /**
+   * The margin call the funds ask for with the open trades marked at price p, or null. `realized`: see
+   * marginRealized.
+   *
+   * Arithmetic of the reference app, measured on 190 probes at exactly 0 available funds (capital = quantity x
+   * entry price) and on 59,624 checks of the reference reports:
+   *   - open profit = (p - average price of the position) x position, the average price being cost / quantity
+   *     (a long of 1,552,120 at 0.22: an average of 0.22000000000000003);
+   *   - margin = the position's value at p without binary noise (1,250,000 x 0.14 = 175,000, not
+   *     175,000.00000000003), times the margin ratio;
+   *   - a call when realized + open profit - margin < 0; its size is 4 x the shares the available funds, without
+   *     binary noise, cover at p (-5,325.45 / 0.15 = 35,503, not 35,502.99999999998), at least one step.
+   */
+  private marginCallAt(p: number, realized: number, force = false): MarginCallOrder | null {
     const pos = this.positionSize;
     if (pos === 0) return null;
     const long = pos > 0;
@@ -1259,17 +1367,14 @@ export class Broker {
     const pv = this.sym.pointValue;
     // No call can be sized at a price of 0 (the check after a trade closed at 0, slippage as large as the price).
     if (!(p > 0)) return null;
-    // Pine's order of operations (the binary noise decides the calls at 0 available funds, a 100 % long):
-    // open profit = MVS - money spent, available = equity - MVS * margin ratio.
-    const mvs = Math.abs(pos) * p * pv;
-    let spent = 0;
-    for (const t of this.openTrades) spent += t.qty * t.price * pv;
-    const openProfit = long ? mvs - spent : spent - mvs;
+    const openProfit = (p - this.positionAvgPrice) * pos * pv;
     const equity = realized + openProfit;
-    const available = equity - mvs * ratio;
-    if (available >= 0) return null;
-    const loss = available / ratio;
+    const margin = Number((Math.abs(pos) * p * pv).toFixed(8)) * ratio;
+    const available = equity - margin;
+    // `force`: a call already decided (see sizeAtFill), sized here.
+    if (available >= 0 && !force) return null;
     const step = this.sym.qtyStep;
+    const loss = Math.min(0, Number(available.toFixed(8))) / ratio;
     const cover = Math.trunc(Math.abs(loss / (p * pv)) / step) * step;
     return { kind: 'call', seq: ++this.seq, size: cover > 0 ? cover * 4 : step, equity };
   }
@@ -1309,6 +1414,11 @@ export class Broker {
     // for this tick closes the position it finds, also one on the other side opened since (a call of 4,856 made
     // while short, then two buy limits: 4,856 of the new long sold at the next tick).
     if (pos === 0) return;
+    if (call.sizeAtFill) {
+      const sized = this.marginCallAt(p, this.marginRealized(), true);
+      if (!sized) return;
+      call = sized;
+    }
     const id = `Margin call ${this.marginCalls++}`;
     const long = pos > 0;
     const pv = this.sym.pointValue;
@@ -1358,7 +1468,7 @@ export class Broker {
       t.exitsDropped.clear();
       const q = Math.min(left, t.qty);
       left -= q;
-      const before = this.props.initialCapital + this.netProfit;
+      const before = this.marginRealized();
       this.closeTradeQty(t, q, fill, 'Margin call', true);
       // The equity after the fill marks the trades left at the tick price, not at the fill price with the
       // slippage (largest drawdown percent of a history with calls filled at 0).
@@ -1448,6 +1558,8 @@ export class Broker {
     const exitCm = this.commission(qty, price);
     const trade = this.makeTrade(t, qty, price, signal, entryCm, exitCm, false, market);
     this.netProfit += trade.profit + entryCm;
+    if (trade.profit > 0) this.grossProfit += trade.profit;
+    else this.grossLoss += trade.profit;
     this.commissionPaid += exitCm;
     trade.cumProfit = this.netProfit;
     trade.profitPercentOfEquity = trade.profit / Math.abs(this.props.initialCapital + this.netProfit - trade.profit);

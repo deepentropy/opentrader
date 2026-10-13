@@ -169,8 +169,10 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     if (!rt) return EMPTY_RESULT;
     const typedBars = bars as OakBar[];
     const typedInputs = (inputs ?? {}) as Record<string, unknown>;
-    // The chart context without the app's own fields and the accessors (functions do not cross to the worker).
-    const { chartId, studyId, heikinAshi: _heikinAshi, bars: symbolBars, symbolInfo, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    // The chart context without the app's own fields and the accessors (functions do not cross to the worker: the
+    // lower-timeframe bars and chart events accessors of the profile studies neither).
+    const { chartId, studyId, heikinAshi: _heikinAshi, bars: symbolBars, symbolInfo, ...withFns } = (ctx ?? {}) as Partial<StudyCalcContext>;
+    const chart = Object.fromEntries(Object.entries(withFns).filter(([, v]) => typeof v !== "function")) as typeof withFns;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
     if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [], error: null }));
