@@ -24,7 +24,6 @@ import type { StudyCalcContext } from "../indicators/indicator-layer";
 import {
   barDirections,
   buildProfile,
-  closestRows,
   ltfForChart,
   ltfForSpan,
   lowerBound,
@@ -347,12 +346,13 @@ function calcSessions(bars: Bar[], inputs: Record<string, unknown>, ctx: Profile
 
 // ── Session volume profile HD ──────────────────────────────────────────────
 
-/** Rows of the detailed profiles over a window: the row size giving the count closest to this many rows of its
- *  price range (INFERRED from 3 reference captures). */
-const HD_DETAILED_ROWS = 600;
+/** Detailed profiles: one row size for the window, floor(price range of its sessions / this many ticks), at least
+ *  1 tick (INFERRED from 8 reference windows, 1 to 28 ticks per row: the divisor lies between 534 and 545). */
+const HD_TICKS_PER_ROW_DIVISOR = 540;
 
 function calcSessionsHD(bars: Bar[], inputs: Record<string, unknown>, ctx: ProfileCalcContext | undefined) {
-  const rough = calcSessions(bars, inputs, ctx, { layout: "Number Of Rows", rowSize: 24 }, false);
+  // Rough profiles: the row count closest to 25 (reference rough study: 25 rows on 208 of 239 sessions, 24-27 otherwise).
+  const rough = calcSessions(bars, inputs, ctx, { layout: "Number Of Rows", rowSize: 25 }, false);
   const vbp = (rough as { vbp?: VbpDraw }).vbp;
   const c = commonSetup(bars, ctx);
   if (!vbp || !c.ready || ctx?.leftVisibleBarTime == null || ctx.rightVisibleBarTime == null) return rough;
@@ -366,19 +366,19 @@ function calcSessionsHD(bars: Bar[], inputs: Record<string, unknown>, ctx: Profi
   const res = c.seconds ? "1S" : ltfForSpan(winTo - winFrom, false);
   const ltf = ctx.lowerBars!(res, winFrom);
   if (!ltf) return rough;
-  const a = lowerBound(ltf as unknown as { time: number }[], winFrom);
-  const b = lowerBound(ltf as unknown as { time: number }[], winTo + 1) - 1;
-  if (b < a) return rough;
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (let i = a; i <= b; i++) {
-    lo = Math.min(lo, toTicks(ltf[i].low, c.tick));
-    hi = Math.max(hi, toTicks(ltf[i].high, c.tick));
-  }
-  const grid: GridOptions = { fixedTpr: closestRows(hi - lo, HD_DETAILED_ROWS).tpr };
   const keyOf = sessionKeyer(inputs, sessions);
   // Whole sessions that start inside the window.
   const groups = groupBy(ltf, lowerBound(ltf as unknown as { time: number }[], winFrom), (t) => keyOf(t)).filter((g) => (ltf[g.g0].time as number) <= winTo);
+  if (!groups.length) return rough;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const g of groups) {
+    for (let i = g.g0; i <= g.g1; i++) {
+      lo = Math.min(lo, toTicks(ltf[i].low, c.tick));
+      hi = Math.max(hi, toTicks(ltf[i].high, c.tick));
+    }
+  }
+  const grid: GridOptions = { fixedTpr: Math.max(1, Math.floor((hi - lo) / HD_TICKS_PER_ROW_DIVISOR)) };
   const made = makeProfiles(bars, ltf, groups, c.tick, grid, vaOf(inputs), c.sec, sessions, Infinity);
   const detailed = finish(bars, ltf, made, c.tick, grid, vaOf(inputs), ext(inputs), vbp.style, c.textColor, false, false, volumeOf(inputs));
   // Each detailed profile replaces the rough one of its session.
