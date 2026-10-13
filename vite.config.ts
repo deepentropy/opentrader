@@ -25,6 +25,9 @@ export default defineConfig(async () => ({
     { name: "app-version", transformIndexHtml: (html: string) => html.replace("__APP_VERSION__", tauriConf.version) },
     { name: "watch-drawing-core", configureServer: (server: { watcher: { add: (p: string) => void } }) => { server.watcher.add(drawingCore); server.watcher.add(drawingRuntime); } },
   ],
+  // ES module workers: a worker can load a module on demand (the backtest worker loads the indicator library only
+  // for the Technical ratings strategy), as in dev where workers are modules already.
+  worker: { format: "es" as const },
   resolve: {
     alias: [
       { find: /^lightweight-charts-drawing\/core/, replacement: drawingCore },

@@ -8,6 +8,8 @@ import { StrategyRuntimeError } from './broker';
 import { runOakScriptStrategy, symbolOf } from './oakscript';
 import { runBacktest } from './run';
 import { SCRIPT_STRATEGIES } from './scripts';
+import { BUILTIN_STRATEGIES } from './builtins';
+import { provideTechnicalRatings, TECHNICAL_RATINGS_KEY } from './builtins/technical-ratings';
 import { STRATEGIES } from './strategies';
 import type { BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
 import { intervalSeconds } from './magnifier';
@@ -23,7 +25,7 @@ function runStrategy(req: BacktestRequest): BacktestOutput | string {
     const symbol = { ...symbolOf(req.chart), ...req.symbol };
     return { report: runBacktest(req.bars, def, { inputs: req.inputs, properties: req.properties, symbol, ...common }) };
   }
-  const script = SCRIPT_STRATEGIES.find((s) => s.key === req.strategy);
+  const script = SCRIPT_STRATEGIES.find((s) => s.key === req.strategy) ?? BUILTIN_STRATEGIES.find((s) => s.key === req.strategy);
   if (!script) return `Unknown strategy "${req.strategy}".`;
   const { report, script: run } = runOakScriptStrategy(script.body, req.bars, {
     inputs: req.inputs,
@@ -38,10 +40,18 @@ function runStrategy(req: BacktestRequest): BacktestOutput | string {
   return report ? { report, visuals: run.result } : `Strategy "${req.strategy}" did not run.`;
 }
 
-self.onmessage = (e: MessageEvent<BacktestRequest>) => {
+/** The indicator library, loaded once by the first run that needs it (Technical ratings strategy). */
+let ratingsLoaded: Promise<void> | null = null;
+function loadRatings(): Promise<void> {
+  ratingsLoaded ??= import('lightweight-charts-indicators').then((lib) => provideTechnicalRatings(lib.calculateTechnicalRatingsStandard));
+  return ratingsLoaded;
+}
+
+self.onmessage = async (e: MessageEvent<BacktestRequest>) => {
   const req = e.data;
   let res: BacktestResponse;
   try {
+    if (req.strategy === TECHNICAL_RATINGS_KEY) await loadRatings();
     const out = runStrategy(req);
     res = typeof out === 'string' ? { id: req.id, ok: false, error: { message: out } } : { id: req.id, ok: true, ...out };
   } catch (err) {

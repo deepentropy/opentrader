@@ -4,9 +4,11 @@
  * added, persisted, listed in the legend and recomputed (load, history
  * paging, live bars) by the same pipeline as any indicator.
  *
- * Built-in OakScript strategies (backtester/scripts) are listed with the ports
- * (id `strategy:<key>`) and run in the backtest worker too; their title,
- * inputs and properties come from a run of the script on zero bars.
+ * Built-in OakScript strategies (backtester/scripts: community scripts listed
+ * with the ports; backtester/builtins: the reference app's built-in
+ * strategies, listed under Technicals) have the id `strategy:<key>` and run in
+ * the backtest worker too; their title, inputs and properties come from a run
+ * of the script on zero bars.
  *
  * OakScript strategies (editor panel scripts that declare strategy()) use the
  * same pipeline with key `user:<scriptId>` (id `strategy:user:<scriptId>`):
@@ -26,6 +28,7 @@ import { BacktestFailed, getBacktestClient } from "../../../backtester/client";
 import type { StudyCalcContext } from "./indicator-layer";
 import { brokerProperties, DECLARATION_CHART, runOakScriptStrategy, type OtherSymbolData, type ScriptStrategy } from "../../../backtester/oakscript";
 import { SCRIPT_STRATEGIES } from "../../../backtester/scripts";
+import { BUILTIN_STRATEGIES } from "../../../backtester/builtins";
 import { STRATEGIES } from "../../../backtester/strategies";
 import { DEFAULT_PROPERTIES, type Bar, type StrategyProperties } from "../../../backtester/types";
 import type { BacktestError, BacktestOutput } from "../../../backtester/worker-types";
@@ -322,7 +325,7 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
   const d = scriptDeclaration(def);
   const entry = {
     id,
-    group: "community",
+    group: BUILTIN_STRATEGIES.includes(def) ? "standard" : "community",
     category: "Trend",
     name: d.title,
     shortName: d.shortTitle,
@@ -364,7 +367,7 @@ export function strategyDefaults(id: string): StrategyProperties | undefined {
   }
   const def = STRATEGIES.find((d) => d.key === key);
   if (def) return { ...DEFAULT_PROPERTIES, ...def.properties };
-  const script = SCRIPT_STRATEGIES.find((d) => d.key === key);
+  const script = scriptStrategyOf(key);
   if (!script) return undefined;
   try {
     return scriptDeclaration(script).properties;
@@ -387,7 +390,7 @@ export function getStrategyEntry(studyId: string): IndicatorRegistryEntry | unde
   }
   const def = STRATEGIES.find((s) => s.key === strategyKeyOf(id));
   if (!def) {
-    const script = SCRIPT_STRATEGIES.find((s) => s.key === strategyKeyOf(id));
+    const script = scriptStrategyOf(strategyKeyOf(id));
     if (!script) return undefined;
     // A script whose declaration fails is unknown to the callers (dialog rows, favourites, chart), not a crash.
     let entry: IndicatorRegistryEntry;
@@ -424,7 +427,18 @@ export function getStrategyEntry(studyId: string): IndicatorRegistryEntry | unde
   return entry;
 }
 
-/** Every built-in strategy (ports and OakScript scripts), for the Indicators dialog. */
+/** The OakScript strategy of `key`: a community script or a built-in one. */
+function scriptStrategyOf(key: string): ScriptStrategy | undefined {
+  return SCRIPT_STRATEGIES.find((s) => s.key === key) ?? BUILTIN_STRATEGIES.find((s) => s.key === key);
+}
+
+/** The community strategies (ports and OakScript scripts), for the Indicators dialog. */
 export function strategyRows(): { id: string; name: string; author: string }[] {
   return [...STRATEGIES, ...SCRIPT_STRATEGIES].map((s) => ({ id: strategyId(s.key), name: s.source.name, author: s.source.author }));
+}
+
+/** The reference app's built-in strategies, for Built-In > Technicals > Strategies (by name, as the reference lists
+ *  them). */
+export function builtinStrategyRows(): { id: string; name: string }[] {
+  return BUILTIN_STRATEGIES.map((s) => ({ id: strategyId(s.key), name: s.source.name })).sort((a, b) => a.name.localeCompare(b.name));
 }

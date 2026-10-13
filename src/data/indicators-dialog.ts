@@ -21,7 +21,7 @@
  * SIDEBAR_ICONS hold the FontIcon <svg> markup.
  */
 import { STANDARD_ROWS, COMMUNITY_ROWS, CHART_PATTERN_ROWS, CANDLESTICK_ROWS } from '../window/chart/indicators/registry';
-import { strategyRows } from '../window/chart/indicators/strategy-entries';
+import { builtinStrategyRows, strategyRows } from '../window/chart/indicators/strategy-entries';
 
 /** `disabled`: listed greyed, not selectable (no backing service). */
 export type SidebarItem = { id: string; label: string; disabled?: boolean };
@@ -159,12 +159,13 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   'my-scripts': { kind: 'placeholder', note: 'No scripts here yet.' },
   'invite-only-scripts': { kind: 'placeholder', note: 'No invite-only scripts here yet.' },
   // No store here: the empty state without its "Go to Store" button.
-  // Built-In > Technicals — the library standard indicators and candlestick
-  // patterns (registry).  No built-in strategies or volume profile studies
-  // yet: their type tabs stay hidden while empty.
+  // Built-In > Technicals — the library standard indicators, the built-in
+  // strategies (plain rows like the indicators: no strategy icon, no author)
+  // and candlestick patterns.  No volume profile studies yet: their type tab
+  // stays hidden while empty.
   'built-ins': { kind: 'filtered', filters: [
     { id: 'indicators', items: STANDARD_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id })) },
-    { id: 'strategies', items: [] },
+    { id: 'strategies', items: builtinStrategyRows().map((r) => ({ name: r.name, indicatorId: r.id })) },
     { id: 'profiles', items: [] },
     { id: 'patterns', items: [
       { section: 'Chart patterns' },

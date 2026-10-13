@@ -8,8 +8,9 @@
  * Mapping:
  *   - order options: Pine names (from_entry, qty_percent, trail_points...) to the Broker options;
  *     alert_message / alert_* / disable_alert are ignored (no alerts in a backtest);
- *   - OCA groups, `strategy.close(immediately)`, risk rules and default_entry_qty are not
- *     implemented by the Broker: they throw;
+ *   - OCA groups of entries and orders, and the risk rules allow_entry_in, max_intraday_loss and
+ *     max_intraday_filled_orders go to the Broker; strategy.exit(oca_name), `strategy.close(immediately)`, the
+ *     other risk rules and default_entry_qty are not implemented by the Broker: they throw;
  *   - calc_on_order_fills is not implemented (an extra script run inside processBar): it throws when set;
  *   - variables: the Broker state; trade statistics from its closed trades (Pine definitions,
  *     percent in %); max_drawdown / max_runup / margin_liquidation_price are not provided
@@ -27,6 +28,7 @@ import {
   type StrategyEntryOptions,
   type StrategyExitOptions,
   type StrategyProperties as ScriptStrategyProperties,
+  type StrategyRiskRule,
   type StrategyTrade,
   type StrategyVariable,
 } from 'oakscriptjs/script';
@@ -121,13 +123,23 @@ export class BrokerEngine implements StrategyEngine {
   }
 
   entry(id: string, direction: StrategyDirection, o: StrategyEntryOptions): void {
-    if (o.oca_name !== undefined || o.oca_type !== undefined) unsupported('strategy.entry(oca_name, oca_type)');
-    this.broker.entry(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment });
+    this.broker.entry(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment, ocaName: o.oca_name, ocaType: o.oca_type });
   }
 
   order(id: string, direction: StrategyDirection, o: StrategyEntryOptions): void {
-    if (o.oca_name !== undefined || o.oca_type !== undefined) unsupported('strategy.order(oca_name, oca_type)');
-    this.broker.order(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment });
+    this.broker.order(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment, ocaName: o.oca_name, ocaType: o.oca_type });
+  }
+
+  risk(rule: StrategyRiskRule): void {
+    switch (rule.rule) {
+      case 'allow_entry_in':
+      case 'max_intraday_loss':
+      case 'max_intraday_filled_orders':
+        this.broker.risk(rule);
+        return;
+      default:
+        unsupported(`strategy.risk.${rule.rule}()`);
+    }
   }
 
   exit(id: string, o: StrategyExitOptions): void {

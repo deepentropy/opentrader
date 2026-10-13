@@ -108,8 +108,12 @@
  *     So trades opened by earlier orders of the same batch count in a
  *     reversal and not in an entry that adds to them, and a position closed
  *     by an earlier close order still counts. A stop / limit entry is
- *     checked at placement instead (its own quantity at its sizing price,
- *     the open trades at the close);
+ *     checked at placement instead (its own quantity at the higher of its
+ *     sizing price and the close, the open trades at the close): one that does
+ *     not fit is not placed (an order of that id placed earlier goes too), or
+ *     only closes the position it reverses. At its fill, its own quantity at
+ *     the fill price must fit the equity it was placed with, else it does not
+ *     fill at all (a gap beyond its price; .tmp/issue47);
  *   - margin calls are checked at each point of the intrabar path (open,
  *     high / low, close) with Pine's documented formula: when the available
  *     funds are below 0, 4 times the quantity that covers the loss (at least
@@ -132,6 +136,17 @@
  *   - a margin call made by the fill of another one that waits for the bar's
  *     last tick fills there after the script run: the script sees the
  *     position before it and strategy.cancel_all() cancels it (number used).
+ *     So does a margin call found at the bar's last tick.
+ *
+ * OCA groups and risk rules (rules matched on .tmp/issue47, the built-in strategies):
+ *   - an entry or order of an OCA group cancels the other orders of its group
+ *     when it fills (cancel), or lowers their quantity by its fill (reduce);
+ *   - strategy.risk.allow_entry_in: an entry the other way only closes;
+ *   - strategy.risk.max_intraday_loss: see riskPoint;
+ *     strategy.risk.max_intraday_filled_orders: see recordFill. A rule that
+ *     fires cancels every pending order, closes the position ("Close Position
+ *     (...)") and no order is placed until the next day (the bar's local day in
+ *     the exchange zone: a daily or weekly bar is one day).
  */
 import type {
   Bar,
@@ -142,6 +157,7 @@ import type {
   SymbolInfo,
   Trade,
 } from './types';
+import { localDay } from '../data/session/zone';
 
 /** A margin call: a market order that closes `size` of the position (less when the position is smaller). */
 interface MarginCallOrder {
@@ -152,11 +168,23 @@ interface MarginCallOrder {
   equity: number;
 }
 
+export type OcaType = 'none' | 'cancel' | 'reduce';
+
+/** strategy.risk.* rules the broker applies. */
+export type RiskRule =
+  | { rule: 'allow_entry_in'; direction: 'all' | 'long' | 'short' }
+  | { rule: 'max_intraday_loss'; value: number; type: 'percent_of_equity' | 'cash' }
+  | { rule: 'max_intraday_filled_orders'; count: number };
+
 export interface EntryOptions {
   qty?: number;
   limit?: number;
   stop?: number;
   comment?: string;
+  /** One-cancels-all group: `cancel` cancels the other orders of the group when one fills, `reduce` lowers their
+   *  quantity by the quantity filled (cancelled at 0). */
+  ocaName?: string;
+  ocaType?: OcaType;
   /** Pine `when=` (deprecated argument): the call is ignored when false. */
   when?: boolean;
 }
@@ -197,6 +225,8 @@ interface EntryOrder {
   sizePrice: number;
   /** Close of the bar the order was placed on (tick grid, no slippage). */
   placedClose: number;
+  /** Equity when the order was placed (the funds a stop / limit entry is checked against at its fill). */
+  placedEquity: number;
   /** Stop / limit price on the tick grid, null for a market order. */
   level: number | null;
   /** Opposite position the entry was placed against (its reversal part, fixed at placement). */
@@ -207,6 +237,9 @@ interface EntryOrder {
   id: string;
   direction: Direction;
   qty: number;
+  /** OCA group (null = none). */
+  ocaName: string | null;
+  ocaType: OcaType;
   limit: number | null;
   stop: number | null;
   comment: string;
@@ -355,6 +388,21 @@ export class Broker {
   /** Position (signed) and close at the last script run: the state a market entry fill is checked against. */
   private scriptPos = 0;
   private scriptClose = 0;
+  /** strategy.risk.allow_entry_in: entries the other way only close the position. */
+  private allowEntryIn: 'all' | 'long' | 'short' = 'all';
+  private maxIntradayLoss: { value: number; type: 'percent_of_equity' | 'cash' } | null = null;
+  private maxIntradayFills: number | null = null;
+  /** Trading day of the risk rules: the bar's local day in the exchange zone (a daily or weekly bar is one). */
+  private riskDay = NaN;
+  /** Highest equity of the trading day, and the orders filled on it. */
+  private dayMaxEquity = -Infinity;
+  private dayFills = 0;
+  /** A risk rule stopped trading for the rest of this day. */
+  private haltedDay = NaN;
+  /** Order id of the close the filled-orders rule asked for after a margin call: it fills at the next tick. */
+  private pendingRiskClose: string | null = null;
+  /** The close the filled-orders rule asked for after an order fill: it fills at the tick of that fill. */
+  private riskCloseNow: string | null = null;
 
   readonly closedTrades: Trade[] = [];
   readonly filledOrders: FilledOrder[] = [];
@@ -415,13 +463,29 @@ export class Broker {
     this.placeEntry(id, direction, opts, false, 'strategy.entry');
   }
 
+  /** A strategy.risk.* rule (scripts call it on every bar: the last call holds). */
+  risk(r: RiskRule): void {
+    if (r.rule === 'allow_entry_in') this.allowEntryIn = r.direction;
+    else if (r.rule === 'max_intraday_loss') this.maxIntradayLoss = { value: r.value, type: r.type };
+    else this.maxIntradayFills = r.count;
+  }
+
+  /** A risk rule stopped trading for the rest of the current bar's day: new orders are ignored. */
+  private get halted(): boolean {
+    return this.bars.length > 0 && this.haltedDay === this.dayOf(this.bar);
+  }
+
+  private dayOf(i: number): number {
+    return localDay(this.sym.timezone, this.bars[i].time);
+  }
+
   /** strategy.order: a raw order, not limited by pyramiding; it reduces an opposite position first. */
   order(id: string, direction: Direction, opts: EntryOptions = {}): void {
     this.placeEntry(id, direction, opts, true, 'strategy.order');
   }
 
   private placeEntry(id: string, direction: Direction, opts: EntryOptions, isOrder: boolean, fn: string): void {
-    if (opts.when === false) return;
+    if (opts.when === false || this.halted) return;
     const limit = val(opts.limit);
     const stop = val(opts.stop);
     if (limit !== null && stop !== null) throw new Error(`${fn}("${id}"): stop-limit orders are not supported`);
@@ -440,17 +504,29 @@ export class Broker {
       this.entries.delete(id);
       return;
     }
+    // strategy.risk.allow_entry_in: an entry the other way only closes the position.
+    if (!isOrder && this.allowEntryIn !== 'all' && this.allowEntryIn !== direction) qty = 0;
     const prev = this.entries.get(id);
     const pos = this.positionSize;
     // A stop / limit entry is checked when it is placed, not when it fills: the pyramiding limit and the funds
-    // for its own quantity at the price it was sized at. Once placed it fills whatever the position is by then
-    // (pivot-points SPY 1h: a 6th entry at bar 3350, then the margin call; bar 1991: not placed, never filled).
+    // for its own quantity at the higher of the price it was sized at and the close. Once placed it fills whatever
+    // the position is by then (pivot-points SPY 1h: a 6th entry at bar 3350, then the margin call; bar 1991: not
+    // placed, never filled). One that does not fit and reverses the position only closes it (momentum strategy
+    // SPY 4h: a sell stop below the close sized at its price, 100 % of equity, closes the long and opens nothing).
     if (!isOrder && orderPrice !== null) {
       if (!this.canEnter(direction)) return;
       const reverses = pos !== 0 && (pos > 0) !== buy;
       // The open trades count at the current close (SPY 4h bar 869: 16 at 106.02 placed with 78 short at 103.82).
       const close = this.roundPrice(this.bars[this.bar].close);
-      if (qty > 0 && !this.fundsCover(direction, qty, sizePrice, reverses, this.equity, close)) return;
+      if (qty > 0 && !this.fundsCover(direction, qty, Math.max(sizePrice, close), reverses, this.equity, close)) {
+        // The call replaces the order of that id: an order placed by an earlier call goes too (price channel
+        // strategy SPY 15m: a sell stop placed at bar 20, not placeable again at bars 21-25, never fills).
+        if (!reverses) {
+          this.entries.delete(id);
+          return;
+        }
+        qty = 0;
+      }
     }
     // A stop / limit entry is placed against the position expected once the market orders already placed have
     // filled (a market buy of 10 then a sell limit entry of 5 in one script run: 15 sold; the limit entry called
@@ -460,6 +536,7 @@ export class Broker {
     this.entries.set(id, {
       sizePrice,
       placedClose: this.roundPrice(this.bars[this.bar].close),
+      placedEquity: this.equity,
       reverseQty,
       kind: 'entry',
       isOrder,
@@ -472,6 +549,8 @@ export class Broker {
       id,
       direction,
       qty,
+      ocaName: opts.ocaName || null,
+      ocaType: opts.ocaName ? (opts.ocaType ?? 'none') : 'none',
       limit,
       stop,
       // An empty comment shows the order id (four-wma-tp-sl, mean-reversion-vf).
@@ -511,7 +590,7 @@ export class Broker {
   }
 
   close(id: string, opts: CloseOptions = {}): void {
-    if (opts.when === false) return;
+    if (opts.when === false || this.halted) return;
     if (!this.openTrades.some((t) => t.entryId === id)) return;
     this.closes.push({
       kind: 'close',
@@ -525,7 +604,7 @@ export class Broker {
   }
 
   closeAll(opts: { comment?: string; when?: boolean } = {}): void {
-    if (opts.when === false) return;
+    if (opts.when === false || this.halted) return;
     if (this.openTrades.length === 0) return;
     this.closes.push({
       kind: 'close',
@@ -539,7 +618,7 @@ export class Broker {
   }
 
   exit(id: string, opts: ExitOptions = {}): void {
-    if (opts.when === false) return;
+    if (opts.when === false || this.halted) return;
     // An exit applies to the trades open and the entry orders pending when it is called: a call with no trade and
     // no order of `from_entry` is no order (an exit called before its entry, also in the same script run, never
     // fills; a later trade of an id that had one at the call gets its leg).
@@ -646,6 +725,12 @@ export class Broker {
     // With process_orders_on_close that check was made after the fills at the close (see processClose).
     if (i > 0 && !this.props.processOrdersOnClose) this.checkMargin(this.roundPrice(this.bars[i - 1].close), undefined, true);
     this.bar = i;
+    if (this.dayOf(i) !== this.riskDay) {
+      this.riskDay = this.dayOf(i);
+      this.dayMaxEquity = -Infinity;
+      this.dayFills = 0;
+    }
+    this.fillRiskClose(this.roundPrice(this.bars[i].open));
     this.dropOrphanExits();
     // Bar magnifier: the path runs through the lower-timeframe bars of the chart bar (each one open -> nearer
     // extreme -> other extreme -> close, a gap between two of them fills at the later open).
@@ -663,6 +748,8 @@ export class Broker {
     this.touchTrades(open, first.open, held.filter((t) => this.openTrades.includes(t)));
     let cur = open;
     this.fillAt(cur, first.open);
+    this.fillRiskCloseNow(open);
+    this.riskPoint(open);
     // With lower-timeframe bars, trades opened at the chart open and still open at the next tick (the first
     // lower-timeframe open) count the chart open in their range (rsi-mean-reversion AAPL 3D); a trade closed at
     // the open itself does not (triple-ema-trend SPY 1h).
@@ -685,8 +772,11 @@ export class Broker {
         this.touch(o, b.open);
         if (k === 0 && deferMargin) this.checkMargin(open, o);
         this.fillAt(o, b.open);
+        this.fillRiskCloseNow(o);
         this.fillPendingCalls(o);
+        this.fillRiskClose(o);
         this.checkMargin(o);
+        this.riskPoint(o);
         cur = o;
       }
       const high = this.roundPrice(b.high);
@@ -698,12 +788,19 @@ export class Broker {
       for (let n = 0; n < path.length; n++) {
         const [to, raw] = path[n];
         this.walk(cur, to);
+        this.fillRiskCloseNow(to);
         cur = to;
         this.touch(to, raw);
         // A margin call that waits for the bar's last tick fills after the script run (see fillDeferredCalls).
-        if (n === path.length - 1 && !(sub && sub.length)) this.deferPendingCalls();
+        const last = n === path.length - 1 && !(sub && sub.length);
+        if (last) this.deferPendingCalls();
         else this.fillPendingCalls(to);
-        this.checkMargin(to);
+        // Also at the bar's last tick (greedy strategy SPY 5m bar 5987: a margin call at the high, closed at the close).
+        this.fillRiskClose(to);
+        this.checkMargin(to, to, false, last);
+        this.riskPoint(to);
+        // The day's highest equity counts the bar closes, not the prices inside the bars.
+        if (last && this.maxIntradayLoss) this.dayMaxEquity = Math.max(this.dayMaxEquity, this.props.initialCapital + this.netProfit + this.openProfitAt(to));
       }
     }
     // The last tick is the chart bar's close, reached by a jump like the lower-timeframe opens (an order it
@@ -714,8 +811,58 @@ export class Broker {
       this.touch(close, b.close);
       this.fillAt(close, b.close);
       this.deferPendingCalls();
-      this.checkMargin(close);
+      this.checkMargin(close, close, false, true);
+      this.riskPoint(close);
     }
+  }
+
+  /**
+   * strategy.risk.max_intraday_loss at a point of the path: the loss from the day's highest equity (its first tick
+   * and its bar closes), marked at price p. When it reaches the limit (percent of that highest equity, or cash) the
+   * pending orders are cancelled, the position is closed at p and trading stops until the next day (bar-up/down
+   * strategy AAPL 1D trade 1: a short of 100,000 at 0.10, the high reaches 0.11, a loss of 1,000 = 1 %, closed
+   * there; SPY 4h bar 4445: not the low of the bar before, the loss from it would be 1,090).
+   */
+  private riskPoint(p: number): void {
+    const rule = this.maxIntradayLoss;
+    if (!rule || this.halted) return;
+    const equity = this.props.initialCapital + this.netProfit + this.openProfitAt(p);
+    if (this.dayMaxEquity === -Infinity) this.dayMaxEquity = equity;
+    const limit = rule.type === 'cash' ? rule.value : (rule.value / 100) * this.dayMaxEquity;
+    if (this.dayMaxEquity - equity < limit - EPS) return;
+    this.halt();
+    if (this.openTrades.length) this.closePosition('Close Position (Max intraday Loss)', p);
+  }
+
+  /** A risk rule fired: no order is left and none is placed until the next day. */
+  private halt(): void {
+    this.haltedDay = this.dayOf(this.bar);
+    this.entries.clear();
+    this.exits.clear();
+    this.closes = [];
+  }
+
+  /** Close the whole position at tick price p (a market order, slippage included). */
+  private closePosition(id: string, p: number): void {
+    const order: CloseOrder = { kind: 'close', seq: ++this.seq, orderId: id, entryId: null, qty: null, qtyPercent: null, comment: id };
+    this.fillClose(order, this.slip(p, this.positionSize < 0));
+  }
+
+  /** The close the filled-orders rule asked for after an order fill, at the tick p of that fill (an order filled
+   *  on the way to a point of the path belongs to that point). */
+  private fillRiskCloseNow(p: number): void {
+    const id = this.riskCloseNow;
+    if (id === null) return;
+    this.riskCloseNow = null;
+    if (this.openTrades.length) this.closePosition(id, p);
+  }
+
+  /** The close the filled-orders rule asked for after a margin call, at the next tick p. */
+  private fillRiskClose(p: number): void {
+    const id = this.pendingRiskClose;
+    if (id === null) return;
+    this.pendingRiskClose = null;
+    if (this.openTrades.length) this.closePosition(id, p);
   }
 
   /** Flat: exit orders that no pending entry can open a trade for are dropped. */
@@ -958,6 +1105,12 @@ export class Broker {
     const fixed = reverses && type !== 'MARKET';
     let qty = type === 'MARKET' ? o.qty : !reverses ? total : Math.max(0, total - Math.abs(pos));
     if (qty <= 0 && (pos === 0 || (pos > 0) === buy)) return;
+    // A stop / limit entry whose own quantity, at its fill price, is more than the equity when it was placed is
+    // not filled, also when it reverses the position (momentum strategy SPY 4h bar 186: a buy stop of 700 sized at
+    // 145.61, the open gaps to 146.56; bar 226: a buy stop against a short of 609, the short stays open). The
+    // equity since then does not count (Keltner channels strategy SPY 15m bar 2436: a buy stop placed 4 bars
+    // earlier against a short that lost meanwhile fills).
+    if (type !== 'MARKET' && o.qty > 0 && !this.ownFitsAt(o, price)) return;
     // Stop / limit entries were checked at placement (see placeEntry): they fill, and the margin call follows on
     // the same tick (pivot-points SPY 1h bar 1533: 9 + 16 bought on a full position, 28 sold by the margin call).
     if (qty > 0 && type === 'MARKET') {
@@ -992,6 +1145,19 @@ export class Broker {
     }
     if (qty > 0) this.openTrade({ ...o, qty }, price);
     this.recordFill(o.id, o.comment, buy, true, price, closed + qty, type);
+    this.applyOca(o, closed + qty);
+  }
+
+  /** OCA group of filled order `o` (`filled` = its fill quantity): the other orders of the group are cancelled
+   *  (cancel) or lowered by that quantity (reduce, cancelled at 0). */
+  private applyOca(o: EntryOrder, filled: number): void {
+    if (o.ocaName === null || o.ocaType === 'none') return;
+    for (const [id, e] of this.entries) {
+      if (e === o || e.ocaName !== o.ocaName) continue;
+      if (o.ocaType === 'cancel') this.entries.delete(id);
+      else if (e.qty - filled > EPS) e.qty -= filled;
+      else this.entries.delete(id);
+    }
   }
 
   /** strategy.order fill: closes opposite trades first (FIFO), the rest opens a trade. Reported with entry = null. */
@@ -1009,7 +1175,10 @@ export class Broker {
       if (this.fundsCover(o.direction, left, Math.max(price, o.sizePrice))) this.openTrade({ ...o, qty: left }, price);
       else filled -= left;
     }
-    if (filled > 0) this.recordFill(o.id, o.comment, buy, null, price, filled, type);
+    if (filled > 0) {
+      this.recordFill(o.id, o.comment, buy, null, price, filled, type);
+      this.applyOca(o, filled);
+    }
   }
 
   private marginRatio(direction: Direction): number {
@@ -1037,6 +1206,12 @@ export class Broker {
     return ratio <= 0 || o.qty * o.placedClose * this.sym.pointValue * ratio <= this.scriptEquity;
   }
 
+  /** Margin: the own quantity of entry `o` fits in the equity it was placed with, at `price`. */
+  private ownFitsAt(o: EntryOrder, price: number): boolean {
+    const ratio = this.marginRatio(o.direction);
+    return ratio <= 0 || o.qty * price * this.sym.pointValue * ratio <= o.placedEquity;
+  }
+
   /**
    * Margin: a market entry that fills `fillQty` (its own quantity plus the opposite position it closes) is checked
    * against the state at the last script run, not the state at the fill: the position there plus this fill gives
@@ -1058,11 +1233,16 @@ export class Broker {
   }
 
   /** Margin call at price p (a point of the intrabar path), Pine's algorithm; it fills at `fill` (default p, see
-   *  processBar for the chart open with lower-timeframe bars), or at the next open when `atClose`. */
-  private checkMargin(p: number, fill = p, atClose = false): void {
+   *  processBar for the chart open with lower-timeframe bars), at the next open when `atClose`, after the script run
+   *  when `lastTick`. */
+  private checkMargin(p: number, fill = p, atClose = false, lastTick = false): void {
     const call = this.marginCallAt(p, this.props.initialCapital + this.netProfit);
     if (!call) return;
     if (atClose) this.pendingCalls.push(call);
+    // Found at the bar's last tick, it fills there after the script run: the script sees the position before it
+    // (volatility expansion-close SPY 1h bar 207: a short of 478, a call of 8 at the close; the buy stop placed by
+    // that script run reverses 478, not 470).
+    else if (lastTick) this.deferredCalls.push(call);
     else this.fillMarginCall(call, fill);
   }
 
@@ -1393,6 +1573,16 @@ export class Broker {
 
   private recordFill(id: string, comment: string, buy: boolean, entry: boolean | null, price: number, qty: number, type: OrderType): void {
     this.filledOrders.push({ bar: this.bar, time: this.bars[this.bar].time * 1000, id, comment, buy, entry, price, qty, type });
+    // strategy.risk.max_intraday_filled_orders: margin calls count; at the limit the pending orders are cancelled
+    // and the position is closed at the tick of that fill (greedy strategy SPY 15m bar 669: the 5th fill is a buy
+    // stop at the open, closed there; SPY 5m bar 3188: a buy stop on the way up, closed at the high), at the next
+    // tick when it is a margin call (SPY 1h bar 6790: a call at the high, closed at the low).
+    if (this.maxIntradayFills !== null && !this.halted && ++this.dayFills >= this.maxIntradayFills) {
+      this.halt();
+      const close = 'Close Position (Max number of filled orders in one day)';
+      if (id.startsWith('Margin call')) this.pendingRiskClose = close;
+      else this.riskCloseNow = close;
+    }
     // Pending strategy.exit orders are cancelled when a fill leaves the position flat. An exit still waiting for
     // its entry to fill stays (pivot-points SPY 15m: the exit of a limit entry placed while the opposite position
     // was open); one that was live on the closed position goes, whatever entries are pending (st-greed).
@@ -1436,8 +1626,10 @@ export class Broker {
     const p = this.props;
     if (p.defaultQtyType === 'fixed') return this.checkQty(p.defaultQtyValue, fn);
     // Equity without binary noise (65828.48, not 65828.47999999998): on an exact share
-    // boundary the reference app's floor behaves like the decimal value (3 cases checked).
-    const equity = Number(this.equity.toFixed(10));
+    // boundary the reference app's floor behaves like the decimal value (3 cases checked). 8 decimals: the noise
+    // of thousands of summed trade profits reaches 1e-10 (inside bar strategy SPY 5m bar 12725: 91,591.50 for
+    // 122 shares at 750.75).
+    const equity = Number(this.equity.toFixed(8));
     const cash = p.defaultQtyType === 'cash' ? p.defaultQtyValue : (equity * p.defaultQtyValue) / 100;
     if (p.defaultQtyType === 'percent_of_equity' && cash < 0) {
       throw new StrategyRuntimeError(
