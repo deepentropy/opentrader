@@ -11,10 +11,16 @@
  * A click on the title selects the study (a compared symbol's title also
  * changes the symbol), a double click opens its settings. The selected row
  * keeps its buttons shown, framed in blue (reference legend `selected`).
+ *
+ * A study that failed shows a status pill after its title (cross for a symbol
+ * that cannot be loaded, "!" for another error) and no values; the pill's
+ * tooltip is the error title, a click opens a panel with the message under it.
  */
 import { Icon } from "../../components/Icon";
-import { For, Show, type JSX } from "solid-js";
+import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { Portal } from "solid-js/web";
 import type { IndicatorLegendRow } from "./indicators/indicator-controller";
+import type { StudyError } from "./indicators/indicator-layer";
 
 type Props = {
   rows: IndicatorLegendRow[];
@@ -92,6 +98,56 @@ const ICON_MORE = () => (
   </svg>
 );
 
+// Study error glyphs (18-viewBox): a cross for a symbol that cannot be loaded, an exclamation mark otherwise.
+const ICON_ERROR_CROSS = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="none" stroke="currentColor" stroke-width="1.5" d="M5 5l8 8M13 5l-8 8" />
+  </svg>
+);
+const ICON_ERROR_MARK = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+    <path fill="currentColor" d="M8.1 4.5h1.8l-.35 6.2h-1.1z" />
+    <circle fill="currentColor" cx="9" cy="12.9" r="1" />
+  </svg>
+);
+const errorIcon = (e: StudyError) => (e.kind === "invalidSymbol" ? ICON_ERROR_CROSS() : ICON_ERROR_MARK());
+
+/** Error panel under a study's status pill (reference: left = pill - 15 px so the icons line up, top = pill + 7 px;
+ *  344 px wide at most). Closes on a click outside it or Escape. */
+function StudyErrorPanel(props: { error: StudyError; anchor: DOMRect; onClose: () => void }) {
+  let el: HTMLDivElement | undefined;
+  const left = () => Math.max(4, Math.min(props.anchor.left - 15, window.innerWidth - 348));
+  onMount(() => {
+    const down = (e: MouseEvent) => {
+      const t = e.target as Element;
+      if (el?.contains(t) || t.closest?.("[data-qa-id=legend-source-item-status]")) return;
+      props.onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    document.addEventListener("mousedown", down, true);
+    document.addEventListener("keydown", key, true);
+    onCleanup(() => {
+      document.removeEventListener("mousedown", down, true);
+      document.removeEventListener("keydown", key, true);
+    });
+  });
+  return (
+    <Portal>
+      <div ref={el} class="ot-study-error-panel" data-qa-id="chart-statuses-popup" style={{ left: `${left()}px`, top: `${props.anchor.bottom + 7}px` }}>
+        <div class="ot-study-error-panel-body" data-qa-id="data-source-error-status">
+          <span class={`ot-study-error-icon is-${props.error.kind}`}>{errorIcon(props.error)}</span>
+          <div class="ot-study-error-desc">
+            <span class={`ot-study-error-title is-${props.error.kind}`}>{props.error.title}</span>
+            <p class="ot-study-error-text">{props.error.message}</p>
+          </div>
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 /** Compact study legend value format ("773.19 M", "82.50"). */
 function fmtVal(v: number): string {
   const a = Math.abs(v);
@@ -118,7 +174,13 @@ function ActionButton(props: { qa: string; title: string; onClick?: (e: MouseEve
 }
 
 export function IndicatorLegend(props: Props) {
-  return (
+  // Error panel of a study (its id and the pill's rect); closed when the study no longer fails.
+  const [panel, setPanel] = createSignal<{ id: string; anchor: DOMRect } | null>(null);
+  const panelError = () => {
+    const p = panel();
+    return p ? (props.rows.find((r) => r.id === p.id)?.error ?? null) : null;
+  };
+  return (<>
     <Show when={props.rows.length > 0}>
       <div class="ot-ind-legend" data-name="legend-sources">
         <For each={props.rows}>
@@ -156,6 +218,27 @@ export function IndicatorLegend(props: Props) {
                   </Show>
                 </span>
               </Show>
+              {/* A study that failed: its status pill, tooltip = the error title, click = the error panel. */}
+              <Show when={!row.compare && row.error}>
+                {(err) => (
+                  <span class="ot-ind-legend-status" data-qa-id="legend-statuses-wrapper">
+                    <button
+                      type="button"
+                      class={`ot-ind-legend-error-pill is-${err().kind}`}
+                      data-role="statuses-pill"
+                      data-qa-id="legend-source-item-status"
+                      title={err().title}
+                      onClick={(e) => {
+                        const id = row.id;
+                        const anchor = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setPanel((p) => (p?.id === id ? null : { id, anchor }));
+                      }}
+                    >
+                      {errorIcon(err())}
+                    </button>
+                  </span>
+                )}
+              </Show>
               {/* Strategies: the reference app's "Active strategy" status pill (18 px, #82b1ff). */}
               <Show when={row.id.startsWith("strategy:")}>
                 <span class="ot-ind-legend-status" data-qa-id="legend-statuses-wrapper">
@@ -178,7 +261,7 @@ export function IndicatorLegend(props: Props) {
                     </span>
                   )}
                 </Show>
-                <Show when={!row.compare && !row.hidden && (props.showValues ?? true) && row.showValues}>
+                <Show when={!row.compare && !row.hidden && !row.error && (props.showValues ?? true) && row.showValues}>
                   <span class="ot-ind-legend-values">
                     <For each={row.plots}>
                       {(p) => <span class="ot-ind-legend-val" style={{ color: p.color }}>{row.precision !== null ? p.value.toFixed(row.precision) : fmtVal(p.value)}</span>}
@@ -204,5 +287,8 @@ export function IndicatorLegend(props: Props) {
         </For>
       </div>
     </Show>
-  );
+    <Show when={panel() && panelError()}>
+      {(err) => <StudyErrorPanel error={err()} anchor={panel()!.anchor} onClose={() => setPanel(null)} />}
+    </Show>
+  </>);
 }

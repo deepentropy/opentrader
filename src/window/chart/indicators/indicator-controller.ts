@@ -17,7 +17,7 @@ import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { getIndicatorEntry } from './registry';
 import { isStrategyId } from './strategy-entries';
-import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides } from './indicator-layer';
+import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides, type StudyError } from './indicator-layer';
 import { OtherSymbolBars } from './other-symbols';
 import { intervalSeconds } from '../../../backtester/magnifier';
 import type { BackgroundAt } from '../selection-markers';
@@ -84,6 +84,8 @@ export type IndicatorLegendRow = {
   offInterval: boolean;
   /** The legend eye state alone (hidden also covers offInterval). */
   eyeHidden: boolean;
+  /** The study failed: its status in the legend (values hidden). */
+  error?: StudyError | null;
   /** Set on a compared symbol's row: its value texts (in the line colour);
    *  the title is shown as is and its click changes the symbol. */
   compare?: { texts: { text: string; color: string }[] };
@@ -124,6 +126,7 @@ export class IndicatorController {
   /** A study re-created its series (full draw): the chart re-applies the
    *  drawing order of its sources. */
   private seriesChanged: () => void = () => {};
+  private redrawn: () => void = () => {};
 
   /** Identifies the chart for studies that keep per-chart state (strategies). */
   private chartId: string;
@@ -190,6 +193,7 @@ export class IndicatorController {
         if (entry) this.renderOne(id, inst, entry, bars, liveOnly);
       }
       this.retainSymbols();
+      this.redrawn();
     }, SYMBOLS_DELAY_MS);
   }
 
@@ -217,6 +221,7 @@ export class IndicatorController {
       const entry = getIndicatorEntry(id);
       if (entry?.usesVisibleRange) this.renderOne(id, inst, entry, bars);
     }
+    this.redrawn();
   }
 
   /** Reconcile the live layers with the desired ordered list of registry ids. */
@@ -235,6 +240,12 @@ export class IndicatorController {
     }
     this.lastIds = ids;
     this.orderPanes(ids);
+  }
+
+  /** How the chart hears that studies calculated again on their own (other symbols' bars, visible range): its
+   *  legend shows their new values and statuses. */
+  setRedrawnHook(hook: () => void): void {
+    this.redrawn = hook;
   }
 
   /** How the chart hears that a study re-created its series. */
@@ -498,6 +509,7 @@ export class IndicatorController {
         precision: precisionDigits(o.precision),
         offInterval,
         eyeHidden: this.hidden.has(id),
+        error: inst.layer.studyError(),
       });
     }
     return rows;

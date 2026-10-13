@@ -69,6 +69,20 @@ export type StudyCalcContext = StudyChart & Pick<IndicatorChartContext, 'leftVis
 export type StudyChartState = () => { heikinAshi: boolean; realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
 /** Times (chart bar times) of the first and last bars visible on the chart; null = not known. */
 export type StudyVisibleRange = () => { from: number; to: number } | null;
+/** A study that failed, shown with it in the legend: another symbol it reads cannot be loaded (`invalidSymbol`), or
+ *  its calculation stopped on an error (`error`). `title`: the status tooltip and the panel title; `message`: the
+ *  panel text. */
+export type StudyError = { kind: 'invalidSymbol' | 'error'; title: string; message: string };
+
+const INVALID_SYMBOL: StudyError = { kind: 'invalidSymbol', title: 'Invalid symbol', message: "This symbol doesn't exist, please pick another one." };
+
+/** The legend status of an error thrown by a study. */
+function studyErrorOf(err: unknown): StudyError {
+  const message = err instanceof Error ? err.message : String(err);
+  if (/^Invalid symbol\b/.test(message)) return INVALID_SYMBOL;
+  return { kind: 'error', title: 'Runtime error', message };
+}
+
 /** Results already put back on the chart's bar times: a user script returns its cached result again. */
 const restored = new WeakSet<object>();
 
@@ -214,6 +228,8 @@ export class IndicatorLayer {
   /** Bars of other symbols (`bars` / `symbolInfo` of the chart context) and the ones the last calculation read. */
   private otherSymbols: OtherSymbolBars | null = null;
   private usedSymbols = new Set<string>();
+  /** Why the last calculation failed (null = it did not). */
+  private error: StudyError | null = null;
   /** Study instance id ("rsi#2"): studies with run state keep one per instance. */
   private studyId: string | undefined;
 
@@ -248,6 +264,11 @@ export class IndicatorLayer {
 
   setOtherSymbols(store: OtherSymbolBars | null): void {
     this.otherSymbols = store;
+  }
+
+  /** Why the study's last calculation failed (legend status), null when it did not. */
+  studyError(): StudyError | null {
+    return this.error;
   }
 
   /** Keys (`symbol|interval`) of the other symbols the last calculation read. */
@@ -330,6 +351,7 @@ export class IndicatorLayer {
   }
 
   private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): any {
+    this.error = null;
     try {
       const ctx: StudyCalcContext = { ...this.scriptChart, ...this.chartState(), chartId: this.chartId, studyId: this.studyId };
       const store = this.otherSymbols;
@@ -356,6 +378,11 @@ export class IndicatorLayer {
         }
       }
       const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+      // Another symbol it reads cannot be loaded: the study fails and draws nothing.
+      if (store && [...used].some((k) => store.failed(k))) {
+        this.error = INVALID_SYMBOL;
+        return null;
+      }
       if (seen !== bars && result && typeof result === 'object' && !restored.has(result)) {
         restoreTimes(result, seen, bars);
         restored.add(result);
@@ -364,7 +391,8 @@ export class IndicatorLayer {
     } catch (err) {
       // Bars of other symbols still loading: the chart calculates the study again when they arrive.
       if (err instanceof MissingSymbolDataError) return null;
-      // A single indicator throwing must not break the chart or its siblings.
+      // A single indicator throwing must not break the chart or its siblings; the legend shows the error.
+      this.error = studyErrorOf(err);
       // eslint-disable-next-line no-console
       console.warn(`[indicators] ${entry.id} failed to calculate`, err);
       return null;

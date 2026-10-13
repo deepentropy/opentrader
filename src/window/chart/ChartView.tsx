@@ -2963,6 +2963,7 @@ export function ChartView(props: Props) {
     controller.setLastBarOpenProbe(lastBarForming);
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
     controller.setSeriesChangedHook(scheduleSourceOrder);
+    controller.setRedrawnHook(() => refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined));
     setChartReady((n) => n + 1);
 
     hostW = host.clientWidth;

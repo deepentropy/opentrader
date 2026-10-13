@@ -155,6 +155,9 @@ function makeCalculate(
       if (rt.running) rt.queued = { bars: snapshot, inputs: typedInputs, chart, heikinAshi, key };
       else void run(runKey, execute, chartId, rt, snapshot, typedInputs, chart, heikinAshi, key);
     }
+    // The last run for these bars and inputs stopped on an error: the chart shows it with the study.
+    const last = strategyTester.run(chartId, runKey);
+    if (!rt.running && rt.key === key && last?.status === "error" && last.error) throw new Error(last.error.message);
     return rt.visuals ?? EMPTY_RESULT;
   }) as IndicatorRegistryEntry["calculate"];
 }

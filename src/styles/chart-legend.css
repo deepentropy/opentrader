@@ -482,3 +482,78 @@ html.theme-light .ot-ind-legend-row.is-selected {
   width: 18px;
   text-align: center;
 }
+
+/* Status of a study that failed (reference app 3.4.1, legend statuses):
+   18 px round pill after the title. Symbol that cannot be loaded: white cross on
+   the danger red; another error: red "!" on a light red overlay. */
+.ot-ind-legend-error-pill {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  cursor: default;
+  pointer-events: auto;
+}
+.ot-ind-legend-error-pill.is-invalidSymbol { color: #fff; background-color: var(--color-ripe-red-500, #f23645); }
+.ot-ind-legend-error-pill.is-invalidSymbol:hover { background-color: var(--color-ripe-red-400, #f7525f); }
+.ot-ind-legend-error-pill.is-invalidSymbol:active { background-color: var(--color-ripe-red-a400, #f33); }
+html.theme-light .ot-ind-legend-error-pill.is-invalidSymbol:hover { background-color: var(--color-ripe-red-600, #cc2f3c); }
+html.theme-light .ot-ind-legend-error-pill.is-invalidSymbol:active { background-color: var(--color-ripe-red-800, #991f29); }
+.ot-ind-legend-error-pill.is-error { color: var(--color-ripe-red-a400, #f33); background-color: #f2364533; }
+.ot-ind-legend-error-pill.is-error:hover { background-color: #f236454d; }
+.ot-ind-legend-error-pill.is-error:active { background-color: #f2364566; }
+html.theme-light .ot-ind-legend-error-pill.is-error { color: var(--color-ripe-red-800, #991f29); background-color: #cc2f3c26; }
+html.theme-light .ot-ind-legend-error-pill.is-error:hover { background-color: #cc2f3c4d; }
+html.theme-light .ot-ind-legend-error-pill.is-error:active { background-color: #cc2f3c66; }
+
+/* Error panel under the pill: popup background, radius 6, shadow 0 2px 4px,
+   344 px at most, padding 11/16/10; icon 18 px, title 16/22 600, text 14/21. */
+.ot-study-error-panel {
+  position: fixed;
+  z-index: 1000;
+  max-width: 344px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background-color: var(--color-popup-background, #1f1f1f);
+  box-shadow: 0 2px 4px #0006;
+  color: var(--color-popup-element-text, #dbdbdb);
+}
+html.theme-light .ot-study-error-panel { box-shadow: 0 2px 4px #0003; }
+.ot-study-error-panel-body {
+  display: flex;
+  padding: 11px 16px 10px;
+}
+.ot-study-error-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 2px 6px 2px 0;
+  border-radius: 9px;
+}
+.ot-study-error-icon.is-invalidSymbol { color: #fff; background-color: var(--color-ripe-red-500, #f23645); }
+.ot-study-error-icon.is-error { color: var(--color-ripe-red-a400, #f33); background-color: #f2364533; }
+html.theme-light .ot-study-error-icon.is-error { color: var(--color-ripe-red-800, #991f29); background-color: #cc2f3c26; }
+.ot-study-error-desc {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.ot-study-error-title {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ot-study-error-title.is-invalidSymbol { color: var(--color-ripe-red-500, #f23645); }
+.ot-study-error-title.is-error { color: var(--color-ripe-red-a400, #f33); }
+html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-800, #991f29); }
+.ot-study-error-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  white-space: pre-wrap;
+}

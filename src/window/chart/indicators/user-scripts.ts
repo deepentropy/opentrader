@@ -55,6 +55,8 @@ type Run = {
   queued: QueuedRun | null;
   /** Bars of other symbols the script asked for (`request.security`): given with every run. */
   requests: { symbol: string; timeframe: string }[];
+  /** Message of the failed run for `key` (null = it did not fail). */
+  error: string | null;
 };
 
 type Runtime = {
@@ -128,6 +130,7 @@ async function runInWorker(
     }
     run.result = await engine.run(scriptId, bars, inputs, chart, symbols);
     run.key = key;
+    run.error = null;
   } catch (err) {
     const missing = err instanceof OakEngineError ? err.detail.missing : undefined;
     if (missing?.length) {
@@ -142,6 +145,7 @@ async function runInWorker(
     // re-schedule a doomed run in a hot loop.
     run.result = null;
     run.key = key;
+    run.error = err instanceof Error ? err.message : String(err);
     console.warn(`[oakscript] "${scriptId}" run failed:`, err instanceof Error ? err.message : err);
   } finally {
     run.running = false;
@@ -166,7 +170,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     const { chartId, studyId, heikinAshi: _heikinAshi, bars: symbolBars, symbolInfo, ...chart } = (ctx ?? {}) as Partial<StudyCalcContext>;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
-    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [] }));
+    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [], error: null }));
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps
     // them while a study reads them); one not loaded yet holds the run until it arrives.
     let symbols: OakSymbolData | undefined;
@@ -194,6 +198,8 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
         void runInWorker(rt, run, scriptId, snapshot, typedInputs, chart, symbols, key);
       }
     }
+    // The run for these bars and inputs failed: the chart shows the error with the study.
+    if (run.error !== null && run.key === key) throw new Error(run.error);
     return run.result ?? EMPTY_RESULT;
   };
 }

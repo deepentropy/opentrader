@@ -100,6 +100,11 @@ export class OtherSymbolBars {
     return e.seen;
   }
 
+  /** The bars of a key (`symbol|interval`) could not be loaded (unknown symbol, not served). */
+  failed(key: string): boolean {
+    return this.entries.get(key)?.failed ?? false;
+  }
+
   /** Time zone, session and price grid of `symbol` (undefined until its session is known). */
   symbolInfo(symbol: string): SymbolInfo | undefined {
     const s = cachedSymbolSessions(symbol.trim().toUpperCase());
