@@ -44,6 +44,9 @@ function calcTpo(bars: Bar[], inputs: Record<string, unknown>, ctx: ProfileCalcC
     else groups.push({ g0: i, g1: i });
     key = k;
   }
+  // Splits and merges of this symbol and period settings (reference: per symbol, cleared by another period / block).
+  const actions = splitMergeActions(inputs, splitMergeKey(ctx.tickerid ?? "", inputs, sessionsMode));
+  const profilesIdx = applySplitMerge(ltf, groups, actions);
   const chartIndex = (t: number) => {
     let at = t;
     if (sec >= 86400) {
@@ -54,12 +57,12 @@ function calcTpo(bars: Bar[], inputs: Record<string, unknown>, ctx: ProfileCalcC
   };
   const profiles: TpoProfile[] = [];
   let rows = 0;
-  for (let k = groups.length - 1; k >= 0 && rows < MAX_TOTAL_ROWS; k--) {
-    const g = groups[k];
-    const i0 = chartIndex(ltf[g.g0].time as number);
-    const i1 = chartIndex(ltf[g.g1].time as number);
+  for (let k = profilesIdx.length - 1; k >= 0 && rows < MAX_TOTAL_ROWS; k--) {
+    const g = profilesIdx[k];
+    const i0 = chartIndex(ltf[g[0]].time as number);
+    const i1 = chartIndex(ltf[g[g.length - 1]].time as number);
     if (i0 < 0 || i1 < 0) break;
-    const p = buildTpo(ltf, g.g0, g.g1, tick, tpr, Number(inputs.vaPercent ?? 70), Math.max(1, Math.round(style.ibBlocks)));
+    const p = buildTpo(ltf, g, tick, tpr, Number(inputs.vaPercent ?? 70), Math.max(1, Math.round(style.ibBlocks)));
     if (!p) continue;
     rows += p.rows.length;
     const price = (r: number, mid = true) => (r + (mid ? 0.5 : 0)) * p.rowSize;
@@ -90,6 +93,52 @@ function calcTpo(bars: Bar[], inputs: Record<string, unknown>, ctx: ProfileCalcC
   return { plots: {}, tpo: { profiles, style } satisfies TpoDraw };
 }
 
+// ── Split / merge ──────────────────────────────────────────────────────────
+
+/** One split / merge of the profiles (reference "mergePoints"): split at a block's time, merge the profile starting
+ *  at `time` with the previous one. Times in ms. */
+export type SplitMergeAction = { action: "split" | "merge"; time: number };
+
+/** Key of the splits and merges of a study: the symbol and the inputs the profiles depend on. */
+export function splitMergeKey(symbol: string, inputs: Record<string, unknown>, sessionsMode: boolean): string {
+  const deps = sessionsMode
+    ? [inputs.profilesSessions, inputs.customSession, inputs.customSessionTZ, inputs.blockSize]
+    : [inputs.periodsNum, inputs.period, inputs.blockSize];
+  return [symbol.toUpperCase(), ...deps.map((d) => String(d ?? ""))].join(";");
+}
+
+/** The stored splits and merges by key (input `mergePoints`, JSON). */
+export function splitMergeMap(inputs: Record<string, unknown>): Record<string, SplitMergeAction[]> {
+  try {
+    const v = JSON.parse(String(inputs.mergePoints ?? "{}"));
+    return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+function splitMergeActions(inputs: Record<string, unknown>, key: string): SplitMergeAction[] {
+  return splitMergeMap(inputs)[key] ?? [];
+}
+
+/** Profiles (block bar indexes) after the splits and merges, in order. */
+function applySplitMerge(ltf: Bar[], groups: { g0: number; g1: number }[], actions: SplitMergeAction[]): number[][] {
+  const out: number[][] = groups.map((g) => Array.from({ length: g.g1 - g.g0 + 1 }, (_, k) => g.g0 + k));
+  for (const a of actions) {
+    const t = a.time / 1000;
+    if (a.action === "split") {
+      const k = out.findIndex((p) => p.length > 1 && (ltf[p[0]].time as number) < t && t <= (ltf[p[p.length - 1]].time as number));
+      if (k < 0) continue;
+      const at = out[k].findIndex((i) => (ltf[i].time as number) >= t);
+      if (at > 0) out.splice(k, 1, out[k].slice(0, at), out[k].slice(at));
+    } else {
+      const k = out.findIndex((p) => (ltf[p[0]].time as number) === t);
+      if (k > 0) out.splice(k - 1, 2, [...out[k - 1], ...out[k]]);
+    }
+  }
+  return out;
+}
+
 type Input = IndicatorRegistryEntry["inputConfig"][number] & { display?: string; tooltip?: string; enabledWhen?: { id: string; value: string }; hidden?: boolean };
 
 const BLOCK_INPUTS: Input[] = [
@@ -101,7 +150,11 @@ const BLOCK_INPUTS: Input[] = [
 
 /** Level extensions: edited in the Style / Volume profile tabs (Extend / Don't extend). */
 export const TPO_EXTEND_INPUTS = ["extendPOC", "extendPoorHigh", "extendPoorLow", "extendSingleprints", "extendTpoVah", "extendTpoVal", "extendVolumePoc", "extendVolumeVah", "extendVolumeVal"];
-const EXTEND_INPUTS: Input[] = TPO_EXTEND_INPUTS.map((id) => ({ id, type: "bool", title: id, defval: false, display: "none", hidden: true }) as Input);
+const EXTEND_INPUTS: Input[] = [
+  ...TPO_EXTEND_INPUTS.map((id) => ({ id, type: "bool", title: id, defval: false, display: "none", hidden: true }) as Input),
+  // Splits and merges (block context menu), by symbol and period settings.
+  { id: "mergePoints", type: "string", title: "mergePoints", defval: "{}", display: "none", hidden: true } as Input,
+];
 
 /** Extra field of a TPO entry the app reads (dialog tabs). */
 export type TpoEntryMeta = { tpo: true };

@@ -146,7 +146,8 @@ import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from 
 import { IndicatorLegend } from "./IndicatorLegend";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
-import { isTpoEntry } from "./profiles/tpo";
+import { isTpoEntry, splitMergeKey, splitMergeMap, type SplitMergeAction } from "./profiles/tpo";
+import type { TpoBlockHit } from "./profiles/tpo-primitive";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
@@ -1359,8 +1360,14 @@ export function ChartView(props: Props) {
    *  indicator/strategy on the study, Visual order, Visibility on intervals,
    *  Move to, Pin to scale, Copy. */
   function openIndicatorMoreMenu(id: string, anchor: DOMRect) {
+    const nodes = studyMenuNodes(id);
+    if (nodes) setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
+  }
+
+  /** A study's actions menu (legend "More", right click on its drawing); null when it is not in the legend. */
+  function studyMenuNodes(id: string): CtxNode[] | null {
     const row = indLegend().find((r) => r.id === id);
-    if (!row) return;
+    if (!row) return null;
     const nodes: CtxNode[] = [];
     // No favorites row for studies that cannot be starred (compare/overlay).
     if (getIndicatorEntry(id)) {
@@ -1382,7 +1389,42 @@ export function ChartView(props: Props) {
       { kind: "separator" },
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setSettingsForId(id) },
     );
-    setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
+    return nodes;
+  }
+
+  /** Right click on a TPO block: the study's menu, then the reference block actions (after the study's actions):
+   *  split the profile at the block (not on its first block), merge it with the previous profile (not the first
+   *  profile), reset all splits and merges; disabled on charts without time-based bars. Kept per symbol and
+   *  period settings in the study's `mergePoints` input. */
+  function openTpoBlockMenu(id: string, hit: TpoBlockHit, x: number, y: number) {
+    const nodes = studyMenuNodes(id);
+    if (!nodes) return;
+    const timeBased = !isTransformType(activeType);
+    const entry = getIndicatorEntry(id);
+    const update = (fn: (list: SplitMergeAction[]) => SplitMergeAction[]) => {
+      const inputs = { ...(controller?.getInputs(id) ?? {}) };
+      const key = splitMergeKey(props.symbol ?? "", inputs, id.startsWith("tpo-sessions"));
+      const map = splitMergeMap(inputs);
+      const list = fn(map[key] ?? []);
+      if (list.length) map[key] = list;
+      else delete map[key];
+      inputs.mergePoints = JSON.stringify(map);
+      const styles = controller?.getStyles(id) ?? {};
+      const options = controller?.getOptions(id);
+      controller?.applySettings(id, inputs, styles, options);
+      if (options) props.onIndicatorSettings?.(id, { inputs, styles, options });
+    };
+    if (!entry) return;
+    nodes.push(
+      { kind: "separator" },
+      { kind: "item", id: "tpo-split", label: "Split profile at this letter", disabled: !timeBased || hit.block === 0,
+        onSelect: () => update((l) => [...l, { action: "split", time: hit.blockTime * 1000 }]) },
+      { kind: "item", id: "tpo-merge", label: "Merge with previous profile", disabled: !timeBased || !hit.hasPrevious,
+        onSelect: () => update((l) => [...l, { action: "merge", time: hit.profileStart * 1000 }]) },
+      { kind: "item", id: "tpo-reset", label: "Reset all merges and splits", disabled: !timeBased,
+        onSelect: () => update(() => []) },
+    );
+    setCtxMenu({ x, y, nodes });
   }
 
   /** Legend compared-symbol "More" → its actions menu. Rows with no OT
@@ -1423,6 +1465,12 @@ export function ChartView(props: Props) {
       if (yFromBottom <= chart.timeScale().height()) { openTimeScaleMenu(e); return; }
     }
     const yRel = host ? e.clientY - host.getBoundingClientRect().top : 0;
+    // On a TPO block: the study's menu with the block actions.
+    if (chart && host && (paneAtY(yRel) ?? 0) === 0) {
+      const left = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
+      const tpoHit = controller?.tpoBlockAt(e.clientX - host.getBoundingClientRect().left - left, yRel);
+      if (tpoHit) { openTpoBlockMenu(tpoHit.id, tpoHit.hit, e.clientX, e.clientY); return; }
+    }
     // In a study pane the price is that pane's (its study's scale) and the
     // alert is on the study (the reference pane menu's main source).
     const paneIdx = paneAtY(yRel) ?? 0;

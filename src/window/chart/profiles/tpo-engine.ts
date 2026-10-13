@@ -35,6 +35,8 @@ export type TpoProfile = {
   rows: { row: number; blocks: number[] }[];
   /** Number of blocks in the profile. */
   blockCount: number;
+  /** Start time (seconds) of each block bar: split / merge points. */
+  blockTimes: number[];
   poc: number;
   vah: number;
   val: number;
@@ -72,18 +74,17 @@ export function autoTicksPerRow(bars: Bar[], tick: number): number {
   return Math.min(1e6, Math.max(1, Math.round(d / p) * p));
 }
 
-/** Levels of one profile from its block bars [g0, g1]. */
-export function buildTpo(bars: Bar[], g0: number, g1: number, tick: number, tpr: number, vaPct: number, ibBlocks: number): Omit<TpoProfile, "i0" | "i1" | "extend" | "singleExtend"> | null {
-  if (g1 < g0) return null;
+/** Levels of one profile from its block bars (indexes into `bars`, in time order; block k = the k-th). */
+export function buildTpo(bars: Bar[], idx: readonly number[], tick: number, tpr: number, vaPct: number, ibBlocks: number): Omit<TpoProfile, "i0" | "i1" | "extend" | "singleExtend"> | null {
+  if (idx.length === 0) return null;
   const marks = new Map<number, number[]>();
   const vol = new Map<number, number>();
-  for (let i = g0; i <= g1; i++) {
-    const b = bars[i];
+  for (let k = 0; k < idx.length; k++) {
+    const b = bars[idx[k]];
     const lo = toTicks(b.low, tick);
     const hi = toTicks(b.high, tick);
     const r0 = Math.floor(lo / tpr);
     const r1 = Math.max(r0, Math.ceil(hi / tpr) - 1);
-    const k = i - g0;
     for (let r = r0; r <= r1; r++) {
       let list = marks.get(r);
       if (!list) marks.set(r, (list = []));
@@ -138,7 +139,8 @@ export function buildTpo(bars: Bar[], g0: number, g1: number, tick: number, tpr:
   return {
     rowSize: tpr * tick,
     rows: keys.map((row) => ({ row, blocks: marks.get(row)! })),
-    blockCount: g1 - g0 + 1,
+    blockCount: idx.length,
+    blockTimes: idx.map((i) => bars[i].time as number),
     poc: minRow + pocI,
     vah: minRow + vaHi,
     val: minRow + vaLo,
@@ -151,8 +153,8 @@ export function buildTpo(bars: Bar[], g0: number, g1: number, tick: number, tpr:
     volumePoc,
     volumeVah,
     volumeVal,
-    open: bars[g0].open,
-    close: bars[g1].close,
+    open: bars[idx[0]].open,
+    close: bars[idx[idx.length - 1]].close,
   };
 }
 

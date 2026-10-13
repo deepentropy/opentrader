@@ -63,7 +63,12 @@ const letterOf = (e: number) => String.fromCharCode((Math.floor(e / 26) % 2 === 
 /** Light colour (the reference black / white split at grey 150). */
 const isLight = (color: string) => { const [r, g, b] = parse(color); return 0.199 * r + 0.687 * g + 0.114 * b >= 150; };
 
+/** A block under the pointer (right click: split / merge actions). Times in seconds. */
+export type TpoBlockHit = { block: number; blockTime: number; profileStart: number; hasPrevious: boolean };
+
 export class TpoPrimitive implements ISeriesPrimitive<Time> {
+  /** Cells drawn at the last paint (media px), for the block under the pointer. */
+  private cells: { x0: number; x1: number; y0: number; y1: number; profile: number; block: number }[] = [];
   private chart: IChartApi | null = null;
   private series: ISeriesApi<SeriesType, Time> | null = null;
   private readonly views: IPrimitivePaneView[];
@@ -109,8 +114,17 @@ export class TpoPrimitive implements ISeriesPrimitive<Time> {
     return bg.color ?? bg.bottomColor ?? bg.topColor ?? (this.dark ? "#0F0F0F" : "#FFFFFF");
   }
 
+  /** The block drawn at media point (x, y) of the pane, or null. */
+  blockAt(x: number, y: number): TpoBlockHit | null {
+    const c = this.cells.find((q) => x >= q.x0 && x <= q.x1 && y >= q.y0 && y <= q.y1);
+    if (!c) return null;
+    const p = this.draw.profiles[c.profile];
+    return { block: c.block, blockTime: p.blockTimes[c.block], profileStart: p.blockTimes[0], hasPrevious: c.profile > 0 };
+  }
+
   private paint(target: CanvasRenderingTarget2D): void {
     const { chart, series } = this;
+    this.cells = [];
     if (!chart || !series) return;
     const half = this.halfBar();
     const st = this.draw.style;
@@ -127,12 +141,12 @@ export class TpoPrimitive implements ISeriesPrimitive<Time> {
         const extended = Object.values(p.extend).some((v) => v !== null && v !== undefined) || p.singleExtend.some((v) => v !== null);
         if (!extended && (right < 0 || left > mediaSize.width)) return;
         const expand = st.expand && (st.expandMode === "All" || idx === profiles.length - 1);
-        this.paintProfile(ctx, p, left, right, expand, hr, vr, mediaSize.width, bg, font);
+        this.paintProfile(ctx, p, idx, left, right, expand, hr, vr, mediaSize.width, bg, font);
       });
     });
   }
 
-  private paintProfile(ctx: CanvasRenderingContext2D, p: TpoProfile, A: number, H: number, expand: boolean, hr: number, vr: number, paneW: number, bg: string, font: string): void {
+  private paintProfile(ctx: CanvasRenderingContext2D, p: TpoProfile, profileIndex: number, A: number, H: number, expand: boolean, hr: number, vr: number, paneW: number, bg: string, font: string): void {
     const series = this.series!;
     const st = this.draw.style;
     const y = (price: number) => series.priceToCoordinate(price);
@@ -225,6 +239,7 @@ export class TpoPrimitive implements ISeriesPrimitive<Time> {
           ctx.strokeRect(c.start - margin / 2, y0 - margin / 2, c.end - c.start + margin + 1, y1 - y0 + margin + 1);
           ctx.fillStyle = blocks ? color : withAlpha(bg, 0.7);
           ctx.fillRect(c.start, y0, c.end - c.start + 1, y1 - y0 + 1);
+          this.cells.push({ x0: c.start / hr, x1: (c.end + 1) / hr, y0: y0 / vr, y1: (y1 + 1) / vr, profile: profileIndex, block: e });
           if (letters) {
             ctx.fillStyle = isPoc && blocks ? pocLetter : blocks ? "#FFFFFF" : color;
             ctx.fillText(letterOf(e), Math.round((c.start + c.end) / 2), Math.round((y0 + y1) / 2));

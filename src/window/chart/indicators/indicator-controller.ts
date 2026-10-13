@@ -19,6 +19,7 @@ import { getIndicatorEntry } from './registry';
 import { isStrategyId } from './strategy-entries';
 import { IndicatorLayer, type IndicatorLegendPlot, type IndicatorStyleOverrides, type StudyError } from './indicator-layer';
 import { OtherSymbolBars } from './other-symbols';
+import type { TpoBlockHit } from '../profiles/tpo-primitive';
 import { intervalSeconds } from '../../../backtester/magnifier';
 import type { BackgroundAt } from '../selection-markers';
 import { isVisibleOnInterval } from 'lightweight-charts-drawing/core/types';
@@ -175,6 +176,16 @@ export class IndicatorController {
     this.chartId = chartId;
     chart.timeScale().subscribeVisibleTimeRangeChange(this.onVisibleRange);
     this.otherSymbols = new OtherSymbolBars((keys, live) => this.onSymbolsMoved(keys, live), `ind:${chartId}`);
+  }
+
+  /** The TPO study block at media point (x, y) of the price pane (the newest study first), or null. */
+  tpoBlockAt(x: number, y: number): { id: string; hit: TpoBlockHit } | null {
+    for (const [id, inst] of [...this.instances].reverse()) {
+      if (inst.owner || inst.paneIndex !== 0) continue;
+      const hit = inst.layer.tpoBlockAt(x, y);
+      if (hit) return { id, hit };
+    }
+    return null;
   }
 
   /** Lower-timeframe keys the drawings read (volume profile drawings): kept loaded, and the drawings repaint when

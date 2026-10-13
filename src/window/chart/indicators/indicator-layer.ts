@@ -37,7 +37,7 @@ import { MissingSymbolDataError } from 'lightweight-charts-indicators';
 import type { ChartEvent } from '../../../data/datafeed';
 import { VbpPrimitive } from '../profiles/vbp-primitive';
 import type { VbpDraw } from '../profiles/vbp-studies';
-import { TpoPrimitive } from '../profiles/tpo-primitive';
+import { TpoPrimitive, type TpoBlockHit } from '../profiles/tpo-primitive';
 import type { TpoDraw } from '../profiles/tpo-engine';
 import { uiTheme } from '../../header/chart-settings';
 
@@ -577,7 +577,11 @@ export class IndicatorLayer {
     if (tpo && main) {
       const primitive = new TpoPrimitive(tpo, this.lastBars.map((b) => b.time as unknown as number), uiTheme() !== 'light');
       main.attachPrimitive(primitive as ISeriesPrimitive<Time>);
-      this.detachers.push(() => main.detachPrimitive(primitive as ISeriesPrimitive<Time>));
+      this.tpoPrimitive = primitive;
+      this.detachers.push(() => {
+        main.detachPrimitive(primitive as ISeriesPrimitive<Time>);
+        if (this.tpoPrimitive === primitive) this.tpoPrimitive = null;
+      });
     }
     if (this.selectionBg) this.attachMarkers();
   }
@@ -607,6 +611,14 @@ export class IndicatorLayer {
       scaleMargins: md.ownScaleMargins ?? { top: 0.75, bottom: 0 },
       visible: false,
     });
+  }
+
+  /** Time price opportunity study: its drawn profiles. */
+  private tpoPrimitive: TpoPrimitive | null = null;
+
+  /** The TPO block at media point (x, y) of the price pane, or null. */
+  tpoBlockAt(x: number, y: number): TpoBlockHit | null {
+    return this.tpoPrimitive?.blockAt(x, y) ?? null;
   }
 
   /** True when `s` is one of this study's series. */
