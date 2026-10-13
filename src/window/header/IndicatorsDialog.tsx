@@ -5,9 +5,14 @@
  *
  * Layout (840×638): header, bordered search, a
  * sidebar (Personal / Built-In / Community), and a NAME · AUTHOR list.
+ * Tabs holding several script types get round type tabs (Indicators /
+ * Strategies / Patterns ...) over the list, shown by the reference rule in
+ * visibleFilters().  Typing searches every tab at once: results are grouped
+ * under the tab names and the sidebar shows no active tab.
  * Registry-backed rows are clickable: each click adds one more instance of
  * the study to the chart (rows of studies already on the chart look the
- * same). Keyboard: ↑/↓ move highlight · Enter adds · Esc closes.
+ * same). Keyboard: ↑/↓ move the selection · Enter adds · Esc closes; the
+ * mouse only hovers, it does not move the selection.
  */
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import {
@@ -15,10 +20,19 @@ import {
   SIDEBAR_ICONS,
   TAB_CONTENT,
   DEFAULT_SIDEBAR_ITEM,
+  FALLBACK_SIDEBAR_ITEM,
+  FILTER_LABELS,
+  isSection,
+  listHeader,
+  typeFilters,
+  visibleFilters,
+  type FilterId,
   type IndicatorRow,
+  type ListItem,
   type FundamentalSubtab,
   type TabContent,
 } from "../../data/indicators-dialog";
+import { highlightParts, rankRows } from "../../data/indicator-search";
 import {
   favoriteIndicators,
   isFavoriteIndicator,
@@ -27,7 +41,8 @@ import {
 import { getIndicatorEntry } from "../../window/chart/indicators/registry";
 import { listScripts, loadScript } from "../../data/oakscript-store";
 import { userIndicatorId } from "../../window/chart/indicators/user-scripts";
-import { userStrategyId } from "../../window/chart/indicators/strategy-entries";
+import { isStrategyId, strategyRows, userStrategyId } from "../../window/chart/indicators/strategy-entries";
+import { typeIdOf } from "../../window/chart/indicators/study-id";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
 
@@ -36,6 +51,20 @@ type Props = {
   /** Add an instance of an indicator (by registry id) to the chart. */
   onAddIndicator?: (indicatorId: string) => void;
 };
+
+// Kept for the app session: the reference dialog reopens on its last tab,
+// and each tab keeps the type filter picked last.
+let lastTab: string | null = null;
+const lastFilter: Record<string, FilterId> = {};
+
+/** The search runs this long after the last key (reference: 200 ms). */
+const SEARCH_DELAY_MS = 200;
+
+/** Tabs the search goes through, in the order of its result sections. */
+const SEARCH_TABS = ["favorites", "my-scripts", "built-ins", "community"];
+const TAB_TITLES: Record<string, string> = Object.fromEntries(
+  SIDEBAR.flatMap((g) => g.items.map((i) => [i.id, i.label])),
+);
 
 /** Render the FontIcon glyph for a sidebar item. */
 function Glyph(props: { id: string }) {
@@ -104,64 +133,153 @@ function FundamentalsView(props: { subtabs: FundamentalSubtab[]; query: string }
   );
 }
 
+/** Every row of a tab once (no section titles), for the search. */
+function tabRows(c: TabContent | undefined): IndicatorRow[] {
+  if (c?.kind === "rows") return c.rows;
+  if (c?.kind !== "filtered") return [];
+  const all = c.filters.find((f) => f.id === "all");
+  const items = all ? all.items : c.filters.flatMap((f) => f.items);
+  return items.filter((i): i is IndicatorRow => !isSection(i));
+}
+
 export function IndicatorsDialog(props: Props) {
-  const [activeItem, setActiveItem] = createSignal(DEFAULT_SIDEBAR_ITEM);
+  const hasFavorites = () => favoriteIndicators().length > 0;
+  // Favorites is listed only once something is starred (reference rule).
+  const isVisibleTab = (id: string) => id !== "favorites" || hasFavorites();
+  const firstTab = () => (lastTab && isVisibleTab(lastTab) ? lastTab : hasFavorites() ? DEFAULT_SIDEBAR_ITEM : FALLBACK_SIDEBAR_ITEM);
+
+  // null while searching: the search spans every tab.
+  const [activeItem, setActiveItem] = createSignal<string | null>(firstTab());
+  // Tab to come back to when the search is cleared.
+  const [searchFromTab, setSearchFromTab] = createSignal<string | null>(null);
+  const [input, setInput] = createSignal("");
   const [query, setQuery] = createSignal("");
-  const [highlightIdx, setHighlightIdx] = createSignal(-1);
+  const [filters, setFilters] = createSignal<Record<string, FilterId>>({ ...lastFilter });
+  const [selectedIdx, setSelectedIdx] = createSignal(-1);
   let inputRef: HTMLInputElement | undefined;
   let listRef: HTMLDivElement | undefined;
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
-  // Favorites is the live user-curated set (starred rows); other tabs come
-  // from the static registry-backed content map.
-  const content = (): TabContent | undefined => {
-    if (activeItem() === "favorites") {
+  // Unstarring the last favourite hides the Favorites tab.
+  createEffect(() => {
+    if (activeItem() === "favorites" && !hasFavorites()) setActiveItem(FALLBACK_SIDEBAR_ITEM);
+  });
+
+  const strategyAuthors = new Map(strategyRows().map((r) => [r.id, r.author]));
+
+  // Favorites and My scripts are live lists; other tabs come from the
+  // static registry-backed content map.
+  const content = (tab: string): TabContent | undefined => {
+    if (tab === "favorites") {
       return {
-        kind: "rows",
-        rows: favoriteIndicators().map((id) => ({
-          name: getIndicatorEntry(id)?.name ?? id,
-          indicatorId: id,
+        kind: "filtered",
+        filters: typeFilters(favoriteIndicators().map((id) => {
+          const entry = getIndicatorEntry(id);
+          const row: IndicatorRow = { name: entry?.name ?? id, shortName: entry?.shortName, indicatorId: id };
+          if (isStrategyId(typeIdOf(id))) { row.scriptType = "strategy"; row.author = strategyAuthors.get(id); }
+          return row;
         })),
       };
     }
     // My scripts: the user's OakScript scripts (a strategy() script goes on
     // the chart as a strategy, like the editor's Add to chart).
-    if (activeItem() === "my-scripts") {
+    if (tab === "my-scripts") {
       const mine: IndicatorRow[] = listScripts().map((m) => {
         const strategy = !!loadScript(m.id)?.meta?.strategy;
         return strategy
           ? { name: m.name, indicatorId: userStrategyId(m.id), scriptType: "strategy" as const }
           : { name: m.name, indicatorId: userIndicatorId(m.id) };
       });
-      if (mine.length) return { kind: "rows", rows: mine };
+      if (mine.length) return { kind: "filtered", filters: typeFilters(mine) };
     }
-    return TAB_CONTENT[activeItem()];
+    return TAB_CONTENT[tab];
   };
 
-  // Rows for the active tab, filtered by the search query.
-  const rows = createMemo<IndicatorRow[]>(() => {
-    const c = content();
-    if (c?.kind !== "rows") return [];
-    const q = query().trim().toLowerCase();
-    if (!q) return c.rows;
-    return c.rows.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.author?.toLowerCase().includes(q),
-    );
+  // The active tab: its type tabs, the picked one and the rows under it.
+  const view = createMemo(() => {
+    const tab = activeItem();
+    const c = tab ? content(tab) : undefined;
+    if (!tab || !c) return null;
+    if (c.kind === "rows") return { tab, content: c, filters: [], filter: null, items: c.rows as ListItem[] };
+    if (c.kind !== "filtered") return { tab, content: c, filters: [], filter: null, items: [] as ListItem[] };
+    const v = visibleFilters(c.filters);
+    if (!v.filters.length) return { tab, content: c, filters: [], filter: null, items: v.items };
+    const picked = v.filters.find((f) => f.id === filters()[tab]) ?? v.filters[0];
+    return { tab, content: c, filters: v.filters, filter: picked.id, items: picked.items };
   });
 
-  // Reset the highlight whenever the visible set changes.
-  createEffect(() => {
-    activeItem();
-    query();
-    setHighlightIdx(-1);
+  // Search results: every tab's matches under its title.
+  const searchItems = createMemo<ListItem[]>(() => {
+    const q = query().trim();
+    if (!q) return [];
+    const out: ListItem[] = [];
+    for (const tab of SEARCH_TABS) {
+      if (!isVisibleTab(tab)) continue;
+      const found = rankRows(tabRows(content(tab)), q);
+      if (found.length) out.push({ section: TAB_TITLES[tab] ?? tab }, ...found);
+    }
+    return out;
   });
 
-  // Scroll the highlighted row into view.
+  const searching = () => query().trim() !== "";
+  const items = () => (searching() ? searchItems() : view()?.items ?? []);
+  const isList = () => searching() || view()?.content.kind === "rows" || view()?.content.kind === "filtered";
+  const header = () => {
+    const v = view();
+    return searching() || !v || !isList() ? null : listHeader(v.tab, v.filter, v.items);
+  };
+
+  const applyQuery = (text: string) => {
+    setQuery(text);
+    if (!text.trim()) {
+      if (searchFromTab()) setActiveItem(searchFromTab());
+      setSearchFromTab(null);
+    } else if (activeItem() !== null) {
+      setSearchFromTab(activeItem());
+      setActiveItem(null);
+    }
+  };
+  const onSearchInput = (text: string) => {
+    setInput(text);
+    clearTimeout(searchTimer);
+    if (!text) applyQuery("");
+    else searchTimer = setTimeout(() => applyQuery(text), SEARCH_DELAY_MS);
+  };
+  // A sidebar click ends the search and opens that tab.
+  const openTab = (id: string) => {
+    clearTimeout(searchTimer);
+    setInput("");
+    setQuery("");
+    setSearchFromTab(null);
+    setActiveItem(id);
+  };
+  const pickFilter = (tab: string, id: FilterId) => {
+    lastFilter[tab] = id;
+    setFilters({ ...lastFilter });
+  };
+
+  // Reset the selection whenever the visible set changes.
   createEffect(() => {
-    const i = highlightIdx();
+    items();
+    setSelectedIdx(-1);
+  });
+
+  // Scroll the selected row into view.
+  createEffect(() => {
+    const i = selectedIdx();
     if (i < 0) return;
     const el = listRef?.children[i] as HTMLElement | undefined;
     el?.scrollIntoView({ block: "nearest" });
   });
+
+  /** Next row index from `from` in direction `step` (section titles skipped). */
+  const stepRow = (from: number, step: 1 | -1): number => {
+    const list = items();
+    for (let i = from + step; i >= 0 && i < list.length; i += step) {
+      if (!isSection(list[i])) return i;
+    }
+    return from;
+  };
 
   onMount(() => {
     inputRef?.focus();
@@ -169,12 +287,13 @@ export function IndicatorsDialog(props: Props) {
       if (e.key === "Escape") { e.stopPropagation(); props.onClose(); return; }
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setHighlightIdx((i) => Math.min(rows().length - 1, i + 1));
+        setSelectedIdx((i) => stepRow(i, 1));
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setHighlightIdx((i) => Math.max(0, i - 1));
+        setSelectedIdx((i) => (i < 0 ? i : stepRow(i, -1)));
       } else if (e.key === "Enter") {
-        const id = rows()[highlightIdx()]?.indicatorId;
+        const item = items()[selectedIdx()];
+        const id = item && !isSection(item) ? item.indicatorId : undefined;
         if (id && props.onAddIndicator) { e.preventDefault(); props.onAddIndicator(id); }
       }
     };
@@ -182,7 +301,10 @@ export function IndicatorsDialog(props: Props) {
     onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
-  const showColumns = () => content()?.kind === "rows";
+  onCleanup(() => {
+    clearTimeout(searchTimer);
+    lastTab = activeItem() ?? searchFromTab();
+  });
 
   return (
     <div class="indicators-backdrop" role="presentation" onMouseDown={() => props.onClose()}>
@@ -223,8 +345,8 @@ export function IndicatorsDialog(props: Props) {
             class="indicators-search-input"
             data-qa-id="indicators-dialog-search-input"
             placeholder="Search"
-            value={query()}
-            onInput={(e) => setQuery(e.currentTarget.value)}
+            value={input()}
+            onInput={(e) => onSearchInput(e.currentTarget.value)}
             autocomplete="off"
             spellcheck={false}
           />
@@ -237,7 +359,7 @@ export function IndicatorsDialog(props: Props) {
               {(group) => (
                 <div class="indicators-sidebar-group" data-qa-id={`indicator-sidebar-group-${group.key}`}>
                   <div class="indicators-sidebar-title">{group.title}</div>
-                  <For each={group.items}>
+                  <For each={group.items.filter((item) => isVisibleTab(item.id))}>
                     {(item) => (
                       <button
                         type="button"
@@ -246,7 +368,7 @@ export function IndicatorsDialog(props: Props) {
                         aria-current={activeItem() === item.id}
                         aria-disabled={item.disabled || undefined}
                         disabled={item.disabled}
-                        onClick={() => { if (!item.disabled) setActiveItem(item.id); }}
+                        onClick={() => { if (!item.disabled) openTab(item.id); }}
                       >
                         <Glyph id={item.id} />
                         <span class="indicators-sidebar-label">{item.label}</span>
@@ -259,15 +381,37 @@ export function IndicatorsDialog(props: Props) {
           </nav>
 
           <div class="indicators-list-pane">
-            <Show when={showColumns()}>
-              <div class="indicators-list-head">
-                <span class="indicators-col-name">Name</span>
-                <span class="indicators-col-author">Author</span>
+            <Show when={!searching() && (view()?.filters.length ?? 0) > 0}>
+              <div class="indicators-type-tabs" role="tablist" data-qa-id="indicators-type-tabs">
+                <For each={view()?.filters ?? []}>
+                  {(f) => (
+                    <button
+                      type="button"
+                      role="tab"
+                      data-filter={f.id}
+                      aria-selected={view()?.filter === f.id}
+                      class={`indicators-subtab${view()?.filter === f.id ? " selected" : ""}`}
+                      onClick={() => { const tab = activeItem(); if (tab) pickFilter(tab, f.id); }}
+                    >
+                      {FILTER_LABELS[f.id]}
+                    </button>
+                  )}
+                </For>
               </div>
+            </Show>
+            <Show when={header()}>
+              {(h) => (
+                <div class={`indicators-list-head${(view()?.filters.length ?? 0) > 0 ? " has-filters" : ""}`}>
+                  <span class="indicators-col-name">{h().title}</span>
+                  <Show when={h().author}>
+                    <span class="indicators-col-author">Author</span>
+                  </Show>
+                </div>
+              )}
             </Show>
             <div class="indicators-list-scroll">
               {/* Tab body */}
-              <Show when={content()}>
+              <Show when={!searching() && view()?.content}>
                 {(c) => (
                   <>
                     <Show when={c().kind === "empty"}>
@@ -289,70 +433,77 @@ export function IndicatorsDialog(props: Props) {
                     <Show when={c().kind === "fundamentals"}>
                       <FundamentalsView subtabs={(c() as any).subtabs} query={query()} />
                     </Show>
-
-                    <Show when={c().kind === "rows"}>
-                      <Show
-                        when={rows().length > 0}
-                        fallback={
-                          <div class="ot-empty-state indicators-empty">{query() ? "No matches" : "No indicators"}</div>
-                        }
-                      >
-                        <div class="indicators-list" ref={listRef} role="listbox">
-                          <For each={rows()}>
-                            {(row, i) => {
-                              const addable = () => !!row.indicatorId && !!props.onAddIndicator;
-                              const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
-                              return (
-                                <div
-                                  class={`indicators-row${i() === highlightIdx() ? " is-highlighted" : ""}${addable() ? " is-addable" : ""}`}
-                                  role="option"
-                                  aria-selected={i() === highlightIdx()}
-                                  onMouseEnter={() => setHighlightIdx(i())}
-                                  onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
-                                >
-                                  <div class="indicators-cell indicators-name-cell">
-                                    <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
-                                      <span
-                                        class={`indicators-favorite${favorited() ? " is-active" : ""}`}
-                                        aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
-                                        role="button"
-                                        onClick={(e) => {
-                                          // Star toggles the favourite without
-                                          // adding the study.
-                                          if (!row.indicatorId) return;
-                                          e.stopPropagation();
-                                          toggleFavoriteIndicator(row.indicatorId);
-                                        }}
-                                      >
-                                        <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
-                                          <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
-                                        </svg>
-                                      </span>
-                                    </Tooltip>
-                                    <span class="indicators-name">{row.name}</span>
-                                    <Show when={row.scriptType === "strategy"}>
-                                      <span class="indicators-script-type" aria-label="Strategy">
-                                        <Icon name="st-indicators-dialog-strategy-scriptType" size={18} />
-                                      </span>
-                                    </Show>
-                                    <For each={row.badges ?? []}>
-                                      {(b) => <span class={`indicators-badge badge-${b.toLowerCase()}`}>{b}</span>}
-                                    </For>
-                                  </div>
-                                  <div class="indicators-cell indicators-author-cell">
-                                    <Show when={row.author}>
-                                      <span class="indicators-author">{row.author}</span>
-                                    </Show>
-                                  </div>
-                                </div>
-                              );
-                            }}
-                          </For>
-                        </div>
-                      </Show>
-                    </Show>
                   </>
                 )}
+              </Show>
+
+              <Show when={isList()}>
+                <Show
+                  when={items().length > 0}
+                  fallback={
+                    <div class="ot-empty-state indicators-empty">{searching() ? "No matches" : "No indicators"}</div>
+                  }
+                >
+                  <div class={`indicators-list${!searching() && (view()?.filters.length ?? 0) > 0 ? " has-filters" : ""}`} ref={listRef} role="listbox">
+                    <For each={items()}>
+                      {(item, i) => {
+                        if (isSection(item)) {
+                          return <div class="indicators-section-title" role="presentation">{item.section}</div>;
+                        }
+                        const row = item;
+                        const addable = () => !!row.indicatorId && !!props.onAddIndicator;
+                        const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
+                        return (
+                          <div
+                            class={`indicators-row${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}`}
+                            role="option"
+                            aria-selected={i() === selectedIdx()}
+                            onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
+                          >
+                            <div class="indicators-cell indicators-name-cell">
+                              <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
+                                <span
+                                  class={`indicators-favorite${favorited() ? " is-active" : ""}`}
+                                  aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
+                                  role="button"
+                                  onClick={(e) => {
+                                    // Star toggles the favourite without
+                                    // adding the study.
+                                    if (!row.indicatorId) return;
+                                    e.stopPropagation();
+                                    toggleFavoriteIndicator(row.indicatorId);
+                                  }}
+                                >
+                                  <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
+                                    <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
+                                  </svg>
+                                </span>
+                              </Tooltip>
+                              <span class="indicators-name">
+                                <For each={highlightParts(row.name, query())}>
+                                  {(part) => (part.hit ? <span class="indicators-hit">{part.text}</span> : part.text)}
+                                </For>
+                              </span>
+                              <Show when={row.scriptType === "strategy"}>
+                                <span class="indicators-script-type" aria-label="Strategy">
+                                  <Icon name="st-indicators-dialog-strategy-scriptType" size={18} />
+                                </span>
+                              </Show>
+                              <For each={row.badges ?? []}>
+                                {(b) => <span class={`indicators-badge badge-${b.toLowerCase()}`}>{b}</span>}
+                              </For>
+                            </div>
+                            <div class="indicators-cell indicators-author-cell">
+                              <Show when={row.author}>
+                                <span class="indicators-author">{row.author}</span>
+                              </Show>
+                            </div>
+                          </div>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </Show>
               </Show>
             </div>
           </div>

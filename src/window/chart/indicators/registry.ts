@@ -26,21 +26,29 @@ export function getIndicatorEntry(studyId: string): IndicatorRegistryEntry | und
 }
 
 /** A dialog row derived from a registry entry. */
-export type IndicatorListRow = { id: string; name: string };
+export type IndicatorListRow = { id: string; name: string; shortName?: string };
 
-function rowsForGroup(group: 'standard' | 'community'): IndicatorListRow[] {
+function rowsForGroup(group: 'standard' | 'community' | 'candlestick'): IndicatorListRow[] {
   return indicatorRegistry
     .filter((e) => e.group === group)
-    .map((e) => ({ id: e.id, name: e.name }))
+    .map((e) => ({ id: e.id, name: e.name, shortName: e.shortName }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Built-In → Technicals: the library's hand-optimised standard indicators,
- *  plus the local built-ins. */
+/** Standard entries the reference app files under Technicals > Patterns >
+ *  Chart patterns instead of Indicators. */
+const CHART_PATTERN_IDS = new Set(['auto-trend-detector']);
+
+/** Built-In → Technicals → Indicators: the library's hand-optimised standard
+ *  indicators, plus the local built-ins. */
 export const STANDARD_ROWS: IndicatorListRow[] = [
-  ...rowsForGroup('standard'),
-  { id: VOLUME_ENTRY.id, name: VOLUME_ENTRY.name },
+  ...rowsForGroup('standard').filter((r) => !CHART_PATTERN_IDS.has(r.id)),
+  { id: VOLUME_ENTRY.id, name: VOLUME_ENTRY.name, shortName: VOLUME_ENTRY.shortName },
 ].sort((a, b) => a.name.localeCompare(b.name));
+
+/** Built-In → Technicals → Patterns: chart patterns, then candlestick patterns. */
+export const CHART_PATTERN_ROWS: IndicatorListRow[] = rowsForGroup('standard').filter((r) => CHART_PATTERN_IDS.has(r.id));
+export const CANDLESTICK_ROWS: IndicatorListRow[] = rowsForGroup('candlestick');
 
 /** Community: indicators ported from public PineScript sources. */
 export const COMMUNITY_ROWS: IndicatorListRow[] = rowsForGroup('community');

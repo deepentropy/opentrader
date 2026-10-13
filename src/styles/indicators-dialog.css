@@ -222,6 +222,21 @@
   color: var(--color-cold-gray-400, #8c8c8c);
 }
 
+/* Under the type tabs the header has a smaller top gap (8px vs 16px). */
+.indicators-list-head.has-filters {
+  height: 24px;
+}
+
+/* Type tabs (Indicators / Strategies / Patterns ...): 16px above, 8px below,
+   left edge on the row names. */
+.indicators-type-tabs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 20px 8px 50px;
+}
+
 /* NAME label sits over the row name text (clears the 22px star + 8px gap). */
 .indicators-col-name { padding-left: 30px; }
 
@@ -283,7 +298,20 @@
   flex-direction: column;
 }
 
-/* Row: 32px, 8px radius; selected rgb(19,32,66). */
+/* Row colours per theme (reference): hover is neutral grey, the keyboard
+   selection blue; the star's hover inside a selected row is a deeper blue. */
+html.theme-dark {
+  --ot-ind-row-hover: var(--color-cold-gray-800, #2e2e2e);
+  --ot-ind-row-selected: var(--color-ot-blue-a900, #132042);
+  --ot-ind-row-selected-star-hover: var(--color-ot-blue-a700, #143a87);
+}
+html.theme-light {
+  --ot-ind-row-hover: var(--color-cold-gray-100, #f2f2f2);
+  --ot-ind-row-selected: var(--color-ot-blue-50, #e3effd);
+  --ot-ind-row-selected-star-hover: var(--color-ot-blue-200, #90bff9);
+}
+
+/* Row: 32px, 8px radius. */
 .indicators-row {
   display: grid;
   grid-template-columns: 320px 200px;
@@ -294,8 +322,46 @@
   cursor: pointer;
 }
 
-.indicators-row.is-highlighted {
-  background-color: var(--color-ot-blue-a900, #132042);
+.indicators-row:hover {
+  background-color: var(--ot-ind-row-hover);
+}
+
+.indicators-row.is-selected {
+  background-color: var(--ot-ind-row-selected);
+}
+
+.indicators-row.is-selected .indicators-favorite:hover {
+  background-color: var(--ot-ind-row-selected-star-hover);
+}
+
+/* Section title inside the list (Patterns tab, search results): the column
+   header's type, on the names' left edge, 16px above / 8px below (8px above
+   under the type tabs). */
+.indicators-section-title {
+  box-sizing: border-box;
+  height: 40px;
+  padding: 16px 20px 8px 50px;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-default-gray, #8c8c8c);
+}
+
+.indicators-list.has-filters .indicators-section-title {
+  height: 32px;
+  padding-top: 8px;
+}
+
+/* A row's star shows on hover only, unless the row is a favourite. */
+.indicators-row:not(:hover) .indicators-favorite:not(.is-active) {
+  visibility: hidden;
+}
+
+/* Letters matching the search. */
+.indicators-hit {
+  color: var(--color-brand, #2962ff);
 }
 
 /* Registry-backed rows are clickable (each click adds the study). */
@@ -389,14 +455,14 @@
   flex-wrap: wrap;
 }
 
-/* Round-pill tabs. */
+/* Round-pill tabs (reference "primary" round tabs, both themes). */
 .indicators-subtab {
   height: 28px;
   padding: 0 11px;
   border: 0;
   border-radius: 14px;
-  background-color: var(--color-container-fill-primary-neutral-light);
-  color: var(--color-text-primary);
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
+  color: var(--color-content-primary-neutral-bold);
   font-family: inherit;
   font-size: 14px;
   cursor: pointer;
@@ -404,13 +470,13 @@
 }
 
 .indicators-subtab:hover:not(.selected) {
-  background-color: var(--color-container-fill-primary-neutral-normal);
-  color: var(--ot-strong);
+  background-color: var(--color-container-fill-primary-neutral-light);
+  color: var(--color-content-secondary-neutral-bold);
 }
 
 .indicators-subtab.selected {
-  background-color: rgb(242, 242, 242);
-  color: rgb(15, 15, 15);
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-secondary-inverse);
 }
 
 .indicators-fund-head {

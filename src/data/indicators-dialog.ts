@@ -12,6 +12,7 @@
  * Sidebar uses data-qa-id="indicator-sidebar-item-<id>".  Each tab's
  * content is one of:
  *   rows         — NAME (+ optional indicatorId) · AUTHOR
+ *   filtered     — round type tabs (Indicators / Strategies / ...) over rows
  *   empty        — empty-state
  *   placeholder  — empty list note (Invite-only; My scripts until the
  *                  user saves an OakScript script, then its rows)
@@ -19,7 +20,7 @@
  *
  * SIDEBAR_ICONS hold the FontIcon <svg> markup.
  */
-import { STANDARD_ROWS, COMMUNITY_ROWS } from '../window/chart/indicators/registry';
+import { STANDARD_ROWS, COMMUNITY_ROWS, CHART_PATTERN_ROWS, CANDLESTICK_ROWS } from '../window/chart/indicators/registry';
 import { strategyRows } from '../window/chart/indicators/strategy-entries';
 
 /** `disabled`: listed greyed, not selectable (no backing service). */
@@ -33,8 +34,8 @@ export const SIDEBAR: SidebarGroup[] = [
     items: [
       { id: "favorites", label: "Favorites" },
       { id: "my-scripts", label: "My scripts" },
-      // Invite-only needs script accounts this app does not have.
-      { id: "invite-only-scripts", label: "Invite-only", disabled: true },
+      // Invite-only is not listed: the reference app hides it while it is
+      // empty, and this app has no invite-only scripts.
     ],
   },
   {
@@ -56,6 +57,8 @@ export const SIDEBAR: SidebarGroup[] = [
 ];
 
 export const DEFAULT_SIDEBAR_ITEM = 'favorites';
+/** Opened when Favorites is hidden (no favourites yet). */
+export const FALLBACK_SIDEBAR_ITEM = 'built-ins';
 
 /** Exact sidebar glyphs (28×28 viewBox, currentColor) lifted from the app. */
 export type IconDef = { viewBox: string; fill: string; inner: string };
@@ -83,13 +86,68 @@ export type IndicatorRow = {
   boosts?: string;
   /** Strategy rows show the reference app's strategy marker icon after the name. */
   scriptType?: 'strategy';
+  /** Short title (e.g. "RSI"); the search ranks it before the name. */
+  shortName?: string;
 };
+/** A section title inside a list (Patterns tab, search results). */
+export type SectionTitle = { section: string };
+export type ListItem = IndicatorRow | SectionTitle;
+export const isSection = (item: ListItem): item is SectionTitle => 'section' in item;
+
+/** Round type tabs over a list, in the reference app's order per tab. */
+export type FilterId = 'all' | 'indicators' | 'strategies' | 'profiles' | 'patterns';
+export const FILTER_LABELS: Record<FilterId, string> = {
+  all: 'All',
+  indicators: 'Indicators',
+  strategies: 'Strategies',
+  profiles: 'Profiles',
+  patterns: 'Patterns',
+};
+export type RowsFilter = { id: FilterId; items: ListItem[] };
+
+/** Types every tab may filter on; a tab with only these collapses its bar. */
+const COMMON_FILTERS = new Set<FilterId>(['all', 'indicators', 'strategies']);
+
+/**
+ * Reference rule for the filter bar: a type tab shows only when it has rows;
+ * a bar of common types (All / Indicators / Strategies) is dropped when one
+ * type is left, or All plus one.  `items` is then the list shown without a bar.
+ */
+export function visibleFilters(filters: RowsFilter[]): { filters: RowsFilter[]; items: ListItem[] } {
+  const kept = filters.filter((f) => f.items.some((i) => !isSection(i)));
+  const collapse = kept.every((f) => COMMON_FILTERS.has(f.id))
+    && (kept.length <= 1 || (kept.length === 2 && kept.some((f) => f.id === 'all')));
+  if (!collapse) return { filters: kept, items: [] };
+  const only = kept.find((f) => f.id === 'all') ?? kept[0];
+  return { filters: [], items: only?.items ?? [] };
+}
+
+/** Filters of a list of rows split by script type, All first. */
+export function typeFilters(rows: IndicatorRow[]): RowsFilter[] {
+  return [
+    { id: 'all', items: rows },
+    { id: 'indicators', items: rows.filter((r) => r.scriptType !== 'strategy') },
+    { id: 'strategies', items: rows.filter((r) => r.scriptType === 'strategy') },
+  ];
+}
+
+/**
+ * Column header of a tab: the reference names it "Name" on Favorites (with
+ * Author when a row has one), "Script name" elsewhere (with Author on the
+ * community tab), and the Patterns type has no header row.
+ */
+export function listHeader(tab: string, filter: FilterId | null, rows: ListItem[]): { title: string; author: boolean } | null {
+  if (tab === 'built-ins' && filter === 'patterns') return null;
+  if (tab === 'favorites') return { title: 'Name', author: rows.some((r) => !isSection(r) && !!r.author) };
+  return { title: 'Script name', author: tab === 'community' };
+}
 /** A Fundamentals metric; depth 0 = parent, 1 = nested (dotted) child. */
 export type FundamentalMetric = { name: string; depth: number };
 export type FundamentalSubtab = { label: string; metrics: FundamentalMetric[] };
 
 export type TabContent =
   | { kind: 'rows'; rows: IndicatorRow[] }
+  | { kind: 'filtered'; filters: RowsFilter[] }
   | { kind: 'empty'; title: string; body?: string; action?: string }
   | { kind: 'placeholder'; note: string }
   | { kind: 'fundamentals'; subtabs: FundamentalSubtab[] }
@@ -101,8 +159,20 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   'my-scripts': { kind: 'placeholder', note: 'No scripts here yet.' },
   'invite-only-scripts': { kind: 'placeholder', note: 'No invite-only scripts here yet.' },
   // No store here: the empty state without its "Go to Store" button.
-  // Built-In > Technicals — the library standard indicators (registry).
-  'built-ins': { kind: 'rows', rows: STANDARD_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })) },
+  // Built-In > Technicals — the library standard indicators and candlestick
+  // patterns (registry).  No built-in strategies or volume profile studies
+  // yet: their type tabs stay hidden while empty.
+  'built-ins': { kind: 'filtered', filters: [
+    { id: 'indicators', items: STANDARD_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id })) },
+    { id: 'strategies', items: [] },
+    { id: 'profiles', items: [] },
+    { id: 'patterns', items: [
+      { section: 'Chart patterns' },
+      ...CHART_PATTERN_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id })),
+      { section: 'Candlestick patterns' },
+      ...CANDLESTICK_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id })),
+    ] },
+  ] },
   'fundamentals': { kind: 'fundamentals', subtabs: [
     { label: "Income statement", metrics: [
       { name: "Total revenue", depth: 0 },
@@ -394,10 +464,10 @@ export const TAB_CONTENT: Record<string, TabContent> = {
   // Community indicators, then the backtester's strategy ports (community
   // scripts too, marked with the strategy icon like the reference app's rows).
   'community': {
-    kind: 'rows',
-    rows: [
-      ...COMMUNITY_ROWS.map((r) => ({ name: r.name, indicatorId: r.id })),
+    kind: 'filtered',
+    filters: typeFilters([
+      ...COMMUNITY_ROWS.map((r) => ({ name: r.name, shortName: r.shortName, indicatorId: r.id })),
       ...strategyRows().map((r) => ({ name: r.name, indicatorId: r.id, author: r.author, scriptType: 'strategy' as const })),
-    ],
+    ]),
   },
 };
