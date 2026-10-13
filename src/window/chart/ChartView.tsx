@@ -145,7 +145,7 @@ import { cachedSymbolSessions } from "../../data/session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
 import { IndicatorLegend } from "./IndicatorLegend";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
-import { profileMetaOf } from "./profiles/vbp-studies";
+import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry } from "./profiles/tpo";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
@@ -2041,15 +2041,30 @@ export function ChartView(props: Props) {
     // created with the plain lastValueVisible, which the countdown plate
     // replaces while it's showing.
     updateCountdown();
-    setCoords(
-      makeCoords(
-        chart,
-        series,
-        () => raw,
-        (sec) => (controller ? controller.overlayValuesAt(sec ?? undefined) : []),
-        () => ({ timeZone: props.timeZone ?? "UTC", intraday: isIntradayInterval(props.interval ?? "1D") }),
-      ),
+    const mainCoords = makeCoords(
+      chart,
+      series,
+      () => raw,
+      (sec) => (controller ? controller.overlayValuesAt(sec ?? undefined) : []),
+      () => ({ timeZone: props.timeZone ?? "UTC", intraday: isIntradayInterval(props.interval ?? "1D") }),
     );
+    // Volume profile drawings: built from lower-timeframe bars of the chart symbol (as the profile studies).
+    mainCoords.lowerTimeframe = {
+      bars: (resolution, from) => controller?.drawingLowerBars(resolution, from) as unknown as OHLC[] | undefined,
+      barEnd: (time) => {
+        const iv = props.interval ?? "1D";
+        const sessions = cachedSymbolSessions(props.symbol ?? "");
+        if (isIntradayInterval(iv) || !sessions) return time + Math.max(1, chartSeconds(iv));
+        if (chartSeconds(iv) > 86400) {
+          const i = raw.findIndex((b) => (b.time as number) === time);
+          if (i >= 0 && i + 1 < raw.length) return raw[i + 1].time as number;
+        }
+        const day = sessions.regular.tradingDay(time);
+        return sessions.regular.dayBounds(day)?.end ?? time + 86400;
+      },
+      seconds: /S$/i.test(props.interval ?? ""),
+    };
+    setCoords(mainCoords);
     if (!crosshairActive) refreshLegend();
     // Renko / line break / kagi / P&F / range emit a DIFFERENT number of
     // items than the source bars (synthetic times ending at the last bar), so
@@ -2966,6 +2981,7 @@ export function ChartView(props: Props) {
     controller.setLastBarOpenProbe(lastBarForming);
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
     controller.setSeriesChangedHook(scheduleSourceOrder);
+    controller.setDrawingsDataHook(() => setCoordEpoch((n) => n + 1));
     controller.setRedrawnHook(() => refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined));
     setChartReady((n) => n + 1);
 

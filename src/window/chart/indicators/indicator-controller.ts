@@ -177,8 +177,29 @@ export class IndicatorController {
     this.otherSymbols = new OtherSymbolBars((keys, live) => this.onSymbolsMoved(keys, live), `ind:${chartId}`);
   }
 
+  /** Lower-timeframe keys the drawings read (volume profile drawings): kept loaded, and the drawings repaint when
+   *  their bars move. */
+  private drawingKeys = new Set<string>();
+  private drawingsDataHook: () => void = () => {};
+
+  /** How the chart hears that bars the drawings read arrived or moved. */
+  setDrawingsDataHook(hook: () => void): void {
+    this.drawingsDataHook = hook;
+  }
+
+  /** Bars of the chart symbol on a lower timeframe, in the chart's session, from `from` (seconds) on, for the
+   *  drawings; undefined while they load. */
+  drawingLowerBars(resolution: string, from: number): Bar[] | undefined {
+    const ticker = this.scriptChart?.tickerid;
+    if (!ticker) return undefined;
+    const session = this.scriptChart?.sessionType === 'extended' ? 'ETH' : 'RTH';
+    this.drawingKeys.add(this.otherSymbols.lowerKey(ticker, resolution, session));
+    return this.otherSymbols.lowerBars(ticker, resolution, session, from);
+  }
+
   /** Bars of other symbols arrived or moved: the studies that read them calculate again (once per burst). */
   private onSymbolsMoved(keys: Set<string>, live: boolean): void {
+    if ([...keys].some((k) => this.drawingKeys.has(k))) this.drawingsDataHook();
     for (const k of keys) this.symbolsMoved.add(k);
     this.symbolsLive &&= live;
     if (this.symbolsTimer) return;
@@ -201,13 +222,14 @@ export class IndicatorController {
 
   /** The other symbols no study reads any more are dropped (and their live updates stopped). */
   private retainSymbols(): void {
-    const used = new Set<string>();
+    const used = new Set<string>(this.drawingKeys);
     for (const inst of this.instances.values()) if (!inst.owner) for (const k of inst.layer.symbolsUsed()) used.add(k);
     this.otherSymbols.retain(used);
   }
 
   /** The chart reloads its bars (adjustment changed...): the other symbols are fetched again. */
   reloadOtherSymbols(): void {
+    this.drawingKeys.clear();
     this.otherSymbols.clear();
   }
 
@@ -349,6 +371,8 @@ export class IndicatorController {
    *  The studies recompute with the new bars. */
   setScriptChart(chart: StudyChart): void {
     if (JSON.stringify(chart) === JSON.stringify(this.scriptChart)) return;
+    // Another symbol or session: the drawings' lower-timeframe bars are read again.
+    if (chart.tickerid !== this.scriptChart?.tickerid || chart.sessionType !== this.scriptChart?.sessionType) this.drawingKeys.clear();
     this.scriptChart = chart;
     for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setScriptChart(chart);
   }
