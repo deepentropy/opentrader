@@ -16,7 +16,8 @@
  *     before orders are checked; fills are on the tick grid; slippage (ticks)
  *     is added to market and stop fills, against the trader;
  *   - stop / limit prices are rounded to mintick away from the market (buy
- *     stop and sell limit up, sell stop and buy limit down);
+ *     stop and sell limit up, sell stop and buy limit down), except within
+ *     1/10,000 of a tick of a tick level;
  *   - default quantity is computed when the order is placed: fixed, cash /
  *     price, or equity * % / price, commission included, rounded down to the
  *     quantity step. Equity values open trades at the rounded close. The price
@@ -158,6 +159,7 @@ import type {
   Trade,
 } from './types';
 import { localDay } from '../data/session/zone';
+import { decimalSumAtMost } from './decimal';
 
 /** A margin call: a market order that closes `size` of the position (less when the position is smaller). */
 interface MarginCallOrder {
@@ -332,6 +334,19 @@ interface PriceOrder {
 }
 
 const EPS = 1e-9;
+/** Order prices this close to a tick level, in ticks, are that level (see roundOrderPrice). */
+const TICK_TOLERANCE = 1e-4;
+/** Significant digits of the equity the fill funds checks count (see fillEquity). */
+const FUNDS_DIGITS = 10;
+
+/**
+ * The equity the funds checks at a fill count: rounded to 10 significant digits (a stop entry valued 45,000 fills
+ * with a capital of 44,999.999999, not 44,999.99999; at 450: 449.99999999 / 449.9999999; volatility expansion-close
+ * AAPL 1D bar 1129: 0.07999999998719431 does not cover 0.08).
+ */
+function fillEquity(equity: number): number {
+  return Number(equity.toPrecision(FUNDS_DIGITS));
+}
 
 
 /** A strategy runtime error, as the reference app stops the script (e.g. RE10141). */
@@ -562,7 +577,7 @@ export class Broker {
       sizePrice,
       placedClose: this.roundPrice(this.bars[this.bar].close),
       // The fill check counts this equity without binary noise (see ownFitsAt).
-      placedEquity: Number(this.fundsEquity.toFixed(8)),
+      placedEquity: fillEquity(this.fundsEquity),
       reverseQty,
       kind: 'entry',
       isOrder,
@@ -1173,8 +1188,11 @@ export class Broker {
     if (type === 'MARKET' && !this.canEnter(o.direction)) return;
     const buy = o.direction === 'long';
     const pos = this.positionSize;
-    // A zero quantity (e.g. cash sizing below one share) only closes an opposite position.
-    if (o.qty <= 0 && (pos === 0 || (pos > 0) === buy)) return;
+    // A zero quantity (e.g. cash sizing below one share) only closes an opposite position, or opens the reversal
+    // part fixed at placement when that position has closed before the fill (volatility expansion-close AAPL 1D bar
+    // 1124: a buy stop that does not fit, placed against a short of 1 that a margin call waiting for the close
+    // takes out: 1 bought at bar 1125).
+    if (o.qty + o.reverseQty <= 0 && (pos === 0 || (pos > 0) === buy)) return;
     const reverses = pos !== 0 && (pos > 0) !== buy;
     // The reversal part is fixed at placement: an entry placed against a position that closed before the fill
     // opens its quantity plus that position (pivot-points SPY 15m trade 9: 4 + 8 = 12).
@@ -1291,20 +1309,26 @@ export class Broker {
   }
 
   /**
-   * Margin: the own quantity of entry `o` fits in the equity it was placed with, at `price`. That equity is
-   * counted without binary noise: a buy stop of 714,286 at 0.10 placed on 71,428.59999999999 fills, one of
-   * 1,100,000 on 100,000 does not.
+   * Margin: the own quantity of entry `o` fits in the equity it was placed with (see fillEquity), at the higher
+   * of the fill price and the price it was sized at (greedy strategy AAPL 1D bar 2986: a buy stop at 0.40 sized
+   * at the 0.41 close, 14,643 on 6,003.63, does not fill at a 0.40 open), in exact decimals (see
+   * decimalSumAtMost): a buy stop of 714,286 at 0.10 placed on 71,428.59999999999 fills, one of 1,100,000 on
+   * 100,000 does not, one of 67,404 at 0.41000000000000003 (41 ticks of 0.01) on 27,635.64 does not.
    */
   private ownFitsAt(o: EntryOrder, price: number): boolean {
     const ratio = this.marginRatio(o.direction);
-    return ratio <= 0 || this.orderValue(o.qty, price) * ratio <= o.placedEquity;
+    return ratio <= 0 || decimalSumAtMost([[o.qty, Math.max(price, o.sizePrice), this.sym.pointValue, ratio]], o.placedEquity);
   }
 
   /**
    * Margin: a market entry that fills `fillQty` (its own quantity plus the opposite position it closes) is checked
    * against the state at the last script run, not the state at the fill: the position there plus this fill gives
    * the position to fund. The part already held then counts at that close, the new part at the higher of the
-   * fill price and the price at placement (the close with the slippage for a buy, the close for a sell).
+   * fill price and the price at placement (the close with the slippage for a buy, the close for a sell). The
+   * values are exact decimals against the equity of fillEquity: an all-in long of 565,153 reversed on a
+   * 0.41000000000000003 close (41 ticks of 0.01) with 231,712.73000000074 does not fill (565,153 x
+   * 0.41000000000000003 = 231,712.7300000000169), one of 565,152 does, and so does the same reversal on a 0.38
+   * close.
    */
   private marketFundsCover(o: EntryOrder, fillQty: number, price: number): boolean {
     const buy = o.direction === 'long';
@@ -1316,7 +1340,14 @@ export class Broker {
     if (after === 0 || (before !== 0 && after > 0 === before > 0 && Math.abs(after) <= Math.abs(before))) return true;
     const held = before !== 0 && after > 0 === before > 0 ? Math.abs(before) : 0;
     const checkPrice = Math.max(price, buy ? o.sizePrice : o.placedClose);
-    return this.orderValue(held, this.scriptClose) * ratio + this.orderValue(Math.abs(after) - held, checkPrice) * ratio <= this.scriptEquity;
+    const pv = this.sym.pointValue;
+    return decimalSumAtMost(
+      [
+        [held, this.scriptClose, pv, ratio],
+        [Math.abs(after) - held, checkPrice, pv, ratio],
+      ],
+      fillEquity(this.scriptEquity),
+    );
   }
 
   /** Margin call at price p (a point of the intrabar path), Pine's algorithm; it fills at `fill` (default p, see
@@ -1794,10 +1825,16 @@ export class Broker {
     return this.ticks(Math.round(p / this.sym.mintick));
   }
 
-  /** Order prices are rounded away from the market: buy stop / sell limit up, sell stop / buy limit down. */
+  /**
+   * Order prices are rounded away from the market: buy stop / sell limit up, sell stop / buy limit down. A price
+   * within 1/10,000 of a tick of a tick level is that level (a buy stop at 0.090001 is 0.09, at 0.0900011 0.10, the
+   * same at 206.410001; a sell stop at 0.5399999 is 0.54, at 0.539999 (53.9999 ticks in binary) 0.53).
+   */
   private roundOrderPrice(p: number, buy: boolean, isStop: boolean): number {
     const n = p / this.sym.mintick;
-    return this.ticks(buy === isStop ? Math.ceil(n - EPS) : Math.floor(n + EPS));
+    const near = Math.round(n);
+    if (Math.abs(n - near) < TICK_TOLERANCE) return this.ticks(near);
+    return this.ticks(buy === isStop ? Math.ceil(n) : Math.floor(n));
   }
 
   /**
