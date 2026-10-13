@@ -11,7 +11,8 @@
  *  - a study against a level, a rule that waits for the bar to close: the
  *    values at the close of two bars in a row, as on live samples;
  *  - a moving percentage: the bar's high / low (or the study's value) against
- *    the value N bars back.
+ *    the value N bars back;
+ *  - a study's own condition: true at the bar's close.
  * One fire per bar at most, at the bar's close (now for the bar in progress).
  */
 import type { AlertRule } from "./alert-store";
@@ -81,6 +82,32 @@ export function replayRule(
     }
     if (price == null) continue;
     fires.push({ price, barTime: b.time * 1000, fireTime: Math.min(close, nowSec) * 1000 });
+    if (rule.frequency === "only_once") break;
+  }
+  return fires.slice(-REPLAY_MAX_FIRES);
+}
+
+/** The fires of a rule on a study's condition (`flags`: per bar, true when the condition is true at the bar's
+ *  close) in the bars closing after `fromSec` up to `nowSec`: one per bar, at the bar's close (now for the bar in
+ *  progress, except for a rule that waits for the close). */
+export function replayCondition(
+  rule: Pick<AlertRule, "frequency" | "expiresAt">,
+  bars: ReplayBar[],
+  flags: boolean[],
+  fromSec: number,
+  nowSec: number,
+  stepSec: number,
+): ReplayFire[] {
+  const fires: ReplayFire[] = [];
+  const onClose = rule.frequency === "once_per_bar_close";
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const close = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
+    if (close <= fromSec || b.time >= nowSec) continue;
+    if (rule.expiresAt != null && b.time * 1000 >= rule.expiresAt) break;
+    if (onClose && close > nowSec) continue;
+    if (!flags[i]) continue;
+    fires.push({ price: b.close, barTime: b.time * 1000, fireTime: Math.min(close, nowSec) * 1000 });
     if (rule.frequency === "only_once") break;
   }
   return fires.slice(-REPLAY_MAX_FIRES);

@@ -42,7 +42,8 @@ import type { ChartContext } from "oakscriptjs/script";
 import { OtherSymbolBars } from "../window/chart/indicators/other-symbols";
 import { commands } from "../bindings";
 import * as kv from "./kv";
-import { REPLAY_MAX_SEC, replayRule } from "./alert-replay";
+import { REPLAY_MAX_SEC, replayCondition, replayRule } from "./alert-replay";
+import { conditionBars, conditionMessage } from "./alert-study-conditions";
 
 /** True inside the Tauri shell — gates the native webhook route. */
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -60,6 +61,9 @@ export function onAlertFire(fn: FireListener): () => void {
 const prevDiff = new Map<string, number>();
 /** Bar bucket of the last fire, for once_per_bar(_close). */
 const lastFiredBucket = new Map<string, number>();
+/** Time (epoch ms) of the last fire, for every_time (at most once a minute). */
+const lastFiredAt = new Map<string, number>();
+const EVERY_TIME_MS = 60_000;
 /** once_per_bar_close: the forming bar's bucket + the last in-bar sample.
  *  When a tick lands in a NEWER bucket the stored bar has closed — the rule is
  *  then evaluated on that final sample (so crossings compare close-to-close). */
@@ -159,6 +163,11 @@ function barBucket(symbol: string, res: string, timeMs: number): number | null {
 /** True when the rule's condition is satisfied for the current sample. Updates
  *  prevDiff as a side effect (needed for crossing). */
 function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
+  // A study's own condition, true on the current bar.
+  if (rule.op === "alert_condition") {
+    return rule.left.kind === "indicator" && ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) === true;
+  }
+
   // Moving % : the left operand now against its value `bars` bars back (the
   // reference poll below), in percent of that value.
   if (isPercentOperator(rule.op)) {
@@ -251,8 +260,14 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
  *  allowed now, and updates the per-rule throttle state. */
 function frequencyAllows(rule: AlertRule, barRefMs: number): boolean {
   switch (rule.frequency) {
-    case "every_time":
+    case "every_time": {
+      // "Once per minute while condition remains met".
+      const now = Date.now();
+      const last = lastFiredAt.get(rule.id);
+      if (last != null && now - last < EVERY_TIME_MS) return false;
+      lastFiredAt.set(rule.id, now);
       return true;
+    }
     case "only_once":
       return true; // caller disables the rule after firing
     case "once_per_bar":
@@ -271,6 +286,11 @@ function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
   deliverFire(rule, ctx.price, barBucket(rule.symbol, rule.resolution, barRefMs) ?? barRefMs);
 }
 
+/** The placeholders of a message filled in: `{{ticker}}` = the symbol's ticker. */
+function fillPlaceholders(text: string, rule: AlertRule): string {
+  return text.replace(/\{\{ticker\}\}/g, tickerOf(rule.symbol));
+}
+
 /** Deliver a fire of `rule` at `price`, in the bar opened at `barTime`
  *  (epoch ms). `offline`: the time it happened, for a fire found in the bars
  *  missed while the app was not running; it goes to the log and the rule's
@@ -278,9 +298,13 @@ function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
 function deliverFire(rule: AlertRule, price: number, barTime: number | null, offline?: { fireTime: number }): void {
   const now = Date.now();
   const condText = describeCondition(rule);
-  const message = rule.message?.trim()
+  // An alert on a study's condition says what the study declares for it.
+  const text = rule.message?.trim()
     ? rule.message
-    : `${tickerOf(rule.symbol)} ${condText} (last ${price})`;
+    : rule.op === "alert_condition" && rule.left.kind === "indicator"
+      ? conditionMessage(rule.left.condition)
+      : `${tickerOf(rule.symbol)} ${condText} (last ${price})`;
+  const message = fillPlaceholders(text, rule);
   const title = rule.name?.trim() ? rule.name : `Alert · ${tickerOf(rule.symbol)}`;
 
   alertStore.recordFire({
@@ -372,6 +396,7 @@ function onTick(t: TradeTick): void {
     changePercent: t.changePercent ?? null,
     timeSec: Math.floor(now / 1000),
     indicatorValue: (op, resolution, session) => indicatorOperandValue(symbol, op, resolution, session ?? DEFAULT_SESSION, t.price),
+    conditionTrue: (op, resolution, session) => studyConditionNow(symbol, op, resolution, session ?? DEFAULT_SESSION, t.price),
     barsFallback: (resolution, session) => drawingBarsCache.get(`${symbol}|${resolution}|${session ?? DEFAULT_SESSION}`) ?? null,
   };
 
@@ -389,7 +414,14 @@ function onTick(t: TradeTick): void {
       const bucket = barBucket(rule.symbol, rule.resolution, now);
       if (bucket === null) continue; // session not known yet
       const st = barCloseState.get(rule.id);
-      barCloseState.set(rule.id, { bucket, ctx });
+      // A study's condition is read now, on the bar this sample belongs to (at the close the study has moved on
+      // to the next bar).
+      let sample = ctx;
+      if (rule.op === "alert_condition" && rule.left.kind === "indicator") {
+        const now = ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) ?? null;
+        sample = { ...ctx, conditionTrue: () => now };
+      }
+      barCloseState.set(rule.id, { bucket, ctx: sample });
       if (!st || st.bucket === bucket) continue; // still forming — wait for the close
       if (!conditionMet(rule, st.ctx)) continue;
       if (lastFiredBucket.get(rule.id) === st.bucket) continue;
@@ -477,16 +509,38 @@ function calculateStudy(
   session: string,
   state: BarState = CLOSED_BARS,
 ): unknown {
+  return runStudy(entry, bars, inputs, symbol, resolution, session, state).result;
+}
+
+/** calculateStudy, with the bars the study was given. `slot`: who asks (a script keeps one run per slot). */
+function runStudy(
+  entry: NonNullable<ReturnType<typeof getIndicatorEntry>>,
+  bars: unknown[],
+  inputs: unknown,
+  symbol: string,
+  resolution: string,
+  session: string,
+  state: BarState = CLOSED_BARS,
+  slot = "",
+): { result: unknown; bars: Bar[] } {
   const calculate = entry.calculate as (bars: unknown[], inputs: unknown, chart: unknown) => unknown;
-  const chart: ChartContext = {
+  const chart: ChartContext & Record<string, unknown> = {
     ...scriptChartContext(symbol, resolution, session),
     ...state,
     // Bars of other symbols (request.security of another ticker): loaded on the first request, read by the next poll.
     bars: (s, tf) => alertSymbols.bars(s, tf, resolution),
     symbolInfo: (s) => alertSymbols.symbolInfo(s),
+    // Lower-timeframe bars of the symbol (profile studies), loaded on the first request.
+    lowerBars: (res: string, from: number) => alertSymbols.lowerBars(symbol, res, session as SessionId, from),
+    // A user script keeps one worker run per chart + study: one per alert series here.
+    chartId: "alerts",
+    studyId: slot,
   };
   // Daily and longer bars at the session open, as on the chart (the values are read by bar index).
-  return calculate(scriptBars(bars as Bar[], chart), inputs, chart);
+  const given = scriptBars(bars as Bar[], chart);
+  // The inputs of a rule are a store proxy: a plain copy, which a user script's worker can receive.
+  const plain = inputs && typeof inputs === "object" ? JSON.parse(JSON.stringify(inputs)) : inputs;
+  return { result: calculate(given, plain, chart), bars: given };
 }
 
 function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): number | null {
@@ -527,6 +581,73 @@ function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "ind
   }
   indicatorValueCache.set(key, { sig, at: now, value });
   return value;
+}
+
+// ── Study conditions ──
+// An alert on a study's condition (alert_condition) reads the study as an
+// indicator operand does: on the alert's symbol, interval and session, with
+// the inputs saved on the alert, computed again when the bars change (at most
+// once a second). The condition is read on the newest bar.
+const conditionCache = new Map<string, { sig: string; at: number; value: boolean | null }>();
+
+function studyConditionNow(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): boolean | null {
+  const entry = getIndicatorEntry(op.indicatorId);
+  const id = op.condition?.id;
+  if (!entry || !id) return null;
+  const charted = chartBars(symbol, resolution, session);
+  let bars = charted ?? drawingBarsCache.get(`${symbol}|${resolution}|${session}`) ?? null;
+  if (!bars || bars.length === 0) {
+    void pollDrawingBars(true);
+    return null;
+  }
+  if (!charted) {
+    const last = bars[bars.length - 1];
+    bars = [...bars.slice(0, -1), { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) }];
+  }
+  const last = bars[bars.length - 1];
+  const inputs = op.inputs ?? entry.defaultInputs;
+  const series = `${symbol}|${resolution}|${session}|${op.indicatorId}|${JSON.stringify(inputs)}`;
+  const key = `${series}|${id}`;
+  const sig = `${bars.length}|${last.time}|${last.close}`;
+  const now = Date.now();
+  const hit = conditionCache.get(key);
+  if (hit && (hit.sig === sig || now - hit.at < INDICATOR_COMPUTE_MS)) return hit.value;
+  let value: boolean | null = null;
+  try {
+    const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    const run = runStudy(entry, dense, inputs, symbol, resolution, session, liveBarState(symbol, resolution, session, bars), series);
+    const flags = conditionBars(entry, run.result, id, run.bars);
+    value = flags ? (flags[flags.length - 1] ?? false) : null;
+  } catch (e) {
+    console.warn(`[alerts] study condition failed for ${op.indicatorId}`, e);
+  }
+  // Not computed yet (worker run, lower-timeframe bars loading): ask again at the next tick.
+  conditionCache.set(key, { sig: value === null ? "" : sig, at: now, value });
+  return value;
+}
+
+/** Per bar, whether the study's condition is true, computed on closed bars; waits (up to `waitMs`) for a study that
+ *  computes asynchronously (a user script's worker run, the lower-timeframe bars of a profile). */
+async function conditionSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[], rule: AlertRule, session: string, waitMs = 30_000): Promise<boolean[] | null> {
+  const entry = getIndicatorEntry(op.indicatorId);
+  const id = op.condition?.id;
+  if (!entry || !id) return null;
+  const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+  const inputs = op.inputs ?? entry.defaultInputs;
+  const slot = `replay|${rule.id}`;
+  const until = Date.now() + waitMs;
+  for (;;) {
+    try {
+      const run = runStudy(entry, dense, inputs, rule.symbol, rule.resolution, session, CLOSED_BARS, slot);
+      const flags = conditionBars(entry, run.result, id, run.bars);
+      if (flags) return flags;
+    } catch (e) {
+      console.warn(`[alerts] study condition failed for ${op.indicatorId}`, e);
+      return null;
+    }
+    if (Date.now() >= until) return null;
+    await new Promise((r) => setTimeout(r, 500));
+  }
 }
 
 // ── Bars for the operands computed from bars ──
@@ -660,6 +781,25 @@ function plotSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[
   }
 }
 
+/** Bars of a symbol + interval + session for the replay, fetched once per run (null when they cannot be loaded). */
+async function replayBars(cache: Map<string, ChartBar[]>, symbol: string, resolution: string, session: SessionId): Promise<ChartBar[] | null> {
+  const key = `${symbol}|${resolution}|${session}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  try {
+    const res = await getBars(symbol, resolution, session);
+    const bars = res.bars.flatMap((b) =>
+      b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
+        ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
+        : [],
+    );
+    cache.set(key, bars);
+    return bars;
+  } catch {
+    return null;
+  }
+}
+
 /** Read the rules evaluated in the window over the bars since the previous
  *  run and deliver what they find. `previous`: per symbol, the time (UNIX
  *  seconds) of its last quote in the previous run. Returns the fires found. */
@@ -669,27 +809,30 @@ export async function replayMissedFires(previous: Record<string, number | null |
   for (const rule of alertStore.enabledRules()) {
     if (evaluatedByBackend(rule) || !isSupportedResolution(rule.resolution)) continue;
     const { left, right } = rule;
+    if (rule.op === "alert_condition") {
+      if (left.kind !== "indicator") continue;
+      const since = (rule.activeSince ?? rule.createdAt) / 1000;
+      const from = Math.max(previous[rule.symbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
+      if (nowSec - from < 60) continue;
+      const session = rule.session ?? DEFAULT_SESSION;
+      const bars = await replayBars(barsBy, rule.symbol, rule.resolution, session);
+      if (!bars) continue;
+      const flags = await conditionSeries(left, bars, rule, session);
+      if (!flags) continue;
+      for (const f of replayCondition(rule, bars, flags, from, nowSec, resolutionMs(rule.resolution) / 1000)) {
+        deliverFire(rule, f.price, f.barTime, { fireTime: f.fireTime });
+        found++;
+      }
+      continue;
+    }
     const vwap = right.kind === "drawing" && right.plot != null;
     if (!isPercentOperator(rule.op) && left.kind !== "indicator" && right.kind !== "indicator" && !vwap) continue;
     const since = (rule.activeSince ?? rule.createdAt) / 1000;
     const from = Math.max(previous[rule.symbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
     if (nowSec - from < 60) continue;
     const session = rule.session ?? DEFAULT_SESSION;
-    const key = `${rule.symbol}|${rule.resolution}|${session}`;
-    let bars = barsBy.get(key);
-    if (!bars) {
-      try {
-        const res = await getBars(rule.symbol, rule.resolution, session);
-        bars = res.bars.flatMap((b) =>
-          b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
-            ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
-            : [],
-        );
-      } catch {
-        continue; // no bars: nothing to read
-      }
-      barsBy.set(key, bars);
-    }
+    const bars = await replayBars(barsBy, rule.symbol, rule.resolution, session);
+    if (!bars) continue; // no bars: nothing to read
     const stepSec = resolutionMs(rule.resolution) / 1000;
     const leftSeries = left.kind === "indicator" ? plotSeries(left, bars, rule, session) : null;
     if (left.kind === "indicator" && !leftSeries) continue;
@@ -810,10 +953,11 @@ export function startAlertEngine(windowLabel = "main"): void {
         if (!prevEnabledIds.has(id)) resetRuleEvalState(id);
       }
       prevEnabledIds = enabledIds;
-      for (const m of [prevDiff, lastFiredBucket, barCloseState]) {
+      for (const m of [prevDiff, lastFiredBucket, lastFiredAt, barCloseState]) {
         for (const id of m.keys()) if (!ids.has(id)) m.delete(id);
       }
       indicatorValueCache.clear();
+      conditionCache.clear();
       // A new rule on an anchored VWAP or a study needs its bars now, not at the next poll.
       void pollDrawingBars(true);
     });
@@ -826,6 +970,7 @@ export function startAlertEngine(windowLabel = "main"): void {
 export function resetRuleEvalState(id: string): void {
   prevDiff.delete(id);
   lastFiredBucket.delete(id);
+  lastFiredAt.delete(id);
   barCloseState.delete(id);
   // A changed Moving % rule needs its reference now, not at the next poll.
   movingRefCache.delete(id);

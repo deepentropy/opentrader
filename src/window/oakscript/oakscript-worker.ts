@@ -127,6 +127,8 @@ function scriptMetaOf(run: oakScript.ScriptRunResult): OakCompiledMeta {
     arrowConfig: run.arrowConfig.length ? run.arrowConfig : undefined,
     defaultInputs: run.defaultInputs,
     strategy: run.strategyConfig as Record<string, unknown> | undefined,
+    // A strategy's alerts are its orders, not conditions.
+    alertConditions: !run.strategyConfig && run.alertConfig.length ? run.alertConfig : undefined,
   };
 }
 

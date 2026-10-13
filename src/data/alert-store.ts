@@ -55,7 +55,14 @@ export type Operand =
        *  study computed with them, whatever the chart shows later. Unset on
        *  older alerts (the charted study, else the factory inputs). */
       inputs?: Record<string, unknown>;
+      /** Operator `alert_condition`: the study's own condition the alert
+       *  watches (a script's alertcondition(), a TPO extended level), with
+       *  its title and default message as the study declares them. */
+      condition?: StudyConditionRef;
     };
+
+/** A condition a study declares for alerts. */
+export type StudyConditionRef = { id: string; title: string; message?: string };
 
 export type DrawingShape = "channel" | "rectangle" | "time" | "position";
 
@@ -66,7 +73,9 @@ export type DrawingShape = "channel" | "rectangle" | "time" | "position";
  *  `entering` / `exiting` / `inside` / `outside`: the left operand against
  *  the band of a channel or rectangle drawing (right operand);
  *  `hits_level`: the left operand reaches the entry, stop or target level
- *  of a long / short position drawing. */
+ *  of a long / short position drawing;
+ *  `alert_condition`: a condition of the study on the left (its
+ *  `condition`) is true on the current bar; the right operand is unused. */
 export type AlertOperator =
   | "crossing"
   | "crossing_up"
@@ -79,7 +88,8 @@ export type AlertOperator =
   | "exiting"
   | "inside"
   | "outside"
-  | "hits_level";
+  | "hits_level"
+  | "alert_condition";
 
 /** How often a rule may fire (trigger-frequency options). */
 export type AlertFrequency =

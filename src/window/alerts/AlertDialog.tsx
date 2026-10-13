@@ -23,6 +23,7 @@ import {
   type AlertFrequency,
   type AlertOperator,
   type Operand,
+  type StudyConditionRef,
 } from "../../data/alert-store";
 import {
   LEVEL_OPERATORS,
@@ -36,6 +37,7 @@ import {
   VWAP_PLOTS,
 } from "../../data/alert-condition";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
+import { conditionMessage, studyConditions } from "../../data/alert-study-conditions";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { statusLineInputs } from "../chart/indicators/indicator-options";
 import type { SessionId } from "../../data/session/symbol-sessions";
@@ -77,13 +79,18 @@ const OPERATORS: AlertOperator[] = [
   "moving_down_pct",
 ];
 
-/** Trigger choices. A condition on price offers the first two; one that
- *  reads an indicator adds the per-bar ones. */
+/** Trigger choices. A condition on price offers "Once only" and "Every
+ *  time"; one that reads a study has the per-bar ones, and "Every time" is
+ *  then called "Once per minute" and comes last. */
 const FREQUENCIES: { key: AlertFrequency; label: string; desc: string }[] = [
   { key: "only_once", label: "Once only", desc: "Triggers once when condition is met" },
   { key: "every_time", label: "Every time", desc: "Triggers once per minute while condition remains met" },
+];
+const STUDY_FREQUENCIES: { key: AlertFrequency; label: string; desc: string }[] = [
+  { key: "only_once", label: "Once only", desc: "Triggers once when condition is met" },
   { key: "once_per_bar", label: "Once per bar", desc: "Triggers once per bar when condition is met" },
-  { key: "once_per_bar_close", label: "Once per bar close", desc: "Triggers when a bar closes with the condition met" },
+  { key: "once_per_bar_close", label: "Once per bar close", desc: "Triggers every time condition is met at bar close" },
+  { key: "every_time", label: "Once per minute", desc: "Triggers once per minute while condition remains met" },
 ];
 
 type ExpiryKey = "open" | "eod" | "1w" | "1m" | "custom";
@@ -112,7 +119,7 @@ function toLocalInput(ms: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-type MenuOption = { value: string; label: string; desc?: string; right?: string; disabled?: boolean; icon?: string; /** A play button at the end of the row (sound preview). */ play?: () => void };
+type MenuOption = { value: string; label: string; desc?: string; right?: string; disabled?: boolean; icon?: string; /** A play button at the end of the row (sound preview). */ play?: () => void; /** A line above the row (a new group). */ sep?: boolean };
 
 /** Condition icons: stroked 18 x 18 paths. A level is a horizontal line, a
  *  channel two of them; the arrow or the dot is the price. */
@@ -129,12 +136,14 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
   inside: "M2.5 4.5h13M2.5 13.5h13M9 7.6a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z",
   outside: "M2.5 7h13M2.5 15.5h13M9 2.1a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z",
   hits_level: "M2.5 4h4M11.5 4h4M2.5 9h13M2.5 14h4M11.5 14h4M9 2.5v13",
+  // A study's own conditions are listed by title, without an icon.
+  alert_condition: "",
 };
 
 /** Dropdown of the dialog. `box`: a 34 px bordered control showing the value;
  *  `inline`: the value as text with a chevron (Trigger, Expiration). `more`:
  *  the options after this count sit behind a "Show more" row. */
-function AdMenu(props: { variant: "box" | "inline"; value: string; options: MenuOption[]; onPick: (v: string) => void; more?: number; label?: string; placeholder?: string; group?: string }) {
+function AdMenu(props: { variant: "box" | "inline"; value: string; options: MenuOption[]; onPick: (v: string) => void; more?: number; label?: string; placeholder?: string; group?: string; /** One option only: shown read-only (no menu). */ lockSingle?: boolean }) {
   const [open, setOpen] = createSignal(false);
   const [all, setAll] = createSignal(false);
   let el: HTMLDivElement | undefined;
@@ -144,6 +153,7 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
     onCleanup(() => document.removeEventListener("pointerdown", onDown, true));
   });
   const current = () => props.options.find((o) => o.value === props.value);
+  const locked = () => !!props.lockSingle && props.options.length <= 1;
   const cut = () => (props.more !== undefined && !all() && props.options.findIndex((o) => o.value === props.value) < props.more ? props.more : props.options.length);
   const menuIcon = (d: string) => (
     <svg class="ad-option-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
@@ -151,6 +161,8 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
     </svg>
   );
   const row = (o: MenuOption) => (
+    <>
+    <Show when={o.sep}><div class="ad-option-sep" role="separator" /></Show>
     <button
       type="button"
       role="option"
@@ -175,10 +187,18 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
         </span>
       </Show>
     </button>
+    </>
   );
   return (
     <div class={`ad-menu ad-menu--${props.variant}`} ref={el}>
-      <button type="button" class="ad-menu-btn" aria-label={props.label} aria-expanded={open()} onClick={() => { setAll(false); setOpen(!open()); }}>
+      <button
+        type="button"
+        class="ad-menu-btn"
+        aria-label={props.label}
+        aria-expanded={open()}
+        aria-disabled={locked() || undefined}
+        onClick={() => { if (locked()) return; setAll(false); setOpen(!open()); }}
+      >
         <Show when={current()?.icon}>{menuIcon(current()!.icon!)}</Show>
         <span class="ad-menu-value">{current()?.label ?? props.placeholder ?? ""}</span>
         <svg class="ad-chevron" classList={{ "is-open": open() }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
@@ -258,7 +278,25 @@ export function AlertDialog(props: Props) {
   );
   const [leftPlot, setLeftPlot] = createSignal(existing?.left.kind === "indicator" ? (existing.left.plot ?? 0) : 0);
 
-  const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? "crossing");
+  /** The conditions a study declares for alerts (script alertcondition(),
+   *  TPO extended levels), with its inputs on the chart. An alert being
+   *  edited keeps its own condition in the list. */
+  const condsOf = (indicatorId: string): StudyConditionRef[] => {
+    const list = studyConditions(getIndicatorEntry(indicatorId), indicatorOptions().find((o) => o.id === indicatorId)?.inputs);
+    const kept = existing?.left.kind === "indicator" && existing.left.indicatorId === indicatorId ? existing.left.condition : undefined;
+    return kept && !list.some((c) => c.id === kept.id) ? [kept, ...list] : list;
+  };
+  const [leftCond, setLeftCond] = createSignal<string | null>(
+    existing?.op === "alert_condition" && existing.left.kind === "indicator" ? (existing.left.condition?.id ?? null) : null,
+  );
+
+  // A study that declares conditions opens on its first one.
+  const firstCond = !existing && props.indicatorId ? untrack(() => condsOf(props.indicatorId!))[0] : undefined;
+  if (firstCond) setLeftCond(firstCond.id);
+  const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? (firstCond ? "alert_condition" : "crossing"));
+  const isCond = () => op() === "alert_condition";
+  const leftConds = () => (leftKind() === "indicator" ? condsOf(leftIndicator()) : []);
+  const leftCondition = () => leftConds().find((c) => c.id === leftCond());
 
   // ── Right operand ── a value, a drawing level, or an indicator plot.
   const [rightKind, setRightKind] = createSignal<SideKind>(
@@ -354,13 +392,30 @@ export function AlertDialog(props: Props) {
   const vwapPlots = () => drawingOption()?.plots ?? [];
   const [rightVwapPlot, setRightVwapPlot] = createSignal(existing?.right.kind === "drawing" ? (existing.right.plot ?? 0) : 0);
   const fixedOperators = () => (vwapPlots().length > 0 ? LEVEL_OPERATORS : shapeOperators(band(), fibLevels().length > 0));
-  const operators = () => fixedOperators() ?? OPERATORS;
+  // A study without plots (a TPO) has only its conditions.
+  const operators = () => (leftKind() === "indicator" && plotsOf(leftIndicator()).length === 0 ? [] : (fixedOperators() ?? OPERATORS));
   const operatorLabel = (o: AlertOperator) =>
     !isBandOperator(o) ? OPERATOR_LABELS[o] : bandOperatorLabel(o, band() === "rectangle" ? "rectangle" : "channel");
   createEffect(() => {
     const list = operators();
-    if (!list.includes(untrack(op))) setOp(list[0]);
+    const conds = leftConds();
+    if (untrack(op) === "alert_condition") {
+      if (conds.some((c) => c.id === untrack(leftCond))) return;
+      if (conds.length) setLeftCond(conds[0].id);
+      else if (list.length) setOp(list[0]);
+      return;
+    }
+    if (list.includes(untrack(op))) return;
+    if (conds.length) {
+      setLeftCond(conds[0].id);
+      setOp("alert_condition");
+    } else if (list.length) setOp(list[0]);
   });
+  /** The condition list: the study's conditions, a line, then the comparisons ("Show more" after the first three). */
+  const conditionOptions = (): MenuOption[] => [
+    ...leftConds().map((c) => ({ value: `cond:${c.id}`, label: c.title })),
+    ...operators().map((o, i) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o], sep: i === 0 && leftConds().length > 0 })),
+  ];
   const [rightLevel, setRightLevel] = createSignal<number>(existing?.right.kind === "drawing" && existing.right.level != null ? existing.right.level : 0.5);
   createEffect(() => {
     const lv = fibLevels();
@@ -382,12 +437,21 @@ export function AlertDialog(props: Props) {
 
   function buildLeft(): Operand {
     if (leftKind() === "indicator" && leftIndicator()) {
-      return indicatorOperand(leftIndicator(), leftPlot(), existing?.left);
+      if (!isCond()) return indicatorOperand(leftIndicator(), leftPlot(), existing?.left);
+      // A condition reads no plot: the study's label without a plot title.
+      const o = indicatorOperand(leftIndicator(), 0, existing?.left);
+      const cond = leftCondition();
+      if (o.kind !== "indicator" || !cond) return o;
+      const plots = plotsOf(leftIndicator());
+      const label = plots.length >= 2 && o.label ? o.label.slice(0, o.label.length - `: ${plots[0]?.title ?? ""}`.length) : o.label;
+      return { ...o, label, condition: cond };
     }
     return { kind: "price" };
   }
 
   function buildRight(): Operand {
+    // A study's condition compares nothing.
+    if (isCond()) return { kind: "value", value: 0 };
     if (isPct()) return { kind: "value", value: parseFloat(pct()) || 0 };
     switch (rightKind()) {
       case "drawing": {
@@ -436,6 +500,8 @@ export function AlertDialog(props: Props) {
   const preview = createMemo(() => {
     // "AZO Crossing 150": the ticker, and no "Price" in front of a price
     // condition.
+    // A study's condition: the message it declares.
+    if (isCond()) return conditionMessage(leftCondition());
     const full = symbol() || "—";
     const sym = full.includes(":") ? full.split(":")[1] : full;
     const text = describeCondition({ left: buildLeft(), op: op(), right: buildRight(), bars: barsValue() });
@@ -449,6 +515,7 @@ export function AlertDialog(props: Props) {
   const canSave = createMemo(() => {
     if (!symbol().trim()) return false;
     if (!webhookValid()) return false;
+    if (isCond()) return !!leftCondition();
     if (isPct()) return Number.isFinite(parseFloat(pct()));
     if (rightKind() === "value") return Number.isFinite(parseFloat(rightValue()));
     if (rightKind() === "drawing") return drawingOptions().some((o) => o.id === rightDrawing());
@@ -521,9 +588,18 @@ export function AlertDialog(props: Props) {
 
   // ── View helpers ──────────────────────────────────────────────────────────
   const usesIndicator = () => leftKind() === "indicator" || (!isPct() && rightKind() === "indicator");
-  const triggerOptions = (): MenuOption[] =>
-    FREQUENCIES.filter((f, i) => i < 2 || usesIndicator() || f.key === frequency()).map((f) => ({ value: f.key, label: f.label, desc: f.desc }));
-  const sourceOptions = (): MenuOption[] => [{ value: "price", label: "Price" }, ...indicatorOptions().map((r) => ({ value: `ind:${r.id}`, label: r.label }))];
+  const triggerOptions = (): MenuOption[] => {
+    const list = usesIndicator() ? STUDY_FREQUENCIES : FREQUENCIES;
+    const kept = list.some((f) => f.key === frequency()) ? [] : STUDY_FREQUENCIES.filter((f) => f.key === frequency());
+    return [...list, ...kept].map((f) => ({ value: f.key, label: f.label, desc: f.desc }));
+  };
+  // A study is a source when it has plots or conditions; the one being edited stays.
+  const alertable = (id: string) =>
+    plotsOf(id).length > 0 || condsOf(id).length > 0 || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
+  const sourceOptions = (): MenuOption[] => [
+    { value: "price", label: "Price" },
+    ...indicatorOptions().filter((r) => alertable(r.id)).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
+  ];
   const rightKindOptions = (): MenuOption[] => [
     { value: "value", label: "Value" },
     { value: "drawing", label: "Drawing", disabled: drawingOptions().length === 0 },
@@ -622,24 +698,44 @@ export function AlertDialog(props: Props) {
                     value={leftKind() === "indicator" ? `ind:${leftIndicator()}` : "price"}
                     options={sourceOptions()}
                     onPick={(v) => {
-                      if (v === "price") setLeftKind("price");
-                      else { setLeftKind("indicator"); setLeftIndicator(v.slice(4)); setLeftPlot(0); }
+                      if (v === "price") {
+                        setLeftKind("price");
+                        if (isCond()) setOp("crossing");
+                        return;
+                      }
+                      setLeftKind("indicator");
+                      setLeftIndicator(v.slice(4));
+                      setLeftPlot(0);
+                      // A study with conditions starts on its first one.
+                      const conds = condsOf(v.slice(4));
+                      if (conds.length) {
+                        setLeftCond(conds[0].id);
+                        setOp("alert_condition");
+                      } else if (isCond()) setOp("crossing");
                     }}
                   />
-                  {/* Plot select: a study with 2 or more plots. */}
-                  <Show when={leftKind() === "indicator" && plotsOf(leftIndicator()).length >= 2}>
+                  {/* Plot select: a study with 2 or more plots (not for one of its conditions). */}
+                  <Show when={!isCond() && leftKind() === "indicator" && plotsOf(leftIndicator()).length >= 2}>
                     <AdMenu variant="box" label="Plot" value={String(leftPlot())} options={plotOptions(leftIndicator())} onPick={(v) => setLeftPlot(Number(v))} />
                   </Show>
 
                   <AdMenu
                     variant="box"
                     label="Condition"
-                    value={op()}
-                    more={fixedOperators() ? undefined : 3}
-                    options={operators().map((o) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o] }))}
-                    onPick={(v) => setOp(v as AlertOperator)}
+                    value={isCond() ? `cond:${leftCond()}` : op()}
+                    more={fixedOperators() ? undefined : leftConds().length + 3}
+                    options={conditionOptions()}
+                    lockSingle
+                    onPick={(v) => {
+                      if (v.startsWith("cond:")) {
+                        setLeftCond(v.slice(5));
+                        setOp("alert_condition");
+                      } else setOp(v as AlertOperator);
+                    }}
                   />
 
+                  {/* A study's condition compares nothing. */}
+                  <Show when={!isCond()}>
                   <Show
                     when={!isPct()}
                     fallback={
@@ -687,7 +783,7 @@ export function AlertDialog(props: Props) {
                           label="Indicator"
                           placeholder="Select indicator…"
                           value={rightIndicator()}
-                          options={indicatorOptions().map((r) => ({ value: r.id, label: r.label }))}
+                          options={indicatorOptions().filter((r) => plotsOf(r.id).length > 0 || r.id === rightIndicator()).map((r) => ({ value: r.id, label: r.label }))}
                           onPick={(v) => { setRightIndicator(v); setRightPlot(0); }}
                         />
                       </Show>
@@ -699,6 +795,7 @@ export function AlertDialog(props: Props) {
                     <Show when={rightKind() === "indicator" && plotsOf(rightIndicator()).length >= 2}>
                       <AdMenu variant="box" label="Plot" value={String(rightPlot())} options={plotOptions(rightIndicator())} onPick={(v) => setRightPlot(Number(v))} />
                     </Show>
+                  </Show>
                   </Show>
                 </div>
               </div>

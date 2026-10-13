@@ -462,6 +462,7 @@
   border-radius: 8px;
 }
 .ad-menu--box .ad-menu-btn[aria-expanded="true"] { border-color: var(--color-text-primary); }
+.ad-menu--box .ad-menu-btn[aria-disabled="true"] { background: var(--color-container-fill-primary-neutral-extra-light); border-color: var(--color-control-intent-default); }
 .ad-menu-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ad-menu--inline .ad-menu-btn { padding: 4px 4px 4px 8px; margin: -4px 0 -4px -8px; border-radius: 4px; }
 .ad-menu--inline .ad-menu-btn:hover, .ad-menu--inline .ad-menu-btn[aria-expanded="true"] { background: var(--color-bg-primary-hover); }
@@ -508,6 +509,7 @@
 .ad-option-play { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -3px -4px -3px 0; border-radius: 4px; color: var(--color-text-secondary); }
 .ad-option-play:hover { color: inherit; }
 .ad-option-group { padding: 6px 8px 4px; font-size: 11px; line-height: 16px; text-transform: uppercase; color: var(--color-text-secondary); }
+.ad-option-sep { height: 1px; margin: 6px 0; background: var(--color-divider-line-primary); }
 .ad-option-more { margin-top: 6px; border-top: 1px solid var(--color-divider-line-primary); border-radius: 0; color: var(--color-text-secondary); font-size: 11px; text-transform: uppercase; justify-content: space-between; }
 
 /* Text rows opening a sub-view */

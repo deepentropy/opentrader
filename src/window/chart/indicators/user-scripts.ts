@@ -109,6 +109,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.barColorConfig = meta?.barColorConfig;
   e.arrowConfig = meta?.arrowConfig;
   e.defaultInputs = meta?.defaultInputs ?? {};
+  e.alertConditions = meta?.alertConditions;
 }
 
 async function runInWorker(

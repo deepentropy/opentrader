@@ -59,6 +59,9 @@ export type OakCompiledMeta = {
   /** strategy() properties (oakscriptjs StrategyProperties) when the script
    *  declares a strategy: it then runs in the Strategy Tester. */
   strategy?: Record<string, unknown>;
+  /** alertcondition() declarations of an indicator (id, title, default message): conditions an alert can watch; the
+   *  run result's `alerts` gives the bars on which each one is true. */
+  alertConditions?: { id: string; title: string; message?: string }[];
 };
 
 /** A backtest failure: a script error, or a strategy runtime error (Pine

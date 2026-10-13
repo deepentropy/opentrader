@@ -117,6 +117,9 @@ impl Sample {
     }
 }
 
+/// Every time: seconds between two fires at least.
+const EVERY_TIME_SEC: f64 = 60.0;
+
 /// A rule's evaluation memory.
 #[derive(Clone, Debug, Default)]
 pub struct RuleState {
@@ -128,6 +131,8 @@ pub struct RuleState {
     prev_time: Option<f64>,
     /// Bar of the last fire (once per bar, once per bar close).
     last_fired_bar: Option<f64>,
+    /// Time of the last fire (every time: at most once a minute).
+    last_fired_at: Option<f64>,
     /// Once per bar close: the forming bar and its latest sample.
     forming: Option<(f64, Sample)>,
     /// "Only once" has fired.
@@ -264,6 +269,15 @@ impl EngineRule {
                 }
                 st.last_fired_bar = Some(bar);
                 Some(fire(price, s.time, Some(bar)))
+            }
+            // "Once per minute while condition remains met".
+            "every_time" => {
+                let price = self.condition(st, s, grid)?;
+                if st.last_fired_at.is_some_and(|t| s.time - t < EVERY_TIME_SEC) {
+                    return None;
+                }
+                st.last_fired_at = Some(s.time);
+                Some(fire(price, s.time, bar))
             }
             freq => {
                 let price = self.condition(st, s, grid)?;
@@ -637,8 +651,17 @@ mod tests {
         assert_eq!(fires[0].price, 100.4);
         // The same high is not read a second time.
         assert!(e.sample("X:A", 99.3, Some(&bar(0.0, 99.0, 100.4, 98.5, 99.3)), 20.0).is_empty());
-        // A new bar counts whole.
-        assert_eq!(e.sample("X:A", 99.4, Some(&bar(60.0, 99.3, 100.1, 99.3, 99.4)), 70.0).len(), 1);
+        // A new bar counts whole (a minute after the fire).
+        assert_eq!(e.sample("X:A", 99.4, Some(&bar(60.0, 99.3, 100.1, 99.3, 99.4)), 76.0).len(), 1);
+    }
+
+    #[test]
+    fn every_time_fires_at_most_once_a_minute() {
+        let mut e = engine(vec![rule("greater", "level", "every_time", &[100.0])]);
+        assert_eq!(e.sample("X:A", 101.0, None, 10.0).len(), 1);
+        assert!(e.sample("X:A", 102.0, None, 40.0).is_empty());
+        assert!(e.sample("X:A", 102.0, None, 69.0).is_empty());
+        assert_eq!(e.sample("X:A", 102.0, None, 70.0).len(), 1);
     }
 
     #[test]
@@ -768,8 +791,9 @@ mod tests {
         assert_eq!((jobs.len(), jobs[0].from), (1, now - 3600.0));
         // Quotes wait for the replay, which leaves the rule ready.
         assert!(e.sample("X:A", 101.0, None, now).is_empty());
+        // Its open and its close are in the same minute: one fire (every time = once a minute).
         let fires = e.finish_replay(&jobs[0], Some(&[bar(now - 600.0, 101.0, 101.0, 101.0, 101.0)]));
-        assert_eq!(fires.len(), 2);
+        assert_eq!(fires.len(), 1);
         assert_eq!(e.sample("X:A", 101.0, None, now + 5.0).len(), 1);
         // The same rules again: nothing to replay.
         assert!(e.set(vec![rule("greater", "level", "every_time", &[100.0])], vec![grid()], now).is_empty());

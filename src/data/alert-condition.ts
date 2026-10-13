@@ -30,6 +30,7 @@ export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   inside: "Inside",
   outside: "Outside",
   hits_level: "Hits entry, stop, or target level",
+  alert_condition: "Alert condition",
 };
 
 /** Operators of a drawing with two bounds (channel, rectangle). */
@@ -341,6 +342,9 @@ export type EvalContext = {
   /** Value of an indicator operand on the rule's interval (the engine
    *  computes the study from the bars of that interval). */
   indicatorValue?: (op: Extract<Operand, { kind: "indicator" }>, resolution: string, session?: string) => number | null;
+  /** Whether the study's condition (`op.condition`) is true on the current
+   *  bar of the rule's interval; null while the study is not computed. */
+  conditionTrue?: (op: Extract<Operand, { kind: "indicator" }>, resolution: string, session?: string) => boolean | null;
   /** Bars of the symbol on an interval no chart shows (the engine's
    *  fetched-bars poll cache), for the drawings computed from bars. */
   barsFallback?: (resolution: string, session?: string) => ChartBar[] | null;
@@ -386,6 +390,11 @@ export function operandLabel(op: Operand): string {
 /** Human-readable condition, e.g. "Price Crossing up 150", "Price Moving up
  *  % 5% in 3 bars". */
 export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" | "bars">): string {
+  // A study's own condition: "MACD (close, 12, 26, 9): Rising to falling".
+  if (rule.op === "alert_condition") {
+    const title = rule.left.kind === "indicator" ? rule.left.condition?.title : undefined;
+    return `${operandLabel(rule.left)}: ${title ?? OPERATOR_LABELS.alert_condition}`;
+  }
   if (isPercentOperator(rule.op)) {
     const pct = rule.right.kind === "value" ? rule.right.value : 0;
     const n = rule.bars ?? 1;
