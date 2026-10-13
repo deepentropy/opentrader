@@ -1285,3 +1285,9 @@
 .cp3-label.is-inert .cp3-title,
 .cp3-label.is-inert .cp3-desc { color: var(--color-text-disabled); }
 .cp3-label.is-inert .cp3-checkbox + .cp3-title { cursor: default; }
+/* Profile studies: "Custom session" from — to time fields. */
+.ind3-session { display: inline-flex; align-items: center; gap: 8px; }
+.ind3-session-dash { color: var(--color-text-primary); }
+.ind3-session.is-disabled .ind3-session-dash { color: var(--color-text-disabled); }
+/* TPO "Opacity outside VA" slider. */
+.ind3-tpo-opacity { width: 148px; }

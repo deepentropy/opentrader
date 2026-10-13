@@ -29,19 +29,30 @@ import type { StrategyProperties } from "../../backtester/types";
 import { DEFAULT_STRATEGY_STYLE, PROPERTIES_INPUT, STYLE_INPUT, type StrategyStyle } from "./indicators/strategy-entries";
 import { StrategyPropertiesTab } from "./StrategyPropertiesTab";
 import { DateTimeInput } from "./DateTimeInput";
+import { TimeInput } from "../bottom-bar/TimeInput";
+import { defaultVbpStyle, vbpStyleEdits, vbpStyleOf, type VbpLine, type VbpStyle } from "./profiles/vbp-style";
+import { defaultTpoStyle, tpoStyleEdits, tpoStyleOf, type TpoStyle } from "./profiles/tpo-style";
+import { TransparencySlider } from "../drawings/ImageDialog";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
 
-/** Input schema entry; strategies add Pine's `time` type, groups, inline rows and tooltips. */
+/** Input schema entry; strategies add Pine's `time` type, groups, inline rows and tooltips; the profile studies a
+ *  session range ("HHMM-HHMM") and inputs enabled only for one value of another input. */
 export type DialogInput = Omit<InputConfig, "type"> & {
-  type: InputConfig["type"] | "time";
+  type: InputConfig["type"] | "time" | "session";
   group?: string;
   inline?: string;
   tooltip?: string;
+  enabledWhen?: { id: string; value: string };
+  /** Set from another tab (TPO level extensions): no row in the Inputs tab. */
+  hidden?: boolean;
 };
 
-export type DialogTab = "inputs" | "properties" | "style" | "visibility";
+/** Volume profile studies: their Style tab (placement default, histogram box row). */
+export type ProfileDialogConfig = { placement: "Left" | "Right"; histogramBox: boolean };
+
+export type DialogTab = "inputs" | "properties" | "style" | "volume" | "visibility";
 
 /** Strategy studies: Properties tab and the trade-marks Style tab. */
 export type StrategyDialogConfig = {
@@ -94,6 +105,10 @@ type Props = {
   timeZone?: string;
   /** Tab to open on (otherwise: strategies the last clicked tab, else Inputs). */
   initialTab?: DialogTab;
+  /** Volume profile study: the profile Style tab. */
+  profile?: ProfileDialogConfig;
+  /** Time price opportunity study: its Style and Volume profile tabs; `autoTicksPerRow`: the Auto row size shown. */
+  tpo?: { autoTicksPerRow: number };
 };
 
 // Price-source choices and their labels. Values stay the PineScript names.
@@ -300,8 +315,8 @@ export function IndicatorSettingsDialog(props: Props) {
   // hidden helpers (display:'none'), which aren't user-facing.
   const stylePlots = props.plotConfig.filter((p) => p.display !== "none");
 
-  const tabs = (): DialogTab[] => (props.strategy ? ["inputs", "properties", "style", "visibility"] : ["inputs", "style", "visibility"]);
-  const TAB_TITLES: Record<DialogTab, string> = { inputs: "Inputs", properties: "Properties", style: "Style", visibility: "Visibility" };
+  const tabs = (): DialogTab[] => (props.strategy ? ["inputs", "properties", "style", "visibility"] : props.tpo ? ["inputs", "style", "volume", "visibility"] : ["inputs", "style", "visibility"]);
+  const TAB_TITLES: Record<DialogTab, string> = { inputs: "Inputs", properties: "Properties", style: "Style", volume: "Volume profile", visibility: "Visibility" };
   const stored = props.strategy ? (kv.getItem(TAB_KEY) as DialogTab | null) : null;
   const [tab, setTabRaw] = createSignal<DialogTab>(props.initialTab ?? (stored && tabs().includes(stored) ? stored : "inputs"));
   const setTab = (t: DialogTab) => {
@@ -330,6 +345,10 @@ export function IndicatorSettingsDialog(props: Props) {
     ),
   );
 
+  // Volume profile / TPO style (stored with the inputs).
+  const [vbpDraft, setVbpDraft] = createStore<VbpStyle>(vbpStyleOf(props.inputs, props.profile?.placement ?? "Left"));
+  const [tpoDraft, setTpoDraft] = createStore<TpoStyle>(tpoStyleOf(props.inputs));
+
   // Style-tab output / input options + the Visibility matrix.
   const [optDraft, setOptDraft] = createStore<IndicatorOptions>(cloneIndicatorOptions(props.options));
   const setUnit = (key: keyof IntervalVisibility, u: UnitVisibility) => setOptDraft("visibility", key, u as never);
@@ -345,6 +364,11 @@ export function IndicatorSettingsDialog(props: Props) {
       inputs[PROPERTIES_INPUT] = diff;
       inputs[STYLE_INPUT] = { ...stratStyle };
     }
+    if (props.profile) {
+      const developing = ["developingPoc", "developingVAHigh", "developingVALow"].some((id) => styleDraft[id]?.visible);
+      inputs[STYLE_INPUT] = vbpStyleEdits({ ...JSON.parse(JSON.stringify(vbpDraft)), developing }, props.profile.placement);
+    }
+    if (props.tpo) inputs[STYLE_INPUT] = tpoStyleEdits(JSON.parse(JSON.stringify(tpoDraft)));
     return { inputs, styles, options: cloneIndicatorOptions(optDraft) };
   };
   const ok = () => {
@@ -412,6 +436,8 @@ export function IndicatorSettingsDialog(props: Props) {
       setPropDraft({ ...props.strategy.defaults });
       setStratStyle({ ...DEFAULT_STRATEGY_STYLE });
     }
+    if (props.profile) setVbpDraft(defaultVbpStyle(props.profile.placement));
+    if (props.tpo) setTpoDraft(defaultTpoStyle());
     for (const p of stylePlots) {
       setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? true, plotType: p.style ?? "line", priceLine: false, palette: paletteOf(p)?.map((c) => c.color) });
     }
@@ -445,6 +471,7 @@ export function IndicatorSettingsDialog(props: Props) {
     const groups = new Map<string, Section>();
     const loose = new Map<string, Line>();
     for (const cfg of props.inputConfig) {
+      if (cfg.hidden) continue;
       let section: Section;
       if (cfg.group !== undefined) {
         let g = groups.get(cfg.group);
@@ -478,14 +505,38 @@ export function IndicatorSettingsDialog(props: Props) {
     return rows;
   };
 
+  /** An input enabled only while another input has one value (profile "Custom session"). */
+  const enabled = (cfg: DialogInput) => !cfg.enabledWhen || String(inputDraft[cfg.enabledWhen.id]) === cfg.enabledWhen.value;
   const inputControl = (cfg: DialogInput) => {
+    if (cfg.type === "session") {
+      // "HHMM-HHMM": two time fields.
+      const parts = () => {
+        const m = /^(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(istr(cfg.id));
+        return m ? [`${m[1]}:${m[2]}`, `${m[3]}:${m[4]}`] : ["09:30", "16:00"];
+      };
+      const set = (i: 0 | 1, v: string) => {
+        const p = parts();
+        p[i] = v;
+        setInputDraft(cfg.id, p.map((x) => x.replace(":", "")).join("-"));
+      };
+      return (
+        <span class="ind3-session" classList={{ "is-disabled": !enabled(cfg) }}>
+          <span class="ind3-time"><TimeInput value={parts()[0]} disabled={!enabled(cfg)} onChange={(v) => set(0, v)} /></span>
+          <span class="ind3-session-dash">—</span>
+          <span class="ind3-time"><TimeInput value={parts()[1]} disabled={!enabled(cfg)} onChange={(v) => set(1, v)} /></span>
+        </span>
+      );
+    }
     if (cfg.type === "time") {
       return <DateTimeInput value={Number(inputDraft[cfg.id])} timeZone={props.strategy?.timeZone ?? props.timeZone ?? "UTC"} onChange={(ms) => setInputDraft(cfg.id, ms)} />;
     }
     if (cfg.type === "int" || cfg.type === "float") {
+      // TPO "Ticks Per Row" with Auto rows: the computed size, disabled.
+      const auto = props.tpo && cfg.id === "ticksPerRow" && !enabled(cfg);
       return (
         <NumberField
-          value={istr(cfg.id)}
+          value={auto ? String(props.tpo!.autoTicksPerRow) : istr(cfg.id)}
+          disabled={!enabled(cfg)}
           num={{ min: cfg.min ?? -1e12, max: cfg.max ?? 1e12, step: cfg.step ?? 1, int: cfg.type === "int" }}
           onChange={(v) => {
             const n = parseFloat(v);
@@ -507,7 +558,8 @@ export function IndicatorSettingsDialog(props: Props) {
     }
     if (cfg.type === "string" && cfg.options?.length) {
       const options = cfg.options.map(String);
-      return <SelectControl value={istr(cfg.id)} options={options} width={selectWidth([istr(cfg.id)])} onPick={(o) => setInputDraft(cfg.id, o)} />;
+      // Profile studies: the reference's 100 px select (long values cut).
+      return <SelectControl value={istr(cfg.id)} options={options} width={props.profile ? 100 : selectWidth([istr(cfg.id)])} disabled={!enabled(cfg)} onPick={(o) => setInputDraft(cfg.id, o)} />;
     }
     if (cfg.type === "color") {
       return <ColorControl color={istr(cfg.id)} onChange={(p) => { if (p.color) setInputDraft(cfg.id, p.color); }} />;
@@ -566,8 +618,9 @@ export function IndicatorSettingsDialog(props: Props) {
                       </For>
                     );
                     if (first.type === "bool") {
+                      // A check box alone is a 34 px row (reference "fill" cell); with inline controls a 50 px one.
                       return (
-                        <div class="cp3-cell cp3-label is-full">
+                        <div class={`cp3-cell cp3-label is-full${rest.length === 0 ? " ind3-check-row" : ""}`}>
                           <div class="cp3-label-inner">
                             <CheckBox checked={!!inputDraft[first.id]} onToggle={() => toggleInput(first.id)} />
                             <span class="cp3-title" onClick={() => toggleInput(first.id)}>{first.title ?? first.id}</span>
@@ -614,10 +667,253 @@ export function IndicatorSettingsDialog(props: Props) {
             </div>
           </Show>
 
+          {/* ── Style / Volume profile (time price opportunity) ── */}
+          <Show when={(tab() === "style" || tab() === "volume") && props.tpo}>
+            {(() => {
+              const extendSelect = (inputId: string, disabled: () => boolean) => (
+                <SelectControl
+                  value={inputDraft[inputId] ? "Extend" : "Don't extend"}
+                  options={["Don't extend", "Extend"]}
+                  width={100}
+                  disabled={disabled()}
+                  onPick={(o) => setInputDraft(inputId, o === "Extend")}
+                />
+              );
+              type LevelKey = "poc" | "poorHigh" | "poorLow" | "singlePrints" | "vah" | "val";
+              const level = (label: string, key: LevelKey, inputId: string) => (
+                <>
+                  <div class="cp3-cell cp3-label">
+                    <div class="cp3-label-inner">
+                      <CheckBox checked={tpoDraft[key].visible} onToggle={() => setTpoDraft(key, "visible", (v) => !v)} />
+                      <span class="cp3-title" onClick={() => setTpoDraft(key, "visible", (v) => !v)}>{label}</span>
+                    </div>
+                  </div>
+                  <div class="cp3-cell cp3-controls">
+                    {extendSelect(inputId, () => !tpoDraft[key].visible)}
+                    <ColorControl color={tpoDraft[key].color} disabled={!tpoDraft[key].visible} onChange={(p) => { if (p.color) setTpoDraft(key, "color", p.color); }} />
+                  </div>
+                </>
+              );
+              const check = (label: string, key: "showBlocks" | "showLetters" | "midpoint" | "open" | "close") =>
+                checkRow(label, () => tpoDraft[key], () => setTpoDraft(key, (v) => !v));
+              type VolKey = "vah" | "val" | "poc";
+              const volLine = (label: string, key: VolKey, inputId: string) => (
+                <>
+                  <div class="cp3-cell cp3-label">
+                    <div class="cp3-label-inner">
+                      <CheckBox checked={tpoDraft.volume[key].visible} onToggle={() => setTpoDraft("volume", key, "visible", (v) => !v)} />
+                      <span class="cp3-title" onClick={() => setTpoDraft("volume", key, "visible", (v) => !v)}>{label}</span>
+                    </div>
+                  </div>
+                  <div class="cp3-cell cp3-controls">
+                    {extendSelect(inputId, () => !tpoDraft.volume[key].visible)}
+                    <ColorControl
+                      color={tpoDraft.volume[key].color}
+                      width={tpoDraft.volume[key].width}
+                      style={tpoDraft.volume[key].style}
+                      disabled={!tpoDraft.volume[key].visible}
+                      onChange={(p) => {
+                        if (p.color) setTpoDraft("volume", key, "color", p.color);
+                        if (p.width !== undefined) setTpoDraft("volume", key, "width", Math.max(1, Math.min(4, Math.round(p.width))));
+                        if (p.style !== undefined) setTpoDraft("volume", key, "style", p.style);
+                      }}
+                    />
+                  </div>
+                </>
+              );
+              return (
+                <Show
+                  when={tab() === "style"}
+                  fallback={
+                    <div class="ind3-grid">
+                      {checkRow("Show volume profile", () => tpoDraft.volume.visible, () => setTpoDraft("volume", "visible", (v) => !v))}
+                      <div class="cp3-cell cp3-label">
+                        <div class="cp3-label-inner">
+                          <CheckBox checked={tpoDraft.volume.showValues} onToggle={() => setTpoDraft("volume", "showValues", (v) => !v)} />
+                          <span class="cp3-title" onClick={() => setTpoDraft("volume", "showValues", (v) => !v)}>Values</span>
+                        </div>
+                      </div>
+                      <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.valuesColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "valuesColor", p.color); }} /></div>
+                      {volLine("VAH", "vah", "extendVolumeVah")}
+                      {volLine("VAL", "val", "extendVolumeVal")}
+                      {volLine("POC", "poc", "extendVolumePoc")}
+                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Volume</span></div></div>
+                      <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.nonVaColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "nonVaColor", p.color); }} /></div>
+                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Value area</span></div></div>
+                      <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.vaColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "vaColor", p.color); }} /></div>
+                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Placement</span></div></div>
+                      <div class="cp3-cell cp3-controls">
+                        <SelectControl value={tpoDraft.volume.placement} options={["Left", "Right"]} width={100} onPick={(o) => setTpoDraft("volume", "placement", o as "Left" | "Right")} />
+                      </div>
+                    </div>
+                  }
+                >
+                  <div class="ind3-grid">
+                    <div class="cp3-section ind3-section is-first">Appearance</div>
+                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Gradient colors</span></div></div>
+                    <div class="cp3-cell cp3-controls">
+                      <For each={[0, 1, 2, 3] as const}>
+                        {(i) => <ColorControl color={tpoDraft.colors[i]} onChange={(p) => { if (p.color) setTpoDraft("colors", i, p.color); }} />}
+                      </For>
+                    </div>
+                    {check("Blocks", "showBlocks")}
+                    {check("Letters", "showLetters")}
+                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Opacity outside VA</span></div></div>
+                    <div class="cp3-cell cp3-controls"><TransparencySlider class="ind3-tpo-opacity" value={tpoDraft.nonVaOpacity} onChange={(t) => setTpoDraft("nonVaOpacity", t)} /></div>
+                    <div class="cp3-cell cp3-label">
+                      <div class="cp3-label-inner">
+                        <CheckBox checked={tpoDraft.expand} onToggle={() => setTpoDraft("expand", (v) => !v)} />
+                        <span class="cp3-title" onClick={() => setTpoDraft("expand", (v) => !v)}>Expand blocks</span>
+                      </div>
+                    </div>
+                    <div class="cp3-cell cp3-controls">
+                      <SelectControl value={tpoDraft.expandMode} options={["All", "Last profile"]} width={100} onPick={(o) => setTpoDraft("expandMode", o as "All" | "Last profile")} />
+                    </div>
+                    <div class="cp3-section ind3-section">Lines and labels</div>
+                    {level("POC", "poc", "extendPOC")}
+                    {level("Poor high", "poorHigh", "extendPoorHigh")}
+                    {level("Poor low", "poorLow", "extendPoorLow")}
+                    {level("Single prints", "singlePrints", "extendSingleprints")}
+                    {level("VAH", "vah", "extendTpoVah")}
+                    {level("VAL", "val", "extendTpoVal")}
+                    {check("TPO Midpoint", "midpoint")}
+                    {check("Open", "open")}
+                    {check("Close", "close")}
+                    <div class="cp3-cell cp3-label">
+                      <div class="cp3-label-inner">
+                        <CheckBox checked={tpoDraft.initialBalance} onToggle={() => setTpoDraft("initialBalance", (v) => !v)} />
+                        <span class="cp3-title" onClick={() => setTpoDraft("initialBalance", (v) => !v)}>Initial Balance Range</span>
+                      </div>
+                    </div>
+                    <div class="cp3-cell cp3-controls">
+                      <NumberField
+                        value={String(tpoDraft.ibBlocks)}
+                        num={{ min: 1, max: 1000, step: 1, int: true }}
+                        disabled={!tpoDraft.initialBalance}
+                        onChange={(v) => { const n = parseFloat(v); if (Number.isFinite(n)) setTpoDraft("ibBlocks", Math.round(n)); }}
+                      />
+                    </div>
+                    <div class="cp3-section ind3-section">Input values</div>
+                    {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
+                  </div>
+                </Show>
+              );
+            })()}
+          </Show>
+
+          {/* ── Style (volume profiles): the profile rows, its lines, the
+              developing POC / VA plots, the histogram box, then the study
+              options (no Precision row). ── */}
+          <Show when={tab() === "style" && props.profile}>
+            {(pf) => {
+              const color = (label: string, get: () => string, set: (c: string) => void) => (
+                <>
+                  <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">{label}</span></div></div>
+                  <div class="cp3-cell cp3-controls"><ColorControl color={get()} onChange={(p) => { if (p.color) set(p.color); }} /></div>
+                </>
+              );
+              const line = (label: string, key: "vah" | "val" | "poc") => (
+                <>
+                  <div class="cp3-cell cp3-label">
+                    <div class="cp3-label-inner">
+                      <CheckBox checked={vbpDraft[key].visible} onToggle={() => setVbpDraft(key, "visible", (v) => !v)} />
+                      <span class="cp3-title" onClick={() => setVbpDraft(key, "visible", (v) => !v)}>{label}</span>
+                    </div>
+                  </div>
+                  <div class="cp3-cell cp3-controls">
+                    <ColorControl
+                      color={vbpDraft[key].color}
+                      width={vbpDraft[key].width}
+                      style={vbpDraft[key].style}
+                      onChange={(p) =>
+                        setVbpDraft(key, (l: VbpLine) => ({
+                          ...l,
+                          ...(p.color ? { color: p.color } : {}),
+                          ...(p.width !== undefined ? { width: Math.max(1, Math.min(4, Math.round(p.width))) } : {}),
+                          ...(p.style !== undefined ? { style: p.style } : {}),
+                        }))
+                      }
+                    />
+                  </div>
+                </>
+              );
+              /** Developing POC / VA: plot styles (VA = its high and low lines together). */
+              const developing = (label: string, ids: string[]) => {
+                const toggle = () => {
+                  const v = !styleDraft[ids[0]].visible;
+                  for (const id of ids) setStyleDraft(id, "visible", v);
+                };
+                return (
+                  <Show when={ids.every((id) => styleDraft[id])}>
+                    <div class="cp3-cell cp3-label">
+                      <div class="cp3-label-inner">
+                        <CheckBox checked={styleDraft[ids[0]].visible} onToggle={toggle} />
+                        <span class="cp3-title" onClick={toggle}>{label}</span>
+                      </div>
+                    </div>
+                    <div class="cp3-cell cp3-controls">
+                      <ColorControl
+                        color={styleDraft[ids[0]].color}
+                        width={styleDraft[ids[0]].lineWidth}
+                        onChange={(p) => {
+                          for (const id of ids) {
+                            if (p.color) setStyleDraft(id, "color", p.color);
+                            if (p.width !== undefined) setStyleDraft(id, "lineWidth", Math.max(1, Math.min(4, Math.round(p.width))));
+                          }
+                        }}
+                      />
+                    </div>
+                  </Show>
+                );
+              };
+              return (
+                <div class="ind3-grid">
+                  {checkRow("Volume profile", () => vbpDraft.visible, () => setVbpDraft("visible", (v) => !v))}
+                  <div class="cp3-cell cp3-label is-offset">
+                    <div class="cp3-label-inner">
+                      <CheckBox checked={vbpDraft.showValues} onToggle={() => setVbpDraft("showValues", (v) => !v)} />
+                      <span class="cp3-title" onClick={() => setVbpDraft("showValues", (v) => !v)}>Values</span>
+                    </div>
+                  </div>
+                  <div class="cp3-cell cp3-controls"><ColorControl color={vbpDraft.valuesColor} onChange={(p) => { if (p.color) setVbpDraft("valuesColor", p.color); }} /></div>
+                  <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">Width (% of the box)</span></div></div>
+                  <div class="cp3-cell cp3-controls">
+                    <NumberField
+                      value={String(vbpDraft.percentWidth)}
+                      num={{ min: 1, max: 100, step: 1, int: true }}
+                      onChange={(v) => { const n = parseFloat(v); if (Number.isFinite(n)) setVbpDraft("percentWidth", Math.round(n)); }}
+                    />
+                  </div>
+                  <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">Placement</span></div></div>
+                  <div class="cp3-cell cp3-controls">
+                    <SelectControl value={vbpDraft.placement} options={["Left", "Right"]} width={selectWidth([vbpDraft.placement])} onPick={(o) => setVbpDraft("placement", o as "Left" | "Right")} />
+                  </div>
+                  {color("Up Volume", () => vbpDraft.upColor, (c) => setVbpDraft("upColor", c))}
+                  {color("Down Volume", () => vbpDraft.downColor, (c) => setVbpDraft("downColor", c))}
+                  {color("Value Area Up", () => vbpDraft.vaUpColor, (c) => setVbpDraft("vaUpColor", c))}
+                  {color("Value Area Down", () => vbpDraft.vaDownColor, (c) => setVbpDraft("vaDownColor", c))}
+                  {line("VAH", "vah")}
+                  {line("VAL", "val")}
+                  {line("POC", "poc")}
+                  {developing("Developing POC", ["developingPoc"])}
+                  {developing("Developing VA", ["developingVAHigh", "developingVALow"])}
+                  <Show when={pf().histogramBox}>
+                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Histogram Box</span></div></div>
+                    <div class="cp3-cell cp3-controls"><ColorControl color={vbpDraft.boxColor} onChange={(p) => { if (p.color) setVbpDraft("boxColor", p.color); }} /></div>
+                  </Show>
+                  {checkRow("Labels on price scale", () => optDraft.labelsOnScale, () => setOptDraft("labelsOnScale", (v) => !v))}
+                  {checkRow("Values in status line", () => optDraft.valuesInStatusLine, () => setOptDraft("valuesInStatusLine", (v) => !v))}
+                  <div class="cp3-section ind3-section">Input values</div>
+                  {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
+                </div>
+              );
+            }}
+          </Show>
+
           {/* ── Style ── one row per plot: visible check box + colour and
               thickness (color-with-thickness button; thickness is in its
               colour panel). */}
-          <Show when={tab() === "style" && !props.strategy}>
+          <Show when={tab() === "style" && !props.strategy && !props.profile && !props.tpo}>
             <div class="ind3-grid">
               <For each={stylePlots}>
                 {(p) => (

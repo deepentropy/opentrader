@@ -108,7 +108,7 @@ import { DialogHost, showConfirm, showRename } from "./components/Dialogs";
 import { alertStore } from "./data/alert-store";
 import { ruleDrawingIds } from "./data/alert-condition";
 import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTemplate } from "./window/header/chart-templates";
-import { getIndicatorEntry } from "./window/chart/indicators/registry";
+import { FIXED_RANGE_VP_TOOL_ROW, getIndicatorEntry } from "./window/chart/indicators/registry";
 import { loadIndicatorDefault } from "./data/indicator-defaults";
 import { defaultIndicatorOptions } from "./window/chart/indicators/indicator-options";
 import { UnsavedLayoutDialog } from "./window/header/UnsavedLayoutDialog";
@@ -1541,6 +1541,11 @@ function App() {
    *  call adds a new instance with its own settings, like the reference app
    *  (the same indicator can be on a chart several times). */
   function addIndicator(typeId: string) {
+    // The fixed range volume profile row picks its drawing tool, as in the reference app.
+    if (typeId === FIXED_RANGE_VP_TOOL_ROW) {
+      window.dispatchEvent(new CustomEvent("select-drawing-tool", { detail: { toolId: "fixed-range-volume-profile" } }));
+      return;
+    }
     const pane = activePaneState();
     const tab = activeTab();
     // Ids still held by undo/redo entries of this pane are not reused: undo

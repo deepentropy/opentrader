@@ -34,6 +34,12 @@ import { restoreTimes, scriptBars } from '../../../backtester/oakscript';
 import { isStrategyId } from './strategy-entries';
 import type { OtherSymbolBars } from './other-symbols';
 import { MissingSymbolDataError } from 'lightweight-charts-indicators';
+import type { ChartEvent } from '../../../data/datafeed';
+import { VbpPrimitive } from '../profiles/vbp-primitive';
+import type { VbpDraw } from '../profiles/vbp-studies';
+import { TpoPrimitive } from '../profiles/tpo-primitive';
+import type { TpoDraw } from '../profiles/tpo-engine';
+import { uiTheme } from '../../header/chart-settings';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -63,7 +69,16 @@ function withPaletteColors(entry: IndicatorRegistryEntry, result: any, styles: I
 /** Third argument of `calculate`: the chart context (what the library indicators and the OakScript scripts
  *  read) with the state of the newest bar, plus what the app's own entries need. `heikinAshi`: the chart shows
  *  Heikin Ashi bars (strategies run on them). */
-export type StudyCalcContext = StudyChart & Pick<IndicatorChartContext, 'leftVisibleBarTime' | 'rightVisibleBarTime'> & { chartId: string; studyId?: string; heikinAshi?: boolean };
+export type StudyCalcContext = StudyChart & Pick<IndicatorChartContext, 'leftVisibleBarTime' | 'rightVisibleBarTime'> & {
+  chartId: string;
+  studyId?: string;
+  heikinAshi?: boolean;
+  /** Bars of the chart symbol on a lower timeframe in the chart's session, loaded back to `from` (seconds; the
+   *  profile studies); undefined while they load. */
+  lowerBars?: (resolution: string, from: number) => Bar[] | undefined;
+  /** Dividends and splits of the chart symbol; undefined while they load. */
+  chartEvents?: () => ChartEvent[] | undefined;
+};
 /** Chart type and state of the newest bar, read at each calculation. `realtime`: it is still forming;
  *  `lastBarNew`: this is its first update. */
 export type StudyChartState = () => { heikinAshi: boolean; realtime: boolean; lastBarConfirmed: boolean; lastBarNew: boolean };
@@ -372,6 +387,18 @@ export class IndicatorLayer {
           return store.bars(symbol, timeframe, interval);
         };
         ctx.symbolInfo = (symbol) => store.symbolInfo(symbol);
+        const ticker = ctx.tickerid;
+        if (ticker) {
+          const session = ctx.sessionType === 'extended' ? 'ETH' : 'RTH';
+          ctx.lowerBars = (resolution, from) => {
+            used.add(store.lowerKey(ticker, resolution, session));
+            return store.lowerBars(ticker, resolution, session, from);
+          };
+          ctx.chartEvents = () => {
+            used.add(store.eventsKey(ticker));
+            return store.events(ticker);
+          };
+        }
       }
       // Daily and longer bars at the session open, as studies read them (strategies restamp their own bars: the
       // broker and the report keep the chart's bar times).
@@ -536,6 +563,21 @@ export class IndicatorLayer {
         s.attachPrimitive(primitive as ISeriesPrimitive<Time>);
         this.detachers.push(() => s.detachPrimitive(primitive as ISeriesPrimitive<Time>));
       }
+    }
+    // Volume profile studies: their profiles on the price pane, with the main series.
+    const vbp = (result as { vbp?: VbpDraw }).vbp;
+    const main = this.mainSeries();
+    if (vbp && main) {
+      const primitive = new VbpPrimitive(vbp, this.lastBars.map((b) => b.time as unknown as number), this.plotLabel);
+      main.attachPrimitive(primitive as ISeriesPrimitive<Time>);
+      this.detachers.push(() => main.detachPrimitive(primitive as ISeriesPrimitive<Time>));
+    }
+    // Time price opportunity studies.
+    const tpo = (result as { tpo?: TpoDraw }).tpo;
+    if (tpo && main) {
+      const primitive = new TpoPrimitive(tpo, this.lastBars.map((b) => b.time as unknown as number), uiTheme() !== 'light');
+      main.attachPrimitive(primitive as ISeriesPrimitive<Time>);
+      this.detachers.push(() => main.detachPrimitive(primitive as ISeriesPrimitive<Time>));
     }
     if (this.selectionBg) this.attachMarkers();
   }

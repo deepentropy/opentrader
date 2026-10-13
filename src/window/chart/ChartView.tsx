@@ -145,6 +145,9 @@ import { cachedSymbolSessions } from "../../data/session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
 import { IndicatorLegend } from "./IndicatorLegend";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
+import { profileMetaOf } from "./profiles/vbp-studies";
+import { isTpoEntry } from "./profiles/tpo";
+import { autoTicksPerRow } from "./profiles/tpo-engine";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
@@ -5911,8 +5914,10 @@ export function ChartView(props: Props) {
           return (
             <Show when={entry && values && styles}>
               <IndicatorSettingsDialog
-                title={isStrategyId(id()) ? (entry!.shortName ?? entry!.name) : entry!.name}
+                title={isStrategyId(id()) || profileMetaOf(entry) || isTpoEntry(entry) ? (entry!.shortName ?? entry!.name) : entry!.name}
                 strategy={strategy}
+                profile={profileMetaOf(entry) ?? undefined}
+                tpo={isTpoEntry(entry) ? { autoTicksPerRow: autoTicksPerRow(raw as unknown as Bar[], cachedSymbolSessions(props.symbol ?? "")?.mintick ?? 0.01) } : undefined}
                 timeZone={cachedSymbolSessions(props.symbol ?? "")?.timeZone}
                 initialTab={tab}
                 inputConfig={entry!.inputConfig}

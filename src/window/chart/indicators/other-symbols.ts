@@ -16,12 +16,18 @@
  *   any more is dropped with its live subscription.
  * - A symbol that cannot be loaded (unknown, not served) answers no bars,
  *   once: it is not fetched again until the chart reloads.
+ * - Lower-timeframe bars of the chart's own symbol (profile studies,
+ *   `lowerBars`): the chart's session, raw bar times, loaded back to the
+ *   time the study asks for (not limited to the chart's span).
  */
 import type { Bar } from "oakscriptjs";
+import type { SessionId } from "../../../data/session";
 import type { SymbolInfo } from "oakscriptjs/script";
 import {
   getBars,
   getBarsBefore,
+  getEvents,
+  type ChartEvent,
   isIntradayResolution,
   isSecondResolution,
   isSupportedResolution,
@@ -40,6 +46,11 @@ const SESSION = "RTH";
 type Entry = {
   symbol: string;
   resolution: string;
+  /** Session of the bars. */
+  session: SessionId;
+  /** Lower-timeframe entry: the bars as loaded (no restamp), loaded back to `wantFrom`. */
+  lower: boolean;
+  wantFrom: number;
   /** Bars as loaded (chart bar times); null while the first load runs. */
   bars: Bar[] | null;
   /** The bars the studies read (daily and longer at the session open); rebuilt on change. */
@@ -66,6 +77,8 @@ const keyOf = (symbol: string, resolution: string) => `${symbol}|${resolution}`;
 
 export class OtherSymbolBars {
   private entries = new Map<string, Entry>();
+  /** Dividends / splits of a symbol (`symbol|events`): null while loading. */
+  private eventLists = new Map<string, ChartEvent[] | null>();
   /** First bar time of the chart's loaded bars (seconds): the span the other symbols cover. */
   private chartFirst = Infinity;
   private chartSeconds = 0;
@@ -90,7 +103,7 @@ export class OtherSymbolBars {
     const key = keyOf(sym, resolution);
     let e = this.entries.get(key);
     if (!e) {
-      e = { symbol: sym, resolution, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null };
+      e = { symbol: sym, resolution, session: SESSION, lower: false, wantFrom: Infinity, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null };
       this.entries.set(key, e);
       this.load(key, e);
     }
@@ -98,6 +111,51 @@ export class OtherSymbolBars {
     if (!e.bars) return undefined;
     if (!e.seen) e.seen = scriptBars(e.bars, scriptChartContext(e.symbol, e.resolution, SESSION));
     return e.seen;
+  }
+
+  /** Accessor key of a lower-timeframe request. */
+  lowerKey(symbol: string, resolution: string, session: SessionId): string {
+    return `${symbol.trim().toUpperCase()}|${resolution}|${session}`;
+  }
+
+  /** Bars of `symbol` on `resolution` in `session` (raw bar times), loaded back to `from` (seconds): undefined
+   *  while the first load runs, [] when they cannot be loaded; older bars follow while they load. */
+  lowerBars(symbol: string, resolution: string, session: SessionId, from: number): Bar[] | undefined {
+    const sym = symbol.trim().toUpperCase();
+    const key = this.lowerKey(sym, resolution, session);
+    let e = this.entries.get(key);
+    if (!e) {
+      e = { symbol: sym, resolution, session, lower: true, wantFrom: from, bars: null, seen: null, failed: false, exhausted: false, extending: false, volBase: null, stopLive: null };
+      this.entries.set(key, e);
+      this.load(key, e);
+    } else if (from < e.wantFrom) {
+      e.wantFrom = from;
+      this.extend(key, e);
+    }
+    if (e.failed) return [];
+    return e.bars ?? undefined;
+  }
+
+  /** Accessor key of a symbol's dividends / splits. */
+  eventsKey(symbol: string): string {
+    return `${symbol.trim().toUpperCase()}|events`;
+  }
+
+  /** Dividends and splits of `symbol`, time-ascending; undefined while they load (the studies that read them
+   *  calculate again when they arrive), [] when there are none or they cannot be loaded. */
+  events(symbol: string): ChartEvent[] | undefined {
+    const key = this.eventsKey(symbol);
+    if (!this.eventLists.has(key)) {
+      this.eventLists.set(key, null);
+      getEvents(symbol.trim().toUpperCase())
+        .catch(() => [] as ChartEvent[])
+        .then((list) => {
+          if (this.disposed || !this.eventLists.has(key)) return;
+          this.eventLists.set(key, list);
+          this.changed(new Set([key]), false);
+        });
+    }
+    return this.eventLists.get(key) ?? undefined;
   }
 
   /** The bars of a key (`symbol|interval`) could not be loaded (unknown symbol, not served). */
@@ -144,6 +202,7 @@ export class OtherSymbolBars {
   clear(): void {
     for (const e of this.entries.values()) e.stopLive?.();
     this.entries.clear();
+    this.eventLists.clear();
   }
 
   dispose(): void {
@@ -160,7 +219,7 @@ export class OtherSymbolBars {
       e.failed = true;
       return;
     }
-    getBars(e.symbol, e.resolution, SESSION)
+    getBars(e.symbol, e.resolution, e.session)
       .then((r) => {
         if (!this.alive(key, e)) return;
         e.bars = r.bars
@@ -179,18 +238,20 @@ export class OtherSymbolBars {
       });
   }
 
-  /** Older bars of an intraday timeframe back to the chart's first bar. A timeframe below the chart's is not
-   *  extended (its whole history under a long chart would be far too many bars). */
+  /** Older bars of an intraday timeframe back to the chart's first bar (a lower-timeframe entry: back to the time
+   *  its study asks for). A timeframe below the chart's is not extended (its whole history under a long chart would
+   *  be far too many bars). */
   private extend(key: string, e: Entry): void {
-    if (!e.bars || e.failed || e.exhausted || e.extending || !Number.isFinite(this.chartFirst)) return;
+    const target = e.lower ? e.wantFrom : this.chartFirst;
+    if (!e.bars || e.failed || e.exhausted || e.extending || !Number.isFinite(target)) return;
     if (!isIntradayResolution(e.resolution) && !isSecondResolution(e.resolution)) return;
     const first = e.bars.length ? (e.bars[0].time as number) : Infinity;
-    if (first <= this.chartFirst || !Number.isFinite(first)) return;
+    if (first <= target || !Number.isFinite(first)) return;
     const seconds = Number(e.resolution) * 60 || 0;
-    if (seconds && this.chartSeconds && seconds < this.chartSeconds) return;
+    if (!e.lower && seconds && this.chartSeconds && seconds < this.chartSeconds) return;
     e.extending = true;
-    const spanDays = Math.ceil((first - this.chartFirst) / 86400) + 1;
-    getBarsBefore(e.symbol, e.resolution, first, SESSION, spanDays)
+    const spanDays = Math.ceil((first - target) / 86400) + 1;
+    getBarsBefore(e.symbol, e.resolution, first, e.session, spanDays)
       .then((rows) => {
         if (!this.alive(key, e) || !e.bars) return;
         const older = rows
@@ -223,7 +284,7 @@ export class OtherSymbolBars {
         e.seen = null;
         this.changed(new Set([key]), true);
       }
-    }, () => SESSION).then((u) => {
+    }, () => e.session).then((u) => {
       if (dead) u();
       else off = u;
     });
