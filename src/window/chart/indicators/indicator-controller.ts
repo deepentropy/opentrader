@@ -86,6 +86,8 @@ export type IndicatorLegendRow = {
   eyeHidden: boolean;
   /** The study failed: its status in the legend (values hidden). */
   error?: StudyError | null;
+  /** The study waits for its data: loading eye, values not available. */
+  loading?: boolean;
   /** Set on a compared symbol's row: its value texts (in the line colour);
    *  the title is shown as is and its click changes the symbol. */
   compare?: { texts: { text: string; color: string }[] };
@@ -500,7 +502,7 @@ export class IndicatorController {
         title: inst.layer.title,
         // Legend: a study off its intervals shows as hidden.
         hidden: this.hidden.has(id) || offInterval,
-        plots: inst.layer.legendPlots(time),
+        plots: inst.layer.legendPlots(time, true),
         pane: inst.overlay ? 0 : inst.paneIndex,
         inputs: entry ? statusLineInputs(entry, this.effectiveInputs(id, entry)) : '',
         inputValues: entry ? this.effectiveInputs(id, entry) : undefined,
@@ -510,6 +512,7 @@ export class IndicatorController {
         offInterval,
         eyeHidden: this.hidden.has(id),
         error: inst.layer.studyError(),
+        loading: inst.layer.studyLoading(),
       });
     }
     return rows;

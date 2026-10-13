@@ -230,6 +230,8 @@ export class IndicatorLayer {
   private usedSymbols = new Set<string>();
   /** Why the last calculation failed (null = it did not). */
   private error: StudyError | null = null;
+  /** The study waits for data (other symbols' bars, its first script run): the legend shows it loading. */
+  private loading = false;
   /** Study instance id ("rsi#2"): studies with run state keep one per instance. */
   private studyId: string | undefined;
 
@@ -269,6 +271,11 @@ export class IndicatorLayer {
   /** Why the study's last calculation failed (legend status), null when it did not. */
   studyError(): StudyError | null {
     return this.error;
+  }
+
+  /** The study waits for its data (legend status: loading eye, values not available). */
+  studyLoading(): boolean {
+    return this.loading;
   }
 
   /** Keys (`symbol|interval`) of the other symbols the last calculation read. */
@@ -352,6 +359,7 @@ export class IndicatorLayer {
 
   private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): any {
     this.error = null;
+    this.loading = false;
     try {
       const ctx: StudyCalcContext = { ...this.scriptChart, ...this.chartState(), chartId: this.chartId, studyId: this.studyId };
       const store = this.otherSymbols;
@@ -378,6 +386,7 @@ export class IndicatorLayer {
         }
       }
       const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+      if ((result as { pending?: boolean } | null)?.pending) this.loading = true;
       // Another symbol it reads cannot be loaded: the study fails and draws nothing.
       if (store && [...used].some((k) => store.failed(k))) {
         this.error = INVALID_SYMBOL;
@@ -390,7 +399,10 @@ export class IndicatorLayer {
       return withPaletteColors(entry, result, styles);
     } catch (err) {
       // Bars of other symbols still loading: the chart calculates the study again when they arrive.
-      if (err instanceof MissingSymbolDataError) return null;
+      if (err instanceof MissingSymbolDataError) {
+        this.loading = true;
+        return null;
+      }
       // A single indicator throwing must not break the chart or its siblings; the legend shows the error.
       this.error = studyErrorOf(err);
       // eslint-disable-next-line no-console
@@ -641,10 +653,17 @@ export class IndicatorLayer {
    *  its plot's configured colour — the study legend's value cells.  Only
    *  visible, finite-valued line/area/histogram plots are returned (crosses and
    *  hidden plots are skipped). */
-  legendPlots(time?: number): IndicatorLegendPlot[] {
+  legendPlots(time?: number, withNa = false): IndicatorLegendPlot[] {
     const entry = this.entry;
     const result = this.lastResult;
-    if (!entry || !result?.plots) return [];
+    // Loading without values yet (legend): every shown plot, its value not available.
+    const loadingPlots = (): IndicatorLegendPlot[] =>
+      withNa && entry && this.loading
+        ? entry.plotConfig.flatMap((p, index) =>
+            p.display !== 'none' && (p.style ?? 'line') !== 'cross' && plotShown(p as PlotDefaultVisible, this.lastStyles[p.id]) ? [{ color: p.color ?? '#787b86', value: NaN, index }] : [],
+          )
+        : [];
+    if (!entry || !result?.plots) return loadingPlots();
     // Plot arrays are one point per bar in the same order, so resolve the bar
     // index once from the first plot that has data.
     let sample: Array<{ time: number; value: number }> | undefined;
@@ -652,7 +671,7 @@ export class IndicatorLayer {
       const a = result.plots[p.id];
       if (a?.length) { sample = a; break; }
     }
-    if (!sample) return [];
+    if (!sample) return loadingPlots();
     let idx = sample.length - 1;
     if (time != null) {
       const hit = bsearchTime(sample, time);
@@ -666,7 +685,12 @@ export class IndicatorLayer {
       const ov = this.lastStyles[p.id];
       if (!plotShown(p as PlotDefaultVisible, ov)) continue; // hidden via the Style tab
       const pt = result.plots[p.id]?.[idx];
-      if (!pt || pt.value == null || Number.isNaN(pt.value)) continue;
+      if (!pt || pt.value == null || Number.isNaN(pt.value)) {
+        // The legend shows a value that is not available on this bar for a plot that has values (the other users
+        // take values only); a plot without any value (a switched-off option) stays out.
+        if (withNa && this.plotHasValues(result, p.id)) out.push({ color: ov?.color ?? p.color ?? '#787b86', value: NaN, index });
+        continue;
+      }
       // The value takes the bar's own plot colour (palette / per-point
       // colorer) with its transparency reset. Per-point colours also win on
       // the canvas, so the legend matches the drawn column.
@@ -694,6 +718,20 @@ export class IndicatorLayer {
   }
 
   /** Mirror of the reference renderer's plot-visibility gate. */
+  /** Plot ids of a result that have at least one value (computed once per result). */
+  private valuedPlots = new WeakMap<object, Set<string>>();
+  private plotHasValues(result: any, id: string): boolean {
+    let set = this.valuedPlots.get(result);
+    if (!set) {
+      set = new Set<string>();
+      for (const [pid, pts] of Object.entries((result.plots ?? {}) as Record<string, Array<{ value?: number | null }>>)) {
+        if (Array.isArray(pts) && pts.some((q) => q && q.value != null && !Number.isNaN(q.value))) set.add(pid);
+      }
+      this.valuedPlots.set(result, set);
+    }
+    return set.has(id);
+  }
+
   private isPlotVisible(plotDef: any, result: any, inputs: Record<string, unknown>): boolean {
     if (plotDef.display === 'none') return false;
     if (plotDef.visible === undefined) return true;

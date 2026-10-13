@@ -43,6 +43,9 @@ export function userIndicatorId(scriptId: string): string {
 }
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
+/** What calculate() returns while the study waits for its first result (worker run, other symbols' bars): the chart
+ *  shows the study as loading. */
+const PENDING_RESULT = { ...EMPTY_RESULT, pending: true };
 
 type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; symbols: OakSymbolData | undefined; key: string };
 
@@ -179,7 +182,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
       symbols = { bars: {}, info: {} };
       for (const r of run.requests) {
         const b = symbolBars?.(r.symbol, r.timeframe);
-        if (b === undefined) return run.result ?? EMPTY_RESULT;
+        if (b === undefined) return run.result ?? PENDING_RESULT;
         symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
         const info = symbolInfo?.(r.symbol);
         if (info) symbols.info[r.symbol] = info;
@@ -200,7 +203,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     }
     // The run for these bars and inputs failed: the chart shows the error with the study.
     if (run.error !== null && run.key === key) throw new Error(run.error);
-    return run.result ?? EMPTY_RESULT;
+    return run.result ?? (run.key === key ? EMPTY_RESULT : PENDING_RESULT);
   };
 }
 

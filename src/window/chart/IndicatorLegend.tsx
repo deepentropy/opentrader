@@ -82,6 +82,13 @@ const ICON_EYE_CROSSED = () => (
     <path fill="currentColor" d="M9 14c-.82 0-1.64-.15-2.43-.45l-.76.76c1.02.46 2.1.7 3.19.7 3.18 0 6.31-1.98 7.92-5.81L17 9l-.08-.2a10.44 10.44 0 0 0-2.23-3.37l-.7.7c.75.76 1.41 1.71 1.93 2.87-1.5 3.37-4.23 5-6.92 5Z" />
   </svg>
 );
+// Loading eye: the outline of the eye with a turning arc in place of the pupil.
+const ICON_EYE_LOADING = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18">
+    <path fill="none" stroke="currentColor" d="M1.6 9C3.4 5.4 6 3.5 9 3.5s5.6 1.9 7.4 5.5c-1.8 3.6-4.4 5.5-7.4 5.5S3.4 12.6 1.6 9Z" />
+    <path class="ot-eye-loading-arc" fill="none" stroke="currentColor" d="M11.5 9A2.5 2.5 0 1 0 9 11.5" />
+  </svg>
+);
 const ICON_SETTINGS = () => (
   <svg viewBox="0 0 18 18" width="18" height="18">
     <path fill="currentColor" fill-rule="evenodd" d="m3.1 9 2.28-5h7.24l2.28 5-2.28 5H5.38L3.1 9Zm1.63-6h8.54L16 9l-2.73 6H4.73L2 9l2.73-6Zm5.77 6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm1 0a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" />
@@ -110,6 +117,9 @@ const ICON_ERROR_MARK = () => (
     <circle fill="currentColor" cx="9" cy="12.9" r="1" />
   </svg>
 );
+/** A legend value that is not available (reference: drawn in the legend text colour). */
+const NA = "\u2205";
+
 const errorIcon = (e: StudyError) => (e.kind === "invalidSymbol" ? ICON_ERROR_CROSS() : ICON_ERROR_MARK());
 
 /** Error panel under a study's status pill (reference: left = pill - 15 px so the icons line up, top = pill + 7 px;
@@ -148,8 +158,9 @@ function StudyErrorPanel(props: { error: StudyError; anchor: DOMRect; onClose: (
   );
 }
 
-/** Compact study legend value format ("773.19 M", "82.50"). */
+/** Compact study legend value format ("773.19 M", "82.50"); a value that is not available is "∅". */
 function fmtVal(v: number): string {
+  if (!Number.isFinite(v)) return NA;
   const a = Math.abs(v);
   if (a >= 1e9) return `${(v / 1e9).toFixed(2)} B`;
   if (a >= 1e6) return `${(v / 1e6).toFixed(2)} M`;
@@ -186,7 +197,8 @@ export function IndicatorLegend(props: Props) {
         <For each={props.rows}>
           {(row) => (
             <div
-              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${props.selectedId === row.id ? " is-selected" : ""}`}
+              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${props.selectedId === row.id ? " is-selected" : ""}${row.loading ? " is-loading" : ""}`}
+              data-status={row.loading ? "loading" : undefined}
               data-qa-id="legend-source-item"
               data-entity-id={row.id}
               role="toolbar"
@@ -264,7 +276,11 @@ export function IndicatorLegend(props: Props) {
                 <Show when={!row.compare && !row.hidden && !row.error && (props.showValues ?? true) && row.showValues}>
                   <span class="ot-ind-legend-values">
                     <For each={row.plots}>
-                      {(p) => <span class="ot-ind-legend-val" style={{ color: p.color }}>{row.precision !== null ? p.value.toFixed(row.precision) : fmtVal(p.value)}</span>}
+                      {(p) => (
+                        <span class="ot-ind-legend-val" style={{ color: Number.isFinite(p.value) ? p.color : undefined }}>
+                          {!Number.isFinite(p.value) ? NA : row.precision !== null ? p.value.toFixed(row.precision) : fmtVal(p.value)}
+                        </span>
+                      )}
                     </For>
                   </span>
                 </Show>
@@ -272,7 +288,7 @@ export function IndicatorLegend(props: Props) {
                     covers the metric values underneath (theme-aware). */}
                 <span class="ot-ind-legend-actions" data-name="actions" style={{ "background-color": props.bgColor }}>
                   <ActionButton qa="legend-show-hide-action" title={row.eyeHidden ? "Show" : "Hide"} onClick={() => props.onToggleHide(row.id)}>
-                    {row.eyeHidden ? ICON_EYE_CROSSED() : ICON_EYE()}
+                    {row.loading ? ICON_EYE_LOADING() : row.eyeHidden ? ICON_EYE_CROSSED() : ICON_EYE()}
                   </ActionButton>
                   <ActionButton qa="legend-settings-action" title="Settings" onClick={() => props.onSettings(row.id)}>{ICON_SETTINGS()}</ActionButton>
                   <ActionButton qa="legend-delete-action" title="Remove" onClick={() => props.onRemove(row.id)}>{ICON_DELETE()}</ActionButton>

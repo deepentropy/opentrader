@@ -557,3 +557,13 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
   line-height: 21px;
   white-space: pre-wrap;
 }
+
+/* Study loading (reference legend `eyeLoading`): the eye button shows the eye's
+   outline with an arc turning once every 0.96 s; the values read "∅". */
+.ot-ind-legend-row.is-loading .ot-eye-loading-arc {
+  transform-origin: 9px 9px;
+  animation: ot-eye-loading 0.96s linear infinite;
+}
+@keyframes ot-eye-loading {
+  100% { transform: rotate(1turn); }
+}

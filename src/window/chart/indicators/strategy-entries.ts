@@ -62,6 +62,9 @@ export const userStrategyId = (scriptId: string): string => strategyId(USER_KEY_
 const userScriptIdOf = (key: string): string | null => (key.startsWith(USER_KEY_PREFIX) ? key.slice(USER_KEY_PREFIX.length) : null);
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
+/** What calculate() returns while the study waits for its first result (worker run, other symbols' bars): the chart
+ *  shows the study as loading. */
+const PENDING_RESULT = { ...EMPTY_RESULT, pending: true };
 
 type Runtime = {
   /** Staleness key of the last requested run. */
@@ -169,7 +172,7 @@ function makeCalculate(
       symbols = { bars: {}, info: {} };
       for (const r of rt.requests) {
         const b = symbolBars?.(r.symbol, r.timeframe);
-        if (b === undefined) return rt.visuals ?? EMPTY_RESULT;
+        if (b === undefined) return rt.visuals ?? PENDING_RESULT;
         symbols.bars[`${r.symbol}|${r.timeframe}`] = b;
         const info = symbolInfo?.(r.symbol);
         if (info) symbols.info[r.symbol] = info;
@@ -187,7 +190,7 @@ function makeCalculate(
     // The last run for these bars and inputs stopped on an error: the chart shows it with the study.
     const last = strategyTester.run(chartId, runKey);
     if (!rt.running && rt.key === key && last?.status === "error" && last.error) throw new Error(last.error.message);
-    return rt.visuals ?? EMPTY_RESULT;
+    return rt.visuals ?? (rt.running || rt.key !== key ? PENDING_RESULT : EMPTY_RESULT);
   }) as IndicatorRegistryEntry["calculate"];
 }
 
