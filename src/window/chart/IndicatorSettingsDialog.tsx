@@ -609,7 +609,8 @@ export function IndicatorSettingsDialog(props: Props) {
                       <For each={rest}>
                         {(cfg) => (
                           <>
-                            <Show when={cfg.type !== "bool" && cfg.title}>
+                            {/* Reference inline cells: a title cell (empty or not) 8 px before each control. */}
+                            <Show when={cfg.type !== "bool"}>
                               <span class="cp3-title">{cfg.title}</span>
                             </Show>
                             {cfg.type === "bool" ? <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} /> : inputControl(cfg)}
@@ -630,10 +631,24 @@ export function IndicatorSettingsDialog(props: Props) {
                         </div>
                       );
                     }
+                    // Several inputs on one row: label and controls flow from the left (reference inline cells), not in
+                    // the controls column.
+                    if (rest.length > 0) {
+                      return (
+                        <div class="cp3-cell cp3-label is-full">
+                          <div class="cp3-label-inner">
+                            <span class="cp3-title">{first.title ?? first.id}</span>
+                            {inputControl(first)}
+                            {more()}
+                            {info()}
+                          </div>
+                        </div>
+                      );
+                    }
                     return (
                       <>
                         <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">{first.title ?? first.id}</span></div></div>
-                        <div class="cp3-cell cp3-controls">{inputControl(first)}{more()}{info()}</div>
+                        <div class="cp3-cell cp3-controls">{inputControl(first)}{info()}</div>
                       </>
                     );
                   }}
