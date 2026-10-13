@@ -107,12 +107,15 @@ const inputNumberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits
 
 /** The input values shown after a study title in the status line: every
  *  input except bool / colour (bool, color, time and text_area inputs are
- *  hidden by default), numbers formatted, others as text,
- *  space-separated (titleInParts). */
+ *  hidden by default) and the inputs whose `display` leaves the status line
+ *  out (Pine `display.none`, `display.data_window`), numbers formatted,
+ *  others as text, space-separated (titleInParts). */
 export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<string, unknown>, separator = " "): string {
   const out: string[] = [];
   for (const cfg of entry.inputConfig ?? []) {
     if (cfg.type === "bool" || cfg.type === "color") continue;
+    const display = (cfg as { display?: string }).display;
+    if (display === "none" || display === "data_window") continue;
     const v = inputs[cfg.id];
     if (v === undefined || v === null || v === "") continue;
     out.push(typeof v === "number" ? inputNumberFormat.format(v) : String(v));

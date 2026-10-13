@@ -9,6 +9,7 @@
  */
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
+import { currentStudies } from "../window/chart/indicators/retired-ids";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 
 const STORAGE_KEY = "ot:indicator-templates";
@@ -29,7 +30,13 @@ export type IndicatorTemplate = {
 function load(): IndicatorTemplate[] {
   try {
     const raw = kv.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as IndicatorTemplate[];
+    if (raw) {
+      // Studies saved under a retired library id read their replacement.
+      return (JSON.parse(raw) as IndicatorTemplate[]).map((t) => {
+        const studies = currentStudies(t.indicators ?? [], t.settings);
+        return { ...t, indicators: studies.ids, settings: studies.settings ?? {} };
+      });
+    }
   } catch {
     /* malformed / unavailable — start empty */
   }

@@ -19,6 +19,8 @@ import { createStore, produce } from "solid-js/store";
 import { isFullSymbol, toFullSymbol } from "./datafeed";
 import { migrateDrawingKey } from "../window/drawings/persistence";
 import * as kv from "./kv";
+import { typeIdOf } from "../window/chart/indicators/study-id";
+import { currentInputs, currentTypeId } from "../window/chart/indicators/retired-ids";
 
 /** A side of the condition. Price = the symbol's last/close; value = a fixed
  *  number; drawing = a chart drawing's price level (horizontal line/ray, trend
@@ -173,6 +175,17 @@ function isRule(r: unknown): r is AlertRule {
   );
 }
 
+/** An indicator operand saved under a retired library id reads its
+ *  replacement, with its inputs renamed. */
+function currentOperand<T>(op: T): T {
+  const o = op as { kind?: string; indicatorId?: string; inputs?: Record<string, unknown> };
+  if (o?.kind !== "indicator" || typeof o.indicatorId !== "string") return op;
+  const type = typeIdOf(o.indicatorId);
+  const next = currentTypeId(type);
+  if (next === type) return op;
+  return { ...o, indicatorId: next + o.indicatorId.slice(type.length), inputs: currentInputs(type, o.inputs) } as T;
+}
+
 function load(): StoreShape {
   let rules: AlertRule[] = [];
   let fires: AlertFire[] = [];
@@ -180,7 +193,9 @@ function load(): StoreShape {
     const raw = kv.getItem(RULES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) rules = parsed.filter(isRule);
+      if (Array.isArray(parsed)) {
+        rules = parsed.filter(isRule).map((r: AlertRule) => ({ ...r, left: currentOperand(r.left), right: currentOperand(r.right) }));
+      }
     }
   } catch {
     /* malformed — start empty */

@@ -21,7 +21,7 @@
 import { createSignal } from "solid-js";
 import { renumberCharts, type LayoutId } from "../window/chart/layouts";
 import type { LayoutSyncState } from "../window/chart/layout-sync";
-import { revivePaneSettings, type LayoutSizes, type PaneChart } from "../window/shell/tabs";
+import { revivePaneSettings, reviveStudies, type LayoutSizes, type PaneChart } from "../window/shell/tabs";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "./kv";
@@ -184,7 +184,7 @@ export function removeLayout(id: string): void {
  *  to itself once opened. */
 function comparablePanes(panes: PaneChart[]): unknown[] {
   return panes.map((p) => {
-    const { visibleLogicalRange: _v, settingsFp: _f, settingsRev: _r, ...rest } = { ...p, ...revivePaneSettings(p) };
+    const { visibleLogicalRange: _v, settingsFp: _f, settingsRev: _r, ...rest } = { ...p, ...reviveStudies(p), ...revivePaneSettings(p) };
     return rest;
   });
 }

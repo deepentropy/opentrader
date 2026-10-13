@@ -19,6 +19,7 @@ import { cloneDraft, loadChartSettingsDefaults, reviveDraft, SETTINGS_FINGERPRIN
 import type { SessionId } from "../../data/datafeed";
 import type { IndicatorStyleOverrides } from "../chart/indicators/indicator-layer";
 import type { IndicatorOptions } from "../chart/indicators/indicator-options";
+import { currentStudies } from "../chart/indicators/retired-ids";
 import { COMPARE_COLORS, reviveCompareStyle, type CompareStyleState } from "../chart/compare/compare-style";
 
 /** A study's persisted overrides — the inputs + plot styles the user set in the
@@ -309,20 +310,32 @@ export function makeTab(partial: MakeTabPartial = {}): TabChart {
   return { id: newTabId(), layout, activePane: 0, panes, numbering: LAYOUT_NUMBERING, isChart, sync: defaultLayoutSync() };
 }
 
+/** Studies of a stored chart: ids the indicator library retired come back
+ *  as their replacement, with their settings and places in the orders. */
+export function reviveStudies(p: Partial<PaneChart>): Pick<PaneChart, "indicators" | "indicatorSettings" | "paneOrder" | "sourceOrder"> {
+  const studies = currentStudies(
+    Array.isArray(p.indicators) ? [...p.indicators] : [],
+    p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
+  );
+  const order = (ids: unknown) =>
+    Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string").map((id) => studies.renamed.get(id) ?? id) : undefined;
+  return { indicators: studies.ids, indicatorSettings: studies.settings, paneOrder: order(p.paneOrder), sourceOrder: order(p.sourceOrder) };
+}
+
 /** One stored chart read back into the current shape. */
 function revivePane(p: Partial<PaneChart>): PaneChart {
+  const studies = reviveStudies(p);
   return {
     id: typeof p.id === "string" ? p.id : newPaneId(),
     symbol: p.symbol ?? "NASDAQ:INTC",
     interval: p.interval ?? "1D",
     chartType: p.chartType ?? DEFAULT_CHART_TYPE,
     session: p.session ?? "RTH",
-    indicators: Array.isArray(p.indicators) ? [...p.indicators] : [],
-    indicatorSettings:
-      p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
+    indicators: studies.indicators,
+    indicatorSettings: studies.indicatorSettings,
     compare: reviveCompare(p.compare),
-    paneOrder: Array.isArray(p.paneOrder) ? p.paneOrder.filter((x): x is string => typeof x === "string") : undefined,
-    sourceOrder: Array.isArray(p.sourceOrder) ? p.sourceOrder.filter((x): x is string => typeof x === "string") : undefined,
+    paneOrder: studies.paneOrder,
+    sourceOrder: studies.sourceOrder,
     linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
     visibleLogicalRange:
       p.visibleLogicalRange &&
@@ -361,7 +374,7 @@ export function migrateTab(raw: any): TabChart {
       interval: raw?.interval ?? "1D",
       chartType: raw?.chartType ?? DEFAULT_CHART_TYPE,
       session: raw?.session ?? "RTH",
-      indicators: Array.isArray(raw?.indicators) ? [...raw.indicators] : [],
+      indicators: currentStudies(Array.isArray(raw?.indicators) ? [...raw.indicators] : [], undefined).ids,
     };
     panes = [base];
   }

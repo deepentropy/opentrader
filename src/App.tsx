@@ -35,6 +35,7 @@ import {
   markEditedPanes,
   savedHiddenPanes,
   revivePaneSettings,
+  reviveStudies,
   saveTabs,
   linkedTabCountInOtherWindows,
   clampMoveIndex,
@@ -528,7 +529,7 @@ function App() {
     const l = getLayout(id);
     if (!l) return;
     const revive = (p: PaneChart): PaneChart =>
-      ({ ...p, id: p.id ?? newPaneId(), indicators: [...p.indicators], compare: reviveCompare(p.compare), ...revivePaneSettings(p) });
+      ({ ...p, id: p.id ?? newPaneId(), ...reviveStudies(p), compare: reviveCompare(p.compare), ...revivePaneSettings(p) });
     patchActive({
       layout: l.snapshot.layout,
       panes: l.snapshot.panes.map(revive),

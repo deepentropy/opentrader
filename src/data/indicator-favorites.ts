@@ -8,6 +8,7 @@
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
+import { currentTypeId } from "../window/chart/indicators/retired-ids";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 
 const STORAGE_KEY = "ot:favorite-indicators";
@@ -18,7 +19,9 @@ function load(): string[] {
     if (raw) {
       // Drop ids the registry no longer knows (library upgrade) so the menu
       // never lists rows that can't be added.
-      return (JSON.parse(raw) as string[]).filter((id) => !!getIndicatorEntry(id));
+      // A retired library id is kept as its replacement.
+      const ids = (JSON.parse(raw) as string[]).map(currentTypeId);
+      return [...new Set(ids)].filter((id) => !!getIndicatorEntry(id));
     }
   } catch {
     /* malformed / unavailable — start empty */
