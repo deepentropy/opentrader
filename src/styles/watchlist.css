@@ -263,8 +263,8 @@
   background-color: var(--color-brand, #2962ff);
 }
 
-/* Guide under a hovered or dragged divider: 2px #132042
- * (--color-ot-blue-a900) from the header's bottom to the list's.
+/* Guide under a hovered or dragged divider: 2px blue-a900 (#132042) dark,
+ * blue-50 (#e3effd) light, from the header's bottom to the list's.
  * `left`/`top` are set from the divider's position. */
 .watchlist-col-guide {
   position: absolute;
@@ -274,6 +274,9 @@
   background-color: var(--color-ot-blue-a900, #132042);
   z-index: 50;
   pointer-events: none;
+}
+html.theme-light .watchlist-col-guide {
+  background-color: var(--color-ot-blue-50, #e3effd);
 }
 
 /* Flag-sort button (12px gutter, 26px tall) with the row flag glyph at 12×13

@@ -6,7 +6,7 @@
  *   Symbol column sticky on the left, with the match count under its title.
  *   Column setup (+) sticky at the header right.
  *   rows 41 px (40 + 1 px #2e2e2e), 14 px #dbdbdb; hover #2e2e2e with the
- *   ticker chip turning #2962ff / white; selected row #132042.
+ *   ticker chip turning #2962ff / white; selected row #132042 (#e3effd light).
  * A header click opens the column menu (sort, move, remove); the arrow button
  * sorts directly (inactive: descending first, active: flips the order).
  *

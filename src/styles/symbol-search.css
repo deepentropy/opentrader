@@ -582,14 +582,22 @@
   width: 28px;
   height: 28px;
 }
-/* A just-added row flashes (1s ease, peak #132042 at 50%; the class is
- * dropped after 500 ms). */
+/* A just-added row flashes (1s ease, peak at 50%: #132042 dark, #e3effd
+ * light; the class is dropped after 500 ms). */
 .symbol-search-row.is-flashed {
   animation: symbol-search-flash 1s ease 1;
+}
+html.theme-light .symbol-search-row.is-flashed {
+  animation-name: symbol-search-flash-light;
 }
 @keyframes symbol-search-flash {
   50% {
     background-color: var(--color-ot-blue-a900, #132042);
+  }
+}
+@keyframes symbol-search-flash-light {
+  50% {
+    background-color: var(--color-ot-blue-50, #e3effd);
   }
 }
 

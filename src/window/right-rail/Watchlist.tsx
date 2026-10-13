@@ -462,8 +462,8 @@ export function Watchlist(props: Props) {
 
   // Root <aside> + column-header refs, and the guide line under a column
   // divider (x = divider centre, top = header bottom, both px from the aside).
-  // It is drawn while a divider is hovered or dragged: 2px #132042 from the
-  // header's bottom to the list's.
+  // It is drawn while a divider is hovered or dragged: 2px #132042 (#e3effd
+  // light) from the header's bottom to the list's.
   let asideEl!: HTMLElement;
   let headersEl!: HTMLDivElement;
   const [guide, setGuide] = createSignal<{ x: number; top: number } | null>(null);

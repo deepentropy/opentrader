@@ -548,8 +548,12 @@
 .scr-tr:hover > .scr-td {
   background-color: var(--color-container-fill-primary-neutral-extra-light); /* #2e2e2e */
 }
+/* Selected row: blue-a900 dark, blue-50 light (reference per-theme value). */
 .scr-tr.is-selected > .scr-td {
   background-color: var(--color-ot-blue-a900, #132042);
+}
+html.theme-light .scr-tr.is-selected > .scr-td {
+  background-color: var(--color-ot-blue-50, #e3effd);
 }
 .scr-table-scroll.is-scrolled-x .scr-td-symbol::before,
 .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
@@ -561,6 +565,10 @@
   height: 100%;
   background-image: linear-gradient(to right, #43465154, #43465100);
   pointer-events: none;
+}
+html.theme-light .scr-table-scroll.is-scrolled-x .scr-td-symbol::before,
+html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
+  background-image: linear-gradient(to right, #e0e3eb54, #e0e3eb00);
 }
 .scr-ticker-cell {
   position: relative;
