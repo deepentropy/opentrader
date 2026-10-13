@@ -304,11 +304,13 @@ html.theme-dark {
   --ot-ind-row-hover: var(--color-cold-gray-800, #2e2e2e);
   --ot-ind-row-selected: var(--color-ot-blue-a900, #132042);
   --ot-ind-row-selected-star-hover: var(--color-ot-blue-a700, #143a87);
+  --ot-ind-metric-dot: var(--color-cold-gray-600, #636363);
 }
 html.theme-light {
   --ot-ind-row-hover: var(--color-cold-gray-100, #f2f2f2);
   --ot-ind-row-selected: var(--color-ot-blue-50, #e3effd);
   --ot-ind-row-selected-star-hover: var(--color-ot-blue-200, #90bff9);
+  --ot-ind-metric-dot: var(--color-cold-gray-200, #dbdbdb);
 }
 
 /* Row: 32px, 8px radius. */
@@ -496,7 +498,9 @@ html.theme-light {
 
 /* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
-/* Metric rows: 32px; depth-1 children indented + dotted. */
+/* Metric rows: 32px; depth-1 children indented + dotted. Same row colours
+   as the indicator rows (hover grey per theme); child dot 5px, cold-gray-600
+   dark / cold-gray-200 light. */
 .indicators-metric {
   display: flex;
   align-items: center;
@@ -509,7 +513,7 @@ html.theme-light {
 }
 
 .indicators-metric:hover {
-  background-color: var(--color-ot-blue-a900, #132042);
+  background-color: var(--ot-ind-row-hover);
 }
 
 .indicators-metric.depth-1 {
@@ -518,10 +522,10 @@ html.theme-light {
 }
 
 .indicators-metric-dot {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background-color: var(--color-cold-gray-400, #8c8c8c);
+  background-color: var(--ot-ind-metric-dot);
   flex-shrink: 0;
 }
 
