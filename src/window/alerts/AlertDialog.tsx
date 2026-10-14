@@ -37,7 +37,14 @@ import {
   VWAP_PLOTS,
   alertIntervalText,
   conditionHasIntervalRow,
+  alertAmountText,
+  drawingSelectLabel,
+  isMovingOperator,
+  VALUE_OPERATORS,
 } from "../../data/alert-condition";
+import { chartLastPrice, indicatorPlotValue } from "../../data/chart-state-registry";
+import { quoteFor } from "../../data/quotes";
+import { cachedSymbolSessions } from "../../data/session";
 import { buildIntervalMenu, sectionOf, SECTION_TITLES, type IntervalSection } from "../chart/custom-intervals";
 import { compareIntervals, favoriteIntervals, longIntervalLabel } from "../chart/interval-favorites";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
@@ -75,15 +82,6 @@ type Props = {
   onClose: () => void;
 };
 
-const OPERATORS: AlertOperator[] = [
-  "crossing",
-  "crossing_up",
-  "crossing_down",
-  "greater",
-  "less",
-  "moving_up_pct",
-  "moving_down_pct",
-];
 
 /** Trigger choices. A condition on price offers "Once only" and "Every
  *  time"; one that reads a study has the per-bar ones, and "Every time" is
@@ -135,6 +133,8 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
   crossing_down: "M2.5 6.5h13M5 2.5l8 11M9.5 13.5H13V10",
   greater: "M2.5 13.5h13M9 10.5v-7M6 6.5l3-3 3 3",
   less: "M2.5 4.5h13M9 7.5v7M6 11.5l3 3 3-3",
+  moving_up: "M2.5 13.5l4.5-4.5 3 3 5-6.5M11.5 5.5H15V9",
+  moving_down: "M2.5 4.5 7 9l3-3 5 6.5M11.5 12.5H15V9",
   moving_up_pct: "M2.5 13.5l4.5-4.5 3 3 5-6.5M11.5 5.5H15V9",
   moving_down_pct: "M2.5 4.5 7 9l3-3 5 6.5M11.5 12.5H15V9",
   entering: "M2.5 5h13M2.5 12.5h13M9 16.5V8.5M6.5 11 9 8.5l2.5 2.5",
@@ -499,6 +499,9 @@ export function AlertDialog(props: Props) {
         ? String(props.price)
         : "";
   const [rightValue, setRightValue] = createSignal(defaultValue);
+  // The value starts on the source's current value (the price, or the study's
+  // last value) and follows the source until it is edited.
+  const [valueEdited, setValueEdited] = createSignal(defaultValue !== "");
   const [rightDrawing, setRightDrawing] = createSignal(
     existing?.right.kind === "drawing" ? existing.right.drawingId : (!existing && props.drawingId) || "",
   );
@@ -511,19 +514,33 @@ export function AlertDialog(props: Props) {
   const plotsOf = (indicatorId: string) =>
     (getIndicatorEntry(indicatorId)?.plotConfig ?? []).map((p, i) => ({ index: i, title: p.title || p.id }));
 
-  // ── % threshold (for moving_up_pct / moving_down_pct) ──
+  // ── Moving conditions: the amount (or %) "in N bars" ──
   const [pct, setPct] = createSignal(
-    isPercentOperator(existing?.op ?? "crossing") && existing?.right.kind === "value"
+    isMovingOperator(existing?.op ?? "crossing") && existing?.right.kind === "value"
       ? String(existing.right.value)
-      : "5",
+      : "1.00",
   );
-  // "in N bars" of the Moving % operators (1-300; 2 minimum on a study).
-  const [bars, setBars] = createSignal(String(existing?.bars ?? 1));
+  // "in N bars" (1-300; 2 minimum on a study): 1 bar on a price, 2 on a
+  // study until it is edited.
+  const [bars, setBars] = createSignal(existing?.bars != null ? String(existing.bars) : "");
+  const barsMin = () => (leftKind() === "indicator" ? 2 : 1);
   const barsValue = () => {
     const n = Math.round(Number(bars()));
-    const min = leftKind() === "indicator" ? 2 : 1;
-    return Number.isFinite(n) ? Math.max(min, Math.min(300, n)) : min;
+    return bars() !== "" && Number.isFinite(n) ? Math.max(barsMin(), Math.min(300, n)) : barsMin();
   };
+
+  // ── Channel between two bounds: a value, the price (study source) or a
+  // study for each; the upper one in `right`, the lower one in `right2`. ──
+  const boundSel = (o: Operand | undefined) => (!o ? "value" : o.kind === "price" ? "price" : o.kind === "indicator" ? `ind:${o.indicatorId}` : "value");
+  const valueBandAtOpen = !!existing && isBandOperator(existing.op) && existing.right.kind !== "drawing";
+  const [upperSel, setUpperSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right) : "value");
+  const [lowerSel, setLowerSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right2) : "value");
+  const [upperValue, setUpperValue] = createSignal(valueBandAtOpen && existing!.right.kind === "value" ? String(existing!.right.value) : "");
+  const [lowerValue, setLowerValue] = createSignal(valueBandAtOpen && existing!.right2?.kind === "value" ? String(existing!.right2.value) : "");
+  const [upperPlot, setUpperPlot] = createSignal(valueBandAtOpen && existing!.right.kind === "indicator" ? (existing!.right.plot ?? 0) : 0);
+  const [lowerPlot, setLowerPlot] = createSignal(valueBandAtOpen && existing!.right2?.kind === "indicator" ? (existing!.right2.plot ?? 0) : 0);
+  // The bounds start on the source's value plus one tick and the value itself.
+  const [boundsEdited, setBoundsEdited] = createSignal(valueBandAtOpen);
 
   // ── Interval of the condition ── "Same as chart" on a new alert; an alert
   // being edited shows its own. A chart on ticks or ranges: 1 minute.
@@ -576,6 +593,28 @@ export function AlertDialog(props: Props) {
   const [symbolEdit, setSymbolEdit] = createSignal(!((existing?.symbol ?? props.symbol ?? "").trim()));
 
   const isPct = () => isPercentOperator(op());
+  /** Moving Up / Down (%): an amount in N bars, nothing compared. */
+  const isMoving = () => isMovingOperator(op());
+  /** A channel between two bounds (not a drawing's). */
+  const valueBand = () => isBandOperator(op()) && rightKind() !== "drawing";
+
+  /** Current value of the source: the study's last value, else the price. */
+  const sourceValue = (): number | null => {
+    if (leftKind() === "indicator") return indicatorPlotValue(symbol(), leftIndicator(), leftPlot());
+    return chartLastPrice(symbol()) ?? quoteFor(symbol())?.last ?? null;
+  };
+  /** A value written as the source's values are. */
+  const valueText = (v: number) => alertAmountText(symbol(), buildLeft(), v);
+  createEffect(() => {
+    const v = sourceValue();
+    if (v == null) return;
+    if (!valueEdited()) setRightValue(untrack(() => valueText(v)));
+    if (!boundsEdited()) {
+      const tick = cachedSymbolSessions(symbol())?.tickAt(v) ?? 0.01;
+      setUpperValue(untrack(() => valueText(v + tick)));
+      setLowerValue(untrack(() => valueText(v)));
+    }
+  });
 
   // The drawing chosen as the level sets the conditions: a channel or a
   // rectangle has entering / exiting / inside / outside, a vertical line
@@ -589,7 +628,7 @@ export function AlertDialog(props: Props) {
   const [rightVwapPlot, setRightVwapPlot] = createSignal(existing?.right.kind === "drawing" ? (existing.right.plot ?? 0) : 0);
   const fixedOperators = () => (vwapPlots().length > 0 ? LEVEL_OPERATORS : shapeOperators(band(), fibLevels().length > 0));
   // A study without plots (a TPO) has only its conditions.
-  const operators = () => (leftKind() === "indicator" && plotsOf(leftIndicator()).length === 0 ? [] : (fixedOperators() ?? OPERATORS));
+  const operators = () => (leftKind() === "indicator" && plotsOf(leftIndicator()).length === 0 ? [] : (fixedOperators() ?? VALUE_OPERATORS));
   const operatorLabel = (o: AlertOperator) =>
     !isBandOperator(o) ? OPERATOR_LABELS[o] : bandOperatorLabel(o, band() === "rectangle" ? "rectangle" : "channel");
   createEffect(() => {
@@ -662,10 +701,23 @@ export function AlertDialog(props: Props) {
     return { kind: "price" };
   }
 
+  /** A bound of a channel: a value, the price or a study's plot. */
+  function boundOperand(sel: string, text: string, plot: number, was: Operand | undefined): Operand {
+    if (sel === "price") return { kind: "price" };
+    if (sel.startsWith("ind:")) return indicatorOperand(sel.slice(4), plot, was);
+    return { kind: "value", value: parseFloat(text) || 0 };
+  }
+
+  /** The lower bound of a channel between two bounds, else none. */
+  function buildRight2(): Operand | undefined {
+    return valueBand() ? boundOperand(lowerSel(), lowerValue(), lowerPlot(), existing?.right2) : undefined;
+  }
+
   function buildRight(): Operand {
     // A study's condition compares nothing.
     if (isOwn()) return { kind: "value", value: 0 };
-    if (isPct()) return { kind: "value", value: parseFloat(pct()) || 0 };
+    if (isMoving()) return { kind: "value", value: parseFloat(pct()) || 0 };
+    if (valueBand()) return boundOperand(upperSel(), upperValue(), upperPlot(), existing?.right);
     switch (rightKind()) {
       case "drawing": {
         const o = drawingOptions().find((x) => x.id === rightDrawing());
@@ -706,13 +758,19 @@ export function AlertDialog(props: Props) {
     const kept = was?.kind === "indicator" && was.indicatorId === indicatorId ? was : undefined;
     const inputs = kept?.inputs ?? (o?.inputs ? { ...o.inputs } : undefined);
     const label = kept?.inputs && kept.plot === plot && kept.label ? kept.label : plotLabel(kept?.inputs ? kept.label?.replace(/ \(.*$/, "") ?? o?.label : o?.label, indicatorId, plot, inputs);
-    return { kind: "indicator", indicatorId, plot, label, ...(inputs ? { inputs } : {}) };
+    // Messages name the study by its full title with its inputs.
+    const entry = getIndicatorEntry(indicatorId);
+    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ") : "";
+    const full = entry?.metadata.title;
+    const title = kept?.title ?? (full ? (shown ? `${full} (${shown})` : full) : undefined);
+    const precision = (entry?.metadata as { precision?: number } | undefined)?.precision;
+    return { kind: "indicator", indicatorId, plot, label, ...(title ? { title } : {}), ...(precision != null ? { precision } : {}), ...(inputs ? { inputs } : {}) };
   }
 
   /** Default message: the condition as it is set ("AZO Crossing 150"), or
    *  the message a study's condition declares. An alert keeps no message of
    *  its own while its message is this one, so it follows the condition. */
-  const condition = createMemo(() => ({ left: buildLeft(), op: op(), right: buildRight() }));
+  const condition = createMemo(() => ({ left: buildLeft(), op: op(), right: buildRight(), right2: buildRight2() }));
   /** The Interval row: a condition that reads an interval, unless a drawing
    *  gives the level. Without it the alert keeps the chart's interval. */
   const intervalRow = () => conditionHasIntervalRow(condition());
@@ -728,7 +786,11 @@ export function AlertDialog(props: Props) {
     if (!webhookValid()) return false;
     if (isCond()) return !!leftCondition();
     if (isCalls()) return leftCalls();
-    if (isPct()) return Number.isFinite(parseFloat(pct()));
+    if (isMoving()) return Number.isFinite(parseFloat(pct()));
+    if (valueBand()) {
+      const ok = (sel: string, text: string) => (sel === "value" ? Number.isFinite(parseFloat(text)) : sel === "price" || indicatorOptions().some((o) => `ind:${o.id}` === sel));
+      return ok(upperSel(), upperValue()) && ok(lowerSel(), lowerValue());
+    }
     if (rightKind() === "value") return Number.isFinite(parseFloat(rightValue()));
     if (rightKind() === "drawing") return drawingOptions().some((o) => o.id === rightDrawing());
     if (rightKind() === "indicator") return indicatorOptions().some((o) => o.id === rightIndicator());
@@ -747,7 +809,8 @@ export function AlertDialog(props: Props) {
       left: buildLeft(),
       op: op(),
       right: buildRight(),
-      bars: isPct() ? barsValue() : undefined,
+      right2: buildRight2(),
+      bars: isMoving() ? barsValue() : undefined,
       // alert() calls: each call's frequency and message.
       frequency: isCalls() ? ("once_per_bar" as AlertFrequency) : band() === "time" ? ("only_once" as AlertFrequency) : frequency(),
       name: isCalls() && name().trim() === preview() ? "" : name().trim(),
@@ -800,7 +863,8 @@ export function AlertDialog(props: Props) {
   });
 
   // ── View helpers ──────────────────────────────────────────────────────────
-  const usesIndicator = () => leftKind() === "indicator" || (!isPct() && rightKind() === "indicator");
+  const usesIndicator = () =>
+    leftKind() === "indicator" || (!isMoving() && (valueBand() ? upperSel().startsWith("ind:") || lowerSel().startsWith("ind:") : rightKind() === "indicator"));
   const triggerOptions = (): MenuOption[] => {
     const list = usesIndicator() ? STUDY_FREQUENCIES : FREQUENCIES;
     const kept = list.some((f) => f.key === frequency()) ? [] : STUDY_FREQUENCIES.filter((f) => f.key === frequency());
@@ -839,13 +903,63 @@ export function AlertDialog(props: Props) {
     setView("notifications");
   };
   const draftWebhookValid = () => !draftWebhookOn() || isValidWebhookUrl(draftWebhookUrl());
-  const stepValue = (dir: 1 | -1) => {
-    const v = parseFloat(rightValue());
-    const text = rightValue().trim();
-    const decimals = text.includes(".") ? text.split(".")[1].length : 2;
+  /** One step up / down of a number field, in its last decimal. */
+  const stepped = (text: string, dir: 1 | -1) => {
+    const v = parseFloat(text);
+    const t = text.trim();
+    const decimals = t.includes(".") ? t.split(".")[1].length : 2;
     const step = 1 / 10 ** decimals;
-    setRightValue(((Number.isFinite(v) ? v : 0) + dir * step).toFixed(decimals));
+    return ((Number.isFinite(v) ? v : 0) + dir * step).toFixed(decimals);
   };
+  /** A number field with its up / down steppers. */
+  const valueBox = (get: () => string, set: (v: string) => void, label: string) => (
+    <span class="ad-number">
+      <input class="ad-input" type="text" inputmode="decimal" aria-label={label} value={get()} onInput={(e) => set(e.currentTarget.value)} placeholder="0.00" />
+      <span class="ad-steppers">
+        <button type="button" tabIndex={-1} aria-label="Increase" onClick={() => set(stepped(get(), 1))}>{arrow("m5 11 4-4 4 4")}</button>
+        <button type="button" tabIndex={-1} aria-label="Decrease" onClick={() => set(stepped(get(), -1))}>{arrow("m5 7 4 4 4-4")}</button>
+      </span>
+    </span>
+  );
+  /** What a bound can be: a value, the price (a study source), the studies with plots (not the source itself), and
+   *  the drawings with two bounds (picking one makes the drawing the level). */
+  const boundOptions = (): MenuOption[] => [
+    { value: "value", label: "Value" },
+    ...(leftKind() === "indicator" ? [{ value: "price", label: "Price" }] : []),
+    ...indicatorOptions().filter((r) => plotsOf(r.id).length > 0 && !(leftKind() === "indicator" && r.id === leftIndicator())).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
+    ...drawingOptions().filter((d) => d.band === "channel" || d.band === "rectangle" || (d.levels?.length ?? 0) > 0).map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
+  ];
+  /** A row "Upper bound" / "Lower bound": its select, the value field for a value, the plot select for a study with
+   *  several plots. */
+  const boundRow = (title: string, sel: () => string, setSel: (v: string) => void, value: () => string, setValue: (v: string) => void, plot: () => number, setPlot: (v: number) => void) => (
+    <div class="ad-row">
+      <span class="ad-label">{title}</span>
+      <div class="ad-controls">
+        <div class="ad-pair">
+          <AdMenu
+            variant="box"
+            label={title}
+            value={sel()}
+            options={boundOptions()}
+            onPick={(v) => {
+              if (v.startsWith("drw:")) {
+                setRightKind("drawing");
+                setRightDrawing(v.slice(4));
+                return;
+              }
+              setBoundsEdited(true);
+              setSel(v);
+              setPlot(0);
+            }}
+          />
+          <Show when={sel() === "value"}>{valueBox(value, (v) => { setBoundsEdited(true); setValue(v); }, title)}</Show>
+        </div>
+        <Show when={sel().startsWith("ind:") && plotsOf(sel().slice(4)).length >= 2}>
+          <AdMenu variant="box" label={`${title} plot`} value={String(plot())} options={plotOptions(sel().slice(4))} onPick={(v) => setPlot(Number(v))} />
+        </Show>
+      </div>
+    </div>
+  );
   const closeIcon = (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
       <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
@@ -959,35 +1073,31 @@ export function AlertDialog(props: Props) {
                   {/* A study's condition compares nothing. */}
                   <Show when={!isOwn()}>
                   <Show
-                    when={!isPct()}
+                    when={!isMoving()}
                     fallback={
                       <div class="ad-pair ad-pct">
-                        <input class="ad-input" type="number" step="0.5" min="0" aria-label="Percent" value={pct()} onInput={(e) => setPct(e.currentTarget.value)} />
-                        <span class="ad-suffix">% in</span>
+                        {/* The amount ("1.00"), with "%" for Moving Up / Down %, then "in N bars". */}
+                        {valueBox(pct, setPct, isPct() ? "Percent" : "Amount")}
+                        <span class="ad-suffix">{isPct() ? "% in" : "in"}</span>
                         <input
                           class="ad-input"
                           type="number"
                           step="1"
-                          min={leftKind() === "indicator" ? 2 : 1}
+                          min={barsMin()}
                           max="300"
                           aria-label="Bars"
-                          value={bars()}
+                          value={bars() || String(barsMin())}
                           onInput={(e) => setBars(e.currentTarget.value)}
                         />
                         <span class="ad-suffix">{barsValue() === 1 ? "bar" : "bars"}</span>
                       </div>
                     }
                   >
+                    <Show when={!valueBand()}>
                     <div class="ad-pair">
                       <AdMenu variant="box" label="Compared with" value={rightKind()} options={rightKindOptions()} onPick={(v) => setRightKind(v as SideKind)} />
                       <Show when={rightKind() === "value"}>
-                        <span class="ad-number">
-                          <input class="ad-input" type="text" inputmode="decimal" aria-label="Value" value={rightValue()} onInput={(e) => setRightValue(e.currentTarget.value)} placeholder="0.00" />
-                          <span class="ad-steppers">
-                            <button type="button" tabIndex={-1} aria-label="Increase" onClick={() => stepValue(1)}>{arrow("m5 11 4-4 4 4")}</button>
-                            <button type="button" tabIndex={-1} aria-label="Decrease" onClick={() => stepValue(-1)}>{arrow("m5 7 4 4 4-4")}</button>
-                          </span>
-                        </span>
+                        {valueBox(rightValue, (v) => { setValueEdited(true); setRightValue(v); }, "Value")}
                       </Show>
                       <Show when={rightKind() === "drawing"}>
                         <AdMenu
@@ -995,7 +1105,7 @@ export function AlertDialog(props: Props) {
                           label="Drawing"
                           placeholder="Select drawing…"
                           value={rightDrawing()}
-                          options={drawingOptions().map((d) => ({ value: d.id, label: d.label }))}
+                          options={drawingOptions().map((d) => ({ value: d.id, label: drawingSelectLabel(d.label) }))}
                           onPick={setRightDrawing}
                         />
                       </Show>
@@ -1017,12 +1127,18 @@ export function AlertDialog(props: Props) {
                     <Show when={rightKind() === "indicator" && plotsOf(rightIndicator()).length >= 2}>
                       <AdMenu variant="box" label="Plot" value={String(rightPlot())} options={plotOptions(rightIndicator())} onPick={(v) => setRightPlot(Number(v))} />
                     </Show>
+                    </Show>
                   </Show>
                   </Show>
                 </div>
               </div>
+              {/* Channel between two bounds: a value, the price or a study each. */}
+              <Show when={!isOwn() && valueBand()}>
+                {boundRow("Upper bound", upperSel, setUpperSel, upperValue, setUpperValue, upperPlot, setUpperPlot)}
+                {boundRow("Lower bound", lowerSel, setLowerSel, lowerValue, setLowerValue, lowerPlot, setLowerPlot)}
+              </Show>
               {/* Fib tool: its level; with a channel condition the two bounds. */}
-              <Show when={!isPct() && rightKind() === "drawing" && fibLevels().length > 0}>
+              <Show when={!isMoving() && rightKind() === "drawing" && fibLevels().length > 0}>
                 <div class="ad-row">
                   <span class="ad-label">{fibChannel() ? "Upper bound" : "Level"}</span>
                   <div class="ad-controls">

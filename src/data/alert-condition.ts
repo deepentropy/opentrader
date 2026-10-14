@@ -21,12 +21,14 @@ import { tickerOf } from "./symbol-name";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
-  crossing_up: "Crossing up",
-  crossing_down: "Crossing down",
-  greater: "Greater than",
-  less: "Less than",
-  moving_up_pct: "Moving up %",
-  moving_down_pct: "Moving down %",
+  crossing_up: "Crossing Up",
+  crossing_down: "Crossing Down",
+  greater: "Greater Than",
+  less: "Less Than",
+  moving_up: "Moving Up",
+  moving_down: "Moving Down",
+  moving_up_pct: "Moving Up %",
+  moving_down_pct: "Moving Down %",
   entering: "Entering",
   exiting: "Exiting",
   inside: "Inside",
@@ -41,9 +43,9 @@ export const BAND_OPERATORS: AlertOperator[] = ["entering", "exiting", "inside",
 export function isBandOperator(op: AlertOperator): boolean {
   return BAND_OPERATORS.includes(op);
 }
-/** Dialog label of a band operator: "Entering channel", "Inside rectangle". */
+/** Label of a band operator: "Entering Channel", "Inside rectangle". */
 export function bandOperatorLabel(op: AlertOperator, band: DrawingShape): string {
-  return `${OPERATOR_LABELS[op]} ${band}`;
+  return `${OPERATOR_LABELS[op]} ${band === "channel" ? "Channel" : band}`;
 }
 
 export const LEVEL_OPERATORS: AlertOperator[] = ["crossing", "crossing_up", "crossing_down", "greater", "less"];
@@ -67,8 +69,18 @@ export function isPercentOperator(op: AlertOperator): boolean {
   return op === "moving_up_pct" || op === "moving_down_pct";
 }
 
+/** Moving Up / Down (an amount) and Moving Up / Down % in N bars: the left
+ *  operand now against its value `bars` bars back; the right operand is the
+ *  amount (a value). */
+export function isMovingOperator(op: AlertOperator): boolean {
+  return op === "moving_up" || op === "moving_down" || isPercentOperator(op);
+}
+
+/** The conditions of a price or a study, in the dialog's order. */
+export const VALUE_OPERATORS: AlertOperator[] = [...LEVEL_OPERATORS, ...BAND_OPERATORS, "moving_up", "moving_down", "moving_up_pct", "moving_down_pct"];
+
 /** Drawing kinds whose price level an alert can reference. */
-const PRICEABLE_KINDS = new Set(["horizontal-line", "horizontal-ray", "trend-line", "ray", "extended-line"]);
+const PRICEABLE_KINDS = new Set(["horizontal-line", "horizontal-ray", "trend-line", "ray", "extended-line", "info-line", "trend-angle", "arrow"]);
 /** Drawing kinds with two bounds: the channel conditions. */
 const CHANNEL_KINDS = new Set(["parallel-channel", "disjoint-channel", "flat-top-bottom"]);
 
@@ -206,12 +218,23 @@ export function priceableDrawings(symbol: string): DrawingOption[] {
     }));
 }
 
+/** Names of the drawing kinds in alert messages (the dialog shows them with
+ *  a capital first letter). */
+const DRAWING_NAMES: Record<string, string> = {
+  "trend-line": "trendline",
+  "flat-top-bottom": "flat top/bottom",
+  "fib-retracement": "Fib retracement",
+  "trend-based-fib-extension": "Trend-based fib extension",
+  [VWAP_KIND]: "anchored VWAP",
+};
+
 function drawingLabel(d: Drawing): string {
-  if (d.kind === VWAP_KIND) return "anchored VWAP";
-  const kind = d.kind.replace(/-/g, " ");
-  if (drawingBandType(d.kind) || FIB_KINDS.has(d.kind)) return kind;
-  const p = d.points[0]?.price;
-  return typeof p === "number" ? `${kind} @ ${+p.toFixed(4)}` : kind;
+  return DRAWING_NAMES[d.kind] ?? d.kind.replace(/-/g, " ");
+}
+
+/** A drawing name as the dialog's select shows it ("Horizontal line"). */
+export function drawingSelectLabel(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 /** Maps a time to the axis a line is straight on: the calendar time, or
@@ -390,9 +413,26 @@ export function operandLabel(op: Operand): string {
   }
 }
 
-/** Human-readable condition, e.g. "Price Crossing up 150", "Price Moving up
- *  % 5% in 3 bars". */
-export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" | "bars">): string {
+/** An operand as alert messages name it: a study by its full title with
+ *  its inputs (no plot title), a drawing by its kind (alerts made before
+ *  kept the price in their label: dropped), a number as entered. */
+function messageOperand(op: Operand): string {
+  if (op.kind === "indicator") return op.title ?? op.label ?? "indicator";
+  if (op.kind === "drawing") return (op.label ?? "drawing").replace(/ @ [-\d.]+$/, "");
+  return operandLabel(op);
+}
+
+/** An amount of the left operand written as its values are: the study's
+ *  decimals when it declares them, else the symbol's price format. */
+export function alertAmountText(symbol: string | undefined, left: Operand, v: number): string {
+  if (left.kind === "indicator" && left.precision != null) return v.toFixed(left.precision);
+  const s = symbol ? cachedSymbolSessions(symbol) : null;
+  return s ? s.formatPrice(v) : v.toFixed(2);
+}
+
+/** Human-readable condition: "Price Crossing Up 150", "Price Moving Up 1%
+ *  in 3 bars", "Price Entering Channel (Upper Bound: 12, Lower Bound: 10)". */
+export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" | "bars"> & { right2?: Operand; symbol?: string }): string {
   // A study's own condition: "MACD (close, 12, 26, 9): Rising to falling".
   if (rule.op === "alert_condition") {
     const title = rule.left.kind === "indicator" ? rule.left.condition?.title : undefined;
@@ -400,21 +440,33 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   }
   // A script's alert() calls: "Auto fib retracement (3, 10): Any alert() function call".
   if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS.alert_function}`;
-  if (isPercentOperator(rule.op)) {
-    const pct = rule.right.kind === "value" ? rule.right.value : 0;
+  const left = messageOperand(rule.left);
+  if (isMovingOperator(rule.op)) {
+    const v = rule.right.kind === "value" ? rule.right.value : 0;
     const n = rule.bars ?? 1;
-    return `${operandLabel(rule.left)} ${OPERATOR_LABELS[rule.op]} ${pct}% in ${n} ${n === 1 ? "bar" : "bars"}`;
+    const amount = isPercentOperator(rule.op) ? `${v}%` : alertAmountText(rule.symbol, rule.left, v);
+    const label = rule.op === "moving_up_pct" ? OPERATOR_LABELS.moving_up : rule.op === "moving_down_pct" ? OPERATOR_LABELS.moving_down : OPERATOR_LABELS[rule.op];
+    return `${left} ${label} ${amount} in ${n} ${n === 1 ? "bar" : "bars"}`;
   }
-  if (isBandOperator(rule.op) && rule.right.kind === "drawing" && rule.right.band) {
-    return `${operandLabel(rule.left)} ${bandOperatorLabel(rule.op, rule.right.band)}`;
-  }
-  // Fib tool, channel condition: the label names the two levels.
   if (isBandOperator(rule.op) && rule.right.kind === "drawing") {
-    return `${operandLabel(rule.left)} ${bandOperatorLabel(rule.op, "channel")} ${operandLabel(rule.right)}`;
+    const name = messageOperand(rule.right);
+    // Rectangle: "Entering rectangle".
+    if (rule.right.band === "rectangle") return `${left} ${bandOperatorLabel(rule.op, "rectangle")}`;
+    // Fib tool: its two levels.
+    if (rule.right.level != null) {
+      const base = name.replace(/ \(upper bound:.*$/, "");
+      return `${left} ${bandOperatorLabel(rule.op, "channel")} ${base} (Upper Bound: Fib level ${rule.right.level}, Lower Bound: Fib level ${rule.right.level2 ?? 0.618})`;
+    }
+    return `${left} ${bandOperatorLabel(rule.op, "channel")} (Upper Bound: ${name}, Lower Bound: ${name})`;
+  }
+  // Two bounds: values, the price or studies.
+  if (isBandOperator(rule.op)) {
+    const lower = rule.right2 ? messageOperand(rule.right2) : messageOperand(rule.right);
+    return `${left} ${bandOperatorLabel(rule.op, "channel")} (Upper Bound: ${messageOperand(rule.right)}, Lower Bound: ${lower})`;
   }
   // A vertical line is crossed by the time, not by a value.
-  if (rule.right.kind === "drawing" && rule.right.band === "time") return `${OPERATOR_LABELS[rule.op]} ${operandLabel(rule.right)}`;
-  return `${operandLabel(rule.left)} ${OPERATOR_LABELS[rule.op]} ${operandLabel(rule.right)}`;
+  if (rule.right.kind === "drawing" && rule.right.band === "time") return `${OPERATOR_LABELS[rule.op]} ${messageOperand(rule.right)}`;
+  return `${left} ${OPERATOR_LABELS[rule.op]} ${messageOperand(rule.right)}`;
 }
 
 /** Interval of an alert as its message shows it: "10s", "5", "1h", "1D",
@@ -431,14 +483,14 @@ export function alertIntervalText(resolution: string, minuteUnit = false): strin
 /** The condition reads the bars of an interval: a study, a Moving %
  *  condition, a level given by a study or a drawing. A price compared with a
  *  number reads none. */
-export function conditionHasInterval(rule: Pick<AlertRule, "left" | "op" | "right">): boolean {
-  if (rule.left.kind === "indicator" || isPercentOperator(rule.op)) return true;
-  return rule.right.kind === "indicator" || rule.right.kind === "drawing";
+export function conditionHasInterval(rule: Pick<AlertRule, "left" | "op" | "right"> & { right2?: Operand }): boolean {
+  if (rule.left.kind === "indicator" || isMovingOperator(rule.op)) return true;
+  return rule.right.kind === "indicator" || rule.right.kind === "drawing" || rule.right2?.kind === "indicator";
 }
 
 /** The dialog's Interval row: a condition on an interval, unless a drawing
  *  gives the level (the drawing's chart sets the interval). */
-export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "right">): boolean {
+export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "right"> & { right2?: Operand }): boolean {
   return conditionHasInterval(rule) && rule.right.kind !== "drawing";
 }
 
@@ -449,7 +501,7 @@ export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "r
  *  ("MA (9, close) Crossing 150 on AZO, 1h"); for a study's condition, the
  *  message the study declares; for a script's alert() calls, the condition
  *  (each fire has the call's message). */
-export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars">): string {
+export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars"> & { right2?: Operand }): string {
   if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
   // The message of a fire is the alert() call's: the alert is known by its name, the condition.
   if (rule.op === "alert_function") return describeCondition(rule);

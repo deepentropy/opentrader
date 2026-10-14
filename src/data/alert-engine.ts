@@ -32,7 +32,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
-import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
+import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, chartResolution, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
@@ -174,26 +174,37 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
     return rule.left.kind === "indicator" && ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) === true;
   }
 
-  // Moving % : the left operand now against its value `bars` bars back (the
-  // reference poll below), in percent of that value.
-  if (isPercentOperator(rule.op)) {
+  // Moving / Moving % : the left operand now against its value `bars` bars
+  // back (the reference poll below), as an amount or in percent of that value.
+  if (isMovingOperator(rule.op)) {
     const now = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
     const ref = movingRefCache.get(rule.id);
-    if (now == null || ref == null || ref === 0) return false;
-    const change = ((now - ref) / Math.abs(ref)) * 100;
-    const pct = rule.right.kind === "value" ? rule.right.value : 0;
-    return rule.op === "moving_up_pct" ? change >= pct : change <= -pct;
+    if (now == null || ref == null) return false;
+    const amount = rule.right.kind === "value" ? rule.right.value : 0;
+    const up = rule.op === "moving_up" || rule.op === "moving_up_pct";
+    if (isPercentOperator(rule.op) && ref === 0) return false;
+    const change = isPercentOperator(rule.op) ? ((now - ref) / Math.abs(ref)) * 100 : now - ref;
+    return up ? change >= amount : change <= -amount;
   }
 
   // Channel / rectangle: the left operand against the two bounds of the
-  // drawing. Entering / exiting compare with the previous sample (stored as
-  // +1 inside, -1 outside), like a crossing.
+  // drawing, or between an upper (right) and a lower (right2) bound.
+  // Entering / exiting compare with the previous sample (stored as +1
+  // inside, -1 outside), like a crossing.
   if (isBandOperator(rule.op)) {
     const v = operandValue(rule.symbol, rule.left, ctx, rule.resolution, rule.session);
-    if (v == null || rule.right.kind !== "drawing") return false;
-    const band = drawingBand(rule.symbol, rule.right.drawingId, ctx.timeSec, rule.right.level, rule.right.level2);
+    if (v == null) return false;
+    let band: { lower: number; upper: number } | null;
+    if (rule.right.kind === "drawing") {
+      band = drawingBand(rule.symbol, rule.right.drawingId, ctx.timeSec, rule.right.level, rule.right.level2);
+    } else {
+      const a = operandValue(rule.symbol, rule.right, ctx, rule.resolution, rule.session);
+      const b = operandValue(rule.symbol, rule.right2 ?? rule.right, ctx, rule.resolution, rule.session);
+      band = a == null || b == null ? null : { lower: Math.min(a, b), upper: Math.max(a, b) };
+      if (!band) return false;
+    }
     // A rectangle outside its time span has no band: the price is outside it.
-    if (!band && rule.right.band !== "rectangle") return false;
+    if (!band && (rule.right.kind !== "drawing" || rule.right.band !== "rectangle")) return false;
     const inside = !!band && v >= band.lower && v <= band.upper;
     if (rule.op === "inside") return inside;
     if (rule.op === "outside") return !inside;
@@ -975,7 +986,7 @@ async function pollDrawingBars(onlyMissing = false): Promise<void> {
   if (drawingPollBusy) return;
   const jobs = new Map<string, { symbol: string; resolution: string; session: SessionId }>();
   for (const rule of alertStore.enabledRules()) {
-    const fromBars = (rule.right.kind === "drawing" && rule.right.plot != null) || rule.left.kind === "indicator" || rule.right.kind === "indicator";
+    const fromBars = (rule.right.kind === "drawing" && rule.right.plot != null) || rule.left.kind === "indicator" || rule.right.kind === "indicator" || rule.right2?.kind === "indicator";
     if (!fromBars || !isSupportedResolution(rule.resolution)) continue;
     const session = rule.session ?? DEFAULT_SESSION;
     jobs.set(`${rule.symbol}|${rule.resolution}|${session}`, { symbol: rule.symbol, resolution: rule.resolution, session });
@@ -1005,8 +1016,8 @@ async function pollDrawingBars(onlyMissing = false): Promise<void> {
   }
 }
 
-// ── Moving % reference poll ──
-// "Moving up / down % … in N bars" compares the left operand now with its
+// ── Moving reference poll ──
+// "Moving Up / Down (%) … in N bars" compares the left operand now with its
 // value N bars back on the rule's interval and session. The bars come from
 // the datafeed (one getBars per symbol + interval + session per poll); a price operand uses the
 // closes, an indicator operand its plot computed with the inputs saved on
@@ -1016,7 +1027,7 @@ let movingPollBusy = false;
 
 async function pollMovingRefs(): Promise<void> {
   if (movingPollBusy) return;
-  const rules = alertStore.enabledRules().filter((r) => isPercentOperator(r.op) && isSupportedResolution(r.resolution));
+  const rules = alertStore.enabledRules().filter((r) => isMovingOperator(r.op) && isSupportedResolution(r.resolution));
   if (rules.length === 0) return;
   movingPollBusy = true;
   try {
@@ -1152,7 +1163,8 @@ export async function replayMissedFires(previous: Record<string, number | null |
       continue;
     }
     const vwap = right.kind === "drawing" && right.plot != null;
-    if (!isPercentOperator(rule.op) && left.kind !== "indicator" && right.kind !== "indicator" && !vwap) continue;
+    const right2 = rule.right2;
+    if (!isMovingOperator(rule.op) && left.kind !== "indicator" && right.kind !== "indicator" && right2?.kind !== "indicator" && !vwap) continue;
     const since = (rule.activeSince ?? rule.createdAt) / 1000;
     const from = Math.max(previous[rule.symbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
     if (nowSec - from < 60) continue;
@@ -1164,6 +1176,7 @@ export async function replayMissedFires(previous: Record<string, number | null |
     if (left.kind === "indicator" && !leftSeries) continue;
     let rightSeries: (number | null)[] | null;
     if (right.kind === "indicator") rightSeries = plotSeries(right, bars, rule, session);
+    else if (right.kind === "price") rightSeries = bars.map((b) => b.close);
     else if (right.kind === "value") rightSeries = bars.map(() => right.value);
     else if (right.kind === "drawing" && right.plot != null) {
       // The VWAP as it stood at each bar read (and the one before it).
@@ -1173,7 +1186,15 @@ export async function replayMissedFires(previous: Record<string, number | null |
       rightSeries = all.map((_, i) => (first >= 0 && i >= first - 1 ? drawingVwapValue(rule.symbol, right.drawingId, plot, all.slice(0, i + 1)) : null));
     } else continue;
     if (!rightSeries) continue;
-    for (const f of replayRule(rule, bars, leftSeries, rightSeries, from, nowSec, stepSec)) {
+    // Channel between two bounds: the lower one.
+    let lowerSeries: (number | null)[] | null = null;
+    if (right2 && isBandOperator(rule.op)) {
+      if (right2.kind === "indicator") lowerSeries = plotSeries(right2, bars, rule, session);
+      else if (right2.kind === "value") lowerSeries = bars.map(() => right2.value);
+      else if (right2.kind === "price") lowerSeries = bars.map((b) => b.close);
+      if (!lowerSeries) continue;
+    }
+    for (const f of replayRule(rule, bars, leftSeries, rightSeries, from, nowSec, stepSec, lowerSeries)) {
       deliverFire(rule, f.price, f.barTime, { fireTime: f.fireTime });
       found++;
     }

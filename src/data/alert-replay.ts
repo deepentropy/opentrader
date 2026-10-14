@@ -10,8 +10,10 @@
  *    (the previous close) or after (the bar's close);
  *  - a study against a level, a rule that waits for the bar to close: the
  *    values at the close of two bars in a row, as on live samples;
- *  - a moving percentage: the bar's high / low (or the study's value) against
- *    the value N bars back;
+ *  - a moving amount or percentage: the bar's high / low (or the study's
+ *    value) against the value N bars back;
+ *  - a channel between two bounds: the bar's range (or the study's value)
+ *    against the bounds, entering / exiting against the previous bar;
  *  - a study's own condition: true at the bar's close;
  *  - a script's alert() calls: the calls of the bar's last run (see
  *    replayAlertCalls).
@@ -31,7 +33,8 @@ export const REPLAY_MAX_SEC = 30 * 86_400;
 /** The fires of `rule` in the bars closing after `fromSec` (UNIX seconds, the
  *  last moment it was evaluated) up to `nowSec`. `left` / `right`: the value
  *  of each operand at the close of every bar (`left` null = the price);
- *  `stepSec`: length of a bar. */
+ *  `stepSec`: length of a bar; `lower`: the lower bound of a channel
+ *  between two bounds (`right` = the upper one). */
 export function replayRule(
   rule: Pick<AlertRule, "op" | "frequency" | "expiresAt" | "bars" | "right">,
   bars: ReplayBar[],
@@ -40,9 +43,11 @@ export function replayRule(
   fromSec: number,
   nowSec: number,
   stepSec: number,
+  lower: (number | null)[] | null = null,
 ): ReplayFire[] {
   const fires: ReplayFire[] = [];
   const onClose = rule.frequency === "once_per_bar_close";
+  let wasInside: boolean | null = null;
   // A rule on the close reads the closes only, like a study.
   const series = left ?? (onClose ? bars.map((b) => b.close) : null);
   const pct = rule.right.kind === "value" ? rule.right.value : 0;
@@ -62,6 +67,31 @@ export function replayRule(
       if (ref == null || ref === 0 || now == null) continue;
       const change = ((now - ref) / Math.abs(ref)) * 100;
       if (up ? change >= pct : change <= -pct) price = series ? b.close : ref + (up ? 1 : -1) * Math.abs(ref) * (pct / 100);
+    } else if (rule.op === "moving_up" || rule.op === "moving_down") {
+      const up = rule.op === "moving_up";
+      const ref = i - back >= 0 ? (left ? left[i - back] : bars[i - back].close) : null;
+      const now = series ? series[i] : up ? b.high : b.low;
+      if (ref == null || now == null) continue;
+      if (up ? now - ref >= pct : now - ref <= -pct) price = series ? b.close : ref + (up ? pct : -pct);
+    } else if (lower && (rule.op === "entering" || rule.op === "exiting" || rule.op === "inside" || rule.op === "outside")) {
+      const a = right[i];
+      const c = lower[i];
+      if (a == null || c == null) {
+        wasInside = null;
+        continue;
+      }
+      const lo = Math.min(a, c);
+      const hi = Math.max(a, c);
+      // A study (or a rule on the close): its value at the close; the price: the bar's range.
+      const v = series ? series[i] : null;
+      if (series && v == null) continue;
+      const inside = v != null ? v >= lo && v <= hi : b.close >= lo && b.close <= hi;
+      const touched = v != null ? inside : b.high >= lo && b.low <= hi;
+      const out = v != null ? !inside : b.high > hi || b.low < lo;
+      const prev = wasInside;
+      wasInside = inside;
+      const met = rule.op === "inside" ? touched : rule.op === "outside" ? out : prev == null ? false : rule.op === "entering" ? !prev && touched : prev && out;
+      if (met) price = b.close;
     } else {
       const level = right[i];
       if (level == null) continue;

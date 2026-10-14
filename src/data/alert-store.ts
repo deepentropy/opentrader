@@ -51,6 +51,13 @@ export type Operand =
       indicatorId: string;
       plot?: number;
       label?: string;
+      /** The study's full title with its inputs, as alert messages write it
+       *  ("Moving Average Convergence Divergence (close, 12, 26, 9)"); unset
+       *  on older alerts (the label is used). */
+      title?: string;
+      /** Decimals of the study's values when it declares them (else the
+       *  symbol's price format), for the amounts in messages. */
+      precision?: number;
       /** The study's inputs when the alert was made: the alert reads the
        *  study computed with them, whatever the chart shows later. Unset on
        *  older alerts (the charted study, else the factory inputs). */
@@ -68,10 +75,13 @@ export type DrawingShape = "channel" | "rectangle" | "time" | "position";
 
 /** Condition operators. The `crossing_*` set needs the previous sample to
  *  detect the moment of crossing; `greater`/`less` are level checks;
- *  `moving_*_pct`: the LEFT operand moved up / down by at least the value
- *  (right operand, %) within the last `bars` bars;
+ *  `moving_up` / `moving_down` (an amount) and `moving_*_pct` (a percentage):
+ *  the LEFT operand moved up / down by at least the value (right operand)
+ *  within the last `bars` bars;
  *  `entering` / `exiting` / `inside` / `outside`: the left operand against
- *  the band of a channel or rectangle drawing (right operand);
+ *  the band of a channel or rectangle drawing (right operand), or between
+ *  two bounds (right = upper bound, `right2` = lower bound: values, the
+ *  price or study plots);
  *  `hits_level`: the left operand reaches the entry, stop or target level
  *  of a long / short position drawing;
  *  `alert_condition`: a condition of the study on the left (its
@@ -85,6 +95,8 @@ export type AlertOperator =
   | "crossing_down"
   | "greater"
   | "less"
+  | "moving_up"
+  | "moving_down"
   | "moving_up_pct"
   | "moving_down_pct"
   | "entering"
@@ -116,7 +128,10 @@ export type AlertRule = {
   left: Operand;
   op: AlertOperator;
   right: Operand;
-  /** Moving % operators: the bar count ("in N bars", 1-300; unset = 1). */
+  /** Channel conditions between two bounds: the lower bound (`right` is the
+   *  upper one). Unset for a drawing's band. */
+  right2?: Operand;
+  /** Moving operators: the bar count ("in N bars", 1-300; unset = 1). */
   bars?: number;
   frequency: AlertFrequency;
   /** User-supplied name; "" when unnamed. */
@@ -208,7 +223,7 @@ function load(): StoreShape {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        rules = parsed.filter(isRule).map((r: AlertRule) => ({ ...r, left: currentOperand(r.left), right: currentOperand(r.right) }));
+        rules = parsed.filter(isRule).map((r: AlertRule) => ({ ...r, left: currentOperand(r.left), right: currentOperand(r.right), ...(r.right2 ? { right2: currentOperand(r.right2) } : {}) }));
       }
     }
   } catch {

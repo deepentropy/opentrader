@@ -71,9 +71,9 @@ export class SymbolSessions {
     this.tickBands = bands;
   }
 
-  /** Tick at `price` (the band's tick, else the current-price tick). */
+  /** Tick at `price`: the tick of the first band whose bound is at or above it (1 is written 1.0000 on a US stock), else the current-price tick. */
   tickAt(price: number): number {
-    for (const [bound, tick] of this.tickBands) if (Math.abs(price) < bound) return tick;
+    for (const [bound, tick] of this.tickBands) if (Math.abs(price) <= bound) return tick;
     return this.mintick;
   }
 

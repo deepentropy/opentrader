@@ -160,7 +160,7 @@ import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyDefault
 import { strategyTester } from "../../data/strategy-tester-store";
 import { registerChartState, unregisterChartState, type ChartBar } from "../../data/chart-state-registry";
 import { alertStore } from "../../data/alert-store";
-import { describeCondition, isPercentOperator } from "../../data/alert-condition";
+import { describeCondition, isBandOperator, isMovingOperator } from "../../data/alert-condition";
 import { publishDataWindow, type DataWindowState } from "../../data/data-window-store";
 import { ChartContextMenu, CtxIcons, type CtxNode } from "./ChartContextMenu";
 import { WheelHelper } from "./wheel-helper";
@@ -2519,7 +2519,7 @@ export function ChartView(props: Props) {
     const out: { level: number; title: string; enabled: boolean }[] = [];
     if (!key) return out;
     for (const r of alertStore.rules()) {
-      if (r.symbol !== key || isPercentOperator(r.op)) continue;
+      if (r.symbol !== key || isMovingOperator(r.op) || isBandOperator(r.op)) continue;
       const val = r.left.kind === "value" ? r.left : r.right.kind === "value" ? r.right : null;
       const other = r.left.kind === "value" ? r.right : r.left;
       if (!val || other.kind !== "price") continue;

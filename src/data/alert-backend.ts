@@ -23,7 +23,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { commands, type AlertFired, type AlertLeader, type EngineGrid, type EngineRule } from "../bindings";
 import { alertStore, type AlertRule } from "./alert-store";
-import { drawingValues, isBandOperator, isPercentOperator, LEVEL_OPERATORS, type TimeAxis } from "./alert-condition";
+import { drawingValues, isBandOperator, isMovingOperator, LEVEL_OPERATORS, type TimeAxis } from "./alert-condition";
 import { cachedSymbolSessions, localDay, localToUtc, sessionsVersion, type SymbolSessions } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { loadDrawings } from "../window/drawings/persistence";
@@ -32,7 +32,9 @@ const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in wind
 
 /** True when the backend evaluates the rule (the window's engine skips it). */
 export function evaluatedByBackend(rule: AlertRule): boolean {
-  if (!HAS_TAURI || rule.left.kind !== "price" || isPercentOperator(rule.op)) return false;
+  if (!HAS_TAURI || rule.left.kind !== "price" || isMovingOperator(rule.op)) return false;
+  // A channel between two numbers: a band.
+  if (rule.right.kind === "value" && isBandOperator(rule.op)) return rule.right2?.kind === "value";
   if (rule.right.kind === "value") return LEVEL_OPERATORS.includes(rule.op);
   return rule.right.kind === "drawing" && rule.right.plot == null;
 }
@@ -192,7 +194,7 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       grids.set(gridKey, (grid = { key: gridKey, bars: barsBetween(sessions, iv, from, to), regular, from, to }));
     }
 
-    const sig = JSON.stringify([rule.op, right, rule.frequency, rule.resolution, since, drawing?.points, drawing?.style]);
+    const sig = JSON.stringify([rule.op, right, rule.right2, rule.frequency, rule.resolution, since, drawing?.points, drawing?.style]);
     const compiled: EngineRule = {
       id: rule.id,
       symbol: rule.symbol,
@@ -207,7 +209,10 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       perBar: null,
       absentIsOutside: false,
     };
-    if (right.kind === "value") {
+    if (right.kind === "value" && rule.right2?.kind === "value" && isBandOperator(rule.op)) {
+      compiled.shape = "band";
+      compiled.values = [right.value, rule.right2.value];
+    } else if (right.kind === "value") {
       compiled.values = [right.value];
     } else if (right.kind === "drawing" && drawing) {
       compiled.shape = right.band === "time" ? "time" : right.band === "position" ? "position" : isBandOperator(rule.op) || right.band === "rectangle" ? "band" : "level";
@@ -271,7 +276,7 @@ export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLa
       // Rules and sessions are tracked; a moved drawing is caught by the
       // timer (its storage has no signal in the window that writes it).
       createEffect(() => {
-        alertStore.rules().forEach((r) => [r.enabled, r.op, r.frequency, r.expiresAt, r.activeSince, JSON.stringify(r.right)]);
+        alertStore.rules().forEach((r) => [r.enabled, r.op, r.frequency, r.expiresAt, r.activeSince, JSON.stringify(r.right), JSON.stringify(r.right2)]);
         sessionsVersion();
         sync();
       });
