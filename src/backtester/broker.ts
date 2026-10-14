@@ -393,6 +393,8 @@ export class Broker {
   private openTrades: OpenTrade[] = [];
   /** Trades closed by the leg of another trade, while the position is open (their own legs stay active). */
   private displaced: OpenTrade[] = [];
+  /** Quantity of the order being filled: a cash-per-order commission is split over the trades it touches. */
+  private orderFillQty = 0;
   private tradeSeq = 0;
   /** Fill order of the per-trade legs of each exit id (see updateLegOrder). */
   private legOrder = new Map<string, OpenTrade[]>();
@@ -650,7 +652,9 @@ export class Broker {
 
   close(id: string, opts: CloseOptions = {}): void {
     if (opts.when === false || this.halted) return;
-    if (!this.openTrades.some((t) => t.entryId === id)) return;
+    // With the FIFO rule an id keeps the quantity it holds after an older close took its trade (see fillCloseFifo).
+    const holds = (t: OpenTrade) => t.entryId === id && (this.openTrades.includes(t) || (this.fifo && t.lotQty > EPS));
+    if (!this.openTrades.some(holds) && !this.displaced.some(holds)) return;
     this.closes.push({
       kind: 'close',
       seq: ++this.seq,
@@ -1116,18 +1120,22 @@ export class Broker {
         const stop = x.stop ?? (x.loss !== null ? t.price - sign * x.loss * tick : null);
         const q = qty;
         const fill = (price: number, type: OrderType, comment: string) => {
-          // The leg closes its quantity from the oldest trades first (FIFO), not from its own trade.
-          let rest = Math.min(q, this.openTrades.reduce((a, u) => a + u.qty, 0));
+          // The leg closes its quantity from the oldest trades first (FIFO), not from its own trade; with the
+          // close_entries_rule "ANY" from its own trade (an exit for B, entries A 1,000 and B 3,000: B 3,000).
+          const from = this.fifo ? [...this.openTrades] : this.openTrades.filter((u) => u === t);
+          let rest = Math.min(q, from.reduce((a, u) => a + u.qty, 0));
           const filled = rest;
           t.exitsDone.add(x.id);
           t.trail.delete(x.id);
-          for (const u of [...this.openTrades]) {
-            if (rest <= 0) break;
-            const c = Math.min(rest, u.qty);
-            this.closeTradeQty(u, c, price, comment, false, true);
-            if (!this.openTrades.includes(u) && u.lotQty > EPS && u !== t) this.displaced.push(u);
-            rest -= c;
-          }
+          this.asOneOrder(filled, () => {
+            for (const u of from) {
+              if (rest <= 0) break;
+              const c = Math.min(rest, u.qty);
+              this.closeTradeQty(u, c, price, comment, false, true);
+              if (!this.openTrades.includes(u) && u.lotQty > EPS && u !== t) this.displaced.push(u);
+              rest -= c;
+            }
+          });
           t.lotQty = Math.max(0, t.lotQty - filled);
           if (!this.openTrades.includes(t) && t.lotQty > EPS && !this.displaced.includes(t)) this.displaced.push(t);
           this.recordFill(x.id, comment, buy, false, price, filled, type);
@@ -1240,9 +1248,12 @@ export class Broker {
       if (!this.marketFundsCover(o, (reverses ? Math.abs(pos) : 0) + qty, price)) return;
     }
     let closed = 0;
+    const closing = reverses ? (fixed ? Math.min(total, Math.abs(pos)) : Math.abs(pos)) : 0;
+    const prevOrderQty = this.orderFillQty;
+    this.orderFillQty = closing + qty;
     if (reverses) {
       const ids = new Set<string>();
-      let left = fixed ? Math.min(total, Math.abs(pos)) : Math.abs(pos);
+      let left = closing;
       for (const t of [...this.openTrades]) {
         if (left <= EPS) break;
         const c = Math.min(left, t.qty);
@@ -1265,6 +1276,7 @@ export class Broker {
       }
     }
     if (qty > 0) this.openTrade({ ...o, qty }, price);
+    this.orderFillQty = prevOrderQty;
     this.recordFill(o.id, o.comment, buy, true, price, closed + qty, type);
     this.applyOca(o, closed + qty);
   }
@@ -1285,17 +1297,19 @@ export class Broker {
   private fillOrder(o: EntryOrder, price: number, type: OrderType): void {
     const buy = o.direction === 'long';
     let left = o.qty;
-    for (const t of [...this.openTrades]) {
-      if (left <= 0 || (t.direction === 'long') === buy) continue;
-      const q = Math.min(left, t.qty);
-      left -= q;
-      this.closeTradeQty(t, q, price, o.comment, type === 'MARKET');
-    }
     let filled = o.qty;
-    if (left > 0) {
-      if (this.fundsCover(o.direction, left, Math.max(price, o.sizePrice))) this.openTrade({ ...o, qty: left }, price);
-      else filled -= left;
-    }
+    this.asOneOrder(o.qty, () => {
+      for (const t of [...this.openTrades]) {
+        if (left <= 0 || (t.direction === 'long') === buy) continue;
+        const q = Math.min(left, t.qty);
+        left -= q;
+        this.closeTradeQty(t, q, price, o.comment, type === 'MARKET');
+      }
+      if (left > 0) {
+        if (this.fundsCover(o.direction, left, Math.max(price, o.sizePrice))) this.openTrade({ ...o, qty: left }, price);
+        else filled -= left;
+      }
+    });
     if (filled > 0) {
       this.recordFill(o.id, o.comment, buy, null, price, filled, type);
       this.applyOca(o, filled);
@@ -1504,6 +1518,8 @@ export class Broker {
     let next: MarginCallOrder | null = null;
     let left = size;
     const held = [...this.openTrades];
+    const prevOrderQty = this.orderFillQty;
+    this.orderFillQty = size;
     for (const t of held) {
       if (left <= 0) {
         // The trades the margin call does not reach lose their exit legs, until the exit is called again
@@ -1526,6 +1542,7 @@ export class Broker {
       event.v = this.props.initialCapital + this.netProfit + this.openProfitAt(p);
       next = this.marginCallAt(fill, before) ?? next;
     }
+    this.orderFillQty = prevOrderQty;
     if (next) this.pendingCalls.push(next);
     // The trades left open see the fill price (pivot-points SPY 1h bar 8648: the share closed at the next tick
     // counts the 308.62 of the first margin call in its drawdown).
@@ -1533,20 +1550,89 @@ export class Broker {
     this.recordFill(id, 'Margin call', !long, null, fill, size, 'MARKET');
   }
 
+  /**
+   * Run the fill of one order of `qty` (every trade it closes and the one it opens): a cash-per-order commission
+   * is charged once for the order and split over them by quantity (a close of 11,000 over trades of 1,000, 3,000
+   * and 7,000: 1.25 x 1,000 / 11,000 on the first; a reversal of 1,000 into 1,000: 0.625 each side).
+   */
+  private asOneOrder<T>(qty: number, fill: () => T): T {
+    const prev = this.orderFillQty;
+    this.orderFillQty = qty;
+    try {
+      return fill();
+    } finally {
+      this.orderFillQty = prev;
+    }
+  }
+
+  /** close_entries_rule "FIFO" (the default): orders for an entry id close the oldest trades first. */
+  private get fifo(): boolean {
+    return this.props.closeEntriesRule !== 'ANY';
+  }
+
   /** Returns true when the order filled. */
   private fillClose(o: CloseOrder, price: number): boolean {
+    if (o.entryId !== null && this.fifo) return this.fillCloseFifo(o, price);
     const targets = this.openTrades.filter((t) => o.entryId === null || t.entryId === o.entryId);
     if (targets.length === 0) return false;
     const total = targets.reduce((s, t) => s + t.qty, 0);
     let left = o.qty !== null ? Math.min(o.qty, total) : o.qtyPercent !== null ? this.floorQty((total * o.qtyPercent) / 100) : total;
     const buy = targets[0].direction === 'short';
     const qty = left;
-    for (const t of targets) {
-      if (left <= 0) break;
-      const q = Math.min(left, t.qty);
-      left -= q;
-      this.closeTradeQty(t, q, price, o.comment, true);
+    this.asOneOrder(qty, () => {
+      for (const t of targets) {
+        if (left <= 0) break;
+        const q = Math.min(left, t.qty);
+        left -= q;
+        this.closeTradeQty(t, q, price, o.comment, true);
+      }
+    });
+    this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
+    return true;
+  }
+
+  /**
+   * strategy.close of an entry id with the FIFO rule: the quantity is the one the id holds (its own quantity less
+   * what orders for that id closed), taken from the oldest trades first, whatever their entry id. Entries A 1,000,
+   * B 3,000, C 7,000: a close of 1,500 for B closes A 1,000 and B 500; a close of A then closes 1,000 of B (A still
+   * holds 1,000); a close of 2,000 for C closes A 1,000 and B 1,000.
+   */
+  private fillCloseFifo(o: CloseOrder, price: number): boolean {
+    const lots = [...this.openTrades, ...this.displaced].filter((t) => t.entryId === o.entryId && t.lotQty > EPS).sort((a, b) => a.seq - b.seq);
+    const held = lots.reduce((s, t) => s + t.lotQty, 0);
+    const position = this.openTrades.reduce((s, t) => s + t.qty, 0);
+    if (held <= EPS || position <= EPS) return false;
+    const want = o.qty !== null ? Math.min(o.qty, held) : o.qtyPercent !== null ? this.floorQty((held * o.qtyPercent) / 100) : held;
+    const qty = Math.min(want, position);
+    if (qty <= 0) return false;
+    const buy = this.openTrades[0].direction === 'short';
+    let rest = qty;
+    let own = 0;
+    this.asOneOrder(qty, () => {
+      for (const u of [...this.openTrades]) {
+        if (rest <= EPS) break;
+        const c = Math.min(rest, u.qty);
+        rest -= c;
+        if (u.entryId === o.entryId) {
+          // Its own trade: the lot goes with it, as for a close by id.
+          const before = u.lotQty + u.callQty;
+          this.closeTradeQty(u, c, price, o.comment, true);
+          own += before - (u.lotQty + u.callQty);
+        } else {
+          this.closeTradeQty(u, c, price, o.comment, true, true);
+          if (!this.openTrades.includes(u) && u.lotQty > EPS && !this.displaced.includes(u)) this.displaced.push(u);
+        }
+      }
+    });
+    // The rest of the quantity comes off the id's lots, oldest first.
+    let lot = qty - own;
+    for (const t of lots) {
+      if (lot <= EPS) break;
+      const c = Math.min(lot, t.lotQty);
+      t.lotQty -= c;
+      lot -= c;
     }
+    this.displaced = this.displaced.filter((t) => t.lotQty > EPS);
     this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
     return true;
   }
@@ -1823,7 +1909,7 @@ export class Broker {
       case 'cash_per_contract':
         return qty * p.commissionValue;
       case 'cash_per_order':
-        return p.commissionValue;
+        return this.orderFillQty > EPS ? p.commissionValue * (qty / this.orderFillQty) : p.commissionValue;
     }
   }
 
