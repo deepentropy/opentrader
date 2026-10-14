@@ -101,6 +101,32 @@ export const CtxIcons = {
       <path fill="currentColor" d="M18 7h5v1h-2.01l-1.33 14.64a1.5 1.5 0 0 1-1.5 1.36H9.84a1.5 1.5 0 0 1-1.49-1.36L7.01 8H5V7h5V6c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v1Zm-6-2a1 1 0 0 0-1 1v1h6V6a1 1 0 0 0-1-1h-4ZM8.02 8l1.32 14.54a.5.5 0 0 0 .5.46h8.33a.5.5 0 0 0 .5-.46L19.99 8H8.02Z" />
     </svg>
   ),
+  // Alert label menu: pause (two bars in a circle), restart (a play sign in a
+  // circle), edit (a hexagon with a dot ring).
+  pause: (
+    <svg viewBox="0 0 28 28" width="18" height="18">
+      <g fill="none" stroke="currentColor">
+        <circle cx="14" cy="14" r="9.5" />
+        <path d="M11.5 10v8M16.5 10v8" />
+      </g>
+    </svg>
+  ),
+  restart: (
+    <svg viewBox="0 0 28 28" width="18" height="18">
+      <g fill="none" stroke="currentColor" stroke-linejoin="round">
+        <circle cx="14" cy="14" r="9.5" />
+        <path d="M12 10v8l6-4-6-4Z" />
+      </g>
+    </svg>
+  ),
+  edit: (
+    <svg viewBox="0 0 28 28" width="18" height="18">
+      <g fill="none" stroke="currentColor" stroke-linejoin="round">
+        <path d="M9.25 5.5h9.5L23.5 14l-4.75 8.5h-9.5L4.5 14l4.75-8.5Z" />
+        <circle cx="14" cy="14" r="3.5" />
+      </g>
+    </svg>
+  ),
   // A leading checkmark for a toggled-on item (swaps the iconCell glyph).
   check: (
     <svg viewBox="0 0 28 28" width="18" height="18">

@@ -437,8 +437,9 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
   // ── Alerts ───────────────────────────────────────────────────────────────
   alerts: [
     section('Chart line visibility'),
-    // ONE colour (colorAlertsLine, palette without Opacity).
-    row({ cb: true, checked: true, label: 'Alert lines', controls: [{ c: 'color', color: UP, noOpacity: true }] }),
+    // ONE colour (colorAlertsLine, palette without Opacity); none chosen =
+    // automatic: the theme's line colour (split swatch).
+    row({ cb: true, checked: true, label: 'Alert lines', controls: [{ c: 'color', color: '', noOpacity: true }] }),
     row({ cb: true, checked: true, label: 'Only active alerts' }),
     section('Notifications'),
     row({ cb: true, checked: true, label: 'Automatically hide toasts' }),

@@ -1594,6 +1594,13 @@ export function ChartView(props: Props) {
    *  bridge); the counts come from the live drawings + indicators. */
   function openContextMenu(e: MouseEvent) {
     e.preventDefault();
+    // On an alert label (its line or label): the label is selected and its menu opens.
+    const alertAt = alertLabelAt(e.clientX, e.clientY);
+    if (alertAt && alertAt.hit.area !== "axis") {
+      setAlertSelected({ id: alertAt.hit.id, level: alertAt.hit.level });
+      openAlertLabelMenu(alertAt.hit.id, e.clientX, e.clientY);
+      return;
+    }
     // Over the price-axis strip → the price-scale menu, not the pane menu.
     if (chart && host) {
       const placement = currentTokens().scalesPlacement;
@@ -2652,6 +2659,29 @@ export function ChartView(props: Props) {
       if (hit) return { series: s, prim, hit, paneTop: r.top };
     }
     return null;
+  }
+
+  /** Menu of an alert label (reference): Pause / Restart, Edit…, Delete, then "Alert lines" (the chart setting)
+   *  and "Change alerts color…" (the chart settings, Alerts tab). */
+  function openAlertLabelMenu(id: string, x: number, y: number) {
+    const rule = alertStore.rule(id);
+    if (!rule) return;
+    const t = currentTokens();
+    const nodes: CtxNode[] = [
+      rule.enabled
+        ? { kind: "item", id: "alert-pause", label: "Pause", icon: CtxIcons.pause, onSelect: () => alertStore.setEnabled(id, false) }
+        : { kind: "item", id: "alert-restart", label: "Restart", icon: CtxIcons.restart, onSelect: () => { resetRuleEvalState(id); alertStore.setEnabled(id, true); } },
+      { kind: "item", id: "alert-edit", label: "Edit…", icon: CtxIcons.edit,
+        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { editId: id } })) },
+      { kind: "item", id: "alert-delete", label: "Delete", icon: CtxIcons.remove,
+        onSelect: () => { resetRuleEvalState(id); setAlertWebhook(id, null); alertStore.remove(id); } },
+      { kind: "separator" },
+      { kind: "item", id: "alert-lines", label: "Alert lines", checked: t.alertLinesVisible,
+        onSelect: () => window.dispatchEvent(new CustomEvent("chart-patch-scale-settings", { detail: { patch: { alertLines: !t.alertLinesVisible } } })) },
+      { kind: "item", id: "alert-color", label: "Change alerts color…",
+        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings", { detail: { tab: "alerts" } })) },
+    ];
+    setCtxMenu({ x, y, nodes });
   }
 
   /** A price rounded as the series writes its values. */

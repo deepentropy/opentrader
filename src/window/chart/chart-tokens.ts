@@ -248,7 +248,9 @@ export function readChartTokens(o: AppearanceOverride = {}): ChartTokens {
     // Alerts tab rows both ship checked.
     alertLinesVisible: o.alertLines ?? true,
     alertLinesOnlyActive: o.alertLinesOnlyActive ?? true,
-    alertLineColor: o.alertLineColor || up,
+    // No colour chosen: the theme's alert-line colour (cold-gray-200 dark,
+    // cold-gray-900 light).
+    alertLineColor: o.alertLineColor || (document.documentElement.classList.contains("theme-light") ? "#0F0F0F" : "#DBDBDB"),
     currencyUnit: o.currencyUnit ?? "visibleOnMouseOver",
     scaleModes: o.scaleModes ?? "visibleOnMouseOver",
     lockRatio: o.lockRatio ?? false,

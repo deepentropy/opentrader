@@ -4,21 +4,25 @@
  * values, drawn on the series the alert reads (the main series, or a study's
  * plot in its own pane and scale).
  *
- * Reference rules (its alert label source):
- *  - line: dashed, 1 px, across the pane when the "Alert lines" setting is on;
- *    with the setting off, a hovered / selected label draws its line from the
- *    scale to the label (one level) or to the connector (a channel);
- *  - colour: the setting's colour; a stopped alert cold-gray-600 (dark) /
- *    cold-gray-300 (light);
- *  - scale: a 7 x 13 tab in the line colour at the outer edge; hovered or
- *    selected, the price label with an alarm clock instead;
+ * Reference rules (its alert label source, checked on screen 14/10/2026):
+ *  - line: 1 px, dashed 5 on / 6 off, across the pane when the "Alert lines"
+ *    setting is on; with it off, a hovered / selected label draws its line from
+ *    the scale to the label (one level) or to the connector (a channel);
+ *  - colour: the setting's colour, by default the theme's (#DBDBDB dark,
+ *    #0F0F0F light); a stopped alert cold-gray-600 (dark) / cold-gray-300
+ *    (light);
+ *  - scale: a 7 x 13 tab in the line colour at the inner edge (1 px in),
+ *    pointing out; hovered or selected, an 18 px price label in the line
+ *    colour with the text in the label's back colour;
  *  - hovered or selected: a vertical connector between the two lines of a
  *    channel 37 px from the scale, a handle on each line there, and a label
  *    47 px (one level) / 62 px (a channel) from the scale: 19 px high, radius
- *    4, the alert's name or message in 12 px, " • Stopped — <reason>" after it
- *    when it fits, a 26 px button that deletes the alert (a cross) or
- *    restarts a stopped one; with the line setting on the label is centred in
- *    the pane (left of the scale-side position when that is further left);
+ *    4, border in the line colour, the alert's name or message in 12 px,
+ *    " • Stopped — <reason>" after it when it fits, a 26 px button after a
+ *    divider: a trash can (deletes the alert) or a play sign in a circle
+ *    (restarts a stopped one); with the line setting on the label is centred
+ *    in the pane (left of the scale-side position when that is further left);
+ *  - a level outside the visible range draws nothing (no tab at the edge);
  *  - a fire: the label blinks for 2.4 s (600 ms fades).
  */
 import type {
@@ -79,6 +83,9 @@ export const ALERT_LINE_TOLERANCE = 4;
 /** Collapsed scale tab: a rounded triangle 7 x 13 at the outer edge. */
 const TAB = "M6.21 5.27 1.68 1.06A1 1 0 0 0 0 1.79v8.42a1 1 0 0 0 1.68.73l4.53-4.2a1 1 0 0 0 0-1.47Z";
 const TAB_H = 13;
+/** Hovered / selected price label on the scale: height and side padding. */
+const AXIS_H = 18;
+const AXIS_PAD = 7;
 const BLINK_MS = 2400;
 
 const DARK = {
@@ -285,7 +292,7 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
       const levels = this.levelsOf(l);
       for (let i = 0; i < levels.length; i++) {
         const c = series.priceToCoordinate(levels[i]);
-        const half = this.isActive(l.id) ? (FONT_PX + 8) / 2 : TAB_H / 2;
+        const half = this.isActive(l.id) ? AXIS_H / 2 : TAB_H / 2;
         if (c != null && Math.abs((c as number) - y) <= half) return { id: l.id, level: i, area: "axis" };
       }
     }
@@ -332,7 +339,7 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
         ctx.lineWidth = lw;
         ctx.strokeStyle = l.color;
         if (s.lineVisible || active) {
-          ctx.setLineDash([2 * lw, 2 * lw]);
+          ctx.setLineDash([5 * lw, 6 * lw]);
           for (let i = 0; i < g.ys.length; i++) {
             const [a, b] = this.lineExtent(l, g, i);
             const y = Math.round(g.ys[i] * vpr) + (lw % 2) / 2;
@@ -415,30 +422,40 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
     ctx.moveTo(sx, top);
     ctx.lineTo(sx, top + h);
     ctx.stroke();
-    // Icon: a cross (deletes) or a restart arrow (a stopped alert).
+    // Icon: a trash can (deletes the alert) or a play sign in a circle (restarts a stopped one).
     const icx = (bx + Math.round(BUTTON_W * hpr) / 2) / hpr;
     const icy = t.y;
     ctx.save();
     ctx.scale(hpr, vpr);
-    ctx.lineWidth = 1.2;
+    ctx.lineWidth = 1;
+    ctx.lineJoin = "round";
     ctx.lineCap = "round";
     if (l.inactive) {
       ctx.strokeStyle = theme.restartIcon;
       ctx.beginPath();
-      ctx.arc(icx, icy, 4, -0.35 * Math.PI, 1.35 * Math.PI);
+      ctx.arc(icx, icy, 6, 0, 2 * Math.PI);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(icx + 1.5, icy - 6);
-      ctx.lineTo(icx + 3.6, icy - 3.6);
-      ctx.lineTo(icx + 0.6, icy - 2.6);
+      ctx.moveTo(icx - 1.6, icy - 3);
+      ctx.lineTo(icx + 3, icy);
+      ctx.lineTo(icx - 1.6, icy + 3);
+      ctx.closePath();
       ctx.stroke();
     } else {
       ctx.strokeStyle = l.color;
       ctx.beginPath();
-      ctx.moveTo(icx - 3.5, icy - 3.5);
-      ctx.lineTo(icx + 3.5, icy + 3.5);
-      ctx.moveTo(icx + 3.5, icy - 3.5);
-      ctx.lineTo(icx - 3.5, icy + 3.5);
+      // lid and handle
+      ctx.moveTo(icx - 5.5, icy - 4.5);
+      ctx.lineTo(icx + 5.5, icy - 4.5);
+      ctx.moveTo(icx - 2, icy - 4.5);
+      ctx.lineTo(icx - 2, icy - 6.5);
+      ctx.lineTo(icx + 2, icy - 6.5);
+      ctx.lineTo(icx + 2, icy - 4.5);
+      // can
+      ctx.moveTo(icx - 4, icy - 4.5);
+      ctx.lineTo(icx - 3.3, icy + 6.5);
+      ctx.lineTo(icx + 3.3, icy + 6.5);
+      ctx.lineTo(icx + 4, icy - 4.5);
       ctx.stroke();
     }
     // Text, then " • <status>" when it fits.
@@ -470,8 +487,10 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
     const fmt = series.priceFormatter();
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const W = mediaSize.width;
-      // The tab sits at the outer edge: right edge of a right scale, left edge of a left one.
-      const outerRight = s.side === "right";
+      // The tab sits at the inner edge (1 px in from the pane side) and points out: right of a right
+      // scale, left of a left one.
+      const leftScale = s.side === "left";
+      ctx.font = `${FONT_PX}px ${s.fontFamily}`;
       for (const l of s.labels) {
         const active = this.isActive(l.id);
         const levels = this.levelsOf(l);
@@ -483,40 +502,26 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
           if (!active) {
             const path = new Path2D(TAB);
             ctx.save();
-            ctx.translate(outerRight ? W : 0, (y as number) - TAB_H / 2 + 1);
-            if (outerRight) ctx.scale(-1, 1);
+            ctx.translate(leftScale ? W - 1 : 1, (y as number) - TAB_H / 2 + 1);
+            if (leftScale) ctx.scale(-1, 1);
             ctx.fillStyle = l.color;
             ctx.fill(path);
             ctx.restore();
             continue;
           }
-          // The price label with an alarm clock.
-          const h = FONT_PX + 8;
-          const top = (y as number) - h / 2;
+          // Hovered / selected: the price label in the line colour, 18 px, its text in the label's text colour.
+          const text = fmt.format(p);
+          const w = Math.ceil(ctx.measureText(text).width) + AXIS_PAD * 2;
+          const top = Math.round((y as number) - AXIS_H / 2);
+          const x0 = leftScale ? W - 1 - w : 1;
           ctx.fillStyle = l.color;
-          ctx.fillRect(0, top, W, h);
-          const ix = 9;
-          const iy = y as number;
-          ctx.strokeStyle = theme.icon;
+          ctx.beginPath();
+          ctx.roundRect(x0, top, w, AXIS_H, 2);
+          ctx.fill();
           ctx.fillStyle = theme.icon;
-          ctx.lineWidth = 1.2;
-          ctx.lineCap = "round";
-          ctx.beginPath();
-          ctx.arc(ix, iy + 0.5, 4, 0, 2 * Math.PI);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(ix - 4.5, iy - 3.5);
-          ctx.lineTo(ix - 2.8, iy - 5);
-          ctx.moveTo(ix + 4.5, iy - 3.5);
-          ctx.lineTo(ix + 2.8, iy - 5);
-          ctx.moveTo(ix, iy - 1.5);
-          ctx.lineTo(ix, iy + 0.7);
-          ctx.lineTo(ix + 1.6, iy + 0.7);
-          ctx.stroke();
-          ctx.font = `${FONT_PX}px ${s.fontFamily}`;
           ctx.textBaseline = "middle";
           ctx.textAlign = "left";
-          ctx.fillText(fmt.format(p), 18, iy);
+          ctx.fillText(text, x0 + AXIS_PAD, top + AXIS_H / 2 + 0.5);
         }
         ctx.restore();
       }

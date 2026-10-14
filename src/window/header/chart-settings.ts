@@ -256,12 +256,28 @@ function reviveCtrl(raw: unknown, def: CtrlValue): CtrlValue {
  *  (26/09/2026): Events → Latest news default is ON (factory value);
  *  earlier drafts stored OFF only because the row was inert. Rev 5
  *  (01/10/2026): the factory projection colours are the dark theme's;
- *  earlier drafts stored the light theme's pair as the factory value. */
-export const SETTINGS_REV = 5;
+ *  earlier drafts stored the light theme's pair as the factory value. Rev 6
+ *  (14/10/2026): Alerts → Alert lines colour is automatic by default (the
+ *  theme's line colour); earlier drafts stored the up colour as the factory
+ *  value. */
+export const SETTINGS_REV = 6;
+/** The up colour drafts before rev 6 stored as the alert-line factory colour. */
+const UP_DEFAULT = '#089981';
 
 function migrateValues(rows: Record<string, StoredRow>, rev: number): Record<string, StoredRow> {
-  if (rev >= 5) return rows;
+  if (rev >= 6) return rows;
   const out = { ...rows };
+  const al = out['alerts:Alert lines'];
+  if (al && Array.isArray(al.controls)) {
+    out['alerts:Alert lines'] = {
+      ...al,
+      controls: (al.controls as unknown[]).map((c) => {
+        const o = c && typeof c === 'object' ? (c as Record<string, unknown>) : undefined;
+        return o && typeof o.color === 'string' && o.color.toUpperCase() === UP_DEFAULT ? { ...o, color: '' } : c;
+      }),
+    };
+  }
+  if (rev >= 5) return out;
   if (rev < 4) {
     const news = out['events:Latest news'];
     out['events:Latest news'] = { ...(news ?? {}), checked: true };
@@ -963,6 +979,8 @@ export type ScaleMenuPatch = {
   plusButton?: boolean;
   /** Time-axis menu "Session breaks" = the Events tab row. */
   sessionBreaks?: boolean;
+  /** Alerts tab: "Alert lines". */
+  alertLines?: boolean;
 };
 
 /** Clone `d` (or the factory defaults) with the given scale-menu fields
@@ -1008,6 +1026,8 @@ export function patchDraftScales(d: Draft | undefined, p: ScaleMenuPatch): Draft
     setSelect('Scales placement', p.scalesPlacement === 'left' ? 'Stack on the left' : 'Auto');
   const sb = next[keyOf('events', 'Session breaks')];
   if (sb && p.sessionBreaks !== undefined) sb.checked = p.sessionBreaks;
+  const al = next[keyOf('alerts', 'Alert lines')];
+  if (al && p.alertLines !== undefined) al.checked = p.alertLines;
   return next;
 }
 
