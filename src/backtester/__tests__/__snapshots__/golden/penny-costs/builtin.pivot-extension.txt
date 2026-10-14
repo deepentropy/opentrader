@@ -1,0 +1,37 @@
+builtin/pivot-extension on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=42 filledOrders=84 marginCalls=0 finalEquity=184422.8558 minEquity=48459.2797
+orders by kind: entry/MARKET=84
+openPL=0 maxDD=56789.99 (0.5462116819) maxRunUp=138603.3964 (0.7304690318) buyHold=-69967.061 (-0.69967061)
+all: netProfit=84422.8558 grossProfit=192888.5313 grossLoss=108465.6755 commissionPaid=84 profitFactor=1.778337068 totalTrades=42 totalOpenTrades=0 numberOfWiningTrades=19 numberOfLosingTrades=23 percentProfitable=0.4523809524 avgTrade=2010.067995 avgWinTrade=10152.02796 avgLosTrade=4715.898935 largestWinTrade=35604.175 largestLosTrade=28206.515 avgBarsInTrade=6.714285714 maxContractsHeld=2193160
+long: netProfit=84422.8558 grossProfit=192888.5313 grossLoss=108465.6755 commissionPaid=84 profitFactor=1.778337068 totalTrades=42 totalOpenTrades=0 numberOfWiningTrades=19 numberOfLosingTrades=23 percentProfitable=0.4523809524 avgTrade=2010.067995 avgWinTrade=10152.02796 avgLosTrade=4715.898935 largestWinTrade=35604.175 largestLosTrade=28206.515 avgBarsInTrade=6.714285714 maxContractsHeld=2193160
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "PivExtLE" in "PivExtLE"@10 1.3775 out "PivExtSE"@13 1.3229 q=71694 pnl=-3916.4924 (-0.03965687346) cm=2 ru=3870.476 dd=9629.5042 cum=-3916.4924 eq%=-0.039164924
+  #2 L "PivExtLE" in "PivExtLE"@17 1.1934 out "PivExtSE"@21 1.2923 q=79769 pnl=7887.1541 (0.0828505857) cm=2 ru=15474.186 dd=1907.4791 cum=3970.6617 eq%=0.0820864506
+  #3 L "PivExtLE" in "PivExtLE"@32 1.2213 out "PivExtSE"@35 1.1991 q=84043 pnl=-1867.7546 (-0.01819665997) cm=2 ru=7050.2077 dd=5068.7929 cum=2102.9071 eq%=-0.01796424654
+  #4 L "PivExtLE" in "PivExtLE"@41 1.2078 out "PivExtSE"@44 1.1835 q=83965 pnl=-2042.3495 (-0.02013874781) cm=2 ru=3911.769 dd=3712.253 cum=60.5576 eq%=-0.02000285357
+  #5 L "PivExtLE" in "PivExtLE"@52 1.1322 out "PivExtSE"@54 0.9698 q=86781 pnl=-14095.2344 (-0.1434564507) cm=2 ru=198.5963 dd=14094.2344 cum=-14034.6768 eq%=-0.1408670383
+  #6 L "PivExtLE" in "PivExtLE"@69 0.7368 out "PivExtSE"@70 0.705 q=111338 pnl=-3542.5484 (-0.04318346289) cm=2 ru=455.4858 dd=3541.5484 cum=-17577.2252 eq%=-0.04120903951
+  #7 L "PivExtLE" in "PivExtLE"@74 0.7855 out "PivExtSE"@81 0.9162 q=103570 pnl=13534.599 (0.1663642051) cm=2 ru=23001.897 dd=3222.027 cum=-4042.6262 eq%=0.1642094559
+  #8 L "PivExtLE" in "PivExtLE"@91 0.7975 out "PivExtSE"@92 0.7402 q=117665 pnl=-6744.2045 (-0.07187007725) cm=2 ru=740.2895 dd=7813.956 cum=-10786.8307 eq%=-0.07028333762
+  #9 L "PivExtLE" in "PivExtLE"@97 0.7069 out "PivExtSE"@100 0.7133 q=123631 pnl=789.2384 (0.009030626372) cm=2 ru=4437.3529 dd=5317.133 cum=-9997.5923 eq%=0.008846658024
+  #10 L "PivExtLE" in "PivExtLE"@102 0.7308 out "PivExtSE"@103 0.7229 q=120726 pnl=-955.7354 (-0.01083261728) cm=2 ru=2027.1968 dd=1799.8174 cum=-10953.3277 eq%=-0.01061899814
+  #11 L "PivExtLE" in "PivExtLE"@109 0.6896 out "PivExtSE"@109 0.6894 q=127463 pnl=-27.4926 (-0.0003127731643) cm=2 ru=0 dd=26.4926 cum=-10980.8203 eq%=-0.0003087437103
+  #12 L "PivExtLE" in "PivExtLE"@126 0.6983 out "PivExtSE"@133 0.6834 q=125572 pnl=-1873.0228 (-0.02136009883) cm=2 ru=6754.7736 dd=4948.5368 cum=-12853.8431 eq%=-0.02104066569
+  ... 30 more
+  digest 1-42: 1319dc1b533305
+orders:
+  10 buy entry MARKET "PivExtLE" 1.3775 x71694
+  13 sell entry MARKET "PivExtSE" 1.3229 x71694
+  17 buy entry MARKET "PivExtLE" 1.1934 x79769
+  21 sell entry MARKET "PivExtSE" 1.2923 x79769
+  32 buy entry MARKET "PivExtLE" 1.2213 x84043
+  35 sell entry MARKET "PivExtSE" 1.1991 x84043
+  41 buy entry MARKET "PivExtLE" 1.2078 x83965
+  44 sell entry MARKET "PivExtSE" 1.1835 x83965
+  52 buy entry MARKET "PivExtLE" 1.1322 x86781
+  54 sell entry MARKET "PivExtSE" 0.9698 x86781
+  69 buy entry MARKET "PivExtLE" 0.7368 x111338
+  70 sell entry MARKET "PivExtSE" 0.705 x111338
+  ... 72 more
+  digest 1-84: 09437c22dce28f

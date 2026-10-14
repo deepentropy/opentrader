@@ -1,0 +1,9 @@
+script/supertrend-strategy on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=0 filledOrders=0 marginCalls=0 finalEquity=10000000 minEquity=10000000
+orders by kind: none
+openPL=0 maxDD=0 (0) maxRunUp=0 (0) buyHold=0 (-)
+all: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+long: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+orders:

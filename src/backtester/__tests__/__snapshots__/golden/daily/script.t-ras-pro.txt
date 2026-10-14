@@ -1,0 +1,40 @@
+script/t-ras-pro on daily: 1500 bars, first 1546405200, last 1728964800
+trades=105 filledOrders=209 marginCalls=1 finalEquity=178005.2 minEquity=55873.24
+orders by kind: entry/MARKET=104 exit/MARKET=104 order/MARKET=1
+openPL=0 maxDD=63488.15 (0.533818501) maxRunUp=208290.6 (0.7870904092) buyHold=88472.25 (0.8847225)
+all: netProfit=78005.2 grossProfit=298398.41 grossLoss=220393.21 commissionPaid=0 profitFactor=1.353936494 totalTrades=105 totalOpenTrades=0 numberOfWiningTrades=41 numberOfLosingTrades=63 percentProfitable=0.3904761905 avgTrade=742.9066667 avgWinTrade=7278.01 avgLosTrade=3498.304921 largestWinTrade=61858.08 largestLosTrade=29270.75 avgBarsInTrade=6.99047619 maxContractsHeld=1291
+long: netProfit=78005.2 grossProfit=298398.41 grossLoss=220393.21 commissionPaid=0 profitFactor=1.353936494 totalTrades=105 totalOpenTrades=0 numberOfWiningTrades=41 numberOfLosingTrades=63 percentProfitable=0.3904761905 avgTrade=742.9066667 avgWinTrade=7278.01 avgLosTrade=3498.304921 largestWinTrade=61858.08 largestLosTrade=29270.75 avgBarsInTrade=6.99047619 maxContractsHeld=1291
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "buy" in "buy"@5 147.97 out "Close entry(s) order buy"@7 146.98 q=675 pnl=-668.25 (-0.006690545381) cm=0 ru=459 dd=1080 cum=-668.25 eq%=-0.0066825
+  #2 L "buy" in "buy"@9 149.13 out "Close entry(s) order buy"@11 146.83 q=666 pnl=-1531.8 (-0.01542278549) cm=0 ru=113.22 dd=2364.3 cum=-2200.05 eq%=-0.01542105117
+  #3 L "buy" in "buy"@21 146.52 out "Close entry(s) order buy"@27 150.12 q=660 pnl=2376 (0.02457002457) cm=0 ru=5504.4 dd=297 cum=175.95 eq%=0.02429449095
+  #4 L "buy" in "buy"@49 147.65 out "Close entry(s) order buy"@53 144.93 q=678 pnl=-1844.16 (-0.01842194379) cm=0 ru=393.24 dd=2535.72 cum=-1668.21 eq%=-0.018409209
+  #5 L "buy" in "buy"@66 141.57 out "Close entry(s) order buy"@68 140.31 q=693 pnl=-873.18 (-0.008900190718) cm=0 ru=159.39 dd=2439.36 cum=-2541.39 eq%=-0.00887993598
+  #6 L "buy" in "buy"@74 141 out "Close entry(s) order buy"@80 142.03 q=690 pnl=710.7 (0.007304964539) cm=0 ru=4802.4 dd=27.6 cum=-1830.69 eq%=0.007292326455
+  #7 L "buy" in "buy"@90 143.67 out "Close entry(s) order buy"@93 142.82 q=683 pnl=-580.55 (-0.005916336048) cm=0 ru=1325.02 dd=1468.45 cum=-2411.24 eq%=-0.005913762662
+  #8 L "buy" in "buy"@98 139.51 out "Close entry(s) order buy"@100 139.17 q=691 pnl=-234.94 (-0.002437101283) cm=0 ru=483.7 dd=704.82 cum=-2646.18 eq%=-0.002407449382
+  #9 L "buy" in "buy"@104 140.35 out "Close entry(s) order buy"@108 140.19 q=691 pnl=-110.56 (-0.001140007125) cm=0 ru=1478.74 dd=1796.6 cum=-2756.74 eq%=-0.00113565138
+  #10 L "buy" in "buy"@145 101.98 out "Close entry(s) order buy"@150 94.45 q=936 pnl=-7048.08 (-0.07383800745) cm=0 ru=8985.6 dd=9977.76 cum=-9804.82 eq%=-0.07247885355
+  #11 L "buy" in "buy"@152 97.11 out "Close entry(s) order buy"@155 88.45 q=925 pnl=-8010.5 (-0.08917722171) cm=0 ru=4615.75 dd=8824.5 cum=-17815.32 eq%=-0.08881294987
+  #12 L "buy" in "buy"@167 119.57 out "Close entry(s) order buy"@169 123.55 q=687 pnl=2734.26 (0.03328594129) cm=0 ru=2734.26 dd=6863.13 cum=-15081.06 eq%=0.03326970428
+  ... 93 more
+  digest 1-100: 1ae273549c2d4f
+  digest 101-105: 0be77c7983f1ef
+orders:
+  5 buy entry MARKET "buy" 147.97 x675
+  7 sell exit MARKET "Close entry(s) order buy" 146.98 x675
+  9 buy entry MARKET "buy" 149.13 x666
+  11 sell exit MARKET "Close entry(s) order buy" 146.83 x666
+  21 buy entry MARKET "buy" 146.52 x660
+  27 sell exit MARKET "Close entry(s) order buy" 150.12 x660
+  49 buy entry MARKET "buy" 147.65 x678
+  53 sell exit MARKET "Close entry(s) order buy" 144.93 x678
+  66 buy entry MARKET "buy" 141.57 x693
+  68 sell exit MARKET "Close entry(s) order buy" 140.31 x693
+  74 buy entry MARKET "buy" 141 x690
+  80 sell exit MARKET "Close entry(s) order buy" 142.03 x690
+  ... 197 more
+  digest 1-100: 0b9684b3431e5a
+  digest 101-200: 0a45236832dffe
+  digest 201-209: 08bf4acc29aa85

@@ -1,0 +1,37 @@
+port/bollinger-stop on penny: 900 bars, first 978411600, last 1088136000
+trades=28 filledOrders=28 marginCalls=0 finalEquity=6552.526166 minEquity=3078.8248
+orders by kind: entry/STOP=28
+openPL=1167.1658 maxDD=9114.88381 (0.7549475093) maxRunUp=15127.26366 (0.8215503233) buyHold=-6442.5918 (-0.64425918)
+all: netProfit=-4614.639634 grossProfit=21133.51744 grossLoss=25748.15708 commissionPaid=382.4372339 profitFactor=0.8207778669 totalTrades=27 totalOpenTrades=1 numberOfWiningTrades=9 numberOfLosingTrades=18 percentProfitable=0.3333333333 avgTrade=-170.912579 avgWinTrade=2348.168605 avgLosTrade=1430.453171 largestWinTrade=8852.203614 largestLosTrade=3706.382828 avgBarsInTrade=33.11111111 maxContractsHeld=163338
+long: netProfit=-719.482686 grossProfit=12455.69846 grossLoss=13175.18114 commissionPaid=181.037186 profitFactor=0.9453910593 totalTrades=13 totalOpenTrades=1 numberOfWiningTrades=3 numberOfLosingTrades=10 percentProfitable=0.2307692308 avgTrade=-55.344822 avgWinTrade=4151.899486 avgLosTrade=1317.518114 largestWinTrade=8852.203614 largestLosTrade=2930.133733 avgBarsInTrade=35.23076923 maxContractsHeld=163338
+short: netProfit=-3895.156948 grossProfit=8677.818985 grossLoss=12572.97593 commissionPaid=201.4000479 profitFactor=0.6901961024 totalTrades=14 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=8 percentProfitable=0.4285714286 avgTrade=-278.2254963 avgWinTrade=1446.303164 avgLosTrade=1571.621992 largestWinTrade=2073.53319 largestLosTrade=3706.382828 avgBarsInTrade=31.14285714 maxContractsHeld=160115
+trades:
+  #1 S "Short" in "Short"@25 1.1631 out "Long"@77 0.9196 q=8589 pnl=2073.53319 (0.2073563098) cm=17.8883103 ru=4184.018834 dd=1230.486766 cum=2073.53319 eq%=0.207353319
+  #2 L "Long" in "Long"@77 0.9196 out "Short"@92 0.7091 q=13813 pnl=-2930.133733 (-0.2304445229) cm=22.4972331 ru=1202.841565 dd=2920.338935 cum=-856.6005434 eq%=-0.2426906596
+  #3 S "Short" in "Short"@92 0.7091 out "Long"@113 0.7496 q=13930 pnl=-584.484691 (-0.05911265437) cm=20.319691 ru=722.840237 dd=900.004763 cum=-1441.085234 eq%=-0.06392422138
+  #4 L "Long" in "Long"@113 0.7496 out "Short"@114 0.6658 q=11737 pnl=-1000.17315 (-0.1135675957) cm=16.6125498 ru=227.1156448 dd=992.3586552 cum=-2441.258384 eq%=-0.1168574728
+  #5 S "Short" in "Short"@114 0.6658 out "Long"@119 0.78 q=12096 pnl=-1398.851597 (-0.1735209819) cm=17.4883968 ru=952.3688832 dd=1389.416717 cum=-3840.109981 eq%=-0.1850640845
+  #6 L "Long" in "Long"@119 0.78 out "Short"@137 0.6247 q=9227 pnl=-1445.914267 (-0.2007027588) cm=12.9611669 ru=61.08274 dd=1440.15016 cum=-5286.024248 eq%=-0.2347305329
+  #7 S "Short" in "Short"@137 0.6247 out "Long"@172 0.4871 q=7899 pnl=1078.120292 (0.2182677256) cm=8.7821082 ru=2142.013695 dd=414.1027053 cum=-4207.903956 eq%=0.2287072205
+  #8 L "Long" in "Long"@172 0.4871 out "Short"@184 0.3725 q=12061 pnl=-1392.558236 (-0.2367978972) cm=10.3676356 ru=617.6787869 dd=1425.454613 cum=-5600.462192 eq%=-0.2404238854
+  #9 S "Short" in "Short"@184 0.3725 out "Long"@202 0.4014 q=12532 pnl=-371.8733148 (-0.07958189462) cm=9.6985148 ru=777.32863 dd=420.73057 cum=-5972.335506 eq%=-0.08452554132
+  #10 L "Long" in "Long"@202 0.4014 out "Short"@224 0.3303 q=10276 pnl=-738.1425492 (-0.1787741407) cm=7.5189492 ru=95.5524136 dd=734.7483864 cum=-6710.478056 eq%=-0.1832681323
+  #11 S "Short" in "Short"@224 0.3303 out "Long"@257 0.2291 q=11249 pnl=1132.106109 (0.30439013) cm=6.2926906 ru=1965.984355 dd=275.9413447 cum=-5578.371946 eq%=0.3441552081
+  #12 L "Long" in "Long"@257 0.2291 out "Short"@281 0.2039 q=20764 pnl=-532.243612 (-0.1117738656) cm=8.990812 ru=896.4005676 dd=804.1710324 cum=-6110.615558 eq%=-0.1203727689
+  ... 16 more
+  digest 1-28: 13d1a318a923d9
+orders:
+  25 sell entry STOP "Short" 1.1631 x8589
+  77 buy entry STOP "Long" 0.9196 x22402
+  92 sell entry STOP "Short" 0.7091 x27743
+  113 buy entry STOP "Long" 0.7496 x25667
+  114 sell entry STOP "Short" 0.6658 x23833
+  119 buy entry STOP "Long" 0.78 x21323
+  137 sell entry STOP "Short" 0.6247 x17126
+  172 buy entry STOP "Long" 0.4871 x19960
+  184 sell entry STOP "Short" 0.3725 x24593
+  202 buy entry STOP "Long" 0.4014 x22808
+  224 sell entry STOP "Short" 0.3303 x21525
+  257 buy entry STOP "Long" 0.2291 x32013
+  ... 16 more
+  digest 1-28: 1035e85457b9a8

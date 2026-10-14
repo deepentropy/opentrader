@@ -1,0 +1,37 @@
+builtin/pivot-reversal on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=19 filledOrders=37 marginCalls=0 finalEquity=46097.6874 minEquity=14114.1189
+orders by kind: entry/STOP=37
+openPL=3376.2381 maxDD=86081.9101 (0.860819101) maxRunUp=42059.0851 (0.7269231456) buyHold=-70185.0774 (-0.701850774)
+all: netProfit=-57278.5507 grossProfit=28777.0618 grossLoss=86055.6125 commissionPaid=37 profitFactor=0.3344007551 totalTrades=18 totalOpenTrades=1 numberOfWiningTrades=5 numberOfLosingTrades=13 percentProfitable=0.2777777778 avgTrade=-3182.141706 avgWinTrade=5755.41236 avgLosTrade=6619.6625 largestWinTrade=12963.5722 largestLosTrade=20252.546 avgBarsInTrade=21.94444444 maxContractsHeld=692129
+long: netProfit=-57278.5507 grossProfit=28777.0618 grossLoss=86055.6125 commissionPaid=37 profitFactor=0.3344007551 totalTrades=18 totalOpenTrades=1 numberOfWiningTrades=5 numberOfLosingTrades=13 percentProfitable=0.2777777778 avgTrade=-3182.141706 avgWinTrade=5755.41236 avgLosTrade=6619.6625 largestWinTrade=12963.5722 largestLosTrade=20252.546 avgBarsInTrade=21.94444444 maxContractsHeld=692129
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "PivRevLE" in "PivRevLE"@21 1.3876 out "PivRevSE"@36 1.1066 q=72066 pnl=-20252.546 (-0.2025259023) cm=2 ru=892.6184 dd=20251.546 cum=-20252.546 eq%=-0.20252546
+  #2 L "PivRevLE" in "PivRevLE"@100 0.743 out "PivRevSE"@105 0.6637 q=107330 pnl=-8513.269 (-0.106753216) cm=2 ru=3218.9 dd=8512.269 cum=-28765.815 eq%=-0.1067528626
+  #3 L "PivRevLE" in "PivRevLE"@113 0.7553 out "PivRevSE"@114 0.6563 q=94311 pnl=-9338.789 (-0.1310999819) cm=2 ru=1357.0784 dd=9337.789 cum=-38104.604 eq%=-0.1310998224
+  #4 L "PivRevLE" in "PivRevLE"@119 0.7699 out "PivRevSE"@136 0.6587 q=80392 pnl=-8941.5904 (-0.1444643215) cm=2 ru=1405.86 dd=10886.0768 cum=-47046.1944 eq%=-0.1444629323
+  #5 L "PivRevLE" in "PivRevLE"@170 0.4595 out "PivRevSE"@185 0.3527 q=115240 pnl=-12309.632 (-0.2324599302) cm=2 ru=9137.532 dd=12308.632 cum=-59355.8264 eq%=-0.2324598178
+  #6 L "PivRevLE" in "PivRevLE"@201 0.3829 out "PivRevSE"@214 0.3409 q=106145 pnl=-4460.09 (-0.109735723) cm=2 ru=2992.289 dd=4459.09 cum=-63815.9164 eq%=-0.1097350396
+  #7 L "PivRevLE" in "PivRevLE"@251 0.1921 out "PivRevSE"@285 0.1888 q=188355 pnl=-623.5715 (-0.01723335114) cm=2 ru=15142.742 dd=622.5715 cum=-64439.4879 eq%=-0.01723330918
+  #8 L "PivRevLE" in "PivRevLE"@315 0.154 out "PivRevSE"@343 0.1277 q=230905 pnl=-6074.8015 (-0.1708306606) cm=2 ru=5332.9055 dd=7159.055 cum=-70514.2894 eq%=-0.170829978
+  #9 L "PivRevLE" in "PivRevLE"@484 0.0426 out "PivRevSE"@487 0.036 q=692129 pnl=-4570.0514 (-0.1549921526) cm=2 ru=967.9806 dd=4569.0514 cum=-75084.3408 eq%=-0.1549920727
+  #10 L "PivRevLE" in "PivRevLE"@493 0.0442 out "PivRevSE"@516 0.0344 q=563680 pnl=-5526.064 (-0.221790829) cm=2 ru=4001.128 dd=5525.064 cum=-80610.4048 eq%=-0.2217908005
+  #11 L "PivRevLE" in "PivRevLE"@529 0.0373 out "PivRevSE"@532 0.0304 q=519801 pnl=-3588.6269 (-0.1850802029) cm=2 ru=466.8209 dd=3587.6269 cum=-84199.0317 eq%=-0.185080032
+  #12 L "PivRevLE" in "PivRevLE"@573 0.0403 out "PivRevSE"@617 0.0498 q=392058 pnl=3722.551 (0.2355905163) cm=2 ru=9369.1862 dd=1882.8784 cum=-80476.4807 eq%=0.2355900556
+  ... 7 more
+  digest 1-19: 1fbdd702baef81
+orders:
+  21 buy entry STOP "PivRevLE" 1.3876 x72066
+  36 sell entry STOP "PivRevSE" 1.1066 x72066
+  100 buy entry STOP "PivRevLE" 0.743 x107330
+  105 sell entry STOP "PivRevSE" 0.6637 x107330
+  113 buy entry STOP "PivRevLE" 0.7553 x94311
+  114 sell entry STOP "PivRevSE" 0.6563 x94311
+  119 buy entry STOP "PivRevLE" 0.7699 x80392
+  136 sell entry STOP "PivRevSE" 0.6587 x80392
+  170 buy entry STOP "PivRevLE" 0.4595 x115240
+  185 sell entry STOP "PivRevSE" 0.3527 x115240
+  201 buy entry STOP "PivRevLE" 0.3829 x106145
+  214 sell entry STOP "PivRevSE" 0.3409 x106145
+  ... 25 more
+  digest 1-37: 0db26691f371d6

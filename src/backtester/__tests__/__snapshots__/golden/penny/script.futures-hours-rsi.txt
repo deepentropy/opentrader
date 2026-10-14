@@ -1,0 +1,37 @@
+script/futures-hours-rsi on penny: 900 bars, first 978411600, last 1088136000
+trades=25 filledOrders=25 marginCalls=23 finalEquity=1761.7745 minEquity=1761.7745
+orders by kind: entry/MARKET=2 order/MARKET=23
+openPL=-1349.536 maxDD=98257.6111 (0.982576111) maxRunUp=12586.1878 (0.1117915798) buyHold=-53464.1205 (-0.534641205)
+all: netProfit=-96888.6895 grossProfit=0 grossLoss=96888.6895 commissionPaid=0 profitFactor=0 totalTrades=24 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=24 percentProfitable=0 avgTrade=-4037.028729 avgWinTrade=- avgLosTrade=4037.028729 largestWinTrade=- largestLosTrade=88856.7879 avgBarsInTrade=182.8333333 maxContractsHeld=215536
+long: netProfit=-88856.7879 grossProfit=0 grossLoss=88856.7879 commissionPaid=0 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-88856.7879 avgWinTrade=- avgLosTrade=88856.7879 largestWinTrade=- largestLosTrade=88856.7879 avgBarsInTrade=537 maxContractsHeld=106123
+short: netProfit=-8031.9016 grossProfit=0 grossLoss=8031.9016 commissionPaid=0 profitFactor=0 totalTrades=23 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=23 percentProfitable=0 avgTrade=-349.213113 avgWinTrade=- avgLosTrade=349.213113 largestWinTrade=- largestLosTrade=1614.684 avgBarsInTrade=167.4347826 maxContractsHeld=215536
+trades:
+  #1 L "RsiLE" in "RsiLE"@56 0.889 out "RsiSE"@592 0.0517 q=106123 pnl=-88856.7879 (-0.9418447694) cm=0 ru=12586.1878 dd=91817.6196 cum=-88856.7879 eq%=-0.888567879
+  #2 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@592 0.0541 q=76492 pnl=-183.5808 (-0.04642166344) cm=0 ru=137.6856 dd=183.5808 cum=-89040.3687 eq%=-0.0164746752
+  #3 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@635 0.0653 q=668 pnl=-9.0848 (-0.2630560928) cm=0 ru=5.0768 dd=9.0848 cum=-89049.4535 eq%=-0.0008289329952
+  #4 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@637 0.0656 q=3068 pnl=-42.6452 (-0.2688588008) cm=0 ru=23.3168 dd=42.6452 cum=-89092.0987 eq%=-0.003894344451
+  #5 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@637 0.0671 q=15200 pnl=-234.08 (-0.2978723404) cm=0 ru=115.52 dd=234.08 cum=-89326.1787 eq%=-0.02145967346
+  #6 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@642 0.0756 q=67560 pnl=-1614.684 (-0.4622823985) cm=0 ru=513.456 dd=1614.684 cum=-90940.8627 eq%=-0.1512751577
+  #7 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@721 0.1137 q=6104 pnl=-378.448 (-1.199226306) cm=0 ru=46.3904 dd=378.448 cum=-91319.3107 eq%=-0.0417752803
+  #8 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@724 0.1219 q=7912 pnl=-555.4224 (-1.357833656) cm=0 ru=60.1312 dd=555.4224 cum=-91874.7331 eq%=-0.06398367466
+  #9 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@750 0.1319 q=1436 pnl=-115.1672 (-1.551257253) cm=0 ru=10.9136 dd=115.1672 cum=-91989.9003 eq%=-0.01417395901
+  #10 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@751 0.1347 q=1948 pnl=-161.684 (-1.605415861) cm=0 ru=14.8048 dd=161.684 cum=-92151.5843 eq%=-0.02018501717
+  #11 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@751 0.1378 q=616 pnl=-53.0376 (-1.665377176) cm=0 ru=4.6816 dd=53.0376 cum=-92204.6219 eq%=-0.006757746025
+  #12 S "RsiSE" in "RsiSE"@592 0.0517 out "Margin call"@757 0.1388 q=152 pnl=-13.2392 (-1.684719536) cm=0 ru=1.1552 dd=13.2392 cum=-92217.8611 eq%=-0.001698339687
+  ... 13 more
+  digest 1-25: 089659d7a27518
+orders:
+  56 buy entry MARKET "RsiLE" 0.889 x106123
+  592 sell entry MARKET "RsiSE" 0.0517 x321659
+  592 buy order MARKET "Margin call 0" 0.0541 x76492
+  635 buy order MARKET "Margin call 1" 0.0653 x668
+  637 buy order MARKET "Margin call 2" 0.0656 x3068
+  637 buy order MARKET "Margin call 3" 0.0671 x15200
+  642 buy order MARKET "Margin call 4" 0.0756 x67560
+  721 buy order MARKET "Margin call 5" 0.1137 x6104
+  724 buy order MARKET "Margin call 6" 0.1219 x7912
+  750 buy order MARKET "Margin call 7" 0.1319 x1436
+  751 buy order MARKET "Margin call 8" 0.1347 x1948
+  751 buy order MARKET "Margin call 9" 0.1378 x616
+  ... 13 more
+  digest 1-25: 0a48dc4c3969f7

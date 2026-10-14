@@ -1,0 +1,39 @@
+port/bollinger-stop on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=130 filledOrders=130 marginCalls=0 finalEquity=11316.39596 minEquity=8524.33161
+orders by kind: entry/STOP=130
+openPL=30 maxDD=2026.39809 (0.1923478579) maxRunUp=3284.52292 (0.2777596426) buyHold=-603.12 (-0.060312)
+all: netProfit=1286.39596 grossProfit=7901.51493 grossLoss=6615.11897 commissionPaid=2606.09404 profitFactor=1.194463012 totalTrades=129 totalOpenTrades=1 numberOfWiningTrades=37 numberOfLosingTrades=92 percentProfitable=0.2868217054 avgTrade=9.972061705 avgWinTrade=213.5544576 avgLosTrade=71.90346707 largestWinTrade=783.89976 largestLosTrade=223.76403 avgBarsInTrade=30.14728682 maxContractsHeld=30
+long: netProfit=413.16406 grossProfit=3659.27543 grossLoss=3246.11137 commissionPaid=1300.72594 profitFactor=1.127279693 totalTrades=64 totalOpenTrades=1 numberOfWiningTrades=18 numberOfLosingTrades=46 percentProfitable=0.28125 avgTrade=6.455688437 avgWinTrade=203.2930794 avgLosTrade=70.56763848 largestWinTrade=783.89976 largestLosTrade=223.76403 avgBarsInTrade=29.234375 maxContractsHeld=30
+short: netProfit=873.2319 grossProfit=4242.2395 grossLoss=3369.0076 commissionPaid=1305.3681 profitFactor=1.259195586 totalTrades=65 totalOpenTrades=0 numberOfWiningTrades=19 numberOfLosingTrades=46 percentProfitable=0.2923076923 avgTrade=13.43433692 avgWinTrade=223.2757632 avgLosTrade=73.23929565 largestWinTrade=690.2307 largestLosTrade=178.04289 avgBarsInTrade=31.04615385 maxContractsHeld=30
+trades:
+  #1 S "Short" in "Short"@29 470.49 out "Long"@48 471.7 q=21 pnl=-45.19599 (-0.004569788859) cm=19.78599 ru=27.28971 dd=42.64029 cum=-45.19599 eq%=-0.004519599
+  #2 L "Long" in "Long"@48 471.7 out "Short"@49 469.03 q=21 pnl=-75.82533 (-0.007647069911) cm=19.75533 ru=0 dd=65.9757 cum=-121.02132 eq%=-0.007616958598
+  #3 S "Short" in "Short"@49 469.03 out "Long"@127 454.83 q=21 pnl=278.79894 (0.02827724692) cm=19.40106 ru=423.38037 dd=41.55963 cum=157.77762 eq%=0.02822143351
+  #4 L "Long" in "Long"@127 454.83 out "Short"@169 463.08 q=22 pnl=161.30598 (0.01610440216) cm=20.19402 ru=253.77374 dd=23.86626 cum=319.0836 eq%=0.01588004641
+  #5 S "Short" in "Short"@169 463.08 out "Long"@189 465.19 q=22 pnl=-66.84194 (-0.006554450128) cm=20.42194 ru=16.87224 dd=70.02776 cum=252.24166 eq%=-0.006477507363
+  #6 L "Long" in "Long"@189 465.19 out "Short"@411 478.99 q=22 pnl=282.82804 (0.02760802473) cm=20.77196 ru=331.42582 dd=26.95418 cum=535.0697 eq%=0.02758694629
+  #7 S "Short" in "Short"@411 478.99 out "Long"@415 480.53 q=22 pnl=-54.98944 (-0.005213100434) cm=21.10944 ru=0 dd=44.41778 cum=480.08026 eq%=-0.005219656022
+  #8 L "Long" in "Long"@415 480.53 out "Short"@424 479.13 q=21 pnl=-49.55286 (-0.004905630652) cm=20.15286 ru=4.39887 dd=39.49113 cum=430.5274 eq%=-0.004728290125
+  #9 S "Short" in "Short"@424 479.13 out "Long"@426 480.9 q=21 pnl=-57.33063 (-0.005692197728) cm=20.16063 ru=0 dd=47.23173 cum=373.19677 eq%=-0.005496426767
+  #10 L "Long" in "Long"@426 480.9 out "Short"@433 479.18 q=21 pnl=-56.28168 (-0.005567483047) cm=20.16168 ru=15.7311 dd=46.2189 cum=316.91509 eq%=-0.005425683253
+  #11 S "Short" in "Short"@433 479.18 out "Long"@454 481.69 q=21 pnl=-72.88827 (-0.007236117111) cm=20.17827 ru=0 dd=65.29278 cum=244.02682 eq%=-0.007064928747
+  #12 L "Long" in "Long"@454 481.69 out "Short"@471 479.98 q=21 pnl=-56.10507 (-0.005540910127) cm=20.19507 ru=28.52451 dd=46.02549 cum=187.92175 eq%=-0.005476857
+  ... 118 more
+  digest 1-100: 169e7c784ce149
+  digest 101-130: 124e1ce3ec875d
+orders:
+  29 sell entry STOP "Short" 470.49 x21
+  48 buy entry STOP "Long" 471.7 x42
+  49 sell entry STOP "Short" 469.03 x42
+  127 buy entry STOP "Long" 454.83 x43
+  169 sell entry STOP "Short" 463.08 x44
+  189 buy entry STOP "Long" 465.19 x44
+  411 sell entry STOP "Short" 478.99 x44
+  415 buy entry STOP "Long" 480.53 x43
+  424 sell entry STOP "Short" 479.13 x42
+  426 buy entry STOP "Long" 480.9 x42
+  433 sell entry STOP "Short" 479.18 x42
+  454 buy entry STOP "Long" 481.69 x42
+  ... 118 more
+  digest 1-100: 1f11f4e597afa8
+  digest 101-130: 07ca77af4ab627

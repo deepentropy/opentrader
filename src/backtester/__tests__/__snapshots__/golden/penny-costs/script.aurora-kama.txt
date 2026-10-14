@@ -1,0 +1,38 @@
+script/aurora-kama on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=61 filledOrders=122 marginCalls=0 finalEquity=15728.4016 minEquity=9579.789
+orders by kind: entry/MARKET=61 exit/STOP=61
+openPL=0 maxDD=1145.0059 (0.09565732838) maxRunUp=6326.75 (0.395356194) buyHold=1949.7375 (0.19497375)
+all: netProfit=5728.4016 grossProfit=12462.0873 grossLoss=6733.6857 commissionPaid=122 profitFactor=1.850708194 totalTrades=61 totalOpenTrades=0 numberOfWiningTrades=25 numberOfLosingTrades=36 percentProfitable=0.4098360656 avgTrade=93.90822295 avgWinTrade=498.483492 avgLosTrade=187.046825 largestWinTrade=1253.742 largestLosTrade=439.9816 avgBarsInTrade=6.049180328 maxContractsHeld=126238
+long: netProfit=2648.1393 grossProfit=6564.7497 grossLoss=3916.6104 commissionPaid=64 profitFactor=1.676130386 totalTrades=32 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=19 percentProfitable=0.40625 avgTrade=82.75435313 avgWinTrade=504.9807462 avgLosTrade=206.1373895 largestWinTrade=1253.742 largestLosTrade=439.9816 avgBarsInTrade=5.65625 maxContractsHeld=65250
+short: netProfit=3080.2623 grossProfit=5897.3376 grossLoss=2817.0753 commissionPaid=58 profitFactor=2.093425618 totalTrades=29 totalOpenTrades=0 numberOfWiningTrades=12 numberOfLosingTrades=17 percentProfitable=0.4137931034 avgTrade=106.2159414 avgWinTrade=491.4448 avgLosTrade=165.7103118 largestWinTrade=1175.155 largestLosTrade=290.842 avgBarsInTrade=6.482758621 maxContractsHeld=126238
+trades:
+  #1 S "Short" in "Short"@200 0.3462 out "Exit Short"@201 0.3655 q=7224 pnl=-141.4232 (-0.05652521746) cm=2 ru=29.3408 dd=170.764 cum=-141.4232 eq%=-0.01414232
+  #2 S "Short" in "Short"@217 0.3568 out "Exit Short"@219 0.3825 q=6991 pnl=-181.6687 (-0.07280176139) cm=2 ru=119.9443 dd=180.6687 cum=-323.0919 eq%=-0.01842747728
+  #3 S "Short" in "Short"@227 0.3354 out "Exit Short"@245 0.1837 q=7227 pnl=1094.3359 (0.4512844835) cm=2 ru=1241.3213 dd=139.0357 cum=771.244 eq%=0.1130873507
+  #4 S "Short" in "Short"@268 0.1972 out "Exit Short"@269 0.2098 q=12163 pnl=-155.2538 (-0.06470138738) cm=2 ru=79.2758 dd=204.1221 cum=615.9902 eq%=-0.01441372974
+  #5 S "Short" in "Short"@282 0.2025 out "Exit Short"@288 0.1885 q=12909 pnl=178.726 (0.06834456788) cm=2 ru=337.2158 dd=130.09 cum=794.7162 eq%=0.01683554682
+  #6 S "Short" in "Short"@289 0.2059 out "Exit Short"@303 0.115 q=12950 pnl=1175.155 (0.4405611446) cm=2 ru=1336.735 dd=96.83 cum=1969.8712 eq%=0.1088639088
+  #7 S "Short" in "Short"@304 0.1164 out "Exit Short"@305 0.1276 q=25054 pnl=-282.6048 (-0.09687251738) cm=2 ru=31.5702 dd=346.7452 cum=1687.2664 eq%=-0.0236096776
+  #8 S "Short" in "Short"@320 0.1318 out "Exit Short"@321 0.1372 q=21683 pnl=-119.0882 (-0.04165642643) cm=2 ru=189.8104 dd=118.0882 cum=1568.1782 eq%=-0.01018956837
+  #9 S "Short" in "Short"@332 0.1332 out "Exit Short"@334 0.1387 q=21164 pnl=-118.402 (-0.04198585781) cm=2 ru=168.312 dd=254.968 cum=1449.7762 eq%=-0.01023514662
+  #10 S "Short" in "Short"@340 0.1345 out "Exit Short"@341 0.1484 q=20780 pnl=-290.842 (-0.1040240923) cm=2 ru=32.248 dd=289.842 cum=1158.9342 eq%=-0.02540154453
+  #11 S "Short" in "Short"@345 0.1195 out "Exit Short"@346 0.1256 q=23009 pnl=-142.3549 (-0.05175458736) cm=2 ru=8.2036 dd=208.081 cum=1016.5793 eq%=-0.01275703373
+  #12 S "Short" in "Short"@350 0.1327 out "Exit Short"@355 0.1403 q=20273 pnl=-156.0748 (-0.0579939166) cm=2 ru=242.276 dd=155.0748 cum=860.5045 eq%=-0.01416726515
+  ... 49 more
+  digest 1-61: 170fdb658df117
+orders:
+  200 sell entry MARKET "Short" 0.3462 x7224
+  201 buy exit STOP "Exit Short" 0.3655 x7224
+  217 sell entry MARKET "Short" 0.3568 x6991
+  219 buy exit STOP "Exit Short" 0.3825 x6991
+  227 sell entry MARKET "Short" 0.3354 x7227
+  245 buy exit STOP "Exit Short" 0.1837 x7227
+  268 sell entry MARKET "Short" 0.1972 x12163
+  269 buy exit STOP "Exit Short" 0.2098 x12163
+  282 sell entry MARKET "Short" 0.2025 x12909
+  288 buy exit STOP "Exit Short" 0.1885 x12909
+  289 sell entry MARKET "Short" 0.2059 x12950
+  303 buy exit STOP "Exit Short" 0.115 x12950
+  ... 110 more
+  digest 1-100: 084ce00ed550d0
+  digest 101-122: 0e00292a4658d8

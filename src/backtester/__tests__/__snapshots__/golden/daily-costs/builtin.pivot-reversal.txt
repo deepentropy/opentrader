@@ -1,0 +1,37 @@
+builtin/pivot-reversal on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=37 filledOrders=73 marginCalls=1 finalEquity=142184.2818 minEquity=72756.34682
+orders by kind: entry/STOP=72 order/MARKET=1
+openPL=0 maxDD=59804.4282 (0.4201601093) maxRunUp=142981.5736 (0.6598861898) buyHold=86775.99 (0.8677599)
+all: netProfit=42184.28177 grossProfit=227710.1843 grossLoss=185525.9025 commissionPaid=8026.38823 profitFactor=1.227376777 totalTrades=37 totalOpenTrades=0 numberOfWiningTrades=14 numberOfLosingTrades=23 percentProfitable=0.3783783784 avgTrade=1140.115724 avgWinTrade=16265.01316 avgLosTrade=8066.343587 largestWinTrade=78069.02618 largestLosTrade=53396.529 avgBarsInTrade=20.10810811 maxContractsHeld=1270
+long: netProfit=42184.28177 grossProfit=227710.1843 grossLoss=185525.9025 commissionPaid=8026.38823 profitFactor=1.227376777 totalTrades=37 totalOpenTrades=0 numberOfWiningTrades=14 numberOfLosingTrades=23 percentProfitable=0.3783783784 avgTrade=1140.115724 avgWinTrade=16265.01316 avgLosTrade=8066.343587 largestWinTrade=78069.02618 largestLosTrade=53396.529 avgBarsInTrade=20.10810811 maxContractsHeld=1270
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "PivRevLE" in "PivRevLE"@21 149.33 out "PivRevSE"@28 145.68 q=668 pnl=-2635.26668 (-0.02639167569) cm=197.06668 ru=3594.28756 dd=2537.95244 cum=-2635.26668 eq%=-0.0263526668
+  #2 L "PivRevLE" in "PivRevLE"@65 140.13 out "PivRevSE"@92 142.06 q=694 pnl=1143.58014 (0.01174740481) cm=195.83986 ru=5336.76978 dd=2019.63022 cum=-1491.68654 eq%=0.01174532196
+  #3 L "PivRevLE" in "PivRevLE"@105 141.89 out "PivRevSE"@117 138.43 q=693 pnl=-2592.04176 (-0.02633436758) cm=194.26176 ru=2458.84023 dd=2496.10977 cum=-4083.7283 eq%=-0.02631292394
+  #4 L "PivRevLE" in "PivRevLE"@146 109.44 out "PivRevSE"@149 93.67 q=875 pnl=-13976.47125 (-0.1458073177) cm=177.72125 ru=1776.74 dd=13894.51 cum=-18060.19955 eq%=-0.1457153307
+  #5 L "PivRevLE" in "PivRevLE"@161 118.67 out "PivRevSE"@203 181.23 q=689 pnl=42897.2089 (0.5241249018) cm=206.6311 ru=56312.88637 dd=11436.48363 cum=24837.00935 eq%=0.5235210321
+  #6 L "PivRevLE" in "PivRevLE"@205 199.49 out "PivRevSE"@218 178.2 q=625 pnl=-13542.30625 (-0.1085069124) cm=236.05625 ru=13331.56875 dd=13430.93125 cum=11294.7031 eq%=-0.1084798997
+  #7 L "PivRevLE" in "PivRevLE"@235 211.23 out "PivRevSE"@258 224.26 q=526 pnl=6624.71226 (0.05956506212) cm=229.06774 ru=12633.87302 dd=1610.20698 cum=17919.41536 eq%=0.05952405708
+  #8 L "PivRevLE" in "PivRevLE"@268 230.55 out "Margin call"@268 230.51 q=1 pnl=-0.50106 (-0.002171153505) cm=0.46106 ru=0 dd=0.27055 cum=17801.3338 eq%=-0.000004253414224
+  #9 L "PivRevLE" in "PivRevLE"@268 230.55 out "PivRevSE"@278 221.51 q=510 pnl=-4840.9506 (-0.04113024256) cm=230.5506 ru=3676.8195 dd=4727.9805 cum=13077.9637 eq%=-0.0410532155
+  #10 L "PivRevLE" in "PivRevLE"@290 223.25 out "PivRevSE"@305 217.35 q=506 pnl=-3208.3436 (-0.02837297081) cm=222.9436 ru=4041.2955 dd=3098.3645 cum=9869.6201 eq%=-0.02837284556
+  #11 L "PivRevLE" in "PivRevLE"@322 223.81 out "PivRevSE"@332 209.05 q=490 pnl=-7444.5014 (-0.06781503203) cm=212.1014 ru=527.3331 dd=7342.0669 cum=2425.1187 eq%=-0.06775759662
+  #12 L "PivRevLE" in "PivRevLE"@355 214.48 out "PivRevSE"@367 213.44 q=477 pnl=-700.19784 (-0.006837250776) cm=204.11784 ru=2659.52304 dd=598.38696 cum=1724.92086 eq%=-0.006836192615
+  ... 25 more
+  digest 1-37: 1b499e3adffefa
+orders:
+  21 buy entry STOP "PivRevLE" 149.33 x668
+  28 sell entry STOP "PivRevSE" 145.68 x668
+  65 buy entry STOP "PivRevLE" 140.13 x694
+  92 sell entry STOP "PivRevSE" 142.06 x694
+  105 buy entry STOP "PivRevLE" 141.89 x693
+  117 sell entry STOP "PivRevSE" 138.43 x693
+  146 buy entry STOP "PivRevLE" 109.44 x875
+  149 sell entry STOP "PivRevSE" 93.67 x875
+  161 buy entry STOP "PivRevLE" 118.67 x689
+  203 sell entry STOP "PivRevSE" 181.23 x689
+  205 buy entry STOP "PivRevLE" 199.49 x625
+  218 sell entry STOP "PivRevSE" 178.2 x625
+  ... 61 more
+  digest 1-73: 174e2fbf18b09a

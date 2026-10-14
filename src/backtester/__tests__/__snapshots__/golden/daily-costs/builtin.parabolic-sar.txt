@@ -1,0 +1,38 @@
+builtin/parabolic-sar on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=90 filledOrders=143 marginCalls=25 finalEquity=205417.1821 minEquity=89631.14655
+orders by kind: entry/STOP=118 order/MARKET=25
+openPL=-25982.46 maxDD=118117.1919 (0.3734111483) maxRunUp=241339.9598 (0.7306868578) buyHold=86782.68 (0.8678268)
+all: netProfit=131399.6421 grossProfit=378328.1415 grossLoss=246928.4994 commissionPaid=18437.75788 profitFactor=1.532136397 totalTrades=89 totalOpenTrades=1 numberOfWiningTrades=27 numberOfLosingTrades=62 percentProfitable=0.3033707865 avgTrade=1476.400473 avgWinTrade=14012.15339 avgLosTrade=3982.717733 largestWinTrade=84573.58544 largestLosTrade=36410.46392 avgBarsInTrade=9.191011236 maxContractsHeld=1722
+long: netProfit=138250.3886 grossProfit=328499.5088 grossLoss=190249.1202 commissionPaid=16197.57138 profitFactor=1.72668083 totalTrades=68 totalOpenTrades=0 numberOfWiningTrades=24 numberOfLosingTrades=44 percentProfitable=0.3529411765 avgTrade=2033.09395 avgWinTrade=13687.47953 avgLosTrade=4323.843641 largestWinTrade=84573.58544 largestLosTrade=28654.96267 avgBarsInTrade=10.39705882 maxContractsHeld=1722
+short: netProfit=-6850.7465 grossProfit=49828.63273 grossLoss=56679.37923 commissionPaid=2240.1865 profitFactor=0.8791315891 totalTrades=21 totalOpenTrades=1 numberOfWiningTrades=3 numberOfLosingTrades=18 percentProfitable=0.1428571429 avgTrade=-326.2260238 avgWinTrade=16609.54424 avgLosTrade=3148.854402 largestWinTrade=30160.6296 largestLosTrade=36410.46392 avgBarsInTrade=5.285714286 maxContractsHeld=1412
+trades:
+  #1 L "ParLE" in "ParLE"@9 149.32 out "ParSE"@27 148.01 q=669 pnl=-1075.30377 (-0.01075357806) cm=198.91377 ru=3606.36492 dd=2635.40508 cum=-1075.30377 eq%=-0.0107530377
+  #2 L "ParLE" in "ParLE"@47 141.18 out "ParSE"@54 140.21 q=699 pnl=-874.72161 (-0.008854935969) cm=196.69161 ru=4829.26518 dd=776.71482 cum=-1950.02538 eq%=-0.00884229766
+  #3 L "ParLE" in "ParLE"@68 141.45 out "ParSE"@81 141.25 q=692 pnl=-334.0284 (-0.003409104151) cm=195.6284 ru=4407.0366 dd=2928.1634 cum=-2284.05378 eq%=-0.003406715823
+  #4 L "ParLE" in "ParLE"@105 140.69 out "ParSE"@117 138.99 q=693 pnl=-1371.91824 (-0.01405716325) cm=193.81824 ru=3291.27183 dd=1642.88817 cum=-3655.97202 eq%=-0.01403986036
+  #5 L "ParLE" in "ParLE"@121 144.29 out "ParSE"@122 133.62 q=667 pnl=-7302.25597 (-0.07579855172) cm=185.36597 ru=143.87857 dd=7213.13143 cum=-10958.22799 eq%=-0.07579355071
+  #6 S "ParSE" in "ParSE"@122 133.62 out "Margin call"@122 133.66 q=4 pnl=-1.22912 (-0.002297358382) cm=1.06912 ru=0 dd=0.69448 cum=-11048.04717 eq%=-0.00001381760577
+  #7 S "ParSE" in "ParSE"@122 133.62 out "ParLE"@144 103.72 q=663 pnl=19666.34358 (0.2217708949) cm=157.35642 ru=26378.36994 dd=247.71006 cum=8706.88647 eq%=0.2208695381
+  #8 L "ParLE" in "ParLE"@144 103.72 out "Margin call"@144 105 q=76 pnl=81.41728 (0.01031825868) cm=15.86272 ru=90.91728 dd=0 cum=8685.51723 eq%=0.0007496704087
+  #9 L "ParLE" in "ParLE"@144 103.72 out "ParSE"@149 97.33 q=991 pnl=-6531.73055 (-0.0634830846) cm=199.24055 ru=7686.47348 dd=6435.27652 cum=2256.5732 eq%=-0.06004074266
+  #10 L "ParLE" in "ParLE"@189 171.93 out "ParSE"@203 187.16 q=594 pnl=8833.32054 (0.08640757254) cm=213.29946 ru=16880.33358 dd=3072.12642 cum=11089.89374 eq%=0.0863838897
+  #11 L "ParLE" in "ParLE"@205 199.66 out "ParSE"@214 200.31 q=555 pnl=138.76665 (0.001251027846) cm=221.98335 ru=11743.9887 dd=1542.7113 cum=11228.66039 eq%=0.001249138381
+  #12 L "ParLE" in "ParLE"@225 183.75 out "Margin call"@225 183.71 q=1 pnl=-0.40746 (-0.002215254134) cm=0.36746 ru=0 dd=0.22375 cum=11117.26793 eq%=-0.000003666923364
+  ... 78 more
+  digest 1-90: 042199bab81aeb
+orders:
+  9 buy entry STOP "ParLE" 149.32 x669
+  27 sell entry STOP "ParSE" 148.01 x669
+  47 buy entry STOP "ParLE" 141.18 x699
+  54 sell entry STOP "ParSE" 140.21 x699
+  68 buy entry STOP "ParLE" 141.45 x692
+  81 sell entry STOP "ParSE" 141.25 x692
+  105 buy entry STOP "ParLE" 140.69 x693
+  117 sell entry STOP "ParSE" 138.99 x693
+  121 buy entry STOP "ParLE" 144.29 x667
+  122 sell entry STOP "ParSE" 133.62 x1334
+  122 buy order MARKET "Margin call 0" 133.66 x4
+  144 buy entry STOP "ParLE" 103.72 x1730
+  ... 131 more
+  digest 1-100: 1d9933f5304338
+  digest 101-143: 0e2c490902a270

@@ -1,0 +1,37 @@
+builtin/bollinger-bands-directed on penny: 900 bars, first 978411600, last 1088136000
+trades=35 filledOrders=35 marginCalls=23 finalEquity=32238.1462 minEquity=15952.7874
+orders by kind: entry/STOP=12 order/MARKET=23
+openPL=-19520.8448 maxDD=84886.8663 (0.848868663) maxRunUp=70389.3857 (0.7606582743) buyHold=-62799.4296 (-0.627994296)
+all: netProfit=-48241.009 grossProfit=98582.4828 grossLoss=146823.4918 commissionPaid=0 profitFactor=0.6714353513 totalTrades=34 totalOpenTrades=1 numberOfWiningTrades=6 numberOfLosingTrades=28 percentProfitable=0.1764705882 avgTrade=-1418.853206 avgWinTrade=16430.4138 avgLosTrade=5243.696136 largestWinTrade=58166.3922 largestLosTrade=36742.14 avgBarsInTrade=48.20588235 maxContractsHeld=868369
+long: netProfit=-32290.3918 grossProfit=65740.844 grossLoss=98031.2358 commissionPaid=0 profitFactor=0.6706111931 totalTrades=6 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=4 percentProfitable=0.3333333333 avgTrade=-5381.731967 avgWinTrade=32870.422 avgLosTrade=24507.80895 largestWinTrade=58166.3922 largestLosTrade=36742.14 avgBarsInTrade=80 maxContractsHeld=851062
+short: netProfit=-15950.6172 grossProfit=32841.6388 grossLoss=48792.256 commissionPaid=0 profitFactor=0.6730912135 totalTrades=28 totalOpenTrades=1 numberOfWiningTrades=4 numberOfLosingTrades=24 percentProfitable=0.1428571429 avgTrade=-569.6649 avgWinTrade=8210.4097 avgLosTrade=2033.010667 largestWinTrade=9793.1682 largestLosTrade=7155.8 avgBarsInTrade=41.39285714 maxContractsHeld=868369
+trades:
+  #1 L "BBandLE" in "BBandLE"@49 1.1121 out "BBandSE"@80 0.9035 q=88715 pnl=-18505.949 (-0.18757306) cm=0 ru=6316.508 dd=38795.0695 cum=-18505.949 eq%=-0.18505949
+  #2 S "BBandSE" in "BBandSE"@80 0.9035 out "Margin call"@80 0.9833 q=58424 pnl=-4662.2352 (-0.0883231876) cm=0 ru=1086.6864 dd=4662.2352 cum=-23168.1842 eq%=-0.05720951582
+  #3 S "BBandSE" in "BBandSE"@80 0.9035 out "BBandLE"@139 0.628 q=31743 pnl=8745.1965 (0.3049252905) cm=0 ru=10065.7053 dd=2533.0914 cum=-14422.9877 eq%=0.113822593
+  #4 L "BBandLE" in "BBandLE"@139 0.628 out "BBandSE"@204 0.358 q=136082 pnl=-36742.14 (-0.4299363057) cm=0 ru=6599.977 dd=43260.4678 cum=-51165.1277 eq%=-0.4293459074
+  #5 S "BBandSE" in "BBandSE"@204 0.358 out "Margin call"@204 0.3847 q=75684 pnl=-2020.7628 (-0.07458100559) cm=0 ru=295.1676 dd=2020.7628 cum=-53185.8905 eq%=-0.04137950413
+  #6 S "BBandSE" in "BBandSE"@204 0.358 out "BBandLE"@286 0.1967 q=60714 pnl=9793.1682 (0.4505586592) cm=0 ru=12312.7992 dd=2738.2014 cum=-43392.7223 eq%=0.2091926623
+  #7 L "BBandLE" in "BBandLE"@286 0.1967 out "BBandSE"@328 0.1571 q=281350 pnl=-11141.46 (-0.2013218099) cm=0 ru=4670.41 dd=26475.035 cum=-54534.1823 eq%=-0.1968202756
+  #8 S "BBandSE" in "BBandSE"@328 0.1571 out "Margin call"@328 0.1611 q=55340 pnl=-221.36 (-0.0254614895) cm=0 ru=0 dd=221.36 cum=-54755.5423 eq%=-0.004868712611
+  #9 S "BBandSE" in "BBandSE"@328 0.1571 out "BBandLE"@345 0.1196 q=233544 pnl=8757.9 (0.238701464) cm=0 ru=10766.3784 dd=934.176 cum=-45997.6423 eq%=0.19356846
+  #10 L "BBandLE" in "BBandLE"@345 0.1196 out "BBandSE"@498 0.048 q=441923 pnl=-31641.6868 (-0.5986622074) cm=0 ru=9191.9984 dd=38889.224 cum=-77639.3291 eq%=-0.5859315805
+  #11 S "BBandSE" in "BBandSE"@498 0.048 out "Margin call"@498 0.0497 q=125056 pnl=-212.5952 (-0.03541666667) cm=0 ru=0 dd=212.5952 cum=-77851.9243 eq%=-0.009507550151
+  #12 S "BBandSE" in "BBandSE"@498 0.048 out "BBandLE"@534 0.0317 q=340207 pnl=5545.3741 (0.3395833333) cm=0 ru=6770.1193 dd=578.3519 cum=-72306.5502 eq%=0.2503772416
+  ... 23 more
+  digest 1-35: 15cd01b78aa620
+orders:
+  49 buy entry STOP "BBandLE" 1.1121 x88715
+  80 sell entry STOP "BBandSE" 0.9035 x178882
+  80 buy order MARKET "Margin call 0" 0.9833 x58424
+  139 buy entry STOP "BBandLE" 0.628 x167825
+  204 sell entry STOP "BBandSE" 0.358 x272480
+  204 buy order MARKET "Margin call 1" 0.3847 x75684
+  286 buy entry STOP "BBandLE" 0.1967 x342064
+  328 sell entry STOP "BBandSE" 0.1571 x570234
+  328 buy order MARKET "Margin call 2" 0.1611 x55340
+  345 buy entry STOP "BBandLE" 0.1196 x675467
+  498 sell entry STOP "BBandSE" 0.048 x907186
+  498 buy order MARKET "Margin call 3" 0.0497 x125056
+  ... 23 more
+  digest 1-35: 1ab09681da5206

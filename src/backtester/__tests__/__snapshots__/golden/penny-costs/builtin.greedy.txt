@@ -1,0 +1,37 @@
+builtin/greedy on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=46 filledOrders=92 marginCalls=0 finalEquity=118692.5467 minEquity=87617.306
+orders by kind: entry/STOP=53 order/LIMIT=22 order/STOP=17
+openPL=0 maxDD=34500.3917 (0.2455796882) maxRunUp=54826.4536 (0.3818286487) buyHold=-70019.5478 (-0.700195478)
+all: netProfit=18692.5467 grossProfit=121876.242 grossLoss=103183.6953 commissionPaid=92 profitFactor=1.18115795 totalTrades=46 totalOpenTrades=0 numberOfWiningTrades=22 numberOfLosingTrades=24 percentProfitable=0.4782608696 avgTrade=406.3597109 avgWinTrade=5539.829182 avgLosTrade=4299.320638 largestWinTrade=31031.536 largestLosTrade=9729.6998 avgBarsInTrade=2.086956522 maxContractsHeld=4191189
+long: netProfit=18692.5467 grossProfit=121876.242 grossLoss=103183.6953 commissionPaid=92 profitFactor=1.18115795 totalTrades=46 totalOpenTrades=0 numberOfWiningTrades=22 numberOfLosingTrades=24 percentProfitable=0.4782608696 avgTrade=406.3597109 avgWinTrade=5539.829182 avgLosTrade=4299.320638 largestWinTrade=31031.536 largestLosTrade=9729.6998 avgBarsInTrade=2.086956522 maxContractsHeld=4191189
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "GapUp" in "GapUp"@9 1.3799 out "TPSL"@10 1.3773 q=71797 pnl=-188.6722 (-0.001904362485) cm=2 ru=1635.9716 dd=3404.1778 cum=-188.6722 eq%=-0.001886722
+  #2 L "GapUp" in "GapUp"@66 0.783 out "GapDn"@67 0.7683 q=127471 pnl=-1875.8237 (-0.01879379618) cm=2 ru=1439.4223 dd=1874.8237 cum=-2064.4959 eq%=-0.01879369548
+  #3 L "GapUp" in "GapUp"@76 0.8586 out "TPSL"@77 0.9196 q=111861 pnl=6821.521 (0.07102432534) cm=2 ru=6822.521 dd=448.444 cum=4757.0251 eq%=0.0696531974
+  #4 L "GapUp" in "GapUp"@79 0.9213 out "GapDn"@80 0.9034 q=105996 pnl=-1899.3284 (-0.0194493489) cm=2 ru=645.5756 dd=1898.3284 cum=2857.6967 eq%=-0.01813079742
+  #5 L "GapUp" in "GapUp"@120 0.769 out "TPSL"@121 0.6949 q=131278 pnl=-9729.6998 (-0.09637776423) cm=2 ru=1863.1476 dd=10424.4732 cum=-6872.0031 eq%=-0.09459379426
+  #6 L "GapUp" in "GapUp"@125 0.6866 out "TPSL"@126 0.6982 q=135418 pnl=1568.8488 (0.01687315222) cm=2 ru=3939.6638 dd=0 cum=-5303.1543 eq%=0.01684615639
+  #7 L "GapUp" in "GapUp"@141 0.6365 out "TPSL"@142 0.603 q=148775 pnl=-4985.9625 (-0.05265214331) cm=2 ru=103.1425 dd=7067.8125 cum=-10289.1168 eq%=-0.05265183294
+  #8 L "GapUp" in "GapUp"@175 0.5053 out "TPSL"@176 0.5015 q=177537 pnl=-676.6406 (-0.007542495099) cm=2 ru=655.8869 dd=675.6406 cum=-10965.7574 eq%=-0.007542458349
+  #9 L "GapUp" in "GapUp"@193 0.3632 out "TPSL"@194 0.3621 q=244127 pnl=-270.5397 (-0.003051156275) cm=2 ru=389.6032 dd=2930.524 cum=-11236.2971 eq%=-0.003038602813
+  #10 L "GapUp" in "GapUp"@249 0.1613 out "TPSL"@251 0.1851 q=549614 pnl=13078.8132 (0.1475269229) cm=2 ru=14453.8482 dd=1210.1508 cum=1842.5161 eq%=0.1473441595
+  #11 L "GapUp" in "GapUp"@258 0.2252 out "TPSL"@259 0.2382 q=449036 pnl=5835.468 (0.0577061168) cm=2 ru=7048.8652 dd=1303.2044 cum=7677.9841 eq%=0.05729893785
+  #12 L "GapUp" in "GapUp"@274 0.2409 out "TPSL"@275 0.2248 q=437355 pnl=-7043.4155 (-0.06685105891) cm=2 ru=1748.42 dd=7042.4155 cum=634.5686 eq%=-0.06541184402
+  ... 34 more
+  digest 1-46: 10803c01ed9023
+orders:
+  9 buy entry STOP "GapUp" 1.3799 x71797
+  10 sell order STOP "SL" 1.3773 x71797
+  66 buy entry STOP "GapUp" 0.783 x127471
+  67 sell entry STOP "GapDn" 0.7683 x127471
+  76 buy entry STOP "GapUp" 0.8586 x111861
+  77 sell order LIMIT "TP" 0.9196 x111861
+  79 buy entry STOP "GapUp" 0.9213 x105996
+  80 sell entry STOP "GapDn" 0.9034 x105996
+  120 buy entry STOP "GapUp" 0.769 x131278
+  121 sell order STOP "SL" 0.6949 x131278
+  125 buy entry STOP "GapUp" 0.6866 x135418
+  126 sell order LIMIT "TP" 0.6982 x135418
+  ... 80 more
+  digest 1-92: 09e8685750614e

@@ -1,0 +1,43 @@
+builtin/ma2-cross on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=359 filledOrders=359 marginCalls=156 finalEquity=135626.16 minEquity=95854.14
+orders by kind: entry/MARKET=203 order/MARKET=156
+openPL=985.32 maxDD=10108.73 (0.08932880762) maxRunUp=39450.09 (0.2874495862) buyHold=-6222.2 (-0.062222)
+all: netProfit=34640.84 grossProfit=101095.77 grossLoss=66454.93 commissionPaid=0 profitFactor=1.521268174 totalTrades=358 totalOpenTrades=1 numberOfWiningTrades=83 numberOfLosingTrades=274 percentProfitable=0.2318435754 avgTrade=96.76212291 avgWinTrade=1218.021325 avgLosTrade=242.5362409 largestWinTrade=8727.4 largestLosTrade=4546.44 avgBarsInTrade=13.2150838 maxContractsHeld=329
+long: netProfit=14435.5 grossProfit=46645.39 grossLoss=32209.89 commissionPaid=0 profitFactor=1.448169801 totalTrades=102 totalOpenTrades=1 numberOfWiningTrades=42 numberOfLosingTrades=59 percentProfitable=0.4117647059 avgTrade=141.5245098 avgWinTrade=1110.604524 avgLosTrade=545.930339 largestWinTrade=8727.4 largestLosTrade=1583.01 avgBarsInTrade=18.84313725 maxContractsHeld=329
+short: netProfit=20205.34 grossProfit=54450.38 grossLoss=34245.04 commissionPaid=0 profitFactor=1.59002238 totalTrades=256 totalOpenTrades=0 numberOfWiningTrades=41 numberOfLosingTrades=215 percentProfitable=0.16015625 avgTrade=78.92710938 avgWinTrade=1328.058049 avgLosTrade=159.2792558 largestWinTrade=5779.62 largestLosTrade=4546.44 avgBarsInTrade=10.97265625 maxContractsHeld=329
+trades:
+  #1 L "MA2CrossLE" in "MA2CrossLE"@45 471.12 out "MA2CrossSE"@52 466.65 q=212 pnl=-947.64 (-0.009488028528) cm=0 ru=197.16 dd=1043.04 cum=-947.64 eq%=-0.0094764
+  #2 S "MA2CrossSE" in "MA2CrossSE"@52 466.65 out "Margin call"@52 467.66 q=1 pnl=-1.01 (-0.002164363013) cm=0 ru=0.49 dd=1.01 cum=-948.65 eq%=-0.00001019662732
+  #3 S "MA2CrossSE" in "MA2CrossSE"@52 466.65 out "Margin call"@53 469.6 q=4 pnl=-11.8 (-0.006321654345) cm=0 ru=1.96 dd=11.8 cum=-960.45 eq%=-0.000119130128
+  #4 S "MA2CrossSE" in "MA2CrossSE"@52 466.65 out "MA2CrossLE"@126 452.88 q=207 pnl=2850.39 (0.02950819672) cm=0 ru=3777.75 dd=805.23 cum=1889.94 eq%=0.02878032059
+  #5 L "MA2CrossLE" in "MA2CrossLE"@126 452.88 out "Margin call"@126 452.88 q=1 pnl=0 (0) cm=0 ru=0 dd=0 cum=1889.94 eq%=0
+  #6 L "MA2CrossLE" in "MA2CrossLE"@126 452.88 out "MA2CrossSE"@170 463.42 q=224 pnl=2360.96 (0.02327327327) cm=0 ru=3122.56 dd=98.56 cum=4250.9 eq%=0.02317166935
+  #7 S "MA2CrossSE" in "MA2CrossSE"@170 463.42 out "Margin call"@173 465.65 q=4 pnl=-8.92 (-0.004812049545) cm=0 ru=5.16 dd=8.92 cum=4241.98 eq%=-0.00008556281049
+  #8 S "MA2CrossSE" in "MA2CrossSE"@170 463.42 out "MA2CrossLE"@180 463.61 q=220 pnl=-41.8 (-0.0004099952527) cm=0 ru=283.8 dd=523.6 cum=4200.18 eq%=-0.000400990081
+  #9 L "MA2CrossLE" in "MA2CrossLE"@180 463.61 out "MA2CrossSE"@184 463.03 q=224 pnl=-129.92 (-0.00125105153) cm=0 ru=89.6 dd=241.92 cum=4070.26 eq%=-0.00124683086
+  #10 S "MA2CrossSE" in "MA2CrossSE"@184 463.03 out "Margin call"@188 464.51 q=1 pnl=-1.48 (-0.00319633717) cm=0 ru=1.18 dd=1.48 cum=4068.78 eq%=-0.00001422116174
+  #11 S "MA2CrossSE" in "MA2CrossSE"@184 463.03 out "Margin call"@189 466.09 q=4 pnl=-12.24 (-0.006608643068) cm=0 ru=4.72 dd=12.24 cum=4056.54 eq%=-0.0001176145238
+  #12 S "MA2CrossSE" in "MA2CrossSE"@184 463.03 out "MA2CrossLE"@192 466.21 q=219 pnl=-696.42 (-0.006867805542) cm=0 ru=258.42 dd=702.99 cum=3360.12 eq%=-0.006692707638
+  ... 347 more
+  digest 1-100: 0670db9f86677c
+  digest 101-200: 135a325b33abbe
+  digest 201-300: 0e4cae3a3f8a6d
+  digest 301-359: 1b3a453e5a6c5e
+orders:
+  45 buy entry MARKET "MA2CrossLE" 471.12 x212
+  52 sell entry MARKET "MA2CrossSE" 466.65 x424
+  52 buy order MARKET "Margin call 0" 467.66 x1
+  53 buy order MARKET "Margin call 1" 469.6 x4
+  126 buy entry MARKET "MA2CrossLE" 452.88 x432
+  126 sell order MARKET "Margin call 2" 452.88 x1
+  170 sell entry MARKET "MA2CrossSE" 463.42 x448
+  173 buy order MARKET "Margin call 3" 465.65 x4
+  180 buy entry MARKET "MA2CrossLE" 463.61 x444
+  184 sell entry MARKET "MA2CrossSE" 463.03 x448
+  188 buy order MARKET "Margin call 4" 464.51 x1
+  189 buy order MARKET "Margin call 5" 466.09 x4
+  ... 347 more
+  digest 1-100: 1a8ea466c61183
+  digest 101-200: 1de6305c6af110
+  digest 201-300: 1e12280c47ecc9
+  digest 301-359: 197f037b33f033

@@ -1,0 +1,39 @@
+script/btc-intraday-spot on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=109 filledOrders=124 marginCalls=26 finalEquity=100482.84 minEquity=99520.15
+orders by kind: entry/MARKET=45 exit/LIMIT=34 exit/STOP=19 order/MARKET=26
+openPL=184.68 maxDD=4323.03 (0.04163408659) maxRunUp=4121.05 (0.03967895961) buyHold=-4345.92 (-0.0434592)
+all: netProfit=298.16 grossProfit=18170.19 grossLoss=17872.03 commissionPaid=0 profitFactor=1.016683052 totalTrades=108 totalOpenTrades=1 numberOfWiningTrades=34 numberOfLosingTrades=74 percentProfitable=0.3148148148 avgTrade=2.760740741 avgWinTrade=534.4173529 avgLosTrade=241.5139189 largestWinTrade=776.34 largestLosTrade=1385.75 avgBarsInTrade=17.87962963 maxContractsHeld=274
+long: netProfit=779.86 grossProfit=9648.2 grossLoss=8868.34 commissionPaid=0 profitFactor=1.08793754 totalTrades=43 totalOpenTrades=1 numberOfWiningTrades=18 numberOfLosingTrades=25 percentProfitable=0.4186046512 avgTrade=18.13627907 avgWinTrade=536.0111111 avgLosTrade=354.7336 largestWinTrade=776.34 largestLosTrade=906.4 avgBarsInTrade=24.97674419 maxContractsHeld=273
+short: netProfit=-481.7 grossProfit=8521.99 grossLoss=9003.69 commissionPaid=0 profitFactor=0.9464997129 totalTrades=65 totalOpenTrades=0 numberOfWiningTrades=16 numberOfLosingTrades=49 percentProfitable=0.2461538462 avgTrade=-7.410769231 avgWinTrade=532.624375 avgLosTrade=183.7487755 largestWinTrade=765.05 largestLosTrade=1385.75 avgBarsInTrade=13.18461538 maxContractsHeld=274
+trades:
+  #1 L "BUY" in "BUY"@138 461.89 out "TP1 Long"@147 465.13 q=108 pnl=349.92 (0.007014657169) cm=0 ru=349.92 dd=125.28 cum=349.92 eq%=0.0034992
+  #2 L "BUY" in "BUY"@138 461.89 out "TP2 Long"@220 468.82 q=108 pnl=748.44 (0.01500357228) cm=0 ru=748.44 dd=125.28 cum=1098.36 eq%=0.00745830191
+  #3 S "SELL" in "SELL"@480 479.44 out "Margin call"@481 480.56 q=1 pnl=-1.12 (-0.002336058735) cm=0 ru=0.27 dd=1.12 cum=1097.24 eq%=-0.00001107832016
+  #4 S "SELL" in "SELL"@480 479.44 out "TP1 Short"@488 481.84 q=105 pnl=-252 (-0.005005840147) cm=0 ru=28.35 dd=252 cum=845.24 eq%=-0.002492649651
+  #5 S "SELL" in "SELL"@480 479.44 out "BUY"@489 481.44 q=104 pnl=-208 (-0.004171533456) cm=0 ru=28.08 dd=249.6 cum=637.24 eq%=-0.002062566364
+  #6 L "BUY" in "BUY"@489 481.44 out "SELL"@499 479.73 q=208 pnl=-355.68 (-0.003551844467) cm=0 ru=87.36 dd=355.68 cum=281.56 eq%=-0.003534278166
+  #7 S "SELL" in "SELL"@499 479.73 out "TP1 Short"@505 476.37 q=104 pnl=349.44 (0.007003939716) cm=0 ru=349.44 dd=2.08 cum=631 eq%=0.003484588792
+  #8 S "SELL" in "SELL"@499 479.73 out "TP2 Short"@539 472.53 q=105 pnl=756 (0.01500844225) cm=0 ru=756 dd=2.1 cum=1387 eq%=0.007512595522
+  #9 L "BUY" in "BUY"@708 461.33 out "TP1 Long"@709 464.56 q=109 pnl=352.07 (0.007001495676) cm=0 ru=352.07 dd=65.4 cum=1739.07 eq%=0.003472535927
+  #10 L "BUY" in "BUY"@708 461.33 out "SELL"@747 453.09 q=110 pnl=-906.4 (-0.01786140073) cm=0 ru=708.4 dd=968 cum=832.67 eq%=-0.008909065121
+  #11 S "SELL" in "SELL"@747 453.09 out "Margin call"@747 453.65 q=1 pnl=-0.56 (-0.001235957536) cm=0 ru=0.1 dd=0.56 cum=832.11 eq%=-0.000005553755544
+  #12 S "SELL" in "SELL"@747 453.09 out "Margin call"@764 455.12 q=1 pnl=-2.03 (-0.004480346068) cm=0 ru=1.3 dd=2.03 cum=830.08 eq%=-0.00002013247566
+  ... 97 more
+  digest 1-100: 1fa7438a41e58f
+  digest 101-109: 1a94d7d09e0e53
+orders:
+  138 buy entry MARKET "BUY" 461.89 x216
+  147 sell exit LIMIT "TP1 Long" 465.13 x108
+  220 sell exit LIMIT "TP2 Long" 468.82 x108
+  480 sell entry MARKET "SELL" 479.44 x210
+  481 buy order MARKET "Margin call 0" 480.56 x1
+  488 buy exit STOP "TP1 Short" 481.84 x105
+  489 buy entry MARKET "BUY" 481.44 x312
+  499 sell entry MARKET "SELL" 479.73 x417
+  505 buy exit LIMIT "TP1 Short" 476.37 x104
+  539 buy exit LIMIT "TP2 Short" 472.53 x105
+  708 buy entry MARKET "BUY" 461.33 x219
+  709 sell exit LIMIT "TP1 Long" 464.56 x109
+  ... 112 more
+  digest 1-100: 03943c3f8ab831
+  digest 101-124: 1689abc564bddc

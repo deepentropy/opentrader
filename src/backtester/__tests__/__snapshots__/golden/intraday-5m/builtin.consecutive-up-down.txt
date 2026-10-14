@@ -1,0 +1,45 @@
+builtin/consecutive-up-down on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=435 filledOrders=435 marginCalls=171 finalEquity=130446.68 minEquity=90284.15
+orders by kind: entry/MARKET=264 order/MARKET=171
+openPL=407.1 maxDD=13731.89 (0.1323746155) maxRunUp=44409.74 (0.3297040434) buyHold=-7192.5 (-0.071925)
+all: netProfit=30039.58 grossProfit=102681.19 grossLoss=72641.61 commissionPaid=0 profitFactor=1.413531308 totalTrades=434 totalOpenTrades=1 numberOfWiningTrades=93 numberOfLosingTrades=339 percentProfitable=0.2142857143 avgTrade=69.21562212 avgWinTrade=1104.098817 avgLosTrade=214.2820354 largestWinTrade=6548.2 largestLosTrade=2000.74 avgBarsInTrade=10.87096774 maxContractsHeld=326
+long: netProfit=12482.37 grossProfit=51719.39 grossLoss=39237.02 commissionPaid=0 profitFactor=1.318127371 totalTrades=133 totalOpenTrades=1 numberOfWiningTrades=47 numberOfLosingTrades=84 percentProfitable=0.3533834586 avgTrade=93.85240602 avgWinTrade=1100.412553 avgLosTrade=467.107381 largestWinTrade=5100.72 largestLosTrade=2000.74 avgBarsInTrade=15.89473684 maxContractsHeld=326
+short: netProfit=17557.21 grossProfit=50961.8 grossLoss=33404.59 commissionPaid=0 profitFactor=1.52559274 totalTrades=301 totalOpenTrades=0 numberOfWiningTrades=46 numberOfLosingTrades=255 percentProfitable=0.1528239203 avgTrade=58.32960133 avgWinTrade=1107.865217 avgLosTrade=130.9983922 largestWinTrade=6548.2 largestLosTrade=1547.37 avgBarsInTrade=8.651162791 maxContractsHeld=326
+trades:
+  #1 S "ConsDnSE" in "ConsUpLE"@9 476.02 out "Margin call"@9 476.81 q=1 pnl=-0.79 (-0.001659594135) cm=0 ru=0.56 dd=0.79 cum=-0.79 eq%=-0.0000079
+  #2 S "ConsDnSE" in "ConsUpLE"@9 476.02 out "ConsUpLE"@22 473.42 q=209 pnl=543.4 (0.00546195538) cm=0 ru=1040.82 dd=165.11 cum=542.61 eq%=0.005434042929
+  #3 L "ConsUpLE" in "ConsUpLE"@22 473.42 out "ConsUpLE"@29 470.81 q=212 pnl=-553.32 (-0.005513075071) cm=0 ru=152.64 dd=559.68 cum=-10.71 eq%=-0.005503338336
+  #4 S "ConsDnSE" in "ConsUpLE"@29 470.81 out "Margin call"@42 471.65 q=1 pnl=-0.84 (-0.001784159215) cm=0 ru=2.09 dd=0.84 cum=-11.55 eq%=-0.000008400899736
+  #5 S "ConsDnSE" in "ConsUpLE"@29 470.81 out "ConsUpLE"@55 469.7 q=211 pnl=234.21 (0.002357638963) cm=0 ru=981.15 dd=261.64 cum=222.66 eq%=0.002342370544
+  #6 L "ConsUpLE" in "ConsUpLE"@55 469.7 out "ConsUpLE"@60 467.69 q=213 pnl=-428.13 (-0.00427932723) cm=0 ru=178.92 dd=451.56 cum=-205.47 eq%=-0.004271788436
+  #7 S "ConsDnSE" in "ConsUpLE"@60 467.69 out "Margin call"@60 468.59 q=1 pnl=-0.9 (-0.0019243516) cm=0 ru=0.21 dd=0.9 cum=-206.37 eq%=-0.000009018530374
+  #8 S "ConsDnSE" in "ConsUpLE"@60 467.69 out "ConsUpLE"@104 455.6 q=212 pnl=2563.08 (0.0258504565) cm=0 ru=2864.12 dd=243.8 cum=2356.71 eq%=0.02568380367
+  #9 L "ConsUpLE" in "ConsUpLE"@104 455.6 out "ConsUpLE"@111 451.29 q=224 pnl=-965.44 (-0.009460052678) cm=0 ru=118.72 dd=1072.96 cum=1391.27 eq%=-0.009432112462
+  #10 S "ConsDnSE" in "ConsUpLE"@111 451.29 out "Margin call"@118 452.02 q=1 pnl=-0.73 (-0.001617585145) cm=0 ru=2.55 dd=0.73 cum=1390.54 eq%=-0.000007199830912
+  #11 S "ConsDnSE" in "ConsUpLE"@111 451.29 out "ConsUpLE"@124 452.35 q=223 pnl=-236.38 (-0.002348822265) cm=0 ru=644.47 dd=272.06 cum=1154.16 eq%=-0.002331381212
+  #12 L "ConsUpLE" in "ConsUpLE"@124 452.35 out "ConsUpLE"@152 463.4 q=223 pnl=2464.15 (0.02442798718) cm=0 ru=2914.61 dd=69.13 cum=3618.31 eq%=0.02436034267
+  ... 423 more
+  digest 1-100: 0907997ce854f5
+  digest 101-200: 06297afad176e3
+  digest 201-300: 0ec62981b0ee4d
+  digest 301-400: 1636cfcad59d2f
+  digest 401-435: 0f67ee0d4fb559
+orders:
+  9 sell entry MARKET "ConsDnSE" 476.02 x210
+  9 buy order MARKET "Margin call 0" 476.81 x1
+  22 buy entry MARKET "ConsUpLE" 473.42 x421
+  29 sell entry MARKET "ConsDnSE" 470.81 x424
+  42 buy order MARKET "Margin call 1" 471.65 x1
+  55 buy entry MARKET "ConsUpLE" 469.7 x424
+  60 sell entry MARKET "ConsDnSE" 467.69 x426
+  60 buy order MARKET "Margin call 2" 468.59 x1
+  104 buy entry MARKET "ConsUpLE" 455.6 x436
+  111 sell entry MARKET "ConsDnSE" 451.29 x448
+  118 buy order MARKET "Margin call 3" 452.02 x1
+  124 buy entry MARKET "ConsUpLE" 452.35 x446
+  ... 423 more
+  digest 1-100: 059c8e23ec3c27
+  digest 101-200: 12e8eddacdbd8a
+  digest 201-300: 1b55c68378d75d
+  digest 301-400: 176ae935cee5d9
+  digest 401-435: 02a5973a77d733

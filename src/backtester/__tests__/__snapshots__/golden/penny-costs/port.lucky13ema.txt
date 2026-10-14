@@ -1,0 +1,37 @@
+port/lucky13ema on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=41 filledOrders=79 marginCalls=0 finalEquity=76473.0801 minEquity=30000
+orders by kind: entry/MARKET=41 exit/STOP=38
+openPL=0 maxDD=20566.2412 (0.3387204543) maxRunUp=46741.0348 (0.6090827939) buyHold=-20396.948 (-0.6798982667)
+all: netProfit=46473.0801 grossProfit=63923.93587 grossLoss=17450.85577 commissionPaid=79 profitFactor=3.663083158 totalTrades=41 totalOpenTrades=0 numberOfWiningTrades=35 numberOfLosingTrades=6 percentProfitable=0.8536585366 avgTrade=1133.489759 avgWinTrade=1826.398168 avgLosTrade=2908.475962 largestWinTrade=5818.6896 largestLosTrade=10284.11232 avgBarsInTrade=2.512195122 maxContractsHeld=1687142
+long: netProfit=29444.79838 grossProfit=41569.81983 grossLoss=12125.02144 commissionPaid=48.43861542 profitFactor=3.428432686 totalTrades=25 totalOpenTrades=0 numberOfWiningTrades=20 numberOfLosingTrades=5 percentProfitable=0.8 avgTrade=1177.791935 avgWinTrade=2078.490991 avgLosTrade=2425.004289 largestWinTrade=5818.6896 largestLosTrade=10284.11232 avgBarsInTrade=2.8 maxContractsHeld=1632162
+short: netProfit=17028.28172 grossProfit=22354.11604 grossLoss=5325.834327 commissionPaid=30.56138458 profitFactor=4.197298427 totalTrades=16 totalOpenTrades=0 numberOfWiningTrades=15 numberOfLosingTrades=1 percentProfitable=0.9375 avgTrade=1064.267607 avgWinTrade=1490.274403 avgLosTrade=5325.834327 largestWinTrade=4325.3488 largestLosTrade=5325.834327 avgBarsInTrade=2.0625 maxContractsHeld=1687142
+trades:
+  #1 L "Long" in "Long"@21 1.2925 out "Exit Long"@21 1.3989 q=22919 pnl=2436.5816 (0.08225079102) cm=2 ru=2462.7925 dd=569.3912 cum=2436.5816 eq%=0.08121938667
+  #2 S "Short" in "Short"@23 1.2349 out "Exit Short"@23 1.2127 q=25987 pnl=574.9114 (0.01791428382) cm=2 ru=604.4971 dd=3.5987 cum=3011.493 eq%=0.01772416733
+  #3 L "Long" in "Long"@41 1.2078 out "Exit Long"@41 1.2533 q=27146 pnl=1233.143 (0.03760965297) cm=2 ru=1264.0036 dd=144.8738 cum=4244.636 eq%=0.03735495998
+  #4 L "Long" in "Long"@102 0.7308 out "Exit Long"@102 0.7465 q=45933 pnl=719.1481 (0.02142308692) cm=2 ru=770.6744 dd=685.4017 cum=4963.7841 eq%=0.02100031374
+  #5 L "Long" in "Long"@110 0.727 out "Exit Long"@110 0.7512 q=47170 pnl=1139.514 (0.03322819221) cm=2 ru=1192.401 dd=699.116 cum=6103.2981 eq%=0.03259126634
+  #6 S "Short" in "Short"@122 0.655 out "Exit Short"@122 0.6423 q=54272 pnl=687.2544 (0.01933250743) cm=2 ru=747.9536 dd=6.4272 cum=6790.5525 eq%=0.01903577889
+  #7 L "Long" in "Long"@130 0.7232 out "Exit Long"@130 0.751 q=50396 pnl=1399.0088 (0.03838433719) cm=2 ru=1455.4444 dd=953.4844 cum=8189.5613 eq%=0.0380263058
+  #8 L "Long" in "Long"@134 0.7547 out "Exit Long"@134 0.7632 q=50688 pnl=428.848 (0.01121017857) cm=2 ru=485.6048 dd=6.0688 cum=8618.4093 eq%=0.01122945605
+  #9 S "Short" in "Short"@225 0.3353 out "Exit Short"@227 0.3346 q=115655 pnl=78.9585 (0.002036056024) cm=2 ru=207.179 dd=1643.301 cum=8697.3678 eq%=0.002044581883
+  #10 L "Long" in "Long"@252 0.2017 out "Exit Long"@252 0.22 q=192327 pnl=3517.5841 (0.09067491116) cm=2 ru=3730.1438 dd=789.5407 cum=12214.9519 eq%=0.09089982859
+  #11 L "Long" in "Long"@341 0.1484 out "Exit Long"@341 0.1562 q=296863 pnl=2313.5314 (0.05251405653) cm=2 ru=2641.0807 dd=1663.4328 cum=14528.4833 eq%=0.05480360147
+  #12 S "Short" in "Short"@354 0.1241 out "Exit Short"@354 0.1218 q=353954 pnl=812.0942 (0.01848748845) cm=2 ru=1202.4436 dd=36.3954 cum=15340.5775 eq%=0.01823763443
+  ... 29 more
+  digest 1-41: 06ca574993ff40
+orders:
+  21 buy entry MARKET "Long" 1.2925 x22919
+  21 sell exit STOP "Exit Long" 1.3989 x22919
+  23 sell entry MARKET "Short" 1.2349 x25987
+  23 buy exit STOP "Exit Short" 1.2127 x25987
+  41 buy entry MARKET "Long" 1.2078 x27146
+  41 sell exit STOP "Exit Long" 1.2533 x27146
+  102 buy entry MARKET "Long" 0.7308 x45933
+  102 sell exit STOP "Exit Long" 0.7465 x45933
+  110 buy entry MARKET "Long" 0.727 x47170
+  110 sell exit STOP "Exit Long" 0.7512 x47170
+  122 sell entry MARKET "Short" 0.655 x54272
+  122 buy exit STOP "Exit Short" 0.6423 x54272
+  ... 67 more
+  digest 1-79: 11fa36726a4263

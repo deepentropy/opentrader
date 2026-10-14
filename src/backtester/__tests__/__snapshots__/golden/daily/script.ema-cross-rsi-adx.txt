@@ -1,0 +1,31 @@
+script/ema-cross-rsi-adx on daily: 1500 bars, first 1546405200, last 1728964800
+trades=7 filledOrders=13 marginCalls=0 finalEquity=1014.788525 minEquity=983.1309
+orders by kind: entry/MARKET=7 exit/MARKET=6
+openPL=0 maxDD=54.886925 (0.05266540727) maxRunUp=142.802525 (0.1257070235) buyHold=2641.08 (2.64108)
+all: netProfit=14.788525 grossProfit=66.54075 grossLoss=51.752225 commissionPaid=9.311475 profitFactor=1.285756313 totalTrades=7 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=3 percentProfitable=0.5714285714 avgTrade=2.112646429 avgWinTrade=16.6351875 avgLosTrade=17.25074167 largestWinTrade=48.316175 largestLosTrade=26.5842 avgBarsInTrade=19.71428571 maxContractsHeld=10
+long: netProfit=33.8221 grossProfit=66.54075 grossLoss=32.71865 commissionPaid=7.9779 profitFactor=2.033725413 totalTrades=6 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=2 percentProfitable=0.6666666667 avgTrade=5.637016667 avgWinTrade=16.6351875 avgLosTrade=16.359325 largestWinTrade=48.316175 largestLosTrade=26.5842 avgBarsInTrade=22.16666667 maxContractsHeld=10
+short: netProfit=-19.033575 grossProfit=0 grossLoss=19.033575 commissionPaid=1.333575 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-19.033575 avgWinTrade=- avgLosTrade=19.033575 largestWinTrade=- largestLosTrade=19.033575 avgBarsInTrade=5 maxContractsHeld=10
+trades:
+  #1 L "LONG" in "LONG"@735 75.88 out "SL Hit"@738 75.38 q=10 pnl=-6.13445 (-0.008078350831) cm=1.13445 ru=1.6309 dd=20.3691 cum=-6.13445 eq%=-0.00613445
+  #2 L "LONG" in "LONG"@918 89.77 out "Opposite Cross"@959 94.74 q=10 pnl=48.316175 (0.05378184809) cm=1.383825 ru=139.526725 dd=15.273275 cum=42.181725 eq%=0.04861439759
+  #3 L "LONG" in "LONG"@1022 93.54 out "SL Hit"@1025 91.02 q=10 pnl=-26.5842 (-0.02839884198) cm=1.3842 ru=2.39845 dd=28.50155 cum=15.597525 eq%=-0.02550821931
+  #4 L "LONG" in "LONG"@1055 90.14 out "SL Hit"@1074 90.62 q=10 pnl=3.4443 (0.003818192491) cm=1.3557 ru=24.32395 dd=18.97605 cum=19.041825 eq%=0.003391402514
+  #5 L "LONG" in "LONG"@1133 86.72 out "SHORT"@1160 88.02 q=10 pnl=11.68945 (0.01346942975) cm=1.31055 ru=94.2496 dd=11.0504 cum=30.731275 eq%=0.01147102083
+  #6 S "SHORT" in "SHORT"@1160 88.02 out "SL Hit"@1164 89.79 q=10 pnl=-19.033575 (-0.02160794196) cm=1.333575 ru=0 dd=24.26015 cum=11.6977 eq%=-0.01846608855
+  #7 L "LONG" in "LONG"@1171 93.72 out "SL Hit"@1205 94.17 q=10 pnl=3.090825 (0.003295463742) cm=1.409175 ru=124.2971 dd=24.4029 cum=14.788525 eq%=0.003055087503
+  digest 1-7: 19c6624c13fe45
+orders:
+  735 buy entry MARKET "LONG" 75.88 x10
+  738 sell exit MARKET "Close entry(s) order LONG" 75.38 x10
+  918 buy entry MARKET "LONG" 89.77 x10
+  959 sell exit MARKET "Close entry(s) order LONG" 94.74 x10
+  1022 buy entry MARKET "LONG" 93.54 x10
+  1025 sell exit MARKET "Close entry(s) order LONG" 91.02 x10
+  1055 buy entry MARKET "LONG" 90.14 x10
+  1074 sell exit MARKET "Close entry(s) order LONG" 90.62 x10
+  1133 buy entry MARKET "LONG" 86.72 x10
+  1160 sell entry MARKET "SHORT" 88.02 x20
+  1164 buy exit MARKET "Close entry(s) order SHORT" 89.79 x10
+  1171 buy entry MARKET "LONG" 93.72 x10
+  ... 1 more
+  digest 1-13: 12086c19677d49

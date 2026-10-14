@@ -1,0 +1,24 @@
+script/tomukas-scale-in on penny: 900 bars, first 978411600, last 1088136000
+trades=6 filledOrders=7 marginCalls=0 finalEquity=99943.257 minEquity=99943.257
+orders by kind: entry/MARKET=6 exit/LIMIT=1
+openPL=-57.037 maxDD=57.869 (0.0005786882987) maxRunUp=0.329 (0.000003289989176) buyHold=82487.757 (0.82487757)
+all: netProfit=0.294 grossProfit=0.294 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=1 totalOpenTrades=5 numberOfWiningTrades=1 numberOfLosingTrades=0 percentProfitable=1 avgTrade=0.294 avgWinTrade=0.294 avgLosTrade=- largestWinTrade=0.294 largestLosTrade=- avgBarsInTrade=12 maxContractsHeld=160
+long: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+short: netProfit=0.294 grossProfit=0.294 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=1 totalOpenTrades=5 numberOfWiningTrades=1 numberOfLosingTrades=0 percentProfitable=1 avgTrade=0.294 avgWinTrade=0.294 avgLosTrade=- largestWinTrade=0.294 largestLosTrade=- avgBarsInTrade=12 maxContractsHeld=160
+trades:
+  #1 S "S1" in "S1"@257 0.2267 out "TP SHORT"@268 0.1973 q=10 pnl=0.294 (0.1296868108) cm=0 ru=0.294 dd=0.458 cum=0.294 eq%=0.00000294
+  #2 S "S1" in "S1"@561 0.036 out OPEN@899 0.4137 q=10 pnl=-3.777 (-10.49166667) cm=0 ru=0.035 dd=3.829 cum=-3.483 eq%=-0.00003776988896
+  #3 S "S2" in "S2"@573 0.0381 out OPEN@899 0.4137 q=10 pnl=-3.756 (-9.858267717) cm=0 ru=0.026 dd=3.808 cum=-3.462 eq%=-0.00003755988957
+  #4 S "S3" in "S3"@591 0.0517 out OPEN@899 0.4137 q=20 pnl=-7.24 (-7.001934236) cm=0 ru=0.152 dd=7.344 cum=-6.946 eq%=-0.00007239978714
+  #5 S "S4" in "S4"@633 0.0621 out OPEN@899 0.4137 q=40 pnl=-14.064 (-5.661835749) cm=0 ru=0.16 dd=14.272 cum=-13.77 eq%=-0.0001406395865
+  #6 S "S5" in "S5"@634 0.0612 out OPEN@899 0.4137 q=80 pnl=-28.2 (-5.759803922) cm=0 ru=0.248 dd=28.616 cum=-27.906 eq%=-0.0002819991709
+  digest 1-6: 176514a0879ab7
+orders:
+  257 sell entry MARKET "S1" 0.2267 x10
+  268 buy exit LIMIT "TP SHORT" 0.1973 x10
+  561 sell entry MARKET "S1" 0.036 x10
+  573 sell entry MARKET "S2" 0.0381 x10
+  591 sell entry MARKET "S3" 0.0517 x20
+  633 sell entry MARKET "S4" 0.0621 x40
+  634 sell entry MARKET "S5" 0.0612 x80
+  digest 1-7: 1c8dff57170b5d

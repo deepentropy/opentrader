@@ -1,0 +1,43 @@
+builtin/greedy on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=266 filledOrders=439 marginCalls=91 finalEquity=80145.62407 minEquity=54812.40771
+orders by kind: entry/STOP=179 order/LIMIT=75 order/MARKET=91 order/STOP=94
+openPL=-3122.56 maxDD=57020.2722 (0.5126767777) maxRunUp=45376.69391 (0.4531407322) buyHold=88458.75 (0.8845875)
+all: netProfit=-16731.81593 grossProfit=142461.6404 grossLoss=159193.4563 commissionPaid=30054.36593 profitFactor=0.8948963336 totalTrades=265 totalOpenTrades=1 numberOfWiningTrades=73 numberOfLosingTrades=192 percentProfitable=0.2754716981 avgTrade=-63.13892804 avgWinTrade=1951.52932 avgLosTrade=829.1325848 largestWinTrade=8975.62432 largestLosTrade=8006.27373 avgBarsInTrade=1.679245283 maxContractsHeld=1188
+long: netProfit=-5710.98938 grossProfit=79001.89193 grossLoss=84712.88131 commissionPaid=17294.96938 profitFactor=0.9325841679 totalTrades=111 totalOpenTrades=1 numberOfWiningTrades=42 numberOfLosingTrades=69 percentProfitable=0.3783783784 avgTrade=-51.45035477 avgWinTrade=1880.997427 avgLosTrade=1227.722918 largestWinTrade=8975.62432 largestLosTrade=6949.7906 avgBarsInTrade=1.963963964 maxContractsHeld=1108
+short: netProfit=-11020.82655 grossProfit=63459.74843 grossLoss=74480.57498 commissionPaid=12759.39655 profitFactor=0.852030861 totalTrades=154 totalOpenTrades=0 numberOfWiningTrades=31 numberOfLosingTrades=123 percentProfitable=0.2012987013 avgTrade=-71.56380877 avgWinTrade=2047.088659 avgLosTrade=605.5331299 largestWinTrade=6146.38923 largestLosTrade=8006.27373 avgBarsInTrade=1.474025974 maxContractsHeld=1188
+trades:
+  #1 L "GapUp" in "GapUp"@5 147.99 out "TPSL"@6 147.78 q=674 pnl=-340.88898 (-0.003414181602) cm=199.34898 ru=169.85474 dd=241.28526 cum=-340.88898 eq%=-0.0034088898
+  #2 S "GapDn" in "GapDn"@7 146.96 out "Margin call"@7 147 q=1 pnl=-0.33396 (-0.002270184905) cm=0.29396 ru=0 dd=0.18696 cum=-440.71486 eq%=-0.000003354372014
+  #3 S "GapDn" in "GapDn"@7 146.96 out "Margin call"@7 148.54 q=52 pnl=-97.526 (-0.01274922682) cm=15.366 ru=56.83808 dd=89.80192 cum=-530.59894 eq%=-0.0009795019579
+  #4 S "GapDn" in "GapDn"@7 146.96 out "TPSL"@8 148.21 q=625 pnl=-965.73125 (-0.01050371784) cm=184.48125 ru=683.15 dd=1079.35 cum=-1404.48019 eq%=-0.009699870579
+  #5 S "GapDn" in "GapDn"@12 146.56 out "Margin call"@12 146.6 q=1 pnl=-0.33316 (-0.002270927762) cm=0.29316 ru=0 dd=0.18656 cum=-1503.15511 eq%=-0.000003382431929
+  #6 S "GapDn" in "GapDn"@12 146.56 out "Margin call"@12 148.14 q=52 pnl=-97.4844 (-0.01277856968) cm=15.3244 ru=7.97888 dd=89.78112 cum=-1593.01839 eq%=-0.0009896444694
+  #7 S "GapDn" in "GapDn"@12 146.56 out "TPSL"@13 148.22 q=619 pnl=-1210.00882 (-0.01332442121) cm=182.46882 ru=94.97936 dd=1118.26064 cum=-2712.30657 eq%=-0.01228464007
+  #8 S "GapDn" in "GapDn"@15 146.85 out "Margin call"@15 147.66 q=16 pnl=-17.67216 (-0.00751383448) cm=4.71216 ru=0 dd=15.3096 cum=-2824.40328 eq%=-0.0001818249371
+  #9 S "GapDn" in "GapDn"@15 146.85 out "TPSL"@16 147.5 q=643 pnl=-607.21705 (-0.006424287323) cm=189.26705 ru=0 dd=615.25455 cum=-3337.19578 eq%=-0.006242591932
+  #10 L "GapUp" in "GapUp"@34 146.87 out "TPSL"@35 149.33 q=657 pnl=1421.6166 (0.01471803882) cm=194.6034 ru=1867.93641 dd=241.03359 cum=-1915.57918 eq%=0.01470696626
+  #11 S "GapDn" in "GapDn"@37 143.43 out "Margin call"@37 143.71 q=1 pnl=-0.56714 (-0.003950173789) cm=0.28714 ru=0 dd=0.42343 cum=-2013.67872 eq%=-0.000005787917232
+  #12 S "GapDn" in "GapDn"@37 143.43 out "TPSL"@38 141.22 q=680 pnl=1309.238 (0.01341021107) cm=193.562 ru=1663.6676 dd=287.9324 cum=-606.90832 eq%=0.01334815009
+  ... 254 more
+  digest 1-100: 1bd0091120d24f
+  digest 101-200: 0ad1e3ac1220ca
+  digest 201-266: 16f3331eef32b0
+orders:
+  5 buy entry STOP "GapUp" 147.99 x674
+  6 sell order STOP "SL" 147.78 x674
+  7 sell entry STOP "GapDn" 146.96 x678
+  7 buy order MARKET "Margin call 0" 147 x1
+  7 buy order MARKET "Margin call 1" 148.54 x52
+  8 buy order STOP "SL" 148.21 x625
+  12 sell entry STOP "GapDn" 146.56 x672
+  12 buy order MARKET "Margin call 2" 146.6 x1
+  12 buy order MARKET "Margin call 3" 148.14 x52
+  13 buy order STOP "SL" 148.22 x619
+  15 sell entry STOP "GapDn" 146.85 x659
+  15 buy order MARKET "Margin call 4" 147.66 x16
+  ... 427 more
+  digest 1-100: 186655a7b205e5
+  digest 101-200: 13af6f6e8bf19a
+  digest 201-300: 1a44ac4c90b692
+  digest 301-400: 043c363cf74cbb
+  digest 401-439: 008a0af986ad44

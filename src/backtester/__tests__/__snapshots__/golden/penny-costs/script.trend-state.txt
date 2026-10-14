@@ -1,0 +1,37 @@
+script/trend-state on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=20 filledOrders=40 marginCalls=0 finalEquity=334.2619 minEquity=212.3324
+orders by kind: entry/MARKET=20 exit/MARKET=20
+openPL=0 maxDD=797.7172 (0.7977172) maxRunUp=171.9224 (0.4157951662) buyHold=-678.4764 (-0.6784764)
+all: netProfit=-665.7381 grossProfit=166.6243 grossLoss=832.3624 commissionPaid=40 profitFactor=0.2001823965 totalTrades=20 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=16 percentProfitable=0.2 avgTrade=-33.286905 avgWinTrade=41.656075 avgLosTrade=52.02265 largestWinTrade=85.3376 largestLosTrade=96.7445 avgBarsInTrade=9.95 maxContractsHeld=7798
+long: netProfit=-665.7381 grossProfit=166.6243 grossLoss=832.3624 commissionPaid=40 profitFactor=0.2001823965 totalTrades=20 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=16 percentProfitable=0.2 avgTrade=-33.286905 avgWinTrade=41.656075 avgLosTrade=52.02265 largestWinTrade=85.3376 largestLosTrade=96.7445 avgBarsInTrade=9.95 maxContractsHeld=7798
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@12 1.2869 out "Close entry(s) order Long"@29 1.1624 q=761 pnl=-96.7445 (-0.09868555607) cm=2 ru=101.8111 dd=141.4806 cum=-96.7445 eq%=-0.0967445
+  #2 L "Long" in "Long"@33 1.2063 out "Close entry(s) order Long"@40 1.1434 q=720 pnl=-47.288 (-0.05438302727) cm=2 ru=44.072 dd=85.168 cum=-144.0325 eq%=-0.05235285033
+  #3 L "Long" in "Long"@43 1.2003 out "Close entry(s) order Long"@48 1.0805 q=705 pnl=-86.459 (-0.1020512587) cm=2 ru=6.1205 dd=85.459 cum=-230.4915 eq%=-0.1010073396
+  #4 L "Long" in "Long"@104 0.7174 out "Close entry(s) order Long"@107 0.693 q=1043 pnl=-27.4492 (-0.03663565692) cm=2 ru=38.3211 dd=64.5187 cum=-257.9407 eq%=-0.03567108096
+  #5 L "Long" in "Long"@114 0.6659 out "Close entry(s) order Long"@117 0.675 q=1009 pnl=7.1819 (0.01067316636) cm=2 ru=40.7726 dd=81.2155 cum=-250.7588 eq%=0.009678337028
+  #6 L "Long" in "Long"@122 0.6552 out "Close entry(s) order Long"@139 0.6279 q=1124 pnl=-32.6852 (-0.04432223266) cm=2 ru=121.6284 dd=77.8816 cum=-283.444 eq%=-0.04362440293
+  #7 L "Long" in "Long"@168 0.4304 out "Close entry(s) order Long"@183 0.3805 q=1586 pnl=-81.1414 (-0.118694691) cm=2 ru=170.9224 dd=80.1414 cum=-364.5854 eq%=-0.1132380442
+  #8 L "Long" in "Long"@203 0.4027 out "Close entry(s) order Long"@219 0.3823 q=1547 pnl=-33.5588 (-0.05378211918) cm=2 ru=0.3923 dd=103.8755 cum=-398.1442 eq%=-0.05281402096
+  #9 L "Long" in "Long"@275 0.225 out "Close entry(s) order Long"@284 0.2044 q=2627 pnl=-56.1162 (-0.09477887092) cm=2 ru=71.7679 dd=82.9624 cum=-454.2604 eq%=-0.09323861297
+  #10 L "Long" in "Long"@291 0.1944 out "Close entry(s) order Long"@296 0.1656 q=2766 pnl=-81.6608 (-0.1515857128) cm=2 ru=17.2556 dd=80.6608 cum=-535.9212 eq%=-0.1496332683
+  #11 L "Long" in "Long"@325 0.1542 out "Close entry(s) order Long"@332 0.1332 q=2955 pnl=-64.055 (-0.1402681639) cm=2 ru=66.6695 dd=63.055 cum=-599.9762 eq%=-0.1380261283
+  #12 L "Long" in "Long"@343 0.1327 out "Close entry(s) order Long"@346 0.1254 q=2960 pnl=-23.608 (-0.05995043068) cm=2 ru=11.432 dd=65.232 cum=-623.5842 eq%=-0.05901648852
+  ... 8 more
+  digest 1-20: 062d0bafd4635d
+orders:
+  12 buy entry MARKET "Long" 1.2869 x761
+  29 sell exit MARKET "Close entry(s) order Long" 1.1624 x761
+  33 buy entry MARKET "Long" 1.2063 x720
+  40 sell exit MARKET "Close entry(s) order Long" 1.1434 x720
+  43 buy entry MARKET "Long" 1.2003 x705
+  48 sell exit MARKET "Close entry(s) order Long" 1.0805 x705
+  104 buy entry MARKET "Long" 0.7174 x1043
+  107 sell exit MARKET "Close entry(s) order Long" 0.693 x1043
+  114 buy entry MARKET "Long" 0.6659 x1009
+  117 sell exit MARKET "Close entry(s) order Long" 0.675 x1009
+  122 buy entry MARKET "Long" 0.6552 x1124
+  139 sell exit MARKET "Close entry(s) order Long" 0.6279 x1124
+  ... 28 more
+  digest 1-40: 04c74c65c80d5a

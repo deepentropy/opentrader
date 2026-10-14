@@ -1,0 +1,41 @@
+builtin/outside-bar on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=258 filledOrders=258 marginCalls=155 finalEquity=91544.83294 minEquity=86453.60237
+orders by kind: entry/MARKET=103 order/MARKET=155
+openPL=-21988.26 maxDD=188735.8303 (0.6871054215) maxRunUp=206279.1788 (0.7039515347) buyHold=89333.28 (0.8933328)
+all: netProfit=13533.09294 grossProfit=493179.4804 grossLoss=479646.3874 commissionPaid=29825.68706 profitFactor=1.028214729 totalTrades=257 totalOpenTrades=1 numberOfWiningTrades=44 numberOfLosingTrades=213 percentProfitable=0.1712062257 avgTrade=52.65794918 avgWinTrade=11208.62455 avgLosTrade=2251.860974 largestWinTrade=47928.76452 largestLosTrade=40840.8448 avgBarsInTrade=7.758754864 maxContractsHeld=3101
+long: netProfit=104996.4779 grossProfit=313516.2531 grossLoss=208519.7752 commissionPaid=14707.00212 profitFactor=1.503532472 totalTrades=71 totalOpenTrades=0 numberOfWiningTrades=20 numberOfLosingTrades=51 percentProfitable=0.2816901408 avgTrade=1478.823632 avgWinTrade=15675.81266 avgLosTrade=4088.623044 largestWinTrade=47928.76452 largestLosTrade=40462.80323 avgBarsInTrade=11.16901408 maxContractsHeld=3101
+short: netProfit=-91463.38494 grossProfit=179663.2273 grossLoss=271126.6122 commissionPaid=15118.68494 profitFactor=0.6626543437 totalTrades=186 totalOpenTrades=1 numberOfWiningTrades=24 numberOfLosingTrades=162 percentProfitable=0.1290322581 avgTrade=-491.7386287 avgWinTrade=7485.967803 avgLosTrade=1673.621063 largestWinTrade=46731.77056 largestLosTrade=40840.8448 avgBarsInTrade=6.456989247 maxContractsHeld=3098
+trades:
+  #1 S "OutBarSE" in "OutBarSE"@10 147.28 out "Margin call"@10 148.21 q=32 pnl=-39.21568 (-0.008312504986) cm=9.45568 ru=9.36704 dd=34.47296 cum=-134.35856 eq%=-0.0003925302646
+  #2 S "OutBarSE" in "OutBarSE"@10 147.28 out "OutBarLE"@21 146.54 q=646 pnl=288.23228 (0.003026441239) cm=189.80772 ru=1035.35712 dd=779.90288 cum=249.0166 eq%=0.002883453566
+  #3 L "OutBarLE" in "OutBarLE"@21 146.54 out "OutBarSE"@27 150.1 q=670 pnl=2186.4512 (0.02224716733) cm=198.7488 ru=5476.2182 dd=413.0818 cum=2435.4678 eq%=0.02181020098
+  #4 S "OutBarSE" in "OutBarSE"@27 150.1 out "Margin call"@27 150.14 q=1 pnl=-0.34024 (-0.002264491005) cm=0.30024 ru=0 dd=0.1901 cum=2332.90946 eq%=-0.000003324823564
+  #5 S "OutBarSE" in "OutBarSE"@27 150.1 out "Margin call"@27 151.1 q=32 pnl=-41.6384 (-0.008660227181) cm=9.6384 ru=0 dd=36.8032 cum=2296.07426 eq%=-0.0004068724903
+  #6 S "OutBarSE" in "OutBarSE"@27 150.1 out "OutBarLE"@43 142.09 q=649 pnl=5008.85869 (0.05136642172) cm=189.63131 ru=6489.9351 dd=746.4149 cum=7402.34785 eq%=0.04891774595
+  #7 L "OutBarLE" in "OutBarLE"@43 142.09 out "OutBarSE"@44 140.04 q=753 pnl=-1756.09389 (-0.01639665142) cm=212.44389 ru=691.18623 dd=1650.64377 cum=5646.25396 eq%=-0.01635060988
+  #8 S "OutBarSE" in "OutBarSE"@44 140.04 out "Margin call"@44 140.08 q=1 pnl=-0.32012 (-0.002283634674) cm=0.28012 ru=0 dd=0.18004 cum=5540.48372 eq%=-0.00000303313968
+  #9 S "OutBarSE" in "OutBarSE"@44 140.04 out "Margin call"@44 140.75 q=24 pnl=-23.77896 (-0.007067982004) cm=6.73896 ru=0 dd=20.40096 cum=5520.06572 eq%=-0.0002252993538
+  #10 S "OutBarSE" in "OutBarSE"@44 140.04 out "Margin call"@47 142.7 q=8 pnl=-23.54192 (-0.02099257498) cm=2.26192 ru=22.15968 dd=22.40032 cum=5497.64412 eq%=-0.0002231013589
+  #11 S "OutBarSE" in "OutBarSE"@44 140.04 out "Margin call"@48 144.49 q=48 pnl=-227.25744 (-0.03377463725) cm=13.65744 ru=132.95808 dd=220.32192 cum=5277.1086 eq%=-0.002154009815
+  #12 S "OutBarSE" in "OutBarSE"@44 140.04 out "OutBarLE"@51 147.93 q=673 pnl=-5503.77381 (-0.05833904741) cm=193.80381 ru=1864.18308 dd=5606.11692 cum=-132.41829 eq%=-0.05223216293
+  ... 246 more
+  digest 1-100: 0f50c54c60c0ca
+  digest 101-200: 052a524ba08760
+  digest 201-258: 08c2f91d26a5b4
+orders:
+  10 sell entry MARKET "OutBarSE" 147.28 x678
+  10 buy order MARKET "Margin call 0" 148.21 x32
+  21 buy entry MARKET "OutBarLE" 146.54 x1316
+  27 sell entry MARKET "OutBarSE" 150.1 x1352
+  27 buy order MARKET "Margin call 1" 150.14 x1
+  27 buy order MARKET "Margin call 2" 151.1 x32
+  43 buy entry MARKET "OutBarLE" 142.09 x1402
+  44 sell entry MARKET "OutBarSE" 140.04 x1507
+  44 buy order MARKET "Margin call 3" 140.08 x1
+  44 buy order MARKET "Margin call 4" 140.75 x24
+  47 buy order MARKET "Margin call 5" 142.7 x8
+  48 buy order MARKET "Margin call 6" 144.49 x48
+  ... 246 more
+  digest 1-100: 0032510b8bf87d
+  digest 101-200: 06d33fe445847c
+  digest 201-258: 0e75a84e5e6aa5

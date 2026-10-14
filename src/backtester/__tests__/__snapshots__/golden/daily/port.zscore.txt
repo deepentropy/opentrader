@@ -1,0 +1,35 @@
+port/zscore on daily: 1500 bars, first 1546405200, last 1728964800
+trades=11 filledOrders=22 marginCalls=0 finalEquity=7797.491304 minEquity=6428.886353
+orders by kind: entry/MARKET=11 exit/MARKET=11
+openPL=0 maxDD=3642.173647 (0.3642173647) maxRunUp=555.000368 (0.06674675604) buyHold=11591.58 (1.159158)
+all: netProfit=-2202.508696 grossProfit=703.769344 grossLoss=2906.27804 commissionPaid=5.528696 profitFactor=0.2421548573 totalTrades=11 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=6 percentProfitable=0.4545454545 avgTrade=-200.2280633 avgWinTrade=140.7538688 avgLosTrade=484.3796733 largestWinTrade=208.16686 largestLosTrade=1757.199288 avgBarsInTrade=74.63636364 maxContractsHeld=28
+long: netProfit=-1421.119578 grossProfit=462.698206 grossLoss=1883.817784 commissionPaid=2.459578 profitFactor=0.2456172831 totalTrades=5 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=2 percentProfitable=0.6 avgTrade=-284.2239156 avgWinTrade=154.2327353 avgLosTrade=941.908892 largestWinTrade=173.391478 largestLosTrade=1757.199288 avgBarsInTrade=79.2 maxContractsHeld=28
+short: netProfit=-781.389118 grossProfit=241.071138 grossLoss=1022.460256 commissionPaid=3.069118 profitFactor=0.2357755586 totalTrades=6 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=4 percentProfitable=0.3333333333 avgTrade=-130.2315197 avgWinTrade=120.535569 avgLosTrade=255.615064 largestWinTrade=208.16686 largestLosTrade=370.22646 avgBarsInTrade=70.83333333 maxContractsHeld=25
+trades:
+  #1 L "Buy" in "Open Long Position"@123 128.5 out "Close all buy orders"@170 123.02 q=23 pnl=-126.618496 (-0.04283736607) cm=0.578496 ru=58.58445 dd=941.68555 cum=-126.618496 eq%=-0.0126618496
+  #2 S "Sell" in "Open Short Position"@196 196.5 out "Close all sell orders"@304 221.14 q=15 pnl=-370.22646 (-0.125594382) cm=0.62646 ru=541.35525 dd=622.64475 cum=-496.844956 eq%=-0.03749743286
+  #3 L "Buy" in "Open Long Position"@334 204.28 out "Close all buy orders"@357 217.66 q=13 pnl=173.391478 (0.06528525726) cm=0.548522 ru=177.444436 dd=70.855564 cum=-323.453478 eq%=0.01824567496
+  #4 S "Sell" in "Open Short Position"@444 245.03 out "Close all sell orders"@485 241.99 q=11 pnl=32.904278 (0.01220666408) cm=0.535722 ru=34.050467 dd=316.409533 cum=-290.5492 eq%=0.003400415419
+  #5 L "Buy" in "Open Long Position"@514 213.45 out "Close all buy orders"@758 78.31 q=13 pnl=-1757.199288 (-0.6331958793) cm=0.379288 ru=82.662515 dd=1934.937485 cum=-2047.748488 eq%=-0.180978237
+  #6 S "Sell" in "Open Short Position"@775 97.75 out "Close all sell orders"@873 105.73 q=24 pnl=-192.008352 (-0.08183680865) cm=0.488352 ru=271.9254 dd=534.2346 cum=-2239.75684 eq%=-0.02414515584
+  #7 L "Buy" in "Open Long Position"@884 90.87 out "Close all buy orders"@932 96.41 q=25 pnl=138.0318 (0.06075404345) cm=0.4682 ru=151.772825 dd=297.477175 cum=-2101.72504 eq%=0.01778704573
+  #8 L "Buy" in "Open Long Position"@1106 83.91 out "Close all buy orders"@1135 89.33 q=28 pnl=151.274928 (0.06438011901) cm=0.485072 ru=171.405052 dd=62.394948 cum=-1950.450112 eq%=0.01915290728
+  #9 S "Sell" in "Open Short Position"@1143 93.36 out "Close all sell orders"@1207 97.51 q=25 pnl=-104.227175 (-0.04465156526) cm=0.477175 ru=138.2666 dd=321.7334 cum=-2054.677287 eq%=-0.01294819915
+  #10 S "Sell" in "Open Short Position"@1227 124.4 out "Close all sell orders"@1290 143.11 q=19 pnl=-355.998269 (-0.1506019093) cm=0.508269 ru=369.69364 dd=1587.49636 cum=-2410.675556 eq%=-0.04480601756
+  #11 S "Sell" in "Open Short Position"@1431 227 out "Close all sell orders"@1476 206.14 q=10 pnl=208.16686 (0.09169429313) cm=0.43314 ru=263.373 dd=304.527 cum=-2202.508696 eq%=0.02742890511
+  digest 1-11: 103546040242cb
+orders:
+  123 buy entry MARKET "Buy" 128.5 x23
+  170 sell exit MARKET "Close entry(s) order Buy" 123.02 x23
+  196 sell entry MARKET "Sell" 196.5 x15
+  304 buy exit MARKET "Close entry(s) order Sell" 221.14 x15
+  334 buy entry MARKET "Buy" 204.28 x13
+  357 sell exit MARKET "Close entry(s) order Buy" 217.66 x13
+  444 sell entry MARKET "Sell" 245.03 x11
+  485 buy exit MARKET "Close entry(s) order Sell" 241.99 x11
+  514 buy entry MARKET "Buy" 213.45 x13
+  758 sell exit MARKET "Close entry(s) order Buy" 78.31 x13
+  775 sell entry MARKET "Sell" 97.75 x24
+  873 buy exit MARKET "Close entry(s) order Sell" 105.73 x24
+  ... 10 more
+  digest 1-22: 129b29986e0611

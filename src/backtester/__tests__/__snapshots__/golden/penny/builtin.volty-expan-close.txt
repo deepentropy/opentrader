@@ -1,0 +1,38 @@
+builtin/volty-expan-close on penny: 900 bars, first 978411600, last 1088136000
+trades=90 filledOrders=179 marginCalls=0 finalEquity=58301.5023 minEquity=14147.9748
+orders by kind: entry/STOP=179
+openPL=14980.5401 maxDD=86099.6145 (0.860996145) maxRunUp=50614.0166 (0.7815389167) buyHold=-70498.0546 (-0.704980546)
+all: netProfit=-56679.0378 grossProfit=123558.2103 grossLoss=180237.2481 commissionPaid=0 profitFactor=0.685530941 totalTrades=89 totalOpenTrades=1 numberOfWiningTrades=30 numberOfLosingTrades=59 percentProfitable=0.3370786517 avgTrade=-636.8431213 avgWinTrade=4118.60701 avgLosTrade=3054.868612 largestWinTrade=18551.6324 largestLosTrade=9880.9748 avgBarsInTrade=4.797752809 maxContractsHeld=748032
+long: netProfit=-56679.0378 grossProfit=123558.2103 grossLoss=180237.2481 commissionPaid=0 profitFactor=0.685530941 totalTrades=89 totalOpenTrades=1 numberOfWiningTrades=30 numberOfLosingTrades=59 percentProfitable=0.3370786517 avgTrade=-636.8431213 avgWinTrade=4118.60701 avgLosTrade=3054.868612 largestWinTrade=18551.6324 largestLosTrade=9880.9748 avgBarsInTrade=4.797752809 maxContractsHeld=748032
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "VltClsLE" in "VltClsLE"@12 1.4023 out "VltClsSE"@13 1.2797 q=71311 pnl=-8742.7286 (-0.08742779719) cm=0 ru=1404.8267 dd=8742.7286 cum=-8742.7286 eq%=-0.087427286
+  #2 L "VltClsLE" in "VltClsLE"@18 1.3078 out "VltClsSE"@19 1.2261 q=69779 pnl=-5700.9443 (-0.06247132589) cm=0 ru=5554.4084 dd=5700.9443 cum=-14443.6729 eq%=-0.06247112381
+  #3 L "VltClsLE" in "VltClsLE"@30 1.2295 out "VltClsSE"@33 1.184 q=69586 pnl=-3166.163 (-0.03700691338) cm=0 ru=5267.6602 dd=3166.163 cum=-17609.8359 eq%=-0.03700676627
+  #4 L "VltClsLE" in "VltClsLE"@40 1.2082 out "VltClsSE"@42 1.187 q=68192 pnl=-1445.6704 (-0.01754676378) cm=0 ru=3150.4704 dd=1445.6704 cum=-19055.5063 eq%=-0.01754663819
+  #5 L "VltClsLE" in "VltClsLE"@48 1.1419 out "VltClsSE"@52 1.0978 q=70885 pnl=-3126.0285 (-0.03861984412) cm=0 ru=2934.639 dd=5025.7465 cum=-22181.5348 eq%=-0.0386194089
+  #6 L "VltClsLE" in "VltClsLE"@61 0.8753 out "VltClsSE"@62 0.8197 q=88904 pnl=-4943.0624 (-0.06352107849) cm=0 ru=2791.5856 dd=4943.0624 cum=-27124.5972 eq%=-0.06352043037
+  #7 L "VltClsLE" in "VltClsLE"@67 0.8361 out "VltClsSE"@68 0.7549 q=87161 pnl=-7077.4732 (-0.09711756967) cm=0 ru=34.8644 dd=7077.4732 cum=-34202.0704 eq%=-0.0971174488
+  #8 L "VltClsLE" in "VltClsLE"@71 0.7529 out "VltClsSE"@79 0.8988 q=87392 pnl=12750.4928 (0.1937840351) cm=0 ru=22258.7424 dd=2586.8032 cum=-21451.5776 eq%=0.1937825837
+  #9 L "VltClsLE" in "VltClsLE"@80 0.9789 out "VltClsSE"@83 0.867 q=80241 pnl=-8978.9679 (-0.1143119828) cm=0 ru=353.0604 dd=8978.9679 cum=-30430.5455 eq%=-0.1143112443
+  #10 L "VltClsLE" in "VltClsLE"@88 0.8026 out "VltClsSE"@90 0.7871 q=86680 pnl=-1343.54 (-0.01931223524) cm=0 ru=3995.948 dd=2375.032 cum=-31774.0855 eq%=-0.01931221122
+  #11 L "VltClsLE" in "VltClsLE"@100 0.7576 out "VltClsSE"@104 0.6927 q=90055 pnl=-5844.5695 (-0.08566525871) cm=0 ru=1386.847 dd=5862.5805 cum=-37618.655 eq%=-0.0856649492
+  #12 L "VltClsLE" in "VltClsLE"@106 0.7302 out "VltClsSE"@114 0.6658 q=85430 pnl=-5501.692 (-0.08819501506) cm=0 ru=3374.485 dd=5501.692 cum=-43120.347 eq%=-0.08819450751
+  ... 78 more
+  digest 1-90: 064f563d7ebe85
+orders:
+  12 buy entry STOP "VltClsLE" 1.4023 x71311
+  13 sell entry STOP "VltClsSE" 1.2797 x71311
+  18 buy entry STOP "VltClsLE" 1.3078 x69779
+  19 sell entry STOP "VltClsSE" 1.2261 x69779
+  30 buy entry STOP "VltClsLE" 1.2295 x69586
+  33 sell entry STOP "VltClsSE" 1.184 x69586
+  40 buy entry STOP "VltClsLE" 1.2082 x68192
+  42 sell entry STOP "VltClsSE" 1.187 x68192
+  48 buy entry STOP "VltClsLE" 1.1419 x70885
+  52 sell entry STOP "VltClsSE" 1.0978 x70885
+  61 buy entry STOP "VltClsLE" 0.8753 x88904
+  62 sell entry STOP "VltClsSE" 0.8197 x88904
+  ... 167 more
+  digest 1-100: 071c8ffa8243f5
+  digest 101-179: 1097ce99c615af

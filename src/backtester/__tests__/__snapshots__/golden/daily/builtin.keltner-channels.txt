@@ -1,0 +1,37 @@
+builtin/keltner-channels on daily: 1500 bars, first 1546405200, last 1728964800
+trades=16 filledOrders=21 marginCalls=7 finalEquity=375918.31 minEquity=79134.27
+orders by kind: entry/STOP=14 order/MARKET=7
+openPL=122253.72 maxDD=22102.48 (0.2210248) maxRunUp=317047.16 (0.7864420102) buyHold=90365 (0.90365)
+all: netProfit=153664.59 grossProfit=182307.52 grossLoss=28642.93 commissionPaid=0 profitFactor=6.364834882 totalTrades=15 totalOpenTrades=1 numberOfWiningTrades=5 numberOfLosingTrades=10 percentProfitable=0.3333333333 avgTrade=10244.306 avgWinTrade=36461.504 avgLosTrade=2864.293 largestWinTrade=93986.73 largestLosTrade=13905.98 avgBarsInTrade=65.53333333 maxContractsHeld=1773
+long: netProfit=100128 grossProfit=123107.89 grossLoss=22979.89 commissionPaid=0 profitFactor=5.357201014 totalTrades=7 totalOpenTrades=1 numberOfWiningTrades=4 numberOfLosingTrades=3 percentProfitable=0.5714285714 avgTrade=14304 avgWinTrade=30776.9725 avgLosTrade=7659.963333 largestWinTrade=93986.73 largestLosTrade=13905.98 avgBarsInTrade=80 maxContractsHeld=1773
+short: netProfit=53536.59 grossProfit=59199.63 grossLoss=5663.04 commissionPaid=0 profitFactor=10.45368389 totalTrades=8 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=7 percentProfitable=0.125 avgTrade=6692.07375 avgWinTrade=59199.63 avgLosTrade=809.0057143 largestWinTrade=59199.63 largestLosTrade=5057.5 avgBarsInTrade=52.875 maxContractsHeld=490
+trades:
+  #1 L "KltChLE" in "KltChLE"@76 146.54 out "KltChSE"@123 126.15 q=682 pnl=-13905.98 (-0.1391428961) cm=0 ru=968.44 dd=13905.98 cum=-13905.98 eq%=-0.1390598
+  #2 L "KltChLE" in "KltChLE"@191 177.29 out "KltChSE"@313 209.77 q=485 pnl=15752.8 (0.1832026623) cm=0 ru=29439.5 dd=8196.5 cum=1846.82 eq%=0.1829720578
+  #3 S "KltChSE" in "KltChSE"@333 207.49 out "Margin call"@333 209.23 q=28 pnl=-48.72 (-0.008385946311) cm=0 ru=28.28 dd=48.72 cum=1798.1 eq%=-0.0004783654512
+  #4 S "KltChSE" in "KltChSE"@333 207.49 out "Margin call"@342 215.03 q=16 pnl=-120.64 (-0.03633910068) cm=0 ru=114.24 dd=120.64 cum=1677.46 eq%=-0.001185090881
+  #5 S "KltChSE" in "KltChSE"@333 207.49 out "Margin call"@356 217.95 q=1 pnl=-10.46 (-0.05041206805) cm=0 ru=8.64 dd=10.46 cum=1667 eq%=-0.0001028743244
+  #6 S "KltChSE" in "KltChSE"@333 207.49 out "Margin call"@357 219.38 q=20 pnl=-237.8 (-0.05730396646) cm=0 ru=172.8 dd=237.8 cum=1429.2 eq%=-0.002339008725
+  #7 S "KltChSE" in "KltChSE"@333 207.49 out "KltChLE"@358 219.39 q=425 pnl=-5057.5 (-0.05735216155) cm=0 ru=3672 dd=5057.5 cum=-3628.3 eq%=-0.04986236705
+  #8 L "KltChLE" in "KltChLE"@358 219.39 out "KltChSE"@478 249.83 q=439 pnl=13363.16 (0.1387483477) cm=0 ru=23872.82 dd=3143.24 cum=9734.86 eq%=0.1386626987
+  #9 S "KltChSE" in "KltChSE"@478 249.83 out "Margin call"@478 251.86 q=24 pnl=-48.72 (-0.008125525357) cm=0 ru=48 dd=48.72 cum=9686.14 eq%=-0.0004439792423
+  #10 S "KltChSE" in "KltChSE"@478 249.83 out "Margin call"@481 258.53 q=16 pnl=-139.2 (-0.0348236801) cm=0 ru=32 dd=139.2 cum=9546.94 eq%=-0.001269075564
+  #11 S "KltChSE" in "KltChSE"@478 249.83 out "KltChLE"@809 101.46 q=399 pnl=59199.63 (0.593883841) cm=0 ru=73894.8 dd=3770.55 cum=68746.57 eq%=0.5404042322
+  #12 L "KltChLE" in "KltChLE"@809 101.46 out "Margin call"@809 102.11 q=8 pnl=5.2 (0.006406465602) cm=0 ru=5.2 dd=0 cum=68751.77 eq%=0.00003081544117
+  ... 4 more
+  digest 1-16: 143710dda86d3d
+orders:
+  76 buy entry STOP "KltChLE" 146.54 x682
+  123 sell entry STOP "KltChSE" 126.15 x682
+  191 buy entry STOP "KltChLE" 177.29 x485
+  313 sell entry STOP "KltChSE" 209.77 x485
+  333 sell entry STOP "KltChSE" 207.49 x490
+  333 buy order MARKET "Margin call 0" 209.23 x28
+  342 buy order MARKET "Margin call 1" 215.03 x16
+  356 buy order MARKET "Margin call 2" 217.95 x1
+  357 buy order MARKET "Margin call 3" 219.38 x20
+  358 buy entry STOP "KltChLE" 219.39 x864
+  478 sell entry STOP "KltChSE" 249.83 x878
+  478 buy order MARKET "Margin call 4" 251.86 x24
+  ... 9 more
+  digest 1-21: 0218301343b36d

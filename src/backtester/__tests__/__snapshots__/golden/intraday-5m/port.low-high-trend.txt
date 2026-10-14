@@ -1,0 +1,13 @@
+port/low-high-trend on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=1 filledOrders=1 marginCalls=0 finalEquity=92957275.07 minEquity=77097995.04
+orders by kind: entry/MARKET=1
+openPL=-7042723.93 maxDD=22935672 (0.22935672) maxRunUp=6180006.03 (0.05820310546) buyHold=-7042723.93 (-0.0704272393)
+all: netProfit=-1 grossProfit=0 grossLoss=1 commissionPaid=1 profitFactor=0 totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=210419
+long: netProfit=-1 grossProfit=0 grossLoss=1 commissionPaid=1 profitFactor=0 totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=210419
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@326 475.24 out OPEN@3821 441.77 q=210419 pnl=-7042725.93 (-0.07042759273) cm=1 ru=6180005.03 dd=22935672 cum=-7042726.93 eq%=-0.07042726
+  digest 1-1: 04ca30f080b2e5
+orders:
+  326 buy entry MARKET "Long" 475.24 x210419
+  digest 1-1: 062f84aae7ce46

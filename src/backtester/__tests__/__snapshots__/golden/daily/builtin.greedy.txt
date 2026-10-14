@@ -1,0 +1,42 @@
+builtin/greedy on daily: 1500 bars, first 1546405200, last 1728964800
+trades=209 filledOrders=361 marginCalls=56 finalEquity=114140.75 minEquity=78935.93
+orders by kind: entry/STOP=157 order/LIMIT=67 order/MARKET=56 order/STOP=81
+openPL=0 maxDD=45951.14 (0.3708323653) maxRunUp=57420.27 (0.4211049443) buyHold=88472.25 (0.8847225)
+all: netProfit=14140.75 grossProfit=169033.75 grossLoss=154893 commissionPaid=0 profitFactor=1.091293667 totalTrades=209 totalOpenTrades=0 numberOfWiningTrades=68 numberOfLosingTrades=141 percentProfitable=0.3253588517 avgTrade=67.65909091 avgWinTrade=2485.790441 avgLosTrade=1098.531915 largestWinTrade=12474.64 largestLosTrade=10761.05 avgBarsInTrade=1.76076555 maxContractsHeld=1500
+long: netProfit=9568.68 grossProfit=95566.4 grossLoss=85997.72 commissionPaid=0 profitFactor=1.111266671 totalTrades=93 totalOpenTrades=0 numberOfWiningTrades=41 numberOfLosingTrades=52 percentProfitable=0.4408602151 avgTrade=102.8890323 avgWinTrade=2330.887805 avgLosTrade=1653.802308 largestWinTrade=12474.64 largestLosTrade=8231.24 avgBarsInTrade=2.064516129 maxContractsHeld=1500
+short: netProfit=4572.07 grossProfit=73467.35 grossLoss=68895.28 commissionPaid=0 profitFactor=1.066362601 totalTrades=116 totalOpenTrades=0 numberOfWiningTrades=27 numberOfLosingTrades=89 percentProfitable=0.2327586207 avgTrade=39.41439655 avgWinTrade=2721.012963 avgLosTrade=774.1042697 largestWinTrade=8705.82 largestLosTrade=10761.05 avgBarsInTrade=1.517241379 maxContractsHeld=1449
+trades:
+  #1 L "GapUp" in "GapUp"@5 147.97 out "TPSL"@6 147.8 q=675 pnl=-114.75 (-0.00114888153) cm=0 ru=283.5 dd=114.75 cum=-114.75 eq%=-0.0011475
+  #2 S "GapDn" in "GapDn"@15 146.87 out "Margin call"@15 147.64 q=12 pnl=-9.24 (-0.005242731667) cm=0 ru=0.48 dd=9.24 cum=-123.99 eq%=-0.00009250615081
+  #3 S "GapDn" in "GapDn"@15 146.87 out "TPSL"@16 147.48 q=665 pnl=-405.65 (-0.004153332879) cm=0 ru=26.6 dd=512.05 cum=-529.64 eq%=-0.004061535898
+  #4 L "GapUp" in "GapUp"@34 146.85 out "TPSL"@35 149.33 q=676 pnl=1676.48 (0.01688798093) cm=0 ru=2034.76 dd=135.2 cum=1146.84 eq%=0.01685406587
+  #5 S "GapDn" in "GapDn"@37 143.45 out "Margin call"@37 143.69 q=1 pnl=-0.24 (-0.001673056814) cm=0 ru=0 dd=0.24 cum=1146.6 eq%=-0.000002372787919
+  #6 S "GapDn" in "GapDn"@37 143.45 out "TPSL"@38 141.22 q=702 pnl=1565.46 (0.01554548623) cm=0 ru=1832.22 dd=168.48 cum=2712.06 eq%=0.01547713912
+  #7 L "GapUp" in "GapUp"@43 142.07 out "TPSL"@44 140.06 q=721 pnl=-1449.21 (-0.01414795523) cm=0 ru=778.68 dd=1449.21 cum=1262.85 eq%=-0.01410944343
+  #8 L "GapUp" in "GapUp"@49 147.65 out "TPSL"@50 146.51 q=685 pnl=-780.9 (-0.007720961734) cm=0 ru=27.4 dd=780.9 cum=481.95 eq%=-0.007711613884
+  #9 S "GapDn" in "GapDn"@55 140.53 out "Margin call"@55 140.83 q=8 pnl=-2.4 (-0.002134775493) cm=0 ru=0 dd=2.4 cum=479.55 eq%=-0.00002388488679
+  #10 S "GapDn" in "GapDn"@55 140.53 out "TPSL"@56 135.96 q=706 pnl=3226.42 (0.03251974667) cm=0 ru=3226.42 dd=211.8 cum=3705.97 eq%=0.03211021546
+  #11 S "GapDn" in "GapDn"@57 137.66 out "Margin call"@57 138.58 q=36 pnl=-33.12 (-0.006683132355) cm=0 ru=1.44 dd=33.12 cum=3672.85 eq%=-0.0003193644493
+  #12 S "GapDn" in "GapDn"@57 137.66 out "TPSL"@58 138.51 q=717 pnl=-609.45 (-0.006174633154) cm=0 ru=28.68 dd=659.64 cum=3063.4 eq%=-0.005878588271
+  ... 197 more
+  digest 1-100: 18b3d4855de0b3
+  digest 101-200: 18b556ee75d7c2
+  digest 201-209: 19454581356ec2
+orders:
+  5 buy entry STOP "GapUp" 147.97 x675
+  6 sell order STOP "SL" 147.8 x675
+  15 sell entry STOP "GapDn" 146.87 x677
+  15 buy order MARKET "Margin call 0" 147.64 x12
+  16 buy order STOP "SL" 147.48 x665
+  34 buy entry STOP "GapUp" 146.85 x676
+  35 sell order LIMIT "TP" 149.33 x676
+  37 sell entry STOP "GapDn" 143.45 x703
+  37 buy order MARKET "Margin call 1" 143.69 x1
+  38 buy order LIMIT "TP" 141.22 x702
+  43 buy entry STOP "GapUp" 142.07 x721
+  44 sell order STOP "SL" 140.06 x721
+  ... 349 more
+  digest 1-100: 1c3560da7c1a99
+  digest 101-200: 131b86e2e6c43f
+  digest 201-300: 1655c4cc200b3c
+  digest 301-361: 128cc94784f8fe

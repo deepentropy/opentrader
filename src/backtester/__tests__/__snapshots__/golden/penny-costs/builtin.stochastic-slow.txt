@@ -1,0 +1,32 @@
+builtin/stochastic-slow on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=8 filledOrders=16 marginCalls=0 finalEquity=26456.9771 minEquity=15112.9793
+orders by kind: entry/MARKET=16
+openPL=0 maxDD=85724.1816 (0.857241816) maxRunUp=16928.5952 (0.2724579736) buyHold=-54256.699 (-0.54256699)
+all: netProfit=-73543.0229 grossProfit=6930.8074 grossLoss=80473.8303 commissionPaid=16 profitFactor=0.08612498466 totalTrades=8 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=7 percentProfitable=0.125 avgTrade=-9192.877862 avgWinTrade=6930.8074 avgLosTrade=11496.26147 largestWinTrade=6930.8074 largestLosTrade=28389.2624 avgBarsInTrade=44.875 maxContractsHeld=602690
+long: netProfit=-73543.0229 grossProfit=6930.8074 grossLoss=80473.8303 commissionPaid=16 profitFactor=0.08612498466 totalTrades=8 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=7 percentProfitable=0.125 avgTrade=-9192.877862 avgWinTrade=6930.8074 avgLosTrade=11496.26147 largestWinTrade=6930.8074 largestLosTrade=28389.2624 avgBarsInTrade=44.875 maxContractsHeld=602690
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "StochLE" in "StochLE"@57 0.9044 out "StochSE"@80 0.9034 q=108001 pnl=-110.001 (-0.001126169748) cm=2 ru=11144.7032 dd=24798.0296 cum=-110.001 eq%=-0.00110001
+  #2 L "StochLE" in "StochLE"@96 0.6924 out "StochSE"@175 0.4902 q=140392 pnl=-28389.2624 (-0.2920452998) cm=2 ru=13336.24 dd=47664.084 cum=-28499.2634 eq%=-0.2842052526
+  #3 L "StochLE" in "StochLE"@188 0.3297 out "StochSE"@257 0.229 q=207968 pnl=-20944.3776 (-0.3054538917) cm=2 ru=16927.5952 dd=36291.416 cum=-49443.641 eq%=-0.2929253403
+  #4 L "StochLE" in "StochLE"@286 0.1968 out "StochSE"@316 0.151 q=252146 pnl=-11550.2868 (-0.2327591911) cm=2 ru=4159.409 dd=23753.1532 cum=-60993.9278 eq%=-0.2284635806
+  #5 L "StochLE" in "StochLE"@375 0.0995 out "StochSE"@441 0.0622 q=379426 pnl=-14154.5898 (-0.3749174171) cm=2 ru=3034.408 dd=18744.6444 cum=-75148.5176 eq%=-0.3628817002
+  #6 L "StochLE" in "StochLE"@460 0.0556 out "StochSE"@498 0.0479 q=440611 pnl=-3394.7047 (-0.1385651919) cm=2 ru=219.3055 dd=10575.664 cum=-78543.2223 eq%=-0.1365996863
+  #7 L "StochLE" in "StochLE"@520 0.0347 out "StochSE"@555 0.0315 q=602690 pnl=-1930.608 (-0.09231023896) cm=2 ru=2108.415 dd=6570.321 cum=-80473.8303 eq%=-0.08997660446
+  #8 L "StochLE" in "StochLE"@857 0.2716 out "StochSE"@868 0.3685 q=71546 pnl=6930.8074 (0.356653391) cm=2 ru=7311.0012 dd=974.0256 cum=-73543.0229 eq%=0.3549496653
+  digest 1-8: 08a42506846f56
+orders:
+  57 buy entry MARKET "StochLE" 0.9044 x108001
+  80 sell entry MARKET "StochSE" 0.9034 x108001
+  96 buy entry MARKET "StochLE" 0.6924 x140392
+  175 sell entry MARKET "StochSE" 0.4902 x140392
+  188 buy entry MARKET "StochLE" 0.3297 x207968
+  257 sell entry MARKET "StochSE" 0.229 x207968
+  286 buy entry MARKET "StochLE" 0.1968 x252146
+  316 sell entry MARKET "StochSE" 0.151 x252146
+  375 buy entry MARKET "StochLE" 0.0995 x379426
+  441 sell entry MARKET "StochSE" 0.0622 x379426
+  460 buy entry MARKET "StochLE" 0.0556 x440611
+  498 sell entry MARKET "StochSE" 0.0479 x440611
+  ... 4 more
+  digest 1-16: 15c446975dd52f

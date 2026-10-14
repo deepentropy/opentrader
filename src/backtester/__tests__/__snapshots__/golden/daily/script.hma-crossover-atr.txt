@@ -1,0 +1,38 @@
+script/hma-crossover-atr on daily: 1500 bars, first 1546405200, last 1728964800
+trades=99 filledOrders=198 marginCalls=0 finalEquity=134074.51 minEquity=100000
+orders by kind: entry/MARKET=99 exit/STOP=99
+openPL=0 maxDD=777.07 (0.006033445811) maxRunUp=34082.65 (0.2541913514) buyHold=88951.03 (0.8895103)
+all: netProfit=34074.51 grossProfit=34074.51 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=99 totalOpenTrades=0 numberOfWiningTrades=99 numberOfLosingTrades=0 percentProfitable=1 avgTrade=344.1869697 avgWinTrade=344.1869697 avgLosTrade=- largestWinTrade=2713.2 largestLosTrade=- avgBarsInTrade=1.02020202 maxContractsHeld=615
+long: netProfit=15910.38 grossProfit=15910.38 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=45 totalOpenTrades=0 numberOfWiningTrades=45 numberOfLosingTrades=0 percentProfitable=1 avgTrade=353.564 avgWinTrade=353.564 avgLosTrade=- largestWinTrade=1717.7 largestLosTrade=- avgBarsInTrade=1.044444444 maxContractsHeld=574
+short: netProfit=18164.13 grossProfit=18164.13 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=54 totalOpenTrades=0 numberOfWiningTrades=54 numberOfLosingTrades=0 percentProfitable=1 avgTrade=336.3727778 avgWinTrade=336.3727778 avgLosTrade=- largestWinTrade=2713.2 largestLosTrade=- avgBarsInTrade=1 maxContractsHeld=615
+trades:
+  #1 L "Long" in "Long"@49 147.65 out "Long Trail Stop"@49 147.67 q=222 pnl=4.44 (0.000135455469) cm=0 ru=8.88 dd=0 cum=4.44 eq%=0.0000444
+  #2 S "Short" in "Short"@57 137.66 out "Short Trail Stop"@57 137.65 q=222 pnl=2.22 (0.00007264274299) cm=0 ru=8.88 dd=0 cum=6.66 eq%=0.00002219901436
+  #3 L "Long" in "Long"@107 141.8 out "Long Trail Stop"@107 142.43 q=265 pnl=166.95 (0.004442877292) cm=0 ru=172.25 dd=0 cum=173.61 eq%=0.001669388819
+  #4 S "Short" in "Short"@119 136.33 out "Short Trail Stop"@119 135.68 q=256 pnl=166.4 (0.004767842735) cm=0 ru=171.52 dd=0 cum=340.01 eq%=0.001661116136
+  #5 S "Short" in "Short"@138 103.31 out "Short Trail Stop"@138 102.61 q=109 pnl=76.3 (0.00677572355) cm=0 ru=82.84 dd=0 cum=416.31 eq%=0.0007604145146
+  #6 L "Long" in "Long"@140 96.77 out "Long Trail Stop"@140 99.67 q=112 pnl=324.8 (0.02996796528) cm=0 ru=330.4 dd=0 cum=741.11 eq%=0.00323453431
+  #7 L "Long" in "Long"@158 117.21 out "Long Trail Stop"@158 117.4 q=86 pnl=16.34 (0.001621022097) cm=0 ru=22.36 dd=0 cum=757.45 eq%=0.0001621979349
+  #8 S "Short" in "Short"@185 150.04 out "Short Trail Stop"@185 146.49 q=67 pnl=237.85 (0.02366035724) cm=0 ru=243.88 dd=0 cum=995.3 eq%=0.002360619488
+  #9 L "Long" in "Long"@193 189.92 out "Long Trail Stop"@194 192.52 q=63 pnl=163.8 (0.01368997473) cm=0 ru=170.1 dd=496.44 cum=1159.1 eq%=0.001621857651
+  #10 S "Short" in "Short"@200 188.56 out "Short Trail Stop"@200 187.39 q=68 pnl=79.56 (0.00620492151) cm=0 ru=85.68 dd=0 cum=1238.66 eq%=0.0007864838655
+  #11 L "Long" in "Long"@208 209.26 out "Long Trail Stop"@208 215.71 q=62 pnl=399.9 (0.03082289974) cm=0 ru=406.1 dd=0 cum=1638.56 eq%=0.003950072038
+  #12 S "Short" in "Short"@215 195.78 out "Short Trail Stop"@215 194.32 q=61 pnl=89.06 (0.007457350087) cm=0 ru=95.77 dd=0 cum=1727.62 eq%=0.0008762422451
+  ... 87 more
+  digest 1-99: 021bf72217a1c6
+orders:
+  49 buy entry MARKET "Long" 147.65 x222
+  49 sell exit STOP "Long Trail Stop" 147.67 x222
+  57 sell entry MARKET "Short" 137.66 x222
+  57 buy exit STOP "Short Trail Stop" 137.65 x222
+  107 buy entry MARKET "Long" 141.8 x265
+  107 sell exit STOP "Long Trail Stop" 142.43 x265
+  119 sell entry MARKET "Short" 136.33 x256
+  119 buy exit STOP "Short Trail Stop" 135.68 x256
+  138 sell entry MARKET "Short" 103.31 x109
+  138 buy exit STOP "Short Trail Stop" 102.61 x109
+  140 buy entry MARKET "Long" 96.77 x112
+  140 sell exit STOP "Long Trail Stop" 99.67 x112
+  ... 186 more
+  digest 1-100: 0bbcba29b23766
+  digest 101-198: 1a9dc05a885c8e

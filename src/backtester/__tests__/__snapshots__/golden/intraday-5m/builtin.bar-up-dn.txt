@@ -1,0 +1,53 @@
+builtin/bar-up-dn on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=879 filledOrders=879 marginCalls=0 finalEquity=100445.41 minEquity=99420.01
+orders by kind: entry/MARKET=879
+openPL=-38.94 maxDD=1314.65 (0.01294641063) maxRunUp=2088.4 (0.02056390432) buyHold=-7750.08 (-0.0775008)
+all: netProfit=484.35 grossProfit=13629.94 grossLoss=13145.59 commissionPaid=0 profitFactor=1.036845056 totalTrades=878 totalOpenTrades=1 numberOfWiningTrades=334 numberOfLosingTrades=539 percentProfitable=0.3804100228 avgTrade=0.5516514806 avgWinTrade=40.80820359 avgLosTrade=24.38884972 largestWinTrade=384.56 largestLosTrade=177.1 avgBarsInTrade=5.345102506 maxContractsHeld=27
+long: netProfit=-78.38 grossProfit=6745.3 grossLoss=6823.68 commissionPaid=0 profitFactor=0.9885135294 totalTrades=439 totalOpenTrades=1 numberOfWiningTrades=160 numberOfLosingTrades=277 percentProfitable=0.3644646925 avgTrade=-0.1785421412 avgWinTrade=42.158125 avgLosTrade=24.63422383 largestWinTrade=384.56 largestLosTrade=160.23 avgBarsInTrade=5.564920273 maxContractsHeld=27
+short: netProfit=562.73 grossProfit=6884.64 grossLoss=6321.91 commissionPaid=0 profitFactor=1.089012656 totalTrades=439 totalOpenTrades=0 numberOfWiningTrades=174 numberOfLosingTrades=262 percentProfitable=0.3963553531 avgTrade=1.281845103 avgWinTrade=39.56689655 avgLosTrade=24.12942748 largestWinTrade=257.2 largestLosTrade=177.1 avgBarsInTrade=5.125284738 maxContractsHeld=27
+trades:
+  #1 L "BarUp" in "BarUp"@6 479.03 out "BarDn"@7 478.12 q=20 pnl=-18.2 (-0.001899672254) cm=0 ru=1.8 dd=27.6 cum=-18.2 eq%=-0.000182
+  #2 S "BarDn" in "BarDn"@7 478.12 out "BarUp"@10 476.29 q=20 pnl=36.6 (0.003827491006) cm=0 ru=56.4 dd=3.6 cum=18.4 eq%=0.0003660666241
+  #3 L "BarUp" in "BarUp"@10 476.29 out "BarDn"@11 475.7 q=20 pnl=-11.8 (-0.001238741103) cm=0 ru=5 dd=13 cum=6.6 eq%=-0.000117978292
+  #4 S "BarDn" in "BarDn"@11 475.7 out "BarUp"@22 473.42 q=21 pnl=47.88 (0.004792936725) cm=0 ru=97.86 dd=1.47 cum=54.48 eq%=0.0004787684013
+  #5 L "BarUp" in "BarUp"@22 473.42 out "BarDn"@27 472.14 q=21 pnl=-26.88 (-0.002703730303) cm=0 ru=15.12 dd=36.75 cum=27.6 eq%=-0.0002686536375
+  #6 S "BarDn" in "BarDn"@27 472.14 out "BarUp"@37 469.4 q=21 pnl=57.54 (0.005803363409) cm=0 ru=71.82 dd=5.67 cum=85.14 eq%=0.0005752412334
+  #7 L "BarUp" in "BarUp"@37 469.4 out "BarDn"@38 469.27 q=21 pnl=-2.73 (-0.000276949297) cm=0 ru=11.34 dd=7.14 cum=82.41 eq%=-0.00002727677655
+  #8 S "BarDn" in "BarDn"@38 469.27 out "BarUp"@45 471.12 q=21 pnl=-38.85 (-0.003942293349) cm=0 ru=5.88 dd=49.98 cum=43.56 eq%=-0.0003881801008
+  #9 L "BarUp" in "BarUp"@45 471.12 out "BarDn"@47 470.98 q=21 pnl=-2.94 (-0.0002971642044) cm=0 ru=19.53 dd=11.76 cum=40.62 eq%=-0.00002938719894
+  #10 S "BarDn" in "BarDn"@47 470.98 out "BarUp"@53 467.55 q=21 pnl=72.03 (0.007282687163) cm=0 ru=101.22 dd=15.12 cum=112.65 eq%=0.0007200075329
+  #11 L "BarUp" in "BarUp"@53 467.55 out "BarDn"@58 468.71 q=21 pnl=24.36 (0.002481018073) cm=0 ru=62.79 dd=3.57 cum=137.01 eq%=0.0002433258934
+  #12 S "BarDn" in "BarDn"@58 468.71 out "BarUp"@63 467.14 q=21 pnl=32.97 (0.003349619168) cm=0 ru=46.62 dd=12.6 cum=169.98 eq%=0.0003292488961
+  ... 867 more
+  digest 1-100: 126babf053eeca
+  digest 101-200: 0bec19517dd6e2
+  digest 201-300: 0f1c56697be98f
+  digest 301-400: 125fa0397512d9
+  digest 401-500: 0d63f56974ec85
+  digest 501-600: 1c2f3a8e358b0a
+  digest 601-700: 1bc55a78249e52
+  digest 701-800: 1da38943fe606d
+  digest 801-879: 03c2e677c1a142
+orders:
+  6 buy entry MARKET "BarUp" 479.03 x20
+  7 sell entry MARKET "BarDn" 478.12 x40
+  10 buy entry MARKET "BarUp" 476.29 x40
+  11 sell entry MARKET "BarDn" 475.7 x41
+  22 buy entry MARKET "BarUp" 473.42 x42
+  27 sell entry MARKET "BarDn" 472.14 x42
+  37 buy entry MARKET "BarUp" 469.4 x42
+  38 sell entry MARKET "BarDn" 469.27 x42
+  45 buy entry MARKET "BarUp" 471.12 x42
+  47 sell entry MARKET "BarDn" 470.98 x42
+  53 buy entry MARKET "BarUp" 467.55 x42
+  58 sell entry MARKET "BarDn" 468.71 x42
+  ... 867 more
+  digest 1-100: 14454eb9f4e733
+  digest 101-200: 100320ff19fb03
+  digest 201-300: 1e23e1dbe5e715
+  digest 301-400: 0d1529954678cc
+  digest 401-500: 1fa9e04c7e6434
+  digest 501-600: 1dcfcfdc939a94
+  digest 601-700: 035a4020b1e358
+  digest 701-800: 1ac5f793681563
+  digest 801-879: 08bedd9bdd4eca

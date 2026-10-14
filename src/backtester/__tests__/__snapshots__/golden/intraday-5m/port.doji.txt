@@ -1,0 +1,50 @@
+port/doji on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=480 filledOrders=960 marginCalls=0 finalEquity=18224.43 minEquity=10000
+orders by kind: entry/MARKET=480 exit/STOP=480
+openPL=0 maxDD=404.25 (0.03546040189) maxRunUp=8225.25 (0.4513106816) buyHold=-429.24 (-0.042924)
+all: netProfit=8224.43 grossProfit=8614.43 grossLoss=390 commissionPaid=0 profitFactor=22.08828205 totalTrades=480 totalOpenTrades=0 numberOfWiningTrades=479 numberOfLosingTrades=1 percentProfitable=0.9979166667 avgTrade=17.13422917 avgWinTrade=17.98419624 avgLosTrade=390 largestWinTrade=132.16 largestLosTrade=390 avgBarsInTrade=1.352083333 maxContractsHeld=41
+long: netProfit=8224.43 grossProfit=8614.43 grossLoss=390 commissionPaid=0 profitFactor=22.08828205 totalTrades=480 totalOpenTrades=0 numberOfWiningTrades=479 numberOfLosingTrades=1 percentProfitable=0.9979166667 avgTrade=17.13422917 avgWinTrade=17.98419624 avgLosTrade=390 largestWinTrade=132.16 largestLosTrade=390 avgBarsInTrade=1.352083333 maxContractsHeld=41
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@139 462.21 out "Trail Profit"@139 462.27 q=21 pnl=1.26 (0.0001298111248) cm=0 ru=1.68 dd=0 cum=1.26 eq%=0.000126
+  #2 L "Long" in "Long"@146 463.51 out "Trail Profit"@146 463.63 q=21 pnl=2.52 (0.0002588940907) cm=0 ru=2.94 dd=0 cum=3.78 eq%=0.000251968252
+  #3 L "Long" in "Long"@147 463.71 out "Trail Profit"@147 465.4 q=21 pnl=35.49 (0.003644519204) cm=0 ru=35.91 dd=14.49 cum=39.27 eq%=0.003547658985
+  #4 L "Long" in "Long"@155 463.5 out "Trail Profit"@155 466.8 q=21 pnl=69.3 (0.0071197411) cm=0 ru=69.72 dd=6.72 cum=108.57 eq%=0.006902892342
+  #5 L "Long" in "Long"@159 463.97 out "Trail Profit"@159 464.93 q=21 pnl=20.16 (0.002069099295) cm=0 ru=20.58 dd=10.71 cum=128.73 eq%=0.001994347371
+  #6 L "Long" in "Long"@161 464.55 out "Trail Profit"@161 465.23 q=21 pnl=14.28 (0.001463782155) cm=0 ru=14.7 dd=0 cum=143.01 eq%=0.001409850988
+  #7 L "Long" in "Long"@163 464.85 out "Trail Profit"@163 465.3 q=21 pnl=9.45 (0.000968054211) cm=0 ru=9.87 dd=6.3 cum=152.46 eq%=0.0009316761001
+  #8 L "Long" in "Long"@169 463.82 out "Trail Profit"@169 463.87 q=21 pnl=1.05 (0.0001078004398) cm=0 ru=1.47 dd=0 cum=153.51 eq%=0.0001034232097
+  #9 L "Long" in "Long"@177 464.26 out "Trail Profit"@177 464.36 q=21 pnl=2.1 (0.000215396545) cm=0 ru=2.52 dd=0 cum=155.61 eq%=0.000206825029
+  #10 L "Long" in "Long"@183 463.69 out "Trail Profit"@183 463.96 q=21 pnl=5.67 (0.0005822855787) cm=0 ru=6.09 dd=0 cum=161.28 eq%=0.0005583121053
+  #11 L "Long" in "Long"@185 463.09 out "Trail Profit"@187 463.21 q=21 pnl=2.52 (0.000259128895) cm=0 ru=2.94 dd=26.04 cum=163.8 eq%=0.0002480002519
+  #12 L "Long" in "Long"@188 463.23 out "Trail Profit"@188 464.49 q=21 pnl=26.46 (0.002720031086) cm=0 ru=26.88 dd=1.05 cum=190.26 eq%=0.002603357012
+  ... 468 more
+  digest 1-100: 0647d04ba5bbde
+  digest 101-200: 1c955b9ff623cf
+  digest 201-300: 029717fc5e313f
+  digest 301-400: 0beed72d9b54de
+  digest 401-480: 112fb5bfcc0129
+orders:
+  139 buy entry MARKET "Long" 462.21 x21
+  139 sell exit STOP "Stop Exit" 462.27 x21
+  146 buy entry MARKET "Long" 463.51 x21
+  146 sell exit STOP "Stop Exit" 463.63 x21
+  147 buy entry MARKET "Long" 463.71 x21
+  147 sell exit STOP "Stop Exit" 465.4 x21
+  155 buy entry MARKET "Long" 463.5 x21
+  155 sell exit STOP "Stop Exit" 466.8 x21
+  159 buy entry MARKET "Long" 463.97 x21
+  159 sell exit STOP "Stop Exit" 464.93 x21
+  161 buy entry MARKET "Long" 464.55 x21
+  161 sell exit STOP "Stop Exit" 465.23 x21
+  ... 948 more
+  digest 1-100: 17f512461f3244
+  digest 101-200: 075d5e69e38c38
+  digest 201-300: 108770880011d5
+  digest 301-400: 1fd4df15614147
+  digest 401-500: 19d52168350871
+  digest 501-600: 0b943cfc1c5906
+  digest 601-700: 0798c94c9e7bdd
+  digest 701-800: 072bc6adc0e63a
+  digest 801-900: 0e7794cc5f29d1
+  digest 901-960: 1dbee881aa8e8d

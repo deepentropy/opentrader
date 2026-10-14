@@ -1,0 +1,37 @@
+script/bitcoin-superflip on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=21 filledOrders=41 marginCalls=0 finalEquity=15900.7226 minEquity=9779.022
+orders by kind: entry/MARKET=21 exit/MARKET=20
+openPL=1038.1096 maxDD=1848.9531 (0.1289128635) maxRunUp=6294.9216 (0.3863355768) buyHold=1214.3936 (0.12143936)
+all: netProfit=4862.613 grossProfit=8219.4072 grossLoss=3356.7942 commissionPaid=41 profitFactor=2.448588358 totalTrades=20 totalOpenTrades=1 numberOfWiningTrades=12 numberOfLosingTrades=8 percentProfitable=0.6 avgTrade=243.13065 avgWinTrade=684.9506 avgLosTrade=419.599275 largestWinTrade=1479.2875 largestLosTrade=672.1247 avgBarsInTrade=21.9 maxContractsHeld=120408
+long: netProfit=1939.3928 grossProfit=2932.9437 grossLoss=993.5509 commissionPaid=15 profitFactor=2.951981323 totalTrades=7 totalOpenTrades=1 numberOfWiningTrades=4 numberOfLosingTrades=3 percentProfitable=0.5714285714 avgTrade=277.0561143 avgWinTrade=733.235925 avgLosTrade=331.1836333 largestWinTrade=1479.2875 largestLosTrade=596.6352 avgBarsInTrade=20.71428571 maxContractsHeld=36619
+short: netProfit=2923.2202 grossProfit=5286.4635 grossLoss=2363.2433 commissionPaid=26 profitFactor=2.236952708 totalTrades=13 totalOpenTrades=0 numberOfWiningTrades=8 numberOfLosingTrades=5 percentProfitable=0.6153846154 avgTrade=224.8630923 avgWinTrade=660.8079375 avgLosTrade=472.64866 largestWinTrade=1200.8128 largestLosTrade=672.1247 avgBarsInTrade=22.53846154 maxContractsHeld=120408
+trades:
+  #1 S "Short" in "Short"@209 0.3689 out "Close entry(s) order Short"@222 0.3663 q=7260 pnl=16.876 (0.006298862278) cm=2 ru=236.402 dd=249.292 cum=16.876 eq%=0.0016876
+  #2 S "Short" in "Short"@225 0.3353 out "Close entry(s) order Short"@252 0.2017 q=7496 pnl=999.4656 (0.3974952681) cm=2 ru=1349.0296 dd=144.9232 cum=1016.3416 eq%=0.09977817435
+  #3 S "Short" in "Short"@268 0.1972 out "Close entry(s) order Short"@274 0.2409 q=12440 pnl=-545.628 (-0.2223270779) cm=2 ru=81.104 dd=678.98 cum=470.7136 eq%=-0.04952896522
+  #4 S "Short" in "Short"@282 0.2025 out "Close entry(s) order Short"@312 0.1422 q=12733 pnl=765.7999 (0.2968869703) cm=2 ru=1271.0267 dd=138.5164 cum=1236.5135 eq%=0.07313731702
+  #5 S "Short" in "Short"@330 0.1378 out "Close entry(s) order Short"@398 0.0929 q=19775 pnl=885.8975 (0.3249813371) cm=2 ru=1157.815 dd=386.6125 cum=2122.411 eq%=0.07884095899
+  #6 S "Short" in "Short"@406 0.0876 out "Close entry(s) order Short"@434 0.0589 q=34349 pnl=983.8163 (0.3268522662) cm=2 ru=1287.0875 dd=25.0443 cum=3106.2273 eq%=0.08115681773
+  #7 S "Short" in "Short"@456 0.0604 out "Close entry(s) order Short"@485 0.038 q=53697 pnl=1200.8128 (0.3701301495) cm=2 ru=1298.4674 dd=27.8485 cum=4307.0401 eq%=0.09162154543
+  #8 S "Short" in "Short"@488 0.0347 out "Close entry(s) order Short"@493 0.0386 q=101584 pnl=-398.1776 (-0.112927276) cm=2 ru=313.9104 dd=498.7616 cum=3908.8625 eq%=-0.02783088586
+  #9 S "Short" in "Short"@501 0.0394 out "Close entry(s) order Short"@527 0.0352 q=84169 pnl=351.5098 (0.1059639426) cm=2 ru=739.6872 dd=430.2619 cum=4260.3723 eq%=0.02527236142
+  #10 S "Short" in "Short"@533 0.0295 out "Close entry(s) order Short"@548 0.0288 q=120408 pnl=82.2856 (0.02315923621) cm=2 ru=685.3256 dd=470.5912 cum=4342.6579 eq%=0.005770228033
+  #11 S "Short" in "Short"@566 0.0332 out "Close entry(s) order Short"@573 0.0395 q=106369 pnl=-672.1247 (-0.1902714965) cm=2 ru=73.4583 dd=724.3092 cum=3670.5332 eq%=-0.04686193484
+  #12 S "Short" in "Short"@582 0.0373 out "Close entry(s) order Short"@585 0.0428 q=95170 pnl=-525.435 (-0.1479748037) cm=2 ru=170.306 dd=733.809 cum=3145.0982 eq%=-0.03843558933
+  ... 9 more
+  digest 1-21: 1675a892de7752
+orders:
+  209 sell entry MARKET "Short" 0.3689 x7260
+  222 buy exit MARKET "Close entry(s) order Short" 0.3663 x7260
+  225 sell entry MARKET "Short" 0.3353 x7496
+  252 buy exit MARKET "Close entry(s) order Short" 0.2017 x7496
+  268 sell entry MARKET "Short" 0.1972 x12440
+  274 buy exit MARKET "Close entry(s) order Short" 0.2409 x12440
+  282 sell entry MARKET "Short" 0.2025 x12733
+  312 buy exit MARKET "Close entry(s) order Short" 0.1422 x12733
+  330 sell entry MARKET "Short" 0.1378 x19775
+  398 buy exit MARKET "Close entry(s) order Short" 0.0929 x19775
+  406 sell entry MARKET "Short" 0.0876 x34349
+  434 buy exit MARKET "Close entry(s) order Short" 0.0589 x34349
+  ... 29 more
+  digest 1-41: 14b5febdded695

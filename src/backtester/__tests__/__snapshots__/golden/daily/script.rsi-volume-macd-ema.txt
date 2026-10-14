@@ -1,0 +1,37 @@
+script/rsi-volume-macd-ema on daily: 1500 bars, first 1546405200, last 1728964800
+trades=54 filledOrders=90 marginCalls=17 finalEquity=88529.55 minEquity=78783.46
+orders by kind: entry/MARKET=37 exit/MARKET=36 order/MARKET=17
+openPL=-3442.62 maxDD=85118.4 (0.5047624509) maxRunUp=102841.57 (0.5662301611) buyHold=33285.06 (0.3328506)
+all: netProfit=-8027.83 grossProfit=133149.24 grossLoss=141177.07 commissionPaid=0 profitFactor=0.9431364456 totalTrades=53 totalOpenTrades=1 numberOfWiningTrades=16 numberOfLosingTrades=37 percentProfitable=0.3018867925 avgTrade=-151.4684906 avgWinTrade=8321.8275 avgLosTrade=3815.596486 largestWinTrade=53206.8 largestLosTrade=21269.78 avgBarsInTrade=14.1509434 maxContractsHeld=1859
+long: netProfit=-44406.08 grossProfit=52382.99 grossLoss=96789.07 commissionPaid=0 profitFactor=0.5412077004 totalTrades=25 totalOpenTrades=1 numberOfWiningTrades=10 numberOfLosingTrades=15 percentProfitable=0.4 avgTrade=-1776.2432 avgWinTrade=5238.299 avgLosTrade=6452.604667 largestWinTrade=19342.98 largestLosTrade=21269.78 avgBarsInTrade=14.96 maxContractsHeld=1663
+short: netProfit=36378.25 grossProfit=80766.25 grossLoss=44388 commissionPaid=0 profitFactor=1.819551455 totalTrades=28 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=22 percentProfitable=0.2142857143 avgTrade=1299.223214 avgWinTrade=13461.04167 avgLosTrade=2017.636364 largestWinTrade=53206.8 largestLosTrade=14449.12 avgBarsInTrade=13.42857143 maxContractsHeld=1859
+trades:
+  #1 L "long" in "long"@208 209.26 out "long exit"@217 181.41 q=477 pnl=-13284.45 (-0.1330880245) cm=0 ru=5609.52 dd=13556.34 cum=-13284.45 eq%=-0.1328445
+  #2 L "long" in "long"@241 231.79 out "long exit"@267 223.74 q=374 pnl=-3010.7 (-0.03472971224) cm=0 ru=1372.58 dd=3833.5 cum=-16295.15 eq%=-0.03471926315
+  #3 L "long" in "long"@294 227 out "long exit"@298 221.39 q=368 pnl=-2064.48 (-0.02471365639) cm=0 ru=279.68 dd=2425.12 cum=-18359.63 eq%=-0.02466380383
+  #4 L "long" in "long"@300 228.65 out "long exit"@304 221.14 q=356 pnl=-2673.56 (-0.03284495955) cm=0 ru=651.48 dd=3043.8 cum=-21033.19 eq%=-0.03274801425
+  #5 L "long" in "long"@316 216.35 out "long exit"@317 219.18 q=355 pnl=1004.65 (0.01308065634) cm=0 ru=1267.35 dd=599.95 cum=-20028.54 eq%=0.01272243364
+  #6 L "long" in "long"@323 221.73 out "long exit"@327 218.43 q=360 pnl=-1188 (-0.01488296577) cm=0 ru=1015.2 dd=1270.8 cum=-21216.54 eq%=-0.01485529963
+  #7 L "long" in "long"@353 212.08 out "long exit"@386 220.86 q=371 pnl=3257.38 (0.0413994719) cm=0 ru=6822.69 dd=437.78 cum=-17959.16 eq%=0.0413459881
+  #8 L "long" in "long"@393 229.63 out "long exit"@414 231.4 q=356 pnl=630.12 (0.007708052084) cm=0 ru=6692.8 dd=1335 cum=-17329.04 eq%=0.007680564948
+  #9 L "long" in "long"@434 226.44 out "long exit"@435 227.18 q=360 pnl=266.4 (0.003267973856) cm=0 ru=597.6 dd=568.8 cum=-17062.64 eq%=0.003222413288
+  #10 L "long" in "long"@438 237.19 out "long exit"@476 258.82 q=349 pnl=7548.87 (0.0911927147) cm=0 ru=12766.42 dd=506.05 cum=-9513.77 eq%=0.09101893284
+  #11 L "long" in "long"@500 242.46 out "long exit"@501 241.29 q=368 pnl=-430.56 (-0.004825538233) cm=0 ru=916.32 dd=978.88 cum=-9944.33 eq%=-0.004758293057
+  #12 S "short" in "short"@511 221.79 out "Margin call"@511 222.09 q=1 pnl=-0.3 (-0.001352630867) cm=0 ru=0 dd=0.3 cum=-9944.63 eq%=-0.000003331272756
+  ... 42 more
+  digest 1-54: 0cb31d47fbff8b
+orders:
+  208 buy entry MARKET "long" 209.26 x477
+  217 sell exit MARKET "Close entry(s) order long" 181.41 x477
+  241 buy entry MARKET "long" 231.79 x374
+  267 sell exit MARKET "Close entry(s) order long" 223.74 x374
+  294 buy entry MARKET "long" 227 x368
+  298 sell exit MARKET "Close entry(s) order long" 221.39 x368
+  300 buy entry MARKET "long" 228.65 x356
+  304 sell exit MARKET "Close entry(s) order long" 221.14 x356
+  316 buy entry MARKET "long" 216.35 x355
+  317 sell exit MARKET "Close entry(s) order long" 219.18 x355
+  323 buy entry MARKET "long" 221.73 x360
+  327 sell exit MARKET "Close entry(s) order long" 218.43 x360
+  ... 78 more
+  digest 1-90: 1ffa03a1d10d43

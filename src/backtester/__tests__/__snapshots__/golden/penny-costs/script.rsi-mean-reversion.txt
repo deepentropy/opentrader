@@ -1,0 +1,40 @@
+script/rsi-mean-reversion on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=112 filledOrders=223 marginCalls=0 finalEquity=199775.9154 minEquity=199775.5762
+orders by kind: entry/MARKET=112 exit/MARKET=111
+openPL=0.1812 maxDD=224.4488 (0.001122244) maxRunUp=0.4278 (0.000002139052272) buyHold=-135660.096 (-0.67830048)
+all: netProfit=-224.2658 grossProfit=0 grossLoss=224.2658 commissionPaid=223 profitFactor=0 totalTrades=111 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=111 percentProfitable=0 avgTrade=-2.020412613 avgWinTrade=- avgLosTrade=2.020412613 largestWinTrade=- largestLosTrade=2.5076 avgBarsInTrade=8.810810811 maxContractsHeld=2
+long: netProfit=-112.5958 grossProfit=0 grossLoss=112.5958 commissionPaid=111 profitFactor=0 totalTrades=55 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=55 percentProfitable=0 avgTrade=-2.047196364 avgWinTrade=- avgLosTrade=2.047196364 largestWinTrade=- largestLosTrade=2.5076 avgBarsInTrade=10.27272727 maxContractsHeld=2
+short: netProfit=-111.67 grossProfit=0 grossLoss=111.67 commissionPaid=112 profitFactor=0 totalTrades=56 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=56 percentProfitable=0 avgTrade=-1.994107143 avgWinTrade=- avgLosTrade=1.994107143 largestWinTrade=- largestLosTrade=2.1878 avgBarsInTrade=7.375 maxContractsHeld=2
+trades:
+  #1 S "Short" in "Short"@6 1.286 out "Close entry(s) order Short"@9 1.3799 q=2 pnl=-2.1878 (-0.6124860022) cm=2 ru=0 dd=1.2716 cum=-2.1878 eq%=-0.000010939
+  #2 L "Long" in "Long"@9 1.3799 out "Close entry(s) order Long"@11 1.3162 q=2 pnl=-2.1274 (-0.5658279696) cm=2 ru=0 dd=1.1274 cum=-4.3152 eq%=-0.00001063711636
+  #3 S "Short" in "Short"@11 1.3162 out "Close entry(s) order Short"@16 1.1912 q=2 pnl=-1.75 (-0.4817751349) cm=2 ru=0 dd=1.2116 cum=-6.0652 eq%=-0.000008750188794
+  #4 L "Long" in "Long"@16 1.1912 out "Close entry(s) order Long"@20 1.2201 q=2 pnl=-1.9422 (-0.5742076632) cm=2 ru=0 dd=1.048 cum=-8.0074 eq%=-0.000009711294505
+  #5 S "Short" in "Short"@20 1.2201 out "Close entry(s) order Short"@31 1.2395 q=2 pnl=-2.0388 (-0.5926399628) cm=2 ru=0 dd=1.3598 cum=-10.0462 eq%=-0.00001019440815
+  #6 L "Long" in "Long"@31 1.2395 out "Close entry(s) order Long"@32 1.2211 q=2 pnl=-2.0368 (-0.5854555907) cm=2 ru=0 dd=1.0526 cum=-12.083 eq%=-0.00001018451158
+  #7 S "Short" in "Short"@32 1.2211 out "Close entry(s) order Short"@35 1.1993 q=2 pnl=-1.9564 (-0.5683574458) cm=2 ru=0 dd=1.1682 cum=-14.0394 eq%=-0.000009782591015
+  #8 L "Long" in "Long"@35 1.1993 out "Close entry(s) order Long"@43 1.2001 q=2 pnl=-1.9984 (-0.5880068263) cm=2 ru=0 dd=1.2198 cum=-16.0378 eq%=-0.000009992701458
+  #9 S "Short" in "Short"@43 1.2001 out "Close entry(s) order Short"@46 1.1572 q=2 pnl=-1.9142 (-0.5629668843) cm=2 ru=0 dd=1.0206 cum=-17.952 eq%=-0.00000957176755
+  #10 L "Long" in "Long"@46 1.1572 out "Close entry(s) order Long"@80 0.9034 q=2 pnl=-2.5076 (-0.7565773594) cm=2 ru=0 dd=1.9648 cum=-20.4596 eq%=-0.00001253912551
+  #11 S "Short" in "Short"@80 0.9034 out "Close entry(s) order Short"@89 0.7896 q=2 pnl=-1.7724 (-0.6314664386) cm=2 ru=0 dd=1.1598 cum=-22.232 eq%=-0.000008862906658
+  #12 L "Long" in "Long"@89 0.7896 out "Close entry(s) order Long"@104 0.7172 q=2 pnl=-2.1448 (-0.8315756824) cm=2 ru=0 dd=1.2514 cum=-24.3768 eq%=-0.00001072519221
+  ... 100 more
+  digest 1-100: 1ce25369dbbcbe
+  digest 101-112: 0a273aff28cb69
+orders:
+  6 sell entry MARKET "Short" 1.286 x2
+  9 buy exit MARKET "Close entry(s) order Short" 1.3799 x2
+  9 buy entry MARKET "Long" 1.3799 x2
+  11 sell exit MARKET "Close entry(s) order Long" 1.3162 x2
+  11 sell entry MARKET "Short" 1.3162 x2
+  16 buy exit MARKET "Close entry(s) order Short" 1.1912 x2
+  16 buy entry MARKET "Long" 1.1912 x2
+  20 sell exit MARKET "Close entry(s) order Long" 1.2201 x2
+  20 sell entry MARKET "Short" 1.2201 x2
+  31 buy exit MARKET "Close entry(s) order Short" 1.2395 x2
+  31 buy entry MARKET "Long" 1.2395 x2
+  32 sell exit MARKET "Close entry(s) order Long" 1.2211 x2
+  ... 211 more
+  digest 1-100: 013faf2c7cb955
+  digest 101-200: 1731d5e7251b56
+  digest 201-223: 11a49c2d3e6006

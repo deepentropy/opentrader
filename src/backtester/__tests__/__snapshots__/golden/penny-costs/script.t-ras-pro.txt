@@ -1,0 +1,38 @@
+script/t-ras-pro on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=54 filledOrders=108 marginCalls=0 finalEquity=32506.9969 minEquity=15558.1022
+orders by kind: entry/MARKET=54 exit/MARKET=54
+openPL=0 maxDD=84842.2901 (0.848422901) maxRunUp=20556.7516 (0.5612053357) buyHold=-66370.8355 (-0.663708355)
+all: netProfit=-67493.0031 grossProfit=42599.4555 grossLoss=110092.4586 commissionPaid=108 profitFactor=0.3869425394 totalTrades=54 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=41 percentProfitable=0.2407407407 avgTrade=-1249.870428 avgWinTrade=3276.881192 avgLosTrade=2685.181917 largestWinTrade=9364.1568 largestLosTrade=8300.4704 avgBarsInTrade=7.444444444 maxContractsHeld=667007
+long: netProfit=-67493.0031 grossProfit=42599.4555 grossLoss=110092.4586 commissionPaid=108 profitFactor=0.3869425394 totalTrades=54 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=41 percentProfitable=0.2407407407 avgTrade=-1249.870428 avgWinTrade=3276.881192 avgLosTrade=2685.181917 largestWinTrade=9364.1568 largestLosTrade=8300.4704 avgBarsInTrade=7.444444444 maxContractsHeld=667007
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "buy" in "buy"@3 1.2302 out "Close entry(s) order buy"@7 1.1268 q=80256 pnl=-8300.4704 (-0.08407077932) cm=2 ru=11724.4016 dd=8299.4704 cum=-8300.4704 eq%=-0.083004704
+  #2 L "buy" in "buy"@10 1.3775 out "Close entry(s) order buy"@12 1.2867 q=65743 pnl=-5971.4644 (-0.06593787189) cm=2 ru=3549.122 dd=5970.4644 cum=-14271.9348 eq%=-0.06511990221
+  #3 L "buy" in "buy"@16 1.1912 out "Close entry(s) order buy"@27 1.185 q=67136 pnl=-418.2432 (-0.005229778692) cm=2 ru=14016.9968 dd=2055.3616 cum=-14690.178 eq%=-0.004878719694
+  #4 L "buy" in "buy"@31 1.2395 out "Close entry(s) order buy"@40 1.1434 q=67598 pnl=-6498.1678 (-0.07755420685) cm=2 ru=4440.1886 dd=10147.4598 cum=-21188.3458 eq%=-0.07617139091
+  #5 L "buy" in "buy"@42 1.2282 out "Close entry(s) order buy"@44 1.1835 q=63296 pnl=-2831.3312 (-0.03641998224) cm=2 ru=726.904 dd=4089.9216 cum=-24019.677 eq%=-0.03592528578
+  #6 L "buy" in "buy"@67 0.7685 out "Close entry(s) order buy"@70 0.705 q=96616 pnl=-6137.116 (-0.08265432012) cm=2 ru=6568.888 dd=6136.116 cum=-30156.793 eq%=-0.08077243894
+  #7 L "buy" in "buy"@79 0.8989 out "Close entry(s) order buy"@86 0.7952 q=70669 pnl=-7330.3753 (-0.1153928892) cm=2 ru=5963.4636 dd=8212.7378 cum=-37487.1683 eq%=-0.1049547353
+  #8 L "buy" in "buy"@90 0.8172 out "Close entry(s) order buy"@92 0.7402 q=74954 pnl=-5773.458 (-0.0942552931) cm=2 ru=793.5124 dd=6454.5394 cum=-43260.6263 eq%=-0.09235636657
+  #9 L "buy" in "buy"@95 0.6985 out "Close entry(s) order buy"@105 0.6652 q=78956 pnl=-2631.2348 (-0.04770898542) cm=2 ru=5881.222 dd=2732.8776 cum=-45891.8611 eq%=-0.04637405435
+  #10 L "buy" in "buy"@113 0.7186 out "Close entry(s) order buy"@122 0.655 q=73856 pnl=-4699.2416 (-0.08854144292) cm=2 ru=5080.2928 dd=9764.7632 cum=-50591.1027 eq%=-0.08684907106
+  #11 L "buy" in "buy"@126 0.6983 out "Close entry(s) order buy"@133 0.6834 q=69696 pnl=-1040.4704 (-0.02137818891) cm=2 ru=3748.6448 dd=2747.0224 cum=-51631.5731 eq%=-0.02105836108
+  #12 L "buy" in "buy"@135 0.7543 out "Close entry(s) order buy"@137 0.6246 q=63582 pnl=-8248.5854 (-0.1719856165) cm=2 ru=386.8502 dd=8247.5854 cum=-59880.1585 eq%=-0.1705365655
+  ... 42 more
+  digest 1-54: 1471e8cd871778
+orders:
+  3 buy entry MARKET "buy" 1.2302 x80256
+  7 sell exit MARKET "Close entry(s) order buy" 1.1268 x80256
+  10 buy entry MARKET "buy" 1.3775 x65743
+  12 sell exit MARKET "Close entry(s) order buy" 1.2867 x65743
+  16 buy entry MARKET "buy" 1.1912 x67136
+  27 sell exit MARKET "Close entry(s) order buy" 1.185 x67136
+  31 buy entry MARKET "buy" 1.2395 x67598
+  40 sell exit MARKET "Close entry(s) order buy" 1.1434 x67598
+  42 buy entry MARKET "buy" 1.2282 x63296
+  44 sell exit MARKET "Close entry(s) order buy" 1.1835 x63296
+  67 buy entry MARKET "buy" 0.7685 x96616
+  70 sell exit MARKET "Close entry(s) order buy" 0.705 x96616
+  ... 96 more
+  digest 1-100: 111194bbcce087
+  digest 101-108: 045da8235a6f82

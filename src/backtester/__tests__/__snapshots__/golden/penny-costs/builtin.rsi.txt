@@ -1,0 +1,14 @@
+builtin/rsi on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=1 filledOrders=2 marginCalls=0 finalEquity=11130.875 minEquity=8298.738
+orders by kind: entry/MARKET=2
+openPL=0 maxDD=91817.983 (0.91817983) maxRunUp=12574.035 (0.1116966865) buyHold=-53469.6642 (-0.534696642)
+all: netProfit=-88869.125 grossProfit=0 grossLoss=88869.125 commissionPaid=2 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-88869.125 avgWinTrade=- avgLosTrade=88869.125 largestWinTrade=- largestLosTrade=88869.125 avgBarsInTrade=537 maxContractsHeld=106110
+long: netProfit=-88869.125 grossProfit=0 grossLoss=88869.125 commissionPaid=2 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-88869.125 avgWinTrade=- avgLosTrade=88869.125 largestWinTrade=- largestLosTrade=88869.125 avgBarsInTrade=537 maxContractsHeld=106110
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "RsiLE" in "RsiLE"@56 0.8891 out "RsiSE"@592 0.0516 q=106110 pnl=-88869.125 (-0.9419749983) cm=2 ru=12573.035 dd=91817.983 cum=-88869.125 eq%=-0.88869125
+  digest 1-1: 134c6a4be13ee2
+orders:
+  56 buy entry MARKET "RsiLE" 0.8891 x106110
+  592 sell entry MARKET "RsiSE" 0.0516 x106110
+  digest 1-2: 107249b80a799f

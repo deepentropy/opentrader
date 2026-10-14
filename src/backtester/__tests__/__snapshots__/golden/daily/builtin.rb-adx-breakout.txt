@@ -1,0 +1,37 @@
+builtin/rb-adx-breakout on daily: 1500 bars, first 1546405200, last 1728964800
+trades=24 filledOrders=48 marginCalls=0 finalEquity=99993.61 minEquity=99966.55
+orders by kind: exit/LIMIT=7 exit/STOP=17 order/MARKET=24
+openPL=0 maxDD=35.4 (0.000354) maxRunUp=37.87 (0.0003786700851) buyHold=92075.04 (0.9207504)
+all: netProfit=-6.39 grossProfit=96.78 grossLoss=103.17 commissionPaid=0 profitFactor=0.9380633905 totalTrades=24 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=17 percentProfitable=0.2916666667 avgTrade=-0.26625 avgWinTrade=13.82571429 avgLosTrade=6.068823529 largestWinTrade=21.2 largestLosTrade=12.64 avgBarsInTrade=9.208333333 maxContractsHeld=1
+long: netProfit=16.15 grossProfit=73.32 grossLoss=57.17 commissionPaid=0 profitFactor=1.282490817 totalTrades=11 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=7 percentProfitable=0.3636363636 avgTrade=1.468181818 avgWinTrade=18.33 avgLosTrade=8.167142857 largestWinTrade=21.2 largestLosTrade=12.64 avgBarsInTrade=10.54545455 maxContractsHeld=1
+short: netProfit=-22.54 grossProfit=23.46 grossLoss=46 commissionPaid=0 profitFactor=0.51 totalTrades=13 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=10 percentProfitable=0.2307692308 avgTrade=-1.733846154 avgWinTrade=7.82 avgLosTrade=4.6 largestWinTrade=10.19 largestLosTrade=10.95 avgBarsInTrade=8.076923077 maxContractsHeld=1
+trades:
+  #1 L "open_long" in "open_long"@75 145.21 out "close_long"@80 141.88 q=1 pnl=-3.33 (-0.02293230494) cm=0 ru=2.75 dd=3.33 cum=-3.33 eq%=-0.0000333
+  #2 S "open_short" in "open_short"@96 140.53 out "close_short"@115 144.56 q=1 pnl=-4.03 (-0.02867715079) cm=0 ru=3.64 dd=4.03 cum=-7.36 eq%=-0.00004030134203
+  #3 S "open_short" in "open_short"@119 136.33 out "close_short"@120 142.07 q=1 pnl=-5.74 (-0.04210371892) cm=0 ru=0.67 dd=5.74 cum=-13.1 eq%=-0.00005740422495
+  #4 S "open_short" in "open_short"@122 133.64 out "close_short"@123 123.45 q=1 pnl=10.19 (0.07624962586) cm=0 ru=10.19 dd=0.22 cum=-2.91 eq%=0.0001019133506
+  #5 L "open_long" in "open_long"@272 237.07 out "close_long"@276 224.67 q=1 pnl=-12.4 (-0.0523052263) cm=0 ru=0.92 dd=12.4 cum=-15.31 eq%=-0.0001240036085
+  #6 L "open_long" in "open_long"@277 228.92 out "close_long"@279 220.69 q=1 pnl=-8.23 (-0.03595142408) cm=0 ru=0.37 dd=8.23 cum=-23.54 eq%=-0.00008231260206
+  #7 S "open_short" in "open_short"@306 214.2 out "close_short"@315 220.63 q=1 pnl=-6.43 (-0.03001867414) cm=0 ru=5.12 dd=6.43 cum=-29.97 eq%=-0.00006431513978
+  #8 L "open_long" in "open_long"@357 217.66 out "close_long"@406 236.35 q=1 pnl=18.69 (0.08586786732) cm=0 ru=18.69 dd=5.43 cum=-11.28 eq%=0.0001869560307
+  #9 L "open_long" in "open_long"@438 237.19 out "close_long"@445 251.31 q=1 pnl=14.12 (0.05953033433) cm=0 ru=14.12 dd=1.45 cum=2.84 eq%=0.0001412159292
+  #10 S "open_short" in "open_short"@689 83.66 out "close_short"@690 87.27 q=1 pnl=-3.61 (-0.04315084867) cm=0 ru=0.06 dd=3.61 cum=-0.77 eq%=-0.00003609897479
+  #11 S "open_short" in "open_short"@708 79.43 out "close_short"@715 71.83 q=1 pnl=7.6 (0.09568173234) cm=0 ru=7.6 dd=1.33 cum=6.83 eq%=0.0000760005852
+  #12 S "open_short" in "open_short"@874 97.07 out "close_short"@876 102.75 q=1 pnl=-5.68 (-0.05851447409) cm=0 ru=1.07 dd=5.68 cum=1.15 eq%=-0.00005679612082
+  ... 12 more
+  digest 1-24: 135e652dfc9da3
+orders:
+  75 buy order MARKET "open_long" 145.21 x1
+  80 sell exit STOP "close_long" 141.88 x1
+  96 sell order MARKET "open_short" 140.53 x1
+  115 buy exit STOP "close_short" 144.56 x1
+  119 sell order MARKET "open_short" 136.33 x1
+  120 buy exit STOP "close_short" 142.07 x1
+  122 sell order MARKET "open_short" 133.64 x1
+  123 buy exit LIMIT "close_short" 123.45 x1
+  272 buy order MARKET "open_long" 237.07 x1
+  276 sell exit STOP "close_long" 224.67 x1
+  277 buy order MARKET "open_long" 228.92 x1
+  279 sell exit STOP "close_long" 220.69 x1
+  ... 36 more
+  digest 1-48: 185a5676020b6e

@@ -1,0 +1,37 @@
+builtin/macd on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=20 filledOrders=40 marginCalls=0 finalEquity=39159.8995 minEquity=28697.6845
+orders by kind: entry/MARKET=40
+openPL=0 maxDD=72014.6691 (0.720146691) maxRunUp=28571.0886 (0.4541094908) buyHold=-66315.7755 (-0.663157755)
+all: netProfit=-60840.1005 grossProfit=24879.464 grossLoss=85719.5645 commissionPaid=40 profitFactor=0.2902425385 totalTrades=20 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=15 percentProfitable=0.25 avgTrade=-3042.005025 avgWinTrade=4975.8928 avgLosTrade=5714.637633 largestWinTrade=10276.2448 largestLosTrade=15296.848 avgBarsInTrade=12.85 maxContractsHeld=1068308
+long: netProfit=-60840.1005 grossProfit=24879.464 grossLoss=85719.5645 commissionPaid=40 profitFactor=0.2902425385 totalTrades=20 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=15 percentProfitable=0.25 avgTrade=-3042.005025 avgWinTrade=4975.8928 avgLosTrade=5714.637633 largestWinTrade=10276.2448 largestLosTrade=15296.848 avgBarsInTrade=12.85 maxContractsHeld=1068308
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "MacdLE" in "MacdLE"@42 1.2282 out "MacdSE"@48 1.0805 q=80314 pnl=-11864.3778 (-0.1202763432) cm=2 ru=922.611 dd=11863.3778 cum=-11864.3778 eq%=-0.118643778
+  #2 L "MacdLE" in "MacdLE"@72 0.7574 out "MacdSE"@88 0.7444 q=114193 pnl=-1486.509 (-0.01718690745) cm=2 ru=28570.0886 dd=3894.9813 cum=-13350.8868 eq%=-0.01686615426
+  #3 L "MacdLE" in "MacdLE"@102 0.7308 out "MacdSE"@116 0.6083 q=116228 pnl=-14239.93 (-0.1676460936) cm=2 ru=4520.2692 dd=16784.3232 cum=-27590.8168 eq%=-0.1643401701
+  #4 L "MacdLE" in "MacdLE"@120 0.769 out "MacdSE"@138 0.6035 q=92416 pnl=-15296.848 (-0.2152396778) cm=2 ru=1311.3072 dd=15970.4848 cum=-42887.6648 eq%=-0.2112556353
+  #5 L "MacdLE" in "MacdLE"@197 0.3443 out "MacdSE"@218 0.346 q=163924 pnl=276.6708 (0.004902031135) cm=2 ru=10949.1232 dd=5607.2008 cum=-42610.994 eq%=0.00484432652
+  #6 L "MacdLE" in "MacdLE"@274 0.2409 out "MacdSE"@282 0.2025 q=233095 pnl=-8952.848 (-0.1594350195) cm=2 ru=2749.521 dd=9278.181 cum=-51563.842 eq%=-0.1560028414
+  #7 L "MacdLE" in "MacdLE"@309 0.1273 out "MacdSE"@332 0.1332 q=374885 pnl=2209.8215 (0.0463043324) cm=2 ru=18668.273 dd=2062.8675 cum=-49354.0205 eq%=0.04562338532
+  #8 L "MacdLE" in "MacdLE"@342 0.1408 out "MacdSE"@343 0.1325 q=351213 pnl=-2917.0679 (-0.05898811502) cm=2 ru=1193.1242 dd=3197.0383 cum=-52271.0884 eq%=-0.05759722546
+  #9 L "MacdLE" in "MacdLE"@350 0.1329 out "MacdSE"@361 0.1174 q=350940 pnl=-5441.57 (-0.1166694246) cm=2 ru=2631.05 dd=5580.946 cum=-57712.6584 eq%=-0.1140099327
+  #10 L "MacdLE" in "MacdLE"@365 0.1298 out "MacdSE"@370 0.1131 q=325529 pnl=-5438.3343 (-0.1287037633) cm=2 ru=422.1877 dd=5795.4162 cum=-63150.9927 eq%=-0.1286043079
+  #11 L "MacdLE" in "MacdLE"@384 0.1042 out "MacdSE"@388 0.0901 q=351938 pnl=-4964.3258 (-0.135367545) cm=2 ru=280.5504 dd=5139.2948 cum=-68115.3185 eq%=-0.1347207473
+  #12 L "MacdLE" in "MacdLE"@430 0.0516 out "MacdSE"@455 0.0636 q=592633 pnl=7109.596 (0.2324851345) cm=2 ru=12029.4499 dd=534.3697 cum=-61005.7225 eq%=0.222978423
+  ... 8 more
+  digest 1-20: 1b453644b8dba6
+orders:
+  42 buy entry MARKET "MacdLE" 1.2282 x80314
+  48 sell entry MARKET "MacdSE" 1.0805 x80314
+  72 buy entry MARKET "MacdLE" 0.7574 x114193
+  88 sell entry MARKET "MacdSE" 0.7444 x114193
+  102 buy entry MARKET "MacdLE" 0.7308 x116228
+  116 sell entry MARKET "MacdSE" 0.6083 x116228
+  120 buy entry MARKET "MacdLE" 0.769 x92416
+  138 sell entry MARKET "MacdSE" 0.6035 x92416
+  197 buy entry MARKET "MacdLE" 0.3443 x163924
+  218 sell entry MARKET "MacdSE" 0.346 x163924
+  274 buy entry MARKET "MacdLE" 0.2409 x233095
+  282 sell entry MARKET "MacdSE" 0.2025 x233095
+  ... 28 more
+  digest 1-40: 1daf92b915d1ab

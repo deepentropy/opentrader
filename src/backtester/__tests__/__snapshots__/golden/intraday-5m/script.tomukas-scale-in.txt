@@ -1,0 +1,37 @@
+script/tomukas-scale-in on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=50 filledOrders=89 marginCalls=0 finalEquity=96460 minEquity=95877.6
+orders by kind: entry/MARKET=47 exit/LIMIT=42
+openPL=-4672.7 maxDD=5263.9 (0.05204943604) maxRunUp=1165.8 (0.0115236572) buyHold=-7868.64 (-0.0786864)
+all: netProfit=1132.7 grossProfit=1302.4 grossLoss=169.7 commissionPaid=0 profitFactor=7.674720094 totalTrades=45 totalOpenTrades=5 numberOfWiningTrades=41 numberOfLosingTrades=4 percentProfitable=0.9111111111 avgTrade=25.17111111 avgWinTrade=31.76585366 avgLosTrade=42.425 largestWinTrade=350.4 largestLosTrade=66.6 avgBarsInTrade=62.02222222 maxContractsHeld=160
+long: netProfit=210.7 grossProfit=210.7 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=9 totalOpenTrades=0 numberOfWiningTrades=9 numberOfLosingTrades=0 percentProfitable=1 avgTrade=23.41111111 avgWinTrade=23.41111111 avgLosTrade=- largestWinTrade=46.5 largestLosTrade=- avgBarsInTrade=10.11111111 maxContractsHeld=20
+short: netProfit=922 grossProfit=1091.7 grossLoss=169.7 commissionPaid=0 profitFactor=6.433117266 totalTrades=36 totalOpenTrades=5 numberOfWiningTrades=32 numberOfLosingTrades=4 percentProfitable=0.8888888889 avgTrade=25.61111111 avgWinTrade=34.115625 avgLosTrade=42.425 largestWinTrade=350.4 largestLosTrade=66.6 avgBarsInTrade=75 maxContractsHeld=160
+trades:
+  #1 L "L1" in "L1"@475 479.6 out "TP LONG"@488 481.21 q=10 pnl=16.1 (0.003356964137) cm=0 ru=16.1 dd=6.1 cum=16.1 eq%=0.000161
+  #2 L "L2" in "L2"@476 480.4 out "TP LONG"@488 481.21 q=10 pnl=8.1 (0.001686094921) cm=0 ru=8.1 dd=14 cum=24.2 eq%=0.0000809869611
+  #3 L "L1" in "L1"@506 476.17 out "TP LONG"@526 477.61 q=10 pnl=14.4 (0.003024130038) cm=0 ru=15.8 dd=36.2 cum=38.6 eq%=0.0001439651604
+  #4 L "L1" in "L1"@539 473.02 out "TP LONG"@541 474.43 q=10 pnl=14.1 (0.002980846476) cm=0 ru=14.1 dd=6 cum=52.7 eq%=0.000140945595
+  #5 S "S1" in "S1"@550 473.87 out "TP SHORT"@560 472.45 q=10 pnl=14.2 (0.002996602444) cm=0 ru=14.2 dd=13.1 cum=66.9 eq%=0.0001419252054
+  #6 S "S1" in "S1"@602 466.63 out "TP SHORT"@604 464.64 q=10 pnl=19.9 (0.004264620792) cm=0 ru=19.9 dd=16.4 cum=86.8 eq%=0.000198866958
+  #7 S "S1" in "S1"@604 464.66 out "TP SHORT"@606 462.45 q=10 pnl=22.1 (0.004756165799) cm=0 ru=22.1 dd=0 cum=108.9 eq%=0.0002208083384
+  #8 S "S1" in "S1"@702 451.75 out "TP SHORT"@722 453.95 q=10 pnl=-22 (-0.004869950194) cm=0 ru=9.6 dd=160.2 cum=86.9 eq%=-0.0002197606806
+  #9 S "S2" in "S2"@710 465.17 out "TP SHORT"@722 453.95 q=10 pnl=112.2 (0.02412021412) cm=0 ru=114.1 dd=13.9 cum=199.1 eq%=0.001121025829
+  #10 S "S1" in "S1"@794 454.32 out "TP SHORT"@798 453.23 q=10 pnl=10.9 (0.002399189998) cm=0 ru=10.9 dd=2.6 cum=210 eq%=0.0001087834122
+  #11 S "S1" in "S1"@822 457.5 out "TP SHORT"@828 456.46 q=10 pnl=10.4 (0.002273224044) cm=0 ru=10.4 dd=1.4 cum=220.4 eq%=0.0001037820577
+  #12 S "S1" in "S1"@830 457.32 out "TP SHORT"@832 456.26 q=10 pnl=10.6 (0.002317851832) cm=0 ru=10.6 dd=0.6 cum=231 eq%=0.0001057668898
+  ... 38 more
+  digest 1-50: 15ba77b86de940
+orders:
+  475 buy entry MARKET "L1" 479.6 x10
+  476 buy entry MARKET "L2" 480.4 x10
+  488 sell exit LIMIT "TP LONG" 481.21 x10
+  488 sell exit LIMIT "TP LONG" 481.21 x10
+  506 buy entry MARKET "L1" 476.17 x10
+  526 sell exit LIMIT "TP LONG" 477.61 x10
+  539 buy entry MARKET "L1" 473.02 x10
+  541 sell exit LIMIT "TP LONG" 474.43 x10
+  550 sell entry MARKET "S1" 473.87 x10
+  560 buy exit LIMIT "TP SHORT" 472.45 x10
+  602 sell entry MARKET "S1" 466.63 x10
+  604 buy exit LIMIT "TP SHORT" 464.64 x10
+  ... 77 more
+  digest 1-89: 14d5fbf83b7a5a

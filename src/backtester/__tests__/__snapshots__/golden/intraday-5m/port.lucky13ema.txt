@@ -1,0 +1,41 @@
+port/lucky13ema on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=156 filledOrders=309 marginCalls=0 finalEquity=37028.26 minEquity=30000
+orders by kind: entry/MARKET=156 exit/STOP=153
+openPL=0 maxDD=258.4 (0.007095170287) maxRunUp=7036.66 (0.1899917541) buyHold=-1770.3 (-0.05901)
+all: netProfit=7028.26 grossProfit=7249.04 grossLoss=220.78 commissionPaid=0 profitFactor=32.83377117 totalTrades=156 totalOpenTrades=0 numberOfWiningTrades=153 numberOfLosingTrades=3 percentProfitable=0.9807692308 avgTrade=45.05294872 avgWinTrade=47.37934641 avgLosTrade=73.59333333 largestWinTrade=222.44 largestLosTrade=104.88 avgBarsInTrade=1.608974359 maxContractsHeld=94
+long: netProfit=3357.05 grossProfit=3357.05 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=80 totalOpenTrades=0 numberOfWiningTrades=80 numberOfLosingTrades=0 percentProfitable=1 avgTrade=41.963125 avgWinTrade=41.963125 avgLosTrade=- largestWinTrade=188.94 largestLosTrade=- avgBarsInTrade=1.775 maxContractsHeld=94
+short: netProfit=3671.21 grossProfit=3891.99 grossLoss=220.78 commissionPaid=0 profitFactor=17.62836308 totalTrades=76 totalOpenTrades=0 numberOfWiningTrades=73 numberOfLosingTrades=3 percentProfitable=0.9605263158 avgTrade=48.30539474 avgWinTrade=53.31493151 avgLosTrade=73.59333333 largestWinTrade=222.44 largestLosTrade=104.88 avgBarsInTrade=1.434210526 maxContractsHeld=94
+trades:
+  #1 S "Short" in "Short"@49 469.87 out "Exit Short"@49 467.8 q=63 pnl=130.41 (0.004405473854) cm=0 ru=136.71 dd=18.27 cum=130.41 eq%=0.004347
+  #2 S "Short" in "Short"@56 468.06 out "Exit Short"@56 467.68 q=64 pnl=24.32 (0.0008118617271) cm=0 ru=30.72 dd=0 cum=154.73 eq%=0.0008071579511
+  #3 L "Long" in "Long"@156 466.57 out "Exit Long"@156 466.69 q=64 pnl=7.68 (0.0002571961335) cm=0 ru=14.08 dd=0 cum=162.41 eq%=0.0002546864124
+  #4 S "Short" in "Short"@166 464.07 out "Exit Short"@166 463.92 q=65 pnl=9.75 (0.0003232270994) cm=0 ru=16.25 dd=0 cum=172.16 eq%=0.0003232500321
+  #5 L "Long" in "Long"@179 464.74 out "Exit Long"@179 464.92 q=64 pnl=11.52 (0.0003873133365) cm=0 ru=17.92 dd=0 cum=183.68 eq%=0.0003818089258
+  #6 S "Short" in "Short"@180 463.61 out "Exit Short"@180 462.63 q=65 pnl=63.7 (0.002113845689) cm=0 ru=70.2 dd=26 cum=247.38 eq%=0.002110411984
+  #7 L "Long" in "Long"@189 464.17 out "Exit Long"@189 465.99 q=65 pnl=118.3 (0.003920977228) cm=0 ru=124.8 dd=17.55 cum=365.68 eq%=0.003911082547
+  #8 L "Long" in "Long"@213 467.11 out "Exit Long"@213 467.19 q=65 pnl=5.2 (0.0001712658689) cm=0 ru=11.7 dd=0 cum=370.88 eq%=0.0001712459593
+  #9 L "Long" in "Long"@215 467.22 out "Exit Long"@215 467.87 q=64 pnl=41.6 (0.001391207568) cm=0 ru=48 dd=0 cum=412.48 eq%=0.001369733113
+  #10 L "Long" in "Long"@221 468.19 out "Exit Long"@221 468.68 q=64 pnl=31.36 (0.001046583652) cm=0 ru=37.76 dd=2.56 cum=443.84 eq%=0.001031155631
+  #11 S "Short" in "Short"@238 470.65 out "Exit Short"@239 469.71 q=64 pnl=60.16 (0.001997237863) cm=0 ru=66.56 dd=17.28 cum=504 eq%=0.001976097628
+  #12 S "Short" in "Short"@244 470.81 out "Exit Short"@244 470.24 q=64 pnl=36.48 (0.001210679467) cm=0 ru=42.88 dd=10.88 cum=540.48 eq%=0.001195908733
+  ... 144 more
+  digest 1-100: 030252780a1c66
+  digest 101-156: 125dd7ff9f38fc
+orders:
+  49 sell entry MARKET "Short" 469.87 x63
+  49 buy exit STOP "Exit Short" 467.8 x63
+  56 sell entry MARKET "Short" 468.06 x64
+  56 buy exit STOP "Exit Short" 467.68 x64
+  156 buy entry MARKET "Long" 466.57 x64
+  156 sell exit STOP "Exit Long" 466.69 x64
+  166 sell entry MARKET "Short" 464.07 x65
+  166 buy exit STOP "Exit Short" 463.92 x65
+  179 buy entry MARKET "Long" 464.74 x64
+  179 sell exit STOP "Exit Long" 464.92 x64
+  180 sell entry MARKET "Short" 463.61 x65
+  180 buy exit STOP "Exit Short" 462.63 x65
+  ... 297 more
+  digest 1-100: 0f911eb028ba26
+  digest 101-200: 09a1a278283673
+  digest 201-300: 191c7eb3009a23
+  digest 301-309: 0556e4f2abd51d

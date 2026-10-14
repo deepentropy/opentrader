@@ -1,0 +1,61 @@
+script/omega-pivot on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=993 filledOrders=1544 marginCalls=441 finalEquity=32929.58827 minEquity=30325.16531
+orders by kind: entry/MARKET=552 exit/MARKET=551 order/MARKET=441
+openPL=-1283.84 maxDD=81334.86365 (0.728445156) maxRunUp=38283.05962 (0.3387045774) buyHold=88643.88 (0.8864388)
+all: netProfit=-65786.57173 grossProfit=287591.079 grossLoss=353377.6507 commissionPaid=79132.86173 profitFactor=0.8138349395 totalTrades=992 totalOpenTrades=1 numberOfWiningTrades=243 numberOfLosingTrades=749 percentProfitable=0.2449596774 avgTrade=-66.3171086 avgWinTrade=1183.502383 avgLosTrade=471.7992666 largestWinTrade=7039.41621 largestLosTrade=9961.87794 avgBarsInTrade=1.555443548 maxContractsHeld=1207
+long: netProfit=-19555.11978 grossProfit=148442.3504 grossLoss=167997.4702 commissionPaid=39748.01978 profitFactor=0.8835987247 totalTrades=353 totalOpenTrades=1 numberOfWiningTrades=115 numberOfLosingTrades=238 percentProfitable=0.3257790368 avgTrade=-55.39693989 avgWinTrade=1290.803047 avgLosTrade=705.8717234 largestWinTrade=7039.41621 largestLosTrade=9961.87794 avgBarsInTrade=1.793201133 maxContractsHeld=1207
+short: netProfit=-46231.45195 grossProfit=139148.7286 grossLoss=185380.1805 commissionPaid=39384.84195 profitFactor=0.750612758 totalTrades=639 totalOpenTrades=0 numberOfWiningTrades=128 numberOfLosingTrades=511 percentProfitable=0.200312989 avgTrade=-72.34969006 avgWinTrade=1087.099442 avgLosTrade=362.7792182 largestWinTrade=6280.491 largestLosTrade=5667.94359 avgBarsInTrade=1.424100156 maxContractsHeld=1206
+trades:
+  #1 L "Long" in "Long"@4 147.91 out "Margin call"@4 147.87 q=1 pnl=-0.33578 (-0.002267896393) cm=0.29578 ru=0 dd=0.18791 cum=-100.17503 eq%=-0.000003361155753
+  #2 L "Long" in "Long"@4 147.91 out "Pivot Reset"@5 147.95 q=675 pnl=-172.7055 (-0.001728107603) cm=199.7055 ru=527.91075 dd=666.83925 cum=-173.04128 eq%=-0.001727060799
+  #3 S "Short" in "Short"@6 147.78 out "Margin call"@6 148.67 q=28 pnl=-33.2206 (-0.008020467826) cm=8.3006 ru=0 dd=29.05784 cum=-301.72776 eq%=-0.0003331003984
+  #4 S "Short" in "Short"@6 147.78 out "Pivot Reset"@7 147 q=646 pnl=313.45212 (0.003280114121) cm=190.42788 ru=815.39412 dd=670.40588 cum=107.19024 eq%=0.003140999885
+  #5 L "Long" in "Long"@8 148.21 out "Margin call"@8 148.17 q=1 pnl=-0.33638 (-0.002267350085) cm=0.29638 ru=0 dd=0.18821 cum=6.96032 eq%=-0.000003363554572
+  #6 L "Long" in "Long"@8 148.21 out "Pivot Reset"@9 149.11 q=674 pnl=406.20632 (0.004062329951) cm=200.39368 ru=580.84646 dd=571.69354 cum=513.06018 eq%=0.004057727362
+  #7 S "Short" in "Short"@10 147.28 out "Margin call"@10 147.32 q=1 pnl=-0.3346 (-0.002269593524) cm=0.2946 ru=0 dd=0.18728 cum=412.4279 eq%=-0.000003332245739
+  #8 S "Short" in "Short"@10 147.28 out "Margin call"@10 148.21 q=28 pnl=-34.31372 (-0.008312504986) cm=8.27372 ru=8.19616 dd=30.16384 cum=382.23802 eq%=-0.0003417137853
+  #9 S "Short" in "Short"@10 147.28 out "Pivot Reset"@11 146.85 q=653 pnl=88.72311 (0.0009216069102) cm=192.06689 ru=191.14616 dd=703.46384 cum=567.13497 eq%=0.0008830066913
+  #10 L "Long" in "Long"@14 147.8 out "Pivot Reset"@15 146.85 q=679 pnl=-845.11735 (-0.008412764502) cm=200.06735 ru=15.0738 dd=745.4062 cum=-277.98238 eq%=-0.008403514232
+  #11 L "Long" in "Long"@20 147.14 out "Pivot Reset"@21 146.5 q=676 pnl=-631.14064 (-0.006338910512) cm=198.50064 ru=711.73336 dd=1066.14664 cum=-909.12302 eq%=-0.006328999905
+  #12 S "Short" in "Short"@32 142.13 out "Margin call"@32 142.43 q=8 pnl=-4.67648 (-0.004108745683) cm=2.27648 ru=0 dd=3.53704 cum=-1011.58494 eq%=-0.00004724046827
+  ... 981 more
+  digest 1-100: 07814827ef3505
+  digest 101-200: 0c203135354214
+  digest 201-300: 00e39e99cf788f
+  digest 301-400: 1fc41048a3d03a
+  digest 401-500: 1977e5f15892dc
+  digest 501-600: 08c399cc9c43c0
+  digest 601-700: 1eaedd62efd647
+  digest 701-800: 0917284d069c1c
+  digest 801-900: 0e1d884b088bab
+  digest 901-993: 0d975287193d00
+orders:
+  4 buy entry MARKET "Long" 147.91 x676
+  4 sell order MARKET "Margin call 0" 147.87 x1
+  5 sell exit MARKET "Close position order" 147.95 x675
+  6 sell entry MARKET "Short" 147.78 x674
+  6 buy order MARKET "Margin call 1" 148.67 x28
+  7 buy exit MARKET "Close position order" 147 x646
+  8 buy entry MARKET "Long" 148.21 x675
+  8 sell order MARKET "Margin call 2" 148.17 x1
+  9 sell exit MARKET "Close position order" 149.11 x674
+  10 sell entry MARKET "Short" 147.28 x682
+  10 buy order MARKET "Margin call 3" 147.32 x1
+  10 buy order MARKET "Margin call 4" 148.21 x28
+  ... 1532 more
+  digest 1-100: 0634ca5488fea9
+  digest 101-200: 06ee7932154041
+  digest 201-300: 014f7b10301451
+  digest 301-400: 02d3eabc67a07a
+  digest 401-500: 03dbbdb77ff7a4
+  digest 501-600: 11ce342e8c5214
+  digest 601-700: 01ac17cc17ff17
+  digest 701-800: 0786f51825bffb
+  digest 801-900: 0e3dacb596512c
+  digest 901-1000: 18941bb28e729b
+  digest 1001-1100: 08d7c2c229cdad
+  digest 1101-1200: 0e46a32011e440
+  digest 1201-1300: 07ce8f46b78ae1
+  digest 1301-1400: 11ddb31da2901c
+  digest 1401-1500: 016a77a2fe57ac
+  digest 1501-1544: 1eddbdae3cc903

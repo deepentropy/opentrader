@@ -1,0 +1,41 @@
+builtin/bollinger-bands-directed on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=213 filledOrders=213 marginCalls=145 finalEquity=57614.2 minEquity=57335.79
+orders by kind: entry/STOP=68 order/MARKET=145
+openPL=-485.14 maxDD=42680.05 (0.4268005) maxRunUp=8628.96 (0.08689892658) buyHold=-6067.44 (-0.0606744)
+all: netProfit=-41900.66 grossProfit=26078.93 grossLoss=67979.59 commissionPaid=0 profitFactor=0.3836288215 totalTrades=212 totalOpenTrades=1 numberOfWiningTrades=38 numberOfLosingTrades=174 percentProfitable=0.179245283 avgTrade=-197.6446226 avgWinTrade=686.2876316 avgLosTrade=390.6872989 largestWinTrade=3289.72 largestLosTrade=7067.06 avgBarsInTrade=57.95754717 maxContractsHeld=217
+long: netProfit=-23856.77 grossProfit=13111.62 grossLoss=36968.39 commissionPaid=0 profitFactor=0.3546711123 totalTrades=34 totalOpenTrades=0 numberOfWiningTrades=19 numberOfLosingTrades=15 percentProfitable=0.5588235294 avgTrade=-701.6697059 avgWinTrade=690.0852632 avgLosTrade=2464.559333 largestWinTrade=3289.72 largestLosTrade=7067.06 avgBarsInTrade=53.55882353 maxContractsHeld=217
+short: netProfit=-18043.89 grossProfit=12967.31 grossLoss=31011.2 commissionPaid=0 profitFactor=0.4181492493 totalTrades=178 totalOpenTrades=1 numberOfWiningTrades=19 numberOfLosingTrades=159 percentProfitable=0.106741573 avgTrade=-101.3701685 avgWinTrade=682.49 avgLosTrade=195.0389937 largestWinTrade=2348.2 largestLosTrade=6445.26 avgBarsInTrade=58.79775281 maxContractsHeld=217
+trades:
+  #1 L "BBandLE" in "BBandLE"@32 470.39 out "BBandSE"@133 458.67 q=212 pnl=-2484.64 (-0.02491549565) cm=0 ru=351.92 dd=4661.88 cum=-2484.64 eq%=-0.0248464
+  #2 S "BBandSE" in "BBandSE"@133 458.67 out "Margin call"@133 460.55 q=4 pnl=-7.52 (-0.004098807421) cm=0 ru=1.6 dd=7.52 cum=-2492.16 eq%=-0.00007711605638
+  #3 S "BBandSE" in "BBandSE"@133 458.67 out "Margin call"@141 464.56 q=1 pnl=-5.89 (-0.01284147644) cm=0 ru=0.4 dd=5.89 cum=-2498.05 eq%=-0.0000604053992
+  #4 S "BBandSE" in "BBandSE"@133 458.67 out "Margin call"@147 465.42 q=1 pnl=-6.75 (-0.01471646282) cm=0 ru=0.4 dd=6.75 cum=-2504.8 eq%=-0.00006922938464
+  #5 S "BBandSE" in "BBandSE"@133 458.67 out "Margin call"@155 466.82 q=1 pnl=-8.15 (-0.01776876622) cm=0 ru=0.4 dd=8.15 cum=-2512.95 eq%=-0.00008359385898
+  #6 S "BBandSE" in "BBandSE"@133 458.67 out "BBandLE"@172 463.25 q=205 pnl=-938.9 (-0.009985392548) cm=0 ru=82 dd=1670.75 cum=-3451.85 eq%=-0.009631022787
+  #7 L "BBandLE" in "BBandLE"@172 463.25 out "BBandSE"@196 467.55 q=208 pnl=894.4 (0.009282245008) cm=0 ru=944.32 dd=291.2 cum=-2557.45 eq%=0.009263771496
+  #8 S "BBandSE" in "BBandSE"@196 467.55 out "Margin call"@196 468.02 q=1 pnl=-0.47 (-0.001005240081) cm=0 ru=0 dd=0.47 cum=-2557.92 eq%=-0.00000482335489
+  #9 S "BBandSE" in "BBandSE"@196 467.55 out "Margin call"@222 469.64 q=1 pnl=-2.09 (-0.004470110149) cm=0 ru=2.43 dd=2.09 cum=-2560.01 eq%=-0.00002144863903
+  #10 S "BBandSE" in "BBandSE"@196 467.55 out "Margin call"@226 470.42 q=1 pnl=-2.87 (-0.006138380922) cm=0 ru=2.43 dd=2.87 cum=-2562.88 eq%=-0.00002945402601
+  #11 S "BBandSE" in "BBandSE"@196 467.55 out "Margin call"@229 471.77 q=1 pnl=-4.22 (-0.009025772645) cm=0 ru=2.43 dd=4.22 cum=-2567.1 eq%=-0.00004330998289
+  #12 S "BBandSE" in "BBandSE"@196 467.55 out "Margin call"@230 472.61 q=1 pnl=-5.06 (-0.01082237194) cm=0 ru=2.43 dd=5.06 cum=-2572.16 eq%=-0.00005193317658
+  ... 201 more
+  digest 1-100: 0210a949a7b265
+  digest 101-200: 17a854d08189ec
+  digest 201-213: 17b9e4baa74fd2
+orders:
+  32 buy entry STOP "BBandLE" 470.39 x212
+  133 sell entry STOP "BBandSE" 458.67 x424
+  133 buy order MARKET "Margin call 0" 460.55 x4
+  141 buy order MARKET "Margin call 1" 464.56 x1
+  147 buy order MARKET "Margin call 2" 465.42 x1
+  155 buy order MARKET "Margin call 3" 466.82 x1
+  172 buy entry STOP "BBandLE" 463.25 x413
+  196 sell entry STOP "BBandSE" 467.55 x416
+  196 buy order MARKET "Margin call 4" 468.02 x1
+  222 buy order MARKET "Margin call 5" 469.64 x1
+  226 buy order MARKET "Margin call 6" 470.42 x1
+  229 buy order MARKET "Margin call 7" 471.77 x1
+  ... 201 more
+  digest 1-100: 0616bccefb09ec
+  digest 101-200: 18a75a9b0ebd4f
+  digest 201-213: 1de4efedebfd68

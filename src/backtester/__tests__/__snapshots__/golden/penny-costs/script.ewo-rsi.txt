@@ -1,0 +1,14 @@
+script/ewo-rsi on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=1 filledOrders=2 marginCalls=0 finalEquity=767.2292 minEquity=442.8216
+orders by kind: entry/MARKET=2
+openPL=0 maxDD=9570.9988 (0.95709988) maxRunUp=2790.4644 (0.2181846176) buyHold=-4733.014 (-0.4733014)
+all: netProfit=-9232.7708 grossProfit=0 grossLoss=9232.7708 commissionPaid=2 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-9232.7708 avgWinTrade=- avgLosTrade=9232.7708 largestWinTrade=- largestLosTrade=9232.7708 avgBarsInTrade=530 maxContractsHeld=12564
+long: netProfit=-9232.7708 grossProfit=0 grossLoss=9232.7708 commissionPaid=2 profitFactor=0 totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=1 percentProfitable=0 avgTrade=-9232.7708 avgWinTrade=- avgLosTrade=9232.7708 largestWinTrade=- largestLosTrade=9232.7708 avgBarsInTrade=530 maxContractsHeld=12564
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@74 0.7855 out "Short"@603 0.0508 q=12564 pnl=-9232.7708 (-0.935435686) cm=2 ru=2789.4644 dd=9570.9988 cum=-9232.7708 eq%=-0.92327708
+  digest 1-1: 12c25ec93d3333
+orders:
+  74 buy entry MARKET "Long" 0.7855 x12564
+  603 sell entry MARKET "Short" 0.0508 x12564
+  digest 1-2: 08a0066da95792

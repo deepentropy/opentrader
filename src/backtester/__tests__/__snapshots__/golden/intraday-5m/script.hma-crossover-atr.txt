@@ -1,0 +1,23 @@
+script/hma-crossover-atr on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=4 filledOrders=8 marginCalls=0 finalEquity=101141.91 minEquity=100000
+orders by kind: entry/MARKET=4 exit/STOP=4
+openPL=0 maxDD=246.34 (0.002456325782) maxRunUp=1146.77 (0.01133768285) buyHold=-1137.3 (-0.011373)
+all: netProfit=1141.91 grossProfit=1141.91 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=4 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=0 percentProfitable=1 avgTrade=285.4775 avgWinTrade=285.4775 avgLosTrade=- largestWinTrade=357.52 largestLosTrade=- avgBarsInTrade=1 maxContractsHeld=243
+long: netProfit=522.76 grossProfit=522.76 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=2 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=0 percentProfitable=1 avgTrade=261.38 avgWinTrade=261.38 avgLosTrade=- largestWinTrade=357.52 largestLosTrade=- avgBarsInTrade=1 maxContractsHeld=243
+short: netProfit=619.15 grossProfit=619.15 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=2 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=0 percentProfitable=1 avgTrade=309.575 avgWinTrade=309.575 avgLosTrade=- largestWinTrade=331.15 largestLosTrade=- avgBarsInTrade=1 maxContractsHeld=192
+trades:
+  #1 S "Short" in "Short"@677 446.87 out "Short Trail Stop"@677 445.37 q=192 pnl=288 (0.003356680914) cm=0 ru=293.76 dd=0 cum=288 eq%=0.00288
+  #2 L "Long" in "Long"@694 445.26 out "Long Trail Stop"@694 446.9 q=218 pnl=357.52 (0.003683241252) cm=0 ru=364.06 dd=246.34 cum=645.52 eq%=0.003564932993
+  #3 S "Short" in "Short"@715 457.66 out "Short Trail Stop"@715 455.81 q=179 pnl=331.15 (0.004042302146) cm=0 ru=336.52 dd=59.07 cum=976.67 eq%=0.003290260709
+  #4 L "Long" in "Long"@3089 381.23 out "Long Trail Stop"@3089 381.91 q=243 pnl=165.24 (0.001783700129) cm=0 ru=170.1 dd=0 cum=1141.91 eq%=0.0016364176
+  digest 1-4: 12d0b55884f9f6
+orders:
+  677 sell entry MARKET "Short" 446.87 x192
+  677 buy exit STOP "Short Trail Stop" 445.37 x192
+  694 buy entry MARKET "Long" 445.26 x218
+  694 sell exit STOP "Long Trail Stop" 446.9 x218
+  715 sell entry MARKET "Short" 457.66 x179
+  715 buy exit STOP "Short Trail Stop" 455.81 x179
+  3089 buy entry MARKET "Long" 381.23 x243
+  3089 sell exit STOP "Long Trail Stop" 381.91 x243
+  digest 1-8: 0276975ca9f1c9

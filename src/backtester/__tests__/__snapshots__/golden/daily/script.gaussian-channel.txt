@@ -1,0 +1,39 @@
+script/gaussian-channel on daily: 1500 bars, first 1546405200, last 1728964800
+trades=110 filledOrders=161 marginCalls=58 finalEquity=263328.7 minEquity=92936.31
+orders by kind: entry/MARKET=52 exit/MARKET=51 order/MARKET=58
+openPL=187.25 maxDD=268605.91 (0.5051555006) maxRunUp=679564.01 (0.8799810491) buyHold=98178.8 (0.981788)
+all: netProfit=163141.45 grossProfit=626884.53 grossLoss=463743.08 commissionPaid=0 profitFactor=1.351792743 totalTrades=109 totalOpenTrades=1 numberOfWiningTrades=13 numberOfLosingTrades=78 percentProfitable=0.119266055 avgTrade=1496.71055 avgWinTrade=48221.88692 avgLosTrade=5945.424103 largestWinTrade=199523.8 largestLosTrade=91863.36 avgBarsInTrade=14.99082569 maxContractsHeld=4073
+long: netProfit=315916.34 grossProfit=478830.83 grossLoss=162914.49 commissionPaid=0 profitFactor=2.939154338 totalTrades=41 totalOpenTrades=1 numberOfWiningTrades=8 numberOfLosingTrades=17 percentProfitable=0.1951219512 avgTrade=7705.276585 avgWinTrade=59853.85375 avgLosTrade=9583.205294 largestWinTrade=199523.8 largestLosTrade=62198.4 avgBarsInTrade=18.56097561 maxContractsHeld=4073
+short: netProfit=-152774.89 grossProfit=148053.7 grossLoss=300828.59 commissionPaid=0 profitFactor=0.4921530231 totalTrades=68 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=61 percentProfitable=0.07352941176 avgTrade=-2246.689559 avgWinTrade=29610.74 avgLosTrade=4931.61623 largestWinTrade=95977.5 largestLosTrade=91863.36 avgBarsInTrade=12.83823529 maxContractsHeld=3996
+trades:
+  #1 S "Short" in "Short"@97 140.76 out "Margin call"@97 141.38 q=20 pnl=-12.4 (-0.004404660415) cm=0 ru=0 dd=12.4 cum=-12.4 eq%=-0.000124
+  #2 S "Short" in "Short"@97 140.76 out "Close entry(s) order Short"@98 139.51 q=690 pnl=862.5 (0.00888036374) cm=0 ru=945.3 dd=427.8 cum=850.1 eq%=0.008626069633
+  #3 L "Long" in "Long"@98 139.51 out "Close entry(s) order Long"@99 139.54 q=707 pnl=21.21 (0.0002150383485) cm=0 ru=494.9 dd=325.22 cum=871.31 eq%=0.0002103121365
+  #4 S "Short" in "Short"@99 139.54 out "Margin call"@99 139.85 q=8 pnl=-2.48 (-0.002221585209) cm=0 ru=0 dd=2.48 cum=868.83 eq%=-0.00002458578163
+  #5 S "Short" in "Short"@99 139.54 out "Margin call"@100 141.86 q=56 pnl=-129.92 (-0.01662605704) cm=0 ru=75.04 dd=129.92 cum=738.91 eq%=-0.001288009388
+  #6 S "Short" in "Short"@99 139.54 out "Close entry(s) order Short"@107 141.8 q=658 pnl=-1487.08 (-0.01619607281) cm=0 ru=1743.7 dd=1941.1 cum=-748.17 eq%=-0.01476172414
+  #7 L "Long" in "Long"@107 141.8 out "Close entry(s) order Long"@108 140.19 q=699 pnl=-1125.39 (-0.01135401975) cm=0 ru=454.35 dd=1600.71 cum=-1873.56 eq%=-0.011338733
+  #8 S "Short" in "Short"@108 140.19 out "Margin call"@108 141.9 q=60 pnl=-102.6 (-0.01219773165) cm=0 ru=9 dd=102.6 cum=-1976.16 eq%=-0.001045589751
+  #9 S "Short" in "Short"@108 140.19 out "Close entry(s) order Short"@115 144.56 q=639 pnl=-2792.43 (-0.03117198088) cm=0 ru=1105.47 dd=2792.43 cum=-4768.59 eq%=-0.02848725371
+  #10 L "Long" in "Long"@115 144.56 out "Margin call"@115 144.56 q=92 pnl=0 (0) cm=0 ru=0 dd=0 cum=-4768.59 eq%=0
+  #11 L "Long" in "Long"@115 144.56 out "Close entry(s) order Long"@117 140.58 q=590 pnl=-2348.2 (-0.0275318207) cm=0 ru=601.8 dd=2873.3 cum=-7116.79 eq%=-0.02465783086
+  #12 S "Short" in "Short"@117 140.58 out "Margin call"@117 141.4 q=24 pnl=-19.68 (-0.005832977664) cm=0 ru=0 dd=19.68 cum=-7136.47 eq%=-0.0002118789822
+  ... 98 more
+  digest 1-100: 0b0d44b319a02d
+  digest 101-110: 1e5cbb9db1c42d
+orders:
+  97 sell entry MARKET "Short" 140.76 x710
+  97 buy order MARKET "Margin call 0" 141.38 x20
+  98 buy exit MARKET "Close entry(s) order Short" 139.51 x690
+  98 buy entry MARKET "Long" 139.51 x707
+  99 sell exit MARKET "Close entry(s) order Long" 139.54 x707
+  99 sell entry MARKET "Short" 139.54 x722
+  99 buy order MARKET "Margin call 1" 139.85 x8
+  100 buy order MARKET "Margin call 2" 141.86 x56
+  107 buy exit MARKET "Close entry(s) order Short" 141.8 x658
+  107 buy entry MARKET "Long" 141.8 x699
+  108 sell exit MARKET "Close entry(s) order Long" 140.19 x699
+  108 sell entry MARKET "Short" 140.19 x699
+  ... 149 more
+  digest 1-100: 11d095012c20ba
+  digest 101-161: 10adc857acc32a

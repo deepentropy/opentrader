@@ -1,0 +1,42 @@
+script/pivot-points on penny: 900 bars, first 978411600, last 1088136000
+trades=219 filledOrders=360 marginCalls=21 finalEquity=3622.125985 minEquity=3369.839043
+orders by kind: entry/LIMIT=181 entry/MARKET=6 exit/LIMIT=152 order/MARKET=21
+openPL=-196.5164 maxDD=10343.89256 (0.7563139016) maxRunUp=4611.781103 (0.3282889556) buyHold=-6509.2895 (-0.65092895)
+all: netProfit=-6181.357615 grossProfit=8932.153885 grossLoss=15113.5115 commissionPaid=551.8582153 profitFactor=0.5910045382 totalTrades=216 totalOpenTrades=3 numberOfWiningTrades=104 numberOfLosingTrades=112 percentProfitable=0.4814814815 avgTrade=-28.61739637 avgWinTrade=85.88609505 avgLosTrade=134.942067 largestWinTrade=413.2665099 largestLosTrade=2640.89397 avgBarsInTrade=6.041666667 maxContractsHeld=199752
+long: netProfit=-5810.5708 grossProfit=3760.674289 grossLoss=9571.245089 commissionPaid=250.5196999 profitFactor=0.3929138011 totalTrades=85 totalOpenTrades=0 numberOfWiningTrades=45 numberOfLosingTrades=40 percentProfitable=0.5294117647 avgTrade=-68.35965647 avgWinTrade=83.57053975 avgLosTrade=239.2811272 largestWinTrade=413.2665099 largestLosTrade=2640.89397 avgBarsInTrade=7.105882353 maxContractsHeld=99339
+short: netProfit=-370.7868154 grossProfit=5171.479596 grossLoss=5542.266411 commissionPaid=301.3385154 profitFactor=0.9330983414 totalTrades=131 totalOpenTrades=3 numberOfWiningTrades=59 numberOfLosingTrades=72 percentProfitable=0.4503816794 avgTrade=-2.830433705 avgWinTrade=87.65219654 avgLosTrade=76.97592238 largestWinTrade=287.664684 largestLosTrade=738.5873496 avgBarsInTrade=5.351145038 maxContractsHeld=199752
+trades:
+  #1 L "long1" in "long1"@1 1.1854 out "short1"@1 1.1848 q=1523 pnl=-4.5236146 (-0.002503148952) cm=3.6098146 ru=0 dd=2.7191642 cum=-8.134343 eq%=-0.0004525248544
+  #2 L "long2" in "long2"@1 1.1854 out "short1"@1 1.1848 q=1523 pnl=-4.5236146 (-0.002503148952) cm=3.6098146 ru=0 dd=2.7191642 cum=-10.8525934 eq%=-0.0004526479399
+  #3 L "long3" in "long3"@1 1.1854 out "short1"@1 1.1848 q=1523 pnl=-4.5236146 (-0.002503148952) cm=3.6098146 ru=0 dd=2.7191642 cum=-13.5708438 eq%=-0.0004527710924
+  #4 S "short1" in "short1"@1 1.1848 out "close short1"@11 1.3023 q=1524 pnl=-182.8603404 (-0.1011708582) cm=3.7903404 ru=138.7071648 dd=377.7764352 cum=-200.0424546 eq%=-0.01831750739
+  #5 S "short2" in "short2"@1 1.1848 out "close short2"@11 1.3023 q=1524 pnl=-182.8603404 (-0.1011708582) cm=3.7903404 ru=138.7071648 dd=377.7764352 cum=-381.0971598 eq%=-0.01865586191
+  #6 S "short3" in "short3"@1 1.1848 out "close short3"@11 1.3023 q=1524 pnl=-182.8603404 (-0.1011708582) cm=3.7903404 ru=138.7071648 dd=377.7764352 cum=-562.151865 eq%=-0.01900695161
+  #7 S "short1" in "short1"@18 1.365 out "close short1"@20 1.2202 q=1243 pnl=176.7729964 (0.1040825841) cm=3.2134036 ru=178.289705 dd=29.539895 cum=-385.3788686 eq%=0.0187302226
+  #8 L "long1" in "long1"@29 1.1459 out "close long1"@30 1.1987 q=1508 pnl=76.0867432 (0.04398725456) cm=3.5356568 ru=77.8943828 dd=60.6908172 cum=-309.2921254 eq%=0.007913649655
+  #9 S "short1" in "short1"@30 1.2398 out "close short1"@35 1.1992 q=2911 pnl=111.086671 (0.0307492153) cm=7.099929 ru=225.7777422 dd=193.9884578 cum=-198.2054544 eq%=0.01146321532
+  #10 L "long1" in "long1"@45 1.1161 out "close long1"@50 1.1355 q=1579 pnl=27.0773236 (0.01534922384) cm=3.5552764 ru=97.2409781 dd=72.9752219 cum=-171.1281308 eq%=0.002762486346
+  #11 L "long2" in "long2"@55 0.8919 out "close long1"@61 0.9019 q=1941 pnl=15.9282342 (0.00919161565) cm=3.4817658 ru=121.5223221 dd=163.9987779 cum=-160.4568815 eq%=0.001621422907
+  #12 L "long1" in "long1"@55 0.8919 out "close long2"@61 0.9019 q=1941 pnl=15.9282342 (0.00919161565) cm=3.4817658 ru=121.5223221 dd=163.9987779 cum=-142.7974694 eq%=0.001618513388
+  ... 207 more
+  digest 1-100: 0c27077d0b0aca
+  digest 101-200: 0717cd62bd3a1d
+  digest 201-219: 176607a2b603f6
+orders:
+  1 buy entry MARKET "long1" 1.1854 x1523
+  1 buy entry MARKET "long2" 1.1854 x1523
+  1 buy entry MARKET "long3" 1.1854 x1523
+  1 sell entry MARKET "short1" 1.1848 x6093
+  1 sell entry MARKET "short2" 1.1848 x1524
+  1 sell entry MARKET "short3" 1.1848 x1524
+  11 buy exit LIMIT "close short1" 1.3023 x1524
+  11 buy exit LIMIT "close short2" 1.3023 x1524
+  11 buy exit LIMIT "close short3" 1.3023 x1524
+  18 sell entry LIMIT "short1" 1.365 x1243
+  20 buy exit LIMIT "close short1" 1.2202 x1243
+  29 buy entry LIMIT "long1" 1.1459 x1508
+  ... 348 more
+  digest 1-100: 16a12304a91aaf
+  digest 101-200: 0a84ab3e5784a2
+  digest 201-300: 069f0c4567a620
+  digest 301-360: 1b6b4e0b4c7199

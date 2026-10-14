@@ -1,0 +1,37 @@
+builtin/supertrend on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=89 filledOrders=89 marginCalls=0 finalEquity=106795.04 minEquity=99651.65
+orders by kind: entry/MARKET=89
+openPL=41.76 maxDD=1129.64 (0.01121492247) maxRunUp=7465.77 (0.06962071117) buyHold=-2585 (-0.02585)
+all: netProfit=6753.28 grossProfit=12756.8 grossLoss=6003.52 commissionPaid=0 profitFactor=2.124886733 totalTrades=88 totalOpenTrades=1 numberOfWiningTrades=34 numberOfLosingTrades=54 percentProfitable=0.3863636364 avgTrade=76.74181818 avgWinTrade=375.2 avgLosTrade=111.1762963 largestWinTrade=1482.97 largestLosTrade=315.84 avgBarsInTrade=42.69318182 maxContractsHeld=42
+long: netProfit=3373.52 grossProfit=6591.35 grossLoss=3217.83 commissionPaid=0 profitFactor=2.048383538 totalTrades=44 totalOpenTrades=1 numberOfWiningTrades=17 numberOfLosingTrades=27 percentProfitable=0.3863636364 avgTrade=76.67090909 avgWinTrade=387.7264706 avgLosTrade=119.1788889 largestWinTrade=1482.97 largestLosTrade=308.16 avgBarsInTrade=42.40909091 maxContractsHeld=42
+short: netProfit=3379.76 grossProfit=6165.45 grossLoss=2785.69 commissionPaid=0 profitFactor=2.213257757 totalTrades=44 totalOpenTrades=0 numberOfWiningTrades=17 numberOfLosingTrades=27 percentProfitable=0.3863636364 avgTrade=76.81272727 avgWinTrade=362.6735294 avgLosTrade=103.1737037 largestWinTrade=1172.16 largestLosTrade=315.84 avgBarsInTrade=42.97727273 maxContractsHeld=42
+trades:
+  #1 L "My Long Entry Id" in "My Long Entry Id"@127 453.52 out "My Short Entry Id"@289 472.15 q=33 pnl=614.79 (0.04107867349) cm=0 ru=709.83 dd=11.22 cum=614.79 eq%=0.0061479
+  #2 S "My Short Entry Id" in "My Short Entry Id"@289 472.15 out "My Long Entry Id"@301 474.98 q=31 pnl=-87.73 (-0.005993857884) cm=0 ru=5.58 dd=92.38 cum=527.06 eq%=-0.0008719394037
+  #3 L "My Long Entry Id" in "My Long Entry Id"@301 474.98 out "My Short Entry Id"@316 474.62 q=31 pnl=-11.16 (-0.0007579266495) cm=0 ru=74.4 dd=17.36 cum=515.9 eq%=-0.0001110148849
+  #4 S "My Short Entry Id" in "My Short Entry Id"@316 474.62 out "My Long Entry Id"@330 477.02 q=31 pnl=-74.4 (-0.00505667692) cm=0 ru=14.88 dd=77.81 cum=441.5 eq%=-0.0007401814041
+  #5 L "My Long Entry Id" in "My Long Entry Id"@330 477.02 out "My Short Entry Id"@356 474.34 q=31 pnl=-83.08 (-0.005618213073) cm=0 ru=27.59 dd=87.42 cum=358.42 eq%=-0.000827148141
+  #6 S "My Short Entry Id" in "My Short Entry Id"@356 474.34 out "My Long Entry Id"@378 477.5 q=31 pnl=-97.96 (-0.006661888097) cm=0 ru=1.24 dd=108.5 cum=260.46 eq%=-0.0009761014572
+  #7 L "My Long Entry Id" in "My Long Entry Id"@378 477.5 out "My Short Entry Id"@469 480.4 q=31 pnl=89.9 (0.006073298429) cm=0 ru=186.93 dd=13.95 cum=350.36 eq%=0.0008966645475
+  #8 S "My Short Entry Id" in "My Short Entry Id"@469 480.4 out "My Long Entry Id"@523 476.21 q=31 pnl=129.89 (0.008721898418) cm=0 ru=243.35 dd=45.26 cum=480.25 eq%=0.001294365063
+  #9 L "My Long Entry Id" in "My Long Entry Id"@523 476.21 out "My Short Entry Id"@531 474.01 q=31 pnl=-68.2 (-0.004619810588) cm=0 ru=49.29 dd=73.78 cum=412.05 eq%=-0.0006787403495
+  #10 S "My Short Entry Id" in "My Short Entry Id"@531 474.01 out "My Long Entry Id"@616 467.17 q=31 pnl=212.04 (0.01443007531) cm=0 ru=474.3 dd=45.57 cum=624.09 eq%=0.002111698745
+  #11 L "My Long Entry Id" in "My Long Entry Id"@616 467.17 out "My Short Entry Id"@625 457.54 q=32 pnl=-308.16 (-0.02061348117) cm=0 ru=23.04 dd=341.76 cum=315.93 eq%=-0.003062487323
+  #12 S "My Short Entry Id" in "My Short Entry Id"@625 457.54 out "My Long Entry Id"@704 453.81 q=32 pnl=119.36 (0.008152292696) cm=0 ru=507.2 dd=57.6 cum=435.29 eq%=0.001189840936
+  ... 77 more
+  digest 1-89: 13f6364e5b07fc
+orders:
+  127 buy entry MARKET "My Long Entry Id" 453.52 x33
+  289 sell entry MARKET "My Short Entry Id" 472.15 x64
+  301 buy entry MARKET "My Long Entry Id" 474.98 x62
+  316 sell entry MARKET "My Short Entry Id" 474.62 x62
+  330 buy entry MARKET "My Long Entry Id" 477.02 x62
+  356 sell entry MARKET "My Short Entry Id" 474.34 x62
+  378 buy entry MARKET "My Long Entry Id" 477.5 x62
+  469 sell entry MARKET "My Short Entry Id" 480.4 x62
+  523 buy entry MARKET "My Long Entry Id" 476.21 x62
+  531 sell entry MARKET "My Short Entry Id" 474.01 x62
+  616 buy entry MARKET "My Long Entry Id" 467.17 x63
+  625 sell entry MARKET "My Short Entry Id" 457.54 x64
+  ... 77 more
+  digest 1-89: 10ead89563510e

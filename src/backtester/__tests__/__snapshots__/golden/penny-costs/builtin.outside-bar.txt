@@ -1,0 +1,37 @@
+builtin/outside-bar on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=15 filledOrders=30 marginCalls=0 finalEquity=12665.0621 minEquity=4607.9507
+orders by kind: entry/MARKET=30
+openPL=0 maxDD=95580.4771 (0.955804771) maxRunUp=11725.4016 (0.4820075633) buyHold=-66370.8355 (-0.663708355)
+all: netProfit=-87334.9379 grossProfit=7602.2549 grossLoss=94937.1928 commissionPaid=30 profitFactor=0.08007667676 totalTrades=15 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=9 percentProfitable=0.4 avgTrade=-5822.329193 avgWinTrade=1267.042483 avgLosTrade=10548.57698 largestWinTrade=2591.0336 largestLosTrade=47780.5256 avgBarsInTrade=31.73333333 maxContractsHeld=185595
+long: netProfit=-87334.9379 grossProfit=7602.2549 grossLoss=94937.1928 commissionPaid=30 profitFactor=0.08007667676 totalTrades=15 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=9 percentProfitable=0.4 avgTrade=-5822.329193 avgWinTrade=1267.042483 avgLosTrade=10548.57698 largestWinTrade=2591.0336 largestLosTrade=47780.5256 avgBarsInTrade=31.73333333 maxContractsHeld=185595
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "OutBarLE" in "OutBarLE"@3 1.2302 out "OutBarSE"@7 1.1268 q=80256 pnl=-8300.4704 (-0.08407077932) cm=2 ru=11724.4016 dd=8299.4704 cum=-8300.4704 eq%=-0.083004704
+  #2 L "OutBarLE" in "OutBarLE"@13 1.3231 out "OutBarSE"@36 1.1623 q=66748 pnl=-10735.0784 (-0.121554034) cm=2 ru=5131.9212 dd=14738.9584 cum=-19035.5488 eq%=-0.1170679768
+  #3 L "OutBarLE" in "OutBarLE"@41 1.2078 out "OutBarSE"@175 0.4902 q=66581 pnl=-47780.5256 (-0.5941555844) cm=2 ru=3101.6746 dd=56921.0969 cum=-66816.0744 eq%=-0.5901420301
+  #4 L "OutBarLE" in "OutBarLE"@228 0.3473 out "OutBarSE"@255 0.2095 q=95134 pnl=-13111.4652 (-0.3968236446) cm=2 ru=0 dd=18276.2414 cum=-79927.5396 eq%=-0.3951149529
+  #5 L "OutBarLE" in "OutBarLE"@265 0.2516 out "OutBarSE"@279 0.2324 q=79021 pnl=-1519.2032 (-0.07640835767) cm=2 ru=212.3567 dd=4821.281 cum=-81446.7428 eq%=-0.0756859483
+  #6 L "OutBarLE" in "OutBarLE"@289 0.2061 out "OutBarSE"@296 0.1656 q=88979 pnl=-3605.6495 (-0.1966048891) cm=2 ru=639.6488 dd=3604.6495 cum=-85052.3923 eq%=-0.1943405118
+  #7 L "OutBarLE" in "OutBarLE"@302 0.1165 out "OutBarSE"@354 0.1241 q=113146 pnl=857.9096 (0.06507938663) cm=2 ru=6855.6476 dd=1573.7294 cum=-84194.4827 eq%=0.05739444179
+  #8 L "OutBarLE" in "OutBarLE"@375 0.0995 out "OutBarSE"@394 0.0817 q=153740 pnl=-2738.572 (-0.1790135134) cm=2 ru=1228.92 dd=3121.922 cum=-86933.0547 eq%=-0.1732668377
+  #9 L "OutBarLE" in "OutBarLE"@416 0.0699 out "OutBarSE"@428 0.0504 q=185595 pnl=-3621.1025 (-0.2791026084) cm=2 ru=314.5115 dd=3620.1025 cum=-90554.1572 eq%=-0.277119282
+  #10 L "OutBarLE" in "OutBarLE"@434 0.0589 out "OutBarSE"@449 0.0654 q=159541 pnl=1035.0165 (0.1101319819) cm=2 ru=2073.033 dd=96.7246 cum=-89519.1407 eq%=0.1095737587
+  #11 L "OutBarLE" in "OutBarLE"@453 0.0668 out "OutBarSE"@499 0.0432 q=149285 pnl=-3525.126 (-0.3534585257) cm=2 ru=13.9285 dd=5255.832 cum=-93044.2667 eq%=-0.3363394068
+  #12 L "OutBarLE" in "OutBarLE"@503 0.0386 out "OutBarSE"@579 0.0405 q=171298 pnl=323.4662 (0.04891292481) cm=2 ru=1009.6582 dd=2536.2104 cum=-92720.8005 eq%=0.04650353687
+  ... 3 more
+  digest 1-15: 0daa8c198cc802
+orders:
+  3 buy entry MARKET "OutBarLE" 1.2302 x80256
+  7 sell entry MARKET "OutBarSE" 1.1268 x80256
+  13 buy entry MARKET "OutBarLE" 1.3231 x66748
+  36 sell entry MARKET "OutBarSE" 1.1623 x66748
+  41 buy entry MARKET "OutBarLE" 1.2078 x66581
+  175 sell entry MARKET "OutBarSE" 0.4902 x66581
+  228 buy entry MARKET "OutBarLE" 0.3473 x95134
+  255 sell entry MARKET "OutBarSE" 0.2095 x95134
+  265 buy entry MARKET "OutBarLE" 0.2516 x79021
+  279 sell entry MARKET "OutBarSE" 0.2324 x79021
+  289 buy entry MARKET "OutBarLE" 0.2061 x88979
+  296 sell entry MARKET "OutBarSE" 0.1656 x88979
+  ... 18 more
+  digest 1-30: 0aa1135927692e

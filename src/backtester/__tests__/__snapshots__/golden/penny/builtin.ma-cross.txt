@@ -1,0 +1,39 @@
+builtin/ma-cross on penny: 900 bars, first 978411600, last 1088136000
+trades=137 filledOrders=137 marginCalls=57 finalEquity=5392.9102 minEquity=5392.9102
+orders by kind: entry/MARKET=80 order/MARKET=57
+openPL=-2156.025 maxDD=94664.9398 (0.946649398) maxRunUp=31086.4693 (0.4652528467) buyHold=-70017.1314 (-0.700171314)
+all: netProfit=-92451.0648 grossProfit=66488.3776 grossLoss=158939.4424 commissionPaid=0 profitFactor=0.4183252225 totalTrades=136 totalOpenTrades=1 numberOfWiningTrades=25 numberOfLosingTrades=111 percentProfitable=0.1838235294 avgTrade=-679.7872412 avgWinTrade=2659.535104 avgLosTrade=1431.886868 largestWinTrade=12511.9566 largestLosTrade=10181.778 avgBarsInTrade=9.132352941 maxContractsHeld=726790
+long: netProfit=-64764.3513 grossProfit=18572.4162 grossLoss=83336.7675 commissionPaid=0 profitFactor=0.2228598103 totalTrades=40 totalOpenTrades=0 numberOfWiningTrades=9 numberOfLosingTrades=31 percentProfitable=0.225 avgTrade=-1619.108782 avgWinTrade=2063.6018 avgLosTrade=2688.282823 largestWinTrade=4374.0189 largestLosTrade=10181.778 avgBarsInTrade=8.375 maxContractsHeld=697250
+short: netProfit=-27686.7135 grossProfit=47915.9614 grossLoss=75602.6749 commissionPaid=0 profitFactor=0.6337865884 totalTrades=96 totalOpenTrades=1 numberOfWiningTrades=16 numberOfLosingTrades=80 percentProfitable=0.1666666667 avgTrade=-288.4032656 avgWinTrade=2994.747587 avgLosTrade=945.0334362 largestWinTrade=12511.9566 largestLosTrade=7449.52 avgBarsInTrade=9.447916667 maxContractsHeld=726790
+trades:
+  #1 L "MACrossLE" in "MACrossLE"@9 1.3798 out "MACrossSE"@12 1.2868 q=71802 pnl=-6677.586 (-0.06740107262) cm=0 ru=3712.1634 dd=6677.586 cum=-6677.586 eq%=-0.06677586
+  #2 S "MACrossSE" in "MACrossSE"@12 1.2868 out "Margin call"@12 1.422 q=55100 pnl=-7449.52 (-0.1050668325) cm=0 ru=2402.36 dd=7449.52 cum=-14127.106 eq%=-0.07982562474
+  #3 S "MACrossSE" in "MACrossSE"@12 1.2868 out "MACrossLE"@13 1.323 q=17409 pnl=-630.2058 (-0.02813179981) cm=0 ru=759.0324 dd=2353.6968 cum=-14757.3118 eq%=-0.007338821025
+  #4 L "MACrossLE" in "MACrossLE"@13 1.323 out "MACrossSE"@14 1.1572 q=61410 pnl=-10181.778 (-0.1253212396) cm=0 ru=503.562 dd=10181.778 cum=-24939.0898 eq%=-0.1194445907
+  #5 S "MACrossSE" in "MACrossSE"@14 1.1572 out "Margin call"@14 1.2746 q=46888 pnl=-5504.6512 (-0.1014517802) cm=0 ru=2574.1512 dd=5504.6512 cum=-30443.741 eq%=-0.0733357907
+  #6 S "MACrossSE" in "MACrossSE"@14 1.1572 out "MACrossLE"@19 1.2261 q=17769 pnl=-1224.2841 (-0.05954026962) cm=0 ru=975.5181 dd=4090.4238 cum=-31668.0251 eq%=-0.01760135058
+  #7 L "MACrossLE" in "MACrossLE"@19 1.2261 out "MACrossSE"@20 1.2202 q=49669 pnl=-293.0471 (-0.004812005546) cm=0 ru=2771.5302 dd=293.0471 cum=-31961.0722 eq%=-0.004288579401
+  #8 S "MACrossSE" in "MACrossSE"@20 1.2202 out "Margin call"@20 1.3288 q=35380 pnl=-3842.268 (-0.08900180298) cm=0 ru=1793.766 dd=3842.268 cum=-35803.3402 eq%=-0.05647161301
+  #9 S "MACrossSE" in "MACrossSE"@20 1.2202 out "MACrossLE"@21 1.2924 q=20132 pnl=-1453.5304 (-0.05917062777) cm=0 ru=1020.6924 dd=2186.3352 cum=-37256.8706 eq%=-0.02264183845
+  #10 L "MACrossLE" in "MACrossLE"@21 1.2924 out "MACrossSE"@23 1.235 q=47687 pnl=-2737.2338 (-0.04441349427) cm=0 ru=5131.1212 dd=2737.2338 cum=-39994.1044 eq%=-0.04362603246
+  #11 S "MACrossSE" in "MACrossSE"@23 1.235 out "Margin call"@23 1.2773 q=12832 pnl=-542.7936 (-0.03425101215) cm=0 ru=300.2688 dd=542.7936 cum=-40536.898 eq%=-0.009045671172
+  #12 S "MACrossSE" in "MACrossSE"@23 1.235 out "MACrossLE"@31 1.2394 q=35746 pnl=-157.2824 (-0.003562753036) cm=0 ru=4582.6372 dd=1801.5984 cum=-40694.1804 eq%=-0.002645041962
+  ... 125 more
+  digest 1-100: 1c39c19440e97c
+  digest 101-137: 13ae87b43b8ee4
+orders:
+  9 buy entry MARKET "MACrossLE" 1.3798 x71802
+  12 sell entry MARKET "MACrossSE" 1.2868 x144311
+  12 buy order MARKET "Margin call 0" 1.422 x55100
+  13 buy entry MARKET "MACrossLE" 1.323 x78819
+  14 sell entry MARKET "MACrossSE" 1.1572 x126067
+  14 buy order MARKET "Margin call 1" 1.2746 x46888
+  19 buy entry MARKET "MACrossLE" 1.2261 x67438
+  20 sell entry MARKET "MACrossSE" 1.2202 x105181
+  20 buy order MARKET "Margin call 2" 1.3288 x35380
+  21 buy entry MARKET "MACrossLE" 1.2924 x67819
+  23 sell entry MARKET "MACrossSE" 1.235 x96265
+  23 buy order MARKET "Margin call 3" 1.2773 x12832
+  ... 125 more
+  digest 1-100: 0d19380bdb1977
+  digest 101-137: 11536bc02762ae

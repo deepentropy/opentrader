@@ -1,0 +1,40 @@
+builtin/channel-breakout on daily: 1500 bars, first 1546405200, last 1728964800
+trades=137 filledOrders=229 marginCalls=31 finalEquity=120534.54 minEquity=57698.04
+orders by kind: entry/MARKET=1 entry/STOP=197 order/MARKET=31
+openPL=-19264.72 maxDD=53150.88 (0.4826961955) maxRunUp=133446.9 (0.6971327458) buyHold=88957.8 (0.889578)
+all: netProfit=39799.26 grossProfit=242812.87 grossLoss=203013.61 commissionPaid=0 profitFactor=1.196042324 totalTrades=136 totalOpenTrades=1 numberOfWiningTrades=45 numberOfLosingTrades=90 percentProfitable=0.3308823529 avgTrade=292.6416176 avgWinTrade=5395.841556 avgLosTrade=2255.706778 largestWinTrade=50427.96 largestLosTrade=16369.24 avgBarsInTrade=6.955882353 maxContractsHeld=941
+long: netProfit=83360.29 grossProfit=241816.57 grossLoss=158456.28 commissionPaid=0 profitFactor=1.52607754 totalTrades=105 totalOpenTrades=0 numberOfWiningTrades=44 numberOfLosingTrades=60 percentProfitable=0.419047619 avgTrade=793.9075238 avgWinTrade=5495.831136 avgLosTrade=2640.938 largestWinTrade=50427.96 largestLosTrade=11968.55 avgBarsInTrade=7.971428571 maxContractsHeld=941
+short: netProfit=-43561.03 grossProfit=996.3 grossLoss=44557.33 commissionPaid=0 profitFactor=0.02235995739 totalTrades=31 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=30 percentProfitable=0.03225806452 avgTrade=-1405.194516 avgWinTrade=996.3 avgLosTrade=1485.244333 largestWinTrade=996.3 largestLosTrade=16369.24 avgBarsInTrade=3.516129032 maxContractsHeld=924
+trades:
+  #1 S "ChBrkSE" in "ChBrkSE"@1 147.64 out "Margin call"@1 148.33 q=12 pnl=-8.28 (-0.004673530209) cm=0 ru=0 dd=8.28 cum=-8.28 eq%=-0.0000828
+  #2 S "ChBrkSE" in "ChBrkSE"@1 147.64 out "ChBrkLE"@8 148.85 q=663 pnl=-802.23 (-0.008195610946) cm=0 ru=2141.49 dd=802.23 cum=-810.51 eq%=-0.008022964301
+  #3 L "ChBrkLE" in "ChBrkLE"@8 148.85 out "Margin call"@8 149.22 q=12 pnl=4.44 (0.002485723883) cm=0 ru=4.44 dd=0 cum=-806.07 eq%=0.00004476280703
+  #4 L "ChBrkLE" in "ChBrkLE"@8 148.85 out "ChBrkSE"@9 145.71 q=658 pnl=-2066.12 (-0.02109506214) cm=0 ru=296.1 dd=2066.12 cum=-2872.19 eq%=-0.0208290971
+  #5 L "ChBrkLE" in "ChBrkLE"@20 148.13 out "ChBrkSE"@27 148.13 q=655 pnl=0 (0) cm=0 ru=4408.15 dd=1585.1 cum=-2872.19 eq%=0
+  #6 S "ChBrkSE" in "ChBrkSE"@28 147.03 out "Margin call"@33 147.93 q=28 pnl=-25.2 (-0.006121199755) cm=0 ru=164.36 dd=25.2 cum=-2897.39 eq%=-0.0002594519531
+  #7 S "ChBrkSE" in "ChBrkSE"@28 147.03 out "ChBrkLE"@34 147.94 q=632 pnl=-575.12 (-0.006189213086) cm=0 ru=3709.84 dd=575.12 cum=-3472.51 eq%=-0.005922806812
+  #8 L "ChBrkLE" in "ChBrkLE"@34 147.94 out "Margin call"@34 149.86 q=12 pnl=23.04 (0.01297823442) cm=0 ru=23.04 dd=0 cum=-3449.47 eq%=0.0002386884814
+  #9 L "ChBrkLE" in "ChBrkLE"@34 147.94 out "ChBrkSE"@37 141.15 q=644 pnl=-4372.76 (-0.04589698526) cm=0 ru=1236.48 dd=4372.76 cum=-7822.23 eq%=-0.04528986014
+  #10 L "ChBrkLE" in "ChBrkLE"@43 142.95 out "ChBrkSE"@44 139.94 q=644 pnl=-1938.44 (-0.0210563134) cm=0 ru=128.8 dd=1938.44 cum=-9760.67 eq%=-0.02102936532
+  #11 L "ChBrkLE" in "ChBrkLE"@50 148.06 out "ChBrkSE"@53 143.62 q=609 pnl=-2703.96 (-0.02998784277) cm=0 ru=103.53 dd=2703.96 cum=-12464.63 eq%=-0.02996431822
+  #12 L "ChBrkLE" in "ChBrkLE"@61 139.04 out "ChBrkSE"@73 137.44 q=629 pnl=-1006.4 (-0.01150747986) cm=0 ru=2025.38 dd=1289.45 cum=-13471.03 eq%=-0.01149706684
+  ... 125 more
+  digest 1-100: 0b9ce3502bf526
+  digest 101-137: 18e8d93d78f09e
+orders:
+  1 sell entry MARKET "ChBrkSE" 147.64 x675
+  1 buy order MARKET "Margin call 0" 148.33 x12
+  8 buy entry STOP "ChBrkLE" 148.85 x1333
+  8 sell order MARKET "Margin call 1" 149.22 x12
+  9 sell entry STOP "ChBrkSE" 145.71 x658
+  20 buy entry STOP "ChBrkLE" 148.13 x655
+  27 sell entry STOP "ChBrkSE" 148.13 x655
+  28 sell entry STOP "ChBrkSE" 147.03 x660
+  33 buy order MARKET "Margin call 2" 147.93 x28
+  34 buy entry STOP "ChBrkLE" 147.94 x1288
+  34 sell order MARKET "Margin call 3" 149.86 x12
+  37 sell entry STOP "ChBrkSE" 141.15 x644
+  ... 217 more
+  digest 1-100: 1980a1f3b125f1
+  digest 101-200: 04e75cb35caaff
+  digest 201-229: 1d588ae0d4510b

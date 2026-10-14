@@ -1,0 +1,16 @@
+script/btc-intraday-spot on penny: 900 bars, first 978411600, last 1088136000
+trades=2 filledOrders=3 marginCalls=0 finalEquity=95478.0391 minEquity=91085.2731
+orders by kind: entry/MARKET=1 exit/LIMIT=1 exit/STOP=1
+openPL=0 maxDD=12273.9009 (0.122739009) maxRunUp=0 (0) buyHold=977343.4998 (9.773434998)
+all: netProfit=-4521.9609 grossProfit=775.194 grossLoss=5297.1549 commissionPaid=0 profitFactor=0.1463415767 totalTrades=2 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=-2260.98045 avgWinTrade=775.194 avgLosTrade=5297.1549 largestWinTrade=775.194 largestLosTrade=5297.1549 avgBarsInTrade=3.5 maxContractsHeld=2583979
+long: netProfit=-4521.9609 grossProfit=775.194 grossLoss=5297.1549 commissionPaid=0 profitFactor=0.1463415767 totalTrades=2 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=-2260.98045 avgWinTrade=775.194 avgLosTrade=5297.1549 largestWinTrade=775.194 largestLosTrade=5297.1549 avgBarsInTrade=3.5 maxContractsHeld=2583979
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "BUY" in "BUY"@568 0.0384 out "TP1 Long"@569 0.0343 q=1291989 pnl=-5297.1549 (-0.1067708333) cm=0 ru=0 dd=5297.1549 cum=-5297.1549 eq%=-0.052971549
+  #2 L "BUY" in "BUY"@568 0.0384 out "TP2 Long"@572 0.039 q=1291990 pnl=775.194 (0.015625) cm=0 ru=775.194 dd=6976.746 cum=-4521.9609 eq%=0.008185540774
+  digest 1-2: 099c1e344f4671
+orders:
+  568 buy entry MARKET "BUY" 0.0384 x2583979
+  569 sell exit STOP "TP1 Long" 0.0343 x1291989
+  572 sell exit LIMIT "TP2 Long" 0.039 x1291990
+  digest 1-3: 0a0e1c3163dc38

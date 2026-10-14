@@ -1,0 +1,58 @@
+builtin/volty-expan-close on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=984 filledOrders=1217 marginCalls=249 finalEquity=125156.76 minEquity=93102.37
+orders by kind: entry/STOP=968 order/MARKET=249
+openPL=0 maxDD=9848.85 (0.09573712047) maxRunUp=39763.35 (0.2992747113) buyHold=-7423.68 (-0.0742368)
+all: netProfit=25156.76 grossProfit=126394.19 grossLoss=101237.43 commissionPaid=0 profitFactor=1.248492677 totalTrades=984 totalOpenTrades=0 numberOfWiningTrades=409 numberOfLosingTrades=570 percentProfitable=0.4156504065 avgTrade=25.56581301 avgWinTrade=309.0322494 avgLosTrade=177.6095263 largestWinTrade=4129.92 largestLosTrade=1644.86 avgBarsInTrade=4.24898374 maxContractsHeld=320
+long: netProfit=7014.16 grossProfit=76172.8 grossLoss=69158.64 commissionPaid=0 profitFactor=1.101421312 totalTrades=577 totalOpenTrades=0 numberOfWiningTrades=299 numberOfLosingTrades=273 percentProfitable=0.5181975737 avgTrade=12.1562565 avgWinTrade=254.7585284 avgLosTrade=253.3283516 largestWinTrade=2987.28 largestLosTrade=1644.86 avgBarsInTrade=4.272097054 maxContractsHeld=320
+short: netProfit=18142.6 grossProfit=50221.39 grossLoss=32078.79 commissionPaid=0 profitFactor=1.565563726 totalTrades=407 totalOpenTrades=0 numberOfWiningTrades=110 numberOfLosingTrades=297 percentProfitable=0.2702702703 avgTrade=44.57641278 avgWinTrade=456.5580909 avgLosTrade=108.0093939 largestWinTrade=4129.92 largestLosTrade=792.22 avgBarsInTrade=4.216216216 maxContractsHeld=315
+trades:
+  #1 S "VltClsSE" in "VltClsSE"@7 477.29 out "VltClsLE"@13 475.25 q=209 pnl=426.36 (0.004274131031) cm=0 ru=787.93 dd=0 cum=426.36 eq%=0.0042636
+  #2 L "VltClsLE" in "VltClsLE"@13 475.25 out "VltClsSE"@14 474.36 q=211 pnl=-187.79 (-0.00187269858) cm=0 ru=69.63 dd=187.79 cum=238.57 eq%=-0.001869927378
+  #3 S "VltClsSE" in "VltClsSE"@14 474.36 out "VltClsLE"@20 473.02 q=211 pnl=282.74 (0.002824858757) cm=0 ru=700.52 dd=12.66 cum=521.31 eq%=0.002820670726
+  #4 L "VltClsLE" in "VltClsLE"@20 473.02 out "VltClsSE"@26 472.64 q=212 pnl=-80.56 (-0.0008033486956) cm=0 ru=237.44 dd=180.2 cum=440.75 eq%=-0.0008014221064
+  #5 S "VltClsSE" in "VltClsSE"@26 472.64 out "VltClsLE"@31 470.41 q=212 pnl=472.76 (0.004718178741) cm=0 ru=831.04 dd=0 cum=913.51 eq%=0.004706854539
+  #6 L "VltClsLE" in "VltClsLE"@31 470.41 out "VltClsSE"@32 469.42 q=214 pnl=-211.86 (-0.002104547097) cm=0 ru=169.06 dd=211.86 cum=701.65 eq%=-0.002099421574
+  #7 S "VltClsSE" in "VltClsSE"@32 469.42 out "Margin call"@33 470.71 q=1 pnl=-1.29 (-0.002748072089) cm=0 ru=0.08 dd=1.29 cum=700.36 eq%=-0.00001281011781
+  #8 S "VltClsSE" in "VltClsSE"@32 469.42 out "VltClsLE"@38 470.07 q=213 pnl=-138.45 (-0.001384687487) cm=0 ru=102.24 dd=274.77 cum=561.91 eq%=-0.001374870954
+  #9 L "VltClsLE" in "VltClsLE"@38 470.07 out "Margin call"@38 470.83 q=1 pnl=0.76 (0.00161678048) cm=0 ru=0.76 dd=0 cum=562.67 eq%=0.000007557533464
+  #10 L "VltClsLE" in "VltClsLE"@38 470.07 out "VltClsSE"@41 469.95 q=213 pnl=-25.56 (-0.0002552811283) cm=0 ru=230.04 dd=25.56 cum=537.11 eq%=-0.0002541698624
+  #11 L "VltClsLE" in "VltClsLE"@42 470.94 out "VltClsSE"@43 470.3 q=213 pnl=-136.32 (-0.001358984159) cm=0 ru=151.23 dd=136.32 cum=400.79 eq%=-0.001355917233
+  #12 S "VltClsSE" in "VltClsSE"@43 470.3 out "Margin call"@44 470.96 q=1 pnl=-0.66 (-0.001403359558) cm=0 ru=0.03 dd=0.66 cum=400.13 eq%=-0.000006573653454
+  ... 972 more
+  digest 1-100: 1ee6787ce5f8a7
+  digest 101-200: 101d694ee5fe00
+  digest 201-300: 1f6b7f1b6e2caa
+  digest 301-400: 1550d85405c892
+  digest 401-500: 1e7799bf70f7c5
+  digest 501-600: 19562f60ea2e90
+  digest 601-700: 10a25ebbbd52bb
+  digest 701-800: 1ba1097b4a33a6
+  digest 801-900: 1d55c56a02c353
+  digest 901-984: 19af7b3f2f1b6b
+orders:
+  7 sell entry STOP "VltClsSE" 477.29 x209
+  13 buy entry STOP "VltClsLE" 475.25 x420
+  14 sell entry STOP "VltClsSE" 474.36 x422
+  20 buy entry STOP "VltClsLE" 473.02 x423
+  26 sell entry STOP "VltClsSE" 472.64 x424
+  31 buy entry STOP "VltClsLE" 470.41 x426
+  32 sell entry STOP "VltClsSE" 469.42 x428
+  33 buy order MARKET "Margin call 0" 470.71 x1
+  38 buy entry STOP "VltClsLE" 470.07 x427
+  38 sell order MARKET "Margin call 1" 470.83 x1
+  41 sell entry STOP "VltClsSE" 469.95 x213
+  42 buy entry STOP "VltClsLE" 470.94 x213
+  ... 1205 more
+  digest 1-100: 059a933c41a466
+  digest 101-200: 0ee53eeeadb7c1
+  digest 201-300: 049fb18129c6b9
+  digest 301-400: 095a6f3b763cef
+  digest 401-500: 063a3d62eec300
+  digest 501-600: 06bc53d7bf2214
+  digest 601-700: 1cf9b50f39562d
+  digest 701-800: 0dd2284856ddbe
+  digest 801-900: 194073dd444cf3
+  digest 901-1000: 0306a00777ae77
+  digest 1001-1100: 16d30232fff1b5
+  digest 1101-1200: 030d1be10f2c65
+  digest 1201-1217: 1e20ea6d250713

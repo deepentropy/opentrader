@@ -1,0 +1,40 @@
+port/meanreverter on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=102 filledOrders=204 marginCalls=0 finalEquity=1742.98 minEquity=514.75
+orders by kind: entry/MARKET=102 exit/LIMIT=102
+openPL=0 maxDD=9497.25 (0.949725) maxRunUp=741.48 (0.3428542155) buyHold=-558.39 (-0.055839)
+all: netProfit=-8257.02 grossProfit=2659.01 grossLoss=10916.03 commissionPaid=0 profitFactor=0.2435876413 totalTrades=102 totalOpenTrades=0 numberOfWiningTrades=65 numberOfLosingTrades=37 percentProfitable=0.637254902 avgTrade=-80.95117647 avgWinTrade=40.90784615 avgLosTrade=295.0278378 largestWinTrade=236.28 largestLosTrade=1195.26 avgBarsInTrade=43.31372549 maxContractsHeld=75
+long: netProfit=-8257.02 grossProfit=2659.01 grossLoss=10916.03 commissionPaid=0 profitFactor=0.2435876413 totalTrades=102 totalOpenTrades=0 numberOfWiningTrades=65 numberOfLosingTrades=37 percentProfitable=0.637254902 avgTrade=-80.95117647 avgWinTrade=40.90784615 avgLosTrade=295.0278378 largestWinTrade=236.28 largestLosTrade=1195.26 avgBarsInTrade=43.31372549 maxContractsHeld=75
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Buy" in "#1"@50 468.36 out "Close"@132 459.89 q=21 pnl=-177.87 (-0.01808437954) cm=0 ru=45.78 dd=419.16 cum=-177.87 eq%=-0.017787
+  #2 L "Buy" in "#2"@71 464.19 out "Close"@132 459.89 q=21 pnl=-90.3 (-0.009263448157) cm=0 ru=15.12 dd=331.59 cum=-268.17 eq%=-0.009193525233
+  #3 L "Buy" in "#3"@95 457.23 out "Close"@132 459.89 q=21 pnl=55.86 (0.005817641012) cm=0 ru=67.62 dd=185.43 cum=-212.31 eq%=0.00573992764
+  #4 L "Buy" in "#1"@171 462.16 out "Close"@174 465.65 q=21 pnl=73.29 (0.007551497317) cm=0 ru=73.29 dd=0.63 cum=-139.02 eq%=0.007487977245
+  #5 L "Buy" in "#1"@204 465.68 out "Close"@208 466.79 q=21 pnl=23.31 (0.002383611063) cm=0 ru=40.32 dd=8.82 cum=-115.71 eq%=0.002363862415
+  #6 L "Buy" in "#1"@238 470.65 out "Close"@250 471.4 q=21 pnl=15.75 (0.001593540848) cm=0 ru=30.66 dd=21.84 cum=-99.96 eq%=0.001593437667
+  #7 L "Buy" in "#1"@285 473.04 out "Close"@294 473.71 q=21 pnl=14.07 (0.001416370709) cm=0 ru=19.74 dd=22.47 cum=-85.89 eq%=0.001421206379
+  #8 L "Buy" in "#1"@313 475.74 out "Close"@321 475.61 q=21 pnl=-2.73 (-0.0002732585025) cm=0 ru=1.05 dd=33.6 cum=-88.62 eq%=-0.0002753651109
+  #9 L "Buy" in "#1"@335 475.42 out "Close"@343 475.46 q=21 pnl=0.84 (0.00008413613226) cm=0 ru=7.77 dd=22.89 cum=-87.78 eq%=0.00008475106393
+  #10 L "Buy" in "#1"@355 475.07 out "Close"@361 476.02 q=21 pnl=19.95 (0.001999705307) cm=0 ru=23.1 dd=18.27 cum=-67.83 eq%=0.002012667193
+  #11 L "Buy" in "#1"@373 475.25 out "Close"@375 476.13 q=21 pnl=18.48 (0.001851657023) cm=0 ru=21.84 dd=4.62 cum=-49.35 eq%=0.001860620589
+  #12 L "Buy" in "#1"@408 479.22 out "Close"@416 480.64 q=20 pnl=28.4 (0.00296314845) cm=0 ru=31 dd=5.4 cum=-20.95 eq%=0.002854084909
+  ... 90 more
+  digest 1-100: 106fdb140ef77d
+  digest 101-102: 1d749929557ebb
+orders:
+  50 buy entry MARKET "Buy" 468.36 x21
+  71 buy entry MARKET "Buy" 464.19 x21
+  95 buy entry MARKET "Buy" 457.23 x21
+  132 sell exit LIMIT "Close" 459.89 x21
+  132 sell exit LIMIT "Close" 459.89 x21
+  132 sell exit LIMIT "Close" 459.89 x21
+  171 buy entry MARKET "Buy" 462.16 x21
+  174 sell exit LIMIT "Close" 465.65 x21
+  204 buy entry MARKET "Buy" 465.68 x21
+  208 sell exit LIMIT "Close" 466.79 x21
+  238 buy entry MARKET "Buy" 470.65 x21
+  250 sell exit LIMIT "Close" 471.4 x21
+  ... 192 more
+  digest 1-100: 1e6c01767caa57
+  digest 101-200: 033b95a3c90fb2
+  digest 201-204: 0134f375d550cf

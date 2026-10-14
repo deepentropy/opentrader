@@ -1,0 +1,38 @@
+script/aurora-kama on daily: 1500 bars, first 1546405200, last 1728964800
+trades=57 filledOrders=114 marginCalls=0 finalEquity=11899.16728 minEquity=9539.17124
+orders by kind: entry/MARKET=57 exit/STOP=57
+openPL=0 maxDD=1062.811 (0.08970375544) maxRunUp=2864.943645 (0.2309889193) buyHold=4353.87 (0.435387)
+all: netProfit=1899.16728 grossProfit=6140.81892 grossLoss=4241.65164 commissionPaid=155.95272 profitFactor=1.447742399 totalTrades=57 totalOpenTrades=0 numberOfWiningTrades=24 numberOfLosingTrades=33 percentProfitable=0.4210526316 avgTrade=33.31872421 avgWinTrade=255.867455 avgLosTrade=128.5348982 largestWinTrade=1468.966915 largestLosTrade=459.951555 avgBarsInTrade=15.85964912 maxContractsHeld=39
+long: netProfit=1283.61178 grossProfit=4275.060745 grossLoss=2991.448965 commissionPaid=110.06822 profitFactor=1.429093658 totalTrades=40 totalOpenTrades=0 numberOfWiningTrades=18 numberOfLosingTrades=22 percentProfitable=0.45 avgTrade=32.0902945 avgWinTrade=237.5033747 avgLosTrade=135.974953 largestWinTrade=641.97 largestLosTrade=459.951555 avgBarsInTrade=12.05 maxContractsHeld=31
+short: netProfit=615.5555 grossProfit=1865.758175 grossLoss=1250.202675 commissionPaid=45.8845 profitFactor=1.492364568 totalTrades=17 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=11 percentProfitable=0.3529411765 avgTrade=36.20914706 avgWinTrade=310.9596958 avgLosTrade=113.6547886 largestWinTrade=1468.966915 largestLosTrade=123.396585 avgBarsInTrade=24.82352941 maxContractsHeld=39
+trades:
+  #1 L "Long" in "Long"@202 193.67 out "Exit Long"@203 185.91 q=12 pnl=-95.39748 (-0.04102760929) cm=2.27748 ru=68.31798 dd=94.28202 cum=-95.39748 eq%=-0.009539748
+  #2 L "Long" in "Long"@207 202.73 out "Exit Long"@215 194.61 q=12 pnl=-99.82404 (-0.04101273982) cm=2.38404 ru=218.26362 dd=98.65638 cum=-195.22152 eq%=-0.01007855084
+  #3 L "Long" in "Long"@227 183.34 out "Exit Long"@235 192.46 q=13 pnl=116.1173 (0.04869442665) cm=2.4427 ru=360.98829 dd=14.84171 cum=-79.10422 eq%=0.01184292947
+  #4 L "Long" in "Long"@237 218.39 out "Exit Long"@266 222.35 q=11 pnl=41.13593 (0.0171150745) cm=2.42407 ru=186.568855 dd=82.711145 cum=-37.96829 eq%=0.004146392716
+  #5 L "Long" in "Long"@273 237.19 out "Exit Long"@276 224.66 q=10 pnl=-127.60925 (-0.05377354748) cm=2.30925 ru=2.41405 dd=126.48595 cum=-165.57754 eq%=-0.01280956071
+  #6 L "Long" in "Long"@293 223.44 out "Exit Long"@305 214.49 q=11 pnl=-100.858615 (-0.04101496065) cm=2.408615 ru=86.99108 dd=99.67892 cum=-266.436155 eq%=-0.0102556724
+  #7 L "Long" in "Long"@317 219.19 out "Exit Long"@331 210.41 q=11 pnl=-98.9428 (-0.04101603562) cm=2.3628 ru=63.914455 dd=97.785545 cum=-365.378955 eq%=-0.01016511543
+  #8 L "Long" in "Long"@340 211.49 out "Exit Long"@347 203.02 q=11 pnl=-95.449805 (-0.04100864599) cm=2.279805 ru=65.386805 dd=94.333195 cum=-460.82876 eq%=-0.009906959968
+  #9 L "Long" in "Long"@353 212.09 out "Exit Long"@413 233.79 q=11 pnl=236.24766 (0.1012132908) cm=2.45234 ru=398.573505 dd=14.256495 cum=-224.5811 eq%=0.02476605714
+  #10 S "Short" in "Short"@424 219.15 out "Exit Short"@425 227.93 q=11 pnl=-99.03894 (-0.04106338343) cm=2.45894 ru=4.514675 dd=97.785325 cum=-323.62004 eq%=-0.0101314267
+  #11 L "Long" in "Long"@431 227.26 out "Exit Long"@475 260.13 q=10 pnl=326.26305 (0.1434920356) cm=2.43695 ru=463.9637 dd=25.1363 cum=2.64301 eq%=0.0337174699
+  #12 S "Short" in "Short"@509 224.65 out "Exit Short"@526 206.25 q=11 pnl=200.03005 (0.08090568559) cm=2.36995 ru=376.944425 dd=15.645575 cum=202.67306 eq%=0.01999771958
+  ... 45 more
+  digest 1-57: 08ff9d094712d6
+orders:
+  202 buy entry MARKET "Long" 193.67 x12
+  203 sell exit STOP "Exit Long" 185.91 x12
+  207 buy entry MARKET "Long" 202.73 x12
+  215 sell exit STOP "Exit Long" 194.61 x12
+  227 buy entry MARKET "Long" 183.34 x13
+  235 sell exit STOP "Exit Long" 192.46 x13
+  237 buy entry MARKET "Long" 218.39 x11
+  266 sell exit STOP "Exit Long" 222.35 x11
+  273 buy entry MARKET "Long" 237.19 x10
+  276 sell exit STOP "Exit Long" 224.66 x10
+  293 buy entry MARKET "Long" 223.44 x11
+  305 sell exit STOP "Exit Long" 214.49 x11
+  ... 102 more
+  digest 1-100: 1a953d8ceaed74
+  digest 101-114: 11a3f46a3685fa

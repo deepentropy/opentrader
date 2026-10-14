@@ -1,0 +1,25 @@
+script/supertrend-strategy on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=5 filledOrders=9 marginCalls=0 finalEquity=16996161.18 minEquity=8066367.454
+orders by kind: entry/MARKET=5 exit/MARKET=4
+openPL=-631626.33 maxDD=2360249.113 (0.22698538) maxRunUp=14923640.4 (0.633375934) buyHold=2075469 (0.2075469)
+all: netProfit=7627787.507 grossProfit=9396602.201 grossLoss=1768814.694 commissionPaid=103709.2429 profitFactor=5.312372309 totalTrades=4 totalOpenTrades=1 numberOfWiningTrades=3 numberOfLosingTrades=1 percentProfitable=0.75 avgTrade=1906946.877 avgWinTrade=3132200.734 avgLosTrade=1768814.694 largestWinTrade=8998359.314 largestLosTrade=1751187.02 avgBarsInTrade=166 maxContractsHeld=118307
+long: netProfit=7627787.507 grossProfit=9396602.201 grossLoss=1768814.694 commissionPaid=103709.2429 profitFactor=5.312372309 totalTrades=4 totalOpenTrades=1 numberOfWiningTrades=3 numberOfLosingTrades=1 percentProfitable=0.75 avgTrade=1906946.877 avgWinTrade=3132200.734 avgLosTrade=1768814.694 largestWinTrade=8998359.314 largestLosTrade=1751187.02 avgBarsInTrade=166 maxContractsHeld=118307
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "BUY" in "BUY"@390 231.08 out "Close entry(s) order BUY"@485 235.46 q=43231 pnl=169182.7893 (0.01691860156) cm=20168.99074 ru=1835541.571 dd=548215.7695 cum=169182.7893 eq%=0.01691827893
+  #2 L "BUY" in "BUY"@763 85.87 out "Close entry(s) order BUY"@887 87.98 q=118307 pnl=229060.098 (0.02252493053) cm=20567.67195 ru=4027658.888 dd=172239.6121 cum=398242.8873 eq%=0.02252492681
+  #3 L "BUY" in "BUY"@936 102.25 out "Close entry(s) order BUY"@1041 85.2 q=101592 pnl=-1751187.02 (-0.1684130051) cm=19043.4204 ru=146063.898 dd=1745579.142 cum=-1352944.133 eq%=-0.1684118211
+  #4 L "BUY" in "BUY"@1143 94.38 out "Close entry(s) order BUY"@1479 192.98 q=91528 pnl=8998359.314 (1.040627523) cm=26301.48608 ru=14915001.99 dd=609062.0926 cum=7645415.181 eq%=1.040626943
+  #5 L "BUY" in "BUY"@1498 289.41 out OPEN@1499 279.04 q=60909 pnl=-666250.0511 (-0.03775792985) cm=17627.67369 ru=264380.9963 dd=745490.2237 cum=6961537.456 eq%=-0.03779544374
+  digest 1-5: 0e45cdd1849aa6
+orders:
+  390 buy entry MARKET "BUY" 231.08 x43231
+  485 sell exit MARKET "Close entry(s) order BUY" 235.46 x43231
+  763 buy entry MARKET "BUY" 85.87 x118307
+  887 sell exit MARKET "Close entry(s) order BUY" 87.98 x118307
+  936 buy entry MARKET "BUY" 102.25 x101592
+  1041 sell exit MARKET "Close entry(s) order BUY" 85.2 x101592
+  1143 buy entry MARKET "BUY" 94.38 x91528
+  1479 sell exit MARKET "Close entry(s) order BUY" 192.98 x91528
+  1498 buy entry MARKET "BUY" 289.41 x60909
+  digest 1-9: 1e400582393fd3

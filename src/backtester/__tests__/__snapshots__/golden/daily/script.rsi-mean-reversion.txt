@@ -1,0 +1,41 @@
+script/rsi-mean-reversion on daily: 1500 bars, first 1546405200, last 1728964800
+trades=187 filledOrders=373 marginCalls=0 finalEquity=184951.62 minEquity=184951.62
+orders by kind: entry/MARKET=187 exit/MARKET=186
+openPL=10.7 maxDD=15060.12 (0.0753006) maxRunUp=104.36 (0.0005560794629) buyHold=176516.65 (0.88258325)
+all: netProfit=-15059.08 grossProfit=0 grossLoss=15059.08 commissionPaid=14920 profitFactor=0 totalTrades=186 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=186 percentProfitable=0 avgTrade=-80.9627957 avgWinTrade=- avgLosTrade=80.9627957 largestWinTrade=- largestLosTrade=216.32 avgBarsInTrade=9.010752688 maxContractsHeld=2
+long: netProfit=-7424.04 grossProfit=0 grossLoss=7424.04 commissionPaid=7480 profitFactor=0 totalTrades=93 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=93 percentProfitable=0 avgTrade=-79.8283871 avgWinTrade=- avgLosTrade=79.8283871 largestWinTrade=- largestLosTrade=216.32 avgBarsInTrade=9.505376344 maxContractsHeld=2
+short: netProfit=-7635.04 grossProfit=0 grossLoss=7635.04 commissionPaid=7440 profitFactor=0 totalTrades=93 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=93 percentProfitable=0 avgTrade=-82.0972043 avgWinTrade=- avgLosTrade=82.0972043 largestWinTrade=- largestLosTrade=192.82 avgBarsInTrade=8.516129032 maxContractsHeld=2
+trades:
+  #1 L "Long" in "Long"@8 148.19 out "Close entry(s) order Long"@10 147.3 q=2 pnl=-81.78 (-0.2431179024) cm=80 ru=0 dd=45.22 cum=-81.78 eq%=-0.0004089
+  #2 S "Short" in "Short"@10 147.3 out "Close entry(s) order Short"@13 148.2 q=2 pnl=-81.8 (-0.2444710102) cm=80 ru=0 dd=41.8 cum=-163.58 eq%=-0.0004091673085
+  #3 L "Long" in "Long"@13 148.2 out "Close entry(s) order Long"@26 154.02 q=2 pnl=-68.36 (-0.2032104637) cm=80 ru=0 dd=44.98 cum=-231.94 eq%=-0.0003420797871
+  #4 S "Short" in "Short"@26 154.02 out "Close entry(s) order Short"@34 146.85 q=2 pnl=-65.66 (-0.1886564763) cm=80 ru=0 dd=41.68 cum=-297.6 eq%=-0.0003286811716
+  #5 L "Long" in "Long"@34 146.85 out "Close entry(s) order Long"@37 143.45 q=2 pnl=-86.8 (-0.2601138747) cm=80 ru=0 dd=46.8 cum=-384.4 eq%=-0.0004346467544
+  #6 S "Short" in "Short"@37 143.45 out "Close entry(s) order Short"@43 142.07 q=2 pnl=-77.24 (-0.236280208) cm=80 ru=0 dd=40.48 cum=-461.64 eq%=-0.0003869437058
+  #7 L "Long" in "Long"@43 142.07 out "Close entry(s) order Long"@52 146.54 q=2 pnl=-71.06 (-0.2192262603) cm=80 ru=0 dd=49.88 cum=-532.7 eq%=-0.0003561220008
+  #8 S "Short" in "Short"@52 146.54 out "Close entry(s) order Short"@61 138.74 q=2 pnl=-64.4 (-0.1933469437) cm=80 ru=0 dd=42.22 cum=-597.1 eq%=-0.0003228599374
+  #9 L "Long" in "Long"@61 138.74 out "Close entry(s) order Long"@67 139.6 q=2 pnl=-78.28 (-0.2465667129) cm=80 ru=0 dd=43.5 cum=-675.38 eq%=-0.0003925720238
+  #10 S "Short" in "Short"@67 139.6 out "Close entry(s) order Short"@69 141.11 q=2 pnl=-83.02 (-0.2600877193) cm=80 ru=0 dd=45.32 cum=-758.4 eq%=-0.0004165065008
+  #11 L "Long" in "Long"@69 141.11 out "Close entry(s) order Long"@77 144.86 q=2 pnl=-72.5 (-0.2250015517) cm=80 ru=0 dd=47.5 cum=-830.9 eq%=-0.0003638798323
+  #12 S "Short" in "Short"@77 144.86 out "Close entry(s) order Short"@83 143.51 q=2 pnl=-77.3 (-0.2344413442) cm=80 ru=0 dd=46.2 cum=-908.2 eq%=-0.000388112413
+  ... 175 more
+  digest 1-100: 1abc1ee98c84d5
+  digest 101-187: 0b0bff95f68076
+orders:
+  8 buy entry MARKET "Long" 148.19 x2
+  10 sell exit MARKET "Close entry(s) order Long" 147.3 x2
+  10 sell entry MARKET "Short" 147.3 x2
+  13 buy exit MARKET "Close entry(s) order Short" 148.2 x2
+  13 buy entry MARKET "Long" 148.2 x2
+  26 sell exit MARKET "Close entry(s) order Long" 154.02 x2
+  26 sell entry MARKET "Short" 154.02 x2
+  34 buy exit MARKET "Close entry(s) order Short" 146.85 x2
+  34 buy entry MARKET "Long" 146.85 x2
+  37 sell exit MARKET "Close entry(s) order Long" 143.45 x2
+  37 sell entry MARKET "Short" 143.45 x2
+  43 buy exit MARKET "Close entry(s) order Short" 142.07 x2
+  ... 361 more
+  digest 1-100: 1bc9148a66577d
+  digest 101-200: 1df1d0d124ec26
+  digest 201-300: 1199a434226d99
+  digest 301-373: 17ab733180ffd3

@@ -1,0 +1,38 @@
+script/aurora-kama on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=57 filledOrders=114 marginCalls=0 finalEquity=11751.75838 minEquity=9528.42985
+orders by kind: entry/MARKET=57 exit/STOP=57
+openPL=0 maxDD=1107.30648 (0.09380202634) maxRunUp=2738.12025 (0.2232609102) buyHold=4353.36 (0.435336)
+all: netProfit=1751.75838 grossProfit=6007.61763 grossLoss=4255.85925 commissionPaid=307.10162 profitFactor=1.411610976 totalTrades=57 totalOpenTrades=0 numberOfWiningTrades=23 numberOfLosingTrades=34 percentProfitable=0.4035087719 avgTrade=30.73260316 avgWinTrade=261.2007665 avgLosTrade=125.1723309 largestWinTrade=1466.98383 largestLosTrade=463.15311 avgBarsInTrade=15.85964912 maxContractsHeld=39
+long: netProfit=1176.61028 grossProfit=4161.69986 grossLoss=2985.08958 commissionPaid=216.20972 profitFactor=1.394162469 totalTrades=40 totalOpenTrades=0 numberOfWiningTrades=18 numberOfLosingTrades=22 percentProfitable=0.45 avgTrade=29.415257 avgWinTrade=231.2055478 avgLosTrade=135.68589 largestWinTrade=612.9024 largestLosTrade=463.15311 avgBarsInTrade=12.05 maxContractsHeld=31
+short: netProfit=575.1481 grossProfit=1845.91777 grossLoss=1270.76967 commissionPaid=90.8919 profitFactor=1.452598227 totalTrades=17 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=12 percentProfitable=0.2941176471 avgTrade=33.83224118 avgWinTrade=369.183554 avgLosTrade=105.8974725 largestWinTrade=1466.98383 largestLosTrade=127.06317 avgBarsInTrade=24.82352941 maxContractsHeld=39
+trades:
+  #1 L "Long" in "Long"@202 193.68 out "Exit Long"@203 185.91 q=12 pnl=-97.79508 (-0.04203556666) cm=4.55508 ru=67.03584 dd=95.56416 cum=-97.79508 eq%=-0.009779508
+  #2 L "Long" in "Long"@207 202.74 out "Exit Long"@215 194.61 q=12 pnl=-102.3282 (-0.04201850236) cm=4.7682 ru=216.92712 dd=99.99288 cum=-200.12328 eq%=-0.01033388026
+  #3 L "Long" in "Long"@227 183.35 out "Exit Long"@235 192.45 q=13 pnl=113.4146 (0.04753468511) cm=4.8854 ru=359.66645 dd=16.16355 cum=-86.70868 eq%=0.01157306395
+  #4 L "Long" in "Long"@237 218.4 out "Exit Long"@266 222.34 q=11 pnl=38.49186 (0.0160062465) cm=4.84814 ru=185.2576 dd=84.0224 cum=-48.21682 eq%=0.003882853712
+  #5 L "Long" in "Long"@273 237.2 out "Exit Long"@276 224.65 q=10 pnl=-130.1185 (-0.05480122744) cm=4.6185 ru=1.128 dd=127.872 cum=-178.33532 eq%=-0.01307489298
+  #6 L "Long" in "Long"@293 223.45 out "Exit Long"@305 214.49 q=10 pnl=-93.9794 (-0.04201634123) cm=4.3794 ru=77.8655 dd=91.8345 cum=-272.31472 eq%=-0.009568581606
+  #7 L "Long" in "Long"@317 219.2 out "Exit Long"@331 210.41 q=11 pnl=-101.41571 (-0.04201824635) cm=4.72571 ru=62.5988 dd=99.1012 cum=-373.73043 eq%=-0.01042547195
+  #8 L "Long" in "Long"@340 211.5 out "Exit Long"@347 203.02 q=11 pnl=-97.83972 (-0.04201245563) cm=4.55972 ru=64.1135 dd=95.6065 cum=-471.57015 eq%=-0.01016382507
+  #9 L "Long" in "Long"@353 212.1 out "Exit Long"@413 233.78 q=11 pnl=233.57532 (0.1000137062) cm=4.90468 ru=397.2969 dd=15.5331 cum=-237.99483 eq%=0.02451351625
+  #10 S "Short" in "Short"@424 219.14 out "Exit Short"@425 227.93 q=11 pnl=-101.60777 (-0.04210934634) cm=4.91777 ru=3.19946 dd=99.10054 cum=-339.6026 eq%=-0.01040849377
+  #11 L "Long" in "Long"@431 227.27 out "Exit Long"@475 260.12 q=10 pnl=323.6261 (0.1422549378) cm=4.8739 ru=462.7273 dd=26.3727 cum=-15.9765 eq%=0.03350028851
+  #12 S "Short" in "Short"@509 224.64 out "Exit Short"@526 206.26 q=11 pnl=197.4401 (0.07982179857) cm=4.7399 ru=375.59896 dd=16.99104 cum=181.4636 eq%=0.01977560449
+  ... 45 more
+  digest 1-57: 1fa54c3e7407a9
+orders:
+  202 buy entry MARKET "Long" 193.68 x12
+  203 sell exit STOP "Exit Long" 185.91 x12
+  207 buy entry MARKET "Long" 202.74 x12
+  215 sell exit STOP "Exit Long" 194.61 x12
+  227 buy entry MARKET "Long" 183.35 x13
+  235 sell exit STOP "Exit Long" 192.45 x13
+  237 buy entry MARKET "Long" 218.4 x11
+  266 sell exit STOP "Exit Long" 222.34 x11
+  273 buy entry MARKET "Long" 237.2 x10
+  276 sell exit STOP "Exit Long" 224.65 x10
+  293 buy entry MARKET "Long" 223.45 x10
+  305 sell exit STOP "Exit Long" 214.49 x10
+  ... 102 more
+  digest 1-100: 1b7bc838fea634
+  digest 101-114: 1907696543c1ff

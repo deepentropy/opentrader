@@ -1,0 +1,41 @@
+builtin/channel-breakout on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=204 filledOrders=294 marginCalls=79 finalEquity=86224.29011 minEquity=43383.8728
+orders by kind: entry/MARKET=1 entry/STOP=214 order/MARKET=79
+openPL=-17545.32 maxDD=58204.0072 (0.582040072) maxRunUp=90018.40739 (0.6649331263) buyHold=88971.34 (0.8897134)
+all: netProfit=3769.61011 grossProfit=203987.4046 grossLoss=200217.7945 commissionPaid=19141.99989 profitFactor=1.018827548 totalTrades=203 totalOpenTrades=1 numberOfWiningTrades=63 numberOfLosingTrades=140 percentProfitable=0.3103448276 avgTrade=18.56950793 avgWinTrade=3237.895312 avgLosTrade=1430.127104 largestWinTrade=35883.10158 largestLosTrade=7923.1656 avgBarsInTrade=5.896551724 maxContractsHeld=808
+long: netProfit=44648.5137 grossProfit=182482.9172 grossLoss=137834.4035 commissionPaid=14067.7863 profitFactor=1.323928661 totalTrades=125 totalOpenTrades=0 numberOfWiningTrades=57 numberOfLosingTrades=68 percentProfitable=0.456 avgTrade=357.1881096 avgWinTrade=3201.454687 avgLosTrade=2026.976521 largestWinTrade=35883.10158 largestLosTrade=7923.1656 avgBarsInTrade=6.88 maxContractsHeld=774
+short: netProfit=-40878.90359 grossProfit=21504.48748 grossLoss=62383.39107 commissionPaid=5074.21359 profitFactor=0.3447149491 totalTrades=78 totalOpenTrades=1 numberOfWiningTrades=6 numberOfLosingTrades=72 percentProfitable=0.07692307692 avgTrade=-524.0885076 avgWinTrade=3584.081247 avgLosTrade=866.4359871 largestWinTrade=7560.73008 largestLosTrade=4977.09316 avgBarsInTrade=4.320512821 maxContractsHeld=808
+trades:
+  #1 S "ChBrkSE" in "ChBrkSE"@1 147.62 out "Margin call"@1 148.35 q=12 pnl=-12.31164 (-0.006943131384) cm=3.55164 ru=0 dd=10.53144 cum=-110.03608 eq%=-0.0001232368325
+  #2 S "ChBrkSE" in "ChBrkSE"@1 147.62 out "ChBrkLE"@8 148.87 q=662 pnl=-1023.77638 (-0.0104656893) cm=196.27638 ru=2027.29556 dd=925.22444 cum=-1036.08802 eq%=-0.01023902439
+  #3 L "ChBrkLE" in "ChBrkLE"@8 148.87 out "Margin call"@8 149.2 q=12 pnl=0.38316 (0.0002142681662) cm=3.57684 ru=2.41356 dd=0 cum=-1133.36358 eq%=0.000003875538795
+  #4 L "ChBrkLE" in "ChBrkLE"@8 148.87 out "ChBrkSE"@9 145.69 q=656 pnl=-2279.31136 (-0.02331624176) cm=193.23136 ru=184.42128 dd=2183.73872 cum=-3315.01622 eq%=-0.02303165356
+  #5 L "ChBrkLE" in "ChBrkLE"@20 148.15 out "ChBrkSE"@27 148.11 q=651 pnl=-218.90526 (-0.002267459169) cm=192.86526 ru=4271.76435 dd=1684.88565 cum=-3533.92148 eq%=-0.002264108152
+  #6 S "ChBrkSE" in "ChBrkSE"@28 147.01 out "Margin call"@33 147.95 q=28 pnl=-34.57888 (-0.008392124847) cm=8.25888 ru=159.68372 dd=30.43628 cum=-3660.67563 eq%=-0.0003587992064
+  #7 S "ChBrkSE" in "ChBrkSE"@28 147.01 out "ChBrkLE"@34 147.96 q=627 pnl=-780.59619 (-0.00846014743) cm=184.94619 ru=3575.77473 dd=687.82527 cum=-4349.09655 eq%=-0.008094825787
+  #8 L "ChBrkLE" in "ChBrkLE"@34 147.96 out "Margin call"@34 149.84 q=16 pnl=25.3152 (0.01068274791) cm=4.7648 ru=28.03264 dd=0 cum=-4417.58799 eq%=0.0002649222386
+  #9 L "ChBrkLE" in "ChBrkLE"@34 147.96 out "ChBrkSE"@37 141.13 q=634 pnl=-4513.50306 (-0.04806689661) cm=183.28306 ru=1110.79336 dd=4424.02664 cum=-8837.28441 eq%=-0.04717476426
+  #10 L "ChBrkLE" in "ChBrkLE"@43 142.97 out "ChBrkSE"@44 139.92 q=636 pnl=-2119.71804 (-0.02328852514) cm=179.91804 ru=23.55108 dd=2030.72892 cum=-10957.00245 eq%=-0.02325202827
+  #11 L "ChBrkLE" in "ChBrkLE"@50 148.08 out "ChBrkSE"@53 143.6 q=600 pnl=-2863.008 (-0.03219147141) cm=175.008 ru=1.152 dd=2776.848 cum=-13820.01045 eq%=-0.03215309546
+  #12 L "ChBrkLE" in "ChBrkLE"@61 139.06 out "ChBrkSE"@73 137.42 q=619 pnl=-1186.30112 (-0.01376790906) cm=171.14112 ru=1894.72186 dd=1367.40814 cum=-15006.31157 eq%=-0.01376538946
+  ... 192 more
+  digest 1-100: 17f8c752859420
+  digest 101-200: 0ea57adea7ccb3
+  digest 201-204: 00f846e1a34e35
+orders:
+  1 sell entry MARKET "ChBrkSE" 147.62 x674
+  1 buy order MARKET "Margin call 0" 148.35 x12
+  8 buy entry STOP "ChBrkLE" 148.87 x1330
+  8 sell order MARKET "Margin call 1" 149.2 x12
+  9 sell entry STOP "ChBrkSE" 145.69 x656
+  20 buy entry STOP "ChBrkLE" 148.15 x651
+  27 sell entry STOP "ChBrkSE" 148.11 x651
+  28 sell entry STOP "ChBrkSE" 147.01 x655
+  33 buy order MARKET "Margin call 2" 147.95 x28
+  34 buy entry STOP "ChBrkLE" 147.96 x1277
+  34 sell order MARKET "Margin call 3" 149.84 x16
+  37 sell entry STOP "ChBrkSE" 141.13 x634
+  ... 282 more
+  digest 1-100: 1629702c9637c9
+  digest 101-200: 1fb80916ce4f49
+  digest 201-294: 1cdb1d510a5ba4

@@ -1,0 +1,37 @@
+port/quatro-sma on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=23 filledOrders=31 marginCalls=0 finalEquity=9829.1198 minEquity=9228.1967
+orders by kind: entry/MARKET=8 exit/LIMIT=7 exit/MARKET=1 exit/STOP=15
+openPL=0 maxDD=1123.9456 (0.1074293341) maxRunUp=1541.5184 (0.1428263132) buyHold=13626.446 (1.3626446)
+all: netProfit=-170.8802 grossProfit=2626.229744 grossLoss=2797.109944 commissionPaid=31 profitFactor=0.9389083005 totalTrades=23 totalOpenTrades=0 numberOfWiningTrades=8 numberOfLosingTrades=15 percentProfitable=0.347826087 avgTrade=-7.429573913 avgWinTrade=328.2787179 avgLosTrade=186.4739962 largestWinTrade=621.9401 largestLosTrade=361.6395 avgBarsInTrade=8.869565217 maxContractsHeld=113916
+long: netProfit=-633.0655 grossProfit=1168.3292 grossLoss=1801.3947 commissionPaid=16 profitFactor=0.6485692447 totalTrades=12 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=9 percentProfitable=0.25 avgTrade=-52.75545833 avgWinTrade=389.4430667 avgLosTrade=200.1549667 largestWinTrade=584.9631689 largestLosTrade=361.6395 avgBarsInTrade=10.5 maxContractsHeld=95092
+short: netProfit=462.1853 grossProfit=1457.900544 grossLoss=995.7152435 commissionPaid=15 profitFactor=1.464174173 totalTrades=11 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=6 percentProfitable=0.4545454545 avgTrade=42.01684545 avgWinTrade=291.5801087 avgLosTrade=165.9525406 largestWinTrade=621.9401 largestLosTrade=250.8743824 avgBarsInTrade=7.090909091 maxContractsHeld=113916
+trades:
+  #1 S "Short" in "Short"@245 0.1751 out "TP 1"@247 0.1566 q=7084 pnl=129.8040265 (0.1046251162) cm=1.249973535 ru=130.8040265 dd=119.2611735 cum=129.054 eq%=0.01298137628
+  #2 S "Short" in "Short"@245 0.1751 out "TP 2"@251 0.1927 q=14169 pnl=-250.8743824 (-0.101098208) cm=1.499982356 ru=281.4631176 dd=249.8743824 cum=-121.3204 eq%=-0.02476657736
+  #3 S "Short" in "Short"@245 0.1751 out "TP 3"@251 0.1927 q=7086 pnl=-125.9636441 (-0.1015010207) cm=1.250044109 ru=140.7613559 dd=124.9636441 cum=-247.034 eq%=-0.01275073805
+  #4 S "Short" in "Short"@344 0.1148 out "TP 1"@345 0.1264 q=10701 pnl=-125.3816 (-0.1020420521) cm=1.25 ru=27.5726 dd=124.3816 cum=-373.1656 eq%=-0.01285672918
+  #5 S "Short" in "Short"@344 0.1148 out "TP 2"@345 0.1264 q=21402 pnl=-249.7632 (-0.1016351261) cm=1.5 ru=55.1452 dd=248.7632 cum=-622.4288 eq%=-0.02594313126
+  #6 S "Short" in "Short"@344 0.1148 out "TP 3"@345 0.1264 q=10701 pnl=-125.3816 (-0.1020420521) cm=1.25 ru=27.5726 dd=124.3816 cum=-747.5604 eq%=-0.01337001392
+  #7 S "Short" in "Short"@419 0.063 out "TP 1"@422 0.0567 q=18295 pnl=114.0085102 (0.09889404057) cm=1.249989752 ru=115.0085102 dd=11.22698975 cum=-634.3019 eq%=0.01232299345
+  #8 S "Short" in "Short"@419 0.063 out "TP 2"@428 0.0504 q=36591 pnl=459.5466068 (0.1993060811) cm=1.499993168 ru=460.5466068 dd=22.45459317 cum=-174.2553 eq%=0.0490643698
+  #9 S "Short" in "Short"@419 0.063 out "TP 3"@444 0.0694 q=18297 pnl=-118.3508171 (-0.1026494524) cm=1.25001708 ru=235.7812829 dd=117.3508171 cum=-292.3561 eq%=-0.01204466525
+  #10 S "Short" in "Short"@494 0.047 out "TP 1"@499 0.0423 q=28479 pnl=132.6013 (0.0990476283) cm=1.25 ru=133.6013 dd=122.7097 cum=-160.5048 eq%=0.01366052842
+  #11 S "Short" in "Short"@494 0.047 out "Close entry(s) order Short"@502 0.0397 q=85437 pnl=621.9401 (0.1548544191) cm=1.75 ru=648.5712 dd=368.1291 cum=462.1853 eq%=0.06320371976
+  #12 L "Long" in "Long"@615 0.0591 out "TP 1"@616 0.0531 q=23773 pnl=-143.888 (-0.1023943125) cm=1.25 ru=9.2592 dd=142.888 cum=317.5473 eq%=-0.01375413563
+  ... 11 more
+  digest 1-23: 0074564dd979ad
+orders:
+  245 sell entry MARKET "Short" 0.1751 x28339
+  247 buy exit LIMIT "TP 1" 0.1566 x7084
+  251 buy exit STOP "TP 2" 0.1927 x14169
+  251 buy exit STOP "TP 3" 0.1927 x7086
+  344 sell entry MARKET "Short" 0.1148 x42804
+  345 buy exit STOP "TP 1" 0.1264 x10701
+  345 buy exit STOP "TP 2" 0.1264 x21402
+  345 buy exit STOP "TP 3" 0.1264 x10701
+  419 sell entry MARKET "Short" 0.063 x73183
+  422 buy exit LIMIT "TP 1" 0.0567 x18295
+  428 buy exit LIMIT "TP 2" 0.0504 x36591
+  444 buy exit STOP "TP 3" 0.0694 x18297
+  ... 19 more
+  digest 1-31: 130f21d9f2e5de

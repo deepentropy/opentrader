@@ -1,0 +1,41 @@
+builtin/stochastic-slow on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=230 filledOrders=230 marginCalls=154 finalEquity=68077.4 minEquity=66294.45
+orders by kind: entry/MARKET=76 order/MARKET=154
+openPL=-375.44 maxDD=37243.61 (0.3598191842) maxRunUp=13227.6 (0.126776754) buyHold=-6328.2 (-0.063282)
+all: netProfit=-31547.16 grossProfit=36168.8 grossLoss=67715.96 commissionPaid=0 profitFactor=0.53412519 totalTrades=229 totalOpenTrades=1 numberOfWiningTrades=46 numberOfLosingTrades=183 percentProfitable=0.2008733624 avgTrade=-137.760524 avgWinTrade=786.2782609 avgLosTrade=370.0325683 largestWinTrade=4604.27 largestLosTrade=9422.03 avgBarsInTrade=44.11790393 maxContractsHeld=228
+long: netProfit=-18477.83 grossProfit=19488.81 grossLoss=37966.64 commissionPaid=0 profitFactor=0.5133140568 totalTrades=38 totalOpenTrades=0 numberOfWiningTrades=24 numberOfLosingTrades=14 percentProfitable=0.6315789474 avgTrade=-486.2586842 avgWinTrade=812.03375 avgLosTrade=2711.902857 largestWinTrade=4604.27 largestLosTrade=9422.03 avgBarsInTrade=52.26315789 maxContractsHeld=228
+short: netProfit=-13069.33 grossProfit=16679.99 grossLoss=29749.32 commissionPaid=0 profitFactor=0.5606847484 totalTrades=191 totalOpenTrades=1 numberOfWiningTrades=22 numberOfLosingTrades=169 percentProfitable=0.1151832461 avgTrade=-68.42581152 avgWinTrade=758.1813636 avgLosTrade=176.0314793 largestWinTrade=2647.84 largestLosTrade=7052.16 avgBarsInTrade=42.4973822 maxContractsHeld=228
+trades:
+  #1 L "StochLE" in "StochLE"@19 471.62 out "StochSE"@128 454.22 q=212 pnl=-3688.8 (-0.03689410966) cm=0 ru=534.24 dd=4922.64 cum=-3688.8 eq%=-0.036888
+  #2 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@128 455.76 q=4 pnl=-6.16 (-0.003390427546) cm=0 ru=0.08 dd=6.16 cum=-3694.96 eq%=-0.00006395933183
+  #3 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@130 458.66 q=1 pnl=-4.44 (-0.009774998899) cm=0 ru=0.02 dd=4.44 cum=-3699.4 eq%=-0.00004610350611
+  #4 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@131 460.45 q=1 pnl=-6.23 (-0.01371582053) cm=0 ru=0.02 dd=6.23 cum=-3705.63 eq%=-0.00006469326255
+  #5 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@134 461.29 q=1 pnl=-7.07 (-0.01556514464) cm=0 ru=0.02 dd=7.07 cum=-3712.7 eq%=-0.00007342069947
+  #6 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@136 462.45 q=1 pnl=-8.23 (-0.01811897318) cm=0 ru=0.02 dd=8.23 cum=-3720.93 eq%=-0.0000854733698
+  #7 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@140 463.49 q=1 pnl=-9.27 (-0.02040861257) cm=0 ru=0.02 dd=9.27 cum=-3730.2 eq%=-0.00009628260846
+  #8 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@141 464.56 q=1 pnl=-10.34 (-0.02276429924) cm=0 ru=0.02 dd=10.34 cum=-3740.54 eq%=-0.0001074064764
+  #9 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@147 465.42 q=1 pnl=-11.2 (-0.02465765488) cm=0 ru=0.02 dd=11.2 cum=-3751.74 eq%=-0.0001163522006
+  #10 S "StochSE" in "StochSE"@128 454.22 out "Margin call"@155 466.82 q=1 pnl=-12.6 (-0.02773986174) cm=0 ru=0.02 dd=12.6 cum=-3764.34 eq%=-0.0001309114575
+  #11 S "StochSE" in "StochSE"@128 454.22 out "StochLE"@172 463.25 q=200 pnl=-1806 (-0.01988023425) cm=0 ru=4 dd=2520 cum=-5570.34 eq%=-0.01876643232
+  #12 L "StochLE" in "StochLE"@172 463.25 out "StochSE"@195 467.33 q=203 pnl=828.24 (0.00880733945) cm=0 ru=921.62 dd=284.2 cum=-4742.1 eq%=0.008770973018
+  ... 218 more
+  digest 1-100: 1fa53809f208d0
+  digest 101-200: 04173117383cfa
+  digest 201-230: 18ae3369874df1
+orders:
+  19 buy entry MARKET "StochLE" 471.62 x212
+  128 sell entry MARKET "StochSE" 454.22 x424
+  128 buy order MARKET "Margin call 0" 455.76 x4
+  130 buy order MARKET "Margin call 1" 458.66 x1
+  131 buy order MARKET "Margin call 2" 460.45 x1
+  134 buy order MARKET "Margin call 3" 461.29 x1
+  136 buy order MARKET "Margin call 4" 462.45 x1
+  140 buy order MARKET "Margin call 5" 463.49 x1
+  141 buy order MARKET "Margin call 6" 464.56 x1
+  147 buy order MARKET "Margin call 7" 465.42 x1
+  155 buy order MARKET "Margin call 8" 466.82 x1
+  172 buy entry MARKET "StochLE" 463.25 x403
+  ... 218 more
+  digest 1-100: 0a31d9502564af
+  digest 101-200: 0cffb15abe3c02
+  digest 201-230: 154a7a758c48f6

@@ -1,0 +1,37 @@
+port/cumulative-rsi on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=21 filledOrders=30 marginCalls=12 finalEquity=40957.51879 minEquity=7094.25588
+orders by kind: entry/MARKET=9 exit/MARKET=9 order/MARKET=12
+openPL=0 maxDD=30961.72567 (0.8147526329) maxRunUp=30857.707 (0.744708567) buyHold=22453.6 (0.898144)
+all: netProfit=15957.51879 grossProfit=43369.09884 grossLoss=27411.58005 commissionPaid=495.85121 profitFactor=1.582145165 totalTrades=21 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=14 percentProfitable=0.3333333333 avgTrade=759.8818471 avgWinTrade=6195.585549 avgLosTrade=1957.970004 largestWinTrade=10592.98944 largestLosTrade=23208.7422 avgBarsInTrade=168 maxContractsHeld=186
+long: netProfit=15957.51879 grossProfit=43369.09884 grossLoss=27411.58005 commissionPaid=495.85121 profitFactor=1.582145165 totalTrades=21 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=14 percentProfitable=0.3333333333 avgTrade=759.8818471 avgWinTrade=6195.585549 avgLosTrade=1957.970004 largestWinTrade=10592.98944 largestLosTrade=23208.7422 avgBarsInTrade=168 maxContractsHeld=186
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Buy"@33 146.96 out "Sell"@175 155.08 q=186 pnl=1454.14056 (0.05314473224) cm=56.17944 ru=1510.88544 dd=11073.87456 cum=1454.14056 eq%=0.0581656224
+  #2 L "Long" in "Buy"@221 171.72 out "Sell"@357 219.27 q=169 pnl=7969.87269 (0.2743530055) cm=66.07731 ru=11170.60932 dd=1394.54068 cum=9424.01325 eq%=0.3012712763
+  #3 L "Long" in "Buy"@387 228.41 out "Sell"@448 250.57 q=165 pnl=3577.3683 (0.09482667414) cm=79.0317 ru=3973.46235 dd=1651.38765 cum=13001.38155 eq%=0.1039207217
+  #4 L "Long" in "Buy"@480 256.08 out "Margin call"@625 91.82 q=1 pnl=-164.6079 (-0.6421565782) cm=0.3479 ru=2.94392 dd=164.51608 cum=12795.28869 eq%=-0.004336363236
+  #5 L "Long" in "Buy"@480 256.08 out "Margin call"@629 90.56 q=1 pnl=-165.86664 (-0.6470670847) cm=0.34664 ru=2.94392 dd=165.77608 cum=12629.67813 eq%=-0.004388523595
+  #6 L "Long" in "Buy"@480 256.08 out "Margin call"@650 87.93 q=1 pnl=-168.49401 (-0.6573167929) cm=0.34401 ru=2.94392 dd=168.40608 cum=12461.4402 eq%=-0.004477658905
+  #7 L "Long" in "Buy"@480 256.08 out "Margin call"@651 87.41 q=1 pnl=-169.01349 (-0.6593433511) cm=0.34349 ru=2.94392 dd=168.92608 cum=12292.68279 eq%=-0.00451163473
+  #8 L "Long" in "Buy"@480 256.08 out "Margin call"@652 85.45 q=1 pnl=-170.97153 (-0.6669819169) cm=0.34153 ru=2.94392 dd=170.88608 cum=12121.96734 eq%=-0.004584555017
+  #9 L "Long" in "Buy"@480 256.08 out "Margin call"@655 84.47 q=1 pnl=-171.95055 (-0.6708011997) cm=0.34055 ru=2.94392 dd=171.86608 cum=11950.27287 eq%=-0.004632011075
+  #10 L "Long" in "Buy"@480 256.08 out "Margin call"@688 82.6 q=1 pnl=-173.81868 (-0.678089015) cm=0.33868 ru=2.94392 dd=173.73608 cum=11776.71027 eq%=-0.004704091794
+  #11 L "Long" in "Buy"@480 256.08 out "Margin call"@695 81.02 q=1 pnl=-175.3971 (-0.6842466343) cm=0.3371 ru=2.94392 dd=175.31608 cum=11601.56925 eq%=-0.004769210661
+  #12 L "Long" in "Buy"@480 256.08 out "Margin call"@707 79.53 q=1 pnl=-176.88561 (-0.6900535032) cm=0.33561 ru=2.94392 dd=176.80608 cum=11424.93972 eq%=-0.004832699146
+  ... 9 more
+  digest 1-21: 04e7d8d9442d15
+orders:
+  33 buy entry MARKET "Long" 146.96 x186
+  175 sell exit MARKET "Close entry(s) order Long" 155.08 x186
+  221 buy entry MARKET "Long" 171.72 x169
+  357 sell exit MARKET "Close entry(s) order Long" 219.27 x169
+  387 buy entry MARKET "Long" 228.41 x165
+  448 sell exit MARKET "Close entry(s) order Long" 250.57 x165
+  480 buy entry MARKET "Long" 256.08 x163
+  625 sell order MARKET "Margin call 0" 91.82 x1
+  629 sell order MARKET "Margin call 1" 90.56 x1
+  650 sell order MARKET "Margin call 2" 87.93 x1
+  651 sell order MARKET "Margin call 3" 87.41 x1
+  652 sell order MARKET "Margin call 4" 85.45 x1
+  ... 18 more
+  digest 1-30: 0ee67ac34bf28d

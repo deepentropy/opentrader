@@ -1,0 +1,39 @@
+builtin/momentum on daily: 1500 bars, first 1546405200, last 1728964800
+trades=112 filledOrders=163 marginCalls=39 finalEquity=193096.86 minEquity=72817.77
+orders by kind: entry/STOP=124 order/MARKET=39
+openPL=-28934.56 maxDD=141215.12 (0.4324973878) maxRunUp=339892.59 (0.807337842) buyHold=89539.73 (0.8953973)
+all: netProfit=122031.42 grossProfit=421402.59 grossLoss=299371.17 commissionPaid=0 profitFactor=1.407625824 totalTrades=111 totalOpenTrades=1 numberOfWiningTrades=38 numberOfLosingTrades=73 percentProfitable=0.3423423423 avgTrade=1099.382162 avgWinTrade=11089.54184 avgLosTrade=4100.974932 largestWinTrade=99019.8 largestLosTrade=29693.04 avgBarsInTrade=10.16216216 maxContractsHeld=2086
+long: netProfit=101247.42 grossProfit=338880.98 grossLoss=237633.56 commissionPaid=0 profitFactor=1.426065325 totalTrades=72 totalOpenTrades=0 numberOfWiningTrades=33 numberOfLosingTrades=39 percentProfitable=0.4583333333 avgTrade=1406.214167 avgWinTrade=10269.12061 avgLosTrade=6093.168205 largestWinTrade=99019.8 largestLosTrade=24048.96 avgBarsInTrade=11.13888889 maxContractsHeld=2086
+short: netProfit=20784 grossProfit=82521.61 grossLoss=61737.61 commissionPaid=0 profitFactor=1.336650544 totalTrades=39 totalOpenTrades=1 numberOfWiningTrades=5 numberOfLosingTrades=34 percentProfitable=0.1282051282 avgTrade=532.9230769 avgWinTrade=16504.322 avgLosTrade=1815.812059 largestWinTrade=41158.26 largestLosTrade=29693.04 avgBarsInTrade=8.358974359 maxContractsHeld=1996
+trades:
+  #1 L "MomLE" in "MomLE"@19 147.17 out "MomSE"@20 146.63 q=679 pnl=-366.66 (-0.003669226065) cm=0 ru=794.43 dd=366.66 cum=-366.66 eq%=-0.0036666
+  #2 L "MomLE" in "MomLE"@23 149.82 out "MomSE"@28 147.03 q=665 pnl=-1855.35 (-0.01862234682) cm=0 ru=3351.6 dd=1855.35 cum=-2222.01 eq%=-0.01862177861
+  #3 S "MomSE" in "MomSE"@28 147.03 out "Margin call"@33 147.93 q=32 pnl=-28.8 (-0.006121199755) cm=0 ru=187.84 dd=28.8 cum=-2250.81 eq%=-0.0002945448152
+  #4 S "MomSE" in "MomSE"@28 147.03 out "MomLE"@50 147.7 q=633 pnl=-424.11 (-0.004556893151) cm=0 ru=6266.7 dd=1791.39 cum=-2674.92 eq%=-0.00433875718
+  #5 L "MomLE" in "MomLE"@50 147.7 out "Margin call"@50 148.23 q=16 pnl=8.48 (0.003588354773) cm=0 ru=8.48 dd=0 cum=-2666.44 eq%=0.00008713067588
+  #6 L "MomLE" in "MomLE"@50 147.7 out "MomSE"@55 139.32 q=647 pnl=-5421.86 (-0.0567366283) cm=0 ru=342.91 dd=5421.86 cum=-8088.3 eq%=-0.05570391137
+  #7 L "MomLE" in "MomLE"@58 138.59 out "MomSE"@63 137.92 q=663 pnl=-444.21 (-0.004834403637) cm=0 ru=895.05 dd=1146.99 cum=-8532.51 eq%=-0.004833008202
+  #8 S "MomSE" in "MomSE"@63 137.92 out "Margin call"@64 138.06 q=4 pnl=-0.56 (-0.001015081206) cm=0 ru=3.72 dd=0.56 cum=-8533.07 eq%=-0.000006122393869
+  #9 S "MomSE" in "MomSE"@63 137.92 out "Margin call"@64 138.58 q=8 pnl=-5.28 (-0.004785382831) cm=0 ru=7.44 dd=5.28 cum=-8538.35 eq%=-0.00005772578133
+  #10 S "MomSE" in "MomSE"@63 137.92 out "Margin call"@65 140.11 q=32 pnl=-70.08 (-0.0158787703) cm=0 ru=29.76 dd=70.08 cum=-8608.43 eq%=-0.000766222783
+  #11 S "MomSE" in "MomSE"@63 137.92 out "MomLE"@74 141.42 q=619 pnl=-2166.5 (-0.02537703016) cm=0 ru=575.67 dd=2686.46 cum=-10774.93 eq%=-0.02370568752
+  #12 L "MomLE" in "MomLE"@74 141.42 out "Margin call"@74 144.81 q=4 pnl=13.56 (0.02397114977) cm=0 ru=13.56 dd=0 cum=-10761.37 eq%=0.000151975224
+  ... 100 more
+  digest 1-100: 1d45cb30b2e97a
+  digest 101-112: 03491933de2f33
+orders:
+  19 buy entry STOP "MomLE" 147.17 x679
+  20 sell entry STOP "MomSE" 146.63 x679
+  23 buy entry STOP "MomLE" 149.82 x665
+  28 sell entry STOP "MomSE" 147.03 x1330
+  33 buy order MARKET "Margin call 0" 147.93 x32
+  50 buy entry STOP "MomLE" 147.7 x1296
+  50 sell order MARKET "Margin call 1" 148.23 x16
+  55 sell entry STOP "MomSE" 139.32 x647
+  58 buy entry STOP "MomLE" 138.59 x663
+  63 sell entry STOP "MomSE" 137.92 x1326
+  64 buy order MARKET "Margin call 2" 138.06 x4
+  64 buy order MARKET "Margin call 3" 138.58 x8
+  ... 151 more
+  digest 1-100: 0f6e8ee919ff51
+  digest 101-163: 12de4a4f3bf99c

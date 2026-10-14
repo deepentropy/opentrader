@@ -1,0 +1,36 @@
+script/four-wma-tp-sl on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=12 filledOrders=24 marginCalls=0 finalEquity=84176.7757 minEquity=82654.5386
+orders by kind: entry/MARKET=12 exit/LIMIT=4 exit/MARKET=2 exit/STOP=6
+openPL=0 maxDD=19318.1783 (0.193181783) maxRunUp=14393.6868 (0.1382217424) buyHold=-37873.3784 (-0.378733784)
+all: netProfit=-15823.2243 grossProfit=18374.4343 grossLoss=34197.6586 commissionPaid=24 profitFactor=0.5373009455 totalTrades=12 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=8 percentProfitable=0.3333333333 avgTrade=-1318.602025 avgWinTrade=4593.608575 avgLosTrade=4274.707325 largestWinTrade=8050.6823 largestLosTrade=10257.9353 avgBarsInTrade=2 maxContractsHeld=2734236
+long: netProfit=-15823.2243 grossProfit=18374.4343 grossLoss=34197.6586 commissionPaid=24 profitFactor=0.5373009455 totalTrades=12 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=8 percentProfitable=0.3333333333 avgTrade=-1318.602025 avgWinTrade=4593.608575 avgLosTrade=4274.707325 largestWinTrade=8050.6823 largestLosTrade=10257.9353 avgBarsInTrade=2 maxContractsHeld=2734236
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@114 0.6659 out "Close entry(s) order Long"@115 0.5906 q=136201 pnl=-10257.9353 (-0.1131008466) cm=2 ru=5637.7214 dd=10256.9353 cum=-10257.9353 eq%=-0.102579353
+  #2 L "Long" in "Long"@127 0.6882 out "Long TP/SL"@128 0.7021 q=128642 pnl=1786.1238 (0.02017479824) cm=2 ru=3883.9884 dd=489.8396 cum=-8471.8115 eq%=0.01990286056
+  #3 L "Long" in "Long"@170 0.4278 out "Long TP/SL"@171 0.4655 q=213599 pnl=8050.6823 (0.08810244085) cm=2 ru=11875.1044 dd=5340.975 cum=-421.1292 eq%=0.08795850144
+  #4 L "Long" in "Long"@222 0.3663 out "Long TP/SL"@223 0.3625 q=249381 pnl=-949.6478 (-0.0103957908) cm=2 ru=273.3191 dd=2370.1195 cum=-1370.777 eq%=-0.009536639574
+  #5 L "Long" in "Long"@278 0.2392 out "Long TP/SL"@279 0.2324 q=407891 pnl=-2775.6588 (-0.02844830069) cm=2 ru=5505.5285 dd=3223.3389 cum=-4146.4358 eq%=-0.02814235696
+  #6 L "Long" in "Long"@356 0.1305 out "Long TP/SL"@357 0.1236 q=718534 pnl=-4959.8846 (-0.05289432821) cm=2 ru=1076.801 dd=5677.4186 cum=-9106.3204 eq%=-0.05174439408
+  #7 L "Long" in "Long"@401 0.0991 out "Long TP/SL"@402 0.0934 q=915334 pnl=-5219.4038 (-0.05753907299) cm=2 ru=0 dd=5218.4038 cum=-14325.7242 eq%=-0.05742317643
+  #8 L "Long" in "Long"@495 0.0468 out "Long TP/SL"@496 0.0505 q=1792327 pnl=6629.6099 (0.0790350435) cm=2 ru=8064.4715 dd=3047.9559 cum=-7696.1143 eq%=0.07738156918
+  #9 L "Long" in "Long"@532 0.0308 out "Close entry(s) order Long"@533 0.0295 q=2644781 pnl=-3440.2153 (-0.04223182592) cm=2 ru=263.4781 dd=3439.2153 cum=-11136.3296 eq%=-0.03727053606
+  #10 L "Long" in "Long"@550 0.0324 out "Long TP/SL"@551 0.0303 q=2734236 pnl=-5743.8956 (-0.06483665904) cm=2 ru=2186.3888 dd=5742.8956 cum=-16880.2252 eq%=-0.06463716358
+  #11 L "Long" in "Long"@748 0.1255 out "Long TP/SL"@749 0.1284 q=658627 pnl=1908.0183 (0.02308309428) cm=2 ru=2896.9588 dd=1054.8032 cum=-14972.2069 eq%=0.02295504655
+  #12 L "Long" in "Long"@861 0.3283 out "Long TP/SL"@862 0.3249 q=249711 pnl=-851.0174 (-0.01038065089) cm=2 ru=598.3064 dd=4345.9714 cum=-15823.2243 eq%=-0.01000869679
+  digest 1-12: 110dfdc53a3f19
+orders:
+  114 buy entry MARKET "Long" 0.6659 x136201
+  115 sell exit MARKET "Close entry(s) order Long" 0.5906 x136201
+  127 buy entry MARKET "Long" 0.6882 x128642
+  128 sell exit LIMIT "Long TP/SL" 0.7021 x128642
+  170 buy entry MARKET "Long" 0.4278 x213599
+  171 sell exit LIMIT "Long TP/SL" 0.4655 x213599
+  222 buy entry MARKET "Long" 0.3663 x249381
+  223 sell exit STOP "Long TP/SL" 0.3625 x249381
+  278 buy entry MARKET "Long" 0.2392 x407891
+  279 sell exit STOP "Long TP/SL" 0.2324 x407891
+  356 buy entry MARKET "Long" 0.1305 x718534
+  357 sell exit STOP "Long TP/SL" 0.1236 x718534
+  ... 12 more
+  digest 1-24: 18ee3232a768f8

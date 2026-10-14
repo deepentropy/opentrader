@@ -1,0 +1,38 @@
+builtin/parabolic-sar on daily: 1500 bars, first 1546405200, last 1728964800
+trades=71 filledOrders=122 marginCalls=11 finalEquity=177429.96 minEquity=75526.33
+orders by kind: entry/STOP=111 order/MARKET=11
+openPL=-20954.88 maxDD=98836.09 (0.3654564946) maxRunUp=207887.61 (0.7335122965) buyHold=86796.06 (0.8679606)
+all: netProfit=98384.84 grossProfit=279296.37 grossLoss=180911.53 commissionPaid=0 profitFactor=1.543828467 totalTrades=70 totalOpenTrades=1 numberOfWiningTrades=24 numberOfLosingTrades=46 percentProfitable=0.3428571429 avgTrade=1405.497714 avgWinTrade=11637.34875 avgLosTrade=3932.859348 largestWinTrade=71780.8 largestLosTrade=32896.08 avgBarsInTrade=10.51428571 maxContractsHeld=1457
+long: netProfit=121617.15 grossProfit=253848.77 grossLoss=132231.62 commissionPaid=0 profitFactor=1.919728201 totalTrades=58 totalOpenTrades=0 numberOfWiningTrades=23 numberOfLosingTrades=35 percentProfitable=0.3965517241 avgTrade=2096.847414 avgWinTrade=11036.90304 avgLosTrade=3778.046286 largestWinTrade=71780.8 largestLosTrade=24078.94 avgBarsInTrade=11.31034483 maxContractsHeld=1457
+short: netProfit=-23232.31 grossProfit=25447.6 grossLoss=48679.91 commissionPaid=0 profitFactor=0.522753637 totalTrades=12 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=11 percentProfitable=0.08333333333 avgTrade=-1936.025833 avgWinTrade=25447.6 avgLosTrade=4425.446364 largestWinTrade=25447.6 largestLosTrade=32896.08 avgBarsInTrade=6.666666667 maxContractsHeld=1207
+trades:
+  #1 L "ParLE" in "ParLE"@9 149.3 out "ParSE"@27 148.03 q=669 pnl=-849.63 (-0.008506363027) cm=0 ru=3719.64 dd=2522.13 cum=-849.63 eq%=-0.0084963
+  #2 L "ParLE" in "ParLE"@47 141.16 out "ParSE"@54 140.23 q=702 pnl=-652.86 (-0.006588268631) cm=0 ru=4963.14 dd=652.86 cum=-1502.49 eq%=-0.006584544263
+  #3 L "ParLE" in "ParLE"@68 141.43 out "ParSE"@81 141.27 q=696 pnl=-111.36 (-0.001131301704) cm=0 ru=4544.88 dd=2832.72 cum=-1613.85 eq%=-0.001130586956
+  #4 L "ParLE" in "ParLE"@105 140.67 out "ParSE"@117 139.01 q=699 pnl=-1160.34 (-0.01180066823) cm=0 ru=3432.09 dd=1544.79 cum=-2774.19 eq%=-0.01179373316
+  #5 L "ParLE" in "ParLE"@121 144.27 out "ParSE"@122 133.64 q=673 pnl=-7153.99 (-0.07368129202) cm=0 ru=255.74 dd=7153.99 cum=-9928.18 eq%=-0.07358118179
+  #6 L "ParLE" in "ParLE"@144 103.7 out "ParSE"@149 97.35 q=868 pnl=-5511.8 (-0.0612343298) cm=0 ru=6839.84 dd=5511.8 cum=-15439.98 eq%=-0.0611933899
+  #7 L "ParLE" in "ParLE"@189 171.91 out "ParSE"@203 187.18 q=491 pnl=7497.57 (0.08882554825) cm=0 ru=14047.51 dd=2445.18 cum=-7942.41 eq%=0.0886656602
+  #8 L "ParLE" in "ParLE"@205 199.64 out "ParSE"@214 200.33 q=461 pnl=318.09 (0.003456221198) cm=0 ru=9856.18 dd=1180.16 cum=-7624.32 eq%=0.003455337034
+  #9 S "ParSE" in "ParSE"@248 229.65 out "Margin call"@248 230.65 q=12 pnl=-12 (-0.004354452428) cm=0 ru=0 dd=12 cum=-7636.32 eq%=-0.0001299043211
+  #10 S "ParSE" in "ParSE"@248 229.65 out "Margin call"@254 233.36 q=1 pnl=-3.71 (-0.01615501851) cm=0 ru=5.36 dd=3.71 cum=-7640.03 eq%=-0.00004016730386
+  #11 S "ParSE" in "ParSE"@248 229.65 out "ParLE"@265 229.98 q=389 pnl=-128.37 (-0.001436969301) cm=0 ru=2691.88 dd=1443.19 cum=-7768.4 eq%=-0.001389887849
+  #12 L "ParLE" in "ParLE"@265 229.98 out "ParSE"@266 222.88 q=401 pnl=-2847.1 (-0.03087224976) cm=0 ru=200.5 dd=2847.1 cum=-10615.5 eq%=-0.0308690297
+  ... 59 more
+  digest 1-71: 1c713663f03caf
+orders:
+  9 buy entry STOP "ParLE" 149.3 x669
+  27 sell entry STOP "ParSE" 148.03 x669
+  47 buy entry STOP "ParLE" 141.16 x702
+  54 sell entry STOP "ParSE" 140.23 x702
+  68 buy entry STOP "ParLE" 141.43 x696
+  81 sell entry STOP "ParSE" 141.27 x696
+  105 buy entry STOP "ParLE" 140.67 x699
+  117 sell entry STOP "ParSE" 139.01 x699
+  121 buy entry STOP "ParLE" 144.27 x673
+  122 sell entry STOP "ParSE" 133.64 x673
+  144 buy entry STOP "ParLE" 103.7 x868
+  149 sell entry STOP "ParSE" 97.35 x868
+  ... 110 more
+  digest 1-100: 1594e5a2bda34a
+  digest 101-122: 10da8eea12918b

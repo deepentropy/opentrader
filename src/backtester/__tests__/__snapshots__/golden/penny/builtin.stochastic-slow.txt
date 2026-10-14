@@ -1,0 +1,37 @@
+builtin/stochastic-slow on penny: 900 bars, first 978411600, last 1088136000
+trades=51 filledOrders=51 marginCalls=36 finalEquity=7342.2173 minEquity=4194.6035
+orders by kind: entry/MARKET=15 order/MARKET=36
+openPL=2511.6786 maxDD=98307.991 (0.9597224162) maxRunUp=37964.4848 (0.3502156942) buyHold=-54251.5292 (-0.542515292)
+all: netProfit=-95169.4613 grossProfit=46888.9911 grossLoss=142058.4524 commissionPaid=0 profitFactor=0.3300682945 totalTrades=50 totalOpenTrades=1 numberOfWiningTrades=6 numberOfLosingTrades=44 percentProfitable=0.12 avgTrade=-1903.389226 avgWinTrade=7814.83185 avgLosTrade=3228.601191 largestWinTrade=17032.4323 largestLosTrade=28874.284 avgBarsInTrade=101.18 maxContractsHeld=1163101
+long: netProfit=-94342.0949 grossProfit=0 grossLoss=94342.0949 commissionPaid=0 profitFactor=0 totalTrades=7 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=7 percentProfitable=0 avgTrade=-13477.44213 avgWinTrade=- avgLosTrade=13477.44213 largestWinTrade=- largestLosTrade=28874.284 avgBarsInTrade=50.28571429 maxContractsHeld=1117195
+short: netProfit=-827.3664 grossProfit=46888.9911 grossLoss=47716.3575 commissionPaid=0 profitFactor=0.9826607385 totalTrades=43 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=37 percentProfitable=0.1395348837 avgTrade=-19.24107907 avgWinTrade=7814.83185 avgLosTrade=1289.631284 largestWinTrade=17032.4323 largestLosTrade=5710.488 avgBarsInTrade=109.4651163 maxContractsHeld=1163101
+trades:
+  #1 L "StochLE" in "StochLE"@57 0.9043 out "StochSE"@80 0.9035 q=108014 pnl=-86.4112 (-0.0008846621696) cm=0 ru=11157.8462 dd=24789.213 cum=-86.4112 eq%=-0.000864112
+  #2 S "StochSE" in "StochSE"@80 0.9035 out "Margin call"@80 0.9833 q=71560 pnl=-5710.488 (-0.0883231876) cm=0 ru=1331.016 dd=5710.488 cum=-5796.8992 eq%=-0.05715426769
+  #3 S "StochSE" in "StochSE"@80 0.9035 out "StochLE"@96 0.6923 q=38971 pnl=8230.6752 (0.2337576093) cm=0 ru=8772.3721 dd=3109.8858 cum=2433.776 eq%=0.08737159531
+  #4 L "StochLE" in "StochLE"@96 0.6923 out "StochSE"@175 0.4903 q=142942 pnl=-28874.284 (-0.2917810198) cm=0 ru=13593.7842 dd=48514.5148 cum=-26440.508 eq%=-0.2818824525
+  #5 S "StochSE" in "StochSE"@175 0.4903 out "Margin call"@175 0.509 q=44024 pnl=-823.2488 (-0.03813991434) cm=0 ru=57.2312 dd=823.2488 cum=-27263.7568 eq%=-0.01119160529
+  #6 S "StochSE" in "StochSE"@175 0.4903 out "StochLE"@188 0.3296 q=105989 pnl=17032.4323 (0.3277585152) cm=0 ru=17657.7674 dd=5140.4665 cum=-10231.3245 eq%=0.234167061
+  #7 L "StochLE" in "StochLE"@188 0.3296 out "StochSE"@262 0.2464 q=256835 pnl=-21368.672 (-0.2524271845) cm=0 ru=20932.0525 dd=44792.024 cum=-31599.9965 eq%=-0.2380415204
+  #8 S "StochSE" in "StochSE"@262 0.2464 out "Margin call"@262 0.2725 q=211500 pnl=-5520.15 (-0.1059253247) cm=0 ru=274.95 dd=5520.15 cum=-37120.1465 eq%=-0.08070394324
+  #9 S "StochSE" in "StochSE"@262 0.2464 out "StochLE"@286 0.1967 q=65823 pnl=3271.4031 (0.2017045455) cm=0 ru=4462.7994 dd=1717.9803 cum=-33848.7434 eq%=0.05202625194
+  #10 L "StochLE" in "StochLE"@286 0.1967 out "StochSE"@316 0.1511 q=328880 pnl=-14996.928 (-0.2318251144) cm=0 ru=5459.408 dd=30947.608 cum=-48845.6714 eq%=-0.2267066231
+  #11 S "StochSE" in "StochSE"@316 0.1511 out "Margin call"@316 0.1515 q=6292 pnl=-2.5168 (-0.002647253475) cm=0 ru=0 dd=2.5168 cum=-48848.1882 eq%=-0.00004920013748
+  #12 S "StochSE" in "StochSE"@316 0.1511 out "Margin call"@322 0.1543 q=29672 pnl=-94.9504 (-0.0211780278) cm=0 ru=833.7832 dd=94.9504 cum=-48943.1386 eq%=-0.001856247055
+  ... 39 more
+  digest 1-51: 08c84703e01ada
+orders:
+  57 buy entry MARKET "StochLE" 0.9043 x108014
+  80 sell entry MARKET "StochSE" 0.9035 x218545
+  80 buy order MARKET "Margin call 0" 0.9833 x71560
+  96 buy entry MARKET "StochLE" 0.6923 x181913
+  175 sell entry MARKET "StochSE" 0.4903 x292955
+  175 buy order MARKET "Margin call 1" 0.509 x44024
+  188 buy entry MARKET "StochLE" 0.3296 x362824
+  262 sell entry MARKET "StochSE" 0.2464 x534158
+  262 buy order MARKET "Margin call 2" 0.2725 x211500
+  286 buy entry MARKET "StochLE" 0.1967 x394703
+  316 sell entry MARKET "StochSE" 0.1511 x667213
+  316 buy order MARKET "Margin call 3" 0.1515 x6292
+  ... 39 more
+  digest 1-51: 0048624a6d3fdd

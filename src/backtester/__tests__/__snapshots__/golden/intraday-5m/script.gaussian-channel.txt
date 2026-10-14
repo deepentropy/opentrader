@@ -1,0 +1,41 @@
+script/gaussian-channel on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=190 filledOrders=303 marginCalls=76 finalEquity=168722.93 minEquity=99479.49
+orders by kind: entry/MARKET=114 exit/MARKET=113 order/MARKET=76
+openPL=1017.27 maxDD=9194.38 (0.06486346634) maxRunUp=78554.87 (0.4406462463) buyHold=-3666.76 (-0.0366676)
+all: netProfit=67705.66 grossProfit=109094.23 grossLoss=41388.57 commissionPaid=0 profitFactor=2.635854053 totalTrades=189 totalOpenTrades=1 numberOfWiningTrades=29 numberOfLosingTrades=157 percentProfitable=0.1534391534 avgTrade=358.2310053 avgWinTrade=3761.87 avgLosTrade=263.621465 largestWinTrade=17325 largestLosTrade=2186.88 avgBarsInTrade=22.47619048 maxContractsHeld=410
+long: netProfit=33864.55 grossProfit=54597.26 grossLoss=20732.71 commissionPaid=0 profitFactor=2.633387531 totalTrades=59 totalOpenTrades=1 numberOfWiningTrades=16 numberOfLosingTrades=40 percentProfitable=0.2711864407 avgTrade=573.9754237 avgWinTrade=3412.32875 avgLosTrade=518.31775 largestWinTrade=17325 largestLosTrade=2186.88 avgBarsInTrade=34.08474576 maxContractsHeld=409
+short: netProfit=33841.11 grossProfit=54496.97 grossLoss=20655.86 commissionPaid=0 profitFactor=2.638329752 totalTrades=130 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=117 percentProfitable=0.1 avgTrade=260.3162308 avgWinTrade=4192.074615 avgLosTrade=176.545812 largestWinTrade=16218 largestLosTrade=1351 avgBarsInTrade=17.20769231 maxContractsHeld=410
+trades:
+  #1 S "Short" in "Short"@94 458.59 out "Margin call"@94 458.84 q=1 pnl=-0.25 (-0.0005451492619) cm=0 ru=0 dd=0.25 cum=-0.25 eq%=-0.0000025
+  #2 S "Short" in "Short"@94 458.59 out "Margin call"@131 460.45 q=1 pnl=-1.86 (-0.004055910508) cm=0 ru=10.19 dd=1.86 cum=-2.11 eq%=-0.0000186000465
+  #3 S "Short" in "Short"@94 458.59 out "Close entry(s) order Short"@132 459.89 q=216 pnl=-280.8 (-0.002834776162) cm=0 ru=2201.04 dd=401.76 cum=-282.91 eq%=-0.00280805925
+  #4 L "Long" in "Long"@132 459.89 out "Close entry(s) order Long"@356 474.34 q=216 pnl=3121.2 (0.03142055709) cm=0 ru=3892.32 dd=349.92 cum=2838.29 eq%=0.03130055239
+  #5 S "Short" in "Short"@356 474.34 out "Margin call"@358 475.92 q=1 pnl=-1.58 (-0.003330944049) cm=0 ru=0.04 dd=1.58 cum=2836.71 eq%=-0.00001536392719
+  #6 S "Short" in "Short"@356 474.34 out "Close entry(s) order Short"@360 475.92 q=215 pnl=-339.7 (-0.003330944049) cm=0 ru=8.6 dd=339.7 cum=2497.01 eq%=-0.003303295098
+  #7 L "Long" in "Long"@360 475.92 out "Close entry(s) order Long"@373 475.25 q=215 pnl=-144.05 (-0.00140779963) cm=0 ru=324.65 dd=301 cum=2352.96 eq%=-0.00140540685
+  #8 S "Short" in "Short"@373 475.25 out "Margin call"@373 476.08 q=1 pnl=-0.83 (-0.001746449237) cm=0 ru=0.22 dd=0.83 cum=2352.13 eq%=-0.000008109193911
+  #9 S "Short" in "Short"@373 475.25 out "Close entry(s) order Short"@375 476.11 q=214 pnl=-184.04 (-0.001809573908) cm=0 ru=47.08 dd=222.56 cum=2168.09 eq%=-0.001798106205
+  #10 L "Long" in "Long"@375 476.11 out "Close entry(s) order Long"@473 480.09 q=214 pnl=851.72 (0.008359412741) cm=0 ru=1587.88 dd=53.5 cum=3019.81 eq%=0.008336458086
+  #11 S "Short" in "Short"@473 480.09 out "Margin call"@476 480.8 q=1 pnl=-0.71 (-0.001478889375) cm=0 ru=1.1 dd=0.71 cum=3019.1 eq%=-0.000006891878368
+  #12 S "Short" in "Short"@473 480.09 out "Close entry(s) order Short"@489 481.44 q=213 pnl=-287.55 (-0.002811972755) cm=0 ru=234.3 dd=372.75 cum=2731.55 eq%=-0.002791229976
+  ... 178 more
+  digest 1-100: 12a316cee20108
+  digest 101-190: 14df3f2f969669
+orders:
+  94 sell entry MARKET "Short" 458.59 x218
+  94 buy order MARKET "Margin call 0" 458.84 x1
+  131 buy order MARKET "Margin call 1" 460.45 x1
+  132 buy exit MARKET "Close entry(s) order Short" 459.89 x216
+  132 buy entry MARKET "Long" 459.89 x216
+  356 sell exit MARKET "Close entry(s) order Long" 474.34 x216
+  356 sell entry MARKET "Short" 474.34 x216
+  358 buy order MARKET "Margin call 2" 475.92 x1
+  360 buy exit MARKET "Close entry(s) order Short" 475.92 x215
+  360 buy entry MARKET "Long" 475.92 x215
+  373 sell exit MARKET "Close entry(s) order Long" 475.25 x215
+  373 sell entry MARKET "Short" 475.25 x215
+  ... 291 more
+  digest 1-100: 021eb117c1140d
+  digest 101-200: 167d932192ecf1
+  digest 201-300: 056e185ffaf6ac
+  digest 301-303: 0c127f5ba29e92
