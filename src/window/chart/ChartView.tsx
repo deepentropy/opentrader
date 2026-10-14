@@ -162,249 +162,65 @@ export function ChartView(props: ChartViewProps) {
   const cx = {
     props,
     paneId,
-    get activeType() {
-      return activeType;
-    },
-    set activeType(v: ChartCore["activeType"]) {
-      activeType = v;
-    },
-    get afterSeriesData() {
-      return afterSeriesData;
-    },
-    get appearance() {
-      return appearance;
-    },
-    get applyStrategyMarkers() {
-      return applyStrategyMarkers;
-    },
-    get barWrap() {
-      return barWrap;
-    },
-    set barWrap(v: ChartCore["barWrap"]) {
-      barWrap = v;
-    },
-    get chart() {
-      return chart;
-    },
-    set chart(v: ChartCore["chart"]) {
-      chart = v;
-    },
-    get chartReady() {
-      return chartReady;
-    },
-    get controller() {
-      return controller;
-    },
-    set controller(v: ChartCore["controller"]) {
-      controller = v;
-    },
-    get coords() {
-      return coords;
-    },
-    get countdown() {
-      return countdown;
-    },
-    get crosshairActive() {
-      return crosshairActive;
-    },
-    set crosshairActive(v: ChartCore["crosshairActive"]) {
-      crosshairActive = v;
-    },
-    get crosshairAt() {
-      return crosshairAt;
-    },
-    set crosshairAt(v: ChartCore["crosshairAt"]) {
-      crosshairAt = v;
-    },
-    get crosshairPrice() {
-      return crosshairPrice;
-    },
-    set crosshairPrice(v: ChartCore["crosshairPrice"]) {
-      crosshairPrice = v;
-    },
-    get ctxMenu() {
-      return ctxMenu;
-    },
-    get currentTokens() {
-      return currentTokens;
-    },
-    get dataExtras() {
-      return dataExtras;
-    },
-    get fullSymbol() {
-      return fullSymbol;
-    },
-    get gotoWrap() {
-      return gotoWrap;
-    },
-    set gotoWrap(v: ChartCore["gotoWrap"]) {
-      gotoWrap = v;
-    },
-    get hidden() {
-      return hidden;
-    },
-    get history() {
-      return history;
-    },
-    get historyEnd() {
-      return historyEnd;
-    },
-    get host() {
-      return host;
-    },
-    set host(v: ChartCore["host"]) {
-      host = v;
-    },
-    get hostH() {
-      return hostH;
-    },
-    set hostH(v: ChartCore["hostH"]) {
-      hostH = v;
-    },
-    get hostW() {
-      return hostW;
-    },
-    set hostW(v: ChartCore["hostW"]) {
-      hostW = v;
-    },
-    get hoveredStudy() {
-      return hoveredStudy;
-    },
-    set hoveredStudy(v: ChartCore["hoveredStudy"]) {
-      hoveredStudy = v;
-    },
-    get indLegend() {
-      return indLegend;
-    },
-    get lastLegendTime() {
-      return lastLegendTime;
-    },
-    set lastLegendTime(v: ChartCore["lastLegendTime"]) {
-      lastLegendTime = v;
-    },
-    get lockViews() {
-      return lockViews;
-    },
-    set lockViews(v: ChartCore["lockViews"]) {
-      lockViews = v;
-    },
-    get mainLastIndex() {
-      return mainLastIndex;
-    },
-    get mainPriceSource() {
-      return mainPriceSource;
-    },
-    get newsLollipop() {
-      return newsLollipop;
-    },
-    get onShownHooks() {
-      return onShownHooks;
-    },
-    get paneRoot() {
-      return paneRoot;
-    },
-    set paneRoot(v: ChartCore["paneRoot"]) {
-      paneRoot = v;
-    },
-    get pendingRangeSpan() {
-      return pendingRangeSpan;
-    },
-    set pendingRangeSpan(v: ChartCore["pendingRangeSpan"]) {
-      pendingRangeSpan = v;
-    },
-    get pointerOverHost() {
-      return pointerOverHost;
-    },
-    set pointerOverHost(v: ChartCore["pointerOverHost"]) {
-      pointerOverHost = v;
-    },
-    get prevDayClose() {
-      return prevDayClose;
-    },
-    set prevDayClose(v: ChartCore["prevDayClose"]) {
-      prevDayClose = v;
-    },
-    get raw() {
-      return raw;
-    },
-    set raw(v: ChartCore["raw"]) {
-      raw = v;
-    },
-    get rawDaily() {
-      return rawDaily;
-    },
-    set rawDaily(v: ChartCore["rawDaily"]) {
-      rawDaily = v;
-    },
-    get refreshIndicatorLegend() {
-      return refreshIndicatorLegend;
-    },
-    get refreshLegend() {
-      return refreshLegend;
-    },
-    get reloadTick() {
-      return reloadTick;
-    },
-    get removeStudy() {
-      return removeStudy;
-    },
-    get selectStudy() {
-      return selectStudy;
-    },
-    get selectedStudy() {
-      return selectedStudy;
-    },
-    get series() {
-      return series;
-    },
-    set series(v: ChartCore["series"]) {
-      series = v;
-    },
-    get seriesOnlyScale() {
-      return seriesOnlyScale;
-    },
-    get setCompareSettingsFor() {
-      return setCompareSettingsFor;
-    },
-    get setCtxMenu() {
-      return setCtxMenu;
-    },
-    get setDimmed() {
-      return setDimmed;
-    },
-    get setReloadTick() {
-      return setReloadTick;
-    },
-    get setSelectedStudy() {
-      return setSelectedStudy;
-    },
-    get setSettingsForId() {
-      return setSettingsForId;
-    },
-    get setSettingsTab() {
-      return setSettingsTab;
-    },
-    get studySelectionBg() {
-      return studySelectionBg;
-    },
-    get swapping() {
-      return swapping;
-    },
-    set swapping(v: ChartCore["swapping"]) {
-      swapping = v;
-    },
-    get syncLockPanes() {
-      return syncLockPanes;
-    },
-    get toggleSourceHidden() {
-      return toggleSourceHidden;
-    },
-    get updateSessionBreaks() {
-      return updateSessionBreaks;
-    },
-    get whenShown() {
-      return whenShown;
-    },
+    get activeType() { return activeType; }, set activeType(v: ChartCore["activeType"]) { activeType = v; },
+    get afterSeriesData() { return afterSeriesData; },
+    get appearance() { return appearance; },
+    get applyStrategyMarkers() { return applyStrategyMarkers; },
+    get barWrap() { return barWrap; }, set barWrap(v: ChartCore["barWrap"]) { barWrap = v; },
+    get chart() { return chart; }, set chart(v: ChartCore["chart"]) { chart = v; },
+    get chartReady() { return chartReady; },
+    get controller() { return controller; }, set controller(v: ChartCore["controller"]) { controller = v; },
+    get coords() { return coords; },
+    get countdown() { return countdown; },
+    get crosshairActive() { return crosshairActive; }, set crosshairActive(v: ChartCore["crosshairActive"]) { crosshairActive = v; },
+    get crosshairAt() { return crosshairAt; }, set crosshairAt(v: ChartCore["crosshairAt"]) { crosshairAt = v; },
+    get crosshairPrice() { return crosshairPrice; }, set crosshairPrice(v: ChartCore["crosshairPrice"]) { crosshairPrice = v; },
+    get ctxMenu() { return ctxMenu; },
+    get currentTokens() { return currentTokens; },
+    get dataExtras() { return dataExtras; },
+    get fullSymbol() { return fullSymbol; },
+    get gotoWrap() { return gotoWrap; }, set gotoWrap(v: ChartCore["gotoWrap"]) { gotoWrap = v; },
+    get hidden() { return hidden; },
+    get history() { return history; },
+    get historyEnd() { return historyEnd; },
+    get host() { return host; }, set host(v: ChartCore["host"]) { host = v; },
+    get hostH() { return hostH; }, set hostH(v: ChartCore["hostH"]) { hostH = v; },
+    get hostW() { return hostW; }, set hostW(v: ChartCore["hostW"]) { hostW = v; },
+    get hoveredStudy() { return hoveredStudy; }, set hoveredStudy(v: ChartCore["hoveredStudy"]) { hoveredStudy = v; },
+    get indLegend() { return indLegend; },
+    get lastLegendTime() { return lastLegendTime; }, set lastLegendTime(v: ChartCore["lastLegendTime"]) { lastLegendTime = v; },
+    get lockViews() { return lockViews; }, set lockViews(v: ChartCore["lockViews"]) { lockViews = v; },
+    get mainLastIndex() { return mainLastIndex; },
+    get mainPriceSource() { return mainPriceSource; },
+    get newsLollipop() { return newsLollipop; },
+    get onShownHooks() { return onShownHooks; },
+    get paneRoot() { return paneRoot; }, set paneRoot(v: ChartCore["paneRoot"]) { paneRoot = v; },
+    get pendingRangeSpan() { return pendingRangeSpan; }, set pendingRangeSpan(v: ChartCore["pendingRangeSpan"]) { pendingRangeSpan = v; },
+    get pointerOverHost() { return pointerOverHost; }, set pointerOverHost(v: ChartCore["pointerOverHost"]) { pointerOverHost = v; },
+    get prevDayClose() { return prevDayClose; }, set prevDayClose(v: ChartCore["prevDayClose"]) { prevDayClose = v; },
+    get raw() { return raw; }, set raw(v: ChartCore["raw"]) { raw = v; },
+    get rawDaily() { return rawDaily; }, set rawDaily(v: ChartCore["rawDaily"]) { rawDaily = v; },
+    get refreshIndicatorLegend() { return refreshIndicatorLegend; },
+    get refreshLegend() { return refreshLegend; },
+    get reloadTick() { return reloadTick; },
+    get removeStudy() { return removeStudy; },
+    get selectStudy() { return selectStudy; },
+    get selectedStudy() { return selectedStudy; },
+    get series() { return series; }, set series(v: ChartCore["series"]) { series = v; },
+    get seriesOnlyScale() { return seriesOnlyScale; },
+    get setCompareSettingsFor() { return setCompareSettingsFor; },
+    get setCtxMenu() { return setCtxMenu; },
+    get setDimmed() { return setDimmed; },
+    get setReloadTick() { return setReloadTick; },
+    get setSelectedStudy() { return setSelectedStudy; },
+    get setSettingsForId() { return setSettingsForId; },
+    get setSettingsTab() { return setSettingsTab; },
+    get studySelectionBg() { return studySelectionBg; },
+    get swapping() { return swapping; }, set swapping(v: ChartCore["swapping"]) { swapping = v; },
+    get syncLockPanes() { return syncLockPanes; },
+    get toggleSourceHidden() { return toggleSourceHidden; },
+    get updateSessionBreaks() { return updateSessionBreaks; },
+    get whenShown() { return whenShown; },
   } as ChartCx;
   // The window-wide chart events (sync, link, go-to, keyboard actions) belong
   // to the shown tab: a hidden tab's pane ignores them. One wrapper per
@@ -1082,7 +898,7 @@ export function ChartView(props: ChartViewProps) {
       };
     });
     lockAxis = new CrosshairLockAxisPrimitive(lockViews);
-    // Start empty; real candles arrive from the Massive resource below.
+    // Start empty; real candles arrive from the history resource below.
     raw = [];
     rebuildSeries();
 
@@ -1460,7 +1276,7 @@ export function ChartView(props: ChartViewProps) {
     // any paged bars) untouched.
     if (real === lastAppliedReal) return;
     lastAppliedReal = real;
-    // New symbol resolved with no data (not on Massive, entitlement gap, …).
+    // New symbol resolved with no data (not served by the data source, entitlement gap, …).
     // Clear the previous symbol's candles instead of leaving them painted —
     // otherwise switching tabs looks like the price never changes.
     if (!real || real.bars.length === 0) {

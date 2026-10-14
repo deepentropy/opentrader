@@ -48,7 +48,7 @@ export function createLive(cx: ChartCx): LiveApi {
    *  when the tick's day advances, the bar rolls over, or the series reloads. */
   let liveVolBase: { barTime: number; dayTime: number; base: number } | null = null;
 
-  // ── Feature 9: live ticks from Massive WS ─────────────────────────
+  // ── Live ticks from the live feed ─────────────────────────────
   // Mirror the chart's `symbol` into the Rust WS task's subscription set,
   // under THIS pane's slot (multi-pane layouts each hold their own symbol).
   // The task diffs against its previous state and emits the minimal
