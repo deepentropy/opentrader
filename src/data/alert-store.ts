@@ -114,6 +114,8 @@ export type AlertFrequency =
   | "once_per_bar_close"
   | "every_time";
 
+export type AlertStopReason = "triggered" | "manual" | "expired";
+
 export type AlertRule = {
   id: string;
   /** Full name, uppercased ("NASDAQ:AAPL"); rules saved before full names
@@ -145,6 +147,9 @@ export type AlertRule = {
   /** Show a desktop/OS notification on fire (vs. toast + log only). */
   popup: boolean;
   enabled: boolean;
+  /** Why a stopped alert stopped: it fired once ("triggered"), it was switched
+   *  off ("manual") or its expiry passed ("expired"). Unset while active. */
+  stopReason?: AlertStopReason;
   createdAt: number;
   /** Epoch ms the rule last became active (created, edited, switched on):
    *  nothing before it counts as missed. Unset on older rules (= createdAt). */
@@ -318,14 +323,22 @@ export const alertStore = {
   update(id: string, patch: Partial<Omit<AlertRule, "id">>): void {
     const i = state.rules.findIndex((r) => r.id === id);
     if (i < 0) return;
-    setState("rules", i, produce((r: AlertRule) => Object.assign(r, patch, { activeSince: Date.now() })));
+    setState("rules", i, produce((r: AlertRule) => {
+      Object.assign(r, patch, { activeSince: Date.now() });
+      if (r.enabled) delete r.stopReason;
+    }));
   },
 
-  setEnabled(id: string, enabled: boolean): void {
+  /** Switch a rule on or off; `reason`: why it stops (default: by hand). */
+  setEnabled(id: string, enabled: boolean, reason: AlertStopReason = "manual"): void {
     const i = state.rules.findIndex((r) => r.id === id);
     if (i < 0) return;
     if (enabled && !state.rules[i].enabled) setState("rules", i, "activeSince", Date.now());
-    setState("rules", i, "enabled", enabled);
+    setState("rules", i, produce((r: AlertRule) => {
+      r.enabled = enabled;
+      if (enabled) delete r.stopReason;
+      else r.stopReason = reason;
+    }));
   },
 
   remove(id: string): void {

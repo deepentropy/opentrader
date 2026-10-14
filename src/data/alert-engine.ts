@@ -466,7 +466,7 @@ function deliverFire(rule: AlertRule, price: number, barTime: number | null, off
   const fireTime = offline ? offline.fireTime : Date.now();
   const text = rule.message?.trim() ? rule.message : defaultAlertMessage(rule);
   // "Only Once" rules disable themselves after the single fire.
-  if (rule.frequency === "only_once") alertStore.setEnabled(rule.id, false);
+  if (rule.frequency === "only_once") alertStore.setEnabled(rule.id, false, "triggered");
   void placeholderValues(rule, text, price, barTime, fireTime, !offline)
     .then(
       (values) => fillPlaceholders(text, values),
@@ -581,7 +581,7 @@ function onTick(t: TradeTick): void {
   for (const rule of rules) {
     // Auto-expire.
     if (rule.expiresAt != null && now >= rule.expiresAt) {
-      alertStore.setEnabled(rule.id, false);
+      alertStore.setEnabled(rule.id, false, "expired");
       continue;
     }
 
@@ -1273,7 +1273,7 @@ export function startAlertEngine(windowLabel = "main"): void {
       let next = Infinity;
       for (const r of alertStore.enabledRules()) {
         if (r.expiresAt == null) continue;
-        if (r.expiresAt <= now) alertStore.setEnabled(r.id, false);
+        if (r.expiresAt <= now) alertStore.setEnabled(r.id, false, "expired");
         else next = Math.min(next, r.expiresAt);
       }
       if (next === Infinity) return;
