@@ -5,3 +5,4 @@
  */
 export { makeCoords, timeToXFallback } from "lightweight-charts-drawing/runtime/coords";
 export type { Coords } from "lightweight-charts-drawing/core/coords";
+export type { FutureAxis } from "lightweight-charts-drawing/runtime/coords";

@@ -5,8 +5,11 @@
  * on the future bar that holds it: the count of future bars that open after the last bar and at or before the time
  * (its Pivot Points Standard ends the current period there: on a daily chart a month after 01/10/2026 is 21 bars
  * after 01/10, on a 5 minute chart the next day's open is 78 bars after the day's open).
+ * The drawings use the same future bars both ways (`sessionFutureAxis`): a point placed after the last bar takes the
+ * open time of its future bar, a time is drawn on the future bar that holds it.
  */
 import type { FutureSlots } from "lightweight-charts-indicators/render";
+import type { FutureAxis } from "lightweight-charts-drawing/runtime/coords";
 import { localDay, localToUtc, type SessionSpec } from "../../../data/session";
 
 /** Days scanned at most after the last bar (a decade of pivots on a daily chart). */
@@ -82,4 +85,65 @@ export function sessionFutureSlots(interval: string, spec: SessionSpec): FutureS
     }
     return bucket ? k : Math.floor(days / iv.n);
   };
+}
+
+/**
+ * Open time of the k-th future bar (k >= 1) after the bar opening at `lastTime`, the inverse of the slot counter:
+ * the next bars of the session, then each later session's bars from its open; daily and longer bars at the local
+ * midnight of their first trading day. null past the scanned range or when the interval is not a time interval.
+ */
+export function sessionFutureTime(interval: string, spec: SessionSpec): ((k: number, lastTime: number) => number | null) | null {
+  const iv = parseInterval(interval);
+  if (!iv) return null;
+  const tz = spec.timeZone;
+  if (iv.unit === "s") {
+    const step = iv.n;
+    return (k, lastTime) => {
+      if (!(k >= 1)) return null;
+      let left = k;
+      const first = localDay(tz, lastTime) - 2;
+      for (let day = first; day <= first + MAX_DAYS; day++) {
+        for (const s of spec.dayIntervals(day)) {
+          if (s.end <= lastTime) continue;
+          const from = s.start <= lastTime ? lastTime + step : s.start;
+          const base = s.start <= lastTime ? lastTime : s.start;
+          if (from > s.end - 1) continue;
+          // bars opening in [from, s.end)
+          const n = Math.floor((s.end - 1 - base) / step) - Math.ceil((from - base) / step) + 1;
+          if (left <= n) return base + (Math.ceil((from - base) / step) + left - 1) * step;
+          left -= n;
+        }
+      }
+      return null;
+    };
+  }
+  const bucket = iv.unit === "D" ? null : iv.unit === "W" ? weekOf : monthOf;
+  return (k, lastTime) => {
+    if (!(k >= 1)) return null;
+    const lastDay = localDay(tz, lastTime);
+    let key = bucket ? Math.floor(bucket(lastDay) / iv.n) : 0;
+    let days = 0;
+    let n = 0;
+    for (let day = lastDay + 1; day <= lastDay + MAX_DAYS; day++) {
+      if (!spec.isTradingDay(day)) continue;
+      days++;
+      if (bucket) {
+        const b = Math.floor(bucket(day) / iv.n);
+        if (b === key) continue;
+        key = b;
+        n++;
+      } else if (days % iv.n === 0) n++;
+      else continue;
+      if (n === k) return localToUtc(tz, day, 0);
+    }
+    return null;
+  };
+}
+
+/** Future bars of a chart both ways (time -> bar, bar -> open time) for the drawings; null when the interval is not
+ *  a time interval (the drawings then count calendar time). */
+export function sessionFutureAxis(interval: string, spec: SessionSpec): FutureAxis | null {
+  const slots = sessionFutureSlots(interval, spec);
+  const time = sessionFutureTime(interval, spec);
+  return slots && time ? { slots, time } : null;
 }

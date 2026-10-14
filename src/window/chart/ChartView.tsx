@@ -168,7 +168,8 @@ import { isDeletedList, watchlistStore } from "../../data/watchlist-store";
 import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../data/indicator-favorites";
 import type { Bar } from "oakscriptjs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
-import { makeCoords, type Coords } from "../drawings/coords";
+import { makeCoords, type Coords, type FutureAxis } from "../drawings/coords";
+import { sessionFutureAxis } from "./indicators/future-slots";
 import { studyPaneCoords, type DrawingPane } from "../drawings/pane-coords";
 import { DrawingsOverlay, NEVER_SUNK_KINDS, type SunkPainter } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
@@ -745,6 +746,7 @@ export function ChartView(props: Props) {
   let raw: OHLC[] = [];
   // Lets markers fall back to gap-aware positioning when a date isn't on a bar.
   eventMarkers.setBarsAccessor(() => raw);
+  eventMarkers.setFutureAccessor(() => futureAxis());
   // Events -> Latest news: one lollipop on the last bar.
   const newsLollipop = new NewsLollipopPrimitive();
   newsLollipop.setLastTimeAccessor(() => (raw.length ? (raw[raw.length - 1].time as number) : null));
@@ -779,6 +781,27 @@ export function ChartView(props: Props) {
   // Type the current `series` was built with (rebuildSeries compares it with
   // the new type to choose how the view carries over).
   let builtType: ChartTypeId | null = null;
+  // Future bars on the symbol's trading calendar for the drawings and markers after the last bar (the time scale
+  // continues with the bars the symbol would open); null on the brick / line types (synthetic times) and until the
+  // sessions are known. Rebuilt only when the symbol, interval, session or sessions change.
+  let futureKey = "";
+  let futureSpec: unknown = null;
+  let futureValue: FutureAxis | null = null;
+  function futureAxis(): FutureAxis | null {
+    if (isTransformType(activeType)) return null;
+    const sessions = cachedSymbolSessions(props.symbol ?? "");
+    if (!sessions) return null;
+    const interval = props.interval ?? "1D";
+    const session = props.session ?? "RTH";
+    const spec = sessions.spec(session);
+    const key = `${props.symbol}|${interval}|${session}`;
+    if (key !== futureKey || futureSpec !== spec) {
+      futureKey = key;
+      futureSpec = spec;
+      futureValue = sessionFutureAxis(interval, spec);
+    }
+    return futureValue;
+  }
   // 1-minute sub-bars feeding the volume-footprint cells (fetched on demand
   // when that type is active on an intraday frame; null otherwise).
   let subMinute: OHLC[] | null = null;
@@ -2095,6 +2118,7 @@ export function ChartView(props: Props) {
       () => raw,
       (sec) => (controller ? controller.overlayValuesAt(sec ?? undefined) : []),
       () => ({ timeZone: props.timeZone ?? "UTC", intraday: isIntradayInterval(props.interval ?? "1D") }),
+      futureAxis,
     );
     // Volume profile drawings: built from lower-timeframe bars of the chart symbol (as the profile studies).
     mainCoords.lowerTimeframe = {

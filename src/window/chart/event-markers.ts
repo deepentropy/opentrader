@@ -16,7 +16,7 @@ import type {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { OHLC } from "./chart-types";
-import { timeToXFallback } from "../drawings/coords";
+import { timeToXFallback, type FutureAxis } from "../drawings/coords";
 
 export type EventMarker = { time: number; kind: "dividend" | "split"; label: string };
 
@@ -30,6 +30,7 @@ export class EventMarkersPrimitive implements ISeriesPrimitive<Time> {
   private _showDividends = false;
   private _showSplits = false;
   private _getBars: () => OHLC[] = () => [];
+  private _getFuture: () => FutureAxis | null = () => null;
   private _views: IPrimitivePaneView[] = [new EventMarkersPaneView(this)];
 
   attached(p: SeriesAttachedParameter<Time, SeriesType>): void {
@@ -51,9 +52,12 @@ export class EventMarkersPrimitive implements ISeriesPrimitive<Time> {
   /** Live accessor to the chart's bars — used to position a marker whose date
    *  doesn't land exactly on a bar (the off-bar fallback). */
   setBarsAccessor(getBars: () => OHLC[]): void { this._getBars = getBars; }
+  /** Future bars of the chart on the trading calendar, for a date after the last bar. */
+  setFutureAccessor(getFuture: () => FutureAxis | null): void { this._getFuture = getFuture; }
 
   getChart() { return this._chart; }
   getBars() { return this._getBars(); }
+  getFuture() { return this._getFuture(); }
   getMarkers() { return this._markers; }
   visibleKind(kind: "dividend" | "split") {
     return kind === "dividend" ? this._showDividends : this._showSplits;
@@ -86,13 +90,14 @@ class EventMarkersRenderer implements IPrimitivePaneRenderer {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const bars = this._source.getBars();
+      const future = this._source.getFuture();
       for (const m of markers) {
         if (!this._source.visibleKind(m.kind)) continue;
         // Exact bar first; otherwise the gap-aware fallback so an ex-div/split
         // date that doesn't sit on a bar (weekends, intraday frames) still lands
         // on its calendar position instead of vanishing.
         const exact = timeScale.timeToCoordinate(m.time as unknown as Time);
-        const x = exact != null ? (exact as number) : timeToXFallback(chart, m.time, bars);
+        const x = exact != null ? (exact as number) : timeToXFallback(chart, m.time, bars, future);
         if (x == null) continue;
         const cx = x;
         ctx.fillStyle = COLORS[m.kind];
