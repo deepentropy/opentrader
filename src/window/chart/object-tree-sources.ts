@@ -6,6 +6,7 @@
  */
 import { createSignal } from "solid-js";
 import type { TreeItem } from "./tree-order";
+import { emitAppEvent } from "../../data/app-events";
 
 /** Id of the main series in the tree and in a pane's saved source order. */
 export const MAIN_SOURCE_ID = "_series";
@@ -31,21 +32,21 @@ export const [focusedTreePanes, setFocusedTreePanes] = createSignal<TreePane[]>(
 });
 
 /** Request: show / hide a source (detail: { id }). */
-export const TREE_HIDE_EVENT = "chart-tree-toggle-hide";
+export const TREE_HIDE_EVENT = "chart-tree-toggle-hide" as const;
 /** Request: remove a study or a compared symbol (detail: { id }). */
-export const TREE_REMOVE_EVENT = "chart-tree-remove";
+export const TREE_REMOVE_EVENT = "chart-tree-remove" as const;
 /** Request: put an object (source or drawing) right above / below another
  *  object of its pane (detail: { id, target, below }). */
-export const TREE_MOVE_EVENT = "chart-tree-move";
+export const TREE_MOVE_EVENT = "chart-tree-move" as const;
 
 export function requestToggleSourceHidden(id: string): void {
-  window.dispatchEvent(new CustomEvent(TREE_HIDE_EVENT, { detail: { id } }));
+  emitAppEvent(TREE_HIDE_EVENT, { id });
 }
 
 export function requestRemoveSource(id: string): void {
-  window.dispatchEvent(new CustomEvent(TREE_REMOVE_EVENT, { detail: { id } }));
+  emitAppEvent(TREE_REMOVE_EVENT, { id });
 }
 
 export function requestMoveSource(id: string, target: string, below: boolean): void {
-  window.dispatchEvent(new CustomEvent(TREE_MOVE_EVENT, { detail: { id, target, below } }));
+  emitAppEvent(TREE_MOVE_EVENT, { id, target, below });
 }

@@ -13,7 +13,7 @@
  *   - default dock: top-centre of the chart pane; free-dragged anywhere after.
  *
  * Selection is routed through the left DrawingToolbar's pick path via a
- * `select-drawing-tool` window CustomEvent, so cursor-mode / arming behaviour
+ * `select-drawing-tool` app event, so cursor-mode / arming behaviour
  * stays in one place.
  *
  * Show/hide: right-click → "Hide Favorite Drawing Tools Toolbar" (the inverse
@@ -30,6 +30,7 @@ import {
   setFavoritesToolbarPos,
   setFavoritesToolbarVisible,
 } from "./favorite-tools";
+import { emitAppEvent } from "../../data/app-events";
 
 export function FavoritesToolbar() {
   // Position is a free offset from the default dock (top-centre of the chart
@@ -159,7 +160,7 @@ export function FavoritesToolbar() {
                 data-name={`FavoriteToolbar-${id}`}
                 title={meta.title}
                 aria-label={meta.title}
-                onClick={() => window.dispatchEvent(new CustomEvent("select-drawing-tool", { detail: { toolId: id } }))}
+                onClick={() => emitAppEvent("select-drawing-tool", { toolId: id })}
               >
                 <Icon name={meta.iconName} size={28} />
               </button>

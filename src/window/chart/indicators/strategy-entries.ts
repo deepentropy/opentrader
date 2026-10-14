@@ -36,6 +36,7 @@ import * as scripts from "../../../data/oakscript-store";
 import { strategyTester } from "../../../data/strategy-tester-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import { typeIdOf } from "./study-id";
+import { emitAppEvent, type AppEvents } from "../../../data/app-events";
 import type { OakCompiledMeta } from "../../oakscript/engine-types";
 
 export const STRATEGY_PREFIX = "strategy:";
@@ -48,8 +49,8 @@ export const DEFAULT_STRATEGY_STYLE: StrategyStyle = { tradesOnChart: true, sign
 export function strategyStyleOf(inputs: Record<string, unknown> | null | undefined): StrategyStyle {
   return { ...DEFAULT_STRATEGY_STYLE, ...((inputs?.[STYLE_INPUT] as Partial<StrategyStyle> | undefined) ?? {}) };
 }
-export const STRATEGY_UPDATED_EVENT = "strategy-report-updated";
-export type StrategyUpdatedDetail = { chartId: string; key: string };
+export const STRATEGY_UPDATED_EVENT = "strategy-report-updated" as const;
+export type StrategyUpdatedDetail = AppEvents[typeof STRATEGY_UPDATED_EVENT];
 
 export const isStrategyId = (id: string): boolean => id.startsWith(STRATEGY_PREFIX);
 export const strategyId = (key: string): string => STRATEGY_PREFIX + key;
@@ -142,7 +143,7 @@ async function run(
     const next = rt.queued;
     rt.queued = null;
     if (next) void run(strategyKey, execute, chartId, rt, next.bars, next.inputs, next.chart, next.heikinAshi, next.symbols, next.key);
-    else window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key: strategyKey } }));
+    else emitAppEvent(STRATEGY_UPDATED_EVENT, { chartId, key: strategyKey });
   }
 }
 
@@ -279,7 +280,7 @@ export function notifyUserStrategyCompiled(scriptId: string, meta: OakCompiledMe
     if (typeIdOf(runKey) !== key) continue;
     rt.key = null; // rerun on the next render
     const chartId = rtKey.slice(0, bar);
-    window.dispatchEvent(new CustomEvent<StrategyUpdatedDetail>(STRATEGY_UPDATED_EVENT, { detail: { chartId, key: runKey } }));
+    emitAppEvent(STRATEGY_UPDATED_EVENT, { chartId, key: runKey });
   }
 }
 

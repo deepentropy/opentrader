@@ -24,6 +24,7 @@ import {
 } from "../../data/datafeed";
 import { computeYearRange, type YearRange } from "./ticker-stats";
 import * as kv from "../../data/kv";
+import { onAppEvent } from "../../data/app-events";
 import { marketSession as marketSessionOf, type MarketSession } from "../../data/market-session";
 
 const DASH = "—";
@@ -233,11 +234,11 @@ export function WatchlistDetail(props: Props) {
     };
     window.addEventListener("pointerdown", onDown);
     window.addEventListener("keydown", onKey);
-    window.addEventListener("wl-open-note", onOpenNote);
+    const offOpenNote = onAppEvent("wl-open-note", onOpenNote);
     onCleanup(() => {
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("wl-open-note", onOpenNote);
+      offOpenNote();
     });
   });
 

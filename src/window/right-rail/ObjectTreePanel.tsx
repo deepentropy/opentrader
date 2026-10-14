@@ -45,6 +45,7 @@ import { ChartContextMenu } from "../chart/ChartContextMenu";
 import { copyDrawing } from "../drawings/clipboard";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { consumeDataWindowRequest, dataWindow } from "../../data/data-window-store";
+import { emitAppEvent } from "../../data/app-events";
 
 type View = "tree" | "data-window";
 
@@ -391,8 +392,8 @@ export function ObjectTreePanel(props: Props) {
         draggable={true}
         onClick={() => { if (s.kind !== "series") requestSelectStudy(s.id); }}
         onDblClick={() => {
-          if (s.kind === "series") window.dispatchEvent(new CustomEvent("chart-open-settings"));
-          else if (s.kind === "study") window.dispatchEvent(new CustomEvent("chart-open-study-settings", { detail: { id: s.id } }));
+          if (s.kind === "series") emitAppEvent("chart-open-settings");
+          else if (s.kind === "study") emitAppEvent("chart-open-study-settings", { id: s.id });
         }}
         onDragStart={(e) => {
           setDragId(s.id);

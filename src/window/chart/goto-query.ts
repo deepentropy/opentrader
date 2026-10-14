@@ -11,6 +11,7 @@
  * start value; without it the dialog starts on today 00:00.
  */
 import type { WallTime } from "./day-key";
+import { emitAppEvent } from "../../data/app-events";
 
 export type GotoQuery = {
   dateOnly: boolean;
@@ -21,7 +22,7 @@ export type GotoQuery = {
 
 export function queryGotoContext(): GotoQuery {
   const q: GotoQuery = { dateOnly: false, visible: null };
-  window.dispatchEvent(new CustomEvent("chart-goto-query", { detail: q }));
+  emitAppEvent("chart-goto-query", q);
   return q;
 }
 

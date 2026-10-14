@@ -4,6 +4,7 @@
  * ChartView publishes its selection here and handles the requests below.
  */
 import { createSignal } from "solid-js";
+import { emitAppEvent } from "../../data/app-events";
 
 export type StudySelection = {
   id: string;
@@ -15,14 +16,14 @@ export type StudySelection = {
 export const [focusedStudySelection, setFocusedStudySelection] = createSignal<StudySelection | null>(null);
 
 /** Request: select a study on the focused chart (detail: { id }). */
-export const SELECT_STUDY_EVENT = "chart-select-study";
+export const SELECT_STUDY_EVENT = "chart-select-study" as const;
 /** Request: move the selected study to a new pane (detail: { id, where }). */
-export const MOVE_STUDY_EVENT = "chart-move-study";
+export const MOVE_STUDY_EVENT = "chart-move-study" as const;
 
 export function requestSelectStudy(id: string): void {
-  window.dispatchEvent(new CustomEvent(SELECT_STUDY_EVENT, { detail: { id } }));
+  emitAppEvent(SELECT_STUDY_EVENT, { id });
 }
 
 export function requestMoveStudy(id: string, where: "above" | "below"): void {
-  window.dispatchEvent(new CustomEvent(MOVE_STUDY_EVENT, { detail: { id, where } }));
+  emitAppEvent(MOVE_STUDY_EVENT, { id, where });
 }

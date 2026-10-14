@@ -29,11 +29,12 @@ import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta, OakSymbolData } from "../../oakscript/engine-types";
 import type { StudyCalcContext } from "./indicator-layer";
 import { typeIdOf } from "./study-id";
+import { emitAppEvent, type AppEvents } from "../../../data/app-events";
 
 export const USER_INDICATOR_PREFIX = "user:";
-export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated";
+export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated" as const;
 
-export type OakScriptUpdatedDetail = { scriptId: string; structural: boolean };
+export type OakScriptUpdatedDetail = AppEvents[typeof OAKSCRIPT_UPDATED_EVENT];
 
 export function isUserIndicatorId(id: string): boolean {
   return id.startsWith(USER_INDICATOR_PREFIX);
@@ -44,7 +45,7 @@ export function userIndicatorId(scriptId: string): string {
 }
 
 /** Window event: open an OakScript in the editor panel ({ scriptId }). */
-export const OAKSCRIPT_OPEN_EVENT = "oakscript-open-script";
+export const OAKSCRIPT_OPEN_EVENT = "oakscript-open-script" as const;
 
 /** Script of a study on the chart (an OakScript indicator "user:<id>" or
  *  strategy "strategy:user:<id>", any instance), else null. */
@@ -95,11 +96,7 @@ function stalenessKey(bars: OakBar[], inputs: Record<string, unknown>): string {
 }
 
 function dispatchUpdated(scriptId: string, structural: boolean): void {
-  window.dispatchEvent(
-    new CustomEvent<OakScriptUpdatedDetail>(OAKSCRIPT_UPDATED_EVENT, {
-      detail: { scriptId, structural },
-    }),
-  );
+  emitAppEvent(OAKSCRIPT_UPDATED_EVENT, { scriptId, structural });
 }
 
 /** Mutate the shared entry object to the given compiled meta (or the stored

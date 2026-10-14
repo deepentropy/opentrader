@@ -19,6 +19,7 @@ import { GoToDateDialog } from "./GoToDateDialog";
 import { lastGotoDate, queryGotoContext, rememberGotoDate } from "../chart/goto-query";
 import type { TimezoneEntry } from "../../data/timezones";
 import { isAdjusted, isIntradayInterval, setAdjusted as storeAdjusted } from "../../data/datafeed";
+import { emitAppEvent, onAppEvent } from "../../data/app-events";
 
 type DateRangeId = "1D" | "5D" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y" | "All";
 
@@ -120,14 +121,12 @@ export function BottomBar(props: Props) {
     const next = !adjusted();
     setAdjusted(next);
     storeAdjusted(next);
-    window.dispatchEvent(new CustomEvent("chart-reload-data"));
+    emitAppEvent("chart-reload-data");
   };
   // The Settings dialog's "Adjust data for dividends" writes the same flag —
   // follow it so the button state stays in sync (same-window kv writes don't
   // notify).
-  const onAdjustedChanged = () => setAdjusted(isAdjusted());
-  window.addEventListener("adjusted-changed", onAdjustedChanged);
-  onCleanup(() => window.removeEventListener("adjusted-changed", onAdjustedChanged));
+  onCleanup(onAppEvent("adjusted-changed", () => setAdjusted(isAdjusted())));
   const [goToAnchor, setGoToAnchor] = createSignal<DOMRect | null>(null);
   let goToButton!: HTMLButtonElement;
   const openGoTo = () => setGoToAnchor(goToButton.getBoundingClientRect());
@@ -234,9 +233,7 @@ export function BottomBar(props: Props) {
                           // A range tab sets the visible span AND the
                           // interval. The focused ChartView frames the span
                           // once the new interval's bars land.
-                          window.dispatchEvent(
-                            new CustomEvent("chart-set-range", { detail: { span: r.id } }),
-                          );
+                          emitAppEvent("chart-set-range", { span: r.id });
                         }}
                       >
                         <div class="bottom-bar-tab-text">{r.label}</div>
@@ -364,9 +361,7 @@ export function BottomBar(props: Props) {
             onSelect={(r) => {
               setPickedRange(r.id);
               props.setInterval(r.interval);
-              window.dispatchEvent(
-                new CustomEvent("chart-set-range", { detail: { span: r.id } }),
-              );
+              emitAppEvent("chart-set-range", { span: r.id });
             }}
             onClose={() => setRangesAnchor(null)}
           />
@@ -406,11 +401,9 @@ export function BottomBar(props: Props) {
               onSubmit={(date, minutes) => {
                 rememberGotoDate({ ...date, minutes });
                 // Wall-clock date: each chart reads it in its own time zone.
-                window.dispatchEvent(new CustomEvent("chart-goto-date", { detail: { date, minutes } }));
+                emitAppEvent("chart-goto-date", { date, minutes });
               }}
-              onSubmitRange={(from, to) =>
-                window.dispatchEvent(new CustomEvent("chart-goto-range", { detail: { from, to } }))
-              }
+              onSubmitRange={(from, to) => emitAppEvent("chart-goto-range", { from, to })}
               onClose={closeGoTo}
             />
           );
