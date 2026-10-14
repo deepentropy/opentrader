@@ -23,6 +23,7 @@ import { defaultAlertMessage } from "../../data/alert-condition";
 import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
 import { intervalLabel } from "../../data/datafeed";
 import * as kv from "../../data/kv";
+import { emitAppEvent } from "../../data/app-events";
 
 type SortKey = "symbol" | "name" | "message" | "created" | "triggered";
 type Sort = { key: SortKey; desc: boolean };
@@ -142,8 +143,7 @@ function setRuleEnabled(r: AlertRule, enabled: boolean) {
   if (enabled && !r.enabled) resetRuleEvalState(r.id);
   alertStore.setEnabled(r.id, enabled);
 }
-const editRule = (r: AlertRule) =>
-  window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { editId: r.id } }));
+const editRule = (r: AlertRule) => emitAppEvent("chart-open-alert-dialog", { editId: r.id });
 
 /** Actions on every rule the list shows. */
 const restartShown = (ctx: AlertListContext) => visibleRules(ctx).forEach((r) => setRuleEnabled(r, true));
@@ -205,7 +205,7 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext }) {
   );
   return (
     <div class="alerts-panel-toolbar-group" ref={el}>
-      {btn("set-alert-button", "Create alert", ICON.plus, () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: props.ctx.symbol } })))}
+      {btn("set-alert-button", "Create alert", ICON.plus, () => emitAppEvent("chart-open-alert-dialog", { symbol: props.ctx.symbol }))}
       {btn("alerts-search-button", "Search", ICON.search, () => { if (searchOpen()) setSearch(""); setSearchOpen(!searchOpen()); }, searchOpen())}
       {btn("alert-sort-button", `Sorted by ${sortLabel(sort()).replace(/^./, (c) => c.toLowerCase())}`, ICON.sort, () => toggle("sort"), menu() === "sort")}
       {btn("alerts-settings-button", "Options", ICON.dots, () => toggle("options"), menu() === "options", true)}

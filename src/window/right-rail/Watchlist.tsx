@@ -58,6 +58,7 @@ import { AddAlertDialog } from "./AddAlertDialog";
 import { quoteFor as liveQuoteFor, type LiveQuote } from "../../data/quotes";
 import { alertStore } from "../../data/alert-store";
 import { alertSettings } from "../../data/alert-settings";
+import { emitAppEvent, onAppEvent } from "../../data/app-events";
 import { playAlertSound } from "../../data/alert-sounds";
 import { setSubscription } from "../../data/subscriptions";
 import { cachedSymbolSessions, localDay } from "../../data/session";
@@ -1139,12 +1140,7 @@ export function Watchlist(props: Props) {
   // App dispatches this when Space / Shift+Space is pressed while focus is on the
   // chart (not the list), so the watchlist still flips to the next/prev symbol.
   onMount(() => {
-    const onNav = (e: Event) => {
-      const dir = (e as CustomEvent<{ dir?: number }>).detail?.dir;
-      navigate(dir === -1 ? -1 : 1);
-    };
-    window.addEventListener("watchlist-navigate", onNav);
-    onCleanup(() => window.removeEventListener("watchlist-navigate", onNav));
+    onCleanup(onAppEvent("watchlist-navigate", (d) => navigate(d?.dir === -1 ? -1 : 1)));
   });
   const onListKeyDown = (e: KeyboardEvent) => {
     // While renaming a section (its input sits inside the keydown-bearing
@@ -1298,7 +1294,7 @@ export function Watchlist(props: Props) {
   // symbol's note — select the row, then ask the pane to open its note editor.
   const openNoteFor = (row: Row) => {
     selectRow(row.ticker);
-    window.dispatchEvent(new CustomEvent("wl-open-note"));
+    emitAppEvent("wl-open-note");
   };
 
   // ── Per-section + per-row renderers (shared by table and tile views) ──

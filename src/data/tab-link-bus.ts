@@ -22,6 +22,7 @@ import { createEffect, createRoot, createSignal } from "solid-js";
 import { currentWindowLabel } from "../window/shell/window-bridge";
 import { crosshairSyncSetting } from "../window/header/AppSettingsDialog";
 import type { LinkColor, TabLinkingState } from "../window/shell/tab-linking";
+import { emitAppEvent, onAppEvent } from "./app-events";
 
 type LinkMsg =
   | { kind: "symbol"; color: LinkColor; value: string; win: string }
@@ -76,11 +77,11 @@ export function onLinkChannelData(
 }
 
 function dispatchRange(r: { from: number; to: number }): void {
-  window.dispatchEvent(new CustomEvent("chart-link-range", { detail: { from: r.from, to: r.to } }));
+  emitAppEvent("chart-link-range", { from: r.from, to: r.to });
 }
 
 function dispatchTime(time: number): void {
-  window.dispatchEvent(new CustomEvent("chart-link-time", { detail: { time } }));
+  emitAppEvent("chart-link-time", { time });
 }
 
 /** Deliver a time / range to this window's tabs linked to `color`: the shown
@@ -142,16 +143,13 @@ export function initLinkBus(source: LinkTabs): () => void {
     else if (m.kind === "time") deliver(m.color, { time: m.time }, false);
     else if (m.kind === "crosshair") {
       if (!crosshairSyncSetting()) return;
-      window.dispatchEvent(
-        new CustomEvent("chart-sync-crosshair", { detail: { time: m.time, price: m.price ?? null, sourceId: -1, relayed: true } }),
-      );
+      emitAppEvent("chart-sync-crosshair", { time: m.time, price: m.price ?? null, sourceId: -1, relayed: true });
     }
   };
 
   // Crosshair out: this window's own pane crosshair events (not the relayed
   // ones, which would echo).
-  const onLocalCrosshair = (e: Event) => {
-    const d = (e as CustomEvent<{ time: number | null; price?: number | null; relayed?: boolean }>).detail;
+  const onLocalCrosshair = (d: { time: number | null; price?: number | null; relayed?: boolean }) => {
     if (d.relayed || !crosshairSyncSetting()) return;
     bus?.postMessage({ kind: "crosshair", time: d.time, price: d.price ?? null, win } satisfies LinkMsg);
   };
@@ -178,10 +176,10 @@ export function initLinkBus(source: LinkTabs): () => void {
   });
 
   bus?.addEventListener("message", onMsg);
-  window.addEventListener("chart-sync-crosshair", onLocalCrosshair);
+  const offLocalCrosshair = onAppEvent("chart-sync-crosshair", onLocalCrosshair);
   return () => {
     bus?.removeEventListener("message", onMsg);
-    window.removeEventListener("chart-sync-crosshair", onLocalCrosshair);
+    offLocalCrosshair();
     window.clearTimeout(applyTimer);
     disposeActivation();
     linkTabs = null;

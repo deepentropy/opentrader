@@ -25,6 +25,7 @@ import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, 
 import * as kv from "../../data/kv";
 import { drawingCanAlert, rulesOfDrawing } from "../../data/alert-condition";
 import { alertStore } from "../../data/alert-store";
+import { emitAppEvent } from "../../data/app-events";
 
 type Props = {
   drawing: Drawing;
@@ -617,7 +618,7 @@ export function SelectedToolbar(props: Props) {
             aria-label={drawingAlert() ? "Edit alert" : "Add alert"}
             onClick={() => {
               const rule = drawingAlert();
-              if (rule) window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { editId: rule.id } }));
+              if (rule) emitAppEvent("chart-open-alert-dialog", { editId: rule.id });
               else props.onAddAlert?.(props.drawing);
             }}
           >

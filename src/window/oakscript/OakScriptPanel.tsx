@@ -24,6 +24,7 @@ import {
 } from "../chart/indicators/user-scripts";
 import { dropUserStrategy, notifyUserStrategyCompiled, userStrategyId } from "../chart/indicators/strategy-entries";
 import { typeIdOf } from "../chart/indicators/study-id";
+import { onAppEvent } from "../../data/app-events";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -79,14 +80,14 @@ export function OakScriptPanel(props: Props) {
 
   // Legend "Source code" of a study: its script in the editor, the panel
   // restored when minimized.
-  const onOpenScript = (e: Event) => {
-    const id = (e as CustomEvent<{ scriptId: string }>).detail?.scriptId;
-    if (!id) return;
-    openScript(id);
-    setMinimized(false);
-  };
-  window.addEventListener(OAKSCRIPT_OPEN_EVENT, onOpenScript);
-  onCleanup(() => window.removeEventListener(OAKSCRIPT_OPEN_EVENT, onOpenScript));
+  onCleanup(
+    onAppEvent(OAKSCRIPT_OPEN_EVENT, (d) => {
+      const id = d?.scriptId;
+      if (!id) return;
+      openScript(id);
+      setMinimized(false);
+    }),
+  );
 
   // ── Console + execution engine ────────────────────────────────────────────
   type LogEntry = {

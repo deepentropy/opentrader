@@ -28,7 +28,7 @@ import type { Coords } from "./coords";
 import { offsetCoords, type DrawingPane } from "./pane-coords";
 import { defaultStyleFor, FIB_LEVEL_DEFAULTS, findOverlaySpec } from "lightweight-charts-drawing/core/specs";
 import { fibLevelAt } from "lightweight-charts-drawing/core/scene/fib";
-import { isVisibleOnInterval, type DataPoint, type Drawing, type DrawingKind } from "lightweight-charts-drawing/core/types";
+import { isVisibleOnInterval, type DataPoint, type Drawing } from "lightweight-charts-drawing/core/types";
 import {
   HANDLE_RADIUS,
   HIT_TOLERANCE,
@@ -38,6 +38,7 @@ import {
 import { suspendDrawingPersist, resumeDrawingPersist } from "./persistence";
 import { drawingCanAlert, rulesOfDrawing } from "../../data/alert-condition";
 import { alertStore } from "../../data/alert-store";
+import { emitAppEvent, onAppEvent, type PlaceAtCursorDetail } from "../../data/app-events";
 import { hitTestKind } from "lightweight-charts-drawing/core/kinds/hit-tests";
 import { positionAnchors } from "lightweight-charts-drawing/core/kinds/position";
 import { parseColor, textOnColor } from "lightweight-charts-drawing/core/color";
@@ -192,8 +193,8 @@ if (typeof window !== "undefined") {
 /** Window event sent by the drawing-toolbar hotkeys Alt+H / J / V / C. The pane
  *  under the pointer creates the drawing there and sets `handled`; when no pane
  *  claims it the toolbar arms the tool instead. */
-export const PLACE_AT_CURSOR_EVENT = "drawing-place-at-cursor";
-export type PlaceAtCursorDetail = { kind: DrawingKind; handled: boolean };
+export const PLACE_AT_CURSOR_EVENT = "drawing-place-at-cursor" as const;
+export type { PlaceAtCursorDetail };
 
 function eventPoint(el: SVGSVGElement, e: PointerEvent): Pt {
   const r = el.getBoundingClientRect();
@@ -275,7 +276,7 @@ export function DrawingsOverlay(props: Props) {
     if (!d || d.kind !== "table") return;
     const u = tableUi();
     const cell = u && u.id === id ? u.cell : null;
-    window.dispatchEvent(new CustomEvent("drawing-gesture-end"));
+    emitAppEvent("drawing-gesture-end");
     if (op === "insert-column" || op === "insert-row") {
       props.onUpdate({ ...d, style: { ...d.style, ...tableInsert(d.style, op === "insert-row" ? "row" : "column", cell) } } as Drawing);
     } else {
@@ -285,7 +286,7 @@ export function DrawingsOverlay(props: Props) {
       props.onUpdate({ ...d, style: { ...d.style, ...r.patch } } as Drawing);
       setTableUi({ id, cell: r.cell, editing: u?.editing ?? false, edge: null });
     }
-    window.dispatchEvent(new CustomEvent("drawing-gesture-end"));
+    emitAppEvent("drawing-gesture-end");
   }
   /** "Anchor drawing" toggle (core interact/anchor: text, pin, table). */
   function toggleAnchored(id: string) {
@@ -1099,7 +1100,7 @@ export function DrawingsOverlay(props: Props) {
         // Close any open undo-coalescing window BEFORE the drag's first
         // update: a toolbar style edit within the last 800ms shares the
         // drag's coalesceId and would otherwise merge into one undo entry.
-        window.dispatchEvent(new CustomEvent("drawing-gesture-end"));
+        emitAppEvent("drawing-gesture-end");
         // Ctrl/Cmd + body drag on a single selected drawing → clone: drop
         // a duplicate in place and keep the drag on the original. Deferred to
         // drag activation so a bare Ctrl+click still toggles selection. Group
@@ -1172,7 +1173,7 @@ export function DrawingsOverlay(props: Props) {
       resumeDrawingPersist(); // flush the final position once
       // Pointer-up closes App's undo-coalescing window, so two quick drags of
       // the same drawing stay two undo entries.
-      window.dispatchEvent(new CustomEvent("drawing-gesture-end"));
+      emitAppEvent("drawing-gesture-end");
     };
     document.addEventListener("pointermove", onDocMove);
     document.addEventListener("pointerup", onDocUp);
@@ -1297,9 +1298,9 @@ export function DrawingsOverlay(props: Props) {
     // focused pane applies it (props.active), so a drawing shown on several
     // panes moves exactly once. Mirrors the body-drag translate: project every
     // point, shift by (dx, dy) px, unproject. Skips locked drawings.
-    const onNudge = (e: Event) => {
+    const onNudge = (d: { dx: number; dy: number }) => {
       if (props.shown === false || !props.active || selIds().length === 0) return;
-      const { dx, dy } = (e as CustomEvent<{ dx: number; dy: number }>).detail;
+      const { dx, dy } = d;
       // Every movable selected drawing nudges together (multi-select).
       const moved: Drawing[] = [];
       for (const id of selIds()) {
@@ -1315,8 +1316,7 @@ export function DrawingsOverlay(props: Props) {
       if (moved.length > 1 && props.onUpdateMany) props.onUpdateMany(moved);
       else moved.forEach((d) => props.onUpdate(d));
     };
-    window.addEventListener("drawing-nudge", onNudge);
-    onCleanup(() => window.removeEventListener("drawing-nudge", onNudge));
+    onCleanup(onAppEvent("drawing-nudge", onNudge));
 
     // Click-outside deselect — clicking anything that isn't the selected drawing
     // (or a drawing-related surface: its floating toolbar, settings dialog,
@@ -1351,8 +1351,7 @@ export function DrawingsOverlay(props: Props) {
 
     // Alt+H / J / V / C: create the line at once at the cursor, in the
     // pane under the pointer (same magnet snap as a click), then select it.
-    const onPlaceAtCursor = (e: Event) => {
-      const detail = (e as CustomEvent<PlaceAtCursorDetail>).detail;
+    const onPlaceAtCursor = (detail: PlaceAtCursorDetail) => {
       if (props.shown === false || !detail || detail.handled || !lastPointer) return;
       const r = svg.getBoundingClientRect();
       const x = lastPointer.x - r.left;
@@ -1370,8 +1369,7 @@ export function DrawingsOverlay(props: Props) {
       const id = props.onPlace({ ...placed, ...ownerOf(f) });
       if (id) props.setSelectedId(id);
     };
-    window.addEventListener(PLACE_AT_CURSOR_EVENT, onPlaceAtCursor);
-    onCleanup(() => window.removeEventListener(PLACE_AT_CURSOR_EVENT, onPlaceAtCursor));
+    onCleanup(onAppEvent(PLACE_AT_CURSOR_EVENT, onPlaceAtCursor));
 
     // Track Shift / Ctrl-Cmd for the magnet modifier overrides. Down AND up on
     // window so presses register over the canvas; blur clears a stuck key.
@@ -2370,9 +2368,7 @@ export function DrawingsOverlay(props: Props) {
           onAddAlert={(d) => {
             // Same event the chart context menu uses; the drawing is the
             // alert's level, so the alert follows it when it is moved.
-            window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", {
-              detail: { symbol: props.symbol, drawingId: d.id },
-            }));
+            emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol, drawingId: d.id });
           }}
         />
       )}

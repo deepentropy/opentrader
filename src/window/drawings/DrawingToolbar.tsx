@@ -32,6 +32,7 @@ import {
 import { FontIconPicker, type FontIconTab } from "./FontIconPicker";
 import { findOverlaySpec } from "lightweight-charts-drawing/core/specs";
 import { PLACE_AT_CURSOR_EVENT, type PlaceAtCursorDetail } from "./DrawingsOverlay";
+import { emitAppEvent, onAppEvent } from "../../data/app-events";
 import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
 
@@ -391,13 +392,12 @@ export function DrawingToolbar(props: Props) {
     };
     document.addEventListener("mousedown", onMenuDown);
 
-    // The favorites toolbar drives tool selection through the SAME path via a
-    // window CustomEvent, so MRU-promotion + arming stays in one place.
-    const onSelectTool = (e: Event) => {
-      const id = (e as CustomEvent<{ toolId: string }>).detail?.toolId;
+    // The favorites toolbar drives tool selection through the SAME path via an
+    // app event, so MRU-promotion + arming stays in one place.
+    const offSelectTool = onAppEvent("select-drawing-tool", (d) => {
+      const id = d?.toolId;
       if (id) selectTool(id);
-    };
-    window.addEventListener("select-drawing-tool", onSelectTool as EventListener);
+    });
 
     // Hotkeys: Alt+T trendline, Alt+H/J/V/C horizontal line / ray, vertical
     // line, crossline, Alt+F fib retracement, Alt+Shift+R rectangle.
@@ -438,7 +438,7 @@ export function DrawingToolbar(props: Props) {
       // With the pointer outside every chart, the tool is armed instead.
       if (PLACE_NOW.has(toolId)) {
         const detail: PlaceAtCursorDetail = { kind: toolId as DrawingKind, handled: false };
-        window.dispatchEvent(new CustomEvent(PLACE_AT_CURSOR_EVENT, { detail }));
+        emitAppEvent(PLACE_AT_CURSOR_EVENT, detail);
         if (detail.handled) return;
       }
       pickTool(toolId);
@@ -462,7 +462,7 @@ export function DrawingToolbar(props: Props) {
       document.removeEventListener("keydown", onEsc);
       document.removeEventListener("keydown", onHotkey);
       document.removeEventListener("keydown", onHideAllHotkey);
-      window.removeEventListener("select-drawing-tool", onSelectTool as EventListener);
+      offSelectTool();
     });
   });
 
