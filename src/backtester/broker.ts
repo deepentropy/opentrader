@@ -348,6 +348,15 @@ function fillEquity(equity: number): number {
   return Number(equity.toPrecision(FUNDS_DIGITS));
 }
 
+/**
+ * A commission (an order's, or the part of an entry commission a partial close takes) is kept to 10 significant
+ * digits: 1.25 x 1,000 / 1,500 = 0.8333333333, 1.25 x 500 / 3,500 = 0.1785714286 (the reference app's trade
+ * commissions, and its gross loss / net profit built from them).
+ */
+function roundCommission(cm: number): number {
+  return cm === 0 ? 0 : Number(cm.toPrecision(FUNDS_DIGITS));
+}
+
 
 /** A strategy runtime error, as the reference app stops the script (e.g. RE10141). */
 export class StrategyRuntimeError extends Error {
@@ -393,6 +402,11 @@ export class Broker {
   private openTrades: OpenTrade[] = [];
   /** Trades closed by the leg of another trade, while the position is open (their own legs stay active). */
   private displaced: OpenTrade[] = [];
+  /**
+   * close_entries_rule "ANY": strategy.close calls with a quantity that closed a part of their trades only. They stay
+   * live and close the same quantity of the next trade of that id when it opens (see fillCloseAny).
+   */
+  private liveCloses: CloseOrder[] = [];
   /** Quantity of the order being filled: a cash-per-order commission is split over the trades it touches. */
   private orderFillQty = 0;
   private tradeSeq = 0;
@@ -1279,6 +1293,7 @@ export class Broker {
     this.orderFillQty = prevOrderQty;
     this.recordFill(o.id, o.comment, buy, true, price, closed + qty, type);
     this.applyOca(o, closed + qty);
+    if (qty > 0 && !this.fifo && this.liveCloses.length) this.applyLiveCloses(o.id, price);
   }
 
   /** OCA group of filled order `o` (`filled` = its fill quantity): the other orders of the group are cancelled
@@ -1573,7 +1588,15 @@ export class Broker {
   /** Returns true when the order filled. */
   private fillClose(o: CloseOrder, price: number): boolean {
     if (o.entryId !== null && this.fifo) return this.fillCloseFifo(o, price);
-    const targets = this.openTrades.filter((t) => o.entryId === null || t.entryId === o.entryId);
+    if (o.entryId !== null && (o.qty !== null || o.qtyPercent !== null)) return this.fillCloseAny(o, price);
+    let targets = this.openTrades.filter((t) => o.entryId === null || t.entryId === o.entryId);
+    // With the "ANY" rule the position closes entry id by entry id, in the order of each id's first trade (A 600,
+    // B 3,000, A 300 open: A 600, A 300, B 3,000).
+    if (o.entryId === null && !this.fifo) {
+      const first = new Map<string, number>();
+      for (const t of targets) if (!first.has(t.entryId)) first.set(t.entryId, t.seq);
+      targets = [...targets].sort((a, b) => first.get(a.entryId)! - first.get(b.entryId)! || a.seq - b.seq);
+    }
     if (targets.length === 0) return false;
     const total = targets.reduce((s, t) => s + t.qty, 0);
     let left = o.qty !== null ? Math.min(o.qty, total) : o.qtyPercent !== null ? this.floorQty((total * o.qtyPercent) / 100) : total;
@@ -1589,6 +1612,46 @@ export class Broker {
     });
     this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
     return true;
+  }
+
+  /**
+   * strategy.close of an entry id with a quantity, with the close_entries_rule "ANY": the quantity (or percent)
+   * counts per trade of that id, one fill each (trades of 3,000 and 2,000, a close of 1,500: 1,500 of each). While
+   * it has closed no trade whole it stays live: the next trade of that id is closed by as much when it opens, at its
+   * fill price (B 3,000, a close of 1,500, then B 200: the 200 closed at once, a later B 300 stays; a close of
+   * 1,500 on B 1,000 is done).
+   */
+  private fillCloseAny(o: CloseOrder, price: number): boolean {
+    const targets = this.openTrades.filter((t) => t.entryId === o.entryId);
+    if (targets.length === 0) return false;
+    let whole = false;
+    for (const t of targets) whole = this.closeOneTrade(o, t, price) || whole;
+    if (!whole) this.liveCloses.push(o);
+    return true;
+  }
+
+  /** Close the quantity of close order `o` from trade t (one fill); true when the trade is closed whole. */
+  private closeOneTrade(o: CloseOrder, t: OpenTrade, price: number): boolean {
+    const q = o.qty !== null ? Math.min(o.qty, t.qty) : this.floorQty((t.qty * (o.qtyPercent as number)) / 100);
+    if (q <= 0) return false;
+    const whole = q >= t.qty - EPS;
+    this.asOneOrder(q, () => this.closeTradeQty(t, q, price, o.comment, true));
+    this.recordFill(o.orderId, o.comment, t.direction === 'short', false, price, q, 'MARKET');
+    return whole;
+  }
+
+  /** A trade of `entryId` just opened at `price`: the live closes of that id close their quantity of it, oldest
+   *  first, until it is closed whole. */
+  private applyLiveCloses(entryId: string, price: number): void {
+    const t = this.openTrades.filter((u) => u.entryId === entryId).pop();
+    if (!t) return;
+    for (const o of [...this.liveCloses]) {
+      if (o.entryId !== entryId) continue;
+      if (this.closeOneTrade(o, t, price)) {
+        this.liveCloses = this.liveCloses.filter((x) => x !== o);
+        return;
+      }
+    }
   }
 
   /**
@@ -1689,7 +1752,9 @@ export class Broker {
       t.lotQty = Math.max(0, t.lotQty - (qty - noLeg));
     }
     const share = qty / t.qty;
-    const entryCm = t.entryCommission * share;
+    // The part of the entry commission a partial close takes is rounded like a commission; the trade keeps the rest
+    // as it is (1.25 for 3,000, 1,234 closed: 0.5141666667, 0.7358333333 left).
+    const entryCm = qty >= t.qty - EPS ? t.entryCommission : roundCommission(t.entryCommission * share);
     const exitCm = this.commission(qty, price);
     const trade = this.makeTrade(t, qty, price, signal, entryCm, exitCm, false, market);
     this.netProfit += trade.profit + entryCm;
@@ -1835,6 +1900,7 @@ export class Broker {
     // was open); one that was live on the closed position goes, whatever entries are pending (st-greed).
     if (this.openTrades.length === 0) {
       this.displaced = [];
+      this.liveCloses = [];
       for (const [id, x] of this.exits) if (x.attached) this.exits.delete(id);
       this.dropOrphanExits();
     }
@@ -1900,16 +1966,17 @@ export class Broker {
     return this.checkQty(q, fn);
   }
 
+  /** Commission of `qty` at `price`, rounded to 10 significant digits (see roundCommission). */
   private commission(qty: number, price: number): number {
     const p = this.props;
     switch (p.commissionType) {
       case 'percent':
         // Commission value first (0.1 % of 5,000 at 0.07: 0.35 as 0.1 x 5,000 x 0.07 / 100, as the reference app).
-        return (p.commissionValue * qty * price * this.sym.pointValue) / 100;
+        return roundCommission((p.commissionValue * qty * price * this.sym.pointValue) / 100);
       case 'cash_per_contract':
-        return qty * p.commissionValue;
+        return roundCommission(qty * p.commissionValue);
       case 'cash_per_order':
-        return this.orderFillQty > EPS ? p.commissionValue * (qty / this.orderFillQty) : p.commissionValue;
+        return roundCommission(this.orderFillQty > EPS ? p.commissionValue * (qty / this.orderFillQty) : p.commissionValue);
     }
   }
 
