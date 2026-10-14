@@ -400,7 +400,7 @@ function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: str
   );
 }
 
-type SideKind = "value" | "drawing" | "indicator";
+type SideKind = "value" | "drawing" | "indicator" | "price";
 
 /** A deliverable webhook target: parses as a URL with an http(s) scheme. */
 function isValidWebhookUrl(raw: string): boolean {
@@ -420,7 +420,9 @@ export function AlertDialog(props: Props) {
   // The set of indicators / priceable drawings available for the symbol comes
   // from the charted symbol; captured once at open (the dialog is short-lived).
   const indicators = () => indicatorLegendFor(symbol());
-  const drawings = () => priceableDrawings(symbol());
+  // A drawing is a choice only in the dialog opened from it (its alert button) or the alert made on it.
+  const drawings = () =>
+    priceableDrawings(symbol()).filter((d) => d.id === props.drawingId || (existing?.right.kind === "drawing" && existing.right.drawingId === d.id));
 
   // Include the rule's *existing* operands as options even when the symbol
   // isn't currently charted (or the study/drawing is gone), so editing never
@@ -490,7 +492,9 @@ export function AlertDialog(props: Props) {
       ? "drawing"
       : existing?.right.kind === "indicator"
         ? "indicator"
-        : "value",
+        : existing?.right.kind === "price"
+          ? "price"
+          : "value",
   );
   const defaultValue =
     existing?.right.kind === "value"
@@ -736,6 +740,8 @@ export function AlertDialog(props: Props) {
       case "indicator": {
         return indicatorOperand(rightIndicator(), rightPlot(), existing?.right);
       }
+      case "price":
+        return { kind: "price" };
       default:
         return { kind: "value", value: parseFloat(rightValue()) || 0 };
     }
@@ -877,11 +883,27 @@ export function AlertDialog(props: Props) {
     { value: "price", label: "Price" },
     ...indicatorOptions().filter((r) => alertable(r.id)).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
   ];
-  const rightKindOptions = (): MenuOption[] => [
+  /** What the condition compares with, in one select: a value, the price (a study's level conditions), the other
+   *  studies with plots, and the drawing the dialog was opened for. */
+  const compareOptions = (): MenuOption[] => [
     { value: "value", label: "Value" },
-    { value: "drawing", label: "Drawing", disabled: drawingOptions().length === 0 },
-    { value: "indicator", label: "Indicator", disabled: indicatorOptions().length === 0 },
+    ...(leftKind() === "indicator" && LEVEL_OPERATORS.includes(op()) ? [{ value: "price", label: "Price" }] : []),
+    ...indicatorOptions()
+      .filter((r) => (plotsOf(r.id).length > 0 || r.id === rightIndicator()) && !(leftKind() === "indicator" && r.id === leftIndicator()))
+      .map((r) => ({ value: `ind:${r.id}`, label: r.label })),
+    ...drawingOptions().map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
   ];
+  const compareValue = () => (rightKind() === "indicator" ? `ind:${rightIndicator()}` : rightKind() === "drawing" ? `drw:${rightDrawing()}` : rightKind());
+  const pickCompare = (v: string) => {
+    if (v.startsWith("ind:")) {
+      setRightKind("indicator");
+      setRightIndicator(v.slice(4));
+      setRightPlot(0);
+    } else if (v.startsWith("drw:")) {
+      setRightKind("drawing");
+      setRightDrawing(v.slice(4));
+    } else setRightKind(v as SideKind);
+  };
   const levelOptions = (): MenuOption[] => fibLevels().map((l) => ({ value: String(l.coeff), label: levelText(l) }));
   const plotOptions = (id: string): MenuOption[] => plotsOf(id).map((p) => ({ value: String(p.index), label: p.title }));
   const notificationsText = () => {
@@ -921,11 +943,10 @@ export function AlertDialog(props: Props) {
       </span>
     </span>
   );
-  /** What a bound can be: a value, the price (a study source), the studies with plots (not the source itself), and
-   *  the drawings with two bounds (picking one makes the drawing the level). */
+  /** What a bound can be: a value, the studies with plots (not the source itself), and the drawing with two bounds
+   *  the dialog was opened for (picking it makes the drawing the level). The price is not a bound. */
   const boundOptions = (): MenuOption[] => [
     { value: "value", label: "Value" },
-    ...(leftKind() === "indicator" ? [{ value: "price", label: "Price" }] : []),
     ...indicatorOptions().filter((r) => plotsOf(r.id).length > 0 && !(leftKind() === "indicator" && r.id === leftIndicator())).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
     ...drawingOptions().filter((d) => d.band === "channel" || d.band === "rectangle" || (d.levels?.length ?? 0) > 0).map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
   ];
@@ -1095,29 +1116,9 @@ export function AlertDialog(props: Props) {
                   >
                     <Show when={!valueBand()}>
                     <div class="ad-pair">
-                      <AdMenu variant="box" label="Compared with" value={rightKind()} options={rightKindOptions()} onPick={(v) => setRightKind(v as SideKind)} />
+                      <AdMenu variant="box" label="Compared with" value={compareValue()} options={compareOptions()} onPick={pickCompare} />
                       <Show when={rightKind() === "value"}>
                         {valueBox(rightValue, (v) => { setValueEdited(true); setRightValue(v); }, "Value")}
-                      </Show>
-                      <Show when={rightKind() === "drawing"}>
-                        <AdMenu
-                          variant="box"
-                          label="Drawing"
-                          placeholder="Select drawing…"
-                          value={rightDrawing()}
-                          options={drawingOptions().map((d) => ({ value: d.id, label: drawingSelectLabel(d.label) }))}
-                          onPick={setRightDrawing}
-                        />
-                      </Show>
-                      <Show when={rightKind() === "indicator"}>
-                        <AdMenu
-                          variant="box"
-                          label="Indicator"
-                          placeholder="Select indicator…"
-                          value={rightIndicator()}
-                          options={indicatorOptions().filter((r) => plotsOf(r.id).length > 0 || r.id === rightIndicator()).map((r) => ({ value: r.id, label: r.label }))}
-                          onPick={(v) => { setRightIndicator(v); setRightPlot(0); }}
-                        />
                       </Show>
                     </div>
                     {/* Anchored VWAP: which of its lines. */}

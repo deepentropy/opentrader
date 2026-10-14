@@ -2511,7 +2511,8 @@ export function ChartView(props: Props) {
   let alertLines: IPriceLine[] = [];
 
   /** Rules on this pane's symbol whose condition is a plain price level
-   *  (price <op> value; percent operators excluded). Reads the rule FIELDS, so
+   *  (price <op> value) or a channel between two values (a line per bound);
+   *  Moving conditions draw none. Reads the rule FIELDS, so
    *  a tracking caller re-runs on enable/name/level edits, not just on list
    *  membership changes. */
   function alertLineSpecs(): { level: number; title: string; enabled: boolean }[] {
@@ -2519,7 +2520,14 @@ export function ChartView(props: Props) {
     const out: { level: number; title: string; enabled: boolean }[] = [];
     if (!key) return out;
     for (const r of alertStore.rules()) {
-      if (r.symbol !== key || isMovingOperator(r.op) || isBandOperator(r.op)) continue;
+      if (r.symbol !== key || isMovingOperator(r.op)) continue;
+      // A channel between two numbers: a line at each bound.
+      if (isBandOperator(r.op)) {
+        if (r.left.kind !== "price" || r.right.kind !== "value" || r.right2?.kind !== "value") continue;
+        const title = r.name || describeCondition(r);
+        out.push({ level: r.right.value, title, enabled: r.enabled }, { level: r.right2.value, title, enabled: r.enabled });
+        continue;
+      }
       const val = r.left.kind === "value" ? r.left : r.right.kind === "value" ? r.right : null;
       const other = r.left.kind === "value" ? r.right : r.left;
       if (!val || other.kind !== "price") continue;
