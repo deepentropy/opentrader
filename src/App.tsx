@@ -2055,7 +2055,8 @@ function App() {
       if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "a" || e.key === "A")) {
         if (document.querySelector('[role="dialog"]')) return;
         e.preventDefault();
-        setAlertDialog({ symbol: symbol() });
+        // On the selected study when it is a source, at the crosshair price.
+        setAlertDialog({ symbol: symbol(), ...(activeChartProbe()?.alertTarget?.() ?? {}) });
         return;
       }
       // Ctrl/Cmd+Z → undo drawing change; Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y →

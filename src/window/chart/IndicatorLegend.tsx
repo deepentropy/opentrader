@@ -48,7 +48,7 @@ type Props = {
 };
 
 /** Split a study title into its name and trailing "(inputs)" portion. */
-function splitTitle(title: string): { name: string; inputs: string } {
+export function splitTitle(title: string): { name: string; inputs: string } {
   const m = /^(.*?)\s*(\([^)]*\))\s*$/.exec(title);
   return m ? { name: m[1], inputs: m[2] } : { name: title, inputs: "" };
 }

@@ -143,7 +143,8 @@ import { quoteFor } from "../../data/quotes";
 import { marketSession as marketSessionOf } from "../../data/market-session";
 import { cachedSymbolSessions } from "../../data/session";
 import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
-import { IndicatorLegend } from "./IndicatorLegend";
+import { IndicatorLegend, splitTitle } from "./IndicatorLegend";
+import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry, splitMergeKey, splitMergeMap, type SplitMergeAction } from "./profiles/tpo";
@@ -487,6 +488,8 @@ type ChartMenuCtx = {
   /** Right click in a study pane: the study title (the alert is on it, the
    *  trading rows are the price pane's only). */
   study?: string | null;
+  /** The alert row's label when it is the study's (studyAlertRow rules). */
+  alertLabel?: string;
   drawingCount: number;
   indicatorCount: number;
   cursorLockByTime: boolean;
@@ -524,7 +527,7 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     { kind: "item", id: "copy-price", label: `Copy price ${p}`, onSelect: a.copyPrice },
     { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !ctx.canPaste, onSelect: a.paste },
     { kind: "separator" },
-    { kind: "item", id: "alert", label: `Add alert on ${ctx.study ?? sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
+    { kind: "item", id: "alert", label: ctx.alertLabel ?? `Add alert on ${ctx.study ?? sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
     ...(ctx.study ? [] : [
       { kind: "item", id: "buy", label: `Buy 1 ${sym} @ ${p} limit`, shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
       { kind: "item", id: "sell", label: `Sell 1 ${sym} @ ${p} stop`, icon: CtxIcons.sell, onSelect: a.sell },
@@ -824,7 +827,7 @@ export function ChartView(props: Props) {
     series?.applyOptions({ visible });
   });
   createEffect(() => {
-    if (props.active) setActiveChartProbe(probeOwner, { scaleRatio: () => liveScaleRatio() });
+    if (props.active) setActiveChartProbe(probeOwner, { scaleRatio: () => liveScaleRatio(), alertTarget });
     else clearActiveChartProbe(probeOwner);
   });
   onCleanup(() => clearActiveChartProbe(probeOwner));
@@ -1379,19 +1382,117 @@ export function ChartView(props: Props) {
   }
 
   /** Legend study "More" → the study actions menu.
-   *  Rows with no OT feature are left out: Add alert on the study, Add
-   *  indicator/strategy on the study, Visual order, Visibility on intervals,
-   *  Move to, Pin to scale, Copy. */
+   *  Rows with no OT feature are left out: Add indicator/strategy on the
+   *  study, Add this indicator to entire layout, Visual order, Visibility on
+   *  intervals, Move to, Pin to scale, Copy. */
   function openIndicatorMoreMenu(id: string, anchor: DOMRect) {
     const nodes = studyMenuNodes(id);
     if (nodes) setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
   }
 
-  /** A study's actions menu (legend "More", right click on its drawing); null when it is not in the legend. */
-  function studyMenuNodes(id: string): CtxNode[] | null {
+  // ── Alerts on the chart's sources (menus) ──────────────────────────────
+  // Reference rules: the "+" menu lists one row per visible source on the
+  // scale of its side in the pane under the pointer (main series first, a
+  // source on a percent / indexed scale has none), labelled "Add alert on
+  // <short title> at <price at the pointer>" (a source without plots, e.g. a
+  // strategy: "Add alert on <title>"). The study menu (legend More, right
+  // click on a plot) starts with "Add alert on <title> at <price>…": the
+  // price at the pointer, else the study's last value; no price for a
+  // strategy or a study with conditions / alert() calls (the dialog opens on
+  // them). Every row opens the alert dialog on that source at the price.
+
+  /** A study the alert dialog takes as a source: it has plots, declares conditions or calls alert(). */
+  function studyAlertable(id: string, row?: IndicatorLegendRow): boolean {
+    const entry = getIndicatorEntry(id);
+    if (!entry) return false;
+    return (entry.plotConfig?.length ?? 0) > 0 || studyConditions(entry, row?.inputValues).length > 0 || hasAlertFunction(entry);
+  }
+  /** Price rounded to what its formatter shows (the alert value). */
+  function roundedPrice(p: number, format: (n: number) => string): number {
+    const n = Number(format(p).replace(/−/g, "-").replace(/[^0-9.eE+-]/g, ""));
+    return Number.isFinite(n) ? n : p;
+  }
+  /** Price of a study at `y` (pixels from the top of its pane) on its own scale. */
+  function studyPriceAt(id: string, y: number): number | null {
+    const s = controller?.studySeries(id);
+    const p = s ? s.coordinateToPrice(y) : null;
+    return p == null ? null : (p as number);
+  }
+  /** Status-line title of a study for the study menu: with its inputs when the legend shows them. */
+  function studyMenuTitle(row: IndicatorLegendRow): string {
+    const { name, inputs } = splitTitle(row.title);
+    if (!(appearance().legendIndInputs ?? true) || !row.showInputs) return name;
+    if (inputs) return `${name} ${inputs}`;
+    const entry = getIndicatorEntry(row.id);
+    const list = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ") : "";
+    return list ? `${name} (${list})` : name;
+  }
+  /** "Add alert on <study>…" row of the study menu; `price` = at the pointer (right click), else its last value. */
+  function studyAlertRow(id: string, price?: number | null): Extract<CtxNode, { kind: "item" }> | null {
+    const row = (controller?.getLegend() ?? []).find((r) => r.id === id);
+    if (!row || !studyAlertable(id, row)) return null;
+    const entry = getIndicatorEntry(id);
+    const fmt = controller?.studySeries(id)?.priceFormatter();
+    let value = price ?? null;
+    if (value == null) {
+      const plot = row.plots.find((p) => p.index === 0 && Number.isFinite(p.value)) ?? row.plots.find((p) => Number.isFinite(p.value));
+      value = plot && typeof plot.value === "number" ? plot.value : null;
+    }
+    if (value != null && fmt) value = roundedPrice(value, (n) => fmt.format(n));
+    const plain = !isStrategyId(id) && !hasAlertFunction(entry) && studyConditions(entry, row.inputValues).length === 0;
+    const title = studyMenuTitle(row);
+    const label = value != null && plain && fmt ? `Add alert on ${title} at ${fmt.format(value)}…` : `Add alert on ${title}…`;
+    return {
+      kind: "item", id: "alert", label, shortcut: "Alt + A", icon: CtxIcons.alert,
+      onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", {
+        detail: { symbol: props.symbol ?? "", price: value ?? undefined, indicatorId: id },
+      })),
+    };
+  }
+  /** The "+" menu's alert rows for pane `paneIdx` at `y` (pixels from the pane top), main series first. */
+  function plusAlertRows(paneIdx: number, y: number): CtxNode[] {
+    const out: CtxNode[] = [];
+    const side = currentTokens().scalesPlacement;
+    const plainScale = (mode: PriceScaleMode | undefined) => mode !== PriceScaleMode.Percentage && mode !== PriceScaleMode.IndexedTo100;
+    const row = (id: string, label: string, detail: Record<string, unknown>): CtxNode => ({
+      kind: "item", id: `plus-alert-${id}`, label, shortcut: "Alt + A", icon: CtxIcons.alert,
+      onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail })),
+    });
+    if (paneIdx === 0 && series && !props.seriesHidden && plainScale(series.priceScale().options().mode)) {
+      const p = series.coordinateToPrice(y);
+      if (p != null) {
+        const fmt = series.priceFormatter();
+        const v = roundedPrice(p as number, (n) => fmt.format(n));
+        out.push(row(MAIN_SOURCE_ID, `Add alert on ${splitSymbol(props.symbol ?? "").ticker} at ${fmt.format(v)}`, { symbol: props.symbol ?? "", price: v }));
+      }
+    }
+    for (const r of controller?.getLegend() ?? []) {
+      if (r.hidden || !studyAlertable(r.id, r)) continue;
+      const s = controller?.studySeries(r.id);
+      // No scale id = the chart's visible default scale (the side one).
+      if (!s || s.getPane().paneIndex() !== paneIdx || (s.options().priceScaleId || side) !== side) continue;
+      if (!plainScale(s.priceScale().options().mode)) continue;
+      const p = s.coordinateToPrice(y);
+      if (p == null) continue;
+      const fmt = s.priceFormatter();
+      const v = roundedPrice(p as number, (n) => fmt.format(n));
+      const name = splitTitle(r.title).name;
+      // Price in the label for a study with plots (not a strategy).
+      const usual = !isStrategyId(r.id) && (getIndicatorEntry(r.id)?.plotConfig?.length ?? 0) > 0;
+      out.push(row(r.id, usual ? `Add alert on ${name} at ${fmt.format(v)}` : `Add alert on ${name}`,
+        { symbol: props.symbol ?? "", price: v, indicatorId: r.id }));
+    }
+    return out;
+  }
+
+  /** A study's actions menu (legend "More", right click on its drawing); null when it is not in the legend.
+   *  `price`: the price at the pointer for its alert row (right click), else its last value. */
+  function studyMenuNodes(id: string, price?: number | null): CtxNode[] | null {
     const row = indLegend().find((r) => r.id === id);
     if (!row) return null;
     const nodes: CtxNode[] = [];
+    const alert = studyAlertRow(id, price);
+    if (alert) nodes.push(alert);
     // No favorites row for studies that cannot be starred (compare/overlay).
     if (getIndicatorEntry(id)) {
       const fav = isFavoriteIndicator(typeIdOf(id));
@@ -1400,7 +1501,7 @@ export function ChartView(props: Props) {
           icon: CtxIcons.favorite, onSelect: () => toggleFavoriteIndicator(typeIdOf(id)) },
         { kind: "separator" },
       );
-    }
+    } else if (alert) nodes.push({ kind: "separator" });
     nodes.push(
       { kind: "item", id: "hide", label: row.eyeHidden ? "Show" : "Hide", icon: row.eyeHidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => toggleSourceHidden(id) },
@@ -1419,6 +1520,21 @@ export function ChartView(props: Props) {
    *  split the profile at the block (not on its first block), merge it with the previous profile (not the first
    *  profile), reset all splits and merges; disabled on charts without time-based bars. Kept per symbol and
    *  period settings in the study's `mergePoints` input. */
+  /** Study whose plot is under the pointer (crosshair move), null = none. */
+  let hoveredStudy: string | null = null;
+  /** Price under the crosshair (on the scale of the pane under it), null = pointer not on the chart. */
+  let crosshairPrice: number | null = null;
+  /** Alt + A (reference rule): the alert is on the selected study when it is a
+   *  source, at the price under the crosshair while the pointer is on the chart. */
+  function alertTarget(): { indicatorId?: string; price?: number } {
+    const id = selectedStudy();
+    const row = id && !compareEntry(id) ? (controller?.getLegend() ?? []).find((r) => r.id === id) : undefined;
+    return {
+      ...(row && studyAlertable(row.id, row) ? { indicatorId: row.id } : {}),
+      ...(crosshairPrice != null ? { price: crosshairPrice } : {}),
+    };
+  }
+
   function openTpoBlockMenu(id: string, hit: TpoBlockHit, x: number, y: number) {
     const nodes = studyMenuNodes(id);
     if (!nodes) return;
@@ -1494,6 +1610,24 @@ export function ChartView(props: Props) {
       const tpoHit = controller?.tpoBlockAt(e.clientX - host.getBoundingClientRect().left - left, yRel);
       if (tpoHit) { openTpoBlockMenu(tpoHit.id, tpoHit.hit, e.clientX, e.clientY); return; }
     }
+    // On a study's plot: the study is selected and its menu opens at the
+    // pointer, its alert row at the price there (on the study's scale).
+    if (hoveredStudy && compareEntry(hoveredStudy)) {
+      selectStudy(hoveredStudy);
+      openCompareMoreMenu(hoveredStudy, new DOMRect(e.clientX, e.clientY - 3, 0, 0));
+      return;
+    }
+    if (hoveredStudy && indLegend().some((r) => r.id === hoveredStudy)) {
+      const id = hoveredStudy;
+      const pane = controller?.paneOf(id) ?? 0;
+      const box = paneBoxes().find((b) => b.index === pane);
+      const nodes = studyMenuNodes(id, studyPriceAt(id, yRel - (box?.top ?? 0)));
+      if (nodes) {
+        selectStudy(id);
+        setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
+        return;
+      }
+    }
     // In a study pane the price is that pane's (its study's scale) and the
     // alert is on the study (the reference pane menu's main source).
     const paneIdx = paneAtY(yRel) ?? 0;
@@ -1512,6 +1646,7 @@ export function ChartView(props: Props) {
         symbol: splitSymbol(props.symbol ?? "").ticker,
         price: priceStr,
         study: studyTitle,
+        alertLabel: studyId && rawPrice != null ? studyAlertRow(studyId, rawPrice)?.label : undefined,
         drawingCount: ds.length,
         indicatorCount: (props.indicators ?? []).length,
         cursorLockByTime: crosshairLockTime() !== null,
@@ -1638,6 +1773,8 @@ export function ChartView(props: Props) {
   const [scaleGeom, setScaleGeom] = createSignal<{ w: number; h: number; left: boolean } | null>(null);
   const [scaleModes, setScaleModes] = createSignal({ auto: true, log: false });
   const [plusY, setPlusY] = createSignal<number | null>(null);
+  /** Pane under the plus button (its y is from the top of the first pane). */
+  const [plusPane, setPlusPane] = createSignal(0);
   // The plus is drawn inside the pane and hit-tested there, so the button
   // takes no pointer events (the crosshair keeps tracking under it) and the
   // host hit-tests its rect in the capture phase.
@@ -1690,25 +1827,30 @@ export function ChartView(props: Props) {
     ps.applyOptions({ mode: log ? PriceScaleMode.Normal : PriceScaleMode.Logarithmic });
     refreshScaleOverlays();
   }
-  /** Plus button → crosshair menu: "Add
-   *  alert on SYMBOL at PRICE…", then (no trading items: no broker) "Draw
-   *  horizontal line at PRICE". */
-  function openPlusMenu(r: DOMRect, y: number) {
-    if (!series) return;
-    const price = series.coordinateToPrice(y);
+  /** Plus button → crosshair menu of the pane under it: an "Add alert on
+   *  SOURCE at PRICE" row per source on that scale (plusAlertRows), then (no
+   *  trading items: no broker) "Draw horizontal line at PRICE" on the pane's
+   *  main source (the series, else the pane's first study). */
+  function openPlusMenu(r: DOMRect, yAbs: number) {
+    const paneIdx = plusPane();
+    const box = paneBoxes().find((b) => b.index === paneIdx);
+    const y = yAbs - (box?.top ?? 0);
+    const owner = paneIdx > 0 ? controller?.ownerOfPane(paneIdx) ?? null : null;
+    const main = paneIdx > 0 ? (owner ? controller?.studySeries(owner) ?? null : null) : series;
+    if (!main) return;
+    const price = main.coordinateToPrice(y);
     if (price == null) return;
     const p = price as number;
-    const priceStr = series.priceFormatter().format(p);
-    const sym = splitSymbol(props.symbol ?? "").ticker;
+    const priceStr = main.priceFormatter().format(p);
+    const alerts = plusAlertRows(paneIdx, y);
     const nodes: CtxNode[] = [
-      { kind: "item", id: "plus-alert", label: `Add alert on ${sym} at ${priceStr}…`, icon: CtxIcons.alert,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: props.symbol ?? "", price: p } })) },
-      { kind: "separator" },
-      { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, icon: <Icon name="draw-horizontal-line" size={18} />,
+      ...alerts,
+      ...(alerts.length ? [{ kind: "separator" } as CtxNode] : []),
+      { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, shortcut: "Alt + H", icon: <Icon name="draw-horizontal-line" size={18} />,
         onSelect: () => {
           const last = raw.length > 0 ? raw[raw.length - 1] : null;
           if (!last) return;
-          const id = props.onPlace?.({ kind: "horizontal-line", points: [{ time: last.time as number, price: p }], style: defaultStyleFor("horizontal-line") } as never);
+          const id = props.onPlace?.({ kind: "horizontal-line", points: [{ time: last.time as number, price: p }], style: defaultStyleFor("horizontal-line"), ...(owner ? { owner } : {}) } as never);
           if (id) props.setSelectedDrawingId?.(id);
         } },
     ];
@@ -3470,12 +3612,15 @@ export function ChartView(props: Props) {
       }
     };
     chart.subscribeCrosshairMove(onCrosshair);
-    // Plus button: follows the crosshair on the main pane while the pointer
-    // is over the chart, not while a drawing
-    // tool is armed.
+    // Plus button: follows the crosshair in the pane under the pointer (not
+    // a collapsed pane) while the pointer is over the chart, not while a
+    // drawing tool is armed.
     const onPlusCrosshair = (param: MouseEventParams<Time>) => {
-      const onMain = param.point && ((param as { paneIndex?: number }).paneIndex ?? 0) === 0;
-      setPlusY(onMain && pointerOverHost && !props.armedTool ? param.point!.y : null);
+      const pane = (param as { paneIndex?: number }).paneIndex ?? 0;
+      const box = paneBoxes().find((b) => b.index === pane);
+      const shown = param.point && pointerOverHost && !props.armedTool && (pane === 0 || (!!box && !collapsedPanes().has(pane)));
+      setPlusPane(pane);
+      setPlusY(shown ? (box?.top ?? 0) + param.point!.y : null);
     };
     chart.subscribeCrosshairMove(onPlusCrosshair);
     // Latest news lollipop: hover state + crosshair lines hidden on hover.
@@ -3504,6 +3649,23 @@ export function ChartView(props: Props) {
     };
     chart.subscribeClick(onStudyClick);
     chart.subscribeDblClick(onStudyClick);
+    // Study under the pointer (its plot is hovered), for the right click.
+    const onStudyHover = (param: MouseEventParams<Time>) => {
+      const s = (param.hoveredInfo?.series ?? param.hoveredSeries) as ISeriesApi<SeriesType> | undefined;
+      hoveredStudy = param.point && s ? studyOfSeries(s) : null;
+      crosshairPrice = null;
+      if (param.point && pointerOverHost) {
+        const pane = (param as { paneIndex?: number }).paneIndex ?? 0;
+        const owner = pane > 0 ? controller?.ownerOfPane(pane) ?? null : null;
+        const src = pane > 0 ? (owner ? controller?.studySeries(owner) ?? null : null) : series;
+        const p = src?.coordinateToPrice(param.point.y);
+        if (src && p != null) {
+          const fmt = src.priceFormatter();
+          crosshairPrice = roundedPrice(p as number, (n) => fmt.format(n));
+        }
+      }
+    };
+    chart.subscribeCrosshairMove(onStudyHover);
     // Click on the lollipop toggles its card; any other chart click closes it
     // (click outside). A DOM click, not the library's click event:
     // the library drops a click that follows another within 500 ms (it is

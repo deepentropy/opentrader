@@ -166,7 +166,9 @@ export function ChartContextMenu(props: Props) {
     list.map((n, i) => {
       if (n.kind === "separator") return <div class="ot-chart-ctx-separator" role="separator" data-sep={i} />;
       const checked = () => (typeof n.checked === "function" ? n.checked() : n.checked);
-      const leading = () => (checked() ? <CheckGlyph /> : n.icon);
+      // The CtxIcons are single DOM nodes: a copy per row, so rows sharing an
+      // icon (one alert row per source) each show it.
+      const leading = () => (checked() ? <CheckGlyph /> : n.icon instanceof Node ? n.icon.cloneNode(true) : n.icon);
       return (
         <div
           class={`ot-chart-ctx-item${n.disabled ? " is-disabled" : ""}${openSub() === n.id ? " is-active" : ""}`}
