@@ -11,15 +11,12 @@
  * (native priceLine through Feature 5a); Feature 5c moved it to the
  * overlay for parity with the other 13 kinds.
  */
-import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import { typeIdOf } from "./indicators/study-id";
 import {
-  ColorType,
   CrosshairMode,
   LineStyle,
-  PriceScaleMode,
   TickMarkType,
   createChart,
   createSeriesMarkers,
@@ -30,106 +27,52 @@ import {
   type ISeriesApi,
   type SeriesType,
   type ITextWatermarkPluginApi,
-  type MouseEventParams,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { IPriceLine, Logical } from "lightweight-charts";
+import type { Logical } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
 import { chartBackgroundAt } from "./selection-markers";
-import { MOVE_STUDY_EVENT, SELECT_STUDY_EVENT, setFocusedStudySelection } from "./study-selection";
-import {
-  MAIN_SOURCE_ID,
-  TREE_HIDE_EVENT,
-  TREE_MOVE_EVENT,
-  TREE_REMOVE_EVENT,
-  setFocusedTreePanes,
-  setFocusedTreeSources,
-  type TreePane,
-  type TreeSource,
-} from "./object-tree-sources";
-import { moveItem, overOf, paneItems, splitItems } from "./tree-order";
-import { SunkDrawings, sameSunkGroups, type SunkGroup } from "./sunk-drawings";
-import { statusLineInputs } from "./indicators/indicator-options";
+import { MAIN_SOURCE_ID } from "./object-tree-sources";
 import { flagOf, lastFlagColor, setFlag } from "../../data/symbol-flags";
 import { FlagColorPopup } from "./FlagColorPopup";
 import { ChartSyncMenu, SYNC_GROUPS } from "./ChartSyncMenu";
 import { FLAG_HEX } from "../../data/watchlist";
-import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime, setCrosshairLockTime } from "./crosshair-lock";
+import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime } from "./crosshair-lock";
 import { textOnColor } from "lightweight-charts-drawing/core/color";
-import { formatChartTime, formatTickMark } from "./time-format";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "./session-breaks";
 import { SessionBackgroundsPrimitive, computeSessionRuns } from "./session-backgrounds";
 import { EventMarkersPrimitive } from "./event-markers";
-import { NEWS_LOLLIPOP_ID, NEWS_MAX_AGE_MS, NEWS_UPDATE_MS, NewsLollipopPrimitive, formatAgo, formatNewsDate } from "./news-lollipop";
-import { HISTORY_END_ICONS, HISTORY_END_ID, HISTORY_END_MIN_BARS, HistoryEndPrimitive, isDarkColor, type HistoryEndKind } from "./history-end-marker";
+import { NewsLollipopPrimitive } from "./news-lollipop";
+import { HistoryEndPrimitive } from "./history-end-marker";
 import { providerCapabilities } from "../../data/providers/capabilities";
-import { showNotice } from "../../components/Dialogs";
-import { getLatestNews, type NewsItem } from "../../data/datafeed-rest";
 import { saveIndicatorDefault } from "../../data/indicator-defaults";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { CountdownPrimitive, countdownText } from "./countdown";
 import { ChartControlBar } from "./ChartControlBar";
-import {
-  DEFAULT_BAR_SPACING,
-  GOTO_MS,
-  ZOOM_FACTOR,
-  ZOOM_MS,
-  barAnchor,
-  canShow,
-  easeInOutQuint,
-  easeOutCubic,
-  groupsWidth,
-  liveBarSpacing,
-  moveEndAfterStop,
-  movePixels,
-  pointerNearBox,
-  type GroupId,
-} from "./control-bar";
+import { ZOOM_FACTOR, liveBarSpacing } from "./control-bar";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { hasClipboardDrawing, pasteAsNew } from "../drawings/clipboard";
-import { appearanceFrom, uiTheme, type Draft, type NavButtonsBehavior, type PriceSource } from "../header/chart-settings";
-import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
-import { priceOf } from "./series-transforms";
-import { registerChartExport, type ExportColumn } from "./chart-export";
-import { layoutSnapshot, legendLine, registerSnapshotSource, snapshotTheme, type ChartSnapshot, type LegendRun, type LegendValue } from "./layout-snapshot";
-import { chartTemplates } from "../header/chart-templates";
+import { appearanceFrom, type PriceSource } from "../header/chart-settings";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
-import type { CompareEntry, PaneIndicatorSettings } from "../shell/tabs";
-import { CompareLayer } from "./compare/compare-layer";
-import { compareColor, compareSource, type CompareStyleState } from "./compare/compare-style";
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
-import { isVisibleOnInterval } from "lightweight-charts-drawing/core/types";
 import {
-  DAILY_ARCHIVE_START,
-  aggregateCandles,
-  aggregateUnitFor,
   getBars,
-  getBarsBefore,
   getEvents,
-  getSecondBarsTail,
   getTickerInfo,
   initialViewBars,
   intervalLabel,
   isIntradayInterval,
   isIntradayResolution,
   isSecondResolution,
-  setLiveSymbol,
   splitSymbol,
-  subscribeBars,
   type BarsResult,
-  type LiveBar,
   type SessionId,
 } from "../../data/datafeed";
-import { commands, type Candle } from "../../bindings";
+import { type Candle } from "../../bindings";
 import {
   CHART_TYPE_ICON,
   createSeriesForType,
-  heikinAshiLast,
   isTransformType,
-  legendShowsSingleValue,
   setDataForType,
   type AnySeries,
   type ChartTypeId,
@@ -137,460 +80,62 @@ import {
 } from "./chart-types";
 import { ChartLegend, type LegendValues } from "./ChartLegend";
 import { chartPriceFormat } from "./price-format";
-import { layoutSync } from "./layout-sync";
-import { dayKeyer, utcToWall, wallTimeToUtc, type WallDate, type WallTime } from "./day-key";
-import type { GotoQuery } from "./goto-query";
-import { quoteFor } from "../../data/quotes";
-import { marketSession as marketSessionOf } from "../../data/market-session";
+import { dayKeyer } from "./day-key";
 import { cachedSymbolSessions } from "../../data/session";
-import { activeLink, crossWindowCrosshairOn, postLinkRange, postLinkTime } from "../../data/tab-link-bus";
-import { IndicatorLegend, splitTitle } from "./IndicatorLegend";
-import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
+import { IndicatorLegend } from "./IndicatorLegend";
 import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
-import { isTpoEntry, splitMergeKey, splitMergeMap, type SplitMergeAction } from "./profiles/tpo";
-import type { TpoBlockHit } from "./profiles/tpo-primitive";
+import { isTpoEntry } from "./profiles/tpo";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
-import type { IndicatorOptions } from "./indicators/indicator-options";
 import { getIndicatorEntry } from "./indicators/registry";
-import { OAKSCRIPT_OPEN_EVENT, OAKSCRIPT_UPDATED_EVENT, scriptIdOfStudy, userIndicatorId, type OakScriptUpdatedDetail } from "./indicators/user-scripts";
+import { OAKSCRIPT_OPEN_EVENT, scriptIdOfStudy } from "./indicators/user-scripts";
 import { scriptChartContext } from "./indicators/script-chart";
-import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
+import { PROPERTIES_INPUT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf } from "./indicators/strategy-entries";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { registerChartState, unregisterChartState, type ChartBar } from "../../data/chart-state-registry";
-import { alertStore, type AlertRule, type AlertStopReason } from "../../data/alert-store";
-import { LEVEL_OPERATORS, defaultAlertMessage, isBandOperator } from "../../data/alert-condition";
-import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
-import { ALERT_STATUS_COLORS, AlertLabelsPrimitive, alertLabelTheme, type AlertLabelHit, type AlertLabelSpec } from "./alert-labels";
 import { publishDataWindow, type DataWindowState } from "../../data/data-window-store";
-import { ChartContextMenu, CtxIcons, type CtxNode } from "./ChartContextMenu";
-import { WheelHelper } from "./wheel-helper";
-import { TIMEZONES } from "../../data/timezones";
-import { isDeletedList, watchlistStore } from "../../data/watchlist-store";
-import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../data/indicator-favorites";
+import { ChartContextMenu } from "./ChartContextMenu";
 import type { Bar } from "oakscriptjs";
-import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import { makeCoords, type Coords, type FutureAxis } from "../drawings/coords";
 import { sessionFutureAxis } from "./indicators/future-slots";
-import { studyPaneCoords, type DrawingPane } from "../drawings/pane-coords";
-import { DrawingsOverlay, NEVER_SUNK_KINDS, type SunkPainter } from "../drawings/DrawingsOverlay";
+import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
-import type { CursorMode } from "../../data/drawing-toolbar";
+import { attach, type ChartCore, type ChartCx, type ChartMenuState, type ChartViewProps } from "./view/context";
+import {
+  toOHLC,
+  barsSpan,
+  MIN_VISIBLE_BARS,
+  SYMBOL_CHANGE_MAX_BACK,
+  AxisFmt,
+  formatAxisTime,
+  formatTick,
+  indexOfTime,
+  appearanceOptions,
+  buildLegend,
+} from "./view/helpers";
+import { createNavigation } from "./view/navigation";
+import { createMenus } from "./view/menus";
+import { createPriceAxis } from "./view/price-axis";
+import { createPanes } from "./view/panes";
+import { createDecorations } from "./view/decorations";
+import { createAlertLayer } from "./view/alert-layer";
+import { createHistory } from "./view/history";
+import { createCompare } from "./view/compare";
+import { createSources } from "./view/sources";
+import { createSnapshot } from "./view/snapshot";
+import { createLive } from "./view/live";
+import { createNews } from "./view/news";
+import { createPointer } from "./view/pointer";
+import { createWindowEvents } from "./view/window-events";
 
-type Props = {
-  theme?: "dark" | "light";
-  symbol?: string;
-  /** Interval id ("1", "5", "60", "1D", "1W", "1M", ...). Drives which
-   *  Rust command (minute_aggs vs day_aggs) the chart fetches from. */
-  interval?: string;
-  /** Bottom-bar session (RTH/ETH). Drives datafeed session filtering on
-   *  intraday frames (09:30–16:00 ET for RTH); ignored on daily+. */
-  session?: SessionId;
-  chartType?: ChartTypeId;
-  armedTool?: string | null;
-  /** Cursor-group interaction mode; drives the chart-host cursor + overlay
-   *  erase/laser behaviour. */
-  cursorMode?: CursorMode;
-  /** A mouse-wheel time zoom happened; `mod` =
-   *  Ctrl / Cmd held (focused zoom). Drives the grid's zoom hint. */
-  onWheelZoom?: (mod: boolean) => void;
-  /** Main series hidden (legend eye; series `visible`). */
-  seriesHidden?: boolean;
-  onToggleSeries?: () => void;
-  /** Legend symbol title clicked ("Change symbol"). */
-  onChangeSymbol?: () => void;
-  /** Legend interval clicked ("Change interval"). */
-  onChangeInterval?: () => void;
-  armedGlyph?: string;
-  magnet?: boolean;
-  magnetMode?: "weak" | "strong";
-  magnetSnapsToIndicators?: boolean;
-  stayMode?: boolean;
-  drawings?: Drawing[];
-  onPlace?: (d: NewDrawing) => string | void;
-  onDisarm?: () => void;
-  selectedDrawingId?: string | null;
-  /** Full multi-selection (ordered, last = primary). */
-  selectedDrawingIds?: string[];
-  setSelectedDrawingId?: (id: string | null) => void;
-  /** Ctrl/Cmd+click membership toggle. */
-  toggleSelectedDrawing?: (id: string) => void;
-  updateDrawing?: (d: Drawing) => void;
-  /** Bulk replace (group drag/nudge) — one undo entry. */
-  updateDrawings?: (list: Drawing[]) => void;
-  cloneDrawing?: (id: string) => void;
-  reorderDrawing?: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
-  removeDrawing?: (id: string) => void;
-  /** Bulk delete (multi-select Delete) — one undo entry. */
-  removeDrawings?: (ids: string[]) => void;
-  /** Ordered registry ids of indicators active on this chart. */
-  indicators?: string[];
-  /** Compared symbols (header "Compare symbols") of this pane. */
-  compare?: CompareEntry[];
-  /** Patch one compared symbol (legend eye, Settings → Ok). */
-  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) => void;
-  /** Remove one compared symbol (legend trash, More → Remove, Delete pane). */
-  onRemoveCompare?: (id: string) => void;
-  /** Legend title of a compared symbol clicked ("Change symbol"). */
-  onChangeCompareSymbol?: (id: string) => void;
-  /** Persisted stacking order of the panes (study and compared-symbol ids). */
-  paneOrder?: string[];
-  /** Pane controls moved a pane: the new stacking order. */
-  onPaneOrder?: (order: string[]) => void;
-  /** Persisted drawing order of the sources, front first (Object tree). */
-  sourceOrder?: string[];
-  /** The Object tree moved a source: the new drawing order. */
-  onSourceOrder?: (order: string[]) => void;
-  /** The Object tree moved a drawing: the pane's drawings in their new
-   *  order (front first) and the source each one sits in front of. */
-  placeDrawings?: (ids: string[], over: Record<string, string | null>) => void;
-  /** When true, suppress all study layers without removing them from the active
-   *  set (Hide-all dropdown's "Hide indicators"); restored when toggled off. */
-  indicatorsHidden?: boolean;
-  /** Lock indicators (Lock options): studies cannot be dragged on the chart. */
-  indicatorsLocked?: boolean;
-  /** Remove an indicator (by registry id) — wired to the studies-legend trash. */
-  onRemoveIndicator?: (id: string) => void;
-  /** Persist this pane's study order (pane controls move up / down). */
-  onReorderIndicators?: (ids: string[]) => void;
-  /** Persisted per-indicator settings (inputs/styles) for THIS pane, keyed by
-   *  registry id. Seeded into the controller so studies render with the user's
-   *  saved values on load. */
-  indicatorSettings?: Record<string, PaneIndicatorSettings>;
-  /** Persist a study's edited inputs/styles (Settings dialog → Ok). */
-  onIndicatorSettings?: (id: string, settings: PaneIndicatorSettings) => void;
-  /** Chart syncing group (0..4, undefined = none), its legend button shown,
-   *  and the setter. */
-  linkGroup?: number;
-  linkSyncVisible?: boolean;
-  onLinkGroup?: (group: number | undefined) => void;
-  /** IANA timezone for the time axis (crosshair label + tick marks). */
-  timeZone?: string;
-  /** The timezone row label ("Exchange", "(UTC-4) New York", …). */
-  timeZoneLabel?: string;
-  /** TRUE when this is the focused pane. Keyboard chart shortcuts (pan/zoom/
-   *  scale/snapshot/reset) are broadcast to every pane but only the active one
-   *  acts on them (focused-pane behaviour). */
-  active?: boolean;
-  /** False while this pane's tab is hidden. App keeps every opened tab's grid
-   *  mounted (each tab page stays alive), so a tab switch only shows it. */
-  shown?: boolean;
-  /** Control bar → maximize. `canMaximize` is false in a
-   *  single-cell layout, where the group is dropped entirely. */
-  canMaximize?: boolean;
-  maximized?: boolean;
-  onToggleMaximize?: () => void;
-  /** This pane's committed chart Settings (the dialog draft). Drives candle /
-   *  grid / crosshair / scale / margin / session-break appearance for THIS pane
-   *  only; undefined = defaults. */
-  settings?: Draft;
-  /** Persisted visible logical range (bar-index based) for THIS pane. Restored
-   *  when new data loads instead of snapping to the latest bars; undefined or
-   *  out-of-bounds falls back to the default framing. `last` = index of the
-   *  last item when saved (price-based types: their item count changes). */
-  visibleLogicalRange?: { from: number; to: number; last?: number };
-  /** Report this pane's visible logical range after the user scrolls/zooms, so
-   *  the anchor persists across tab switches + reloads. Debounced by the caller's
-   *  store write; ChartView emits the settled range. */
-  onVisibleRange?: (range: { from: number; to: number; last?: number }) => void;
-};
-
-/** Scroll-back: when the visible range's left edge comes within this many bars
- *  of index 0, page one older window in and prepend it (mirrors the mock). */
-const LOAD_MORE_THRESHOLD = 12;
-/** Length of the logical range that shows bars `spacing` px wide on a
- *  `width` px time scale: a range of length L draws L + 1 bars. */
-const barsSpan = (width: number, spacing: number) => width / spacing - 1;
-/** Fewest bars a restored saved view may show. A narrower range is the 1-bar
- *  collapse the old sync path could persist, not a user choice. Same floor as
- *  the wheel zoom (onWheel). */
-const MIN_VISIBLE_BARS = 5;
-/** A symbol change keeps the distance to the last bar up to this many bars back
- *  (the reference opens a new symbol on a first window of 300 bars and keeps 2
- *  of them in view: a chart scrolled back 300 or 528 bars lands 298 bars back). */
-const SYMBOL_CHANGE_MAX_BACK = 298;
-/** Fewest bars a date-range sync target frames (the time scale's minimum
- *  visible bar count). */
-const SYNC_MIN_BARS = 2;
-/** Depth cap for history loaded on behalf of date-range / time sync (display
- *  bars); the user's own scroll-back pager is not capped. Measured 29/09/2026
- *  (.tmp/goto-sync): a 1m pane at ~94k bars blocks the main thread up to
- *  ~190 ms per load, at 250k bars up to 853 ms. 100k = about one year of 1m
- *  regular-session bars (20k reached only ~50 sessions back). */
-const SYNC_LOAD_MAX_BARS = 100_000;
-/** Pause after the last landed history page before studies recompute. */
-const INDICATOR_RENDER_DEBOUNCE_MS = 150;
-/** Date-range sync: a follower loads missing history once the driving pane
- *  has been still this long. Each load re-sets the whole series and its
- *  studies (05/10/2026, .tmp/scroll-lag: 50-200 ms per load on a 5m pane at
- *  25-43k bars), so loading on every move of a scroll made it lag. */
-const SYNC_LOAD_QUIET_MS = 200;
-
-/** Time-axis formatting from the Settings dialog (Scales tab). */
-type AxisFmt = { dateFormat?: string; timeFormat?: string; dayOfWeek?: boolean };
-
-/** Crosshair time-axis label, in the chosen IANA timezone: the chart
- *  date-time text ("Wed 23 Sep '26   14:00"; date only on daily+ bars). */
-function formatAxisTime(time: UTCTimestamp, timeZone: string, intraday: boolean, seconds: boolean, fmt: AxisFmt = {}): string {
-  return formatChartTime(time as number, timeZone, intraday, seconds, fmt);
-}
-
-/** Time-axis tick label in the chosen IANA timezone (tick-mark text). */
-function formatTick(time: UTCTimestamp, type: TickMarkType, timeZone: string, fmt: AxisFmt = {}): string {
-  const kind =
-    type === TickMarkType.Year ? "Year"
-    : type === TickMarkType.Month ? "Month"
-    : type === TickMarkType.DayOfMonth ? "DayOfMonth"
-    : type === TickMarkType.TimeWithSeconds ? "TimeWithSeconds"
-    : "Time";
-  return formatTickMark(time as number, kind, timeZone, fmt.timeFormat);
-}
-
-// Binary-search the (time-ascending) bar array for an exact timestamp match,
-// returning its index or -1. Maps a crosshair time back to its bar.
-function indexOfTime(bars: OHLC[], time: number): number {
-  let lo = 0;
-  let hi = bars.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    const t = bars[mid].time as number;
-    if (t === time) return mid;
-    if (t < time) lo = mid + 1;
-    else hi = mid - 1;
-  }
-  return -1;
-}
-
-/** Non-series chart options derived from this pane's committed appearance tokens
- *  (Canvas tab: background, grid, crosshair, scale text/lines, price margins).
- *  Shared by createChart and the theme/appearance effect so both stay in lockstep.
- *  `rightOffset` is applied only off the initial mount (it nudges the view
- *  framing, so we don't force it at create time). */
-
-/** Colour at fraction `t` (0..1) between two hex / rgb(a) colours. */
-function mixColor(a: string, b: string, t: number): string {
-  const parse = (c: string): number[] => {
-    const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(c.trim());
-    if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
-    const h = /^#([0-9a-f]{6})/i.exec(c.trim());
-    return h ? [parseInt(h[1].slice(0, 2), 16), parseInt(h[1].slice(2, 4), 16), parseInt(h[1].slice(4, 6), 16)] : [0, 0, 0];
-  };
-  const x = parse(a);
-  const y = parse(b);
-  const v = x.map((n, i) => Math.round(n + (y[i] - n) * t));
-  return `rgb(${v[0]}, ${v[1]}, ${v[2]})`;
-}
-
-/** Text colour from background: brightness .199R + .687G + .114B below 150
- *  gets white text, otherwise black. */
-function textColorOn(color: string): string {
-  const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(color.trim());
-  const h = /^#([0-9a-f]{6})/i.exec(color.trim());
-  const [r, g, b] = m
-    ? [Number(m[1]), Number(m[2]), Number(m[3])]
-    : h
-      ? [parseInt(h[1].slice(0, 2), 16), parseInt(h[1].slice(2, 4), 16), parseInt(h[1].slice(4, 6), 16)]
-      : [0, 0, 0];
-  return 0.199 * r + 0.687 * g + 0.114 * b < 150 ? "#ffffff" : "#000000";
-}
-
-function appearanceOptions(t: ReturnType<typeof readChartTokens>) {
-  // Picker enum (0 solid / 1 dashed / 2 dotted) → lightweight-charts LineStyle
-  // (Solid 0, Dotted 1, Dashed 2).
-  const cross = [LineStyle.Solid, LineStyle.Dashed, LineStyle.Dotted][t.crosshairStyle] ?? LineStyle.Dashed;
-  const crossWidth = Math.max(1, Math.min(4, t.crosshairWidth)) as 1 | 2 | 3 | 4;
-  const background = t.bgGradient
-    ? { type: ColorType.VerticalGradient as const, topColor: t.bg, bottomColor: t.bgBottom }
-    : { type: ColorType.Solid as const, color: t.bg };
-  // Scales placement: show only the chosen side. A series with no explicit
-  // priceScaleId binds to the visible scale ('right' if visible, else 'left'),
-  // so toggling visibility before (re)building the series moves the price axis.
-  const onLeft = t.scalesPlacement === "left";
-  // Scales → "No overlapping labels" = the library's alignLabels (the
-  // restacking of colliding labels).
-  const scaleOpts = {
-    borderColor: t.scaleLinesColor,
-    scaleMargins: { top: t.marginTop, bottom: t.marginBottom },
-    alignLabels: t.alignLabels,
-  };
-  return {
-    layout: {
-      background,
-      textColor: t.scaleTextColor,
-      fontSize: t.scaleFontSize,
-      // No logo on the chart: the library's attribution notice and link are
-      // in the README ("Third-party notices"), as its licence allows.
-      attributionLogo: false,
-      // The library defaults are light-theme (#E0E3EB separator) — theme the
-      // stacked-pane divider like the rest of the chrome.
-      panes: {
-        separatorColor: t.paneSeparator,
-        separatorHoverColor: "rgba(178, 181, 189, 0.2)",
-        enableResize: true,
-      },
-    },
-    grid: {
-      // Grid "dotted" maps to SparseDotted (1px on / 4 off): the target dotted
-      // grid is 1 on / 3 off, and the library's Dotted (1 on / 1 off) reads
-      // twice as heavy.
-      vertLines: {
-        color: t.gridVertColor,
-        visible: t.gridVertVisible,
-        style: [LineStyle.Solid, LineStyle.Dashed, LineStyle.SparseDotted][t.gridVertStyle] ?? LineStyle.Solid,
-      },
-      horzLines: {
-        color: t.gridHorzColor,
-        visible: t.gridHorzVisible,
-        style: [LineStyle.Solid, LineStyle.Dashed, LineStyle.SparseDotted][t.gridHorzStyle] ?? LineStyle.Solid,
-      },
-    },
-    crosshair: {
-      vertLine: { color: t.crosshairColor, style: cross, width: crossWidth, labelBackgroundColor: t.crosshairLabelBg },
-      horzLine: { color: t.crosshairColor, style: cross, width: crossWidth, labelBackgroundColor: t.crosshairLabelBg },
-    },
-    rightPriceScale: { ...scaleOpts, visible: !onLeft },
-    leftPriceScale: { ...scaleOpts, visible: onLeft },
-    timeScale: { borderColor: t.scaleLinesColor },
-  };
-}
-
-// Resolve the legend's values for the bar at `idx`. Change is close minus the
-// previous bar's close; colours follow the bar's direction for O/H/L/C and the
-// change sign for the single-line value. (Reference: mock buildLegend.)
-function buildLegend(bars: OHLC[], idx: number, type: ChartTypeId, prevDayClose: number | null, src: PriceSource = "close"): LegendValues {
-  const bar = bars[idx];
-  const single = legendShowsSingleValue(type);
-  // Single-value types show their price source (Symbol tab "Price source").
-  const value = (b: OHLC) => (single ? priceOf(b, src) : b.close);
-  const prevClose = idx > 0 ? value(bars[idx - 1]) : null;
-  const changeAbs = prevClose == null ? 0 : value(bar) - prevClose;
-  const changePct = prevClose ? (changeAbs / prevClose) * 100 : 0;
-  const ldAbs = prevDayClose == null ? 0 : bar.close - prevDayClose;
-  const ldPct = prevDayClose ? (ldAbs / prevDayClose) * 100 : 0;
-  return {
-    single,
-    open: bar.open,
-    high: bar.high,
-    low: bar.low,
-    close: value(bar),
-    changeAbs,
-    changePct,
-    barDir: bar.close >= bar.open ? "up" : "down",
-    changeDir: changeAbs >= 0 ? "up" : "down",
-    volume: bar.volume,
-    lastDayChangeAbs: ldAbs,
-    lastDayChangePct: ldPct,
-    lastDayChangeDir: ldAbs >= 0 ? "up" : "down",
-  };
-}
-
-// Context for the right-click menu's dynamic pieces (price/symbol/counts).
-type ChartMenuCtx = {
-  symbol: string;
-  price: string;
-  /** Right click in a study pane: the study title (the alert is on it, the
-   *  trading rows are the price pane's only). */
-  study?: string | null;
-  /** The alert row's label when it is the study's (studyAlertRow rules). */
-  alertLabel?: string;
-  drawingCount: number;
-  indicatorCount: number;
-  cursorLockByTime: boolean;
-  /** FALSE grays "Paste" (nothing on the drawings clipboard). */
-  canPaste: boolean;
-};
-type ChartMenuActions = {
-  resetView: () => void;
-  copyPrice: () => void;
-  paste: () => void;
-  addAlert: () => void;
-  buy: () => void;
-  sell: () => void;
-  addOrder: () => void;
-  toggleCursorLock: () => void;
-  tableView: () => void;
-  objectTree: () => void;
-  saveTemplateAs: () => void;
-  removeDrawings: () => void;
-  removeIndicators: () => void;
-  settings: () => void;
-};
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-/** Build the chart context-menu node list: static order/separators/
- *  shortcuts/icons; the price/symbol/counts are interpolated from the live
- *  chart. */
-function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[] {
-  const sym = ctx.symbol;
-  const p = ctx.price;
-  const nodes: CtxNode[] = [
-    { kind: "item", id: "reset", label: "Reset chart view", shortcut: "Alt + R", icon: CtxIcons.reset, onSelect: a.resetView },
-    { kind: "separator" },
-    { kind: "item", id: "copy-price", label: `Copy price ${p}`, onSelect: a.copyPrice },
-    { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !ctx.canPaste, onSelect: a.paste },
-    { kind: "separator" },
-    { kind: "item", id: "alert", label: ctx.alertLabel ?? `Add alert on ${ctx.study ?? sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert, onSelect: a.addAlert },
-    ...(ctx.study ? [] : [
-      { kind: "item", id: "buy", label: `Buy 1 ${sym} @ ${p} limit`, shortcut: "Alt + Shift + B", icon: CtxIcons.buy, onSelect: a.buy },
-      { kind: "item", id: "sell", label: `Sell 1 ${sym} @ ${p} stop`, icon: CtxIcons.sell, onSelect: a.sell },
-      { kind: "item", id: "order", label: `Add order on ${sym} at ${p}…`, shortcut: "Shift + T", icon: CtxIcons.order, onSelect: a.addOrder },
-    ] as CtxNode[]),
-    { kind: "separator" },
-    { kind: "item", id: "lock-cursor", label: "Lock vertical cursor line by time", checked: ctx.cursorLockByTime, onSelect: a.toggleCursorLock },
-    { kind: "separator" },
-    { kind: "item", id: "table-view", label: "Table view", onSelect: a.tableView },
-    { kind: "item", id: "object-tree", label: "Object tree", onSelect: a.objectTree },
-    // Chart template: "Save as…", then the saved chart templates (a row
-    // applies it to this chart, its trash removes it).
-    {
-      kind: "item", id: "chart-template", label: "Chart template",
-      submenu: [
-        { kind: "item", id: "template-save-as", label: "Save as…", onSelect: a.saveTemplateAs },
-        ...(chartTemplates().length ? [{ kind: "separator" } as CtxNode] : []),
-        ...chartTemplates().map((tpl): CtxNode => ({
-          kind: "item", id: `template:${tpl.name}`, label: tpl.name,
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-apply-template", { detail: { name: tpl.name } })),
-          onRemove: () => window.dispatchEvent(new CustomEvent("chart-remove-template", { detail: { name: tpl.name } })),
-        })),
-      ],
-    },
-  ];
-  const removeRows: CtxNode[] = [];
-  if (ctx.drawingCount > 0) removeRows.push({ kind: "item", id: "remove-drawings", label: `Remove ${plural(ctx.drawingCount, "drawing")}`, onSelect: a.removeDrawings });
-  if (ctx.indicatorCount > 0) removeRows.push({ kind: "item", id: "remove-indicators", label: `Remove ${plural(ctx.indicatorCount, "indicator")}`, onSelect: a.removeIndicators });
-  if (removeRows.length) nodes.push({ kind: "separator" }, ...removeRows);
-  nodes.push(
-    { kind: "separator" },
-    { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: a.settings },
-  );
-  return nodes;
-}
-
-/** Pane-control icons (15 px) and their menu icons (28 px). */
-const PANE_ICONS = {
-  close: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\"><path fill=\"currentColor\" d=\"M6.5 2a.5.5 0 0 0-.5.5V3h3v-.5a.5.5 0 0 0-.5-.5h-2ZM10 3h3v1h-1.05l-.86 8.65A1.5 1.5 0 0 1 9.59 14H5.4a1.5 1.5 0 0 1-1.49-1.35L3.05 4H2V3h3v-.5C5 1.67 5.67 1 6.5 1h2c.83 0 1.5.67 1.5 1.5V3ZM4.05 4l.86 8.55a.5.5 0 0 0 .5.45H9.6a.5.5 0 0 0 .5-.45L10.94 4h-6.9Z\"/></svg>",
-  up: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\"><path fill=\"currentColor\" d=\"M11.83 6.12l-.66.76L8 4.1V12H7V4.1L3.83 6.88l-.66-.76L7.5 2.34l4.33 3.78z\"/></svg>",
-  down: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\"><path fill=\"currentColor\" d=\"M11.83 8.88l-.66-.76L8 10.9V3H7v7.9L3.83 8.12l-.66.76 4.33 3.78 4.33-3.78z\"/></svg>",
-  more: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\"><circle fill=\"currentColor\" cx=\"12.75\" cy=\"7.5\" r=\"1.25\"/><circle fill=\"currentColor\" cx=\"7.5\" cy=\"7.5\" r=\"1.25\"/><circle fill=\"currentColor\" cx=\"2.25\" cy=\"7.5\" r=\"1.25\"/></svg>",
-  collapse: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\" fill=\"none\"><path stroke=\"currentColor\" d=\"M11 2 7.5 5 4 2\" class=\"bracket-up\"/><path stroke=\"currentColor\" d=\"M4 13l3.5-3 3.5 3\" class=\"bracket-down\"/></svg>",
-  restore: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 15 15\" width=\"15\" height=\"15\" fill=\"none\"><path stroke=\"currentColor\" d=\"m4 5 3.5-3L11 5\" class=\"bracket-up\"/><path stroke=\"currentColor\" d=\"M11 10l-3.5 3L4 10\" class=\"bracket-down\"/></svg>",
-};
-const PANE_MENU_ICONS = {
-  del: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 28 28\" width=\"28\" height=\"28\"><path fill=\"currentColor\" d=\"M18 7h5v1h-2.01l-1.33 14.64a1.5 1.5 0 0 1-1.5 1.36H9.84a1.5 1.5 0 0 1-1.49-1.36L7.01 8H5V7h5V6c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v1Zm-6-2a1 1 0 0 0-1 1v1h6V6a1 1 0 0 0-1-1h-4ZM8.02 8l1.32 14.54a.5.5 0 0 0 .5.46h8.33a.5.5 0 0 0 .5-.46L19.99 8H8.02Z\"/></svg>",
-  up: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 28 28\" width=\"28\" height=\"28\"><path fill=\"currentColor\" d=\"M13.5 6.35l6.32 5.27-.64.76L14 8.07V21h-1V8.07l-5.18 4.31-.64-.76 6.32-5.27z\"/></svg>",
-  down: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 28 28\" width=\"28\" height=\"28\"><path fill=\"currentColor\" d=\"M14 7v12.93l5.18-4.31.64.76-6.32 5.27-6.32-5.27.64-.76L13 19.93V7h1z\"/></svg>",
-  collapse: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 28 28\" width=\"28\" height=\"28\" fill=\"none\"><path stroke=\"currentColor\" d=\"M20.53 3.73 14 9.33 7.47 3.73M7.47 24.27l6.53 -5.60 6.53 5.60\"/></svg>",
-  restore: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 28 28\" width=\"28\" height=\"28\" fill=\"none\"><path stroke=\"currentColor\" d=\"m7.47 9.33 6.53 -5.60L20.53 9.33M20.53 18.67l-6.53 5.60L7.47 18.67\"/></svg>",
-};
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
 let paneSyncSeq = 0;
 
-export function ChartView(props: Props) {
+export function ChartView(props: ChartViewProps) {
   // This pane's committed appearance (Settings dialog draft → folded subset).
   // Compared BY VALUE: focusing a pane in a multi-chart layout replaces the
   // tabs() signal, handing this memo a new settings object with identical
@@ -611,6 +156,255 @@ export function ChartView(props: Props) {
   const currentTokens = () => readChartTokens(untrack(appearance));
   // Unique id for the layout-sync bus (crosshair / time / date-range mirroring).
   const paneId = ++paneSyncSeq;
+  // Shared context of this view's parts (view/*.ts): live accessors of the
+  // state below; each part adds its functions when it is created.
+  const cx = {
+    props,
+    paneId,
+    get activeType() {
+      return activeType;
+    },
+    set activeType(v: ChartCore["activeType"]) {
+      activeType = v;
+    },
+    get afterSeriesData() {
+      return afterSeriesData;
+    },
+    get appearance() {
+      return appearance;
+    },
+    get applyStrategyMarkers() {
+      return applyStrategyMarkers;
+    },
+    get barWrap() {
+      return barWrap;
+    },
+    set barWrap(v: ChartCore["barWrap"]) {
+      barWrap = v;
+    },
+    get chart() {
+      return chart;
+    },
+    set chart(v: ChartCore["chart"]) {
+      chart = v;
+    },
+    get chartReady() {
+      return chartReady;
+    },
+    get controller() {
+      return controller;
+    },
+    set controller(v: ChartCore["controller"]) {
+      controller = v;
+    },
+    get coords() {
+      return coords;
+    },
+    get countdown() {
+      return countdown;
+    },
+    get crosshairActive() {
+      return crosshairActive;
+    },
+    set crosshairActive(v: ChartCore["crosshairActive"]) {
+      crosshairActive = v;
+    },
+    get crosshairAt() {
+      return crosshairAt;
+    },
+    set crosshairAt(v: ChartCore["crosshairAt"]) {
+      crosshairAt = v;
+    },
+    get crosshairPrice() {
+      return crosshairPrice;
+    },
+    set crosshairPrice(v: ChartCore["crosshairPrice"]) {
+      crosshairPrice = v;
+    },
+    get ctxMenu() {
+      return ctxMenu;
+    },
+    get currentTokens() {
+      return currentTokens;
+    },
+    get dataExtras() {
+      return dataExtras;
+    },
+    get fullSymbol() {
+      return fullSymbol;
+    },
+    get gotoWrap() {
+      return gotoWrap;
+    },
+    set gotoWrap(v: ChartCore["gotoWrap"]) {
+      gotoWrap = v;
+    },
+    get hidden() {
+      return hidden;
+    },
+    get history() {
+      return history;
+    },
+    get historyEnd() {
+      return historyEnd;
+    },
+    get host() {
+      return host;
+    },
+    set host(v: ChartCore["host"]) {
+      host = v;
+    },
+    get hostH() {
+      return hostH;
+    },
+    set hostH(v: ChartCore["hostH"]) {
+      hostH = v;
+    },
+    get hostW() {
+      return hostW;
+    },
+    set hostW(v: ChartCore["hostW"]) {
+      hostW = v;
+    },
+    get hoveredStudy() {
+      return hoveredStudy;
+    },
+    set hoveredStudy(v: ChartCore["hoveredStudy"]) {
+      hoveredStudy = v;
+    },
+    get indLegend() {
+      return indLegend;
+    },
+    get lastLegendTime() {
+      return lastLegendTime;
+    },
+    set lastLegendTime(v: ChartCore["lastLegendTime"]) {
+      lastLegendTime = v;
+    },
+    get lockViews() {
+      return lockViews;
+    },
+    set lockViews(v: ChartCore["lockViews"]) {
+      lockViews = v;
+    },
+    get mainLastIndex() {
+      return mainLastIndex;
+    },
+    get mainPriceSource() {
+      return mainPriceSource;
+    },
+    get newsLollipop() {
+      return newsLollipop;
+    },
+    get onShownHooks() {
+      return onShownHooks;
+    },
+    get paneRoot() {
+      return paneRoot;
+    },
+    set paneRoot(v: ChartCore["paneRoot"]) {
+      paneRoot = v;
+    },
+    get pendingRangeSpan() {
+      return pendingRangeSpan;
+    },
+    set pendingRangeSpan(v: ChartCore["pendingRangeSpan"]) {
+      pendingRangeSpan = v;
+    },
+    get pointerOverHost() {
+      return pointerOverHost;
+    },
+    set pointerOverHost(v: ChartCore["pointerOverHost"]) {
+      pointerOverHost = v;
+    },
+    get prevDayClose() {
+      return prevDayClose;
+    },
+    set prevDayClose(v: ChartCore["prevDayClose"]) {
+      prevDayClose = v;
+    },
+    get raw() {
+      return raw;
+    },
+    set raw(v: ChartCore["raw"]) {
+      raw = v;
+    },
+    get rawDaily() {
+      return rawDaily;
+    },
+    set rawDaily(v: ChartCore["rawDaily"]) {
+      rawDaily = v;
+    },
+    get refreshIndicatorLegend() {
+      return refreshIndicatorLegend;
+    },
+    get refreshLegend() {
+      return refreshLegend;
+    },
+    get reloadTick() {
+      return reloadTick;
+    },
+    get removeStudy() {
+      return removeStudy;
+    },
+    get selectStudy() {
+      return selectStudy;
+    },
+    get selectedStudy() {
+      return selectedStudy;
+    },
+    get series() {
+      return series;
+    },
+    set series(v: ChartCore["series"]) {
+      series = v;
+    },
+    get seriesOnlyScale() {
+      return seriesOnlyScale;
+    },
+    get setCompareSettingsFor() {
+      return setCompareSettingsFor;
+    },
+    get setCtxMenu() {
+      return setCtxMenu;
+    },
+    get setDimmed() {
+      return setDimmed;
+    },
+    get setReloadTick() {
+      return setReloadTick;
+    },
+    get setSelectedStudy() {
+      return setSelectedStudy;
+    },
+    get setSettingsForId() {
+      return setSettingsForId;
+    },
+    get setSettingsTab() {
+      return setSettingsTab;
+    },
+    get studySelectionBg() {
+      return studySelectionBg;
+    },
+    get swapping() {
+      return swapping;
+    },
+    set swapping(v: ChartCore["swapping"]) {
+      swapping = v;
+    },
+    get syncLockPanes() {
+      return syncLockPanes;
+    },
+    get toggleSourceHidden() {
+      return toggleSourceHidden;
+    },
+    get updateSessionBreaks() {
+      return updateSessionBreaks;
+    },
+    get whenShown() {
+      return whenShown;
+    },
+  } as ChartCx;
   // The window-wide chart events (sync, link, go-to, keyboard actions) belong
   // to the shown tab: a hidden tab's pane ignores them. One wrapper per
   // handler, so add/removeEventListener get the same function.
@@ -621,9 +415,6 @@ export function ChartView(props: Props) {
   const hidden = () => props.shown === false;
   /** Work to redo when the tab is shown again (footprint cells, news). */
   const onShownHooks = new Set<() => void>();
-  /** Live bars merged while hidden and not drawn yet. */
-  let liveDirty = false;
-  let liveAppendedWhileHidden = false;
   const gatedHandlers = new Map<unknown, EventListener>();
   const whenShown = <T extends Event>(fn: (e: T) => void): EventListener => {
     let g = gatedHandlers.get(fn);
@@ -635,51 +426,6 @@ export function ChartView(props: Props) {
     }
     return g;
   };
-  // Suppress flags: set while APPLYING an inbound sync so the resulting
-  // crosshair / range event isn't re-broadcast (which would echo-loop).
-  let suppressCrosshairBroadcast = false;
-  let suppressRangeBroadcast = false;
-  // "Date range" sync rules: ONLY the active pane drives, it broadcasts only
-  // when a whole bar enters/leaves the view, and followers apply the LATEST
-  // target in a later task, loading any missing history to the target in one
-  // request first.
-  // Whole-bar key (first/last visible bar times) of the last broadcast.
-  let lastRangeKey = "";
-  // Latest inbound target; a newer one replaces it before it is applied.
-  let syncTarget: { from: number; to: number } | null = null;
-  let syncTimer: number | undefined;
-  // When the latest target arrived (history loads wait for a still driver).
-  let syncTargetAt = 0;
-  // True while the sync loader awaits its history request.
-  let syncLoading = false;
-  // Guard while an inbound range lands. The library applies setVisibleRange on
-  // its NEXT paint and fires the range-change callback there, so the guard is
-  // held for two frames: no broadcast, no persist, no scroll-back pager for a
-  // view the pane did not choose itself.
-  let syncGuard = false;
-  let syncGuardSeq = 0;
-  const holdSyncGuard = () => {
-    syncGuard = true;
-    const my = ++syncGuardSeq;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (my === syncGuardSeq) syncGuard = false;
-    }));
-  };
-  // Held for two frames after new data framed the view (load, tab switch,
-  // interval switch): that view is not a user change, so it is not sent to
-  // linked tabs (only the active chart's range changes are sent, and a tab
-  // switch reloads nothing).
-  let linkQuiet = false;
-  let linkQuietSeq = 0;
-  const holdLinkQuiet = () => {
-    linkQuiet = true;
-    const my = ++linkQuietSeq;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (my === linkQuietSeq) linkQuiet = false;
-    }));
-  };
-  // A linked time that arrived while this pane was loading its bars.
-  let pendingLinkTime: number | null = null;
   // True only while the OS pointer is physically over THIS pane's canvas. A
   // hover-driven crosshair move (the only kind that should broadcast to synced
   // siblings) always has the pointer here; a crosshair set programmatically by
@@ -739,19 +485,6 @@ export function ChartView(props: Props) {
       lockPanes.set(pane, prim);
     }
   }
-  // "High and low" price lines (Scales tab) over the LOADED data's extremes.
-  // Series-owned, so a series rebuild drops them; refs + the memo key reset there.
-  let highLine: IPriceLine | null = null;
-  let lowLine: IPriceLine | null = null;
-  let highLowKey = "";
-  // "Previous day close" price line (Scales tab) at the last bar's previous
-  // trading-day close. Same series-owned lifecycle as high/low above.
-  let prevClosePriceLine: IPriceLine | null = null;
-  let prevCloseKey = "";
-  // "Pre/post/night market" price line + label (Scales tab). Same
-  // series-owned lifecycle.
-  let prePostLine: IPriceLine | null = null;
-  let prePostKey = "";
   let raw: OHLC[] = [];
   // Lets markers fall back to gap-aware positioning when a date isn't on a bar.
   eventMarkers.setBarsAccessor(() => raw);
@@ -766,26 +499,8 @@ export function ChartView(props: Props) {
    *  the *full* set on scroll-back so a boundary week/month never mis-buckets;
    *  empty for second/minute frames. */
   let rawDaily: Candle[] = [];
-  /** Scroll-back paging guards — block overlapping fetches and latch once the
-   *  backend reports no older bars. Reset on symbol/interval change. */
-  let loadingMore = false;
-  let historyExhausted = false;
   /** End-of-history icon left of the first bar, once history is exhausted. */
   const historyEnd = new HistoryEndPrimitive();
-  let historyEndClose: (() => void) | null = null;
-  /** Read-ahead buffer: the window older than the current oldest bar, fetched in
-   *  the background after each load (and once after the initial load) so the
-   *  next scroll-back prepends instantly instead of waiting on the network.
-   *  Keyed by the fetch generation + the `beforeSec` it pages before, so a stale
-   *  buffer is never consumed; holds the in-flight/resolved promise so the
-   *  consumer awaits the same way whether it has landed yet or not. */
-  let prefetch: { gen: number; beforeSec: number; rows: Promise<Candle[] | null> } | null = null;
-  /** Monotonic fetch generation, bumped on every symbol/interval change. A page
-   *  captures it at launch and bails in its `.then` if it moved — so a page
-   *  started for an earlier series can never prepend/re-range a later one (an
-   *  A→B→A switch re-matches the symbol, which is why an equality check wasn't
-   *  enough and the chart could park on year-old bars). */
-  let fetchGen = 0;
   let activeType: ChartTypeId = props.chartType ?? "candle";
   // Type the current `series` was built with (rebuildSeries compares it with
   // the new type to choose how the view carries over).
@@ -811,13 +526,6 @@ export function ChartView(props: Props) {
     }
     return futureValue;
   }
-  // 1-minute sub-bars feeding the volume-footprint cells (fetched on demand
-  // when that type is active on an intraday frame; null otherwise).
-  let subMinute: OHLC[] | null = null;
-  /** 1W/1M live-volume baseline: the forming bar's cumulative volume BEFORE the
-   *  current trading day's ticks (the tick's day volume is added on top). Reset
-   *  when the tick's day advances, the bar rolls over, or the series reloads. */
-  let liveVolBase: { barTime: number; dayTime: number; base: number } | null = null;
   /** Coords bridge for the SVG overlay; refreshed on every rebuild. */
   const [coords, setCoords] = createSignal<Coords | null>(null);
   /** Bumped on visible-range changes so the overlay re-projects drawings. */
@@ -857,24 +565,6 @@ export function ChartView(props: Props) {
     refreshScaleOverlays();
     refreshPaneBoxes();
   });
-  /** Locked ratio, other direction: a price-scale change (axis drag, pane
-   *  resize) sets the bar spacing that keeps the ratio
-   *  (spacing = height ÷ range × ratio). */
-  function lockedSpacingFromScale() {
-    const t = currentTokens();
-    if (!t.lockRatio || !chart || !series || lockApplying) return;
-    const ratio = t.lockRatioValue;
-    const r = series.priceScale().getVisibleRange();
-    const h = chart.paneSize(0).height;
-    if (!(ratio !== undefined && ratio > 0) || !r || !(h > 0)) return;
-    const len = Math.abs(r.to - r.from);
-    if (!(len > 0)) return;
-    const want = (h / len) * ratio;
-    const cur = liveScaleRatio();
-    if (cur !== undefined && Math.abs(cur - ratio) <= ratio * 1e-6) return;
-    lockApplying = true;
-    try { chart.timeScale().applyOptions({ barSpacing: want }); } finally { lockApplying = false; }
-  }
   /** Top-left data-window legend (O/H/L/C + change). Null while loading. */
   const [legend, setLegend] = createSignal<LegendValues | null>(null);
   /** TRUE while the crosshair is over a bar, so the live-tick path knows not to
@@ -1013,731 +703,30 @@ export function ChartView(props: Props) {
 
   // Right-click context menu: open position + resolved node list (null = closed).
   // `corner`: the price-scale menu of the axis corner button (opened above it).
-  const [ctxMenu, setCtxMenu] = createSignal<{ x: number; y: number; nodes: CtxNode[]; endX?: boolean; endY?: boolean; corner?: boolean } | null>(null);
+  const [ctxMenu, setCtxMenu] = createSignal<ChartMenuState | null>(null);
 
-  // Control bars (see control-bar.ts + the onMount block). `gotoShown` is the
-  // back button's visibility, `barShown` the control bar's; the boxes
-  // are the wrappers' pane-relative anchors, recomputed as panes/scales move.
-  const [gotoShown, setGotoShown] = createSignal(false);
-  const [gotoBox, setGotoBox] = createSignal({ bottom: 32, right: 16 });
-  const [barShown, setBarShown] = createSignal(false);
-  const [barLeft, setBarLeft] = createSignal(0);
-  const [barFits, setBarFits] = createSignal<Set<GroupId>>(new Set());
-  const [resetAvailable, setResetAvailable] = createSignal(false);
-  /** Set by onMount so the actions below can re-resolve bar visibility. */
-  let refreshBarsRef: (() => void) | undefined;
+  const {
+    applyRangeSpan,
+    barFits,
+    barLeft,
+    barShown,
+    gotoBox,
+    gotoShown,
+    installControlBars,
+    moveBars,
+    resetAvailable,
+    resetChartView,
+    scrollToRealtime,
+    stopScroll,
+    zoomSpan,
+  } = attach(cx, createNavigation(cx));
 
-  /** Right-edge-anchored zoom, in bar-spacing terms: holds `rightOffset` and
-   *  scales the span, so `span` is the reciprocal of the bar-spacing factor. */
-  let zoomAnim: number | null = null;
-  const zoomSpan = (factor: number) => {
-    if (!chart) return;
-    const ts = chart.timeScale();
-    const r = ts.getVisibleLogicalRange();
-    if (!r) return;
-    const span0 = r.to - r.from;
-    if (span0 <= 0) return;
-    if (zoomAnim !== null) cancelAnimationFrame(zoomAnim);
-    const started = performance.now();
-    const step = (now: number) => {
-      const k = Math.min(1, (now - started) / ZOOM_MS);
-      // Progress is linear in log(barSpacing) — the pinch compounds, so the
-      // eased fraction is an exponent, not a lerp.
-      const span = span0 * Math.pow(factor, easeOutCubic(k));
-      const cur = chart?.timeScale().getVisibleLogicalRange();
-      if (cur) chart!.timeScale().setVisibleLogicalRange({ from: cur.to - Math.max(5, span), to: cur.to });
-      zoomAnim = k < 1 ? requestAnimationFrame(step) : null;
-    };
-    zoomAnim = requestAnimationFrame(step);
-  };
-
-  /** Animate the view back to the last bar: 1s of easeInOutQuint onto the
-   *  configured right margin. Falls back to 10 bars when that margin is
-   *  negative. */
-  let gotoAnim: number | null = null;
-  const scrollToRealtime = () => {
-    if (!chart) return;
-    const ts = chart.timeScale();
-    let target = currentTokens().rightOffset;
-    if (target < 0) target = 10;
-    const from = ts.scrollPosition();
-    if (gotoAnim !== null) cancelAnimationFrame(gotoAnim);
-    const started = performance.now();
-    const step = (now: number) => {
-      const k = Math.min(1, (now - started) / GOTO_MS);
-      ts.scrollToPosition(from + (target - from) * easeInOutQuint(k), false);
-      gotoAnim = k < 1 ? requestAnimationFrame(step) : null;
-    };
-    gotoAnim = requestAnimationFrame(step);
-  };
-
-  // ── Held scrolling ─────────────────────────────────────────────────────────
-  // Both scroll gestures run through one move implementation with a single
-  // animation slot, so starting either replaces the other and one `stopMove`
-  // ends whichever is live — via that run's OWN stop rule (immediate for
-  // moveByBar, a deceleration ramp for move). Same shape here.
-  //
-  // `position(elapsed, remaining)` returns signed BARS from the start offset;
-  // `remaining` is Infinity until stopped, which is what lets `move` coast.
-  let scrollAnim: number | null = null;
-  let scrollStarted = 0;
-  let scrollEnd = Infinity;
-  let scrollStopAfter: (elapsed: number) => number = () => 0;
-
-  const runScroll = (
-    position: (elapsed: number, remaining: number) => number,
-    stopAfter: (elapsed: number) => number,
-    snapToBar: boolean,
-  ) => {
-    if (!chart) return;
-    const ts = chart.timeScale();
-    if (scrollAnim !== null) cancelAnimationFrame(scrollAnim);
-    const from = snapToBar ? Math.round(ts.scrollPosition()) : ts.scrollPosition();
-    scrollStarted = performance.now();
-    scrollEnd = Infinity;
-    scrollStopAfter = stopAfter;
-    const step = (now: number) => {
-      const at = Math.min(scrollEnd, now);
-      ts.scrollToPosition(from + position(at - scrollStarted, scrollEnd - at), false);
-      if (now >= scrollEnd) {
-        scrollAnim = null;
-        refreshBarsRef?.();
-        return;
-      }
-      scrollAnim = requestAnimationFrame(step);
-    };
-    scrollAnim = requestAnimationFrame(step);
-  };
-
-  /** Stop move: end the live run on its own terms. */
-  const stopScroll = () => {
-    if (scrollAnim === null) return;
-    scrollEnd = performance.now() + scrollStopAfter(performance.now() - scrollStarted);
-  };
-
-  /** Move by bar — plain ←/→ and the control bar's scroll buttons. Holds at
-   *  one bar for the first 300ms, then adds another every 100ms. Stops dead on
-   *  release. `dir` -1 walks into history ("Scroll to the left"). It snaps
-   *  to a whole bar first when the last bar isn't flush with the edge. */
-  const moveBars = (dir: -1 | 1) =>
-    runScroll((elapsed) => dir * (Math.floor(Math.max(0, elapsed - 300) / 100) + 1), () => 0, true);
-
-  /** Move — held Ctrl+←/→. Accelerates to a top speed and coasts; releasing
-   *  ramps back to zero rather than cutting out. The move is measured in
-   *  pixels, so bar spacing (fixed for the run) converts. */
-  const startPan = (dir: -1 | 1) => {
-    if (!chart) return;
-    const bs = liveBarSpacing(chart);
-    if (!bs) return;
-    runScroll((elapsed, remaining) => dir * (movePixels(elapsed, remaining) / bs), moveEndAfterStop, false);
-  };
-
-  /** Scroll to first bar. History is paged in, so this jumps to the oldest bar
-   *  loaded and lets maybeLoadOlder pull the next page — repeat presses keep
-   *  walking back. Not animated. */
-  const scrollToFirstBar = () => {
-    if (!chart || raw.length === 0) return;
-    const ts = chart.timeScale();
-    const r = ts.getVisibleLogicalRange();
-    if (!r) return;
-    ts.setVisibleLogicalRange({ from: 0, to: r.to - r.from });
-  };
-
-  /** Reset scales (the Alt+R / context-menu / control-bar action):
-   *  default bar spacing, default right margin, price scale back to auto.
-   *
-   *  Bar spacing and right offset are driven through the visible range, not
-   *  `applyOptions`: the library only reacts to options that *changed*, and both
-   *  already hold their default values (zooming moves internal state, not the
-   *  option), so re-applying them would silently do nothing. Span and edge set
-   *  the same two quantities and always land. */
-  /** Reset time scale (Ctrl+Alt+Q): default bar spacing + right offset,
-   *  price scale untouched. */
-  const resetTimeScale = () => {
-    if (!chart) return;
-    if (zoomAnim !== null) cancelAnimationFrame(zoomAnim);
-    if (gotoAnim !== null) cancelAnimationFrame(gotoAnim);
-    if (scrollAnim !== null) {
-      cancelAnimationFrame(scrollAnim);
-      scrollAnim = null;
-    }
-    const t = currentTokens();
-    const ts = chart.timeScale();
-    const last = mainLastIndex();
-    if (last != null) {
-      const span = barsSpan(ts.width(), DEFAULT_BAR_SPACING);
-      const to = last + t.rightOffset;
-      ts.setVisibleLogicalRange({ from: to - span, to });
-    }
-  };
-  /** "Reset chart view" (Alt+R): time scale + price auto-scale. */
-  const resetChartView = () => {
-    if (!chart) return;
-    resetTimeScale();
-    chart.priceScale(currentTokens().scalesPlacement).applyOptions({ autoScale: true });
-    refreshBarsRef?.();
-  };
-
-  /** Reset available: true when bar spacing, right offset OR price
-   *  auto-scale is off default — that's exactly when the reset button shows. */
-  const scalesOffDefault = () => {
-    if (!chart) return false;
-    if (timeScaleOffDefault()) return true;
-    return !chart.priceScale(currentTokens().scalesPlacement).options().autoScale;
-  };
-  /** Time-scale reset available: bar spacing or right offset off default. */
-  const timeScaleOffDefault = () => {
-    if (!chart) return false;
-    const bs = liveBarSpacing(chart);
-    // Derived from width/span, so sub-pixel drift is expected; 0.05px of bar
-    // spacing is far below anything a user could set deliberately.
-    if (bs !== null && Math.abs(bs - DEFAULT_BAR_SPACING) > 0.05) return true;
-    return Math.abs(chart.timeScale().scrollPosition() - currentTokens().rightOffset) > 0.01;
-  };
-
-  onCleanup(() => {
-    if (gotoAnim !== null) cancelAnimationFrame(gotoAnim);
-    if (zoomAnim !== null) cancelAnimationFrame(zoomAnim);
-    if (scrollAnim !== null) cancelAnimationFrame(scrollAnim);
-  });
-
-  /** Right-click on the PRICE AXIS → the price-scale menu (Auto, Lock ratio,
-   *  Scale price chart only, Invert, the four mode radios, Move scale,
-   *  Labels/Lines submenus, Plus button, Session on intraday, More
-   *  settings…). Rows we have no surface for (bid-ask
-   *  labels+lines, no-overlapping-labels) are omitted. */
-  function openPriceScaleMenu(e: MouseEvent, corner?: DOMRect) {
-    if (!chart) return;
-    const t = currentTokens();
-    // The axis of a study pane: its items act on that pane's own scale (the
-    // study's), and "Lock price to bar ratio" is the main axis' only. The
-    // axis corner button acts on the main pane's scale.
-    const yRel = host ? e.clientY - host.getBoundingClientRect().top : 0;
-    const paneIdx = corner ? 0 : paneAtY(yRel) ?? 0;
-    const owner = paneIdx > 0 ? controller?.ownerOfPane(paneIdx) ?? null : null;
-    const studySeries = owner ? controller?.studySeries(owner) ?? null : null;
-    const ps = studySeries ? studySeries.priceScale() : chart.priceScale(t.scalesPlacement);
-    const cur = ps.options();
-    const setMode = (mode: PriceScaleMode) => () => ps.applyOptions({ mode });
-    const patch = (p: Record<string, unknown>) =>
-      window.dispatchEvent(new CustomEvent("chart-patch-scale-settings", { detail: { patch: p } }));
-    // Ratio: bar spacing × price range ÷ pane height.
-    const ratio = liveScaleRatio() ?? null;
-    const nodes: CtxNode[] = [
-      { kind: "item", id: "auto", label: "Auto (fits data to screen)", checked: cur.autoScale,
-        onSelect: () => ps.applyOptions({ autoScale: !cur.autoScale }) },
-      // Locking stores the current ratio in the Scales row (the lock keeps
-      // the ratio in effect when it is turned on).
-      ...(studySeries ? [] : [{ kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
-        // Shown with 4 decimals, on a regular scale only.
-        shortcut: ratio != null && cur.mode === PriceScaleMode.Normal
-          ? ratio.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })
-          : undefined,
-        onSelect: () => patch(t.lockRatio ? { lockRatio: false } : { lockRatio: true, lockRatioValue: ratio ?? undefined }) } as CtxNode]),
-      // Auto-scale of the main series' scale on the series alone (chart
-      // setting, saved like the lock ratio).
-      { kind: "item", id: "series-only", label: "Scale price chart only",
-        checked: t.scaleSeriesOnly, onSelect: () => patch({ scaleSeriesOnly: !t.scaleSeriesOnly }) },
-      { kind: "item", id: "invert", label: "Invert scale", shortcut: "Alt + I",
-        checked: cur.invertScale, onSelect: () => ps.applyOptions({ invertScale: !cur.invertScale }) },
-      { kind: "separator" },
-      { kind: "item", id: "mode-regular", label: "Regular",
-        checked: cur.mode === PriceScaleMode.Normal, onSelect: setMode(PriceScaleMode.Normal) },
-      { kind: "item", id: "mode-percent", label: "Percent", shortcut: "Alt + P",
-        checked: cur.mode === PriceScaleMode.Percentage, onSelect: setMode(PriceScaleMode.Percentage) },
-      { kind: "item", id: "mode-indexed", label: "Indexed to 100",
-        checked: cur.mode === PriceScaleMode.IndexedTo100, onSelect: setMode(PriceScaleMode.IndexedTo100) },
-      { kind: "item", id: "mode-log", label: "Logarithmic", shortcut: "Alt + L",
-        checked: cur.mode === PriceScaleMode.Logarithmic, onSelect: setMode(PriceScaleMode.Logarithmic) },
-      { kind: "separator" },
-      { kind: "item", id: "move-scale",
-        label: t.scalesPlacement === "right" ? "Move scale to left" : "Move scale to right",
-        onSelect: () => patch({ scalesPlacement: t.scalesPlacement === "right" ? "left" : "right" }) },
-      { kind: "separator" },
-      { kind: "item", id: "labels", label: "Labels", submenu: [
-        { kind: "item", id: "lbl-symname", label: "Symbol name label",
-          checked: t.symbolNameLabel, onSelect: () => patch({ symbolNameLabel: !t.symbolNameLabel }) },
-        { kind: "item", id: "lbl-symbol", label: "Symbol last price label",
-          checked: t.symbolLastValue, onSelect: () => patch({ symbolLastValue: !t.symbolLastValue }) },
-        { kind: "item", id: "lbl-prevclose", label: "Previous day close price label",
-          checked: t.prevCloseLabel, onSelect: () => patch({ prevCloseLabel: !t.prevCloseLabel }) },
-        { kind: "item", id: "lbl-prepost", label: "Pre/post market price label",
-          checked: t.prePostLabel, onSelect: () => patch({ prePostLabel: !t.prePostLabel }) },
-        { kind: "item", id: "lbl-hilo", label: "High and low price labels",
-          checked: t.highLowLabels, onSelect: () => patch({ highLowLabels: !t.highLowLabels }) },
-        { kind: "item", id: "lbl-ind", label: "Indicators and financials value labels",
-          checked: t.indLastValue, onSelect: () => patch({ indLastValue: !t.indLastValue }) },
-        { kind: "item", id: "lbl-ind-name", label: "Indicators and financials name labels",
-          checked: t.indNameLabel, onSelect: () => patch({ indNameLabel: !t.indNameLabel }) },
-        { kind: "item", id: "lbl-countdown", label: "Countdown to bar close",
-          checked: t.countdownVisible, onSelect: () => patch({ countdown: !t.countdownVisible }) },
-      ] },
-      { kind: "item", id: "lines", label: "Lines", submenu: [
-        { kind: "item", id: "line-price", label: "Price line",
-          checked: t.symbolPriceLine, onSelect: () => patch({ symbolPriceLine: !t.symbolPriceLine }) },
-        { kind: "item", id: "line-prevclose", label: "Previous day close price line",
-          checked: t.prevCloseLine, onSelect: () => patch({ prevCloseLine: !t.prevCloseLine }) },
-        { kind: "item", id: "line-prepost", label: "Pre/post market price line",
-          checked: t.prePostLine, onSelect: () => patch({ prePostLine: !t.prePostLine }) },
-        { kind: "item", id: "line-hilo", label: "High and low price lines",
-          checked: t.highLowLines, onSelect: () => patch({ highLowLines: !t.highLowLines }) },
-      ] },
-      { kind: "item", id: "plus-button", label: "Plus button", checked: t.plusButton,
-        onSelect: () => patch({ plusButton: !t.plusButton }) },
-    ];
-    if (isIntradayInterval(props.interval ?? "1D")) {
-      nodes.push({ kind: "separator" });
-      nodes.push({ kind: "item", id: "session", label: "Session", submenu: [
-        { kind: "item", id: "session-rth", label: "Regular", checked: (props.session ?? "RTH") === "RTH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "RTH" } })) },
-        { kind: "item", id: "session-eth", label: "Extended", checked: props.session === "ETH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "ETH" } })) },
-      ] });
-    }
-    nodes.push({ kind: "separator" });
-    nodes.push(moreScaleSettingsNode());
-    // Corner button: the menu opens above the button, flush with its outer
-    // edge (right edge on a right scale, left edge on a left one).
-    if (corner) {
-      const left = t.scalesPlacement === "left";
-      setCtxMenu({ x: left ? corner.left : corner.right, y: corner.top, endX: !left, endY: true, corner: true, nodes });
-      return;
-    }
-    setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
-  }
-
-  /** Scale properties action (both axis menus): Settings on the Scales tab. */
-  const moreScaleSettingsNode = (): CtxNode => ({
-    kind: "item", id: "more-settings", label: "More settings…", icon: CtxIcons.settings,
-    onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings", { detail: { tab: "scales" } })),
-  });
-
-  /** Right-click on the TIME AXIS → the time-axis menu: "Reset time scale" +
-   *  separator only when the time scale is off default, "Time zone"
-   *  submenu (the bottom-bar list), "Session breaks" (checkable, disabled on
-   *  D/W/M), "Session" submenu on intraday, separator, "More settings…". */
-  function openTimeScaleMenu(e: MouseEvent) {
-    const t = currentTokens();
-    const intraday = isIntradayInterval(props.interval ?? "1D");
-    const tzLabel = props.timeZoneLabel ?? "Exchange";
-    const nodes: CtxNode[] = [];
-    if (timeScaleOffDefault()) {
-      nodes.push({ kind: "item", id: "reset-time-scale", label: "Reset time scale", shortcut: "Ctrl + Alt + Q",
-        icon: CtxIcons.reset, onSelect: () => resetTimeScale() });
-      nodes.push({ kind: "separator" });
-    }
-    nodes.push({ kind: "item", id: "time-zone", label: "Time zone", submenu: TIMEZONES.map((z) => ({
-      kind: "item" as const, id: `tz-${z.label}`, label: z.label, checked: z.label === tzLabel,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-timezone", { detail: { label: z.label } })),
-    })) });
-    nodes.push({ kind: "item", id: "session-breaks", label: "Session breaks", checked: t.sessionBreaksVisible,
-      disabled: !intraday,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-patch-scale-settings",
-        { detail: { patch: { sessionBreaks: !t.sessionBreaksVisible } } })) });
-    if (intraday) {
-      nodes.push({ kind: "item", id: "session", label: "Session", submenu: [
-        { kind: "item", id: "session-rth", label: "Regular", checked: (props.session ?? "RTH") === "RTH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "RTH" } })) },
-        { kind: "item", id: "session-eth", label: "Extended", checked: props.session === "ETH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "ETH" } })) },
-      ] });
-    }
-    nodes.push({ kind: "separator" });
-    nodes.push(moreScaleSettingsNode());
-    setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
-  }
-
-  /** Price text of the chart menus (same decimals as "Copy price"). */
-  const menuPrice = (v: number) => {
-    const a = Math.abs(v);
-    return v.toFixed(a >= 1 ? 2 : a >= 0.01 ? 4 : 6);
-  };
-
-  /** Legend series "More" → the series actions menu, opened under the button
-   *  (button left, bottom + 3). No cursor price here, so the prices are the
-   *  last close. Rows with no OT
-   *  feature are left out: Add order, Add financial metric, Symbol info,
-   *  Metrics, Table view, Visual order, Move to, Pin to scale, Add text note. */
-  function openSeriesMoreMenu(anchor: DOMRect) {
-    const full = props.symbol ?? "";
-    const sym = splitSymbol(full).ticker;
-    const last = raw.length ? raw[raw.length - 1].close : null;
-    const p = last == null ? "—" : menuPrice(last);
-    const hidden = !!props.seriesHidden;
-    const row = { ticker: full, short: full.split(":").pop() || full, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null };
-    // Watchlist submenu: the active list first (Alt + W),
-    // then the other lists by name; a row adds or removes the symbol and the
-    // menu stays open; separator; "Create new list…".
-    const activeId = watchlistStore.activeId();
-    const offered = watchlistStore.shownLists().filter((l) => !isDeletedList(l.id));
-    const lists = [
-      ...offered.filter((l) => l.id === activeId),
-      ...offered.filter((l) => l.id !== activeId)
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
-    ];
-    const listRows: CtxNode[] = lists.map((l) => ({
-      kind: "item" as const, id: `wl-${l.id}`, label: l.name,
-      shortcut: l.id === activeId ? "Alt + W" : undefined,
-      checked: () => watchlistStore.listHas(l.id, full),
-      keepOpen: true,
-      onSelect: () => {
-        if (watchlistStore.listHas(l.id, full)) watchlistStore.removeRowFrom(l.id, full);
-        else if (l.id === activeId) watchlistStore.addSymbols([row], null);
-        else watchlistStore.addRowTo(l.id, row);
-      },
-    }));
-    const nodes: CtxNode[] = [
-      { kind: "item", id: "alert", label: `Add alert on ${sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: full, price: last ?? undefined } })) },
-      { kind: "item", id: "add-indicator", label: `Add indicator/strategy on ${sym}…`, icon: CtxIcons.addIndicator,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-indicators")) },
-      { kind: "separator" },
-      { kind: "item", id: "copy-price", label: `Copy price ${p}`,
-        onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
-      { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !hasClipboardDrawing(),
-        onSelect: () => {
-          const nd = pasteAsNew();
-          if (!nd) return;
-          const id = props.onPlace?.(nd);
-          if (id) props.setSelectedDrawingId?.(id);
-        } },
-      { kind: "separator" },
-      { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide,
-        onSelect: () => props.onToggleSeries?.() },
-      { kind: "separator" },
-      { kind: "item", id: "watchlist", label: `Add ${sym} to watchlist`, submenu: [
-        ...listRows,
-        { kind: "separator" },
-        { kind: "item", id: "wl-create", label: "Create new list…", onSelect: () => promptNewWatchlist((name) => watchlistStore.createListWith(row, name)) },
-      ] },
-      { kind: "separator" },
-      { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings")) },
-    ];
-    setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
-  }
-
-  /** Legend study "More" → the study actions menu.
-   *  Rows with no OT feature are left out: Add indicator/strategy on the
-   *  study, Add this indicator to entire layout, Visual order, Visibility on
-   *  intervals, Move to, Pin to scale, Copy. */
-  function openIndicatorMoreMenu(id: string, anchor: DOMRect) {
-    const nodes = studyMenuNodes(id);
-    if (nodes) setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
-  }
-
-  // ── Alerts on the chart's sources (menus) ──────────────────────────────
-  // Reference rules: the "+" menu lists one row per visible source on the
-  // scale of its side in the pane under the pointer (main series first, a
-  // source on a percent / indexed scale has none), labelled "Add alert on
-  // <short title> at <price at the pointer>" (a source without plots, e.g. a
-  // strategy: "Add alert on <title>"). The study menu (legend More, right
-  // click on a plot) starts with "Add alert on <title> at <price>…": the
-  // price at the pointer, else the study's last value; no price for a
-  // strategy or a study with conditions / alert() calls (the dialog opens on
-  // them). Every row opens the alert dialog on that source at the price.
-
-  /** A study the alert dialog takes as a source: it has plots, declares conditions or calls alert(). */
-  function studyAlertable(id: string, row?: IndicatorLegendRow): boolean {
-    const entry = getIndicatorEntry(id);
-    if (!entry) return false;
-    return (entry.plotConfig?.length ?? 0) > 0 || studyConditions(entry, row?.inputValues).length > 0 || hasAlertFunction(entry);
-  }
-  /** Price rounded to what its formatter shows (the alert value). */
-  function roundedPrice(p: number, format: (n: number) => string): number {
-    const n = Number(format(p).replace(/−/g, "-").replace(/[^0-9.eE+-]/g, ""));
-    return Number.isFinite(n) ? n : p;
-  }
-  /** Price of a study at `y` (pixels from the top of its pane) on its own scale. */
-  function studyPriceAt(id: string, y: number): number | null {
-    const s = controller?.studySeries(id);
-    const p = s ? s.coordinateToPrice(y) : null;
-    return p == null ? null : (p as number);
-  }
-  /** Status-line title of a study for the study menu: with its inputs when the legend shows them. */
-  function studyMenuTitle(row: IndicatorLegendRow): string {
-    const { name, inputs } = splitTitle(row.title);
-    if (!(appearance().legendIndInputs ?? true) || !row.showInputs) return name;
-    if (inputs) return `${name} ${inputs}`;
-    const entry = getIndicatorEntry(row.id);
-    const list = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ") : "";
-    return list ? `${name} (${list})` : name;
-  }
-  /** "Add alert on <study>…" row of the study menu; `price` = at the pointer (right click), else its last value. */
-  function studyAlertRow(id: string, price?: number | null): Extract<CtxNode, { kind: "item" }> | null {
-    const row = (controller?.getLegend() ?? []).find((r) => r.id === id);
-    if (!row || !studyAlertable(id, row)) return null;
-    const entry = getIndicatorEntry(id);
-    const fmt = controller?.studySeries(id)?.priceFormatter();
-    let value = price ?? null;
-    if (value == null) {
-      const plot = row.plots.find((p) => p.index === 0 && Number.isFinite(p.value)) ?? row.plots.find((p) => Number.isFinite(p.value));
-      value = plot && typeof plot.value === "number" ? plot.value : null;
-    }
-    if (value != null && fmt) value = roundedPrice(value, (n) => fmt.format(n));
-    const plain = !isStrategyId(id) && !hasAlertFunction(entry) && studyConditions(entry, row.inputValues).length === 0;
-    const title = studyMenuTitle(row);
-    const label = value != null && plain && fmt ? `Add alert on ${title} at ${fmt.format(value)}…` : `Add alert on ${title}…`;
-    return {
-      kind: "item", id: "alert", label, shortcut: "Alt + A", icon: CtxIcons.alert,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", {
-        detail: { symbol: props.symbol ?? "", price: value ?? undefined, indicatorId: id },
-      })),
-    };
-  }
-  /** The "+" menu's alert rows for pane `paneIdx` at `y` (pixels from the pane top), main series first. */
-  function plusAlertRows(paneIdx: number, y: number): CtxNode[] {
-    const out: CtxNode[] = [];
-    const side = currentTokens().scalesPlacement;
-    const plainScale = (mode: PriceScaleMode | undefined) => mode !== PriceScaleMode.Percentage && mode !== PriceScaleMode.IndexedTo100;
-    const row = (id: string, label: string, detail: Record<string, unknown>): CtxNode => ({
-      kind: "item", id: `plus-alert-${id}`, label, shortcut: "Alt + A", icon: CtxIcons.alert,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail })),
-    });
-    if (paneIdx === 0 && series && !props.seriesHidden && plainScale(series.priceScale().options().mode)) {
-      const p = series.coordinateToPrice(y);
-      if (p != null) {
-        const fmt = series.priceFormatter();
-        const v = roundedPrice(p as number, (n) => fmt.format(n));
-        out.push(row(MAIN_SOURCE_ID, `Add alert on ${splitSymbol(props.symbol ?? "").ticker} at ${fmt.format(v)}`, { symbol: props.symbol ?? "", price: v }));
-      }
-    }
-    for (const r of controller?.getLegend() ?? []) {
-      if (r.hidden || !studyAlertable(r.id, r)) continue;
-      const s = controller?.studySeries(r.id);
-      // No scale id = the chart's visible default scale (the side one).
-      if (!s || s.getPane().paneIndex() !== paneIdx || (s.options().priceScaleId || side) !== side) continue;
-      if (!plainScale(s.priceScale().options().mode)) continue;
-      const p = s.coordinateToPrice(y);
-      if (p == null) continue;
-      const fmt = s.priceFormatter();
-      const v = roundedPrice(p as number, (n) => fmt.format(n));
-      const name = splitTitle(r.title).name;
-      // Price in the label for a study with plots (not a strategy).
-      const usual = !isStrategyId(r.id) && (getIndicatorEntry(r.id)?.plotConfig?.length ?? 0) > 0;
-      out.push(row(r.id, usual ? `Add alert on ${name} at ${fmt.format(v)}` : `Add alert on ${name}`,
-        { symbol: props.symbol ?? "", price: v, indicatorId: r.id }));
-    }
-    return out;
-  }
-
-  /** A study's actions menu (legend "More", right click on its drawing); null when it is not in the legend.
-   *  `price`: the price at the pointer for its alert row (right click), else its last value. */
-  function studyMenuNodes(id: string, price?: number | null): CtxNode[] | null {
-    const row = indLegend().find((r) => r.id === id);
-    if (!row) return null;
-    const nodes: CtxNode[] = [];
-    const alert = studyAlertRow(id, price);
-    if (alert) nodes.push(alert);
-    // No favorites row for studies that cannot be starred (compare/overlay).
-    if (getIndicatorEntry(id)) {
-      const fav = isFavoriteIndicator(typeIdOf(id));
-      nodes.push(
-        { kind: "item", id: "favorite", label: fav ? "Remove this indicator from favorites" : "Add this indicator to favorites",
-          icon: CtxIcons.favorite, onSelect: () => toggleFavoriteIndicator(typeIdOf(id)) },
-        { kind: "separator" },
-      );
-    } else if (alert) nodes.push({ kind: "separator" });
-    nodes.push(
-      { kind: "item", id: "hide", label: row.eyeHidden ? "Show" : "Hide", icon: row.eyeHidden ? CtxIcons.show : CtxIcons.hide,
-        onSelect: () => toggleSourceHidden(id) },
-      { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
-        onSelect: () => props.onRemoveIndicator?.(id) },
-      { kind: "separator" },
-      { kind: "item", id: "object-tree", label: "Object tree",
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id: "object_tree" } })) },
-      { kind: "separator" },
-      { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setSettingsForId(id) },
-    );
-    return nodes;
-  }
-
-  /** Right click on a TPO block: the study's menu, then the reference block actions (after the study's actions):
-   *  split the profile at the block (not on its first block), merge it with the previous profile (not the first
-   *  profile), reset all splits and merges; disabled on charts without time-based bars. Kept per symbol and
-   *  period settings in the study's `mergePoints` input. */
+  const { alertTarget, openCompareMoreMenu, openContextMenu, openIndicatorMoreMenu, openSeriesMoreMenu } = attach(cx, createMenus(cx));
   /** Study whose plot is under the pointer (crosshair move), null = none. */
   let hoveredStudy: string | null = null;
   /** Price under the crosshair (on the scale of the pane under it), null = pointer not on the chart. */
   let crosshairPrice: number | null = null;
-  /** Alt + A (reference rule): the alert is on the selected study when it is a
-   *  source, at the price under the crosshair while the pointer is on the chart. */
-  function alertTarget(): { indicatorId?: string; price?: number } {
-    const id = selectedStudy();
-    const row = id && !compareEntry(id) ? (controller?.getLegend() ?? []).find((r) => r.id === id) : undefined;
-    return {
-      ...(row && studyAlertable(row.id, row) ? { indicatorId: row.id } : {}),
-      ...(crosshairPrice != null ? { price: crosshairPrice } : {}),
-    };
-  }
 
-  function openTpoBlockMenu(id: string, hit: TpoBlockHit, x: number, y: number) {
-    const nodes = studyMenuNodes(id);
-    if (!nodes) return;
-    const timeBased = !isTransformType(activeType);
-    const entry = getIndicatorEntry(id);
-    const update = (fn: (list: SplitMergeAction[]) => SplitMergeAction[]) => {
-      const inputs = { ...(controller?.getInputs(id) ?? {}) };
-      const key = splitMergeKey(props.symbol ?? "", inputs, id.startsWith("tpo-sessions"));
-      const map = splitMergeMap(inputs);
-      const list = fn(map[key] ?? []);
-      if (list.length) map[key] = list;
-      else delete map[key];
-      inputs.mergePoints = JSON.stringify(map);
-      const styles = controller?.getStyles(id) ?? {};
-      const options = controller?.getOptions(id);
-      controller?.applySettings(id, inputs, styles, options);
-      if (options) props.onIndicatorSettings?.(id, { inputs, styles, options });
-    };
-    if (!entry) return;
-    nodes.push(
-      { kind: "separator" },
-      { kind: "item", id: "tpo-split", label: "Split profile at this letter", disabled: !timeBased || hit.block === 0,
-        onSelect: () => update((l) => [...l, { action: "split", time: hit.blockTime * 1000 }]) },
-      { kind: "item", id: "tpo-merge", label: "Merge with previous profile", disabled: !timeBased || !hit.hasPrevious,
-        onSelect: () => update((l) => [...l, { action: "merge", time: hit.profileStart * 1000 }]) },
-      { kind: "item", id: "tpo-reset", label: "Reset all merges and splits", disabled: !timeBased,
-        onSelect: () => update(() => []) },
-    );
-    setCtxMenu({ x, y, nodes });
-  }
-
-  /** Legend compared-symbol "More" → its actions menu. Rows with no OT
-   *  feature are left out (same rule as the study menu): Add indicator /
-   *  financial metric on the symbol, Symbol info, Visual order, Visibility on
-   *  intervals, Move to, Pin to scale, Copy. */
-  function openCompareMoreMenu(id: string, anchor: DOMRect) {
-    const e = compareEntry(id);
-    if (!e) return;
-    const nodes: CtxNode[] = [
-      { kind: "item", id: "hide", label: e.hidden ? "Show" : "Hide", icon: e.hidden ? CtxIcons.show : CtxIcons.hide,
-        onSelect: () => props.onCompareChange?.(id, { hidden: !e.hidden }) },
-      { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
-        onSelect: () => props.onRemoveCompare?.(id) },
-      { kind: "separator" },
-      { kind: "item", id: "object-tree", label: "Object tree",
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id: "object_tree" } })) },
-      { kind: "separator" },
-      { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setCompareSettingsFor(id) },
-    ];
-    setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
-  }
-
-  /** Right-click → open the chart context menu at the cursor. "Copy price" /
-   *  "Buy …@ price" use the price under the cursor (yToPrice via the coord
-   *  bridge); the counts come from the live drawings + indicators. */
-  function openContextMenu(e: MouseEvent) {
-    e.preventDefault();
-    // On an alert label (its line or label): the label is selected and its menu opens.
-    const alertAt = alertLabelAt(e.clientX, e.clientY);
-    if (alertAt && alertAt.hit.area !== "axis") {
-      setAlertSelected({ id: alertAt.hit.id, level: alertAt.hit.level });
-      openAlertLabelMenu(alertAt.hit.id, e.clientX, e.clientY);
-      return;
-    }
-    // Over the price-axis strip → the price-scale menu, not the pane menu.
-    if (chart && host) {
-      const placement = currentTokens().scalesPlacement;
-      const sw = chart.priceScale(placement).width();
-      const xRel = e.clientX - host.getBoundingClientRect().left;
-      const overScale = placement === "right" ? xRel >= host.clientWidth - sw : xRel <= sw;
-      if (overScale) { openPriceScaleMenu(e); return; }
-      // Over the time-axis strip (the bottom of the chart host) → the time-axis menu.
-      const yFromBottom = host.getBoundingClientRect().bottom - e.clientY;
-      if (yFromBottom <= chart.timeScale().height()) { openTimeScaleMenu(e); return; }
-    }
-    const yRel = host ? e.clientY - host.getBoundingClientRect().top : 0;
-    // On a TPO block: the study's menu with the block actions.
-    if (chart && host && (paneAtY(yRel) ?? 0) === 0) {
-      const left = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
-      const tpoHit = controller?.tpoBlockAt(e.clientX - host.getBoundingClientRect().left - left, yRel);
-      if (tpoHit) { openTpoBlockMenu(tpoHit.id, tpoHit.hit, e.clientX, e.clientY); return; }
-    }
-    // On a study's plot: the study is selected and its menu opens at the
-    // pointer, its alert row at the price there (on the study's scale).
-    if (hoveredStudy && compareEntry(hoveredStudy)) {
-      selectStudy(hoveredStudy);
-      openCompareMoreMenu(hoveredStudy, new DOMRect(e.clientX, e.clientY - 3, 0, 0));
-      return;
-    }
-    if (hoveredStudy && indLegend().some((r) => r.id === hoveredStudy)) {
-      const id = hoveredStudy;
-      const pane = controller?.paneOf(id) ?? 0;
-      const box = paneBoxes().find((b) => b.index === pane);
-      const nodes = studyMenuNodes(id, studyPriceAt(id, yRel - (box?.top ?? 0)));
-      if (nodes) {
-        selectStudy(id);
-        setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
-        return;
-      }
-    }
-    // In a study pane the price is that pane's (its study's scale) and the
-    // alert is on the study (the reference pane menu's main source).
-    const paneIdx = paneAtY(yRel) ?? 0;
-    const studyPane = paneIdx > 0 ? drawingPanes().find((p) => p.key && yRel >= p.top && yRel < p.top + p.height) : undefined;
-    const studyId = studyPane?.key ?? null;
-    const studyTitle = studyId ? controller?.getLegend().find((r) => r.id === studyId)?.title ?? null : null;
-    const rawPrice = (studyPane ? studyPane.coords.yToPrice(yRel - studyPane.top) : coords()?.yToPrice(yRel)) ?? null;
-    const a = Math.abs(rawPrice ?? 0);
-    const decimals = a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
-    const priceStr = rawPrice == null ? "—" : rawPrice.toFixed(decimals);
-    const openPanel = (id: string) => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id } }));
-    const noop = () => {};
-    const ds = props.drawings ?? [];
-    const nodes = buildChartContextMenu(
-      {
-        symbol: splitSymbol(props.symbol ?? "").ticker,
-        price: priceStr,
-        study: studyTitle,
-        alertLabel: studyId && rawPrice != null ? studyAlertRow(studyId, rawPrice)?.label : undefined,
-        drawingCount: ds.length,
-        indicatorCount: (props.indicators ?? []).length,
-        cursorLockByTime: crosshairLockTime() !== null,
-        canPaste: hasClipboardDrawing(),
-      },
-      {
-        resetView: () => resetChartView(),
-        copyPrice: () => { if (rawPrice != null) void navigator.clipboard?.writeText(priceStr); },
-        // Paste the in-app drawings clipboard (Ctrl+C on a drawing), same as
-        // the overlay's Ctrl+V path: place at the copied data coords + select.
-        paste: () => {
-          const nd = pasteAsNew();
-          if (!nd) return;
-          const id = props.onPlace?.(nd);
-          if (id) props.setSelectedDrawingId?.(id);
-        },
-        addAlert: () =>
-          window.dispatchEvent(
-            new CustomEvent("chart-open-alert-dialog", {
-              detail: { symbol: props.symbol ?? "", price: rawPrice ?? undefined, indicatorId: studyId ?? undefined },
-            }),
-          ),
-        // Accepted no-ops: Buy / Sell / Add order / Table view need a trading
-        // backend + table view this port doesn't have.
-        buy: noop,
-        sell: noop,
-        addOrder: noop,
-        // Lock: the bar under the right click (its time); again = unlock.
-        toggleCursorLock: () => {
-          if (crosshairLockTime() !== null) { setCrosshairLockTime(null); return; }
-          const xRel = host ? e.clientX - host.getBoundingClientRect().left : null;
-          const t = xRel != null ? chart?.timeScale().coordinateToTime(xRel) : null;
-          if (t != null) setCrosshairLockTime(t as number);
-        },
-        tableView: noop,
-        objectTree: () => openPanel("object_tree"),
-        saveTemplateAs: () => window.dispatchEvent(new CustomEvent("chart-save-template")),
-        // Bulk path when available — one undo entry for the whole set.
-        removeDrawings: () => {
-          if (ds.length > 1 && props.removeDrawings) props.removeDrawings(ds.map((d) => d.id));
-          else for (const d of ds) props.removeDrawing?.(d.id);
-        },
-        removeIndicators: () => window.dispatchEvent(new CustomEvent("chart-clear-indicators")),
-        settings: () => window.dispatchEvent(new CustomEvent("chart-open-settings")),
-      },
-    );
-    setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
-  }
 
   /** Re-resolve the legend for a crosshair time (or the latest bar when
    *  omitted). Reads the live `raw` + `activeType` closures. */
@@ -1804,263 +793,19 @@ export function ChartView(props: Props) {
     });
   }
 
-  // ── Price-axis overlays (Scales tab rows) ────────────────────────────
-  // These are DOM on the price axis: the currency label at its top
-  // ("Currency and Unit"), the A / L buttons at its bottom ("Scale modes (A
-  // and L)"), both "Visible on mouse over" by default = while the pointer is
-  // over the chart; and the crosshair "+" button (Scales → "Plus button").
-  // Pane index whose price axis is under the pointer (A / L buttons
-  // "Visible on mouse over" = that axis hovered; currency label = any price
-  // axis of the chart hovered).
-  const [axisHover, setAxisHover] = createSignal<number | null>(null);
-  // th: height of the time axis (the axis corner button's height).
-  const [scaleGeom, setScaleGeom] = createSignal<{ w: number; h: number; th: number; left: boolean } | null>(null);
-  const [scaleModes, setScaleModes] = createSignal({ auto: true, log: false });
-  // Axis corner button (the time axis' corner under the price axis): a gear
-  // drawn while this chart is the active or the hovered one; hovered (or its
-  // menu open) it is filled and the main pane's price axis is tinted with half
-  // the fill; click = the main price scale's menu above it; tooltip = the
-  // sources on that scale (the series, then its studies, top-most first).
-  const [chartHovered, setChartHovered] = createSignal(false);
-  const [cornerHover, setCornerHover] = createSignal(false);
-  let cornerMenuWasOpen = false;
-  const cornerLit = () => cornerHover() || !!ctxMenu()?.corner;
-  const cornerTitles = () => {
-    const { ticker, exchange } = splitSymbol(props.symbol ?? "");
-    const out = [`${exchange ? `${ticker} · ${exchange}` : ticker}, ${props.interval ?? "1D"}`];
-    for (const id of [...(controller?.mainScaleIds() ?? [])].reverse()) {
-      const entry = getIndicatorEntry(typeIdOf(id));
-      if (entry) out.push(entry.shortName ?? entry.name);
-    }
-    for (const e of compareEntries()) if (e.placement === "percent") out.push(compareTitle(e));
-    return out.join("\n");
-  };
-  const [plusY, setPlusY] = createSignal<number | null>(null);
-  /** Pane under the plus button (its y is from the top of the first pane). */
-  const [plusPane, setPlusPane] = createSignal(0);
-  // The plus is drawn inside the pane and hit-tested there, so the button
-  // takes no pointer events (the crosshair keeps tracking under it) and the
-  // host hit-tests its rect in the capture phase.
-  let plusEl: HTMLButtonElement | undefined;
-  let plusPressed = false;
-  const [currency, setCurrency] = createSignal("");
-  /** Width of a visible left price scale: the legends start right of it. */
-  const [legendLeft, setLegendLeft] = createSignal(0);
-  function refreshScaleOverlays() {
-    if (!chart) return;
-    let lw = 0;
-    // The scale widget is not built before the first layout (width throws).
-    try { lw = chart.options().leftPriceScale.visible ? chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
-    setLegendLeft((v) => (v === lw ? v : lw));
-    const side = currentTokens().scalesPlacement;
-    const ps = chart.priceScale(side);
-    const w = ps.width();
-    const h = chart.paneSize(0).height;
-    const th = chart.options().timeScale.visible === false ? 0 : chart.timeScale().height();
-    setScaleGeom((g) => (g && g.w === w && g.h === h && g.th === th && g.left === (side === "left") ? g : { w, h, th, left: side === "left" }));
-    const o = ps.options();
-    const next = { auto: !!o.autoScale, log: o.mode === PriceScaleMode.Logarithmic };
-    setScaleModes((m) => (m.auto === next.auto && m.log === next.log ? m : next));
-  }
-  const overlayVisible = (b: NavButtonsBehavior, hovered: boolean) => b === "alwaysOn" || (b === "visibleOnMouseOver" && hovered);
-  /** Symbol change with auto scale off: the price scale is fitted to the new
-   *  symbol's visible bars once, then stays manual (the old symbol's price
-   *  range would leave the new candles out of view). */
-  function fitPriceScaleOnce() {
-    if (!chart) return;
-    const ps = chart.priceScale(currentTokens().scalesPlacement);
-    if (ps.options().autoScale) return;
-    ps.applyOptions({ autoScale: true });
-    // The fitted range exists after the next paint; freezing keeps it.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!chart) return;
-      chart.priceScale(currentTokens().scalesPlacement).applyOptions({ autoScale: false });
-      refreshScaleOverlays();
-    }));
-  }
-  function toggleAutoScale() {
-    if (!chart) return;
-    const ps = chart.priceScale(currentTokens().scalesPlacement);
-    ps.applyOptions({ autoScale: !ps.options().autoScale });
-    refreshScaleOverlays();
-  }
-  function toggleLogScale() {
-    if (!chart) return;
-    const ps = chart.priceScale(currentTokens().scalesPlacement);
-    const log = ps.options().mode === PriceScaleMode.Logarithmic;
-    ps.applyOptions({ mode: log ? PriceScaleMode.Normal : PriceScaleMode.Logarithmic });
-    refreshScaleOverlays();
-  }
-  /** Plus button → crosshair menu of the pane under it: an "Add alert on
-   *  SOURCE at PRICE" row per source on that scale (plusAlertRows), then (no
-   *  trading items: no broker) "Draw horizontal line at PRICE" on the pane's
-   *  main source (the series, else the pane's first study). */
-  function openPlusMenu(r: DOMRect, yAbs: number) {
-    const paneIdx = plusPane();
-    const box = paneBoxes().find((b) => b.index === paneIdx);
-    const y = yAbs - (box?.top ?? 0);
-    const owner = paneIdx > 0 ? controller?.ownerOfPane(paneIdx) ?? null : null;
-    const main = paneIdx > 0 ? (owner ? controller?.studySeries(owner) ?? null : null) : series;
-    if (!main) return;
-    const price = main.coordinateToPrice(y);
-    if (price == null) return;
-    const p = price as number;
-    const priceStr = main.priceFormatter().format(p);
-    const alerts = plusAlertRows(paneIdx, y);
-    const nodes: CtxNode[] = [
-      ...alerts,
-      ...(alerts.length ? [{ kind: "separator" } as CtxNode] : []),
-      { kind: "item", id: "plus-hline", label: `Draw horizontal line at ${priceStr}`, shortcut: "Alt + H", icon: <Icon name="draw-horizontal-line" size={18} />,
-        onSelect: () => {
-          const last = raw.length > 0 ? raw[raw.length - 1] : null;
-          if (!last) return;
-          const id = props.onPlace?.({ kind: "horizontal-line", points: [{ time: last.time as number, price: p }], style: defaultStyleFor("horizontal-line"), ...(owner ? { owner } : {}) } as never);
-          if (id) props.setSelectedDrawingId?.(id);
-        } },
-    ];
-    setCtxMenu({ x: r.left, y: r.top, nodes });
-  }
+  const {
+    PriceAxisOverlays,
+    fitPriceScaleOnce,
+    legendLeft,
+    refreshScaleOverlays,
+    scaleGeom,
+    setAxisHover,
+    setChartHovered,
+    setCurrency,
+    setPlusY,
+  } = attach(cx, createPriceAxis(cx));
 
-  // ── Pane controls (Canvas → Buttons → Pane) ───────────────────────────
-  // Pane controls: shown on a pane while the pointer
-  // is over it (or always / never), only with more than one pane. 24 px
-  // buttons 4 px apart, 4 px from the pane top and the price axis; a pane
-  // narrower than 666.65 px shows the single "Manage panes" button (menu),
-  // narrower than 356 px none. Buttons: move up / down (study panes; the
-  // price pane stays on top here), delete (study panes), collapse (to
-  // max(2·4 + 24, 33) px) / restore. "Maximize pane" is not offered: it would
-  // hide the other panes, and the chart library keeps every pane ≥ ~30 px.
-  type PaneBox = { index: number; top: number; height: number };
-  const [paneBoxes, setPaneBoxes] = createSignal<PaneBox[]>([]);
-  const [hoverPane, setHoverPane] = createSignal<number | null>(null);
-  const [collapsedPanes, setCollapsedPanes] = createSignal<Map<number, number>>(new Map());
-  const PANE_COLLAPSED_H = 33;
-  function refreshPaneBoxes() {
-    if (!chart || !paneRoot) return;
-    const root = paneRoot.getBoundingClientRect();
-    const boxes: PaneBox[] = chart.panes().map((pn, index) => {
-      const el = pn.getHTMLElement();
-      const r = el ? el.getBoundingClientRect() : null;
-      return { index, top: r ? r.top - root.top : 0, height: r ? r.height : pn.getHeight() };
-    });
-    setPaneBoxes((prev) => (JSON.stringify(prev) === JSON.stringify(boxes) ? prev : boxes));
-  }
-  function paneAtY(y: number): number | null {
-    for (const b of paneBoxes()) if (y >= b.top && y < b.top + b.height) return b.index;
-    return null;
-  }
-  // Panes the drawings live in (Drawing.owner): pane 0 = the main series, a
-  // study pane = its first study, with that pane's price scale. Rebuilt when
-  // the pane boxes, the studies or their panes change.
-  const [paneEpoch, setPaneEpoch] = createSignal(0);
-  /** Studies that own a drawing (Drawing.owner). */
-  const drawingOwners = createMemo<string[]>(
-    () => [...new Set((props.drawings ?? []).map((d) => d.owner).filter((x): x is string => !!x))].sort(),
-    [],
-    { equals: (a, b) => a.join(",") === b.join(",") },
-  );
-  const drawingPanes = createMemo<DrawingPane[]>(() => {
-    const main = coords();
-    const boxes = paneBoxes();
-    void paneEpoch();
-    if (!main) return [];
-    const out: DrawingPane[] = [];
-    for (const b of boxes) {
-      if (b.index === 0) {
-        out.push({ key: null, top: b.top, height: b.height, coords: main });
-        continue;
-      }
-      const owner = untrack(() => controller?.ownerOfPane(b.index) ?? null);
-      if (!owner) continue;
-      out.push({
-        key: owner,
-        top: b.top,
-        height: b.height,
-        coords: studyPaneCoords(main, () => controller?.studySeries(owner) ?? null, (sec) => controller?.paneValuesAt(owner, sec) ?? []),
-      });
-    }
-    // A study that owns drawings and is not the first of its pane (it was
-    // moved to another pane): its drawings follow it, on its own scale.
-    for (const id of drawingOwners()) {
-      if (out.some((p) => p.key === id)) continue;
-      const pane = untrack(() => controller?.paneOf(id) ?? null);
-      const b = pane === null ? undefined : boxes.find((x) => x.index === pane);
-      if (!b) continue;
-      out.push({
-        key: id,
-        top: b.top,
-        height: b.height,
-        coords: studyPaneCoords(main, () => controller?.studySeries(id) ?? null, (sec) => controller?.paneValuesAt(id, sec) ?? []),
-      });
-    }
-    return out;
-  });
-  function movePane(i: number, dir: -1 | 1) {
-    const j = i + dir;
-    if (!controller || i < 1 || j < 1 || j >= (chart?.panes().length ?? 0)) return;
-    const a = controller.idsInPane(i);
-    const b = controller.idsInPane(j);
-    controller.swapPanes(i, j);
-    props.onPaneOrder?.(controller.stackedOrder());
-    setPaneEpoch((n) => n + 1);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    // Persist: stacked panes are claimed in list order, so swap the two
-    // panes' studies in the pane's indicator list.
-    const list = [...(props.indicators ?? [])];
-    const posA = a.map((id) => list.indexOf(id)).filter((k) => k >= 0);
-    const posB = b.map((id) => list.indexOf(id)).filter((k) => k >= 0);
-    if (posA.length && posB.length) {
-      // The combined slots now hold the upper pane's studies first.
-      const slots = [...posA, ...posB].sort((x, y) => x - y);
-      const ordered = dir > 0 ? [...b, ...a] : [...a, ...b];
-      slots.forEach((slot, k) => { list[slot] = ordered[k]; });
-      props.onReorderIndicators?.(list);
-    }
-    setCollapsedPanes(new Map());
-    queueMicrotask(refreshPaneBoxes);
-  }
-  function deletePane(i: number) {
-    if (!controller) return;
-    for (const id of controller.idsInPane(i)) {
-      if (compareEntry(id)) props.onRemoveCompare?.(id);
-      else props.onRemoveIndicator?.(id);
-    }
-  }
-  function toggleCollapse(i: number) {
-    if (!chart) return;
-    const pn = chart.panes()[i];
-    if (!pn) return;
-    const m = new Map(collapsedPanes());
-    if (m.has(i)) { pn.setHeight(m.get(i)!); m.delete(i); }
-    else { m.set(i, pn.getHeight()); pn.setHeight(PANE_COLLAPSED_H); }
-    setCollapsedPanes(m);
-    queueMicrotask(refreshPaneBoxes);
-  }
-  const paneActions = (i: number) => {
-    const n = chart?.panes().length ?? 0;
-    const collapsed = collapsedPanes().has(i);
-    const othersOpen = paneBoxes().some((b) => b.index !== i && !collapsedPanes().has(b.index));
-    return {
-      up: i >= 2,
-      down: i >= 1 && i < n - 1,
-      close: i >= 1,
-      collapse: !collapsed && othersOpen,
-      restore: collapsed,
-    };
-  };
-  function openPaneMenu(e: MouseEvent, i: number) {
-    const a = paneActions(i);
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const nodes: CtxNode[] = [];
-    const ico = (svg: string) => <span class="ot-pane-menu-icon" innerHTML={svg} />;
-    if (a.collapse) nodes.push({ kind: "item", id: "pane-collapse", label: "Collapse pane", shortcut: "Ctrl + Double click", icon: ico(PANE_MENU_ICONS.collapse), onSelect: () => toggleCollapse(i) });
-    if (a.restore) nodes.push({ kind: "item", id: "pane-restore", label: "Restore pane", shortcut: "Ctrl + Double click", icon: ico(PANE_MENU_ICONS.restore), onSelect: () => toggleCollapse(i) });
-    if (a.up) nodes.push({ kind: "item", id: "pane-up", label: "Move pane up", icon: ico(PANE_MENU_ICONS.up), onSelect: () => movePane(i, -1) });
-    if (a.down) nodes.push({ kind: "item", id: "pane-down", label: "Move pane down", icon: ico(PANE_MENU_ICONS.down), onSelect: () => movePane(i, 1) });
-    if (a.close) nodes.push({ kind: "item", id: "pane-delete", label: "Delete pane", icon: ico(PANE_MENU_ICONS.del), onSelect: () => deletePane(i) });
-    // The menu attaches under the button, right-aligned (clientX = right).
-    setCtxMenu({ x: r.right, y: r.bottom + 3, nodes });
-  }
+  const { PaneControls, drawingPanes, paneAtY, paneBoxes, refreshPaneBoxes, setHoverPane, setPaneEpoch } = attach(cx, createPanes(cx));
 
   /** The newest bar is still forming (its countdown runs): price-based
    *  types draw what it built as projection bars. */
@@ -2071,7 +816,7 @@ export function ChartView(props: Props) {
     return countdownText(props.interval ?? "1D", Date.now() / 1000, last.time as number, props.session ?? "RTH", sessions) != null;
   }
   const dataExtras = () => ({
-    subMinute: subMinute ?? undefined,
+    subMinute: cx.subMinute ?? undefined,
     lastForming: lastBarForming(),
     sessions: cachedSymbolSessions(props.symbol ?? ""),
   });
@@ -2084,129 +829,7 @@ export function ChartView(props: Props) {
     updateHistoryEnd();
   }
 
-  /** End-of-history icon kind: none until scroll-back has nothing older; then
-   *  "limit" when the oldest bar sits on the data plan's history floor or, for
-   *  the daily family, on the first session of the daily archive (within a
-   *  week), else "end" (with at least 400 bars). Hidden while the floor is
-   *  unknown. */
-  function historyEndKind(): HistoryEndKind | null {
-    if (!historyExhausted || loadingMore || raw.length === 0) return null;
-    const ent = providerCapabilities()?.entitlements;
-    if (!ent) return null;
-    const iv = props.interval ?? "1D";
-    const daily = rawDaily.length > 0;
-    const floor = daily ? ent.historyFloor.day : isSecondResolution(iv) ? ent.historyFloor.second : ent.historyFloor.minute;
-    const oldest = (daily ? rawDaily[0].time : raw[0].time) as number;
-    const floorSec = floor ? Date.parse(`${floor}T00:00:00Z`) / 1000 : NaN;
-    if (Number.isFinite(floorSec) && oldest - floorSec <= 7 * 86400) return "limit";
-    if (daily && oldest - Date.parse(`${DAILY_ARCHIVE_START}T00:00:00Z`) / 1000 <= 7 * 86400) return "limit";
-    return raw.length >= HISTORY_END_MIN_BARS ? "end" : null;
-  }
-  function updateHistoryEnd() {
-    const kind = historyEndKind();
-    if (!kind) historyEndClose?.();
-    historyEnd.setState({ kind, dark: isDarkColor(currentTokens().bg) });
-  }
-  function openHistoryEndDialog() {
-    const kind = historyEnd.state().kind;
-    if (!kind || historyEndClose) return;
-    const sym = splitSymbol(props.symbol ?? "").ticker;
-    historyEnd.setState({ active: true });
-    historyEndClose = showNotice({
-      title: kind === "end" ? "Start of history" : "History limit",
-      text:
-        kind === "end"
-          ? `This is the first bar of ${sym}: there is no older data.`
-          : `Older ${sym} data exists but is not available: history on this interval stops here.`,
-      iconPath: HISTORY_END_ICONS[kind],
-      onClose: () => {
-        historyEndClose = null;
-        historyEnd.setState({ active: false });
-      },
-    });
-  }
 
-  /** Baseline: the base level sits at `Base level` % of the pane height
-   *  from the bottom (height · (100 − level) / 100)
-   *  and draws a sparse-dotted waterline there. The library takes a PRICE,
-   *  so the price under that pixel row is re-derived whenever the visible
-   *  price range can have moved. */
-  let baselineWaterline: IPriceLine | null = null;
-  let baselineLevelPrice: number | null = null;
-  function syncBaseline() {
-    for (const layer of compareLayers.values()) layer.syncBaseline();
-    if (!chart || !series || activeType !== "baseline") return;
-    const b = currentTokens().styles.baseline;
-    const h = chart.paneSize(0).height;
-    if (!(h > 0)) return;
-    const y = (h * Math.abs(100 - b.level)) / 100;
-    const price = series.coordinateToPrice(y);
-    if (price == null || !Number.isFinite(price as number)) return;
-    if (baselineLevelPrice !== null && Math.abs((price as number) - baselineLevelPrice) < 1e-9) return;
-    baselineLevelPrice = price as number;
-    series.applyOptions({ baseValue: { type: "price", price: price as number } } as never);
-    if (!baselineWaterline) {
-      baselineWaterline = series.createPriceLine({ price: price as number, color: "#8c8c8c", lineStyle: LineStyle.SparseDotted, lineWidth: 1, axisLabelVisible: false, title: "" });
-    } else {
-      baselineWaterline.applyOptions({ price: price as number });
-    }
-  }
-
-  /** Gradient line: the last-value label takes the gradient colour at the
-   *  last price's height. */
-  function syncGradientLabel() {
-    if (!chart || !series || (activeType !== "line" && activeType !== "lineWithMarkers" && activeType !== "stepline")) return;
-    const s = currentTokens().styles[activeType];
-    if (s.type !== "Gradient") return;
-    const last = raw.length > 0 ? raw[raw.length - 1] : null;
-    const h = chart.paneSize(0).height;
-    const y = last ? series.priceToCoordinate(last.close) : null;
-    if (y == null || !(h > 0)) return;
-    series.applyOptions({ color: mixColor(s.start, s.end, Math.max(0, Math.min(1, (y as number) / h))) } as never);
-  }
-
-  /** Main series scale ratio: bar spacing ×
-   *  visible price range ÷ pane height — price units per bar at a 1:1 pixel
-   *  aspect. Undefined before the chart has data. */
-  function liveScaleRatio(): number | undefined {
-    if (!chart || !series) return undefined;
-    const ts = chart.timeScale();
-    const c0 = ts.logicalToCoordinate(0 as Logical);
-    const c1 = ts.logicalToCoordinate(1 as Logical);
-    const r = series.priceScale().getVisibleRange();
-    const h = chart.paneSize(0).height;
-    if (c0 == null || c1 == null || !r || !(h > 0)) return undefined;
-    return (Math.abs((c1 as number) - (c0 as number)) * Math.abs(r.to - r.from)) / h;
-  }
-
-  /** "Lock price to bar ratio": while locked, a bar-spacing change resizes
-   *  the price range around its centre so the ratio holds
-   *  (range = height ÷ (spacing ÷ ratio)). */
-  let lockApplying = false;
-  function applyLockedRatio() {
-    const t = currentTokens();
-    if (!t.lockRatio || !chart || !series || lockApplying) return;
-    const ratio = t.lockRatioValue;
-    if (!(ratio !== undefined && ratio > 0)) return;
-    const ts = chart.timeScale();
-    const c0 = ts.logicalToCoordinate(0 as Logical);
-    const c1 = ts.logicalToCoordinate(1 as Logical);
-    const r = series.priceScale().getVisibleRange();
-    const h = chart.paneSize(0).height;
-    if (c0 == null || c1 == null || !r || !(h > 0)) return;
-    const spacing = Math.abs((c1 as number) - (c0 as number));
-    if (!(spacing > 0)) return;
-    const len = (h * ratio) / spacing;
-    if (Math.abs(Math.abs(r.to - r.from) - len) <= len * 1e-6) return;
-    const mid = (r.from + r.to) / 2;
-    lockApplying = true;
-    try {
-      series.priceScale().setAutoScale(false);
-      series.priceScale().setVisibleRange({ from: mid - len / 2, to: mid + len / 2 });
-    } finally {
-      lockApplying = false;
-    }
-  }
 
   /** Price text of the main series (Precision choice), shared with the legend. */
   const [legendPriceFormat, setLegendPriceFormat] = createSignal<((p: number) => string) | undefined>(undefined);
@@ -2245,9 +868,7 @@ export function ChartView(props: Props) {
     const preserved = mainPane?.preserveEmptyPane() ?? false;
     mainPane?.setPreserveEmptyPane(true);
     if (old) chart.removeSeries(old);
-    // The old series took its baseline waterline with it.
-    baselineWaterline = null;
-    baselineLevelPrice = null;
+    forgetBaseline();
     const tokens = currentTokens();
     series = createSeriesForType(chart, activeType, tokens);
     mainPane?.setPreserveEmptyPane(preserved);
@@ -2294,14 +915,7 @@ export function ChartView(props: Props) {
     // Study markers and bar colours are drawn on the main series: redraw the
     // studies on the new one (from their last results).
     controller?.redrawAll();
-    // The old series took its price lines with it — force a rebuild.
-    highLine = null;
-    lowLine = null;
-    highLowKey = "";
-    prevClosePriceLine = null;
-    prevCloseKey = "";
-    prePostLine = null;
-    prePostKey = "";
+    forgetPriceLines();
     updateSessionBreaks();
     setAlertSeriesEpoch((n) => n + 1);
     updatePrePostLine();
@@ -2392,432 +1006,24 @@ export function ChartView(props: Props) {
     updateHighLowLines();
   }
 
-  /** Scales → "Previous day close": one price line at the close of the LAST
-   *  bar's previous trading day (the tail of {@link prevDayClose}, so it
-   *  follows the recompute above). Memo key skips the createPriceLine churn
-   *  like the high/low updater below. The badge is the row's gray by
-   *  default; the line carries no title. */
-  function updatePrevClosePriceLine() {
-    if (!series) return;
-    const t = currentTokens();
-    const price = raw.length > 0 ? prevDayClose[raw.length - 1] : null;
-    const enabled = (t.prevCloseLabel || t.prevCloseLine) && price != null;
-    if (!enabled) {
-      if (prevClosePriceLine) { series.removePriceLine(prevClosePriceLine); prevClosePriceLine = null; }
-      prevCloseKey = "";
-      return;
-    }
-    const key = `${price}|${t.prevCloseLabel}|${t.prevCloseLine}|${t.prevCloseColor}|${t.prevCloseWidth}`;
-    if (key === prevCloseKey && prevClosePriceLine) return;
-    prevCloseKey = key;
-    if (prevClosePriceLine) series.removePriceLine(prevClosePriceLine);
-    prevClosePriceLine = series.createPriceLine({
-      price: price!,
-      color: t.prevCloseColor,
-      title: "",
-      lineStyle: LineStyle.Dotted,
-      lineWidth: Math.max(1, Math.min(4, t.prevCloseWidth)) as 1 | 2 | 3 | 4,
-      lineVisible: t.prevCloseLine,
-      axisLabelVisible: t.prevCloseLabel,
-    });
-  }
+  const {
+    applyLockedRatio,
+    forgetBaseline,
+    forgetPriceLines,
+    liveScaleRatio,
+    lockedSpacingFromScale,
+    marketSession,
+    setStatusClock,
+    syncBaseline,
+    syncGradientLabel,
+    updateCountdown,
+    updateHighLowLines,
+    updatePrePostLine,
+    updatePrevClosePriceLine,
+  } = attach(cx, createDecorations(cx));
 
-  /** Scales → "Pre/post/night market": the latest extended-hours trade as a
-   *  "Pre"/"Post" price label + dotted line: shown only while the market is in
-   *  pre- or post-market, and only when the chart does not draw that trade
-   *  itself (daily/weekly/monthly, or intraday on the regular session).
-   *  Colour by session; label text black/white from the background. No
-   *  overnight ("night") price: the data plan has none. */
-  const [statusClock, setStatusClock] = createSignal(Date.now());
-  /** Market state of the charted symbol's own market (re-read every 15 s). */
-  const marketSession = () => marketSessionOf(props.symbol ?? "", new Date(statusClock())) ?? undefined;
-  onMount(() => {
-    const id = window.setInterval(() => { if (!hidden()) setStatusClock(Date.now()); }, 15_000);
-    onCleanup(() => window.clearInterval(id));
-  });
+  const { installAlertPointer, setAlertSeriesEpoch } = attach(cx, createAlertLayer(cx));
 
-  function updatePrePostLine() {
-    if (!series) return;
-    const t = currentTokens();
-    const session = marketSession();
-    const q = quoteFor(props.symbol ?? "");
-    const onChartAlready =
-      isIntradayInterval(props.interval ?? "1D") && (props.session ?? "RTH") === "ETH";
-    const price =
-      q && q.extChangePercent != null && q.last > 0 ? q.last * (1 + q.extChangePercent / 100) : null;
-    const enabled =
-      (t.prePostLabel || t.prePostLine) &&
-      (session === "pre" || session === "post") &&
-      !onChartAlready &&
-      price != null;
-    if (!enabled) {
-      if (prePostLine) { series.removePriceLine(prePostLine); prePostLine = null; }
-      prePostKey = "";
-      return;
-    }
-    const color = session === "pre" ? t.preMarketColor : t.postMarketColor;
-    const key = `${session}|${t.prePostLabel}|${t.prePostLine}|${color}`;
-    if (key === prePostKey && prePostLine) {
-      prePostLine.applyOptions({ price: price! });
-      return;
-    }
-    prePostKey = key;
-    if (prePostLine) series.removePriceLine(prePostLine);
-    prePostLine = series.createPriceLine({
-      price: price!,
-      color,
-      title: session === "pre" ? "Pre" : "Post",
-      // Dotted, width 1 (drawn 1 px on / 3 px off; the
-      // library's SparseDotted 1/4 is the closest, as for the grid).
-      lineStyle: LineStyle.SparseDotted,
-      lineWidth: 1,
-      lineVisible: t.prePostLine,
-      axisLabelVisible: t.prePostLabel,
-      axisLabelColor: color,
-      axisLabelTextColor: textColorOn(color),
-    });
-  }
-
-  createEffect(() => {
-    chartReady();
-    appearance();
-    marketSession();
-    const q = quoteFor(props.symbol ?? "");
-    q?.last;
-    q?.extChangePercent;
-    props.interval;
-    props.session;
-    // Hidden tab: no redraw on each quote (the snapshot poll moves the
-    // pre/post price every few seconds); this effect re-runs when shown.
-    if (hidden()) return;
-    updatePrePostLine();
-  });
-
-  /** Scales → "High and low": two price lines at the highest high / lowest
-   *  low of the VISIBLE bars (not of all loaded bars), honouring the row's
-   *  label/line modes + colorPair.
-   *  Runs on data changes, live extreme pushes and every visible-range change,
-   *  so an unchanged key is a no-op and a moved extreme only re-prices the two
-   *  existing lines. */
-  function updateHighLowLines() {
-    if (!series) return;
-    const t = currentTokens();
-    const enabled = (t.highLowLabels || t.highLowLines) && raw.length > 0;
-    if (!enabled) {
-      if (highLine) { series.removePriceLine(highLine); highLine = null; }
-      if (lowLine) { series.removePriceLine(lowLine); lowLine = null; }
-      highLowKey = "";
-      return;
-    }
-    // Visible slice of `raw` by time (bar times are ascending). Before the
-    // first layout there is no visible range: fall back to every loaded bar.
-    let i0 = 0;
-    let i1 = raw.length - 1;
-    const vr = chart?.timeScale().getVisibleRange();
-    if (vr) {
-      const from = vr.from as number;
-      const to = vr.to as number;
-      let lo = 0, hi = raw.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if ((raw[m].time as number) < from) lo = m + 1; else hi = m; }
-      i0 = lo;
-      lo = i0; hi = raw.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if ((raw[m].time as number) <= to) lo = m + 1; else hi = m; }
-      i1 = lo - 1;
-    }
-    let hi = -Infinity;
-    let lo = Infinity;
-    for (let i = i0; i <= i1; i++) {
-      const r = raw[i];
-      if (r.high > hi) hi = r.high;
-      if (r.low < lo) lo = r.low;
-    }
-    if (!(hi > -Infinity && lo < Infinity)) return;
-    const styleKey = `${t.highLowLabels}|${t.highLowLines}|${t.highLowColor}|${t.highLowWidth}|${t.up}|${t.down}`;
-    const key = `${hi}|${lo}|${styleKey}`;
-    if (key === highLowKey && highLine && lowLine) return;
-    const sameStyle = highLine && lowLine && highLowKey.endsWith(`|${styleKey}`);
-    highLowKey = key;
-    if (sameStyle) {
-      highLine!.applyOptions({ price: hi });
-      lowLine!.applyOptions({ price: lo });
-      return;
-    }
-    // High/low views (dark): dotted line, colour = the
-    // row colour or #808080, label background = the row colour or #142E61
-    // with a contrasting text colour.
-    const lineStyle = LineStyle.Dotted;
-    const labelBg = t.highLowColor || "#142e61";
-    const mk = (price: number, title: string) =>
-      series!.createPriceLine({
-        price,
-        color: t.highLowColor || "#808080",
-        title,
-        lineStyle,
-        lineWidth: Math.max(1, Math.min(4, t.highLowWidth)) as 1 | 2 | 3 | 4,
-        lineVisible: t.highLowLines,
-        axisLabelVisible: t.highLowLabels,
-        axisLabelColor: labelBg,
-        axisLabelTextColor: textColorOn(labelBg),
-      });
-    if (highLine) series.removePriceLine(highLine);
-    if (lowLine) series.removePriceLine(lowLine);
-    highLine = mk(hi, "High");
-    lowLine = mk(lo, "Low");
-  }
-
-  // ── Alert labels (Settings → Alerts tab) ────────────────────────────────
-  // An alert on one level or on a channel between two values draws its
-  // label (line, scale tab, hover / selection label) on the series it reads:
-  // the main series, or the study's plot in its own pane and scale. A
-  // study's alert only on the chart of its interval. See alert-labels.ts.
-  const alertLabelPrims = new Map<ISeriesApi<SeriesType>, AlertLabelsPrimitive>();
-  const [alertHover, setAlertHover] = createSignal<AlertLabelHit | null>(null);
-  const [alertSelected, setAlertSelected] = createSignal<{ id: string; level: number } | null>(null);
-  const [alertMoving, setAlertMoving] = createSignal<{ id: string; levels: number[] } | null>(null);
-  const [alertBlinks, setAlertBlinks] = createSignal<Record<string, number>>({});
-  /** Bumped when a series the labels sit on is replaced. */
-  const [alertSeriesEpoch, setAlertSeriesEpoch] = createSignal(0);
-  const ALERT_STOP_TEXT: Record<AlertStopReason, string> = { triggered: "Triggered", manual: "Manually", expired: "Expired" };
-
-  type AlertLabelTarget = { series: ISeriesApi<SeriesType>; spec: AlertLabelSpec; rule: AlertRule };
-
-  /** The labels of this chart and the series each one sits on. Reads the rule
-   *  fields, so a tracking caller re-runs on edits. */
-  function alertLabelTargets(): AlertLabelTarget[] {
-    const key = (props.symbol ?? "").toUpperCase();
-    const out: AlertLabelTarget[] = [];
-    if (!key || !series || !controller) return out;
-    const t = currentTokens();
-    const theme = alertLabelTheme(uiTheme() !== "light");
-    for (const r of alertStore.rules()) {
-      if (r.symbol !== key) continue;
-      let levels: number[];
-      if (LEVEL_OPERATORS.includes(r.op) && r.right.kind === "value") levels = [r.right.value];
-      else if (isBandOperator(r.op) && r.right.kind === "value" && r.right2?.kind === "value") levels = [r.right.value, r.right2.value];
-      else continue;
-      if (!r.enabled && t.alertLinesOnlyActive) continue;
-      let target: ISeriesApi<SeriesType> | null = null;
-      if (r.left.kind === "price") target = series;
-      else if (r.left.kind === "indicator") {
-        // A study's alert reads its own interval: drawn on the chart of that interval only.
-        if (r.resolution !== props.interval || controller.isHidden(r.left.indicatorId)) continue;
-        target = controller.studySeries(r.left.indicatorId);
-      }
-      if (!target) continue;
-      const reason = r.stopReason ?? "manual";
-      out.push({
-        series: target,
-        rule: r,
-        spec: {
-          id: r.id,
-          levels,
-          text: r.name?.trim() || r.message?.trim() || defaultAlertMessage(r),
-          status: r.enabled ? null : `Stopped — ${ALERT_STOP_TEXT[reason]}`,
-          statusColor: r.enabled ? null : ALERT_STATUS_COLORS[reason],
-          color: r.enabled ? t.alertLineColor : theme.inactive,
-          inactive: !r.enabled,
-        },
-      });
-    }
-    return out;
-  }
-
-  /** Put the labels on their series (a primitive per series). */
-  function syncAlertLabels(targets: AlertLabelTarget[]) {
-    const t = currentTokens();
-    const bySeries = new Map<ISeriesApi<SeriesType>, AlertLabelSpec[]>();
-    for (const x of targets) bySeries.set(x.series, [...(bySeries.get(x.series) ?? []), x.spec]);
-    for (const [s, prim] of alertLabelPrims) {
-      if (bySeries.has(s)) continue;
-      try { s.detachPrimitive(prim); } catch { /* series gone */ }
-      alertLabelPrims.delete(s);
-    }
-    const ids = new Set(targets.map((x) => x.spec.id));
-    const hover = alertHover();
-    const sel = alertSelected();
-    const moving = alertMoving();
-    for (const [s, labels] of bySeries) {
-      let prim = alertLabelPrims.get(s);
-      if (!prim) {
-        prim = new AlertLabelsPrimitive();
-        s.attachPrimitive(prim);
-        alertLabelPrims.set(s, prim);
-      }
-      const mine = new Set(labels.map((l) => l.id));
-      const scaleId = s === series ? t.scalesPlacement : (s.options() as { priceScaleId?: string }).priceScaleId;
-      prim.setState({
-        labels,
-        lineVisible: t.alertLinesVisible,
-        hovered: hover && mine.has(hover.id) ? hover : null,
-        selected: sel && mine.has(sel.id) ? sel : null,
-        moving: moving && mine.has(moving.id) ? moving : null,
-        blinks: alertBlinks(),
-        dark: uiTheme() !== "light",
-        fontFamily: t.fontFamily,
-        side: scaleId === "left" ? "left" : "right",
-      });
-    }
-    if (sel && !ids.has(sel.id)) setAlertSelected(null);
-    if (hover && !ids.has(hover.id)) setAlertHover(null);
-  }
-
-  createEffect(() => {
-    chartReady();
-    appearance();
-    alertSeriesEpoch();
-    void props.interval;
-    alertHover();
-    alertSelected();
-    alertMoving();
-    alertBlinks();
-    const targets = alertLabelTargets();
-    untrack(() => syncAlertLabels(targets));
-  });
-
-  // A fire makes its label blink for 2.4 s.
-  let lastFireSeen: string | null = alertStore.fires()[0]?.fireId ?? null;
-  createEffect(() => {
-    const fires = alertStore.fires();
-    const fresh: string[] = [];
-    for (const f of fires) {
-      if (f.fireId === lastFireSeen) break;
-      if (!f.offline) fresh.push(f.alertId);
-    }
-    lastFireSeen = fires[0]?.fireId ?? lastFireSeen;
-    if (!fresh.length) return;
-    const now = performance.now();
-    setAlertBlinks((b) => ({ ...b, ...Object.fromEntries(fresh.map((id) => [id, now])) }));
-    const tick = () => {
-      for (const prim of alertLabelPrims.values()) prim.update();
-      if (performance.now() - now < 2400) requestAnimationFrame(tick);
-      else setAlertBlinks((b) => Object.fromEntries(Object.entries(b).filter(([, t0]) => performance.now() - t0 < 2400)));
-    };
-    requestAnimationFrame(tick);
-  });
-
-  /** The label part under a client point: the series, its primitive and the hit. */
-  function alertLabelAt(clientX: number, clientY: number): { series: ISeriesApi<SeriesType>; prim: AlertLabelsPrimitive; hit: AlertLabelHit; paneTop: number } | null {
-    if (!chart || !host || alertLabelPrims.size === 0) return null;
-    const hostRect = host.getBoundingClientRect();
-    const plotLeft = hostRect.left + chart.priceScale("left").width();
-    const plotW = chart.timeScale().width();
-    for (const [s, prim] of alertLabelPrims) {
-      let paneEl: HTMLElement;
-      try { paneEl = s.getPane().getHTMLElement() as HTMLElement; } catch { continue; }
-      const r = paneEl.getBoundingClientRect();
-      if (clientY < r.top || clientY > r.bottom) continue;
-      const y = clientY - r.top;
-      const side = prim.state().side;
-      let hit: AlertLabelHit | null = null;
-      if (clientX >= plotLeft && clientX <= plotLeft + plotW) hit = prim.labelAt(clientX - plotLeft, y, plotW);
-      else if (side === "right" ? clientX > plotLeft + plotW : clientX < plotLeft) hit = prim.axisHitTest(y);
-      if (hit) return { series: s, prim, hit, paneTop: r.top };
-    }
-    return null;
-  }
-
-  /** Menu of an alert label (reference): Pause / Restart, Edit…, Delete, then "Alert lines" (the chart setting)
-   *  and "Change alerts color…" (the chart settings, Alerts tab). */
-  function openAlertLabelMenu(id: string, x: number, y: number) {
-    const rule = alertStore.rule(id);
-    if (!rule) return;
-    const t = currentTokens();
-    const nodes: CtxNode[] = [
-      rule.enabled
-        ? { kind: "item", id: "alert-pause", label: "Pause", icon: CtxIcons.pause, onSelect: () => alertStore.setEnabled(id, false) }
-        : { kind: "item", id: "alert-restart", label: "Restart", icon: CtxIcons.restart, onSelect: () => { resetRuleEvalState(id); alertStore.setEnabled(id, true); } },
-      { kind: "item", id: "alert-edit", label: "Edit…", icon: CtxIcons.edit,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { editId: id } })) },
-      { kind: "item", id: "alert-delete", label: "Delete", icon: CtxIcons.remove,
-        onSelect: () => { resetRuleEvalState(id); setAlertWebhook(id, null); alertStore.remove(id); } },
-      { kind: "separator" },
-      { kind: "item", id: "alert-lines", label: "Alert lines", checked: t.alertLinesVisible,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-patch-scale-settings", { detail: { patch: { alertLines: !t.alertLinesVisible } } })) },
-      { kind: "item", id: "alert-color", label: "Change alerts color…",
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings", { detail: { tab: "alerts" } })) },
-    ];
-    setCtxMenu({ x, y, nodes });
-  }
-
-  /** A price rounded as the series writes its values. */
-  function roundedOnSeries(s: ISeriesApi<SeriesType>, v: number): number {
-    const text = s.priceFormatter().format(v).replace(/,/g, "").replace(/\u2212/g, "-");
-    const n = Number(text);
-    return Number.isFinite(n) ? n : v;
-  }
-
-  /** Scales → "Countdown to bar close": refresh the axis label's remaining
-   *  time (1s cadence — see the onMount timer). Anchored at the last close,
-   *  coloured by the last bar's direction, sitting just under the last-price
-   *  label. */
-  function updateCountdown() {
-    const t = currentTokens();
-    const last = raw.length > 0 ? raw[raw.length - 1] : null;
-    // The countdown shows for time-based styles only (renko, line break,
-    // kagi, P&F and range bars have no bar close to count to).
-    const timeBased = !isTransformType(activeType);
-    const text = last && timeBased
-      ? countdownText(
-          props.interval ?? "1D",
-          Date.now() / 1000,
-          typeof last.time === "number" ? (last.time as number) : undefined,
-          props.session ?? "RTH",
-          cachedSymbolSessions(props.symbol ?? ""),
-        )
-      : null;
-    const showCountdown = t.countdownVisible && text != null;
-    // Value shown in the label: the series' own last value (Heikin-Ashi close
-    // on an HA chart) unless "Real prices on price scale" is on.
-    const haReal = activeType === "ha" && t.styles.ha.realPrices;
-    let labelPrice = last?.close ?? 0;
-    let labelUp = last ? last.close >= last.open : true;
-    if (activeType === "ha" && !haReal && last) {
-      const ha = heikinAshiLast(raw);
-      if (ha) { labelPrice = ha.close; labelUp = ha.close >= ha.open; }
-    }
-    // "Price and percentage value": a second row with the change from the
-    // first visible bar (regular scale).
-    let pctText = "";
-    if (t.symbolValuePercent && timeBased && last && chart) {
-      const lr = chart.timeScale().getVisibleLogicalRange();
-      const idx = lr ? Math.max(0, Math.min(raw.length - 1, Math.ceil(lr.from))) : 0;
-      const base = raw[idx]?.close;
-      if (base) {
-        const pct = ((last.close - base) / Math.abs(base)) * 100;
-        pctText = `${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`;
-      }
-    }
-    const labelOn = t.symbolLastValue && last != null;
-    const active = last != null && (showCountdown || (labelOn && (pctText !== "" || haReal)));
-    countdown.setState({
-      visible: active,
-      price: labelPrice,
-      // Row 1 of the combined label — empty when the Symbol price-label
-      // setting is off (the plate then shows the countdown row alone). The
-      // "Name" option prefixes the ticker, like the library label it replaces.
-      priceText:
-        active && labelOn && series
-          ? (t.symbolNameLabel ? `${splitSymbol(props.symbol ?? "").ticker} ` : "") +
-            series.priceFormatter().format(labelPrice)
-          : "",
-      pctText: active && labelOn ? pctText : "",
-      text: showCountdown ? text ?? "" : "",
-      backColor: labelUp ? t.up : t.down,
-      textColor: "#ffffff",
-      fontSize: t.scaleFontSize,
-      fontFamily: readFontFamily(),
-    });
-    // The plate REPLACES the library's last-value label while it shows (ONE
-    // label: price row + percentage row + countdown row) — toggle
-    // the library label off/on as the market opens/closes. Read-compare so
-    // the 1s timer doesn't spam applyOptions.
-    if (series) {
-      const wantLabel = t.symbolLastValue && !active;
-      if (series.options().lastValueVisible !== wantLabel) {
-        series.applyOptions({ lastValueVisible: wantLabel });
-      }
-    }
-  }
 
   /** Rebuild {@link prevDayClose}: for each bar, the close of the last bar of the
    *  PREVIOUS trading day (in the chart timezone). O(n) per data change, so the
@@ -2837,511 +1043,19 @@ export function ChartView(props: Props) {
     }
   }
 
-  /** One older window, or `null` on a transient backend error — so a failed
-   *  fetch lets the user retry on the next scroll rather than latching
-   *  "history exhausted" (which an empty result legitimately means). Never
-   *  rejects, so it's safe to leave a background prefetch unawaited. */
-  function fetchOlder(sym: string, int: string, beforeSec: number, spanDays?: number): Promise<Candle[] | null> {
-    // Read the live session so older pages match the displayed series. A session
-    // change bumps fetchGen + clears the prefetch buffer (see the symbol/session
-    // effect), so an in-flight page for the old session is discarded on landing.
-    return getBarsBefore(sym, int, beforeSec, props.session ?? "RTH", spanDays).then((r) => r, () => null);
-  }
+  const {
+    broadcastRange,
+    goToTime,
+    holdLinkQuiet,
+    maybeLoadOlder,
+    scheduleSyncRun,
+    startPrefetch,
+    updateHistoryEnd,
+  } = attach(cx, createHistory(cx));
 
-  /** Indicator recompute after a history prepend, debounced. Every study
-   *  recomputes over ALL bars, so running it on each landed page made a deep
-   *  scroll-back O(n²); the older section shows without studies for a moment
-   *  and they fill in once paging pauses. */
-  let indicatorRenderTimer: number | undefined;
-  function scheduleIndicatorRender() {
-    window.clearTimeout(indicatorRenderTimer);
-    indicatorRenderTimer = window.setTimeout(() => {
-      indicatorRenderTimer = undefined;
-      withCrosshairParked(() => {
-        controller?.renderAll();
-        renderCompareAll();
-      });
-      refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    }, INDICATOR_RENDER_DEBOUNCE_MS);
-  }
-  onCleanup(() => window.clearTimeout(indicatorRenderTimer));
 
-  /** Read-ahead: fetch the window older than `beforeSec` into {@link prefetch}
-   *  so the next scroll-back prepends instantly. No-op once history is exhausted
-   *  or when that exact window is already buffering. */
-  function startPrefetch(sym: string, int: string, gen: number, beforeSec: number) {
-    if (historyExhausted) return;
-    if (prefetch && prefetch.gen === gen && prefetch.beforeSec === beforeSec) return;
-    prefetch = { gen, beforeSec, rows: fetchOlder(sym, int, beforeSec) };
-  }
-
-  /** Scroll-back: when the visible range's left edge nears the oldest loaded
-   *  bar, take one older window — from the read-ahead buffer if it's ready, else
-   *  fetched inline — prepend it, shift the visible range by the number of bars
-   *  added so the candles under the cursor stay put, then pipeline the *next*
-   *  window so the following scroll-back is instant too. Guards against
-   *  overlapping/duplicate fetches and a stale page landing after a
-   *  symbol/interval switch. Mirrors the mock (ChartView.tsx:685-747). */
-  function maybeLoadOlder() {
-    if (!chart || !series || loadingMore || historyExhausted) return;
-    // Don't page while the initial/refetch window is still loading: the live
-    // poller can seed `raw` with a single forming bar before history lands, and
-    // paging off that would compute a bogus `before` (the newest bar) and
-    // duplicate the recent window. Wait until real history has populated `raw`.
-    if (history.loading) return;
-    // The daily family pages its underlying daily bars (so 1W/1M re-aggregate);
-    // second/minute page the displayed bars directly.
-    const isDaily = rawDaily.length > 0;
-    const oldestSrc: { time: unknown }[] = isDaily ? rawDaily : raw;
-    if (oldestSrc.length === 0) return;
-    const ts = chart.timeScale();
-    const range = ts.getVisibleLogicalRange();
-    if (!range || range.from > LOAD_MORE_THRESHOLD) return;
-    // Don't page when the whole loaded series is in view — the initial
-    // fitContent() (and a fully zoomed-out chart) sits at from≈0 / to≈len-1.
-    // The old guard tested the visible SPAN, but scrolling/zooming left into the
-    // whitespace past bar 0 inflates the span (`from` goes negative) and wrongly
-    // suppressed paging — the very gesture meant to load older bars. Instead,
-    // only block while the newest bar is still on-screen (right edge near the
-    // last index); once the latest bars scroll off the right, page.
-    if (range.to >= raw.length - 1 - LOAD_MORE_THRESHOLD) return;
-
-    loadingMore = true;
-    const reqSym = props.symbol ?? "";
-    const reqInt = props.interval ?? "1D";
-    const reqGen = fetchGen;
-    const beforeSec = oldestSrc[0].time as number;
-    // Consume the buffered window when it matches this exact request; otherwise
-    // fetch inline (the user scrolled before the read-ahead landed).
-    const buffered =
-      prefetch && prefetch.gen === reqGen && prefetch.beforeSec === beforeSec ? prefetch.rows : null;
-    prefetch = null;
-    const usedBuffer = buffered !== null;
-    const tFetch = performance.now();
-    console.log(
-      `[scrollback] TRIGGER fired (from=${range.from.toFixed(1)}, raw=${raw.length}, beforeSec=${beforeSec}) — source: ${usedBuffer ? "prefetch buffer" : "INLINE fetch"}`,
-    );
-    const source = buffered ?? fetchOlder(reqSym, reqInt, beforeSec);
-    void source
-      .then((rows) => {
-        const ms = (performance.now() - tFetch).toFixed(0);
-        console.log(
-          `[scrollback] page landed in ${ms}ms (${usedBuffer ? "buffered" : "inline"}, ${rows?.length ?? "null"} rows)`,
-        );
-        // The series moved on while the page was in flight — discard it. We key
-        // off the generation token, not a symbol/interval equality check: an
-        // A→B→A switch re-matches the symbol and would let a stale page from
-        // the first A view prepend into and re-range the second, parking the
-        // chart on year-old bars. The token never re-matches.
-        if (!chart || !series) return;
-        if (reqGen !== fetchGen) return;
-        if (rows === null) return; // transient error — allow a later retry
-        // Another prepend (the date-range sync loader) landed first: this page
-        // would overlap it.
-        if (((isDaily ? rawDaily[0]?.time : raw[0]?.time) as number | undefined) !== beforeSec) return;
-        const older = rows.filter((r) => (r.time as number) < beforeSec);
-        if (older.length === 0) {
-          historyExhausted = true;
-          return;
-        }
-        const prevRange = ts.getVisibleLogicalRange();
-        // Brick types re-derive their items from the whole history (item
-        // count unrelated to the bars added): keep the distance to the last
-        // item, at the same bar spacing.
-        const prevLast = isTransformType(activeType) ? mainLastIndex() : null;
-        const prevLen = raw.length;
-        if (isDaily) {
-          const unit = aggregateUnitFor(reqInt);
-          // Resolved with the first daily load (getBars).
-          const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
-          if (unit && !spec) return;
-          rawDaily = [...older, ...rawDaily];
-          raw = toOHLC(unit ? aggregateCandles(rawDaily, unit, spec!) : rawDaily);
-        } else {
-          raw = [...toOHLC(older), ...raw];
-        }
-        setDataForType(series, activeType, raw, currentTokens(), dataExtras());
-      afterSeriesData();
-        updateSessionBreaks();
-        scheduleIndicatorRender();
-        if (!crosshairActive) refreshLegend();
-        // Pin the view by the bars actually added — aggregation can change the
-        // count for 1W/1M, so use the length delta, not the raw page length.
-        const delta = raw.length - prevLen;
-        if (isTransformType(activeType)) {
-          const last = mainLastIndex();
-          if (prevRange && prevLast != null && last != null) {
-            ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
-          }
-        } else if (prevRange && delta > 0) {
-          ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
-        }
-        // Pipeline the next older window so the following scroll-back is instant.
-        const nextOldest = (isDaily ? rawDaily[0]?.time : raw[0]?.time) as number | undefined;
-        if (nextOldest !== undefined) startPrefetch(reqSym, reqInt, reqGen, nextOldest);
-      })
-      .finally(() => {
-        loadingMore = false;
-        updateHistoryEnd();
-      });
-  }
-
-  /** Index of the newest loaded bar at or before `targetSec` (binary search on
-   *  the time-ascending `raw`); 0 when the target predates every bar. */
-  function indexAtOrBefore(targetSec: number): number {
-    let lo = 0,
-      hi = raw.length - 1,
-      ans = 0;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if ((raw[mid].time as number) <= targetSec) {
-        ans = mid;
-        lo = mid + 1;
-      } else hi = mid - 1;
-    }
-    return ans;
-  }
-
-  /** Index of the oldest loaded bar at or after `targetSec` (lower bound);
-   *  the newest bar when the target is past every bar. */
-  function indexAtOrAfter(targetSec: number): number {
-    let lo = 0,
-      hi = raw.length - 1,
-      ans = raw.length - 1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if ((raw[mid].time as number) >= targetSec) {
-        ans = mid;
-        hi = mid - 1;
-      } else lo = mid + 1;
-    }
-    return ans;
-  }
-
-  // ── Date-range sync, driver side ────────────────────────────────────────
-  /** Broadcast this pane's visible dates when it is the ACTIVE pane and a
-   *  whole bar entered or left the view (only the active chart drives).
-   *  Dates, not logical indices, so panes on
-   *  other intervals line up. `force` re-sends an unchanged range (pane just
-   *  became active, or sync was just switched on). A change the user made is
-   *  also sent to linked tabs when the group's Date range channel is on,
-   *  independent of this layout's own toggle. */
-  function broadcastRange(force: boolean) {
-    if (!chart || !props.active || swapping || suppressRangeBroadcast) return;
-    const toLayout = layoutSync().dateRange;
-    const toLink = !force && !linkQuiet && !!activeLink()?.channels.dateRange;
-    if (!toLayout && !toLink) return;
-    const r = chart.timeScale().getVisibleRange();
-    if (!r) return;
-    const key = `${r.from}:${r.to}`;
-    if (!force && key === lastRangeKey) return;
-    lastRangeKey = key;
-    if (toLayout) {
-      window.dispatchEvent(
-        new CustomEvent("chart-sync-range", { detail: { from: r.from as number, to: r.to as number, sourceId: paneId } }),
-      );
-    }
-    if (toLink) postLinkRange(r.from as number, r.to as number);
-  }
-  // Every chart re-syncs to the newly active chart's range when the active
-  // chart changes or date-range sync is switched on. Memos, so only a real
-  // change counts: `layoutSync()` and `props.active` re-run with every tab
-  // update (a follower's saved view range too), which re-sent the active
-  // range and undid any scroll of a pane that is not the active one.
-  const dateRangeSyncOn = createMemo(() => layoutSync().dateRange);
-  const isActive = createMemo(() => !!props.active);
-  createEffect(() => {
-    chartReady();
-    if (!isActive() || !dateRangeSyncOn()) return;
-    untrack(() => broadcastRange(true));
-  });
-
-  // ── Date-range sync, follower side ──────────────────────────────────────
-  /** Queue an inbound date-range target. Only the latest target is kept, and
-   *  it is applied in a later task so the driving pane's gesture never waits
-   *  on its followers (a newer target supersedes the previous request). */
-  function queueSyncRange(from: number, to: number) {
-    syncTarget = { from, to };
-    syncTargetAt = performance.now();
-    scheduleSyncRun(0);
-  }
-  function scheduleSyncRun(delayMs: number) {
-    if (syncTimer !== undefined) return;
-    syncTimer = window.setTimeout(() => {
-      syncTimer = undefined;
-      void runSyncRange();
-    }, delayMs);
-  }
-  onCleanup(() => window.clearTimeout(syncTimer));
-
-  /** True when the target predates the loaded bars and more can be loaded for
-   *  sync. The daily family holds its full history already. */
-  function needsSyncLoad(fromSec: number): boolean {
-    return (
-      rawDaily.length === 0 &&
-      !historyExhausted &&
-      raw.length > 0 &&
-      raw.length < SYNC_LOAD_MAX_BARS &&
-      (raw[0].time as number) > fromSec
-    );
-  }
-
-  /** Trading days from `fromSec` up to `beforeSec` (the backend sizes history
-   *  windows in trading days): weekdays plus a holiday margin. */
-  function tradingDaysBetween(fromSec: number, beforeSec: number): number {
-    const cal = Math.max(0, (beforeSec - fromSec) / 86400);
-    return Math.max(1, Math.ceil((cal * 5) / 7) + 2 + Math.ceil(cal / 36));
-  }
-
-  /** Distinct local calendar days among the loaded bars (≥ 1). */
-  function loadedSessionDays(): number {
-    if (raw.length === 0) return 1;
-    const dayOf = dayKeyer(props.timeZone ?? "UTC");
-    let days = 1;
-    let cur = dayOf(raw[0].time as number);
-    for (let i = 1; i < raw.length; i++) {
-      const d = dayOf(raw[i].time as number);
-      if (d !== cur) {
-        days++;
-        cur = d;
-      }
-    }
-    return days;
-  }
-
-  /** Load history back to the target time in ONE request that reaches it,
-   *  keeping the current view on the same bars meanwhile.
-   *  `target` is re-read after each await, so a newer target that arrived
-   *  during the load is honoured; normally one round, more only when the
-   *  trading-day estimate fell short (holidays) or the target moved further
-   *  back. Every round must add older bars, else the loop stops. Sync-driven
-   *  depth is capped at SYNC_LOAD_MAX_BARS. `minDays`: least trading days per
-   *  request (date-range sync loads one more screen, so a continued scroll
-   *  lands on loaded bars instead of prepending on every move). Returns false
-   *  when the series changed underneath (the caller must stop). */
-  async function loadHistoryTo(target: () => number | null, wanted: () => boolean, minDays = 0): Promise<boolean> {
-    const reqGen = fetchGen;
-    const reqSym = props.symbol ?? "";
-    const reqInt = props.interval ?? "1D";
-    let t = target();
-    while (t != null && needsSyncLoad(t) && wanted()) {
-      const beforeSec = raw[0].time as number;
-      // Size the request so the depth cap holds: bars per day measured on the
-      // loaded bars, window clipped to the bars still allowed.
-      const perDay = Math.max(1, raw.length / loadedSessionDays());
-      const allowedDays = Math.floor((SYNC_LOAD_MAX_BARS - raw.length) / perDay);
-      if (allowedDays < 1) break;
-      const spanDays = Math.min(Math.max(tradingDaysBetween(t, beforeSec), minDays), allowedDays);
-      syncLoading = true;
-      loadingMore = true;
-      let rows: Candle[] | null = null;
-      try {
-        rows = await fetchOlder(reqSym, reqInt, beforeSec, spanDays);
-      } finally {
-        syncLoading = false;
-        loadingMore = false;
-      }
-      if (reqGen !== fetchGen || !chart || !series) return false;
-      if (rows === null) break; // transient error: frame what is loaded
-      const older = rows.filter((r) => (r.time as number) < beforeSec);
-      if (older.length === 0) {
-        historyExhausted = true;
-        updateHistoryEnd();
-        break;
-      }
-      const ts = chart.timeScale();
-      const prevRange = ts.getVisibleLogicalRange();
-      const prevLast = isTransformType(activeType) ? mainLastIndex() : null;
-      const prevLen = raw.length;
-      raw = toOHLC(older).concat(raw);
-      prefetch = null;
-      // The prepend itself fires a range change (same logical range, older
-      // dates) before the view is put back below: guard it too, so it is not
-      // persisted, paged or sent to synced panes / linked tabs.
-      holdSyncGuard();
-      setDataForType(series, activeType, raw, currentTokens(), dataExtras());
-      afterSeriesData();
-      updateSessionBreaks();
-      scheduleIndicatorRender();
-      if (!crosshairActive) refreshLegend();
-      const delta = raw.length - prevLen;
-      if (isTransformType(activeType)) {
-        const last = mainLastIndex();
-        if (prevRange && prevLast != null && last != null) {
-          holdSyncGuard();
-          ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
-        }
-      } else if (prevRange && delta > 0) {
-        holdSyncGuard();
-        ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
-      }
-      t = target();
-    }
-    const nextOldest = (rawDaily.length > 0 ? rawDaily[0]?.time : raw[0]?.time) as number | undefined;
-    if (nextOldest !== undefined) startPrefetch(reqSym, reqInt, reqGen, nextOldest);
-    return true;
-  }
-
-  /** Apply the latest date-range target: load missing history (one request),
-   *  then frame the target once. */
-  async function runSyncRange() {
-    if (!syncTarget || syncLoading || !chart || !series) return;
-    // No data yet (first load / symbol swap): the apply effect re-runs this
-    // once the bars land.
-    if (raw.length === 0 || history.loading || swapping) return;
-    // The scroll-back pager or a time-sync jump is prepending: wait for it, so
-    // two loaders never prepend overlapping windows.
-    if (loadingMore) {
-      scheduleSyncRun(50);
-      return;
-    }
-    // Missing history: wait until the driver is still, so a scroll loads once
-    // at its end instead of on every move (the pane holds its view meanwhile).
-    const quietIn = SYNC_LOAD_QUIET_MS - (performance.now() - syncTargetAt);
-    if (quietIn > 0 && needsSyncLoad(syncTarget.from)) {
-      scheduleSyncRun(quietIn);
-      return;
-    }
-    const screenDays = tradingDaysBetween(syncTarget.from, syncTarget.to);
-    if (!(await loadHistoryTo(() => syncTarget?.from ?? null, () => true, screenDays))) return;
-    const t = syncTarget;
-    syncTarget = null;
-    if (t) applySyncRange(t.from, t.to);
-  }
-
-  /** Bar index holding a synced time on this pane: the bar of that day on
-   *  daily/weekly/monthly (DWM targets snap to the trading day), the first
-   *  bar at/after it on intraday frames. */
-  function syncIndex(sec: number): number {
-    const iv = props.interval ?? "1D";
-    const dwm = !isIntradayResolution(iv) && !isSecondResolution(iv);
-    return dwm ? indexAtOrBefore(sec) : indexAtOrAfter(sec);
-  }
-
-  /** Frame [fromSec, toSec] on this pane:
-   *  the same dates as the driving pane, bar spacing adapting to fit (the
-   *  library's min bar spacing then keeps the right edge). `driver`: the
-   *  user's own move (Go to custom range), not guarded like an inbound sync.
-   *  `indexOf`: bar index of a time (default: the sync rule). */
-  function applySyncRange(fromSec: number, toSec: number, driver = false, indexOf: (sec: number) => number = syncIndex) {
-    const guard = () => { if (!driver) holdSyncGuard(); };
-    if (!chart || raw.length === 0) return;
-    const ts = chart.timeScale();
-    const last = raw.length - 1;
-    // Target entirely older than the loaded history (history floor or the sync
-    // depth cap): show the oldest bars at the current zoom instead of
-    // collapsing onto one bar.
-    if (toSec < (raw[0].time as number)) {
-      const cur = ts.getVisibleLogicalRange();
-      const span = cur ? Math.max(MIN_VISIBLE_BARS, cur.to - cur.from) : 100;
-      guard();
-      ts.setVisibleLogicalRange({ from: -0.5, to: span - 0.5 });
-      return;
-    }
-    const i = indexOf(fromSec);
-    let l = Math.max(i, indexOf(toSec));
-    if (l - i + 1 < SYNC_MIN_BARS) l = i + SYNC_MIN_BARS - 1;
-    // A range reaching the latest bar keeps the pane's right margin.
-    if (l >= last) l = Math.max(l, last + (ts.options().rightOffset ?? 0));
-    guard();
-    ts.setVisibleLogicalRange({ from: i - 0.5, to: l + 0.5 });
-  }
-
-  /** Bar index for a "Go to" date (the reference app `_gotoTimeImpl`): intraday, the bar
-   *  holding the time (the reference app aligns the target to its bar start), else the first
-   *  bar after it; the first bar at/after the date on DWM. */
-  function gotoDateIndex(sec: number): number {
-    const iv = props.interval ?? "1D";
-    if (!isIntradayResolution(iv) && !isSecondResolution(iv)) return indexAtOrAfter(sec);
-    const step = parseInt(iv, 10) * (/S$/.test(iv) ? 1 : 60);
-    const i = indexAtOrBefore(sec);
-    const t = raw[i].time as number;
-    return t <= sec && sec < t + step ? i : indexAtOrAfter(sec);
-  }
-
-  type GotoOpts = {
-    /** Centre the target even when it is already in view (the reference app Go to). */
-    alignIfVisible?: boolean;
-    /** The user's own move (Go to): the new view is persisted and sent to
-     *  synced panes / linked tabs like a scroll. Sync followers leave it off. */
-    driver?: boolean;
-    /** Bar index of the target (default: the sync rule). */
-    index?: (sec: number) => number;
-  };
-
-  /** Bumped per goToTime / goToRange call so a newer jump supersedes an
-   *  in-flight older one. */
-  let gotoGen = 0;
-  /** Receiving side of "Time" sync (target aligned to the centre, no
-   *  alignment when already visible): when the
-   *  clicked time is already in view nothing moves; otherwise the pane loads
-   *  history back to it if needed (one request, capped) and centres it at the
-   *  current bar spacing. It only scrolls: the crosshair is the crosshair
-   *  sync's business. The Go to dialog uses it with `alignIfVisible` and
-   *  `driver` (the reference app `gotoTime`). */
-  async function goToTime(targetSec: number, opts: GotoOpts = {}) {
-    if (!chart || !series || raw.length === 0) return;
-    const ts = chart.timeScale();
-    const indexOf = opts.index ?? syncIndex;
-    const loaded = (raw[0].time as number) <= targetSec || rawDaily.length > 0 || historyExhausted;
-    const cur = ts.getVisibleLogicalRange();
-    if (loaded && cur && !opts.alignIfVisible) {
-      const idx = indexOf(targetSec);
-      if (idx >= cur.from && idx <= cur.to) return;
-    }
-    // Another loader is prepending: retry once it is done.
-    if (loadingMore) {
-      window.setTimeout(() => void goToTime(targetSec, opts), 50);
-      return;
-    }
-    const myGoto = ++gotoGen;
-    // Darken while the target history loads (same dim-and-hold treatment as a
-    // symbol load), debounced so an in-memory jump never flashes it.
-    const dimTimer = needsSyncLoad(targetSec) ? window.setTimeout(() => setDimmed(true), 160) : 0;
-    try {
-      if (!(await loadHistoryTo(() => targetSec, () => myGoto === gotoGen))) return;
-      if (myGoto !== gotoGen || !chart) return;
-      const r = ts.getVisibleLogicalRange();
-      const span = r ? r.to - r.from : 120;
-      const idx = indexOf(targetSec);
-      if (!opts.driver) holdSyncGuard();
-      ts.setVisibleLogicalRange({ from: idx - span / 2, to: idx + span / 2 });
-    } finally {
-      clearTimeout(dimTimer);
-      // Only the latest jump clears the dim.
-      if (myGoto === gotoGen) setDimmed(false);
-    }
-  }
-
-  /** Go to "Custom range" (the reference app `setTimeFrame` with a time range): load history
-   *  back to `fromSec` if needed, then frame [fromSec, toSec] like a date-range
-   *  sync target. The user's own move: persisted and sent to synced panes. */
-  async function goToRange(fromSec: number, toSec: number) {
-    if (!chart || !series || raw.length === 0) return;
-    if (loadingMore) {
-      window.setTimeout(() => void goToRange(fromSec, toSec), 50);
-      return;
-    }
-    const myGoto = ++gotoGen;
-    const dimTimer = needsSyncLoad(fromSec) ? window.setTimeout(() => setDimmed(true), 160) : 0;
-    try {
-      if (!(await loadHistoryTo(() => fromSec, () => myGoto === gotoGen))) return;
-      if (myGoto !== gotoGen || !chart) return;
-      // The reference app `gotoTimeRange`: both ends go to the first bar at/after their time.
-      applySyncRange(fromSec, toSec, true, indexAtOrAfter);
-    } finally {
-      clearTimeout(dimTimer);
-      if (myGoto === gotoGen) setDimmed(false);
-    }
-  }
-
-  // Countdown tick: 1s cadence, reading the live closures (interval / raw /
-  // tokens) so it follows symbol/interval/settings changes without re-wiring.
-  onMount(() => {
-    const timer = window.setInterval(() => { if (!hidden()) updateCountdown(); }, 1000);
-    onCleanup(() => window.clearInterval(timer));
-  });
-
+  const { installPointer, installTimeSync } = attach(cx, createPointer(cx));
+  const { installChartEvents, installDataEvents } = attach(cx, createWindowEvents(cx));
   onMount(() => {
     const tokens = currentTokens();
     const base = appearanceOptions(tokens);
@@ -3398,103 +1112,23 @@ export function ChartView(props: Props) {
       setCoordEpoch((n) => n + 1);
       // Pane heights and the scale width both move with the pane — re-anchor
       // and re-fit the control bars on resize.
-      refreshBarsRef?.();
+      cx.refreshBarsRef?.();
     });
     ro.observe(host);
 
-    // ── Control bars ────────────────────────────────────────────────────────
-    // The centred group bar and the bottom-right "Scroll to the most recent
-    // bar" button (see control-bar.ts for the shared geometry). The rules:
-    //   • the goto button shows only while `rightOffset < 0`, i.e. the last bar
-    //     has left the right edge. Empty right margin still reads as realtime.
-    //   • both also need the Navigation setting to allow it: `alwaysOn` pins
-    //     them on, `alwaysOff` off, and the default consults a box padded 100px
-    //     around each wrapper (73px on top). Each bar tests its OWN box. A held
-    //     button or an armed tool freezes the state instead of hiding.
-    //   • the anchor follows the bottom-most pane tall enough to hold the bar.
-    let nearGoto = false; // back button can be visible
-    let nearBar = false; // control bar visible
-    let gotoPoll: number | undefined;
-
-    const refreshBars = () => {
-      if (!chart || hidden()) return;
-      const behavior = currentTokens().navButtons;
-      // Host size cached by the ResizeObserver: reading clientWidth/Height here
-      // forced a synchronous layout on every pan frame (the drawings overlay
-      // has just re-projected its SVG in the same task).
-      const anchor = barAnchor(chart, hostH, hostW);
-      if (anchor) {
-        setGotoBox((p) => (p.bottom === anchor.bottom && p.right === anchor.right ? p : { bottom: anchor.bottom, right: anchor.right }));
-        const fits = anchor.fits((id) => (id === "maximize" ? !!props.canMaximize : true));
-        setBarFits((p) => (p.size === fits.size && [...p].every((id) => fits.has(id)) ? p : fits));
-        const left = anchor.centre(groupsWidth(fits));
-        setBarLeft(left);
-      }
-      setGotoShown(canShow(behavior, nearGoto) && chart.timeScale().scrollPosition() < 0);
-      setBarShown(canShow(behavior, nearBar));
-      setResetAvailable(scalesOffDefault());
-    };
-
-    // The goto button is polled at 1s to catch new bars pushing the last bar
-    // off-screen. It can't show while the pointer is away (and the pinned modes
-    // don't depend on scroll at all), so only poll where it can change the
-    // answer — same result, no idle timer per pane.
-    const syncGotoPoll = () => {
-      const want = currentTokens().navButtons === "alwaysOn" || nearGoto;
-      if (want && gotoPoll === undefined) gotoPoll = window.setInterval(refreshBars, 1000);
-      else if (!want && gotoPoll !== undefined) {
-        window.clearInterval(gotoPoll);
-        gotoPoll = undefined;
-      }
-    };
-    refreshBarsRef = () => {
-      syncGotoPoll();
-      refreshBars();
-    };
-
-    const onBarPointer = (e: MouseEvent) => {
-      if (currentTokens().navButtons !== "visibleOnMouseOver") return;
-      const g = pointerNearBox(e, gotoWrap.getBoundingClientRect(), !!props.armedTool);
-      const b = pointerNearBox(e, barWrap.getBoundingClientRect(), !!props.armedTool);
-      if ((g === undefined || g === nearGoto) && (b === undefined || b === nearBar)) return;
-      if (g !== undefined) nearGoto = g;
-      if (b !== undefined) nearBar = b;
-      syncGotoPoll();
-      refreshBars();
-    };
-    // Bound to the pane root, not the canvas host: the buttons are siblings of
-    // the host, so hovering one would fire `mouseleave` on the host, hide it,
-    // put the cursor back over the canvas and flicker forever. The pane root
-    // wraps both.
-    paneRoot.addEventListener("mousemove", onBarPointer);
-    paneRoot.addEventListener("mouseleave", onBarPointer);
-    onCleanup(() => {
-      paneRoot.removeEventListener("mousemove", onBarPointer);
-      paneRoot.removeEventListener("mouseleave", onBarPointer);
-      if (gotoPoll !== undefined) window.clearInterval(gotoPoll);
-    });
-
-    // Navigation setting changes flip the pinned modes on/off, so re-resolve.
-    createEffect(() => {
-      const behavior = appearance().navButtons ?? "visibleOnMouseOver";
-      if (behavior !== "visibleOnMouseOver") {
-        nearGoto = false;
-        nearBar = false;
-      }
-      refreshBarsRef?.();
-    });
+    installControlBars();
 
     const onRangeChange = () => {
       setCoordEpoch((n) => n + 1);
       // Same % scale values are measured from the first visible bar.
       if (!crosshairActive && compareEntries().some((e) => e.placement === "percent")) refreshIndicatorLegend();
-      refreshBarsRef?.();
+      cx.refreshBarsRef?.();
       // High/Low follow the visible bars, on followers too.
       updateHighLowLines();
       // A view set by an inbound sync is not this pane's own: it must not page
       // (the sync loader fetched its history in one request), be persisted
       // (a follower would save a clamped view), or be broadcast.
-      if (syncGuard) return;
+      if (cx.syncGuard) return;
       maybeLoadOlder();
       // Persist the user's anchor (debounced) so it survives tab switches +
       // reloads. Skipped while a symbol swap is mid-flight (the apply effect is
@@ -3532,885 +1166,18 @@ export function ChartView(props: Props) {
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onStyleRange);
 
-    // ── Right-edge-anchored wheel zoom ──────────────────────────────────────
-    // The wheel zoom pins the most recent bar to the right edge, so history
-    // expands/contracts to the LEFT only — unlike lightweight-charts' default
-    // cursor-anchored zoom. We hold the visible range's right edge (`to`) fixed
-    // and scale the left edge (`from`). The whole wheel goes through the wheel
-    // helper (./wheel-helper): vertical → zoom (bar spacing x (1 + t/10),
-    // |t| <= 1 per event); Ctrl → "focused zoom", the bar under the cursor
-    // stays put; horizontal (and Shift + vertical, swapped by the helper) →
-    // scrollChart(-80 x deltaX) px. The library's own wheel scroll is replaced,
-    // so the event stops here. Capture phase: we run before the canvas listener.
-    const wheel = new WheelHelper();
-    const axisWheel = new WheelHelper();
-    const onWheel = (e: WheelEvent) => {
-      if (!chart) return;
-      if (onPriceAxisWheel(e)) return;
-      const ts = chart.timeScale();
-      let range = ts.getVisibleLogicalRange();
-      if (!range) return;
-      let span = range.to - range.from;
-      if (span <= 0) return;
-      const w = wheel.process(e);
-      const zoom = -w.deltaY;
-      if (zoom === 0 && w.deltaX === 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (w.deltaX !== 0) {
-        // Scroll by -80 · deltaX: the content moves that many pixels
-        // (positive = to the right, i.e. toward older bars).
-        const px = -80 * w.deltaX;
-        const shift = px / (ts.width() / span);
-        ts.setVisibleLogicalRange({ from: range.from - shift, to: range.to - shift });
-        range = ts.getVisibleLogicalRange() ?? range;
-        span = range.to - range.from;
-      }
-      if (zoom === 0) return;
-      const t = Math.sign(zoom) * Math.min(1, Math.abs(zoom));
-      props.onWheelZoom?.(e.ctrlKey || e.metaKey);
-      // Wheel up (t > 0) → zoom in (smaller span); down → zoom out.
-      const newSpan = Math.max(5, span / (1 + t / 10));
-      if (e.ctrlKey || e.metaKey) {
-        // Focused zoom: the logical index under the cursor keeps its screen
-        // position. x clamped to [1, width - 2].
-        const g = scaleGeom();
-        const r = host.getBoundingClientRect();
-        const x = Math.max(1, Math.min(e.clientX - r.left - (g?.left ? g.w : 0), ts.width() - 2));
-        const at = ts.coordinateToLogical(x);
-        if (at === null) return;
-        const f = (at - range.from) / span;
-        ts.setVisibleLogicalRange({ from: at - f * newSpan, to: at - f * newSpan + newSpan });
-        return;
-      }
-      // The right margin (in bars) is kept, so the right edge stays put and
-      // the left edge moves. The margin is then clamped to the bars on
-      // screen minus 2: a view that is almost all whitespace past the last
-      // bar slides left instead, keeping the last bar in view.
-      const lastIndex = mainLastIndex();
-      let to: number = range.to;
-      if (lastIndex != null) to = Math.min(to, lastIndex + newSpan - 2);
-      ts.setVisibleLogicalRange({ from: to - newSpan, to });
-    };
-    // Wheel over a price axis (on with handleScale.mouseWheel): scales that pane's price like an axis drag from
-    // the cursor — startScale(y), scaleTo(y + 15 · deltaY), deltaY from its own
-    // wheel helper: the price range is scaled around its centre by
-    // (s0 + 0.2(h − 1)) / (s1 + 0.2(h − 1)), s = h − y (≥ 0), at least 0.1.
-    // Not in percent / indexed-to-100 mode (the chart gets the wheel then).
-    // TRUE when handled.
-    function onPriceAxisWheel(e: WheelEvent): boolean {
-      const g = scaleGeom();
-      if (!chart || !g) return false;
-      const r = host.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      if (g.left ? x >= g.w : x < r.width - g.w) return false;
-      const box = paneBoxes().find((b) => e.clientY - r.top >= b.top && e.clientY - r.top < b.top + b.height);
-      if (!box) return false;
-      const ps = chart.priceScale(currentTokens().scalesPlacement, box.index);
-      const mode = ps.options().mode;
-      if (mode === PriceScaleMode.Percentage || mode === PriceScaleMode.IndexedTo100) return false;
-      const range = ps.getVisibleRange();
-      if (!range || !(range.to > range.from)) return false;
-      const t = axisWheel.process(e).deltaY;
-      if (t === 0) return false;
-      e.preventDefault();
-      e.stopPropagation();
-      const h = box.height;
-      const y = e.clientY - r.top - box.top;
-      const s0 = h - y;
-      const s1 = Math.max(0, h - (y + 15 * t));
-      const k = Math.max(0.1, (s0 + 0.2 * (h - 1)) / (s1 + 0.2 * (h - 1)));
-      // LWC keeps a log scale's range in its log space and setVisibleRange
-      // stores the given numbers as they are, so a log scale is scaled (and
-      // set) in that space, with LWC's own formula (toLog / logFormulaFor-
-      // PriceRange: offsets 4 / 1e-4 unless the range is under 1).
-      const log = mode === PriceScaleMode.Logarithmic;
-      const diff = range.to - range.from;
-      const digits = diff < 1 && diff >= 1e-15 ? Math.ceil(Math.abs(Math.log10(diff))) : 0;
-      const lo = 4 + digits;
-      const co = digits ? 1 / Math.pow(10, lo) : 0.0001;
-      const toLog = (p: number) => (Math.abs(p) < 1e-15 ? 0 : Math.sign(p) * (Math.log10(Math.abs(p) + co) + lo));
-      const a = log ? toLog(range.from) : range.from;
-      const b = log ? toLog(range.to) : range.to;
-      const mid = (a + b) / 2;
-      const half = ((b - a) / 2) * k;
-      ps.setVisibleRange({ from: mid - half, to: mid + half });
-      return true;
-    }
-    host.addEventListener("wheel", onWheel, { passive: false, capture: true });
-    onCleanup(() => host.removeEventListener("wheel", onWheel, { capture: true } as EventListenerOptions));
+    installPointer();
 
-    // Track whether the OS pointer is over this pane (crosshair broadcast gate).
-    // Capture phase so a canvas stopPropagation can't hide the events from us.
-    const onDragMove = () => (pointerOverHost = true);
-    const onPointerEnter = () => (pointerOverHost = true);
-    // The pointer left this pane: stop owning the crosshair, and tell synced
-    // siblings to clear (the terminal crosshairMove the library fires on leave
-    // is gated off by pointerOverHost, so emit the clear ourselves — order-proof
-    // regardless of whether pointerleave or the library's mouseleave runs first).
-    const leaveChart = () => {
-      pointerOverHost = false;
-      if (layoutSync().crosshair || crossWindowCrosshairOn()) {
-        window.dispatchEvent(
-          new CustomEvent("chart-sync-crosshair", { detail: { time: null, price: null, sourceId: paneId } }),
-        );
-      }
-    };
-    // A drawing of this chart is above the chart canvas (its SVG takes the
-    // pointer): the pointer is still over the chart. The reference keeps the
-    // crosshair (lines, date and price labels, synced charts) over drawings,
-    // so mouse moves over a drawing are passed on to the chart canvas under
-    // the pointer; the chart would otherwise see the mouse leave.
-    const onDrawing = (t: EventTarget | null) => {
-      const el = t as Element | null;
-      return !!el?.closest?.("[data-drawing-id]") && paneRoot.contains(el);
-    };
-    let fwd: Element | null = null;
-    const mouseInit = (e: MouseEvent): MouseEventInit => ({
-      clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
-      button: e.button, buttons: e.buttons, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey,
-      view: window,
-    });
-    const fwdLeave = (e: MouseEvent) => {
-      const t = fwd;
-      fwd = null;
-      t?.dispatchEvent(new MouseEvent("mouseleave", mouseInit(e)));
-    };
-    const onPointerLeave = (e: PointerEvent) => {
-      if (onDrawing(e.relatedTarget)) return;
-      leaveChart();
-    };
-    // A press on a drawing (its drag): no mouse moves reach the chart until
-    // the release, wherever the pointer is.
-    let dragging = false;
-    const onDrawingDown = (e: PointerEvent) => {
-      if (e.button === 0 && onDrawing(e.target) && !props.armedTool) dragging = true;
-    };
-    const onDrawingUp = () => { dragging = false; };
-    const onDrawingMove = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
-      if (!(onDrawing(e.target) || dragging) || props.armedTool) {
-        // Back on the canvas the moves went to: it had its own mouse enter.
-        if (fwd && e.target !== fwd) fwdLeave(e);
-        else fwd = null;
-        return;
-      }
-      pointerOverHost = true;
-      const cv = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el instanceof HTMLCanvasElement && host.contains(el)) ?? null;
-      if (cv !== fwd) {
-        if (fwd) fwdLeave(e);
-        cv?.dispatchEvent(new MouseEvent("mouseenter", mouseInit(e)));
-        fwd = cv;
-      }
-      fwd?.dispatchEvent(new MouseEvent("mousemove", mouseInit(e)));
-    };
-    // Left the chart from a drawing.
-    const onRootLeave = (e: MouseEvent) => {
-      if (!fwd) return;
-      fwdLeave(e);
-      leaveChart();
-    };
-    host.addEventListener("pointermove", onDragMove, true);
-    host.addEventListener("pointerenter", onPointerEnter, true);
-    host.addEventListener("pointerleave", onPointerLeave, true);
-    paneRoot.addEventListener("pointermove", onDrawingMove, true);
-    paneRoot.addEventListener("pointerdown", onDrawingDown, true);
-    window.addEventListener("pointerup", onDrawingUp, true);
-    paneRoot.addEventListener("pointerleave", onRootLeave);
-    onCleanup(() => {
-      host.removeEventListener("pointermove", onDragMove, true);
-      host.removeEventListener("pointerenter", onPointerEnter, true);
-      host.removeEventListener("pointerleave", onPointerLeave, true);
-      paneRoot.removeEventListener("pointermove", onDrawingMove, true);
-      paneRoot.removeEventListener("pointerdown", onDrawingDown, true);
-      window.removeEventListener("pointerup", onDrawingUp, true);
-      paneRoot.removeEventListener("pointerleave", onRootLeave);
-    });
+    installAlertPointer();
+    installTimeSync();
 
-    // Plus button hit test: a left press inside its rect belongs to the
-    // button (no pan, no time click); the release inside it opens the menu.
-    const inPlus = (e: MouseEvent) => {
-      if (!plusEl || plusY() === null) return null;
-      const r = plusEl.getBoundingClientRect();
-      if (!(e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom)) return null;
-      // The news lollipop (a chart source) wins over the plus icon.
-      if (chart && paneRoot) {
-        const root = paneRoot.getBoundingClientRect();
-        const leftAxis = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
-        const x = e.clientX - root.left - leftAxis;
-        const y = e.clientY - root.top;
-        if (newsLollipop.hitTest(x, y) || historyEnd.hitTest(x, y)) return null;
-      }
-      return r;
-    };
-    const onPlusDown = (e: MouseEvent) => {
-      if (e.button !== 0 || !inPlus(e)) return;
-      plusPressed = true;
-      e.stopPropagation();
-      e.preventDefault();
-    };
-    const onPlusUp = (e: MouseEvent) => {
-      if (!plusPressed) return;
-      e.stopPropagation();
-      if (e.type !== "click") return;
-      plusPressed = false;
-      const r = inPlus(e);
-      const y = plusY();
-      if (r && y !== null) openPlusMenu(r, y);
-    };
-    const plusEvents = ["pointerdown", "mousedown"] as const;
-    const plusUpEvents = ["pointerup", "mouseup", "click"] as const;
-    for (const t of plusEvents) host.addEventListener(t, onPlusDown, true);
-    for (const t of plusUpEvents) host.addEventListener(t, onPlusUp, true);
-    onCleanup(() => {
-      for (const t of plusEvents) host.removeEventListener(t, onPlusDown, true);
-      for (const t of plusUpEvents) host.removeEventListener(t, onPlusUp, true);
-    });
-
-    // Shift+Click on empty chart → arm the Measure tool (Shift+drag-to-
-    // measure; this app's measure is two-click, so the click arms it and the
-    // user clicks the two endpoints). Only on the focused pane and when no tool
-    // is already armed. Capture phase + preventDefault so it doesn't also start
-    // a chart drag. Clicks on a drawing go to the overlay, not here.
-    const onShiftMeasure = (e: PointerEvent) => {
-      if (!props.active || props.armedTool || e.button !== 0 || !e.shiftKey) return;
-      e.preventDefault();
-      e.stopPropagation();
-      window.dispatchEvent(new CustomEvent("select-drawing-tool", { detail: { toolId: "measure" } }));
-    };
-    host.addEventListener("pointerdown", onShiftMeasure, true);
-    onCleanup(() => host.removeEventListener("pointerdown", onShiftMeasure, true));
-
-    // Ctrl+double click on an empty pane area → collapse / restore that pane
-    // (no source under the cursor, no drawing tool, empty selection). The plain double click (maximize pane)
-    // is not offered here. Only drawings are excluded as sources: a series /
-    // study hit (which would open its settings) is not tested.
-    const onCtrlDblClick = (e: MouseEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || props.armedTool) return;
-      if (props.selectedDrawingId || (props.selectedDrawingIds?.length ?? 0) > 0) return;
-      if ((e.target as Element | null)?.closest?.("[data-drawing-id]")) return;
-      const g = scaleGeom();
-      if (!g) return;
-      const r = host.getBoundingClientRect();
-      const x = e.clientX - r.left;
-      const y = e.clientY - r.top;
-      if (g.left ? x < g.w : x > r.width - g.w) return; // price axis, not the pane
-      const box = paneBoxes().find((b) => y >= b.top && y < b.top + b.height);
-      if (!box) return;
-      const a = paneActions(box.index);
-      if (!a.collapse && !a.restore) return;
-      toggleCollapse(box.index);
-    };
-    host.addEventListener("dblclick", onCtrlDblClick);
-    onCleanup(() => host.removeEventListener("dblclick", onCtrlDblClick));
-
-    // Study drag (reference rules): a press on a study's plot drags the study
-    // (the press also scrolls the chart). Released over another pane, the
-    // study joins that pane; released over the time axis, it goes to a new
-    // pane at the bottom (or its pane moves to the bottom when it is alone in
-    // it). The scroll of the press is then undone. "Grabbing" cursor while
-    // dragging. Not with Lock indicators, a drawing tool or the eraser.
-    let studyDrag: { id: string; range: { from: number; to: number } | null; x: number; y: number; moved: boolean } | null = null;
-    const onStudyDragDown = (e: MouseEvent) => {
-      studyDrag = null;
-      if (e.button !== 0 || !chart || props.armedTool || props.indicatorsLocked) return;
-      if (props.cursorMode === "eraser" || props.cursorMode === "demonstration") return;
-      if ((e.target as Element | null)?.closest?.("[data-drawing-id]")) return;
-      const id = hoveredStudy;
-      if (!id || compareEntry(id) || !indLegend().some((r) => r.id === id)) return;
-      studyDrag = { id, range: chart.timeScale().getVisibleLogicalRange(), x: e.clientX, y: e.clientY, moved: false };
-    };
-    const onStudyDragMove = (e: MouseEvent) => {
-      if (!studyDrag || studyDrag.moved) return;
-      if (Math.hypot(e.clientX - studyDrag.x, e.clientY - studyDrag.y) < 3) return;
-      studyDrag.moved = true;
-      host.style.cursor = "grabbing";
-    };
-    const onStudyDragUp = (e: MouseEvent) => {
-      const d = studyDrag;
-      studyDrag = null;
-      if (!d || !d.moved) return;
-      host.style.cursor = cursorForMode(props.cursorMode ?? "cross", !!props.armedTool);
-      if (!chart || !controller) return;
-      const r = host.getBoundingClientRect();
-      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
-      const from = controller.paneOf(d.id);
-      const overTimeAxis = r.bottom - e.clientY <= chart.timeScale().height();
-      const to = overTimeAxis ? null : paneAtY(e.clientY - r.top);
-      // After the chart has handled this release (its pressed pane may close).
-      setTimeout(() => {
-        let done = false;
-        if (overTimeAxis) done = dropStudyOnTimeAxis(d.id);
-        else if (to !== null && to !== from && !collapsedPanes().has(to)) done = mergeStudyToPane(d.id, to);
-        // The scroll the press made is undone.
-        if (done && d.range) chart?.timeScale().setVisibleLogicalRange(d.range);
-      }, 0);
-    };
-    host.addEventListener("mousedown", onStudyDragDown, true);
-    window.addEventListener("mousemove", onStudyDragMove, true);
-    window.addEventListener("mouseup", onStudyDragUp, true);
-    onCleanup(() => {
-      host.removeEventListener("mousedown", onStudyDragDown, true);
-      window.removeEventListener("mousemove", onStudyDragMove, true);
-      window.removeEventListener("mouseup", onStudyDragUp, true);
-    });
-
-    // Legend tracks the crosshair: hovering a bar shows that bar's values;
-    // moving off the pane (no `time`) falls back to the latest bar.
-    const onCrosshair = (param: MouseEventParams) => {
-      crosshairActive = param.time != null;
-      crosshairAt =
-        param.point && param.time != null && ((param as { paneIndex?: number }).paneIndex ?? 0) === 0
-          ? { time: param.time as number, y: param.point.y }
-          : null;
-      // Locked cursor line: the legend shows the locked bar.
-      const locked = crosshairLockTime();
-      if (lockViews) lockViews.shown = !!param.point;
-      if (locked !== null) syncLockPanes();
-      lastLegendTime = (crosshairActive && locked !== null ? locked : param.time) as number | undefined;
-      refreshLegend(lastLegendTime);
-      refreshIndicatorLegend(lastLegendTime);
-      // Sync-in-layout (panes) OR "Sync crosshair across windows": mirror the
-      // crosshair by time. tab-link-bus relays this same window event to the
-      // other windows; each receiver applies it only when its own layout's
-      // Crosshair sync is on.
-      if (
-        pointerOverHost &&
-        !suppressCrosshairBroadcast &&
-        (layoutSync().crosshair || crossWindowCrosshairOn())
-      ) {
-        // Resolve a broadcastable (time, price) for BOTH crosshair lines:
-        //   • time  → vertical line. `param.time` is undefined when the cursor
-        //     is over future/empty whitespace (right of the last bar), even
-        //     though the cursor is still ON the chart and its own crosshair is
-        //     drawn. Broadcasting null there made every synced pane CLEAR its
-        //     crosshair (it vanished). Extrapolate the time from the logical
-        //     index + the last bar step so siblings keep tracking. A null
-        //     `point` means the cursor truly left the pane → broadcast null so
-        //     receivers clear.
-        //   • price → horizontal line. Send the price UNDER THE CURSOR so the
-        //     horizontal line mirrors too; previously receivers pinned it to
-        //     the latest close (the line never followed the source cursor).
-        let time: number | null = (param.time as number | undefined) ?? null;
-        let price: number | null = null;
-        if (param.point) {
-          if (time == null && param.logical != null && raw.length >= 2) {
-            const last = raw.length - 1;
-            const step = (raw[last].time as number) - (raw[last - 1].time as number);
-            time = (raw[last].time as number) + ((param.logical as number) - last) * step;
-          }
-          const p = series?.coordinateToPrice(param.point.y);
-          if (p != null) price = p as number;
-        }
-        window.dispatchEvent(
-          new CustomEvent("chart-sync-crosshair", {
-            detail: { time, price, sourceId: paneId },
-          }),
-        );
-      }
-    };
-    chart.subscribeCrosshairMove(onCrosshair);
-    // Plus button: follows the crosshair in the pane under the pointer (not
-    // a collapsed pane) while the pointer is over the chart, not while a
-    // drawing tool is armed.
-    const onPlusCrosshair = (param: MouseEventParams<Time>) => {
-      const pane = (param as { paneIndex?: number }).paneIndex ?? 0;
-      const box = paneBoxes().find((b) => b.index === pane);
-      const shown = param.point && pointerOverHost && !props.armedTool && (pane === 0 || (!!box && !collapsedPanes().has(pane)));
-      setPlusPane(pane);
-      setPlusY(shown ? (box?.top ?? 0) + param.point!.y : null);
-    };
-    chart.subscribeCrosshairMove(onPlusCrosshair);
-    // Latest news lollipop: hover state + crosshair lines hidden on hover.
-    let newsHovered = false;
-    const onNewsCrosshair = (param: MouseEventParams<Time>) => {
-      const hov = param.hoveredObjectId === NEWS_LOLLIPOP_ID;
-      if (hov === newsHovered) return;
-      newsHovered = hov;
-      newsLollipop.setState({ hovered: hov });
-      chart?.applyOptions({ crosshair: { vertLine: { visible: !hov && crosshairLockTime() === null }, horzLine: { visible: !hov } } });
-    };
-    chart.subscribeCrosshairMove(onNewsCrosshair);
-    const onHistoryEndCrosshair = (param: MouseEventParams<Time>) => {
-      historyEnd.setState({ hovered: param.hoveredObjectId === HISTORY_END_ID });
-    };
-    chart.subscribeCrosshairMove(onHistoryEndCrosshair);
-    // Click on a plot selects its study (or compared symbol); a click on the
-    // empty chart or the main series clears the selection. The library counts
-    // a click within 500 ms of another as a double click: both select.
-    const onStudyClick = (param: MouseEventParams<Time>) => {
-      if (props.armedTool) return;
-      const s = (param.hoveredInfo?.series ?? param.hoveredSeries) as ISeriesApi<SeriesType> | undefined;
-      const id = s ? studyOfSeries(s) : null;
-      if (id) selectStudy(id);
-      else if (selectedStudy()) setSelectedStudy(null);
-    };
-    chart.subscribeClick(onStudyClick);
-    chart.subscribeDblClick(onStudyClick);
-    // Study under the pointer (its plot is hovered), for the right click.
-    const onStudyHover = (param: MouseEventParams<Time>) => {
-      const s = (param.hoveredInfo?.series ?? param.hoveredSeries) as ISeriesApi<SeriesType> | undefined;
-      hoveredStudy = param.point && s ? studyOfSeries(s) : null;
-      crosshairPrice = null;
-      if (param.point && pointerOverHost) {
-        const pane = (param as { paneIndex?: number }).paneIndex ?? 0;
-        const owner = pane > 0 ? controller?.ownerOfPane(pane) ?? null : null;
-        const src = pane > 0 ? (owner ? controller?.studySeries(owner) ?? null : null) : series;
-        const p = src?.coordinateToPrice(param.point.y);
-        if (src && p != null) {
-          const fmt = src.priceFormatter();
-          crosshairPrice = roundedPrice(p as number, (n) => fmt.format(n));
-        }
-      }
-    };
-    chart.subscribeCrosshairMove(onStudyHover);
-    // Click on the lollipop toggles its card; any other chart click closes it
-    // (click outside). A DOM click, not the library's click event:
-    // the library drops a click that follows another within 500 ms (it is
-    // counted as a double click).
-    const onNewsClick = (e: MouseEvent) => {
-      if (e.button !== 0 || !chart || !paneRoot) return;
-      const root = paneRoot.getBoundingClientRect();
-      const leftAxis = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
-      const x = e.clientX - root.left - leftAxis;
-      const y = e.clientY - root.top;
-      if (newsLollipop.hitTest(x, y)) toggleNewsCard();
-      else if (newsCardOpen()) setNewsCardOpen(false);
-      if (historyEnd.hitTest(x, y)) openHistoryEndDialog();
-    };
-    host.addEventListener("click", onNewsClick, true);
-
-    // Alert labels: hover (label, handles, price label on the scale; the
-    // crosshair lines hide), a press selects, the button deletes the alert
-    // (a stopped one restarts), a drag moves the level (a stopped alert
-    // restarts); a press elsewhere clears the selection.
-    let alertDrag: { series: ISeriesApi<SeriesType>; id: string; level: number; paneTop: number; startY: number; moved: boolean; levels: number[] } | null = null;
-    let alertCrosshairHidden = false;
-    const setAlertCrosshair = (hide: boolean) => {
-      if (hide === alertCrosshairHidden || !chart) return;
-      alertCrosshairHidden = hide;
-      chart.applyOptions({ crosshair: { vertLine: { visible: !hide && crosshairLockTime() === null }, horzLine: { visible: !hide } } });
-    };
-    const sameHit = (a: AlertLabelHit | null, b: AlertLabelHit | null) => a?.id === b?.id && a?.level === b?.level && a?.area === b?.area;
-    const onAlertMove = (e: PointerEvent) => {
-      if (alertDrag) return;
-      const at = e.buttons === 0 ? alertLabelAt(e.clientX, e.clientY) : null;
-      const hit = at?.hit ?? null;
-      if (!sameHit(hit, alertHover())) setAlertHover(hit);
-      host.classList.toggle("alert-label-hover", !!hit && hit.area !== "button");
-      setAlertCrosshair(!!hit);
-    };
-    const onAlertLeave = () => {
-      if (alertDrag) return;
-      setAlertHover(null);
-      host.classList.remove("alert-label-hover");
-      setAlertCrosshair(false);
-    };
-    const onAlertDown = (e: PointerEvent) => {
-      if (e.button !== 0 || props.armedTool) return;
-      const at = alertLabelAt(e.clientX, e.clientY);
-      if (!at) {
-        if (alertSelected()) setAlertSelected(null);
-        return;
-      }
-      e.stopPropagation();
-      e.preventDefault();
-      const rule = alertStore.rule(at.hit.id);
-      if (!rule) return;
-      setAlertSelected({ id: at.hit.id, level: at.hit.level });
-      if (at.hit.area === "button") {
-        const up = (ev: PointerEvent) => {
-          window.removeEventListener("pointerup", up, true);
-          const again = alertLabelAt(ev.clientX, ev.clientY);
-          if (again?.hit.id !== rule.id || again.hit.area !== "button") return;
-          resetRuleEvalState(rule.id);
-          if (!rule.enabled) alertStore.setEnabled(rule.id, true);
-          else {
-            setAlertWebhook(rule.id, null);
-            alertStore.remove(rule.id);
-          }
-        };
-        window.addEventListener("pointerup", up, true);
-        return;
-      }
-      const levels = rule.right.kind === "value" ? [rule.right.value, ...(rule.right2?.kind === "value" ? [rule.right2.value] : [])] : [];
-      alertDrag = { series: at.series, id: rule.id, level: at.hit.level, paneTop: at.paneTop, startY: e.clientY, moved: false, levels };
-      const move = (ev: PointerEvent) => {
-        const d = alertDrag;
-        if (!d) return;
-        if (!d.moved && Math.abs(ev.clientY - d.startY) < 2) return;
-        d.moved = true;
-        const p = d.series.coordinateToPrice(ev.clientY - d.paneTop);
-        if (p == null) return;
-        const price = roundedOnSeries(d.series, p as number);
-        const next = [...d.levels];
-        if (next.length === 1) next[0] = price;
-        else if (d.level === 0) {
-          // Moved under the lower bound: the bounds swap.
-          if (price < next[1]) { next[0] = next[1]; next[1] = price; d.level = 1; } else next[0] = price;
-        } else if (price > next[0]) { next[1] = next[0]; next[0] = price; d.level = 0; } else next[1] = price;
-        d.levels = next;
-        setAlertMoving({ id: d.id, levels: next });
-        setAlertSelected({ id: d.id, level: d.level });
-      };
-      const up = () => {
-        window.removeEventListener("pointermove", move, true);
-        window.removeEventListener("pointerup", up, true);
-        const d = alertDrag;
-        alertDrag = null;
-        setAlertMoving(null);
-        if (!d?.moved) return;
-        const r = alertStore.rule(d.id);
-        if (!r) return;
-        resetRuleEvalState(r.id);
-        alertStore.update(r.id, {
-          right: { kind: "value", value: d.levels[0] },
-          ...(d.levels.length > 1 ? { right2: { kind: "value", value: d.levels[1] } } : {}),
-          enabled: true,
-        });
-      };
-      window.addEventListener("pointermove", move, true);
-      window.addEventListener("pointerup", up, true);
-    };
-    host.addEventListener("pointermove", onAlertMove, true);
-    host.addEventListener("pointerleave", onAlertLeave);
-    host.addEventListener("pointerdown", onAlertDown, true);
-    // The card closes on scroll / zoom.
-    const onNewsRange = () => { if (newsCardOpen()) setNewsCardOpen(false); };
-    chart.timeScale().subscribeVisibleLogicalRangeChange(onNewsRange);
-
-    // "Time" sync, driver side: every left mouse-up inside the plot area of a
-    // pane that was pressed there, including the end of a drag, sends the time
-    // under the pointer. Not on a drawing, not while a tool is armed, and not
-    // at all while date-range sync is on. Whitespace right of the last bar
-    // extrapolates the time from the bar step (rough time). The same click is
-    // sent to linked tabs when the group's Time channel is on and its Date
-    // range channel is off (the Linker drops time when date range is on).
-    let pressedHere = false;
-    const onTimePress = (e: PointerEvent) => {
-      // Shift+press arms Measure, Alt+press toggles maximize: not time clicks.
-      pressedHere = e.button === 0 && !e.shiftKey && !e.altKey;
-    };
-    const onTimeRelease = (e: PointerEvent) => {
-      const pressed = pressedHere;
-      pressedHere = false;
-      if (!pressed || e.button !== 0 || !chart || raw.length === 0) return;
-      const toLayout = layoutSync().time && !layoutSync().dateRange;
-      const link = activeLink();
-      const toLink = !!link && link.channels.time && !link.channels.dateRange;
-      if ((!toLayout && !toLink) || props.armedTool) return;
-      if ((e.target as Element | null)?.closest?.("[data-drawing-id]")) return;
-      const ts = chart.timeScale();
-      const rect = host.getBoundingClientRect();
-      const x = e.clientX - rect.left - chart.priceScale("left").width();
-      const y = e.clientY - rect.top;
-      if (x < 0 || x >= ts.width() || y >= rect.height - ts.height()) return;
-      let time = ts.coordinateToTime(x) as number | null;
-      if (time == null) {
-        const logical = ts.coordinateToLogical(x);
-        if (logical == null || raw.length < 2) return;
-        const last = raw.length - 1;
-        const step = (raw[last].time as number) - (raw[last - 1].time as number);
-        time = (raw[last].time as number) + ((logical as number) - last) * step;
-      }
-      if (toLayout) window.dispatchEvent(new CustomEvent("chart-sync-time", { detail: { time, sourceId: paneId } }));
-      if (toLink) postLinkTime(time);
-    };
-    host.addEventListener("pointerdown", onTimePress, true);
-    window.addEventListener("pointerup", whenShown(onTimeRelease), true);
-    onCleanup(() => {
-      host.removeEventListener("pointerdown", onTimePress, true);
-      window.removeEventListener("pointerup", whenShown(onTimeRelease), true);
-    });
-
-    // ── Layout-sync bus (inbound) ──────────────────────────────────────────
-    // Apply crosshair / range broadcasts from sibling panes. The suppress
-    // flags stop the resulting local event from re-broadcasting (echo loop);
-    // they clear on the next frame so genuine user moves still propagate.
-    const onSyncCrosshair = (e: Event) => {
-      const d = (e as CustomEvent<{ time: number | null; price?: number | null; sourceId: number }>).detail;
-      if (!chart || !series || d.sourceId === paneId || !layoutSync().crosshair) return;
-      suppressCrosshairBroadcast = true;
-      crosshairAt = null;
-      try {
-        if (d.time == null) {
-          chart.clearCrosshairPosition();
-        } else if (raw.length === 0 || (d.time as number) < (raw[0].time as number)) {
-          // Hide the mirrored crosshair on a chart whose loaded history
-          // doesn't reach the synced time. Without this, setCrosshairPosition
-          // clamps to the FIRST loaded bar and the label stands there stale
-          // (e.g. a 1D hover at 13 Feb left the 5m/1m panes labelled at their
-          // oldest bars, 21 Jul / 23 Jul).
-          chart.clearCrosshairPosition();
-        } else {
-          // Vertical line aligns by time; the horizontal line uses the source
-          // cursor's price (so it mirrors too). Fall back to the latest close
-          // only if no price was sent (older broadcast / off-scale cursor).
-          const price = d.price != null ? d.price : (raw.length ? raw[raw.length - 1].close : 0);
-          chart.setCrosshairPosition(price, d.time as UTCTimestamp, series);
-          const y = series.priceToCoordinate(price);
-          crosshairAt = y === null ? null : { time: d.time as number, y };
-        }
-      } catch {
-        /* time out of range / series swapped mid-apply — ignore */
-      }
-      // Cleared: the legend goes back to the latest bar (clearing the
-      // crosshair fires no crosshair move).
-      if (crosshairAt === null && crosshairActive) {
-        crosshairActive = false;
-        lastLegendTime = undefined;
-        refreshLegend();
-        refreshIndicatorLegend();
-      }
-      requestAnimationFrame(() => (suppressCrosshairBroadcast = false));
-    };
-    const onSyncRange = (e: Event) => {
-      const d = (e as CustomEvent<{ from: number; to: number; sourceId: number }>).detail;
-      if (!chart || d.sourceId === paneId || !layoutSync().dateRange) return;
-      queueSyncRange(d.from, d.to);
-    };
-    // Tab link (tab-link-bus): a linked tab's range lands on the ACTIVE pane,
-    // and this layout's own Date range sync spreads it (with its link events
-    // muted).
-    const onLinkRange = (e: Event) => {
-      const d = (e as CustomEvent<{ from: number; to: number }>).detail;
-      if (!chart || !props.active) return;
-      queueSyncRange(d.from, d.to);
-      if (layoutSync().dateRange) {
-        window.dispatchEvent(new CustomEvent("chart-sync-range", { detail: { from: d.from, to: d.to, sourceId: paneId } }));
-      }
-    };
-    // Tab link time: every pane when this layout's Time sync is on, else the
-    // active pane only.
-    const onLinkTime = (e: Event) => {
-      const d = (e as CustomEvent<{ time: number }>).detail;
-      if (!chart || !series || !(props.active || layoutSync().time)) return;
-      if (raw.length === 0 || history.loading || swapping) pendingLinkTime = d.time;
-      else void goToTime(d.time);
-    };
-    // "Time" sync, receiving side: see goToTime.
-    const onSyncTime = (e: Event) => {
-      const d = (e as CustomEvent<{ time: number; sourceId: number }>).detail;
-      if (!chart || !series || d.sourceId === paneId || !layoutSync().time || layoutSync().dateRange) return;
-      void goToTime(d.time);
-    };
-    window.addEventListener("chart-sync-crosshair", whenShown(onSyncCrosshair));
-    window.addEventListener("chart-sync-range", whenShown(onSyncRange));
-    window.addEventListener("chart-sync-time", whenShown(onSyncTime));
-    window.addEventListener("chart-link-range", whenShown(onLinkRange));
-    window.addEventListener("chart-link-time", whenShown(onLinkTime));
-    onCleanup(() => {
-      window.removeEventListener("chart-link-range", whenShown(onLinkRange));
-      window.removeEventListener("chart-link-time", whenShown(onLinkTime));
-      window.removeEventListener("chart-sync-crosshair", whenShown(onSyncCrosshair));
-      window.removeEventListener("chart-sync-range", whenShown(onSyncRange));
-      window.removeEventListener("chart-sync-time", whenShown(onSyncTime));
-    });
-
-    // "Go to" dialog (bottom-bar GoToDateDialog). The dialog sends wall-clock
-    // dates; each pane reads them in its own time zone (the reference app converts in the
-    // chart time zone). DWM targets are calendar dates.
-    const isDwm = () => {
-      const iv = props.interval ?? "1D";
-      return !isIntradayResolution(iv) && !isSecondResolution(iv);
-    };
-    const wallSec = (w: WallDate, h = 0, mi = 0) => wallTimeToUtc(props.timeZone ?? "UTC", w.y, w.m, w.d, h, mi);
-    // Date tab (the reference app `gotoTime`): the active chart only; history loads back to
-    // the date, and the target is centred even when already in view.
-    const onGoToDate = (e: Event) => {
-      const d = (e as CustomEvent<{ date?: WallDate; minutes?: number }>).detail;
-      if (!d?.date || !chart || !props.active) return;
-      const sec = isDwm()
-        ? Date.UTC(d.date.y, d.date.m, d.date.d) / 1000
-        : wallSec(d.date, Math.floor((d.minutes ?? 0) / 60), (d.minutes ?? 0) % 60);
-      if (raw.length === 0 || history.loading || swapping) return;
-      void goToTime(sec, { alignIfVisible: true, driver: true, index: gotoDateIndex });
-    };
-    window.addEventListener("chart-goto-date", whenShown(onGoToDate));
-    onCleanup(() => window.removeEventListener("chart-goto-date", whenShown(onGoToDate)));
-
-    // Custom range tab (the reference app `setTimeFrame`): the active chart, or every chart
-    // when Interval sync is on. Frames [From, To] (date + time; DWM: dates).
-    const onGoToRange = (e: Event) => {
-      const d = (e as CustomEvent<{ from?: WallTime; to?: WallTime }>).detail;
-      if (!chart || !d?.from || !d?.to || !(props.active || layoutSync().interval)) return;
-      if (raw.length === 0 || history.loading || swapping) return;
-      const at = (w: WallTime) =>
-        isDwm() ? Date.UTC(w.y, w.m, w.d) / 1000 : wallSec(w, Math.floor(w.minutes / 60), w.minutes % 60);
-      void goToRange(at(d.from), at(d.to));
-    };
-    // The dialog asks the active chart, when it opens, for its first and last
-    // fully visible bars (the reference app `visibleBarsStrictRange`: the Custom range
-    // start values) and whether it is DWM (date only, time fields disabled).
-    const onGoToQuery = (e: Event) => {
-      const q = (e as CustomEvent<GotoQuery>).detail;
-      if (!chart || !props.active || !q) return;
-      q.dateOnly = isDwm();
-      const lr = chart.timeScale().getVisibleLogicalRange();
-      if (!lr || raw.length === 0) return;
-      const first = Math.max(0, Math.ceil(lr.from));
-      const lastBar = Math.min(raw.length - 1, Math.floor(lr.to));
-      if (first > lastBar) return;
-      // DWM bars sit on their date (noon UTC is inside the day in any zone
-      // the exchange date is read in).
-      const wall = (sec: number): WallTime =>
-        isDwm() ? { ...utcToWall("UTC", sec + 43200), minutes: 0 } : utcToWall(props.timeZone ?? "UTC", sec);
-      q.visible = { from: wall(raw[first].time as number), to: wall(raw[lastBar].time as number) };
-    };
-    window.addEventListener("chart-goto-query", whenShown(onGoToQuery));
-    onCleanup(() => window.removeEventListener("chart-goto-query", whenShown(onGoToQuery)));
-    window.addEventListener("chart-goto-range", whenShown(onGoToRange));
-    onCleanup(() => window.removeEventListener("chart-goto-range", whenShown(onGoToRange)));
-
-    // Bottom-bar date-range tabs: frame the preset span (the tab also set the
-    // preset interval, usually triggering a reload — the span is remembered
-    // and applied by the data-apply effect once the new bars land). Only the
-    // focused pane reacts, matching the interval change it rides with.
-    const onSetRangeSpan = (e: Event) => {
-      if (!props.active) return;
-      const id = (e as CustomEvent<{ span?: string }>).detail?.span;
-      if (!id) return;
-      pendingRangeSpan = id;
-      // No reload coming (the tab's interval was already active) → apply now.
-      if (!swapping && !history.loading) {
-        if (applyRangeSpan(id)) pendingRangeSpan = null;
-      }
-    };
-    window.addEventListener("chart-set-range", whenShown(onSetRangeSpan));
-    onCleanup(() => window.removeEventListener("chart-set-range", whenShown(onSetRangeSpan)));
-
-    // ── Keyboard chart actions ─────────────────────────────────────────────
-    // App.tsx broadcasts these as window events; only the FOCUSED pane reacts
-    // (props.active), so multi-pane layouts pan/zoom/scale the chart the user
-    // is on — not all of them at once.
-    //
-    // Pan (←/→, Ctrl+←/→) is not here: both are HELD gestures that build speed,
-    // so they run through the scroll animation above (chart-scroll-start/stop).
-    //
-    // Alt+I/L/P toggles read the LIVE scale options (the price-scale context
-    // menu writes the same options, so a tracked local would go stale) and
-    // target the placement scale, not a hardcoded "right".
-    const applyScale = (mode: "invert" | "log" | "percent") => {
-      if (!chart) return;
-      const ps = chart.priceScale(currentTokens().scalesPlacement);
-      const cur = ps.options();
-      if (mode === "invert") {
-        ps.applyOptions({ invertScale: !cur.invertScale });
-        return;
-      }
-      const target = mode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Percentage;
-      ps.applyOptions({ mode: cur.mode === target ? PriceScaleMode.Normal : target });
-    };
-    // Snapshot (Alt+S): the image of the whole shown layout (layout-snapshot.ts)
-    // copied to the clipboard ("Copy image"); fall back to a PNG download
-    // where the async clipboard image API isn't available. "open" is the
-    // local backing for "Open in new tab": temp page in the default web
-    // browser. File name: "<ticker>_<yyyy-MM-dd>_<HH-mm-ss>" (local time).
-    const takeSnapshot = async (action: "copy" | "download" | "open" = "copy") => {
-      if (!chart) return;
-      const grid = paneRoot.closest<HTMLElement>(".chart-grid");
-      const canvas = grid ? await layoutSnapshot(grid, snapshotTheme(props.theme ?? "dark"), props.timeZone) : null;
-      if (!canvas) return;
-      const now = new Date();
-      const p2 = (n: number) => String(n).padStart(2, "0");
-      const stamp = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}_${p2(now.getHours())}-${p2(now.getMinutes())}-${p2(now.getSeconds())}`;
-      const ticker = `${splitSymbol(props.symbol ?? "").ticker || "chart"}_${stamp}`;
-      if (action === "open") {
-        const b64 = canvas.toDataURL("image/png").split(",")[1] ?? "";
-        void commands.openSnapshot(b64).then((r) => {
-          if (r.status === "error") console.warn("[snapshot] open failed:", r.error);
-        });
-        return;
-      }
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        if (action === "copy") {
-          try {
-            if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-              void navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-              return;
-            }
-          } catch {
-            /* fall through to download */
-          }
-        }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${ticker.replace(/[\/:*?"<>|]/g, "_")}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-      }, "image/png");
-    };
-
-    // Ctrl+↑/↓ is the same action as the control bar's zoom buttons, so
-    // both go through zoomSpan (animated, the measured step).
-    const onZoom = (e: Event) => {
-      if (!props.active) return;
-      zoomSpan((e as CustomEvent<{ dir: "in" | "out" }>).detail.dir === "in" ? 1 / ZOOM_FACTOR : ZOOM_FACTOR);
-    };
-    const onGotoRealtime = () => { if (props.active) scrollToRealtime(); };
-    const onGotoFirst = () => { if (props.active) scrollToFirstBar(); };
-    // Held ←/→ ("bar") and Ctrl+←/→ ("smooth"). One stop for both, as a
-    // single stop move. Start is pane-gated; stop is not — a pane that started a
-    // run must still be able to end it if focus moved in between.
-    const onScrollStart = (e: Event) => {
-      if (!props.active) return;
-      const d = (e as CustomEvent<{ dir: -1 | 1; mode: "bar" | "smooth" }>).detail;
-      if (d.mode === "smooth") startPan(d.dir);
-      else moveBars(d.dir);
-    };
-    const onScrollStop = () => stopScroll();
-    const onScale = (e: Event) => {
-      if (!props.active) return;
-      applyScale((e as CustomEvent<{ mode: "invert" | "log" | "percent" }>).detail.mode);
-    };
-    const onSnapshot = (e: Event) => {
-      if (!props.active) return;
-      void takeSnapshot((e as CustomEvent<{ action?: "copy" | "download" | "open" }>).detail?.action ?? "copy");
-    };
-    const onReset = () => { if (props.active) resetChartView(); };
-    const onResetTime = () => {
-      if (!props.active) return;
-      resetTimeScale();
-      refreshBarsRef?.();
-    };
-    window.addEventListener("chart-zoom", whenShown(onZoom));
-    window.addEventListener("chart-scale", whenShown(onScale));
-    window.addEventListener("chart-snapshot", whenShown(onSnapshot));
-    window.addEventListener("chart-reset", whenShown(onReset));
-    window.addEventListener("chart-reset-time", whenShown(onResetTime));
-    window.addEventListener("chart-goto-realtime", whenShown(onGotoRealtime));
-    window.addEventListener("chart-goto-first", whenShown(onGotoFirst));
-    window.addEventListener("chart-scroll-start", whenShown(onScrollStart));
-    window.addEventListener("chart-scroll-stop", whenShown(onScrollStop));
-    onCleanup(() => {
-      window.removeEventListener("chart-zoom", whenShown(onZoom));
-      window.removeEventListener("chart-scale", whenShown(onScale));
-      window.removeEventListener("chart-snapshot", whenShown(onSnapshot));
-      window.removeEventListener("chart-reset", whenShown(onReset));
-      window.removeEventListener("chart-reset-time", whenShown(onResetTime));
-      window.removeEventListener("chart-goto-realtime", whenShown(onGotoRealtime));
-      window.removeEventListener("chart-goto-first", whenShown(onGotoFirst));
-      window.removeEventListener("chart-scroll-start", whenShown(onScrollStart));
-      window.removeEventListener("chart-scroll-stop", whenShown(onScrollStop));
-    });
+    installChartEvents();
 
     onCleanup(() => {
       if (rangePersistTimer !== undefined) clearTimeout(rangePersistTimer);
       ro.disconnect();
       chart?.timeScale().unsubscribeVisibleLogicalRangeChange(onRangeChange);
       chart?.timeScale().unsubscribeVisibleLogicalRangeChange(onStyleRange);
-      chart?.unsubscribeCrosshairMove(onCrosshair);
-      chart?.unsubscribeCrosshairMove(onPlusCrosshair);
-      chart?.unsubscribeCrosshairMove(onNewsCrosshair);
-      chart?.unsubscribeClick(onStudyClick);
-    host.removeEventListener("pointermove", onAlertMove, true);
-    host.removeEventListener("pointerleave", onAlertLeave);
-    host.removeEventListener("pointerdown", onAlertDown, true);
-      chart?.unsubscribeDblClick(onStudyClick);
-      host.removeEventListener("click", onNewsClick, true);
-      chart?.timeScale().unsubscribeVisibleLogicalRangeChange(onNewsRange);
       controller?.destroy();
       controller = null;
       chart?.remove();
@@ -4449,64 +1216,7 @@ export function ChartView(props: Props) {
   // refetch on the new basis). Folded into the resource key so the same
   // symbol/interval re-fetches.
   const [reloadTick, setReloadTick] = createSignal(0);
-  onMount(() => {
-    const onReload = () => {
-      // The reload flips the fetch basis (e.g. the ADJ toggle): invalidate the
-      // scroll-back generation + drop the read-ahead buffer so a page fetched
-      // under the previous basis can never prepend into the reloaded series
-      // (bars of two bases in one series).
-      fetchGen++;
-      prefetch = null;
-      setReloadTick((n) => n + 1);
-    };
-    window.addEventListener("chart-reload-data", onReload);
-    onCleanup(() => window.removeEventListener("chart-reload-data", onReload));
-  });
-
-  // OakScript indicators: the editor recompiled a script, or its async worker
-  // run produced a fresh result — redraw the affected study. Structural means
-  // the overlay flag flipped, so the study's pane assignment must be rebuilt.
-  onMount(() => {
-    const onOakScriptUpdated = (e: Event) => {
-      const detail = (e as CustomEvent<OakScriptUpdatedDetail>).detail;
-      if (!detail) return;
-      const uid = userIndicatorId(detail.scriptId);
-      // Every instance of the script on this chart (a re-added one is "#2"…).
-      const ids = (props.indicators ?? []).filter((id) => typeIdOf(id) === uid);
-      if (!ids.length) return;
-      if (detail.structural) for (const id of ids) controller?.refresh(id);
-      else controller?.renderAll();
-      refreshIndicatorLegend();
-    };
-    window.addEventListener(OAKSCRIPT_UPDATED_EVENT, onOakScriptUpdated);
-    onCleanup(() => window.removeEventListener(OAKSCRIPT_UPDATED_EVENT, onOakScriptUpdated));
-  });
-  // Strategy Tester requests for the active chart: open a study's Settings
-  // dialog, or merge input values into a study (strategy properties).
-  onMount(() => {
-    const onOpenSettings = (e: Event) => {
-      const d = (e as CustomEvent<{ id: string; tab?: DialogTab }>).detail;
-      const id = d?.id;
-      if (!props.active || props.shown === false || !id || !(props.indicators ?? []).includes(id)) return;
-      setSettingsTab(d.tab);
-      setSettingsForId(id);
-    };
-    const onPatchInputs = (e: Event) => {
-      const d = (e as CustomEvent<{ id: string; patch: Record<string, unknown> }>).detail;
-      if (!props.active || props.shown === false || !d || !controller || !(props.indicators ?? []).includes(d.id)) return;
-      const inputs = { ...(controller.getInputs(d.id) ?? {}), ...d.patch };
-      const styles = controller.getStyles(d.id) ?? {};
-      const options = controller.getOptions(d.id);
-      controller.applySettings(d.id, inputs, styles, options);
-      props.onIndicatorSettings?.(d.id, { inputs, styles, options });
-    };
-    window.addEventListener("chart-open-study-settings", onOpenSettings);
-    window.addEventListener("chart-patch-study-inputs", onPatchInputs);
-    onCleanup(() => {
-      window.removeEventListener("chart-open-study-settings", onOpenSettings);
-      window.removeEventListener("chart-patch-study-inputs", onPatchInputs);
-    });
-  });
+  installDataEvents();
   // Strategies: filled orders as trade marks on the price series (the reference app:
   // buy = #2962ff arrow up below the bar, sell = #ff1744 arrow down above it,
   // with the order signal and the signed quantity).
@@ -4559,18 +1269,6 @@ export function ChartView(props: Props) {
   createEffect(() => {
     props.indicators;
     applyStrategyMarkers();
-  });
-  // Strategies: a backtest of this chart finished — redraw its trade marks.
-  onMount(() => {
-    const onStrategyUpdated = (e: Event) => {
-      const detail = (e as CustomEvent<StrategyUpdatedDetail>).detail;
-      if (!detail || detail.chartId !== String(paneId)) return;
-      controller?.renderAll();
-      refreshIndicatorLegend();
-      applyStrategyMarkers();
-    };
-    window.addEventListener(STRATEGY_UPDATED_EVENT, onStrategyUpdated);
-    onCleanup(() => window.removeEventListener(STRATEGY_UPDATED_EVENT, onStrategyUpdated));
   });
   const [history] = createResource<BarsResult | null, string>(
     () =>
@@ -4637,20 +1335,6 @@ export function ChartView(props: Props) {
     // so recompute when interval / timezone changes even without a data reload.
     updateSessionBreaks();
   });
-  /** Map backend `Candle[]` → the chart's `OHLC[]`, dropping any null-field
-   *  bars. Shared by the initial apply effect and the scroll-back pager. */
-  function toOHLC(rows: Candle[]): OHLC[] {
-    return rows
-      .filter((c) => c.time != null && c.open != null && c.high != null && c.low != null && c.close != null)
-      .map((c) => ({
-        time: c.time as unknown as UTCTimestamp,
-        open: c.open as number,
-        high: c.high as number,
-        low: c.low as number,
-        close: c.close as number,
-        volume: c.volume ?? undefined,
-      }));
-  }
 
   // Symbol/interval change → drop the previous series immediately so an
   // in-flight fetch can never leave another symbol's candles (or its last
@@ -4692,35 +1376,6 @@ export function ChartView(props: Props) {
   // pre-switch scale. Takes precedence over pendingScaleKeep.
   let pendingRangeSpan: string | null = null;
 
-  /** Frame a date-range preset: [last bar − span, last bar]. "All" fits the
-   *  whole series; "YTD" starts at 01/01 of the last bar's year. Returns false
-   *  when the chart/data isn't ready (the caller retries after load). */
-  function applyRangeSpan(id: string): boolean {
-    if (!chart || raw.length === 0) return false;
-    const ts = chart.timeScale();
-    if (id === "All") {
-      ts.fitContent();
-      return true;
-    }
-    const to = raw[raw.length - 1].time as number;
-    let from: number;
-    if (id === "YTD") {
-      const d = new Date(to * 1000);
-      from = Date.UTC(d.getUTCFullYear(), 0, 1) / 1000;
-    } else {
-      // Calendar-day spans (weekend-inclusive so 5D covers a trading week).
-      const days: Record<string, number> = { "1D": 1, "5D": 7, "1M": 31, "3M": 92, "6M": 183, "1Y": 366, "5Y": 1830 };
-      const span = days[id];
-      if (!span) return false;
-      from = to - span * 86400;
-    }
-    try {
-      ts.setVisibleRange({ from: from as UTCTimestamp, to: to as UTCTimestamp });
-    } catch {
-      return false;
-    }
-    return true;
-  }
   createEffect(() => {
     const sym = props.symbol;
     const int = props.interval;
@@ -4769,12 +1424,12 @@ export function ChartView(props: Props) {
     // Bumping the generation token makes a page launched for the previous series
     // bail in its `.then` instead of prepending/re-ranging the new one.
     swapping = true;
-    fetchGen++;
-    loadingMore = false;
-    historyExhausted = false;
+    cx.fetchGen++;
+    cx.loadingMore = false;
+    cx.historyExhausted = false;
     updateHistoryEnd();
-    prefetch = null;
-    liveVolBase = null;
+    cx.prefetch = null;
+    cx.liveVolBase = null;
     // Drop any anchor-persist queued for the OUTGOING symbol so it can't land on
     // the incoming pane after the swap (the apply effect restores the new pane's
     // own saved range).
@@ -4810,7 +1465,7 @@ export function ChartView(props: Props) {
     if (!real || real.bars.length === 0) {
       raw = [];
       rawDaily = [];
-      liveVolBase = null;
+      cx.liveVolBase = null;
       setDataForType(series, activeType, raw, currentTokens(), dataExtras());
       afterSeriesData();
       updateSessionBreaks();
@@ -4828,7 +1483,7 @@ export function ChartView(props: Props) {
     raw = toOHLC(real.bars);
     // Fresh series (possibly a new ADJ basis) — re-snap the 1W/1M live-volume
     // baseline from the reloaded bars on the next tick.
-    liveVolBase = null;
+    cx.liveVolBase = null;
     setDataForType(series, activeType, raw, currentTokens(), dataExtras());
       afterSeriesData();
     updateSessionBreaks();
@@ -4930,7 +1585,7 @@ export function ChartView(props: Props) {
       }
       framed = view === null ? "all" : String(view);
     }
-    if (rawDaily.length > 0) historyExhausted = true;
+    if (rawDaily.length > 0) cx.historyExhausted = true;
     updateHistoryEnd();
     {
       const _r = chart.timeScale().getVisibleLogicalRange();
@@ -4948,11 +1603,11 @@ export function ChartView(props: Props) {
     // live poller).
     swapping = false;
     // A date-range target that arrived while this pane was loading.
-    if (syncTarget) scheduleSyncRun(0);
+    if (cx.syncTarget) scheduleSyncRun(0);
     // A linked time that arrived while this pane was loading.
-    if (pendingLinkTime !== null) {
-      const t = pendingLinkTime;
-      pendingLinkTime = null;
+    if (cx.pendingLinkTime !== null) {
+      const t = cx.pendingLinkTime;
+      cx.pendingLinkTime = null;
       void goToTime(t);
     }
     if (!crosshairActive) refreshLegend();
@@ -4963,7 +1618,7 @@ export function ChartView(props: Props) {
       | number
       | undefined;
     if (firstOldest !== undefined)
-      startPrefetch(props.symbol ?? "", props.interval ?? "1D", fetchGen, firstOldest);
+      startPrefetch(props.symbol ?? "", props.interval ?? "1D", cx.fetchGen, firstOldest);
   });
 
   // Dim-and-hold transition: rather than a spinner on a
@@ -5034,230 +1689,16 @@ export function ChartView(props: Props) {
     controller?.setNameLabelsVisible(t.indNameLabel);
   });
 
-  // ── Compare symbols (header "Compare symbols") ─────────────────────────
-  // One CompareLayer per entry (compare/compare-layer.ts). Placement:
-  //   percent : the main series' scale, switched to Percent while at least
-  //             one such entry exists, back to Regular when the last goes;
-  //   scale   : the scale on the other side (the library has one scale per
-  //             side: a 2nd "New price scale" entry gets its own unlabelled
-  //             overlay scale);
-  //   pane    : a stacked pane claimed through the indicator controller.
-  // Bars are fetched per symbol under the pane's interval / session; live
-  // ticks for compared symbols stay out of scope (lines refresh on fetch).
-  const compareLayers = new Map<string, CompareLayer>();
-  /** Bars per symbol under `compareBasis`. */
-  const compareFetch = new Map<string, Promise<OHLC[]>>();
-  let compareBasis = "";
-  /** Main scale switched to Percent by a "Same % scale" entry. */
-  let comparePercentOn = false;
-  /** Description of each compared symbol (legend / dialog titles). */
-  const [compareNames, setCompareNames] = createSignal<Record<string, string>>({});
-  /** Settings dialog draft drawn live (Cancel drops it). */
-  const [comparePreview, setComparePreview] = createSignal<{ id: string; symbol: string; style: CompareStyleState } | null>(null);
-  const compareEntries = (): CompareEntry[] => {
-    const list = props.compare ?? [];
-    const pv = comparePreview();
-    return pv ? list.map((e) => (e.id === pv.id ? { ...e, symbol: pv.symbol, style: pv.style } : e)) : list;
-  };
-  const compareEntry = (id: string) => compareEntries().find((e) => e.id === id);
-  /** Legend / dialog title: "description · exchange". */
-  const compareTitle = (e: CompareEntry) => {
-    const { ticker, exchange } = splitSymbol(e.symbol);
-    const name = compareNames()[e.symbol] || ticker;
-    return exchange ? `${name} · ${exchange}` : name;
-  };
-  // "Download chart data" source: time, the main series values, the visible
-  // studies' plots, then the compared symbols (chart-export.ts).
-  const exportData = (): { times: number[]; columns: ExportColumn[] } => {
-    const bars = raw;
-    const times = bars.map((b) => b.time as number);
-    const col = (title: string, rows: OHLC[], f: (b: OHLC) => number): ExportColumn => ({
-      title,
-      values: new Map(rows.map((b) => [b.time as number, f(b)])),
-    });
-    const ohlcColumns = (type: string, src: PriceSource, rows: OHLC[], prefix: string): ExportColumn[] => {
-      const t = (s: string) => prefix + s;
-      if (type === "hilo") return [col(t("high"), rows, (b) => b.high), col(t("low"), rows, (b) => b.low)];
-      if (type === "hlcArea" || type === "hlcBars")
-        return [col(t("high"), rows, (b) => b.high), col(t("low"), rows, (b) => b.low), col(t("close"), rows, (b) => b.close)];
-      if (legendShowsSingleValue(type as ChartTypeId)) return [col(t(src), rows, (b) => priceOf(b, src))];
-      return [
-        col(t("open"), rows, (b) => b.open),
-        col(t("high"), rows, (b) => b.high),
-        col(t("low"), rows, (b) => b.low),
-        col(t("close"), rows, (b) => b.close),
-      ];
-    };
-    const columns = ohlcColumns(activeType, mainPriceSource(), bars, "");
-    columns.push(...(controller?.exportColumns() ?? []));
-    for (const e of compareEntries()) {
-      const layer = compareLayers.get(e.id);
-      if (!layer || e.hidden) continue;
-      columns.push(...ohlcColumns(e.style.style, compareSource(e.style), layer.loadedBars, `${compareTitle(e)}: `));
-    }
-    return { times, columns };
-  };
-  onCleanup(
-    registerChartExport(paneId, {
-      title: () => `${props.symbol ?? ""}, ${props.interval ?? "1D"}`,
-      shown: () => props.shown !== false,
-      active: () => !!props.active,
-      host: () => host,
-      timeZone: () => props.timeZone ?? "UTC",
-      dwm: () => !isIntradayInterval(props.interval ?? "1D"),
-      data: exportData,
-    }),
-  );
-  const otherSide = (side: "left" | "right") => (side === "right" ? "left" : "right");
-  /** Scale id of every entry (placement rules above). */
-  // Scales placement: Auto puts the first extra scale on the side with fewer
-  // scales (the main scale is on the right, so the left); the "Stack on …"
-  // choices keep every scale on the main side, where the library has one
-  // scale per side: an extra scale there is an unlabelled overlay scale.
-  function compareScaleIds(): Map<string, string> {
-    const t = currentTokens();
-    const main = t.scalesPlacement;
-    const out = new Map<string, string>();
-    let sideUsed = t.scalesMode !== "auto";
-    for (const e of compareEntries()) {
-      if (e.placement === "percent" || e.placement === "pane") out.set(e.id, main);
-      else if (!sideUsed) { out.set(e.id, otherSide(main)); sideUsed = true; }
-      else out.set(e.id, `cmp:${e.id}`);
-    }
-    return out;
-  }
-  /** The other side's scale is shown while a "New price scale" entry uses it
-   *  (Auto only). */
-  function syncCompareScaleVisibility() {
-    if (!chart) return;
-    const main = currentTokens().scalesPlacement;
-    const used = currentTokens().scalesMode === "auto" && compareEntries().some((e) => e.placement === "scale");
-    const opts = { visible: used };
-    chart.applyOptions(otherSide(main) === "left" ? { leftPriceScale: opts } : { rightPriceScale: opts });
-  }
-  function compareVisible(e: CompareEntry): boolean {
-    return !e.hidden && isVisibleOnInterval(e.style.visibility, props.interval);
-  }
-  function compareFormat(e: CompareEntry) {
-    return chartPriceFormat(e.style.minTick, cachedSymbolSessions(e.symbol));
-  }
-  // Bar times of the main series (cached per bars array / length).
-  let mainTimesOf: OHLC[] | null = null;
-  let mainTimesLen = -1;
-  let mainTimes = new Set<number>();
-  function mainTimeSet(): Set<number> {
-    if (raw !== mainTimesOf || raw.length !== mainTimesLen) {
-      mainTimes = new Set(raw.map((b) => b.time as number));
-      mainTimesOf = raw;
-      mainTimesLen = raw.length;
-    }
-    return mainTimes;
-  }
-  function renderCompare(layer: CompareLayer) {
-    layer.render(currentTokens(), compareVisible(layer.entry), compareFormat(layer.entry), mainTimeSet());
-    scheduleSourceOrder();
-  }
-  /** Main bars changed (load, scroll-back): redraw the compared symbols on
-   *  the new bar times. */
-  function renderCompareAll() {
-    for (const layer of compareLayers.values()) renderCompare(layer);
-    // Study panes drawn after the last sync take their stacking place.
-    controller?.applyPaneOrder();
-  }
-  createEffect(() => {
-    chartReady();
-    const order = props.paneOrder ?? [];
-    untrack(() => controller?.setPaneOrder(order));
-  });
-  /** Reconcile the layers with the entries (structure, style, scales). */
-  function syncCompare() {
-    if (!chart) return;
-    const want = compareEntries();
-    const basis = `${props.interval ?? "1D"}|${props.session ?? "RTH"}|${reloadTick()}`;
-    if (basis !== compareBasis) {
-      compareBasis = basis;
-      compareFetch.clear();
-      // The loaded bars belong to the old interval / session.
-      for (const layer of compareLayers.values()) layer.setBars([]);
-    }
-    // Removed entries, and entries whose placement or symbol changed (rebuilt).
-    for (const [id, layer] of [...compareLayers]) {
-      const e = want.find((x) => x.id === id);
-      if (!e || e.placement !== layer.entry.placement || e.symbol !== layer.entry.symbol) dropCompareLayer(id);
-    }
-    const scaleIds = compareScaleIds();
-    for (const e of want) {
-      let layer = compareLayers.get(e.id);
-      const scaleId = scaleIds.get(e.id) ?? currentTokens().scalesPlacement;
-      let created = false;
-      if (!layer) {
-        layer = new CompareLayer(chart, e, 0, scaleId);
-        if (e.placement === "pane" && controller) {
-          layer.setPaneIndex(controller.claimPaneFor(e.id, layer));
-          // Studies above it may not be drawn yet (no bars): open their panes
-          // now, else the library puts this series in the next new pane.
-          while (chart.panes().length < layer.paneIndex) chart.addPane(true);
-        }
-        compareLayers.set(e.id, layer);
-        if (untrack(selectedStudy) === e.id) layer.setSelected(untrack(studySelectionBg));
-        layer.setSeriesOnlyScale(untrack(seriesOnlyScale));
-        startCompareLive(layer);
-        created = true;
-      } else {
-        layer.entry = e;
-        layer.setScaleId(scaleId);
-      }
-      renderCompare(layer);
-      // A new pane copies the main scale's mode (Percent with a same % scale
-      // entry): its own scale starts Regular.
-      if (created && e.placement === "pane") {
-        try { chart.priceScale(scaleId, layer.paneIndex).applyOptions({ mode: PriceScaleMode.Normal }); } catch { /* pane not built yet */ }
-      }
-      loadCompareBars(layer);
-    }
-    syncCompareScaleVisibility();
-    controller?.applyPaneOrder();
-    // Same % scale: the main scale shows percent while such an entry exists.
-    const percent = want.some((e) => e.placement === "percent");
-    if (percent !== comparePercentOn) {
-      comparePercentOn = percent;
-      chart.priceScale(currentTokens().scalesPlacement).applyOptions({ mode: percent ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
-      refreshScaleOverlays();
-    }
-    setPaneEpoch((n) => n + 1);
-    queueMicrotask(refreshPaneBoxes);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-  }
-  // Live ticks of the compared symbols: one subscription slot per entry.
-  const compareLive = new Map<string, () => void>();
-  /** Live bars merged while the tab was hidden (drawn when shown). */
-  let compareLiveDirty = false;
-  function startCompareLive(layer: CompareLayer) {
-    const id = layer.entry.id;
-    const slot = `${paneId}:cmp:${id}`;
-    const sym = layer.entry.symbol;
-    setLiveSymbol(sym, slot).catch(() => {});
-    let off: UnlistenFn | null = null;
-    let dead = false;
-    subscribeBars(() => sym, () => props.interval ?? "1D", (bar) => {
-      if (compareLayers.get(id) !== layer || !layer.mergeLive(bar)) return;
-      if (hidden()) { compareLiveDirty = true; return; }
-      renderCompare(layer);
-      if (!crosshairActive) refreshIndicatorLegend();
-    }, () => props.session ?? "RTH").then((u) => { if (dead) u(); else off = u; });
-    compareLive.set(id, () => {
-      dead = true;
-      off?.();
-      setLiveSymbol(null, slot).catch(() => {});
-    });
-  }
-  /** Study or compared symbol drawing the series `s`, or null. */
-  function studyOfSeries(s: ISeriesApi<SeriesType>): string | null {
-    const id = controller?.studyOfSeries(s) ?? null;
-    if (id) return id;
-    for (const [cid, layer] of compareLayers) if (layer.firstSeries() === s) return cid;
-    return null;
-  }
+  const {
+    compareEntries,
+    compareEntry,
+    compareLayers,
+    compareLegendRows,
+    compareTitle,
+    renderCompareAll,
+    setComparePreview,
+    syncCompare,
+  } = attach(cx, createCompare(cx));
   // Locked cursor line: the library's vertical line (and its time label)
   // give way to the lock views.
   createEffect(() => {
@@ -5292,928 +1733,11 @@ export function ChartView(props: Props) {
       for (const [cid, layer] of compareLayers) layer.setSelected(cid === id ? bg : null);
     });
   });
-  // A selected drawing clears the study selection.
-  createEffect(() => {
-    if (props.selectedDrawingId || (props.selectedDrawingIds?.length ?? 0) > 0) setSelectedStudy(null);
-  });
-  // A removed study is no longer selected.
-  createEffect(() => {
-    const id = selectedStudy();
-    if (id && !indLegend().some((r) => r.id === id)) setSelectedStudy(null);
-  });
-  // The focused chart publishes its selected study (Object tree rows and
-  // its "Move to" button) and serves the Object tree's requests.
-  createEffect(() => {
-    if (props.active === false || props.shown === false) return;
-    const id = selectedStudy();
-    paneEpoch();
-    untrack(() => {
-      const movable = !!id && !compareEntry(id) && !!controller?.canMoveToNewPane(id);
-      // New pane above the price pane: not offered here (the price series
-      // stays in the top pane).
-      setFocusedStudySelection(id ? { id, moveAbove: false, moveBelow: movable } : null);
-    });
-  });
-  const onSelectStudyRequest = (e: Event) => {
-    if (props.active === false) return;
-    const id = (e as CustomEvent<{ id: string }>).detail?.id;
-    if (id && indLegend().some((r) => r.id === id)) selectStudy(id);
-  };
-  window.addEventListener(SELECT_STUDY_EVENT, whenShown(onSelectStudyRequest));
-  onCleanup(() => window.removeEventListener(SELECT_STUDY_EVENT, whenShown(onSelectStudyRequest)));
-  const onMoveStudyRequest = (e: Event) => {
-    if (props.active === false || !controller) return;
-    const { id, where } = (e as CustomEvent<{ id: string; where: "above" | "below" }>).detail ?? {};
-    if (!id || where !== "below") return;
-    const options = controller.moveToNewPane(id);
-    if (!options) return;
-    // The new pane goes right below the price pane: first in the stacking order.
-    const order = [id, ...controller.stackedOrder().filter((x) => x !== id)];
-    controller.setPaneOrder(order);
-    props.onPaneOrder?.(order);
-    props.onIndicatorSettings?.(id, {
-      inputs: controller.getInputs(id) ?? {},
-      styles: controller.getStyles(id) ?? {},
-      options,
-    });
-    setPaneEpoch((n) => n + 1);
-    queueMicrotask(refreshPaneBoxes);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-  };
-  window.addEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest));
-  onCleanup(() => window.removeEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest)));
-  // ── Drawing order of the sources (Object tree) ─────────────────────────
-  /** Sources front first: the saved order, then the ones it does not list
-   *  (by default the main series in front, then the studies in list order,
-   *  then the compared symbols; a new source goes behind the others). */
-  function sourceOrderIds(): string[] {
-    const present = [MAIN_SOURCE_ID, ...indLegend().map((r) => r.id)];
-    const saved = (props.sourceOrder ?? []).filter((id) => present.includes(id));
-    return [...saved, ...present.filter((id) => !saved.includes(id))];
-  }
-  /** Series of every pane put in the sources' order (the library draws a
-   *  pane's series in their order, the last one in front). A series with no
-   *  known source (a helper series) stays with the source before it. */
-  function applySourceOrder() {
-    if (!chart) return;
-    const order = untrack(sourceOrderIds);
-    const rank = (id: string) => {
-      const k = order.indexOf(id);
-      return k < 0 ? order.length : k;
-    };
-    for (const pane of chart.panes()) {
-      const list = pane.getSeries() as ISeriesApi<SeriesType>[];
-      if (list.length < 2) continue;
-      let owner = MAIN_SOURCE_ID;
-      const keyed = list.map((s, i) => {
-        const id = s === (series as unknown) ? MAIN_SOURCE_ID : studyOfSeries(s);
-        if (id) owner = id;
-        return { s, i, r: rank(owner) };
-      });
-      const sorted = keyed.slice().sort((a, b) => b.r - a.r || a.i - b.i);
-      if (sorted.every((k, i) => k.i === i)) continue;
-      sorted.forEach((k, i) => k.s.setSeriesOrder(i));
-    }
-    syncSunk();
-  }
-  // ── Snapshot picture (layout-snapshot.ts) ──────────────────────────────
-  // The chart canvas (no crosshair, no alert labels), the drawings in front
-  // of the series painted over it, the currency label of the price axis,
-  // and the legend lines of each pane (values of the latest bar).
-  /** Legend lines per pane, read from the legends on screen. */
-  function snapshotLegendPanes(leftW: number): ChartSnapshot["panes"] {
-    if (!chart) return [];
-    const lines = new Map<number, LegendRun[][]>();
-    const add = (pane: number, line: LegendRun[]) => lines.set(pane, [...(lines.get(pane) ?? []), line]);
-    const valueOf = (el: Element): LegendValue => {
-      const item = el.classList.contains("ot-legend-value-item");
-      const v = item ? el.querySelector(".ot-legend-value-value") ?? el : el;
-      return {
-        title: item ? el.querySelector(".ot-legend-value-title")?.textContent?.trim() ?? "" : "",
-        value: v.textContent?.trim() ?? "",
-        color: getComputedStyle(v).color,
-      };
-    };
-    // Series row: shown when the status line shows its title.
-    const item = paneRoot.querySelector(".ot-legend-item");
-    if (item && appearance().legendTitle !== false) {
-      const title = [...item.querySelectorAll(".ot-legend-titles .ot-legend-title-piece")]
-        .map((p) => [...p.childNodes].filter((n) => !(n instanceof Element && n.classList.contains("ot-legend-logo"))).map((n) => n.textContent ?? "").join("").trim())
-        .filter(Boolean)
-        .join(" · ");
-      add(0, legendLine(title, [...item.querySelectorAll(".ot-legend-values > *")].map(valueOf)));
-    }
-    // Studies and compared symbols: the shown ones, values without titles.
-    for (const row of paneRoot.querySelectorAll<HTMLElement>(".ot-ind-legend-row")) {
-      if (row.classList.contains("is-hidden")) continue;
-      const pane = indLegend().find((r) => r.id === row.dataset.entityId)?.pane ?? 0;
-      const title = row.querySelector(".ot-ind-legend-title")?.textContent?.trim() ?? "";
-      add(pane, legendLine(title, [...row.querySelectorAll(".ot-ind-legend-val")].map((v) => ({ ...valueOf(v), title: "" }))));
-    }
-    return paneBoxes().map((b) => ({
-      left: leftW,
-      width: chart!.paneSize(b.index).width,
-      top: b.top,
-      height: b.height,
-      lines: lines.get(b.index) ?? [],
-    }));
-  }
-  /** The drawings in front of the series (overlay order), each clipped to
-   *  its pane; images are loaded by a first pass. */
-  async function paintSnapshotDrawings(ctx: CanvasRenderingContext2D, dpr: number, leftW: number) {
-    const paint = sunkPainter;
-    if (!chart || !paint) return;
-    const sunk = sunkIds();
-    const byId = new Map((props.drawings ?? []).map((d) => [d.id, d]));
-    const order: string[] = [];
-    for (const el of paneRoot.querySelectorAll("[data-drawing-id]")) {
-      const id = el.getAttribute("data-drawing-id") ?? "";
-      if (byId.has(id) && !sunk.has(id) && !order.includes(id)) order.push(id);
-    }
-    if (order.length === 0) return;
-    const frames = drawingPanes();
-    const plotW = chart.paneSize(0).width;
-    const boxes = paneBoxes();
-    const allH = boxes.length ? boxes[boxes.length - 1].top + boxes[boxes.length - 1].height : 0;
-    const draw = (c: CanvasRenderingContext2D, onAsyncLoad?: () => void) => {
-      for (const id of order) {
-        const d = byId.get(id)!;
-        const f = frames.find((p) => p.key === (d.owner ?? null));
-        if (!f) continue;
-        const extended = d.kind === "vertical-line" && d.style.extendLine !== false;
-        c.save();
-        c.scale(dpr, dpr);
-        c.beginPath();
-        if (extended) c.rect(leftW, 0, plotW, allH);
-        else c.rect(leftW, f.top, plotW, f.height);
-        c.clip();
-        c.translate(leftW, f.top);
-        paint(c, id, f.key, onAsyncLoad);
-        c.restore();
-      }
-    };
-    // First pass on a scratch canvas: starts the image loads.
-    let loads = 0;
-    const scratch = document.createElement("canvas").getContext("2d");
-    if (scratch) draw(scratch, () => loads++);
-    await new Promise((r) => setTimeout(r, 150));
-    if (loads > 0) await new Promise((r) => setTimeout(r, 150));
-    draw(ctx);
-  }
-  /** Currency label at the top of the price axis (4 px margin, 26 px box,
-   *  radius 4, divider border, text 13 px from the axis edge). */
-  function paintSnapshotCurrency(ctx: CanvasRenderingContext2D, dpr: number, leftW: number) {
-    if (!chart || !currency() || (appearance().currencyUnit ?? "visibleOnMouseOver") === "alwaysOff") return;
-    const t = currentTokens();
-    const left = t.scalesPlacement === "left";
-    const w = chart.priceScale(t.scalesPlacement).width();
-    const x = left ? 0 : leftW + chart.paneSize(0).width;
-    const css = getComputedStyle(paneRoot);
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.beginPath();
-    ctx.roundRect(x + 4, 4, Math.ceil(w / 2) * 2 - 8, 26, 4);
-    ctx.fillStyle = t.bg;
-    ctx.strokeStyle = css.getPropertyValue("--color-divider").trim() || "#4A4A4A";
-    ctx.lineWidth = 1;
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = css.getPropertyValue("--color-text-primary").trim() || "#DBDBDB";
-    ctx.font = `${t.scaleFontSize}px ${readFontFamily()}`;
-    ctx.textBaseline = "middle";
-    ctx.fillText(currency(), x + 13, 17);
-    ctx.restore();
-  }
-  async function snapshotPicture(): Promise<ChartSnapshot | null> {
-    if (!chart) return null;
-    const dpr = window.devicePixelRatio || 1;
-    let leftW = 0;
-    try { leftW = chart.options().leftPriceScale.visible ? chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
-    // The image shows the latest bar's values, whatever the crosshair.
-    refreshLegend();
-    refreshIndicatorLegend();
-    const panes = snapshotLegendPanes(leftW);
-    refreshLegend(crosshairActive ? lastLegendTime : undefined);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    for (const p of alertLabelPrims.values()) p.setState({ printing: true });
-    let canvas: HTMLCanvasElement;
-    try {
-      // With the top layer: the last price plate and the event markers are
-      // drawn there (the crosshair stays out).
-      canvas = chart.takeScreenshot(true);
-    } finally {
-      for (const p of alertLabelPrims.values()) p.setState({ printing: false });
-    }
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      await paintSnapshotDrawings(ctx, dpr, leftW);
-      paintSnapshotCurrency(ctx, dpr, leftW);
-    }
-    return {
-      rect: paneRoot.getBoundingClientRect(),
-      canvas,
-      dpr,
-      textColor: currentTokens().scaleTextColor,
-      fontFamily: readFontFamily(),
-      panes,
-    };
-  }
-  onMount(() => onCleanup(registerSnapshotSource(paneRoot, snapshotPicture)));
+  const { scheduleSourceOrder, sunkIds } = attach(cx, createSources(cx));
+  attach(cx, createSnapshot(cx));
 
-  // ── Drawings behind a series (sunk-drawings.ts) ────────────────────────
-  /** Painter of the overlay (it owns the drawings' geometry). */
-  let sunkPainter: SunkPainter | null = null;
-  /** Drawings painted on the canvas now (transparent in the overlay). */
-  const [sunkIds, setSunkIds] = createSignal<ReadonlySet<string>>(new Set(), {
-    equals: (a, b) => a.size === b.size && [...a].every((x) => b.has(x)),
-  });
-  let sunkGroups: SunkGroup[] = [];
-  let sunkPrims: { series: ISeriesApi<SeriesType>; prim: SunkDrawings }[] = [];
-  /** Every drawing behind a shown series goes to a primitive of the nearest
-   *  shown source behind it (or to the back of its pane); the ones in front
-   *  of every shown series stay with the overlay. */
-  function syncSunk() {
-    const groups: SunkGroup[] = [];
-    const sunk = new Set<string>();
-    const paint = sunkPainter;
-    if (chart && paint) {
-      const byId = new Map((props.drawings ?? []).map((d) => [d.id, d]));
-      const paintable = (d: Drawing) =>
-        !d.hidden && isVisibleOnInterval(d.visibility, props.interval) && !NEVER_SUNK_KINDS.has(d.kind);
-      const lwPanes = chart.panes();
-      /** Back group of each pane with a shown series. */
-      const backOf = new Map<number, SunkGroup>();
-      const paneKeys = new Map<number, string | null>();
-      for (const tp of untrack(treePanes)) {
-        const pane = lwPanes[tp.pane];
-        const paneKey = tp.pane === 0 ? null : controller?.ownerOfPane(tp.pane) ?? null;
-        if (!pane || (tp.pane > 0 && !paneKey)) continue;
-        // Shown series of the pane, back to front, each with its source.
-        let owner = MAIN_SOURCE_ID;
-        const shown: ISeriesApi<SeriesType>[] = [];
-        const frontOf = new Map<string, ISeriesApi<SeriesType>>();
-        for (const s of pane.getSeries() as ISeriesApi<SeriesType>[]) {
-          const id = s === (series as unknown) ? MAIN_SOURCE_ID : studyOfSeries(s);
-          if (id) owner = id;
-          if (s.options().visible === false) continue;
-          shown.push(s);
-          frontOf.set(owner, s);
-        }
-        if (shown.length === 0) continue;
-        paneKeys.set(tp.pane, paneKey);
-        const front = shown[shown.length - 1];
-        const back: SunkGroup = { series: shown[0], bottom: true, paneKey, ids: [] };
-        backOf.set(tp.pane, back);
-        const byAnchor = new Map<ISeriesApi<SeriesType>, SunkGroup>();
-        let anchor: ISeriesApi<SeriesType> | null = null;
-        for (let i = tp.items.length - 1; i >= 0; i--) {
-          const it = tp.items[i];
-          if (it.kind === "source") {
-            anchor = frontOf.get(it.id) ?? anchor;
-            continue;
-          }
-          const d = byId.get(it.id);
-          if (!d || !paintable(d) || anchor === front) continue;
-          sunk.add(d.id);
-          if (!anchor) { back.ids.push(d.id); continue; }
-          let g = byAnchor.get(anchor);
-          if (!g) byAnchor.set(anchor, (g = { series: anchor, bottom: false, paneKey, ids: [] }));
-          g.ids.push(d.id);
-        }
-        groups.push(...byAnchor.values());
-      }
-      // A vertical line with "Extend" runs through every pane: behind the
-      // series of the other panes too.
-      for (const id of sunk) {
-        const d = byId.get(id)!;
-        if (d.kind !== "vertical-line" || d.style.extendLine === false) continue;
-        const own = d.owner ?? null;
-        for (const [pane, back] of backOf) if (paneKeys.get(pane) !== own) back.ids.push(id);
-      }
-      for (const back of backOf.values()) if (back.ids.length) groups.push(back);
-    }
-    setSunkIds(sunk);
-    if (sameSunkGroups(groups, sunkGroups)) {
-      for (const p of sunkPrims) p.prim.update();
-      return;
-    }
-    for (const p of sunkPrims) {
-      try { p.series.detachPrimitive(p.prim); } catch { /* its series is gone */ }
-    }
-    sunkGroups = groups;
-    sunkPrims = paint
-      ? groups.map((g) => {
-          const prim = new SunkDrawings(g, paint);
-          g.series.attachPrimitive(prim);
-          return { series: g.series, prim };
-        })
-      : [];
-  }
-  let sourceOrderQueued = false;
-  /** Re-apply the order once after the current batch of redraws (a redrawn
-   *  source re-creates its series in front). */
-  function scheduleSourceOrder() {
-    if (sourceOrderQueued) return;
-    sourceOrderQueued = true;
-    queueMicrotask(() => {
-      sourceOrderQueued = false;
-      applySourceOrder();
-    });
-  }
-  createEffect(() => {
-    chartReady();
-    props.sourceOrder;
-    // The drawings painted on the canvas follow the drawings, their order,
-    // the panes and what is shown.
-    props.drawings;
-    props.interval;
-    props.seriesHidden;
-    treePanes();
-    paneEpoch();
-    scheduleSourceOrder();
-  });
-  /** Object tree rows of this chart: per pane, front source first. */
-  const treeSources = createMemo<TreeSource[]>(() => {
-    const { ticker, exchange } = splitSymbol(props.symbol ?? "");
-    const rows = indLegend();
-    const out: TreeSource[] = [];
-    for (const id of sourceOrderIds()) {
-      if (id === MAIN_SOURCE_ID) {
-        out.push({
-          id,
-          kind: "series",
-          title: `${exchange ? `${ticker} · ${exchange}` : ticker}, ${props.interval ?? "1D"}`,
-          hidden: !!props.seriesHidden,
-          pane: 0,
-        });
-        continue;
-      }
-      const row = rows.find((r) => r.id === id);
-      if (!row) continue;
-      const entry = row.compare ? undefined : getIndicatorEntry(id);
-      const inputs = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ") : "";
-      out.push({
-        id,
-        kind: row.compare ? "compare" : "study",
-        title: inputs ? `${row.title} (${inputs})` : row.title,
-        hidden: row.eyeHidden,
-        pane: row.pane,
-      });
-    }
-    return out.sort((a, b) => a.pane - b.pane);
-  }, [], { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
-  /** Pane of a drawing: its owner study's pane (null = owner not on the chart). */
-  const paneOfDrawing = (d: Drawing): number | null => {
-    if (!d.owner) return 0;
-    return treeSources().find((s) => s.id === d.owner)?.pane ?? null;
-  };
-  /** Objects of every pane (sources and drawings in one list), front first. */
-  const treePanes = createMemo<TreePane[]>(() => {
-    const srcs = treeSources();
-    const ds = props.drawings ?? [];
-    const panes = [...new Set([0, ...srcs.map((s) => s.pane)])].sort((a, b) => a - b);
-    return panes.map((pane) => ({
-      pane,
-      items: paneItems(
-        srcs.filter((s) => s.pane === pane).map((s) => s.id),
-        ds.filter((d) => paneOfDrawing(d) === pane).reverse().map((d) => ({ id: d.id, over: overOf(d) })),
-      ),
-    }));
-  }, [], { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
-  // The focused chart publishes its sources and serves the tree's requests.
-  createEffect(() => {
-    if (props.active === false || props.shown === false) return;
-    setFocusedTreeSources(treeSources());
-    setFocusedTreePanes(treePanes());
-  });
-  const onTreeHideRequest = (e: Event) => {
-    if (props.active === false) return;
-    const id = (e as CustomEvent<{ id: string }>).detail?.id;
-    if (id && treeSources().some((s) => s.id === id)) toggleSourceHidden(id);
-  };
-  const onTreeRemoveRequest = (e: Event) => {
-    if (props.active === false) return;
-    const id = (e as CustomEvent<{ id: string }>).detail?.id;
-    if (id && treeSources().some((s) => s.id === id && s.kind !== "series")) removeStudy(id);
-  };
-  /** Save a study's new pane (options, stacking order) and redraw the panes. */
-  function studyPaneChanged(id: string, options: IndicatorOptions, order?: string[]) {
-    if (!controller) return;
-    if (order) controller.setPaneOrder(order);
-    props.onIndicatorSettings?.(id, {
-      inputs: controller.getInputs(id) ?? {},
-      styles: controller.getStyles(id) ?? {},
-      options,
-    });
-    props.onPaneOrder?.(order ?? controller.stackedOrder());
-    setPaneEpoch((n) => n + 1);
-    setCollapsedPanes(new Map());
-    queueMicrotask(refreshPaneBoxes);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-  }
-  /** Study dropped on pane `pane` (chart drag): it joins that pane. */
-  function mergeStudyToPane(id: string, pane: number): boolean {
-    const options = controller?.moveToPane(id, pane);
-    if (!options) return false;
-    studyPaneChanged(id, options);
-    return true;
-  }
-  /** Study dropped on the time axis (chart drag): a new pane at the bottom
-   *  when it shares its pane, else its pane moves to the bottom. */
-  function dropStudyOnTimeAxis(id: string): boolean {
-    if (!controller) return false;
-    const options = controller.unmergeToNewPane(id);
-    if (options) {
-      studyPaneChanged(id, options, [...controller.stackedOrder().filter((x) => x !== id), id]);
-      return true;
-    }
-    const pane = controller.paneOf(id);
-    const last = (chart?.panes().length ?? 1) - 1;
-    if (!pane || pane === last) return false;
-    const mates = controller.studiesInPane(pane);
-    const order = [...controller.stackedOrder().filter((x) => !mates.includes(x)), ...mates];
-    controller.setPaneOrder(order);
-    props.onPaneOrder?.(order);
-    setPaneEpoch((n) => n + 1);
-    setCollapsedPanes(new Map());
-    queueMicrotask(refreshPaneBoxes);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    return true;
-  }
-  const onTreeMoveRequest = (e: Event) => {
-    if (props.active === false) return;
-    const { id, target, below } = (e as CustomEvent<{ id: string; target: string; below: boolean }>).detail ?? {};
-    let pane = treePanes().find((p) => p.items.some((x) => x.id === id));
-    const targetPane = treePanes().find((p) => p.items.some((x) => x.id === target));
-    if (!pane || !targetPane) return;
-    if (pane !== targetPane) {
-      // A drop in another pane: only a study changes pane (it joins the
-      // target's pane, its former pane closes when left empty).
-      if (!controller || treeSources().find((s) => s.id === id)?.kind !== "study") return;
-      const options = controller.moveToPane(id, targetPane.pane);
-      if (!options) return;
-      props.onIndicatorSettings?.(id, {
-        inputs: controller.getInputs(id) ?? {},
-        styles: controller.getStyles(id) ?? {},
-        options,
-      });
-      props.onPaneOrder?.(controller.stackedOrder());
-      setPaneEpoch((n) => n + 1);
-      queueMicrotask(refreshPaneBoxes);
-      refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-      pane = treePanes().find((p) => p.items.some((x) => x.id === id));
-      if (!pane) return;
-    }
-    // Its place among the objects of the pane.
-    const next = moveItem(pane.items, id, target, below);
-    if (!next) return;
-    const was = splitItems(pane.items);
-    const now = splitItems(next);
-    if (now.sources.join("\n") !== was.sources.join("\n")) {
-      // The pane's sources take, in their new order, the places they hold
-      // in the chart's order.
-      const inPane = new Set(now.sources);
-      let k = 0;
-      const order = sourceOrderIds().map((x) => (inPane.has(x) ? now.sources[k++] : x));
-      // Saved ids of sources not on the chart now ("Hide indicators") are kept.
-      const kept = (props.sourceOrder ?? []).filter((x) => !order.includes(x));
-      props.onSourceOrder?.([...order, ...kept]);
-    }
-    if (now.drawings.join("\n") !== was.drawings.join("\n") || JSON.stringify(now.over) !== JSON.stringify(was.over)) {
-      props.placeDrawings?.(now.drawings, now.over);
-    }
-  };
-  window.addEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
-  window.addEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
-  window.addEventListener(TREE_MOVE_EVENT, whenShown(onTreeMoveRequest));
-  onCleanup(() => {
-    window.removeEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
-    window.removeEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
-    window.removeEventListener(TREE_MOVE_EVENT, whenShown(onTreeMoveRequest));
-  });
-  // Delete / Backspace remove the selected study, Escape clears it (focused
-  // chart only, not while typing or with a dialog open).
-  const onStudyKey = (e: KeyboardEvent) => {
-    const id = selectedStudy();
-    if (!id || props.active === false) return;
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-    if (document.querySelector('[role="dialog"]')) return;
-    if (e.key === "Delete" || e.key === "Backspace") {
-      e.preventDefault();
-      removeStudy(id);
-    } else if (e.key === "Escape") {
-      setSelectedStudy(null);
-    }
-  };
-  document.addEventListener("keydown", whenShown(onStudyKey));
-  onCleanup(() => document.removeEventListener("keydown", whenShown(onStudyKey)));
-  function dropCompareLayer(id: string) {
-    const layer = compareLayers.get(id);
-    if (!layer) return;
-    compareLive.get(id)?.();
-    compareLive.delete(id);
-    compareLayers.delete(id);
-    if (layer.entry.placement === "pane" && controller) controller.releasePane(id);
-    else layer.clear();
-  }
-  function loadCompareBars(layer: CompareLayer) {
-    const sym = layer.entry.symbol;
-    let p = compareFetch.get(sym);
-    if (!p) {
-      p = getBars(sym, props.interval ?? "1D", props.session ?? "RTH").then((r) =>
-        toOHLC(r.bars.filter((c) => c.time != null && c.close != null)),
-      );
-      compareFetch.set(sym, p);
-    }
-    const basis = compareBasis;
-    p.then((bars) => {
-      // The pane may have moved on, or the layer gone, before the fetch lands.
-      if (basis !== compareBasis || compareLayers.get(layer.entry.id) !== layer) return;
-      if (layer.source === bars) return;
-      layer.setBars(bars);
-      renderCompare(layer);
-      refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    }).catch(() => { /* symbol not found / transient: the series stays empty */ });
-    // Description for the legend title.
-    if (!(sym in untrack(compareNames))) {
-      setCompareNames((m) => ({ ...m, [sym]: "" }));
-      getTickerInfo(sym)
-        .then((info) => {
-          setCompareNames((m) => ({ ...m, [sym]: info?.name ?? "" }));
-          refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-        })
-        .catch(() => {});
-    }
-  }
-  createEffect(() => {
-    chartReady();
-    void props.compare;
-    void comparePreview();
-    void props.interval;
-    void props.session;
-    void reloadTick();
-    untrack(syncCompare);
-  });
-  // A reload (adjustment changed...) fetches the other symbols the studies read again.
-  createEffect(on(reloadTick, () => controller?.reloadOtherSymbols(), { defer: true }));
-  onCleanup(() => {
-    for (const id of [...compareLayers.keys()]) dropCompareLayer(id);
-  });
 
-  /** Legend rows of the compared symbols at `time` (or the last bar). */
-  function compareLegendRows(time?: number): IndicatorLegendRow[] {
-    const rows: IndicatorLegendRow[] = [];
-    if (!chart) return rows;
-    const visFrom = chart.timeScale().getVisibleRange()?.from as number | undefined;
-    for (const e of compareEntries()) {
-      const layer = compareLayers.get(e.id);
-      if (!layer) continue;
-      const color = compareColor(e.style);
-      const v = layer.valueAt(time);
-      const texts: { text: string; color: string }[] = [];
-      if (v) {
-        if (e.placement === "percent") {
-          // Percent from the first visible value (the scale's base).
-          const base = visFrom != null ? layer.baseAt(visFrom) : null;
-          if (base) {
-            const pct = (v.value / base - 1) * 100;
-            texts.push({ text: `${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`, color });
-          }
-        } else {
-          const f = compareFormat(e)?.format ?? ((n: number) => n.toFixed(2));
-          texts.push({ text: f(v.value), color });
-          if (v.prev != null && v.prev !== 0) {
-            const d = v.value - v.prev;
-            const sign = d < 0 ? "−" : "+";
-            texts.push({ text: `${sign}${f(Math.abs(d))} (${sign}${Math.abs((d / v.prev) * 100).toFixed(2)}%)`, color });
-          }
-        }
-      }
-      const offInterval = !isVisibleOnInterval(e.style.visibility, props.interval);
-      rows.push({
-        id: e.id,
-        title: compareTitle(e),
-        hidden: !!e.hidden || offInterval,
-        plots: [],
-        pane: e.placement === "pane" ? layer.paneIndex : 0,
-        inputs: "",
-        showValues: true,
-        showInputs: false,
-        precision: null,
-        offInterval,
-        eyeHidden: !!e.hidden,
-        compare: { texts },
-      });
-    }
-    return rows;
-  }
-
-  // ── Feature 9: live ticks from Massive WS ─────────────────────────
-  // Mirror the chart's `symbol` into the Rust WS task's subscription set,
-  // under THIS pane's slot (multi-pane layouts each hold their own symbol).
-  // The task diffs against its previous state and emits the minimal
-  // subscribe/unsubscribe frames.
-  createEffect(() => {
-    const sym = props.symbol ?? null;
-    setLiveSymbol(sym, String(paneId)).catch((e) => console.warn("[chart] setLiveSymbol failed:", e));
-  });
-
-  /** Merge one resolution-bucketed live bar (from the datafeed) into the
-   *  chart's active bucket: extend the forming bar or append a new one.
-   *
-   *  Only candle/bar series get incremental updates this turn — the other
-   *  chart types (line/area/baseline/Heikin-Ashi…) would need a per-type
-   *  live-transform; tickets land in 3a-extras follow-ups. */
-  /** Repaint after live-bar mutations: candle-family series take the cheap
-   *  incremental `update`; every other type re-derives its per-type data from
-   *  `raw` (line/area/HA/renko/… — a full setData at the 5s tick cadence is
-   *  cheap and keeps ALL chart types live, not just candles). Studies + the
-   *  legend recompute so indicators track the live bar; session breaks only
-   *  need refreshing when a NEW bar appended (a day may have rolled over). */
-  /** paintLive, or (hidden tab) remember that `raw` moved on and draw it
-   *  once when the tab is shown. */
-  function paintLiveOrDefer(next: OHLC | null, appended: boolean) {
-    if (hidden()) {
-      liveDirty = true;
-      liveAppendedWhileHidden = liveAppendedWhileHidden || appended;
-      return;
-    }
-    paintLive(next, appended);
-  }
-  /** Run `fn` (several series data changes) with the crosshair parked. While a
-   *  crosshair is shown, each data change of the library re-runs its hit test,
-   *  which rebuilds every changed series' points over ALL bars (05/10/2026,
-   *  .tmp/scroll-lag: ~280 ms of a 400 ms live update on a 87k-bar pane).
-   *  Put back at the same point afterwards, without crosshair events. */
-  function withCrosshairParked(fn: () => void) {
-    const at = crosshairAt;
-    if (!chart || !series || !at) {
-      fn();
-      return;
-    }
-    chart.clearCrosshairPosition();
-    try {
-      fn();
-    } finally {
-      const s = series;
-      const price = s?.coordinateToPrice(at.y);
-      if (chart && s && price != null && raw.length > 0 && at.time >= (raw[0].time as number)) {
-        try { chart.setCrosshairPosition(price as number, at.time as UTCTimestamp, s); } catch { /* time no longer on the chart */ }
-      }
-    }
-  }
-
-  function paintLive(next: OHLC | null, appended: boolean) {
-    withCrosshairParked(() => paintLiveData(next, appended));
-  }
-  function paintLiveData(next: OHLC | null, appended: boolean) {
-    if (!series) return;
-    const st = currentTokens().styles;
-    if (
-      next &&
-      // Per-bar colours (prev-close colouring, hollow candles) are computed
-      // in setDataForType; a bare update() would paint the live bar with the
-      // series-default colours.
-      ((activeType === "candle" && !st.candle.prevClose) || (activeType === "bar" && !st.bar.prevClose))
-    ) {
-      // ISeriesApi<"Candlestick"|"Bar">.update accepts CandlestickData; our
-      // OHLC is shape-compatible (time + o/h/l/c).
-      (series as { update: (d: OHLC) => void }).update(next);
-    } else {
-      setDataForType(series, activeType, raw, currentTokens(), dataExtras());
-      afterSeriesData();
-    }
-    // Recompute active studies against the mutated bars so indicator lines
-    // track the live bar instead of lagging until the next reload.
-    controller?.renderAll(true);
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    if (appended) { updateSessionBreaks(); renderCompareAll(); }
-    // A forming bar can push a new visible extreme without appending.
-    else updateHighLowLines();
-    // Keep the legend on the latest bar unless the user is hovering one.
-    if (!crosshairActive) refreshLegend();
-  }
-
-  /** Merge one live bar into `raw`. Returns the merged bar + whether it
-   *  appended (null = stale/ignored). `repaint=false` lets batch callers (the
-   *  seconds refetch loop) merge many bars and paint once at the end. */
-  function applyLiveBar(bar: LiveBar, repaint = true): { next: OHLC; appended: boolean } | null {
-    // Mid-transition the outgoing symbol's candles are still painted; ignore
-    // ticks (which are for the incoming symbol) until the swap completes.
-    if (swapping) return null;
-    const lastTime = raw.length > 0 ? (raw[raw.length - 1].time as number) : -1;
-    let next: OHLC;
-    let appended = false;
-    let unchanged = false;
-    if (lastTime === bar.time) {
-      const last = raw[raw.length - 1];
-      // Volume semantics per source: 1-minute buckets + 1D day bars carry the
-      // bucket's authoritative cumulative volume → replace. 1W/1M ticks carry
-      // TODAY'S day volume only, not the forming week/month's cumulative —
-      // replacing would drop the prior days, so accumulate over a per-day
-      // baseline (the bar's volume when the current day first ticked =
-      // cumulative-before-today; re-snapped when the day advances). Coarser
-      // intraday buckets only see the CURRENT minute's volume, so `max` keeps
-      // the freshest value without double-counting the 5s snapshot repeats
-      // (undercounts multi-minute buckets — the honest floor).
-      const iv = props.interval ?? "1D";
-      let vol: number;
-      if (bar.volumeIsIncrement) {
-        // A 1-second stream bar inside a wider seconds bucket: its volume is
-        // that second only → add. The 30s REST tail merge (replace, below)
-        // re-anchors the bucket to the authoritative total.
-        vol = (last.volume ?? 0) + bar.volume;
-      } else if (iv === "1" || iv === "1D" || isSecondResolution(iv)) {
-        // Authoritative buckets: 1m/1D snapshots and the seconds tail refetch
-        // both carry the bucket's full cumulative volume → replace. (Seconds
-        // must NOT accumulate — every 30s tail merge would re-add the overlap.)
-        vol = bar.volume;
-      } else if (!isIntradayResolution(iv)) {
-        const day = bar.dayTime ?? 0;
-        if (!liveVolBase || liveVolBase.barTime !== bar.time || liveVolBase.dayTime !== day) {
-          // Cold daily loads include today's PARTIAL bar in the aggregate;
-          // subtract it so the baseline is strictly cumulative-before-today.
-          // (The warm path excludes today, so the lookup simply misses.)
-          const todaysPartial = rawDaily.find((c) => (c.time as number) === day)?.volume ?? 0;
-          liveVolBase = {
-            barTime: bar.time,
-            dayTime: day,
-            base: Math.max(0, (last.volume ?? 0) - todaysPartial),
-          };
-        }
-        vol = liveVolBase.base + bar.volume;
-      } else {
-        vol = Math.max(last.volume ?? 0, bar.volume);
-      }
-      next = {
-        time: bar.time as UTCTimestamp,
-        open: last.open,
-        high: Math.max(last.high, bar.high),
-        low: Math.min(last.low, bar.low),
-        close: bar.close,
-        volume: vol,
-      };
-      raw[raw.length - 1] = next;
-      // The feed repeats a bar until it moves: nothing to repaint then.
-      unchanged = next.high === last.high && next.low === last.low && next.close === last.close && next.volume === last.volume;
-    } else if (bar.time > lastTime) {
-      next = {
-        time: bar.time as UTCTimestamp,
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-        volume: bar.volume,
-      };
-      raw.push(next);
-      appended = true;
-      // A fresh 1W/1M bar starts with today's volume only → baseline 0, so a
-      // same-day merge tick doesn't re-snap the baseline onto today's volume
-      // and double-count it.
-      liveVolBase = { barTime: bar.time, dayTime: bar.dayTime ?? 0, base: 0 };
-    } else {
-      return null; // stale bar (older than last) — ignore
-    }
-    if (repaint && !unchanged) paintLiveOrDefer(next, appended);
-    return { next, appended };
-  }
-
-  let unlistenAggregate: UnlistenFn | null = null;
-  // Pane unmounted before the listen promise resolved — the late handle must
-  // be released immediately or the Tauri listener leaks for the window's life.
-  let aggregateDisposed = false;
-  onMount(() => {
-    // The datafeed filters by symbol and buckets by the current resolution;
-    // accessors are read per-tick so the listener follows symbol/interval changes.
-    subscribeBars(() => props.symbol, () => props.interval ?? "1D", applyLiveBar, () => props.session ?? "RTH").then((u) => {
-      if (aggregateDisposed) { u(); return; }
-      unlistenAggregate = u;
-    });
-  });
-
-  // Volume footprint sub-bars: fetch the 1-minute window when the type is
-  // active on an intraday frame (5 trading days — the datafeed's 1m lookback;
-  // older bars render as plain candles). Cleared when the type/symbol moves on.
-  createEffect(() => {
-    const type = props.chartType ?? "candle";
-    const sym = props.symbol;
-    const id = props.interval ?? "1D";
-    const sess = props.session ?? "RTH";
-    subMinute = null;
-    if (type !== "volFootprint" || !sym || !isIntradayInterval(id) || isSecondResolution(id)) return;
-    let alive = true;
-    const refresh = () => {
-      getBars(sym, "1", sess)
-        .then((r) => {
-          if (!alive || (props.chartType ?? "candle") !== "volFootprint") return;
-          subMinute = toOHLC(r.bars);
-          if (series && !swapping) {
-            setDataForType(series, activeType, raw, currentTokens(), { ...dataExtras(), subMinute });
-            afterSeriesData();
-          }
-        })
-        .catch(() => { /* footprint stays candle-only on fetch failure */ });
-    };
-    refresh();
-    // The forming bar's cells go stale between fetches (live ticks reuse the
-    // cached sub-bars) — refresh on a 60s cadence while the type is active;
-    // the effect re-runs on type/symbol/interval/session change, so the timer
-    // follows the pane's state.
-    let lastRefresh = Date.now();
-    const timer = window.setInterval(() => {
-      if (swapping || hidden()) return;
-      lastRefresh = Date.now();
-      refresh();
-    }, 60_000);
-    // Hidden for a full cadence: refresh as soon as the tab is shown.
-    const onShow = () => {
-      if (swapping || Date.now() - lastRefresh < 60_000) return;
-      lastRefresh = Date.now();
-      refresh();
-    };
-    onShownHooks.add(onShow);
-    onCleanup(() => { alive = false; window.clearInterval(timer); onShownHooks.delete(onShow); });
-  });
-
-  // Seconds REST refresh. When the key is entitled to the 1-second stream,
-  // live bars arrive through subscribeBars and this refetch re-anchors them to
-  // the authoritative REST buckets; without the stream (or while it is
-  // disconnected) this is the only live path — the per-minute snapshot
-  // aggregate cannot form sub-minute bars. It refetches the TAIL (last ~10
-  // minutes) on a cadence and merges it through the live-bar merge. A tail
-  // that doesn't overlap the loaded series (gap — e.g. the app slept past the
-  // tail window) falls back to the full 1-3 day window refetch.
-  createEffect(() => {
-    const sym = props.symbol;
-    const id = props.interval ?? "1D";
-    const sess = props.session ?? "RTH";
-    if (!sym || !isSecondResolution(id)) return;
-    const TAIL_SEC = 600;
-    /** Batch-merge refreshed bars at/after `lastTime`, then paint ONCE
-     *  (per-bar repaints would re-derive the series data dozens of times per
-     *  poll). Full-redraw path (next=null) so every series type repaints. */
-    const mergeRows = (rows: OHLC[], lastTime: number) => {
-      let appendedAny = false;
-      let merged = false;
-      for (const b of rows) {
-        if ((b.time as number) < lastTime) continue;
-        const res = applyLiveBar(
-          {
-            time: b.time as number,
-            open: b.open,
-            high: b.high,
-            low: b.low,
-            close: b.close,
-            volume: b.volume ?? 0,
-          },
-          false,
-        );
-        if (res) {
-          merged = true;
-          appendedAny = appendedAny || res.appended;
-        }
-      }
-      if (merged) paintLiveOrDefer(null, appendedAny);
-    };
-    const stale = () => swapping || sym !== props.symbol || id !== (props.interval ?? "1D");
-    const fullRefetch = () =>
-      getBars(sym, id, sess)
-        .then((r) => {
-          if (stale()) return;
-          const lastTime = raw.length > 0 ? (raw[raw.length - 1].time as number) : undefined;
-          if (lastTime === undefined) return;
-          mergeRows(toOHLC(r.bars), lastTime);
-        })
-        .catch(() => { /* transient fetch failure — next poll retries */ });
-    const timer = window.setInterval(() => {
-      if (swapping || history.loading || raw.length === 0) return;
-      const lastTime = raw[raw.length - 1].time as number;
-      const tail = getSecondBarsTail(sym, id, lastTime - TAIL_SEC, sess);
-      if (!tail) return;
-      tail
-        .then((rows) => {
-          if (stale()) return;
-          const ohlc = toOHLC(rows);
-          if (ohlc.length === 0) return; // nothing new (closed market) — skip
-          // Overlap check: the tail must reach back to (or past) the loaded
-          // series' newest bar, else there's a gap only a full window can fill.
-          if ((ohlc[0].time as number) > lastTime) {
-            void fullRefetch();
-            return;
-          }
-          mergeRows(ohlc, lastTime);
-        })
-        .catch(() => { /* transient fetch failure — next poll retries */ });
-    }, 30_000);
-    onCleanup(() => clearInterval(timer));
-  });
-  onCleanup(() => {
-    aggregateDisposed = true;
-    unlistenAggregate?.();
-    // Clear only THIS pane's slot — sibling panes keep their live symbols.
-    setLiveSymbol(null, String(paneId)).catch(() => {});
-  });
+  const { paintLive } = attach(cx, createLive(cx));
 
   // Theme + per-pane appearance reactivity. Re-runs when the theme toggles or
   // this pane's Settings change (Ok / Apply to all): re-apply the canvas options
@@ -6260,60 +1784,16 @@ export function ChartView(props: Props) {
   const intervalText = createMemo(() => intervalLabel(props.interval ?? "1D"));
   const [legendDesc, setLegendDesc] = createSignal("");
 
-  // -- Latest news (Events tab) ------------------------------------------
-  // Latest updates: the newest headline of the symbol, refreshed
-  // every 5 min; none if it is older than 31 days; not on seconds
-  // intervals. A headline that arrives after the first load raises the red
-  // "new" dot until the lollipop is clicked.
-  const [news, setNews] = createSignal<NewsItem | null>(null);
-  const [newsHasNew, setNewsHasNew] = createSignal(false);
-  const [newsCardOpen, setNewsCardOpen] = createSignal(false);
-  const newsAvailable = createMemo(() => !isSecondResolution(props.interval ?? "1D"));
-  createEffect(() => {
-    const sym = fullSymbol();
-    const on = appearance().latestNews ?? true;
-    const available = newsAvailable();
-    setNews(null);
-    setNewsHasNew(false);
-    setNewsCardOpen(false);
-    if (!sym || !on || !available) return;
-    let alive = true;
-    let lastId: string | null | undefined;
-    const load = () =>
-      getLatestNews(sym, 1)
-        .then((list) => {
-          if (!alive) return;
-          const it = list[0] ?? null;
-          const fresh = it && Date.now() - it.published < NEWS_MAX_AGE_MS ? it : null;
-          if (lastId !== undefined && fresh && fresh.id !== lastId) setNewsHasNew(true);
-          lastId = fresh?.id ?? null;
-          setNews(fresh);
-        })
-        .catch(() => {});
-    load();
-    let lastLoad = Date.now();
-    const timer = setInterval(() => {
-      if (hidden()) return;
-      lastLoad = Date.now();
-      load();
-    }, NEWS_UPDATE_MS);
-    const onShow = () => {
-      if (Date.now() - lastLoad < NEWS_UPDATE_MS) return;
-      lastLoad = Date.now();
-      load();
-    };
-    onShownHooks.add(onShow);
-    onCleanup(() => { alive = false; clearInterval(timer); onShownHooks.delete(onShow); });
-  });
+  const { NewsCard } = attach(cx, createNews(cx));
   function catchUpOnShow() {
-    if (compareLiveDirty) {
-      compareLiveDirty = false;
+    if (cx.compareLiveDirty) {
+      cx.compareLiveDirty = false;
       renderCompareAll();
     }
-    if (liveDirty) {
-      const appended = liveAppendedWhileHidden;
-      liveDirty = false;
-      liveAppendedWhileHidden = false;
+    if (cx.liveDirty) {
+      const appended = cx.liveAppendedWhileHidden;
+      cx.liveDirty = false;
+      cx.liveAppendedWhileHidden = false;
       paintLive(null, appended);
     }
     updateCountdown();
@@ -6327,11 +1807,6 @@ export function ChartView(props: Props) {
     wasShown = shown;
   });
 
-  // Interval change closes the card.
-  createEffect(() => { void props.interval; setNewsCardOpen(false); });
-  createEffect(() => {
-    newsLollipop.setState({ visible: news() !== null, hasNew: newsHasNew(), active: newsCardOpen() });
-  });
   // End-of-history icon: the history floor arrives with the entitlement
   // probe; the icon colour follows the chart background.
   createEffect(() => {
@@ -6339,29 +1814,7 @@ export function ChartView(props: Props) {
     void appearance();
     untrack(updateHistoryEnd);
   });
-  onCleanup(() => historyEndClose?.());
-  function toggleNewsCard() {
-    if (!newsCardOpen()) setNewsHasNew(false);
-    setNewsCardOpen(!newsCardOpen());
-  }
-  /** Card anchor (viewport px): point = lollipop centre - 10.5 - 8, card
-   *  centred on it, bottom 6 px above it (measured on the earnings card). */
-  const newsCardPos = () => {
-    if (!newsCardOpen() || !chart || !paneRoot) return null;
-    void scaleGeom();
-    const c = newsLollipop.center(chart.paneSize(0).height);
-    if (!c) return null;
-    const r = paneRoot.getBoundingClientRect();
-    const leftAxis = currentTokens().scalesPlacement === "left" ? chart.priceScale("left").width() : 0;
-    const x = r.left + leftAxis + c.x;
-    const pointY = r.top + c.y - 10.5 - 8;
-    const width = 300;
-    return {
-      left: Math.max(0, Math.min(window.innerWidth - width, Math.round(x - width / 2))),
-      bottom: Math.round(window.innerHeight - (pointY - 6)),
-      maxHeight: Math.max(0, Math.round(pointY - 6 - 15)),
-    };
-  };
+  onCleanup(() => cx.historyEndClose?.());
   createEffect(() => {
     const mode = appearance().legendTitleMode;
     const sym = fullSymbol();
@@ -6470,7 +1923,7 @@ export function ChartView(props: Props) {
         panes={drawingPanes()}
         sunk={sunkIds()}
         onPainter={(p) => {
-          sunkPainter = p;
+          cx.sunkPainter = p;
           scheduleSourceOrder();
         }}
         coordEpoch={coordEpoch()}
@@ -6496,200 +1949,11 @@ export function ChartView(props: Props) {
         onRemove={(id) => props.removeDrawing?.(id)}
         onRemoveMany={(ids) => props.removeDrawings?.(ids)}
       />
-      <Show when={scaleGeom()}>
-        {(g) => (
-          <>
-            {/* Currency label (12 px row). */}
-            <Show when={currency() && overlayVisible(appearance().currencyUnit ?? "visibleOnMouseOver", axisHover() !== null)}>
-              <div class="ot-price-currency" style={{ [g().left ? "left" : "right"]: "0px", width: `${g().w}px` }}>
-                <div class="ot-price-currency-box" style={{ "background-color": readChartTokens(appearance()).bg }}>
-                  <div class="ot-price-currency-row" style={{ "font-size": `${readChartTokens(appearance()).scaleFontSize}px` }} title="Currency">
-                    {/* No dropdown arrow: the reference menu converts the chart to
-                        another currency, which needs intraday exchange rates
-                        the data plan does not serve. */}
-                    <span>{currency()}</span>
-                  </div>
-                </div>
-              </div>
-            </Show>
-            {/* Auto / Log buttons (price-scale mode buttons). */}
-            <Show when={overlayVisible(appearance().scaleModes ?? "visibleOnMouseOver", axisHover() === 0)}>
-              <div class="ot-price-modes" style={{ [g().left ? "left" : "right"]: "0px", top: `${g().h - 30}px`, width: `${g().w}px` }}>
-                <div class="ot-price-mode-wrap">
-                  <button type="button" class={`ot-price-mode${scaleModes().auto ? " is-on" : ""}`} title="Auto (fits data to screen)" aria-label="Toggle auto scale" onClick={toggleAutoScale}>A</button>
-                </div>
-                <div class="ot-price-mode-wrap">
-                  <button type="button" class={`ot-price-mode${scaleModes().log ? " is-on" : ""}`} title="Logarithmic" aria-label="Toggle log scale" onClick={toggleLogScale}>L</button>
-                </div>
-              </div>
-            </Show>
-            {/* Crosshair plus button (on the pane side of
-                the crosshair price label). */}
-            <Show when={appearance().plusButton !== false && plusY() !== null ? plusY() : null}>
-              {(y) => {
-                const size = () => readChartTokens(appearance()).scaleFontSize + 10;
-                return (
-                  <button
-                    ref={plusEl}
-                    type="button"
-                    tabIndex={-1}
-                    class={`ot-price-plus${g().left ? " is-left" : ""}`}
-                    style={{
-                      [g().left ? "left" : "right"]: `${g().w}px`,
-                      top: `${Math.round(y() - size() / 2)}px`,
-                      width: `${size()}px`,
-                      height: `${size()}px`,
-                      background: readChartTokens(appearance()).crosshairLabelBg,
-                    }}
-                    aria-label="Plus"
-                  >
-                    <svg viewBox="0 0 22 22" width={size()} height={size()} aria-hidden="true">
-                      <path fill="currentColor" d="M10.5 7h1v8h-1zM7 10.5h8v1H7z" />
-                      <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1" />
-                    </svg>
-                  </button>
-                );
-              }}
-            </Show>
-            {/* Axis corner button: fill #2E2E2E dark / #EBEBEB light; the
-                axis tint is that colour at 50 % (blended under the labels). */}
-            <Show when={g().th > 0}>
-              {(_) => {
-                const dark = () => isDarkColor(readChartTokens(appearance()).bg);
-                const side = () => (g().left ? "left" : "right");
-                return (
-                  <>
-                    <Show when={cornerLit()}>
-                      <div
-                        class="ot-axis-corner-tint"
-                        style={{
-                          [side()]: "0px",
-                          top: "0px",
-                          width: `${g().w}px`,
-                          height: `${g().h}px`,
-                          background: dark() ? "rgba(46, 46, 46, 0.5)" : "rgba(235, 235, 235, 0.5)",
-                          "mix-blend-mode": dark() ? "lighten" : "darken",
-                        }}
-                      />
-                    </Show>
-                    <Tooltip text={cornerTitles()} side="top">
-                      <div
-                        class="ot-axis-corner"
-                        data-name="axis-corner"
-                        style={{
-                          [side()]: "0px",
-                          width: `${g().w}px`,
-                          height: `${g().th}px`,
-                          background: cornerLit() ? (dark() ? "#2E2E2E" : "#EBEBEB") : undefined,
-                          color: dark() ? "#DBDBDB" : "#0F0F0F",
-                        }}
-                        onMouseEnter={() => setCornerHover(true)}
-                        onMouseLeave={() => setCornerHover(false)}
-                        // The menu closes on any press (capture): a press on the
-                        // button while its menu is open only closes it.
-                        onPointerDown={() => { cornerMenuWasOpen = !!ctxMenu()?.corner; }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onDblClick={(e) => e.stopPropagation()}
-                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (cornerMenuWasOpen) { cornerMenuWasOpen = false; return; }
-                          openPriceScaleMenu(e, (e.currentTarget as HTMLElement).getBoundingClientRect());
-                        }}
-                      >
-                        <Show when={props.active || chartHovered()}>
-                          <svg viewBox="0 0 15 13" width="15" height="13" aria-hidden="true">
-                            <path fill="currentColor" fill-rule="evenodd" d="M4.1 1 1.14 6.5 4.1 12h6.8l2.96-5.5L10.9 1H4.1ZM15 6.5 11.5 0h-8L0 6.5 3.5 13h8L15 6.5ZM7.5 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 1a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
-                          </svg>
-                        </Show>
-                      </div>
-                    </Tooltip>
-                  </>
-                );
-              }}
-            </Show>
-          </>
-        )}
-      </Show>
+      <PriceAxisOverlays />
       {/* Latest news card (lollipop tooltip, type "news"): "Latest updates"
           title, newest headline card. */}
-      <Show when={news() && newsCardPos()}>
-        {(pos) => (
-          <div
-            class="ot-news-card"
-            style={{ left: `${pos().left}px`, bottom: `${pos().bottom}px`, "max-height": `${pos().maxHeight}px` }}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div class="ot-news-card-title">
-              <svg class="ot-news-card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" aria-hidden="true">
-                <path fill="currentColor" d="M24.5 14A10.5 10.5 0 1 0 14 24.5V26a12 12 0 1 1 0-24 12 12 0 0 1 0 24v-1.5c5.8 0 10.5-4.7 10.5-10.5" />
-                <path fill="currentColor" d="m17.03 7.5 1.02.9-4.02 4.93h5.29l-8.35 7.17-1.02-.9 4.02-4.93H8.68z" />
-              </svg>
-              <span class="ot-news-card-heading">Latest updates</span>
-            </div>
-            <div class="ot-news-card-main">
-              {/* OT has no news view yet, so the headline opens the article
-                  in the browser. */}
-              <button
-                type="button"
-                class="ot-news-item"
-                onClick={() => {
-                  const url = news()?.url;
-                  setNewsCardOpen(false);
-                  if (url) void openUrl(url).catch((e) => console.warn("[news] open article failed", e));
-                }}
-              >
-                <div class="ot-news-item-header">
-                  <span><time title={formatNewsDate(news()!.published)}>{formatAgo(news()!.published, Date.now())}</time></span>
-                  <span>{news()!.publisher}</span>
-                </div>
-                <div class="ot-news-item-title">{news()!.title}</div>
-                {/* No "See all" footer: there is no news list view. */}
-              </button>
-            </div>
-          </div>
-        )}
-      </Show>
-      <Show when={scaleGeom() && paneBoxes().length > 1 && (host?.clientWidth ?? 0) >= 356}>
-        <For each={paneBoxes()}>
-          {(b) => {
-            const shown = () => {
-              const mode = appearance().paneButtons ?? "visibleOnMouseOver";
-              return mode === "alwaysOn" || (mode === "visibleOnMouseOver" && hoverPane() === b.index);
-            };
-            const compact = () => (host?.clientWidth ?? 0) < 666.65;
-            const a = () => paneActions(b.index);
-            // Pane buttons: common tooltip; collapse / restore carry the
-            // "Ctrl + Double click" hint (data-tooltip-hotkey). The tooltip
-            // side is not verified.
-            const btn = (svg: string, title: string, run: () => void, active = false, hint = false) => (
-              <Tooltip text={title} hotkey={hint ? "Ctrl" : undefined} hotkeyText={hint ? "{0} + Double click" : undefined} side="bottom">
-                <div class={`ot-pane-btn${active ? " is-active" : ""}`} aria-label={title} onMouseDown={(e) => e.stopPropagation()} onClick={run} innerHTML={svg} />
-              </Tooltip>
-            );
-            return (
-              <Show when={shown()}>
-                <div class="ot-pane-controls" style={{ top: `${b.top + 4}px`, [scaleGeom()!.left ? "left" : "right"]: `${scaleGeom()!.w + 4}px` }}>
-                  <Show
-                    when={!compact()}
-                    fallback={
-                      <Tooltip text="Manage panes" side="bottom">
-                        <div class="ot-pane-btn" aria-label="Manage panes" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => openPaneMenu(e, b.index)} innerHTML={PANE_ICONS.more} />
-                      </Tooltip>
-                    }
-                  >
-                    <Show when={a().up}>{btn(PANE_ICONS.up, "Move pane up", () => movePane(b.index, -1))}</Show>
-                    <Show when={a().down}>{btn(PANE_ICONS.down, "Move pane down", () => movePane(b.index, 1))}</Show>
-                    <Show when={a().close}>{btn(PANE_ICONS.close, "Delete pane", () => deletePane(b.index))}</Show>
-                    <Show when={a().collapse}>{btn(PANE_ICONS.collapse, "Collapse pane", () => toggleCollapse(b.index), false, true)}</Show>
-                    <Show when={a().restore}>{btn(PANE_ICONS.restore, "Restore pane", () => toggleCollapse(b.index), true, true)}</Show>
-                  </Show>
-                </div>
-              </Show>
-            );
-          }}
-        </For>
-      </Show>
+      <NewsCard />
+      <PaneControls />
       {/* Dim-and-hold transition overlay: darkens (and blocks) the outgoing
           chart while the new symbol's data loads, then fades out on swap.
           Sits above the canvas + drawings but below the legends, so the ticker
