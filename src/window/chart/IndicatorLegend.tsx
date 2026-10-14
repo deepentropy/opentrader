@@ -32,6 +32,13 @@ type Props = {
   onRemove: (id: string) => void;
   /** More button: the study menu under the button (gets the button rect). */
   onMore?: (id: string, anchor: DOMRect) => void;
+  /** Source code button: shown for a study with a script source (it returns
+   *  true); opens it in the editor. */
+  hasSource?: (id: string) => boolean;
+  onSource?: (id: string) => void;
+  /** Show interval settings button (study hidden on the chart's interval):
+   *  the settings on the Visibility tab. */
+  onIntervalSettings?: (id: string) => void;
   /** Title clicked (compared symbol rows: "Change symbol"). */
   onTitleClick?: (id: string) => void;
   /** Selected study (null = none) and the title click that selects one. */
@@ -97,6 +104,12 @@ const ICON_SETTINGS = () => (
 const ICON_DELETE = () => (
   <svg viewBox="0 0 18 18" width="18" height="18">
     <path fill="currentColor" d="M7.5 4a.5.5 0 0 0-.5.5V5h4v-.5a.5.5 0 0 0-.5-.5h-3ZM12 5h3v1h-1.05l-.85 7.67A1.5 1.5 0 0 1 11.6 15H6.4a1.5 1.5 0 0 1-1.5-1.33L4.05 6H3V5h3v-.5C6 3.67 6.67 3 7.5 3h3c.83 0 1.5.67 1.5 1.5V5ZM5.06 6l.84 7.56a.5.5 0 0 0 .5.44h5.2a.5.5 0 0 0 .5-.44L12.94 6H5.06Z" />
+  </svg>
+);
+// Source code: braces glyph.
+const ICON_SOURCE = () => (
+  <svg viewBox="0 0 18 18" width="18" height="18">
+    <path fill="currentColor" d="M7 14H5.5A1.5 1.5 0 0 1 4 12.5v-1A2.9 2.9 0 0 0 2.66 9l.18-.13A2.9 2.9 0 0 0 4 6.5V5.5C4 4.67 4.67 4 5.5 4H7V3H5.5A2.5 2.5 0 0 0 3 5.5V6.5a1.9 1.9 0 0 1-.77 1.58c-.42.32-.84.43-.85.44C1.3 8.54 1 8.65 1 9s.3.46.38.48c0 0 .43.12.85.44.4.3.77.8.77 1.58v1A2.5 2.5 0 0 0 5.5 15H7v-1Zm4-10h1.5c.83 0 1.5.67 1.5 1.5v1A2.9 2.9 0 0 0 15.34 9l-.18.13A2.9 2.9 0 0 0 14 11.5V12.5c0 .83-.67 1.5-1.5 1.5H11v1h1.5a2.5 2.5 0 0 0 2.5-2.5V11.5c0-.79.38-1.27.77-1.58.42-.32.84-.43.85-.44.08-.02.38-.13.38-.48s-.3-.46-.38-.48c0 0-.43-.12-.85-.44-.4-.3-.77-.8-.77-1.58v-1A2.5 2.5 0 0 0 12.5 3H11v1Z" />
   </svg>
 );
 const ICON_MORE = () => (
@@ -197,7 +210,7 @@ export function IndicatorLegend(props: Props) {
         <For each={props.rows}>
           {(row) => (
             <div
-              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${props.selectedId === row.id ? " is-selected" : ""}${row.loading ? " is-loading" : ""}`}
+              class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${row.eyeHidden ? " is-eye-hidden" : ""}${row.offInterval ? " is-off-interval" : ""}${props.selectedId === row.id ? " is-selected" : ""}${row.loading ? " is-loading" : ""}`}
               data-status={row.loading ? "loading" : undefined}
               data-qa-id="legend-source-item"
               data-entity-id={row.id}
@@ -290,7 +303,14 @@ export function IndicatorLegend(props: Props) {
                   <ActionButton qa="legend-show-hide-action" title={row.eyeHidden ? "Show" : "Hide"} onClick={() => props.onToggleHide(row.id)}>
                     {row.loading ? ICON_EYE_LOADING() : row.eyeHidden ? ICON_EYE_CROSSED() : ICON_EYE()}
                   </ActionButton>
+                  {/* Study hidden on the chart's interval: orange crossed eye. */}
+                  <Show when={!row.compare && row.offInterval}>
+                    <ActionButton qa="legend-interval-show-hide-action" title="Show interval settings" onClick={() => props.onIntervalSettings?.(row.id)}>{ICON_EYE_CROSSED()}</ActionButton>
+                  </Show>
                   <ActionButton qa="legend-settings-action" title="Settings" onClick={() => props.onSettings(row.id)}>{ICON_SETTINGS()}</ActionButton>
+                  <Show when={!row.compare && props.hasSource?.(row.id)}>
+                    <ActionButton qa="legend-pine-action" title="Source code" onClick={() => props.onSource?.(row.id)}>{ICON_SOURCE()}</ActionButton>
+                  </Show>
                   <ActionButton qa="legend-delete-action" title="Remove" onClick={() => props.onRemove(row.id)}>{ICON_DELETE()}</ActionButton>
                   <ActionButton qa="legend-more-action" title="More"
                     onClick={(e) => props.onMore?.(row.id, (e.currentTarget as HTMLElement).getBoundingClientRect())}>

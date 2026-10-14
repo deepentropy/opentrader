@@ -68,6 +68,9 @@ export type AlertLabelsState = {
   fontFamily: string;
   /** Side of the scale the series uses. */
   side: "left" | "right";
+  /** Snapshot image being taken: nothing drawn (the reference's image has no
+   *  alert labels). */
+  printing?: boolean;
 };
 
 /** Distances from the scale side of the pane (reference). */
@@ -321,7 +324,7 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
 
   private drawPane(target: CanvasRenderingTarget2D): void {
     const s = this._state;
-    if (!s.labels.length || !this._series) return;
+    if (!s.labels.length || !this._series || s.printing) return;
     const theme = alertLabelTheme(s.dark);
     target.useMediaCoordinateSpace(({ mediaSize }) => {
       // geometry needs the media width only
@@ -482,7 +485,7 @@ export class AlertLabelsPrimitive implements ISeriesPrimitive<Time> {
   private drawAxis(target: CanvasRenderingTarget2D): void {
     const s = this._state;
     const series = this._series;
-    if (!s.labels.length || !series) return;
+    if (!s.labels.length || !series || s.printing) return;
     const theme = alertLabelTheme(s.dark);
     const fmt = series.priceFormatter();
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {

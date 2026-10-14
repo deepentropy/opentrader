@@ -567,3 +567,86 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
 @keyframes ot-eye-loading {
   100% { transform: rotate(1turn); }
 }
+
+/* ---- Narrow charts: titles cut, buttons kept in view ------------------- *
+ * The legend stack is limited to the plot width (ChartView). Each source row
+ * stays within it: the title pieces shrink (symbol / exchange / study title
+ * cut with an ellipsis; at least 23 px of a series title piece and 15 px of a
+ * study title stay), the interval piece and the buttons do not. */
+.ot-legend,
+.ot-legend-source,
+.ot-ind-legend,
+.ot-legend-item,
+.ot-ind-legend-row {
+  max-width: 100%;
+}
+.ot-legend-nowrap {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+}
+.ot-legend-titles {
+  flex: 1 1 0%;
+  max-width: fit-content;
+  min-width: 23px;
+  overflow: hidden;
+}
+.ot-legend-title-piece {
+  flex: 0 1 auto;
+  min-width: 23px;
+  overflow: hidden;
+}
+.ot-legend-title-piece.ot-legend-dot:not(.ot-legend-with-action) {
+  display: block;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ot-legend-title-piece.ot-legend-dot.ot-legend-with-action {
+  flex: 0 0 auto;
+  min-width: auto;
+}
+.ot-legend-symbol {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ot-ind-legend-title {
+  flex: 0 1 auto;
+  min-width: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ot-ind-legend-row {
+  flex-wrap: wrap;
+}
+.ot-ind-legend-rest {
+  max-width: 100%;
+}
+.ot-ind-legend-values {
+  flex-wrap: wrap;
+}
+
+/* Hidden study (eye) or study hidden on the interval: its crossed eye stays
+   shown right after the title without hover (no pill); hovered, every button
+   shows. The interval eye is orange (tan-orange-600). */
+.ot-ind-legend-row.is-eye-hidden:not(:hover):not(.is-selected) .ot-ind-legend-actions,
+.ot-ind-legend-row.is-off-interval:not(:hover):not(.is-selected) .ot-ind-legend-actions {
+  opacity: 1;
+  pointer-events: auto;
+  background: none !important;
+  border-color: transparent;
+  box-shadow: none;
+}
+.ot-ind-legend-row.is-eye-hidden:not(:hover):not(.is-selected) .ot-ind-legend-action,
+.ot-ind-legend-row.is-off-interval:not(:hover):not(.is-selected) .ot-ind-legend-action {
+  display: none;
+}
+.ot-ind-legend-row.is-eye-hidden:not(:hover):not(.is-selected) .ot-ind-legend-action[data-qa-id="legend-show-hide-action"],
+.ot-ind-legend-row.is-off-interval:not(:hover):not(.is-selected) .ot-ind-legend-action[data-qa-id="legend-interval-show-hide-action"] {
+  display: inline-flex;
+}
+.ot-ind-legend-action[data-qa-id="legend-interval-show-hide-action"] {
+  color: #fb8c00;
+}

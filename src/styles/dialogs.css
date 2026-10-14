@@ -163,3 +163,17 @@
 .ot-dlg-btn.is-success { background: #089981; border-color: #089981; color: #ffffff; }
 .ot-dlg-btn.is-danger { background: #f23645; border-color: #f23645; color: #ffffff; }
 .ot-dlg-btn.is-main[aria-disabled="true"] { background: var(--color-container-fill-primary-neutral-light); border-color: var(--color-divider-line-primary); color: var(--color-text-disabled); }
+
+/* "Don't show again" under a confirm text: 16 px gap above, 18 px box, 8 px
+   to the 16 / 24 px label. */
+.ot-dlg-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-text-primary);
+  cursor: default;
+  width: fit-content;
+}

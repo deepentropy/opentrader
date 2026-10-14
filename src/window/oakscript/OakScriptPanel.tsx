@@ -7,7 +7,7 @@
  * rename / create / recently-used / import / export / delete); scripts live
  * in the kv script store and execute in the shared worker engine.
  */
-import { For, Show, Suspense, createEffect, createSignal, lazy, on } from "solid-js";
+import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup } from "solid-js";
 import oakPackage from "../../../node_modules/oakscriptjs/package.json";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
@@ -19,6 +19,7 @@ import {
   dropUserScriptRuntime,
   notifyScriptCompiled,
   notifyScriptRenamed,
+  OAKSCRIPT_OPEN_EVENT,
   userIndicatorId,
 } from "../chart/indicators/user-scripts";
 import { dropUserStrategy, notifyUserStrategyCompiled, userStrategyId } from "../chart/indicators/strategy-entries";
@@ -75,6 +76,17 @@ export function OakScriptPanel(props: Props) {
     setCurrentScript(s);
     setIsStrategy(!!s.meta?.strategy);
   }
+
+  // Legend "Source code" of a study: its script in the editor, the panel
+  // restored when minimized.
+  const onOpenScript = (e: Event) => {
+    const id = (e as CustomEvent<{ scriptId: string }>).detail?.scriptId;
+    if (!id) return;
+    openScript(id);
+    setMinimized(false);
+  };
+  window.addEventListener(OAKSCRIPT_OPEN_EVENT, onOpenScript);
+  onCleanup(() => window.removeEventListener(OAKSCRIPT_OPEN_EVENT, onOpenScript));
 
   // ── Console + execution engine ────────────────────────────────────────────
   type LogEntry = {

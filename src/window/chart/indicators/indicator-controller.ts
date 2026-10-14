@@ -578,6 +578,14 @@ export class IndicatorController {
     return out;
   }
 
+  /** Studies drawn on the main series' price scale (price pane, no scale of
+   *  their own), in add order. */
+  mainScaleIds(): string[] {
+    const out: string[] = [];
+    for (const [id, inst] of this.instances) if (!inst.owner && inst.overlay && !inst.ownScale) out.push(id);
+    return out;
+  }
+
   /** Owner of chart pane `paneIndex` (>= 1) for drawings: the first study
    *  (add order) with a series in that pane; null when none. Read from the
    *  chart, not the stored pane index. */
@@ -606,9 +614,44 @@ export class IndicatorController {
     if (!this.canMoveToNewPane(id)) return null;
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: true };
     delete options.paneGroup;
+    // Other studies may still use its id as their pane group (they joined
+    // its former pane): a group of its own then.
+    const own = this.ownGroup(id);
+    if (own !== id) options.paneGroup = own;
     this.options.set(id, cloneIndicatorOptions(options));
     this.refresh(id);
     return this.getOptions(id);
+  }
+
+  /** Studies drawn in stacked pane `paneIndex` (>= 1), pane owners excluded. */
+  studiesInPane(paneIndex: number): string[] {
+    return [...this.instances].filter(([, i]) => !i.owner && !i.overlay && i.paneIndex === paneIndex).map(([id]) => id);
+  }
+
+  /** A study out of a pane it shares (with the series or other studies) into
+   *  a new pane of its own (a chart drag dropped on the time axis); the
+   *  caller places the pane and saves the options. Null when it is alone in
+   *  its pane. */
+  unmergeToNewPane(id: string): IndicatorOptions | null {
+    const inst = this.instances.get(id);
+    if (!inst || inst.owner) return null;
+    if (inst.overlay) return this.moveToNewPane(id);
+    if (this.studiesInPane(inst.paneIndex).length < 2) return null;
+    // A group of its own: the studies left behind keep the pane's group.
+    const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: false, paneGroup: this.ownGroup(id, true) };
+    this.options.set(id, cloneIndicatorOptions(options));
+    this.refresh(id);
+    return this.getOptions(id);
+  }
+
+  /** A pane group no other study uses: the study's id when free (and not
+   *  `fresh`), else `<id>~own`, `<id>~own2`, ... */
+  private ownGroup(id: string, fresh = false): string {
+    const used = new Set([...this.instances].filter(([k]) => k !== id).map(([, i]) => i.group));
+    if (!fresh && !used.has(id)) return id;
+    let g = `${id}~own`;
+    for (let n = 2; used.has(g); n++) g = `${id}~own${n}`;
+    return g;
   }
 
   /** Pane a study is drawn in (0 = the price pane), or null. */

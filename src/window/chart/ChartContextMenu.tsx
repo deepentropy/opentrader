@@ -154,6 +154,9 @@ const SubmenuArrow = () => (
 type Props = {
   x: number;
   y: number;
+  /** (x, y) is the menu's right / bottom edge (a menu opened above its anchor). */
+  endX?: boolean;
+  endY?: boolean;
   nodes: CtxNode[];
   onClose: () => void;
 };
@@ -240,7 +243,7 @@ export function ChartContextMenu(props: Props) {
   return (
     <>
       <div
-        ref={fitMenuRef(() => ({ x: props.x, y: props.y }))}
+        ref={fitMenuRef(() => ({ x: props.x, y: props.y, endX: props.endX, endY: props.endY }))}
         class="ot-chart-ctx-menu"
         role="menu"
         onContextMenu={(e) => e.preventDefault()}

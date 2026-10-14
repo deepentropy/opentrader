@@ -139,17 +139,19 @@
   flex-direction: column;
 }
 
-/* Section header inside the popover — normal-case, muted, in a 24px row
- * ("Lines / Channels / Pitchforks", a 249×24 item with a 16px-line
- * title). */
+/* Section header inside the popover — upper-case 11 px muted title in a
+ * 24 px row ("LINES / CHANNELS / PITCHFORKS"), 8 px in from the rows. */
 .drawing-tool-submenu-section-header {
   display: flex;
   align-items: center;
   height: 24px;
   box-sizing: border-box;
-  padding: 0 12px;
-  font-size: 13px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 16px;
   font-weight: 400;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
   color: var(--color-content-primary-neutral);
   pointer-events: none;
 }
@@ -299,4 +301,117 @@
 }
 .drawing-toolbar-context-menu .drawing-tool-submenu-item {
   width: 100%;
+}
+
+/* ── Left toolbar menus: the reference's current menu design ─────────────
+ * Rows sit 6 px in from the menu sides with 6 px corners: 32 px option rows
+ * (2 px 4 px padding, 28 px icon slot, 14 px / 18 px title padded 5 px 4 px),
+ * 40 px tool rows (and the magnet strengths); hover = toolbar hover fill;
+ * the selected row (current tool of a group, magnet strength / sync mode in
+ * use, hidden set) = the light fill with dark text and icon. Sections are
+ * split by a 13 px divider with a 1 px line. Switch rows (Snap to
+ * indicators) carry the switch at the right. */
+.drawing-tool-submenu {
+  padding: 6px;
+}
+.drawing-tool-submenu-divider {
+  padding: 6px 0;
+}
+.drawing-tool-submenu-divider::before {
+  content: "";
+  display: block;
+  height: 1px;
+  background-color: var(--color-container-fill-primary-neutral-normal);
+}
+.drawing-tool-submenu .drawing-tool-submenu-item {
+  height: 32px;
+  box-sizing: border-box;
+  gap: 0;
+  padding: 2px 4px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 18px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-item.is-large {
+  height: 40px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-icon {
+  width: 28px;
+  height: 28px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-label {
+  padding: 5px 4px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-item:hover {
+  background-color: var(--color-toolbar-button-background-hover);
+}
+.drawing-tool-submenu .drawing-tool-submenu-item.current,
+.drawing-tool-submenu .drawing-tool-submenu-item.current:hover {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-secondary-inverse);
+}
+.drawing-tool-submenu .drawing-tool-submenu-item.has-switch {
+  justify-content: space-between;
+}
+.drawing-tool-submenu .drawing-tool-submenu-item.has-switch .ind3-switch {
+  margin: 0 2px 0 24px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-item.has-switch:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* Tool rows: the row (tool button + star) is the 40 px surface. */
+.drawing-tool-submenu .drawing-tool-submenu-row {
+  height: 40px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  padding-right: 6px;
+}
+/* The 24 px gap before the star is kept on rows without a hotkey. */
+.drawing-tool-submenu .drawing-tool-submenu-row:not(:has(.drawing-tool-submenu-hotkey)) .drawing-tool-submenu-fav {
+  margin-left: 24px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-row .drawing-tool-submenu-item {
+  height: 40px;
+  background-color: transparent;
+}
+.drawing-tool-submenu .drawing-tool-submenu-row:has(.drawing-tool-submenu-item.current) {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+}
+.drawing-tool-submenu .drawing-tool-submenu-row .drawing-tool-submenu-item.current {
+  background-color: transparent;
+  color: var(--color-content-secondary-inverse);
+}
+.drawing-tool-submenu .drawing-tool-submenu-hotkey {
+  padding-left: 24px;
+  margin-right: 4px;
+}
+.drawing-tool-submenu .drawing-tool-submenu-fav {
+  width: 24px;
+  height: 24px;
+  margin-right: 0;
+}
+.drawing-tool-submenu .drawing-tool-submenu-row:has(.drawing-tool-submenu-item.current) .drawing-tool-submenu-fav {
+  color: var(--color-content-primary-inverse);
+}
+
+/* Left toolbar buttons: the armed tool = neutral light tile (normal fill on
+ * hover); a toggle that is on (magnet, keep drawing, lock, hide, sync,
+ * favourites bar) = the light "pressed" tile with a dark icon (bold fill on
+ * hover). */
+.drawing-toolbar .ot-toolbar-button.drawing-tool-btn.selected::before {
+  background-color: var(--color-container-fill-primary-neutral-light);
+}
+.drawing-toolbar .ot-toolbar-button.drawing-tool-btn.selected:hover:not(.is-disabled)::before {
+  background-color: var(--color-container-fill-primary-neutral-normal);
+}
+.drawing-toolbar .ot-toolbar-button.drawing-tool-btn.active::before {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+}
+.drawing-toolbar .ot-toolbar-button.drawing-tool-btn.active:hover:not(.is-disabled)::before {
+  background-color: var(--color-container-fill-primary-neutral-bold);
+}
+.drawing-toolbar .ot-toolbar-button.drawing-tool-btn.active,
+.drawing-toolbar .ot-toolbar-button.drawing-tool-btn.active:hover:not(.is-disabled) {
+  color: var(--color-content-secondary-inverse);
 }

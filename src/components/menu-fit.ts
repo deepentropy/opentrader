@@ -8,13 +8,17 @@
  */
 import { createEffect } from "solid-js";
 
-/** Place a `position: fixed` menu element at (x, y), fitted to the window. */
-export function fitToWindow(el: HTMLElement, x: number, y: number): void {
+/** Place a `position: fixed` menu element at (x, y), fitted to the window.
+ *  `endX` / `endY`: (x, y) is the menu's right / bottom edge instead (a menu
+ *  opened above or left of its anchor). */
+export function fitToWindow(el: HTMLElement, x: number, y: number, endX = false, endY = false): void {
   el.style.maxHeight = "";
   el.style.overflowY = "";
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
   const r = el.getBoundingClientRect();
+  if (endX) x -= r.width;
+  if (endY) y -= r.height;
   const W = document.documentElement.clientWidth;
   const H = document.documentElement.clientHeight;
   let h = r.height;
@@ -29,11 +33,11 @@ export function fitToWindow(el: HTMLElement, x: number, y: number): void {
 
 /** Ref callback that keeps a menu fitted whenever its requested position
  *  changes (runs after the element is in the document). */
-export function fitMenuRef(pos: () => { x: number; y: number }) {
+export function fitMenuRef(pos: () => { x: number; y: number; endX?: boolean; endY?: boolean }) {
   return (el: HTMLElement) => {
     createEffect(() => {
       const p = pos();
-      queueMicrotask(() => fitToWindow(el, p.x, p.y));
+      queueMicrotask(() => fitToWindow(el, p.x, p.y, p.endX, p.endY));
     });
   };
 }

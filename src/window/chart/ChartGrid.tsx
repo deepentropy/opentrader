@@ -121,6 +121,7 @@ type Props = {
   /** Hide-all dropdown's "Hide indicators" — suppresses study layers on every
    *  pane without removing them from the active set. */
   indicatorsHidden?: boolean;
+  indicatorsLocked?: boolean;
   // ── Per-pane interaction (callbacks bound to each pane's symbol) ────────
   armedTool?: string | null;
   cursorMode?: CursorMode;
@@ -402,6 +403,7 @@ export function ChartGrid(props: Props) {
                 onVisibleRange={(r) => props.onVisibleRange?.(i, r)}
                 settings={pane().settings}
                 indicatorsHidden={props.indicatorsHidden}
+                indicatorsLocked={props.indicatorsLocked}
                 theme={props.theme}
                 timeZone={displayTimeZone(props.timeZoneLabel ?? "", props.timeZone ?? "UTC", pane().symbol)}
                 timeZoneLabel={props.timeZoneLabel}

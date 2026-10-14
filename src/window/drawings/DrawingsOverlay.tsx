@@ -78,8 +78,9 @@ import type { CursorMode } from "../../data/drawing-toolbar";
 import { hintState, lineToolHint, PATH_HINT, POLYLINE_HINT, setLineToolHint } from "../../data/hints";
 
 /** Paints drawing `id` on the canvas of the pane `paneKey` (context in CSS
- *  px, origin at the pane's top-left). */
-export type SunkPainter = (ctx: CanvasRenderingContext2D, id: string, paneKey: string | null) => void;
+ *  px, origin at the pane's top-left). `onAsyncLoad`: an image of the
+ *  drawing finished loading (paint again). */
+export type SunkPainter = (ctx: CanvasRenderingContext2D, id: string, paneKey: string | null, onAsyncLoad?: () => void) => void;
 
 /** Kinds drawn by components (not a plain scene): they stay in the overlay,
  *  in front of every series. */
@@ -673,16 +674,21 @@ export function DrawingsOverlay(props: Props) {
   // pane's canvas, at its place in the drawing order: same scene, without the
   // anchors (they stay in the overlay, in front).
   let sunkFont = "";
-  const paintSunk: SunkPainter = (ctx, id, paneKey) => {
+  const paintSunk: SunkPainter = (ctx, id, paneKey, onAsyncLoad) => {
     const d = props.drawings.find((x) => x.id === id);
     const pane = frameByKey(paneKey);
     const f = d ? drawFrame(d) : null;
     if (!d || !pane || !f || notShown(d)) return;
     const pts = screenPoints(f.coords, d, f.dims);
     if (!pts) return;
+    // Table and image: their plain scene (the snapshot image paints them).
     const scene = d.kind === "text"
       ? sceneTextTool(d, pts[0], false, false)
-      : sceneOf(d, pts, { w: f.dims.w, h: f.dims.h, coords: f.coords, selected: false, hovered: false });
+      : d.kind === "table"
+        ? sceneTable(d, pts[0], false, null)
+        : d.kind === "image"
+          ? sceneImage(d, pts[0], false)
+          : sceneOf(d, pts, { w: f.dims.w, h: f.dims.h, coords: f.coords, selected: false, hovered: false });
     if (!sunkFont && svg) sunkFont = getComputedStyle(svg).fontFamily;
     ctx.save();
     // The drawing's frame inside this pane's canvas (an extended vertical
@@ -691,6 +697,7 @@ export function DrawingsOverlay(props: Props) {
     drawScene(ctx, scene, {
       fontFamily: sunkFont || "sans-serif",
       anchors: { fillAt: (y) => anchorFillAt(y + f.top), selected: false },
+      onAsyncLoad,
     });
     ctx.restore();
   };

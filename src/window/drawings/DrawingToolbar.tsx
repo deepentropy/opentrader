@@ -33,6 +33,7 @@ import { FontIconPicker, type FontIconTab } from "./FontIconPicker";
 import { findOverlaySpec } from "lightweight-charts-drawing/core/specs";
 import { PLACE_AT_CURSOR_EVENT, type PlaceAtCursorDetail } from "./DrawingsOverlay";
 import type { DrawingKind } from "lightweight-charts-drawing/core/types";
+import * as kv from "../../data/kv";
 
 /** Hotkey tools created at once at the cursor (Alt+H/J/V/C). */
 const PLACE_NOW = new Set(["horizontal-line", "horizontal-ray", "vertical-line", "cross-line"]);
@@ -109,18 +110,15 @@ type Props = {
   setMagnetSnapsToIndicators: (v: boolean) => void;
   stayMode: boolean;
   setStayMode: (v: boolean) => void;
-  /** Persistent Lock-all / Hide-all toggle modes (App-owned) — drive the
-   *  buttons' active visual and stay on with zero drawings. `indicatorsHidden`
-   *  backs the Hide-all dropdown's "Hide indicators" checkmark. */
-  lockAllActive: boolean;
-  hideAllActive: boolean;
-  indicatorsHidden: boolean;
-  onToggleLockAll: () => void;
-  /** Hide-all dropdown actions: drawings only, indicators only, or both. The
-   *  icon click defaults to "hide drawings" (`onToggleHideAll`). */
-  onToggleHideAll: () => void;
-  onToggleHideIndicators: () => void;
-  onToggleHideBoth: () => void;
+  /** Hide and Lock buttons (App-owned): the saved mode of each button, the
+   *  hidden / locked parts, and the toggle (no mode = the button, a mode = a
+   *  menu row). */
+  hideMode: ObjectsMode;
+  hidden: { drawings: boolean; indicators: boolean };
+  onToggleHide: (mode?: ObjectsMode) => void;
+  lockMode: ObjectsMode;
+  locked: { drawings: boolean; indicators: boolean };
+  onToggleLock: (mode?: ObjectsMode) => void;
   /** Remove-objects dropdown actions: drawings only, indicators only, or both.
    *  Split control: the icon click defaults to "remove drawings"
    *  (`onRemoveAll`). */
@@ -132,6 +130,9 @@ type Props = {
    *  rows remove. */
   drawingCount: number;
   indicatorCount: number;
+  /** Remove options switch "Always remove locked drawings" (App-owned). */
+  alwaysRemoveLocked: boolean;
+  onToggleAlwaysRemoveLocked: () => void;
   /** Drawing-sync scope (App-owned, persisted). Drives how the drawing store
    *  keys panes: none = per pane, layout = per tab/layout, global = by symbol. */
   syncMode: SyncMode;
@@ -142,6 +143,25 @@ type Props = {
  *  are shared across the layout's panes: per pane / per layout / globally by
  *  symbol. */
 export type SyncMode = "none" | "layout" | "global";
+/** Mode of the Hide and Lock buttons. */
+export type ObjectsMode = "drawings" | "indicators" | "all";
+/** Hide / Lock buttons: per mode the menu row, the button icon (off / on)
+ *  and tooltip (off / on), as in the reference. */
+const OBJECTS_MODES: Record<"hide" | "lock", Record<ObjectsMode, { label: string; icon: [string, string]; tooltip: [string, string] }>> = {
+  hide: {
+    drawings: { label: "Hide drawings", icon: ["draw-hide-drawings", "draw-hide-drawings-active"], tooltip: ["Hide all drawings", "Show all drawings"] },
+    indicators: { label: "Hide indicators", icon: ["draw-hide-indicators", "draw-hide-indicators-active"], tooltip: ["Hide all indicators", "Show all indicators"] },
+    all: { label: "Hide all", icon: ["draw-hide-all-mode", "draw-hide-all-mode-active"], tooltip: ["Hide all drawings and indicators", "Show all drawings and indicators"] },
+  },
+  lock: {
+    drawings: { label: "Lock drawings", icon: ["draw-lock-drawings", "draw-lock-drawings-active"], tooltip: ["Lock drawings", "Unlock drawings"] },
+    indicators: { label: "Lock indicators", icon: ["draw-lock-indicators", "draw-lock-indicators-active"], tooltip: ["Lock indicators", "Unlock indicators"] },
+    all: { label: "Lock all", icon: ["draw-lock-all", "draw-lock-all-active"], tooltip: ["Lock drawings and indicators", "Unlock drawings and indicators"] },
+  },
+};
+/** A mode is on: its part, or both parts for "all". */
+const modeOn = (m: ObjectsMode, st: { drawings: boolean; indicators: boolean }) =>
+  m === "all" ? st.drawings && st.indicators : st[m];
 const SYNC_LABELS: Record<SyncMode, string> = {
   none: "No sync",
   layout: "New drawings sync in layout",
@@ -172,9 +192,28 @@ export function DrawingToolbar(props: Props) {
   // App owns the value + persistence; the toolbar just reads/sets it.
   const syncMode = () => props.syncMode;
   const setSyncMode = (m: SyncMode) => props.setSyncMode(m);
+  // The reference button turns sync on / off and keeps the mode (layout or
+  // global) for the next time it is on: the last mode is kept here.
+  const [lastSyncMode, setLastSyncMode] = createSignal<"layout" | "global">(
+    props.syncMode === "layout" || (props.syncMode === "none" && kv.getItem("ot:drawing-sync-last") === "layout") ? "layout" : "global",
+  );
+  const syncOnMode = () => (syncMode() === "none" ? lastSyncMode() : (syncMode() as "layout" | "global"));
+  const pickSyncMode = (m: "layout" | "global") => {
+    setLastSyncMode(m);
+    kv.setItem("ot:drawing-sync-last", m);
+    setSyncMode(m);
+  };
+  const toggleSync = () => {
+    if (syncMode() === "none") pickSyncMode(lastSyncMode());
+    else {
+      pickSyncMode(syncOnMode());
+      setSyncMode("none");
+    }
+  };
   const [syncMenuOpen, setSyncMenuOpen] = createSignal(false);
-  // Hide-all dropdown (Hide drawings / indicators / both).
+  // Hide and Lock dropdowns (Hide / Lock drawings, indicators, all).
   const [hideMenuOpen, setHideMenuOpen] = createSignal(false);
+  const [lockMenuOpen, setLockMenuOpen] = createSignal(false);
   // Remove-objects dropdown (the trash split control).
   const [removeMenuOpen, setRemoveMenuOpen] = createSignal(false);
   // FontIconPicker — open on this tab when an Icon/Emoji/Sticker tool is picked.
@@ -188,6 +227,80 @@ export function DrawingToolbar(props: Props) {
   const [toolbarMenu, setToolbarMenu] = createSignal<{ x: number; y: number } | null>(null);
   let root!: HTMLElement;
   let toolbarMenuEl: HTMLDivElement | undefined;
+
+  /** Lock or Hide split control. */
+  const objectsGroup = (kind: "lock" | "hide") => {
+    const mode = () => (kind === "lock" ? props.lockMode : props.hideMode);
+    const st = () => (kind === "lock" ? props.locked : props.hidden);
+    const on = () => modeOn(mode(), st());
+    const open = () => (kind === "lock" ? lockMenuOpen() : hideMenuOpen());
+    const setOpen = (v: boolean) => (kind === "lock" ? setLockMenuOpen(v) : setHideMenuOpen(v));
+    const toggle = (m?: ObjectsMode) => (kind === "lock" ? props.onToggleLock(m) : props.onToggleHide(m));
+    const spec = () => OBJECTS_MODES[kind][mode()];
+    const menuTitle = kind === "lock" ? "Lock options" : "Hide options";
+    return (
+      <div class={"drawing-tool-group" + (open() ? " open" : "")}>
+        <Tooltip text={spec().tooltip[on() ? 1 : 0]} hotkey={kind === "hide" ? "Ctrl + Alt + H" : undefined} side="right">
+          <button
+            type="button"
+            class={"ot-toolbar-button drawing-tool-btn" + (on() ? " active" : "")}
+            aria-label={spec().tooltip[on() ? 1 : 0]}
+            aria-pressed={on()}
+            data-name={kind === "lock" ? "lock-all" : "hide-all"}
+            onClick={() => toggle()}
+          >
+            <span class="drawing-tool-icon">
+              <Icon name={spec().icon[on() ? 1 : 0]} size={28} />
+            </span>
+          </button>
+        </Tooltip>
+        <Tooltip text={menuTitle} side="right">
+          <button
+            type="button"
+            class="ot-toolbar-button drawing-tool-arrow"
+            aria-label={menuTitle}
+            aria-haspopup="menu"
+            aria-expanded={open()}
+            onClick={() => {
+              const next = !open();
+              setOpenGroup(null);
+              setMagnetMenuOpen(false);
+              setSyncMenuOpen(false);
+              setRemoveMenuOpen(false);
+              setHideMenuOpen(false);
+              setLockMenuOpen(false);
+              setOpen(next);
+            }}
+          >
+            <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
+              <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
+            </svg>
+          </button>
+        </Tooltip>
+        <Show when={open()}>
+          {/* The row of the button's mode is selected while that mode is on. */}
+          <div class="ot-popover drawing-tool-submenu" role="menu" aria-label={menuTitle}>
+            <For each={["drawings", "indicators", "all"] as const}>
+              {(m) => (
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={mode() === m && on()}
+                  class={"drawing-tool-submenu-item" + (mode() === m && on() ? " current" : "")}
+                  onClick={() => {
+                    setOpen(false);
+                    toggle(m);
+                  }}
+                >
+                  <span class="drawing-tool-submenu-label apply-overflow-tooltip">{OBJECTS_MODES[kind][m].label}</span>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+      </div>
+    );
+  };
 
   function pickTool(toolId: string) {
     // Tools listed but not yet implemented arm nothing — bail
@@ -332,13 +445,13 @@ export function DrawingToolbar(props: Props) {
     };
     document.addEventListener("keydown", onHotkey);
 
-    // Ctrl+Alt+H toggles Hide-all-drawings.
+    // Ctrl+Alt+H: the Hide button (its mode).
     const onHideAllHotkey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.altKey && e.ctrlKey && !e.metaKey && e.code === "KeyH") {
         e.preventDefault();
-        props.onToggleHideAll();
+        props.onToggleHide();
       }
     };
     document.addEventListener("keydown", onHideAllHotkey);
@@ -428,8 +541,11 @@ export function DrawingToolbar(props: Props) {
                       aria-label={group.title}
                     >
                       <For each={group.sections}>
-                        {(section) => (
+                        {(section, si) => (
                           <>
+                            <Show when={si() > 0}>
+                              <div class="drawing-tool-submenu-divider" role="separator" />
+                            </Show>
                             <Show when={section.header}>
                               <div
                                 class="drawing-tool-submenu-section-header"
@@ -582,7 +698,7 @@ export function DrawingToolbar(props: Props) {
               onClick={() => props.setMagnet(!props.magnet)}
             >
               <span class="drawing-tool-icon">
-                <Icon name="draw-magnet" size={28} />
+                <Icon name={props.magnetMode === "weak" ? "draw-magnet-weak" : "draw-magnet-strong"} size={28} />
               </span>
             </button>
           </Tooltip>
@@ -598,6 +714,7 @@ export function DrawingToolbar(props: Props) {
                 setSyncMenuOpen(false);
                 setHideMenuOpen(false);
                 setRemoveMenuOpen(false);
+                setLockMenuOpen(false);
                 setMagnetMenuOpen(!magnetMenuOpen());
               }}
             >
@@ -608,45 +725,46 @@ export function DrawingToolbar(props: Props) {
           </Tooltip>
           <Show when={magnetMenuOpen()}>
             <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Magnets">
-              <For each={[["weak", "Weak magnet"], ["strong", "Strong magnet"]] as const}>
-                {([id, label]) => (
+              {/* Strength rows (40 px, with their icon): the one in use is
+               *  selected while the magnet is on; picking one turns it on. */}
+              <For each={[["weak", "Weak magnet", "draw-magnet-weak"], ["strong", "Strong magnet", "draw-magnet-strong"]] as const}>
+                {([id, label, icon]) => (
                   <button
                     type="button"
                     role="menuitemradio"
-                    aria-checked={props.magnetMode === id}
+                    aria-checked={props.magnet && props.magnetMode === id}
                     class={
-                      "drawing-tool-submenu-item" +
-                      (props.magnetMode === id ? " current" : "")
+                      "drawing-tool-submenu-item is-large" +
+                      (props.magnet && props.magnetMode === id ? " current" : "")
                     }
                     onClick={() => {
                       props.setMagnetMode(id);
-                      // Picking a strength enables magnet.
                       if (!props.magnet) props.setMagnet(true);
                       setMagnetMenuOpen(false);
                     }}
                   >
                     <span class="drawing-tool-submenu-icon">
-                      <Icon name="draw-magnet" size={20} />
+                      <Icon name={icon} size={28} />
                     </span>
                     <span class="drawing-tool-submenu-label apply-overflow-tooltip">{label}</span>
                   </button>
                 )}
               </For>
-              {/* "Snap to indicators" — independent checkbox below the radios. */}
+              <div class="drawing-tool-submenu-divider" role="separator" />
+              {/* "Snap to indicators": a switch, the menu stays open; off
+               *  while the magnet is off. */}
               <button
                 type="button"
                 role="menuitemcheckbox"
                 aria-checked={props.magnetSnapsToIndicators}
-                class={
-                  "drawing-tool-submenu-item" +
-                  (props.magnetSnapsToIndicators ? " current" : "")
-                }
+                disabled={!props.magnet}
+                class="drawing-tool-submenu-item has-switch"
                 onClick={() => props.setMagnetSnapsToIndicators(!props.magnetSnapsToIndicators)}
               >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-magnet" size={20} />
-                </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Snap to indicators</span>
+                <span class={"ind3-switch" + (props.magnetSnapsToIndicators ? " is-on" : "")} aria-hidden="true">
+                  <span class="ind3-switch-thumb" />
+                </span>
               </button>
             </div>
           </Show>
@@ -667,126 +785,30 @@ export function DrawingToolbar(props: Props) {
             </span>
           </button>
         </Tooltip>
-        <Tooltip text="Lock all drawings" side="right">
-          <button
-            type="button"
-            class={
-              "ot-toolbar-button drawing-tool-btn" +
-              (props.lockAllActive ? " active" : "")
-            }
-            aria-label="Lock all drawings"
-            aria-pressed={props.lockAllActive}
-            onClick={props.onToggleLockAll}
-          >
-            <span class="drawing-tool-icon">
-              <Icon name="draw-lock" size={28} />
-            </span>
-          </button>
-        </Tooltip>
-        {/* Hide all — split control (`hide-all` dropdown): the icon toggles
-         *  Hide-all-drawings (Ctrl+Alt+H), the caret opens a scope menu mirroring
-         *  the Remove control (drawings / indicators / both). All three are
-         *  persistent toggles, so they stay meaningful with zero drawings. */}
-        <div class={"drawing-tool-group" + (hideMenuOpen() ? " open" : "")}>
-          <Tooltip text="Hide all drawings" hotkey="Ctrl + Alt + H" side="right">
-            <button
-              type="button"
-              class={
-                "ot-toolbar-button drawing-tool-btn" +
-                (props.hideAllActive ? " active" : "")
-              }
-              aria-label="Hide all drawings"
-              aria-pressed={props.hideAllActive}
-              onClick={props.onToggleHideAll}
-            >
-              <span class="drawing-tool-icon">
-                <Icon name="draw-hide" size={28} />
-              </span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Hide options" side="right">
-            <button
-              type="button"
-              class="ot-toolbar-button drawing-tool-arrow"
-              aria-label="Hide options"
-              aria-haspopup="menu"
-              aria-expanded={hideMenuOpen()}
-              onClick={() => {
-                setOpenGroup(null);
-                setMagnetMenuOpen(false);
-                setSyncMenuOpen(false);
-                setRemoveMenuOpen(false);
-                setHideMenuOpen(!hideMenuOpen());
-              }}
-            >
-              <svg viewBox="0 0 10 16" width="4" height="7" aria-hidden="true">
-                <path d="M.6 1.4l1.4-1.4 8 8-8 8-1.4-1.4 6.389-6.532-6.389-6.668z" />
-              </svg>
-            </button>
-          </Tooltip>
-          <Show when={hideMenuOpen()}>
-            <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Hide options">
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={props.hideAllActive}
-                class={"drawing-tool-submenu-item" + (props.hideAllActive ? " current" : "")}
-                onClick={() => { setHideMenuOpen(false); props.onToggleHideAll(); }}
-              >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-hide" size={20} />
-                </span>
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Hide drawings</span>
-              </button>
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={props.indicatorsHidden}
-                class={"drawing-tool-submenu-item" + (props.indicatorsHidden ? " current" : "")}
-                onClick={() => { setHideMenuOpen(false); props.onToggleHideIndicators(); }}
-              >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-hide" size={20} />
-                </span>
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Hide indicators</span>
-              </button>
-              <button
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={props.hideAllActive && props.indicatorsHidden}
-                class={"drawing-tool-submenu-item" + (props.hideAllActive && props.indicatorsHidden ? " current" : "")}
-                onClick={() => { setHideMenuOpen(false); props.onToggleHideBoth(); }}
-              >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-hide" size={20} />
-                </span>
-                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Hide all</span>
-              </button>
-            </div>
-          </Show>
-        </div>
-        {/* Sync drawings — `drawingSyncMode-button`. A pure dropdown: both
-         *  the icon and the caret open the No-sync / Sync-in-layout / Sync-
-         *  globally menu; App keys the drawings store by the mode
-         *  (drawingKeyFor). */}
+        {/* Lock and Hide — split controls: the icon toggles the button's mode
+         *  (icon and tooltip of the mode, pressed while on; Ctrl + Alt + H for
+         *  Hide), the caret opens the drawings / indicators / all menu, whose
+         *  row makes its mode the button's mode and toggles it. */}
+        {objectsGroup("lock")}
+        {objectsGroup("hide")}
+        {/* Sync drawings — `drawingSyncMode-button`. The icon turns sync on /
+         *  off (icon of the mode, pressed while on); the caret opens the
+         *  Sync-in-layout / Sync-globally menu. App keys the drawings store
+         *  by the mode (drawingKeyFor). */}
         <div class={"drawing-tool-group" + (syncMenuOpen() ? " open" : "")}>
           <Tooltip text={SYNC_TOOLTIPS[syncMode()]} side="right">
             <button
               type="button"
-              class="ot-toolbar-button drawing-tool-btn"
+              class={"ot-toolbar-button drawing-tool-btn" + (syncMode() !== "none" ? " active" : "")}
               aria-label={SYNC_TOOLTIPS[syncMode()]}
-              aria-haspopup="menu"
-              aria-expanded={syncMenuOpen()}
+              aria-pressed={syncMode() !== "none"}
               onClick={() => {
-                setOpenGroup(null);
-                setMagnetMenuOpen(false);
-                setHideMenuOpen(false);
-                setRemoveMenuOpen(false);
-                setSyncMenuOpen(!syncMenuOpen());
+                setSyncMenuOpen(false);
+                toggleSync();
               }}
             >
               <span class="drawing-tool-icon">
-                <Icon name="draw-drawingSyncMode-button" size={28} />
+                <Icon name={syncOnMode() === "layout" ? "draw-sync-layout" : "draw-sync-global"} size={28} />
               </span>
             </button>
           </Tooltip>
@@ -802,6 +824,7 @@ export function DrawingToolbar(props: Props) {
                 setMagnetMenuOpen(false);
                 setHideMenuOpen(false);
                 setRemoveMenuOpen(false);
+                setLockMenuOpen(false);
                 setSyncMenuOpen(!syncMenuOpen());
               }}
             >
@@ -812,7 +835,9 @@ export function DrawingToolbar(props: Props) {
           </Tooltip>
           <Show when={syncMenuOpen()}>
             <div class="ot-popover drawing-tool-submenu" role="menu" aria-label="Sync drawings options">
-              <For each={["none", "layout", "global"] as const}>
+              {/* The two modes, with their icon; the mode in use is selected
+               *  while sync is on; picking one turns sync on. */}
+              <For each={["layout", "global"] as const}>
                 {(id) => (
                   <button
                     type="button"
@@ -820,16 +845,12 @@ export function DrawingToolbar(props: Props) {
                     aria-checked={syncMode() === id}
                     class={"drawing-tool-submenu-item" + (syncMode() === id ? " current" : "")}
                     onClick={() => {
-                      setSyncMode(id);
+                      pickSyncMode(id);
                       setSyncMenuOpen(false);
                     }}
                   >
-                    {/* No leading glyph; the selected row carries
-                     *  a checkmark in the icon slot, the rest leave it empty. */}
                     <span class="drawing-tool-submenu-icon">
-                      <Show when={syncMode() === id}>
-                        <Icon name="dt-cm-sync-globally" size={16} />
-                      </Show>
+                      <Icon name={id === "layout" ? "draw-sync-layout" : "draw-sync-global"} size={28} />
                     </span>
                     <span class="drawing-tool-submenu-label apply-overflow-tooltip">{SYNC_LABELS[id]}</span>
                   </button>
@@ -872,6 +893,7 @@ export function DrawingToolbar(props: Props) {
                 setMagnetMenuOpen(false);
                 setSyncMenuOpen(false);
                 setHideMenuOpen(false);
+                setLockMenuOpen(false);
                 setRemoveMenuOpen(!removeMenuOpen());
               }}
             >
@@ -888,9 +910,6 @@ export function DrawingToolbar(props: Props) {
                 class="drawing-tool-submenu-item"
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveAll(); }}
               >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-trash" size={20} />
-                </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Remove {plural(props.drawingCount, "drawing")}</span>
               </button>
               <button
@@ -899,9 +918,6 @@ export function DrawingToolbar(props: Props) {
                 class="drawing-tool-submenu-item"
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveIndicators(); }}
               >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-trash" size={20} />
-                </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Remove {plural(props.indicatorCount, "indicator")}</span>
               </button>
               <button
@@ -910,11 +926,21 @@ export function DrawingToolbar(props: Props) {
                 class="drawing-tool-submenu-item"
                 onClick={() => { setRemoveMenuOpen(false); props.onRemoveAllObjects(); }}
               >
-                <span class="drawing-tool-submenu-icon">
-                  <Icon name="draw-trash" size={20} />
-                </span>
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">
                   Remove {plural(props.drawingCount, "drawing")} &amp; {plural(props.indicatorCount, "indicator")}
+                </span>
+              </button>
+              <div class="drawing-tool-submenu-divider" role="separator" />
+              <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={props.alwaysRemoveLocked}
+                class="drawing-tool-submenu-item has-switch"
+                onClick={() => { setRemoveMenuOpen(false); props.onToggleAlwaysRemoveLocked(); }}
+              >
+                <span class="drawing-tool-submenu-label apply-overflow-tooltip">Always remove locked drawings</span>
+                <span class={"ind3-switch" + (props.alwaysRemoveLocked ? " is-on" : "")} aria-hidden="true">
+                  <span class="ind3-switch-thumb" />
                 </span>
               </button>
             </div>

@@ -9,6 +9,7 @@
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { CheckBox } from "../window/header/ChartPropertiesDialog";
 
 export type ConfirmOptions = {
   /** Title (default "Confirmation"). */
@@ -22,6 +23,10 @@ export type ConfirmOptions = {
   intent?: "success" | "danger";
   onConfirm: () => void;
   onCancel?: () => void;
+  /** Close button / Escape: this instead of onCancel (default onCancel). */
+  onDismiss?: () => void;
+  /** "Don't show again" check box under the text (live value + setter). */
+  doNotShow?: { label: string; checked: () => boolean; onChange: (v: boolean) => void };
 };
 
 export type RenameOptions = {
@@ -109,11 +114,22 @@ function Frame(props: { title: string; onClose: () => void; children: import("so
 function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
   const o = props.entry.opts;
   const cancel = () => { close(props.entry.id); o.onCancel?.(); };
+  const dismiss = () => { close(props.entry.id); (o.onDismiss ?? o.onCancel)?.(); };
   const confirm = () => { close(props.entry.id); o.onConfirm(); };
-  useKeys(props.entry.id, cancel, confirm);
+  useKeys(props.entry.id, dismiss, confirm);
   return (
-    <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={cancel}>
-      <div class="ot-dlg-content ot-dlg-text">{o.text}</div>
+    <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={dismiss}>
+      <div class="ot-dlg-content ot-dlg-text">
+        {o.text}
+        <Show when={o.doNotShow}>
+          {(d) => (
+            <label class="ot-dlg-check" onClick={(e) => { e.preventDefault(); if (!(e.target as HTMLElement).closest(".cp3-checkbox")) d().onChange(!d().checked()); }}>
+              <CheckBox checked={d().checked()} onToggle={() => d().onChange(!d().checked())} />
+              <span>{d().label}</span>
+            </label>
+          )}
+        </Show>
+      </div>
       <div class="ot-dlg-footer">
         <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>
         <button type="button" class={`ot-dlg-btn is-main is-${o.intent ?? "success"}`} data-name="submit-button" onClick={confirm}>

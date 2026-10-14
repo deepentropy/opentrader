@@ -94,6 +94,7 @@ import { appearanceFrom, uiTheme, type Draft, type NavButtonsBehavior, type Pric
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { priceOf } from "./series-transforms";
 import { registerChartExport, type ExportColumn } from "./chart-export";
+import { layoutSnapshot, legendLine, registerSnapshotSource, snapshotTheme, type ChartSnapshot, type LegendRun, type LegendValue } from "./layout-snapshot";
 import { chartTemplates } from "../header/chart-templates";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import type { CompareEntry, PaneIndicatorSettings } from "../shell/tabs";
@@ -153,8 +154,9 @@ import { autoTicksPerRow } from "./profiles/tpo-engine";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
+import type { IndicatorOptions } from "./indicators/indicator-options";
 import { getIndicatorEntry } from "./indicators/registry";
-import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail } from "./indicators/user-scripts";
+import { OAKSCRIPT_OPEN_EVENT, OAKSCRIPT_UPDATED_EVENT, scriptIdOfStudy, userIndicatorId, type OakScriptUpdatedDetail } from "./indicators/user-scripts";
 import { scriptChartContext } from "./indicators/script-chart";
 import { PROPERTIES_INPUT, STRATEGY_UPDATED_EVENT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf, type StrategyUpdatedDetail } from "./indicators/strategy-entries";
 import { strategyTester } from "../../data/strategy-tester-store";
@@ -248,6 +250,8 @@ type Props = {
   /** When true, suppress all study layers without removing them from the active
    *  set (Hide-all dropdown's "Hide indicators"); restored when toggled off. */
   indicatorsHidden?: boolean;
+  /** Lock indicators (Lock options): studies cannot be dragged on the chart. */
+  indicatorsLocked?: boolean;
   /** Remove an indicator (by registry id) — wired to the studies-legend trash. */
   onRemoveIndicator?: (id: string) => void;
   /** Persist this pane's study order (pane controls move up / down). */
@@ -940,6 +944,14 @@ export function ChartView(props: Props) {
   const [compareSettingsFor, setCompareSettingsFor] = createSignal<string | null>(null);
   /** Top of the legend stack inside its pane (`.ot-legend-stack` top). */
   const LEGEND_TOP = 4;
+  /** The legends end 8 px before the right price scale (the plot width): a
+   *  title too long for it is cut with an ellipsis, so the legend buttons stay
+   *  in view on a narrow chart. */
+  const legendMaxWidth = () => {
+    const g = scaleGeom();
+    const right = g && !g.left ? g.w : 0;
+    return `calc(100% - ${8 + legendLeft() + right + 8}px)`;
+  };
   /** Studies legend of one pane (0 = the price pane, under the series row). */
   const studyLegend = (pane: number) => (
     <IndicatorLegend
@@ -959,6 +971,16 @@ export function ChartView(props: Props) {
       selectedId={selectedStudy()}
       onSelect={selectStudy}
       onMore={(id, r) => (compareEntry(id) ? openCompareMoreMenu(id, r) : openIndicatorMoreMenu(id, r))}
+      hasSource={(id) => scriptIdOfStudy(id) !== null}
+      onSource={(id) => {
+        const scriptId = scriptIdOfStudy(id);
+        if (scriptId) window.dispatchEvent(new CustomEvent(OAKSCRIPT_OPEN_EVENT, { detail: { scriptId } }));
+      }}
+      onIntervalSettings={(id) => {
+        selectStudy(id);
+        setSettingsTab("visibility");
+        setSettingsForId(id);
+      }}
       onTitleClick={(id) => { if (compareEntry(id)) props.onChangeCompareSymbol?.(id); }}
     />
   );
@@ -990,7 +1012,8 @@ export function ChartView(props: Props) {
   });
 
   // Right-click context menu: open position + resolved node list (null = closed).
-  const [ctxMenu, setCtxMenu] = createSignal<{ x: number; y: number; nodes: CtxNode[] } | null>(null);
+  // `corner`: the price-scale menu of the axis corner button (opened above it).
+  const [ctxMenu, setCtxMenu] = createSignal<{ x: number; y: number; nodes: CtxNode[]; endX?: boolean; endY?: boolean; corner?: boolean } | null>(null);
 
   // Control bars (see control-bar.ts + the onMount block). `gotoShown` is the
   // back button's visibility, `barShown` the control bar's; the boxes
@@ -1183,13 +1206,14 @@ export function ChartView(props: Props) {
    *  Labels/Lines submenus, Plus button, Session on intraday, More
    *  settings…). Rows we have no surface for (bid-ask
    *  labels+lines, no-overlapping-labels) are omitted. */
-  function openPriceScaleMenu(e: MouseEvent) {
+  function openPriceScaleMenu(e: MouseEvent, corner?: DOMRect) {
     if (!chart) return;
     const t = currentTokens();
     // The axis of a study pane: its items act on that pane's own scale (the
-    // study's), and "Lock price to bar ratio" is the main axis' only.
+    // study's), and "Lock price to bar ratio" is the main axis' only. The
+    // axis corner button acts on the main pane's scale.
     const yRel = host ? e.clientY - host.getBoundingClientRect().top : 0;
-    const paneIdx = paneAtY(yRel) ?? 0;
+    const paneIdx = corner ? 0 : paneAtY(yRel) ?? 0;
     const owner = paneIdx > 0 ? controller?.ownerOfPane(paneIdx) ?? null : null;
     const studySeries = owner ? controller?.studySeries(owner) ?? null : null;
     const ps = studySeries ? studySeries.priceScale() : chart.priceScale(t.scalesPlacement);
@@ -1205,7 +1229,10 @@ export function ChartView(props: Props) {
       // Locking stores the current ratio in the Scales row (the lock keeps
       // the ratio in effect when it is turned on).
       ...(studySeries ? [] : [{ kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
-        shortcut: ratio != null ? String(Number(ratio.toFixed(7))) : undefined,
+        // Shown with 4 decimals, on a regular scale only.
+        shortcut: ratio != null && cur.mode === PriceScaleMode.Normal
+          ? ratio.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+          : undefined,
         onSelect: () => patch(t.lockRatio ? { lockRatio: false } : { lockRatio: true, lockRatioValue: ratio ?? undefined }) } as CtxNode]),
       // Auto-scale of the main series' scale on the series alone (chart
       // setting, saved like the lock ratio).
@@ -1269,6 +1296,13 @@ export function ChartView(props: Props) {
     }
     nodes.push({ kind: "separator" });
     nodes.push(moreScaleSettingsNode());
+    // Corner button: the menu opens above the button, flush with its outer
+    // edge (right edge on a right scale, left edge on a left one).
+    if (corner) {
+      const left = t.scalesPlacement === "left";
+      setCtxMenu({ x: left ? corner.left : corner.right, y: corner.top, endX: !left, endY: true, corner: true, nodes });
+      return;
+    }
     setCtxMenu({ x: e.clientX, y: e.clientY, nodes });
   }
 
@@ -1779,8 +1813,28 @@ export function ChartView(props: Props) {
   // "Visible on mouse over" = that axis hovered; currency label = any price
   // axis of the chart hovered).
   const [axisHover, setAxisHover] = createSignal<number | null>(null);
-  const [scaleGeom, setScaleGeom] = createSignal<{ w: number; h: number; left: boolean } | null>(null);
+  // th: height of the time axis (the axis corner button's height).
+  const [scaleGeom, setScaleGeom] = createSignal<{ w: number; h: number; th: number; left: boolean } | null>(null);
   const [scaleModes, setScaleModes] = createSignal({ auto: true, log: false });
+  // Axis corner button (the time axis' corner under the price axis): a gear
+  // drawn while this chart is the active or the hovered one; hovered (or its
+  // menu open) it is filled and the main pane's price axis is tinted with half
+  // the fill; click = the main price scale's menu above it; tooltip = the
+  // sources on that scale (the series, then its studies, top-most first).
+  const [chartHovered, setChartHovered] = createSignal(false);
+  const [cornerHover, setCornerHover] = createSignal(false);
+  let cornerMenuWasOpen = false;
+  const cornerLit = () => cornerHover() || !!ctxMenu()?.corner;
+  const cornerTitles = () => {
+    const { ticker, exchange } = splitSymbol(props.symbol ?? "");
+    const out = [`${exchange ? `${ticker} · ${exchange}` : ticker}, ${props.interval ?? "1D"}`];
+    for (const id of [...(controller?.mainScaleIds() ?? [])].reverse()) {
+      const entry = getIndicatorEntry(typeIdOf(id));
+      if (entry) out.push(entry.shortName ?? entry.name);
+    }
+    for (const e of compareEntries()) if (e.placement === "percent") out.push(compareTitle(e));
+    return out.join("\n");
+  };
   const [plusY, setPlusY] = createSignal<number | null>(null);
   /** Pane under the plus button (its y is from the top of the first pane). */
   const [plusPane, setPlusPane] = createSignal(0);
@@ -1802,7 +1856,8 @@ export function ChartView(props: Props) {
     const ps = chart.priceScale(side);
     const w = ps.width();
     const h = chart.paneSize(0).height;
-    setScaleGeom((g) => (g && g.w === w && g.h === h && g.left === (side === "left") ? g : { w, h, left: side === "left" }));
+    const th = chart.options().timeScale.visible === false ? 0 : chart.timeScale().height();
+    setScaleGeom((g) => (g && g.w === w && g.h === h && g.th === th && g.left === (side === "left") ? g : { w, h, th, left: side === "left" }));
     const o = ps.options();
     const next = { auto: !!o.autoScale, log: o.mode === PriceScaleMode.Logarithmic };
     setScaleModes((m) => (m.auto === next.auto && m.log === next.log ? m : next));
@@ -3593,7 +3648,7 @@ export function ChartView(props: Props) {
     // siblings to clear (the terminal crosshairMove the library fires on leave
     // is gated off by pointerOverHost, so emit the clear ourselves — order-proof
     // regardless of whether pointerleave or the library's mouseleave runs first).
-    const onPointerLeave = () => {
+    const leaveChart = () => {
       pointerOverHost = false;
       if (layoutSync().crosshair || crossWindowCrosshairOn()) {
         window.dispatchEvent(
@@ -3601,13 +3656,75 @@ export function ChartView(props: Props) {
         );
       }
     };
+    // A drawing of this chart is above the chart canvas (its SVG takes the
+    // pointer): the pointer is still over the chart. The reference keeps the
+    // crosshair (lines, date and price labels, synced charts) over drawings,
+    // so mouse moves over a drawing are passed on to the chart canvas under
+    // the pointer; the chart would otherwise see the mouse leave.
+    const onDrawing = (t: EventTarget | null) => {
+      const el = t as Element | null;
+      return !!el?.closest?.("[data-drawing-id]") && paneRoot.contains(el);
+    };
+    let fwd: Element | null = null;
+    const mouseInit = (e: MouseEvent): MouseEventInit => ({
+      clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
+      button: e.button, buttons: e.buttons, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey, metaKey: e.metaKey,
+      view: window,
+    });
+    const fwdLeave = (e: MouseEvent) => {
+      const t = fwd;
+      fwd = null;
+      t?.dispatchEvent(new MouseEvent("mouseleave", mouseInit(e)));
+    };
+    const onPointerLeave = (e: PointerEvent) => {
+      if (onDrawing(e.relatedTarget)) return;
+      leaveChart();
+    };
+    // A press on a drawing (its drag): no mouse moves reach the chart until
+    // the release, wherever the pointer is.
+    let dragging = false;
+    const onDrawingDown = (e: PointerEvent) => {
+      if (e.button === 0 && onDrawing(e.target) && !props.armedTool) dragging = true;
+    };
+    const onDrawingUp = () => { dragging = false; };
+    const onDrawingMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      if (!(onDrawing(e.target) || dragging) || props.armedTool) {
+        // Back on the canvas the moves went to: it had its own mouse enter.
+        if (fwd && e.target !== fwd) fwdLeave(e);
+        else fwd = null;
+        return;
+      }
+      pointerOverHost = true;
+      const cv = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el instanceof HTMLCanvasElement && host.contains(el)) ?? null;
+      if (cv !== fwd) {
+        if (fwd) fwdLeave(e);
+        cv?.dispatchEvent(new MouseEvent("mouseenter", mouseInit(e)));
+        fwd = cv;
+      }
+      fwd?.dispatchEvent(new MouseEvent("mousemove", mouseInit(e)));
+    };
+    // Left the chart from a drawing.
+    const onRootLeave = (e: MouseEvent) => {
+      if (!fwd) return;
+      fwdLeave(e);
+      leaveChart();
+    };
     host.addEventListener("pointermove", onDragMove, true);
     host.addEventListener("pointerenter", onPointerEnter, true);
     host.addEventListener("pointerleave", onPointerLeave, true);
+    paneRoot.addEventListener("pointermove", onDrawingMove, true);
+    paneRoot.addEventListener("pointerdown", onDrawingDown, true);
+    window.addEventListener("pointerup", onDrawingUp, true);
+    paneRoot.addEventListener("pointerleave", onRootLeave);
     onCleanup(() => {
       host.removeEventListener("pointermove", onDragMove, true);
       host.removeEventListener("pointerenter", onPointerEnter, true);
       host.removeEventListener("pointerleave", onPointerLeave, true);
+      paneRoot.removeEventListener("pointermove", onDrawingMove, true);
+      paneRoot.removeEventListener("pointerdown", onDrawingDown, true);
+      window.removeEventListener("pointerup", onDrawingUp, true);
+      paneRoot.removeEventListener("pointerleave", onRootLeave);
     });
 
     // Plus button hit test: a left press inside its rect belongs to the
@@ -3686,6 +3803,57 @@ export function ChartView(props: Props) {
     };
     host.addEventListener("dblclick", onCtrlDblClick);
     onCleanup(() => host.removeEventListener("dblclick", onCtrlDblClick));
+
+    // Study drag (reference rules): a press on a study's plot drags the study
+    // (the press also scrolls the chart). Released over another pane, the
+    // study joins that pane; released over the time axis, it goes to a new
+    // pane at the bottom (or its pane moves to the bottom when it is alone in
+    // it). The scroll of the press is then undone. "Grabbing" cursor while
+    // dragging. Not with Lock indicators, a drawing tool or the eraser.
+    let studyDrag: { id: string; range: { from: number; to: number } | null; x: number; y: number; moved: boolean } | null = null;
+    const onStudyDragDown = (e: MouseEvent) => {
+      studyDrag = null;
+      if (e.button !== 0 || !chart || props.armedTool || props.indicatorsLocked) return;
+      if (props.cursorMode === "eraser" || props.cursorMode === "demonstration") return;
+      if ((e.target as Element | null)?.closest?.("[data-drawing-id]")) return;
+      const id = hoveredStudy;
+      if (!id || compareEntry(id) || !indLegend().some((r) => r.id === id)) return;
+      studyDrag = { id, range: chart.timeScale().getVisibleLogicalRange(), x: e.clientX, y: e.clientY, moved: false };
+    };
+    const onStudyDragMove = (e: MouseEvent) => {
+      if (!studyDrag || studyDrag.moved) return;
+      if (Math.hypot(e.clientX - studyDrag.x, e.clientY - studyDrag.y) < 3) return;
+      studyDrag.moved = true;
+      host.style.cursor = "grabbing";
+    };
+    const onStudyDragUp = (e: MouseEvent) => {
+      const d = studyDrag;
+      studyDrag = null;
+      if (!d || !d.moved) return;
+      host.style.cursor = cursorForMode(props.cursorMode ?? "cross", !!props.armedTool);
+      if (!chart || !controller) return;
+      const r = host.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+      const from = controller.paneOf(d.id);
+      const overTimeAxis = r.bottom - e.clientY <= chart.timeScale().height();
+      const to = overTimeAxis ? null : paneAtY(e.clientY - r.top);
+      // After the chart has handled this release (its pressed pane may close).
+      setTimeout(() => {
+        let done = false;
+        if (overTimeAxis) done = dropStudyOnTimeAxis(d.id);
+        else if (to !== null && to !== from && !collapsedPanes().has(to)) done = mergeStudyToPane(d.id, to);
+        // The scroll the press made is undone.
+        if (done && d.range) chart?.timeScale().setVisibleLogicalRange(d.range);
+      }, 0);
+    };
+    host.addEventListener("mousedown", onStudyDragDown, true);
+    window.addEventListener("mousemove", onStudyDragMove, true);
+    window.addEventListener("mouseup", onStudyDragUp, true);
+    onCleanup(() => {
+      host.removeEventListener("mousedown", onStudyDragDown, true);
+      window.removeEventListener("mousemove", onStudyDragMove, true);
+      window.removeEventListener("mouseup", onStudyDragUp, true);
+    });
 
     // Legend tracks the crosshair: hovering a bar shows that bar's values;
     // moving off the pane (no `time`) falls back to the latest bar.
@@ -3986,6 +4154,14 @@ export function ChartView(props: Props) {
       } catch {
         /* time out of range / series swapped mid-apply — ignore */
       }
+      // Cleared: the legend goes back to the latest bar (clearing the
+      // crosshair fires no crosshair move).
+      if (crosshairAt === null && crosshairActive) {
+        crosshairActive = false;
+        lastLegendTime = undefined;
+        refreshLegend();
+        refreshIndicatorLegend();
+      }
       requestAnimationFrame(() => (suppressCrosshairBroadcast = false));
     };
     const onSyncRange = (e: Event) => {
@@ -4125,14 +4301,20 @@ export function ChartView(props: Props) {
       const target = mode === "log" ? PriceScaleMode.Logarithmic : PriceScaleMode.Percentage;
       ps.applyOptions({ mode: cur.mode === target ? PriceScaleMode.Normal : target });
     };
-    // Snapshot (Alt+S): grab the chart canvas and copy it to the clipboard
-    // ("Copy chart image"); fall back to a PNG download where the async
-    // clipboard image API isn't available. "open" is the local backing for
-    // "Open image in new tab": temp page in the default web browser.
-    const takeSnapshot = (action: "copy" | "download" | "open" = "copy") => {
+    // Snapshot (Alt+S): the image of the whole shown layout (layout-snapshot.ts)
+    // copied to the clipboard ("Copy image"); fall back to a PNG download
+    // where the async clipboard image API isn't available. "open" is the
+    // local backing for "Open in new tab": temp page in the default web
+    // browser. File name: "<ticker>_<yyyy-MM-dd>_<HH-mm-ss>" (local time).
+    const takeSnapshot = async (action: "copy" | "download" | "open" = "copy") => {
       if (!chart) return;
-      const canvas = chart.takeScreenshot();
-      const ticker = splitSymbol(props.symbol ?? "").ticker || "chart";
+      const grid = paneRoot.closest<HTMLElement>(".chart-grid");
+      const canvas = grid ? await layoutSnapshot(grid, snapshotTheme(props.theme ?? "dark"), props.timeZone) : null;
+      if (!canvas) return;
+      const now = new Date();
+      const p2 = (n: number) => String(n).padStart(2, "0");
+      const stamp = `${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}_${p2(now.getHours())}-${p2(now.getMinutes())}-${p2(now.getSeconds())}`;
+      const ticker = `${splitSymbol(props.symbol ?? "").ticker || "chart"}_${stamp}`;
       if (action === "open") {
         const b64 = canvas.toDataURL("image/png").split(",")[1] ?? "";
         void commands.openSnapshot(b64).then((r) => {
@@ -4185,7 +4367,7 @@ export function ChartView(props: Props) {
     };
     const onSnapshot = (e: Event) => {
       if (!props.active) return;
-      takeSnapshot((e as CustomEvent<{ action?: "copy" | "download" | "open" }>).detail?.action ?? "copy");
+      void takeSnapshot((e as CustomEvent<{ action?: "copy" | "download" | "open" }>).detail?.action ?? "copy");
     };
     const onReset = () => { if (props.active) resetChartView(); };
     const onResetTime = () => {
@@ -5194,6 +5376,150 @@ export function ChartView(props: Props) {
     }
     syncSunk();
   }
+  // ── Snapshot picture (layout-snapshot.ts) ──────────────────────────────
+  // The chart canvas (no crosshair, no alert labels), the drawings in front
+  // of the series painted over it, the currency label of the price axis,
+  // and the legend lines of each pane (values of the latest bar).
+  /** Legend lines per pane, read from the legends on screen. */
+  function snapshotLegendPanes(leftW: number): ChartSnapshot["panes"] {
+    if (!chart) return [];
+    const lines = new Map<number, LegendRun[][]>();
+    const add = (pane: number, line: LegendRun[]) => lines.set(pane, [...(lines.get(pane) ?? []), line]);
+    const valueOf = (el: Element): LegendValue => {
+      const item = el.classList.contains("ot-legend-value-item");
+      const v = item ? el.querySelector(".ot-legend-value-value") ?? el : el;
+      return {
+        title: item ? el.querySelector(".ot-legend-value-title")?.textContent?.trim() ?? "" : "",
+        value: v.textContent?.trim() ?? "",
+        color: getComputedStyle(v).color,
+      };
+    };
+    // Series row: shown when the status line shows its title.
+    const item = paneRoot.querySelector(".ot-legend-item");
+    if (item && appearance().legendTitle !== false) {
+      const title = [...item.querySelectorAll(".ot-legend-titles .ot-legend-title-piece")]
+        .map((p) => [...p.childNodes].filter((n) => !(n instanceof Element && n.classList.contains("ot-legend-logo"))).map((n) => n.textContent ?? "").join("").trim())
+        .filter(Boolean)
+        .join(" · ");
+      add(0, legendLine(title, [...item.querySelectorAll(".ot-legend-values > *")].map(valueOf)));
+    }
+    // Studies and compared symbols: the shown ones, values without titles.
+    for (const row of paneRoot.querySelectorAll<HTMLElement>(".ot-ind-legend-row")) {
+      if (row.classList.contains("is-hidden")) continue;
+      const pane = indLegend().find((r) => r.id === row.dataset.entityId)?.pane ?? 0;
+      const title = row.querySelector(".ot-ind-legend-title")?.textContent?.trim() ?? "";
+      add(pane, legendLine(title, [...row.querySelectorAll(".ot-ind-legend-val")].map((v) => ({ ...valueOf(v), title: "" }))));
+    }
+    return paneBoxes().map((b) => ({
+      left: leftW,
+      width: chart!.paneSize(b.index).width,
+      top: b.top,
+      height: b.height,
+      lines: lines.get(b.index) ?? [],
+    }));
+  }
+  /** The drawings in front of the series (overlay order), each clipped to
+   *  its pane; images are loaded by a first pass. */
+  async function paintSnapshotDrawings(ctx: CanvasRenderingContext2D, dpr: number, leftW: number) {
+    const paint = sunkPainter;
+    if (!chart || !paint) return;
+    const sunk = sunkIds();
+    const byId = new Map((props.drawings ?? []).map((d) => [d.id, d]));
+    const order: string[] = [];
+    for (const el of paneRoot.querySelectorAll("[data-drawing-id]")) {
+      const id = el.getAttribute("data-drawing-id") ?? "";
+      if (byId.has(id) && !sunk.has(id) && !order.includes(id)) order.push(id);
+    }
+    if (order.length === 0) return;
+    const frames = drawingPanes();
+    const plotW = chart.paneSize(0).width;
+    const boxes = paneBoxes();
+    const allH = boxes.length ? boxes[boxes.length - 1].top + boxes[boxes.length - 1].height : 0;
+    const draw = (c: CanvasRenderingContext2D, onAsyncLoad?: () => void) => {
+      for (const id of order) {
+        const d = byId.get(id)!;
+        const f = frames.find((p) => p.key === (d.owner ?? null));
+        if (!f) continue;
+        const extended = d.kind === "vertical-line" && d.style.extendLine !== false;
+        c.save();
+        c.scale(dpr, dpr);
+        c.beginPath();
+        if (extended) c.rect(leftW, 0, plotW, allH);
+        else c.rect(leftW, f.top, plotW, f.height);
+        c.clip();
+        c.translate(leftW, f.top);
+        paint(c, id, f.key, onAsyncLoad);
+        c.restore();
+      }
+    };
+    // First pass on a scratch canvas: starts the image loads.
+    let loads = 0;
+    const scratch = document.createElement("canvas").getContext("2d");
+    if (scratch) draw(scratch, () => loads++);
+    await new Promise((r) => setTimeout(r, 150));
+    if (loads > 0) await new Promise((r) => setTimeout(r, 150));
+    draw(ctx);
+  }
+  /** Currency label at the top of the price axis (4 px margin, 26 px box,
+   *  radius 4, divider border, text 13 px from the axis edge). */
+  function paintSnapshotCurrency(ctx: CanvasRenderingContext2D, dpr: number, leftW: number) {
+    if (!chart || !currency() || (appearance().currencyUnit ?? "visibleOnMouseOver") === "alwaysOff") return;
+    const t = currentTokens();
+    const left = t.scalesPlacement === "left";
+    const w = chart.priceScale(t.scalesPlacement).width();
+    const x = left ? 0 : leftW + chart.paneSize(0).width;
+    const css = getComputedStyle(paneRoot);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.beginPath();
+    ctx.roundRect(x + 4, 4, Math.ceil(w / 2) * 2 - 8, 26, 4);
+    ctx.fillStyle = t.bg;
+    ctx.strokeStyle = css.getPropertyValue("--color-divider").trim() || "#4A4A4A";
+    ctx.lineWidth = 1;
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = css.getPropertyValue("--color-text-primary").trim() || "#DBDBDB";
+    ctx.font = `${t.scaleFontSize}px ${readFontFamily()}`;
+    ctx.textBaseline = "middle";
+    ctx.fillText(currency(), x + 13, 17);
+    ctx.restore();
+  }
+  async function snapshotPicture(): Promise<ChartSnapshot | null> {
+    if (!chart) return null;
+    const dpr = window.devicePixelRatio || 1;
+    let leftW = 0;
+    try { leftW = chart.options().leftPriceScale.visible ? chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
+    // The image shows the latest bar's values, whatever the crosshair.
+    refreshLegend();
+    refreshIndicatorLegend();
+    const panes = snapshotLegendPanes(leftW);
+    refreshLegend(crosshairActive ? lastLegendTime : undefined);
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+    for (const p of alertLabelPrims.values()) p.setState({ printing: true });
+    let canvas: HTMLCanvasElement;
+    try {
+      // With the top layer: the last price plate and the event markers are
+      // drawn there (the crosshair stays out).
+      canvas = chart.takeScreenshot(true);
+    } finally {
+      for (const p of alertLabelPrims.values()) p.setState({ printing: false });
+    }
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      await paintSnapshotDrawings(ctx, dpr, leftW);
+      paintSnapshotCurrency(ctx, dpr, leftW);
+    }
+    return {
+      rect: paneRoot.getBoundingClientRect(),
+      canvas,
+      dpr,
+      textColor: currentTokens().scaleTextColor,
+      fontFamily: readFontFamily(),
+      panes,
+    };
+  }
+  onMount(() => onCleanup(registerSnapshotSource(paneRoot, snapshotPicture)));
+
   // ── Drawings behind a series (sunk-drawings.ts) ────────────────────────
   /** Painter of the overlay (it owns the drawings' geometry). */
   let sunkPainter: SunkPainter | null = null;
@@ -5370,6 +5696,50 @@ export function ChartView(props: Props) {
     const id = (e as CustomEvent<{ id: string }>).detail?.id;
     if (id && treeSources().some((s) => s.id === id && s.kind !== "series")) removeStudy(id);
   };
+  /** Save a study's new pane (options, stacking order) and redraw the panes. */
+  function studyPaneChanged(id: string, options: IndicatorOptions, order?: string[]) {
+    if (!controller) return;
+    if (order) controller.setPaneOrder(order);
+    props.onIndicatorSettings?.(id, {
+      inputs: controller.getInputs(id) ?? {},
+      styles: controller.getStyles(id) ?? {},
+      options,
+    });
+    props.onPaneOrder?.(order ?? controller.stackedOrder());
+    setPaneEpoch((n) => n + 1);
+    setCollapsedPanes(new Map());
+    queueMicrotask(refreshPaneBoxes);
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+  }
+  /** Study dropped on pane `pane` (chart drag): it joins that pane. */
+  function mergeStudyToPane(id: string, pane: number): boolean {
+    const options = controller?.moveToPane(id, pane);
+    if (!options) return false;
+    studyPaneChanged(id, options);
+    return true;
+  }
+  /** Study dropped on the time axis (chart drag): a new pane at the bottom
+   *  when it shares its pane, else its pane moves to the bottom. */
+  function dropStudyOnTimeAxis(id: string): boolean {
+    if (!controller) return false;
+    const options = controller.unmergeToNewPane(id);
+    if (options) {
+      studyPaneChanged(id, options, [...controller.stackedOrder().filter((x) => x !== id), id]);
+      return true;
+    }
+    const pane = controller.paneOf(id);
+    const last = (chart?.panes().length ?? 1) - 1;
+    if (!pane || pane === last) return false;
+    const mates = controller.studiesInPane(pane);
+    const order = [...controller.stackedOrder().filter((x) => !mates.includes(x)), ...mates];
+    controller.setPaneOrder(order);
+    props.onPaneOrder?.(order);
+    setPaneEpoch((n) => n + 1);
+    setCollapsedPanes(new Map());
+    queueMicrotask(refreshPaneBoxes);
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+    return true;
+  }
   const onTreeMoveRequest = (e: Event) => {
     if (props.active === false) return;
     const { id, target, below } = (e as CustomEvent<{ id: string; target: string; below: boolean }>).detail ?? {};
@@ -6067,7 +6437,7 @@ export function ChartView(props: Props) {
         "--ot-chart-bg": appearance().bg,
       }}
       onContextMenu={openContextMenu}
-      onMouseEnter={() => { refreshScaleOverlays(); refreshPaneBoxes(); }}
+      onMouseEnter={() => { setChartHovered(true); refreshScaleOverlays(); refreshPaneBoxes(); }}
       onMouseMove={(e) => {
         const r = paneRoot.getBoundingClientRect();
         const pane = paneAtY(e.clientY - r.top);
@@ -6076,7 +6446,7 @@ export function ChartView(props: Props) {
         const x = e.clientX - r.left;
         setAxisHover(g && pane !== null && (g.left ? x < g.w : x >= r.width - g.w) ? pane : null);
       }}
-      onMouseLeave={() => { setAxisHover(null); setHoverPane(null); setPlusY(null); }}
+      onMouseLeave={() => { setChartHovered(false); setAxisHover(null); setHoverPane(null); setPlusY(null); }}
     >
       <div
         ref={host}
@@ -6178,6 +6548,63 @@ export function ChartView(props: Props) {
                       <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1" />
                     </svg>
                   </button>
+                );
+              }}
+            </Show>
+            {/* Axis corner button: fill #2E2E2E dark / #EBEBEB light; the
+                axis tint is that colour at 50 % (blended under the labels). */}
+            <Show when={g().th > 0}>
+              {(_) => {
+                const dark = () => isDarkColor(readChartTokens(appearance()).bg);
+                const side = () => (g().left ? "left" : "right");
+                return (
+                  <>
+                    <Show when={cornerLit()}>
+                      <div
+                        class="ot-axis-corner-tint"
+                        style={{
+                          [side()]: "0px",
+                          top: "0px",
+                          width: `${g().w}px`,
+                          height: `${g().h}px`,
+                          background: dark() ? "rgba(46, 46, 46, 0.5)" : "rgba(235, 235, 235, 0.5)",
+                          "mix-blend-mode": dark() ? "lighten" : "darken",
+                        }}
+                      />
+                    </Show>
+                    <Tooltip text={cornerTitles()} side="top">
+                      <div
+                        class="ot-axis-corner"
+                        data-name="axis-corner"
+                        style={{
+                          [side()]: "0px",
+                          width: `${g().w}px`,
+                          height: `${g().th}px`,
+                          background: cornerLit() ? (dark() ? "#2E2E2E" : "#EBEBEB") : undefined,
+                          color: dark() ? "#DBDBDB" : "#0F0F0F",
+                        }}
+                        onMouseEnter={() => setCornerHover(true)}
+                        onMouseLeave={() => setCornerHover(false)}
+                        // The menu closes on any press (capture): a press on the
+                        // button while its menu is open only closes it.
+                        onPointerDown={() => { cornerMenuWasOpen = !!ctxMenu()?.corner; }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onDblClick={(e) => e.stopPropagation()}
+                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (cornerMenuWasOpen) { cornerMenuWasOpen = false; return; }
+                          openPriceScaleMenu(e, (e.currentTarget as HTMLElement).getBoundingClientRect());
+                        }}
+                      >
+                        <Show when={props.active || chartHovered()}>
+                          <svg viewBox="0 0 15 13" width="15" height="13" aria-hidden="true">
+                            <path fill="currentColor" fill-rule="evenodd" d="M4.1 1 1.14 6.5 4.1 12h6.8l2.96-5.5L10.9 1H4.1ZM15 6.5 11.5 0h-8L0 6.5 3.5 13h8L15 6.5ZM7.5 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 1a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+                          </svg>
+                        </Show>
+                      </div>
+                    </Tooltip>
+                  </>
                 );
               }}
             </Show>
@@ -6316,7 +6743,7 @@ export function ChartView(props: Props) {
       </div>
       {/* One column: the studies stack under the series
           row whatever its height (it wraps to two lines on narrow panes). */}
-      <div class="ot-legend-stack" style={{ left: `${8 + legendLeft()}px` }}>
+      <div class="ot-legend-stack" style={{ left: `${8 + legendLeft()}px`, "max-width": legendMaxWidth() }}>
         <ChartLegend
           ticker={splitSymbol(props.symbol ?? "").ticker}
           interval={intervalLabel(props.interval ?? "1D")}
@@ -6376,7 +6803,7 @@ export function ChartView(props: Props) {
       <For each={paneBoxes().filter((b) => b.index > 0)}>
         {(b) => (
           <Show when={indLegend().some((r) => r.pane === b.index)}>
-            <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px`, left: `${8 + legendLeft()}px` }}>
+            <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px`, left: `${8 + legendLeft()}px`, "max-width": legendMaxWidth() }}>
               {studyLegend(b.index)}
             </div>
           </Show>
@@ -6433,7 +6860,7 @@ export function ChartView(props: Props) {
       </Show>
       <Show when={ctxMenu()}>
         {(m) => (
-          <ChartContextMenu x={m().x} y={m().y} nodes={m().nodes} onClose={() => setCtxMenu(null)} />
+          <ChartContextMenu x={m().x} y={m().y} endX={m().endX} endY={m().endY} nodes={m().nodes} onClose={() => setCtxMenu(null)} />
         )}
       </Show>
     </div>

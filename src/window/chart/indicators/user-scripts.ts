@@ -28,6 +28,7 @@ import * as scripts from "../../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
 import type { OakBar, OakCompiledMeta, OakSymbolData } from "../../oakscript/engine-types";
 import type { StudyCalcContext } from "./indicator-layer";
+import { typeIdOf } from "./study-id";
 
 export const USER_INDICATOR_PREFIX = "user:";
 export const OAKSCRIPT_UPDATED_EVENT = "oakscript-script-updated";
@@ -40,6 +41,18 @@ export function isUserIndicatorId(id: string): boolean {
 
 export function userIndicatorId(scriptId: string): string {
   return USER_INDICATOR_PREFIX + scriptId;
+}
+
+/** Window event: open an OakScript in the editor panel ({ scriptId }). */
+export const OAKSCRIPT_OPEN_EVENT = "oakscript-open-script";
+
+/** Script of a study on the chart (an OakScript indicator "user:<id>" or
+ *  strategy "strategy:user:<id>", any instance), else null. */
+export function scriptIdOfStudy(studyId: string): string | null {
+  const id = typeIdOf(studyId);
+  if (id.startsWith(USER_INDICATOR_PREFIX)) return id.slice(USER_INDICATOR_PREFIX.length);
+  if (id.startsWith("strategy:" + USER_INDICATOR_PREFIX)) return id.slice(("strategy:" + USER_INDICATOR_PREFIX).length);
+  return null;
 }
 
 const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };

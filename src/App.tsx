@@ -17,7 +17,7 @@ import { activeChartProbe } from "./window/chart/active-chart";
 import { TIMEZONES, findTimezone } from "./data/timezones";
 import { ChartGrid } from "./window/chart/ChartGrid";
 import { LAYOUT_NUMBERING, layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
-import { DrawingToolbar, type SyncMode } from "./window/drawings/DrawingToolbar";
+import { DrawingToolbar, type ObjectsMode, type SyncMode } from "./window/drawings/DrawingToolbar";
 import { drawingPanelVisible } from "./data/drawing-panel";
 import * as kv from "./data/kv";
 import { FavoritesToolbar } from "./window/drawings/FavoritesToolbar";
@@ -115,6 +115,8 @@ import { UnsavedLayoutDialog } from "./window/header/UnsavedLayoutDialog";
 import { LayoutBrowserDialog } from "./window/header/LayoutBrowserDialog";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
 import { newStudyId, typeIdOf } from "./window/chart/indicators/study-id";
+import { OAKSCRIPT_OPEN_EVENT } from "./window/chart/indicators/user-scripts";
+import * as oakScripts from "./data/oakscript-store";
 import { overOf, type PlacedDrawing } from "./window/chart/tree-order";
 import {
   APPLY_TEMPLATE_PREFIX,
@@ -1242,6 +1244,16 @@ function App() {
     setOakPanelOpenRaw(open);
     kv.setItem("ot:oakscript:panelOpen", open ? "1" : "0");
   };
+  // Legend "Source code": the script becomes the editor's current one and the
+  // panel opens (an open panel switches to it itself).
+  const onOpenScript = (e: Event) => {
+    const id = (e as CustomEvent<{ scriptId: string }>).detail?.scriptId;
+    if (!id) return;
+    oakScripts.setCurrentScriptId(id);
+    if (!oakPanelOpen()) setOakPanelOpen(true);
+  };
+  window.addEventListener(OAKSCRIPT_OPEN_EVENT, onOpenScript);
+  onCleanup(() => window.removeEventListener(OAKSCRIPT_OPEN_EVENT, onOpenScript));
   const onRailTabSelect = (id: string | null) => {
     if (id === "pine-dialog-button") {
       setOakPanelOpen(!oakPanelOpen());
@@ -1357,14 +1369,62 @@ function App() {
     });
   }
 
+  // Locked drawings in a removal (reference rules): a confirm asks whether
+  // to remove them too ("Don't show again" stores the answer of the next
+  // click); with "Always remove locked drawings" (Remove options switch) or a
+  // stored answer, no question. Kept locked drawings stay; the rest goes.
+  const [alwaysRemoveLocked, setAlwaysRemoveLocked] = createSignal(kv.getItem("ot:delete-locked-drawings") === "1");
+  const [lockedNoConfirm, setLockedNoConfirm] = createSignal(kv.getItem("ot:delete-locked-no-confirm") === "1");
+  const storeAlwaysRemoveLocked = (v: boolean) => {
+    setAlwaysRemoveLocked(v);
+    kv.setItem("ot:delete-locked-drawings", v ? "1" : "0");
+  };
+  const storeLockedNoConfirm = (v: boolean) => {
+    setLockedNoConfirm(v);
+    kv.setItem("ot:delete-locked-no-confirm", v ? "1" : "0");
+  };
+  /** Remove options switch: on also stops the question. */
+  function toggleAlwaysRemoveLocked() {
+    const next = !alwaysRemoveLocked();
+    storeAlwaysRemoveLocked(next);
+    if (next) storeLockedNoConfirm(true);
+  }
+  /** `ids` to remove from `key`, minus the locked ones the user keeps. */
+  function withLockedChoice(key: string, ids: string[], run: (ids: string[]) => void) {
+    const locked = new Set(drawingsFor(key).filter((d) => d.locked && ids.includes(d.id)).map((d) => d.id));
+    if (locked.size === 0) { run(ids); return; }
+    const finish = (removeLocked: boolean) => {
+      const kept = removeLocked ? ids : ids.filter((id) => !locked.has(id));
+      if (kept.length) run(kept);
+    };
+    if (lockedNoConfirm()) { finish(alwaysRemoveLocked()); return; }
+    showConfirm({
+      title: "Confirm to remove locked drawings",
+      text: "You have locked drawings on this symbol. Do you want to remove the locked drawings too?",
+      mainText: "Yes, remove them",
+      cancelText: "No, keep them",
+      intent: "danger",
+      doNotShow: { label: "Don't show again", checked: lockedNoConfirm, onChange: storeLockedNoConfirm },
+      onConfirm: () => {
+        if (lockedNoConfirm()) storeAlwaysRemoveLocked(true);
+        finish(true);
+      },
+      onCancel: () => {
+        if (lockedNoConfirm()) storeAlwaysRemoveLocked(false);
+        finish(false);
+      },
+      onDismiss: () => {},
+    });
+  }
+
   function removeDrawingForSymbol(key: string, id: string) {
-    removingDrawings([id], () => {
+    withLockedChoice(key, [id], () => removingDrawings([id], () => {
       const victim = drawingsFor(key).find((d) => d.id === id);
       setSlice(key, drawingsFor(key).filter((d) => d.id !== id), {
         label: `remove ${victim ? labelForKind(victim.kind) : "drawing"}`,
       });
       setSelectedDrawingIds((cur) => cur.filter((x) => x !== id));
-    });
+    }));
   }
 
   // ── Multi-select bulk mutators ─────────────────────────────────────────
@@ -1381,15 +1441,15 @@ function App() {
   }
 
   /** Delete several drawings in one undo entry (multi-select Delete). */
-  function removeDrawingsForSymbol(key: string, ids: string[]) {
-    if (ids.length === 0) return;
-    removingDrawings(ids, () => {
+  function removeDrawingsForSymbol(key: string, all: string[]) {
+    if (all.length === 0) return;
+    withLockedChoice(key, all, (ids) => removingDrawings(ids, () => {
       const set = new Set(ids);
       setSlice(key, drawingsFor(key).filter((d) => !set.has(d.id)), {
         label: `remove ${ids.length} drawings`,
       });
       setSelectedDrawingIds((cur) => cur.filter((id) => !set.has(id)));
-    });
+    }));
   }
 
   /** Duplicate a drawing — same kind/style, points offset by a small
@@ -1427,41 +1487,72 @@ function App() {
   const [lockDrawingsMode, setLockDrawingsMode] = createSignal(false);
   const [hideDrawingsMode, setHideDrawingsMode] = createSignal(false);
   const [indicatorsHidden, setIndicatorsHidden] = createSignal(false);
+  /** Lock indicators: studies cannot be dragged on the chart. */
+  const [indicatorsLocked, setIndicatorsLocked] = createSignal(false);
 
-  function toggleLockAll() {
-    const next = !lockDrawingsMode();
+  function setDrawingsLocked(next: boolean) {
+    if (next === lockDrawingsMode()) return;
     setLockDrawingsMode(next);
     setActiveDrawings(drawings().map((d) => ({ ...d, locked: next })), {
       label: next ? "lock all drawings" : "unlock all drawings",
     });
   }
-  /** Hide-all dropdown — "Hide drawings" row + the icon's default click. */
-  function toggleHideAll() {
-    const next = !hideDrawingsMode();
+  function setDrawingsHidden(next: boolean) {
+    if (next === hideDrawingsMode()) return;
     setHideDrawingsMode(next);
     setActiveDrawings(drawings().map((d) => ({ ...d, hidden: next })), {
       label: next ? "hide all drawings" : "show all drawings",
     });
   }
-  /** Hide-all dropdown — "Hide indicators" row. */
-  function toggleHideIndicators() {
-    setIndicatorsHidden((v) => !v);
+  // Hide and Lock modes (reference rules): each button keeps one mode
+  // (drawings, indicators or all; saved), the button click toggles that mode
+  // and a menu row makes its mode the saved one, then toggles it. Toggling one
+  // part turns the other part off; when everything is on, a part keeps only
+  // itself on. "All" turns everything on, or off when everything is on.
+  const readMode = (key: string, def: ObjectsMode): ObjectsMode => {
+    const v = kv.getItem(key);
+    return v === "drawings" || v === "indicators" || v === "all" ? v : def;
+  };
+  const [hideMode, setHideMode] = createSignal<ObjectsMode>(readMode("ot:hide-mode", "drawings"));
+  const [lockMode, setLockMode] = createSignal<ObjectsMode>(readMode("ot:lock-mode", "all"));
+  function toggleObjectsMode(
+    m: ObjectsMode,
+    cur: { drawings: boolean; indicators: boolean },
+    apply: (drawings: boolean, indicators: boolean) => void,
+  ) {
+    const allOn = cur.drawings && cur.indicators;
+    if (m === "all") apply(!allOn, !allOn);
+    else if (m === "drawings") apply(allOn || !cur.drawings, false);
+    else apply(false, allOn || !cur.indicators);
   }
-  /** Hide-all dropdown — "Hide drawings & indicators" row. Turns both on unless
-   *  both are already on, in which case it clears both. */
-  function toggleHideBoth() {
-    const next = !(hideDrawingsMode() && indicatorsHidden());
-    setHideDrawingsMode(next);
-    setIndicatorsHidden(next);
-    setActiveDrawings(drawings().map((d) => ({ ...d, hidden: next })), {
-      label: next ? "hide drawings & indicators" : "show drawings & indicators",
+  /** Hide button (no mode) or a Hide menu row (its mode). */
+  function toggleHide(mode?: ObjectsMode) {
+    if (mode) {
+      setHideMode(mode);
+      kv.setItem("ot:hide-mode", mode);
+    }
+    toggleObjectsMode(hideMode(), { drawings: hideDrawingsMode(), indicators: indicatorsHidden() }, (d, i) => {
+      setDrawingsHidden(d);
+      setIndicatorsHidden(i);
+    });
+  }
+  /** Lock button (no mode) or a Lock menu row (its mode). */
+  function toggleLock(mode?: ObjectsMode) {
+    if (mode) {
+      setLockMode(mode);
+      kv.setItem("ot:lock-mode", mode);
+    }
+    toggleObjectsMode(lockMode(), { drawings: lockDrawingsMode(), indicators: indicatorsLocked() }, (d, i) => {
+      setDrawingsLocked(d);
+      setIndicatorsLocked(i);
     });
   }
   function removeAllDrawings() {
-    removingDrawings(drawings().map((d) => d.id), () => {
-      setActiveDrawings([], { label: "remove all drawings" });
+    withLockedChoice(activeDrawingKey(), drawings().map((d) => d.id), (ids) => removingDrawings(ids, () => {
+      const set = new Set(ids);
+      setActiveDrawings(drawings().filter((d) => !set.has(d.id)), { label: "remove all drawings" });
       setSelectedDrawingId(null);
-    });
+    }));
   }
   /** Remove-objects dropdown actions. Indicators live on the active pane. */
   function removeAllIndicators() {
@@ -2535,16 +2626,17 @@ function App() {
           setMagnetSnapsToIndicators={setMagnetSnapsToIndicators}
           stayMode={stayMode()}
           setStayMode={setStayMode}
-          lockAllActive={lockDrawingsMode()}
-          hideAllActive={hideDrawingsMode()}
-          indicatorsHidden={indicatorsHidden()}
-          onToggleLockAll={toggleLockAll}
-          onToggleHideAll={toggleHideAll}
-          onToggleHideIndicators={toggleHideIndicators}
-          onToggleHideBoth={toggleHideBoth}
+          hideMode={hideMode()}
+          hidden={{ drawings: hideDrawingsMode(), indicators: indicatorsHidden() }}
+          onToggleHide={toggleHide}
+          lockMode={lockMode()}
+          locked={{ drawings: lockDrawingsMode(), indicators: indicatorsLocked() }}
+          onToggleLock={toggleLock}
           onRemoveAll={removeAllDrawings}
           onRemoveIndicators={removeAllIndicators}
           onRemoveAllObjects={removeAllObjects}
+          alwaysRemoveLocked={alwaysRemoveLocked()}
+          onToggleAlwaysRemoveLocked={toggleAlwaysRemoveLocked}
           drawingCount={drawings().length}
           indicatorCount={indicators().length}
           syncMode={syncMode()}
@@ -2630,6 +2722,7 @@ function App() {
                 setSymbolDialogOpen(true);
               }}
               indicatorsHidden={indicatorsHidden()}
+              indicatorsLocked={indicatorsLocked()}
               armedTool={armedTool()}
               cursorMode={cursorMode()}
               armedGlyph={armedGlyph()}

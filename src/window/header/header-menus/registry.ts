@@ -1033,7 +1033,7 @@ export const HEADER_MENUS: Record<string, HeaderMenuDef> = {
           {
             "id": "save-chart-image",
             "label": "Download image",
-            "iconName": "menu-take-a-snapshot-download-image",
+            "iconName": "st-snapshot-download-image",
             "hotkey": "Ctrl + Alt + S",
             "checked": false,
             "favorited": false
@@ -1041,7 +1041,7 @@ export const HEADER_MENUS: Record<string, HeaderMenuDef> = {
           {
             "id": "copy-chart-image",
             "label": "Copy image",
-            "iconName": "menu-take-a-snapshot-copy-image",
+            "iconName": "st-snapshot-copy-image",
             "hotkey": "Ctrl + Shift + S",
             "checked": false,
             "favorited": false
@@ -1049,7 +1049,7 @@ export const HEADER_MENUS: Record<string, HeaderMenuDef> = {
           {
             "id": "open-image-in-new-tab",
             "label": "Open in new tab",
-            "iconName": "menu-take-a-snapshot-open-in-new-tab",
+            "iconName": "st-snapshot-open-in-new-tab",
             "hotkey": null,
             "checked": false,
             "favorited": false

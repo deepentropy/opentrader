@@ -217,3 +217,20 @@
 .ot-pane-btn svg { display: block; }
 .ot-pane-menu-icon { display: inline-flex; }
 .ot-pane-menu-icon svg { width: 18px; height: 18px; }
+
+/* Axis corner button: the time axis' corner under the price axis (gear,
+   price scale menu). The tint over the main price axis takes no input. */
+.ot-axis-corner {
+  position: absolute;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.ot-axis-corner-tint {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+}

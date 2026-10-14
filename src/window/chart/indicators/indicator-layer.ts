@@ -684,7 +684,12 @@ export class IndicatorLayer {
    *  null. Price-pane series of a study in its own pane (force_overlay
    *  output) are skipped. */
   firstSeries(): ISeriesApi<SeriesType> | null {
-    return this.allSeries().find((s) => s.getPane().paneIndex() === this.paneIndex) ?? null;
+    // A series being removed has no pane any more: removing a series fires a
+    // crosshair move (the hover handlers come here) while the others still
+    // wait for their removal; throwing there would stop the removal halfway.
+    return this.allSeries().find((s) => {
+      try { return s.getPane().paneIndex() === this.paneIndex; } catch { return false; }
+    }) ?? null;
   }
 
   /** The study's drawn plots for "Download chart data": plot title and
