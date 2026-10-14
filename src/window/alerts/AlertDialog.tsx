@@ -400,6 +400,9 @@ function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: str
   );
 }
 
+/** A formatted amount as a number field holds it: no thousands separator, a plain minus sign. */
+const fieldText = (t: string) => t.replace(/,/g, "").replace(/−/g, "-");
+
 type SideKind = "value" | "drawing" | "indicator" | "price";
 
 /** A deliverable webhook target: parses as a URL with an http(s) scheme. */
@@ -496,9 +499,11 @@ export function AlertDialog(props: Props) {
           ? "price"
           : "value",
   );
+  // A saved number is shown as the source's values are written.
+  const savedText = (v: number) => fieldText(alertAmountText(existing?.symbol, existing?.left ?? { kind: "price" }, v));
   const defaultValue =
     existing?.right.kind === "value"
-      ? String(existing.right.value)
+      ? savedText(existing.right.value)
       : props.price != null
         ? String(props.price)
         : "";
@@ -521,7 +526,7 @@ export function AlertDialog(props: Props) {
   // ── Moving conditions: the amount (or %) "in N bars" ──
   const [pct, setPct] = createSignal(
     isMovingOperator(existing?.op ?? "crossing") && existing?.right.kind === "value"
-      ? String(existing.right.value)
+      ? isPercentOperator(existing.op) ? existing.right.value.toFixed(2) : savedText(existing.right.value)
       : "1.00",
   );
   // "in N bars" (1-300; 2 minimum on a study): 1 bar on a price, 2 on a
@@ -539,8 +544,8 @@ export function AlertDialog(props: Props) {
   const valueBandAtOpen = !!existing && isBandOperator(existing.op) && existing.right.kind !== "drawing";
   const [upperSel, setUpperSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right) : "value");
   const [lowerSel, setLowerSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right2) : "value");
-  const [upperValue, setUpperValue] = createSignal(valueBandAtOpen && existing!.right.kind === "value" ? String(existing!.right.value) : "");
-  const [lowerValue, setLowerValue] = createSignal(valueBandAtOpen && existing!.right2?.kind === "value" ? String(existing!.right2.value) : "");
+  const [upperValue, setUpperValue] = createSignal(valueBandAtOpen && existing!.right.kind === "value" ? savedText(existing!.right.value) : "");
+  const [lowerValue, setLowerValue] = createSignal(valueBandAtOpen && existing!.right2?.kind === "value" ? savedText(existing!.right2.value) : "");
   const [upperPlot, setUpperPlot] = createSignal(valueBandAtOpen && existing!.right.kind === "indicator" ? (existing!.right.plot ?? 0) : 0);
   const [lowerPlot, setLowerPlot] = createSignal(valueBandAtOpen && existing!.right2?.kind === "indicator" ? (existing!.right2.plot ?? 0) : 0);
   // The bounds start on the source's value plus one tick and the value itself.
@@ -608,7 +613,7 @@ export function AlertDialog(props: Props) {
     return chartLastPrice(symbol()) ?? quoteFor(symbol())?.last ?? null;
   };
   /** A value written as the source's values are. */
-  const valueText = (v: number) => alertAmountText(symbol(), buildLeft(), v);
+  const valueText = (v: number) => fieldText(alertAmountText(symbol(), buildLeft(), v));
   createEffect(() => {
     const v = sourceValue();
     if (v == null) return;

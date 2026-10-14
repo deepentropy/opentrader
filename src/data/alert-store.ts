@@ -52,7 +52,7 @@ export type Operand =
       plot?: number;
       label?: string;
       /** The study's full title with its inputs, as alert messages write it
-       *  ("Moving Average Convergence Divergence (close, 12, 26, 9)"); unset
+       *  ("Moving average convergence divergence (close, 12, 26, 9)"); unset
        *  on older alerts (the label is used). */
       title?: string;
       /** Decimals of the study's values when it declares them (else the

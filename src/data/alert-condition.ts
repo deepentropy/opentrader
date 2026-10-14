@@ -18,6 +18,7 @@ import { loadDrawings } from "../window/drawings/persistence";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { conditionMessage } from "./alert-study-conditions";
 import { tickerOf } from "./symbol-name";
+import { groupThousands } from "../window/chart/price-format";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -423,11 +424,12 @@ function messageOperand(op: Operand): string {
 }
 
 /** An amount of the left operand written as its values are: the study's
- *  decimals when it declares them, else the symbol's price format. */
+ *  decimals when it declares them, else the symbol's price format; thousands
+ *  grouped ("1,234.50"). */
 export function alertAmountText(symbol: string | undefined, left: Operand, v: number): string {
-  if (left.kind === "indicator" && left.precision != null) return v.toFixed(left.precision);
+  if (left.kind === "indicator" && left.precision != null) return groupThousands(v.toFixed(left.precision));
   const s = symbol ? cachedSymbolSessions(symbol) : null;
-  return s ? s.formatPrice(v) : v.toFixed(2);
+  return groupThousands(s ? s.formatPrice(v) : v.toFixed(2));
 }
 
 /** Human-readable condition: "Price Crossing Up 150", "Price Moving Up 1%
@@ -441,6 +443,8 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   // A script's alert() calls: "Auto fib retracement (3, 10): Any alert() function call".
   if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS.alert_function}`;
   const left = messageOperand(rule.left);
+  // A number is written as the left operand's values are ("3.50", "0.0000").
+  const side = (o: Operand) => (o.kind === "value" ? alertAmountText(rule.symbol, rule.left, o.value) : messageOperand(o));
   if (isMovingOperator(rule.op)) {
     const v = rule.right.kind === "value" ? rule.right.value : 0;
     const n = rule.bars ?? 1;
@@ -461,12 +465,12 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   }
   // Two bounds: values, the price or studies.
   if (isBandOperator(rule.op)) {
-    const lower = rule.right2 ? messageOperand(rule.right2) : messageOperand(rule.right);
-    return `${left} ${bandOperatorLabel(rule.op, "channel")} (Upper Bound: ${messageOperand(rule.right)}, Lower Bound: ${lower})`;
+    const lower = side(rule.right2 ?? rule.right);
+    return `${left} ${bandOperatorLabel(rule.op, "channel")} (Upper Bound: ${side(rule.right)}, Lower Bound: ${lower})`;
   }
   // A vertical line is crossed by the time, not by a value.
   if (rule.right.kind === "drawing" && rule.right.band === "time") return `${OPERATOR_LABELS[rule.op]} ${messageOperand(rule.right)}`;
-  return `${left} ${OPERATOR_LABELS[rule.op]} ${messageOperand(rule.right)}`;
+  return `${left} ${OPERATOR_LABELS[rule.op]} ${side(rule.right)}`;
 }
 
 /** Interval of an alert as its message shows it: "10s", "5", "1h", "1D",
