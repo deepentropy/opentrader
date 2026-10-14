@@ -593,6 +593,30 @@
 .ad-ph-item-value { flex: none; padding-left: 24px; color: var(--color-text-secondary); font-size: 12px; line-height: 16px; }
 .ad-ph-divider { height: 1px; margin: 6px 0; background: var(--color-border-primary-neutral-light); }
 .ad-hint { font-size: 12px; color: var(--color-text-secondary); }
+/* Interval row: a 6 px rounded button ("Same as chart" + the chart's
+   interval at the right), its list as wide as the button, under it. */
+.ad-iv.ad-menu--box .ad-menu-btn { padding: 0 4px 0 7px; border-radius: 6px; border-color: var(--color-border-secondary-neutral-normal); }
+.ad-iv.ad-menu--box .ad-menu-btn:hover { border-color: var(--color-border-primary-neutral); }
+.ad-iv.ad-menu--box .ad-menu-btn[aria-expanded="true"] { border-color: var(--color-border-primary-neutral-bold); }
+.ad-iv .ad-chevron { color: var(--color-content-primary-neutral); }
+.ad-iv .ad-menu-btn:hover .ad-chevron, .ad-iv .ad-menu-btn[aria-expanded="true"] .ad-chevron { color: var(--color-content-primary-neutral-bold); }
+.ad-iv-hint { flex: none; margin-right: 7px; font-size: 12px; line-height: 16px; color: var(--color-text-secondary); }
+.ad-iv-menu {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 0;
+  right: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: 10px;
+  background: var(--color-container-fill-tertiary-inverse);
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy);
+}
+/* The rows keep their width when the list scrolls (the scroll bar sits over the padding). */
+.ad-iv-rows { margin-right: calc(-1 * var(--ad-iv-scrollbar, 0px)); }
+.ad-iv-menu .ad-option { padding: 7px 8px; font-size: 14px; line-height: 18px; }
 
 .ad-footer {
   display: flex;

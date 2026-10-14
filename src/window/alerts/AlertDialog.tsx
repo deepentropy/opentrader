@@ -35,7 +35,11 @@ import {
   isPercentOperator,
   priceableDrawings,
   VWAP_PLOTS,
+  alertIntervalText,
+  conditionHasIntervalRow,
 } from "../../data/alert-condition";
+import { buildIntervalMenu, sectionOf, SECTION_TITLES, type IntervalSection } from "../chart/custom-intervals";
+import { compareIntervals, favoriteIntervals, longIntervalLabel } from "../chart/interval-favorites";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
@@ -43,7 +47,7 @@ import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { statusLineInputs } from "../chart/indicators/indicator-options";
 import type { SessionId } from "../../data/session/symbol-sessions";
-import { isFullSymbol, toFullSymbol } from "../../data/datafeed";
+import { isFullSymbol, isSupportedResolution, toFullSymbol } from "../../data/datafeed";
 import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playAlertSound, stopAlertSound } from "../../data/alert-sounds";
 import { alertSettings } from "../../data/alert-settings";
 import {
@@ -221,6 +225,108 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
               </svg>
             </button>
           </Show>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
+/** Interval sections of the Interval row (no ticks or ranges). */
+const INTERVAL_SECTIONS: IntervalSection[] = ["seconds", "minutes", "hours", "days"];
+const isAlertInterval = (id: string) => INTERVAL_SECTIONS.includes(sectionOf(id) as IntervalSection);
+type IntervalGroup = { id: string; title: string; items: string[] };
+
+/** Groups of the Interval menu: the interval menu's rows (built-in and
+ *  custom) by section, with `extra` (the chart's interval, the alert's own)
+ *  added where missing. */
+function intervalGroups(extra: string[]): IntervalGroup[] {
+  const ids = new Set<string>();
+  for (const s of buildIntervalMenu().sections) for (const r of s.items) if (!r.iconName && isAlertInterval(r.id)) ids.add(r.id);
+  for (const id of extra) if (isAlertInterval(id)) ids.add(id);
+  const all = [...ids].sort(compareIntervals);
+  return INTERVAL_SECTIONS.map((k) => ({ id: k, title: SECTION_TITLES[k], items: all.filter((id) => sectionOf(id) === k) })).filter((g) => g.items.length > 0);
+}
+
+/** Interval row of a condition: the button shows "Same as chart" with the
+ *  chart's interval, or the chosen one ("1h"). Its menu: "Same as chart",
+ *  then Favorites and the interval sections, folded except the one the
+ *  choice was made in (or the one holding it); a row is selected in the
+ *  group it was picked from only. */
+function AdIntervalMenu(props: { value: string; origin: string; chart?: string; favorites: string[]; groups: IntervalGroup[]; onPick: (id: string, origin: string) => void }) {
+  const [open, setOpen] = createSignal(false);
+  const [unfolded, setUnfolded] = createSignal<Record<string, boolean>>({});
+  const [maxHeight, setMaxHeight] = createSignal(420);
+  let el: HTMLDivElement | undefined;
+  let btn: HTMLButtonElement | undefined;
+  let list: HTMLDivElement | undefined;
+  // The width of the list's scroll bar, once the rows are laid out (folding a section changes it).
+  createEffect(() => {
+    if (!open()) return;
+    unfolded();
+    queueMicrotask(() => list?.style.setProperty("--ad-iv-scrollbar", `${list.offsetWidth - list.clientWidth}px`));
+  });
+  onMount(() => {
+    const onDown = (e: PointerEvent) => { if (el && !el.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", onDown, true);
+    onCleanup(() => document.removeEventListener("pointerdown", onDown, true));
+  });
+  const groups = (): IntervalGroup[] => [...(props.favorites.length ? [{ id: "favorites", title: "Favorites", items: props.favorites }] : []), ...props.groups];
+  const toggle = () => {
+    if (open()) { setOpen(false); return; }
+    const init: Record<string, boolean> = {};
+    for (const g of groups()) init[g.id] = g.id === "favorites" ? props.origin === "favorites" : props.origin !== "favorites" && g.items.includes(props.value);
+    setUnfolded(init);
+    // The list goes down to the bottom of the window at most.
+    if (btn) setMaxHeight(Math.max(160, window.innerHeight - btn.getBoundingClientRect().bottom - 8));
+    setOpen(true);
+  };
+  const pick = (id: string, origin: string) => { props.onPick(id, origin); setOpen(false); };
+  const same = () => props.origin === "same-as-chart";
+  return (
+    <div class="ad-menu ad-menu--box ad-iv" ref={el}>
+      <button type="button" class="ad-menu-btn" ref={btn} data-name="resolution-dropdown" aria-label="Interval" aria-expanded={open()} onClick={toggle}>
+        <span class="ad-menu-value">{same() ? "Same as chart" : alertIntervalText(props.value, true)}</span>
+        <Show when={same() && props.chart}><span class="ad-iv-hint">{longIntervalLabel(props.chart!)}</span></Show>
+        <svg class="ad-chevron" classList={{ "is-open": open() }} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+          <path fill="none" stroke="currentColor" stroke-width="1.2" d="m4.5 7 4.5 4 4.5-4" />
+        </svg>
+      </button>
+      <Show when={open()}>
+        <div class="ad-iv-menu" role="listbox" style={{ "max-height": `${maxHeight()}px` }} ref={list}>
+          <div class="ad-iv-rows">
+          <Show when={props.chart}>
+            <button type="button" role="option" aria-selected={same()} class="ad-option" classList={{ "is-selected": same() }} onClick={() => pick(props.chart!, "same-as-chart")}>
+              <span class="ad-option-main"><span class="ad-option-label">Same as chart</span></span>
+              <span class="ad-option-right">{longIntervalLabel(props.chart!)}</span>
+            </button>
+            <div class="ad-ph-divider" role="separator" />
+          </Show>
+          <For each={groups()}>
+            {(g, i) => (
+              <>
+                <button type="button" class="ad-ph-title" role="group" aria-expanded={!!unfolded()[g.id]} onClick={() => setUnfolded({ ...unfolded(), [g.id]: !unfolded()[g.id] })}>
+                  <span class="ad-ph-title-text">{g.title}</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                    <path fill="currentColor" d={unfolded()[g.id] ? "m4.67 10.62.66.76L9 8.16l3.67 3.22.66-.76L9 6.84l-4.33 3.78Z" : "m4.67 7.38.66-.76L9 9.84l3.67-3.22.66.76L9 11.16 4.67 7.38Z"} />
+                  </svg>
+                </button>
+                <Show when={unfolded()[g.id]}>
+                  <For each={g.items}>
+                    {(id) => {
+                      const selected = () => props.value === id && props.origin === g.id;
+                      return (
+                        <button type="button" role="option" aria-selected={selected()} class="ad-option" classList={{ "is-selected": selected() }} disabled={!isSupportedResolution(id)} onClick={() => pick(id, g.id)}>
+                          <span class="ad-option-main"><span class="ad-option-label">{longIntervalLabel(id)}</span></span>
+                        </button>
+                      );
+                    }}
+                  </For>
+                </Show>
+                <Show when={i() < groups().length - 1}><div class="ad-ph-divider" role="separator" /></Show>
+              </>
+            )}
+          </For>
+          </div>
         </div>
       </Show>
     </div>
@@ -419,6 +525,16 @@ export function AlertDialog(props: Props) {
     return Number.isFinite(n) ? Math.max(min, Math.min(300, n)) : min;
   };
 
+  // ── Interval of the condition ── "Same as chart" on a new alert; an alert
+  // being edited shows its own. A chart on ticks or ranges: 1 minute.
+  const chartInterval = isAlertInterval(props.interval) ? props.interval : undefined;
+  const [resolution, setResolution] = createSignal(existing?.resolution ?? chartInterval ?? "1");
+  const [intervalOrigin, setIntervalOrigin] = createSignal(!existing && chartInterval ? "same-as-chart" : (sectionOf(untrack(resolution)) ?? ""));
+  const intervalChoices = createMemo(() => ({
+    favorites: favoriteIntervals().filter(isAlertInterval).sort(compareIntervals),
+    groups: intervalGroups([chartInterval ?? "", existing?.resolution ?? ""]),
+  }));
+
   const [frequency, setFrequency] = createSignal<AlertFrequency>(existing?.frequency ?? "only_once");
   const [name, setName] = createSignal(existing?.name ?? "");
   const [message, setMessage] = createSignal(existing?.message ?? "");
@@ -596,7 +712,12 @@ export function AlertDialog(props: Props) {
   /** Default message: the condition as it is set ("AZO Crossing 150"), or
    *  the message a study's condition declares. An alert keeps no message of
    *  its own while its message is this one, so it follows the condition. */
-  const preview = createMemo(() => defaultAlertMessage({ symbol: symbol(), left: buildLeft(), op: op(), right: buildRight(), bars: barsValue() }));
+  const condition = createMemo(() => ({ left: buildLeft(), op: op(), right: buildRight() }));
+  /** The Interval row: a condition that reads an interval, unless a drawing
+   *  gives the level. Without it the alert keeps the chart's interval. */
+  const intervalRow = () => conditionHasIntervalRow(condition());
+  const ruleResolution = () => (intervalRow() ? resolution() : (existing?.resolution ?? props.interval));
+  const preview = createMemo(() => defaultAlertMessage({ symbol: symbol(), resolution: ruleResolution(), ...condition(), bars: barsValue() }));
 
   // The webhook only saves (and the dialog only closes) with an http(s) URL —
   // any other string would silently never deliver.
@@ -621,7 +742,7 @@ export function AlertDialog(props: Props) {
     const typed = symbol().trim().toUpperCase();
     const rule = {
       symbol: typed,
-      resolution: existing?.resolution ?? props.interval,
+      resolution: ruleResolution(),
       session: existing ? existing.session : props.session,
       left: buildLeft(),
       op: op(),
@@ -774,7 +895,11 @@ export function AlertDialog(props: Props) {
                 }
               >
                 <button type="button" class="ad-symbol-btn" data-name="symbols-button" onClick={() => setSymbolEdit(true)}>
-                  <span class="ad-symbol-text">{symbol().includes(":") ? symbol().split(":")[1] : symbol()}</span>
+                  {/* A level from a drawing: the drawing's chart sets the interval, shown with the symbol. */}
+                  <span class="ad-symbol-text">
+                    {symbol().includes(":") ? symbol().split(":")[1] : symbol()}
+                    {condition().right.kind === "drawing" ? `, ${alertIntervalText(ruleResolution(), true)}` : ""}
+                  </span>
                   {arrow("m4.5 7 4.5 4 4.5-4")}
                 </button>
               </Show>
@@ -912,6 +1037,21 @@ export function AlertDialog(props: Props) {
                     </div>
                   </div>
                 </Show>
+              </Show>
+              <Show when={intervalRow()}>
+                <div class="ad-row">
+                  <span class="ad-label">Interval</span>
+                  <div class="ad-controls">
+                    <AdIntervalMenu
+                      value={resolution()}
+                      origin={intervalOrigin()}
+                      chart={chartInterval}
+                      favorites={intervalChoices().favorites}
+                      groups={intervalChoices().groups}
+                      onPick={(id, origin) => { setResolution(id); setIntervalOrigin(origin); }}
+                    />
+                  </div>
+                </div>
               </Show>
 
               <div class="ad-divider" />

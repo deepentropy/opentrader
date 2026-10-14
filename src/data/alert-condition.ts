@@ -417,14 +417,45 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   return `${operandLabel(rule.left)} ${OPERATOR_LABELS[rule.op]} ${operandLabel(rule.right)}`;
 }
 
+/** Interval of an alert as its message shows it: "10s", "5", "1h", "1D",
+ *  "1W", "3M"; `minuteUnit`: minutes with their unit ("5m"), as on the
+ *  dialog's Interval button and symbol button. */
+export function alertIntervalText(resolution: string, minuteUnit = false): string {
+  const m = /^(\d+)([SDWM])$/i.exec(resolution);
+  if (m) return m[2].toUpperCase() === "S" ? `${m[1]}s` : `${m[1]}${m[2].toUpperCase()}`;
+  const n = Number(resolution);
+  if (Number.isInteger(n) && n > 0) return n % 60 === 0 ? `${n / 60}h` : minuteUnit ? `${n}m` : String(n);
+  return resolution;
+}
+
+/** The condition reads the bars of an interval: a study, a Moving %
+ *  condition, a level given by a study or a drawing. A price compared with a
+ *  number reads none. */
+export function conditionHasInterval(rule: Pick<AlertRule, "left" | "op" | "right">): boolean {
+  if (rule.left.kind === "indicator" || isPercentOperator(rule.op)) return true;
+  return rule.right.kind === "indicator" || rule.right.kind === "drawing";
+}
+
+/** The dialog's Interval row: a condition on an interval, unless a drawing
+ *  gives the level (the drawing's chart sets the interval). */
+export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "right">): boolean {
+  return conditionHasInterval(rule) && rule.right.kind !== "drawing";
+}
+
 /** Message of an alert whose message was not changed: the ticker and the
  *  condition, without "Price" in front of a price condition ("AZO Crossing
- *  150"); for a study's condition, the message the study declares; for a
- *  script's alert() calls, the condition (each fire has the call's message). */
-export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "left" | "op" | "right" | "bars">): string {
+ *  150"), the ticker with the interval when the condition reads one ("AZO,
+ *  1D Moving up % 5% in 1 bar"), a study's condition followed by the symbol
+ *  ("MA (9, close) Crossing 150 on AZO, 1h"); for a study's condition, the
+ *  message the study declares; for a script's alert() calls, the condition
+ *  (each fire has the call's message). */
+export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars">): string {
   if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
   // The message of a fire is the alert() call's: the alert is known by its name, the condition.
   if (rule.op === "alert_function") return describeCondition(rule);
   const text = describeCondition(rule);
-  return `${tickerOf(rule.symbol) || "—"} ${rule.left.kind === "price" ? text.replace(/^Price /, "") : text}`;
+  const ticker = tickerOf(rule.symbol) || "—";
+  const series = conditionHasInterval(rule) && rule.resolution ? `${ticker}, ${alertIntervalText(rule.resolution)}` : ticker;
+  if (rule.left.kind === "indicator") return `${text} on ${series}`;
+  return `${series} ${text.replace(/^Price /, "")}`;
 }
