@@ -110,6 +110,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.arrowConfig = meta?.arrowConfig;
   e.defaultInputs = meta?.defaultInputs ?? {};
   e.alertConditions = meta?.alertConditions;
+  e.hasAlertFunction = meta?.hasAlertFunction;
 }
 
 async function runInWorker(

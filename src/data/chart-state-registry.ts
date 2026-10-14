@@ -82,3 +82,8 @@ export function chartLastPrice(symbol: string): number | null {
 export function chartLastBarTime(symbol: string): number | null {
   return providers.get(symbol.toUpperCase())?.lastBarTime() ?? null;
 }
+
+/** Interval id of the chart showing a symbol, or null when it isn't charted. */
+export function chartResolution(symbol: string): string | null {
+  return providers.get(symbol.toUpperCase())?.resolution() ?? null;
+}

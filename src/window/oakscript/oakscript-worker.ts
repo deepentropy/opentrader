@@ -109,11 +109,20 @@ function metaOf(mod: UserModule): OakCompiledMeta {
       mod.defaultInputs && typeof mod.defaultInputs === "object"
         ? (mod.defaultInputs as Record<string, unknown>)
         : undefined,
+    hasAlertFunction: mod.hasAlertFunction === true || undefined,
   };
 }
 
-/** ScriptRunResult (meta + configs) → the compile-response meta shape. */
-function scriptMetaOf(run: oakScript.ScriptRunResult): OakCompiledMeta {
+/** The source calls alert() (comments, strings and member calls such as `x.alert(` left out): known before any bar
+ *  runs, as the compile step knows it (a call inside a bar loop does not run in the dry run). */
+function callsAlert(source: string): boolean {
+  // One pass, so that "//" in a string and quotes in a comment are read as such.
+  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*|(["'`])(?:\\.|(?!\1)[^\\])*\1/g, " ");
+  return /(?<![\w$.])alert\s*\(/.test(code);
+}
+
+/** ScriptRunResult (meta + configs) → the compile-response meta shape. `source`: the script's source. */
+function scriptMetaOf(run: oakScript.ScriptRunResult, source: string): OakCompiledMeta {
   return {
     title: run.metadata.title,
     shortTitle: run.metadata.shortTitle,
@@ -129,6 +138,8 @@ function scriptMetaOf(run: oakScript.ScriptRunResult): OakCompiledMeta {
     strategy: run.strategyConfig as Record<string, unknown> | undefined,
     // A strategy's alerts are its orders, not conditions.
     alertConditions: !run.strategyConfig && run.alertConfig.length ? run.alertConfig : undefined,
+    // A strategy's alert() calls go with its orders (alerts on strategies are not offered yet).
+    hasAlertFunction: !run.strategyConfig && (run.hasAlertFunction || callsAlert(source)) ? true : undefined,
   };
 }
 
@@ -150,7 +161,7 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
         strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
       });
       compiled.set(req.scriptId, { kind: "script", run: mod.__run });
-      return { id: req.id, type: "compile", ok: true, meta: scriptMetaOf(dry) };
+      return { id: req.id, type: "compile", ok: true, meta: scriptMetaOf(dry, req.source) };
     }
     if (typeof mod.calculate !== "function") {
       return {

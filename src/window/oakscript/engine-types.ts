@@ -62,6 +62,9 @@ export type OakCompiledMeta = {
   /** alertcondition() declarations of an indicator (id, title, default message): conditions an alert can watch; the
    *  run result's `alerts` gives the bars on which each one is true. */
   alertConditions?: { id: string; title: string; message?: string }[];
+  /** The indicator calls alert(): an alert can watch "Any alert() function call"; the run result's `alertCalls`
+   *  gives the calls (bar time, message, frequency). */
+  hasAlertFunction?: boolean;
 };
 
 /** A backtest failure: a script error, or a strategy runtime error (Pine

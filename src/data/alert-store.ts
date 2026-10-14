@@ -75,7 +75,10 @@ export type DrawingShape = "channel" | "rectangle" | "time" | "position";
  *  `hits_level`: the left operand reaches the entry, stop or target level
  *  of a long / short position drawing;
  *  `alert_condition`: a condition of the study on the left (its
- *  `condition`) is true on the current bar; the right operand is unused. */
+ *  `condition`) is true on the current bar; the right operand is unused;
+ *  `alert_function`: "Any alert() function call" of the script on the left:
+ *  fires on its alert() calls, with their message and as often as each call
+ *  allows (its freq argument); the rule's frequency and message are unused. */
 export type AlertOperator =
   | "crossing"
   | "crossing_up"
@@ -89,7 +92,8 @@ export type AlertOperator =
   | "inside"
   | "outside"
   | "hits_level"
-  | "alert_condition";
+  | "alert_condition"
+  | "alert_function";
 
 /** How often a rule may fire (trigger-frequency options). */
 export type AlertFrequency =

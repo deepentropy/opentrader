@@ -12,10 +12,13 @@
  *    values at the close of two bars in a row, as on live samples;
  *  - a moving percentage: the bar's high / low (or the study's value) against
  *    the value N bars back;
- *  - a study's own condition: true at the bar's close.
+ *  - a study's own condition: true at the bar's close;
+ *  - a script's alert() calls: the calls of the bar's last run (see
+ *    replayAlertCalls).
  * One fire per bar at most, at the bar's close (now for the bar in progress).
  */
 import type { AlertRule } from "./alert-store";
+import type { StudyAlertCall } from "./alert-study-conditions";
 
 export type ReplayBar = { time: number; open: number; high: number; low: number; close: number };
 export type ReplayFire = { price: number; /** Open of the bar, epoch ms. */ barTime: number; /** Epoch ms. */ fireTime: number };
@@ -109,6 +112,47 @@ export function replayCondition(
     if (!flags[i]) continue;
     fires.push({ price: b.close, barTime: b.time * 1000, fireTime: Math.min(close, nowSec) * 1000 });
     if (rule.frequency === "only_once") break;
+  }
+  return fires.slice(-REPLAY_MAX_FIRES);
+}
+
+/** A fire of a script's alert() call: with the call's message. */
+export type ReplayCallFire = ReplayFire & { message: string };
+
+/** The fires of a rule on a script's alert() calls (`calls`: the calls of a run on the bars, each bar's calls being
+ *  those of its last run) in the closed bars closing after `fromSec` up to `nowSec`, at the bar's close: per bar, the
+ *  first call made once per bar and every call made once per bar close or on every update. The bar in progress is
+ *  left to the live evaluation. */
+export function replayAlertCalls(
+  rule: Pick<AlertRule, "expiresAt">,
+  bars: ReplayBar[],
+  calls: StudyAlertCall[],
+  fromSec: number,
+  nowSec: number,
+  stepSec: number,
+): ReplayCallFire[] {
+  const byBar = new Map<number, StudyAlertCall[]>();
+  for (const c of calls) {
+    const list = byBar.get(c.time);
+    if (list) list.push(c);
+    else byBar.set(c.time, [c]);
+  }
+  const fires: ReplayCallFire[] = [];
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const close = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
+    if (close <= fromSec || close > nowSec) continue;
+    if (rule.expiresAt != null && b.time * 1000 >= rule.expiresAt) break;
+    const list = byBar.get(b.time);
+    if (!list) continue;
+    let once = false;
+    for (const c of list) {
+      if (c.freq === "once_per_bar") {
+        if (once) continue;
+        once = true;
+      }
+      fires.push({ price: b.close, barTime: b.time * 1000, fireTime: close * 1000, message: c.message });
+    }
   }
   return fires.slice(-REPLAY_MAX_FIRES);
 }

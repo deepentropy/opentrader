@@ -23,7 +23,7 @@
  *    zone). Ticks wait until the symbol's session is known.
  */
 import { createRoot, createEffect, createSignal, onCleanup } from "solid-js";
-import { onTradeTick, getBars, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
+import { onTradeTick, getBars, getTickerInfo, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
 import { cachedSymbolSessions, localToUtc } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
@@ -32,8 +32,8 @@ import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
-import { describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
-import { chartBars, chartLastBarTime, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
+import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
+import { chartBars, chartLastBarTime, chartResolution, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { scriptBars } from "../backtester/oakscript";
@@ -42,8 +42,9 @@ import type { ChartContext } from "oakscriptjs/script";
 import { OtherSymbolBars } from "../window/chart/indicators/other-symbols";
 import { commands } from "../bindings";
 import * as kv from "./kv";
-import { REPLAY_MAX_SEC, replayCondition, replayRule } from "./alert-replay";
-import { conditionBars, conditionMessage } from "./alert-study-conditions";
+import { REPLAY_MAX_SEC, replayAlertCalls, replayCondition, replayRule } from "./alert-replay";
+import { alertCallsOf, conditionBars, type StudyAlertCall } from "./alert-study-conditions";
+import { fillPlaceholders, needsBarData, type PlaceholderValues } from "./alert-placeholders";
 
 /** True inside the Tauri shell — gates the native webhook route. */
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -68,6 +69,9 @@ const EVERY_TIME_MS = 60_000;
  *  When a tick lands in a NEWER bucket the stored bar has closed — the rule is
  *  then evaluated on that final sample (so crossings compare close-to-close). */
 const barCloseState = new Map<string, { bucket: number; ctx: EvalContext }>();
+/** alert_function: the newest bar seen (its time in the study's bars), whether a once-per-bar call fired in it, and
+ *  the last study run read (each run's calls are read once). */
+const callState = new Map<string, { bar: number; once: boolean; seq: number }>();
 
 // ── Per-alert webhook URLs ──
 // Kept out of alert-store (its AlertRule shape follows the Fire/Alert record
@@ -163,6 +167,8 @@ function barBucket(symbol: string, res: string, timeMs: number): number | null {
 /** True when the rule's condition is satisfied for the current sample. Updates
  *  prevDiff as a side effect (needed for crossing). */
 function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
+  // A script's alert() calls are read by evaluateAlertCalls.
+  if (rule.op === "alert_function") return false;
   // A study's own condition, true on the current bar.
   if (rule.op === "alert_condition") {
     return rule.left.kind === "indicator" && ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) === true;
@@ -286,26 +292,142 @@ function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
   deliverFire(rule, ctx.price, barBucket(rule.symbol, rule.resolution, barRefMs) ?? barRefMs);
 }
 
-/** The placeholders of a message filled in: `{{ticker}}` = the symbol's ticker. */
-function fillPlaceholders(text: string, rule: AlertRule): string {
-  return text.replace(/\{\{ticker\}\}/g, tickerOf(rule.symbol));
+// ── Message placeholders ──
+// A fired message reads the bar of the rule's interval and session the alert
+// fired in, and the plots of its source study at that bar: the chart's bars
+// when a chart shows them, else fetched (at most once every few seconds per
+// series, so the fires of one replay share a fetch).
+const MESSAGE_BARS_MS = 5000;
+const messageBarsCache = new Map<string, { at: number; bars: Promise<ChartBar[] | null> }>();
+
+function messageBars(rule: AlertRule, fresh = false): Promise<ChartBar[] | null> {
+  const session = rule.session ?? DEFAULT_SESSION;
+  const charted = chartBars(rule.symbol, rule.resolution, session);
+  if (charted) return Promise.resolve(charted);
+  if (!isSupportedResolution(rule.resolution)) return Promise.resolve(null);
+  const key = `${rule.symbol}|${rule.resolution}|${session}`;
+  const now = Date.now();
+  const hit = messageBarsCache.get(key);
+  if (hit && !fresh && now - hit.at < MESSAGE_BARS_MS) return hit.bars;
+  for (const [k, v] of messageBarsCache) if (now - v.at > 60_000) messageBarsCache.delete(k);
+  const bars = getBars(rule.symbol, rule.resolution, session).then(
+    (r) =>
+      r.bars.flatMap((b) =>
+        b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
+          ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
+          : [],
+      ),
+    () => null,
+  );
+  messageBarsCache.set(key, { at: now, bars });
+  return bars;
+}
+
+/** Index of the bar that holds `barTime` (UNIX ms; null = the newest bar), or -1 when the bars end before it. */
+function fireBarIndex(bars: ChartBar[], resolution: string, barTime: number | null): number {
+  if (!bars.length) return -1;
+  if (barTime == null) return bars.length - 1;
+  let i = bars.length - 1;
+  while (i >= 0 && bars[i].time * 1000 > barTime) i--;
+  if (i < 0) return -1;
+  // The newest bar loaded ends before the fire: the fire's bar is not loaded yet (a month counted as 31 days).
+  const span = /M$/.test(resolution) ? (Number(resolution.slice(0, -1)) || 1) * 31 * 86_400_000 : resolutionMs(resolution);
+  if (i === bars.length - 1 && bars[i].time * 1000 + span <= barTime) return -1;
+  return i;
+}
+
+/** Plots of the rule's source study at bar `i` of `bars`, in plot order; waits (up to `waitMs`) for a study that
+ *  computes asynchronously. Null when the source is not a study or it cannot be computed. */
+async function messagePlots(rule: AlertRule, bars: ChartBar[], i: number, live: boolean, waitMs = 10_000): Promise<PlaceholderValues["plots"]> {
+  const op = rule.left;
+  if (op.kind !== "indicator") return null;
+  const entry = getIndicatorEntry(op.indicatorId);
+  if (!entry) return null;
+  const session = rule.session ?? DEFAULT_SESSION;
+  const dense = bars.slice(0, i + 1).map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+  const state = live ? liveBarState(rule.symbol, rule.resolution, session, bars.slice(0, i + 1)) : CLOSED_BARS;
+  const until = Date.now() + waitMs;
+  for (;;) {
+    try {
+      const run = runStudy(entry, dense, op.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session, state, `message|${rule.id}`);
+      const plots = (run.result as { plots?: Record<string, Array<{ value: number | null }>> } | null)?.plots;
+      if (plots) {
+        return entry.plotConfig.map((p) => {
+          const v = plots[p.id]?.[i]?.value;
+          return { title: p.title || p.id, value: typeof v === "number" && Number.isFinite(v) ? v : null };
+        });
+      }
+    } catch (e) {
+      console.warn(`[alerts] message plots failed for ${op.indicatorId}`, e);
+      return null;
+    }
+    if (Date.now() >= until) return null;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
+/** What the placeholders of `text` give for a fire of `rule` at `price`, in the bar opened at `barTime`. */
+async function placeholderValues(rule: AlertRule, text: string, price: number, barTime: number | null, fireTime: number, live: boolean): Promise<PlaceholderValues> {
+  const values: PlaceholderValues = { symbol: rule.symbol, interval: rule.resolution, barTime, fireTime, bar: null, currency: null, baseCurrency: null, plots: null };
+  if (/\{\{syminfo\./.test(text)) {
+    try {
+      values.currency = (await getTickerInfo(rule.symbol)).currency?.toUpperCase() ?? null;
+    } catch {
+      /* reference data unavailable: the placeholder stays as written */
+    }
+  }
+  if (!needsBarData(text)) return values;
+  let bars = await messageBars(rule);
+  let i = bars ? fireBarIndex(bars, rule.resolution, barTime) : -1;
+  // The fire's bar is newer than the fetched bars: fetch them again once.
+  if (bars && i < 0 && !chartBars(rule.symbol, rule.resolution, rule.session ?? DEFAULT_SESSION)) {
+    bars = await messageBars(rule, true);
+    i = bars ? fireBarIndex(bars, rule.resolution, barTime) : -1;
+  }
+  // Still newer for a live fire: the bar time follows the clock while the data are delayed; the fire's price belongs
+  // to the newest bar loaded.
+  if (bars?.length && i < 0 && live && barTime != null && barTime > bars[bars.length - 1].time * 1000) i = bars.length - 1;
+  if (!bars || i < 0) return values;
+  // The bar as it stood at the fire: its close is the fire's price.
+  const b = bars[i];
+  const bar = { time: b.time, open: b.open, high: Math.max(b.high, price), low: Math.min(b.low, price), close: price, volume: b.volume ?? 0 };
+  values.bar = bar;
+  values.barTime = b.time * 1000;
+  values.plots = await messagePlots(rule, [...bars.slice(0, i), bar], i, live);
+  return values;
 }
 
 /** Deliver a fire of `rule` at `price`, in the bar opened at `barTime`
  *  (epoch ms). `offline`: the time it happened, for a fire found in the bars
  *  missed while the app was not running; it goes to the log and the rule's
- *  webhook only (no sound, notification or toast). */
-function deliverFire(rule: AlertRule, price: number, barTime: number | null, offline?: { fireTime: number }): void {
+ *  webhook only (no sound, notification or toast). The message is sent once
+ *  its placeholders are filled in. `callMessage`: the message of a script's
+ *  alert() call, sent as it is. */
+function deliverFire(rule: AlertRule, price: number, barTime: number | null, offline?: { fireTime: number }, callMessage?: string): void {
+  if (callMessage !== undefined) {
+    sendFire(rule, price, barTime, callMessage, offline);
+    return;
+  }
+  const fireTime = offline ? offline.fireTime : Date.now();
+  const text = rule.message?.trim() ? rule.message : defaultAlertMessage(rule);
+  // "Only Once" rules disable themselves after the single fire.
+  if (rule.frequency === "only_once") alertStore.setEnabled(rule.id, false);
+  void placeholderValues(rule, text, price, barTime, fireTime, !offline)
+    .then(
+      (values) => fillPlaceholders(text, values),
+      (e) => {
+        console.warn("[alerts] message placeholders not filled", e);
+        return text;
+      },
+    )
+    .then((message) => sendFire(rule, price, barTime, message, offline));
+}
+
+function sendFire(rule: AlertRule, price: number, barTime: number | null, message: string, offline?: { fireTime: number }): void {
   const now = Date.now();
   const condText = describeCondition(rule);
-  // An alert on a study's condition says what the study declares for it.
-  const text = rule.message?.trim()
-    ? rule.message
-    : rule.op === "alert_condition" && rule.left.kind === "indicator"
-      ? conditionMessage(rule.left.condition)
-      : `${tickerOf(rule.symbol)} ${condText} (last ${price})`;
-  const message = fillPlaceholders(text, rule);
-  const title = rule.name?.trim() ? rule.name : `Alert · ${tickerOf(rule.symbol)}`;
+  // An alert on a script's alert() calls is known by its condition (its fires carry the calls' messages).
+  const title = rule.name?.trim() ? rule.name : rule.op === "alert_function" ? condText : `Alert · ${tickerOf(rule.symbol)}`;
 
   alertStore.recordFire({
     alertId: rule.id,
@@ -320,10 +442,6 @@ function deliverFire(rule: AlertRule, price: number, barTime: number | null, off
     ...(offline ? { offline: true, receivedAt: now } : {}),
   });
 
-  // "Only Once" rules disable themselves after the single fire.
-  if (rule.frequency === "only_once") {
-    alertStore.setEnabled(rule.id, false);
-  }
   if (!offline) playAlertSound(rule.sound, { duration: rule.soundDuration ?? 0 });
 
   // Webhook — fire-and-forget; a failing endpoint must not affect local delivery.
@@ -389,8 +507,13 @@ function onTick(t: TradeTick): void {
 
   const now = Date.now();
   // Prefer the charted bar's open time for once-per-bar throttling + the fire's
-  // bar_time; falls back to wall-clock for symbols that aren't charted.
-  const barRefMs = chartLastBarTime(symbol) ?? now;
+  // bar_time when the chart's bars are no longer than the rule's (a daily
+  // chart's bar does not tell which hour a 60-minute rule is in); falls back
+  // to wall-clock otherwise and for symbols that aren't charted.
+  const chartRef = chartLastBarTime(symbol);
+  const chartRes = chartResolution(symbol);
+  const barRefFor = (rule: AlertRule) =>
+    chartRef != null && chartRes != null && resolutionMs(chartRes) <= resolutionMs(rule.resolution) ? chartRef : now;
   const ctx: EvalContext = {
     price: t.price,
     changePercent: t.changePercent ?? null,
@@ -404,6 +527,12 @@ function onTick(t: TradeTick): void {
     // Auto-expire.
     if (rule.expiresAt != null && now >= rule.expiresAt) {
       alertStore.setEnabled(rule.id, false);
+      continue;
+    }
+
+    // A script's alert() calls: fired as each call allows.
+    if (rule.op === "alert_function") {
+      evaluateAlertCalls(rule, t.price);
       continue;
     }
 
@@ -431,6 +560,7 @@ function onTick(t: TradeTick): void {
     }
 
     if (!conditionMet(rule, ctx)) continue;
+    const barRefMs = barRefFor(rule);
     if (!frequencyAllows(rule, barRefMs)) continue;
     fire(rule, ctx, barRefMs);
   }
@@ -626,6 +756,142 @@ function studyConditionNow(symbol: string, op: Extract<Operand, { kind: "indicat
   return value;
 }
 
+// ── Script alert() calls ──
+// An alert on "Any alert() function call" reads the script as a study
+// condition does (the alert's symbol, interval, session and inputs, computed
+// again when the bars change, at most once a second) and fires on the calls
+// of the newest bar, as each call's frequency allows:
+//  • alert.freq_all: every call of every run (a run = a new tick);
+//  • alert.freq_once_per_bar: the first such call in the bar;
+//  • alert.freq_once_per_bar_close: the calls of the bar's last run, read
+//    when the next bar starts (the run that has it gives the closed bar's
+//    final calls), like a once-per-bar call that only came at the close.
+// A call's message is sent as it is (no placeholders).
+let callsRunSeq = 0;
+type AlertCallsRun = { seq: number; calls: StudyAlertCall[]; bars: Bar[]; given: ChartBar[]; result: unknown; newest: number };
+
+/** Newest bar of the bars a result was computed on (its time in the study's bars): the last point of its plots or its
+ *  last call, else the newest of `bars` (a user script can give the result of its previous run, on fewer bars). */
+function resultNewestBar(result: unknown, calls: StudyAlertCall[], bars: Bar[]): number {
+  let t = -Infinity;
+  const plots = (result as { plots?: Record<string, Array<{ time: number }>> } | null)?.plots;
+  for (const series of Object.values(plots ?? {})) {
+    const last = series?.[series.length - 1];
+    if (last && typeof last.time === "number") t = Math.max(t, last.time);
+  }
+  for (const c of calls) t = Math.max(t, c.time);
+  return Number.isFinite(t) ? t : (bars[bars.length - 1]?.time as number);
+}
+const callsCache = new Map<string, { sig: string; at: number; value: AlertCallsRun | null }>();
+
+function studyAlertCallsNow(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): AlertCallsRun | null {
+  const entry = getIndicatorEntry(op.indicatorId);
+  if (!entry) return null;
+  const charted = chartBars(symbol, resolution, session);
+  let bars = charted ?? drawingBarsCache.get(`${symbol}|${resolution}|${session}`) ?? null;
+  if (!bars || bars.length === 0) {
+    void pollDrawingBars(true);
+    return null;
+  }
+  if (!charted) {
+    const last = bars[bars.length - 1];
+    bars = [...bars.slice(0, -1), { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) }];
+  }
+  const last = bars[bars.length - 1];
+  const inputs = op.inputs ?? entry.defaultInputs;
+  const key = `${symbol}|${resolution}|${session}|${op.indicatorId}|${JSON.stringify(inputs)}`;
+  const sig = `${bars.length}|${last.time}|${last.close}`;
+  const now = Date.now();
+  const hit = callsCache.get(key);
+  if (hit && (hit.sig === sig || now - hit.at < INDICATOR_COMPUTE_MS)) return hit.value;
+  let value: AlertCallsRun | null = null;
+  try {
+    const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+    const run = runStudy(entry, dense, inputs, symbol, resolution, session, liveBarState(symbol, resolution, session, bars), key);
+    const calls = alertCallsOf(run.result);
+    // A user script gives its previous run's result while the next one runs in its worker: the same run, read once.
+    if (calls && hit?.value && hit.value.result === run.result) value = hit.value;
+    else if (calls) value = { seq: ++callsRunSeq, calls, bars: run.bars, given: bars, result: run.result, newest: resultNewestBar(run.result, calls, run.bars) };
+  } catch (e) {
+    console.warn(`[alerts] alert() calls failed for ${op.indicatorId}`, e);
+  }
+  // Not computed yet (worker run): ask again at the next tick.
+  callsCache.set(key, { sig: value === null ? "" : sig, at: now, value });
+  return value;
+}
+
+/** Fire the alert() calls of `rule` that the newest run allows. */
+function evaluateAlertCalls(rule: AlertRule, price: number): void {
+  const left = rule.left;
+  if (left.kind !== "indicator") return;
+  const run = studyAlertCallsNow(rule.symbol, left, rule.resolution, rule.session ?? DEFAULT_SESSION, price);
+  if (!run || run.bars.length === 0) return;
+  const newest = run.newest;
+  // The bar (as given to the study, its open time in seconds) a call was made on.
+  const barOf = (time: number) => {
+    const i = run.bars.findIndex((b) => b.time === time);
+    return i < 0 ? null : run.given[i];
+  };
+  const send = (c: StudyAlertCall, at: number) => {
+    const b = barOf(c.time);
+    deliverFire(rule, at, b ? b.time * 1000 : null, undefined, c.message);
+  };
+  let st = callState.get(rule.id);
+  if (!st) callState.set(rule.id, (st = { bar: newest, once: false, seq: -1 }));
+  if (newest < st.bar) return; // older bars than the ones read already
+  if (newest > st.bar) {
+    // The bar read so far has closed: this run gives its final calls.
+    const closed = barOf(st.bar);
+    let once = st.once;
+    for (const c of run.calls) {
+      if (c.time !== st.bar) continue;
+      if (c.freq === "once_per_bar_close") send(c, closed?.close ?? price);
+      else if (c.freq === "once_per_bar" && !once) {
+        once = true;
+        send(c, closed?.close ?? price);
+      }
+    }
+    st.bar = newest;
+    st.once = false;
+  }
+  if (run.seq === st.seq) return; // this run was read already
+  st.seq = run.seq;
+  for (const c of run.calls) {
+    if (c.time !== newest) continue;
+    if (c.freq === "all") send(c, price);
+    else if (c.freq === "once_per_bar" && !st.once) {
+      st.once = true;
+      send(c, price);
+    }
+  }
+}
+
+/** The alert() calls of a run on closed bars, with the times of `bars`; waits (up to `waitMs`) for a script run in
+ *  its worker. */
+async function alertCallSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[], rule: AlertRule, session: string, waitMs = 30_000): Promise<StudyAlertCall[] | null> {
+  const entry = getIndicatorEntry(op.indicatorId);
+  if (!entry) return null;
+  const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
+  const inputs = op.inputs ?? entry.defaultInputs;
+  const slot = `replay|${rule.id}`;
+  const until = Date.now() + waitMs;
+  for (;;) {
+    try {
+      const run = runStudy(entry, dense, inputs, rule.symbol, rule.resolution, session, CLOSED_BARS, slot);
+      const calls = alertCallsOf(run.result);
+      if (calls) {
+        const at = new Map(run.bars.map((b, i) => [b.time as number, bars[i].time]));
+        return calls.flatMap((c) => (at.has(c.time) ? [{ ...c, time: at.get(c.time)! }] : []));
+      }
+    } catch (e) {
+      console.warn(`[alerts] alert() calls failed for ${op.indicatorId}`, e);
+      return null;
+    }
+    if (Date.now() >= until) return null;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
 /** Per bar, whether the study's condition is true, computed on closed bars; waits (up to `waitMs`) for a study that
  *  computes asynchronously (a user script's worker run, the lower-timeframe bars of a profile). */
 async function conditionSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[], rule: AlertRule, session: string, waitMs = 30_000): Promise<boolean[] | null> {
@@ -809,6 +1075,22 @@ export async function replayMissedFires(previous: Record<string, number | null |
   for (const rule of alertStore.enabledRules()) {
     if (evaluatedByBackend(rule) || !isSupportedResolution(rule.resolution)) continue;
     const { left, right } = rule;
+    if (rule.op === "alert_function") {
+      if (left.kind !== "indicator") continue;
+      const since = (rule.activeSince ?? rule.createdAt) / 1000;
+      const from = Math.max(previous[rule.symbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
+      if (nowSec - from < 60) continue;
+      const session = rule.session ?? DEFAULT_SESSION;
+      const bars = await replayBars(barsBy, rule.symbol, rule.resolution, session);
+      if (!bars) continue;
+      const calls = await alertCallSeries(left, bars, rule, session);
+      if (!calls) continue;
+      for (const f of replayAlertCalls(rule, bars, calls, from, nowSec, resolutionMs(rule.resolution) / 1000)) {
+        deliverFire(rule, f.price, f.barTime, { fireTime: f.fireTime }, f.message);
+        found++;
+      }
+      continue;
+    }
     if (rule.op === "alert_condition") {
       if (left.kind !== "indicator") continue;
       const since = (rule.activeSince ?? rule.createdAt) / 1000;
@@ -953,11 +1235,12 @@ export function startAlertEngine(windowLabel = "main"): void {
         if (!prevEnabledIds.has(id)) resetRuleEvalState(id);
       }
       prevEnabledIds = enabledIds;
-      for (const m of [prevDiff, lastFiredBucket, lastFiredAt, barCloseState]) {
+      for (const m of [prevDiff, lastFiredBucket, lastFiredAt, barCloseState, callState]) {
         for (const id of m.keys()) if (!ids.has(id)) m.delete(id);
       }
       indicatorValueCache.clear();
       conditionCache.clear();
+      callsCache.clear();
       // A new rule on an anchored VWAP or a study needs its bars now, not at the next poll.
       void pollDrawingBars(true);
     });
@@ -972,6 +1255,7 @@ export function resetRuleEvalState(id: string): void {
   lastFiredBucket.delete(id);
   lastFiredAt.delete(id);
   barCloseState.delete(id);
+  callState.delete(id);
   // A changed Moving % rule needs its reference now, not at the next poll.
   movingRefCache.delete(id);
   if (started) void pollMovingRefs();

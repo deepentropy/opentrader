@@ -19,7 +19,7 @@ import { tickerOf } from "../../data/symbol-name";
 import { Tooltip } from "../../components/Tooltip";
 import { IconButton } from "../../components/IconButton";
 import { alertStore, type AlertRule } from "../../data/alert-store";
-import { describeCondition } from "../../data/alert-condition";
+import { defaultAlertMessage } from "../../data/alert-condition";
 import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
 import { intervalLabel } from "../../data/datafeed";
 import * as kv from "../../data/kv";
@@ -94,7 +94,7 @@ const setFilters = (f: Filters) => { setFiltersSignal(f); persist(); };
 /** Chart context of the "Current symbol" / "Current time interval" filters. */
 export type AlertListContext = { symbol: string; interval: string };
 
-const ruleText = (r: AlertRule) => r.message || describeCondition(r);
+const ruleText = (r: AlertRule) => r.message || defaultAlertMessage(r);
 
 /** "Last triggered" row part: day and time of the last fire. */
 function lastTriggeredText(ms: number): string {

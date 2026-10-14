@@ -16,6 +16,8 @@ import type { OHLC } from "lightweight-charts-drawing/core/coords";
 import { chartBars, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { loadDrawings } from "../window/drawings/persistence";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
+import { conditionMessage } from "./alert-study-conditions";
+import { tickerOf } from "./symbol-name";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -31,6 +33,7 @@ export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   outside: "Outside",
   hits_level: "Hits entry, stop, or target level",
   alert_condition: "Alert condition",
+  alert_function: "Any alert() function call",
 };
 
 /** Operators of a drawing with two bounds (channel, rectangle). */
@@ -395,6 +398,8 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
     const title = rule.left.kind === "indicator" ? rule.left.condition?.title : undefined;
     return `${operandLabel(rule.left)}: ${title ?? OPERATOR_LABELS.alert_condition}`;
   }
+  // A script's alert() calls: "Auto fib retracement (3, 10): Any alert() function call".
+  if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS.alert_function}`;
   if (isPercentOperator(rule.op)) {
     const pct = rule.right.kind === "value" ? rule.right.value : 0;
     const n = rule.bars ?? 1;
@@ -410,4 +415,16 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   // A vertical line is crossed by the time, not by a value.
   if (rule.right.kind === "drawing" && rule.right.band === "time") return `${OPERATOR_LABELS[rule.op]} ${operandLabel(rule.right)}`;
   return `${operandLabel(rule.left)} ${OPERATOR_LABELS[rule.op]} ${operandLabel(rule.right)}`;
+}
+
+/** Message of an alert whose message was not changed: the ticker and the
+ *  condition, without "Price" in front of a price condition ("AZO Crossing
+ *  150"); for a study's condition, the message the study declares; for a
+ *  script's alert() calls, the condition (each fire has the call's message). */
+export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "left" | "op" | "right" | "bars">): string {
+  if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
+  // The message of a fire is the alert() call's: the alert is known by its name, the condition.
+  if (rule.op === "alert_function") return describeCondition(rule);
+  const text = describeCondition(rule);
+  return `${tickerOf(rule.symbol) || "—"} ${rule.left.kind === "price" ? text.replace(/^Price /, "") : text}`;
 }

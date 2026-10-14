@@ -31,13 +31,15 @@ import {
   bandOperatorLabel,
   isBandOperator,
   shapeOperators,
-  describeCondition,
+  defaultAlertMessage,
   isPercentOperator,
   priceableDrawings,
   VWAP_PLOTS,
 } from "../../data/alert-condition";
 import { indicatorLegendFor } from "../../data/chart-state-registry";
-import { conditionMessage, studyConditions } from "../../data/alert-study-conditions";
+import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
+import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
+import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { statusLineInputs } from "../chart/indicators/indicator-options";
 import type { SessionId } from "../../data/session/symbol-sessions";
@@ -138,6 +140,8 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
   hits_level: "M2.5 4h4M11.5 4h4M2.5 9h13M2.5 14h4M11.5 14h4M9 2.5v13",
   // A study's own conditions are listed by title, without an icon.
   alert_condition: "",
+  // A script's alert() calls: a function sign ("f" with an "x").
+  alert_function: "M10.5 3.2c-.4-.5-1-.7-1.6-.6-.8.1-1.4.8-1.4 1.6v9.6c0 .8-.6 1.5-1.4 1.6-.6.1-1.2-.1-1.6-.6M4.5 7.5h5M11 10.5l4 4M15 10.5l-4 4",
 };
 
 /** Dropdown of the dialog. `box`: a 34 px bordered control showing the value;
@@ -223,6 +227,73 @@ function AdMenu(props: { variant: "box" | "inline"; value: string; options: Menu
   );
 }
 
+/** Groups of the placeholder menu shown open; General only until the user
+ *  opens or closes one (remembered). */
+const PLACEHOLDER_GROUPS_KEY = "alerts.placeholder-groups.v1";
+function openPlaceholderGroups(): Record<string, boolean> {
+  try {
+    return { general: true, ...JSON.parse(kv.getItem(PLACEHOLDER_GROUPS_KEY) ?? "{}") };
+  } catch {
+    return { general: true };
+  }
+}
+
+/** "Add placeholder" button of the message view and its menu: opens above the
+ *  button, one foldable group per kind, a row = title + placeholder; a click
+ *  adds the placeholder to the message and closes the menu. */
+function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: string) => void }) {
+  const [open, setOpen] = createSignal(false);
+  const [expanded, setExpanded] = createSignal(openPlaceholderGroups());
+  let el: HTMLDivElement | undefined;
+  onMount(() => {
+    const onDown = (e: PointerEvent) => { if (el && !el.contains(e.target as Node)) setOpen(false); };
+    // Escape closes the menu only (the dialog stays).
+    const onKey = (e: KeyboardEvent) => { if (open() && e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
+    document.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("keydown", onKey, true);
+    onCleanup(() => { document.removeEventListener("pointerdown", onDown, true); window.removeEventListener("keydown", onKey, true); });
+  });
+  const toggle = (id: string) => {
+    const next = { ...expanded(), [id]: !expanded()[id] };
+    setExpanded(next);
+    try { kv.setItem(PLACEHOLDER_GROUPS_KEY, JSON.stringify(next)); } catch { /* best-effort */ }
+  };
+  return (
+    <div class="ad-ph" ref={el}>
+      <button type="button" class="ad-small-btn" data-name="alert-message-placeholder-button" aria-expanded={open()} onClick={() => setOpen(!open())}>
+        Add placeholder
+      </button>
+      <Show when={open()}>
+        <div class="ad-ph-menu" role="menu" data-name="alert-placeholders-menu">
+          <For each={props.groups.filter((g) => g.items.length)}>
+            {(g, i) => (
+              <>
+                <Show when={i() > 0}><div class="ad-ph-divider" role="separator" /></Show>
+                <button type="button" class="ad-ph-title" role="group" aria-expanded={!!expanded()[g.id]} onClick={() => toggle(g.id)}>
+                  <span class="ad-ph-title-text">{g.title}</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                    <path fill="currentColor" d={expanded()[g.id] ? "m4.67 10.62.66.76L9 8.16l3.67 3.22.66-.76L9 6.84l-4.33 3.78Z" : "m4.67 7.38.66-.76L9 9.84l3.67-3.22.66.76L9 11.16 4.67 7.38Z"} />
+                  </svg>
+                </button>
+                <Show when={expanded()[g.id]}>
+                  <For each={g.items}>
+                    {(it) => (
+                      <button type="button" class="ad-ph-item" role="option" onClick={() => { props.onPick(it.value); setOpen(false); }}>
+                        <span class="ad-ph-item-title">{it.title}</span>
+                        <span class="ad-ph-item-value">{it.value}</span>
+                      </button>
+                    )}
+                  </For>
+                </Show>
+              </>
+            )}
+          </For>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 type SideKind = "value" | "drawing" | "indicator";
 
 /** A deliverable webhook target: parses as a URL with an http(s) scheme. */
@@ -290,11 +361,20 @@ export function AlertDialog(props: Props) {
     existing?.op === "alert_condition" && existing.left.kind === "indicator" ? (existing.left.condition?.id ?? null) : null,
   );
 
-  // A study that declares conditions opens on its first one.
-  const firstCond = !existing && props.indicatorId ? untrack(() => condsOf(props.indicatorId!))[0] : undefined;
+  /** The study calls alert(): "Any alert() function call" comes first in its condition list. */
+  const callsOf = (indicatorId: string): boolean =>
+    hasAlertFunction(getIndicatorEntry(indicatorId)) || (existing?.op === "alert_function" && existing.left.kind === "indicator" && existing.left.indicatorId === indicatorId);
+  // A study with alert() calls opens on them, one that declares conditions on its first one.
+  const firstCalls = !existing && !!props.indicatorId && untrack(() => callsOf(props.indicatorId!));
+  const firstCond = !existing && props.indicatorId && !firstCalls ? untrack(() => condsOf(props.indicatorId!))[0] : undefined;
   if (firstCond) setLeftCond(firstCond.id);
-  const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? (firstCond ? "alert_condition" : "crossing"));
+  const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? (firstCalls ? "alert_function" : firstCond ? "alert_condition" : "crossing"));
   const isCond = () => op() === "alert_condition";
+  /** "Any alert() function call": the script's calls give the message and how often it fires. */
+  const isCalls = () => op() === "alert_function";
+  /** A condition of the study itself: no plot, nothing compared. */
+  const isOwn = () => isCond() || isCalls();
+  const leftCalls = () => leftKind() === "indicator" && callsOf(leftIndicator());
   const leftConds = () => (leftKind() === "indicator" ? condsOf(leftIndicator()) : []);
   const leftCondition = () => leftConds().find((c) => c.id === leftCond());
 
@@ -399,6 +479,15 @@ export function AlertDialog(props: Props) {
   createEffect(() => {
     const list = operators();
     const conds = leftConds();
+    const calls = leftCalls();
+    if (untrack(op) === "alert_function") {
+      if (calls) return;
+      if (conds.length) {
+        setLeftCond(conds[0].id);
+        setOp("alert_condition");
+      } else if (list.length) setOp(list[0]);
+      return;
+    }
     if (untrack(op) === "alert_condition") {
       if (conds.some((c) => c.id === untrack(leftCond))) return;
       if (conds.length) setLeftCond(conds[0].id);
@@ -406,15 +495,18 @@ export function AlertDialog(props: Props) {
       return;
     }
     if (list.includes(untrack(op))) return;
-    if (conds.length) {
+    if (calls) setOp("alert_function");
+    else if (conds.length) {
       setLeftCond(conds[0].id);
       setOp("alert_condition");
     } else if (list.length) setOp(list[0]);
   });
-  /** The condition list: the study's conditions, a line, then the comparisons ("Show more" after the first three). */
+  /** The condition list: the script's alert() calls, a line, the study's conditions, a line, then the comparisons
+   *  ("Show more" after the first three). */
   const conditionOptions = (): MenuOption[] => [
-    ...leftConds().map((c) => ({ value: `cond:${c.id}`, label: c.title })),
-    ...operators().map((o, i) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o], sep: i === 0 && leftConds().length > 0 })),
+    ...(leftCalls() ? [{ value: "alert_function", label: OPERATOR_LABELS.alert_function, icon: OPERATOR_ICONS.alert_function }] : []),
+    ...leftConds().map((c, i) => ({ value: `cond:${c.id}`, label: c.title, sep: i === 0 && leftCalls() })),
+    ...operators().map((o, i) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o], sep: i === 0 && (leftConds().length > 0 || leftCalls()) })),
   ];
   const [rightLevel, setRightLevel] = createSignal<number>(existing?.right.kind === "drawing" && existing.right.level != null ? existing.right.level : 0.5);
   createEffect(() => {
@@ -437,13 +529,18 @@ export function AlertDialog(props: Props) {
 
   function buildLeft(): Operand {
     if (leftKind() === "indicator" && leftIndicator()) {
-      if (!isCond()) return indicatorOperand(leftIndicator(), leftPlot(), existing?.left);
+      if (!isOwn()) return indicatorOperand(leftIndicator(), leftPlot(), existing?.left);
       // A condition reads no plot: the study's label without a plot title.
       const o = indicatorOperand(leftIndicator(), 0, existing?.left);
-      const cond = leftCondition();
-      if (o.kind !== "indicator" || !cond) return o;
+      if (o.kind !== "indicator") return o;
       const plots = plotsOf(leftIndicator());
       const label = plots.length >= 2 && o.label ? o.label.slice(0, o.label.length - `: ${plots[0]?.title ?? ""}`.length) : o.label;
+      if (isCalls()) {
+        const { condition: _condition, ...rest } = o;
+        return { ...rest, label };
+      }
+      const cond = leftCondition();
+      if (!cond) return o;
       return { ...o, label, condition: cond };
     }
     return { kind: "price" };
@@ -451,7 +548,7 @@ export function AlertDialog(props: Props) {
 
   function buildRight(): Operand {
     // A study's condition compares nothing.
-    if (isCond()) return { kind: "value", value: 0 };
+    if (isOwn()) return { kind: "value", value: 0 };
     if (isPct()) return { kind: "value", value: parseFloat(pct()) || 0 };
     switch (rightKind()) {
       case "drawing": {
@@ -496,17 +593,10 @@ export function AlertDialog(props: Props) {
     return { kind: "indicator", indicatorId, plot, label, ...(inputs ? { inputs } : {}) };
   }
 
-  /** Live preview of the condition, used as the message placeholder. */
-  const preview = createMemo(() => {
-    // "AZO Crossing 150": the ticker, and no "Price" in front of a price
-    // condition.
-    // A study's condition: the message it declares.
-    if (isCond()) return conditionMessage(leftCondition());
-    const full = symbol() || "—";
-    const sym = full.includes(":") ? full.split(":")[1] : full;
-    const text = describeCondition({ left: buildLeft(), op: op(), right: buildRight(), bars: barsValue() });
-    return `${sym} ${leftKind() === "price" ? text.replace(/^Price /, "") : text}`;
-  });
+  /** Default message: the condition as it is set ("AZO Crossing 150"), or
+   *  the message a study's condition declares. An alert keeps no message of
+   *  its own while its message is this one, so it follows the condition. */
+  const preview = createMemo(() => defaultAlertMessage({ symbol: symbol(), left: buildLeft(), op: op(), right: buildRight(), bars: barsValue() }));
 
   // The webhook only saves (and the dialog only closes) with an http(s) URL —
   // any other string would silently never deliver.
@@ -516,6 +606,7 @@ export function AlertDialog(props: Props) {
     if (!symbol().trim()) return false;
     if (!webhookValid()) return false;
     if (isCond()) return !!leftCondition();
+    if (isCalls()) return leftCalls();
     if (isPct()) return Number.isFinite(parseFloat(pct()));
     if (rightKind() === "value") return Number.isFinite(parseFloat(rightValue()));
     if (rightKind() === "drawing") return drawingOptions().some((o) => o.id === rightDrawing());
@@ -536,9 +627,10 @@ export function AlertDialog(props: Props) {
       op: op(),
       right: buildRight(),
       bars: isPct() ? barsValue() : undefined,
-      frequency: band() === "time" ? ("only_once" as AlertFrequency) : frequency(),
-      name: name().trim(),
-      message: message().trim(),
+      // alert() calls: each call's frequency and message.
+      frequency: isCalls() ? ("once_per_bar" as AlertFrequency) : band() === "time" ? ("only_once" as AlertFrequency) : frequency(),
+      name: isCalls() && name().trim() === preview() ? "" : name().trim(),
+      message: isCalls() ? "" : message().trim(),
       sound: sound(),
       soundDuration: sound() ? soundDuration() : 0,
       popup: popup(),
@@ -595,7 +687,7 @@ export function AlertDialog(props: Props) {
   };
   // A study is a source when it has plots or conditions; the one being edited stays.
   const alertable = (id: string) =>
-    plotsOf(id).length > 0 || condsOf(id).length > 0 || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
+    plotsOf(id).length > 0 || condsOf(id).length > 0 || callsOf(id) || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
   const sourceOptions = (): MenuOption[] => [
     { value: "price", label: "Price" },
     ...indicatorOptions().filter((r) => alertable(r.id)).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
@@ -611,7 +703,11 @@ export function AlertDialog(props: Props) {
     const on = [popup() && "Notification", webhookOn() && "Webhook", sound() && "Sound"].filter(Boolean);
     return on.length ? on.join(", ") : "None";
   };
-  const openMessage = () => { setDraftName(name()); setDraftMessage(message()); setView("message"); };
+  // alert() calls: the view edits the alert's name only (the calls give the messages), shown as the condition until
+  // changed.
+  const openMessage = () => { setDraftName(isCalls() ? name() || preview() : name()); setDraftMessage(message() || preview()); setView("message"); };
+  /** Placeholder menu: the plots of the source when it is a study. */
+  const placeholderMenu = () => placeholderGroups(leftKind() === "indicator" ? plotsOf(leftIndicator()) : null);
   const openNotifications = () => {
     setDraftPopup(popup());
     setDraftWebhookOn(webhookOn());
@@ -700,22 +796,23 @@ export function AlertDialog(props: Props) {
                     onPick={(v) => {
                       if (v === "price") {
                         setLeftKind("price");
-                        if (isCond()) setOp("crossing");
+                        if (isOwn()) setOp("crossing");
                         return;
                       }
                       setLeftKind("indicator");
                       setLeftIndicator(v.slice(4));
                       setLeftPlot(0);
-                      // A study with conditions starts on its first one.
+                      // A study with alert() calls starts on them, one with conditions on its first one.
                       const conds = condsOf(v.slice(4));
-                      if (conds.length) {
+                      if (callsOf(v.slice(4))) setOp("alert_function");
+                      else if (conds.length) {
                         setLeftCond(conds[0].id);
                         setOp("alert_condition");
-                      } else if (isCond()) setOp("crossing");
+                      } else if (isOwn()) setOp("crossing");
                     }}
                   />
                   {/* Plot select: a study with 2 or more plots (not for one of its conditions). */}
-                  <Show when={!isCond() && leftKind() === "indicator" && plotsOf(leftIndicator()).length >= 2}>
+                  <Show when={!isOwn() && leftKind() === "indicator" && plotsOf(leftIndicator()).length >= 2}>
                     <AdMenu variant="box" label="Plot" value={String(leftPlot())} options={plotOptions(leftIndicator())} onPick={(v) => setLeftPlot(Number(v))} />
                   </Show>
 
@@ -723,7 +820,7 @@ export function AlertDialog(props: Props) {
                     variant="box"
                     label="Condition"
                     value={isCond() ? `cond:${leftCond()}` : op()}
-                    more={fixedOperators() ? undefined : leftConds().length + 3}
+                    more={fixedOperators() ? undefined : (leftCalls() ? 1 : 0) + leftConds().length + 3}
                     options={conditionOptions()}
                     lockSingle
                     onPick={(v) => {
@@ -735,7 +832,7 @@ export function AlertDialog(props: Props) {
                   />
 
                   {/* A study's condition compares nothing. */}
-                  <Show when={!isCond()}>
+                  <Show when={!isOwn()}>
                   <Show
                     when={!isPct()}
                     fallback={
@@ -819,8 +916,8 @@ export function AlertDialog(props: Props) {
 
               <div class="ad-divider" />
 
-              {/* A vertical line is crossed once: no trigger choice. */}
-              <Show when={band() !== "time"}>
+              {/* A vertical line is crossed once: no trigger choice; alert() calls say how often they fire. */}
+              <Show when={band() !== "time" && !isCalls()}>
                 <div class="ad-row ad-row--text">
                   <span class="ad-label">Trigger</span>
                   <AdMenu variant="inline" label="Trigger" value={frequency()} options={triggerOptions()} onPick={(v) => setFrequency(v as AlertFrequency)} />
@@ -842,7 +939,7 @@ export function AlertDialog(props: Props) {
               <div class="ad-row ad-row--text">
                 <span class="ad-label">Message</span>
                 <button type="button" class="ad-link" data-name="alert-message-button" onClick={openMessage}>
-                  <span class="ad-link-text">{name() ? `${name()}: ` : ""}{message() || preview()}</span>
+                  <span class="ad-link-text">{isCalls() ? name() || preview() : <>{name() ? `${name()}: ` : ""}{message() || preview()}</>}</span>
                   {arrow("m7 4.5 4 4.5-4 4.5")}
                 </button>
               </div>
@@ -886,15 +983,40 @@ export function AlertDialog(props: Props) {
                 <span class="ad-label">Alert name</span>
                 <input class="ad-input" type="text" value={draftName()} onInput={(e) => setDraftName(e.currentTarget.value)} />
               </label>
-              <label class="ad-field">
-                <span class="ad-label">Message</span>
-                <textarea class="ad-input ad-textarea" value={draftMessage()} placeholder={preview()} onInput={(e) => setDraftMessage(e.currentTarget.value)} />
-              </label>
+              <Show when={!isCalls()}>
+              <div class="ad-field">
+                <label class="ad-label" for="alert-message">Message</label>
+                <textarea id="alert-message" class="ad-input ad-textarea" data-name="alert-message-textarea" value={draftMessage()} onInput={(e) => setDraftMessage(e.currentTarget.value)} />
+                <div class="ad-message-buttons">
+                  <AdPlaceholders groups={placeholderMenu()} onPick={(v) => setDraftMessage(appendPlaceholder(draftMessage(), v))} />
+                  <Show when={draftMessage() !== preview()}>
+                    <button type="button" class="ad-small-btn is-icon" data-name="alert-message-reset-button" title="Reset to default" aria-label="Reset to default" onClick={() => setDraftMessage(preview())}>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                        <path fill="currentColor" d="M10 6.13V8L6 5.5 10 3v2.1A5 5 0 1 1 4 10a.5.5 0 0 1 1 0 4 4 0 1 0 5-3.87Z" />
+                      </svg>
+                    </button>
+                  </Show>
+                </div>
+              </div>
+              </Show>
             </div>
             <footer class="ad-footer">
               <span class="ad-spacer" />
               <button type="button" class="ot-dlg-btn is-secondary" onClick={() => setView("main")}>Cancel</button>
-              <button type="button" class="ot-dlg-btn is-main is-neutral" onClick={() => { setName(draftName()); setMessage(draftMessage()); setView("main"); }}>Apply</button>
+              <button
+                type="button"
+                class="ot-dlg-btn is-main is-neutral"
+                onClick={() => {
+                  if (isCalls()) setName(draftName().trim() === preview() ? "" : draftName());
+                  else {
+                    setName(draftName());
+                    setMessage(draftMessage() === preview() ? "" : draftMessage());
+                  }
+                  setView("main");
+                }}
+              >
+                Apply
+              </button>
             </footer>
           </Show>
 

@@ -29,9 +29,9 @@
     "fancy-canvas": "^2.1.0",
     "flag-icons": "^7.5.0",
     "lightweight-charts": "^5.2.1",
-    "lightweight-charts-indicators": "^0.13.2",
+    "lightweight-charts-indicators": "^0.13.3",
     "monaco-editor": "^0.55.1",
-    "oakscriptjs": "^0.11.4",
+    "oakscriptjs": "^0.11.5",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {

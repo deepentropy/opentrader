@@ -48,6 +48,23 @@ export function studyConditions(entry: IndicatorRegistryEntry | null | undefined
   }));
 }
 
+/** A script that calls alert(): an alert can watch "Any alert() function call" (listed before its conditions). */
+export function hasAlertFunction(entry: IndicatorRegistryEntry | null | undefined): boolean {
+  return !!(entry as { hasAlertFunction?: boolean } | null | undefined)?.hasAlertFunction;
+}
+
+/** How often an alert() call may trigger the alert. */
+export type AlertCallFrequency = "all" | "once_per_bar" | "once_per_bar_close";
+/** An alert() call of a script: the time of its bar (as given to the study), its message and frequency. */
+export type StudyAlertCall = { time: number; message: string; freq: AlertCallFrequency };
+
+/** The alert() calls in a study's result, in call order; null when the result does not tell (still loading). */
+export function alertCallsOf(result: unknown): StudyAlertCall[] | null {
+  const r = result as { pending?: boolean; alertCalls?: StudyAlertCall[] } | null;
+  if (!r || r.pending) return null;
+  return r.alertCalls ?? [];
+}
+
 /** Default message of an alert on a condition. */
 export function conditionMessage(c: StudyConditionRef | undefined): string {
   return c?.message || ALERT_CONDITION_DEFAULT_TEXT;
