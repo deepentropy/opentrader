@@ -366,16 +366,56 @@ async function messagePlots(rule: AlertRule, bars: ChartBar[], i: number, live: 
   }
 }
 
+/** The bars of a daily, weekly or monthly rule with the trading day in progress: the daily history ends with the day
+ *  before, so that day's regular-session minutes are added to the bar of the fire's period (a new bar when the period
+ *  starts that day), as a chart adds them to its forming bar. `i`: index of the fire's bar, -1 when it is not loaded. */
+async function withTradingDay(rule: AlertRule, bars: ChartBar[], i: number, barTime: number | null, fireTime: number): Promise<{ bars: ChartBar[]; i: number }> {
+  const sessions = cachedSymbolSessions(rule.symbol);
+  const iv = sessions?.regular.currentOrPrevious(fireTime / 1000);
+  if (!sessions || !iv || barTime == null) return { bars, i };
+  const daily = rule.resolution === "1D" ? bars : await messageBars({ ...rule, resolution: "1D" });
+  // A daily bar is stamped at midnight of its trading day: the day is loaded when the newest one is that late.
+  if (!daily?.length || daily[daily.length - 1].time > iv.start - 86_400) return { bars, i };
+  const minutes = await messageBars({ ...rule, resolution: "1", session: "RTH" });
+  const day = minutes?.filter((b) => b.time >= iv.start && b.time < iv.end) ?? [];
+  if (!day.length) return { bars, i };
+  const part = {
+    open: day[0].open,
+    high: Math.max(...day.map((b) => b.high)),
+    low: Math.min(...day.map((b) => b.low)),
+    volume: day.reduce((v, b) => v + (b.volume ?? 0), 0),
+  };
+  if (i >= 0 && bars[i].time * 1000 === barTime) {
+    const b = bars[i];
+    const merged = { ...b, high: Math.max(b.high, part.high), low: Math.min(b.low, part.low), volume: (b.volume ?? 0) + part.volume };
+    return { bars: [...bars.slice(0, i), merged, ...bars.slice(i + 1)], i };
+  }
+  if (i >= 0) return { bars, i };
+  return { bars: [...bars, { time: barTime / 1000, ...part, close: day[day.length - 1].close }], i: bars.length };
+}
+
+/** Open time (UNIX ms) of a bar as a message gives it: a daily, weekly or monthly bar opens with the regular session
+ *  of its first day (13:30Z for a US stock, 00:00Z for a 24-hour market), not at midnight. */
+function barOpenTime(rule: AlertRule, ms: number | null): number | null {
+  if (ms == null || !/[DWM]$/.test(rule.resolution)) return ms;
+  const iv = cachedSymbolSessions(rule.symbol)?.regular.currentOrNext(ms / 1000);
+  return iv && iv.start * 1000 - ms < 86_400_000 ? iv.start * 1000 : ms;
+}
+
 /** What the placeholders of `text` give for a fire of `rule` at `price`, in the bar opened at `barTime`. */
 async function placeholderValues(rule: AlertRule, text: string, price: number, barTime: number | null, fireTime: number, live: boolean): Promise<PlaceholderValues> {
   const values: PlaceholderValues = { symbol: rule.symbol, interval: rule.resolution, barTime, fireTime, bar: null, currency: null, baseCurrency: null, plots: null };
   if (/\{\{syminfo\./.test(text)) {
     try {
-      values.currency = (await getTickerInfo(rule.symbol)).currency?.toUpperCase() ?? null;
+      const info = await getTickerInfo(rule.symbol);
+      values.currency = info.currency?.toUpperCase() ?? null;
+      // A security (stock, fund, receipt, warrant) has no base currency: empty, as the reference gives it.
+      if (info.symbolType) values.baseCurrency = "";
     } catch {
       /* reference data unavailable: the placeholder stays as written */
     }
   }
+  values.barTime = barOpenTime(rule, barTime);
   if (!needsBarData(text)) return values;
   let bars = await messageBars(rule);
   let i = bars ? fireBarIndex(bars, rule.resolution, barTime) : -1;
@@ -383,6 +423,10 @@ async function placeholderValues(rule: AlertRule, text: string, price: number, b
   if (bars && i < 0 && !chartBars(rule.symbol, rule.resolution, rule.session ?? DEFAULT_SESSION)) {
     bars = await messageBars(rule, true);
     i = bars ? fireBarIndex(bars, rule.resolution, barTime) : -1;
+  }
+  // A live fire on a daily, weekly or monthly interval read from fetched bars: the day in progress is not in them.
+  if (bars && live && /[DWM]$/.test(rule.resolution) && !chartBars(rule.symbol, rule.resolution, rule.session ?? DEFAULT_SESSION)) {
+    ({ bars, i } = await withTradingDay(rule, bars, i, barTime, fireTime));
   }
   // Still newer for a live fire: the bar time follows the clock while the data are delayed; the fire's price belongs
   // to the newest bar loaded.
@@ -392,7 +436,7 @@ async function placeholderValues(rule: AlertRule, text: string, price: number, b
   const b = bars[i];
   const bar = { time: b.time, open: b.open, high: Math.max(b.high, price), low: Math.min(b.low, price), close: price, volume: b.volume ?? 0 };
   values.bar = bar;
-  values.barTime = b.time * 1000;
+  values.barTime = barOpenTime(rule, b.time * 1000);
   values.plots = await messagePlots(rule, [...bars.slice(0, i), bar], i, live);
   return values;
 }
