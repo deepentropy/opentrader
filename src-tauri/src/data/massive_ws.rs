@@ -127,6 +127,10 @@ pub struct TradeTick {
     /// "live" (today's session traded) or "prev" — lets the UI blank Ext during
     /// regular hours. `None` on the WS push path.
     pub source: Option<String>,
+    /// Latest trade, pre- and post-market included: its price and the start
+    /// of its minute (UNIX seconds). `None` when the quote has no minute bar.
+    pub trade_price: Option<f64>,
+    pub trade_time: Option<f64>,
 }
 
 /// Sent by `commands/realtime.rs` to update what we're subscribed to.
@@ -737,6 +741,8 @@ fn parse_trade(ev: &serde_json::Value) -> Option<TradeTick> {
         ext_change_percent: None,
         volume: None,
         source: None,
+        trade_price: ev.get("p").and_then(|v| v.as_f64()),
+        trade_time: ev.get("t").and_then(|v| v.as_f64()).map(|ms| (ms / 60_000.0).floor() * 60.0),
     })
 }
 

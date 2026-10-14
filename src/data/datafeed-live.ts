@@ -66,6 +66,10 @@ export type TradeTick = {
   volume: number | null;
   /** "live" (today's session traded) or "prev". Null on the WS path. */
   source: "live" | "prev" | null;
+  /** Latest trade, pre- and post-market included: its price and the start of
+   *  its minute (UNIX seconds). Null / absent when the quote has no minute bar. */
+  tradePrice?: number | null;
+  tradeTime?: number | null;
 };
 
 /** Declare one pane's charted-symbol subscription. Pass `null` to clear that

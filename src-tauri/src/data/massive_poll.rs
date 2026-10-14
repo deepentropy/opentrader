@@ -95,7 +95,7 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
             for symbol in state.symbols_for(&t.ticker) {
                 // The backend's alert rules read every quote, with the
                 // minute bar for what happened since the previous one.
-                crate::alerts::on_quote(app, &symbol, t.last, t.ext_change_percent.is_some(), t.minute.as_ref());
+                crate::alerts::on_quote(app, &symbol, t.last, t.minute.as_ref());
                 let _ = TradeTick {
                     symbol,
                     price: t.last,
@@ -104,6 +104,8 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
                     ext_change_percent: t.ext_change_percent,
                     volume: Some(t.volume),
                     source: Some(t.source.clone()),
+                    trade_price: t.minute.as_ref().map(|m| m.close),
+                    trade_time: t.minute.as_ref().map(|m| m.time),
                 }
                 .emit(app);
             }

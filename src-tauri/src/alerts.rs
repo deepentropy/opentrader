@@ -10,9 +10,11 @@
  * What this adds to the window's evaluation:
  *  - every quote the live task receives is evaluated, whichever windows are
  *    open; one window (the "leader") receives the fires and delivers them;
- *  - the minute bar that comes with a quote gives the high and low reached
- *    since the previous quote, so a level crossed and left again between two
- *    quotes still fires;
+ *  - the minute bar that comes with a quote gives the latest trade and the
+ *    high and low reached since the previous quote, so a level crossed and
+ *    left again between two quotes still fires; a rule on regular hours
+ *    reads the regular-session last, a rule on extended hours the latest
+ *    trade (pre- and post-market included);
  *  - drawing levels are given per bar of the rule's interval and session
  *    (`EngineGrid`), not per calendar time, and the same bars give the
  *    once-per-bar buckets; a quote outside the rule's session is not read
@@ -86,17 +88,15 @@ pub struct EngineRule {
 pub struct EngineGrid {
     pub key: String,
     pub bars: Vec<(f64, f64)>,
-    /// Regular-session intervals (start, end) over the same dates: the
-    /// quotes carry the regular-session price, so a replay reads only the
-    /// bars inside them. Empty = every bar.
+    /// Regular-session intervals (start, end) over the same dates: tell a
+    /// pre- or post-market trade from a regular one. Empty = all regular.
     pub regular: Vec<(f64, f64)>,
     /// Hours (start, end) of the rule's session over the same dates: a quote
     /// outside them is not read. Empty = always.
     #[serde(default)]
     pub session: Vec<(f64, f64)>,
-    /// The session is the extended one: a quote whose latest trade is pre- or
-    /// post-market is read (on regular hours it is not: it carries the
-    /// regular close).
+    /// The session is the extended one: a pre- or post-market trade is read
+    /// (on regular hours it is not: those bars do not move then).
     #[serde(default)]
     pub extended_hours: bool,
 }
@@ -113,6 +113,10 @@ impl EngineGrid {
     fn in_session(&self, s: &Sample) -> bool {
         (self.extended_hours || !s.extended) && (self.session.is_empty() || self.session.iter().any(|iv| s.time >= iv.0 && s.time < iv.1))
     }
+    /// True when a minute bar opening at `t` is one of the rule's bars.
+    fn reads_minute(&self, t: f64) -> bool {
+        self.in_session(&Sample { extended: !self.in_regular(t), ..Sample::point(0.0, t) })
+    }
 }
 
 /// The price at one moment and the range it went through since the previous
@@ -124,7 +128,7 @@ pub struct Sample {
     pub hi: f64,
     /// UNIX seconds.
     pub time: f64,
-    /// The latest trade is pre- or post-market (`price` is the regular close).
+    /// The trade is pre- or post-market.
     pub extended: bool,
 }
 
@@ -316,13 +320,13 @@ impl EngineRule {
 }
 
 /// Run a rule over the minute bars after `from` (UNIX seconds): the state it
-/// ends in and what fired (the latest `REPLAY_MAX_FIRES`). Each bar is read
-/// as its open, then its close with the bar's range.
+/// ends in and what fired (the latest `REPLAY_MAX_FIRES`). Each bar of the
+/// rule's session is read as its open, then its close with the bar's range.
 pub fn replay_rule(rule: &EngineRule, grid: Option<&EngineGrid>, bars: &[Candle], from: f64) -> (RuleState, Vec<Fire>) {
     let mut st = RuleState::default();
     let mut fires = Vec::new();
     for b in bars {
-        if b.time <= from || !grid.map_or(true, |g| g.in_regular(b.time)) {
+        if b.time <= from || !grid.map_or(true, |g| g.reads_minute(b.time)) {
             continue;
         }
         let close = Sample { price: b.close, lo: b.low.min(b.close), hi: b.high.max(b.close), time: b.time, extended: false };
@@ -413,23 +417,23 @@ impl Engine {
         fires
     }
 
-    /// One quote of `symbol`: `price`, whether the latest trade is pre- or
-    /// post-market (`extended`), and the latest minute bar when it can be
-    /// compared with that price (`bar`). Returns what fires.
-    pub fn sample(&mut self, symbol: &str, price: f64, extended: bool, bar: Option<&Candle>, now: f64) -> Vec<Fire> {
-        let (mut lo, mut hi) = (price, price);
+    /// One quote of `symbol`: the regular-session last (`last`) and the
+    /// latest minute bar, whose close is the latest trade (pre- and
+    /// post-market included). Returns what fires.
+    pub fn sample(&mut self, symbol: &str, last: f64, bar: Option<&Candle>, now: f64) -> Vec<Fire> {
+        // What the bar adds since the previous quote: all of a new bar, else
+        // a new high or low. Nothing on the first quote.
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
         let mut time = now;
         match bar {
             Some(b) => {
                 time = b.time.min(now);
-                // What the bar adds since the previous quote: all of a new
-                // bar, else a new high or low. Nothing on the first quote.
                 if let Some(seen) = self.seen.get(symbol) {
                     if b.time > seen.time || b.high > seen.high {
-                        hi = hi.max(b.high);
+                        hi = b.high;
                     }
                     if b.time > seen.time || b.low < seen.low {
-                        lo = lo.min(b.low);
+                        lo = b.low;
                     }
                 }
                 self.seen.insert(symbol.to_string(), SeenBar { time: b.time, high: b.high, low: b.low });
@@ -439,15 +443,29 @@ impl Engine {
             }
         }
         // The time never goes back (a quote without bar is stamped "now").
-        let last = self.last.entry(symbol.to_string()).or_insert(time);
-        time = time.max(*last);
-        *last = time;
-        let s = Sample { price, lo, hi, time, extended };
+        let seen_last = self.last.entry(symbol.to_string()).or_insert(time);
+        time = time.max(*seen_last);
+        *seen_last = time;
+        let with_range = |price: f64| Sample { price, lo: lo.min(price), hi: hi.max(price), time, extended: false };
         let grids = &self.grids;
         self.rules
             .values_mut()
             .filter(|(r, st)| r.symbol == symbol && !st.replaying)
-            .filter_map(|(r, st)| r.step(st, s, grids.get(&r.grid)))
+            .filter_map(|(r, st)| {
+                let grid = grids.get(&r.grid);
+                let s = match bar {
+                    None => Sample::point(last, time),
+                    // A pre- or post-market trade: only extended-hours bars move.
+                    Some(b) if !grid.map_or(true, |g| g.in_regular(b.time)) => Sample { extended: true, ..with_range(b.close) },
+                    // Extended-hours bars follow every trade.
+                    Some(b) if grid.is_some_and(|g| g.extended_hours) => with_range(b.close),
+                    // Regular hours read the regular-session last, with the
+                    // bar's range when the bar holds it.
+                    Some(b) if b.low <= last && last <= b.high => with_range(last),
+                    Some(_) => Sample::point(last, time),
+                };
+                r.step(st, s, grid)
+            })
             .collect()
     }
 }
@@ -546,13 +564,11 @@ impl AlertEngine {
     }
 }
 
-/// One quote from the live task. `extended`: the latest trade is outside the
-/// regular session, so the minute bar does not describe `price` (the
-/// regular-session last).
-pub fn on_quote(app: &AppHandle, symbol: &str, price: f64, extended: bool, minute: Option<&Candle>) {
+/// One quote from the live task: the regular-session last and the latest
+/// minute bar (pre- and post-market included).
+pub fn on_quote(app: &AppHandle, symbol: &str, last: f64, minute: Option<&Candle>) {
     let Some(state) = app.try_state::<AlertEngine>() else { return };
-    let bar = minute.filter(|b| !extended && b.low <= price && price <= b.high);
-    let fires = state.engine.lock().unwrap().sample(symbol, price, extended, bar, now_sec());
+    let fires = state.engine.lock().unwrap().sample(symbol, last, minute, now_sec());
     state.emit(app, fires, false);
     if state.saved.lock().unwrap().elapsed() >= SAVE_EVERY {
         state.save();
@@ -663,63 +679,63 @@ mod tests {
     #[test]
     fn crossing_needs_a_previous_sample_and_fires_once() {
         let mut e = engine(vec![rule("crossing_up", "level", "every_time", &[100.0])]);
-        assert!(e.sample("X:A", 99.0, false, None, 10.0).is_empty());
-        assert_eq!(e.sample("X:A", 101.0, false, None, 15.0).len(), 1);
-        assert!(e.sample("X:A", 102.0, false, None, 20.0).is_empty());
-        assert!(e.sample("X:B", 101.0, false, None, 20.0).is_empty());
+        assert!(e.sample("X:A", 99.0, None, 10.0).is_empty());
+        assert_eq!(e.sample("X:A", 101.0, None, 15.0).len(), 1);
+        assert!(e.sample("X:A", 102.0, None, 20.0).is_empty());
+        assert!(e.sample("X:B", 101.0, None, 20.0).is_empty());
     }
 
     #[test]
     fn a_spike_between_two_quotes_fires_from_the_bar_high() {
         let mut e = engine(vec![rule("crossing_up", "level", "every_time", &[100.0])]);
-        assert!(e.sample("X:A", 99.0, false, Some(&bar(0.0, 99.0, 99.5, 98.5, 99.0)), 10.0).is_empty());
+        assert!(e.sample("X:A", 99.0, Some(&bar(0.0, 99.0, 99.5, 98.5, 99.0)), 10.0).is_empty());
         // Same minute bar, new high above the level, price back under it.
-        let fires = e.sample("X:A", 99.2, false, Some(&bar(0.0, 99.0, 100.4, 98.5, 99.2)), 15.0);
+        let fires = e.sample("X:A", 99.2, Some(&bar(0.0, 99.0, 100.4, 98.5, 99.2)), 15.0);
         assert_eq!(fires.len(), 1);
         assert_eq!(fires[0].price, 100.4);
         // The same high is not read a second time.
-        assert!(e.sample("X:A", 99.3, false, Some(&bar(0.0, 99.0, 100.4, 98.5, 99.3)), 20.0).is_empty());
+        assert!(e.sample("X:A", 99.3, Some(&bar(0.0, 99.0, 100.4, 98.5, 99.3)), 20.0).is_empty());
         // A new bar counts whole (a minute after the fire).
-        assert_eq!(e.sample("X:A", 99.4, false, Some(&bar(60.0, 99.3, 100.1, 99.3, 99.4)), 76.0).len(), 1);
+        assert_eq!(e.sample("X:A", 99.4, Some(&bar(60.0, 99.3, 100.1, 99.3, 99.4)), 76.0).len(), 1);
     }
 
     #[test]
     fn every_time_fires_at_most_once_a_minute() {
         let mut e = engine(vec![rule("greater", "level", "every_time", &[100.0])]);
-        assert_eq!(e.sample("X:A", 101.0, false, None, 10.0).len(), 1);
-        assert!(e.sample("X:A", 102.0, false, None, 40.0).is_empty());
-        assert!(e.sample("X:A", 102.0, false, None, 69.0).is_empty());
-        assert_eq!(e.sample("X:A", 102.0, false, None, 70.0).len(), 1);
+        assert_eq!(e.sample("X:A", 101.0, None, 10.0).len(), 1);
+        assert!(e.sample("X:A", 102.0, None, 40.0).is_empty());
+        assert!(e.sample("X:A", 102.0, None, 69.0).is_empty());
+        assert_eq!(e.sample("X:A", 102.0, None, 70.0).len(), 1);
     }
 
     #[test]
     fn the_first_bar_seen_gives_no_range() {
         let mut e = engine(vec![rule("greater", "level", "every_time", &[100.0])]);
-        assert!(e.sample("X:A", 99.0, false, Some(&bar(0.0, 99.0, 101.0, 98.0, 99.0)), 10.0).is_empty());
+        assert!(e.sample("X:A", 99.0, Some(&bar(0.0, 99.0, 101.0, 98.0, 99.0)), 10.0).is_empty());
     }
 
     #[test]
     fn once_per_bar_and_only_once() {
         let mut e = engine(vec![rule("greater", "level", "once_per_bar", &[100.0])]);
-        assert_eq!(e.sample("X:A", 101.0, false, None, 10.0)[0].bar_time, Some(0.0));
-        assert!(e.sample("X:A", 102.0, false, None, 200.0).is_empty());
-        assert_eq!(e.sample("X:A", 102.0, false, None, 310.0)[0].bar_time, Some(300.0));
+        assert_eq!(e.sample("X:A", 101.0, None, 10.0)[0].bar_time, Some(0.0));
+        assert!(e.sample("X:A", 102.0, None, 200.0).is_empty());
+        assert_eq!(e.sample("X:A", 102.0, None, 310.0)[0].bar_time, Some(300.0));
 
         let mut e = engine(vec![rule("greater", "level", "only_once", &[100.0])]);
-        assert_eq!(e.sample("X:A", 101.0, false, None, 10.0).len(), 1);
-        assert!(e.sample("X:A", 102.0, false, None, 400.0).is_empty());
+        assert_eq!(e.sample("X:A", 101.0, None, 10.0).len(), 1);
+        assert!(e.sample("X:A", 102.0, None, 400.0).is_empty());
     }
 
     #[test]
     fn once_per_bar_close_compares_the_closes() {
         let mut e = engine(vec![rule("crossing_up", "level", "once_per_bar_close", &[100.0])]);
-        assert!(e.sample("X:A", 99.0, false, None, 10.0).is_empty());
+        assert!(e.sample("X:A", 99.0, None, 10.0).is_empty());
         // Above the level inside the bar, back under it at the close.
-        assert!(e.sample("X:A", 101.0, false, None, 100.0).is_empty());
-        assert!(e.sample("X:A", 99.5, false, None, 290.0).is_empty());
+        assert!(e.sample("X:A", 101.0, None, 100.0).is_empty());
+        assert!(e.sample("X:A", 99.5, None, 290.0).is_empty());
         // Bar 0 closed at 99.5 (first close: no fire). Bar 300 closes above.
-        assert!(e.sample("X:A", 100.5, false, None, 310.0).is_empty());
-        let fires = e.sample("X:A", 100.6, false, None, 610.0);
+        assert!(e.sample("X:A", 100.5, None, 310.0).is_empty());
+        let fires = e.sample("X:A", 100.6, None, 610.0);
         assert_eq!(fires.len(), 1);
         assert_eq!((fires[0].price, fires[0].bar_time), (100.5, Some(300.0)));
     }
@@ -727,31 +743,31 @@ mod tests {
     #[test]
     fn band_conditions() {
         let mut e = engine(vec![rule("entering", "band", "every_time", &[110.0, 100.0])]);
-        assert!(e.sample("X:A", 95.0, false, None, 10.0).is_empty());
-        assert_eq!(e.sample("X:A", 105.0, false, None, 15.0).len(), 1);
-        assert!(e.sample("X:A", 106.0, false, None, 20.0).is_empty());
+        assert!(e.sample("X:A", 95.0, None, 10.0).is_empty());
+        assert_eq!(e.sample("X:A", 105.0, None, 15.0).len(), 1);
+        assert!(e.sample("X:A", 106.0, None, 20.0).is_empty());
 
         let mut e = engine(vec![rule("exiting", "band", "every_time", &[100.0, 110.0])]);
-        assert!(e.sample("X:A", 105.0, false, None, 10.0).is_empty());
-        assert_eq!(e.sample("X:A", 111.0, false, None, 15.0).len(), 1);
+        assert!(e.sample("X:A", 105.0, None, 10.0).is_empty());
+        assert_eq!(e.sample("X:A", 111.0, None, 15.0).len(), 1);
 
         // A rectangle outside its dates: the price is outside it.
         let mut r = rule("outside", "band", "every_time", &[]);
         r.absent_is_outside = true;
-        assert_eq!(engine(vec![r]).sample("X:A", 105.0, false, None, 10.0).len(), 1);
-        assert!(engine(vec![rule("outside", "band", "every_time", &[])]).sample("X:A", 105.0, false, None, 10.0).is_empty());
+        assert_eq!(engine(vec![r]).sample("X:A", 105.0, None, 10.0).len(), 1);
+        assert!(engine(vec![rule("outside", "band", "every_time", &[])]).sample("X:A", 105.0, None, 10.0).is_empty());
     }
 
     #[test]
     fn position_and_time() {
         let mut e = engine(vec![rule("hits_level", "position", "every_time", &[100.0, 95.0, 110.0])]);
-        assert!(e.sample("X:A", 101.0, false, None, 10.0).is_empty());
-        assert!(e.sample("X:A", 102.0, false, None, 15.0).is_empty());
-        assert_eq!(e.sample("X:A", 99.0, false, None, 20.0)[0].price, 100.0);
+        assert!(e.sample("X:A", 101.0, None, 10.0).is_empty());
+        assert!(e.sample("X:A", 102.0, None, 15.0).is_empty());
+        assert_eq!(e.sample("X:A", 99.0, None, 20.0)[0].price, 100.0);
 
         let mut e = engine(vec![rule("crossing", "time", "only_once", &[100.0])]);
-        assert!(e.sample("X:A", 5.0, false, None, 90.0).is_empty());
-        assert_eq!(e.sample("X:A", 5.0, false, None, 100.0).len(), 1);
+        assert!(e.sample("X:A", 5.0, None, 90.0).is_empty());
+        assert_eq!(e.sample("X:A", 5.0, None, 100.0).len(), 1);
     }
 
     #[test]
@@ -759,11 +775,11 @@ mod tests {
         let mut r = rule("greater", "level", "every_time", &[]);
         r.per_bar = Some(vec![vec![100.0], vec![101.0], vec![], vec![103.0], vec![104.0]]);
         let mut e = engine(vec![r]);
-        assert_eq!(e.sample("X:A", 100.5, false, None, 10.0).len(), 1);
-        assert!(e.sample("X:A", 100.5, false, None, 310.0).is_empty());
+        assert_eq!(e.sample("X:A", 100.5, None, 10.0).len(), 1);
+        assert!(e.sample("X:A", 100.5, None, 310.0).is_empty());
         // No value on the third bar, none after the last one.
-        assert!(e.sample("X:A", 500.0, false, None, 610.0).is_empty());
-        assert!(e.sample("X:A", 500.0, false, None, 1600.0).is_empty());
+        assert!(e.sample("X:A", 500.0, None, 610.0).is_empty());
+        assert!(e.sample("X:A", 500.0, None, 1600.0).is_empty());
     }
 
     #[test]
@@ -771,26 +787,26 @@ mod tests {
         let mut r = rule("greater", "level", "every_time", &[100.0]);
         r.expires_at = Some(50_000.0);
         let mut e = engine(vec![r]);
-        assert_eq!(e.sample("X:A", 101.0, false, None, 10.0).len(), 1);
-        assert!(e.sample("X:A", 101.0, false, None, 60.0).is_empty());
+        assert_eq!(e.sample("X:A", 101.0, None, 10.0).len(), 1);
+        assert!(e.sample("X:A", 101.0, None, 60.0).is_empty());
 
         let mut e = engine(vec![rule("greater", "level", "once_per_bar", &[100.0])]);
-        assert_eq!(e.sample("X:A", 101.0, false, None, 310.0).len(), 1);
+        assert_eq!(e.sample("X:A", 101.0, None, 310.0).len(), 1);
         // A quote with an older bar stays in the bar already reached.
-        assert!(e.sample("X:A", 101.0, false, Some(&bar(60.0, 101.0, 101.0, 101.0, 101.0)), 320.0).is_empty());
+        assert!(e.sample("X:A", 101.0, Some(&bar(60.0, 101.0, 101.0, 101.0, 101.0)), 320.0).is_empty());
     }
 
     #[test]
     fn memory_is_kept_while_the_rule_is_unchanged() {
         let mut e = engine(vec![rule("crossing_up", "level", "every_time", &[100.0])]);
-        e.sample("X:A", 99.0, false, None, 10.0);
+        e.sample("X:A", 99.0, None, 10.0);
         e.set(vec![rule("crossing_up", "level", "every_time", &[100.0])], vec![grid()], 12.0);
-        assert_eq!(e.sample("X:A", 101.0, false, None, 15.0).len(), 1);
+        assert_eq!(e.sample("X:A", 101.0, None, 15.0).len(), 1);
         // A changed rule starts again from its first sample.
         let mut changed = rule("crossing_down", "level", "every_time", &[100.0]);
         changed.sig = "2".into();
         e.set(vec![changed], vec![grid()], 16.0);
-        assert!(e.sample("X:A", 99.0, false, None, 20.0).is_empty());
+        assert!(e.sample("X:A", 99.0, None, 20.0).is_empty());
     }
 
     #[test]
@@ -810,30 +826,58 @@ mod tests {
 
     #[test]
     fn quotes_outside_the_session_are_not_read() {
-        // Regular hours from 0 to 600 s: two bars of 300 s, the next session at 1200 s.
-        let rth = || EngineGrid { key: "g".into(), bars: vec![(0.0, 300.0), (300.0, 600.0), (1200.0, 1500.0), (1500.0, 1800.0)], session: vec![(0.0, 600.0), (1200.0, 1800.0)], ..EngineGrid::default() };
+        // Regular hours from 0 to 600 s and from 1200 s (two bars of 300 s
+        // each); extended hours from -300 to 900 s and from 900 s.
+        let rth = || EngineGrid {
+            key: "g".into(),
+            bars: vec![(0.0, 300.0), (300.0, 600.0), (1200.0, 1500.0), (1500.0, 1800.0)],
+            regular: vec![(0.0, 600.0), (1200.0, 1800.0)],
+            session: vec![(0.0, 600.0), (1200.0, 1800.0)],
+            ..EngineGrid::default()
+        };
+        let eth = || EngineGrid {
+            bars: vec![(-300.0, 0.0), (0.0, 300.0), (300.0, 600.0), (600.0, 900.0), (900.0, 1200.0), (1200.0, 1500.0)],
+            session: vec![(-300.0, 900.0), (900.0, 2100.0)],
+            extended_hours: true,
+            ..rth()
+        };
+        let pre = bar(-120.0, 101.0, 101.0, 101.0, 101.0);
         let mut e = Engine::default();
         e.set(vec![rule("greater", "level", "once_per_bar", &[100.0])], vec![rth()], 0.0);
-        // A pre- / post-market quote, then a quote after the close: nothing.
-        assert!(e.sample("X:A", 101.0, true, None, 10.0).is_empty());
-        assert!(e.sample("X:A", 101.0, false, None, 700.0).is_empty());
+        // A pre-market trade, then a quote without trade after the close: nothing.
+        assert!(e.sample("X:A", 99.0, Some(&pre), -100.0).is_empty());
+        assert!(e.sample("X:A", 101.0, None, 700.0).is_empty());
         // Inside: the bar of the session's own grid.
-        assert_eq!(e.sample("X:A", 101.0, false, None, 1210.0)[0].bar_time, Some(1200.0));
-        // On extended hours a pre- / post-market quote is read.
+        assert_eq!(e.sample("X:A", 101.0, None, 1210.0)[0].bar_time, Some(1200.0));
+        // On regular hours the regular-session last is read, not the trade.
         let mut e = Engine::default();
-        e.set(vec![rule("greater", "level", "once_per_bar", &[100.0])], vec![EngineGrid { extended_hours: true, ..rth() }], 0.0);
-        assert_eq!(e.sample("X:A", 101.0, true, None, 10.0).len(), 1);
+        e.set(vec![rule("greater", "level", "once_per_bar", &[100.0])], vec![rth()], 0.0);
+        assert!(e.sample("X:A", 99.0, Some(&bar(60.0, 101.0, 101.0, 101.0, 101.0)), 70.0).is_empty());
+        // On extended hours a pre-market trade is read, at its price.
+        let mut e = Engine::default();
+        e.set(vec![rule("greater", "level", "once_per_bar", &[100.0])], vec![eth()], 0.0);
+        let fires = e.sample("X:A", 99.0, Some(&pre), -100.0);
+        assert_eq!((fires.len(), fires[0].bar_time, fires[0].price), (1, Some(-300.0), 101.0));
+        // ... and a post-market one in its own bar.
+        assert_eq!(e.sample("X:A", 99.0, Some(&bar(660.0, 101.0, 101.0, 101.0, 101.0)), 700.0)[0].bar_time, Some(600.0));
 
         // Once per bar close: the session's last bar closes on the first quote
         // after it, which is not read itself.
         let mut e = Engine::default();
         e.set(vec![rule("greater", "level", "once_per_bar_close", &[100.0])], vec![rth()], 0.0);
-        assert!(e.sample("X:A", 101.0, false, None, 400.0).is_empty());
-        let fires = e.sample("X:A", 99.0, false, None, 700.0);
+        assert!(e.sample("X:A", 101.0, None, 400.0).is_empty());
+        let fires = e.sample("X:A", 99.0, None, 700.0);
         assert_eq!((fires.len(), fires[0].bar_time, fires[0].price), (1, Some(300.0), 101.0));
-        assert!(e.sample("X:A", 101.0, false, None, 1210.0).is_empty());
-        assert!(e.sample("X:A", 101.0, false, None, 1220.0).is_empty());
-        assert_eq!(e.sample("X:A", 101.0, false, None, 1510.0)[0].bar_time, Some(1200.0));
+        assert!(e.sample("X:A", 101.0, None, 1210.0).is_empty());
+        assert!(e.sample("X:A", 101.0, None, 1220.0).is_empty());
+        assert_eq!(e.sample("X:A", 101.0, None, 1510.0)[0].bar_time, Some(1200.0));
+
+        // The replay reads the minutes of the rule's session.
+        let minutes = [bar(-120.0, 101.0, 101.0, 101.0, 101.0), bar(660.0, 101.0, 101.0, 101.0, 101.0)];
+        let r = rule("greater", "level", "once_per_bar", &[100.0]);
+        assert!(replay_rule(&r, Some(&rth()), &minutes, -1000.0).1.is_empty());
+        let fires: Vec<_> = replay_rule(&r, Some(&eth()), &minutes, -1000.0).1.iter().map(|f| f.bar_time).collect();
+        assert_eq!(fires, vec![Some(-300.0), Some(600.0)]);
     }
 
     #[test]
@@ -846,11 +890,11 @@ mod tests {
         let jobs = e.set(vec![rule("greater", "level", "every_time", &[100.0])], vec![grid()], now);
         assert_eq!((jobs.len(), jobs[0].from), (1, now - 3600.0));
         // Quotes wait for the replay, which leaves the rule ready.
-        assert!(e.sample("X:A", 101.0, false, None, now).is_empty());
+        assert!(e.sample("X:A", 101.0, None, now).is_empty());
         // Its open and its close are in the same minute: one fire (every time = once a minute).
         let fires = e.finish_replay(&jobs[0], Some(&[bar(now - 600.0, 101.0, 101.0, 101.0, 101.0)]));
         assert_eq!(fires.len(), 1);
-        assert_eq!(e.sample("X:A", 101.0, false, None, now + 5.0).len(), 1);
+        assert_eq!(e.sample("X:A", 101.0, None, now + 5.0).len(), 1);
         // The same rules again: nothing to replay.
         assert!(e.set(vec![rule("greater", "level", "every_time", &[100.0])], vec![grid()], now).is_empty());
 
