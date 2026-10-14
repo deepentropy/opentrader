@@ -1,0 +1,43 @@
+builtin/bar-up-dn on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=352 filledOrders=356 marginCalls=0 finalEquity=96784.46193 minEquity=91429.99554
+orders by kind: entry/MARKET=352 exit/MARKET=4
+openPL=218.53 maxDD=12050.54032 (0.1109684094) maxRunUp=17764.51478 (0.1626554141) buyHold=90096.3 (0.900963)
+all: netProfit=-3434.06807 grossProfit=64257.05074 grossLoss=67691.11881 commissionPaid=6838.36807 profitFactor=0.949268558 totalTrades=351 totalOpenTrades=1 numberOfWiningTrades=129 numberOfLosingTrades=222 percentProfitable=0.3675213675 avgTrade=-9.783669715 avgWinTrade=498.1166724 avgLosTrade=304.9149496 largestWinTrade=5498.24785 largestLosTrade=3124.77862 avgBarsInTrade=5.236467236 maxContractsHeld=142
+long: netProfit=3876.50856 grossProfit=36718.8436 grossLoss=32842.33504 commissionPaid=3439.44144 profitFactor=1.11803389 totalTrades=176 totalOpenTrades=1 numberOfWiningTrades=68 numberOfLosingTrades=108 percentProfitable=0.3863636364 avgTrade=22.02561682 avgWinTrade=539.9829941 avgLosTrade=304.0956948 largestWinTrade=5498.24785 largestLosTrade=1896.90732 avgBarsInTrade=5.153409091 maxContractsHeld=142
+short: netProfit=-7310.57663 grossProfit=27538.20714 grossLoss=34848.78377 commissionPaid=3398.92663 profitFactor=0.7902200353 totalTrades=175 totalOpenTrades=0 numberOfWiningTrades=61 numberOfLosingTrades=114 percentProfitable=0.3485714286 avgTrade=-41.7747236 avgWinTrade=451.4460187 avgLosTrade=305.6910857 largestWinTrade=2352.38016 largestLosTrade=3124.77862 avgBarsInTrade=5.32 maxContractsHeld=140
+trades:
+  #1 S "BarDn" in "BarDn"@2 146.74 out "BarUp"@4 147.91 q=69 pnl=-101.06085 (-0.009971288082) cm=20.33085 ru=96.82494 dd=90.85506 cum=-101.06085 eq%=-0.0010106085
+  #2 L "BarUp" in "BarUp"@4 147.91 out "BarDn"@6 147.78 q=67 pnl=-28.52123 (-0.002875158781) cm=19.81123 ru=52.40003 dd=66.18997 cum=-129.58208 eq%=-0.0002855008296
+  #3 S "BarDn" in "BarDn"@6 147.78 out "BarUp"@8 148.21 q=67 pnl=-48.64133 (-0.004907732679) cm=19.83133 ru=128.11874 dd=68.19126 cum=-178.22341 eq%=-0.0004870444223
+  #4 L "BarUp" in "BarUp"@8 148.21 out "BarDn"@12 146.56 q=67 pnl=-130.29959 (-0.01310861057) cm=19.74959 ru=63.09993 dd=189.49007 cum=-308.523 eq%=-0.00130532229
+  #5 S "BarDn" in "BarDn"@12 146.56 out "BarUp"@13 148.22 q=68 pnl=-132.92504 (-0.01332442121) cm=20.04504 ru=10.43392 dd=122.84608 cum=-441.44804 eq%=-0.001333364135
+  #6 L "BarUp" in "BarUp"@13 148.22 out "BarDn"@15 146.85 q=67 pnl=-111.55969 (-0.01122255157) cm=19.76969 ru=0 dd=101.72074 cum=-553.00773 eq%=-0.001120543517
+  #7 S "BarDn" in "BarDn"@15 146.85 out "BarUp"@20 147.14 q=67 pnl=-39.12733 (-0.00397280622) cm=19.69733 ru=37.73105 dd=94.92895 cum=-592.13506 eq%=-0.000393449104
+  #8 L "BarUp" in "BarUp"@20 147.14 out "BarDn"@37 143.43 q=67 pnl=-268.03819 (-0.02716170604) cm=19.46819 ru=507.38162 dd=410.51838 cum=-860.17325 eq%=-0.002696347921
+  #9 S "BarDn" in "BarDn"@37 143.43 out "BarUp"@43 142.09 q=68 pnl=71.70464 (0.007344534431) cm=19.41536 ru=226.88676 dd=27.43324 cum=-788.46861 eq%=0.0007232677558
+  #10 L "BarUp" in "BarUp"@43 142.09 out "BarDn"@44 140.04 q=69 pnl=-160.91697 (-0.01639665142) cm=19.46697 ru=63.33579 dd=151.25421 cum=-949.38558 eq%=-0.001621958332
+  #11 S "BarDn" in "BarDn"@44 140.04 out "BarUp"@48 144.49 q=70 pnl=-331.4171 (-0.03377463725) cm=19.9171 ru=193.8972 dd=321.3028 cum=-1280.80268 eq%=-0.003345936842
+  #12 L "BarUp" in "BarUp"@48 144.49 out "BarDn"@50 146.49 q=70 pnl=119.6314 (0.01181613044) cm=20.3686 ru=239.0857 dd=70.3143 cum=-1161.17128 eq%=0.001211835218
+  ... 340 more
+  digest 1-100: 1f1bcec92ccb61
+  digest 101-200: 1b866f73839179
+  digest 201-300: 1f14a0433d17d6
+  digest 301-352: 1729900f2fa838
+orders:
+  2 sell entry MARKET "BarDn" 146.74 x69
+  4 buy entry MARKET "BarUp" 147.91 x136
+  6 sell entry MARKET "BarDn" 147.78 x134
+  8 buy entry MARKET "BarUp" 148.21 x134
+  12 sell entry MARKET "BarDn" 146.56 x135
+  13 buy entry MARKET "BarUp" 148.22 x135
+  15 sell entry MARKET "BarDn" 146.85 x134
+  20 buy entry MARKET "BarUp" 147.14 x134
+  37 sell entry MARKET "BarDn" 143.43 x135
+  43 buy entry MARKET "BarUp" 142.09 x137
+  44 sell entry MARKET "BarDn" 140.04 x139
+  48 buy entry MARKET "BarUp" 144.49 x140
+  ... 344 more
+  digest 1-100: 1ea404d60266cd
+  digest 101-200: 16b7b5ef51286c
+  digest 201-300: 0243a9449e051a
+  digest 301-356: 0bf6f8ca59e2cb

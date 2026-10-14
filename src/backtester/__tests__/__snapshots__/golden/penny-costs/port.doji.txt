@@ -1,0 +1,23 @@
+port/doji on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=4 filledOrders=8 marginCalls=0 finalEquity=9992 minEquity=9992
+orders by kind: entry/MARKET=4 exit/STOP=4
+openPL=0 maxDD=80.2895 (0.00802895) maxRunUp=0 (0) buyHold=10582.0377 (1.05820377)
+all: netProfit=-8 grossProfit=0 grossLoss=8 commissionPaid=8 profitFactor=0 totalTrades=4 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=4 percentProfitable=0 avgTrade=-2 avgWinTrade=- avgLosTrade=2 largestWinTrade=- largestLosTrade=2 avgBarsInTrade=1 maxContractsHeld=49771
+long: netProfit=-8 grossProfit=0 grossLoss=8 commissionPaid=8 profitFactor=0 totalTrades=4 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=4 percentProfitable=0 avgTrade=-2 avgWinTrade=- avgLosTrade=2 largestWinTrade=- largestLosTrade=2 avgBarsInTrade=1 maxContractsHeld=49771
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@792 0.201 out "Trail Profit"@792 0.201 q=49771 pnl=-2 (-0.0001999006294) cm=2 ru=3.9771 dd=5.9771 cum=-2 eq%=-0.0002
+  #2 L "Long" in "Long"@793 0.202 out "Trail Profit"@793 0.202 q=49711 pnl=-2 (-0.0001991511778) cm=2 ru=3.9711 dd=10.9422 cum=-4 eq%=-0.000200040008
+  #3 L "Long" in "Long"@822 0.2293 out "Trail Profit"@822 0.2293 q=43818 pnl=-2 (-0.0001990353275) cm=2 ru=3.3818 dd=5.3818 cum=-6 eq%=-0.000200080032
+  #4 L "Long" in "Long"@860 0.3224 out "Trail Profit"@860 0.3224 q=31865 pnl=-2 (-0.0001946609182) cm=2 ru=2.1865 dd=74.2895 cum=-8 eq%=-0.000200120072
+  digest 1-4: 07584ebd0cc3c1
+orders:
+  792 buy entry MARKET "Long" 0.201 x49771
+  792 sell exit STOP "Stop Exit" 0.201 x49771
+  793 buy entry MARKET "Long" 0.202 x49711
+  793 sell exit STOP "Stop Exit" 0.202 x49711
+  822 buy entry MARKET "Long" 0.2293 x43818
+  822 sell exit STOP "Stop Exit" 0.2293 x43818
+  860 buy entry MARKET "Long" 0.3224 x31865
+  860 sell exit STOP "Stop Exit" 0.3224 x31865
+  digest 1-8: 10d1e14e54bba5

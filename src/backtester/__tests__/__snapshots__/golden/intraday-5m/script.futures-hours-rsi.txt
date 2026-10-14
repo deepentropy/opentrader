@@ -1,0 +1,39 @@
+script/futures-hours-rsi on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=138 filledOrders=181 marginCalls=90 finalEquity=71257.83 minEquity=70539.14
+orders by kind: entry/MARKET=48 exit/MARKET=43 order/MARKET=90
+openPL=0 maxDD=29480.42 (0.2948042) maxRunUp=5011.6 (0.05186627947) buyHold=-6678.15 (-0.0667815)
+all: netProfit=-28742.17 grossProfit=15556.96 grossLoss=44299.13 commissionPaid=0 profitFactor=0.3511798087 totalTrades=138 totalOpenTrades=0 numberOfWiningTrades=16 numberOfLosingTrades=122 percentProfitable=0.115942029 avgTrade=-208.2765942 avgWinTrade=972.31 avgLosTrade=363.107623 largestWinTrade=2347.65 largestLosTrade=4332.96 avgBarsInTrade=27.65942029 maxContractsHeld=213
+long: netProfit=-14287.91 grossProfit=8244.05 grossLoss=22531.96 commissionPaid=0 profitFactor=0.3658825064 totalTrades=22 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=15 percentProfitable=0.3181818182 avgTrade=-649.4504545 avgWinTrade=1177.721429 avgLosTrade=1502.130667 largestWinTrade=2347.65 largestLosTrade=2719.08 avgBarsInTrade=43.27272727 maxContractsHeld=213
+short: netProfit=-14454.26 grossProfit=7312.91 grossLoss=21767.17 commissionPaid=0 profitFactor=0.3359605314 totalTrades=116 totalOpenTrades=0 numberOfWiningTrades=9 numberOfLosingTrades=107 percentProfitable=0.0775862069 avgTrade=-124.6056897 avgWinTrade=812.5455556 avgLosTrade=203.4314953 largestWinTrade=2130.12 largestLosTrade=4332.96 avgBarsInTrade=24.69827586 maxContractsHeld=213
+trades:
+  #1 L "RsiLE" in "RsiLE"@22 473.42 out "Close All by 15:00 CT"@67 467.37 q=211 pnl=-1276.55 (-0.01277935026) cm=0 ru=151.92 dd=1531.86 cum=-1276.55 eq%=-0.0127655
+  #2 L "RsiLE" in "RsiLE"@79 462.14 out "RsiSE"@133 458.67 q=213 pnl=-739.11 (-0.007508547193) cm=0 ru=97.98 dd=2926.62 cum=-2015.66 eq%=-0.0074866711
+  #3 S "RsiSE" in "RsiSE"@133 458.67 out "Margin call"@133 460.55 q=4 pnl=-7.52 (-0.004098807421) cm=0 ru=1.6 dd=7.52 cum=-2023.18 eq%=-0.00007674695773
+  #4 S "RsiSE" in "RsiSE"@133 458.67 out "Margin call"@141 464.56 q=1 pnl=-5.89 (-0.01284147644) cm=0 ru=0.4 dd=5.89 cum=-2029.07 eq%=-0.00006011626015
+  #5 S "RsiSE" in "RsiSE"@133 458.67 out "Close All by 15:00 CT"@145 463.66 q=208 pnl=-1037.92 (-0.0108792814) cm=0 ru=83.2 dd=1245.92 cum=-3066.99 eq%=-0.01059416298
+  #6 S "RsiSE" in "RsiSE"@197 466.99 out "Margin call"@198 468.53 q=1 pnl=-1.54 (-0.003297715155) cm=0 ru=0.5 dd=1.54 cum=-3068.53 eq%=-0.0000158872607
+  #7 S "RsiSE" in "RsiSE"@197 466.99 out "Margin call"@220 469.14 q=1 pnl=-2.15 (-0.004603952975) cm=0 ru=1.87 dd=2.15 cum=-3070.68 eq%=-0.00002218061895
+  #8 S "RsiSE" in "RsiSE"@197 466.99 out "Close All by 15:00 CT"@223 468.97 q=205 pnl=-405.9 (-0.004239919484) cm=0 ru=383.35 dd=543.25 cum=-3476.58 eq%=-0.004187587409
+  #9 S "RsiSE" in "RsiSE"@237 471.58 out "Margin call"@258 472.65 q=1 pnl=-1.07 (-0.00226896815) cm=0 ru=1.97 dd=1.07 cum=-3477.65 eq%=-0.00001108539254
+  #10 S "RsiSE" in "RsiSE"@237 471.58 out "Margin call"@275 473.6 q=1 pnl=-2.02 (-0.004283472582) cm=0 ru=1.97 dd=2.02 cum=-3479.67 eq%=-0.00002092779548
+  #11 S "RsiSE" in "RsiSE"@237 471.58 out "Margin call"@279 475.03 q=1 pnl=-3.45 (-0.007315831884) cm=0 ru=1.97 dd=3.45 cum=-3483.12 eq%=-0.00003574376507
+  #12 S "RsiSE" in "RsiSE"@237 471.58 out "Close All by 15:00 CT"@301 474.98 q=201 pnl=-683.4 (-0.007209805335) cm=0 ru=395.97 dd=713.55 cum=-4166.52 eq%=-0.007080626726
+  ... 126 more
+  digest 1-100: 04ba0671039b43
+  digest 101-138: 0cdb0f655d2729
+orders:
+  22 buy entry MARKET "RsiLE" 473.42 x211
+  67 sell exit MARKET "Close position order" 467.37 x211
+  79 buy entry MARKET "RsiLE" 462.14 x213
+  133 sell entry MARKET "RsiSE" 458.67 x426
+  133 buy order MARKET "Margin call 0" 460.55 x4
+  141 buy order MARKET "Margin call 1" 464.56 x1
+  145 buy exit MARKET "Close position order" 463.66 x208
+  197 sell entry MARKET "RsiSE" 466.99 x207
+  198 buy order MARKET "Margin call 2" 468.53 x1
+  220 buy order MARKET "Margin call 3" 469.14 x1
+  223 buy exit MARKET "Close position order" 468.97 x205
+  237 sell entry MARKET "RsiSE" 471.58 x204
+  ... 169 more
+  digest 1-100: 07d35ebce27893
+  digest 101-181: 04c1e8e421a05b

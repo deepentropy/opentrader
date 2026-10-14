@@ -1,0 +1,20 @@
+script/rsi-volume-macd-ema on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=3 filledOrders=6 marginCalls=0 finalEquity=178675.3688 minEquity=94632.5633
+orders by kind: entry/MARKET=3 exit/MARKET=3
+openPL=0 maxDD=38824.7688 (0.1838509689) maxRunUp=168309.2376 (0.6385163606) buyHold=472198.875 (4.72198875)
+all: netProfit=78675.3688 grossProfit=115889.2132 grossLoss=37213.8444 commissionPaid=6 profitFactor=3.114142467 totalTrades=3 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=2 percentProfitable=0.3333333333 avgTrade=26225.12293 avgWinTrade=115889.2132 avgLosTrade=18606.9222 largestWinTrade=115889.2132 largestLosTrade=32499.8512 avgBarsInTrade=39.33333333 maxContractsHeld=1308887
+long: netProfit=78675.3688 grossProfit=115889.2132 grossLoss=37213.8444 commissionPaid=6 profitFactor=3.114142467 totalTrades=3 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=2 percentProfitable=0.3333333333 avgTrade=26225.12293 avgWinTrade=115889.2132 avgLosTrade=18606.9222 largestWinTrade=115889.2132 largestLosTrade=32499.8512 avgBarsInTrade=39.33333333 maxContractsHeld=1308887
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "long" in "long"@655 0.0723 out "long exit"@656 0.0687 q=1308887 pnl=-4713.9932 (-0.04981313912) cm=2 ru=522.5548 dd=5498.3254 cum=-4713.9932 eq%=-0.047139932
+  #2 L "long" in "long"@754 0.1247 out "long exit"@853 0.2788 q=752052 pnl=115889.2132 (1.235731335) cm=2 ru=168308.2376 dd=1279.4884 cum=111175.22 eq%=1.216224891
+  #3 L "long" in "long"@861 0.3283 out "long exit"@876 0.2759 q=620188 pnl=-32499.8512 (-0.1596191516) cm=2 ru=34047.3212 dd=38824.7688 cum=78675.3688 eq%=-0.1538999282
+  digest 1-3: 07f17481c24a20
+orders:
+  655 buy entry MARKET "long" 0.0723 x1308887
+  656 sell exit MARKET "Close entry(s) order long" 0.0687 x1308887
+  754 buy entry MARKET "long" 0.1247 x752052
+  853 sell exit MARKET "Close entry(s) order long" 0.2788 x752052
+  861 buy entry MARKET "long" 0.3283 x620188
+  876 sell exit MARKET "Close entry(s) order long" 0.2759 x620188
+  digest 1-6: 09377e9f08b7fe

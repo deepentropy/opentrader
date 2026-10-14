@@ -1,0 +1,39 @@
+builtin/macd on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=139 filledOrders=139 marginCalls=84 finalEquity=250462.1496 minEquity=81007.84081
+orders by kind: entry/MARKET=55 order/MARKET=84
+openPL=60437.28 maxDD=165951.1818 (0.6040779291) maxRunUp=202253.5506 (0.7114893313) buyHold=88937.49 (0.8893749)
+all: netProfit=90024.86962 grossProfit=437603.6044 grossLoss=347578.7347 commissionPaid=18729.31038 profitFactor=1.259005689 totalTrades=138 totalOpenTrades=1 numberOfWiningTrades=25 numberOfLosingTrades=113 percentProfitable=0.1811594203 avgTrade=652.3541277 avgWinTrade=17504.14417 avgLosTrade=3075.918007 largestWinTrade=119734.3686 largestLosTrade=49395.26988 avgBarsInTrade=14.97826087 maxContractsHeld=2672
+long: netProfit=71550.17364 grossProfit=261460.0782 grossLoss=189909.9046 commissionPaid=9413.84636 profitFactor=1.376758515 totalTrades=39 totalOpenTrades=1 numberOfWiningTrades=12 numberOfLosingTrades=27 percentProfitable=0.3076923077 avgTrade=1834.619837 avgWinTrade=21788.33985 avgLosTrade=7033.700169 largestWinTrade=119734.3686 largestLosTrade=49395.26988 avgBarsInTrade=21.43589744 maxContractsHeld=2672
+short: netProfit=18474.69598 grossProfit=176143.5262 grossLoss=157668.8302 commissionPaid=9315.46402 profitFactor=1.117174054 totalTrades=99 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=86 percentProfitable=0.1313131313 avgTrade=186.6130907 avgWinTrade=13549.50201 avgLosTrade=1833.358491 largestWinTrade=54528.35697 largestLosTrade=27228.88575 avgBarsInTrade=12.43434343 maxContractsHeld=2665
+trades:
+  #1 L "MacdLE" in "MacdLE"@49 147.67 out "MacdSE"@56 135.94 q=676 pnl=-8121.20036 (-0.08127316579) cm=191.72036 ru=278.73508 dd=8029.30492 cum=-8121.20036 eq%=-0.0812120036
+  #2 S "MacdSE" in "MacdSE"@56 135.94 out "Margin call"@56 138.22 q=84 pnl=-214.54944 (-0.01877010734) cm=23.02944 ru=16.30104 dd=202.93896 cum=-8416.09034 eq%=-0.0023371791
+  #3 S "MacdSE" in "MacdSE"@56 135.94 out "MacdLE"@66 141.59 q=591 pnl=-3503.17023 (-0.04356045602) cm=164.02023 ru=114.68946 dd=3514.05054 cum=-11838.92003 eq%=-0.03821740998
+  #4 L "MacdLE" in "MacdLE"@66 141.59 out "MacdSE"@92 142.83 q=621 pnl=593.41518 (0.006742180766) cm=176.62482 ru=3867.84261 dd=2714.75739 cum=-11245.50485 eq%=0.00673103347
+  #5 S "MacdSE" in "MacdSE"@92 142.83 out "Margin call"@92 142.87 q=1 pnl=-0.3257 (-0.002278055208) cm=0.2857 ru=0 dd=0.18283 cum=-11334.38515 eq%=-0.000003673338353
+  #6 S "MacdSE" in "MacdSE"@92 142.83 out "Margin call"@92 143.2 q=8 pnl=-5.24824 (-0.004588494192) cm=2.28824 ru=0 dd=4.10264 cum=-11338.49075 eq%=-0.00005919061606
+  #7 S "MacdSE" in "MacdSE"@92 142.83 out "MacdLE"@107 141.82 q=612 pnl=443.9142 (0.005073341557) cm=174.2058 ru=3547.86804 dd=313.85196 cum=-10807.16459 eq%=0.005001910941
+  #8 L "MacdLE" in "MacdLE"@107 141.82 out "MacdSE"@113 139.36 q=628 pnl=-1721.46104 (-0.01930927625) cm=176.58104 ru=306.57704 dd=2029.58296 cum=-12528.62563 eq%=-0.0193004408
+  #9 S "MacdSE" in "MacdSE"@113 139.36 out "Margin call"@113 139.4 q=1 pnl=-0.31876 (-0.002285028404) cm=0.27876 ru=0 dd=0.17936 cum=-12616.18375 eq%=-0.000003647801743
+  #10 S "MacdSE" in "MacdSE"@113 139.36 out "Margin call"@113 143.11 q=124 pnl=-500.02628 (-0.0289067276) cm=35.02628 ru=94.31936 dd=482.28064 cum=-13098.92939 eq%=-0.005721052685
+  #11 S "MacdSE" in "MacdSE"@113 139.36 out "MacdLE"@114 142.37 q=502 pnl=-1652.44846 (-0.02359673908) cm=141.42846 ru=381.84128 dd=1952.45872 cum=-14681.41913 eq%=-0.01899998738
+  #12 L "MacdLE" in "MacdLE"@114 142.37 out "MacdSE"@118 138.06 q=596 pnl=-2735.89628 (-0.03221074774) cm=167.13628 ru=1828.30748 dd=2766.85252 cum=-17417.31541 eq%=-0.03206682826
+  ... 127 more
+  digest 1-100: 0ff5893ded25bb
+  digest 101-139: 17acfe2b043ff7
+orders:
+  49 buy entry MARKET "MacdLE" 147.67 x676
+  56 sell entry MARKET "MacdSE" 135.94 x1351
+  56 buy order MARKET "Margin call 0" 138.22 x84
+  66 buy entry MARKET "MacdLE" 141.59 x1212
+  92 sell entry MARKET "MacdSE" 142.83 x1242
+  92 buy order MARKET "Margin call 1" 142.87 x1
+  92 buy order MARKET "Margin call 2" 143.2 x8
+  107 buy entry MARKET "MacdLE" 141.82 x1240
+  113 sell entry MARKET "MacdSE" 139.36 x1255
+  113 buy order MARKET "Margin call 3" 139.4 x1
+  113 buy order MARKET "Margin call 4" 143.11 x124
+  114 buy entry MARKET "MacdLE" 142.37 x1098
+  ... 127 more
+  digest 1-100: 0f8182c6046704
+  digest 101-139: 15ce3e3cade54f

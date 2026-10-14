@@ -1,0 +1,39 @@
+builtin/inside-bar on daily: 1500 bars, first 1546405200, last 1728964800
+trades=161 filledOrders=161 marginCalls=80 finalEquity=28424.93 minEquity=27555.53
+orders by kind: entry/MARKET=81 order/MARKET=80
+openPL=-4219.32 maxDD=106334.06 (0.7991355867) maxRunUp=57579.8 (0.5083984508) buyHold=88718.24 (0.8871824)
+all: netProfit=-67355.75 grossProfit=165417.6 grossLoss=232773.35 commissionPaid=0 profitFactor=0.710638052 totalTrades=160 totalOpenTrades=1 numberOfWiningTrades=33 numberOfLosingTrades=125 percentProfitable=0.20625 avgTrade=-420.9734375 avgWinTrade=5012.654545 avgLosTrade=1862.1868 largestWinTrade=23830.94 largestLosTrade=29265.3 avgBarsInTrade=13.55 maxContractsHeld=1141
+long: netProfit=-11995.44 grossProfit=80340.47 grossLoss=92335.91 commissionPaid=0 profitFactor=0.8700891127 totalTrades=42 totalOpenTrades=0 numberOfWiningTrades=15 numberOfLosingTrades=25 percentProfitable=0.3571428571 avgTrade=-285.6057143 avgWinTrade=5356.031333 avgLosTrade=3693.4364 largestWinTrade=19038.24 largestLosTrade=17387.6 avgBarsInTrade=17.19047619 maxContractsHeld=1132
+short: netProfit=-55360.31 grossProfit=85077.13 grossLoss=140437.44 commissionPaid=0 profitFactor=0.6058009175 totalTrades=118 totalOpenTrades=1 numberOfWiningTrades=18 numberOfLosingTrades=100 percentProfitable=0.1525423729 avgTrade=-469.1551695 avgWinTrade=4726.507222 avgLosTrade=1404.3744 largestWinTrade=23830.94 largestLosTrade=29265.3 avgBarsInTrade=12.25423729 maxContractsHeld=1141
+trades:
+  #1 S "InsBarSE" in "InsBarSE"@6 147.8 out "Margin call"@6 148.65 q=28 pnl=-23.8 (-0.005751014885) cm=0 ru=0 dd=23.8 cum=-23.8 eq%=-0.000238
+  #2 S "InsBarSE" in "InsBarSE"@6 147.8 out "Margin call"@23 152.78 q=56 pnl=-278.88 (-0.03369418133) cm=0 ru=127.12 dd=278.88 cum=-302.68 eq%=-0.002789463892
+  #3 S "InsBarSE" in "InsBarSE"@6 147.8 out "InsBarLE"@31 142.74 q=592 pnl=2995.52 (0.03423545332) cm=0 ru=3729.6 dd=4179.52 cum=2692.84 eq%=0.03004614367
+  #4 L "InsBarLE" in "InsBarLE"@31 142.74 out "InsBarSE"@36 145.44 q=719 pnl=1941.3 (0.01891551072) cm=0 ru=5119.28 dd=1136.02 cum=4634.14 eq%=0.01890394695
+  #5 S "InsBarSE" in "InsBarSE"@36 145.44 out "Margin call"@36 146.44 q=36 pnl=-36 (-0.006875687569) cm=0 ru=0 dd=36 cum=4598.14 eq%=-0.0003440559649
+  #6 S "InsBarSE" in "InsBarSE"@36 145.44 out "InsBarLE"@70 141.28 q=683 pnl=2841.28 (0.02860286029) cm=0 ru=6713.89 dd=1905.57 cum=7439.42 eq%=0.02716377175
+  #7 L "InsBarLE" in "InsBarLE"@70 141.28 out "Margin call"@70 141.28 q=1 pnl=0 (0) cm=0 ru=0 dd=0 cum=7439.42 eq%=0
+  #8 L "InsBarLE" in "InsBarLE"@70 141.28 out "InsBarSE"@73 137.44 q=760 pnl=-2918.4 (-0.02718006795) cm=0 ru=266 dd=2918.4 cum=4521.02 eq%=-0.0271632144
+  #9 S "InsBarSE" in "InsBarSE"@73 137.44 out "Margin call"@73 141.41 q=168 pnl=-666.96 (-0.02888533178) cm=0 ru=13.44 dd=666.96 cum=3854.06 eq%=-0.006381108795
+  #10 S "InsBarSE" in "InsBarSE"@73 137.44 out "InsBarLE"@78 145.45 q=592 pnl=-4741.92 (-0.05827997672) cm=0 ru=47.36 dd=5659.52 cum=-887.86 eq%=-0.04565945713
+  #11 L "InsBarLE" in "InsBarLE"@78 145.45 out "InsBarSE"@105 138.11 q=681 pnl=-4998.54 (-0.050464077) cm=0 ru=1709.31 dd=5829.36 cum=-5886.4 eq%=-0.050433176
+  #12 S "InsBarSE" in "InsBarSE"@105 138.11 out "Margin call"@105 142.49 q=164 pnl=-718.32 (-0.03171385128) cm=0 ru=59.04 dd=718.32 cum=-6604.72 eq%=-0.007632478197
+  ... 149 more
+  digest 1-100: 0249f371983992
+  digest 101-161: 12db949bca2993
+orders:
+  6 sell entry MARKET "InsBarSE" 147.8 x676
+  6 buy order MARKET "Margin call 0" 148.65 x28
+  23 buy order MARKET "Margin call 1" 152.78 x56
+  31 buy entry MARKET "InsBarLE" 142.74 x1311
+  36 sell entry MARKET "InsBarSE" 145.44 x1438
+  36 buy order MARKET "Margin call 2" 146.44 x36
+  70 buy entry MARKET "InsBarLE" 141.28 x1444
+  70 sell order MARKET "Margin call 3" 141.28 x1
+  73 sell entry MARKET "InsBarSE" 137.44 x1520
+  73 buy order MARKET "Margin call 4" 141.41 x168
+  78 buy entry MARKET "InsBarLE" 145.45 x1273
+  105 sell entry MARKET "InsBarSE" 138.11 x1362
+  ... 149 more
+  digest 1-100: 09b3ec60ca423f
+  digest 101-161: 00e73a9c26a2c9

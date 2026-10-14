@@ -1,0 +1,17 @@
+script/crossing-ma-adx on penny: 900 bars, first 978411600, last 1088136000
+trades=3 filledOrders=3 marginCalls=1 finalEquity=1498161.043 minEquity=89160.481
+orders by kind: entry/MARKET=2 order/MARKET=1
+openPL=1348771.424 maxDD=18436.704 (0.13555958) maxRunUp=1419422.03 (0.9357021484) buyHold=-8270.4917 (-0.082704917)
+all: netProfit=49389.6192 grossProfit=51852.3984 grossLoss=2462.7792 commissionPaid=0 profitFactor=21.05442437 totalTrades=2 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=24694.8096 avgWinTrade=51852.3984 avgLosTrade=2462.7792 largestWinTrade=51852.3984 largestLosTrade=2462.7792 avgBarsInTrade=214 maxContractsHeld=3615040
+long: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=3615040
+short: netProfit=49389.6192 grossProfit=51852.3984 grossLoss=2462.7792 commissionPaid=0 profitFactor=21.05442437 totalTrades=2 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=24694.8096 avgWinTrade=51852.3984 avgLosTrade=2462.7792 largestWinTrade=51852.3984 largestLosTrade=2462.7792 avgBarsInTrade=214 maxContractsHeld=221434
+trades:
+  #1 S "Short" in "Short"@153 0.451 out "Margin call"@153 0.4769 q=95088 pnl=-2462.7792 (-0.05742793792) cm=0 ru=1445.3376 dd=2462.7792 cum=-2462.7792 eq%=-0.024627792
+  #2 S "Short" in "Short"@153 0.451 out "Long"@579 0.0406 q=126346 pnl=51852.3984 (0.9099778271) cm=0 ru=53975.0112 dd=11093.1788 cum=49389.6192 eq%=0.5316165252
+  #3 L "Long" in "Long"@579 0.0406 out OPEN@899 0.4137 q=3615040 pnl=1348771.424 (9.189655172) cm=0 ru=1367569.632 dd=18436.704 cum=1398161.043 eq%=9.028548511
+  digest 1-3: 1f5203fde5cdd4
+orders:
+  153 sell entry MARKET "Short" 0.451 x221434
+  153 buy order MARKET "Margin call 0" 0.4769 x95088
+  579 buy entry MARKET "Long" 0.0406 x3741386
+  digest 1-3: 12bbdb1a4b6d28

@@ -1,0 +1,13 @@
+script/crossing-ma-adx on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=1 filledOrders=1 marginCalls=0 finalEquity=1000955.882 minEquity=88646.4602
+orders by kind: entry/MARKET=1
+openPL=900956.882 maxDD=12561.2568 (0.125612568) maxRunUp=913517.1388 (0.9013345756) buyHold=916461.746 (9.16461746)
+all: netProfit=-1 grossProfit=0 grossLoss=1 commissionPaid=1 profitFactor=0 totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=2415434
+long: netProfit=-1 grossProfit=0 grossLoss=1 commissionPaid=1 profitFactor=0 totalTrades=0 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=2415434
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@579 0.0407 out OPEN@899 0.4137 q=2415434 pnl=900954.882 (9.164505598) cm=1 ru=913516.1388 dd=12561.2568 cum=900953.882 eq%=9.009638916
+  digest 1-1: 0fade61fd3cefe
+orders:
+  579 buy entry MARKET "Long" 0.0407 x2415434
+  digest 1-1: 1ad7f622128081

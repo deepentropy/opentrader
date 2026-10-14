@@ -1,0 +1,47 @@
+builtin/outside-bar on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=583 filledOrders=583 marginCalls=230 finalEquity=107680.26 minEquity=92704.11
+orders by kind: entry/MARKET=353 order/MARKET=230
+openPL=60.25 maxDD=10523.59 (0.09936443563) maxRunUp=17980.99 (0.1616838909) buyHold=-7720.96 (-0.0772096)
+all: netProfit=7620.01 grossProfit=98464.93 grossLoss=90844.92 commissionPaid=0 profitFactor=1.083879319 totalTrades=582 totalOpenTrades=1 numberOfWiningTrades=165 numberOfLosingTrades=412 percentProfitable=0.2835051546 avgTrade=13.09280069 avgWinTrade=596.7571515 avgLosTrade=220.4973786 largestWinTrade=5946.6 largestLosTrade=2990.64 avgBarsInTrade=8.749140893 maxContractsHeld=297
+long: netProfit=1100.66 grossProfit=47630.03 grossLoss=46529.37 commissionPaid=0 profitFactor=1.023655167 totalTrades=181 totalOpenTrades=0 numberOfWiningTrades=80 numberOfLosingTrades=96 percentProfitable=0.4419889503 avgTrade=6.080994475 avgWinTrade=595.375375 avgLosTrade=484.6809375 largestWinTrade=3399.48 largestLosTrade=2958.9 avgBarsInTrade=11.18232044 maxContractsHeld=297
+short: netProfit=6519.35 grossProfit=50834.9 grossLoss=44315.55 commissionPaid=0 profitFactor=1.147112018 totalTrades=401 totalOpenTrades=1 numberOfWiningTrades=85 numberOfLosingTrades=316 percentProfitable=0.2119700748 avgTrade=16.25773067 avgWinTrade=598.0576471 avgLosTrade=140.2390823 largestWinTrade=5946.6 largestLosTrade=2990.64 avgBarsInTrade=7.650872818 maxContractsHeld=297
+trades:
+  #1 S "OutBarSE" in "OutBarSE"@2 478.89 out "OutBarLE"@14 475.44 q=208 pnl=717.6 (0.007204159619) cm=0 ru=1116.96 dd=185.12 cum=717.6 eq%=0.007176
+  #2 L "OutBarLE" in "OutBarLE"@14 475.44 out "OutBarSE"@19 471.62 q=211 pnl=-806.02 (-0.008034662628) cm=0 ru=6.33 dd=928.4 cum=-88.42 eq%=-0.008002772107
+  #3 S "OutBarSE" in "OutBarSE"@19 471.62 out "Margin call"@20 473.49 q=1 pnl=-1.87 (-0.003965056613) cm=0 ru=0.36 dd=1.87 cum=-90.29 eq%=-0.00001871654917
+  #4 S "OutBarSE" in "OutBarSE"@19 471.62 out "Margin call"@22 473.78 q=1 pnl=-2.16 (-0.004579958441) cm=0 ru=0.36 dd=2.16 cum=-92.45 eq%=-0.00002161952026
+  #5 S "OutBarSE" in "OutBarSE"@19 471.62 out "OutBarLE"@32 470.39 q=209 pnl=257.07 (0.00260803189) cm=0 ru=606.1 dd=526.68 cum=164.62 eq%=0.002573078811
+  #6 L "OutBarLE" in "OutBarLE"@32 470.39 out "OutBarSE"@36 469.36 q=212 pnl=-218.36 (-0.002189672399) cm=0 ru=171.72 dd=307.4 cum=-53.74 eq%=-0.002180011265
+  #7 S "OutBarSE" in "OutBarSE"@36 469.36 out "Margin call"@38 470.83 q=1 pnl=-1.47 (-0.003131924322) cm=0 ru=0.37 dd=1.47 cum=-55.21 eq%=-0.00001470790403
+  #8 S "OutBarSE" in "OutBarSE"@36 469.36 out "OutBarLE"@39 470.52 q=211 pnl=-244.76 (-0.002471450486) cm=0 ru=78.07 dd=310.17 cum=-299.97 eq%=-0.002448952066
+  #9 L "OutBarLE" in "OutBarLE"@39 470.52 out "OutBarSE"@49 469.87 q=211 pnl=-137.15 (-0.00138145031) cm=0 ru=322.83 dd=177.24 cum=-437.12 eq%=-0.001375626467
+  #10 S "OutBarSE" in "OutBarSE"@49 469.87 out "OutBarLE"@53 467.55 q=211 pnl=489.52 (0.004937535914) cm=0 ru=782.81 dd=61.19 cum=52.4 eq%=0.004916691843
+  #11 L "OutBarLE" in "OutBarLE"@53 467.55 out "Margin call"@53 467.55 q=1 pnl=0 (0) cm=0 ru=0 dd=0 cum=52.4 eq%=0
+  #12 L "OutBarLE" in "OutBarLE"@53 467.55 out "OutBarSE"@62 466.88 q=213 pnl=-142.71 (-0.001433001818) cm=0 ru=636.87 dd=225.78 cum=-90.31 eq%=-0.001426352591
+  ... 571 more
+  digest 1-100: 0f0b84cfef5d2b
+  digest 101-200: 0da3ea47c4f83c
+  digest 201-300: 1f612aeec19727
+  digest 301-400: 1d2b4016ded12f
+  digest 401-500: 088008ebb5cdf3
+  digest 501-583: 0e25d016577624
+orders:
+  2 sell entry MARKET "OutBarSE" 478.89 x208
+  14 buy entry MARKET "OutBarLE" 475.44 x419
+  19 sell entry MARKET "OutBarSE" 471.62 x422
+  20 buy order MARKET "Margin call 0" 473.49 x1
+  22 buy order MARKET "Margin call 1" 473.78 x1
+  32 buy entry MARKET "OutBarLE" 470.39 x421
+  36 sell entry MARKET "OutBarSE" 469.36 x424
+  38 buy order MARKET "Margin call 2" 470.83 x1
+  39 buy entry MARKET "OutBarLE" 470.52 x422
+  49 sell entry MARKET "OutBarSE" 469.87 x422
+  53 buy entry MARKET "OutBarLE" 467.55 x425
+  53 sell order MARKET "Margin call 3" 467.55 x1
+  ... 571 more
+  digest 1-100: 1fe3456b5f71c1
+  digest 101-200: 1ecfe4645be0f2
+  digest 201-300: 17b728cf4bba99
+  digest 301-400: 1badef5e153e45
+  digest 401-500: 034fc1e61fd56c
+  digest 501-583: 0c2bbd4282a09d

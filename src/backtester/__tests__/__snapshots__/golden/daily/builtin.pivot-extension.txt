@@ -1,0 +1,41 @@
+builtin/pivot-extension on daily: 1500 bars, first 1546405200, last 1728964800
+trades=219 filledOrders=219 marginCalls=108 finalEquity=56682.72 minEquity=42256.83
+orders by kind: entry/MARKET=111 order/MARKET=108
+openPL=-6325.8 maxDD=58912.03 (0.5891203) maxRunUp=42294.36 (0.4502015959) buyHold=90337.72 (0.9033772)
+all: netProfit=-36991.48 grossProfit=187157.49 grossLoss=224148.97 commissionPaid=0 profitFactor=0.8349692171 totalTrades=218 totalOpenTrades=1 numberOfWiningTrades=67 numberOfLosingTrades=146 percentProfitable=0.3073394495 avgTrade=-169.6856881 avgWinTrade=2793.395373 avgLosTrade=1535.266918 largestWinTrade=15488.2 largestLosTrade=22220.76 avgBarsInTrade=10.06422018 maxContractsHeld=1324
+long: netProfit=5456.68 grossProfit=91186.99 grossLoss=85730.31 commissionPaid=0 profitFactor=1.063649367 totalTrades=60 totalOpenTrades=0 numberOfWiningTrades=34 numberOfLosingTrades=21 percentProfitable=0.5666666667 avgTrade=90.94466667 avgWinTrade=2681.970294 avgLosTrade=4082.395714 largestWinTrade=14039.19 largestLosTrade=22220.76 avgBarsInTrade=11.83333333 maxContractsHeld=1324
+short: netProfit=-42448.16 grossProfit=95970.5 grossLoss=138418.66 commissionPaid=0 profitFactor=0.6933349882 totalTrades=158 totalOpenTrades=1 numberOfWiningTrades=33 numberOfLosingTrades=125 percentProfitable=0.2088607595 avgTrade=-268.6592405 avgWinTrade=2908.19697 avgLosTrade=1107.34928 largestWinTrade=15488.2 largestLosTrade=11545.38 avgBarsInTrade=9.392405063 maxContractsHeld=1324
+trades:
+  #1 S "PivExtSE" in "PivExtSE"@12 146.58 out "Margin call"@12 148.12 q=52 pnl=-80.08 (-0.01050620821) cm=0 ru=16.64 dd=80.08 cum=-80.08 eq%=-0.0008008
+  #2 S "PivExtSE" in "PivExtSE"@12 146.58 out "PivExtLE"@14 147.78 q=630 pnl=-756 (-0.008186655751) cm=0 ru=201.6 dd=1052.1 cum=-836.08 eq%=-0.0075660589
+  #3 L "PivExtLE" in "PivExtLE"@14 147.78 out "PivExtSE"@37 143.45 q=670 pnl=-2901.1 (-0.02930031127) cm=0 ru=4743.6 dd=4435.4 cum=-3737.18 eq%=-0.02925560022
+  #4 S "PivExtSE" in "PivExtSE"@37 143.45 out "Margin call"@37 143.69 q=8 pnl=-1.92 (-0.001673056814) cm=0 ru=0 dd=1.92 cum=-3739.1 eq%=-0.00001994539533
+  #5 S "PivExtSE" in "PivExtSE"@37 143.45 out "Margin call"@48 144.47 q=4 pnl=-4.08 (-0.00711049146) cm=0 ru=25.28 dd=4.08 cum=-3743.18 eq%=-0.00004238481045
+  #6 S "PivExtSE" in "PivExtSE"@37 143.45 out "Margin call"@48 148.05 q=116 pnl=-533.6 (-0.03206692227) cm=0 ru=733.12 dd=533.6 cum=-4276.78 eq%=-0.005543503307
+  #7 S "PivExtSE" in "PivExtSE"@37 143.45 out "PivExtLE"@49 147.65 q=543 pnl=-2280.6 (-0.02927849425) cm=0 ru=3431.76 dd=2497.8 cum=-6557.38 eq%=-0.02382494028
+  #8 L "PivExtLE" in "PivExtLE"@49 147.65 out "PivExtSE"@53 144.93 q=632 pnl=-1719.04 (-0.01842194379) cm=0 ru=366.56 dd=2363.68 cum=-8276.42 eq%=-0.01839674444
+  #9 S "PivExtSE" in "PivExtSE"@53 144.93 out "Margin call"@53 145.46 q=12 pnl=-6.36 (-0.003656937832) cm=0 ru=0 dd=6.36 cum=-8282.78 eq%=-0.00006933876763
+  #10 S "PivExtSE" in "PivExtSE"@53 144.93 out "Margin call"@75 146.53 q=1 pnl=-1.6 (-0.01103981232) cm=0 ru=9.32 dd=1.6 cum=-8284.38 eq%=-0.00001744492474
+  #11 S "PivExtSE" in "PivExtSE"@53 144.93 out "PivExtLE"@76 146.43 q=619 pnl=-928.5 (-0.01034982405) cm=0 ru=5769.08 dd=990.4 cum=-9212.88 eq%=-0.01012368449
+  #12 L "PivExtLE" in "PivExtLE"@76 146.43 out "PivExtSE"@81 142.69 q=619 pnl=-2315.06 (-0.02554121423) cm=0 ru=947.07 dd=3119.76 cum=-11527.94 eq%=-0.02549987267
+  ... 207 more
+  digest 1-100: 062b1eaa2755a4
+  digest 101-200: 16fc6338a8b107
+  digest 201-219: 0f5fce9ab04d33
+orders:
+  12 sell entry MARKET "PivExtSE" 146.58 x682
+  12 buy order MARKET "Margin call 0" 148.12 x52
+  14 buy entry MARKET "PivExtLE" 147.78 x1300
+  37 sell entry MARKET "PivExtSE" 143.45 x1341
+  37 buy order MARKET "Margin call 1" 143.69 x8
+  48 buy order MARKET "Margin call 2" 144.47 x4
+  48 buy order MARKET "Margin call 3" 148.05 x116
+  49 buy entry MARKET "PivExtLE" 147.65 x1175
+  53 sell entry MARKET "PivExtSE" 144.93 x1264
+  53 buy order MARKET "Margin call 4" 145.46 x12
+  75 buy order MARKET "Margin call 5" 146.53 x1
+  76 buy entry MARKET "PivExtLE" 146.43 x1238
+  ... 207 more
+  digest 1-100: 0d2598faa1fe93
+  digest 101-200: 113b49b3940f61
+  digest 201-219: 052715bee56aa0

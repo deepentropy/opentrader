@@ -1,0 +1,45 @@
+builtin/momentum on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=450 filledOrders=468 marginCalls=166 finalEquity=128597.83 minEquity=90836.08
+orders by kind: entry/STOP=302 order/MARKET=166
+openPL=753.69 maxDD=14817.86 (0.1403946702) maxRunUp=39970.44 (0.3056782806) buyHold=-6684.48 (-0.0668448)
+all: netProfit=27844.14 grossProfit=107074.97 grossLoss=79230.83 commissionPaid=0 profitFactor=1.351430624 totalTrades=449 totalOpenTrades=1 numberOfWiningTrades=103 numberOfLosingTrades=344 percentProfitable=0.2293986637 avgTrade=62.01367483 avgWinTrade=1039.562816 avgLosTrade=230.3221802 largestWinTrade=5628 largestLosTrade=2081.64 avgBarsInTrade=9.991091314 maxContractsHeld=325
+long: netProfit=8961.73 grossProfit=52146.85 grossLoss=43185.12 commissionPaid=0 profitFactor=1.207518932 totalTrades=164 totalOpenTrades=1 numberOfWiningTrades=60 numberOfLosingTrades=102 percentProfitable=0.3658536585 avgTrade=54.64469512 avgWinTrade=869.1141667 avgLosTrade=423.3835294 largestWinTrade=5628 largestLosTrade=2081.64 avgBarsInTrade=11.98780488 maxContractsHeld=325
+short: netProfit=18882.41 grossProfit=54928.12 grossLoss=36045.71 commissionPaid=0 profitFactor=1.52384625 totalTrades=285 totalOpenTrades=0 numberOfWiningTrades=43 numberOfLosingTrades=242 percentProfitable=0.150877193 avgTrade=66.25407018 avgWinTrade=1277.39814 avgLosTrade=148.9492149 largestWinTrade=5425.36 largestLosTrade=1816.6 avgBarsInTrade=8.842105263 maxContractsHeld=321
+trades:
+  #1 S "MomSE" in "MomSE"@15 473.45 out "Margin call"@22 473.78 q=1 pnl=-0.33 (-0.0006970113) cm=0 ru=2.41 dd=0.33 cum=-0.33 eq%=-0.0000033
+  #2 S "MomSE" in "MomSE"@15 473.45 out "MomLE"@45 471.24 q=210 pnl=464.1 (0.004667863555) cm=0 ru=993.3 dd=144.9 cum=463.77 eq%=0.004641015315
+  #3 L "MomLE" in "MomLE"@45 471.24 out "MomSE"@50 467.69 q=213 pnl=-756.15 (-0.007533316357) cm=0 ru=172.53 dd=756.15 cum=-292.38 eq%=-0.007526593915
+  #4 S "MomSE" in "MomSE"@50 467.69 out "Margin call"@53 469.6 q=4 pnl=-7.64 (-0.00408390173) cm=0 ru=6.12 dd=7.64 cum=-300.02 eq%=-0.00007662403335
+  #5 S "MomSE" in "MomSE"@50 467.69 out "MomLE"@64 467.57 q=209 pnl=25.08 (0.0002565802134) cm=0 ru=319.77 dd=595.65 cum=-274.94 eq%=0.0002515547145
+  #6 L "MomLE" in "MomLE"@64 467.57 out "MomSE"@66 467.54 q=213 pnl=-6.39 (-0.00006416151592) cm=0 ru=136.32 dd=6.39 cum=-281.33 eq%=-0.00006407617102
+  #7 S "MomSE" in "MomSE"@66 467.54 out "MomLE"@124 452.52 q=213 pnl=3199.26 (0.03212559353) cm=0 ru=4076.82 dd=0 cum=2917.93 eq%=0.03208285871
+  #8 L "MomLE" in "MomLE"@124 452.52 out "MomSE"@161 464.09 q=227 pnl=2626.39 (0.0255679307) cm=0 ru=3246.1 dd=18.16 cum=5544.32 eq%=0.02551926569
+  #9 S "MomSE" in "MomSE"@161 464.09 out "Margin call"@161 464.81 q=1 pnl=-0.72 (-0.001551423215) cm=0 ru=0.52 dd=0.72 cum=5543.6 eq%=-0.000006821778756
+  #10 S "MomSE" in "MomSE"@161 464.09 out "MomLE"@162 465.26 q=226 pnl=-264.42 (-0.002521062725) cm=0 ru=117.52 dd=264.42 cum=5279.18 eq%=-0.002505315339
+  #11 L "MomLE" in "MomLE"@162 465.26 out "Margin call"@162 465.48 q=1 pnl=0.22 (0.0004728538881) cm=0 ru=0.22 dd=0 cum=5279.4 eq%=0.00000208968193
+  #12 L "MomLE" in "MomLE"@162 465.26 out "MomSE"@168 463.81 q=226 pnl=-327.7 (-0.00311653699) cm=0 ru=162.72 dd=327.7 cum=4951.7 eq%=-0.003112669715
+  ... 438 more
+  digest 1-100: 0f888bc22df7ff
+  digest 101-200: 04c637d9f6049c
+  digest 201-300: 000b813746f175
+  digest 301-400: 0c0c406d8dbc19
+  digest 401-450: 0a02eec33f367d
+orders:
+  15 sell entry STOP "MomSE" 473.45 x211
+  22 buy order MARKET "Margin call 0" 473.78 x1
+  45 buy entry STOP "MomLE" 471.24 x423
+  50 sell entry STOP "MomSE" 467.69 x426
+  53 buy order MARKET "Margin call 1" 469.6 x4
+  64 buy entry STOP "MomLE" 467.57 x422
+  66 sell entry STOP "MomSE" 467.54 x426
+  124 buy entry STOP "MomLE" 452.52 x440
+  161 sell entry STOP "MomSE" 464.09 x454
+  161 buy order MARKET "Margin call 2" 464.81 x1
+  162 buy entry STOP "MomLE" 465.26 x453
+  162 sell order MARKET "Margin call 3" 465.48 x1
+  ... 456 more
+  digest 1-100: 101b9c9d03f784
+  digest 101-200: 072cb67875e95d
+  digest 201-300: 0a5d00ae98b55d
+  digest 301-400: 0fa1de62e596f7
+  digest 401-468: 0638fa0b55ff37

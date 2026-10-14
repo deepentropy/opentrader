@@ -1,0 +1,41 @@
+script/four-wma-tp-sl on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=200 filledOrders=330 marginCalls=43 finalEquity=106966.88 minEquity=95232.95
+orders by kind: entry/MARKET=157 exit/LIMIT=38 exit/MARKET=87 exit/STOP=5 order/MARKET=43
+openPL=99.22 maxDD=5938.83 (0.05873969627) maxRunUp=12396.15 (0.1150372335) buyHold=-6188.28 (-0.0618828)
+all: netProfit=6867.66 grossProfit=42230.99 grossLoss=35363.33 commissionPaid=0 profitFactor=1.194202865 totalTrades=199 totalOpenTrades=1 numberOfWiningTrades=61 numberOfLosingTrades=137 percentProfitable=0.3065326633 avgTrade=34.51085427 avgWinTrade=692.3113115 avgLosTrade=258.1264964 largestWinTrade=1269.9 largestLosTrade=1040.52 avgBarsInTrade=9.070351759 maxContractsHeld=279
+long: netProfit=3708.7 grossProfit=31042.8 grossLoss=27334.1 commissionPaid=0 profitFactor=1.135680341 totalTrades=118 totalOpenTrades=1 numberOfWiningTrades=45 numberOfLosingTrades=72 percentProfitable=0.3813559322 avgTrade=31.42966102 avgWinTrade=689.84 avgLosTrade=379.6402778 largestWinTrade=1178.52 largestLosTrade=1005.73 avgBarsInTrade=10.92372881 maxContractsHeld=279
+short: netProfit=3158.96 grossProfit=11188.19 grossLoss=8029.23 commissionPaid=0 profitFactor=1.393432496 totalTrades=81 totalOpenTrades=0 numberOfWiningTrades=16 numberOfLosingTrades=65 percentProfitable=0.1975308642 avgTrade=38.99950617 avgWinTrade=699.261875 avgLosTrade=123.5266154 largestWinTrade=1269.9 largestLosTrade=1040.52 avgBarsInTrade=6.37037037 maxContractsHeld=279
+trades:
+  #1 L "Long" in "Long"@44 470.96 out "Close entry(s) order Long"@50 468.36 q=212 pnl=-551.2 (-0.005520638695) cm=0 ru=231.08 dd=691.12 cum=-551.2 eq%=-0.005512
+  #2 L "Long" in "Long"@125 453.2 out "Long TP/SL"@130 457.74 q=219 pnl=994.26 (0.01001765225) cm=0 ru=994.26 dd=166.44 cum=443.06 eq%=0.009997707363
+  #3 L "Long" in "Long"@179 464.74 out "Close entry(s) order Long"@182 463.66 q=216 pnl=-233.28 (-0.002323880019) cm=0 ru=60.48 dd=477.36 cum=209.78 eq%=-0.002322509888
+  #4 L "Long" in "Long"@191 466 out "Close entry(s) order Long"@205 465.98 q=215 pnl=-4.3 (-0.00004291845494) cm=0 ru=543.95 dd=189.2 cum=205.48 eq%=-0.00004290998344
+  #5 L "Long" in "Long"@211 467.65 out "Close entry(s) order Long"@219 465.99 q=214 pnl=-355.24 (-0.00354966321) cm=0 ru=68.48 dd=370.22 cum=-149.76 eq%=-0.003545115497
+  #6 L "Long" in "Long"@221 468.19 out "Long TP/SL"@232 472.88 q=213 pnl=998.97 (0.01001730067) cm=0 ru=998.97 dd=119.28 cum=849.21 eq%=0.01000468301
+  #7 L "Long" in "Long"@254 470.87 out "Close entry(s) order Long"@256 470.26 q=214 pnl=-130.54 (-0.001295474335) cm=0 ru=87.74 dd=169.06 cum=718.67 eq%=-0.00129440776
+  #8 L "Long" in "Long"@257 471.44 out "Close entry(s) order Long"@288 472.79 q=213 pnl=287.55 (0.002863566944) cm=0 ru=764.67 dd=57.51 cum=1006.22 eq%=0.0028549821
+  #9 L "Long" in "Long"@296 474.16 out "Close entry(s) order Long"@316 474.62 q=213 pnl=97.98 (0.0009701366627) cm=0 ru=685.86 dd=223.65 cum=1104.2 eq%=0.0009700392708
+  #10 L "Long" in "Long"@328 476.47 out "Short entry"@337 475.53 q=212 pnl=-199.28 (-0.001972841942) cm=0 ru=171.72 dd=453.68 cum=904.92 eq%=-0.001971035822
+  #11 S "Short" in "Short entry"@337 475.53 out "Margin call"@339 475.79 q=1 pnl=-0.26 (-0.0005467583538) cm=0 ru=0.6 dd=0.26 cum=904.66 eq%=-0.000002576683079
+  #12 S "Short" in "Short entry"@337 475.53 out "Short Exit"@346 475.76 q=211 pnl=-48.53 (-0.0004836708515) cm=0 ru=179.35 dd=82.29 cum=856.13 eq%=-0.0004809490464
+  ... 188 more
+  digest 1-100: 0201e8778e4392
+  digest 101-200: 12d167dac1889f
+orders:
+  44 buy entry MARKET "Long" 470.96 x212
+  50 sell exit MARKET "Close entry(s) order Long" 468.36 x212
+  125 buy entry MARKET "Long" 453.2 x219
+  130 sell exit LIMIT "Long TP/SL" 457.74 x219
+  179 buy entry MARKET "Long" 464.74 x216
+  182 sell exit MARKET "Close entry(s) order Long" 463.66 x216
+  191 buy entry MARKET "Long" 466 x215
+  205 sell exit MARKET "Close entry(s) order Long" 465.98 x215
+  211 buy entry MARKET "Long" 467.65 x214
+  219 sell exit MARKET "Close entry(s) order Long" 465.99 x214
+  221 buy entry MARKET "Long" 468.19 x213
+  232 sell exit LIMIT "Long TP/SL" 472.88 x213
+  ... 318 more
+  digest 1-100: 1851492b152a7c
+  digest 101-200: 0b99693d64e13b
+  digest 201-300: 06fceb6ba0b774
+  digest 301-330: 052c07b75acf7e

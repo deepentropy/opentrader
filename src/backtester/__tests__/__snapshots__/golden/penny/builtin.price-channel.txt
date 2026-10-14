@@ -1,0 +1,37 @@
+builtin/price-channel on penny: 900 bars, first 978411600, last 1088136000
+trades=19 filledOrders=31 marginCalls=4 finalEquity=79483.4824 minEquity=23195.3954
+orders by kind: entry/STOP=27 order/MARKET=4
+openPL=12430.6816 maxDD=77402.1488 (0.774021488) maxRunUp=95375.8295 (0.7934702379) buyHold=-55076.3408 (-0.550763408)
+all: netProfit=-32947.1992 grossProfit=75183.0675 grossLoss=108130.2667 commissionPaid=0 profitFactor=0.6953008607 totalTrades=18 totalOpenTrades=1 numberOfWiningTrades=6 numberOfLosingTrades=12 percentProfitable=0.3333333333 avgTrade=-1830.399956 avgWinTrade=12530.51125 avgLosTrade=9010.855558 largestWinTrade=53564.3677 largestLosTrade=23520.407 avgBarsInTrade=27 maxContractsHeld=814826
+long: netProfit=-37063.6548 grossProfit=69382.9935 grossLoss=106446.6483 commissionPaid=0 profitFactor=0.6518100345 totalTrades=14 totalOpenTrades=1 numberOfWiningTrades=5 numberOfLosingTrades=9 percentProfitable=0.3571428571 avgTrade=-2647.403914 avgWinTrade=13876.5987 avgLosTrade=11827.40537 largestWinTrade=53564.3677 largestLosTrade=23520.407 avgBarsInTrade=29.5 maxContractsHeld=773654
+short: netProfit=4116.4556 grossProfit=5800.074 grossLoss=1683.6184 commissionPaid=0 profitFactor=3.445005115 totalTrades=4 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=3 percentProfitable=0.25 avgTrade=1029.1139 avgWinTrade=5800.074 avgLosTrade=561.2061333 largestWinTrade=5800.074 largestLosTrade=1195.0884 avgBarsInTrade=18.25 maxContractsHeld=814826
+trades:
+  #1 L "PChLE" in "PChLE"@77 0.9209 out "PChSE"@92 0.7233 q=108589 pnl=-21457.1864 (-0.2145727006) cm=0 ru=9414.6663 dd=21457.1864 cum=-21457.1864 eq%=-0.214571864
+  #2 L "PChLE" in "PChLE"@119 0.773 out "PChSE"@137 0.6247 q=101607 pnl=-15068.3181 (-0.1918499353) cm=0 ru=1463.1408 dd=15068.3181 cum=-36525.5045 eq%=-0.1918484634
+  #3 L "PChLE" in "PChLE"@172 0.5035 out "PChSE"@184 0.3642 q=126066 pnl=-17560.9938 (-0.2766633565) cm=0 ru=4450.1298 dd=17560.9938 cum=-54086.4983 eq%=-0.2766622036
+  #4 L "PChLE" in "PChLE"@258 0.237 out "PChSE"@285 0.1889 q=193727 pnl=-9318.2687 (-0.2029535865) cm=0 ru=6877.3085 dd=9318.2687 cum=-63404.767 eq%=-0.2029526905
+  #5 L "PChLE" in "PChLE"@323 0.1578 out "PChSE"@343 0.1252 q=231908 pnl=-7560.2008 (-0.206590621) cm=0 ru=4475.8244 dd=7560.2008 cum=-70964.9678 eq%=-0.2065897709
+  #6 L "PChLE" in "PChLE"@438 0.0675 out "PChSE"@455 0.0609 q=430148 pnl=-2838.9768 (-0.09777777778) cm=0 ru=1892.6512 dd=2838.9768 cum=-73803.9446 eq%=-0.09777763567
+  #7 S "PChSE" in "PChSE"@458 0.058 out "Margin call"@458 0.0588 q=33504 pnl=-26.8032 (-0.01379310345) cm=0 ru=20.1024 dd=26.8032 cum=-73830.7478 eq%=-0.001023176947
+  #8 S "PChSE" in "PChSE"@458 0.058 out "PChLE"@493 0.044 q=414291 pnl=5800.074 (0.2413793103) cm=0 ru=10937.2824 dd=331.4328 cum=-68030.6738 eq%=0.221636979
+  #9 L "PChLE" in "PChLE"@493 0.044 out "Margin call"@493 0.0441 q=187884 pnl=18.7884 (0.002272727273) cm=0 ru=18.7884 dd=0 cum=-68011.8854 eq%=0.0005877008443
+  #10 L "PChLE" in "PChLE"@493 0.044 out "PChSE"@516 0.0346 q=585770 pnl=-5506.238 (-0.2136363636) cm=0 ru=4276.121 dd=5506.238 cum=-73518.1234 eq%=-0.1721338712
+  #11 S "PChSE" in "PChSE"@525 0.0319 out "Margin call"@526 0.0336 q=271604 pnl=-461.7268 (-0.05329153605) cm=0 ru=353.0852 dd=461.7268 cum=-73979.8502 eq%=-0.01743557705
+  #12 S "PChSE" in "PChSE"@525 0.0319 out "PChLE"@558 0.0341 q=543222 pnl=-1195.0884 (-0.06896551724) cm=0 ru=4400.0982 dd=3422.2986 cum=-75174.9386 eq%=-0.04592934357
+  ... 7 more
+  digest 1-19: 0c0d0a2974b11b
+orders:
+  77 buy entry STOP "PChLE" 0.9209 x108589
+  92 sell entry STOP "PChSE" 0.7233 x108589
+  119 buy entry STOP "PChLE" 0.773 x101607
+  137 sell entry STOP "PChSE" 0.6247 x101607
+  172 buy entry STOP "PChLE" 0.5035 x126066
+  184 sell entry STOP "PChSE" 0.3642 x126066
+  258 buy entry STOP "PChLE" 0.237 x193727
+  285 sell entry STOP "PChSE" 0.1889 x193727
+  323 buy entry STOP "PChLE" 0.1578 x231908
+  343 sell entry STOP "PChSE" 0.1252 x231908
+  438 buy entry STOP "PChLE" 0.0675 x430148
+  455 sell entry STOP "PChSE" 0.0609 x430148
+  ... 19 more
+  digest 1-31: 159bf0628ac7f2

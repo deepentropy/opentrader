@@ -1,0 +1,38 @@
+script/bitcoin-superflip on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=98 filledOrders=178 marginCalls=0 finalEquity=10641.96226 minEquity=9958.54825
+orders by kind: entry/MARKET=98 exit/MARKET=80
+openPL=0 maxDD=143.71818 (0.01360916149) maxRunUp=815.45409 (0.07566030108) buyHold=-543.69 (-0.054369)
+all: netProfit=641.9622625 grossProfit=1496.46828 grossLoss=854.5060175 commissionPaid=350.3277375 profitFactor=1.751267106 totalTrades=98 totalOpenTrades=0 numberOfWiningTrades=36 numberOfLosingTrades=62 percentProfitable=0.3673469388 avgTrade=6.550635332 avgWinTrade=41.56856333 avgLosTrade=13.78235512 largestWinTrade=139.1577375 largestLosTrade=35.986725 avgBarsInTrade=23.69387755 maxContractsHeld=7
+long: netProfit=258.2753525 grossProfit=634.2838225 grossLoss=376.00847 commissionPaid=163.0346475 profitFactor=1.68688706 totalTrades=45 totalOpenTrades=0 numberOfWiningTrades=18 numberOfLosingTrades=27 percentProfitable=0.4 avgTrade=5.739452278 avgWinTrade=35.23799014 avgLosTrade=13.92623963 largestWinTrade=115.0174 largestLosTrade=32.854375 avgBarsInTrade=24.4 maxContractsHeld=6
+short: netProfit=383.68691 grossProfit=862.1844575 grossLoss=478.4975475 commissionPaid=187.29309 profitFactor=1.801857631 totalTrades=53 totalOpenTrades=0 numberOfWiningTrades=18 numberOfLosingTrades=35 percentProfitable=0.3396226415 avgTrade=7.23937566 avgWinTrade=47.89913653 avgLosTrade=13.6713585 largestWinTrade=139.1577375 largestLosTrade=35.986725 avgBarsInTrade=23.09433962 maxContractsHeld=7
+trades:
+  #1 L "Long" in "Long"@211 467.66 out "Close entry(s) order Long"@239 469.74 q=5 pnl=6.88475 (0.002942133305) cm=3.51525 ru=33.996275 dd=12.203725 cum=6.88475 eq%=0.000688475
+  #2 L "Long" in "Long"@259 472.64 out "Close entry(s) order Long"@285 473.03 q=5 pnl=-1.5962625 (-0.0006749603082) cm=3.5462625 ru=10.1776 dd=9.1224 cum=5.2884875 eq%=-0.0001595164269
+  #3 L "Long" in "Long"@296 474.17 out "Close entry(s) order Long"@313 475.73 q=5 pnl=4.237875 (0.001786152214) cm=3.562125 ru=14.2718625 dd=7.0781375 cum=9.5263625 eq%=0.000423563499
+  #4 L "Long" in "Long"@328 476.48 out "Close entry(s) order Long"@335 475.41 q=5 pnl=-8.9195875 (-0.00374114457) cm=3.5695875 ru=2.2132 dd=7.6868 cum=0.606775 eq%=-0.0008911098465
+  #5 L "Long" in "Long"@347 476.61 out "Close entry(s) order Long"@355 475.06 q=5 pnl=-11.3187625 (-0.004746136166) cm=3.5687625 ru=4.7127125 dd=12.4872875 cum=-10.7119875 eq%=-0.001131807575
+  #6 L "Long" in "Long"@363 476.78 out "Close entry(s) order Long"@373 475.24 q=5 pnl=-11.270075 (-0.004724035731) cm=3.570075 ru=1.462075 dd=13.087925 cum=-21.9820625 eq%=-0.001128216044
+  #7 L "Long" in "Long"@378 477.51 out "Close entry(s) order Long"@432 479.87 q=5 pnl=8.209825 (0.003436021129) cm=3.590175 ru=21.3093375 dd=4.0906625 cum=-13.7722375 eq%=0.0008227911647
+  #8 L "Long" in "Long"@447 481.51 out "Close entry(s) order Long"@468 480.89 q=5 pnl=-6.709 (-0.002784561908) cm=3.609 ru=8.2943375 dd=8.6056625 cum=-20.4812375 eq%=-0.0006718252537
+  #9 L "Long" in "Long"@489 481.45 out "Close entry(s) order Long"@499 479.72 q=5 pnl=-12.2543875 (-0.005086801785) cm=3.6043875 ru=0.2445625 dd=10.4554375 cum=-32.735625 eq%=-0.001227953751
+  #10 S "Short" in "Short"@530 474.97 out "Close entry(s) order Short"@545 474.88 q=5 pnl=-3.1119375 (-0.001309390191) cm=3.5619375 ru=10.9688625 dd=2.6811375 cum=-35.8475625 eq%=-0.000312215808
+  #11 S "Short" in "Short"@560 472.94 out "Close entry(s) order Short"@613 464.02 q=5 pnl=41.0864 (0.01736186759) cm=3.5136 ru=69.376475 dd=3.923525 cum=5.2388375 eq%=0.004123421461
+  #12 S "Short" in "Short"@621 460.95 out "Close entry(s) order Short"@670 455.64 q=5 pnl=23.1127875 (0.01002081176) cm=3.4372125 ru=61.6714375 dd=15.7785625 cum=28.351625 eq%=0.002310068543
+  ... 86 more
+  digest 1-98: 01ed944d4c0d9c
+orders:
+  211 buy entry MARKET "Long" 467.66 x5
+  239 sell exit MARKET "Close entry(s) order Long" 469.74 x5
+  259 buy entry MARKET "Long" 472.64 x5
+  285 sell exit MARKET "Close entry(s) order Long" 473.03 x5
+  296 buy entry MARKET "Long" 474.17 x5
+  313 sell exit MARKET "Close entry(s) order Long" 475.73 x5
+  328 buy entry MARKET "Long" 476.48 x5
+  335 sell exit MARKET "Close entry(s) order Long" 475.41 x5
+  347 buy entry MARKET "Long" 476.61 x5
+  355 sell exit MARKET "Close entry(s) order Long" 475.06 x5
+  363 buy entry MARKET "Long" 476.78 x5
+  373 sell exit MARKET "Close entry(s) order Long" 475.24 x5
+  ... 166 more
+  digest 1-100: 10bb2d0b85a6b3
+  digest 101-178: 1c4aebc781aa31

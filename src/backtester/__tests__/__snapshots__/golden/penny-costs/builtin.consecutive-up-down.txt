@@ -1,0 +1,37 @@
+builtin/consecutive-up-down on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=23 filledOrders=46 marginCalls=0 finalEquity=45612.9679 minEquity=14597.5784
+orders by kind: entry/MARKET=46
+openPL=0 maxDD=85764.7724 (0.857647724) maxRunUp=54191.1333 (0.7860166142) buyHold=-69404.8905 (-0.694048905)
+all: netProfit=-54387.0321 grossProfit=53232.759 grossLoss=107619.7911 commissionPaid=46 profitFactor=0.4946372638 totalTrades=23 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=16 percentProfitable=0.3043478261 avgTrade=-2364.65357 avgWinTrade=7604.679857 avgLosTrade=6726.236944 largestWinTrade=28521.2131 largestLosTrade=16553.3474 avgBarsInTrade=17.65217391 maxContractsHeld=517644
+long: netProfit=-54387.0321 grossProfit=53232.759 grossLoss=107619.7911 commissionPaid=46 profitFactor=0.4946372638 totalTrades=23 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=16 percentProfitable=0.3043478261 avgTrade=-2364.65357 avgWinTrade=7604.679857 avgLosTrade=6726.236944 largestWinTrade=28521.2131 largestLosTrade=16553.3474 avgBarsInTrade=17.65217391 maxContractsHeld=517644
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "ConsUpLE" in "ConsUpLE"@4 1.3522 out "ConsUpLE"@7 1.1268 q=73431 pnl=-16553.3474 (-0.1667097812) cm=2 ru=902.2013 dd=16552.3474 cum=-16553.3474 eq%=-0.165533474
+  #2 L "ConsUpLE" in "ConsUpLE"@68 0.7816 out "ConsUpLE"@71 0.6929 q=104307 pnl=-9254.0309 (-0.1135082983) cm=2 ru=19.8614 dd=9253.0309 cum=-25807.3783 eq%=-0.1108975688
+  #3 L "ConsUpLE" in "ConsUpLE"@102 0.7308 out "ConsUpLE"@105 0.6652 q=99519 pnl=-6530.4464 (-0.08979090643) cm=2 ru=1670.9192 dd=6529.4464 cum=-32337.8247 eq%=-0.08802015956
+  #4 L "ConsUpLE" in "ConsUpLE"@114 0.6659 out "ConsUpLE"@117 0.675 q=92156 pnl=836.6196 (0.01363290244) cm=2 ru=3814.2584 dd=7327.402 cum=-31501.2051 eq%=0.01236465716
+  #5 L "ConsUpLE" in "ConsUpLE"@120 0.769 out "ConsUpLE"@138 0.6035 q=87425 pnl=-14470.8375 (-0.2152411115) cm=2 ru=1240.435 dd=15108.04 cum=-45972.0426 eq%=-0.2112568188
+  #6 L "ConsUpLE" in "ConsUpLE"@168 0.4304 out "ConsUpLE"@183 0.3805 q=119820 pnl=-5981.018 (-0.1159751947) cm=2 ru=12987.488 dd=5980.018 cum=-51953.0606 eq%=-0.1107022787
+  #7 L "ConsUpLE" in "ConsUpLE"@203 0.4027 out "ConsUpLE"@231 0.2842 q=117185 pnl=-13888.4225 (-0.294299865) cm=2 ru=104.4665 dd=14262.4145 cum=-65841.4831 eq%=-0.289059463
+  #8 L "ConsUpLE" in "ConsUpLE"@251 0.1852 out "ConsUpLE"@268 0.1972 q=184236 pnl=2208.832 (0.06473430341) cm=2 ru=16082.8028 dd=480.0136 cum=-63632.6511 eq%=0.06466416579
+  #9 L "ConsUpLE" in "ConsUpLE"@274 0.2409 out "ConsUpLE"@292 0.1846 q=147710 pnl=-8318.073 (-0.2337565691) cm=2 ru=1741.978 dd=9543.066 cum=-71950.7241 eq%=-0.228723656
+  #10 L "ConsUpLE" in "ConsUpLE"@310 0.1302 out "ConsUpLE"@319 0.1302 q=211525 pnl=-2 (-0.00007261754102) cm=2 ru=5837.09 dd=1777.81 cum=-71952.7241 eq%=-0.00007130308843
+  #11 L "ConsUpLE" in "ConsUpLE"@324 0.1513 out "ConsUpLE"@330 0.1378 q=176948 pnl=-2390.798 (-0.08929807071) cm=2 ru=4564.2584 dd=2389.798 cum=-74343.5221 eq%=-0.08524171861
+  #12 L "ConsUpLE" in "ConsUpLE"@337 0.1405 out "ConsUpLE"@371 0.109 q=177301 pnl=-5586.9815 (-0.2242705718) cm=2 ru=2977.6568 dd=5585.9815 cum=-79930.5036 eq%=-0.2177610474
+  ... 11 more
+  digest 1-23: 16e2162da997fb
+orders:
+  4 buy entry MARKET "ConsUpLE" 1.3522 x73431
+  7 sell entry MARKET "ConsDnSE" 1.1268 x73431
+  68 buy entry MARKET "ConsUpLE" 0.7816 x104307
+  71 sell entry MARKET "ConsDnSE" 0.6929 x104307
+  102 buy entry MARKET "ConsUpLE" 0.7308 x99519
+  105 sell entry MARKET "ConsDnSE" 0.6652 x99519
+  114 buy entry MARKET "ConsUpLE" 0.6659 x92156
+  117 sell entry MARKET "ConsDnSE" 0.675 x92156
+  120 buy entry MARKET "ConsUpLE" 0.769 x87425
+  138 sell entry MARKET "ConsDnSE" 0.6035 x87425
+  168 buy entry MARKET "ConsUpLE" 0.4304 x119820
+  183 sell entry MARKET "ConsDnSE" 0.3805 x119820
+  ... 34 more
+  digest 1-46: 049c818e98f9ca

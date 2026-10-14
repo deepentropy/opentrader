@@ -1,0 +1,38 @@
+builtin/channel-breakout on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=56 filledOrders=111 marginCalls=0 finalEquity=32565.0157 minEquity=16161.6692
+orders by kind: entry/STOP=111
+openPL=8737.476 maxDD=84172.869 (0.84172869) maxRunUp=17820.144 (0.496577334) buyHold=-69945.4944 (-0.699454944)
+all: netProfit=-76172.4603 grossProfit=52761.7818 grossLoss=128934.2421 commissionPaid=111 profitFactor=0.4092146581 totalTrades=55 totalOpenTrades=1 numberOfWiningTrades=15 numberOfLosingTrades=40 percentProfitable=0.2727272727 avgTrade=-1384.953824 avgWinTrade=3517.45212 avgLosTrade=3223.356053 largestWinTrade=8654.1967 largestLosTrade=10995.9462 avgBarsInTrade=7.818181818 maxContractsHeld=621150
+long: netProfit=-76172.4603 grossProfit=52761.7818 grossLoss=128934.2421 commissionPaid=111 profitFactor=0.4092146581 totalTrades=55 totalOpenTrades=1 numberOfWiningTrades=15 numberOfLosingTrades=40 percentProfitable=0.2727272727 avgTrade=-1384.953824 avgWinTrade=3517.45212 avgLosTrade=3223.356053 largestWinTrade=8654.1967 largestLosTrade=10995.9462 avgBarsInTrade=7.818181818 maxContractsHeld=621150
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "ChBrkLE" in "ChBrkLE"@8 1.3765 out "ChBrkSE"@13 1.243 q=72647 pnl=-9700.3745 (-0.09700413738) cm=2 ru=3994.585 dd=9699.3745 cum=-9700.3745 eq%=-0.097003745
+  #2 L "ChBrkLE" in "ChBrkLE"@18 1.3314 out "ChBrkSE"@25 1.1693 q=67822 pnl=-10995.9462 (-0.12177234) cm=2 ru=4651.5892 dd=10994.9462 cum=-20696.3207 eq%=-0.1217717808
+  #3 L "ChBrkLE" in "ChBrkLE"@30 1.2269 out "ChBrkSE"@36 1.1522 q=64636 pnl=-4830.3092 (-0.06090960972) cm=2 ru=5059.9988 dd=4829.3092 cum=-25526.6299 eq%=-0.06090901762
+  #4 L "ChBrkLE" in "ChBrkLE"@41 1.2339 out "ChBrkSE"@46 1.1083 q=60355 pnl=-7582.588 (-0.1018165575) cm=2 ru=1236.2775 dd=7581.588 cum=-33109.2179 eq%=-0.1018160987
+  #5 L "ChBrkLE" in "ChBrkLE"@51 1.1595 out "ChBrkSE"@52 1.0708 q=57688 pnl=-5118.9256 (-0.07652724682) cm=2 ru=1371.9744 dd=5117.9256 cum=-38228.1435 eq%=-0.07652662204
+  #6 L "ChBrkLE" in "ChBrkLE"@73 0.782 out "ChBrkSE"@83 0.8827 q=78990 pnl=7952.293 (0.1287379163) cm=2 ru=17819.144 dd=2181.124 cum=-30275.8505 eq%=0.1287365064
+  #7 L "ChBrkLE" in "ChBrkLE"@97 0.7426 out "ChBrkSE"@98 0.6782 q=93890 pnl=-6048.516 (-0.0867497678) cm=2 ru=17.778 dd=6047.516 cum=-36324.3665 eq%=-0.08674922596
+  #8 L "ChBrkLE" in "ChBrkLE"@100 0.743 out "ChBrkSE"@105 0.6652 q=85699 pnl=-6669.3822 (-0.1047403975) cm=2 ru=2569.97 dd=6668.3822 cum=-42993.7487 eq%=-0.1047399426
+  #9 L "ChBrkLE" in "ChBrkLE"@113 0.7525 out "ChBrkSE"@114 0.6657 q=75754 pnl=-6577.4472 (-0.1153818979) cm=2 ru=1301.9688 dd=6576.4472 cum=-49571.1959 eq%=-0.1153811565
+  #10 L "ChBrkLE" in "ChBrkLE"@126 0.7159 out "ChBrkSE"@129 0.6607 q=70439 pnl=-3890.2328 (-0.07714387229) cm=2 ru=175.0975 dd=3889.2328 cum=-53461.4287 eq%=-0.0771430707
+  #11 L "ChBrkLE" in "ChBrkLE"@130 0.7317 out "ChBrkSE"@136 0.6782 q=63601 pnl=-3404.6535 (-0.07315880247) cm=2 ru=2072.3926 dd=3403.6535 cum=-56866.0822 eq%=-0.07315767126
+  #12 L "ChBrkLE" in "ChBrkLE"@165 0.4071 out "ChBrkSE"@180 0.4888 q=105951 pnl=8654.1967 (0.2006367715) cm=2 ru=13952.7467 dd=1071.1051 cum=-48211.8855 eq%=0.2006355356
+  ... 44 more
+  digest 1-56: 16e35ab7abb4ac
+orders:
+  8 buy entry STOP "ChBrkLE" 1.3765 x72647
+  13 sell entry STOP "ChBrkSE" 1.243 x72647
+  18 buy entry STOP "ChBrkLE" 1.3314 x67822
+  25 sell entry STOP "ChBrkSE" 1.1693 x67822
+  30 buy entry STOP "ChBrkLE" 1.2269 x64636
+  36 sell entry STOP "ChBrkSE" 1.1522 x64636
+  41 buy entry STOP "ChBrkLE" 1.2339 x60355
+  46 sell entry STOP "ChBrkSE" 1.1083 x60355
+  51 buy entry STOP "ChBrkLE" 1.1595 x57688
+  52 sell entry STOP "ChBrkSE" 1.0708 x57688
+  73 buy entry STOP "ChBrkLE" 0.782 x78990
+  83 sell entry STOP "ChBrkSE" 0.8827 x78990
+  ... 99 more
+  digest 1-100: 107446d3b09e36
+  digest 101-111: 0019b1ba07760e

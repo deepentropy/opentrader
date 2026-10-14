@@ -1,0 +1,31 @@
+builtin/bollinger-bands-directed on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=7 filledOrders=14 marginCalls=0 finalEquity=35043.5096 minEquity=14597.9772
+orders by kind: entry/STOP=14
+openPL=0 maxDD=86189.9775 (0.861899775) maxRunUp=15311.0582 (0.4267426563) buyHold=-62802.8335 (-0.628028335)
+all: netProfit=-64956.4904 grossProfit=14474.6652 grossLoss=79431.1556 commissionPaid=14 profitFactor=0.1822290648 totalTrades=7 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=5 percentProfitable=0.2857142857 avgTrade=-9279.498629 avgWinTrade=7237.3326 avgLosTrade=15886.23112 largestWinTrade=8953.8182 largestLosTrade=29778.3934 avgBarsInTrade=49 maxContractsHeld=634810
+long: netProfit=-64956.4904 grossProfit=14474.6652 grossLoss=79431.1556 commissionPaid=14 profitFactor=0.1822290648 totalTrades=7 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=5 percentProfitable=0.2857142857 avgTrade=-9279.498629 avgWinTrade=7237.3326 avgLosTrade=15886.23112 largestWinTrade=8953.8182 largestLosTrade=29778.3934 avgBarsInTrade=49 maxContractsHeld=634810
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "BBandLE" in "BBandLE"@49 1.1122 out "BBandSE"@80 0.9034 q=88706 pnl=-18523.8128 (-0.1877543875) cm=2 ru=6305.9966 dd=38801.0044 cum=-18523.8128 eq%=-0.185238128
+  #2 L "BBandLE" in "BBandLE"@139 0.6281 out "BBandSE"@174 0.5047 q=129572 pnl=-15991.1848 (-0.1964876914) cm=2 ru=6270.2848 dd=35659.2144 cum=-34514.9976 eq%=-0.1962682024
+  #3 L "BBandLE" in "BBandLE"@187 0.3731 out "BBandSE"@204 0.3579 q=175278 pnl=-2666.2256 (-0.04076970744) cm=2 ru=6659.564 dd=11043.514 cum=-37181.2232 eq%=-0.04071505692
+  #4 L "BBandLE" in "BBandLE"@286 0.1968 out "BBandSE"@328 0.157 q=313305 pnl=-12471.539 (-0.2022649287) cm=2 ru=5168.5325 dd=29514.331 cum=-49652.7622 eq%=-0.1985320255
+  #5 L "BBandLE" in "BBandLE"@345 0.1197 out "BBandSE"@498 0.0479 q=414713 pnl=-29778.3934 (-0.5998611208) cm=2 ru=8583.5591 dd=36537.2153 cum=-79431.1556 eq%=-0.5914603204
+  #6 L "BBandLE" in "BBandLE"@534 0.0318 out "BBandSE"@579 0.0405 q=634810 pnl=5520.847 (0.2734722848) cm=2 ru=7553.239 dd=5079.48 cum=-73910.3086 eq%=0.2684082242
+  #7 L "BBandLE" in "BBandLE"@621 0.0467 out "BBandSE"@634 0.0628 q=556262 pnl=8953.8182 (0.3446634896) cm=2 ru=9789.2112 dd=612.8882 cum=-64956.4904 eq%=0.3431937183
+  digest 1-7: 1176f7a3a5a21d
+orders:
+  49 buy entry STOP "BBandLE" 1.1122 x88706
+  80 sell entry STOP "BBandSE" 0.9034 x88706
+  139 buy entry STOP "BBandLE" 0.6281 x129572
+  174 sell entry STOP "BBandSE" 0.5047 x129572
+  187 buy entry STOP "BBandLE" 0.3731 x175278
+  204 sell entry STOP "BBandSE" 0.3579 x175278
+  286 buy entry STOP "BBandLE" 0.1968 x313305
+  328 sell entry STOP "BBandSE" 0.157 x313305
+  345 buy entry STOP "BBandLE" 0.1197 x414713
+  498 sell entry STOP "BBandSE" 0.0479 x414713
+  534 buy entry STOP "BBandLE" 0.0318 x634810
+  579 sell entry STOP "BBandSE" 0.0405 x634810
+  ... 2 more
+  digest 1-14: 1fa01030fb41f4

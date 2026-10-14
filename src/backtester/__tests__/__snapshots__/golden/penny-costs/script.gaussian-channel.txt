@@ -1,0 +1,14 @@
+script/gaussian-channel on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=1 filledOrders=2 marginCalls=0 finalEquity=727033.9298 minEquity=96337.0651
+orders by kind: entry/MARKET=1 exit/MARKET=1
+openPL=0 maxDD=7324.8698 (0.073248698) maxRunUp=980553.4913 (0.9074556759) buyHold=1078632.157 (10.78632157)
+all: netProfit=627033.9298 grossProfit=627033.9298 grossLoss=0 commissionPaid=2 profitFactor=- totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=0 percentProfitable=1 avgTrade=627033.9298 avgWinTrade=627033.9298 avgLosTrade=- largestWinTrade=627033.9298 largestLosTrade=- avgBarsInTrade=318 maxContractsHeld=2816873
+long: netProfit=627033.9298 grossProfit=627033.9298 grossLoss=0 commissionPaid=2 profitFactor=- totalTrades=1 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=0 percentProfitable=1 avgTrade=627033.9298 avgWinTrade=627033.9298 avgLosTrade=- largestWinTrade=627033.9298 largestLosTrade=- avgBarsInTrade=318 maxContractsHeld=2816873
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@560 0.0351 out "Close entry(s) order Long"@877 0.2577 q=2816873 pnl=627033.9298 (6.341795972) cm=2 ru=980552.4913 dd=7324.8698 cum=627033.9298 eq%=6.270339298
+  digest 1-1: 1c8cf02b614632
+orders:
+  560 buy entry MARKET "Long" 0.0351 x2816873
+  877 sell exit MARKET "Close entry(s) order Long" 0.2577 x2816873
+  digest 1-2: 094a6c01856515

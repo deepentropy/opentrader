@@ -1,0 +1,41 @@
+builtin/volty-expan-close on daily: 1500 bars, first 1546405200, last 1728964800
+trades=165 filledOrders=329 marginCalls=0 finalEquity=315362.16 minEquity=52263.7
+orders by kind: entry/STOP=329
+openPL=74455.7 maxDD=49407.29 (0.4816673) maxRunUp=285628.31 (0.8445557837) buyHold=88219.86 (0.8821986)
+all: netProfit=140906.46 grossProfit=450042.5 grossLoss=309136.04 commissionPaid=0 profitFactor=1.455807288 totalTrades=164 totalOpenTrades=1 numberOfWiningTrades=66 numberOfLosingTrades=98 percentProfitable=0.4024390244 avgTrade=859.1857317 avgWinTrade=6818.825758 avgLosTrade=3154.449388 largestWinTrade=72474.98 largestLosTrade=37490.4 avgBarsInTrade=4.957317073 maxContractsHeld=1276
+long: netProfit=140906.46 grossProfit=450042.5 grossLoss=309136.04 commissionPaid=0 profitFactor=1.455807288 totalTrades=164 totalOpenTrades=1 numberOfWiningTrades=66 numberOfLosingTrades=98 percentProfitable=0.4024390244 avgTrade=859.1857317 avgWinTrade=6818.825758 avgLosTrade=3154.449388 largestWinTrade=72474.98 largestLosTrade=37490.4 avgBarsInTrade=4.957317073 maxContractsHeld=1276
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "VltClsLE" in "VltClsLE"@7 148.15 out "VltClsSE"@9 147.72 q=674 pnl=-289.82 (-0.002902463719) cm=0 ru=775.1 dd=431.36 cum=-289.82 eq%=-0.0028982
+  #2 L "VltClsLE" in "VltClsLE"@17 147.7 out "VltClsSE"@20 146.42 q=675 pnl=-864 (-0.008666215301) cm=0 ru=432 dd=1039.5 cum=-1153.82 eq%=-0.008665113231
+  #3 L "VltClsLE" in "VltClsLE"@21 149.24 out "VltClsSE"@27 147.83 q=662 pnl=-933.42 (-0.009447869204) cm=0 ru=3720.44 dd=933.42 cum=-2087.24 eq%=-0.009443157034
+  #4 L "VltClsLE" in "VltClsLE"@34 149.36 out "VltClsSE"@36 145.44 q=655 pnl=-2567.6 (-0.02624531334) cm=0 ru=327.5 dd=2567.6 cum=-4654.84 eq%=-0.02622334413
+  #5 L "VltClsLE" in "VltClsLE"@42 142.43 out "VltClsSE"@43 140.92 q=669 pnl=-1010.19 (-0.01060169908) cm=0 ru=481.68 dd=1010.19 cum=-5665.03 eq%=-0.01059508422
+  #6 L "VltClsLE" in "VltClsLE"@73 140.04 out "VltClsSE"@76 144.68 q=673 pnl=3122.72 (0.03313339046) cm=0 ru=4684.08 dd=0 cum=-2542.31 eq%=0.03310246455
+  #7 L "VltClsLE" in "VltClsLE"@78 147.83 out "VltClsSE"@87 142.78 q=659 pnl=-3327.95 (-0.03416086045) cm=0 ru=85.67 dd=4481.2 cum=-5870.26 eq%=-0.03414763884
+  #8 L "VltClsLE" in "VltClsLE"@100 140.64 out "VltClsSE"@101 139.03 q=669 pnl=-1077.09 (-0.0114476678) cm=0 ru=816.18 dd=1077.09 cum=-6947.35 eq%=-0.01144261102
+  #9 L "VltClsLE" in "VltClsLE"@103 140.24 out "VltClsSE"@104 138.49 q=663 pnl=-1160.25 (-0.0124786081) cm=0 ru=689.52 dd=1160.25 cum=-8107.6 eq%=-0.01246874753
+  #10 L "VltClsLE" in "VltClsLE"@105 140.73 out "VltClsSE"@107 139.58 q=652 pnl=-749.8 (-0.00817167626) cm=0 ru=1147.52 dd=749.8 cum=-8857.4 eq%=-0.008159543118
+  #11 L "VltClsLE" in "VltClsLE"@113 140.43 out "VltClsSE"@115 140.57 q=649 pnl=90.86 (0.0009969379762) cm=0 ru=3342.35 dd=0 cum=-8766.54 eq%=0.0009968993643
+  #12 L "VltClsLE" in "VltClsLE"@121 142.74 out "VltClsSE"@122 130.37 q=639 pnl=-7904.43 (-0.08666106207) cm=0 ru=1220.49 dd=7904.43 cum=-16670.97 eq%=-0.08663959473
+  ... 153 more
+  digest 1-100: 1afc08564764b0
+  digest 101-165: 10cbfcb98930b9
+orders:
+  7 buy entry STOP "VltClsLE" 148.15 x674
+  9 sell entry STOP "VltClsSE" 147.72 x674
+  17 buy entry STOP "VltClsLE" 147.7 x675
+  20 sell entry STOP "VltClsSE" 146.42 x675
+  21 buy entry STOP "VltClsLE" 149.24 x662
+  27 sell entry STOP "VltClsSE" 147.83 x662
+  34 buy entry STOP "VltClsLE" 149.36 x655
+  36 sell entry STOP "VltClsSE" 145.44 x655
+  42 buy entry STOP "VltClsLE" 142.43 x669
+  43 sell entry STOP "VltClsSE" 140.92 x669
+  73 buy entry STOP "VltClsLE" 140.04 x673
+  76 sell entry STOP "VltClsSE" 144.68 x673
+  ... 317 more
+  digest 1-100: 093234e4810f7e
+  digest 101-200: 060b8c2e6bb1de
+  digest 201-300: 1977c6dc7fd603
+  digest 301-329: 1835e5a731609e

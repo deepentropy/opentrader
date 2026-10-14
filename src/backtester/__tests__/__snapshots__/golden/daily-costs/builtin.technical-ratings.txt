@@ -1,0 +1,37 @@
+builtin/technical-ratings on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=35 filledOrders=60 marginCalls=0 finalEquity=102865.6347 minEquity=98707.5188
+orders by kind: entry/MARKET=35 exit/STOP=25
+openPL=966.42 maxDD=5242.73325 (0.04974839937) maxRunUp=8152.31691 (0.0761092618) buyHold=89333.28 (0.8933328)
+all: netProfit=1899.21467 grossProfit=12561.5426 grossLoss=10662.32793 commissionPaid=348.97533 profitFactor=1.178123828 totalTrades=34 totalOpenTrades=1 numberOfWiningTrades=12 numberOfLosingTrades=22 percentProfitable=0.3529411765 avgTrade=55.859255 avgWinTrade=1046.795217 avgLosTrade=484.6512695 largestWinTrade=3151.66236 largestLosTrade=2213.14716 avgBarsInTrade=38 maxContractsHeld=60
+long: netProfit=1654.79981 grossProfit=8336.59388 grossLoss=6681.79407 commissionPaid=239.45019 profitFactor=1.247658008 totalTrades=23 totalOpenTrades=1 numberOfWiningTrades=8 numberOfLosingTrades=15 percentProfitable=0.347826087 avgTrade=71.94781783 avgWinTrade=1042.074235 avgLosTrade=445.452938 largestWinTrade=2386.90793 largestLosTrade=1086.00604 avgBarsInTrade=28.34782609 maxContractsHeld=60
+short: netProfit=244.41486 grossProfit=4224.94872 grossLoss=3980.53386 commissionPaid=109.52514 profitFactor=1.061402533 totalTrades=11 totalOpenTrades=0 numberOfWiningTrades=4 numberOfLosingTrades=7 percentProfitable=0.3636363636 avgTrade=22.21953273 avgWinTrade=1056.23718 avgLosTrade=568.6476943 largestWinTrade=3151.66236 largestLosTrade=2213.14716 avgBarsInTrade=58.18181818 maxContractsHeld=59
+trades:
+  #1 S "short" in "short"@10 147.28 out "long"@20 147.14 q=33 pnl=-5.09586 (-0.001047431656) cm=9.71586 ru=52.88976 dd=36.87024 cum=-5.09586 eq%=-0.0000509586
+  #2 L "long" in "long"@20 147.14 out "short"@28 147.12 q=33 pnl=-10.37058 (-0.002133655389) cm=9.71058 ru=249.90438 dd=52.04562 cum=-15.46644 eq%=-0.000103711085
+  #3 S "short" in "short"@28 147.12 out "long"@49 147.67 q=33 pnl=-27.87807 (-0.005736446805) cm=9.72807 ru=324.81504 dd=95.27496 cum=-43.34451 eq%=-0.0002788238241
+  #4 L "long" in "long"@49 147.67 out "sl/tp"@55 138.69 q=33 pnl=-305.78988 (-0.06268776933) cm=9.44988 ru=13.60689 dd=301.21311 cum=-349.13439 eq%=-0.003059224806
+  #5 S "short" in "short"@57 137.64 out "sl/tp"@74 144.64 q=36 pnl=-262.16208 (-0.05285531092) cm=10.16208 ru=23.12496 dd=256.95504 cum=-611.29647 eq%=-0.002630805848
+  #6 L "long" in "long"@75 145.23 out "short"@95 141.26 q=34 pnl=-144.72066 (-0.02927933459) cm=9.74066 ru=87.88218 dd=158.27782 cum=-756.01713 eq%=-0.001456107735
+  #7 S "short" in "short"@95 141.26 out "sl/tp"@128 122.18 q=35 pnl=658.5796 (0.1330720815) cm=9.2204 ru=1184.3559 dd=156.1441 cum=-97.43753 eq%=0.006635965032
+  #8 S "short" in "short"@131 117.88 out "long"@172 139.91 q=42 pnl=-936.08718 (-0.1888829698) cm=10.82718 ru=1268.06904 dd=930.21096 cum=-1033.52471 eq%=-0.009370001698
+  #9 L "long" in "long"@172 139.91 out "sl/tp"@203 178.44 q=39 pnl=1490.25435 (0.2728430886) cm=12.41565 ru=2358.33351 dd=335.39649 cum=456.72964 eq%=0.01505817344
+  #10 L "long" in "long"@207 202.74 out "sl/tp"@219 169 q=24 pnl=-818.68176 (-0.1680855398) cm=8.92176 ru=433.85424 dd=814.62576 cum=-361.95212 eq%=-0.00814959598
+  #11 L "long" in "long"@228 189.57 out "sl/tp"@276 224.65 q=25 pnl=866.6445 (0.1826826441) cm=10.3555 ru=1205.76075 dd=80.23925 cum=504.69238 eq%=0.008697927332
+  #12 L "long" in "long"@294 227.02 out "sl/tp"@305 214.4 q=22 pnl=-287.35124 (-0.05747674931) cm=9.71124 ru=92.68556 dd=282.63444 cum=217.34114 eq%=-0.002859082827
+  ... 23 more
+  digest 1-35: 0dae2fb4e8827a
+orders:
+  10 sell entry MARKET "short" 147.28 x33
+  20 buy entry MARKET "long" 147.14 x66
+  28 sell entry MARKET "short" 147.12 x66
+  49 buy entry MARKET "long" 147.67 x66
+  55 sell exit STOP "sl/tp" 138.69 x33
+  57 sell entry MARKET "short" 137.64 x36
+  74 buy exit STOP "sl/tp" 144.64 x36
+  75 buy entry MARKET "long" 145.23 x34
+  95 sell entry MARKET "short" 141.26 x69
+  128 buy exit STOP "sl/tp" 122.18 x35
+  131 sell entry MARKET "short" 117.88 x42
+  172 buy entry MARKET "long" 139.91 x81
+  ... 48 more
+  digest 1-60: 1ea7f526d32c83

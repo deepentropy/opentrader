@@ -1,0 +1,37 @@
+port/doji on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=21 filledOrders=42 marginCalls=0 finalEquity=10284.71197 minEquity=9940.54946
+orders by kind: entry/MARKET=21 exit/STOP=21
+openPL=0 maxDD=215.20656 (0.02049602189) maxRunUp=580.84183 (0.05525786442) buyHold=9312.93 (0.931293)
+all: netProfit=284.71197 grossProfit=559.36907 grossLoss=274.6571 commissionPaid=429.47803 profitFactor=2.036608811 totalTrades=21 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=14 percentProfitable=0.3333333333 avgTrade=13.55771286 avgWinTrade=79.90986714 avgLosTrade=19.61836429 largestWinTrade=186.9498 largestLosTrade=22.65073 avgBarsInTrade=1 maxContractsHeld=115
+long: netProfit=284.71197 grossProfit=559.36907 grossLoss=274.6571 commissionPaid=429.47803 profitFactor=2.036608811 totalTrades=21 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=14 percentProfitable=0.3333333333 avgTrade=13.55771286 avgWinTrade=79.90986714 avgLosTrade=19.61836429 largestWinTrade=186.9498 largestLosTrade=22.65073 avgBarsInTrade=1 maxContractsHeld=115
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@86 144.07 out "Trail Profit"@86 144.07 q=69 pnl=-19.88166 (-0.001998001998) cm=19.88166 ru=0 dd=81.01083 cum=-19.88166 eq%=-0.001988166
+  #2 L "Long" in "Long"@171 123.24 out "Trail Profit"@171 123.24 q=80 pnl=-19.7184 (-0.001998001998) cm=19.7184 ru=0 dd=140.2592 cum=-39.60006 eq%=-0.001975768155
+  #3 L "Long" in "Long"@194 190.87 out "Trail Profit"@194 190.87 q=52 pnl=-19.85048 (-0.001998001998) cm=19.85048 ru=0 dd=10.96524 cum=-59.45054 eq%=-0.001992940055
+  #4 L "Long" in "Long"@247 230.54 out "Trail Profit"@247 231.18 q=43 pnl=7.66604 (0.0007725422838) cm=19.85396 ru=18.89678 dd=10.77322 cum=-51.7845 eq%=0.0007711887588
+  #5 L "Long" in "Long"@260 223.74 out "Trail Profit"@260 225.11 q=44 pnl=40.5306 (0.004112942568) cm=19.7494 ru=51.75544 dd=54.28456 cum=-11.2539 eq%=0.004074157823
+  #6 L "Long" in "Long"@320 219.06 out "Trail Profit"@320 220.88 q=45 pnl=62.1027 (0.006293624207) cm=19.7973 ru=73.3923 dd=57.1077 cum=50.8488 eq%=0.00621726685
+  #7 L "Long" in "Long"@322 220.48 out "Trail Profit"@322 225.08 q=45 pnl=186.9498 (0.01882388294) cm=20.0502 ru=198.4284 dd=63.9216 cum=237.7986 eq%=0.0186003992
+  #8 L "Long" in "Long"@401 228.01 out "Trail Profit"@401 231.26 q=44 pnl=122.79212 (0.01222727976) cm=20.20788 ru=134.28756 dd=50.51244 cum=360.59072 eq%=0.01199399644
+  #9 L "Long" in "Long"@433 228.32 out "Trail Profit"@433 230.93 q=45 pnl=96.78375 (0.00941048265) cm=20.66625 ru=108.5256 dd=91.7244 cum=457.37447 eq%=0.009341528163
+  #10 L "Long" in "Long"@448 250.4 out "Trail Profit"@448 251.94 q=41 pnl=42.54406 (0.004139869715) cm=20.59594 ru=54.1036 dd=52.4964 cum=499.91853 eq%=0.00406833093
+  #11 L "Long" in "Long"@468 272.43 out "Trail Profit"@468 272.94 q=38 pnl=-1.34406 (-0.0001297018145) cm=20.72406 ru=10.16766 dd=11.11234 cum=498.57447 eq%=-0.0001280067075
+  #12 L "Long" in "Long"@767 90.32 out "Trail Profit"@767 90.31 q=115 pnl=-21.92245 (-0.002108498233) cm=20.77245 ru=0 dd=12.6868 cum=476.65202 eq%=-0.002088135876
+  ... 9 more
+  digest 1-21: 16225900ec4137
+orders:
+  86 buy entry MARKET "Long" 144.07 x69
+  86 sell exit STOP "Stop Exit" 144.07 x69
+  171 buy entry MARKET "Long" 123.24 x80
+  171 sell exit STOP "Stop Exit" 123.24 x80
+  194 buy entry MARKET "Long" 190.87 x52
+  194 sell exit STOP "Stop Exit" 190.87 x52
+  247 buy entry MARKET "Long" 230.54 x43
+  247 sell exit STOP "Stop Exit" 231.18 x43
+  260 buy entry MARKET "Long" 223.74 x44
+  260 sell exit STOP "Stop Exit" 225.11 x44
+  320 buy entry MARKET "Long" 219.06 x45
+  320 sell exit STOP "Stop Exit" 220.88 x45
+  ... 30 more
+  digest 1-42: 16a0654fe2161c

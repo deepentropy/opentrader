@@ -1,0 +1,38 @@
+builtin/channel-breakout on penny: 900 bars, first 978411600, last 1088136000
+trades=59 filledOrders=114 marginCalls=2 finalEquity=32874.3018 minEquity=16004.1648
+orders by kind: entry/MARKET=1 entry/STOP=111 order/MARKET=2
+openPL=8828.4504 maxDD=84413.8542 (0.844138542) maxRunUp=17163.9158 (0.5156262342) buyHold=-64486.0128 (-0.644860128)
+all: netProfit=-75954.1486 grossProfit=51852.3887 grossLoss=127806.5373 commissionPaid=0 profitFactor=0.4057099879 totalTrades=58 totalOpenTrades=1 numberOfWiningTrades=16 numberOfLosingTrades=42 percentProfitable=0.275862069 avgTrade=-1309.554286 avgWinTrade=3240.774294 avgLosTrade=3043.012793 largestWinTrade=7914.3246 largestLosTrade=9986.1539 avgBarsInTrade=7.568965517 maxContractsHeld=597170
+long: netProfit=-63183.5178 grossProfit=51852.3887 grossLoss=115035.9065 commissionPaid=0 profitFactor=0.4507495988 totalTrades=56 totalOpenTrades=1 numberOfWiningTrades=16 numberOfLosingTrades=40 percentProfitable=0.2857142857 avgTrade=-1128.277104 avgWinTrade=3240.774294 avgLosTrade=2875.897663 largestWinTrade=7914.3246 largestLosTrade=9986.1539 avgBarsInTrade=7.696428571 maxContractsHeld=597170
+short: netProfit=-12770.6308 grossProfit=0 grossLoss=12770.6308 commissionPaid=0 profitFactor=0 totalTrades=2 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=2 percentProfitable=0 avgTrade=-6385.3154 avgWinTrade=- avgLosTrade=6385.3154 largestWinTrade=- largestLosTrade=9427.824 avgBarsInTrade=4 maxContractsHeld=84324
+trades:
+  #1 S "ChBrkSE" in "ChBrkSE"@2 1.1649 out "Margin call"@2 1.249 q=39748 pnl=-3342.8068 (-0.0721950382) cm=0 ru=1570.046 dd=3342.8068 cum=-3342.8068 eq%=-0.033428068
+  #2 S "ChBrkSE" in "ChBrkSE"@2 1.1649 out "ChBrkLE"@8 1.3764 q=44576 pnl=-9427.824 (-0.181560649) cm=0 ru=3222.8448 dd=9427.824 cum=-12770.6308 eq%=-0.09753877273
+  #3 L "ChBrkLE" in "ChBrkLE"@8 1.3764 out "Margin call"@8 1.4218 q=23120 pnl=1049.648 (0.0329845975) cm=0 ru=1049.648 dd=0 cum=-11720.9828 eq%=0.01203319489
+  #4 L "ChBrkLE" in "ChBrkLE"@8 1.3764 out "ChBrkSE"@13 1.2431 q=46226 pnl=-6161.9258 (-0.09684684685) cm=0 ru=2547.0526 dd=6161.9258 cum=-17882.9086 eq%=-0.06980057091
+  #5 L "ChBrkLE" in "ChBrkLE"@18 1.3313 out "ChBrkSE"@25 1.1694 q=61681 pnl=-9986.1539 (-0.1216104559) cm=0 ru=4237.4847 dd=9986.1539 cum=-27869.0625 eq%=-0.1216087142
+  #6 L "ChBrkLE" in "ChBrkLE"@30 1.2268 out "ChBrkSE"@36 1.1523 q=58796 pnl=-4380.302 (-0.06072709488) cm=0 ru=4609.6064 dd=4380.302 cum=-32249.3645 eq%=-0.06072709092
+  #7 L "ChBrkLE" in "ChBrkLE"@41 1.2338 out "ChBrkSE"@46 1.1084 q=54912 pnl=-6885.9648 (-0.1016372183) cm=0 ru=1131.1872 dd=6885.9648 cum=-39135.3293 eq%=-0.1016369035
+  #8 L "ChBrkLE" in "ChBrkLE"@51 1.1594 out "ChBrkSE"@52 1.0709 q=52496 pnl=-4645.896 (-0.07633258582) cm=0 ru=1254.6544 dd=4645.896 cum=-43781.2253 eq%=-0.0763315721
+  #9 L "ChBrkLE" in "ChBrkLE"@73 0.7819 out "ChBrkSE"@83 0.8828 q=71900 pnl=7254.71 (0.1290446349) cm=0 ru=16227.83 dd=1977.25 cum=-36526.5153 eq%=0.1290442568
+  #10 L "ChBrkLE" in "ChBrkLE"@97 0.7425 out "ChBrkSE"@98 0.6783 q=85486 pnl=-5488.2012 (-0.08646464646) cm=0 ru=25.6458 dd=5488.2012 cum=-42014.7165 eq%=-0.08646446979
+  #11 L "ChBrkLE" in "ChBrkLE"@100 0.7429 out "ChBrkSE"@105 0.6653 q=78052 pnl=-6056.8352 (-0.1044555122) cm=0 ru=2349.3652 dd=6056.8352 cum=-48071.5517 eq%=-0.1044546967
+  #12 L "ChBrkLE" in "ChBrkLE"@113 0.7524 out "ChBrkSE"@114 0.6658 q=69017 pnl=-5976.8722 (-0.1150983519) cm=0 ru=1193.9941 dd=5976.8722 cum=-54048.4239 eq%=-0.1150982245
+  ... 47 more
+  digest 1-59: 17644e321eca8d
+orders:
+  2 sell entry MARKET "ChBrkSE" 1.1649 x84324
+  2 buy order MARKET "Margin call 0" 1.249 x39748
+  8 buy entry STOP "ChBrkLE" 1.3764 x113922
+  8 sell order MARKET "Margin call 1" 1.4218 x23120
+  13 sell entry STOP "ChBrkSE" 1.2431 x46226
+  18 buy entry STOP "ChBrkLE" 1.3313 x61681
+  25 sell entry STOP "ChBrkSE" 1.1694 x61681
+  30 buy entry STOP "ChBrkLE" 1.2268 x58796
+  36 sell entry STOP "ChBrkSE" 1.1523 x58796
+  41 buy entry STOP "ChBrkLE" 1.2338 x54912
+  46 sell entry STOP "ChBrkSE" 1.1084 x54912
+  51 buy entry STOP "ChBrkLE" 1.1594 x52496
+  ... 102 more
+  digest 1-100: 1901f014fe871d
+  digest 101-114: 1ad606f9458677

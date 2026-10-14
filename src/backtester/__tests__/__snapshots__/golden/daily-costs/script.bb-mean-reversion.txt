@@ -1,0 +1,37 @@
+script/bb-mean-reversion on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=62 filledOrders=82 marginCalls=0 finalEquity=62827.90148 minEquity=42416.2561
+orders by kind: exit/MARKET=20 order/MARKET=62
+openPL=227.64 maxDD=58153.16711 (0.5796664597) maxRunUp=10653.00397 (0.1694689897) buyHold=117104.56 (1.1710456)
+all: netProfit=-37399.73852 grossProfit=17281.89223 grossLoss=54681.63075 commissionPaid=885.75852 profitFactor=0.3160456627 totalTrades=61 totalOpenTrades=1 numberOfWiningTrades=34 numberOfLosingTrades=27 percentProfitable=0.5573770492 avgTrade=-613.1104675 avgWinTrade=508.2909479 avgLosTrade=2025.245583 largestWinTrade=2218.02464 largestLosTrade=6269.19233 avgBarsInTrade=50.72131148 maxContractsHeld=635
+long: netProfit=-41657.07497 grossProfit=5521.64237 grossLoss=47178.71734 commissionPaid=383.60497 profitFactor=0.1170367208 totalTrades=24 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=17 percentProfitable=0.2916666667 avgTrade=-1735.711457 avgWinTrade=788.8060529 avgLosTrade=2775.218667 largestWinTrade=2218.02464 largestLosTrade=6269.19233 avgBarsInTrade=108.0833333 maxContractsHeld=635
+short: netProfit=4257.33645 grossProfit=11760.24986 grossLoss=7502.91341 commissionPaid=502.15355 profitFactor=1.567424441 totalTrades=37 totalOpenTrades=1 numberOfWiningTrades=27 numberOfLosingTrades=10 percentProfitable=0.7297297297 avgTrade=115.0631473 avgWinTrade=435.5648096 avgLosTrade=750.291341 largestWinTrade=1321.57725 largestLosTrade=2642.87725 avgBarsInTrade=13.51351351 maxContractsHeld=287
+trades:
+  #1 L "Long" in "Long"@123 128.52 out "Close Long"@158 117.19 q=78 pnl=-902.90538 (-0.08997934838) cm=19.16538 ru=188.09544 dd=3204.12456 cum=-963.31766 eq%=-0.009034511755
+  #2 L "Long" in "Long"@124 122.48 out "Close Long"@158 117.19 q=82 pnl=-453.43294 (-0.04510243186) cm=19.65294 ru=281.05664 dd=2872.66336 cum=-1406.70724 eq%=-0.004577970012
+  #3 L "Long" in "Long"@125 117.78 out "Close Long"@158 117.19 q=84 pnl=-69.29748 (-0.006997332774) cm=19.73748 ru=611.70648 dd=2547.53352 cum=-1466.1112 eq%=-0.0007027914879
+  #4 L "Long" in "Long"@126 119.27 out "Close Long"@158 117.19 q=84 pnl=-194.58264 (-0.01940258115) cm=19.86264 ru=486.42132 dd=2672.81868 cum=-1650.67516 eq%=-0.001974578084
+  #5 L "Long" in "Long"@127 115.92 out "Close Long"@158 117.19 q=85 pnl=88.13565 (0.008935939837) cm=19.81435 ru=777.2468 dd=2419.6032 cum=-1552.68631 eq%=0.0008960592367
+  #6 L "Long" in "Long"@128 121.09 out "Close Long"@158 117.19 q=88 pnl=-364.16864 (-0.03414110046) cm=20.96864 ru=349.26408 dd=2960.41592 cum=-1906.19903 eq%=-0.003698721814
+  #7 L "Long" in "Long"@141 95.65 out "Close Long"@158 117.19 q=104 pnl=2218.02464 (0.2227480831) cm=22.13536 ru=2381.0124 dd=850.2676 cum=321.77321 eq%=0.0226089693
+  #8 S "Short" in "Short"@175 154.67 out "Close Short"@216 194.98 q=65 pnl=-2642.87725 (-0.2626173852) cm=22.72725 ru=595.74645 dd=4322.80355 cum=-2360.77678 eq%=-0.02635442654
+  #9 S "Short" in "Short"@176 154.88 out "Close Short"@216 194.98 q=64 pnl=-2588.79104 (-0.260908126) cm=22.39104 ru=600.00768 dd=4242.87232 cum=-4939.6555 eq%=-0.02651115164
+  #10 S "Short" in "Short"@192 184.49 out "Close Short"@216 194.98 q=54 pnl=-586.95138 (-0.05885745237) cm=20.49138 ru=328.07754 dd=1982.58246 cum=-5516.64442 eq%=-0.006173866465
+  #11 S "Short" in "Short"@193 189.9 out "Close Short"@216 194.98 q=52 pnl=-284.17376 (-0.02874892354) cm=20.01376 ru=596.9652 dd=1628.1148 cum=-5790.94338 eq%=-0.00300734517
+  #12 S "Short" in "Short"@194 190.83 out "Close Short"@216 194.98 q=52 pnl=-235.86212 (-0.02374510675) cm=20.06212 ru=645.27684 dd=1579.80316 cum=-6016.88234 eq%=-0.002503339779
+  ... 50 more
+  digest 1-62: 06b78f95d135b3
+orders:
+  123 buy order MARKET "Long" 128.52 x78
+  124 buy order MARKET "Long" 122.48 x82
+  125 buy order MARKET "Long" 117.78 x84
+  126 buy order MARKET "Long" 119.27 x84
+  127 buy order MARKET "Long" 115.92 x85
+  128 buy order MARKET "Long" 121.09 x88
+  141 buy order MARKET "Long" 95.65 x104
+  158 sell exit MARKET "Close entry(s) order Long" 117.19 x605
+  175 sell order MARKET "Short" 154.67 x65
+  176 sell order MARKET "Short" 154.88 x64
+  192 sell order MARKET "Short" 184.49 x54
+  193 sell order MARKET "Short" 189.9 x52
+  ... 70 more
+  digest 1-82: 0be2fd8156f59f

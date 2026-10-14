@@ -1,0 +1,42 @@
+builtin/pivot-reversal on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=259 filledOrders=304 marginCalls=101 finalEquity=137493.31 minEquity=93793.36
+orders by kind: entry/STOP=203 order/MARKET=101
+openPL=304.78 maxDD=11843.73 (0.1121349885) maxRunUp=47400.26 (0.3357310347) buyHold=-7039.2 (-0.070392)
+all: netProfit=37188.53 grossProfit=88484.72 grossLoss=51296.19 commissionPaid=0 profitFactor=1.724976455 totalTrades=258 totalOpenTrades=1 numberOfWiningTrades=84 numberOfLosingTrades=174 percentProfitable=0.3255813953 avgTrade=144.1415891 avgWinTrade=1053.389524 avgLosTrade=294.8056897 largestWinTrade=5757.38 largestLosTrade=2030.96 avgBarsInTrade=14.14728682 maxContractsHeld=344
+long: netProfit=17580.14 grossProfit=50444.51 grossLoss=32864.37 commissionPaid=0 profitFactor=1.534930078 totalTrades=116 totalOpenTrades=1 numberOfWiningTrades=61 numberOfLosingTrades=55 percentProfitable=0.525862069 avgTrade=151.552931 avgWinTrade=826.9591803 avgLosTrade=597.534 largestWinTrade=5238.48 largestLosTrade=2030.96 avgBarsInTrade=16.53448276 maxContractsHeld=344
+short: netProfit=19608.39 grossProfit=38040.21 grossLoss=18431.82 commissionPaid=0 profitFactor=2.063833631 totalTrades=142 totalOpenTrades=0 numberOfWiningTrades=23 numberOfLosingTrades=119 percentProfitable=0.161971831 avgTrade=138.0872535 avgWinTrade=1653.922174 avgLosTrade=154.8892437 largestWinTrade=5757.38 largestLosTrade=1404 avgBarsInTrade=12.1971831 maxContractsHeld=343
+trades:
+  #1 S "PivRevSE" in "PivRevSE"@11 475.29 out "PivRevLE"@45 471.66 q=210 pnl=762.3 (0.007637442404) cm=0 ru=1379.7 dd=60.9 cum=762.3 eq%=0.007623
+  #2 L "PivRevLE" in "PivRevLE"@45 471.66 out "PivRevSE"@49 468.71 q=213 pnl=-628.35 (-0.006254505364) cm=0 ru=83.07 dd=628.35 cum=133.95 eq%=-0.006235963252
+  #3 S "PivRevSE" in "PivRevSE"@64 466.48 out "Margin call"@64 467.95 q=1 pnl=-1.47 (-0.003151260504) cm=0 ru=0.14 dd=1.47 cum=132.48 eq%=-0.00001468033569
+  #4 S "PivRevSE" in "PivRevSE"@64 466.48 out "PivRevLE"@123 452.03 q=213 pnl=3077.85 (0.03097667638) cm=0 ru=3851.04 dd=368.49 cum=3210.33 eq%=0.03073777859
+  #5 L "PivRevLE" in "PivRevLE"@123 452.03 out "PivRevSE"@170 462.6 q=228 pnl=2409.96 (0.02338340376) cm=0 ru=3372.12 dd=0 cum=5620.29 eq%=0.02334998832
+  #6 S "PivRevSE" in "PivRevSE"@170 462.6 out "Margin call"@171 464.25 q=4 pnl=-6.6 (-0.003566796368) cm=0 ru=1.88 dd=6.6 cum=5613.69 eq%=-0.00006248799355
+  #7 S "PivRevSE" in "PivRevSE"@170 462.6 out "PivRevLE"@189 465.81 q=224 pnl=-719.04 (-0.006939040208) cm=0 ru=168 dd=719.04 cum=4894.65 eq%=-0.006808208292
+  #8 L "PivRevLE" in "PivRevLE"@189 465.81 out "PivRevSE"@218 465.95 q=225 pnl=31.5 (0.0003005517271) cm=0 ru=612 dd=310.5 cum=4926.15 eq%=0.0003003013023
+  #9 S "PivRevSE" in "PivRevSE"@218 465.95 out "Margin call"@218 467.23 q=4 pnl=-5.12 (-0.002747075867) cm=0 ru=0.12 dd=5.12 cum=4921.03 eq%=-0.00004879622477
+  #10 S "PivRevSE" in "PivRevSE"@218 465.95 out "PivRevLE"@220 467.98 q=221 pnl=-448.63 (-0.004356690632) cm=0 ru=83.98 dd=448.63 cum=4472.4 eq%=-0.004275882538
+  #11 L "PivRevLE" in "PivRevLE"@220 467.98 out "Margin call"@220 469.14 q=1 pnl=1.16 (0.002478738408) cm=0 ru=1.16 dd=0 cum=4473.56 eq%=0.00001110341104
+  #12 L "PivRevLE" in "PivRevLE"@220 467.98 out "PivRevSE"@253 470.12 q=223 pnl=477.22 (0.004572844993) cm=0 ru=1523.09 dd=78.05 cum=4950.78 eq%=0.004567854297
+  ... 247 more
+  digest 1-100: 1cd944b8a8d955
+  digest 101-200: 181920234df9b2
+  digest 201-259: 068231b9ce528a
+orders:
+  11 sell entry STOP "PivRevSE" 475.29 x210
+  45 buy entry STOP "PivRevLE" 471.66 x423
+  49 sell entry STOP "PivRevSE" 468.71 x213
+  64 sell entry STOP "PivRevSE" 466.48 x214
+  64 buy order MARKET "Margin call 0" 467.95 x1
+  123 buy entry STOP "PivRevLE" 452.03 x441
+  170 sell entry STOP "PivRevSE" 462.6 x456
+  171 buy order MARKET "Margin call 1" 464.25 x4
+  189 buy entry STOP "PivRevLE" 465.81 x449
+  218 sell entry STOP "PivRevSE" 465.95 x450
+  218 buy order MARKET "Margin call 2" 467.23 x4
+  220 buy entry STOP "PivRevLE" 467.98 x445
+  ... 292 more
+  digest 1-100: 06b3a20265f080
+  digest 101-200: 045bcd860dd686
+  digest 201-300: 142c80cca88264
+  digest 301-304: 08f0c2714bcd81

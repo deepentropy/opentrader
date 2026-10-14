@@ -1,0 +1,25 @@
+port/rb-reversal on penny: 900 bars, first 978411600, last 1088136000
+trades=7 filledOrders=7 marginCalls=0 finalEquity=-1631.5063 minEquity=-1631.5063
+orders by kind: entry/MARKET=7
+openPL=-1316.8431 maxDD=1750.5851 (17.505851) maxRunUp=2.136 (0.008056564582) buyHold=-44.946 (-0.44946)
+all: netProfit=-414.6632 grossProfit=0 grossLoss=414.6632 commissionPaid=0 profitFactor=0 totalTrades=5 totalOpenTrades=2 numberOfWiningTrades=0 numberOfLosingTrades=5 percentProfitable=0 avgTrade=-82.93264 avgWinTrade=- avgLosTrade=82.93264 largestWinTrade=- largestLosTrade=92.6956 avgBarsInTrade=386.2 maxContractsHeld=3669
+long: netProfit=-414.6632 grossProfit=0 grossLoss=414.6632 commissionPaid=0 profitFactor=0 totalTrades=5 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=5 percentProfitable=0 avgTrade=-82.93264 avgWinTrade=- avgLosTrade=82.93264 largestWinTrade=- largestLosTrade=92.6956 avgBarsInTrade=386.2 maxContractsHeld=1701
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=2 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=3669
+trades:
+  #1 L "Long" in "Long"@135 0.7542 out "Short"@621 0.0466 q=131 pnl=-92.6956 (-0.9382126757) cm=0 ru=0.8122 dd=95.6824 cum=-92.6956 eq%=-0.926956
+  #2 L "Long" in "Long"@178 0.5215 out "Short"@621 0.0466 q=193 pnl=-91.6557 (-0.9106423778) cm=0 ru=2.7599 dd=96.0561 cum=-184.3513 eq%=-12.54801216
+  #3 L "Long" in "Long"@263 0.251 out "Short"@621 0.0466 q=382 pnl=-78.0808 (-0.8143426295) cm=0 ru=2.9414 dd=86.7904 cum=-262.4321 eq%=-0.9256620823
+  #4 L "Long" in "Long"@276 0.2383 out "Short"@621 0.0466 q=427 pnl=-81.8559 (-0.8044481746) cm=0 ru=6.1488 dd=91.5915 cum=-344.288 eq%=-0.5039391844
+  #5 L "Long" in "Long"@327 0.1705 out "Short"@621 0.0466 q=568 pnl=-70.3752 (-0.726686217) cm=0 ru=0.568 dd=83.3256 cum=-414.6632 eq%=-0.2880829185
+  #6 S "Short" in "Short"@621 0.0466 out OPEN@899 0.4137 q=2136 pnl=-784.1256 (-7.877682403) cm=0 ru=2.136 dd=795.2328 cum=-1198.7888 eq%=-2.49195203
+  #7 S "Short" in "Short"@672 0.0662 out OPEN@899 0.4137 q=1533 pnl=-532.7175 (-5.249244713) cm=0 ru=3.5259 dd=540.6891 cum=-947.3807 eq%=-1.692976808
+  digest 1-7: 1c554e5e379ced
+orders:
+  135 buy entry MARKET "Long" 0.7542 x131
+  178 buy entry MARKET "Long" 0.5215 x193
+  263 buy entry MARKET "Long" 0.251 x382
+  276 buy entry MARKET "Long" 0.2383 x427
+  327 buy entry MARKET "Long" 0.1705 x568
+  621 sell entry MARKET "Short" 0.0466 x3837
+  672 sell entry MARKET "Short" 0.0662 x1533
+  digest 1-7: 1016da1e56b5e1

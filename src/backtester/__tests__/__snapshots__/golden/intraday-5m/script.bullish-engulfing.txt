@@ -1,0 +1,33 @@
+script/bullish-engulfing on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=9 filledOrders=17 marginCalls=0 finalEquity=9922.069986 minEquity=9531.32474
+orders by kind: entry/LIMIT=9 exit/LIMIT=8
+openPL=-45 maxDD=668.014114 (0.06550404578) maxRunUp=398.745246 (0.0399490296) buyHold=-272.16 (-0.027216)
+all: netProfit=-32.930014 grossProfit=788.030922 grossLoss=820.960936 commissionPaid=33.530014 profitFactor=0.959888452 totalTrades=8 totalOpenTrades=1 numberOfWiningTrades=4 numberOfLosingTrades=4 percentProfitable=0.5 avgTrade=-4.11625175 avgWinTrade=197.0077305 avgLosTrade=205.240234 largestWinTrade=205.707624 largestLosTrade=208.730982 avgBarsInTrade=371.375 maxContractsHeld=8
+long: netProfit=-32.930014 grossProfit=788.030922 grossLoss=820.960936 commissionPaid=33.530014 profitFactor=0.959888452 totalTrades=8 totalOpenTrades=1 numberOfWiningTrades=4 numberOfLosingTrades=4 percentProfitable=0.5 avgTrade=-4.11625175 avgWinTrade=197.0077305 avgLosTrade=205.240234 largestWinTrade=205.707624 largestLosTrade=208.730982 avgBarsInTrade=371.375 maxContractsHeld=8
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "#ENTRY" in "#ENTRY"@106 454.73 out "#TP"@1304 488.4 q=6 pnl=198.058854 (0.07254132847) cm=3.961146 ru=202.090134 dd=121.729866 cum=198.058854 eq%=0.0198058854
+  #2 L "#ENTRY" in "#ENTRY"@1352 487.42 out "#SL"@1744 453.29 q=6 pnl=-208.730982 (-0.07132280597) cm=3.950982 ru=101.092836 dd=208.747164 cum=-10.672128 eq%=-0.02046771694
+  #3 L "#ENTRY" in "#ENTRY"@1768 450.67 out "#TP"@1916 485.61 q=6 pnl=205.707624 (0.07602152698) cm=3.932376 ru=211.047186 dd=83.732814 cum=195.035496 eq%=0.02059273923
+  #4 L "#ENTRY" in "#ENTRY"@1977 480.85 out "#SL"@2252 446.94 q=6 pnl=-207.356718 (-0.07182131289) cm=3.896718 ru=33.50043 dd=207.27957 cum=-12.321222 eq%=-0.02033898931
+  #5 L "#ENTRY" in "#ENTRY"@2289 440.5 out "#SL"@2529 407.07 q=6 pnl=-204.139794 (-0.07718388048) cm=3.559794 ru=60.0699 dd=203.6301 cum=-216.461016 eq%=-0.02043916295
+  #6 L "#ENTRY" in "#ENTRY"@2541 404.39 out "#SL"@2906 376.53 q=7 pnl=-198.846508 (-0.07019652627) cm=3.826508 ru=30.848489 dd=200.011511 cum=-415.307524 eq%=-0.02032459914
+  #7 L "#ENTRY" in "#ENTRY"@2920 372.81 out "#TP"@3151 397.11 q=8 pnl=190.088448 (0.06369044526) cm=4.311552 ru=194.472264 dd=54.647736 cum=-225.219076 eq%=0.0198325036
+  #8 L "#ENTRY" in "#ENTRY"@3350 414.81 out "#TP"@3464 443.15 q=7 pnl=194.175996 (0.06682583347) cm=4.204004 ru=199.147431 dd=8.892569 cum=-31.04308 eq%=0.01986499723
+  #9 L "#ENTRY" in "#ENTRY"@3586 449.27 out OPEN@3821 441.77 q=6 pnl=-48.742368 (-0.01806941342) cm=1.886934 ru=12.393066 dd=106.226934 cum=-81.672382 eq%=-0.004890340699
+  digest 1-9: 1afba69d1836da
+orders:
+  106 buy entry LIMIT "#ENTRY" 454.73 x6
+  1304 sell exit LIMIT "#TP" 488.4 x6
+  1352 buy entry LIMIT "#ENTRY" 487.42 x6
+  1744 sell exit LIMIT "#SL" 453.29 x6
+  1768 buy entry LIMIT "#ENTRY" 450.67 x6
+  1916 sell exit LIMIT "#TP" 485.61 x6
+  1977 buy entry LIMIT "#ENTRY" 480.85 x6
+  2252 sell exit LIMIT "#SL" 446.94 x6
+  2289 buy entry LIMIT "#ENTRY" 440.5 x6
+  2529 sell exit LIMIT "#SL" 407.07 x6
+  2541 buy entry LIMIT "#ENTRY" 404.39 x7
+  2906 sell exit LIMIT "#SL" 376.53 x7
+  ... 5 more
+  digest 1-17: 0b4164a419418a

@@ -1,0 +1,47 @@
+builtin/inside-bar on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=578 filledOrders=578 marginCalls=238 finalEquity=84787.25 minEquity=82077.23
+orders by kind: entry/MARKET=340 order/MARKET=238
+openPL=-95.5 maxDD=21099.08 (0.2048026669) maxRunUp=7851.94 (0.08712114992) buyHold=-7125.3 (-0.071253)
+all: netProfit=-15117.25 grossProfit=78865.86 grossLoss=93983.11 commissionPaid=0 profitFactor=0.8391492897 totalTrades=577 totalOpenTrades=1 numberOfWiningTrades=170 numberOfLosingTrades=402 percentProfitable=0.294627383 avgTrade=-26.19974003 avgWinTrade=463.9168235 avgLosTrade=233.7888308 largestWinTrade=3174.6 largestLosTrade=4221 avgBarsInTrade=9.417677643 maxContractsHeld=227
+long: netProfit=-10476.3 grossProfit=40205.69 grossLoss=50681.99 commissionPaid=0 profitFactor=0.7932934362 totalTrades=172 totalOpenTrades=1 numberOfWiningTrades=80 numberOfLosingTrades=89 percentProfitable=0.4651162791 avgTrade=-60.90872093 avgWinTrade=502.571125 avgLosTrade=569.4605618 largestWinTrade=3174.6 largestLosTrade=3860.6 avgBarsInTrade=12.63372093 maxContractsHeld=227
+short: netProfit=-4640.95 grossProfit=38660.17 grossLoss=43301.12 commissionPaid=0 profitFactor=0.892821479 totalTrades=405 totalOpenTrades=0 numberOfWiningTrades=90 numberOfLosingTrades=313 percentProfitable=0.2222222222 avgTrade=-11.4591358 avgWinTrade=429.5574444 avgLosTrade=138.3422364 largestWinTrade=1733.16 largestLosTrade=4221 avgBarsInTrade=8.051851852 maxContractsHeld=227
+trades:
+  #1 S "InsBarSE" in "InsBarSE"@11 475.7 out "InsBarLE"@20 472.09 q=210 pnl=758.1 (0.007588816481) cm=0 ru=978.6 dd=14.7 cum=758.1 eq%=0.007581
+  #2 L "InsBarLE" in "InsBarLE"@20 472.09 out "InsBarSE"@25 473.15 q=213 pnl=225.78 (0.002245334576) cm=0 ru=436.65 dd=83.07 cum=983.88 eq%=0.002240812401
+  #3 S "InsBarSE" in "InsBarSE"@25 473.15 out "Margin call"@25 474.05 q=1 pnl=-0.9 (-0.001902145197) cm=0 ru=0.23 dd=0.9 cum=982.98 eq%=-0.00000891231353
+  #4 S "InsBarSE" in "InsBarSE"@25 473.15 out "InsBarLE"@34 470.07 q=212 pnl=652.96 (0.006509563563) cm=0 ru=939.16 dd=190.8 cum=1635.94 eq%=0.006466040119
+  #5 L "InsBarLE" in "InsBarLE"@34 470.07 out "InsBarSE"@44 470.96 q=216 pnl=192.24 (0.001893335035) cm=0 ru=341.28 dd=244.08 cum=1828.18 eq%=0.0018914569
+  #6 S "InsBarSE" in "InsBarSE"@44 470.96 out "Margin call"@44 471.23 q=1 pnl=-0.27 (-0.0005732970953) cm=0 ru=0.23 dd=0.27 cum=1827.91 eq%=-0.000002651525344
+  #7 S "InsBarSE" in "InsBarSE"@44 470.96 out "InsBarLE"@63 467.14 q=215 pnl=821.3 (0.008111092237) cm=0 ru=1032 dd=234.35 cum=2649.21 eq%=0.008065568664
+  #8 L "InsBarLE" in "InsBarLE"@63 467.14 out "InsBarSE"@75 463.61 q=219 pnl=-773.07 (-0.007556621141) cm=0 ru=234.33 dd=948.27 cum=1876.14 eq%=-0.007531183143
+  #9 S "InsBarSE" in "InsBarSE"@75 463.61 out "InsBarLE"@96 458.38 q=219 pnl=1145.37 (0.01128103363) cm=0 ru=1533 dd=30.66 cum=3021.51 eq%=0.0112427699
+  #10 L "InsBarLE" in "InsBarLE"@96 458.38 out "InsBarSE"@126 452.88 q=224 pnl=-1232 (-0.01199877831) cm=0 ru=143.36 dd=2235.52 cum=1789.51 eq%=-0.01195866766
+  #11 S "InsBarSE" in "InsBarSE"@126 452.88 out "Margin call"@126 453.85 q=1 pnl=-0.97 (-0.00214184773) cm=0 ru=0.44 dd=0.97 cum=1788.54 eq%=-0.000009529469196
+  #12 S "InsBarSE" in "InsBarSE"@126 452.88 out "Margin call"@127 455.01 q=1 pnl=-2.13 (-0.004703232644) cm=0 ru=0.44 dd=2.13 cum=1786.41 eq%=-0.00002092573486
+  ... 566 more
+  digest 1-100: 0b128dec31c2ac
+  digest 101-200: 0f992a4264bb2d
+  digest 201-300: 1b8208bdc20f4b
+  digest 301-400: 1b30ffda1868b0
+  digest 401-500: 1b2dea5f0d4e43
+  digest 501-578: 0675e73dde155e
+orders:
+  11 sell entry MARKET "InsBarSE" 475.7 x210
+  20 buy entry MARKET "InsBarLE" 472.09 x423
+  25 sell entry MARKET "InsBarSE" 473.15 x426
+  25 buy order MARKET "Margin call 0" 474.05 x1
+  34 buy entry MARKET "InsBarLE" 470.07 x428
+  44 sell entry MARKET "InsBarSE" 470.96 x432
+  44 buy order MARKET "Margin call 1" 471.23 x1
+  63 buy entry MARKET "InsBarLE" 467.14 x434
+  75 sell entry MARKET "InsBarSE" 463.61 x438
+  96 buy entry MARKET "InsBarLE" 458.38 x443
+  126 sell entry MARKET "InsBarSE" 452.88 x448
+  126 buy order MARKET "Margin call 2" 453.85 x1
+  ... 566 more
+  digest 1-100: 11c710942b7dee
+  digest 101-200: 0626370ed48746
+  digest 201-300: 0ad8b1a2c34e54
+  digest 301-400: 06dcdda40d76e8
+  digest 401-500: 1a1bb926f67d40
+  digest 501-578: 08a52cb34aa2fc

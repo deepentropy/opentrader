@@ -1,0 +1,40 @@
+builtin/greedy on penny: 900 bars, first 978411600, last 1088136000
+trades=144 filledOrders=241 marginCalls=43 finalEquity=133881.4019 minEquity=85142.9243
+orders by kind: entry/STOP=102 order/LIMIT=56 order/MARKET=43 order/STOP=40
+openPL=0 maxDD=80995.4885 (0.4070602383) maxRunUp=112991.4699 (0.5678629206) buyHold=-67832.5896 (-0.678325896)
+all: netProfit=33881.4019 grossProfit=291489.3358 grossLoss=257607.9339 commissionPaid=0 profitFactor=1.13152313 totalTrades=144 totalOpenTrades=0 numberOfWiningTrades=57 numberOfLosingTrades=87 percentProfitable=0.3958333333 avgTrade=235.2875132 avgWinTrade=5113.847996 avgLosTrade=2961.010734 largestWinTrade=40659.3655 largestLosTrade=15067.6608 avgBarsInTrade=1.75 maxContractsHeld=6804041
+long: netProfit=39424.3953 grossProfit=142987.5603 grossLoss=103563.165 commissionPaid=0 profitFactor=1.380679707 totalTrades=46 totalOpenTrades=0 numberOfWiningTrades=24 numberOfLosingTrades=22 percentProfitable=0.5217391304 avgTrade=857.0520717 avgWinTrade=5957.815013 avgLosTrade=4707.416591 largestWinTrade=40659.3655 largestLosTrade=10538.008 avgBarsInTrade=2.130434783 maxContractsHeld=5185835
+short: netProfit=-5542.9934 grossProfit=148501.7755 grossLoss=154044.7689 commissionPaid=0 profitFactor=0.9640169969 totalTrades=98 totalOpenTrades=0 numberOfWiningTrades=33 numberOfLosingTrades=65 percentProfitable=0.3367346939 avgTrade=-56.56115714 avgWinTrade=4500.053803 avgLosTrade=2369.919522 largestWinTrade=14374.3155 largestLosTrade=15067.6608 avgBarsInTrade=1.571428571 maxContractsHeld=6804041
+trades:
+  #1 S "GapDn" in "GapDn"@6 1.2861 out "Margin call"@6 1.313 q=11388 pnl=-306.3372 (-0.02091594744) cm=0 ru=0 dd=306.3372 cum=-306.3372 eq%=-0.003063372
+  #2 S "GapDn" in "GapDn"@6 1.2861 out "TPSL"@7 1.1269 q=66035 pnl=10512.772 (0.1237850867) cm=0 ru=10512.772 dd=1776.3415 cum=10206.4348 eq%=0.1054507549
+  #3 L "GapUp" in "GapUp"@9 1.3798 out "TPSL"@10 1.3774 q=79131 pnl=-189.9144 (-0.001739382519) cm=0 ru=1812.0999 dd=3742.8963 cum=10016.5204 eq%=-0.001723260537
+  #4 S "GapDn" in "GapDn"@12 1.2868 out "Margin call"@12 1.422 q=58000 pnl=-7841.6 (-0.1050668325) cm=0 ru=2528.8 dd=7841.6 cum=2174.9204 eq%=-0.07127656802
+  #5 S "GapDn" in "GapDn"@12 1.2868 out "TPSL"@13 1.323 q=25892 pnl=-937.2904 (-0.02813179981) cm=0 ru=1128.8912 dd=3500.5984 cum=1237.63 eq%=-0.009173390068
+  #6 S "GapDn" in "GapDn"@17 1.1933 out "Margin call"@17 1.2383 q=21420 pnl=-963.9 (-0.03771055057) cm=0 ru=149.94 dd=963.9 cum=273.73 eq%=-0.009521163228
+  #7 S "GapDn" in "GapDn"@17 1.1933 out "TPSL"@18 1.2114 q=62636 pnl=-1133.7116 (-0.01516802145) cm=0 ru=438.452 dd=2818.62 cum=-859.9816 eq%=-0.01130616763
+  #8 S "GapDn" in "GapDn"@26 1.1969 out "Margin call"@26 1.2227 q=9624 pnl=-248.2992 (-0.02155568552) cm=0 ru=0 dd=248.2992 cum=-1108.2808 eq%=-0.002504530501
+  #9 S "GapDn" in "GapDn"@26 1.1969 out "TPSL"@27 1.1851 q=72140 pnl=851.252 (0.009858801905) cm=0 ru=2618.682 dd=1861.212 cum=-257.0288 eq%=0.008607919924
+  #10 S "GapDn" in "GapDn"@45 1.1556 out "Margin call"@45 1.1981 q=21728 pnl=-923.44 (-0.03677743164) cm=0 ru=0 dd=923.44 cum=-1180.4688 eq%=-0.009258196231
+  #11 S "GapDn" in "GapDn"@45 1.1556 out "TPSL"@46 1.1571 q=63917 pnl=-95.8755 (-0.001298026999) cm=0 ru=3010.4907 dd=2716.4725 cum=-1276.3443 eq%=-0.0009702080028
+  #12 S "GapDn" in "GapDn"@55 0.8919 out "Margin call"@55 0.9554 q=49356 pnl=-3134.106 (-0.07119632246) cm=0 ru=755.1468 dd=3134.106 cum=-4410.4503 eq%=-0.03174625147
+  ... 132 more
+  digest 1-100: 09b9ad8632cbdc
+  digest 101-144: 1e28a02ad164df
+orders:
+  6 sell entry STOP "GapDn" 1.2861 x77423
+  6 buy order MARKET "Margin call 0" 1.313 x11388
+  7 buy order LIMIT "TP" 1.1269 x66035
+  9 buy entry STOP "GapUp" 1.3798 x79131
+  10 sell order STOP "SL" 1.3774 x79131
+  12 sell entry STOP "GapDn" 1.2868 x83892
+  12 buy order MARKET "Margin call 1" 1.422 x58000
+  13 buy order STOP "SL" 1.323 x25892
+  17 sell entry STOP "GapDn" 1.1933 x84056
+  17 buy order MARKET "Margin call 2" 1.2383 x21420
+  18 buy order STOP "SL" 1.2114 x62636
+  26 sell entry STOP "GapDn" 1.1969 x81764
+  ... 229 more
+  digest 1-100: 18662e82241731
+  digest 101-200: 08ed8cf461564f
+  digest 201-241: 0d2f9708020960

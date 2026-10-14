@@ -1,0 +1,29 @@
+script/triple-ema-trend on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=6 filledOrders=12 marginCalls=0 finalEquity=100003.3265 minEquity=99104.16468
+orders by kind: entry/MARKET=6 exit/LIMIT=2 exit/STOP=4
+openPL=0 maxDD=958.88093 (0.0095888093) maxRunUp=853.40179 (0.008533734028) buyHold=172645.67 (1.7264567)
+all: netProfit=3.32647 grossProfit=1144.85668 grossLoss=1141.53021 commissionPaid=58.78353 profitFactor=1.002914045 totalTrades=6 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=4 percentProfitable=0.3333333333 avgTrade=0.5544116667 avgWinTrade=572.42834 avgLosTrade=285.3825525 largestWinTrade=702.3676 largestLosTrade=510.099 avgBarsInTrade=9.166666667 maxContractsHeld=52
+long: netProfit=3.32647 grossProfit=1144.85668 grossLoss=1141.53021 commissionPaid=58.78353 profitFactor=1.002914045 totalTrades=6 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=4 percentProfitable=0.3333333333 avgTrade=0.5544116667 avgWinTrade=572.42834 avgLosTrade=285.3825525 largestWinTrade=702.3676 largestLosTrade=510.099 avgBarsInTrade=9.166666667 maxContractsHeld=52
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long Entry" in "Long Entry"@945 102.33 out "Exit Long"@947 97.3 q=48 pnl=-251.02224 (-0.05105448641) cm=9.58224 ru=1.32816 dd=246.35184 cum=-251.02224 eq%=-0.0025102224
+  #2 L "Long Entry" in "Long Entry"@1149 93.84 out "Exit Long"@1153 92.41 q=52 pnl=-84.045 (-0.01720625921) cm=9.685 ru=118.36032 dd=79.23968 cum=-335.06724 eq%=-0.0008425650256
+  #3 L "Long Entry" in "Long Entry"@1269 192 out "Exit Long"@1281 171.96 q=25 pnl=-510.099 (-0.1061644605) cm=9.099 ru=393.7 dd=505.8 cum=-845.16624 eq%=-0.005118139208
+  #4 L "Long Entry" in "Long Entry"@1428 223.14 out "Exit Long"@1440 243.72 q=22 pnl=442.48908 (0.09004681793) cm=10.27092 ru=447.85092 dd=72.88908 cum=-402.67716 eq%=0.00446260725
+  #5 L "Long Entry" in "Long Entry"@1442 238.11 out "Exit Long"@1444 224.46 q=21 pnl=-296.36397 (-0.05920990941) cm=9.71397 ru=118.05969 dd=291.65031 cum=-699.04113 eq%=-0.00297562185
+  #6 L "Long Entry" in "Long Entry"@1446 220.9 out "Exit Long"@1463 253.3 q=22 pnl=702.3676 (0.1443816482) cm=10.4324 ru=707.9402 dd=259.8398 cum=3.32647 eq%=0.007073120018
+  digest 1-6: 0cb31b0024482b
+orders:
+  945 buy entry MARKET "Long Entry" 102.33 x48
+  947 sell exit STOP "Exit Long" 97.3 x48
+  1149 buy entry MARKET "Long Entry" 93.84 x52
+  1153 sell exit STOP "Exit Long" 92.41 x52
+  1269 buy entry MARKET "Long Entry" 192 x25
+  1281 sell exit STOP "Exit Long" 171.96 x25
+  1428 buy entry MARKET "Long Entry" 223.14 x22
+  1440 sell exit LIMIT "Exit Long" 243.72 x22
+  1442 buy entry MARKET "Long Entry" 238.11 x21
+  1444 sell exit STOP "Exit Long" 224.46 x21
+  1446 buy entry MARKET "Long Entry" 220.9 x22
+  1463 sell exit LIMIT "Exit Long" 253.3 x22
+  digest 1-12: 1e9a6ee666d2f6

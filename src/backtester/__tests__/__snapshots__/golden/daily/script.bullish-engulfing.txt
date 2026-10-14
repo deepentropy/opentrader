@@ -1,0 +1,37 @@
+script/bullish-engulfing on daily: 1500 bars, first 1546405200, last 1728964800
+trades=14 filledOrders=28 marginCalls=0 finalEquity=8441.501319 minEquity=8047.916463
+orders by kind: entry/LIMIT=14 exit/LIMIT=14
+openPL=0 maxDD=2061.591837 (0.204099295) maxRunUp=472.247824 (0.04955183646) buyHold=10095.84 (1.009584)
+all: netProfit=-1558.498681 grossProfit=914.970237 grossLoss=2473.468918 commissionPaid=56.268681 profitFactor=0.3699137799 totalTrades=14 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=11 percentProfitable=0.2142857143 avgTrade=-111.3213344 avgWinTrade=304.990079 avgLosTrade=224.8608107 largestWinTrade=391.526856 largestLosTrade=261.631201 avgBarsInTrade=22.42857143 maxContractsHeld=41
+long: netProfit=-1558.498681 grossProfit=914.970237 grossLoss=2473.468918 commissionPaid=56.268681 profitFactor=0.3699137799 totalTrades=14 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=11 percentProfitable=0.2142857143 avgTrade=-111.3213344 avgWinTrade=304.990079 avgLosTrade=224.8608107 largestWinTrade=391.526856 largestLosTrade=261.631201 avgBarsInTrade=22.42857143 maxContractsHeld=41
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "#ENTRY" in "#ENTRY"@60 138.82 out "#SL"@122 127.82 q=21 pnl=-234.919608 (-0.08052746596) cm=3.919608 ru=189.899346 dd=267.900654 cum=-234.919608 eq%=-0.0234919608
+  #2 L "#ENTRY" in "#ENTRY"@221 171.7 out "#TP"@227 191.71 q=17 pnl=335.845421 (0.1149784144) cm=4.324579 ru=380.96677 dd=139.06323 cum=100.925813 eq%=0.03439248911
+  #3 L "#ENTRY" in "#ENTRY"@283 220.97 out "#SL"@334 201.14 q=13 pnl=-261.631201 (-0.09101416039) cm=3.841201 ru=134.359173 dd=270.070827 cum=-160.705388 eq%=-0.02590170504
+  #4 L "#ENTRY" in "#ENTRY"@494 239.67 out "#SL"@509 219.57 q=12 pnl=-245.057616 (-0.08514700618) cm=3.857616 ru=80.426772 dd=254.973228 cum=-405.763004 eq%=-0.02490601468
+  #5 L "#ENTRY" in "#ENTRY"@531 195.95 out "#SL"@540 181.72 q=15 pnl=-217.415535 (-0.07391798948) cm=3.965535 ru=79.542525 dd=225.407475 cum=-623.178539 eq%=-0.02266105529
+  #6 L "#ENTRY" in "#ENTRY"@545 160.67 out "#SL"@551 149.58 q=18 pnl=-203.52915 (-0.07032591967) cm=3.90915 ru=116.775558 dd=212.624442 cum=-826.707689 eq%=-0.02170555884
+  #7 L "#ENTRY" in "#ENTRY"@562 138.27 out "#SL"@574 127.53 q=21 pnl=-229.44726 (-0.07896446885) cm=3.90726 ru=35.137431 dd=246.262569 cum=-1056.154949 eq%=-0.02501253119
+  #8 L "#ENTRY" in "#ENTRY"@603 119.91 out "#SL"@613 111.41 q=25 pnl=-216.5481 (-0.07218634722) cm=4.0481 ru=11.151575 dd=240.848425 cum=-1272.703049 eq%=-0.0242119691
+  #9 L "#ENTRY" in "#ENTRY"@634 91.82 out "#SL"@654 85.39 q=32 pnl=-209.729504 (-0.07132936589) cm=3.969504 ru=164.343232 dd=214.216768 cum=-1482.432553 eq%=-0.02403143896
+  #10 L "#ENTRY" in "#ENTRY"@656 86.57 out "#SL"@707 79.49 q=34 pnl=-244.672228 (-0.08306813162) cm=3.952228 ru=166.239634 dd=252.980366 cum=-1727.104781 eq%=-0.02872559912
+  #11 L "#ENTRY" in "#ENTRY"@730 72.26 out "#TP"@752 76.94 q=41 pnl=187.59796 (0.06327649251) cm=4.28204 ru=216.046138 dd=93.913862 cum=-1539.506821 eq%=0.02267621613
+  #12 L "#ENTRY" in "#ENTRY"@1029 91.14 out "#SL"@1041 85.22 q=32 pnl=-193.390464 (-0.06626316154) cm=3.950464 ru=35.078464 dd=193.081536 cum=-1732.897285 eq%=-0.02285806039
+  ... 2 more
+  digest 1-14: 07c8b42df47fd2
+orders:
+  60 buy entry LIMIT "#ENTRY" 138.82 x21
+  122 sell exit LIMIT "#SL" 127.82 x21
+  221 buy entry LIMIT "#ENTRY" 171.7 x17
+  227 sell exit LIMIT "#TP" 191.71 x17
+  283 buy entry LIMIT "#ENTRY" 220.97 x13
+  334 sell exit LIMIT "#SL" 201.14 x13
+  494 buy entry LIMIT "#ENTRY" 239.67 x12
+  509 sell exit LIMIT "#SL" 219.57 x12
+  531 buy entry LIMIT "#ENTRY" 195.95 x15
+  540 sell exit LIMIT "#SL" 181.72 x15
+  545 buy entry LIMIT "#ENTRY" 160.67 x18
+  551 sell exit LIMIT "#SL" 149.58 x18
+  ... 16 more
+  digest 1-28: 1cdbb9c0e3fcba

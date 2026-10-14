@@ -1,0 +1,42 @@
+script/mean-reversion-vf on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=232 filledOrders=350 marginCalls=0 finalEquity=100166.1915 minEquity=99500.6284
+orders by kind: exit/LIMIT=175 order/MARKET=175
+openPL=0 maxDD=517.1636 (0.005171636) maxRunUp=193.132187 (0.001927977971) buyHold=-66504.651 (-0.66504651)
+all: netProfit=166.1915 grossProfit=827.6362438 grossLoss=661.4447438 commissionPaid=350 profitFactor=1.251255304 totalTrades=232 totalOpenTrades=0 numberOfWiningTrades=89 numberOfLosingTrades=143 percentProfitable=0.3836206897 avgTrade=0.7163426724 avgWinTrade=9.299283639 avgLosTrade=4.625487719 largestWinTrade=157.7057682 largestLosTrade=39.23275441 avgBarsInTrade=8.219827586 maxContractsHeld=30163
+long: netProfit=166.1915 grossProfit=827.6362438 grossLoss=661.4447438 commissionPaid=350 profitFactor=1.251255304 totalTrades=232 totalOpenTrades=0 numberOfWiningTrades=89 numberOfLosingTrades=143 percentProfitable=0.3836206897 avgTrade=0.7163426724 avgWinTrade=9.299283639 avgLosTrade=4.625487719 largestWinTrade=157.7057682 largestLosTrade=39.23275441 avgBarsInTrade=8.219827586 maxContractsHeld=30163
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "B1" in "B1"@23 1.2351 out "B-ALL"@24 1.2558 q=40 pnl=-1.172 (-0.02325212285) cm=2 ru=0.688 dd=1.94 cum=-1.172 eq%=-0.00001172
+  #2 L "B1" in "B1"@25 1.2 out "B-ALL"@26 1.2201 q=40 pnl=-1.196 (-0.02440816327) cm=2 ru=0.068 dd=2.54 cum=-2.368 eq%=-0.00001196014017
+  #3 L "B1" in "B1"@27 1.1852 out "B-ALL"@30 1.205 q=41 pnl=-1.1882 (-0.02395892985) cm=2 ru=0 dd=4.2144 cum=-3.5562 eq%=-0.00001188228137
+  #4 L "B1" in "B1"@34 1.1723 out "B-ALL"@35 1.1992 q=42 pnl=-0.8702 (-0.01732203214) cm=2 ru=2.7464 dd=1.462 cum=-4.4264 eq%=-0.000008702309472
+  #5 L "B1" in "B1"@36 1.1625 out "B-ALL"@37 1.182 q=42 pnl=-1.181 (-0.02370296036) cm=2 ru=0.1802 dd=3.3982 cum=-5.6074 eq%=-0.00001181052278
+  #6 L "B1" in "B1"@38 1.1386 out "B-ALL"@39 1.1577 q=43 pnl=-1.1787 (-0.02359296875) cm=2 ru=0.9608 dd=3.1156 cum=-6.7861 eq%=-0.00001178766098
+  #7 L "B1" in "B1"@40 1.1436 out "B-ALL"@41 1.2077 q=43 pnl=0.7563 (0.01507330373) cm=2 ru=2.8743 dd=2.7587 cum=-6.0298 eq%=0.000007563513268
+  #8 L "B1" in "B1"@45 1.1557 out "B-ALL"@49 1.1229 q=42 pnl=-2.839138461 (-0.05731071554) cm=1.461538461 ru=0.7808 dd=4.4272 cum=-9.868938461 eq%=-0.00002839338061
+  #9 L "B2" in "B2"@48 1.0807 out "B-ALL"@49 1.1229 q=49 pnl=0.990876923 (0.01852357019) cm=1.076923077 ru=3.312938461 dd=0.8618615385 cum=-8.3396 eq%=0.000009909693852
+  #10 L "B2" in "B2"@48 1.0807 out "B-ALL"@49 1.1229 q=42 pnl=0.3108615385 (0.006779829354) cm=1.461538461 ru=2.839661539 dd=0.7387384615 cum=-7.5672 eq%=0.000003108860303
+  #11 L "B1" in "B1"@50 1.0968 out "B-ALL"@51 1.1152 q=44 pnl=-1.1904 (-0.02416604411) cm=2 ru=1.1252 dd=1.5852 cum=-8.7576 eq%=-0.00001190490087
+  #12 L "B1" in "B1"@53 1.072 out "B-ALL"@78 0.9401 q=45 pnl=-7.409184211 (-0.150470841) cm=1.473684211 ru=0 dd=18.874 cum=-19.16678421 eq%=-0.00007410055455
+  ... 220 more
+  digest 1-100: 01764cfda4fcd1
+  digest 101-200: 0d1b9c4b5ccd01
+  digest 201-232: 00bc8d7dc93c74
+orders:
+  23 buy order MARKET "B1" 1.2351 x40
+  24 sell exit LIMIT "B-ALL" 1.2558 x40
+  25 buy order MARKET "B1" 1.2 x40
+  26 sell exit LIMIT "B-ALL" 1.2201 x40
+  27 buy order MARKET "B1" 1.1852 x41
+  30 sell exit LIMIT "B-ALL" 1.205 x41
+  34 buy order MARKET "B1" 1.1723 x42
+  35 sell exit LIMIT "B-ALL" 1.1992 x42
+  36 buy order MARKET "B1" 1.1625 x42
+  37 sell exit LIMIT "B-ALL" 1.182 x42
+  38 buy order MARKET "B1" 1.1386 x43
+  39 sell exit LIMIT "B-ALL" 1.1577 x43
+  ... 338 more
+  digest 1-100: 10b669d74a7fe0
+  digest 101-200: 139e51ab82a31f
+  digest 201-300: 0e5567fb011a19
+  digest 301-350: 0db93d38fe61dc

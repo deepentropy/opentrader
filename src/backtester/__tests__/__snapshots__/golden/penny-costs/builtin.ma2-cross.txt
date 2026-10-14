@@ -1,0 +1,37 @@
+builtin/ma2-cross on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=13 filledOrders=26 marginCalls=0 finalEquity=57739.5356 minEquity=32290.8089
+orders by kind: entry/MARKET=26
+openPL=0 maxDD=68480.0591 (0.684800591) maxRunUp=34325.361 (0.4961478812) buyHold=-43094.7283 (-0.430947283)
+all: netProfit=-42260.4644 grossProfit=23111.1539 grossLoss=65371.6183 commissionPaid=26 profitFactor=0.353534982 totalTrades=13 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=10 percentProfitable=0.2307692308 avgTrade=-3250.804954 avgWinTrade=7703.717967 avgLosTrade=6537.16183 largestWinTrade=22490.7055 largestLosTrade=18202.4576 avgBarsInTrade=13.53846154 maxContractsHeld=1066005
+long: netProfit=-42260.4644 grossProfit=23111.1539 grossLoss=65371.6183 commissionPaid=26 profitFactor=0.353534982 totalTrades=13 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=10 percentProfitable=0.2307692308 avgTrade=-3250.804954 avgWinTrade=7703.717967 avgLosTrade=6537.16183 largestWinTrade=22490.7055 largestLosTrade=18202.4576 avgBarsInTrade=13.53846154 maxContractsHeld=1066005
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "MA2CrossLE" in "MA2CrossLE"@110 0.727 out "MA2CrossSE"@111 0.7127 q=134915 pnl=-1931.2845 (-0.01969006631) cm=2 ru=3412.3495 dd=1997.742 cum=-1931.2845 eq%=-0.019312845
+  #2 L "MA2CrossLE" in "MA2CrossLE"@127 0.6882 out "MA2CrossSE"@129 0.6686 q=140578 pnl=-2757.3288 (-0.02850047114) cm=2 ru=4244.4556 dd=2756.3288 cum=-4688.6133 eq%=-0.02811629362
+  #3 L "MA2CrossLE" in "MA2CrossLE"@131 0.7371 out "MA2CrossSE"@140 0.6685 q=128554 pnl=-8820.8044 (-0.09308755061) cm=2 ru=3495.6688 dd=19322.6662 cum=-13509.4177 eq%=-0.09254722552
+  #4 L "MA2CrossLE" in "MA2CrossLE"@171 0.4656 out "MA2CrossSE"@185 0.3672 q=184964 pnl=-18202.4576 (-0.2113609755) cm=2 ru=13538.3648 dd=19144.774 cum=-31711.8753 eq%=-0.2104559493
+  #5 L "MA2CrossLE" in "MA2CrossLE"@228 0.3473 out "MA2CrossSE"@229 0.3112 q=195777 pnl=-7069.5497 (-0.1039726019) cm=2 ru=0 dd=8106.1678 cum=-38781.425 eq%=-0.1035253162
+  #6 L "MA2CrossLE" in "MA2CrossLE"@255 0.2097 out "MA2CrossSE"@272 0.2105 q=291234 pnl=230.9872 (0.003782163487) cm=2 ru=18288.4952 dd=5563.5694 cum=-38550.4378 eq%=0.003773155452
+  #7 L "MA2CrossLE" in "MA2CrossLE"@315 0.1441 out "MA2CrossSE"@336 0.1387 q=417449 pnl=-2256.2246 (-0.03750660067) cm=2 ru=13774.817 dd=8809.1739 cum=-40806.6624 eq%=-0.03671669121
+  #8 L "MA2CrossLE" in "MA2CrossLE"@358 0.1239 out "MA2CrossSE"@362 0.113 q=454975 pnl=-4961.2275 (-0.08800809048) cm=2 ru=2455.865 dd=4960.2275 cum=-45767.8899 eq%=-0.08381395105
+  #9 L "MA2CrossLE" in "MA2CrossLE"@403 0.0919 out "MA2CrossSE"@410 0.0745 q=587552 pnl=-10225.4048 (-0.1893697677) cm=2 ru=1409.1248 dd=10224.4048 cum=-55993.2947 eq%=-0.1885489018
+  #10 L "MA2CrossLE" in "MA2CrossLE"@437 0.0642 out "MA2CrossSE"@455 0.0636 q=678054 pnl=-408.8324 (-0.009391522849) cm=2 ru=5220.0158 dd=2238.5782 cum=-56402.1271 eq%=-0.009290229687
+  #11 L "MA2CrossLE" in "MA2CrossLE"@497 0.0487 out "MA2CrossSE"@507 0.0385 q=856520 pnl=-8738.504 (-0.2094885102) cm=2 ru=855.52 dd=12077.932 cum=-65140.6311 eq%=-0.2004341822
+  #12 L "MA2CrossLE" in "MA2CrossLE"@552 0.032 out "MA2CrossSE"@610 0.0531 q=1066005 pnl=22490.7055 (0.6592970425) cm=2 ru=34324.361 dd=2239.6105 cum=-42649.9256 eq%=0.6451839551
+  ... 1 more
+  digest 1-13: 0fca05696db468
+orders:
+  110 buy entry MARKET "MA2CrossLE" 0.727 x134915
+  111 sell entry MARKET "MA2CrossSE" 0.7127 x134915
+  127 buy entry MARKET "MA2CrossLE" 0.6882 x140578
+  129 sell entry MARKET "MA2CrossSE" 0.6686 x140578
+  131 buy entry MARKET "MA2CrossLE" 0.7371 x128554
+  140 sell entry MARKET "MA2CrossSE" 0.6685 x128554
+  171 buy entry MARKET "MA2CrossLE" 0.4656 x184964
+  185 sell entry MARKET "MA2CrossSE" 0.3672 x184964
+  228 buy entry MARKET "MA2CrossLE" 0.3473 x195777
+  229 sell entry MARKET "MA2CrossSE" 0.3112 x195777
+  255 buy entry MARKET "MA2CrossLE" 0.2097 x291234
+  272 sell entry MARKET "MA2CrossSE" 0.2105 x291234
+  ... 14 more
+  digest 1-26: 18eaacb50b654e

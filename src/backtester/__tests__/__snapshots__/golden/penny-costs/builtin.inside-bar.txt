@@ -1,0 +1,37 @@
+builtin/inside-bar on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=19 filledOrders=38 marginCalls=0 finalEquity=42686.7339 minEquity=31647.1525
+orders by kind: entry/MARKET=38
+openPL=0 maxDD=78474.4973 (0.7184295963) maxRunUp=20384.9024 (0.3215151145) buyHold=-64488.5868 (-0.644885868)
+all: netProfit=-57313.2661 grossProfit=41237.3175 grossLoss=98550.5836 commissionPaid=38 profitFactor=0.4184380852 totalTrades=19 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=13 percentProfitable=0.3157894737 avgTrade=-3016.487689 avgWinTrade=6872.88625 avgLosTrade=7580.814123 largestWinTrade=11437.2768 largestLosTrade=15811.7792 avgBarsInTrade=12.10526316 maxContractsHeld=1198793
+long: netProfit=-57313.2661 grossProfit=41237.3175 grossLoss=98550.5836 commissionPaid=38 profitFactor=0.4184380852 totalTrades=19 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=13 percentProfitable=0.3157894737 avgTrade=-3016.487689 avgWinTrade=6872.88625 avgLosTrade=7580.814123 largestWinTrade=11437.2768 largestLosTrade=15811.7792 avgBarsInTrade=12.10526316 maxContractsHeld=1198793
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "InsBarLE" in "InsBarLE"@2 1.165 out "InsBarSE"@5 1.2745 q=84316 pnl=9230.602 (0.09397009889) cm=2 ru=17814.9708 dd=3339.9136 cum=9230.602 eq%=0.09230602
+  #2 L "InsBarLE" in "InsBarLE"@10 1.3775 out "InsBarSE"@25 1.1998 q=78312 pnl=-13918.0424 (-0.1290191589) cm=2 ru=4227.848 dd=21552.4624 cum=-4687.4404 eq%=-0.1274188931
+  #3 L "InsBarLE" in "InsBarLE"@83 0.9014 out "InsBarSE"@86 0.7952 q=103296 pnl=-10972.0352 (-0.1178369437) cm=2 ru=1310.8592 dd=12262.2352 cum=-15659.4756 eq%=-0.1151163629
+  #4 L "InsBarLE" in "InsBarLE"@88 0.7446 out "InsBarSE"@91 0.7973 q=111265 pnl=5861.6655 (0.0707512611) cm=2 ru=11581.6865 dd=1959.264 cum=-9797.8101 eq%=0.06949998879
+  #5 L "InsBarLE" in "InsBarLE"@102 0.7308 out "InsBarSE"@121 0.6949 q=120994 pnl=-4345.6846 (-0.04914631029) cm=2 ru=6847.2604 dd=17472.5336 cum=-14143.4947 eq%=-0.04817715185
+  #6 L "InsBarLE" in "InsBarLE"@143 0.6024 out "InsBarSE"@148 0.5324 q=141792 pnl=-9927.44 (-0.1162239135) cm=2 ru=5174.408 dd=9926.44 cum=-24070.9347 eq%=-0.1156282796
+  #7 L "InsBarLE" in "InsBarLE"@161 0.3746 out "InsBarSE"@164 0.3791 q=198090 pnl=889.405 (0.01198569961) cm=2 ru=6397.307 dd=4299.553 cum=-23181.5297 eq%=0.0117136303
+  #8 L "InsBarLE" in "InsBarLE"@168 0.4304 out "InsBarSE"@190 0.3376 q=170364 pnl=-15811.7792 (-0.215637718) cm=2 ru=18466.4576 dd=18178.8388 cum=-38993.3089 eq%=-0.2058330391
+  #9 L "InsBarLE" in "InsBarLE"@284 0.2046 out "InsBarSE"@287 0.1934 q=293861 pnl=-3293.2432 (-0.05477331157) cm=2 ru=1438.9189 dd=7641.386 cum=-42286.5521 eq%=-0.05398167218
+  #10 L "InsBarLE" in "InsBarLE"@319 0.1304 out "InsBarSE"@328 0.157 q=430048 pnl=11437.2768 (0.2039484288) cm=2 ru=20082.2416 dd=3183.3552 cum=-30849.2753 eq%=0.1981735144
+  #11 L "InsBarLE" in "InsBarLE"@336 0.1389 out "InsBarSE"@347 0.1193 q=486284 pnl=-9533.1664 (-0.1411362317) cm=2 ru=8946.6256 dd=13568.3236 cum=-40382.4417 eq%=-0.1378606868
+  #12 L "InsBarLE" in "InsBarLE"@353 0.1316 out "InsBarSE"@359 0.123 q=446900 pnl=-3845.34 (-0.065382439) cm=2 ru=3931.72 dd=4872.21 cum=-44227.7817 eq%=-0.06450012563
+  ... 7 more
+  digest 1-19: 0d1c1c372b32ba
+orders:
+  2 buy entry MARKET "InsBarLE" 1.165 x84316
+  5 sell entry MARKET "InsBarSE" 1.2745 x84316
+  10 buy entry MARKET "InsBarLE" 1.3775 x78312
+  25 sell entry MARKET "InsBarSE" 1.1998 x78312
+  83 buy entry MARKET "InsBarLE" 0.9014 x103296
+  86 sell entry MARKET "InsBarSE" 0.7952 x103296
+  88 buy entry MARKET "InsBarLE" 0.7446 x111265
+  91 sell entry MARKET "InsBarSE" 0.7973 x111265
+  102 buy entry MARKET "InsBarLE" 0.7308 x120994
+  121 sell entry MARKET "InsBarSE" 0.6949 x120994
+  143 buy entry MARKET "InsBarLE" 0.6024 x141792
+  148 sell entry MARKET "InsBarSE" 0.5324 x141792
+  ... 26 more
+  digest 1-38: 03f07b03bf14da

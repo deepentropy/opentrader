@@ -1,0 +1,38 @@
+script/omega-pivot on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=91 filledOrders=182 marginCalls=0 finalEquity=75281.8652 minEquity=53023.4777
+orders by kind: entry/MARKET=91 exit/MARKET=91
+openPL=0 maxDD=48046.915 (0.4779571378) maxRunUp=30584.0769 (0.3658095594) buyHold=-70019.5478 (-0.700195478)
+all: netProfit=-24718.1348 grossProfit=137454.8335 grossLoss=162172.9683 commissionPaid=182 profitFactor=0.8475816589 totalTrades=91 totalOpenTrades=0 numberOfWiningTrades=42 numberOfLosingTrades=49 percentProfitable=0.4615384615 avgTrade=-271.6278549 avgWinTrade=3272.734131 avgLosTrade=3309.652414 largestWinTrade=9828.5804 largestLosTrade=10700.4972 avgBarsInTrade=2 maxContractsHeld=2285860
+long: netProfit=-24718.1348 grossProfit=137454.8335 grossLoss=162172.9683 commissionPaid=182 profitFactor=0.8475816589 totalTrades=91 totalOpenTrades=0 numberOfWiningTrades=42 numberOfLosingTrades=49 percentProfitable=0.4615384615 avgTrade=-271.6278549 avgWinTrade=3272.734131 avgLosTrade=3309.652414 largestWinTrade=9828.5804 largestLosTrade=10700.4972 avgBarsInTrade=2 maxContractsHeld=2285860
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@9 1.3799 out "Pivot Reset"@10 1.3773 q=71797 pnl=-188.6722 (-0.001904362485) cm=2 ru=1635.9716 dd=3404.1778 cum=-188.6722 eq%=-0.001886722
+  #2 L "Long" in "Long"@33 1.2063 out "Pivot Reset"@34 1.1721 q=79650 pnl=-2726.03 (-0.02837167674) cm=2 ru=755.675 dd=3609.145 cum=-2914.7022 eq%=-0.02731182983
+  #3 L "Long" in "Long"@41 1.2078 out "Pivot Reset"@42 1.228 q=79839 pnl=1610.7478 (0.01670370953) cm=2 ru=3719.4974 dd=424.1467 cum=-1303.9544 eq%=0.01659105793
+  #4 L "Long" in "Long"@46 1.1572 out "Pivot Reset"@47 1.1285 q=83717 pnl=-2404.6779 (-0.02482163283) cm=2 ru=141.3189 dd=5568.1805 cum=-3708.6323 eq%=-0.02436448072
+  #5 L "Long" in "Long"@49 1.1122 out "Pivot Reset"@50 1.0966 q=85416 pnl=-1334.4896 (-0.01404715911) cm=2 ru=1177.7408 dd=3520.1392 cum=-5043.1219 eq%=-0.01385887055
+  #6 L "Long" in "Long"@62 0.8652 out "Pivot Reset"@63 0.7911 q=108483 pnl=-8040.5903 (-0.08566533334) cm=2 ru=1756.4246 dd=9927.1945 cum=-13083.7122 eq%=-0.08467622842
+  #7 L "Long" in "Long"@74 0.7855 out "Pivot Reset"@75 0.8464 q=109217 pnl=6649.3153 (0.07750601933) cm=2 ru=6650.3153 dd=3397.6487 cum=-6434.3969 eq%=0.07650252293
+  #8 L "Long" in "Long"@76 0.8586 out "Pivot Reset"@77 0.9195 q=106869 pnl=6506.3221 (0.07090685069) cm=2 ru=6507.3221 dd=428.476 cum=71.9252 eq%=0.06953754248
+  #9 L "Long" in "Long"@79 0.8989 out "Pivot Reset"@80 0.9034 q=101255 pnl=453.6475 (0.004984090183) cm=2 ru=2884.7675 dd=82.004 cum=525.5727 eq%=0.004533214476
+  #10 L "Long" in "Long"@83 0.9014 out "Pivot Reset"@84 0.8032 q=108946 pnl=-10700.4972 (-0.1089609026) cm=2 ru=1382.6142 dd=10699.4972 cum=-10174.9245 eq%=-0.1064455234
+  #11 L "Long" in "Long"@113 0.7186 out "Pivot Reset"@114 0.6657 q=122609 pnl=-6488.0161 (-0.07363722715) cm=2 ru=6264.3199 dd=6487.0161 cum=-16662.9406 eq%=-0.07222945334
+  #12 L "Long" in "Long"@120 0.769 out "Pivot Reset"@121 0.6949 q=106363 pnl=-7883.4983 (-0.09638218123) cm=2 ru=1509.3546 dd=8446.2222 cum=-24546.4389 eq%=-0.09459774987
+  ... 79 more
+  digest 1-91: 0cee056d626c3d
+orders:
+  9 buy entry MARKET "Long" 1.3799 x71797
+  10 sell exit MARKET "Close position order" 1.3773 x71797
+  33 buy entry MARKET "Long" 1.2063 x79650
+  34 sell exit MARKET "Close position order" 1.1721 x79650
+  41 buy entry MARKET "Long" 1.2078 x79839
+  42 sell exit MARKET "Close position order" 1.228 x79839
+  46 buy entry MARKET "Long" 1.1572 x83717
+  47 sell exit MARKET "Close position order" 1.1285 x83717
+  49 buy entry MARKET "Long" 1.1122 x85416
+  50 sell exit MARKET "Close position order" 1.0966 x85416
+  62 buy entry MARKET "Long" 0.8652 x108483
+  63 sell exit MARKET "Close position order" 0.7911 x108483
+  ... 170 more
+  digest 1-100: 082472d2e13d0d
+  digest 101-182: 09435b41c7d779

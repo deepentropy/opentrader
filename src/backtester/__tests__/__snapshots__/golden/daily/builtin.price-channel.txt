@@ -1,0 +1,37 @@
+builtin/price-channel on daily: 1500 bars, first 1546405200, last 1728964800
+trades=36 filledOrders=60 marginCalls=9 finalEquity=229966.48 minEquity=82291.53
+orders by kind: entry/STOP=51 order/MARKET=9
+openPL=0 maxDD=99473.66 (0.3138162597) maxRunUp=329603.25 (0.7807262615) buyHold=86796.06 (0.8679606)
+all: netProfit=129966.48 grossProfit=342897.65 grossLoss=212931.17 commissionPaid=0 profitFactor=1.610368505 totalTrades=36 totalOpenTrades=0 numberOfWiningTrades=16 numberOfLosingTrades=20 percentProfitable=0.4444444444 avgTrade=3610.18 avgWinTrade=21431.10312 avgLosTrade=10646.5585 largestWinTrade=101297 largestLosTrade=86165.82 avgBarsInTrade=27.27777778 maxContractsHeld=2712
+long: netProfit=55207.34 grossProfit=260233.73 grossLoss=205026.39 commissionPaid=0 profitFactor=1.269269434 totalTrades=27 totalOpenTrades=0 numberOfWiningTrades=15 numberOfLosingTrades=12 percentProfitable=0.5555555556 avgTrade=2044.716296 avgWinTrade=17348.91533 avgLosTrade=17085.5325 largestWinTrade=101297 largestLosTrade=86165.82 avgBarsInTrade=25.37037037 maxContractsHeld=2712
+short: netProfit=74759.14 grossProfit=82663.92 grossLoss=7904.78 commissionPaid=0 profitFactor=10.45745992 totalTrades=9 totalOpenTrades=0 numberOfWiningTrades=1 numberOfLosingTrades=8 percentProfitable=0.1111111111 avgTrade=8306.571111 avgWinTrade=82663.92 avgLosTrade=988.0975 largestWinTrade=82663.92 largestLosTrade=4731.76 avgBarsInTrade=33 maxContractsHeld=630
+trades:
+  #1 L "PChLE" in "PChLE"@21 149.3 out "PChSE"@28 145.53 q=669 pnl=-2522.13 (-0.02525117214) cm=0 ru=3719.64 dd=2522.13 cum=-2522.13 eq%=-0.0252213
+  #2 L "PChLE" in "PChLE"@74 142.26 out "PChSE"@94 140.96 q=685 pnl=-890.5 (-0.009138197666) cm=0 ru=3904.5 dd=890.5 cum=-3412.63 eq%=-0.009135406836
+  #3 L "PChLE" in "PChLE"@113 142.83 out "PChSE"@118 136.89 q=676 pnl=-4015.44 (-0.0415879017) cm=0 ru=1859 dd=4015.44 cum=-7428.07 eq%=-0.04157313736
+  #4 L "PChLE" in "PChLE"@161 118.64 out "PChSE"@218 178.23 q=780 pnl=46480.2 (0.5022757923) cm=0 ru=79856.4 dd=12831 cum=39052.13 eq%=0.5020982062
+  #5 L "PChLE" in "PChLE"@235 211.2 out "PChSE"@260 222.96 q=658 pnl=7738.08 (0.05568181818) cm=0 ru=15963.08 dd=1855.56 cum=46790.21 eq%=0.05564877
+  #6 L "PChLE" in "PChLE"@271 233.36 out "PChSE"@278 221.54 q=629 pnl=-7434.78 (-0.05065135413) cm=0 ru=2912.27 dd=7434.78 cum=39355.43 eq%=-0.05064901808
+  #7 S "PChSE" in "PChSE"@279 220.79 out "Margin call"@279 222.62 q=36 pnl=-65.88 (-0.00828841886) cm=0 ru=20.52 dd=65.88 cum=39289.55 eq%=-0.0004727479941
+  #8 S "PChSE" in "PChSE"@279 220.79 out "Margin call"@293 229.15 q=28 pnl=-234.08 (-0.0378640337) cm=0 ru=90.44 dd=234.08 cum=39055.47 eq%=-0.00168052808
+  #9 S "PChSE" in "PChSE"@279 220.79 out "PChLE"@299 229.15 q=566 pnl=-4731.76 (-0.0378640337) cm=0 ru=1828.18 dd=4731.76 cum=34323.71 eq%=-0.03402785953
+  #10 L "PChLE" in "PChLE"@299 229.15 out "Margin call"@299 231.46 q=88 pnl=203.28 (0.01008073314) cm=0 ru=203.28 dd=0 cum=34526.99 eq%=0.001513359034
+  #11 L "PChLE" in "PChLE"@299 229.15 out "PChSE"@305 217.37 q=521 pnl=-6137.38 (-0.05140737508) cm=0 ru=1203.51 dd=6137.38 cum=28389.61 eq%=-0.04562192315
+  #12 S "PChSE" in "PChSE"@309 213.32 out "Margin call"@309 215.45 q=44 pnl=-93.72 (-0.009984999062) cm=0 ru=4.4 dd=93.72 cum=28295.89 eq%=-0.0007299656101
+  ... 24 more
+  digest 1-36: 0f358e0fe8b23d
+orders:
+  21 buy entry STOP "PChLE" 149.3 x669
+  28 sell entry STOP "PChSE" 145.53 x669
+  74 buy entry STOP "PChLE" 142.26 x685
+  94 sell entry STOP "PChSE" 140.96 x685
+  113 buy entry STOP "PChLE" 142.83 x676
+  118 sell entry STOP "PChSE" 136.89 x676
+  161 buy entry STOP "PChLE" 118.64 x780
+  218 sell entry STOP "PChSE" 178.23 x780
+  235 buy entry STOP "PChLE" 211.2 x658
+  260 sell entry STOP "PChSE" 222.96 x658
+  271 buy entry STOP "PChLE" 233.36 x629
+  278 sell entry STOP "PChSE" 221.54 x629
+  ... 48 more
+  digest 1-60: 071b2b926bbb42

@@ -1,0 +1,40 @@
+builtin/greedy on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=142 filledOrders=256 marginCalls=26 finalEquity=101872.28 minEquity=98822.38
+orders by kind: entry/STOP=116 exit/MARKET=24 order/LIMIT=45 order/MARKET=26 order/STOP=45
+openPL=0 maxDD=1407.6 (0.01406094354) maxRunUp=4106.21 (0.03989381753) buyHold=-2818.53 (-0.0281853)
+all: netProfit=1872.28 grossProfit=8238.4 grossLoss=6366.12 commissionPaid=0 profitFactor=1.294100645 totalTrades=142 totalOpenTrades=0 numberOfWiningTrades=58 numberOfLosingTrades=71 percentProfitable=0.4084507042 avgTrade=13.18507042 avgWinTrade=142.0413793 avgLosTrade=89.66366197 largestWinTrade=614.9 largestLosTrade=408.87 avgBarsInTrade=1.654929577 maxContractsHeld=274
+long: netProfit=370.83 grossProfit=3627.91 grossLoss=3257.08 commissionPaid=0 profitFactor=1.113853513 totalTrades=54 totalOpenTrades=0 numberOfWiningTrades=22 numberOfLosingTrades=24 percentProfitable=0.4074074074 avgTrade=6.867222222 avgWinTrade=164.905 avgLosTrade=135.7116667 largestWinTrade=614.9 largestLosTrade=408.87 avgBarsInTrade=1.759259259 maxContractsHeld=272
+short: netProfit=1501.45 grossProfit=4610.49 grossLoss=3109.04 commissionPaid=0 profitFactor=1.482930422 totalTrades=88 totalOpenTrades=0 numberOfWiningTrades=36 numberOfLosingTrades=47 percentProfitable=0.4090909091 avgTrade=17.06193182 avgWinTrade=128.0691667 avgLosTrade=66.14978723 largestWinTrade=476.28 largestLosTrade=389.11 avgBarsInTrade=1.590909091 maxContractsHeld=274
+trades:
+  #1 S "GapDn" in "GapDn"@101 454.64 out "TPSL"@102 455.35 q=219 pnl=-155.49 (-0.001561675172) cm=0 ru=100.74 dd=216.81 cum=-155.49 eq%=-0.0015549
+  #2 L "GapUp" in "GapUp"@131 458.68 out "TPSL"@132 459.89 q=217 pnl=262.57 (0.002638004709) cm=0 ru=384.09 dd=158.41 cum=107.08 eq%=0.002629789059
+  #3 L "GapUp" in "GapUp"@148 464.64 out "Close Position (Max number of filled orders in one day)"@148 464.64 q=215 pnl=0 (0) cm=0 ru=0 dd=0 cum=107.08 eq%=0
+  #4 S "GapDn" in "GapDn"@164 464.87 out "GapUp"@165 465.32 q=215 pnl=-96.75 (-0.0009680125627) cm=0 ru=111.8 dd=96.75 cum=10.33 eq%=-0.0009664651092
+  #5 L "GapUp" in "GapUp"@165 465.32 out "Margin call"@165 465.55 q=1 pnl=0.23 (0.0004942835038) cm=0 ru=0.23 dd=0 cum=10.56 eq%=0.000002299762435
+  #6 L "GapUp" in "GapUp"@165 465.32 out "TPSL"@166 464.07 q=214 pnl=-267.5 (-0.00268632339) cm=0 ru=49.22 dd=323.14 cum=-256.94 eq%=-0.00267471755
+  #7 L "GapUp" in "GapUp"@168 464.34 out "Close Position (Max number of filled orders in one day)"@168 464.7 q=214 pnl=77.04 (0.0007752939656) cm=0 ru=77.04 dd=0 cum=-179.9 eq%=0.0007723845649
+  #8 S "GapDn" in "GapDn"@283 473.66 out "TPSL"@284 473.93 q=210 pnl=-56.7 (-0.0005700291348) cm=0 ru=14.7 dd=63 cum=-236.6 eq%=-0.0005680218713
+  #9 L "GapUp" in "GapUp"@287 473.34 out "TPSL"@288 472.79 q=210 pnl=-115.5 (-0.001161955465) cm=0 ru=35.7 dd=153.3 cum=-352.1 eq%=-0.001157739211
+  #10 S "GapDn" in "GapDn"@292 472.91 out "Close Position (Max number of filled orders in one day)"@292 472.82 q=210 pnl=18.9 (0.0001903110528) cm=0 ru=18.9 dd=0 cum=-333.2 eq%=0.0001896678204
+  #11 S "GapDn" in "GapDn"@313 475.74 out "TPSL"@314 475.2 q=209 pnl=112.86 (0.00113507378) cm=0 ru=246.62 dd=4.18 cum=-220.34 eq%=0.001132373067
+  #12 L "GapUp" in "GapUp"@340 475.33 out "TPSL"@341 474.79 q=209 pnl=-112.86 (-0.001136052847) cm=0 ru=2.09 dd=129.58 cum=-333.2 eq%=-0.001131092249
+  ... 130 more
+  digest 1-100: 050486ff428bce
+  digest 101-142: 1301f376dd39d9
+orders:
+  101 sell entry STOP "GapDn" 454.64 x219
+  102 buy order STOP "SL" 455.35 x219
+  131 buy entry STOP "GapUp" 458.68 x217
+  132 sell order LIMIT "TP" 459.89 x217
+  148 buy entry STOP "GapUp" 464.64 x215
+  148 sell exit MARKET "Close Position (Max number of filled orders in one day)" 464.64 x215
+  164 sell entry STOP "GapDn" 464.87 x215
+  165 buy entry STOP "GapUp" 465.32 x430
+  165 sell order MARKET "Margin call 0" 465.55 x1
+  166 sell order STOP "SL" 464.07 x214
+  168 buy entry STOP "GapUp" 464.34 x214
+  168 sell exit MARKET "Close Position (Max number of filled orders in one day)" 464.7 x214
+  ... 244 more
+  digest 1-100: 18e1e1f21bea71
+  digest 101-200: 04be4ce043112f
+  digest 201-256: 051e1408068b5f

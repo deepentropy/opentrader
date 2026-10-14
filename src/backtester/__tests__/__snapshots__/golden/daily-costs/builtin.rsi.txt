@@ -1,0 +1,37 @@
+builtin/rsi on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=48 filledOrders=48 marginCalls=40 finalEquity=15338.57249 minEquity=11664.31967
+orders by kind: entry/MARKET=8 order/MARKET=40
+openPL=-3278.34 maxDD=113911.6134 (0.9084120559) maxRunUp=33279.12 (0.3778820105) buyHold=135250.92 (1.3525092)
+all: netProfit=-81383.08751 grossProfit=31584.56139 grossLoss=112967.6489 commissionPaid=866.91751 profitFactor=0.2795894373 totalTrades=47 totalOpenTrades=1 numberOfWiningTrades=2 numberOfLosingTrades=45 percentProfitable=0.04255319149 avgTrade=-1731.555053 avgWinTrade=15792.2807 avgLosTrade=2510.392198 largestWinTrade=25396.41303 largestLosTrade=49337.3754 avgBarsInTrade=93.78723404 maxContractsHeld=840
+long: netProfit=-18051.05856 grossProfit=31584.56139 grossLoss=49635.61995 commissionPaid=414.53856 profitFactor=0.6363285363 totalTrades=5 totalOpenTrades=0 numberOfWiningTrades=2 numberOfLosingTrades=3 percentProfitable=0.4 avgTrade=-3610.211712 avgWinTrade=15792.2807 avgLosTrade=16545.20665 largestWinTrade=25396.41303 largestLosTrade=49337.3754 avgBarsInTrade=123.2 maxContractsHeld=837
+short: netProfit=-63332.02895 grossProfit=0 grossLoss=63332.02895 commissionPaid=452.37895 profitFactor=0 totalTrades=42 totalOpenTrades=1 numberOfWiningTrades=0 numberOfLosingTrades=42 percentProfitable=0 avgTrade=-1507.905451 avgWinTrade=- avgLosTrade=1507.905451 largestWinTrade=- largestLosTrade=21528.66829 avgBarsInTrade=90.28571429 maxContractsHeld=840
+trades:
+  #1 L "RsiLE" in "RsiLE"@130 118.6 out "RsiSE"@177 149.21 q=837 pnl=25396.41303 (0.2555807599) cm=224.15697 ru=33179.8518 dd=26071.3782 cum=25396.41303 eq%=0.2539641303
+  #2 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@177 149.25 q=1 pnl=-0.33846 (-0.002266080545) cm=0.29846 ru=0 dd=0.18921 cum=25270.88738 eq%=-0.000002701817578
+  #3 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@177 152.49 q=140 pnl=-501.438 (-0.02398044285) cm=42.238 ru=392.1106 dd=480.0894 cum=24790.33878 eq%=-0.004002162096
+  #4 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@181 166.07 q=72 pnl=-1236.62016 (-0.1149931096) cm=22.70016 ru=267.17688 dd=1224.66312 cum=23564.46174 eq%=-0.009908729485
+  #5 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@183 176.45 q=92 pnl=-2536.04072 (-0.1845594925) cm=29.96072 ru=341.39268 dd=2519.80732 cum=21042.14834 eq%=-0.02052175015
+  #6 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@191 189.06 q=28 pnl=-1125.27156 (-0.2690712545) cm=9.47156 ru=103.90212 dd=1119.97788 cum=19921.05466 eq%=-0.009296205801
+  #7 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@195 195.33 q=48 pnl=-2230.29792 (-0.3110925667) cm=16.53792 ru=178.11792 dd=2220.92208 cum=17697.91882 eq%=-0.01859694058
+  #8 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@205 205.31 q=44 pnl=-2483.99888 (-0.3779781642) cm=15.59888 ru=163.27476 dd=2474.96524 cum=15220.48518 eq%=-0.02110368946
+  #9 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@207 214.3 q=12 pnl=-785.44212 (-0.4382288176) cm=4.36212 ru=44.52948 dd=782.87052 cum=14436.83358 eq%=-0.006816755833
+  #10 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@210 220.59 q=56 pnl=-4017.9888 (-0.4803841691) cm=20.7088 ru=207.80424 dd=4005.63576 cum=10427.20054 eq%=-0.03510841149
+  #11 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@243 235.18 q=16 pnl=-1381.67024 (-0.5781658192) cm=6.15024 ru=59.37264 dd=1377.90736 cum=9047.91766 eq%=-0.01251177575
+  #12 S "RsiSE" in "RsiSE"@177 149.21 out "Margin call"@409 240 q=4 pnl=-364.71684 (-0.6104692841) cm=1.55684 ru=14.84316 dd=363.75684 cum=8683.79766 eq%=-0.003344537444
+  ... 36 more
+  digest 1-48: 1fea969b0b7eab
+orders:
+  130 buy entry MARKET "RsiLE" 118.6 x837
+  177 sell entry MARKET "RsiSE" 149.21 x1677
+  177 buy order MARKET "Margin call 0" 149.25 x1
+  177 buy order MARKET "Margin call 1" 152.49 x140
+  181 buy order MARKET "Margin call 2" 166.07 x72
+  183 buy order MARKET "Margin call 3" 176.45 x92
+  191 buy order MARKET "Margin call 4" 189.06 x28
+  195 buy order MARKET "Margin call 5" 195.33 x48
+  205 buy order MARKET "Margin call 6" 205.31 x44
+  207 buy order MARKET "Margin call 7" 214.3 x12
+  210 buy order MARKET "Margin call 8" 220.59 x56
+  243 buy order MARKET "Margin call 9" 235.18 x16
+  ... 36 more
+  digest 1-48: 01121e17ff7945

@@ -1,0 +1,37 @@
+port/centered-rsi on daily: 1500 bars, first 1546405200, last 1728964800
+trades=33 filledOrders=66 marginCalls=0 finalEquity=50012.4 minEquity=50000
+orders by kind: entry/MARKET=33 exit/LIMIT=13 exit/STOP=20
+openPL=0 maxDD=2.35 (0.00004698712553) maxRunUp=13.7 (0.0002739249446) buyHold=67553.66 (1.3510732)
+all: netProfit=12.4 grossProfit=20.15 grossLoss=7.75 commissionPaid=0 profitFactor=2.6 totalTrades=33 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=20 percentProfitable=0.3939393939 avgTrade=0.3757575758 avgWinTrade=1.55 avgLosTrade=0.3875 largestWinTrade=1.55 largestLosTrade=0.9 avgBarsInTrade=1 maxContractsHeld=5
+long: netProfit=4.25 grossProfit=7.75 grossLoss=3.5 commissionPaid=0 profitFactor=2.214285714 totalTrades=16 totalOpenTrades=0 numberOfWiningTrades=5 numberOfLosingTrades=11 percentProfitable=0.3125 avgTrade=0.265625 avgWinTrade=1.55 avgLosTrade=0.3181818182 largestWinTrade=1.55 largestLosTrade=0.5 avgBarsInTrade=1 maxContractsHeld=5
+short: netProfit=8.15 grossProfit=12.4 grossLoss=4.25 commissionPaid=0 profitFactor=2.917647059 totalTrades=17 totalOpenTrades=0 numberOfWiningTrades=8 numberOfLosingTrades=9 percentProfitable=0.4705882353 avgTrade=0.4794117647 avgWinTrade=1.55 avgLosTrade=0.4722222222 largestWinTrade=1.55 largestLosTrade=0.9 avgBarsInTrade=1 maxContractsHeld=5
+trades:
+  #1 L "Long" in "Long"@130 118.58 out "Long Exit"@130 118.89 q=5 pnl=1.55 (0.002614268848) cm=0 ru=1.55 dd=0 cum=1.55 eq%=0.000031
+  #2 L "Long" in "Long"@135 99.72 out "Long Exit"@135 99.63 q=5 pnl=-0.45 (-0.0009025270758) cm=0 ru=0 dd=0.45 cum=1.1 eq%=-0.000008999721009
+  #3 S "Short" in "Short"@195 188.91 out "Short Exit"@195 188.6 q=5 pnl=1.55 (0.001640993065) cm=0 ru=1.55 dd=0 cum=2.65 eq%=0.00003099931802
+  #4 S "Short" in "Short"@197 188.3 out "Short Exit"@197 187.99 q=5 pnl=1.55 (0.001646309081) cm=0 ru=1.55 dd=0 cum=4.2 eq%=0.00003099835709
+  #5 L "Long" in "Long"@336 202.21 out "Long Exit"@336 202.15 q=5 pnl=-0.3 (-0.0002967212304) cm=0 ru=0 dd=0.3 cum=3.9 eq%=-0.000005999496042
+  #6 S "Short" in "Short"@413 233.8 out "Short Exit"@413 233.87 q=5 pnl=-0.35 (-0.0002994011976) cm=0 ru=0 dd=0.35 cum=3.55 eq%=-0.000006999454043
+  #7 S "Short" in "Short"@451 251.48 out "Short Exit"@451 251.55 q=5 pnl=-0.35 (-0.0002783521552) cm=0 ru=0 dd=0.35 cum=3.2 eq%=-0.000006999503035
+  #8 S "Short" in "Short"@457 261.5 out "Short Exit"@457 261.19 q=5 pnl=1.55 (0.001185468451) cm=0 ru=1.55 dd=0 cum=4.75 eq%=0.00003099801613
+  #9 S "Short" in "Short"@459 261.87 out "Short Exit"@459 261.56 q=5 pnl=1.55 (0.001183793485) cm=0 ru=1.55 dd=0 cum=6.3 eq%=0.00003099705528
+  #10 S "Short" in "Short"@469 269.74 out "Short Exit"@469 269.43 q=5 pnl=1.55 (0.001149254838) cm=0 ru=1.55 dd=0 cum=7.85 eq%=0.00003099609449
+  #11 L "Long" in "Long"@526 206.24 out "Long Exit"@526 206.55 q=5 pnl=1.55 (0.001503103181) cm=0 ru=1.55 dd=0 cum=9.4 eq%=0.00003099513376
+  #12 L "Long" in "Long"@547 162.05 out "Long Exit"@547 161.95 q=5 pnl=-0.5 (-0.0006170934897) cm=0 ru=1.4 dd=0.5 cum=8.9 eq%=-0.000009998120353
+  ... 21 more
+  digest 1-33: 1193913dff289d
+orders:
+  130 buy entry MARKET "Long" 118.58 x5
+  130 sell exit LIMIT "Long Exit" 118.89 x5
+  135 buy entry MARKET "Long" 99.72 x5
+  135 sell exit STOP "Long Exit" 99.63 x5
+  195 sell entry MARKET "Short" 188.91 x5
+  195 buy exit LIMIT "Short Exit" 188.6 x5
+  197 sell entry MARKET "Short" 188.3 x5
+  197 buy exit LIMIT "Short Exit" 187.99 x5
+  336 buy entry MARKET "Long" 202.21 x5
+  336 sell exit STOP "Long Exit" 202.15 x5
+  413 sell entry MARKET "Short" 233.8 x5
+  413 buy exit STOP "Short Exit" 233.87 x5
+  ... 54 more
+  digest 1-66: 0e5911732e7515

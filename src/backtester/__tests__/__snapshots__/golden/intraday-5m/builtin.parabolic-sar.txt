@@ -1,0 +1,46 @@
+builtin/parabolic-sar on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=477 filledOrders=543 marginCalls=173 finalEquity=116589.38 minEquity=99943.84
+orders by kind: entry/STOP=370 order/MARKET=173
+openPL=-507.59 maxDD=7610.58 (0.07029582867) maxRunUp=21041.3 (0.1738357073) buyHold=-7702.24 (-0.0770224)
+all: netProfit=17096.97 grossProfit=90337.84 grossLoss=73240.87 commissionPaid=0 profitFactor=1.233434829 totalTrades=476 totalOpenTrades=1 numberOfWiningTrades=152 numberOfLosingTrades=323 percentProfitable=0.3193277311 avgTrade=35.9180042 avgWinTrade=594.3278947 avgLosTrade=226.7519195 largestWinTrade=3653.44 largestLosTrade=1347.8 avgBarsInTrade=7.834033613 maxContractsHeld=302
+long: netProfit=12874.66 grossProfit=57542.78 grossLoss=44668.12 commissionPaid=0 profitFactor=1.288229279 totalTrades=229 totalOpenTrades=1 numberOfWiningTrades=111 numberOfLosingTrades=117 percentProfitable=0.4847161572 avgTrade=56.22122271 avgWinTrade=518.4034234 avgLosTrade=381.7788034 largestWinTrade=3653.44 largestLosTrade=1347.8 avgBarsInTrade=9.213973799 maxContractsHeld=302
+short: netProfit=4222.31 grossProfit=32795.06 grossLoss=28572.75 commissionPaid=0 profitFactor=1.147774015 totalTrades=247 totalOpenTrades=0 numberOfWiningTrades=41 numberOfLosingTrades=206 percentProfitable=0.1659919028 avgTrade=17.09437247 avgWinTrade=799.8795122 avgLosTrade=138.7026699 largestWinTrade=3416.01 largestLosTrade=1097.1 avgBarsInTrade=6.55465587 maxContractsHeld=301
+trades:
+  #1 S "ParSE" in "ParSE"@2 478.8 out "ParLE"@20 473.14 q=208 pnl=1177.28 (0.01182121972) cm=0 ru=1614.08 dd=203.84 cum=1177.28 eq%=0.0117728
+  #2 L "ParLE" in "ParLE"@20 473.14 out "Margin call"@20 473.49 q=1 pnl=0.35 (0.0007397387665) cm=0 ru=0.35 dd=0 cum=1177.63 eq%=0.000003459274651
+  #3 L "ParLE" in "ParLE"@20 473.14 out "ParSE"@26 471.96 q=213 pnl=-251.34 (-0.002493976413) cm=0 ru=213 dd=251.34 cum=926.29 eq%=-0.002484145952
+  #4 L "ParLE" in "ParLE"@38 470.51 out "ParSE"@48 470.32 q=214 pnl=-40.66 (-0.0004038171346) cm=0 ru=329.56 dd=132.68 cum=885.63 eq%=-0.0004028682715
+  #5 S "ParSE" in "ParSE"@48 470.32 out "ParLE"@55 469.77 q=214 pnl=117.7 (0.001169416567) cm=0 ru=890.24 dd=0 cum=1003.33 eq%=0.001166667641
+  #6 L "ParLE" in "ParLE"@55 469.77 out "ParSE"@61 466.66 q=215 pnl=-668.65 (-0.006620260979) cm=0 ru=165.55 dd=668.65 cum=334.68 eq%=-0.006620078764
+  #7 S "ParSE" in "ParSE"@61 466.66 out "Margin call"@61 466.85 q=1 pnl=-0.19 (-0.0004071486736) cm=0 ru=0.17 dd=0.19 cum=334.49 eq%=-0.000001893662291
+  #8 S "ParSE" in "ParSE"@61 466.66 out "Margin call"@64 467.95 q=1 pnl=-1.29 (-0.002764325205) cm=0 ru=0.32 dd=1.29 cum=333.2 eq%=-0.00001285699464
+  #9 S "ParSE" in "ParSE"@61 466.66 out "ParLE"@82 462.1 q=213 pnl=971.28 (0.009771568165) cm=0 ru=1529.34 dd=330.15 cum=1304.48 eq%=0.009680544426
+  #10 L "ParLE" in "ParLE"@82 462.1 out "ParSE"@93 460.51 q=219 pnl=-348.21 (-0.003440813677) cm=0 ru=109.5 dd=365.73 cum=956.27 eq%=-0.00343726161
+  #11 S "ParSE" in "ParSE"@93 460.51 out "ParLE"@108 455.5 q=219 pnl=1097.19 (0.01087924258) cm=0 ru=1673.16 dd=0 cum=2053.46 eq%=0.01086797284
+  #12 L "ParLE" in "ParLE"@108 455.5 out "ParSE"@109 452.93 q=224 pnl=-575.68 (-0.005642151482) cm=0 ru=141.12 dd=575.68 cum=1477.78 eq%=-0.005640965039
+  ... 465 more
+  digest 1-100: 178a5656b05eff
+  digest 101-200: 010671d87c7b6f
+  digest 201-300: 04030cdc321059
+  digest 301-400: 1d987e700cf7ed
+  digest 401-477: 0515c6888c97f5
+orders:
+  2 sell entry STOP "ParSE" 478.8 x208
+  20 buy entry STOP "ParLE" 473.14 x422
+  20 sell order MARKET "Margin call 0" 473.49 x1
+  26 sell entry STOP "ParSE" 471.96 x213
+  38 buy entry STOP "ParLE" 470.51 x214
+  48 sell entry STOP "ParSE" 470.32 x428
+  55 buy entry STOP "ParLE" 469.77 x429
+  61 sell entry STOP "ParSE" 466.66 x430
+  61 buy order MARKET "Margin call 1" 466.85 x1
+  64 buy order MARKET "Margin call 2" 467.95 x1
+  82 buy entry STOP "ParLE" 462.1 x432
+  93 sell entry STOP "ParSE" 460.51 x438
+  ... 531 more
+  digest 1-100: 00bc7443437efb
+  digest 101-200: 1fcafe27e74a39
+  digest 201-300: 1bcc848d9d9f7b
+  digest 301-400: 0c2c4878b98e76
+  digest 401-500: 1315cfe3c4ed59
+  digest 501-543: 0f7db2b3e1779f

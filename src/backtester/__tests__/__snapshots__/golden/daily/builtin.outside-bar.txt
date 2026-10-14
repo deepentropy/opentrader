@@ -1,0 +1,39 @@
+builtin/outside-bar on daily: 1500 bars, first 1546405200, last 1728964800
+trades=154 filledOrders=154 marginCalls=72 finalEquity=91915.86 minEquity=89255.91
+orders by kind: entry/MARKET=82 order/MARKET=72
+openPL=-20395.52 maxDD=301430.87 (0.776577938) maxRunUp=326660.56 (0.7656216455) buyHold=90378.64 (0.9037864)
+all: netProfit=12311.38 grossProfit=627763.07 grossLoss=615451.69 commissionPaid=0 profitFactor=1.020003812 totalTrades=153 totalOpenTrades=1 numberOfWiningTrades=33 numberOfLosingTrades=118 percentProfitable=0.2156862745 avgTrade=80.46653595 avgWinTrade=19023.12333 avgLosTrade=5215.692288 largestWinTrade=108765.99 largestLosTrade=70794.29 avgBarsInTrade=12.25490196 maxContractsHeld=4376
+long: netProfit=144752.17 grossProfit=411292.95 grossLoss=266540.78 commissionPaid=0 profitFactor=1.543077011 totalTrades=43 totalOpenTrades=0 numberOfWiningTrades=18 numberOfLosingTrades=23 percentProfitable=0.4186046512 avgTrade=3366.329535 avgWinTrade=22849.60833 avgLosTrade=11588.72957 largestWinTrade=108765.99 largestLosTrade=70794.29 avgBarsInTrade=17.72093023 maxContractsHeld=4374
+short: netProfit=-132440.79 grossProfit=216470.12 grossLoss=348910.91 commissionPaid=0 profitFactor=0.6204165986 totalTrades=110 totalOpenTrades=1 numberOfWiningTrades=15 numberOfLosingTrades=95 percentProfitable=0.1363636364 avgTrade=-1204.007182 avgWinTrade=14431.34133 avgLosTrade=3672.746421 largestWinTrade=65917.88 largestLosTrade=61016.2 avgBarsInTrade=10.11818182 maxContractsHeld=4376
+trades:
+  #1 L "OutBarLE" in "OutBarLE"@21 146.52 out "OutBarSE"@27 150.12 q=675 pnl=2430 (0.02457002457) cm=0 ru=5629.5 dd=303.75 cum=2430 eq%=0.0243
+  #2 S "OutBarSE" in "OutBarSE"@27 150.12 out "Margin call"@27 151.08 q=32 pnl=-30.72 (-0.006394884093) cm=0 ru=0 dd=30.72 cum=2399.28 eq%=-0.0002999121351
+  #3 S "OutBarSE" in "OutBarSE"@27 150.12 out "OutBarLE"@43 142.07 q=650 pnl=5232.5 (0.05362376765) cm=0 ru=6610.5 dd=624 cum=7631.78 eq%=0.0510989921
+  #4 L "OutBarLE" in "OutBarLE"@43 142.07 out "OutBarSE"@44 140.06 q=755 pnl=-1517.55 (-0.01414795523) cm=0 ru=815.4 dd=1517.55 cum=6114.23 eq%=-0.01409946022
+  #5 S "OutBarSE" in "OutBarSE"@44 140.06 out "Margin call"@44 140.73 q=24 pnl=-16.08 (-0.004783664144) cm=0 ru=0 dd=16.08 cum=6098.15 eq%=-0.000151534813
+  #6 S "OutBarSE" in "OutBarSE"@44 140.06 out "Margin call"@47 142.68 q=8 pnl=-20.96 (-0.01870626874) cm=0 ru=23.44 dd=20.96 cum=6077.19 eq%=-0.0001975529262
+  #7 S "OutBarSE" in "OutBarSE"@44 140.06 out "Margin call"@48 144.47 q=48 pnl=-211.68 (-0.03148650578) cm=0 ru=140.64 dd=211.68 cum=5865.51 eq%=-0.001995527974
+  #8 S "OutBarSE" in "OutBarSE"@44 140.06 out "Margin call"@50 148.23 q=1 pnl=-8.17 (-0.05833214337) cm=0 ru=2.93 dd=8.17 cum=5857.34 eq%=-0.00007717338725
+  #9 S "OutBarSE" in "OutBarSE"@44 140.06 out "OutBarLE"@74 141 q=676 pnl=-635.44 (-0.006711409396) cm=0 ru=3008.2 dd=5522.92 cum=5221.9 eq%=-0.006002795838
+  #10 L "OutBarLE" in "OutBarLE"@74 141 out "OutBarSE"@77 144.86 q=745 pnl=2875.7 (0.02737588652) cm=0 ru=4470 dd=29.8 cum=8097.6 eq%=0.02732986194
+  #11 S "OutBarSE" in "OutBarSE"@77 144.86 out "Margin call"@77 146.22 q=52 pnl=-70.72 (-0.009388374983) cm=0 ru=30.16 dd=70.72 cum=8026.88 eq%=-0.0006542235905
+  #12 S "OutBarSE" in "OutBarSE"@77 144.86 out "OutBarLE"@87 144.12 q=694 pnl=513.56 (0.005108380505) cm=0 ru=2658.02 dd=2151.4 cum=8540.44 eq%=0.004754001967
+  ... 142 more
+  digest 1-100: 1256dc6db1650e
+  digest 101-154: 1bc479e311e05e
+orders:
+  21 buy entry MARKET "OutBarLE" 146.52 x675
+  27 sell entry MARKET "OutBarSE" 150.12 x1357
+  27 buy order MARKET "Margin call 0" 151.08 x32
+  43 buy entry MARKET "OutBarLE" 142.07 x1405
+  44 sell entry MARKET "OutBarSE" 140.06 x1512
+  44 buy order MARKET "Margin call 1" 140.73 x24
+  47 buy order MARKET "Margin call 2" 142.68 x8
+  48 buy order MARKET "Margin call 3" 144.47 x48
+  50 buy order MARKET "Margin call 4" 148.23 x1
+  74 buy entry MARKET "OutBarLE" 141 x1421
+  77 sell entry MARKET "OutBarSE" 144.86 x1491
+  77 buy order MARKET "Margin call 5" 146.22 x52
+  ... 142 more
+  digest 1-100: 0e821ce6cd39ca
+  digest 101-154: 06ccf5513841a8

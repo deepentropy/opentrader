@@ -1,0 +1,37 @@
+port/quatro-sma on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=22 filledOrders=32 marginCalls=0 finalEquity=9553.35062 minEquity=8275.39544
+orders by kind: entry/MARKET=10 exit/LIMIT=6 exit/MARKET=4 exit/STOP=12
+openPL=0 maxDD=2235.73473 (0.213716644) maxRunUp=1377.73703 (0.1291470407) buyHold=3278.72 (0.327872)
+all: netProfit=-446.64938 grossProfit=2231.68084 grossLoss=2678.33022 commissionPaid=92.18938 profitFactor=0.8332358808 totalTrades=22 totalOpenTrades=0 numberOfWiningTrades=6 numberOfLosingTrades=16 percentProfitable=0.2727272727 avgTrade=-20.30224455 avgWinTrade=371.9468067 avgLosTrade=167.3956387 largestWinTrade=619.85484 largestLosTrade=280.315 avgBarsInTrade=28.90909091 maxContractsHeld=56
+long: netProfit=-1386.8419 grossProfit=1065.26504 grossLoss=2452.10694 commissionPaid=64.3819 profitFactor=0.4344284593 totalTrades=17 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=14 percentProfitable=0.1764705882 avgTrade=-81.57893529 avgWinTrade=355.0883467 avgLosTrade=175.1504957 largestWinTrade=558.59314 largestLosTrade=280.315 avgBarsInTrade=18.35294118 maxContractsHeld=50
+short: netProfit=940.19252 grossProfit=1166.4158 grossLoss=226.22328 commissionPaid=27.80748 profitFactor=5.156037876 totalTrades=5 totalOpenTrades=0 numberOfWiningTrades=3 numberOfLosingTrades=2 percentProfitable=0.6 avgTrade=188.038504 avgWinTrade=388.8052667 avgLosTrade=113.11164 largestWinTrade=619.85484 largestLosTrade=117.6516 avgBarsInTrade=64.8 maxContractsHeld=56
+trades:
+  #1 L "Long" in "Long"@208 209.28 out "TP 1"@216 188.33 q=5 pnl=-106.73805 (-0.1019031141) cm=1.98805 ru=57.6536 dd=105.7964 cum=-110.50509 eq%=-0.01067782738
+  #2 L "Long" in "Long"@208 209.28 out "TP 2"@216 188.33 q=11 pnl=-234.82371 (-0.1019031141) cm=4.37371 ru=126.83792 dd=232.75208 cum=-343.02672 eq%=-0.02373923669
+  #3 L "Long" in "Long"@208 209.28 out "TP 3"@216 188.33 q=7 pnl=-149.43327 (-0.1019031141) cm=2.78327 ru=80.71504 dd=148.11496 cum=-490.99503 eq%=-0.01547178398
+  #4 L "Long" in "Long"@406 235.39 out "Close entry(s) order Long"@425 225.14 q=20 pnl=-214.2106 (-0.045455755) cm=9.2106 ru=256.0922 dd=339.9078 cum=-705.20563 eq%=-0.02252713093
+  #5 S "Short" in "Short"@563 138.16 out "TP 1"@577 124.34 q=8 pnl=108.46 (0.09803094994) cm=2.1 ru=109.45472 dd=16.14528 cum=-600.19963 eq%=0.01167323504
+  #6 S "Short" in "Short"@563 138.16 out "TP 2"@613 110.53 q=16 pnl=438.10096 (0.197987522) cm=3.97904 ru=439.86944 dd=32.29056 cum=-159.88811 eq%=0.04659651677
+  #7 S "Short" in "Short"@563 138.16 out "TP 3"@716 69.08 q=9 pnl=619.85484 (0.498001998) cm=1.86516 ru=620.47656 dd=18.16344 cum=461.21017 eq%=0.06298470274
+  #8 L "Long" in "Long"@839 115.29 out "TP 1"@855 103.74 q=11 pnl=-129.45933 (-0.1019799872) cm=2.40933 ru=50.54181 dd=128.31819 cum=327.83098 eq%=-0.01237981601
+  #9 L "Long" in "Long"@839 115.29 out "TP 2"@855 103.74 q=22 pnl=-258.91866 (-0.1019799872) cm=4.81866 ru=101.08362 dd=256.63638 cum=71.4487 eq%=-0.02506383858
+  #10 L "Long" in "Long"@839 115.29 out "TP 3"@855 103.74 q=12 pnl=-141.22836 (-0.1019799872) cm=2.62836 ru=55.13652 dd=139.98348 cum=-68.39618 eq%=-0.01402072004
+  #11 S "Short" in "Short"@1013 88.51 out "Close entry(s) order Short"@1061 90.27 q=56 pnl=-108.57168 (-0.02188276078) cm=10.01168 ru=189.36344 dd=303.99656 cum=-176.96786 eq%=-0.01093193828
+  #12 S "Short" in "Short"@1084 88.58 out "Close entry(s) order Short"@1138 90.54 q=55 pnl=-117.6516 (-0.02412489294) cm=9.8516 ru=374.0781 dd=162.1719 cum=-294.61946 eq%=-0.01197711647
+  ... 10 more
+  digest 1-22: 1f8a7c3cb81ce4
+orders:
+  208 buy entry MARKET "Long" 209.28 x23
+  216 sell exit STOP "TP 1" 188.33 x5
+  216 sell exit STOP "TP 2" 188.33 x11
+  216 sell exit STOP "TP 3" 188.33 x7
+  406 buy entry MARKET "Long" 235.39 x20
+  425 sell exit MARKET "Close entry(s) order Long" 225.14 x20
+  563 sell entry MARKET "Short" 138.16 x33
+  577 buy exit LIMIT "TP 1" 124.34 x8
+  613 buy exit LIMIT "TP 2" 110.53 x16
+  716 buy exit LIMIT "TP 3" 69.08 x9
+  839 buy entry MARKET "Long" 115.29 x45
+  855 sell exit STOP "TP 1" 103.74 x11
+  ... 20 more
+  digest 1-32: 0e4fe94a4df19c

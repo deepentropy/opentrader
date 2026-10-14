@@ -1,0 +1,39 @@
+builtin/consecutive-up-down on daily: 1500 bars, first 1546405200, last 1728964800
+trades=152 filledOrders=152 marginCalls=78 finalEquity=168928.23 minEquity=65441.07
+orders by kind: entry/MARKET=74 order/MARKET=78
+openPL=-24511.92 maxDD=166964.82 (0.7245528133) maxRunUp=203508.12 (0.7476490498) buyHold=88472.25 (0.8847225)
+all: netProfit=93440.15 grossProfit=518168.05 grossLoss=424727.9 commissionPaid=0 profitFactor=1.220000028 totalTrades=151 totalOpenTrades=1 numberOfWiningTrades=30 numberOfLosingTrades=120 percentProfitable=0.1986754967 avgTrade=618.8089404 avgWinTrade=17272.26833 avgLosTrade=3539.399167 largestWinTrade=67654.88 largestLosTrade=33614.5 avgBarsInTrade=12.8807947 maxContractsHeld=2442
+long: netProfit=124293.84 grossProfit=329621.56 grossLoss=205327.72 commissionPaid=0 profitFactor=1.605343692 totalTrades=38 totalOpenTrades=0 numberOfWiningTrades=13 numberOfLosingTrades=24 percentProfitable=0.3421052632 avgTrade=3270.890526 avgWinTrade=25355.50462 avgLosTrade=8555.321667 largestWinTrade=67654.88 largestLosTrade=33614.5 avgBarsInTrade=21.18421053 maxContractsHeld=2436
+short: netProfit=-30853.69 grossProfit=188546.49 grossLoss=219400.18 commissionPaid=0 profitFactor=0.8593725402 totalTrades=113 totalOpenTrades=1 numberOfWiningTrades=17 numberOfLosingTrades=96 percentProfitable=0.1504424779 avgTrade=-273.0415044 avgWinTrade=11090.97 avgLosTrade=2285.418542 largestWinTrade=62929.51 largestLosTrade=27408.96 avgBarsInTrade=10.08849558 maxContractsHeld=2442
+trades:
+  #1 L "ConsUpLE" in "ConsUpLE"@5 147.97 out "ConsUpLE"@12 146.58 q=675 pnl=-938.25 (-0.00939379604) cm=0 ru=897.75 dd=1647 cum=-938.25 eq%=-0.0093825
+  #2 S "ConsDnSE" in "ConsUpLE"@12 146.58 out "Margin call"@12 148.12 q=52 pnl=-80.08 (-0.01050620821) cm=0 ru=16.64 dd=80.08 cum=-1018.33 eq%=-0.0008083846692
+  #3 S "ConsDnSE" in "ConsUpLE"@12 146.58 out "ConsUpLE"@23 149.81 q=623 pnl=-2012.29 (-0.0220357484) cm=0 ru=542.01 dd=2093.28 cum=-3030.62 eq%=-0.02032992573
+  #4 L "ConsUpLE" in "ConsUpLE"@23 149.81 out "ConsUpLE"@30 142.41 q=647 pnl=-4787.8 (-0.04939590148) cm=0 ru=3267.35 dd=5376.57 cum=-7818.42 eq%=-0.04937434889
+  #5 S "ConsDnSE" in "ConsUpLE"@30 142.41 out "Margin call"@30 142.86 q=12 pnl=-5.4 (-0.003159890457) cm=0 ru=2.16 dd=5.4 cum=-7823.82 eq%=-0.00005858003302
+  #6 S "ConsDnSE" in "ConsUpLE"@30 142.41 out "Margin call"@31 144.46 q=20 pnl=-41 (-0.01439505653) cm=0 ru=16.6 dd=41 cum=-7864.82 eq%=-0.0004448003812
+  #7 S "ConsDnSE" in "ConsUpLE"@30 142.41 out "Margin call"@33 146.35 q=8 pnl=-31.52 (-0.02766659645) cm=0 ru=10 dd=31.52 cum=-7896.34 eq%=-0.0003421060229
+  #8 S "ConsDnSE" in "ConsUpLE"@30 142.41 out "Margin call"@33 147.93 q=28 pnl=-154.56 (-0.03876132294) cm=0 ru=35 dd=154.56 cum=-8050.9 eq%=-0.001678109209
+  #9 S "ConsDnSE" in "ConsUpLE"@30 142.41 out "ConsUpLE"@76 146.43 q=579 pnl=-2327.58 (-0.02822835475) cm=0 ru=3937.2 dd=4313.55 cum=-10378.48 eq%=-0.02531378774
+  #10 L "ConsUpLE" in "ConsUpLE"@76 146.43 out "ConsUpLE"@95 141.28 q=611 pnl=-3146.65 (-0.03517038858) cm=0 ru=934.83 dd=3488.81 cum=-13525.13 eq%=-0.03511042883
+  #11 S "ConsDnSE" in "ConsUpLE"@95 141.28 out "Margin call"@95 141.87 q=20 pnl=-11.8 (-0.00417610419) cm=0 ru=0 dd=11.8 cum=-13536.93 eq%=-0.0001364558281
+  #12 S "ConsDnSE" in "ConsUpLE"@95 141.28 out "Margin call"@115 144.56 q=28 pnl=-91.84 (-0.02321630804) cm=0 ru=122.92 dd=91.84 cum=-13628.77 eq%=-0.001062187591
+  ... 140 more
+  digest 1-100: 13572a295d0381
+  digest 101-152: 19c8c3fb2b4995
+orders:
+  5 buy entry MARKET "ConsUpLE" 147.97 x675
+  12 sell entry MARKET "ConsDnSE" 146.58 x1350
+  12 buy order MARKET "Margin call 0" 148.12 x52
+  23 buy entry MARKET "ConsUpLE" 149.81 x1270
+  30 sell entry MARKET "ConsDnSE" 142.41 x1294
+  30 buy order MARKET "Margin call 1" 142.86 x12
+  31 buy order MARKET "Margin call 2" 144.46 x20
+  33 buy order MARKET "Margin call 3" 146.35 x8
+  33 buy order MARKET "Margin call 4" 147.93 x28
+  76 buy entry MARKET "ConsUpLE" 146.43 x1190
+  95 sell entry MARKET "ConsDnSE" 141.28 x1223
+  95 buy order MARKET "Margin call 5" 141.87 x20
+  ... 140 more
+  digest 1-100: 0315909d78f648
+  digest 101-152: 141a5e9b7ed983

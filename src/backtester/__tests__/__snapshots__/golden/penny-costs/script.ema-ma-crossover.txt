@@ -1,0 +1,37 @@
+script/ema-ma-crossover on penny-costs: 900 bars, first 978411600, last 1088136000
+trades=19 filledOrders=38 marginCalls=0 finalEquity=82682.3779 minEquity=29753.4139
+orders by kind: entry/MARKET=38
+openPL=0 maxDD=70956.8796 (0.709568796) maxRunUp=99603.8499 (0.7561619373) buyHold=-54216.2532 (-0.542162532)
+all: netProfit=-17317.6221 grossProfit=100227.5869 grossLoss=117545.209 commissionPaid=38 profitFactor=0.8526726674 totalTrades=19 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=12 percentProfitable=0.3684210526 avgTrade=-911.4537947 avgWinTrade=14318.2267 avgLosTrade=9795.434083 largestWinTrade=54992.7805 largestLosTrade=21825.6189 avgBarsInTrade=19.68421053 maxContractsHeld=1046223
+long: netProfit=-17317.6221 grossProfit=100227.5869 grossLoss=117545.209 commissionPaid=38 profitFactor=0.8526726674 totalTrades=19 totalOpenTrades=0 numberOfWiningTrades=7 numberOfLosingTrades=12 percentProfitable=0.3684210526 avgTrade=-911.4537947 avgWinTrade=14318.2267 avgLosTrade=9795.434083 largestWinTrade=54992.7805 largestLosTrade=21825.6189 avgBarsInTrade=19.68421053 maxContractsHeld=1046223
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "Long" in "Long"@80 0.9036 out "Short"@90 0.817 q=108364 pnl=-9386.3224 (-0.0958583131) cm=2 ru=8635.6108 dd=19138.0824 cum=-9386.3224 eq%=-0.093863224
+  #2 L "Long" in "Long"@128 0.7022 out "Short"@131 0.7369 q=127229 pnl=4412.8463 (0.04939318156) cm=2 ru=6347.7271 dd=5510.0157 cum=-4973.4761 eq%=0.04869956078
+  #3 L "Long" in "Long"@132 0.7132 out "Short"@139 0.6279 q=132587 pnl=-11311.6711 (-0.1196216801) cm=2 ru=6774.1957 dd=16759.9968 cum=-16285.1472 eq%=-0.1190369871
+  #4 L "Long" in "Long"@175 0.4904 out "Short"@185 0.3672 q=170323 pnl=-20985.7936 (-0.2512444276) cm=2 ru=8242.6332 dd=21853.4409 cum=-37270.9408 eq%=-0.2506818432
+  #5 L "Long" in "Long"@204 0.3581 out "Short"@216 0.3527 q=168987 pnl=-914.5298 (-0.01511238704) cm=2 ru=7603.415 dd=3701.8153 cum=-38185.4706 eq%=-0.01457904537
+  #6 L "Long" in "Long"@258 0.2252 out "Short"@273 0.2385 q=272546 pnl=3622.8618 (0.05902506758) cm=2 ru=12890.4258 dd=9431.0916 cum=-34562.6088 eq%=0.05860858014
+  #7 L "Long" in "Long"@281 0.2265 out "Short"@284 0.2044 q=283888 pnl=-6275.9248 (-0.09760132993) cm=2 ru=850.664 dd=9284.1376 cum=-40838.5336 eq%=-0.09590731973
+  #8 L "Long" in "Long"@316 0.1512 out "Short"@335 0.1403 q=382667 pnl=-4173.0703 (-0.0721232672) cm=2 ru=9910.0753 dd=10792.2094 cum=-45011.6039 eq%=-0.07053696526
+  #9 L "Long" in "Long"@359 0.1232 out "Short"@360 0.1234 q=444522 pnl=86.9044 (0.001586828047) cm=2 ru=1332.566 dd=445.522 cum=-44924.6995 eq%=0.001580413436
+  #10 L "Long" in "Long"@403 0.0919 out "Short"@410 0.0745 q=596687 pnl=-10384.3538 (-0.1893692543) cm=2 ru=1431.0488 dd=10383.3538 cum=-55309.0533 eq%=-0.1885482913
+  #11 L "Long" in "Long"@438 0.065 out "Short"@457 0.0584 q=684378 pnl=-4518.8948 (-0.1015811374) cm=2 ru=4721.2082 dd=4517.8948 cum=-59827.9481 eq%=-0.1011143226
+  #12 L "Long" in "Long"@497 0.0487 out "Short"@507 0.0385 q=789215 pnl=-8051.993 (-0.2094921708) cm=2 ru=788.215 dd=11128.9315 cum=-67879.9411 eq%=-0.2004376829
+  ... 7 more
+  digest 1-19: 0591570b790084
+orders:
+  80 buy entry MARKET "Long" 0.9036 x108364
+  90 sell entry MARKET "Short" 0.817 x108364
+  128 buy entry MARKET "Long" 0.7022 x127229
+  131 sell entry MARKET "Short" 0.7369 x127229
+  132 buy entry MARKET "Long" 0.7132 x132587
+  139 sell entry MARKET "Short" 0.6279 x132587
+  175 buy entry MARKET "Long" 0.4904 x170323
+  185 sell entry MARKET "Short" 0.3672 x170323
+  204 buy entry MARKET "Long" 0.3581 x168987
+  216 sell entry MARKET "Short" 0.3527 x168987
+  258 buy entry MARKET "Long" 0.2252 x272546
+  273 sell entry MARKET "Short" 0.2385 x272546
+  ... 26 more
+  digest 1-38: 1d9a626bfa1279

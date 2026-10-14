@@ -1,0 +1,19 @@
+builtin/keltner-channels on penny: 900 bars, first 978411600, last 1088136000
+trades=3 filledOrders=5 marginCalls=0 finalEquity=399552.643 minEquity=47090.6334
+orders by kind: entry/STOP=5
+openPL=49159.3218 maxDD=54720.5448 (0.547205448) maxRunUp=481912.7226 (0.9026617951) buyHold=756521.6022 (7.565216022)
+all: netProfit=250393.3212 grossProfit=298426.4388 grossLoss=48033.1176 commissionPaid=0 profitFactor=6.212930863 totalTrades=2 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=125196.6606 avgWinTrade=298426.4388 avgLosTrade=48033.1176 largestWinTrade=298426.4388 largestLosTrade=48033.1176 avgBarsInTrade=181 maxContractsHeld=2070393
+long: netProfit=250393.3212 grossProfit=298426.4388 grossLoss=48033.1176 commissionPaid=0 profitFactor=6.212930863 totalTrades=2 totalOpenTrades=1 numberOfWiningTrades=1 numberOfLosingTrades=1 percentProfitable=0.5 avgTrade=125196.6606 avgWinTrade=298426.4388 avgLosTrade=48033.1176 largestWinTrade=298426.4388 largestLosTrade=48033.1176 avgBarsInTrade=181 maxContractsHeld=2070393
+short: netProfit=0 grossProfit=0 grossLoss=0 commissionPaid=0 profitFactor=- totalTrades=0 totalOpenTrades=0 numberOfWiningTrades=0 numberOfLosingTrades=0 percentProfitable=- avgTrade=- avgWinTrade=- avgLosTrade=- largestWinTrade=- largestLosTrade=- avgBarsInTrade=0 maxContractsHeld=0
+trades:
+  #1 L "KltChLE" in "KltChLE"@495 0.0483 out "KltChSE"@539 0.0251 q=2070393 pnl=-48033.1176 (-0.4803312629) cm=0 ru=6211.179 dd=48033.1176 cum=-48033.1176 eq%=-0.480331176
+  #2 L "KltChLE" in "KltChLE"@561 0.0373 out "KltChSE"@877 0.2515 q=1393214 pnl=298426.4388 (5.742627346) cm=0 ru=481912.7226 dd=6687.4272 cum=250393.3212 eq%=5.742627324
+  #3 L "KltChLE" in "KltChLE"@894 0.3628 out OPEN@899 0.4137 q=965802 pnl=49159.3218 (0.1402976847) cm=0 ru=54181.4922 dd=1641.8634 cum=299552.643 eq%=0.1402975423
+  digest 1-3: 0e561f46ae5ac6
+orders:
+  495 buy entry STOP "KltChLE" 0.0483 x2070393
+  539 sell entry STOP "KltChSE" 0.0251 x2070393
+  561 buy entry STOP "KltChLE" 0.0373 x1393214
+  877 sell entry STOP "KltChSE" 0.2515 x1393214
+  894 buy entry STOP "KltChLE" 0.3628 x965802
+  digest 1-5: 10ce97160dffd3

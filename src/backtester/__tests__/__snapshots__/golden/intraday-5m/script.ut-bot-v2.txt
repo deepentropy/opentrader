@@ -1,0 +1,49 @@
+script/ut-bot-v2 on intraday-5m: 3822 bars, first 1708439400, last 1714420500
+trades=663 filledOrders=663 marginCalls=242 finalEquity=136365.62 minEquity=89894.19
+orders by kind: entry/MARKET=421 order/MARKET=242
+openPL=-545.16 maxDD=13657.19 (0.1322088365) maxRunUp=49000.41 (0.3522939211) buyHold=-6678.15 (-0.0667815)
+all: netProfit=36910.78 grossProfit=124065.38 grossLoss=87154.6 commissionPaid=0 profitFactor=1.423509258 totalTrades=662 totalOpenTrades=1 numberOfWiningTrades=161 numberOfLosingTrades=496 percentProfitable=0.2432024169 avgTrade=55.75646526 avgWinTrade=770.5924224 avgLosTrade=175.7149194 largestWinTrade=7181.86 largestLosTrade=3462.76 avgBarsInTrade=7.342900302 maxContractsHeld=351
+long: netProfit=17159.22 grossProfit=57571.75 grossLoss=40412.53 commissionPaid=0 profitFactor=1.424601479 totalTrades=215 totalOpenTrades=1 numberOfWiningTrades=82 numberOfLosingTrades=128 percentProfitable=0.3813953488 avgTrade=79.81032558 avgWinTrade=702.0945122 avgLosTrade=315.7228906 largestWinTrade=3549.6 largestLosTrade=1165.11 avgBarsInTrade=9.386046512 maxContractsHeld=351
+short: netProfit=19751.56 grossProfit=66493.63 grossLoss=46742.07 commissionPaid=0 profitFactor=1.42256494 totalTrades=447 totalOpenTrades=0 numberOfWiningTrades=79 numberOfLosingTrades=368 percentProfitable=0.1767337808 avgTrade=44.18693512 avgWinTrade=841.691519 avgLosTrade=127.0164946 largestWinTrade=7181.86 largestLosTrade=3462.76 avgBarsInTrade=6.360178971 maxContractsHeld=351
+trades:
+  #1 L "Long" in "Long"@22 473.42 out "Short"@27 472.14 q=211 pnl=-270.08 (-0.002703730303) cm=0 ru=151.92 dd=369.25 cum=-270.08 eq%=-0.0027008
+  #2 S "Short" in "Short"@27 472.14 out "Margin call"@27 472.41 q=1 pnl=-0.27 (-0.0005718642775) cm=0 ru=0 dd=0.27 cum=-270.35 eq%=-0.000002707311908
+  #3 S "Short" in "Short"@27 472.14 out "Long"@39 470.52 q=210 pnl=340.2 (0.003431185665) cm=0 ru=718.2 dd=56.7 cum=69.85 eq%=0.003411222239
+  #4 L "Long" in "Long"@39 470.52 out "Short"@49 469.87 q=212 pnl=-137.8 (-0.00138145031) cm=0 ru=324.36 dd=178.08 cum=-67.95 eq%=-0.001377038139
+  #5 S "Short" in "Short"@49 469.87 out "Long"@54 468.58 q=212 pnl=273.48 (0.002745440228) cm=0 ru=786.52 dd=61.48 cum=205.53 eq%=0.00273665956
+  #6 L "Long" in "Long"@54 468.58 out "Short"@56 468.06 q=213 pnl=-110.76 (-0.001109735798) cm=0 ru=417.48 dd=161.88 cum=94.77 eq%=-0.001105328219
+  #7 S "Short" in "Short"@56 468.06 out "Margin call"@56 469.33 q=1 pnl=-1.27 (-0.002713327351) cm=0 ru=0.48 dd=1.27 cum=93.5 eq%=-0.00001268797561
+  #8 S "Short" in "Short"@56 468.06 out "Long"@83 462.23 q=212 pnl=1235.96 (0.01245566808) cm=0 ru=1818.96 dd=354.04 cum=1329.46 eq%=0.01234805457
+  #9 L "Long" in "Long"@83 462.23 out "Short"@92 460.92 q=219 pnl=-286.89 (-0.002834086926) cm=0 ru=81.03 dd=394.2 cum=1042.57 eq%=-0.002831259537
+  #10 S "Short" in "Short"@92 460.92 out "Margin call"@92 462.31 q=4 pnl=-5.56 (-0.003015707715) cm=0 ru=1.28 dd=5.56 cum=1037.01 eq%=-0.00005502631218
+  #11 S "Short" in "Short"@92 460.92 out "Long"@107 454.76 q=215 pnl=1324.4 (0.0133645752) cm=0 ru=1730.75 dd=298.85 cum=2361.41 eq%=0.01310806802
+  #12 L "Long" in "Long"@107 454.76 out "Short"@110 451.98 q=225 pnl=-625.5 (-0.00611311461) cm=0 ru=308.25 dd=636.75 cum=1735.91 eq%=-0.006110701289
+  ... 651 more
+  digest 1-100: 13d15cbafe7fa4
+  digest 101-200: 03e556ee82d8aa
+  digest 201-300: 10ba9270465bff
+  digest 301-400: 0acd83719f040a
+  digest 401-500: 1410f3516c7dc4
+  digest 501-600: 1e1632922846bd
+  digest 601-663: 1193008efdcf79
+orders:
+  22 buy entry MARKET "Long" 473.42 x211
+  27 sell entry MARKET "Short" 472.14 x422
+  27 buy order MARKET "Margin call 0" 472.41 x1
+  39 buy entry MARKET "Long" 470.52 x422
+  49 sell entry MARKET "Short" 469.87 x424
+  54 buy entry MARKET "Long" 468.58 x425
+  56 sell entry MARKET "Short" 468.06 x426
+  56 buy order MARKET "Margin call 1" 469.33 x1
+  83 buy entry MARKET "Long" 462.23 x431
+  92 sell entry MARKET "Short" 460.92 x438
+  92 buy order MARKET "Margin call 2" 462.31 x4
+  107 buy entry MARKET "Long" 454.76 x440
+  ... 651 more
+  digest 1-100: 060c17e3ca5f9f
+  digest 101-200: 03217b1b3c1b66
+  digest 201-300: 19ff6f285898d6
+  digest 301-400: 0f7d47b7c8f4d6
+  digest 401-500: 0cad344ca656c0
+  digest 501-600: 198feb8f0a18c3
+  digest 601-663: 11e9c9e7ec7bf9

@@ -1,0 +1,49 @@
+script/kwan-nrp on daily-costs: 1500 bars, first 1546405200, last 1728964800
+trades=604 filledOrders=604 marginCalls=305 finalEquity=12715.81472 minEquity=12715.81472
+orders by kind: entry/MARKET=299 order/MARKET=305
+openPL=-489.6 maxDD=103407.2777 (0.8910426744) maxRunUp=57343.81278 (0.4670856587) buyHold=95900.22 (0.9590022)
+all: netProfit=-86794.58528 grossProfit=201346.531 grossLoss=288141.1163 commissionPaid=30946.04528 profitFactor=0.6987775074 totalTrades=603 totalOpenTrades=1 numberOfWiningTrades=124 numberOfLosingTrades=479 percentProfitable=0.2056384743 avgTrade=-143.9379524 avgWinTrade=1623.762347 avgLosTrade=601.5472157 largestWinTrade=29926.0339 largestLosTrade=13555.40875 avgBarsInTrade=3.772802653 maxContractsHeld=845
+long: netProfit=-16449.31736 grossProfit=125862.8239 grossLoss=142312.1413 commissionPaid=15417.51736 profitFactor=0.8844138159 totalTrades=187 totalOpenTrades=1 numberOfWiningTrades=61 numberOfLosingTrades=126 percentProfitable=0.3262032086 avgTrade=-87.96426396 avgWinTrade=2063.324982 avgLosTrade=1129.461439 largestWinTrade=29926.0339 largestLosTrade=13555.40875 avgBarsInTrade=4.957219251 maxContractsHeld=786
+short: netProfit=-70345.26792 grossProfit=75483.70711 grossLoss=145828.975 commissionPaid=15528.52792 profitFactor=0.5176180323 totalTrades=416 totalOpenTrades=0 numberOfWiningTrades=63 numberOfLosingTrades=353 percentProfitable=0.1514423077 avgTrade=-169.0992017 avgWinTrade=1198.154081 avgLosTrade=413.1132437 largestWinTrade=8821.7301 largestLosTrade=6592.7434 avgBarsInTrade=3.240384615 maxContractsHeld=845
+trades:
+  #1 L "Long" in "Long"@30 142.43 out "Short"@31 142.72 q=701 pnl=3.39985 (0.00003401779713) cm=199.89015 ru=201.58657 dd=240.04343 cum=3.39985 eq%=0.0000339985
+  #2 S "Short" in "Short"@31 142.72 out "Margin call"@31 142.76 q=1 pnl=-0.32548 (-0.002278271056) cm=0.28548 ru=0 dd=0.18272 cum=-96.68691 eq%=-0.000003257939397
+  #3 S "Short" in "Short"@31 142.72 out "Margin call"@31 144.48 q=60 pnl=-122.832 (-0.01432984056) cm=17.232 ru=59.8368 dd=114.1632 cum=-210.95571 eq%=-0.001229403396
+  #4 S "Short" in "Short"@31 142.72 out "Long"@34 146.87 q=639 pnl=-2836.89801 (-0.0310759168) cm=185.04801 ru=905.64192 dd=3420.38808 cum=-2956.65564 eq%=-0.02840299485
+  #5 L "Long" in "Long"@34 146.87 out "Short"@35 149.31 q=660 pnl=1414.9212 (0.01458213605) cm=195.4788 ru=1876.4658 dd=242.1342 cum=-1541.73444 eq%=0.0145803013
+  #6 S "Short" in "Short"@35 149.31 out "Margin call"@35 149.35 q=1 pnl=-0.33866 (-0.002265901) cm=0.29866 ru=0 dd=0.18931 cum=-1640.31908 eq%=-0.000003443065602
+  #7 S "Short" in "Short"@35 149.31 out "Margin call"@35 149.6 q=4 pnl=-2.35564 (-0.003940269763) cm=1.19564 ru=0 dd=1.75724 cum=-1642.07748 eq%=-0.0000239490986
+  #8 S "Short" in "Short"@35 149.31 out "Long"@36 145.46 q=654 pnl=2325.12042 (0.02378727695) cm=192.77958 ru=2420.25126 dd=287.30874 cum=780.69168 eq%=0.0236159355
+  #9 L "Long" in "Long"@36 145.46 out "Short"@38 141.2 q=660 pnl=-3000.7956 (-0.03122588947) cm=189.1956 ru=550.7964 dd=3145.2036 cum=-2220.10392 eq%=-0.02977550114
+  #10 S "Short" in "Short"@38 141.2 out "Margin call"@38 141.24 q=1 pnl=-0.32244 (-0.002281288117) cm=0.28244 ru=0 dd=0.1812 cum=-2317.99556 eq%=-0.000003300904169
+  #11 S "Short" in "Short"@38 141.2 out "Margin call"@38 142.41 q=40 pnl=-59.7444 (-0.0105674071) cm=11.3444 ru=35.552 dd=54.048 cum=-2372.09196 eq%=-0.0006115859938
+  #12 S "Short" in "Short"@38 141.2 out "Margin call"@48 148.07 q=84 pnl=-601.37868 (-0.05065239293) cm=24.29868 ru=330.0192 dd=588.9408 cum=-2961.60984 eq%=-0.006159157146
+  ... 592 more
+  digest 1-100: 172bab10e30c27
+  digest 101-200: 15b2ce28004e95
+  digest 201-300: 0e3e8a968e100d
+  digest 301-400: 1474357b3396b4
+  digest 401-500: 0633eba569704b
+  digest 501-600: 00610bb2d62361
+  digest 601-604: 101ac7e6981b37
+orders:
+  30 buy entry MARKET "Long" 142.43 x701
+  31 sell entry MARKET "Short" 142.72 x1401
+  31 buy order MARKET "Margin call 0" 142.76 x1
+  31 buy order MARKET "Margin call 1" 144.48 x60
+  34 buy entry MARKET "Long" 146.87 x1299
+  35 sell entry MARKET "Short" 149.31 x1319
+  35 buy order MARKET "Margin call 2" 149.35 x1
+  35 buy order MARKET "Margin call 3" 149.6 x4
+  36 buy entry MARKET "Long" 145.46 x1314
+  38 sell entry MARKET "Short" 141.2 x1352
+  38 buy order MARKET "Margin call 4" 141.24 x1
+  38 buy order MARKET "Margin call 5" 142.41 x40
+  ... 592 more
+  digest 1-100: 0d7e6d4323cd77
+  digest 101-200: 068ab2bdd4b2c4
+  digest 201-300: 1785bc9aa97604
+  digest 301-400: 1bcd0f1a3679b3
+  digest 401-500: 05b6f416f98d2b
+  digest 501-600: 13aced7a4ac244
+  digest 601-604: 1b72a6ad546342
