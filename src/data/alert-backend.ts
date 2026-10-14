@@ -8,8 +8,8 @@
  *  - one window runs the alerts (`whenAlertLeader`): the first one to ask,
  *    another one when it is closed;
  *  - that window compiles each rule into what the backend reads: the bars of
- *    the rule's interval (sessions included) and the drawing's values on
- *    each of them. A sloped line is straight over the bars, not over the
+ *    the rule's interval and session (regular or extended hours) and the
+ *    drawing's values on each of them. A sloped line is straight over the bars, not over the
  *    calendar, so its level skips the hours without bars as on the chart;
  *  - it delivers the fires the backend sends back, the offline ones (found
  *    in the bars missed while the app was not running) to the log and the
@@ -25,6 +25,7 @@ import { commands, type AlertFired, type AlertLeader, type EngineGrid, type Engi
 import { alertStore, type AlertRule } from "./alert-store";
 import { drawingValues, isBandOperator, isMovingOperator, LEVEL_OPERATORS, type TimeAxis } from "./alert-condition";
 import { cachedSymbolSessions, localDay, localToUtc, sessionsVersion, type SymbolSessions } from "./session";
+import type { SessionId } from "./session/symbol-sessions";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { loadDrawings } from "../window/drawings/persistence";
 
@@ -73,10 +74,10 @@ const isDaily = (iv: Interval) => iv.unit === "D" || iv.unit === "W" || iv.unit 
 
 /** Bars [open, close] of `iv` that close after `from` and open before `to`
  *  (UNIX seconds), as the engine buckets them: intraday bars anchored at the
- *  start of each extended-session interval, the last one cut at its end;
- *  daily / weekly / monthly bars from their stamp to the close of their last
- *  trading day. */
-function barsBetween(sessions: SymbolSessions, iv: Interval, from: number, to: number): Bars {
+ *  start of each interval of `session` (regular or extended hours), the last
+ *  one cut at its end; daily / weekly / monthly bars from their stamp to the
+ *  close of their last trading day. */
+function barsBetween(sessions: SymbolSessions, session: SessionId, iv: Interval, from: number, to: number): Bars {
   const out: Bars = [];
   const tz = sessions.timeZone;
   if (isDaily(iv)) {
@@ -96,7 +97,7 @@ function barsBetween(sessions: SymbolSessions, iv: Interval, from: number, to: n
     return out.filter((b) => b[1] > from);
   }
   for (let day = localDay(tz, from) - 2, end = localDay(tz, to) + 2; day <= end; day++) {
-    for (const s of sessions.extended.dayIntervals(day)) {
+    for (const s of sessions.spec(session).dayIntervals(day)) {
       if (s.end <= from) continue;
       for (let open = s.start; open < s.end && open < to; open += iv.stepSec) {
         const close = Math.min(open + iv.stepSec, s.end);
@@ -139,14 +140,14 @@ const SLOPED_KINDS = new Set(["trend-line", "ray", "extended-line", "parallel-ch
 
 /** The axis of `d`'s lines: the bars from its earliest point to the end of
  *  the grid. Undefined (calendar time) for a flat drawing or a span too long. */
-function axisOf(d: Drawing, sessions: SymbolSessions, iv: Interval, gridFrom: number, gridTo: number): TimeAxis | undefined {
+function axisOf(d: Drawing, sessions: SymbolSessions, session: SessionId, iv: Interval, gridFrom: number, gridTo: number): TimeAxis | undefined {
   if (!SLOPED_KINDS.has(d.kind)) return undefined;
   const times = d.points.flatMap((p) => (typeof p.time === "number" ? [p.time as number] : []));
   if (times.length < 2) return undefined;
   const from = Math.min(gridFrom, ...times) - 1;
   const to = Math.max(gridTo, ...times) + 1;
   if ((to - from) / iv.stepSec > AXIS_BARS) return undefined;
-  return barAxis(barsBetween(sessions, iv, from, to));
+  return barAxis(barsBetween(sessions, session, iv, from, to));
 }
 
 const sameValues = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -173,8 +174,10 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
     const drawing = right.kind === "drawing" ? loadDrawings(rule.symbol).find((d) => d.id === right.drawingId) : undefined;
     if (right.kind === "drawing" && !drawing) continue;
     const since = rule.activeSince ?? rule.createdAt;
+    // Older rules without a session: regular hours, a chart's default.
+    const session: SessionId = rule.session ?? "RTH";
 
-    const gridKey = `${rule.symbol}|${rule.resolution}`;
+    const gridKey = `${rule.symbol}|${rule.resolution}|${session}`;
     let grid = grids.get(gridKey);
     if (!grid) {
       // The first time, the bars go back to the previous run (what the
@@ -185,16 +188,23 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       const from = Math.max(Math.min(back, nowSec) - iv.stepSec, nowSec - BACK_BARS * iv.stepSec);
       // Always up to the next bar to open, so the last bar of a session can
       // be seen closing.
-      const next = (isDaily(iv) ? sessions.regular : sessions.extended).currentOrNext(nowSec)?.start ?? nowSec;
+      const next = (isDaily(iv) ? sessions.regular : sessions.spec(session)).currentOrNext(nowSec)?.start ?? nowSec;
       const to = Math.max(nowSec + Math.min(AHEAD_SEC, AHEAD_BARS * iv.stepSec), next + 2 * iv.stepSec);
+      // The hours of the session, to the end of the bars handed over: a quote
+      // outside them is not read.
       const regular: Bars = [];
       for (let day = localDay(sessions.timeZone, from) - 1, end = localDay(sessions.timeZone, nowSec) + 1; day <= end; day++) {
         for (const s of sessions.regular.dayIntervals(day)) regular.push([s.start, s.end]);
       }
-      grids.set(gridKey, (grid = { key: gridKey, bars: barsBetween(sessions, iv, from, to), regular, from, to }));
+      const hours: Bars = [];
+      for (let day = localDay(sessions.timeZone, from) - 1, end = localDay(sessions.timeZone, to) + 1; day <= end; day++) {
+        for (const s of sessions.spec(session).dayIntervals(day)) hours.push([s.start, s.end]);
+      }
+      const bars = barsBetween(sessions, session, iv, from, to);
+      grids.set(gridKey, (grid = { key: gridKey, bars, regular, session: hours, extendedHours: session === "ETH", from, to }));
     }
 
-    const sig = JSON.stringify([rule.op, right, rule.right2, rule.frequency, rule.resolution, since, drawing?.points, drawing?.style]);
+    const sig = JSON.stringify([rule.op, right, rule.right2, rule.frequency, rule.resolution, session, since, drawing?.points, drawing?.style]);
     const compiled: EngineRule = {
       id: rule.id,
       symbol: rule.symbol,
@@ -217,7 +227,7 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
     } else if (right.kind === "drawing" && drawing) {
       compiled.shape = right.band === "time" ? "time" : right.band === "position" ? "position" : isBandOperator(rule.op) || right.band === "rectangle" ? "band" : "level";
       compiled.absentIsOutside = right.band === "rectangle";
-      const axis = axisOf(drawing, sessions, iv, grid.from, grid.to);
+      const axis = axisOf(drawing, sessions, session, iv, grid.from, grid.to);
       const perBar = (grid.bars as Bars).map(([open]) => drawingValues(drawing, right, rule.op, open, axis, sessions.mintick) ?? []);
       // The same values on every bar: one entry is enough.
       if (perBar.length > 0 && perBar.every((v) => sameValues(v, perBar[0]))) compiled.values = perBar[0];
@@ -227,7 +237,11 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
     keys.push(`${rule.id}\u0001${sig}\u0001${rule.expiresAt}`);
   }
   for (const k of grids.keys()) covered.add(k);
-  return { rules, grids: [...grids.values()].map(({ key, bars, regular }) => ({ key, bars, regular })), key: `${epoch}\u0002${keys.join("\u0002")}` };
+  return {
+    rules,
+    grids: [...grids.values()].map(({ key, bars, regular, session, extendedHours }) => ({ key, bars, regular, session, extendedHours })),
+    key: `${epoch}\u0002${keys.join("\u0002")}`,
+  };
 }
 
 // ── Sync with the backend ──

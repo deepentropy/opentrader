@@ -87,3 +87,9 @@ export function chartLastBarTime(symbol: string): number | null {
 export function chartResolution(symbol: string): string | null {
   return providers.get(symbol.toUpperCase())?.resolution() ?? null;
 }
+
+/** Session of the chart showing a symbol ("RTH" / "ETH"), or null when it
+ *  isn't charted or does not tell. */
+export function chartSession(symbol: string): string | null {
+  return providers.get(symbol.toUpperCase())?.session?.() ?? null;
+}

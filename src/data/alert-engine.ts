@@ -17,10 +17,11 @@
  *    the chart's configured inputs); uncharted symbols fall back to a 60s
  *    getBars poll computed with the study's DEFAULT inputs.
  *  • Crossing is sampled between polls (~15s cadence), not tick-exact.
- *  • once_per_bar(_close) buckets follow the symbol's own session (intraday:
- *    anchored at each extended-session interval, as the rule stores no
- *    RTH/ETH choice; daily+: the trading day / week / month in the exchange
- *    zone). Ticks wait until the symbol's session is known.
+ *  • once_per_bar(_close) buckets are the bars of the rule's interval and
+ *    session (intraday: anchored at each regular or extended session
+ *    interval; daily+: the trading day / week / month in the exchange zone).
+ *    A tick outside the rule's session is not evaluated (its bars do not
+ *    move then). Ticks wait until the symbol's session is known.
  */
 import { createRoot, createEffect, createSignal, onCleanup } from "solid-js";
 import { onTradeTick, getBars, getTickerInfo, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
@@ -33,7 +34,7 @@ import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
 import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
-import { chartBars, chartLastBarTime, chartResolution, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
+import { chartBars, chartLastBarTime, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { scriptBars } from "../backtester/oakscript";
@@ -136,13 +137,14 @@ function resolutionMs(res: string): number {
 }
 
 /** Which bar bucket (its open time, UNIX ms) a timestamp falls into, for
- *  once-per-bar throttling, in the symbol's own session: intraday bars
- *  anchored at the start of the extended-session interval; daily / weekly /
- *  monthly bars by trading day in the exchange zone. Once a session ends, the
- *  time belongs to the next session's first bar, so the last bar closes at the
- *  session end (not at the next tick of the next session). Null until the
- *  symbol's session is known. */
-function barBucket(symbol: string, res: string, timeMs: number): number | null {
+ *  once-per-bar throttling, in the rule's session: intraday bars anchored at
+ *  the start of each interval of that session (regular hours: 09:30, 10:30,
+ *  ... on a US stock at 1 hour; extended hours: 04:00, 05:00, ...); daily /
+ *  weekly / monthly bars by trading day in the exchange zone. Once a session
+ *  ends, the time belongs to the next session's first bar, so the last bar
+ *  closes at the session end (not at the next tick of the next session). Null
+ *  until the symbol's session is known. */
+function barBucket(symbol: string, res: string, session: SessionId, timeMs: number): number | null {
   const sessions = cachedSymbolSessions(symbol);
   if (!sessions) return null;
   const sec = timeMs / 1000;
@@ -157,11 +159,24 @@ function barBucket(symbol: string, res: string, timeMs: number): number | null {
     const key = period === "day" && n === 1 ? day : periodStart(day, { unit: period, n }, sessions.regular);
     return key * 1000;
   }
-  const iv = sessions.extended.currentOrNext(sec);
+  const iv = sessions.spec(session).currentOrNext(sec);
   if (!iv) return null;
   const step = resolutionMs(res) / 1000;
   const t = Math.max(sec, iv.start);
   return (iv.start + Math.floor((t - iv.start) / step) * step) * 1000;
+}
+
+/** The rule's session: the chart's when the rule was made, regular hours for
+ *  older rules. */
+const ruleSession = (rule: AlertRule): SessionId => rule.session ?? DEFAULT_SESSION;
+
+/** True when a tick at `timeMs` belongs to the rule's session: within its
+ *  hours and, for regular hours, not a pre / post-market quote (the tick then
+ *  carries the regular close, the regular bars do not move). */
+function inRuleSession(rule: AlertRule, timeMs: number, extendedQuote: boolean): boolean {
+  const session = ruleSession(rule);
+  if (session === "RTH" && extendedQuote) return false;
+  return cachedSymbolSessions(rule.symbol)?.spec(session).contains(timeMs / 1000) ?? false;
 }
 
 /** True when the rule's condition is satisfied for the current sample. Updates
@@ -291,7 +306,7 @@ function frequencyAllows(rule: AlertRule, barRefMs: number): boolean {
     // once_per_bar_close never reaches here (onTick fires it from its own
     // bar-close branch); kept so the switch stays exhaustive.
     case "once_per_bar_close": {
-      const bucket = barBucket(rule.symbol, rule.resolution, barRefMs);
+      const bucket = barBucket(rule.symbol, rule.resolution, ruleSession(rule), barRefMs);
       if (bucket === null || lastFiredBucket.get(rule.id) === bucket) return false;
       lastFiredBucket.set(rule.id, bucket);
       return true;
@@ -300,7 +315,7 @@ function frequencyAllows(rule: AlertRule, barRefMs: number): boolean {
 }
 
 function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
-  deliverFire(rule, ctx.price, barBucket(rule.symbol, rule.resolution, barRefMs) ?? barRefMs);
+  deliverFire(rule, ctx.price, barBucket(rule.symbol, rule.resolution, ruleSession(rule), barRefMs) ?? barRefMs);
 }
 
 // ── Message placeholders ──
@@ -565,10 +580,16 @@ function onTick(t: TradeTick): void {
   // bar_time when the chart's bars are no longer than the rule's (a daily
   // chart's bar does not tell which hour a 60-minute rule is in); falls back
   // to wall-clock otherwise and for symbols that aren't charted.
+  // The chart's bars count only when they are those of the rule's session.
   const chartRef = chartLastBarTime(symbol);
   const chartRes = chartResolution(symbol);
+  const chartSes = chartSession(symbol);
   const barRefFor = (rule: AlertRule) =>
-    chartRef != null && chartRes != null && resolutionMs(chartRes) <= resolutionMs(rule.resolution) ? chartRef : now;
+    chartRef != null && chartRes != null && resolutionMs(chartRes) <= resolutionMs(rule.resolution) && (chartSes == null || chartSes === ruleSession(rule))
+      ? chartRef
+      : now;
+  // The latest trade is a pre / post-market one: the tick carries the regular close.
+  const extendedQuote = t.extChangePercent != null;
   const ctx: EvalContext = {
     price: t.price,
     changePercent: t.changePercent ?? null,
@@ -595,17 +616,22 @@ function onTick(t: TradeTick): void {
     // lands past the bar's end the buffered bar has closed — evaluate on ITS
     // final values (close-to-close crossings) and fire at most once per bar.
     if (rule.frequency === "once_per_bar_close") {
-      const bucket = barBucket(rule.symbol, rule.resolution, now);
+      const bucket = barBucket(rule.symbol, rule.resolution, ruleSession(rule), now);
       if (bucket === null) continue; // session not known yet
       const st = barCloseState.get(rule.id);
-      // A study's condition is read now, on the bar this sample belongs to (at the close the study has moved on
-      // to the next bar).
-      let sample = ctx;
-      if (rule.op === "alert_condition" && rule.left.kind === "indicator") {
-        const now = ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) ?? null;
-        sample = { ...ctx, conditionTrue: () => now };
+      if (inRuleSession(rule, now, extendedQuote)) {
+        // A study's condition is read now, on the bar this sample belongs to (at the close the study has moved on
+        // to the next bar).
+        let sample = ctx;
+        if (rule.op === "alert_condition" && rule.left.kind === "indicator") {
+          const now = ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) ?? null;
+          sample = { ...ctx, conditionTrue: () => now };
+        }
+        barCloseState.set(rule.id, { bucket, ctx: sample });
+      } else {
+        // Out of the session: no sample, but the session's last bar has closed.
+        barCloseState.delete(rule.id);
       }
-      barCloseState.set(rule.id, { bucket, ctx: sample });
       if (!st || st.bucket === bucket) continue; // still forming — wait for the close
       if (!conditionMet(rule, st.ctx)) continue;
       if (lastFiredBucket.get(rule.id) === st.bucket) continue;
@@ -614,8 +640,9 @@ function onTick(t: TradeTick): void {
       continue;
     }
 
-    if (!conditionMet(rule, ctx)) continue;
     const barRefMs = barRefFor(rule);
+    if (!inRuleSession(rule, barRefMs, extendedQuote)) continue;
+    if (!conditionMet(rule, ctx)) continue;
     if (!frequencyAllows(rule, barRefMs)) continue;
     fire(rule, ctx, barRefMs);
   }
@@ -669,7 +696,7 @@ function liveBarState(symbol: string, resolution: string, session: string, bars:
   const now = Date.now();
   let forming: boolean;
   if (/[DWM]$/i.test(resolution)) {
-    forming = barBucket(symbol, resolution, now) === last.time * 1000;
+    forming = barBucket(symbol, resolution, session as SessionId, now) === last.time * 1000;
   } else {
     const iv = sessions.spec(session as SessionId).currentOrNext(last.time);
     const end = Math.min(last.time + resolutionMs(resolution) / 1000, iv && iv.start <= last.time ? iv.end : Infinity);
