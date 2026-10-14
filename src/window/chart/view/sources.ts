@@ -26,6 +26,7 @@ import { getIndicatorEntry } from "../indicators/registry";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { NEVER_SUNK_KINDS, type SunkPainter } from "../../drawings/DrawingsOverlay";
 import { type ChartCx } from "./context";
+import { onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
 import type { Accessor } from "solid-js";
 
 /** What createSources adds to the chart context. */
@@ -61,16 +62,19 @@ export function createSources(cx: ChartCx): SourcesApi {
       setFocusedStudySelection(id ? { id, moveAbove: false, moveBelow: movable } : null);
     });
   });
-  const onSelectStudyRequest = (e: Event) => {
+  /** Requests of the Object tree and the drawing toolbar: the focused chart
+   *  of the shown tab serves them. */
+  const listenWhenShown = <K extends AppEventName>(type: K, fn: (detail: AppEvents[K] | undefined) => void) =>
+    onCleanup(onAppEvent(type, (d) => { if (props.shown !== false) fn(d); }));
+  const onSelectStudyRequest = (d: AppEvents["chart-select-study"] | undefined) => {
     if (props.active === false) return;
-    const id = (e as CustomEvent<{ id: string }>).detail?.id;
+    const id = d?.id;
     if (id && indLegend().some((r) => r.id === id)) selectStudy(id);
   };
-  window.addEventListener(SELECT_STUDY_EVENT, whenShown(onSelectStudyRequest));
-  onCleanup(() => window.removeEventListener(SELECT_STUDY_EVENT, whenShown(onSelectStudyRequest)));
-  const onMoveStudyRequest = (e: Event) => {
+  listenWhenShown(SELECT_STUDY_EVENT, onSelectStudyRequest);
+  const onMoveStudyRequest = (d: AppEvents["chart-move-study"] | undefined) => {
     if (props.active === false || !cx.controller) return;
-    const { id, where } = (e as CustomEvent<{ id: string; where: "above" | "below" }>).detail ?? {};
+    const { id, where } = (d ?? {}) as AppEvents["chart-move-study"];
     if (!id || where !== "below") return;
     const options = cx.controller.moveToNewPane(id);
     if (!options) return;
@@ -87,8 +91,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     queueMicrotask(cx.refreshPaneBoxes);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
   };
-  window.addEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest));
-  onCleanup(() => window.removeEventListener(MOVE_STUDY_EVENT, whenShown(onMoveStudyRequest)));
+  listenWhenShown(MOVE_STUDY_EVENT, onMoveStudyRequest);
   // ── Drawing order of the sources (Object tree) ─────────────────────────
   /** Sources front first: the saved order, then the ones it does not list
    *  (by default the main series in front, then the studies in list order,
@@ -290,14 +293,14 @@ export function createSources(cx: ChartCx): SourcesApi {
     setFocusedTreeSources(treeSources());
     setFocusedTreePanes(treePanes());
   });
-  const onTreeHideRequest = (e: Event) => {
+  const onTreeHideRequest = (d: AppEvents["chart-tree-toggle-hide"] | undefined) => {
     if (props.active === false) return;
-    const id = (e as CustomEvent<{ id: string }>).detail?.id;
+    const id = d?.id;
     if (id && treeSources().some((s) => s.id === id)) toggleSourceHidden(id);
   };
-  const onTreeRemoveRequest = (e: Event) => {
+  const onTreeRemoveRequest = (d: AppEvents["chart-tree-remove"] | undefined) => {
     if (props.active === false) return;
-    const id = (e as CustomEvent<{ id: string }>).detail?.id;
+    const id = d?.id;
     if (id && treeSources().some((s) => s.id === id && s.kind !== "series")) removeStudy(id);
   };
   /** Save a study's new pane (options, stacking order) and redraw the panes. */
@@ -344,9 +347,9 @@ export function createSources(cx: ChartCx): SourcesApi {
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
     return true;
   }
-  const onTreeMoveRequest = (e: Event) => {
+  const onTreeMoveRequest = (d: AppEvents["chart-tree-move"] | undefined) => {
     if (props.active === false) return;
-    const { id, target, below } = (e as CustomEvent<{ id: string; target: string; below: boolean }>).detail ?? {};
+    const { id, target, below } = (d ?? {}) as AppEvents["chart-tree-move"];
     let pane = treePanes().find((p) => p.items.some((x) => x.id === id));
     const targetPane = treePanes().find((p) => p.items.some((x) => x.id === target));
     if (!pane || !targetPane) return;
@@ -387,14 +390,9 @@ export function createSources(cx: ChartCx): SourcesApi {
       props.placeDrawings?.(now.drawings, now.over);
     }
   };
-  window.addEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
-  window.addEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
-  window.addEventListener(TREE_MOVE_EVENT, whenShown(onTreeMoveRequest));
-  onCleanup(() => {
-    window.removeEventListener(TREE_HIDE_EVENT, whenShown(onTreeHideRequest));
-    window.removeEventListener(TREE_REMOVE_EVENT, whenShown(onTreeRemoveRequest));
-    window.removeEventListener(TREE_MOVE_EVENT, whenShown(onTreeMoveRequest));
-  });
+  listenWhenShown(TREE_HIDE_EVENT, onTreeHideRequest);
+  listenWhenShown(TREE_REMOVE_EVENT, onTreeRemoveRequest);
+  listenWhenShown(TREE_MOVE_EVENT, onTreeMoveRequest);
   // Delete / Backspace remove the selected study, Escape clears it (focused
   // chart only, not while typing or with a dialog open).
   const onStudyKey = (e: KeyboardEvent) => {

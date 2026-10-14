@@ -130,6 +130,7 @@ import { createLive } from "./view/live";
 import { createNews } from "./view/news";
 import { createPointer } from "./view/pointer";
 import { createWindowEvents } from "./view/window-events";
+import { emitAppEvent } from "../../data/app-events";
 
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
@@ -664,7 +665,7 @@ export function ChartView(props: ChartViewProps) {
       hasSource={(id) => scriptIdOfStudy(id) !== null}
       onSource={(id) => {
         const scriptId = scriptIdOfStudy(id);
-        if (scriptId) window.dispatchEvent(new CustomEvent(OAKSCRIPT_OPEN_EVENT, { detail: { scriptId } }));
+        if (scriptId) emitAppEvent(OAKSCRIPT_OPEN_EVENT, { scriptId });
       }}
       onIntervalSettings={(id) => {
         selectStudy(id);

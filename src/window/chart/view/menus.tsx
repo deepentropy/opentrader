@@ -29,6 +29,7 @@ import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../../data/indi
 import { menuPrice, roundedPrice } from "./helpers";
 import { PANE_MENU_ICONS } from "./pane-icons";
 import { type ChartCx } from "./context";
+import { emitAppEvent } from "../../../data/app-events";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -96,8 +97,8 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
         ...(chartTemplates().length ? [{ kind: "separator" } as CtxNode] : []),
         ...chartTemplates().map((tpl): CtxNode => ({
           kind: "item", id: `template:${tpl.name}`, label: tpl.name,
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-apply-template", { detail: { name: tpl.name } })),
-          onRemove: () => window.dispatchEvent(new CustomEvent("chart-remove-template", { detail: { name: tpl.name } })),
+          onSelect: () => emitAppEvent("chart-apply-template", { name: tpl.name }),
+          onRemove: () => emitAppEvent("chart-remove-template", { name: tpl.name }),
         })),
       ],
     },
@@ -150,7 +151,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const cur = ps.options();
     const setMode = (mode: PriceScaleMode) => () => ps.applyOptions({ mode });
     const patch = (p: Record<string, unknown>) =>
-      window.dispatchEvent(new CustomEvent("chart-patch-scale-settings", { detail: { patch: p } }));
+      emitAppEvent("chart-patch-scale-settings", { patch: p });
     // Ratio: bar spacing × price range ÷ pane height.
     const ratio = cx.liveScaleRatio() ?? null;
     const nodes: CtxNode[] = [
@@ -219,9 +220,9 @@ export function createMenus(cx: ChartCx): MenusApi {
       nodes.push({ kind: "separator" });
       nodes.push({ kind: "item", id: "session", label: "Session", submenu: [
         { kind: "item", id: "session-rth", label: "Regular", checked: (props.session ?? "RTH") === "RTH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "RTH" } })) },
+          onSelect: () => emitAppEvent("chart-set-session", { id: "RTH" }) },
         { kind: "item", id: "session-eth", label: "Extended", checked: props.session === "ETH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "ETH" } })) },
+          onSelect: () => emitAppEvent("chart-set-session", { id: "ETH" }) },
       ] });
     }
     nodes.push({ kind: "separator" });
@@ -239,7 +240,7 @@ export function createMenus(cx: ChartCx): MenusApi {
   /** Scale properties action (both axis menus): Settings on the Scales tab. */
   const moreScaleSettingsNode = (): CtxNode => ({
     kind: "item", id: "more-settings", label: "More settings…", icon: CtxIcons.settings,
-    onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings", { detail: { tab: "scales" } })),
+    onSelect: () => emitAppEvent("chart-open-settings", { tab: "scales" }),
   });
 
   /** Right-click on the TIME AXIS → the time-axis menu: "Reset time scale" +
@@ -258,18 +259,17 @@ export function createMenus(cx: ChartCx): MenusApi {
     }
     nodes.push({ kind: "item", id: "time-zone", label: "Time zone", submenu: TIMEZONES.map((z) => ({
       kind: "item" as const, id: `tz-${z.label}`, label: z.label, checked: z.label === tzLabel,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-timezone", { detail: { label: z.label } })),
+      onSelect: () => emitAppEvent("chart-set-timezone", { label: z.label }),
     })) });
     nodes.push({ kind: "item", id: "session-breaks", label: "Session breaks", checked: t.sessionBreaksVisible,
       disabled: !intraday,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-patch-scale-settings",
-        { detail: { patch: { sessionBreaks: !t.sessionBreaksVisible } } })) });
+      onSelect: () => emitAppEvent("chart-patch-scale-settings", { patch: { sessionBreaks: !t.sessionBreaksVisible } }) });
     if (intraday) {
       nodes.push({ kind: "item", id: "session", label: "Session", submenu: [
         { kind: "item", id: "session-rth", label: "Regular", checked: (props.session ?? "RTH") === "RTH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "RTH" } })) },
+          onSelect: () => emitAppEvent("chart-set-session", { id: "RTH" }) },
         { kind: "item", id: "session-eth", label: "Extended", checked: props.session === "ETH",
-          onSelect: () => window.dispatchEvent(new CustomEvent("chart-set-session", { detail: { id: "ETH" } })) },
+          onSelect: () => emitAppEvent("chart-set-session", { id: "ETH" }) },
       ] });
     }
     nodes.push({ kind: "separator" });
@@ -314,9 +314,9 @@ export function createMenus(cx: ChartCx): MenusApi {
     }));
     const nodes: CtxNode[] = [
       { kind: "item", id: "alert", label: `Add alert on ${sym} at ${p}…`, shortcut: "Alt + A", icon: CtxIcons.alert,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { symbol: full, price: last ?? undefined } })) },
+        onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: full, price: last ?? undefined }) },
       { kind: "item", id: "add-indicator", label: `Add indicator/strategy on ${sym}…`, icon: CtxIcons.addIndicator,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-indicators")) },
+        onSelect: () => emitAppEvent("chart-open-indicators") },
       { kind: "separator" },
       { kind: "item", id: "copy-price", label: `Copy price ${p}`,
         onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
@@ -338,7 +338,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       ] },
       { kind: "separator" },
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings")) },
+        onSelect: () => emitAppEvent("chart-open-settings") },
     ];
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
   }
@@ -402,9 +402,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const label = value != null && plain && fmt ? `Add alert on ${title} at ${fmt.format(value)}…` : `Add alert on ${title}…`;
     return {
       kind: "item", id: "alert", label, shortcut: "Alt + A", icon: CtxIcons.alert,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", {
-        detail: { symbol: props.symbol ?? "", price: value ?? undefined, indicatorId: id },
-      })),
+      onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: value ?? undefined, indicatorId: id }),
     };
   }
   /** The "+" menu's alert rows for pane `paneIdx` at `y` (pixels from the pane top), main series first. */
@@ -414,7 +412,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const plainScale = (mode: PriceScaleMode | undefined) => mode !== PriceScaleMode.Percentage && mode !== PriceScaleMode.IndexedTo100;
     const row = (id: string, label: string, detail: Record<string, unknown>): CtxNode => ({
       kind: "item", id: `plus-alert-${id}`, label, shortcut: "Alt + A", icon: CtxIcons.alert,
-      onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail })),
+      onSelect: () => emitAppEvent("chart-open-alert-dialog", detail),
     });
     if (paneIdx === 0 && cx.series && !props.seriesHidden && plainScale(cx.series.priceScale().options().mode)) {
       const p = cx.series.coordinateToPrice(y);
@@ -467,7 +465,7 @@ export function createMenus(cx: ChartCx): MenusApi {
         onSelect: () => props.onRemoveIndicator?.(id) },
       { kind: "separator" },
       { kind: "item", id: "object-tree", label: "Object tree",
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id: "object_tree" } })) },
+        onSelect: () => emitAppEvent("chart-open-panel", { id: "object_tree" }) },
       { kind: "separator" },
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setSettingsForId(id) },
     );
@@ -536,7 +534,7 @@ export function createMenus(cx: ChartCx): MenusApi {
         onSelect: () => props.onRemoveCompare?.(id) },
       { kind: "separator" },
       { kind: "item", id: "object-tree", label: "Object tree",
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id: "object_tree" } })) },
+        onSelect: () => emitAppEvent("chart-open-panel", { id: "object_tree" }) },
       { kind: "separator" },
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setCompareSettingsFor(id) },
     ];
@@ -601,7 +599,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     const a = Math.abs(rawPrice ?? 0);
     const decimals = a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
     const priceStr = rawPrice == null ? "—" : rawPrice.toFixed(decimals);
-    const openPanel = (id: string) => window.dispatchEvent(new CustomEvent("chart-open-panel", { detail: { id } }));
+    const openPanel = (id: string) => emitAppEvent("chart-open-panel", { id });
     const noop = () => {};
     const ds = props.drawings ?? [];
     const nodes = buildChartContextMenu(
@@ -627,11 +625,7 @@ export function createMenus(cx: ChartCx): MenusApi {
           if (id) props.setSelectedDrawingId?.(id);
         },
         addAlert: () =>
-          window.dispatchEvent(
-            new CustomEvent("chart-open-alert-dialog", {
-              detail: { symbol: props.symbol ?? "", price: rawPrice ?? undefined, indicatorId: studyId ?? undefined },
-            }),
-          ),
+          emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: rawPrice ?? undefined, indicatorId: studyId ?? undefined }),
         // Accepted no-ops: Buy / Sell / Add order / Table view need a trading
         // backend + table view this port doesn't have.
         buy: noop,
@@ -646,14 +640,14 @@ export function createMenus(cx: ChartCx): MenusApi {
         },
         tableView: noop,
         objectTree: () => openPanel("object_tree"),
-        saveTemplateAs: () => window.dispatchEvent(new CustomEvent("chart-save-template")),
+        saveTemplateAs: () => emitAppEvent("chart-save-template"),
         // Bulk path when available — one undo entry for the whole set.
         removeDrawings: () => {
           if (ds.length > 1 && props.removeDrawings) props.removeDrawings(ds.map((d) => d.id));
           else for (const d of ds) props.removeDrawing?.(d.id);
         },
-        removeIndicators: () => window.dispatchEvent(new CustomEvent("chart-clear-indicators")),
-        settings: () => window.dispatchEvent(new CustomEvent("chart-open-settings")),
+        removeIndicators: () => emitAppEvent("chart-clear-indicators"),
+        settings: () => emitAppEvent("chart-open-settings"),
       },
     );
     setCtxMenu({ x: e.clientX, y: e.clientY, nodes });

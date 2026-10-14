@@ -16,6 +16,7 @@ import { WheelHelper } from "../wheel-helper";
 import { cursorForMode } from "../../drawings/cursors";
 import { roundedPrice } from "./helpers";
 import { type ChartCx } from "./context";
+import { emitAppEvent } from "../../../data/app-events";
 
 /** What createPointer adds to the chart context. */
 export interface PointerApi {
@@ -145,9 +146,7 @@ export function createPointer(cx: ChartCx): PointerApi {
     const leaveChart = () => {
       cx.pointerOverHost = false;
       if (layoutSync().crosshair || crossWindowCrosshairOn()) {
-        window.dispatchEvent(
-          new CustomEvent("chart-sync-crosshair", { detail: { time: null, price: null, sourceId: paneId } }),
-        );
+        emitAppEvent("chart-sync-crosshair", { time: null, price: null, sourceId: paneId });
       }
     };
     // A drawing of this chart is above the chart canvas (its SVG takes the
@@ -270,7 +269,7 @@ export function createPointer(cx: ChartCx): PointerApi {
       if (!props.active || props.armedTool || e.button !== 0 || !e.shiftKey) return;
       e.preventDefault();
       e.stopPropagation();
-      window.dispatchEvent(new CustomEvent("select-drawing-tool", { detail: { toolId: "measure" } }));
+      emitAppEvent("select-drawing-tool", { toolId: "measure" });
     };
     cx.host.addEventListener("pointerdown", onShiftMeasure, true);
     onCleanup(() => cx.host.removeEventListener("pointerdown", onShiftMeasure, true));
@@ -396,11 +395,7 @@ export function createPointer(cx: ChartCx): PointerApi {
           const p = cx.series?.coordinateToPrice(param.point.y);
           if (p != null) price = p as number;
         }
-        window.dispatchEvent(
-          new CustomEvent("chart-sync-crosshair", {
-            detail: { time, price, sourceId: paneId },
-          }),
-        );
+        emitAppEvent("chart-sync-crosshair", { time, price, sourceId: paneId });
       }
     };
     cx.chart!.subscribeCrosshairMove(onCrosshair);
@@ -522,7 +517,7 @@ export function createPointer(cx: ChartCx): PointerApi {
         const step = (cx.raw[last].time as number) - (cx.raw[last - 1].time as number);
         time = (cx.raw[last].time as number) + ((logical as number) - last) * step;
       }
-      if (toLayout) window.dispatchEvent(new CustomEvent("chart-sync-time", { detail: { time, sourceId: paneId } }));
+      if (toLayout) emitAppEvent("chart-sync-time", { time, sourceId: paneId });
       if (toLink) postLinkTime(time);
     };
     cx.host.addEventListener("pointerdown", onTimePress, true);

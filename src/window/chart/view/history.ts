@@ -32,6 +32,7 @@ import {
   SYNC_LOAD_QUIET_MS,
 } from "./helpers";
 import { type ChartCx } from "./context";
+import { emitAppEvent } from "../../../data/app-events";
 
 export type GotoOpts = {
   /** Centre the target even when it is already in view (the reference app Go to). */
@@ -384,9 +385,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
     if (!force && key === lastRangeKey) return;
     lastRangeKey = key;
     if (toLayout) {
-      window.dispatchEvent(
-        new CustomEvent("chart-sync-range", { detail: { from: r.from as number, to: r.to as number, sourceId: paneId } }),
-      );
+      emitAppEvent("chart-sync-range", { from: r.from as number, to: r.to as number, sourceId: paneId });
     }
     if (toLink) postLinkRange(r.from as number, r.to as number);
   }

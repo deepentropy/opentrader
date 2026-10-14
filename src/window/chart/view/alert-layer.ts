@@ -14,6 +14,7 @@ import { CtxIcons, type CtxNode } from "../ChartContextMenu";
 import { roundedOnSeries } from "./helpers";
 import { type ChartCx } from "./context";
 import type { Setter } from "solid-js";
+import { emitAppEvent } from "../../../data/app-events";
 
 export type AlertLabelTarget = { series: ISeriesApi<SeriesType>; spec: AlertLabelSpec; rule: AlertRule };
 
@@ -198,14 +199,14 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
         ? { kind: "item", id: "alert-pause", label: "Pause", icon: CtxIcons.pause, onSelect: () => alertStore.setEnabled(id, false) }
         : { kind: "item", id: "alert-restart", label: "Restart", icon: CtxIcons.restart, onSelect: () => { resetRuleEvalState(id); alertStore.setEnabled(id, true); } },
       { kind: "item", id: "alert-edit", label: "Edit…", icon: CtxIcons.edit,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-alert-dialog", { detail: { editId: id } })) },
+        onSelect: () => emitAppEvent("chart-open-alert-dialog", { editId: id }) },
       { kind: "item", id: "alert-delete", label: "Delete", icon: CtxIcons.remove,
         onSelect: () => { resetRuleEvalState(id); setAlertWebhook(id, null); alertStore.remove(id); } },
       { kind: "separator" },
       { kind: "item", id: "alert-lines", label: "Alert lines", checked: t.alertLinesVisible,
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-patch-scale-settings", { detail: { patch: { alertLines: !t.alertLinesVisible } } })) },
+        onSelect: () => emitAppEvent("chart-patch-scale-settings", { patch: { alertLines: !t.alertLinesVisible } }) },
       { kind: "item", id: "alert-color", label: "Change alerts color…",
-        onSelect: () => window.dispatchEvent(new CustomEvent("chart-open-settings", { detail: { tab: "alerts" } })) },
+        onSelect: () => emitAppEvent("chart-open-settings", { tab: "alerts" }) },
     ];
     setCtxMenu({ x, y, nodes });
   }
