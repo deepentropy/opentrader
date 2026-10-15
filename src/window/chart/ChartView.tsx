@@ -1339,7 +1339,7 @@ export function ChartView(props: ChartViewProps) {
         selectedIds={props.selectedDrawingIds}
         setSelectedId={(id) => props.setSelectedDrawingId?.(id)}
         onToggleSelect={(id) => props.toggleSelectedDrawing?.(id)}
-        onUpdate={(d) => props.updateDrawing?.(d)}
+        onUpdate={(d, label) => props.updateDrawing?.(d, label)}
         onUpdateMany={(list) => props.updateDrawings?.(list)}
         onClone={(id) => props.cloneDrawing?.(id)}
         drawingSync={(id) => props.drawingSync?.(id) ?? null}

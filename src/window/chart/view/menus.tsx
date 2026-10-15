@@ -10,7 +10,7 @@ import { MAIN_SOURCE_ID } from "../object-tree-sources";
 import { statusLineInputs } from "../indicators/indicator-options";
 import { crosshairLockTime, setCrosshairLockTime } from "../crosshair-lock";
 import { Icon } from "../../../components/Icon";
-import { clipboardSource, hasClipboardContent, pasteAsNew } from "../../drawings/clipboard";
+import { clipboardSource, hasClipboardContent, pasteAllAsNew } from "../../drawings/clipboard";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { chartTemplates } from "../../header/chart-templates";
 import { isIntradayInterval, splitSymbol } from "../../../data/datafeed";
@@ -610,10 +610,11 @@ export function createMenus(cx: ChartCx): MenusApi {
    *  at its data coords and selected; a copied study / compared symbol is
    *  added to this chart. */
   function pasteClipboard() {
-    const nd = pasteAsNew();
-    if (nd) {
-      const id = props.onPlace?.(nd);
-      if (id) props.setSelectedDrawingId?.(id);
+    const all = pasteAllAsNew();
+    if (all.length) {
+      const ids = all.map((nd) => props.onPlace?.(nd)).filter((id): id is string => !!id);
+      if (ids[0]) props.setSelectedDrawingId?.(ids[0]);
+      for (const id of ids.slice(1)) props.toggleSelectedDrawing?.(id);
       return;
     }
     if (clipboardSource()) emitAppEvent("chart-paste-source");

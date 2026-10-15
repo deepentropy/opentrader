@@ -193,12 +193,13 @@ export function createDrawingStore(
     return id;
   }
 
-  function updateDrawingForSymbol(key: string, next: Drawing) {
+  /** `label`: the undo text of a named action (else "change <tool>", drags coalesced per gesture). */
+  function updateDrawingForSymbol(key: string, next: Drawing, label?: string) {
     setSlice(
       key,
       drawingsFor(key).map((d) => (d.id === next.id ? next : d)),
       // Drag/nudge streams coalesce into one undo entry per gesture.
-      { label: `change ${labelForKind(next.kind)}`, coalesceId: `${key}:${next.id}` },
+      label ? { label } : { label: `change ${labelForKind(next.kind)}`, coalesceId: `${key}:${next.id}` },
     );
   }
 
@@ -291,7 +292,12 @@ export function createDrawingStore(
    *  pixel-equivalent delta so the clone is visible. Done in data space
    *  via a tiny price bump; time stays identical since we have no easy
    *  pixel→time delta here. The clone takes a new id and ends up on top. */
-  function cloneDrawingForSymbol(key: string, id: string) {
+  function cloneDrawingForSymbol(key: string, id: string | string[]) {
+    if (Array.isArray(id)) {
+      if (id.length > 1) { cloneDrawingsForSymbol(key, id); return; }
+      id = id[0];
+      if (!id) return;
+    }
     const src = drawingsFor(key).find((d) => d.id === id);
     if (!src) return;
     const newId = newDrawingId();
@@ -306,6 +312,32 @@ export function createDrawingStore(
     const scope = isViewKey(key) ? scopeKeys(key).find((k) => (drawingStore[k] ?? []).some((d) => d.id === id)) ?? key : key;
     setSlice(scope, [...drawingsFor(scope), cloned], { label: `clone ${labelForKind(src.kind)}` });
     setSelectedDrawingId(newId);
+  }
+
+  /** Clone several drawings of a view (menu Clone on a multi-selection): one undo step ("clone line tools"), each
+   *  clone in its source's scope, the clones selected. */
+  function cloneDrawingsForSymbol(key: string, ids: string[]) {
+    const list = drawingsFor(key);
+    const srcs = ids.map((i) => list.find((d) => d.id === i)).filter((d): d is Drawing => !!d);
+    if (!srcs.length) return;
+    const keys = isViewKey(key) ? scopeKeys(key) : [key];
+    const offsetPrice = (p: { time: unknown; price: number }) => ({ ...p, price: +(p.price * 1.005).toFixed(2) });
+    const added = new Map<string, Drawing[]>();
+    const newIds: string[] = [];
+    for (const src of srcs) {
+      const scope = keys.find((k) => (drawingStore[k] ?? []).some((d) => d.id === src.id)) ?? keys[0];
+      const clone = { ...src, id: newDrawingId(), style: { ...src.style }, points: src.points.map(offsetPrice) } as Drawing;
+      newIds.push(clone.id);
+      added.set(scope, [...(added.get(scope) ?? []), clone]);
+    }
+    const slices = [...added].map(([k, extra]) => ({ key: k, before: drawingStore[k] ?? [], after: [...(drawingStore[k] ?? []), ...extra] }));
+    const after = keys.flatMap((k) => slices.find((s) => s.key === k)?.after ?? drawingStore[k] ?? []);
+    undo.recordDrawingChange(key, list, after, { label: "clone line tools" }, isViewKey(key) ? slices : undefined);
+    for (const s of slices) {
+      setDrawingStore(s.key, s.after);
+      saveDrawings(s.key, s.after);
+    }
+    setSelectedDrawingIds(newIds);
   }
 
   // Focused-pane wrappers (object tree / selected toolbar act on the focused

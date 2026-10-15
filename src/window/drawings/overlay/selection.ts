@@ -104,6 +104,13 @@ export function createSelection(cx: OverlayCx): SelectionApi {
       }
       return;
     }
+    // A right press on a drawing selects it when it is outside the selection and keeps a selection it belongs to
+    // (its menu then acts on the whole selection); it never drags.
+    if (e.button === 2 && hit) {
+      e.stopPropagation();
+      if (!selIds().includes(hit.drawing.id)) props.setSelectedId(hit.drawing.id);
+      return;
+    }
     const multiKey = (e.ctrlKey || e.metaKey) && !!props.onToggleSelect;
     if (!hit) {
       // Ctrl+click on empty space keeps the selection; plain click clears.

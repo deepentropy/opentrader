@@ -141,10 +141,10 @@ type Props = {
   /** Ctrl/Cmd+click membership toggle. */
   toggleSelectedDrawing?: (id: string) => void;
   onPlaceToSymbol?: (key: string, d: NewDrawing) => string | void;
-  updateDrawingForSymbol?: (key: string, d: Drawing) => void;
+  updateDrawingForSymbol?: (key: string, d: Drawing, label?: string) => void;
   /** Bulk replace (group drag/nudge) — one undo entry. */
   updateDrawingsForSymbol?: (key: string, list: Drawing[]) => void;
-  cloneDrawingForSymbol?: (key: string, id: string) => void;
+  cloneDrawingForSymbol?: (key: string, id: string | string[]) => void;
   /** Sync of a drawing (the scope it is kept in) and its change, per view key. */
   drawingSyncForSymbol?: (key: string, id: string) => SyncMode | null;
   setDrawingsSyncForSymbol?: (key: string, ids: string[], mode: SyncMode) => void;
@@ -459,7 +459,7 @@ export function ChartGrid(props: Props) {
                 onPlace={(d) => { if (!live()) return; props.setActivePane(i); return props.onPlaceToSymbol?.(props.drawingKeyForPane(pane()), d); }}
                 setSelectedDrawingId={(id) => { if (!live()) return; props.setActivePane(i); props.setSelectedDrawingId?.(id); }}
                 toggleSelectedDrawing={(id) => { if (!live()) return; props.setActivePane(i); props.toggleSelectedDrawing?.(id); }}
-                updateDrawing={(d) => live() && props.updateDrawingForSymbol?.(props.drawingKeyForPane(pane()), d)}
+                updateDrawing={(d, label) => live() && props.updateDrawingForSymbol?.(props.drawingKeyForPane(pane()), d, label)}
                 updateDrawings={(list) => live() && props.updateDrawingsForSymbol?.(props.drawingKeyForPane(pane()), list)}
                 cloneDrawing={(id) => live() && props.cloneDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}
                 drawingSync={(id) => props.drawingSyncForSymbol?.(props.drawingKeyForPane(pane()), id) ?? null}

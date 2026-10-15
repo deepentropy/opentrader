@@ -13,7 +13,7 @@ import { emitAppEvent } from "../../../data/app-events";
 import { SelectedToolbar } from "../SelectedToolbar";
 import { DrawingContextMenu } from "../DrawingContextMenu";
 import { SettingsDialog } from "../SettingsDialog";
-import { copyDrawing } from "../clipboard";
+import { copyDrawing, copyDrawings } from "../clipboard";
 import { factoryStyleFor } from "lightweight-charts-drawing/core/specs";
 import { clearKindDefault, type DrawingTemplate } from "../templates";
 import { drawingCanAlert, drawingLabel, rulesOfDrawing } from "../../../data/alert-condition";
@@ -182,7 +182,7 @@ export function createPopups(cx: OverlayCx): PopupsApi {
               onClose={() => setMenu(null)}
               onUpdate={props.onUpdate}
               onClone={props.onClone}
-              onCopy={copyDrawing}
+              onCopy={copyDrawings}
               onReorder={props.onReorder}
               onRemove={props.onRemove}
               onRemoveMany={props.onRemoveMany}

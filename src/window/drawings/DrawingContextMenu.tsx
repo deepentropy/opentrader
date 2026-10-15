@@ -25,6 +25,7 @@ import { ChartContextMenu, CtxIcons, type CtxNode } from "../chart/ChartContextM
 import { visibilityForMode, type IntervalsVisibilityMode } from "../chart/interval-visibility-mode";
 import { deleteTemplate, loadTemplates, saveTemplate, type DrawingTemplate } from "./templates";
 import type { SyncMode } from "./DrawingToolbar";
+import { labelForKind } from "./labels";
 
 type Order = "front" | "forward" | "backward" | "back";
 
@@ -47,10 +48,10 @@ type Props = {
   /** Set for a drawing that can be anchored to the pane. */
   anchored?: boolean;
   onClose: () => void;
-  onUpdate: (d: Drawing) => void;
+  onUpdate: (d: Drawing, label?: string) => void;
   onUpdateMany?: (list: Drawing[]) => void;
-  onClone: (id: string) => void;
-  onCopy: (d: Drawing) => void;
+  onClone: (id: string | string[]) => void;
+  onCopy: (list: Drawing[]) => void;
   onReorder: (id: string, dir: Order) => void;
   onRemove: (id: string) => void;
   /** Bulk delete for the group Remove — one undo entry. */
@@ -178,6 +179,11 @@ export function DrawingContextMenu(props: Props) {
         })),
       }];
     }
+    if (d.kind === "long-position" || d.kind === "short-position") {
+      // The other position on the same points and settings (one undo step).
+      const kind = d.kind === "long-position" ? "short-position" : "long-position";
+      return [{ kind: "item", id: "reverse", label: "Reverse", onSelect: () => props.onUpdate({ ...d, kind } as Drawing, `reverse ${labelForKind(d.kind)}`) }];
+    }
     if (d.kind === "bar-pattern") {
       return [
         { kind: "item", id: "mirrored", label: "Mirrored", checked: !!d.style.mirrored, onSelect: () => props.onUpdate({ ...d, style: { ...d.style, mirrored: !d.style.mirrored } } as Drawing) },
@@ -211,7 +217,7 @@ export function DrawingContextMenu(props: Props) {
     const locked = !!props.drawing.locked;
     const hidden = !!props.drawing.hidden;
     return [
-      { kind: "item", id: "lock", label: locked ? "Unlock" : "Lock", icon: icon("dt-lock")(), onSelect: () => apply(group().map((d) => ({ ...d, locked: !locked } as Drawing))) },
+      { kind: "item", id: "lock", label: locked ? "Unlock" : "Lock", icon: icon(locked ? "dt-cm-unlock" : "dt-cm-lock")(), onSelect: () => apply(group().map((d) => ({ ...d, locked: !locked } as Drawing))) },
       { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide, onSelect: () => apply(group().map((d) => ({ ...d, hidden: !hidden } as Drawing))) },
       {
         kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
@@ -225,8 +231,8 @@ export function DrawingContextMenu(props: Props) {
   }
 
   const cloneCopy = (): CtxNode[] => [
-    { kind: "item", id: "clone", label: "Clone", shortcut: "Ctrl + Drag", icon: icon("dt-cm-clone")(), onSelect: () => props.onClone(props.drawing.id) },
-    { kind: "item", id: "copy", label: "Copy", shortcut: "Ctrl + C", onSelect: () => props.onCopy(props.drawing) },
+    { kind: "item", id: "clone", label: "Clone", shortcut: "Ctrl + Drag", icon: icon("dt-cm-clone")(), onSelect: () => props.onClone(multi() ? group().map((d) => d.id) : props.drawing.id) },
+    { kind: "item", id: "copy", label: "Copy", shortcut: "Ctrl + C", onSelect: () => props.onCopy(group()) },
   ];
   const settingsRow = (): CtxNode => ({ kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => props.onOpenSettings(props.drawing.id) });
 

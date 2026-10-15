@@ -9,7 +9,7 @@ import { emitAppEvent, onAppEvent, type PlaceAtCursorDetail } from "../../../dat
 import { screenPoints, translateDrawing } from "lightweight-charts-drawing/core/interact/project";
 import { buildNewDrawing } from "lightweight-charts-drawing/core/interact/placement";
 import { IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
-import { clipboardSource, copyDrawing, DRAWING_CLIP_MARK, pasteAsNew, SOURCE_CLIP_MARK } from "../clipboard";
+import { clipboardSource, copyDrawings, DRAWING_CLIP_MARK, pasteAllAsNew, SOURCE_CLIP_MARK } from "../clipboard";
 import { lastPointer } from "./helpers";
 import { type OverlayCx } from "./context";
 import { contextMenuOpen } from "../../chart/menu-escape";
@@ -62,12 +62,11 @@ export function createWindowEvents(cx: OverlayCx): WindowEventsApi {
         // the physical key (e.code) so non-Latin layouts work, and require a bare
         // Ctrl/Cmd so Ctrl+Shift+C etc. aren't hijacked. Without a selection, fall
         // through to the browser's text copy.
-        if (props.selectedId) {
-          const target = props.drawings.find((d) => d.id === props.selectedId);
-          if (target) {
-            e.preventDefault();
-            copyDrawing(target);
-          }
+        // The whole selection.
+        const targets = cx.selIds().map((id) => props.drawings.find((d) => d.id === id)).filter((d): d is NonNullable<typeof d> => !!d);
+        if (targets.length) {
+          e.preventDefault();
+          copyDrawings(targets);
         }
       }
     };
@@ -93,11 +92,13 @@ export function createWindowEvents(cx: OverlayCx): WindowEventsApi {
         void cx.pasteImage(file);
         return;
       }
-      const nd = pasteAsNew();
-      if (nd) {
+      const all = pasteAllAsNew();
+      if (all.length) {
         e.preventDefault();
-        const id = props.onPlace(nd);
-        if (id) props.setSelectedId(id); // select the paste so it's grab-ready
+        // Every copied drawing placed, the paste selected so it's grab-ready.
+        const ids = all.map((nd) => props.onPlace(nd)).filter((id): id is string => !!id);
+        if (ids[0]) props.setSelectedId(ids[0]);
+        for (const id of ids.slice(1)) props.onToggleSelect?.(id);
       } else if (clipboardSource()) {
         e.preventDefault();
         emitAppEvent("chart-paste-source");

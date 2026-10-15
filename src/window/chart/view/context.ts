@@ -89,10 +89,10 @@ export type ChartViewProps = {
   setSelectedDrawingId?: (id: string | null) => void;
   /** Ctrl/Cmd+click membership toggle. */
   toggleSelectedDrawing?: (id: string) => void;
-  updateDrawing?: (d: Drawing) => void;
+  updateDrawing?: (d: Drawing, label?: string) => void;
   /** Bulk replace (group drag/nudge) — one undo entry. */
   updateDrawings?: (list: Drawing[]) => void;
-  cloneDrawing?: (id: string) => void;
+  cloneDrawing?: (id: string | string[]) => void;
   /** Sync of a drawing of this pane (the scope it is kept in) and its change (drawing menu). */
   drawingSync?: (id: string) => SyncMode | null;
   setDrawingSync?: (ids: string[], mode: SyncMode) => void;

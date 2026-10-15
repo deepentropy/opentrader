@@ -26,7 +26,8 @@ export type ClipboardSource =
   | { kind: "study"; typeId: string; title: string; settings: PaneIndicatorSettings }
   | { kind: "compare"; title: string; entry: CompareEntry };
 
-const [clip, setClip] = createSignal<Drawing | null>(null);
+/** The copied drawings (a copy of a multi-selection holds them all). */
+const [clip, setClip] = createSignal<Drawing[] | null>(null);
 const [clipSource, setClipSource] = createSignal<ClipboardSource | null>(null);
 
 export const hasClipboardDrawing = (): boolean => clip() !== null;
@@ -56,9 +57,15 @@ function writeSystemClipboard(text: string, html: string): void {
 }
 
 export function copyDrawing(d: Drawing): void {
-  setClip(JSON.parse(JSON.stringify(d)) as Drawing);
+  copyDrawings([d]);
+}
+
+/** Copy drawings (Copy on a multi-selection): a paste places them all. */
+export function copyDrawings(list: Drawing[]): void {
+  if (!list.length) return;
+  setClip(JSON.parse(JSON.stringify(list)) as Drawing[]);
   setClipSource(null);
-  writeSystemClipboard(labelForKind(d.kind), `<meta ${DRAWING_CLIP_MARK}="${d.id}">`);
+  writeSystemClipboard(list.map((d) => labelForKind(d.kind)).join(", "), `<meta ${DRAWING_CLIP_MARK}="${list.map((d) => d.id).join(" ")}">`);
 }
 
 /** Copy a source of a chart (study menu "Copy", Ctrl+C on a selected study). */
@@ -69,8 +76,15 @@ export function copySource(src: ClipboardSource): void {
 }
 
 export function pasteAsNew(): NewDrawing | null {
-  const d = clip();
-  if (!d) return null;
+  return pasteAllAsNew()[0] ?? null;
+}
+
+/** Every copied drawing as a new one (see pasteAsNew). */
+export function pasteAllAsNew(): NewDrawing[] {
+  return (clip() ?? []).map(asNew);
+}
+
+function asNew(d: Drawing): NewDrawing {
   const copy = JSON.parse(JSON.stringify(d)) as Record<string, unknown>;
   delete copy.id;
   delete copy.locked;

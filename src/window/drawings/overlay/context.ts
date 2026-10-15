@@ -86,10 +86,12 @@ export type OverlayProps = {
   setSelectedId: (id: string | null) => void;
   /** Ctrl/Cmd+click membership toggle (multi-select). */
   onToggleSelect?: (id: string) => void;
-  onUpdate: (d: Drawing) => void;
+  /** `label`: the undo text of a named action (menu Reverse). */
+  onUpdate: (d: Drawing, label?: string) => void;
   /** Bulk replace for group body-drags / group nudges — one undo entry. */
   onUpdateMany?: (list: Drawing[]) => void;
-  onClone: (id: string) => void;
+  /** One drawing, or several in one step (menu Clone on a multi-selection). */
+  onClone: (id: string | string[]) => void;
   /** Sync of a drawing (the scope it is kept in: its pane, the layout, every chart) and its change. */
   drawingSync?: (id: string) => SyncMode | null;
   onSync?: (ids: string[], mode: SyncMode) => void;
