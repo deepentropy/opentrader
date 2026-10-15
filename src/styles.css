@@ -47,6 +47,7 @@
 @import "./styles/chart-loading.css";
 @import "./styles/alerts-panel.css";
 @import "./styles/alert-dialog.css";
+@import "./styles/symbol-info-dialog.css";
 @import "./styles/timezone-menu.css";
 @import "./styles/oakscript-panel.css";
 @import "./styles/strategy-tester.css";

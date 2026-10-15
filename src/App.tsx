@@ -46,6 +46,7 @@ import { isAdjusted, setAdjusted, isFullSymbol, isIntradayInterval, isIntradayRe
 import { displayTimeZone } from "./data/session";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost } from "./components/Dialogs";
+import { SymbolInfoDialog } from "./window/chart/SymbolInfoDialog";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
 import { OAKSCRIPT_OPEN_EVENT } from "./window/chart/indicators/user-scripts";
 import * as oakScripts from "./data/oakscript-store";
@@ -340,6 +341,10 @@ function App() {
     removeAllDrawings();
     removeAllIndicators();
   }
+
+  // Main series / compared symbol menu "Symbol info…".
+  const [symbolInfoFor, setSymbolInfoFor] = createSignal<string | null>(null);
+  onCleanup(onAppEvent("chart-open-symbol-info", (d) => { if (d?.symbol) setSymbolInfoFor(d.symbol); }));
 
   // Legend "Source code": the script becomes the editor's current one and the
   // panel opens (an open panel switches to it itself).
@@ -796,6 +801,7 @@ function App() {
         />
       </Show>
       <DialogHost />
+      <Show when={symbolInfoFor()}>{(s) => <SymbolInfoDialog symbol={s()} onClose={() => setSymbolInfoFor(null)} />}</Show>
       <SavedLayoutDialogs layouts={layouts} activeId={activeTab().savedLayoutId} />
       <Show when={intervalDialog()}>
         {(d) => (

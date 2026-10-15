@@ -31,6 +31,9 @@ pub struct TickerInfo {
     /// Symbol type as scripts read it (`syminfo.type`): "stock", "fund", "dr",
     /// "warrant"; None when the security type has no measured equivalent.
     pub symbol_type: Option<String>,
+    /// Security type as served ("stock", "preferred", "etf", "adr", …), for the
+    /// Symbol info dialog's Type ("Fund ETF").
+    pub security_type: Option<String>,
     /// Ticker logo (square icon), wrapped in the `ticker-icon` custom scheme
     /// so the webview can use it as an <img src> without ever seeing the
     /// gateway token — the backend attaches the token when it serves the bytes.
@@ -182,6 +185,7 @@ pub async fn fetch_ticker_info(ticker: &str) -> Result<TickerInfo> {
         market_cap: r.market_cap,
         figi: r.figi,
         symbol_type: r.kind.as_deref().and_then(script_symbol_type).map(str::to_string),
+        security_type: r.kind.clone(),
         icon_url: r.logo.map(|u| icon_proxy_url(&u)),
     })
 }

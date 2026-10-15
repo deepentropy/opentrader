@@ -307,7 +307,7 @@ export function createMenus(cx: ChartCx): MenusApi {
   /** Legend series "More" → the series actions menu, opened under the button
    *  (button left, bottom + 3). No cursor price here, so the prices are the
    *  last close. Rows with no OT
-   *  feature are left out: Add order, Add financial metric, Symbol info,
+   *  feature are left out: Add order, Add financial metric,
    *  Metrics, Table view, Visual order, Move to, Pin to scale, Add text note. */
   function openSeriesMoreMenu(anchor: DOMRect) {
     const full = props.symbol ?? "";
@@ -342,6 +342,8 @@ export function createMenus(cx: ChartCx): MenusApi {
         onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: full, price: last ?? undefined }) },
       { kind: "item", id: "add-indicator", label: `Add indicator/strategy on ${sym}…`, icon: CtxIcons.addIndicator,
         onSelect: () => emitAppEvent("chart-open-indicators") },
+      { kind: "separator" },
+      symbolInfoRow(full),
       { kind: "separator" },
       { kind: "item", id: "copy-price", label: `Copy price ${p}`,
         onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
@@ -578,7 +580,7 @@ export function createMenus(cx: ChartCx): MenusApi {
 
   /** Legend compared-symbol "More" → its actions menu. Rows with no OT
    *  feature are left out (same rule as the study menu): Add indicator /
-   *  financial metric on the symbol, Symbol info, Move to, Pin to scale. */
+   *  financial metric on the symbol, Move to, Pin to scale. */
   function openCompareMoreMenu(id: string, anchor: DOMRect, price?: number | null) {
     const e = cx.compareEntry(id);
     if (!e) return;
@@ -591,6 +593,8 @@ export function createMenus(cx: ChartCx): MenusApi {
     const arrange = cx.sourceArrangeRows(id);
     const nodes: CtxNode[] = [
       ...(top.length ? [...top, { kind: "separator" } as CtxNode] : []),
+      symbolInfoRow(e.symbol),
+      { kind: "separator" },
       ...(arrange.length ? [...arrange, { kind: "separator" } as CtxNode] : []),
       cx.sourceCopyRow(id),
       { kind: "item", id: "hide", label: e.hidden ? "Show" : "Hide", icon: e.hidden ? CtxIcons.show : CtxIcons.hide,
@@ -604,6 +608,11 @@ export function createMenus(cx: ChartCx): MenusApi {
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setCompareSettingsFor(id) },
     ];
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
+  }
+
+  /** "Symbol info…" row of the main series and compared-symbol menus. */
+  function symbolInfoRow(symbol: string): CtxNode {
+    return { kind: "item", id: "symbol-info", label: "Symbol info…", icon: CtxIcons.info, onSelect: () => emitAppEvent("chart-open-symbol-info", { symbol }) };
   }
 
   /** Paste the in-app clipboard (same as Ctrl+V): a copied drawing is placed

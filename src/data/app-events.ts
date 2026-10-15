@@ -58,6 +58,8 @@ export interface AppEvents {
   "chart-set-session": { id: SessionId };
   "chart-set-timezone": { label: string };
   "chart-open-indicators": undefined;
+  /** Main series / compared symbol menu "Symbol info…": the dialog on that symbol. */
+  "chart-open-symbol-info": { symbol: string };
   /** Study / compared-symbol menu "Add this … to entire layout" (the
    *  focused chart's source to every other chart of the layout). */
   "chart-add-to-layout": AddToLayoutDetail;

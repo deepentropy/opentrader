@@ -92,6 +92,12 @@ export const CtxIcons = {
       </g>
     </svg>
   ),
+  info: (
+    <svg viewBox="0 0 28 28" width="18" height="18">
+      <circle cx="14" cy="14" r="8.5" fill="none" stroke="currentColor" />
+      <path fill="currentColor" d="M13.4 12.5h1.2v6h-1.2zM14 9.3a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7Z" />
+    </svg>
+  ),
   favorite: (
     <svg viewBox="0 0 28 28" width="18" height="18" fill="none">
       <path fill="currentColor" fill-rule="evenodd" d="m17.13 9.74 7.37.9-5.44 5.06L20.4 23 14 19.38 7.6 23l1.34-7.3-5.44-5.06 7.37-.9L14 3l3.13 6.74Zm5.11 1.63-4.26 3.97 1.04 5.74L14 18.24l-5.02 2.84 1.04-5.74-4.26-3.97 5.79-.7L14 5.37l2.45 5.3 5.8.7Z" />

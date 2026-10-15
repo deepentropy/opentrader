@@ -83,6 +83,8 @@ export type TickerInfo = {
   figi: string | null;
   /** Symbol type as scripts read it (`syminfo.type`): "stock", "fund", "dr", "warrant"; null = unknown. */
   symbolType: string | null;
+  /** Security type as served ("stock", "etf", "adr"…). */
+  securityType: string | null;
   /** Branding icon via the `ticker-icon` proxy (Rust adds the token) — usable as <img src>. */
   iconUrl: string | null;
 };
