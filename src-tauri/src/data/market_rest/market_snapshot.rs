@@ -1,12 +1,11 @@
 //! Full-market snapshot for the screener, from the REST snapshot or the
 //! live feed, shaped with the watchlist rules.
-use super::http;
+use super::get_json;
 use super::prior_close::prior_session_closes;
-use super::snapshot::{is_closed, shape_snapshot, MinBar, MultiSnapResponse, SnapBar, SnapEntry};
-use crate::data::gateway::{self, BASE, NO_TOKEN};
-use anyhow::{anyhow, Context, Result};
+use super::snapshot::{is_closed, shape_snapshot, MinBar, SnapBar, SnapEntry, SnapshotList};
+use anyhow::Result;
 
-// ── Full-market snapshot (/v2/snapshot, no ticker list) ──────────────────
+// ── Full-market snapshot (`snapshot`, no ticker list) ────────────────────
 //
 // The screener's live table: every US ticker in one call (13,256 tickers,
 // 5.3 MB JSON, ~1.35 MB gzip, 1.2-2.1 s through the gateway, measured
@@ -37,25 +36,15 @@ pub struct MarketRow {
 
 /// Fetch and shape the whole-market delayed snapshot.
 pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
-    let token = gateway::token().context(NO_TOKEN)?;
-    let url = format!("{BASE}/v2/snapshot/locale/us/markets/stocks/tickers?apiKey={token}");
-    let resp = http().get(&url).send().await.context("massive market snapshot request")?;
-    let http_status = resp.status();
-    let body: MultiSnapResponse = resp.json().await.context("massive market snapshot: parse json")?;
-    if !http_status.is_success() {
-        return Err(anyhow!(
-            "massive market snapshot {http_status}: {}",
-            body.error.unwrap_or_else(|| body.status.clone())
-        ));
-    }
-    Ok(market_rows(&body.tickers, token).await)
+    let list: SnapshotList = get_json("market snapshot", "snapshot", &[]).await?;
+    Ok(market_rows(&list.entries()).await)
 }
 
 /// Shape snapshot entries into screener rows (the rules of the REST path and
 /// of the live feed).
-async fn market_rows(entries: &[SnapEntry], token: &str) -> Vec<MarketRow> {
+async fn market_rows(entries: &[SnapEntry]) -> Vec<MarketRow> {
     let prior = if entries.iter().any(is_closed) {
-        Some(prior_session_closes(token).await)
+        Some(prior_session_closes().await)
     } else {
         None
     };
@@ -69,15 +58,15 @@ async fn market_rows(entries: &[SnapEntry], token: &str) -> Vec<MarketRow> {
                 None
             };
             let s = shape_snapshot(t, prior_close)?;
-            let src = if closed { t.prev_day.as_ref() } else { t.day.as_ref() }?;
+            let src = if closed { t.prev.as_ref() } else { t.day.as_ref() }?;
             let prev_close = if closed {
                 prior_close
             } else {
-                t.prev_day.as_ref().map(|p| p.c).filter(|c| *c > 0.0)
+                t.prev.as_ref().map(|p| p.c).filter(|c| *c > 0.0)
             };
-            // The reference app's `change` is close vs previous close. Massive's
-            // todaysChange follows the latest trade, post-market included
-            // (29/09/2026: 16 of 73 symbols off after the close).
+            // The reference app's `change` is close vs previous close. The
+            // snapshot's `change` follows the latest trade, post-market
+            // included (29/09/2026: 16 of 73 symbols off after the close).
             let (change, change_percent) = match prev_close {
                 Some(pc) => (s.last - pc, (s.last / pc - 1.0) * 100.0),
                 None => (s.change, s.change_percent),
@@ -93,7 +82,7 @@ async fn market_rows(entries: &[SnapEntry], token: &str) -> Vec<MarketRow> {
                 volume: src.v,
                 prev_close,
                 live: !closed,
-                updated_ms: t.updated / 1e6,
+                updated_ms: t.updated_ms,
             })
         })
         .collect()
@@ -106,34 +95,30 @@ pub struct FeedSnapshot {
     pub ticker: String,
     /// Snapshot update stamp, UNIX milliseconds.
     pub updated_ms: f64,
-    pub todays_change: Option<f64>,
+    pub change: Option<f64>,
     pub day: Option<[f64; 5]>,
-    pub prev_day: Option<[f64; 5]>,
+    pub prev: Option<[f64; 5]>,
     /// Close of the latest minute bar.
-    pub min_close: Option<f64>,
+    pub minute_close: Option<f64>,
 }
 
 /// Shape live-feed snapshots with the rules of [`fetch_market_snapshot`], so
 /// a table built from the feed equals one built from the REST snapshot.
 pub async fn shape_feed_snapshots(snapshots: Vec<FeedSnapshot>) -> Result<Vec<MarketRow>> {
-    let token = gateway::token().context(NO_TOKEN)?;
     let bar = |b: [f64; 5]| SnapBar { o: b[0], h: b[1], l: b[2], c: b[3], v: b[4] };
     let entries: Vec<SnapEntry> = snapshots
         .into_iter()
-        .map(|f| {
-            let change = f.todays_change.unwrap_or(0.0);
-            // The feed does not carry the percentage: change / previous close.
-            let prev_close = f.prev_day.map_or(0.0, |p| p[3]);
-            SnapEntry {
-                ticker: f.ticker,
-                todays_change: change,
-                todays_change_perc: if prev_close > 0.0 { change / prev_close * 100.0 } else { 0.0 },
-                updated: f.updated_ms * 1e6,
-                day: f.day.map(bar),
-                prev_day: f.prev_day.map(bar),
-                min: f.min_close.map(|c| MinBar { c, ..MinBar::default() }),
-            }
+        .map(|f| SnapEntry {
+            ticker: f.ticker,
+            // The feed does not carry the percentage: the shaping takes
+            // change / previous close.
+            change: f.change,
+            change_pct: None,
+            updated_ms: f.updated_ms,
+            day: f.day.map(bar),
+            prev: f.prev.map(bar),
+            minute: f.minute_close.map(|c| MinBar { bar: SnapBar { c, ..SnapBar::default() }, t: 0 }),
         })
         .collect();
-    Ok(market_rows(&entries, token).await)
+    Ok(market_rows(&entries).await)
 }

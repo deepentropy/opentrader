@@ -232,9 +232,13 @@ export function activeColumns(s: Screen): ColumnRef[] {
 }
 
 /** The reference app's implicit stock-screen universe (scan `filter2`: common and preferred
- *  stock, depositary receipts, funds that are not ETF / mutual) as Massive
- *  reference `type` codes. Sent with every scan when the field exists. */
-export const UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["CS", "PFD", "SP", "ADRC", "FUND", "UNIT"] };
+ *  stock, depositary receipts, funds that are not ETF / mutual) as the
+ *  reference list's security `type` values. Sent with every scan when the field exists. */
+export const UNIVERSE_CLAUSE: Clause = {
+  left: "type",
+  operation: "in_range",
+  right: ["stock", "preferred", "structured", "adr", "fund", "unit"],
+};
 
 /** Extra hidden columns requested for every row (tooltip, currency unit). */
 export const EXTRA_FIELDS = ["description", "currency"] as const;

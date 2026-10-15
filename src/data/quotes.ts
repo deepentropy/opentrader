@@ -1,7 +1,7 @@
 /*
  * Background live-quote store.
  *
- * Holds the latest per-symbol quote from the live feed (the Massive REST
+ * Holds the latest per-symbol quote from the live feed (the gateway REST
  * snapshot poller, or a WS push after an upgrade) in a process-singleton
  * solid-store, and keeps the "watchlist" subscription registered for the
  * active list's symbols whether or not the watchlist panel is mounted.

@@ -1,8 +1,7 @@
 //! Splits and dividends: the per-day memos, the chart event markers and
 //! the split epoch the disk cache is namespaced by.
 use super::cache::{rest_cache_root, REST_CACHE_DIR};
-use super::{http, DayMemo};
-use crate::data::gateway::{self, BASE};
+use super::{get_json, DayMemo};
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -11,27 +10,28 @@ use tokio::sync::Mutex;
 
 // ── Splits (REST cache invalidation) ─────────────────────────────────────
 //
-// The chart's REST aggregate requests use `adjusted=true`, so Massive already
+// The chart's REST bar requests use `adjusted=true`, so the gateway already
 // returns split-adjusted prices — no on-read adjustment is needed. The one thing splits
 // still drive is cache invalidation: `adjusted=true` rescales ALL historical
 // bars when a split executes, so the latest executed-split date is folded into
 // the cache namespace (`epoch_of`) and a fresh split transparently invalidates
 // every prior cached session.
 
+/// A `splits` answer (newest first).
 #[derive(Deserialize)]
-struct SplitsResponse {
+struct SplitsAnswer {
     #[serde(default)]
-    results: Vec<SplitRow>,
+    splits: Vec<SplitRow>,
 }
 
 #[derive(Deserialize)]
 struct SplitRow {
     #[serde(default)]
-    execution_date: Option<String>,
+    date: Option<String>,
     #[serde(default)]
-    split_from: Option<f64>,
+    from: Option<f64>,
     #[serde(default)]
-    split_to: Option<f64>,
+    to: Option<f64>,
 }
 
 /// One already-executed stock split. `execution_date` doubles as the cache epoch
@@ -69,22 +69,23 @@ pub struct DividendEvent {
 /// Every already-executed split for `ticker`, newest-first. `None` on any lookup
 /// failure (the caller then bypasses the REST cache rather than risk stale bars).
 async fn fetch_splits(ticker: &str, today: NaiveDate) -> Option<Vec<Split>> {
-    let token = gateway::token()?;
-    let url = format!(
-        "{BASE}/v3/reference/splits?ticker={ticker}\
-         &execution_date.lte={today}&order=desc&sort=execution_date&limit=1000&apiKey={token}"
-    );
-    let resp = http().get(&url).send().await.ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-    let body: SplitsResponse = resp.json().await.ok()?;
+    let answer: SplitsAnswer = get_json(
+        "splits",
+        "splits",
+        &[("ticker", ticker.to_string()), ("until", today.to_string()), ("limit", "1000".into())],
+    )
+    .await
+    .map_err(|e| eprintln!("[market_rest] {e}"))
+    .ok()?;
     Some(
-        body.results
+        answer
+            .splits
             .into_iter()
             .filter_map(|r| {
-                let date = NaiveDate::parse_from_str(r.execution_date.as_deref()?, "%Y-%m-%d").ok()?;
-                Some(Split { execution_date: date, from: r.split_from.unwrap_or(1.0), to: r.split_to.unwrap_or(1.0) })
+                // A split without its date cannot be placed; a missing side
+                // of the ratio reads 1.
+                let date = NaiveDate::parse_from_str(r.date.as_deref()?, "%Y-%m-%d").ok()?;
+                Some(Split { execution_date: date, from: r.from.unwrap_or(1.0), to: r.to.unwrap_or(1.0) })
             })
             .collect(),
     )
@@ -143,18 +144,20 @@ pub async fn split_events(ticker: &str) -> Vec<SplitEvent> {
     executed_splits(ticker).await.unwrap_or_default()
 }
 
+/// A `dividends` answer (newest first).
 #[derive(Deserialize)]
-struct DividendsResponse {
+struct DividendsAnswer {
     #[serde(default)]
-    results: Vec<DividendRow>,
+    dividends: Vec<DividendRow>,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DividendRow {
     #[serde(default)]
-    ex_dividend_date: Option<String>,
+    ex_date: Option<String>,
     #[serde(default)]
-    cash_amount: Option<f64>,
+    amount: Option<f64>,
 }
 
 /// Per-ticker, per-day memo of dividend markers (mirrors the splits memo). One
@@ -186,22 +189,23 @@ pub async fn paid_dividends(ticker: &str) -> Option<Vec<DividendEvent>> {
 }
 
 async fn fetch_dividends(ticker: &str, today: NaiveDate) -> Option<Vec<DividendEvent>> {
-    let token = gateway::token()?;
-    let url = format!(
-        "{BASE}/v3/reference/dividends?ticker={ticker}\
-         &ex_dividend_date.lte={today}&order=desc&sort=ex_dividend_date&limit=1000&apiKey={token}"
-    );
-    let resp = http().get(&url).send().await.ok()?;
-    if !resp.status().is_success() {
-        return None;
-    }
-    let body: DividendsResponse = resp.json().await.ok()?;
+    let answer: DividendsAnswer = get_json(
+        "dividends",
+        "dividends",
+        &[("ticker", ticker.to_string()), ("until", today.to_string()), ("limit", "1000".into())],
+    )
+    .await
+    .map_err(|e| eprintln!("[market_rest] {e}"))
+    .ok()?;
     Some(
-        body.results
+        answer
+            .dividends
             .into_iter()
             .filter_map(|r| {
-                let date = NaiveDate::parse_from_str(r.ex_dividend_date.as_deref()?, "%Y-%m-%d").ok()?;
-                Some(DividendEvent { date: date_to_unix(date), amount: r.cash_amount.unwrap_or(0.0) })
+                // Without its ex-date or amount a dividend can neither be
+                // marked nor adjusted for: dropped (it used to read 0).
+                let date = NaiveDate::parse_from_str(r.ex_date.as_deref()?, "%Y-%m-%d").ok()?;
+                Some(DividendEvent { date: date_to_unix(date), amount: r.amount? })
             })
             .collect(),
     )

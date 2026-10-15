@@ -4,7 +4,7 @@
  * daily state file. Rebuilt after every poll and swapped in whole, so a scan
  * never waits on the network.
  */
-use crate::data::massive_rest::{MarketRow, RefTicker};
+use crate::data::market_rest::{MarketRow, RefTicker};
 use crate::data::ticker_case;
 use crate::screener::clock;
 use crate::screener::state::StateFile;

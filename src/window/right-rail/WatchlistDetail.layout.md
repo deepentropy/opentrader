@@ -31,7 +31,7 @@ Widget = the details panel, 331px wide, sits below the watchlist. Body padding `
 
 (Other possible sections between Key stats and Profile — Earnings, Dividends,
 Income statement, Seasonals, Technicals, Analyst rating, Bonds, ATM IV — need
-feeds Polygon Standard doesn't provide, so we omit them.)
+feeds the market data does not provide, so we omit them.)
 
 ## Price row (as we render it)
 

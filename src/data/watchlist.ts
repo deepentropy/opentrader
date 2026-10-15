@@ -102,7 +102,7 @@ export const GROUPS: Group[] = [
   },
 ];
 
-/** Flat list of every row across all groups — drives the Massive snapshot
+/** Flat list of every row across all groups — drives the quote snapshot
  *  subscription and any consumer that doesn't care about sections. */
 export const ROWS: Row[] = GROUPS.flatMap((g) => g.rows);
 

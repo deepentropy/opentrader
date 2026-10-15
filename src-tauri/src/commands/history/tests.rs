@@ -6,11 +6,11 @@ use super::listing::{listing_of, stretch_start, times_inside, Listing, Segment};
 use super::symbol_chain::{merge_between, prepend_older};
 use crate::data::provider::SymbolChange;
 use crate::data::types::{DividendEvent, SplitEvent};
-use crate::data::provider::{HistoryProvider, MassiveProvider, ReferenceProvider};
+use crate::data::provider::{HistoryProvider, GatewayProvider, ReferenceProvider};
 
 /// The US equities calendar the current provider reports.
 fn us() -> SessionCalendar {
-    let session = tauri::async_runtime::block_on(MassiveProvider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL"))).unwrap();
+    let session = tauri::async_runtime::block_on(GatewayProvider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL"))).unwrap();
     SessionCalendar::new(&session)
 }
 
@@ -202,7 +202,7 @@ fn bars_before_an_ex_date_are_scaled_by_the_dividend() {
 #[tokio::test]
 #[ignore = "hits the gateway; run explicitly"]
 async fn dividend_adjust_live() {
-    let provider: Provider = Arc::new(MassiveProvider);
+    let provider: Provider = Arc::new(GatewayProvider);
     let out = std::env::var("OT_OUT").unwrap();
     for t in std::env::var("OT_TICKERS").unwrap_or_else(|_| "NASDAQ:NFLX,NASDAQ:NVDA,NASDAQ:AAPL,NYSE:KO".into()).split(',') {
         let sym = SymbolRef::parse(t);
@@ -283,7 +283,7 @@ fn before_window_midweek() {
 #[tokio::test]
 #[ignore = "hits the gateway; run explicitly"]
 async fn daily_archive_join_live() {
-    let provider = MassiveProvider;
+    let provider = GatewayProvider;
     let sym = SymbolRef::parse("NASDAQ:AAPL");
     let cal = SessionCalendar::new(&provider.symbol_session(&sym).await.unwrap());
     let to = cal.window_end();
@@ -354,7 +354,7 @@ async fn daily_archive_join_live() {
 #[tokio::test]
 #[ignore = "hits the gateway; run explicitly"]
 async fn archive_start_live() {
-    use crate::data::{daily_archive, massive_rest, ticker_case};
+    use crate::data::{daily_archive, market_rest, ticker_case};
     use futures_util::stream::{self, StreamExt};
     let tickers: Vec<String> =
         std::env::var("OT_TICKERS").unwrap_or_else(|_| "TLF,WEX,GHC,META,GSL,AAPL".into()).split(',').map(str::to_string).collect();
@@ -363,17 +363,17 @@ async fn archive_start_live() {
     let day = |sec: f64| chrono::DateTime::from_timestamp(sec as i64, 0).unwrap().date_naive();
     let rows: Vec<String> = stream::iter(tickers)
         .map(|t| async move {
-            let live = massive_rest::fetch_daily_aggs(&t, from, to, true).await.unwrap_or_default();
+            let live = market_rest::fetch_daily_aggs(&t, from, to, true).await.unwrap_or_default();
             let archive = daily_archive::daily_bars(&t, true).await.unwrap_or_default();
             if live.is_empty() || archive.is_empty() {
                 return format!("{t},,,,no live bars or no archive");
             }
             let sym = SymbolRef::parse(&ticker_case::to_app(&t));
-            let listed = MassiveProvider.listing_date(&sym).await;
-            let Some(changes) = MassiveProvider.symbol_changes(&sym).await else {
+            let listed = GatewayProvider.listing_date(&sym).await;
+            let Some(changes) = GatewayProvider.symbol_changes(&sym).await else {
                 return format!("{t},,,,symbol history not read");
             };
-            let listing = listing_of(&MassiveProvider, &sym).await;
+            let listing = listing_of(&GatewayProvider, &sym).await;
             let before = prepend_archive(live.clone(), archive.clone(), 0.0, &Listing::new(&sym.ticker, listed, &[]));
             let after = prepend_archive(live.clone(), archive, 0.0, &listing);
             let named = Listing::new(&sym.ticker, listed, &changes).taken_sec.is_some();
@@ -410,7 +410,7 @@ async fn archive_start_live() {
 #[tokio::test]
 #[ignore = "hits the gateway; run explicitly"]
 async fn symbol_chain_live() {
-    let provider: Provider = Arc::new(MassiveProvider);
+    let provider: Provider = Arc::new(GatewayProvider);
     let cal = SessionCalendar::new(&provider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL")).await.unwrap());
     let to = cal.window_end();
     let wanted_from = *cal.last_trading_days(7560).first().unwrap();
@@ -497,7 +497,7 @@ async fn daily_load_smoke() {
         crate::data::gateway::NO_TOKEN
     );
 
-    let provider = MassiveProvider;
+    let provider = GatewayProvider;
     let cal = us();
     let to = cal.window_end();
     let from = *cal.last_trading_days(252).first().unwrap_or(&to);

@@ -144,7 +144,7 @@ pub fn early_closes_spec(from_year: i32, to_year: i32) -> String {
 }
 
 /// Loop-safety bound of the backward walk, below any plan's history floor
-/// (Massive's largest plan lists 20+ years). Was 2020, which cut daily history
+/// (the largest data plans list 20+ years). Was 2020, which cut daily history
 /// short of the 10 years the key can read (29/09/2016, probed 27/09/2026).
 const CALENDAR_FLOOR_YEAR: i32 = 2000;
 

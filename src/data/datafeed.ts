@@ -283,7 +283,7 @@ export function toFullSymbol(symbol: string): Promise<string> {
 }
 
 /** Symbol typeahead via the backend symbol search. `type` is an optional
- *  vendor security-type filter (e.g. Massive's "CS", "ETF"; null = all types).
+ *  security-type filter (e.g. "stock", "etf"; null = all types).
  *  Returns raw reference results; presentation/ranking into dialog rows stays in
  *  symbol-search.ts (liveResultsToRows). Throws on backend error so the caller
  *  can fall back to its static catalogue. */

@@ -91,7 +91,7 @@ pub fn run() {
 
     let builder = specta_builder();
 
-    // The active data provider (DATA_PROVIDER env, default massive). Built once
+    // The active data provider (DATA_PROVIDER env, default gateway). Built once
     // and shared: the icon proxy holds one clone, app state holds another, and
     // the realtime task is spawned from it in `.setup()`.
     let provider = provider::build();

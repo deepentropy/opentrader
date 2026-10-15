@@ -1,10 +1,10 @@
 pub mod calendar;
 pub mod daily_archive;
 pub mod gateway;
-pub mod massive_poll;
-pub mod massive_rest;
-pub mod massive_ws;
+pub mod market_rest;
+pub mod market_stream;
 pub mod provider;
+pub mod quote_poll;
 pub mod session;
 pub mod symbol;
 pub mod ticker_case;

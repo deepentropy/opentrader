@@ -38,7 +38,7 @@ export type ChartAggregate = {
   } | null;
 };
 
-/** One 1-second bar from the stream (Massive `A` channel) for a charted
+/** One 1-second bar from the stream (`bar1s` channel) for a charted
  *  symbol. Emitted only when the key is entitled to second bars and a chart
  *  is open; its volume covers that one second. */
 export type SecondAggregate = {

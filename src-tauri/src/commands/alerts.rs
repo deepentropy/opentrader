@@ -7,7 +7,7 @@
  */
 use std::sync::OnceLock;
 
-/// Dedicated client rather than the pooled Massive one: a webhook wants a short
+/// Dedicated client rather than the pooled market-data one: a webhook wants a short
 /// overall deadline (a slow receiver must not hold the fire path open), which
 /// the data client deliberately doesn't set.
 fn http() -> &'static reqwest::Client {

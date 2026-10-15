@@ -3,12 +3,12 @@
  * port of the mock's 319-LOC panel.
  *
  * Data sources (all per-ticker, light):
- *   • reference info → get_ticker_info  (Massive /v3/reference/tickers)
- *   • live snapshot  → get_ticker_snapshot (Massive /v2/snapshot)
+ *   • reference info → get_ticker_info  (gateway tickers/<T>)
+ *   • live snapshot  → get_ticker_snapshot (gateway snapshot/<T>)
  *   • 52w / perf / avg vol → computed client-side from daily candles
  *     (datafeed.getBars(sym, "1D"), the same series the chart uses)
  *
- * No static fallback — each field shows Massive's value or `—` while the
+ * No static fallback — each field shows the gateway's value or `—` while the
  * fetch is in flight / failed. A single createResource keyed on the bare
  * ticker handles staleness, so a late reply for a previously-selected row
  * can't overwrite the current one.
@@ -47,7 +47,7 @@ const SUN_ICON =
   '<line x1="3.7" y1="14.3" x2="5.1" y2="12.9"/><line x1="12.9" y1="5.1" x2="14.3" y2="3.7"/>' +
   '</g></svg>';
 
-/** Title-case a SCREAMING or lower-case label (Massive's sector/industry come
+/** Title-case a SCREAMING or lower-case label (the reference sector/industry come
  *  through upper-cased, e.g. "ELECTRONIC TECHNOLOGY" → "Electronic Technology").
  *  Small connectives stay lower-case; "&" and tokens with digits pass through. */
 function toTitleCase(s: string | null | undefined): string {
@@ -327,7 +327,7 @@ export function WatchlistDetail(props: Props) {
 
   const lastUpdate = () => {
     const snap = s();
-    if (!snap || snap.updatedNs <= 0) return "";
+    if (!snap || snap.updatedMs <= 0) return "";
     // Local time + the GMT offset (e.g. "21:59 GMT+2"), as in
     // "Last update at HH:MM GMT±X".
     const parts = new Intl.DateTimeFormat([], {
@@ -335,7 +335,7 @@ export function WatchlistDetail(props: Props) {
       minute: "2-digit",
       hourCycle: "h23",
       timeZoneName: "shortOffset",
-    }).formatToParts(new Date(snap.updatedNs / 1e6));
+    }).formatToParts(new Date(snap.updatedMs));
     const hh = parts.find((p) => p.type === "hour")?.value ?? "";
     const mm = parts.find((p) => p.type === "minute")?.value ?? "";
     // "GMT+2" — strip the ":00" some platforms append.

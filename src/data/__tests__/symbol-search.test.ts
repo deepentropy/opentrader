@@ -3,7 +3,7 @@ import type { SymbolSearchResult } from "../../bindings";
 
 // The live provider adapter, without the module that asks the backend which one is active.
 vi.mock("../providers", async () => {
-  const m = await import("../providers/massive");
+  const m = await import("../providers/gateway");
   return { searchResultToRow: m.searchResultToRow, typeFilters: () => m.typeFilters, defaultExchange: () => m.defaultExchange };
 });
 
@@ -14,8 +14,8 @@ const res = (ticker: string, over: Partial<SymbolSearchResult> = {}): SymbolSear
   name: `${ticker} Inc.`,
   market: "stocks",
   locale: "us",
-  primaryExchange: "XNAS",
-  type: "CS",
+  exchange: "XNAS",
+  type: "stock",
   ...over,
 });
 
@@ -58,10 +58,10 @@ describe("liveResultsToRows", () => {
   it("ranks by match quality then listing quality, stable within a rank", () => {
     const rows = liveResultsToRows(
       [
-        res("AAPLX", { primaryExchange: "OTCM" }),
+        res("AAPLX", { exchange: "OTCM" }),
         res("XAAPL"),
-        res("AAPL", { primaryExchange: "OTCM" }),
-        res("AAPLE", { type: "ETF", primaryExchange: "ARCX" }),
+        res("AAPL", { exchange: "OTCM" }),
+        res("AAPLE", { type: "etf", exchange: "ARCX" }),
         res("AAPLW"),
         res("ZZZ", { name: "Fund of AAPL" }),
         res("AAPL"),
@@ -79,7 +79,7 @@ describe("liveResultsToRows", () => {
   it("filters by tab and caps the list at 50", () => {
     const many = Array.from({ length: 80 }, (_, i) => res(`A${i}`));
     expect(liveResultsToRows(many, "all", "a")).toHaveLength(50);
-    expect(liveResultsToRows([res("SPY", { type: "ETF" }), res("SPYG")], "funds", "spy").map((r) => r.ticker)).toEqual(["SPY"]);
+    expect(liveResultsToRows([res("SPY", { type: "etf" }), res("SPYG")], "funds", "spy").map((r) => r.ticker)).toEqual(["SPY"]);
     expect(liveResultsToRows([], "all", "x")).toEqual([]);
   });
 });

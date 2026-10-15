@@ -1,13 +1,14 @@
 /*
- * Massive.io implementation of the `DataProvider` traits.
+ * The OpenTrader gateway's implementation of the `DataProvider` traits.
  *
- * Thin forwarders to the existing `massive_rest` / `massive_poll` functions — no
- * fetch logic lives here. The per-session disk cache, daily memo, and prior-
- * session-close cache all stay inside `massive_rest`, so they're carried for
- * free; a future provider can add its own caching independently.
+ * Thin forwarders to the `market_rest` / `quote_poll` / `market_stream`
+ * functions — no fetch logic lives here. The per-session disk cache, daily
+ * memo, and prior-session-close cache all stay inside `market_rest`, so
+ * they're carried for free; a future provider can add its own caching
+ * independently.
  *
  * Stateless: the struct holds nothing (the gateway token is compiled in and read
- * per call inside `massive_rest`), so it's trivially `Send + Sync` and cloneable.
+ * per call inside `market_rest`), so it's trivially `Send + Sync` and cloneable.
  */
 use super::capabilities::{
     DataStatus, HistoryFloor, HistoryProbe, ProviderCapabilities, ReferenceCaps, ResolutionCaps,
@@ -21,16 +22,16 @@ use crate::data::types::{
 };
 use crate::data::session::{Subsession, SymbolSession};
 use crate::data::symbol::SymbolRef;
-use crate::data::{daily_archive, gateway, massive_poll, ticker_case, massive_rest, massive_ws, trading_calendar};
+use crate::data::{daily_archive, gateway, market_rest, market_stream, quote_poll, ticker_case, trading_calendar};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate, Utc};
 use std::sync::OnceLock;
 use tauri::AppHandle;
 
-pub struct MassiveProvider;
+pub struct GatewayProvider;
 
 #[async_trait::async_trait]
-impl HistoryProvider for MassiveProvider {
+impl HistoryProvider for GatewayProvider {
     async fn daily_aggs(
         &self,
         sym: &SymbolRef,
@@ -38,23 +39,23 @@ impl HistoryProvider for MassiveProvider {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_daily_aggs(&ticker_case::to_source(&sym.ticker), from, to, adjusted).await
+        market_rest::fetch_daily_aggs(&ticker_case::to_source(&sym.ticker), from, to, adjusted).await
     }
     async fn daily_archive(&self, sym: &SymbolRef, adjusted: bool) -> Result<Vec<Candle>> {
         daily_archive::daily_bars(&ticker_case::to_source(&sym.ticker), adjusted).await
     }
     async fn listing_date(&self, sym: &SymbolRef) -> Option<NaiveDate> {
-        massive_rest::listing_date(&ticker_case::to_source(&sym.ticker)).await
+        market_rest::listing_date(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn symbol_changes(&self, sym: &SymbolRef) -> Option<Vec<SymbolChange>> {
-        let changes = massive_rest::ticker_changes(&ticker_case::to_source(&sym.ticker)).await?;
+        let changes = market_rest::ticker_changes(&ticker_case::to_source(&sym.ticker)).await?;
         Some(changes.iter().map(|(date, ticker)| SymbolChange { date: *date, ticker: ticker_case::to_app(ticker) }).collect())
     }
     async fn executed_splits(&self, sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
-        massive_rest::executed_splits(&ticker_case::to_source(&sym.ticker)).await
+        market_rest::executed_splits(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn paid_dividends(&self, sym: &SymbolRef) -> Option<Vec<DividendEvent>> {
-        massive_rest::paid_dividends(&ticker_case::to_source(&sym.ticker)).await
+        market_rest::paid_dividends(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn minute_aggs(
         &self,
@@ -64,7 +65,7 @@ impl HistoryProvider for MassiveProvider {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_minute_aggs(&ticker_case::to_source(&sym.ticker), mult, from, to, adjusted).await
+        market_rest::fetch_minute_aggs(&ticker_case::to_source(&sym.ticker), mult, from, to, adjusted).await
     }
     async fn second_aggs(
         &self,
@@ -74,7 +75,7 @@ impl HistoryProvider for MassiveProvider {
         to: NaiveDate,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_second_aggs(&ticker_case::to_source(&sym.ticker), mult, from, to, adjusted).await
+        market_rest::fetch_second_aggs(&ticker_case::to_source(&sym.ticker), mult, from, to, adjusted).await
     }
     async fn second_tail(
         &self,
@@ -83,15 +84,15 @@ impl HistoryProvider for MassiveProvider {
         since_sec: f64,
         adjusted: bool,
     ) -> Result<Vec<Candle>> {
-        massive_rest::fetch_second_tail(&ticker_case::to_source(&sym.ticker), mult, since_sec, adjusted).await
+        market_rest::fetch_second_tail(&ticker_case::to_source(&sym.ticker), mult, since_sec, adjusted).await
     }
 }
 
 #[async_trait::async_trait]
-impl ReferenceProvider for MassiveProvider {
+impl ReferenceProvider for GatewayProvider {
     async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo> {
         // Answered under the app's name, not the source's spelling.
-        let mut info = massive_rest::fetch_ticker_info(&ticker_case::to_source(&sym.ticker)).await?;
+        let mut info = market_rest::fetch_ticker_info(&ticker_case::to_source(&sym.ticker)).await?;
         info.ticker = sym.ticker.clone();
         Ok(info)
     }
@@ -103,7 +104,7 @@ impl ReferenceProvider for MassiveProvider {
         Ok(session)
     }
     async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot> {
-        let mut snapshot = massive_rest::fetch_ticker_snapshot(&ticker_case::to_source(&sym.ticker)).await?;
+        let mut snapshot = market_rest::fetch_ticker_snapshot(&ticker_case::to_source(&sym.ticker)).await?;
         snapshot.ticker = sym.ticker.clone();
         Ok(snapshot)
     }
@@ -112,35 +113,35 @@ impl ReferenceProvider for MassiveProvider {
         query: &str,
         type_filter: Option<&str>,
     ) -> Result<Vec<SymbolSearchResult>> {
-        massive_rest::search_tickers(query, type_filter).await
+        market_rest::search_tickers(query, type_filter).await
     }
     async fn dividends(&self, sym: &SymbolRef) -> Vec<DividendEvent> {
-        massive_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await
+        market_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn splits(&self, sym: &SymbolRef) -> Vec<SplitEvent> {
-        massive_rest::split_events(&ticker_case::to_source(&sym.ticker)).await
+        market_rest::split_events(&ticker_case::to_source(&sym.ticker)).await
     }
     async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem> {
-        massive_rest::latest_news(&ticker_case::to_source(&sym.ticker), limit).await
+        market_rest::latest_news(&ticker_case::to_source(&sym.ticker), limit).await
     }
     async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)> {
-        massive_rest::fetch_icon(encoded).await
+        market_rest::fetch_icon(encoded).await
     }
 }
 
-impl RealtimeProvider for MassiveProvider {
+impl RealtimeProvider for GatewayProvider {
     fn spawn(&self, app: AppHandle) -> WsHandle {
         // Two live tasks behind one handle:
         //   • the REST snapshot poller — always: watchlist quotes (regular
         //     Last, change, Ext) and the chart minute / day bars; the whole
         //     live feed for a key without stream channels;
-        //   • the second-bars WebSocket — only when the probe grants `A` and a
-        //     chart is open: live bars for the seconds charts.
-        // The WebSocket and `probe_stream` share the WebSocket slot in `massive_ws`, so
-        // they never hold two connections on the key.
-        massive_ws::fan_out(vec![
-            massive_poll::spawn(app.clone()),
-            massive_ws::spawn_second_bars(app),
+        //   • the second-bars stream — only when the probe grants `bar1s` and
+        //     a chart is open: live bars for the seconds charts.
+        // The gateway holds the one upstream connection, so the stream task
+        // and `probe_stream` may be connected at the same time.
+        market_stream::fan_out(vec![
+            quote_poll::spawn(app.clone()),
+            market_stream::spawn_second_bars(app),
         ])
     }
 }
@@ -188,14 +189,13 @@ const OTC_TICKS: &str = "0.000001 0.0001 0.0001 1 0.01";
 /// history floor, so its first bar marks the plan floor.
 const PROBE_TICKER: &str = "AAPL";
 
-/// Massive's delayed plans are 15 minutes behind (massive.com/pricing,
-/// 27/09/2026).
+/// Delay of the delayed data: 15 minutes (gateway doc, `delayed`).
 const DELAYED_SEC: u32 = 15 * 60;
 
 #[async_trait::async_trait]
-impl DataProvider for MassiveProvider {
+impl DataProvider for GatewayProvider {
     fn name(&self) -> &'static str {
-        "massive"
+        super::DEFAULT_PROVIDER
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
@@ -233,27 +233,23 @@ impl DataProvider for MassiveProvider {
 
     async fn probe_history(&self) -> Result<HistoryProbe> {
         let (day, minute, second) = tokio::join!(
-            massive_rest::probe_oldest_bar(PROBE_TICKER, "day"),
-            massive_rest::probe_oldest_bar(PROBE_TICKER, "minute"),
-            massive_rest::probe_oldest_bar(PROBE_TICKER, "second"),
+            market_rest::probe_oldest_bar(PROBE_TICKER, "day"),
+            market_rest::probe_oldest_bar(PROBE_TICKER, "minute"),
+            market_rest::probe_oldest_bar(PROBE_TICKER, "second"),
         );
-        let (day, raw_status) = day?;
+        let (day, delayed) = day?;
         let fmt = |d: Option<chrono::NaiveDate>| d.map(|d| d.format("%Y-%m-%d").to_string());
-        // A failing sub-daily probe leaves that floor unknown rather than
-        // failing the whole probe.
-        let minute = minute.ok().and_then(|(d, _)| d);
-        let second = second.ok().and_then(|(d, _)| d);
-        let (data_status, delay_sec) = match raw_status.as_str() {
-            // Observed on the delayed key, 27/09/2026.
-            "DELAYED" => (DataStatus::DelayedStreaming, DELAYED_SEC),
-            // Not observed (needs a real-time key); Massive's non-delayed
-            // responses report "OK".
-            "OK" => (DataStatus::Streaming, 0),
-            _ => (DataStatus::Unknown, 0),
-        };
+        // A failing sub-daily probe (`NOT_ENTITLED` included) leaves that
+        // floor unknown rather than failing the whole probe.
+        let minute = minute.map_err(|e| eprintln!("[entitlements] minute probe: {e}")).ok().and_then(|(d, _)| d);
+        let second = second.map_err(|e| eprintln!("[entitlements] second probe: {e}")).ok().and_then(|(d, _)| d);
+        // `delayed` of a range reaching today: true on the delayed plan
+        // (seen 15/10/2026), false on a real-time one.
+        let (data_status, delay_sec) =
+            if delayed { (DataStatus::DelayedStreaming, DELAYED_SEC) } else { (DataStatus::Streaming, 0) };
         Ok(HistoryProbe {
             data_status,
-            raw_status,
+            raw_status: if delayed { "delayed" } else { "realtime" }.into(),
             delay_sec,
             floor: HistoryFloor {
                 second: fmt(second),
@@ -266,10 +262,8 @@ impl DataProvider for MassiveProvider {
     /// One stream URL: the gateway picks the delayed or real-time feed, so
     /// `data_status` does not choose the endpoint.
     async fn probe_stream(&self, _data_status: DataStatus) -> Result<StreamCaps> {
-        let token = gateway::token().ok_or_else(|| anyhow::anyhow!(gateway::NO_TOKEN))?;
-        let channels = ["AM.", "A.", "T.", "Q."].map(|p| format!("{p}{PROBE_TICKER}"));
-        let refs: Vec<&str> = channels.iter().map(String::as_str).collect();
-        let granted = massive_ws::probe_channels(gateway::WS_URL, token, &refs).await?;
+        let channels = ["bar1m:", "bar1s:", "trade:", "quote:"].map(|p| format!("{p}{PROBE_TICKER}"));
+        let granted = market_stream::probe_channels(&channels).await?;
         Ok(StreamCaps {
             minute_bars: granted[0],
             second_bars: granted[1],
@@ -288,7 +282,7 @@ mod tests {
     /// DAILY_INTERVALS), so the capabilities call changes nothing on screen.
     #[test]
     fn static_resolutions_match_datafeed_tables() {
-        let r = MassiveProvider.capabilities().resolutions;
+        let r = GatewayProvider.capabilities().resolutions;
         assert_eq!(r.seconds, vec![1, 5, 10, 15, 30, 45]);
         assert_eq!(r.minutes, vec![1, 5, 15, 30, 60, 120, 240]);
         assert!(r.daily && r.weekly_monthly_from_daily);
@@ -342,9 +336,9 @@ mod tests {
     #[test]
     fn us_equity_price_grid_matches_reference() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        let aapl = rt.block_on(MassiveProvider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL"))).unwrap();
+        let aapl = rt.block_on(GatewayProvider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL"))).unwrap();
         assert_eq!((aapl.pricescale, aapl.minmov, aapl.variable_tick_size.as_str()), (100, 1, "0.0001 1 0.01"));
-        let otc = rt.block_on(MassiveProvider.symbol_session(&SymbolRef::parse("OTC:TCEHY"))).unwrap();
+        let otc = rt.block_on(GatewayProvider.symbol_session(&SymbolRef::parse("OTC:TCEHY"))).unwrap();
         assert_eq!(otc.variable_tick_size, "0.000001 0.0001 0.0001 1 0.01");
     }
 
@@ -355,10 +349,10 @@ mod tests {
     #[ignore = "hits the real REST + WebSocket endpoints; run explicitly"]
     async fn live_entitlement_probe() {
         assert!(gateway::token().is_some(), "{}", gateway::NO_TOKEN);
-        let h = MassiveProvider.probe_history().await.expect("history probe");
+        let h = GatewayProvider.probe_history().await.expect("history probe");
         eprintln!("history: {:?} {} delay={} floor={:?}", h.data_status, h.raw_status, h.delay_sec, h.floor);
         assert!(h.floor.day.is_some(), "no daily floor");
-        let s = MassiveProvider.probe_stream(h.data_status).await.expect("stream probe");
+        let s = GatewayProvider.probe_stream(h.data_status).await.expect("stream probe");
         eprintln!("stream: {s:?}");
     }
 }

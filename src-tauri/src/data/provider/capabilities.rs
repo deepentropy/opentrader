@@ -25,7 +25,7 @@ pub struct ProviderCapabilities {
     /// Matches `DataProvider::name()`.
     pub name: String,
     pub resolutions: ResolutionCaps,
-    /// Max base units one history request returns (Massive: 50 000).
+    /// Max base units one history request returns (gateway: 50 000).
     pub max_bars_per_request: u32,
     /// The provider lists dividends, so prices can be adjusted for them
     /// (bottom-bar ADJ).
@@ -82,9 +82,9 @@ pub enum DataStatus {
 #[serde(rename_all = "camelCase")]
 pub struct Entitlements {
     pub data_status: DataStatus,
-    /// The provider's own status word, kept for diagnosis (Massive: "DELAYED").
+    /// The provider's own status word, kept for diagnosis (gateway: "delayed" / "realtime").
     pub raw_status: String,
-    /// Data delay in seconds (Massive delayed plans: 900).
+    /// Data delay in seconds (delayed data: 900).
     pub delay_sec: u32,
     pub history_floor: HistoryFloor,
     /// Live-stream channels the key may subscribe to. `None` until the stream

@@ -1,7 +1,7 @@
 /*
  * Watchlist — right-rail panel listing tracked symbols with last price and
  * change. Static seed values; live last-price overlay via
- * Feature 9 (Massive trades). Row click → updates the active chart symbol.
+ * Feature 9 (live trades). Row click → updates the active chart symbol.
  *
  * Settings (Feature: watchlist settings, ported from the reference mock): the
  * header gear opens WatchlistSettingsMenu — Table/tile view, customizable

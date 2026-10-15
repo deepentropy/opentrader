@@ -1,16 +1,16 @@
 /*
- * Massive frontend presentation adapter — the vendor-specific normalization the
- * datafeed facade can't express generically. Mirrors the backend
- * `data/provider/massive.rs`: to add a vendor, write a sibling adapter and
+ * Gateway frontend presentation adapter — the source-specific normalization
+ * the datafeed facade can't express generically. Mirrors the backend
+ * `data/provider/gateway.rs`: to add a source, write a sibling adapter and
  * switch the active one in ./index.ts.
  *
- * Vendor-specific frontend transforms:
- *   • exchange-code normalization — Massive's reference endpoint reports the
- *     primary exchange as an ISO-10383 MIC ("XNAS"); the UI shows the friendly
- *     name ("NASDAQ").
- *   • symbol-search mapping — turning raw `search_tickers` results (Massive
- *     security-type / market codes) into dialog rows, plus the Type-filter
- *     dropdown options. The generic ranking/filtering stays in ../symbol-search.
+ * Source-specific frontend transforms:
+ *   • exchange-code normalization — the gateway reports the primary exchange
+ *     as an ISO-10383 MIC ("XNAS"); the UI shows the friendly name ("NASDAQ").
+ *   • symbol-search mapping — turning raw `search_tickers` results (the
+ *     gateway's security types and markets) into dialog rows, plus the
+ *     Type-filter dropdown options. The generic ranking/filtering stays in
+ *     ../symbol-search.
  */
 import type { SymbolSearchResult } from "../../bindings";
 import type { SymbolRow, SymbolCategoryId, TypeFilter } from "../symbol-search";
@@ -69,17 +69,23 @@ export function exchangeCode(code: string | null | undefined): string {
 // ── Symbol search ────────────────────────────────────────────────────────────
 
 /** Stocks tab "All types" dropdown options (the reference list without
- *  Pre-IPO, which has no provider type) — provider `type` codes
- *  (/v3/reference/tickers/types); null = no filter. */
+ *  Pre-IPO, which has no provider type) — the gateway's security `type`
+ *  values; null = no filter. */
 export const typeFilters: TypeFilter[] = [
   { label: 'All types',          code: null },
-  { label: 'Common stock',       code: 'CS' },
-  { label: 'Preferred stock',    code: 'PFD' },
-  { label: 'Depository Receipt', code: 'ADRC' },
-  { label: 'Warrant',            code: 'WARRANT' },
+  { label: 'Common stock',       code: 'stock' },
+  { label: 'Preferred stock',    code: 'preferred' },
+  { label: 'Depository Receipt', code: 'adr' },
+  { label: 'Warrant',            code: 'warrant' },
 ];
 
-/** Massive MIC (primary_exchange) → display exchange label for search rows.
+/** Type filter saved by an earlier version (the upstream type codes) → its
+ *  gateway type, so a saved filter survives the update. */
+export const LEGACY_TYPE_CODES: Record<string, string> = {
+  CS: 'stock', PFD: 'preferred', ADRC: 'adr', WARRANT: 'warrant',
+};
+
+/** Primary-exchange MIC → display exchange label for search rows.
  *  Distinct from `EXCHANGE_NAMES` above (the detail-panel map): the two
  *  differ for a few codes (e.g. XASE), so they are kept apart to preserve each
  *  surface's labels. */
@@ -90,36 +96,35 @@ const SEARCH_EXCHANGE_NAMES: Record<string, string> = {
   IEXG: "IEX", OTCM: "OTC", OTCLINK: "OTC", XOTC: "OTC", PSGM: "OTC", PINX: "OTC",
 };
 
-/** Massive security type code → the short marketType label shown on the chip. */
+/** Security type → the short marketType label shown on the chip. */
 const TYPE_LABELS: Record<string, string> = {
-  CS: "stock", ADRC: "dr", ADRP: "dr", ADRR: "dr", GDR: "dr",
-  ETF: "etf", ETN: "etn", ETV: "etf", ETS: "etf", FUND: "fund",
-  PFD: "preferred", WARRANT: "warrant", RIGHT: "right", UNIT: "unit",
-  SP: "structured", BOND: "bond", IX: "index",
+  stock: "stock", adr: "dr", etf: "etf", etn: "etn", etv: "etf", fund: "fund",
+  preferred: "preferred", warrant: "warrant", right: "right", unit: "unit",
+  structured: "structured", bond: "bond", index: "index",
 };
 
-/** Massive market → category-tab id. Massive's "stocks" market is a catch-all
- *  that also includes ETFs/ETNs/funds/indices, so TYPE_CATEGORY below refines it
- *  by security type (otherwise ETFs leak into the Stocks tab). */
+/** Market → category-tab id. The "stocks" market is a catch-all that also
+ *  includes ETFs/ETNs/funds/indices, so TYPE_CATEGORY below refines it by
+ *  security type (otherwise ETFs leak into the Stocks tab). */
 const MARKET_CATEGORY: Record<string, SymbolCategoryId> = {
   stocks: "stocks", otc: "stocks", crypto: "crypto", fx: "forex", indices: "indices",
 };
 
-/** Massive security type → category-tab override (takes priority over the market
- *  mapping). Tab routing: ETF/ETN/funds → Funds, indices → Indices,
- *  bonds → Bonds. Common stock + depositary receipts (CS/ADRC/…) fall through to
- *  the Stocks tab via the market mapping. */
+/** Security type → category-tab override (takes priority over the market
+ *  mapping). Tab routing: ETF/ETN/ETV/funds → Funds, indices → Indices,
+ *  bonds → Bonds. Stocks + depositary receipts fall through to the Stocks tab
+ *  via the market mapping. */
 const TYPE_CATEGORY: Partial<Record<string, SymbolCategoryId>> = {
-  ETF: "funds", ETN: "funds", ETV: "funds", ETS: "funds", FUND: "funds",
-  IX: "indices", BOND: "bonds",
+  etf: "funds", etn: "funds", etv: "funds", fund: "funds",
+  index: "indices", bond: "bonds",
 };
 
-/** Map one raw `search_tickers` reference result into a dialog row. The vendor
- *  half of symbol search; ../symbol-search applies the generic ranking. */
+/** Map one raw `search_tickers` reference result into a dialog row. The
+ *  source half of symbol search; ../symbol-search applies the generic ranking. */
 export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
-  const ex = (r.primaryExchange && SEARCH_EXCHANGE_NAMES[r.primaryExchange]) || r.primaryExchange || "";
+  const ex = (r.exchange && SEARCH_EXCHANGE_NAMES[r.exchange]) || r.exchange || "";
   // The row shows the descriptive name; the symbol's identity uses the code.
-  const code = r.primaryExchange ? exchangeCode(r.primaryExchange) : "";
+  const code = r.exchange ? exchangeCode(r.exchange) : "";
   const market = r.market ?? "stocks";
   const marketType =
     (r.type && TYPE_LABELS[r.type]) ||
@@ -133,7 +138,7 @@ export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
     exchangeTooltip: ex || undefined,
     primaryExchange: !!ex,
     // Security type wins over the market bucket so ETFs/ETNs/funds land in Funds
-    // (Massive files them under the "stocks" market) rather than the Stocks tab.
+    // (they are listed under the "stocks" market) rather than the Stocks tab.
     category: (r.type && TYPE_CATEGORY[r.type]) || MARKET_CATEGORY[market] || "stocks",
     // Listing country: US-locale stocks / OTC / indices (forex pairs and
     // crypto have no listing country).
@@ -141,17 +146,24 @@ export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
   };
 }
 
+/** A saved Type filter in this adapter's values: an earlier version's code
+ *  is translated, anything else returned as it is. */
+export function migrateTypeCode(code: string): string {
+  return LEGACY_TYPE_CODES[code] ?? code;
+}
+
 // ── Adapter object ───────────────────────────────────────────────────────────
 // This adapter bundled as one object for the registry in ./index. `name` must
-// match the backend's `DataProvider::name()` ("massive") so the frontend can
+// match the backend's `DataProvider::name()` ("gateway") so the frontend can
 // select it from what `get_data_provider` reports.
 import type { FrontendProvider } from "./index";
 
-export const massive: FrontendProvider = {
-  name: "massive",
+export const gateway: FrontendProvider = {
+  name: "gateway",
   defaultExchange,
   exchangeName,
   exchangeCode,
   searchResultToRow,
   typeFilters,
+  migrateTypeCode,
 };

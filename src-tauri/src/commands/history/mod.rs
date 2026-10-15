@@ -5,12 +5,12 @@
  * scroll-back `before_sec` → range conversion — stay here, independent of vendor.
  * Windows are counted in the symbol's own trading calendar and exchange dates
  * (`SessionCalendar`, from the provider's symbol session).
- * For the Massive provider a cold load is a single HTTP request and warm loads
+ * For the gateway provider a cold load is a single HTTP request and warm loads
  * read its per-session disk cache.
  */
 use crate::data::provider::capabilities::BarFamily;
 use crate::data::provider::{entitlements, Provider};
-use crate::data::massive_rest::DayMemo;
+use crate::data::market_rest::DayMemo;
 use crate::data::symbol::SymbolRef;
 use crate::data::calendar::SessionCalendar;
 use crate::data::types::Candle;
@@ -53,7 +53,7 @@ pub async fn clear_cache() -> Result<(), String> {
         m.lock().await.clear();
     }
     crate::data::daily_archive::clear_memo().await;
-    crate::data::massive_rest::clear_market_data_cache().await
+    crate::data::market_rest::clear_market_data_cache().await
 }
 
 /// The symbol's trading calendar (its session: weekdays, holidays, zone).
@@ -136,7 +136,7 @@ pub async fn get_daily_history(
 /// Fetch minute candles for `symbol` over the last `days` trading days,
 /// optionally aggregating to a coarser `interval_min` bucket
 /// (5, 15, 30, 60, 120, 240). `interval_min <= 1` returns raw 1-minute candles.
-/// Massive buckets server-side, so one REST call returns this ticker's bars
+/// The gateway buckets server-side, so one REST call returns this ticker's bars
 /// split-adjusted; closed sessions are served from the per-session disk cache.
 #[tauri::command]
 #[specta::specta]
@@ -166,7 +166,7 @@ pub async fn get_minute_history(
 }
 
 /// Fetch second-granularity bars for `symbol` over the trailing `days`
-/// calendar days, bucketed to `mult`-second candles via Massive's REST
+/// calendar days, bucketed to `mult`-second candles via the gateway's REST
 /// aggregates endpoint. Used for the sub-minute interval rows (1S / 5S /
 /// 10S / …) where no per-ticker flat file exists.
 #[tauri::command]

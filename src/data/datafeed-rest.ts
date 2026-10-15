@@ -98,7 +98,7 @@ export type Snapshot = {
   /** Pre/post-market move vs the regular close; null mid-session. */
   extChangePercent: number | null;
   source: "live" | "prev";
-  updatedNs: number;
+  updatedMs: number;
 };
 
 export async function getTickerInfo(symbol: string): Promise<TickerInfo> {

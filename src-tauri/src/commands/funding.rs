@@ -4,7 +4,7 @@
  * token; see `gateway/doc/README.md`). Shown in Settings > About.
  */
 use crate::data::gateway::BASE;
-use crate::data::massive_rest::http;
+use crate::data::market_rest::http;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

@@ -14,7 +14,7 @@ use std::sync::OnceLock;
 //
 // The REST aggregate path (minute fast path + second bars + scroll-back) was
 // the one market-data route with no caching: every intraday/second symbol or
-// interval switch re-hit Massive. We now persist *closed* sessions per
+// interval switch re-hit the network. We now persist *closed* sessions per
 // (ticker, timespan, mult, date) under `<cache_dir>/opentrader/rest_aggs/…`
 // and only ever re-fetch the live tail.
 //
@@ -37,8 +37,8 @@ use std::sync::OnceLock;
 // refetch every load (see `persist_closed_days`).
 //
 // Known limitation (fast-follow — see the feasibility assessment):
-//  • Truncation: a cold range exceeding Massive's 50k base-unit cap drops its
-//    oldest days (sort=desc keeps the most recent), which therefore never cache
+//  • Truncation: a cold range exceeding the 50k base-unit cap of one request
+//    (`truncated`) drops its oldest days (order=desc keeps the most recent), which therefore never cache
 //    — and their no-trade days can't be sentineled (can't prove they're empty
 //    rather than dropped), so a truncated range stays on the cold path.
 
@@ -204,7 +204,7 @@ pub(super) async fn persist_closed_days(
 /// Closed trading days in `[from, to]` that returned no bars and can be safely
 /// cached as empty sentinels. The floor is the lowest date provably inside the
 /// response: `from` when the response wasn't truncated, else the oldest returned
-/// bar — truncation drops the OLDEST days (Massive sorts desc), so earlier
+/// bar — truncation drops the OLDEST days (bars are asked newest first), so earlier
 /// no-bar days are ambiguous (dropped vs no-trade) and are left unpersisted. An
 /// empty response anchors nothing, so it yields no sentinels. Pure (no I/O).
 pub(super) fn empty_sentinel_days(

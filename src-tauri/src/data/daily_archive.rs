@@ -17,7 +17,7 @@
  * revalidated with its ETag at most once per day.
  */
 use crate::data::gateway::{self, BASE, NO_TOKEN};
-use crate::data::massive_rest::{self, http, Candle, DayMemo, Split};
+use crate::data::market_rest::{self, http, Candle, DayMemo, Split};
 use crate::data::trading_calendar;
 use anyhow::{anyhow, Context, Result};
 use chrono::NaiveDate;
@@ -86,7 +86,7 @@ fn cache_path(ticker: &str) -> PathBuf {
             name.push('-');
         }
     }
-    massive_rest::rest_cache_root().join(CACHE_DIR).join(format!("{name}.json"))
+    market_rest::rest_cache_root().join(CACHE_DIR).join(format!("{name}.json"))
 }
 
 async fn read_disk(ticker: &str) -> Option<CachedFile> {
@@ -213,7 +213,7 @@ pub async fn daily_bars(ticker: &str, adjusted: bool) -> Result<Vec<Candle>> {
     if !adjusted {
         return Ok(to_candles(archive, None));
     }
-    let splits = massive_rest::fetch_splits_cached(ticker)
+    let splits = market_rest::fetch_splits_cached(ticker)
         .await
         .ok_or_else(|| anyhow!("daily archive: no split list for {ticker}"))?;
     Ok(to_candles(archive, Some(&splits)))
@@ -289,10 +289,10 @@ mod tests {
         let downloads = FULL_DOWNLOADS.load(Ordering::SeqCst);
 
         // A 2:1 split executed yesterday, on top of the real list.
-        let mut splits: Vec<Split> = (*massive_rest::fetch_splits_cached(ticker).await.unwrap()).clone();
+        let mut splits: Vec<Split> = (*market_rest::fetch_splits_cached(ticker).await.unwrap()).clone();
         let yesterday = trading_calendar::ny_today() - chrono::Duration::days(1);
         splits.insert(0, Split { execution_date: yesterday, from: 1.0, to: 2.0 });
-        massive_rest::set_splits_for_test(ticker, splits).await;
+        market_rest::set_splits_for_test(ticker, splits).await;
 
         let after = daily_bars(ticker, true).await.unwrap();
         clear_memo().await; // an app restart: the disk copy is revalidated (304)
