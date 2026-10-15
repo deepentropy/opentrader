@@ -4,6 +4,8 @@
  * and percent, 3 for ratios, "+" on signed colored values, U+2212 for
  * negatives, U+202F before the K / M / B suffix, U+2014 when not available.
  */
+import { volumeFormat } from "../../data/volume-format";
+
 export const MINUS = "−";
 export const NNBSP = " ";
 export const DASH = "—";
@@ -39,17 +41,10 @@ export function count(v: number): string {
   return nfInt.format(v);
 }
 
-/** 100000 -> "100 K", 36683.12 -> "36.68 K" (U+202F before the suffix). */
+/** Capital pill and trade sizes: 100000 -> "100 K", 36683.12 -> "36.68 K",
+ *  512.5 -> "512.5" (see volume-format.ts). */
 export function compact(v: number): string {
-  const a = Math.abs(v);
-  const units: [number, string][] = [[1e9, "B"], [1e6, "M"], [1e3, "K"]];
-  for (const [div, s] of units) {
-    if (a >= div) {
-      const n = Math.round((a / div) * 100) / 100;
-      return (v < 0 ? MINUS : "") + String(n) + NNBSP + s;
-    }
-  }
-  return (v < 0 ? MINUS : "") + nf2.format(a);
+  return volumeFormat(v, 2);
 }
 
 /** Tone class of a signed value. */

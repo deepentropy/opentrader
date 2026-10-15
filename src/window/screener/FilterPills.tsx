@@ -16,7 +16,7 @@ import { Icon } from "../../components/Icon";
 import { FLAG_HEX, FLAG_SORT_ORDER } from "../../data/watchlist";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { COLUMN_BY_ID, OPERATION_ICON, emptyFilter, type ColumnRef, type Filter } from "../../data/screener-catalog";
-import { isActive, pillOperation, pillTexts } from "../../data/screener-query";
+import { isActive, pillTexts } from "../../data/screener-query";
 import { screenerStore } from "../../data/screener-store";
 import { CategoryMenu } from "./CategoryMenu";
 import { FilterEditor } from "./FilterEditor";
@@ -126,10 +126,21 @@ export function FilterPills(props: Props) {
             <span class="scr-pill-counter">{(f() as Extract<Filter, { type: "CheckboxGroup" }>).values.length}</span>
           </Show>
           <Show when={active() && f().type === "Condition"}>
-            <span class="scr-pill-icon">
-              <Icon name={`scr-op-${OPERATION_ICON[pillOperation(f() as Extract<Filter, { type: "Condition" }>)]}`} size={18} />
+            <Show when={texts().icon}>
+              {(op) => (
+                <span class="scr-pill-icon">
+                  <Icon name={`scr-op-${OPERATION_ICON[op()]}`} size={18} />
+                </span>
+              )}
+            </Show>
+            {/* Operation word (percent offset, outside range) and value,
+                4 px apart. */}
+            <span class="scr-pill-end">
+              <Show when={texts().operation}>
+                <span class="scr-pill-value scr-pill-operation">{texts().operation}</span>
+              </Show>
+              <span class="scr-pill-value">{texts().value}</span>
             </span>
-            <span class="scr-pill-value">{texts().value}</span>
           </Show>
           <Show when={!active()}>
             <span class="scr-pill-caret"><Icon name="scr-pill-caret" size={18} /></span>

@@ -49,10 +49,18 @@ describe("compact", () => {
     expect(compact(1000)).toBe(`1${NNBSP}K`);
   });
 
-  it("below a thousand: 2 decimals", () => {
-    expect(compact(999)).toBe("999.00");
-    expect(compact(-5)).toBe(`${MINUS}5.00`);
-    expect(compact(0)).toBe("0.00");
+  it("below a thousand: up to 2 decimals, no letter (reference volume formatter)", () => {
+    expect(compact(999)).toBe("999");
+    expect(compact(512.5)).toBe("512.5");
+    expect(compact(-5)).toBe(`${MINUS}5`);
+    expect(compact(0)).toBe("0");
+    expect(compact(0.123)).toBe("0.12");
+  });
+
+  it("rounds before choosing the unit; T unit", () => {
+    expect(compact(999_999)).toBe(`1${NNBSP}M`);
+    expect(compact(999_994.9)).toBe(`999.99${NNBSP}K`);
+    expect(compact(1.5e12)).toBe(`1.5${NNBSP}T`);
   });
 });
 

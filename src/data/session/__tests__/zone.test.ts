@@ -92,14 +92,19 @@ describe("localToUtc", () => {
     expect(localToUtc(NY, dayOf(2026, 11, 1), 90)).toBe(utc(2026, 11, 1, 5, 30));
   });
 
-  it("moves a time skipped by the spring-forward jump one offset step later in Paris", () => {
-    // 02:30 does not exist on 29/03/2026 in Paris: read as 03:30 CEST.
-    expect(localToUtc(PARIS, dayOf(2026, 3, 29), 150)).toBe(utc(2026, 3, 29, 1, 30));
+  // Reference rule: a time skipped by the spring jump resolves one offset step
+  // EARLIER in every zone, a repeated time takes its first occurrence.
+  it("moves a time skipped by the spring-forward jump one offset step earlier", () => {
+    // 02:30 does not exist on 29/03/2026 in Paris: read as 01:30 CET.
+    expect(localToUtc(PARIS, dayOf(2026, 3, 29), 150)).toBe(utc(2026, 3, 29, 0, 30));
+    // 02:30 does not exist on 08/03/2026 in New York: read as 01:30 EST.
+    expect(localToUtc(NY, dayOf(2026, 3, 8), 150)).toBe(utc(2026, 3, 8, 6, 30));
   });
 
-  // Suspected bug: in a zone west of UTC the skipped 02:30 of 08/03/2026 in New York resolves to 06:30Z (01:30
-  // EST, one step EARLIER), not 07:30Z (03:30 EDT) as the doc comment of localToUtc states.
-  it.todo("moves a time skipped by the spring-forward jump one offset step later in New York");
+  it("takes the first occurrence of a repeated time in Paris too", () => {
+    // 02:30 on 25/10/2026 happens twice in Paris; the CEST one is 00:30Z.
+    expect(localToUtc(PARIS, dayOf(2026, 10, 25), 150)).toBe(utc(2026, 10, 25, 0, 30));
+  });
 
   it("accepts minutes past the day (1440 = next local midnight) and negative minutes", () => {
     expect(localToUtc(NY, dayOf(2026, 1, 15), 1440)).toBe(utc(2026, 1, 16, 5));

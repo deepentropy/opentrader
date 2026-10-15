@@ -7,6 +7,7 @@ import type { Clause, Operand, ScanRequest } from "../bindings";
 import {
   COLUMN_BY_ID,
   COLUMN_SETS,
+  OPERATION_LABEL,
   CUSTOM_SET_ID,
   TICKER_SORT_FIELD,
   configuredShort,
@@ -62,9 +63,24 @@ const OFFSET_LABEL: Record<OffsetRangeId, string> = {
   offset_range_20: "20% or more",
 };
 
-/** Pill texts: primary (column title) + active value, the reference app style
- *  ("Price" ≥ "5 USD", "ADR" ≥ "5%", "Price" > "EMA, 50"). */
-export function pillTexts(f: Filter): { primary: string; value: string | null } {
+/** Texts of a filter pill: primary (column title), the active value, and
+ *  between them either the operation icon or the operation word (shown
+ *  lower-case). */
+export type PillTexts = {
+  primary: string;
+  value: string | null;
+  /** Operation icon key (see OPERATION_ICON); none for a closed range, an
+   *  "equal" value, a percent offset or an outside range. */
+  icon?: Operation;
+  /** Operation word instead of the icon: "Above" / "Below" of a percent
+   *  offset, "Outside" of a closed outside range. */
+  operation?: string;
+};
+
+/** Pill texts, the reference app style ("Price" ≥ "5 USD", "ADR" ≥ "5%",
+ *  "Price" > "EMA, 50", "Price" above "SMA, 50 by 10% or more",
+ *  "Price" "10 to 20 USD", "Price" outside "10 to 20 USD"). */
+export function pillTexts(f: Filter): PillTexts {
   const def = COLUMN_BY_ID[f.left.id];
   if (!def) return { primary: f.left.id, value: null };
   if (!isActive(f)) return { primary: def.short, value: null };
@@ -85,16 +101,24 @@ export function pillTexts(f: Filter): { primary: string; value: string | null } 
   const unit = unitOf(f.left);
   const u = unit ? ` ${unit}` : "";
   const r = f.right;
-  if ("column" in r) return { primary, value: configuredShort(r.column) };
+  // Percent offset: "above" / "below" then "<target> by <range>", no icon.
   if (f.operation === "abovePercent" || f.operation === "belowPercent") {
-    return { primary, value: f.offsetRangeId ? OFFSET_LABEL[f.offsetRangeId] : "" };
+    const target = "column" in r ? configuredShort(r.column) : "value" in r ? `${String(r.value)}${u}` : "";
+    const label = f.offsetRangeId ? OFFSET_LABEL[f.offsetRangeId] : "";
+    return { primary, value: `${target} by ${label}`, operation: f.operation === "abovePercent" ? "Above" : "Below" };
   }
-  if ("value" in r) return { primary, value: `${valueText(fmt, r.value as number)}${u}` };
+  if ("column" in r) return { primary, value: configuredShort(r.column), icon: pillOperation(f) };
+  if ("value" in r) {
+    const value = `${valueText(fmt, r.value as number)}${u}`;
+    return f.operation === "equal" ? { primary, value } : { primary, value, icon: pillOperation(f) };
+  }
   if (r.left !== null && r.right !== null) {
-    return { primary, value: `${valueText(fmt, r.left)} to ${valueText(fmt, r.right)}${u}` };
+    const value = `${valueText(fmt, r.left)} to ${valueText(fmt, r.right)}${u}`;
+    return f.operation === "outside" ? { primary, value, operation: OPERATION_LABEL.outside } : { primary, value };
   }
+  // Open range: shown as ≥ / ≤.
   const one = (r.left ?? r.right) as number;
-  return { primary, value: `${valueText(fmt, one)}${u}` };
+  return { primary, value: `${valueText(fmt, one)}${u}`, icon: pillOperation(f) };
 }
 
 /** Preset row title (the reference app `wd`): "Above 30%", "0% to 5%", "10 to 100",

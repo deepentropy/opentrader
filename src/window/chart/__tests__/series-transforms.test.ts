@@ -133,11 +133,19 @@ describe("toRenko", () => {
     expect(shape(toRenko(raw, 1, "Close", false))).toEqual([
       { open: 10, close: 11, high: 11, low: 10, up: true, proj: false },
       { open: 11, close: 12, high: 12, low: 11, up: true, proj: false },
-      // Reversal: needs a fall to 12 - 2 boxes. The wick is the high since the last brick,
-      // tracked from the brick's close (the 12.1 reached past it at the same close is not kept).
-      { open: 11, close: 10, high: 12, low: 10, up: false, proj: false },
+      // Reversal: needs a fall to 12 - 2 boxes. No wick: the high since the last brick
+      // (12) is not more than one box above the brick's open (11).
+      { open: 11, close: 10, high: 11, low: 10, up: false, proj: false },
       { open: 10, close: 9, high: 10, low: 9, up: false, proj: false },
     ]);
+  });
+
+  it("a wick only past the previous brick's body (reference rule)", () => {
+    // Up to 12, then 12.5 (no brick), then a fall to 9.5: the down brick 11 -> 10
+    // has a wick to 12.5, more than one box above its open.
+    const b = toRenko(closes([10, 11, 12, 12.5, 9.5]), 1, "Close", false);
+    const down = b.find((x) => !x.up)!;
+    expect([down.open, down.close, down.high, down.low]).toEqual([11, 10, 12.5, 10]);
   });
 
   it("bricks of the forming bar are projections", () => {

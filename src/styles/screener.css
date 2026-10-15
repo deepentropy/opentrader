@@ -311,6 +311,13 @@
   color: inherit;
   transition: transform 0.15s;
 }
+.scr-pill-end {
+  display: flex;
+  gap: 4px;
+}
+.scr-pill-operation {
+  text-transform: lowercase;
+}
 .scr-pill-value {
   padding: 0 4px;
   font-weight: 600;

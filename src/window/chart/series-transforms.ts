@@ -124,8 +124,10 @@ export function toHeikinAshi(raw: OHLC[]): Candle[] {
 export type Brick = Candle & { up: boolean; proj: boolean };
 
 /** Renko bricks. Up brick when price reaches the last brick's top + box, down
- *  brick when it reaches its bottom − box (two-box reversal). The wick of a
- *  brick is the extreme reached against it since the previous brick. */
+ *  brick when it reaches its bottom − box (two-box reversal). A brick has a
+ *  wick only when the price went against it since the previous brick by more
+ *  than one box beyond its open (past the previous brick's body, on the tick
+ *  grid), as the reference app draws them. */
 export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", lastForming: boolean): Brick[] {
   if (raw.length === 0 || !(box > 0)) return [];
   const tick = minTickFor(raw[raw.length - 1].close);
@@ -143,7 +145,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
       while (p >= hi + box - 1e-9) {
         const open = hi;
         const close = round(hi + box, tick);
-        out.push({ time: 0 as Time, open, close, high: close, low: Math.min(open, minSince), up: true, proj });
+        out.push({ time: 0 as Time, open, close, high: close, low: minSince < round(open - box, tick) - 1e-9 ? minSince : open, up: true, proj });
         lo = open;
         hi = close;
         minSince = close;
@@ -152,7 +154,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
       while (p <= lo - box + 1e-9) {
         const open = lo;
         const close = round(lo - box, tick);
-        out.push({ time: 0 as Time, open, close, high: Math.max(open, maxSince), low: close, up: false, proj });
+        out.push({ time: 0 as Time, open, close, high: maxSince > round(open + box, tick) + 1e-9 ? maxSince : open, low: close, up: false, proj });
         hi = open;
         lo = close;
         minSince = close;

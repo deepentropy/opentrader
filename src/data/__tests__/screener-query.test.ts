@@ -79,29 +79,39 @@ describe("pillTexts", () => {
   });
 
   it("price-like values carry the USD unit", () => {
-    expect(pillTexts(cond(C("Price"), "aboveOrEqual", { value: 5 }))).toEqual({ primary: "Price", value: "5 USD" });
-    expect(pillTexts(cond(C("Price"), "between", { left: null, right: 10 }))).toEqual({ primary: "Price", value: "10 USD" });
+    expect(pillTexts(cond(C("Price"), "aboveOrEqual", { value: 5 }))).toEqual({ primary: "Price", value: "5 USD", icon: "aboveOrEqual" });
+    expect(pillTexts(cond(C("Price"), "between", { left: null, right: 10 }))).toEqual({ primary: "Price", value: "10 USD", icon: "belowOrEqual" });
     expect(pillTexts(cond(C("MarketCap"), "between", { left: 2e9, right: 1e10 }))).toEqual({
       primary: "Mkt cap",
       value: `2${NNBSP}B to 10${NNBSP}B USD`,
     });
-    expect(pillTexts(cond(C("Volume", { resolution: "TimeResolution1D" }), "above", { value: 1e6 }))).toEqual({ primary: "Vol", value: `1${NNBSP}M` });
+    expect(pillTexts(cond(C("Volume", { resolution: "TimeResolution1D" }), "above", { value: 1e6 }))).toEqual({ primary: "Vol", value: `1${NNBSP}M`, icon: "above" });
   });
 
   it("moves a trailing ' %' of the title into the value", () => {
-    expect(pillTexts(cond(C("AverageDayRangePercent"), "between", { left: 5, right: null }))).toEqual({ primary: "ADR", value: "5%" });
-    expect(pillTexts(cond(C("Change", { resolution: "TimeResolution1D" }), "above", { value: 5 }))).toEqual({ primary: "Chg", value: "5%" });
-    expect(pillTexts(cond(C("Performance", { interval: "IntervalYTD" }), "above", { value: 10 }))).toEqual({ primary: "Perf, YTD", value: "10%" });
+    expect(pillTexts(cond(C("AverageDayRangePercent"), "between", { left: 5, right: null }))).toEqual({ primary: "ADR", value: "5%", icon: "aboveOrEqual" });
+    expect(pillTexts(cond(C("Change", { resolution: "TimeResolution1D" }), "above", { value: 5 }))).toEqual({ primary: "Chg", value: "5%", icon: "above" });
+    expect(pillTexts(cond(C("Performance", { interval: "IntervalYTD" }), "above", { value: 10 }))).toEqual({ primary: "Perf, YTD", value: "10%", icon: "above" });
   });
 
   it("names the right column", () => {
-    expect(pillTexts(cond(C("Price"), "above", { column: EMA("50") }))).toEqual({ primary: "Price", value: "EMA, 50" });
-    expect(pillTexts(cond(C("Price"), "below", { column: C("Ma", { length: "200" }) }))).toEqual({ primary: "Price", value: "SMA, 200" });
+    expect(pillTexts(cond(C("Price"), "above", { column: EMA("50") }))).toEqual({ primary: "Price", value: "EMA, 50", icon: "above" });
+    expect(pillTexts(cond(C("Price"), "below", { column: C("Ma", { length: "200" }) }))).toEqual({ primary: "Price", value: "SMA, 200", icon: "below" });
   });
 
-  // Suspected bug: the `"column" in r` branch of pillTexts returns before the abovePercent / belowPercent branch,
-  // and every % offset filter has a column on the right, so its pill shows "Price" instead of "10% or more".
-  it.todo("shows the offset range of a % offset filter (\"10% or more\")");
+  // Reference pill: operation word (shown lower-case) + "<target> by <range>", no icon.
+  it("shows a % offset filter as operation + target by range", () => {
+    expect(pillTexts({ ...cond(C("Price"), "abovePercent", { column: C("Ma", { length: "50" }) }), offsetRangeId: "offset_range_10" } as Filter))
+      .toEqual({ primary: "Price", value: "SMA, 50 by 10% or more", operation: "Above" });
+    expect(pillTexts({ ...cond(C("Price"), "belowPercent", { column: C("Ma", { length: "50" }) }), offsetRangeId: "offset_range_0_10" } as Filter))
+      .toEqual({ primary: "Price", value: "SMA, 50 by 0% to 10%", operation: "Below" });
+  });
+
+  it("a closed range has no icon; outside shows its name; equal has no icon", () => {
+    expect(pillTexts(cond(C("Price"), "between", { left: 10, right: 20 }))).toEqual({ primary: "Price", value: "10 to 20 USD" });
+    expect(pillTexts(cond(C("Price"), "outside", { left: 10, right: 20 }))).toEqual({ primary: "Price", value: "10 to 20 USD", operation: "Outside" });
+    expect(pillTexts(cond(C("Price"), "equal", { value: 5 }))).toEqual({ primary: "Price", value: "5 USD" });
+  });
 });
 
 describe("presetTitle", () => {

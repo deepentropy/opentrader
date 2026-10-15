@@ -28,8 +28,21 @@ describe("abbrev", () => {
     expect(abbrev(-12)).toBe(`${MINUS}12`);
   });
 
-  // Suspected bug: a value that rounds up to the next unit keeps the lower one (999 999 -> "1000 K", not "1 M").
-  it.todo("rolls a value rounding to 1000 of a unit over to the next unit");
+  it("rolls a value rounding to 1000 of a unit over to the next unit", () => {
+    expect(abbrev(999_999)).toBe(`1${NNBSP}M`);
+    expect(abbrev(999_995)).toBe(`1${NNBSP}M`);
+    expect(abbrev(999_994.9)).toBe(`999.99${NNBSP}K`);
+    expect(abbrev(999_995_000)).toBe(`1${NNBSP}B`);
+    expect(abbrev(999.995e12)).toBe(`1,000${NNBSP}T`);
+    expect(abbrev(-999_999)).toBe(`${MINUS}1${NNBSP}M`);
+  });
+
+  it("volume / money cells: whole numbers under 1,000 (reference volume formatter)", () => {
+    expect(formatCell("volume", 512.5, null)).toEqual({ text: "513" });
+    expect(formatCell("volume", 999.5, null)).toEqual({ text: `1${NNBSP}K` });
+    expect(formatCell("volume", 999_999, null)).toEqual({ text: `1${NNBSP}M` });
+    expect(formatCell("money", 2.5e12, "usd")).toEqual({ text: `2.5${NNBSP}T`, unit: "USD" });
+  });
 });
 
 describe("priceText", () => {

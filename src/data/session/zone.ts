@@ -50,10 +50,15 @@ export function localDay(timeZone: string, sec: number): number {
 }
 
 /** UNIX seconds of local wall time `minutes` after the start of local day
- *  `day`. A time skipped by a DST jump resolves one offset step later. */
+ *  `day`. As the reference app: a time skipped by a DST jump resolves one
+ *  offset step earlier (New York 02:30 on the spring change day = 01:30
+ *  standard time), a repeated time takes its first occurrence. */
 export function localToUtc(timeZone: string, day: number, minutes: number): number {
   const offsetFor = zoneOffsetFinder(timeZone);
   const wall = day * 86400 + minutes * 60;
-  const guess = wall - offsetFor(wall);
-  return wall - offsetFor(guess);
+  const before = offsetFor(wall - 86400);
+  const after = offsetFor(wall + 86400);
+  if (before === after) return wall - before;
+  const u = wall - before;
+  return offsetFor(u) === before ? u : wall - after;
 }

@@ -76,18 +76,18 @@ describe("wallTimeToUtc", () => {
     expect(utcToWall(NY, sec)).toEqual({ y: 2026, m: 10, d: 1, minutes: 90 });
   });
 
-  it("a time skipped by the spring jump in Paris resolves one offset step later (02:30 -> 03:30 CEST)", () => {
-    const sec = wallTimeToUtc(PARIS, 2026, 2, 29, 2, 30);
-    expect(sec).toBe(utc(2026, 3, 29, 1, 30));
-    expect(utcToWall(PARIS, sec).minutes).toBe(3 * 60 + 30);
+  // Reference rule: one offset step EARLIER in every zone.
+  it("a time skipped by the spring jump resolves one offset step earlier (02:30 -> 01:30)", () => {
+    const paris = wallTimeToUtc(PARIS, 2026, 2, 29, 2, 30);
+    expect(paris).toBe(utc(2026, 3, 29, 0, 30));
+    expect(utcToWall(PARIS, paris).minutes).toBe(90);
+    const ny = wallTimeToUtc(NY, 2026, 2, 8, 2, 30);
+    expect(ny).toBe(utc(2026, 3, 8, 6, 30));
+    expect(utcToWall(NY, ny).minutes).toBe(90);
   });
 
-  // Suspected bug (reported): for zones WEST of UTC the skipped time resolves one
-  // step EARLIER (02:30 New York on 08/03/2026 -> 06:30 UTC = 01:30 EST), contrary to
-  // the documented "one offset step later" and to the Paris case above.
-  it.skip("a time skipped by the spring jump in New York resolves one offset step later (02:30 -> 03:30 EDT)", () => {
-    const sec = wallTimeToUtc(NY, 2026, 2, 8, 2, 30);
-    expect(utcToWall(NY, sec).minutes).toBe(3 * 60 + 30);
+  it("a repeated fall-back time takes its first occurrence (Paris 02:30, 25/10/2026)", () => {
+    expect(wallTimeToUtc(PARIS, 2026, 9, 25, 2, 30)).toBe(utc(2026, 10, 25, 0, 30));
   });
 });
 

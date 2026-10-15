@@ -7,27 +7,20 @@
  * minus sign U+2212. A missing value is "—".
  */
 import type { Fmt } from "./screener-catalog";
+import { volumeFormat } from "./volume-format";
 
 export const DASH = "—";
 const MINUS = "−";
-const NNBSP = " ";
 
 /** 2 decimals, trailing zeros trimmed ("4.80" → "4.8", "6.00" → "6"). */
 function trim2(n: number): string {
   return n.toFixed(2).replace(/\.?0+$/, "");
 }
 
-/** 9.07 M / 810 K / 1.74 B / 512 (no sign handling). */
-function abbrevAbs(a: number): string {
-  if (a >= 1e12) return `${trim2(a / 1e12)}${NNBSP}T`;
-  if (a >= 1e9) return `${trim2(a / 1e9)}${NNBSP}B`;
-  if (a >= 1e6) return `${trim2(a / 1e6)}${NNBSP}M`;
-  if (a >= 1e3) return `${trim2(a / 1e3)}${NNBSP}K`;
-  return trim2(a);
-}
-
+/** Volume / money filter values and inputs: "500 K", "1 M", "2.5" (the
+ *  volume rule of volume-format.ts, 2 decimals under 1,000). */
 export function abbrev(n: number): string {
-  return (n < 0 ? MINUS : "") + abbrevAbs(Math.abs(n));
+  return volumeFormat(n, 2);
 }
 
 export function priceText(n: number): string {
@@ -60,10 +53,11 @@ export function formatCell(fmt: Fmt, v: number | string | null | undefined, curr
       return { text: signed(v, `${Math.abs(v).toFixed(2)}%`), tone };
     case "percent":
       return { text: `${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}%` };
+    // Cells: the reference volume formatter, whole numbers under 1,000.
     case "volume":
-      return { text: abbrev(v) };
+      return { text: volumeFormat(v, 0) };
     case "money":
-      return { text: abbrev(v), unit };
+      return { text: volumeFormat(v, 0), unit };
     case "number":
       return { text: `${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}` };
     default:

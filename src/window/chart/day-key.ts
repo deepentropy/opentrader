@@ -29,13 +29,18 @@ export function utcToWall(timeZone: string, sec: number): WallTime {
   return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
 }
 
-/** UNIX seconds of a wall-clock time in `timeZone` (month 0-based). A time
- *  skipped by a DST jump resolves one offset step later. */
+/** UNIX seconds of a wall-clock time in `timeZone` (month 0-based). As the
+ *  reference app: a time skipped by a DST jump resolves one offset step
+ *  earlier (New York 02:30 on the spring change day = 01:30 standard time),
+ *  a repeated time takes its first occurrence. */
 export function wallTimeToUtc(timeZone: string, y: number, mo: number, d: number, h: number, mi: number): number {
   const offsetFor = offsetFinder(timeZone);
   const wall = Date.UTC(y, mo, d, h, mi) / 1000;
-  const guess = wall - offsetFor(wall);
-  return wall - offsetFor(guess);
+  const before = offsetFor(wall - 86400);
+  const after = offsetFor(wall + 86400);
+  if (before === after) return wall - before;
+  const u = wall - before;
+  return offsetFor(u) === before ? u : wall - after;
 }
 
 /** Returns `minuteOfDay(sec)`: minutes since local midnight in `timeZone`. */
