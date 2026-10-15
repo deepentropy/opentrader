@@ -391,9 +391,10 @@ export function createSources(cx: ChartCx): SourcesApi {
     // The first compared symbol takes the pane the series left (with the
     // studies that stayed); a second one opens its own pane (one compared
     // symbol per pane here).
-    for (const id of compares) props.onCompareChange?.(id, { placement: "pane" });
+    // The order is read before the compared symbols change (that redraws them).
     const stay = compares[0];
     const next = order ?? c.stackedOrder(stay ? [[stay, move.from]] : []);
+    for (const id of compares) props.onCompareChange?.(id, { placement: "pane" });
     c.setPaneOrder(next);
     props.onPaneOrder?.(next);
     cx.setPaneEpoch((n) => n + 1);

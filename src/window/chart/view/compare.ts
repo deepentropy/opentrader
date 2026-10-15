@@ -173,9 +173,15 @@ export function createCompare(cx: ChartCx): CompareApi {
     // Study panes drawn after the last sync take their stacking place.
     cx.controller?.applyPaneOrder();
   }
+  // The saved pane order, applied when the chart is ready and when it changes (not again on other edits of the
+  // chart: a move that saves it later, like the series dropped on another pane, would be undone).
+  let appliedOrder: string | null = null;
   createEffect(() => {
-    chartReady();
+    const ready = chartReady();
     const order = props.paneOrder ?? [];
+    const key = `${ready}|${order.join(",")}`;
+    if (key === appliedOrder) return;
+    appliedOrder = key;
     untrack(() => cx.controller?.setPaneOrder(order));
   });
   /** Reconcile the layers with the entries (structure, style, scales). */
