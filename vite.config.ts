@@ -28,6 +28,9 @@ export default defineConfig(async () => ({
   // ES module workers: a worker can load a module on demand (the backtest worker loads the indicator library only
   // for the Technical ratings strategy), as in dev where workers are modules already.
   worker: { format: "es" as const },
+  // Entries first imported on demand (the OakScript worker runs a built-in's source with the helpers): bundled at
+  // start so the dev server does not reload the page when one is first used.
+  optimizeDeps: { include: ["lightweight-charts-indicators/helpers", "lightweight-charts-indicators/sources"] },
   resolve: {
     alias: [
       { find: /^lightweight-charts-drawing\/core/, replacement: drawingCore },
