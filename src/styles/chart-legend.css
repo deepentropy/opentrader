@@ -650,3 +650,54 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
 .ot-ind-legend-action[data-qa-id="legend-interval-show-hide-action"] {
   color: #fb8c00;
 }
+
+/* Source open in the OakScript editor (reference legend status "opened in editor"): 18 px braces pill
+   (content-tertiary-success-extra-bold) on a round positive overlay (3-light, hover 3-normal, active 3-bold);
+   its panel: title #089950, a "Go there now" button (primary neutral light button: 28 px, r8, padding 0 11,
+   14/18, 8 px below the text). */
+.ot-ind-legend-opened-pill {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-content-tertiary-success-extra-bold);
+  cursor: default;
+  pointer-events: auto;
+}
+.ot-ind-legend-opened-pill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  background-color: var(--color-overlay-positive-3-light);
+}
+.ot-ind-legend-opened-pill:hover::after { background-color: var(--color-overlay-positive-3-normal); }
+.ot-ind-legend-opened-pill:active::after { background-color: var(--color-overlay-positive-3-bold); }
+.ot-study-error-icon.is-opened {
+  color: var(--color-content-tertiary-success-extra-bold);
+  background-color: var(--color-overlay-positive-3-light);
+}
+.ot-study-error-title.is-opened { color: var(--color-forest-green-500, #089950); }
+.ot-study-status-actions { display: flex; }
+.ot-study-status-action {
+  box-sizing: border-box;
+  height: 28px;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--color-button-fill_border-primary-neutral-default);
+  border-radius: 8px;
+  background-color: var(--color-button-fill_border-primary-neutral-default);
+  color: var(--color-button-content-primary-neutral-default);
+  font: inherit;
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}

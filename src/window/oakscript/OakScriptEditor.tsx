@@ -10,6 +10,9 @@
  * after a switch. One monaco model per script id (cached by URI) keeps each
  * script's undo stack alive across switches and drawer close/reopen.
  *
+ * A built-in study's source shows read-only (`readOnly` prop): its own model,
+ * never saved; typing in it shows the read-only message.
+ *
  * Editor metrics: Menlo/Consolas 13px/18px, no minimap (DESIGN.md).
  */
 import { createEffect, onCleanup, onMount } from "solid-js";
@@ -17,11 +20,15 @@ import { monaco, setupMonaco, applyOakTheme } from "./monaco-setup";
 import * as scripts from "../../data/oakscript-store";
 
 const AUTOSAVE_MS = 400;
+/** Shown when typing into a read-only source (the reference app's wording). */
+const READ_ONLY_MESSAGE = "This script is read-only. It cannot be edited.";
 
 type Props = {
   theme: "dark" | "light";
   /** Which stored script the editor shows; switching swaps monaco models. */
   scriptId: string;
+  /** A read-only source shown instead of the stored script (a built-in: its editor id and source). */
+  readOnly?: { id: string; source: string } | null;
   /** Cursor tracker for the panel's status bar ("Line N, Col N"). */
   onCursor?: (line: number, col: number) => void;
   /** Fires after a REAL change is persisted (not on no-op flushes) — the
@@ -37,6 +44,8 @@ export default function OakScriptEditor(props: Props) {
    *  props.scriptId, which may already point at the next script mid-switch). */
   let activeId: string | undefined;
   let lastSaved: string | undefined;
+  /** The current model is a read-only source (never saved). */
+  let readOnlyActive = false;
 
   const flushSave = () => {
     if (saveTimer !== undefined) {
@@ -44,7 +53,7 @@ export default function OakScriptEditor(props: Props) {
       saveTimer = undefined;
     }
     const model = editor?.getModel();
-    if (!model || !activeId) return;
+    if (!model || !activeId || readOnlyActive) return;
     const source = model.getValue();
     if (source === lastSaved) return;
     lastSaved = source;
@@ -82,15 +91,24 @@ export default function OakScriptEditor(props: Props) {
   // Bind the model for props.scriptId (declared after onMount so the editor
   // exists on the first run; re-runs on every script switch).
   createEffect(() => {
-    const id = props.scriptId;
+    const ro = props.readOnly ?? null;
+    const id = ro ? ro.id : props.scriptId;
     if (!editor || id === activeId) return;
     flushSave(); // persist the outgoing script before rebinding
-    const script = scripts.loadScript(id);
-    if (!script) return;
-    const uri = monaco.Uri.parse(`file:///oakscript/${id}.js`);
-    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(script.source, "javascript", uri);
+    let model: monaco.editor.ITextModel;
+    if (ro) {
+      const uri = monaco.Uri.parse(`file:///oakscript/${ro.id.replace(/[^\w-]/g, "_")}.js`);
+      model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(ro.source, "javascript", uri);
+    } else {
+      const script = scripts.loadScript(id);
+      if (!script) return;
+      const uri = monaco.Uri.parse(`file:///oakscript/${id}.js`);
+      model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(script.source, "javascript", uri);
+    }
     activeId = id;
+    readOnlyActive = ro !== null;
     lastSaved = model.getValue();
+    editor.updateOptions({ readOnly: readOnlyActive, readOnlyMessage: { value: READ_ONLY_MESSAGE } });
     editor.setModel(model);
     const pos = editor.getPosition();
     if (pos) props.onCursor?.(pos.lineNumber, pos.column);

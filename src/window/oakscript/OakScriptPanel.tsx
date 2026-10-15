@@ -6,8 +6,15 @@
  * status bar. The header's script-name button opens the script menu (copy /
  * rename / create / recently-used / import / export / delete); scripts live
  * in the kv script store and execute in the shared worker engine.
+ *
+ * A built-in study's source (legend "Source code", study menu, Built-in…)
+ * shows read-only, as in the reference app: its name as title, a banner
+ * "This script is read-only. To edit its code you can make a copy." (the
+ * link gives a new "Untitled script" with the source), "Make a copy…" in the
+ * menu asks for the copy's name ("<name> copy"), "Add to chart" adds the
+ * built-in study itself.
  */
-import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup } from "solid-js";
+import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup, onMount } from "solid-js";
 import oakPackage from "../../../node_modules/oakscriptjs/package.json";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
@@ -25,6 +32,10 @@ import {
 import { dropUserStrategy, notifyUserStrategyCompiled, userStrategyId } from "../chart/indicators/strategy-entries";
 import { typeIdOf } from "../chart/indicators/study-id";
 import { onAppEvent } from "../../data/app-events";
+import { showRename } from "../../components/Dialogs";
+import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
+import { setOpenedScript } from "./editor-state";
+import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -53,6 +64,8 @@ type Props = {
   indicators: string[];
   /** Same add/remove toggle the indicators dialog uses. */
   onToggleIndicator: (id: string) => void;
+  /** Add a study (a new instance) to the focused chart: "Add to chart" of a built-in. */
+  onAddIndicator: (id: string) => void;
   onClose: () => void;
 };
 
@@ -65,18 +78,65 @@ export function OakScriptPanel(props: Props) {
   let rootRef: HTMLElement | undefined;
 
   // ── Script store state ────────────────────────────────────────────────────
-  const [currentScript, setCurrentScript] = createSignal(scripts.ensureCurrentScript());
+  // The editor's current item: a built-in shown read-only, else the stored
+  // script `currentScript` (kept as the one to come back to).
+  const startBuiltin = builtinTypeOf(scripts.currentScriptId() ?? "");
+  const [currentScript, setCurrentScript] = createSignal(startBuiltin ? storedFallback() : scripts.ensureCurrentScript());
+  const [builtin, setBuiltin] = createSignal<{ typeId: string; name: string; source: string } | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [renaming, setRenaming] = createSignal(false);
+  const [builtinDialog, setBuiltinDialog] = createSignal(false);
   let importInputRef: HTMLInputElement | undefined;
 
+  /** A stored script to hold while a built-in is current (the current id stays the built-in's); none stored: an
+   *  empty placeholder, not saved (opening a built-in creates no script). */
+  function storedFallback(): scripts.OakScript {
+    const first = scripts.listScripts()[0];
+    return (first && scripts.loadScript(first.id)) || { id: "", name: "", source: "", createdAt: 0, updatedAt: 0 };
+  }
+
+  /** Name and id of what the editor shows. */
+  const shownName = () => builtin()?.name ?? currentScript().name;
+  const shownId = () => {
+    const b = builtin();
+    return b ? builtinScriptId(b.typeId) : currentScript().id;
+  };
+
   function openScript(id: string): void {
+    const typeId = builtinTypeOf(id);
+    if (typeId) {
+      void openBuiltin(typeId);
+      return;
+    }
     const s = scripts.loadScript(id);
     if (!s) return;
     scripts.setCurrentScriptId(id);
+    // Back from a built-in to the held script: the id does not change, so log here.
+    if (builtin() && s.id === currentScript().id) {
+      log("info", `"${s.name}" opened`);
+      void compileScript(s.id, s.source);
+    }
+    setBuiltin(null);
     setCurrentScript(s);
     setIsStrategy(!!s.meta?.strategy);
   }
+
+  /** Show built-in `typeId` read-only (its source loads first). */
+  async function openBuiltin(typeId: string): Promise<void> {
+    const source = await loadBuiltinSource(typeId);
+    if (source === undefined) return;
+    const name = builtinName(typeId);
+    scripts.setCurrentScriptId(builtinScriptId(typeId));
+    const was = builtin();
+    setBuiltin({ typeId, name, source });
+    setIsStrategy(false);
+    if (was?.typeId !== typeId) log("info", `"${name}" opened`);
+  }
+  if (startBuiltin) onMount(() => void openBuiltin(startBuiltin));
+
+  // The legends show "Opened in OakScript Editor" on the studies of the shown script.
+  createEffect(() => setOpenedScript(shownId()));
+  onCleanup(() => setOpenedScript(null));
 
   // Legend "Source code" of a study: its script in the editor, the panel
   // restored when minimized.
@@ -109,6 +169,13 @@ export function OakScriptPanel(props: Props) {
   const idOnChart = () => chartIdsOf(currentScript().id).find((id) => props.indicators.some((x) => typeIdOf(x) === id));
   const onChart = () => idOnChart() !== undefined;
   function toggleOnChart(): void {
+    // A built-in: "Add to chart" adds the built-in study (one more instance), as the reference does.
+    const b = builtin();
+    if (b) {
+      props.onAddIndicator(b.typeId);
+      log("info", `"${b.name}" added to chart.`);
+      return;
+    }
     const id = currentScript().id;
     props.onToggleIndicator(idOnChart() ?? (isStrategy() ? userStrategyId(id) : userIndicatorId(id)));
   }
@@ -138,11 +205,17 @@ export function OakScriptPanel(props: Props) {
     }
   }
 
-  // Opening a script (including the initial one) logs + compiles it.
+  // Opening a script (including the initial one) logs + compiles it. When the
+  // editor opens on a built-in, the held stored script is not "opened".
+  let holding = !!startBuiltin;
   createEffect(
     on(
       () => currentScript().id,
       (id) => {
+        if (holding) {
+          holding = false;
+          return;
+        }
         const s = scripts.loadScript(id);
         if (!s) return;
         log("info", `"${s.name}" opened`);
@@ -152,10 +225,40 @@ export function OakScriptPanel(props: Props) {
   );
 
   // ── Script menu actions ───────────────────────────────────────────────────
+  /** "Make a copy…": the reference's "Make copy of script" dialog, name "<name> copy" selected; the copy is a
+   *  stored script, opened. */
   function copyScript(): void {
-    const copy = scripts.duplicateScript(currentScript().id);
-    if (!copy) return;
-    openScript(copy.id);
+    const b = builtin();
+    const held = currentScript();
+    showRename({
+      title: "Make copy of script",
+      label: "New script name",
+      maxLength: 128,
+      names: [],
+      replaceText: () => "",
+      initialValue: `${shownName()} copy`,
+      saveText: "Make copy",
+      onSave: (name) => {
+        const copy = b ? scripts.createScript(name, b.source) : scripts.duplicateScript(held.id, name);
+        if (copy) openScript(copy.id);
+      },
+    });
+  }
+
+  /** Banner link "make a copy.": a new script with the built-in's source, named as a new script is
+   *  ("Untitled script"; the reference opens an unsaved "Untitled script"). */
+  function copyBuiltinQuick(): void {
+    const b = builtin();
+    if (!b) return;
+    openScript(scripts.createScript(undefined, b.source).id);
+  }
+
+  /** Built-in… dialog pick: a new script with that built-in's source. */
+  async function newFromBuiltin(typeId: string): Promise<void> {
+    setBuiltinDialog(false);
+    const source = await loadBuiltinSource(typeId);
+    if (source === undefined) return;
+    openScript(scripts.createScript(undefined, source).id);
   }
 
   function createNewScript(): void {
@@ -174,7 +277,7 @@ export function OakScriptPanel(props: Props) {
   }
 
   function exportScript(): void {
-    const s = currentScript();
+    const s = builtin() ?? currentScript();
     const url = URL.createObjectURL(new Blob([s.source], { type: "text/javascript" }));
     const a = document.createElement("a");
     a.href = url;
@@ -193,6 +296,7 @@ export function OakScriptPanel(props: Props) {
   }
 
   function deleteScript(): void {
+    if (builtin()) return; // a built-in cannot be deleted
     const s = currentScript();
     for (const uid of chartIdsOf(s.id)) {
       if (props.indicators.some((x) => typeIdOf(x) === uid)) props.onToggleIndicator(uid); // pull it off the chart
@@ -293,7 +397,7 @@ export function OakScriptPanel(props: Props) {
               <span class="oak-panel__logo">
                 <Icon name="rr-pine-dialog-button" size={18} />
               </span>
-              <span class="oak-panel__title">{currentScript().name}</span>
+              <span class="oak-panel__title">{shownName()}</span>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M2.5 7.5 6 4l3.5 3.5" stroke="currentColor" stroke-width="1.2" />
               </svg>
@@ -301,12 +405,17 @@ export function OakScriptPanel(props: Props) {
           </Show>
           <Show when={menuOpen()}>
             <OakScriptMenu
-              scriptsList={scripts.recentScripts()}
-              currentId={currentScript().id}
+              scriptsList={scripts.recentScripts((id) => {
+                const t = builtinTypeOf(id);
+                return t ? builtinName(t) : undefined;
+              })}
+              currentId={shownId()}
+              readOnly={builtin() !== null}
               onSelect={openScript}
               onCopy={copyScript}
               onRename={() => setRenaming(true)}
               onCreateNew={createNewScript}
+              onBuiltin={() => setBuiltinDialog(true)}
               onExport={exportScript}
               onImport={() => importInputRef?.click()}
               onDelete={deleteScript}
@@ -331,7 +440,7 @@ export function OakScriptPanel(props: Props) {
             class="oak-panel__action-btn"
             onClick={toggleOnChart}
           >
-            {onChart() ? "Remove from chart" : "Add to chart"}
+            {!builtin() && onChart() ? "Remove from chart" : "Add to chart"}
           </button>
           <Tooltip text={minimized() ? "Restore" : "Minimize"} side="top">
             <button
@@ -384,12 +493,30 @@ export function OakScriptPanel(props: Props) {
           </Tooltip>
         </div>
       </header>
+      <Show when={builtin() && !minimized()}>
+        <div class="oak-panel__readonly" role="note" data-qa-id="oakscript-readonly">
+          <span class="oak-panel__readonly-icon" aria-hidden="true">
+            <svg viewBox="0 0 18 18" width="22" height="22">
+              <path fill="currentColor" fill-rule="evenodd" d="M9 1a8 8 0 1 1 0 16A8 8 0 0 1 9 1Zm-.9 3.5h1.8l-.3 6.2H8.4l-.3-6.2ZM9 12a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" />
+            </svg>
+          </span>
+          <span>
+            <span class="oak-panel__readonly-header">This script is read-only.</span>
+            <span>To edit its code you can</span>
+            <a class="oak-panel__readonly-link" role="button" onClick={copyBuiltinQuick}>make a copy.</a>
+          </span>
+        </div>
+      </Show>
+      <Show when={builtinDialog()}>
+        <BuiltinScriptDialog onPick={(t) => void newFromBuiltin(t)} onClose={() => setBuiltinDialog(false)} />
+      </Show>
       <Show when={!minimized()}>
         <div class="oak-panel__body">
           <Suspense fallback={<div class="ot-empty-state">Loading editor…</div>}>
             <OakScriptEditor
               theme={props.theme}
               scriptId={currentScript().id}
+              readOnly={builtin() ? { id: builtinScriptId(builtin()!.typeId), source: builtin()!.source } : null}
               onCursor={(line, col) => setCursor({ line, col })}
               onSaved={(scriptId, source) => void compileScript(scriptId, source)}
             />

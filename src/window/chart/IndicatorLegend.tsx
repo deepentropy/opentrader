@@ -15,6 +15,9 @@
  * A study that failed shows a status pill after its title (cross for a symbol
  * that cannot be loaded, "!" for another error) and no values; the pill's
  * tooltip is the error title, a click opens a panel with the message under it.
+ * A study whose source is open in the OakScript editor shows the green
+ * "Opened in OakScript Editor" pill; its panel's "Go there now" shows the
+ * editor (reference legend status for a script open in its editor).
  */
 import { Icon } from "../../components/Icon";
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
@@ -36,6 +39,9 @@ type Props = {
    *  true); opens it in the editor. */
   hasSource?: (id: string) => boolean;
   onSource?: (id: string) => void;
+  /** The study's source is open in the OakScript editor: "Opened in OakScript Editor" status pill, whose panel's
+   *  "Go there now" calls onSource. */
+  openedInEditor?: (id: string) => boolean;
   /** Show interval settings button (study hidden on the chart's interval):
    *  the settings on the Visibility tab. */
   onIntervalSettings?: (id: string) => void;
@@ -135,9 +141,21 @@ const NA = "\u2205";
 
 const errorIcon = (e: StudyError) => (e.kind === "invalidSymbol" ? ICON_ERROR_CROSS() : ICON_ERROR_MARK());
 
-/** Error panel under a study's status pill (reference: left = pill - 15 px so the icons line up, top = pill + 7 px;
- *  344 px wide at most). Closes on a click outside it or Escape. */
-function StudyErrorPanel(props: { error: StudyError; anchor: DOMRect; onClose: () => void }) {
+/** Status of a study whose source is open in the editor (reference wording, our editor's name). */
+const OPENED_TITLE = "Opened in OakScript Editor";
+const OPENED_TEXT = "The source code is currently open in OakScript Editor.";
+
+/** Status panel under a study's status pill (reference: left = pill - 15 px so the icons line up, top = pill + 7 px;
+ *  344 px wide at most): icon, title, text and an optional action button. Closes on a click outside it or Escape. */
+function StudyStatusPanel(props: {
+  anchor: DOMRect;
+  onClose: () => void;
+  kind: string;
+  icon: JSX.Element;
+  title: string;
+  text: string;
+  action?: { label: string; onClick: () => void };
+}) {
   let el: HTMLDivElement | undefined;
   const left = () => Math.max(4, Math.min(props.anchor.left - 15, window.innerWidth - 348));
   onMount(() => {
@@ -159,11 +177,18 @@ function StudyErrorPanel(props: { error: StudyError; anchor: DOMRect; onClose: (
   return (
     <Portal>
       <div ref={el} class="ot-study-error-panel" data-qa-id="chart-statuses-popup" style={{ left: `${left()}px`, top: `${props.anchor.bottom + 7}px` }}>
-        <div class="ot-study-error-panel-body" data-qa-id="data-source-error-status">
-          <span class={`ot-study-error-icon is-${props.error.kind}`}>{errorIcon(props.error)}</span>
+        <div class="ot-study-error-panel-body" data-qa-id={props.kind === "opened" ? "opened-in-editor-status" : "data-source-error-status"}>
+          <span class={`ot-study-error-icon is-${props.kind}`}>{props.icon}</span>
           <div class="ot-study-error-desc">
-            <span class={`ot-study-error-title is-${props.error.kind}`}>{props.error.title}</span>
-            <p class="ot-study-error-text">{props.error.message}</p>
+            <span class={`ot-study-error-title is-${props.kind}`}>{props.title}</span>
+            <p class="ot-study-error-text">{props.text}</p>
+            <Show when={props.action}>
+              {(a) => (
+                <div class="ot-study-status-actions">
+                  <button type="button" class="ot-study-status-action" onClick={() => { a().onClick(); props.onClose(); }}>{a().label}</button>
+                </div>
+              )}
+            </Show>
           </div>
         </div>
       </div>
@@ -198,11 +223,19 @@ function ActionButton(props: { qa: string; title: string; onClick?: (e: MouseEve
 }
 
 export function IndicatorLegend(props: Props) {
-  // Error panel of a study (its id and the pill's rect); closed when the study no longer fails.
-  const [panel, setPanel] = createSignal<{ id: string; anchor: DOMRect } | null>(null);
+  // Status panel of a study (its id, which pill and the pill's rect); closed when the status goes.
+  const [panel, setPanel] = createSignal<{ id: string; kind: "error" | "opened"; anchor: DOMRect } | null>(null);
   const panelError = () => {
     const p = panel();
-    return p ? (props.rows.find((r) => r.id === p.id)?.error ?? null) : null;
+    return p?.kind === "error" ? (props.rows.find((r) => r.id === p.id)?.error ?? null) : null;
+  };
+  const panelOpened = () => {
+    const p = panel();
+    return p?.kind === "opened" && props.rows.some((r) => r.id === p.id) && props.openedInEditor?.(p.id) ? p.id : null;
+  };
+  const togglePanel = (id: string, kind: "error" | "opened", e: MouseEvent) => {
+    const anchor = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setPanel((p) => (p?.id === id && p.kind === kind ? null : { id, kind, anchor }));
   };
   return (<>
     <Show when={props.rows.length > 0}>
@@ -253,16 +286,28 @@ export function IndicatorLegend(props: Props) {
                       data-role="statuses-pill"
                       data-qa-id="legend-source-item-status"
                       title={err().title}
-                      onClick={(e) => {
-                        const id = row.id;
-                        const anchor = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                        setPanel((p) => (p?.id === id ? null : { id, anchor }));
-                      }}
+                      onClick={(e) => togglePanel(row.id, "error", e)}
                     >
                       {errorIcon(err())}
                     </button>
                   </span>
                 )}
+              </Show>
+              {/* The study's source is the script open in the OakScript editor (reference: green braces pill). */}
+              <Show when={!row.compare && props.openedInEditor?.(row.id)}>
+                <span class="ot-ind-legend-status" data-qa-id="legend-statuses-wrapper">
+                  <button
+                    type="button"
+                    class="ot-ind-legend-opened-pill"
+                    data-role="statuses-pill"
+                    data-qa-id="legend-source-item-status"
+                    title={OPENED_TITLE}
+                    aria-label={OPENED_TITLE}
+                    onClick={(e) => togglePanel(row.id, "opened", e)}
+                  >
+                    {ICON_SOURCE()}
+                  </button>
+                </span>
               </Show>
               {/* Strategies: the reference app's "Active strategy" status pill (18 px, #82b1ff). */}
               <Show when={row.id.startsWith("strategy:")}>
@@ -324,7 +369,17 @@ export function IndicatorLegend(props: Props) {
       </div>
     </Show>
     <Show when={panel() && panelError()}>
-      {(err) => <StudyErrorPanel error={err()} anchor={panel()!.anchor} onClose={() => setPanel(null)} />}
+      {(err) => (
+        <StudyStatusPanel kind={err().kind} icon={errorIcon(err())} title={err().title} text={err().message}
+          anchor={panel()!.anchor} onClose={() => setPanel(null)} />
+      )}
+    </Show>
+    <Show when={panel() && panelOpened()}>
+      {(id) => (
+        <StudyStatusPanel kind="opened" icon={ICON_SOURCE()} title={OPENED_TITLE} text={OPENED_TEXT}
+          action={{ label: "Go there now", onClick: () => props.onSource?.(id()) }}
+          anchor={panel()!.anchor} onClose={() => setPanel(null)} />
+      )}
     </Show>
   </>);
 }
