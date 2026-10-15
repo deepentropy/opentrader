@@ -312,7 +312,7 @@ export function ChartView(props: ChartViewProps) {
     if (key !== futureKey || futureSpec !== spec) {
       futureKey = key;
       futureSpec = spec;
-      futureValue = sessionFutureAxis(interval, spec);
+      futureValue = sessionFutureAxis(interval, spec, sessions.regular);
     }
     return futureValue;
   }
