@@ -18,7 +18,7 @@ concurrency:
 
 env:
   # Same drawing core release as the release build (release.yml).
-  DRAWING_REF: v0.6.1
+  DRAWING_REF: v0.6.2
 
 jobs:
   check:
