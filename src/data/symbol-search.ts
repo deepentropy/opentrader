@@ -64,7 +64,7 @@ export const CATEGORIES: { id: SymbolCategoryId; label: string }[] = [
  * it follows the active provider) and keeps symbol-search the front door.
  */
 export type TypeFilter = { label: string; code: string | null };
-export { typeFilters as TYPE_FILTERS } from "./providers";
+export { typeFilters as TYPE_FILTERS, migrateTypeCode } from "./providers";
 
 /*
  * A focused, retail-trader-relevant catalogue.  The "INTC" group holds

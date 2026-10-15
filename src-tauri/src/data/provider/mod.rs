@@ -4,8 +4,8 @@
  * Everything the app needs from a market-data vendor is expressed here as a set
  * of capability traits (history / reference / realtime). The Tauri commands and
  * the live-data task talk to a `Provider` (a boxed trait object) instead of
- * calling Massive directly, so swapping vendors is one new impl + one match arm
- * in `build()` — no command or frontend change.
+ * calling a data source directly, so swapping sources is one new impl + one
+ * match arm in `build()` — no command or frontend change.
  *
  * The frontend contract is unaffected: providers return the shared
  * `crate::data::types`, which are the same structs already exported to
@@ -17,8 +17,8 @@
  */
 pub mod capabilities;
 pub mod entitlements;
-mod massive;
-pub use massive::MassiveProvider;
+mod gateway;
+pub use gateway::GatewayProvider;
 
 use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
 use crate::data::session::SymbolSession;
@@ -170,23 +170,28 @@ pub trait DataProvider: HistoryProvider + ReferenceProvider + RealtimeProvider {
 
     /// Measure which live-stream channels the credential may use.
     /// `data_status` (from `probe_history`) selects the delayed or real-time
-    /// endpoint. Must not run while the live task holds a stream connection on
-    /// the same key if the vendor limits connections (Massive: one per key).
+    /// endpoint when the source has two. A source that limits stream
+    /// connections must not let this overlap the live task's connection.
     async fn probe_stream(&self, data_status: DataStatus) -> Result<StreamCaps>;
 }
 
 /// Shared, cheaply-cloneable handle to the active provider (app-state type).
 pub type Provider = Arc<dyn DataProvider>;
 
+/// Name of the default provider: the OpenTrader gateway.
+pub const DEFAULT_PROVIDER: &str = "gateway";
+
 /// Build the provider selected by the `DATA_PROVIDER` env var (default
-/// "massive"). Add a new arm here when a second provider lands.
+/// "gateway"). Add a new arm here when a second provider lands. Any other
+/// value — a provider name from an earlier version included — runs the
+/// gateway, so an old `.env` keeps working.
 pub fn build() -> Provider {
-    let name = std::env::var("DATA_PROVIDER").unwrap_or_else(|_| "massive".into());
-    match name.as_str() {
-        "massive" => Arc::new(MassiveProvider),
+    let name = std::env::var("DATA_PROVIDER").unwrap_or_default();
+    match name.trim() {
+        "" | DEFAULT_PROVIDER => Arc::new(GatewayProvider),
         other => {
-            eprintln!("[provider] unknown DATA_PROVIDER={other:?}; falling back to massive");
-            Arc::new(MassiveProvider)
+            eprintln!("[provider] DATA_PROVIDER={other:?} is not a provider of this version; using {DEFAULT_PROVIDER}");
+            Arc::new(GatewayProvider)
         }
     }
 }

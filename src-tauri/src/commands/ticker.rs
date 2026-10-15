@@ -49,7 +49,7 @@ pub async fn get_ticker_snapshot(
 }
 
 /// Symbol-search typeahead over the provider's reference universe. `type_filter`
-/// is an optional security type (e.g. "ETF") from the dialog's Type chip.
+/// is an optional security type (e.g. "etf") from the dialog's Type chip.
 #[tauri::command]
 #[specta::specta]
 pub async fn search_tickers(

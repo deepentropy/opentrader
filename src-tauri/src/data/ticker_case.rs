@@ -83,8 +83,8 @@ mod tests {
     #[tokio::test]
     #[ignore = "hits the gateway; run explicitly"]
     async fn ticker_case_live() {
-        use crate::data::massive_rest;
-        let list = massive_rest::fetch_reference_tickers().await.unwrap();
+        use crate::data::market_rest;
+        let list = market_rest::fetch_reference_tickers().await.unwrap();
         let lower: Vec<&str> =
             list.iter().map(|r| r.ticker.as_str()).filter(|t| t.bytes().any(|b| b.is_ascii_lowercase())).collect();
         let odd: Vec<&&str> = lower.iter().filter(|t| to_source(&to_app(t)) != **t || t.contains('/')).collect();
@@ -95,21 +95,21 @@ mod tests {
 
         let ticker = to_source("BAC/PB");
         let to = crate::data::trading_calendar::ny_today();
-        let bars = massive_rest::fetch_daily_aggs(&ticker, to - chrono::Duration::days(3650), to, true).await.unwrap();
+        let bars = market_rest::fetch_daily_aggs(&ticker, to - chrono::Duration::days(3650), to, true).await.unwrap();
         let archive = crate::data::daily_archive::daily_bars(&ticker, true).await.unwrap();
-        let snap = massive_rest::fetch_ticker_snapshot(&ticker).await.unwrap();
-        let ticks = massive_rest::fetch_snapshots(&[ticker.clone(), "AAPL".to_string()]).await.unwrap();
+        let snap = market_rest::fetch_ticker_snapshot(&ticker).await.unwrap();
+        let ticks = market_rest::fetch_snapshots(&[ticker.clone(), "AAPL".to_string()]).await.unwrap();
         eprintln!(
             "{ticker}: {} daily bars, {} archived, last {}, bulk snapshot {:?}",
             bars.len(), archive.len(), snap.last, ticks.iter().map(|t| t.ticker.as_str()).collect::<Vec<_>>(),
         );
         assert!(!bars.is_empty() && !archive.is_empty() && ticks.len() == 2);
         for q in ["BAC/P", "BAC", "T/PC", "TPC", "AIIA/"] {
-            let found = massive_rest::search_tickers(q, None).await.unwrap();
+            let found = market_rest::search_tickers(q, None).await.unwrap();
             eprintln!("search {q}: {:?}", found.iter().map(|r| r.ticker.as_str()).take(14).collect::<Vec<_>>());
         }
-        let found = massive_rest::search_tickers("BAC/P", None).await.unwrap();
+        let found = market_rest::search_tickers("BAC/P", None).await.unwrap();
         assert!(found.iter().any(|r| r.ticker == "BAC/PB") && found.iter().all(|r| r.ticker.starts_with("BAC/P")));
-        assert!(massive_rest::search_tickers("BAC", None).await.unwrap().iter().any(|r| r.ticker == "BAC/PB"));
+        assert!(market_rest::search_tickers("BAC", None).await.unwrap().iter().any(|r| r.ticker == "BAC/PB"));
     }
 }

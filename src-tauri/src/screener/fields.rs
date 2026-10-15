@@ -8,7 +8,7 @@
  *              the live bar. State key `<id>` is the value at the close of D;
  *              `<id>|next` is the carry-over the next session needs.
  */
-use crate::data::massive_rest::MarketRow;
+use crate::data::market_rest::MarketRow;
 use crate::screener::state::StateFile;
 use crate::screener::table::{Join, Row, Table};
 use serde::Serialize;
@@ -208,8 +208,8 @@ impl Field {
                     Reference::Name => &row.m.ticker,
                     Reference::Description => &r?.name,
                     Reference::Type => &r?.kind,
-                    Reference::Exchange => &r?.primary_exchange,
-                    Reference::Currency => &r?.currency_name,
+                    Reference::Exchange => &r?.exchange,
+                    Reference::Currency => &r?.currency,
                 };
                 (!s.is_empty()).then_some(Val::Text(s))
             }

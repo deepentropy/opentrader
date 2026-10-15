@@ -1,58 +1,86 @@
-//! Aggregate bars: the ranged request, the per-resolution fetchers, the
-//! entitlement probe and the cached ranged fetch (closed sessions from disk,
-//! the live tail from the network).
+//! Bars: the ranged request, the per-resolution fetchers, the entitlement
+//! probe and the cached ranged fetch (closed sessions from disk, the live
+//! tail from the network).
 use super::cache::{persist_closed_days, read_day_cache, remove_legacy_cache_once};
 use super::corporate_actions::split_epoch;
-use super::{http, Candle};
-use crate::data::gateway::{self, BASE, NO_TOKEN};
+use super::{get_json, seg, Candle};
 use crate::data::trading_calendar;
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 use chrono::{DateTime, Duration as ChronoDuration, NaiveDate, Utc};
 use serde::Deserialize;
 use std::collections::HashMap;
 
+/// Most bars one request returns (the gateway's `limit` cap).
+const MAX_BARS: u32 = 50_000;
+
+/// A `bars/<T>` answer: columnar, one entry per bar in every array.
 #[derive(Deserialize)]
-struct AggResponse {
-    results: Option<Vec<AggBar>>,
+struct BarsAnswer {
+    /// The data is delayed (the plan's 15 minutes).
     #[serde(default)]
-    status: String,
+    delayed: bool,
+    /// The range holds more bars than were returned: with `order=desc` the
+    /// oldest part was cut. The cap applies to the base units read
+    /// (minutes), not to the bars returned, so a coarse range is cut too
+    /// (measured 29/09/2026: 30-minute AAPL 05/01-15/05/2026 came back cut
+    /// at 2175 bars).
     #[serde(default)]
-    error: Option<String>,
-    /// Entitlement 403s (status NOT_AUTHORIZED) explain themselves here, not
-    /// in `error` — seen 26/07/2026 when a transient NOT_AUTHORIZED hid its
-    /// reason because only `error`/`status` were surfaced.
+    truncated: bool,
+    /// Bar start, Unix **milliseconds**.
     #[serde(default)]
-    message: Option<String>,
-    /// Base units read (minutes for a 5-minute range). The 50k `limit` applies
-    /// to this count, not to `resultsCount` (the multiplied bars returned).
-    #[serde(default, rename = "queryCount")]
-    query_count: Option<u64>,
-    /// Present when the range holds more than `limit` base units: the older
-    /// part was cut (sort=desc). Measured 29/09/2026: 30-minute AAPL
-    /// 05/01-15/05/2026 returned resultsCount 2175, queryCount 50000, next_url.
+    t: Vec<Option<i64>>,
     #[serde(default)]
-    next_url: Option<String>,
+    o: Vec<Option<f64>>,
+    #[serde(default)]
+    h: Vec<Option<f64>>,
+    #[serde(default)]
+    l: Vec<Option<f64>>,
+    #[serde(default)]
+    c: Vec<Option<f64>>,
+    #[serde(default)]
+    v: Vec<Option<f64>>,
 }
 
-#[derive(Deserialize)]
-struct AggBar {
-    o: f64,
-    h: f64,
-    l: f64,
-    c: f64,
-    #[serde(default)]
-    v: f64,
-    /// Bar start, UNIX **milliseconds**.
-    t: i64,
+impl BarsAnswer {
+    /// The bars as candles, in the answer's order. A bar without its time or
+    /// a price is dropped (nothing to draw); a missing volume reads 0.
+    fn candles(&self) -> Vec<Candle> {
+        let at = |col: &[Option<f64>], i: usize| col.get(i).copied().flatten();
+        self.t
+            .iter()
+            .enumerate()
+            .filter_map(|(i, t)| {
+                Some(Candle {
+                    time: ((*t)? / 1000) as f64,
+                    open: at(&self.o, i)?,
+                    high: at(&self.h, i)?,
+                    low: at(&self.l, i)?,
+                    close: at(&self.c, i)?,
+                    volume: at(&self.v, i).unwrap_or(0.0),
+                })
+            })
+            .collect()
+    }
 }
 
-/// Fetch aggregate bars for `ticker` from `from`..`to` (inclusive,
-/// `YYYY-MM-DD` or unix-ms strings). `mult` is the bucket-width multiplier
-/// and `timespan` is Massive's unit ("second", "minute", "hour", "day").
-/// One HTTP call; Massive does the bucketing server-side and returns only
-/// this ticker's bars. The returned bool is `true` when the response hit the
-/// 50k base-unit cap (oldest bars truncated) — the cache uses it to decide how
-/// far back it may safely sentinel no-trade days.
+/// The `tf` of a bar request: `mult` and the unit letter of `timespan`.
+fn timeframe(mult: u32, timespan: &str) -> String {
+    let unit = match timespan {
+        "second" => "s",
+        "minute" => "m",
+        "hour" => "h",
+        "week" => "w",
+        _ => "d",
+    };
+    format!("{}{unit}", mult.max(1))
+}
+
+/// Fetch bars for `ticker` from `from`..`to` (inclusive, `YYYY-MM-DD` or
+/// unix-ms strings). `mult` is the bucket-width multiplier and `timespan` the
+/// unit ("second", "minute", "day"). One HTTP call; the gateway buckets
+/// server-side and returns only this ticker's bars. The returned bool is
+/// `true` when the answer was `truncated` (oldest bars cut) — the cache uses
+/// it to decide how far back it may safely sentinel no-trade days.
 async fn fetch_aggs(
     ticker: &str,
     mult: u32,
@@ -61,58 +89,33 @@ async fn fetch_aggs(
     to: &str,
     adjusted: bool,
 ) -> Result<(Vec<Candle>, bool)> {
-    let token = gateway::token().context(NO_TOKEN)?;
-    let mult = mult.max(1);
-    // `limit` caps the number of *base* aggregates Massive reads (e.g. minutes,
-    // not the multiplied bars), so a wide range exceeds it. We must therefore
-    // sort DESC and reverse below: `desc` keeps the most-recent base units (so
-    // the series always ends at "now"); `asc` would keep the oldest and leave
-    // the chart frozen months in the past. Trade-off: very coarse intraday over
-    // a long span loses the *oldest* history, never the current price.
-    let url = format!(
-        "{BASE}/v2/aggs/ticker/{ticker}/range/{mult}/{timespan}/{from}/{to}\
-         ?adjusted={adjusted}&sort=desc&limit=50000&apiKey={token}"
-    );
-
-    let resp = http().get(&url).send().await.context("massive aggs request failed")?;
-    let http_status = resp.status();
-    let body: AggResponse = resp
-        .json()
-        .await
-        .context("massive aggs: parse response json")?;
-
-    if !http_status.is_success() {
-        return Err(anyhow!(
-            "massive aggs {http_status}: {}",
-            body.error
-                .or(body.message)
-                .unwrap_or_else(|| body.status.clone())
-        ));
+    // The cap counts *base* units (minutes, not the multiplied bars), so a
+    // wide range exceeds it. Ask newest first and reverse below: `desc`
+    // keeps the most recent base units (the series always ends at "now");
+    // `asc` would keep the oldest and leave the chart frozen months in the
+    // past. Trade-off: very coarse intraday over a long span loses the
+    // *oldest* history, never the current price.
+    let tf = timeframe(mult, timespan);
+    let answer: BarsAnswer = get_json(
+        "bars",
+        &format!("bars/{}", seg(ticker)),
+        &[
+            ("tf", tf.clone()),
+            ("from", from.to_string()),
+            ("to", to.to_string()),
+            ("adjusted", adjusted.to_string()),
+            ("order", "desc".into()),
+            ("limit", MAX_BARS.to_string()),
+        ],
+    )
+    .await?;
+    if answer.truncated {
+        eprintln!("[market_rest] {ticker} {tf} bars truncated — older history cut (most-recent bars kept)");
     }
-
-    let bars = body.results.unwrap_or_default();
-    let truncated = body.next_url.is_some() || body.query_count.is_some_and(|n| n >= 50_000);
-    if truncated {
-        eprintln!(
-            "[massive_rest] {ticker} {mult}{timespan} aggs hit the 50k base-unit cap — \
-             older history truncated (most-recent bars kept)"
-        );
-    }
-
-    // Massive returned newest-first (sort=desc); the chart wants oldest-first.
-    let mut out: Vec<Candle> = bars
-        .into_iter()
-        .map(|b| Candle {
-            time: (b.t / 1000) as f64,
-            open: b.o,
-            high: b.h,
-            low: b.l,
-            close: b.c,
-            volume: b.v,
-        })
-        .collect();
+    // Newest first (order=desc); the chart wants oldest first.
+    let mut out = answer.candles();
     out.reverse();
-    Ok((out, truncated))
+    Ok((out, answer.truncated))
 }
 
 /// Fetch second-granularity aggregate bars over `[from, to]` (inclusive calendar
@@ -154,7 +157,7 @@ pub async fn fetch_second_tail(
 
 /// Fetch minute-granularity aggregate bars over `[from, to]` (inclusive calendar
 /// dates), served from the per-session disk cache where possible. `mult` is the
-/// bucket width in minutes (1, 5, 15, 30, 60, 120, 240…) — Massive buckets
+/// bucket width in minutes (1, 5, 15, 30, 60, 120, 240…) — the gateway buckets
 /// server-side, so a cold fetch is one small request instead of downloading
 /// whole-market minute flat files over S3.
 pub async fn fetch_minute_aggs(
@@ -185,41 +188,39 @@ pub async fn fetch_daily_aggs(
     fetch_aggs_cached(ticker, 1, "day", from, to, false, adjusted).await
 }
 
-/// Entitlement probe: the oldest `timespan` bar the key can read for `ticker`,
-/// plus the response's `status` word ("DELAYED" on the delayed plans, seen
-/// 27/09/2026). One request (`sort=asc&limit=1` over 30 years), ~0.4 s. Use a
-/// ticker listed before any plan's history floor, so the first bar marks the
-/// plan floor and not the listing date.
-pub async fn probe_oldest_bar(ticker: &str, timespan: &str) -> Result<(Option<NaiveDate>, String)> {
-    let token = gateway::token().context(NO_TOKEN)?;
+/// Entitlement probe: the oldest `timespan` bar the plan can read for
+/// `ticker`, and whether the data is `delayed`. One request (`order=asc&
+/// limit=1` over 30 years up to today), ~0.4 s. Use a ticker listed before any
+/// plan's history floor, so the first bar marks the plan floor and not the
+/// listing date. A range wholly outside the plan answers `NOT_ENTITLED`.
+pub async fn probe_oldest_bar(ticker: &str, timespan: &str) -> Result<(Option<NaiveDate>, bool)> {
     let to = Utc::now().date_naive();
     let from = to - ChronoDuration::days(30 * 366);
-    let url = format!(
-        "{BASE}/v2/aggs/ticker/{ticker}/range/1/{timespan}/{from}/{to}\
-         ?adjusted=true&sort=asc&limit=1&apiKey={token}"
-    );
-    let resp = http().get(&url).send().await.context("massive probe request failed")?;
-    let http_status = resp.status();
-    let body: AggResponse = resp.json().await.context("massive probe: parse response json")?;
-    if !http_status.is_success() {
-        return Err(anyhow!(
-            "massive probe {http_status}: {}",
-            body.error.or(body.message).unwrap_or_else(|| body.status.clone())
-        ));
-    }
-    let oldest = body
-        .results
-        .unwrap_or_default()
+    let answer: BarsAnswer = get_json(
+        "entitlement probe",
+        &format!("bars/{}", seg(ticker)),
+        &[
+            ("tf", timeframe(1, timespan)),
+            ("from", from.to_string()),
+            ("to", to.to_string()),
+            ("adjusted", "true".into()),
+            ("order", "asc".into()),
+            ("limit", "1".into()),
+        ],
+    )
+    .await?;
+    let oldest = answer
+        .candles()
         .first()
-        .and_then(|b| DateTime::from_timestamp(b.t / 1000, 0))
+        .and_then(|b| DateTime::from_timestamp(b.time as i64, 0))
         .map(|dt| dt.date_naive());
-    Ok((oldest, body.status))
+    Ok((oldest, answer.delayed))
 }
 
 /// Ranged aggregate fetch with per-closed-session disk caching. `from`/`to` are
 /// inclusive calendar dates. Returns oldest-first bars across the range.
 ///
-/// Cold path (any closed day missing): one ranged Massive call — as fast as the
+/// Cold path (any closed day missing): one ranged call — as fast as the
 /// uncached path — whose closed portion is then split onto disk. Warm path (every
 /// closed day cached): closed days are read from disk and only the live tail
 /// (today, when the range reaches it) is fetched.

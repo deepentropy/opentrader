@@ -12,7 +12,7 @@
  * state field reads as null ("—" in the table).
  */
 use crate::data::gateway::{self, BASE, NO_TOKEN};
-use crate::data::massive_rest::http;
+use crate::data::market_rest::http;
 use anyhow::{anyhow, Context, Result};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -88,8 +88,8 @@ pub fn read_cache() -> Option<StateFile> {
 /// serve it (404). The raw body is cached on disk for the next start.
 pub async fn fetch() -> Result<Option<StateFile>> {
     let token = gateway::token().context(NO_TOKEN)?;
-    let url = format!("{BASE}/screener/v1/state?apiKey={token}");
-    let resp = http().get(&url).send().await.context("screener state request")?;
+    let url = format!("{BASE}/screener/v1/state");
+    let resp = http().get(&url).bearer_auth(token).send().await.context("screener state request")?;
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
         return Ok(None);

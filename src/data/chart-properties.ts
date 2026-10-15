@@ -129,7 +129,7 @@ const FONT_SIZES = ["8", "10", "11", "12", "14", "16", "18", "20", "22", "24", "
 export const PRICE_SOURCES = ["Open", "High", "Low", "Close", "(H + L)/2", "(H + L + C)/3", "(O + H + L + C)/4"];
 const BOX_METHODS = ["ATR", "Traditional", "Percentage LTP"];
 /** Session select: Regular / Extended. A "24 hours" option would need
- *  overnight (Blue Ocean) bars, which the Polygon plan does not carry — the
+ *  overnight (Blue Ocean) bars, which the market data does not carry — the
  *  same two sessions as the bottom-bar session menu. */
 export const SESSION_OPTIONS = ["Regular", "Extended"];
 /** Timezone menu (UTC, Exchange, then the offset-prefixed zones). */

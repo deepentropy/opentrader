@@ -38,7 +38,7 @@ export function createCells(cx: WatchlistCx): CellsApi {
   }
 
   // ── Company names (the "Name" symbol-display + tile sub-line) ──
-  // Resolved lazily from Massive reference (get_ticker_info) and cached; falls
+  // Resolved lazily from the ticker details (get_ticker_info) and cached; falls
   // back to the ticker while loading or when the provider has no name. Fetched
   // only when needed: tile view, or table view with the "Name" radio selected.
   const [names, setNames] = createSignal<Record<string, string>>({});

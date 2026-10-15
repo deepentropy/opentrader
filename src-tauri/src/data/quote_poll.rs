@@ -1,27 +1,26 @@
 /*
- * Massive REST snapshot poller — the live-data transport that needs no
- * WebSocket entitlement.
+ * REST snapshot poller — the live-data transport that needs no stream
+ * entitlement.
  *
- * Which stream channels the key may use is now measured by the entitlement
- * probe (`provider::entitlements`; on 27/09/2026 the delayed WebSocket
- * accepted AM / A / T). This task provides the live feed without a
- * WebSocket by polling the bulk snapshot endpoint on an interval and
- * re-emitting the identical `TradeTick` / `ChartAggregate` events the
+ * Which stream channels the plan may use is measured by the entitlement
+ * probe (`provider::entitlements`). This task provides the live feed
+ * without the stream by polling the bulk snapshot endpoint on an interval
+ * and re-emitting the identical `TradeTick` / `ChartAggregate` events the
  * frontend already listens for — so the watchlist and chart light up with
  * no frontend change. It also supplies the day bar and change / change% /
- * volume, which the WebSocket AM / T events do not carry.
+ * volume, which the stream's minute bars and trades do not carry.
  *
- * It reuses massive_ws's subscription plumbing (`SubscribeMsg`, `WsHandle`)
- * so `commands/realtime.rs` and the managed app state are unchanged: the
- * frontend still declares its desired chart symbol + watchlist set, and
- * this task polls exactly that union.
+ * It reuses market_stream's subscription plumbing (`SubscribeMsg`,
+ * `WsHandle`) so `commands/realtime.rs` and the managed app state are
+ * unchanged: the frontend still declares its desired chart symbol +
+ * watchlist set, and this task polls exactly that union.
  *
  * It always runs. When the probe grants 1-second bars, the second-bars
- * WebSocket (`massive_ws::spawn_second_bars`) runs next to it for the
- * seconds charts only (see `provider/massive.rs` spawn).
+ * stream (`market_stream::spawn_second_bars`) runs next to it for the
+ * seconds charts only (see `provider/gateway.rs` spawn).
  */
-use crate::data::massive_rest;
-use crate::data::massive_ws::{ChartAggregate, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
+use crate::data::market_rest;
+use crate::data::market_stream::{ChartAggregate, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri_specta::Event;
@@ -30,13 +29,13 @@ use tokio::time::{interval, MissedTickBehavior};
 
 /// How often to poll. The data is 15-minute delayed, so a tight loop buys
 /// nothing new from the feed; 5s keeps the watchlist visibly fresh without
-/// hammering. The Starter plan allows unlimited REST calls, so the cadence is
-/// purely a UI-freshness choice.
+/// hammering. The cadence is purely a UI-freshness choice (a rate-limited
+/// answer is retried by the REST client after its `Retry-After`).
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 pub fn spawn(app: AppHandle) -> WsHandle {
     let (tx, rx) = mpsc::channel::<SubscribeMsg>(32);
-    // Use Tauri's managed runtime — see the note in massive_ws::spawn: this
+    // Use Tauri's managed runtime — see the note in market_stream::spawn: this
     // is called from `.setup()`, outside any ambient Tokio context.
     tauri::async_runtime::spawn(async move {
         run_poller(app, rx).await;
@@ -79,10 +78,10 @@ async fn poll_once(app: &AppHandle, state: &SubscriptionState) {
     }
     let symbols: Vec<String> = tickers.into_iter().collect();
 
-    let ticks = match massive_rest::fetch_snapshots(&symbols).await {
+    let ticks = match market_rest::fetch_snapshots(&symbols).await {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("[massive_poll] snapshot poll failed: {e:#}");
+            eprintln!("[quote_poll] snapshot poll failed: {e:#}");
             return;
         }
     };

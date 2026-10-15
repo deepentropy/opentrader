@@ -46,7 +46,7 @@ pub(super) async fn span_aggs(
     }
 }
 
-/// Trading days per minute-family request. Massive reads at most 50 000 base
+/// Trading days per minute-family request. The gateway reads at most 50 000 base
 /// minutes per request and drops the OLDEST ones beyond that; 50 full extended
 /// sessions (16 h = 960 minutes each) stay under it, so a chunk is never cut.
 const MINUTE_CHUNK_DAYS: usize = 50;

@@ -35,7 +35,7 @@ const FLOOR_WAIT: Duration = Duration::from_secs(5);
 /// Published state. `settled` is false only while the first probe for the
 /// current key is running with nothing cached — history commands wait on it.
 /// `ent` is `None` while a new key is being probed, so the live stream task
-/// (see `massive_ws::spawn_second_bars`) drops a connection made with the old
+/// (see `market_stream::spawn_second_bars`) drops a connection made with the old
 /// key's entitlements.
 #[derive(Clone, Default)]
 pub struct State {

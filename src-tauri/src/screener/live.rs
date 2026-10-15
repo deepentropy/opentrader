@@ -6,9 +6,13 @@
  * then only what changed, every 10 s. Each message is a binary frame of
  * gzip-compressed JSON:
  *
- *   {"type":"full","seq","cols":[…],"tickers":[…],"rows":[[…]]}
+ *   {"type":"full","version":2,"seq","cols":[…],"tickers":[…],"rows":[[…]]}
  *   {"type":"delta","seq","set":{"AAPL":[col,value,…]},"del":[…]}   (+ "error" after a failed poll)
  *   {"type":"error","error":"…"}                                    (the feed has no table)
+ *
+ * Columns (contract v2): updated, change, open, high, low, close, volume,
+ * vwap, prevOpen, prevHigh, prevLow, prevClose, prevVolume, prevVwap,
+ * minuteClose, cumVolume. They are found by name, so their order may change.
  *
  * `seq` rises by one per message; a gap means a message was lost and the
  * table held here is no longer the gateway's. After a failed poll the gateway
@@ -21,7 +25,7 @@
  * snapshot's rules and falls back to REST polling whenever the feed fails.
  */
 use crate::data::gateway;
-use crate::data::massive_rest::FeedSnapshot;
+use crate::data::market_rest::FeedSnapshot;
 use anyhow::{anyhow, bail, Context, Result};
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
@@ -73,22 +77,21 @@ enum FeedMessage {
 #[derive(Default)]
 struct Columns {
     updated_ms: Option<usize>,
-    todays_change: Option<usize>,
+    change: Option<usize>,
     day: [Option<usize>; 5],
-    prev_day: [Option<usize>; 5],
-    min_close: Option<usize>,
+    prev: [Option<usize>; 5],
+    minute_close: Option<usize>,
 }
 
 impl Columns {
     fn new(cols: &[String]) -> Self {
         let at = |name: &str| cols.iter().position(|c| c == name);
-        let bar = |p: &str| ["o", "h", "l", "c", "v"].map(|f| at(&format!("{p}.{f}")));
         Self {
-            updated_ms: at("updatedMs"),
-            todays_change: at("todaysChange"),
-            day: bar("day"),
-            prev_day: bar("prevDay"),
-            min_close: at("min.c"),
+            updated_ms: at("updated"),
+            change: at("change"),
+            day: ["open", "high", "low", "close", "volume"].map(at),
+            prev: ["prevOpen", "prevHigh", "prevLow", "prevClose", "prevVolume"].map(at),
+            minute_close: at("minuteClose"),
         }
     }
 }
@@ -179,10 +182,10 @@ impl LiveTable {
                 FeedSnapshot {
                     ticker: ticker.clone(),
                     updated_ms: value(c.updated_ms).unwrap_or(0.0),
-                    todays_change: value(c.todays_change),
+                    change: value(c.change),
                     day: bar(&c.day),
-                    prev_day: bar(&c.prev_day),
-                    min_close: value(c.min_close),
+                    prev: bar(&c.prev),
+                    minute_close: value(c.minute_close),
                 }
             })
             .collect();
@@ -207,7 +210,7 @@ impl Feed {
     /// Connect and read the first message (the full table).
     pub async fn connect(url: &str) -> Result<Self> {
         let token = gateway::token().context(gateway::NO_TOKEN)?;
-        let (ws, _resp) = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(format!("{url}?apiKey={token}")))
+        let (ws, _resp) = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(format!("{url}?token={token}")))
             .await
             .map_err(|_| anyhow!("screener feed: connection timed out"))?
             .context("screener feed: connection refused")?;
@@ -254,7 +257,7 @@ mod tests {
     use flate2::Compression;
     use std::io::Write;
 
-    const COLS: &str = r#"["updatedMs","todaysChange","day.o","day.h","day.l","day.c","day.v","day.vw","prevDay.o","prevDay.h","prevDay.l","prevDay.c","prevDay.v","prevDay.vw","min.c","min.av"]"#;
+    const COLS: &str = r#"["updated","change","open","high","low","close","volume","vwap","prevOpen","prevHigh","prevLow","prevClose","prevVolume","prevVwap","minuteClose","cumVolume"]"#;
 
     fn msg(json: &str) -> FeedMessage {
         let mut gz = GzEncoder::new(Vec::new(), Compression::default());
@@ -265,7 +268,7 @@ mod tests {
     fn full() -> LiveTable {
         let mut t = LiveTable::default();
         let json = format!(
-            r#"{{"type":"full","version":1,"seq":41,"polled":1,"cols":{COLS},"tickers":["AAPL","BACpB"],
+            r#"{{"type":"full","version":2,"seq":41,"polled":1,"cols":{COLS},"tickers":["AAPL","BACpB"],
                "rows":[[1000,0.5,10,12,9,11,500,10.5,9,10,8,10.5,400,9.5,11.2,480],[900,null,null,null,null,null,null,null,20,21,19,20.5,50,20.2,null,null]]}}"#
         );
         assert!(t.apply(msg(&json), Instant::now()).unwrap());
@@ -281,13 +284,13 @@ mod tests {
         let t = full();
         let s = t.snapshots();
         assert_eq!(s.iter().map(|r| r.ticker.as_str()).collect::<Vec<_>>(), ["AAPL", "BACpB"]);
-        assert_eq!((s[0].updated_ms, s[0].todays_change), (1000.0, Some(0.5)));
+        assert_eq!((s[0].updated_ms, s[0].change), (1000.0, Some(0.5)));
         assert_eq!(s[0].day, Some([10.0, 12.0, 9.0, 11.0, 500.0]));
-        assert_eq!(s[0].prev_day, Some([9.0, 10.0, 8.0, 10.5, 400.0]));
-        assert_eq!(s[0].min_close, Some(11.2));
+        assert_eq!(s[0].prev, Some([9.0, 10.0, 8.0, 10.5, 400.0]));
+        assert_eq!(s[0].minute_close, Some(11.2));
         // No session yet: no day bar, no minute bar.
-        assert_eq!((s[1].day, s[1].min_close, s[1].todays_change), (None, None, None));
-        assert_eq!(s[1].prev_day, Some([20.0, 21.0, 19.0, 20.5, 50.0]));
+        assert_eq!((s[1].day, s[1].minute_close, s[1].change), (None, None, None));
+        assert_eq!(s[1].prev, Some([20.0, 21.0, 19.0, 20.5, 50.0]));
     }
 
     #[test]
@@ -301,7 +304,7 @@ mod tests {
         assert_eq!(s[0].updated_ms, 2000.0);
         assert_eq!(s[0].day, Some([10.0, 12.0, 9.0, 11.4, 650.0]));
         // The new ticker holds only what the change gave.
-        assert_eq!((s[1].day, s[1].prev_day), (None, Some([0.0, 0.0, 0.0, 3.5, 0.0])));
+        assert_eq!((s[1].day, s[1].prev), (None, Some([0.0, 0.0, 0.0, 3.5, 0.0])));
         // An empty change is applied and changes nothing.
         assert!(!delta(&mut t, r#"{"type":"delta","seq":43,"polled":3,"set":{},"del":[]}"#).unwrap());
     }
@@ -317,7 +320,7 @@ mod tests {
 
     #[test]
     fn failed_polls_are_ridden_out_until_the_table_is_too_old() {
-        let failed = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":1,"set":{{}},"del":[],"error":"snapshot: timeout"}}"#));
+        let failed = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":1,"set":{{}},"del":[],"error":"data source unavailable"}}"#));
         let good = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":2,"set":{{"AAPL":[5,11.4]}},"del":[]}}"#));
         let empty = |seq: u64| msg(&format!(r#"{{"type":"delta","seq":{seq},"polled":1,"set":{{}},"del":[]}}"#));
         let t0 = Instant::now();
@@ -355,10 +358,11 @@ mod tests {
     #[tokio::test]
     #[ignore = "hits the gateway; run explicitly"]
     async fn feed_matches_rest_live() {
-        use crate::data::massive_rest;
+        use crate::data::market_rest;
         let status = || async {
-            let url = format!("{}?apiKey={}", gateway::SCREENER_LIVE_URL.replace("wss://", "https://"), gateway::token().unwrap());
-            massive_rest::http().get(url).send().await.unwrap().json::<serde_json::Value>().await.unwrap()
+            let url = gateway::SCREENER_LIVE_URL.replace("wss://", "https://");
+            let resp = market_rest::http().get(url).bearer_auth(gateway::token().unwrap()).send().await.unwrap();
+            resp.json::<serde_json::Value>().await.unwrap()
         };
         let clients_before = status().await["clients"].as_u64().unwrap_or(0);
         let t0 = std::time::Instant::now();
@@ -370,9 +374,9 @@ mod tests {
             let t1 = std::time::Instant::now();
             let changed = feed.next().await.unwrap();
             let waited = t1.elapsed().as_millis();
-            let (rest, live) = tokio::join!(massive_rest::fetch_market_snapshot(), massive_rest::shape_feed_snapshots(feed.table.snapshots()));
+            let (rest, live) = tokio::join!(market_rest::fetch_market_snapshot(), market_rest::shape_feed_snapshots(feed.table.snapshots()));
             let (rest, live) = (rest.unwrap(), live.unwrap());
-            let by_ticker: HashMap<&str, &massive_rest::MarketRow> = rest.iter().map(|r| (r.ticker.as_str(), r)).collect();
+            let by_ticker: HashMap<&str, &market_rest::MarketRow> = rest.iter().map(|r| (r.ticker.as_str(), r)).collect();
             let (mut same_stamp, mut differ, mut missing) = (0, 0, 0);
             for l in &live {
                 let Some(r) = by_ticker.get(l.ticker.as_str()) else {

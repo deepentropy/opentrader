@@ -19,7 +19,7 @@ pub mod state;
 pub mod table;
 
 use crate::data::gateway;
-use crate::data::massive_rest::{self, MarketRow, RefTicker};
+use crate::data::market_rest::{self, MarketRow, RefTicker};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use state::StateFile;
@@ -174,7 +174,7 @@ async fn run(app: AppHandle, inner: Arc<Inner>) {
         let refs_retry = refs_failed.map_or(true, |t: Instant| t.elapsed() >= REFS_RETRY);
         if refs_task.is_none() && refs_day != today && refs_retry {
             refs_task = Some(tauri::async_runtime::spawn(async {
-                match massive_rest::fetch_reference_tickers().await {
+                match market_rest::fetch_reference_tickers().await {
                     Ok(list) => Some(list),
                     Err(e) => {
                         eprintln!("[screener] reference tickers: {e:#}");
@@ -239,11 +239,11 @@ async fn run(app: AppHandle, inner: Arc<Inner>) {
             }
             feed_fresh = false;
             match lost {
-                None => massive_rest::shape_feed_snapshots(f.table.snapshots()).await,
+                None => market_rest::shape_feed_snapshots(f.table.snapshots()).await,
                 Some(e) => Err(e),
             }
         } else {
-            massive_rest::fetch_market_snapshot().await
+            market_rest::fetch_market_snapshot().await
         };
         let snap = match snap {
             Err(e) if via_feed => {
@@ -312,22 +312,27 @@ struct RefsCache {
     tickers: Vec<RefTicker>,
 }
 
+/// The saved reference list. `screener_refs.json` (before 15/10/2026) held
+/// the upstream type codes and field names; it is deleted on the first read.
 fn refs_cache_path() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or_else(std::env::temp_dir)
         .join("opentrader")
-        .join("screener_refs.json")
+        .join("screener_refs_v2.json")
 }
 
 /// The saved reference list and its day, when it is today's.
 fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
+    if let Some(dir) = refs_cache_path().parent() {
+        let _ = std::fs::remove_file(dir.join("screener_refs.json"));
+    }
     let c: RefsCache = serde_json::from_slice(&std::fs::read(refs_cache_path()).ok()?).ok()?;
     let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64)?;
     let tickers = c
         .tickers
         .into_iter()
         .map(|mut r| {
-            r.currency_name = r.currency_name.to_uppercase();
+            r.currency = r.currency.to_uppercase();
             r
         })
         .collect();

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { SymbolSearchResult } from "../../../bindings";
-import { defaultExchange, exchangeCode, exchangeName, massive, searchResultToRow, typeFilters } from "../massive";
+import { defaultExchange, exchangeCode, exchangeName, gateway, migrateTypeCode, searchResultToRow, typeFilters } from "../gateway";
 
 const res = (over: Partial<SymbolSearchResult>): SymbolSearchResult => ({
   ticker: "AAPL",
   name: "Apple Inc.",
   market: "stocks",
   locale: "us",
-  primaryExchange: "XNAS",
-  type: "CS",
+  exchange: "XNAS",
+  type: "stock",
   ...over,
 });
 
@@ -51,7 +51,7 @@ describe("searchResultToRow", () => {
   });
 
   it("an ETF on NYSE Arca goes to Funds, named AMEX:", () => {
-    const r = searchResultToRow(res({ ticker: "SPY", primaryExchange: "ARCX", type: "ETF" }));
+    const r = searchResultToRow(res({ ticker: "SPY", exchange: "ARCX", type: "etf" }));
     expect(r.symbolName).toBe("AMEX:SPY");
     expect(r.exchange).toBe("NYSE ARCA");
     expect(r.marketType).toBe("etf");
@@ -59,9 +59,9 @@ describe("searchResultToRow", () => {
   });
 
   it("depositary receipts, NYSE American, indices", () => {
-    expect(searchResultToRow(res({ type: "ADRC", primaryExchange: "XNYS" }))).toMatchObject({ marketType: "dr", category: "stocks", exchange: "NYSE" });
-    expect(searchResultToRow(res({ primaryExchange: "XASE" })).exchange).toBe("NYSE AMERICAN");
-    expect(searchResultToRow(res({ type: "IX", market: "indices", primaryExchange: null }))).toMatchObject({
+    expect(searchResultToRow(res({ type: "adr", exchange: "XNYS" }))).toMatchObject({ marketType: "dr", category: "stocks", exchange: "NYSE" });
+    expect(searchResultToRow(res({ exchange: "XASE" })).exchange).toBe("NYSE AMERICAN");
+    expect(searchResultToRow(res({ type: "index", market: "indices", exchange: null }))).toMatchObject({
       symbolName: "AAPL",
       marketType: "index",
       category: "indices",
@@ -72,24 +72,37 @@ describe("searchResultToRow", () => {
   });
 
   it("crypto and forex: their own tabs, no listing country", () => {
-    const c = searchResultToRow(res({ ticker: "X:BTCUSD", market: "crypto", type: null, primaryExchange: null, locale: "global" }));
+    const c = searchResultToRow(res({ ticker: "X:BTCUSD", market: "crypto", type: null, exchange: null, locale: "global" }));
     expect(c).toMatchObject({ marketType: "crypto", category: "crypto", country: undefined });
-    const f = searchResultToRow(res({ ticker: "C:EURUSD", market: "fx", type: null, primaryExchange: null, locale: "us" }));
+    const f = searchResultToRow(res({ ticker: "C:EURUSD", market: "fx", type: null, exchange: null, locale: "us" }));
     expect(f).toMatchObject({ marketType: "forex", category: "forex", country: undefined });
   });
 
   it("defaults: stocks market, empty description, unknown exchange as is", () => {
-    const r = searchResultToRow(res({ market: null, name: null, type: null, primaryExchange: "XLON", locale: null }));
+    const r = searchResultToRow(res({ market: null, name: null, type: null, exchange: "XLON", locale: null }));
     expect(r).toMatchObject({ symbolName: "XLON:AAPL", description: "", marketType: "stock", exchange: "XLON", category: "stocks", country: undefined });
-    expect(searchResultToRow(res({ market: "otc", type: "CS", primaryExchange: "OTCM" }))).toMatchObject({ category: "stocks", exchange: "OTC", symbolName: "OTC:AAPL" });
+    expect(searchResultToRow(res({ market: "otc", type: "stock", exchange: "OTCM" }))).toMatchObject({ category: "stocks", exchange: "OTC", symbolName: "OTC:AAPL" });
   });
 });
 
 describe("adapter", () => {
   it("bundles the hooks under the backend's provider name", () => {
-    expect(massive.name).toBe("massive");
-    expect(massive.defaultExchange).toBe("NASDAQ");
+    expect(gateway.name).toBe("gateway");
+    expect(gateway.defaultExchange).toBe("NASDAQ");
     expect(typeFilters[0]).toEqual({ label: "All types", code: null });
-    expect(typeFilters.map((t) => t.code)).toEqual([null, "CS", "PFD", "ADRC", "WARRANT"]);
+    expect(typeFilters.map((t) => t.code)).toEqual([null, "stock", "preferred", "adr", "warrant"]);
+  });
+
+  it("translates a Type filter saved by an earlier version", () => {
+    expect(["CS", "PFD", "ADRC", "WARRANT"].map(migrateTypeCode)).toEqual(["stock", "preferred", "adr", "warrant"]);
+    expect(migrateTypeCode("stock")).toBe("stock");
+    expect(migrateTypeCode("XYZ")).toBe("XYZ");
+  });
+
+  it("every fund-like type goes to Funds", () => {
+    for (const type of ["etf", "etn", "etv", "fund"]) expect(searchResultToRow(res({ type })).category).toBe("funds");
+    expect(searchResultToRow(res({ type: "etv" })).marketType).toBe("etf");
+    expect(searchResultToRow(res({ type: "bond" })).category).toBe("bonds");
+    expect(searchResultToRow(res({ type: "other" })).marketType).toBe("stock");
   });
 });

@@ -332,7 +332,7 @@ pub fn run(t: &Table, req: &ScanRequest) -> Result<ScanResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::massive_rest::{MarketRow, RefTicker};
+    use crate::data::market_rest::{MarketRow, RefTicker};
     use crate::screener::state::{StateFile, STATE_VERSION};
     use chrono::NaiveDate;
     use std::collections::HashMap;
@@ -365,9 +365,9 @@ mod tests {
         let refs = vec![RefTicker {
             ticker: "AAA".into(),
             name: "Aaa Inc".into(),
-            kind: "CS".into(),
-            primary_exchange: "XNAS".into(),
-            currency_name: "usd".into(),
+            kind: "stock".into(),
+            exchange: "XNAS".into(),
+            currency: "usd".into(),
         }];
         Table::build(7, rows, Arc::new(refs), state.map(Arc::new))
     }
@@ -507,7 +507,7 @@ mod tests {
     #[ignore]
     async fn screener_live_market_scan() {
         let t0 = std::time::Instant::now();
-        let rows = crate::data::massive_rest::fetch_market_snapshot().await.unwrap();
+        let rows = crate::data::market_rest::fetch_market_snapshot().await.unwrap();
         let fetched = t0.elapsed();
         let n = rows.len();
         let t1 = std::time::Instant::now();
@@ -548,7 +548,7 @@ mod live_step {
             load_state().await;
         let tickers: Vec<String> =
             std::env::var("SCREENER_TICKERS").unwrap().split(',').map(|s| s.to_string()).collect();
-        let rows = crate::data::massive_rest::fetch_market_snapshot().await.unwrap();
+        let rows = crate::data::market_rest::fetch_market_snapshot().await.unwrap();
         let t = Table::build(1, rows, Arc::new(Vec::new()), Some(Arc::new(state)));
         let ids: Vec<&str> = crate::screener::fields::catalog(&t)
             .iter()
@@ -584,7 +584,7 @@ mod live_popular {
     #[ignore]
     async fn screener_live_most_capitalized() {
         let state = load_state().await;
-        let rows = crate::data::massive_rest::fetch_market_snapshot().await.unwrap();
+        let rows = crate::data::market_rest::fetch_market_snapshot().await.unwrap();
         let t = Table::build(1, rows, Arc::new(Vec::new()), Some(Arc::new(state)));
         let req = ScanRequest {
             columns: vec!["close".into(), "market_cap_basic".into()],
