@@ -17,8 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Same drawing core as the release build (release.yml).
-  DRAWING_REF: v0.6.0
+  # Drawing core commit the app is developed against (the sibling checkout).
+  # Use the release tag again once that commit is released (release.yml pins a tag).
+  DRAWING_REF: f4b1d53b78aa2a362ff2968ea01d917151631357
 
 jobs:
   check:
