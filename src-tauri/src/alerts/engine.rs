@@ -123,6 +123,8 @@ pub struct RuleState {
     forming: Option<(f64, Sample)>,
     /// "Only once" has fired.
     done: bool,
+    /// A position's entry has fired (it fires once).
+    entry_hit: bool,
     /// Its missed bars are being replayed: live quotes wait.
     replaying: bool,
 }
@@ -238,6 +240,25 @@ impl EngineRule {
         let inside = grid.map_or(true, |g| g.in_session(&s));
         if !inside && self.frequency != "once_per_bar_close" {
             return None;
+        }
+        // A long / short position fires as the trade it draws: once at its entry, then at its stop or profit level,
+        // which ends the alert (its trigger is fixed). Its values are [entry, stop, target].
+        if self.shape == "position" {
+            let prev = st.prev_price.replace(s.price);
+            let v = self.values_at(s.time, grid)?;
+            let (entry, exits) = (*v.first()?, &v[1..]);
+            let p0 = prev?;
+            let (lo, hi) = (s.lo.min(p0), s.hi.max(p0));
+            let crossed = |l: f64| lo < hi && l >= lo && l <= hi && l != p0;
+            if !st.entry_hit && crossed(entry) {
+                st.entry_hit = true;
+                // The next sample reads the way on from the entry (a stop passed in the same move fires then).
+                st.prev_price = Some(entry);
+                return Some(fire(entry, s.time, bar));
+            }
+            let exit = exits.iter().copied().find(|l| crossed(*l))?;
+            st.done = true;
+            return Some(fire(exit, s.time, bar));
         }
         match self.frequency.as_str() {
             // The bar that just closed is judged on its last sample, so a
@@ -559,6 +580,20 @@ mod tests {
         assert!(e.sample("X:A", 101.0, None, 10.0).is_empty());
         assert!(e.sample("X:A", 102.0, None, 15.0).is_empty());
         assert_eq!(e.sample("X:A", 99.0, None, 20.0)[0].price, 100.0);
+        // The entry fires once; the profit level a few seconds later (no once-a-minute limit) ends the alert.
+        assert!(e.sample("X:A", 101.0, None, 25.0).is_empty());
+        assert_eq!(e.sample("X:A", 111.0, None, 30.0)[0].price, 110.0);
+        assert!(e.sample("X:A", 99.0, None, 35.0).is_empty());
+        // An exit before the entry was reached fires and ends it too.
+        let mut e = engine(vec![rule("hits_level", "position", "only_once", &[100.0, 95.0, 110.0])]);
+        assert!(e.sample("X:A", 97.0, None, 10.0).is_empty());
+        assert_eq!(e.sample("X:A", 94.0, None, 15.0)[0].price, 95.0);
+        assert!(e.sample("X:A", 101.0, None, 20.0).is_empty());
+        // Entry and stop passed in one move: the entry, then the stop at the next sample.
+        let mut e = engine(vec![rule("hits_level", "position", "only_once", &[100.0, 95.0, 110.0])]);
+        assert!(e.sample("X:A", 102.0, None, 10.0).is_empty());
+        assert_eq!(e.sample("X:A", 94.0, None, 15.0)[0].price, 100.0);
+        assert_eq!(e.sample("X:A", 94.0, None, 20.0)[0].price, 95.0);
 
         let mut e = engine(vec![rule("crossing", "time", "only_once", &[100.0])]);
         assert!(e.sample("X:A", 5.0, None, 90.0).is_empty());

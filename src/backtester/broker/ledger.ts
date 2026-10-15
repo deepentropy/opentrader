@@ -3,11 +3,11 @@
  * trade excursions and equity events along the path, filled-order records (with the filled-orders risk rule and the
  * exits dropped when the position goes flat).
  */
-import type { OrderType, Trade } from '../types';
+import type { FilledOrder, OrderType, Trade } from '../types';
 import { roundCommission } from './costs';
 import { BrokerState } from './state';
 import { makeTrade } from './trade-report';
-import { EPS, type EntryOrder, type OpenTrade } from './types';
+import { EPS, type EntryOrder, type FillAlert, type OpenTrade } from './types';
 
 export abstract class TradeLedger extends BrokerState {
   /**
@@ -162,8 +162,10 @@ export abstract class TradeLedger extends BrokerState {
     }
   }
 
-  protected recordFill(id: string, comment: string, buy: boolean, entry: boolean | null, price: number, qty: number, type: OrderType): void {
-    this.filledOrders.push({ bar: this.bar, time: this.bars[this.bar].time * 1000, id, comment, buy, entry, price, qty, type });
+  protected recordFill(id: string, comment: string, buy: boolean, entry: boolean | null, price: number, qty: number, type: OrderType, alert?: FillAlert): void {
+    const fill: FilledOrder = { bar: this.bar, time: this.bars[this.bar].time * 1000, id, comment, buy, entry, price, qty, type };
+    if (alert) fill.alertMessage = alert.message;
+    this.filledOrders.push(fill);
     // strategy.risk.max_intraday_filled_orders: margin calls count; at the limit the pending orders are cancelled
     // and the position is closed at the tick of that fill (greedy strategy SPY 15m bar 669: the 5th fill is a buy
     // stop at the open, closed there; SPY 5m bar 3188: a buy stop on the way up, closed at the high), at the next

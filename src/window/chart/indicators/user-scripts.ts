@@ -118,6 +118,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.shapeConfig = meta?.shapeConfig;
   e.barColorConfig = meta?.barColorConfig;
   e.arrowConfig = meta?.arrowConfig;
+  e.outputs = meta?.outputs;
   e.defaultInputs = meta?.defaultInputs ?? {};
   e.alertConditions = meta?.alertConditions;
   e.hasAlertFunction = meta?.hasAlertFunction;

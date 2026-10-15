@@ -10,7 +10,8 @@ import type { AlertOperator, AlertRule, DrawingShape, Operand } from "./alert-st
 import { cachedSymbolSessions } from "./session";
 import { FIB_LEVEL_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { VWAP_BAND_DEFAULTS } from "lightweight-charts-drawing/core/specs";
-import { positionLevels } from "lightweight-charts-drawing/core/kinds/position";
+import { positionLevels, positionQty } from "lightweight-charts-drawing/core/kinds/position";
+import type { PositionHitValues } from "./alert-placeholders";
 import { vwapLast } from "lightweight-charts-drawing/core/kinds/data-series";
 import type { OHLC } from "lightweight-charts-drawing/core/coords";
 import { chartBars, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
@@ -37,7 +38,16 @@ export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   hits_level: "Hits entry, stop, or target level",
   alert_condition: "Alert condition",
   alert_function: "Any alert() function call",
+  strategy_orders: "Order fills only",
+  strategy_orders_and_alerts: "Order fills and alert() function calls",
+  strategy_alerts: "alert() function calls only",
 };
+
+/** A strategy's conditions: its order fills, with or without its alert() calls, or the calls only. */
+export const STRATEGY_OPERATORS: AlertOperator[] = ["strategy_orders_and_alerts", "strategy_orders", "strategy_alerts"];
+export function isStrategyOperator(op: AlertOperator): boolean {
+  return STRATEGY_OPERATORS.includes(op);
+}
 
 /** Operators of a drawing with two bounds (channel, rectangle). */
 export const BAND_OPERATORS: AlertOperator[] = ["entering", "exiting", "inside", "outside"];
@@ -183,6 +193,46 @@ function positionLevelsOf(d: Drawing, mintick: number, atTimeSec?: number): { en
   const side = d.kind === "long-position" ? 1 : -1;
   const { stop, profit } = positionLevels(d, mintick);
   return { entry, stop: entry - side * stop, target: entry + side * profit };
+}
+
+/** Names of a position's levels in a fired message ({{position.level}}). */
+export const POSITION_LEVEL_NAMES = { entry: "Entry", stop: "Stop level", target: "Profit level" } as const;
+
+/**
+ * The level of a long / short position drawing that a fire at `price` hit (the backend fires at the level's price;
+ * a fire at another price takes the nearest level), its price and the profit or loss there for the position's
+ * quantity (the drawing's risk model). Null when the drawing is gone.
+ */
+export function positionHit(symbol: string, drawingId: string, price: number, atTimeSec?: number): PositionHitValues | null {
+  const d = loadDrawings(symbol).find((x) => x.id === drawingId);
+  if (!d) return null;
+  const mintick = cachedSymbolSessions(symbol)?.mintick ?? 0.01;
+  const lv = positionLevelsOf(d, mintick);
+  if (!lv) return null;
+  const levels = [
+    { name: POSITION_LEVEL_NAMES.entry, price: lv.entry },
+    { name: POSITION_LEVEL_NAMES.stop, price: lv.stop },
+    { name: POSITION_LEVEL_NAMES.target, price: lv.target },
+  ];
+  const hit = levels.reduce((a, b) => (Math.abs(b.price - price) < Math.abs(a.price - price) ? b : a));
+  const side = d.kind === "long-position" ? 1 : -1;
+  // The quantity the drawing shows; no profit or loss at the entry.
+  const { shown } = positionQty(d.style, lv.entry, Math.abs(lv.entry - lv.stop));
+  void atTimeSec;
+  return { level: hit.name, price: hit.price, pnl: hit.price === lv.entry ? null : side * (hit.price - lv.entry) * shown };
+}
+
+/** Default message of an alert on a long / short position: "AAPL, 1 long position, price hits {{position.level}} at
+ *  {{position.price}}. Qty: 83. PnL: {{position.pnl}}" (the quantity as the drawing shows it); null when the drawing
+ *  is gone. */
+export function positionMessage(symbol: string, resolution: string, drawingId: string): string | null {
+  const d = loadDrawings(symbol).find((x) => x.id === drawingId);
+  if (!d || !POSITION_KINDS.has(d.kind)) return null;
+  const lv = positionLevelsOf(d, cachedSymbolSessions(symbol)?.mintick ?? 0.01);
+  if (!lv) return null;
+  const { shown } = positionQty(d.style, lv.entry, Math.abs(lv.entry - lv.stop));
+  const side = d.kind === "long-position" ? "long" : "short";
+  return `${tickerOf(symbol) || "—"}, ${alertIntervalText(resolution)} ${side} position, price hits {{position.level}} at {{position.price}}. Qty: ${shown}. PnL: {{position.pnl}}`;
 }
 
 /** Rules that read the drawing `id`. */
@@ -462,6 +512,8 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   }
   // A script's alert() calls: "Auto fib retracement (3, 10): Any alert() function call".
   if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS.alert_function}`;
+  // A strategy's condition: "MA Cross (9, 21): Order fills only".
+  if (isStrategyOperator(rule.op)) return `${operandLabel(rule.left)}: ${OPERATOR_LABELS[rule.op]}`;
   const left = messageOperand(rule.left);
   // A number is written as the left operand's values are ("3.50", "0.0000").
   const side = (o: Operand) => (o.kind === "value" ? alertAmountText(rule.symbol, rule.left, o.value) : messageOperand(o));
@@ -491,6 +543,12 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   // A vertical line is crossed by the time, not by a value.
   if (rule.right.kind === "drawing" && rule.right.band === "time") return `${OPERATOR_LABELS[rule.op]} ${messageOperand(rule.right)}`;
   return `${left} ${OPERATOR_LABELS[rule.op]} ${side(rule.right)}`;
+}
+
+/** Default message of an alert on a strategy's order fills. */
+export function strategyOrderMessage(left: Operand): string {
+  const title = left.kind === "indicator" ? (left.title ?? left.label ?? "Strategy") : "Strategy";
+  return `${title}: order {{strategy.order.action}} @ {{strategy.order.contracts}} filled on {{ticker}}. New strategy position is {{strategy.position_size}}`;
 }
 
 /** Interval of an alert as its message shows it: "10s", "5", "1h", "1D",
@@ -534,7 +592,14 @@ export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "r
 export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars"> & { right2?: Operand }): string {
   if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
   // The message of a fire is the alert() call's: the alert is known by its name, the condition.
-  if (rule.op === "alert_function") return describeCondition(rule);
+  if (rule.op === "alert_function" || rule.op === "strategy_alerts") return describeCondition(rule);
+  // A strategy's order fills: the strategy's order-fill message.
+  if (isStrategyOperator(rule.op)) return strategyOrderMessage(rule.left);
+  // A long / short position: the level hit and the profit or loss there.
+  if (rule.op === "hits_level" && rule.right.kind === "drawing") {
+    const msg = positionMessage(rule.symbol, rule.resolution, rule.right.drawingId);
+    if (msg) return msg;
+  }
   const text = describeCondition(rule);
   const ticker = tickerOf(rule.symbol) || "—";
   const series = conditionHasInterval(rule) && rule.resolution ? `${ticker}, ${alertIntervalText(rule.resolution)}` : ticker;

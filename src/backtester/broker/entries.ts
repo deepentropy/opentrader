@@ -82,7 +82,7 @@ export abstract class EntryFills extends MarginBook {
     }
     if (qty > 0) this.openTrade({ ...o, qty }, price);
     this.orderFillQty = prevOrderQty;
-    this.recordFill(o.id, o.comment, buy, true, price, closed + qty, type);
+    this.recordFill(o.id, o.comment, buy, true, price, closed + qty, type, o.alert);
     this.applyOca(o, closed + qty);
     if (qty > 0 && !this.fifo && this.liveCloses.length) this.applyLiveCloses(o.id, price);
   }
@@ -117,7 +117,7 @@ export abstract class EntryFills extends MarginBook {
       }
     });
     if (filled > 0) {
-      this.recordFill(o.id, o.comment, buy, null, price, filled, type);
+      this.recordFill(o.id, o.comment, buy, null, price, filled, type, o.alert);
       this.applyOca(o, filled);
     }
   }

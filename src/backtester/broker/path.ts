@@ -5,7 +5,7 @@
  */
 import type { OrderType } from '../types';
 import { EntryFills } from './entries';
-import { EPS, type CloseOrder, type EntryOrder, type ExitOrder, type MarginCallOrder, type OpenTrade, type PriceOrder } from './types';
+import { EPS, type CloseOrder, type EntryOrder, type ExitOrder, type FillAlert, type MarginCallOrder, type OpenTrade, type PriceOrder } from './types';
 
 export abstract class PricePath extends EntryFills {
   /** Market orders (market entries and closes) in the order they were placed. */
@@ -148,7 +148,7 @@ export abstract class PricePath extends EntryFills {
         const limit = x.limit ?? (x.profit !== null ? t.price + sign * x.profit * tick : null);
         const stop = x.stop ?? (x.loss !== null ? t.price - sign * x.loss * tick : null);
         const q = qty;
-        const fill = (price: number, type: OrderType, comment: string) => {
+        const fill = (price: number, type: OrderType, comment: string, alert?: FillAlert) => {
           // The leg closes its quantity from the oldest trades first (FIFO), not from its own trade; with the
           // close_entries_rule "ANY" from its own trade (an exit for B, entries A 1,000 and B 3,000: B 3,000).
           const from = this.fifo ? [...this.openTrades] : this.openTrades.filter((u) => u === t);
@@ -167,7 +167,7 @@ export abstract class PricePath extends EntryFills {
           });
           t.lotQty = Math.max(0, t.lotQty - filled);
           if (!this.openTrades.includes(t) && t.lotQty > EPS && !this.displaced.includes(t)) this.displaced.push(t);
-          this.recordFill(x.id, comment, buy, false, price, filled, type);
+          this.recordFill(x.id, comment, buy, false, price, filled, type, alert);
           return true;
         };
         const push = (isStop: boolean, level: number, f: (p: number, raw: number) => boolean, trigger = level) => {
@@ -177,9 +177,9 @@ export abstract class PricePath extends EntryFills {
         };
         if (limit !== null) {
           const level = this.roundOrderPrice(limit, buy, false);
-          push(false, level, (p) => fill(p, 'LIMIT', x.commentProfit), this.limitTrigger(level, buy));
+          push(false, level, (p) => fill(p, 'LIMIT', x.commentProfit, x.alerts?.profit), this.limitTrigger(level, buy));
         }
-        if (stop !== null) push(true, this.roundOrderPrice(stop, buy, true), (p) => fill(p, 'STOP', x.commentLoss));
+        if (stop !== null) push(true, this.roundOrderPrice(stop, buy, true), (p) => fill(p, 'STOP', x.commentLoss, x.alerts?.loss));
         if (x.trailOffset !== null && (x.trailPoints !== null || x.trailPrice !== null)) {
           const level = this.trailActivation(x, t);
           // An activation level of 0 counts as reached, at 0, a price the trade then counts as reached (a short at
@@ -203,7 +203,7 @@ export abstract class PricePath extends EntryFills {
             // trail_offset counts whole ticks (0.76 tick behaves as 0: exit at the best price).
             const trailStop = best - sign * Math.trunc(x.trailOffset) * tick;
             // Rounded like a stop order (away from the market): 141.6875 - 0.10 gives 141.58.
-            push(true, this.roundOrderPrice(trailStop, buy, true), (p) => fill(p, 'STOP', x.commentTrailing));
+            push(true, this.roundOrderPrice(trailStop, buy, true), (p) => fill(p, 'STOP', x.commentTrailing, x.alerts?.trailing));
           }
         }
       }

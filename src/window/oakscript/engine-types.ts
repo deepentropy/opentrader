@@ -55,6 +55,9 @@ export type OakCompiledMeta = {
   barColorConfig?: unknown[];
   /** plotarrow declarations (colors, min / max heights); the arrows ride in the run result. */
   arrowConfig?: unknown[];
+  /** The plot / plotshape / plotchar / plotarrow / plotcandle / plotbar declarations in the script's order (kind, id
+   *  in its config, title): alert messages number the outputs this way. */
+  outputs?: { kind: "plot" | "shape" | "char" | "arrow" | "candle" | "bar"; id: string; title?: string }[];
   defaultInputs?: Record<string, unknown>;
   /** strategy() properties (oakscriptjs StrategyProperties) when the script
    *  declares a strategy: it then runs in the Strategy Tester. */

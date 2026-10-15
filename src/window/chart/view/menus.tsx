@@ -373,10 +373,12 @@ export function createMenus(cx: ChartCx): MenusApi {
   // strategy or a study with conditions / alert() calls (the dialog opens on
   // them). Every row opens the alert dialog on that source at the price.
 
-  /** A study the alert dialog takes as a source: it has plots, declares conditions or calls alert(). */
+  /** A study the alert dialog takes as a source: a strategy (its order fills), a study with plots, conditions or
+   *  alert() calls. */
   function studyAlertable(id: string, row?: IndicatorLegendRow): boolean {
     const entry = getIndicatorEntry(id);
     if (!entry) return false;
+    if (isStrategyId(id)) return true;
     return (entry.plotConfig?.length ?? 0) > 0 || studyConditions(entry, row?.inputValues).length > 0 || hasAlertFunction(entry);
   }
 

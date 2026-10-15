@@ -49,6 +49,7 @@ import {
   ruleQuoteSymbol,
   rulesOfDrawing,
   shapeOperators,
+  positionHit,
   type EvalContext,
 } from "../alert-condition";
 
@@ -620,5 +621,37 @@ describe("defaultAlertMessage", () => {
 
   it("a dash for a rule without a ticker", () => {
     expect(m(price, "crossing", val(1), { symbol: "" })).toBe("— Crossing 1.00");
+  });
+
+  it("a strategy: the order-fill message with its placeholders; the calls only: the condition", () => {
+    const s = ind({ title: "Momentum strategy (12)", label: "Momentum strategy (12)" });
+    const fill = "Momentum strategy (12): order {{strategy.order.action}} @ {{strategy.order.contracts}} filled on {{ticker}}. New strategy position is {{strategy.position_size}}";
+    expect(m(s, "strategy_orders", val(0))).toBe(fill);
+    expect(m(s, "strategy_orders_and_alerts", val(0))).toBe(fill);
+    expect(m(s, "strategy_alerts", val(0))).toBe("Momentum strategy (12): alert() function calls only");
+    expect(describeCondition({ left: s, op: "strategy_orders", right: val(0) })).toBe("Momentum strategy (12): Order fills only");
+  });
+
+  it("a long / short position: the level placeholders and the quantity the drawing shows", () => {
+    // Risk 25 % of 1,000 over a 3.00 stop: 83.33 shares, shown floored.
+    const long = mk("long-position", [{ time: 1000, price: 100 }, { time: 2000, price: 100 }], { stopLevel: 3, profitLevel: 10, accountSize: 1000, riskPercent: 25 });
+    const short = mk("short-position", [{ time: 1000, price: 100 }, { time: 2000, price: 100 }], { stopLevel: 3, profitLevel: 10 });
+    put(long, short);
+    expect(m(price, "hits_level", drw(long.id, { band: "position" }), { resolution: "1" })).toBe("AZO, 1 long position, price hits {{position.level}} at {{position.price}}. Qty: 83. PnL: {{position.pnl}}");
+    expect(m(price, "hits_level", drw(short.id, { band: "position" }), { resolution: "60" })).toBe("AZO, 1h short position, price hits {{position.level}} at {{position.price}}. Qty: 83. PnL: {{position.pnl}}");
+  });
+});
+
+describe("positionHit", () => {
+  it("names the level a fire hit, with its price and the profit or loss for the shown quantity", () => {
+    const long = mk("long-position", [{ time: 1000, price: 100 }, { time: 2000, price: 100 }], { stopLevel: 3, profitLevel: 10, accountSize: 1000, riskPercent: 25 });
+    const short = mk("short-position", [{ time: 1000, price: 100 }, { time: 2000, price: 100 }], { stopLevel: 3, profitLevel: 10, accountSize: 1000, riskPercent: 25 });
+    put(long, short);
+    expect(positionHit(SYM, long.id, 100)).toEqual({ level: "Entry", price: 100, pnl: null });
+    expect(positionHit(SYM, long.id, 110)).toEqual({ level: "Profit level", price: 110, pnl: 830 });
+    expect(positionHit(SYM, long.id, 97)).toEqual({ level: "Stop level", price: 97, pnl: -249 });
+    expect(positionHit(SYM, short.id, 90)).toEqual({ level: "Profit level", price: 90, pnl: 830 });
+    expect(positionHit(SYM, short.id, 103.2)).toEqual({ level: "Stop level", price: 103, pnl: -249 });
+    expect(positionHit(SYM, "gone", 100)).toBeNull();
   });
 });

@@ -41,7 +41,10 @@ import {
   drawingSelectLabel,
   isMovingOperator,
   VALUE_OPERATORS,
+  STRATEGY_OPERATORS,
+  isStrategyOperator,
 } from "../../data/alert-condition";
+import { isStrategyId } from "../chart/indicators/strategy-entries";
 import { chartComparesFor, chartLastPrice, indicatorPlotValue } from "../../data/chart-state-registry";
 import { quoteFor } from "../../data/quotes";
 import { cachedSymbolSessions } from "../../data/session";
@@ -50,6 +53,7 @@ import { compareIntervals, favoriteIntervals, longIntervalLabel } from "../chart
 import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
+import { messageOutputs } from "../../data/alert-outputs";
 import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { statusLineInputs } from "../chart/indicators/indicator-options";
@@ -100,6 +104,9 @@ const STUDY_FREQUENCIES: { key: AlertFrequency; label: string; desc: string }[] 
   { key: "every_time", label: "Once per minute", desc: "Triggers once per minute while condition remains met" },
 ];
 
+/** A strategy's order fills fire every time an order fills (the rule stays active). */
+const STRATEGY_FREQUENCY: AlertFrequency = "every_time";
+
 type ExpiryKey = "open" | "eod" | "1w" | "1m" | "custom";
 
 /** "Oct 7, 23:59" */
@@ -149,6 +156,9 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
   alert_condition: "",
   // A script's alert() calls: a function sign ("f" with an "x").
   alert_function: "M10.5 3.2c-.4-.5-1-.7-1.6-.6-.8.1-1.4.8-1.4 1.6v9.6c0 .8-.6 1.5-1.4 1.6-.6.1-1.2-.1-1.6-.6M4.5 7.5h5M11 10.5l4 4M15 10.5l-4 4",
+  strategy_orders: "",
+  strategy_orders_and_alerts: "",
+  strategy_alerts: "",
 };
 
 /** Dropdown of the dialog. `box`: a 34 px bordered control showing the value;
@@ -503,16 +513,25 @@ export function AlertDialog(props: Props) {
   /** The study calls alert(): "Any alert() function call" comes first in its condition list. */
   const callsOf = (indicatorId: string): boolean =>
     hasAlertFunction(getIndicatorEntry(indicatorId)) || (existing?.op === "alert_function" && existing.left.kind === "indicator" && existing.left.indicatorId === indicatorId);
-  // A study with alert() calls opens on them, one that declares conditions on its first one.
-  const firstCalls = !existing && !!props.indicatorId && untrack(() => callsOf(props.indicatorId!));
-  const firstCond = !existing && props.indicatorId && !firstCalls ? untrack(() => condsOf(props.indicatorId!))[0] : undefined;
+  /** A strategy's conditions: its order fills, with its alert() calls and the calls only when it calls alert(). */
+  const strategyOpsOf = (indicatorId: string): AlertOperator[] => (callsOf(indicatorId) ? STRATEGY_OPERATORS : ["strategy_orders"]);
+  // A study with alert() calls opens on them, one that declares conditions on its first one; a strategy on its
+  // first condition.
+  const firstStrategy = !existing && !!props.indicatorId && isStrategyId(props.indicatorId) ? strategyOpsOf(props.indicatorId)[0] : undefined;
+  const firstCalls = !existing && !!props.indicatorId && !firstStrategy && untrack(() => callsOf(props.indicatorId!));
+  const firstCond = !existing && props.indicatorId && !firstCalls && !firstStrategy ? untrack(() => condsOf(props.indicatorId!))[0] : undefined;
   if (firstCond) setLeftCond(firstCond.id);
-  const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? (firstCalls ? "alert_function" : firstCond ? "alert_condition" : "crossing"));
+  const [op, setOp] = createSignal<AlertOperator>(existing?.op ?? firstStrategy ?? (firstCalls ? "alert_function" : firstCond ? "alert_condition" : "crossing"));
   const isCond = () => op() === "alert_condition";
   /** "Any alert() function call": the script's calls give the message and how often it fires. */
   const isCalls = () => op() === "alert_function";
+  /** A strategy's condition (its order fills, its alert() calls). */
+  const isStrat = () => isStrategyOperator(op());
+  /** The alert() calls give the messages: "Any alert() function call", a strategy's "alert() function calls only". */
+  const isCallsOnly = () => isCalls() || op() === "strategy_alerts";
   /** A condition of the study itself: no plot, nothing compared. */
-  const isOwn = () => isCond() || isCalls();
+  const isOwn = () => isCond() || isCalls() || isStrat();
+  const leftStrategy = () => leftKind() === "indicator" && isStrategyId(leftIndicator());
   const leftCalls = () => leftKind() === "indicator" && callsOf(leftIndicator());
   const leftConds = () => (leftKind() === "indicator" ? condsOf(leftIndicator()) : []);
   const leftCondition = () => leftConds().find((c) => c.id === leftCond());
@@ -671,14 +690,20 @@ export function AlertDialog(props: Props) {
   const [rightVwapPlot, setRightVwapPlot] = createSignal(existing?.right.kind === "drawing" ? (existing.right.plot ?? 0) : 0);
   const fixedOperators = () => (vwapPlots().length > 0 ? LEVEL_OPERATORS : shapeOperators(band(), fibLevels().length > 0));
   // A study without plots (a TPO) has only its conditions.
-  const operators = () => (leftKind() === "indicator" && plotsOf(leftIndicator()).length === 0 ? [] : (fixedOperators() ?? VALUE_OPERATORS));
+  const operators = () => (leftStrategy() || (leftKind() === "indicator" && plotsOf(leftIndicator()).length === 0) ? [] : (fixedOperators() ?? VALUE_OPERATORS));
   const operatorLabel = (o: AlertOperator) =>
     !isBandOperator(o) ? OPERATOR_LABELS[o] : bandOperatorLabel(o, band() === "rectangle" ? "rectangle" : "channel");
   createEffect(() => {
     const list = operators();
     const conds = leftConds();
     const calls = leftCalls();
-    if (untrack(op) === "alert_function") {
+    // A strategy: one of its conditions.
+    if (leftStrategy()) {
+      const own = strategyOpsOf(leftIndicator());
+      if (!own.includes(untrack(op))) setOp(own[0]);
+      return;
+    }
+    if (untrack(op) === "alert_function" || isStrategyOperator(untrack(op))) {
       if (calls) return;
       if (conds.length) {
         setLeftCond(conds[0].id);
@@ -700,12 +725,15 @@ export function AlertDialog(props: Props) {
     } else if (list.length) setOp(list[0]);
   });
   /** The condition list: the script's alert() calls, a line, the study's conditions, a line, then the comparisons
-   *  ("Show more" after the first three). */
-  const conditionOptions = (): MenuOption[] => [
-    ...(leftCalls() ? [{ value: "alert_function", label: OPERATOR_LABELS.alert_function, icon: OPERATOR_ICONS.alert_function }] : []),
-    ...leftConds().map((c, i) => ({ value: `cond:${c.id}`, label: c.title, sep: i === 0 && leftCalls() })),
-    ...operators().map((o, i) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o], sep: i === 0 && (leftConds().length > 0 || leftCalls()) })),
-  ];
+   *  ("Show more" after the first three); a strategy's own conditions only. */
+  const conditionOptions = (): MenuOption[] => {
+    if (leftStrategy()) return strategyOpsOf(leftIndicator()).map((o) => ({ value: o, label: OPERATOR_LABELS[o], icon: OPERATOR_ICONS[o] || undefined }));
+    return [
+      ...(leftCalls() ? [{ value: "alert_function", label: OPERATOR_LABELS.alert_function, icon: OPERATOR_ICONS.alert_function }] : []),
+      ...leftConds().map((c, i) => ({ value: `cond:${c.id}`, label: c.title, sep: i === 0 && leftCalls() })),
+      ...operators().map((o, i) => ({ value: o, label: operatorLabel(o), icon: OPERATOR_ICONS[o], sep: i === 0 && (leftConds().length > 0 || leftCalls()) })),
+    ];
+  };
   const [rightLevel, setRightLevel] = createSignal<number>(existing?.right.kind === "drawing" && existing.right.level != null ? existing.right.level : 0.5);
   createEffect(() => {
     const lv = fibLevels();
@@ -733,7 +761,7 @@ export function AlertDialog(props: Props) {
       if (o.kind !== "indicator") return o;
       const plots = plotsOf(leftIndicator());
       const label = plots.length >= 2 && o.label ? o.label.slice(0, o.label.length - `: ${plots[0]?.title ?? ""}`.length) : o.label;
-      if (isCalls()) {
+      if (isCalls() || isStrat()) {
         const { condition: _condition, ...rest } = o;
         return { ...rest, label };
       }
@@ -840,6 +868,7 @@ export function AlertDialog(props: Props) {
     if (!symbol().trim()) return false;
     if (!webhookValid()) return false;
     if (isCond()) return !!leftCondition();
+    if (isStrat()) return leftStrategy() && (op() === "strategy_orders" || leftCalls());
     if (isCalls()) return leftCalls();
     if (isMoving()) return Number.isFinite(parseFloat(pct()));
     if (valueBand()) {
@@ -867,10 +896,10 @@ export function AlertDialog(props: Props) {
       right: buildRight(),
       right2: buildRight2(),
       bars: isMoving() ? barsValue() : undefined,
-      // alert() calls: each call's frequency and message.
-      frequency: isCalls() ? ("once_per_bar" as AlertFrequency) : band() === "time" ? ("only_once" as AlertFrequency) : frequency(),
-      name: isCalls() && name().trim() === preview() ? "" : name().trim(),
-      message: isCalls() ? "" : message().trim(),
+      // alert() calls: each call's frequency and message; order fills: every fill.
+      frequency: isCalls() ? ("once_per_bar" as AlertFrequency) : isStrat() ? STRATEGY_FREQUENCY : band() === "time" || band() === "position" ? ("only_once" as AlertFrequency) : frequency(),
+      name: isCallsOnly() && name().trim() === preview() ? "" : name().trim(),
+      message: isCallsOnly() ? "" : message().trim(),
       sound: sound(),
       soundDuration: sound() ? soundDuration() : 0,
       popup: popup(),
@@ -922,13 +951,15 @@ export function AlertDialog(props: Props) {
   const usesIndicator = () =>
     leftKind() !== "price" || (!isMoving() && (valueBand() ? /^(ind|sym):/.test(upperSel()) || /^(ind|sym):/.test(lowerSel()) : rightKind() === "indicator" || rightKind() === "symbol"));
   const triggerOptions = (): MenuOption[] => {
+    // A position: "Once only", read-only (each level it hits fires; its stop or profit level ends the alert).
+    if (band() === "position") return FREQUENCIES.filter((f) => f.key === "only_once").map((f) => ({ value: f.key, label: f.label, desc: f.desc }));
     const list = usesIndicator() ? STUDY_FREQUENCIES : FREQUENCIES;
     const kept = list.some((f) => f.key === frequency()) ? [] : STUDY_FREQUENCIES.filter((f) => f.key === frequency());
     return [...list, ...kept].map((f) => ({ value: f.key, label: f.label, desc: f.desc }));
   };
   // A study is a source when it has plots or conditions; the one being edited stays.
   const alertable = (id: string) =>
-    plotsOf(id).length > 0 || condsOf(id).length > 0 || callsOf(id) || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
+    isStrategyId(id) || plotsOf(id).length > 0 || condsOf(id).length > 0 || callsOf(id) || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
   const sourceOptions = (): MenuOption[] => [
     { value: "price", label: "Price" },
     ...indicatorOptions().filter((r) => alertable(r.id)).map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
@@ -970,9 +1001,13 @@ export function AlertDialog(props: Props) {
   };
   // alert() calls: the view edits the alert's name only (the calls give the messages), shown as the condition until
   // changed.
-  const openMessage = () => { setDraftName(isCalls() ? name() || preview() : name()); setDraftMessage(message() || preview()); setView("message"); };
+  const openMessage = () => { setDraftName(isCallsOnly() ? name() || preview() : name()); setDraftMessage(message() || preview()); setView("message"); };
   /** Placeholder menu: the plots of the source when it is a study. */
-  const placeholderMenu = () => placeholderGroups(leftKind() === "indicator" ? plotsOf(leftIndicator()) : null);
+  const placeholderMenu = () =>
+    placeholderGroups(
+      leftKind() === "indicator" && !leftStrategy() ? messageOutputs(getIndicatorEntry(leftIndicator())) : null,
+      leftStrategy() ? "strategy" : band() === "position" ? "position" : undefined,
+    );
   const openNotifications = () => {
     setDraftPopup(popup());
     setDraftWebhookOn(webhookOn());
@@ -1122,9 +1157,11 @@ export function AlertDialog(props: Props) {
                       setLeftKind("indicator");
                       setLeftIndicator(v.slice(4));
                       setLeftPlot(0);
-                      // A study with alert() calls starts on them, one with conditions on its first one.
+                      // A strategy starts on its first condition, a study with alert() calls on them, one with
+                      // conditions on its first one.
                       const conds = condsOf(v.slice(4));
-                      if (callsOf(v.slice(4))) setOp("alert_function");
+                      if (isStrategyId(v.slice(4))) setOp(strategyOpsOf(v.slice(4))[0]);
+                      else if (callsOf(v.slice(4))) setOp("alert_function");
                       else if (conds.length) {
                         setLeftCond(conds[0].id);
                         setOp("alert_condition");
@@ -1136,11 +1173,13 @@ export function AlertDialog(props: Props) {
                     <AdMenu variant="box" label="Plot" value={String(leftPlot())} options={plotOptions(leftIndicator())} onPick={(v) => setLeftPlot(Number(v))} />
                   </Show>
 
+                  {/* A strategy with its order fills as its only condition shows no condition control. */}
+                  <Show when={!(leftStrategy() && conditionOptions().length === 1)}>
                   <AdMenu
                     variant="box"
                     label="Condition"
                     value={isCond() ? `cond:${leftCond()}` : op()}
-                    more={fixedOperators() ? undefined : (leftCalls() ? 1 : 0) + leftConds().length + 3}
+                    more={fixedOperators() || leftStrategy() ? undefined : (leftCalls() ? 1 : 0) + leftConds().length + 3}
                     options={conditionOptions()}
                     lockSingle
                     onPick={(v) => {
@@ -1150,6 +1189,7 @@ export function AlertDialog(props: Props) {
                       } else setOp(v as AlertOperator);
                     }}
                   />
+                  </Show>
 
                   {/* A study's condition compares nothing. */}
                   <Show when={!isOwn()}>
@@ -1234,10 +1274,10 @@ export function AlertDialog(props: Props) {
               <div class="ad-divider" />
 
               {/* A vertical line is crossed once: no trigger choice; alert() calls say how often they fire. */}
-              <Show when={band() !== "time" && !isCalls()}>
+              <Show when={band() !== "time" && !isCalls() && !isStrat()}>
                 <div class="ad-row ad-row--text">
                   <span class="ad-label">Trigger</span>
-                  <AdMenu variant="inline" label="Trigger" value={frequency()} options={triggerOptions()} onPick={(v) => setFrequency(v as AlertFrequency)} />
+                  <AdMenu variant="inline" label="Trigger" value={band() === "position" ? "only_once" : frequency()} options={triggerOptions()} lockSingle={band() === "position"} onPick={(v) => setFrequency(v as AlertFrequency)} />
                 </div>
               </Show>
               <div class="ad-row ad-row--text">
@@ -1256,7 +1296,7 @@ export function AlertDialog(props: Props) {
               <div class="ad-row ad-row--text">
                 <span class="ad-label">Message</span>
                 <button type="button" class="ad-link" data-name="alert-message-button" onClick={openMessage}>
-                  <span class="ad-link-text">{isCalls() ? name() || preview() : <>{name() ? `${name()}: ` : ""}{message() || preview()}</>}</span>
+                  <span class="ad-link-text">{isCallsOnly() ? name() || preview() : <>{name() ? `${name()}: ` : ""}{message() || preview()}</>}</span>
                   {arrow("m7 4.5 4 4.5-4 4.5")}
                 </button>
               </div>
@@ -1300,7 +1340,7 @@ export function AlertDialog(props: Props) {
                 <span class="ad-label">Alert name</span>
                 <input class="ad-input" type="text" value={draftName()} onInput={(e) => setDraftName(e.currentTarget.value)} />
               </label>
-              <Show when={!isCalls()}>
+              <Show when={!isCallsOnly()}>
               <div class="ad-field">
                 <label class="ad-label" for="alert-message">Message</label>
                 <textarea id="alert-message" class="ad-input ad-textarea" data-name="alert-message-textarea" value={draftMessage()} onInput={(e) => setDraftMessage(e.currentTarget.value)} />
@@ -1324,7 +1364,7 @@ export function AlertDialog(props: Props) {
                 type="button"
                 class="ot-dlg-btn is-main is-neutral"
                 onClick={() => {
-                  if (isCalls()) setName(draftName().trim() === preview() ? "" : draftName());
+                  if (isCallsOnly()) setName(draftName().trim() === preview() ? "" : draftName());
                   else {
                     setName(draftName());
                     setMessage(draftMessage() === preview() ? "" : draftMessage());

@@ -98,7 +98,12 @@ export type DrawingShape = "channel" | "rectangle" | "time" | "position";
  *  `condition`) is true on the current bar; the right operand is unused;
  *  `alert_function`: "Any alert() function call" of the script on the left:
  *  fires on its alert() calls, with their message and as often as each call
- *  allows (its freq argument); the rule's frequency and message are unused. */
+ *  allows (its freq argument); the rule's frequency and message are unused;
+ *  `strategy_orders` / `strategy_orders_and_alerts` / `strategy_alerts`: a
+ *  strategy on the left (its study id `strategy:<key>`): fires on each order
+ *  fill (with the rule's message, filled with the order), on the fills and on
+ *  the script's alert() calls, or on the calls only; the right operand is
+ *  unused. */
 export type AlertOperator =
   | "crossing"
   | "crossing_up"
@@ -115,7 +120,10 @@ export type AlertOperator =
   | "outside"
   | "hits_level"
   | "alert_condition"
-  | "alert_function";
+  | "alert_function"
+  | "strategy_orders"
+  | "strategy_orders_and_alerts"
+  | "strategy_alerts";
 
 /** How often a rule may fire (trigger-frequency options). */
 export type AlertFrequency =
