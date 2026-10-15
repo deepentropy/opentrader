@@ -23,8 +23,8 @@
  *    would have fired is sent as offline fires (logged and posted to the
  *    rule's webhook, not announced).
  *
- * The evaluation itself (`Rule`, `RuleState`, `Engine`) is pure; the Tauri
- * part at the end feeds it and emits its fires.
+ * The evaluation itself (`Rule`, `RuleState`, `Engine`) is pure (engine.rs);
+ * the Tauri part in this file feeds it and emits its fires.
  */
 use crate::data::provider::Provider;
 use crate::data::symbol::SymbolRef;
