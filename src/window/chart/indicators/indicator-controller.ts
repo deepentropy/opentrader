@@ -31,6 +31,7 @@ import {
   reviveIndicatorOptions,
   statusLineInputs,
   type IndicatorOptions,
+  type StudyScale,
 } from './indicator-options';
 
 /** Quiet time after a scroll or zoom before the studies that read the visible range calculate again. */
@@ -453,7 +454,8 @@ export class IndicatorController {
   private renderOne(id: string, inst: Instance, entry: IndicatorRegistryEntry, bars: Bar[], live = false): void {
     const o = this.options.get(id) ?? defaultIndicatorOptions();
     inst.layer.setPlotOptions({ labelsOnScale: o.labelsOnScale, precision: precisionDigits(o.precision) });
-    inst.layer.setDetachedScale(this.detachedScale(id, inst, entry));
+    const pinned = o.scale === 'left' || o.scale === 'right';
+    inst.layer.setDetachedScale(this.detachedScale(id, inst, entry), pinned, !!o.scale);
     inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {}, live);
     if (!live) this.seriesChanged();
   }
@@ -461,12 +463,61 @@ export class IndicatorController {
   /** Scale of its own for a study in a pane whose scale shows other values:
    *  a study that is not a price study in the price pane, and in a shared
    *  stacked pane every study but the one the pane was made for (else the
-   *  first one). Null = the pane's scale. */
+   *  first one). Null = the pane's scale. A study pinned to a scale ("Pin to
+   *  scale") takes it: the other side's scale (shown), or none. */
   private detachedScale(id: string, inst: Instance, entry: IndicatorRegistryEntry): string | null {
+    const pinned = this.options.get(id)?.scale;
+    if (pinned === 'none') return `src:${id}`;
+    if (pinned === 'left' || pinned === 'right') return pinned === this.mainSide ? null : pinned;
     if (inst.overlay) return entry.overlay ? null : `src:${id}`;
     const members = [...this.instances].filter(([, i]) => !i.overlay && i.group === inst.group).map(([mid]) => mid);
     const lead = members.includes(inst.group ?? "") ? inst.group : members[0];
     return lead === id ? null : `src:${id}`;
+  }
+
+  /** Side of the main series' scale (the pane scale of the studies). */
+  private mainSide: 'left' | 'right' = 'right';
+
+  /** The main series' scale moved side (Settings "Scales placement"): the
+   *  studies pinned to a side scale take it again. */
+  setMainSide(side: 'left' | 'right'): void {
+    if (side === this.mainSide) return;
+    this.mainSide = side;
+    const bars = this.getBars();
+    for (const [id, inst] of this.instances) {
+      const entry = getIndicatorEntry(id);
+      if (!inst.owner && entry && this.options.get(id)?.scale) this.renderOne(id, inst, entry, bars);
+    }
+  }
+
+  /** Scale a study is on: the left or right scale of its pane, or none (a
+   *  hidden scale of its own: Volume, a study that does not share its pane's
+   *  values). Null when it is not on the chart. */
+  scaleOf(id: string): StudyScale | null {
+    const inst = this.instances.get(id);
+    const entry = getIndicatorEntry(id);
+    if (!inst || inst.owner || !entry) return null;
+    const pinned = this.options.get(id)?.scale;
+    if (pinned) return pinned;
+    const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
+    if (ownScale || this.detachedScale(id, inst, entry)) return 'none';
+    return this.mainSide;
+  }
+
+  /** A study of the chart is on the scale of side `side`. */
+  usesSide(side: 'left' | 'right'): boolean {
+    for (const id of this.instances.keys()) if (this.scaleOf(id) === side) return true;
+    return false;
+  }
+
+  /** Pin a study to a scale ("Pin to scale"); returns its options to save. */
+  pinToScale(id: string, scale: StudyScale): IndicatorOptions | null {
+    const inst = this.instances.get(id);
+    const entry = getIndicatorEntry(id);
+    if (!inst || inst.owner || !entry) return null;
+    this.options.set(id, { ...cloneIndicatorOptions(this.options.get(id) ?? defaultIndicatorOptions()), scale });
+    this.renderOne(id, inst, entry, this.getBars());
+    return this.getOptions(id);
   }
 
   /** Registry defaults merged with any user input overrides for `id`. */
@@ -510,17 +561,41 @@ export class IndicatorController {
   seedSettings(map: Record<string, { inputs?: Record<string, unknown>; styles?: IndicatorStyleOverrides; options?: unknown; hidden?: boolean }>): void {
     for (const id in map) {
       const s = map[id];
+      const inst = this.instances.get(id);
+      const entry = getIndicatorEntry(id);
+      const drawn = !!inst && !inst.owner && !!entry;
+      // A study already drawn whose saved settings changed from elsewhere
+      // (applied to the entire layout, an undo) is drawn again with them, in
+      // its new pane when its pane changed.
+      const before = drawn ? this.settingsKey(id) : '';
+      const paneBefore = drawn ? this.placementKey(id) : '';
       if (s?.inputs) this.inputs.set(id, { ...s.inputs });
       if (s?.styles) this.styles.set(id, { ...s.styles });
       if (s?.options) this.options.set(id, reviveIndicatorOptions(s.options));
-      // The saved eye state; a study already drawn the other way is redrawn.
-      if (!!s?.hidden !== this.hidden.has(id)) {
+      const eye = !!s?.hidden !== this.hidden.has(id);
+      if (eye) {
         if (s?.hidden) this.hidden.add(id); else this.hidden.delete(id);
-        const inst = this.instances.get(id);
-        const entry = getIndicatorEntry(id);
-        if (inst && !inst.owner && entry) this.renderOne(id, inst, entry, this.getBars());
       }
+      if (!drawn) continue;
+      if (this.placementKey(id) !== paneBefore) this.refresh(id);
+      else if (eye || this.settingsKey(id) !== before) this.renderOne(id, inst!, entry!, this.getBars());
     }
+  }
+
+  /** Inputs, styles and options of a study as one comparable text. */
+  private settingsKey(id: string): string {
+    const sorted = (v: unknown): unknown =>
+      v && typeof v === 'object' && !Array.isArray(v)
+        ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, sorted((v as Record<string, unknown>)[k])]))
+        : v;
+    const o = this.options.get(id);
+    return JSON.stringify(sorted({ i: this.inputs.get(id) ?? {}, s: this.styles.get(id) ?? {}, o: o ? reviveIndicatorOptions(o) : null }));
+  }
+
+  /** The pane a study's options give it (price pane, own pane, a group). */
+  private placementKey(id: string): string {
+    const o = this.options.get(id);
+    return `${o?.paneGroup ?? ''}|${o?.ownPane ? 1 : 0}`;
   }
 
   /** Studies legend rows (one per active study) with values at `time` (or the
@@ -636,7 +711,7 @@ export class IndicatorController {
     const inst = this.instances.get(id);
     if (!inst || inst.owner) return null;
     if (inst.overlay) return this.moveToNewPane(id);
-    if (this.studiesInPane(inst.paneIndex).length < 2) return null;
+    if (this.idsInPane(inst.paneIndex).length < 2) return null;
     // A group of its own: the studies left behind keep the pane's group.
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: false, paneGroup: this.ownGroup(id, true) };
     this.options.set(id, cloneIndicatorOptions(options));

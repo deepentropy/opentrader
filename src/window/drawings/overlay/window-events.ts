@@ -5,11 +5,11 @@
  */
 import { onCleanup, onMount } from "solid-js";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
-import { onAppEvent, type PlaceAtCursorDetail } from "../../../data/app-events";
+import { emitAppEvent, onAppEvent, type PlaceAtCursorDetail } from "../../../data/app-events";
 import { screenPoints, translateDrawing } from "lightweight-charts-drawing/core/interact/project";
 import { buildNewDrawing } from "lightweight-charts-drawing/core/interact/placement";
 import { IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
-import { copyDrawing, DRAWING_CLIP_MARK, pasteAsNew } from "../clipboard";
+import { clipboardSource, copyDrawing, DRAWING_CLIP_MARK, pasteAsNew, SOURCE_CLIP_MARK } from "../clipboard";
 import { lastPointer } from "./helpers";
 import { type OverlayCx } from "./context";
 
@@ -75,15 +75,16 @@ export function createWindowEvents(cx: OverlayCx): WindowEventsApi {
     // Ctrl+V: handled on the paste event, which carries the system clipboard.
     // A drawing copied here (marker in the HTML) pastes at the same data
     // coords; an image file becomes an Image drawing at the pane centre;
-    // otherwise the in-app drawing clipboard is used. Only the focused pane
-    // pastes.
+    // otherwise the in-app clipboard is used (a copied study / compared
+    // symbol is added to the chart). Only the focused pane pastes.
     const onPaste = (e: ClipboardEvent) => {
       if (props.shown === false) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (document.querySelector('[role="dialog"]') || props.active === false) return;
       const dt = e.clipboardData;
-      const fromHere = !!dt && dt.getData("text/html").includes(DRAWING_CLIP_MARK);
+      const html = dt ? dt.getData("text/html") : "";
+      const fromHere = html.includes(DRAWING_CLIP_MARK) || html.includes(SOURCE_CLIP_MARK);
       const file = !fromHere && dt ? Array.from(dt.files).find((f) => IMAGE_TYPES[f.type]) : undefined;
       if (file) {
         e.preventDefault();
@@ -95,6 +96,9 @@ export function createWindowEvents(cx: OverlayCx): WindowEventsApi {
         e.preventDefault();
         const id = props.onPlace(nd);
         if (id) props.setSelectedId(id); // select the paste so it's grab-ready
+      } else if (clipboardSource()) {
+        e.preventDefault();
+        emitAppEvent("chart-paste-source");
       }
     };
     document.addEventListener("paste", onPaste);

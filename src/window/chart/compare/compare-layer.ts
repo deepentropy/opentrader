@@ -40,7 +40,7 @@ export class CompareLayer {
     public entry: CompareEntry,
     paneIndex: number,
     /** Scale id the series is bound to (set by ChartView per placement). */
-    private scaleId: string,
+    public scaleId: string,
   ) {
     this.paneIndex = paneIndex;
   }

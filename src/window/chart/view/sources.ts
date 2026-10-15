@@ -33,10 +33,25 @@ import type { Accessor } from "solid-js";
 export interface SourcesApi {
   dropStudyOnTimeAxis: (id: string) => boolean;
   mergeStudyToPane: (id: string, pane: number) => boolean;
+  /** Visual order steps a source can take in its pane (null = not a source of the chart). */
+  zOrderSteps: (id: string) => { front: boolean; back: boolean } | null;
+  /** Visual order: move a source to the front / back of its pane, or one step. */
+  moveZ: (id: string, op: ZOrderOp) => void;
+  /** "Move to" rows a study can take (merge into the pane above / below, a new pane above / below). */
+  studyMoves: (id: string) => StudyMoves | null;
+  /** Apply one "Move to" row. */
+  moveStudy: (id: string, move: keyof StudyMoves) => void;
   scheduleSourceOrder: () => void;
   sunkIds: Accessor<ReadonlySet<string>>;
   sunkPainter: SunkPainter | null;
 }
+
+/** Visual order operations (study / compared-symbol menu). */
+export type ZOrderOp = "front" | "back" | "forward" | "backward";
+
+/** "Move to" rows of a study (reference order: existing pane above, new pane
+ *  above, existing pane below, new pane below); true = offered. */
+export type StudyMoves = { mergeUp: boolean; unmergeUp: boolean; mergeDown: boolean; unmergeDown: boolean };
 
 export function createSources(cx: ChartCx): SourcesApi {
   const { chartReady, indLegend, props, refreshIndicatorLegend, removeStudy, selectStudy, selectedStudy, setSelectedStudy, toggleSourceHidden, whenShown } = cx;
@@ -371,7 +386,11 @@ export function createSources(cx: ChartCx): SourcesApi {
       pane = treePanes().find((p) => p.items.some((x) => x.id === id));
       if (!pane) return;
     }
-    // Its place among the objects of the pane.
+    placeInPane(pane, id, target, below);
+  };
+  /** Put `id` right above / below `target` among the objects of `pane`:
+   *  the sources' order and the drawings' places are saved. */
+  function placeInPane(pane: TreePane, id: string, target: string, below: boolean) {
     const next = moveItem(pane.items, id, target, below);
     if (!next) return;
     const was = splitItems(pane.items);
@@ -389,7 +408,68 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (now.drawings.join("\n") !== was.drawings.join("\n") || JSON.stringify(now.over) !== JSON.stringify(was.over)) {
       props.placeDrawings?.(now.drawings, now.over);
     }
-  };
+  }
+  /** Visual order steps of a source: to the front unless it is the front
+   *  object of its pane, to the back unless it is the back one. */
+  function zOrderSteps(id: string): { front: boolean; back: boolean } | null {
+    const pane = treePanes().find((p) => p.items.some((x) => x.id === id && x.kind === "source"));
+    if (!pane) return null;
+    const i = pane.items.findIndex((x) => x.id === id);
+    return { front: i > 0, back: i < pane.items.length - 1 };
+  }
+  /** Visual order of a source among the objects (sources and drawings) of
+   *  its pane: to the front / back, or over / under the next object. */
+  function moveZ(id: string, op: ZOrderOp) {
+    const pane = treePanes().find((p) => p.items.some((x) => x.id === id && x.kind === "source"));
+    if (!pane) return;
+    const items = pane.items;
+    const i = items.findIndex((x) => x.id === id);
+    const last = items.length - 1;
+    if ((op === "front" || op === "forward") && i <= 0) return;
+    if ((op === "back" || op === "backward") && i >= last) return;
+    if (op === "front") placeInPane(pane, id, items[0].id, false);
+    else if (op === "back") placeInPane(pane, id, items[last].id, true);
+    else if (op === "forward") placeInPane(pane, id, items[i - 1].id, false);
+    else placeInPane(pane, id, items[i + 1].id, true);
+  }
+  /** "Move to" rows of a study (reference rules): a pane above / below to
+   *  merge into unless it is the first / last pane; a new pane above / below
+   *  when its pane holds another source (the main series counts). The price
+   *  pane stays the top pane here: no new pane above it. */
+  function studyMoves(id: string): StudyMoves | null {
+    const c = cx.controller;
+    if (!c || cx.compareEntry(id)) return null;
+    const pane = c.paneOf(id);
+    if (pane === null) return null;
+    const last = (cx.chart?.panes().length ?? 1) - 1;
+    const shared = pane === 0 || c.idsInPane(pane).length > 1;
+    return { mergeUp: pane > 0, unmergeUp: pane > 0 && shared, mergeDown: pane < last, unmergeDown: shared };
+  }
+  /** Apply a "Move to" row: merge into the pane above / below, or a new
+   *  pane right above / below the study's pane. */
+  function moveStudy(id: string, move: keyof StudyMoves) {
+    const c = cx.controller;
+    const moves = studyMoves(id);
+    if (!c || !moves?.[move]) return;
+    const pane = c.paneOf(id) ?? 0;
+    if (move === "mergeUp" || move === "mergeDown") {
+      mergeStudyToPane(id, move === "mergeUp" ? pane - 1 : pane + 1);
+      return;
+    }
+    // Stacked panes, top to bottom, before the move.
+    const before = c.stackedOrder().filter((x) => x !== id);
+    const mates = pane > 0 ? c.idsInPane(pane).filter((x) => x !== id) : [];
+    const options = c.unmergeToNewPane(id);
+    if (!options) return;
+    let at = 0;
+    if (pane > 0) {
+      const first = before.findIndex((x) => mates.includes(x));
+      let lastMate = first;
+      before.forEach((x, k) => { if (mates.includes(x)) lastMate = k; });
+      at = move === "unmergeUp" ? Math.max(0, first) : lastMate + 1;
+    }
+    studyPaneChanged(id, options, [...before.slice(0, at), id, ...before.slice(at)]);
+  }
   listenWhenShown(TREE_HIDE_EVENT, onTreeHideRequest);
   listenWhenShown(TREE_REMOVE_EVENT, onTreeRemoveRequest);
   listenWhenShown(TREE_MOVE_EVENT, onTreeMoveRequest);
@@ -404,6 +484,10 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       removeStudy(id);
+    } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyC") {
+      // Ctrl+C copies the selected study / compared symbol (study menu "Copy").
+      e.preventDefault();
+      cx.copySourceOf(id);
     } else if (e.key === "Escape") {
       setSelectedStudy(null);
     }
@@ -414,6 +498,10 @@ export function createSources(cx: ChartCx): SourcesApi {
   return {
     dropStudyOnTimeAxis,
     mergeStudyToPane,
+    moveStudy,
+    moveZ,
+    studyMoves,
+    zOrderSteps,
     scheduleSourceOrder,
     sunkIds,
     get sunkPainter() {

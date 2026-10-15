@@ -61,6 +61,7 @@ import { createUndoHistory } from "./window/shell/undo-history";
 import { createChartEdits } from "./window/shell/chart-edits";
 import { installKeyboardShortcuts } from "./window/shell/keyboard-shortcuts";
 import { installAppRequests } from "./window/shell/app-requests";
+import { installLayoutSources } from "./window/shell/layout-sources";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
@@ -466,6 +467,9 @@ function App() {
         setSession,
       }),
     );
+    // Chart menus: sources added / applied to the entire layout, pasted
+    // sources, "Move chart".
+    onCleanup(installLayoutSources(appTabs, undo, drawingStore));
 
     // Start the alert engine and surface fires as a transient toast. ONE
     // engine per app, not per window: detached chart windows load this same

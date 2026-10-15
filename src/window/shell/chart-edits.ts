@@ -325,6 +325,22 @@ export function createChartEdits(
 
   /** Apply one side of an undo entry. */
   function applyUndoEntry(e: UndoEntry, side: "before" | "after") {
+    if (e.kind === "layout-sources") {
+      const tab = tabOf(e.tabId);
+      if (!tab) return;
+      const snap = e[side];
+      patchTab(e.tabId, { panes: tab.panes.map((p, i) => (snap[i] ? { ...p, ...snap[i] } : p)) });
+      for (const sl of e.slices) d.restoreSlice(sl.key, sl[side]);
+      return;
+    }
+    if (e.kind === "chart-swap") {
+      const tab = tabOf(e.tabId);
+      if (!tab || !tab.panes[e.a] || !tab.panes[e.b]) return;
+      const panes = tab.panes.slice();
+      [panes[e.a], panes[e.b]] = [panes[e.b], panes[e.a]];
+      patchTab(e.tabId, { panes, activePane: side === "after" ? e.activeAfter : e.activeBefore });
+      return;
+    }
     if (e.kind === "layout-sizes") {
       setTabLayoutSizes(e.tabId, e.layout, e[side]);
       return;

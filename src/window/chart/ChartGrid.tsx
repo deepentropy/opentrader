@@ -414,6 +414,7 @@ export function ChartGrid(props: Props) {
                 // setActivePane here: the cell's capture-phase mousedown above
                 // already focused this pane before the click lands.
                 canMaximize={spec().cells.length > 1}
+                layoutCount={spec().cells.length}
                 maximized={maxed()}
                 onToggleMaximize={() => props.onToggleMaximize?.()}
                 drawings={props.drawingsFor(props.drawingKeyForPane(pane()))}
