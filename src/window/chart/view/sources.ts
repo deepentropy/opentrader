@@ -30,6 +30,7 @@ import { NEVER_SUNK_KINDS, type SunkPainter } from "../../drawings/DrawingsOverl
 import { type ChartCx } from "./context";
 import { onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
 import { sourcesEdit } from "../../shell/source-edits";
+import { escapeKeepsSelection } from "../menu-escape";
 import type { Accessor } from "solid-js";
 
 /** What createSources adds to the chart context. */
@@ -552,7 +553,8 @@ export function createSources(cx: ChartCx): SourcesApi {
   listenWhenShown(TREE_REMOVE_EVENT, onTreeRemoveRequest);
   listenWhenShown(TREE_MOVE_EVENT, onTreeMoveRequest);
   // Delete / Backspace remove the selected study, Escape clears it (focused
-  // chart only, not while typing or with a dialog open).
+  // chart only, not while typing or with a dialog open; not the Escape that
+  // closes a context menu, nor the next one).
   const onStudyKey = (e: KeyboardEvent) => {
     const id = selectedStudy();
     if (!id || props.active === false) return;
@@ -567,7 +569,7 @@ export function createSources(cx: ChartCx): SourcesApi {
       e.preventDefault();
       cx.copySourceOf(id);
     } else if (e.key === "Escape") {
-      setSelectedStudy(null);
+      if (!escapeKeepsSelection()) setSelectedStudy(null);
     }
   };
   document.addEventListener("keydown", whenShown(onStudyKey));

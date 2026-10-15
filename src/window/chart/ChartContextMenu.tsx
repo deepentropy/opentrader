@@ -9,6 +9,7 @@
  */
 import { createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { fitMenuRef } from "../../components/menu-fit";
+import { contextMenuShown } from "./menu-escape";
 
 // ── Menu model ──
 export type CtxNode =
@@ -167,6 +168,8 @@ export function ChartContextMenu(props: Props) {
   const [subPos, setSubPos] = createSignal<{ left: number; top: number }>({ left: 0, top: 0 });
 
   onMount(() => {
+    // While shown, an Escape closes the menu only (menu-escape.ts).
+    onCleanup(contextMenuShown());
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
     // "Outside" must include the SUBMENU, which renders as a sibling of the
     // root div — a plain ref.contains() check closed the menu on the capture
