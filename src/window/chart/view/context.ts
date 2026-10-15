@@ -5,6 +5,8 @@
  * without a creation order. The mutable fields are live accessors of the
  * view's state.
  */
+import type { LegendValues } from "../ChartLegend";
+import type { SetStoreFunction } from "solid-js/store";
 import type { Accessor, Resource, Setter } from "solid-js";
 import type { IChartApi } from "lightweight-charts";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
@@ -22,7 +24,7 @@ import type { CrosshairLockViews } from "../crosshair-lock";
 import type { DialogTab } from "../IndicatorSettingsDialog";
 import type { CompareEntry, PaneIndicatorSettings } from "../../shell/tabs";
 import type { CompareStyleState } from "../compare/compare-style";
-import type { Draft, PriceSource } from "../../header/chart-settings";
+import type { Draft } from "../../header/chart-settings";
 import { appearanceFrom } from "../../header/chart-settings";
 import { readChartTokens } from "../chart-tokens";
 import { chartBackgroundAt } from "../selection-markers";
@@ -42,6 +44,10 @@ import type { LiveApi } from "./live";
 import type { NewsApi } from "./news";
 import type { PointerApi } from "./pointer";
 import type { WindowEventsApi } from "./window-events";
+import type { TickerInfoApi } from "./ticker-info";
+import type { SymbolLoadApi } from "./symbol-load";
+import type { StrategyMarksApi } from "./strategy-marks";
+import type { LegendApi } from "./legend";
 
 export type ChartViewProps = {
   theme?: "dark" | "light";
@@ -172,7 +178,6 @@ export interface ChartCore {
   activeType: ChartTypeId;
   afterSeriesData: () => void;
   appearance: Accessor<ReturnType<typeof appearanceFrom>>;
-  applyStrategyMarkers: () => void;
   barWrap: HTMLDivElement;
   chart: IChartApi | null;
   chartReady: Accessor<number>;
@@ -198,7 +203,6 @@ export interface ChartCore {
   lastLegendTime: number | undefined;
   lockViews: CrosshairLockViews | null;
   mainLastIndex: () => number | null;
-  mainPriceSource: () => PriceSource;
   newsLollipop: NewsLollipopPrimitive;
   onShownHooks: Set<() => void>;
   paneRoot: HTMLDivElement;
@@ -207,8 +211,6 @@ export interface ChartCore {
   prevDayClose: (number | null)[];
   raw: OHLC[];
   rawDaily: Candle[];
-  refreshIndicatorLegend: (time?: number) => void;
-  refreshLegend: (time?: number) => void;
   reloadTick: Accessor<number>;
   removeStudy: (id: string) => void;
   selectStudy: (id: string) => void;
@@ -217,7 +219,6 @@ export interface ChartCore {
   seriesOnlyScale: () => "left" | "right" | null;
   setCompareSettingsFor: Setter<string | null>;
   setCtxMenu: Setter<ChartMenuState | null>;
-  setDimmed: Setter<boolean>;
   setReloadTick: Setter<number>;
   setSelectedStudy: Setter<string | null>;
   setSettingsForId: Setter<string | null>;
@@ -228,6 +229,17 @@ export interface ChartCore {
   toggleSourceHidden: (id: string) => void;
   updateSessionBreaks: () => void;
   whenShown: <T extends Event>(fn: (e: T) => void) => EventListener;
+  flagPopup: Accessor<HTMLElement | null>;
+  intervalText: Accessor<string>;
+  legend: Accessor<LegendValues | null>;
+  legendPriceFormat: Accessor<((p: number) => string) | undefined>;
+  rangePersistTimer: ReturnType<typeof setTimeout> | undefined;
+  setFlagPopup: Setter<HTMLElement | null>;
+  setIndLegendStore: SetStoreFunction<{ rows: IndicatorLegendRow[] }>;
+  setLegend: Setter<LegendValues | null>;
+  setSyncMenu: Setter<DOMRect | null>;
+  syncMenu: Accessor<DOMRect | null>;
+  ticker: Accessor<string>;
 }
 
 export type ChartCx = ChartCore &
@@ -244,7 +256,11 @@ export type ChartCx = ChartCore &
   LiveApi &
   NewsApi &
   PointerApi &
-  WindowEventsApi;
+  WindowEventsApi &
+  LegendApi &
+  StrategyMarksApi &
+  SymbolLoadApi &
+  TickerInfoApi;
 
 /** Add a part's functions (and its state accessors) to the context. */
 export function attach<T extends object>(cx: ChartCx, api: T): T {

@@ -1,0 +1,73 @@
+name: CI
+
+# Checks every push to main and every pull request:
+#   - Rust: build + unit tests (also generates src/bindings.ts, which the
+#     frontend imports and git ignores);
+#   - TypeScript: type check of the whole frontend;
+#   - unit tests (vitest): logic layer + backtester golden runs.
+# Windows runner, like the development machines (no extra system libraries).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Same drawing core as the release build (release.yml).
+  DRAWING_REF: v0.6.0
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      # Two checkouts side by side, the layout vite.config.ts expects:
+      #   opentrader/                  this repo
+      #   lightweight-charts-drawing/  the drawing core
+      - name: Checkout OpenTrader
+        uses: actions/checkout@v4
+        with:
+          path: opentrader
+
+      - name: Checkout drawing core
+        uses: actions/checkout@v4
+        with:
+          repository: deepentropy/lightweight-charts-drawing
+          ref: ${{ env.DRAWING_REF }}
+          path: lightweight-charts-drawing
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'opentrader/src-tauri -> target'
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: opentrader/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: opentrader
+        run: npm ci
+
+      # Builds the crate and runs its unit tests; export_bindings writes
+      # src/bindings.ts for the type check below.
+      - name: Rust tests
+        working-directory: opentrader/src-tauri
+        run: cargo test --lib
+
+      - name: Type check
+        working-directory: opentrader
+        run: npx tsc --noEmit -p .
+
+      - name: Unit tests
+        working-directory: opentrader
+        run: npm test

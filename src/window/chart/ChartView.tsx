@@ -11,22 +11,17 @@
  * (native priceLine through Feature 5a); Feature 5c moved it to the
  * overlay for parity with the other 13 kinds.
  */
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
-import { createStore, reconcile } from "solid-js/store";
+import { Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { createStore } from "solid-js/store";
 import { typeIdOf } from "./indicators/study-id";
 import {
   CrosshairMode,
   LineStyle,
   TickMarkType,
   createChart,
-  createSeriesMarkers,
-  createTextWatermark,
-  type ISeriesMarkersPluginApi,
-  type SeriesMarker,
   type IChartApi,
   type ISeriesApi,
   type SeriesType,
-  type ITextWatermarkPluginApi,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -34,10 +29,6 @@ import type { Logical } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
 import { chartBackgroundAt } from "./selection-markers";
 import { MAIN_SOURCE_ID } from "./object-tree-sources";
-import { flagOf, lastFlagColor, setFlag } from "../../data/symbol-flags";
-import { FlagColorPopup } from "./FlagColorPopup";
-import { ChartSyncMenu, SYNC_GROUPS } from "./ChartSyncMenu";
-import { FLAG_HEX } from "../../data/watchlist";
 import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime } from "./crosshair-lock";
 import { textOnColor } from "lightweight-charts-drawing/core/color";
 import { SessionBreaksPrimitive, computeSessionBoundaries } from "./session-breaks";
@@ -49,17 +40,15 @@ import { providerCapabilities } from "../../data/providers/capabilities";
 import { saveIndicatorDefault } from "../../data/indicator-defaults";
 import { CountdownPrimitive, countdownText } from "./countdown";
 import { ChartControlBar } from "./ChartControlBar";
-import { ZOOM_FACTOR, liveBarSpacing } from "./control-bar";
+import { ZOOM_FACTOR } from "./control-bar";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { appearanceFrom, type PriceSource } from "../header/chart-settings";
+import { appearanceFrom } from "../header/chart-settings";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import {
   getBars,
   getEvents,
-  getTickerInfo,
-  initialViewBars,
   intervalLabel,
   isIntradayInterval,
   isIntradayResolution,
@@ -69,34 +58,22 @@ import {
   type SessionId,
 } from "../../data/datafeed";
 import { type Candle } from "../../bindings";
-import {
-  CHART_TYPE_ICON,
-  createSeriesForType,
-  isTransformType,
-  setDataForType,
-  type AnySeries,
-  type ChartTypeId,
-  type OHLC,
-} from "./chart-types";
-import { ChartLegend, type LegendValues } from "./ChartLegend";
+import { createSeriesForType, isTransformType, setDataForType, type AnySeries, type ChartTypeId, type OHLC } from "./chart-types";
+import { type LegendValues } from "./ChartLegend";
 import { chartPriceFormat } from "./price-format";
 import { dayKeyer } from "./day-key";
 import { cachedSymbolSessions } from "../../data/session";
-import { IndicatorLegend } from "./IndicatorLegend";
-import { IndicatorSettingsDialog, type DialogTab, type StrategyDialogConfig } from "./IndicatorSettingsDialog";
+import { IndicatorSettingsDialog, type DialogTab } from "./IndicatorSettingsDialog";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry } from "./profiles/tpo";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
-import { DEFAULT_SYMBOL, type StrategyProperties } from "../../backtester/types";
 import { PriceScaleWatch } from "./scale-watch";
 import { IndicatorController, type IndicatorLegendRow } from "./indicators/indicator-controller";
 import { getIndicatorEntry } from "./indicators/registry";
-import { OAKSCRIPT_OPEN_EVENT, scriptIdOfStudy } from "./indicators/user-scripts";
 import { scriptChartContext } from "./indicators/script-chart";
-import { PROPERTIES_INPUT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf } from "./indicators/strategy-entries";
+import { isStrategyId } from "./indicators/strategy-entries";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { registerChartState, unregisterChartState, type ChartBar } from "../../data/chart-state-registry";
-import { publishDataWindow, type DataWindowState } from "../../data/data-window-store";
 import { ChartContextMenu } from "./ChartContextMenu";
 import type { Bar } from "oakscriptjs";
 import { makeCoords, type Coords, type FutureAxis } from "../drawings/coords";
@@ -104,18 +81,7 @@ import { sessionFutureAxis } from "./indicators/future-slots";
 import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
 import { attach, type ChartCore, type ChartCx, type ChartMenuState, type ChartViewProps } from "./view/context";
-import {
-  toOHLC,
-  barsSpan,
-  MIN_VISIBLE_BARS,
-  SYMBOL_CHANGE_MAX_BACK,
-  AxisFmt,
-  formatAxisTime,
-  formatTick,
-  indexOfTime,
-  appearanceOptions,
-  buildLegend,
-} from "./view/helpers";
+import { barsSpan, AxisFmt, formatAxisTime, formatTick, appearanceOptions } from "./view/helpers";
 import { createNavigation } from "./view/navigation";
 import { createMenus } from "./view/menus";
 import { createPriceAxis } from "./view/price-axis";
@@ -130,7 +96,10 @@ import { createLive } from "./view/live";
 import { createNews } from "./view/news";
 import { createPointer } from "./view/pointer";
 import { createWindowEvents } from "./view/window-events";
-import { emitAppEvent } from "../../data/app-events";
+import { createTickerInfo } from "./view/ticker-info";
+import { createSymbolLoad } from "./view/symbol-load";
+import { createStrategyMarks } from "./view/strategy-marks";
+import { createLegend } from "./view/legend";
 
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
@@ -165,7 +134,6 @@ export function ChartView(props: ChartViewProps) {
     get activeType() { return activeType; }, set activeType(v: ChartCore["activeType"]) { activeType = v; },
     get afterSeriesData() { return afterSeriesData; },
     get appearance() { return appearance; },
-    get applyStrategyMarkers() { return applyStrategyMarkers; },
     get barWrap() { return barWrap; }, set barWrap(v: ChartCore["barWrap"]) { barWrap = v; },
     get chart() { return chart; }, set chart(v: ChartCore["chart"]) { chart = v; },
     get chartReady() { return chartReady; },
@@ -191,7 +159,6 @@ export function ChartView(props: ChartViewProps) {
     get lastLegendTime() { return lastLegendTime; }, set lastLegendTime(v: ChartCore["lastLegendTime"]) { lastLegendTime = v; },
     get lockViews() { return lockViews; }, set lockViews(v: ChartCore["lockViews"]) { lockViews = v; },
     get mainLastIndex() { return mainLastIndex; },
-    get mainPriceSource() { return mainPriceSource; },
     get newsLollipop() { return newsLollipop; },
     get onShownHooks() { return onShownHooks; },
     get paneRoot() { return paneRoot; }, set paneRoot(v: ChartCore["paneRoot"]) { paneRoot = v; },
@@ -200,8 +167,6 @@ export function ChartView(props: ChartViewProps) {
     get prevDayClose() { return prevDayClose; }, set prevDayClose(v: ChartCore["prevDayClose"]) { prevDayClose = v; },
     get raw() { return raw; }, set raw(v: ChartCore["raw"]) { raw = v; },
     get rawDaily() { return rawDaily; }, set rawDaily(v: ChartCore["rawDaily"]) { rawDaily = v; },
-    get refreshIndicatorLegend() { return refreshIndicatorLegend; },
-    get refreshLegend() { return refreshLegend; },
     get reloadTick() { return reloadTick; },
     get removeStudy() { return removeStudy; },
     get selectStudy() { return selectStudy; },
@@ -210,7 +175,6 @@ export function ChartView(props: ChartViewProps) {
     get seriesOnlyScale() { return seriesOnlyScale; },
     get setCompareSettingsFor() { return setCompareSettingsFor; },
     get setCtxMenu() { return setCtxMenu; },
-    get setDimmed() { return setDimmed; },
     get setReloadTick() { return setReloadTick; },
     get setSelectedStudy() { return setSelectedStudy; },
     get setSettingsForId() { return setSettingsForId; },
@@ -221,6 +185,17 @@ export function ChartView(props: ChartViewProps) {
     get toggleSourceHidden() { return toggleSourceHidden; },
     get updateSessionBreaks() { return updateSessionBreaks; },
     get whenShown() { return whenShown; },
+    get flagPopup() { return flagPopup; },
+    get intervalText() { return intervalText; },
+    get legend() { return legend; },
+    get legendPriceFormat() { return legendPriceFormat; },
+    get rangePersistTimer() { return rangePersistTimer; }, set rangePersistTimer(v: ChartCore["rangePersistTimer"]) { rangePersistTimer = v; },
+    get setFlagPopup() { return setFlagPopup; },
+    get setIndLegendStore() { return setIndLegendStore; },
+    get setLegend() { return setLegend; },
+    get setSyncMenu() { return setSyncMenu; },
+    get syncMenu() { return syncMenu; },
+    get ticker() { return ticker; },
   } as ChartCx;
   // The window-wide chart events (sync, link, go-to, keyboard actions) belong
   // to the shown tab: a hidden tab's pane ignores them. One wrapper per
@@ -265,9 +240,6 @@ export function ChartView(props: ChartViewProps) {
   let barWrap!: HTMLDivElement;
   let chart: IChartApi | null = null;
   let series: AnySeries | null = null;
-  // Strategy trade marks on `series` (see applyStrategyMarkers).
-  let tradeMarkers: ISeriesMarkersPluginApi<Time> | null = null;
-  let tradeMarkersSeries: ISeriesApi<any> | null = null;
   // Session-breaks separators (Events tab). One instance per chart, re-attached
   // to the price series whenever it's rebuilt (chart-type change).
   const sessionBreaks = new SessionBreaksPrimitive();
@@ -444,53 +416,9 @@ export function ChartView(props: ChartViewProps) {
     else props.onRemoveIndicator?.(id);
   }
 
-  function refreshIndicatorLegend(time?: number) {
-    setIndLegendStore("rows", reconcile([...(controller?.getLegend(time) ?? []), ...compareLegendRows(time)], { key: "id" }));
-  }
+  const { LegendStacks, refreshIndicatorLegend, refreshLegend } = attach(cx, createLegend(cx));
   /** Compared-symbol Settings dialog (entry id; null = closed). */
   const [compareSettingsFor, setCompareSettingsFor] = createSignal<string | null>(null);
-  /** Top of the legend stack inside its pane (`.ot-legend-stack` top). */
-  const LEGEND_TOP = 4;
-  /** The legends end 8 px before the right price scale (the plot width): a
-   *  title too long for it is cut with an ellipsis, so the legend buttons stay
-   *  in view on a narrow chart. */
-  const legendMaxWidth = () => {
-    const g = scaleGeom();
-    const right = g && !g.left ? g.w : 0;
-    return `calc(100% - ${8 + legendLeft() + right + 8}px)`;
-  };
-  /** Studies legend of one pane (0 = the price pane, under the series row). */
-  const studyLegend = (pane: number) => (
-    <IndicatorLegend
-      rows={indLegend().filter((r) => r.pane === pane)}
-      showTitles={appearance().legendIndTitles}
-      showInputs={appearance().legendIndInputs}
-      showValues={appearance().legendIndValues}
-      bgColor={appearance().bg}
-      bgOpacity={appearance().legendIndBgOpacity}
-      onToggleHide={toggleSourceHidden}
-      onSettings={(id) => {
-        selectStudy(id);
-        if (compareEntry(id)) setCompareSettingsFor(id);
-        else setSettingsForId(id);
-      }}
-      onRemove={removeStudy}
-      selectedId={selectedStudy()}
-      onSelect={selectStudy}
-      onMore={(id, r) => (compareEntry(id) ? openCompareMoreMenu(id, r) : openIndicatorMoreMenu(id, r))}
-      hasSource={(id) => scriptIdOfStudy(id) !== null}
-      onSource={(id) => {
-        const scriptId = scriptIdOfStudy(id);
-        if (scriptId) emitAppEvent(OAKSCRIPT_OPEN_EVENT, { scriptId });
-      }}
-      onIntervalSettings={(id) => {
-        selectStudy(id);
-        setSettingsTab("visibility");
-        setSettingsForId(id);
-      }}
-      onTitleClick={(id) => { if (compareEntry(id)) props.onChangeCompareSymbol?.(id); }}
-    />
-  );
 
   // Expose this chart's latest price + indicator values to the alert engine,
   // keyed by the full name ("NASDAQ:AAPL"). Re-keys on symbol change; provider reads the mutable
@@ -523,7 +451,6 @@ export function ChartView(props: ChartViewProps) {
   const [ctxMenu, setCtxMenu] = createSignal<ChartMenuState | null>(null);
 
   const {
-    applyRangeSpan,
     barFits,
     barLeft,
     barShown,
@@ -538,91 +465,24 @@ export function ChartView(props: ChartViewProps) {
     zoomSpan,
   } = attach(cx, createNavigation(cx));
 
-  const { alertTarget, openCompareMoreMenu, openContextMenu, openIndicatorMoreMenu, openSeriesMoreMenu } = attach(cx, createMenus(cx));
+  const { alertTarget, openContextMenu } = attach(cx, createMenus(cx));
   /** Study whose plot is under the pointer (crosshair move), null = none. */
   let hoveredStudy: string | null = null;
   /** Price under the crosshair (on the scale of the pane under it), null = pointer not on the chart. */
   let crosshairPrice: number | null = null;
 
 
-  /** Re-resolve the legend for a crosshair time (or the latest bar when
-   *  omitted). Reads the live `raw` + `activeType` closures. */
-  /** Price source of a single-value main series (Symbol tab "Price source"). */
-  function mainPriceSource(): PriceSource {
-    const st = currentTokens().styles;
-    return activeType === "line" || activeType === "lineWithMarkers" || activeType === "stepline" ? st[activeType].source
-      : activeType === "area" ? st.area.source
-      : activeType === "baseline" ? st.baseline.source
-      : activeType === "column" ? st.column.source
-      : "close";
-  }
-
-  function refreshLegend(time?: number) {
-    if (raw.length === 0) {
-      setLegend(null);
-      if (props.active) publishDataWindow(null);
-      return;
-    }
-    let idx = raw.length - 1;
-    if (time != null) {
-      const hit = indexOfTime(raw, time);
-      if (hit >= 0) idx = hit;
-    }
-    setLegend(buildLegend(raw, idx, activeType, prevDayClose[idx] ?? null, mainPriceSource()));
-    publishDataWindowIfOwner(idx, time);
-  }
-
-  /** Publish this pane's data-window snapshot for the bar at `idx`, but only
-   *  when this pane owns the data window: the crosshair is over it, or it's the
-   *  focused pane (so a sibling pane's live tick can't steal it). Indicator
-   *  values resolve at the same `time` the legend used. */
-  function publishDataWindowIfOwner(idx: number, time?: number) {
-    if (!(props.active || crosshairActive)) return;
-    const bar = raw[idx];
-    const prevClose = idx > 0 ? raw[idx - 1].close : null;
-    const changeAbs = prevClose == null ? 0 : bar.close - prevClose;
-    const changePct = prevClose ? (changeAbs / prevClose) * 100 : 0;
-    const { ticker, exchange } = splitSymbol(props.symbol ?? "");
-    const iv = props.interval ?? "";
-    const indicators: DataWindowState["indicators"] = (controller?.getLegend(time) ?? []).map((r) => ({
-      id: r.id,
-      title: r.title,
-      plots: r.plots,
-    }));
-    publishDataWindow({
-      ticker,
-      exchange,
-      interval: iv,
-      chartTypeIcon: CHART_TYPE_ICON[activeType],
-      time: bar.time as number,
-      // Seconds/minutes/hours show a time-of-day row; D/W/M don't.
-      intraday: !/^\d+[DWM]$/i.test(iv),
-      timeZone: props.timeZone,
-      open: bar.open,
-      high: bar.high,
-      low: bar.low,
-      close: bar.close,
-      changeAbs,
-      changePct,
-      dir: bar.close >= bar.open ? "up" : "down",
-      volume: bar.volume ?? null,
-      indicators,
-    });
-  }
 
   const {
     PriceAxisOverlays,
-    fitPriceScaleOnce,
-    legendLeft,
     refreshScaleOverlays,
     scaleGeom,
     setAxisHover,
     setChartHovered,
-    setCurrency,
     setPlusY,
   } = attach(cx, createPriceAxis(cx));
 
-  const { PaneControls, drawingPanes, paneAtY, paneBoxes, refreshPaneBoxes, setHoverPane, setPaneEpoch } = attach(cx, createPanes(cx));
+  const { PaneControls, drawingPanes, paneAtY, refreshPaneBoxes, setHoverPane, setPaneEpoch } = attach(cx, createPanes(cx));
 
   /** The newest bar is still forming (its countdown runs): price-based
    *  types draw what it built as projection bars. */
@@ -726,8 +586,7 @@ export function ChartView(props: ChartViewProps) {
     series.attachPrimitive(sessionBackgrounds);
     if (lockAxis) series.attachPrimitive(lockAxis);
     // Strategy trade marks belong to the series: re-attach to the new one.
-    tradeMarkersSeries = null;
-    tradeMarkers = null;
+    forgetTradeMarkers();
     applyStrategyMarkers();
     // Study markers and bar colours are drawn on the main series: redraw the
     // studies on the new one (from their last results).
@@ -829,7 +688,6 @@ export function ChartView(props: ChartViewProps) {
     forgetPriceLines,
     liveScaleRatio,
     lockedSpacingFromScale,
-    marketSession,
     setStatusClock,
     syncBaseline,
     syncGradientLabel,
@@ -862,11 +720,7 @@ export function ChartView(props: ChartViewProps) {
 
   const {
     broadcastRange,
-    goToTime,
-    holdLinkQuiet,
     maybeLoadOlder,
-    scheduleSyncRun,
-    startPrefetch,
     updateHistoryEnd,
   } = attach(cx, createHistory(cx));
 
@@ -1034,59 +888,7 @@ export function ChartView(props: ChartViewProps) {
   // symbol/interval re-fetches.
   const [reloadTick, setReloadTick] = createSignal(0);
   installDataEvents();
-  // Strategies: filled orders as trade marks on the price series (the reference app:
-  // buy = #2962ff arrow up below the bar, sell = #ff1744 arrow down above it,
-  // with the order signal and the signed quantity).
-  /** Settings dialog config of a strategy study: effective and script
-   *  strategy() properties, trade-mark style, chart currency / interval /
-   *  exchange time zone (the backtest's symbol defaults). */
-  function strategyDialogConfig(id: string, inputs: Record<string, unknown>): StrategyDialogConfig | undefined {
-    if (!isStrategyId(id)) return undefined;
-    const defaults = strategyDefaults(id);
-    if (!defaults) return undefined;
-    const overrides = (inputs[PROPERTIES_INPUT] ?? {}) as Partial<StrategyProperties>;
-    return {
-      properties: { ...defaults, ...overrides },
-      defaults,
-      style: strategyStyleOf(inputs),
-      chartCurrency: defaults.currency,
-      interval: props.interval ?? "1D",
-      chartStyle: props.chartType ?? "candle",
-      // The engine runs in the charted symbol's exchange zone (chart context).
-      timeZone: cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? DEFAULT_SYMBOL.timezone,
-    };
-  }
-  function applyStrategyMarkers() {
-    if (!series) return;
-    const marks: SeriesMarker<Time>[] = [];
-    for (const id of (props.indicators ?? []).filter(isStrategyId)) {
-      // Settings > Style: Trades on chart / Signal labels / Quantity; nothing
-      // while the study is eye-hidden or off its Visibility intervals.
-      const style = strategyStyleOf(controller?.getInputs(id));
-      if (!style.tradesOnChart || (controller && !controller.isDrawn(id))) continue;
-      const report = strategyTester.run(String(paneId), strategyKeyOf(id))?.report;
-      for (const o of report?.filledOrders ?? []) {
-        const qty = style.quantity ? `${o.buy ? "+" : "−"}${o.qty}` : "";
-        const signal = style.signalLabels ? o.comment : "";
-        const text = (o.buy ? [signal, qty] : [qty, signal]).filter(Boolean).join(" ");
-        marks.push(
-          o.buy
-            ? { time: (o.time / 1000) as Time, position: "belowBar", shape: "arrowUp", color: "#2962ff", text }
-            : { time: (o.time / 1000) as Time, position: "aboveBar", shape: "arrowDown", color: "#ff1744", text },
-        );
-      }
-    }
-    marks.sort((a, b) => (a.time as number) - (b.time as number));
-    if (tradeMarkersSeries !== series) {
-      tradeMarkers?.detach();
-      tradeMarkers = marks.length ? createSeriesMarkers(series, marks) : null;
-      tradeMarkersSeries = tradeMarkers ? series : null;
-    } else tradeMarkers?.setMarkers(marks);
-  }
-  createEffect(() => {
-    props.indicators;
-    applyStrategyMarkers();
-  });
+  const { applyStrategyMarkers, forgetTradeMarkers, strategyDialogConfig } = attach(cx, createStrategyMarks(cx));
   const [history] = createResource<BarsResult | null, string>(
     () =>
       `${props.symbol ?? "INTC"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`,
@@ -1153,309 +955,15 @@ export function ChartView(props: ChartViewProps) {
     updateSessionBreaks();
   });
 
-  // Symbol/interval change → drop the previous series immediately so an
-  // in-flight fetch can never leave another symbol's candles (or its last
-  // price in the legend) on screen. The history effect below refills once the
-  // new bars arrive; until then the pane reads as empty/loading.
-  // `props.symbol`/`props.interval` are non-memoized accessors over the
-  // active-tab signal, and the render helpers below subscribe this effect to
-  // further signals (indicator/legend state). Any of those firing
-  // re-runs this effect with an UNCHANGED symbol — and a re-run that lands
-  // after the apply effect has painted would blank the freshly-loaded chart
-  // (the "every other symbol goes blank" bug). The value guard makes the clear
-  // act only on a genuine symbol/interval change, mirroring the drawings effect.
-  let firstSymbol = true;
-  let lastClearedSym: string | undefined;
-  let lastClearedInt: string | undefined;
-  // Session counts as a genuine series change (it refetches + re-buckets the
-  // bars), so it resets paging and runs the swap transition just like interval.
-  let lastClearedSess: SessionId | undefined;
-  // Wall-clock of the last genuine symbol/interval change, so the apply effect
-  // can log the true end-to-end (selection → painted) time.
-  let loadStartMs = 0;
+  const { dimmed } = attach(cx, createSymbolLoad(cx));
   // TRUE from a symbol/interval change until the new data is painted. While set,
   // the previous symbol's candles stay on screen under the dim overlay and the
   // live poller is gated (so its ticks can't append onto the outgoing series).
   let swapping = false;
-  // Pre-switch bar spacing + right offset (bars between the last bar and the
-  // right edge), captured when the interval/session changes on the SAME symbol.
-  // Both are kept across an interval change and the dates move, e.g.
-  // 1D scrolled back 300 bars → 60 still 300 bars back at the same spacing, and
-  // back to 1D on the exact previous dates. Null for symbol changes / first load.
-  // With Scales → "Save chart left edge position when changing interval" on,
-  // `leftTime` (the left edge's bar time) is kept instead of the right offset.
-  // A symbol change keeps them too (`symbol`): same bar spacing, same number of
-  // bars back from the last bar, at most SYMBOL_CHANGE_MAX_BACK; and the price
-  // scale is fitted once to the new symbol, also with auto scale off.
-  let pendingScaleKeep: { barSpacing: number; rightOffset: number; leftTime?: number; symbol?: boolean } | null = null;
   // Bottom-bar date-range preset ("1D"…"All") waiting for the tab's interval
   // reload to land; the apply effect frames this span instead of keeping the
   // pre-switch scale. Takes precedence over pendingScaleKeep.
   let pendingRangeSpan: string | null = null;
-
-  createEffect(() => {
-    const sym = props.symbol;
-    const int = props.interval;
-    const sess = props.session;
-    if (firstSymbol) {
-      firstSymbol = false;
-      lastClearedSym = sym;
-      lastClearedInt = int;
-      lastClearedSess = sess;
-      return;
-    }
-    if (sym === lastClearedSym && int === lastClearedInt && sess === lastClearedSess) return;
-    loadStartMs = performance.now();
-    {
-      const w = window as unknown as { __clickT?: number };
-      const sinceClick = w.__clickT ? ` | select→symbol-effect ${(loadStartMs - w.__clickT).toFixed(0)}ms` : "";
-      console.log(`[symbol-effect] ${sym} ${int} ${sess}${sinceClick}`);
-    }
-    // Interval/session switch on the SAME symbol: keep the bar spacing and the
-    // right offset (see pendingScaleKeep). Captured now, while the old
-    // interval is still painted. A symbol change frames its own window.
-    if (chart && sym === lastClearedSym && (int !== lastClearedInt || sess !== lastClearedSess)) {
-      const bs = liveBarSpacing(chart);
-      const leftTime = currentTokens().saveLeftEdge ? (chart.timeScale().getVisibleRange()?.from as number | undefined) : undefined;
-      pendingScaleKeep = bs ? { barSpacing: bs, rightOffset: chart.timeScale().scrollPosition(), leftTime } : null;
-    } else {
-      // Symbol change: the new symbol opens at the same bar spacing and the
-      // same distance from its last bar (no farther back than
-      // SYMBOL_CHANGE_MAX_BACK), not on the old symbol's bar numbers.
-      const bs = chart && raw.length > 0 ? liveBarSpacing(chart) : null;
-      pendingScaleKeep = bs && sym !== lastClearedSym
-        ? { barSpacing: bs, rightOffset: Math.max(chart!.timeScale().scrollPosition(), -SYMBOL_CHANGE_MAX_BACK), symbol: true }
-        : null;
-      // A genuine symbol change drops any queued date-range preset — it rode
-      // an interval change on the previous symbol.
-      pendingRangeSpan = null;
-    }
-    lastClearedSym = sym;
-    lastClearedInt = int;
-    lastClearedSess = sess;
-    if (!chart || !series) return;
-    // Keep the previous symbol's candles painted (the dim overlay covers them)
-    // until the new data lands — a stale-while-loading
-    // transition instead of a blank flash. We only invalidate paging and any
-    // in-flight page here; the apply effect swaps the data when it arrives.
-    // Bumping the generation token makes a page launched for the previous series
-    // bail in its `.then` instead of prepending/re-ranging the new one.
-    swapping = true;
-    cx.fetchGen++;
-    cx.loadingMore = false;
-    cx.historyExhausted = false;
-    updateHistoryEnd();
-    cx.prefetch = null;
-    cx.liveVolBase = null;
-    // Drop any anchor-persist queued for the OUTGOING symbol so it can't land on
-    // the incoming pane after the swap (the apply effect restores the new pane's
-    // own saved range).
-    if (rangePersistTimer !== undefined) {
-      clearTimeout(rangePersistTimer);
-      rangePersistTimer = undefined;
-    }
-  });
-  // The last resource value this effect actually applied. The render/legend
-  // helpers below subscribe the effect to indicator/legend signals, and
-  // onRangeChange bumps coordEpoch on every scroll — so this effect can re-run
-  // with the SAME resource value. Without a guard a re-run would reset `raw`
-  // back to the recent window (dropping scroll-back / time-sync pages) and
-  // re-frame to the latest bars — the "scroll snaps back to today" bug. Track
-  // the applied value and skip spurious re-runs (mirrors the symbol-clear
-  // effect's value guard above).
-  let lastAppliedReal: BarsResult | null | undefined = null;
-  createEffect(() => {
-    const real = history();
-    if (!chart || !series) return;
-    // Mid-refetch the resource still reports the previous symbol's bars; wait
-    // for the new fetch to settle before touching the chart so we don't flash
-    // stale data.
-    if (history.loading) return;
-    // Same dataset as last applied → a spurious re-run (legend/indicator/scroll
-    // signal), not new data. Leave the chart (and the user's scroll position +
-    // any paged bars) untouched.
-    if (real === lastAppliedReal) return;
-    lastAppliedReal = real;
-    // New symbol resolved with no data (not served by the data source, entitlement gap, …).
-    // Clear the previous symbol's candles instead of leaving them painted —
-    // otherwise switching tabs looks like the price never changes.
-    if (!real || real.bars.length === 0) {
-      raw = [];
-      rawDaily = [];
-      cx.liveVolBase = null;
-      setDataForType(series, activeType, raw, currentTokens(), dataExtras());
-      afterSeriesData();
-      updateSessionBreaks();
-      if (!crosshairActive) refreshLegend();
-      controller?.renderAll();
-      renderCompareAll();
-      refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-      swapping = false;
-      return;
-    }
-    // The datafeed already aggregated 1W/1M; `real.daily` carries the
-    // underlying daily bars (null for second/minute) so scroll-back can
-    // re-aggregate the full set.
-    rawDaily = real.daily ?? [];
-    raw = toOHLC(real.bars);
-    // Fresh series (possibly a new ADJ basis) — re-snap the 1W/1M live-volume
-    // baseline from the reloaded bars on the next tick.
-    cx.liveVolBase = null;
-    setDataForType(series, activeType, raw, currentTokens(), dataExtras());
-      afterSeriesData();
-    updateSessionBreaks();
-    // Recompute every active study against the freshly-loaded bars BEFORE
-    // framing: study series add their times to the time scale (with a
-    // transform type their real times sit between the synthetic ones), so
-    // the saved range is checked and the view set on the final axis.
-    controller?.renderAll();
-    renderCompareAll();
-    // Restore the user's last anchored view for this pane (persisted across tab
-    // switches + reloads) when it still references loaded bars; otherwise fall
-    // back to default framing. Read untracked so this effect re-runs only on new
-    // data, not on every scroll that updates the saved range. A range that
-    // shows fewer than MIN_VISIBLE_BARS of the loaded bars (e.g. a
-    // shorter-history symbol, or a view saved past the last bar) is treated
-    // as out of bounds.
-    let saved = untrack(() => props.visibleLogicalRange);
-    // Price-based types: the view follows the last item (its index moves
-    // when the item count changed since the save).
-    if (saved && saved.last !== undefined && isTransformType(activeType)) {
-      const last = mainLastIndex();
-      if (last != null) saved = { from: saved.from + last - saved.last, to: saved.to + last - saved.last, last };
-    }
-    // A saved view narrower than MIN_VISIBLE_BARS is the 1-bar collapse the old
-    // sync path could persist, not a user choice: frame by default instead.
-    let savedInBounds = !!saved && saved.to - saved.from >= MIN_VISIBLE_BARS;
-    if (savedInBounds) {
-      // Overlap, in time-scale indices, between the saved range and the
-      // series. Transform types have their own items (data() copies, so only
-      // there).
-      const ts = chart.timeScale();
-      const items: readonly { time: Time }[] = isTransformType(activeType) ? series.data() : raw;
-      const first = items.length ? ts.timeToIndex(items[0].time, true) : null;
-      const last = items.length ? ts.timeToIndex(items[items.length - 1].time, true) : null;
-      const shown = first != null && last != null ? Math.min(saved!.to, last) - Math.max(saved!.from, first) + 1 : 0;
-      savedInBounds = shown >= MIN_VISIBLE_BARS;
-    }
-    // Describes the framing applied, for the [apply] perf log below.
-    let framed: string;
-    if (pendingRangeSpan) {
-      // Bottom-bar date-range tab: frame the preset span on the new interval
-      // (overrides the interval-switch scale keep: the user asked for the span).
-      const spanId = pendingRangeSpan;
-      pendingRangeSpan = null;
-      pendingScaleKeep = null;
-      framed = `span ${spanId}`;
-      applyRangeSpan(spanId);
-    } else if (pendingScaleKeep) {
-      // Interval/session switch on the same symbol: same bar spacing, same
-      // number of bars between the last bar and the right edge. A view deeper
-      // than the loaded intraday window pulls older pages in through the
-      // scroll-back pager, as a user scroll would.
-      const keep = pendingScaleKeep;
-      pendingScaleKeep = null;
-      const ts = chart.timeScale();
-      if (isTransformType(activeType)) {
-        // Price-based types: same bar spacing and right offset, counted from
-        // their own last item (no time of their own for a left edge).
-        const to = (mainLastIndex() ?? raw.length - 1) + keep.rightOffset;
-        ts.setVisibleLogicalRange({ from: to - barsSpan(ts.width(), keep.barSpacing), to });
-        framed = `keep bs=${keep.barSpacing.toFixed(2)} ro=${keep.rightOffset.toFixed(1)}`;
-      } else if (keep.leftTime !== undefined) {
-        // Left edge kept: the first bar at / after the old left-edge time
-        // stays at the left edge, same bar spacing.
-        let lo = 0;
-        let hi = raw.length;
-        while (lo < hi) { const mid = (lo + hi) >> 1; if ((raw[mid].time as number) < keep.leftTime) lo = mid + 1; else hi = mid; }
-        const from = lo;
-        ts.setVisibleLogicalRange({ from, to: from + barsSpan(ts.width(), keep.barSpacing) });
-        framed = `keep-left bs=${keep.barSpacing.toFixed(2)} left=${keep.leftTime}`;
-      } else {
-        // A shorter history than the kept distance: its first bars stay in view.
-        const ro = keep.symbol ? Math.max(keep.rightOffset, -(raw.length - MIN_VISIBLE_BARS)) : keep.rightOffset;
-        const to = raw.length - 1 + ro;
-        ts.setVisibleLogicalRange({ from: to - barsSpan(ts.width(), keep.barSpacing), to });
-        framed = `keep bs=${keep.barSpacing.toFixed(2)} ro=${ro.toFixed(1)}`;
-      }
-      if (keep.symbol) fitPriceScaleOnce();
-    } else if (savedInBounds) {
-      chart.timeScale().setVisibleLogicalRange({ from: saved!.from, to: saved!.to });
-      framed = `saved ${saved!.from.toFixed(0)}..${saved!.to.toFixed(0)}`;
-    } else {
-      // The daily family loads its full available history up-front, so frame the
-      // most recent `view` bars (1D ≈ 1 year) with the rest preloaded behind, and
-      // mark paging exhausted — scrolling back reveals already-loaded bars with no
-      // network round-trip. Second/minute (rawDaily empty) keep lazy scroll-back.
-      const view = initialViewBars(props.interval ?? "1D");
-      // Transform types end the axis with their own last item, not at the
-      // source bar count.
-      let to = raw.length;
-      if (isTransformType(activeType)) {
-        const last = mainLastIndex();
-        if (last != null) to = last + 1;
-      }
-      if (view !== null && raw.length > view) {
-        chart.timeScale().setVisibleLogicalRange({ from: to - view, to });
-      } else {
-        chart.timeScale().fitContent();
-      }
-      framed = view === null ? "all" : String(view);
-    }
-    if (rawDaily.length > 0) cx.historyExhausted = true;
-    updateHistoryEnd();
-    {
-      const _r = chart.timeScale().getVisibleLogicalRange();
-      const now = performance.now();
-      const e2e = loadStartMs ? ` | symbol-effect→paint ${(now - loadStartMs).toFixed(0)}ms` : "";
-      const w = window as unknown as { __clickT?: number };
-      const click = w.__clickT ? ` | SELECT→paint ${(now - w.__clickT).toFixed(0)}ms` : "";
-      console.log(
-        `[apply] ${props.symbol} ${props.interval}: set ${raw.length} bars (view=${framed}), hostW=${host.clientWidth}, range=${_r ? `${_r.from.toFixed(0)}..${_r.to.toFixed(0)}` : "null"}${e2e}${click}`,
-      );
-    }
-    // This framing is not a user change: keep it off the tab links.
-    holdLinkQuiet();
-    // New data is painted — end the transition (drop the dim, re-enable the
-    // live poller).
-    swapping = false;
-    // A date-range target that arrived while this pane was loading.
-    if (cx.syncTarget) scheduleSyncRun(0);
-    // A linked time that arrived while this pane was loading.
-    if (cx.pendingLinkTime !== null) {
-      const t = cx.pendingLinkTime;
-      cx.pendingLinkTime = null;
-      void goToTime(t);
-    }
-    if (!crosshairActive) refreshLegend();
-    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
-    // Warm a read-ahead window now so the first scroll-back doesn't wait on the
-    // network (idempotent — startPrefetch dedupes the same gen + beforeSec).
-    const firstOldest = (rawDaily.length > 0 ? rawDaily[0]?.time : raw[0]?.time) as
-      | number
-      | undefined;
-    if (firstOldest !== undefined)
-      startPrefetch(props.symbol ?? "", props.interval ?? "1D", cx.fetchGen, firstOldest);
-  });
-
-  // Dim-and-hold transition: rather than a spinner on a
-  // blanked chart, keep the previous candles painted and fade a dim overlay over
-  // them while the new symbol loads. Debounced ~160ms so cached/instant loads
-  // never flash the overlay; only dim when there's an outgoing chart to hold.
-  const [dimmed, setDimmed] = createSignal(false);
-  let dimTimer = 0;
-  createEffect(() => {
-    if (history.loading) {
-      clearTimeout(dimTimer);
-      dimTimer = window.setTimeout(() => {
-        if (raw.length > 0) setDimmed(true);
-      }, 160);
-    } else {
-      clearTimeout(dimTimer);
-      setDimmed(false);
-    }
-  });
-  onCleanup(() => clearTimeout(dimTimer));
 
   // Sync the active-indicator set onto the chart whenever it changes (or once
   // the controller exists). The controller adds/removes study layers and stacks
@@ -1510,7 +1018,6 @@ export function ChartView(props: ChartViewProps) {
     compareEntries,
     compareEntry,
     compareLayers,
-    compareLegendRows,
     compareTitle,
     renderCompareAll,
     setComparePreview,
@@ -1599,7 +1106,6 @@ export function ChartView(props: ChartViewProps) {
   /** Full name for reference / news lookups (the provider tells listings apart). */
   const fullSymbol = createMemo(() => props.symbol ?? "");
   const intervalText = createMemo(() => intervalLabel(props.interval ?? "1D"));
-  const [legendDesc, setLegendDesc] = createSignal("");
 
   const { NewsCard } = attach(cx, createNews(cx));
   function catchUpOnShow() {
@@ -1632,64 +1138,7 @@ export function ChartView(props: ChartViewProps) {
     untrack(updateHistoryEnd);
   });
   onCleanup(() => cx.historyEndClose?.());
-  createEffect(() => {
-    const mode = appearance().legendTitleMode;
-    const sym = fullSymbol();
-    setLegendDesc("");
-    if (!sym || (mode !== "Name" && mode !== "Symbol and name")) return;
-    let alive = true;
-    getTickerInfo(sym)
-      .then((info) => { if (alive) setLegendDesc(info?.name ?? ""); })
-      .catch(() => {});
-    onCleanup(() => { alive = false; });
-  });
-
-  // Price-axis currency label: the symbol's currency (ticker info).
-  createEffect(() => {
-    const sym = fullSymbol();
-    setCurrency("");
-    if (!sym) return;
-    let alive = true;
-    getTickerInfo(sym)
-      .then((info) => { if (alive) setCurrency((info?.currency ?? "").toUpperCase()); })
-      .catch(() => {});
-    onCleanup(() => { alive = false; });
-  });
-
-  let watermark: ITextWatermarkPluginApi<Time> | null = null;
-  const [wmDesc, setWmDesc] = createSignal("");
-  createEffect(() => {
-    const a = appearance();
-    const sym = fullSymbol();
-    setWmDesc("");
-    if (!a.watermarkDescription || !sym) return;
-    let alive = true;
-    getTickerInfo(sym)
-      .then((info) => { if (alive) setWmDesc(info?.name ?? ""); })
-      .catch(() => {});
-    onCleanup(() => { alive = false; });
-  });
-  createEffect(() => {
-    appearance();
-    void props.theme;
-    const sym = ticker();
-    const ivl = intervalText();
-    const desc = wmDesc();
-    if (!chart) return;
-    const t = currentTokens();
-    const head = [
-      t.watermarkTicker ? sym : "",
-      t.watermarkInterval ? ivl : "",
-    ].filter(Boolean).join(", ");
-    const lines: { text: string; color: string; fontSize: number }[] = [];
-    if (head) lines.push({ text: head, color: t.watermarkColor, fontSize: 54 });
-    if (t.watermarkDescription && desc) lines.push({ text: desc, color: t.watermarkColor, fontSize: 24 });
-    // Recreate rather than applyOptions: dropping to zero lines must remove
-    // the primitive, and recreation keeps one code path for both.
-    watermark?.detach();
-    watermark = null;
-    if (lines.length > 0) watermark = createTextWatermark(chart.panes()[0], { lines });
-  });
+  attach(cx, createTickerInfo(cx));
 
   return (
     <div
@@ -1824,72 +1273,7 @@ export function ChartView(props: ChartViewProps) {
       </div>
       {/* One column: the studies stack under the series
           row whatever its height (it wraps to two lines on narrow panes). */}
-      <div class="ot-legend-stack" style={{ left: `${8 + legendLeft()}px`, "max-width": legendMaxWidth() }}>
-        <ChartLegend
-          ticker={splitSymbol(props.symbol ?? "").ticker}
-          interval={intervalLabel(props.interval ?? "1D")}
-          exchange={splitSymbol(props.symbol ?? "").exchange}
-          values={legend()}
-          formatPrice={legendPriceFormat()}
-          titleMode={appearance().legendTitleMode}
-          description={legendDesc()}
-          showLogo={appearance().legendLogo}
-          showTitle={appearance().legendTitle}
-          showChartValues={appearance().legendChartValues}
-          showBarChange={appearance().legendBarChange}
-          showVolume={appearance().legendVolume}
-          showLastDayChange={appearance().legendLastDayChange}
-          marketStatus={marketSession()}
-          showOpenStatus={appearance().legendMarketStatus ?? true}
-          hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
-          seriesHidden={!!props.seriesHidden}
-          onToggleSeries={props.onToggleSeries}
-          flagColor={(() => { const f = props.symbol ? flagOf(props.symbol) : null; return f ? FLAG_HEX[f] : null; })()}
-          onFlag={(btn) => {
-            // Reference marker click: an unflagged symbol is flagged in the
-            // last used colour and the colour popup opens; a flagged one is
-            // unflagged.
-            const sym = props.symbol;
-            if (!sym) return;
-            if (flagOf(sym)) { setFlag(sym, null); setFlagPopup(null); return; }
-            setFlag(sym, lastFlagColor());
-            setFlagPopup(btn);
-          }}
-          onChangeSymbol={props.onChangeSymbol}
-          onChangeInterval={props.onChangeInterval}
-          onMore={openSeriesMoreMenu}
-          linkVisible={!!props.linkSyncVisible}
-          linkIcon={props.linkGroup != null ? SYNC_GROUPS[props.linkGroup]?.icon ?? null : null}
-          onLink={(r) => setSyncMenu(syncMenu() ? null : r)}
-        />
-        <Show when={syncMenu()}>
-          {(r) => (
-            <ChartSyncMenu anchor={r()} group={props.linkGroup} onPick={(g) => props.onLinkGroup?.(g)} onClose={() => setSyncMenu(null)} />
-          )}
-        </Show>
-        <Show when={flagPopup()}>
-          {(btn) => (
-            <FlagColorPopup
-              anchor={btn()}
-              value={props.symbol ? flagOf(props.symbol) : null}
-              onPick={(c) => { if (props.symbol) setFlag(props.symbol, c); }}
-              onClose={() => setFlagPopup(null)}
-            />
-          )}
-        </Show>
-        {studyLegend(0)}
-      </div>
-      {/* Study panes: each pane's legend at its own top-left, same offset
-          as the main legend. */}
-      <For each={paneBoxes().filter((b) => b.index > 0)}>
-        {(b) => (
-          <Show when={indLegend().some((r) => r.pane === b.index)}>
-            <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px`, left: `${8 + legendLeft()}px`, "max-width": legendMaxWidth() }}>
-              {studyLegend(b.index)}
-            </div>
-          </Show>
-        )}
-      </For>
+      <LegendStacks />
       <Show when={settingsForId()}>
         {(id) => {
           const entry = getIndicatorEntry(id());
