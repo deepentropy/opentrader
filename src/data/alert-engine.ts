@@ -32,6 +32,7 @@ import { cachedSymbolSessions, localToUtc } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
 import { alertStore, type AlertRule, type Operand } from "./alert-store";
+import { inSchedule } from "./alert-schedule";
 import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
@@ -564,6 +565,9 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
     ...(offline ? { offline: true, receivedAt: now } : {}),
   });
 
+  // Outside the notification schedule the fire is logged, nothing else (reference: notifications are muted).
+  if (!inSchedule(rule.schedule, offline ? offline.fireTime : now)) return;
+
   if (!offline) playAlertSound(rule.sound, { duration: rule.soundDuration ?? 0 });
 
   // Webhook — fire-and-forget; a failing endpoint must not affect local delivery.
@@ -611,6 +615,8 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
     }
   }
 
+  // The in-app toast ("Show toast notification", on unless switched off).
+  if (rule.toast === false) return;
   for (const fn of fireListeners) {
     try {
       fn({ alertId: rule.id, symbol: rule.symbol, title, message, time: now, sound: rule.sound });

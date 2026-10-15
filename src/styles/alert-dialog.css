@@ -424,6 +424,45 @@
 .ad-add-cond-btn:disabled { color: var(--color-text-disabled, var(--color-text-secondary)); cursor: default; }
 .ad-add-cond-hint { display: inline-flex; color: var(--color-text-secondary); }
 .ad-cond-remove { margin-right: auto; }
+
+/* Notifications view: "Notification schedule" and its select on one row (select 240 px), the note under them; the
+   "Custom schedule" pop-over over the select (reference: 360 px, day toggles, from / to, "Set schedule"). */
+.ad-sched-divider { margin: 4px 0 16px; }
+.ad-sched { display: flex; align-items: center; gap: 8px; }
+.ad-sched > .ad-check-title { flex: 1; }
+.ad-sched-control { position: relative; width: 240px; }
+.ad-sched-desc { margin-top: 12px; }
+.ad-sched-pop {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: calc(100% + 4px);
+  width: 360px;
+  box-sizing: border-box;
+  padding: 8px 12px 12px;
+  border-radius: 8px;
+  background: var(--color-bg-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 0 0 1px var(--color-divider-line-primary);
+}
+.ad-sched-pop-head { display: flex; align-items: center; gap: 4px; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--color-divider-line-primary); }
+.ad-sched-pop-title { font-weight: 600; }
+.ad-sched-days { display: flex; gap: 4px; margin-bottom: 12px; }
+/* Days: off = #2E2E2E tile, on = #F2F2F2 tile with dark text (reference, dark theme). */
+.ad-sched-day {
+  flex: 1;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--color-container-fill-primary-neutral-extra-light);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.ad-sched-day:hover { background: var(--color-container-fill-primary-neutral-light); }
+.ad-sched-day.is-on { background: var(--color-container-fill-primary-neutral-extra-bold); color: var(--color-bg-primary); }
+.ad-sched-times { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ad-sched-times > .ad-input { flex: 1; min-width: 0; }
+.ad-sched-set { width: 100%; }
 .ad-header {
   display: flex;
   align-items: center;

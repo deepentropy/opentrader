@@ -134,6 +134,10 @@ export type AlertFrequency =
 
 export type AlertStopReason = "triggered" | "manual" | "expired";
 
+/** Days (ISO: 1 = Monday .. 7 = Sunday) and a daily time range ("HH:MM", "00:00"–"00:00" = all day) in a time
+ *  zone (see alert-schedule.ts). */
+export type AlertSchedule = { days: number[]; from: string; to: string; timeZone: string };
+
 /** One condition of an alert: its source, operator, what it compares with and the interval it reads. */
 export type AlertCondition = {
   left: Operand;
@@ -177,6 +181,10 @@ export type AlertRule = {
   soundDuration?: number;
   /** Show a desktop/OS notification on fire (vs. toast + log only). */
   popup: boolean;
+  /** Show the in-app toast on fire (reference "Show toast notification"); unset = on. */
+  toast?: boolean;
+  /** Notification schedule: the notifications are muted outside it (the fire is still logged); unset = 24/7. */
+  schedule?: AlertSchedule | null;
   enabled: boolean;
   /** Why a stopped alert stopped: it fired once ("triggered"), it was switched
    *  off ("manual") or its expiry passed ("expired"). Unset while active. */

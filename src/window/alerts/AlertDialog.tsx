@@ -21,6 +21,7 @@ import { Portal } from "solid-js/web";
 import {
   alertStore,
   type AlertCondition,
+  type AlertSchedule,
   type AlertFrequency,
   type AlertOperator,
   type Operand,
@@ -73,6 +74,7 @@ import {
   setAlertWebhook,
 } from "../../data/alert-engine";
 import { attachDialogSize } from "./dialog-size";
+import { ISO_WEEKDAYS, PRESET_SEGMENTS, PRESET_TITLES, localTimeZone, schedulePreset, scheduleTitle, segmentText, type SchedulePreset } from "../../data/alert-schedule";
 
 type Props = {
   /** When set, edit this existing rule instead of creating one. */
@@ -637,6 +639,9 @@ export function AlertDialog(props: Props) {
   const [sound, setSound] = createSignal(existing?.sound ?? "fired");
   const [soundDuration, setSoundDuration] = createSignal(existing?.soundDuration ?? 0);
   const [popup, setPopup] = createSignal(existing?.popup ?? true);
+  // In-app toast and notification schedule (reference Notifications view).
+  const [toast, setToast] = createSignal(existing?.toast !== false);
+  const [schedule, setSchedule] = createSignal<AlertSchedule | null>(existing?.schedule ?? null);
   // Webhook — persisted per-rule beside the store (see alert-engine's kv map).
   const existingWebhook = existing ? alertWebhook(existing.id) : null;
   const [webhookOn, setWebhookOn] = createSignal(existingWebhook != null);
@@ -658,6 +663,10 @@ export function AlertDialog(props: Props) {
   const [draftName, setDraftName] = createSignal("");
   const [draftMessage, setDraftMessage] = createSignal("");
   const [draftPopup, setDraftPopup] = createSignal(true);
+  const [draftToast, setDraftToast] = createSignal(true);
+  const [draftSchedule, setDraftSchedule] = createSignal<AlertSchedule | null>(null);
+  /** The "Custom schedule" editor: its days and hours while it is open. */
+  const [customSchedule, setCustomSchedule] = createSignal<{ days: number[]; from: string; to: string } | null>(null);
   const [draftWebhookOn, setDraftWebhookOn] = createSignal(false);
   const [draftWebhookUrl, setDraftWebhookUrl] = createSignal("");
   const [draftSound, setDraftSound] = createSignal("");
@@ -1043,6 +1052,8 @@ export function AlertDialog(props: Props) {
       sound: sound(),
       soundDuration: sound() ? soundDuration() : 0,
       popup: popup(),
+      toast: toast(),
+      schedule: schedule() ?? undefined,
       expiresAt,
     };
 
@@ -1142,9 +1153,11 @@ export function AlertDialog(props: Props) {
   };
   const levelOptions = (): MenuOption[] => fibLevels().map((l) => ({ value: String(l.coeff), label: levelText(l) }));
   const plotOptions = (id: string): MenuOption[] => plotsOf(id).map((p) => ({ value: String(p.index), label: p.title }));
+  /** The Notifications row: what notifies, "Scheduled: …" with a schedule other than 24/7, else "None". */
   const notificationsText = () => {
-    const on = [popup() && "Notification", webhookOn() && "Webhook", sound() && "Sound"].filter(Boolean);
-    return on.length ? on.join(", ") : "None";
+    const on = [popup() && "Notification", toast() && "Toasts", webhookOn() && "Webhook", sound() && "Sound"].filter(Boolean).join(", ");
+    if (!on) return "None";
+    return schedule() ? `Scheduled: ${on}` : on;
   };
   // alert() calls: the view edits the alert's name only (the calls give the messages), shown as the condition until
   // changed.
@@ -1157,6 +1170,9 @@ export function AlertDialog(props: Props) {
     );
   const openNotifications = () => {
     setDraftPopup(popup());
+    setDraftToast(toast());
+    setDraftSchedule(schedule());
+    setCustomSchedule(null);
     setDraftWebhookOn(webhookOn());
     setDraftWebhookUrl(webhookUrl());
     setDraftSoundOn(!!sound());
@@ -1408,6 +1424,27 @@ export function AlertDialog(props: Props) {
     );
   };
 
+  /** Schedule choices: the presets with their days and hours, then the custom schedule (reference). */
+  const scheduleOptions = (): MenuOption[] => [
+    ...(["24/7", "weekdays", "standard_working_hours"] as const).map((k) => ({ value: k, label: PRESET_TITLES[k], desc: segmentText(PRESET_SEGMENTS[k], localTimeZone()) })),
+    {
+      value: "custom",
+      label: schedulePreset(draftSchedule()) === "custom" ? scheduleTitle(draftSchedule()) : PRESET_TITLES.custom,
+      sep: true,
+    },
+  ];
+  const pickSchedule = (v: string) => {
+    const k = v as SchedulePreset;
+    if (k === "custom") {
+      // The editor starts on the custom schedule set, else on the standard working hours (reference
+      // defaultCustomSchedule: a preset does not change it).
+      const cur = draftSchedule();
+      setCustomSchedule(cur && schedulePreset(cur) === "custom" ? { days: cur.days, from: cur.from, to: cur.to } : { days: [...ISO_WEEKDAYS], from: "09:00", to: "18:00" });
+      return;
+    }
+    setDraftSchedule(k === "24/7" ? null : { ...PRESET_SEGMENTS[k], timeZone: localTimeZone() });
+  };
+
   const subHeader = (title: string) => (
     <header class="ad-header">
       <button type="button" class="ad-icon-btn" data-name="back" aria-label="Back" onClick={() => setView("main")}>
@@ -1644,6 +1681,11 @@ export function AlertDialog(props: Props) {
                 <span class="ad-check-title">Show desktop notification</span>
                 <span class="ad-check-desc">Displays a notification of the operating system when your alert triggers.</span>
               </label>
+              <label class="ad-check">
+                <input type="checkbox" checked={draftToast()} onChange={() => setDraftToast((v) => !v)} />
+                <span class="ad-check-title">Show toast notification</span>
+                <span class="ad-check-desc">Displays an onsite notification in the page corner.</span>
+              </label>
               {/* Webhook — POSTs the fire payload as JSON (see alert-engine). */}
               <label class="ad-check">
                 <input type="checkbox" checked={draftWebhookOn()} onChange={() => setDraftWebhookOn((v) => !v)} />
@@ -1676,6 +1718,57 @@ export function AlertDialog(props: Props) {
                   <div class="ad-hint ad-indent">Alert sounds are off in Settings: this alert fires without sound.</div>
                 </Show>
               </Show>
+              <div class="ad-divider ad-sched-divider" />
+              <div class="ad-sched">
+                <span class="ad-check-title">Notification schedule</span>
+                <div class="ad-sched-control">
+                  <AdMenu variant="box" label="Notification schedule" value={schedulePreset(draftSchedule())} options={scheduleOptions()} onPick={pickSchedule} />
+                  <Show when={customSchedule()}>
+                    {(c) => (
+                      <div class="ad-sched-pop" role="dialog" aria-label="Custom schedule" data-name="custom-schedule-popover">
+                        <div class="ad-sched-pop-head">
+                          <button type="button" class="ad-icon-btn" aria-label="Back" onClick={() => setCustomSchedule(null)}>
+                            {arrow("M11 3.5 5.5 9l5.5 5.5")}
+                          </button>
+                          <span class="ad-sched-pop-title">Custom schedule</span>
+                        </div>
+                        <div class="ad-sched-days">
+                          <For each={[1, 2, 3, 4, 5, 6, 7]}>
+                            {(d) => (
+                              <button
+                                type="button"
+                                class="ad-sched-day"
+                                classList={{ "is-on": c().days.includes(d) }}
+                                aria-pressed={c().days.includes(d)}
+                                onClick={() => setCustomSchedule({ ...c(), days: c().days.includes(d) ? c().days.filter((x) => x !== d) : [...c().days, d].sort((a, b) => a - b) })}
+                              >
+                                {["", "Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"][d]}
+                              </button>
+                            )}
+                          </For>
+                        </div>
+                        <div class="ad-sched-times">
+                          <input class="ad-input" type="time" aria-label="From" value={c().from} onInput={(e) => setCustomSchedule({ ...c(), from: e.currentTarget.value || "00:00" })} />
+                          <span class="ad-suffix">—</span>
+                          <input class="ad-input" type="time" aria-label="To" value={c().to} onInput={(e) => setCustomSchedule({ ...c(), to: e.currentTarget.value || "00:00" })} />
+                        </div>
+                        <button
+                          type="button"
+                          class="ot-dlg-btn is-main is-neutral ad-sched-set"
+                          disabled={c().days.length === 0}
+                          onClick={() => {
+                            setDraftSchedule({ ...c(), timeZone: localTimeZone() });
+                            setCustomSchedule(null);
+                          }}
+                        >
+                          Set schedule
+                        </button>
+                      </div>
+                    )}
+                  </Show>
+                </div>
+              </div>
+              <div class="ad-check-desc ad-sched-desc">Notifications are muted outside this schedule.</div>
             </div>
             <footer class="ad-footer">
               <span class="ad-spacer" />
@@ -1687,6 +1780,8 @@ export function AlertDialog(props: Props) {
                 disabled={!draftWebhookValid()}
                 onClick={() => {
                   setPopup(draftPopup());
+                  setToast(draftToast());
+                  setSchedule(draftSchedule());
                   setWebhookOn(draftWebhookOn());
                   setWebhookUrl(draftWebhookUrl());
                   setSound(draftSoundOn() ? draftSound() : "");
