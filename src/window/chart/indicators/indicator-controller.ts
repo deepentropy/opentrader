@@ -900,12 +900,15 @@ export class IndicatorController {
   /** Claim the next stacked pane for a pane owner that is not a study (a
    *  compared symbol in "New pane"). Returns the pane index; the owner draws
    *  there. Released with {@link releasePane}. */
-  claimPaneFor(id: string, owner: PaneOwner): number {
+  claimPaneFor(id: string, owner: PaneOwner, joinGroup?: string): number {
     const existing = this.instances.get(id);
     if (existing?.owner) return existing.paneIndex;
-    // Studies already in its group (they stayed with it in the pane the
-    // series left), or the pane kept for it there: that pane.
-    const mate = [...this.instances.values()].find((i) => !i.overlay && i.group === id);
+    // The pane of a group it joins ("Move to ▸ Existing pane"), else studies
+    // already in its group (they stayed with it in the pane the series left),
+    // or the pane kept for it there: that pane.
+    const joined = joinGroup ? [...this.instances.entries()].find(([k, i]) => k !== id && !i.overlay && i.group === joinGroup)?.[1] : undefined;
+    const group = joined ? joinGroup! : id;
+    const mate = joined ?? [...this.instances.values()].find((i) => !i.overlay && i.group === id);
     const reserved = this.reservedPanes.get(id);
     this.reservedPanes.delete(id);
     let paneIndex: number;
@@ -923,7 +926,7 @@ export class IndicatorController {
       reserved.setPreserveEmptyPane(false);
       this.usedPanes.add(paneIndex);
     } else paneIndex = this.claimPane();
-    this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false, group: id });
+    this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false, group });
     return paneIndex;
   }
 
@@ -950,6 +953,14 @@ export class IndicatorController {
       for (const p of this.plotsOf(inst, time)) out.push(p.value);
     }
     return out;
+  }
+
+  /** Pane group of stacked pane `paneIndex` (the group of a study or pane
+   *  owner in it), null for the price pane or none. */
+  groupOfPane(paneIndex: number): string | null {
+    if (paneIndex === this.mainPane) return null;
+    for (const inst of this.instances.values()) if (!inst.overlay && inst.paneIndex === paneIndex && inst.group) return inst.group;
+    return null;
   }
 
   /** Studies and pane owners of stacked pane `paneIndex` (not the ones drawn

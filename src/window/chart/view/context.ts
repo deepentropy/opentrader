@@ -105,7 +105,7 @@ export type ChartViewProps = {
   /** Compared symbols (header "Compare symbols") of this pane. */
   compare?: CompareEntry[];
   /** Patch one compared symbol (legend eye, Settings → Ok). */
-  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement }) => void;
+  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement; group?: string; paneScale?: "left" | "right" | "none" }) => void;
   /** Remove one compared symbol (legend trash, More → Remove, Delete pane). */
   onRemoveCompare?: (id: string) => void;
   /** Legend title of a compared symbol clicked ("Change symbol"). */

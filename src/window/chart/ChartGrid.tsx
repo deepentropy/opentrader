@@ -101,7 +101,7 @@ type Props = {
   /** Persist a study's edited inputs/styles onto a specific pane (Settings → Ok). */
   onIndicatorSettings?: (paneIndex: number, id: string, settings: PaneIndicatorSettings) => void;
   /** Compared symbols of a pane: patch / remove one, change its symbol. */
-  onCompareChange?: (paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement }) => void;
+  onCompareChange?: (paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement; group?: string; paneScale?: "left" | "right" | "none" }) => void;
   onRemoveCompare?: (paneIndex: number, id: string) => void;
   onChangeCompareSymbol?: (paneIndex: number, id: string) => void;
   onPaneOrder?: (paneIndex: number, order: string[]) => void;

@@ -4,15 +4,15 @@
  *   "Add this indicator / strategy / symbol to entire layout" (charts of a
  *   multi-chart layout), "Visual order" > (front / back / one step among the
  *   objects of its pane), "Visibility on intervals" > (the four quick
- *   settings of its Visibility tab), "Move to" > (studies: pane above /
- *   below, new pane above / below), "Pin to scale (now …)" > (studies: the
- *   left / right scale of its pane, a new one on a free side, no scale),
+ *   settings of its Visibility tab), "Move to" > (pane above / below, new
+ *   pane above / below), "Pin to scale (now …)" > (the left / right scale of
+ *   its pane, a new one on a free side, no scale),
  *   "Copy" (Ctrl + C; the chart menu's Paste adds a copy to a chart).
  * Reference rules: study menu actions of the reference chart (Pin to scale
  * labels name the scales "A" (right) / "Z" (left) once the chart has scales
  * on both sides). Not here (missing features): a study calculated on the
- * source ("Add indicator/strategy on …"), financial metrics, symbol info, a
- * second scale on one side, compared symbols moved between panes or pinned.
+ * source ("Add indicator/strategy on …"), financial metrics, a second scale
+ * on one side.
  */
 import { Icon } from "../../../components/Icon";
 import { sourcesEdit } from "../../shell/source-edits";
@@ -27,6 +27,7 @@ import { visibilityForMode, type IntervalsVisibilityMode } from "../interval-vis
 import type { CtxNode } from "../ChartContextMenu";
 import type { StudyMoves, ZOrderOp } from "./sources";
 import { type ChartCx } from "./context";
+import { MAIN_SOURCE_ID } from "../object-tree-sources";
 
 /** What createSourceMenu adds to the chart context. */
 export interface SourceMenuApi {
@@ -197,7 +198,6 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
    *  sources there on a side scale. */
   function paneScales(pane: number, except: string) {
     const c = cx.controller!;
-    const main = cx.currentTokens().scalesPlacement;
     const used = { left: false, right: false };
     let onSides = 0;
     let others = 0;
@@ -211,7 +211,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
       const cmp = cx.compareEntry(r.id);
       if (cmp) {
         const sid = cx.compareLayers.get(r.id)?.scaleId;
-        add(cmp.placement === "pane" ? main : sid === "left" || sid === "right" ? sid : "none");
+        add(sid === "left" || sid === "right" ? sid : "none");
       } else add(c.scaleOf(r.id));
     }
     return { used, onSides, others };
@@ -236,6 +236,10 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const cur = c?.scaleOf(id) ?? null;
     const pane = c?.paneOf(id) ?? null;
     if (!c || !cur || pane === null) return null;
+    return pinRowFor(id, cur, pane, (side) => pinTo(id, side));
+  }
+  /** The "Pin to scale" row of a source on scale `cur` of pane `pane`; `pin` moves it. */
+  function pinRowFor(id: string, cur: StudyScale, pane: number, pin: (scale: StudyScale) => void): CtxNode {
     const { used, onSides, others } = paneScales(pane, id);
     const named = sideUsedAnywhere("left") && sideUsedAnywhere("right");
     const sub: Item[] = [];
@@ -246,11 +250,11 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
           ? `${cur === side ? "Pinned" : "Pin"} to scale ${SCALE_LETTER[side]}`
           : `${cur === side ? "Pinned" : "Pin"} to ${side} scale`;
         const undoText = named ? `pin to scale ${SCALE_LETTER[side]}` : `pin to ${side} scale`;
-        sub.push({ kind: "item", id: `pin-${side}`, label, checked: cur === side, onSelect: () => { if (cur !== side) sourcesEdit(undoText, () => pinTo(id, side)); } });
+        sub.push({ kind: "item", id: `pin-${side}`, label, checked: cur === side, onSelect: () => { if (cur !== side) sourcesEdit(undoText, () => pin(side)); } });
       } else if (others > 0 || cur !== side) {
         // A new scale on a free side (named when another pane has one there).
         const label = sideUsedAnywhere(side) ? `Pin to scale ${SCALE_LETTER[side]}` : `Pin to new ${side} scale`;
-        sub.push({ kind: "item", id: `pin-new-${side}`, label, onSelect: () => sourcesEdit(`move ${sourceTitle(id)} to new ${side} scale`, () => pinTo(id, side)) });
+        sub.push({ kind: "item", id: `pin-new-${side}`, label, onSelect: () => sourcesEdit(`move ${sourceTitle(id)} to new ${side} scale`, () => pin(side)) });
       }
     }
     // No scale: not for the only source of the pane on a side scale.
@@ -258,10 +262,83 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     sub.push({
       kind: "item", id: "pin-none", label: "No scale (fullscreen)", checked: cur === "none",
       disabled: !(cur === "none" || onSidesWithIt > 1),
-      onSelect: () => { if (cur !== "none") sourcesEdit(`make ${sourceTitle(id)} no scale (Full screen)`, () => pinTo(id, "none")); },
+      onSelect: () => { if (cur !== "none") sourcesEdit(`make ${sourceTitle(id)} no scale (Full screen)`, () => pin("none")); },
     });
     const now = cur === "none" ? "no scale" : named ? SCALE_LETTER[cur] : cur;
     return { kind: "item", id: "pin-to-scale", label: `Pin to scale (now ${now})`, icon: PIN_ICON(), submenu: sub };
+  }
+
+  // ── Compared symbols: Move to, Pin to scale ─────────────────────────────
+  // A compared symbol is placed like a study: over the series on the
+  // series' scale ("Same % scale"), on a scale of its own, without a scale,
+  // or in a pane (its own or one it joined).
+  /** Pane a compared symbol is drawn in. */
+  function comparePane(id: string): number | null {
+    const e = cx.compareEntry(id);
+    const layer = cx.compareLayers.get(id);
+    if (!e || !layer) return null;
+    return e.placement === "pane" ? layer.paneIndex : cx.mainPane();
+  }
+  function compareMoves(id: string): StudyMoves | null {
+    const c = cx.controller;
+    const pane = comparePane(id);
+    if (!c || pane === null) return null;
+    const last = (cx.chart?.panes().length ?? 1) - 1;
+    const shared = pane === cx.mainPane() || c.idsInPane(pane).length > 1;
+    return { mergeUp: pane > 0, unmergeUp: shared, mergeDown: pane < last, unmergeDown: shared };
+  }
+  function moveCompare(id: string, move: keyof StudyMoves) {
+    const c = cx.controller;
+    const pane = comparePane(id);
+    if (!c || pane === null || !compareMoves(id)?.[move]) return;
+    if (move === "mergeUp" || move === "mergeDown") {
+      const target = move === "mergeUp" ? pane - 1 : pane + 1;
+      // Into the price pane: over the series on a scale of its own; else the pane's group.
+      if (target === cx.mainPane()) { props.onCompareChange?.(id, { placement: "scale", group: undefined, paneScale: undefined }); return; }
+      const group = c.groupOfPane(target);
+      if (!group) return;
+      props.onCompareChange?.(id, { placement: "pane", group, paneScale: undefined });
+      return;
+    }
+    // A new pane right above / below the panes it shares.
+    const before = c.stackedOrder().filter((x) => x !== id);
+    const mates = [...c.idsInPane(pane).filter((x) => x !== id), ...(pane === cx.mainPane() ? [MAIN_SOURCE_ID] : [])];
+    const first = before.findIndex((x) => mates.includes(x));
+    let lastMate = first;
+    before.forEach((x, k) => { if (mates.includes(x)) lastMate = k; });
+    const at = first < 0 ? (move === "unmergeUp" ? 0 : before.length) : move === "unmergeUp" ? first : lastMate + 1;
+    const order = [...before.slice(0, at), id, ...before.slice(at)];
+    c.setPaneOrder(order);
+    props.onPaneOrder?.(order);
+    props.onCompareChange?.(id, { placement: "pane", group: undefined, paneScale: undefined });
+  }
+  function compareMoveRow(id: string): CtxNode | null {
+    const moves = compareMoves(id);
+    if (!moves) return null;
+    const rows: [keyof StudyMoves, string][] = [
+      ["mergeUp", "Existing pane above"],
+      ["unmergeUp", "New pane above"],
+      ["mergeDown", "Existing pane below"],
+      ["unmergeDown", "New pane below"],
+    ];
+    const submenu = rows.filter(([k]) => moves[k]).map(([k, label]): CtxNode => ({
+      kind: "item", id: `move-${k}`, label, onSelect: () => sourcesEdit(MOVE_UNDO[k], () => moveCompare(id, k)),
+    }));
+    if (!submenu.length) return null;
+    return { kind: "item", id: "move-to", label: "Move to", icon: <Icon name="ot-header-move-to" size={18} />, submenu };
+  }
+  function comparePinRow(id: string): CtxNode | null {
+    const e = cx.compareEntry(id);
+    const layer = cx.compareLayers.get(id);
+    const pane = comparePane(id);
+    if (!e || !layer || pane === null) return null;
+    const main = cx.mainSide();
+    const sideOf = (sid: string): StudyScale => (sid === "left" || sid === "right" ? sid : "none");
+    const cur: StudyScale = e.placement === "pane" ? (e.paneScale ?? cx.currentTokens().scalesPlacement) : e.placement === "percent" ? main : e.placement === "none" ? "none" : sideOf(layer.scaleId);
+    return pinRowFor(id, cur, pane, (side) => {
+      if (e.placement === "pane") props.onCompareChange?.(id, { paneScale: side });
+      else props.onCompareChange?.(id, { placement: side === "none" ? "none" : side === main ? "percent" : "scale" });
+    });
   }
 
   function sourceArrangeRows(id: string): CtxNode[] {
@@ -269,12 +346,11 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const vo = visualOrderRow(id);
     if (vo) out.push(vo);
     out.push(visibilityRow(id));
-    if (!cx.compareEntry(id)) {
-      const move = moveToRow(id);
-      if (move) out.push(move);
-      const pin = pinRow(id);
-      if (pin) out.push(pin);
-    }
+    const compared = !!cx.compareEntry(id);
+    const move = compared ? compareMoveRow(id) : moveToRow(id);
+    if (move) out.push(move);
+    const pin = compared ? comparePinRow(id) : pinRow(id);
+    if (pin) out.push(pin);
     return out;
   }
 

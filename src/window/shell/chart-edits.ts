@@ -269,7 +269,7 @@ export function createChartEdits(
     changeCompare(tabId, paneIndex, cur.filter((c) => c.id !== id), `remove ${tickerOf(gone.symbol)}`);
   }
   /** Legend eye / Settings → Ok on one compared symbol. */
-  function patchCompare(tabId: string, paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement }) {
+  function patchCompare(tabId: string, paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement; group?: string; paneScale?: "left" | "right" | "none" }) {
     const cur = tabOf(tabId)?.panes[paneIndex]?.compare ?? [];
     if (!cur.some((c) => c.id === id)) return;
     setPaneCompare(tabId, paneIndex, cur.map((c) => (c.id === id ? { ...c, ...patch, hidden: patch.hidden ?? c.hidden } : c)));

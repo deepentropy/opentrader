@@ -105,8 +105,10 @@ export function createCompare(cx: ChartCx): CompareApi {
     const out = new Map<string, string>();
     let sideUsed = t.scalesMode !== "auto" || !!cx.controller?.seriesShares();
     for (const e of compareEntries()) {
-      if (e.placement === "pane") out.set(e.id, t.scalesPlacement);
+      if (e.placement === "pane") out.set(e.id, e.paneScale === "none" ? `cmp:${e.id}` : e.paneScale ?? t.scalesPlacement);
       else if (e.placement === "percent") out.set(e.id, main);
+      // No scale: an overlay scale of its own, no axis.
+      else if (e.placement === "none") out.set(e.id, `cmp:${e.id}`);
       else if (!sideUsed) { out.set(e.id, otherSide(main)); sideUsed = true; }
       else out.set(e.id, `cmp:${e.id}`);
     }
@@ -138,9 +140,13 @@ export function createCompare(cx: ChartCx): CompareApi {
     }
     cx.syncScaleSides();
   }
-  /** A "New price scale" entry uses the other side's scale (Auto only). */
+  /** A compared symbol on the other side's scale: a "New price scale" entry (Auto only), or one pinned there in a
+   *  pane. */
   function compareUsesOtherSide(): boolean {
-    return currentTokens().scalesMode === "auto" && !cx.controller?.seriesShares() && compareEntries().some((e) => e.placement === "scale");
+    const t = currentTokens();
+    const other = otherSide(t.scalesPlacement);
+    if (compareEntries().some((e) => e.placement === "pane" && e.paneScale === other)) return true;
+    return t.scalesMode === "auto" && !cx.controller?.seriesShares() && compareEntries().some((e) => e.placement === "scale");
   }
   /** Studies changed their scale ("Pin to scale"): the other side's scale follows. */
   const syncSideScales = () => cx.syncScaleSides();
@@ -214,7 +220,7 @@ export function createCompare(cx: ChartCx): CompareApi {
     // Removed entries, and entries whose placement or symbol changed (rebuilt).
     for (const [id, layer] of [...compareLayers]) {
       const e = want.find((x) => x.id === id);
-      if (!e || e.placement !== layer.entry.placement || e.symbol !== layer.entry.symbol) dropCompareLayer(id);
+      if (!e || e.placement !== layer.entry.placement || e.symbol !== layer.entry.symbol || (e.group ?? null) !== (layer.entry.group ?? null)) dropCompareLayer(id);
     }
     const scaleIds = compareScaleIds();
     for (const e of want) {
@@ -225,7 +231,7 @@ export function createCompare(cx: ChartCx): CompareApi {
         // Over the series: in the price pane.
         layer = new CompareLayer(cx.chart, e, cx.mainPane(), scaleId);
         if (e.placement === "pane" && cx.controller) {
-          layer.setPaneIndex(cx.controller.claimPaneFor(e.id, layer));
+          layer.setPaneIndex(cx.controller.claimPaneFor(e.id, layer, e.group));
           // Studies above it may not be drawn yet (no bars): open their panes
           // now, else the library puts this series in the next new pane.
           while (cx.chart.panes().length < layer.paneIndex) cx.chart.addPane(true);

@@ -51,8 +51,10 @@ export function revivePaneSettings(
 /** Where a compared symbol is drawn (Compare dialog row buttons):
  *  "percent" = Same % scale (the main price scale, switched to Percent),
  *  "scale" = New price scale, "pane" = New pane. */
-export type ComparePlacement = "percent" | "scale" | "pane";
-export const COMPARE_PLACEMENTS: ReadonlySet<ComparePlacement> = new Set(["percent", "scale", "pane"]);
+/** Where a compared symbol is drawn: over the series on its scale ("Same % scale"), on a scale of its own ("New
+ *  price scale"), over the series without a scale ("No scale"), or in a pane ("New pane", or a pane it joined). */
+export type ComparePlacement = "percent" | "scale" | "none" | "pane";
+export const COMPARE_PLACEMENTS: ReadonlySet<ComparePlacement> = new Set(["percent", "scale", "none", "pane"]);
 
 /** One compared symbol of a pane (header "Compare symbols"). */
 export type CompareEntry = {
@@ -66,6 +68,10 @@ export type CompareEntry = {
   /** Legend eye. */
   hidden?: boolean;
   style: CompareStyleState;
+  /** In a pane: the pane group it joined ("Move to ▸ Existing pane", a study's pane); unset = a pane of its own. */
+  group?: string;
+  /** In a pane: the scale it is pinned to; unset = the chart's scales side. */
+  paneScale?: "left" | "right" | "none";
 };
 
 export function newCompareId(): string {
@@ -95,6 +101,8 @@ export function reviveCompare(raw: unknown): CompareEntry[] | undefined {
       color,
       hidden: e.hidden === true ? true : undefined,
       style: reviveCompareStyle(e.style, color),
+      ...(typeof e.group === "string" && e.group ? { group: e.group } : {}),
+      ...(e.paneScale === "left" || e.paneScale === "right" || e.paneScale === "none" ? { paneScale: e.paneScale } : {}),
     });
   });
   return out.length ? out : undefined;
