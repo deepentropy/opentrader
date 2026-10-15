@@ -1,7 +1,7 @@
 // Registers the saved-template default hook of the shared drawing core
 // before any module reads tool defaults.
 import "./window/drawings/templates";
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show } from "solid-js";
 import { HeaderToolbar } from "./window/header/HeaderToolbar";
 import { HeaderMenu } from "./window/header/HeaderMenu";
 import { buildIntervalMenu } from "./window/chart/custom-intervals";
@@ -46,7 +46,6 @@ import { isAdjusted, setAdjusted, isFullSymbol, isIntradayInterval, isIntradayRe
 import { displayTimeZone } from "./data/session";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost } from "./components/Dialogs";
-import { SymbolInfoDialog } from "./window/chart/SymbolInfoDialog";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
 import { OAKSCRIPT_OPEN_EVENT } from "./window/chart/indicators/user-scripts";
 import * as oakScripts from "./data/oakscript-store";
@@ -342,7 +341,8 @@ function App() {
     removeAllIndicators();
   }
 
-  // Main series / compared symbol menu "Symbol info…".
+  // Main series / compared symbol menu "Symbol info…" (loaded on first use).
+  const SymbolInfoDialog = lazy(() => import("./window/chart/SymbolInfoDialog").then((m) => ({ default: m.SymbolInfoDialog })));
   const [symbolInfoFor, setSymbolInfoFor] = createSignal<string | null>(null);
   onCleanup(onAppEvent("chart-open-symbol-info", (d) => { if (d?.symbol) setSymbolInfoFor(d.symbol); }));
 
