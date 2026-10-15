@@ -49,6 +49,7 @@ import type { SymbolLoadApi } from "./symbol-load";
 import type { StrategyMarksApi } from "./strategy-marks";
 import type { LegendApi } from "./legend";
 import type { SourceMenuApi } from "./source-menu";
+import type { SyncMode } from "../../drawings/DrawingToolbar";
 
 export type ChartViewProps = {
   theme?: "dark" | "light";
@@ -92,6 +93,9 @@ export type ChartViewProps = {
   /** Bulk replace (group drag/nudge) — one undo entry. */
   updateDrawings?: (list: Drawing[]) => void;
   cloneDrawing?: (id: string) => void;
+  /** Sync of a drawing of this pane (the scope it is kept in) and its change (drawing menu). */
+  drawingSync?: (id: string) => SyncMode | null;
+  setDrawingSync?: (ids: string[], mode: SyncMode) => void;
   reorderDrawing?: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
   removeDrawing?: (id: string) => void;
   /** Bulk delete (multi-select Delete) — one undo entry. */

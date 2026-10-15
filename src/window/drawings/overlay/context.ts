@@ -30,6 +30,7 @@ import type { PriceLinesApi } from "./price-lines";
 import type { ScaleMarksApi } from "./scale-marks";
 import type { PopupsApi } from "./popups";
 import type { LayersApi } from "./layers";
+import type { SyncMode } from "../DrawingToolbar";
 
 export type OverlayProps = {
   /** Main series pane coords. */
@@ -89,6 +90,9 @@ export type OverlayProps = {
   /** Bulk replace for group body-drags / group nudges — one undo entry. */
   onUpdateMany?: (list: Drawing[]) => void;
   onClone: (id: string) => void;
+  /** Sync of a drawing (the scope it is kept in: its pane, the layout, every chart) and its change. */
+  drawingSync?: (id: string) => SyncMode | null;
+  onSync?: (ids: string[], mode: SyncMode) => void;
   onReorder: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
   onRemove: (id: string) => void;
   /** Bulk delete for multi-select Delete — one undo entry. */

@@ -1342,6 +1342,8 @@ export function ChartView(props: ChartViewProps) {
         onUpdate={(d) => props.updateDrawing?.(d)}
         onUpdateMany={(list) => props.updateDrawings?.(list)}
         onClone={(id) => props.cloneDrawing?.(id)}
+        drawingSync={(id) => props.drawingSync?.(id) ?? null}
+        onSync={(ids, mode) => props.setDrawingSync?.(ids, mode)}
         onReorder={(id, dir) => props.reorderDrawing?.(id, dir)}
         onRemove={(id) => props.removeDrawing?.(id)}
         onRemoveMany={(ids) => props.removeDrawings?.(ids)}

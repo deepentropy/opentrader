@@ -1,358 +1,270 @@
 /*
- * Right-click context menu for a selected drawing.
+ * Right-click context menu of a selected drawing, on the chart's context menu.
  *
- * Item set: the floating-toolbar "More" menu (214×307: Visual order ▸,
- * Visibility on intervals ▸, Clone [Ctrl + Drag], Copy [Ctrl + C], sync
- * radios, Hide) plus the standing Settings… / Lock / Remove rows.
- * Deviations, recorded:
- *   • per-drawing sync radios omitted — this app has no per-drawing sync
- *     backing (the toolbar's sync menu sets the new-drawings default);
- *   • "Visibility on intervals" opens the Settings dialog on its Visibility
- *     tab instead of a hover submenu.
- *
- * Mounted at fixed-viewport coords, fitted into the window like the other
- * popup menus (components/menu-fit.ts). Outside-click / Escape close. Stops
- * the bubbled pointerdown so the overlay's "click empty area = deselect"
- * doesn't fire while interacting with the menu.
+ * Rows (reference order). One drawing:
+ *   [tool actions placed first (table cells)] ─
+ *   Add / Edit alert on <tool>… ─
+ *   Template ▸, Visual order ▸, Visibility on intervals ▸, Object tree ─
+ *   Clone, Copy ─ No sync / Sync in layout / Sync globally ─
+ *   [tool actions placed last (Elliott degree, bars pattern)] ─ [Anchor ─]
+ *   Lock, Hide, Remove ─ Settings…
+ * Several drawings: Template ▸ (one tool only), Object tree, Visual order ▸,
+ * Visibility on intervals ▸ ─ Clone, Copy ─ sync ─ Lock, Hide, Remove ─
+ * Settings… (no alert row).
+ * Visual order rows that would not move the drawing are disabled. Template:
+ * Save as… (one drawing), Apply default, the tool's saved templates (trash on
+ * hover). Visibility on intervals: the four quick settings of the
+ * Visibility tab on the chart interval.
  */
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
-import { Icon } from "../../components/Icon";
-import { fitMenuRef } from "../../components/menu-fit";
 import { ELLIOTT_DEFAULT_DEGREE, ELLIOTT_DEGREE_NAMES, ELLIOTT_KINDS } from "lightweight-charts-drawing/core/specs";
 import { tableCanRemove, type TableCellRef } from "lightweight-charts-drawing/core/kinds/table";
+import { Icon } from "../../components/Icon";
+import { showConfirm, showRename } from "../../components/Dialogs";
+import { ChartContextMenu, CtxIcons, type CtxNode } from "../chart/ChartContextMenu";
+import { visibilityForMode, type IntervalsVisibilityMode } from "../chart/interval-visibility-mode";
+import { deleteTemplate, loadTemplates, saveTemplate, type DrawingTemplate } from "./templates";
+import type { SyncMode } from "./DrawingToolbar";
 
-type Row =
-  | {
-      kind: "item";
-      id: string;
-      /** Static label, or a function for reactive labels (e.g. "Lock" ↔ "Unlock"). */
-      label: string | ((d: Drawing) => string);
-      iconName?: string;
-      shortcut?: string;
-      /** When set, paints a checkmark on the icon cell when active. */
-      checked?: (d: Drawing) => boolean;
-      /** Rows that open a hover submenu render a right-pointing chevron. */
-      submenu?: boolean;
-      /** Greyed-out, not clickable. */
-      disabled?: (d: Drawing) => boolean;
-    }
-  | { kind: "separator" };
-
-const ROWS: Row[] = [
-  { kind: "item", id: "settings", label: "Settings…", iconName: "dt-settings" },
-  { kind: "separator" },
-  { kind: "item", id: "clone", label: "Clone", iconName: "dt-cm-clone", shortcut: "Ctrl + Drag" },
-  { kind: "item", id: "copy", label: "Copy", shortcut: "Ctrl + C" },
-  { kind: "separator" },
-  { kind: "item", id: "visual-order", label: "Visual order", submenu: true },
-  { kind: "item", id: "visibility-intervals", label: "Visibility on intervals…" },
-  { kind: "separator" },
-  {
-    kind: "item",
-    id: "lock",
-    iconName: "dt-lock",
-    label: (d) => (d.locked ? "Unlock" : "Lock"),
-    checked: (d) => !!d.locked,
-  },
-  {
-    kind: "item",
-    id: "hide",
-    iconName: "dt-cm-hide",
-    label: (d) => (d.hidden ? "Show" : "Hide"),
-    checked: (d) => !!d.hidden,
-  },
-  { kind: "separator" },
-  { kind: "item", id: "remove", label: "Remove", shortcut: "Del" },
-];
-
-/** Elliott waves add a "Degree" submenu after all the items. */
-const DEGREE_ROWS: Row[] = [{ kind: "separator" }, { kind: "item", id: "degree", label: "Degree", submenu: true }];
-/** Bars pattern: checkable "Mirrored" / "Flipped" after all the items. */
-const BARS_PATTERN_ROWS: Row[] = [
-  { kind: "separator" },
-  { kind: "item", id: "mirrored", label: "Mirrored", checked: (d) => !!d.style.mirrored },
-  { kind: "item", id: "flipped", label: "Flipped", checked: (d) => !!d.style.flipped },
-];
-
-/** Table actions, placed before all the items: insert column / row, and
- *  with an active cell remove row / column (disabled when it is the last
- *  one). */
-const TABLE_ROWS: Row[] = [
-  { kind: "item", id: "table-insert-column", label: "Add column to right", iconName: "dt-table-insert-column" },
-  { kind: "item", id: "table-insert-row", label: "Add row below", iconName: "dt-table-insert-row" },
-];
-const TABLE_REMOVE_ROWS: Row[] = [
-  { kind: "separator" },
-  { kind: "item", id: "table-remove-row", label: "Remove row", iconName: "dt-table-remove", disabled: (d) => !tableCanRemove(d.style, "row") },
-  { kind: "item", id: "table-remove-column", label: "Remove column", iconName: "dt-table-remove", disabled: (d) => !tableCanRemove(d.style, "column") },
-];
-
-const ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "back", string]> = [
-  ["front", "Bring to front"],
-  ["forward", "Bring forward"],
-  ["backward", "Send backward"],
-  ["back", "Send to back"],
-];
+type Order = "front" | "forward" | "backward" | "back";
 
 type Props = {
   drawing: Drawing;
-  /** Full multi-selection the drawing belongs to (primary included). Remove
-   *  acts on every member when longer than 1; other rows stay per-drawing. */
+  /** The selected drawings (the clicked one included). */
+  group?: Drawing[];
+  /** Full multi-selection the drawing belongs to, locked ones left out: Remove acts on every member when longer
+   *  than 1. */
   groupIds?: string[];
   anchor: { x: number; y: number };
+  /** Chart interval, for the Visibility on intervals rows. */
+  interval?: string;
+  /** Which Visual order moves would change the drawing order. */
+  orderSteps?: Record<Order, boolean>;
+  /** The alert row: "Edit" when the drawing has an alert; null: none (a drawing an alert cannot use). */
+  alert?: { edit: boolean; name: string } | null;
+  /** Current sync of the drawings (null: mixed); undefined: no sync rows. */
+  sync?: SyncMode | null;
+  /** Set for a drawing that can be anchored to the pane. */
+  anchored?: boolean;
   onClose: () => void;
   onUpdate: (d: Drawing) => void;
+  onUpdateMany?: (list: Drawing[]) => void;
   onClone: (id: string) => void;
   onCopy: (d: Drawing) => void;
-  onReorder: (id: string, dir: "front" | "forward" | "backward" | "back") => void;
+  onReorder: (id: string, dir: Order) => void;
   onRemove: (id: string) => void;
   /** Bulk delete for the group Remove — one undo entry. */
   onRemoveMany?: (ids: string[]) => void;
   /** Open the settings dialog, optionally on a specific tab. */
   onOpenSettings: (id: string, tab?: "Style" | "Text" | "Coordinates" | "Visibility") => void;
-  /** Table: the active cell (the in-place editable cell) and the cell
-   *  operations of the table actions. */
+  onAlert?: () => void;
+  onObjectTree?: () => void;
+  onSync?: (ids: string[], mode: SyncMode) => void;
+  onToggleAnchor?: () => void;
+  /** A saved template / the factory style on the drawings of the tool. */
+  onApplyTemplate?: (tpl: DrawingTemplate) => void;
+  onApplyDefault?: () => void;
+  /** Table: the active cell (the in-place editable cell) and the cell operations of the table actions. */
   tableCell?: TableCellRef | null;
   onTableOp?: (op: "insert-column" | "insert-row" | "remove-row" | "remove-column") => void;
 };
 
-export function DrawingContextMenu(props: Props) {
-  let root!: HTMLDivElement;
-  // Hover submenu (Visual order / Elliott Degree) — fixed-pos panel anchored
-  // to the row's edge.
-  const [orderAnchor, setOrderAnchor] = createSignal<{ x: number; y: number; id: string } | null>(null);
-  const rows = () =>
-    props.drawing.kind === "table"
-      ? [...TABLE_ROWS, ...(props.tableCell ? TABLE_REMOVE_ROWS : []), { kind: "separator" } as Row, ...ROWS]
-      : ELLIOTT_KINDS.has(props.drawing.kind)
-      ? [...ROWS, ...DEGREE_ROWS]
-      : props.drawing.kind === "bar-pattern"
-        ? [...ROWS, ...BARS_PATTERN_ROWS]
-        : ROWS;
+const SEP: CtxNode = { kind: "separator" };
+/** Icon component nodes: one per row (a node renders in one place). */
+const icon = (name: string) => () => <Icon name={name} size={18} />;
 
-  function invoke(id: string) {
-    const d = props.drawing;
-    switch (id) {
-      case "settings":
-        props.onOpenSettings(d.id);
-        break;
-      case "clone":
-        props.onClone(d.id);
-        break;
-      case "copy":
-        props.onCopy(d);
-        break;
-      case "visibility-intervals":
-        props.onOpenSettings(d.id, "Visibility");
-        break;
-      case "lock":
-        props.onUpdate({ ...d, locked: !d.locked });
-        break;
-      case "hide":
-        props.onUpdate({ ...d, hidden: !d.hidden });
-        break;
-      case "mirrored":
-        props.onUpdate({ ...d, style: { ...d.style, mirrored: !d.style.mirrored } } as Drawing);
-        break;
-      case "flipped":
-        props.onUpdate({ ...d, style: { ...d.style, flipped: !d.style.flipped } } as Drawing);
-        break;
-      case "table-insert-column":
-      case "table-insert-row":
-      case "table-remove-row":
-      case "table-remove-column":
-        props.onTableOp?.(id.slice(6) as "insert-column" | "insert-row" | "remove-row" | "remove-column");
-        break;
-      case "remove": {
-        const ids = props.groupIds ?? [];
-        if (ids.length > 1 && ids.includes(d.id) && props.onRemoveMany) props.onRemoveMany(ids);
-        else props.onRemove(d.id);
-        break;
-      }
-      default:
-        return; // submenu hosts don't act on click
+export function DrawingContextMenu(props: Props) {
+  const group = () => (props.group?.length ? props.group : [props.drawing]);
+  const multi = () => group().length > 1;
+  /** Drawings a row acts on: the selection. */
+  const apply = (next: Drawing[]) => {
+    if (next.length > 1 && props.onUpdateMany) props.onUpdateMany(next);
+    else for (const d of next) props.onUpdate(d);
+  };
+
+  function templateRow(): CtxNode | null {
+    const kind = props.drawing.kind;
+    if (group().some((d) => d.kind !== kind)) return null;
+    const rows: CtxNode[] = [];
+    if (!multi()) {
+      rows.push({
+        kind: "item", id: "template-save", label: "Save as…",
+        onSelect: () => {
+          const snapshot = { style: props.drawing.style, text: (props.drawing as { text?: string }).text };
+          showRename({
+            title: "Save drawing template",
+            label: "New template name",
+            maxLength: 64,
+            names: loadTemplates(kind).map((t) => t.name),
+            replaceText: (n) => `Drawing template "${n}" already exists. Do you really want to replace it?`,
+            onSave: (n) => { saveTemplate(kind, { name: n, ...snapshot }); },
+          });
+        },
+      });
     }
-    props.onClose();
+    rows.push({ kind: "item", id: "template-default", label: "Apply default", onSelect: () => props.onApplyDefault?.() });
+    const saved = loadTemplates(kind);
+    if (saved.length) rows.push(SEP);
+    for (const t of saved) {
+      rows.push({
+        kind: "item", id: `template-${t.name}`, label: t.name,
+        onSelect: () => props.onApplyTemplate?.(t),
+        onRemove: () => showConfirm({
+          title: "Delete this template?",
+          text: `Doing this will permanently delete your "${t.name}" drawing template.`,
+          mainText: "Delete",
+          cancelText: "Cancel",
+          intent: "danger",
+          onConfirm: () => { deleteTemplate(kind, t.name); },
+        }),
+      });
+    }
+    return { kind: "item", id: "template", label: "Template", submenu: rows };
   }
 
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!root.contains(e.target as Node)) props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("keydown", onKey);
+  function orderRow(): CtxNode {
+    const steps = props.orderSteps;
+    const row = (dir: Order, label: string): CtxNode => ({
+      kind: "item", id: `order-${dir}`, label, disabled: steps ? !steps[dir] : false,
+      onSelect: () => props.onReorder(props.drawing.id, dir),
     });
-  });
+    return {
+      kind: "item", id: "visual-order", label: "Visual order", icon: CtxIcons.order,
+      submenu: [row("front", "Bring to front"), row("back", "Send to back"), row("forward", "Bring forward"), row("backward", "Send backward")],
+    };
+  }
 
+  function visibilityRow(): CtxNode {
+    const row = (mode: IntervalsVisibilityMode, label: string): CtxNode => ({
+      kind: "item", id: `vis-${mode}`, label,
+      onSelect: () => {
+        const visibility = visibilityForMode(props.interval ?? "1D", mode);
+        apply(group().map((d) => ({ ...d, visibility } as Drawing)));
+      },
+    });
+    return {
+      kind: "item", id: "visibility-intervals", label: "Visibility on intervals",
+      submenu: [
+        row("currentAndAbove", "Current interval and above"),
+        row("currentAndBelow", "Current interval and below"),
+        row("current", "Current interval only"),
+        row("all", "All intervals"),
+      ],
+    };
+  }
+
+  const objectTreeRow = (): CtxNode => ({ kind: "item", id: "object-tree", label: "Object tree", onSelect: () => props.onObjectTree?.() });
+
+  function syncRows(): CtxNode[] {
+    if (props.sync === undefined || !props.onSync) return [];
+    const ids = group().map((d) => d.id);
+    const row = (mode: SyncMode, label: string): CtxNode => ({
+      kind: "item", id: `sync-${mode}`, label, checked: props.sync === mode,
+      onSelect: () => { if (props.sync !== mode) props.onSync?.(ids, mode); },
+    });
+    return [row("none", "No sync"), row("layout", "Sync in layout"), row("global", "Sync globally")];
+  }
+
+  /** Tool actions after the others: Elliott wave degree, bars pattern mirror / flip. */
+  function lastToolRows(): CtxNode[] {
+    const d = props.drawing;
+    if (ELLIOTT_KINDS.has(d.kind)) {
+      const cur = d.style.elliottDegree ?? ELLIOTT_DEFAULT_DEGREE;
+      return [{
+        kind: "item", id: "degree", label: "Degree",
+        submenu: [...ELLIOTT_DEGREE_NAMES].map((name, i): CtxNode => ({
+          kind: "item", id: `degree-${i}`, label: name, checked: cur === i,
+          onSelect: () => props.onUpdate({ ...d, style: { ...d.style, elliottDegree: i } } as Drawing),
+        })),
+      }];
+    }
+    if (d.kind === "bar-pattern") {
+      return [
+        { kind: "item", id: "mirrored", label: "Mirrored", checked: !!d.style.mirrored, onSelect: () => props.onUpdate({ ...d, style: { ...d.style, mirrored: !d.style.mirrored } } as Drawing) },
+        { kind: "item", id: "flipped", label: "Flipped", checked: !!d.style.flipped, onSelect: () => props.onUpdate({ ...d, style: { ...d.style, flipped: !d.style.flipped } } as Drawing) },
+      ];
+    }
+    return [];
+  }
+
+  /** Table actions, before all the others: insert column / row, and with an active cell remove row / column
+   *  (disabled when it is the last one). */
+  function tableRows(): CtxNode[] {
+    const d = props.drawing;
+    if (d.kind !== "table") return [];
+    const op = (o: "insert-column" | "insert-row" | "remove-row" | "remove-column") => () => props.onTableOp?.(o);
+    const rows: CtxNode[] = [
+      { kind: "item", id: "table-insert-column", label: "Add column to right", icon: icon("dt-table-insert-column")(), onSelect: op("insert-column") },
+      { kind: "item", id: "table-insert-row", label: "Add row below", icon: icon("dt-table-insert-row")(), onSelect: op("insert-row") },
+    ];
+    if (props.tableCell) {
+      rows.push(
+        SEP,
+        { kind: "item", id: "table-remove-row", label: "Remove row", icon: icon("dt-table-remove")(), disabled: !tableCanRemove(d.style, "row"), onSelect: op("remove-row") },
+        { kind: "item", id: "table-remove-column", label: "Remove column", icon: icon("dt-table-remove")(), disabled: !tableCanRemove(d.style, "column"), onSelect: op("remove-column") },
+      );
+    }
+    return rows;
+  }
+
+  function lockHideRemove(): CtxNode[] {
+    const locked = !!props.drawing.locked;
+    const hidden = !!props.drawing.hidden;
+    return [
+      { kind: "item", id: "lock", label: locked ? "Unlock" : "Lock", icon: icon("dt-lock")(), onSelect: () => apply(group().map((d) => ({ ...d, locked: !locked } as Drawing))) },
+      { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide, onSelect: () => apply(group().map((d) => ({ ...d, hidden: !hidden } as Drawing))) },
+      {
+        kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
+        onSelect: () => {
+          const ids = props.groupIds ?? [];
+          if (ids.length > 1 && ids.includes(props.drawing.id) && props.onRemoveMany) props.onRemoveMany(ids);
+          else props.onRemove(props.drawing.id);
+        },
+      },
+    ];
+  }
+
+  const cloneCopy = (): CtxNode[] => [
+    { kind: "item", id: "clone", label: "Clone", shortcut: "Ctrl + Drag", icon: icon("dt-cm-clone")(), onSelect: () => props.onClone(props.drawing.id) },
+    { kind: "item", id: "copy", label: "Copy", shortcut: "Ctrl + C", onSelect: () => props.onCopy(props.drawing) },
+  ];
+  const settingsRow = (): CtxNode => ({ kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => props.onOpenSettings(props.drawing.id) });
+
+  function nodes(): CtxNode[] {
+    const out: CtxNode[] = [];
+    const sync = syncRows();
+    const template = templateRow();
+    if (multi()) {
+      if (template) out.push(template);
+      out.push(objectTreeRow(), orderRow(), visibilityRow(), SEP, ...cloneCopy(), SEP);
+      if (sync.length) out.push(...sync, SEP);
+      out.push(...lockHideRemove(), SEP, settingsRow());
+      return out;
+    }
+    const first = tableRows();
+    if (first.length) out.push(...first, SEP);
+    if (props.alert) {
+      out.push({
+        kind: "item", id: "alert", label: `${props.alert.edit ? "Edit" : "Add"} alert on ${props.alert.name}…`, shortcut: "Alt + A", icon: CtxIcons.alert,
+        onSelect: () => props.onAlert?.(),
+      }, SEP);
+    }
+    if (template) out.push(template);
+    out.push(orderRow(), visibilityRow(), objectTreeRow(), SEP, ...cloneCopy(), SEP);
+    if (sync.length) out.push(...sync, SEP);
+    const last = lastToolRows();
+    if (last.length) out.push(...last, SEP);
+    if (props.anchored !== undefined) {
+      out.push({ kind: "item", id: "anchor", label: "Anchor", checked: props.anchored, onSelect: () => props.onToggleAnchor?.() }, SEP);
+    }
+    out.push(...lockHideRemove(), SEP, settingsRow());
+    return out;
+  }
+
+  // Pointer presses in the menu stay out of the drawings layer (its "press on an empty spot deselects").
   return (
-    <div
-      ref={(el) => { root = el; fitMenuRef(() => props.anchor)(el); }}
-      class="drawing-context-menu"
-      role="menu"
-      data-qa-id="drawing-context-menu"
-      style={{ position: "fixed", "z-index": 220 }}
-      onPointerDown={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <table>
-        <tbody>
-          <For each={rows()}>
-            {(row) => {
-              if (row.kind === "separator") {
-                return (
-                  <tr class="drawing-context-menu-separator" role="separator">
-                    <td colSpan={2}>
-                      <div class="drawing-context-menu-separator-line" />
-                    </td>
-                  </tr>
-                );
-              }
-              const label = typeof row.label === "function" ? row.label(props.drawing) : row.label;
-              const isChecked = row.checked ? row.checked(props.drawing) : false;
-              const isDisabled = row.disabled ? row.disabled(props.drawing) : false;
-              return (
-                <tr
-                  role="menuitem"
-                  aria-haspopup={row.submenu ? "menu" : undefined}
-                  aria-disabled={isDisabled || undefined}
-                  class={"drawing-context-menu-item" + (isChecked ? " checked" : "") + (isDisabled ? " disabled" : "")}
-                  data-name={row.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isDisabled) invoke(row.id);
-                  }}
-                  onPointerEnter={(e) => {
-                    if (row.submenu) {
-                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      setOrderAnchor({ x: r.right + 2, y: r.top - 6, id: row.id });
-                    } else {
-                      setOrderAnchor(null);
-                    }
-                  }}
-                >
-                  <td class="drawing-context-menu-icon-cell">
-                    <Show when={isChecked} fallback={row.iconName && <Icon name={row.iconName} size={20} />}>
-                      <span class="drawing-context-menu-checkmark">
-                        <svg viewBox="0 0 28 28" width="20" height="20">
-                          <path fill="currentColor" d="M22 9.06 11 20 6 14.7l1.09-1.02 3.94 4.16L20.94 8 22 9.06Z" />
-                        </svg>
-                      </span>
-                    </Show>
-                  </td>
-                  <td>
-                    <div class="drawing-context-menu-content">
-                      <span class={"drawing-context-menu-label" + (isChecked ? " checked" : "")}>{label}</span>
-                      {row.shortcut && (
-                        <span class="drawing-context-menu-shortcut">{row.shortcut}</span>
-                      )}
-                      {row.submenu && (
-                        <span class="drawing-context-menu-subarrow" aria-hidden="true">
-                          <svg viewBox="0 0 16 16" width="11" height="11">
-                            <path fill="currentColor" d="M6 3l5 5-5 5z" />
-                          </svg>
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            }}
-          </For>
-        </tbody>
-      </table>
-
-      <Show when={orderAnchor()?.id === "degree" ? orderAnchor() : null}>
-        {(a) => (
-          <div
-            class="drawing-context-menu drawing-context-submenu"
-            role="menu"
-            ref={fitMenuRef(() => a())}
-            style={{ position: "fixed", "z-index": 221 }}
-          >
-            <table>
-              <tbody>
-                <For each={[...ELLIOTT_DEGREE_NAMES]}>
-                  {(name, i) => {
-                    const on = () => (props.drawing.style.elliottDegree ?? ELLIOTT_DEFAULT_DEGREE) === i();
-                    return (
-                      <tr
-                        role="menuitemradio"
-                        aria-checked={on()}
-                        class={"drawing-context-menu-item" + (on() ? " checked" : "")}
-                        data-name={`degree-${i()}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          props.onUpdate({ ...props.drawing, style: { ...props.drawing.style, elliottDegree: i() } } as Drawing);
-                          props.onClose();
-                        }}
-                      >
-                        <td class="drawing-context-menu-icon-cell">
-                          <Show when={on()}>
-                            <span class="drawing-context-menu-checkmark">
-                              <svg viewBox="0 0 28 28" width="20" height="20">
-                                <path fill="currentColor" d="M22 9.06 11 20 6 14.7l1.09-1.02 3.94 4.16L20.94 8 22 9.06Z" />
-                              </svg>
-                            </span>
-                          </Show>
-                        </td>
-                        <td>
-                          <div class="drawing-context-menu-content">
-                            <span class={"drawing-context-menu-label" + (on() ? " checked" : "")}>{name}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  }}
-                </For>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Show>
-
-      <Show when={orderAnchor()?.id === "visual-order" ? orderAnchor() : null}>
-        {(a) => (
-          <div
-            class="drawing-context-menu drawing-context-submenu"
-            role="menu"
-            ref={fitMenuRef(() => a())}
-            style={{ position: "fixed", "z-index": 221 }}
-          >
-            <table>
-              <tbody>
-                <For each={ORDER_ROWS}>
-                  {([dir, label]) => (
-                    <tr
-                      role="menuitem"
-                      class="drawing-context-menu-item"
-                      data-name={dir}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        props.onReorder(props.drawing.id, dir);
-                        props.onClose();
-                      }}
-                    >
-                      <td class="drawing-context-menu-icon-cell" />
-                      <td>
-                        <div class="drawing-context-menu-content">
-                          <span class="drawing-context-menu-label">{label}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Show>
+    <div class="drawing-context-menu-host" data-qa-id="drawing-context-menu" onPointerDown={(e) => e.stopPropagation()}>
+      <ChartContextMenu x={props.anchor.x} y={props.anchor.y} nodes={nodes()} onClose={props.onClose} />
     </div>
   );
 }

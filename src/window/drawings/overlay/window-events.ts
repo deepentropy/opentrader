@@ -140,14 +140,13 @@ export function createWindowEvents(cx: OverlayCx): WindowEventsApi {
       "[data-drawing-id]", // the drawing itself (or another drawing)
       ".selected-toolbar", // its floating toolbar (+ favorites bar shell)
       ".drawing-settings-backdrop", // settings dialog (backdrop + body)
-      ".drawing-context-menu", // right-click menu
       ".dt-popover", // colour / width / style / template popovers
       ".dt-color-field-portal", // portalled colour field
       ".drawing-toolbar", // the left drawing toolbar
       ".ot-table-cell-input", // the table cell editor
       ".ot-dlg-layer", // name / confirm dialogs (template save, delete)
       ".object-tree-panel", // the Object tree (shares the selection)
-      ".ot-chart-ctx-menu", // its Clone, Copy / Move to menus
+      ".ot-chart-ctx-menu", // its right-click / More menus
     ].join(",");
     const onOutsideDown = (e: PointerEvent) => {
       if (props.shown === false || cx.selIds().length === 0) return;

@@ -30,7 +30,7 @@ import { showConfirm } from "../../components/Dialogs";
 import { labelForKind } from "./labels";
 import { loadDrawings, saveDrawings } from "./persistence";
 import { overOf, type PlacedDrawing } from "../chart/tree-order";
-import type { ObjectsMode } from "./DrawingToolbar";
+import type { ObjectsMode, SyncMode } from "./DrawingToolbar";
 import type { PaneChart } from "../shell/tabs";
 import type { AppTabs } from "../shell/app-tabs";
 import type { DrawingSlice, UndoHistory } from "../shell/undo-history";
@@ -314,6 +314,36 @@ export function createDrawingStore(
   const removeDrawing = (id: string) => removeDrawingForSymbol(activeDrawingKey(), id);
   const cloneDrawing = (id: string) => cloneDrawingForSymbol(activeDrawingKey(), id);
 
+  // ── Sync of one drawing (the scope it is kept in) ─────────────────────
+  /** The sync of drawing `id` of view `key`: kept for its pane only ("none"), the layout or every chart; null when
+   *  it is not there. */
+  function drawingSyncForSymbol(key: string, id: string): SyncMode | null {
+    const [p, l, g] = scopeKeys(key);
+    const has = (k: string) => (drawingStore[k] ?? []).some((d) => d.id === id);
+    return has(p) ? "none" : has(l) ? "layout" : has(g) ? "global" : null;
+  }
+  /** Drawing menu No sync / Sync in layout / Sync globally: the drawings `ids` of view `key` move to that scope (one
+   *  undo entry, reference undo texts). */
+  function setDrawingsSyncForSymbol(key: string, ids: string[], mode: SyncMode) {
+    const keys = scopeKeys(key);
+    const target = keys[mode === "none" ? 0 : mode === "layout" ? 1 : 2];
+    const moving = keys.flatMap((k) => (k === target ? [] : (drawingStore[k] ?? []).filter((d) => ids.includes(d.id))));
+    if (!moving.length) return;
+    const slices = keys
+      .map((k) => {
+        const before = drawingStore[k] ?? [];
+        const after = k === target ? [...before, ...moving] : before.filter((d) => !ids.includes(d.id));
+        return { key: k, before, after };
+      })
+      .filter((s) => s.before.length !== s.after.length);
+    const label = mode === "none" ? "turn line tools sharing off" : mode === "layout" ? "share line tools in layout" : "share line tools globally";
+    undo.recordDrawingChange(key, drawingsFor(key), keys.flatMap((k) => slices.find((s) => s.key === k)?.after ?? drawingStore[k] ?? []), { label }, slices);
+    for (const s of slices) {
+      setDrawingStore(s.key, s.after);
+      saveDrawings(s.key, s.after);
+    }
+  }
+
   // ── Lock all / Hide all ────────────────────────────────────────────────
   function setDrawingsLocked(next: boolean) {
     if (next === lockDrawingsMode()) return;
@@ -448,6 +478,8 @@ export function createDrawingStore(
     updateDrawing,
     removeDrawing,
     cloneDrawing,
+    drawingSyncForSymbol,
+    setDrawingsSyncForSymbol,
     toggleHide,
     toggleLock,
     removeAllDrawings,

@@ -280,7 +280,8 @@ const DRAWING_NAMES: Record<string, string> = {
   [VWAP_KIND]: "anchored VWAP",
 };
 
-function drawingLabel(d: Drawing): string {
+/** A drawing's name in alert messages and in its menu's alert row ("horizontal line", "trendline"). */
+export function drawingLabel(d: Pick<Drawing, "kind">): string {
   return DRAWING_NAMES[d.kind] ?? d.kind.replace(/-/g, " ");
 }
 

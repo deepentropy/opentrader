@@ -25,6 +25,9 @@ import { groupValue, sameColor, toolbarGroups, visibleColors, type ColorButton, 
 import * as kv from "../../data/kv";
 import { drawingCanAlert, rulesOfDrawing } from "../../data/alert-condition";
 import { alertStore } from "../../data/alert-store";
+import { visibilityForMode, type IntervalsVisibilityMode } from "../chart/interval-visibility-mode";
+import { ChartContextMenu, CtxIcons, type CtxNode } from "../chart/ChartContextMenu";
+import type { SyncMode } from "./DrawingToolbar";
 import { emitAppEvent } from "../../data/app-events";
 
 type Props = {
@@ -52,6 +55,11 @@ type Props = {
   onToggleAnchor?: () => void;
   /** Table insert buttons ("Add column to right" / "Add row below"). */
   onTableOp?: (op: "insert-column" | "insert-row") => void;
+  /** Chart interval, for More > Visibility on intervals. */
+  interval?: string;
+  /** The selection's sync (null: mixed); undefined: no sync rows in More. */
+  sync?: SyncMode | null;
+  onSync?: (ids: string[], mode: SyncMode) => void;
 };
 
 const PADDING = 8;
@@ -87,12 +95,6 @@ function saveToolbarPos(pos: ToolbarPos): void {
  *  ("color:<slot>" for the colour buttons). */
 type OpenPopover = string | null;
 
-const ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "back", string]> = [
-  ["front", "Bring to front"],
-  ["forward", "Bring forward"],
-  ["backward", "Send backward"],
-  ["back", "Send to back"],
-];
 
 
 /** A style group of one selected drawing. */
@@ -113,8 +115,15 @@ const COLOR_ICONS: Record<ColorButton["id"], [string, number]> = {
 
 export function SelectedToolbar(props: Props) {
   const [openPopover, setOpenPopover] = createSignal<OpenPopover>(null);
-  const toggle = (p: Exclude<OpenPopover, null>) =>
+  // The More menu closes on a press outside it, the More button's own press included: the click that follows
+  // does not open it again.
+  let moreClosedAt = 0;
+  const toggle = (p: Exclude<OpenPopover, null>) => {
+    if (p === "more" && performance.now() - moreClosedAt < 400) return;
     setOpenPopover((cur) => (cur === p ? null : p));
+  };
+  /** Where the More menu opens: under the More button. */
+  const [moreAt, setMoreAt] = createSignal({ x: 0, y: 0 });
 
   // Frozen base position (pre-drag mode only). The floating toolbar does NOT
   // follow the drawing on pan / object-move — it stays where it first appeared.
@@ -667,9 +676,8 @@ export function SelectedToolbar(props: Props) {
           <Icon name="dt-remove" size={28} />
         </button>
 
-        {/* More — menu (Visual order ▸ / Visibility on
-            intervals… / Clone / Copy / Hide; per-drawing sync omitted — no
-            backing in this app). */}
+        {/* More — menu (Visual order ▸ / Visibility on intervals ▸ / Clone /
+            Copy / sync / Hide). */}
         <span class="selected-toolbar-control">
           <button
             type="button"
@@ -678,15 +686,29 @@ export function SelectedToolbar(props: Props) {
             title={isGroup() ? "More (applies to the primary drawing)" : "More"}
             aria-label="More"
             aria-expanded={openPopover() === "more"}
-            onClick={() => toggle("more")}
+            onClick={(e) => {
+              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setMoreAt({ x: r.left, y: r.bottom });
+              toggle("more");
+            }}
           >
             <Icon name="dt-more" size={28} />
           </button>
           <Show when={openPopover() === "more"}>
             <MoreMenu
+              at={moreAt()}
+              onClose={() => { moreClosedAt = performance.now(); setOpenPopover(null); }}
               drawing={props.drawing}
               onReorder={(dir) => { props.onReorder(props.drawing.id, dir); setOpenPopover(null); }}
-              onVisibility={() => { props.onOpenSettings(props.drawing.id, "Visibility"); setOpenPopover(null); }}
+              onVisibility={(mode) => {
+                const visibility = visibilityForMode(props.interval ?? "1D", mode);
+                const next = groupTargets().map((d) => ({ ...d, visibility } as Drawing));
+                if (next.length > 1 && props.onUpdateMany) props.onUpdateMany(next);
+                else props.onUpdate(next[0]);
+                setOpenPopover(null);
+              }}
+              sync={props.onSync ? props.sync : undefined}
+              onSync={(mode) => { props.onSync?.(groupTargets().map((d) => d.id), mode); setOpenPopover(null); }}
               onClone={() => { props.onClone(props.drawing.id); setOpenPopover(null); }}
               onCopy={() => { props.onCopy(props.drawing); setOpenPopover(null); }}
               onHide={() => { props.onUpdate({ ...props.drawing, hidden: !props.drawing.hidden } as Drawing); setOpenPopover(null); }}
@@ -698,66 +720,64 @@ export function SelectedToolbar(props: Props) {
   );
 }
 
-/** The "More" dropdown of the floating toolbar (214×307; sync radios
- *  omitted, see header comment). */
+/** The "More" menu of the floating toolbar, on the chart's context menu: Visual order ▸, Visibility on intervals ▸ ─
+ *  Clone, Copy ─ the drawing's sync (No sync / Sync in layout / Sync globally) ─ Hide. */
 function MoreMenu(props: {
+  at: { x: number; y: number };
   drawing: Drawing;
   onReorder: (dir: "front" | "forward" | "backward" | "back") => void;
-  onVisibility: () => void;
+  onVisibility: (mode: IntervalsVisibilityMode) => void;
   onClone: () => void;
   onCopy: () => void;
+  /** The drawing's sync; undefined: no sync rows. */
+  sync?: SyncMode | null;
+  onSync?: (mode: SyncMode) => void;
   onHide: () => void;
+  onClose: () => void;
 }) {
-  const [orderOpen, setOrderOpen] = createSignal(false);
-  // Flip the submenu left when a rightward open would leave the viewport (the
-  // toolbar — and thus this menu — often sits near the pane's right edge).
-  const [orderLeft, setOrderLeft] = createSignal(false);
-  const SUBMENU_W = 160; // keep in sync with .dt-order-submenu width
+  const SEP: CtxNode = { kind: "separator" };
+  const nodes = (): CtxNode[] => {
+    const out: CtxNode[] = [
+      {
+        kind: "item", id: "visual-order", label: "Visual order", icon: CtxIcons.order,
+        submenu: MORE_ORDER_ROWS.map(([dir, label]): CtxNode => ({ kind: "item", id: `order-${dir}`, label, onSelect: () => props.onReorder(dir) })),
+      },
+      {
+        kind: "item", id: "visibility-intervals", label: "Visibility on intervals",
+        submenu: VISIBILITY_ROWS.map(([mode, label]): CtxNode => ({ kind: "item", id: `vis-${mode}`, label, onSelect: () => props.onVisibility(mode) })),
+      },
+      SEP,
+      { kind: "item", id: "clone", label: "Clone", shortcut: "Ctrl + Drag", icon: <Icon name="dt-cm-clone" size={18} />, onSelect: props.onClone },
+      { kind: "item", id: "copy", label: "Copy", shortcut: "Ctrl + C", onSelect: props.onCopy },
+    ];
+    if (props.sync !== undefined && props.onSync) {
+      out.push(SEP, ...SYNC_ROWS.map(([mode, label]): CtxNode => ({ kind: "item", id: `sync-${mode}`, label, checked: props.sync === mode, onSelect: () => props.onSync?.(mode) })));
+    }
+    const hidden = !!props.drawing.hidden;
+    out.push(SEP, { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide, onSelect: props.onHide });
+    return out;
+  };
   return (
-    <div class="dt-popover dt-more-popover" role="menu" aria-label="More" data-name="more-menu">
-      <div
-        class="dt-more-submenu-host"
-        onPointerEnter={(e) => {
-          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-          setOrderLeft(r.right + SUBMENU_W > window.innerWidth - 4);
-          setOrderOpen(true);
-        }}
-        onPointerLeave={() => setOrderOpen(false)}
-      >
-        <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={orderOpen()} class="dt-menu-row">
-          <span class="dt-menu-label">Visual order</span>
-          <span class="dt-menu-subarrow" aria-hidden="true">
-            <svg viewBox="0 0 16 16" width="11" height="11">
-              <path fill="currentColor" d="M6 3l5 5-5 5z" />
-            </svg>
-          </span>
-        </button>
-        <Show when={orderOpen()}>
-          <div class="dt-popover dt-order-submenu" classList={{ "opens-left": orderLeft() }} role="menu">
-            {ORDER_ROWS.map(([dir, label]) => (
-              <button type="button" role="menuitem" class="dt-menu-row" onClick={() => props.onReorder(dir)}>
-                <span class="dt-menu-label">{label}</span>
-              </button>
-            ))}
-          </div>
-        </Show>
-      </div>
-      <button type="button" role="menuitem" class="dt-menu-row" onClick={props.onVisibility}>
-        <span class="dt-menu-label">Visibility on intervals…</span>
-      </button>
-      <div class="dt-menu-sep" role="separator" />
-      <button type="button" role="menuitem" class="dt-menu-row" onClick={props.onClone}>
-        <span class="dt-menu-label">Clone</span>
-        <span class="dt-menu-shortcut">Ctrl + Drag</span>
-      </button>
-      <button type="button" role="menuitem" class="dt-menu-row" onClick={props.onCopy}>
-        <span class="dt-menu-label">Copy</span>
-        <span class="dt-menu-shortcut">Ctrl + C</span>
-      </button>
-      <div class="dt-menu-sep" role="separator" />
-      <button type="button" role="menuitem" class="dt-menu-row" onClick={props.onHide}>
-        <span class="dt-menu-label">{props.drawing.hidden ? "Show" : "Hide"}</span>
-      </button>
+    <div class="dt-more-menu-host" data-name="more-menu" onPointerDown={(e) => e.stopPropagation()}>
+      <ChartContextMenu x={props.at.x} y={props.at.y} nodes={nodes()} onClose={props.onClose} />
     </div>
   );
 }
+
+const MORE_ORDER_ROWS: ReadonlyArray<readonly ["front" | "forward" | "backward" | "back", string]> = [
+  ["front", "Bring to front"],
+  ["back", "Send to back"],
+  ["forward", "Bring forward"],
+  ["backward", "Send backward"],
+];
+const VISIBILITY_ROWS: ReadonlyArray<readonly [IntervalsVisibilityMode, string]> = [
+  ["currentAndAbove", "Current interval and above"],
+  ["currentAndBelow", "Current interval and below"],
+  ["current", "Current interval only"],
+  ["all", "All intervals"],
+];
+const SYNC_ROWS: ReadonlyArray<readonly [SyncMode, string]> = [
+  ["none", "No sync"],
+  ["layout", "Sync in layout"],
+  ["global", "Sync globally"],
+];

@@ -60,6 +60,7 @@ import type { ComparePlacement, PaneChart, PaneIndicatorSettings } from "../shel
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "../../data/drawing-toolbar";
 import { displayTimeZone } from "../../data/session";
+import type { SyncMode } from "../drawings/DrawingToolbar";
 
 type Props = {
   /** False while this grid's tab is hidden. App keeps every opened tab's grid
@@ -144,6 +145,9 @@ type Props = {
   /** Bulk replace (group drag/nudge) — one undo entry. */
   updateDrawingsForSymbol?: (key: string, list: Drawing[]) => void;
   cloneDrawingForSymbol?: (key: string, id: string) => void;
+  /** Sync of a drawing (the scope it is kept in) and its change, per view key. */
+  drawingSyncForSymbol?: (key: string, id: string) => SyncMode | null;
+  setDrawingsSyncForSymbol?: (key: string, ids: string[], mode: SyncMode) => void;
   reorderDrawingForSymbol?: (key: string, id: string, dir: "front" | "forward" | "backward" | "back") => void;
   placeDrawingsForSymbol?: (key: string, ids: string[], over: Record<string, string | null>) => void;
   removeDrawingForSymbol?: (key: string, id: string) => void;
@@ -458,6 +462,8 @@ export function ChartGrid(props: Props) {
                 updateDrawing={(d) => live() && props.updateDrawingForSymbol?.(props.drawingKeyForPane(pane()), d)}
                 updateDrawings={(list) => live() && props.updateDrawingsForSymbol?.(props.drawingKeyForPane(pane()), list)}
                 cloneDrawing={(id) => live() && props.cloneDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}
+                drawingSync={(id) => props.drawingSyncForSymbol?.(props.drawingKeyForPane(pane()), id) ?? null}
+                setDrawingSync={(ids, mode) => live() && props.setDrawingsSyncForSymbol?.(props.drawingKeyForPane(pane()), ids, mode)}
                 reorderDrawing={(id, dir) => live() && props.reorderDrawingForSymbol?.(props.drawingKeyForPane(pane()), id, dir)}
                 placeDrawings={(ids, over) => live() && props.placeDrawingsForSymbol?.(props.drawingKeyForPane(pane()), ids, over)}
                 removeDrawing={(id) => live() && props.removeDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}

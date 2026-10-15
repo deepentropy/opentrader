@@ -14,6 +14,10 @@ import { SelectedToolbar } from "../SelectedToolbar";
 import { DrawingContextMenu } from "../DrawingContextMenu";
 import { SettingsDialog } from "../SettingsDialog";
 import { copyDrawing } from "../clipboard";
+import { factoryStyleFor } from "lightweight-charts-drawing/core/specs";
+import { clearKindDefault, type DrawingTemplate } from "../templates";
+import { drawingCanAlert, drawingLabel, rulesOfDrawing } from "../../../data/alert-condition";
+import { alertStore } from "../../../data/alert-store";
 import { type OverlayCx } from "./context";
 
 type SettingsTab = "Style" | "Text" | "Coordinates" | "Visibility";
@@ -78,6 +82,32 @@ export function createPopups(cx: OverlayCx): PopupsApi {
     return { drawing: d, pos: { x: sumX / xCount, y: minY } };
   }
 
+  /** The selected drawings (the menu's drawing first when it is not selected). */
+  const selectedDrawings = (d: Drawing): Drawing[] => {
+    const list = cx.selIds().map((id) => props.drawings.find((x) => x.id === id)).filter((x): x is Drawing => !!x);
+    return list.some((x) => x.id === d.id) ? list : [d];
+  };
+  /** Which Visual order moves would change the drawing order (its place among the pane's drawings). */
+  const orderSteps = (d: Drawing) => {
+    const same = props.drawings.filter((x) => (x.owner ?? null) === (d.owner ?? null));
+    const i = same.findIndex((x) => x.id === d.id);
+    const last = same.length - 1;
+    return { front: i < last, forward: i < last, back: i > 0, backward: i > 0 };
+  };
+  /** The current sync of drawings: their common one, null when they differ. */
+  const syncOf = (list: Drawing[]) => {
+    const read = props.drawingSync;
+    if (!read) return undefined;
+    const modes = new Set(list.map((d) => read(d.id)));
+    return modes.size === 1 ? [...modes][0] : null;
+  };
+  /** A template (or the factory style) on the drawings of the tool. */
+  const applyStyle = (list: Drawing[], style: (d: Drawing) => Drawing) => {
+    const next = list.map(style);
+    if (next.length > 1 && props.onUpdateMany) props.onUpdateMany(next);
+    else if (next[0]) props.onUpdate(next[0]);
+  };
+
   /** Selected-drawing toolbar, context menu and Settings dialog. */
   function DrawingPopups() {
     return (
@@ -103,6 +133,9 @@ export function createPopups(cx: OverlayCx): PopupsApi {
               onReorder={props.onReorder}
               onTableOp={(op) => cx.tableOp(a().drawing.id, op)}
               onToggleAnchor={isAnchorable(a().drawing.kind) ? () => cx.toggleAnchored(a().drawing.id) : undefined}
+              interval={props.interval}
+              sync={syncOf(selectedDrawings(a().drawing))}
+              onSync={props.onSync}
               onAddAlert={(d) => {
                 // Same event the chart context menu uses; the drawing is the
                 // alert's level, so the alert follows it when it is moved.
@@ -115,6 +148,30 @@ export function createPopups(cx: OverlayCx): PopupsApi {
           {(m) => (
             <DrawingContextMenu
               drawing={m().drawing}
+              group={selectedDrawings(m().drawing)}
+              interval={props.interval}
+              orderSteps={orderSteps(m().drawing)}
+              alert={drawingCanAlert(m().drawing.kind) ? { edit: rulesOfDrawing(alertStore.rules(), m().drawing.id).length > 0, name: drawingLabel(m().drawing) } : null}
+              onAlert={() => {
+                const rule = rulesOfDrawing(alertStore.rules(), m().drawing.id)[0];
+                emitAppEvent("chart-open-alert-dialog", rule ? { editId: rule.id } : { symbol: props.symbol, drawingId: m().drawing.id });
+              }}
+              onObjectTree={() => emitAppEvent("chart-open-panel", { id: "object_tree" })}
+              sync={syncOf(selectedDrawings(m().drawing))}
+              onSync={props.onSync}
+              anchored={isAnchorable(m().drawing.kind) ? !!m().drawing.anchored : undefined}
+              onToggleAnchor={() => cx.toggleAnchored(m().drawing.id)}
+              onUpdateMany={props.onUpdateMany}
+              onApplyTemplate={(tpl: DrawingTemplate) => applyStyle(selectedDrawings(m().drawing).filter((d) => d.kind === m().drawing.kind), (d) => ({
+                ...d,
+                style: { ...factoryStyleFor(d.kind), ...tpl.style },
+                ...(tpl.text !== undefined ? { text: tpl.text } : {}),
+              } as Drawing))}
+              onApplyDefault={() => {
+                const list = selectedDrawings(m().drawing);
+                for (const d of list) clearKindDefault(d.kind);
+                applyStyle(list, (d) => ({ ...d, style: factoryStyleFor(d.kind) } as Drawing));
+              }}
               // Locked members are excluded so the menu's bulk Remove matches the
               // Delete key (the clicked drawing itself falls to the single path).
               groupIds={cx.selIds().filter((id) => {
