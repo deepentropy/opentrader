@@ -108,3 +108,61 @@ describe("fillPlaceholders", () => {
     expect(fillPlaceholders("no placeholders", v)).toBe("no placeholders");
   });
 });
+
+describe("strategy and position placeholders", () => {
+  const base: PlaceholderValues = {
+    symbol: "BINANCE:BTCUSDT",
+    interval: "1",
+    barTime: Date.UTC(2026, 9, 15, 8, 49, 0),
+    fireTime: Date.UTC(2026, 9, 15, 8, 49, 20),
+    bar: { open: 81345.89, high: 81350, low: 81340, close: 81346, volume: 3 },
+    currency: null,
+    baseCurrency: null,
+    plots: null,
+  };
+  const MSG =
+    "A={{strategy.order.action}}|N={{strategy.order.contracts}}|P={{strategy.order.price}}|ID={{strategy.order.id}}|CM={{strategy.order.comment}}|AM={{strategy.order.alert_message}}|PS={{strategy.position_size}}|MP={{strategy.market_position}}|MPS={{strategy.market_position_size}}|PMP={{strategy.prev_market_position}}|PMPS={{strategy.prev_market_position_size}}|O={{open}}|C={{close}}|X={{strategy.nothing}}";
+
+  it("fills an order fill as the reference fire gave it (prices in the symbol's format, sizes as they are)", () => {
+    const v: PlaceholderValues = {
+      ...base,
+      priceText: (p) => p.toFixed(2),
+      strategy: { action: "buy", contracts: 2.50964, price: 81346, id: "MomLE", comment: "MomLE", alertMessage: "", positionSize: 1.75327, prevPositionSize: -0.75637 },
+    };
+    expect(fillPlaceholders(MSG, v)).toBe(
+      "A=buy|N=2.50964|P=81346.00|ID=MomLE|CM=MomLE|AM=|PS=1.75327|MP=long|MPS=1.75327|PMP=short|PMPS=0.75637|O=81345.89|C=81346.00|X={{strategy.nothing}}",
+    );
+  });
+
+  it("flat position; without a fill the strategy placeholders stay as written", () => {
+    const v: PlaceholderValues = { ...base, strategy: { action: "sell", contracts: 1, price: 10, id: "x", comment: "", alertMessage: "m", positionSize: 0, prevPositionSize: 1 } };
+    expect(fillPlaceholders("{{strategy.market_position}} {{strategy.prev_market_position}} {{strategy.order.alert_message}}", v)).toBe("flat long m");
+    expect(fillPlaceholders("{{strategy.order.action}}", base)).toBe("{{strategy.order.action}}");
+  });
+
+  it("menu groups: Position, Order, Market for a strategy; Position drawing tool for a position", () => {
+    expect(placeholderGroups(null, "strategy").map((g) => g.title)).toEqual(["General", "Symbol data", "Currency", "Position", "Order", "Market"]);
+    const p = placeholderGroups(null, "position");
+    expect(p[3]).toEqual({
+      id: "position_tool",
+      title: "Position drawing tool",
+      items: [
+        { title: "Position level", value: "{{position.level}}" },
+        { title: "Order price", value: "{{position.price}}" },
+        { title: "PnL", value: "{{position.pnl}}" },
+      ],
+    });
+  });
+
+  it("fills a position hit: level name, price as it is, PnL in cents, a dash at the entry", () => {
+    const msg = "LV={{position.level}}|PR={{position.price}}|PNL={{position.pnl}}|X={{position.nothing}}";
+    expect(fillPlaceholders(msg, { ...base, position: { level: "Profit level", price: 81245.01, pnl: 15.000000000007276 * 16.667 } })).toBe("LV=Profit level|PR=81245.01|PNL=250.01|X={{position.nothing}}");
+    expect(fillPlaceholders(msg, { ...base, position: { level: "Profit level", price: 81252.65, pnl: 57.5 } })).toBe("LV=Profit level|PR=81252.65|PNL=57.50|X={{position.nothing}}");
+    expect(fillPlaceholders(msg, { ...base, position: { level: "Entry", price: 81343, pnl: null } })).toBe("LV=Entry|PR=81343|PNL=—|X={{position.nothing}}");
+  });
+
+  it("numbers a study's outputs given in message order; outputs without a title row are not named", () => {
+    const g = placeholderGroups([{ title: "Up" }, { title: "C (Open)", named: false }, { title: "Close" }]);
+    expect(g[3].items.map((i) => i.value)).toEqual(['{{plot("Up")}}', '{{plot("Close")}}', "{{plot_0}}", "{{plot_1}}", "{{plot_2}}"]);
+  });
+});

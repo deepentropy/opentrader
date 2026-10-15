@@ -102,6 +102,8 @@ export interface FilledOrder {
   price: number;
   qty: number;
   type: OrderType;
+  /** alert_message of the order call (the leg's own for an exit's profit / loss / trailing leg), for alert messages. */
+  alertMessage?: string;
 }
 
 export interface TradeLeg {

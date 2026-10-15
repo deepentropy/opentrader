@@ -134,12 +134,15 @@ function scriptMetaOf(run: oakScript.ScriptRunResult, source: string): OakCompil
     shapeConfig: run.shapeConfig.length ? run.shapeConfig : undefined,
     barColorConfig: run.barColorConfig.length ? run.barColorConfig : undefined,
     arrowConfig: run.arrowConfig.length ? run.arrowConfig : undefined,
+    // The outputs in declaration order (oakscriptjs with ScriptRunResult.outputs).
+    outputs: (run as { outputs?: OakCompiledMeta["outputs"] }).outputs?.length ? (run as { outputs?: OakCompiledMeta["outputs"] }).outputs : undefined,
     defaultInputs: run.defaultInputs,
     strategy: run.strategyConfig as Record<string, unknown> | undefined,
     // A strategy's alerts are its orders, not conditions.
     alertConditions: !run.strategyConfig && run.alertConfig.length ? run.alertConfig : undefined,
-    // A strategy's alert() calls go with its orders (alerts on strategies are not offered yet).
-    hasAlertFunction: !run.strategyConfig && (run.hasAlertFunction || callsAlert(source)) ? true : undefined,
+    // A strategy's alert() calls: its conditions "Order fills and alert() function calls" and "alert() function
+    // calls only".
+    hasAlertFunction: run.hasAlertFunction || callsAlert(source) ? true : undefined,
   };
 }
 

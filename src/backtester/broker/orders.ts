@@ -114,6 +114,7 @@ export abstract class OrderBook extends PricePath {
       stop,
       // An empty comment shows the order id (four-wma-tp-sl, mean-reversion-vf).
       comment: opts.comment || id,
+      alert: { message: opts.alertMessage ?? '' },
     });
   }
 
@@ -161,10 +162,11 @@ export abstract class OrderBook extends PricePath {
       qty: opts.qty ?? null,
       qtyPercent: opts.qtyPercent ?? null,
       comment: opts.comment || `Close entry(s) order ${id}`,
+      alert: { message: opts.alertMessage ?? '' },
     });
   }
 
-  closeAll(opts: { comment?: string; when?: boolean } = {}): void {
+  closeAll(opts: { comment?: string; alertMessage?: string; when?: boolean } = {}): void {
     if (opts.when === false || this.halted) return;
     if (this.openTrades.length === 0) return;
     this.closes.push({
@@ -175,6 +177,7 @@ export abstract class OrderBook extends PricePath {
       qty: null,
       qtyPercent: null,
       comment: opts.comment || 'Close position order',
+      alert: { message: opts.alertMessage ?? '' },
     });
   }
 
@@ -211,6 +214,11 @@ export abstract class OrderBook extends PricePath {
       commentProfit: opts.commentProfit || comment,
       commentLoss: opts.commentLoss || comment,
       commentTrailing: opts.commentTrailing || comment,
+      alerts: {
+        profit: { message: opts.alertProfit ?? opts.alertMessage ?? '' },
+        loss: { message: opts.alertLoss ?? opts.alertMessage ?? '' },
+        trailing: { message: opts.alertTrailing ?? opts.alertMessage ?? '' },
+      },
     });
     for (const t of this.openTrades) t.exitsDropped.delete(id);
     // A call with another trail activation (trail_points / trail_price) re-creates the trailing stop of each trade:

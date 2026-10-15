@@ -23,9 +23,12 @@ export type PlaceholderGroup = { id: string; title: string; items: PlaceholderIt
 /** Plots of a study offered in the menu. */
 export const MAX_PLACEHOLDER_PLOTS = 20;
 
-/** Groups of the "Add placeholder" menu. `plots`: the plots of the alert's
- *  source when it is a study (none for the price). */
-export function placeholderGroups(plots: readonly { title: string }[] | null): PlaceholderGroup[] {
+/** Groups of the "Add placeholder" menu. `plots`: the outputs of the alert's
+ *  source when it is a study, in message order (none for the price; an
+ *  output not `named` has no `{{plot("<title>")}}` row); `source`: a strategy
+ *  adds its Position, Order and Market groups, a long / short position its
+ *  own group. */
+export function placeholderGroups(plots: readonly { title: string; named?: boolean }[] | null, source?: "strategy" | "position"): PlaceholderGroup[] {
   const groups: PlaceholderGroup[] = [
     {
       id: "general",
@@ -63,13 +66,53 @@ export function placeholderGroups(plots: readonly { title: string }[] | null): P
     const seen = new Set<string>();
     const titled: PlaceholderItem[] = [];
     for (const p of list) {
-      if (!seen.has(p.title)) titled.push({ title: p.title, value: `{{plot("${p.title}")}}` });
+      if (!seen.has(p.title) && p.named !== false) titled.push({ title: p.title, value: `{{plot("${p.title}")}}` });
       seen.add(p.title);
     }
     groups.push({ id: "plots", title: "Plots", items: [...titled, ...list.map((_, i) => ({ title: `Plot ${i}`, value: `{{plot_${i}}}` }))] });
   }
+  if (source === "strategy") groups.push(...STRATEGY_GROUPS);
+  if (source === "position") groups.push(POSITION_GROUP);
   return groups;
 }
+
+/** A strategy's groups: its position, the order that filled and the market position before and after it. */
+const STRATEGY_GROUPS: PlaceholderGroup[] = [
+  { id: "position", title: "Position", items: [{ title: "Position size", value: "{{strategy.position_size}}" }] },
+  {
+    id: "order",
+    title: "Order",
+    items: [
+      { title: "Action", value: "{{strategy.order.action}}" },
+      { title: "Contracts", value: "{{strategy.order.contracts}}" },
+      { title: "Price", value: "{{strategy.order.price}}" },
+      { title: "ID", value: "{{strategy.order.id}}" },
+      { title: "Comment", value: "{{strategy.order.comment}}" },
+      { title: "Alert message", value: "{{strategy.order.alert_message}}" },
+    ],
+  },
+  {
+    id: "market",
+    title: "Market",
+    items: [
+      { title: "Position", value: "{{strategy.market_position}}" },
+      { title: "Position size", value: "{{strategy.market_position_size}}" },
+      { title: "Previous position", value: "{{strategy.prev_market_position}}" },
+      { title: "Previous position size", value: "{{strategy.prev_market_position_size}}" },
+    ],
+  },
+];
+
+/** A long / short position's group: the level it hit, that level's price, the profit or loss there. */
+const POSITION_GROUP: PlaceholderGroup = {
+  id: "position_tool",
+  title: "Position drawing tool",
+  items: [
+    { title: "Position level", value: "{{position.level}}" },
+    { title: "Order price", value: "{{position.price}}" },
+    { title: "PnL", value: "{{position.pnl}}" },
+  ],
+};
 
 /** A placeholder appended to a message: after a space unless the message is
  *  empty or already ends with a white space. */
@@ -95,7 +138,33 @@ export type PlaceholderValues = {
   baseCurrency: string | null;
   /** Plots of the alert's study at that bar, in plot order; null for an alert on the price. */
   plots: { title: string; value: number | null }[] | null;
+  /** The order fill of an alert on a strategy's orders. */
+  strategy?: StrategyFillValues | null;
+  /** The level a long / short position's alert hit. */
+  position?: PositionHitValues | null;
+  /** Prices written in the symbol's price format ("81346.00"): a strategy's alert writes its order price and the
+   *  bar's open / high / low / close that way; other alerts write numbers as they are. */
+  priceText?: (v: number) => string;
 };
+
+export type MarketPosition = "long" | "short" | "flat";
+
+/** An order fill of a strategy: the order, and the strategy's position before and after it (signed size). */
+export type StrategyFillValues = {
+  action: "buy" | "sell";
+  contracts: number;
+  price: number;
+  id: string;
+  comment: string;
+  alertMessage: string;
+  positionSize: number;
+  prevPositionSize: number;
+};
+
+/** A hit of a long / short position's level: its name, its price and the profit or loss there. */
+export type PositionHitValues = { level: string; price: number; pnl: number | null };
+
+const marketPosition = (size: number): MarketPosition => (size > 0 ? "long" : size < 0 ? "short" : "flat");
 
 /** Placeholders whose value needs the bars of the alert's interval or its study. */
 const BAR_DATA = /\{\{(?:open|high|low|close|volume|plot_\d+|plot\("[^"]*"\))\}\}/;
@@ -112,11 +181,41 @@ function utcTime(ms: number): string {
 
 const num = (v: number | null | undefined): string | null => (typeof v === "number" && Number.isFinite(v) ? String(v) : null);
 
+/** A strategy placeholder of an order fill; null for a name it does not have. */
+function strategyText(name: string, f: StrategyFillValues, price: (v: number) => string | null): string | null {
+  switch (name) {
+    case "strategy.order.action": return f.action;
+    case "strategy.order.contracts": return num(f.contracts);
+    case "strategy.order.price": return price(f.price);
+    case "strategy.order.id": return f.id;
+    case "strategy.order.comment": return f.comment;
+    case "strategy.order.alert_message": return f.alertMessage;
+    case "strategy.position_size": return num(f.positionSize);
+    case "strategy.market_position": return marketPosition(f.positionSize);
+    case "strategy.market_position_size": return num(Math.abs(f.positionSize));
+    case "strategy.prev_market_position": return marketPosition(f.prevPositionSize);
+    case "strategy.prev_market_position_size": return num(Math.abs(f.prevPositionSize));
+  }
+  return null;
+}
+
+/** A position placeholder of a level hit; null for a name it does not have. */
+function positionText(name: string, p: PositionHitValues): string | null {
+  switch (name) {
+    case "position.level": return p.level;
+    case "position.price": return num(p.price);
+    // In cents, rounded half up ("250.01" for 15 x 16.667); "—" at the entry.
+    case "position.pnl": return p.pnl == null ? "—" : (Math.round(p.pnl * 100 + 1e-7 * Math.sign(p.pnl)) / 100).toFixed(2);
+  }
+  return null;
+}
+
 /** The message with its placeholders filled in. A placeholder without a value here stays as written. */
 export function fillPlaceholders(text: string, v: PlaceholderValues): string {
   const colon = v.symbol.indexOf(":");
   const exchange = colon >= 0 ? v.symbol.slice(0, colon) : "";
   const ticker = colon >= 0 ? v.symbol.slice(colon + 1) : v.symbol;
+  const price = (p: number | null | undefined): string | null => (v.priceText && typeof p === "number" && Number.isFinite(p) ? v.priceText(p) : num(p));
   return text.replace(/\{\{(plot\("([^"]*)"\)|[a-z_][a-z0-9_.]*)\}\}/g, (all: string, name: string, plotTitle: string | undefined) => {
     if (plotTitle !== undefined) {
       const p = v.plots?.find((x) => x.title === plotTitle);
@@ -131,13 +230,16 @@ export function fillPlaceholders(text: string, v: PlaceholderValues): string {
       case "interval": out = v.interval; break;
       case "time": out = v.barTime != null ? utcTime(v.barTime) : null; break;
       case "timenow": out = utcTime(v.fireTime); break;
-      case "open": out = num(v.bar?.open); break;
-      case "high": out = num(v.bar?.high); break;
-      case "low": out = num(v.bar?.low); break;
-      case "close": out = num(v.bar?.close); break;
+      case "open": out = price(v.bar?.open); break;
+      case "high": out = price(v.bar?.high); break;
+      case "low": out = price(v.bar?.low); break;
+      case "close": out = price(v.bar?.close); break;
       case "volume": out = num(v.bar?.volume); break;
       case "syminfo.currency": out = v.currency; break;
       case "syminfo.basecurrency": out = v.baseCurrency; break;
+      default:
+        if (v.strategy && name.startsWith("strategy.")) out = strategyText(name, v.strategy, price);
+        else if (v.position && name.startsWith("position.")) out = positionText(name, v.position);
     }
     return out ?? all;
   });

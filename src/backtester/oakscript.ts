@@ -7,7 +7,8 @@
  *
  * Mapping:
  *   - order options: Pine names (from_entry, qty_percent, trail_points...) to the Broker options;
- *     alert_message / alert_* / disable_alert are ignored (no alerts in a backtest);
+ *     alert_message / alert_profit / alert_loss / alert_trailing ride on the fills (alerts on the order fills);
+ *     disable_alert is ignored;
  *   - OCA groups of entries and orders, and the risk rules allow_entry_in, max_intraday_loss and
  *     max_intraday_filled_orders go to the Broker; strategy.exit(oca_name), `strategy.close(immediately)`, the
  *     other risk rules and default_entry_qty are not implemented by the Broker: they throw;
@@ -123,11 +124,11 @@ export class BrokerEngine implements StrategyEngine {
   }
 
   entry(id: string, direction: StrategyDirection, o: StrategyEntryOptions): void {
-    this.broker.entry(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment, ocaName: o.oca_name, ocaType: o.oca_type });
+    this.broker.entry(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment, alertMessage: o.alert_message, ocaName: o.oca_name, ocaType: o.oca_type });
   }
 
   order(id: string, direction: StrategyDirection, o: StrategyEntryOptions): void {
-    this.broker.order(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment, ocaName: o.oca_name, ocaType: o.oca_type });
+    this.broker.order(id, direction, { qty: o.qty, limit: o.limit, stop: o.stop, comment: o.comment, alertMessage: o.alert_message, ocaName: o.oca_name, ocaType: o.oca_type });
   }
 
   risk(rule: StrategyRiskRule): void {
@@ -159,17 +160,21 @@ export class BrokerEngine implements StrategyEngine {
       commentProfit: o.comment_profit,
       commentLoss: o.comment_loss,
       commentTrailing: o.comment_trailing,
+      alertMessage: o.alert_message,
+      alertProfit: o.alert_profit,
+      alertLoss: o.alert_loss,
+      alertTrailing: o.alert_trailing,
     });
   }
 
   close(id: string, o: StrategyCloseOptions): void {
     if (o.immediately) unsupported('strategy.close(immediately = true)');
-    this.broker.close(id, { comment: o.comment, qty: o.qty, qtyPercent: o.qty_percent });
+    this.broker.close(id, { comment: o.comment, alertMessage: o.alert_message, qty: o.qty, qtyPercent: o.qty_percent });
   }
 
   close_all(o: StrategyCloseAllOptions): void {
     if (o.immediately) unsupported('strategy.close_all(immediately = true)');
-    this.broker.closeAll({ comment: o.comment });
+    this.broker.closeAll({ comment: o.comment, alertMessage: o.alert_message });
   }
 
   cancel(id: string): void {

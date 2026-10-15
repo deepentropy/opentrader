@@ -37,7 +37,7 @@ export abstract class CloseFills extends TradeLedger {
         this.closeTradeQty(t, q, price, o.comment, true);
       }
     });
-    this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
+    this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET', o.alert);
     return true;
   }
 
@@ -63,7 +63,7 @@ export abstract class CloseFills extends TradeLedger {
     if (q <= 0) return false;
     const whole = q >= t.qty - EPS;
     this.asOneOrder(q, () => this.closeTradeQty(t, q, price, o.comment, true));
-    this.recordFill(o.orderId, o.comment, t.direction === 'short', false, price, q, 'MARKET');
+    this.recordFill(o.orderId, o.comment, t.direction === 'short', false, price, q, 'MARKET', o.alert);
     return whole;
   }
 
@@ -123,7 +123,7 @@ export abstract class CloseFills extends TradeLedger {
       lot -= c;
     }
     this.displaced = this.displaced.filter((t) => t.lotQty > EPS);
-    this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET');
+    this.recordFill(o.orderId, o.comment, buy, false, price, qty, 'MARKET', o.alert);
     return true;
   }
 }

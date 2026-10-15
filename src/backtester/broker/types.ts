@@ -23,11 +23,18 @@ export type RiskRule =
   | { rule: 'max_intraday_loss'; value: number; type: 'percent_of_equity' | 'cash' }
   | { rule: 'max_intraday_filled_orders'; count: number };
 
+/** What an alert on the strategy's order fills gives for a fill besides the order: the call's alert_message. */
+export interface FillAlert {
+  message: string;
+}
+
 export interface EntryOptions {
   qty?: number;
   limit?: number;
   stop?: number;
   comment?: string;
+  /** Pine `alert_message`: the text of {{strategy.order.alert_message}} when the order fills. */
+  alertMessage?: string;
   /** One-cancels-all group: `cancel` cancels the other orders of the group when one fills, `reduce` lowers their
    *  quantity by the quantity filled (cancelled at 0). */
   ocaName?: string;
@@ -38,6 +45,7 @@ export interface EntryOptions {
 
 export interface CloseOptions {
   comment?: string;
+  alertMessage?: string;
   qty?: number;
   qtyPercent?: number;
   when?: boolean;
@@ -63,6 +71,11 @@ export interface ExitOptions {
   commentProfit?: string;
   commentLoss?: string;
   commentTrailing?: string;
+  /** Pine alert_message / alert_profit / alert_loss / alert_trailing (a leg's own text, else alert_message). */
+  alertMessage?: string;
+  alertProfit?: string;
+  alertLoss?: string;
+  alertTrailing?: string;
   when?: boolean;
 }
 
@@ -90,6 +103,8 @@ export interface EntryOrder {
   limit: number | null;
   stop: number | null;
   comment: string;
+  /** For alerts on the fills. */
+  alert?: FillAlert;
 }
 
 export interface CloseOrder {
@@ -102,6 +117,7 @@ export interface CloseOrder {
   qty: number | null;
   qtyPercent: number | null;
   comment: string;
+  alert?: FillAlert;
 }
 
 export interface ExitOrder {
@@ -127,6 +143,8 @@ export interface ExitOrder {
   commentProfit: string;
   commentLoss: string;
   commentTrailing: string;
+  /** For alerts on the fills of each leg. */
+  alerts?: { profit: FillAlert; loss: FillAlert; trailing: FillAlert };
 }
 
 export interface OpenTrade {

@@ -215,6 +215,8 @@ function applyUserMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCom
   e.metadata = { title: meta?.title ?? name, shortTitle: meta?.shortTitle ?? name, overlay };
   e.inputConfig = meta?.inputConfig ?? [];
   e.defaultInputs = meta?.defaultInputs ?? {};
+  // The script calls alert(): its alert conditions add the calls to the order fills.
+  e.hasAlertFunction = meta?.hasAlertFunction;
   applyDrawingConfigs(e, meta ?? {});
 }
 
