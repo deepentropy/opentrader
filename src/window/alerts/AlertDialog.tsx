@@ -61,6 +61,7 @@ import { hasAlertFunction, studyConditions } from "../../data/alert-study-condit
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
 import { choiceIndex, messageOutputs, outputChoices } from "../../data/alert-outputs";
 import { studyOperandValue } from "../../data/alert-engine";
+import { parseAmountText, stepAmountText, type StudyFormat } from "../../data/study-format";
 import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { statusLineInputs } from "../chart/indicators/indicator-options";
@@ -823,7 +824,7 @@ export function AlertDialog(props: Props) {
     if (sel === "price") return { kind: "price" };
     if (sel.startsWith("ind:")) return indicatorOperand(sel.slice(4), plot, was);
     if (sel.startsWith("sym:")) return symbolOperand(sel.slice(4));
-    return { kind: "value", value: parseFloat(text) || 0 };
+    return { kind: "value", value: parseAmountText(text) || 0 };
   }
 
   /** The lower bound of a channel between two bounds, else none. */
@@ -859,7 +860,7 @@ export function AlertDialog(props: Props) {
       case "symbol":
         return symbolOperand(rightSymbol());
       default:
-        return { kind: "value", value: parseFloat(rightValue()) || 0 };
+        return { kind: "value", value: parseAmountText(rightValue()) || 0 };
     }
   }
 
@@ -888,8 +889,9 @@ export function AlertDialog(props: Props) {
     const full = entry?.metadata.title;
     const title = kept?.title ?? (full ? (shown ? `${full} (${shown})` : full) : undefined);
     const precision = (entry?.metadata as { precision?: number } | undefined)?.precision;
+    const format = (entry as { format?: StudyFormat } | undefined)?.format;
     const read = choice?.output ? { output: choice.output } : { plot: choice?.plot ?? 0 };
-    return { kind: "indicator", indicatorId, ...read, label, ...(title ? { title } : {}), ...(precision != null ? { precision } : {}), ...(inputs ? { inputs } : {}) };
+    return { kind: "indicator", indicatorId, ...read, label, ...(title ? { title } : {}), ...(precision != null ? { precision } : {}), ...(format ? { format } : {}), ...(inputs ? { inputs } : {}) };
   }
 
   /** Default message: the condition as it is set ("AZO Crossing 150"), or
@@ -917,10 +919,10 @@ export function AlertDialog(props: Props) {
     if (isCalls()) return leftCalls();
     if (isMoving()) return Number.isFinite(parseFloat(pct()));
     if (valueBand()) {
-      const ok = (sel: string, text: string) => (sel === "value" ? Number.isFinite(parseFloat(text)) : sel === "price" || indicatorOptions().some((o) => `ind:${o.id}` === sel) || compareOptions_().some((c) => `sym:${c.symbol}` === sel));
+      const ok = (sel: string, text: string) => (sel === "value" ? Number.isFinite(parseAmountText(text)) : sel === "price" || indicatorOptions().some((o) => `ind:${o.id}` === sel) || compareOptions_().some((c) => `sym:${c.symbol}` === sel));
       return ok(upperSel(), upperValue()) && ok(lowerSel(), lowerValue());
     }
-    if (rightKind() === "value") return Number.isFinite(parseFloat(rightValue()));
+    if (rightKind() === "value") return Number.isFinite(parseAmountText(rightValue()));
     if (rightKind() === "drawing") return drawingOptions().some((o) => o.id === rightDrawing());
     if (rightKind() === "indicator") return indicatorOptions().some((o) => o.id === rightIndicator());
     if (rightKind() === "symbol") return compareOptions_().some((c) => c.symbol === rightSymbol());
@@ -1197,13 +1199,7 @@ export function AlertDialog(props: Props) {
   };
   const draftWebhookValid = () => !draftWebhookOn() || isValidWebhookUrl(draftWebhookUrl());
   /** One step up / down of a number field, in its last decimal. */
-  const stepped = (text: string, dir: 1 | -1) => {
-    const v = parseFloat(text);
-    const t = text.trim();
-    const decimals = t.includes(".") ? t.split(".")[1].length : 2;
-    const step = 1 / 10 ** decimals;
-    return ((Number.isFinite(v) ? v : 0) + dir * step).toFixed(decimals);
-  };
+  const stepped = (text: string, dir: 1 | -1) => stepAmountText(text, dir);
   /** A number field with its up / down steppers. */
   const valueBox = (get: () => string, set: (v: string) => void, label: string) => (
     <span class="ad-number">

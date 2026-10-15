@@ -21,6 +21,7 @@ import { migrateDrawingKey } from "../window/drawings/persistence";
 import * as kv from "./kv";
 import { typeIdOf } from "../window/chart/indicators/study-id";
 import { currentInputs, currentTypeId } from "../window/chart/indicators/retired-ids";
+import type { StudyFormat } from "./study-format";
 
 /** A side of the condition. Price = the symbol's last/close; value = a fixed
  *  number; drawing = a chart drawing's price level (horizontal line/ray, trend
@@ -64,6 +65,9 @@ export type Operand =
       /** Decimals of the study's values when it declares them (else the
        *  symbol's price format), for the amounts in messages. */
       precision?: number;
+      /** The study's value format when it declares one (a price with its decimals, a volume, a percentage): the
+       *  amounts in messages and in the dialog are written that way. */
+      format?: StudyFormat;
       /** The study's inputs when the alert was made: the alert reads the
        *  study computed with them, whatever the chart shows later. Unset on
        *  older alerts (the charted study, else the factory inputs). */

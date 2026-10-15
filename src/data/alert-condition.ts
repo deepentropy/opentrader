@@ -20,6 +20,7 @@ import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { conditionMessage } from "./alert-study-conditions";
 import { tickerOf } from "./symbol-name";
 import { groupThousands } from "../window/chart/price-format";
+import { formatStudyValue } from "./study-format";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -553,6 +554,8 @@ function messageOperand(op: Operand): string {
  *  decimals when it declares them, else the price format of the symbol (the
  *  compared symbol's for its price); thousands grouped ("1,234.50"). */
 export function alertAmountText(symbol: string | undefined, left: Operand, v: number): string {
+  // A study's own value format, else its declared decimals.
+  if (left.kind === "indicator" && left.format) return formatStudyValue(v, left.format);
   if (left.kind === "indicator" && left.precision != null) return groupThousands(v.toFixed(left.precision));
   // A compared symbol's price: its own format.
   const of = left.kind === "symbol" ? left.symbol : symbol;
