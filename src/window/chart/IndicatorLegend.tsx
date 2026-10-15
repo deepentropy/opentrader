@@ -24,9 +24,12 @@ import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js"
 import { Portal } from "solid-js/web";
 import type { IndicatorLegendRow } from "./indicators/indicator-controller";
 import type { StudyError } from "./indicators/indicator-layer";
+import { formatStudyValue } from "../../data/study-format";
 
 type Props = {
   rows: IndicatorLegendRow[];
+  /** The symbol's price format, for the studies without a format of their own. */
+  formatPrice?: (v: number) => string;
   /** Toggle a study's plot visibility (eye). */
   onToggleHide: (id: string) => void;
   /** Open the study's settings dialog (gear). */
@@ -196,6 +199,14 @@ function StudyStatusPanel(props: {
   );
 }
 
+/** A study value in the legend: the Precision setting, else the study's own format, else the symbol's price format
+ *  (reference); without that, the compact form. */
+function valueText(row: IndicatorLegendRow, v: number, formatPrice?: (v: number) => string): string {
+  if (row.precision !== null) return v.toFixed(row.precision);
+  if (row.format) return formatStudyValue(v, row.format);
+  return formatPrice ? formatPrice(v) : fmtVal(v);
+}
+
 /** Compact study legend value format ("773.19 M", "82.50"); a value that is not available is "∅". */
 function fmtVal(v: number): string {
   if (!Number.isFinite(v)) return NA;
@@ -336,7 +347,7 @@ export function IndicatorLegend(props: Props) {
                     <For each={row.plots}>
                       {(p) => (
                         <span class="ot-ind-legend-val" style={{ color: Number.isFinite(p.value) ? p.color : undefined }}>
-                          {!Number.isFinite(p.value) ? NA : row.precision !== null ? p.value.toFixed(row.precision) : fmtVal(p.value)}
+                          {!Number.isFinite(p.value) ? NA : valueText(row, p.value, props.formatPrice)}
                         </span>
                       )}
                     </For>

@@ -583,6 +583,13 @@ export class IndicatorLayer {
     // format on it would change the labels and the scale width.
     const mainFormat = this.pricePane && !ownScale && !this.detachedScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
     if (mainFormat) for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat: mainFormat });
+    // Elsewhere, with the default precision: the study's own value format (reference), for its scale labels.
+    const own = (entry as { format?: { type: "price" | "volume" | "percent"; precision?: number } }).format;
+    if (!mainFormat && this.precision === null && own) {
+      const precision = own.type === "volume" ? 2 : (own.precision ?? 2);
+      const priceFormat = own.type === "volume" ? { type: "volume" as const, precision } : { type: own.type, precision, minMove: 1 / 10 ** precision };
+      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat });
+    }
     if (this.detachedScale && !ownScale && this.detachedAxis) {
       // A side scale: shown by the chart (side scales are chart options).
       for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale });

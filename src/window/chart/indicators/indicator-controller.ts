@@ -37,6 +37,7 @@ import {
   type IndicatorOptions,
   type StudyScale,
 } from './indicator-options';
+import type { StudyFormat } from "../../../data/study-format";
 
 /** Quiet time after a scroll or zoom before the studies that read the visible range calculate again. */
 const VISIBLE_RANGE_DELAY_MS = 120;
@@ -90,6 +91,8 @@ export type IndicatorLegendRow = {
   showInputs: boolean;
   /** Style -> "Precision": decimals of the values, null = Default. */
   precision: number | null;
+  /** The study's own value format (unset: the symbol's price format); the Precision setting wins over it. */
+  format?: StudyFormat | null;
   /** Hidden because the chart interval is outside its Visibility tab. */
   offInterval: boolean;
   /** The legend eye state alone (hidden also covers offInterval). */
@@ -712,6 +715,7 @@ export class IndicatorController {
         showValues: o.valuesInStatusLine,
         showInputs: o.inputsInStatusLine,
         precision: precisionDigits(o.precision),
+        format: (entry as { format?: StudyFormat } | undefined)?.format ?? null,
         offInterval,
         eyeHidden: this.hidden.has(id),
         error: inst.layer.studyError(),

@@ -63,6 +63,7 @@ export function createLegend(cx: ChartCx): LegendApi {
   const studyLegend = (pane: () => number) => (
     <IndicatorLegend
       rows={indLegend().filter((r) => r.pane === pane())}
+      formatPrice={cx.legendPriceFormat()}
       showTitles={appearance().legendIndTitles}
       showInputs={appearance().legendIndInputs}
       showValues={appearance().legendIndValues}
