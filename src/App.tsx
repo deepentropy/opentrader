@@ -856,6 +856,7 @@ function App() {
             symbol={d().symbol}
             price={d().price}
             indicatorId={d().indicatorId}
+            compareSymbol={d().compareSymbol}
             drawingId={d().drawingId}
             interval={interval()}
             session={session()}

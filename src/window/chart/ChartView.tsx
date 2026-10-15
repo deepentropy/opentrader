@@ -436,6 +436,7 @@ export function ChartView(props: ChartViewProps) {
       resolution: () => props.interval ?? "",
       session: () => props.session ?? "RTH",
       bars: () => raw as ChartBar[],
+      compares: () => cx.compareSources?.() ?? [],
     });
     onCleanup(() => unregisterChartState(key));
   });

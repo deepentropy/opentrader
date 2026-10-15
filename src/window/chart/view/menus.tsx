@@ -121,7 +121,7 @@ export interface MenusApi {
     indicatorId?: string;
     price?: number;
   };
-  openCompareMoreMenu: (id: string, anchor: DOMRect) => void;
+  openCompareMoreMenu: (id: string, anchor: DOMRect, price?: number | null) => void;
   openContextMenu: (e: MouseEvent) => void;
   openIndicatorMoreMenu: (id: string, anchor: DOMRect) => void;
   openPaneMenu: (e: MouseEvent, i: number) => void;
@@ -438,7 +438,31 @@ export function createMenus(cx: ChartCx): MenusApi {
       out.push(row(r.id, usual ? `Add alert on ${name} at ${fmt.format(v)}` : `Add alert on ${name}`,
         { symbol: props.symbol ?? "", price: v, indicatorId: r.id }));
     }
+    // The compared symbols on that scale (not on a % / indexed scale).
+    for (const c of cx.compareSources()) {
+      const s = cx.compareLayers.get(c.id)?.firstSeries();
+      if (c.hidden || !s || s.getPane().paneIndex() !== paneIdx || (s.options().priceScaleId || side) !== side) continue;
+      if (!plainScale(s.priceScale().options().mode)) continue;
+      const p = s.coordinateToPrice(y);
+      if (p == null) continue;
+      const v = roundedPrice(p as number, c.format);
+      out.push(row(c.id, `Add alert on ${c.description} at ${c.format(v)}`, { symbol: props.symbol ?? "", price: v, compareSymbol: c.symbol }));
+    }
     return out;
+  }
+
+  /** "Add alert on <description> at <price>…" row of a compared symbol's menu; `price` = at the pointer (right
+   *  click on its line), else its last value. */
+  function compareAlertRow(id: string, price?: number | null): CtxNode | null {
+    const c = cx.compareSources().find((x) => x.id === id);
+    if (!c) return null;
+    const v = price ?? c.last;
+    const value = v == null ? null : roundedPrice(v, c.format);
+    return {
+      kind: "item", id: "alert", label: value != null ? `Add alert on ${c.description} at ${c.format(value)}…` : `Add alert on ${c.description}…`,
+      shortcut: "Alt + A", icon: CtxIcons.alert,
+      onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: value ?? undefined, compareSymbol: c.symbol }),
+    };
   }
 
   /** A study's actions menu (legend "More", right click on its drawing); null when it is not in the legend.
@@ -475,11 +499,14 @@ export function createMenus(cx: ChartCx): MenusApi {
 
   /** Alt + A (reference rule): the alert is on the selected study when it is a
    *  source, at the price under the crosshair while the pointer is on the chart. */
-  function alertTarget(): { indicatorId?: string; price?: number } {
+  function alertTarget(): { indicatorId?: string; compareSymbol?: string; price?: number } {
     const id = selectedStudy();
     const row = id && !cx.compareEntry(id) ? (cx.controller?.getLegend() ?? []).find((r) => r.id === id) : undefined;
+    // A selected compared symbol is a source too.
+    const cmp = id ? cx.compareEntry(id) : undefined;
     return {
       ...(row && studyAlertable(row.id, row) ? { indicatorId: row.id } : {}),
+      ...(cmp ? { compareSymbol: cmp.symbol } : {}),
       ...(cx.crosshairPrice != null ? { price: cx.crosshairPrice } : {}),
     };
   }
@@ -524,10 +551,12 @@ export function createMenus(cx: ChartCx): MenusApi {
    *  feature are left out (same rule as the study menu): Add indicator /
    *  financial metric on the symbol, Symbol info, Visual order, Visibility on
    *  intervals, Move to, Pin to scale, Copy. */
-  function openCompareMoreMenu(id: string, anchor: DOMRect) {
+  function openCompareMoreMenu(id: string, anchor: DOMRect, price?: number | null) {
     const e = cx.compareEntry(id);
     if (!e) return;
+    const alert = compareAlertRow(id, price);
     const nodes: CtxNode[] = [
+      ...(alert ? [alert, { kind: "separator" } as CtxNode] : []),
       { kind: "item", id: "hide", label: e.hidden ? "Show" : "Hide", icon: e.hidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => props.onCompareChange?.(id, { hidden: !e.hidden }) },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
@@ -574,8 +603,13 @@ export function createMenus(cx: ChartCx): MenusApi {
     // On a study's plot: the study is selected and its menu opens at the
     // pointer, its alert row at the price there (on the study's scale).
     if (cx.hoveredStudy && cx.compareEntry(cx.hoveredStudy)) {
-      selectStudy(cx.hoveredStudy);
-      openCompareMoreMenu(cx.hoveredStudy, new DOMRect(e.clientX, e.clientY - 3, 0, 0));
+      const id = cx.hoveredStudy;
+      selectStudy(id);
+      // Its alert row at the price under the pointer, on its scale.
+      const s = cx.compareLayers.get(id)?.firstSeries();
+      const box = s ? cx.paneBoxes().find((b) => b.index === s.getPane().paneIndex()) : undefined;
+      const at = s ? s.coordinateToPrice(yRel - (box?.top ?? 0)) : null;
+      openCompareMoreMenu(id, new DOMRect(e.clientX, e.clientY - 3, 0, 0), at as number | null);
       return;
     }
     if (cx.hoveredStudy && indLegend().some((r) => r.id === cx.hoveredStudy)) {

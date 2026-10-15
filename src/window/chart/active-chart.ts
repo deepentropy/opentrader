@@ -9,7 +9,7 @@ export type ActiveChartProbe = {
   scaleRatio: () => number | undefined;
   /** Alt + A: the selected study the alert is on (else the symbol) and the
    *  price under the crosshair while the pointer is over the chart. */
-  alertTarget?: () => { indicatorId?: string; price?: number };
+  alertTarget?: () => { indicatorId?: string; compareSymbol?: string; price?: number };
 };
 
 let probe: ActiveChartProbe | null = null;

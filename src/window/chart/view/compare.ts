@@ -18,6 +18,10 @@ import { toOHLC } from "./helpers";
 import { type ChartCx } from "./context";
 import type { Setter } from "solid-js";
 
+/** A compared symbol as an alert source: "Microsoft Corp. (NASDAQ)", its
+ *  last value and price format. */
+export type CompareSource = { id: string; symbol: string; label: string; description: string; hidden: boolean; last: number | null; format: (v: number) => string };
+
 /** What createCompare adds to the chart context. */
 export interface CompareApi {
   compareEntries: () => CompareEntry[];
@@ -26,6 +30,7 @@ export interface CompareApi {
   compareLegendRows: (time?: number) => IndicatorLegendRow[];
   compareLiveDirty: boolean;
   compareTitle: (e: CompareEntry) => string;
+  compareSources: () => CompareSource[];
   renderCompareAll: () => void;
   setComparePreview: Setter<{
     id: string;
@@ -70,6 +75,17 @@ export function createCompare(cx: ChartCx): CompareApi {
     const name = compareNames()[e.symbol] || ticker;
     return exchange ? `${name} · ${exchange}` : name;
   };
+
+  /** The compared symbols as alert sources: "<description> (<exchange>)" (the ticker before the description is
+   *  known). */
+  const compareSources = (): CompareSource[] =>
+    compareEntries().map((e) => {
+      const { ticker, exchange } = splitSymbol(e.symbol);
+      const description = compareNames()[e.symbol] || ticker;
+      const layer = compareLayers.get(e.id);
+      const fmt = compareFormat(e)?.format ?? ((n: number) => n.toFixed(2));
+      return { id: e.id, symbol: e.symbol, label: exchange ? `${description} (${exchange})` : description, description, hidden: !compareVisible(e), last: layer?.valueAt()?.value ?? null, format: fmt };
+    });
 
   const otherSide = (side: "left" | "right") => (side === "right" ? "left" : "right");
   /** Scale id of every entry (placement rules above). */
@@ -335,6 +351,7 @@ export function createCompare(cx: ChartCx): CompareApi {
       compareLiveDirty = v;
     },
     compareTitle,
+    compareSources,
     renderCompareAll,
     setComparePreview,
     studyOfSeries,
