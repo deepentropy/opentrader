@@ -50,8 +50,13 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
   // "Visible on mouse over" = that axis hovered; currency label = any price
   // axis of the chart hovered).
   const [axisHover, setAxisHover] = createSignal<number | null>(null);
-  // th: height of the time axis (the axis corner button's height).
+  // The chosen side's price axis (Scales placement: plus button, pane
+  // buttons, axis corner); th: height of the time axis (the axis corner
+  // button's height).
   const [scaleGeom, setScaleGeom] = createSignal<{ w: number; h: number; th: number; left: boolean } | null>(null);
+  // The main series' price axis: its pane (top, height) and side (A / L
+  // buttons, currency label, axis corner tint).
+  const [mainAxis, setMainAxis] = createSignal<{ top: number; h: number; w: number; left: boolean } | null>(null);
   const [scaleModes, setScaleModes] = createSignal({ auto: true, log: false });
   // Axis corner button (the time axis' corner under the price axis): a gear
   // drawn while this chart is the active or the hovered one; hovered (or its
@@ -90,11 +95,18 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
     try { lw = cx.chart.options().leftPriceScale.visible ? cx.chart.priceScale("left").width() : 0; } catch { /* not laid out yet */ }
     setLegendLeft((v) => (v === lw ? v : lw));
     const side = currentTokens().scalesPlacement;
-    const ps = cx.chart.priceScale(side);
-    const w = ps.width();
-    const h = cx.chart.paneSize(0).height;
+    const w = cx.chart.priceScale(side).width();
+    const m = cx.mainPane();
+    const box = cx.paneBoxes().find((b) => b.index === m);
+    const h = box?.height ?? cx.chart.paneSize(m).height;
     const th = cx.chart.options().timeScale.visible === false ? 0 : cx.chart.timeScale().height();
     setScaleGeom((g) => (g && g.w === w && g.h === h && g.th === th && g.left === (side === "left") ? g : { w, h, th, left: side === "left" }));
+    const mainLeft = cx.mainSide() === "left";
+    const mw = cx.chart.priceScale(mainLeft ? "left" : "right").width();
+    const top = box?.top ?? 0;
+    setMainAxis((a) => (a && a.top === top && a.h === h && a.w === mw && a.left === mainLeft ? a : { top, h, w: mw, left: mainLeft }));
+    const ps = cx.mainScale();
+    if (!ps) return;
     const o = ps.options();
     const next = { auto: !!o.autoScale, log: o.mode === PriceScaleMode.Logarithmic };
     setScaleModes((m) => (m.auto === next.auto && m.log === next.log ? m : next));
@@ -104,26 +116,25 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
    *  symbol's visible bars once, then stays manual (the old symbol's price
    *  range would leave the new candles out of view). */
   function fitPriceScaleOnce() {
-    if (!cx.chart) return;
-    const ps = cx.chart.priceScale(currentTokens().scalesPlacement);
-    if (ps.options().autoScale) return;
+    const ps = cx.mainScale();
+    if (!ps || ps.options().autoScale) return;
     ps.applyOptions({ autoScale: true });
     // The fitted range exists after the next paint; freezing keeps it.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       if (!cx.chart) return;
-      cx.chart.priceScale(currentTokens().scalesPlacement).applyOptions({ autoScale: false });
+      cx.mainScale()?.applyOptions({ autoScale: false });
       refreshScaleOverlays();
     }));
   }
   function toggleAutoScale() {
-    if (!cx.chart) return;
-    const ps = cx.chart.priceScale(currentTokens().scalesPlacement);
+    const ps = cx.mainScale();
+    if (!ps) return;
     ps.applyOptions({ autoScale: !ps.options().autoScale });
     refreshScaleOverlays();
   }
   function toggleLogScale() {
-    if (!cx.chart) return;
-    const ps = cx.chart.priceScale(currentTokens().scalesPlacement);
+    const ps = cx.mainScale();
+    if (!ps) return;
     const log = ps.options().mode === PriceScaleMode.Logarithmic;
     ps.applyOptions({ mode: log ? PriceScaleMode.Normal : PriceScaleMode.Logarithmic });
     refreshScaleOverlays();
@@ -135,8 +146,8 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
         {(g) => (
           <>
             {/* Currency label (12 px row). */}
-            <Show when={currency() && overlayVisible(appearance().currencyUnit ?? "visibleOnMouseOver", axisHover() !== null)}>
-              <div class="ot-price-currency" style={{ [g().left ? "left" : "right"]: "0px", width: `${g().w}px` }}>
+            <Show when={currency() && mainAxis() && overlayVisible(appearance().currencyUnit ?? "visibleOnMouseOver", axisHover() !== null)}>
+              <div class="ot-price-currency" style={{ [mainAxis()!.left ? "left" : "right"]: "0px", top: `${mainAxis()!.top}px`, width: `${mainAxis()!.w}px` }}>
                 <div class="ot-price-currency-box" style={{ "background-color": readChartTokens(appearance()).bg }}>
                   <div class="ot-price-currency-row" style={{ "font-size": `${readChartTokens(appearance()).scaleFontSize}px` }} title="Currency">
                     {/* No dropdown arrow: the reference menu converts the chart to
@@ -148,8 +159,8 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
               </div>
             </Show>
             {/* Auto / Log buttons (price-scale mode buttons). */}
-            <Show when={overlayVisible(appearance().scaleModes ?? "visibleOnMouseOver", axisHover() === 0)}>
-              <div class="ot-price-modes" style={{ [g().left ? "left" : "right"]: "0px", top: `${g().h - 30}px`, width: `${g().w}px` }}>
+            <Show when={mainAxis() && overlayVisible(appearance().scaleModes ?? "visibleOnMouseOver", axisHover() === cx.mainPane())}>
+              <div class="ot-price-modes" style={{ [mainAxis()!.left ? "left" : "right"]: "0px", top: `${mainAxis()!.top + mainAxis()!.h - 30}px`, width: `${mainAxis()!.w}px` }}>
                 <div class="ot-price-mode-wrap">
                   <button type="button" class={`ot-price-mode${scaleModes().auto ? " is-on" : ""}`} title="Auto (fits data to screen)" aria-label="Toggle auto scale" onClick={toggleAutoScale}>A</button>
                 </div>
@@ -198,10 +209,10 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
                       <div
                         class="ot-axis-corner-tint"
                         style={{
-                          [side()]: "0px",
-                          top: "0px",
-                          width: `${g().w}px`,
-                          height: `${g().h}px`,
+                          [mainAxis()?.left ? "left" : "right"]: "0px",
+                          top: `${mainAxis()?.top ?? 0}px`,
+                          width: `${mainAxis()?.w ?? g().w}px`,
+                          height: `${mainAxis()?.h ?? g().h}px`,
                           background: dark() ? "rgba(46, 46, 46, 0.5)" : "rgba(235, 235, 235, 0.5)",
                           "mix-blend-mode": dark() ? "lighten" : "darken",
                         }}

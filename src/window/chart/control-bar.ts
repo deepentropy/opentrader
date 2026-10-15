@@ -105,7 +105,7 @@ export type BarAnchor = {
  * Returns null when no pane is tall enough to hold the bar (no target pane),
  * which leaves the anchor untouched.
  */
-export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: number): BarAnchor | null {
+export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: number, mainPane = 0): BarAnchor | null {
   const panes = chart.panes();
   const heights = panes.map((p) => p.getHeight());
   const axis = chart.timeScale().height();
@@ -116,11 +116,11 @@ export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: numbe
 
   // Target pane: the bottom-most pane with room for the bar.
   // Short indicator panes get skipped, so on a busy layout the bar lands on the
-  // price pane rather than the bottom of the widget. Pane 0 holds the main
-  // series here, which is what earns the 27px lift.
+  // price pane rather than the bottom of the widget. The price pane (any
+  // position) holds the main series, which is what earns the 27px lift.
   let target = -1;
   for (let i = panes.length - 1; i >= 0; i--) {
-    const margin = i === 0 ? MAIN_PANE_MARGIN : 0;
+    const margin = i === mainPane ? MAIN_PANE_MARGIN : 0;
     if (heights[i] >= CONTROL_BAR_H + 28 + margin) {
       target = i;
       break;
@@ -130,7 +130,7 @@ export function barAnchor(chart: IChartApi, hostHeight: number, hostWidth: numbe
 
   let bottom = axis;
   for (let j = panes.length - 1; j > target; j--) bottom += heights[j] + sep;
-  bottom += target === 0 ? MAIN_PANE_MARGIN : 0;
+  bottom += target === mainPane ? MAIN_PANE_MARGIN : 0;
 
   // A scale shown before the first layout has no widget yet (width throws).
   const widthOf = (side: "left" | "right") => { try { return chart.priceScale(side).width(); } catch { return 0; } };

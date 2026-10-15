@@ -327,6 +327,7 @@ function App() {
     compareAdded,
     compareRecent,
     setPaneOrderForPane,
+    setSeriesPaneForPane,
     setSourceOrderForPane,
     setPaneLinkGroup,
     toggleSeriesHidden,
@@ -657,6 +658,7 @@ function App() {
               onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
               onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
               onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}
+              onSeriesPane={(i, group) => setSeriesPaneForPane(tabId, i, group)}
               onSourceOrder={(i, order) => setSourceOrderForPane(tabId, i, order)}
               onChangeCompareSymbol={(i, id) => {
                 setCompareTarget({ tabId, paneIndex: i, id });

@@ -20,6 +20,7 @@ import { defaultIndicatorOptions } from "../chart/indicators/indicator-options";
 import { isStrategyId } from "../chart/indicators/strategy-entries";
 import { newStudyId, typeIdOf } from "../chart/indicators/study-id";
 import { COMPARE_COLORS, newCompareStyle, type CompareStyleState } from "../chart/compare/compare-style";
+import { MAIN_SOURCE_ID } from "../chart/object-tree-sources";
 import type { LayoutId } from "../chart/layouts";
 import type { Sizing } from "../chart/layout-sizes";
 import { newCompareId, type CompareEntry, type ComparePlacement, type PaneChart, type PaneIndicatorSettings } from "./tabs";
@@ -241,7 +242,7 @@ export function createChartEdits(
     // A new pane goes below the existing ones: record the current order with
     // it last, so a study added later goes below it in turn.
     if (placement === "pane") {
-      const order = (pane.paneOrder ?? []).filter((id) => pane.indicators.includes(id) || cur.some((c) => c.id === id));
+      const order = (pane.paneOrder ?? []).filter((id) => id === MAIN_SOURCE_ID || pane.indicators.includes(id) || cur.some((c) => c.id === id));
       for (const id of pane.indicators) if (!order.includes(id)) order.push(id);
       for (const c of cur) if (c.placement === "pane" && !order.includes(c.id)) order.push(c.id);
       order.push(entry.id);
@@ -268,7 +269,7 @@ export function createChartEdits(
     changeCompare(tabId, paneIndex, cur.filter((c) => c.id !== id), `remove ${tickerOf(gone.symbol)}`);
   }
   /** Legend eye / Settings → Ok on one compared symbol. */
-  function patchCompare(tabId: string, paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) {
+  function patchCompare(tabId: string, paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement }) {
     const cur = tabOf(tabId)?.panes[paneIndex]?.compare ?? [];
     if (!cur.some((c) => c.id === id)) return;
     setPaneCompare(tabId, paneIndex, cur.map((c) => (c.id === id ? { ...c, ...patch, hidden: patch.hidden ?? c.hidden } : c)));
@@ -301,6 +302,19 @@ export function createChartEdits(
     const tab = tabOf(tabId);
     if (!tab) return;
     patchTab(tabId, { panes: tab.panes.map((p, i) => (i === paneIndex ? { ...p, paneOrder: order } : p)) });
+  }
+  /** The main series was dragged into a study pane (its pane group) or got
+   *  a pane of its own (null). */
+  function setSeriesPaneForPane(tabId: string, paneIndex: number, group: string | null) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
+    patchTab(tabId, {
+      panes: tab.panes.map((p, i) => {
+        if (i !== paneIndex) return p;
+        const { seriesPane: _old, ...rest } = p;
+        return group ? { ...rest, seriesPane: group } : rest;
+      }),
+    });
   }
   /** Persist a pane's source drawing order (Object tree drag). */
   function setSourceOrderForPane(tabId: string, paneIndex: number, order: string[]) {
@@ -379,6 +393,7 @@ export function createChartEdits(
     compareAdded,
     compareRecent,
     setPaneOrderForPane,
+    setSeriesPaneForPane,
     setSourceOrderForPane,
     setPaneLinkGroup,
     toggleSeriesHidden,

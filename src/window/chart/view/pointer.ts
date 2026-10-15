@@ -17,6 +17,7 @@ import { cursorForMode } from "../../drawings/cursors";
 import { roundedPrice } from "./helpers";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
+import { MAIN_SOURCE_ID } from "../object-tree-sources";
 
 /** What createPointer adds to the chart context. */
 export interface PointerApi {
@@ -25,7 +26,11 @@ export interface PointerApi {
 }
 
 export function createPointer(cx: ChartCx): PointerApi {
-  const { currentTokens, historyEnd, indLegend, mainLastIndex, newsLollipop, paneId, props, refreshIndicatorLegend, refreshLegend, selectStudy, selectedStudy, setSelectedStudy, syncLockPanes, whenShown } = cx;
+  /** The main series is under the pointer (its drag). */
+  let mainHovered = false;
+  /** Top of the price pane (its sources hit-test in pane space). */
+  const mainTop = () => cx.paneBoxes().find((b) => b.index === cx.mainPane())?.top ?? 0;
+  const { historyEnd, indLegend, mainLastIndex, newsLollipop, paneId, props, refreshIndicatorLegend, refreshLegend, selectStudy, selectedStudy, setSelectedStudy, syncLockPanes, whenShown } = cx;
   function installPointer() {
     // ── Right-edge-anchored wheel zoom ──────────────────────────────────────
     // The wheel zoom pins the most recent bar to the right edge, so history
@@ -94,14 +99,18 @@ export function createPointer(cx: ChartCx): PointerApi {
     // Not in percent / indexed-to-100 mode (the chart gets the wheel then).
     // TRUE when handled.
     function onPriceAxisWheel(e: WheelEvent): boolean {
-      const g = cx.scaleGeom();
-      if (!cx.chart || !g) return false;
+      if (!cx.chart) return false;
       const r = cx.host.getBoundingClientRect();
       const x = e.clientX - r.left;
-      if (g.left ? x >= g.w : x < r.width - g.w) return false;
+      // The axis under the pointer (both sides can show: the series in a
+      // study pane it shares has the other side).
+      const leftW = cx.leftAxisWidth();
+      const rightW = cx.chart.priceScale("right").width();
+      const side = leftW > 0 && x < leftW ? "left" : rightW > 0 && x >= r.width - rightW ? "right" : null;
+      if (!side) return false;
       const box = cx.paneBoxes().find((b) => e.clientY - r.top >= b.top && e.clientY - r.top < b.top + b.height);
       if (!box) return false;
-      const ps = cx.chart.priceScale(currentTokens().scalesPlacement, box.index);
+      const ps = cx.chart.priceScale(side, box.index);
       const mode = ps.options().mode;
       if (mode === PriceScaleMode.Percentage || mode === PriceScaleMode.IndexedTo100) return false;
       const range = ps.getVisibleRange();
@@ -229,9 +238,8 @@ export function createPointer(cx: ChartCx): PointerApi {
       // The news lollipop (a chart source) wins over the plus icon.
       if (cx.chart && cx.paneRoot) {
         const root = cx.paneRoot.getBoundingClientRect();
-        const leftAxis = currentTokens().scalesPlacement === "left" ? cx.chart.priceScale("left").width() : 0;
-        const x = e.clientX - root.left - leftAxis;
-        const y = e.clientY - root.top;
+        const x = e.clientX - root.left - cx.leftAxisWidth();
+        const y = e.clientY - root.top - mainTop();
         if (newsLollipop.hitTest(x, y) || historyEnd.hitTest(x, y)) return null;
       }
       return r;
@@ -301,17 +309,26 @@ export function createPointer(cx: ChartCx): PointerApi {
     // (the press also scrolls the chart). Released over another pane, the
     // study joins that pane; released over the time axis, it goes to a new
     // pane at the bottom (or its pane moves to the bottom when it is alone in
-    // it). The scroll of the press is then undone. "Grabbing" cursor while
-    // dragging. Not with Lock indicators, a drawing tool or the eraser.
-    let studyDrag: { id: string; range: { from: number; to: number } | null; x: number; y: number; moved: boolean } | null = null;
+    // it). The scroll the press made is kept (observed on the reference for
+    // a study and the series alike). "Grabbing" cursor while dragging. Not
+    // with Lock indicators, a drawing tool or the eraser. The main series is
+    // dragged the same way (sources.ts: onto a study pane it joins it, the
+    // studies drawn over it stay); "Lock indicators" is a study rule
+    // (reference isDraggable of studies), not applied to the series.
+    let studyDrag: { id: string; x: number; y: number; moved: boolean } | null = null;
     const onStudyDragDown = (e: MouseEvent) => {
       studyDrag = null;
-      if (e.button !== 0 || !cx.chart || props.armedTool || props.indicatorsLocked) return;
+      if (e.button !== 0 || !cx.chart || props.armedTool) return;
       if (props.cursorMode === "eraser" || props.cursorMode === "demonstration") return;
       if ((e.target as Element | null)?.closest?.("[data-drawing-id]")) return;
       const id = cx.hoveredStudy;
+      if (!id && mainHovered) {
+        studyDrag = { id: MAIN_SOURCE_ID, x: e.clientX, y: e.clientY, moved: false };
+        return;
+      }
+      if (props.indicatorsLocked) return;
       if (!id || cx.compareEntry(id) || !indLegend().some((r) => r.id === id)) return;
-      studyDrag = { id, range: cx.chart.timeScale().getVisibleLogicalRange(), x: e.clientX, y: e.clientY, moved: false };
+      studyDrag = { id, x: e.clientX, y: e.clientY, moved: false };
     };
     const onStudyDragMove = (e: MouseEvent) => {
       if (!studyDrag || studyDrag.moved) return;
@@ -327,16 +344,18 @@ export function createPointer(cx: ChartCx): PointerApi {
       if (!cx.chart || !cx.controller) return;
       const r = cx.host.getBoundingClientRect();
       if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
-      const from = cx.controller.paneOf(d.id);
+      const series = d.id === MAIN_SOURCE_ID;
+      const from = series ? cx.mainPane() : cx.controller.paneOf(d.id);
       const overTimeAxis = r.bottom - e.clientY <= cx.chart.timeScale().height();
       const to = overTimeAxis ? null : cx.paneAtY(e.clientY - r.top);
       // After the chart has handled this release (its pressed pane may close).
       setTimeout(() => {
-        let done = false;
-        if (overTimeAxis) done = cx.dropStudyOnTimeAxis(d.id);
-        else if (to !== null && to !== from && !cx.collapsedPanes().has(to)) done = cx.mergeStudyToPane(d.id, to);
-        // The scroll the press made is undone.
-        if (done && d.range) cx.chart?.timeScale().setVisibleLogicalRange(d.range);
+        const onPane = to !== null && to !== from && !cx.collapsedPanes().has(to);
+        if (series) {
+          if (overTimeAxis) cx.dropSeriesOnTimeAxis();
+          else if (onPane) cx.mergeSeriesToPane(to);
+        } else if (overTimeAxis) cx.dropStudyOnTimeAxis(d.id);
+        else if (onPane) cx.mergeStudyToPane(d.id, to);
       }, 0);
     };
     cx.host.addEventListener("mousedown", onStudyDragDown, true);
@@ -352,8 +371,9 @@ export function createPointer(cx: ChartCx): PointerApi {
     // moving off the pane (no `time`) falls back to the latest bar.
     const onCrosshair = (param: MouseEventParams) => {
       cx.crosshairActive = param.time != null;
+      const inPricePane = ((param as { paneIndex?: number }).paneIndex ?? 0) === cx.mainPane();
       cx.crosshairAt =
-        param.point && param.time != null && ((param as { paneIndex?: number }).paneIndex ?? 0) === 0
+        param.point && param.time != null && inPricePane
           ? { time: param.time as number, y: param.point.y }
           : null;
       // Locked cursor line: the legend shows the locked bar.
@@ -392,7 +412,8 @@ export function createPointer(cx: ChartCx): PointerApi {
             const step = (cx.raw[last].time as number) - (cx.raw[last - 1].time as number);
             time = (cx.raw[last].time as number) + ((param.logical as number) - last) * step;
           }
-          const p = cx.series?.coordinateToPrice(param.point.y);
+          // The price on the series' scale: in its pane only.
+          const p = inPricePane ? cx.series?.coordinateToPrice(param.point.y) : null;
           if (p != null) price = p as number;
         }
         emitAppEvent("chart-sync-crosshair", { time, price, sourceId: paneId });
@@ -405,7 +426,7 @@ export function createPointer(cx: ChartCx): PointerApi {
     const onPlusCrosshair = (param: MouseEventParams<Time>) => {
       const pane = (param as { paneIndex?: number }).paneIndex ?? 0;
       const box = cx.paneBoxes().find((b) => b.index === pane);
-      const shown = param.point && cx.pointerOverHost && !props.armedTool && (pane === 0 || (!!box && !cx.collapsedPanes().has(pane)));
+      const shown = param.point && cx.pointerOverHost && !props.armedTool && (pane === cx.mainPane() || (!!box && !cx.collapsedPanes().has(pane)));
       cx.setPlusPane(pane);
       cx.setPlusY(shown ? (box?.top ?? 0) + param.point!.y : null);
     };
@@ -436,15 +457,18 @@ export function createPointer(cx: ChartCx): PointerApi {
     };
     cx.chart!.subscribeClick(onStudyClick);
     cx.chart!.subscribeDblClick(onStudyClick);
-    // Study under the pointer (its plot is hovered), for the right click.
+    // Study under the pointer (its plot is hovered), for the right click;
+    // the main series under it, for its drag.
     const onStudyHover = (param: MouseEventParams<Time>) => {
       const s = (param.hoveredInfo?.series ?? param.hoveredSeries) as ISeriesApi<SeriesType> | undefined;
       cx.hoveredStudy = param.point && s ? cx.studyOfSeries(s) : null;
+      mainHovered = !!param.point && !!s && s === (cx.series as unknown);
       cx.crosshairPrice = null;
       if (param.point && cx.pointerOverHost) {
         const pane = (param as { paneIndex?: number }).paneIndex ?? 0;
-        const owner = pane > 0 ? cx.controller?.ownerOfPane(pane) ?? null : null;
-        const src = pane > 0 ? (owner ? cx.controller?.studySeries(owner) ?? null : null) : cx.series;
+        const inPricePane = pane === cx.mainPane();
+        const owner = inPricePane ? null : cx.controller?.ownerOfPane(pane) ?? null;
+        const src = inPricePane ? cx.series : owner ? cx.controller?.studySeries(owner) ?? null : null;
         const p = src?.coordinateToPrice(param.point.y);
         if (src && p != null) {
           const fmt = src.priceFormatter();
@@ -460,9 +484,8 @@ export function createPointer(cx: ChartCx): PointerApi {
     const onNewsClick = (e: MouseEvent) => {
       if (e.button !== 0 || !cx.chart || !cx.paneRoot) return;
       const root = cx.paneRoot.getBoundingClientRect();
-      const leftAxis = currentTokens().scalesPlacement === "left" ? cx.chart.priceScale("left").width() : 0;
-      const x = e.clientX - root.left - leftAxis;
-      const y = e.clientY - root.top;
+      const x = e.clientX - root.left - cx.leftAxisWidth();
+      const y = e.clientY - root.top - mainTop();
       if (newsLollipop.hitTest(x, y)) cx.toggleNewsCard();
       else if (cx.newsCardOpen()) cx.setNewsCardOpen(false);
       if (historyEnd.hitTest(x, y)) cx.openHistoryEndDialog();

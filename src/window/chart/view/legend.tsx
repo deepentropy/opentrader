@@ -59,10 +59,10 @@ export function createLegend(cx: ChartCx): LegendApi {
     const right = g && !g.left ? g.w : 0;
     return `calc(100% - ${8 + cx.legendLeft() + right + 8}px)`;
   };
-  /** Studies legend of one pane (0 = the price pane, under the series row). */
-  const studyLegend = (pane: number) => (
+  /** Studies legend of one pane (the price pane's under the series row). */
+  const studyLegend = (pane: () => number) => (
     <IndicatorLegend
-      rows={indLegend().filter((r) => r.pane === pane)}
+      rows={indLegend().filter((r) => r.pane === pane())}
       showTitles={appearance().legendIndTitles}
       showInputs={appearance().legendIndInputs}
       showValues={appearance().legendIndValues}
@@ -158,10 +158,16 @@ export function createLegend(cx: ChartCx): LegendApi {
     });
   }
 
+  /** Top of the price pane (the series legend sits at its top-left). */
+  const mainTop = () => {
+    void cx.mainPaneEpoch();
+    const m = cx.mainPane();
+    return cx.paneBoxes().find((b) => b.index === m)?.top ?? 0;
+  };
   function LegendStacks() {
     return (
       <>
-        <div class="ot-legend-stack" style={{ left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
+        <div class="ot-legend-stack" style={{ top: `${mainTop() + LEGEND_TOP}px`, left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
           <ChartLegend
             ticker={splitSymbol(props.symbol ?? "").ticker}
             interval={intervalLabel(props.interval ?? "1D")}
@@ -214,15 +220,15 @@ export function createLegend(cx: ChartCx): LegendApi {
               />
             )}
           </Show>
-          {studyLegend(0)}
+          {studyLegend(() => (void cx.mainPaneEpoch(), cx.mainPane()))}
         </div>
         {/* Study panes: each pane's legend at its own top-left, same offset
             as the main legend. */}
-        <For each={cx.paneBoxes().filter((b) => b.index > 0)}>
+        <For each={cx.paneBoxes().filter((b) => (void cx.mainPaneEpoch(), b.index !== cx.mainPane()))}>
           {(b) => (
             <Show when={indLegend().some((r) => r.pane === b.index)}>
               <div class="ot-legend-stack" style={{ top: `${b.top + LEGEND_TOP}px`, left: `${8 + cx.legendLeft()}px`, "max-width": legendMaxWidth() }}>
-                {studyLegend(b.index)}
+                {studyLegend(() => b.index)}
               </div>
             </Show>
           )}

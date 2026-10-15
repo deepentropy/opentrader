@@ -338,6 +338,29 @@ export class IndicatorLayer {
     this.renderer?.setPaneIndex(i);
   }
 
+  /** Drawn in the price pane (over the main series, on its scale) or in a
+   *  study pane; `scaleIds` reads the main series' scale and the side of the
+   *  study panes' own scales. */
+  private pricePane = false;
+  private scaleIds: () => { price: string; pane: string } = () => ({ price: 'right', pane: 'right' });
+  setPricePane(on: boolean, scaleIds: () => { price: string; pane: string }): void {
+    this.pricePane = on;
+    this.scaleIds = scaleIds;
+  }
+
+  /** The renderer's price pane is pane 0: an indicator over the series is
+   *  drawn as an overlay there only (elsewhere it is drawn in its pane). */
+  private get rendererOverlay(): boolean {
+    return this.pricePane && this.paneIndex === 0;
+  }
+
+  /** "Scale price chart only" leaves the study out of the series' scale
+   *  autoscale (a study over the series on that scale; Volume's own hidden
+   *  scale and a detached scale keep theirs). */
+  private leftOutOfAutoscale(ownScale: boolean): boolean {
+    return this.pricePane && this.seriesOnlyScale !== null && !ownScale && !this.detachedScale;
+  }
+
   /** Recompute the study and (when `draw`) redraw it for the given bars.
    *  `styles` carries the user's per-plot colour/width/visibility overrides
    *  (Settings → Style); empty = registry defaults. `live`: only the newest
@@ -374,7 +397,7 @@ export class IndicatorLayer {
    *  open a new one at the default height, losing the user's pane size. Keep
    *  the pane alive across the redraw. */
   private inPreservedPane(fn: () => void): void {
-    const pane = this.paneIndex > 0 ? this.chart.panes()[this.paneIndex] : undefined;
+    const pane = this.chart.panes()[this.paneIndex];
     const preserved = pane?.preserveEmptyPane() ?? false;
     pane?.setPreserveEmptyPane(true);
     try {
@@ -465,7 +488,7 @@ export class IndicatorLayer {
       // Visibility intervals) keeps its pane and status line. The library
       // drops a pane once its last series goes, so hold it with an
       // empty, invisible series.
-      if (this.paneIndex > 0 && entry && this.lastBars.length) {
+      if (!this.pricePane && entry && this.lastBars.length) {
         this.extraSeries.push(this.chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false }, this.paneIndex));
       }
       return;
@@ -496,7 +519,7 @@ export class IndicatorLayer {
     renderer.setFutureSlots(this.futureSlots());
     renderer.render(
       {
-        overlay: this.paneIndex === 0,
+        overlay: this.rendererOverlay,
         plotConfig: entry.plotConfig,
         hlineConfig: entry.hlineConfig,
         fillConfig: entry.fillConfig,
@@ -511,7 +534,7 @@ export class IndicatorLayer {
         titleVisible: this.nameLabelsVisible && this.labelsOnScale,
         precision: this.precision,
         // Volume's own hidden scale keeps its auto-scale.
-        autoscale: !(this.seriesOnlyScale !== null && !ownScale && !this.detachedScale),
+        autoscale: !this.leftOutOfAutoscale(ownScale),
         reuseSeries,
       },
     );
@@ -558,7 +581,7 @@ export class IndicatorLayer {
     // its values like the symbol (thousands separators, tick decimals): the
     // scale takes its number format from one of its series, so a second
     // format on it would change the labels and the scale width.
-    const mainFormat = this.paneIndex === 0 && !ownScale && !this.detachedScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
+    const mainFormat = this.pricePane && !ownScale && !this.detachedScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
     if (mainFormat) for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat: mainFormat });
     if (this.detachedScale && !ownScale && this.detachedAxis) {
       // A side scale: shown by the chart (side scales are chart options).
@@ -567,6 +590,20 @@ export class IndicatorLayer {
       // No axis for this scale: no value label either.
       for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale, lastValueVisible: false });
       (series[0] as ISeriesApi<SeriesType> | undefined)?.priceScale().applyOptions({ visible: false });
+    } else if (!ownScale) {
+      // Over the series: on the series' scale (in a pane it shares with
+      // another study the series has the other side); a study pane: on the
+      // study panes' side.
+      const ids = this.scaleIds();
+      const id = this.pricePane ? ids.price : ids.pane;
+      for (const s of series) {
+        if ((s as ISeriesApi<SeriesType>).options().priceScaleId !== id) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: id });
+      }
+    }
+    // "Scale price chart only": the renderer leaves its pane 0 out of the
+    // price autoscale; the price pane may be another pane.
+    if (this.leftOutOfAutoscale(ownScale) && !this.rendererOverlay) {
+      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ autoscaleInfoProvider: () => null });
     }
     let k = 0;
     let a = plotCount;

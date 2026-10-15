@@ -140,6 +140,15 @@ describe("barAnchor", () => {
     expect(a.bottom).toBe(28);
   });
 
+  it("the price pane at the bottom takes the main-pane lift there", () => {
+    // RSI 400 on top, price pane 300 at the bottom (index 1).
+    const a = barAnchor(fakeChart({ heights: [400, 300] }), 28 + 400 + 300 + 1, 1000, 1)!;
+    expect(a.bottom).toBe(28 + MAIN_PANE_MARGIN);
+    // The same panes with the price pane on top: the bottom pane has no lift.
+    const b = barAnchor(fakeChart({ heights: [400, 300] }), 28 + 400 + 300 + 1, 1000, 0)!;
+    expect(b.bottom).toBe(28);
+  });
+
   it("null when no pane is tall enough", () => {
     expect(barAnchor(fakeChart({ heights: [CONTROL_BAR_H + 28 + MAIN_PANE_MARGIN - 1] }), 200, 1000)).toBeNull();
   });

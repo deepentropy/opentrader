@@ -162,10 +162,17 @@ export function createMenus(cx: ChartCx): MenusApi {
     // study's), and "Lock price to bar ratio" is the main axis' only. The
     // axis corner button acts on the main pane's scale.
     const yRel = cx.host ? e.clientY - cx.host.getBoundingClientRect().top : 0;
-    const paneIdx = corner ? 0 : cx.paneAtY(yRel) ?? 0;
-    const owner = paneIdx > 0 ? cx.controller?.ownerOfPane(paneIdx) ?? null : null;
+    const mainIdx = cx.mainPane();
+    const paneIdx = corner ? mainIdx : cx.paneAtY(yRel) ?? mainIdx;
+    // The price pane's axis on the series' side is the series' scale; its
+    // other side (the series sharing a study pane) is the study's.
+    const xRel = cx.host ? e.clientX - cx.host.getBoundingClientRect().left : 0;
+    const leftW = cx.leftAxisWidth();
+    const clickedSide = leftW > 0 && xRel < leftW ? "left" : "right";
+    const onSeriesScale = paneIdx === mainIdx && (corner || clickedSide === cx.mainSide() || !cx.controller?.seriesShares());
+    const owner = onSeriesScale ? null : cx.controller?.ownerOfPane(paneIdx) ?? null;
     const studySeries = owner ? cx.controller?.studySeries(owner) ?? null : null;
-    const ps = studySeries ? studySeries.priceScale() : cx.chart.priceScale(t.scalesPlacement);
+    const ps = studySeries ? studySeries.priceScale() : cx.mainScale() ?? cx.chart.priceScale(t.scalesPlacement);
     const cur = ps.options();
     const setMode = (mode: PriceScaleMode) => () => ps.applyOptions({ mode });
     const patch = (p: Record<string, unknown>) =>
@@ -422,12 +429,13 @@ export function createMenus(cx: ChartCx): MenusApi {
   function plusAlertRows(paneIdx: number, y: number): CtxNode[] {
     const out: CtxNode[] = [];
     const side = currentTokens().scalesPlacement;
+    const mainIdx = cx.mainPane();
     const plainScale = (mode: PriceScaleMode | undefined) => mode !== PriceScaleMode.Percentage && mode !== PriceScaleMode.IndexedTo100;
     const row = (id: string, label: string, detail: Record<string, unknown>): CtxNode => ({
       kind: "item", id: `plus-alert-${id}`, label, shortcut: "Alt + A", icon: CtxIcons.alert,
       onSelect: () => emitAppEvent("chart-open-alert-dialog", detail),
     });
-    if (paneIdx === 0 && cx.series && !props.seriesHidden && plainScale(cx.series.priceScale().options().mode)) {
+    if (paneIdx === mainIdx && cx.series && !props.seriesHidden && plainScale(cx.series.priceScale().options().mode)) {
       const p = cx.series.coordinateToPrice(y);
       if (p != null) {
         const fmt = cx.series.priceFormatter();
@@ -625,20 +633,22 @@ export function createMenus(cx: ChartCx): MenusApi {
     }
     // Over the price-axis strip → the price-scale menu, not the pane menu.
     if (cx.chart && cx.host) {
-      const placement = currentTokens().scalesPlacement;
-      const sw = cx.chart.priceScale(placement).width();
+      // Either side's axis (the series sharing a study pane has the other side).
+      const lw = cx.leftAxisWidth();
+      const rw = cx.chart.priceScale("right").width();
       const xRel = e.clientX - cx.host.getBoundingClientRect().left;
-      const overScale = placement === "right" ? xRel >= cx.host.clientWidth - sw : xRel <= sw;
+      const overScale = (rw > 0 && xRel >= cx.host.clientWidth - rw) || (lw > 0 && xRel <= lw);
       if (overScale) { openPriceScaleMenu(e); return; }
       // Over the time-axis strip (the bottom of the chart host) → the time-axis menu.
       const yFromBottom = cx.host.getBoundingClientRect().bottom - e.clientY;
       if (yFromBottom <= cx.chart.timeScale().height()) { openTimeScaleMenu(e); return; }
     }
     const yRel = cx.host ? e.clientY - cx.host.getBoundingClientRect().top : 0;
+    const mainIdx = cx.mainPane();
+    const mainTop = cx.paneBoxes().find((b) => b.index === mainIdx)?.top ?? 0;
     // On a TPO block: the study's menu with the block actions.
-    if (cx.chart && cx.host && (cx.paneAtY(yRel) ?? 0) === 0) {
-      const left = currentTokens().scalesPlacement === "left" ? cx.chart.priceScale("left").width() : 0;
-      const tpoHit = cx.controller?.tpoBlockAt(e.clientX - cx.host.getBoundingClientRect().left - left, yRel);
+    if (cx.chart && cx.host && (cx.paneAtY(yRel) ?? mainIdx) === mainIdx) {
+      const tpoHit = cx.controller?.tpoBlockAt(e.clientX - cx.host.getBoundingClientRect().left - cx.leftAxisWidth(), yRel - mainTop);
       if (tpoHit) { openTpoBlockMenu(tpoHit.id, tpoHit.hit, e.clientX, e.clientY); return; }
     }
     // On a study's plot: the study is selected and its menu opens at the
@@ -666,11 +676,11 @@ export function createMenus(cx: ChartCx): MenusApi {
     }
     // In a study pane the price is that pane's (its study's scale) and the
     // alert is on the study (the reference pane menu's main source).
-    const paneIdx = cx.paneAtY(yRel) ?? 0;
-    const studyPane = paneIdx > 0 ? cx.drawingPanes().find((p) => p.key && yRel >= p.top && yRel < p.top + p.height) : undefined;
+    const paneIdx = cx.paneAtY(yRel) ?? mainIdx;
+    const studyPane = paneIdx !== mainIdx ? cx.drawingPanes().find((p) => p.key && yRel >= p.top && yRel < p.top + p.height) : undefined;
     const studyId = studyPane?.key ?? null;
     const studyTitle = studyId ? cx.controller?.getLegend().find((r) => r.id === studyId)?.title ?? null : null;
-    const rawPrice = (studyPane ? studyPane.coords.yToPrice(yRel - studyPane.top) : coords()?.yToPrice(yRel)) ?? null;
+    const rawPrice = (studyPane ? studyPane.coords.yToPrice(yRel - studyPane.top) : coords()?.yToPrice(yRel - mainTop)) ?? null;
     const a = Math.abs(rawPrice ?? 0);
     const decimals = a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
     const priceStr = rawPrice == null ? "—" : rawPrice.toFixed(decimals);
@@ -733,8 +743,9 @@ export function createMenus(cx: ChartCx): MenusApi {
     const paneIdx = cx.plusPane();
     const box = cx.paneBoxes().find((b) => b.index === paneIdx);
     const y = yAbs - (box?.top ?? 0);
-    const owner = paneIdx > 0 ? cx.controller?.ownerOfPane(paneIdx) ?? null : null;
-    const main = paneIdx > 0 ? (owner ? cx.controller?.studySeries(owner) ?? null : null) : cx.series;
+    const inPricePane = paneIdx === cx.mainPane();
+    const owner = inPricePane ? null : cx.controller?.ownerOfPane(paneIdx) ?? null;
+    const main = inPricePane ? cx.series : owner ? cx.controller?.studySeries(owner) ?? null : null;
     if (!main) return;
     const price = main.coordinateToPrice(y);
     if (price == null) return;

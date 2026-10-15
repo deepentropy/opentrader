@@ -50,6 +50,26 @@ export class CompareLayer {
     this.paneIndex = i;
   }
 
+  /** The price pane moved to pane `i` (a compared symbol drawn over the
+   *  series follows it). */
+  moveToPane(i: number): void {
+    this.paneIndex = i;
+    const s = this.series;
+    if (!s) return;
+    let at = -1;
+    try { at = s.getPane().paneIndex(); } catch { /* not laid out */ }
+    if (at === i) return;
+    // Drawn again there by the next render (a series moved in place lets
+    // its primitives read it while it has no pane).
+    if (this.markers) {
+      try { this.markers.series.detachPrimitive(this.markers.m); } catch { /* series gone */ }
+      this.markers = null;
+    }
+    try { this.chart.removeSeries(s); } catch { /* already gone */ }
+    this.series = null;
+    this.builtKey = "";
+  }
+
   firstSeries(): ISeriesApi<SeriesType> | null {
     return this.series as ISeriesApi<SeriesType> | null;
   }
@@ -163,7 +183,7 @@ export class CompareLayer {
   private applyAutoscale(): void {
     const s = this.series;
     if (!s) return;
-    const out = this.seriesOnlyScale !== null && this.paneIndex === 0 && this.scaleId === this.seriesOnlyScale;
+    const out = this.seriesOnlyScale !== null && this.entry.placement !== "pane" && this.scaleId === this.seriesOnlyScale;
     s.applyOptions({ autoscaleInfoProvider: out ? () => null : (base: () => AutoscaleInfo | null) => base() });
   }
 

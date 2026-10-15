@@ -8,7 +8,7 @@
 import type { LegendValues } from "../ChartLegend";
 import type { SetStoreFunction } from "solid-js/store";
 import type { Accessor, Resource, Setter } from "solid-js";
-import type { IChartApi } from "lightweight-charts";
+import type { IChartApi, IPriceScaleApi } from "lightweight-charts";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { AnySeries, ChartTypeId, OHLC } from "../chart-types";
 import { setDataForType } from "../chart-types";
@@ -22,7 +22,7 @@ import type { HistoryEndPrimitive } from "../history-end-marker";
 import type { NewsLollipopPrimitive } from "../news-lollipop";
 import type { CrosshairLockViews } from "../crosshair-lock";
 import type { DialogTab } from "../IndicatorSettingsDialog";
-import type { CompareEntry, PaneIndicatorSettings } from "../../shell/tabs";
+import type { CompareEntry, ComparePlacement, PaneIndicatorSettings } from "../../shell/tabs";
 import type { CompareStyleState } from "../compare/compare-style";
 import type { Draft } from "../../header/chart-settings";
 import { appearanceFrom } from "../../header/chart-settings";
@@ -101,15 +101,21 @@ export type ChartViewProps = {
   /** Compared symbols (header "Compare symbols") of this pane. */
   compare?: CompareEntry[];
   /** Patch one compared symbol (legend eye, Settings → Ok). */
-  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState }) => void;
+  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement }) => void;
   /** Remove one compared symbol (legend trash, More → Remove, Delete pane). */
   onRemoveCompare?: (id: string) => void;
   /** Legend title of a compared symbol clicked ("Change symbol"). */
   onChangeCompareSymbol?: (id: string) => void;
-  /** Persisted stacking order of the panes (study and compared-symbol ids). */
+  /** Persisted stacking order of the panes (study and compared-symbol ids,
+   *  `_series` = the price pane). */
   paneOrder?: string[];
   /** Pane controls moved a pane: the new stacking order. */
   onPaneOrder?: (order: string[]) => void;
+  /** Pane group of the study pane the main series was dragged into (absent
+   *  = the series has a pane of its own). */
+  seriesPane?: string;
+  /** The series joined a study pane (its group) or got a pane of its own (null). */
+  onSeriesPane?: (group: string | null) => void;
   /** Persisted drawing order of the sources, front first (Object tree). */
   sourceOrder?: string[];
   /** The Object tree moved a source: the new drawing order. */
@@ -207,6 +213,18 @@ export interface ChartCore {
   lastLegendTime: number | undefined;
   lockViews: CrosshairLockViews | null;
   mainLastIndex: () => number | null;
+  /** Pane of the main series (the price pane; any position). */
+  mainPane: () => number;
+  /** Bumped when the price pane moves or the series changes pane or scale. */
+  mainPaneEpoch: Accessor<number>;
+  /** Price scale of the main series. */
+  mainScale: () => IPriceScaleApi | null;
+  /** Side of the main series' scale (the free side in a study pane it shares). */
+  mainSide: () => "left" | "right";
+  /** Width of the left price axis (0 when hidden). */
+  leftAxisWidth: () => number;
+  /** Show the price axes the series and the compared symbols use. */
+  syncScaleSides: () => void;
   newsLollipop: NewsLollipopPrimitive;
   onShownHooks: Set<() => void>;
   paneRoot: HTMLDivElement;

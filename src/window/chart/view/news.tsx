@@ -19,7 +19,7 @@ export interface NewsApi {
 }
 
 export function createNews(cx: ChartCx): NewsApi {
-  const { appearance, currentTokens, fullSymbol, hidden, newsLollipop, onShownHooks, props } = cx;
+  const { appearance, fullSymbol, hidden, newsLollipop, onShownHooks, props } = cx;
   // -- Latest news (Events tab) ------------------------------------------
   // Latest updates: the newest headline of the symbol, refreshed
   // every 5 min; none if it is older than 31 days; not on seconds
@@ -81,12 +81,14 @@ export function createNews(cx: ChartCx): NewsApi {
   const newsCardPos = () => {
     if (!newsCardOpen() || !cx.chart || !cx.paneRoot) return null;
     void cx.scaleGeom();
-    const c = newsLollipop.center(cx.chart.paneSize(0).height);
+    void cx.mainPaneEpoch();
+    const m = cx.mainPane();
+    const c = newsLollipop.center(cx.chart.paneSize(m).height);
     if (!c) return null;
     const r = cx.paneRoot.getBoundingClientRect();
-    const leftAxis = currentTokens().scalesPlacement === "left" ? cx.chart.priceScale("left").width() : 0;
-    const x = r.left + leftAxis + c.x;
-    const pointY = r.top + c.y - 10.5 - 8;
+    const top = cx.paneBoxes().find((b) => b.index === m)?.top ?? 0;
+    const x = r.left + cx.leftAxisWidth() + c.x;
+    const pointY = r.top + top + c.y - 10.5 - 8;
     const width = 300;
     return {
       left: Math.max(0, Math.min(window.innerWidth - width, Math.round(x - width / 2))),

@@ -92,11 +92,11 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
         if (!source) return;
         if (cmp) {
           const pane = cmp.placement === "pane" ? cx.compareLayers.get(id)?.paneIndex ?? 1 : 0;
-          emitAppEvent("chart-add-to-layout", { source, place: { main: pane === 0, paneIndex: pane, asCompare: cmp.placement === "percent" } });
+          emitAppEvent("chart-add-to-layout", { source, place: { main: pane === cx.mainPane(), paneIndex: pane, asCompare: cmp.placement === "percent" } });
           return;
         }
         const pane = cx.controller?.paneOf(id) ?? 0;
-        emitAppEvent("chart-add-to-layout", { source, place: { main: pane === 0, paneIndex: pane } });
+        emitAppEvent("chart-add-to-layout", { source, place: { main: pane === cx.mainPane(), paneIndex: pane } });
       },
     };
   }
@@ -180,7 +180,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const add = (scale: StudyScale | null) => {
       if (scale === "left" || scale === "right") { used[scale] = true; onSides++; }
     };
-    if (pane === 0) { add(main); others++; }
+    if (pane === cx.mainPane()) { add(cx.mainSide()); others++; }
     for (const r of cx.indLegend()) {
       if (r.pane !== pane || r.id === except) continue;
       others++;

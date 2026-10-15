@@ -17,11 +17,13 @@ import {
   type TreeSource,
 } from "../object-tree-sources";
 import { moveItem, overOf, paneItems, splitItems } from "../tree-order";
+import { seriesPaneLast } from "../indicators/pane-order";
 import { SunkDrawings, sameSunkGroups, type SunkGroup } from "../sunk-drawings";
 import { statusLineInputs } from "../indicators/indicator-options";
 import { isVisibleOnInterval } from "lightweight-charts-drawing/core/types";
 import { splitSymbol } from "../../../data/datafeed";
 import type { IndicatorOptions } from "../indicators/indicator-options";
+import type { SeriesMove } from "../indicators/indicator-controller";
 import { getIndicatorEntry } from "../indicators/registry";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { NEVER_SUNK_KINDS, type SunkPainter } from "../../drawings/DrawingsOverlay";
@@ -31,7 +33,9 @@ import type { Accessor } from "solid-js";
 
 /** What createSources adds to the chart context. */
 export interface SourcesApi {
+  dropSeriesOnTimeAxis: () => boolean;
   dropStudyOnTimeAxis: (id: string) => boolean;
+  mergeSeriesToPane: (pane: number) => boolean;
   mergeStudyToPane: (id: string, pane: number) => boolean;
   /** Visual order steps a source can take in its pane (null = not a source of the chart). */
   zOrderSteps: (id: string) => { front: boolean; back: boolean } | null;
@@ -72,9 +76,8 @@ export function createSources(cx: ChartCx): SourcesApi {
     cx.paneEpoch();
     untrack(() => {
       const movable = !!id && !cx.compareEntry(id) && !!cx.controller?.canMoveToNewPane(id);
-      // New pane above the price pane: not offered here (the price series
-      // stays in the top pane).
-      setFocusedStudySelection(id ? { id, moveAbove: false, moveBelow: movable } : null);
+      // A new pane above or below the price pane (it can sit anywhere).
+      setFocusedStudySelection(id ? { id, moveAbove: movable, moveBelow: movable } : null);
     });
   });
   /** Requests of the Object tree and the drawing toolbar: the focused chart
@@ -90,11 +93,11 @@ export function createSources(cx: ChartCx): SourcesApi {
   const onMoveStudyRequest = (d: AppEvents["chart-move-study"] | undefined) => {
     if (props.active === false || !cx.controller) return;
     const { id, where } = (d ?? {}) as AppEvents["chart-move-study"];
-    if (!id || where !== "below") return;
+    if (!id || (where !== "below" && where !== "above")) return;
     const options = cx.controller.moveToNewPane(id);
     if (!options) return;
-    // The new pane goes right below the price pane: first in the stacking order.
-    const order = [id, ...cx.controller.stackedOrder().filter((x) => x !== id)];
+    // The new pane goes right below (above) the price pane.
+    const order = where === "above" ? cx.controller.orderAbovePricePane(id) : cx.controller.orderBelowPricePane(id);
     cx.controller.setPaneOrder(order);
     props.onPaneOrder?.(order);
     props.onIndicatorSettings?.(id, {
@@ -166,10 +169,11 @@ export function createSources(cx: ChartCx): SourcesApi {
       /** Back group of each pane with a shown series. */
       const backOf = new Map<number, SunkGroup>();
       const paneKeys = new Map<number, string | null>();
+      const mainIdx = cx.mainPane();
       for (const tp of untrack(treePanes)) {
         const pane = lwPanes[tp.pane];
-        const paneKey = tp.pane === 0 ? null : cx.controller?.ownerOfPane(tp.pane) ?? null;
-        if (!pane || (tp.pane > 0 && !paneKey)) continue;
+        const paneKey = tp.pane === mainIdx ? null : cx.controller?.ownerOfPane(tp.pane) ?? null;
+        if (!pane || (tp.pane !== mainIdx && !paneKey)) continue;
         // Shown series of the pane, back to front, each with its source.
         let owner = MAIN_SOURCE_ID;
         const shown: ISeriesApi<SeriesType>[] = [];
@@ -258,6 +262,8 @@ export function createSources(cx: ChartCx): SourcesApi {
   const treeSources = createMemo<TreeSource[]>(() => {
     const { ticker, exchange } = splitSymbol(props.symbol ?? "");
     const rows = indLegend();
+    cx.mainPaneEpoch();
+    const mainIdx = untrack(cx.mainPane);
     const out: TreeSource[] = [];
     for (const id of sourceOrderIds()) {
       if (id === MAIN_SOURCE_ID) {
@@ -266,7 +272,7 @@ export function createSources(cx: ChartCx): SourcesApi {
           kind: "series",
           title: `${exchange ? `${ticker} · ${exchange}` : ticker}, ${props.interval ?? "1D"}`,
           hidden: !!props.seriesHidden,
-          pane: 0,
+          pane: mainIdx,
         });
         continue;
       }
@@ -284,16 +290,18 @@ export function createSources(cx: ChartCx): SourcesApi {
     }
     return out.sort((a, b) => a.pane - b.pane);
   }, [], { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
-  /** Pane of a drawing: its owner study's pane (null = owner not on the chart). */
+  /** Pane of a drawing: its owner study's pane, the price pane without an
+   *  owner (null = owner not on the chart). */
   const paneOfDrawing = (d: Drawing): number | null => {
-    if (!d.owner) return 0;
+    if (!d.owner) return treeSources().find((s) => s.id === MAIN_SOURCE_ID)?.pane ?? 0;
     return treeSources().find((s) => s.id === d.owner)?.pane ?? null;
   };
   /** Objects of every pane (sources and drawings in one list), front first. */
   const treePanes = createMemo<TreePane[]>(() => {
     const srcs = treeSources();
     const ds = props.drawings ?? [];
-    const panes = [...new Set([0, ...srcs.map((s) => s.pane)])].sort((a, b) => a - b);
+    const mainIdx = srcs.find((s) => s.id === MAIN_SOURCE_ID)?.pane ?? 0;
+    const panes = [...new Set([mainIdx, ...srcs.map((s) => s.pane)])].sort((a, b) => a - b);
     return panes.map((pane) => ({
       pane,
       items: paneItems(
@@ -351,7 +359,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     }
     const pane = cx.controller.paneOf(id);
     const last = (cx.chart?.panes().length ?? 1) - 1;
-    if (!pane || pane === last) return false;
+    if (pane === null || pane === last) return false;
     const mates = cx.controller.studiesInPane(pane);
     const order = [...cx.controller.stackedOrder().filter((x) => !mates.includes(x)), ...mates];
     cx.controller.setPaneOrder(order);
@@ -360,6 +368,68 @@ export function createSources(cx: ChartCx): SourcesApi {
     cx.setCollapsedPanes(new Map());
     queueMicrotask(cx.refreshPaneBoxes);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
+    return true;
+  }
+  // ── Main series drag (reference rules) ─────────────────────────────────
+  // Onto a study pane: the series joins it (the pane's price scale when it
+  // shows prices, else a scale of its own on the free side) with its
+  // drawings; the studies and compared symbols drawn over it stay in its
+  // former pane, which closes when left empty. Onto the time axis: a new
+  // pane at the bottom when it shares its pane, else its pane moves to the
+  // bottom.
+  /** Compared symbols drawn over the series (not in a pane of their own). */
+  const overSeriesCompares = () => cx.compareEntries().filter((e) => e.placement !== "pane").map((e) => e.id);
+  /** The series left its pane: what stayed there is saved (the studies'
+   *  pane group, the compared symbols now in that pane), then the stacking
+   *  order and the panes are redrawn. */
+  function seriesMoved(move: SeriesMove, compares: string[], order?: string[]) {
+    const c = cx.controller;
+    if (!c) return;
+    for (const id of move.ids) {
+      props.onIndicatorSettings?.(id, { inputs: c.getInputs(id) ?? {}, styles: c.getStyles(id) ?? {}, options: c.getOptions(id) });
+    }
+    // The first compared symbol takes the pane the series left (with the
+    // studies that stayed); a second one opens its own pane (one compared
+    // symbol per pane here).
+    for (const id of compares) props.onCompareChange?.(id, { placement: "pane" });
+    const stay = compares[0];
+    const next = order ?? c.stackedOrder(stay ? [[stay, move.from]] : []);
+    c.setPaneOrder(next);
+    props.onPaneOrder?.(next);
+    cx.setPaneEpoch((n) => n + 1);
+    cx.setCollapsedPanes(new Map());
+    queueMicrotask(cx.refreshPaneBoxes);
+    requestAnimationFrame(() => requestAnimationFrame(cx.refreshPaneBoxes));
+    refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
+  }
+  /** Main series dropped on study pane `pane` (chart drag). */
+  function mergeSeriesToPane(pane: number): boolean {
+    const c = cx.controller;
+    if (!c?.canMergeSeriesTo(pane)) return false;
+    const compares = overSeriesCompares();
+    cx.holdCompares(compares);
+    const move = c.mergeSeriesToPane(pane, compares[0]);
+    if (!move) return false;
+    seriesMoved(move, compares);
+    return true;
+  }
+  /** Main series dropped on the time axis (chart drag). */
+  function dropSeriesOnTimeAxis(): boolean {
+    const c = cx.controller;
+    if (!c) return false;
+    const compares = overSeriesCompares();
+    if (c.seriesPaneShared(compares.length > 0)) {
+      cx.holdCompares(compares);
+      const move = c.unmergeSeriesToNewPane(compares[0]);
+      if (!move) return false;
+      const stay = compares[0];
+      seriesMoved(move, compares, seriesPaneLast(c.stackedOrder(stay ? [[stay, move.from]] : [])));
+      return true;
+    }
+    // Alone in its pane: the pane moves to the bottom.
+    const last = (cx.chart?.panes().length ?? 1) - 1;
+    if (cx.mainPane() >= last) return false;
+    seriesMoved({ from: cx.mainPane(), group: null, ids: [] }, [], seriesPaneLast(c.stackedOrder()));
     return true;
   }
   const onTreeMoveRequest = (d: AppEvents["chart-tree-move"] | undefined) => {
@@ -434,16 +504,15 @@ export function createSources(cx: ChartCx): SourcesApi {
   }
   /** "Move to" rows of a study (reference rules): a pane above / below to
    *  merge into unless it is the first / last pane; a new pane above / below
-   *  when its pane holds another source (the main series counts). The price
-   *  pane stays the top pane here: no new pane above it. */
+   *  when its pane holds another source (the main series counts). */
   function studyMoves(id: string): StudyMoves | null {
     const c = cx.controller;
     if (!c || cx.compareEntry(id)) return null;
     const pane = c.paneOf(id);
     if (pane === null) return null;
     const last = (cx.chart?.panes().length ?? 1) - 1;
-    const shared = pane === 0 || c.idsInPane(pane).length > 1;
-    return { mergeUp: pane > 0, unmergeUp: pane > 0 && shared, mergeDown: pane < last, unmergeDown: shared };
+    const shared = pane === cx.mainPane() || c.idsInPane(pane).length > 1;
+    return { mergeUp: pane > 0, unmergeUp: shared, mergeDown: pane < last, unmergeDown: shared };
   }
   /** Apply a "Move to" row: merge into the pane above / below, or a new
    *  pane right above / below the study's pane. */
@@ -456,18 +525,15 @@ export function createSources(cx: ChartCx): SourcesApi {
       mergeStudyToPane(id, move === "mergeUp" ? pane - 1 : pane + 1);
       return;
     }
-    // Stacked panes, top to bottom, before the move.
+    // Stacked panes, top to bottom, before the move (the price pane as `_series` when the series has its own).
     const before = c.stackedOrder().filter((x) => x !== id);
-    const mates = pane > 0 ? c.idsInPane(pane).filter((x) => x !== id) : [];
+    const mates = [...c.idsInPane(pane).filter((x) => x !== id), ...(pane === cx.mainPane() ? [MAIN_SOURCE_ID] : [])];
     const options = c.unmergeToNewPane(id);
     if (!options) return;
-    let at = 0;
-    if (pane > 0) {
-      const first = before.findIndex((x) => mates.includes(x));
-      let lastMate = first;
-      before.forEach((x, k) => { if (mates.includes(x)) lastMate = k; });
-      at = move === "unmergeUp" ? Math.max(0, first) : lastMate + 1;
-    }
+    const first = before.findIndex((x) => mates.includes(x));
+    let lastMate = first;
+    before.forEach((x, k) => { if (mates.includes(x)) lastMate = k; });
+    const at = first < 0 ? (move === "unmergeUp" ? 0 : before.length) : move === "unmergeUp" ? first : lastMate + 1;
     studyPaneChanged(id, options, [...before.slice(0, at), id, ...before.slice(at)]);
   }
   listenWhenShown(TREE_HIDE_EVENT, onTreeHideRequest);
@@ -496,7 +562,9 @@ export function createSources(cx: ChartCx): SourcesApi {
   onCleanup(() => document.removeEventListener("keydown", whenShown(onStudyKey)));
 
   return {
+    dropSeriesOnTimeAxis,
     dropStudyOnTimeAxis,
+    mergeSeriesToPane,
     mergeStudyToPane,
     moveStudy,
     moveZ,

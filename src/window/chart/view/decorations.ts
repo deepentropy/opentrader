@@ -59,7 +59,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     if (!t.lockRatio || !cx.chart || !cx.series || lockApplying) return;
     const ratio = t.lockRatioValue;
     const r = cx.series.priceScale().getVisibleRange();
-    const h = cx.chart.paneSize(0).height;
+    const h = cx.chart.paneSize(cx.mainPane()).height;
     if (!(ratio !== undefined && ratio > 0) || !r || !(h > 0)) return;
     const len = Math.abs(r.to - r.from);
     if (!(len > 0)) return;
@@ -81,7 +81,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     for (const layer of cx.compareLayers.values()) layer.syncBaseline();
     if (!cx.chart || !cx.series || cx.activeType !== "baseline") return;
     const b = currentTokens().styles.baseline;
-    const h = cx.chart.paneSize(0).height;
+    const h = cx.chart.paneSize(cx.mainPane()).height;
     if (!(h > 0)) return;
     const y = (h * Math.abs(100 - b.level)) / 100;
     const price = cx.series.coordinateToPrice(y);
@@ -103,7 +103,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     const s = currentTokens().styles[cx.activeType];
     if (s.type !== "Gradient") return;
     const last = cx.raw.length > 0 ? cx.raw[cx.raw.length - 1] : null;
-    const h = cx.chart.paneSize(0).height;
+    const h = cx.chart.paneSize(cx.mainPane()).height;
     const y = last ? cx.series.priceToCoordinate(last.close) : null;
     if (y == null || !(h > 0)) return;
     cx.series.applyOptions({ color: mixColor(s.start, s.end, Math.max(0, Math.min(1, (y as number) / h))) } as never);
@@ -118,7 +118,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     const c0 = ts.logicalToCoordinate(0 as Logical);
     const c1 = ts.logicalToCoordinate(1 as Logical);
     const r = cx.series.priceScale().getVisibleRange();
-    const h = cx.chart.paneSize(0).height;
+    const h = cx.chart.paneSize(cx.mainPane()).height;
     if (c0 == null || c1 == null || !r || !(h > 0)) return undefined;
     return (Math.abs((c1 as number) - (c0 as number)) * Math.abs(r.to - r.from)) / h;
   }
@@ -136,7 +136,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     const c0 = ts.logicalToCoordinate(0 as Logical);
     const c1 = ts.logicalToCoordinate(1 as Logical);
     const r = cx.series.priceScale().getVisibleRange();
-    const h = cx.chart.paneSize(0).height;
+    const h = cx.chart.paneSize(cx.mainPane()).height;
     if (c0 == null || c1 == null || !r || !(h > 0)) return;
     const spacing = Math.abs((c1 as number) - (c0 as number));
     if (!(spacing > 0)) return;

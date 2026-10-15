@@ -122,7 +122,7 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
         alertLabelPrims.set(s, prim);
       }
       const mine = new Set(labels.map((l) => l.id));
-      const scaleId = s === cx.series ? t.scalesPlacement : (s.options() as { priceScaleId?: string }).priceScaleId;
+      const scaleId = (s.options() as { priceScaleId?: string }).priceScaleId;
       prim.setState({
         labels,
         lineVisible: t.alertLinesVisible,

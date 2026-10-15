@@ -23,7 +23,7 @@ export interface WindowEventsApi {
 }
 
 export function createWindowEvents(cx: ChartCx): WindowEventsApi {
-  const { currentTokens, paneId, props, refreshIndicatorLegend, refreshLegend, setSettingsForId, setSettingsTab } = cx;
+  const { paneId, props, refreshIndicatorLegend, refreshLegend, setSettingsForId, setSettingsTab } = cx;
   /** The window-wide chart events belong to the shown tab: a hidden tab's
    *  chart ignores them. Removed with the chart. */
   const listenWhenShown = <K extends AppEventName>(type: K, fn: (detail: AppEvents[K]) => void) =>
@@ -180,7 +180,8 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
     // target the placement scale, not a hardcoded "right".
     const applyScale = (mode: "invert" | "log" | "percent") => {
       if (!cx.chart) return;
-      const ps = cx.chart.priceScale(currentTokens().scalesPlacement);
+      const ps = cx.mainScale();
+      if (!ps) return;
       const cur = ps.options();
       if (mode === "invert") {
         ps.applyOptions({ invertScale: !cur.invertScale });

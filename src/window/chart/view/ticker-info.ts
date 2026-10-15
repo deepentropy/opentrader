@@ -73,6 +73,8 @@ export function createTickerInfo(cx: ChartCx): TickerInfoApi {
     const sym = ticker();
     const ivl = intervalText();
     const desc = wmDesc();
+    // In the price pane (it can move).
+    cx.mainPaneEpoch();
     if (!cx.chart) return;
     const t = currentTokens();
     const head = [
@@ -84,9 +86,9 @@ export function createTickerInfo(cx: ChartCx): TickerInfoApi {
     if (t.watermarkDescription && desc) lines.push({ text: desc, color: t.watermarkColor, fontSize: 24 });
     // Recreate rather than applyOptions: dropping to zero lines must remove
     // the primitive, and recreation keeps one code path for both.
-    watermark?.detach();
+    try { watermark?.detach(); } catch { /* its pane is gone */ }
     watermark = null;
-    if (lines.length > 0) watermark = createTextWatermark(cx.chart.panes()[0], { lines });
+    if (lines.length > 0) watermark = createTextWatermark(cx.chart.panes()[cx.mainPane()], { lines });
   });
 
   return {

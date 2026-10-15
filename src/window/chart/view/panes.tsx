@@ -14,10 +14,11 @@ import type { Accessor, JSX, Setter } from "solid-js";
 // is over it (or always / never), only with more than one pane. 24 px
 // buttons 4 px apart, 4 px from the pane top and the price axis; a pane
 // narrower than 666.65 px shows the single "Manage panes" button (menu),
-// narrower than 356 px none. Buttons: move up / down (study panes; the
-// price pane stays on top here), delete (study panes), collapse (to
-// max(2·4 + 24, 33) px) / restore. "Maximize pane" is not offered: it would
-// hide the other panes, and the chart library keeps every pane ≥ ~30 px.
+// narrower than 356 px none. Buttons: move up / down (every pane, the price
+// pane too: it can sit at any position), delete and collapse (not the price
+// pane; collapsed = max(2·4 + 24, 33) px) / restore. "Maximize pane" is not
+// offered: it would hide the other panes, and the chart library keeps every
+// pane ≥ ~30 px.
 export type PaneBox = { index: number; top: number; height: number };
 
 /** What createPanes adds to the chart context. */
@@ -64,9 +65,10 @@ export function createPanes(cx: ChartCx): PanesApi {
     for (const b of paneBoxes()) if (y >= b.top && y < b.top + b.height) return b.index;
     return null;
   }
-  // Panes the drawings live in (Drawing.owner): pane 0 = the main series, a
-  // study pane = its first study, with that pane's price scale. Rebuilt when
-  // the pane boxes, the studies or their panes change.
+  // Panes the drawings live in (Drawing.owner): the price pane = the main
+  // series (also when it shares a study pane), a study pane = its first
+  // study, with that pane's price scale. Rebuilt when the pane boxes, the
+  // studies or their panes change.
   const [paneEpoch, setPaneEpoch] = createSignal(0);
   /** Studies that own a drawing (Drawing.owner). */
   const drawingOwners = createMemo<string[]>(
@@ -79,9 +81,10 @@ export function createPanes(cx: ChartCx): PanesApi {
     const boxes = paneBoxes();
     void paneEpoch();
     if (!main) return [];
+    const mainIdx = untrack(cx.mainPane);
     const out: DrawingPane[] = [];
     for (const b of boxes) {
-      if (b.index === 0) {
+      if (b.index === mainIdx) {
         out.push({ key: null, top: b.top, height: b.height, coords: main });
         continue;
       }
@@ -112,7 +115,7 @@ export function createPanes(cx: ChartCx): PanesApi {
   });
   function movePane(i: number, dir: -1 | 1) {
     const j = i + dir;
-    if (!cx.controller || i < 1 || j < 1 || j >= (cx.chart?.panes().length ?? 0)) return;
+    if (!cx.controller || i < 0 || j < 0 || j >= (cx.chart?.panes().length ?? 0)) return;
     const a = cx.controller.idsInPane(i);
     const b = cx.controller.idsInPane(j);
     cx.controller.swapPanes(i, j);
@@ -133,6 +136,8 @@ export function createPanes(cx: ChartCx): PanesApi {
     }
     setCollapsedPanes(new Map());
     queueMicrotask(refreshPaneBoxes);
+    // The panes are laid out again on the next frame.
+    requestAnimationFrame(() => requestAnimationFrame(refreshPaneBoxes));
   }
   function deletePane(i: number) {
     if (!cx.controller) return;
@@ -156,10 +161,12 @@ export function createPanes(cx: ChartCx): PanesApi {
     const collapsed = collapsedPanes().has(i);
     const othersOpen = paneBoxes().some((b) => b.index !== i && !collapsedPanes().has(b.index));
     return {
-      up: i >= 2,
-      down: i >= 1 && i < n - 1,
-      close: i >= 1,
-      collapse: !collapsed && othersOpen,
+      up: i >= 1,
+      down: i < n - 1,
+      close: i !== cx.mainPane(),
+      // The price pane does not collapse (reference: collapsing is not
+      // available on the pane of the main series).
+      collapse: !collapsed && othersOpen && i !== cx.mainPane(),
       restore: collapsed,
     };
   };
