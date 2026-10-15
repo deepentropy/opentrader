@@ -13,7 +13,7 @@
  * position (pane controls, chart drag) and the main series can share a study
  * pane: `mainPane` is the pane of the series and of the studies drawn over it.
  */
-import type { IChartApi, ISeriesApi, SeriesType } from 'lightweight-charts';
+import { PriceScaleMode, type IChartApi, type ISeriesApi, type SeriesType } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
@@ -500,7 +500,27 @@ export class IndicatorController {
     const pinned = o.scale === 'left' || o.scale === 'right';
     inst.layer.setDetachedScale(this.detachedScale(id, inst, entry), pinned, !!o.scale);
     inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {}, live);
+    if (!inst.overlay) this.paneScaleDefaults(inst.paneIndex);
     if (!live) this.seriesChanged();
+  }
+
+  /** Panes whose scales were given their defaults. */
+  private scaleDefaultsSet = new WeakSet<HTMLElement>();
+  /** A study pane's scales start regular and upright (reference: a percent / log / inverted price scale stays on the
+   *  price pane). The library merges the options of a pane's left / right scale into the chart-wide ones that new
+   *  panes start from, so they are set once per pane; a mode set later on the pane's own scale is kept. */
+  private paneScaleDefaults(paneIndex: number): void {
+    if (paneIndex === this.mainPane) return;
+    const el = this.chart.panes()[paneIndex]?.getHTMLElement();
+    if (!el || this.scaleDefaultsSet.has(el)) return;
+    this.scaleDefaultsSet.add(el);
+    for (const side of ['left', 'right'] as const) {
+      try {
+        this.chart.priceScale(side, paneIndex).applyOptions({ mode: PriceScaleMode.Normal, invertScale: false });
+      } catch {
+        /* pane gone (teardown) */
+      }
+    }
   }
 
   /** Scale of its own for a study in a pane whose scale shows other values:
