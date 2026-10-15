@@ -243,8 +243,9 @@ export function sessionFutureAxis(interval: string, spec: SessionSpec, regular: 
   const bucket = iv.unit === "D" ? null : iv.unit === "W" ? weekOf : monthOf;
   const keyOf = (day: number) => (bucket ? Math.floor(bucket(day) / iv.n) : day);
   return {
-    // future bars count from the trading day of the holding bar (bar times are its local midnight)
-    slots: (t, last) => slots(localToUtc(tz, holderDay(t), 0), last),
+    // after the last bar: the calendar day of the time (measured on the reference for #60: a time before the
+    // regular open of a future day counts that day); the holding-bar rule applies to the loaded bars and before them
+    slots: (t, last) => slots(t, last),
     time,
     pastSlots: memo((t, first) => {
       const from = holderDay(t);
