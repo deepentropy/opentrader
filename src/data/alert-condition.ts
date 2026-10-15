@@ -240,9 +240,10 @@ export function rulesOfDrawing(rules: readonly AlertRule[], id: string): AlertRu
   return rules.filter((r) => ruleDrawingIds(r).includes(id));
 }
 
-/** Ids of the drawings a rule reads. */
-export function ruleDrawingIds(rule: Pick<AlertRule, "left" | "right">): string[] {
-  return [rule.left, rule.right].flatMap((o) => (o.kind === "drawing" ? [o.drawingId] : []));
+/** Ids of the drawings a rule reads (any of its conditions). */
+export function ruleDrawingIds(rule: Pick<AlertRule, "left" | "right"> & { and?: AlertCondition[] }): string[] {
+  const own = [rule.left, rule.right].flatMap((o) => (o.kind === "drawing" ? [o.drawingId] : []));
+  return [...own, ...(rule.and ?? []).flatMap((c) => ruleDrawingIds(c))];
 }
 
 export type DrawingOption = {

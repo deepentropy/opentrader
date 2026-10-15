@@ -12,6 +12,7 @@ import { IndicatorsDialog } from "./window/header/IndicatorsDialog";
 import { ChartPropertiesDialog } from "./window/header/ChartPropertiesDialog";
 import { appearanceFrom, cloneDraft, saveChartSettingsDefaults, seedDraft, SETTINGS_FINGERPRINT, SETTINGS_REV, type Draft } from "./window/header/chart-settings";
 import { activeChartProbe } from "./window/chart/active-chart";
+import { openCreateAlertOnSelection } from "./window/shell/create-alert";
 import { findTimezone } from "./data/timezones";
 import { ChartGrid } from "./window/chart/ChartGrid";
 import { layoutFromVariantId, variantIdForLayout, type LayoutId } from "./window/chart/layouts";
@@ -544,7 +545,7 @@ function App() {
         onToggleFullscreen={() => void toggleFullscreen()}
         onOpenSettings={() => setSettingsDialogOpen(true)}
         onOpenAppSettings={(tab) => setAppSettingsTab(tab)}
-        onCreateAlert={() => setAlertDialog({ symbol: symbol() })}
+        onCreateAlert={() => openCreateAlertOnSelection(symbol())}
         layoutName={layoutName()}
         layoutDirty={layoutDirty()}
         onSaveLayout={saveActiveLayout}
