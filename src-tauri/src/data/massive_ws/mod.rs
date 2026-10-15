@@ -46,21 +46,23 @@
 // accepted, T / Q refused. Allow dead code module-wide rather than per-fn attributes.
 #![allow(dead_code)]
 use crate::data::gateway;
-use crate::data::massive_rest::Candle;
 use crate::data::provider::capabilities::StreamCaps;
 use crate::data::provider::entitlements;
-use crate::data::symbol::SymbolRef;
-use crate::data::ticker_case;
 use anyhow::{anyhow, Context, Result};
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
-use tauri_specta::Event;
 use tokio::sync::mpsc;
 use tokio::time::{sleep_until, Instant};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
+
+mod events;
+mod subscriptions;
+
+pub use events::{ChartAggregate, SecondAggregate, TradeTick};
+use events::handle_text;
+pub use subscriptions::{SubscribeMsg, SubscriptionState};
 
 const WS_URL: &str = gateway::WS_URL;
 /// Longest wait for one subscribe reply during `probe_channels`.
@@ -69,182 +71,6 @@ const BACKOFF_START: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// Re-check this often while the build has no gateway token. A local read.
 const NO_KEY_RETRY: Duration = Duration::from_secs(2);
-
-/// Per-minute aggregate (`AM`) re-emitted to the chart. One bar per minute
-/// per symbol. `time` is the bar's start in **UNIX seconds** so it lines
-/// up with lightweight-charts' UTCTimestamp type and the existing daily +
-/// minute history payloads.
-#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
-pub struct ChartAggregate {
-    pub symbol: String,
-    pub time: f64,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: f64,
-    /// Today's full-session daily bar when the transport knows it (the REST
-    /// snapshot poller does; the WS `AM` path doesn't). Lets the frontend
-    /// update the daily-family chart bar exactly — a warm daily load skips
-    /// today's forming bar on purpose (see `fetch_daily_history`) and this is
-    /// what fills it. The Candle's `time` is the snapshot's update stamp; the
-    /// frontend re-buckets it to the daily-bar convention (midnight ET).
-    pub day: Option<Candle>,
-}
-
-/// One 1-second bar (`A` channel) for a charted symbol: the live source of
-/// the seconds charts (1S…45S). `time` is the bar start in UNIX seconds.
-/// Separate from `ChartAggregate` because its volume covers ONE second, so
-/// the frontend adds it into a coarser bucket instead of replacing.
-#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
-pub struct SecondAggregate {
-    pub symbol: String,
-    pub time: f64,
-    pub open: f64,
-    pub high: f64,
-    pub low: f64,
-    pub close: f64,
-    pub volume: f64,
-}
-
-/// Trade (`T`) re-emitted to the watchlist for live last-price updates.
-/// `change`/`change_percent`/`volume` ride along from the REST snapshot
-/// poller (`massive_poll`) so the watchlist's Chg/Chg%/Vol columns go live
-/// too; they're `Option` because a raw WS trade carries only a price, so the
-/// push path leaves them `None` and the UI keeps the prior value.
-#[derive(Clone, Serialize, Deserialize, specta::Type, Event)]
-#[serde(rename_all = "camelCase")]
-pub struct TradeTick {
-    pub symbol: String,
-    /// Regular-session "Last" (not the latest pre/post trade — see
-    /// `massive_rest::shape_snapshot`).
-    pub price: f64,
-    pub change: Option<f64>,
-    pub change_percent: Option<f64>,
-    /// Pre/post-market move vs the regular close — the watchlist "Ext" column.
-    pub ext_change_percent: Option<f64>,
-    pub volume: Option<f64>,
-    /// "live" (today's session traded) or "prev" — lets the UI blank Ext during
-    /// regular hours. `None` on the WS push path.
-    pub source: Option<String>,
-    /// Latest trade, pre- and post-market included: its price and the start
-    /// of its minute (UNIX seconds). `None` when the quote has no minute bar.
-    pub trade_price: Option<f64>,
-    pub trade_time: Option<f64>,
-}
-
-/// Sent by `commands/realtime.rs` to update what we're subscribed to.
-/// The connection task diffs each update against its previous state and
-/// emits subscribe / unsubscribe frames accordingly.
-///
-/// Owner-keyed: every window (and every chart pane within it) declares its
-/// own desired state and the transport unions them. The previous single
-/// global slot let the last writer win — a second window silently
-/// unsubscribed the first's symbols, and in multi-pane layouts only one
-/// pane received chart bars.
-#[derive(Debug, Clone)]
-pub enum SubscribeMsg {
-    /// One pane's charted symbol. `owner` = "<window label>:<pane id>";
-    /// None clears that pane's slot.
-    SetChart { owner: String, symbol: Option<String> },
-    /// One window's watchlist-union contribution. `owner` = window label.
-    SetWatchlist { owner: String, symbols: Vec<String> },
-    /// Window destroyed — drop its watchlist and every chart slot it owned.
-    DropOwner { owner: String },
-}
-
-/// Owner-keyed desired-subscription state shared by the REST poller and the
-/// WS transport: applies `SubscribeMsg`s and exposes the union views the
-/// transports consume. Symbols are full names ("NASDAQ:AAPL"); the vendor
-/// subscribes the ticker part and events go back under every full name that
-/// subscribed that ticker.
-#[derive(Debug, Default)]
-pub struct SubscriptionState {
-    /// "<window>:<pane>" → charted symbol.
-    charts: std::collections::HashMap<String, String>,
-    /// window label → that window's watchlist union.
-    watchlists: std::collections::HashMap<String, HashSet<String>>,
-}
-
-impl SubscriptionState {
-    pub fn apply(&mut self, msg: SubscribeMsg) {
-        match msg {
-            SubscribeMsg::SetChart { owner, symbol } => match symbol {
-                Some(s) => {
-                    self.charts.insert(owner, s);
-                }
-                None => {
-                    self.charts.remove(&owner);
-                }
-            },
-            SubscribeMsg::SetWatchlist { owner, symbols } => {
-                if symbols.is_empty() {
-                    self.watchlists.remove(&owner);
-                } else {
-                    self.watchlists.insert(owner, symbols.into_iter().collect());
-                }
-            }
-            SubscribeMsg::DropOwner { owner } => {
-                self.watchlists.remove(&owner);
-                let prefix = format!("{owner}:");
-                self.charts.retain(|k, _| !k.starts_with(&prefix));
-            }
-        }
-    }
-
-    /// Every currently-charted symbol (any window, any pane), deduped.
-    pub fn chart_symbols(&self) -> HashSet<String> {
-        self.charts.values().cloned().collect()
-    }
-
-    /// Union of every window's watchlist contribution.
-    pub fn watch_union(&self) -> HashSet<String> {
-        self.watchlists.values().flatten().cloned().collect()
-    }
-
-    /// Everything worth polling: watch union + charted symbols.
-    pub fn all_symbols(&self) -> HashSet<String> {
-        let mut out = self.watch_union();
-        out.extend(self.chart_symbols());
-        out
-    }
-
-    /// TRUE when any pane in any window charts `sym` (gates ChartAggregate emission).
-    pub fn is_chart_symbol(&self, sym: &str) -> bool {
-        self.charts.values().any(|s| s == sym)
-    }
-
-    /// Vendor tickers of the charted symbols.
-    pub fn chart_tickers(&self) -> HashSet<String> {
-        self.charts.values().map(|s| ticker_of(s)).collect()
-    }
-
-    /// Vendor tickers of the watchlist union.
-    pub fn watch_tickers(&self) -> HashSet<String> {
-        self.watch_union().iter().map(|s| ticker_of(s)).collect()
-    }
-
-    /// Vendor tickers of everything subscribed.
-    pub fn all_tickers(&self) -> HashSet<String> {
-        self.all_symbols().iter().map(|s| ticker_of(s)).collect()
-    }
-
-    /// Charted full names whose vendor ticker is `ticker`.
-    pub fn chart_symbols_for(&self, ticker: &str) -> Vec<String> {
-        self.chart_symbols().into_iter().filter(|s| ticker_of(s) == ticker).collect()
-    }
-
-    /// Subscribed full names (charts + watchlists) whose vendor ticker is `ticker`.
-    pub fn symbols_for(&self, ticker: &str) -> Vec<String> {
-        self.all_symbols().into_iter().filter(|s| ticker_of(s) == ticker).collect()
-    }
-}
-
-/// Vendor ticker of a full name ("NASDAQ:AAPL" → "AAPL", "NYSE:BAC/PB" →
-/// "BACpB": the vendor's spelling, see `ticker_case`).
-fn ticker_of(symbol: &str) -> String {
-    ticker_case::to_source(&SymbolRef::parse(symbol).ticker)
-}
 
 /// State managed by the connection task — exposed via app state so the
 /// command handlers can push messages onto the mpsc.
@@ -647,197 +473,9 @@ pub async fn probe_channels(url: &str, api_key: &str, channels: &[&str]) -> Resu
     Ok(out)
 }
 
-/// Parse one text frame and emit its events, once per subscribed full name
-/// of the event's ticker. Returns `true` when the frame says another
-/// connection on the same key closed this one (`max_connections`).
-fn handle_text(app: &AppHandle, state: &SubscriptionState, txt: &str) -> bool {
-    let arr: serde_json::Value = match serde_json::from_str(txt) {
-        Ok(v) => v,
-        Err(_) => return false,
-    };
-    let Some(events) = arr.as_array() else {
-        return false;
-    };
-    let mut kicked = false;
-    for ev in events {
-        let kind = ev.get("ev").and_then(|v| v.as_str()).unwrap_or("");
-        match kind {
-            "AM" => {
-                if let Some(agg) = parse_aggregate(ev) {
-                    for symbol in state.chart_symbols_for(&agg.symbol) {
-                        let _ = ChartAggregate { symbol, ..agg.clone() }.emit(app);
-                    }
-                }
-            }
-            "A" => {
-                if let Some(bar) = parse_second(ev) {
-                    for symbol in state.chart_symbols_for(&bar.symbol) {
-                        let _ = SecondAggregate { symbol, ..bar.clone() }.emit(app);
-                    }
-                }
-            }
-            "T" => {
-                if let Some(tick) = parse_trade(ev) {
-                    for symbol in state.symbols_for(&tick.symbol) {
-                        let _ = TradeTick { symbol, ..tick.clone() }.emit(app);
-                    }
-                }
-            }
-            "status" => {
-                if let Some(msg) = ev.get("message").and_then(|v| v.as_str()) {
-                    let status = ev.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                    eprintln!("[massive_ws] status={status} message={msg}");
-                    kicked |= status == "max_connections";
-                    // On an error, also dump the raw frame — Massive does not
-                    // name the offending symbol in `message`, but the preceding
-                    // `-> subscribe …` line (see send_action) shows the exact
-                    // params that drew this reply.
-                    if status == "error" {
-                        eprintln!("[massive_ws]    raw status frame: {ev}");
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    kicked
-}
-
-fn parse_second(ev: &serde_json::Value) -> Option<SecondAggregate> {
-    Some(SecondAggregate {
-        symbol: ev.get("sym")?.as_str()?.to_string(),
-        // Bar start in ms, to seconds.
-        time: (ev.get("s")?.as_f64()? / 1000.0).floor(),
-        open: ev.get("o")?.as_f64()?,
-        high: ev.get("h")?.as_f64()?,
-        low: ev.get("l")?.as_f64()?,
-        close: ev.get("c")?.as_f64()?,
-        volume: ev.get("v").and_then(|v| v.as_f64()).unwrap_or(0.0),
-    })
-}
-
-fn parse_aggregate(ev: &serde_json::Value) -> Option<ChartAggregate> {
-    Some(ChartAggregate {
-        symbol: ev.get("sym")?.as_str()?.to_string(),
-        // Massive sends ms. Lightweight-charts wants seconds.
-        time: (ev.get("s")?.as_f64()? / 1000.0).floor(),
-        open: ev.get("o")?.as_f64()?,
-        high: ev.get("h")?.as_f64()?,
-        low: ev.get("l")?.as_f64()?,
-        close: ev.get("c")?.as_f64()?,
-        volume: ev.get("v").and_then(|v| v.as_f64()).unwrap_or(0.0),
-        day: None,
-    })
-}
-
-fn parse_trade(ev: &serde_json::Value) -> Option<TradeTick> {
-    Some(TradeTick {
-        symbol: ev.get("sym")?.as_str()?.to_string(),
-        price: ev.get("p")?.as_f64()?,
-        // A raw WS trade carries no session change / volume — the watchlist
-        // keeps whatever the snapshot poller last supplied.
-        change: None,
-        change_percent: None,
-        ext_change_percent: None,
-        volume: None,
-        source: None,
-        trade_price: ev.get("p").and_then(|v| v.as_f64()),
-        trade_time: ev.get("t").and_then(|v| v.as_f64()).map(|ms| (ms / 60_000.0).floor() * 60.0),
-    })
-}
-
 /// Look up the WsHandle from app state — used by the realtime commands.
 pub fn handle(app: &AppHandle) -> tauri::State<'_, WsHandle> {
     app.state::<WsHandle>()
-}
-
-#[cfg(test)]
-mod subscription_state_tests {
-    use super::*;
-
-    fn set_chart(s: &mut SubscriptionState, owner: &str, sym: Option<&str>) {
-        s.apply(SubscribeMsg::SetChart {
-            owner: owner.into(),
-            symbol: sym.map(Into::into),
-        });
-    }
-    fn set_watch(s: &mut SubscriptionState, owner: &str, syms: &[&str]) {
-        s.apply(SubscribeMsg::SetWatchlist {
-            owner: owner.into(),
-            symbols: syms.iter().map(|x| x.to_string()).collect(),
-        });
-    }
-
-    #[test]
-    fn windows_merge_instead_of_clobbering() {
-        let mut s = SubscriptionState::default();
-        set_watch(&mut s, "main", &["AAPL", "TSLA"]);
-        set_watch(&mut s, "chart-x", &["NVDA"]);
-        let union = s.watch_union();
-        assert!(union.contains("AAPL") && union.contains("TSLA") && union.contains("NVDA"));
-        // Replacing one window's set leaves the other's intact.
-        set_watch(&mut s, "chart-x", &["AMD"]);
-        let union = s.watch_union();
-        assert!(union.contains("AAPL") && union.contains("AMD") && !union.contains("NVDA"));
-    }
-
-    #[test]
-    fn panes_hold_independent_chart_slots() {
-        let mut s = SubscriptionState::default();
-        set_chart(&mut s, "main:1", Some("AAPL"));
-        set_chart(&mut s, "main:2", Some("TSLA"));
-        assert!(s.is_chart_symbol("AAPL") && s.is_chart_symbol("TSLA"));
-        // One pane clearing its slot must not silence the sibling.
-        set_chart(&mut s, "main:1", None);
-        assert!(!s.is_chart_symbol("AAPL") && s.is_chart_symbol("TSLA"));
-        assert!(s.all_symbols().contains("TSLA"));
-    }
-
-    #[test]
-    fn drop_owner_clears_window_and_its_panes_only() {
-        let mut s = SubscriptionState::default();
-        set_watch(&mut s, "main", &["AAPL"]);
-        set_watch(&mut s, "chart-x", &["NVDA"]);
-        set_chart(&mut s, "main:1", Some("SPY"));
-        set_chart(&mut s, "chart-x:1", Some("QQQ"));
-        set_chart(&mut s, "chart-x:2", Some("IWM"));
-        s.apply(SubscribeMsg::DropOwner {
-            owner: "chart-x".into(),
-        });
-        assert!(!s.watch_union().contains("NVDA"));
-        assert!(!s.is_chart_symbol("QQQ") && !s.is_chart_symbol("IWM"));
-        assert!(s.watch_union().contains("AAPL") && s.is_chart_symbol("SPY"));
-        // A label that PREFIXES another must not over-match ("chart" vs "chart-x").
-        set_chart(&mut s, "chart:9", Some("DIA"));
-        s.apply(SubscribeMsg::DropOwner { owner: "char".into() });
-        assert!(s.is_chart_symbol("DIA"));
-    }
-
-    /// Full names subscribe their vendor ticker; events map back to every
-    /// full name of that ticker.
-    #[test]
-    fn full_names_map_to_tickers_and_back() {
-        let mut s = SubscriptionState::default();
-        set_chart(&mut s, "main:1", Some("NASDAQ:INTC"));
-        set_chart(&mut s, "main:2", Some("BOATS:INTC"));
-        set_watch(&mut s, "main", &["NYSE:IBM", "NASDAQ:INTC"]);
-        assert_eq!(s.chart_tickers(), HashSet::from(["INTC".to_string()]));
-        assert!(s.watch_tickers().contains("IBM"));
-        let mut charts = s.chart_symbols_for("INTC");
-        charts.sort();
-        assert_eq!(charts, vec!["BOATS:INTC", "NASDAQ:INTC"]);
-        assert_eq!(s.symbols_for("IBM"), vec!["NYSE:IBM"]);
-        assert!(s.chart_symbols_for("IBM").is_empty());
-    }
-
-    #[test]
-    fn empty_watchlist_removes_the_owner_entry() {
-        let mut s = SubscriptionState::default();
-        set_watch(&mut s, "main", &["AAPL"]);
-        set_watch(&mut s, "main", &[]);
-        assert!(s.watch_union().is_empty());
-        assert!(s.all_symbols().is_empty());
-    }
 }
 
 #[cfg(test)]
