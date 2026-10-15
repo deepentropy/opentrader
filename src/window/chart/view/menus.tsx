@@ -10,7 +10,7 @@ import { MAIN_SOURCE_ID } from "../object-tree-sources";
 import { statusLineInputs } from "../indicators/indicator-options";
 import { crosshairLockTime, setCrosshairLockTime } from "../crosshair-lock";
 import { Icon } from "../../../components/Icon";
-import { hasClipboardDrawing, pasteAsNew } from "../../drawings/clipboard";
+import { clipboardSource, hasClipboardContent, pasteAsNew } from "../../drawings/clipboard";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import { chartTemplates } from "../../header/chart-templates";
 import { isIntradayInterval, splitSymbol } from "../../../data/datafeed";
@@ -43,8 +43,12 @@ type ChartMenuCtx = {
   drawingCount: number;
   indicatorCount: number;
   cursorLockByTime: boolean;
-  /** FALSE grays "Paste" (nothing on the drawings clipboard). */
+  /** FALSE grays "Paste" (nothing on the clipboard). */
   canPaste: boolean;
+  /** "Move chart" (a chart of a multi-chart layout). */
+  canMoveChart: boolean;
+  /** "Apply these indicators to entire layout" (a multi-chart layout). */
+  canApplyToLayout: boolean;
 };
 type ChartMenuActions = {
   resetView: () => void;
@@ -55,6 +59,8 @@ type ChartMenuActions = {
   sell: () => void;
   addOrder: () => void;
   toggleCursorLock: () => void;
+  moveChart: (back: boolean) => void;
+  applyToLayout: () => void;
   tableView: () => void;
   objectTree: () => void;
   saveTemplateAs: () => void;
@@ -84,6 +90,14 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
       { kind: "item", id: "order", label: `Add order on ${sym} at ${p}…`, shortcut: "Shift + T", icon: CtxIcons.order, onSelect: a.addOrder },
     ] as CtxNode[]),
     { kind: "separator" },
+    // The focused chart swaps its place with the next / previous chart.
+    ...(ctx.canMoveChart ? [
+      { kind: "item", id: "move-chart", label: "Move chart", submenu: [
+        { kind: "item", id: "move-chart-forward", label: "Forward", onSelect: () => a.moveChart(false) },
+        { kind: "item", id: "move-chart-back", label: "Back", onSelect: () => a.moveChart(true) },
+      ] },
+      { kind: "separator" },
+    ] as CtxNode[] : []),
     { kind: "item", id: "lock-cursor", label: "Lock vertical cursor line by time", checked: ctx.cursorLockByTime, onSelect: a.toggleCursorLock },
     { kind: "separator" },
     { kind: "item", id: "table-view", label: "Table view", onSelect: a.tableView },
@@ -103,6 +117,9 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
       ],
     },
   ];
+  if (ctx.canApplyToLayout) {
+    nodes.push({ kind: "separator" }, { kind: "item", id: "apply-to-layout", label: "Apply these indicators to entire layout", onSelect: a.applyToLayout });
+  }
   const removeRows: CtxNode[] = [];
   if (ctx.drawingCount > 0) removeRows.push({ kind: "item", id: "remove-drawings", label: `Remove ${plural(ctx.drawingCount, "drawing")}`, onSelect: a.removeDrawings });
   if (ctx.indicatorCount > 0) removeRows.push({ kind: "item", id: "remove-indicators", label: `Remove ${plural(ctx.indicatorCount, "indicator")}`, onSelect: a.removeIndicators });
@@ -320,13 +337,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       { kind: "separator" },
       { kind: "item", id: "copy-price", label: `Copy price ${p}`,
         onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
-      { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !hasClipboardDrawing(),
-        onSelect: () => {
-          const nd = pasteAsNew();
-          if (!nd) return;
-          const id = props.onPlace?.(nd);
-          if (id) props.setSelectedDrawingId?.(id);
-        } },
+      { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !hasClipboardContent(), onSelect: pasteClipboard },
       { kind: "separator" },
       { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => props.onToggleSeries?.() },
@@ -343,10 +354,9 @@ export function createMenus(cx: ChartCx): MenusApi {
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
   }
 
-  /** Legend study "More" → the study actions menu.
-   *  Rows with no OT feature are left out: Add indicator/strategy on the
-   *  study, Add this indicator to entire layout, Visual order, Visibility on
-   *  intervals, Move to, Pin to scale, Copy. */
+  /** Legend study "More" → the study actions menu. Rows with no OT feature
+   *  are left out: Add indicator/strategy on the study (a study calculated on
+   *  its output). */
   function openIndicatorMoreMenu(id: string, anchor: DOMRect) {
     const nodes = studyMenuNodes(id);
     if (nodes) setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
@@ -473,16 +483,21 @@ export function createMenus(cx: ChartCx): MenusApi {
     const nodes: CtxNode[] = [];
     const alert = studyAlertRow(id, price);
     if (alert) nodes.push(alert);
+    const layout = cx.sourceLayoutRow(id);
+    if (layout) nodes.push(layout);
     // No favorites row for studies that cannot be starred (compare/overlay).
     if (getIndicatorEntry(id)) {
       const fav = isFavoriteIndicator(typeIdOf(id));
       nodes.push(
         { kind: "item", id: "favorite", label: fav ? "Remove this indicator from favorites" : "Add this indicator to favorites",
           icon: CtxIcons.favorite, onSelect: () => toggleFavoriteIndicator(typeIdOf(id)) },
-        { kind: "separator" },
       );
-    } else if (alert) nodes.push({ kind: "separator" });
+    }
+    if (nodes.length) nodes.push({ kind: "separator" });
+    const arrange = cx.sourceArrangeRows(id);
+    if (arrange.length) nodes.push(...arrange, { kind: "separator" });
     nodes.push(
+      cx.sourceCopyRow(id),
       { kind: "item", id: "hide", label: row.eyeHidden ? "Show" : "Hide", icon: row.eyeHidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => toggleSourceHidden(id) },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
@@ -549,14 +564,21 @@ export function createMenus(cx: ChartCx): MenusApi {
 
   /** Legend compared-symbol "More" → its actions menu. Rows with no OT
    *  feature are left out (same rule as the study menu): Add indicator /
-   *  financial metric on the symbol, Symbol info, Visual order, Visibility on
-   *  intervals, Move to, Pin to scale, Copy. */
+   *  financial metric on the symbol, Symbol info, Move to, Pin to scale. */
   function openCompareMoreMenu(id: string, anchor: DOMRect, price?: number | null) {
     const e = cx.compareEntry(id);
     if (!e) return;
+    // Rows on the symbol (reference order: alert, add to entire layout).
+    const top: CtxNode[] = [];
     const alert = compareAlertRow(id, price);
+    if (alert) top.push(alert);
+    const layout = cx.sourceLayoutRow(id);
+    if (layout) top.push(layout);
+    const arrange = cx.sourceArrangeRows(id);
     const nodes: CtxNode[] = [
-      ...(alert ? [alert, { kind: "separator" } as CtxNode] : []),
+      ...(top.length ? [...top, { kind: "separator" } as CtxNode] : []),
+      ...(arrange.length ? [...arrange, { kind: "separator" } as CtxNode] : []),
+      cx.sourceCopyRow(id),
       { kind: "item", id: "hide", label: e.hidden ? "Show" : "Hide", icon: e.hidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => props.onCompareChange?.(id, { hidden: !e.hidden }) },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
@@ -568,6 +590,19 @@ export function createMenus(cx: ChartCx): MenusApi {
       { kind: "item", id: "settings", label: "Settings…", icon: CtxIcons.settings, onSelect: () => setCompareSettingsFor(id) },
     ];
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
+  }
+
+  /** Paste the in-app clipboard (same as Ctrl+V): a copied drawing is placed
+   *  at its data coords and selected; a copied study / compared symbol is
+   *  added to this chart. */
+  function pasteClipboard() {
+    const nd = pasteAsNew();
+    if (nd) {
+      const id = props.onPlace?.(nd);
+      if (id) props.setSelectedDrawingId?.(id);
+      return;
+    }
+    if (clipboardSource()) emitAppEvent("chart-paste-source");
   }
 
   /** Right-click → open the chart context menu at the cursor. "Copy price" /
@@ -645,19 +680,14 @@ export function createMenus(cx: ChartCx): MenusApi {
         drawingCount: ds.length,
         indicatorCount: (props.indicators ?? []).length,
         cursorLockByTime: crosshairLockTime() !== null,
-        canPaste: hasClipboardDrawing(),
+        canPaste: hasClipboardContent(),
+        canMoveChart: (props.layoutCount ?? 1) > 1,
+        canApplyToLayout: (props.layoutCount ?? 1) > 1,
       },
       {
         resetView: () => cx.resetChartView(),
         copyPrice: () => { if (rawPrice != null) void navigator.clipboard?.writeText(priceStr); },
-        // Paste the in-app drawings clipboard (Ctrl+C on a drawing), same as
-        // the overlay's Ctrl+V path: place at the copied data coords + select.
-        paste: () => {
-          const nd = pasteAsNew();
-          if (!nd) return;
-          const id = props.onPlace?.(nd);
-          if (id) props.setSelectedDrawingId?.(id);
-        },
+        paste: pasteClipboard,
         addAlert: () =>
           emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: rawPrice ?? undefined, indicatorId: studyId ?? undefined }),
         // Accepted no-ops: Buy / Sell / Add order / Table view need a trading
@@ -673,6 +703,8 @@ export function createMenus(cx: ChartCx): MenusApi {
           if (t != null) setCrosshairLockTime(t as number);
         },
         tableView: noop,
+        moveChart: (back) => emitAppEvent("chart-move-in-layout", { back }),
+        applyToLayout: () => emitAppEvent("chart-apply-studies-to-layout"),
         objectTree: () => openPanel("object_tree"),
         saveTemplateAs: () => emitAppEvent("chart-save-template"),
         // Bulk path when available — one undo entry for the whole set.

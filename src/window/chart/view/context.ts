@@ -48,6 +48,7 @@ import type { TickerInfoApi } from "./ticker-info";
 import type { SymbolLoadApi } from "./symbol-load";
 import type { StrategyMarksApi } from "./strategy-marks";
 import type { LegendApi } from "./legend";
+import type { SourceMenuApi } from "./source-menu";
 
 export type ChartViewProps = {
   theme?: "dark" | "light";
@@ -147,6 +148,9 @@ export type ChartViewProps = {
   /** False while this pane's tab is hidden. App keeps every opened tab's grid
    *  mounted (each tab page stays alive), so a tab switch only shows it. */
   shown?: boolean;
+  /** Number of charts of the layout (the "entire layout" rows and "Move
+   *  chart" need several). */
+  layoutCount?: number;
   /** Control bar → maximize. `canMaximize` is false in a
    *  single-cell layout, where the group is dropped entirely. */
   canMaximize?: boolean;
@@ -260,7 +264,8 @@ export type ChartCx = ChartCore &
   LegendApi &
   StrategyMarksApi &
   SymbolLoadApi &
-  TickerInfoApi;
+  TickerInfoApi &
+  SourceMenuApi;
 
 /** Add a part's functions (and its state accessors) to the context. */
 export function attach<T extends object>(cx: ChartCx, api: T): T {

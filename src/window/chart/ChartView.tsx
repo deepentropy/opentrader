@@ -91,6 +91,7 @@ import { createAlertLayer } from "./view/alert-layer";
 import { createHistory } from "./view/history";
 import { createCompare } from "./view/compare";
 import { createSources } from "./view/sources";
+import { createSourceMenu } from "./view/source-menu";
 import { createSnapshot } from "./view/snapshot";
 import { createLive } from "./view/live";
 import { createNews } from "./view/news";
@@ -764,6 +765,7 @@ export function ChartView(props: ChartViewProps) {
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
     controller.setSeriesChangedHook(() => {
       scheduleSourceOrder();
+      cx.syncSideScales();
       setAlertSeriesEpoch((n) => n + 1);
     });
     controller.setDrawingsDataHook(() => setCoordEpoch((n) => n + 1));
@@ -1048,6 +1050,15 @@ export function ChartView(props: ChartViewProps) {
       for (const layer of compareLayers.values()) layer.setSeriesOnlyScale(id);
     });
   });
+  // Studies pinned to a side scale ("Pin to scale") follow the main scale's side.
+  createEffect(() => {
+    chartReady();
+    const side = readChartTokens(appearance()).scalesPlacement;
+    untrack(() => {
+      controller?.setMainSide(side);
+      cx.syncSideScales();
+    });
+  });
   // Selection markers on the selected study's plots.
   createEffect(() => {
     chartReady();
@@ -1059,6 +1070,7 @@ export function ChartView(props: ChartViewProps) {
     });
   });
   const { scheduleSourceOrder, sunkIds } = attach(cx, createSources(cx));
+  attach(cx, createSourceMenu(cx));
   attach(cx, createSnapshot(cx));
 
 

@@ -65,7 +65,35 @@ export type LayoutSizesUndoEntry = {
   label: string;
   at: number;
 };
-export type UndoEntry = DrawingUndoEntry | StudyUndoEntry | CompareUndoEntry | LayoutSizesUndoEntry;
+/** The sources of a chart (studies, their settings, compared symbols and
+ *  the orders), as one layout-wide edit saves them. */
+export type ChartSources = Pick<PaneChart, "indicators" | "indicatorSettings" | "compare" | "paneOrder" | "sourceOrder">;
+/** Sources of several charts of a layout changed together (a study / symbol
+ *  added to the entire layout, the indicators applied to the entire layout,
+ *  a source pasted): each chart's sources before and after, by chart index,
+ *  and the drawings removed with the studies they belonged to. */
+export type LayoutSourcesUndoEntry = {
+  kind: "layout-sources";
+  tabId: string;
+  before: Record<number, ChartSources>;
+  after: Record<number, ChartSources>;
+  slices: DrawingSlice[];
+  label: string;
+  at: number;
+};
+/** Two charts of a layout swapped their places (chart menu "Move chart");
+ *  the focused chart before and after. Swapping again undoes it. */
+export type ChartSwapUndoEntry = {
+  kind: "chart-swap";
+  tabId: string;
+  a: number;
+  b: number;
+  activeBefore: number;
+  activeAfter: number;
+  label: string;
+  at: number;
+};
+export type UndoEntry = DrawingUndoEntry | StudyUndoEntry | CompareUndoEntry | LayoutSizesUndoEntry | LayoutSourcesUndoEntry | ChartSwapUndoEntry;
 
 const UNDO_CAP = 100;
 

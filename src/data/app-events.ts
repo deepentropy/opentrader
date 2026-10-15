@@ -13,6 +13,7 @@ import type { ScaleMenuPatch } from "../window/header/chart-settings";
 import type { DialogTab } from "../window/chart/IndicatorSettingsDialog";
 import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 import type { SessionId } from "./datafeed";
+import type { ClipboardSource } from "../window/drawings/clipboard";
 
 /** Payload of "chart-open-alert-dialog": a rule to edit, or the source and
  *  price of a new one. */
@@ -24,6 +25,13 @@ export type OpenAlertDialogDetail = {
   /** New alert on a compared symbol of the chart (its full name): the source. */
   compareSymbol?: string;
   drawingId?: string;
+};
+
+/** Payload of "chart-add-to-layout": the source and where it sits on its
+ *  chart (study / compared-symbol menu "Add this … to entire layout"). */
+export type AddToLayoutDetail = {
+  source: ClipboardSource;
+  place: { main: boolean; paneIndex?: number; asCompare?: boolean };
 };
 
 /** Payload of "drawing-place-at-cursor": the toolbar asks the pane under the
@@ -50,6 +58,15 @@ export interface AppEvents {
   "chart-set-session": { id: SessionId };
   "chart-set-timezone": { label: string };
   "chart-open-indicators": undefined;
+  /** Study / compared-symbol menu "Add this … to entire layout" (the
+   *  focused chart's source to every other chart of the layout). */
+  "chart-add-to-layout": AddToLayoutDetail;
+  /** Chart menu "Apply these indicators to entire layout". */
+  "chart-apply-studies-to-layout": undefined;
+  /** Chart menu "Paste" / Ctrl+V of a copied study or compared symbol. */
+  "chart-paste-source": undefined;
+  /** Chart menu "Move chart" > Forward / Back (the focused chart). */
+  "chart-move-in-layout": { back: boolean };
 
   // ── Requests to the active chart ─────────────────────────────────────
   "chart-open-study-settings": { id: string; tab?: DialogTab };

@@ -39,6 +39,7 @@ export interface CompareApi {
   } | null>;
   studyOfSeries: (s: ISeriesApi<SeriesType>) => string | null;
   syncCompare: () => void;
+  syncSideScales: () => void;
 }
 
 export function createCompare(cx: ChartCx): CompareApi {
@@ -106,14 +107,20 @@ export function createCompare(cx: ChartCx): CompareApi {
     return out;
   }
   /** The other side's scale is shown while a "New price scale" entry uses it
-   *  (Auto only). */
-  function syncCompareScaleVisibility() {
+   *  (Auto only), or a study pinned to it ("Pin to scale"). */
+  let sideShown: boolean | null = null;
+  function syncCompareScaleVisibility(force = true) {
     if (!cx.chart) return;
     const main = currentTokens().scalesPlacement;
-    const used = currentTokens().scalesMode === "auto" && compareEntries().some((e) => e.placement === "scale");
+    const used = (currentTokens().scalesMode === "auto" && compareEntries().some((e) => e.placement === "scale")) || !!cx.controller?.usesSide(otherSide(main));
+    if (!force && used === sideShown) return;
+    sideShown = used;
     const opts = { visible: used };
     cx.chart.applyOptions(otherSide(main) === "left" ? { leftPriceScale: opts } : { rightPriceScale: opts });
   }
+  /** Studies changed their scale: the other side's scale follows (applied
+   *  only when it changes). */
+  const syncSideScales = () => syncCompareScaleVisibility(false);
   function compareVisible(e: CompareEntry): boolean {
     return !e.hidden && isVisibleOnInterval(e.style.visibility, props.interval);
   }
@@ -356,5 +363,6 @@ export function createCompare(cx: ChartCx): CompareApi {
     setComparePreview,
     studyOfSeries,
     syncCompare,
+    syncSideScales,
   };
 }

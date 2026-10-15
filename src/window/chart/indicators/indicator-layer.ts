@@ -198,6 +198,12 @@ export class IndicatorLayer {
   private chart: IChartApi;
   private paneIndex: number;
   private detachedScale: string | null = null;
+  /** The detached scale is a side scale with its axis (a study pinned to
+   *  the other side's scale), not a hidden one. */
+  private detachedAxis = false;
+  /** Pinned to a scale ("Pin to scale"): a study with a scale of its own in
+   *  its metadata (Volume) takes the pinned one instead. */
+  private scalePinned = false;
   /** Draws the study's result; re-created when the chart's main series changes. */
   private renderer: IndicatorRenderer | null = null;
   private rendererMain: ISeriesApi<SeriesType> | null = null;
@@ -317,9 +323,13 @@ export class IndicatorLayer {
   }
 
   /** Scale of its own (hidden, over the whole pane) for a study that shares
-   *  a pane whose scale shows other values; null = the pane's scale. */
-  setDetachedScale(id: string | null): void {
+   *  a pane whose scale shows other values; null = the pane's scale. `axis`:
+   *  a side scale with its axis ("left" / "right"). `pinned`: the study is
+   *  pinned to a scale (its metadata's own scale is not used). */
+  setDetachedScale(id: string | null, axis = false, pinned = false): void {
     this.detachedScale = id;
+    this.detachedAxis = axis && !!id;
+    this.scalePinned = pinned;
   }
 
   /** The pane moved (Settings pane controls: move up / down). */
@@ -463,7 +473,7 @@ export class IndicatorLayer {
 
     const bars = this.lastBars;
     const styles = this.lastStyles;
-    const ownScale = !!(entry.metadata as OwnScaleMeta | undefined)?.ownScaleId;
+    const ownScale = !!(entry.metadata as OwnScaleMeta | undefined)?.ownScaleId && !this.scalePinned;
     const overrides: Record<string, PlotOverride> = {};
     let plots: Record<string, PlotPoint[]> = result.plots ?? {};
     for (const def of entry.plotConfig) {
@@ -550,7 +560,10 @@ export class IndicatorLayer {
     // format on it would change the labels and the scale width.
     const mainFormat = this.paneIndex === 0 && !ownScale && !this.detachedScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
     if (mainFormat) for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat: mainFormat });
-    if (this.detachedScale && !ownScale) {
+    if (this.detachedScale && !ownScale && this.detachedAxis) {
+      // A side scale: shown by the chart (side scales are chart options).
+      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale });
+    } else if (this.detachedScale && !ownScale) {
       // No axis for this scale: no value label either.
       for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale, lastValueVisible: false });
       (series[0] as ISeriesApi<SeriesType> | undefined)?.priceScale().applyOptions({ visible: false });

@@ -25,7 +25,14 @@ export type IndicatorOptions = {
    *  group share a pane; MAIN_PANE_GROUP = the price pane. Absent = its
    *  default pane (the price pane for an overlay study, else its own). */
   paneGroup?: string;
+  /** Scale the study is pinned to (study menu "Pin to scale"): the left or
+   *  right scale of its pane, or no scale (its own hidden scale). Absent =
+   *  its default scale. */
+  scale?: StudyScale;
 };
+
+/** A side scale of the pane, or no scale. */
+export type StudyScale = "left" | "right" | "none";
 
 /** Pane group of the price pane. */
 export const MAIN_PANE_GROUP = "_series";
@@ -83,6 +90,7 @@ export function reviveIndicatorOptions(raw: unknown): IndicatorOptions {
     inputsInStatusLine: bool(r.inputsInStatusLine, d.inputsInStatusLine),
     ownPane: bool(r.ownPane, d.ownPane),
     ...(typeof r.paneGroup === "string" && r.paneGroup ? { paneGroup: r.paneGroup } : {}),
+    ...(r.scale === "left" || r.scale === "right" || r.scale === "none" ? { scale: r.scale } : {}),
     visibility: {
       ticks: bool(vis.ticks, d.visibility.ticks),
       seconds: unit(vis.seconds, d.visibility.seconds),
