@@ -498,7 +498,8 @@ async fn daily_load_smoke() {
     );
 
     let provider = GatewayProvider;
-    let cal = us();
+    // `us()` blocks on its own runtime: not on this test's runtime thread.
+    let cal = tokio::task::spawn_blocking(us).await.unwrap();
     let to = cal.window_end();
     let from = *cal.last_trading_days(252).first().unwrap_or(&to);
 
