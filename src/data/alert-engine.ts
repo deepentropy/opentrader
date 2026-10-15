@@ -36,7 +36,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
-import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
+import { conditionRules, defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
@@ -306,6 +306,14 @@ function conditionMet(rule: AlertRule, ctx: EvalContext): boolean {
     default:
       return false;
   }
+}
+
+/** True when every condition of the rule holds for the current sample (one condition: conditionMet). Each
+ *  condition is read on every sample, so a crossing keeps comparing with its own previous sample. */
+function conditionsMet(rule: AlertRule, ctx: EvalContext): boolean {
+  if (!rule.and?.length) return conditionMet(rule, ctx);
+  const met = conditionRules(rule).map((c) => conditionMet(c, ctx));
+  return met.every(Boolean);
 }
 
 /** Apply the trigger-frequency gate. `barRefMs` is the firing bar's open time
@@ -708,9 +716,12 @@ function onTick(t: TradeTick): void {
         // A study's condition is read now, on the bar this sample belongs to (at the close the study has moved on
         // to the next bar).
         let sample = ctx;
-        if (rule.op === "alert_condition" && rule.left.kind === "indicator") {
-          const now = ctx.conditionTrue?.(rule.left, rule.resolution, rule.session) ?? null;
-          sample = { ...ctx, conditionTrue: () => now };
+        const own = conditionRules(rule).filter((c) => c.op === "alert_condition" && c.left.kind === "indicator");
+        if (own.length) {
+          // Each study condition as it is now, keyed by the study, its condition and its interval.
+          const key = (o: Operand, res: string) => (o.kind === "indicator" ? `${o.indicatorId}|${o.condition?.id ?? ""}|${res}` : "");
+          const now = new Map(own.map((c) => [key(c.left, c.resolution), ctx.conditionTrue?.(c.left as Extract<Operand, { kind: "indicator" }>, c.resolution, c.session) ?? null]));
+          sample = { ...ctx, conditionTrue: (o, res) => now.get(key(o, res)) ?? null };
         }
         barCloseState.set(rule.id, { bucket, ctx: sample });
       } else {
@@ -718,7 +729,7 @@ function onTick(t: TradeTick): void {
         barCloseState.delete(rule.id);
       }
       if (!st || st.bucket === bucket) continue; // still forming — wait for the close
-      if (!conditionMet(rule, st.ctx)) continue;
+      if (!conditionsMet(rule, st.ctx)) continue;
       if (lastFiredBucket.get(rule.id) === st.bucket) continue;
       lastFiredBucket.set(rule.id, st.bucket);
       fire(rule, st.ctx, st.bucket);
@@ -727,7 +738,7 @@ function onTick(t: TradeTick): void {
 
     const barRefMs = barRefFor(rule);
     if (!inRuleSession(rule, barRefMs, extendedQuote)) continue;
-    if (!conditionMet(rule, ctx)) continue;
+    if (!conditionsMet(rule, ctx)) continue;
     // A position fires on every level it hits (its stop or profit level ends it, see deliverFire).
     if (rule.op !== "hits_level" && !frequencyAllows(rule, barRefMs)) continue;
     fire(rule, ctx, barRefMs);
@@ -1231,7 +1242,7 @@ let drawingPollBusy = false;
 async function pollDrawingBars(onlyMissing = false): Promise<void> {
   if (drawingPollBusy) return;
   const jobs = new Map<string, { symbol: string; resolution: string; session: SessionId }>();
-  for (const rule of alertStore.enabledRules()) {
+  for (const rule of alertStore.enabledRules().flatMap(conditionRules)) {
     const fromBars = (rule.right.kind === "drawing" && rule.right.plot != null) || rule.left.kind === "indicator" || rule.right.kind === "indicator" || rule.right2?.kind === "indicator";
     if (!fromBars || !isSupportedResolution(rule.resolution)) continue;
     const session = rule.session ?? DEFAULT_SESSION;
@@ -1273,7 +1284,7 @@ let movingPollBusy = false;
 
 async function pollMovingRefs(): Promise<void> {
   if (movingPollBusy) return;
-  const rules = alertStore.enabledRules().filter((r) => isMovingOperator(r.op) && isSupportedResolution(r.resolution));
+  const rules = alertStore.enabledRules().flatMap(conditionRules).filter((r) => isMovingOperator(r.op) && isSupportedResolution(r.resolution));
   if (rules.length === 0) return;
   movingPollBusy = true;
   try {
@@ -1377,6 +1388,8 @@ export async function replayMissedFires(previous: Record<string, number | null |
   const barsBy = new Map<string, ChartBar[]>();
   for (const rule of alertStore.enabledRules()) {
     if (evaluatedByBackend(rule) || !isSupportedResolution(rule.resolution)) continue;
+    // Several conditions read in the window: not replayed (the backend replays the ones it evaluates).
+    if (rule.and?.length) continue;
     const { left, right } = rule;
     if (isStrategyOperator(rule.op)) {
       if (left.kind !== "indicator") continue;
@@ -1588,7 +1601,7 @@ export function startAlertEngine(windowLabel = "main"): void {
     let prevEnabledIds = new Set<string>();
     createEffect(() => {
       const rules = alertStore.rules();
-      const ids = new Set(rules.map((r) => r.id));
+      const ids = new Set(rules.flatMap(conditionRules).map((r) => r.id));
       const enabledIds = new Set(rules.filter((r) => r.enabled).map((r) => r.id));
       for (const id of enabledIds) {
         if (!prevEnabledIds.has(id)) resetRuleEvalState(id);
@@ -1610,6 +1623,10 @@ export function startAlertEngine(windowLabel = "main"): void {
  *  Call when a rule's condition changes (edit) so a stale baseline can't
  *  manufacture a spurious cross, and on delete to avoid leaking map entries. */
 export function resetRuleEvalState(id: string): void {
+  // The other conditions of a multi-condition alert keep their memory under `<id>#<i>`.
+  for (const m of [prevDiff, movingRefCache]) {
+    for (const k of [...m.keys()]) if (k.startsWith(`${id}#`)) m.delete(k);
+  }
   prevDiff.delete(id);
   lastFiredBucket.delete(id);
   lastFiredAt.delete(id);

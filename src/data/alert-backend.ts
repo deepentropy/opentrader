@@ -23,7 +23,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { commands, type AlertFired, type AlertLeader, type EngineGrid, type EngineRule } from "../bindings";
 import { alertStore, type AlertRule } from "./alert-store";
-import { drawingValues, isBandOperator, isMovingOperator, LEVEL_OPERATORS, ruleQuoteSymbol, type TimeAxis } from "./alert-condition";
+import { conditionRules, drawingValues, isBandOperator, isMovingOperator, LEVEL_OPERATORS, ruleQuoteSymbol, type TimeAxis } from "./alert-condition";
 import { cachedSymbolSessions, localDay, localToUtc, sessionsVersion, type SymbolSessions } from "./session";
 import type { SessionId } from "./session/symbol-sessions";
 import { periodStart } from "../window/chart/chart-aggregate";
@@ -31,8 +31,17 @@ import { loadDrawings } from "../window/drawings/persistence";
 
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-/** True when the backend evaluates the rule (the window's engine skips it). */
+/** True when the backend evaluates the rule (the window's engine skips it): every condition reads only the price, all
+ *  on the same symbol's quotes. */
 export function evaluatedByBackend(rule: AlertRule): boolean {
+  if (!rule.and?.length) return conditionByBackend(rule);
+  const views = conditionRules(rule);
+  const quotes = ruleQuoteSymbol(rule);
+  return views.every((v) => conditionByBackend(v) && ruleQuoteSymbol(v) === quotes);
+}
+
+/** One condition the backend can evaluate. */
+function conditionByBackend(rule: AlertRule): boolean {
   // The price of the symbol, or of a compared symbol (read on that symbol's quotes).
   if (!HAS_TAURI || (rule.left.kind !== "price" && rule.left.kind !== "symbol") || isMovingOperator(rule.op)) return false;
   // A channel between two numbers: a band.
@@ -168,20 +177,9 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
   const grids = new Map<string, EngineGrid & { from: number; to: number }>();
   const keys: string[] = [];
   const enabled = alertStore.enabledRules().filter(evaluatedByBackend);
-  for (const rule of enabled) {
-    const iv = parseInterval(rule.resolution);
-    // The quotes the rule reads: its symbol's, or the compared symbol's.
-    const symbol = ruleQuoteSymbol(rule);
-    const sessions = cachedSymbolSessions(symbol);
-    if (!iv || !sessions) continue;
-    const right = rule.right;
-    const drawing = right.kind === "drawing" ? loadDrawings(rule.symbol).find((d) => d.id === right.drawingId) : undefined;
-    if (right.kind === "drawing" && !drawing) continue;
-    const since = rule.activeSince ?? rule.createdAt;
-    // Older rules without a session: regular hours, a chart's default.
-    const session: SessionId = rule.session ?? "RTH";
-
-    const gridKey = `${symbol}|${rule.resolution}|${session}`;
+  /** The bars of a symbol on an interval and session, built once per compilation. */
+  const gridFor = (symbol: string, sessions: SymbolSessions, resolution: string, iv: Interval, session: SessionId) => {
+    const gridKey = `${symbol}|${resolution}|${session}`;
     let grid = grids.get(gridKey);
     if (!grid) {
       // The first time, the bars go back to the previous run (what the
@@ -207,21 +205,31 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       const bars = barsBetween(sessions, session, iv, from, to);
       grids.set(gridKey, (grid = { key: gridKey, bars, regular, session: hours, extendedHours: session === "ETH", from, to }));
     }
-
-    const sig = JSON.stringify([rule.op, rule.left, right, rule.right2, rule.frequency, rule.resolution, session, since, drawing?.points, drawing?.style]);
+    return grid;
+  };
+  /** One condition as the backend reads it (null: its drawing or its symbol's sessions are not known). */
+  const compile = (rule: AlertRule, symbol: string, since: number, session: SessionId): { compiled: EngineRule; sig: unknown[] } | null => {
+    const iv = parseInterval(rule.resolution);
+    const sessions = cachedSymbolSessions(symbol);
+    if (!iv || !sessions) return null;
+    const right = rule.right;
+    const drawing = right.kind === "drawing" ? loadDrawings(rule.symbol).find((d) => d.id === right.drawingId) : undefined;
+    if (right.kind === "drawing" && !drawing) return null;
+    const grid = gridFor(symbol, sessions, rule.resolution, iv, session);
     const compiled: EngineRule = {
       id: rule.id,
       symbol,
-      sig,
+      sig: "",
       op: rule.op,
       shape: "level",
       frequency: rule.frequency,
       expiresAt: rule.expiresAt,
       since,
-      grid: gridKey,
+      grid: grid.key,
       values: [],
       perBar: null,
       absentIsOutside: false,
+      and: [],
     };
     if (right.kind === "value" && rule.right2?.kind === "value" && isBandOperator(rule.op)) {
       compiled.shape = "band";
@@ -237,6 +245,19 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       if (perBar.length > 0 && perBar.every((v) => sameValues(v, perBar[0]))) compiled.values = perBar[0];
       else compiled.perBar = perBar;
     }
+    return { compiled, sig: [rule.op, rule.left, right, rule.right2, rule.resolution, drawing?.points, drawing?.style] };
+  };
+  for (const rule of enabled) {
+    // The quotes the rule reads: its symbol's, or the compared symbol's.
+    const symbol = ruleQuoteSymbol(rule);
+    const since = rule.activeSince ?? rule.createdAt;
+    // Older rules without a session: regular hours, a chart's default.
+    const session: SessionId = rule.session ?? "RTH";
+    const parts = conditionRules(rule).map((v) => compile(v, symbol, since, session));
+    if (parts.some((p) => p === null)) continue;
+    const [first, ...more] = parts as { compiled: EngineRule; sig: unknown[] }[];
+    const sig = JSON.stringify([rule.frequency, session, since, ...parts.map((p) => p!.sig)]);
+    const compiled: EngineRule = { ...first.compiled, sig, and: more.map((p) => ({ ...p.compiled, sig })) };
     rules.push(compiled);
     keys.push(`${rule.id}\u0001${sig}\u0001${rule.expiresAt}`);
   }
@@ -294,7 +315,7 @@ export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLa
       // Rules and sessions are tracked; a moved drawing is caught by the
       // timer (its storage has no signal in the window that writes it).
       createEffect(() => {
-        alertStore.rules().forEach((r) => [r.enabled, r.op, r.frequency, r.expiresAt, r.activeSince, JSON.stringify(r.left), JSON.stringify(r.right), JSON.stringify(r.right2)]);
+        alertStore.rules().forEach((r) => [r.enabled, r.op, r.frequency, r.expiresAt, r.activeSince, JSON.stringify(r.left), JSON.stringify(r.right), JSON.stringify(r.right2), JSON.stringify(r.and)]);
         sessionsVersion();
         sync();
       });

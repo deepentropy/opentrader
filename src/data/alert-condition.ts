@@ -6,7 +6,7 @@
  * Kept separate from the store so both the evaluator and the UI can describe a
  * condition the same way without importing each other.
  */
-import type { AlertOperator, AlertRule, DrawingShape, Operand } from "./alert-store";
+import type { AlertCondition, AlertOperator, AlertRule, DrawingShape, Operand } from "./alert-store";
 import { cachedSymbolSessions } from "./session";
 import { FIB_LEVEL_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { VWAP_BAND_DEFAULTS } from "lightweight-charts-drawing/core/specs";
@@ -436,9 +436,64 @@ export function ruleQuoteSymbol(rule: Pick<AlertRule, "symbol" | "left">): strin
   return rule.left.kind === "symbol" ? rule.left.symbol.toUpperCase() : rule.symbol;
 }
 
-/** The compared symbols a rule reads (any side). */
-export function ruleComparedSymbols(rule: Pick<AlertRule, "left" | "right"> & { right2?: Operand }): string[] {
-  return [rule.left, rule.right, rule.right2].flatMap((o) => (o?.kind === "symbol" ? [o.symbol.toUpperCase()] : []));
+/** The compared symbols a rule reads (any side, any of its conditions). */
+export function ruleComparedSymbols(rule: Pick<AlertRule, "left" | "right"> & { right2?: Operand; and?: AlertCondition[] }): string[] {
+  const own = [rule.left, rule.right, rule.right2].flatMap((o) => (o?.kind === "symbol" ? [o.symbol.toUpperCase()] : []));
+  const more = (rule.and ?? []).flatMap((c) => ruleComparedSymbols(c));
+  return [...new Set([...own, ...more])];
+}
+
+// ── Multi-condition alerts ──
+// An alert holds up to MAX_CONDITIONS conditions: the first in the rule's own
+// fields, the others in `and`; it fires when all of them hold (reference
+// alert dialog constants and rules).
+
+/** Most conditions of one alert. */
+export const MAX_CONDITIONS = 5;
+
+/** Separator of the conditions in a default message ("AAPL Crossing 250 AND AAPL Greater Than 240"). */
+export const CONDITIONS_SEPARATOR = "AND";
+
+/** The conditions of a rule, first one first. */
+export function ruleConditions(rule: Pick<AlertRule, "left" | "op" | "right" | "resolution"> & { right2?: Operand; bars?: number; and?: AlertCondition[] }): AlertCondition[] {
+  const first: AlertCondition = { left: rule.left, op: rule.op, right: rule.right, resolution: rule.resolution, ...(rule.right2 ? { right2: rule.right2 } : {}), ...(rule.bars != null ? { bars: rule.bars } : {}) };
+  return [first, ...(rule.and ?? [])];
+}
+
+/** True when a rule has more than one condition. */
+export function isMultiCondition(rule: { and?: AlertCondition[] }): boolean {
+  return (rule.and?.length ?? 0) > 0;
+}
+
+/** Condition `i` of a rule as a single-condition rule (the evaluation reads its own memory under its own id:
+ *  the rule's id for the first condition, `<id>#<i>` for the others). */
+export function conditionRule(rule: AlertRule, i: number): AlertRule {
+  if (i === 0) return rule.and?.length ? { ...rule, and: undefined } : rule;
+  const c = rule.and?.[i - 1];
+  if (!c) return rule;
+  return { ...rule, id: `${rule.id}#${i}`, left: c.left, op: c.op, right: c.right, right2: c.right2, bars: c.bars, resolution: c.resolution, and: undefined };
+}
+
+/** Every condition of a rule as a single-condition rule. */
+export function conditionRules(rule: AlertRule): AlertRule[] {
+  return rule.and?.length ? ruleConditions(rule).map((_, i) => conditionRule(rule, i)) : [rule];
+}
+
+/** True when a condition reads bars (a study, a compared symbol): it has the per-bar triggers; a price against
+ *  values or a drawing, or a price moving, is read on every update. */
+export function conditionReadsStudy(c: Pick<AlertCondition, "left" | "op" | "right" | "right2">): boolean {
+  if (c.left.kind !== "price") return true;
+  if (isMovingOperator(c.op)) return false;
+  const sides = isBandOperator(c.op) && c.right.kind !== "drawing" ? [c.right, c.right2] : [c.right];
+  return sides.some((o) => o?.kind === "indicator" || o?.kind === "symbol");
+}
+
+/** Operators of the first condition that leave no room for another one (reference: strategies and the alert()
+ *  calls of a script; a long / short position). */
+export function blocksMoreConditions(c: Pick<AlertRule, "op" | "right">): "strategy" | "position" | null {
+  if (isStrategyOperator(c.op) || c.op === "alert_function") return "strategy";
+  if (c.op === "hits_level" || (c.right.kind === "drawing" && c.right.band === "position")) return "position";
+  return null;
 }
 
 /** Resolve an operand to a number, or null when unavailable. `resolution`:
@@ -589,7 +644,14 @@ export function conditionHasIntervalRow(rule: Pick<AlertRule, "left" | "op" | "r
  *  ("MA (9, close) Crossing 150 on AZO, 1h"); for a study's condition, the
  *  message the study declares; for a script's alert() calls, the condition
  *  (each fire has the call's message). */
-export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars"> & { right2?: Operand }): string {
+export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution" | "left" | "op" | "right" | "bars"> & { right2?: Operand; and?: AlertCondition[] }): string {
+  // Several conditions: each one's message, joined by " AND " (empty ones left out).
+  if (rule.and?.length) {
+    return ruleConditions(rule)
+      .map((c) => defaultAlertMessage({ symbol: rule.symbol, ...c }))
+      .filter((t) => t !== "")
+      .join(` ${CONDITIONS_SEPARATOR} `);
+  }
   if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
   // The message of a fire is the alert() call's: the alert is known by its name, the condition.
   if (rule.op === "alert_function" || rule.op === "strategy_alerts") return describeCondition(rule);

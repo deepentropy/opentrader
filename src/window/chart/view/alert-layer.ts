@@ -63,6 +63,8 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
     const theme = alertLabelTheme(uiTheme() !== "light");
     for (const r of alertStore.rules()) {
       if (r.symbol !== key) continue;
+      // A multi-condition alert has no line (reference: its condition() is null).
+      if (r.and?.length) continue;
       let levels: number[];
       if (LEVEL_OPERATORS.includes(r.op) && r.right.kind === "value") levels = [r.right.value];
       else if (isBandOperator(r.op) && r.right.kind === "value" && r.right2?.kind === "value") levels = [r.right.value, r.right2.value];

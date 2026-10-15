@@ -19,7 +19,7 @@ import { tickerOf } from "../../data/symbol-name";
 import { Tooltip } from "../../components/Tooltip";
 import { IconButton } from "../../components/IconButton";
 import { alertStore, type AlertRule } from "../../data/alert-store";
-import { defaultAlertMessage } from "../../data/alert-condition";
+import { defaultAlertMessage, ruleConditions } from "../../data/alert-condition";
 import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
 import { intervalLabel } from "../../data/datafeed";
 import * as kv from "../../data/kv";
@@ -43,7 +43,8 @@ type Filters = {
 const DEFAULT_FILTERS: Filters = { status: "all", symbol: false, interval: false, price: true, technicals: true, name: true, message: true, triggered: false };
 
 /** "Technicals": the alert reads an indicator or a drawing. */
-const isTechnical = (r: AlertRule) => r.left.kind !== "price" || r.right.kind === "indicator" || r.right.kind === "drawing";
+/** A condition on a study, a compared symbol or a drawing (any of an alert's conditions). */
+const isTechnical = (r: AlertRule) => ruleConditions(r).some((c) => c.left.kind !== "price" || c.right.kind === "indicator" || c.right.kind === "drawing");
 
 const SORTS: { key: SortKey; desc: boolean; label: string }[] = [
   { key: "symbol", desc: false, label: "Symbol (A to Z)" },

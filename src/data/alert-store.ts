@@ -134,6 +134,16 @@ export type AlertFrequency =
 
 export type AlertStopReason = "triggered" | "manual" | "expired";
 
+/** One condition of an alert: its source, operator, what it compares with and the interval it reads. */
+export type AlertCondition = {
+  left: Operand;
+  op: AlertOperator;
+  right: Operand;
+  right2?: Operand;
+  bars?: number;
+  resolution: string;
+};
+
 export type AlertRule = {
   id: string;
   /** Full name, uppercased ("NASDAQ:AAPL"); rules saved before full names
@@ -153,6 +163,9 @@ export type AlertRule = {
   right2?: Operand;
   /** Moving operators: the bar count ("in N bars", 1-300; unset = 1). */
   bars?: number;
+  /** A multi-condition alert: the conditions after the first one (the rule's own fields above), each with its own
+   *  interval; the alert fires when all of them hold at the same time (AND). Unset or empty = one condition. */
+  and?: AlertCondition[];
   frequency: AlertFrequency;
   /** User-supplied name; "" when unnamed. */
   name: string;
@@ -246,7 +259,9 @@ function load(): StoreShape {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        rules = parsed.filter(isRule).map((r: AlertRule) => ({ ...r, left: currentOperand(r.left), right: currentOperand(r.right), ...(r.right2 ? { right2: currentOperand(r.right2) } : {}) }));
+        const current = <T extends { left: Operand; right: Operand; right2?: Operand }>(c: T): T =>
+          ({ ...c, left: currentOperand(c.left), right: currentOperand(c.right), ...(c.right2 ? { right2: currentOperand(c.right2) } : {}) });
+        rules = parsed.filter(isRule).map((r: AlertRule) => ({ ...current(r), ...(Array.isArray(r.and) && r.and.length ? { and: r.and.map(current) } : {}) }));
       }
     }
   } catch {

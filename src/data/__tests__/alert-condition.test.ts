@@ -50,6 +50,14 @@ import {
   rulesOfDrawing,
   shapeOperators,
   positionHit,
+  MAX_CONDITIONS,
+  blocksMoreConditions,
+  conditionReadsStudy,
+  conditionRule,
+  conditionRules,
+  isMultiCondition,
+  ruleComparedSymbols,
+  ruleConditions,
   type EvalContext,
 } from "../alert-condition";
 
@@ -653,5 +661,52 @@ describe("positionHit", () => {
     expect(positionHit(SYM, short.id, 90)).toEqual({ level: "Profit level", price: 90, pnl: 830 });
     expect(positionHit(SYM, short.id, 103.2)).toEqual({ level: "Stop level", price: 103, pnl: -249 });
     expect(positionHit(SYM, "gone", 100)).toBeNull();
+  });
+});
+
+describe("multi-condition alerts", () => {
+  const rule = (extra: Partial<AlertRule> = {}): AlertRule =>
+    ({ id: "al1", symbol: SYM, resolution: "1D", left: price, op: "crossing", right: val(150), frequency: "every_time", name: "", message: "", sound: "", popup: false, enabled: true, createdAt: 0, expiresAt: null, ...extra }) as AlertRule;
+  const second = { left: price, op: "greater" as AlertOperator, right: val(140), resolution: "60" };
+  const msft: Operand = { kind: "symbol", symbol: "NASDAQ:MSFT", label: "Microsoft Corp (NASDAQ)" };
+
+  it("the conditions of a rule, the first one from its own fields", () => {
+    expect(ruleConditions(rule())).toEqual([{ left: price, op: "crossing", right: val(150), resolution: "1D" }]);
+    expect(ruleConditions(rule({ and: [second] }))).toEqual([{ left: price, op: "crossing", right: val(150), resolution: "1D" }, second]);
+    expect(isMultiCondition(rule())).toBe(false);
+    expect(isMultiCondition(rule({ and: [second] }))).toBe(true);
+    expect(MAX_CONDITIONS).toBe(5);
+  });
+
+  it("each condition as a rule of its own, with its own id and interval", () => {
+    const r = rule({ and: [second] });
+    expect(conditionRules(rule())).toHaveLength(1);
+    const [a, b] = conditionRules(r);
+    expect([a.id, a.op, a.resolution, a.and]).toEqual(["al1", "crossing", "1D", undefined]);
+    expect([b.id, b.op, b.resolution, b.and, b.symbol, b.frequency]).toEqual(["al1#1", "greater", "60", undefined, SYM, "every_time"]);
+    expect(conditionRule(r, 5)).toBe(r);
+  });
+
+  it("the default message joins the conditions with AND", () => {
+    expect(defaultAlertMessage(rule({ and: [second] }))).toBe("AZO Crossing 150.00 AND AZO Greater Than 140.00");
+  });
+
+  it("the compared symbols of every condition", () => {
+    expect(ruleComparedSymbols(rule({ and: [{ ...second, left: msft }] }))).toEqual(["NASDAQ:MSFT"]);
+  });
+
+  it("strategies, alert() calls and positions leave no room for another condition", () => {
+    expect(blocksMoreConditions({ op: "strategy_orders", right: val(0) })).toBe("strategy");
+    expect(blocksMoreConditions({ op: "alert_function", right: val(0) })).toBe("strategy");
+    expect(blocksMoreConditions({ op: "hits_level", right: drw("p", { band: "position" }) })).toBe("position");
+    expect(blocksMoreConditions({ op: "crossing", right: val(1) })).toBeNull();
+  });
+
+  it("a condition reads bars when it reads a study or a compared symbol", () => {
+    expect(conditionReadsStudy({ left: price, op: "crossing", right: val(1) })).toBe(false);
+    expect(conditionReadsStudy({ left: price, op: "moving_up", right: val(1) })).toBe(false);
+    expect(conditionReadsStudy({ left: ind(), op: "crossing", right: val(1) })).toBe(true);
+    expect(conditionReadsStudy({ left: price, op: "crossing", right: ind() })).toBe(true);
+    expect(conditionReadsStudy({ left: price, op: "entering", right: val(1), right2: msft })).toBe(true);
   });
 });

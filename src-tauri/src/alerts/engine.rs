@@ -43,6 +43,10 @@ pub struct EngineRule {
     /// A band without value counts as "outside" (a rectangle outside its
     /// dates) instead of leaving the condition undecided.
     pub absent_is_outside: bool,
+    /// A multi-condition alert: the conditions after the first one, each on
+    /// its own grid; the rule fires when all of them hold with the first.
+    #[serde(default)]
+    pub and: Vec<EngineRule>,
 }
 
 /// Bars of one symbol on one interval and session (regular or extended
@@ -127,6 +131,8 @@ pub struct RuleState {
     entry_hit: bool,
     /// Its missed bars are being replayed: live quotes wait.
     replaying: bool,
+    /// Memory of the conditions after the first one.
+    and: Vec<RuleState>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -229,8 +235,25 @@ impl EngineRule {
         }
     }
 
-    /// Evaluate one sample: the condition, then the trigger rule.
-    fn step(&self, st: &mut RuleState, s: Sample, grid: Option<&EngineGrid>) -> Option<Fire> {
+    /// All the conditions of the rule for this sample: the price the first one
+    /// is met at when every one is met. Each condition reads the sample, so its
+    /// memory moves on even when another one is not met.
+    fn conditions(&self, st: &mut RuleState, s: Sample, grid: Option<&EngineGrid>, more: &[Option<&EngineGrid>]) -> Option<f64> {
+        let first = self.condition(st, s, grid);
+        if self.and.is_empty() {
+            return first;
+        }
+        st.and.resize_with(self.and.len(), RuleState::default);
+        let mut all = first.is_some();
+        for (i, c) in self.and.iter().enumerate() {
+            all &= c.condition(&mut st.and[i], s, more.get(i).copied().flatten()).is_some();
+        }
+        if all { first } else { None }
+    }
+
+    /// Evaluate one sample: the conditions, then the trigger rule. `more`: the
+    /// grids of the conditions after the first one.
+    fn step(&self, st: &mut RuleState, s: Sample, grid: Option<&EngineGrid>, more: &[Option<&EngineGrid>]) -> Option<Fire> {
         if st.done || self.expires_at.is_some_and(|e| s.time * 1000.0 >= e) {
             return None;
         }
@@ -271,7 +294,7 @@ impl EngineRule {
                     // No sample, but the session's last bar has closed.
                     st.forming.take()?
                 };
-                let price = self.condition(st, Sample::point(last.price, last.time), grid)?;
+                let price = self.conditions(st, Sample::point(last.price, last.time), grid, more)?;
                 if st.last_fired_bar == Some(closed) {
                     return None;
                 }
@@ -279,7 +302,7 @@ impl EngineRule {
                 Some(fire(price, last.time, Some(closed)))
             }
             "once_per_bar" => {
-                let price = self.condition(st, s, grid)?;
+                let price = self.conditions(st, s, grid, more)?;
                 let bar = bar?;
                 if st.last_fired_bar == Some(bar) {
                     return None;
@@ -289,7 +312,7 @@ impl EngineRule {
             }
             // "Once per minute while condition remains met".
             "every_time" => {
-                let price = self.condition(st, s, grid)?;
+                let price = self.conditions(st, s, grid, more)?;
                 if st.last_fired_at.is_some_and(|t| s.time - t < EVERY_TIME_SEC) {
                     return None;
                 }
@@ -297,7 +320,7 @@ impl EngineRule {
                 Some(fire(price, s.time, bar))
             }
             freq => {
-                let price = self.condition(st, s, grid)?;
+                let price = self.conditions(st, s, grid, more)?;
                 st.done = freq == "only_once";
                 Some(fire(price, s.time, bar))
             }
@@ -308,7 +331,8 @@ impl EngineRule {
 /// Run a rule over the minute bars after `from` (UNIX seconds): the state it
 /// ends in and what fired (the latest `REPLAY_MAX_FIRES`). Each bar of the
 /// rule's session is read as its open, then its close with the bar's range.
-pub fn replay_rule(rule: &EngineRule, grid: Option<&EngineGrid>, bars: &[Candle], from: f64) -> (RuleState, Vec<Fire>) {
+pub fn replay_rule(rule: &EngineRule, grid: Option<&EngineGrid>, more: &[Option<EngineGrid>], bars: &[Candle], from: f64) -> (RuleState, Vec<Fire>) {
+    let more: Vec<Option<&EngineGrid>> = more.iter().map(|g| g.as_ref()).collect();
     let mut st = RuleState::default();
     let mut fires = Vec::new();
     for b in bars {
@@ -317,7 +341,7 @@ pub fn replay_rule(rule: &EngineRule, grid: Option<&EngineGrid>, bars: &[Candle]
         }
         let close = Sample { price: b.close, lo: b.low.min(b.close), hi: b.high.max(b.close), time: b.time, extended: false };
         for s in [Sample::point(b.open, b.time), close] {
-            fires.extend(rule.step(&mut st, s, grid));
+            fires.extend(rule.step(&mut st, s, grid, &more));
         }
     }
     if fires.len() > REPLAY_MAX_FIRES {
@@ -331,7 +355,8 @@ pub struct ReplayJob {
     pub symbol: String,
     /// UNIX seconds: bars after it are replayed.
     pub from: f64,
-    pub rules: Vec<(EngineRule, Option<EngineGrid>)>,
+    /// Each rule with its grid and the grids of its other conditions.
+    pub rules: Vec<(EngineRule, Option<EngineGrid>, Vec<Option<EngineGrid>>)>,
 }
 
 /// Minute bar last seen for a symbol: what is new in the next one.
@@ -368,7 +393,8 @@ impl Engine {
                     st.replaying = true;
                     let job = jobs.entry(rule.symbol.clone()).or_insert_with(|| ReplayJob { symbol: rule.symbol.clone(), from, rules: Vec::new() });
                     job.from = job.from.min(from);
-                    job.rules.push((rule.clone(), self.grids.get(&rule.grid).cloned()));
+                    let more = rule.and.iter().map(|c| self.grids.get(&c.grid).cloned()).collect();
+                    job.rules.push((rule.clone(), self.grids.get(&rule.grid).cloned(), more));
                 }
             }
             self.rules.insert(rule.id.clone(), (rule, st));
@@ -390,13 +416,13 @@ impl Engine {
     /// the bars could not be read, the rules start from the next quote).
     pub fn finish_replay(&mut self, job: &ReplayJob, bars: Option<&[Candle]>) -> Vec<Fire> {
         let mut fires = Vec::new();
-        for (rule, grid) in &job.rules {
+        for (rule, grid, more) in &job.rules {
             let Some((current, st)) = self.rules.get_mut(&rule.id) else { continue };
             if current.sig != rule.sig || !st.replaying {
                 continue;
             }
             let from = job.from.max(rule.since / 1000.0);
-            let (state, fired) = bars.map(|b| replay_rule(rule, grid.as_ref(), b, from)).unwrap_or_default();
+            let (state, fired) = bars.map(|b| replay_rule(rule, grid.as_ref(), more, b, from)).unwrap_or_default();
             *st = state;
             fires.extend(fired);
         }
@@ -450,7 +476,8 @@ impl Engine {
                     Some(b) if b.low <= last && last <= b.high => with_range(last),
                     Some(_) => Sample::point(last, time),
                 };
-                r.step(st, s, grid)
+                let more: Vec<Option<&EngineGrid>> = r.and.iter().map(|c| grids.get(&c.grid)).collect();
+                r.step(st, s, grid, &more)
             })
             .collect()
     }
@@ -474,6 +501,7 @@ mod tests {
             values: values.to_vec(),
             per_bar: None,
             absent_is_outside: false,
+            and: Vec::new(),
         }
     }
 
@@ -513,6 +541,35 @@ mod tests {
         assert!(e.sample("X:A", 99.3, Some(&bar(0.0, 99.0, 100.4, 98.5, 99.3)), 20.0).is_empty());
         // A new bar counts whole (a minute after the fire).
         assert_eq!(e.sample("X:A", 99.4, Some(&bar(60.0, 99.3, 100.1, 99.3, 99.4)), 76.0).len(), 1);
+    }
+
+    #[test]
+    fn all_conditions_must_hold() {
+        // Price crossing up 100 AND price less than 105.
+        let mut r = rule("crossing_up", "level", "every_time", &[100.0]);
+        r.and = vec![rule("less", "level", "every_time", &[105.0])];
+        let mut e = engine(vec![r]);
+        assert!(e.sample("X:A", 99.0, None, 10.0).is_empty());
+        // Crosses 100 but jumps above 105: the second condition is not met.
+        assert!(e.sample("X:A", 106.0, None, 20.0).is_empty());
+        assert!(e.sample("X:A", 99.0, None, 30.0).is_empty());
+        // Crosses 100 and stays under 105: fires at the first condition's price.
+        let fires = e.sample("X:A", 101.0, None, 40.0);
+        assert_eq!(fires.len(), 1);
+        assert_eq!(fires[0].price, 101.0);
+    }
+
+    #[test]
+    fn each_condition_keeps_its_own_memory() {
+        // Price greater than 100 AND price crossing up 110: the crossing reads its own previous sample even while the
+        // first condition is not met.
+        let mut r = rule("greater", "level", "every_time", &[100.0]);
+        r.and = vec![rule("crossing_up", "level", "every_time", &[110.0])];
+        let mut e = engine(vec![r]);
+        assert!(e.sample("X:A", 90.0, None, 10.0).is_empty());
+        assert_eq!(e.sample("X:A", 111.0, None, 20.0).len(), 1);
+        // Above both: no new crossing.
+        assert!(e.sample("X:A", 112.0, None, 90.0).is_empty());
     }
 
     #[test]
@@ -643,15 +700,15 @@ mod tests {
     fn replay_of_the_missed_bars() {
         let bars = [bar(60.0, 99.0, 99.5, 98.0, 99.0), bar(120.0, 99.0, 100.5, 99.0, 99.4), bar(180.0, 99.4, 99.6, 99.0, 99.2)];
         let r = rule("crossing_up", "level", "every_time", &[100.0]);
-        let (st, fires) = replay_rule(&r, Some(&grid()), &bars, 0.0);
+        let (st, fires) = replay_rule(&r, Some(&grid()), &[], &bars, 0.0);
         assert_eq!(fires.len(), 1);
         assert_eq!((fires[0].time, fires[0].price), (120.0, 100.5));
         assert_eq!(st.prev_diff, Some(99.2 - 100.0));
         // Bars at or before the start are not read; nor those outside the
         // regular session.
-        assert!(replay_rule(&r, Some(&grid()), &bars, 120.0).1.is_empty());
+        assert!(replay_rule(&r, Some(&grid()), &[], &bars, 120.0).1.is_empty());
         let closed = EngineGrid { regular: vec![(0.0, 100.0)], ..grid() };
-        assert!(replay_rule(&r, Some(&closed), &bars, 0.0).1.is_empty());
+        assert!(replay_rule(&r, Some(&closed), &[], &bars, 0.0).1.is_empty());
     }
 
     #[test]
@@ -705,8 +762,8 @@ mod tests {
         // The replay reads the minutes of the rule's session.
         let minutes = [bar(-120.0, 101.0, 101.0, 101.0, 101.0), bar(660.0, 101.0, 101.0, 101.0, 101.0)];
         let r = rule("greater", "level", "once_per_bar", &[100.0]);
-        assert!(replay_rule(&r, Some(&rth()), &minutes, -1000.0).1.is_empty());
-        let fires: Vec<_> = replay_rule(&r, Some(&eth()), &minutes, -1000.0).1.iter().map(|f| f.bar_time).collect();
+        assert!(replay_rule(&r, Some(&rth()), &[], &minutes, -1000.0).1.is_empty());
+        let fires: Vec<_> = replay_rule(&r, Some(&eth()), &[], &minutes, -1000.0).1.iter().map(|f| f.bar_time).collect();
         assert_eq!(fires, vec![Some(-300.0), Some(600.0)]);
     }
 

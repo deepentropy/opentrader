@@ -374,6 +374,56 @@
   line-height: 18px;
 }
 .ad--message { --ad-body-soft-min-height: 170px; }
+/* Add / Edit condition view (reference: soft minimum 370 px). */
+.ad--condition { --ad-body-soft-min-height: 370px; }
+
+/* Several conditions: a 34 px row per condition (text, then its bin), "AND" between them; "Add condition" under
+   them, in the column of the controls (reference sizes and colours). */
+.ad-conds { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ad-cond { display: flex; height: 34px; border-radius: 8px; background: var(--color-container-fill-primary-neutral-extra-light); }
+.ad-cond-edit,
+.ad-cond-delete {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.ad-cond-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: 8px 0 0 8px;
+  text-align: left;
+  font-size: 14px;
+  line-height: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ad-cond-delete { flex: none; width: 34px; display: grid; place-items: center; border-radius: 0 8px 8px 0; }
+.ad-cond-edit:hover,
+.ad-cond-delete:hover { background: var(--color-container-fill-primary-neutral-light); }
+.ad-cond-op { color: var(--color-tan-orange-500); }
+.ad-and { margin: 4px 0; font-size: 11px; line-height: 16px; letter-spacing: 0.4px; text-transform: uppercase; color: var(--color-text-secondary); }
+.ad-add-cond { display: flex; align-items: center; gap: 4px; margin: 16px 0 0 131px; }
+.ad-add-cond-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-link-primary-default);
+  font: inherit;
+  font-size: 14px;
+  line-height: 18px;
+  cursor: pointer;
+}
+.ad-add-cond-btn:disabled { color: var(--color-text-disabled, var(--color-text-secondary)); cursor: default; }
+.ad-add-cond-hint { display: inline-flex; color: var(--color-text-secondary); }
+.ad-cond-remove { margin-right: auto; }
 .ad-header {
   display: flex;
   align-items: center;
