@@ -18,6 +18,9 @@
  *  - a script's alert() calls: the calls of the bar's last run (see
  *    replayAlertCalls).
  * One fire per bar at most, at the bar's close (now for the bar in progress).
+ * An alert with several conditions: each condition is read that way on its
+ * own interval, and they are read together at every bar close (see
+ * replayConditions).
  */
 import type { AlertRule } from "./alert-store";
 import type { StudyAlertCall } from "./alert-study-conditions";
@@ -47,6 +50,35 @@ export function replayRule(
 ): ReplayFire[] {
   const fires: ReplayFire[] = [];
   const onClose = rule.frequency === "once_per_bar_close";
+  const met = ruleFlags(rule, bars, left, right, fromSec, stepSec, lower);
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const close = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
+    if (close <= fromSec || b.time >= nowSec) continue;
+    if (rule.expiresAt != null && b.time * 1000 >= rule.expiresAt) break;
+    // The bar in progress has no close yet.
+    if (onClose && close > nowSec) continue;
+    const price = met[i];
+    if (price == null) continue;
+    fires.push({ price, barTime: b.time * 1000, fireTime: Math.min(close, nowSec) * 1000 });
+    if (rule.frequency === "only_once") break;
+  }
+  return fires.slice(-REPLAY_MAX_FIRES);
+}
+
+/** Per bar, whether one condition is met at the bar's close (the price a fire gives, null when not met), read as
+ *  replayRule reads it; the bars closing at `fromSec` or before are not read. */
+export function ruleFlags(
+  rule: Pick<AlertRule, "op" | "frequency" | "bars" | "right">,
+  bars: ReplayBar[],
+  left: (number | null)[] | null,
+  right: (number | null)[],
+  fromSec: number,
+  stepSec: number,
+  lower: (number | null)[] | null = null,
+): (number | null)[] {
+  const out: (number | null)[] = bars.map(() => null);
+  const onClose = rule.frequency === "once_per_bar_close";
   let wasInside: boolean | null = null;
   // A rule on the close reads the closes only, like a study.
   const series = left ?? (onClose ? bars.map((b) => b.close) : null);
@@ -55,10 +87,7 @@ export function replayRule(
   for (let i = 0; i < bars.length; i++) {
     const b = bars[i];
     const close = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
-    if (close <= fromSec || b.time >= nowSec) continue;
-    if (rule.expiresAt != null && b.time * 1000 >= rule.expiresAt) break;
-    // The bar in progress has no close yet.
-    if (onClose && close > nowSec) continue;
+    if (close <= fromSec) continue;
     let price: number | null = null;
     if (rule.op === "moving_up_pct" || rule.op === "moving_down_pct") {
       const up = rule.op === "moving_up_pct";
@@ -113,8 +142,73 @@ export function replayRule(
         if (hit(rule.op, up, down, b.high > level, b.low < level)) price = level;
       }
     }
-    if (price == null) continue;
-    fires.push({ price, barTime: b.time * 1000, fireTime: Math.min(close, nowSec) * 1000 });
+    out[i] = price;
+  }
+  return out;
+}
+
+/** One condition of a multi-condition alert for the replay: its bars (its own interval), per bar whether it is met at
+ *  the bar's close, and how it holds: an event (a crossing, entering or exiting a channel) counts at its bar's close
+ *  only, a state (a level, a channel, a moving amount, a study's condition) until its next bar closes. */
+export type ReplayConditionSeries = {
+  bars: ReplayBar[];
+  stepSec: number;
+  met: boolean[];
+  event: boolean;
+  /** The moment each bar closes (UNIX seconds: the end of its session for a daily or longer bar); unset: its time
+   *  plus the interval, at most the next bar's time. */
+  closes?: number[];
+};
+
+/** True for the operators that are an event in time (they hold at one moment). */
+export function isEventOperator(op: AlertRule["op"]): boolean {
+  return op === "crossing" || op === "crossing_up" || op === "crossing_down" || op === "entering" || op === "exiting";
+}
+
+/** The fires of a multi-condition alert in the bars closing after `fromSec` up to `nowSec`: every condition is read at
+ *  each close of any of their bars (each on its own bars: the latest bar closed by then) and the alert fires when all
+ *  hold, as the live evaluation does on one update. `frame`: the bars of the alert's interval (its first condition's),
+ *  which the trigger counts in (one fire per bar, or at the bar's close only); the fire gives the close of a
+ *  condition bar closing then. Closed bars only: the bar in progress is left to the live evaluation. */
+export function replayConditions(
+  rule: Pick<AlertRule, "frequency" | "expiresAt">,
+  conds: ReplayConditionSeries[],
+  frame: ReplayBar[],
+  frameStepSec: number,
+  fromSec: number,
+  nowSec: number,
+): ReplayFire[] {
+  const closeOf = (bars: ReplayBar[], i: number, step: number) => Math.min(bars[i].time + step, bars[i + 1]?.time ?? Infinity);
+  const closes = conds.map((c) => c.closes ?? c.bars.map((_, i) => closeOf(c.bars, i, c.stepSec)));
+  const frameCloses = frame === conds[0]?.bars ? closes[0] : frame.map((_, i) => closeOf(frame, i, frameStepSec));
+  const onClose = rule.frequency === "once_per_bar_close";
+  // The moments read: every close (of the alert's own bars only, for a trigger at the bar's close).
+  const times = [...new Set(onClose ? frameCloses : closes.flat())].filter((t) => t > fromSec && t <= nowSec).sort((a, b) => a - b);
+  const at = conds.map(() => -1);
+  const fires: ReplayFire[] = [];
+  let lastFrame = -1;
+  let f = 0;
+  for (const t of times) {
+    // The alert's bar this moment belongs to (the one it closes, or the one forming).
+    while (f < frame.length - 1 && frameCloses[f] < t) f++;
+    if (f >= frame.length || frame[f].time >= t) continue;
+    if (rule.expiresAt != null && frame[f].time * 1000 >= rule.expiresAt) break;
+    let all = true;
+    let price: number | null = null;
+    for (let k = 0; k < conds.length; k++) {
+      const c = conds[k];
+      while (at[k] + 1 < c.bars.length && closes[k][at[k] + 1] <= t) at[k]++;
+      const i = at[k];
+      if (i < 0 || !c.met[i] || (c.event && closes[k][i] !== t)) {
+        all = false;
+        continue;
+      }
+      if (closes[k][i] === t && price == null) price = c.bars[i].close;
+    }
+    if (!all) continue;
+    if ((rule.frequency === "once_per_bar" || onClose) && lastFrame === f) continue;
+    lastFrame = f;
+    fires.push({ price: price ?? frame[f].close, barTime: frame[f].time * 1000, fireTime: t * 1000 });
     if (rule.frequency === "only_once") break;
   }
   return fires.slice(-REPLAY_MAX_FIRES);

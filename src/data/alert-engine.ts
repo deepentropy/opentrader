@@ -28,7 +28,7 @@
  */
 import { createRoot, createEffect, createSignal, onCleanup } from "solid-js";
 import { onTradeTick, getBars, getTickerInfo, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
-import { cachedSymbolSessions, localToUtc } from "./session";
+import { cachedSymbolSessions, localToUtc, symbolSessions } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
 import { alertStore, type AlertRule, type Operand } from "./alert-store";
@@ -37,7 +37,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
-import { conditionRules, defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
+import { conditionRules, defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingPriceLevel, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, chartLastPrice, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
@@ -47,7 +47,7 @@ import type { ChartContext } from "oakscriptjs/script";
 import { OtherSymbolBars } from "../window/chart/indicators/other-symbols";
 import { commands } from "../bindings";
 import * as kv from "./kv";
-import { REPLAY_MAX_FIRES, REPLAY_MAX_SEC, replayAlertCalls, replayCondition, replayRule } from "./alert-replay";
+import { isEventOperator, REPLAY_MAX_FIRES, REPLAY_MAX_SEC, replayAlertCalls, replayCondition, replayConditions, replayRule, ruleFlags, type ReplayConditionSeries } from "./alert-replay";
 import { alertCallsOf, conditionBars, type StudyAlertCall } from "./alert-study-conditions";
 import { fillPlaceholders, needsBarData, type PlaceholderValues } from "./alert-placeholders";
 import { messageOutputs, outputByKey, outputSeries, outputValue } from "./alert-outputs";
@@ -1370,6 +1370,101 @@ function plotSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[
   }
 }
 
+/** The moment each bar closes (UNIX seconds), for conditions on several intervals read together: an intraday bar at
+ *  its end or its session's end; a daily or longer bar at the end of the last session it covers. */
+async function barCloses(symbol: string, resolution: string, session: SessionId, bars: ChartBar[]): Promise<number[]> {
+  const stepSec = resolutionMs(resolution) / 1000;
+  const spec = await symbolSessions(symbol).then((s) => s.spec(session), () => null);
+  const long = /[DWM]$/i.test(resolution);
+  return bars.map((b, i) => {
+    const end = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
+    if (!spec) return end;
+    if (long) return spec.previous(end)?.end ?? end;
+    const iv = spec.currentOrNext(b.time);
+    return iv && iv.start <= b.time ? Math.min(end, iv.end) : end;
+  });
+}
+
+/** What one condition reads for the replay, on the bars of its interval: the operands' values at each bar's close
+ *  (`left` null: the price), or per bar whether it holds (`flags`: a study's own condition, the crossing of a
+ *  vertical line). */
+type ReplayInputs = { bars: ChartBar[]; stepSec: number; left: (number | null)[] | null; right: (number | null)[]; lower: (number | null)[] | null; flags?: boolean[] };
+
+/** The inputs of `rule`'s condition for the replay from `from` (UNIX seconds); null when it cannot be read. `drawings`:
+ *  the price levels and channels of drawings too (a single condition on them is replayed by the backend). */
+async function replayInputs(rule: AlertRule, barsBy: Map<string, ChartBar[]>, session: SessionId, from: number, drawings: boolean): Promise<ReplayInputs | null> {
+  const { left, right } = rule;
+  const right2 = rule.right2;
+  const stepSec = resolutionMs(rule.resolution) / 1000;
+  if (rule.op === "alert_condition") {
+    if (left.kind !== "indicator") return null;
+    const bars = await replayBars(barsBy, rule.symbol, rule.resolution, session);
+    if (!bars) return null;
+    const flags = await conditionSeries(left, bars, rule, session);
+    return flags ? { bars, stepSec, left: null, right: [], lower: null, flags } : null;
+  }
+  // A compared symbol's price: its own bars.
+  const quoteSymbol = ruleQuoteSymbol(rule);
+  const quoteBars = await replayBars(barsBy, quoteSymbol, rule.resolution, session);
+  if (!quoteBars) return null; // no bars: nothing to read
+  // A compared symbol against the chart symbol's price or studies: those are read on the chart symbol's bars, at
+  // the bars both symbols have.
+  const ownBars = quoteSymbol === rule.symbol ? quoteBars : await replayBars(barsBy, rule.symbol, rule.resolution, session);
+  if (!ownBars) return null;
+  const ownIndex = new Map(ownBars.map((b, i) => [b.time, i]));
+  const bars = quoteSymbol === rule.symbol ? quoteBars : quoteBars.filter((b) => ownIndex.has(b.time));
+  const aligned = (series: (number | null)[] | null) => (series && ownBars !== bars ? bars.map((b) => series[ownIndex.get(b.time)!] ?? null) : series);
+  /** Closes of a compared symbol at the bars read (null where it has none). */
+  const symbolSeries = async (sym: string) => {
+    const other = await replayBars(barsBy, sym.toUpperCase(), rule.resolution, session);
+    if (!other) return null;
+    const at = new Map(other.map((b) => [b.time, b.close]));
+    return bars.map((b) => at.get(b.time) ?? null);
+  };
+  /** The close of bar i (now for the bar in progress). */
+  const closeAt = (i: number) => Math.min(bars[i].time + stepSec, bars[i + 1]?.time ?? Infinity, Date.now() / 1000);
+  // A compared symbol as the source: the bars read are its own (its price).
+  const leftSeries = left.kind === "indicator" ? plotSeries(left, bars, rule, session) : null;
+  if (left.kind === "indicator" && !leftSeries) return null;
+  let rightSeries: (number | null)[] | null;
+  let lowerSeries: (number | null)[] | null = null;
+  if (right.kind === "indicator") rightSeries = aligned(plotSeries(right, ownBars, rule, session));
+  else if (right.kind === "price") rightSeries = aligned(ownBars.map((b) => b.close));
+  else if (right.kind === "symbol") rightSeries = await symbolSeries(right.symbol);
+  else if (right.kind === "value") rightSeries = bars.map(() => right.value);
+  else if (right.kind === "drawing" && right.plot != null) {
+    // The VWAP as it stood at each bar read (and the one before it).
+    const all = bars;
+    const plot = right.plot;
+    const first = all.findIndex((b) => b.time + stepSec > from);
+    rightSeries = all.map((_, i) => (first >= 0 && i >= first - 1 ? drawingVwapValue(rule.symbol, right.drawingId, plot, all.slice(0, i + 1)) : null));
+  } else if (right.kind === "drawing" && drawings) {
+    if (right.band === "position") return null;
+    if (right.band === "time") {
+      // A vertical line: crossed in the bar its time falls in.
+      const t = drawingTime(rule.symbol, right.drawingId);
+      if (t == null) return null;
+      return { bars, stepSec, left: null, right: [], lower: null, flags: bars.map((b, i) => b.time <= t && t < closeAt(i)) };
+    }
+    if (right.band === "channel" || right.band === "rectangle") {
+      // Its two bounds where they stand at each bar's close.
+      const bounds = bars.map((_, i) => drawingBand(rule.symbol, right.drawingId, closeAt(i), right.level, right.level2));
+      rightSeries = bounds.map((b) => b?.upper ?? null);
+      lowerSeries = bounds.map((b) => b?.lower ?? null);
+    } else rightSeries = bars.map((_, i) => drawingPriceLevel(rule.symbol, right.drawingId, closeAt(i), right.level));
+  } else return null;
+  if (!rightSeries) return null;
+  // Channel between two bounds: the lower one.
+  if (right2 && isBandOperator(rule.op)) {
+    if (right2.kind === "indicator") lowerSeries = aligned(plotSeries(right2, ownBars, rule, session));
+    else if (right2.kind === "value") lowerSeries = bars.map(() => right2.value);
+    else if (right2.kind === "price") lowerSeries = aligned(ownBars.map((b) => b.close));
+    else if (right2.kind === "symbol") lowerSeries = await symbolSeries(right2.symbol);
+    if (!lowerSeries) return null;
+  }
+  return { bars, stepSec, left: leftSeries, right: rightSeries, lower: lowerSeries };
+}
+
 /** Bars of a symbol + interval + session for the replay, fetched once per run (null when they cannot be loaded). */
 async function replayBars(cache: Map<string, ChartBar[]>, symbol: string, resolution: string, session: SessionId): Promise<ChartBar[] | null> {
   const key = `${symbol}|${resolution}|${session}`;
@@ -1397,8 +1492,28 @@ export async function replayMissedFires(previous: Record<string, number | null |
   const barsBy = new Map<string, ChartBar[]>();
   for (const rule of alertStore.enabledRules()) {
     if (evaluatedByBackend(rule) || !isSupportedResolution(rule.resolution)) continue;
-    // Several conditions read in the window: not replayed (the backend replays the ones it evaluates).
-    if (rule.and?.length) continue;
+    // Several conditions read in the window: each on its own interval's bars, read together at every bar close.
+    if (rule.and?.length) {
+      const since = (rule.activeSince ?? rule.createdAt) / 1000;
+      const from = Math.max(previous[ruleQuoteSymbol(rule)] ?? since, since, nowSec - REPLAY_MAX_SEC);
+      if (nowSec - from < 60) continue;
+      const session = rule.session ?? DEFAULT_SESSION;
+      const conds: ReplayConditionSeries[] = [];
+      for (const view of conditionRules(rule)) {
+        // The bar closed before the first one read, for the state a condition is in when the replay starts.
+        const step = resolutionMs(view.resolution) / 1000;
+        const inp = await replayInputs(view, barsBy, session, from - step, true);
+        if (!inp) break;
+        const met = inp.flags ?? ruleFlags(view, inp.bars, inp.left, inp.right, from - step, inp.stepSec, inp.lower).map((p) => p != null);
+        conds.push({ bars: inp.bars, stepSec: inp.stepSec, met, event: isEventOperator(view.op), closes: await barCloses(ruleQuoteSymbol(view), view.resolution, session, inp.bars) });
+      }
+      if (conds.length !== conditionRules(rule).length) continue; // a condition cannot be read: not replayed
+      for (const f of replayConditions(rule, conds, conds[0].bars, conds[0].stepSec, from, nowSec)) {
+        deliverFire(rule, f.price, f.barTime, { fireTime: f.fireTime });
+        found++;
+      }
+      continue;
+    }
     const { left, right } = rule;
     if (isStrategyOperator(rule.op)) {
       if (left.kind !== "indicator") continue;
@@ -1468,48 +1583,9 @@ export async function replayMissedFires(previous: Record<string, number | null |
     const from = Math.max(previous[quoteSymbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
     if (nowSec - from < 60) continue;
     const session = rule.session ?? DEFAULT_SESSION;
-    const quoteBars = await replayBars(barsBy, quoteSymbol, rule.resolution, session);
-    if (!quoteBars) continue; // no bars: nothing to read
-    // A compared symbol against the chart symbol's price or studies: those are read on the chart symbol's bars, at
-    // the bars both symbols have.
-    const ownBars = quoteSymbol === rule.symbol ? quoteBars : await replayBars(barsBy, rule.symbol, rule.resolution, session);
-    if (!ownBars) continue;
-    const ownIndex = new Map(ownBars.map((b, i) => [b.time, i]));
-    const bars = quoteSymbol === rule.symbol ? quoteBars : quoteBars.filter((b) => ownIndex.has(b.time));
-    const aligned = (series: (number | null)[] | null) => (series && ownBars !== bars ? bars.map((b) => series[ownIndex.get(b.time)!] ?? null) : series);
-    /** Closes of a compared symbol at the bars read (null where it has none). */
-    const symbolSeries = async (sym: string) => {
-      const other = await replayBars(barsBy, sym.toUpperCase(), rule.resolution, session);
-      if (!other) return null;
-      const at = new Map(other.map((b) => [b.time, b.close]));
-      return bars.map((b) => at.get(b.time) ?? null);
-    };
-    const stepSec = resolutionMs(rule.resolution) / 1000;
-    const leftSeries = left.kind === "indicator" ? plotSeries(left, bars, rule, session) : null;
-    if (left.kind === "indicator" && !leftSeries) continue;
-    let rightSeries: (number | null)[] | null;
-    if (right.kind === "indicator") rightSeries = aligned(plotSeries(right, ownBars, rule, session));
-    else if (right.kind === "price") rightSeries = aligned(ownBars.map((b) => b.close));
-    else if (right.kind === "symbol") rightSeries = await symbolSeries(right.symbol);
-    else if (right.kind === "value") rightSeries = bars.map(() => right.value);
-    else if (right.kind === "drawing" && right.plot != null) {
-      // The VWAP as it stood at each bar read (and the one before it).
-      const all = bars;
-      const plot = right.plot;
-      const first = all.findIndex((b) => b.time + stepSec > from);
-      rightSeries = all.map((_, i) => (first >= 0 && i >= first - 1 ? drawingVwapValue(rule.symbol, right.drawingId, plot, all.slice(0, i + 1)) : null));
-    } else continue;
-    if (!rightSeries) continue;
-    // Channel between two bounds: the lower one.
-    let lowerSeries: (number | null)[] | null = null;
-    if (right2 && isBandOperator(rule.op)) {
-      if (right2.kind === "indicator") lowerSeries = aligned(plotSeries(right2, ownBars, rule, session));
-      else if (right2.kind === "value") lowerSeries = bars.map(() => right2.value);
-      else if (right2.kind === "price") lowerSeries = aligned(ownBars.map((b) => b.close));
-      else if (right2.kind === "symbol") lowerSeries = await symbolSeries(right2.symbol);
-      if (!lowerSeries) continue;
-    }
-    for (const f of replayRule(rule, bars, leftSeries, rightSeries, from, nowSec, stepSec, lowerSeries)) {
+    const inp = await replayInputs(rule, barsBy, session, from, false);
+    if (!inp || inp.flags) continue;
+    for (const f of replayRule(rule, inp.bars, inp.left, inp.right, from, nowSec, inp.stepSec, inp.lower)) {
       deliverFire(rule, f.price, f.barTime, { fireTime: f.fireTime });
       found++;
     }

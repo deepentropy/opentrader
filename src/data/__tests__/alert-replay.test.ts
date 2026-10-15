@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AlertFrequency, AlertOperator, Operand } from "../alert-store";
-import { REPLAY_MAX_FIRES, replayAlertCalls, replayCondition, replayRule, type ReplayBar } from "../alert-replay";
+import { REPLAY_MAX_FIRES, replayAlertCalls, replayCondition, replayConditions, replayRule, ruleFlags, type ReplayBar, type ReplayConditionSeries } from "../alert-replay";
 
 const STEP = 60;
 const T0 = 6000;
@@ -291,5 +291,81 @@ describe("replayAlertCalls", () => {
     expect(replayAlertCalls({ expiresAt: null }, bars, calls, t(0), t(2) + 30, STEP).map((f) => f.message)).toEqual(["x"]);
     expect(replayAlertCalls({ expiresAt: t(2) * 1000 }, bars, calls, t(0), t(3), STEP).map((f) => f.message)).toEqual(["x"]);
     expect(replayAlertCalls({ expiresAt: null }, bars, calls, t(2), t(3), STEP).map((f) => f.message)).toEqual(["y"]);
+  });
+});
+
+describe("replayConditions: several conditions read together", () => {
+  // Fine condition: 1-minute bars 0..9; coarse condition: 5-minute bars (closing at t(5) and t(10)).
+  const fine = Array.from({ length: 10 }, (_, i) => bar(i, 100, 101, 99, 100 + i));
+  const coarse = [bar(0, 100, 106, 99, 105), bar(5, 105, 110, 104, 109)];
+  const COARSE = STEP * 5;
+  const flags = (n: number, on: number[]) => Array.from({ length: n }, (_, i) => on.includes(i));
+  const freq = (frequency: AlertFrequency) => ({ frequency, expiresAt: null });
+
+  it("a state holds until its next bar closes, an event at its own bar's close only", () => {
+    // Fine crossing at minutes 2 and 7; coarse level true on its first bar only (holds from t(5) to t(10)).
+    const conds: ReplayConditionSeries[] = [
+      { bars: fine, stepSec: STEP, met: flags(10, [2, 7]), event: true },
+      { bars: coarse, stepSec: COARSE, met: [true, false], event: false },
+    ];
+    // Minute 7 closes at t(8): the coarse state of the bar closed at t(5) holds then; minute 2 (t(3)) is before it.
+    expect(replayConditions(freq("every_time"), conds, fine, STEP, t(0), t(10))).toEqual([{ price: fine[7].close, barTime: t(7) * 1000, fireTime: t(8) * 1000 }]);
+  });
+
+  it("two events must happen at the same close", () => {
+    const conds: ReplayConditionSeries[] = [
+      { bars: fine, stepSec: STEP, met: flags(10, [4, 8]), event: true },
+      { bars: coarse, stepSec: COARSE, met: [true, true], event: true },
+    ];
+    // The coarse event closes at t(5) and t(10): minute 4 closes at t(5), minute 9 (not met) at t(10).
+    expect(replayConditions(freq("every_time"), conds, fine, STEP, t(0), t(10)).map((f) => f.fireTime)).toEqual([t(5) * 1000]);
+  });
+
+  it("the trigger counts in the alert's own bars; closed bars only", () => {
+    const conds: ReplayConditionSeries[] = [
+      { bars: coarse, stepSec: COARSE, met: [true, true], event: false },
+      { bars: fine, stepSec: STEP, met: flags(10, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), event: false },
+    ];
+    // Alert on the 5-minute bars, once per bar: the first moment each 5-minute bar has both. The coarse state starts at
+    // its first close, t(5), the last moment of the first bar; the second bar has both from t(6).
+    expect(replayConditions(freq("once_per_bar"), conds, coarse, COARSE, t(0), t(10)).map((f) => [f.barTime, f.fireTime])).toEqual([
+      [t(0) * 1000, t(5) * 1000],
+      [t(5) * 1000, t(6) * 1000],
+    ]);
+    // At the bar's close: the alert's closes only.
+    expect(replayConditions(freq("once_per_bar_close"), conds, coarse, COARSE, t(0), t(10)).map((f) => f.fireTime)).toEqual([t(5) * 1000, t(10) * 1000]);
+    // Only once: the first fire.
+    expect(replayConditions(freq("only_once"), conds, fine, STEP, t(0), t(10)).length).toBe(1);
+    // A bar not closed yet is not read.
+    expect(replayConditions(freq("every_time"), conds, fine, STEP, t(0), t(9) + 30).map((f) => f.fireTime).pop()).toBe(t(9) * 1000);
+  });
+
+  it("nothing before the last moment read, nothing after expiry", () => {
+    const conds: ReplayConditionSeries[] = [{ bars: fine, stepSec: STEP, met: flags(10, [1, 6]), event: true }, { bars: fine, stepSec: STEP, met: flags(10, [1, 6]), event: false }];
+    expect(replayConditions(freq("every_time"), conds, fine, STEP, t(3), t(10)).map((f) => f.barTime)).toEqual([t(6) * 1000]);
+    expect(replayConditions({ frequency: "every_time", expiresAt: t(5) * 1000 }, conds, fine, STEP, t(0), t(10)).map((f) => f.barTime)).toEqual([t(1) * 1000]);
+  });
+});
+
+describe("ruleFlags", () => {
+  it("gives, per bar, the price a fire would give (null when not met), as replayRule finds them", () => {
+    const bars = [bar(0, 98, 99, 97, 98), bar(1, 98, 101, 97.5, 100.5), bar(2, 100.5, 102, 100.2, 101)];
+    const r = rule("crossing_up");
+    expect(ruleFlags(r, bars, null, level(3), t(0), STEP)).toEqual([null, 100, null]);
+    expect(replayRule(r, bars, null, level(3), t(0), t(3), STEP).map((f) => f.price)).toEqual([100]);
+  });
+});
+
+describe("replayConditions: bars closing at their session's end", () => {
+  it("a daily event read with intraday bars counts at the session close, given as the daily bar's close", () => {
+    // Intraday bars 0..3 (the session ends with bar 3's close, t(4)); then the next day's bars 10..11.
+    const intraday = [0, 1, 2, 3, 10, 11].map((i) => bar(i, 100, 101, 99, 100));
+    const daily = [bar(-20, 100, 101, 99, 100), bar(10, 100, 101, 99, 100)];
+    const conds: ReplayConditionSeries[] = [
+      { bars: intraday, stepSec: STEP, met: [true, true, true, true, true, true], event: false },
+      // The daily crossing of the first day: an event at the session's close (not at the bar's time plus a day).
+      { bars: daily, stepSec: 86_400, met: [true, false], event: true, closes: [t(4), t(12)] },
+    ];
+    expect(replayConditions({ frequency: "every_time", expiresAt: null }, conds, intraday, STEP, t(-1), t(12)).map((f) => [f.barTime, f.fireTime])).toEqual([[t(3) * 1000, t(4) * 1000]]);
   });
 });
