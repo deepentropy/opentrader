@@ -36,6 +36,13 @@ describe("exchange names and codes", () => {
 });
 
 describe("searchResultToRow", () => {
+  it("an OTC listing whose exchange is given by name (OTC Link): OTC:TCEHY", () => {
+    const row = searchResultToRow(res({ ticker: "TCEHY", exchange: "OTC Link", market: "otc", type: "adr" }));
+    expect(row.symbolName).toBe("OTC:TCEHY");
+    expect(row.exchange).toBe("OTC");
+    expect(exchangeCode("OTC Link")).toBe("OTC");
+  });
+
   it("a US common stock", () => {
     expect(searchResultToRow(res({}))).toEqual({
       symbolName: "NASDAQ:AAPL",

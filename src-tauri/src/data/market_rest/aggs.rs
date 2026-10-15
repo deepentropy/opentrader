@@ -89,9 +89,9 @@ async fn fetch_aggs(
     to: &str,
     adjusted: bool,
 ) -> Result<(Vec<Candle>, bool)> {
-    // The cap counts *base* units (minutes, not the multiplied bars), so a
-    // wide range exceeds it. Ask newest first and reverse below: `desc`
-    // keeps the most recent base units (the series always ends at "now");
+    // A wide range exceeds the cap (the answer is cut to `limit` bars and says
+    // `truncated`). Ask newest first and reverse below: `desc` keeps the most
+    // recent bars (the series always ends at "now");
     // `asc` would keep the oldest and leave the chart frozen months in the
     // past. Trade-off: very coarse intraday over a long span loses the
     // *oldest* history, never the current price.

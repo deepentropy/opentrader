@@ -62,8 +62,9 @@ const EXCHANGE_CODES: Record<string, string> = {
  *  default exchange when unknown). */
 export function exchangeCode(code: string | null | undefined): string {
   if (!code) return defaultExchange;
-  const c = code.toUpperCase();
-  return EXCHANGE_CODES[c] ?? c.replace(/\s+/g, "");
+  // A name as some rows give it ("OTC Link") reads as its code ("OTCLINK").
+  const c = code.toUpperCase().replace(/\s+/g, "");
+  return EXCHANGE_CODES[c] ?? c;
 }
 
 // ── Symbol search ────────────────────────────────────────────────────────────
@@ -122,7 +123,7 @@ const TYPE_CATEGORY: Partial<Record<string, SymbolCategoryId>> = {
 /** Map one raw `search_tickers` reference result into a dialog row. The
  *  source half of symbol search; ../symbol-search applies the generic ranking. */
 export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
-  const ex = (r.exchange && SEARCH_EXCHANGE_NAMES[r.exchange]) || r.exchange || "";
+  const ex = (r.exchange && SEARCH_EXCHANGE_NAMES[r.exchange.toUpperCase().replace(/\s+/g, "")]) || r.exchange || "";
   // The row shows the descriptive name; the symbol's identity uses the code.
   const code = r.exchange ? exchangeCode(r.exchange) : "";
   const market = r.market ?? "stocks";
