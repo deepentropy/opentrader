@@ -42,7 +42,7 @@ import {
   isMovingOperator,
   VALUE_OPERATORS,
 } from "../../data/alert-condition";
-import { chartLastPrice, indicatorPlotValue } from "../../data/chart-state-registry";
+import { chartComparesFor, chartLastPrice, indicatorPlotValue } from "../../data/chart-state-registry";
 import { quoteFor } from "../../data/quotes";
 import { cachedSymbolSessions } from "../../data/session";
 import { buildIntervalMenu, sectionOf, SECTION_TITLES, type IntervalSection } from "../chart/custom-intervals";
@@ -63,6 +63,7 @@ import {
   resetRuleEvalState,
   setAlertWebhook,
 } from "../../data/alert-engine";
+import { attachDialogSize } from "./dialog-size";
 
 type Props = {
   /** When set, edit this existing rule instead of creating one. */
@@ -73,6 +74,8 @@ type Props = {
   price?: number;
   /** New alert on a study (chart menu in a study pane): the left operand. */
   indicatorId?: string;
+  /** New alert on a compared symbol (its full name): the left operand. */
+  compareSymbol?: string;
   /** New alert on a drawing (its "Add alert" button): the right operand. */
   drawingId?: string;
   /** Chart interval to stamp onto the rule as its resolution. */
@@ -403,7 +406,7 @@ function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: str
 /** A formatted amount as a number field holds it: no thousands separator, a plain minus sign. */
 const fieldText = (t: string) => t.replace(/,/g, "").replace(/−/g, "-");
 
-type SideKind = "value" | "drawing" | "indicator" | "price";
+type SideKind = "value" | "drawing" | "indicator" | "price" | "symbol";
 
 /** A deliverable webhook target: parses as a URL with an http(s) scheme. */
 function isValidWebhookUrl(raw: string): boolean {
@@ -435,12 +438,30 @@ export function AlertDialog(props: Props) {
     const ids = new Set(opts.map((o) => o.id));
     for (const o of [existing?.left, existing?.right]) {
       if (o && o.kind === "indicator" && !ids.has(o.indicatorId)) {
-        opts.push({ id: o.indicatorId, label: o.label ?? "indicator", inputs: o.inputs });
+        // Its saved label carries the inputs (and the plot): the title alone.
+        opts.push({ id: o.indicatorId, label: o.inputs && o.label ? o.label.replace(/ \(.*$/, "") : (o.label ?? "indicator"), inputs: o.inputs });
         ids.add(o.indicatorId);
       }
     }
     return opts;
   });
+  /** The symbols compared on the chart: sources like the studies ("Microsoft Corp. (NASDAQ)"); the one of an alert
+   *  being edited stays. */
+  const compareOptions_ = createMemo(() => {
+    const opts: { symbol: string; label: string; last: number | null }[] = chartComparesFor(symbol()).map((c) => ({ symbol: c.symbol.toUpperCase(), label: c.label, last: c.last }));
+    const l = existing?.left;
+    if (l?.kind === "symbol" && !opts.some((o) => o.symbol === l.symbol.toUpperCase())) opts.push({ symbol: l.symbol.toUpperCase(), label: l.label ?? l.symbol, last: null });
+    // The same symbol compared twice: one source.
+    return opts.filter((o, i) => opts.findIndex((x) => x.symbol === o.symbol) === i);
+  });
+  /** A study as the selects name it: its legend title with its inputs ("MACD (close, 12, 26, 9)"). */
+  const studyName = (id: string): string => {
+    const o = indicatorOptions().find((x) => x.id === id);
+    if (!o) return "indicator";
+    const entry = getIndicatorEntry(id);
+    const shown = entry && o.inputs ? statusLineInputs(entry, o.inputs, ", ") : "";
+    return shown ? `${o.label} (${shown})` : o.label;
+  };
   const drawingOptions = createMemo(() => {
     const opts = drawings();
     const r = existing?.right;
@@ -451,9 +472,16 @@ export function AlertDialog(props: Props) {
   });
 
 
-  // ── Left operand ── price or an indicator plot.
-  const [leftKind, setLeftKind] = createSignal<"price" | "indicator">(
-    existing?.left.kind === "indicator" || (!existing && props.indicatorId) ? "indicator" : "price",
+  // ── Left operand ── price, an indicator plot or a compared symbol's price.
+  const [leftKind, setLeftKind] = createSignal<"price" | "indicator" | "symbol">(
+    existing?.left.kind === "indicator" || (!existing && props.indicatorId)
+      ? "indicator"
+      : existing?.left.kind === "symbol" || (!existing && props.compareSymbol)
+        ? "symbol"
+        : "price",
+  );
+  const [leftSymbol, setLeftSymbol] = createSignal(
+    (existing?.left.kind === "symbol" ? existing.left.symbol : (!existing && props.compareSymbol) || "").toUpperCase(),
   );
   const [leftIndicator, setLeftIndicator] = createSignal(
     existing?.left.kind === "indicator" ? existing.left.indicatorId : (!existing && props.indicatorId) || "",
@@ -497,8 +525,12 @@ export function AlertDialog(props: Props) {
         ? "indicator"
         : existing?.right.kind === "price"
           ? "price"
-          : "value",
+          : existing?.right.kind === "symbol"
+            ? "symbol"
+            : "value",
   );
+  /** Compared with a compared symbol (its full name). */
+  const [rightSymbol, setRightSymbol] = createSignal(existing?.right.kind === "symbol" ? existing.right.symbol.toUpperCase() : "");
   // A saved number is shown as the source's values are written.
   const savedText = (v: number) => fieldText(alertAmountText(existing?.symbol, existing?.left ?? { kind: "price" }, v));
   const defaultValue =
@@ -532,7 +564,8 @@ export function AlertDialog(props: Props) {
   // "in N bars" (1-300; 2 minimum on a study): 1 bar on a price, 2 on a
   // study until it is edited.
   const [bars, setBars] = createSignal(existing?.bars != null ? String(existing.bars) : "");
-  const barsMin = () => (leftKind() === "indicator" ? 2 : 1);
+  // A compared symbol is read like a study.
+  const barsMin = () => (leftKind() !== "price" ? 2 : 1);
   const barsValue = () => {
     const n = Math.round(Number(bars()));
     return bars() !== "" && Number.isFinite(n) ? Math.max(barsMin(), Math.min(300, n)) : barsMin();
@@ -540,7 +573,7 @@ export function AlertDialog(props: Props) {
 
   // ── Channel between two bounds: a value, the price (study source) or a
   // study for each; the upper one in `right`, the lower one in `right2`. ──
-  const boundSel = (o: Operand | undefined) => (!o ? "value" : o.kind === "price" ? "price" : o.kind === "indicator" ? `ind:${o.indicatorId}` : "value");
+  const boundSel = (o: Operand | undefined) => (!o ? "value" : o.kind === "price" ? "price" : o.kind === "indicator" ? `ind:${o.indicatorId}` : o.kind === "symbol" ? `sym:${o.symbol.toUpperCase()}` : "value");
   const valueBandAtOpen = !!existing && isBandOperator(existing.op) && existing.right.kind !== "drawing";
   const [upperSel, setUpperSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right) : "value");
   const [lowerSel, setLowerSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right2) : "value");
@@ -607,9 +640,10 @@ export function AlertDialog(props: Props) {
   /** A channel between two bounds (not a drawing's). */
   const valueBand = () => isBandOperator(op()) && rightKind() !== "drawing";
 
-  /** Current value of the source: the study's last value, else the price. */
+  /** Current value of the source: the study's last value, the compared symbol's price, else the price. */
   const sourceValue = (): number | null => {
     if (leftKind() === "indicator") return indicatorPlotValue(symbol(), leftIndicator(), leftPlot());
+    if (leftKind() === "symbol") return compareOptions_().find((c) => c.symbol === leftSymbol())?.last ?? quoteFor(leftSymbol())?.last ?? null;
     return chartLastPrice(symbol()) ?? quoteFor(symbol())?.last ?? null;
   };
   /** A value written as the source's values are. */
@@ -707,13 +741,21 @@ export function AlertDialog(props: Props) {
       if (!cond) return o;
       return { ...o, label, condition: cond };
     }
+    if (leftKind() === "symbol" && leftSymbol()) return symbolOperand(leftSymbol());
     return { kind: "price" };
+  }
+
+  /** An operand on a compared symbol, named as the select shows it. */
+  function symbolOperand(sym: string): Operand {
+    const c = compareOptions_().find((x) => x.symbol === sym);
+    return { kind: "symbol", symbol: sym, label: c?.label ?? sym };
   }
 
   /** A bound of a channel: a value, the price or a study's plot. */
   function boundOperand(sel: string, text: string, plot: number, was: Operand | undefined): Operand {
     if (sel === "price") return { kind: "price" };
     if (sel.startsWith("ind:")) return indicatorOperand(sel.slice(4), plot, was);
+    if (sel.startsWith("sym:")) return symbolOperand(sel.slice(4));
     return { kind: "value", value: parseFloat(text) || 0 };
   }
 
@@ -747,6 +789,8 @@ export function AlertDialog(props: Props) {
       }
       case "price":
         return { kind: "price" };
+      case "symbol":
+        return symbolOperand(rightSymbol());
       default:
         return { kind: "value", value: parseFloat(rightValue()) || 0 };
     }
@@ -799,12 +843,13 @@ export function AlertDialog(props: Props) {
     if (isCalls()) return leftCalls();
     if (isMoving()) return Number.isFinite(parseFloat(pct()));
     if (valueBand()) {
-      const ok = (sel: string, text: string) => (sel === "value" ? Number.isFinite(parseFloat(text)) : sel === "price" || indicatorOptions().some((o) => `ind:${o.id}` === sel));
+      const ok = (sel: string, text: string) => (sel === "value" ? Number.isFinite(parseFloat(text)) : sel === "price" || indicatorOptions().some((o) => `ind:${o.id}` === sel) || compareOptions_().some((c) => `sym:${c.symbol}` === sel));
       return ok(upperSel(), upperValue()) && ok(lowerSel(), lowerValue());
     }
     if (rightKind() === "value") return Number.isFinite(parseFloat(rightValue()));
     if (rightKind() === "drawing") return drawingOptions().some((o) => o.id === rightDrawing());
     if (rightKind() === "indicator") return indicatorOptions().some((o) => o.id === rightIndicator());
+    if (rightKind() === "symbol") return compareOptions_().some((c) => c.symbol === rightSymbol());
     return true;
   });
 
@@ -875,7 +920,7 @@ export function AlertDialog(props: Props) {
 
   // ── View helpers ──────────────────────────────────────────────────────────
   const usesIndicator = () =>
-    leftKind() === "indicator" || (!isMoving() && (valueBand() ? upperSel().startsWith("ind:") || lowerSel().startsWith("ind:") : rightKind() === "indicator"));
+    leftKind() !== "price" || (!isMoving() && (valueBand() ? /^(ind|sym):/.test(upperSel()) || /^(ind|sym):/.test(lowerSel()) : rightKind() === "indicator" || rightKind() === "symbol"));
   const triggerOptions = (): MenuOption[] => {
     const list = usesIndicator() ? STUDY_FREQUENCIES : FREQUENCIES;
     const kept = list.some((f) => f.key === frequency()) ? [] : STUDY_FREQUENCIES.filter((f) => f.key === frequency());
@@ -886,21 +931,29 @@ export function AlertDialog(props: Props) {
     plotsOf(id).length > 0 || condsOf(id).length > 0 || callsOf(id) || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
   const sourceOptions = (): MenuOption[] => [
     { value: "price", label: "Price" },
-    ...indicatorOptions().filter((r) => alertable(r.id)).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
+    ...indicatorOptions().filter((r) => alertable(r.id)).map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
+    ...compareOptions_().map((c) => ({ value: `sym:${c.symbol}`, label: c.label })),
   ];
-  /** What the condition compares with, in one select: a value, the price (a study's level conditions), the other
-   *  studies with plots, and the drawing the dialog was opened for. */
+  /** The compared symbols other than the source. */
+  const otherCompares = () => compareOptions_().filter((c) => !(leftKind() === "symbol" && c.symbol === leftSymbol()));
+  /** What the condition compares with, in one select: a value, the price (the level conditions of a study or a
+   *  compared symbol), the other studies with plots, the other compared symbols, and the drawing the dialog was
+   *  opened for. */
   const compareOptions = (): MenuOption[] => [
     { value: "value", label: "Value" },
-    ...(leftKind() === "indicator" && LEVEL_OPERATORS.includes(op()) ? [{ value: "price", label: "Price" }] : []),
+    ...(leftKind() !== "price" && LEVEL_OPERATORS.includes(op()) ? [{ value: "price", label: "Price" }] : []),
     ...indicatorOptions()
       .filter((r) => (plotsOf(r.id).length > 0 || r.id === rightIndicator()) && !(leftKind() === "indicator" && r.id === leftIndicator()))
-      .map((r) => ({ value: `ind:${r.id}`, label: r.label })),
+      .map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
+    ...otherCompares().map((c) => ({ value: `sym:${c.symbol}`, label: c.label })),
     ...drawingOptions().map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
   ];
-  const compareValue = () => (rightKind() === "indicator" ? `ind:${rightIndicator()}` : rightKind() === "drawing" ? `drw:${rightDrawing()}` : rightKind());
+  const compareValue = () => (rightKind() === "indicator" ? `ind:${rightIndicator()}` : rightKind() === "drawing" ? `drw:${rightDrawing()}` : rightKind() === "symbol" ? `sym:${rightSymbol()}` : rightKind());
   const pickCompare = (v: string) => {
-    if (v.startsWith("ind:")) {
+    if (v.startsWith("sym:")) {
+      setRightKind("symbol");
+      setRightSymbol(v.slice(4));
+    } else if (v.startsWith("ind:")) {
       setRightKind("indicator");
       setRightIndicator(v.slice(4));
       setRightPlot(0);
@@ -952,7 +1005,8 @@ export function AlertDialog(props: Props) {
    *  the dialog was opened for (picking it makes the drawing the level). The price is not a bound. */
   const boundOptions = (): MenuOption[] => [
     { value: "value", label: "Value" },
-    ...indicatorOptions().filter((r) => plotsOf(r.id).length > 0 && !(leftKind() === "indicator" && r.id === leftIndicator())).map((r) => ({ value: `ind:${r.id}`, label: r.label })),
+    ...indicatorOptions().filter((r) => plotsOf(r.id).length > 0 && !(leftKind() === "indicator" && r.id === leftIndicator())).map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
+    ...otherCompares().map((c) => ({ value: `sym:${c.symbol}`, label: c.label })),
     ...drawingOptions().filter((d) => d.band === "channel" || d.band === "rectangle" || (d.levels?.length ?? 0) > 0).map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
   ];
   /** A row "Upper bound" / "Lower bound": its select, the value field for a value, the plot select for a study with
@@ -1012,7 +1066,7 @@ export function AlertDialog(props: Props) {
   return (
     <Portal mount={document.body}>
       <div class="ad-backdrop" role="presentation" onMouseDown={() => props.onClose()}>
-        <div class="ad" role="dialog" aria-label={existing ? "Edit alert" : "Create alert"} onMouseDown={(e) => e.stopPropagation()}>
+        <div class="ad" classList={{ "ad--message": view() === "message" }} role="dialog" aria-label={existing ? "Edit alert" : "Create alert"} ref={(el) => onMount(() => onCleanup(attachDialogSize(el)))} onMouseDown={(e) => e.stopPropagation()}>
           {/* ── Main view ── */}
           <Show when={view() === "main"}>
             <header class="ad-header">
@@ -1056,11 +1110,12 @@ export function AlertDialog(props: Props) {
                   <AdMenu
                     variant="box"
                     label="Source"
-                    value={leftKind() === "indicator" ? `ind:${leftIndicator()}` : "price"}
+                    value={leftKind() === "indicator" ? `ind:${leftIndicator()}` : leftKind() === "symbol" ? `sym:${leftSymbol()}` : "price"}
                     options={sourceOptions()}
                     onPick={(v) => {
-                      if (v === "price") {
-                        setLeftKind("price");
+                      if (v === "price" || v.startsWith("sym:")) {
+                        setLeftKind(v === "price" ? "price" : "symbol");
+                        if (v !== "price") setLeftSymbol(v.slice(4));
                         if (isOwn()) setOp("crossing");
                         return;
                       }

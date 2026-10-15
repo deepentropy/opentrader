@@ -24,7 +24,8 @@ import { currentInputs, currentTypeId } from "../window/chart/indicators/retired
 
 /** A side of the condition. Price = the symbol's last/close; value = a fixed
  *  number; drawing = a chart drawing's price level (horizontal line/ray, trend
- *  line); indicator = an active study's plot value. */
+ *  line); indicator = an active study's plot value; symbol = the price of a
+ *  symbol compared on the chart. */
 export type Operand =
   | { kind: "price" }
   | { kind: "value"; value: number }
@@ -66,6 +67,15 @@ export type Operand =
        *  watches (a script's alertcondition(), a TPO extended level), with
        *  its title and default message as the study declares them. */
       condition?: StudyConditionRef;
+    }
+  | {
+      /** A compared symbol of the chart (its legend row): the alert reads
+       *  that symbol's price, on the rule's interval and session. */
+      kind: "symbol";
+      /** Full name of the compared symbol ("NASDAQ:MSFT"). */
+      symbol: string;
+      /** As the dialog names it: "<description> (<exchange>)". */
+      label?: string;
     };
 
 /** A condition a study declares for alerts. */

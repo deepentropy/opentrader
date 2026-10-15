@@ -74,6 +74,12 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
         // A study's alert reads its own interval: drawn on the chart of that interval only.
         if (r.resolution !== props.interval || cx.controller.isHidden(r.left.indicatorId)) continue;
         target = cx.controller.studySeries(r.left.indicatorId);
+      } else if (r.left.kind === "symbol") {
+        // A compared symbol's alert: on its line, on the chart of the alert's interval.
+        const sym = r.left.symbol.toUpperCase();
+        const c = cx.compareSources().find((x) => x.symbol.toUpperCase() === sym && !x.hidden);
+        if (!c || r.resolution !== props.interval) continue;
+        target = cx.compareLayers.get(c.id)?.firstSeries() ?? null;
       }
       if (!target) continue;
       const reason = r.stopReason ?? "manual";

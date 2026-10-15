@@ -21,6 +21,8 @@ export type OpenAlertDialogDetail = {
   symbol?: string;
   price?: number;
   indicatorId?: string;
+  /** New alert on a compared symbol of the chart (its full name): the source. */
+  compareSymbol?: string;
   drawingId?: string;
 };
 

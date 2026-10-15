@@ -375,7 +375,21 @@ export type EvalContext = {
   /** Bars of the symbol on an interval no chart shows (the engine's
    *  fetched-bars poll cache), for the drawings computed from bars. */
   barsFallback?: (resolution: string, session?: string) => ChartBar[] | null;
+  /** Price of another symbol (a compared symbol operand); unset: `price`
+   *  (the rule is evaluated on that symbol's quotes). */
+  symbolPrice?: (symbol: string) => number | null;
 };
+
+/** The symbol whose quotes a rule is evaluated on: the compared symbol its
+ *  condition reads, else its own. */
+export function ruleQuoteSymbol(rule: Pick<AlertRule, "symbol" | "left">): string {
+  return rule.left.kind === "symbol" ? rule.left.symbol.toUpperCase() : rule.symbol;
+}
+
+/** The compared symbols a rule reads (any side). */
+export function ruleComparedSymbols(rule: Pick<AlertRule, "left" | "right"> & { right2?: Operand }): string[] {
+  return [rule.left, rule.right, rule.right2].flatMap((o) => (o?.kind === "symbol" ? [o.symbol.toUpperCase()] : []));
+}
 
 /** Resolve an operand to a number, or null when unavailable. `resolution`:
  *  the interval of the rule, for the operands computed from bars. */
@@ -398,6 +412,8 @@ export function operandValue(symbol: string, op: Operand, ctx: EvalContext, reso
       if (ctx.indicatorValue && resolution != null) return ctx.indicatorValue(op, resolution, session);
       return indicatorPlotValue(symbol, op.indicatorId, op.plot ?? 0);
     }
+    case "symbol":
+      return ctx.symbolPrice ? ctx.symbolPrice(op.symbol) : ctx.price;
   }
 }
 
@@ -411,6 +427,8 @@ export function operandLabel(op: Operand): string {
       return op.label ?? "drawing";
     case "indicator":
       return op.label ?? "indicator";
+    case "symbol":
+      return op.label ?? tickerOf(op.symbol);
   }
 }
 
@@ -424,11 +442,13 @@ function messageOperand(op: Operand): string {
 }
 
 /** An amount of the left operand written as its values are: the study's
- *  decimals when it declares them, else the symbol's price format; thousands
- *  grouped ("1,234.50"). */
+ *  decimals when it declares them, else the price format of the symbol (the
+ *  compared symbol's for its price); thousands grouped ("1,234.50"). */
 export function alertAmountText(symbol: string | undefined, left: Operand, v: number): string {
   if (left.kind === "indicator" && left.precision != null) return groupThousands(v.toFixed(left.precision));
-  const s = symbol ? cachedSymbolSessions(symbol) : null;
+  // A compared symbol's price: its own format.
+  const of = left.kind === "symbol" ? left.symbol : symbol;
+  const s = of ? cachedSymbolSessions(of) : null;
   return groupThousands(s ? s.formatPrice(v) : v.toFixed(2));
 }
 
@@ -488,8 +508,14 @@ export function alertIntervalText(resolution: string, minuteUnit = false): strin
  *  condition, a level given by a study or a drawing. A price compared with a
  *  number reads none. */
 export function conditionHasInterval(rule: Pick<AlertRule, "left" | "op" | "right"> & { right2?: Operand }): boolean {
-  if (rule.left.kind === "indicator" || isMovingOperator(rule.op)) return true;
-  return rule.right.kind === "indicator" || rule.right.kind === "drawing" || rule.right2?.kind === "indicator";
+  // A compared symbol is read like a study.
+  if (isStudyLike(rule.left) || isMovingOperator(rule.op)) return true;
+  return isStudyLike(rule.right) || rule.right.kind === "drawing" || (!!rule.right2 && isStudyLike(rule.right2));
+}
+
+/** A study or a compared symbol: an operand read on the bars of the alert's interval. */
+export function isStudyLike(o: Operand): boolean {
+  return o.kind === "indicator" || o.kind === "symbol";
 }
 
 /** The dialog's Interval row: a condition on an interval, unless a drawing
@@ -512,6 +538,6 @@ export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution
   const text = describeCondition(rule);
   const ticker = tickerOf(rule.symbol) || "—";
   const series = conditionHasInterval(rule) && rule.resolution ? `${ticker}, ${alertIntervalText(rule.resolution)}` : ticker;
-  if (rule.left.kind === "indicator") return `${text} on ${series}`;
+  if (isStudyLike(rule.left)) return `${text} on ${series}`;
   return `${series} ${text.replace(/^Price /, "")}`;
 }

@@ -46,6 +46,7 @@ import {
   priceableDrawings,
   ruleDrawingIds,
   ruleDrawingMissing,
+  ruleQuoteSymbol,
   rulesOfDrawing,
   shapeOperators,
   type EvalContext,
@@ -438,6 +439,28 @@ describe("operandValue / operandLabel", () => {
   });
 });
 
+describe("compared symbol operand", () => {
+  const msft: Operand = { kind: "symbol", symbol: "NASDAQ:MSFT", label: "Microsoft Corp. (NASDAQ)" };
+  it("reads the price of the quotes it is evaluated on, or the given symbol price", () => {
+    expect(operandValue(SYM, msft, { price: 543.2, changePercent: null, timeSec: 0 })).toBe(543.2);
+    const symbolPrice = vi.fn(() => 400);
+    expect(operandValue(SYM, msft, { price: 1, changePercent: null, timeSec: 0, symbolPrice })).toBe(400);
+    expect(symbolPrice).toHaveBeenCalledWith("NASDAQ:MSFT");
+  });
+  it("is named by its description and exchange, else its ticker", () => {
+    expect(operandLabel(msft)).toBe("Microsoft Corp. (NASDAQ)");
+    expect(operandLabel({ kind: "symbol", symbol: "NASDAQ:MSFT" })).toBe("MSFT");
+  });
+  it("a rule on it is evaluated on the compared symbol's quotes", () => {
+    expect(ruleQuoteSymbol({ symbol: SYM, left: msft })).toBe("NASDAQ:MSFT");
+    expect(ruleQuoteSymbol({ symbol: SYM, left: price })).toBe(SYM);
+  });
+  it("its amounts are written in the compared symbol's price format", () => {
+    mocks.sessions.set("NASDAQ:MSFT", { formatPrice: (v) => v.toFixed(3), mintick: 0.001 });
+    expect(alertAmountText(SYM, msft, 543.5)).toBe("543.500");
+  });
+});
+
 describe("alertAmountText", () => {
   it("the study's decimals, else the symbol's price format, else 2 decimals; thousands grouped", () => {
     expect(alertAmountText(undefined, price, 1234.5)).toBe("1,234.50");
@@ -528,6 +551,16 @@ describe("alertIntervalText", () => {
   });
 });
 
+describe("compared symbol and the interval", () => {
+  const msft: Operand = { kind: "symbol", symbol: "NASDAQ:MSFT" };
+  it("reads the bars of an interval on either side", () => {
+    expect(conditionHasInterval({ left: msft, op: "crossing", right: val(1) })).toBe(true);
+    expect(conditionHasInterval({ left: price, op: "crossing", right: msft })).toBe(true);
+    expect(conditionHasInterval({ left: price, op: "entering", right: val(1), right2: msft })).toBe(true);
+    expect(conditionHasIntervalRow({ left: msft, op: "crossing", right: val(1) })).toBe(true);
+  });
+});
+
 describe("conditionHasInterval / conditionHasIntervalRow", () => {
   it("a price against a number reads no bars", () => {
     expect(conditionHasInterval({ left: price, op: "crossing", right: val(1) })).toBe(false);
@@ -572,6 +605,17 @@ describe("defaultAlertMessage", () => {
     expect(m(ind({ condition: { id: "x", title: "X", message: "Go {{ticker}}" } }), "alert_condition", val(0))).toBe("Go {{ticker}}");
     expect(m(ind({ condition: { id: "x", title: "X" } }), "alert_condition", val(0))).toBe("Alert Fired!");
     expect(m(ind({ label: "Auto fib" }), "alert_function", val(0))).toBe("Auto fib: Any alert() function call");
+  });
+
+  it("a compared symbol is named like a study (reference messages)", () => {
+    const msft: Operand = { kind: "symbol", symbol: "NASDAQ:MSFT", label: "Microsoft Corp. (NASDAQ)" };
+    mocks.sessions.set("NASDAQ:MSFT", { formatPrice: (v) => (Math.abs(v) <= 1 ? v.toFixed(4) : v.toFixed(2)), mintick: 0.01 });
+    expect(m(msft, "crossing", val(533.69))).toBe("Microsoft Corp. (NASDAQ) Crossing 533.69 on AZO, 1D");
+    expect(m(msft, "moving_up", val(1), { bars: 2 })).toBe("Microsoft Corp. (NASDAQ) Moving Up 1.0000 in 2 bars on AZO, 1D");
+    expect(m(price, "crossing", msft)).toBe("AZO, 1D Crossing Microsoft Corp. (NASDAQ)");
+    expect(defaultAlertMessage({ symbol: SYM, resolution: "1D", left: price, op: "entering", right: val(61.13), right2: msft })).toBe(
+      "AZO, 1D Entering Channel (Upper Bound: 61.13, Lower Bound: Microsoft Corp. (NASDAQ))",
+    );
   });
 
   it("a dash for a rule without a ticker", () => {

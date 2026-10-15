@@ -347,11 +347,19 @@
   position: fixed;
   inset: 0;
   z-index: 1150;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
+/* Height and place set by its script (window/alerts/dialog-size.ts): the
+ * content's height, at least header + footer + the body's soft minimum (the
+ * "Edit message" view only: 170 px), at most the window less the 20 px
+ * guards, at least header + footer + 100 px; centred on open, a grown
+ * dialog moved back into the window. */
 .ad {
+  --ad-body-min-height: 100px;
+  --ad-vertical-guard: 20px;
+  --ad-horizontal-guard: 20px;
+  position: absolute;
+  left: 0;
+  top: 0;
   box-sizing: border-box;
   width: 480px;
   max-width: calc(100vw - 32px);
@@ -365,11 +373,12 @@
   font-size: 14px;
   line-height: 18px;
 }
+.ad--message { --ad-body-soft-min-height: 170px; }
 .ad-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 70px;
+  height: 71px;
   padding: 0 20px;
   border-bottom: 1px solid var(--color-divider-line-primary);
   flex: none;
@@ -391,8 +400,12 @@
 .ad-symbol-btn { gap: 4px; padding: 0 8px; font-size: 16px; font-weight: 600; line-height: 24px; }
 .ad-icon-btn:hover, .ad-symbol-btn:hover { background: var(--color-bg-primary-hover); }
 .ad-symbol-input { width: 150px; margin-left: 4px; font-size: 16px; text-transform: uppercase; }
-/* No scroll box: the menus of the controls open over the dialog edges. */
-.ad-body { padding: 16px 24px 20px 20px; }
+/* No scroll box: the menus of the controls open over the dialog edges (a
+ * dialog cut by the window scrolls its body). The footer stays at the bottom
+ * of a dialog taller than its content. */
+.ad-body { flex: 0 1 auto; min-height: 0; padding: 16px 24px 16px 20px; }
+.ad.is-capped .ad-body { overflow-y: auto; }
+.ad > .ad-footer { margin-top: auto; }
 .ad-row { display: flex; align-items: center; margin-top: 8px; }
 .ad-row:first-child { margin-top: 0; }
 .ad-row--top { align-items: flex-start; }
@@ -406,8 +419,9 @@
 .ad-pair--sound > * { flex: none; width: 150px; }
 .ad-pair--sound > .ad-menu:first-child .ad-menu-list { right: auto; width: 308px; }
 .ad-pct > .ad-suffix { flex: none; color: var(--color-text-secondary); }
-.ad-divider { height: 1px; margin: 16px 0 14px; background: var(--color-divider-line-primary); }
-.ad-row--text { min-height: 18px; margin-top: 12px; gap: 8px; }
+.ad-divider { height: 1px; margin: 16px 0; background: var(--color-divider-line-primary); }
+/* Text rows: 30 px each, the text centred. */
+.ad-row--text { min-height: 30px; margin-top: 0; gap: 8px; }
 .ad-divider + .ad-row--text { margin-top: 0; }
 
 /* Inputs */
@@ -530,6 +544,7 @@
 
 /* Sub-views */
 .ad-field { display: block; margin-bottom: 16px; }
+.ad-field:last-child { margin-bottom: 0; }
 .ad-field > .ad-label { display: block; margin-bottom: 8px; }
 .ad-check { display: grid; grid-template-columns: 18px 1fr; column-gap: 8px; row-gap: 6px; align-items: center; margin-bottom: 20px; }
 .ad-check input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-text-primary); }
@@ -622,7 +637,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px;
+  padding: 16px 20px;
   border-top: 1px solid var(--color-divider-line-primary);
   flex: none;
 }

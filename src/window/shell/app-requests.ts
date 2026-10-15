@@ -65,7 +65,7 @@ export function installAppRequests(a: RequestActions): () => void {
     // Chart context-menu "Add alert", AlertsPanel "edit", header "Create alert".
     onAppEvent("chart-open-alert-dialog", (detail) => {
       const d = detail ?? {};
-      setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price, indicatorId: d.indicatorId, drawingId: d.drawingId });
+      setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price, indicatorId: d.indicatorId, compareSymbol: d.compareSymbol, drawingId: d.drawingId });
     }),
     // Price-scale context menu (right-click on the price axis): checkable
     // Labels/Lines rows + "Move scale" fold into the focused pane's Settings

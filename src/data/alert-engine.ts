@@ -36,7 +36,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
-import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, type EvalContext } from "./alert-condition";
+import { defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
@@ -179,7 +179,7 @@ const ruleSession = (rule: AlertRule): SessionId => rule.session ?? DEFAULT_SESS
 function inRuleSession(rule: AlertRule, timeMs: number, extendedQuote: boolean): boolean {
   const session = ruleSession(rule);
   if (session === "RTH" && extendedQuote) return false;
-  return cachedSymbolSessions(rule.symbol)?.spec(session).contains(timeMs / 1000) ?? false;
+  return cachedSymbolSessions(ruleQuoteSymbol(rule))?.spec(session).contains(timeMs / 1000) ?? false;
 }
 
 /** True when the rule's condition is satisfied for the current sample. Updates
@@ -309,7 +309,7 @@ function frequencyAllows(rule: AlertRule, barRefMs: number): boolean {
     // once_per_bar_close never reaches here (onTick fires it from its own
     // bar-close branch); kept so the switch stays exhaustive.
     case "once_per_bar_close": {
-      const bucket = barBucket(rule.symbol, rule.resolution, ruleSession(rule), barRefMs);
+      const bucket = barBucket(ruleQuoteSymbol(rule), rule.resolution, ruleSession(rule), barRefMs);
       if (bucket === null || lastFiredBucket.get(rule.id) === bucket) return false;
       lastFiredBucket.set(rule.id, bucket);
       return true;
@@ -318,7 +318,9 @@ function frequencyAllows(rule: AlertRule, barRefMs: number): boolean {
 }
 
 function fire(rule: AlertRule, ctx: EvalContext, barRefMs: number): void {
-  deliverFire(rule, ctx.price, barBucket(rule.symbol, rule.resolution, ruleSession(rule), barRefMs) ?? barRefMs);
+  // A compared symbol's alert fires at that symbol's price.
+  const price = rule.left.kind === "symbol" ? (ctx.symbolPrice?.(rule.left.symbol) ?? ctx.price) : ctx.price;
+  deliverFire(rule, price, barBucket(ruleQuoteSymbol(rule), rule.resolution, ruleSession(rule), barRefMs) ?? barRefMs);
 }
 
 // ── Message placeholders ──
@@ -571,11 +573,35 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
   }
 }
 
+/** The latest tick of each symbol (a rule on a compared symbol reads both symbols). */
+const lastTicks = new Map<string, TradeTick>();
+
+/** A tick's price on a session: regular hours read the regular-session last, extended hours the latest trade. */
+function tickPrice(t: TradeTick, session: string | undefined): number {
+  return (session ?? DEFAULT_SESSION) === "ETH" && t.tradePrice != null ? t.tradePrice : t.price;
+}
+
+/** Evaluation contexts of `symbol` from its quote `t` (regular and extended hours). */
+function tickContexts(symbol: string, t: TradeTick, now: number): { regular: EvalContext; extended: EvalContext } {
+  const regular: EvalContext = {
+    price: t.price,
+    changePercent: t.changePercent ?? null,
+    timeSec: Math.floor(now / 1000),
+    indicatorValue: (op, resolution, session) => indicatorOperandValue(symbol, op, resolution, session ?? DEFAULT_SESSION, tickPrice(t, session)),
+    conditionTrue: (op, resolution, session) => studyConditionNow(symbol, op, resolution, session ?? DEFAULT_SESSION, tickPrice(t, session)),
+    barsFallback: (resolution, session) => drawingBarsCache.get(`${symbol}|${resolution}|${session ?? DEFAULT_SESSION}`) ?? null,
+  };
+  return { regular, extended: { ...regular, price: tickPrice(t, "ETH") } };
+}
+
 /** Evaluate every enabled rule for the symbol that just ticked. */
 function onTick(t: TradeTick): void {
   const symbol = t.symbol.toUpperCase();
-  // The backend evaluates the other rules of the symbol.
-  const rules = alertStore.enabledRules().filter((r) => r.symbol === symbol && !evaluatedByBackend(r));
+  lastTicks.set(symbol, t);
+  // The backend evaluates the other rules of the symbol. A rule on a compared
+  // symbol is read on the quotes of both symbols (it may compare the compared
+  // symbol's price with the chart symbol's price or studies).
+  const rules = alertStore.enabledRules().filter((r) => (r.symbol === symbol || ruleComparedSymbols(r).includes(symbol)) && !evaluatedByBackend(r));
   if (rules.length === 0) return;
 
   const now = Date.now();
@@ -597,16 +623,16 @@ function onTick(t: TradeTick): void {
   const sessions = cachedSymbolSessions(symbol);
   const extendedQuote = t.tradeTime != null && sessions != null && !sessions.regular.contains(t.tradeTime);
   // Regular hours read the regular-session last, extended hours the latest trade.
-  const priceIn = (session: string | undefined) => ((session ?? DEFAULT_SESSION) === "ETH" && t.tradePrice != null ? t.tradePrice : t.price);
-  const regularCtx: EvalContext = {
-    price: t.price,
-    changePercent: t.changePercent ?? null,
-    timeSec: Math.floor(now / 1000),
-    indicatorValue: (op, resolution, session) => indicatorOperandValue(symbol, op, resolution, session ?? DEFAULT_SESSION, priceIn(session)),
-    conditionTrue: (op, resolution, session) => studyConditionNow(symbol, op, resolution, session ?? DEFAULT_SESSION, priceIn(session)),
-    barsFallback: (resolution, session) => drawingBarsCache.get(`${symbol}|${resolution}|${session ?? DEFAULT_SESSION}`) ?? null,
+  const priceIn = (session: string | undefined) => tickPrice(t, session);
+  /** The contexts of a rule's own symbol (its quote: this tick's, else the latest one); null before any. */
+  const ctxCache = new Map<string, { regular: EvalContext; extended: EvalContext } | null>();
+  const contextsOf = (own: string) => {
+    if (ctxCache.has(own)) return ctxCache.get(own)!;
+    const q = own === symbol ? t : lastTicks.get(own);
+    const out = q ? tickContexts(own, q, now) : null;
+    ctxCache.set(own, out);
+    return out;
   };
-  const extendedCtx: EvalContext = { ...regularCtx, price: priceIn("ETH") };
 
   for (const rule of rules) {
     // Auto-expire.
@@ -620,14 +646,18 @@ function onTick(t: TradeTick): void {
       evaluateAlertCalls(rule, priceIn(rule.session));
       continue;
     }
-    const ctx = ruleSession(rule) === "ETH" ? extendedCtx : regularCtx;
+    const own = contextsOf(rule.symbol);
+    if (!own) continue; // the chart symbol's quote is not known yet
+    const base = ruleSession(rule) === "ETH" ? own.extended : own.regular;
+    // A compared symbol's price: this tick's, else its latest quote.
+    const ctx: EvalContext = ruleComparedSymbols(rule).length ? { ...base, symbolPrice: (s) => { const q = s.toUpperCase() === symbol ? t : lastTicks.get(s.toUpperCase()); return q ? tickPrice(q, rule.session) : null; } } : base;
 
     // Real bar-close semantics: buffer the latest in-bar sample; when a tick
     // lands past the bar's end the buffered bar has closed — evaluate on ITS
     // final values (close-to-close crossings) and fire at most once per bar.
     if (rule.frequency === "once_per_bar_close") {
       const timeMs = tradeMs ?? now;
-      const bucket = barBucket(rule.symbol, rule.resolution, ruleSession(rule), timeMs);
+      const bucket = barBucket(ruleQuoteSymbol(rule), rule.resolution, ruleSession(rule), timeMs);
       if (bucket === null) continue; // session not known yet
       const st = barCloseState.get(rule.id);
       if (inRuleSession(rule, timeMs, extendedQuote)) {
@@ -1072,11 +1102,13 @@ async function pollMovingRefs(): Promise<void> {
     const barsBy = new Map<string, { time: number; open: number; high: number; low: number; close: number; volume: number }[]>();
     for (const rule of rules) {
       const session = rule.session ?? DEFAULT_SESSION;
-      const key = `${rule.symbol}|${rule.resolution}|${session}`;
+      // A compared symbol's price: its own bars.
+      const sym = ruleQuoteSymbol(rule);
+      const key = `${sym}|${rule.resolution}|${session}`;
       let bars = barsBy.get(key);
       if (!bars) {
         try {
-          const res = await getBars(rule.symbol, rule.resolution, session);
+          const res = await getBars(sym, rule.resolution, session);
           bars = res.bars.flatMap((b) =>
             b.time != null && b.open != null && b.high != null && b.low != null && b.close != null
               ? [{ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }]
@@ -1202,19 +1234,38 @@ export async function replayMissedFires(previous: Record<string, number | null |
     }
     const vwap = right.kind === "drawing" && right.plot != null;
     const right2 = rule.right2;
-    if (!isMovingOperator(rule.op) && left.kind !== "indicator" && right.kind !== "indicator" && right2?.kind !== "indicator" && !vwap) continue;
+    // A compared symbol against the chart symbol's price is read here too.
+    const vsPrice = left.kind === "symbol" && (right.kind === "price" || right2?.kind === "price") || right.kind === "symbol" || right2?.kind === "symbol";
+    if (!isMovingOperator(rule.op) && left.kind !== "indicator" && right.kind !== "indicator" && right2?.kind !== "indicator" && !vwap && !vsPrice) continue;
     const since = (rule.activeSince ?? rule.createdAt) / 1000;
-    const from = Math.max(previous[rule.symbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
+    // A compared symbol's price: its own quotes and bars.
+    const quoteSymbol = ruleQuoteSymbol(rule);
+    const from = Math.max(previous[quoteSymbol] ?? since, since, nowSec - REPLAY_MAX_SEC);
     if (nowSec - from < 60) continue;
     const session = rule.session ?? DEFAULT_SESSION;
-    const bars = await replayBars(barsBy, rule.symbol, rule.resolution, session);
-    if (!bars) continue; // no bars: nothing to read
+    const quoteBars = await replayBars(barsBy, quoteSymbol, rule.resolution, session);
+    if (!quoteBars) continue; // no bars: nothing to read
+    // A compared symbol against the chart symbol's price or studies: those are read on the chart symbol's bars, at
+    // the bars both symbols have.
+    const ownBars = quoteSymbol === rule.symbol ? quoteBars : await replayBars(barsBy, rule.symbol, rule.resolution, session);
+    if (!ownBars) continue;
+    const ownIndex = new Map(ownBars.map((b, i) => [b.time, i]));
+    const bars = quoteSymbol === rule.symbol ? quoteBars : quoteBars.filter((b) => ownIndex.has(b.time));
+    const aligned = (series: (number | null)[] | null) => (series && ownBars !== bars ? bars.map((b) => series[ownIndex.get(b.time)!] ?? null) : series);
+    /** Closes of a compared symbol at the bars read (null where it has none). */
+    const symbolSeries = async (sym: string) => {
+      const other = await replayBars(barsBy, sym.toUpperCase(), rule.resolution, session);
+      if (!other) return null;
+      const at = new Map(other.map((b) => [b.time, b.close]));
+      return bars.map((b) => at.get(b.time) ?? null);
+    };
     const stepSec = resolutionMs(rule.resolution) / 1000;
     const leftSeries = left.kind === "indicator" ? plotSeries(left, bars, rule, session) : null;
     if (left.kind === "indicator" && !leftSeries) continue;
     let rightSeries: (number | null)[] | null;
-    if (right.kind === "indicator") rightSeries = plotSeries(right, bars, rule, session);
-    else if (right.kind === "price") rightSeries = bars.map((b) => b.close);
+    if (right.kind === "indicator") rightSeries = aligned(plotSeries(right, ownBars, rule, session));
+    else if (right.kind === "price") rightSeries = aligned(ownBars.map((b) => b.close));
+    else if (right.kind === "symbol") rightSeries = await symbolSeries(right.symbol);
     else if (right.kind === "value") rightSeries = bars.map(() => right.value);
     else if (right.kind === "drawing" && right.plot != null) {
       // The VWAP as it stood at each bar read (and the one before it).
@@ -1227,9 +1278,10 @@ export async function replayMissedFires(previous: Record<string, number | null |
     // Channel between two bounds: the lower one.
     let lowerSeries: (number | null)[] | null = null;
     if (right2 && isBandOperator(rule.op)) {
-      if (right2.kind === "indicator") lowerSeries = plotSeries(right2, bars, rule, session);
+      if (right2.kind === "indicator") lowerSeries = aligned(plotSeries(right2, ownBars, rule, session));
       else if (right2.kind === "value") lowerSeries = bars.map(() => right2.value);
-      else if (right2.kind === "price") lowerSeries = bars.map((b) => b.close);
+      else if (right2.kind === "price") lowerSeries = aligned(ownBars.map((b) => b.close));
+      else if (right2.kind === "symbol") lowerSeries = await symbolSeries(right2.symbol);
       if (!lowerSeries) continue;
     }
     for (const f of replayRule(rule, bars, leftSeries, rightSeries, from, nowSec, stepSec, lowerSeries)) {
@@ -1299,7 +1351,8 @@ export function startAlertEngine(windowLabel = "main"): void {
   // to the shared watchlist feed via the subscription coordinator.
   createRoot(() => {
     createEffect(() => {
-      const symbols = [...new Set(alertStore.enabledRules().map((r) => r.symbol))];
+      // A rule on a compared symbol needs that symbol's quotes.
+      const symbols = [...new Set(alertStore.enabledRules().flatMap((r) => [r.symbol, ...ruleComparedSymbols(r)]))];
       setSubscription("alerts", symbols);
     });
 

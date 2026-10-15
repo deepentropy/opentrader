@@ -31,7 +31,12 @@ export type ChartStateProvider = {
   session?: () => string;
   /** The chart's bars, oldest first (the last one is the forming bar). */
   bars: () => ChartBar[];
+  /** The symbols compared on the chart (alert sources). */
+  compares?: () => ChartCompareSource[];
 };
+
+/** A symbol compared on a chart: full name, label "<description> (<exchange>)". */
+export type ChartCompareSource = { id: string; symbol: string; label: string; hidden: boolean; last: number | null };
 
 export type ChartBar = { time: number; open: number; high: number; low: number; close: number; volume?: number };
 
@@ -48,6 +53,11 @@ export function unregisterChartState(symbol: string): void {
 /** Indicator legend rows for a symbol, or [] when it isn't charted. */
 export function indicatorLegendFor(symbol: string): IndicatorLegendRow[] {
   return providers.get(symbol.toUpperCase())?.indicatorLegend() ?? [];
+}
+
+/** The symbols compared on the chart of a symbol, or [] when it isn't charted. */
+export function chartComparesFor(symbol: string): ChartCompareSource[] {
+  return providers.get(symbol.toUpperCase())?.compares?.() ?? [];
 }
 
 /** A single indicator plot value (`plot` = plotConfig index), or null when
