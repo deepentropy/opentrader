@@ -117,10 +117,14 @@ export type PaneChart = {
   indicators: string[];
   /** Compared symbols of this pane (header "Compare symbols"), in add order. */
   compare?: CompareEntry[];
-  /** Stacking order of the panes below the price pane (study and
-   *  compared-symbol ids, top to bottom). Ids not listed follow; absent =
-   *  studies in list order, then compared symbols. */
+  /** Stacking order of the panes (study and compared-symbol ids, `_series`
+   *  = the price pane; top to bottom). Ids not listed follow, the price pane
+   *  first when not listed; absent = the price pane, the studies in list
+   *  order, then compared symbols. */
   paneOrder?: string[];
+  /** Pane group of the study pane the main series was dragged into (it
+   *  shares that pane, on its own scale); absent = a pane of its own. */
+  seriesPane?: string;
   /** Drawing order of the sources (main series `_series`, study and
    *  compared-symbol ids), front first: the Object tree order. Ids not
    *  listed go behind the listed ones; absent = the main series in front,
@@ -312,14 +316,15 @@ export function makeTab(partial: MakeTabPartial = {}): TabChart {
 
 /** Studies of a stored chart: ids the indicator library retired come back
  *  as their replacement, with their settings and places in the orders. */
-export function reviveStudies(p: Partial<PaneChart>): Pick<PaneChart, "indicators" | "indicatorSettings" | "paneOrder" | "sourceOrder"> {
+export function reviveStudies(p: Partial<PaneChart>): Pick<PaneChart, "indicators" | "indicatorSettings" | "paneOrder" | "sourceOrder" | "seriesPane"> {
   const studies = currentStudies(
     Array.isArray(p.indicators) ? [...p.indicators] : [],
     p.indicatorSettings && typeof p.indicatorSettings === "object" ? p.indicatorSettings : undefined,
   );
   const order = (ids: unknown) =>
     Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string").map((id) => studies.renamed.get(id) ?? id) : undefined;
-  return { indicators: studies.ids, indicatorSettings: studies.settings, paneOrder: order(p.paneOrder), sourceOrder: order(p.sourceOrder) };
+  const seriesPane = typeof p.seriesPane === "string" && p.seriesPane ? studies.renamed.get(p.seriesPane) ?? p.seriesPane : undefined;
+  return { indicators: studies.ids, indicatorSettings: studies.settings, paneOrder: order(p.paneOrder), sourceOrder: order(p.sourceOrder), seriesPane };
 }
 
 /** One stored chart read back into the current shape. */
@@ -335,6 +340,7 @@ function revivePane(p: Partial<PaneChart>): PaneChart {
     indicatorSettings: studies.indicatorSettings,
     compare: reviveCompare(p.compare),
     paneOrder: studies.paneOrder,
+    seriesPane: studies.seriesPane,
     sourceOrder: studies.sourceOrder,
     linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
     visibleLogicalRange:

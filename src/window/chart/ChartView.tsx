@@ -159,6 +159,12 @@ export function ChartView(props: ChartViewProps) {
     get lastLegendTime() { return lastLegendTime; }, set lastLegendTime(v: ChartCore["lastLegendTime"]) { lastLegendTime = v; },
     get lockViews() { return lockViews; }, set lockViews(v: ChartCore["lockViews"]) { lockViews = v; },
     get mainLastIndex() { return mainLastIndex; },
+    get mainPane() { return mainPane; },
+    get mainPaneEpoch() { return mainPaneEpoch; },
+    get mainScale() { return mainScale; },
+    get mainSide() { return mainSide; },
+    get leftAxisWidth() { return leftAxisWidth; },
+    get syncScaleSides() { return syncScaleSides; },
     get newsLollipop() { return newsLollipop; },
     get onShownHooks() { return onShownHooks; },
     get paneRoot() { return paneRoot; }, set paneRoot(v: ChartCore["paneRoot"]) { paneRoot = v; },
@@ -522,6 +528,97 @@ export function ChartView(props: ChartViewProps) {
     return chart.timeScale().timeToIndex(items[items.length - 1].time, true) as number | null;
   }
 
+  // ── The price pane ────────────────────────────────────────────────────
+  // The price pane can sit at any position (pane controls, chart drag) and
+  // the series can share a study pane (chart drag onto it); the controller
+  // keeps the pane layout, the series and the decorations follow it.
+  /** The saved place of the series last applied to (or saved from) the
+   *  controller. */
+  let appliedSeriesPane: string | null = null;
+  /** Pane of the main series. */
+  function mainPane(): number {
+    return controller?.mainPaneIndex() ?? 0;
+  }
+  /** Bumped when the price pane moves or the series changes pane / scale. */
+  const [mainPaneEpoch, setMainPaneEpoch] = createSignal(0);
+  /** Side of the series' scale: the chosen side ("Scales placement"); in a
+   *  study pane it shares, the pane's scale when it shows prices (a price
+   *  study or a compared symbol leads it), else the study keeps its scale and
+   *  the series takes the free side (reference "Auto" rule; with "Stack on
+   *  the left / right" the reference stacks a second scale on that side,
+   *  which the chart library cannot draw: the free side too). */
+  function mainSide(): "left" | "right" {
+    const placement = currentTokens().scalesPlacement;
+    if (!controller?.seriesShares() || controller.seriesSharesPriceScale()) return placement;
+    return placement === "right" ? "left" : "right";
+  }
+  /** Price scale of the main series. */
+  function mainScale() {
+    if (!chart) return null;
+    if (series) return series.priceScale();
+    return chart.priceScale(mainSide(), mainPane());
+  }
+  /** Width of the left price axis (0 when hidden). */
+  function leftAxisWidth(): number {
+    if (!chart) return 0;
+    try { return chart.priceScale("left").width(); } catch { return 0; }
+  }
+  /** Price axes shown: the chosen side, and the other one while the series
+   *  (in a study pane it shares) or a compared symbol on a new price scale
+   *  uses it. Studies stay on the chosen side (defaultVisiblePriceScaleId). */
+  function syncScaleSides() {
+    if (!chart) return;
+    const placement = currentTokens().scalesPlacement;
+    const other = placement === "right" ? "left" : "right";
+    const used = mainSide() === other || cx.compareUsesOtherSide();
+    chart.applyOptions(other === "left" ? { leftPriceScale: { visible: used } } : { rightPriceScale: { visible: used } });
+  }
+  /** The price pane moved or changed (controller hook): the series goes to
+   *  its pane and side (its scale keeps its modes), the price pane's other
+   *  sources and the decorations follow. */
+  function onMainPaneMoved() {
+    if (!chart || !series || !controller) return;
+    const m = mainPane();
+    let pane = -1;
+    try { pane = series.getPane().paneIndex(); } catch { /* not laid out */ }
+    const side = mainSide();
+    const sideNow = (series.options() as { priceScaleId?: string }).priceScaleId;
+    if (pane !== m || sideNow !== side) {
+      let o: ReturnType<ReturnType<AnySeries["priceScale"]>["options"]> | null = null;
+      try { o = series.priceScale().options(); } catch { /* not on a scale */ }
+      // Built again in its pane on its side (moving a series with its
+      // primitives between panes in place lets them read it while it has no
+      // pane), its view and decorations kept.
+      rebuildSeries();
+      // A scale of its own keeps the modes of its former scale (percent,
+      // log, inverted); a shared price scale keeps its own (reference).
+      if (o && series && !controller.seriesSharesPriceScale()) series.priceScale().applyOptions({ mode: o.mode, invertScale: o.invertScale, autoScale: o.autoScale });
+    }
+    // Compared symbols over the series follow it (not syncCompare: it
+    // re-applies the saved pane order, which the caller saves after this).
+    cx.followMainPane();
+    // Studies over the series take its new scale (and pane mode).
+    controller.redrawAll();
+    // Saved after the move (the save re-runs the chart's effects).
+    queueMicrotask(() => {
+      const group = controller?.seriesPaneGroup() ?? null;
+      if (group !== (props.seriesPane ?? null)) {
+        appliedSeriesPane = group;
+        props.onSeriesPane?.(group);
+      }
+    });
+    setMainPaneEpoch((n) => n + 1);
+    setPaneEpoch((n) => n + 1);
+    // The panes are laid out again on the next frame: their boxes then.
+    const relayout = () => {
+      refreshPaneBoxes();
+      refreshScaleOverlays();
+    };
+    queueMicrotask(relayout);
+    requestAnimationFrame(() => requestAnimationFrame(relayout));
+    refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+  }
+
   function rebuildSeries() {
     if (!chart) return;
     // Preserve the user's scroll position across the series swap. Creating a
@@ -538,17 +635,17 @@ export function ChartView(props: ChartViewProps) {
     const old = series;
     series = null;
     // The library deletes a pane left empty while other panes exist: with a
-    // study pane open, removing the main series would delete pane 0, and the
+    // study pane open, removing the main series would delete its pane, and the
     // new series would land in the study pane (wrong height, study moved to
     // a new pane). Keep the main pane alive across the swap.
-    const mainPane = old ? old.getPane() : null;
-    const preserved = mainPane?.preserveEmptyPane() ?? false;
-    mainPane?.setPreserveEmptyPane(true);
+    const oldPane = old ? old.getPane() : null;
+    const preserved = oldPane?.preserveEmptyPane() ?? false;
+    oldPane?.setPreserveEmptyPane(true);
     if (old) chart.removeSeries(old);
     forgetBaseline();
     const tokens = currentTokens();
-    series = createSeriesForType(chart, activeType, tokens);
-    mainPane?.setPreserveEmptyPane(preserved);
+    series = createSeriesForType(chart, activeType, tokens, mainPane());
+    oldPane?.setPreserveEmptyPane(preserved);
     const prevType = builtType;
     builtType = activeType;
     setDataForType(series, activeType, raw, tokens, dataExtras());
@@ -559,9 +656,10 @@ export function ChartView(props: ChartViewProps) {
     const fmt = chartPriceFormat(tokens.precision, cachedSymbolSessions(props.symbol ?? ""));
     if (fmt) series.applyOptions({ priceFormat: { type: "custom", formatter: fmt.format, minMove: fmt.minMove } });
     setLegendPriceFormat(() => fmt?.format);
-    // Bind the price axis to the chosen side (Scales placement). The visible
-    // scale already drives the default; this pins it explicitly too.
-    series.applyOptions({ priceScaleId: tokens.scalesPlacement });
+    // Bind the price axis to the series' side (Scales placement; the free
+    // side in a study pane it shares).
+    series.applyOptions({ priceScaleId: mainSide() });
+    syncScaleSides();
     // Legend eye (series `visible`): a rebuilt series keeps the hidden state
     // (the live toggle is the seriesHidden effect below).
     series.applyOptions({ visible: !untrack(() => props.seriesHidden) });
@@ -761,6 +859,8 @@ export function ChartView(props: ChartViewProps) {
     controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
     controller.setLastBarOpenProbe(lastBarForming);
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
+    controller.setScaleIdsProbe(() => ({ price: mainSide(), pane: currentTokens().scalesPlacement }));
+    controller.setMainPaneHook(onMainPaneMoved);
     controller.setSeriesChangedHook(() => {
       scheduleSourceOrder();
       setAlertSeriesEpoch((n) => n + 1);
@@ -976,7 +1076,19 @@ export function ChartView(props: ChartViewProps) {
     // Seed persisted inputs/styles before sync so a freshly-added layer renders
     // with the user's saved values (sync → add reads the seeded maps).
     if (props.indicatorSettings) controller?.seedSettings(props.indicatorSettings);
+    // The saved place of the series first: the studies of the pane it
+    // shares open in its pane.
+    // Only a new saved value (a chart load, a tab shown in this view): the
+    // chart's own moves save theirs after the move.
+    const seriesPane = props.seriesPane ?? null;
+    if (seriesPane !== appliedSeriesPane) {
+      appliedSeriesPane = seriesPane;
+      untrack(() => controller?.setSeriesGroup(seriesPane));
+    }
     controller?.sync(ids);
+    // The study pane the series was dragged into is gone (its studies were
+    // removed): the saved place goes too ("Hide indicators" keeps it).
+    if (!props.indicatorsHidden && controller?.seriesGroupGone()) untrack(() => props.onSeriesPane?.(null));
     // Study panes added / removed: the drawing panes follow.
     setPaneEpoch((n) => n + 1);
     queueMicrotask(refreshPaneBoxes);
@@ -1037,7 +1149,8 @@ export function ChartView(props: ChartViewProps) {
   // series' scale leave its auto-scale.
   const seriesOnlyScale = () => {
     const t = readChartTokens(appearance());
-    return t.scaleSeriesOnly ? t.scalesPlacement : null;
+    void mainPaneEpoch();
+    return t.scaleSeriesOnly ? mainSide() : null;
   };
   createEffect(() => {
     chartReady();
@@ -1161,9 +1274,13 @@ export function ChartView(props: ChartViewProps) {
         const r = paneRoot.getBoundingClientRect();
         const pane = paneAtY(e.clientY - r.top);
         setHoverPane(pane);
-        const g = scaleGeom();
         const x = e.clientX - r.left;
-        setAxisHover(g && pane !== null && (g.left ? x < g.w : x >= r.width - g.w) ? pane : null);
+        // Over a price axis of the pane (either side: the series sharing a
+        // study pane has the other side).
+        const lw = leftAxisWidth();
+        let rw = 0;
+        try { rw = chart?.priceScale("right").width() ?? 0; } catch { /* not laid out */ }
+        setAxisHover(scaleGeom() && pane !== null && ((lw > 0 && x < lw) || (rw > 0 && x >= r.width - rw)) ? pane : null);
       }}
       onMouseLeave={() => { setChartHovered(false); setAxisHover(null); setHoverPane(null); setPlusY(null); }}
     >
@@ -1184,7 +1301,7 @@ export function ChartView(props: ChartViewProps) {
         interval={props.interval}
         symbol={props.symbol ?? ""}
         coords={coords()}
-        leftInset={scaleGeom()?.left ? scaleGeom()!.w : 0}
+        leftInset={cx.legendLeft()}
         formatPrice={legendPriceFormat()}
         panes={drawingPanes()}
         sunk={sunkIds()}

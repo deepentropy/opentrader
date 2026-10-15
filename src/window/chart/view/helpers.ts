@@ -167,6 +167,10 @@ export function appearanceOptions(t: ReturnType<typeof readChartTokens>) {
     },
     rightPriceScale: { ...scaleOpts, visible: !onLeft },
     leftPriceScale: { ...scaleOpts, visible: onLeft },
+    // A series with no scale id takes the chosen side even while the other
+    // side is shown too (the series in a study pane, a compared symbol on a
+    // new price scale).
+    defaultVisiblePriceScaleId: onLeft ? ("left" as const) : ("right" as const),
     timeScale: { borderColor: t.scaleLinesColor },
   };
 }

@@ -156,7 +156,9 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
     const dx = Math.abs(r.end.x - r.start.x);
     const dy = Math.abs(r.end.y - r.start.y);
     if ((dx > 3 || dy > 3) && props.coords) {
-      props.coords.zoomToScreenRect(r.start.x, r.end.x, r.start.y, r.end.y);
+      // The series' price pane can sit lower: its coords are pane-local.
+      const top = cx.mainFrame()?.top ?? 0;
+      props.coords.zoomToScreenRect(r.start.x, r.end.x, r.start.y - top, r.end.y - top);
     }
     // Zoom is one-shot unless keep-drawing is on.
     if (!props.stayMode) props.onDisarm();

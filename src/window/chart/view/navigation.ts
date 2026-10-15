@@ -210,7 +210,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
   const resetChartView = () => {
     if (!cx.chart) return;
     resetTimeScale();
-    cx.chart.priceScale(currentTokens().scalesPlacement).applyOptions({ autoScale: true });
+    cx.mainScale()?.applyOptions({ autoScale: true });
     refreshBarsRef?.();
   };
 
@@ -219,7 +219,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
   const scalesOffDefault = () => {
     if (!cx.chart) return false;
     if (timeScaleOffDefault()) return true;
-    return !cx.chart.priceScale(currentTokens().scalesPlacement).options().autoScale;
+    return !(cx.mainScale()?.options().autoScale ?? true);
   };
   /** Time-scale reset available: bar spacing or right offset off default. */
   const timeScaleOffDefault = () => {
@@ -288,7 +288,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
       // Host size cached by the ResizeObserver: reading clientWidth/Height here
       // forced a synchronous layout on every pan frame (the drawings overlay
       // has just re-projected its SVG in the same task).
-      const anchor = barAnchor(cx.chart, cx.hostH, cx.hostW);
+      const anchor = barAnchor(cx.chart, cx.hostH, cx.hostW, cx.mainPane());
       if (anchor) {
         setGotoBox((p) => (p.bottom === anchor.bottom && p.right === anchor.right ? p : { bottom: anchor.bottom, right: anchor.right }));
         const fits = anchor.fits((id) => (id === "maximize" ? !!props.canMaximize : true));

@@ -30,7 +30,9 @@ export class PriceScaleWatch implements ISeriesPrimitive<Time> {
   updateAllViews(): void {
     const s = this.series;
     if (!s) return;
-    const r = s.priceScale().getVisibleRange();
+    // A series between two panes (the chart moves it) has no scale.
+    let r: ReturnType<ReturnType<ISeriesApi<SeriesType, Time>["priceScale"]>["getVisibleRange"]>;
+    try { r = s.priceScale().getVisibleRange(); } catch { return; }
     if (!r) return;
     const key = `${r.from}|${r.to}|${s.priceToCoordinate(r.from)}|${s.priceToCoordinate(r.to)}`;
     if (key === this.key) return;

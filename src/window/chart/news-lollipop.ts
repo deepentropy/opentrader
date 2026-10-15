@@ -58,10 +58,12 @@ export class NewsLollipopPrimitive implements ISeriesPrimitive<Time> {
 
   attached(p: SeriesAttachedParameter<Time, SeriesType>): void {
     this._chart = p.chart as IChartApi;
+    this._paneOf = () => p.series.getPane();
     this._requestUpdate = p.requestUpdate;
   }
   detached(): void {
     this._chart = null;
+    this._paneOf = null;
     this._requestUpdate = null;
   }
 
@@ -88,7 +90,11 @@ export class NewsLollipopPrimitive implements ISeriesPrimitive<Time> {
     return { x: x as number, y: paneHeight - BOTTOM - SIZE / 2 };
   }
 
-  paneHeight(): number { return this._chart ? this._chart.paneSize(0).height : 0; }
+  /** Height of the series' pane (the price pane, at any position). */
+  paneHeight(): number {
+    try { return this._paneOf?.().getHeight() ?? 0; } catch { return 0; }
+  }
+  private _paneOf: (() => { getHeight(): number }) | null = null;
 
   icon(): Path2D { return (this._icon ??= new Path2D(ICON)); }
 

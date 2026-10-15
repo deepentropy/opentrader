@@ -97,12 +97,12 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
         .map((p) => [...p.childNodes].filter((n) => !(n instanceof Element && n.classList.contains("ot-legend-logo"))).map((n) => n.textContent ?? "").join("").trim())
         .filter(Boolean)
         .join(" · ");
-      add(0, legendLine(title, [...item.querySelectorAll(".ot-legend-values > *")].map(valueOf)));
+      add(cx.mainPane(), legendLine(title, [...item.querySelectorAll(".ot-legend-values > *")].map(valueOf)));
     }
     // Studies and compared symbols: the shown ones, values without titles.
     for (const row of cx.paneRoot.querySelectorAll<HTMLElement>(".ot-ind-legend-row")) {
       if (row.classList.contains("is-hidden")) continue;
-      const pane = indLegend().find((r) => r.id === row.dataset.entityId)?.pane ?? 0;
+      const pane = indLegend().find((r) => r.id === row.dataset.entityId)?.pane ?? cx.mainPane();
       const title = row.querySelector(".ot-ind-legend-title")?.textContent?.trim() ?? "";
       add(pane, legendLine(title, [...row.querySelectorAll(".ot-ind-legend-val")].map((v) => ({ ...valueOf(v), title: "" }))));
     }
@@ -161,14 +161,17 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
   function paintSnapshotCurrency(ctx: CanvasRenderingContext2D, dpr: number, leftW: number) {
     if (!cx.chart || !cx.currency() || (appearance().currencyUnit ?? "visibleOnMouseOver") === "alwaysOff") return;
     const t = currentTokens();
-    const left = t.scalesPlacement === "left";
-    const w = cx.chart.priceScale(t.scalesPlacement).width();
+    // At the top of the series' price axis.
+    const side = cx.mainSide();
+    const left = side === "left";
+    const w = cx.chart.priceScale(side).width();
     const x = left ? 0 : leftW + cx.chart.paneSize(0).width;
+    const top = cx.paneBoxes().find((b) => b.index === cx.mainPane())?.top ?? 0;
     const css = getComputedStyle(cx.paneRoot);
     ctx.save();
     ctx.scale(dpr, dpr);
     ctx.beginPath();
-    ctx.roundRect(x + 4, 4, Math.ceil(w / 2) * 2 - 8, 26, 4);
+    ctx.roundRect(x + 4, top + 4, Math.ceil(w / 2) * 2 - 8, 26, 4);
     ctx.fillStyle = t.bg;
     ctx.strokeStyle = css.getPropertyValue("--color-divider").trim() || "#4A4A4A";
     ctx.lineWidth = 1;
@@ -177,7 +180,7 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
     ctx.fillStyle = css.getPropertyValue("--color-text-primary").trim() || "#DBDBDB";
     ctx.font = `${t.scaleFontSize}px ${readFontFamily()}`;
     ctx.textBaseline = "middle";
-    ctx.fillText(cx.currency(), x + 13, 17);
+    ctx.fillText(cx.currency(), x + 13, top + 17);
     ctx.restore();
   }
   async function snapshotPicture(): Promise<ChartSnapshot | null> {

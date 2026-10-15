@@ -26,6 +26,9 @@ export interface CompareApi {
   compareLegendRows: (time?: number) => IndicatorLegendRow[];
   compareLiveDirty: boolean;
   compareTitle: (e: CompareEntry) => string;
+  compareUsesOtherSide: () => boolean;
+  holdCompares: (ids: string[]) => void;
+  followMainPane: () => void;
   renderCompareAll: () => void;
   setComparePreview: Setter<{
     id: string;
@@ -77,26 +80,50 @@ export function createCompare(cx: ChartCx): CompareApi {
   // scales (the main scale is on the right, so the left); the "Stack on …"
   // choices keep every scale on the main side, where the library has one
   // scale per side: an extra scale there is an unlabelled overlay scale.
+  // In a study pane the series shares, both sides are taken (the study's
+  // scale and the series'): a "New price scale" entry gets an overlay scale.
   function compareScaleIds(): Map<string, string> {
     const t = currentTokens();
-    const main = t.scalesPlacement;
+    const main = cx.mainSide();
     const out = new Map<string, string>();
-    let sideUsed = t.scalesMode !== "auto";
+    let sideUsed = t.scalesMode !== "auto" || !!cx.controller?.seriesShares();
     for (const e of compareEntries()) {
-      if (e.placement === "percent" || e.placement === "pane") out.set(e.id, main);
+      if (e.placement === "pane") out.set(e.id, t.scalesPlacement);
+      else if (e.placement === "percent") out.set(e.id, main);
       else if (!sideUsed) { out.set(e.id, otherSide(main)); sideUsed = true; }
       else out.set(e.id, `cmp:${e.id}`);
     }
     return out;
   }
-  /** The other side's scale is shown while a "New price scale" entry uses it
-   *  (Auto only). */
-  function syncCompareScaleVisibility() {
+  /** Compared symbols over the series that stay in the pane the series left
+   *  (reference: they are not the series' children): they are not moved with
+   *  it until their entry turns into "pane" placement. The series' scale
+   *  keeps its percent mode (its new scale takes the former one's modes). */
+  const held = new Set<string>();
+  const heldPercent = new Set<string>();
+  function holdCompares(ids: string[]) {
+    for (const id of ids) {
+      held.add(id);
+      if (compareEntry(id)?.placement === "percent") heldPercent.add(id);
+    }
+    if (ids.length) comparePercentOn = compareEntries().some((e) => e.placement === "percent" && !held.has(e.id)) && comparePercentOn;
+  }
+  /** The price pane moved or the series changed scale: the compared symbols
+   *  over the series follow it (not the ones staying where it was). */
+  function followMainPane() {
     if (!cx.chart) return;
-    const main = currentTokens().scalesPlacement;
-    const used = currentTokens().scalesMode === "auto" && compareEntries().some((e) => e.placement === "scale");
-    const opts = { visible: used };
-    cx.chart.applyOptions(otherSide(main) === "left" ? { leftPriceScale: opts } : { rightPriceScale: opts });
+    const ids = compareScaleIds();
+    for (const [id, layer] of compareLayers) {
+      if (layer.entry.placement === "pane" || held.has(id)) continue;
+      layer.moveToPane(cx.mainPane());
+      layer.setScaleId(ids.get(id) ?? cx.mainSide());
+      renderCompare(layer);
+    }
+    cx.syncScaleSides();
+  }
+  /** A "New price scale" entry uses the other side's scale (Auto only). */
+  function compareUsesOtherSide(): boolean {
+    return currentTokens().scalesMode === "auto" && !cx.controller?.seriesShares() && compareEntries().some((e) => e.placement === "scale");
   }
   function compareVisible(e: CompareEntry): boolean {
     return !e.hidden && isVisibleOnInterval(e.style.visibility, props.interval);
@@ -133,7 +160,23 @@ export function createCompare(cx: ChartCx): CompareApi {
     untrack(() => cx.controller?.setPaneOrder(order));
   });
   /** Reconcile the layers with the entries (structure, style, scales). */
+  /** A sync asked for while one runs (the price pane moved under it): it
+   *  runs again after. */
+  let syncing = false;
+  let syncAgain = false;
   function syncCompare() {
+    if (syncing) { syncAgain = true; return; }
+    syncing = true;
+    try {
+      do {
+        syncAgain = false;
+        syncCompareOnce();
+      } while (syncAgain);
+    } finally {
+      syncing = false;
+    }
+  }
+  function syncCompareOnce() {
     if (!cx.chart) return;
     const want = compareEntries();
     const basis = `${props.interval ?? "1D"}|${props.session ?? "RTH"}|${reloadTick()}`;
@@ -154,7 +197,8 @@ export function createCompare(cx: ChartCx): CompareApi {
       const scaleId = scaleIds.get(e.id) ?? currentTokens().scalesPlacement;
       let created = false;
       if (!layer) {
-        layer = new CompareLayer(cx.chart, e, 0, scaleId);
+        // Over the series: in the price pane.
+        layer = new CompareLayer(cx.chart, e, cx.mainPane(), scaleId);
         if (e.placement === "pane" && cx.controller) {
           layer.setPaneIndex(cx.controller.claimPaneFor(e.id, layer));
           // Studies above it may not be drawn yet (no bars): open their panes
@@ -168,23 +212,31 @@ export function createCompare(cx: ChartCx): CompareApi {
         created = true;
       } else {
         layer.entry = e;
-        layer.setScaleId(scaleId);
+        // Over the series: it follows the price pane (not one staying where
+        // the series was, about to get that pane).
+        if (!held.has(e.id)) {
+          if (e.placement !== "pane") layer.moveToPane(cx.mainPane());
+          layer.setScaleId(scaleId);
+        }
       }
       renderCompare(layer);
       // A new pane copies the main scale's mode (Percent with a same % scale
       // entry): its own scale starts Regular.
+      // One staying where the series was keeps its percent scale.
       if (created && e.placement === "pane") {
-        try { cx.chart.priceScale(scaleId, layer.paneIndex).applyOptions({ mode: PriceScaleMode.Normal }); } catch { /* pane not built yet */ }
+        const mode = heldPercent.has(e.id) ? PriceScaleMode.Percentage : PriceScaleMode.Normal;
+        try { cx.chart.priceScale(scaleId, layer.paneIndex).applyOptions({ mode }); } catch { /* pane not built yet */ }
       }
+      if (e.placement === "pane") { held.delete(e.id); heldPercent.delete(e.id); }
       loadCompareBars(layer);
     }
-    syncCompareScaleVisibility();
+    cx.syncScaleSides();
     cx.controller?.applyPaneOrder();
     // Same % scale: the main scale shows percent while such an entry exists.
     const percent = want.some((e) => e.placement === "percent");
     if (percent !== comparePercentOn) {
       comparePercentOn = percent;
-      cx.chart.priceScale(currentTokens().scalesPlacement).applyOptions({ mode: percent ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
+      cx.mainScale()?.applyOptions({ mode: percent ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
       cx.refreshScaleOverlays();
     }
     cx.setPaneEpoch((n) => n + 1);
@@ -310,7 +362,7 @@ export function createCompare(cx: ChartCx): CompareApi {
         title: compareTitle(e),
         hidden: !!e.hidden || offInterval,
         plots: [],
-        pane: e.placement === "pane" ? layer.paneIndex : 0,
+        pane: e.placement === "pane" ? layer.paneIndex : cx.mainPane(),
         inputs: "",
         showValues: true,
         showInputs: false,
@@ -335,6 +387,9 @@ export function createCompare(cx: ChartCx): CompareApi {
       compareLiveDirty = v;
     },
     compareTitle,
+    compareUsesOtherSide,
+    holdCompares,
+    followMainPane,
     renderCompareAll,
     setComparePreview,
     studyOfSeries,
