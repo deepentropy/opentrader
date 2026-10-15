@@ -38,7 +38,7 @@ import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
 import { conditionRules, defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
-import { chartBars, chartLastBarTime, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
+import { chartBars, chartLastBarTime, chartLastPrice, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { scriptBars } from "../backtester/oakscript";
@@ -50,7 +50,7 @@ import * as kv from "./kv";
 import { REPLAY_MAX_FIRES, REPLAY_MAX_SEC, replayAlertCalls, replayCondition, replayRule } from "./alert-replay";
 import { alertCallsOf, conditionBars, type StudyAlertCall } from "./alert-study-conditions";
 import { fillPlaceholders, needsBarData, type PlaceholderValues } from "./alert-placeholders";
-import { messageOutputs, outputValue } from "./alert-outputs";
+import { messageOutputs, outputByKey, outputSeries, outputValue } from "./alert-outputs";
 import { isStrategyOperator } from "./alert-condition";
 import { newStrategyFills, strategyFillsBetween, type StrategyAlertState, type StrategyFillEvent } from "./alert-strategy";
 import { isStrategyId, strategyKeyOf } from "../window/chart/indicators/strategy-entries";
@@ -814,20 +814,7 @@ function liveBarState(symbol: string, resolution: string, session: string, bars:
 }
 
 /** A study computed off the chart, with the chart context of its symbol, interval and session and the state of the
- *  newest bar. */
-function calculateStudy(
-  entry: NonNullable<ReturnType<typeof getIndicatorEntry>>,
-  bars: unknown[],
-  inputs: unknown,
-  symbol: string,
-  resolution: string,
-  session: string,
-  state: BarState = CLOSED_BARS,
-): unknown {
-  return runStudy(entry, bars, inputs, symbol, resolution, session, state).result;
-}
-
-/** calculateStudy, with the bars the study was given. `slot`: who asks (a script keeps one run per slot). */
+ *  newest bar; its result and the bars it was given. `slot`: who asks (a script keeps one run per slot). */
 function runStudy(
   entry: NonNullable<ReturnType<typeof getIndicatorEntry>>,
   bars: unknown[],
@@ -862,11 +849,13 @@ function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "ind
   const plot = op.plot ?? 0;
   const entry = getIndicatorEntry(op.indicatorId);
   const plotId = entry?.plotConfig[plot]?.id;
-  if (!entry || !plotId) return null;
+  // A shape, character, arrow or candle price of the study, else a line plot.
+  const out = op.output ? outputByKey(entry, op.output) : undefined;
+  if (!entry || (op.output ? !out : !plotId)) return null;
   const charted = chartBars(symbol, resolution, session);
   // An older alert has no inputs of its own: the charted study's value while
   // a chart shows the symbol on the alert's interval, else the factory inputs.
-  if (!op.inputs && charted) {
+  if (!op.inputs && charted && !out) {
     const live = indicatorPlotValue(symbol, op.indicatorId, plot);
     if (live != null) return live;
   }
@@ -876,13 +865,13 @@ function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "ind
     void pollDrawingBars(true);
     return null;
   }
-  if (!charted) {
+  if (!charted && Number.isFinite(price)) {
     const last = bars[bars.length - 1];
     bars = [...bars.slice(0, -1), { ...last, close: price, high: Math.max(last.high, price), low: Math.min(last.low, price) }];
   }
   const last = bars[bars.length - 1];
   const inputs = op.inputs ?? entry.defaultInputs;
-  const key = `${symbol}|${resolution}|${session}|${op.indicatorId}|${plot}|${JSON.stringify(inputs)}`;
+  const key = `${symbol}|${resolution}|${session}|${op.indicatorId}|${op.output ?? plot}|${JSON.stringify(inputs)}`;
   const sig = `${bars.length}|${last.time}|${last.close}`;
   const now = Date.now();
   const hit = indicatorValueCache.get(key);
@@ -890,13 +879,21 @@ function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "ind
   let value: number | null = null;
   try {
     const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
-    value = lastPlotValue(calculateStudy(entry, dense, inputs, symbol, resolution, session, liveBarState(symbol, resolution, session, bars)), plotId);
+    const run = runStudy(entry, dense, inputs, symbol, resolution, session, liveBarState(symbol, resolution, session, bars));
+    // An output other than a line plot: its value on the last bar (na when it has none there).
+    value = out ? outputValue(run.result, out, [run.bars[run.bars.length - 1]?.time ?? last.time, last.time]) : lastPlotValue(run.result, plotId!);
   } catch (e) {
     console.warn(`[alerts] indicator compute failed for ${op.indicatorId}`, e);
   }
   // Not computed yet (a script's worker run): ask again at the next tick.
   indicatorValueCache.set(key, { sig: value === null ? "" : sig, at: now, value });
   return value;
+}
+
+/** Current value of a study operand on an interval and session, as the engine reads it (the alert dialog's default
+ *  value for an output the chart's legend does not show). */
+export function studyOperandValue(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string): number | null {
+  return indicatorOperandValue(symbol, op, resolution, session, chartLastPrice(symbol) ?? NaN);
 }
 
 // ── Study conditions ──
@@ -1323,10 +1320,12 @@ async function pollMovingRefs(): Promise<void> {
       if (rule.left.kind === "indicator") {
         const entry = getIndicatorEntry(rule.left.indicatorId);
         const plotId = entry?.plotConfig[rule.left.plot ?? 0]?.id;
-        if (!entry || !plotId) continue;
+        const out = rule.left.output ? outputByKey(entry, rule.left.output) : undefined;
+        if (!entry || (rule.left.output ? !out : !plotId)) continue;
         try {
-          const result = calculateStudy(entry, bars, rule.left.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session, liveBarState(rule.symbol, rule.resolution, session, bars)) as { plots?: Record<string, Array<{ value: number | null }>> };
-          const v = result.plots?.[plotId]?.[at]?.value;
+          const run = runStudy(entry, bars, rule.left.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session, liveBarState(rule.symbol, rule.resolution, session, bars));
+          const result = run.result as { plots?: Record<string, Array<{ value: number | null }>> };
+          const v = out ? outputValue(run.result, out, [run.bars[at]?.time ?? bars[at].time, bars[at].time]) : result.plots?.[plotId!]?.[at]?.value;
           movingRefCache.set(rule.id, typeof v === "number" && Number.isFinite(v) ? v : null);
         } catch (e) {
           console.warn(`[alerts] moving reference compute failed for ${rule.left.indicatorId}`, e);
@@ -1351,11 +1350,15 @@ const REPLAYED_KEY = "alerts.replayed-run.v1";
 function plotSeries(op: Extract<Operand, { kind: "indicator" }>, bars: ChartBar[], rule: AlertRule, session: string): (number | null)[] | null {
   const entry = getIndicatorEntry(op.indicatorId);
   const plotId = entry?.plotConfig[op.plot ?? 0]?.id;
-  if (!entry || !plotId) return null;
+  const out = op.output ? outputByKey(entry, op.output) : undefined;
+  if (!entry || (op.output ? !out : !plotId)) return null;
   try {
     const dense = bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 }));
-    const result = calculateStudy(entry, dense, op.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session) as { plots?: Record<string, Array<{ value: number | null }>> };
-    const series = result.plots?.[plotId];
+    const run = runStudy(entry, dense, op.inputs ?? entry.defaultInputs, rule.symbol, rule.resolution, session);
+    // An output other than a line plot: its value on each bar.
+    if (out) return outputSeries(run.result, out, bars.map((b, i) => [run.bars[i]?.time ?? b.time, b.time]));
+    const result = run.result as { plots?: Record<string, Array<{ value: number | null }>> };
+    const series = result.plots?.[plotId!];
     if (!series) return null;
     return bars.map((_, i) => {
       const v = series[i]?.value;

@@ -6,8 +6,11 @@
  * output. Colour outputs are not counted.
  *
  * - A script gives that order in its entry (`outputs`, oakscriptjs
- *   ScriptRunResult.outputs). A study without it (the built-in studies, a
- *   script compiled before) numbers its line plots only, in plot order.
+ *   ScriptRunResult.outputs). A study without it (a script compiled before)
+ *   numbers its line plots in plot order, then the prices of its candles.
+ * - The same list is the plot select of an alert condition on the study: a
+ *   line plot is read by its plotConfig index (`Operand.plot`), any other
+ *   output by its key (`Operand.output`, outputKey).
  * - The value of an output on a bar: a line plot's value, the value of a
  *   shape's / character's / arrow's series (`outputValues` of the result: a
  *   condition gives 1 or 0), a candle's or bar's price; null when it has none
@@ -45,27 +48,65 @@ export function messageOutputs(entry: IndicatorRegistryEntry | null | undefined)
   const plots = (entry.plotConfig ?? []) as { id: string; title?: string }[];
   const declared = (entry as { outputs?: Declared[] }).outputs;
   if (!Array.isArray(declared) || !declared.length) {
-    return plots.map((p) => ({ title: p.title || p.id, named: true, source: "plot", id: p.id }));
+    const candles = ((entry as { plotCandleConfig?: { id: string; title?: string }[] }).plotCandleConfig ?? []).map((c): Declared => ({ kind: "candle", id: c.id, title: c.title }));
+    return [...plots.map((p): Declared => ({ kind: "plot", id: p.id })), ...candles].flatMap((o) => outputsOf(o, plots));
   }
-  return declared.flatMap((o): MessageOutput[] => {
-    switch (o.kind) {
-      case "plot": {
-        const p = plots.find((x) => x.id === o.id);
-        return [{ title: p?.title || o.title || o.id, named: true, source: "plot", id: o.id }];
-      }
-      case "shape":
-      case "char":
-      case "arrow":
-        return [{ title: o.title || UNTITLED[o.kind] || o.id, named: true, source: "series", id: o.id }];
-      case "candle":
-      case "bar": {
-        const source = o.kind;
-        return OHLC.map(({ part, title }) => ({ title: o.title ? `${o.title} (${title})` : title, named: false, source, id: o.id, part }));
-      }
-      default:
-        return [];
+  return declared.flatMap((o) => outputsOf(o, plots));
+}
+
+/** The numbered outputs of one declared output (four for a candle or a bar). */
+function outputsOf(o: Declared, plots: { id: string; title?: string }[]): MessageOutput[] {
+  switch (o.kind) {
+    case "plot": {
+      const p = plots.find((x) => x.id === o.id);
+      return [{ title: p?.title || o.title || o.id, named: true, source: "plot", id: o.id }];
     }
-  });
+    case "shape":
+    case "char":
+    case "arrow":
+      return [{ title: o.title || UNTITLED[o.kind] || o.id, named: true, source: "series", id: o.id }];
+    case "candle":
+    case "bar": {
+      const source = o.kind;
+      return OHLC.map(({ part, title }) => ({ title: o.title ? `${o.title} (${title})` : title, named: false, source, id: o.id, part }));
+    }
+    default:
+      return [];
+  }
+}
+
+/** Key of an output other than a line plot, as an alert operand keeps it (`Operand.output`): its id, and the price
+ *  of a candle or bar output ("<id>:close"). */
+export function outputKey(o: MessageOutput): string {
+  return o.part ? `${o.id}:${o.part}` : o.id;
+}
+
+/** One row of the plot select of an alert condition on a study: a line plot (`plot`: its plotConfig index) or another
+ *  output (`output`: its key). `index`: the row (the output's number in messages). */
+export type OutputChoice = { index: number; title: string; plot?: number; output?: string };
+
+/** The plot select of a study: its outputs in message order. */
+export function outputChoices(entry: IndicatorRegistryEntry | null | undefined): OutputChoice[] {
+  const plots = (entry?.plotConfig ?? []) as { id: string }[];
+  return messageOutputs(entry)
+    .flatMap((o): Omit<OutputChoice, "index">[] => {
+      if (o.source !== "plot") return [{ title: o.title, output: outputKey(o) }];
+      const plot = plots.findIndex((p) => p.id === o.id);
+      return plot < 0 ? [] : [{ title: o.title, plot }];
+    })
+    .map((c, index) => ({ index, ...c }));
+}
+
+/** The row of the plot select an operand reads (0 when it is gone). */
+export function choiceIndex(entry: IndicatorRegistryEntry | null | undefined, op: { plot?: number; output?: string }): number {
+  const list = outputChoices(entry);
+  const i = op.output ? list.findIndex((c) => c.output === op.output) : list.findIndex((c) => c.plot === (op.plot ?? 0));
+  return Math.max(0, i);
+}
+
+/** The output other than a line plot an operand reads, by key. */
+export function outputByKey(entry: IndicatorRegistryEntry | null | undefined, key: string): MessageOutput | undefined {
+  return messageOutputs(entry).find((o) => o.source !== "plot" && outputKey(o) === key);
 }
 
 type TimePoint = { time: number };
@@ -103,4 +144,20 @@ export function outputValue(result: unknown, o: MessageOutput, times: readonly n
     case "bar":
       return finite(pointAt(r.plotBars?.[o.id], times)?.[o.part ?? "close"]);
   }
+}
+
+/** Values of output `o` in a study `result` on every bar (`times[i]`: the times bar i has, as given to the study and
+ *  as charted); null for na. */
+export function outputSeries(result: unknown, o: MessageOutput, times: readonly (readonly number[])[]): (number | null)[] {
+  const r = result as StudyResult | null;
+  const series: (TimePoint & Record<string, unknown>)[] | undefined =
+    o.source === "plot" ? r?.plots?.[o.id] : o.source === "series" ? r?.outputValues?.[o.id] : o.source === "candle" ? r?.plotCandles?.[o.id] : r?.plotBars?.[o.id];
+  if (!series) return times.map(() => null);
+  const field = o.source === "candle" || o.source === "bar" ? (o.part ?? "close") : "value";
+  const byTime = new Map<number, unknown>();
+  for (const p of series) if (p) byTime.set(p.time, p[field]);
+  return times.map((ts) => {
+    for (const t of ts) if (byTime.has(t)) return finite(byTime.get(t));
+    return null;
+  });
 }

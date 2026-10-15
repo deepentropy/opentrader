@@ -50,7 +50,12 @@ export type Operand =
   | {
       kind: "indicator";
       indicatorId: string;
+      /** The line plot the alert reads (plotConfig index). */
       plot?: number;
+      /** Set when the alert reads another output of the study (a shape, a
+       *  character, an arrow, a candle's or a bar's price): its key
+       *  (alert-outputs.ts outputKey); `plot` is then unused. */
+      output?: string;
       label?: string;
       /** The study's full title with its inputs, as alert messages write it
        *  ("Moving average convergence divergence (close, 12, 26, 9)"); unset

@@ -516,7 +516,8 @@ export function operandValue(symbol: string, op: Operand, ctx: EvalContext, reso
       // The study on the rule's own interval, with the inputs saved on the
       // alert. Without an engine (no interval given): the charted value.
       if (ctx.indicatorValue && resolution != null) return ctx.indicatorValue(op, resolution, session);
-      return indicatorPlotValue(symbol, op.indicatorId, op.plot ?? 0);
+      // The legend shows line plots only.
+      return op.output ? null : indicatorPlotValue(symbol, op.indicatorId, op.plot ?? 0);
     }
     case "symbol":
       return ctx.symbolPrice ? ctx.symbolPrice(op.symbol) : ctx.price;

@@ -59,7 +59,8 @@ import { compareIntervals, favoriteIntervals, longIntervalLabel } from "../chart
 import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
-import { messageOutputs } from "../../data/alert-outputs";
+import { choiceIndex, messageOutputs, outputChoices } from "../../data/alert-outputs";
+import { studyOperandValue } from "../../data/alert-engine";
 import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import { statusLineInputs } from "../chart/indicators/indicator-options";
@@ -435,6 +436,12 @@ function isValidWebhookUrl(raw: string): boolean {
   }
 }
 
+
+/** The row of a study's plot select an operand reads (0 for any other operand). */
+function choiceOf(o: Operand | undefined): number {
+  return o?.kind === "indicator" ? choiceIndex(getIndicatorEntry(o.indicatorId), o) : 0;
+}
+
 export function AlertDialog(props: Props) {
   const existing = props.editId ? alertStore.rule(props.editId) : undefined;
 
@@ -515,7 +522,7 @@ export function AlertDialog(props: Props) {
   const [leftIndicator, setLeftIndicator] = createSignal(
     existing?.left.kind === "indicator" ? existing.left.indicatorId : (!existing && props.indicatorId) || "",
   );
-  const [leftPlot, setLeftPlot] = createSignal(existing?.left.kind === "indicator" ? (existing.left.plot ?? 0) : 0);
+  const [leftPlot, setLeftPlot] = createSignal(choiceOf(existing?.left));
 
   /** The conditions a study declares for alerts (script alertcondition(),
    *  TPO extended levels), with its inputs on the chart. An alert being
@@ -588,11 +595,10 @@ export function AlertDialog(props: Props) {
   const [rightIndicator, setRightIndicator] = createSignal(
     existing?.right.kind === "indicator" ? existing.right.indicatorId : "",
   );
-  const [rightPlot, setRightPlot] = createSignal(existing?.right.kind === "indicator" ? (existing.right.plot ?? 0) : 0);
-  /** Plots of an indicator (title per plotConfig index), for the plot select
-   *  shown next to a study with 2 or more plots. */
-  const plotsOf = (indicatorId: string) =>
-    (getIndicatorEntry(indicatorId)?.plotConfig ?? []).map((p, i) => ({ index: i, title: p.title || p.id }));
+  const [rightPlot, setRightPlot] = createSignal(choiceOf(existing?.right));
+  /** The outputs of an indicator in message order (line plots, shapes, characters, arrows, candle prices), for the
+   *  plot select shown next to a study with 2 or more of them. The plot signals hold the row. */
+  const plotsOf = (indicatorId: string) => outputChoices(getIndicatorEntry(indicatorId));
 
   // ── Moving conditions: the amount (or %) "in N bars" ──
   const [pct, setPct] = createSignal(
@@ -618,8 +624,8 @@ export function AlertDialog(props: Props) {
   const [lowerSel, setLowerSel] = createSignal(valueBandAtOpen ? boundSel(existing!.right2) : "value");
   const [upperValue, setUpperValue] = createSignal(valueBandAtOpen && existing!.right.kind === "value" ? savedText(existing!.right.value) : "");
   const [lowerValue, setLowerValue] = createSignal(valueBandAtOpen && existing!.right2?.kind === "value" ? savedText(existing!.right2.value) : "");
-  const [upperPlot, setUpperPlot] = createSignal(valueBandAtOpen && existing!.right.kind === "indicator" ? (existing!.right.plot ?? 0) : 0);
-  const [lowerPlot, setLowerPlot] = createSignal(valueBandAtOpen && existing!.right2?.kind === "indicator" ? (existing!.right2.plot ?? 0) : 0);
+  const [upperPlot, setUpperPlot] = createSignal(valueBandAtOpen ? choiceOf(existing!.right) : 0);
+  const [lowerPlot, setLowerPlot] = createSignal(valueBandAtOpen ? choiceOf(existing!.right2) : 0);
   // The bounds start on the source's value plus one tick and the value itself.
   const [boundsEdited, setBoundsEdited] = createSignal(valueBandAtOpen);
 
@@ -688,7 +694,13 @@ export function AlertDialog(props: Props) {
 
   /** Current value of the source: the study's last value, the compared symbol's price, else the price. */
   const sourceValue = (): number | null => {
-    if (leftKind() === "indicator") return indicatorPlotValue(symbol(), leftIndicator(), leftPlot());
+    if (leftKind() === "indicator") {
+      const c = plotsOf(leftIndicator())[leftPlot()];
+      if (!c?.output) return indicatorPlotValue(symbol(), leftIndicator(), c?.plot ?? 0);
+      // An output the legend does not show: computed as the alert reads it.
+      const o = untrack(buildLeft);
+      return o.kind === "indicator" ? studyOperandValue(symbol(), o, resolution(), existing?.session ?? props.session ?? "RTH") : null;
+    }
     if (leftKind() === "symbol") return compareOptions_().find((c) => c.symbol === leftSymbol())?.last ?? quoteFor(leftSymbol())?.last ?? null;
     return chartLastPrice(symbol()) ?? quoteFor(symbol())?.last ?? null;
   };
@@ -867,14 +879,17 @@ export function AlertDialog(props: Props) {
     const o = indicatorOptions().find((x) => x.id === indicatorId);
     const kept = was?.kind === "indicator" && was.indicatorId === indicatorId ? was : undefined;
     const inputs = kept?.inputs ?? (o?.inputs ? { ...o.inputs } : undefined);
-    const label = kept?.inputs && kept.plot === plot && kept.label ? kept.label : plotLabel(kept?.inputs ? kept.label?.replace(/ \(.*$/, "") ?? o?.label : o?.label, indicatorId, plot, inputs);
+    const label = kept?.inputs && choiceOf(kept) === plot && kept.label ? kept.label : plotLabel(kept?.inputs ? kept.label?.replace(/ \(.*$/, "") ?? o?.label : o?.label, indicatorId, plot, inputs);
+    // `plot`: the row of the plot select; a line plot by its index, another output by its key.
+    const choice = plotsOf(indicatorId)[plot];
     // Messages name the study by its full title with its inputs.
     const entry = getIndicatorEntry(indicatorId);
     const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ") : "";
     const full = entry?.metadata.title;
     const title = kept?.title ?? (full ? (shown ? `${full} (${shown})` : full) : undefined);
     const precision = (entry?.metadata as { precision?: number } | undefined)?.precision;
-    return { kind: "indicator", indicatorId, plot, label, ...(title ? { title } : {}), ...(precision != null ? { precision } : {}), ...(inputs ? { inputs } : {}) };
+    const read = choice?.output ? { output: choice.output } : { plot: choice?.plot ?? 0 };
+    return { kind: "indicator", indicatorId, ...read, label, ...(title ? { title } : {}), ...(precision != null ? { precision } : {}), ...(inputs ? { inputs } : {}) };
   }
 
   /** Default message: the condition as it is set ("AZO Crossing 150"), or
@@ -936,7 +951,7 @@ export function AlertDialog(props: Props) {
       setLeftKind(l?.kind === "indicator" ? "indicator" : l?.kind === "symbol" ? "symbol" : "price");
       setLeftSymbol(l?.kind === "symbol" ? l.symbol.toUpperCase() : "");
       setLeftIndicator(l?.kind === "indicator" ? l.indicatorId : "");
-      setLeftPlot(l?.kind === "indicator" ? (l.plot ?? 0) : 0);
+      setLeftPlot(choiceOf(l));
       setLeftCond(c?.op === "alert_condition" && l?.kind === "indicator" ? (l.condition?.id ?? null) : null);
       setOp(c?.op ?? "crossing");
       setRightKind(r?.kind === "drawing" ? "drawing" : r?.kind === "indicator" ? "indicator" : r?.kind === "price" ? "price" : r?.kind === "symbol" ? "symbol" : "value");
@@ -946,7 +961,7 @@ export function AlertDialog(props: Props) {
       setValueEdited(value !== "");
       setRightDrawing(r?.kind === "drawing" ? r.drawingId : "");
       setRightIndicator(r?.kind === "indicator" ? r.indicatorId : "");
-      setRightPlot(r?.kind === "indicator" ? (r.plot ?? 0) : 0);
+      setRightPlot(choiceOf(r));
       setPct(c && isMovingOperator(c.op) && r?.kind === "value" ? (isPercentOperator(c.op) ? r.value.toFixed(2) : savedText(r.value)) : "1.00");
       setBars(c?.bars != null ? String(c.bars) : "");
       const band = !!c && isBandOperator(c.op) && r?.kind !== "drawing";
@@ -954,8 +969,8 @@ export function AlertDialog(props: Props) {
       setLowerSel(band ? boundSel(r2) : "value");
       setUpperValue(band && r?.kind === "value" ? savedText(r.value) : "");
       setLowerValue(band && r2?.kind === "value" ? savedText(r2.value) : "");
-      setUpperPlot(band && r?.kind === "indicator" ? (r.plot ?? 0) : 0);
-      setLowerPlot(band && r2?.kind === "indicator" ? (r2.plot ?? 0) : 0);
+      setUpperPlot(band ? choiceOf(r) : 0);
+      setLowerPlot(band ? choiceOf(r2) : 0);
       setBoundsEdited(band);
       const res = c?.resolution ?? chartInterval ?? "1";
       setResolution(res);
