@@ -35,4 +35,12 @@ describe("Escape after a context menu", () => {
     closed(); // closing twice counts once
     expect(m.escapeKeepsSelection()).toBe(false);
   });
+
+  it("tells while a menu is shown (a drawing keeps its selection on that Escape only)", () => {
+    expect(m.contextMenuOpen()).toBe(false);
+    const closed = m.contextMenuShown();
+    expect(m.contextMenuOpen()).toBe(true);
+    closed();
+    expect(m.contextMenuOpen()).toBe(false);
+  });
 });

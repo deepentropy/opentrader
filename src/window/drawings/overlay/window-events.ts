@@ -12,6 +12,7 @@ import { IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { clipboardSource, copyDrawing, DRAWING_CLIP_MARK, pasteAsNew, SOURCE_CLIP_MARK } from "../clipboard";
 import { lastPointer } from "./helpers";
 import { type OverlayCx } from "./context";
+import { contextMenuOpen } from "../../chart/menu-escape";
 
 /** Window event sent by the drawing-toolbar hotkeys Alt+H / J / V / C. The pane
  *  under the pointer creates the drawing there and sets `handled`; when no pane
@@ -50,7 +51,8 @@ export function createWindowEvents(cx: OverlayCx): WindowEventsApi {
           props.onDisarm();
         } else if (cx.measureResult()) {
           cx.setMeasureResult(null);
-        } else if (props.selectedId) {
+        } else if (props.selectedId && !contextMenuOpen()) {
+          // The Escape that closes the drawing's menu keeps it selected.
           props.setSelectedId(null);
         }
       } else if (e.key === "Delete" || e.key === "Backspace") {
