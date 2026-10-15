@@ -25,6 +25,9 @@ export type YearRange = {
   performance: Performance;
 };
 
+/** Days of the 52 week range (the bars after the last bar's day minus this). */
+const W52_DAYS = 364;
+
 const LOOKBACKS: Record<Exclude<keyof Performance, "YTD">, number> = {
   "1W": 5,
   "1M": 21,
@@ -53,9 +56,13 @@ export function computeYearRange(daily: Candle[]): YearRange {
   const n = bars.length;
   const last = bars[n - 1].close as number;
 
+  // 52 weeks: the daily bars dated in the 364 days up to the last bar's day (the screener's 52 week high / low).
+  // Daily bars sit at a local midnight; half a day of margin absorbs a daylight-saving hour.
+  const since = (bars[n - 1].time as number) - W52_DAYS * 86400 + 43200;
   let high = -Infinity;
   let low = Infinity;
   for (const b of bars) {
+    if ((b.time as number) < since) continue;
     high = Math.max(high, b.high as number);
     low = Math.min(low, b.low as number);
   }
