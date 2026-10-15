@@ -63,6 +63,7 @@ import { createChartEdits } from "./window/shell/chart-edits";
 import { installKeyboardShortcuts } from "./window/shell/keyboard-shortcuts";
 import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
+import { installSourceEdits } from "./window/shell/source-edits";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
@@ -472,6 +473,8 @@ function App() {
     // Chart menus: sources added / applied to the entire layout, pasted
     // sources, "Move chart".
     onCleanup(installLayoutSources(appTabs, undo, drawingStore));
+    // Edits of one source (visual order, visibility, Move to, Pin to scale, settings): undo steps.
+    onCleanup(installSourceEdits(appTabs, undo));
 
     // Start the alert engine and surface fires as a transient toast. ONE
     // engine per app, not per window: detached chart windows load this same

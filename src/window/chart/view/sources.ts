@@ -29,6 +29,7 @@ import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { NEVER_SUNK_KINDS, type SunkPainter } from "../../drawings/DrawingsOverlay";
 import { type ChartCx } from "./context";
 import { onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
+import { sourcesEdit } from "../../shell/source-edits";
 import type { Accessor } from "solid-js";
 
 /** What createSources adds to the chart context. */
@@ -436,6 +437,16 @@ export function createSources(cx: ChartCx): SourcesApi {
   const onTreeMoveRequest = (d: AppEvents["chart-tree-move"] | undefined) => {
     if (props.active === false) return;
     const { id, target, below } = (d ?? {}) as AppEvents["chart-tree-move"];
+    // A source moved: one undo step (reference texts); a drawing's move is the drawings' own.
+    const src = treeSources().find((x) => x.id === id);
+    if (src && !(d as { recorded?: boolean } | undefined)?.recorded) {
+      const into = treePanes().find((p) => p.items.some((x) => x.id === target));
+      const from = treePanes().find((p) => p.items.some((x) => x.id === id));
+      const targetTitle = treeSources().find((x) => x.id === target)?.title ?? "";
+      const label = from && into && from !== into ? "merge to pane" : `insert ${src.title} ${below ? "after" : "before"} ${targetTitle}`;
+      sourcesEdit(label, () => onTreeMoveRequest({ ...(d as AppEvents["chart-tree-move"]), recorded: true } as AppEvents["chart-tree-move"]));
+      return;
+    }
     let pane = treePanes().find((p) => p.items.some((x) => x.id === id));
     const targetPane = treePanes().find((p) => p.items.some((x) => x.id === target));
     if (!pane || !targetPane) return;

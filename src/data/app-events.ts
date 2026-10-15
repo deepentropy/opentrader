@@ -65,6 +65,9 @@ export interface AppEvents {
   "chart-apply-studies-to-layout": undefined;
   /** Chart menu "Paste" / Ctrl+V of a copied study or compared symbol. */
   "chart-paste-source": undefined;
+  /** One edit of a source of the focused chart (visual order, visibility on intervals, Move to, Pin to scale,
+   *  settings): begin / end around it, one undo step named `label` (source-edits.ts). */
+  "chart-sources-edit": { phase: "begin" | "end"; label: string };
   /** Chart menu "Move chart" > Forward / Back (the focused chart). */
   "chart-move-in-layout": { back: boolean };
 

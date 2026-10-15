@@ -64,6 +64,7 @@ import { chartPriceFormat } from "./price-format";
 import { dayKeyer } from "./day-key";
 import { cachedSymbolSessions } from "../../data/session";
 import { IndicatorSettingsDialog, type DialogTab } from "./IndicatorSettingsDialog";
+import { sourcesEdit } from "../shell/source-edits";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry } from "./profiles/tpo";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
@@ -1427,8 +1428,14 @@ export function ChartView(props: ChartViewProps) {
                 styles={styles!}
                 options={controller!.getOptions(id())}
                 onApply={({ inputs, styles: s, options }) => {
-                  controller?.applySettings(id(), inputs, s, options);
-                  props.onIndicatorSettings?.(id(), { inputs, styles: s, options });
+                  // One undo step (reference texts): the first input changed, else the study's style.
+                  const was = controller?.getInputs(id()) ?? {};
+                  const changed = (entry!.inputConfig ?? []).find((c) => JSON.stringify(inputs[c.id]) !== JSON.stringify(was[c.id]));
+                  const title = indLegend().find((r) => r.id === id())?.title ?? entry!.name;
+                  sourcesEdit(changed ? `change ${changed.title || changed.id} property` : `change ${title} style`, () => {
+                    controller?.applySettings(id(), inputs, s, options);
+                    props.onIndicatorSettings?.(id(), { inputs, styles: s, options });
+                  });
                   refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
                   if (isStrategyId(id())) applyStrategyMarkers();
                 }}
@@ -1447,7 +1454,7 @@ export function ChartView(props: ChartViewProps) {
           <CompareSettingsDialog
             entry={e}
             title={compareTitle(e)}
-            onApply={({ symbol, style }) => props.onCompareChange?.(e.id, symbol !== e.symbol ? { symbol, style } : { style })}
+            onApply={({ symbol, style }) => sourcesEdit(`change ${compareTitle(e)} style`, () => props.onCompareChange?.(e.id, symbol !== e.symbol ? { symbol, style } : { style }))}
             onPreview={(next) => setComparePreview(next ? { id: e.id, ...next } : null)}
             onClose={() => setCompareSettingsFor(null)}
           />

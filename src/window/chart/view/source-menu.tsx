@@ -15,6 +15,7 @@
  * second scale on one side, compared symbols moved between panes or pinned.
  */
 import { Icon } from "../../../components/Icon";
+import { sourcesEdit } from "../../shell/source-edits";
 import { emitAppEvent } from "../../../data/app-events";
 import { copySource, type ClipboardSource } from "../../drawings/clipboard";
 import { splitTitle } from "../IndicatorLegend";
@@ -53,7 +54,30 @@ const PIN_ICON = () => (
 /** Letter of a scale once the chart has scales on both sides. */
 const SCALE_LETTER = { right: "A", left: "Z" } as const;
 
+
+// Undo texts of the source edits (reference undo commands).
+const Z_UNDO: Record<ZOrderOp, (title: string) => string> = {
+  front: (t) => `bring ${t} to front`,
+  back: (t) => `send ${t} to back`,
+  forward: (t) => `bring ${t} forward`,
+  backward: (t) => `send ${t} backward`,
+};
+const VISIBILITY_UNDO: Record<IntervalsVisibilityMode, string> = {
+  currentAndAbove: "change visibility at current interval and above",
+  currentAndBelow: "change visibility at current interval and below",
+  current: "change visibility at current interval",
+  all: "change visibility at all intervals",
+};
+const MOVE_UNDO: Record<keyof StudyMoves, string> = {
+  mergeUp: "merge up",
+  mergeDown: "merge down",
+  unmergeUp: "unmerge up",
+  unmergeDown: "unmerge down",
+};
+
 export function createSourceMenu(cx: ChartCx): SourceMenuApi {
+  /** A source's title as its legend shows it (the undo texts name it). */
+  const sourceTitle = (id: string) => cx.indLegend().find((r) => r.id === id)?.title ?? cx.compareEntry(id)?.symbol ?? "";
   const { props } = cx;
 
   /** The clipboard / layout payload of a source. */
@@ -106,7 +130,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const steps = cx.zOrderSteps(id);
     if (!steps) return null;
     const row = (op: ZOrderOp, label: string, enabled: boolean): CtxNode => ({
-      kind: "item", id: `z-${op}`, label, disabled: !enabled, onSelect: () => cx.moveZ(id, op),
+      kind: "item", id: `z-${op}`, label, disabled: !enabled, onSelect: () => sourcesEdit(Z_UNDO[op](sourceTitle(id)), () => cx.moveZ(id, op)),
     });
     return {
       kind: "item", id: "visual-order", label: "Visual order", icon: <Icon name="dt-cm-visual-order" size={18} />,
@@ -138,7 +162,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
   }
   function visibilityRow(id: string): CtxNode {
     const row = (mode: IntervalsVisibilityMode, label: string): CtxNode => ({
-      kind: "item", id: `vis-${mode}`, label, onSelect: () => setVisibility(id, mode),
+      kind: "item", id: `vis-${mode}`, label, onSelect: () => sourcesEdit(VISIBILITY_UNDO[mode], () => setVisibility(id, mode)),
     });
     return {
       kind: "item", id: "visibility-intervals", label: "Visibility on intervals",
@@ -162,7 +186,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
       ["unmergeDown", "New pane below"],
     ];
     const submenu = rows.filter(([k]) => moves[k]).map(([k, label]): CtxNode => ({
-      kind: "item", id: `move-${k}`, label, onSelect: () => cx.moveStudy(id, k),
+      kind: "item", id: `move-${k}`, label, onSelect: () => sourcesEdit(MOVE_UNDO[k], () => cx.moveStudy(id, k)),
     }));
     if (!submenu.length) return null;
     return { kind: "item", id: "move-to", label: "Move to", icon: <Icon name="ot-header-move-to" size={18} />, submenu };
@@ -221,11 +245,12 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
         const label = named
           ? `${cur === side ? "Pinned" : "Pin"} to scale ${SCALE_LETTER[side]}`
           : `${cur === side ? "Pinned" : "Pin"} to ${side} scale`;
-        sub.push({ kind: "item", id: `pin-${side}`, label, checked: cur === side, onSelect: () => { if (cur !== side) pinTo(id, side); } });
+        const undoText = named ? `pin to scale ${SCALE_LETTER[side]}` : `pin to ${side} scale`;
+        sub.push({ kind: "item", id: `pin-${side}`, label, checked: cur === side, onSelect: () => { if (cur !== side) sourcesEdit(undoText, () => pinTo(id, side)); } });
       } else if (others > 0 || cur !== side) {
         // A new scale on a free side (named when another pane has one there).
         const label = sideUsedAnywhere(side) ? `Pin to scale ${SCALE_LETTER[side]}` : `Pin to new ${side} scale`;
-        sub.push({ kind: "item", id: `pin-new-${side}`, label, onSelect: () => pinTo(id, side) });
+        sub.push({ kind: "item", id: `pin-new-${side}`, label, onSelect: () => sourcesEdit(`move ${sourceTitle(id)} to new ${side} scale`, () => pinTo(id, side)) });
       }
     }
     // No scale: not for the only source of the pane on a side scale.
@@ -233,7 +258,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     sub.push({
       kind: "item", id: "pin-none", label: "No scale (fullscreen)", checked: cur === "none",
       disabled: !(cur === "none" || onSidesWithIt > 1),
-      onSelect: () => { if (cur !== "none") pinTo(id, "none"); },
+      onSelect: () => { if (cur !== "none") sourcesEdit(`make ${sourceTitle(id)} no scale (Full screen)`, () => pinTo(id, "none")); },
     });
     const now = cur === "none" ? "no scale" : named ? SCALE_LETTER[cur] : cur;
     return { kind: "item", id: "pin-to-scale", label: `Pin to scale (now ${now})`, icon: PIN_ICON(), submenu: sub };
