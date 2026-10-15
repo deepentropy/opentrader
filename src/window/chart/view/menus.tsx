@@ -30,6 +30,7 @@ import { menuPrice, roundedPrice } from "./helpers";
 import { PANE_MENU_ICONS } from "./pane-icons";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
+import { sourceCodeMenuRows } from "./source-code-rows";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -498,6 +499,9 @@ export function createMenus(cx: ChartCx): MenusApi {
     if (nodes.length) nodes.push({ kind: "separator" });
     const arrange = cx.sourceArrangeRows(id);
     if (arrange.length) nodes.push(...arrange, { kind: "separator" });
+    // A script's source: its own section after the placement rows.
+    const source = sourceCodeMenuRows(id);
+    if (source.length) nodes.push(...source, { kind: "separator" });
     nodes.push(
       cx.sourceCopyRow(id),
       { kind: "item", id: "hide", label: row.eyeHidden ? "Show" : "Hide", icon: row.eyeHidden ? CtxIcons.show : CtxIcons.hide,

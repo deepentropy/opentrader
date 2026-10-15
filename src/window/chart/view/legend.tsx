@@ -27,7 +27,8 @@ import { intervalLabel, splitSymbol } from "../../../data/datafeed";
 import { CHART_TYPE_ICON } from "../chart-types";
 import { ChartLegend } from "../ChartLegend";
 import { IndicatorLegend } from "../IndicatorLegend";
-import { OAKSCRIPT_OPEN_EVENT, scriptIdOfStudy } from "../indicators/user-scripts";
+import { OAKSCRIPT_OPEN_EVENT } from "../indicators/user-scripts";
+import { editorScriptOfStudy, isOpenedInEditor } from "../../oakscript/editor-state";
 import { publishDataWindow, type DataWindowState } from "../../../data/data-window-store";
 import { type ChartCx } from "./context";
 import { indexOfTime, buildLegend } from "./helpers";
@@ -77,11 +78,12 @@ export function createLegend(cx: ChartCx): LegendApi {
       selectedId={selectedStudy()}
       onSelect={selectStudy}
       onMore={(id, r) => (cx.compareEntry(id) ? cx.openCompareMoreMenu(id, r) : cx.openIndicatorMoreMenu(id, r))}
-      hasSource={(id) => scriptIdOfStudy(id) !== null}
+      hasSource={(id) => editorScriptOfStudy(id) !== null}
       onSource={(id) => {
-        const scriptId = scriptIdOfStudy(id);
+        const scriptId = editorScriptOfStudy(id);
         if (scriptId) emitAppEvent(OAKSCRIPT_OPEN_EVENT, { scriptId });
       }}
+      openedInEditor={isOpenedInEditor}
       onIntervalSettings={(id) => {
         selectStudy(id);
         setSettingsTab("visibility");

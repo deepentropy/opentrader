@@ -5,9 +5,9 @@
  * import/export. Same .ot-popover / .ot-menu-item idiom as WatchlistMenu;
  * opens UPWARD (the drawer hugs the window bottom).
  *
- * "Open built-in source" (Create new → Built-in...) is deliberately
- * absent: the lightweight-charts-indicators npm package ships dist/ only, so
- * there is no per-indicator source to open until the package publishes src/.
+ * A built-in shown read-only (reference rules): "Make a copy…" stays,
+ * "Rename…" is disabled; it cannot be deleted either. "Built-in…" (the
+ * reference's Create new > Built-in…) opens the list of built-in sources.
  */
 import { For, Show, onCleanup, onMount } from "solid-js";
 import type { OakScriptMeta } from "../../data/oakscript-store";
@@ -15,10 +15,13 @@ import type { OakScriptMeta } from "../../data/oakscript-store";
 type Props = {
   scriptsList: OakScriptMeta[];
   currentId: string;
+  /** The current script is a built-in shown read-only. */
+  readOnly?: boolean;
   onSelect: (id: string) => void;
   onCopy: () => void;
   onRename: () => void;
   onCreateNew: () => void;
+  onBuiltin: () => void;
   onExport: () => void;
   onImport: () => void;
   onDelete: () => void;
@@ -45,12 +48,15 @@ export function OakScriptMenu(props: Props) {
     });
   });
 
-  const item = (label: string, action: () => void, danger = false) => (
+  const item = (label: string, action: () => void, opts: { danger?: boolean; disabled?: boolean } = {}) => (
     <button
       type="button"
       role="menuitem"
-      class={`ot-menu-item${danger ? " oak-script-menu__danger" : ""}`}
+      class={`ot-menu-item${opts.danger ? " oak-script-menu__danger" : ""}${opts.disabled ? " ot-menu-item--disabled" : ""}`}
+      disabled={opts.disabled}
+      aria-disabled={opts.disabled}
       onClick={() => {
+        if (opts.disabled) return;
         action();
         props.onClose();
       }}
@@ -64,10 +70,11 @@ export function OakScriptMenu(props: Props) {
 
   return (
     <div ref={root} class="ot-popover oak-script-menu" role="menu" aria-label="Script menu">
-      {item("Make a copy", props.onCopy)}
-      {item("Rename…", props.onRename)}
+      {item("Make a copy…", props.onCopy)}
+      {item("Rename…", props.onRename, { disabled: props.readOnly })}
       <div class="ot-popover__divider" />
       {item("Create new indicator", props.onCreateNew)}
+      {item("Built-in…", props.onBuiltin)}
       <div class="ot-popover__divider" />
       <Show when={props.scriptsList.length > 0}>
         <div class="oak-script-menu__section">Recently used</div>
@@ -92,7 +99,7 @@ export function OakScriptMenu(props: Props) {
       {item("Export script…", props.onExport)}
       {item("Import script…", props.onImport)}
       <div class="ot-popover__divider" />
-      {item("Delete script", props.onDelete, true)}
+      {item("Delete script", props.onDelete, { danger: true, disabled: props.readOnly })}
     </div>
   );
 }

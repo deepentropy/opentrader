@@ -101,7 +101,8 @@ export function saveScript(script: OakScript): void {
   writeIndex(index);
 }
 
-export function createScript(name?: string): OakScript {
+/** A new stored script: `name` (default "Untitled script", numbered when taken), `source` (default the template). */
+export function createScript(name?: string, source: string = DEFAULT_TEMPLATE): OakScript {
   if (!name) {
     // "Untitled script", "Untitled script 2", ... (new scripts are numbered).
     const taken = new Set(readIndex().map((m) => m.name));
@@ -112,7 +113,7 @@ export function createScript(name?: string): OakScript {
   const script: OakScript = {
     id: crypto.randomUUID(),
     name,
-    source: DEFAULT_TEMPLATE,
+    source,
     createdAt: now,
     updatedAt: now,
   };
@@ -146,10 +147,13 @@ function markRecent(id: string): void {
   kv.setItem(RECENTS_KEY, JSON.stringify([id, ...readRecents().filter((x) => x !== id)].slice(0, RECENTS_MAX)));
 }
 
-/** Recently opened scripts, newest first (existing scripts only). */
-export function recentScripts(): OakScriptMeta[] {
+/** Recently opened scripts, newest first (existing scripts only). `other` names the ids that are not stored scripts
+ *  (a built-in shown in the editor), undefined = left out. */
+export function recentScripts(other?: (id: string) => string | undefined): OakScriptMeta[] {
   const index = readIndex();
-  return readRecents().map((id) => index.find((m) => m.id === id)).filter((m): m is OakScriptMeta => !!m);
+  return readRecents()
+    .map((id) => index.find((m) => m.id === id) ?? (other?.(id) !== undefined ? { id, name: other(id)! } : undefined))
+    .filter((m): m is OakScriptMeta => !!m);
 }
 
 /** The script the editor opens on: the persisted current one, else the first
@@ -204,14 +208,16 @@ export function renameScript(id: string, name: string): void {
   saveScript(script);
 }
 
-export function duplicateScript(id: string): OakScript | null {
+/** A stored copy of script `id`, named `name` (default "<name> copy", the reference app's "Make copy of script"
+ *  default). */
+export function duplicateScript(id: string, name?: string): OakScript | null {
   const script = loadScript(id);
   if (!script) return null;
   const now = Date.now();
   const copy: OakScript = {
     ...script,
     id: crypto.randomUUID(),
-    name: `${script.name} (copy)`,
+    name: name?.trim() || `${script.name} copy`,
     createdAt: now,
     updatedAt: now,
   };

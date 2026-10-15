@@ -27,6 +27,20 @@ const OAKSCRIPT_DTS = import.meta.glob("../../../node_modules/oakscriptjs/dist/e
   eager: true,
 }) as Record<string, string>;
 
+/** Typings of the indicator library's helpers entry (`lightweight-charts-indicators/helpers`, imported by the
+ *  source of a built-in indicator) and the modules it re-exports. */
+const HELPERS_DTS = import.meta.glob(
+  [
+    "../../../node_modules/lightweight-charts-indicators/dist/helpers.d.ts",
+    "../../../node_modules/lightweight-charts-indicators/dist/chart-context.d.ts",
+    "../../../node_modules/lightweight-charts-indicators/dist/anchor-period.d.ts",
+    "../../../node_modules/lightweight-charts-indicators/dist/other-symbol.d.ts",
+    "../../../node_modules/lightweight-charts-indicators/dist/lower-tf-volume.d.ts",
+    "../../../node_modules/lightweight-charts-indicators/dist/bar-time.d.ts",
+  ],
+  { query: "?raw", import: "default", eager: true },
+) as Record<string, string>;
+
 /** Resolve a CSS custom property to #rrggbb for monaco (which rejects CSS
  *  color functions). Handles the #hex and rgb()/rgba() forms our tokens use. */
 function cssHexColor(name: string, fallback: string): string {
@@ -82,6 +96,7 @@ export function setupMonaco(): void {
       oakscriptjs: ["node_modules/oakscriptjs/dist/esm/index"],
       "oakscriptjs/script": ["node_modules/oakscriptjs/dist/esm/script/index"],
       "oakscriptjs/runtime": ["node_modules/oakscriptjs/dist/esm/runtime/index"],
+      "lightweight-charts-indicators/helpers": ["node_modules/lightweight-charts-indicators/dist/helpers"],
     },
   });
   js.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
@@ -94,6 +109,10 @@ export function setupMonaco(): void {
     JSON.stringify({ name: "oakscriptjs", types: "./dist/esm/index.d.ts" }),
     "file:///node_modules/oakscriptjs/package.json",
   );
+  for (const [path, source] of Object.entries(HELPERS_DTS)) {
+    const rel = path.slice(path.indexOf("lightweight-charts-indicators/"));
+    js.addExtraLib(source, `file:///node_modules/${rel.replace(/\\/g, "/")}`);
+  }
 
   // Script-style sources use the API as implicit globals (no import, Pine-like;
   // the worker injects the same set). Declare every value export of

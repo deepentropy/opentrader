@@ -15,6 +15,9 @@
  */
 import * as oak from "oakscriptjs";
 import * as oakScript from "oakscriptjs/script";
+// The helpers a built-in indicator's source imports (chart context, higher timeframes, other symbols): a copy of a
+// built-in runs as a user script with the same module.
+import * as indicatorHelpers from "lightweight-charts-indicators/helpers";
 import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
 import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
@@ -30,6 +33,7 @@ const ctx = self as unknown as {
 
 (globalThis as Record<string, unknown>).__oakscriptjs = oak;
 (globalThis as Record<string, unknown>).__oakscript_script = oakScript;
+(globalThis as Record<string, unknown>).__oakscript_helpers = indicatorHelpers;
 
 // Every value the script API exports, made implicit globals (Pine has no
 // imports). Injected as a module-scope import so a user's local `const close`
@@ -53,16 +57,19 @@ function makeShim(mod: Record<string, unknown>, globalName: string): string {
 
 let baseShimUrl: string | null = null;
 let scriptShimUrl: string | null = null;
+let helpersShimUrl: string | null = null;
 
-/** Point the user's oakscriptjs imports (static or dynamic) at the shims. */
+/** Point the user's oakscriptjs / indicator helpers imports (static or dynamic) at the shims. */
 function rewriteImports(source: string): string {
   return source.replace(
-    /(from\s*|import\s*\(\s*)(["'])(oakscriptjs(?:\/script)?)\2/g,
+    /(from\s*|import\s*\(\s*)(["'])(oakscriptjs(?:\/script)?|lightweight-charts-indicators\/helpers)\2/g,
     (_m, pre: string, q: string, spec: string) => {
       const url =
         spec === "oakscriptjs/script"
           ? (scriptShimUrl ??= makeShim(oakScript as unknown as Record<string, unknown>, "__oakscript_script"))
-          : (baseShimUrl ??= makeShim(oak as unknown as Record<string, unknown>, "__oakscriptjs"));
+          : spec === "oakscriptjs"
+            ? (baseShimUrl ??= makeShim(oak as unknown as Record<string, unknown>, "__oakscriptjs"))
+            : (helpersShimUrl ??= makeShim(indicatorHelpers as unknown as Record<string, unknown>, "__oakscript_helpers"));
       return `${pre}${q}${url}${q}`;
     },
   );

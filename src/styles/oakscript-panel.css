@@ -238,3 +238,120 @@
 .oak-panel__status-item {
   white-space: nowrap;
 }
+
+/* Read-only banner under the header (reference "This script is read-only."):
+   tan-orange-a900 (#33261A) box, padding 9px 18px, 14/18 text; warning icon 22 px (#F57C00)
+   9 px before the text; header #F57C00 600 then 4 px; link #5B9CF6 4 px after. */
+.oak-panel__readonly {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 9px 18px;
+  background-color: var(--color-tan-orange-a900, #33261a);
+  color: var(--color-text-primary, #dbdbdb);
+  font-size: 14px;
+  line-height: 18px;
+}
+.oak-panel__readonly-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 9px;
+  color: var(--color-tan-orange-700, #f57c00);
+}
+.oak-panel__readonly-header {
+  margin-right: 4px;
+  color: var(--color-tan-orange-700, #f57c00);
+  font-weight: 600;
+}
+.oak-panel__readonly-link {
+  margin-left: 4px;
+  color: #5b9cf6;
+  cursor: pointer;
+}
+.oak-panel__readonly-link:hover { text-decoration: underline; }
+/* Light theme (reference warning container): tan-orange-50 box, tan-orange-700 icon + header. */
+html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange-50, #fff3e0); }
+
+/* "Open built-in script" dialog: 420 x 610, title 20/28 600 at 20 px, search
+   row 40 px (padding 8 16 8 47, magnifier), header 11/16 uppercase #8C8C8C
+   letter-spacing .4px, rows 32 px (name, then the script-type glyph), hover fill. */
+.oak-builtin-dlg {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 420px;
+  height: 610px;
+  max-height: calc(100vh - 32px);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: 14px;
+}
+.oak-builtin-dlg__title {
+  padding: 20px 50px 20px 20px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+}
+.oak-builtin-dlg__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 8px 16px 8px 47px;
+  border-top: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-bottom: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+}
+.oak-builtin-dlg__search svg {
+  position: absolute;
+  left: 18px;
+  color: var(--color-text-primary);
+}
+.oak-builtin-dlg__search input {
+  all: unset;
+  flex: 1;
+  font-size: 16px;
+  color: var(--color-text-primary);
+}
+.oak-builtin-dlg__search input::placeholder { color: #a8a8a8; }
+.oak-builtin-dlg__header {
+  padding: 10px 20px 0;
+  color: var(--color-text-secondary, #8c8c8c);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.oak-builtin-dlg__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.oak-builtin-dlg__row {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 20px;
+  cursor: default;
+}
+.oak-builtin-dlg__row:hover { background-color: var(--color-popup-menu-item-hover-bg, #2e2e2e); }
+.oak-builtin-dlg__name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.oak-builtin-dlg__type {
+  display: inline-flex;
+  flex: none;
+  margin-left: 6px;
+  color: var(--color-text-primary);
+}
