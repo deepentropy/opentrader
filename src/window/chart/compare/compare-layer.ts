@@ -17,6 +17,7 @@ import type { IndicatorLegendPlot } from "../indicators/indicator-layer";
 import type { CompareEntry } from "../../shell/tabs";
 import { chartTypeOf, compareColor, compareSeriesStyles, compareSource } from "./compare-style";
 import { SelectionMarkers, type BackgroundAt } from "../selection-markers";
+import { setSeriesScale } from "../scales/extra-axes";
 
 export class CompareLayer {
   private series: AnySeries | null = null;
@@ -107,7 +108,7 @@ export class CompareLayer {
   setScaleId(id: string): void {
     if (id === this.scaleId) return;
     this.scaleId = id;
-    this.series?.applyOptions({ priceScaleId: id });
+    if (this.series) setSeriesScale(this.series as ISeriesApi<SeriesType>, id, true);
   }
 
   /** Draw (or redraw) with the entry's style; `visible` = not eye-hidden and
@@ -139,15 +140,15 @@ export class CompareLayer {
     }
     const s = this.series;
     s.applyOptions({
-      priceScaleId: this.scaleId,
       visible,
-      lastValueVisible: true,
       priceLineVisible: st.priceLine,
       priceLineColor: compareColor(st),
       priceLineStyle: libLineStyle(2),
       title: this.entry.symbol.split(":").pop() ?? this.entry.symbol,
       ...(priceFormat ? { priceFormat: { type: "custom" as const, formatter: priceFormat.format, minMove: priceFormat.minMove } } : {}),
     });
+    // Its scale; on an extra axis that axis draws its last-value label.
+    setSeriesScale(s as ISeriesApi<SeriesType>, this.scaleId, true);
     this.drawn = keep ? this.bars.filter((b) => keep.has(b.time as number)) : this.bars;
     setDataForType(s, type, this.drawn, ct);
     if (this.selectionBg && this.markers?.series !== s) this.setSelected(this.selectionBg);
@@ -240,6 +241,12 @@ export class CompareLayer {
       if ((b[mid].time as number) < time) lo = mid + 1; else hi = mid;
     }
     return lo < b.length ? priceOf(b[lo], compareSource(this.entry.style)) : null;
+  }
+
+  /** Values of its price source at the drawn bars (a study calculated on it). */
+  sourcePoints(): { time: unknown; value: number }[] {
+    const src = compareSource(this.entry.style);
+    return this.drawn.map((b) => ({ time: b.time, value: priceOf(b, src) }));
   }
 
   legendPlots(time?: number): IndicatorLegendPlot[] {

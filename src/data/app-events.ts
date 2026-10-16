@@ -15,6 +15,10 @@ import type { DrawingKind } from "lightweight-charts-drawing/core/types";
 import type { SessionId } from "./datafeed";
 import type { ClipboardSource } from "../window/drawings/clipboard";
 
+/** A source a new study is calculated on: its id, its title (menus), the pane group and scale a study drawn
+ *  over it takes (absent: the price pane / the default scale). */
+export type ChildStudyParent = { id: string; title: string; paneGroup?: string; scale?: string };
+
 /** Payload of "chart-open-alert-dialog": a rule to edit, or the source and
  *  price of a new one. */
 export type OpenAlertDialogDetail = {
@@ -57,7 +61,9 @@ export interface AppEvents {
   "chart-patch-scale-settings": { patch: ScaleMenuPatch };
   "chart-set-session": { id: SessionId };
   "chart-set-timezone": { label: string };
-  "chart-open-indicators": undefined;
+  /** The Indicators dialog; `parent` = a study / compared symbol the picked study is calculated on ("Add
+   *  indicator/strategy on …"). */
+  "chart-open-indicators": { parent?: ChildStudyParent } | undefined;
   /** Main series / compared symbol menu "Symbol info…": the dialog on that symbol. */
   "chart-open-symbol-info": { symbol: string };
   /** Study / compared-symbol menu "Add this … to entire layout" (the

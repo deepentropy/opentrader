@@ -29,7 +29,6 @@
  * slice, so an edit on one shows on the others. The global `selectedDrawingId`
  * is rendered by whichever pane owns that drawing.
  */
-import type { CompareStyleState } from "./compare/compare-style";
 import { createEffect, createMemo, createSignal, Index, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import { ChartEventHint } from "../../components/ChartEventHint";
 import {
@@ -56,7 +55,7 @@ import {
   type Sizing,
   type Splitter,
 } from "./layout-sizes";
-import type { ComparePlacement, PaneChart, PaneIndicatorSettings } from "../shell/tabs";
+import type { ComparePatch, PaneChart, PaneIndicatorSettings } from "../shell/tabs";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "../../data/drawing-toolbar";
 import { displayTimeZone } from "../../data/session";
@@ -101,12 +100,13 @@ type Props = {
   /** Persist a study's edited inputs/styles onto a specific pane (Settings → Ok). */
   onIndicatorSettings?: (paneIndex: number, id: string, settings: PaneIndicatorSettings) => void;
   /** Compared symbols of a pane: patch / remove one, change its symbol. */
-  onCompareChange?: (paneIndex: number, id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement; group?: string; paneScale?: "left" | "right" | "none" }) => void;
+  onCompareChange?: (paneIndex: number, id: string, patch: ComparePatch) => void;
   onRemoveCompare?: (paneIndex: number, id: string) => void;
   onChangeCompareSymbol?: (paneIndex: number, id: string) => void;
   onPaneOrder?: (paneIndex: number, order: string[]) => void;
   /** The main series joined a study pane (its group) or got its own pane (null). */
   onSeriesPane?: (paneIndex: number, group: string | null) => void;
+  onSeriesScale?: (paneIndex: number, key: string | null) => void;
   onSourceOrder?: (paneIndex: number, order: string[]) => void;
   /** Persist a specific pane's settled visible logical range (its scroll/zoom
    *  anchor), so it survives tab switches + reloads. */
@@ -432,6 +432,8 @@ export function ChartGrid(props: Props) {
                 onPaneOrder={(order) => live() && props.onPaneOrder?.(i, order)}
                 seriesPane={pane().seriesPane}
                 onSeriesPane={(group) => live() && props.onSeriesPane?.(i, group)}
+                seriesScale={pane().seriesScale}
+                onSeriesScale={(key) => live() && props.onSeriesScale?.(i, key)}
                 sourceOrder={pane().sourceOrder}
                 onSourceOrder={(order) => live() && props.onSourceOrder?.(i, order)}
                 onReorderIndicators={(ids) => live() && props.onReorderIndicators?.(i, ids)}

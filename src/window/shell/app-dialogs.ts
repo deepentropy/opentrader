@@ -6,6 +6,7 @@
  * OakScript drawer. Module-level signals (one App per window), so the shell,
  * its keyboard shortcuts and its window-event handlers open them the same way.
  */
+import type { ChildStudyParent } from "../../data/app-events";
 import { createSignal } from "solid-js";
 import * as kv from "../../data/kv";
 import type { OpenAlertDialogDetail } from "../../data/app-events";
@@ -57,6 +58,8 @@ export { compareDialogOpen, setCompareDialogOpen, compareTarget, setCompareTarge
 // "Change interval" dialog (digit keys, legend interval click).
 const [intervalDialog, setIntervalDialog] = createSignal<{ initVal: string; selectOnInit: boolean } | null>(null);
 const [indicatorsDialogOpen, setIndicatorsDialogOpen] = createSignal(false);
+/** The source the studies picked in the Indicators dialog are calculated on ("Add indicator/strategy on …"). */
+const [indicatorsParent, setIndicatorsParent] = createSignal<ChildStudyParent | null>(null);
 const [settingsDialogOpen, setSettingsDialogOpen] = createSignal(false);
 // Tab the Settings dialog opens on (axis menus → "More settings…" = Scales).
 const [settingsDialogTab, setSettingsDialogTab] = createSignal<string | undefined>();
@@ -71,6 +74,8 @@ export {
   intervalDialog,
   setIntervalDialog,
   indicatorsDialogOpen,
+  indicatorsParent,
+  setIndicatorsParent,
   setIndicatorsDialogOpen,
   settingsDialogOpen,
   setSettingsDialogOpen,

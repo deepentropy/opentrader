@@ -76,7 +76,7 @@ export type OakBacktestError = OakScriptError & { code?: string; bar?: number };
 
 export type OakRequest =
   | { id: number; type: "compile"; scriptId: string; source: string }
-  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown>; chart?: ChartContext; symbols?: OakSymbolData }
+  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown>; chart?: ChartContext; symbols?: OakSymbolData; sources?: OakSourceData }
   | {
       id: number;
       type: "backtest";
@@ -102,3 +102,7 @@ export type OakResponse =
   | { id: number; type: "run"; ok: false; error: OakScriptError }
   | { id: number; type: "backtest"; ok: true; report: BacktestReport; visuals?: unknown }
   | { id: number; type: "backtest"; ok: false; error: OakBacktestError };
+
+/** Values of the sources a script's source inputs name besides the bar fields (study on study), by input value,
+ *  aligned with the bars of the run. */
+export type OakSourceData = Record<string, number[]>;

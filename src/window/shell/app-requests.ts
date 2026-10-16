@@ -12,7 +12,7 @@ import { showConfirm, showRename } from "../../components/Dialogs";
 import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTemplate } from "../header/chart-templates";
 import { patchDraftScales, saveChartSettingsDefaults, SETTINGS_FINGERPRINT, SETTINGS_REV, type Draft } from "../header/chart-settings";
 import type { AppTabs } from "./app-tabs";
-import { setActiveRailTab, setAlertDialog, setIndicatorsDialogOpen, setSettingsDialogOpen, setSettingsDialogTab } from "./app-dialogs";
+import { setActiveRailTab, setAlertDialog, setIndicatorsDialogOpen, setIndicatorsParent, setSettingsDialogOpen, setSettingsDialogTab } from "./app-dialogs";
 
 export type RequestActions = {
   tabs: Pick<AppTabs, "activePaneState" | "patchActivePane">;
@@ -91,7 +91,11 @@ export function installAppRequests(a: RequestActions): () => void {
       if (tz) setTimezone({ label: tz.label, iana: tz.iana });
     }),
     // Legend series More → "Add indicator/strategy on …".
-    onAppEvent("chart-open-indicators", () => setIndicatorsDialogOpen(true)),
+    // Study / compared symbol More → "Add indicator/strategy on …": the dialog adds studies calculated on it.
+    onAppEvent("chart-open-indicators", (d) => {
+      setIndicatorsParent(d?.parent ?? null);
+      setIndicatorsDialogOpen(true);
+    }),
   ];
   return () => offs.forEach((off) => off());
 }

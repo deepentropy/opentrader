@@ -26,7 +26,8 @@ import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import type { ChartContext } from "oakscriptjs/script";
 import * as scripts from "../../../data/oakscript-store";
 import { getOakEngine, OakEngineError } from "../../oakscript/engine";
-import type { OakBar, OakCompiledMeta, OakSymbolData } from "../../oakscript/engine-types";
+import type { OakBar, OakCompiledMeta, OakSourceData, OakSymbolData } from "../../oakscript/engine-types";
+import { BUILTIN_SOURCES, externalSource } from "oakscriptjs";
 import type { StudyCalcContext } from "./indicator-layer";
 import { typeIdOf } from "./study-id";
 import { emitAppEvent, type AppEvents } from "../../../data/app-events";
@@ -61,7 +62,7 @@ const EMPTY_RESULT = { metadata: { title: "", overlay: true }, plots: {} };
  *  shows the study as loading. */
 const PENDING_RESULT = { ...EMPTY_RESULT, pending: true };
 
-type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; symbols: OakSymbolData | undefined; key: string };
+type QueuedRun = { bars: OakBar[]; inputs: Record<string, unknown>; chart: ChartContext | undefined; symbols: OakSymbolData | undefined; sources?: OakSourceData; key: string };
 
 /** Run state of one study instance on one chart. */
 type Run = {
@@ -133,6 +134,7 @@ async function runInWorker(
   chart: ChartContext | undefined,
   symbols: OakSymbolData | undefined,
   key: string,
+  sources?: OakSourceData,
 ): Promise<void> {
   const engine = getOakEngine();
   try {
@@ -144,7 +146,7 @@ async function runInWorker(
       scripts.saveCompiledMeta(scriptId, meta);
       applyMeta(rt.entry, script.name, meta);
     }
-    run.result = await engine.run(scriptId, bars, inputs, chart, symbols);
+    run.result = await engine.run(scriptId, bars, inputs, chart, symbols, sources);
     run.key = key;
     run.error = null;
   } catch (err) {
@@ -169,7 +171,7 @@ async function runInWorker(
     run.queued = null;
     if (next && next.key !== run.key) {
       run.running = true;
-      void runInWorker(rt, run, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key);
+      void runInWorker(rt, run, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key, next.sources);
     } else {
       dispatchUpdated(scriptId, false);
     }
@@ -205,15 +207,27 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
         symbolsKey += `|${r.symbol}:${r.timeframe}:${b.length}:${b[0]?.time}:${last?.time}:${last?.close}:${last?.volume}`;
       }
     }
-    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart)}${symbolsKey}`;
+    // Source inputs naming another source of the chart (study on study): its values, read now (the chart's
+    // resolver is set around this call) and sent with the run.
+    let sources: OakSourceData | undefined;
+    let sourcesKey = "";
+    for (const v of Object.values(typedInputs)) {
+      if (typeof v !== "string" || BUILTIN_SOURCES.has(v)) continue;
+      const values = externalSource(v);
+      if (!values) continue;
+      const arr = Array.from(values);
+      (sources ??= {})[v] = arr;
+      sourcesKey += `|${v}:${arr.length}:${arr[arr.length - 1]}:${arr.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0)}`;
+    }
+    const key = `${stalenessKey(typedBars, typedInputs)}:${JSON.stringify(chart)}${symbolsKey}${sourcesKey}`;
     if (run.key !== key) {
       // Snapshot the array (ChartView mutates `raw` in place on live ticks).
       const snapshot = typedBars.slice();
       if (run.running) {
-        run.queued = { bars: snapshot, inputs: typedInputs, chart, symbols, key };
+        run.queued = { bars: snapshot, inputs: typedInputs, chart, symbols, sources, key };
       } else {
         run.running = true;
-        void runInWorker(rt, run, scriptId, snapshot, typedInputs, chart, symbols, key);
+        void runInWorker(rt, run, scriptId, snapshot, typedInputs, chart, symbols, key, sources);
       }
     }
     // The run for these bars and inputs failed: the chart shows the error with the study.

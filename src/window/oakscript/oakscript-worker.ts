@@ -14,6 +14,7 @@
  * watchdog: a hung compile/run gets the whole worker terminated.
  */
 import * as oak from "oakscriptjs";
+import { setSourceResolver } from "oakscriptjs";
 import * as oakScript from "oakscriptjs/script";
 // The helpers a built-in indicator's source imports (chart context, higher timeframes, other symbols): a copy of a
 // built-in runs as a user script with the same module.
@@ -203,6 +204,9 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
       error: { message: "Script is not compiled — save it (or fix compile errors) first." },
     };
   }
+  // Source inputs naming another source of the chart (study on study) read the values the chart sent.
+  const sources = req.sources;
+  setSourceResolver(sources ? (name) => sources[name] ?? null : null);
   try {
     if (entry.kind === "script") {
       const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
@@ -214,6 +218,8 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
     const error = toScriptError(err, entry.kind === "script" ? SCRIPT_LINE_OFFSET : 0);
     if (err instanceof oakScript.MissingSymbolDataError) error.missing = err.requests.map((r) => ({ symbol: r.symbol, timeframe: r.timeframe }));
     return { id: req.id, type: "run", ok: false, error };
+  } finally {
+    setSourceResolver(null);
   }
 }
 

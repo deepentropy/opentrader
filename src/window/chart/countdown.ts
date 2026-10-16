@@ -13,6 +13,7 @@
  * horizon exceeds a day.
  */
 import type {
+  IChartApi,
   IPrimitivePaneRenderer,
   IPrimitivePaneView,
   ISeriesApi,
@@ -22,6 +23,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
+import { firstAxisWidth } from "./scales/extra-axes";
 import { localDay, weekdayOf, type SessionId, type SymbolSessions } from "../../data/session";
 
 export type CountdownState = {
@@ -51,6 +53,7 @@ export type CountdownState = {
  *  the two don't double-draw. */
 export class CountdownPrimitive implements ISeriesPrimitive<Time> {
   private _series: ISeriesApi<SeriesType> | null = null;
+  private _chart: IChartApi | null = null;
   private _requestUpdate: (() => void) | null = null;
   private _state: CountdownState = {
     visible: false,
@@ -67,6 +70,7 @@ export class CountdownPrimitive implements ISeriesPrimitive<Time> {
 
   attached(p: SeriesAttachedParameter<Time, SeriesType>): void {
     this._series = p.series;
+    this._chart = p.chart as IChartApi;
     this._requestUpdate = p.requestUpdate;
   }
   detached(): void {
@@ -107,6 +111,9 @@ export class CountdownPrimitive implements ISeriesPrimitive<Time> {
   getSeries(): ISeriesApi<SeriesType> | null {
     return this._series;
   }
+  getChart(): IChartApi | null {
+    return this._chart;
+  }
 
   updateAllViews(): void {}
   priceAxisPaneViews(): readonly IPrimitivePaneView[] {
@@ -137,12 +144,16 @@ class CountdownPaneRenderer implements IPrimitivePaneRenderer {
     const y = series?.priceToCoordinate(s.price);
     if (y == null) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      // On the series' own axis (other scales of the side are painted next to it).
+      const side = (series?.options() as { priceScaleId?: string } | undefined)?.priceScaleId;
+      const w = firstAxisWidth(this._source.getChart(), side, mediaSize.width);
+      const x0 = side === "left" ? mediaSize.width - w : 0;
       const rowH = s.fontSize + 6;
       // Price row centred on the price coordinate — exactly where the
       // library's last-value label sat; the countdown row extends below.
       const top = (y as number) - rowH / 2;
       ctx.fillStyle = s.backColor;
-      ctx.fillRect(0, top, mediaSize.width, rowH * rows.length);
+      ctx.fillRect(x0, top, w, rowH * rows.length);
       ctx.font = `${s.fontSize}px ${s.fontFamily}`;
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
@@ -152,7 +163,7 @@ class CountdownPaneRenderer implements IPrimitivePaneRenderer {
         const isCountdown = rows[i] === s.text && i === rows.length - 1 && s.text.length > 0;
         ctx.globalAlpha = isCountdown ? 0.75 : 1;
         ctx.fillStyle = s.textColor;
-        ctx.fillText(rows[i], 6, top + rowH * i + rowH / 2);
+        ctx.fillText(rows[i], x0 + 6, top + rowH * i + rowH / 2);
       }
       ctx.globalAlpha = 1;
     });

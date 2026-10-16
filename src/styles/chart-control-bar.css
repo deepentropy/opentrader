@@ -234,3 +234,32 @@
   z-index: 5;
   pointer-events: none;
 }
+
+/* Price axes past the first one of a side (view/scales.tsx): a mouse strip
+   over each painted axis (drag = scale, double click = auto, right click =
+   its menu) and the scale names under the axes. */
+.ot-extra-axis {
+  position: absolute;
+  z-index: 4;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.ot-axis-stub {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.ot-axis-stub-letter {
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+}

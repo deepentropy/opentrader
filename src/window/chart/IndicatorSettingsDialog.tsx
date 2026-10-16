@@ -81,6 +81,8 @@ type StyleRow = { color: string; lineWidth: number; visible: boolean; plotType: 
 const paletteOf = (p: PlotConfig) => (p as PlotConfig & PlotPalette).palette;
 
 type Props = {
+  /** Source inputs: the other sources' outputs offered after the price sources (study on study). */
+  sourceChoices?: { value: string; label: string }[];
   /** Study display name, shown in the header. */
   title: string;
   /** The indicator's input schema (registry entry's inputConfig). */
@@ -111,10 +113,10 @@ type Props = {
   tpo?: { autoTicksPerRow: number };
 };
 
-// Price-source choices and their labels. Values stay the PineScript names.
-const SOURCE_OPTIONS = ["open", "high", "low", "close", "hl2", "hlc3", "ohlc4", "hlcc4"];
+// Price-source choices and their labels (reference order, volume after close). Values stay the PineScript names.
+const SOURCE_OPTIONS = ["open", "high", "low", "close", "volume", "hl2", "hlc3", "ohlc4", "hlcc4"];
 const SOURCE_LABELS: Record<string, string> = {
-  open: "Open", high: "High", low: "Low", close: "Close",
+  open: "Open", high: "High", low: "Low", close: "Close", volume: "Volume",
   hl2: "(H + L)/2", hlc3: "(H + L + C)/3", ohlc4: "(O + H + L + C)/4", hlcc4: "(H + L + C + C)/4",
 };
 
@@ -546,13 +548,17 @@ export function IndicatorSettingsDialog(props: Props) {
       );
     }
     if (cfg.type === "source") {
-      const labels = SOURCE_OPTIONS.map((o) => SOURCE_LABELS[o]);
+      // The price sources, then the other sources' outputs (study on study).
+      const extra = props.sourceChoices ?? [];
+      const values = [...SOURCE_OPTIONS, ...extra.map((c) => c.value)];
+      const labels = [...SOURCE_OPTIONS.map((o) => SOURCE_LABELS[o]), ...extra.map((c) => c.label)];
+      const shown = () => labels[values.indexOf(istr(cfg.id))] ?? SOURCE_LABELS[istr(cfg.id)] ?? istr(cfg.id);
       return (
         <SelectControl
-          value={SOURCE_LABELS[istr(cfg.id)] ?? istr(cfg.id)}
+          value={shown()}
           options={labels}
-          width={selectWidth([SOURCE_LABELS[istr(cfg.id)] ?? istr(cfg.id)])}
-          onPick={(label) => setInputDraft(cfg.id, SOURCE_OPTIONS[labels.indexOf(label)] ?? label)}
+          width={selectWidth([shown()])}
+          onPick={(label) => setInputDraft(cfg.id, values[labels.indexOf(label)] ?? label)}
         />
       );
     }

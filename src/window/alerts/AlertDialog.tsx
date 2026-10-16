@@ -16,6 +16,7 @@
  * Opened from the header "Create alert" button and the chart context menu
  * (prefilled with the clicked symbol + price), or with an `editId` to edit.
  */
+import { sourceSpecsOf } from "../chart/indicators/study-sources";
 import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
 import {
@@ -496,7 +497,7 @@ export function AlertDialog(props: Props) {
     const o = indicatorOptions().find((x) => x.id === id);
     if (!o) return "indicator";
     const entry = getIndicatorEntry(id);
-    const shown = entry && o.inputs ? statusLineInputs(entry, o.inputs, ", ") : "";
+    const shown = entry && o.inputs ? statusLineInputs(entry, o.inputs, ", ", (v) => sourceSpecsOf(o.inputs)?.[v]?.label ?? null) : "";
     return shown ? `${o.label} (${shown})` : o.label;
   };
   const drawingOptions = createMemo(() => {
@@ -869,7 +870,7 @@ export function AlertDialog(props: Props) {
   function plotLabel(title: string | undefined, indicatorId: string, plot: number, inputs?: Record<string, unknown>): string | undefined {
     const plots = plotsOf(indicatorId);
     const entry = getIndicatorEntry(indicatorId);
-    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ") : "";
+    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ", (v) => sourceSpecsOf(inputs)?.[v]?.label ?? null) : "";
     const name = title && shown ? `${title} (${shown})` : title;
     return plots.length >= 2 && name ? `${name}: ${plots[plot]?.title ?? ""}` : name;
   }
@@ -885,7 +886,7 @@ export function AlertDialog(props: Props) {
     const choice = plotsOf(indicatorId)[plot];
     // Messages name the study by its full title with its inputs.
     const entry = getIndicatorEntry(indicatorId);
-    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ") : "";
+    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ", (v) => sourceSpecsOf(inputs)?.[v]?.label ?? null) : "";
     const full = entry?.metadata.title;
     const title = kept?.title ?? (full ? (shown ? `${full} (${shown})` : full) : undefined);
     const precision = (entry?.metadata as { precision?: number } | undefined)?.precision;

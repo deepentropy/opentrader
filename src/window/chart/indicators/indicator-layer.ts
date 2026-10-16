@@ -22,13 +22,14 @@ import {
   type SeriesType,
   type Time,
 } from 'lightweight-charts';
-import type { Bar, PlotConfig, IndicatorResult } from 'oakscriptjs';
+import { setSourceResolver, type Bar, type PlotConfig, type IndicatorResult } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
 import type { ChartContext as IndicatorChartContext, IndicatorRegistryEntry } from 'lightweight-charts-indicators';
 import { IndicatorRenderer, type PlotOverride } from 'lightweight-charts-indicators/render';
 import type { OwnScaleMeta, PlotDefaultVisible, PlotPalette } from './volume';
 import { applyOpacity } from 'lightweight-charts-drawing/core/color';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
+import { labelWanted, setSeriesScale } from '../scales/extra-axes';
 import { StepDiamondsPrimitive } from './step-diamonds';
 import { restoreTimes, scriptBars } from '../../../backtester/oakscript';
 import { isStrategyId } from './strategy-entries';
@@ -287,8 +288,22 @@ export class IndicatorLayer {
     this.visibleRange = range;
   }
 
+  /** Values of another source of the chart named by a source input (study on study), aligned with the bars;
+   *  null = not a source of the chart (the calculation reads close). */
+  private sourceValues: ((name: string, bars: Bar[]) => ArrayLike<number> | null) | null = null;
+  setSourceValues(fn: ((name: string, bars: Bar[]) => ArrayLike<number> | null) | null): void {
+    this.sourceValues = fn;
+  }
+
   setOtherSymbols(store: OtherSymbolBars | null): void {
     this.otherSymbols = store;
+  }
+
+  /** Points of plot `index` (plotConfig order) of the last calculation, null before one. */
+  plotPoints(index: number): ReadonlyArray<{ time: unknown; value?: number | null }> | null {
+    const def = this.entry?.plotConfig[index];
+    if (!def || !this.lastResult) return null;
+    return (this.lastResult.plots?.[def.id] as { time: unknown; value?: number | null }[] | undefined) ?? [];
   }
 
   /** Why the study's last calculation failed (legend status), null when it did not. */
@@ -447,7 +462,15 @@ export class IndicatorLayer {
           ctx.rightVisibleBarTime = (seen[right].time as unknown as number) * 1000;
         }
       }
-      const result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+      // Source inputs naming another source of the chart read its values (the bars keep their index).
+      const values = this.sourceValues;
+      setSourceResolver(values ? (name) => values(name, bars) : null);
+      let result: unknown;
+      try {
+        result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+      } finally {
+        setSourceResolver(null);
+      }
       if ((result as { pending?: boolean } | null)?.pending) this.loading = true;
       // Another symbol it reads cannot be loaded: the study fails and draws nothing.
       if (store && [...used].some((k) => store.failed(k))) {
@@ -591,8 +614,9 @@ export class IndicatorLayer {
       for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat });
     }
     if (this.detachedScale && !ownScale && this.detachedAxis) {
-      // A side scale: shown by the chart (side scales are chart options).
-      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale });
+      // A scale with its axis (a side scale, or an extra axis that draws the
+      // plots' last-value labels itself).
+      for (const s of series) setSeriesScale(s as ISeriesApi<SeriesType>, this.detachedScale, (s as ISeriesApi<SeriesType>).options().lastValueVisible || labelWanted(s));
     } else if (this.detachedScale && !ownScale) {
       // No axis for this scale: no value label either.
       for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale, lastValueVisible: false });

@@ -11,7 +11,7 @@
  * (native priceLine through Feature 5a); Feature 5c moved it to the
  * overlay for parity with the other 13 kinds.
  */
-import { Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from "solid-js";
+import { Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
 import { createStore } from "solid-js/store";
 import { typeIdOf } from "./indicators/study-id";
 import {
@@ -91,6 +91,9 @@ import { createDecorations } from "./view/decorations";
 import { createAlertLayer } from "./view/alert-layer";
 import { createHistory } from "./view/history";
 import { createCompare } from "./view/compare";
+import { createScales } from "./view/scales";
+import { isScaleKey, type ScaleKey } from "./scales/scale-layout";
+import { compareSource } from "./compare/compare-style";
 import { createSources } from "./view/sources";
 import { createSourceMenu } from "./view/source-menu";
 import { createSnapshot } from "./view/snapshot";
@@ -165,6 +168,9 @@ export function ChartView(props: ChartViewProps) {
     get mainPaneEpoch() { return mainPaneEpoch; },
     get mainScale() { return mainScale; },
     get mainSide() { return mainSide; },
+    get seriesKey() { return seriesKey; },
+    get seriesLibId() { return seriesLibId; },
+    get applySeriesScale() { return applySeriesScale; },
     get leftAxisWidth() { return leftAxisWidth; },
     get syncScaleSides() { return syncScaleSides; },
     get newsLollipop() { return newsLollipop; },
@@ -555,6 +561,23 @@ export function ChartView(props: ChartViewProps) {
     if (!controller?.seriesShares() || controller.seriesSharesPriceScale()) return placement;
     return placement === "right" ? "left" : "right";
   }
+  /** Scale key of the main series: the scale it was pinned to (series menu "Pin to scale"), else its side. */
+  function seriesKey(): ScaleKey | "none" {
+    const k = props.seriesScale;
+    return k === "none" || isScaleKey(k) ? k : mainSide();
+  }
+  /** Chart library scale id of the main series (a hidden scale of its own for "no scale"). */
+  function seriesLibId(): string {
+    const k = seriesKey();
+    if (k === "none") return "series:none";
+    return cx.scaleLayout ? cx.scaleLayout().libId(mainPane(), k) : k;
+  }
+  /** The series on the scale it should be on (pinned, a scale layout change). */
+  function applySeriesScale() {
+    if (!series) return;
+    const id = seriesLibId();
+    if ((series.options() as { priceScaleId?: string }).priceScaleId !== id) series.applyOptions({ priceScaleId: id });
+  }
   /** Price scale of the main series. */
   function mainScale() {
     if (!chart) return null;
@@ -566,14 +589,15 @@ export function ChartView(props: ChartViewProps) {
     if (!chart) return 0;
     try { return chart.priceScale("left").width(); } catch { return 0; }
   }
-  /** Price axes shown: the chosen side, and the other one while the series
-   *  (in a study pane it shares), a compared symbol on a new price scale or a
-   *  study pinned to it ("Pin to scale") uses it. */
+  /** Price axes shown: the chosen side, and the other one while a scale of
+   *  the chart is there (the series in a study pane it shares, a compared
+   *  symbol on a new price scale, a study pinned to it). */
   function syncScaleSides() {
     if (!chart) return;
     const placement = currentTokens().scalesPlacement;
     const other = placement === "right" ? "left" : "right";
-    const used = mainSide() === other || cx.compareUsesOtherSide() || !!controller?.usesSide(other);
+    const counts = cx.scaleLayout().slotCounts();
+    const used = mainSide() === other || counts[other] > 0;
     chart.applyOptions(other === "left" ? { leftPriceScale: { visible: used } } : { rightPriceScale: { visible: used } });
   }
   /** The price pane moved or changed (controller hook): the series goes to
@@ -584,7 +608,7 @@ export function ChartView(props: ChartViewProps) {
     const m = mainPane();
     let pane = -1;
     try { pane = series.getPane().paneIndex(); } catch { /* not laid out */ }
-    const side = mainSide();
+    const side = seriesLibId();
     const sideNow = (series.options() as { priceScaleId?: string }).priceScaleId;
     if (pane !== m || sideNow !== side) {
       let o: ReturnType<ReturnType<AnySeries["priceScale"]>["options"]> | null = null;
@@ -661,8 +685,9 @@ export function ChartView(props: ChartViewProps) {
     setLegendPriceFormat(() => fmt?.format);
     // Bind the price axis to the series' side (Scales placement; the free
     // side in a study pane it shares).
-    series.applyOptions({ priceScaleId: mainSide() });
+    series.applyOptions({ priceScaleId: seriesLibId() });
     syncScaleSides();
+    cx.syncScaleLayout();
     // Legend eye (series `visible`): a rebuilt series keeps the hidden state
     // (the live toggle is the seriesHidden effect below).
     series.applyOptions({ visible: !untrack(() => props.seriesHidden) });
@@ -862,11 +887,24 @@ export function ChartView(props: ChartViewProps) {
     controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
     controller.setLastBarOpenProbe(lastBarForming);
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
-    controller.setScaleIdsProbe(() => ({ price: mainSide(), pane: currentTokens().scalesPlacement }));
+    // Studies over the series take its scale (its side when it has no scale).
+    controller.setScaleIdsProbe(() => {
+      const k = seriesKey();
+      return { price: k === "none" ? mainSide() : k, pane: currentTokens().scalesPlacement };
+    });
+    controller.setScaleResolver((id, pane, key) => cx.scaleResolve(id, pane, key));
+    // Study on study: a compared symbol's values, the names of the sources in the legend.
+    controller.setExternalSourceProbe((id) => compareLayers.get(id)?.sourcePoints() ?? null);
+    controller.setSourceTextProbe((v) => cx.sourceInputText(v));
+    controller.setExternalSpecProbe((id) => {
+      const e = cx.compareEntry(id);
+      return e ? { symbol: e.symbol, source: compareSource(e.style) } : null;
+    });
     controller.setMainPaneHook(onMainPaneMoved);
     controller.setSeriesChangedHook(() => {
       scheduleSourceOrder();
       cx.syncSideScales();
+      cx.syncScaleLayout();
       setAlertSeriesEpoch((n) => n + 1);
     });
     controller.setDrawingsDataHook(() => setCoordEpoch((n) => n + 1));
@@ -1077,9 +1115,6 @@ export function ChartView(props: ChartViewProps) {
     // "Hide indicators" suppresses the layers (sync an empty set) while keeping
     // props.indicators intact, so toggling it back restores them verbatim.
     const ids = props.indicatorsHidden ? [] : (props.indicators ?? []);
-    // Seed persisted inputs/styles before sync so a freshly-added layer renders
-    // with the user's saved values (sync → add reads the seeded maps).
-    if (props.indicatorSettings) controller?.seedSettings(props.indicatorSettings);
     // The saved place of the series first: the studies of the pane it
     // shares open in its pane.
     // Only a new saved value (a chart load, a tab shown in this view): the
@@ -1087,8 +1122,18 @@ export function ChartView(props: ChartViewProps) {
     const seriesPane = props.seriesPane ?? null;
     if (seriesPane !== appliedSeriesPane) {
       appliedSeriesPane = seriesPane;
-      untrack(() => controller?.setSeriesGroup(seriesPane));
+      untrack(() => {
+        controller?.setSeriesGroup(seriesPane);
+        // A saved place given back (undo of a move): the panes take the saved stacking order again (the move put
+        // the series' new pane at the bottom).
+        controller?.setPaneOrder(props.paneOrder ?? []);
+      });
     }
+    // Seed persisted inputs/styles before sync so a freshly-added layer renders
+    // with the user's saved values (sync → add reads the seeded maps). After
+    // the series' place: an undo of a series move gives the studies that
+    // stayed behind their former pane once the series is back in its own.
+    if (props.indicatorSettings) controller?.seedSettings(props.indicatorSettings);
     controller?.sync(ids);
     // The study pane the series was dragged into is gone (its studies were
     // removed): the saved place goes too ("Hide indicators" keeps it).
@@ -1139,6 +1184,7 @@ export function ChartView(props: ChartViewProps) {
     setComparePreview,
     syncCompare,
   } = attach(cx, createCompare(cx));
+  const { ExtraAxisOverlays } = attach(cx, createScales(cx));
   // Locked cursor line: the library's vertical line (and its time label)
   // give way to the lock views.
   createEffect(() => {
@@ -1154,7 +1200,7 @@ export function ChartView(props: ChartViewProps) {
   const seriesOnlyScale = () => {
     const t = readChartTokens(appearance());
     void mainPaneEpoch();
-    return t.scaleSeriesOnly ? mainSide() : null;
+    return t.scaleSeriesOnly ? seriesLibId() : null;
   };
   createEffect(() => {
     chartReady();
@@ -1164,6 +1210,12 @@ export function ChartView(props: ChartViewProps) {
       for (const layer of compareLayers.values()) layer.setSeriesOnlyScale(id);
     });
   });
+  // The series pinned to a scale (series menu "Pin to scale", undo): it goes there, the layout follows.
+  createEffect(on(() => props.seriesScale, () => {
+    applySeriesScale();
+    controller?.redrawAll();
+    cx.syncScaleLayout();
+  }, { defer: true }));
   // Studies pinned to a side scale ("Pin to scale") follow the main scale's side.
   createEffect(() => {
     chartReady();
@@ -1349,6 +1401,7 @@ export function ChartView(props: ChartViewProps) {
         onRemoveMany={(ids) => props.removeDrawings?.(ids)}
       />
       <PriceAxisOverlays />
+      <ExtraAxisOverlays />
       {/* Latest news card (lollipop tooltip, type "news"): "Latest updates"
           title, newest headline card. */}
       <NewsCard />
@@ -1425,6 +1478,7 @@ export function ChartView(props: ChartViewProps) {
                 timeZone={cachedSymbolSessions(props.symbol ?? "")?.timeZone}
                 initialTab={tab}
                 inputConfig={entry!.inputConfig}
+                sourceChoices={cx.sourceChoicesFor(id())}
                 plotConfig={entry!.plotConfig}
                 inputs={values!}
                 styles={styles!}

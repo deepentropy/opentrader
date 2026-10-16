@@ -8,6 +8,7 @@
  * live per-tab snapshot prices, link channels, title customization) are NOT
  * modelled — see the gap notes in the program memory.
  */
+import { isScaleKey, type ScaleKey } from "../chart/scales/scale-layout";
 import { DEFAULT_LAYOUT, LAYOUT_NUMBERING, LAYOUT_SPECS, renumberCharts, type LayoutId } from "../chart/layouts";
 import { DEFAULT_CHART_TYPE, type ChartTypeId } from "../chart/chart-types";
 import { SYMBOLS } from "../../data/symbol-search";
@@ -70,8 +71,21 @@ export type CompareEntry = {
   style: CompareStyleState;
   /** In a pane: the pane group it joined ("Move to ▸ Existing pane", a study's pane); unset = a pane of its own. */
   group?: string;
-  /** In a pane: the scale it is pinned to; unset = the chart's scales side. */
-  paneScale?: "left" | "right" | "none";
+  /** In a pane: the scale it is pinned to (scale-layout.ts key) or none; unset = the chart's scales side. */
+  paneScale?: ScaleKey | "none";
+  /** "New price scale": the scale it was given (scale-layout.ts key); unset = one is given on the chart. */
+  scale?: ScaleKey;
+};
+
+/** A change of one compared symbol (legend eye, settings, Move to, Pin to scale). */
+export type ComparePatch = {
+  hidden?: boolean;
+  symbol?: string;
+  style?: CompareStyleState;
+  placement?: ComparePlacement;
+  group?: string;
+  paneScale?: ScaleKey | "none";
+  scale?: ScaleKey;
 };
 
 export function newCompareId(): string {
@@ -102,7 +116,8 @@ export function reviveCompare(raw: unknown): CompareEntry[] | undefined {
       hidden: e.hidden === true ? true : undefined,
       style: reviveCompareStyle(e.style, color),
       ...(typeof e.group === "string" && e.group ? { group: e.group } : {}),
-      ...(e.paneScale === "left" || e.paneScale === "right" || e.paneScale === "none" ? { paneScale: e.paneScale } : {}),
+      ...(e.paneScale === "none" || isScaleKey(e.paneScale) ? { paneScale: e.paneScale } : {}),
+      ...(isScaleKey(e.scale) ? { scale: e.scale } : {}),
     });
   });
   return out.length ? out : undefined;
@@ -133,6 +148,9 @@ export type PaneChart = {
   /** Pane group of the study pane the main series was dragged into (it
    *  shares that pane, on its own scale); absent = a pane of its own. */
   seriesPane?: string;
+  /** Scale the main series is pinned to (series menu "Pin to scale": scale-layout.ts key or "none"); absent = the
+   *  chart's scales side. */
+  seriesScale?: ScaleKey | "none";
   /** Drawing order of the sources (main series `_series`, study and
    *  compared-symbol ids), front first: the Object tree order. Ids not
    *  listed go behind the listed ones; absent = the main series in front,
@@ -349,6 +367,7 @@ function revivePane(p: Partial<PaneChart>): PaneChart {
     compare: reviveCompare(p.compare),
     paneOrder: studies.paneOrder,
     seriesPane: studies.seriesPane,
+    seriesScale: p.seriesScale === "none" || isScaleKey(p.seriesScale) ? p.seriesScale : undefined,
     sourceOrder: studies.sourceOrder,
     linkGroup: Number.isInteger(p.linkGroup) && (p.linkGroup as number) >= 0 && (p.linkGroup as number) <= 4 ? p.linkGroup : undefined,
     visibleLogicalRange:

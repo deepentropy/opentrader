@@ -11,6 +11,7 @@
  */
 import { DEFAULT_VISIBILITY, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/core/types";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
+import { isScaleKey, type ScaleKey } from "../scales/scale-layout";
 
 export type IndicatorOptions = {
   /** "Default" or "0".."8" decimals (precision select). */
@@ -25,14 +26,14 @@ export type IndicatorOptions = {
    *  group share a pane; MAIN_PANE_GROUP = the price pane. Absent = its
    *  default pane (the price pane for an overlay study, else its own). */
   paneGroup?: string;
-  /** Scale the study is pinned to (study menu "Pin to scale"): the left or
-   *  right scale of its pane, or no scale (its own hidden scale). Absent =
-   *  its default scale. */
+  /** Scale the study is pinned to (study menu "Pin to scale"): a scale of
+   *  its pane (scale-layout.ts key: "left", "right", "left#2"...), or no
+   *  scale (its own hidden scale). Absent = its default scale. */
   scale?: StudyScale;
 };
 
-/** A side scale of the pane, or no scale. */
-export type StudyScale = "left" | "right" | "none";
+/** A scale of the pane (its key), or no scale. */
+export type StudyScale = ScaleKey | "none";
 
 /** Pane group of the price pane. */
 export const MAIN_PANE_GROUP = "_series";
@@ -90,7 +91,7 @@ export function reviveIndicatorOptions(raw: unknown): IndicatorOptions {
     inputsInStatusLine: bool(r.inputsInStatusLine, d.inputsInStatusLine),
     ownPane: bool(r.ownPane, d.ownPane),
     ...(typeof r.paneGroup === "string" && r.paneGroup ? { paneGroup: r.paneGroup } : {}),
-    ...(r.scale === "left" || r.scale === "right" || r.scale === "none" ? { scale: r.scale } : {}),
+    ...(r.scale === "none" || isScaleKey(r.scale) ? { scale: r.scale } : {}),
     visibility: {
       ticks: bool(vis.ticks, d.visibility.ticks),
       seconds: unit(vis.seconds, d.visibility.seconds),
@@ -118,7 +119,13 @@ const inputNumberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits
  *  hidden by default) and the inputs whose `display` leaves the status line
  *  out (Pine `display.none`, `display.data_window`), numbers formatted,
  *  others as text, space-separated (titleInParts). */
-export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<string, unknown>, separator = " "): string {
+export function statusLineInputs(
+  entry: IndicatorRegistryEntry,
+  inputs: Record<string, unknown>,
+  separator = " ",
+  /** Text of a source input naming another source (study on study), null = the value as is. */
+  sourceText?: (v: string) => string | null,
+): string {
   const out: string[] = [];
   for (const cfg of entry.inputConfig ?? []) {
     if (cfg.type === "bool" || cfg.type === "color") continue;
@@ -126,7 +133,8 @@ export function statusLineInputs(entry: IndicatorRegistryEntry, inputs: Record<s
     if (display === "none" || display === "data_window") continue;
     const v = inputs[cfg.id];
     if (v === undefined || v === null || v === "") continue;
-    out.push(typeof v === "number" ? inputNumberFormat.format(v) : String(v));
+    const named = cfg.type === "source" && typeof v === "string" ? sourceText?.(v) ?? null : null;
+    out.push(named ?? (typeof v === "number" ? inputNumberFormat.format(v) : String(v)));
   }
   return out.join(separator);
 }

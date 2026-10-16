@@ -31,7 +31,6 @@ export interface CompareApi {
   compareLiveDirty: boolean;
   compareTitle: (e: CompareEntry) => string;
   compareSources: () => CompareSource[];
-  compareUsesOtherSide: () => boolean;
   holdCompares: (ids: string[]) => void;
   followMainPane: () => void;
   renderCompareAll: () => void;
@@ -51,9 +50,8 @@ export function createCompare(cx: ChartCx): CompareApi {
   // One CompareLayer per entry (compare/compare-layer.ts). Placement:
   //   percent : the main series' scale, switched to Percent while at least
   //             one such entry exists, back to Regular when the last goes;
-  //   scale   : the scale on the other side (the library has one scale per
-  //             side: a 2nd "New price scale" entry gets its own unlabelled
-  //             overlay scale);
+  //   scale   : a scale of its own (view/scales.tsx: a new scale at the end
+  //             of a side, kept with the entry);
   //   pane    : a stacked pane claimed through the indicator controller.
   // Bars are fetched per symbol under the pane's interval / session; live
   // ticks for compared symbols stay out of scope (lines refresh on fetch).
@@ -91,26 +89,16 @@ export function createCompare(cx: ChartCx): CompareApi {
       return { id: e.id, symbol: e.symbol, label: exchange ? `${description} (${exchange})` : description, description, hidden: !compareVisible(e), last: layer?.valueAt()?.value ?? null, format: fmt };
     });
 
-  const otherSide = (side: "left" | "right") => (side === "right" ? "left" : "right");
-  /** Scale id of every entry (placement rules above). */
-  // Scales placement: Auto puts the first extra scale on the side with fewer
-  // scales (the main scale is on the right, so the left); the "Stack on …"
-  // choices keep every scale on the main side, where the library has one
-  // scale per side: an extra scale there is an unlabelled overlay scale.
-  // In a study pane the series shares, both sides are taken (the study's
-  // scale and the series'): a "New price scale" entry gets an overlay scale.
+  /** Scale id of every entry (scales/scale-layout.ts): over the series on
+   *  the series' scale ("Same % scale"), on the scale it was given ("New price
+   *  scale": a new scale at the end of a side, reference placement rules), in
+   *  its pane on the pane's scale or the one it was pinned to; no scale = an
+   *  overlay scale of its own without axis. */
   function compareScaleIds(): Map<string, string> {
-    const t = currentTokens();
-    const main = cx.mainSide();
     const out = new Map<string, string>();
-    let sideUsed = t.scalesMode !== "auto" || !!cx.controller?.seriesShares();
     for (const e of compareEntries()) {
-      if (e.placement === "pane") out.set(e.id, e.paneScale === "none" ? `cmp:${e.id}` : e.paneScale ?? t.scalesPlacement);
-      else if (e.placement === "percent") out.set(e.id, main);
-      // No scale: an overlay scale of its own, no axis.
-      else if (e.placement === "none") out.set(e.id, `cmp:${e.id}`);
-      else if (!sideUsed) { out.set(e.id, otherSide(main)); sideUsed = true; }
-      else out.set(e.id, `cmp:${e.id}`);
+      const pane = e.placement === "pane" ? compareLayers.get(e.id)?.paneIndex ?? cx.mainPane() : cx.mainPane();
+      out.set(e.id, cx.compareScaleId(e, pane));
     }
     return out;
   }
@@ -140,14 +128,6 @@ export function createCompare(cx: ChartCx): CompareApi {
     }
     cx.syncScaleSides();
   }
-  /** A compared symbol on the other side's scale: a "New price scale" entry (Auto only), or one pinned there in a
-   *  pane. */
-  function compareUsesOtherSide(): boolean {
-    const t = currentTokens();
-    const other = otherSide(t.scalesPlacement);
-    if (compareEntries().some((e) => e.placement === "pane" && e.paneScale === other)) return true;
-    return t.scalesMode === "auto" && !cx.controller?.seriesShares() && compareEntries().some((e) => e.placement === "scale");
-  }
   /** Studies changed their scale ("Pin to scale"): the other side's scale follows. */
   const syncSideScales = () => cx.syncScaleSides();
   function compareVisible(e: CompareEntry): boolean {
@@ -171,6 +151,8 @@ export function createCompare(cx: ChartCx): CompareApi {
   function renderCompare(layer: CompareLayer) {
     layer.render(currentTokens(), compareVisible(layer.entry), compareFormat(layer.entry), mainTimeSet());
     cx.scheduleSourceOrder();
+    // Studies calculated on it follow its values.
+    cx.controller?.sourceChanged(layer.entry.id);
   }
   /** Main bars changed (load, scroll-back): redraw the compared symbols on
    *  the new bar times. */
@@ -262,6 +244,7 @@ export function createCompare(cx: ChartCx): CompareApi {
       loadCompareBars(layer);
     }
     cx.syncScaleSides();
+    cx.syncScaleLayout();
     cx.controller?.applyPaneOrder();
     // Same % scale: the main scale shows percent while such an entry exists.
     const percent = want.some((e) => e.placement === "percent");
@@ -419,7 +402,6 @@ export function createCompare(cx: ChartCx): CompareApi {
     },
     compareTitle,
     compareSources,
-    compareUsesOtherSide,
     holdCompares,
     followMainPane,
     renderCompareAll,

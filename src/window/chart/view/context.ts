@@ -22,8 +22,7 @@ import type { HistoryEndPrimitive } from "../history-end-marker";
 import type { NewsLollipopPrimitive } from "../news-lollipop";
 import type { CrosshairLockViews } from "../crosshair-lock";
 import type { DialogTab } from "../IndicatorSettingsDialog";
-import type { CompareEntry, ComparePlacement, PaneIndicatorSettings } from "../../shell/tabs";
-import type { CompareStyleState } from "../compare/compare-style";
+import type { CompareEntry, ComparePatch, PaneIndicatorSettings } from "../../shell/tabs";
 import type { Draft } from "../../header/chart-settings";
 import { appearanceFrom } from "../../header/chart-settings";
 import { readChartTokens } from "../chart-tokens";
@@ -49,6 +48,7 @@ import type { SymbolLoadApi } from "./symbol-load";
 import type { StrategyMarksApi } from "./strategy-marks";
 import type { LegendApi } from "./legend";
 import type { SourceMenuApi } from "./source-menu";
+import type { ScalesApi } from "./scales";
 import type { SyncMode } from "../../drawings/DrawingToolbar";
 
 export type ChartViewProps = {
@@ -105,7 +105,7 @@ export type ChartViewProps = {
   /** Compared symbols (header "Compare symbols") of this pane. */
   compare?: CompareEntry[];
   /** Patch one compared symbol (legend eye, Settings → Ok). */
-  onCompareChange?: (id: string, patch: { hidden?: boolean; symbol?: string; style?: CompareStyleState; placement?: ComparePlacement; group?: string; paneScale?: "left" | "right" | "none" }) => void;
+  onCompareChange?: (id: string, patch: ComparePatch) => void;
   /** Remove one compared symbol (legend trash, More → Remove, Delete pane). */
   onRemoveCompare?: (id: string) => void;
   /** Legend title of a compared symbol clicked ("Change symbol"). */
@@ -120,6 +120,10 @@ export type ChartViewProps = {
   seriesPane?: string;
   /** The series joined a study pane (its group) or got a pane of its own (null). */
   onSeriesPane?: (group: string | null) => void;
+  /** Scale the main series is pinned to (series menu "Pin to scale"), absent = the scales side. */
+  seriesScale?: string;
+  /** The series was pinned to a scale (null = back to the scales side). */
+  onSeriesScale?: (key: string | null) => void;
   /** Persisted drawing order of the sources, front first (Object tree). */
   sourceOrder?: string[];
   /** The Object tree moved a source: the new drawing order. */
@@ -242,7 +246,12 @@ export interface ChartCore {
   selectStudy: (id: string) => void;
   selectedStudy: Accessor<string | null>;
   series: AnySeries | null;
-  seriesOnlyScale: () => "left" | "right" | null;
+  seriesOnlyScale: () => string | null;
+  /** Scale key of the main series (pinned, else its side) and its library scale id. */
+  seriesKey: () => string;
+  seriesLibId: () => string;
+  /** Put the series on the scale it should be on. */
+  applySeriesScale: () => void;
   setCompareSettingsFor: Setter<string | null>;
   setCtxMenu: Setter<ChartMenuState | null>;
   setReloadTick: Setter<number>;
@@ -287,7 +296,8 @@ export type ChartCx = ChartCore &
   StrategyMarksApi &
   SymbolLoadApi &
   TickerInfoApi &
-  SourceMenuApi;
+  SourceMenuApi &
+  ScalesApi;
 
 /** Add a part's functions (and its state accessors) to the context. */
 export function attach<T extends object>(cx: ChartCx, api: T): T {

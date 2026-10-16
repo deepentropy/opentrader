@@ -101,6 +101,7 @@ import {
   compareDialogOpen,
   compareTarget,
   indicatorsDialogOpen,
+  indicatorsParent,
   intervalDialog,
   oakPanelOpen,
   onRailTabSelect,
@@ -112,6 +113,7 @@ import {
   setCompareDialogOpen,
   setCompareTarget,
   setIndicatorsDialogOpen,
+  setIndicatorsParent,
   setIntervalDialog,
   setOakPanelOpen,
   setSettingsDialogOpen,
@@ -332,6 +334,7 @@ function App() {
     compareRecent,
     setPaneOrderForPane,
     setSeriesPaneForPane,
+    setSeriesScaleForPane,
     setSourceOrderForPane,
     setPaneLinkGroup,
     toggleSeriesHidden,
@@ -551,7 +554,10 @@ function App() {
         onIntervalChange={setInterval}
         onMenuOpen={openMenuAt}
         onSymbolSearch={() => openSymbolSearch(null)}
-        onOpenIndicators={() => setIndicatorsDialogOpen(true)}
+        onOpenIndicators={() => {
+          setIndicatorsParent(null);
+          setIndicatorsDialogOpen(true);
+        }}
         onToggleFullscreen={() => void toggleFullscreen()}
         onOpenSettings={() => setSettingsDialogOpen(true)}
         onOpenAppSettings={(tab) => setAppSettingsTab(tab)}
@@ -670,6 +676,7 @@ function App() {
               onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
               onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}
               onSeriesPane={(i, group) => setSeriesPaneForPane(tabId, i, group)}
+              onSeriesScale={(i, key) => setSeriesScaleForPane(tabId, i, key)}
               onSourceOrder={(i, order) => setSourceOrderForPane(tabId, i, order)}
               onChangeCompareSymbol={(i, id) => {
                 setCompareTarget({ tabId, paneIndex: i, id });
@@ -840,8 +847,11 @@ function App() {
       </Show>
       <Show when={indicatorsDialogOpen()}>
         <IndicatorsDialog
-          onAddIndicator={addIndicator}
-          onClose={() => setIndicatorsDialogOpen(false)}
+          onAddIndicator={(id) => addIndicator(id, indicatorsParent() ?? undefined)}
+          onClose={() => {
+            setIndicatorsDialogOpen(false);
+            setIndicatorsParent(null);
+          }}
         />
       </Show>
       <Show when={settingsDialogOpen()}>

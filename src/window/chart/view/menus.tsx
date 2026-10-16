@@ -31,6 +31,7 @@ import { PANE_MENU_ICONS } from "./pane-icons";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
 import { sourceCodeMenuRows } from "./source-code-rows";
+import type { ScaleTarget } from "./scales";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -144,7 +145,7 @@ export interface MenusApi {
   openIndicatorMoreMenu: (id: string, anchor: DOMRect) => void;
   openPaneMenu: (e: MouseEvent, i: number) => void;
   openPlusMenu: (r: DOMRect, yAbs: number) => void;
-  openPriceScaleMenu: (e: MouseEvent, corner?: DOMRect) => void;
+  openPriceScaleMenu: (e: MouseEvent, corner?: DOMRect, target?: ScaleTarget) => void;
   openSeriesMoreMenu: (anchor: DOMRect) => void;
 }
 
@@ -155,7 +156,7 @@ export function createMenus(cx: ChartCx): MenusApi {
    *  Labels/Lines submenus, Plus button, Session on intraday, More
    *  settings…). Rows we have no surface for (bid-ask
    *  labels+lines, no-overlapping-labels) are omitted. */
-  function openPriceScaleMenu(e: MouseEvent, corner?: DOMRect) {
+  function openPriceScaleMenu(e: MouseEvent, corner?: DOMRect, target?: ScaleTarget) {
     if (!cx.chart) return;
     const t = currentTokens();
     // The axis of a study pane: its items act on that pane's own scale (the
@@ -172,7 +173,10 @@ export function createMenus(cx: ChartCx): MenusApi {
     const onSeriesScale = paneIdx === mainIdx && (corner || clickedSide === cx.mainSide() || !cx.controller?.seriesShares());
     const owner = onSeriesScale ? null : cx.controller?.ownerOfPane(paneIdx) ?? null;
     const studySeries = owner ? cx.controller?.studySeries(owner) ?? null : null;
-    const ps = studySeries ? studySeries.priceScale() : cx.mainScale() ?? cx.chart.priceScale(t.scalesPlacement);
+    const ps = target ? cx.chart.priceScale(target.libId, target.pane) : studySeries ? studySeries.priceScale() : cx.mainScale() ?? cx.chart.priceScale(t.scalesPlacement);
+    // A scale that is not the series' (an extra axis, a stub): "Move scale"
+    // takes that scale's sources to a new scale on the other side.
+    const targetSide = target ? (target.libId.startsWith("left") ? "left" : "right") : null;
     const cur = ps.options();
     const setMode = (mode: PriceScaleMode) => () => ps.applyOptions({ mode });
     const patch = (p: Record<string, unknown>) =>
@@ -184,7 +188,7 @@ export function createMenus(cx: ChartCx): MenusApi {
         onSelect: () => ps.applyOptions({ autoScale: !cur.autoScale }) },
       // Locking stores the current ratio in the Scales row (the lock keeps
       // the ratio in effect when it is turned on).
-      ...(studySeries ? [] : [{ kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
+      ...(studySeries || target ? [] : [{ kind: "item", id: "lock-ratio", label: "Lock price to bar ratio", checked: t.lockRatio,
         // Shown with 4 decimals, on a regular scale only.
         shortcut: ratio != null && cur.mode === PriceScaleMode.Normal
           ? ratio.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })
@@ -206,9 +210,12 @@ export function createMenus(cx: ChartCx): MenusApi {
       { kind: "item", id: "mode-log", label: "Logarithmic", shortcut: "Alt + L",
         checked: cur.mode === PriceScaleMode.Logarithmic, onSelect: setMode(PriceScaleMode.Logarithmic) },
       { kind: "separator" },
-      { kind: "item", id: "move-scale",
-        label: t.scalesPlacement === "right" ? "Move scale to left" : "Move scale to right",
-        onSelect: () => patch({ scalesPlacement: t.scalesPlacement === "right" ? "left" : "right" }) },
+      target && targetSide
+        ? { kind: "item", id: "move-scale", label: targetSide === "right" ? "Move scale to left" : "Move scale to right",
+          onSelect: () => cx.moveScaleToSide(target.pane, target.key, targetSide === "right" ? "left" : "right") }
+        : { kind: "item", id: "move-scale",
+          label: t.scalesPlacement === "right" ? "Move scale to left" : "Move scale to right",
+          onSelect: () => patch({ scalesPlacement: t.scalesPlacement === "right" ? "left" : "right" }) },
       { kind: "separator" },
       { kind: "item", id: "labels", label: "Labels", submenu: [
         { kind: "item", id: "lbl-symname", label: "Symbol name label",
@@ -255,7 +262,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     // Corner button: the menu opens above the button, flush with its outer
     // edge (right edge on a right scale, left edge on a left one).
     if (corner) {
-      const left = t.scalesPlacement === "left";
+      const left = (targetSide ?? t.scalesPlacement) === "left";
       setCtxMenu({ x: left ? corner.left : corner.right, y: corner.top, endX: !left, endY: true, corner: true, nodes });
       return;
     }
@@ -308,7 +315,7 @@ export function createMenus(cx: ChartCx): MenusApi {
    *  (button left, bottom + 3). No cursor price here, so the prices are the
    *  last close. Rows with no OT
    *  feature are left out: Add order, Add financial metric,
-   *  Metrics, Table view, Visual order, Move to, Pin to scale, Add text note. */
+   *  Metrics, Table view, Add text note. */
   function openSeriesMoreMenu(anchor: DOMRect) {
     const full = props.symbol ?? "";
     const sym = splitSymbol(full).ticker;
@@ -349,6 +356,8 @@ export function createMenus(cx: ChartCx): MenusApi {
         onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
       { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !hasClipboardContent(), onSelect: pasteClipboard },
       { kind: "separator" },
+      // Visual order, Move to, Pin to scale (reference order: before Hide).
+      ...cx.seriesArrangeRows(),
       { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => props.onToggleSeries?.() },
       { kind: "separator" },
@@ -364,9 +373,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
   }
 
-  /** Legend study "More" → the study actions menu. Rows with no OT feature
-   *  are left out: Add indicator/strategy on the study (a study calculated on
-   *  its output). */
+  /** Legend study "More" → the study actions menu. */
   function openIndicatorMoreMenu(id: string, anchor: DOMRect) {
     const nodes = studyMenuNodes(id);
     if (nodes) setCtxMenu({ x: anchor.left, y: anchor.bottom + 3, nodes });
@@ -404,7 +411,7 @@ export function createMenus(cx: ChartCx): MenusApi {
     if (!(appearance().legendIndInputs ?? true) || !row.showInputs) return name;
     if (inputs) return `${name} ${inputs}`;
     const entry = getIndicatorEntry(row.id);
-    const list = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ") : "";
+    const list = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ", (v) => cx.sourceInputText(v)) : "";
     return list ? `${name} (${list})` : name;
   }
   /** "Add alert on <study>…" row of the study menu; `price` = at the pointer (right click), else its last value. */
@@ -496,6 +503,9 @@ export function createMenus(cx: ChartCx): MenusApi {
     const nodes: CtxNode[] = [];
     const alert = studyAlertRow(id, price);
     if (alert) nodes.push(alert);
+    // A study / compared symbol that can be a source: a study calculated on it (reference order: after the alert).
+    const addOn = cx.addOnSourceRow(id);
+    if (addOn) nodes.push(addOn);
     const layout = cx.sourceLayoutRow(id);
     if (layout) nodes.push(layout);
     // No favorites row for studies that cannot be starred (compare/overlay).
@@ -579,8 +589,7 @@ export function createMenus(cx: ChartCx): MenusApi {
   }
 
   /** Legend compared-symbol "More" → its actions menu. Rows with no OT
-   *  feature are left out (same rule as the study menu): Add indicator /
-   *  financial metric on the symbol, Move to, Pin to scale. */
+   *  feature are left out: Add financial metric on the symbol. */
   function openCompareMoreMenu(id: string, anchor: DOMRect, price?: number | null) {
     const e = cx.compareEntry(id);
     if (!e) return;
@@ -588,6 +597,9 @@ export function createMenus(cx: ChartCx): MenusApi {
     const top: CtxNode[] = [];
     const alert = compareAlertRow(id, price);
     if (alert) top.push(alert);
+    // A study calculated on the symbol (reference: after the alert row).
+    const addOn = cx.addOnSourceRow(id);
+    if (addOn) top.push(addOn);
     const layout = cx.sourceLayoutRow(id);
     if (layout) top.push(layout);
     const arrange = cx.sourceArrangeRows(id);

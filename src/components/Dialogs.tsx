@@ -17,8 +17,8 @@ export type ConfirmOptions = {
   text: string;
   /** Main button (default "Yes"). */
   mainText?: string;
-  /** Other button (default "No"). */
-  cancelText?: string;
+  /** Other button (default "No"); null = no other button (a warning). */
+  cancelText?: string | null;
   /** Main button colour: success = #089981 (default), danger = #F23645. */
   intent?: "success" | "danger";
   onConfirm: () => void;
@@ -131,7 +131,9 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
         </Show>
       </div>
       <div class="ot-dlg-footer">
-        <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>
+        <Show when={o.cancelText !== null}>
+          <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>
+        </Show>
         <button type="button" class={`ot-dlg-btn is-main is-${o.intent ?? "success"}`} data-name="submit-button" onClick={confirm}>
           {o.mainText ?? "Yes"}
         </button>

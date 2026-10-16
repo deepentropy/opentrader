@@ -33,6 +33,7 @@ export interface PriceAxisApi {
     left: boolean;
   } | null>;
   setAxisHover: Setter<number | null>;
+  chartHovered: Accessor<boolean>;
   setChartHovered: Setter<boolean>;
   setCurrency: Setter<string>;
   setPlusPane: Setter<number>;
@@ -102,7 +103,8 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
     const th = cx.chart.options().timeScale.visible === false ? 0 : cx.chart.timeScale().height();
     setScaleGeom((g) => (g && g.w === w && g.h === h && g.th === th && g.left === (side === "left") ? g : { w, h, th, left: side === "left" }));
     const mainLeft = cx.mainSide() === "left";
-    const mw = cx.chart.priceScale(mainLeft ? "left" : "right").width();
+    // The series' own axis (other scales of the side are painted next to it).
+    const mw = cx.firstAxisWidthOf(mainLeft ? "left" : "right");
     const top = box?.top ?? 0;
     setMainAxis((a) => (a && a.top === top && a.h === h && a.w === mw && a.left === mainLeft ? a : { top, h, w: mw, left: mainLeft }));
     const ps = cx.mainScale();
@@ -199,7 +201,8 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
             </Show>
             {/* Axis corner button: fill #2E2E2E dark / #EBEBEB light; the
                 axis tint is that colour at 50 % (blended under the labels). */}
-            <Show when={g().th > 0}>
+            {/* Two scales or more: the scale names under the axes take the corner (view/scales.tsx). */}
+            <Show when={g().th > 0 && !cx.namedScales()}>
               {(_) => {
                 const dark = () => isDarkColor(readChartTokens(appearance()).bg);
                 const side = () => (g().left ? "left" : "right");
@@ -279,6 +282,7 @@ export function createPriceAxis(cx: ChartCx): PriceAxisApi {
     refreshScaleOverlays,
     scaleGeom,
     setAxisHover,
+    chartHovered,
     setChartHovered,
     setCurrency,
     setPlusPane,

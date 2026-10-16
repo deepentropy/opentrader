@@ -67,7 +67,7 @@ export type LayoutSizesUndoEntry = {
 };
 /** The sources of a chart (studies, their settings, compared symbols and
  *  the orders), as one layout-wide edit saves them. */
-export type ChartSources = Pick<PaneChart, "indicators" | "indicatorSettings" | "compare" | "paneOrder" | "sourceOrder">;
+export type ChartSources = Pick<PaneChart, "indicators" | "indicatorSettings" | "compare" | "paneOrder" | "sourceOrder" | "seriesScale" | "seriesPane">;
 /** Sources of several charts of a layout changed together (a study / symbol
  *  added to the entire layout, the indicators applied to the entire layout,
  *  a source pasted): each chart's sources before and after, by chart index,

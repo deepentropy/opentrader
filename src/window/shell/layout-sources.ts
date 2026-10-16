@@ -39,6 +39,8 @@ export function chartSources(p: ChartSources): ChartSources {
     compare: clone(p.compare),
     paneOrder: p.paneOrder?.slice(),
     sourceOrder: p.sourceOrder?.slice(),
+    seriesScale: p.seriesScale,
+    seriesPane: p.seriesPane,
   };
 }
 

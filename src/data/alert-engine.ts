@@ -42,7 +42,10 @@ import { chartBars, chartLastBarTime, chartLastPrice, chartResolution, chartSess
 import { getIndicatorEntry } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { scriptBars } from "../backtester/oakscript";
-import type { Bar } from "oakscriptjs";
+import { setSourceResolver, type Bar } from "oakscriptjs";
+import { alignToBars, sourceSpecsOf, SOURCES_KEY, type SourceSpec } from "../window/chart/indicators/study-sources";
+import { priceOf } from "../window/chart/series-transforms";
+import type { OHLC } from "../window/chart/chart-types";
 import type { ChartContext } from "oakscriptjs/script";
 import { OtherSymbolBars } from "../window/chart/indicators/other-symbols";
 import { commands } from "../bindings";
@@ -842,7 +845,38 @@ function runStudy(
   const given = scriptBars(bars as Bar[], chart);
   // The inputs of a rule are a store proxy: a plain copy, which a user script's worker can receive.
   const plain = inputs && typeof inputs === "object" ? JSON.parse(JSON.stringify(inputs)) : inputs;
-  return { result: calculate(given, plain, chart), bars: given };
+  // A study calculated on other sources (study on study): their values first, read by its source inputs.
+  const specs = sourceSpecsOf(plain);
+  if (!specs) return { result: calculate(given, plain, chart), bars: given };
+  delete (plain as Record<string, unknown>)[SOURCES_KEY];
+  const values = new Map<string, number[]>();
+  for (const [name, spec] of Object.entries(specs)) values.set(name, sourceSpecValues(spec, bars, given, symbol, resolution, session, state, slot));
+  setSourceResolver((name) => values.get(name) ?? null);
+  try {
+    return { result: calculate(given, plain, chart), bars: given };
+  } finally {
+    setSourceResolver(null);
+  }
+}
+
+/** Values of a study's other source at the bars `given` (NaN where it has none): another study calculated on the
+ *  same bars (its own sources first), or a compared symbol's price source (its bars loaded on the first request). */
+function sourceSpecValues(spec: SourceSpec, bars: unknown[], given: Bar[], symbol: string, resolution: string, session: string, state: BarState, slot: string): number[] {
+  if (spec.study) {
+    const entry = getIndicatorEntry(spec.study.id);
+    const def = entry?.plotConfig[spec.study.plot];
+    if (!entry || !def) return given.map(() => NaN);
+    const run = runStudy(entry, bars, spec.study.inputs, symbol, resolution, session, state, `${slot}|${spec.study.id}`);
+    const plots = (run.result as { plots?: Record<string, { time: unknown; value?: number | null }[]> } | null)?.plots;
+    return alignToBars(plots?.[def.id], run.bars);
+  }
+  if (spec.symbol) {
+    const other = alertSymbols.bars(spec.symbol.symbol, resolution, resolution);
+    if (!other) return given.map(() => NaN);
+    const src = spec.symbol.source as Parameters<typeof priceOf>[1];
+    return alignToBars(other.map((b) => ({ time: b.time, value: priceOf(b as unknown as OHLC, src) })), given);
+  }
+  return given.map(() => NaN);
 }
 
 function indicatorOperandValue(symbol: string, op: Extract<Operand, { kind: "indicator" }>, resolution: string, session: string, price: number): number | null {

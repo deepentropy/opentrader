@@ -45,6 +45,10 @@ export interface SourcesApi {
   moveZ: (id: string, op: ZOrderOp) => void;
   /** "Move to" rows a study can take (merge into the pane above / below, a new pane above / below). */
   studyMoves: (id: string) => StudyMoves | null;
+  /** "Move to" rows of the main series (series menu). */
+  seriesMoves: () => StudyMoves | null;
+  /** Apply a series "Move to" row. */
+  moveSeries: (move: keyof StudyMoves) => void;
   /** Apply one "Move to" row. */
   moveStudy: (id: string, move: keyof StudyMoves) => void;
   scheduleSourceOrder: () => void;
@@ -281,7 +285,7 @@ export function createSources(cx: ChartCx): SourcesApi {
       const row = rows.find((r) => r.id === id);
       if (!row) continue;
       const entry = row.compare ? undefined : getIndicatorEntry(id);
-      const inputs = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ") : "";
+      const inputs = entry && row.inputValues ? statusLineInputs(entry, row.inputValues, ", ", (v) => cx.sourceInputText(v)) : "";
       out.push({
         id,
         kind: row.compare ? "compare" : "study",
@@ -549,6 +553,43 @@ export function createSources(cx: ChartCx): SourcesApi {
     const at = first < 0 ? (move === "unmergeUp" ? 0 : before.length) : move === "unmergeUp" ? first : lastMate + 1;
     studyPaneChanged(id, options, [...before.slice(0, at), id, ...before.slice(at)]);
   }
+  /** "Move to" rows of the main series (reference series menu): into the study pane above / below, a new pane
+   *  above / below when it shares its pane (with studies or compared symbols drawn over it). */
+  function seriesMoves(): StudyMoves | null {
+    const c = cx.controller;
+    if (!c) return null;
+    const pane = cx.mainPane();
+    const last = (cx.chart?.panes().length ?? 1) - 1;
+    const shared = c.seriesPaneShared(overSeriesCompares().length > 0);
+    return {
+      mergeUp: pane > 0 && c.canMergeSeriesTo(pane - 1),
+      unmergeUp: shared,
+      mergeDown: pane < last && c.canMergeSeriesTo(pane + 1),
+      unmergeDown: shared,
+    };
+  }
+  function moveSeries(move: keyof StudyMoves) {
+    const c = cx.controller;
+    if (!c || !seriesMoves()?.[move]) return;
+    const pane = cx.mainPane();
+    if (move === "mergeUp" || move === "mergeDown") {
+      mergeSeriesToPane(move === "mergeUp" ? pane - 1 : pane + 1);
+      return;
+    }
+    // A new pane right above / below what it shared its pane with.
+    const compares = overSeriesCompares();
+    cx.holdCompares(compares);
+    const moved = c.unmergeSeriesToNewPane(compares[0]);
+    if (!moved) return;
+    const stay = compares[0];
+    const base = c.stackedOrder(stay ? [[stay, moved.from]] : []).filter((x) => x !== MAIN_SOURCE_ID);
+    const mates = new Set([...c.idsInPane(moved.from), ...(stay ? [stay] : [])]);
+    const first = base.findIndex((x) => mates.has(x));
+    let lastMate = first;
+    base.forEach((x, k) => { if (mates.has(x)) lastMate = k; });
+    const at = first < 0 ? (move === "unmergeUp" ? 0 : base.length) : move === "unmergeUp" ? first : lastMate + 1;
+    seriesMoved(moved, compares, [...base.slice(0, at), MAIN_SOURCE_ID, ...base.slice(at)]);
+  }
   listenWhenShown(TREE_HIDE_EVENT, onTreeHideRequest);
   listenWhenShown(TREE_REMOVE_EVENT, onTreeRemoveRequest);
   listenWhenShown(TREE_MOVE_EVENT, onTreeMoveRequest);
@@ -581,6 +622,8 @@ export function createSources(cx: ChartCx): SourcesApi {
     mergeSeriesToPane,
     mergeStudyToPane,
     moveStudy,
+    moveSeries,
+    seriesMoves,
     moveZ,
     studyMoves,
     zOrderSteps,
