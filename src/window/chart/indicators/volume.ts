@@ -37,6 +37,8 @@ export const VOLUME_ENTRY: IndicatorRegistryEntry = {
   shortName: "Vol",
   category: "Volume",
   overlay: true, // price pane — but on its own scale (metadata below)
+  // Values written as volumes ("5.92 M") in the legend, scale and alerts.
+  format: { type: "volume" },
   metadata: {
     title: "Volume",
     shortTitle: "Vol",

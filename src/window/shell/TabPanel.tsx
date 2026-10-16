@@ -23,7 +23,7 @@ import { setSubscription, clearSubscription } from "../../data/subscriptions";
 import { TabContextMenu, type TabMenuAnchor } from "./TabContextMenu";
 import { linkColorHex, type LinkChannel, type LinkColor } from "./tab-linking";
 import { groupChannels } from "../../data/link-groups";
-import { activePaneOf, clampMoveIndex, layoutNameFromInterval, tabTitle, tickerInitial, type TabChart } from "./tabs";
+import { activePaneOf, clampMoveIndex, tabTitle, tickerInitial, type TabChart } from "./tabs";
 import { tickerOf } from "../../data/symbol-name";
 import { DEFAULT_TAB_TITLE_PARTS, type TabTitlePartState } from "./tab-title";
 
@@ -289,7 +289,7 @@ export function TabPanel(props: Props) {
                           case "layoutName":
                             // Shows the SAVED layout's name; unsaved charts
                             // fall back to the interval-derived label.
-                            return <span class="tab-part tab-part-layout">/ {tab.savedLayoutName ?? layoutNameFromInterval(activePaneOf(tab).interval)}</span>;
+                            return <span class="tab-part tab-part-layout">/ {tab.savedLayoutName ?? "Unnamed"}</span>;
                           default:
                             return null;
                         }

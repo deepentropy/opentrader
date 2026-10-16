@@ -22,12 +22,9 @@ const POS_KEY = "ot:favorite-tools-pos";
  *  offsetParent-relative coords. null = still at the CSS dock (never dragged). */
 export type FavoritesToolbarPos = { x: number; y: number };
 
-/** Initial favourites (Ray, Trendline, Horizontal ray, Arrow mark down/up,
- *  Text, Anchored VWAP, Vertical line), used as a populated-by-default seed. */
-export const DEFAULT_FAVORITE_TOOL_IDS = [
-  "ray", "trend-line", "horizontal-ray", "arrow-mark-down",
-  "arrow-mark-up", "text", "anchored-vwap", "vertical-line",
-];
+/** Initial favourites: none, so a fresh install shows no favorites toolbar
+ *  until a tool is starred. */
+export const DEFAULT_FAVORITE_TOOL_IDS: string[] = [];
 
 /** id → { tool, group } across every tool in every group. Built once at
  *  module load; lets the favorites toolbar resolve a favourited id back to its

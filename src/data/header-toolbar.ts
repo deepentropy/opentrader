@@ -43,7 +43,7 @@ export const SECTIONS: Section[] = [
   {
     sectionIndex: 0,
     items: [
-      { id: "symbol-search", label: "Symbol search", text: "INTC", widget: true },
+      { id: "symbol-search", label: "Symbol search", text: "AAPL", widget: true },
       { id: "compare-symbols", label: "Compare symbols", iconName: "header-compare-symbols" },
     ],
   },

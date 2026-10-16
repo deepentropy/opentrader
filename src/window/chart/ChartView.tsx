@@ -1033,7 +1033,7 @@ export function ChartView(props: ChartViewProps) {
   const { applyStrategyMarkers, forgetTradeMarkers, strategyDialogConfig } = attach(cx, createStrategyMarks(cx));
   const [history] = createResource<BarsResult | null, string>(
     () =>
-      `${props.symbol ?? "INTC"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`,
+      `${props.symbol ?? "AAPL"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`,
     async (key) => {
       // sym/interval/session — none contain spaces, so a plain split is safe
       // (the trailing reload counter is key-only).
