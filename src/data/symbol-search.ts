@@ -334,6 +334,16 @@ const MAJOR_EXCHANGES = new Set(["NASDAQ", "NYSE", "NYSE ARCA", "NYSE AMERICAN",
  *  popularity signal, so we re-rank by match quality (exact → prefix → substring
  *  → name-only) then listing quality (major-exchange equity → ETF → OTC/other),
  *  stable within a rank. */
+/** First index where `q` starts a word of `text` (names match by word start:
+ *  "APPLE" in "PINEAPPLE" is not a match), -1 if none. */
+function wordStartIndex(text: string, q: string): number {
+  if (!q) return -1;
+  for (let i = text.indexOf(q); i >= 0; i = text.indexOf(q, i + 1)) {
+    if (i === 0 || !/[\p{L}\p{N}]/u.test(text[i - 1])) return i;
+  }
+  return -1;
+}
+
 export function liveResultsToRows(
   results: SymbolSearchResult[],
   category: SymbolCategoryId,
@@ -344,7 +354,7 @@ export function liveResultsToRows(
   const base = category === "all" ? rows : rows.filter((r) => r.category === category);
   const mapped: FilteredRow[] = base.map((r) => {
     const tIdx = r.ticker.toUpperCase().indexOf(q);
-    const dIdx = r.description.toUpperCase().indexOf(q);
+    const dIdx = wordStartIndex(r.description.toUpperCase(), q);
     return {
       ...r,
       titleHighlight: tIdx >= 0 ? [tIdx, tIdx + q.length] : null,

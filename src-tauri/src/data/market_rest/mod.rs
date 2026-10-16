@@ -24,6 +24,7 @@ use crate::data::gateway::{self, ApiError, ErrorCode, MARKET, NO_TOKEN};
 
 mod aggs;
 mod cache;
+mod catalog;
 mod corporate_actions;
 mod market_snapshot;
 mod news;
@@ -35,6 +36,7 @@ mod snapshot;
 
 pub use aggs::{fetch_daily_aggs, fetch_minute_aggs, fetch_second_aggs, fetch_second_tail, probe_oldest_bar};
 pub use cache::clear_market_data_cache;
+pub use catalog::init as init_symbol_catalog;
 pub(crate) use cache::rest_cache_root;
 pub use corporate_actions::{
     dividend_events, executed_splits, fetch_splits_cached, paid_dividends, split_events, DividendEvent, Split, SplitEvent,

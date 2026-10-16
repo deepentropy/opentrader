@@ -170,6 +170,8 @@ pub fn run() {
             app.manage(screener::Screener::default());
             // Update check at startup, then hourly (app_update).
             app_update::init(app.handle());
+            // Symbol catalog for the search: disk copy, then today's from the gateway.
+            data::market_rest::init_symbol_catalog();
             Ok(())
         })
         .run(tauri::generate_context!())

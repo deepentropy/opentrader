@@ -60,10 +60,10 @@ pub(crate) fn rest_cache_root() -> PathBuf {
 
 /// Market-data folders under the cache root that "Clear cache" deletes: the
 /// REST aggregate cache, its legacy roots, the older per-day caches and the
-/// daily archive files. The
+/// daily archive files and the symbol catalog. The
 /// root itself is never deleted (on Windows it is also the install folder).
 const CLEARABLE_CACHE_DIRS: &[&str] =
-    &[REST_CACHE_DIR, "rest_aggs", "rest_aggs_v2", "day_aggs", "day_ticker", "minute_aggs", crate::data::daily_archive::CACHE_DIR];
+    &[REST_CACHE_DIR, "rest_aggs", "rest_aggs_v2", "day_aggs", "day_ticker", "minute_aggs", crate::data::daily_archive::CACHE_DIR, super::catalog::CACHE_DIR];
 
 /// Settings > Service > "Clear cache": delete the market-data disk cache and
 /// forget the in-memory splits, dividends and prior-close memos. Bars are

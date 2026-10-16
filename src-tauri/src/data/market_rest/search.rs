@@ -1,5 +1,6 @@
-//! Symbol search: a ticker-prefix match over the reference universe.
-use super::get_json;
+//! Symbol search: the day's symbol catalog (`catalog`), else a ticker-prefix
+//! match on the gateway.
+use super::{catalog, get_json};
 use crate::data::ticker_case;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -46,14 +47,19 @@ struct SearchRow {
     kind: Option<String>,
 }
 
-/// Typeahead over the reference universe. Matches on the **ticker only** (a
-/// prefix), never the company name: a name match pulls in noise like "Maui
-/// Land & Pineapple" for a query of "apple". An optional `type_filter` (a
-/// security type, "stock", "etf"…) constrains the result set server-side.
+/// Typeahead over the active listings. With the day's catalog loaded the
+/// search is local: ticker prefix first, then company names holding the query
+/// at the start of a word (see `catalog::Catalog::search`). Without it, or
+/// when it has no match (a listing newer than the catalog), the gateway is
+/// asked for a ticker prefix. An optional `type_filter` (a security type,
+/// "stock", "etf"…) keeps one type.
 pub async fn search_tickers(
     query: &str,
     type_filter: Option<&str>,
 ) -> Result<Vec<SymbolSearchResult>> {
+    if let Some(found) = catalog::current().map(|c| c.search(query, type_filter)).filter(|r| !r.is_empty()) {
+        return Ok(found);
+    }
     // The prefix range is sorted alphabetically, so a low cap truncates good
     // matches before the frontend can re-rank them (e.g. "MU" has 43 tickers —
     // MUR/MUX sort past position 20). Ask the maximum; the cap only adds rows
