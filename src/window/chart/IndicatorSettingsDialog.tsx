@@ -80,8 +80,12 @@ type Next = { inputs: Record<string, unknown>; styles: IndicatorStyleOverrides; 
 
 /** Materialised per-plot style row in the draft (always fully populated). */
 type StyleRow = { color: string; lineWidth: number; visible: boolean; plotType: string; priceLine: boolean; palette?: string[] };
-/** Palette entries of a plot coloured per point (PlotPalette). */
-const paletteOf = (p: PlotConfig) => (p as PlotConfig & PlotPalette).palette;
+/** Palette entries of a plot coloured per point (PlotPalette): named entries, or a plain colour list named
+ *  "Color 0", "Color 1", ... as the reference names them. */
+const paletteOf = (p: PlotConfig): { name: string; color: string }[] | undefined => {
+  const pal = (p as PlotConfig & PlotPalette).palette;
+  return pal?.map((c, i) => (typeof c === "string" ? { name: `Color ${i}`, color: c } : c));
+};
 
 type Props = {
   /** Source inputs: the other sources' outputs offered after the price sources (study on study). */

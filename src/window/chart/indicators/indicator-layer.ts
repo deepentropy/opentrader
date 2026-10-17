@@ -61,14 +61,27 @@ function withPaletteColors(entry: IndicatorRegistryEntry, result: any, styles: I
   let out = result;
   for (const p of entry.plotConfig as (IndicatorRegistryEntry["plotConfig"][number] & PlotPalette)[]) {
     const pts = result?.plots?.[p.id] as (PlotPoint & { paletteIndex?: number })[] | undefined;
-    if (!p.palette || !pts) continue;
-    const colors = p.palette.map((c, i) => styles[p.id]?.palette?.[i] ?? c.color);
+    // a plain colour list (library / script plots) is recoloured by the renderer (plotPaletteOverride)
+    if (!p.palette || !pts || typeof p.palette[0] === 'string') continue;
+    const colors = (p.palette as { name: string; color: string }[]).map((c, i) => styles[p.id]?.palette?.[i] ?? c.color);
     const opacity = 100 - (p.paletteTransparency ?? 0);
     const shaded = colors.map((c) => (c.startsWith("#") && c.length === 7 ? applyOpacity(c, opacity) : c));
     if (out === result) out = { ...result, plots: { ...result.plots } };
     out.plots[p.id] = pts.map((d) => (d.paletteIndex != null && shaded[d.paletteIndex] ? { ...d, color: shaded[d.paletteIndex] } : d));
   }
   return out;
+}
+/** A plot with a plain colour list (PlotConfig.palette): the drawn colours the Style tab changed, original -> new
+ *  (the renderer replaces the per-point colours). */
+function plotPaletteOverride(def: PlotConfig & PlotPalette, ov: PlotStyleOverride | undefined): Record<string, string> | undefined {
+  const pal = def.palette;
+  if (!pal?.length || typeof pal[0] !== 'string' || !ov?.palette) return undefined;
+  const map: Record<string, string> = {};
+  (pal as string[]).forEach((c, i) => {
+    const next = ov.palette![i];
+    if (next && next !== c) map[c] = next;
+  });
+  return Object.keys(map).length ? map : undefined;
 }
 /** Third argument of `calculate`: the chart context (what the library indicators and the OakScript scripts
  *  read) with the state of the newest bar, plus what the app's own entries need. `heikinAshi`: the chart shows
@@ -548,11 +561,13 @@ export class IndicatorLayer {
     for (const def of entry.plotConfig) {
       const ov = styles[def.id];
       const style = pineStyle(ov?.plotType);
+      const palette = plotPaletteOverride(def as PlotConfig & PlotPalette, ov);
       overrides[def.id] = {
         ...(plotShown(def as PlotDefaultVisible, ov) ? {} : { visible: false }),
         ...(ov?.color !== undefined && { color: ov.color }),
         ...(ov?.lineWidth !== undefined && { lineWidth: ov.lineWidth }),
         ...(style && { style }),
+        ...(palette && { palette }),
       };
       const effective = style ?? def.style ?? 'line';
       if ((effective === 'linebr' || effective === 'steplinebr') && plots[def.id]?.length) {
@@ -871,7 +886,10 @@ export class IndicatorLayer {
       // The value takes the bar's own plot colour (palette / per-point
       // colorer) with its transparency reset. Per-point colours also win on
       // the canvas, so the legend matches the drawn column.
-      const color = (pt as { color?: string }).color ?? ov?.color ?? p.color ?? '#787b86';
+      const own = (pt as { color?: string }).color;
+      // a palette colour changed in the Style tab
+      const mapped = own ? plotPaletteOverride(p as PlotConfig & PlotPalette, ov)?.[own] : undefined;
+      const color = mapped ?? own ?? ov?.color ?? p.color ?? '#787b86';
       out.push({ color: resetTransparency(color), value: pt.value, index });
     }
     return out;

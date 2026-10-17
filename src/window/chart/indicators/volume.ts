@@ -15,7 +15,9 @@ export type PlotDefaultVisible = { defaultVisible?: boolean };
 /** A plot coloured per point from a palette (points carry `paletteIndex`): the
  *  Style tab shows one colour row per entry. */
 export type PlotPalette = {
-  palette?: { name: string; color: string }[];
+  /** Named palette colours with a `paletteIndex` on each point (Volume), or the colours of a library / script plot
+   *  whose points carry one of them (oakscriptjs PlotConfig.palette): "Color 0", "Color 1", ... */
+  palette?: { name: string; color: string }[] | string[];
   /** Transparency (0-100) applied to the palette colours. */
   paletteTransparency?: number;
 };
