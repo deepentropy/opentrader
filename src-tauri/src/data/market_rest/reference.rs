@@ -56,6 +56,9 @@ struct DetailsAnswer {
     currency: Option<String>,
     #[serde(default)]
     industry: Option<String>,
+    /// SIC division of the ticker ("Manufacturing"); null without a SIC code.
+    #[serde(default)]
+    sector: Option<String>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
@@ -174,10 +177,8 @@ pub async fn fetch_ticker_info(ticker: &str) -> Result<TickerInfo> {
         ticker: ticker.to_string(),
         name: r.name,
         exchange: r.exchange,
-        // No clean sector field: the industry classification is the closest.
-        // Leave sector empty rather than guess.
         industry: r.industry,
-        sector: None,
+        sector: r.sector,
         currency: r.currency.map(|c| c.to_uppercase()),
         description: r.description,
         homepage_url: r.homepage,
