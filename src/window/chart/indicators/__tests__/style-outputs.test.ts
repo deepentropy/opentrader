@@ -146,3 +146,28 @@ describe("applyStyleOverrides", () => {
     expect(sameColor("#089981", "#F23645")).toBe(false);
   });
 });
+
+describe("community built-ins", () => {
+  it("UT Bot: the Buy / Sell shapes of the original, each hiding its own labels", () => {
+    const e = entry("ut-bot");
+    expect(styleItems(e).filter((i) => i.kind === "shape").map((i) => ("decl" in i ? (i.decl as { title?: string }).title : ""))).toEqual(["Buy", "Sell"]);
+    const r = e.calculate(bars, { ...e.defaultInputs });
+    const buy = e.shapeConfig!.find((s) => s.title === "Buy")!;
+    const out = applyStyleOverrides(e, r, { [styleKey("shape", buy.id)]: { visible: false } }, bars).result;
+    expect(r.markers.some((m: { id?: string }) => m.id === buy.id)).toBe(true);
+    expect(out.markers.some((m: { id?: string }) => m.id === buy.id)).toBe(false);
+    expect(out.markers.length).toBe(r.markers.filter((m: { id?: string }) => m.id !== buy.id).length);
+  });
+
+  it("hlines given in the result: listed, recoloured and hidden by their declaration", () => {
+    const e = entry("forecast-oscillator");
+    const items = styleItems(e).filter((i) => i.kind === "hline");
+    expect(items.map((i) => ("decl" in i ? (i.decl as { title?: string }).title : ""))).toEqual(["Zero"]);
+    const r = e.calculate(bars, { ...e.defaultInputs });
+    const key = items[0].key;
+    const recolored = applyStyleOverrides(e, r, { [key]: { color: "#ff0000", price: 1 } }, bars).result;
+    expect(recolored.hlines[0].options.color).toBe("#ff0000");
+    expect(recolored.hlines[0].value).toBe(1);
+    expect(applyStyleOverrides(e, r, { [key]: { visible: false } }, bars).result.hlines.length).toBe(r.hlines.length - 1);
+  });
+});

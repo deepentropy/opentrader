@@ -56,6 +56,8 @@ export type StyleEntry = Pick<IndicatorRegistryEntry, "plotConfig"> & {
   barColorConfig?: ColorsDecl[];
   plotCandleConfig?: CandleDecl[];
   hlineConfig?: HLineDecl[];
+  /** Declarations of the hlines a built-in gives in its result (no hlineConfig): `hline<k>` for the k-th */
+  resultHlineConfig?: HLineDecl[];
   fillConfig?: FillDecl[];
   outputs?: OutputDecl[];
   markerDrawing?: DrawingKind;
@@ -133,7 +135,8 @@ export function styleItems(entry: StyleEntry): StyleItem[] {
   for (const c of candles) push(candleItem(c.id));
   for (const decl of colors) push({ kind: "colors", key: styleKey("colors", decl.id), decl });
 
-  const hlines: StyleItem[] = (entry.hlineConfig ?? []).filter(editable).map((decl) => ({ kind: "hline", key: styleKey("hline", decl.id), decl }));
+  const hlineDecls = entry.hlineConfig?.length ? entry.hlineConfig : entry.resultHlineConfig ?? [];
+  const hlines: StyleItem[] = hlineDecls.filter(editable).map((decl) => ({ kind: "hline", key: styleKey("hline", decl.id), decl }));
   // An untitled fill: "Hlines Background" between two hlines, else "Plots Background" (reference compiler names).
   const hlineIds = new Set((entry.hlineConfig ?? []).map((h) => h.id));
   const fills: StyleItem[] = (entry.fillConfig ?? []).filter(editable).map((decl) => ({
@@ -390,6 +393,26 @@ export function applyStyleOverrides(
       ...(ov.price !== undefined ? { price: ov.price } : {}),
     };
   });
+  // hlines of the result (declared in resultHlineConfig): matched by their id
+  if (result.hlines?.length && entry.resultHlineConfig?.length) {
+    const decls = new Map(entry.resultHlineConfig.map((d) => [d.id, d]));
+    r.hlines = result.hlines.flatMap((h: any) => {
+      const d = h.id ? decls.get(h.id) : undefined;
+      const ov = d && d.editable !== false ? styles[styleKey("hline", d.id)] : undefined;
+      if (!ov) return [h];
+      if (ov.visible === false) return [];
+      return [{
+        ...h,
+        ...(ov.price !== undefined ? { value: ov.price } : {}),
+        options: {
+          ...h.options,
+          ...(ov.color !== undefined ? { color: ov.color } : {}),
+          ...(ov.lineWidth !== undefined ? { linewidth: ov.lineWidth } : {}),
+          ...(ov.lineStyle !== undefined ? { linestyle: ov.lineStyle } : {}),
+        },
+      }];
+    });
+  }
   // fills: between hlines in the entry, between plots in the result (matched to their declaration by id or plots)
   const fillDecls = entry.fillConfig ?? [];
   const fillOv = (d: FillDecl | undefined) => (d && d.editable !== false ? styles[styleKey("fill", d.id)] : undefined);
