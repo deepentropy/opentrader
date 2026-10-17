@@ -134,7 +134,13 @@ export function styleItems(entry: StyleEntry): StyleItem[] {
   for (const decl of colors) push({ kind: "colors", key: styleKey("colors", decl.id), decl });
 
   const hlines: StyleItem[] = (entry.hlineConfig ?? []).filter(editable).map((decl) => ({ kind: "hline", key: styleKey("hline", decl.id), decl }));
-  const fills: StyleItem[] = (entry.fillConfig ?? []).filter(editable).map((decl) => ({ kind: "fill", key: styleKey("fill", decl.id), decl }));
+  // An untitled fill: "Hlines Background" between two hlines, else "Plots Background" (reference compiler names).
+  const hlineIds = new Set((entry.hlineConfig ?? []).map((h) => h.id));
+  const fills: StyleItem[] = (entry.fillConfig ?? []).filter(editable).map((decl) => ({
+    kind: "fill",
+    key: styleKey("fill", decl.id),
+    decl: decl.title ? decl : { ...decl, title: hlineIds.has(decl.plot1) && hlineIds.has(decl.plot2) ? "Hlines Background" : "Plots Background" },
+  }));
   const kinds = new Set(entry.drawingKinds ?? []);
   const drawings: StyleItem[] = DRAWINGS.filter(([k]) => kinds.has(k)).map(([drawing, title]) => ({ kind: "drawing", key: styleKey("drawing", drawing), drawing, title }));
   return [...outputs, ...hlines, ...fills, ...drawings];

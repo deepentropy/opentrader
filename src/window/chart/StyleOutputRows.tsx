@@ -294,7 +294,7 @@ export function OutputRows(props: OutputRowsProps): JSX.Element {
         };
         return (
           <>
-            <CheckLabel title={d.title ?? (d.kind === "bar" ? "Bars" : "Candles")} checked={visible()} toggle={toggle} full />
+            <CheckLabel title={d.title ?? (d.kind === "bar" ? "PlotBar" : "PlotCandle")} checked={visible()} toggle={toggle} full />
             {part("Body", "color", "palette")}
             <Show when={d.kind !== "bar"}>
               {part("Wick", "wickColor", "wickPalette")}

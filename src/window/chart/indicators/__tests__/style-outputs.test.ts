@@ -35,6 +35,16 @@ describe("styleItems", () => {
     expect(styleItems(e).map((i) => i.key)).toEqual(["plot0", "colors:bgcolor0", "plot1"]);
   });
 
+  it("untitled fills take the reference names", () => {
+    const e: StyleEntry = {
+      plotConfig: [{ id: "plot0", title: "A", color: "#000" }, { id: "plot1", title: "B", color: "#000" }],
+      hlineConfig: [{ id: "hline0", price: 1 }, { id: "hline1", price: 0 }],
+      fillConfig: [{ id: "fill0", plot1: "plot0", plot2: "plot1" }, { id: "fill1", plot1: "hline0", plot2: "hline1" }],
+    };
+    const titles = styleItems(e).flatMap((i) => (i.kind === "fill" ? [i.decl.title] : []));
+    expect(titles).toEqual(["Plots Background", "Hlines Background"]);
+  });
+
   it("output value rows follow what the study outputs", () => {
     expect(outputValueRows(entry("williams-fractals") as never)).toEqual({ precision: true, values: true, inputs: true });
     expect(outputValueRows(entry("doji") as never)).toMatchObject({ precision: true, values: false });
