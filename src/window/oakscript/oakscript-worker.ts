@@ -113,6 +113,9 @@ function metaOf(mod: UserModule): OakCompiledMeta {
     shapeConfig: Array.isArray(mod.shapeConfig) ? mod.shapeConfig : undefined,
     barColorConfig: Array.isArray(mod.barColorConfig) ? mod.barColorConfig : undefined,
     arrowConfig: Array.isArray(mod.arrowConfig) ? mod.arrowConfig : undefined,
+    candleConfig: Array.isArray(mod.plotCandleConfig) ? mod.plotCandleConfig : undefined,
+    markerDrawing: typeof mod.markerDrawing === "string" ? mod.markerDrawing : undefined,
+    drawingKinds: Array.isArray(mod.drawingKinds) ? mod.drawingKinds : undefined,
     defaultInputs:
       mod.defaultInputs && typeof mod.defaultInputs === "object"
         ? (mod.defaultInputs as Record<string, unknown>)
@@ -142,6 +145,9 @@ function scriptMetaOf(run: oakScript.ScriptRunResult, source: string): OakCompil
     shapeConfig: run.shapeConfig.length ? run.shapeConfig : undefined,
     barColorConfig: run.barColorConfig.length ? run.barColorConfig : undefined,
     arrowConfig: run.arrowConfig.length ? run.arrowConfig : undefined,
+    candleConfig: run.candleConfig.length ? run.candleConfig : undefined,
+    // Drawings made on the zero-bar run only (the kinds of a full run come with its result).
+    drawingKinds: run.drawingKinds.length ? run.drawingKinds : undefined,
     // The outputs in declaration order (oakscriptjs with ScriptRunResult.outputs).
     outputs: (run as { outputs?: OakCompiledMeta["outputs"] }).outputs?.length ? (run as { outputs?: OakCompiledMeta["outputs"] }).outputs : undefined,
     defaultInputs: run.defaultInputs,
@@ -210,7 +216,8 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   try {
     if (entry.kind === "script") {
       const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
-      return { id: req.id, type: "run", ok: true, result: run.result };
+      // The kinds of drawings this run created: the drawing rows of the Style settings.
+      return { id: req.id, type: "run", ok: true, result: run.drawingKinds.length ? { ...run.result, drawingKinds: run.drawingKinds } : run.result };
     }
     const result = entry.mod.calculate!(req.bars, req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
     return { id: req.id, type: "run", ok: true, result };
@@ -250,7 +257,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
         error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
       };
     }
-    return { id: req.id, type: "backtest", ok: true, report, visuals: script.result };
+    return { id: req.id, type: "backtest", ok: true, report, visuals: script.drawingKinds.length ? { ...script.result, drawingKinds: script.drawingKinds } : script.result };
   } catch (err) {
     if (err instanceof StrategyRuntimeError) {
       return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };

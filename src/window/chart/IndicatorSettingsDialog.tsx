@@ -11,8 +11,8 @@
  * swatches), footer "Defaults" menu + Cancel / Ok. The controls are the chart
  * Settings dialog's. Edits a local draft; Cancel discards, Ok commits.
  */
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
-import { createStore } from "solid-js/store";
+import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
+import { createStore, reconcile } from "solid-js/store";
 import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
 import type { PlotDefaultVisible, PlotPalette } from "./indicators/volume";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
@@ -36,6 +36,9 @@ import { TransparencySlider } from "../drawings/ImageDialog";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
+import { OutputRows } from "./StyleOutputRows";
+import type { StyleItem } from "./indicators/style-outputs";
+import type { PlotStyleOverride } from "./indicators/indicator-layer";
 
 /** Input schema entry; strategies add Pine's `time` type, groups, inline rows and tooltips; the profile studies a
  *  session range ("HHMM-HHMM") and inputs enabled only for one value of another input. */
@@ -111,6 +114,13 @@ type Props = {
   profile?: ProfileDialogConfig;
   /** Time price opportunity study: its Style and Volume profile tabs; `autoTicksPerRow`: the Auto row size shown. */
   tpo?: { autoTicksPerRow: number };
+  /** The outputs listed in the Style tab (style-outputs.ts styleItems); unset: the line plots of `plotConfig`. */
+  styleItems?: StyleItem[];
+  /** Which "Output values" / "Input values" rows the Style tab has (style-outputs.ts outputValueRows). */
+  valueRows?: { precision: boolean; values: boolean; inputs: boolean };
+  /** Every change of the draft, applied to the chart while the dialog is open; null: back to the study's settings
+   *  (Cancel). */
+  onPreview?: (next: Next | null) => void;
 };
 
 // Price-source choices and their labels (reference order, volume after close). Values stay the PineScript names.
@@ -315,12 +325,22 @@ function InfoIcon(props: { text: string }) {
 export function IndicatorSettingsDialog(props: Props) {
   // Plots shown in the Style tab — every plot except the registry's explicitly
   // hidden helpers (display:'none'), which aren't user-facing.
-  const stylePlots = props.plotConfig.filter((p) => p.display !== "none");
+  const stylePlots = props.plotConfig.filter((p) => p.display !== "none" && (p as { editable?: boolean }).editable !== false);
+  // Every output of the Style tab, in the reference order; the line plots are the ones above.
+  const items = (): StyleItem[] => props.styleItems ?? stylePlots.map((def) => ({ kind: "plot", key: def.id, def }));
+  const otherItems = () => items().filter((i): i is Exclude<StyleItem, { kind: "plot" }> => i.kind !== "plot");
+  const valueRows = () => props.valueRows ?? { precision: true, values: true, inputs: true };
 
-  const tabs = (): DialogTab[] => (props.strategy ? ["inputs", "properties", "style", "visibility"] : props.tpo ? ["inputs", "style", "volume", "visibility"] : ["inputs", "style", "visibility"]);
+  // The Inputs tab only with inputs a user can edit (reference).
+  const hasInputs = props.inputConfig.some((c) => !c.hidden);
+  const tabs = (): DialogTab[] =>
+    (props.strategy ? ["inputs", "properties", "style", "visibility"] as DialogTab[] : props.tpo ? ["inputs", "style", "volume", "visibility"] as DialogTab[] : ["inputs", "style", "visibility"] as DialogTab[])
+      .filter((t) => t !== "inputs" || hasInputs);
   const TAB_TITLES: Record<DialogTab, string> = { inputs: "Inputs", properties: "Properties", style: "Style", volume: "Volume profile", visibility: "Visibility" };
   const stored = props.strategy ? (kv.getItem(TAB_KEY) as DialogTab | null) : null;
-  const [tab, setTabRaw] = createSignal<DialogTab>(props.initialTab ?? (stored && tabs().includes(stored) ? stored : "inputs"));
+  const [tab, setTabRaw] = createSignal<DialogTab>(
+    props.initialTab && tabs().includes(props.initialTab) ? props.initialTab : stored && tabs().includes(stored) ? stored : tabs()[0],
+  );
   const setTab = (t: DialogTab) => {
     setTabRaw(t);
     if (props.strategy) kv.setItem(TAB_KEY, t);
@@ -347,6 +367,18 @@ export function IndicatorSettingsDialog(props: Props) {
     ),
   );
 
+  // The other outputs' overrides (shapes, colours, candles, hlines, fills, drawings), by style key.
+  const [outDraft, setOutDraft] = createStore<Record<string, PlotStyleOverride>>(
+    Object.fromEntries(otherItems().map((i) => [i.key, { ...(props.styles[i.key] ?? {}) }])),
+  );
+  const setOut = (key: string, patch: Partial<PlotStyleOverride>) => setOutDraft(key, (o) => ({ ...o, ...patch }));
+  const setOutPalette = (key: string, field: "palette" | "wickPalette" | "borderPalette", i: number, color: string, size: number) =>
+    setOutDraft(key, (o) => {
+      const list = [...(o[field] ?? new Array<string | undefined>(size).fill(undefined))] as string[];
+      list[i] = color;
+      return { ...o, [field]: list };
+    });
+
   // Volume profile / TPO style (stored with the inputs).
   const [vbpDraft, setVbpDraft] = createStore<VbpStyle>(vbpStyleOf(props.inputs, props.profile?.placement ?? "Left"));
   const [tpoDraft, setTpoDraft] = createStore<TpoStyle>(tpoStyleOf(props.inputs));
@@ -358,6 +390,10 @@ export function IndicatorSettingsDialog(props: Props) {
   const current = (): Next => {
     const styles: IndicatorStyleOverrides = {};
     for (const id of Object.keys(styleDraft)) styles[id] = { ...styleDraft[id] };
+    for (const key of Object.keys(outDraft)) {
+      const ov = outDraft[key];
+      if (Object.keys(ov).length) styles[key] = JSON.parse(JSON.stringify(ov));
+    }
     const inputs: Record<string, unknown> = { ...inputDraft };
     if (props.strategy) {
       // Properties are stored as the difference from the script values.
@@ -373,8 +409,28 @@ export function IndicatorSettingsDialog(props: Props) {
     if (props.tpo) inputs[STYLE_INPUT] = tpoStyleEdits(JSON.parse(JSON.stringify(tpoDraft)));
     return { inputs, styles, options: cloneIndicatorOptions(optDraft) };
   };
+  // Reference: the draft is drawn on the chart while the dialog is open; Ok, the close button, Escape and a click
+  // outside keep it (applied once, nothing when unchanged); Cancel puts the study back.
+  const initial = JSON.stringify(current());
+  let previewed = false;
+  createEffect(
+    on(
+      () => JSON.stringify(current()),
+      (now) => {
+        if (now === initial && !previewed) return;
+        previewed = true;
+        props.onPreview?.(JSON.parse(now) as Next);
+      },
+      { defer: true },
+    ),
+  );
   const ok = () => {
-    props.onApply(current());
+    if (JSON.stringify(current()) !== initial) props.onApply(current());
+    else if (previewed) props.onPreview?.(null);
+    props.onClose();
+  };
+  const cancel = () => {
+    if (previewed) props.onPreview?.(null);
     props.onClose();
   };
   /** A palette plot (Volume): its visible check row, then one colour row per
@@ -440,6 +496,7 @@ export function IndicatorSettingsDialog(props: Props) {
     }
     if (props.profile) setVbpDraft(defaultVbpStyle(props.profile.placement));
     if (props.tpo) setTpoDraft(defaultTpoStyle());
+    setOutDraft(reconcile(Object.fromEntries(Object.keys(outDraft).map((key) => [key, {}]))));
     for (const p of stylePlots) {
       setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? true, plotType: p.style ?? "line", priceLine: false, palette: paletteOf(p)?.map((c) => c.color) });
     }
@@ -450,12 +507,83 @@ export function IndicatorSettingsDialog(props: Props) {
   // own Escape first (they stop it in the capture phase).
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); props.onClose(); }
+      if (e.key === "Escape") { e.stopPropagation(); ok(); }
       else if (e.key === "Enter" && !(e.target instanceof HTMLInputElement)) { e.stopPropagation(); ok(); }
     };
     window.addEventListener("keydown", onKey);
     onCleanup(() => window.removeEventListener("keydown", onKey));
   });
+
+  /** One line plot: visible check box, colour + thickness, plot type (palette plots: a row per palette colour). */
+  const plotRow = (p: PlotConfig) => (
+    <Show when={!paletteOf(p)} fallback={paletteRows(p)}>
+      <div class="cp3-cell cp3-label">
+        <div class="cp3-label-inner">
+          <CheckBox checked={styleDraft[p.id].visible} onToggle={() => setStyleDraft(p.id, "visible", (v) => !v)} />
+          <span class="cp3-title" onClick={() => setStyleDraft(p.id, "visible", (v) => !v)}>{p.title}</span>
+        </div>
+      </div>
+      <div class="cp3-cell cp3-controls">
+        <ColorControl
+          color={styleDraft[p.id].color}
+          width={styleDraft[p.id].lineWidth}
+          onChange={(patch) => {
+            if (patch.color) setStyleDraft(p.id, "color", patch.color);
+            if (patch.width !== undefined) setStyleDraft(p.id, "lineWidth", Math.max(1, Math.min(4, Math.round(patch.width))));
+          }}
+        />
+        <PlotTypeControl
+          value={styleDraft[p.id].plotType}
+          priceLine={styleDraft[p.id].priceLine}
+          onPick={(t) => setStyleDraft(p.id, "plotType", t)}
+          onPriceLine={(v) => setStyleDraft(p.id, "priceLine", v)}
+        />
+      </div>
+    </Show>
+  );
+  /** The output rows of the Style tab: plots and other outputs, then the drawing groups under their title. */
+  const outputRowsJsx = () => (
+    <For each={items()}>
+      {(item, i) => (
+        <>
+          <Show when={item.kind === "drawing" && items()[i() - 1]?.kind !== "drawing"}>
+            <div class={`cp3-section ind3-section${i() === 0 ? " is-first" : " ind3-after-plots"}`}>Graphic objects</div>
+          </Show>
+          {item.kind === "plot" ? (
+            plotRow(item.def)
+          ) : (
+            <OutputRows
+              item={item}
+              ov={outDraft[item.key] ?? {}}
+              set={(patch) => setOut(item.key, patch)}
+              setPalette={(field, k, color, size) => setOutPalette(item.key, field, k, color, size)}
+            />
+          )}
+        </>
+      )}
+    </For>
+  );
+  /** "Output values" (Precision; labels on the price scale and values in the status line for outputs with values)
+   *  and "Input values" (Inputs in status line), as the study has them. `first`: nothing above. */
+  const valueRowsJsx = (first: boolean) => (
+    <>
+      <Show when={valueRows().precision}>
+        <div class={`cp3-section ind3-section${first ? " is-first" : " ind3-after-plots"}`}>Output values</div>
+        <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Precision</span></div></div>
+        <div class="cp3-cell cp3-controls">
+          <SelectControl value={optDraft.precision} options={PRECISION_OPTIONS} width={100} onPick={(v) => setOptDraft("precision", v)} />
+        </div>
+        <Show when={valueRows().values}>
+          {checkRow("Labels on price scale", () => optDraft.labelsOnScale, () => setOptDraft("labelsOnScale", (v) => !v))}
+          {checkRow("Values in status line", () => optDraft.valuesInStatusLine, () => setOptDraft("valuesInStatusLine", (v) => !v))}
+        </Show>
+      </Show>
+      <Show when={valueRows().inputs}>
+        <div class={`cp3-section ind3-section${first && !valueRows().precision ? " is-first" : valueRows().precision ? "" : " ind3-after-plots"}`}>Input values</div>
+        {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
+      </Show>
+    </>
+  );
 
   const istr = (id: string) => String(inputDraft[id] ?? "");
   const toggleInput = (id: string) => setInputDraft(id, (v: unknown) => !v);
@@ -578,11 +706,11 @@ export function IndicatorSettingsDialog(props: Props) {
   };
 
   return (
-    <div class="settings-backdrop" role="presentation" onMouseDown={() => props.onClose()}>
+    <div class="settings-backdrop" role="presentation" onMouseDown={() => ok()}>
       <div class="settings-dialog ind3-dialog" data-qa-id="indicator-properties-dialog" role="dialog" aria-label={`${props.title} settings`} onMouseDown={(e) => e.stopPropagation()}>
         <header class="cp3-header">
           <div class="cp3-header-title ind3-title">{props.title}</div>
-          <button type="button" data-qa-id="close" aria-label="Close menu" class="cp3-close" onClick={() => props.onClose()}>
+          <button type="button" data-qa-id="close" aria-label="Close menu" class="cp3-close" onClick={() => ok()}>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" /></svg>
           </button>
         </header>
@@ -680,11 +808,11 @@ export function IndicatorSettingsDialog(props: Props) {
               INPUT VALUES / Inputs in status line. */}
           <Show when={tab() === "style" && props.strategy}>
             <div class="ind3-grid">
+              {outputRowsJsx()}
               {checkRow("Trades on chart", () => stratStyle.tradesOnChart, () => setStratStyle("tradesOnChart", (v) => !v))}
               {checkRow("Signal labels", () => stratStyle.signalLabels, () => setStratStyle("signalLabels", (v) => !v))}
               {checkRow("Quantity", () => stratStyle.quantity, () => setStratStyle("quantity", (v) => !v))}
-              <div class="cp3-section ind3-section">Input values</div>
-              {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
+              {valueRowsJsx(false)}
             </div>
           </Show>
 
@@ -931,51 +1059,13 @@ export function IndicatorSettingsDialog(props: Props) {
             }}
           </Show>
 
-          {/* ── Style ── one row per plot: visible check box + colour and
-              thickness (color-with-thickness button; thickness is in its
-              colour panel). */}
+          {/* ── Style ── one row group per output (reference order, style-outputs.ts): a line plot = visible check
+              box + colour and thickness (color-with-thickness button; thickness is in its colour panel) + plot type;
+              the other outputs (StyleOutputRows); the drawing groups under "Graphic objects". */}
           <Show when={tab() === "style" && !props.strategy && !props.profile && !props.tpo}>
             <div class="ind3-grid">
-              <For each={stylePlots}>
-                {(p) => (
-                  <Show when={!paletteOf(p)} fallback={paletteRows(p)}>
-                    <div class="cp3-cell cp3-label">
-                      <div class="cp3-label-inner">
-                        <CheckBox checked={styleDraft[p.id].visible} onToggle={() => setStyleDraft(p.id, "visible", (v) => !v)} />
-                        <span class="cp3-title" onClick={() => setStyleDraft(p.id, "visible", (v) => !v)}>{p.title}</span>
-                      </div>
-                    </div>
-                    <div class="cp3-cell cp3-controls">
-                      <ColorControl
-                        color={styleDraft[p.id].color}
-                        width={styleDraft[p.id].lineWidth}
-                        onChange={(patch) => {
-                          if (patch.color) setStyleDraft(p.id, "color", patch.color);
-                          if (patch.width !== undefined) setStyleDraft(p.id, "lineWidth", Math.max(1, Math.min(4, Math.round(patch.width))));
-                        }}
-                      />
-                      <PlotTypeControl
-                        value={styleDraft[p.id].plotType}
-                        priceLine={styleDraft[p.id].priceLine}
-                        onPick={(t) => setStyleDraft(p.id, "plotType", t)}
-                        onPriceLine={(v) => setStyleDraft(p.id, "priceLine", v)}
-                      />
-                    </div>
-                  </Show>
-                )}
-              </For>
-              {/* Style sections: OUTPUT VALUES — Precision,
-                  Labels on price scale, Values in status line; INPUT VALUES —
-                  Inputs in status line. Check rows 34 px. */}
-              <div class={`cp3-section ind3-section${stylePlots.length === 0 ? " is-first" : " ind3-after-plots"}`}>Output values</div>
-              <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Precision</span></div></div>
-              <div class="cp3-cell cp3-controls">
-                <SelectControl value={optDraft.precision} options={PRECISION_OPTIONS} width={100} onPick={(v) => setOptDraft("precision", v)} />
-              </div>
-              {checkRow("Labels on price scale", () => optDraft.labelsOnScale, () => setOptDraft("labelsOnScale", (v) => !v))}
-              {checkRow("Values in status line", () => optDraft.valuesInStatusLine, () => setOptDraft("valuesInStatusLine", (v) => !v))}
-              <div class="cp3-section ind3-section">Input values</div>
-              {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
+              {outputRowsJsx()}
+              {valueRowsJsx(otherItems().length + stylePlots.length === 0)}
             </div>
           </Show>
 
@@ -1029,7 +1119,7 @@ export function IndicatorSettingsDialog(props: Props) {
             </Show>
           </div>
           <div class="cp3-footer-actions">
-            <button type="button" class="cp3-btn" onClick={() => props.onClose()}>Cancel</button>
+            <button type="button" class="cp3-btn" onClick={() => cancel()}>Cancel</button>
             <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>Ok</button>
           </div>
         </footer>

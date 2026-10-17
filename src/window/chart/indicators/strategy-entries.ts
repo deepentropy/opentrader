@@ -228,6 +228,10 @@ function applyDrawingConfigs(e: Record<string, unknown>, c: DrawingConfigs): voi
   e.shapeConfig = c.shapeConfig?.length ? c.shapeConfig : undefined;
   e.barColorConfig = c.barColorConfig?.length ? c.barColorConfig : undefined;
   e.arrowConfig = c.arrowConfig?.length ? c.arrowConfig : undefined;
+  e.plotCandleConfig = c.candleConfig?.length ? c.candleConfig : undefined;
+  e.drawingKinds = c.drawingKinds?.length ? c.drawingKinds : undefined;
+  // The outputs in declaration order (the Style tab lists them so).
+  e.outputs = c.outputs?.length ? c.outputs : undefined;
 }
 
 type DrawingConfigs = {
@@ -237,6 +241,9 @@ type DrawingConfigs = {
   shapeConfig?: unknown[];
   barColorConfig?: unknown[];
   arrowConfig?: unknown[];
+  candleConfig?: unknown[];
+  drawingKinds?: string[];
+  outputs?: unknown[];
 };
 
 function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
@@ -250,8 +257,18 @@ function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
       scripts.saveCompiledMeta(scriptId, meta);
       applyUserMeta(entry, script.name, meta);
     }
-    return engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties), symbols);
+    const out = await engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties), symbols);
+    noteDrawingKinds(entry, out?.visuals);
+    return out;
   };
+}
+
+/** The kinds of drawings a run created join the entry's (the Style tab lists one row per kind). */
+function noteDrawingKinds(entry: IndicatorRegistryEntry, visuals: unknown): void {
+  const kinds = (visuals as { drawingKinds?: string[] } | null)?.drawingKinds;
+  if (!kinds?.length) return;
+  const e = entry as unknown as { drawingKinds?: string[] };
+  e.drawingKinds = [...new Set([...(e.drawingKinds ?? []), ...kinds])];
 }
 
 function userStrategyEntry(id: string, scriptId: string): IndicatorRegistryEntry | undefined {
@@ -341,8 +358,11 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
     calculate: makeCalculate(
       def.key,
       () => d.defaultInputs,
-      (channel, bars, inputs, properties, chart, heikinAshi, symbols) =>
-        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi, symbols }, { magnify: magnifies(def.key, properties) }),
+      async (channel, bars, inputs, properties, chart, heikinAshi, symbols) => {
+        const out = await getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi, symbols }, { magnify: magnifies(def.key, properties) });
+        noteDrawingKinds(entry as unknown as IndicatorRegistryEntry, out?.visuals);
+        return out;
+      },
     ),
   } as Record<string, unknown>;
   applyDrawingConfigs(entry, d.drawings);

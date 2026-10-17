@@ -64,6 +64,7 @@ import { chartPriceFormat } from "./price-format";
 import { dayKeyer } from "./day-key";
 import { cachedSymbolSessions } from "../../data/session";
 import { IndicatorSettingsDialog, type DialogTab } from "./IndicatorSettingsDialog";
+import { outputValueRows, styleItems, type StyleEntry } from "./indicators/style-outputs";
 import { sourcesEdit } from "../shell/source-edits";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry } from "./profiles/tpo";
@@ -1468,6 +1469,12 @@ export function ChartView(props: ChartViewProps) {
           // Read once: the dialog's controls may call back while it closes.
           const strategy = values ? strategyDialogConfig(id(), values) : undefined;
           const tab = settingsTab();
+          // The study as it was when the dialog opened: Cancel puts it back after a preview.
+          const snapshot = controller?.settingsSnapshot(id());
+          const redrawn = () => {
+            refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
+            if (isStrategyId(id())) applyStrategyMarkers();
+          };
           return (
             <Show when={entry && values && styles}>
               <IndicatorSettingsDialog
@@ -1480,6 +1487,13 @@ export function ChartView(props: ChartViewProps) {
                 inputConfig={entry!.inputConfig}
                 sourceChoices={cx.sourceChoicesFor(id())}
                 plotConfig={entry!.plotConfig}
+                styleItems={styleItems(entry! as unknown as StyleEntry)}
+                valueRows={outputValueRows(entry! as unknown as Parameters<typeof outputValueRows>[0])}
+                onPreview={(next) => {
+                  if (next) controller?.applySettings(id(), next.inputs, next.styles, next.options);
+                  else if (snapshot) controller?.restoreSettings(id(), snapshot);
+                  redrawn();
+                }}
                 inputs={values!}
                 styles={styles!}
                 options={controller!.getOptions(id())}

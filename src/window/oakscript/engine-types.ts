@@ -55,6 +55,12 @@ export type OakCompiledMeta = {
   barColorConfig?: unknown[];
   /** plotarrow declarations (colors, min / max heights); the arrows ride in the run result. */
   arrowConfig?: unknown[];
+  /** plotcandle / plotbar declarations (oakscriptjs CandleConfig): title, colours. */
+  candleConfig?: unknown[];
+  /** Markers that are not in shapeConfig are drawings of this kind (built-in sources copied as scripts). */
+  markerDrawing?: string;
+  /** The kinds of drawing objects the script creates (label, line, box, linefill, polyline, table). */
+  drawingKinds?: string[];
   /** The plot / plotshape / plotchar / plotarrow / plotcandle / plotbar declarations in the script's order (kind, id
    *  in its config, title): alert messages number the outputs this way. */
   outputs?: { kind: "plot" | "shape" | "char" | "arrow" | "candle" | "bar"; id: string; title?: string }[];

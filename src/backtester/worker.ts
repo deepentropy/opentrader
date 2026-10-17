@@ -37,7 +37,8 @@ function runStrategy(req: BacktestRequest): BacktestOutput | string {
     heikinAshi: req.heikinAshi,
     symbols: req.symbols,
   });
-  return report ? { report, visuals: run.result } : `Strategy "${req.strategy}" did not run.`;
+  // The kinds of drawings the run created ride with the drawn outputs (the Style tab lists one row per kind).
+  return report ? { report, visuals: run.drawingKinds.length ? { ...run.result, drawingKinds: run.drawingKinds } : run.result } : `Strategy "${req.strategy}" did not run.`;
 }
 
 /** The indicator library, loaded once by the first run that needs it (Technical ratings strategy). */

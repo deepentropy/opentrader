@@ -1235,6 +1235,17 @@
 .ind3-plottype-item.is-selected { background: var(--color-container-fill-primary-neutral-extra-bold); color: var(--color-content-primary-inverse); }
 .ind3-plottype-label { padding-left: 6px; line-height: 16px; }
 
+/* Indicator Style: other outputs (StyleOutputRows). Shape button 34 x 34 with an 18 px glyph (no arrow), menu rows
+   glyph + name; character field 34 x 34 (28 px input, centred); a part title under an output check ("Body" of
+   candles with a palette) 32 px; 8 px after an output group (palette / arrow / candle rows). */
+.ind3-shape-btn:disabled { opacity: 0.5; }
+.ind3-shape-icon { display: inline-flex; width: 28px; height: 28px; flex: none; align-items: center; justify-content: center; }
+.cp3-number.ind3-char { width: 34px; }
+.cp3-number.ind3-char input { margin: 0 2px; padding: 0; text-align: center; }
+.cp3-label.ind3-part-title { padding-top: 0; padding-bottom: 0; }
+.cp3-label.ind3-part-title .cp3-label-inner { min-height: 32px; }
+.ind3-group-sep { grid-column: 1 / -1; height: 8px; }
+
 /* Strategy settings (the reference app 3.4.1, .tmp/backtester/design §14.5 /
    §14.7): (i) icons 18 px #575757 (#8c8c8c on hover) after the controls;
    a gap after each Pine input group; input.time = date field (150 px, with

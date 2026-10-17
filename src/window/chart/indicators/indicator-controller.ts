@@ -784,6 +784,28 @@ export class IndicatorController {
     return this.effectiveInputs(id, entry);
   }
 
+  /** The study's stored inputs, styles and options (a restore point for settings previewed on the chart). */
+  settingsSnapshot(id: string): { inputs?: Record<string, unknown>; styles?: IndicatorStyleOverrides; options?: IndicatorOptions } {
+    const inputs = this.inputs.get(id);
+    const styles = this.styles.get(id);
+    const options = this.options.get(id);
+    return {
+      inputs: inputs && { ...inputs },
+      styles: styles && JSON.parse(JSON.stringify(styles)),
+      options: options && cloneIndicatorOptions(options),
+    };
+  }
+
+  /** Put back a settingsSnapshot() and redraw the study (Settings dialog → Cancel after a preview). */
+  restoreSettings(id: string, snap: ReturnType<IndicatorController["settingsSnapshot"]>): void {
+    const inst = this.instances.get(id);
+    const entry = getIndicatorEntry(id);
+    if (snap.inputs) this.inputs.set(id, { ...snap.inputs }); else this.inputs.delete(id);
+    if (snap.styles) this.styles.set(id, { ...snap.styles }); else this.styles.delete(id);
+    if (snap.options) this.options.set(id, cloneIndicatorOptions(snap.options)); else this.options.delete(id);
+    if (inst && entry) this.renderOne(id, inst, entry, this.getBars());
+  }
+
   /** Commit a study's edited inputs + plot styles (Settings dialog → Ok) and
    *  redraw it once in place, preserving its current eye (hidden) state. */
   applySettings(id: string, inputs: Record<string, unknown>, styles: IndicatorStyleOverrides, options?: IndicatorOptions): void {

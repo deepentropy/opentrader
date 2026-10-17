@@ -43,6 +43,7 @@ import type { TpoDraw } from '../profiles/tpo-engine';
 import { uiTheme } from '../../header/chart-settings';
 import { cachedSymbolSessions } from '../../../data/session';
 import { sessionFutureSlots } from './future-slots';
+import { applyStyleOverrides, type StyleEntry } from './style-outputs';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -189,10 +190,32 @@ export type PlotStyleOverride = {
   plotType?: string;
   /** Plot-type menu "Price line": a horizontal line at the plot's last value. */
   priceLine?: boolean;
-  /** Palette plots (PlotPalette): the colour of each palette entry. */
+  /** Palette plots (PlotPalette): the colour of each palette entry. Other outputs with a palette (shapes, background /
+   *  bar colours, fills, candle bodies): the colour of each palette entry. */
   palette?: string[];
+  // Other outputs than line plots (style-outputs.ts), stored under `<kind>:<id>`:
+  /** Shape: its shape (PineScript shape name: triangleup, labeldown, ...). */
+  shape?: string;
+  /** Shape / character: its location (abovebar, belowbar, top, bottom, absolute). */
+  location?: string;
+  /** Character: the character. */
+  char?: string;
+  /** Arrows: up / down colours. */
+  colorUp?: string;
+  colorDown?: string;
+  /** Candles: wick / border colours, or the colours of their palettes. */
+  wickColor?: string;
+  borderColor?: string;
+  wickPalette?: string[];
+  borderPalette?: string[];
+  /** Hline: value, line style. */
+  price?: number;
+  lineStyle?: "solid" | "dashed" | "dotted";
+  /** Gradient fill: top / bottom colours. */
+  topColor?: string;
+  bottomColor?: string;
 };
-/** Per-plot style overrides for a study, keyed by plot id. */
+/** Per-plot style overrides for a study, keyed by plot id (other outputs: `<kind>:<id>`, see style-outputs.ts). */
 export type IndicatorStyleOverrides = Record<string, PlotStyleOverride>;
 
 export class IndicatorLayer {
@@ -538,17 +561,19 @@ export class IndicatorLayer {
       }
     }
 
+    // The other outputs with their Style overrides (shapes, arrows, colours, candles, hlines, fills, drawings).
+    const styled = applyStyleOverrides(entry as unknown as StyleEntry, result, styles, bars);
     renderer.setPaneIndex(this.paneIndex);
     renderer.setFutureSlots(this.futureSlots());
     renderer.render(
       {
         overlay: this.rendererOverlay,
         plotConfig: entry.plotConfig,
-        hlineConfig: entry.hlineConfig,
-        fillConfig: entry.fillConfig,
+        hlineConfig: styled.hlineConfig as IndicatorRegistryEntry["hlineConfig"],
+        fillConfig: styled.fillConfig as IndicatorRegistryEntry["fillConfig"],
         arrowConfig: (entry as { arrowConfig?: never }).arrowConfig,
       },
-      { ...result, plots } as IndicatorResult,
+      { ...styled.result, plots } as IndicatorResult,
       bars,
       {
         inputs: this.lastInputs,

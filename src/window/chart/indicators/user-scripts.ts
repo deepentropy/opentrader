@@ -119,6 +119,10 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
   e.shapeConfig = meta?.shapeConfig;
   e.barColorConfig = meta?.barColorConfig;
   e.arrowConfig = meta?.arrowConfig;
+  e.plotCandleConfig = meta?.candleConfig;
+  e.markerDrawing = meta?.markerDrawing;
+  // Kinds seen in the runs stay (the declaration run makes no drawing: the kinds come with the results).
+  e.drawingKinds = [...new Set([...((e.drawingKinds as string[] | undefined) ?? []), ...(meta?.drawingKinds ?? [])])];
   e.outputs = meta?.outputs;
   e.defaultInputs = meta?.defaultInputs ?? {};
   e.alertConditions = meta?.alertConditions;
@@ -147,6 +151,7 @@ async function runInWorker(
       applyMeta(rt.entry, script.name, meta);
     }
     run.result = await engine.run(scriptId, bars, inputs, chart, symbols, sources);
+    noteDrawingKinds(rt.entry, run.result);
     run.key = key;
     run.error = null;
   } catch (err) {
@@ -176,6 +181,16 @@ async function runInWorker(
       dispatchUpdated(scriptId, false);
     }
   }
+}
+
+/** The kinds of drawings a run created join the entry's (the Style tab lists one row per kind). */
+function noteDrawingKinds(entry: IndicatorRegistryEntry, result: unknown): void {
+  const kinds = (result as { drawingKinds?: string[] } | null)?.drawingKinds;
+  if (!kinds?.length) return;
+  const e = entry as unknown as { drawingKinds?: string[] };
+  const have = new Set(e.drawingKinds ?? []);
+  if (kinds.every((k) => have.has(k))) return;
+  e.drawingKinds = [...new Set([...have, ...kinds])];
 }
 
 function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
