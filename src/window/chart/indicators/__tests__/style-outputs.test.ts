@@ -126,6 +126,13 @@ describe("applyStyleOverrides", () => {
     expect([...colors].every((c) => c === "#000001" || c === "#000002")).toBe(true);
   });
 
+  it("candles with the default colours take the Body / Wick / Border overrides", () => {
+    const e = { plotConfig: [], plotCandleConfig: [{ id: "plotcandle0", kind: "candle", title: "PlotCandle", color: "#2962FF", wickColor: "#737375", borderColor: "#000000" }] } as StyleEntry;
+    const candle = { time: 1, open: 1, high: 2, low: 0, close: 1.5, color: "#2962FF", wickColor: "#737375", borderColor: "#000000" };
+    const out = applyStyleOverrides(e, { plots: {}, plotCandles: { plotcandle0: [candle] } }, { [styleKey("candle", "plotcandle0")]: { wickColor: "#FF0000", borderColor: "#00FF00" } }, bars).result;
+    expect(out.plotCandles.plotcandle0[0]).toMatchObject({ color: "#2962FF", wickColor: "#FF0000", borderColor: "#00FF00" });
+  });
+
   it("drawings of a hidden kind are not drawn", () => {
     const e = { plotConfig: [], drawingKinds: ["label", "line"] } as StyleEntry;
     const out = applyStyleOverrides(e, { plots: {}, labels: [{ time: 1 }], lines: [{ time: 1 }] }, { [styleKey("drawing", "line")]: { visible: false } }, bars).result;
