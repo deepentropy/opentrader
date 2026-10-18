@@ -129,7 +129,7 @@ import {
 
 function App() {
   // App theme, set before the charts are created (see app-theme.ts).
-  const { theme, observeTheme } = createAppTheme();
+  const { theme, themeSetting, setThemeSetting, observeTheme } = createAppTheme();
 
   // ── Multi-tab shell ───────────────────────────────────────────────────
   // The active tab's fields back the accessor/setter pairs below, so the
@@ -167,7 +167,7 @@ function App() {
   const setTabTitleParts = (p: TabTitlePartState[]) => { setTabTitlePartsRaw(p); saveTabTitleParts(p); };
 
   // ── App theme and chart theme ──────────────────────────────────────────
-  const { switchTheme } = createChartThemeSync(theme, appTabs);
+  createChartThemeSync(theme, appTabs);
 
   const interval = () => activePaneState().interval;
 
@@ -874,8 +874,8 @@ function App() {
             initialTab={initialTab()}
             tabParts={tabTitleParts()}
             onTabPartsChange={setTabTitleParts}
-            theme={theme()}
-            onThemeChange={switchTheme}
+            themeSetting={themeSetting()}
+            onThemeChange={setThemeSetting}
             onClose={() => setAppSettingsTab(null)}
           />
         )}

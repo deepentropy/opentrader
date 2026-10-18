@@ -123,8 +123,8 @@ function paintLight(d: Draft): void {
  * (background, grid, crosshair), the scales, the session rows and the series
  * styles. The watermark, status line, alert and trading rows are not. A
  * chart "uses a standard theme" while all those values equal the theme's
- * defaults; switching the app theme only re-colours such charts unless the
- * user agrees to overwrite custom colours. */
+ * defaults; switching the app theme re-colours a layout only when all its
+ * charts use one (custom colours are kept). */
 function isThemeRow(key: string): boolean {
   const tab = key.slice(0, key.indexOf(':'));
   if (tab === 'canvas') return key !== 'canvas:Watermark';

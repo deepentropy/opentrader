@@ -163,25 +163,80 @@
   font-size: 14px;
 }
 
-/* Theme pills */
+/* Theme picker: System / Dark / Light tiles (reference medium size) */
 .app-settings-theme {
-  display: inline-flex;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  --theme-option-border-color: var(--color-cold-gray-650);
 }
-.app-settings-theme-pill {
-  min-width: 72px;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 16px;
-  border: 1px solid var(--color-divider);
-  background: transparent;
-  color: var(--color-text-primary);
-  font-size: 13px;
+.theme-light .app-settings-theme {
+  --theme-option-border-color: var(--color-cold-gray-150);
+}
+.app-settings-theme-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background-color: transparent;
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 14px;
+  line-height: 20px;
   cursor: pointer;
 }
-.app-settings-theme-pill.selected {
-  border-color: var(--color-accent, #2962ff);
-  background: color-mix(in srgb, var(--color-accent, #2962ff) 16%, transparent);
+.app-settings-theme-option:focus-visible {
+  outline: 2px solid var(--color-ot-blue-500);
+  outline-offset: 2px;
+}
+.app-settings-theme-icon {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  width: 80px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.app-settings-theme-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.app-settings-theme-icon:not(.system) {
+  outline: 1px solid var(--theme-option-border-color);
+  outline-offset: -1px;
+}
+.app-settings-theme-icon.system > .dark,
+.app-settings-theme-icon.system > .light {
+  width: 50%;
+  height: 100%;
+  box-sizing: border-box;
+  outline: 1px solid var(--theme-option-border-color);
+  outline-offset: -1px;
+}
+.app-settings-theme-icon.system > .dark {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+.app-settings-theme-icon.system > .light {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.app-settings-theme-option.active > .app-settings-theme-icon {
+  outline: 2px solid var(--color-container-fill-primary-neutral-extra-bold);
+  outline-offset: -2px;
+}
+.app-settings-theme-inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  outline: 2px solid var(--color-container-fill-tertiary-inverse);
+  outline-offset: -4px;
+}
+.app-settings-theme-label {
+  text-align: left;
 }
 
 /* Generic select / input / button */
