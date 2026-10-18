@@ -35,6 +35,17 @@ describe("styleItems", () => {
     expect(styleItems(e).map((i) => i.key)).toEqual(["plot0", "colors:bgcolor0", "plot1"]);
   });
 
+  it("an entry without outputs lists its rows in its styleOrder (declaration order of the original)", () => {
+    const e: StyleEntry = {
+      plotConfig: [{ id: "plot0", title: "A", color: "#000" }],
+      shapeConfig: [{ id: "shape0", kind: "shape", title: "S", location: "abovebar", style: "circle", color: "#000" }],
+      arrowConfig: [{ id: "arrow0", title: "Arr", colorup: "#0f0", colordown: "#f00" }],
+      barColorConfig: [{ id: "bgcolor0", kind: "bgcolor", outputIndex: 1 }],
+      styleOrder: [{ kind: "shape", id: "shape0" }, { kind: "arrow", id: "arrow0" }, { kind: "plot", id: "plot0" }],
+    };
+    expect(styleItems(e).map((i) => i.key)).toEqual(["shape:shape0", "colors:bgcolor0", "arrow:arrow0", "plot0"]);
+  });
+
   it("untitled fills take the reference names", () => {
     const e: StyleEntry = {
       plotConfig: [{ id: "plot0", title: "A", color: "#000" }, { id: "plot1", title: "B", color: "#000" }],

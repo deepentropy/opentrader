@@ -60,6 +60,8 @@ export type StyleEntry = Pick<IndicatorRegistryEntry, "plotConfig"> & {
   resultHlineConfig?: HLineDecl[];
   fillConfig?: FillDecl[];
   outputs?: OutputDecl[];
+  /** Order of the Style rows (declaration order of the original) for an entry without `outputs` */
+  styleOrder?: OutputDecl[];
   markerDrawing?: DrawingKind;
   drawingKinds?: DrawingKind[];
 };
@@ -122,7 +124,7 @@ export function styleItems(entry: StyleEntry): StyleItem[] {
   const colorsAt = (n: number) => {
     for (const decl of colors) if (decl.outputIndex === n) push({ kind: "colors", key: styleKey("colors", decl.id), decl });
   };
-  (entry.outputs ?? []).forEach((o, n) => {
+  (entry.outputs ?? entry.styleOrder ?? []).forEach((o, n) => {
     colorsAt(n);
     if (o.kind === "plot") push(plotItem(o.id));
     else if (o.kind === "shape" || o.kind === "char") push(shapeItem(o.id));
