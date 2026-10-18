@@ -49,9 +49,10 @@ type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
 
 /** Whether a plot is drawn: the Style tab check box, else the plot's default
- *  (`defaultVisible: false` = hidden until checked, e.g. Volume MA). */
-export function plotShown(plotDef: { defaultVisible?: boolean }, ov: PlotStyleOverride | undefined): boolean {
-  return ov?.visible ?? plotDef.defaultVisible ?? true;
+ *  (`defaultVisible: false` = hidden until checked, e.g. Volume MA; a plot with `display: 'none'` is listed unchecked,
+ *  as the reference lists a plot hidden by default). */
+export function plotShown(plotDef: { defaultVisible?: boolean; display?: string }, ov: PlotStyleOverride | undefined): boolean {
+  return ov?.visible ?? plotDef.defaultVisible ?? plotDef.display !== 'none';
 }
 
 /** Palette plots: each point's colour from its `paletteIndex` (the Style tab
@@ -928,6 +929,9 @@ export class IndicatorLayer {
   }
 
   private isPlotVisible(plotDef: any, result: any, inputs: Record<string, unknown>): boolean {
+    // the Style tab check box first (a plot hidden by default can be shown)
+    const ov = this.lastStyles[plotDef.id]?.visible;
+    if (ov !== undefined) return ov;
     if (plotDef.display === 'none') return false;
     if (plotDef.visible === undefined) return true;
     if (typeof plotDef.visible === 'boolean') return plotDef.visible;

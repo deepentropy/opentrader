@@ -329,7 +329,8 @@ function InfoIcon(props: { text: string }) {
 export function IndicatorSettingsDialog(props: Props) {
   // Plots shown in the Style tab — every plot except the registry's explicitly
   // hidden helpers (display:'none'), which aren't user-facing.
-  const stylePlots = props.plotConfig.filter((p) => p.display !== "none" && (p as { editable?: boolean }).editable !== false);
+  // every plot listed in the Style tab, hidden-by-default ones too (they start unchecked)
+  const stylePlots = props.plotConfig.filter((p) => (p as { editable?: boolean }).editable !== false);
   // Every output of the Style tab, in the reference order; the line plots are the ones above.
   const items = (): StyleItem[] => props.styleItems ?? stylePlots.map((def) => ({ kind: "plot", key: def.id, def }));
   const otherItems = () => items().filter((i): i is Exclude<StyleItem, { kind: "plot" }> => i.kind !== "plot");
@@ -362,7 +363,7 @@ export function IndicatorSettingsDialog(props: Props) {
         return [p.id, {
           color: ov?.color ?? p.color,
           lineWidth: ov?.lineWidth ?? seedWidth(p.lineWidth),
-          visible: ov?.visible ?? (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? true,
+          visible: ov?.visible ?? (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? p.display !== "none",
           plotType: ov?.plotType ?? p.style ?? "line",
           priceLine: ov?.priceLine ?? false,
           ...(paletteOf(p) ? { palette: paletteOf(p)!.map((c, i) => ov?.palette?.[i] ?? c.color) } : {}),
@@ -502,7 +503,7 @@ export function IndicatorSettingsDialog(props: Props) {
     if (props.tpo) setTpoDraft(defaultTpoStyle());
     setOutDraft(reconcile(Object.fromEntries(Object.keys(outDraft).map((key) => [key, {}]))));
     for (const p of stylePlots) {
-      setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? true, plotType: p.style ?? "line", priceLine: false, palette: paletteOf(p)?.map((c) => c.color) });
+      setStyleDraft(p.id, { color: p.color, lineWidth: seedWidth(p.lineWidth), visible: (p as PlotConfig & PlotDefaultVisible).defaultVisible ?? p.display !== "none", plotType: p.style ?? "line", priceLine: false, palette: paletteOf(p)?.map((c) => c.color) });
     }
     setOptDraft(defaultIndicatorOptions());
   };

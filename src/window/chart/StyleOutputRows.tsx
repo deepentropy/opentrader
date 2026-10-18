@@ -214,7 +214,8 @@ const GroupGap = () => <div class="ind3-group-sep" />;
 
 /** The rows of one output. */
 export function OutputRows(props: OutputRowsProps): JSX.Element {
-  const visible = () => props.ov.visible ?? true;
+  // a shape hidden by default (display none) starts unchecked
+  const visible = () => props.ov.visible ?? !(props.item.kind === "shape" && props.item.decl.display === "none");
   const toggle = () => props.set({ visible: !visible() });
   const off = () => !visible();
   // The output's kind does not change: the rows are built once (their controls follow the draft).

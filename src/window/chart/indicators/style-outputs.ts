@@ -32,6 +32,8 @@ export type ShapeDecl = {
   palette?: string[];
   offset?: number;
   editable?: boolean;
+  /** 'none': hidden by default (unchecked in the Style tab until the user shows it) */
+  display?: string;
 };
 type ArrowDecl = { id: string; title?: string; colorup: string; colordown: string; editable?: boolean };
 type ColorsDecl = { id: string; kind: "bgcolor" | "barcolor"; title?: string; palette?: string[]; outputIndex?: number; editable?: boolean };
@@ -93,7 +95,8 @@ const editable = (d: { editable?: boolean }) => d.editable !== false;
 
 /** The outputs of an entry listed in its Style tab, in the reference order. */
 export function styleItems(entry: StyleEntry): StyleItem[] {
-  const plots = (entry.plotConfig ?? []).filter((p) => p.display !== "none" && editable(p as { editable?: boolean }));
+  // a plot hidden by default (display none) is listed, unchecked (reference: every plot not isHidden)
+  const plots = (entry.plotConfig ?? []).filter((p) => editable(p as { editable?: boolean }));
   const shapes = (entry.shapeConfig ?? []).filter(editable);
   const arrows = (entry.arrowConfig ?? []).filter(editable);
   const candles = (entry.plotCandleConfig ?? []).filter(editable);
@@ -260,6 +263,8 @@ function applyMarkers(entry: StyleEntry, result: any, styles: IndicatorStyleOver
       continue;
     }
     const ov = styles[styleKey("shape", decl.id)];
+    // hidden by default until its Style row is checked
+    if (decl.display === "none" && ov?.visible !== true) { changed = true; continue; }
     if (!ov) { out.push(m); continue; }
     if (ov.visible === false) { changed = true; continue; }
     const next: Marker = { ...m };

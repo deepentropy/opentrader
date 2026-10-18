@@ -182,3 +182,21 @@ describe("community built-ins", () => {
     expect(applyStyleOverrides(e, r, { [key]: { visible: false } }, bars).result.hlines.length).toBe(r.hlines.length - 1);
   });
 });
+
+describe("outputs hidden by default (display none)", () => {
+  it("a plot hidden by default is listed (the reference lists it unchecked)", () => {
+    const keys = styleItems(entry("supertrend")).map((i) => (i.kind === "plot" ? i.def.title : i.key));
+    expect(keys).toContain("Body Middle");
+    expect(styleItems(entry("ichimoku")).map((i) => (i.kind === "plot" ? i.def.title : i.key))).toEqual(expect.arrayContaining(["Kumo Cloud Upper Line", "Kumo Cloud Lower Line"]));
+  });
+
+  it("a shape hidden by default draws nothing until its row is checked", () => {
+    const e: StyleEntry = {
+      plotConfig: [],
+      shapeConfig: [{ id: "shape0", kind: "shape", title: "S", location: "abovebar", style: "circle", color: "#000", display: "none" }],
+    };
+    const r = { markers: [{ time: bars[1].time, position: "aboveBar", shape: "circle", color: "#000", id: "shape0" }] };
+    expect(applyStyleOverrides(e, r, {}, bars).result.markers).toHaveLength(0);
+    expect(applyStyleOverrides(e, r, { [styleKey("shape", "shape0")]: { visible: true } }, bars).result.markers).toHaveLength(1);
+  });
+});
