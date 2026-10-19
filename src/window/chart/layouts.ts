@@ -38,7 +38,7 @@
  * by column, the mirrored sidebars start with the large chart and `2-1` ends
  * with the top-right one (LAYOUT_NUMBERING 2, see `renumberCharts`).
  */
-import type { LayoutExpr, LayoutNode } from './layout-sizes';
+import { cellRects, initialSizing, type LayoutExpr, type LayoutNode } from './layout-sizes';
 
 export type CellSpec = {
   /** CSS `gridColumn` value (e.g. "2", "1 / 3", "1 / span 2").  Omit to let
@@ -345,6 +345,24 @@ export function renumberCharts<T extends { layout?: unknown; panes?: unknown; ac
 /** Number of chart panes the template renders. */
 export function paneCount(id: LayoutId): number {
   return LAYOUT_SPECS[id].cells.length;
+}
+
+/** Chart indexes in reading order (top to bottom, then left to right), the
+ *  order Tab / Shift+→ walk through.  Boxes come from equal splits: the
+ *  splitter sizes do not change the order. */
+export function readingOrder(id: LayoutId): number[] {
+  const expr = LAYOUT_SPECS[id].expr;
+  const rects = cellRects(expr, { left: 0, top: 0, width: 256, height: 256 }, 0, initialSizing(expr));
+  return rects.map((_, i) => i).sort((a, b) => rects[a].top - rects[b].top || rects[a].left - rects[b].left);
+}
+
+/** Chart after (or before, `back`) `current` in reading order, wrapping
+ *  around. */
+export function adjacentChart(id: LayoutId, current: number, back: boolean): number {
+  const order = readingOrder(id);
+  const at = order.indexOf(current);
+  if (at < 0) return current;
+  return order[(at + (back ? order.length - 1 : 1)) % order.length];
 }
 
 /* Translate the menu's variant id (`layouts-list-item-<token>`) to the

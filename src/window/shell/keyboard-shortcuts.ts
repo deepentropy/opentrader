@@ -21,6 +21,7 @@ import { isIntradayInterval, tickerOf, type SessionId } from "../../data/datafee
 import { requestDataWindow } from "../../data/data-window-store";
 import { requestOpenList, watchlistStore } from "../../data/watchlist-store";
 import { activeChartProbe } from "../chart/active-chart";
+import { adjacentChart } from "../chart/layouts";
 import { selectedDrawingId } from "../drawings/drawing-selection";
 import { openNewWindow, toggleFullscreen } from "./window-bridge";
 import type { AppTabs } from "./app-tabs";
@@ -323,23 +324,15 @@ export function installKeyboardShortcuts(a: ShortcutActions): () => void {
     }
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (blocked) return;
-    // Tab / Shift+Tab → cycle the focused pane ("switch between charts").
-    // Single-pane layouts fall through to native focus traversal.
-    if (e.key === "Tab") {
-      const count = activeTab().panes.length;
-      if (count <= 1) return;
+    // Tab / Shift+Tab and Shift+→ / Shift+← → switch the active chart, in
+    // reading order on screen (not chart number: some templates number by
+    // column). Single-pane layouts fall through to native focus traversal.
+    const tabKey = e.key === "Tab";
+    if (tabKey || (e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft"))) {
+      const tab = activeTab();
+      if (tab.panes.length <= 1) return;
       e.preventDefault();
-      const cur = activeTab().activePane;
-      setActivePaneIndex(e.shiftKey ? (cur - 1 + count) % count : (cur + 1) % count);
-      return;
-    }
-    // Shift+→ / Shift+← → switch focused pane (alternate binding for Tab).
-    if (e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
-      const count = activeTab().panes.length;
-      if (count <= 1) return;
-      e.preventDefault();
-      const cur = activeTab().activePane;
-      setActivePaneIndex(e.key === "ArrowRight" ? (cur + 1) % count : (cur - 1 + count) % count);
+      setActivePaneIndex(adjacentChart(tab.layout, tab.activePane, tabKey ? e.shiftKey : e.key === "ArrowLeft"));
       return;
     }
     // ←↑→↓ → nudge the selected drawing 1px; with nothing selected,

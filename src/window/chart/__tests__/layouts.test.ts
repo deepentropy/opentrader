@@ -4,9 +4,11 @@ import {
   DEFAULT_LAYOUT,
   LAYOUT_NUMBERING,
   LAYOUT_SPECS,
+  adjacentChart,
   iconNameForLayout,
   layoutFromVariantId,
   paneCount,
+  readingOrder,
   renumberCharts,
   variantIdForLayout,
   type LayoutId,
@@ -122,5 +124,23 @@ describe("variant ids and icons", () => {
     expect(iconNameForLayout("s")).toBe("menu-layout-setup-1");
     expect(iconNameForLayout("14c7")).toBe("menu-layout-setup-14");
     expect(iconNameForLayout("3s")).toBe("menu-layout-setup-layouts-list-item-3s");
+  });
+});
+
+describe("readingOrder / adjacentChart", () => {
+  it("walks the charts top to bottom, then left to right", () => {
+    expect(readingOrder("4")).toEqual([0, 2, 1, 3]);
+    expect(readingOrder("6")).toEqual([0, 2, 4, 1, 3, 5]);
+    expect(readingOrder("2-1")).toEqual([0, 2, 1]);
+    expect(readingOrder("3r")).toEqual([0, 2, 1]);
+    expect(readingOrder("4s-l")).toEqual([1, 0, 2, 3]);
+    expect(readingOrder("3h")).toEqual([0, 1, 2]);
+  });
+
+  it("wraps around both ways", () => {
+    expect(adjacentChart("4", 0, false)).toBe(2);
+    expect(adjacentChart("4", 3, false)).toBe(0);
+    expect(adjacentChart("4", 0, true)).toBe(3);
+    expect(adjacentChart("4", 2, true)).toBe(0);
   });
 });
