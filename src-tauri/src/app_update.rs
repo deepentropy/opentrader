@@ -5,18 +5,26 @@
  *  - Check at startup, then every hour (the reference app's appinstaller HoursBetweenUpdateChecks
  *    = 1), and again when Settings > About opens. Not on Linux (the reference app skips it too).
  *  - A found update is downloaded silently (signature checked by the updater
- *    plugin). The user is told only when it is ready to install.
- *  - Install on request: every window first writes its pending settings, then
- *    the settings store and the window session go to disk, then the installer
- *    runs. User data lives outside the install folder (%APPDATA%\<identifier>),
- *    so the installer never touches it.
+ *    plugin). The user is told only when it is ready to install. The download
+ *    is also kept on disk, so a later launch does not download it again (its
+ *    signature is checked again before use).
+ *  - Install on request ("Relaunch to update"): every window first writes its
+ *    pending settings, then the settings store and the window session go to
+ *    disk, then the installer runs and starts the new version.
+ *  - Install on a normal quit when an update is ready, without starting the app
+ *    again (the reference app relaunches only when the user asked for it).
+ *  - The installer runs silently (`installMode: quiet`, per-user install: no
+ *    window, no elevation). User data lives outside the install folder
+ *    (%APPDATA%\<identifier>), so the installer never touches it.
  *
  * One state for the whole app; windows follow it through `AppUpdateStatus`.
  */
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
@@ -156,18 +164,127 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppUpdate>();
     let Some(update) = found else {
         *state.ready.lock().unwrap() = None;
+        clear_saved(app);
         set_status(app, UpdateState::UpToDate, None);
         return Ok(());
     };
     let version = update.version.clone();
     let have = state.ready.lock().unwrap().as_ref().is_some_and(|(u, _)| u.version == version);
     if !have {
-        set_status(app, UpdateState::Downloading, Some(version.clone()));
-        let bytes = update.download(|_, _| {}, || {}).await.map_err(|e| format!("download {version}: {e}"))?;
+        let bytes = match load_saved(app, &update) {
+            Some(bytes) => bytes,
+            None => {
+                set_status(app, UpdateState::Downloading, Some(version.clone()));
+                let bytes = update.download(|_, _| {}, || {}).await.map_err(|e| format!("download {version}: {e}"))?;
+                keep_download(app, &update, &bytes);
+                bytes
+            }
+        };
         *state.ready.lock().unwrap() = Some((update, bytes));
     }
     set_status(app, UpdateState::ReadyToInstall, Some(version));
     Ok(())
+}
+
+/// Folder of the kept download: `<version>.bin` (the installer) and
+/// `<version>.sig` (its signature as published).
+fn saved_dir(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_local_data_dir().ok().map(|d| d.join("updates"))
+}
+
+/// Remove the kept download (none is needed: up to date, or a newer one replaces it).
+fn clear_saved(app: &AppHandle) {
+    if let Some(dir) = saved_dir(app) {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+/// Keep the verified download of `update` for the next launches.
+fn keep_download(app: &AppHandle, update: &Update, bytes: &[u8]) {
+    let Some(dir) = saved_dir(app) else {
+        return;
+    };
+    clear_saved(app);
+    let kept = std::fs::create_dir_all(&dir)
+        .and_then(|_| std::fs::write(dir.join(format!("{}.bin", update.version)), bytes))
+        .and_then(|_| std::fs::write(dir.join(format!("{}.sig", update.version)), &update.signature));
+    if let Err(e) = kept {
+        eprintln!("[app-update] keep download {}: {e}", update.version);
+        clear_saved(app);
+    }
+}
+
+/// The kept download of `update` when it is the one published (same
+/// signature) and its signature still checks against the app's public key.
+fn load_saved(app: &AppHandle, update: &Update) -> Option<Vec<u8>> {
+    let dir = saved_dir(app)?;
+    let signature = std::fs::read_to_string(dir.join(format!("{}.sig", update.version))).ok()?;
+    if signature.trim() != update.signature.trim() {
+        return None;
+    }
+    let bytes = std::fs::read(dir.join(format!("{}.bin", update.version))).ok()?;
+    match verify(app, &bytes, &signature) {
+        Ok(()) => Some(bytes),
+        Err(e) => {
+            eprintln!("[app-update] kept download {} rejected: {e}", update.version);
+            clear_saved(app);
+            None
+        }
+    }
+}
+
+/// Check `bytes` against `signature` (base64 minisign signature, as in the
+/// release's latest.json) with the updater public key of tauri.conf.json.
+fn verify(app: &AppHandle, bytes: &[u8], signature: &str) -> Result<(), String> {
+    let b64 = |s: &str| {
+        base64::engine::general_purpose::STANDARD
+            .decode(s.trim())
+            .map_err(|e| e.to_string())
+            .and_then(|v| String::from_utf8(v).map_err(|e| e.to_string()))
+    };
+    let pubkey = app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|u| u.get("pubkey"))
+        .and_then(|k| k.as_str())
+        .ok_or("no updater public key")?;
+    let key = minisign_verify::PublicKey::decode(&b64(pubkey)?).map_err(|e| e.to_string())?;
+    let signature = minisign_verify::Signature::decode(&b64(signature)?).map_err(|e| e.to_string())?;
+    key.verify(bytes, &signature, true).map_err(|e| e.to_string())
+}
+
+/// The app is quitting (all windows closed): install a ready update now,
+/// without starting the app again. Windows: the installer runs and this
+/// process exits.
+pub fn on_exit(app: &AppHandle) {
+    let Some(state) = app.try_state::<AppUpdate>() else {
+        return;
+    };
+    let ready = {
+        let mut st = state.status.lock().unwrap();
+        if st.state != UpdateState::ReadyToInstall {
+            return;
+        }
+        let ready = state.ready.lock().unwrap().take();
+        if ready.is_some() {
+            st.state = UpdateState::Installing;
+        }
+        ready
+    };
+    let Some((update, bytes)) = ready else {
+        return;
+    };
+    if let Some(store) = app.get_store(STORE_FILE) {
+        if let Err(e) = store.save() {
+            eprintln!("[app-update] store save failed: {e}");
+        }
+    }
+    let version = update.version.clone();
+    if let Err(e) = update.restart_after_install(false).install(&bytes) {
+        eprintln!("[app-update] install {version} on quit: {e}");
+    }
 }
 
 #[tauri::command]

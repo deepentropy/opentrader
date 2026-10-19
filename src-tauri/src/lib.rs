@@ -174,8 +174,14 @@ pub fn run() {
             data::market_rest::init_symbol_catalog();
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // A normal quit installs a ready update (app_update).
+            if let tauri::RunEvent::Exit = event {
+                app_update::on_exit(app);
+            }
+        });
 }
 
 #[cfg(test)]
