@@ -526,3 +526,46 @@ async fn daily_load_smoke() {
         assert!((last.time as i64) >= 1_767_225_600, "{sym} newest bar is stale");
     }
 }
+
+/// Seconds requests: one session per window, calendar-contiguous across the weekend.
+#[test]
+fn second_windows_one_session_each() {
+    let d = |day| NaiveDate::from_ymd_opt(2025, 5, day).unwrap();
+    // Thursday 08/05/2025 to Tuesday 13/05/2025.
+    let windows = span::chunk_windows(&us(), d(8), d(13), 1);
+    assert_eq!(windows, vec![(d(8), d(8)), (d(9), d(9)), (d(10), d(12)), (d(13), d(13))]);
+    assert_eq!(span::chunk_windows(&us(), d(8), d(8), 1), vec![(d(8), d(8))]);
+}
+
+/// 10-second bars of the last `OT_SESSIONS` (10) sessions of `OT_TICKERS`
+/// (SPY): every session comes back whole (first bar before 14:00 UTC, last
+/// after 20:00 UTC: 09:00-10:00 and 15:00-16:00 New York), not only the newest
+/// two a single request holds. Run with:
+///   cargo test --lib second_window_live -- --nocapture --ignored
+#[tokio::test]
+#[ignore = "hits the gateway; run explicitly"]
+async fn second_window_live() {
+    let provider: Provider = Arc::new(GatewayProvider);
+    let cal = SessionCalendar::new(&provider.symbol_session(&SymbolRef::parse("NASDAQ:AAPL")).await.unwrap());
+    let n: usize = std::env::var("OT_SESSIONS").ok().and_then(|s| s.parse().ok()).unwrap_or(10);
+    let today = crate::data::trading_calendar::ny_today();
+    let sessions: Vec<NaiveDate> = cal.last_trading_days(n + 1).into_iter().filter(|&d| d < today).collect();
+    let (from, to) = (sessions[0], *sessions.last().unwrap());
+    for t in std::env::var("OT_TICKERS").unwrap_or_else(|_| "SPY".into()).split(',') {
+        let sym = SymbolRef::parse(t);
+        let start = std::time::Instant::now();
+        let bars = span::span_aggs(&provider, &cal, &sym, Span::Second(10), from, to, true).await.unwrap();
+        eprintln!("{t}: {} bars over {} sessions in {:?}", bars.len(), sessions.len(), start.elapsed());
+        for &d in &sessions {
+            let day: Vec<&Candle> =
+                bars.iter().filter(|b| crate::data::trading_calendar::ny_date(b.time as i64) == Some(d)).collect();
+            // Minutes since 00:00 UTC of the session date.
+            let midnight = d.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as f64;
+            let at = |b: &&Candle| ((b.time - midnight) / 60.0) as i64;
+            let (first, last) = (day.first().map(at), day.last().map(at));
+            eprintln!("  {d}: {} bars, minutes {:?}..{:?} after 00:00 UTC", day.len(), first, last);
+            assert!(first.is_some_and(|m| m < 840) && last.is_some_and(|m| m > 1200), "{t} {d} not whole");
+        }
+        assert!(bars.windows(2).all(|w| w[0].time < w[1].time), "{t}: bars out of order or repeated");
+    }
+}

@@ -75,12 +75,17 @@ fn timeframe(mult: u32, timespan: &str) -> String {
     format!("{}{unit}", mult.max(1))
 }
 
+/// Older pages followed when a seconds answer comes back cut: one extended
+/// session of 1-second bars is at most 57 600 bars, so two pages cover it.
+const MAX_SECOND_PAGES: usize = 4;
+
 /// Fetch bars for `ticker` from `from`..`to` (inclusive, `YYYY-MM-DD` or
 /// unix-ms strings). `mult` is the bucket-width multiplier and `timespan` the
-/// unit ("second", "minute", "day"). One HTTP call; the gateway buckets
-/// server-side and returns only this ticker's bars. The returned bool is
-/// `true` when the answer was `truncated` (oldest bars cut) — the cache uses
-/// it to decide how far back it may safely sentinel no-trade days.
+/// unit ("second", "minute", "day"). One HTTP call (seconds: more when the
+/// answer is cut, see [`MAX_SECOND_PAGES`]); the gateway buckets server-side
+/// and returns only this ticker's bars. The returned bool is `true` when the
+/// answer was `truncated` (oldest bars cut) — the cache uses it to decide how
+/// far back it may safely sentinel no-trade days.
 async fn fetch_aggs(
     ticker: &str,
     mult: u32,
@@ -96,26 +101,42 @@ async fn fetch_aggs(
     // past. Trade-off: very coarse intraday over a long span loses the
     // *oldest* history, never the current price.
     let tf = timeframe(mult, timespan);
-    let answer: BarsAnswer = get_json(
-        "bars",
-        &format!("bars/{}", seg(ticker)),
-        &[
-            ("tf", tf.clone()),
-            ("from", from.to_string()),
-            ("to", to.to_string()),
-            ("adjusted", adjusted.to_string()),
-            ("order", "desc".into()),
-            ("limit", MAX_BARS.to_string()),
-        ],
-    )
-    .await?;
-    if answer.truncated {
+    let mut out: Vec<Candle> = Vec::new();
+    let mut to = to.to_string();
+    let mut pages = 0;
+    let truncated = loop {
+        let answer: BarsAnswer = get_json(
+            "bars",
+            &format!("bars/{}", seg(ticker)),
+            &[
+                ("tf", tf.clone()),
+                ("from", from.to_string()),
+                ("to", to.clone()),
+                ("adjusted", adjusted.to_string()),
+                ("order", "desc".into()),
+                ("limit", MAX_BARS.to_string()),
+            ],
+        )
+        .await?;
+        pages += 1;
+        // Newest first (order=desc): older pages append.
+        let page = answer.candles();
+        let oldest = page.last().map(|b| b.time);
+        out.extend(page);
+        // Seconds: the next page ends just before the oldest bar received.
+        match oldest {
+            Some(t) if answer.truncated && timespan == "second" && pages < MAX_SECOND_PAGES => {
+                to = ((t as i64) * 1000 - 1).to_string();
+            }
+            _ => break answer.truncated,
+        }
+    };
+    if truncated {
         eprintln!("[market_rest] {ticker} {tf} bars truncated — older history cut (most-recent bars kept)");
     }
-    // Newest first (order=desc); the chart wants oldest first.
-    let mut out = answer.candles();
+    // The chart wants oldest first.
     out.reverse();
-    Ok((out, answer.truncated))
+    Ok((out, truncated))
 }
 
 /// Fetch second-granularity aggregate bars over `[from, to]` (inclusive calendar
