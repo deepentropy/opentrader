@@ -161,9 +161,58 @@ impl fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+impl ApiError {
+    /// A failure a later try can get past: the gateway could not be reached,
+    /// or was busy or failing. (A build without a token never recovers.)
+    pub fn is_transient(&self) -> bool {
+        if self.code_text == "NETWORK" {
+            return self.message != NO_TOKEN;
+        }
+        matches!(self.code, ErrorCode::RateLimited | ErrorCode::UpstreamError | ErrorCode::UpstreamTimeout | ErrorCode::Internal)
+            || self.code_text.starts_with("HTTP 5")
+    }
+}
+
+/// Debug builds: the environment variable `var` = `<n>` makes the requests
+/// that check it fail as unreachable during the first `n` seconds after the
+/// first check (live tests of a server that cannot be reached for one kind
+/// of request: `OPENTRADER_TEST_ARCHIVE_DOWN_SECS`,
+/// `OPENTRADER_TEST_SYMBOL_HISTORY_DOWN_SECS`).
+#[cfg(debug_assertions)]
+pub fn test_outage(var: &'static str) -> bool {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    use std::time::Instant;
+    static OUTAGES: OnceLock<Mutex<HashMap<&'static str, (Instant, u64)>>> = OnceLock::new();
+    let mut outages = OUTAGES.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap_or_else(|e| e.into_inner());
+    let (start, secs) = *outages
+        .entry(var)
+        .or_insert_with(|| (Instant::now(), std::env::var(var).ok().and_then(|v| v.parse().ok()).unwrap_or(0)));
+    start.elapsed().as_secs() < secs
+}
+
+/// True when `e` is (or wraps) a gateway failure a later try can get past.
+pub fn is_transient(e: &anyhow::Error) -> bool {
+    e.chain().any(|c| c.downcast_ref::<ApiError>().is_some_and(ApiError::is_transient))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transient_errors_are_the_ones_a_later_try_can_get_past() {
+        assert!(ApiError::transport("bars", "request failed: timeout").is_transient());
+        assert!(!ApiError::transport("bars", NO_TOKEN).is_transient());
+        assert!(ApiError::from_answer("bars", StatusCode::BAD_GATEWAY, None, b"").is_transient());
+        assert!(ApiError::from_answer("bars", StatusCode::SERVICE_UNAVAILABLE, None, b"").is_transient());
+        assert!(ApiError::from_answer("bars", StatusCode::TOO_MANY_REQUESTS, None, b"").is_transient());
+        assert!(!ApiError::from_answer("bars", StatusCode::NOT_FOUND, None, b"").is_transient());
+        assert!(!ApiError::from_answer("bars", StatusCode::FORBIDDEN, None, b"").is_transient());
+        let wrapped = anyhow::Error::from(ApiError::transport("archive", "request failed")).context("outer");
+        assert!(is_transient(&wrapped));
+        assert!(!is_transient(&anyhow::anyhow!("archive: columns of different lengths")));
+    }
 
     #[test]
     fn error_body_reads_code_message_and_ref() {

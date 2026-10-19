@@ -57,26 +57,28 @@ pub trait HistoryProvider: Send + Sync {
     /// Date the symbol's current listing started, when the provider knows
     /// it. A ticker symbol can be used again by another company: archived
     /// bars older than this date belong to the earlier one.
-    async fn listing_date(&self, _sym: &SymbolRef) -> Option<NaiveDate> {
-        None
+    /// `None` when unknown; an error when the lookup failed.
+    async fn listing_date(&self, _sym: &SymbolRef) -> Result<Option<NaiveDate>> {
+        Ok(None)
     }
     /// Symbols of the company now behind the symbol, each with the date it
-    /// took it (newest first), when the provider keeps that history. `None`
-    /// when unknown.
-    async fn symbol_changes(&self, _sym: &SymbolRef) -> Option<Vec<SymbolChange>> {
-        None
+    /// took it (newest first), when the provider keeps that history. Empty
+    /// when unknown; an error when the lookup failed.
+    async fn symbol_changes(&self, _sym: &SymbolRef) -> Result<Vec<SymbolChange>> {
+        Ok(Vec::new())
     }
     /// Every executed split of the company now behind the symbol, in any
-    /// order. `None` when the list could not be read (bars must then not be
-    /// scaled with it).
-    async fn executed_splits(&self, _sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
-        Some(Vec::new())
+    /// order. An error when the list could not be read (bars must then not be
+    /// scaled with it); it keeps the lookup's code so a load that could not
+    /// reach the server is asked again.
+    async fn executed_splits(&self, _sym: &SymbolRef) -> Result<Vec<SplitEvent>> {
+        Ok(Vec::new())
     }
-    /// Every dividend of the symbol, in any order, amounts as declared.
-    /// `None` when the list could not be read (bars must then not be
-    /// adjusted with it).
-    async fn paid_dividends(&self, _sym: &SymbolRef) -> Option<Vec<DividendEvent>> {
-        Some(Vec::new())
+    /// Every dividend of the symbol, in any order, amounts as declared. An
+    /// error when the list could not be read (bars must then not be adjusted
+    /// with it), with the lookup's code as for the splits.
+    async fn paid_dividends(&self, _sym: &SymbolRef) -> Result<Vec<DividendEvent>> {
+        Ok(Vec::new())
     }
     async fn minute_aggs(
         &self,
@@ -127,10 +129,10 @@ pub trait ReferenceProvider: Send + Sync {
         query: &str,
         type_filter: Option<&str>,
     ) -> Result<Vec<SymbolSearchResult>>;
-    /// Dividend / split markers are decorative, so these return `Vec` (a failing
-    /// endpoint contributes nothing) rather than `Result`.
-    async fn dividends(&self, sym: &SymbolRef) -> Vec<DividendEvent>;
-    async fn splits(&self, sym: &SymbolRef) -> Vec<SplitEvent>;
+    /// Dividend / split markers. A failed lookup is an error (not an empty
+    /// list) so the app can ask again once the server can be reached.
+    async fn dividends(&self, sym: &SymbolRef) -> Result<Vec<DividendEvent>>;
+    async fn splits(&self, sym: &SymbolRef) -> Result<Vec<SplitEvent>>;
     /// Newest headlines for the "Latest news" lollipop (newest first); empty on
     /// failure, like the event markers.
     async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem>;

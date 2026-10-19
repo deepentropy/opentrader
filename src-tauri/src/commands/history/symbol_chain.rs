@@ -65,10 +65,9 @@ pub(super) async fn earlier_bars(
     }
     let mut out: Vec<Candle> = parts.into_iter().rev().flatten().collect();
     if adjusted && !out.is_empty() {
-        let splits = provider
-            .executed_splits(sym)
-            .await
-            .ok_or_else(|| anyhow::anyhow!("no split list for {sym}"))?;
+        // The lookup error keeps its code (a server that could not be reached
+        // is asked again by the app).
+        let splits = provider.executed_splits(sym).await?;
         scale_by_splits(&mut out, &splits, cal);
     }
     Ok(out)
@@ -80,7 +79,9 @@ pub(super) async fn earlier_bars(
 /// symbol change is one series. `eager` reads the symbol's own bars
 /// while the symbol history is looked up (a window that ends now always
 /// needs them); otherwise the history comes first and a window entirely
-/// before the change costs no request under the current symbol.
+/// before the change costs no request under the current symbol. The flag is
+/// true when a lookup of the symbol history could not reach the server: bars
+/// of an earlier symbol or of a symbol used in between may be missing.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn chained_aggs(
     provider: &Provider,
@@ -91,7 +92,7 @@ pub(super) async fn chained_aggs(
     to: NaiveDate,
     adjusted: bool,
     eager: bool,
-) -> anyhow::Result<Vec<Candle>> {
+) -> anyhow::Result<(Vec<Candle>, bool)> {
     let (listing, own) = if eager {
         let (listing, bars) =
             tokio::join!(listing_of(provider.as_ref(), sym), span_aggs(provider, cal, sym, span, from, to, adjusted));
@@ -115,10 +116,10 @@ pub(super) async fn chained_aggs(
         }
     };
     if listing.between.is_empty() {
-        return Ok(bars);
+        return Ok((bars, listing.partial));
     }
     let between = earlier_bars(provider, cal, sym, &listing.between, span, from, to, adjusted, false).await?;
-    Ok(merge_between(bars, between))
+    Ok((merge_between(bars, between), listing.partial))
 }
 
 /// `bars` with `between` (the company's bars under a symbol it used in

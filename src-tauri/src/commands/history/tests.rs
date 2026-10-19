@@ -1,7 +1,7 @@
 //! Unit tests of the history assembly, and the live checks run by hand.
 use super::*;
 use super::adjustments::{dividend_steps, scale_by_dividends, scale_by_splits};
-use super::archive_join::prepend_archive;
+use super::archive_join::{prepend_archive, JoinedDaily};
 use super::listing::{listing_of, stretch_start, times_inside, Listing, Segment};
 use super::symbol_chain::{merge_between, prepend_older};
 use crate::data::provider::SymbolChange;
@@ -369,8 +369,8 @@ async fn archive_start_live() {
                 return format!("{t},,,,no live bars or no archive");
             }
             let sym = SymbolRef::parse(&ticker_case::to_app(&t));
-            let listed = GatewayProvider.listing_date(&sym).await;
-            let Some(changes) = GatewayProvider.symbol_changes(&sym).await else {
+            let listed = GatewayProvider.listing_date(&sym).await.ok().flatten();
+            let Ok(changes) = GatewayProvider.symbol_changes(&sym).await else {
                 return format!("{t},,,,symbol history not read");
             };
             let listing = listing_of(&GatewayProvider, &sym).await;
@@ -423,7 +423,7 @@ async fn symbol_chain_live() {
     for t in tickers.split(',') {
         let sym = SymbolRef::parse(t);
         let listing = listing_of(provider.as_ref(), &sym).await;
-        let (bars, complete) = joined_daily(&provider, &cal, &sym, wanted_from, from, to, true).await.unwrap();
+        let JoinedDaily { bars, complete, .. } = joined_daily(&provider, &cal, &sym, wanted_from, from, to, true).await.unwrap();
         assert!(bars.windows(2).all(|w| w[0].time < w[1].time), "{t}: times not strictly ascending");
         let day = |b: &Candle| cal.date_of(b.time as i64).unwrap().format("%d/%m/%Y").to_string();
         let (mut big, mut at) = (0.0_f64, String::new());
@@ -442,7 +442,7 @@ async fn symbol_chain_live() {
                 s.ticker, j - i, day(&bars[i - 1]), bars[i - 1].close, day(&bars[i]), bars[i].open, day(&bars[j - 1]), bars[j - 1].close, day(&bars[j]), bars[j].open,
             );
             if end - Duration::days(30) >= minute_floor {
-                let m = chained_aggs(&provider, &cal, &sym, Span::MinuteChunked(5), end - Duration::days(30), end + Duration::days(13), true, false).await.unwrap();
+                let m = chained_aggs(&provider, &cal, &sym, Span::MinuteChunked(5), end - Duration::days(30), end + Duration::days(13), true, false).await.unwrap().0;
                 assert!(m.windows(2).all(|w| w[0].time < w[1].time), "{t}: minute times not strictly ascending");
                 let n = m.iter().filter(|c| cal.date_of(c.time as i64).unwrap() < end).count();
                 let lows = m.iter().take(n).map(|c| c.low).fold(f64::MAX, f64::min);
@@ -461,7 +461,7 @@ async fn symbol_chain_live() {
             let a = *cal.trading_days_before(taken_day, 11).first().unwrap();
             let b = taken_day + Duration::days(13);
             if a >= minute_floor {
-                let m = chained_aggs(&provider, &cal, &sym, Span::MinuteChunked(5), a, b, true, false).await.unwrap();
+                let m = chained_aggs(&provider, &cal, &sym, Span::MinuteChunked(5), a, b, true, false).await.unwrap().0;
                 assert!(m.windows(2).all(|w| w[0].time < w[1].time), "{t}: minute times not strictly ascending");
                 let n = m.iter().filter(|c| cal.date_of(c.time as i64).unwrap() < taken_day).count();
                 minutes = (n, m.len() - n);

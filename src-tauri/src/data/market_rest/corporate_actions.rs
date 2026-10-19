@@ -2,6 +2,7 @@
 //! the split epoch the disk cache is namespaced by.
 use super::cache::{rest_cache_root, REST_CACHE_DIR};
 use super::{get_json, DayMemo};
+use crate::data::gateway::ApiError;
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -66,18 +67,17 @@ pub struct DividendEvent {
     pub amount: f64,
 }
 
-/// Every already-executed split for `ticker`, newest-first. `None` on any lookup
-/// failure (the caller then bypasses the REST cache rather than risk stale bars).
-async fn fetch_splits(ticker: &str, today: NaiveDate) -> Option<Vec<Split>> {
+/// Every already-executed split for `ticker`, newest-first, or the lookup
+/// error (the cache callers then bypass the REST cache rather than risk stale bars).
+async fn fetch_splits(ticker: &str, today: NaiveDate) -> Result<Vec<Split>, ApiError> {
     let answer: SplitsAnswer = get_json(
         "splits",
         "splits",
         &[("ticker", ticker.to_string()), ("until", today.to_string()), ("limit", "1000".into())],
     )
     .await
-    .map_err(|e| eprintln!("[market_rest] {e}"))
-    .ok()?;
-    Some(
+    .inspect_err(|e| eprintln!("[market_rest] {e}"))?;
+    Ok(
         answer
             .splits
             .into_iter()
@@ -99,6 +99,11 @@ pub(super) static SPLITS: DayMemo<String, Vec<Split>> = OnceLock::new();
 /// Memoised already-executed splits for `ticker` (newest-first), or `None` on a
 /// lookup failure.
 pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
+    splits_cached(ticker).await.ok()
+}
+
+/// Memoised already-executed splits for `ticker` (newest-first), or the lookup error.
+async fn splits_cached(ticker: &str) -> Result<Arc<Vec<Split>>, ApiError> {
     let ticker = ticker.to_string();
     let memo = SPLITS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
@@ -106,7 +111,7 @@ pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
         let guard = memo.lock().await;
         if let Some((as_of, splits)) = guard.get(&ticker) {
             if *as_of == today {
-                return Some(splits.clone());
+                return Ok(splits.clone());
             }
         }
     }
@@ -121,7 +126,7 @@ pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
         tokio::spawn(async move { prune_stale_epochs(&t, &epoch).await });
     }
     memo.lock().await.insert(ticker, (today, splits.clone()));
-    Some(splits)
+    Ok(splits)
 }
 
 /// Test hook: replace the memoised split list of `ticker` (a split that
@@ -132,16 +137,12 @@ pub(crate) async fn set_splits_for_test(ticker: &str, splits: Vec<Split>) {
     memo.lock().await.insert(ticker.to_string(), (Utc::now().date_naive(), Arc::new(splits)));
 }
 
-/// The executed splits of `ticker` (newest-first), or `None` on a lookup
-/// failure. Reuses the per-day splits memo.
-pub async fn executed_splits(ticker: &str) -> Option<Vec<SplitEvent>> {
-    let splits = fetch_splits_cached(ticker).await?;
-    Some(splits.iter().map(|s| SplitEvent { date: date_to_unix(s.execution_date), from: s.from, to: s.to }).collect())
-}
-
-/// Split markers for the chart (newest-first); empty on a lookup failure.
-pub async fn split_events(ticker: &str) -> Vec<SplitEvent> {
-    executed_splits(ticker).await.unwrap_or_default()
+/// The executed splits of `ticker` (newest-first) for the chart markers and
+/// the bar scaling, or the lookup error (the app asks again when the server
+/// could not be reached). Reuses the per-day splits memo.
+pub async fn split_events(ticker: &str) -> Result<Vec<SplitEvent>, ApiError> {
+    let splits = splits_cached(ticker).await?;
+    Ok(splits.iter().map(|s| SplitEvent { date: date_to_unix(s.execution_date), from: s.from, to: s.to }).collect())
 }
 
 /// A `dividends` answer (newest first).
@@ -165,13 +166,13 @@ struct DividendRow {
 pub(super) static DIVIDENDS: DayMemo<String, Vec<DividendEvent>> = OnceLock::new();
 
 /// Ex-dividend markers for `ticker` (newest-first); empty on any lookup failure.
-pub async fn dividend_events(ticker: &str) -> Vec<DividendEvent> {
-    paid_dividends(ticker).await.unwrap_or_default()
+pub async fn dividend_events(ticker: &str) -> Result<Vec<DividendEvent>, ApiError> {
+    dividends_cached(ticker).await
 }
 
-/// The dividends of `ticker` (newest-first, amounts as declared), or `None`
-/// on a lookup failure (not memoised, so the next call asks again).
-pub async fn paid_dividends(ticker: &str) -> Option<Vec<DividendEvent>> {
+/// The dividends of `ticker` (newest-first, amounts as declared), or the
+/// lookup error (not memoised, so the next call asks again).
+async fn dividends_cached(ticker: &str) -> Result<Vec<DividendEvent>, ApiError> {
     let ticker = ticker.to_string();
     let memo = DIVIDENDS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
@@ -179,25 +180,24 @@ pub async fn paid_dividends(ticker: &str) -> Option<Vec<DividendEvent>> {
         let guard = memo.lock().await;
         if let Some((as_of, evs)) = guard.get(&ticker) {
             if *as_of == today {
-                return Some((**evs).clone());
+                return Ok((**evs).clone());
             }
         }
     }
     let evs = Arc::new(fetch_dividends(&ticker, today).await?);
     memo.lock().await.insert(ticker, (today, evs.clone()));
-    Some((*evs).clone())
+    Ok((*evs).clone())
 }
 
-async fn fetch_dividends(ticker: &str, today: NaiveDate) -> Option<Vec<DividendEvent>> {
+async fn fetch_dividends(ticker: &str, today: NaiveDate) -> Result<Vec<DividendEvent>, ApiError> {
     let answer: DividendsAnswer = get_json(
         "dividends",
         "dividends",
         &[("ticker", ticker.to_string()), ("until", today.to_string()), ("limit", "1000".into())],
     )
     .await
-    .map_err(|e| eprintln!("[market_rest] {e}"))
-    .ok()?;
-    Some(
+    .inspect_err(|e| eprintln!("[market_rest] {e}"))?;
+    Ok(
         answer
             .dividends
             .into_iter()

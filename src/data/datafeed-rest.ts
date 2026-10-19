@@ -7,7 +7,8 @@
  * tauri-specta regenerates, these wrappers stay valid alongside it.
  */
 import { invoke } from "@tauri-apps/api/core";
-import type { Candle } from "../bindings";
+import type { Candle, History } from "../bindings";
+import { retryTransient } from "./connection";
 
 /** Fetch `mult`-second OHLC bars for `symbol` over the trailing `days`.
  *  Throws on backend error (the caller wraps in try/catch). */
@@ -16,8 +17,8 @@ export async function getSecondHistory(
   mult: number,
   days: number,
   adjusted = true,
-): Promise<Candle[]> {
-  return invoke<Candle[]>("get_second_history", { symbol, mult, days, adjusted });
+): Promise<History> {
+  return invoke<History>("get_second_history", { symbol, mult, days, adjusted });
 }
 
 /** Live-tail refresh for the seconds frames: `mult`-second bars strictly newer
@@ -103,12 +104,27 @@ export type Snapshot = {
   updatedMs: number;
 };
 
-export async function getTickerInfo(symbol: string): Promise<TickerInfo> {
-  return invoke<TickerInfo>("get_ticker_info", { symbol });
+/** Ticker info requests in flight, one per symbol: every caller waiting out a
+ *  lost connection shares one retry loop. */
+const infoInFlight = new Map<string, Promise<TickerInfo>>();
+
+/** Reference data of `symbol`; a server that cannot be reached is tried again
+ *  until it answers (see ./connection). */
+export function getTickerInfo(symbol: string): Promise<TickerInfo> {
+  let p = infoInFlight.get(symbol);
+  if (!p) {
+    p = retryTransient(() => invoke<TickerInfo>("get_ticker_info", { symbol }));
+    infoInFlight.set(symbol, p);
+    const done = () => infoInFlight.delete(symbol);
+    p.then(done, done);
+  }
+  return p;
 }
 
-export async function getTickerSnapshot(symbol: string): Promise<Snapshot> {
-  return invoke<Snapshot>("get_ticker_snapshot", { symbol });
+/** Latest quote of `symbol`; a server that cannot be reached is tried again
+ *  while `wanted()` holds (see ./connection). */
+export function getTickerSnapshot(symbol: string, wanted?: () => boolean): Promise<Snapshot> {
+  return retryTransient(() => invoke<Snapshot>("get_ticker_snapshot", { symbol }), wanted);
 }
 
 /** One headline for the chart's "Latest news" lollipop (newest first). */

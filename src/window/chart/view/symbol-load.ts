@@ -137,7 +137,9 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
   // re-frame to the latest bars — the "scroll snaps back to today" bug. Track
   // the applied value and skip spurious re-runs (mirrors the symbol-clear
   // effect's value guard above).
-  let lastAppliedReal: BarsResult | null | undefined = null;
+  // `undefined` = nothing applied yet: a first load that resolves to null (no
+  // data, or a failed fetch) must still clear the pane and end the transition.
+  let lastAppliedReal: BarsResult | null | undefined = undefined;
   createEffect(() => {
     const real = history();
     if (!cx.chart || !cx.series) return;
@@ -310,6 +312,12 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       | undefined;
     if (firstOldest !== undefined)
       cx.startPrefetch(props.symbol ?? "", props.interval ?? "1D", cx.fetchGen, firstOldest);
+    // Older years missing (the server could not be reached for them): read
+    // them again until they come, while this dataset is still the one shown.
+    if (real.partial) {
+      const gen = cx.fetchGen;
+      void cx.completeHistory(props.symbol ?? "", props.interval ?? "1D", props.session ?? "RTH", () => lastAppliedReal === real && cx.fetchGen === gen);
+    }
   });
 
   // Dim-and-hold transition: rather than a spinner on a

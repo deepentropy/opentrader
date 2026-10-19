@@ -74,13 +74,15 @@ pub(super) async fn with_dividends(
     if !dividends || bars.is_empty() {
         return Ok(bars);
     }
+    // The lookup errors keep their code, so the app asks again when the
+    // server could not be reached.
     let (daily, paid, splits) =
         tokio::join!(daily_series(provider, cal, sym, DIVIDEND_BASIS_DAYS), provider.paid_dividends(sym), provider.executed_splits(sym));
-    let paid = paid.ok_or_else(|| format!("no dividend list for {sym}"))?;
+    let paid = paid.map_err(|e| e.to_string())?;
     if paid.is_empty() {
         return Ok(bars);
     }
-    let splits = splits.ok_or_else(|| format!("no split list for {sym}"))?;
+    let splits = splits.map_err(|e| e.to_string())?;
     scale_by_dividends(&mut bars, &dividend_steps(&daily?, &paid, &splits, cal), cal);
     Ok(bars)
 }

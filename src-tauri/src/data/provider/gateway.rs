@@ -44,18 +44,18 @@ impl HistoryProvider for GatewayProvider {
     async fn daily_archive(&self, sym: &SymbolRef, adjusted: bool) -> Result<Vec<Candle>> {
         daily_archive::daily_bars(&ticker_case::to_source(&sym.ticker), adjusted).await
     }
-    async fn listing_date(&self, sym: &SymbolRef) -> Option<NaiveDate> {
-        market_rest::listing_date(&ticker_case::to_source(&sym.ticker)).await
+    async fn listing_date(&self, sym: &SymbolRef) -> Result<Option<NaiveDate>> {
+        Ok(market_rest::listing_date(&ticker_case::to_source(&sym.ticker)).await?)
     }
-    async fn symbol_changes(&self, sym: &SymbolRef) -> Option<Vec<SymbolChange>> {
+    async fn symbol_changes(&self, sym: &SymbolRef) -> Result<Vec<SymbolChange>> {
         let changes = market_rest::ticker_changes(&ticker_case::to_source(&sym.ticker)).await?;
-        Some(changes.iter().map(|(date, ticker)| SymbolChange { date: *date, ticker: ticker_case::to_app(ticker) }).collect())
+        Ok(changes.iter().map(|(date, ticker)| SymbolChange { date: *date, ticker: ticker_case::to_app(ticker) }).collect())
     }
-    async fn executed_splits(&self, sym: &SymbolRef) -> Option<Vec<SplitEvent>> {
-        market_rest::executed_splits(&ticker_case::to_source(&sym.ticker)).await
+    async fn executed_splits(&self, sym: &SymbolRef) -> Result<Vec<SplitEvent>> {
+        Ok(market_rest::split_events(&ticker_case::to_source(&sym.ticker)).await?)
     }
-    async fn paid_dividends(&self, sym: &SymbolRef) -> Option<Vec<DividendEvent>> {
-        market_rest::paid_dividends(&ticker_case::to_source(&sym.ticker)).await
+    async fn paid_dividends(&self, sym: &SymbolRef) -> Result<Vec<DividendEvent>> {
+        Ok(market_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await?)
     }
     async fn minute_aggs(
         &self,
@@ -115,11 +115,11 @@ impl ReferenceProvider for GatewayProvider {
     ) -> Result<Vec<SymbolSearchResult>> {
         market_rest::search_tickers(query, type_filter).await
     }
-    async fn dividends(&self, sym: &SymbolRef) -> Vec<DividendEvent> {
-        market_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await
+    async fn dividends(&self, sym: &SymbolRef) -> Result<Vec<DividendEvent>> {
+        Ok(market_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await?)
     }
-    async fn splits(&self, sym: &SymbolRef) -> Vec<SplitEvent> {
-        market_rest::split_events(&ticker_case::to_source(&sym.ticker)).await
+    async fn splits(&self, sym: &SymbolRef) -> Result<Vec<SplitEvent>> {
+        Ok(market_rest::split_events(&ticker_case::to_source(&sym.ticker)).await?)
     }
     async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem> {
         market_rest::latest_news(&ticker_case::to_source(&sym.ticker), limit).await

@@ -26,6 +26,7 @@ import {
   getTickerInfo,
 } from "./datafeed-rest";
 import { getItem, setItem } from "./kv";
+import { isTransientError, retryTransient } from "./connection";
 import {
   onChartAggregate,
   onSecondAggregate,
@@ -303,12 +304,19 @@ export async function searchSymbols(
 export type ChartEvent = { time: number; kind: "dividend" | "split"; label: string };
 
 /** Dividend + split markers for `symbol`, time-ascending. Best-effort: a failing
- *  endpoint contributes nothing rather than throwing (events are decorative). */
+ *  endpoint contributes nothing rather than throwing (events are decorative),
+ *  except a server that cannot be reached, which is tried again until it answers. */
 export async function getEvents(symbol: string): Promise<ChartEvent[]> {
+  const settled = <T>(call: () => Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>) =>
+    retryTransient(async () => {
+      const r = await call();
+      if (r.status === "error" && isTransientError(r.error)) throw new Error(r.error);
+      return r;
+    });
   const [divs, splits, sessions] = await Promise.all([
-    commands.getDividends(symbol),
-    commands.getSplits(symbol),
-    symbolSessions(symbol),
+    settled(() => commands.getDividends(symbol)),
+    settled(() => commands.getSplits(symbol)),
+    retryTransient(() => symbolSessions(symbol)),
   ]);
   // Event dates arrive as 00:00 UTC of the calendar date; place them on that
   // date's daily-bar stamp (local midnight in the exchange zone).
@@ -437,6 +445,10 @@ export type BarsResult = {
   daily: Candle[] | null;
   /** Aggregation period applied to produce `bars` from `daily`; null otherwise. */
   aggregate: AggregatePeriod | null;
+  /** A part of the company's history (daily archive, an earlier symbol, a
+   *  symbol used in between) could not be read because the server could not
+   *  be reached: read the series again to complete it. */
+  partial?: boolean;
 };
 
 /** Fetch the initial window of bars for a resolution. Routes:
@@ -445,11 +457,18 @@ export type BarsResult = {
  *                                rebuilt from a served base when needed
  *   • daily family (ND/NW/NM)  → S3 daily flat files, aggregated client-side
  *  Throws on backend error (the caller decides how to degrade). */
-export async function getBars(
+export function getBars(
   symbol: string,
   resolution: string,
   session: SessionId = "ETH",
+  /** False once the caller no longer needs the bars: stops the retries. */
+  wanted?: () => boolean,
 ): Promise<BarsResult> {
+  // A server that cannot be reached is tried again until it answers (see ./connection).
+  return retryTransient(() => getBarsOnce(symbol, resolution, session), wanted);
+}
+
+async function getBarsOnce(symbol: string, resolution: string, session: SessionId): Promise<BarsResult> {
   // Guard the catch-all daily branch below: an unservable resolution (tick,
   // range, too large a multiplier) must error here rather than silently
   // resolve to daily bars. The picker gates on the same set, so this is a
@@ -460,12 +479,12 @@ export async function getBars(
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
   if (second) {
-    const [bars, sessions] = await Promise.all([
+    const [history, sessions] = await Promise.all([
       getSecondHistory(symbol, second.mult, second.days, adjusted),
       symbolSessions(symbol),
     ]);
     // Second buckets divide every minute open, so an exact filter suffices.
-    return { bars: inSession(bars, sessions.spec(session)), daily: null, aggregate: null };
+    return { bars: inSession(history.bars, sessions.spec(session)), daily: null, aggregate: null, partial: history.partial };
   }
   const intra = minuteConfig(resolution);
   if (intra) {
@@ -473,8 +492,8 @@ export async function getBars(
     const base = sessionBaseMinutes(spec, intra.mins);
     const res = await commands.getMinuteHistory(symbol, intra.days, base ?? intra.mins, adjusted);
     if (res.status === "error") throw new Error(res.error);
-    const rows = inSession(res.data, spec);
-    return { bars: base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows, daily: null, aggregate: null };
+    const rows = inSession(res.data.bars, spec);
+    return { bars: base ? aggregateSessionMinutes(rows, spec, intra.mins) : rows, daily: null, aggregate: null, partial: res.data.partial };
   }
   const cfg = dailyConfig(resolution);
   // The session is not needed to fetch daily bars, but resolving it with them
@@ -482,9 +501,9 @@ export async function getBars(
   // countdown, profile periods).
   const [res, sessions] = await Promise.all([commands.getDailyHistory(symbol, cfg.days, adjusted), symbolSessions(symbol)]);
   if (res.status === "error") throw new Error(res.error);
-  const daily = res.data;
+  const daily = res.data.bars;
   const bars = cfg.aggregate ? aggregateCandles(daily, cfg.aggregate, sessions.regular) : daily;
-  return { bars, daily, aggregate: cfg.aggregate ?? null };
+  return { bars, daily, aggregate: cfg.aggregate ?? null, partial: res.data.partial };
 }
 
 /** Scroll-back pager: one older window of source rows ending strictly before

@@ -4,6 +4,7 @@ use super::listing::{listing_of, Listing, ARCHIVE_MAX_HOLE_SECS};
 use super::span::Span;
 use super::symbol_chain::{earlier_bars, merge_between, prepend_older};
 use crate::data::calendar::SessionCalendar;
+use crate::data::gateway;
 use crate::data::provider::Provider;
 use crate::data::symbol::SymbolRef;
 use crate::data::types::Candle;
@@ -61,9 +62,11 @@ pub(super) fn prepend_archive(mut bars: Vec<Candle>, archive: Vec<Candle>, from_
 /// The daily series of the company behind `sym` from `wanted_from` on: the
 /// recent source over `[from, to]`, the archive before it, the bars of its
 /// earlier symbols in front, and the bars of a symbol it used in between in
-/// the hole they left. The flag is false when a part older than
-/// the recent series could not be read (the series is then not memoised).
-/// Empty when the recent source has no bar.
+/// the hole they left. `complete` is false when a part older than the
+/// recent series could not be read (the series is then not memoised);
+/// `partial` when such a part failed because the server could not be
+/// reached (the app reads the series again once it can). Empty when the
+/// recent source has no bar.
 pub(super) async fn joined_daily(
     provider: &Provider,
     cal: &SessionCalendar,
@@ -72,7 +75,7 @@ pub(super) async fn joined_daily(
     from: NaiveDate,
     to: NaiveDate,
     adjusted: bool,
-) -> Result<(Vec<Candle>, bool), String> {
+) -> Result<JoinedDaily, String> {
     // One REST call returns the whole daily series (split-adjusted when
     // `adjusted`); closed sessions are then served from the per-day disk cache
     // on later loads. The sessions older than that series come from the daily
@@ -86,8 +89,9 @@ pub(super) async fn joined_daily(
     );
     let bars = bars.map_err(|e| e.to_string())?;
     if bars.is_empty() {
-        return Ok((bars, false));
+        return Ok(JoinedDaily { bars, complete: false, partial: false });
     }
+    let mut partial = listing.partial;
     // A failed archive read leaves the chart on the recent series, as without
     // an archive, and is not memoised so the next load reads it again.
     Ok(match archive {
@@ -101,6 +105,7 @@ pub(super) async fn joined_daily(
                     Err(e) => {
                         eprintln!("[history] {sym}: bars of the earlier symbol not loaded: {e:#}");
                         complete = false;
+                        partial |= gateway::is_transient(&e);
                     }
                 }
             }
@@ -110,14 +115,22 @@ pub(super) async fn joined_daily(
                     Err(e) => {
                         eprintln!("[history] {sym}: bars of the symbol used in between not loaded: {e:#}");
                         complete = false;
+                        partial |= gateway::is_transient(&e);
                     }
                 }
             }
-            (bars, complete)
+            JoinedDaily { bars, complete: complete && !partial, partial }
         }
         Err(e) => {
             eprintln!("[history] {sym}: daily archive not loaded: {e:#}");
-            (bars, false)
+            JoinedDaily { bars, complete: false, partial: partial || gateway::is_transient(&e) }
         }
     })
+}
+
+/// A joined daily series (see [`joined_daily`]).
+pub(super) struct JoinedDaily {
+    pub(super) bars: Vec<Candle>,
+    pub(super) complete: bool,
+    pub(super) partial: bool,
 }

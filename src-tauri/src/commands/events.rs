@@ -14,7 +14,7 @@ pub async fn get_dividends(
     provider: State<'_, Provider>,
     symbol: String,
 ) -> Result<Vec<DividendEvent>, String> {
-    Ok(provider.dividends(&SymbolRef::parse(&symbol)).await)
+    provider.dividends(&SymbolRef::parse(&symbol)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -23,7 +23,7 @@ pub async fn get_splits(
     provider: State<'_, Provider>,
     symbol: String,
 ) -> Result<Vec<SplitEvent>, String> {
-    Ok(provider.splits(&SymbolRef::parse(&symbol)).await)
+    provider.splits(&SymbolRef::parse(&symbol)).await.map_err(|e| e.to_string())
 }
 
 /// Newest headlines for `symbol` (Events → Latest news lollipop).

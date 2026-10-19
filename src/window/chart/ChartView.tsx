@@ -1032,9 +1032,10 @@ export function ChartView(props: ChartViewProps) {
   const [reloadTick, setReloadTick] = createSignal(0);
   installDataEvents();
   const { applyStrategyMarkers, forgetTradeMarkers, strategyDialogConfig } = attach(cx, createStrategyMarks(cx));
+  const historyKey = () =>
+    `${props.symbol ?? "AAPL"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`;
   const [history] = createResource<BarsResult | null, string>(
-    () =>
-      `${props.symbol ?? "AAPL"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`,
+    historyKey,
     async (key) => {
       // sym/interval/session — none contain spaces, so a plain split is safe
       // (the trailing reload counter is key-only).
@@ -1045,7 +1046,10 @@ export function ChartView(props: ChartViewProps) {
           const w = window as unknown as { __clickT?: number };
           if (w.__clickT) console.log(`[fetch-start] ${sym} ${interval}: select→fetch-start ${(t0 - w.__clickT).toFixed(0)}ms`);
         }
-        const r = await getBars(sym, interval, session);
+        // A server that cannot be reached (e.g. no network yet at app start)
+        // is tried again until it answers, as long as the pane still shows
+        // this series: the chart fills in by itself once connected.
+        const r = await getBars(sym, interval, session, () => untrack(historyKey) === key);
         console.log(
           `[history] ${sym} ${interval}: ${r.bars.length} bars (daily ${r.daily?.length ?? 0}) in ${(performance.now() - t0).toFixed(0)}ms`,
         );
@@ -1060,7 +1064,7 @@ export function ChartView(props: ChartViewProps) {
   // Dividend / split markers, fetched once per symbol (independent of interval).
   const [eventsRes] = createResource(
     () => props.symbol ?? "",
-    (sym) => (sym ? getEvents(sym) : Promise.resolve([])),
+    (sym) => (sym ? getEvents(sym).catch(() => []) : Promise.resolve([])),
   );
   // Push markers + visibility onto the primitive when the events load or the
   // Events toggles change. (The primitive retains this across series rebuilds.)

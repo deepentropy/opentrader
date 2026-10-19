@@ -11,6 +11,7 @@ import {
   DAILY_ARCHIVE_START,
   aggregateCandles,
   aggregateUnitFor,
+  getBars,
   getBarsBefore,
   isIntradayResolution,
   isSecondResolution,
@@ -33,6 +34,8 @@ import {
 } from "./helpers";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
+import { waitBeforeRetry } from "../../../data/connection";
+import type { SessionId } from "../../../data/session";
 
 export type GotoOpts = {
   /** Centre the target even when it is already in view (the reference app Go to). */
@@ -47,6 +50,7 @@ export type GotoOpts = {
 /** What createHistory adds to the chart context. */
 export interface HistoryApi {
   broadcastRange: (force: boolean) => void;
+  completeHistory: (sym: string, int: string, session: SessionId, isCurrent: () => boolean) => Promise<void>;
   fetchGen: number;
   goToRange: (fromSec: number, toSec: number) => Promise<void>;
   goToTime: (targetSec: number, opts?: GotoOpts) => Promise<void>;
@@ -292,38 +296,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
           historyExhausted = true;
           return;
         }
-        const prevRange = ts.getVisibleLogicalRange();
-        // Brick types re-derive their items from the whole history (item
-        // count unrelated to the bars added): keep the distance to the last
-        // item, at the same bar spacing.
-        const prevLast = isTransformType(cx.activeType) ? mainLastIndex() : null;
-        const prevLen = cx.raw.length;
-        if (isDaily) {
-          const unit = aggregateUnitFor(reqInt);
-          // Resolved with the first daily load (getBars).
-          const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
-          if (unit && !spec) return;
-          cx.rawDaily = [...older, ...cx.rawDaily];
-          cx.raw = toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily);
-        } else {
-          cx.raw = [...toOHLC(older), ...cx.raw];
-        }
-        setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), dataExtras());
-      afterSeriesData();
-        updateSessionBreaks();
-        scheduleIndicatorRender();
-        if (!cx.crosshairActive) refreshLegend();
-        // Pin the view by the bars actually added — aggregation can change the
-        // count for 1W/1M, so use the length delta, not the raw page length.
-        const delta = cx.raw.length - prevLen;
-        if (isTransformType(cx.activeType)) {
-          const last = mainLastIndex();
-          if (prevRange && prevLast != null && last != null) {
-            ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
-          }
-        } else if (prevRange && delta > 0) {
-          ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
-        }
+        if (!prependOlder(older, isDaily, reqInt)) return;
         // Pipeline the next older window so the following scroll-back is instant.
         const nextOldest = (isDaily ? cx.rawDaily[0]?.time : cx.raw[0]?.time) as number | undefined;
         if (nextOldest !== undefined) startPrefetch(reqSym, reqInt, reqGen, nextOldest);
@@ -332,6 +305,120 @@ export function createHistory(cx: ChartCx): HistoryApi {
         loadingMore = false;
         updateHistoryEnd();
       });
+  }
+
+  /** Put `older` (bars older than every loaded one: daily rows for the daily
+   *  family, which re-aggregates them, else display bars) in front of the
+   *  series, the view kept on the same bars. False when the symbol's sessions
+   *  needed to aggregate them are not known yet. */
+  function prependOlder(older: Candle[], isDaily: boolean, int: string): boolean {
+    if (!cx.chart || !cx.series) return false;
+    const ts = cx.chart.timeScale();
+    const prevRange = ts.getVisibleLogicalRange();
+    // Brick types re-derive their items from the whole history (item
+    // count unrelated to the bars added): keep the distance to the last
+    // item, at the same bar spacing.
+    const prevLast = isTransformType(cx.activeType) ? mainLastIndex() : null;
+    const prevLen = cx.raw.length;
+    if (isDaily) {
+      const unit = aggregateUnitFor(int);
+      // Resolved with the first daily load (getBars).
+      const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
+      if (unit && !spec) return false;
+      cx.rawDaily = [...older, ...cx.rawDaily];
+      cx.raw = toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily);
+    } else {
+      cx.raw = [...toOHLC(older), ...cx.raw];
+    }
+    setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), dataExtras());
+    afterSeriesData();
+    updateSessionBreaks();
+    scheduleIndicatorRender();
+    if (!cx.crosshairActive) refreshLegend();
+    // Pin the view by the bars actually added — aggregation can change the
+    // count for 1W/1M, so use the length delta, not the raw page length.
+    const delta = cx.raw.length - prevLen;
+    if (isTransformType(cx.activeType)) {
+      const last = mainLastIndex();
+      if (prevRange && prevLast != null && last != null) {
+        ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
+      }
+    } else if (prevRange && delta > 0) {
+      ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
+    }
+    return true;
+  }
+
+  /** Put `rows` that the loaded series lacks (by time, up to its last bar) at
+   *  their place: daily rows for the daily family, which re-aggregates them,
+   *  else display bars. The bar at the right edge of the view stays there, at
+   *  the same bar spacing. Returns the number of bars added. */
+  function mergeMissing(rows: Candle[], isDaily: boolean, int: string): number {
+    if (!cx.chart || !cx.series) return 0;
+    const src: readonly { time: unknown }[] = isDaily ? cx.rawDaily : cx.raw;
+    if (src.length === 0) return 0;
+    const lastSec = src[src.length - 1].time as number;
+    const have = new Set(src.map((b) => b.time as number));
+    const missing = rows.filter((r) => r.time != null && (r.time as number) <= lastSec && !have.has(r.time as number));
+    if (missing.length === 0) return 0;
+    const unit = isDaily ? aggregateUnitFor(int) : null;
+    // Resolved with the first daily load (getBars).
+    const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
+    if (unit && !spec) return 0;
+    const ts = cx.chart.timeScale();
+    const prevRange = ts.getVisibleLogicalRange();
+    // Brick types re-derive their items from the whole history: keep the
+    // distance to the last item instead.
+    const prevLast = isTransformType(cx.activeType) ? mainLastIndex() : null;
+    const anchor = prevRange ? Math.min(Math.max(Math.round(prevRange.to), 0), cx.raw.length - 1) : -1;
+    const anchorSec = anchor >= 0 ? (cx.raw[anchor].time as number) : null;
+    const byTime = (a: { time: unknown }, b: { time: unknown }) => (a.time as number) - (b.time as number);
+    if (isDaily) {
+      cx.rawDaily = [...cx.rawDaily, ...missing].sort(byTime);
+      cx.raw = toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily);
+    } else {
+      cx.raw = [...cx.raw, ...toOHLC(missing)].sort(byTime);
+    }
+    setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), dataExtras());
+    afterSeriesData();
+    updateSessionBreaks();
+    scheduleIndicatorRender();
+    if (!cx.crosshairActive) refreshLegend();
+    if (isTransformType(cx.activeType)) {
+      const last = mainLastIndex();
+      if (prevRange && prevLast != null && last != null) {
+        ts.setVisibleLogicalRange({ from: prevRange.from + last - prevLast, to: prevRange.to + last - prevLast });
+      }
+    } else if (prevRange && anchorSec !== null) {
+      const delta = indexAtOrBefore(anchorSec) - anchor;
+      if (delta !== 0) ts.setVisibleLogicalRange({ from: prevRange.from + delta, to: prevRange.to + delta });
+    }
+    return missing.length;
+  }
+
+  /** A load that came back without a part of the company's history (daily
+   *  archive, an earlier symbol, a symbol used in between: the server could
+   *  not be reached for it) is read again until it is whole, and the missing
+   *  bars are put at their place, the view kept on the same bars. Stops once
+   *  `isCurrent()` is false (another series or a reload took the pane) or on a
+   *  final error. */
+  async function completeHistory(sym: string, int: string, session: SessionId, isCurrent: () => boolean) {
+    for (let attempt = 0; ; attempt++) {
+      await waitBeforeRetry(attempt);
+      if (!isCurrent()) return;
+      let whole;
+      try {
+        whole = await getBars(sym, int, session, isCurrent);
+      } catch {
+        return;
+      }
+      if (!isCurrent()) return;
+      const isDaily = whole.daily !== null && cx.rawDaily.length > 0;
+      const added = mergeMissing(isDaily ? whole.daily! : whole.bars, isDaily, int);
+      console.log(`[history] ${sym} ${int}: read again, ${added} missing bars put at their place${whole.partial ? ", still partial" : ""}`);
+      if (added > 0) updateHistoryEnd();
+      if (!whole.partial) return;
+    }
   }
 
   /** Index of the newest loaded bar at or before `targetSec` (binary search on
@@ -674,6 +761,7 @@ export function createHistory(cx: ChartCx): HistoryApi {
 
   return {
     broadcastRange,
+    completeHistory,
     get fetchGen() {
       return fetchGen;
     },

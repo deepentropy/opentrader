@@ -16,7 +16,7 @@
  * changes only when the archive is extended (about once a month), so it is
  * revalidated with its ETag at most once per day.
  */
-use crate::data::gateway::{self, BASE, NO_TOKEN};
+use crate::data::gateway::{self, ApiError, BASE, NO_TOKEN};
 use crate::data::market_rest::{self, http, Candle, DayMemo, Split};
 use crate::data::trading_calendar;
 use anyhow::{anyhow, Context, Result};
@@ -127,7 +127,16 @@ async fn load(ticker: &str) -> Result<Arc<Option<Archive>>> {
         req = req.header(IF_NONE_MATCH, etag);
     }
     let fetched: Result<Option<Archive>> = async {
-        let resp = req.send().await.context("daily archive request failed")?;
+        #[cfg(debug_assertions)]
+        if gateway::test_outage("OPENTRADER_TEST_ARCHIVE_DOWN_SECS") {
+            return Err(ApiError::transport("daily archive", "request failed: test outage").into());
+        }
+        // Transport and server errors keep their gateway code, so a load that
+        // could not reach the server is asked again by the app.
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| ApiError::transport("daily archive", format!("request failed: {}", e.without_url())))?;
         match resp.status() {
             StatusCode::NOT_FOUND => Ok(None),
             StatusCode::NOT_MODIFIED => disk
@@ -146,7 +155,7 @@ async fn load(ticker: &str) -> Result<Arc<Option<Archive>>> {
                 write_disk(ticker, &file).await;
                 Ok(Some(file.bars))
             }
-            status => Err(anyhow!("daily archive {status}")),
+            status => Err(ApiError::from_answer("daily archive", status, None, &resp.bytes().await.unwrap_or_default()).into()),
         }
     }
     .await;

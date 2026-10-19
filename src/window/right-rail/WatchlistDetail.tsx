@@ -13,7 +13,7 @@
  * ticker handles staleness, so a late reply for a previously-selected row
  * can't overwrite the current one.
  */
-import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import {
   exchangeName,
   getBars,
@@ -248,7 +248,7 @@ export function WatchlistDetail(props: Props) {
   const [quote] = createResource<QuoteData, string>(full, async (sym) => {
     const [info, snap] = await Promise.allSettled([
       getTickerInfo(sym),
-      getTickerSnapshot(sym),
+      getTickerSnapshot(sym, () => untrack(full) === sym),
     ]);
     return {
       info: info.status === "fulfilled" ? info.value : null,
@@ -261,7 +261,7 @@ export function WatchlistDetail(props: Props) {
   // the rest of the panel never waits on it; these fields fill in when it lands.
   const [yr] = createResource<YearRange | null, string>(full, async (sym) => {
     try {
-      const { bars } = await getBars(sym, "1D");
+      const { bars } = await getBars(sym, "1D", "ETH", () => untrack(full) === sym);
       return computeYearRange(bars);
     } catch {
       return null;
