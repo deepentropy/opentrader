@@ -1,0 +1,116 @@
+name: Web image
+
+# The web version as one container image (src-tauri/crates/server/Dockerfile):
+# the server, serving the built frontend. Built on demand; pushed to the
+# GitHub container registry only when asked.
+on:
+  workflow_dispatch:
+    inputs:
+      push:
+        description: 'Push the image to ghcr.io'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      push:
+        type: boolean
+        default: true
+
+jobs:
+  # The frontend build needs src/bindings.ts, which the desktop crate's tests
+  # generate: built on Windows like CI (no extra system libraries).
+  frontend:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout OpenTrader
+        uses: actions/checkout@v7
+        with:
+          path: opentrader
+
+      - name: Read drawing core ref
+        id: refs
+        shell: bash
+        working-directory: opentrader
+        run: echo "drawing=$(node -p "require('./package.json').config.drawingRef")" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout drawing core
+        uses: actions/checkout@v7
+        with:
+          repository: deepentropy/lightweight-charts-drawing
+          ref: ${{ steps.refs.outputs.drawing }}
+          path: lightweight-charts-drawing
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'opentrader/src-tauri -> target'
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: opentrader/package-lock.json
+
+      - name: Install npm dependencies
+        working-directory: opentrader
+        run: npm ci
+
+      - name: Generate bindings
+        working-directory: opentrader/src-tauri
+        run: cargo test --lib export_bindings
+
+      - name: Build the web frontend
+        working-directory: opentrader
+        run: npm run build:web
+
+      - name: Upload dist-web
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist-web
+          path: opentrader/dist-web
+
+  image:
+    needs: frontend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download dist-web
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-web
+          path: dist-web
+
+      - name: Image tags
+        id: tags
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}-web"
+          version=$(node -p "require('./package.json').version")
+          echo "tags=$image:$version,$image:latest" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        if: inputs.push
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (and push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src-tauri/crates/server/Dockerfile
+          push: ${{ inputs.push }}
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

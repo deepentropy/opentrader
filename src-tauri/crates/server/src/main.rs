@@ -43,8 +43,11 @@ use opentrader_core::screener::Screener;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
+use tower::ServiceBuilder;
+use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 
 /// What every request handler reads.
 pub struct AppState {
@@ -110,10 +113,24 @@ async fn main() {
         .with_state(state)
         .layer(cors);
     if let Ok(dir) = std::env::var("OPENTRADER_STATIC_DIR") {
-        // The single-page app: unknown paths get its index.
-        let index = std::path::Path::new(&dir).join("index.html");
-        app = app.fallback_service(ServeDir::new(&dir).fallback(ServeFile::new(index)));
+        let dir = std::path::Path::new(&dir);
+        // Hashed build assets never change under their name: cached for good.
+        // `.br` / `.gz` copies made at image build are sent when accepted.
+        let assets = ServiceBuilder::new()
+            .layer(SetResponseHeaderLayer::overriding(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("public, max-age=31536000, immutable"),
+            ))
+            .service(ServeDir::new(dir.join("assets")).precompressed_br().precompressed_gzip());
+        // The single-page app: unknown paths get its index, read again on every visit.
+        let index = ServeFile::new(dir.join("index.html")).precompressed_br().precompressed_gzip();
+        let rest = ServiceBuilder::new()
+            .layer(SetResponseHeaderLayer::overriding(header::CACHE_CONTROL, HeaderValue::from_static("no-cache")))
+            .service(ServeDir::new(dir).precompressed_br().precompressed_gzip().fallback(index));
+        app = app.nest_service("/assets", assets).fallback_service(rest);
     }
+    // API answers (JSON) compressed on the fly; files sent already compressed are left as they are.
+    let app = app.layer(CompressionLayer::new().br(true).gzip(true));
 
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| panic!("bind {bind}: {e}"));
     eprintln!("[server] listening on http://{bind}");
