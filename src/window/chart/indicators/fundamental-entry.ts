@@ -41,17 +41,18 @@ export function abbreviate(v: number, decimals = 3): string {
   return (v < 0 ? MINUS : '') + text + letter;
 }
 
-/** A metric value as its label writes it (reference: "$-1.061M", "34.30%": the currency sign first, then an ASCII
- *  hyphen for a negative value). */
-export function formatMetricValue(v: number, kind: MetricKind, currency: string): string {
+/** A metric value as its label writes it (reference: "$-1.061M", "$-0.110", "34.30%", "0.00": the currency sign
+ *  first, then an ASCII hyphen for a negative value; amounts and share counts abbreviated, other values with the
+ *  metric's legend decimals, trailing zeros kept). */
+export function formatMetricValue(v: number, kind: MetricKind, currency: string, precision?: number): string {
   const sign = CURRENCY_SIGNS[currency] ?? '';
   const minus = v < 0 ? '-' : '';
   switch (kind) {
     case 'money': return sign + minus + abbreviate(Math.abs(v));
-    case 'perShare': return sign + minus + String(+Math.abs(v).toFixed(3));
+    case 'perShare': return sign + minus + Math.abs(v).toFixed(precision ?? 3);
     case 'shares': return minus + abbreviate(Math.abs(v));
-    case 'percent': return `${minus}${Math.abs(v).toFixed(2)}%`;
-    default: return minus + String(+Math.abs(v).toFixed(3));
+    case 'percent': return `${minus}${Math.abs(v).toFixed(precision ?? 2)}%`;
+    default: return minus + Math.abs(v).toFixed(precision ?? 2);
   }
 }
 
@@ -63,10 +64,10 @@ function periodText(end: string): string {
 }
 
 /** Change label: "(+6.81%)" (a percentage metric: the difference in points, "(-5.28%)") or the absolute change. */
-function changeText(v: number, prev: number, mode: string, kind: MetricKind, currency: string): string | null {
+function changeText(v: number, prev: number, mode: string, kind: MetricKind, currency: string, precision?: number): string | null {
   if (mode === 'Absolute' || kind === 'percent') {
     const d = v - prev;
-    return `(${d >= 0 ? '+' : ''}${formatMetricValue(d, kind, currency)})`;
+    return `(${d >= 0 ? '+' : ''}${formatMetricValue(d, kind, currency, precision)})`;
   }
   if (prev === 0) return null;
   const p = ((v - prev) / Math.abs(prev)) * 100;
@@ -123,9 +124,10 @@ function statementEntry(id: string, def: MetricDef, period: MetricPeriod): Indic
         if (k >= 0 && k !== shown) {
           shown = k;
           const p = points[k];
-          const lines = [formatMetricValue(p.value, def.kind, currency)];
+          const precision = formatOf(def).precision;
+          const lines = [formatMetricValue(p.value, def.kind, currency, precision)];
           if (inputs?.showChange !== false && k > 0) {
-            const c = changeText(p.value, points[k - 1].value, String(inputs?.changeMode ?? 'Percentage'), def.kind, currency);
+            const c = changeText(p.value, points[k - 1].value, String(inputs?.changeMode ?? 'Percentage'), def.kind, currency, precision);
             if (c) lines.push(c);
           }
           if (inputs?.showDate !== false) lines.push(periodText(p.end));

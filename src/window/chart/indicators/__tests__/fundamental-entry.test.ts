@@ -26,6 +26,10 @@ describe("fundamental metric studies", () => {
     expect(formatMetricValue(12.3456, "percent", "USD")).toBe("12.35%");
     expect(formatMetricValue(34.3, "percent", "USD")).toBe("34.30%");
     expect(formatMetricValue(-5.28, "percent", "USD")).toBe("-5.28%");
+    expect(formatMetricValue(-0.11, "perShare", "USD")).toBe("$-0.110");
+    expect(formatMetricValue(0.048, "perShare", "USD", 4)).toBe("$0.0480");
+    expect(formatMetricValue(0, "ratio", "USD")).toBe("0.00");
+    expect(formatMetricValue(4.48, "ratio", "USD")).toBe("4.48");
   });
 
   it("builds entries for the offered periods only", () => {
