@@ -33,7 +33,5 @@ mod tests {
         same::<crate::data::types::TradeTick>();
         same::<crate::data::provider::capabilities::ProviderCapabilities>();
         same::<crate::screener::ScreenerUpdate>();
-        same::<opentrader_core::broker::types::BrokerState>();
-        same::<opentrader_core::broker::types::BrokerQuote>();
     }
 }

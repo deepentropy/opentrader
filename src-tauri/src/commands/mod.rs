@@ -1,5 +1,4 @@
 pub mod alerts;
-pub mod broker;
 pub mod events;
 pub mod funding;
 pub mod history;

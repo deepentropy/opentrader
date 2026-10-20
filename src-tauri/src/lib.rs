@@ -60,15 +60,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::screener::screener_scan,
             commands::screener::screener_fields,
             commands::screener::screener_values,
-            commands::broker::broker_state,
-            commands::broker::broker_connect,
-            commands::broker::broker_disconnect,
-            commands::broker::broker_select_account,
-            commands::broker::broker_place_order,
-            commands::broker::broker_modify_order,
-            commands::broker::broker_cancel_order,
-            commands::broker::broker_close_position,
-            commands::broker::broker_watch_quote,
             window_session::take_adopted_window,
             window_session::take_closed_window_bounds,
             window_session::open_window,
@@ -85,8 +76,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             data::types::SecondAggregate,
             data::provider::capabilities::ProviderCapabilities,
             screener::ScreenerUpdate,
-            opentrader_core::broker::types::BrokerState,
-            opentrader_core::broker::types::BrokerQuote,
             alerts::AlertFired,
             alerts::AlertLeader,
             app_update::AppUpdateStatus,
@@ -191,7 +180,6 @@ pub fn run() {
             provider::entitlements::init(&host, provider.clone());
             app.manage(provider);
             app.manage(screener::Screener::default());
-            app.manage(opentrader_core::broker::Broker::default());
             // Update check at startup, then hourly (app_update).
             app_update::init(app.handle());
             // Symbol catalog for the search: disk copy, then today's from the gateway.
