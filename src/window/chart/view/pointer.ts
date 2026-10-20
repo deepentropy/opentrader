@@ -14,6 +14,7 @@ import { layoutSync } from "../layout-sync";
 import { activeLink, crossWindowCrosshairOn, postLinkTime } from "../../../data/tab-link-bus";
 import { WheelHelper } from "../wheel-helper";
 import { cursorForMode } from "../../drawings/cursors";
+import { MEASURE_START_EVENT } from "../../drawings/overlay/region-tools";
 import { roundedPrice } from "./helpers";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
@@ -268,19 +269,20 @@ export function createPointer(cx: ChartCx): PointerApi {
       for (const t of plusUpEvents) cx.host.removeEventListener(t, onPlusUp, true);
     });
 
-    // Shift+Click on empty chart → arm the Measure tool (Shift+drag-to-
-    // measure; this app's measure is two-click, so the click arms it and the
-    // user clicks the two endpoints). Only on the focused pane and when no tool
-    // is already armed. Capture phase + preventDefault so it doesn't also start
-    // a chart drag. Clicks on a drawing go to the overlay, not here.
-    const onShiftMeasure = (e: PointerEvent) => {
-      if (!props.active || props.armedTool || e.button !== 0 || !e.shiftKey) return;
-      e.preventDefault();
-      e.stopPropagation();
+    // Shift+Click on empty chart → arm the Measure tool and start the measure
+    // at the click (as in the reference app: this press is its first point,
+    // the next click ends it). The overlay (a sibling of the host) takes the
+    // press through MEASURE_START_EVENT. The press still reaches the chart, so
+    // a Shift+drag also pans it while the ruler follows the pointer. Only on
+    // the focused pane, when no tool is already armed, not on the Plus button.
+    // Clicks on a drawing go to the overlay, not here.
+    const onShiftMeasure = (e: MouseEvent) => {
+      if (!props.active || props.armedTool || cx.plusPressed || e.button !== 0 || !e.shiftKey) return;
       emitAppEvent("select-drawing-tool", { toolId: "measure" });
+      cx.host.parentElement?.dispatchEvent(new CustomEvent(MEASURE_START_EVENT, { detail: e }));
     };
-    cx.host.addEventListener("pointerdown", onShiftMeasure, true);
-    onCleanup(() => cx.host.removeEventListener("pointerdown", onShiftMeasure, true));
+    cx.host.addEventListener("mousedown", onShiftMeasure, true);
+    onCleanup(() => cx.host.removeEventListener("mousedown", onShiftMeasure, true));
 
     // Ctrl+double click on an empty pane area → collapse / restore that pane
     // (no source under the cursor, no drawing tool, empty selection). The plain double click (maximize pane)

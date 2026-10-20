@@ -3,7 +3,7 @@
  * release) and the two-click Measure ruler, with their live and finished
  * views.
  */
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import type { Accessor, Setter } from "solid-js";
 import type { DataPoint, Drawing } from "lightweight-charts-drawing/core/types";
 import type { Pt } from "lightweight-charts-drawing/core/_shared";
@@ -13,6 +13,10 @@ import { rangeLabelLines } from "lightweight-charts-drawing/core/scene/ranges";
 import { rangeArrowPath } from "lightweight-charts-drawing/core/scene/lines";
 import { eventPoint } from "./helpers";
 import { type Frame, type OverlayCx } from "./context";
+
+/** DOM event (on the chart root, detail = the PointerEvent) by which the
+ *  chart's Shift+Click starts a measure at the click. */
+export const MEASURE_START_EVENT = "ot-measure-start";
 
 // Measure ruler: label fill (the box is the same colour at 20 %) and line
 // colour per direction; fill of the measured range on the scales.
@@ -58,6 +62,8 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
   // First (committed) point of an in-progress two-click measure, as a SCREEN
   // point already magnet-snapped at click time. Null between measurements.
   const [measureStart, setMeasureStart] = createSignal<Pt | null>(null);
+  // The same first point as data (bar time + price).
+  let measureAnchor: DataPoint | null = null;
   const regionTool = (): "measure" | "zoom" | null => {
     const t = props.armedTool;
     return t === "measure" || t === "zoom" ? t : null;
@@ -73,6 +79,29 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
     }
     if (!regionTool()) setRegion(null);
   });
+  // Shift+Click on the chart (view/pointer.ts) arms Measure and hands over
+  // the click: it is the measure's first point.
+  onMount(() => {
+    const root = cx.svg?.parentElement;
+    if (!root) return;
+    const onStart = (e: Event) => {
+      if (props.armedTool === "measure" && !measureStart()) onMeasureClick((e as CustomEvent<PointerEvent>).detail);
+    };
+    root.addEventListener(MEASURE_START_EVENT, onStart);
+    onCleanup(() => root.removeEventListener(MEASURE_START_EVENT, onStart));
+  });
+  // The first point stays on its bar and price while the chart pans or
+  // zooms (a Shift+drag pans the chart with the measure in progress).
+  createEffect(on(() => props.coordEpoch, () => {
+    const start = measureStart();
+    const f = cx.frameByKey(measureKey());
+    if (!start || !f || !measureAnchor) return;
+    const p = projectPoint(f.coords, measureAnchor);
+    if (!p) return;
+    const pt = { x: p.x, y: p.y + f.top };
+    setMeasureStart(pt);
+    setRegion((r) => (r ? { start: pt, end: r.end } : null));
+  }, { defer: true }));
   // The next press on the chart removes a finished ruler.
   onMount(() => {
     const onPress = (e: PointerEvent) => {
@@ -114,6 +143,7 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
       const pt = measurePoint(e, f);
       setMeasureResult(null);
       setMeasureKey(f.key);
+      measureAnchor = unproject(f.coords, cx.toLocal(pt, f));
       setMeasureStart(pt);
       setRegion({ start: pt, end: pt });
       return;
@@ -130,6 +160,20 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
     setMeasureStart(null);
     setRegion(null);
     props.onDisarm();
+    // The press also reaches the chart beneath, so a drag from it pans the
+    // chart (the finished ruler moves with it).
+    const beneath = document.elementsFromPoint(e.clientX, e.clientY).find((el) => el !== overlay.svg && !overlay.svg.contains(el));
+    beneath?.dispatchEvent(new MouseEvent("mousedown", {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      screenX: e.screenX,
+      screenY: e.screenY,
+      button: 0,
+      buttons: 1,
+      bubbles: true,
+      cancelable: true,
+      view: window,
+    }));
   }
 
   // Zoom press-drag-release (Measure no longer uses this — it's two-click).
