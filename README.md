@@ -97,10 +97,9 @@ docs/assets/          README images
 
 ## Release
 
-1. Set the version in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `package.json`.
-2. Commit, then push a matching tag: `git tag v0.1.0 && git push origin v0.1.0`.
-3. The [Release workflow](.github/workflows/release.yml) builds Windows, macOS and Linux installers and attaches them to a draft release. Review the draft and publish it.
-4. Installed apps (Windows and macOS) find the new version at their next start or within an hour, download it, and offer "Update the app". This starts only once the release is published.
+1. The [Prepare release workflow](.github/workflows/prepare-release.yml) bumps `oakscriptjs`, `lightweight-charts-indicators` and the drawing core (`config.drawingRef` in `package.json`) to their latest release, bumps the app version, runs the checks, then commits, tags and pushes to `main`. It runs daily (releases only when a library has a new version) and from the Actions tab with "Run workflow" (also releases new commits since the last tag).
+2. The [Release workflow](.github/workflows/release.yml) then builds Windows, macOS and Linux installers into a release for the tag, with notes from the commits, and publishes it once all three are built. A manually pushed version tag (`git tag v0.1.0 && git push origin v0.1.0`) runs the same build.
+3. Installed apps (Windows and macOS) find the new version at their next start or within an hour, download it, and offer "Update the app".
 
 The workflow needs the repository secrets `OPENTRADER_GATEWAY_TOKEN`, `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (update signing key; its public key is `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`).
 

@@ -1,9 +1,10 @@
 name: Release
 
 # Builds the OpenTrader installers for Windows, macOS and Linux.
-#   - Push a version tag (git tag v0.1.0 && git push origin v0.1.0): builds all
-#     three and attaches the installers to a DRAFT GitHub Release for that tag.
-#     Review the draft, then publish it.
+#   - Called by the Prepare release workflow with its new tag, or on a pushed
+#     version tag (git tag v0.1.0 && git push origin v0.1.0): creates a draft
+#     GitHub Release for the tag with notes from scripts/release-notes.mjs,
+#     builds all three into it, and publishes it once all three succeeded.
 #   - Manual run (Actions tab -> "Run workflow"): builds all three and uploads
 #     the installers as workflow artifacts only. No release is created.
 #
@@ -12,22 +13,56 @@ name: Release
 # Plus the in-app update files (src-tauri/src/app_update.rs): a .sig per
 # updater bundle and latest.json in the release. Installed apps read
 # releases/latest/download/latest.json, so an update reaches users only once
-# the draft is published.
+# the release is published (publish job).
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Version tag to release (v<tauri.conf.json version>)'
+        type: string
+        required: true
 
 env:
-  # Source of the drawing core (deepentropy/lightweight-charts-drawing, src/core and
-  # src/runtime). OpenTrader imports it from source as a sibling folder, see
-  # vite.config.ts. Bump this with the lib release OpenTrader is tested against.
-  DRAWING_REF: v0.6.2
+  # Tag to release: empty on a manual run (build only).
+  TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name || '') }}
 
 jobs:
-  build:
+  # Draft release with its notes, created once so the three builds upload to
+  # the same release. Reused when the workflow is re-run for the tag.
+  draft:
+    runs-on: ubuntu-latest
     permissions:
-      contents: write            # create the draft release and upload its assets
+      contents: write
+    outputs:
+      release_id: ${{ steps.draft.outputs.id }}
+    steps:
+      - name: Checkout OpenTrader
+        if: env.TAG != ''
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0         # tags, for the commits since the previous one
+
+      - name: Create draft release
+        if: env.TAG != ''
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/release-notes.mjs "$TAG" > notes.md
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n1)
+          if [ -z "$id" ]; then
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="OpenTrader $TAG" -F body=@notes.md -F draft=true --jq .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: draft
+    permissions:
+      contents: write            # upload the installers to the draft release
     strategy:
       fail-fast: false           # one OS failing must not cancel the others
       matrix:
@@ -58,12 +93,21 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: opentrader
+          ref: ${{ env.TAG || github.ref }}
+
+      # Drawing core release OpenTrader is tested against: package.json
+      # config.drawingRef (bumped by scripts/release-bump.mjs).
+      - name: Read drawing core ref
+        id: refs
+        shell: bash
+        working-directory: opentrader
+        run: echo "drawing=$(node -p "require('./package.json').config.drawingRef")" >> "$GITHUB_OUTPUT"
 
       - name: Checkout drawing core
         uses: actions/checkout@v7
         with:
           repository: deepentropy/lightweight-charts-drawing
-          ref: ${{ env.DRAWING_REF }}
+          ref: ${{ steps.refs.outputs.drawing }}
           path: lightweight-charts-drawing
 
       - name: Check secrets and version
@@ -79,8 +123,8 @@ jobs:
             exit 1
           fi
           version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match tauri.conf.json version $version (expected v$version)."
+          if [ -n "$TAG" ] && [ "$TAG" != "v$version" ]; then
+            echo "::error::Tag $TAG does not match tauri.conf.json version $version (expected v$version)."
             exit 1
           fi
 
@@ -129,9 +173,8 @@ jobs:
         run: cargo test --lib export_bindings
 
       # Builds the SolidJS frontend (beforeBuildCommand) then the Tauri bundles.
-      # On a tag push, tauri-action creates a draft release for the tag and
-      # uploads the installers to it. On a manual run tagName is empty, so it
-      # only builds.
+      # With a tag, tauri-action uploads the installers and latest.json to the
+      # draft release. On a manual run releaseId is empty, so it only builds.
       - name: Build Tauri bundles
         uses: tauri-apps/tauri-action@v0
         env:
@@ -141,11 +184,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         with:
           projectPath: opentrader
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('OpenTrader {0}', github.ref_name) || '' }}
-          releaseBody: 'See the assets below to download and install OpenTrader.'
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.draft.outputs.release_id }}
           args: ${{ matrix.args }}
           # Version-free names, so the README can link to
           # releases/latest/download/<name> (e.g. OpenTrader_windows_x64-setup.exe).
@@ -155,10 +194,10 @@ jobs:
           # plain windows-x86_64 fallback: the NSIS installer (README download).
           updaterJsonPreferNsis: true
 
-      # Manual runs only: on a tag push the installers are already in the draft
+      # Manual runs only: with a tag the installers are already in the draft
       # release, and a second copy would count against the artifact storage quota.
       - name: Upload installers
-        if: github.ref_type != 'tag'
+        if: env.TAG == ''
         uses: actions/upload-artifact@v7
         with:
           retention-days: 7
@@ -167,3 +206,16 @@ jobs:
           path: |
             opentrader/src-tauri/target/release/bundle/**
             opentrader/src-tauri/target/universal-apple-darwin/release/bundle/**
+
+  # All three installers are in: publish, so installed apps get the update.
+  publish:
+    needs: [draft, build]
+    if: needs.draft.outputs.release_id != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ needs.draft.outputs.release_id }}" -F draft=false -f make_latest=true --silent

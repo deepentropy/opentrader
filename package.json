@@ -20,6 +20,9 @@
     "type": "git",
     "url": "https://github.com/deepentropy/opentrader.git"
   },
+  "config": {
+    "drawingRef": "v0.6.2"
+  },
   "overrides": {
     "lightweight-charts-indicators": {
       "oakscriptjs": "$oakscriptjs"

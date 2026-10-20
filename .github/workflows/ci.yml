@@ -16,10 +16,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Same drawing core release as the release build (release.yml).
-  DRAWING_REF: v0.6.2
-
 jobs:
   check:
     runs-on: windows-latest
@@ -32,11 +28,19 @@ jobs:
         with:
           path: opentrader
 
+      # Same drawing core release as the release build: package.json
+      # config.drawingRef.
+      - name: Read drawing core ref
+        id: refs
+        shell: bash
+        working-directory: opentrader
+        run: echo "drawing=$(node -p "require('./package.json').config.drawingRef")" >> "$GITHUB_OUTPUT"
+
       - name: Checkout drawing core
         uses: actions/checkout@v7
         with:
           repository: deepentropy/lightweight-charts-drawing
-          ref: ${{ env.DRAWING_REF }}
+          ref: ${{ steps.refs.outputs.drawing }}
           path: lightweight-charts-drawing
 
       - name: Install Rust
