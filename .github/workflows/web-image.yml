@@ -2,7 +2,8 @@ name: Web image
 
 # The web version as one container image (src-tauri/crates/server/Dockerfile):
 # the server, serving the built frontend. Built on demand; pushed to the
-# GitHub container registry only when asked.
+# GitHub container registry, and deployed to Cloudflare (deploy/cloudflare),
+# only when asked.
 on:
   workflow_dispatch:
     inputs:
@@ -10,11 +11,18 @@ on:
         description: 'Push the image to ghcr.io'
         type: boolean
         default: false
+      deploy:
+        description: 'Deploy to Cloudflare'
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       push:
         type: boolean
         default: true
+      deploy:
+        type: boolean
+        default: false
 
 jobs:
   # The frontend build needs src/bindings.ts, which the desktop crate's tests
@@ -135,3 +143,44 @@ jobs:
         run: for t in ${TAGS//,/ }; do docker push "$t"; done
         env:
           TAGS: ${{ steps.tags.outputs.tags }}
+
+  # Cloudflare: the Worker serves dist-web and runs the server image as its
+  # container (wrangler builds and pushes the image with Docker).
+  deploy:
+    needs: image
+    if: inputs.deploy
+    runs-on: ubuntu-latest
+    concurrency: cloudflare-deploy
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download dist-web
+        uses: actions/download-artifact@v7
+        with:
+          name: dist-web
+          path: dist-web
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: deploy/cloudflare/package-lock.json
+
+      - name: Install wrangler
+        working-directory: deploy/cloudflare
+        run: npm ci
+
+      # Before the deploy, so the container's first start already has it.
+      - name: Gateway token
+        working-directory: deploy/cloudflare
+        run: printf '%s' "$TOKEN" | npx wrangler secret put OPENTRADER_GATEWAY_TOKEN
+        env:
+          TOKEN: ${{ secrets.OPENTRADER_GATEWAY_TOKEN }}
+
+      - name: Deploy
+        working-directory: deploy/cloudflare
+        run: npx wrangler deploy
