@@ -43,6 +43,7 @@ jobs:
           path: opentrader
           ref: main
           fetch-depth: 0         # tags, for the commits since the last one
+          fetch-tags: true
 
       - name: Install Node
         uses: actions/setup-node@v7

@@ -45,6 +45,7 @@ jobs:
         with:
           ref: ${{ env.TAG }}
           fetch-depth: 0         # tags, for the commits since the previous one
+          fetch-tags: true
 
       - name: Create draft release
         if: env.TAG != ''

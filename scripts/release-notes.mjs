@@ -28,8 +28,8 @@ if (now && before) {
   ];
   const bumps = libs
     .map(([name, get]) => [name, get(before), get(now)])
-    .filter(([, from, to]) => to && from !== to)
-    .map(([name, from, to]) => `- ${name} ${from ?? "?"} → ${to}`);
+    .filter(([, from, to]) => from && to && from !== to)
+    .map(([name, from, to]) => `- ${name} ${from} → ${to}`);
   if (bumps.length) lines.push("### Libraries", "", ...bumps, "");
 }
 
