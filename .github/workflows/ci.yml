@@ -62,11 +62,11 @@ jobs:
         working-directory: opentrader
         run: npm ci
 
-      # Builds the crate and runs its unit tests; export_bindings writes
-      # src/bindings.ts for the type check below.
+      # Builds the crates (desktop app, core, web server) and runs their unit
+      # tests; export_bindings writes src/bindings.ts for the type check below.
       - name: Rust tests
         working-directory: opentrader/src-tauri
-        run: cargo test --lib
+        run: cargo test --workspace --lib
 
       - name: Type check
         working-directory: opentrader

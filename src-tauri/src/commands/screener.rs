@@ -6,16 +6,17 @@
 use crate::screener::fields::{self, FieldInfo};
 use crate::screener::scan::{self, ScanRequest, ScanResult};
 use crate::screener::{Screener, ScreenerStatus};
-use tauri::{AppHandle, State};
+use opentrader_core::host::HostRef;
+use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
 pub async fn screener_open(
-    app: AppHandle,
+    host: State<'_, HostRef>,
     screener: State<'_, Screener>,
     owner: String,
 ) -> Result<ScreenerStatus, String> {
-    Ok(screener.open(app, owner))
+    Ok(screener.open(host.inner().clone(), owner))
 }
 
 #[tauri::command]

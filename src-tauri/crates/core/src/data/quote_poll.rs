@@ -1,0 +1,137 @@
+/*
+ * REST snapshot poller — the live-data transport that needs no stream
+ * entitlement.
+ *
+ * Which stream channels the plan may use is measured by the entitlement
+ * probe (`provider::entitlements`). This task provides the live feed
+ * without the stream by polling the bulk snapshot endpoint on an interval
+ * and re-emitting the identical `TradeTick` / `ChartAggregate` events the
+ * frontend already listens for — so the watchlist and chart light up with
+ * no frontend change. It also supplies the day bar and change / change% /
+ * volume, which the stream's minute bars and trades do not carry.
+ *
+ * It reuses market_stream's subscription plumbing (`SubscribeMsg`,
+ * `WsHandle`) so `commands/realtime.rs` and the managed app state are
+ * unchanged: the frontend still declares its desired chart symbol +
+ * watchlist set, and this task polls exactly that union.
+ *
+ * It always runs. When the probe grants 1-second bars, the second-bars
+ * stream (`market_stream::spawn_second_bars`) runs next to it for the
+ * seconds charts only (see `provider/gateway.rs` spawn).
+ */
+use crate::data::market_rest;
+use crate::data::market_stream::{ChartAggregate, SubscribeMsg, SubscriptionState, TradeTick, WsHandle};
+use std::time::Duration;
+use crate::host::{Event, HostRef};
+use tokio::sync::mpsc;
+use tokio::time::{interval, MissedTickBehavior};
+
+/// How often to poll. The data is 15-minute delayed, so a tight loop buys
+/// nothing new from the feed; 5s keeps the watchlist visibly fresh without
+/// hammering. The cadence is purely a UI-freshness choice (a rate-limited
+/// answer is retried by the REST client after its `Retry-After`).
+const POLL_INTERVAL: Duration = Duration::from_secs(5);
+
+pub fn spawn(app: HostRef) -> WsHandle {
+    let (tx, rx) = mpsc::channel::<SubscribeMsg>(32);
+    // `rt::spawn` — see the note in market_stream::spawn_mode.
+    crate::rt::spawn(async move {
+        run_poller(app, rx).await;
+    });
+    WsHandle { tx }
+}
+
+async fn run_poller(app: HostRef, mut rx: mpsc::Receiver<SubscribeMsg>) {
+    // Desired state, declared per owner (window / window:pane) by the
+    // frontend via commands/realtime.rs; the poller consumes the unions.
+    let mut state = SubscriptionState::default();
+
+    let mut ticker = interval(POLL_INTERVAL);
+    // If a poll runs long (slow network), don't fire a burst of catch-up
+    // ticks afterwards — just resume the cadence from now.
+    ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+
+    loop {
+        tokio::select! {
+            _ = ticker.tick() => {
+                poll_once(&app, &state).await;
+            }
+            msg = rx.recv() => {
+                let Some(msg) = msg else { return; }; // mpsc closed → app shutting down
+                state.apply(msg);
+                // Poll immediately on a subscription change so the UI
+                // populates without waiting up to POLL_INTERVAL.
+                poll_once(&app, &state).await;
+            }
+        }
+    }
+}
+
+async fn poll_once(app: &HostRef, state: &SubscriptionState) {
+    // Union of everything we care about — one bulk request covers it all
+    // (vendor tickers; events go back under each subscribed full name).
+    let tickers = state.all_tickers();
+    if tickers.is_empty() {
+        return;
+    }
+    let symbols: Vec<String> = tickers.into_iter().collect();
+
+    let ticks = match market_rest::fetch_snapshots(&symbols).await {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("[quote_poll] snapshot poll failed: {e:#}");
+            return;
+        }
+    };
+
+    for t in ticks {
+        // Watchlist quote update (every polled symbol gets one): regular-session
+        // last + change / Chg% / Vol, plus the pre/post Ext move and session
+        // source so the UI can blank Ext during regular hours.
+        if t.last > 0.0 {
+            for symbol in state.symbols_for(&t.ticker) {
+                // The host's alert rules read every quote, with the
+                // minute bar for what happened since the previous one.
+                app.on_quote(&symbol, t.last, t.minute.as_ref());
+                let _ = TradeTick {
+                    symbol,
+                    price: t.last,
+                    change: Some(t.change),
+                    change_percent: Some(t.change_percent),
+                    ext_change_percent: t.ext_change_percent,
+                    volume: Some(t.volume),
+                    source: Some(t.source.clone()),
+                    trade_price: t.minute.as_ref().map(|m| m.close),
+                    trade_time: t.minute.as_ref().map(|m| m.time),
+                }
+                .emit(app);
+            }
+        }
+        // Chart minute bar — for every full name some pane currently charts
+        // with this ticker (any window; the frontend filters by symbol).
+        for symbol in state.chart_symbols_for(&t.ticker) {
+            // Prefer the minute bar; when the snapshot has no minute bar but
+            // DOES have a day bar (illiquid minute edge case), still emit so
+            // daily-family charts keep updating. The fallback stamps `time: 0`
+            // so the frontend's intraday bucketing skips it (only the daily
+            // path, which reads `day` directly, consumes such a tick).
+            let day_only = t.minute.is_none();
+            let base = t.minute.clone().or_else(|| t.day.clone());
+            if let Some(bar) = base {
+                let _ = ChartAggregate {
+                    symbol,
+                    time: if day_only { 0.0 } else { bar.time },
+                    open: bar.open,
+                    high: bar.high,
+                    low: bar.low,
+                    close: bar.close,
+                    volume: bar.volume,
+                    // Today's full daily bar rides along so daily/weekly/
+                    // monthly charts update exactly (see bucketLiveTick).
+                    day: t.day.clone(),
+                }
+                .emit(app);
+            }
+        }
+    }
+}

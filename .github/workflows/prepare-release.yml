@@ -91,7 +91,7 @@ jobs:
       - name: Rust tests
         if: steps.bump.outputs.release == 'true'
         working-directory: opentrader/src-tauri
-        run: cargo test --lib
+        run: cargo test --workspace --lib
 
       - name: Type check
         if: steps.bump.outputs.release == 'true'

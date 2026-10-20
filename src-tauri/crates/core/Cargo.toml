@@ -1,0 +1,38 @@
+[package]
+name = "opentrader-core"
+version = "0.0.0"
+description = "OpenTrader: market data, screener and alert logic shared by the desktop app and the web server"
+authors = ["OpenTrader contributors"]
+license = "MIT"
+repository = "https://github.com/deepentropy/opentrader"
+edition = "2021"
+publish = false
+
+[features]
+# Typed desktop events: derives `tauri_specta::Event` on the event payloads so
+# the desktop crate can list them in its generated bindings.
+tauri = ["dep:tauri-specta"]
+
+[dependencies]
+tauri-specta = { version = "2.0.0-rc.25", features = ["derive"], optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+specta = { version = "2.0.0-rc.25", features = ["derive"] }
+chrono = { version = "0.4.44", features = ["serde"] }
+chrono-tz = "0.10"
+dirs = "6.0.0"
+tokio = { version = "1.52.3", features = ["full"] }
+anyhow = "1.0.102"
+# Async methods in the `DataProvider` trait (the provider-agnostic data seam).
+# Needed for `dyn DataProvider` since native async-fn-in-trait isn't dyn-safe.
+async-trait = "0.1"
+# Market stream (live ticks). native-tls so wss:// works without bundling
+# rustls roots.
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
+flate2 = "1"
+reqwest = { version = "0.12", features = ["json", "gzip"] }
+# Encode/decode the bare ticker logo URL into the icon proxy path so the
+# token stays out of the views.
+percent-encoding = "2"
+base64 = "0.22"

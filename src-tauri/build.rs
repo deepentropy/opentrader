@@ -29,7 +29,6 @@ fn main() {
             .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
     }
 
-    gateway_token();
     build_date();
 
     tauri_build::try_build(attributes).expect("failed to run tauri build script");
@@ -58,29 +57,4 @@ fn build_date() {
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
     println!("cargo::rustc-env={VAR}={year:04}-{month:02}-{day:02}");
-}
-
-/// The gateway app token (`data::gateway::token`) is compiled in and never
-/// committed. Official builds set `OPENTRADER_GATEWAY_TOKEN` in the build
-/// environment; a dev build without it takes the value from the repo-root
-/// `.env` (gitignored).
-fn gateway_token() {
-    const VAR: &str = "OPENTRADER_GATEWAY_TOKEN";
-    println!("cargo::rerun-if-env-changed={VAR}");
-    if std::env::var_os(VAR).is_some() {
-        return;
-    }
-    let env_file = std::path::Path::new("../.env");
-    if !env_file.exists() {
-        return;
-    }
-    println!("cargo::rerun-if-changed=../.env");
-    let Ok(text) = std::fs::read_to_string(env_file) else { return };
-    let value = text.lines().find_map(|l| l.trim().strip_prefix(VAR)?.trim_start().strip_prefix('='));
-    if let Some(v) = value {
-        let v = v.trim().trim_matches('"').trim_matches('\'');
-        if !v.is_empty() {
-            println!("cargo::rustc-env={VAR}={v}");
-        }
-    }
 }

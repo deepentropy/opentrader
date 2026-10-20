@@ -1,11 +1,15 @@
 mod alerts;
 mod app_update;
 mod commands;
-mod data;
-mod screener;
+mod host;
 mod window_session;
 
+// The data side lives in the core crate, shared with the web server.
+pub(crate) use opentrader_core::{data, screener};
+
 use data::provider;
+use opentrader_core::host::HostRef;
+use std::sync::Arc;
 use tauri::Manager;
 use tauri_specta::{collect_commands, collect_events, Builder};
 
@@ -155,6 +159,11 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            // The core's background tasks start from here, outside any
+            // ambient Tokio context: give them Tauri's runtime.
+            opentrader_core::rt::set_handle(tauri::async_runtime::handle().inner().clone());
+            let host: HostRef = Arc::new(host::DesktopHost(app.handle().clone()));
+            app.manage(host.clone());
             // Restore the saved windows (main's bounds, then the others) and
             // show them; the config creates main hidden for this.
             window_session::init(app.handle());
@@ -164,11 +173,11 @@ pub fn run() {
             // realtime commands push onto it. Then manage the provider itself so
             // the data commands can route through it. Which transport backs the
             // handle (REST poll vs WebSocket) is the provider's concern.
-            let handle = provider.spawn(app.handle().clone());
+            let handle = provider.spawn(host.clone());
             app.manage(handle);
             // Publish the cached entitlements (no network wait) and re-probe in
             // the background when missing or stale.
-            provider::entitlements::init(app.handle(), provider.clone());
+            provider::entitlements::init(&host, provider.clone());
             app.manage(provider);
             app.manage(screener::Screener::default());
             // Update check at startup, then hourly (app_update).

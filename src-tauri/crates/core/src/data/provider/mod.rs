@@ -1,0 +1,204 @@
+/*
+ * DataProvider — the provider-agnostic data seam.
+ *
+ * Everything the app needs from a market-data vendor is expressed here as a set
+ * of capability traits (history / reference / realtime). The Tauri commands and
+ * the live-data task talk to a `Provider` (a boxed trait object) instead of
+ * calling a data source directly, so swapping sources is one new impl + one
+ * match arm in `build()` — no command or frontend change.
+ *
+ * The frontend contract is unaffected: providers return the shared
+ * `crate::data::types`, which are the same structs already exported to
+ * `bindings.ts`, so the TypeScript side never learns which vendor served a call.
+ *
+ * Date math (trading calendar, scroll-back `before_sec` → range conversion) and
+ * the process/disk caches stay in the command + impl layers; the trait surface
+ * is intentionally just ranged fetches and reference lookups.
+ */
+pub mod capabilities;
+pub mod entitlements;
+mod gateway;
+pub use gateway::GatewayProvider;
+
+use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
+use crate::data::session::SymbolSession;
+use crate::data::symbol::SymbolRef;
+use crate::data::types::{
+    Candle, DividendEvent, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    WsHandle,
+};
+use anyhow::Result;
+use chrono::NaiveDate;
+use std::sync::Arc;
+use crate::host::HostRef;
+
+/// Historical OHLCV bars of a symbol (`SymbolRef`: exchange + provider
+/// ticker). Callers pass an inclusive `[from, to]` calendar range
+/// (the command layer derives it from the trading calendar / scroll anchor).
+/// `adjusted` selects split-adjusted vs raw prices. The chart always reads
+/// split-adjusted bars (the command layer adds the dividend adjustment); raw
+/// bars are for a company's bars under another symbol, scaled by its own
+/// split list.
+#[async_trait::async_trait]
+pub trait HistoryProvider: Send + Sync {
+    async fn daily_aggs(
+        &self,
+        sym: &SymbolRef,
+        from: NaiveDate,
+        to: NaiveDate,
+        adjusted: bool,
+    ) -> Result<Vec<Candle>>;
+    /// Daily bars kept outside `daily_aggs`: the sessions older than its
+    /// history window, oldest first, on the same price scale (`adjusted`).
+    /// Empty when the provider has none for the symbol.
+    async fn daily_archive(&self, _sym: &SymbolRef, _adjusted: bool) -> Result<Vec<Candle>> {
+        Ok(Vec::new())
+    }
+    /// Date the symbol's current listing started, when the provider knows
+    /// it. A ticker symbol can be used again by another company: archived
+    /// bars older than this date belong to the earlier one.
+    /// `None` when unknown; an error when the lookup failed.
+    async fn listing_date(&self, _sym: &SymbolRef) -> Result<Option<NaiveDate>> {
+        Ok(None)
+    }
+    /// Symbols of the company now behind the symbol, each with the date it
+    /// took it (newest first), when the provider keeps that history. Empty
+    /// when unknown; an error when the lookup failed.
+    async fn symbol_changes(&self, _sym: &SymbolRef) -> Result<Vec<SymbolChange>> {
+        Ok(Vec::new())
+    }
+    /// Every executed split of the company now behind the symbol, in any
+    /// order. An error when the list could not be read (bars must then not be
+    /// scaled with it); it keeps the lookup's code so a load that could not
+    /// reach the server is asked again.
+    async fn executed_splits(&self, _sym: &SymbolRef) -> Result<Vec<SplitEvent>> {
+        Ok(Vec::new())
+    }
+    /// Every dividend of the symbol, in any order, amounts as declared. An
+    /// error when the list could not be read (bars must then not be adjusted
+    /// with it), with the lookup's code as for the splits.
+    async fn paid_dividends(&self, _sym: &SymbolRef) -> Result<Vec<DividendEvent>> {
+        Ok(Vec::new())
+    }
+    async fn minute_aggs(
+        &self,
+        sym: &SymbolRef,
+        mult: u32,
+        from: NaiveDate,
+        to: NaiveDate,
+        adjusted: bool,
+    ) -> Result<Vec<Candle>>;
+    async fn second_aggs(
+        &self,
+        sym: &SymbolRef,
+        mult: u32,
+        from: NaiveDate,
+        to: NaiveDate,
+        adjusted: bool,
+    ) -> Result<Vec<Candle>>;
+    /// Seconds live tail: bars newer than `since_sec` (UNIX seconds) — the
+    /// seconds chart's refresh loop, which must not refetch whole sessions.
+    async fn second_tail(
+        &self,
+        sym: &SymbolRef,
+        mult: u32,
+        since_sec: f64,
+        adjusted: bool,
+    ) -> Result<Vec<Candle>>;
+}
+
+/// One step of a company's symbol history: from `date` on it traded as
+/// `ticker` (the app's name of the ticker).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SymbolChange {
+    pub date: NaiveDate,
+    pub ticker: String,
+}
+
+/// Symbol reference data, snapshots, corporate-action events, and branding icon.
+#[async_trait::async_trait]
+pub trait ReferenceProvider: Send + Sync {
+    async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo>;
+    /// Trading sessions of a symbol (time zone, regular / extended hours,
+    /// holidays). Called before the first bars of a symbol, so it should
+    /// answer fast (no I/O when the provider can).
+    async fn symbol_session(&self, sym: &SymbolRef) -> Result<SymbolSession>;
+    async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot>;
+    async fn search(
+        &self,
+        query: &str,
+        type_filter: Option<&str>,
+    ) -> Result<Vec<SymbolSearchResult>>;
+    /// Dividend / split markers. A failed lookup is an error (not an empty
+    /// list) so the app can ask again once the server can be reached.
+    async fn dividends(&self, sym: &SymbolRef) -> Result<Vec<DividendEvent>>;
+    async fn splits(&self, sym: &SymbolRef) -> Result<Vec<SplitEvent>>;
+    /// Newest headlines for the "Latest news" lollipop (newest first); empty on
+    /// failure, like the event markers.
+    async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem>;
+    /// Fetch a branding icon by its encoded proxy path → `(bytes, content_type)`.
+    async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)>;
+    /// Financial statement items and earnings releases of the company behind
+    /// the symbol. An error when there are none (or the lookup failed).
+    async fn fundamentals(&self, _sym: &SymbolRef) -> Result<Arc<Fundamentals>> {
+        anyhow::bail!("fundamentals are not available from this data source")
+    }
+}
+
+/// Live data. The provider owns its streaming strategy (REST poll vs WebSocket)
+/// behind a single spawned task that emits the typed `ChartAggregate` /
+/// `TradeTick` events and accepts desired-subscription updates over `WsHandle`.
+pub trait RealtimeProvider: Send + Sync {
+    /// Spawn the long-lived live-data task and return its subscription handle
+    /// (managed in app state; the realtime commands push onto it).
+    fn spawn(&self, host: HostRef) -> WsHandle;
+}
+
+/// The full data contract. One object, injected as app state.
+#[async_trait::async_trait]
+pub trait DataProvider: HistoryProvider + ReferenceProvider + RealtimeProvider {
+    /// Stable identifier of the active provider — matches the `DATA_PROVIDER`
+    /// env value and the frontend adapter key. Exposed to the frontend (via the
+    /// `get_data_provider` command) so it can select the matching presentation
+    /// adapter instead of hardcoding one.
+    fn name(&self) -> &'static str;
+
+    /// What this provider's code can serve (no I/O). `entitlements` is left
+    /// `None`; the entitlement store fills it in (see `entitlements.rs`).
+    fn capabilities(&self) -> ProviderCapabilities;
+
+    /// Fingerprint of the configured credential (never the secret itself), or
+    /// `None` when none is set. Keys the entitlement cache.
+    fn credential_id(&self) -> Option<String>;
+
+    /// Measure the history half of the entitlements: data status, delay, and
+    /// the oldest available bar per family.
+    async fn probe_history(&self) -> Result<HistoryProbe>;
+
+    /// Measure which live-stream channels the credential may use.
+    /// `data_status` (from `probe_history`) selects the delayed or real-time
+    /// endpoint when the source has two. A source that limits stream
+    /// connections must not let this overlap the live task's connection.
+    async fn probe_stream(&self, data_status: DataStatus) -> Result<StreamCaps>;
+}
+
+/// Shared, cheaply-cloneable handle to the active provider (app-state type).
+pub type Provider = Arc<dyn DataProvider>;
+
+/// Name of the default provider: the OpenTrader gateway.
+pub const DEFAULT_PROVIDER: &str = "gateway";
+
+/// Build the provider selected by the `DATA_PROVIDER` env var (default
+/// "gateway"). Add a new arm here when a second provider lands. Any other
+/// value — a provider name from an earlier version included — runs the
+/// gateway, so an old `.env` keeps working.
+pub fn build() -> Provider {
+    let name = std::env::var("DATA_PROVIDER").unwrap_or_default();
+    match name.trim() {
+        "" | DEFAULT_PROVIDER => Arc::new(GatewayProvider),
+        other => {
+            eprintln!("[provider] DATA_PROVIDER={other:?} is not a provider of this version; using {DEFAULT_PROVIDER}");
+            Arc::new(GatewayProvider)
+        }
+    }
+}
