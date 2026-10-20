@@ -65,7 +65,7 @@ mod subscriptions;
 
 pub use events::{ChartAggregate, SecondAggregate, TradeTick};
 use events::handle_text;
-pub use subscriptions::{SubscribeMsg, SubscriptionState};
+pub use subscriptions::{ticker_of, SubscribeMsg, SubscriptionState};
 
 /// Longest wait for the subscribe replies during `probe_channels`.
 const PROBE_REPLY_WAIT: Duration = Duration::from_secs(6);

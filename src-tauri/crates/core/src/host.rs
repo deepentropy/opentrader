@@ -21,11 +21,24 @@ pub trait Event: Serialize {
         host.emit_value(Self::NAME, serde_json::to_value(self)?);
         Ok(())
     }
+
+    /// Push the event to the view of a subscription `owner` only.
+    fn emit_to(&self, host: &HostRef, owner: &str) -> Result<(), serde_json::Error> {
+        host.emit_value_to(owner, Self::NAME, serde_json::to_value(self)?);
+        Ok(())
+    }
 }
 
 pub trait Host: Send + Sync + 'static {
     /// Push one event to every open view.
     fn emit_value(&self, name: &'static str, payload: serde_json::Value);
+
+    /// Push one event to the view of a subscription owner ("<view>" or
+    /// "<view>:<pane>", see `SubscribeMsg`). Every view gets it by default:
+    /// views keep only the symbols they show.
+    fn emit_value_to(&self, _owner: &str, name: &'static str, payload: serde_json::Value) {
+        self.emit_value(name, payload);
+    }
 
     /// One quote from the live task: the regular-session last and the latest
     /// minute bar (pre- and post-market included).

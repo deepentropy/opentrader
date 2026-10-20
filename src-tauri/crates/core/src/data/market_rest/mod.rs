@@ -48,7 +48,7 @@ pub(crate) use corporate_actions::set_splits_for_test;
 pub use fundamentals::{fetch_fundamentals, Fundamentals};
 pub use market_snapshot::{fetch_market_snapshot, shape_feed_snapshots, FeedSnapshot, MarketRow};
 pub use news::{latest_news, NewsItem};
-pub use quotes::fetch_snapshots;
+pub use quotes::{fetch_snapshots, LiveTick};
 pub use reference::{
     fetch_icon, fetch_reference_tickers, fetch_ticker_info, listing_date, set_icon_proxy_base, ticker_changes, RefTicker, TickerInfo,
 };

@@ -112,7 +112,7 @@ impl SubscriptionState {
 
 /// Vendor ticker of a full name ("NASDAQ:AAPL" → "AAPL", "NYSE:BAC/PB" →
 /// "BACpB": the vendor's spelling, see `ticker_case`).
-fn ticker_of(symbol: &str) -> String {
+pub fn ticker_of(symbol: &str) -> String {
     ticker_case::to_source(&SymbolRef::parse(symbol).ticker)
 }
 

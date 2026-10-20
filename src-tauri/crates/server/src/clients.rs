@@ -23,6 +23,8 @@ pub fn valid_id(id: &str) -> bool {
 /// One event, serialized once for every client.
 pub struct Outgoing {
     pub name: &'static str,
+    /// The one client it is for; `None` = every client that wants it.
+    pub to: Option<String>,
     /// The payload's `symbol`, for the per-symbol events.
     pub symbol: Option<String>,
     /// `{"event": name, "payload": ...}`.
@@ -43,12 +45,24 @@ impl ServerHost {
     }
 }
 
-impl Host for ServerHost {
-    fn emit_value(&self, name: &'static str, payload: serde_json::Value) {
+impl ServerHost {
+    fn send(&self, to: Option<String>, name: &'static str, payload: serde_json::Value) {
         let symbol = payload.get("symbol").and_then(|s| s.as_str()).map(str::to_string);
         let text = serde_json::json!({ "event": name, "payload": payload }).to_string();
         // No receiver = no client connected.
-        let _ = self.tx.send(Arc::new(Outgoing { name, symbol, text }));
+        let _ = self.tx.send(Arc::new(Outgoing { name, to, symbol, text }));
+    }
+}
+
+impl Host for ServerHost {
+    fn emit_value(&self, name: &'static str, payload: serde_json::Value) {
+        self.send(None, name, payload);
+    }
+
+    /// Owners are "<client>" or "<client>:<pane>".
+    fn emit_value_to(&self, owner: &str, name: &'static str, payload: serde_json::Value) {
+        let client = owner.split(':').next().unwrap_or(owner).to_string();
+        self.send(Some(client), name, payload);
     }
 }
 
@@ -65,7 +79,11 @@ pub struct Subs {
 }
 
 impl Subs {
-    pub fn wants(&self, ev: &Outgoing) -> bool {
+    /// Whether the client `client`, with these subscriptions, gets `ev`.
+    pub fn wants(&self, client: &str, ev: &Outgoing) -> bool {
+        if ev.to.as_deref().is_some_and(|to| to != client) {
+            return false;
+        }
         match ev.name {
             "chart-aggregate" | "second-aggregate" | "trade-tick" => ev
                 .symbol

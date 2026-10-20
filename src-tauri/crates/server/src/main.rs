@@ -169,7 +169,7 @@ async fn run_events(state: Shared, client: String, mut socket: WebSocket) {
         tokio::select! {
             ev = rx.recv() => match ev {
                 Ok(ev) => {
-                    if subs.lock().unwrap().wants(&ev) && socket.send(Message::Text(ev.text.clone().into())).await.is_err() {
+                    if subs.lock().unwrap().wants(&client, &ev) && socket.send(Message::Text(ev.text.clone().into())).await.is_err() {
                         break;
                     }
                 }
