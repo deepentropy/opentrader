@@ -47,6 +47,9 @@ export class SunkDrawings implements ISeriesPrimitive<Time> {
 
   attached(param: SeriesAttachedParameter<Time, SeriesType>): void {
     this.requestUpdate = param.requestUpdate;
+    // Attaching does not repaint the chart (detaching does): without this the
+    // first drawing sunk in a pane stays unpainted until the next redraw.
+    param.requestUpdate();
   }
 
   detached(): void {
