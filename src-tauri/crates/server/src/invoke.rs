@@ -4,7 +4,7 @@
  * the desktop shell (windows, updater, files, the alert engine) and the
  * webhook relay are not served: the web frontend has its own backing for them.
  */
-use crate::clients::{valid_id, CLIENT_HEADER};
+use crate::clients::{valid_id, Subs, CLIENT_HEADER};
 use crate::Shared;
 use axum::body::Bytes;
 use axum::extract::{Path, State};
@@ -19,6 +19,7 @@ use opentrader_core::screener::{fields, scan};
 use opentrader_core::{funding, history};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 
 /// Panes one client may chart at once (the largest layout has 16).
 const MAX_PANES: usize = 16;
@@ -49,6 +50,16 @@ fn ok<T: Serialize>(v: T) -> Answer {
 fn args<T: DeserializeOwned>(body: &Bytes) -> Result<T, Fail> {
     let body: &[u8] = if body.is_empty() { b"{}" } else { body };
     serde_json::from_slice(body).map_err(|e| Fail(StatusCode::BAD_REQUEST, format!("arguments: {e}")))
+}
+
+/// The calling client and its subscriptions; it must hold the events WebSocket.
+fn connected_client(state: &Shared, headers: &HeaderMap) -> Result<(String, Arc<Mutex<Subs>>), Fail> {
+    let client = client_of(headers)?;
+    let subs = state
+        .clients
+        .connected(&client)
+        .ok_or_else(|| Fail(StatusCode::CONFLICT, "open the events connection first".into()))?;
+    Ok((client, subs))
 }
 
 fn client_of(headers: &HeaderMap) -> Result<String, Fail> {
@@ -225,11 +236,10 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
 
         // ── Live subscriptions (owner = client, as the window label on desktop) ──
         "set_chart_subscription" => {
-            let client = client_of(headers)?;
+            let (client, subs) = connected_client(state, headers)?;
             let a: ChartSub = args(body)?;
             let symbol = a.symbol.map(|s| s.to_uppercase()).filter(|s| !is_economic_symbol(s));
             {
-                let subs = state.clients.get(&client);
                 let mut subs = subs.lock().unwrap();
                 match &symbol {
                     Some(s) => {
@@ -247,14 +257,14 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
             send(state, SubscribeMsg::SetChart { owner, symbol }).await
         }
         "set_watchlist_subscription" => {
-            let client = client_of(headers)?;
+            let (client, subs) = connected_client(state, headers)?;
             let a: WatchSub = args(body)?;
             let symbols: Vec<String> =
                 a.symbols.into_iter().map(|s| s.to_uppercase()).filter(|s| !is_economic_symbol(s)).collect();
             if symbols.len() > MAX_WATCHLIST {
                 return Err(Fail(StatusCode::TOO_MANY_REQUESTS, "too many watchlist symbols".into()));
             }
-            state.clients.get(&client).lock().unwrap().watchlist = symbols.iter().cloned().collect();
+            subs.lock().unwrap().watchlist = symbols.iter().cloned().collect();
             send(state, SubscribeMsg::SetWatchlist { owner: client, symbols }).await
         }
 
@@ -308,17 +318,19 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
 
         // ── Screener (owners prefixed with the client, so tabs stay apart) ──
         "screener_open" => {
-            let client = client_of(headers)?;
+            let (client, subs) = connected_client(state, headers)?;
             let a: Owner = args(body)?;
             let owner = format!("{client}/{}", a.owner);
-            state.clients.get(&client).lock().unwrap().screener_owners.insert(owner.clone());
+            subs.lock().unwrap().screener_owners.insert(owner.clone());
             ok(state.screener.open(state.host.clone(), owner))
         }
         "screener_close" => {
             let client = client_of(headers)?;
             let a: Owner = args(body)?;
             let owner = format!("{client}/{}", a.owner);
-            state.clients.get(&client).lock().unwrap().screener_owners.remove(&owner);
+            if let Some(subs) = state.clients.connected(&client) {
+                subs.lock().unwrap().screener_owners.remove(&owner);
+            }
             state.screener.close(&owner);
             ok(())
         }

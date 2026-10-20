@@ -1,6 +1,7 @@
 # Node / Vite
 node_modules/
 dist/
+dist-web/
 dist-ssr/
 *.local
 

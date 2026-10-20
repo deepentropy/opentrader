@@ -12,7 +12,9 @@
  *
  * Each browser tab is a client: it names itself (`x-opentrader-client`
  * header, `?client=` on the WebSocket), which takes the place of the desktop
- * window label in the subscription owners.
+ * window label in the subscription owners. Its live subscriptions (charts,
+ * watchlist, screener) need its WebSocket open and end when it closes; the
+ * tab subscribes again after a reconnect.
  *
  * Configuration (environment):
  *   OPENTRADER_GATEWAY_TOKEN   gateway token (required for market data)

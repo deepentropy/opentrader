@@ -9,6 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
+    "dev:web": "vite --mode web",
+    "build:web": "vite build --mode web",
     "tauri": "tauri",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -83,14 +83,15 @@ pub struct Clients {
 }
 
 impl Clients {
-    /// The client's subscriptions, created on first use.
-    pub fn get(&self, id: &str) -> Arc<Mutex<Subs>> {
-        self.map.lock().unwrap().entry(id.to_string()).or_default().clone()
+    /// The subscriptions of a client with an open WebSocket. Subscribing needs
+    /// one: its close is what releases them.
+    pub fn connected(&self, id: &str) -> Option<Arc<Mutex<Subs>>> {
+        self.map.lock().unwrap().get(id).filter(|s| s.lock().unwrap().sockets > 0).cloned()
     }
 
     /// A WebSocket of the client opened.
     pub fn connect(&self, id: &str) -> Arc<Mutex<Subs>> {
-        let subs = self.get(id);
+        let subs = self.map.lock().unwrap().entry(id.to_string()).or_default().clone();
         subs.lock().unwrap().sockets += 1;
         subs
     }

@@ -14,7 +14,18 @@ const host = process.env.TAURI_DEV_HOST;
 const drawingCore = fileURLToPath(new URL("../lightweight-charts-drawing/src/core", import.meta.url));
 const drawingRuntime = fileURLToPath(new URL("../lightweight-charts-drawing/src/runtime", import.meta.url));
 
-export default defineConfig(async () => ({
+// Web build (`--mode web`): the desktop bridge modules are replaced by src/web,
+// which talks to the OpenTrader server (src-tauri/crates/server) instead.
+const webShims = [
+  { find: /^@tauri-apps\/api\/core$/, replacement: fileURLToPath(new URL("./src/web/tauri-core.ts", import.meta.url)) },
+  { find: /^@tauri-apps\/api\/event$/, replacement: fileURLToPath(new URL("./src/web/tauri-event.ts", import.meta.url)) },
+  { find: /^@tauri-apps\/plugin-opener$/, replacement: fileURLToPath(new URL("./src/web/tauri-opener.ts", import.meta.url)) },
+];
+// Where the web dev server forwards /api (the server's default address).
+// @ts-expect-error process is a nodejs global
+const webServer = process.env.OPENTRADER_SERVER ?? "http://127.0.0.1:8787";
+
+export default defineConfig(async ({ mode }: { mode: string }) => ({
   plugins: [
     solid(),
     tailwindcss(),
@@ -35,13 +46,15 @@ export default defineConfig(async () => ({
     alias: [
       { find: /^lightweight-charts-drawing\/core/, replacement: drawingCore },
       { find: /^lightweight-charts-drawing\/runtime/, replacement: drawingRuntime },
+      ...(mode === "web" ? webShims : []),
     ],
   },
+  build: mode === "web" ? { outDir: "dist-web" } : undefined,
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   clearScreen: false,
   server: {
-    port: 1420,
+    port: mode === "web" ? 1430 : 1420,
     strictPort: true,
     host: host || false,
     hmr: host
@@ -54,6 +67,7 @@ export default defineConfig(async () => ({
     watch: {
       ignored: ["**/src-tauri/**"],
     },
+    proxy: mode === "web" ? { "/api": { target: webServer, ws: true } } : undefined,
     fs: {
       // @ts-expect-error process is a nodejs global
       allow: [searchForWorkspaceRoot(process.cwd()), drawingCore, drawingRuntime],
