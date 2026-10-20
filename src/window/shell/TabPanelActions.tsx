@@ -11,6 +11,10 @@ import { ProfileMenu } from "../header/ProfileMenu";
 import { updateReady } from "../../data/app-update";
 import { isTauri, openNewWindow } from "./window-bridge";
 
+/** The web version (`vite --mode web`): its title bar links to the desktop app. */
+const WEB_BUILD = import.meta.env.MODE === "web";
+const DESKTOP_DOWNLOAD_URL = "https://github.com/deepentropy/opentrader/releases/latest";
+
 type Props = {
   userName?: string;
   /** Open App Settings (ProfileMenu's "app-settings" row). */
@@ -32,6 +36,19 @@ export function TabPanelActions(props: Props) {
       <Tooltip text="Market data is delayed by 15 minutes." side="bottom">
         <span class="data-delay-badge" data-qa-id="data-delay-badge">Delayed 15 min</span>
       </Tooltip>
+      {/* Web version: where to get the desktop app (the desktop shows its window
+          controls in this place). */}
+      <Show when={WEB_BUILD}>
+        <a
+          class="get-desktop-app-button"
+          data-qa-id="get-desktop-app-button"
+          href={DESKTOP_DOWNLOAD_URL}
+          target="_blank"
+          rel="noopener"
+        >
+          Get the desktop app
+        </a>
+      </Show>
       {/* New window (Ctrl+N) — multi-window only, so hidden off-shell. */}
       <Show when={isTauri()}>
         <button

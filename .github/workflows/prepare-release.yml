@@ -123,6 +123,7 @@ jobs:
     if: needs.prepare.outputs.release == 'true'
     permissions:
       contents: write
+      packages: write   # its `web` job (web-image.yml) declares it
     uses: ./.github/workflows/release.yml
     with:
       tag: v${{ needs.prepare.outputs.version }}

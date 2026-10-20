@@ -220,3 +220,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/${{ needs.draft.outputs.release_id }}" -F draft=false -f make_latest=true --silent
+
+  # The web version (demo.opentrader.markets) follows each release.
+  web:
+    needs: [draft, publish]
+    if: needs.draft.outputs.release_id != ''
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/web-image.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+      push: false
+      deploy: true
+    secrets: inherit

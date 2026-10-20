@@ -34,6 +34,12 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
     // The splash in index.html shows the app version (the installer's, from
     // tauri.conf.json).
     { name: "app-version", transformIndexHtml: (html: string) => html.replace("__APP_VERSION__", tauriConf.version) },
+    // Web version: the splash says the app also exists for the desktop.
+    {
+      name: "web-desktop-app",
+      transformIndexHtml: (html: string) =>
+        html.replace("<!--web-desktop-app-->", mode === "web" ? '<div class="splash-web">Also available as a free desktop app.</div>' : ""),
+    },
     { name: "watch-drawing-core", configureServer: (server: { watcher: { add: (p: string) => void } }) => { server.watcher.add(drawingCore); server.watcher.add(drawingRuntime); } },
   ],
   // ES module workers: a worker can load a module on demand (the backtest worker loads the indicator library only

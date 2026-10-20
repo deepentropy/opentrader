@@ -3,7 +3,7 @@ name: Web image
 # The web version as one container image (src-tauri/crates/server/Dockerfile):
 # the server, serving the built frontend. Built on demand; pushed to the
 # GitHub container registry, and deployed to Cloudflare (deploy/cloudflare),
-# only when asked.
+# only when asked. Each release deploys it (release.yml, job `web`).
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +17,10 @@ on:
         default: false
   workflow_call:
     inputs:
+      # Commit or tag to build (empty: the triggering one).
+      ref:
+        type: string
+        default: ''
       push:
         type: boolean
         default: true
@@ -34,6 +38,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: opentrader
+          ref: ${{ inputs.ref }}
 
       - name: Read drawing core ref
         id: refs
@@ -89,6 +94,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Download dist-web
         uses: actions/download-artifact@v7
@@ -156,6 +163,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Download dist-web
         uses: actions/download-artifact@v7

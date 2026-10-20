@@ -307,7 +307,8 @@ html.theme-dark .data-delay-badge {
 /* Update downloaded: the reference app's green "Update the app" button (ui-lib button,
  * primary green xsmall, main-menu glyph as end slot) in place of the
  * main-menu button. Measured on the reference app 3.4.1: 28px high, radius 6, padding 0 7. */
-.main-menu-update-app-button {
+.main-menu-update-app-button,
+.get-desktop-app-button {
   -webkit-app-region: no-drag;
   display: inline-flex;
   align-items: center;
@@ -326,13 +327,22 @@ html.theme-dark .data-delay-badge {
   cursor: default;
 }
 .main-menu-update-app-button:hover,
-.main-menu-update-app-button.opened {
+.main-menu-update-app-button.opened,
+.get-desktop-app-button:hover {
   border-color: var(--color-container-fill-primary-success-semi-bold);
   background-color: var(--color-container-fill-primary-success-semi-bold);
 }
-.main-menu-update-app-button:active {
+.main-menu-update-app-button:active,
+.get-desktop-app-button:active {
   border-color: var(--color-container-fill-primary-success-bold);
   background-color: var(--color-container-fill-primary-success-bold);
+}
+
+/* Web version: the same green button, a link to the desktop app download. */
+.get-desktop-app-button {
+  margin: 0 8px 0 0;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 /* Window controls — minimize / maximize / close at the right edge of the

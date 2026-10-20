@@ -6,6 +6,8 @@
  * The tab is a client of the server under a random id (kept for the tab's
  * life, reloads included). Its live subscriptions belong to its WebSocket: the
  * server drops them when it closes, so they are sent again after a reconnect.
+ * Where the WebSocket cannot open (an extension, a proxy or an antivirus
+ * blocking it), the tab reads the same events by polling `/api/poll`.
  */
 
 /** Server origin; empty = the page's own (the dev server proxies /api). */
@@ -94,56 +96,130 @@ export function onServerEvent(name: string, fn: Handler): () => void {
 
 const RETRY_START_MS = 1000;
 const RETRY_MAX_MS = 30_000;
+/** A WebSocket not open after this long counts as failed. */
+const OPEN_TIMEOUT_MS = 8000;
+/** WebSockets that never opened, in a row, before switching to polling. */
+const FAILS_BEFORE_POLLING = 2;
 
 let socket: WebSocket | null = null;
 let ready: Promise<void> | null = null;
 let retryMs = RETRY_START_MS;
+let failedOpens = 0;
+/** The tab reads its events by polling (its WebSockets cannot open). */
+let polling = false;
 
 function eventsUrl(): string {
   const origin = BASE || location.origin;
   return `${origin.replace(/^http/, "ws")}/api/events?client=${encodeURIComponent(CLIENT)}`;
 }
 
-/** Resolves once the WebSocket is open (opening it on first use). */
+function dispatch(msg: { event?: string; payload?: unknown }): void {
+  if (!msg.event) return;
+  for (const fn of handlers.get(msg.event) ?? []) {
+    try {
+      fn(msg.payload);
+    } catch (e) {
+      console.error(`[server] ${msg.event} handler failed`, e);
+    }
+  }
+}
+
+/** Resolves once the tab is connected: its WebSocket open, or its poll
+ *  session started (opening them on first use). */
 function connected(): Promise<void> {
   if (ready) return ready;
-  ready = new Promise<void>((resolve, reject) => {
+  ready = polling ? startPolling() : openSocket();
+  return ready;
+}
+
+function openSocket(): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     const ws = new WebSocket(eventsUrl());
     socket = ws;
     let opened = false;
+    const timer = setTimeout(() => {
+      if (!opened) ws.close();
+    }, OPEN_TIMEOUT_MS);
     ws.onopen = () => {
       opened = true;
+      clearTimeout(timer);
       retryMs = RETRY_START_MS;
+      failedOpens = 0;
       resolve();
     };
     ws.onmessage = (m) => {
-      let msg: { event?: string; payload?: unknown };
       try {
-        msg = JSON.parse(String(m.data));
+        dispatch(JSON.parse(String(m.data)));
       } catch {
-        return;
-      }
-      if (!msg.event) return;
-      for (const fn of handlers.get(msg.event) ?? []) {
-        try {
-          fn(msg.payload);
-        } catch (e) {
-          console.error(`[server] ${msg.event} handler failed`, e);
-        }
+        /* not an event */
       }
     };
     ws.onclose = () => {
+      clearTimeout(timer);
       if (socket !== ws) return;
       socket = null;
       ready = null;
-      if (!opened) reject("server unreachable");
+      if (!opened) {
+        reject("server unreachable");
+        // Blocked on this browser (an extension, a proxy): the same events by polling.
+        if (++failedOpens >= FAILS_BEFORE_POLLING) {
+          polling = true;
+          console.warn("[server] live connection blocked; reading updates by polling");
+          void connected().then(resubscribe, () => undefined);
+          return;
+        }
+      }
       // Reconnect, then subscribe again: the server dropped this tab's subscriptions.
       const wait = retryMs;
       retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
       setTimeout(() => void connected().then(resubscribe, () => undefined), wait);
     };
   });
-  return ready;
+}
+
+/** One poll: the events queued for the tab. `wait` false answers at once. */
+async function pollOnce(wait: boolean): Promise<{ events: { event?: string; payload?: unknown }[]; fresh: boolean }> {
+  const res = await fetch(`${BASE}/api/poll?client=${encodeURIComponent(CLIENT)}${wait ? "" : "&wait=0"}`, { cache: "no-store" });
+  if (!res.ok) throw `poll failed (${res.status})`;
+  return { events: await res.json(), fresh: res.headers.get("x-opentrader-session") === "new" };
+}
+
+/** Start the poll session (resolves once the server has it), then keep polling. */
+function startPolling(): Promise<void> {
+  return pollOnce(false).then(
+    ({ events }) => {
+      events.forEach(dispatch);
+      void pollLoop();
+    },
+    (e) => {
+      ready = null;
+      const wait = retryMs;
+      retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+      setTimeout(() => void connected().then(resubscribe, () => undefined), wait);
+      throw e;
+    },
+  );
+}
+
+/** Shortest time between two polls. */
+const POLL_GAP_MS = 1000;
+
+async function pollLoop(): Promise<void> {
+  for (;;) {
+    const started = Date.now();
+    try {
+      const { events, fresh } = await pollOnce(true);
+      retryMs = RETRY_START_MS;
+      // A new session: the server forgot this tab's subscriptions.
+      if (fresh) resubscribe();
+      events.forEach(dispatch);
+      const rest = POLL_GAP_MS - (Date.now() - started);
+      if (rest > 0) await new Promise((r) => setTimeout(r, rest));
+    } catch {
+      await new Promise((r) => setTimeout(r, retryMs));
+      retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
+    }
+  }
 }
 
 function resubscribe(): void {

@@ -7,14 +7,16 @@
  *                               its error string with a 4xx/5xx status.
  *   GET  /api/events            WebSocket of the live events
  *                               (`{"event": <name>, "payload": ...}`).
+ *   GET  /api/poll              the same events over plain HTTP, for a tab
+ *                               whose WebSocket cannot open (see poll.rs).
  *   GET  /api/ticker-icon/<url> ticker logos (the token stays here).
  *   GET  /api/health
  *
  * Each browser tab is a client: it names itself (`x-opentrader-client`
  * header, `?client=` on the WebSocket), which takes the place of the desktop
  * window label in the subscription owners. Its live subscriptions (charts,
- * watchlist, screener) need its WebSocket open and end when it closes; the
- * tab subscribes again after a reconnect.
+ * watchlist, screener) need its WebSocket (or poll session) open and end when
+ * it closes; the tab subscribes again after a reconnect.
  *
  * Configuration (environment):
  *   OPENTRADER_GATEWAY_TOKEN   gateway token (required for market data)
@@ -27,6 +29,7 @@
  */
 mod clients;
 mod invoke;
+mod poll;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Query, State};
@@ -58,6 +61,8 @@ pub struct AppState {
     pub clients: Clients,
     /// Page origins allowed to connect; `None` = any.
     pub origins: Option<Vec<String>>,
+    /// Clients reading their events by polling.
+    pub polls: poll::Sessions,
 }
 
 type Shared = Arc<AppState>;
@@ -89,6 +94,7 @@ async fn main() {
         host,
         clients: Clients::default(),
         origins: origins.clone(),
+        polls: poll::Sessions::default(),
     });
 
     let cors = match &origins {
@@ -109,6 +115,7 @@ async fn main() {
         .route("/api/health", get(|| async { "ok" }))
         .route("/api/invoke/{command}", post(invoke::handle))
         .route("/api/events", get(events))
+        .route("/api/poll", get(poll::handle))
         .route("/api/ticker-icon/{*encoded}", get(icon))
         .with_state(state)
         .layer(cors);
@@ -152,12 +159,8 @@ async fn events(
     if !clients::valid_id(&q.client) {
         return (StatusCode::BAD_REQUEST, "invalid client id").into_response();
     }
-    // Browsers send no CORS preflight for a WebSocket: check the page origin here.
-    if let Some(list) = &state.origins {
-        let origin = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()).unwrap_or("");
-        if !list.iter().any(|o| o == origin) {
-            return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
-        }
+    if !origin_ok(&state, &headers) {
+        return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
     }
     ws.on_upgrade(move |socket| run_events(state, q.client, socket))
 }
@@ -182,9 +185,25 @@ async fn run_events(state: Shared, client: String, mut socket: WebSocket) {
             },
         }
     }
-    // The tab is gone: drop its subscriptions and screener panels.
-    if let Some(gone) = state.clients.disconnect(&client, &subs) {
-        let _ = state.live.tx.send(SubscribeMsg::DropOwner { owner: client.clone() }).await;
+    client_gone(&state, &client, &subs).await;
+}
+
+/// Browsers send no CORS preflight for a WebSocket or a GET: the page origin,
+/// when the server is limited to some, is checked here. A page of another site
+/// always sends its `Origin`; a same-site GET has none.
+pub(crate) fn origin_ok(state: &Shared, headers: &HeaderMap) -> bool {
+    let Some(list) = &state.origins else { return true };
+    match headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+        None => true,
+        Some(origin) => list.iter().any(|o| o == origin),
+    }
+}
+
+/// A connection of the client closed (WebSocket or poll session). When it was
+/// its last: drop its subscriptions and screener panels.
+pub(crate) async fn client_gone(state: &Shared, client: &str, subs: &Arc<std::sync::Mutex<clients::Subs>>) {
+    if let Some(gone) = state.clients.disconnect(client, subs) {
+        let _ = state.live.tx.send(SubscribeMsg::DropOwner { owner: client.to_string() }).await;
         for owner in gone.screener_owners {
             state.screener.close(&owner);
         }
