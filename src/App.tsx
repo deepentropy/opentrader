@@ -37,6 +37,12 @@ import { RightRail } from "./window/right-rail/RightRail";
 import { BottomBar } from "./window/bottom-bar/BottomBar";
 import { OakScriptPanel } from "./window/oakscript/OakScriptPanel";
 import { StrategyTesterPanel } from "./window/strategy-tester/StrategyTesterPanel";
+import { TradingPanel } from "./window/trading/TradingPanel";
+import { OrderTicket } from "./window/trading/OrderTicket";
+import { BrokerSelectDialog, IbkrLoginDialog } from "./window/trading/BrokerDialogs";
+import { TradingToasts } from "./window/trading/TradingToasts";
+import { broker, BROKER_AVAILABLE } from "./data/broker-store";
+import { tradingUi } from "./data/trading-ui";
 import { intervalSeconds } from "./window/strategy-tester/equity-data";
 import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strategy-entries";
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
@@ -392,6 +398,9 @@ function App() {
     else void toFullSymbol(picked).then(apply, (e) => console.warn(`[symbol] ${picked}: ${e}`));
   }
 
+  // The order ticket's default symbol.
+  createEffect(() => tradingUi.setActiveSymbol(activeFullSymbol() ?? symbol()));
+
   onMount(() => onCleanup(initShellBus({ stripIndexAt: appTabs.stripIndexAt, insertTab: appTabs.insertTab })));
 
   // ── Header dropdowns ───────────────────────────────────────────────────
@@ -498,6 +507,8 @@ function App() {
     // backend names the window that runs it (another one takes over when it
     // is closed). The other windows still read the store for their alert UI.
     whenAlertLeader(windowLabel, () => startAlertEngine(windowLabel));
+    // Broker state; the main window reopens a session left connected.
+    void broker.start(windowLabel === "main");
     let toastSeq = 0;
     const offFire = onAlertFire((f) => {
       setAlertToasts((list) => [...list, { id: `${f.time}-${++toastSeq}`, alertId: f.alertId, symbol: f.symbol, message: f.message, time: f.time, sound: f.sound }]);
@@ -581,6 +592,11 @@ function App() {
         undoLabel={undo.undoLabel()}
         redoLabel={undo.redoLabel()}
         onCompare={() => setCompareDialogOpen(true)}
+        onTrade={BROKER_AVAILABLE ? () => {
+          // Connected: show / hide the trading panel; otherwise pick a broker.
+          if (broker.state().broker != null || broker.connected()) tradingUi.setCollapsed(!tradingUi.collapsed());
+          else tradingUi.openBrokerDialog();
+        } : undefined}
       />
       {/* chart-area — flex row: drawing toolbar | chart-pane | right rail.
           Mirrors the mock's `.chart-area` (App.tsx) so the right rail spans
@@ -766,11 +782,15 @@ function App() {
             onAddStrategy={() => emitAppEvent("chart-open-indicators")}
             onShowOnChart={(time) => emitAppEvent("chart-link-time", { time })}
           />
+          {/* Trading panel: the broker's account manager, while a session exists. */}
+          <TradingPanel onSymbol={onSymbolPicked} />
         </div>
         {/* activeSymbol falls back to the bare ticker: most watchlist symbols
             aren't in the static SYMBOLS set, so activeFullSymbol() is undefined
             for them — without this the WatchlistDetail panel gets no symbol and
             stays blank. WatchlistDetail/Watchlist both accept the bare form. */}
+        {/* Order ticket, docked left of the right rail. */}
+        <OrderTicket />
         <RightRail
           activeTab={activeRailTab()}
           setActiveTab={onRailTabSelect}
@@ -817,6 +837,13 @@ function App() {
         />
       </Show>
       <DialogHost />
+      <Show when={tradingUi.dialog() === "select"}>
+        <BrokerSelectDialog />
+      </Show>
+      <Show when={tradingUi.dialog() === "login"}>
+        <IbkrLoginDialog />
+      </Show>
+      <TradingToasts />
       <Show when={symbolInfoFor()}>{(s) => <SymbolInfoDialog symbol={s()} onClose={() => setSymbolInfoFor(null)} />}</Show>
       <SavedLayoutDialogs layouts={layouts} activeId={activeTab().savedLayoutId} />
       <Show when={intervalDialog()}>

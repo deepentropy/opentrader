@@ -56,6 +56,9 @@ type Props = {
   userName?: string;
   /** ProfileMenu "Settings" → opens AppSettingsDialog on the given tab. */
   onOpenAppSettings?: (tab: "general") => void;
+  /** User clicked the "Trade" pill (broker dialog, or the trading panel).
+   *  No handler: no pill (a build without broker connection). */
+  onTrade?: () => void;
   /** User clicked the "Create alert" button (hotkey Alt+A) — opens AlertDialog. */
   onCreateAlert?: () => void;
   /** User clicked the Fullscreen button (hotkey Shift+F) — toggles fullscreen. */
@@ -406,6 +409,15 @@ export function HeaderToolbar(props: Props) {
           </>
         )}
       </For>
+      {/* "Trade" pill at the right end: pick a broker, or show the trading
+          panel once connected. */}
+      <Show when={props.onTrade}>
+        <Tooltip text="Trade with your broker" side="bottom">
+          <button type="button" class="header-toolbar-trade" data-qa-id="trade-button" onClick={() => props.onTrade?.()}>
+            Trade
+          </button>
+        </Tooltip>
+      </Show>
     </div>
   );
 }

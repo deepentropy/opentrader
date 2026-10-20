@@ -52,6 +52,7 @@
 @import "./styles/timezone-menu.css";
 @import "./styles/oakscript-panel.css";
 @import "./styles/strategy-tester.css";
+@import "./styles/trading.css";
 @import "./styles/screener.css";
 
 :root {
