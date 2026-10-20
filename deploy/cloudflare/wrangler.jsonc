@@ -21,7 +21,8 @@
       "image": "../../src-tauri/crates/server/Dockerfile",
       "image_build_context": "../..",
       "instance_type": "basic",
-      "max_instances": 1
+      // 2: a renamed instance (see INSTANCE) starts while the old one winds down.
+      "max_instances": 2
     }
   ],
   "durable_objects": {

@@ -12,12 +12,16 @@ interface Env {
   ASSETS: Fetcher;
   /** Gateway token (secret). */
   OPENTRADER_GATEWAY_TOKEN: string;
-  /** Origins of the public site (comma-separated), the page origins the server accepts. */
+  /** Origins of the public site (comma-separated): the only pages allowed to call the API. */
   PUBLIC_ORIGIN: string;
 }
 
-/** The one instance: every visitor must reach the same server. */
-const INSTANCE = "main";
+/**
+ * The one instance: every visitor must reach the same server. The container
+ * reads its environment when it starts: after changing the secret, bump the
+ * name so a fresh container starts (the old one sleeps once unpinged).
+ */
+const INSTANCE = "main-2";
 
 export class OpenTraderServer extends Container<Env> {
   defaultPort = 8080;
@@ -26,17 +30,25 @@ export class OpenTraderServer extends Container<Env> {
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env);
-    this.envVars = {
-      OPENTRADER_GATEWAY_TOKEN: env.OPENTRADER_GATEWAY_TOKEN,
-      OPENTRADER_ALLOWED_ORIGINS: env.PUBLIC_ORIGIN,
-    };
+    // Page origins are checked in the Worker (see `fetch`), so a new address
+    // needs no container restart.
+    this.envVars = { OPENTRADER_GATEWAY_TOKEN: env.OPENTRADER_GATEWAY_TOKEN };
   }
+}
+
+/** A page of another site calling the API (browsers send `Origin` on
+ *  WebSocket and cross-origin requests). */
+function foreignOrigin(request: Request, env: Env): boolean {
+  const origin = request.headers.get("Origin");
+  if (!origin) return false;
+  return !env.PUBLIC_ORIGIN.split(",").map((o) => o.trim()).includes(origin);
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
+      if (foreignOrigin(request, env)) return new Response("origin not allowed", { status: 403 });
       return getContainer(env.SERVER, INSTANCE).fetch(request);
     }
     return env.ASSETS.fetch(request);
