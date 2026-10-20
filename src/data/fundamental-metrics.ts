@@ -102,8 +102,9 @@ export type MetricDef = {
   /** Plot colour. */
   color?: string;
   /** Statement metric: its value for one period. `ya`: the same period a year before; `t`: the twelve months
-   *  ending with the period (the TTM at a quarter, the year itself); null when not known. */
-  value?: (g: ItemGetter, ya: ItemGetter | null, t: ItemGetter | null) => number | null;
+   *  ending with the period (the TTM at a quarter, the year itself); `prev`: the period before (the previous
+   *  quarter); null when not known. */
+  value?: (g: ItemGetter, ya: ItemGetter | null, t: ItemGetter | null, prev: ItemGetter | null) => number | null;
   /** TTM is the sum of the four quarters' values (per-share amounts), not the formula over the summed items. */
   ttmSum?: boolean;
   /** Price metric: its value at a bar from the close and the latest periods (TTM and the last quarter). */
@@ -114,6 +115,7 @@ export type MetricDef = {
 
 const QAT: MetricPeriod[] = ["FQ", "FY", "TTM"];
 const QA: MetricPeriod[] = ["FQ", "FY"];
+const Q: MetricPeriod[] = ["FQ"];
 const A: MetricPeriod[] = ["FY"];
 
 function m(tab: MetricTab, depth: 0 | 1, key: string, name: string, periods: MetricPeriod[], kind: MetricKind, value: MetricDef["value"], extra: Partial<MetricDef> = {}): MetricDef {
@@ -280,10 +282,15 @@ export const METRICS: MetricDef[] = [
   m("statistics", 0, "debtToRevenue", "Debt to revenue ratio", QA, "ratio", (g, _ya, t) => div(D.totalDebt(g), t?.("revenue") ?? null)),
   m("statistics", 0, "fcfPerShare", "Free cash flow per share", QA, "perShare", (g) => div(D.freeCashFlow(g), g("sharesDiluted"))),
   m("statistics", 0, "equityToAssets", "Equity to assets ratio", QA, "ratio", (g) => div(g("shareholdersEquity"), g("totalAssets"))),
+  m("statistics", 0, "inventoryToRevenue", "Inventory to revenue ratio", Q, "ratio", (g, _ya, _t, prev) => div(avg(g("inventory"), prev?.("inventory") ?? null), g("revenue"))),
+  m("statistics", 0, "sloanRatio", "Sloan ratio %", Q, "percent", (g, _ya, t) => pct(t ? sub(sub(t("netIncome"), t("cashFromOperations")), t("cashFromInvesting")) : null, g("totalAssets"))),
   m("statistics", 0, "revenueGrowth", "Revenue one year growth %", QAT, "percent", (g, ya) => growth(g("revenue"), ya?.("revenue") ?? null)),
+  m("statistics", 0, "accruals", "Accruals", Q, "money", (g) => sub(g("netIncome"), g("cashFromOperations"))),
   m("statistics", 0, "cashToDebt", "Cash to debt ratio", QA, "ratio", (g) => div(D.cashAndShortTerm(g), D.totalDebt(g))),
   m("statistics", 0, "cogsToRevenue", "COGS to revenue ratio", QA, "ratio", (g) => div(g("cogs"), g("revenue"))),
   m("statistics", 0, "rndToRevenue", "Research & development to revenue ratio %", QA, "percent", (g) => pct(g("rnd"), g("revenue"))),
+  // Days of a quarter's cost of goods sold held in (average) inventory.
+  m("statistics", 0, "daysInventory", "Days inventory", Q, "ratio", (g, _ya, _t, prev) => { const r = div(avg(g("inventory"), prev?.("inventory") ?? null), g("cogs")); return r === null ? null : r * 91.25; }),
 ];
 
 const BY_KEY = new Map(METRICS.map((d) => [d.key, d]));
@@ -317,6 +324,12 @@ function ttmGetterAt(q: FundamentalPeriods, i: number): ItemGetter | null {
   };
 }
 
+/** Whether the period before quarter `i` is the previous quarter (about three months earlier). */
+function previousQuarter(q: FundamentalPeriods, i: number): boolean {
+  const d = (Date.parse(q.end?.[i] ?? "") - Date.parse(q.end?.[i - 1] ?? "")) / 86400e3;
+  return d > 75 && d < 105;
+}
+
 /** The metric's values per period, ascending. Periods without a value are left out. */
 export function metricPoints(f: Fundamentals, def: MetricDef, period: MetricPeriod): MetricPoint[] {
   if (!def.value) return [];
@@ -337,7 +350,8 @@ export function metricPoints(f: Fundamentals, def: MetricDef, period: MetricPeri
     const j = yearAgo(i);
     const ya = j === null ? null : getter(j);
     const t = period === "FQ" ? ttmGetterAt(p, i) : g;
-    const v = period === "TTM" && def.ttmSum ? sum(...[3, 2, 1, 0].map((k) => def.value!(getterAt(p, i - k), null, null))) : def.value(g, ya, t);
+    const prev = i > 0 && period === "FQ" && previousQuarter(p, i) ? getter(i - 1) : null;
+    const v = period === "TTM" && def.ttmSum ? sum(...[3, 2, 1, 0].map((k) => def.value!(getterAt(p, i - k), null, null, null))) : def.value(g, ya, t, prev);
     if (v === null || !Number.isFinite(v)) continue;
     out.push({ end: p.end[i], date: p.date?.[i] ?? p.end[i], fy: p.fy?.[i] ?? null, fp: p.fp?.[i] ?? null, value: v });
   }

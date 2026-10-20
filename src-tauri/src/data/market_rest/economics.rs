@@ -45,6 +45,9 @@ pub struct EconomicMeta {
     pub seasonal: String,
     /// The agency that publishes it.
     pub source: String,
+    /// Symbol search category ("GDP", "Labor", "Prices"…; empty when none).
+    #[serde(default)]
+    pub category: String,
 }
 
 #[derive(Deserialize)]
@@ -58,6 +61,22 @@ struct File {
     units_short: Vec<String>,
     seasonal: Vec<String>,
     source: Vec<String>,
+    /// Absent from a catalog built before categories.
+    #[serde(default)]
+    category: Vec<String>,
+}
+
+/// Symbol search filters of the Economy tab (None = all).
+#[derive(Default)]
+pub struct Filter<'a> {
+    pub source: Option<&'a str>,
+    pub category: Option<&'a str>,
+}
+
+impl Filter<'_> {
+    fn keeps(&self, r: &EconomicMeta) -> bool {
+        self.source.is_none_or(|s| r.source == s) && self.category.is_none_or(|c| r.category == c)
+    }
 }
 
 struct Catalog {
@@ -102,6 +121,7 @@ impl Catalog {
         if [f.name.len(), f.freq.len(), f.units.len(), f.units_short.len(), f.seasonal.len(), f.source.len()]
             .iter()
             .any(|&l| l != n)
+            || !(f.category.is_empty() || f.category.len() == n)
         {
             return None;
         }
@@ -114,6 +134,7 @@ impl Catalog {
                 units_short: f.units_short[i].clone(),
                 seasonal: f.seasonal[i].clone(),
                 source: f.source[i].clone(),
+                category: f.category.get(i).cloned().unwrap_or_default(),
             })
             .collect();
         let keys = rows.iter().map(|r| normalize(&r.name)).collect();
@@ -123,26 +144,29 @@ impl Catalog {
 
     /// Series ids starting with the query first (catalog order: most popular
     /// first), then names holding it at the start of a word.
-    fn search(&self, query: &str) -> Vec<&EconomicMeta> {
+    /// An empty query: the most popular series. Only the rows the filter keeps.
+    fn search(&self, query: &str, filter: &Filter) -> Vec<&EconomicMeta> {
         let id_q = query.trim().to_uppercase();
         let name_q = normalize(query);
         let mut out: Vec<&EconomicMeta> = Vec::new();
         if id_q.is_empty() && name_q.is_empty() {
-            return self.rows.iter().take(LIMIT).collect();
+            return self.rows.iter().filter(|r| filter.keeps(r)).take(LIMIT).collect();
         }
         if !id_q.is_empty() {
             // Exact id first.
             if let Some(&i) = self.by_id.get(&id_q) {
-                out.push(&self.rows[i]);
+                if filter.keeps(&self.rows[i]) {
+                    out.push(&self.rows[i]);
+                }
             }
-            out.extend(self.rows.iter().filter(|r| r.id != id_q && r.id.starts_with(&id_q)).take(LIMIT));
+            out.extend(self.rows.iter().filter(|r| r.id != id_q && r.id.starts_with(&id_q) && filter.keeps(r)).take(LIMIT));
         }
         if !name_q.is_empty() && out.len() < LIMIT {
             for (r, key) in self.rows.iter().zip(&self.keys) {
                 if out.len() >= LIMIT {
                     break;
                 }
-                if r.id.starts_with(&id_q) && !id_q.is_empty() {
+                if (r.id.starts_with(&id_q) && !id_q.is_empty()) || !filter.keeps(r) {
                     continue;
                 }
                 if word_start(key, &name_q) {
@@ -211,8 +235,13 @@ pub fn unit_multiplier(units: &str) -> f64 {
 
 /// The search rows of the series matching `query` (symbol search, Economy).
 pub fn search(query: &str) -> Vec<SymbolSearchResult> {
+    search_filtered(query, &Filter::default())
+}
+
+/// [`search`] within a source agency and / or a category.
+pub fn search_filtered(query: &str, filter: &Filter) -> Vec<SymbolSearchResult> {
     let Some(c) = current() else { return Vec::new() };
-    c.search(query)
+    c.search(query, filter)
         .into_iter()
         .map(|r| SymbolSearchResult {
             ticker: r.id.clone(),
@@ -223,6 +252,18 @@ pub fn search(query: &str) -> Vec<SymbolSearchResult> {
             r#type: Some("economic".into()),
         })
         .collect()
+}
+
+/// The source agencies of the catalog, most series first (the Sources filter).
+pub fn sources() -> Vec<String> {
+    let Some(c) = current() else { return Vec::new() };
+    let mut count: HashMap<&str, usize> = HashMap::new();
+    for r in &c.rows {
+        *count.entry(r.source.as_str()).or_default() += 1;
+    }
+    let mut v: Vec<(&str, usize)> = count.into_iter().filter(|(s, _)| !s.is_empty()).collect();
+    v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+    v.into_iter().map(|(s, _)| s.to_string()).collect()
 }
 
 /// Description of a catalogued series (None when the catalog is not loaded or
@@ -322,6 +363,8 @@ struct SeriesAnswer {
     #[serde(default)]
     source: String,
     #[serde(default)]
+    category: String,
+    #[serde(default)]
     t: Vec<Option<f64>>,
     #[serde(default)]
     v: Vec<Option<f64>>,
@@ -362,6 +405,7 @@ pub async fn fetch_series(id: &str) -> Result<Arc<EconomicSeries>, ApiError> {
             units_short: a.units_short,
             seasonal: a.seasonal,
             source: a.source,
+            category: a.category,
         },
         time,
         value,
@@ -374,7 +418,7 @@ pub async fn fetch_series(id: &str) -> Result<Arc<EconomicSeries>, ApiError> {
 mod tests {
     use super::*;
 
-    fn catalog() -> Catalog {
+    fn catalog_json() -> Vec<u8> {
         let json = serde_json::json!({
             "version": 1, "date": "2026-10-20", "count": 4,
             "id": ["UNRATE", "GDP", "UNRATENSA", "CPIAUCSL"],
@@ -384,18 +428,35 @@ mod tests {
             "source": ["U.S. Bureau of Labor Statistics", "U.S. Bureau of Economic Analysis", "U.S. Bureau of Labor Statistics", "U.S. Bureau of Labor Statistics"],
             "start": ["1948-01-01", "1947-01-01", "1948-01-01", "1947-01-01"], "end": ["2026-09-01", "2026-04-01", "2026-09-01", "2026-09-01"],
         });
-        Catalog::parse(json.to_string().as_bytes()).unwrap()
+        json.to_string().into_bytes()
+    }
+
+    fn catalog() -> Catalog {
+        Catalog::parse(&catalog_json()).unwrap()
     }
 
     #[test]
     fn exact_id_then_id_prefix_then_name_word_start() {
         let c = catalog();
-        let ids = |q: &str| c.search(q).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+        let ids = |q: &str| c.search(q, &Filter::default()).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
         assert_eq!(ids("unrate"), ["UNRATE", "UNRATENSA"]);
         assert_eq!(ids("unemployment"), ["UNRATE", "UNRATENSA"]);
         assert_eq!(ids("gdp"), ["GDP"]);
         assert_eq!(ids("price index"), ["CPIAUCSL"]);
         assert!(ids("zzz").is_empty());
+    }
+
+    #[test]
+    fn filters_by_source_and_category() {
+        let mut json: serde_json::Value = serde_json::from_slice(&catalog_json()).unwrap();
+        json["category"] = serde_json::json!(["Labor", "GDP", "Labor", "Prices"]);
+        let c = Catalog::parse(json.to_string().as_bytes()).unwrap();
+        let ids = |q: &str, f: Filter| c.search(q, &f).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids("", Filter { source: None, category: Some("Labor") }), ["UNRATE", "UNRATENSA"]);
+        assert_eq!(ids("", Filter { source: Some("U.S. Bureau of Economic Analysis"), category: None }), ["GDP"]);
+        assert!(ids("unrate", Filter { source: None, category: Some("Prices") }).is_empty());
+        // A catalog without categories still loads.
+        assert_eq!(catalog().rows[0].category, "");
     }
 
     #[test]

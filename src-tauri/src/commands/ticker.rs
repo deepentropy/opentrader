@@ -62,3 +62,24 @@ pub async fn search_tickers(
         .await
         .map_err(|e| e.to_string())
 }
+
+/// Economy tab of the symbol search: the series matching `query` (the most
+/// popular for an empty query) within a source agency and / or a category.
+#[tauri::command]
+#[specta::specta]
+pub async fn search_economic(
+    query: String,
+    source: Option<String>,
+    category: Option<String>,
+) -> Result<Vec<SymbolSearchResult>, String> {
+    use crate::data::market_rest::economics;
+    let filter = economics::Filter { source: source.as_deref(), category: category.as_deref() };
+    Ok(economics::search_filtered(query.trim(), &filter))
+}
+
+/// The source agencies of the economic series catalog, most series first.
+#[tauri::command]
+#[specta::specta]
+pub async fn economic_sources() -> Result<Vec<String>, String> {
+    Ok(crate::data::market_rest::economics::sources())
+}

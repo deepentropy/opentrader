@@ -20,10 +20,11 @@ import {
   type SymbolRow,
   type SymbolCategoryId,
 } from "../../data/symbol-search";
-import { getTickerInfo, searchSymbols } from "../../data/datafeed";
+import { ECONOMIC_CATEGORIES, economicSources, getTickerInfo, searchEconomic, searchSymbols } from "../../data/datafeed";
 import { recentSymbols } from "../../data/recent-symbols";
 import { countryOfExchange, flagUrl } from "../../data/country-flags";
 import type { SymbolSearchResult } from "../../bindings";
+import { searchResultToRow } from "../../data/providers";
 import * as kv from "../../data/kv";
 import { ECONOMIC_DATA_NOTICE } from "../../data/economic-notice";
 import { Tooltip } from "../../components/Tooltip";
@@ -150,6 +151,69 @@ function renderHighlighted(text: string, range: [number, number] | null): JSX.El
   );
 }
 
+/** Economy rows in the catalogue's order (most popular first), with the query highlighted. */
+function economyRows(results: SymbolSearchResult[], query: string): FilteredRow[] {
+  const q = query.toUpperCase();
+  return results.map((r) => {
+    const row = searchResultToRow(r);
+    const t = q ? row.ticker.toUpperCase().indexOf(q) : -1;
+    const d = q ? row.description.toUpperCase().indexOf(q) : -1;
+    return { ...row, titleHighlight: t >= 0 ? [t, t + q.length] : null, descriptionHighlight: d >= 0 ? [d, d + q.length] : null };
+  });
+}
+
+// Economy tab filters, kept for the app session (null = all).
+const [econSource, setEconSource] = createSignal<string | null>(null);
+const [econCategory, setEconCategory] = createSignal<string | null>(null);
+
+/** A filter chip with its drop-down list (first option = no filter). */
+function FilterChip(props: { all: string; value: string | null; options: string[]; onPick: (v: string | null) => void }) {
+  const [open, setOpen] = createSignal(false);
+  let wrap: HTMLDivElement | undefined;
+  createEffect(() => {
+    if (!open()) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrap && !wrap.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown, true);
+    onCleanup(() => document.removeEventListener("mousedown", onDown, true));
+  });
+  const pick = (v: string | null) => {
+    props.onPick(v);
+    setOpen(false);
+  };
+  return (
+    <div class="symbol-search-filter-wrap" ref={wrap}>
+      <button
+        type="button"
+        class={"symbol-search-filter" + (props.value ? " is-active" : "")}
+        aria-haspopup="listbox"
+        aria-expanded={open()}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>{props.value ?? props.all}</span>
+        <svg class="symbol-search-filter-caret" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="12" height="12">
+          <path fill="currentColor" d="M3 6l5 5 5-5z" />
+        </svg>
+      </button>
+      <Show when={open()}>
+        <div class="symbol-search-type-menu" role="listbox">
+          <button type="button" role="option" aria-selected={!props.value} class={"symbol-search-type-option" + (!props.value ? " selected" : "")} onClick={() => pick(null)}>
+            {props.all}
+          </button>
+          <For each={props.options}>
+            {(o) => (
+              <button type="button" role="option" aria-selected={o === props.value} class={"symbol-search-type-option" + (o === props.value ? " selected" : "")} onClick={() => pick(o)}>
+                {o}
+              </button>
+            )}
+          </For>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 export function SymbolSearchDialog(props: Props) {
   const [category, setCategoryRaw] = createSignal<SymbolCategoryId>(props.compare ? "all" : props.watchlist ? "stocks" : loadCategory());
   const setCategory = (c: SymbolCategoryId) => {
@@ -199,11 +263,40 @@ export function SymbolSearchDialog(props: Props) {
   // rows on screen for ~half a second.
   const [liveRaw, setLiveRaw] = createSignal<SymbolSearchResult[] | null>(null);
   let reqSeq = 0;
+  // Economy tab: the catalogue's series, the most popular for an empty query, within the Sources / Categories
+  // filters (null until they arrive, or outside the tab).
+  const economy = () => HAS_TAURI && !props.compare && !multiMode() && category() === "economy";
+  const [econRaw, setEconRaw] = createSignal<SymbolSearchResult[] | null>(null);
+  const [sources, setSources] = createSignal<string[]>([]);
+  let econSeq = 0;
+  createEffect(() => {
+    if (!economy()) {
+      econSeq++;
+      setEconRaw(null);
+      return;
+    }
+    const q = searchText().trim();
+    const source = econSource();
+    const cat = econCategory();
+    const my = ++econSeq;
+    const handle = window.setTimeout(async () => {
+      try {
+        const data = await searchEconomic(q, source, cat);
+        if (econSeq === my) setEconRaw(data);
+      } catch {
+        if (econSeq === my) setEconRaw([]);
+      }
+    }, q ? 250 : 0);
+    onCleanup(() => window.clearTimeout(handle));
+  });
+  createEffect(() => {
+    if (economy() && untrack(sources).length === 0) economicSources().then(setSources).catch(() => {});
+  });
   // Network fetch — depends on query + type only, NOT category.
   createEffect(() => {
     const q = searchText().trim();
     const type = activeType();
-    if (!HAS_TAURI || q.length < 1) {
+    if (!HAS_TAURI || q.length < 1 || economy()) {
       reqSeq++; // cancel any in-flight request
       setLiveRaw(null);
       setSearching(false);
@@ -254,6 +347,8 @@ export function SymbolSearchDialog(props: Props) {
   const rows = createMemo<FilteredRow[]>(() => {
     const q = searchText().trim();
     const cat = category();
+    const econ = econRaw();
+    if (econ) return economyRows(econ, q);
     const type = activeType();
     const raw = liveRaw();
     if (!HAS_TAURI || q.length < 1 || raw == null) {
@@ -642,6 +737,14 @@ export function SymbolSearchDialog(props: Props) {
                   </div>
                 </Show>
               </div>
+            </div>
+          </Show>
+
+          {/* Economy tab: Sources and Categories filters (no country filter: US series only). */}
+          <Show when={economy()}>
+            <div class="symbol-search-filters">
+              <FilterChip all="All sources" value={econSource()} options={sources()} onPick={setEconSource} />
+              <FilterChip all="All categories" value={econCategory()} options={ECONOMIC_CATEGORIES} onPick={setEconCategory} />
             </div>
           </Show>
 

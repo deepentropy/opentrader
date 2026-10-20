@@ -314,6 +314,23 @@ export async function searchSymbols(
   return res.data;
 }
 
+/** Economy tab of the symbol search: series matching `query` (the most popular for an empty query) within a source
+ *  agency and / or a category (null = all). */
+export async function searchEconomic(query: string, source: string | null, category: string | null): Promise<SymbolSearchResult[]> {
+  const res = await commands.searchEconomic(query, source, category);
+  if (res.status === "error") throw new Error(res.error);
+  return res.data;
+}
+
+/** Source agencies of the economic series, most series first (the Sources filter). */
+export async function economicSources(): Promise<string[]> {
+  const res = await commands.economicSources();
+  return res.status === "ok" ? res.data : [];
+}
+
+/** Categories of the Economy tab's filter (reference order). */
+export const ECONOMIC_CATEGORIES = ["GDP", "Labor", "Prices", "Health", "Money", "Trade", "Government", "Business", "Consumer", "Housing", "Taxes"];
+
 // ── Chart events (Events tab: Dividends / Splits / Earnings) ─────────────────
 
 /** One chart event marker. `time` is UNIX seconds (the ex-div / execution /
