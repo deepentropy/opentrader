@@ -105,12 +105,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build (and push)
+      - name: Build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: src-tauri/crates/server/Dockerfile
-          push: ${{ inputs.push }}
+          load: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # The container starts, serves the page compressed and answers the API
+      # (no token here: a data call fails, the server must not).
+      - name: Smoke test
+        run: |
+          image="${TAGS%%,*}"
+          docker run -d --name web -p 8080:8080 "$image"
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8080/api/health && break; sleep 1; done
+          curl -sf http://127.0.0.1:8080/ | grep -q '<div id="root">'
+          curl -sf -o /dev/null -D - -H 'Accept-Encoding: br' http://127.0.0.1:8080/ | grep -qi '^content-encoding: br'
+          curl -sf -X POST http://127.0.0.1:8080/api/invoke/get_data_provider | grep -q gateway
+          docker logs web
+          docker rm -f web
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+
+      - name: Push
+        if: inputs.push
+        run: for t in ${TAGS//,/ }; do docker push "$t"; done
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
