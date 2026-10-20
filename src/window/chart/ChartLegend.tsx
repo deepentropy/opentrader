@@ -61,6 +61,8 @@ type Props = {
   /** Company name for the "Name" modes ("" until the ticker-info fetch lands —
    *  the ticker is shown as the fallback). */
   description?: string;
+  /** Logo image (an economic series: its country's flag); the ticker letter when absent. */
+  logoUrl?: string;
   /** Status-line part visibility (Settings → Status line). Undefined = shown. */
   showLogo?: boolean;
   showTitle?: boolean;
@@ -249,7 +251,9 @@ export function ChartLegend(props: Props) {
                 >
                   <Show when={props.showLogo ?? true}>
                     <span class="ot-ticker-logo ot-legend-logo" aria-hidden="true">
-                      {props.ticker.charAt(0)}
+                      <Show when={props.logoUrl} fallback={props.ticker.charAt(0)}>
+                        {(src) => <img class="ot-legend-logo-img" src={src()} alt="" />}
+                      </Show>
                     </span>
                   </Show>
                   <Show when={props.showTitle ?? true}>

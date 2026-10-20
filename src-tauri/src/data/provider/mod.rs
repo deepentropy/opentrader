@@ -24,7 +24,7 @@ use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
 use crate::data::session::SymbolSession;
 use crate::data::symbol::SymbolRef;
 use crate::data::types::{
-    Candle, DividendEvent, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    Candle, DividendEvent, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
 use anyhow::Result;
@@ -138,6 +138,11 @@ pub trait ReferenceProvider: Send + Sync {
     async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem>;
     /// Fetch a branding icon by its encoded proxy path → `(bytes, content_type)`.
     async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)>;
+    /// Financial statement items and earnings releases of the company behind
+    /// the symbol. An error when there are none (or the lookup failed).
+    async fn fundamentals(&self, _sym: &SymbolRef) -> Result<Arc<Fundamentals>> {
+        anyhow::bail!("fundamentals are not available from this data source")
+    }
 }
 
 /// Live data. The provider owns its streaming strategy (REST poll vs WebSocket)

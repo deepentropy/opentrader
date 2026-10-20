@@ -26,6 +26,8 @@ import { computeYearRange, type YearRange } from "./ticker-stats";
 import * as kv from "../../data/kv";
 import { onAppEvent } from "../../data/app-events";
 import { marketSession as marketSessionOf, type MarketSession } from "../../data/market-session";
+import { isEconomicSymbol } from "../../data/datafeed";
+import { abbreviatedPrice } from "../chart/price-format";
 
 const DASH = "—";
 
@@ -269,6 +271,12 @@ export function WatchlistDetail(props: Props) {
   });
 
   const i = () => quote()?.info ?? null;
+  // An economic series (reference): name, source agency and "Economy", its value and change abbreviated (no
+  // percentage), no session, ranges, stats or profile.
+  const econ = () => isEconomicSymbol(full());
+  const econValue = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? DASH : abbreviatedPrice(n, fmtPrice));
+  const econChange = (n: number | null | undefined) =>
+    n == null || !Number.isFinite(n) ? DASH : n > 0 ? `+${abbreviatedPrice(n, fmtPrice)}` : abbreviatedPrice(n, fmtSignedPrice);
   const s = () => quote()?.snap ?? null;
   const y = () => yr() ?? null;
 
@@ -455,6 +463,26 @@ export function WatchlistDetail(props: Props) {
         {/* Company name · exchange — inline, dot-separated, with the MIC mapped
             to its common name (XNAS → NASDAQ): name link · dot · exchange
             span. */}
+        <Show when={econ()}>
+          <div class="watchlist-detail-row">
+            <span class="watchlist-detail-company">{i()?.name ?? DASH}</span>
+          </div>
+          <div class="watchlist-detail-row">
+            <span class="watchlist-detail-exchange">{i()?.exchange ?? DASH}</span>
+          </div>
+          <div class="watchlist-detail-row watchlist-detail-tags">
+            <span class="watchlist-detail-link watchlist-detail-link--disabled">Economy</span>
+          </div>
+          <div class="watchlist-detail-price-row">
+            <span class="watchlist-detail-price">{econValue(s()?.last)}</span>
+            <span class="watchlist-detail-currency">{i()?.currency ?? ""}</span>
+            <span class={`watchlist-detail-change${changeSign()}`}>{econChange(s()?.change)}</span>
+          </div>
+          <Show when={note().trim()}>
+            <div class="watchlist-detail-note" onClick={() => setOpenPanel("note")}>{note()}</div>
+          </Show>
+        </Show>
+        <Show when={!econ()}>
         <div class="watchlist-detail-row">
           <span class="watchlist-detail-company">{i()?.name ?? DASH}</span>
           <Show when={i()?.exchange}>
@@ -616,6 +644,7 @@ export function WatchlistDetail(props: Props) {
           <Show when={i()?.description}>
             <p class="watchlist-detail-description">{i()!.description}</p>
           </Show>
+        </Show>
         </Show>
       </div>
       </Show>

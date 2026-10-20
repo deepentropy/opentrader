@@ -5,7 +5,7 @@
  */
 use crate::data::provider::Provider;
 use crate::data::symbol::SymbolRef;
-use crate::data::types::{DividendEvent, NewsItem, SplitEvent};
+use crate::data::types::{DividendEvent, Fundamentals, NewsItem, SplitEvent};
 use tauri::State;
 
 #[tauri::command]
@@ -35,4 +35,19 @@ pub async fn get_latest_news(
     limit: u32,
 ) -> Result<Vec<NewsItem>, String> {
     Ok(provider.latest_news(&SymbolRef::parse(&symbol), limit.clamp(1, 50)).await)
+}
+
+/// Financial statement items and earnings releases of the company behind
+/// `symbol` (Fundamentals metrics, Events → Earnings).
+#[tauri::command]
+#[specta::specta]
+pub async fn get_fundamentals(
+    provider: State<'_, Provider>,
+    symbol: String,
+) -> Result<Fundamentals, String> {
+    provider
+        .fundamentals(&SymbolRef::parse(&symbol))
+        .await
+        .map(|f| (*f).clone())
+        .map_err(|e| e.to_string())
 }

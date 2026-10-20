@@ -48,8 +48,11 @@ import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import {
   getBars,
-  getEvents,
+  DAILY_ONLY_MESSAGE,
   intervalLabel,
+  isEconomicSymbol,
+  isSupportedResolution,
+  symbolServesResolution,
   isIntradayInterval,
   isIntradayResolution,
   isSecondResolution,
@@ -100,6 +103,7 @@ import { createSourceMenu } from "./view/source-menu";
 import { createSnapshot } from "./view/snapshot";
 import { createLive } from "./view/live";
 import { createNews } from "./view/news";
+import { createEvents } from "./view/events";
 import { createPointer } from "./view/pointer";
 import { createWindowEvents } from "./view/window-events";
 import { createTickerInfo } from "./view/ticker-info";
@@ -110,6 +114,9 @@ import { createLegend } from "./view/legend";
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
 let paneSyncSeq = 0;
+
+/** "Interval is not supported" icon (120 × 120). */
+const INTERVAL_UNSUPPORTED_ICON = "M19 53a41.13 41.13 0 0 1 39-40.95V24h4V12.05A41.13 41.13 0 0 1 101 53H86v4h14.92c-.4 9.6-2.33 14.5-5.23 19.07-1.07 1.69-2.89 2.86-5.24 4.27l-.35.22c-2.12 1.26-4.64 2.77-6.34 5.07a20.08 20.08 0 0 0-2.46 4.78c-.3.81-.6 1.64-.86 2.42l-.01.03-.79 2.2a11.1 11.1 0 0 1-1.62 3.13c-.5.58-.96.81-1.59.81-1.02 0-1.42-.3-1.68-.6a8.03 8.03 0 0 1-1.11-2.25 9.58 9.58 0 0 0-2.06-3.45c-1.22-1.2-2.87-1.79-5.04-1.7a5.18 5.18 0 0 0-3.37 1.38 7.62 7.62 0 0 0-1.82 2.8 30.91 30.91 0 0 0-1.44 5.91l-.11.67c-.41 2.28-.81 4.2-1.51 5.55a3.5 3.5 0 0 1-1.03 1.3c-.33.22-.76.39-1.42.39a1.3 1.3 0 0 1-1.04-.46 5.71 5.71 0 0 1-1.08-2.15c-.68-2.13-1-5.03-1.35-8.26l-.02-.18c-.34-3.16-.73-6.64-1.66-9.35-.91-2.69-2.67-5.42-6.17-5.6-2.58-.13-4.56.41-6.15 1.42-1.53.97-2.54 2.3-3.3 3.36l-.33.45c-.66.92-1.12 1.56-1.7 2.05-.55.45-1.23.78-2.44.72-.29-.01-.74-.15-1.36-.67a10.78 10.78 0 0 1-2.05-2.46c-1.45-2.26-2.86-5.51-4.1-9.37A91.79 91.79 0 0 1 19.12 57H34v-4H19Zm-4 0C15 28.24 35.24 8 60 8s45 20.24 45 45c0 12.9-2.15 19.26-5.93 25.21-1.66 2.61-4.33 4.23-6.56 5.56l-.08.05c-2.35 1.41-4.24 2.55-5.45 4.2a16.23 16.23 0 0 0-1.94 3.82c-.29.75-.55 1.51-.82 2.3l-.02.06-.82 2.28a14.83 14.83 0 0 1-2.31 4.3 5.9 5.9 0 0 1-4.64 2.22 5.9 5.9 0 0 1-4.7-1.98c-.86-1-1.36-2.26-1.72-3.16l-.05-.13-.04-.1a5.95 5.95 0 0 0-1.13-2.07c-.29-.28-.8-.61-2.08-.56-.38.01-.62.13-.83.33-.25.23-.54.65-.82 1.35a27.9 27.9 0 0 0-1.22 5.17l-.05.28-.05.33c-.4 2.18-.88 4.7-1.9 6.69a7.45 7.45 0 0 1-2.28 2.72 6.32 6.32 0 0 1-3.72 1.13 5.29 5.29 0 0 1-3.97-1.73 9.55 9.55 0 0 1-1.97-3.66c-.8-2.53-1.15-5.78-1.48-8.8l-.04-.43c-.36-3.28-.72-6.28-1.47-8.48-.76-2.23-1.63-2.85-2.59-2.9-1.88-.1-3.02.3-3.8.8a8.33 8.33 0 0 0-2.21 2.32l-.28.38c-.62.89-1.42 2-2.44 2.86A7.23 7.23 0 0 1 30.42 95a6.33 6.33 0 0 1-3.73-1.59c-1.05-.87-2-2.04-2.86-3.37-1.72-2.68-3.26-6.3-4.55-10.32A93.67 93.67 0 0 1 15 53Zm43-12V66.16l1.23.51 12.86 5.38 1.54-3.69L62 63.5V41h-4Z";
 
 export function ChartView(props: ChartViewProps) {
   // This pane's committed appearance (Settings dialog draft → folded subset).
@@ -156,6 +163,7 @@ export function ChartView(props: ChartViewProps) {
     get gotoWrap() { return gotoWrap; }, set gotoWrap(v: ChartCore["gotoWrap"]) { gotoWrap = v; },
     get hidden() { return hidden; },
     get history() { return history; },
+    get applyPriceFormat() { return applyPriceFormat; },
     get historyEnd() { return historyEnd; },
     get host() { return host; }, set host(v: ChartCore["host"]) { host = v; },
     get hostH() { return hostH; }, set hostH(v: ChartCore["hostH"]) { hostH = v; },
@@ -175,6 +183,7 @@ export function ChartView(props: ChartViewProps) {
     get leftAxisWidth() { return leftAxisWidth; },
     get syncScaleSides() { return syncScaleSides; },
     get newsLollipop() { return newsLollipop; },
+    get eventMarkers() { return eventMarkers; },
     get onShownHooks() { return onShownHooks; },
     get paneRoot() { return paneRoot; }, set paneRoot(v: ChartCore["paneRoot"]) { paneRoot = v; },
     get pendingRangeSpan() { return pendingRangeSpan; }, set pendingRangeSpan(v: ChartCore["pendingRangeSpan"]) { pendingRangeSpan = v; },
@@ -259,8 +268,8 @@ export function ChartView(props: ChartViewProps) {
   // to the price series whenever it's rebuilt (chart-type change).
   const sessionBreaks = new SessionBreaksPrimitive();
   const sessionBackgrounds = new SessionBackgroundsPrimitive();
-  // Dividend / split markers (Events tab). Re-attached to the series on rebuild;
-  // fed by the per-symbol events resource + the Events toggles.
+  // Dividend / split / earnings lollipops (Events tab). Re-attached to the
+  // series on rebuild; fed by view/events (the symbol's events + the toggles).
   const eventMarkers = new EventMarkersPrimitive();
   // "Countdown to bar close" axis label (Scales tab). Re-attached on rebuild;
   // its text ticks on a 1s timer (see updateCountdown).
@@ -504,7 +513,7 @@ export function ChartView(props: ChartViewProps) {
    *  types draw what it built as projection bars. */
   function lastBarForming(): boolean {
     const last = raw.length > 0 ? raw[raw.length - 1] : null;
-    if (!last || typeof last.time !== "number") return false;
+    if (!last || typeof last.time !== "number" || isEconomicSymbol(props.symbol)) return false;
     const sessions = cachedSymbolSessions(props.symbol ?? "");
     return countdownText(props.interval ?? "1D", Date.now() / 1000, last.time as number, props.session ?? "RTH", sessions) != null;
   }
@@ -647,6 +656,16 @@ export function ChartView(props: ChartViewProps) {
     refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
   }
 
+  /** Symbol → Precision on the series and the legend ("Default": the symbol's tick grid, known once its session
+   *  resolved — applied again when its bars arrive). */
+  function applyPriceFormat() {
+    if (!series) return;
+    // An economic series: values from 1,000 on abbreviated (reference).
+    const fmt = chartPriceFormat(currentTokens().precision, cachedSymbolSessions(props.symbol ?? ""), isEconomicSymbol(props.symbol));
+    if (fmt) series.applyOptions({ priceFormat: { type: "custom", formatter: fmt.format, minMove: fmt.minMove } });
+    setLegendPriceFormat(() => fmt?.format);
+  }
+
   function rebuildSeries() {
     if (!chart) return;
     // Preserve the user's scroll position across the series swap. Creating a
@@ -681,9 +700,7 @@ export function ChartView(props: ChartViewProps) {
     // Symbol → Precision: the picked decimals ("Default" follows the
     // symbol's tick grid), thousands grouped; the legend uses the same text.
     // The fractional choices (1/2 …) use the fractional format (123'16).
-    const fmt = chartPriceFormat(tokens.precision, cachedSymbolSessions(props.symbol ?? ""));
-    if (fmt) series.applyOptions({ priceFormat: { type: "custom", formatter: fmt.format, minMove: fmt.minMove } });
-    setLegendPriceFormat(() => fmt?.format);
+    applyPriceFormat();
     // Bind the price axis to the series' side (Scales placement; the free
     // side in a study pane it shares).
     series.applyOptions({ priceScaleId: seriesLibId() });
@@ -1061,19 +1078,6 @@ export function ChartView(props: ChartViewProps) {
     },
   );
 
-  // Dividend / split markers, fetched once per symbol (independent of interval).
-  const [eventsRes] = createResource(
-    () => props.symbol ?? "",
-    (sym) => (sym ? getEvents(sym).catch(() => []) : Promise.resolve([])),
-  );
-  // Push markers + visibility onto the primitive when the events load or the
-  // Events toggles change. (The primitive retains this across series rebuilds.)
-  createEffect(() => {
-    const a = appearance();
-    // Dividends + Splits default ON — shown until explicitly unchecked.
-    eventMarkers.setData(eventsRes() ?? [], a.eventsDividends ?? true, a.eventsSplits ?? true);
-  });
-
   // Time-axis precision: seconds show "14:30:05", intraday "Apr 22 14:30",
   // daily/weekly/monthly just "Apr 22".
   createEffect(() => {
@@ -1292,6 +1296,7 @@ export function ChartView(props: ChartViewProps) {
   const intervalText = createMemo(() => intervalLabel(props.interval ?? "1D"));
 
   const { NewsCard } = attach(cx, createNews(cx));
+  const { EventCard } = attach(cx, createEvents(cx));
   function catchUpOnShow() {
     if (cx.compareLiveDirty) {
       cx.compareLiveDirty = false;
@@ -1410,6 +1415,22 @@ export function ChartView(props: ChartViewProps) {
       {/* Latest news card (lollipop tooltip, type "news"): "Latest updates"
           title, newest headline card. */}
       <NewsCard />
+      <EventCard />
+      {/* An interval the symbol has no bars on (an economic series below D). */}
+      <Show when={isSupportedResolution(props.interval ?? "1D") && !symbolServesResolution(props.symbol, props.interval ?? "1D")}>
+        <div class="ot-interval-unsupported">
+          <div class="ot-interval-unsupported__card">
+            <svg class="ot-interval-unsupported__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+              <path fill="currentColor" fill-rule="evenodd" d={INTERVAL_UNSUPPORTED_ICON} />
+            </svg>
+            <strong class="ot-interval-unsupported__title">Interval is not supported</strong>
+            <div class="ot-interval-unsupported__text">{DAILY_ONLY_MESSAGE}</div>
+            <button type="button" class="ot-interval-unsupported__button" onClick={() => props.onSetInterval?.("1D")}>
+              Switch to a D
+            </button>
+          </div>
+        </div>
+      </Show>
       <PaneControls />
       {/* Dim-and-hold transition overlay: darkens (and blocks) the outgoing
           chart while the new symbol's data loads, then fades out on swap.

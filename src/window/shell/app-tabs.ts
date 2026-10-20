@@ -39,7 +39,8 @@ import {
   takeDetachPayload,
 } from "./window-bridge";
 import { bindLayoutSync, rememberCrosshair, type LayoutSyncKey } from "../chart/layout-sync";
-import { isFullSymbol, toFullSymbol } from "../../data/datafeed";
+import { isEconomicSymbol, isFullSymbol, toFullSymbol } from "../../data/datafeed";
+import { SINGLE_VALUE_TYPES, lastSingleValueType } from "../chart/chart-types";
 import { migrateDrawingKey } from "../drawings/persistence";
 import { setSelectedDrawingId } from "../drawings/drawing-selection";
 
@@ -131,6 +132,30 @@ export function createAppTabs(windowLabel: string) {
     if (key === "crosshair") rememberCrosshair(next.crosshair);
   };
   bindLayoutSync(layoutSync, toggleLayoutSync);
+
+  // A close-only symbol (an economic series) draws a single-value type: a
+  // pane on another type takes the last single-value type picked on such a
+  // symbol, and gets its own type back with the next symbol that has OHLC bars
+  // (the reference app's style recovery).
+  function followCloseOnlyTypes() {
+    createEffect(() => {
+      for (const t of tabs()) {
+        let changed = false;
+        const panes = t.panes.map((p) => {
+          if (isEconomicSymbol(p.symbol)) {
+            if (SINGLE_VALUE_TYPES.has(p.chartType)) return p;
+            changed = true;
+            return { ...p, chartType: lastSingleValueType(), styleToRecover: p.styleToRecover ?? p.chartType };
+          }
+          if (!p.styleToRecover) return p;
+          changed = true;
+          const { styleToRecover, ...rest } = p;
+          return { ...rest, chartType: styleToRecover };
+        });
+        if (changed) untrack(() => patchTab(t.id, { panes }));
+      }
+    });
+  }
 
   // Symbols saved as bare tickers (before panes kept "EXCHANGE:TICKER") get
   // their primary listing once, in every tab (incl. compare lists); their
@@ -376,6 +401,7 @@ export function createAppTabs(windowLabel: string) {
     setActivePaneIndex,
     layoutSync,
     migrateBareSymbols,
+    followCloseOnlyTypes,
     activateTab,
     newTab,
     duplicateTab,

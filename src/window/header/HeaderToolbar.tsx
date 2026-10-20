@@ -37,6 +37,9 @@ type Props = {
   layout?: LayoutId;
   /** User clicked an interval shortcut button. */
   onIntervalChange?: (id: string) => void;
+  /** Whether the active symbol has bars on an interval (false: the button is
+   *  disabled; an economic series below D). */
+  intervalAvailable?: (id: string) => boolean;
   /** User clicked a dropdown-bearing button (Candles, chart-interval, ...).
    *  Passes the button's bounding rect so the parent can position the
    *  HeaderMenu popover. */
@@ -370,7 +373,8 @@ export function HeaderToolbar(props: Props) {
                         type="button"
                         data-name={`interval-${id}`}
                         aria-label={id}
-                        class={`ot-toolbar-button header-toolbar-btn${props.interval === id ? " active" : ""}`}
+                        class={`ot-toolbar-button header-toolbar-btn${props.interval === id ? " active" : ""}${props.intervalAvailable?.(id) === false ? " is-disabled" : ""}`}
+                        disabled={props.intervalAvailable?.(id) === false}
                         onClick={() => props.onIntervalChange?.(id)}
                       >
                         <span class="header-toolbar-label">{shortIntervalLabel(id)}</span>

@@ -36,6 +36,7 @@ import {
 import { exchangeCode, exchangeName } from "./providers";
 import { isFullSymbol, splitSymbol } from "./symbol-name";
 import { providerCapabilities, providerServes } from "./providers/capabilities";
+import { getFundamentals, hasFundamentals, isoDaySec } from "./fundamentals";
 import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec } from "./session";
 import { aggregateCandles, periodStart, type AggregatePeriod } from "../window/chart/chart-aggregate";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -192,6 +193,22 @@ function servedMinutes(): number[] {
   return providerCapabilities()?.resolutions.minutes ?? Object.values(INTRADAY_INTERVALS).map((i) => i.mins);
 }
 
+/** True for an economic series symbol ("ECONOMICS:UNRATE"): one value per
+ *  observation date, daily or coarser intervals only, no live data. */
+export function isEconomicSymbol(symbol: string | null | undefined): boolean {
+  return !!symbol && /^ECONOMICS:/i.test(symbol.trim());
+}
+
+/** Text of an interval a symbol has no bars on (an economic series below D). */
+export const DAILY_ONLY_MESSAGE = "Intervals less than D are not supported for this symbol. Please change the interval to any available one.";
+
+/** Whether `symbol` has bars on `resolution`: a served interval, daily or
+ *  coarser for an economic series. */
+export function symbolServesResolution(symbol: string | null | undefined, resolution: string): boolean {
+  if (!isSupportedResolution(resolution)) return false;
+  return !isEconomicSymbol(symbol) || dailyFamily(resolution) !== null;
+}
+
 /** All served interval ids (second → intraday → daily order). */
 export function supportedResolutions(): string[] {
   return [
@@ -297,15 +314,36 @@ export async function searchSymbols(
   return res.data;
 }
 
-// ── Chart events (Events tab: Dividends / Splits) ────────────────────────────
+// ── Chart events (Events tab: Dividends / Splits / Earnings) ─────────────────
 
-/** One chart event marker. `time` is UNIX seconds (the ex-div / execution date
- *  at 00:00 UTC); `label` is the short caption ("0.27", "4:1"). */
-export type ChartEvent = { time: number; kind: "dividend" | "split"; label: string };
+/** One chart event marker. `time` is UNIX seconds (the ex-div / execution /
+ *  release date at the exchange's local midnight, a daily bar's stamp);
+ *  `label` is the short caption ("0.27", "4:1", "Q2 '25"). Each kind carries
+ *  the values of its card. */
+export type ChartEvent = {
+  time: number;
+  kind: "dividend" | "split" | "earnings";
+  label: string;
+  /** Dividend: cash amount per share; payment date (UNIX s). */
+  amount?: number;
+  payDate?: number | null;
+  /** Split: shares before → after ("4:1" = from 1, to 4). */
+  from?: number | null;
+  to?: number | null;
+  /** Earnings: fiscal period end (UNIX s, 00:00 UTC), release before the
+   *  regular session ("bmo") or after it ("amc"), diluted EPS, revenue and
+   *  the reporting currency. */
+  periodEnd?: number;
+  session?: "bmo" | "amc" | null;
+  eps?: number | null;
+  revenue?: number | null;
+  currency?: string;
+};
 
-/** Dividend + split markers for `symbol`, time-ascending. Best-effort: a failing
- *  endpoint contributes nothing rather than throwing (events are decorative),
- *  except a server that cannot be reached, which is tried again until it answers. */
+/** Dividend + split + earnings markers for `symbol`, time-ascending.
+ *  Best-effort: a failing endpoint contributes nothing rather than throwing
+ *  (events are decorative), except a server that cannot be reached, which is
+ *  tried again until it answers. */
 export async function getEvents(symbol: string): Promise<ChartEvent[]> {
   const settled = <T>(call: () => Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>) =>
     retryTransient(async () => {
@@ -313,24 +351,43 @@ export async function getEvents(symbol: string): Promise<ChartEvent[]> {
       if (r.status === "error" && isTransientError(r.error)) throw new Error(r.error);
       return r;
     });
-  const [divs, splits, sessions] = await Promise.all([
-    settled(() => commands.getDividends(symbol)),
-    settled(() => commands.getSplits(symbol)),
+  const company = hasFundamentals(symbol);
+  const [divs, splits, fundamentals, sessions] = await Promise.all([
+    company ? settled(() => commands.getDividends(symbol)) : null,
+    company ? settled(() => commands.getSplits(symbol)) : null,
+    company ? getFundamentals(symbol) : null,
     retryTransient(() => symbolSessions(symbol)),
   ]);
   // Event dates arrive as 00:00 UTC of the calendar date; place them on that
   // date's daily-bar stamp (local midnight in the exchange zone).
   const onDay = (utcMidnight: number) => localToUtc(sessions.timeZone, Math.floor(utcMidnight / 86400), 0);
   const out: ChartEvent[] = [];
-  if (divs.status === "ok") {
+  if (divs?.status === "ok") {
     for (const d of divs.data) {
-      if (d.date != null) out.push({ time: onDay(d.date), kind: "dividend", label: (d.amount ?? 0).toFixed(2) });
+      if (d.date != null) {
+        out.push({ time: onDay(d.date), kind: "dividend", label: (d.amount ?? 0).toFixed(2), amount: d.amount ?? 0, payDate: d.payDate ?? null });
+      }
     }
   }
-  if (splits.status === "ok") {
+  if (splits?.status === "ok") {
     for (const s of splits.data) {
-      if (s.date != null) out.push({ time: onDay(s.date), kind: "split", label: `${s.to ?? 1}:${s.from ?? 1}` });
+      if (s.date != null) out.push({ time: onDay(s.date), kind: "split", label: `${s.to ?? 1}:${s.from ?? 1}`, from: s.from, to: s.to });
     }
+  }
+  for (const e of fundamentals?.earnings ?? []) {
+    const day = isoDaySec(e.date);
+    const end = isoDaySec(e.end);
+    if (!Number.isFinite(day) || !Number.isFinite(end)) continue;
+    out.push({
+      time: onDay(day),
+      kind: "earnings",
+      label: e.fp && e.fy ? `${e.fp} '${String(e.fy).slice(-2)}` : "",
+      periodEnd: end,
+      session: e.time === "bmo" || e.time === "amc" ? e.time : null,
+      eps: e.eps ?? null,
+      revenue: e.revenue ?? null,
+      currency: fundamentals?.currency ?? "USD",
+    });
   }
   out.sort((a, b) => a.time - b.time);
   return out;
@@ -476,6 +533,8 @@ async function getBarsOnce(symbol: string, resolution: string, session: SessionI
   if (!isSupportedResolution(resolution)) {
     throw new Error(`unsupported resolution: ${resolution}`);
   }
+  // An economic series below D: no bars (the chart shows the interval is not supported).
+  if (isEconomicSymbol(symbol) && !dailyFamily(resolution)) return { bars: [], daily: null, aggregate: null };
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
   if (second) {
@@ -522,6 +581,8 @@ export async function getBarsBefore(
    *  parallel). */
   spanDays?: number,
 ): Promise<Candle[]> {
+  // An economic series is loaded whole.
+  if (isEconomicSymbol(symbol)) return [];
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
   if (second) {

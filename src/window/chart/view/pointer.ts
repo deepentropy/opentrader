@@ -9,6 +9,7 @@ import { onCleanup } from "solid-js";
 import { PriceScaleMode, type ISeriesApi, type SeriesType, type MouseEventParams, type Time } from "lightweight-charts";
 import { crosshairLockTime } from "../crosshair-lock";
 import { NEWS_LOLLIPOP_ID } from "../news-lollipop";
+import { EVENT_MARKER_PREFIX } from "../event-markers";
 import { HISTORY_END_ID } from "../history-end-marker";
 import { layoutSync } from "../layout-sync";
 import { activeLink, crossWindowCrosshairOn, postLinkTime } from "../../../data/tab-link-bus";
@@ -241,7 +242,7 @@ export function createPointer(cx: ChartCx): PointerApi {
         const root = cx.paneRoot.getBoundingClientRect();
         const x = e.clientX - root.left - cx.leftAxisWidth();
         const y = e.clientY - root.top - mainTop();
-        if (newsLollipop.hitTest(x, y) || historyEnd.hitTest(x, y)) return null;
+        if (newsLollipop.hitTest(x, y) || historyEnd.hitTest(x, y) || cx.eventMarkers.markerAt(x, y) !== null) return null;
       }
       return r;
     };
@@ -433,13 +434,17 @@ export function createPointer(cx: ChartCx): PointerApi {
       cx.setPlusY(shown ? (box?.top ?? 0) + param.point!.y : null);
     };
     cx.chart!.subscribeCrosshairMove(onPlusCrosshair);
-    // Latest news lollipop: hover state + crosshair lines hidden on hover.
-    let newsHovered = false;
+    // Latest news and event lollipops: hover state + crosshair lines hidden on hover.
+    let lollipopHovered = false;
     const onNewsCrosshair = (param: MouseEventParams<Time>) => {
-      const hov = param.hoveredObjectId === NEWS_LOLLIPOP_ID;
-      if (hov === newsHovered) return;
-      newsHovered = hov;
-      newsLollipop.setState({ hovered: hov });
+      const id = typeof param.hoveredObjectId === "string" ? param.hoveredObjectId : "";
+      const news = id === NEWS_LOLLIPOP_ID;
+      const event = id.startsWith(EVENT_MARKER_PREFIX) ? Number(id.slice(EVENT_MARKER_PREFIX.length)) : null;
+      newsLollipop.setState({ hovered: news });
+      cx.eventMarkers.setHovered(event);
+      const hov = news || event !== null;
+      if (hov === lollipopHovered) return;
+      lollipopHovered = hov;
       cx.chart?.applyOptions({ crosshair: { vertLine: { visible: !hov && crosshairLockTime() === null }, horzLine: { visible: !hov } } });
     };
     cx.chart!.subscribeCrosshairMove(onNewsCrosshair);
@@ -490,6 +495,9 @@ export function createPointer(cx: ChartCx): PointerApi {
       const y = e.clientY - root.top - mainTop();
       if (newsLollipop.hitTest(x, y)) cx.toggleNewsCard();
       else if (cx.newsCardOpen()) cx.setNewsCardOpen(false);
+      const event = cx.eventMarkers.markerAt(x, y);
+      if (event !== null) cx.toggleEventCard(event);
+      else if (cx.eventCard() !== null) cx.setEventCard(null);
       if (historyEnd.hitTest(x, y)) cx.openHistoryEndDialog();
     };
     cx.host.addEventListener("click", onNewsClick, true);
@@ -505,7 +513,10 @@ export function createPointer(cx: ChartCx): PointerApi {
 
   function installTimeSync() {
     // The card closes on scroll / zoom.
-    const onNewsRange = () => { if (cx.newsCardOpen()) cx.setNewsCardOpen(false); };
+    const onNewsRange = () => {
+      if (cx.newsCardOpen()) cx.setNewsCardOpen(false);
+      if (cx.eventCard() !== null) cx.setEventCard(null);
+    };
     cx.chart!.timeScale().subscribeVisibleLogicalRangeChange(onNewsRange);
 
     // "Time" sync, driver side: every left mouse-up inside the plot area of a

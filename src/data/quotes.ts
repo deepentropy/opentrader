@@ -14,9 +14,9 @@
  * makes the feed run for the app's lifetime: the panel just reads this store,
  * so reopening shows the current prices instantly and they never stop ticking.
  */
-import { createRoot, createEffect } from "solid-js";
+import { createRoot, createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import { onTradeTick, type TradeTick } from "./datafeed";
+import { getTickerSnapshot, isEconomicSymbol, onTradeTick, type TradeTick } from "./datafeed";
 import { setSubscription } from "./subscriptions";
 import { watchlistStore } from "./watchlist-store";
 
@@ -56,6 +56,19 @@ function applyTick(t: TradeTick): void {
   });
 }
 
+const ECONOMIC_REFRESH_MS = 30 * 60_000;
+const economicRead = new Set<string>();
+const [economicTick, setEconomicTick] = createSignal(0);
+
+function loadEconomic(symbol: string): void {
+  const key = symbol.toUpperCase();
+  if (economicRead.has(key)) return;
+  economicRead.add(key);
+  getTickerSnapshot(key)
+    .then((s) => setQuotes(key, { last: s.last, change: s.change, changePercent: s.changePercent, extChangePercent: null, volume: null, source: "prev" }))
+    .catch(() => economicRead.delete(key));
+}
+
 // App-lifetime feed: one tick listener and one subscription effect, owned by a
 // detached root so they never get torn down with a component.
 createRoot(() => {
@@ -67,7 +80,12 @@ createRoot(() => {
     const rows = a ? [...a.groups.flatMap((g) => g.rows), ...a.extras] : [];
     const symbols = [...new Set(rows.map((r) => r.ticker.toUpperCase()))];
     setSubscription("watchlist", symbols);
+    // Economic series have no live feed: their last observation, read when
+    // listed and again every half hour.
+    void economicTick();
+    for (const sym of symbols) if (isEconomicSymbol(sym)) loadEconomic(sym);
   });
+  setInterval(() => { economicRead.clear(); setEconomicTick((n) => n + 1); }, ECONOMIC_REFRESH_MS);
 
   onTradeTick(applyTick);
 });

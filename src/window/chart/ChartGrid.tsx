@@ -121,6 +121,7 @@ type Props = {
   onChangeSymbol?: () => void;
   /** Legend interval clicked ("Change interval"). */
   onChangeInterval?: () => void;
+  onSetInterval?: (interval: string) => void;
   /** Hide-all dropdown's "Hide indicators" — suppresses study layers on every
    *  pane without removing them from the active set. */
   indicatorsHidden?: boolean;
@@ -446,6 +447,7 @@ export function ChartGrid(props: Props) {
                 onLinkGroup={(g) => props.onLinkGroup?.(i, g)}
                 onChangeSymbol={props.onChangeSymbol}
                 onChangeInterval={props.onChangeInterval}
+                onSetInterval={props.onSetInterval}
                 // Every pane is interactive; callbacks bind to this pane's
                 // symbol, and acting on a pane focuses it.
                 armedTool={props.armedTool}

@@ -1,0 +1,88 @@
+/*
+ * Events card — the card of a Dividends / Splits / Earnings lollipop (dark
+ * theme): #1F1F1F, radius 10, padding 16 16 16 20, 4 px stripe of the
+ * marker colour on the left edge (`--ot-event-color`).
+ */
+.ot-event-card {
+  position: fixed;
+  z-index: 1000;
+  box-sizing: border-box;
+  width: 300px;
+  padding: 16px 16px 16px 20px;
+  overflow: hidden auto;
+  border-radius: 10px;
+  background: var(--color-bg-primary);
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: 14px;
+}
+.ot-event-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--ot-event-color);
+}
+.ot-event-card-title {
+  display: flex;
+  align-items: center;
+  column-gap: 6px;
+  height: 28px;
+  margin-bottom: 12px;
+}
+.ot-event-card-icon {
+  display: flex;
+  flex: none;
+  color: var(--ot-event-color);
+}
+.ot-event-card-heading {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.ot-event-card-rows,
+.ot-event-card-group {
+  line-height: 21px;
+}
+.ot-event-card-group {
+  margin-top: 12px;
+  line-height: 22px;
+}
+.ot-event-card-group-title {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+.ot-event-card-row {
+  display: flex;
+}
+.ot-event-card-cell {
+  display: flex;
+  align-items: center;
+  width: 132px;
+  min-width: 0;
+}
+/* Release session icon (reference: 18 px disc, 7 px after the date; before the open orange, after the close blue,
+   a stronger tint on hover). */
+.ot-event-card-session {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-inline-start: 7px;
+  border-radius: 9px;
+}
+.ot-event-card-session.is-bmo {
+  background-color: var(--color-overlay-warning-1-light);
+  color: var(--color-content-primary-warning-extra-bold);
+}
+.ot-event-card-session.is-bmo:hover { background-color: var(--color-overlay-warning-1-normal); }
+.ot-event-card-session.is-amc {
+  background-color: var(--color-overlay-accent-1-light);
+  color: var(--color-content-primary-accent-extra-bold);
+}
+.ot-event-card-session.is-amc:hover { background-color: var(--color-overlay-accent-1-normal); }

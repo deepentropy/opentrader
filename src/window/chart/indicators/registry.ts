@@ -12,6 +12,7 @@ import { VOLUME_ENTRY } from './volume';
 import { VBP_ENTRIES } from '../profiles/vbp-studies';
 import { TPO_ENTRIES } from '../profiles/tpo';
 import { typeIdOf } from './study-id';
+import { getFundamentalEntry, isFundamentalId } from './fundamental-entry';
 
 const byId = new Map<string, IndicatorRegistryEntry>(indicatorRegistry.map((e) => [e.id, e]));
 // Local built-ins the library doesn't ship (the basic Volume study).
@@ -26,6 +27,8 @@ export function getIndicatorEntry(studyId: string): IndicatorRegistryEntry | und
   if (isUserIndicatorId(id)) return getUserIndicatorEntry(id);
   // `strategy:<key>` — backtester strategy ports (Strategy Tester).
   if (isStrategyId(id)) return getStrategyEntry(id);
+  // `fund:<metric>[:<period>]` — Fundamentals metrics.
+  if (isFundamentalId(id)) return getFundamentalEntry(id);
   return byId.get(id);
 }
 

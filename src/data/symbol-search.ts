@@ -248,21 +248,15 @@ export const SYMBOLS: SymbolRow[] = [
   },
 
   // ── Economy ────────────────────────────────────────────────────────────
-  {
-    symbolName: 'ECONOMICS:USCPI', ticker: 'USCPI', description: 'United States Consumer Price Index',
-    marketType: 'economy', exchange: 'ECONOMICS', primaryExchange: true,
-    category: 'economy',
-  },
-  {
-    symbolName: 'ECONOMICS:USINTR', ticker: 'USINTR', description: 'United States Interest Rate',
-    marketType: 'economy', exchange: 'ECONOMICS', primaryExchange: true,
-    category: 'economy',
-  },
-  {
-    symbolName: 'ECONOMICS:USIRYY', ticker: 'USIRYY', description: 'United States Inflation Rate (YoY)',
-    marketType: 'economy', exchange: 'ECONOMICS', primaryExchange: true,
-    category: 'economy',
-  },
+  // Popular US economic series (the gateway's economic catalog).
+  ...([
+    ['UNRATE', 'Unemployment Rate', 'BLS'],
+    ['CPIAUCSL', 'Consumer Price Index for All Urban Consumers: All Items in U.S. City Average', 'BLS'],
+    ['GDP', 'Gross Domestic Product', 'BEA'],
+    ['FEDFUNDS', 'Federal Funds Effective Rate', 'Federal Reserve'],
+    ['DGS10', 'Market Yield on U.S. Treasury Securities at 10-Year Constant Maturity, Quoted on an Investment Basis', 'Federal Reserve'],
+    ['PAYEMS', 'All Employees, Total Nonfarm', 'BLS'],
+  ] as const).map(([ticker, description, source]): SymbolRow => economicRow(ticker, description, source)),
 
   // ── Options ────────────────────────────────────────────────────────────
   {
@@ -325,6 +319,7 @@ export function filterSymbols(
  * filtering that's identical regardless of vendor. */
 import type { SymbolSearchResult } from "../bindings";
 import { searchResultToRow } from "./providers";
+import { economicRow } from "./providers/gateway";
 
 /** Display exchanges treated as "major" US listings for ranking. Operates on the
  *  normalized exchange names the adapter produces, so it stays vendor-neutral. */

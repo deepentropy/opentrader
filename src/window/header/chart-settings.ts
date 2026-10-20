@@ -758,6 +758,8 @@ export type ChartAppearance = {
   // Events markers.
   eventsDividends?: boolean;
   eventsSplits?: boolean;
+  eventsEarnings?: boolean;
+  earningsBreaks?: boolean;
   latestNews?: boolean;
   newsNotification?: boolean;
   // Symbol tab extras.
@@ -906,6 +908,9 @@ export function appearanceFrom(d: Draft | undefined): ChartAppearance {
     sessionBreaksWidth: sess?.width,
     eventsDividends: E.checked('Dividends'),
     eventsSplits: E.checked('Splits'),
+    eventsEarnings: E.checked('Earnings'),
+    // The child row follows its parent: off with Earnings.
+    earningsBreaks: E.checked('Earnings') && E.checked('Earnings breaks'),
     latestNews: E.checked('Latest news'),
     newsNotification: E.checked('News notification'),
     timezone: S.sel('Timezone'),

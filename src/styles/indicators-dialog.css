@@ -498,15 +498,17 @@ html.theme-light {
 
 /* Scrollbar: global treatment from base.css (5px, #3d3d3d thumb). */
 
-/* Metric rows: 32px; depth-1 children indented + dotted. Same row colours
-   as the indicator rows (hover grey per theme); child dot 5px, cold-gray-600
-   dark / cold-gray-200 light. */
+/* Metric rows (reference 20/10/2026): 32 px, margin 0 15 0 10, padding
+   0 16 0 4, radius 8; the 22 px star (shown on hover or when set), the name
+   4 px after it. A child row: 5 px, its 5 px dot, 5 px, the name. Same row
+   colours as the indicator rows; child dot cold-gray-600 dark / cold-gray-200
+   light. */
 .indicators-metric {
   display: flex;
   align-items: center;
-  gap: 8px;
   height: 32px;
-  padding: 0 20px;
+  margin: 0 15px 0 10px;
+  padding: 0 16px 0 4px;
   font-size: 14px;
   color: var(--color-text-primary);
   border-radius: 8px;
@@ -516,14 +518,18 @@ html.theme-light {
   background-color: var(--ot-ind-row-hover);
 }
 
+.indicators-metric .indicators-favorite { margin-right: 4px; }
+.indicators-metric:not(:hover) .indicators-favorite:not(.is-active) { visibility: hidden; }
+
 .indicators-metric.depth-1 {
-  padding-left: 28px;
   color: var(--color-content-primary-neutral-semi-bold);
 }
+.indicators-metric.depth-1 .indicators-favorite { margin-right: 5px; }
 
 .indicators-metric-dot {
   width: 5px;
   height: 5px;
+  margin-right: 5px;
   border-radius: 50%;
   background-color: var(--ot-ind-metric-dot);
   flex-shrink: 0;
@@ -534,6 +540,33 @@ html.theme-light {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.indicators-metric.is-addable { cursor: default; }
+
+/* Hovered row: the period buttons on its right (12 px #8C8C8C on #1F1F1F,
+   radius 4, padding 1 8, 8 px apart; reference 20/10/2026). */
+.indicators-metric-actions {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.indicators-metric:hover .indicators-metric-actions,
+.indicators-row.is-metric:hover .indicators-metric-actions { display: flex; }
+/* Metric row in the search results: name, then the period buttons on the right. */
+.indicators-row.is-metric { grid-template-columns: minmax(0, 1fr) auto; }
+.indicators-metric-period {
+  height: 22px;
+  padding: 1px 8px;
+  border: 0;
+  border-radius: 4px;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: default;
+}
+.indicators-metric-period:hover { color: var(--color-text-primary); }
 
 /* Strategy rows: the reference app's scriptType marker after the name (18 px,
    #dbdbdb, captured 30/09/2026; the gap to the title was not measured). */

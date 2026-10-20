@@ -36,6 +36,7 @@ import {
   type LiveBar,
 } from "../../../data/datafeed";
 import { cachedSymbolSessions } from "../../../data/session";
+import { getFundamentals, type Fundamentals } from "../../../data/fundamentals";
 import { scriptBars } from "../../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../../backtester/types";
 import { scriptChartContext, symbolDetails } from "./script-chart";
@@ -79,6 +80,8 @@ export class OtherSymbolBars {
   private entries = new Map<string, Entry>();
   /** Dividends / splits of a symbol (`symbol|events`): null while loading. */
   private eventLists = new Map<string, ChartEvent[] | null>();
+  /** Fundamentals of a symbol (`symbol|fundamentals`): undefined while loading, null when it has none. */
+  private fundamentalSets = new Map<string, Fundamentals | null | undefined>();
   /** First bar time of the chart's loaded bars (seconds): the span the other symbols cover. */
   private chartFirst = Infinity;
   private chartSeconds = 0;
@@ -158,6 +161,26 @@ export class OtherSymbolBars {
     return this.eventLists.get(key) ?? undefined;
   }
 
+  /** Accessor key of a symbol's fundamentals. */
+  fundamentalsKey(symbol: string): string {
+    return `${symbol.trim().toUpperCase()}|fundamentals`;
+  }
+
+  /** Financial statement items and earnings of `symbol`: undefined while they load (the studies that read them
+   *  calculate again when they arrive), null when the symbol has none or they cannot be loaded. */
+  fundamentals(symbol: string): Fundamentals | null | undefined {
+    const key = this.fundamentalsKey(symbol);
+    if (!this.fundamentalSets.has(key)) {
+      this.fundamentalSets.set(key, undefined);
+      getFundamentals(symbol).then((f) => {
+        if (this.disposed || !this.fundamentalSets.has(key)) return;
+        this.fundamentalSets.set(key, f);
+        this.changed(new Set([key]), false);
+      });
+    }
+    return this.fundamentalSets.get(key);
+  }
+
   /** The bars of a key (`symbol|interval`) could not be loaded (unknown symbol, not served). */
   failed(key: string): boolean {
     return this.entries.get(key)?.failed ?? false;
@@ -203,6 +226,7 @@ export class OtherSymbolBars {
     for (const e of this.entries.values()) e.stopLive?.();
     this.entries.clear();
     this.eventLists.clear();
+    this.fundamentalSets.clear();
   }
 
   dispose(): void {

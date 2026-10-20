@@ -26,6 +26,8 @@ mod aggs;
 mod cache;
 mod catalog;
 mod corporate_actions;
+pub mod economics;
+mod fundamentals;
 mod market_snapshot;
 mod news;
 mod prior_close;
@@ -43,6 +45,7 @@ pub use corporate_actions::{
 };
 #[cfg(test)]
 pub(crate) use corporate_actions::set_splits_for_test;
+pub use fundamentals::{fetch_fundamentals, Fundamentals};
 pub use market_snapshot::{fetch_market_snapshot, shape_feed_snapshots, FeedSnapshot, MarketRow};
 pub use news::{latest_news, NewsItem};
 pub use quotes::fetch_snapshots;

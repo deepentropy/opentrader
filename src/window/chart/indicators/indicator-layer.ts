@@ -31,11 +31,13 @@ import { applyOpacity } from 'lightweight-charts-drawing/core/color';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
 import { labelWanted, setSeriesScale } from '../scales/extra-axes';
 import { StepDiamondsPrimitive } from './step-diamonds';
+import { FundamentalLabelsPrimitive, type FundamentalLabel } from './fundamental-labels';
 import { restoreTimes, scriptBars } from '../../../backtester/oakscript';
 import { isStrategyId } from './strategy-entries';
 import type { OtherSymbolBars } from './other-symbols';
 import { MissingSymbolDataError } from 'lightweight-charts-indicators';
 import type { ChartEvent } from '../../../data/datafeed';
+import type { Fundamentals } from '../../../data/fundamentals';
 import { VbpPrimitive } from '../profiles/vbp-primitive';
 import type { VbpDraw } from '../profiles/vbp-studies';
 import { TpoPrimitive, type TpoBlockHit } from '../profiles/tpo-primitive';
@@ -94,8 +96,11 @@ export type StudyCalcContext = StudyChart & Pick<IndicatorChartContext, 'leftVis
   /** Bars of the chart symbol on a lower timeframe in the chart's session, loaded back to `from` (seconds; the
    *  profile studies); undefined while they load. */
   lowerBars?: (resolution: string, from: number) => Bar[] | undefined;
-  /** Dividends and splits of the chart symbol; undefined while they load. */
+  /** Dividends, splits and earnings of the chart symbol; undefined while they load. */
   chartEvents?: () => ChartEvent[] | undefined;
+  /** Financial statement items of a symbol (the chart's when empty): undefined while they load, null when it has
+   *  none. */
+  fundamentals?: (symbol: string) => Fundamentals | null | undefined;
 };
 /** Chart type and state of the newest bar, read at each calculation. `realtime`: it is still forming;
  *  `lastBarNew`: this is its first update. */
@@ -113,6 +118,9 @@ const INVALID_SYMBOL: StudyError = { kind: 'invalidSymbol', title: 'Invalid symb
 function studyErrorOf(err: unknown): StudyError {
   const message = err instanceof Error ? err.message : String(err);
   if (/^Invalid symbol\b/.test(message)) return INVALID_SYMBOL;
+  // A study without the data it reads (e.g. volume on a series without volume): its own status title.
+  const title = (err as { studyTitle?: unknown } | null)?.studyTitle;
+  if (typeof title === 'string') return { kind: 'error', title, message };
   return { kind: 'error', title: 'Runtime error', message };
 }
 
@@ -486,6 +494,12 @@ export class IndicatorLayer {
             return store.events(ticker);
           };
         }
+        ctx.fundamentals = (symbol) => {
+          const sym = symbol.trim() || ticker;
+          if (!sym) return null;
+          used.add(store.fundamentalsKey(sym));
+          return store.fundamentals(sym);
+        };
       }
       // Daily and longer bars at the session open, as studies read them (strategies restamp their own bars: the
       // broker and the report keep the chart's bar times).
@@ -693,7 +707,15 @@ export class IndicatorLayer {
       if (ownScale) this.applyOwnScale(s, entry);
       if (style === 'stepline_diamond') {
         const points = data.filter((d) => d.value != null && !Number.isNaN(d.value));
-        const primitive = new StepDiamondsPrimitive(points, color);
+        const primitive = new StepDiamondsPrimitive(points, color, overrides[def.id].lineWidth ?? def.lineWidth ?? 1);
+        s.attachPrimitive(primitive as ISeriesPrimitive<Time>);
+        this.detachers.push(() => s.detachPrimitive(primitive as ISeriesPrimitive<Time>));
+      }
+      // Fundamentals metrics: the value labels under the steps of their plot.
+      const labels = (result as { fundamentalLabels?: Record<string, FundamentalLabel[]> }).fundamentalLabels?.[def.id];
+      if (labels?.length) {
+        const font = this.chart.options().layout.fontFamily;
+        const primitive = new FundamentalLabelsPrimitive(labels, uiTheme() === 'light' ? '#0F0F0F' : '#DBDBDB', font);
         s.attachPrimitive(primitive as ISeriesPrimitive<Time>);
         this.detachers.push(() => s.detachPrimitive(primitive as ISeriesPrimitive<Time>));
       }

@@ -174,6 +174,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
     // re-aggregate the full set.
     cx.rawDaily = real.daily ?? [];
     cx.raw = toOHLC(real.bars);
+    // The symbol's session (tick grid) is known with its bars.
+    cx.applyPriceFormat();
     // Fresh series (possibly a new ADJ basis) — re-snap the 1W/1M live-volume
     // baseline from the reloaded bars on the next tick.
     cx.liveVolBase = null;

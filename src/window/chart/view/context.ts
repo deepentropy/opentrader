@@ -41,6 +41,8 @@ import type { SourcesApi } from "./sources";
 import type { SnapshotApi } from "./snapshot";
 import type { LiveApi } from "./live";
 import type { NewsApi } from "./news";
+import type { EventsApi } from "./events";
+import type { EventMarkersPrimitive } from "../event-markers";
 import type { PointerApi } from "./pointer";
 import type { WindowEventsApi } from "./window-events";
 import type { TickerInfoApi } from "./ticker-info";
@@ -75,6 +77,8 @@ export type ChartViewProps = {
   onChangeSymbol?: () => void;
   /** Legend interval clicked ("Change interval"). */
   onChangeInterval?: () => void;
+  /** Set this pane's interval (the "Switch to a D" button of an interval the symbol has no bars on). */
+  onSetInterval?: (interval: string) => void;
   armedGlyph?: string;
   magnet?: boolean;
   magnetMode?: "weak" | "strong";
@@ -234,6 +238,9 @@ export interface ChartCore {
   /** Show the price axes the series and the compared symbols use. */
   syncScaleSides: () => void;
   newsLollipop: NewsLollipopPrimitive;
+  /** Apply the price format again (the symbol's tick grid is known). */
+  applyPriceFormat: () => void;
+  eventMarkers: EventMarkersPrimitive;
   onShownHooks: Set<() => void>;
   paneRoot: HTMLDivElement;
   pendingRangeSpan: string | null;
@@ -290,6 +297,7 @@ export type ChartCx = ChartCore &
   SnapshotApi &
   LiveApi &
   NewsApi &
+  EventsApi &
   PointerApi &
   WindowEventsApi &
   LegendApi &

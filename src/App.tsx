@@ -41,8 +41,8 @@ import { intervalSeconds } from "./window/strategy-tester/equity-data";
 import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strategy-entries";
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { screenerPanel } from "./data/screener-store";
-import { CHART_TYPE_IDS, type ChartTypeId } from "./window/chart/chart-types";
-import { isAdjusted, setAdjusted, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
+import { CHART_TYPE_IDS, SINGLE_VALUE_TYPES, rememberSingleValueType, type ChartTypeId } from "./window/chart/chart-types";
+import { isAdjusted, setAdjusted, isEconomicSymbol, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { displayTimeZone } from "./data/session";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost } from "./components/Dialogs";
@@ -203,7 +203,11 @@ function App() {
   };
 
   const chartType = () => activePaneState().chartType;
-  const setChartType = (v: ChartTypeId) => patchActivePane({ chartType: v });
+  const setChartType = (v: ChartTypeId) => {
+    // A type picked on a close-only symbol is the one such symbols take next.
+    if (isEconomicSymbol(activePaneState().symbol)) rememberSingleValueType(v);
+    patchActivePane({ chartType: v });
+  };
   // Bottom-bar RTH/ETH session — per focused pane (not a layout-sync
   // channel), so it only ever patches the active pane.
   const session = () => activePaneState().session;
@@ -291,6 +295,7 @@ function App() {
   // once App is set up).
   const undo = createUndoHistory((e, side) => chartEdits.applyUndoEntry(e, side));
   appTabs.migrateBareSymbols();
+  appTabs.followCloseOnlyTypes();
   const drawingStore = createDrawingStore(appTabs, undo);
   const {
     drawingKeyFor,
@@ -552,6 +557,7 @@ function App() {
         chartType={chartType()}
         layout={layout()}
         onIntervalChange={setInterval}
+        intervalAvailable={(id) => symbolServesResolution(activeFullSymbol() ?? symbol(), id)}
         onMenuOpen={openMenuAt}
         onSymbolSearch={() => openSymbolSearch(null)}
         onOpenIndicators={() => {
@@ -687,6 +693,7 @@ function App() {
               onLinkGroup={(i, g) => setPaneLinkGroup(tabId, i, g)}
               onToggleSeries={(i) => toggleSeriesHidden(tabId, i)}
               onChangeInterval={() => setIntervalDialog({ initVal: interval(), selectOnInit: true })}
+              onSetInterval={setInterval}
               onChangeSymbol={() => {
                 // The press focused this pane (ChartGrid capture): the search
                 // changes its symbol, like the header symbol button.
@@ -793,6 +800,8 @@ function App() {
           menuId={openMenu()!}
           anchor={anchorRect()!}
           selectedRowId={selectedRowForOpenMenu()}
+          intervalAvailable={(id) => symbolServesResolution(activeFullSymbol() ?? symbol(), id)}
+          chartTypeAvailable={(id) => !isEconomicSymbol(activeFullSymbol() ?? symbol()) || SINGLE_VALUE_TYPES.has(id as ChartTypeId)}
           onSelect={onMenuSelect}
           onClose={closeMenu}
         />

@@ -57,6 +57,19 @@ pub async fn search_tickers(
     query: &str,
     type_filter: Option<&str>,
 ) -> Result<Vec<SymbolSearchResult>> {
+    // Economic series: their own catalog, after the listings (type "economic" alone).
+    let economic = matches!(type_filter, None | Some("") | Some("economic"));
+    if type_filter == Some("economic") {
+        return Ok(super::economics::search(query));
+    }
+    let mut out = listings(query, type_filter).await?;
+    if economic {
+        out.extend(super::economics::search(query));
+    }
+    Ok(out)
+}
+
+async fn listings(query: &str, type_filter: Option<&str>) -> Result<Vec<SymbolSearchResult>> {
     if let Some(found) = catalog::current().map(|c| c.search(query, type_filter)).filter(|r| !r.is_empty()) {
         return Ok(found);
     }

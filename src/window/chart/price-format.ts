@@ -28,11 +28,11 @@ export type ChartPriceFormat = {
 /** The chart price format for a Precision choice. `grid` is the symbol's
  *  tick grid (null until its session resolves: 2 decimals). The fractional
  *  choices "1/2" … "1/320" use the fractional format. */
-export function chartPriceFormat(precision: string | undefined, grid: SymbolSessions | null): ChartPriceFormat | null {
+export function chartPriceFormat(precision: string | undefined, grid: SymbolSessions | null, abbreviated = false): ChartPriceFormat | null {
   const p = precision || "Default";
   if (p === "Default") {
-    if (grid) return { format: (v) => groupThousands(grid.formatPrice(v)), minMove: grid.mintick };
-    return fixed(2);
+    const base = grid ? { format: (v: number) => groupThousands(grid.formatPrice(v)), minMove: grid.mintick } : fixed(2);
+    return abbreviated ? { format: (v) => abbreviatedPrice(v, base.format), minMove: base.minMove } : base;
   }
   if (p === "Integer") return fixed(0);
   const m = /^(\d+)\s+decimal/.exec(p);
@@ -40,6 +40,15 @@ export function chartPriceFormat(precision: string | undefined, grid: SymbolSess
   const f = /^(\d+)\/(\d+)$/.exec(p);
   if (f && +f[1] > 0 && +f[2] > 0) return fractional(+f[2], +f[1]);
   return null;
+}
+
+/** Abbreviated value (an economic series): from 1,000 on, at most 2 decimals and K / M / B / T after a space
+ *  ("159.04 M", "−34 K"); below, the `small` format. */
+export function abbreviatedPrice(v: number, small: (v: number) => string): string {
+  const a = Math.abs(v);
+  if (!(a >= 1e3)) return small(v);
+  const [div, letter] = a >= 1e12 ? [1e12, "T"] : a >= 1e9 ? [1e9, "B"] : a >= 1e6 ? [1e6, "M"] : [1e3, "K"];
+  return `${v < 0 ? MINUS : ""}${+(a / div).toFixed(2)} ${letter}`;
 }
 
 /** Fractional format (the reference price formatter, fractional mode):

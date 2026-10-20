@@ -38,6 +38,10 @@ import { getLayout, OPEN_LAYOUT_PREFIX, toggleFavoriteLayout } from "../../data/
 import type { HeaderMenuDef } from "./header-menus/registry";
 
 type Props = {
+  /** Whether the active symbol has bars on an interval row (false: greyed; an economic series below D). */
+  intervalAvailable?: (id: string) => boolean;
+  /** Whether the active symbol can be drawn with a chart type row (false: greyed; a close-only symbol). */
+  chartTypeAvailable?: (id: string) => boolean;
   menu: HeaderMenuDef;
   menuId?: string;
   anchor: DOMRect;
@@ -177,7 +181,8 @@ export function HeaderMenu(props: Props) {
                   // renders greyed + non-selectable rather than silently
                   // loading daily bars. Mirrors getBars' validation.
                   const disabled = () =>
-                    !!row.disabled || (isIntervalRow() && !isSupportedResolution(row.id));
+                    !!row.disabled || (isIntervalRow() && (!isSupportedResolution(row.id) || props.intervalAvailable?.(row.id) === false)) ||
+                    (props.menuId === "candles" && props.chartTypeAvailable?.(row.id) === false);
                   // Custom interval rows carry a Remove button (also on a
                   // greyed row, so the row is not natively disabled).
                   const isCustomRow = () => isIntervalRow() && customIntervals().includes(row.id);

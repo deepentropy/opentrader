@@ -10,7 +10,7 @@
  */
 import { isScaleKey, type ScaleKey } from "../chart/scales/scale-layout";
 import { DEFAULT_LAYOUT, LAYOUT_NUMBERING, LAYOUT_SPECS, renumberCharts, type LayoutId } from "../chart/layouts";
-import { DEFAULT_CHART_TYPE, type ChartTypeId } from "../chart/chart-types";
+import { CHART_TYPE_IDS, DEFAULT_CHART_TYPE, type ChartTypeId } from "../chart/chart-types";
 import { SYMBOLS } from "../../data/symbol-search";
 import type { LinkChannels, LinkColor, TabLink } from "./tab-linking";
 import { linkGroup, setLinkGroup } from "../../data/link-groups";
@@ -134,6 +134,10 @@ export type PaneChart = {
   symbol: string;
   interval: string;
   chartType: ChartTypeId;
+  /** Chart type the pane had before a close-only symbol (an economic series)
+   *  switched it to a single-value style; given back on the next symbol with
+   *  OHLC bars. */
+  styleToRecover?: ChartTypeId;
   /** Bottom-bar session: regular (09:30–16:00 ET) vs extended hours. Only
    *  affects intraday frames; daily+ ignore it. Defaults to RTH. */
   session: SessionId;
@@ -364,6 +368,7 @@ function revivePane(p: Partial<PaneChart>): PaneChart {
     symbol: p.symbol ?? DEFAULT_SYMBOL,
     interval: p.interval ?? DEFAULT_INTERVAL,
     chartType: p.chartType ?? DEFAULT_CHART_TYPE,
+    ...(p.styleToRecover && CHART_TYPE_IDS.has(p.styleToRecover) ? { styleToRecover: p.styleToRecover } : {}),
     session: p.session ?? "RTH",
     indicators: studies.indicators,
     indicatorSettings: studies.indicatorSettings,

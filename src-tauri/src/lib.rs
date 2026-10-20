@@ -38,6 +38,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::events::get_dividends,
             commands::events::get_splits,
             commands::events::get_latest_news,
+            commands::events::get_fundamentals,
             commands::meta::get_data_provider,
             commands::meta::get_provider_capabilities,
             commands::meta::open_snapshot,
@@ -172,6 +173,7 @@ pub fn run() {
             app_update::init(app.handle());
             // Symbol catalog for the search: disk copy, then today's from the gateway.
             data::market_rest::init_symbol_catalog();
+            data::market_rest::economics::init();
             Ok(())
         })
         .build(tauri::generate_context!())

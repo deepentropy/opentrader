@@ -17,11 +17,12 @@ use super::capabilities::{
 use super::entitlements;
 use super::{DataProvider, HistoryProvider, RealtimeProvider, ReferenceProvider, SymbolChange};
 use crate::data::types::{
-    Candle, DividendEvent, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    Candle, DividendEvent, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
 use crate::data::session::{Subsession, SymbolSession};
 use crate::data::symbol::SymbolRef;
+use crate::data::market_rest::economics;
 use crate::data::{daily_archive, gateway, market_rest, market_stream, quote_poll, ticker_case, trading_calendar};
 use anyhow::Result;
 use chrono::{Datelike, NaiveDate, Utc};
@@ -91,12 +92,18 @@ impl HistoryProvider for GatewayProvider {
 #[async_trait::async_trait]
 impl ReferenceProvider for GatewayProvider {
     async fn ticker_info(&self, sym: &SymbolRef) -> Result<TickerInfo> {
+        if economics::is_economic(&sym.exchange) {
+            return economic_info(sym).await;
+        }
         // Answered under the app's name, not the source's spelling.
         let mut info = market_rest::fetch_ticker_info(&ticker_case::to_source(&sym.ticker)).await?;
         info.ticker = sym.ticker.clone();
         Ok(info)
     }
     async fn symbol_session(&self, sym: &SymbolRef) -> Result<SymbolSession> {
+        if economics::is_economic(&sym.exchange) {
+            return economic_session(sym).await;
+        }
         let mut session = us_equity_session();
         if sym.exchange == "OTC" {
             session.variable_tick_size = OTC_TICKS.into();
@@ -104,6 +111,9 @@ impl ReferenceProvider for GatewayProvider {
         Ok(session)
     }
     async fn ticker_snapshot(&self, sym: &SymbolRef) -> Result<Snapshot> {
+        if economics::is_economic(&sym.exchange) {
+            return economic_snapshot(sym).await;
+        }
         let mut snapshot = market_rest::fetch_ticker_snapshot(&ticker_case::to_source(&sym.ticker)).await?;
         snapshot.ticker = sym.ticker.clone();
         Ok(snapshot)
@@ -116,16 +126,31 @@ impl ReferenceProvider for GatewayProvider {
         market_rest::search_tickers(query, type_filter).await
     }
     async fn dividends(&self, sym: &SymbolRef) -> Result<Vec<DividendEvent>> {
+        if economics::is_economic(&sym.exchange) {
+            return Ok(Vec::new());
+        }
         Ok(market_rest::dividend_events(&ticker_case::to_source(&sym.ticker)).await?)
     }
     async fn splits(&self, sym: &SymbolRef) -> Result<Vec<SplitEvent>> {
+        if economics::is_economic(&sym.exchange) {
+            return Ok(Vec::new());
+        }
         Ok(market_rest::split_events(&ticker_case::to_source(&sym.ticker)).await?)
     }
     async fn latest_news(&self, sym: &SymbolRef, limit: u32) -> Vec<NewsItem> {
+        if economics::is_economic(&sym.exchange) {
+            return Vec::new();
+        }
         market_rest::latest_news(&ticker_case::to_source(&sym.ticker), limit).await
     }
     async fn icon(&self, encoded: &str) -> Result<(Vec<u8>, String)> {
         market_rest::fetch_icon(encoded).await
+    }
+    async fn fundamentals(&self, sym: &SymbolRef) -> Result<std::sync::Arc<Fundamentals>> {
+        if economics::is_economic(&sym.exchange) {
+            anyhow::bail!("an economic series has no fundamentals");
+        }
+        Ok(market_rest::fetch_fundamentals(&ticker_case::to_source(&sym.ticker)).await?)
     }
 }
 
@@ -180,6 +205,90 @@ fn us_equity_session() -> SymbolSession {
             }
         })
         .clone()
+}
+
+// ── Economic series ──────────────────────────────────────────────────────
+
+/// Unit label of a series on the price scale: "%" for percentages, "USD" for
+/// dollar amounts, none for indexes and counts.
+fn economic_unit(units: &str) -> Option<String> {
+    let u = units.to_lowercase();
+    if u == "%" || u.starts_with("percent") {
+        Some("%".into())
+    } else if u.contains('$') || u.contains("dollars") {
+        Some("USD".into())
+    } else {
+        None
+    }
+}
+
+/// Reference data of an economic series: its title, the agency (shown where
+/// the exchange is) and its unit.
+async fn economic_info(sym: &SymbolRef) -> Result<TickerInfo> {
+    let meta = match economics::meta(&sym.ticker) {
+        Some(m) => m,
+        None => economics::fetch_series(&sym.ticker).await?.meta.clone(),
+    };
+    Ok(TickerInfo {
+        ticker: sym.ticker.clone(),
+        name: Some(meta.name.clone()),
+        exchange: Some(meta.source.clone()),
+        industry: None,
+        sector: None,
+        currency: economic_unit(&meta.units).or_else(|| economic_unit(&meta.units_short)),
+        description: Some(format!("{} ({}, {})", meta.name, meta.units, meta.seasonal)),
+        homepage_url: None,
+        total_employees: None,
+        market_cap: None,
+        figi: None,
+        symbol_type: Some("economic".into()),
+        security_type: Some("economic".into()),
+        icon_url: None,
+    })
+}
+
+/// Decimals of a value as written (shortest form), at most 6.
+fn decimals(v: f64) -> u32 {
+    let s = format!("{v}");
+    s.split_once('.').map_or(0, |(_, d)| d.len().min(6) as u32)
+}
+
+/// An economic series trades "every day" (one observation per date, 00:00
+/// UTC); its price grid follows the decimals of its recent values.
+async fn economic_session(sym: &SymbolRef) -> Result<SymbolSession> {
+    let series = economics::fetch_series(&sym.ticker).await?;
+    let dec = series.value.iter().rev().take(60).map(|&v| decimals(v)).max().unwrap_or(2);
+    Ok(SymbolSession {
+        timezone: "Etc/UTC".into(),
+        session: "24x7".into(),
+        subsessions: vec![Subsession::new("regular", "Regular Trading Hours", "24x7")],
+        holidays: String::new(),
+        corrections: String::new(),
+        pricescale: 10u32.pow(dec),
+        minmov: 1,
+        variable_tick_size: String::new(),
+    })
+}
+
+/// Last value of an economic series and its change from the observation before.
+async fn economic_snapshot(sym: &SymbolRef) -> Result<Snapshot> {
+    let s = economics::fetch_series(&sym.ticker).await?;
+    let n = s.value.len();
+    let last = *s.value.last().ok_or_else(|| anyhow::anyhow!("no observation"))?;
+    let prev = if n > 1 { s.value[n - 2] } else { last };
+    let change = last - prev;
+    Ok(Snapshot {
+        ticker: sym.ticker.clone(),
+        last,
+        change,
+        change_percent: if prev != 0.0 { change / prev.abs() * 100.0 } else { 0.0 },
+        day_high: last,
+        day_low: last,
+        day_volume: 0.0,
+        ext_change_percent: None,
+        source: "prev".into(),
+        updated_ms: s.time.last().copied().unwrap_or(0.0) * 1000.0,
+    })
 }
 
 /// Tick bands of OTC listings (the reference app's OTC:TCEHY grid).

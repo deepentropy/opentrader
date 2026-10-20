@@ -182,7 +182,7 @@ fn bars_before_an_ex_date_are_scaled_by_the_dividend() {
     let ex = |d: u32| midnight(NaiveDate::from_ymd_opt(2024, 6, d).unwrap()).unwrap();
     // 1.00 on the 11th; 5.00 declared before a 10:1 split of the 12th (0.50 on the adjusted scale).
     let dividends =
-        vec![DividendEvent { date: ex(12), amount: 5.0 }, DividendEvent { date: ex(11), amount: 1.0 }, DividendEvent { date: ex(10), amount: 1.0 }];
+        vec![DividendEvent { date: ex(12), amount: 5.0, pay_date: None }, DividendEvent { date: ex(11), amount: 1.0, pay_date: None }, DividendEvent { date: ex(10), amount: 1.0, pay_date: None }];
     let splits = vec![SplitEvent { date: ex(13), from: 1.0, to: 10.0 }];
     let steps = dividend_steps(&daily, &dividends, &splits, &cal);
     // No session before the 10th: that dividend has no factor.

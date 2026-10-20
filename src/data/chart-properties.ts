@@ -91,6 +91,10 @@ export type FormRow = {
   /** Right-aligned controls, in order. */
   controls?: Control[];
   visibleWhen?: VisibleWhen;
+  /** Checkable-set child: disabled while this row (same form) is unchecked. */
+  parent?: string;
+  /** Symbol events row: shown only on stocks, funds and depositary receipts. */
+  symbolEvents?: boolean;
   /** Shown disabled (greyed, not editable): no ported surface (e.g. Trading). */
   inert?: boolean;
   /** Stored chart setting with no dialog row (set from a chart menu). */
@@ -449,8 +453,12 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
   events: [
     section('Events'),
     row({ cb: true, checked: false, label: 'Ideas', controls: [{ c: 'select', value: 'Ideas of followed users', options: ['Ideas of followed users'], disabled: true }], inert: true }),
-    row({ cb: true, checked: true, label: 'Dividends', child: true }),
-    row({ cb: true, checked: true, label: 'Splits', child: true }),
+    // Symbol events: only on stocks, funds and depositary receipts.
+    row({ cb: true, checked: true, label: 'Dividends', child: true, symbolEvents: true }),
+    row({ cb: true, checked: true, label: 'Splits', child: true, symbolEvents: true }),
+    // Earnings, and its child: the dashed bar line of every earnings marker.
+    row({ cb: true, checked: true, label: 'Earnings', child: true, symbolEvents: true }),
+    row({ cb: true, checked: false, label: 'Earnings breaks', indent: true, child: true, symbolEvents: true, parent: 'Earnings' }),
     // Session breaks: colour + Opacity + Thickness + Line style.
     row({ cb: true, checked: false, label: 'Session breaks', controls: [{ c: 'color', color: 'rgb(73, 133, 231)', width: 1, style: 1 }] }),
     row({ cb: true, checked: true, label: 'Latest news' }),

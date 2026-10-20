@@ -10,6 +10,7 @@
  * is marked inert below). The **Tabs** tab edits the tab-title parts (order +
  * visibility) that the tab strip actually renders, controlled by App.
  */
+import { ECONOMIC_DATA_NOTICE, ECONOMIC_DATA_TERMS_URL } from "../../data/economic-notice";
 import { createEffect, createRoot, createSignal, For, Show, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore } from "solid-js/store";
 import { Portal } from "solid-js/web";
@@ -446,7 +447,25 @@ function AboutTab() {
         <UpdateAppBlock />
       </Show>
       <div class="app-settings-about-copyright">Copyright © 2026 OpenTrader</div>
+      <EconomicDataNotice />
       <FundingBlock />
+    </div>
+  );
+}
+
+/** Notice and terms of the economic data source (its API terms of use). */
+function EconomicDataNotice() {
+  const open = () => void openUrl(ECONOMIC_DATA_TERMS_URL).catch((e) => console.warn("[about] open terms failed", e));
+  return (
+    <div class="app-settings-about-notice">
+      <div>{ECONOMIC_DATA_NOTICE}</div>
+      <div>
+        By using the economic series in OpenTrader you agree to the{" "}
+        <a class="app-settings-about-link" href={ECONOMIC_DATA_TERMS_URL} onClick={(e) => { e.preventDefault(); open(); }}>
+          FRED® API Terms of Use
+        </a>
+        .
+      </div>
     </div>
   );
 }

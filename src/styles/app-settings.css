@@ -370,6 +370,18 @@
   color: var(--color-cold-gray-500, #6a6d78);
   font-size: 13px;
 }
+/* Notice of the economic data source (required by its API terms). */
+.app-settings-about-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 16px;
+}
+.app-settings-about-link { color: var(--color-brand, #2962ff); text-decoration: none; cursor: pointer; }
+.app-settings-about-link:hover { text-decoration: underline; }
 /* Support OpenTrader: monthly cost covered by donations (data/funding.ts). */
 .app-settings-funding {
   display: flex;

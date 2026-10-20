@@ -6,6 +6,7 @@
  * quarter — `ownScaleId` metadata, honoured by IndicatorLayer.
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
+import { isEconomicSymbol } from "../../../data/datafeed";
 
 /** Extra metadata IndicatorLayer reads to give an overlay study a dedicated
  *  hidden price scale instead of the symbol scale. */
@@ -29,6 +30,11 @@ export type OwnScaleMeta = {
 
 /** Palette colour index of a bar: 0 = Growing, 1 = Falling (the reference
  *  volumePalette); the layer turns it into the Style tab colours. */
+/** Error of the study on a symbol without volume (legend status title, then the panel text). */
+function noVolumeData(): Error {
+  return Object.assign(new Error("The data vendor doesn't provide volume data for this symbol."), { studyTitle: "No volume data" });
+}
+
 const GROWING = 0;
 const FALLING = 1;
 
@@ -65,7 +71,9 @@ export const VOLUME_ENTRY: IndicatorRegistryEntry = {
     { id: "vol_ma", title: "Volume MA", color: "#2962ff", lineWidth: 1, defaultVisible: false } as IndicatorRegistryEntry["plotConfig"][number] & PlotDefaultVisible,
   ],
   defaultInputs: { maLength: 20, colorOnPrevClose: false },
-  calculate(bars, inputs) {
+  calculate(bars, inputs, ctx?: { tickerid?: string }) {
+    // An economic series has no volume: the study fails with the reference's "No volume data" status.
+    if (isEconomicSymbol(ctx?.tickerid)) throw noVolumeData();
     const maLength = Math.max(1, Number(inputs?.maLength ?? 20));
     const onPrevClose = Boolean(inputs?.colorOnPrevClose ?? false);
     const vol: { time: number; value: number | null; paletteIndex: number }[] = [];

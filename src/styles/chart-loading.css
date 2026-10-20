@@ -53,3 +53,53 @@ html.theme-dark .ot-chart-loader {
     transform: rotate(-360deg);
   }
 }
+
+/*
+ * "Interval is not supported" card (an economic series below D), centred on
+ * the chart (reference 20/10/2026): 120 px icon, 18 px / 600 title 12 px under
+ * it, 16 px / 24 px text, 34 px button 20 px under the text.
+ */
+.ot-interval-unsupported {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.ot-interval-unsupported__card {
+  box-sizing: border-box;
+  max-width: 664px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: var(--color-text-primary);
+  pointer-events: auto;
+}
+.ot-interval-unsupported__icon { flex: none; }
+.ot-interval-unsupported__title {
+  margin: 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.ot-interval-unsupported__text {
+  font-size: 16px;
+  line-height: 24px;
+}
+.ot-interval-unsupported__button {
+  height: 34px;
+  margin-top: 20px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-secondary-inverse);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  cursor: default;
+}

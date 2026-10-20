@@ -25,6 +25,7 @@ import { recentSymbols } from "../../data/recent-symbols";
 import { countryOfExchange, flagUrl } from "../../data/country-flags";
 import type { SymbolSearchResult } from "../../bindings";
 import * as kv from "../../data/kv";
+import { ECONOMIC_DATA_NOTICE } from "../../data/economic-notice";
 import { Tooltip } from "../../components/Tooltip";
 import { CheckBox } from "./ChartPropertiesDialog";
 import type { ComparePlacement } from "../shell/tabs";
@@ -759,7 +760,8 @@ export function SymbolSearchDialog(props: Props) {
 
                         <div class="symbol-search-cell symbol-search-exchange-cell">
                           <div class="symbol-search-market-type">
-                            {row.marketType}
+                            {/* Economic series: no type label (reference). */}
+                            {row.marketType === "economic" ? "" : row.marketType}
                           </div>
                           <div class="symbol-search-exchange-source">
                             <Show when={row.primaryExchange}>
@@ -851,7 +853,8 @@ export function SymbolSearchDialog(props: Props) {
             fallback={
               <Show when={!props.compare}>
                 <div class="symbol-search-footer">
-                  Search using ISIN and CUSIP codes
+                  {/* Economy: the notice the economic data source's terms require. */}
+                  {category() === "economy" ? ECONOMIC_DATA_NOTICE : "Search using ISIN and CUSIP codes"}
                 </div>
               </Show>
             }

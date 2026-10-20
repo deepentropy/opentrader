@@ -552,10 +552,9 @@ function calcAutoAnchored(bars: Bar[], inputs: Record<string, unknown>, ctx: Pro
       if (anchor === "Highest High" ? b.high > a.high : anchor === "Lowest Low" ? b.low < a.low : (b.volume ?? 0) > (a.volume ?? 0)) i0 = i;
     }
   } else if (anchor === "Earnings" || anchor === "Dividends" || anchor === "Splits") {
-    if (anchor === "Earnings") return nothing(); // no earnings dates in the data served
     const events = ctx!.chartEvents?.();
     if (!events) return nothing(true);
-    const kind = anchor === "Dividends" ? "dividend" : "split";
+    const kind = anchor === "Dividends" ? "dividend" : anchor === "Splits" ? "split" : "earnings";
     const ev = events.filter((e) => e.kind === kind).pop();
     if (!ev) return nothing();
     i0 = lowerBound(bars as unknown as { time: number }[], ev.time);

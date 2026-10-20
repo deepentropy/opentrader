@@ -23,7 +23,8 @@ import { FlagColorPopup } from "../FlagColorPopup";
 import { ChartSyncMenu, SYNC_GROUPS } from "../ChartSyncMenu";
 import { FLAG_HEX } from "../../../data/watchlist";
 import { type PriceSource } from "../../header/chart-settings";
-import { intervalLabel, splitSymbol } from "../../../data/datafeed";
+import { intervalLabel, isEconomicSymbol, splitSymbol } from "../../../data/datafeed";
+import { flagUrl } from "../../../data/country-flags";
 import { CHART_TYPE_ICON } from "../chart-types";
 import { ChartLegend } from "../ChartLegend";
 import { IndicatorLegend } from "../IndicatorLegend";
@@ -172,7 +173,8 @@ export function createLegend(cx: ChartCx): LegendApi {
           <ChartLegend
             ticker={splitSymbol(props.symbol ?? "").ticker}
             interval={intervalLabel(props.interval ?? "1D")}
-            exchange={splitSymbol(props.symbol ?? "").exchange}
+            exchange={isEconomicSymbol(props.symbol) ? cx.legendSource() : splitSymbol(props.symbol ?? "").exchange}
+            logoUrl={isEconomicSymbol(props.symbol) ? flagUrl("US") : undefined}
             values={legend()}
             formatPrice={cx.legendPriceFormat()}
             titleMode={appearance().legendTitleMode}
@@ -183,7 +185,7 @@ export function createLegend(cx: ChartCx): LegendApi {
             showBarChange={appearance().legendBarChange}
             showVolume={appearance().legendVolume}
             showLastDayChange={appearance().legendLastDayChange}
-            marketStatus={cx.marketSession()}
+            marketStatus={isEconomicSymbol(props.symbol) ? undefined : cx.marketSession()}
             showOpenStatus={appearance().legendMarketStatus ?? true}
             hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
             seriesHidden={!!props.seriesHidden}

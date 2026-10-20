@@ -10,6 +10,11 @@
 use crate::data::types::{SubscribeMsg, WsHandle};
 use tauri::{AppHandle, Manager};
 
+/// "ECONOMICS:<ID>": an economic series (no live data).
+fn is_economic_symbol(symbol: &str) -> bool {
+    symbol.split_once(':').is_some_and(|(ex, _)| crate::data::market_rest::economics::is_economic(ex))
+}
+
 /// Chart slots are owner-keyed "<window label>:<pane id>" so multi-pane
 /// layouts and detached windows each hold their own charted symbol; the
 /// live task unions them (see SubscriptionState). `pane` is the caller's
@@ -23,7 +28,8 @@ pub async fn set_chart_subscription(
     symbol: Option<String>,
 ) -> Result<(), String> {
     let owner = format!("{}:{}", window.label(), pane);
-    let normalized = symbol.map(|s| s.to_uppercase());
+    // Economic series have no live data.
+    let normalized = symbol.map(|s| s.to_uppercase()).filter(|s| !is_economic_symbol(s));
     app.state::<WsHandle>()
         .tx
         .send(SubscribeMsg::SetChart {
@@ -46,7 +52,7 @@ pub async fn set_watchlist_subscription(
     symbols: Vec<String>,
 ) -> Result<(), String> {
     let owner = window.label().to_string();
-    let normalized: Vec<String> = symbols.into_iter().map(|s| s.to_uppercase()).collect();
+    let normalized: Vec<String> = symbols.into_iter().map(|s| s.to_uppercase()).filter(|s| !is_economic_symbol(s)).collect();
     app.state::<WsHandle>()
         .tx
         .send(SubscribeMsg::SetWatchlist {

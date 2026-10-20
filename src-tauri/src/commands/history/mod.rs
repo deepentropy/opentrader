@@ -77,6 +77,24 @@ async fn clamp_to_floor(
     (from <= to).then_some((from, to))
 }
 
+/// An economic series ("ECONOMICS:<ID>"): its observations as daily bars
+/// (open = high = low = close = the value, no volume).
+fn economic(sym: &SymbolRef) -> bool {
+    crate::data::market_rest::economics::is_economic(&sym.exchange)
+}
+
+async fn economic_bars(sym: &SymbolRef) -> Result<Vec<Candle>, String> {
+    let s = crate::data::market_rest::economics::fetch_series(&sym.ticker).await.map_err(|e| e.to_string())?;
+    Ok(s.time
+        .iter()
+        .zip(&s.value)
+        .map(|(&time, &v)| Candle { time, open: v, high: v, low: v, close: v, volume: 0.0 })
+        .collect())
+}
+
+/// The error of an intraday request on a symbol with daily or coarser data.
+pub const DAILY_ONLY: &str = "Intervals less than D are not supported for this symbol";
+
 /// Midnight UTC of a date, as seconds.
 fn midnight(d: NaiveDate) -> Option<f64> {
     d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc().timestamp() as f64)
@@ -157,6 +175,9 @@ pub async fn get_daily_history(
     adjusted: bool,
 ) -> Result<History, String> {
     let sym = SymbolRef::parse(&symbol);
+    if economic(&sym) {
+        return Ok(History { bars: economic_bars(&sym).await?, partial: false });
+    }
     let cal = calendar_of(&provider, &sym).await?;
     let (bars, partial) = daily_series_read(&provider, &cal, &sym, days).await?;
     let bars = with_dividends(&provider, &cal, &sym, (*bars).clone(), adjusted).await?;
@@ -178,6 +199,9 @@ pub async fn get_minute_history(
     adjusted: bool,
 ) -> Result<History, String> {
     let sym = SymbolRef::parse(&symbol);
+    if economic(&sym) {
+        return Err(DAILY_ONLY.into());
+    }
     let cal = calendar_of(&provider, &sym).await?;
     let dates = cal.last_trading_days(days.max(1) as usize);
     let to = cal.window_end();
@@ -210,6 +234,9 @@ pub async fn get_second_history(
     adjusted: bool,
 ) -> Result<History, String> {
     let sym = SymbolRef::parse(&symbol);
+    if economic(&sym) {
+        return Err(DAILY_ONLY.into());
+    }
     let cal = calendar_of(&provider, &sym).await?;
     let to = cal.window_end();
     // Pad the lookback by a day so a `days = 1` request still spans the
@@ -240,6 +267,9 @@ pub async fn get_second_history_tail(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
+    if economic(&sym) {
+        return Ok(Vec::new());
+    }
     let bars = provider.second_tail(&sym, mult, since_sec, true).await.map_err(|e| e.to_string())?;
     if !adjusted || bars.is_empty() {
         return Ok(bars);
@@ -289,6 +319,9 @@ pub async fn get_aggregates_before(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
+    if economic(&sym) {
+        return Ok(Vec::new());
+    }
     let cal = calendar_of(&provider, &sym).await?;
     // The exchange date of the oldest loaded bar.
     let to = cal
@@ -335,6 +368,10 @@ pub async fn get_daily_history_before(
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
     let sym = SymbolRef::parse(&symbol);
+    // An economic series is loaded whole.
+    if economic(&sym) {
+        return Ok(Vec::new());
+    }
     let cal = calendar_of(&provider, &sym).await?;
     let end = cal
         .date_of(before_sec as i64 - 1)

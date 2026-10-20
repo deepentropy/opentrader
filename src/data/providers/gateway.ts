@@ -14,6 +14,7 @@
  */
 import type { SymbolSearchResult } from "../../bindings";
 import type { SymbolRow, SymbolCategoryId, TypeFilter } from "../symbol-search";
+import { flagUrl } from "../country-flags";
 
 /** Bare tickers with no "EXCHANGE:" prefix default to this exchange. */
 export const defaultExchange = "NASDAQ";
@@ -101,14 +102,14 @@ const SEARCH_EXCHANGE_NAMES: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = {
   stock: "stock", adr: "dr", etf: "etf", etn: "etn", etv: "etf", fund: "fund",
   preferred: "preferred", warrant: "warrant", right: "right", unit: "unit",
-  structured: "structured", bond: "bond", index: "index",
+  structured: "structured", bond: "bond", index: "index", economic: "economic",
 };
 
 /** Market → category-tab id. The "stocks" market is a catch-all that also
  *  includes ETFs/ETNs/funds/indices, so TYPE_CATEGORY below refines it by
  *  security type (otherwise ETFs leak into the Stocks tab). */
 const MARKET_CATEGORY: Record<string, SymbolCategoryId> = {
-  stocks: "stocks", otc: "stocks", crypto: "crypto", fx: "forex", indices: "indices",
+  stocks: "stocks", otc: "stocks", crypto: "crypto", fx: "forex", indices: "indices", economy: "economy",
 };
 
 /** Security type → category-tab override (takes priority over the market
@@ -120,9 +121,20 @@ const TYPE_CATEGORY: Partial<Record<string, SymbolCategoryId>> = {
   index: "indices", bond: "bonds",
 };
 
+/** Search row of an economic series: the country flag as its logo, no type label, its source agency (short name)
+ *  on the right without a flag. */
+export function economicRow(ticker: string, description: string, source: string): SymbolRow {
+  return {
+    symbolName: `ECONOMICS:${ticker}`, ticker, description,
+    marketType: "economic", exchange: source, exchangeTooltip: source || undefined,
+    logoSrc: flagUrl("US"), category: "economy",
+  };
+}
+
 /** Map one raw `search_tickers` reference result into a dialog row. The
  *  source half of symbol search; ../symbol-search applies the generic ranking. */
 export function searchResultToRow(r: SymbolSearchResult): SymbolRow {
+  if (r.type === "economic") return economicRow(r.ticker, r.name ?? "", r.exchange ?? "");
   const ex = (r.exchange && SEARCH_EXCHANGE_NAMES[r.exchange.toUpperCase().replace(/\s+/g, "")]) || r.exchange || "";
   // The row shows the descriptive name; the symbol's identity uses the code.
   const code = r.exchange ? exchangeCode(r.exchange) : "";

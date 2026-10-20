@@ -46,6 +46,17 @@ import { TransparencySlider } from "../drawings/ImageDialog";
 import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
+import { isEconomicSymbol } from "../../data/datafeed";
+import { symbolDetails } from "../chart/indicators/script-chart";
+
+/** Symbol events (dividends, splits, earnings) exist on stocks, funds and depositary receipts; shown while the
+ *  type is not known yet. */
+const EVENT_SYMBOL_TYPES = new Set(["stock", "fund", "dr"]);
+function hasSymbolEvents(symbol: string): boolean {
+  if (isEconomicSymbol(symbol)) return false;
+  const t = symbol ? symbolDetails(symbol)?.symbolType : undefined;
+  return !t || EVENT_SYMBOL_TYPES.has(t);
+}
 
 type Props = {
   onClose: () => void;
@@ -598,6 +609,7 @@ export function ChartPropertiesDialog(props: Props) {
     if (tab === "symbol" && r.label === "Pre/post market hours background" && props.intraday === false) return false;
     // "Open market status" only while the symbol's market is open.
     if (tab === "legend" && r.label === "Open market status" && marketSession(props.symbol ?? "") !== "open") return false;
+    if (r.symbolEvents && !hasSymbolEvents(props.symbol ?? "")) return false;
     if (!r.visibleWhen) return true;
     const c = draft[keyOf(tab, r.visibleWhen.id)]?.controls?.[0];
     return !!c && c.kind === "select" && r.visibleWhen.values.includes(c.value);
@@ -645,7 +657,7 @@ export function ChartPropertiesDialog(props: Props) {
     return (
       <Show when={visible(p.tab, p.r)}>
         <FormRowView
-          r={p.r}
+          r={p.r.parent && draft[keyOf(p.tab, p.r.parent)]?.checked === false ? { ...p.r, inert: true } : p.r}
           state={draft[key]}
           disabled={controlsDisabled(p.r, key)}
           onToggle={() => toggle(key)}

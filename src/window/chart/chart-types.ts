@@ -92,6 +92,27 @@ export type ChartTypeId =
 
 export const DEFAULT_CHART_TYPE: ChartTypeId = "candle";
 
+/** Types drawn from one value per bar: the only ones of a symbol with a close
+ *  and no OHLC (an economic series). */
+export const SINGLE_VALUE_TYPES: ReadonlySet<ChartTypeId> = new Set<ChartTypeId>(["area", "baseline", "line", "lineWithMarkers", "stepline", "column"]);
+
+const LAST_SINGLE_VALUE_KEY = "ot:last-single-value-type";
+
+/** Single-value type last picked on a close-only symbol ("Line with markers" until one is). */
+export function lastSingleValueType(): ChartTypeId {
+  try {
+    const v = localStorage.getItem(LAST_SINGLE_VALUE_KEY) as ChartTypeId | null;
+    return v && SINGLE_VALUE_TYPES.has(v) ? v : "lineWithMarkers";
+  } catch {
+    return "lineWithMarkers";
+  }
+}
+
+export function rememberSingleValueType(t: ChartTypeId): void {
+  if (!SINGLE_VALUE_TYPES.has(t)) return;
+  try { localStorage.setItem(LAST_SINGLE_VALUE_KEY, t); } catch { /* storage off */ }
+}
+
 export const CHART_TYPE_IDS: ReadonlySet<ChartTypeId> = new Set<ChartTypeId>([
   "bar", "candle", "hollowCandle", "volCandles",
   "line", "lineWithMarkers", "stepline",

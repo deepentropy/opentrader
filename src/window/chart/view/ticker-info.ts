@@ -17,18 +17,32 @@
  */
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import { createTextWatermark, type ITextWatermarkPluginApi, type Time } from "lightweight-charts";
-import { getTickerInfo } from "../../../data/datafeed";
+import { getTickerInfo, isEconomicSymbol } from "../../../data/datafeed";
 import { type ChartCx } from "./context";
 import type { Accessor } from "solid-js";
 
 /** What createTickerInfo adds to the chart context. */
 export interface TickerInfoApi {
   legendDesc: Accessor<string>;
+  /** Exchange piece of the legend: the agency of an economic series ("" until known). */
+  legendSource: Accessor<string>;
 }
 
 export function createTickerInfo(cx: ChartCx): TickerInfoApi {
   const { appearance, currentTokens, fullSymbol, intervalText, props, ticker } = cx;
   const [legendDesc, setLegendDesc] = createSignal("");
+  const [legendSource, setLegendSource] = createSignal("");
+  // Economic series: the agency that publishes it where a symbol has its exchange.
+  createEffect(() => {
+    const sym = fullSymbol();
+    setLegendSource("");
+    if (!isEconomicSymbol(sym)) return;
+    let alive = true;
+    getTickerInfo(sym!)
+      .then((info) => { if (alive) setLegendSource(info?.exchange ?? ""); })
+      .catch(() => {});
+    onCleanup(() => { alive = false; });
+  });
 
   createEffect(() => {
     const mode = appearance().legendTitleMode;
@@ -93,5 +107,6 @@ export function createTickerInfo(cx: ChartCx): TickerInfoApi {
 
   return {
     legendDesc,
+    legendSource,
   };
 }

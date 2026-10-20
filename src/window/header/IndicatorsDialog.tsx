@@ -29,9 +29,12 @@ import {
   type FilterId,
   type IndicatorRow,
   type ListItem,
+  type FundamentalMetric,
   type FundamentalSubtab,
   type TabContent,
 } from "../../data/indicators-dialog";
+import type { MetricPeriod } from "../../data/fundamental-metrics";
+import { fundamentalId } from "../../window/chart/indicators/fundamental-entry";
 import { highlightParts, rankRows } from "../../data/indicator-search";
 import {
   favoriteIndicators,
@@ -61,7 +64,7 @@ const lastFilter: Record<string, FilterId> = {};
 const SEARCH_DELAY_MS = 200;
 
 /** Tabs the search goes through, in the order of its result sections. */
-const SEARCH_TABS = ["favorites", "my-scripts", "built-ins", "community"];
+const SEARCH_TABS = ["favorites", "my-scripts", "built-ins", "fundamentals", "community"];
 const TAB_TITLES: Record<string, string> = Object.fromEntries(
   SIDEBAR.flatMap((g) => g.items.map((i) => [i.id, i.label])),
 );
@@ -87,13 +90,18 @@ function Glyph(props: { id: string }) {
 }
 
 /* Fundamentals — round sub-tabs over a single METRIC NAME column; depth-1
- * metrics are indented with a bullet dot. */
-function FundamentalsView(props: { subtabs: FundamentalSubtab[]; query: string }) {
+ * metrics are indented with a bullet dot. A click on a row adds the metric on
+ * its first period; a hovered row with several periods shows one button per
+ * period (Quarterly / Annual / TTM). */
+const PERIOD_LABELS: Record<MetricPeriod, string> = { FQ: "Quarterly", FY: "Annual", TTM: "TTM" };
+
+function FundamentalsView(props: { subtabs: FundamentalSubtab[]; query: string; onAdd?: (id: string) => void }) {
   const [active, setActive] = createSignal(0);
   const metrics = createMemo(() => {
     const q = props.query.trim().toLowerCase();
     return (props.subtabs[active()]?.metrics ?? []).filter((m) => !q || m.name.toLowerCase().includes(q));
   });
+  const idOf = (m: FundamentalMetric, period?: MetricPeriod) => fundamentalId(m.key, period ?? m.periods[0]);
   return (
     <div class="indicators-fund">
       <div class="indicators-subtabs" role="tablist">
@@ -118,14 +126,54 @@ function FundamentalsView(props: { subtabs: FundamentalSubtab[]; query: string }
           fallback={<div class="ot-empty-state indicators-empty">No matches</div>}
         >
           <For each={metrics()}>
-            {(m) => (
-              <div class={`indicators-metric depth-${m.depth}`}>
-                <Show when={m.depth > 0}>
-                  <span class="indicators-metric-dot" aria-hidden="true" />
-                </Show>
-                <span class="indicators-metric-name">{m.name}</span>
-              </div>
-            )}
+            {(m) => {
+              const favorited = () => isFavoriteIndicator(idOf(m));
+              return (
+                <div
+                  class={`indicators-metric depth-${m.depth}${props.onAdd ? " is-addable" : ""}`}
+                  data-role="list-item"
+                  onClick={() => props.onAdd?.(idOf(m))}
+                >
+                  <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
+                    <span
+                      class={`indicators-favorite${favorited() ? " is-active" : ""}`}
+                      aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
+                      role="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavoriteIndicator(idOf(m));
+                      }}
+                    >
+                      <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
+                        <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
+                      </svg>
+                    </span>
+                  </Tooltip>
+                  <Show when={m.depth > 0}>
+                    <span class="indicators-metric-dot" aria-hidden="true" />
+                  </Show>
+                  <span class="indicators-metric-name">{m.name}</span>
+                  <Show when={m.periods.length > 1}>
+                    <div class="indicators-metric-actions">
+                      <For each={m.periods}>
+                        {(p) => (
+                          <button
+                            type="button"
+                            class="indicators-metric-period"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              props.onAdd?.(idOf(m, p));
+                            }}
+                          >
+                            {PERIOD_LABELS[p]}
+                          </button>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
+              );
+            }}
           </For>
         </Show>
       </div>
@@ -136,6 +184,11 @@ function FundamentalsView(props: { subtabs: FundamentalSubtab[]; query: string }
 /** Every row of a tab once (no section titles), for the search. */
 function tabRows(c: TabContent | undefined): IndicatorRow[] {
   if (c?.kind === "rows") return c.rows;
+  if (c?.kind === "fundamentals") {
+    return c.subtabs.flatMap((st) => st.metrics.map((m) => ({
+      name: m.name, indicatorId: fundamentalId(m.key, m.periods[0]), metricKey: m.key, periods: m.periods,
+    })));
+  }
   if (c?.kind !== "filtered") return [];
   const all = c.filters.find((f) => f.id === "all");
   const items = all ? all.items : c.filters.flatMap((f) => f.items);
@@ -431,7 +484,7 @@ export function IndicatorsDialog(props: Props) {
                     </Show>
 
                     <Show when={c().kind === "fundamentals"}>
-                      <FundamentalsView subtabs={(c() as any).subtabs} query={query()} />
+                      <FundamentalsView subtabs={(c() as any).subtabs} query={query()} onAdd={props.onAddIndicator} />
                     </Show>
                   </>
                 )}
@@ -455,7 +508,7 @@ export function IndicatorsDialog(props: Props) {
                         const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
                         return (
                           <div
-                            class={`indicators-row${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}`}
+                            class={`indicators-row${row.metricKey ? " is-metric" : ""}${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}`}
                             role="option"
                             aria-selected={i() === selectedIdx()}
                             onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
@@ -493,11 +546,35 @@ export function IndicatorsDialog(props: Props) {
                                 {(b) => <span class={`indicators-badge badge-${b.toLowerCase()}`}>{b}</span>}
                               </For>
                             </div>
-                            <div class="indicators-cell indicators-author-cell">
-                              <Show when={row.author}>
-                                <span class="indicators-author">{row.author}</span>
+                            <Show
+                              when={row.metricKey}
+                              fallback={
+                                <div class="indicators-cell indicators-author-cell">
+                                  <Show when={row.author}>
+                                    <span class="indicators-author">{row.author}</span>
+                                  </Show>
+                                </div>
+                              }
+                            >
+                              <Show when={(row.periods?.length ?? 0) > 1}>
+                                <div class="indicators-metric-actions">
+                                  <For each={row.periods}>
+                                    {(p) => (
+                                      <button
+                                        type="button"
+                                        class="indicators-metric-period"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          props.onAddIndicator?.(fundamentalId(row.metricKey!, p));
+                                        }}
+                                      >
+                                        {PERIOD_LABELS[p]}
+                                      </button>
+                                    )}
+                                  </For>
+                                </div>
                               </Show>
-                            </div>
+                            </Show>
                           </div>
                         );
                       }}

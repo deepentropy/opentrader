@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SymbolSessions } from "../../../data/session";
-import { chartPriceFormat, groupThousands } from "../price-format";
+import { abbreviatedPrice, chartPriceFormat, groupThousands } from "../price-format";
 
 const MINUS = "−";
 const fmt = (precision: string | undefined, v: number) => chartPriceFormat(precision, null)!.format(v);
@@ -88,5 +88,20 @@ describe("chartPriceFormat — fractional", () => {
   it("negatives and thousands", () => {
     expect(fmt("1/32", -123.5)).toBe(`${MINUS}123'16`);
     expect(fmt("1/4", 1234.5)).toBe("1,234'5");
+  });
+});
+
+describe("abbreviatedPrice (economic series)", () => {
+  const small = (v: number) => v.toFixed(1);
+  it("abbreviates from 1,000 on with at most 2 decimals, as the reference values", () => {
+    expect(abbreviatedPrice(32563030000000, small)).toBe("32.56 T");
+    expect(abbreviatedPrice(159040000, small)).toBe("159.04 M");
+    expect(abbreviatedPrice(124900000000, small)).toBe("124.9 B");
+    expect(abbreviatedPrice(199000, small)).toBe("199 K");
+    expect(abbreviatedPrice(-34000, small)).toBe(`${MINUS}34 K`);
+  });
+  it("keeps values under 1,000 in the symbol's format", () => {
+    expect(abbreviatedPrice(336.3, small)).toBe("336.3");
+    expect(chartPriceFormat(undefined, null, true)!.format(4.2)).toBe("4.20");
   });
 });

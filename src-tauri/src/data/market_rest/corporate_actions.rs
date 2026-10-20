@@ -60,11 +60,14 @@ pub struct SplitEvent {
     pub to: f64,
 }
 
-/// A dividend marker: ex-dividend date (UNIX seconds) + cash amount per share.
+/// A dividend marker: ex-dividend date (UNIX seconds) + cash amount per share,
+/// and the payment date (UNIX seconds) when known.
 #[derive(Clone, Serialize, specta::Type)]
 pub struct DividendEvent {
     pub date: f64,
     pub amount: f64,
+    #[serde(rename = "payDate")]
+    pub pay_date: Option<f64>,
 }
 
 /// Every already-executed split for `ticker`, newest-first, or the lookup
@@ -158,6 +161,8 @@ struct DividendRow {
     #[serde(default)]
     ex_date: Option<String>,
     #[serde(default)]
+    pay_date: Option<String>,
+    #[serde(default)]
     amount: Option<f64>,
 }
 
@@ -205,7 +210,8 @@ async fn fetch_dividends(ticker: &str, today: NaiveDate) -> Result<Vec<DividendE
                 // Without its ex-date or amount a dividend can neither be
                 // marked nor adjusted for: dropped (it used to read 0).
                 let date = NaiveDate::parse_from_str(r.ex_date.as_deref()?, "%Y-%m-%d").ok()?;
-                Some(DividendEvent { date: date_to_unix(date), amount: r.amount? })
+                let pay_date = r.pay_date.as_deref().and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok()).map(date_to_unix);
+                Some(DividendEvent { date: date_to_unix(date), amount: r.amount?, pay_date })
             })
             .collect(),
     )
