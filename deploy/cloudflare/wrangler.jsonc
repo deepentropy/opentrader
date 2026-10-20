@@ -7,6 +7,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
+  // The public address (Cloudflare creates its DNS record and certificate).
+  "routes": [{ "pattern": "demo.opentrader.markets", "custom_domain": true }],
   "assets": {
     "directory": "../../dist-web",
     "binding": "ASSETS",
@@ -28,7 +30,7 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpenTraderServer"] }],
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
-    "PUBLIC_ORIGIN": "https://opentrader-web.cloudflare-breeder165.workers.dev"
+    "PUBLIC_ORIGIN": "https://demo.opentrader.markets,https://opentrader-web.cloudflare-breeder165.workers.dev"
   },
   "observability": { "enabled": true }
 }

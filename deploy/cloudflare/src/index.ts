@@ -12,7 +12,7 @@ interface Env {
   ASSETS: Fetcher;
   /** Gateway token (secret). */
   OPENTRADER_GATEWAY_TOKEN: string;
-  /** Origin of the public site, the only page origin the server accepts. */
+  /** Origins of the public site (comma-separated), the page origins the server accepts. */
   PUBLIC_ORIGIN: string;
 }
 
