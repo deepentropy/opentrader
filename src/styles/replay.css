@@ -1,0 +1,260 @@
+/*
+ * Bar Replay: the toolbar above the bottom bar, its menus, the bar
+ * selection layer on the charts and the legend status.
+ *
+ * Reference measures (3.4.1, dark): toolbar 48 px + 1 px #2e2e2e top border,
+ * background #0f0f0f, 1 px seam above the bottom bar (which loses its top
+ * corners); controls centred 70 px in from both sides, buttons 38 x 38, text
+ * 14 px, dividers 1 x 22 #4a4a4a (margin 8 px 4 px), Exit 16 px from the right
+ * edge. Menus 196 px wide, title 11 px uppercase grey, rows 32 px, the
+ * current row a #f2f2f2 pill with dark text.
+ */
+
+.ot-replay-toolbar {
+  position: relative;
+  flex: 0 0 49px;
+  height: 49px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--color-widget-border, #2e2e2e);
+  background-color: var(--color-pane-bg);
+  color: var(--color-toolbar-button-text);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.ot-replay-toolbar + .chart-controls-bar.bottom-bar {
+  margin-top: 1px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.ot-replay-toolbar__controls {
+  position: absolute;
+  inset: 5px 70px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.ot-replay-toolbar__group {
+  display: flex;
+  align-items: center;
+  height: 38px;
+}
+.ot-replay-toolbar__sep {
+  width: 1px;
+  height: 22px;
+  margin: 8px 8px;
+  background-color: var(--color-toolbar-divider-background, #4a4a4a);
+}
+.ot-replay-toolbar__close {
+  position: absolute;
+  right: 16px;
+  top: 5px;
+}
+
+.ot-replay-btn {
+  height: 38px;
+  min-width: 38px;
+  padding: 0 5px;
+  gap: 4px;
+  font-size: 14px;
+}
+.ot-replay-btn.is-text {
+  padding: 0 4px;
+}
+.ot-replay-btn__text {
+  white-space: nowrap;
+}
+.ot-replay-start.has-text {
+  padding: 0 5px 0 5px;
+}
+.ot-replay-chevron {
+  min-width: 24px;
+  width: 24px;
+  padding: 0;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+}
+.ot-replay-chevron:hover:not(.is-disabled) {
+  color: var(--color-toolbar-button-text-hover);
+}
+.ot-replay-chevron svg.is-open {
+  transform: rotate(180deg);
+}
+/* Pressed controls (Select bar while picking, Pause while playing, an open
+   menu): the neutral grey pill, default text colour. */
+.ot-toolbar-button.ot-replay-btn[aria-pressed="true"]::before,
+.ot-toolbar-button.ot-replay-btn[aria-pressed="true"]:hover:not(.is-disabled)::before {
+  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+}
+.ot-toolbar-button.ot-replay-btn[aria-pressed="true"],
+.ot-toolbar-button.ot-replay-btn[aria-pressed="true"]:hover:not(.is-disabled) {
+  color: var(--color-toolbar-button-text);
+}
+
+/* ── Menus ─────────────────────────────────────────────────────────────── */
+.ot-replay-menu {
+  position: fixed;
+  z-index: 300;
+  min-width: 177px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.ot-replay-menu__title {
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 0 12px;
+  margin: 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.ot-replay-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-popup-element-text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+}
+.ot-replay-menu__item.has-icon {
+  justify-content: flex-start;
+  gap: 4px;
+  height: 34px;
+  padding: 0 12px 0 8px;
+}
+.ot-replay-menu__item:hover:not(.is-disabled) {
+  background-color: var(--color-popup-element-background-hover);
+}
+.ot-replay-menu__item.is-selected,
+.ot-replay-menu__item.is-selected:hover {
+  background-color: var(--ot-replay-selected-bg, #f2f2f2);
+  color: var(--ot-replay-selected-text, #0f0f0f);
+}
+.ot-replay-menu__item.is-disabled {
+  opacity: 0.4;
+}
+.ot-replay-menu__desc {
+  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+}
+.ot-replay-menu__item.is-selected .ot-replay-menu__desc {
+  color: inherit;
+}
+.ot-replay-menu__sep {
+  height: 1px;
+  margin: 6px 0;
+  background-color: var(--color-toolbar-divider-background, #4a4a4a);
+}
+.ot-replay-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background-color: var(--color-content-primary-neutral-normal, #707070);
+}
+.ot-replay-switch.is-on {
+  background-color: #f2f2f2;
+}
+.ot-replay-switch__knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: #0f0f0f;
+  transition: left 80ms ease;
+}
+.ot-replay-switch.is-on .ot-replay-switch__knob {
+  left: 20px;
+}
+
+/* ── Bar selection on a chart ──────────────────────────────────────────── */
+.ot-replay-select {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  cursor: none;
+}
+.ot-replay-select__dim,
+.ot-replay-select__line,
+.ot-replay-select__scissors,
+.ot-replay-select__label {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+}
+.ot-replay-select__line {
+  width: 2px;
+  background-color: #2962ff;
+}
+.ot-replay-select__label {
+  display: flex;
+  align-items: center;
+  transform: translateX(-50%);
+}
+.ot-replay-select__label > span {
+  padding: 3px 6px;
+  border-radius: 2px;
+  background-color: #2962ff;
+  color: #fff;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* ── Legend status (Select your start point / Replay mode) ─────────────── */
+.ot-legend-status-item.is-replay {
+  color: var(--color-content-tertiary-inverse, #fff);
+}
+.ot-legend-status-item.is-replay-select::after {
+  background-color: var(--color-content-primary-neutral-normal, #707070);
+}
+.ot-legend-status-pill:hover .ot-legend-status-item.is-replay-select::after {
+  background-color: var(--color-content-primary-neutral, #8c8c8c);
+}
+.ot-legend-status-item.is-replay-on::after {
+  background-color: var(--color-content-secondary-accent, #3179f5);
+}
+.ot-legend-status-pill:hover .ot-legend-status-item.is-replay-on::after {
+  background-color: var(--color-content-primary-accent-semi-bold, #2962ff);
+}
+.ot-legend-status-item.is-replay-play::after {
+  animation: ot-replay-blink 1s cubic-bezier(0.77, 0.21, 0.1, 0.74) infinite;
+}
+@keyframes ot-replay-blink {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Header "Replay" button while Bar Replay is on: a light pill, dark label
+   (#f2f2f2 / #0f0f0f, the reference app 3.4.1 dark). */
+.ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"]::before,
+.ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"]:hover::before {
+  background-color: var(--ot-replay-selected-bg, #f2f2f2);
+}
+.ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"],
+.ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"]:hover {
+  color: var(--ot-replay-selected-text, #0f0f0f);
+}
+.ot-replay-menu.is-down {
+  min-width: 0;
+  padding: 4px 0;
+}

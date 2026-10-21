@@ -51,6 +51,7 @@ import type { StrategyMarksApi } from "./strategy-marks";
 import type { LegendApi } from "./legend";
 import type { SourceMenuApi } from "./source-menu";
 import type { ScalesApi } from "./scales";
+import type { ReplayApi } from "./replay";
 import type { SyncMode } from "../../drawings/DrawingToolbar";
 
 export type ChartViewProps = {
@@ -305,7 +306,8 @@ export type ChartCx = ChartCore &
   SymbolLoadApi &
   TickerInfoApi &
   SourceMenuApi &
-  ScalesApi;
+  ScalesApi &
+  ReplayApi;
 
 /** Add a part's functions (and its state accessors) to the context. */
 export function attach<T extends object>(cx: ChartCx, api: T): T {

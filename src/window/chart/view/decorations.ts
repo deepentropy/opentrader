@@ -209,7 +209,9 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
       (t.prePostLabel || t.prePostLine) &&
       (session === "pre" || session === "post") &&
       !onChartAlready &&
-      price != null;
+      price != null &&
+      // Bar Replay shows past bars: no live extended-hours price.
+      !cx.replayWatermark();
     if (!enabled) {
       if (prePostLine) { cx.series.removePriceLine(prePostLine); prePostLine = null; }
       prePostKey = "";
@@ -247,6 +249,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     q?.extChangePercent;
     props.interval;
     props.session;
+    cx.replayWatermark();
     // Hidden tab: no redraw on each quote (the snapshot poll moves the
     // pre/post price every few seconds); this effect re-runs when shown.
     if (hidden()) return;

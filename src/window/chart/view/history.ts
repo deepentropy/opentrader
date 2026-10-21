@@ -321,12 +321,17 @@ export function createHistory(cx: ChartCx): HistoryApi {
     const prevLast = isTransformType(cx.activeType) ? mainLastIndex() : null;
     const prevLen = cx.raw.length;
     if (isDaily) {
+      // Bar Replay: the daily family is loaded whole; a re-aggregation here
+      // would bring back the bars after the replay time.
+      if (cx.replayActive) return false;
       const unit = aggregateUnitFor(int);
       // Resolved with the first daily load (getBars).
       const spec = cachedSymbolSessions(props.symbol ?? "")?.regular;
       if (unit && !spec) return false;
       cx.rawDaily = [...older, ...cx.rawDaily];
       cx.raw = toOHLC(unit ? aggregateCandles(cx.rawDaily, unit, spec!) : cx.rawDaily);
+    } else if (cx.replayActive) {
+      cx.replayOnPrepend(toOHLC(older));
     } else {
       cx.raw = [...toOHLC(older), ...cx.raw];
     }
@@ -354,7 +359,8 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  else display bars. The bar at the right edge of the view stays there, at
    *  the same bar spacing. Returns the number of bars added. */
   function mergeMissing(rows: Candle[], isDaily: boolean, int: string): number {
-    if (!cx.chart || !cx.series) return 0;
+    // Bar Replay: completed when the chart is back to live data.
+    if (!cx.chart || !cx.series || cx.replayActive) return 0;
     const src: readonly { time: unknown }[] = isDaily ? cx.rawDaily : cx.raw;
     if (src.length === 0) return 0;
     const lastSec = src[src.length - 1].time as number;
@@ -586,7 +592,9 @@ export function createHistory(cx: ChartCx): HistoryApi {
       const prevRange = ts.getVisibleLogicalRange();
       const prevLast = isTransformType(cx.activeType) ? mainLastIndex() : null;
       const prevLen = cx.raw.length;
-      cx.raw = toOHLC(older).concat(cx.raw);
+      // In Bar Replay the replayed series takes them in front.
+      if (cx.replayActive) cx.replayOnPrepend(toOHLC(older));
+      else cx.raw = toOHLC(older).concat(cx.raw);
       prefetch = null;
       // The prepend itself fires a range change (same logical range, older
       // dates) before the view is put back below: guard it too, so it is not

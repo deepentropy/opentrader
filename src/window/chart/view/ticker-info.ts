@@ -20,12 +20,16 @@ import { createTextWatermark, type ITextWatermarkPluginApi, type Time } from "li
 import { getTickerInfo, isEconomicSymbol } from "../../../data/datafeed";
 import { type ChartCx } from "./context";
 import type { Accessor } from "solid-js";
+import type { WatermarkLine } from "../replay-watermark";
 
 /** What createTickerInfo adds to the chart context. */
 export interface TickerInfoApi {
   legendDesc: Accessor<string>;
   /** Exchange piece of the legend: the agency of an economic series ("" until known). */
   legendSource: Accessor<string>;
+  /** Symbol watermark lines (Symbol / Interval, Description), for the
+   *  replay watermark that draws them with its own line. */
+  watermarkLines: Accessor<WatermarkLine[]>;
 }
 
 export function createTickerInfo(cx: ChartCx): TickerInfoApi {
@@ -70,6 +74,7 @@ export function createTickerInfo(cx: ChartCx): TickerInfoApi {
 
   let watermark: ITextWatermarkPluginApi<Time> | null = null;
   const [wmDesc, setWmDesc] = createSignal("");
+  const [watermarkLines, setWatermarkLines] = createSignal<WatermarkLine[]>([]);
   createEffect(() => {
     const a = appearance();
     const sym = fullSymbol();
@@ -98,15 +103,19 @@ export function createTickerInfo(cx: ChartCx): TickerInfoApi {
     const lines: { text: string; color: string; fontSize: number }[] = [];
     if (head) lines.push({ text: head, color: t.watermarkColor, fontSize: 54 });
     if (t.watermarkDescription && desc) lines.push({ text: desc, color: t.watermarkColor, fontSize: 24 });
+    setWatermarkLines(lines.map((l) => ({ text: l.text })));
     // Recreate rather than applyOptions: dropping to zero lines must remove
     // the primitive, and recreation keeps one code path for both.
     try { watermark?.detach(); } catch { /* its pane is gone */ }
     watermark = null;
+    // In Bar Replay the replay watermark draws these lines with its own.
+    if (cx.replayWatermark()) return;
     if (lines.length > 0) watermark = createTextWatermark(cx.chart.panes()[cx.mainPane()], { lines });
   });
 
   return {
     legendDesc,
     legendSource,
+    watermarkLines,
   };
 }

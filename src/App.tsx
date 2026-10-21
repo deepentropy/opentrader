@@ -66,6 +66,8 @@ import { installKeyboardShortcuts } from "./window/shell/keyboard-shortcuts";
 import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
 import { installSourceEdits } from "./window/shell/source-edits";
+import { ReplayToolbar } from "./window/replay/ReplayToolbar";
+import { replayToolbarShown } from "./data/replay";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
@@ -742,6 +744,10 @@ function App() {
               onAddIndicator={addIndicator}
               onClose={() => setOakPanelOpen(false)}
             />
+          </Show>
+          {/* Bar Replay toolbar, above the bottom bar while replay is on. */}
+          <Show when={replayToolbarShown()}>
+            <ReplayToolbar />
           </Show>
           <BottomBar
             interval={interval()}

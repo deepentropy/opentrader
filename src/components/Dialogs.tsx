@@ -19,8 +19,9 @@ export type ConfirmOptions = {
   mainText?: string;
   /** Other button (default "No"); null = no other button (a warning). */
   cancelText?: string | null;
-  /** Main button colour: success = #089981 (default), danger = #F23645. */
-  intent?: "success" | "danger";
+  /** Main button colour: success = #089981 (default), danger = #F23645,
+   *  neutral = the light button (Bar Replay "Leave"). */
+  intent?: "success" | "danger" | "neutral";
   onConfirm: () => void;
   onCancel?: () => void;
   /** Close button / Escape: this instead of onCancel (default onCancel). */
@@ -119,6 +120,7 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
   useKeys(props.entry.id, dismiss, confirm);
   return (
     <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={dismiss}>
+      <Show when={o.text || o.doNotShow}>
       <div class="ot-dlg-content ot-dlg-text">
         {o.text}
         <Show when={o.doNotShow}>
@@ -130,6 +132,7 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
           )}
         </Show>
       </div>
+      </Show>
       <div class="ot-dlg-footer">
         <Show when={o.cancelText !== null}>
           <button type="button" class="ot-dlg-btn is-secondary" onClick={cancel}>{o.cancelText ?? "No"}</button>

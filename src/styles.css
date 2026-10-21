@@ -54,6 +54,7 @@
 @import "./styles/oakscript-panel.css";
 @import "./styles/strategy-tester.css";
 @import "./styles/screener.css";
+@import "./styles/replay.css";
 
 :root {
   --font-family-base: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto,

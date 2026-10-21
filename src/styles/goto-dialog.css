@@ -618,3 +618,15 @@
   color: var(--color-text-disabled);
   cursor: default;
 }
+
+/* Bar Replay "Select date": the "Select the first available day" button under
+   the calendar. */
+.goto-dialog-first-day {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+.goto-dialog-first-day-btn {
+  width: auto;
+  padding: 0 16px;
+}

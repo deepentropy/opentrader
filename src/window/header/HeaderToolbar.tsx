@@ -19,7 +19,8 @@ import { Tooltip } from "../../components/Tooltip";
 import { avatarHue, ProfileMenu } from "./ProfileMenu";
 import { SECTIONS, SLUG_TO_INTERVAL, type Item, type Section } from "../../data/header-toolbar";
 import { CHART_TYPE_ICON, type ChartTypeId } from "../chart/chart-types";
-import { iconNameForLayout, type LayoutId } from "../chart/layouts";
+import { iconNameForLayout, paneCount, type LayoutId } from "../chart/layouts";
+import { ReplayHeaderButton } from "../replay/ReplayHeaderButton";
 import { favoriteIntervals, longIntervalLabel, shortIntervalLabel } from "../chart/interval-favorites";
 import { favoriteIndicatorTemplates } from "../../data/indicator-template-store";
 import { favoriteLayouts } from "../../data/layout-store";
@@ -165,6 +166,10 @@ export function HeaderToolbar(props: Props) {
           </button>
         </Tooltip>
       );
+    }
+
+    if (item.id === "header-toolbar-replay") {
+      return <ReplayHeaderButton multiChart={!!props.layout && paneCount(props.layout) > 1} />;
     }
 
     // Undo/Redo: dynamic label + enabled state from the drawing undo stack.

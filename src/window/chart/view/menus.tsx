@@ -437,6 +437,8 @@ export function createMenus(cx: ChartCx): MenusApi {
   /** The "+" menu's alert rows for pane `paneIdx` at `y` (pixels from the pane top), main series first. */
   function plusAlertRows(paneIdx: number, y: number): CtxNode[] {
     const out: CtxNode[] = [];
+    // Bar Replay shows past bars: no alert rows (the reference app).
+    if (cx.replayActive) return out;
     const side = currentTokens().scalesPlacement;
     const mainIdx = cx.mainPane();
     const plainScale = (mode: PriceScaleMode | undefined) => mode !== PriceScaleMode.Percentage && mode !== PriceScaleMode.IndexedTo100;

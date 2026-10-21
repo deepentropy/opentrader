@@ -141,6 +141,8 @@ export function createLive(cx: ChartCx): LiveApi {
     // Mid-transition the outgoing symbol's candles are still painted; ignore
     // ticks (which are for the incoming symbol) until the swap completes.
     if (cx.swapping) return null;
+    // Bar Replay shows past bars: live bars wait for the end of the replay.
+    if (cx.replayActive) return null;
     const lastTime = cx.raw.length > 0 ? (cx.raw[cx.raw.length - 1].time as number) : -1;
     let next: OHLC;
     let appended = false;

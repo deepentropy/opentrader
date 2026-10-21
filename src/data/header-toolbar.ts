@@ -79,6 +79,9 @@ export const SECTIONS: Section[] = [
     sectionIndex: 4,
     items: [
       { id: "create-alert", label: "Create alert", text: "Alert", iconName: "header-create-alert", hotkey: "Alt+A" },
+      // Bar Replay button + the "Replay mode" chevron of multi-chart layouts
+      // (rendered by ReplayHeaderButton).
+      { id: "header-toolbar-replay", label: "Bar replay", text: "Replay", iconName: "header-bar-replay" },
     ],
   },
   {

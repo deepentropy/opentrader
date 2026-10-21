@@ -167,6 +167,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       cx.renderCompareAll();
       cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
       cx.swapping = false;
+      cx.replayAfterApply();
       return;
     }
     // The datafeed already aggregated 1W/1M; `real.daily` carries the
@@ -320,6 +321,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       const gen = cx.fetchGen;
       void cx.completeHistory(props.symbol ?? "", props.interval ?? "1D", props.session ?? "RTH", () => lastAppliedReal === real && cx.fetchGen === gen);
     }
+    // Bar Replay: the new bars are cut again at the replay time.
+    cx.replayAfterApply();
   });
 
   // Dim-and-hold transition: rather than a spinner on a

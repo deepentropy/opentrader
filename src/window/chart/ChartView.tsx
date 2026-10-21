@@ -108,6 +108,7 @@ import { createPointer } from "./view/pointer";
 import { createWindowEvents } from "./view/window-events";
 import { createTickerInfo } from "./view/ticker-info";
 import { createSymbolLoad } from "./view/symbol-load";
+import { createReplay } from "./view/replay";
 import { createStrategyMarks } from "./view/strategy-marks";
 import { createLegend } from "./view/legend";
 
@@ -1250,6 +1251,7 @@ export function ChartView(props: ChartViewProps) {
 
 
   const { paintLive } = attach(cx, createLive(cx));
+  const { ReplaySelectLayer } = attach(cx, createReplay(cx));
 
   // Theme + per-pane appearance reactivity. Re-runs when the theme toggles or
   // this pane's Settings change (Ok / Apply to all): re-apply the canvas options
@@ -1410,6 +1412,7 @@ export function ChartView(props: ChartViewProps) {
         onRemove={(id) => props.removeDrawing?.(id)}
         onRemoveMany={(ids) => props.removeDrawings?.(ids)}
       />
+      <ReplaySelectLayer />
       <PriceAxisOverlays />
       <ExtraAxisOverlays />
       {/* Latest news card (lollipop tooltip, type "news"): "Latest updates"

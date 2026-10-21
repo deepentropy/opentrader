@@ -72,6 +72,9 @@ type Props = {
   showLastDayChange?: boolean;
   /** US market session now (data/market-session). */
   marketStatus?: "open" | "pre" | "post" | "closed";
+  /** Bar Replay status of the chart: it takes the market status' place
+   *  (picking the start point / in replay, paused or playing). */
+  replayStatus?: "select" | "pause" | "play" | null;
   /** Status line → "Open market status": hides only the OPEN icon; pre /
    *  post / closed statuses always show. */
   showOpenStatus?: boolean;
@@ -322,7 +325,26 @@ export function ChartLegend(props: Props) {
                 <ICON_MORE />
               </ActionButton>
             </div>
-            <Show when={props.marketStatus && (props.marketStatus !== "open" || (props.showOpenStatus ?? true)) ? STATUS_ITEMS[props.marketStatus!] : null}>
+            <Show when={props.replayStatus}>
+              {(rs) => (
+                <div class="ot-legend-statuses">
+                  <span
+                    class="ot-legend-status-pill"
+                    data-role="statuses-pill"
+                    title={rs() === "select" ? "Select your start point" : "Replay mode"}
+                    data-qa-id="legend-source-item-status"
+                  >
+                    <span
+                      class={`ot-legend-status-item is-replay ${rs() === "select" ? "is-replay-select" : "is-replay-on"}${rs() === "play" ? " is-replay-play" : ""}`}
+                      aria-hidden="true"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" d="M8 13 4 9l4-4zm4 0L8 9l4-4z" /></svg>
+                    </span>
+                  </span>
+                </div>
+              )}
+            </Show>
+            <Show when={!props.replayStatus && props.marketStatus && (props.marketStatus !== "open" || (props.showOpenStatus ?? true)) ? STATUS_ITEMS[props.marketStatus!] : null}>
               {(st) => (
                 <div class="ot-legend-statuses">
                   <span class="ot-legend-status-pill" data-role="statuses-pill" title={st().title} data-qa-id="legend-source-item-status">

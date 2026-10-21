@@ -31,6 +31,11 @@ type Props = {
   /** Custom-range tab submit — frame the chart on [from, to]. */
   onSubmitRange?: (from: WallTime, to: WallTime) => void;
   onClose: () => void;
+  /** Bar Replay "Select date" (the reference app select-date-dialog): no tabs, centred in
+   *  the window, "Select" button, days before `minDate` (the first available
+   *  one, null while unknown) blocked, and a "Select the first available
+   *  day" button that moves the picker to it. */
+  replay?: { minDate: Date | null };
 };
 
 // ─── Calendar primitives (Monday-first week) ────────────────────────────────
@@ -137,7 +142,7 @@ export function GoToDateDialog(props: Props) {
   // Date tab start: the last submitted date + time of the session, else today
   // 00:00; a DWM chart shows it at 00:00 (the reference app `resetToDayStart`).
   const initial = props.initial ? wallToDate(props.initial) : today;
-  const [tab, setTab] = createSignal<TabId>(kv.getItem(TAB_KEY) === "customrange" ? "customrange" : "date");
+  const [tab, setTab] = createSignal<TabId>(!props.replay && kv.getItem(TAB_KEY) === "customrange" ? "customrange" : "date");
   let dateInput: HTMLInputElement | undefined;
   let fromInput: HTMLInputElement | undefined;
   const [selected, setSelected] = createSignal<Date>(new Date(initial));
@@ -197,6 +202,11 @@ export function GoToDateDialog(props: Props) {
     const H = popup.offsetHeight;
     const W = popup.offsetWidth;
     const M = 4;
+    if (props.replay) {
+      // Centred in the window.
+      setPos({ left: Math.round((window.innerWidth - W) / 2), top: Math.max(M, Math.round((window.innerHeight - H) / 2)) });
+      return;
+    }
     let left = Math.round(props.anchor.left + props.anchor.width / 2 - W / 2);
     let top = Math.round(props.anchor.top - H - M);
     if (left < M) left = M;
@@ -289,7 +299,7 @@ export function GoToDateDialog(props: Props) {
    *  today; on Custom range, while From is armed the last day is To, while To
    *  is armed the first day is From. */
   const limits = (): { min: Date | null; max: Date | null } => {
-    if (tab() === "date") return { min: null, max: today };
+    if (tab() === "date") return { min: props.replay?.minDate ?? null, max: today };
     return armedField() === "from" ? { min: null, max: parseYmd(toText()) } : { min: parseYmd(fromText()), max: null };
   };
   const dayBlocked = (d: Date): boolean => {
@@ -338,17 +348,18 @@ export function GoToDateDialog(props: Props) {
         ref={popup}
         class="ot-popover goto-dialog-wrapper"
         role="dialog"
-        data-name="go-to-date-dialog"
-        aria-label="Go to"
+        data-name={props.replay ? "select-date-dialog" : "go-to-date-dialog"}
+        aria-label={props.replay ? "Select date" : "Go to"}
         style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : { left: "-9999px", top: "-9999px" }}
       >
         <div class="goto-dialog-titlebar" data-dragg-area="true">
-          <div class="goto-dialog-title">Go to</div>
+          <div class="goto-dialog-title">{props.replay ? "Select date" : "Go to"}</div>
           <button type="button" class="goto-dialog-close" aria-label="Close menu" onClick={() => props.onClose()}>
             <span class="goto-dialog-close-icon" role="img" aria-hidden="true"><CloseIcon /></span>
           </button>
         </div>
 
+        <Show when={!props.replay}>
         <div class="goto-dialog-tabs">
           <div class="goto-dialog-tablist" role="tablist">
             <button type="button" role="tab" aria-selected={tab() === "date"}
@@ -360,6 +371,7 @@ export function GoToDateDialog(props: Props) {
             <div class={`goto-dialog-underline is-${tab()}`} />
           </div>
         </div>
+        </Show>
 
         <div class="goto-dialog-content">
             <div class="goto-dialog-body">
@@ -501,6 +513,15 @@ export function GoToDateDialog(props: Props) {
                 </div>
                 </Show>
               </div>
+              <Show when={props.replay?.minDate}>
+                {(min) => (
+                  <div class="goto-dialog-first-day">
+                    <button type="button" class="goto-dialog-btn is-secondary goto-dialog-first-day-btn" onClick={() => pickDay(min())}>
+                      <span class="goto-dialog-btn-content">Select the first available day</span>
+                    </button>
+                  </div>
+                )}
+              </Show>
             </div>
         </div>
 
@@ -512,7 +533,7 @@ export function GoToDateDialog(props: Props) {
             <span class="goto-dialog-submit-wrap">
               <button type="button" class="goto-dialog-btn is-primary" data-name="submit-button" onClick={submit}
                 disabled={tab() === "customrange" ? !rangeValid() : !dateValid()}>
-                <span class="goto-dialog-btn-content">Go to</span>
+                <span class="goto-dialog-btn-content">{props.replay ? "Select" : "Go to"}</span>
               </button>
             </span>
           </div>
