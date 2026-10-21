@@ -7,11 +7,12 @@
  * The replay cursor and the toolbar state live in data/replay.ts; this part
  * only serves its pane.
  */
-import { Show, createEffect, createMemo, createSignal, onCleanup, untrack, type Accessor, type JSX } from "solid-js";
+import { Show, createEffect, createMemo, createSignal, on, onCleanup, untrack, type Accessor, type JSX } from "solid-js";
 import { CrosshairMode, MismatchDirection, type Time } from "lightweight-charts";
 import {
   bumpReplayEpoch,
   isPaneInReplay,
+  isPaneTooDeep,
   registerReplayPane,
   replayEnabled,
   replayMode,
@@ -497,6 +498,89 @@ export function createReplay(cx: ChartCx): ReplayApi {
     return d ? (d.time as number) : null;
   };
 
+  // ── Caution hint ──────────────────────────────────────────────────────────
+  // Reference app: while Bar Replay is on, each chart it covers (the focused
+  // one, every shown one in All charts mode) that cannot be replayed shows
+  // "Caution! <reason>" at the bottom of its plot. Closed, it stays closed
+  // for that reason until the reason changes or replay opens again.
+  const CAUTION: Record<string, string> = {
+    chartType: "Bar Replay isn't available for this chart type.",
+    interval: "Bar Replay isn't available for this time interval.",
+    symbol: "Bar Replay isn't available for the current symbol.",
+    tooDeep: "The starting point for this chart replay is too far away.",
+  };
+  const [cautionClosed, setCautionClosed] = createSignal<string | null>(null);
+  createEffect(on(replayEnabled, (on) => on && setCautionClosed(null)));
+  const cautionReason = createMemo<string | null>(() => {
+    if (!replayEnabled() || props.shown === false) return null;
+    if (replayMode() === "ActiveChart" && !props.active) return null;
+    const u = unavailable();
+    const reason = u ?? (isPaneTooDeep(paneId) ? "tooDeep" : null);
+    if (reason === null) return null;
+    return cautionClosed() === reason ? null : reason;
+  });
+  // Back to available: a later problem shows again.
+  createEffect(() => {
+    if (replayEnabled() && unavailable() === null && !isPaneTooDeep(paneId)) setCautionClosed(null);
+  });
+  /** Bumped when the plot's size changes (the hint follows its width). */
+  const [plotEpoch, setPlotEpoch] = createSignal(0);
+  createEffect(() => {
+    if (cautionReason() === null) return;
+    cx.chartReady();
+    const ts = cx.chart?.timeScale();
+    if (!ts) return;
+    const bump = () => setPlotEpoch((n) => n + 1);
+    ts.subscribeSizeChange(bump);
+    const ro = new ResizeObserver(bump);
+    ro.observe(cx.host);
+    onCleanup(() => {
+      ts.unsubscribeSizeChange(bump);
+      ro.disconnect();
+    });
+  });
+  const CautionHint = () => {
+    const geom = createMemo(() => {
+      plotEpoch();
+      if (!cx.chart || cautionReason() === null) return null;
+      const ts = cx.chart.timeScale();
+      const left = cx.leftAxisWidth();
+      const plot = ts.width();
+      const total = cx.host.clientWidth;
+      // 95 % of the plot, centred on it; narrow plots: the whole chart less 8 px, no icon.
+      const narrow = plot <= 300;
+      return {
+        left: narrow ? 4 : left + (plot * 0.05) / 2,
+        width: narrow ? total - 8 : plot * 0.95,
+        bottom: ts.height() + 4,
+        narrow,
+      };
+    });
+    return (
+      <Show when={geom()}>
+        {(g) => (
+          <div class="ot-replay-caution" style={{ left: `${g().left}px`, width: `${g().width}px`, bottom: `${g().bottom}px` }}>
+            <div class="ot-replay-caution__box" classList={{ "no-icon": g().narrow }} data-name="replay-availability-hint" role="alert">
+              <span class="ot-replay-caution__icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+                  <path fill="currentColor" fill-rule="evenodd" d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16ZM9 4c-.79 0-1.38.7-1.25 1.48l.67 4.03a.59.59 0 0 0 1.16 0l.67-4.03A1.27 1.27 0 0 0 9 4Zm0 8a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z" />
+                </svg>
+              </span>
+              <span class="ot-replay-caution__text">
+                <span class="ot-replay-caution__header">Caution!</span> {CAUTION[cautionReason()!]}
+              </span>
+              <button type="button" class="ot-replay-caution__close" aria-label="Close" onClick={() => setCautionClosed(cautionReason())}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 14" width="12" height="12" aria-hidden="true">
+                  <path stroke="currentColor" stroke-width="1.2" d="m1.5 1.5 11 11m0-11-11 11" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+      </Show>
+    );
+  };
+
   const ReplaySelectLayer = () => {
     // Line position: the bar under the pointer here, else (All charts) the
     // one under the pointer on another chart.
@@ -525,6 +609,8 @@ export function createReplay(cx: ChartCx): ReplayApi {
       return withAlpha(bg, 0.7);
     };
     return (
+      <>
+      <CautionHint />
       <Show when={selectingHere()}>
         <div
           class="ot-replay-select"
@@ -572,6 +658,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
           </Show>
         </div>
       </Show>
+      </>
     );
   };
 

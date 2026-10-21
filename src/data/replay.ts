@@ -202,6 +202,31 @@ export function setReplayTradingSave(hooks: typeof tradingSave) {
   tradingSave = hooks;
 }
 
+// ── First-use hints (reference app) ─────────────────────────────────────────
+const HIGHLIGHT_KEY = "ot:replay-highlight-counter";
+const JUMP_HINT_KEY = "ot:replay-jump-hint-closed";
+
+/** The toolbar is highlighted the first 3 times it opens; a click on it ends
+ *  that. Returns whether this opening is highlighted (counted). */
+export function takeReplayToolbarHighlight(): boolean {
+  const n = Number(kv.getItem(HIGHLIGHT_KEY)) || 0;
+  if (n >= 3) return false;
+  kv.setItem(HIGHLIGHT_KEY, String(n + 1));
+  return true;
+}
+export function stopReplayToolbarHighlight() {
+  if ((Number(kv.getItem(HIGHLIGHT_KEY)) || 0) < 3) kv.setItem(HIGHLIGHT_KEY, "4");
+}
+
+const [jumpHintClosed, setJumpHintClosed] = createSignal(kv.getItem(JUMP_HINT_KEY) === "true");
+/** "Click to select the starting point." while a bar is picked, until it is
+ *  closed once. */
+export const replayJumpHintShown = () => selecting() && !jumpHintClosed();
+export function closeReplayJumpHint() {
+  setJumpHintClosed(true);
+  kv.setItem(JUMP_HINT_KEY, "true");
+}
+
 const SAVE_SESSION_KEY = "ot:replay-save-session";
 /** "Save this replay" (leave dialog), on by default. */
 export function replaySaveSession(): boolean {
@@ -302,6 +327,10 @@ const [epoch, setEpoch] = createSignal(0);
 /** The session ended with trades (end of the data, or Jump to real-time): the
  *  bars stay, trading stops; Play / Forward / Jump go back to real time. */
 const [finished, setFinished] = createSignal(false);
+/** Charts a start point could not be replayed on: no data that far back
+ *  (the reference app's "too far away" Caution hint). Cleared by the next
+ *  start point and when the replay stops. */
+const [tooDeep, setTooDeep] = createSignal<number[]>([]);
 /** Bumped when a new start point is taken (replay trading starts over). */
 const [startSeq, setStartSeq] = createSignal(0);
 
@@ -321,6 +350,8 @@ export const replayActivePane = activePane;
 export const setReplayActivePane = setActivePane;
 export const replayEpoch = epoch;
 export const replayFinished = finished;
+/** The replay point is older than the data of this chart. */
+export const isPaneTooDeep = (paneId: number) => tooDeep().includes(paneId);
 export const replayStartSeq = startSeq;
 export const bumpReplayEpoch = () => setEpoch((n) => n + 1);
 
@@ -510,6 +541,7 @@ async function startAt(pt: number, clickedPane?: number): Promise<void> {
   const ok = await Promise.all(targets.map((p) => p.start(pt, update)));
   const started = targets.filter((_, i) => ok[i]);
   for (const p of targets) if (!started.includes(p)) p.stop();
+  setTooDeep(targets.filter((p) => !started.includes(p) && p.unavailable() === null).map((p) => p.paneId));
   setInReplay(started.map((p) => p.paneId));
   if (started.length === 0) setPoint(null);
   void wasPlaying;
@@ -549,7 +581,10 @@ export function replayPaneReloaded(paneId: number) {
   setEpoch((n) => n + 1);
   const update = replayUpdateIntervalFor([p], pt);
   void p.start(pt, update).then((ok) => {
-    if (!ok) leavePane(paneId);
+    if (!ok) {
+      if (p.unavailable() === null) setTooDeep((l) => (l.includes(paneId) ? l : [...l, paneId]));
+      leavePane(paneId);
+    }
   });
 }
 
@@ -689,6 +724,7 @@ export function jumpToRealtime() {
 /** The charts go back to live data, the toolbar stays. */
 export function stopReplay() {
   setFinished(false);
+  setTooDeep([]);
   setPlay(false);
   for (const id of inReplay()) panes.get(id)?.stop();
   setInReplay([]);

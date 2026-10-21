@@ -5,8 +5,12 @@
  * The split button runs the last start mode (Bar / Date… / First available
  * date / Random bar, picked in its menu). Play, Forward and Jump follow the
  * focused chart; speed and update interval menus open upwards.
+ *
+ * First-use hints (reference app): the toolbar flashes the first 3 times it
+ * opens (a click on it ends that), and while a bar is picked "Click to select
+ * the starting point." shows 32 px above it until it is closed once.
  */
-import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, createEffect, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
@@ -38,6 +42,10 @@ import {
   step,
   jumpToRealtime,
   togglePlay,
+  takeReplayToolbarHighlight,
+  stopReplayToolbarHighlight,
+  replayJumpHintShown,
+  closeReplayJumpHint,
   type TimingMode,
 } from "../../data/replay";
 
@@ -130,11 +138,25 @@ export function ReplayToolbar() {
   const close = () => setMenu(null);
   let wrap!: HTMLDivElement;
   const [width, setWidth] = createSignal(1000);
+  /** Toolbar box (the jump hint sits above it). */
+  const [box, setBox] = createSignal<DOMRect | null>(null);
   onMount(() => {
-    const ro = new ResizeObserver(() => setWidth(wrap.clientWidth));
+    const ro = new ResizeObserver(() => {
+      setWidth(wrap.clientWidth);
+      setBox(wrap.getBoundingClientRect());
+    });
     ro.observe(wrap);
-    onCleanup(() => ro.disconnect());
+    const onResize = () => setBox(wrap.getBoundingClientRect());
+    window.addEventListener("resize", onResize);
+    onCleanup(() => {
+      ro.disconnect();
+      window.removeEventListener("resize", onResize);
+    });
   });
+  // Measured again when the hint shows (the panels below may have moved it).
+  createEffect(on(replayJumpHintShown, (v) => v && setBox(wrap.getBoundingClientRect())));
+  // Flashes on its first openings (counted when it mounts).
+  const highlighted = takeReplayToolbarHighlight();
 
   const timing = () => TIMING[replayTiming()];
   /** First available date / Random bar wait for the data start. */
@@ -190,7 +212,29 @@ export function ReplayToolbar() {
   });
 
   return (
-    <div ref={wrap} class="ot-replay-toolbar" data-name="replay-bottom-toolbar">
+    <div
+      ref={wrap}
+      class="ot-replay-toolbar"
+      classList={{ "is-highlighted": highlighted }}
+      data-name="replay-bottom-toolbar"
+      onClick={() => stopReplayToolbarHighlight()}
+    >
+      <Show when={replayJumpHintShown() && box()}>
+        {(b) => (
+          <Portal>
+            <div class="ot-replay-hint" style={{ left: `${b().left + 10}px`, width: `${b().width - 20}px`, top: `${b().top - 32}px` }}>
+              <div class="ot-replay-hint__box" data-name="replay-jump-hint">
+                <div class="ot-replay-hint__text">Click to select the starting point.</div>
+                <button type="button" class="ot-replay-hint__close" aria-label="Close" onClick={() => closeReplayJumpHint()}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" aria-hidden="true">
+                    <path fill="currentColor" d="M9.707 9l4.647-4.646-.707-.708L9 8.293 4.354 3.646l-.708.708L8.293 9l-4.647 4.646.708.708L9 9.707l4.646 4.647.708-.707L9.707 9z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </Portal>
+        )}
+      </Show>
       <div class="ot-replay-toolbar__controls">
         <div class="ot-replay-toolbar__group">
           <ToolButton

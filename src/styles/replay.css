@@ -278,3 +278,118 @@ html.theme-light {
   min-width: 0;
   padding: 4px 0;
 }
+
+/* ── First-use hints (reference app 3.4.1) ──────────────────────────────── */
+/* Toolbar flash on its first 3 openings: 0.7 s, twice. */
+.ot-replay-toolbar.is-highlighted {
+  animation: ot-replay-toolbar-flash 0.7s ease-in-out 0s 2;
+}
+html.theme-dark {
+  --ot-replay-flash-bg: #132042;
+}
+html.theme-light {
+  --ot-replay-flash-bg: #e3effd;
+}
+@keyframes ot-replay-toolbar-flash {
+  0%,
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+  50% {
+    background: var(--ot-replay-flash-bg, #132042);
+    box-shadow: inset 2px 2px #2962ff, inset -2px -2px #2962ff;
+  }
+}
+
+/* "Click to select the starting point.": centred 32 px above the toolbar. */
+.ot-replay-hint {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+.ot-replay-hint__box {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: 4px;
+  background: #2962ff;
+  pointer-events: auto;
+  cursor: default;
+}
+.ot-replay-hint__text {
+  padding: 4px 8px;
+  margin-inline-end: 24px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 21px;
+}
+.ot-replay-hint__close {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* "Caution! <reason>": bottom of a chart that cannot be replayed. */
+.ot-replay-caution {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.ot-replay-caution__box {
+  display: flex;
+  align-items: flex-start;
+  max-width: fit-content;
+  padding: 11px 12px;
+  border: 1px solid var(--ot-replay-caution-color, #ff9800);
+  border-radius: 8px;
+  background: var(--ot-replay-caution-bg, #1f1f1f);
+  color: var(--ot-replay-caution-text, #dbdbdb);
+  font-size: 14px;
+  line-height: 18px;
+  pointer-events: auto;
+}
+html.theme-light {
+  --ot-replay-caution-bg: #fff;
+  --ot-replay-caution-text: #0f0f0f;
+}
+.ot-replay-caution__icon {
+  display: flex;
+  flex: none;
+  margin-right: 8px;
+  color: var(--ot-replay-caution-color, #ff9800);
+}
+.ot-replay-caution__box.no-icon .ot-replay-caution__icon {
+  display: none;
+}
+.ot-replay-caution__text {
+  align-self: center;
+  margin-inline-end: 4px;
+  white-space: pre-line;
+  word-break: break-word;
+}
+.ot-replay-caution__header {
+  color: var(--ot-replay-caution-color, #ff9800);
+  font-weight: 600;
+}
+.ot-replay-caution__close {
+  display: flex;
+  flex: none;
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.ot-replay-caution__close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
