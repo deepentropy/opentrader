@@ -1096,7 +1096,7 @@ export function ChartView(props: ChartViewProps) {
       timeScale: {
         timeVisible: second || intraday,
         secondsVisible: second,
-        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(t as UTCTimestamp, tt, tz, axisFmt),
+        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(t as UTCTimestamp, tt, tz, axisFmt, second || intraday),
       },
       localization: {
         timeFormatter: (t: Time) =>

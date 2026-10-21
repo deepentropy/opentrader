@@ -46,21 +46,28 @@ export const SYNC_LOAD_QUIET_MS = 200;
 /** Time-axis formatting from the Settings dialog (Scales tab). */
 export type AxisFmt = { dateFormat?: string; timeFormat?: string; dayOfWeek?: boolean };
 
+/** Zone the labels of a chart's bar times are read in. Daily-and-up bars
+ *  stand for a date (daily at the exchange's midnight, weekly / monthly at
+ *  UTC midnight), the same in any chart time zone: read in UTC, as the time
+ *  scale does when it places the year / month / day ticks. Otherwise a weekly
+ *  bar of Mon 1 Jan read in New York is Sun 31 Dec and its year tick "2023". */
+export const barTimeZone = (timeZone: string, intraday: boolean): string => (intraday ? timeZone : "UTC");
+
 /** Crosshair time-axis label, in the chosen IANA timezone: the chart
  *  date-time text ("Wed 23 Sep '26   14:00"; date only on daily+ bars). */
 export function formatAxisTime(time: UTCTimestamp, timeZone: string, intraday: boolean, seconds: boolean, fmt: AxisFmt = {}): string {
-  return formatChartTime(time as number, timeZone, intraday, seconds, fmt);
+  return formatChartTime(time as number, barTimeZone(timeZone, intraday), intraday, seconds, fmt);
 }
 
 /** Time-axis tick label in the chosen IANA timezone (tick-mark text). */
-export function formatTick(time: UTCTimestamp, type: TickMarkType, timeZone: string, fmt: AxisFmt = {}): string {
+export function formatTick(time: UTCTimestamp, type: TickMarkType, timeZone: string, fmt: AxisFmt = {}, intraday = true): string {
   const kind =
     type === TickMarkType.Year ? "Year"
     : type === TickMarkType.Month ? "Month"
     : type === TickMarkType.DayOfMonth ? "DayOfMonth"
     : type === TickMarkType.TimeWithSeconds ? "TimeWithSeconds"
     : "Time";
-  return formatTickMark(time as number, kind, timeZone, fmt.timeFormat);
+  return formatTickMark(time as number, kind, barTimeZone(timeZone, intraday), fmt.timeFormat);
 }
 
 // Binary-search the (time-ascending) bar array for an exact timestamp match,
