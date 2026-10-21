@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import solid from "vite-plugin-solid";
 import tailwindcss from "@tailwindcss/vite";
 import tauriConf from "./src-tauri/tauri.conf.json";
+// @ts-expect-error plain JavaScript plugin (scripts/)
+import { indicatorManifest } from "./scripts/indicator-manifest-plugin.mjs";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -29,6 +31,8 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
   plugins: [
     solid(),
     tailwindcss(),
+    // The indicator names, read from the library at build time (the library itself loads on first use).
+    indicatorManifest(),
     // Vite watches only this project: also watch the drawing core so edits
     // there hot-reload here.
     // The splash in index.html shows the app version (the installer's, from

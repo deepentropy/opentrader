@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 // @ts-expect-error node builtin (the project has no @types/node)
 import { dirname, join } from "node:path";
+// @ts-expect-error plain JavaScript plugin (scripts/)
+import { indicatorManifest } from "./scripts/indicator-manifest-plugin.mjs";
 
 // Shared drawing core: the sibling repo lightweight-charts-drawing read from source, as in vite.config.ts. A checkout
 // nested in another folder (a git worktree) finds it next to the nearest parent folder that has it.
@@ -29,6 +31,7 @@ const bindingsStub = existsSync(fileURLToPath(new URL("./src/bindings.ts", impor
 // Unit tests of the logic layer (pure TypeScript, node environment; a test that needs the DOM opts in with a
 // `// @vitest-environment jsdom` comment). Tests live in `__tests__` folders next to the code they cover.
 export default defineConfig({
+  plugins: [indicatorManifest()],
   resolve: {
     alias: [
       { find: /^lightweight-charts-drawing\/core/, replacement: join(drawing, "src", "core") },

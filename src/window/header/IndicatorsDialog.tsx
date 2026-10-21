@@ -41,7 +41,7 @@ import {
   isFavoriteIndicator,
   toggleFavoriteIndicator,
 } from "../../data/indicator-favorites";
-import { getIndicatorEntry } from "../../window/chart/indicators/registry";
+import { getIndicatorEntry, indicatorName } from "../../window/chart/indicators/registry";
 import { listScripts, loadScript } from "../../data/oakscript-store";
 import { userIndicatorId } from "../../window/chart/indicators/user-scripts";
 import { isStrategyId, strategyRows, userStrategyId } from "../../window/chart/indicators/strategy-entries";
@@ -228,7 +228,7 @@ export function IndicatorsDialog(props: Props) {
         kind: "filtered",
         filters: typeFilters(favoriteIndicators().map((id) => {
           const entry = getIndicatorEntry(id);
-          const row: IndicatorRow = { name: entry?.name ?? id, shortName: entry?.shortName, indicatorId: id };
+          const row: IndicatorRow = { name: entry?.name ?? indicatorName(id) ?? id, shortName: entry?.shortName, indicatorId: id };
           if (isStrategyId(typeIdOf(id))) { row.scriptType = "strategy"; row.author = strategyAuthors.get(id); }
           return row;
         })),

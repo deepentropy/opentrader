@@ -9,7 +9,7 @@
  * `builtin:<registry id>` (its own id space next to the stored scripts); a
  * copy of it is a stored script like any other.
  */
-import { indicatorRegistry } from "lightweight-charts-indicators";
+import { indicatorName, libraryGroupOf, libraryIds } from "../chart/indicators/registry";
 import { typeIdOf } from "../chart/indicators/study-id";
 import { isStrategyId } from "../chart/indicators/strategy-entries";
 import { USER_INDICATOR_PREFIX } from "../chart/indicators/user-scripts";
@@ -24,11 +24,10 @@ export function builtinTypeOf(scriptId: string): string | null {
   return scriptId.startsWith(BUILTIN_SCRIPT_PREFIX) ? scriptId.slice(BUILTIN_SCRIPT_PREFIX.length) : null;
 }
 
-const byId = new Map(indicatorRegistry.map((e) => [e.id, e]));
-
 /** Registry ids of the studies with a source in the library: its standard
- *  entries. The app's own built-ins (Volume, the profiles) are not scripts. */
-const WITH_SOURCE = new Set(indicatorRegistry.filter((e) => e.group === "standard").map((e) => e.id));
+ *  entries. The app's own built-ins (Volume, the profiles) are not scripts.
+ *  (The library's names: the library itself loads on first use.) */
+const WITH_SOURCE = new Set(libraryIds("standard"));
 
 /** The built-in study type of a study instance id that has a source, else null. */
 export function builtinWithSource(studyId: string): string | null {
@@ -42,13 +41,13 @@ export function builtinWithSource(studyId: string): string | null {
 export function sourceUnavailable(studyId: string): boolean {
   const id = typeIdOf(studyId);
   if (isStrategyId(id)) return !id.slice("strategy:".length).startsWith(USER_INDICATOR_PREFIX);
-  const group = byId.get(id)?.group;
+  const group = libraryGroupOf(id);
   return group === "candlestick" || group === "community";
 }
 
 /** Name of a built-in study (its registry name, as the Indicators dialog lists it). */
 export function builtinName(typeId: string): string {
-  return byId.get(typeId)?.name ?? typeId;
+  return (WITH_SOURCE.has(typeId) || libraryGroupOf(typeId) ? indicatorName(typeId) : undefined) ?? typeId;
 }
 
 /** The built-ins with a source, by name (Create new > Built-in). */

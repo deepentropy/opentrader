@@ -22,6 +22,11 @@ void hydrateKv().finally(async () => {
   const { default: App } = await import("./App");
   render(() => <App />, document.getElementById("root") as HTMLElement);
   hideSplash();
+  // The indicator library is not part of the first download: it loads now,
+  // after the first render (a chart showing one of its studies asks for it
+  // already).
+  const { loadIndicatorLibrary } = await import("./window/chart/indicators/registry");
+  void loadIndicatorLibrary();
   // Anonymous usage statistics (reads kv, so after hydration).
   const { initAnalytics } = await import("./data/analytics");
   initAnalytics();

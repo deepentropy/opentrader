@@ -39,7 +39,7 @@ import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
 import { conditionRules, defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingPriceLevel, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, chartLastPrice, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
-import { getIndicatorEntry } from "../window/chart/indicators/registry";
+import { getIndicatorEntry, loadIndicatorLibrary } from "../window/chart/indicators/registry";
 import { scriptChartContext } from "../window/chart/indicators/script-chart";
 import { scriptBars } from "../backtester/oakscript";
 import { setSourceResolver, type Bar } from "oakscriptjs";
@@ -1660,10 +1660,11 @@ export function startAlertEngine(windowLabel = "main"): void {
     unlisten = u;
   });
 
-  // Once per run of the app: the fires missed while it was not running.
+  // Once per run of the app: the fires missed while it was not running (with
+  // the indicator library loaded: alerts on its studies are replayed too).
   if (HAS_TAURI) {
-    void commands
-      .alertEngineInfo()
+    void loadIndicatorLibrary()
+      .then(() => commands.alertEngineInfo())
       .then((info) => {
         const run = JSON.stringify(info.previous);
         if (kv.getItem(REPLAYED_KEY) === run) return;

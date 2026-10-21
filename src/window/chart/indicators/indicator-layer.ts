@@ -35,7 +35,8 @@ import { FundamentalLabelsPrimitive, type FundamentalLabel } from './fundamental
 import { restoreTimes, scriptBars } from '../../../backtester/oakscript';
 import { isStrategyId } from './strategy-entries';
 import type { OtherSymbolBars } from './other-symbols';
-import { MissingSymbolDataError } from 'lightweight-charts-indicators';
+// From oakscriptjs (the indicator library re-exports it): this module stays out of the library's chunk.
+import { MissingSymbolDataError } from 'oakscriptjs/script';
 import type { ChartEvent } from '../../../data/datafeed';
 import type { Fundamentals } from '../../../data/fundamentals';
 import { VbpPrimitive } from '../profiles/vbp-primitive';

@@ -7,7 +7,7 @@
  */
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
-import { getIndicatorEntry } from "../window/chart/indicators/registry";
+import { indicatorName, isKnownIndicatorId } from "../window/chart/indicators/registry";
 import { currentTypeId } from "../window/chart/indicators/retired-ids";
 import type { HeaderMenuDef } from "../window/header/header-menus/registry";
 
@@ -21,7 +21,8 @@ function load(): string[] {
       // never lists rows that can't be added.
       // A retired library id is kept as its replacement.
       const ids = (JSON.parse(raw) as string[]).map(currentTypeId);
-      return [...new Set(ids)].filter((id) => !!getIndicatorEntry(id));
+      // (The library's names count: the library itself loads on first use.)
+      return [...new Set(ids)].filter((id) => isKnownIndicatorId(id));
     }
   } catch {
     /* malformed / unavailable — start empty */
@@ -38,7 +39,7 @@ kv.onExternalChange(STORAGE_KEY, () => setFavorites(load()));
  *  sorted by display name for the dropdown. */
 export const favoriteIndicators = () =>
   [...favorites()].sort((a, b) =>
-    (getIndicatorEntry(a)?.name ?? a).localeCompare(getIndicatorEntry(b)?.name ?? b),
+    (indicatorName(a) ?? a).localeCompare(indicatorName(b) ?? b),
   );
 
 export function isFavoriteIndicator(id: string): boolean {
@@ -66,7 +67,7 @@ export function buildFavoriteIndicatorsMenu(): HeaderMenuDef {
     favs.length > 0
       ? favs.map((id) => ({
           id,
-          label: getIndicatorEntry(id)?.name ?? id,
+          label: indicatorName(id) ?? id,
           favorited: true,
         }))
       : [

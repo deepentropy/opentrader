@@ -4,8 +4,18 @@
  * source of truth for what indicators exist — the dialog lists them and the
  * chart renders them, both keyed by the registry `id`.  No hand-maintained
  * catalogue, so the list can never drift from what's actually computable.
+ *
+ * The library (several megabytes) is not part of the first download: the
+ * lists come from its names (`virtual:indicator-manifest`, read from the
+ * library at build time) and the library itself is imported on first use —
+ * started once the app is up (`loadIndicatorLibrary`), or by the first
+ * `getIndicatorEntry` of one of its studies. Until it is there such an entry
+ * is undefined; the reads track `indicatorLibraryLoaded`, so the chart's
+ * studies (and any other reactive reader) are built when it arrives.
  */
-import { indicatorRegistry, type IndicatorRegistryEntry } from 'lightweight-charts-indicators';
+import { createSignal } from 'solid-js';
+import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
+import manifest from 'virtual:indicator-manifest';
 import { getUserIndicatorEntry, isUserIndicatorId } from './user-scripts';
 import { getStrategyEntry, isStrategyId } from './strategy-entries';
 import { VOLUME_ENTRY } from './volume';
@@ -14,11 +24,38 @@ import { TPO_ENTRIES } from '../profiles/tpo';
 import { typeIdOf } from './study-id';
 import { getFundamentalEntry, isFundamentalId } from './fundamental-entry';
 
-const byId = new Map<string, IndicatorRegistryEntry>(indicatorRegistry.map((e) => [e.id, e]));
-// Local built-ins the library doesn't ship (the basic Volume study).
-byId.set(VOLUME_ENTRY.id, VOLUME_ENTRY);
-// Volume profile studies (Technicals > Profiles).
-for (const e of [...VBP_ENTRIES, ...TPO_ENTRIES]) byId.set(e.id, e);
+const GROUPS = { s: 'standard', c: 'community', k: 'candlestick' } as const;
+type Group = (typeof GROUPS)[keyof typeof GROUPS];
+
+/** The library's entries by name only (no code): id → name, short name, group. */
+const NAMES = new Map<string, { name: string; shortName: string; group: Group }>(
+  manifest.entries.map(([id, name, shortName, g]) => [id, { name, shortName, group: GROUPS[g] }]),
+);
+
+/** The app's own built-ins (the basic Volume study, the volume profiles): always there. */
+const LOCAL = new Map<string, IndicatorRegistryEntry>();
+LOCAL.set(VOLUME_ENTRY.id, VOLUME_ENTRY);
+for (const e of [...VBP_ENTRIES, ...TPO_ENTRIES]) LOCAL.set(e.id, e);
+
+const byId = new Map<string, IndicatorRegistryEntry>(LOCAL);
+const [loaded, setLoaded] = createSignal(false);
+/** The indicator library is loaded (its entries are in the registry). */
+export const indicatorLibraryLoaded = loaded;
+let loading: Promise<void> | null = null;
+
+/** Import the indicator library (once); its entries join the registry. */
+export function loadIndicatorLibrary(): Promise<void> {
+  loading ??= import('lightweight-charts-indicators').then((m) => {
+    for (const e of m.indicatorRegistry) if (!LOCAL.has(e.id)) byId.set(e.id, e);
+    setLoaded(true);
+  });
+  return loading;
+}
+
+/** An id of the library (known before the library is loaded). */
+export function isLibraryIndicatorId(id: string): boolean {
+  return NAMES.has(typeIdOf(id));
+}
 
 export function getIndicatorEntry(studyId: string): IndicatorRegistryEntry | undefined {
   // A study instance ("rsi#2") resolves to its type's entry.
@@ -29,16 +66,44 @@ export function getIndicatorEntry(studyId: string): IndicatorRegistryEntry | und
   if (isStrategyId(id)) return getStrategyEntry(id);
   // `fund:<metric>[:<period>]` — Fundamentals metrics.
   if (isFundamentalId(id)) return getFundamentalEntry(id);
+  const local = LOCAL.get(id);
+  if (local) return local;
+  // A library study: undefined until the library is there (the read is tracked: it comes back when it is).
+  if (!loaded() && NAMES.has(id)) {
+    void loadIndicatorLibrary();
+    return undefined;
+  }
   return byId.get(id);
+}
+
+/** Name of a registry id without loading the library (lists, menus, titles). */
+export function indicatorName(studyId: string): string | undefined {
+  const id = typeIdOf(studyId);
+  return NAMES.get(id)?.name ?? getIndicatorEntry(id)?.name;
+}
+
+/** Group of a library id (standard / community / candlestick), without loading the library. */
+export function libraryGroupOf(studyId: string): Group | undefined {
+  return NAMES.get(typeIdOf(studyId))?.group;
+}
+
+/** The library's ids of a group, without loading the library. */
+export function libraryIds(group: Group): string[] {
+  return [...NAMES].filter(([, e]) => e.group === group).map(([id]) => id);
+}
+
+/** The registry knows this id (the library's names count before it is loaded). */
+export function isKnownIndicatorId(studyId: string): boolean {
+  return NAMES.has(typeIdOf(studyId)) || !!getIndicatorEntry(studyId);
 }
 
 /** A dialog row derived from a registry entry. */
 export type IndicatorListRow = { id: string; name: string; shortName?: string };
 
-function rowsForGroup(group: 'standard' | 'community' | 'candlestick'): IndicatorListRow[] {
-  return indicatorRegistry
-    .filter((e) => e.group === group)
-    .map((e) => ({ id: e.id, name: e.name, shortName: e.shortName }))
+function rowsForGroup(group: Group): IndicatorListRow[] {
+  return [...NAMES]
+    .filter(([, e]) => e.group === group)
+    .map(([id, e]) => ({ id, name: e.name, shortName: e.shortName }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
