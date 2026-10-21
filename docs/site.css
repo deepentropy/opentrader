@@ -66,6 +66,16 @@ p { margin: 0; }
 
 .wrap { width: min(var(--wrap), 100% - 48px); margin-inline: auto; }
 
+/* Highlights strip */
+.strip { background: var(--ink); color: var(--paper); }
+.strip ul { list-style: none; margin-block: 0; padding: 9px 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 0; font: 400 13px/1.4 var(--mono); }
+.strip li { white-space: nowrap; }
+.strip li + li::before { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 14px; border-radius: 50%; background: var(--brand); vertical-align: middle; }
+@media (max-width: 640px) {
+  .strip ul { gap: 2px 18px; }
+  .strip li + li::before { display: none; }
+}
+
 /* Header */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
 .top-logo img { width: 190px; }
