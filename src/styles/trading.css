@@ -3,6 +3,65 @@
  * toasts and the header "Trade" button (paper trading in Bar Replay).
  * Values from the reference desktop app 3.4.1 captures (.tmp/bar-replay/tcap).
  */
+/* Theme colours (reference app 3.4.1, dark and light themes, #155). */
+html.theme-dark {
+  --trd-text-secondary: #b8b8b8;
+  --trd-side-bg: #2e2e2e;
+  --trd-side-hover: #3d3d3d;
+  --trd-buy-selected-bg: #142e61;
+  --trd-sell-selected-bg: #4d191d;
+  --trd-sell-selected-text: #f7525f;
+  --trd-buy-selected-text: #2962ff;
+  --trd-divider: #2e2e2e;
+  --trd-input-border: #575757;
+  --trd-disabled-bg: #1f1f1f;
+  --trd-disabled-border: #2e2e2e;
+  --trd-disabled-text: #575757;
+  --trd-switch-on: #f2f2f2;
+  --trd-switch-off: #707070;
+  --trd-switch-knob: #0f0f0f;
+  --trd-idle-bg: #2e2e2e;
+  --trd-idle-hover: #3d3d3d;
+  --trd-idle-text: #fff;
+  --trd-toast-bg: #1f1f1f;
+  --trd-toast-border: #2e2e2e;
+  --trd-toast-shadow: rgba(0, 0, 0, 0.4);
+  --trd-toast-success: #42bda8;
+  --trd-toast-success-tile: rgba(66, 189, 168, 0.15);
+  --trd-chip-bg: #2e2e2e;
+  --trd-trade-bg: #2e2e2e;
+  --trd-trade-hover: #3d3d3d;
+  --trd-values-bg: #1f1f1f;
+}
+html.theme-light {
+  --trd-text-secondary: #707070;
+  --trd-side-bg: #f2f2f2;
+  --trd-side-hover: #ebebeb;
+  --trd-buy-selected-bg: #bbd9fb;
+  --trd-sell-selected-bg: #fccbcd;
+  --trd-sell-selected-text: #cc2f3c;
+  --trd-buy-selected-text: #1e53e5;
+  --trd-divider: #ebebeb;
+  --trd-input-border: #dbdbdb;
+  --trd-disabled-bg: #f9f9f9;
+  --trd-disabled-border: #dbdbdb;
+  --trd-disabled-text: #b8b8b8;
+  --trd-switch-on: #2e2e2e;
+  --trd-switch-off: #9c9c9c;
+  --trd-switch-knob: #fff;
+  --trd-idle-bg: #f2f2f2;
+  --trd-idle-hover: #ebebeb;
+  --trd-idle-text: #0f0f0f;
+  --trd-toast-bg: #fff;
+  --trd-toast-border: #f2f2f2;
+  --trd-toast-shadow: rgba(0, 0, 0, 0.2);
+  --trd-toast-success: #06806b;
+  --trd-toast-success-tile: rgba(6, 128, 107, 0.12);
+  --trd-chip-bg: #f2f2f2;
+  --trd-trade-bg: #fff;
+  --trd-trade-hover: #f2f2f2;
+  --trd-values-bg: #f2f2f2;
+}
 :root {
   --trd-font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   --trd-buy: #2962ff;
@@ -12,7 +71,6 @@
   --trd-pos: #22ab94;
   --trd-neg: #f7525f;
   --trd-border: #4a4a4a;
-  --trd-input-border: #575757;
   --trd-link: #5b9cf6;
 }
 
@@ -40,7 +98,7 @@
   min-height: 0;
   border-left: 4px solid var(--color-bg-secondary);
   background: var(--ot-chart-bg);
-  color: #b8b8b8;
+  color: var(--trd-text-secondary);
   font-family: var(--trd-font);
 }
 .trd-ticket-resize {
@@ -99,13 +157,13 @@
   min-height: 42px;
   padding: 5px 10px;
   border: 0;
-  background: #2e2e2e;
+  background: var(--trd-side-bg);
   color: var(--color-text-primary);
   font-family: var(--trd-font);
   font-feature-settings: "tnum", "lnum";
 }
 .trd-tk-side:hover:not(:disabled) {
-  background: #3d3d3d;
+  background: var(--trd-side-hover);
 }
 .trd-tk-side.is-sell {
   border-radius: 8px 0 0 8px;
@@ -116,12 +174,12 @@
   align-items: flex-end;
 }
 .trd-tk-side.is-sell.is-selected {
-  background: #4d191d;
-  color: #f7525f;
+  background: var(--trd-sell-selected-bg);
+  color: var(--trd-sell-selected-text);
 }
 .trd-tk-side.is-buy.is-selected {
-  background: #142e61;
-  color: var(--trd-buy);
+  background: var(--trd-buy-selected-bg);
+  color: var(--trd-buy-selected-text);
 }
 .trd-tk-side-title {
   font: 600 14px/18px var(--trd-font);
@@ -147,7 +205,7 @@
   grid-template-columns: repeat(4, 1fr);
   padding: 16px 16px 0;
   margin-bottom: 12px;
-  border-bottom: 1px solid #2e2e2e;
+  border-bottom: 1px solid var(--trd-divider);
 }
 .trd-tk-type {
   height: 32px;
@@ -227,12 +285,12 @@
   justify-content: space-between;
 }
 .trd-tk-exit.is-disabled .trd-tk-box {
-  background: #1f1f1f;
-  border-color: #2e2e2e;
+  background: var(--trd-disabled-bg);
+  border-color: var(--trd-disabled-border);
 }
 .trd-tk-exit.is-disabled .trd-tk-input,
 .trd-tk-exit.is-disabled .trd-tk-hint {
-  color: #575757;
+  color: var(--trd-disabled-text);
 }
 /* Input with a hint at its right ("Ask − 12", "75 ticks", "⌀ USD risk"). */
 .trd-tk-box {
@@ -301,11 +359,11 @@
   padding: 0;
   border: 0;
   border-radius: 9px;
-  background: #575757;
+  background: var(--trd-switch-off);
   flex-shrink: 0;
 }
 .trd-switch.is-on {
-  background: var(--trd-buy);
+  background: var(--trd-switch-on);
 }
 .trd-switch-knob {
   position: absolute;
@@ -314,7 +372,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--trd-switch-knob);
   transition: transform 0.15s;
 }
 .trd-switch.is-on .trd-switch-knob {
@@ -338,7 +396,7 @@
   justify-content: center;
   border: 0;
   border-radius: 8px;
-  background: #2e2e2e;
+  background: var(--trd-idle-bg);
   color: #fff;
   font-family: var(--trd-font);
 }
@@ -355,10 +413,11 @@
   background: var(--trd-sell-hover);
 }
 .trd-tk-place.is-idle {
-  background: #2e2e2e;
+  background: var(--trd-idle-bg);
+  color: var(--trd-idle-text);
 }
 .trd-tk-place.is-idle:hover {
-  background: #3d3d3d;
+  background: var(--trd-idle-hover);
 }
 .trd-tk-place:disabled {
   opacity: 0.6;
@@ -390,7 +449,7 @@
   font: 600 16px/24px var(--trd-font);
 }
 .trd-tk-discard:hover {
-  background: #2e2e2e;
+  background: var(--trd-idle-bg);
 }
 /* Modify mode: "Buy Limit 1 @ 690.00" under the title. */
 .trd-tk-sub {
@@ -418,10 +477,10 @@
   position: relative;
   display: flex;
   padding: 3px 0 3px 3px;
-  border: 1px solid #2e2e2e;
+  border: 1px solid var(--trd-toast-border);
   border-radius: 12px;
-  background: #1f1f1f;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  background: var(--trd-toast-bg);
+  box-shadow: 0 2px 4px var(--trd-toast-shadow);
   color: var(--color-text-primary);
   font-family: var(--trd-font);
   pointer-events: auto;
@@ -435,8 +494,8 @@
   border-radius: 8px 0 0 8px;
 }
 .trd-toast.is-success .trd-toast-icon {
-  background: rgba(66, 189, 168, 0.15);
-  color: #42bda8;
+  background: var(--trd-toast-success-tile);
+  color: var(--trd-toast-success);
 }
 .trd-toast.is-error .trd-toast-icon {
   background: rgba(255, 183, 77, 0.15);
@@ -530,7 +589,7 @@
   gap: 4px;
   padding: 0 6px 0 2px;
   border-radius: 12px;
-  background: #2e2e2e;
+  background: var(--trd-chip-bg);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -575,14 +634,14 @@
   padding: 0 10px 0 4px;
   border: 0;
   border-radius: 14px;
-  background: #2e2e2e;
+  background: var(--trd-trade-bg);
   color: var(--color-text-primary);
   font: 400 14px/18px var(--trd-font);
   white-space: nowrap;
 }
 .trd-trade-pill:hover,
 .trd-trade-pill[aria-pressed="true"] {
-  background: #3d3d3d;
+  background: var(--trd-trade-hover);
 }
 .trd-trade-mark {
   display: inline-flex;
@@ -618,5 +677,5 @@
   margin: 4px 16px 0;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #1f1f1f;
+  background: var(--trd-values-bg);
 }
