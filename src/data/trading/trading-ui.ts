@@ -25,6 +25,45 @@ export type TicketDraft = {
   editing: string | null;
   /** Chart of the order being modified. */
   paneId: number | null;
+  // Field types (order ticket menus; absent = price / units):
+  /** Limit / stop price typed as a price or as ticks from its base. */
+  limitMode?: "price" | "offset";
+  stopMode?: "price" | "offset";
+  /** Offsets typed, in ticks ("" = at the base). */
+  limitOffset?: string;
+  stopOffset?: string;
+  /** Quantity typed in units or as a risk (money / % balance). */
+  qtyType?: "units" | "riskUsd" | "riskPct";
+  qtyEquiv?: "units" | "riskUsd" | "riskPct";
+  /** The risk typed (qtyType riskUsd / riskPct). */
+  risk?: string;
+  /** Exits typed as a price, ticks, % price, money or % balance. */
+  tpType?: ExitFieldType;
+  tpEquiv?: ExitFieldType;
+  slType?: ExitFieldType;
+  slEquiv?: ExitFieldType;
+  /** The exit values typed when not a price. */
+  tpValue?: string;
+  slValue?: string;
+};
+
+export type ExitFieldType = "price" | "ticks" | "pricePct" | "cash" | "balancePct";
+
+/** A saved order preset (order ticket presets menu): the order type, the
+ *  price offsets in ticks (buy from the ask, sell from the bid; the limit of
+ *  a stop limit from its stop) and the exits. */
+export type OrderPreset = {
+  id: string;
+  title: string;
+  orderType: OrderType;
+  buyPrice?: number;
+  sellPrice?: number;
+  stopBuyLimitPrice?: number;
+  stopSellLimitPrice?: number;
+  tpPrice?: number;
+  tpPriceType?: "ticks" | "pricePct" | "balancePct";
+  slPrice?: number;
+  slPriceType?: "ticks" | "pricePct" | "balancePct";
 };
 
 /** `TicketDraft.editing` while the ticket edits the position's brackets. */
@@ -37,7 +76,18 @@ const K = {
   ticketWidth: "ot:order-ticket:width",
   ticketPrefs: "ot:order-ticket:prefs",
   reportView: "ot:replay-trading:view",
+  presets: "ot:order-ticket:presets",
+  slRisk: "ot:order-ticket:sl-enables-risk",
 };
+
+function readPresets(): OrderPreset[] {
+  try {
+    const v = JSON.parse(kv.getItem(K.presets) ?? "[]") as unknown;
+    return Array.isArray(v) ? v.filter((p): p is OrderPreset => !!p && typeof p.id === "string" && typeof p.title === "string" && typeof p.orderType === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 type TicketPrefs = { qty: string; orderType: OrderType };
 
@@ -86,6 +136,14 @@ export const tradingUi = createRoot(() => {
   const [reportRequest, setReportRequest] = createSignal(0);
   const savedView = kv.getItem(K.reportView);
   const [reportView, setReportViewRaw] = createSignal<ReplayReportView>(savedView === "trades" ? "trades" : "report");
+
+  // Order presets and the ticket's ⋯ menu setting.
+  const [presets, setPresetsRaw] = createSignal<OrderPreset[]>(readPresets());
+  const setPresets = (list: OrderPreset[]) => {
+    setPresetsRaw(list);
+    kv.setItem(K.presets, JSON.stringify(list));
+  };
+  const [slEnablesRisk, setSlEnablesRiskRaw] = createSignal(kv.getItem(K.slRisk) === "true");
 
   const newDraft = (symbol: string, side: Side, price?: number, last?: number | null): TicketDraft => {
     const p = readPrefs();
@@ -194,6 +252,21 @@ export const tradingUi = createRoot(() => {
       setTicketOpen(false);
       setDraft(null);
       setSent(false);
+    },
+
+    presets,
+    addPreset(p: Omit<OrderPreset, "id">) {
+      const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      setPresets([...presets(), { ...p, id }]);
+    },
+    removePreset(id: string) {
+      setPresets(presets().filter((p) => p.id !== id));
+    },
+    /** "SL enables quantity in risk" (ticket ⋯ menu). */
+    slEnablesRisk,
+    setSlEnablesRisk(v: boolean) {
+      setSlEnablesRiskRaw(v);
+      kv.setItem(K.slRisk, v ? "true" : "false");
     },
 
     settingsOpen,

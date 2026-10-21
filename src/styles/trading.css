@@ -679,3 +679,305 @@ html.theme-light {
   border-radius: 8px;
   background: var(--trd-values-bg);
 }
+
+/* ─── Order ticket field types (#139) ─── */
+html.theme-dark {
+  --trd-menu-bg: #1f1f1f;
+  --trd-menu-text: #dbdbdb;
+  --trd-menu-hover: #2e2e2e;
+  --trd-menu-selected-bg: #f2f2f2;
+  --trd-menu-selected-text: #0f0f0f;
+  --trd-menu-muted: #8c8c8c;
+  --trd-menu-info: #575757;
+  --trd-menu-divider: #2e2e2e;
+  --trd-label-open-bg: #2e2e2e;
+}
+html.theme-light {
+  --trd-menu-bg: #fff;
+  --trd-menu-text: #0f0f0f;
+  --trd-menu-hover: #f2f2f2;
+  --trd-menu-selected-bg: #2e2e2e;
+  --trd-menu-selected-text: #fff;
+  --trd-menu-muted: #707070;
+  --trd-menu-info: #b8b8b8;
+  --trd-menu-divider: #ebebeb;
+  --trd-label-open-bg: #f2f2f2;
+}
+.trd-tk-head-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.trd-tk-header .trd-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+}
+.trd-icon-btn.is-active {
+  background: var(--color-bg-primary-hover);
+}
+/* Label with its type menu ("Units ▾", "Take profit price ▾"). */
+.trd-tk-label-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  align-self: flex-start;
+  height: 24px;
+  margin-left: -4px;
+  padding: 0 2px 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.trd-tk-label-btn:hover,
+.trd-tk-label-btn.is-open {
+  color: var(--color-text-primary);
+}
+.trd-tk-label-btn.is-open {
+  background: var(--trd-label-open-bg);
+  font-weight: 600;
+}
+.trd-tk-label-btn svg {
+  width: 16px;
+  height: 16px;
+}
+/* Field: the value | ⇄ | its equivalent. */
+.trd-tk-box {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+.trd-tk-box .trd-tk-input {
+  width: 100%;
+  min-width: 0;
+}
+.trd-tk-box .trd-tk-hint {
+  justify-self: end;
+}
+.trd-tk-input::placeholder {
+  color: var(--color-text-secondary);
+}
+.trd-tk-swap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.trd-tk-swap:hover:not(:disabled) {
+  background: var(--trd-label-open-bg);
+  color: var(--color-text-primary);
+}
+.trd-tk-swap:disabled {
+  color: var(--trd-disabled-text);
+}
+.trd-tk-equiv {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  margin-right: 4px;
+  padding: 0 2px 0 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: 400 13px/18px var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+  white-space: nowrap;
+  min-width: 0;
+}
+.trd-tk-equiv small {
+  font-size: 11px;
+}
+.trd-tk-equiv svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.trd-tk-equiv:hover:not(:disabled),
+.trd-tk-equiv.is-open {
+  background: var(--trd-label-open-bg);
+  color: var(--color-text-primary);
+}
+.trd-tk-exit.is-disabled .trd-tk-equiv,
+.trd-tk-exit.is-disabled .trd-tk-swap {
+  color: var(--trd-disabled-text);
+}
+
+/* Menus of the ticket (types, equivalents, ⋯, presets). */
+.trd-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--trd-menu-bg);
+  color: var(--trd-menu-text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font: 400 14px/18px var(--trd-font);
+}
+.trd-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  white-space: nowrap;
+  cursor: default;
+}
+.trd-menu-row:hover:not(.is-disabled) {
+  background: var(--trd-menu-hover);
+}
+.trd-menu-row.is-selected,
+.trd-menu-row.is-selected:hover {
+  background: var(--trd-menu-selected-bg);
+  color: var(--trd-menu-selected-text);
+}
+.trd-menu-row.is-disabled {
+  opacity: 0.4;
+}
+.trd-menu-title {
+  flex: 1 1 auto;
+}
+.trd-menu-types .trd-menu-title {
+  flex: 0 1 auto;
+}
+.trd-menu-info {
+  display: inline-flex;
+  color: var(--trd-menu-info);
+  --trd-menu-bg-icon: var(--trd-menu-bg);
+}
+.trd-menu-row.is-selected .trd-menu-info {
+  color: #b8b8b8;
+}
+.trd-menu-value {
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--trd-menu-muted);
+  font-size: 13px;
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-menu-row.is-selected .trd-menu-value {
+  color: inherit;
+}
+.trd-menu-equiv {
+  min-width: 170px;
+}
+.trd-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--trd-menu-divider);
+}
+.trd-menu-section {
+  padding: 8px 8px 4px;
+  color: var(--trd-menu-muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
+.trd-menu-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0 5px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 4px;
+}
+.trd-menu-check.is-on {
+  border-color: var(--trd-menu-selected-bg);
+  background: var(--trd-menu-selected-bg);
+  color: var(--trd-menu-selected-text);
+}
+.trd-menu-settings,
+.trd-menu-presets {
+  min-width: 220px;
+}
+.trd-menu-settings .trd-menu-row > svg,
+.trd-preset-save > svg {
+  flex-shrink: 0;
+  margin: 0 -4px;
+}
+
+/* Order presets. */
+.trd-menu-presets {
+  max-width: 320px;
+}
+.trd-preset-item {
+  align-items: flex-start;
+  padding: 6px 8px;
+}
+.trd-preset-body {
+  flex: 1;
+  min-width: 0;
+}
+.trd-preset-title {
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trd-preset-desc {
+  white-space: pre-wrap;
+  color: var(--trd-menu-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.trd-preset-desc .trd-menu-info {
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.trd-preset-desc.is-bullets {
+  color: var(--color-text-primary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.trd-preset-desc.is-bullets > div::before {
+  content: "• ";
+}
+.trd-preset-remove {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+}
+.trd-preset-item:hover .trd-preset-remove {
+  display: inline-flex;
+}
+.trd-preset-remove:hover {
+  color: var(--trd-sell);
+}
+.trd-preset-empty {
+  padding: 16px 8px;
+  color: var(--trd-menu-muted);
+  text-align: center;
+}
+.trd-preset-params-title {
+  margin: 20px 0 6px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+}
