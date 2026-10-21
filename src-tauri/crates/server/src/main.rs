@@ -26,9 +26,14 @@
  *   OPENTRADER_ALLOWED_ORIGINS comma-separated page origins; unset = any
  *   OPENTRADER_STATIC_DIR      serve the built frontend from this folder
  *   OPENTRADER_CACHE_DIR       disk cache folder (see `opentrader_core::data`)
+ *   OPENTRADER_RATE_PER_MIN    API calls a minute per visitor IP (600; 0 = no limit)
+ *   OPENTRADER_RATE_BURST      burst of API calls per IP (120)
+ *   OPENTRADER_MAX_CLIENTS     visitors connected at once (500; 0 = no limit)
+ *   OPENTRADER_MAX_LIVE_SYMBOLS distinct symbols streamed for all visitors (2000; 0 = no limit)
  */
 mod clients;
 mod invoke;
+mod limits;
 mod poll;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -63,6 +68,8 @@ pub struct AppState {
     pub origins: Option<Vec<String>>,
     /// Clients reading their events by polling.
     pub polls: poll::Sessions,
+    /// Public server limits (see limits.rs).
+    pub limits: limits::Limits,
 }
 
 type Shared = Arc<AppState>;
@@ -95,6 +102,7 @@ async fn main() {
         clients: Clients::default(),
         origins: origins.clone(),
         polls: poll::Sessions::default(),
+        limits: limits::Limits::from_env(),
     });
 
     let cors = match &origins {
@@ -141,7 +149,8 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| panic!("bind {bind}: {e}"));
     eprintln!("[server] listening on http://{bind}");
-    axum::serve(listener, app).await.expect("server");
+    // The connection's address: the visitor IP when no proxy names it.
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.expect("server");
 }
 
 #[derive(Deserialize)]
@@ -161,6 +170,9 @@ async fn events(
     }
     if !origin_ok(&state, &headers) {
         return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
+    }
+    if state.clients.over_cap(&q.client, state.limits.max_clients) {
+        return (StatusCode::SERVICE_UNAVAILABLE, limits::TOO_MANY_VISITORS).into_response();
     }
     ws.on_upgrade(move |socket| run_events(state, q.client, socket))
 }

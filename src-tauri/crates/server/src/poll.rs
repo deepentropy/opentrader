@@ -58,6 +58,9 @@ pub async fn handle(State(state): State<Shared>, Query(q): Query<PollQuery>, hea
     if !origin_ok(&state, &headers) {
         return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
     }
+    if !state.polls.map.lock().unwrap().contains_key(&q.client) && state.clients.over_cap(&q.client, state.limits.max_clients) {
+        return (StatusCode::SERVICE_UNAVAILABLE, crate::limits::TOO_MANY_VISITORS).into_response();
+    }
     let (session, new) = {
         let mut map = state.polls.map.lock().unwrap();
         match map.get(&q.client) {

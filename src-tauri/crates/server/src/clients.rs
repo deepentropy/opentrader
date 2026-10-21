@@ -101,6 +101,28 @@ pub struct Clients {
 }
 
 impl Clients {
+    /// A new client (not connected yet) when `max` are connected already (0 = no cap).
+    pub fn over_cap(&self, id: &str, max: usize) -> bool {
+        let map = self.map.lock().unwrap();
+        max > 0 && !map.contains_key(id) && map.len() >= max
+    }
+
+    /// Symbols streamed for every client (charts and watchlists), without the
+    /// ones of `except` (the client about to change its own).
+    pub fn live_symbols(&self, except: &str) -> HashSet<String> {
+        let map = self.map.lock().unwrap();
+        let mut out = HashSet::new();
+        for (id, subs) in map.iter() {
+            if id == except {
+                continue;
+            }
+            let s = subs.lock().unwrap();
+            out.extend(s.charts.values().cloned());
+            out.extend(s.watchlist.iter().cloned());
+        }
+        out
+    }
+
     /// The subscriptions of a client with an open WebSocket. Subscribing needs
     /// one: its close is what releases them.
     pub fn connected(&self, id: &str) -> Option<Arc<Mutex<Subs>>> {

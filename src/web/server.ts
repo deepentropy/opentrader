@@ -178,9 +178,38 @@ function openSocket(): Promise<void> {
   });
 }
 
+/** The server has as many visitors as it takes (its WebSocket is refused,
+ *  then its poll answers 503 "too many visitors"): a note at the top of the
+ *  page, once. Charts still load; live updates wait for a free place. */
+let busyShown = false;
+function showServerBusy() {
+  if (busyShown || typeof document === "undefined") return;
+  busyShown = true;
+  const note = document.createElement("div");
+  note.className = "ot-server-busy";
+  note.setAttribute("role", "alert");
+  note.textContent = "Too many visitors right now: live updates are paused. Try again in a few minutes, or use the free desktop app. ";
+  const link = document.createElement("a");
+  link.href = "https://opentrader.markets";
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Get the desktop app";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.setAttribute("aria-label", "Close");
+  close.textContent = "×";
+  close.onclick = () => note.remove();
+  note.append(link, close);
+  document.body.appendChild(note);
+}
+
 /** One poll: the events queued for the tab. `wait` false answers at once. */
 async function pollOnce(wait: boolean): Promise<{ events: { event?: string; payload?: unknown }[]; fresh: boolean }> {
   const res = await fetch(`${BASE}/api/poll?client=${encodeURIComponent(CLIENT)}${wait ? "" : "&wait=0"}`, { cache: "no-store" });
+  if (res.status === 503 && (await res.text()).includes("too many visitors")) {
+    showServerBusy();
+    throw "too many visitors";
+  }
   if (!res.ok) throw `poll failed (${res.status})`;
   return { events: await res.json(), fresh: res.headers.get("x-opentrader-session") === "new" };
 }

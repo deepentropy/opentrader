@@ -7,7 +7,9 @@
 use crate::clients::{valid_id, Subs, CLIENT_HEADER};
 use crate::Shared;
 use axum::body::Bytes;
-use axum::extract::{Path, State};
+use axum::extract::{ConnectInfo, Path, State};
+use std::net::SocketAddr;
+use crate::limits;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -69,6 +71,34 @@ fn client_of(headers: &HeaderMap) -> Result<String, Fail> {
         .filter(|id| valid_id(id))
         .map(str::to_string)
         .ok_or_else(|| Fail(StatusCode::BAD_REQUEST, format!("missing or invalid {CLIENT_HEADER} header")))
+}
+
+/// The symbols streamed for all visitors together stay under the cap
+/// (OPENTRADER_MAX_LIVE_SYMBOLS): `adding` for this client (replacing its
+/// chart `pane`, or its whole watchlist when `pane` is None).
+fn live_room(state: &Shared, client: &str, subs: &Arc<Mutex<Subs>>, adding: &[String], pane: Option<&str>) -> Result<(), Fail> {
+    let max = state.limits.max_live_symbols;
+    if max == 0 {
+        return Ok(());
+    }
+    let mut all = state.clients.live_symbols(client);
+    {
+        let s = subs.lock().unwrap();
+        for (p, sym) in &s.charts {
+            if pane != Some(p.as_str()) {
+                all.insert(sym.clone());
+            }
+        }
+        if pane.is_some() {
+            all.extend(s.watchlist.iter().cloned());
+        }
+    }
+    let before = all.len();
+    all.extend(adding.iter().cloned());
+    if all.len() > max && all.len() > before {
+        return Err(Fail(StatusCode::SERVICE_UNAVAILABLE, "live data limit reached: no live updates for this symbol now".into()));
+    }
+    Ok(())
 }
 
 /// "ECONOMICS:<ID>": an economic series (no live data).
@@ -193,9 +223,16 @@ struct Field {
 pub async fn handle(
     State(state): State<Shared>,
     Path(command): Path<String>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    // Calls per visitor IP (limits.rs).
+    if let Some(ip) = limits::client_ip(&headers, Some(peer)) {
+        if !state.limits.allow(ip) {
+            return Fail(StatusCode::TOO_MANY_REQUESTS, "too many requests, try again in a moment".into()).into_response();
+        }
+    }
     match dispatch(&state, &command, &headers, &body).await {
         Ok(v) => Json(v).into_response(),
         Err(f) => f.into_response(),
@@ -239,6 +276,9 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
             let (client, subs) = connected_client(state, headers)?;
             let a: ChartSub = args(body)?;
             let symbol = a.symbol.map(|s| s.to_uppercase()).filter(|s| !is_economic_symbol(s));
+            if let Some(s) = &symbol {
+                live_room(state, &client, &subs, std::slice::from_ref(s), Some(&a.pane))?;
+            }
             {
                 let mut subs = subs.lock().unwrap();
                 match &symbol {
@@ -264,6 +304,7 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
             if symbols.len() > MAX_WATCHLIST {
                 return Err(Fail(StatusCode::TOO_MANY_REQUESTS, "too many watchlist symbols".into()));
             }
+            live_room(state, &client, &subs, &symbols, None)?;
             subs.lock().unwrap().watchlist = symbols.iter().cloned().collect();
             send(state, SubscribeMsg::SetWatchlist { owner: client, symbols }).await
         }

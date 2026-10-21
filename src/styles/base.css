@@ -132,3 +132,33 @@ html.theme-dark {
   --ot-popover-bg: #1f1f1f;
   --ot-popover-shadow: 0 2px 4px #0006;
 }
+
+/* Web version: the server has no room for another visitor (src/web/server.ts). */
+.ot-server-busy {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #ff9800;
+  color: #0f0f0f;
+  font-size: 13px;
+  line-height: 18px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.ot-server-busy a {
+  color: inherit;
+  font-weight: 600;
+}
+.ot-server-busy button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
