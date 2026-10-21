@@ -37,6 +37,7 @@ import { cachedSymbolSessions } from "../../../data/session";
 import { confirmCancelOrder, confirmClosePosition } from "../../trading/confirm";
 import { BuySellPresetsButton, placePresetOrder } from "../../trading/OrderPresets";
 import { QtyCalculator, QtyPill } from "../../trading/QtyCalculator";
+import { moveOrder } from "../../trading/order-actions";
 import { Popover, PopDivider, PopItem } from "../../screener/Popover";
 import { lastAtOrBefore } from "../replay-feed";
 import {
@@ -200,21 +201,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       return p === null ? null : snapToTick(p, tick());
     };
 
-    const commit = (o: TradingOrder, price: number, limit: boolean) => {
-      if (o.kind === "order") {
-        // The limit line, or the line of a stop-limit whose stop was reached: the limit price.
-        const asLimit = limit || (o.type === "stopLimit" && o.stopTriggered);
-        replayBroker.modify(o.id, asLimit ? requestWithPrice(o, null, { limitPrice: price }) : requestWithPrice(o, price), paneId);
-        return;
-      }
-      const pos = position();
-      if (o.parentId === "position" && pos) {
-        replayBroker.setPositionBrackets(o.kind === "tp" ? price : pos.takeProfit, o.kind === "sl" ? price : pos.stopLoss, paneId);
-        return;
-      }
-      const parent = o.parentId ? byId().get(o.parentId) : undefined;
-      if (parent) replayBroker.modify(parent.id, requestWithPrice(parent, null, o.kind === "tp" ? { takeProfit: price } : { stopLoss: price }), paneId);
-    };
+    const commit = (o: TradingOrder, price: number, limit: boolean) => moveOrder(o, price, limit, paneId);
 
     /** Follow a press: `onMove` with the price under the pointer once it moved,
      *  `onUp(moved)` on release. */
@@ -683,6 +670,17 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       );
     }
 
+    /** The DOM row under the pointer (order ticket's DOM tab): a dashed line
+     *  at its price, the side colour blended half way into the chart
+     *  background. */
+    const domLine = createMemo(() => {
+      const h = tradingUi.domHover();
+      if (!h || !on() || replayActivePane() !== paneId) return null;
+      const light = cx.props.theme === "light";
+      const color = h.buy ? (light ? "#94b0ff" : "#1c3887") : light ? "#f89aa2" : "#80222a";
+      return { price: h.price, color };
+    });
+
     /** Axis labels of every line, stacked without overlap around the series'
      *  last price label (which keeps its place). */
     const labels = createMemo(() => {
@@ -714,6 +712,9 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       const gh = ghost();
       const gy = gh ? yOf(gh.price, g) : null;
       if (gh && gy !== null) out.push({ key: "ghost", y: gy, color: gh.kind === "tp" ? TP_COLOR : SL_COLOR, filled: false, text: fmtPrice(gh.price, tick()) });
+      const dl = domLine();
+      const dy = dl ? yOf(dl.price, g) : null;
+      if (dl && dy !== null) out.push({ key: "dom", y: dy, color: dl.color, filled: false, text: fmtPrice(dl.price, tick()) });
       const items: { y: number; fixed?: boolean }[] = out.map((l) => ({ y: l.y }));
       const last = cx.raw[cx.raw.length - 1];
       const lastY = last && cx.series?.options().lastValueVisible ? yOf(last.close, g) : null;
@@ -764,6 +765,13 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             <Show when={position()}>{(pos) => <PositionRow pos={pos()} g={g()} />}</Show>
             <For each={lines()}>{(l) => <OrderRow line={l} g={g()} />}</For>
             <GhostRow g={g()} />
+            <Show when={domLine()}>
+              {(dl) => (
+                <Show when={yOf(dl().price, g()) !== null}>
+                  <div class="ot-trd-domline" style={{ "--c": dl().color, top: `${yOf(dl().price, g())}px`, ...rowBox(g()) }} />
+                </Show>
+              )}
+            </Show>
             <Show when={menu()}>
               {(m) => (
                 <Popover anchor={m().anchor} onClose={() => setMenu(null)} class="ot-trd-menu" offset={{ x: 0, y: 4 }}>

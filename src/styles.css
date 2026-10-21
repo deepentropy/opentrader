@@ -58,6 +58,7 @@
 @import "./styles/screener.css";
 @import "./styles/replay.css";
 @import "./styles/trading.css";
+@import "./styles/trading-dom.css";
 @import "./styles/replay-trading.css";
 @import "./styles/trading-lines.css";
 

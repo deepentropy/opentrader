@@ -95,7 +95,22 @@ const K = {
   reportView: "ot:replay-trading:view",
   presets: "ot:order-ticket:presets",
   slRisk: "ot:order-ticket:sl-enables-risk",
+  tab: "ot:order-ticket:tab",
+  mode: "ot:order-ticket:mode",
+  domPrices: "ot:order-ticket:dom-prices",
 };
+
+/** DOM panel settings (⋯ menu of the DOM tab). */
+export type DomPrices = { zeroVolume: boolean; spread: boolean };
+
+function readDomPrices(): DomPrices {
+  try {
+    const v = JSON.parse(kv.getItem(K.domPrices) ?? "null") as Partial<DomPrices> | null;
+    return { zeroVolume: v?.zeroVolume !== false, spread: v?.spread !== false };
+  } catch {
+    return { zeroVolume: true, spread: true };
+  }
+}
 
 function readPresets(): OrderPreset[] {
   try {
@@ -176,6 +191,20 @@ export const tradingUi = createRoot(() => {
   /** The open ticket's actions (project order line). */
   const [ticketActions, setTicketActionsRaw] = createSignal<TicketActions | null>(null);
 
+  // DOM tab: the Order / DOM switch, the price the pointer is on (a dashed
+  // line on the chart) and the DOM panel settings.
+  const [ticketTab, setTicketTabRaw] = createSignal<"order" | "dom">(kv.getItem(K.tab) === "dom" ? "dom" : "order");
+  const [domHover, setDomHover] = createSignal<{ price: number; buy: boolean } | null>(null);
+  const [domPrices, setDomPricesRaw] = createSignal<DomPrices>(readDomPrices());
+  /** Docked at the right ("panel") or a floating dialog ("popup": "Undock
+   *  order ticket"). */
+  const [ticketMode, setTicketModeRaw] = createSignal<"panel" | "popup">(kv.getItem(K.mode) === "popup" ? "popup" : "panel");
+  /** An order of the docked DOM tab in the floating dialog (one-click
+   *  trading off). */
+  const [orderDialog, setOrderDialog] = createSignal(false);
+  /** Top-left of the floating ticket (null = centred). */
+  const [floatPos, setFloatPos] = createSignal<{ x: number; y: number } | null>(null);
+
   const newDraft = (symbol: string, side: Side, price?: number, last?: number | null): TicketDraft => {
     const p = prefs();
     let orderType = p.orderType;
@@ -239,10 +268,19 @@ export const tradingUi = createRoot(() => {
       const symbol = opts.symbol || replayBroker.symbol() || activeSymbol();
       setDraft({ ...newDraft(symbol, opts.side ?? "buy", opts.price, opts.last), ...(opts.presetId ? { applyPreset: opts.presetId } : {}) });
       setSent(false);
+      // An order to make (a side or a price given): the Order tab.
+      if (opts.side || opts.price != null) {
+        setTicketTabRaw("order");
+        setOrderDialog(false);
+      }
       setTicketOpen(true);
     },
     /** Open the ticket on a working order (chart order line). */
-    editOrder(o: TradingOrder, paneId: number | null) {
+    editOrder(o: TradingOrder, paneId: number | null, keepTab = false) {
+      if (!keepTab) {
+        setTicketTabRaw("order");
+        setOrderDialog(false);
+      }
       setDraft({
         symbol: o.symbol,
         side: o.side,
@@ -262,6 +300,8 @@ export const tradingUi = createRoot(() => {
     },
     /** Protect position: the ticket on the position's take profit / stop loss. */
     editPosition(pos: TradingPosition, paneId: number) {
+      setTicketTabRaw("order");
+      setOrderDialog(false);
       setDraft({
         symbol: pos.symbol,
         side: pos.side,
@@ -285,6 +325,8 @@ export const tradingUi = createRoot(() => {
     },
     closeTicket() {
       setTicketOpen(false);
+      setOrderDialog(false);
+      setDomHover(null);
       setDraft(null);
       setSent(false);
     },
@@ -303,6 +345,49 @@ export const tradingUi = createRoot(() => {
     setActivePreset,
     ticketActions,
     setTicketActions: (a: TicketActions | null) => setTicketActionsRaw(() => a),
+    /** Order / DOM switch of the ticket. */
+    ticketTab,
+    setTicketTab(t: "order" | "dom") {
+      setTicketTabRaw(t);
+      kv.setItem(K.tab, t);
+      if (t === "order" && orderDialog()) setOrderDialog(false);
+      if (t === "dom" && !orderDialog() && draft()?.editing) setDraft(null);
+    },
+    ticketMode,
+    /** "Undock order ticket" / "Dock to right". */
+    setTicketMode(m: "panel" | "popup") {
+      setTicketModeRaw(m);
+      kv.setItem(K.mode, m);
+      setOrderDialog(false);
+      if (m === "popup" && !draft()) setDraft(newDraft(replayBroker.symbol() || activeSymbol(), "buy"));
+    },
+    orderDialog,
+    /** An order from the DOM tab in the floating dialog: `patch` on a new
+     *  draft (side, type, prices), or a working order to modify. */
+    openOrderDialog(p: { side: Side; patch?: Partial<TicketDraft>; order?: TradingOrder; paneId?: number | null }) {
+      const symbol = replayBroker.symbol() || activeSymbol();
+      if (p.order) this.editOrder(p.order, p.paneId ?? null, true);
+      else {
+        setDraft({ ...newDraft(symbol, p.side), ...p.patch });
+        setSent(false);
+      }
+      setOrderDialog(ticketMode() === "panel");
+      setTicketOpen(true);
+    },
+    closeOrderDialog() {
+      setOrderDialog(false);
+      setDraft(null);
+      setSent(false);
+    },
+    floatPos,
+    setFloatPos,
+    domHover,
+    setDomHover,
+    domPrices,
+    setDomPrices(p: DomPrices) {
+      setDomPricesRaw(p);
+      kv.setItem(K.domPrices, JSON.stringify(p));
+    },
     /** "SL enables quantity in risk" (ticket ⋯ menu). */
     slEnablesRisk,
     setSlEnablesRisk(v: boolean) {

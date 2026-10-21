@@ -22,6 +22,7 @@
  * to start".
  */
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, untrack, type JSX } from "solid-js";
+import { Portal } from "solid-js/web";
 import { emitAppEvent } from "../../data/app-events";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
@@ -58,6 +59,7 @@ import {
 import { ChevronIcon, CloseIcon } from "./icons";
 import { EquivButton, LabelMenu, Popup, SwapButton, type MenuRow } from "./TicketMenus";
 import { OrderPresetsButton } from "./OrderPresets";
+import { DomPanel } from "./DomPanel";
 import { orderSummary, positionSummary } from "../chart/trading-lines-model";
 import { POSITION_EDIT } from "../../data/trading/trading-ui";
 
@@ -99,6 +101,12 @@ const qtyInfo = (t: QtyType): string | undefined =>
   })[t];
 const NO_MONEY_SL = "Not available when Risk USD or Risk % balance are selected as the quantity type";
 
+/** Order / DOM switch: tab, title, tooltip and its Shift hotkey. */
+const TABS: ["order" | "dom", string, string, string][] = [
+  ["order", "Order", "Order ticket", "T"],
+  ["dom", "DOM", "DOM", "D"],
+];
+
 const TYPES: [OrderType, string][] = [
   ["market", "Market"],
   ["limit", "Limit"],
@@ -106,15 +114,128 @@ const TYPES: [OrderType, string][] = [
   ["stopLimit", "Stop Limit"],
 ];
 
+/** Docked: the order form (Order tab) or the DOM (DOM tab) at the right of
+ *  the charts. Undocked ("Undock order ticket"), or an order of the docked
+ *  DOM with one-click trading off: the form in a floating dialog. */
 export function OrderTicket() {
+  const docked = () => tradingUi.ticketMode() === "panel";
+  const dom = () => docked() && tradingUi.ticketTab() === "dom";
+  const floating = () => !docked() || tradingUi.orderDialog();
   return (
-    <Show when={tradingUi.ticketOpen() && tradingUi.draft()}>
-      <TicketBody />
+    <Show when={tradingUi.ticketOpen()}>
+      <Show when={dom()}>
+        <DomShell />
+      </Show>
+      <Show when={tradingUi.draft() && (floating() || !dom())}>
+        <TicketBody floating={floating()} />
+      </Show>
     </Show>
   );
 }
 
-function TicketBody() {
+/** Ticket header: broker mark, `title`, `extra` buttons, ⋯ and close. A
+ *  floating ticket is dragged by it. */
+function TicketHead(p: { title: JSX.Element; extra?: JSX.Element; onClose: () => void; onDrag?: (e: MouseEvent) => void }) {
+  return (
+    <div
+      class="trd-tk-header"
+      classList={{ "is-draggable": !!p.onDrag }}
+      onMouseDown={(e) => {
+        if (p.onDrag && !(e.target as HTMLElement).closest("button")) p.onDrag(e);
+      }}
+    >
+      <Tooltip text="Replay Broker" side="bottom">
+        <span class="trd-tk-mark">
+          <Icon name="replay-status" size={18} />
+        </span>
+      </Tooltip>
+      <span class="trd-tk-title">{p.title}</span>
+      <span class="trd-tk-spacer" />
+      <span class="trd-tk-head-btns">
+        {p.extra}
+        <TicketSettingsMenu />
+        <Tooltip text="Close" side="bottom">
+          <button type="button" class="trd-icon-btn" aria-label="Close" onClick={() => p.onClose()}>
+            <CloseIcon />
+          </button>
+        </Tooltip>
+      </span>
+    </div>
+  );
+}
+
+/** Order / DOM switch of the docked ticket. */
+function TicketTabs() {
+  return (
+    <div class="trd-tk-tabs" role="tablist">
+      <For each={TABS}>
+        {([t, title, tip, key]) => (
+          <Tooltip text={tip} hotkey={`Shift+${key}`} hotkeyText="{0} {1}" side="bottom">
+            <button
+              type="button"
+              role="tab"
+              class="trd-tk-tab"
+              classList={{ "is-selected": tradingUi.ticketTab() === t }}
+              aria-selected={tradingUi.ticketTab() === t}
+              onClick={() => tradingUi.setTicketTab(t)}
+            >
+              {title}
+            </button>
+          </Tooltip>
+        )}
+      </For>
+    </div>
+  );
+}
+
+const DOM_MIN_WIDTH = 314;
+
+/** Left-edge resize of the docked ticket. */
+function beginResize(e: MouseEvent) {
+  e.preventDefault();
+  const startX = e.clientX;
+  const startW = tradingUi.ticketWidth();
+  const next = (ev: MouseEvent) => startW + (startX - ev.clientX);
+  const onMove = (ev: MouseEvent) => tradingUi.setTicketWidth(next(ev), false);
+  const onUp = (ev: MouseEvent) => {
+    tradingUi.setTicketWidth(next(ev), true);
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    document.body.style.cursor = "";
+  };
+  document.body.style.cursor = "ew-resize";
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+}
+
+/** The docked ticket on its DOM tab. */
+function DomShell() {
+  const state = replayBroker.tradability;
+  onCleanup(() => (document.body.style.cursor = ""));
+  // The ladder's five columns need 314 px (reference app).
+  return (
+    <aside class="trd-ticket" style={{ width: `${Math.max(DOM_MIN_WIDTH, tradingUi.ticketWidth())}px` }} aria-label="Order panel" data-name="order-panel">
+      <div class="trd-ticket-resize" onMouseDown={beginResize} />
+      <TicketHead title={tickerOf(replayBroker.symbol() || tradingUi.activeSymbol())} onClose={() => tradingUi.closeTicket()} />
+      <TicketTabs />
+      <Show
+        when={state().ok || state().reason === "loading"}
+        fallback={
+          <div class="trd-tk-empty">
+            <Show when={state().title}>
+              <div class="trd-tk-empty-title">{state().title}</div>
+            </Show>
+            <div class="trd-tk-empty-text">{state().text}</div>
+          </div>
+        }
+      >
+        <DomPanel />
+      </Show>
+    </aside>
+  );
+}
+
+function TicketBody(props: { floating: boolean }) {
   const d = () => tradingUi.draft()!;
   const q = replayBroker.quote;
   const tick = () => q()?.minTick ?? 0.01;
@@ -335,12 +456,15 @@ function TicketBody() {
     }
     if (x.editing) {
       replayBroker.modify(x.editing, t, x.paneId ?? undefined);
+      if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();
       tradingUi.setDraft({ ...x, editing: null, paneId: null });
       tradingUi.setSent(true);
       return;
     }
     if (replayBroker.place(t) === null && !state().ok) return;
     tradingUi.savePrefs(r());
+    // The order dialog of the DOM closes once the order is sent.
+    if (tradingUi.orderDialog()) return tradingUi.closeOrderDialog();
     tradingUi.setSent(true);
   }
 
@@ -421,24 +545,32 @@ function TicketBody() {
   });
   onCleanup(() => tradingUi.setTicketActions(null));
 
-  // Resize from the left edge.
-  function beginResize(e: MouseEvent) {
+  onCleanup(() => (document.body.style.cursor = ""));
+
+  // Floating: centred until dragged by the header (kept inside the window).
+  const [size, setSize] = createSignal({ w: 414, h: 640 });
+  const pos = () => {
+    const p = tradingUi.floatPos();
+    const { w, h } = size();
+    const x = p ? p.x : (window.innerWidth - w) / 2;
+    const y = p ? p.y : (window.innerHeight - h) / 2;
+    return { x: Math.max(0, Math.min(x, window.innerWidth - w)), y: Math.max(0, Math.min(y, window.innerHeight - h)) };
+  };
+  const beginDrag = (e: MouseEvent) => {
+    if (e.button !== 0) return;
     e.preventDefault();
-    const startX = e.clientX;
-    const startW = tradingUi.ticketWidth();
-    const next = (ev: MouseEvent) => startW + (startX - ev.clientX);
-    const onMove = (ev: MouseEvent) => tradingUi.setTicketWidth(next(ev), false);
-    const onUp = (ev: MouseEvent) => {
-      tradingUi.setTicketWidth(next(ev), true);
+    const start = pos();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const onMove = (ev: MouseEvent) => tradingUi.setFloatPos({ x: start.x + ev.clientX - x0, y: start.y + ev.clientY - y0 });
+    const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = "";
     };
-    document.body.style.cursor = "ew-resize";
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }
-  onCleanup(() => (document.body.style.cursor = ""));
+  };
+  const close = () => (tradingUi.orderDialog() ? tradingUi.closeOrderDialog() : tradingUi.closeTicket());
 
   /** Order price field: a price (its distance to the base on the right) or
    *  an offset in ticks (placeholder "Ask"; the price on the right). */
@@ -575,34 +707,29 @@ function TicketBody() {
     );
   };
 
-  return (
-    <aside class="trd-ticket" style={{ width: `${tradingUi.ticketWidth()}px` }} aria-label="Order panel" data-name="order-panel">
-      <div class="trd-ticket-resize" onMouseDown={beginResize} />
-      <div class="trd-tk-header">
-        <Tooltip text="Replay Broker" side="bottom">
-          <span class="trd-tk-mark">
-            <Icon name="replay-status" size={18} />
-          </span>
-        </Tooltip>
-        <span class="trd-tk-title">
-          {tickerOf(d().symbol)}
-          {d().editing && !isPos() ? `, order ${d().editing}` : ""}
-        </span>
-        <span class="trd-tk-spacer" />
-        <span class="trd-tk-head-btns">
+  const content = (
+    <>
+      <TicketHead
+        title={
+          <>
+            {tickerOf(d().symbol)}
+            {d().editing && !isPos() ? `, order ${d().editing}` : ""}
+          </>
+        }
+        extra={
           <Show when={state().ok && !d().editing}>
             <OrderPresetsButton current={currentPreset} apply={applyPreset} />
           </Show>
-          <TicketSettingsMenu />
-          <Tooltip text="Close" side="bottom">
-            <button type="button" class="trd-icon-btn" aria-label="Close" onClick={() => tradingUi.closeTicket()}>
-              <CloseIcon />
-            </button>
-          </Tooltip>
-        </span>
-      </div>
+        }
+        onClose={close}
+        onDrag={props.floating ? beginDrag : undefined}
+      />
       <Show when={editing()}>{(o) => <div class="trd-tk-sub">{orderSummary(o(), tick())}</div>}</Show>
       <Show when={editingPos()}>{(pos) => <div class="trd-tk-sub">{positionSummary(pos(), tick())}</div>}</Show>
+
+      <Show when={!d().editing && !props.floating}>
+        <TicketTabs />
+      </Show>
 
       <Show
         when={state().ok || state().reason === "loading"}
@@ -754,7 +881,35 @@ function TicketBody() {
           </Show>
         </div>
       </Show>
-    </aside>
+    </>
+  );
+  return (
+    <Show
+      when={props.floating}
+      fallback={
+        <aside class="trd-ticket" style={{ width: `${tradingUi.ticketWidth()}px` }} aria-label="Order panel" data-name="order-panel">
+          <div class="trd-ticket-resize" onMouseDown={beginResize} />
+          {content}
+        </aside>
+      }
+    >
+      <Portal>
+        <div
+          ref={(el) => {
+            const ro = new ResizeObserver(() => setSize({ w: el.offsetWidth, h: el.offsetHeight }));
+            ro.observe(el);
+            onCleanup(() => ro.disconnect());
+          }}
+          class="trd-ticket is-floating"
+          style={{ left: `${pos().x}px`, top: `${pos().y}px` }}
+          role="dialog"
+          aria-label="Order panel"
+          data-name="order-panel"
+        >
+          {content}
+        </div>
+      </Portal>
+    </Show>
   );
 }
 
@@ -772,10 +927,28 @@ const SettingsIcon = () => (
   </svg>
 );
 
-/** ⋯ (tooltip "Settings"): Trading settings… (the chart Settings dialog on
+/** Undock: a window leaving the panel; dock: the panel at the right. */
+const UndockIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+    <rect x="6.5" y="9.5" width="12" height="12" rx="1.5" />
+    <path d="M13 7.5h7.5v7.5M20.5 7.5 14 14" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+);
+const DockIcon = () => (
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+    <rect x="6.5" y="7.5" width="15" height="13" rx="1.5" />
+    <path d="M16.5 7.5v13" />
+  </svg>
+);
+
+/** ⋯ (tooltip "Settings"): Undock order ticket / Dock to right, Trading settings… (the chart Settings dialog on
  *  its Trading tab) and "SL enables quantity in risk". */
 function TicketSettingsMenu() {
   const [open, setOpen] = createSignal(false);
+  const prices = tradingUi.domPrices;
+  const docked = () => tradingUi.ticketMode() === "panel";
+  /** The menu of the docked DOM (not of an order dialog over it). */
+  const domTab = () => docked() && tradingUi.ticketTab() === "dom" && !tradingUi.orderDialog();
   let btn!: HTMLButtonElement;
   const button = (
     <button type="button" ref={btn} class="trd-icon-btn" classList={{ "is-active": open() }} aria-label="Settings" aria-haspopup="menu" aria-expanded={open()} onClick={() => setOpen(!open())}>
@@ -789,6 +962,28 @@ function TicketSettingsMenu() {
       </Tooltip>
       <Show when={open()}>
         <Popup anchor={btn} alignEnd onClose={() => setOpen(false)} class="trd-menu-settings" label="Settings">
+          <Show when={!tradingUi.orderDialog() && !domTab()}>
+            <button
+              type="button"
+              class="trd-menu-row"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                tradingUi.setTicketMode(docked() ? "popup" : "panel");
+              }}
+            >
+              <Show when={docked()} fallback={<DockIcon />}>
+                <UndockIcon />
+              </Show>
+              <span class="trd-menu-title">{docked() ? "Undock order ticket" : "Dock to right"}</span>
+            </button>
+          </Show>
+          <Show when={domTab()}>
+            <div class="trd-menu-section">DOM panel settings</div>
+            <CheckRow label="Show zero trade volume prices" on={prices().zeroVolume} onToggle={() => tradingUi.setDomPrices({ ...prices(), zeroVolume: !prices().zeroVolume })} />
+            <CheckRow label="Show prices between the best bid/ask" on={prices().spread} onToggle={() => tradingUi.setDomPrices({ ...prices(), spread: !prices().spread })} />
+            <div class="trd-menu-divider" />
+          </Show>
           <button
             type="button"
             class="trd-menu-row"
@@ -801,26 +996,29 @@ function TicketSettingsMenu() {
             <SettingsIcon />
             <span class="trd-menu-title">Trading settings…</span>
           </button>
-          <div class="trd-menu-divider" />
-          <button
-            type="button"
-            class="trd-menu-row"
-            role="menuitemcheckbox"
-            aria-checked={tradingUi.slEnablesRisk()}
-            onClick={() => tradingUi.setSlEnablesRisk(!tradingUi.slEnablesRisk())}
-          >
-            <span class="trd-menu-check" classList={{ "is-on": tradingUi.slEnablesRisk() }}>
-              <Show when={tradingUi.slEnablesRisk()}>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-                  <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-              </Show>
-            </span>
-            <span class="trd-menu-title">SL enables quantity in risk</span>
-          </button>
+          <Show when={!domTab()}>
+            <div class="trd-menu-divider" />
+            <CheckRow label="SL enables quantity in risk" on={tradingUi.slEnablesRisk()} onToggle={() => tradingUi.setSlEnablesRisk(!tradingUi.slEnablesRisk())} />
+          </Show>
         </Popup>
       </Show>
     </>
+  );
+}
+
+/** A checkbox row of the ⋯ menu. */
+function CheckRow(p: { label: string; on: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" class="trd-menu-row" role="menuitemcheckbox" aria-checked={p.on} onClick={() => p.onToggle()}>
+      <span class="trd-menu-check" classList={{ "is-on": p.on }}>
+        <Show when={p.on}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </Show>
+      </span>
+      <span class="trd-menu-title">{p.label}</span>
+    </button>
   );
 }
 

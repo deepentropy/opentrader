@@ -1,0 +1,439 @@
+/*
+ * Order ticket: the Order / DOM switch and the DOM tab (reference app 3.4.1:
+ * rows 20 px, columns orders 56 | bid size 58 | price 78 | ask size 58 |
+ * orders 56 with 1 px grid lines; order marks green limit, red stop, yellow
+ * stop-limit; controls, position, actions and market rows under it).
+ */
+html.theme-dark {
+  --trd-tab-selected: #4a4a4a;
+  --trd-tab-selected-text: #fff;
+  --trd-tab-shadow: #0f0f0f;
+  --trd-dom-last: #2e2e2e;
+  --trd-dom-btn-border: #4a4a4a;
+  --trd-dom-btn-text: #fff;
+  --trd-dom-grid: var(--color-cold-gray-750);
+  --trd-dom-long: #223d54;
+  --trd-dom-short: #49283b;
+  --trd-dom-buy-meter: #132042;
+  --trd-dom-buy-meter-active: #142e61;
+  --trd-dom-sell-meter: var(--color-ripe-red-a900);
+  --trd-dom-sell-meter-active: var(--color-ripe-red-a800);
+}
+html.theme-light {
+  --trd-tab-selected: #fff;
+  --trd-tab-selected-text: #0f0f0f;
+  --trd-tab-shadow: rgba(0, 0, 0, 0.1);
+  --trd-dom-last: #f2f2f2;
+  --trd-dom-btn-border: #dbdbdb;
+  --trd-dom-btn-text: #0f0f0f;
+  --trd-dom-grid: var(--color-cold-gray-50);
+  --trd-dom-long: #d8f0fa;
+  --trd-dom-short: #ffdbe1;
+  --trd-dom-buy-meter: #e3effd;
+  --trd-dom-buy-meter-active: #bbd9fb;
+  --trd-dom-sell-meter: var(--color-ripe-red-50);
+  --trd-dom-sell-meter-active: var(--color-ripe-red-100);
+}
+
+/* ─── Order / DOM switch ─── */
+/* Segmented control: 34 px (3 px padding and gap), radius 8; segments
+   28 px, radius 5, 14 px / 500; the selected one lifted with a shadow. */
+.trd-tk-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  flex-shrink: 0;
+  margin: 0 16px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--trd-side-bg);
+}
+.trd-tk-tab {
+  width: 100%;
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--trd-side-bg);
+  color: var(--trd-text-secondary);
+  font: 500 14px/18px var(--trd-font);
+}
+.trd-tk-tab:hover:not(.is-selected) {
+  color: var(--color-text-primary);
+}
+.trd-tk-tab.is-selected {
+  background: var(--trd-tab-selected);
+  color: var(--trd-tab-selected-text);
+  box-shadow: 0 0 6px var(--trd-tab-shadow);
+}
+
+/* ─── Ladder ─── */
+.trd-dom {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  font-family: var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-dom-head {
+  position: relative;
+  flex-shrink: 0;
+  height: 20px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.trd-dom-upper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.trd-dom-main {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: default;
+}
+.trd-dom-anchor {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 310px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+.trd-dom-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+}
+.trd-dom-cell,
+.trd-dom-orders {
+  position: absolute;
+  top: 1px;
+  height: 19px;
+  font-size: 12px;
+  line-height: 15px;
+}
+.trd-dom-cell {
+  border: 1px solid var(--trd-dom-grid);
+  color: var(--color-default-gray);
+  text-align: center;
+}
+.trd-dom-cell.is-buy { left: 56px; width: 58px; }
+.trd-dom-cell.is-sell { left: 194px; width: 58px; }
+.trd-dom-cell.is-price {
+  left: 115px;
+  width: 78px;
+  height: 17px;
+  padding-top: 2px;
+  color: var(--color-text-primary);
+  cursor: grab;
+}
+.trd-dom-cell.is-price.is-ask { color: var(--color-ripe-red-500); }
+.trd-dom-cell.is-price.is-bid { color: var(--color-brand); }
+.trd-dom-cell.is-price.is-last { background: var(--trd-dom-last); }
+.trd-dom-cell.is-price.is-long { background: var(--trd-dom-long); }
+.trd-dom-cell.is-price.is-short { background: var(--trd-dom-short); }
+@media (any-hover: hover) {
+  .trd-dom-cell.is-buy:not(.is-header):hover {
+    z-index: 2;
+    border: 1px dashed var(--color-brand);
+    border-radius: 2px;
+  }
+  .trd-dom-cell.is-sell:not(.is-header):hover {
+    z-index: 2;
+    border: 1px dashed var(--color-ripe-red-500);
+    border-radius: 2px;
+  }
+}
+.trd-dom-cell.is-buy:not(.is-header):active {
+  z-index: 2;
+  border: 1px solid var(--color-brand);
+  border-radius: 2px;
+}
+.trd-dom-cell.is-sell:not(.is-header):active {
+  z-index: 2;
+  border: 1px solid var(--color-ripe-red-500);
+  border-radius: 2px;
+}
+.trd-dom-cell.is-header {
+  border: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+.trd-dom-meter {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 100%;
+}
+.trd-dom-cell.is-buy .trd-dom-meter { left: 0; background: var(--trd-dom-buy-meter); }
+.trd-dom-cell.is-sell .trd-dom-meter { right: 0; background: var(--trd-dom-sell-meter); }
+.trd-dom-meter.is-full { width: 100%; }
+.trd-dom-cell.is-buy .trd-dom-meter.is-active {
+  background: var(--trd-dom-buy-meter-active);
+  transition: background-color 0.5s cubic-bezier(0.33, 1, 0.68, 1);
+}
+.trd-dom-cell.is-sell .trd-dom-meter.is-active {
+  background: var(--trd-dom-sell-meter-active);
+  transition: background-color 0.5s cubic-bezier(0.33, 1, 0.68, 1);
+}
+.trd-dom-orders {
+  border: 0;
+  white-space: nowrap;
+}
+.trd-dom-orders.is-buy { left: 0; text-align: left; }
+.trd-dom-orders.is-sell { right: 0; text-align: right; }
+.trd-dom-label {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  width: 56px;
+  height: 21px;
+  background: var(--color-item-hover-bg);
+  font-size: 8px;
+  line-height: 21px;
+  text-align: center;
+  text-transform: uppercase;
+  visibility: hidden;
+}
+.trd-dom-orders.is-buy .trd-dom-label { left: 0; }
+.trd-dom-orders.is-sell .trd-dom-label { right: 0; }
+.trd-dom-label.is-shown { visibility: visible; }
+.trd-dom-row.is-ask .trd-dom-label { color: var(--color-ripe-red-500); }
+.trd-dom-row.is-bid .trd-dom-label { color: var(--color-brand); }
+.trd-dom-orders.is-buy .trd-dom-label.is-active { background: var(--trd-dom-long); }
+.trd-dom-orders.is-sell .trd-dom-label.is-active { background: var(--trd-dom-short); }
+
+/* Order marks: close (21 px square), quantity, the type under them on hover. */
+.trd-dom-order {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  width: 56px;
+  height: 21px;
+  overflow: hidden;
+  vertical-align: top;
+  background: #40b295;
+  text-align: center;
+  pointer-events: none;
+  transition: width 0.1s, height 0.1s;
+}
+.trd-dom-order.is-collapsed { width: 2px; }
+@media (any-hover: hover) {
+  .trd-dom-orders:hover .trd-dom-order {
+    z-index: 2;
+    width: 56px;
+    height: 31px;
+    transition: width 0.3s, height 0.3s;
+  }
+}
+.trd-dom-order.is-stop { background: #da4353; }
+.trd-dom-order.is-stoplimit { background: #e1b143; }
+.trd-dom-order.is-inactive { opacity: 0.5; }
+.trd-dom-order.is-highlighted {
+  z-index: 2;
+  margin: -1px;
+  border: 1px solid #000;
+}
+.trd-dom-order-close {
+  float: right;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  border: 0;
+  background: #48cfad;
+  color: #fff;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.trd-dom-order.is-buy .trd-dom-order-close { float: left; }
+.trd-dom-order-close svg { display: block; margin: 6px; }
+.trd-dom-order-close:hover { background: #5ad4b5; }
+.trd-dom-order-close:active { background: #44c5a4; }
+.trd-dom-order.is-stop .trd-dom-order-close { background: #ef5350; }
+.trd-dom-order.is-stop .trd-dom-order-close:hover { background: #f16462; }
+.trd-dom-order.is-stop .trd-dom-order-close:active { background: #e34f4c; }
+.trd-dom-order.is-stoplimit .trd-dom-order-close { background: #ffc84a; }
+.trd-dom-order.is-stoplimit .trd-dom-order-close:hover { background: #ffce5c; }
+.trd-dom-order.is-stoplimit .trd-dom-order-close:active { background: #f2be46; }
+.trd-dom-order-qty {
+  display: block;
+  height: 15px;
+  padding: 3px 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 12px;
+  line-height: 15px;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: ns-resize;
+}
+.trd-dom-order-qty:hover { background: #ffffff1a; }
+.trd-dom-order-qty:active { background: #ffffff0d; }
+.trd-dom-order-type {
+  display: block;
+  clear: both;
+  height: 10px;
+  overflow: hidden;
+  background: #f1f3f6;
+  color: #4a4a4a;
+  font-size: 8px;
+  line-height: 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.trd-dom-offscreen {
+  position: absolute;
+  left: 50%;
+  width: 12px;
+  height: 7px;
+  margin-left: -6px;
+  color: #9db2bd80;
+  pointer-events: none;
+}
+.trd-dom-offscreen.is-higher { top: 3px; }
+.trd-dom-offscreen.is-lower { bottom: -3px; }
+.trd-dom-offscreen svg { display: block; }
+
+/* ─── Bottom: controls (34 px, 6 / 8 px padding), position, actions, market ─── */
+.trd-dom-bottom {
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.trd-dom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 6px 8px;
+  font-size: 13px;
+  text-align: center;
+  white-space: nowrap;
+}
+.trd-dom-cancel {
+  display: flex;
+  align-items: center;
+  width: 50px;
+  color: var(--color-default-gray);
+}
+.trd-dom-cancel.is-sell { flex-direction: row-reverse; }
+.trd-dom-count {
+  display: block;
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+}
+.trd-dom-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.trd-dom-icon-btn:hover:not(:disabled) { background: var(--color-bg-primary-hover); }
+.trd-dom-icon-btn:disabled { color: var(--trd-disabled-text); cursor: default; }
+.trd-dom-centering {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trd-dom-total {
+  width: 72px;
+  height: 20px;
+  line-height: 19px;
+  text-align: center;
+}
+.trd-dom-total.is-bid { background: #2962ff26; color: var(--color-content-primary-accent); }
+.trd-dom-total.is-ask { background: #f2364526; color: var(--color-content-primary-danger, var(--color-ripe-red-500)); }
+.trd-dom-switch { position: relative; }
+.trd-dom-timer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  fill: var(--color-container-fill-primary-warning-light);
+  pointer-events: none;
+}
+.trd-dom-switch .trd-dom-icon-btn { position: relative; }
+.trd-dom-btns {
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+.trd-dom-btns.is-position { margin-bottom: 4px; }
+.trd-dom-btns.is-actions { margin-bottom: 16px; }
+.trd-dom-btns.is-market { margin-bottom: 12px; }
+.trd-dom-btn {
+  flex: 1 1 50%;
+  min-width: 0;
+  max-width: 50%;
+  height: 28px;
+  padding: 0 7px;
+  overflow: hidden;
+  border: 1px solid var(--trd-dom-btn-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--trd-dom-btn-text);
+  font: 400 14px/18px var(--trd-font);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.trd-dom-btns.is-position .trd-dom-btn,
+.trd-dom-btns.is-actions .trd-dom-btn { flex: 1; max-width: none; }
+.trd-dom-btn:hover:not([aria-disabled="true"]) { background: var(--color-bg-primary-hover); }
+.trd-dom-btn[aria-disabled="true"] { cursor: default; }
+.trd-dom-btn.is-buy { color: var(--color-brand); }
+.trd-dom-btn.is-sell { color: var(--color-ripe-red-500); }
+.trd-dom-btn.is-profit { color: var(--color-minty-green-500); }
+.trd-dom-btn.is-loss { color: var(--color-ripe-red-500); }
+.trd-dom-btn.is-primary { border-color: transparent; color: #fff; }
+.trd-dom-btn.is-primary.is-buy { background: var(--trd-buy); }
+.trd-dom-btn.is-primary.is-buy:hover { background: var(--trd-buy-hover); }
+.trd-dom-btn.is-primary.is-sell { background: var(--trd-sell); }
+.trd-dom-btn.is-primary.is-sell:hover { background: var(--trd-sell-hover); }
+.trd-dom-qty {
+  flex: none;
+  width: 48px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 2px 0 6px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+  outline: none;
+}
+.trd-dom-qty:focus { border-color: var(--trd-buy); }
+
+/* ─── Undocked ticket / order dialog: a floating dialog (reference app:
+   414 px, radius 6, 0 2px 4px shadow), dragged by its header ─── */
+.trd-ticket.is-floating {
+  position: fixed;
+  z-index: 120;
+  width: 414px;
+  max-height: calc(100vh - 16px);
+  border-left: 0;
+  border-radius: 6px;
+  background: var(--trd-float-bg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+html.theme-dark { --trd-float-bg: #1f1f1f; }
+html.theme-light { --trd-float-bg: #fff; }
+.trd-tk-header.is-draggable { cursor: grab; }
+.trd-tk-header.is-draggable:active { cursor: grabbing; }

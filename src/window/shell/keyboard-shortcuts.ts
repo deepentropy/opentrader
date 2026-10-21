@@ -237,14 +237,17 @@ export function installKeyboardShortcuts(a: ShortcutActions): () => void {
       return;
     }
     // Trading hotkeys (reference app, bound whether or not a broker is
-    // connected): Shift+B buy, Shift+S sell, Shift+T order ticket, and
-    // Alt+Shift+B / Alt+Shift+S limit orders (the Alt+Shift block below).
-    // In Bar Replay they open the order ticket (paper trading); with no
-    // broker otherwise they do nothing (no symbol search with that letter).
-    if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && (e.code === "KeyB" || e.code === "KeyS" || e.code === "KeyT")) {
+    // connected): Shift+B buy, Shift+S sell, Shift+T order ticket, Shift+D
+    // DOM, and Alt+Shift+B / Alt+Shift+S limit orders (the Alt+Shift block
+    // below). In Bar Replay they open the order ticket (paper trading); with
+    // no broker otherwise they do nothing (no symbol search with that letter).
+    if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && (e.code === "KeyB" || e.code === "KeyS" || e.code === "KeyT" || e.code === "KeyD")) {
       if (blocked) return;
       e.preventDefault();
-      if (replayEnabled()) tradingUi.openOrderTicket({ side: e.code === "KeyS" ? "sell" : "buy" });
+      if (!replayEnabled()) return;
+      if (e.code === "KeyD" || e.code === "KeyT") tradingUi.setTicketTab(e.code === "KeyD" ? "dom" : "order");
+      if (e.code === "KeyB" || e.code === "KeyS") tradingUi.openOrderTicket({ side: e.code === "KeyS" ? "sell" : "buy" });
+      else if (!tradingUi.ticketOpen()) tradingUi.openOrderTicket();
       return;
     }
     // Alt+Shift+→ / ← → jump to the most recent / the first bar on the focused

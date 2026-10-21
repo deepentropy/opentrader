@@ -307,3 +307,11 @@ html.theme-light .ot-trd-buysell__presets { border-color: #dbdbdb; color: #0f0f0
 }
 .ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px #ffffff1a; }
 html.theme-light .ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px #1317220f; }
+
+/* Price under the pointer in the order ticket's DOM tab: a dashed line. */
+.ot-trd-domline {
+  position: absolute;
+  height: 0;
+  border-top: 1px dashed var(--c);
+  pointer-events: none;
+}
