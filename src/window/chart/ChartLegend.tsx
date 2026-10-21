@@ -16,7 +16,7 @@
  */
 import { Show, createSignal, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
-import { STATUS_ITEMS } from "./legend-status";
+import { STATUS_ITEMS, pillStatus } from "./legend-status";
 import { LegendStatusPopup } from "./LegendStatusPopup";
 
 /** Resolved, display-ready values for the legend's values line. Built by
@@ -345,7 +345,7 @@ export function ChartLegend(props: Props) {
                 </div>
               )}
             </Show>
-            <Show when={!props.replayStatus && props.marketStatus && (props.marketStatus !== "open" || (props.showOpenStatus ?? true)) ? STATUS_ITEMS[props.marketStatus!] : null}>
+            <Show when={!props.replayStatus && props.marketStatus && (props.marketStatus !== "open" || (props.showOpenStatus ?? true)) ? STATUS_ITEMS[pillStatus(props.statusSymbol, props.marketStatus!)] : null}>
               {(st) => (
                 <div class="ot-legend-statuses">
                   <span

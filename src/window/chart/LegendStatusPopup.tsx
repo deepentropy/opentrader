@@ -18,6 +18,7 @@ import {
   marketStatusAt,
   sessionTimeline,
   type MarketStatusKind,
+  type TimelineSegment,
 } from "./legend-status";
 
 const REPLAY_PATH = "M8 13 4 9l4-4zm4 0L8 9l4-4z";
@@ -83,7 +84,7 @@ export function LegendStatusPopup(props: Props) {
     const kind: MarketStatusKind = s ? marketStatusAt(s, sec) : props.marketStatus ?? "closed";
     return {
       kind,
-      item: STATUS_ITEMS[kind === "holiday" ? "closed" : kind],
+      item: STATUS_ITEMS[kind],
       text: MARKET_STATUS_TEXT[kind],
       countdown: s ? countdownText(s, sec) : null,
       timeline: s ? sessionTimeline(s, sec) : null,
@@ -145,6 +146,12 @@ export function LegendStatusPopup(props: Props) {
 
 function TimelineView(props: { t: ReturnType<typeof sessionTimeline> }) {
   const pct = (v: number) => `${v * 100}%`;
+  // Hover tooltip of a part (shown at once, 8 px above it, centred).
+  const [hover, setHover] = createSignal<{ seg: TimelineSegment; x: number; y: number } | null>(null);
+  const enter = (seg: TimelineSegment, e: MouseEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setHover({ seg, x: r.left + r.width / 2, y: r.top - 8 });
+  };
   return (
     <div class="ot-lsp-timeline">
       <div class="ot-lsp-days">
@@ -157,7 +164,8 @@ function TimelineView(props: { t: ReturnType<typeof sessionTimeline> }) {
                   class={`ot-lsp-segment is-${s.type}`}
                   classList={{ "is-start": s.start, "is-end": s.end, "is-small": s.to - s.from < 0.03 }}
                   style={{ left: pct(s.from), width: `calc(${pct(s.to - s.from)} + ${s.to - s.from < 0.03 ? 2 : 0}px)` }}
-                  title={s.tooltip}
+                  onMouseEnter={(e) => enter(s, e)}
+                  onMouseLeave={() => setHover(null)}
                 />
               )}
             </For>
@@ -180,6 +188,16 @@ function TimelineView(props: { t: ReturnType<typeof sessionTimeline> }) {
         )}
       </Show>
       <div class="ot-lsp-zone">{props.t.zone}</div>
+      <Show when={hover()}>
+        {(h) => (
+          <Portal>
+            <div class="ot-tooltip ot-tooltip-top ot-tooltip-normal ot-lsp-tip" role="tooltip" style={{ left: `${h().x}px`, top: `${h().y}px` }}>
+              <span class={`ot-lsp-tip-title is-${h().seg.type}`}>{h().seg.tip.title}</span>{" "}
+              <span class="ot-lsp-tip-time">{h().seg.tip.time}</span>
+            </div>
+          </Portal>
+        )}
+      </Show>
     </div>
   );
 }

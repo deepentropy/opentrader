@@ -1,7 +1,8 @@
 /* Popup of the chart legend's status pill (reference app 3.4.1: popup
    #1f1f1f / #fff r6, shadow 0 2px 4px, sections 16 px padding (11 top / 10
    bottom), max 344 px; title 16/22 600, text 14/21, bold countdown; session bar
-   7 px r4, weekday 10 px uppercase, time marks 11/14, time zone 11/18). */
+   7 px r4, weekday 10 px uppercase, time marks 11/14, time zone 11/18; part
+   tooltips: common tooltip, coloured title + white span). */
 
 .ot-lsp {
   position: fixed;
@@ -202,6 +203,28 @@
   font-size: 11px;
   line-height: 18px;
   text-align: center;
+}
+
+/* Hover tooltip of a session part: its title in the part's colour, then the
+   span (the same colours in both themes). */
+.ot-lsp-tip {
+  white-space: normal;
+}
+.ot-lsp-tip-time {
+  margin-inline-start: 5px;
+  color: #fff;
+}
+.ot-lsp-tip-title.is-open {
+  color: #22ab94;
+}
+.ot-lsp-tip-title.is-pre {
+  color: #ffa726;
+}
+.ot-lsp-tip-title.is-post {
+  color: #5b9cf6;
+}
+.ot-lsp-tip-title.is-closed {
+  color: #b8b8b8;
 }
 
 /* The pill opens the popup. */
