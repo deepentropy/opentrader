@@ -10,7 +10,8 @@
  * finishes). A sound that is already playing is not started a second time.
  * It can be stopped at any moment (the popup of its alert was closed).
  *
- * Volume + enabled come from alert-settings.ts.
+ * Volume + enabled come from alert-settings.ts (a sound given its own volume,
+ * the order execution sound, plays whatever the alert settings say).
  */
 import { alertSettings } from "./alert-settings";
 
@@ -211,12 +212,14 @@ export function stopAlertSound(key?: string): void {
  *  when sound is disabled (except a `preview`, the dialog's play buttons),
  *  the key is empty / unknown, it is already playing, or Web Audio is
  *  unavailable. */
-export function playAlertSound(key: string, opts: { preview?: boolean; duration?: number } = {}): void {
-  if (!key || (!opts.preview && !alertSettings.soundEnabled())) return;
+export function playAlertSound(key: string, opts: { preview?: boolean; duration?: number; volume?: number } = {}): void {
+  // `volume` (0-1): a sound with its own volume (order executions), not the alert settings'.
+  const own = opts.volume !== undefined;
+  if (!key || (!opts.preview && !own && !alertSettings.soundEnabled())) return;
   if (!BANK[key] || playing.has(key)) return;
   const ac = audioContext();
   if (!ac) return;
-  const volume = Math.max(0, Math.min(1, alertSettings.volume() / 100)) * SOUND_VOLUME;
+  const volume = Math.max(0, Math.min(1, own ? opts.volume! : alertSettings.volume() / 100)) * SOUND_VOLUME;
   if (volume <= 0) return;
   const out = ac.createGain();
   out.gain.value = volume;

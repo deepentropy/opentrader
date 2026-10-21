@@ -8,6 +8,8 @@
 import { For, Show, createSignal, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
 import { replayBroker } from "../../data/trading/replay-broker";
+import { tradingPrefs } from "../../data/trading/trading-prefs";
+import { playAlertSound } from "../../data/alert-sounds";
 import type { TradingEvent } from "../../data/trading/types";
 import { fmtPrice, fmtQty } from "./format";
 import { AlertIcon, CheckIcon, CloseIcon } from "./icons";
@@ -65,7 +67,15 @@ export function TradingToasts() {
     }, t.kind === "error" ? 25_000 : 10_000);
     timers.add(h);
   };
-  onCleanup(replayBroker.onEvent((e) => push(toastOf(e))));
+  onCleanup(
+    replayBroker.onEvent((e) => {
+      const prefs = tradingPrefs.prefs();
+      // Chart settings → Trading: Execution sound, Show only rejection notifications.
+      if (e.kind === "executed" && prefs.sound) playAlertSound(prefs.sound.key, { volume: prefs.sound.volume });
+      if (prefs.rejectionOnly && e.kind !== "rejected") return;
+      push(toastOf(e));
+    }),
+  );
   onCleanup(() => timers.forEach((h) => window.clearTimeout(h)));
 
   const shown = () => {

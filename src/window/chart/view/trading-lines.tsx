@@ -12,17 +12,26 @@
  * hides another (the position label goes over the last price label). Orders
  * and the position without a take profit / stop loss carry dotted TP / SL
  * chips that add one at the ticket's default distance.
- * × asks first (Cancel order / Close position), a chip of an order or a
- * bracket drags the price (snapped to the tick), a click on an order chip opens
- * it in the order ticket.
+ * × asks first (Cancel order / Close position; not with one-click trading),
+ * a chip of an order or a bracket drags the price (snapped to the tick), a
+ * click on an order chip opens it in the order ticket.
+ *
+ * Chart settings → Trading (per chart): Positions and orders (reverse button),
+ * Profit and loss value of the position / brackets (money, ticks, %),
+ * Execution marks (labels), Extended price lines, Order and position
+ * alignment; and the Buy / Sell buttons under the series legend (bid / ask =
+ * the last replayed price, the spread between). The focused chart's one-click
+ * trading, execution sound and rejection-only toasts apply to the trading UI.
  */
-import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, type JSX } from "solid-js";
 import type { Time } from "lightweight-charts";
 import { Icon } from "../../../components/Icon";
 import { Tooltip } from "../../../components/Tooltip";
-import { isPaneInReplay } from "../../../data/replay";
+import { isPaneInReplay, setReplayActivePane } from "../../../data/replay";
+import { tradingPrefs } from "../../../data/trading/trading-prefs";
+import { tradingAppearance, type TradingAppearance } from "../../header/chart-settings";
 import { replayBroker } from "../../../data/trading/replay-broker";
-import { tradingUi } from "../../../data/trading/trading-ui";
+import { ticketQty, tradingUi } from "../../../data/trading/trading-ui";
 import type { TradingOrder, TradingPosition } from "../../../data/trading/types";
 import { cachedSymbolSessions } from "../../../data/session";
 import { confirmCancelOrder, confirmClosePosition } from "../../trading/confirm";
@@ -38,6 +47,7 @@ import {
   orderChipText,
   orderLinePrice,
   orderMenuTitle,
+  plText,
   positionQtyText,
   requestWithPrice,
   snapToTick,
@@ -57,7 +67,11 @@ const SELL_COLOR = "#f23645";
 export interface TradingLinesApi {
   /** `epoch`: the chart's coord epoch (view changes re-project the lines). */
   TradingLinesLayer: (props: { epoch: number }) => JSX.Element;
+  /** Buy / Sell buttons of the chart (under the series legend). */
+  TradingButtons: () => JSX.Element;
 }
+
+const DEFAULT_TRADING: TradingAppearance = tradingAppearance(undefined);
 
 type Geom = {
   plotLeft: number;
@@ -88,10 +102,19 @@ const ArrowIcon = (props: { down: boolean }) => (
 export function createTradingLines(cx: ChartCx): TradingLinesApi {
   const paneId = cx.paneId;
   const on = () => isPaneInReplay(paneId);
+  /** This chart's Trading settings. */
+  const ta = (): TradingAppearance => cx.appearance().trading ?? DEFAULT_TRADING;
   const tick = () => cachedSymbolSessions(cx.props.symbol ?? "")?.mintick ?? replayBroker.quote()?.minTick ?? 0.01;
-  const position = () => (on() ? replayBroker.position(paneId) : null);
-  const orders = () => (on() ? replayBroker.orders(paneId) : []);
-  const executions = () => (on() ? replayBroker.executions(paneId) : []);
+  const position = () => (on() && ta().positions ? replayBroker.position(paneId) : null);
+  const orders = () => (on() && ta().positions ? replayBroker.orders(paneId) : []);
+  const executions = () => (on() && ta().executions ? replayBroker.executions(paneId) : []);
+  // The focused chart's one-click trading, execution sound and notifications apply.
+  createEffect(() => {
+    if (cx.props.active && cx.props.shown !== false) tradingPrefs.setPrefs(ta());
+  });
+  /** Cancel / close: asked first, unless one-click trading is on. */
+  const askCancel = (o: TradingOrder, run: () => void) => (ta().oneClick ? run() : confirmCancelOrder(o, run));
+  const askClose = (p: TradingPosition, run: () => void) => (ta().oneClick ? run() : confirmClosePosition(p, run));
   /** A line being dragged: its order id and price. */
   const [drag, setDrag] = createSignal<{ id: string; price: number } | null>(null);
 
@@ -261,6 +284,20 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       setMenu({ anchor: e.currentTarget as HTMLElement, order });
     };
 
+    /** The row spans the plot: the chips sit right, centre or left (Order and
+     *  position alignment); the line runs from them to the price axis, and
+     *  across the whole width with Extended price lines. */
+    const rowBox = (g: Geom) => ({ left: `${g.plotLeft}px`, right: `${g.hostW - g.plotRight}px` });
+    const Lead = () => (
+      <span
+        class="ot-trd-seg is-lead"
+        classList={{ "is-hidden": !ta().extendLines }}
+        style={ta().align === "left" ? { width: `${RIGHT_OFFSET}px` } : { flex: "1 1 0" }}
+      />
+    );
+    const Tail = () => <span class="ot-trd-seg is-tail" style={ta().align === "right" ? { width: `${RIGHT_OFFSET}px` } : { flex: "1 1 0" }} />;
+    const ccy = () => replayBroker.currency(paneId);
+
     const sideColor = (side: "buy" | "sell") => (side === "buy" ? BLUE : SELL_COLOR);
     const colorOf = (o: TradingOrder) => (o.kind === "tp" ? TP_COLOR : o.kind === "sl" ? SL_COLOR : sideColor(o.side));
 
@@ -333,8 +370,9 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
           <div
             class="ot-trd-row"
             classList={{ "is-dragging": drag()?.id === p.line.key, "is-limit-line": p.line.limit }}
-            style={{ "--c": colorOf(o()!), top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}
+            style={{ "--c": colorOf(o()!), top: `${y()}px`, ...rowBox(p.g) }}
           >
+            <Lead />
             <BracketChips tp={canAdd("tp")} sl={canAdd("sl")} set={setBracket} />
             <div
               class="ot-trd-chip"
@@ -348,7 +386,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 {fmtQty(o()!.qty)}
               </span>
               <Tooltip text="Modify order" side="top">
-                <span class="ot-trd-chip__part is-text">{orderChipText(o()!)}</span>
+                <span class="ot-trd-chip__part is-text">{bracketPl(o()!) ?? orderChipText(o()!)}</span>
               </Tooltip>
               <Show when={!p.line.limit}>
                 <Tooltip text={o()!.kind === "tp" ? "Cancel take profit" : o()!.kind === "sl" ? "Cancel stop loss" : "Cancel order"} side="top">
@@ -360,7 +398,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                     onMouseDown={stop}
                     onClick={() => {
                       const x = o();
-                      if (x) confirmCancelOrder(x, () => replayBroker.cancel(x.id, paneId));
+                      if (x) askCancel(x, () => replayBroker.cancel(x.id, paneId));
                     }}
                   >
                     <CloseIcon />
@@ -368,7 +406,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 </Tooltip>
               </Show>
             </div>
-            <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
+            <Tail />
           </div>
         </Show>
       );
@@ -383,13 +421,16 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       };
       return (
         <Show when={y() !== null}>
-          <div class="ot-trd-row is-position" style={{ "--c": sideColor(p.pos.side), top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}>
-            <Tooltip text="Reverse Position" side="top">
-              <button type="button" class="ot-trd-chip is-button" aria-label="Reverse position" onPointerDown={stop} onMouseDown={stop} onClick={() => replayBroker.reverse(paneId)}>
-                <ReverseIcon />
-              </button>
-            </Tooltip>
-            <span class="ot-trd-seg" />
+          <div class="ot-trd-row is-position" style={{ "--c": sideColor(p.pos.side), top: `${y()}px`, ...rowBox(p.g) }}>
+            <Lead />
+            <Show when={ta().reverseButton}>
+              <Tooltip text="Reverse Position" side="top">
+                <button type="button" class="ot-trd-chip is-button" aria-label="Reverse position" onPointerDown={stop} onMouseDown={stop} onClick={() => replayBroker.reverse(paneId)}>
+                  <ReverseIcon />
+                </button>
+              </Tooltip>
+              <span class="ot-trd-seg" />
+            </Show>
             <BracketChips tp={p.pos.takeProfit === null} sl={p.pos.stopLoss === null} set={setBracket} />
             <div class="ot-trd-chip is-position-chip" onPointerDown={stop} onMouseDown={stop} onContextMenu={(e) => openMenu(e, null)}>
               <Tooltip text={fmtPl(p.pos.pl, replayBroker.currency(paneId))} side="top">
@@ -398,22 +439,52 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                   {positionQtyText(p.pos)}
                 </span>
               </Tooltip>
+              <Show when={ta().plPositions}>
+                {(kind) => (
+                  <span class="ot-trd-chip__part is-text is-pl">
+                    {plText(p.pos.qty > 0 ? p.pos.pl / p.pos.qty : 0, p.pos.qty, p.pos.avgPrice, kind(), tick(), ccy())}
+                  </span>
+                )}
+              </Show>
               <Tooltip text="Close Position" side="top">
                 <button
                   type="button"
                   class="ot-trd-chip__part is-close"
                   aria-label="Close position"
-                  onClick={() => confirmClosePosition(p.pos, () => replayBroker.closePosition(null, paneId))}
+                  onClick={() => askClose(p.pos, () => replayBroker.closePosition(null, paneId))}
                 >
                   <CloseIcon />
                 </button>
               </Tooltip>
             </div>
-            <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
+            <Tail />
           </div>
         </Show>
       );
     }
+
+    /** P&L of a bracket if it fills (Profit and loss value → Brackets), from the
+     *  position's average price or its order's price; null = the plain text. */
+    const bracketPl = (o: TradingOrder): string | null => {
+      const kind = ta().plBrackets;
+      if (!kind || o.kind === "order") return null;
+      const at = orderLinePrice(o);
+      let base: number | null = null;
+      let long = true;
+      if (o.parentId === "position") {
+        const pos = position();
+        if (!pos) return null;
+        base = pos.avgPrice;
+        long = pos.side === "buy";
+      } else {
+        const parent = o.parentId ? byId().get(o.parentId) : undefined;
+        if (!parent) return null;
+        base = orderLinePrice(parent);
+        long = parent.side === "buy";
+      }
+      if (at === null || base === null) return null;
+      return plText((at - base) * (long ? 1 : -1), o.qty, base, kind, tick(), ccy());
+    };
 
     /** A take profit / stop loss dragged out of its dotted chip. */
     function GhostRow(p: { g: Geom }) {
@@ -423,11 +494,12 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       };
       return (
         <Show when={ghost() && y() !== null}>
-          <div class="ot-trd-row is-dragging" style={{ "--c": ghost()!.kind === "tp" ? TP_COLOR : SL_COLOR, top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}>
+          <div class="ot-trd-row is-dragging" style={{ "--c": ghost()!.kind === "tp" ? TP_COLOR : SL_COLOR, top: `${y()}px`, ...rowBox(p.g) }}>
+            <Lead />
             <div class="ot-trd-chip">
               <span class="ot-trd-chip__part is-text">{ghost()!.kind === "tp" ? "Take profit" : "Stop loss"}</span>
             </div>
-            <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
+            <Tail />
           </div>
         </Show>
       );
@@ -495,7 +567,9 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
               {(m) => (
                 <div class="ot-trd-exec" classList={{ "is-sell": m.sell }} style={{ left: `${m.x}px`, top: `${m.y}px`, "--c": m.sell ? SELL_COLOR : BLUE }}>
                   <ArrowIcon down={m.sell} />
-                  <span class="ot-trd-exec__text">{m.text}</span>
+                  <Show when={ta().executionLabels}>
+                    <span class="ot-trd-exec__text">{m.text}</span>
+                  </Show>
                 </div>
               )}
             </For>
@@ -522,7 +596,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                           onClick={() => {
                             setMenu(null);
                             const pos = position();
-                            if (pos) confirmClosePosition(pos, () => replayBroker.closePosition(null, paneId));
+                            if (pos) askClose(pos, () => replayBroker.closePosition(null, paneId));
                           }}
                         />
                         <PopItem
@@ -554,7 +628,7 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                           onClick={() => {
                             const x = o();
                             setMenu(null);
-                            confirmCancelOrder(x, () => replayBroker.cancel(x.id, paneId));
+                            askCancel(x, () => replayBroker.cancel(x.id, paneId));
                           }}
                         />
                       </>
@@ -570,5 +644,47 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     );
   }
 
-  return { TradingLinesLayer };
+  /** Buy / Sell buttons (Chart settings → Trading → Buy/sell buttons) while
+   *  the chart is in replay: Sell (bid) | spread | Buy (ask) at the last
+   *  replayed price. A click opens the order ticket on that side, or with
+   *  one-click trading sends a market order at once (the ticket's quantity). */
+  function TradingButtons() {
+    const price = createMemo(() => {
+      replayBroker.version();
+      const last = cx.raw[cx.raw.length - 1];
+      return last ? snapToTick(last.close, tick()) : null;
+    });
+    const go = (side: "buy" | "sell") => {
+      setReplayActivePane(paneId);
+      if (!ta().oneClick) {
+        tradingUi.openOrderTicket({ side });
+        return;
+      }
+      const symbol = replayBroker.symbol() ?? cx.props.symbol ?? "";
+      replayBroker.place({ symbol, side, type: "market", qty: ticketQty(), limitPrice: null, stopPrice: null, takeProfit: null, stopLoss: null });
+    };
+    return (
+      <Show when={on() && ta().buySellButtons && price() !== null}>
+        <div class="ot-trd-buysell" data-name="buy-sell-buttons" onMouseDown={stop} onPointerDown={stop}>
+          <Tooltip text="Sell" side="bottom">
+            <button type="button" class="ot-trd-buysell__btn is-sell" data-name="sell-order-button" onClick={() => go("sell")}>
+              <span class="ot-trd-buysell__price">{fmtPrice(price()!, tick())}</span>
+              <span class="ot-trd-buysell__title">SELL</span>
+            </button>
+          </Tooltip>
+          <span class="ot-trd-buysell__spread">{(0).toFixed(Math.max(2, String(tick()).split(".")[1]?.length ?? 2))}</span>
+          <Tooltip text="Buy" side="bottom">
+            <button type="button" class="ot-trd-buysell__btn is-buy" data-name="buy-order-button" onClick={() => go("buy")}>
+              <span class="ot-trd-buysell__price">{fmtPrice(price()!, tick())}</span>
+              <span class="ot-trd-buysell__title">BUY</span>
+            </button>
+          </Tooltip>
+        </div>
+      </Show>
+    );
+  }
+
+  const stop = (e: Event) => e.stopPropagation();
+
+  return { TradingLinesLayer, TradingButtons };
 }

@@ -259,14 +259,18 @@ function reviveCtrl(raw: unknown, def: CtrlValue): CtrlValue {
  *  earlier drafts stored the light theme's pair as the factory value. Rev 6
  *  (14/10/2026): Alerts → Alert lines colour is automatic by default (the
  *  theme's line colour); earlier drafts stored the up colour as the factory
- *  value. */
-export const SETTINGS_REV = 6;
+ *  value. Rev 7 (21/10/2026): the Trading tab rows (and Status line → Buy/sell
+ *  buttons) are live with the reference factory values; earlier drafts stored
+ *  them while they were inert, so they go back to the factory values. */
+export const SETTINGS_REV = 7;
 /** The up colour drafts before rev 6 stored as the alert-line factory colour. */
 const UP_DEFAULT = '#089981';
 
 function migrateValues(rows: Record<string, StoredRow>, rev: number): Record<string, StoredRow> {
-  if (rev >= 6) return rows;
+  if (rev >= 7) return rows;
   const out = { ...rows };
+  for (const key of Object.keys(out)) if (key.startsWith('trading:') || key === 'legend:Buy/sell buttons') delete out[key];
+  if (rev >= 6) return out;
   const al = out['alerts:Alert lines'];
   if (al && Array.isArray(al.controls)) {
     out['alerts:Alert lines'] = {
@@ -822,9 +826,67 @@ export type ChartAppearance = {
   alertLinesOnlyActive?: boolean;
   alertLineColor?: string;
   autoHideToasts?: boolean;
+  /** Trading tab (the replay broker's chart objects, buttons and toasts). */
+  trading?: TradingAppearance;
   /** Per-chart-type style rows (Symbol tab). */
   styles?: SeriesStyles;
 };
+
+/** Profit and loss value of positions / brackets. */
+export type PlDisplay = 'money' | 'ticks' | 'percent';
+export type TradingAppearance = {
+  buySellButtons: boolean;
+  oneClick: boolean;
+  /** Execution sound: null = off; else the sound-bank key and volume 0-1. */
+  sound: { key: string; volume: number } | null;
+  rejectionOnly: boolean;
+  /** Positions and orders on the chart. */
+  positions: boolean;
+  reverseButton: boolean;
+  /** P&L of the position / brackets on their chips (null = off). */
+  plPositions: PlDisplay | null;
+  plBrackets: PlDisplay | null;
+  executions: boolean;
+  executionLabels: boolean;
+  extendLines: boolean;
+  align: 'left' | 'center' | 'right';
+};
+
+const SOUND_KEYS: Record<string, string> = {
+  Thin: 'fired',
+  '3 Notes Reverb': '3_notes_reverb',
+  'Alarm Clock': 'alarm_clock',
+  'Beep-beep': 'beep_beep',
+  Calling: 'calling',
+  Chirpy: 'chirpy',
+  Fault: 'fault',
+  'Hand Bell': 'hand_bell',
+};
+const PL_IDS: Record<string, PlDisplay> = { Money: 'money', Ticks: 'ticks', '%': 'percent' };
+
+/** The Trading tab of a draft (factory values without a draft). */
+export function tradingAppearance(d: Draft | undefined): TradingAppearance {
+  const T = reader(d ?? makeDefaultDraft(), 'trading');
+  const pl = T.checked('Profit and loss value');
+  const positions = T.checked('Positions and orders');
+  const marks = T.checked('Execution marks');
+  return {
+    buySellButtons: T.checked('Buy/sell buttons'),
+    oneClick: T.checked('One-click trading'),
+    sound: T.checked('Execution sound')
+      ? { key: SOUND_KEYS[T.sel('Execution sound type') ?? ''] ?? 'alarm_clock', volume: Math.max(0, Math.min(100, T.slider('Execution sound') ?? 50)) / 100 }
+      : null,
+    rejectionOnly: T.checked('Show only rejection notifications'),
+    positions,
+    reverseButton: positions && T.checked('Reverse position button'),
+    plPositions: pl && T.checked('Positions') ? PL_IDS[T.sel('Positions') ?? ''] ?? 'money' : null,
+    plBrackets: pl && T.checked('Brackets') ? PL_IDS[T.sel('Brackets') ?? ''] ?? 'money' : null,
+    executions: marks,
+    executionLabels: marks && T.checked('Execution labels'),
+    extendLines: T.checked('Extended price lines across the entire chart width'),
+    align: (T.sel('Order and position alignment') ?? 'Right').toLowerCase() as TradingAppearance['align'],
+  };
+}
 
 /** Appearance of a chart with no stored settings = the dialog's defaults
  *  (factory values in the app theme's colours), so pressing Ok on an
@@ -913,6 +975,7 @@ export function appearanceFrom(d: Draft | undefined): ChartAppearance {
     earningsBreaks: E.checked('Earnings') && E.checked('Earnings breaks'),
     latestNews: E.checked('Latest news'),
     newsNotification: E.checked('News notification'),
+    trading: tradingAppearance(d),
     timezone: S.sel('Timezone'),
     adjustDividends: S.checked('Adjust data for dividends'),
     session: S.sel('Session'),

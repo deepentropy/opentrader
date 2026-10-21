@@ -45,6 +45,9 @@
 }
 .ot-trd-row.is-dragging .ot-trd-chip { cursor: grabbing; }
 
+/* The part of the line before the chips: only with Extended price lines. */
+.ot-trd-seg.is-hidden { visibility: hidden; }
+
 /* Limit line of a stop-limit order waiting for its stop: dotted. */
 .ot-trd-row.is-limit-line .ot-trd-seg {
   height: 0;
@@ -171,3 +174,55 @@
   font-weight: 600;
 }
 .ot-trd-confirm__text { display: flex; flex-direction: column; }
+
+/* Buy / Sell buttons under the series legend (reference app 3.4.1 dark:
+   wrapper rgba(15,15,15,.5) 4 px 5 px; buttons 62 x 34 min, radius 6, price
+   12 px 600 / 16 px, title 11 px / 12 px +0.4 px; spread 10 px #dbdbdb). */
+.ot-trd-buysell {
+  display: inline-flex;
+  align-items: center;
+  margin: 2px 0 4px;
+  padding: 4px 5px;
+  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
+  pointer-events: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+}
+.ot-trd-buysell__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px 2px;
+  border: 1px solid var(--c);
+  border-radius: 6px;
+  background: var(--c);
+  color: var(--t);
+  cursor: pointer;
+}
+.ot-trd-buysell__btn:hover {
+  filter: brightness(0.92);
+}
+.ot-trd-buysell__btn.is-sell { --c: #f23645; --t: #ffebec; }
+.ot-trd-buysell__btn.is-buy { --c: #2962ff; --t: #e3effd; }
+.ot-trd-buysell__price {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  font-feature-settings: "tnum", "lnum";
+}
+.ot-trd-buysell__title {
+  font-size: 11px;
+  line-height: 12px;
+  letter-spacing: 0.4px;
+}
+.ot-trd-buysell__spread {
+  min-width: 35px;
+  text-align: center;
+  font-size: 10px;
+  line-height: 10px;
+  color: #dbdbdb;
+}
+html.theme-light .ot-trd-buysell__spread { color: #707070; }

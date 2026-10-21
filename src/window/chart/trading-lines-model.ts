@@ -105,6 +105,19 @@ export function defaultBracket(p: TradingPosition, kind: "tp" | "sl", tick: numb
   return snapToTick(p.avgPrice + dist, tick);
 }
 
+/**
+ * Profit and loss text of a line (Chart settings → Trading → Profit and loss
+ * value): `perUnit` = the price move in the trade's favour per unit, `qty`
+ * units, from `base`. Money "+5.00 USD" / "0.00 USD" / "−5.00 USD", ticks
+ * "+500 ticks", percent "+0.76%".
+ */
+export function plText(perUnit: number, qty: number, base: number, kind: 'money' | 'ticks' | 'percent', tick: number, currency: string): string {
+  if (kind === 'money') return fmtPl(perUnit * qty, currency);
+  const v = kind === 'ticks' ? Math.round(perUnit / tick) : base ? (perUnit / base) * 100 : 0;
+  const sign = v > 0 ? '+' : v < 0 ? '−' : '';
+  return kind === 'ticks' ? `${sign}${Math.abs(v)} ticks` : `${sign}${Math.abs(v).toFixed(2)}%`;
+}
+
 /** Take profit / stop loss of a working order at the ticket's default
  *  distance from its price (buy: above / below). */
 export function defaultOrderBracket(o: TradingOrder, kind: "tp" | "sl", tick: number): number | null {

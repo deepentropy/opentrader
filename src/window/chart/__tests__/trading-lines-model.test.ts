@@ -8,6 +8,7 @@ import {
   orderChipText,
   orderLinePrice,
   orderMenuTitle,
+  plText,
   positionQtyText,
   orderSummary,
   cancelTitle,
@@ -103,5 +104,14 @@ describe("trading lines model", () => {
   it("context menu header", () => {
     expect(orderMenuTitle(order({}), 0.01)).toBe("Buy 1 @640.00 Limit");
     expect(orderMenuTitle(order({ kind: "tp", side: "sell", limitPrice: 640.75 }), 0.01)).toBe("Sell 1 @640.75 Take profit");
+  });
+
+  it("profit and loss text (reference: 0.00 USD, +5.00 USD, -5.00 USD)", () => {
+    expect(plText(0, 1, 655.11, "money", 0.01, "USD")).toBe("0.00 USD");
+    expect(plText(5, 1, 655.11, "money", 0.01, "USD")).toBe("+5.00 USD");
+    expect(plText(-5, 1, 655.11, "money", 0.01, "USD")).toBe("−5.00 USD");
+    expect(plText(5, 2, 655.11, "money", 0.01, "USD")).toBe("+10.00 USD");
+    expect(plText(0.75, 1, 640, "ticks", 0.01, "USD")).toBe("+75 ticks");
+    expect(plText(-6.4, 1, 640, "percent", 0.01, "USD")).toBe("−1.00%");
   });
 });

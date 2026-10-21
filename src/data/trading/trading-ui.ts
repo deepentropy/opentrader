@@ -58,6 +58,13 @@ function decimalsOf(tick: number): number {
   return t.includes(".") ? t.split(".")[1].length : 0;
 }
 
+/** Quantity the next order starts with (the ticket's last one): the chart's
+ *  one-click Buy / Sell buttons use it. */
+export function ticketQty(): number {
+  const q = Number(readPrefs().qty);
+  return Number.isFinite(q) && q > 0 ? q : 1;
+}
+
 /** Ticket width bounds (px). */
 export const TICKET_MIN = 300;
 export const TICKET_MAX = 400;

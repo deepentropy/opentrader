@@ -98,6 +98,13 @@ const HelpIcon = (p: { tip?: string }) => (
   </span>
 );
 
+/** (i) info icon (the reference app's Trading rows). */
+const InfoIcon = (p: { tip?: string }) => (
+  <span class="cp3-help is-info" title={p.tip} aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16Zm1-12a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM8.5 9.5H7V8h3v6H8.5V9.5Z" /></svg>
+  </span>
+);
+
 // ── Settings templates (footer "Template" menu) ──
 // ── Popover plumbing ──
 type Anchor = { left: number; top: number; bottom: number; width: number };
@@ -549,6 +556,7 @@ export function FormRowView(p: {
             <span class="cp3-title" onClick={() => p.r.cb && !inert && p.onToggle()}>{p.r.label}</span>
           </Show>
           <Show when={p.r.help}><HelpIcon tip={typeof p.r.help === "string" ? p.r.help : undefined} /></Show>
+          <Show when={p.r.info}><InfoIcon tip={typeof p.r.info === "string" ? p.r.info : undefined} /></Show>
         </div>
         <Show when={p.r.desc}><div class="cp3-desc">{p.r.desc}</div></Show>
       </div>
@@ -599,7 +607,15 @@ export function ChartPropertiesDialog(props: Props) {
     ];
   });
 
-  const toggle = (key: string) => setDraft(key, "checked", (c) => !c);
+  /** Status line → Buy/sell buttons and Trading → Buy/sell buttons are one
+   *  setting (reference app): toggling one sets the other. */
+  const LINKED: Record<string, string> = { "legend:Buy/sell buttons": "trading:Buy/sell buttons", "trading:Buy/sell buttons": "legend:Buy/sell buttons" };
+  const toggle = (key: string) => {
+    const next = !draft[key]?.checked;
+    setDraft(key, "checked", next);
+    const other = LINKED[key];
+    if (other && draft[other]) setDraft(other, "checked", next);
+  };
   const setControl = (key: string, idx: number, nv: CtrlValue) => setDraft(key, "controls", idx, nv);
 
   /** Row visibility: `visibleWhen` select value + the intraday-only rule

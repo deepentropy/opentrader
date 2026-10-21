@@ -86,6 +86,8 @@ export type FormRow = {
    *  `true` is an icon without hover text (Positions and orders, Execution
    *  marks). */
   help?: boolean | string;
+  /** Trailing (i) info icon after the label; a string is its hover text. */
+  info?: boolean | string;
   /** Muted helper line rendered under the label. */
   desc?: string;
   /** Right-aligned controls, in order. */
@@ -129,6 +131,10 @@ const DATE_FORMAT = [
   "Mon 29/09/1997", "Mon 09/29/97", "Mon 09/29/1997",
 ];
 const FONT_SIZES = ["8", "10", "11", "12", "14", "16", "18", "20", "22", "24", "28", "32", "40"];
+/** Sounds of order executions (reference app order; factory: Alarm Clock). */
+export const ORDER_SOUNDS = ['Thin', '3 Notes Reverb', 'Alarm Clock', 'Beep-beep', 'Calling', 'Chirpy', 'Fault', 'Hand Bell'];
+/** Profit and loss value of positions / brackets. */
+export const PL_DISPLAY = ['Money', 'Ticks', '%'];
 /** Base price sources, in menu order. */
 export const PRICE_SOURCES = ["Open", "High", "Low", "Close", "(H + L)/2", "(H + L + C)/3", "(O + H + L + C)/4"];
 const BOX_METHODS = ["ATR", "Traditional", "Percentage LTP"];
@@ -346,9 +352,8 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ cb: true, checked: true, label: 'Bar change values' }),
     row({ cb: true, checked: false, label: 'Volume' }),
     row({ cb: true, checked: false, label: 'Last day change values' }),
-    // Same property as Trading → "Buy/sell buttons";
-    // no trading surface in this app.
-    row({ id: 'Buy/sell buttons', cb: true, checked: false, label: 'Buy/sell buttons', desc: 'Displays buy and sell buttons directly on the chart', inert: true }),
+    // Same property as Trading → "Buy/sell buttons" (the dialog keeps both in step).
+    row({ id: 'Buy/sell buttons', cb: true, checked: true, label: 'Buy/sell buttons', desc: 'Displays buy and sell buttons directly on the chart' }),
     section('Indicators'),
     row({ cb: true, checked: true, label: 'Titles' }),
     row({ cb: true, checked: true, label: 'Inputs', indent: true, child: true }),
@@ -416,25 +421,29 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ label: 'Right', controls: [num(10, 0, 500, 1, true, 'bars')] }),
   ],
 
-  // ── Trading (display-only: no broker surface in this app) ────────────────
+  // ── Trading (reference app 3.4.1: rows, texts and factory values; the
+  //    replay broker's lines, buttons and toasts follow them) ──────────────
   trading: [
     section('General'),
-    row({ id: 'Buy/sell buttons', cb: true, checked: false, label: 'Buy/sell buttons', desc: 'Displays buy and sell buttons directly on the chart', inert: true }),
-    row({ cb: true, checked: false, label: 'One-click trading', help: 'One-click trading', desc: 'Instantly place, edit, cancel orders, or close positions without confirmation', inert: true }),
-    row({ cb: true, checked: false, label: 'Execution sound', controls: [{ c: 'slider', value: 50 }], inert: true }),
-    row({ id: 'Execution sound type', label: null, child: true, controls: [{ c: 'select', value: 'Beep-beep', options: ['Beep-beep'], disabled: true }], inert: true }),
-    row({ cb: true, checked: false, label: 'Show only rejection notifications', inert: true }),
+    row({ id: 'Buy/sell buttons', cb: true, checked: true, label: 'Buy/sell buttons', desc: 'Displays buy and sell buttons directly on the chart' }),
+    row({ cb: true, checked: false, label: 'One-click trading', help: 'One-click trading', desc: 'Instantly place, edit, cancel orders, or close positions without confirmation' }),
+    // Volume (slider, 50 %) and the sound, both greyed while off.
+    row({ cb: true, checked: false, label: 'Execution sound', controls: [{ c: 'slider', value: 50 }] }),
+    row({ id: 'Execution sound type', label: null, child: true, parent: 'Execution sound', controls: [{ c: 'select', value: 'Alarm Clock', options: ORDER_SOUNDS }] }),
+    row({ cb: true, checked: false, label: 'Show only rejection notifications' }),
     section('Appearance'),
-    row({ cb: true, checked: false, label: 'Positions and orders', help: true, inert: true }),
-    row({ cb: true, checked: true, label: 'Reverse position button', indent: true, child: true, desc: 'Adds the reverse button next to the open position on the chart', inert: true }),
-    row({ cb: true, checked: false, label: 'Project order for market orders', desc: 'Shows a project order on the chart before sending a market order', inert: true }),
-    row({ cb: true, checked: false, label: 'Profit and loss value', inert: true }),
-    row({ cb: true, checked: true, label: 'Positions', indent: true, child: true, controls: [{ c: 'select', value: 'Money', options: ['Money', 'Ticks', '%'], disabled: true }], inert: true }),
-    row({ cb: true, checked: true, label: 'Brackets', indent: true, child: true, controls: [{ c: 'select', value: 'Money', options: ['Money', 'Ticks', '%'], disabled: true }], inert: true }),
-    row({ cb: true, checked: false, label: 'Execution marks', help: true, inert: true }),
-    row({ cb: true, checked: true, label: 'Execution labels', child: true, inert: true }),
-    row({ cb: true, checked: false, label: 'Extended price lines across the entire chart width', inert: true }),
-    row({ label: 'Order and position alignment', controls: [{ c: 'select', value: 'Right', options: ['Left', 'Center', 'Right'] }], inert: true }),
+    row({ cb: true, checked: true, label: 'Positions and orders', info: 'Shows your open positions and active orders directly on the chart.' }),
+    row({ cb: true, checked: true, label: 'Reverse position button', indent: true, child: true, parent: 'Positions and orders', desc: 'Adds the reverse button next to the open position on the chart' }),
+    // No project order: a market order of the ticket fills at once (no confirmation step).
+    row({ cb: true, checked: true, label: 'Project order for market orders', desc: 'Shows a project order on the chart before sending a market order', inert: true }),
+    row({ cb: true, checked: true, label: 'Profit and loss value', info: true }),
+    row({ cb: true, checked: true, label: 'Positions', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY }] }),
+    row({ cb: true, checked: true, label: 'Brackets', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY }] }),
+    row({ cb: true, checked: true, label: 'Execution marks', info: 'Shows arrows on the chart that mark where trades were executed.' }),
+    row({ cb: true, checked: false, label: 'Execution labels', indent: true, child: true, parent: 'Execution marks' }),
+    row({ cb: true, checked: true, label: 'Extended price lines across the entire chart width' }),
+    row({ label: 'Order and position alignment', controls: [{ c: 'select', value: 'Right', options: ['Left', 'Center', 'Right'] }] }),
+    // Snapshots are drawn from the chart canvases; the trading lines are not on them yet.
     row({ cb: true, checked: false, label: 'Orders, executions, and positions in chart snapshots', desc: 'Shows your trades on the chart in snapshots', inert: true }),
   ],
 
