@@ -5,7 +5,7 @@
  * BATS:BE 1D, 30/09/2026). Metrics whose formula could not be matched are
  * not shown (see the design doc "Open").
  */
-import type { BacktestReport, Trade } from "../../backtester/types";
+import type { BacktestReport, MarginPoint, MarginUsage, Trade } from "../../backtester/types";
 import { runupDrawdownPeriods, type EquityPeriod } from "./equity-data";
 import { zoneFormat } from "./format";
 
@@ -204,6 +204,13 @@ export function growthStats(r: BacktestReport, periods = growthPeriods(r)): Grow
 export type TimeUnit = "hour" | "day" | "month";
 export type EntryBuckets = Record<TimeUnit, { winning: number; losing: number }[]>;
 const DETAIL = ["hour", "day", "week", "month", "quarter", "year"] as const;
+export type Detail = (typeof DETAIL)[number];
+
+/** The details of `list` a chart interval allows (none finer than the interval: a 1 D chart reads by week). */
+export function allowedDetails<T extends Detail>(intervalSec: number, list: readonly T[]): T[] {
+  const level = detailLevel(intervalSec);
+  return list.filter((d) => DETAIL.indexOf(d) >= level);
+}
 
 /** Finest detail a chart interval allows: an interval of a day reads by week,
  *  1 or 2 months by quarter. */
@@ -225,11 +232,9 @@ function detailLevel(intervalSec: number): number {
  * as the trading day in the exchange zone.
  */
 export function entryBuckets(r: BacktestReport, intervalSec: number, timeZone: string): EntryBuckets {
-  const level = detailLevel(intervalSec);
-  const allowed = (u: TimeUnit) => DETAIL.indexOf(u) >= level;
   const out: EntryBuckets = { hour: [], day: [], month: [] };
   const size = { hour: 24, day: 7, month: 12 };
-  for (const u of ["hour", "day", "month"] as const) if (allowed(u)) out[u] = Array.from({ length: size[u] }, () => ({ winning: 0, losing: 0 }));
+  for (const u of allowedDetails(intervalSec, ["hour", "day", "month"] as const)) out[u] = Array.from({ length: size[u] }, () => ({ winning: 0, losing: 0 }));
   const dwm = intervalSec >= 86_400;
   const dayOf = dwm ? zoneFormat("en-US", { year: "numeric", month: "numeric", day: "numeric" }, timeZone) : null;
   for (const t of r.trades) {
@@ -335,4 +340,277 @@ export function equityPoints(r: BacktestReport): { time: number; value: number; 
     else pts.push(p);
   }
   return pts;
+}
+
+// ---------------------------------------------------------------------------
+// Data of the report tab charts, as the reference app's report converter
+// builds it (its calculators: periodicals 436164, benchmarking 574000,
+// streaks 947126 / 88522; the returns histogram 754610; the growth and
+// decline comparison 392642; the margin usage chart 151996).
+
+export type BucketDetail = "day" | "week" | "quarter" | "year";
+export const BUCKET_DETAILS: readonly BucketDetail[] = ["day", "week", "quarter", "year"];
+/** One bar of a periodical chart: the bucket start (UNIX seconds, UTC) and its values. */
+export type BucketBar = { time: number; values: number[] };
+
+/** Start of the UTC day / week (from Sunday) / quarter / year holding `ms`, UNIX seconds. */
+export function bucketStart(ms: number, d: BucketDetail): number {
+  const t = new Date(ms);
+  const y = t.getUTCFullYear();
+  const m = t.getUTCMonth();
+  if (d === "day") return Date.UTC(y, m, t.getUTCDate()) / 1000;
+  if (d === "week") return Date.UTC(y, m, t.getUTCDate() - t.getUTCDay()) / 1000;
+  if (d === "quarter") return Date.UTC(y, 3 * Math.floor(m / 3), 1) / 1000;
+  return Date.UTC(y, 0, 1) / 1000;
+}
+
+function nextBucket(sec: number, d: BucketDetail): number {
+  if (d === "day") return sec + 86_400;
+  if (d === "week") return sec + 604_800;
+  const t = new Date(sec * 1000);
+  const y = t.getUTCFullYear();
+  return (d === "quarter" ? Date.UTC(y, t.getUTCMonth() + 3, 1) : Date.UTC(y + 1, 0, 1)) / 1000;
+}
+
+/** The buckets between two bars as empty slots (the time axis keeps one slot per bucket). */
+export function withEmptyBuckets(bars: BucketBar[], d: BucketDetail): (BucketBar | { time: number })[] {
+  const out: (BucketBar | { time: number })[] = [];
+  bars.forEach((b, i) => {
+    out.push(b);
+    const next = bars[i + 1];
+    if (next) for (let s = nextBucket(b.time, d); s < next.time; s = nextBucket(s, d)) out.push({ time: s });
+  });
+  return out;
+}
+
+/** Closed trades in the bucket of their exit time, per detail the chart interval allows; `add` gets the trade's
+ *  bucket, created with `size` zeros when the trade starts a new one. */
+function byBucket(
+  r: BacktestReport,
+  intervalSec: number,
+  size: number,
+  start: () => void,
+  add: (bar: BucketBar, t: Trade, index: number, created: boolean) => void,
+): Record<BucketDetail, BucketBar[]> {
+  const out: Record<BucketDetail, BucketBar[]> = { day: [], week: [], quarter: [], year: [] };
+  for (const d of allowedDetails(intervalSec, BUCKET_DETAILS)) {
+    start();
+    const bars = out[d];
+    r.trades.forEach((t, i) => {
+      if (t.open) return;
+      const time = bucketStart(t.exit.time, d);
+      let bar = bars[bars.length - 1];
+      const created = !bar || bar.time !== time;
+      if (created) bars.push((bar = { time, values: new Array<number>(size).fill(0) }));
+      add(bar, t, i, created);
+    });
+  }
+  return out;
+}
+
+/**
+ * Periodical PnL (Weekly / Quarterly / Yearly PnL chart): the running PnL of
+ * the closed trades of each bucket gives [its highest point (favorable
+ * excursion, 0 or more), the final PnL if positive (realized profit), its
+ * lowest point (adverse excursion, 0 or less), the final PnL if negative
+ * (realized loss)].
+ */
+export function periodicals(r: BacktestReport, intervalSec: number): Record<BucketDetail, BucketBar[]> {
+  let sum = 0;
+  return byBucket(r, intervalSec, 4, () => (sum = 0), (bar, t, _i, created) => {
+    if (created) sum = 0;
+    sum += t.profit;
+    const v = bar.values;
+    bar.values = [Math.max(v[0], sum), Math.max(0, sum), Math.min(v[2], sum), Math.min(0, sum)];
+  });
+}
+
+/**
+ * Strategy vs benchmark: per bucket [the PnL of its closed trades, the buy &
+ * hold PnL change from the previous bucket's last trade to its own last
+ * trade] (tradeBuyHold).
+ */
+export function benchmarking(r: BacktestReport, intervalSec: number): Record<BucketDetail, BucketBar[]> {
+  const bh = tradeBuyHold(r);
+  let previous = 0;
+  let current = 0;
+  return byBucket(r, intervalSec, 2, () => (previous = current = bh[0] ?? 0), (bar, t, i, created) => {
+    if (created) previous = current;
+    bar.values[0] += t.profit;
+    const b = bh[i + 1];
+    if (b !== undefined) {
+      current = b;
+      bar.values[1] = b - previous;
+    }
+  });
+}
+
+export type StreakBar = { value: number; tradeNumber: number; short: boolean; profit: number; profitPercent: number; closeTime: number };
+
+/**
+ * Winning and losing streaks: one bar per closed trade, the length of the
+ * streak it extends (Count: + for winners, - for losers) or the streak's PnL
+ * so far (Amount). A breakeven trade ends the streak and stands at 0.
+ */
+export function streakBars(r: BacktestReport): { count: StreakBar[]; amount: StreakBar[] } {
+  const count: StreakBar[] = [];
+  const amount: StreakBar[] = [];
+  let winner: boolean | null = null;
+  let length = 0;
+  let sum = 0;
+  r.trades.forEach((t, i) => {
+    if (t.open) return;
+    const info = { tradeNumber: i + 1, short: t.direction === "short", profit: t.profit, profitPercent: Number.isNaN(t.profitPercent) ? 0 : t.profitPercent, closeTime: t.exit.time };
+    if (t.profit === 0) {
+      winner = null;
+      length = sum = 0;
+      count.push({ value: 0, ...info });
+      amount.push({ value: 0, ...info });
+      return;
+    }
+    const win = t.profit > 0;
+    if (win === winner) {
+      length++;
+      sum += t.profit;
+    } else {
+      winner = win;
+      length = 1;
+      sum = t.profit;
+    }
+    count.push({ value: win ? length : -length, ...info });
+    amount.push({ value: sum, ...info });
+  });
+  return { count, amount };
+}
+
+export type ReturnBin = {
+  rangeStart: number;
+  rangeEnd: number;
+  rangeMiddle: number;
+  isProfit: boolean;
+  tradesCount: number;
+  /** Lowest / highest outlier return beyond the first / last bin. */
+  originalRangeStart?: number;
+  originalRangeEnd?: number;
+};
+
+/** Closed trades' returns (a trade closed at price 0 has none), outliers apart, ascending. */
+function returnSamples(r: BacktestReport): { core: number[]; outliers: number[] } {
+  const outs = new Set(outliers(r).trades);
+  const core: number[] = [];
+  const rest: number[] = [];
+  for (const t of closedTrades(r)) {
+    if (Number.isNaN(t.profitPercent)) continue;
+    (outs.has(t) ? rest : core).push(t.profitPercent);
+  }
+  const asc = (a: number, b: number) => a - b;
+  return { core: core.sort(asc), outliers: rest.sort(asc) };
+}
+
+/** Number of bins (Freedman-Diaconis on the sorted returns; square-root rule when the quartiles meet). */
+function binCount(v: number[]): number {
+  const n = v.length;
+  if (n === 0) return 1;
+  const iqr = v[Math.floor(0.75 * n)] - v[Math.floor(0.25 * n)];
+  const width = iqr < 1e-4 ? (v[n - 1] - v[0]) / Math.ceil(Math.sqrt(n)) : (2 * iqr) / Math.pow(n, 1 / 3);
+  const c = width === 0 ? 0 : Math.ceil((v[n - 1] - v[0]) / width);
+  return c === 1 && v[n - 1] > 0 && v[0] < 0 ? 2 : c;
+}
+
+/**
+ * Returns distribution: bins of one width on both sides of 0 (loss bins up
+ * to it, profit bins from it), shared out by the sizes of the loss and
+ * profit ranges; the width fits the larger side. Outliers count in the first
+ * / last bin when they reach it, which then keeps their extreme return.
+ */
+export function returnBins(r: BacktestReport): ReturnBin[] {
+  const { core, outliers: outs } = returnSamples(r);
+  const count = binCount(core);
+  if (!core.length || count === 0) return [];
+  let min = core[0];
+  let max = core[core.length - 1];
+  if (min === max) {
+    min -= 0.1;
+    max += 0.1;
+  }
+  const neg = min < 0 ? Math.abs(min) : 0;
+  const pos = max > 0 ? max : 0;
+  const posBins = pos === 0 ? 0 : count === 1 && neg === 0 ? 1 : Math.ceil((count - 1) / (1 + neg / pos));
+  const negBins = count - posBins;
+  const pw = posBins === 0 ? 0 : pos / posBins;
+  const nw = negBins === 0 ? 0 : neg / negBins;
+  const width = pw && nw ? Math.max(pw, nw) : pw || nw;
+  const bins: ReturnBin[] = Array.from({ length: count }, (_, i) => {
+    const loss = i < negBins;
+    // 0 - x, not -x: no -0 bound.
+    const rangeStart = loss ? 0 - (negBins - i) * width : (i - negBins) * width;
+    const rangeEnd = loss ? 0 - (negBins - i - 1) * width : (i - negBins + 1) * width;
+    return { rangeStart, rangeEnd, rangeMiddle: (rangeStart + rangeEnd) / 2, isProfit: !loss, tradesCount: 0 };
+  });
+  for (const v of core) bins[Math.max(width === 0 ? 0 : count - 1 - Math.floor((Math.max(max, 0) - v) / width), 0)].tradesCount++;
+  const first = bins[0];
+  const last = bins[count - 1];
+  for (const v of outs) {
+    if (v <= first.rangeEnd) first.tradesCount++;
+    if (v >= last.rangeStart) last.tradesCount++;
+    if (v < first.rangeStart && (first.originalRangeStart === undefined || v < first.originalRangeStart)) first.originalRangeStart = v;
+    if (v > last.rangeEnd && (last.originalRangeEnd === undefined || v > last.originalRangeEnd)) last.originalRangeEnd = v;
+  }
+  return bins;
+}
+
+/** Average return of the winning / losing closed trades, outliers left out (null without any). */
+export function averageReturns(r: BacktestReport): { profit: number | null; loss: number | null } {
+  const { core } = returnSamples(r);
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  return { profit: avg(core.filter((v) => v > 0)), loss: avg(core.filter((v) => v < 0)) };
+}
+
+export type GrowthComparison = Record<"runup" | "drawdown", { max: number; average: number; current?: number }>;
+
+/** Largest, average and current (the last period, when of that type) relative change of the run-ups and drawdowns. */
+export function growthComparison(periods: EquityPeriod[]): GrowthComparison {
+  const last = periods[periods.length - 1];
+  const side = (type: EquityPeriod["type"]) => {
+    const ps = periods.filter((p) => p.type === type);
+    return {
+      max: ps.reduce((m, p) => (p.relativeChange > m ? p.relativeChange : m), 0),
+      average: ps.length ? ps.reduce((s, p) => s + p.relativeChange, 0) / ps.length : 0,
+      current: last?.type === type ? last.relativeChange : undefined,
+    };
+  };
+  return { runup: side("runup"), drawdown: side("drawdown") };
+}
+
+export type Liquidation = { tradeNumber: number; quantity: number; price: number; time: number; amount: number };
+
+/** Trades a margin call closed, by exit time: number, quantity, exit price and time (ms), quantity x price. */
+export function liquidations(r: BacktestReport): Liquidation[] {
+  const out: Liquidation[] = [];
+  r.trades.forEach((t, i) => {
+    if (t.exit.signal === "Margin call") out.push({ tradeNumber: i + 1, quantity: t.qty, price: t.exit.price, time: t.exit.time, amount: t.qty * t.exit.price });
+  });
+  return out.sort((a, b) => a.time - b.time);
+}
+
+export type MarginLinePoint = { time: number; value: number; point: MarginPoint };
+
+/**
+ * Margin utilization line: each item's margin after its fills, then the
+ * highest margin before the next item, at strictly ascending times (+1 ms on
+ * a tie; UNIX seconds). Percent: the share of the equity, at most 100 %.
+ */
+export function marginLine(usage: readonly MarginUsage[], percent: boolean): MarginLinePoint[] {
+  const out: MarginLinePoint[] = [];
+  let last = -Infinity;
+  const push = (p: MarginPoint) => {
+    last = p.time <= last ? last + 1 : p.time;
+    out.push({ time: last / 1000, value: percent ? Math.min(p.percent, 1) : p.value, point: p });
+  };
+  usage.forEach((u, i) => {
+    push(u.current);
+    const next = usage[i + 1];
+    if (next) push(next.peak);
+  });
+  return out;
 }

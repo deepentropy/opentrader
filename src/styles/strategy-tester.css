@@ -355,6 +355,8 @@
   min-height: 0;
   overflow-y: auto;
   padding-bottom: 40px;
+  /* Chart widgets go side by side from a 930 px report. */
+  container: st-report / inline-size;
 }
 .st-view-title {
   margin: 16px 0 12px;
@@ -828,6 +830,401 @@
   width: 8px;
   height: 8px;
   border-radius: 4px;
+}
+
+/* Sub-tab charts (ReportWidget.tsx): 16 px under the cells; a 34 px title
+   row (16px/24px 600) 12 px above the chart (8 px for the small margin);
+   two half widgets 64 px apart from a 930 px report. */
+.st-chart-area {
+  margin-top: 16px;
+}
+.st-chart-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 64px;
+}
+.st-widget {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+@container st-report (min-width: 930px) {
+  .st-widget.is-half {
+    flex: 1 1 0;
+    width: auto;
+    max-width: calc(50% - 32px);
+  }
+}
+.st-widget-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 34px;
+  margin-bottom: 12px;
+}
+.st-widget-title.is-small {
+  margin-bottom: 8px;
+}
+.st-widget-title-text {
+  font: 600 16px/24px var(--st-font);
+  color: var(--color-text-primary);
+}
+.st-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.st-widget-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.st-widget-nodata {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ot-chart-bg);
+  color: var(--color-text-secondary);
+  font: 400 14px/20px var(--st-font);
+}
+
+/* Paged chart: 28 x 28 secondary buttons (1 px border, radius 8) 10 px from the host. */
+.st-paged {
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+}
+.st-paged-host {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+}
+.st-paged-host.is-scrollable:active {
+  cursor: grabbing;
+}
+.st-bucket-chart {
+  flex-grow: 1;
+  margin-bottom: 16px;
+}
+.st-growth-chart {
+  flex-grow: 1;
+}
+.st-page-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border-primary-neutral-light);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-button-content-secondary-neutral-default);
+  cursor: default;
+}
+.st-page-btn:hover:not(:disabled) {
+  border-color: var(--color-container-fill-primary-neutral-extra-light);
+  background: var(--color-button-fill_border-secondary-neutral-hover);
+  color: var(--color-button-content-secondary-neutral-hover);
+}
+.st-page-btn.is-active {
+  border-color: var(--color-container-fill-primary-neutral-extra-light);
+  background: var(--color-button-fill_border-secondary-neutral-is-selected);
+  color: var(--color-button-content-secondary-neutral-is-selected);
+}
+.st-page-btn:disabled {
+  color: var(--color-button-content-disabled);
+}
+
+/* Chart legends: 8 px dots, 12px/16px labels, centred. */
+.st-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.st-chart-legend.is-gap-16 {
+  gap: 16px;
+}
+.st-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.st-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.st-legend-label {
+  font: 400 12px/16px var(--st-font);
+  color: var(--color-container-fill-secondary-neutral);
+  white-space: nowrap;
+}
+
+/* Comparison of growth and decline periods: rows of label / bar (18 px) / value. */
+.st-cmp-wrap {
+  gap: 32px;
+  min-height: 280px;
+}
+.st-cmp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.st-cmp-title,
+.st-cmp-label {
+  font: 400 13px/18px var(--st-font);
+  font-feature-settings: "tnum", "lnum";
+  color: var(--color-text-primary);
+}
+.st-cmp-label.is-name {
+  color: var(--color-container-fill-secondary-neutral);
+}
+.st-cmp-bars {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+.st-cmp-bar {
+  height: 18px;
+  border-radius: 0 2px 2px 0;
+}
+
+/* Returns distribution: 168 px chart over its legend (dots, then the dashed average lines). */
+.st-returns-chart {
+  position: relative;
+  height: 168px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+.st-returns-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  row-gap: 6px;
+  padding-right: 44px;
+}
+.st-returns-legend .st-chart-legend {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+.st-returns-averages {
+  display: flex;
+  gap: 16px;
+}
+.st-avg-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.st-avg-icon {
+  display: inline-flex;
+  height: 18px;
+}
+.st-avg-label,
+.st-avg-value {
+  font: 400 12px/16px var(--st-font);
+  white-space: nowrap;
+}
+.st-avg-label {
+  color: var(--color-container-fill-secondary-neutral);
+}
+.st-avg-value {
+  font-weight: 600;
+  font-feature-settings: "tnum", "lnum";
+  color: var(--color-content-primary-neutral-bold);
+}
+
+/* Margin utilization: 280 px chart. */
+.st-margin-area {
+  position: relative;
+  width: 100%;
+}
+.st-margin-chart {
+  width: 100%;
+  height: 280px;
+}
+
+/* Chart tooltips and the liquidations popover live in a portal, outside .st-panel (its --st-font).
+   Chart tooltips: #3d3d3d in both themes, radius 4, padding 6px 12px, 12px/16px #b8b8b8,
+   13px/18px white rows, an arrow under the middle. */
+.st-tip,
+.st-liq-popover {
+  --st-tip-font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+}
+.st-tip {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: #3d3d3d;
+  color: #b8b8b8;
+  font: 400 12px/16px var(--st-tip-font);
+  font-feature-settings: "tnum", "lnum";
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.st-tip-title {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.st-tip-rows {
+  display: grid;
+  column-gap: 12px;
+  width: 100%;
+  color: #fff;
+  font-size: 13px;
+  line-height: 18px;
+}
+.st-tip-rows.has-foot {
+  margin-bottom: 8px;
+}
+.st-tip-name,
+.st-tip-value {
+  display: flex;
+  align-items: center;
+  padding-bottom: 2px;
+}
+.st-tip-name.no-pad,
+.st-tip-value.no-pad {
+  padding-bottom: 0;
+}
+.st-tip-name {
+  gap: 6px;
+}
+.st-tip-value {
+  justify-content: end;
+}
+.st-tip-value.is-left {
+  justify-content: start;
+}
+.st-tip-value.is-positive {
+  color: #22ab94;
+}
+.st-tip-value.is-negative {
+  color: #f7525f;
+}
+.st-tip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.st-tip-unit {
+  align-self: end;
+  margin-left: 2px;
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.st-tip-dash {
+  margin: 0 8px;
+  color: #b8b8b8;
+  font-size: 12px;
+  line-height: 16px;
+}
+.st-tip-arrow {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  color: #3d3d3d;
+  transform: translateX(-50%) rotate(180deg);
+}
+
+/* Forced liquidations popover: 300 px, 4 px red edge, a badge with the count (x for one), one card per trade. */
+.st-liq-popover {
+  padding: 0;
+  overflow: hidden;
+}
+.st-liq {
+  box-sizing: border-box;
+  width: 300px;
+  padding: 16px 16px 13px;
+  border-left: 4px solid var(--color-content-primary-negative);
+  white-space: nowrap;
+}
+.st-liq-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.st-liq-badge {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-content-primary-negative);
+  color: var(--color-counter-content-danger);
+}
+.st-liq-badge.has-count {
+  width: auto;
+  min-width: 24px;
+  padding: 0 5px;
+  font: 600 14px/18px var(--st-tip-font);
+  font-feature-settings: "tnum", "lnum";
+}
+.st-liq-title {
+  font: 600 16px/24px var(--st-tip-font);
+  color: var(--color-content-primary-neutral-bold);
+}
+.st-liq-card + .st-liq-card {
+  margin-top: 16px;
+}
+.st-liq-card.has-divider {
+  padding-top: 16px;
+  border-top: 1px solid var(--color-divider-line-primary);
+}
+.st-liq-caption {
+  height: 18px;
+  margin-bottom: 8px;
+  font: 400 11px/16px var(--st-tip-font);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-content-primary-neutral);
+}
+.st-liq-rows {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  column-gap: 8px;
+}
+.st-liq-cell {
+  display: flex;
+  align-items: baseline;
+  height: 22px;
+  font: 400 13px/18px var(--st-tip-font);
+  font-feature-settings: "tnum", "lnum";
+  color: var(--color-content-primary-neutral-bold);
+}
+.st-liq-cell.is-value {
+  justify-content: flex-end;
+}
+.st-liq-unit {
+  margin-left: 2px;
+  font: 400 11px/16px var(--st-tip-font);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 
 /* ─── Trades view ─── */

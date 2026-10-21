@@ -3,7 +3,7 @@
  * trade excursions and equity events along the path, filled-order records (with the filled-orders risk rule and the
  * exits dropped when the position goes flat).
  */
-import type { FilledOrder, OrderType, Trade } from '../types';
+import type { FilledOrder, MarginPoint, OrderType, Trade } from '../types';
 import { roundCommission } from './costs';
 import { BrokerState } from './state';
 import { makeTrade } from './trade-report';
@@ -53,6 +53,7 @@ export abstract class TradeLedger extends BrokerState {
     };
     this.openTrades.push(t);
     this.maxMarginUsed = Math.max(this.maxMarginUsed, this.marginAt(price));
+    this.noteMarginFill(price);
     this.equityEvents.push({
       t: 'e',
       v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
@@ -114,6 +115,7 @@ export abstract class TradeLedger extends BrokerState {
       t.fillSeq = ++this.seq;
       t.exitsDropped.clear();
     }
+    this.noteMarginFill(price);
     this.equityEvents.push({
       t: 'c',
       v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
@@ -143,6 +145,7 @@ export abstract class TradeLedger extends BrokerState {
     const r = this.roundPrice(p);
     if (this.openTrades.length) {
       this.maxMarginUsed = Math.max(this.maxMarginUsed, this.marginAt(r));
+      this.noteMarginPeak(this.marginPoint(r));
       this.equityEvents.push({
         t: 'p',
         v: this.props.initialCapital + this.netProfit + this.openProfitAt(r),
@@ -150,6 +153,39 @@ export abstract class TradeLedger extends BrokerState {
         realized: this.props.initialCapital + this.netProfit,
       });
     }
+  }
+
+  /** Margin of the open trades at `price` and its share of the equity there (open profit included). */
+  private marginPoint(price: number): MarginPoint {
+    const value = this.marginAt(price);
+    const equity = this.props.initialCapital + this.netProfit + this.openProfitAt(price);
+    const percent = equity > 0 ? value / equity : value > 0 ? 1 : 0;
+    return { time: this.bars[this.bar].time * 1000, value, percent, tradesOpen: this.openTrades.length };
+  }
+
+  private noteMarginPeak(p: MarginPoint): void {
+    if (!this.marginPeak || p.value > this.marginPeak.value) this.marginPeak = p;
+  }
+
+  /**
+   * Margin usage after a fill at `price` (the reference app's report marginUsage, matched item for item on the 24
+   * reference reports that hold one: the margin of the open trades at the fill price over the equity there, and the
+   * highest margin since the previous fill, at the extreme price for a long or a short). The fills of one bar make
+   * one item with the state after the last of them. As for the margin used (readMarginUsed), a fill that leaves
+   * the position flat or short with a short margin of 0 makes no item (cumulative RSI, long only: one item per
+   * entry); the highest margin starts again after it all the same.
+   */
+  protected noteMarginFill(price: number): void {
+    const p = this.marginPoint(price);
+    this.noteMarginPeak(p);
+    const peak = this.marginPeak ?? p;
+    this.marginPeak = null;
+    if ((this.positionSize > 0 ? this.props.marginLong : this.props.marginShort) === 0) return;
+    const last = this.marginUsage[this.marginUsage.length - 1];
+    if (last && last.current.time === p.time) {
+      last.current = p;
+      if (peak.value > last.peak.value) last.peak = peak;
+    } else this.marginUsage.push({ current: p, peak });
   }
 
   protected touchTrades(p: number, raw: number, trades: OpenTrade[]): void {

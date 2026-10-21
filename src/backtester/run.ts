@@ -5,6 +5,8 @@ import {
   DEFAULT_SYMBOL,
   type BacktestReport,
   type Bar,
+  type MarginPoint,
+  type MarginUsage,
   type StrategyProperties,
   type SymbolInfo,
   type Trade,
@@ -155,6 +157,13 @@ export function runBacktest<I extends object>(bars: Bar[], def: StrategyDefiniti
   return backtestReport(fills, broker, equity, t0);
 }
 
+/** Margin usage of a run: a zero item at the first bar (as the reference app's), then the broker's. */
+function marginUsage(bars: Bar[], broker: Broker): MarginUsage[] {
+  if (!bars.length) return [];
+  const zero: MarginPoint = { time: bars[0].time * 1000, value: 0, percent: 0, tradesOpen: 0 };
+  return [{ current: zero, peak: zero }, ...broker.marginUsage];
+}
+
 /** The report of a finished run: `equity` holds the equity at each bar close, `t0` the start time (performance.now()). */
 export function backtestReport(bars: Bar[], broker: Broker, equity: number[], t0: number): BacktestReport {
   const properties = broker.props;
@@ -186,6 +195,7 @@ export function backtestReport(bars: Bar[], broker: Broker, equity: number[], t0
     equity,
     buyHold,
     range: { from: bars.length ? bars[0].time * 1000 : 0, to: bars.length ? bars[bars.length - 1].time * 1000 : 0 },
+    marginUsage: marginUsage(bars, broker),
     elapsedMs: performance.now() - t0,
   };
 }

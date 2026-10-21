@@ -49,6 +49,24 @@ describe("margin used", () => {
     expect(r.performance.openMarginUsed).toBe(0);
   });
 
+  it("margin usage: a zero item at the first bar, then the state after each bar's fills and the highest margin before", () => {
+    const r = run(flat(6), script, { processOrdersOnClose: true, marginLong: 50, marginShort: 50 });
+    const t = (i: number) => flat(6)[i].time * 1000;
+    const zero = { time: t(0), value: 0, percent: 0, tradesOpen: 0 };
+    const entry = { time: t(1), value: 55, percent: 55 / 1_000_000, tradesOpen: 1 };
+    expect(r.marginUsage).toEqual([
+      { current: zero, peak: zero },
+      { current: entry, peak: entry },
+      // Bar 3: 65 at its open (equity 1,000,020 with the open profit), flat after the exit at the close.
+      { current: { time: t(3), value: 0, percent: 0, tradesOpen: 0 }, peak: { time: t(3), value: 65, percent: 65 / 1_000_020, tradesOpen: 1 } },
+    ]);
+    // Long-only margin: going flat makes no item.
+    expect(run(flat(6), script, { processOrdersOnClose: true, marginLong: 50 }).marginUsage).toEqual([
+      { current: zero, peak: zero },
+      { current: entry, peak: entry },
+    ]);
+  });
+
   it("no margin: 0", () => {
     const r = run(flat(6), script, { processOrdersOnClose: true });
     expect(r.performance.avgMarginUsed).toBe(0);

@@ -3,15 +3,26 @@
  * Performance analysis and Trades analysis with their round sub-tabs.
  *
  * Only metrics whose value was matched against the reference app are shown
- * (metrics.ts); the sub-tab charts (periodical / benchmark bars, margin utilization, growth
- * and decline, results by time, returns distribution) are not yet.
+ * (metrics.ts). Under the cells, each sub-tab's charts: Weekly PnL and
+ * Strategy vs benchmark (PeriodicalCharts.tsx), Margin utilization
+ * (MarginChart.tsx), Alternating growth and decline with its comparison
+ * (GrowthCharts.tsx), Returns distribution (ReturnsHistogram.tsx) beside the
+ * Trades distribution donut, Winning and losing streaks (StreaksChart.tsx)
+ * and Results by time (ResultsByTime.tsx).
  */
 import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
 import type { BacktestReport } from "../../backtester/types";
 import { EquityChart } from "./EquityChart";
 import { strategyTester } from "../../data/strategy-tester-store";
 import { DASH, compact, count, money, percent, ratio, tone } from "./format";
-import { MONTHS, bestEntry, cagr, derivedPerformance, distribution, entryBuckets, growthStats, outliers, pnlBy, streaks, totalPnl, type PnlRow } from "./metrics";
+import { MONTHS, bestEntry, cagr, derivedPerformance, distribution, entryBuckets, growthPeriods, growthStats, outliers, pnlBy, streaks, totalPnl, type PnlRow } from "./metrics";
+import { BenchmarkChart, PeriodicalChart } from "./PeriodicalCharts";
+import { MarginChart } from "./MarginChart";
+import { AlternatingChart, GrowthComparison } from "./GrowthCharts";
+import { ReturnsHistogram } from "./ReturnsHistogram";
+import { StreaksChart } from "./StreaksChart";
+import { ResultsByTime } from "./ResultsByTime";
+import { Widget } from "./ReportWidget";
 import { cachedSymbolSessions } from "../../data/session/symbol-sessions";
 import { durationString } from "./format";
 
@@ -125,9 +136,12 @@ export function MetricsView(props: ViewProps) {
   const out = createMemo(() => outliers(r()));
   const st = createMemo(() => streaks(r()));
   const derived = createMemo(() => derivedPerformance(r()));
-  const growth = createMemo(() => growthStats(r()));
+  const periods = createMemo(() => growthPeriods(r()));
+  const growth = createMemo(() => growthStats(r(), periods()));
+  /** Exchange time zone of the charted symbol (dates of the chart tooltips). */
+  const zone = () => cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? "UTC";
   // Entry times: local on intraday charts, the exchange's trading day on D / W / M charts.
-  const buckets = createMemo(() => entryBuckets(r(), props.intervalSec, cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? "UTC"));
+  const buckets = createMemo(() => entryBuckets(r(), props.intervalSec, zone()));
   const bestHour = createMemo(() => bestEntry(buckets(), "hour"));
   const bestDay = createMemo(() => bestEntry(buckets(), "day"));
   const best = createMemo(() => bestEntry(buckets(), "month"));
@@ -166,18 +180,26 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Sharpe ratio" value={ratio(perf().sharpeRatio)} />
             <Cell label="Sortino ratio" value={ratio(perf().sortinoRatio)} />
           </div>
+          <div class="st-chart-area">
+            <PeriodicalChart report={r()} intervalSec={props.intervalSec} />
+          </div>
         </Show>
         <Show when={perfTab() === "Benchmarking"}>
           {(() => {
             const strat = perf().all.netProfitPercent;
             const bh = perf().buyHoldReturnPercent;
             return (
-              <div class="st-cells">
-                <Cell label="Strategy return" value={percent(strat, true)} tone={tone(strat)} />
-                <Cell label="Buy and hold return" value={percent(bh, true)} tone={tone(bh)} />
-                <Cell label="Strategy outperformance" value={bh == null ? DASH : percent(strat - bh, true)} tone={bh == null ? "" : tone(strat - bh)} />
-                <Cell label="Correlation" value={ratio(derived().all.strategyAndBuyHoldCorrelation)} />
-              </div>
+              <>
+                <div class="st-cells">
+                  <Cell label="Strategy return" value={percent(strat, true)} tone={tone(strat)} />
+                  <Cell label="Buy and hold return" value={percent(bh, true)} tone={tone(bh)} />
+                  <Cell label="Strategy outperformance" value={bh == null ? DASH : percent(strat - bh, true)} tone={bh == null ? "" : tone(strat - bh)} />
+                  <Cell label="Correlation" value={ratio(derived().all.strategyAndBuyHoldCorrelation)} />
+                </div>
+                <div class="st-chart-area">
+                  <BenchmarkChart report={r()} intervalSec={props.intervalSec} />
+                </div>
+              </>
             );
           })()}
         </Show>
@@ -188,6 +210,9 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Margin calls" value={count(r().filledOrders.filter((o) => o.id.startsWith("Margin call")).length)} />
             <Cell label="Total liquidated volume" value={compact(derived().all.totalLiquidatedVolume ?? 0)} currency={cur()} />
           </div>
+          <div class="st-chart-area">
+            <MarginChart report={r()} intraday={props.intraday} timeZone={zone()} />
+          </div>
         </Show>
         <Show when={perfTab() === "Growth and decline"}>
           <div class="st-cells">
@@ -195,6 +220,10 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Average drawdown duration" value={duration(growth().averageDrawdownDuration)} />
             <Cell label="Max drawdown" value={money(perf().maxStrategyDrawDown)} currency={cur()} change={percent(perf().maxStrategyDrawDownPercent)} />
             <Cell label="Max drawdown as % of initial capital" value={percent(perf().maxStrategyDrawDown / cap())} />
+          </div>
+          <div class="st-chart-area st-chart-row">
+            <AlternatingChart report={r()} periods={periods()} timeZone={zone()} />
+            <GrowthComparison periods={periods()} />
           </div>
         </Show>
       </div>
@@ -209,7 +238,10 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Largest profit" value={money(perf().all.largestWinTrade)} currency={cur()} />
             <Cell label="Largest loss" value={money(perf().all.largestLosTrade)} currency={cur()} />
           </div>
-          <TradesDistribution total={dist().total} winners={dist().winners} losers={dist().losers} breakevens={dist().breakevens} />
+          <div class="st-chart-area st-chart-row">
+            <ReturnsHistogram report={r()} />
+            <TradesDistribution total={dist().total} winners={dist().winners} losers={dist().losers} breakevens={dist().breakevens} />
+          </div>
         </Show>
         <Show when={tradeTab() === "Streaks"}>
           <div class="st-cells">
@@ -218,6 +250,9 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Average winning streak" value={trades(st().avgWin)} />
             <Cell label="Average losing streak" value={trades(st().avgLoss)} />
           </div>
+          <div class="st-chart-area">
+            <StreaksChart report={r()} intraday={props.intraday} timeZone={zone()} />
+          </div>
         </Show>
         <Show when={tradeTab() === "Time patterns"}>
           <div class="st-cells">
@@ -225,6 +260,9 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Best day for entries" value={bestDay() ? WEEKDAYS[bestDay()!.index] : DASH} change={winners(bestDay())} />
             <Cell label="Best month for entries" value={best() ? MONTHS[best()!.index] : DASH} change={winners(best())} />
             <Cell label="Average trade duration" value={perf().all.avgBarsInTrade == null ? DASH : `${Math.round(perf().all.avgBarsInTrade!)} bars`} />
+          </div>
+          <div class="st-chart-area">
+            <ResultsByTime buckets={buckets()} />
           </div>
         </Show>
       </div>
@@ -317,10 +355,7 @@ function TradesDistribution(props: { total: number; winners: number; losers: num
     });
   };
   return (
-    <div class="st-block">
-      <div class="st-block-header">
-        <span class="st-block-title">Trades distribution</span>
-      </div>
+    <Widget title="Trades distribution" hasData={props.total > 0} half smallTitleMargin>
       <div class="st-donut-wrap">
         <div class="st-donut">
           <svg viewBox={`0 0 ${2 * R} ${2 * R}`} width={2 * R} height={2 * R}>
@@ -358,6 +393,6 @@ function TradesDistribution(props: { total: number; winners: number; losers: num
           </For>
         </div>
       </div>
-    </div>
+    </Widget>
   );
 }

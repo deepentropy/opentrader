@@ -3,7 +3,7 @@
  * Broker is one object: each layer extends the one below it), with the position getters and the sizing / tick
  * rounding helpers.
  */
-import type { Bar, FilledOrder, StrategyProperties, SymbolInfo, Trade } from '../types';
+import type { Bar, FilledOrder, MarginPoint, MarginUsage, StrategyProperties, SymbolInfo, Trade } from '../types';
 import { localDay } from '../../data/session/zone';
 import { commission as orderCommission } from './costs';
 import * as tick from './ticks';
@@ -150,6 +150,10 @@ export abstract class BrokerState {
   /** Largest margin of the open trades at a price reached on the path or at an entry fill (the reference app
    *  maxMarginUsed: 1 contract of AlphaTrend on SPY 15 min = the highest high, 779.37). */
   maxMarginUsed = 0;
+  /** Margin used after the fills of each bar with fills, with the highest margin reached since the previous one
+   *  (the report's marginUsage; see TradeLedger.noteMarginFill). */
+  readonly marginUsage: MarginUsage[] = [];
+  protected marginPeak: MarginPoint | null = null;
 
   /** A risk rule stopped trading for the rest of the current bar's day: new orders are ignored. */
   protected get halted(): boolean {

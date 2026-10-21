@@ -200,6 +200,24 @@ export interface Performance {
   sortinoRatio: number | null;
 }
 
+/** Margin of the open trades at a point of the run (the reference app `marginUsage` items). */
+export interface MarginPoint {
+  /** Bar open time, UNIX ms. */
+  time: number;
+  /** Margin of the open trades valued at the price there (marginAt). */
+  value: number;
+  /** value / the equity at that price (open profit included). */
+  percent: number;
+  tradesOpen: number;
+}
+
+/** Margin used after the fills of a bar (`current`) and the highest margin since the previous such bar (`peak`,
+ *  the fills of this bar included). */
+export interface MarginUsage {
+  current: MarginPoint;
+  peak: MarginPoint;
+}
+
 export interface BacktestReport {
   currency: string;
   properties: StrategyProperties;
@@ -214,6 +232,9 @@ export interface BacktestReport {
   buyHold: number[];
   /** First and last bar open times, UNIX ms (the testing period). */
   range: { from: number; to: number };
+  /** Margin used: a zero point at the first bar, then one per bar with fills (Margin utilization chart). Absent
+   *  from reports made before it existed. */
+  marginUsage?: MarginUsage[];
   /** Time spent in the run, milliseconds. */
   elapsedMs: number;
 }
