@@ -6,11 +6,9 @@
  *    size. The data served has no ISIN, CUSIP, CFI code nor sector, and no
  *    traded-exchange name: those rows do not show;
  *  - Type: the security type and its visible sub-type ("Fund ETF", "Stock",
- *    "DR"), first letter capitalised;
- *  - the session week: per day of the current week, its trading parts
- *    (pre-market, market open, post-market) in exchange minutes.
+ *    "DR"), first letter capitalised.
+ * The session bar is the legend status popup's (window/chart/legend-status.ts).
  */
-import { localDay, localToUtc, weekdayOf, type SessionSpec } from "./session";
 
 /** "Fund ETF", "Stock", "DR" for a security type as served ("etf", "stock", "adr"…); null when unknown. */
 export function securityTypeLabel(kind: string | null | undefined): string | null {
@@ -89,55 +87,7 @@ export function symbolInfoGroups(i: InfoInput): InfoField[][] {
   return [first, second];
 }
 
-export type SessionPart = "pre" | "open" | "post";
-export type SessionSegment = { part: SessionPart; from: number; to: number };
-export type SessionDay = { weekday: string; day: number; today: boolean; segments: SessionSegment[] };
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-/** The trading parts of local day `day` in minutes after the exchange midnight (0..1440): the extended session's
- *  intervals split around the regular ones. */
-export function dayParts(regular: SessionSpec, extended: SessionSpec | null, day: number): SessionSegment[] {
-  const tz = regular.timeZone;
-  const midnight = localToUtc(tz, day, 0);
-  const mins = (sec: number) => Math.max(0, Math.min(1440, Math.round((sec - midnight) / 60)));
-  const reg = regular.dayIntervals(day).map((iv) => ({ from: mins(iv.start), to: mins(iv.end) })).filter((r) => r.to > r.from);
-  const ext = (extended ?? regular).dayIntervals(day).map((iv) => ({ from: mins(iv.start), to: mins(iv.end) })).filter((r) => r.to > r.from);
-  // Outside the regular session: pre-market before its open, post-market after.
-  const open = reg.length ? Math.min(...reg.map((r) => r.from)) : 1440;
-  const gap = (from: number, to: number): SessionSegment => ({ part: to <= open ? "pre" : "post", from, to });
-  const out: SessionSegment[] = [];
-  for (const e of ext.length ? ext : reg) {
-    let at = e.from;
-    for (const r of reg) {
-      if (r.to <= at || r.from >= e.to) continue;
-      if (r.from > at) out.push(gap(at, r.from));
-      out.push({ part: "open", from: Math.max(at, r.from), to: Math.min(e.to, r.to) });
-      at = Math.min(e.to, r.to);
-    }
-    if (at < e.to) out.push(gap(at, e.to));
-  }
-  return out;
-}
-
-/** The days Sunday to Saturday of the week of `nowSec` (exchange time), today marked. */
-export function sessionWeek(regular: SessionSpec, extended: SessionSpec | null, nowSec: number): SessionDay[] {
-  const today = localDay(regular.timeZone, nowSec);
-  // weekdayOf: 1 = Sunday … 7 = Saturday.
-  const sunday = today - (weekdayOf(today) - 1);
-  return WEEKDAYS.map((weekday, i) => {
-    const day = sunday + i;
-    return { weekday, day, today: day === today, segments: dayParts(regular, extended, day) };
-  });
-}
-
 /** "New York" for "America/New_York". */
 export function zoneCity(timeZone: string): string {
   return (timeZone.split("/").pop() ?? timeZone).replace(/_/g, " ");
-}
-
-/** "09:30" for 570 minutes. */
-export function minutesText(m: number): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`;
 }

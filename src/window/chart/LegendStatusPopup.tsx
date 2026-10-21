@@ -18,6 +18,7 @@ import {
   marketStatusAt,
   sessionTimeline,
   type MarketStatusKind,
+  type Timeline,
   type TimelineSegment,
 } from "./legend-status";
 
@@ -117,7 +118,7 @@ export function LegendStatusPopup(props: Props) {
                     <span class="ot-lsp-item is-bold">{market().countdown}</span>
                   </Show>
                 </p>
-                <Show when={market().timeline}>{(t) => <TimelineView t={t()} />}</Show>
+                <Show when={market().timeline}>{(t) => <SessionTimelineView t={t()} />}</Show>
               </div>
             </div>
           }
@@ -144,7 +145,10 @@ export function LegendStatusPopup(props: Props) {
   );
 }
 
-function TimelineView(props: { t: ReturnType<typeof sessionTimeline> }) {
+/** The session bar (also the symbol info dialog's): a row per day, the
+ *  current-time line across them, the bounds of the current part under them
+ *  and the exchange time zone. `class` / `zoneClass` style it per host. */
+export function SessionTimelineView(props: { t: Timeline; class?: string; zoneClass?: string }) {
   const pct = (v: number) => `${v * 100}%`;
   // Hover tooltip of a part (shown at once, 8 px above it, centred).
   const [hover, setHover] = createSignal<{ seg: TimelineSegment; x: number; y: number } | null>(null);
@@ -153,24 +157,28 @@ function TimelineView(props: { t: ReturnType<typeof sessionTimeline> }) {
     setHover({ seg, x: r.left + r.width / 2, y: r.top - 8 });
   };
   return (
-    <div class="ot-lsp-timeline">
+    <div class={`ot-lsp-timeline ${props.class ?? ""}`}>
       <div class="ot-lsp-days">
-        <div class="ot-lsp-day is-active">
-          <div class="ot-lsp-weekday">{props.t.weekday}</div>
-          <div class="ot-lsp-segments">
-            <For each={props.t.segments}>
-              {(s) => (
-                <div
-                  class={`ot-lsp-segment is-${s.type}`}
-                  classList={{ "is-start": s.start, "is-end": s.end, "is-small": s.to - s.from < 0.03 }}
-                  style={{ left: pct(s.from), width: `calc(${pct(s.to - s.from)} + ${s.to - s.from < 0.03 ? 2 : 0}px)` }}
-                  onMouseEnter={(e) => enter(s, e)}
-                  onMouseLeave={() => setHover(null)}
-                />
-              )}
-            </For>
-          </div>
-        </div>
+        <For each={props.t.days}>
+          {(d) => (
+            <div class="ot-lsp-day" classList={{ "is-active": d.active }}>
+              <div class="ot-lsp-weekday">{d.weekday}</div>
+              <div class="ot-lsp-segments">
+                <For each={d.segments}>
+                  {(s) => (
+                    <div
+                      class={`ot-lsp-segment is-${s.type}`}
+                      classList={{ "is-start": s.start, "is-end": s.end, "is-small": s.to - s.from < 0.03 }}
+                      style={{ left: pct(s.from), width: `calc(${pct(s.to - s.from)} + ${s.to - s.from < 0.03 ? 2 : 0}px)` }}
+                      onMouseEnter={(e) => enter(s, e)}
+                      onMouseLeave={() => setHover(null)}
+                    />
+                  )}
+                </For>
+              </div>
+            </div>
+          )}
+        </For>
         <div class="ot-lsp-now-wrap">
           <div class="ot-lsp-now" style={{ left: pct(props.t.now) }} />
         </div>
@@ -187,7 +195,7 @@ function TimelineView(props: { t: ReturnType<typeof sessionTimeline> }) {
           </div>
         )}
       </Show>
-      <div class="ot-lsp-zone">{props.t.zone}</div>
+      <div class={`ot-lsp-zone ${props.zoneClass ?? ""}`}>{props.t.zone}</div>
       <Show when={hover()}>
         {(h) => (
           <Portal>

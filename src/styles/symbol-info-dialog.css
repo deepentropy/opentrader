@@ -42,7 +42,7 @@
   cursor: pointer;
 }
 .sid-close:hover { background: var(--color-bg-primary-hover); }
-.sid-body { padding: 14px 20px 20px; overflow-y: auto; }
+.sid-body { padding: 14px 20px 20px; overflow-y: scroll; }
 .sid-row { display: flex; gap: 17px; margin-top: 16px; }
 .sid-group.is-first .sid-row:first-child { margin-top: 0; }
 .sid-item { flex: 0 0 211px; min-width: 0; display: flex; flex-direction: column; }
@@ -83,20 +83,7 @@
 }
 .sid-all:hover { color: var(--color-text-primary); }
 .sid-all svg.is-open { transform: rotate(180deg); }
-.sid-week { margin-top: 10px; }
-.sid-day { display: flex; align-items: center; }
-.sid-day + .sid-day:not(.sid-marks) { margin-top: 15px; }
-.sid-weekday { flex: 0 0 30px; font-size: 10px; text-transform: uppercase; color: var(--color-default-gray, var(--color-text-secondary)); }
-.sid-day.is-today .sid-weekday { color: var(--color-text-primary); }
-.sid-segments { position: relative; flex: 1; height: 7px; }
-.sid-segment { position: absolute; top: 0; height: 100%; box-sizing: border-box; padding: 0 2px; opacity: 0.3; }
-.sid-segment::before { content: ""; display: block; height: 100%; min-width: 1px; border-radius: 4px; background: currentColor; }
-.sid-day.is-today .sid-segment { opacity: 1; }
-.sid-segment--pre { color: #ff9100; }
-.sid-segment--open { color: #42bda8; }
-.sid-segment--post { color: #82b1ff; }
-.sid-now { position: absolute; top: -3px; width: 1px; height: 13px; background: var(--color-text-primary); }
-.sid-marks { margin-top: 3px; height: 16px; }
-.sid-marks-bar { position: relative; flex: 1; height: 16px; }
-.sid-mark { position: absolute; transform: translateX(-50%); font-size: 11px; line-height: 14px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
-.sid-tz { margin-top: 4px; font-size: 12px; line-height: 20px; color: var(--color-text-secondary); text-align: center; }
+/* The session bar is the legend status popup's (legend-status-popup.css). */
+.sid-session-widget { margin-top: 10px; line-height: normal; }
+.sid-session-widget .ot-lsp-zone.sid-tz { font-size: 12px; line-height: 16px; font-feature-settings: "tnum", "lnum"; }
+.sid-session-widget .ot-lsp-zone.sid-tz.is-large { padding-top: 8px; }

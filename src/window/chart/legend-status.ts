@@ -119,10 +119,21 @@ export type TimelineSegment = {
   tip: { title: string; time: string };
 };
 
-export type Timeline = {
+/** One day row of the session bar. */
+export type TimelineDay = {
   /** "Wed" (shown uppercase). */
   weekday: string;
+  /** The day of the given time (full colours; the others are dimmed). */
+  active: boolean;
   segments: TimelineSegment[];
+};
+
+export type Timeline = {
+  /** The day of the given time (its weekday and parts, as in `days`). */
+  weekday: string;
+  segments: TimelineSegment[];
+  /** The rows shown: that day alone, or Sunday to Saturday of its week. */
+  days: TimelineDay[];
   /** Current time, fraction of the day. */
   now: number;
   /** Time labels under the current part: its bounds, left / width in
@@ -187,14 +198,15 @@ const GAP_SEARCH_DAYS = 14;
 
 /** The session bar of the exchange day containing `sec`, as the reference
  *  app draws it: trading parts of the sessions overlapping the day (an
- *  overnight session shows on both days it spans), closed parts between. */
-export function sessionTimeline(s: SymbolSessions, sec: number): Timeline {
+ *  overnight session shows on both days it spans), closed parts between.
+ *  `week`: a row per day from Sunday to Saturday of that day's week (the
+ *  symbol info dialog's "All sessions"), the time marks still the day's. */
+export function sessionTimeline(s: SymbolSessions, sec: number, week = false): Timeline {
   const tz = s.timeZone;
   const offset = zoneOffsetFinder(tz);
   const day = localDay(tz, sec);
-  const midnight = localToUtc(tz, day, 0);
-  const nextMidnight = localToUtc(tz, day + 1, 0);
-  const daySec = Math.max(60, nextMidnight - midnight);
+  const firstDay = week ? day - (weekdayOf(day) - 1) : day;
+  const lastDay = week ? firstDay + 6 : day;
   // Wall-clock minutes of `t` from local midnight of `d` (24:00 = 1440).
   const wall = (t: number, d: number) => Math.round((t + offset(t)) / 60) - d * 1440;
   // "09:30 — 16:00"; with weekdays once the span reaches a day.
@@ -210,7 +222,7 @@ export function sessionTimeline(s: SymbolSessions, sec: number): Timeline {
 
   // Trading parts around the day, closed gaps between them.
   const trading: Span[] = [];
-  for (let d = day - GAP_SEARCH_DAYS; d <= day + GAP_SEARCH_DAYS; d++) trading.push(...tradingDaySpans(s, d));
+  for (let d = firstDay - GAP_SEARCH_DAYS; d <= lastDay + GAP_SEARCH_DAYS; d++) trading.push(...tradingDaySpans(s, d));
   trading.sort((a, b) => a.start - b.start);
   const spans: Span[] = [];
   let prevEnd = -Infinity;
@@ -221,22 +233,36 @@ export function sessionTimeline(s: SymbolSessions, sec: number): Timeline {
   }
   spans.push({ type: "closed", start: prevEnd, end: Infinity });
 
-  const shown = spans.filter((p) => p.end > midnight && p.start < nextMidnight);
-  const frac = (t: number) => (Math.min(nextMidnight, Math.max(midnight, t)) - midnight) / daySec;
-  const last = shown.length - 1;
-  const segments: TimelineSegment[] = shown.map((p, i) => {
-    const closed = p.type === "closed";
-    const a = Number.isFinite(p.start) ? p.start : midnight;
-    const b = Number.isFinite(p.end) ? p.end : nextMidnight;
-    return {
-      type: p.type,
-      from: frac(p.start),
-      to: frac(p.end),
-      start: p.start >= midnight || (i === 0 && closed),
-      end: p.end <= nextMidnight || (i === last && closed),
-      tip: { title: TIMELINE_TITLE[p.type], time: spanText(a, b) },
-    };
-  });
+  // The parts of local day `d`, in fractions of it.
+  const dayView = (d: number) => {
+    const midnight = localToUtc(tz, d, 0);
+    const nextMidnight = localToUtc(tz, d + 1, 0);
+    const daySec = Math.max(60, nextMidnight - midnight);
+    const shown = spans.filter((p) => p.end > midnight && p.start < nextMidnight);
+    const frac = (t: number) => (Math.min(nextMidnight, Math.max(midnight, t)) - midnight) / daySec;
+    const last = shown.length - 1;
+    const segments: TimelineSegment[] = shown.map((p, i) => {
+      const closed = p.type === "closed";
+      const a = Number.isFinite(p.start) ? p.start : midnight;
+      const b = Number.isFinite(p.end) ? p.end : nextMidnight;
+      return {
+        type: p.type,
+        from: frac(p.start),
+        to: frac(p.end),
+        start: p.start >= midnight || (i === 0 && closed),
+        end: p.end <= nextMidnight || (i === last && closed),
+        tip: { title: TIMELINE_TITLE[p.type], time: spanText(a, b) },
+      };
+    });
+    return { midnight, nextMidnight, daySec, shown, frac, segments };
+  };
+
+  const days: TimelineDay[] = [];
+  for (let d = firstDay; d <= lastDay; d++) {
+    days.push({ weekday: WEEKDAYS[weekdayOf(d) - 1], active: d === day, segments: d === day ? [] : dayView(d).segments });
+  }
+  const { midnight, nextMidnight, daySec, shown, frac, segments } = dayView(day);
+  days[day - firstDay].segments = segments;
 
   const now = Math.max(0, Math.min(1, (sec - midnight) / daySec));
   // The labels of the current part: its session bounds (both ends of a closed part).
@@ -254,6 +280,7 @@ export function sessionTimeline(s: SymbolSessions, sec: number): Timeline {
   return {
     weekday: WEEKDAYS[weekdayOf(day) - 1],
     segments,
+    days,
     now,
     marks,
     zone: `Exchange timezone: ${zoneTitle(tz, sec)}`,

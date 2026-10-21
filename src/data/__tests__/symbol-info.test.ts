@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SessionSpec } from "../session";
-import { dayParts, securityTypeLabel, sessionWeek, siteName, symbolInfoGroups, zoneCity } from "../symbol-info";
-
-const TZ = "America/New_York";
-const RTH = new SessionSpec(TZ, "0930-1600:23456");
-const ETH = new SessionSpec(TZ, "0400-2000:23456");
+import { securityTypeLabel, siteName, symbolInfoGroups, zoneCity } from "../symbol-info";
 
 describe("symbol info", () => {
   it("names the security types as the reference", () => {
@@ -26,17 +21,7 @@ describe("symbol info", () => {
     expect(siteName("https://www.ssga.com/us/en")).toBe("ssga.com");
   });
 
-  it("splits a trading day into pre-market, market open, post-market", () => {
-    const week = sessionWeek(RTH, ETH, Date.UTC(2026, 9, 15, 17) / 1000); // Thursday 13:00 New York
-    expect(week.map((d) => d.weekday)).toEqual(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
-    expect(week.findIndex((d) => d.today)).toBe(4);
-    expect(week[4].segments).toEqual([
-      { part: "pre", from: 240, to: 570 },
-      { part: "open", from: 570, to: 960 },
-      { part: "post", from: 960, to: 1200 },
-    ]);
-    expect(week[0].segments).toEqual([]);
-    expect(dayParts(RTH, null, week[1].day)).toEqual([{ part: "open", from: 570, to: 960 }]);
-    expect(zoneCity(TZ)).toBe("New York");
+  it("names the exchange time zone by its city", () => {
+    expect(zoneCity("America/New_York")).toBe("New York");
   });
 });

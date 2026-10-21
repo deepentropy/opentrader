@@ -1,9 +1,10 @@
 /*
  * "Symbol info" dialog (main series and compared-symbol menus): the symbol's
  * fields in two groups, two per row (data/symbol-info.ts), then its trading
- * session: today's parts on a 24-hour bar, "All sessions" for the whole week,
- * the exchange time zone. 480 wide, centred; closed with its button, Escape
- * or a press outside it.
+ * session: the legend status popup's session bar (today's parts, hover
+ * tooltips, the bounds of the current part), "All sessions" for a row per day
+ * of the week, the other days dimmed, and the exchange time zone. 480 wide,
+ * centred; closed with its button, Escape or a press outside it.
  */
 import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -14,10 +15,9 @@ import { chartLastPrice } from "../../data/chart-state-registry";
 import { countryOfExchange, flagUrl } from "../../data/country-flags";
 import { splitSymbol } from "../../data/symbol-name";
 import { symbolSessions } from "../../data/session";
-import { utcOffsetText } from "../../data/alert-schedule";
-import { minutesText, sessionWeek, symbolInfoGroups, zoneCity, type InfoField, type SessionPart } from "../../data/symbol-info";
-
-const PART_LABEL: Record<SessionPart, string> = { pre: "Pre-market", open: "Market open", post: "Post-market" };
+import { symbolInfoGroups, type InfoField } from "../../data/symbol-info";
+import { sessionTimeline } from "./legend-status";
+import { SessionTimelineView } from "./LegendStatusPopup";
 
 type Props = { symbol: string; onClose: () => void };
 
@@ -48,21 +48,10 @@ export function SymbolInfoDialog(props: Props) {
       tickSize: tick != null ? String(Number(tick.toPrecision(6))) : null,
     });
   });
-  const week = createMemo(() => {
+  const timeline = createMemo(() => {
     const s = sessions();
-    if (!s) return null;
-    return sessionWeek(s.spec("RTH"), s.spec("ETH"), now());
+    return s ? sessionTimeline(s, now(), allDays()) : null;
   });
-  const shownDays = () => (allDays() ? week() ?? [] : (week() ?? []).filter((d) => d.today));
-  const timeZone = () => sessions()?.timeZone ?? "America/New_York";
-  /** The regular session of today, for the time marks. */
-  const openPart = () => week()?.find((d) => d.today)?.segments.find((s) => s.part === "open") ?? null;
-  const nowMinutes = () => {
-    const tz = timeZone();
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(now() * 1000));
-    const n = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-    return n("hour") * 60 + n("minute");
-  };
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); props.onClose(); } };
@@ -94,7 +83,7 @@ export function SymbolInfoDialog(props: Props) {
                 </>
               )}
             </For>
-            <Show when={week()}>
+            <Show when={timeline()}>
               <div class="sid-sep sid-sep--widget" />
               <div class="sid-session-header">
                 <span class="sid-label">Session</span>
@@ -103,39 +92,7 @@ export function SymbolInfoDialog(props: Props) {
                   All sessions
                 </button>
               </div>
-              <div class="sid-week">
-                <For each={shownDays()}>
-                  {(d) => (
-                    <div class="sid-day" classList={{ "is-today": d.today }}>
-                      <span class="sid-weekday">{d.weekday}</span>
-                      <div class="sid-segments">
-                        <For each={d.segments}>
-                          {(s) => (
-                            <Tooltip text={`${PART_LABEL[s.part]} ${minutesText(s.from)} — ${minutesText(s.to)}`}>
-                              <div class={`sid-segment sid-segment--${s.part}`} style={{ left: `${(s.from / 1440) * 100}%`, width: `${((s.to - s.from) / 1440) * 100}%` }} />
-                            </Tooltip>
-                          )}
-                        </For>
-                        <Show when={d.today}>
-                          <div class="sid-now" style={{ left: `${(nowMinutes() / 1440) * 100}%` }} />
-                        </Show>
-                      </div>
-                    </div>
-                  )}
-                </For>
-                <Show when={openPart()}>
-                  {(o) => (
-                    <div class="sid-day sid-marks">
-                      <span class="sid-weekday" />
-                      <div class="sid-marks-bar">
-                        <span class="sid-mark" style={{ left: `${(o().from / 1440) * 100}%` }}>{minutesText(o().from)}</span>
-                        <span class="sid-mark" style={{ left: `${(o().to / 1440) * 100}%` }}>{minutesText(o().to)}</span>
-                      </div>
-                    </div>
-                  )}
-                </Show>
-              </div>
-              <div class="sid-tz">Exchange timezone: {zoneCity(timeZone())} ({utcOffsetText(timeZone())})</div>
+              <SessionTimelineView t={timeline()!} class="sid-session-widget" zoneClass={allDays() ? "sid-tz is-large" : "sid-tz"} />
             </Show>
           </div>
         </div>

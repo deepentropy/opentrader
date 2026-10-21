@@ -101,6 +101,10 @@
   margin: 0 0 2px;
   border-radius: 4px;
 }
+/* Rows of a week (symbol info "All sessions"). */
+.ot-lsp-day + .ot-lsp-day .ot-lsp-segments {
+  margin-top: 20px;
+}
 .ot-lsp-marks {
   height: 16px;
   margin-top: 3px;
@@ -111,6 +115,11 @@
   display: flex;
   height: 100%;
   padding: 0 2px;
+  /* The other days of a week are dimmed. */
+  opacity: 0.3;
+}
+.ot-lsp-day.is-active .ot-lsp-segment {
+  opacity: 1;
 }
 .ot-lsp-segment:first-child {
   padding-inline-start: 0;

@@ -104,6 +104,25 @@ describe("session timeline", () => {
     expect(sessionTimeline(stock, utc(2026, 11, 25, 16)).segments.slice(-1)[0].tip.time).toBe("Wed 20:00 — Fri 04:00");
   });
 
+  it("lays out the week for the symbol info dialog's All sessions (reference: SUN … SAT, WED active)", () => {
+    const sec = utc(2026, 10, 21, 11, 2);
+    const day = sessionTimeline(stock, sec);
+    const week = sessionTimeline(stock, sec, true);
+    expect(day.days).toEqual([{ weekday: "Wed", active: true, segments: day.segments }]);
+    expect(week.days.map((d) => d.weekday)).toEqual(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+    expect(week.days.filter((d) => d.active).map((d) => d.weekday)).toEqual(["Wed"]);
+    expect(week.days[3].segments).toEqual(day.segments);
+    expect(week.marks).toEqual(day.marks);
+    expect(week.now).toBe(day.now);
+    // Weekend: one closed part over the day, Friday's end to Monday's pre-market.
+    for (const d of [week.days[0], week.days[6]]) {
+      expect(d.segments).toHaveLength(1);
+      expect(d.segments[0]).toMatchObject({ type: "closed", from: 0, to: 1, start: true, end: true, tip: { time: "Fri 20:00 — Mon 04:00" } });
+    }
+    expect(week.days[5].segments.map((s) => s.type)).toEqual(["closed", "pre", "open", "post", "closed"]);
+    expect(week.days[5].segments[4].tip.time).toBe("Fri 20:00 — Mon 04:00");
+  });
+
   it("draws a 24-hour session with both bounds (reference: 00:00 — 24:00, UTC)", () => {
     const crypto = new SymbolSessions({
       timezone: "Etc/UTC",
