@@ -321,6 +321,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
     cx.raw = f.shown;
     if (changes.length === 0) return;
     replayBroker.paneUpdates(paneId, changes.map((c) => asBar(c.path)), lastShown());
+    cx.controller?.setReplayCutoff(time);
     if (changes.length === 1) cx.paintLive(changes[0].bar, changes[0].appended);
     else cx.paintLive(null, true);
   };
@@ -349,7 +350,11 @@ export function createReplay(cx: ChartCx): ReplayApi {
     depthOf,
     start: async (pt, upd) => {
       const ok = await start(pt, upd);
-      if (ok) replayBroker.paneStarted(paneId, props.symbol ?? "", lastShown());
+      if (ok) {
+        replayBroker.paneStarted(paneId, props.symbol ?? "", lastShown());
+        // Studies reading other symbols see them up to the replay time too.
+        cx.controller?.setReplayCutoff(pt);
+      }
       return ok;
     },
     next,
@@ -357,6 +362,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
     stop: () => {
       stop();
       replayBroker.paneStopped(paneId);
+      cx.controller?.setReplayCutoff(null);
     },
     dateOnly: () => !isIntradayResolution(interval()) && !isSecondResolution(interval()),
     wallToTime: (d, minutes) =>

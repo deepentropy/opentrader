@@ -19,6 +19,8 @@
  * - Lower-timeframe bars of the chart's own symbol (profile studies,
  *   `lowerBars`): the chart's session, raw bar times, loaded back to the
  *   time the study asks for (not limited to the chart's span).
+ * - Bar Replay: the bars after the replay time are left out (`setCutoff`), as
+ *   the reference app replays the other series of the chart with it.
  */
 import type { Bar } from "oakscriptjs";
 import type { SessionId } from "../../../data/session";
@@ -86,6 +88,32 @@ export class OtherSymbolBars {
   private chartFirst = Infinity;
   private chartSeconds = 0;
   private disposed = false;
+  /** Bar Replay time (seconds): bars opening after it are not read; null = all. */
+  private cutoff: number | null = null;
+  private cutCache = new Map<string, { at: number; from: Bar[]; bars: Bar[] }>();
+
+  /** Bar Replay: read the bars up to `time` (null: all of them). The studies
+   *  reading other symbols calculate again. */
+  setCutoff(time: number | null): void {
+    if (time === this.cutoff) return;
+    this.cutoff = time;
+    this.cutCache.clear();
+    const keys = new Set([...this.entries.keys()].filter((k) => this.entries.get(k)?.bars));
+    if (keys.size) this.changed(keys, false);
+  }
+
+  /** `bars` without the ones after the replay time (cached per key). */
+  private cut(key: string, bars: Bar[]): Bar[] {
+    const t = this.cutoff;
+    if (t === null || bars.length === 0 || (bars[bars.length - 1].time as number) <= t) return bars;
+    const c = this.cutCache.get(key);
+    if (c && c.at === t && c.from === bars) return c.bars;
+    let n = bars.length;
+    while (n > 0 && (bars[n - 1].time as number) > t) n--;
+    const out = bars.slice(0, n);
+    this.cutCache.set(key, { at: t, from: bars, bars: out });
+    return out;
+  }
 
   /** `changed`: keys (`symbol|resolution`) whose bars arrived or moved (`live`: only the newest bar moved).
    *  `slot`: live subscription slot prefix. */
@@ -113,7 +141,7 @@ export class OtherSymbolBars {
     if (e.failed) return [];
     if (!e.bars) return undefined;
     if (!e.seen) e.seen = scriptBars(e.bars, scriptChartContext(e.symbol, e.resolution, SESSION));
-    return e.seen;
+    return this.cut(key, e.seen);
   }
 
   /** Accessor key of a lower-timeframe request. */
@@ -136,7 +164,7 @@ export class OtherSymbolBars {
       this.extend(key, e);
     }
     if (e.failed) return [];
-    return e.bars ?? undefined;
+    return e.bars ? this.cut(key, e.bars) : undefined;
   }
 
   /** Accessor key of a symbol's dividends / splits. */

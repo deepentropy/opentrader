@@ -264,6 +264,11 @@ export class IndicatorController {
     this.otherSymbols.retain(used);
   }
 
+  /** Bar Replay: the other symbols' bars after `time` are not read (null: replay off). */
+  setReplayCutoff(time: number | null): void {
+    this.otherSymbols.setCutoff(time);
+  }
+
   /** The chart reloads its bars (adjustment changed...): the other symbols are fetched again. */
   reloadOtherSymbols(): void {
     this.drawingKeys.clear();

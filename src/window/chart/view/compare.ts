@@ -9,7 +9,7 @@ import type { CompareEntry } from "../../shell/tabs";
 import { CompareLayer } from "../compare/compare-layer";
 import { compareColor, type CompareStyleState } from "../compare/compare-style";
 import { isVisibleOnInterval } from "lightweight-charts-drawing/core/types";
-import { getBars, getTickerInfo, setLiveSymbol, splitSymbol, subscribeBars } from "../../../data/datafeed";
+import { getBars, getBarsBefore, getTickerInfo, isIntradayResolution, isSecondResolution, setLiveSymbol, splitSymbol, subscribeBars } from "../../../data/datafeed";
 import { type OHLC } from "../chart-types";
 import { chartPriceFormat } from "../price-format";
 import { cachedSymbolSessions } from "../../../data/session";
@@ -58,6 +58,11 @@ export function createCompare(cx: ChartCx): CompareApi {
   const compareLayers = new Map<string, CompareLayer>();
   /** Bars per symbol under `compareBasis`. */
   const compareFetch = new Map<string, Promise<OHLC[]>>();
+  /** Bars per symbol once fetched (extended to cover the chart's bars). */
+  const compareBarsOf = new Map<string, OHLC[]>();
+  /** Window last asked for per symbol (not asked again), and the requests running. */
+  const coverAsked = new Map<string, { from: number; to: number }>();
+  const covering = new Set<string>();
   let compareBasis = "";
   /** Main scale switched to Percent by a "Same % scale" entry. */
   let comparePercentOn = false;
@@ -154,9 +159,61 @@ export function createCompare(cx: ChartCx): CompareApi {
     // Studies calculated on it follow its values.
     cx.controller?.sourceChanged(layer.entry.id);
   }
-  /** Main bars changed (load, scroll-back): redraw the compared symbols on
-   *  the new bar times. */
+  /**
+   * The bars of a compared symbol cover the chart's loaded bars: an intraday
+   * chart showing an older window (Bar Replay far back, the bars the chart
+   * paged back to) gets the symbol's bars of that window, and of the next
+   * days while the replay moves on (the reference app replays them with the
+   * chart). Daily and longer bars are loaded whole.
+   */
+  function coverChart(sym: string) {
+    const iv = props.interval ?? "1D";
+    const bars = compareBarsOf.get(sym);
+    if (!bars || covering.has(sym) || cx.raw.length === 0) return;
+    if (!isIntradayResolution(iv) && !isSecondResolution(iv)) return;
+    const first = cx.raw[0].time as number;
+    const last = cx.raw[cx.raw.length - 1].time as number;
+    const have0 = bars.length ? (bars[0].time as number) : Infinity;
+    const have1 = bars.length ? (bars[bars.length - 1].time as number) : -Infinity;
+    const now = Date.now() / 1000;
+    const step = Number(iv) * 60 || 60;
+    const needOld = first < have0 - step;
+    const needNew = last > have1 + step && have1 < now - 2 * step;
+    if (!needOld && !needNew) return;
+    // A few days ahead, so the replay does not ask at every step.
+    const to = Math.min(now, last + 5 * 86400);
+    const from = needOld ? first : Math.max(first, have1);
+    const asked = coverAsked.get(sym);
+    if (asked && asked.from <= from && asked.to >= Math.min(to, last + step)) return;
+    coverAsked.set(sym, { from, to });
+    covering.add(sym);
+    const basis = compareBasis;
+    const days = Math.ceil((to - from) / 86400) + 1;
+    getBarsBefore(sym, iv, to, props.session ?? "RTH", days)
+      .then((rows) => {
+        if (basis !== compareBasis) return;
+        const got = toOHLC(rows.filter((c) => c.time != null && c.close != null));
+        if (got.length === 0) return;
+        const byTime = new Map<number, OHLC>();
+        for (const b of compareBarsOf.get(sym) ?? []) byTime.set(b.time as number, b);
+        for (const b of got) byTime.set(b.time as number, b);
+        const merged = [...byTime.values()].sort((a, b) => (a.time as number) - (b.time as number));
+        compareBarsOf.set(sym, merged);
+        for (const layer of compareLayers.values()) {
+          if (layer.entry.symbol !== sym) continue;
+          layer.setBars(merged);
+          renderCompare(layer);
+        }
+        refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
+      })
+      .catch(() => { /* not served: the line stays as it is */ })
+      .finally(() => covering.delete(sym));
+  }
+
+  /** Main bars changed (load, scroll-back, replay): redraw the compared
+   *  symbols on the new bar times. */
   function renderCompareAll() {
+    for (const sym of new Set([...compareLayers.values()].map((l) => l.entry.symbol))) coverChart(sym);
     for (const layer of compareLayers.values()) renderCompare(layer);
     // Study panes drawn after the last sync take their stacking place.
     cx.controller?.applyPaneOrder();
@@ -196,6 +253,8 @@ export function createCompare(cx: ChartCx): CompareApi {
     if (basis !== compareBasis) {
       compareBasis = basis;
       compareFetch.clear();
+      compareBarsOf.clear();
+      coverAsked.clear();
       // The loaded bars belong to the old interval / session.
       for (const layer of compareLayers.values()) layer.setBars([]);
     }
@@ -307,9 +366,12 @@ export function createCompare(cx: ChartCx): CompareApi {
       compareFetch.set(sym, p);
     }
     const basis = compareBasis;
-    p.then((bars) => {
+    p.then((fetched) => {
       // The pane may have moved on, or the layer gone, before the fetch lands.
       if (basis !== compareBasis || compareLayers.get(layer.entry.id) !== layer) return;
+      if (!compareBarsOf.has(sym)) compareBarsOf.set(sym, fetched);
+      const bars = compareBarsOf.get(sym)!;
+      coverChart(sym);
       if (layer.source === bars) return;
       layer.setBars(bars);
       renderCompare(layer);
