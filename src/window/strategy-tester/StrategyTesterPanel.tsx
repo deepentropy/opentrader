@@ -23,6 +23,11 @@ import { TradesView } from "./TradesView";
 import { ReplayTradingReport } from "../replay/ReplayTradingReport";
 import { replayStarted } from "../../data/replay";
 import { tradingUi } from "../../data/trading/trading-ui";
+import { replayBroker } from "../../data/trading/replay-broker";
+import { cachedSymbolSessions, symbolSessions } from "../../data/session";
+import { DEFAULT_SYMBOL, type BacktestReport } from "../../backtester/types";
+import { REPLAY_TABS, STRATEGY_TABS, reportSheets, reportXlsxFileName, type ReportTab } from "./xlsx-report";
+import { buildXlsx } from "./xlsx-writer";
 
 /** Tab id of the Replay Trading tab (strategy tabs use their study ids). */
 const REPLAY_TAB = "replay-trading";
@@ -102,6 +107,36 @@ export function StrategyTesterPanel(props: Props) {
     const id = selected();
     return id && id !== REPLAY_TAB ? strategyTester.run(strategyTester.activeChartId(), strategyKeyOf(id)) : undefined;
   });
+
+  /** "Download data as XLSX": the report's workbook (the reference app's
+   *  sheets, see xlsx-report.ts). */
+  const reportOf = (id: string): BacktestReport | null =>
+    id === REPLAY_TAB ? replayBroker.report() : strategyTester.run(strategyTester.activeChartId(), strategyKeyOf(id))?.report ?? null;
+  async function downloadXlsx(id: string) {
+    const report = reportOf(id);
+    if (!report) return;
+    const sym = props.symbol ?? "";
+    const sessions = cachedSymbolSessions(sym) ?? (sym ? await symbolSessions(sym).catch(() => null) : null);
+    const tabs: ReportTab[] = id === REPLAY_TAB ? REPLAY_TABS : STRATEGY_TABS;
+    const sheets = reportSheets(
+      {
+        report,
+        symbol: sym,
+        interval: props.interval,
+        timeZone: sessions?.timeZone ?? DEFAULT_SYMBOL.timezone,
+        mintick: sessions?.mintick ?? DEFAULT_SYMBOL.mintick,
+        pointValue: DEFAULT_SYMBOL.pointValue,
+        priceCurrency: report.currency,
+      },
+      tabs,
+    );
+    const blob = new Blob([buildXlsx(sheets)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = reportXlsxFileName(id === REPLAY_TAB ? "Replay Trading" : title(id), sym);
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
 
   const contentHeight = () => strategyTester.height() || DEFAULT_HEIGHT;
   const maxContent = () => Math.max(MIN_HEIGHT, (rootRef?.parentElement?.clientHeight ?? 0) - CHART_MIN - FOOTER);
@@ -331,6 +366,15 @@ export function StrategyTesterPanel(props: Props) {
                   tradingUi.openReplaySettings();
                 }}
               />
+              <PopItem
+                title="Download data as XLSX"
+                icon="st-trades-download-csv"
+                disabled={!replayBroker.report()}
+                onClick={() => {
+                  setMenuFor(null);
+                  void downloadXlsx(REPLAY_TAB);
+                }}
+              />
             </Popover>
           )}
         </Show>
@@ -343,6 +387,15 @@ export function StrategyTesterPanel(props: Props) {
                   const id = m().id; // read before closing: the menu's accessor goes stale
                   setMenuFor(null);
                   props.onSettings(id);
+                }}
+              />
+              <PopItem
+                title="Download data as XLSX"
+                disabled={!reportOf(m().id)}
+                onClick={() => {
+                  const id = m().id;
+                  setMenuFor(null);
+                  void downloadXlsx(id);
                 }}
               />
               <PopDivider />
