@@ -73,6 +73,7 @@ import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
 import { OrderTicket } from "./window/trading/OrderTicket";
 import { TradingToasts } from "./window/trading/TradingToasts";
 import { tradingUi } from "./data/trading/trading-ui";
+import { replayBroker } from "./data/trading/replay-broker";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
@@ -303,6 +304,8 @@ function App() {
   // Undo entries are applied by the chart edits (created below; only called
   // once App is set up).
   const undo = createUndoHistory((e, side) => chartEdits.applyUndoEntry(e, side));
+  // Replay trading settings changes are undo steps.
+  replayBroker.setSettingsUndo((paneId, before, after, label) => undo.commit({ kind: "replay-settings", paneId, before, after, label, at: Date.now() }));
   appTabs.migrateBareSymbols();
   appTabs.followCloseOnlyTypes();
   const drawingStore = createDrawingStore(appTabs, undo);

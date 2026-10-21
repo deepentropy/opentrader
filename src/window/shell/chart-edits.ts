@@ -16,6 +16,7 @@ import { recentSymbols, recordRecentSymbol } from "../../data/recent-symbols";
 import { loadIndicatorDefault } from "../../data/indicator-defaults";
 import { getIndicatorTemplate, saveIndicatorTemplate, touchIndicatorTemplate } from "../../data/indicator-template-store";
 import { strategyTester } from "../../data/strategy-tester-store";
+import { replayBroker } from "../../data/trading/replay-broker";
 import { FIXED_RANGE_VP_TOOL_ROW, getIndicatorEntry } from "../chart/indicators/registry";
 import { defaultIndicatorOptions } from "../chart/indicators/indicator-options";
 import { isStrategyId } from "../chart/indicators/strategy-entries";
@@ -399,6 +400,10 @@ export function createChartEdits(
 
   /** Apply one side of an undo entry. */
   function applyUndoEntry(e: UndoEntry, side: "before" | "after") {
+    if (e.kind === "replay-settings") {
+      replayBroker.setSettings(e[side], e.paneId);
+      return;
+    }
     if (e.kind === "layout-sources") {
       const tab = tabOf(e.tabId);
       if (!tab) return;

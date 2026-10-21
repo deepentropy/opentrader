@@ -288,3 +288,12 @@
 @media (prefers-reduced-motion: reduce) {
   .re-confetti { display: none; }
 }
+
+/* Empty state picture (taller panels). */
+.rt-empty-icon {
+  margin-bottom: 16px;
+  color: #d1d4dc;
+}
+html.theme-light .rt-empty-icon {
+  color: #6a6d78;
+}

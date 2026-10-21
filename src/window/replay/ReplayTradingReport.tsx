@@ -13,6 +13,21 @@ import { tradingUi } from "../../data/trading/trading-ui";
 import { MetricsView } from "../strategy-tester/MetricsView";
 import { TradesView } from "../strategy-tester/TradesView";
 
+/** Above this content height the empty state has its picture (the reference app: 300 px). */
+const EMPTY_ICON_HEIGHT = 300;
+
+/** Empty state picture (drawn for this app): a chart window with a replay badge. */
+const EmptyIcon = () => (
+  <svg class="rt-empty-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M70 96H22a14 14 0 0 1-14-14V30a14 14 0 0 1 14-14h70a14 14 0 0 1 14 14v34" />
+      <path d="M22 70l16-18 14 10 18-22 14 12" />
+      <circle cx="92" cy="90" r="20" />
+    </g>
+    <path fill="currentColor" d="M92 81v18l-10-9zM103 81v18l-10-9z" />
+  </svg>
+);
+
 /** Below this content height the empty state shows nothing (the reference app: 100 px). */
 const EMPTY_MIN_HEIGHT = 100;
 
@@ -37,6 +52,10 @@ export function ReplayTradingReport(props: Props) {
       fallback={
         <Show when={props.height > EMPTY_MIN_HEIGHT}>
           <div class="rt-empty" data-name="replay-trading-empty">
+            {/* A 120 px picture above the texts when the panel is taller than 300 px (reference app). */}
+            <Show when={props.height > EMPTY_ICON_HEIGHT}>
+              <EmptyIcon />
+            </Show>
             <div class="rt-empty-title">No data here, yet</div>
             <div class="rt-empty-text">Choose a bar or date in Bar Replay and place at least one trade to see results.</div>
           </div>

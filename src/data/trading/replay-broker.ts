@@ -77,6 +77,7 @@ export const replayBroker = createRoot(() => {
   const settingsByPane = new Map<number, ReplaySettings>();
   const listeners = new Set<(e: TradingEvent) => void>();
   const [results, setResults] = createSignal<SessionResult[]>([]);
+  let undoSink: ((paneId: number, before: ReplaySettings, after: ReplaySettings, label: string) => void) | null = null;
   let resultSeq = 0;
 
   const meta = (symbol: string): SymbolMeta | null => {
@@ -315,6 +316,18 @@ export const replayBroker = createRoot(() => {
         acc.applySettings(s, currencyOf(s, p ? meta(p.symbol) : null));
       }
       bump();
+    },
+    /** A change made in the settings dialog: an undo step when the window
+     *  has an undo history (see setSettingsUndo), else applied directly. */
+    changeSettings(s: ReplaySettings, label: string, paneId = activeId()) {
+      if (paneId === null) return;
+      const before = settingsOf(paneId);
+      if (undoSink) undoSink(paneId, before, s, label);
+      else this.setSettings(s, paneId);
+    },
+    /** The window's undo history records the settings changes (App). */
+    setSettingsUndo(fn: typeof undoSink) {
+      undoSink = fn;
     },
     saveDefaults(s: ReplaySettings) {
       kv.setItem(DEFAULTS_KEY, JSON.stringify(s));

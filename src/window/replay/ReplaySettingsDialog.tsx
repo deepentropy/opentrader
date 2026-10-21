@@ -5,9 +5,10 @@
  *
  * Initial capital + currency ("Same as chart" first, more currencies under
  * "Show more"), Commission + its type (Percent / Per contract / Fixed in the
- * account currency). Values apply at once (the account is rebuilt with them);
- * Cancel and Escape put back the values the dialog opened with, Ok and Enter
- * keep them. "Defaults": Reset settings / Save as default.
+ * account currency). As in the reference app each change applies at once
+ * (the account is rebuilt with it) as an undo step ("Change Initial Capital"
+ * ...); Ok, Cancel, Escape and a click outside close the dialog. "Defaults":
+ * Reset settings / Save as default.
  */
 import { For, Show, createResource, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -130,7 +131,19 @@ function SettingsDialog() {
   const paneId = replayBroker.activePane();
   const initial: ReplaySettings = { ...replayBroker.settings(paneId) };
   const s = () => replayBroker.settings(paneId);
-  const set = (patch: Partial<ReplaySettings>) => replayBroker.setSettings({ ...s(), ...patch }, paneId);
+  /** Undo labels: the reference app's input names. */
+  const NAMES: Record<keyof ReplaySettings, string> = {
+    initialCapital: "Initial Capital",
+    currency: "Base Currency",
+    commissionType: "Commission Type",
+    commissionValue: "Commission Value",
+  };
+  const set = (patch: Partial<ReplaySettings>) => {
+    const next = { ...s(), ...patch };
+    const keys = (Object.keys(patch) as (keyof ReplaySettings)[]).filter((k) => next[k] !== s()[k]);
+    if (keys.length === 0) return;
+    replayBroker.changeSettings(next, keys.length === 1 ? `Change ${NAMES[keys[0]]}` : "Reset settings", paneId);
+  };
   const symbol = replayBroker.symbol() ?? tradingUi.activeSymbol();
   const ticker = symbol.includes(":") ? symbol.slice(symbol.indexOf(":") + 1) : symbol;
   // "Same as chart": the currency the symbol trades in.
@@ -146,10 +159,7 @@ function SettingsDialog() {
   const [more, setMore] = createSignal(MORE.includes(initial.currency));
 
   const ok = () => tradingUi.closeReplaySettings();
-  const cancel = () => {
-    replayBroker.setSettings(initial, paneId);
-    tradingUi.closeReplaySettings();
-  };
+  const cancel = () => tradingUi.closeReplaySettings();
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "Escape") {

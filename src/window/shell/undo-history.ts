@@ -14,6 +14,7 @@ import { onAppEvent } from "../../data/app-events";
 import type { CompareEntry, PaneChart } from "./tabs";
 import type { LayoutId } from "../chart/layouts";
 import type { Sizing } from "../chart/layout-sizes";
+import type { ReplaySettings } from "../../data/trading/replay-account";
 
 export type DrawingSlice = { key: string; before: Drawing[]; after: Drawing[] };
 
@@ -93,7 +94,24 @@ export type ChartSwapUndoEntry = {
   label: string;
   at: number;
 };
-export type UndoEntry = DrawingUndoEntry | StudyUndoEntry | CompareUndoEntry | LayoutSizesUndoEntry | LayoutSourcesUndoEntry | ChartSwapUndoEntry;
+/** Replay trading settings of a chart ("Trading on historical data"):
+ *  one step per changed value, as the reference app's undo model. */
+export type ReplaySettingsUndoEntry = {
+  kind: "replay-settings";
+  paneId: number;
+  before: ReplaySettings;
+  after: ReplaySettings;
+  label: string;
+  at: number;
+};
+export type UndoEntry =
+  | DrawingUndoEntry
+  | StudyUndoEntry
+  | CompareUndoEntry
+  | LayoutSizesUndoEntry
+  | LayoutSourcesUndoEntry
+  | ChartSwapUndoEntry
+  | ReplaySettingsUndoEntry;
 
 const UNDO_CAP = 100;
 
