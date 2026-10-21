@@ -14,13 +14,13 @@
  * re-centres on the market after 2 s (the pie on the switch); dynamic mode
  * keeps it centred. Hovering a size cell draws the price on the chart.
  */
-import { For, Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
+import { Index, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
 import { replayBroker } from "../../data/trading/replay-broker";
 import { tradingPrefs } from "../../data/trading/trading-prefs";
 import { setTicketQty, ticketQty, tradingUi } from "../../data/trading/trading-ui";
 import type { OrderType, Side, TradingOrder } from "../../data/trading/types";
-import { Popover, PopItem } from "../screener/Popover";
+import { ChartContextMenu } from "../chart/ChartContextMenu";
 import { confirmCancelOrder, confirmClosePosition } from "./confirm";
 import { fmtPrice, fmtQty, tickDecimals, tickerOf } from "./format";
 import { moveOrder } from "./order-actions";
@@ -249,7 +249,8 @@ export function DomPanel() {
     flashTimer = window.setTimeout(() => setFlashed(null), 500);
   };
 
-  const [menu, setMenu] = createSignal<{ anchor: HTMLElement; side: Side; price: number } | null>(null);
+  /** Context menu of a size cell, at the pointer. */
+  const [menu, setMenu] = createSignal<{ x: number; y: number; side: Side; price: number } | null>(null);
 
   // Drag of an order mark (ghost row) and of the price column (scroll).
   const [ghost, setGhost] = createSignal<{ mark: DomOrderMark; index: number } | null>(null);
@@ -367,7 +368,7 @@ export function DomPanel() {
         onClick={(e) => onCell(e, s, i())}
         onContextMenu={(e) => {
           e.preventDefault();
-          setMenu({ anchor: e.currentTarget, side: s, price: price() });
+          setMenu({ x: e.clientX, y: e.clientY, side: s, price: price() });
         }}
         onMouseEnter={() => {
           setHover(s);
@@ -580,19 +581,17 @@ export function DomPanel() {
 
       <Show when={menu()}>
         {(m) => (
-          <Popover anchor={m().anchor} onClose={() => setMenu(null)} class="trd-dom-menu" offset={{ x: 0, y: 4 }}>
-            <For each={contextItems(m().side, m().price, fmtQty(ticketQty()), ticker(), tick(), (p) => fmtPrice(p, tick()))}>
-              {(it) => (
-                <PopItem
-                  title={it.label}
-                  onClick={() => {
-                    setMenu(null);
-                    place(m().side, it.type, it.price, it.limit);
-                  }}
-                />
-              )}
-            </For>
-          </Popover>
+          <ChartContextMenu
+            x={m().x}
+            y={m().y}
+            onClose={() => setMenu(null)}
+            nodes={contextItems(m().side, m().price, fmtQty(ticketQty()), ticker(), tick(), (p) => fmtPrice(p, tick())).map((it, n) => ({
+              kind: "item" as const,
+              id: `dom-${n}`,
+              label: it.label,
+              onSelect: () => place(m().side, it.type, it.price, it.limit),
+            }))}
+          />
         )}
       </Show>
     </div>
