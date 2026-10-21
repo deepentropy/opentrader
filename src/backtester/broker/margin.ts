@@ -91,6 +91,33 @@ export abstract class MarginBook extends CloseFills {
     );
   }
 
+  /**
+   * The reference app's margin used (average and open margin used of the report): the margin of the position at
+   * the bar's close, read after the bar's path and again after the fills at the close (process_orders_on_close).
+   * Flat, the short margin decides: at 0 % the last value stays (cumulative RSI, margin 75 % long only: its flat
+   * bars count the margin at the exit bar's close, also as the open margin of a flat end), else it is 0
+   * (low-high-trend, margin 50 % both ways). Matched on 21 reference runs.
+   */
+  marginUsed = 0;
+  private marginUsedSum = 0;
+  private marginUsedBars = 0;
+
+  readMarginUsed(): void {
+    if (this.marginRatio(this.positionSize > 0 ? 'long' : 'short') === 0) return;
+    this.marginUsed = this.marginAt(this.roundPrice(this.bars[this.bar].close));
+  }
+
+  /** A bar of the average margin used: from the first fill on (the run leaves the last bar out). */
+  countMarginUsed(): void {
+    if (!this.filledOrders.length) return;
+    this.marginUsedSum += this.marginUsed;
+    this.marginUsedBars++;
+  }
+
+  get avgMarginUsed(): number {
+    return this.marginUsedBars ? this.marginUsedSum / this.marginUsedBars : 0;
+  }
+
   /** Margin call at price p (a point of the intrabar path), Pine's algorithm; it fills at `fill` (default p, see
    *  processBar for the chart open with lower-timeframe bars), at the next open when `atClose`, after the script run
    *  when `lastTick`. */

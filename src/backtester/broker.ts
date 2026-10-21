@@ -246,6 +246,9 @@ export class Broker extends OrderBook {
         this.fillRiskCloseNow(to);
         cur = to;
         this.touch(to, raw);
+        // A trailing stop the extreme moved to the price reached fills there (doji NVDA 1D bar 4355: a 1.025 high
+        // on a 0.01 tick is 1.02, the stop 1.02 with an offset of 0 ticks; filled at 1.02 before the 1.0245 close).
+        this.fillAt(to, raw, true);
         // A margin call that waits for the bar's last tick fills after the script run (see fillDeferredCalls).
         const last = n === path.length - 1 && !(sub && sub.length);
         if (last) this.deferPendingCalls();

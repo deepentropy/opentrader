@@ -140,10 +140,16 @@ export function runBacktest<I extends object>(bars: Bar[], def: StrategyDefiniti
   const skipLast = opts.realtime === true && !properties.calcOnEveryTick;
   for (let i = 0; i < bars.length; i++) {
     broker.processBar(i);
+    broker.readMarginUsed();
     if (!(skipLast && i === bars.length - 1)) {
       onBar(i, broker);
-      if (properties.processOrdersOnClose) broker.processClose(i);
+      if (properties.processOrdersOnClose) {
+        broker.processClose(i);
+        broker.readMarginUsed();
+      }
     }
+    // The reference app's average margin used leaves the last bar out.
+    if (i < bars.length - 1) broker.countMarginUsed();
     equity[i] = broker.equity;
   }
   return backtestReport(fills, broker, equity, t0);
@@ -175,7 +181,7 @@ export function backtestReport(bars: Bar[], broker: Broker, equity: number[], t0
       bars.length ? broker.openProfitAt(broker.roundPrice(bars[bars.length - 1].close)) : 0,
       broker.equityEvents,
       bars.length ? broker.roundPrice(bars[bars.length - 1].close) : undefined,
-      broker.maxMarginUsed,
+      { max: broker.maxMarginUsed, avg: broker.avgMarginUsed, open: broker.marginUsed },
     ),
     equity,
     buyHold,

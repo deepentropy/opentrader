@@ -191,6 +191,10 @@ export interface Performance {
   buyHoldGainPercent: number | null;
   /** Largest margin of the open trades (margin_long / margin_short percent of their value) at a price reached. */
   maxMarginUsed: number;
+  /** Average over the bars of the position's margin at the close, and its value at the last bar (see
+   *  Broker.readMarginUsed). */
+  avgMarginUsed: number;
+  openMarginUsed: number;
   /** Monthly-return Sharpe / Sortino ratios (risk-free rate 2 % a year); null without trades. */
   sharpeRatio: number | null;
   sortinoRatio: number | null;

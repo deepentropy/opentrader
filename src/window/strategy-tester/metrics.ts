@@ -279,6 +279,8 @@ export function derivedPerformance(r: BacktestReport): Record<SideKey, Record<st
     const o = outs.filter((t) => side === "all" || t.direction === side);
     const liq = liquidated(sideTrades(r, side));
     out[side] = {
+      // (net profit + open P&L) / average margin used, 0 without margin.
+      marginEfficiency: div(net + num(p.openPL), num(p.avgMarginUsed)),
       returnOnAccount: div(net, account),
       annualizedReturn: annualized(net, cap, r),
       returnOnInitialCapital: div(net, cap),

@@ -3,8 +3,7 @@
  * Performance analysis and Trades analysis with their round sub-tabs.
  *
  * Only metrics whose value was matched against the reference app are shown
- * (metrics.ts); margin efficiency, average margin used and
- * the sub-tab charts (periodical / benchmark bars, margin utilization, growth
+ * (metrics.ts); the sub-tab charts (periodical / benchmark bars, margin utilization, growth
  * and decline, results by time, returns distribution) are not yet.
  */
 import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
@@ -184,6 +183,8 @@ export function MetricsView(props: ViewProps) {
         </Show>
         <Show when={perfTab() === "Margin usage"}>
           <div class="st-cells">
+            <Cell label="Margin efficiency" value={money(derived().all.marginEfficiency ?? 0)} currency={cur()} />
+            <Cell label="Average margin used" value={money(perf().avgMarginUsed)} currency={cur()} />
             <Cell label="Margin calls" value={count(r().filledOrders.filter((o) => o.id.startsWith("Margin call")).length)} />
             <Cell label="Total liquidated volume" value={compact(derived().all.totalLiquidatedVolume ?? 0)} currency={cur()} />
           </div>

@@ -27,7 +27,9 @@ export function roundOrderPrice(p: number, buy: boolean, isStop: boolean, mintic
   const n = p / mintick;
   const near = Math.round(n);
   if (Math.abs(n - near) < TICK_TOLERANCE) return ticks(near, mintick);
-  return ticks(buy === isStop ? Math.ceil(n) : Math.floor(n), mintick);
+  // Rounded down toward zero: a sell stop at a band below zero (-0.0278) is placed at -0.02 in the reference app
+  // (Bollinger stop strategy AAPL 1W bar 1044: RE10024 with -250962 shares, 100 % of equity at -0.02).
+  return ticks(buy === isStop ? Math.ceil(n) : Math.trunc(n), mintick);
 }
 
 /** price is on the tick grid; slippage (ticks) moves it against the trader. */

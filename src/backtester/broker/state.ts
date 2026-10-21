@@ -222,7 +222,9 @@ export abstract class BrokerState {
         q = (cash - p.commissionValue) / (price * this.sym.pointValue);
         break;
     }
-    return this.checkQty(q, fn);
+    // A size below zero (an order price below zero) is cut toward zero to the quantity step before the check:
+    // the reference app reports -250962 for -250962.5.
+    return this.checkQty(q < 0 ? Math.trunc(q / this.sym.qtyStep) * this.sym.qtyStep : q, fn);
   }
 
   /** Commission of `qty` at `price` for the order being filled (see costs.ts). */
