@@ -67,7 +67,12 @@ import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
 import { installSourceEdits } from "./window/shell/source-edits";
 import { ReplayToolbar } from "./window/replay/ReplayToolbar";
-import { replayToolbarShown } from "./data/replay";
+import { replayEnabled, replayToolbarShown } from "./data/replay";
+import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
+import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
+import { OrderTicket } from "./window/trading/OrderTicket";
+import { TradingToasts } from "./window/trading/TradingToasts";
+import { tradingUi } from "./data/trading/trading-ui";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
@@ -375,6 +380,12 @@ function App() {
     const s = symbol();
     return s && isFullSymbol(s) ? s : undefined;
   };
+
+  // The order ticket's default symbol; it closes with Bar Replay.
+  createEffect(() => tradingUi.setActiveSymbol(activeFullSymbol() ?? symbol()));
+  createEffect(() => {
+    if (!replayEnabled()) tradingUi.closeTicket();
+  });
 
   /** A picked symbol: the full name "EXCHANGE:TICKER" from the search dialog,
    *  the watchlist and the static catalog; a bare ticker (screener rows) gets
@@ -763,6 +774,7 @@ function App() {
           {/* Strategy Tester: the reference app's footer report, shown while the
               active chart holds a strategy. */}
           <StrategyTesterPanel
+            replayTab={replayToolbarShown()}
             strategyIds={indicators().filter(isStrategyId)}
             intraday={isIntradayInterval(interval())}
             intervalSec={intervalSeconds(interval())}
@@ -782,6 +794,10 @@ function App() {
             aren't in the static SYMBOLS set, so activeFullSymbol() is undefined
             for them — without this the WatchlistDetail panel gets no symbol and
             stays blank. WatchlistDetail/Watchlist both accept the bare form. */}
+        {/* Order ticket (paper trading in Bar Replay), docked left of the right rail. */}
+        <Show when={replayEnabled()}>
+          <OrderTicket />
+        </Show>
         <RightRail
           activeTab={activeRailTab()}
           setActiveTab={onRailTabSelect}
@@ -828,6 +844,9 @@ function App() {
         />
       </Show>
       <DialogHost />
+      <ReplaySettingsDialog />
+      <ReplayEndDialog />
+      <TradingToasts />
       <Show when={symbolInfoFor()}>{(s) => <SymbolInfoDialog symbol={s()} onClose={() => setSymbolInfoFor(null)} />}</Show>
       <SavedLayoutDialogs layouts={layouts} activeId={activeTab().savedLayoutId} />
       <Show when={intervalDialog()}>

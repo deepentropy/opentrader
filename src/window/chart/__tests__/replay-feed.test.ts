@@ -27,7 +27,7 @@ describe("ReplayFeed on the chart interval", () => {
     expect(f.shown.map((b) => b.time)).toEqual([0]);
     expect(f.nextTime()).toBe(D);
     const ch = f.advanceTo(D);
-    expect(ch).toEqual([{ bar: days[1], appended: true }]);
+    expect(ch).toEqual([{ bar: days[1], appended: true, path: days[1] }]);
     expect(f.nextTime()).toBe(2 * D);
     f.advanceTo(2 * D);
     expect(f.nextTime()).toBeNull();
@@ -53,6 +53,9 @@ describe("ReplayFeed on sub-bars", () => {
     t = f.nextTime()!;
     ch = f.advanceTo(t);
     expect(ch[0]).toMatchObject({ appended: false, bar: { open: 12, high: 15, low: 11, close: 14.5, volume: 20 } });
+    // The update's own path: the sub-bar.
+    expect(ch[0].path).toMatchObject({ high: 15, close: 14.5 });
+    expect(ch[0].path.low).toBeGreaterThan(11);
     f.advanceTo(f.nextTime()!);
     // Next day: the forming day takes its real values, the new one opens.
     ch = f.advanceTo(f.nextTime()!);
@@ -88,14 +91,14 @@ describe("ReplayFeed on sub-bars", () => {
     expect(f.nextTime()).toBeUndefined();
     f.subDone = true;
     expect(f.nextTime()).toBe(D);
-    expect(f.advanceTo(D)).toEqual([{ bar: days[1], appended: true }]);
+    expect(f.advanceTo(D)).toEqual([{ bar: days[1], appended: true, path: days[1] }]);
   });
 
   it("shows a bar with no sub-bar of its own whole before the next sub-bar", () => {
     const f = new ReplayFeed(days.slice(), D - 1, true);
     f.seed(hours(2, [[14, 16, 14, 15]]), D - 1);
     expect(f.nextTime()).toBe(D);
-    expect(f.advanceTo(D)).toEqual([{ bar: days[1], appended: true }]);
+    expect(f.advanceTo(D)).toEqual([{ bar: days[1], appended: true, path: days[1] }]);
     expect(f.nextTime()).toBe(2 * D + 34200);
   });
 

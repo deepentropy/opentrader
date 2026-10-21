@@ -46,6 +46,8 @@ type Props = {
   title: string;
   symbol: string;
   interval: string;
+  /** Title of the Signal column (Replay Trading: "Order type"). */
+  signalLabel?: string;
 };
 
 /** Save a text file through the browser download (as the app's other exports). */
@@ -70,6 +72,7 @@ export function TradesView(props: Props) {
   const numbered = createMemo(() => props.report.trades.map((t, i) => ({ t, n: i + 1 })));
   const ordered = createMemo(() => (desc() ? numbered().slice().reverse() : numbered()));
   const cols = () => COLUMNS.filter((c) => shown().has(c.name));
+  const label = (name: OptionalCol) => (name === "Signal" && props.signalLabel ? props.signalLabel : name);
   const template = () => ["minmax(150px, 1.4fr)", "46px", "72px", ...cols().map((c) => c.width)].join(" ");
 
   onMount(() => {
@@ -172,7 +175,7 @@ export function TradesView(props: Props) {
           </button>
           <span class="st-th" />
           <span class="st-th">Type</span>
-          <For each={cols()}>{(c) => <span class={`st-th is-${c.align}`}>{c.name}</span>}</For>
+          <For each={cols()}>{(c) => <span class={`st-th is-${c.align}`}>{label(c.name)}</span>}</For>
         </div>
         <div class="st-trades-body" style={{ height: `${ordered().length * ROW}px` }}>
           <For each={visible()}>
@@ -217,7 +220,7 @@ export function TradesView(props: Props) {
           <For each={COLUMNS}>
             {(c) => (
               <PopItem
-                title={c.name}
+                title={label(c.name)}
                 right={<span class="st-check">{shown().has(c.name) ? "✓" : ""}</span>}
                 onClick={() => {
                   const next = new Set(shown());

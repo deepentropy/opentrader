@@ -17,6 +17,8 @@
  * hotkeys (tab cycling, Ctrl+T / F4 / U / W / R, F5) act on the tabs.
  */
 import { emitAppEvent } from "../../data/app-events";
+import { replayEnabled } from "../../data/replay";
+import { tradingUi } from "../../data/trading/trading-ui";
 import { isIntradayInterval, tickerOf, type SessionId } from "../../data/datafeed";
 import { requestDataWindow } from "../../data/data-window-store";
 import { requestOpenList, watchlistStore } from "../../data/watchlist-store";
@@ -237,12 +239,12 @@ export function installKeyboardShortcuts(a: ShortcutActions): () => void {
     // Trading hotkeys (reference app, bound whether or not a broker is
     // connected): Shift+B buy, Shift+S sell, Shift+T order ticket, and
     // Alt+Shift+B / Alt+Shift+S limit orders (the Alt+Shift block below).
-    // They run the chart menu's Buy / Sell / Add order rows, which have no
-    // trading backend in this app, so they do nothing; they no longer
-    // start a symbol search with that letter.
+    // In Bar Replay they open the order ticket (paper trading); with no
+    // broker otherwise they do nothing (no symbol search with that letter).
     if (e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && (e.code === "KeyB" || e.code === "KeyS" || e.code === "KeyT")) {
       if (blocked) return;
       e.preventDefault();
+      if (replayEnabled()) tradingUi.openOrderTicket({ side: e.code === "KeyS" ? "sell" : "buy" });
       return;
     }
     // Alt+Shift+→ / ← → jump to the most recent / the first bar on the focused
@@ -257,7 +259,11 @@ export function installKeyboardShortcuts(a: ShortcutActions): () => void {
       // Alt+Shift+E → next session: intraday only,
       // cycles the symbol's sessions (Regular → Extended → Regular).
       // Alt+Shift+B / Alt+Shift+S: trading hotkeys (see Shift+B above).
-      if (e.code === "KeyB" || e.code === "KeyS") { e.preventDefault(); return; }
+      if (e.code === "KeyB" || e.code === "KeyS") {
+        e.preventDefault();
+        if (replayEnabled()) tradingUi.openOrderTicket({ side: e.code === "KeyS" ? "sell" : "buy" });
+        return;
+      }
       if (e.code === "KeyE") {
         e.preventDefault();
         if (!isIntradayInterval(interval())) return;

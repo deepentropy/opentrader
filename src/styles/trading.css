@@ -1,0 +1,614 @@
+/*
+ * Trading UI: the order ticket docked at the right of the charts, the order
+ * toasts and the header "Trade" button (paper trading in Bar Replay).
+ * Values from the reference desktop app 3.4.1 captures (.tmp/bar-replay/tcap).
+ */
+:root {
+  --trd-font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  --trd-buy: #2962ff;
+  --trd-buy-hover: #1e53e5;
+  --trd-sell: #f23645;
+  --trd-sell-hover: #cc2f3c;
+  --trd-pos: #22ab94;
+  --trd-neg: #f7525f;
+  --trd-border: #4a4a4a;
+  --trd-input-border: #575757;
+  --trd-link: #5b9cf6;
+}
+
+/* ─── Shared ─── */
+.trd-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+.trd-icon-btn:hover {
+  background: var(--color-bg-primary-hover);
+}
+/* ─── Order ticket ─── */
+.trd-ticket {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 4px solid var(--color-bg-secondary);
+  background: var(--ot-chart-bg);
+  color: #b8b8b8;
+  font-family: var(--trd-font);
+}
+.trd-ticket-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 7px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+.trd-tk-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+.trd-tk-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--trd-buy);
+  color: #fff;
+}
+.trd-tk-title {
+  font: 600 14px/18px var(--trd-font);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trd-tk-spacer {
+  flex: 1;
+}
+.trd-tk-scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.trd-tk-sides {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  padding: 8px 16px 0;
+}
+.trd-tk-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 42px;
+  padding: 5px 10px;
+  border: 0;
+  background: #2e2e2e;
+  color: var(--color-text-primary);
+  font-family: var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-tk-side:hover:not(:disabled) {
+  background: #3d3d3d;
+}
+.trd-tk-side.is-sell {
+  border-radius: 8px 0 0 8px;
+  align-items: flex-start;
+}
+.trd-tk-side.is-buy {
+  border-radius: 0 8px 8px 0;
+  align-items: flex-end;
+}
+.trd-tk-side.is-sell.is-selected {
+  background: #4d191d;
+  color: #f7525f;
+}
+.trd-tk-side.is-buy.is-selected {
+  background: #142e61;
+  color: var(--trd-buy);
+}
+.trd-tk-side-title {
+  font: 600 14px/18px var(--trd-font);
+}
+.trd-tk-side-price {
+  font: 400 16px/24px var(--trd-font);
+}
+.trd-tk-spread {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  min-width: 32px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font: 400 11px/16px var(--trd-font);
+  text-align: center;
+}
+.trd-tk-types {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 16px 16px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #2e2e2e;
+}
+.trd-tk-type {
+  height: 32px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: 400 13px/18px var(--trd-font);
+  white-space: nowrap;
+}
+.trd-tk-type:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+.trd-tk-type.is-selected {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-text-primary);
+}
+.trd-tk-type:disabled {
+  opacity: 0.4;
+}
+.trd-tk-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 12px;
+}
+.trd-tk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.trd-tk-label {
+  font: 400 14px/18px var(--trd-font);
+  color: var(--color-text-secondary);
+}
+.trd-tk-input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+  outline: 0;
+  min-width: 0;
+}
+.trd-tk-input:focus {
+  border-color: var(--trd-buy);
+}
+.trd-tk-section {
+  padding: 4px 16px 8px;
+}
+.trd-tk-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 600 14px/18px var(--trd-font);
+}
+.trd-tk-exit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.trd-tk-exit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.trd-tk-exit.is-disabled .trd-tk-box {
+  background: #1f1f1f;
+  border-color: #2e2e2e;
+}
+.trd-tk-exit.is-disabled .trd-tk-input,
+.trd-tk-exit.is-disabled .trd-tk-hint {
+  color: #575757;
+}
+/* Input with a hint at its right ("Ask − 12", "75 ticks", "⌀ USD risk"). */
+.trd-tk-box {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 8px;
+}
+.trd-tk-box:focus-within {
+  border-color: var(--trd-buy);
+}
+.trd-tk-box .trd-tk-input {
+  flex: 1;
+  height: 32px;
+  border: 0;
+}
+.trd-tk-hint {
+  flex-shrink: 0;
+  padding: 0 10px;
+  color: var(--color-text-secondary);
+  font: 400 13px/18px var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+  white-space: nowrap;
+}
+.trd-tk-hint small,
+.trd-tk-row-value small {
+  font-size: 11px;
+}
+.trd-tk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  font: 400 14px/18px var(--trd-font);
+  color: var(--color-text-secondary);
+}
+.trd-tk-row-value {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  font-feature-settings: "tnum", "lnum";
+}
+/* Off replay: "Launch replay to start". */
+.trd-tk-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 24px;
+  text-align: center;
+}
+.trd-tk-empty-title {
+  color: var(--color-text-primary);
+  font: 600 18px/24px var(--trd-font);
+}
+.trd-tk-empty-text {
+  color: var(--color-text-secondary);
+  font: 400 14px/20px var(--trd-font);
+}
+.trd-switch {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: #575757;
+  flex-shrink: 0;
+}
+.trd-switch.is-on {
+  background: var(--trd-buy);
+}
+.trd-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.trd-switch.is-on .trd-switch-knob {
+  transform: translateX(16px);
+}
+.trd-tk-footer {
+  flex-shrink: 0;
+  padding: 24px 16px 16px;
+}
+.trd-tk-error {
+  margin-bottom: 8px;
+  color: #f7525f;
+  font: 400 13px/18px var(--trd-font);
+}
+.trd-tk-place {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: #2e2e2e;
+  color: #fff;
+  font-family: var(--trd-font);
+}
+.trd-tk-place.is-buy {
+  background: var(--trd-buy);
+}
+.trd-tk-place.is-buy:hover:not(:disabled) {
+  background: var(--trd-buy-hover);
+}
+.trd-tk-place.is-sell {
+  background: var(--trd-sell);
+}
+.trd-tk-place.is-sell:hover:not(:disabled) {
+  background: var(--trd-sell-hover);
+}
+.trd-tk-place.is-idle {
+  background: #2e2e2e;
+}
+.trd-tk-place.is-idle:hover {
+  background: #3d3d3d;
+}
+.trd-tk-place:disabled {
+  opacity: 0.6;
+}
+.trd-tk-place-title {
+  font: 600 16px/24px var(--trd-font);
+}
+.trd-tk-place-sub {
+  font: 400 13px/18px var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-tk-edit-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trd-tk-edit-btns .trd-tk-place {
+  min-height: 40px;
+}
+.trd-tk-place.is-idle .trd-tk-place-title {
+  color: var(--color-text-secondary);
+}
+.trd-tk-discard {
+  min-height: 40px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 600 16px/24px var(--trd-font);
+}
+.trd-tk-discard:hover {
+  background: #2e2e2e;
+}
+/* Modify mode: "Buy Limit 1 @ 690.00" under the title. */
+.trd-tk-sub {
+  padding: 0 16px 12px;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+}
+.trd-tk-inputs.is-editing {
+  padding-top: 8px;
+}
+
+/* ─── Toasts ─── */
+.trd-toasts {
+  position: fixed;
+  left: 64px;
+  bottom: 48px;
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 400px;
+  pointer-events: none;
+}
+.trd-toast {
+  position: relative;
+  display: flex;
+  padding: 3px 0 3px 3px;
+  border: 1px solid #2e2e2e;
+  border-radius: 12px;
+  background: #1f1f1f;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: var(--color-text-primary);
+  font-family: var(--trd-font);
+  pointer-events: auto;
+}
+.trd-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  flex-shrink: 0;
+  border-radius: 8px 0 0 8px;
+}
+.trd-toast.is-success .trd-toast-icon {
+  background: rgba(66, 189, 168, 0.15);
+  color: #42bda8;
+}
+.trd-toast.is-error .trd-toast-icon {
+  background: rgba(255, 183, 77, 0.15);
+  color: #ffb74d;
+}
+.trd-toast.is-placed.is-buy .trd-toast-icon {
+  background: rgba(41, 98, 255, 0.15);
+  color: var(--trd-buy);
+}
+.trd-toast.is-placed.is-sell .trd-toast-icon {
+  background: rgba(242, 54, 69, 0.15);
+  color: var(--trd-sell);
+}
+.trd-toast.is-info .trd-toast-icon {
+  background: rgba(130, 177, 255, 0.15);
+  color: #82b1ff;
+}
+.trd-toast-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 9px 32px 9px 12px;
+}
+.trd-toast-title {
+  font: 400 15px/24px var(--trd-font);
+}
+.trd-toast-pill {
+  padding: 1px 6px;
+  border-radius: 6px;
+  font: 400 13px/18px var(--trd-font);
+  font-feature-settings: "tnum", "lnum";
+}
+.trd-toast-pill.is-buy {
+  background: rgba(41, 98, 255, 0.1);
+  color: var(--trd-buy);
+}
+.trd-toast-pill.is-sell {
+  background: rgba(242, 54, 69, 0.1);
+  color: var(--trd-sell);
+}
+.trd-toast-text {
+  font: 400 14px/18px var(--trd-font);
+  color: var(--color-text-secondary);
+}
+.trd-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.trd-toasts-more {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  pointer-events: auto;
+}
+.trd-toasts-more-btn,
+.trd-toasts-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 600 14px/20px var(--trd-font);
+}
+.trd-toasts-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #f2f2f2;
+  color: #0f0f0f;
+  font-size: 12px;
+}
+.trd-toast-symbol {
+  display: inline-flex;
+  font-size: 14px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 2px;
+  border-radius: 12px;
+  background: #2e2e2e;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.trd-toast-logo {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.trd-toast-logo.is-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #434651;
+  font-size: 11px;
+}
+.trd-toast.is-placed.is-buy .trd-toast-icon {
+  background: rgba(41, 98, 255, 0.15);
+  color: var(--trd-buy);
+}
+.trd-toast.is-placed.is-sell .trd-toast-icon {
+  background: rgba(242, 54, 69, 0.15);
+  color: var(--trd-sell);
+}
+.trd-toast.is-info .trd-toast-icon {
+  background: rgba(140, 140, 140, 0.15);
+  color: #8c8c8c;
+}
+
+/* ─── Header "Trade" button (replay) ─── */
+.trd-trade-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 6px 0 4px;
+}
+.trd-trade-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border: 0;
+  border-radius: 14px;
+  background: #2e2e2e;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+  white-space: nowrap;
+}
+.trd-trade-pill:hover,
+.trd-trade-pill[aria-pressed="true"] {
+  background: #3d3d3d;
+}
+.trd-trade-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--trd-buy);
+  color: #fff;
+}
+.trd-trade-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+}
+.trd-trade-chevron:hover,
+.trd-trade-chevron.is-open {
+  background: var(--color-bg-primary-hover);
+}
+.trd-trade-chevron.is-open svg {
+  transform: rotate(180deg);
+}

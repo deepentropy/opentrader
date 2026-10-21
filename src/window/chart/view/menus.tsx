@@ -30,6 +30,8 @@ import { menuPrice, roundedPrice } from "./helpers";
 import { PANE_MENU_ICONS } from "./pane-icons";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
+import { replayEnabled } from "../../../data/replay";
+import { tradingUi } from "../../../data/trading/trading-ui";
 import { sourceCodeMenuRows } from "./source-code-rows";
 import type { ScaleTarget } from "./scales";
 
@@ -704,6 +706,12 @@ export function createMenus(cx: ChartCx): MenusApi {
     const studyPane = paneIdx !== mainIdx ? cx.drawingPanes().find((p) => p.key && yRel >= p.top && yRel < p.top + p.height) : undefined;
     const studyId = studyPane?.key ?? null;
     const studyTitle = studyId ? cx.controller?.getLegend().find((r) => r.id === studyId)?.title ?? null : null;
+    const openTicket = (side: "buy" | "sell" | undefined) => {
+      if (!replayEnabled()) return;
+      const bars = cx.raw;
+      const last = bars.length ? bars[bars.length - 1].close : null;
+      tradingUi.openOrderTicket({ side, price: rawPrice ?? undefined, last });
+    };
     const rawPrice = (studyPane ? studyPane.coords.yToPrice(yRel - studyPane.top) : coords()?.yToPrice(yRel - mainTop)) ?? null;
     const a = Math.abs(rawPrice ?? 0);
     const decimals = a >= 1 ? 2 : a >= 0.01 ? 4 : 6;
@@ -730,11 +738,11 @@ export function createMenus(cx: ChartCx): MenusApi {
         paste: pasteClipboard,
         addAlert: () =>
           emitAppEvent("chart-open-alert-dialog", { symbol: props.symbol ?? "", price: rawPrice ?? undefined, indicatorId: studyId ?? undefined }),
-        // Accepted no-ops: Buy / Sell / Add order / Table view need a trading
-        // backend + table view this port doesn't have.
-        buy: noop,
-        sell: noop,
-        addOrder: noop,
+        // Buy / Sell / Add order: the order ticket at this price while Bar
+        // Replay is on (paper trading); no broker otherwise.
+        buy: () => openTicket("buy"),
+        sell: () => openTicket("sell"),
+        addOrder: () => openTicket(undefined),
         // Lock: the bar under the right click (its time); again = unlock.
         toggleCursorLock: () => {
           if (crosshairLockTime() !== null) { setCrosshairLockTime(null); return; }

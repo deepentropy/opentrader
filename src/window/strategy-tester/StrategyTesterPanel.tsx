@@ -10,7 +10,7 @@
  * The report is the one computed for the active chart (strategy-tester-store,
  * written by the strategy registry entries when the backtest worker answers).
  */
-import { Show, For, createEffect, createMemo, createSignal } from "solid-js";
+import { Show, For, createEffect, createMemo, createSignal, on } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { Popover, PopItem, PopDivider } from "../screener/Popover";
@@ -20,6 +20,12 @@ import { STRATEGIES } from "../../backtester/strategies";
 import { ReportToolbar } from "./ReportToolbar";
 import { KeyStatsInline, MetricsView } from "./MetricsView";
 import { TradesView } from "./TradesView";
+import { ReplayTradingReport } from "../replay/ReplayTradingReport";
+import { replayStarted } from "../../data/replay";
+import { tradingUi } from "../../data/trading/trading-ui";
+
+/** Tab id of the Replay Trading tab (strategy tabs use their study ids). */
+const REPLAY_TAB = "replay-trading";
 
 /** Report content height when the panel opens (MEASURED: 275 px under the 38 px bar). */
 const DEFAULT_HEIGHT = 275;
@@ -46,6 +52,8 @@ type Props = {
   properties: (id: string) => Record<string, unknown>;
   /** Jump the chart to a bar time (UNIX seconds). */
   onShowOnChart: (timeSec: number) => void;
+  /** The Replay Trading tab exists (the Bar Replay toolbar shows). */
+  replayTab?: boolean;
 };
 
 export function StrategyTesterPanel(props: Props) {
@@ -53,12 +61,37 @@ export function StrategyTesterPanel(props: Props) {
   const [selected, setSelected] = createSignal<string | null>(null);
   const [menuFor, setMenuFor] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
 
-  // Keep a valid selection: the last strategy added when the current one left.
+  // Keep a valid selection: the last strategy added when the current one left
+  // (the Replay Trading tab while it exists and no strategy is left).
   createEffect(() => {
     const ids = props.strategyIds;
     const cur = selected();
-    if (!cur || !ids.includes(cur)) setSelected(ids[ids.length - 1] ?? null);
+    if (cur === REPLAY_TAB && props.replayTab) return;
+    if (!cur || !ids.includes(cur)) setSelected(ids[ids.length - 1] ?? (props.replayTab ? REPLAY_TAB : null));
   });
+  // The Replay Trading tab is brought forward when it appears (the reference app's
+  // setAsActive) and on "Open full report".
+  const showReplayTab = () => {
+    setSelected(REPLAY_TAB);
+    strategyTester.setCollapsed(false);
+  };
+  createEffect(
+    on(
+      () => !!props.replayTab,
+      (shown, was) => {
+        if (shown && !was) showReplayTab();
+      },
+    ),
+  );
+  createEffect(
+    on(
+      tradingUi.reportRequest,
+      () => {
+        if (props.replayTab) showReplayTab();
+      },
+      { defer: true },
+    ),
+  );
 
   const title = (id: string) => {
     const def = STRATEGIES.find((s) => s.key === strategyDefKeyOf(id));
@@ -67,7 +100,7 @@ export function StrategyTesterPanel(props: Props) {
   };
   const run = createMemo(() => {
     const id = selected();
-    return id ? strategyTester.run(strategyTester.activeChartId(), strategyKeyOf(id)) : undefined;
+    return id && id !== REPLAY_TAB ? strategyTester.run(strategyTester.activeChartId(), strategyKeyOf(id)) : undefined;
   });
 
   const contentHeight = () => strategyTester.height() || DEFAULT_HEIGHT;
@@ -109,7 +142,7 @@ export function StrategyTesterPanel(props: Props) {
   };
 
   return (
-    <Show when={props.strategyIds.length > 0}>
+    <Show when={props.strategyIds.length > 0 || props.replayTab}>
       <section
         ref={rootRef}
         class="st-panel"
@@ -126,6 +159,39 @@ export function StrategyTesterPanel(props: Props) {
         <div class="st-footer" id="footer-chart-panel">
           <div class="st-tabbar">
             <div class="st-tabs" role="tablist">
+              <Show when={props.replayTab}>
+                {(() => {
+                  const active = () => selected() === REPLAY_TAB && !strategyTester.collapsed();
+                  let caretRef: HTMLButtonElement | undefined;
+                  return (
+                    <div class="st-tab rt-tab" classList={{ "is-active": active() }} role="tab" aria-selected={active()} data-name="replay-trading-tab">
+                      <Tooltip text={active() ? "Close Replay Trading" : "Open Replay Trading"} side="top">
+                        <button type="button" class="st-tab-btn" onClick={() => onTabClick(REPLAY_TAB)}>
+                          <span class="st-tab-icon rt-tab-icon">
+                            <Icon name="replay-status" size={18} />
+                            <Show when={replayStarted()}>
+                              <span class="rt-tab-dot" />
+                            </Show>
+                          </span>
+                          <span class="st-tab-title">Replay Trading</span>
+                        </button>
+                      </Tooltip>
+                      <Tooltip text="Open context menu" side="top">
+                        <button
+                          type="button"
+                          ref={caretRef}
+                          class="st-tab-caret"
+                          classList={{ "is-open": menuFor()?.id === REPLAY_TAB }}
+                          aria-label="Open context menu"
+                          onClick={() => setMenuFor(menuFor()?.id === REPLAY_TAB ? null : { id: REPLAY_TAB, anchor: caretRef! })}
+                        >
+                          <Icon name="st-footer-tab-caret" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  );
+                })()}
+              </Show>
               <For each={props.strategyIds}>
                 {(id) => {
                   const active = () => id === selected() && !strategyTester.collapsed();
@@ -192,7 +258,17 @@ export function StrategyTesterPanel(props: Props) {
 
         <Show when={!strategyTester.collapsed()}>
           <div class="st-report">
-            <Show when={selected()}>
+            <Show when={selected() === REPLAY_TAB}>
+              <ReplayTradingReport
+                intraday={props.intraday}
+                intervalSec={props.intervalSec}
+                interval={props.interval}
+                symbol={props.symbol}
+                height={strategyTester.maximized() ? Infinity : contentHeight()}
+                onShowOnChart={props.onShowOnChart}
+              />
+            </Show>
+            <Show when={selected() !== REPLAY_TAB && selected()}>
               {(id) => (
                 <>
                   <Show
@@ -243,7 +319,22 @@ export function StrategyTesterPanel(props: Props) {
           </div>
         </Show>
 
-        <Show when={menuFor()}>
+        <Show when={menuFor()?.id === REPLAY_TAB ? menuFor() : null}>
+          {(m) => (
+            <Popover anchor={m().anchor} onClose={() => setMenuFor(null)} class="st-tab-menu" offset={{ x: 0, y: 4 }}>
+              <PopItem
+                title="Settings…"
+                icon="st-toolbar-settings"
+                disabled={!replayStarted()}
+                onClick={() => {
+                  setMenuFor(null);
+                  tradingUi.openReplaySettings();
+                }}
+              />
+            </Popover>
+          )}
+        </Show>
+        <Show when={menuFor()?.id !== REPLAY_TAB ? menuFor() : null}>
           {(m) => (
             <Popover anchor={m().anchor} onClose={() => setMenuFor(null)} class="st-tab-menu" offset={{ x: 0, y: 4 }}>
               <PopItem

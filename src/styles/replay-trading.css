@@ -1,0 +1,290 @@
+/*
+ * Replay Trading (Bar Replay paper trading): the bottom panel tab and its
+ * report, the "Trading on historical data" settings dialog and the
+ * end-of-session dialog. Values read on the reference app captures
+ * (.tmp/bar-replay/tcap/).
+ */
+
+/* ─── Bottom panel tab ─── */
+.rt-tab-icon {
+  position: relative;
+  align-items: center;
+  justify-content: center;
+}
+/* Green dot at the icon's top right while the replay runs. */
+.rt-tab-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22ab94;
+}
+
+/* ─── Report ─── */
+.rt-report {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rt-toolbar {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  margin: 8px 0;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+.rt-empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  text-align: center;
+}
+.rt-empty-title {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ot-text-max);
+}
+.rt-empty-text {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--color-text-primary);
+}
+
+/* ─── Settings dialog (about 430 px: title 20/600, 20 px paddings, dividers) ─── */
+.rs-dialog {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 430px;
+  max-width: calc(100vw - 32px);
+  border-radius: 6px;
+  background: var(--color-bg-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: 14px;
+}
+.rs-header {
+  display: flex;
+  align-items: center;
+  min-height: 68px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--color-divider-line-primary, #2e2e2e);
+}
+.rs-title {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.rs-close {
+  all: unset;
+  width: 34px;
+  height: 34px;
+  margin-right: -8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--color-text-primary);
+  cursor: default;
+}
+.rs-close:hover { background: var(--color-bg-primary-hover); }
+.rs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 20px;
+}
+.rs-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rs-label {
+  width: 96px;
+  flex: none;
+  line-height: 18px;
+}
+.rs-row .ind3-info { margin-left: 2px; }
+.rs-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-divider-line-primary, #2e2e2e);
+}
+.rs-spacer { flex: 1; }
+.rs-defaults { padding-right: 4px; }
+.rs-more {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  cursor: default;
+}
+.rs-more:hover { color: var(--color-text-primary); }
+
+/* ─── End-of-session dialog (624 px) ─── */
+.re-layer { z-index: 1250; }
+.re-dialog {
+  position: relative;
+  box-sizing: border-box;
+  width: 624px;
+  max-width: calc(100vw - 32px);
+  padding: 8px 8px 40px;
+  border-radius: 10px;
+  background: var(--color-bg-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  text-align: center;
+}
+.re-header {
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: linear-gradient(160deg, #0b3c3a 0%, #17605a 55%, #2f7f78 100%);
+}
+.re-dialog.is-loss .re-header {
+  background: linear-gradient(160deg, #3a1418 0%, #5e2228 55%, #7a3037 100%);
+}
+.re-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #2962ff;
+}
+.re-logo-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 600;
+}
+.re-close {
+  all: unset;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(15, 15, 15, 0.45);
+  color: #ffffff;
+  cursor: default;
+}
+.re-close:hover { background: rgba(15, 15, 15, 0.7); }
+.re-title {
+  margin-top: 24px;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 700;
+  color: var(--ot-text-max);
+}
+.re-text {
+  margin: 8px auto 0;
+  max-width: 480px;
+  font-size: 16px;
+  line-height: 28px;
+}
+.re-stats {
+  display: flex;
+  justify-content: center;
+  margin-top: 28px;
+}
+.re-stat {
+  min-width: 130px;
+  padding: 0 32px;
+}
+.re-stat + .re-stat { border-left: 1px solid var(--color-divider, #4a4a4a); }
+.re-stat-label {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--ot-text-max);
+}
+.re-stat-value {
+  margin-top: 4px;
+  font-size: 16px;
+  line-height: 24px;
+}
+.re-stat-value.is-positive { color: #22ab94; }
+.re-stat-value.is-negative { color: #f7525f; }
+.re-cur {
+  margin-left: 4px;
+  font-size: 11px;
+}
+.re-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 40px;
+}
+.re-btn {
+  all: unset;
+  box-sizing: border-box;
+  height: 48px;
+  padding: 0 24px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 24px;
+  cursor: default;
+}
+.re-btn.is-main {
+  background: #f2f2f2;
+  color: #0f0f0f;
+}
+.re-btn.is-main:hover { background: #ffffff; }
+
+/* One-shot confetti over the dialog. */
+.re-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  pointer-events: none;
+}
+.re-confetti-piece {
+  position: absolute;
+  top: -12px;
+  opacity: 0;
+  animation-name: re-fall;
+  animation-timing-function: cubic-bezier(0.25, 0.4, 0.55, 1);
+  animation-iteration-count: 1;
+  animation-fill-mode: forwards;
+}
+@keyframes re-fall {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--re-drift), 720px) rotate(var(--re-spin)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .re-confetti { display: none; }
+}

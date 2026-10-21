@@ -21,6 +21,8 @@ import { SECTIONS, SLUG_TO_INTERVAL, type Item, type Section } from "../../data/
 import { CHART_TYPE_ICON, type ChartTypeId } from "../chart/chart-types";
 import { iconNameForLayout, paneCount, type LayoutId } from "../chart/layouts";
 import { ReplayHeaderButton } from "../replay/ReplayHeaderButton";
+import { TradeHeaderButton } from "../trading/TradeHeaderButton";
+import { replayEnabled } from "../../data/replay";
 import { favoriteIntervals, longIntervalLabel, shortIntervalLabel } from "../chart/interval-favorites";
 import { favoriteIndicatorTemplates } from "../../data/indicator-template-store";
 import { favoriteLayouts } from "../../data/layout-store";
@@ -411,6 +413,10 @@ export function HeaderToolbar(props: Props) {
           </>
         )}
       </For>
+      {/* "Trade" at the right end while Bar Replay is on (paper trading). */}
+      <Show when={replayEnabled()}>
+        <TradeHeaderButton />
+      </Show>
     </div>
   );
 }

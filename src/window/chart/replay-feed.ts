@@ -44,8 +44,21 @@ function openFrom(bar: OHLC, sub: OHLC): OHLC {
   return { time: bar.time, open: sub.open, high: sub.high, low: sub.low, close: sub.close, volume: sub.volume ?? 0 };
 }
 
-/** One change of the shown series. */
-export type FeedChange = { bar: OHLC; appended: boolean };
+/** One change of the shown series. `path`: the prices this update went
+ *  through (the sub-bar, the whole bar, or the jump from the forming bar to
+ *  the real one), for the replay trading fills. */
+export type FeedChange = { bar: OHLC; appended: boolean; path: OHLC };
+
+/** The prices between a forming bar and the real bar that replaces it. */
+function finishPath(last: OHLC, real: OHLC): OHLC {
+  return {
+    time: real.time,
+    open: last.close,
+    high: real.high > last.high ? real.high : Math.max(last.close, real.close),
+    low: real.low < last.low ? real.low : Math.min(last.close, real.close),
+    close: real.close,
+  };
+}
 
 export class ReplayFeed {
   /** Every loaded chart bar (real values). */
@@ -168,7 +181,7 @@ export class ReplayFeed {
       const last = this.shown[this.shown.length - 1];
       if (last && t(last) === t(real) && last !== real) {
         this.shown[this.shown.length - 1] = real;
-        out.push({ bar: real, appended: false });
+        out.push({ bar: real, appended: false, path: finishPath(last, real) });
       }
     };
     const reveal = (i: number) => {
@@ -176,7 +189,7 @@ export class ReplayFeed {
       const bar = this.full[i];
       this.shown.push(bar);
       this.shownEnd = i;
-      out.push({ bar, appended: true });
+      out.push({ bar, appended: true, path: bar });
     };
     if (this.subMode) {
       /** A real bar with no sub-bar of its own before the next queued one (a
@@ -199,13 +212,13 @@ export class ReplayFeed {
           const last = this.shown[this.shown.length - 1];
           const merged = mergeInto(last, s);
           this.shown[this.shown.length - 1] = merged;
-          out.push({ bar: merged, appended: false });
+          out.push({ bar: merged, appended: false, path: s });
         } else {
           finish();
           const bar = openFrom(this.full[b], s);
           this.shown.push(bar);
           this.shownEnd = b;
-          out.push({ bar, appended: true });
+          out.push({ bar, appended: true, path: s });
         }
       }
       return out;

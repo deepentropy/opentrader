@@ -55,6 +55,9 @@
 @import "./styles/strategy-tester.css";
 @import "./styles/screener.css";
 @import "./styles/replay.css";
+@import "./styles/trading.css";
+@import "./styles/replay-trading.css";
+@import "./styles/trading-lines.css";
 
 :root {
   --font-family-base: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto,

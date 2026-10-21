@@ -36,7 +36,7 @@ import {
   setReplayUpdateInterval,
   setTimingMode,
   step,
-  stopReplay,
+  jumpToRealtime,
   togglePlay,
   type TimingMode,
 } from "../../data/replay";
@@ -236,7 +236,7 @@ export function ReplayToolbar() {
             <span class="ot-replay-btn__text">{shortIntervalLabel(replayUpdateInterval())}</span>
           </ToolButton>
           <div class="ot-replay-toolbar__sep" />
-          <ToolButton title="Jump to real-time chart" disabled={playDisabled()} onClick={() => stopReplay()}>
+          <ToolButton title="Jump to real-time chart" disabled={playDisabled()} onClick={() => jumpToRealtime()}>
             <Icon name="replay-jump" size={28} />
           </ToolButton>
         </div>

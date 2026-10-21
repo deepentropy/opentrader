@@ -35,6 +35,8 @@ import { ReplayWatermarkPrimitive } from "../replay-watermark";
 import { readFontFamily } from "../chart-tokens";
 import type { ChartTypeId, OHLC } from "../chart-types";
 import { toOHLC } from "./helpers";
+import { replayBroker } from "../../../data/trading/replay-broker";
+import type { Bar } from "../../../backtester/types";
 import { type ChartCx } from "./context";
 
 /** Chart styles Bar Replay does not run on (the reference app: price-based styles and
@@ -305,12 +307,20 @@ export function createReplay(cx: ChartCx): ReplayApi {
     return null;
   };
 
+  /** A bar for replay trading. */
+  const asBar = (b: OHLC): Bar => ({ time: b.time as number, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 });
+  const lastShown = (): Bar | null => {
+    const s = feed?.shown;
+    return s && s.length ? asBar(s[s.length - 1]) : null;
+  };
+
   const advanceTo = (time: number) => {
     const f = feed;
     if (!f || !cx.series) return;
     const changes = f.advanceTo(time);
     cx.raw = f.shown;
     if (changes.length === 0) return;
+    replayBroker.paneUpdates(paneId, changes.map((c) => asBar(c.path)), lastShown());
     if (changes.length === 1) cx.paintLive(changes[0].bar, changes[0].appended);
     else cx.paintLive(null, true);
   };
@@ -337,10 +347,17 @@ export function createReplay(cx: ChartCx): ReplayApi {
     unavailable,
     firstAvailable,
     depthOf,
-    start,
+    start: async (pt, upd) => {
+      const ok = await start(pt, upd);
+      if (ok) replayBroker.paneStarted(paneId, props.symbol ?? "", lastShown());
+      return ok;
+    },
     next,
     advanceTo,
-    stop,
+    stop: () => {
+      stop();
+      replayBroker.paneStopped(paneId);
+    },
     dateOnly: () => !isIntradayResolution(interval()) && !isSecondResolution(interval()),
     wallToTime: (d, minutes) =>
       !isIntradayResolution(interval()) && !isSecondResolution(interval())
@@ -353,6 +370,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
         : utcToWall(props.timeZone ?? "UTC", sec),
   });
   onCleanup(unregister);
+  onCleanup(() => replayBroker.paneStopped(paneId));
 
   // The focused chart of the shown tab.
   createEffect(() => {

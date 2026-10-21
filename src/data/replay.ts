@@ -200,6 +200,11 @@ const [activePane, setActivePane] = createSignal<number | null>(null);
 const [hoverTime, setHoverTime] = createSignal<number | null>(null);
 /** Bumped when the data a pane in replay can serve changed (interval list). */
 const [epoch, setEpoch] = createSignal(0);
+/** The session ended with trades (end of the data, or Jump to real-time): the
+ *  bars stay, trading stops; Play / Forward / Jump go back to real time. */
+const [finished, setFinished] = createSignal(false);
+/** Bumped when a new start point is taken (replay trading starts over). */
+const [startSeq, setStartSeq] = createSignal(0);
 
 export const replayEnabled = enabled;
 export const replaySelecting = selecting;
@@ -216,6 +221,8 @@ export const setReplaySelectHoverTime = setHoverTime;
 export const replayActivePane = activePane;
 export const setReplayActivePane = setActivePane;
 export const replayEpoch = epoch;
+export const replayFinished = finished;
+export const replayStartSeq = startSeq;
 export const bumpReplayEpoch = () => setEpoch((n) => n + 1);
 
 /** Handle of the focused chart (the Select date dialog reads its time zone). */
@@ -321,6 +328,10 @@ function startTimer() {
  *  them; at the end of the data the replay stops (charts back to real time,
  *  toolbar kept). */
 export async function step(): Promise<void> {
+  if (finished()) {
+    stopReplay();
+    return;
+  }
   if (!replayStarted() || stepping) return;
   stepping = true;
   try {
@@ -329,7 +340,7 @@ export async function step(): Promise<void> {
     if (!replayStarted()) return;
     const valid = times.filter((t): t is number => t !== null);
     if (valid.length === 0) {
-      stopReplay();
+      jumpToRealtime();
       return;
     }
     const t = Math.min(...valid);
@@ -341,6 +352,10 @@ export async function step(): Promise<void> {
 }
 
 export function setPlay(on: boolean) {
+  if (on && finished()) {
+    stopReplay();
+    return;
+  }
   if (on && !replayStarted()) return;
   setPlaying(on);
   if (on) startTimer();
@@ -349,6 +364,10 @@ export function setPlay(on: boolean) {
 
 /** Play / Pause (Shift+↓): a selection in progress is cancelled first. */
 export function togglePlay() {
+  if (finished()) {
+    stopReplay();
+    return;
+  }
   if (!replayStarted()) return;
   if (selecting()) setSelecting(false);
   setPlay(!playing());
@@ -374,6 +393,8 @@ async function startAt(pt: number, clickedPane?: number): Promise<void> {
   const wasPlaying = playing();
   setPlay(false);
   setSelecting(false);
+  setFinished(false);
+  setStartSeq((n) => n + 1);
   // Single chart: a replay on another chart moves to this one.
   const targets = targetPanes(clickedPane);
   for (const id of inReplay()) if (!targets.some((p) => p.paneId === id)) panes.get(id)?.stop();
@@ -541,9 +562,32 @@ export function openReplay() {
   else if (timing() === "date") setDateDialog(true);
 }
 
-/** Jump to real-time chart: the charts go back to live data, the toolbar
- *  stays. */
+/** What replay trading does at the end of a session (see jumpToRealtime):
+ *  true when it had trades. */
+let finishHook: (() => boolean) | null = null;
+export function setReplayFinishHook(fn: (() => boolean) | null) {
+  finishHook = fn;
+}
+
+/** Jump to real-time chart (and the end of the data): a session with trades
+ *  ends (positions closed, results shown) and the bars stay; otherwise the
+ *  charts go back to live data. Again once ended: back to live data. */
+export function jumpToRealtime() {
+  if (finished() || !replayStarted()) {
+    stopReplay();
+    return;
+  }
+  if (finishHook?.()) {
+    setPlay(false);
+    setFinished(true);
+    return;
+  }
+  stopReplay();
+}
+
+/** The charts go back to live data, the toolbar stays. */
 export function stopReplay() {
+  setFinished(false);
   setPlay(false);
   for (const id of inReplay()) panes.get(id)?.stop();
   setInReplay([]);

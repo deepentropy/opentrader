@@ -300,7 +300,8 @@ export function EquityChart(props: Props) {
     pnl.setData(merge(pts.map((p) => ({ time: p.time as Time, value: p.value }))));
     bh.setData(merge(pts.map((p) => ({ time: p.time as Time, value: p.buyHold }))));
     bars.setData(merge(pts.map((p) => ({ time: p.time as Time, values: p.excursions }))) as ExcursionData[]);
-    zero.setData(pts.length ? [{ time: pts[0].time as Time, value: 0 }, { time: pts[pts.length - 1].time as Time, value: 0 }] : []);
+    // One trade: one point (two points at the same time are refused).
+    zero.setData(pts.length ? [pts[0], pts[pts.length - 1]].filter((p, i, a) => i === 0 || p.time !== a[0].time).map((p) => ({ time: p.time as Time, value: 0 })) : []);
     strip.setPeriods(periods());
     chart.applyOptions({ localization: { locale: "en-US", priceFormatter } });
     // Percent values are fractions of the capital: a finer price step.

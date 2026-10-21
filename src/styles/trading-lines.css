@@ -1,0 +1,164 @@
+/* Chart trading lines (Bar Replay paper trading): position / order / bracket
+   lines with their chips and axis labels, execution arrows; and the body of
+   the Cancel order / Close position dialogs. --c = the line colour. */
+
+.ot-trd-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ot-trd-row {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  height: 20px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+/* Line pieces between the chips and up to the price axis. */
+.ot-trd-seg {
+  flex: none;
+  width: 12px;
+  height: 1px;
+  background: var(--c);
+}
+
+.ot-trd-chip {
+  display: flex;
+  align-items: stretch;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid var(--c);
+  border-radius: 4px;
+  background: var(--ot-chart-bg, #0f0f0f);
+  color: var(--c);
+  font: 13px/18px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: ns-resize;
+  user-select: none;
+}
+.ot-trd-row.is-dragging .ot-trd-chip { cursor: grabbing; }
+
+/* Single-button chips (reverse, TP / SL of the position). */
+.ot-trd-chip.is-button,
+.ot-trd-chip.is-dotted {
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 0 7px;
+  cursor: pointer;
+}
+.ot-trd-chip.is-dotted {
+  border-style: dotted;
+  border-width: 2px;
+}
+.ot-trd-chip.is-button:hover,
+.ot-trd-chip.is-dotted:hover {
+  background: color-mix(in srgb, var(--c) 16%, var(--ot-chart-bg, #0f0f0f));
+}
+.ot-trd-chip.is-position-chip { cursor: default; }
+
+.ot-trd-chip__part {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+/* (Tooltip wrappers sit between the parts: no sibling selector.) */
+.ot-trd-chip__part.is-text,
+.ot-trd-chip__part.is-close { border-left: 1px solid var(--c); }
+.ot-trd-chip__part.is-filled {
+  background: var(--c);
+  color: #fff;
+}
+.ot-trd-chip__part.is-close {
+  padding: 0 7px;
+  cursor: pointer;
+}
+.ot-trd-chip__part.is-close:hover {
+  background: color-mix(in srgb, var(--c) 22%, var(--ot-chart-bg, #0f0f0f));
+}
+.ot-trd-chip.is-position-chip .ot-trd-chip__part.is-close {
+  background: color-mix(in srgb, var(--c) 18%, var(--ot-chart-bg, #0f0f0f));
+}
+.ot-trd-chip.is-position-chip .ot-trd-chip__part.is-close:hover {
+  background: color-mix(in srgb, var(--c) 34%, var(--ot-chart-bg, #0f0f0f));
+}
+
+/* Price labels on the axis: filled (position) or outlined (orders, brackets). */
+.ot-trd-axis {
+  position: absolute;
+  height: 20px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  transform: translateY(-50%);
+  border: 1px solid var(--c);
+  border-radius: 3px;
+  background: var(--ot-chart-bg, #0f0f0f);
+  color: var(--c);
+  font: 12px/18px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ot-trd-axis.is-filled {
+  background: var(--c);
+  color: #fff;
+}
+
+/* Execution arrow (tip at the bar) and its "1 @ 651.42" label. */
+.ot-trd-exec {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+  color: var(--c);
+  pointer-events: none;
+}
+.ot-trd-exec.is-sell {
+  flex-direction: column-reverse;
+  transform: translate(-50%, -100%);
+}
+.ot-trd-exec__text {
+  margin-top: 2px;
+  color: #b2b5be;
+  font: 12px/16px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  white-space: nowrap;
+}
+.ot-trd-exec.is-sell .ot-trd-exec__text { margin: 0 0 2px; }
+
+/* Cancel order / Close position dialog body. */
+.ot-trd-confirm {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+  line-height: 18px;
+}
+.ot-trd-confirm__logo {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.ot-trd-confirm__logo.is-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2962ff;
+  color: #fff;
+  font-weight: 600;
+}
+.ot-trd-confirm__text { display: flex; flex-direction: column; }

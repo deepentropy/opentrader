@@ -7,7 +7,7 @@
  * Imperative API (showRename / showConfirm): call from anywhere; the
  * <DialogHost/> mounted once in App renders the open dialogs, newest on top.
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { CheckBox } from "../window/header/ChartPropertiesDialog";
 
@@ -28,6 +28,8 @@ export type ConfirmOptions = {
   onDismiss?: () => void;
   /** "Don't show again" check box under the text (live value + setter). */
   doNotShow?: { label: string; checked: () => boolean; onChange: (v: boolean) => void };
+  /** Content under the text (e.g. the order of a "Cancel order" dialog). */
+  body?: () => JSX.Element;
 };
 
 export type RenameOptions = {
@@ -120,9 +122,10 @@ function ConfirmDialog(props: { entry: Extract<Entry, { kind: "confirm" }> }) {
   useKeys(props.entry.id, dismiss, confirm);
   return (
     <Frame title={o.title ?? "Confirmation"} label={o.title ?? "Confirmation"} onClose={dismiss}>
-      <Show when={o.text || o.doNotShow}>
+      <Show when={o.text || o.doNotShow || o.body}>
       <div class="ot-dlg-content ot-dlg-text">
         {o.text}
+        {o.body?.()}
         <Show when={o.doNotShow}>
           {(d) => (
             <label class="ot-dlg-check" onClick={(e) => { e.preventDefault(); if (!(e.target as HTMLElement).closest(".cp3-checkbox")) d().onChange(!d().checked()); }}>
