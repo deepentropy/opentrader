@@ -135,23 +135,55 @@ export function TabPanel(props: Props) {
     return clampMoveIndex(props.tabs, fromIndex, target);
   }
 
+  // The drag's pointer events are read on the window: activating a tab can
+  // patch it (e.g. the chart theme sync re-colours its panes), which renders
+  // a new tab element and drops the pointer capture of the old one. The new
+  // element takes the capture back so a release outside the window still
+  // arrives.
+  let dragPointer: number | null = null;
+  const onWinMove = (e: PointerEvent) => { if (e.pointerId === dragPointer) onPointerMove(e); };
+  const onWinUp = (e: PointerEvent) => { if (e.pointerId === dragPointer) finishDrag(e, false); };
+  const onWinCancel = (e: PointerEvent) => { if (e.pointerId === dragPointer) finishDrag(e, true); };
+  function listen(on: boolean) {
+    if (on) {
+      window.addEventListener("pointermove", onWinMove, true);
+      window.addEventListener("pointerup", onWinUp, true);
+      window.addEventListener("pointercancel", onWinCancel, true);
+    } else {
+      window.removeEventListener("pointermove", onWinMove, true);
+      window.removeEventListener("pointerup", onWinUp, true);
+      window.removeEventListener("pointercancel", onWinCancel, true);
+    }
+  }
+  onCleanup(() => listen(false));
+  /** The dragged tab's element holds the pointer capture (a re-rendered one takes it back). */
+  function recapture(d: DragState, pointerId: number) {
+    const el = tabEls.get(d.tabId);
+    if (!el?.isConnected || el.hasPointerCapture(pointerId)) return;
+    try { el.setPointerCapture(pointerId); } catch { /* pointer gone */ }
+  }
+
   function onPointerDown(e: PointerEvent, tab: TabChart, idx: number) {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest(".tab-close-btn")) return;
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // Activating may render a new element for this tab (see above).
     if (tab.id !== props.activeId) props.onActivate(tab.id);
-    const el = e.currentTarget as HTMLElement;
-    el.setPointerCapture(e.pointerId);
-    const r = el.getBoundingClientRect();
-    setDrag({
+    const d: DragState = {
       tabId: tab.id, fromIndex: idx, startClientX: e.clientX,
       tabWidth: r.width, clientX: e.clientX, clientY: e.clientY, targetIndex: idx,
       detaching: false,
-    });
+    };
+    setDrag(d);
+    if (dragPointer === null) listen(true);
+    dragPointer = e.pointerId;
+    recapture(d, e.pointerId);
   }
 
   function onPointerMove(e: PointerEvent) {
     const d = drag();
     if (!d) return;
+    recapture(d, e.pointerId);
     // Tear-off only when a detach target exists and there's more than one tab.
     const detaching = props.canDetach && props.tabs.length > 1 && e.clientY > DETACH_THRESHOLD;
     const targetIndex = detaching ? d.fromIndex : computeTargetIndex(e.clientX, d.fromIndex, d.tabId);
@@ -160,8 +192,10 @@ export function TabPanel(props: Props) {
 
   function finishDrag(e: PointerEvent, cancelled: boolean) {
     const d = drag();
+    listen(false);
+    dragPointer = null;
     if (!d) return;
-    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* released */ }
+    try { tabEls.get(d.tabId)?.releasePointerCapture(e.pointerId); } catch { /* released */ }
     setDrag(null);
     if (cancelled) return;
     const local = () => {
@@ -228,9 +262,6 @@ export function TabPanel(props: Props) {
                   visibility: isDragged() && drag()?.detaching ? "hidden" : undefined,
                 }}
                 onPointerDown={(e) => onPointerDown(e, tab, idx())}
-                onPointerMove={onPointerMove}
-                onPointerUp={(e) => finishDrag(e, false)}
-                onPointerCancel={(e) => finishDrag(e, true)}
                 onClick={(e) => onTabClick(e, tab)}
                 onAuxClick={(e) => { if (e.button === 1) props.onClose(tab.id); }}
                 onContextMenu={(e) => {
@@ -339,7 +370,7 @@ export function TabPanel(props: Props) {
             }}
           >
             <span class="tab-detach-ghost-title">
-              <span class="empty-logo"><span class="empty-logo-symbol">{tickerInitial(activePaneOf(t()).symbol)}</span></span>
+              <span class="empty-logo"><span class="empty-logo-symbol">{tickerInitial(tickerOf(activePaneOf(t()).symbol))}</span></span>
               <span class="title">{tabTitle(t())}</span>
             </span>
           </div>
