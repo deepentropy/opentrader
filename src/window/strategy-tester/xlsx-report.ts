@@ -21,7 +21,7 @@
  */
 import type { BacktestReport, Performance, SidePerformance, Trade } from "../../backtester/types";
 import { longIntervalLabel } from "../chart/interval-favorites";
-import { outliers } from "./metrics";
+import { outliers, cagr } from "./metrics";
 import type { XlsxCell, XlsxSheet } from "./xlsx-writer";
 
 export type ReportTab = "Performance" | "Trades Analysis" | "Ratios" | "List of Trades" | "Properties";
@@ -165,6 +165,9 @@ function extra(r: BacktestReport, side: Side, key: string): number | undefined {
       return outliers(r).pnl;
     case "marginCalls":
       return r.filledOrders.filter((o) => o.id.startsWith("Margin call")).length;
+    case "annualizedReturn":
+      // As the report's Annualized return (CAGR) cell.
+      return cagr(r) ?? undefined;
     default:
       return undefined;
   }
