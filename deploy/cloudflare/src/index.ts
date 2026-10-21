@@ -5,9 +5,11 @@
  * and screener table are in its memory. A cron ping keeps it running between
  * visits, so the first visitor does not wait for a start.
  *
- * `/ingest/*` relays the anonymous usage statistics (src/data/analytics.ts) to
- * the analytics service: from our origin, so blockers let them through and
- * the visitor's IP is not passed on (only the country Cloudflare reports).
+ * `/ingest/*` relays the usage statistics of the web version and the desktop
+ * app (src/data/analytics.ts) to the analytics service, adding the city,
+ * region and country Cloudflare reports. The user's IP address is passed on
+ * only in events marked `ip_consent` (the user agreed); otherwise it never
+ * reaches the service.
  */
 import { Container, getContainer } from "@cloudflare/containers";
 
@@ -42,25 +44,50 @@ export class OpenTraderServer extends Container<Env> {
 
 const ANALYTICS_HOST = "https://us.i.posthog.com";
 
-/** Relay a usage-statistics request, with the visitor's country instead of their IP. */
+/** Page origins of the desktop app's webview (Windows; macOS and Linux). */
+const DESKTOP_ORIGINS = ["http://tauri.localhost", "tauri://localhost"];
+
+/** CORS headers for the desktop app, which sends from its own origin. */
+function ingestCors(request: Request): Record<string, string> {
+  const origin = request.headers.get("Origin");
+  if (!origin || !DESKTOP_ORIGINS.includes(origin)) return {};
+  return { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Methods": "POST", "Access-Control-Allow-Headers": "content-type", Vary: "Origin" };
+}
+
+/** Relay a usage-statistics request, with the user's location (and their IP
+ *  only when they agreed). */
 async function relayAnalytics(request: Request, url: URL): Promise<Response> {
-  if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
-  const country = (request.cf?.country as string | undefined) ?? null;
+  const cors = ingestCors(request);
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (request.method !== "POST") return new Response("method not allowed", { status: 405, headers: cors });
+  const cf = request.cf ?? {};
+  const location = {
+    country: (cf.country as string | undefined) ?? null,
+    region: (cf.region as string | undefined) ?? null,
+    city: (cf.city as string | undefined) ?? null,
+  };
+  const ip = request.headers.get("CF-Connecting-IP");
   let body: { batch?: { properties?: Record<string, unknown> }[] };
   try {
     body = await request.json();
   } catch {
-    return new Response("bad request", { status: 400 });
+    return new Response("bad request", { status: 400, headers: cors });
   }
   for (const e of body.batch ?? []) {
-    // The service would locate Cloudflare's address, not the visitor's.
-    e.properties = { ...e.properties, $geoip_disable: true, country };
+    const props: Record<string, unknown> = { ...e.properties, ...location };
+    // The service would locate Cloudflare's address, not the user's: the location above stands instead.
+    props.$geoip_disable = true;
+    // A custom property (the project discards `$ip`); only with consent.
+    if (props.ip_consent === true && ip) props.ip = ip;
+    else delete props.ip;
+    e.properties = props;
   }
-  return fetch(ANALYTICS_HOST + url.pathname.slice("/ingest".length), {
+  const res = await fetch(ANALYTICS_HOST + url.pathname.slice("/ingest".length), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+  return new Response(res.body, { status: res.status, headers: { ...cors, "content-type": res.headers.get("content-type") ?? "application/json" } });
 }
 
 /** A page of another site calling the API (browsers send `Origin` on
@@ -75,7 +102,10 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/ingest/")) {
-      if (foreignOrigin(request, env)) return new Response("origin not allowed", { status: 403 });
+      const origin = request.headers.get("Origin");
+      if (foreignOrigin(request, env) && !(origin && DESKTOP_ORIGINS.includes(origin))) {
+        return new Response("origin not allowed", { status: 403 });
+      }
       return relayAnalytics(request, url);
     }
     if (url.pathname.startsWith("/api/")) {

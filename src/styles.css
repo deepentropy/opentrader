@@ -4,6 +4,7 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
 @import "./styles/tabs.css";
+@import "./styles/consent-card.css";
 @import "./styles/toolbar-button.css";
 @import "./styles/header-toolbar.css";
 @import "./styles/tooltip.css";

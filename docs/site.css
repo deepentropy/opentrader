@@ -197,3 +197,12 @@ p { margin: 0; }
   html { scroll-behavior: auto; }
   .btn { transition: none; }
 }
+
+/* Privacy page */
+.privacy .wrap { max-width: 760px; }
+.privacy h2 { font-size: 1.4rem; margin-top: 40px; max-width: none; }
+.privacy p, .privacy li { color: var(--ink-soft); line-height: 1.6; }
+.privacy p { margin-top: 12px; }
+.privacy ul { margin-top: 12px; padding-left: 20px; }
+.privacy li + li { margin-top: 6px; }
+.privacy-updated { font: 400 13px var(--mono); }

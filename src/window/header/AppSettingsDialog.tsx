@@ -21,7 +21,14 @@ import {
   type TabTitlePartState,
 } from "../shell/tab-title";
 import { alertSettings } from "../../data/alert-settings";
-import { analyticsAvailable, analyticsEnabled, setAnalyticsEnabled } from "../../data/analytics";
+import {
+  analyticsAvailable,
+  analyticsEnabled,
+  analyticsIpConsent,
+  PRIVACY_URL,
+  setAnalyticsEnabled,
+  setAnalyticsIpConsent,
+} from "../../data/analytics";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
 import { commands, type BuildInfo } from "../../bindings";
@@ -427,12 +434,30 @@ function ServiceTab() {
       <Show when={analyticsAvailable()}>
         <Section label="PRIVACY">
           <Checkbox
-            label="Send anonymous usage statistics"
+            label="Send usage statistics"
             checked={analyticsEnabled()}
             onChange={() => setAnalyticsEnabled(!analyticsEnabled())}
           />
           <div class="app-settings-note">
-            Which features are used, to know what to improve. No account, no symbols, no personal data.
+            Which features are used and from which city, to know what to improve. No account, no symbols.
+          </div>
+          <Checkbox
+            label="Include my IP address"
+            checked={analyticsIpConsent() === "granted"}
+            disabled={!analyticsEnabled()}
+            onChange={() => setAnalyticsIpConsent(analyticsIpConsent() !== "granted")}
+          />
+          <div class="app-settings-note">
+            <a
+              class="app-settings-about-link"
+              href={PRIVACY_URL}
+              onClick={(e) => {
+                e.preventDefault();
+                void openUrl(PRIVACY_URL).catch((err) => console.warn("[settings] open privacy failed", err));
+              }}
+            >
+              Privacy policy
+            </a>
           </div>
         </Section>
       </Show>

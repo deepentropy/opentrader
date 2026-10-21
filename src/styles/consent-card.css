@@ -1,0 +1,64 @@
+/* Usage-statistics consent card (window/shell/ConsentCard.tsx): bottom right,
+ * clear of the right rail, above the chart. */
+.consent-card {
+  position: fixed;
+  right: 64px;
+  bottom: 48px;
+  z-index: 450;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: calc(100vw - 80px);
+  padding: 16px;
+  border: 1px solid var(--color-border-primary-neutral-extra-light);
+  border-radius: 12px;
+  background: var(--color-container-fill-tertiary-inverse);
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: 13px;
+  line-height: 18px;
+}
+.consent-card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.consent-card-text {
+  margin: 8px 0 0;
+  color: var(--color-content-secondary-neutral);
+}
+.consent-card-text a {
+  color: var(--color-accent, #2962ff);
+  text-decoration: none;
+}
+.consent-card-text a:hover {
+  text-decoration: underline;
+}
+.consent-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.consent-card-btn {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--color-divider-line-primary, #3d3d3d);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.consent-card-btn:hover {
+  background-color: var(--color-popup-element-background-hover, #2e2e2e);
+}
+.consent-card-btn--primary {
+  border-color: var(--color-accent, #2962ff);
+  background-color: var(--color-accent, #2962ff);
+  color: #fff;
+}
+.consent-card-btn--primary:hover {
+  filter: brightness(1.08);
+  background-color: var(--color-accent, #2962ff);
+}
