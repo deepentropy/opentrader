@@ -95,6 +95,8 @@ p { margin: 0; }
 .btn-main { background: var(--ink); color: var(--paper); }
 .btn-main:hover { background: var(--blue); border-color: var(--blue); color: var(--paper); }
 .top nav a.btn { padding: 9px 16px; font-size: 15px; color: var(--paper); }
+.top nav a.btn:not(.btn-main) { color: var(--ink); }
+.top nav a.btn:not(.btn-main):hover { color: var(--paper); }
 .btn small { font: 400 12px var(--mono); opacity: 0.75; }
 
 /* Level line: a dashed price line that ends in a tag on the scale side */
@@ -156,6 +158,7 @@ p { margin: 0; }
 .cta { margin-top: 88px; background: var(--mist); padding: 56px 0; }
 .cta .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .cta p { margin-top: 8px; color: var(--ink-soft); }
+.cta .hero-actions { margin-top: 0; }
 
 /* Download page */
 .os-list { margin-top: 40px; border-top: 1px solid var(--line); }

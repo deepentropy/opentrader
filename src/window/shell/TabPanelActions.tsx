@@ -14,7 +14,7 @@ import { isTauri, openNewWindow } from "./window-bridge";
 
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
 const WEB_BUILD = import.meta.env.MODE === "web";
-const DESKTOP_DOWNLOAD_URL = "https://github.com/deepentropy/opentrader/releases/latest";
+const DESKTOP_DOWNLOAD_URL = "https://opentrader.markets/download.html";
 
 type Props = {
   userName?: string;
