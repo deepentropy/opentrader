@@ -981,3 +981,36 @@ html.theme-light {
   line-height: 16px;
   text-transform: uppercase;
 }
+
+/* Quantity calculator of the chart's quantity pill (reference app 3.4.1:
+   200 px with the field, padding 12, radius 6; field 16 px above two
+   columns of buttons 4 px apart, − / + 12 px above the rest). */
+.trd-menu.trd-qty-calc { padding: 0; }
+.trd-qty-calc__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  box-sizing: border-box;
+  padding: 12px;
+}
+.trd-qty-calc__input { margin-bottom: 12px; }
+.trd-qty-calc__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+.trd-qty-calc__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border: 1px solid var(--trd-input-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 14px/18px var(--trd-font);
+  cursor: pointer;
+}
+.trd-qty-calc__btn:hover { background: var(--trd-menu-hover); }
+.trd-qty-calc__btn.is-op { margin-bottom: 12px; }

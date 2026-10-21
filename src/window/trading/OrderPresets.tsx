@@ -11,10 +11,13 @@ import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-j
 import { Portal } from "solid-js/web";
 import { showConfirm } from "../../components/Dialogs";
 import { Tooltip } from "../../components/Tooltip";
-import { tradingUi, type OrderPreset } from "../../data/trading/trading-ui";
+import { replayBroker } from "../../data/trading/replay-broker";
+import { ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
+import type { Side } from "../../data/trading/types";
 import { InfoIcon, Popup } from "./TicketMenus";
-import { presetPriceText } from "./ticket";
-import { CloseIcon } from "./icons";
+import { buildTicket, presetFields, presetPriceText, resolveDraft } from "./ticket";
+import { tickDecimals } from "./format";
+import { ChevronIcon, CloseIcon } from "./icons";
 
 const TYPE_TEXT: Record<OrderPreset["orderType"], string> = {
   market: "Market order",
@@ -96,6 +99,61 @@ const TrashIcon = () => (
   </svg>
 );
 
+/** Ask before deleting a preset. */
+function confirmRemove(p: OrderPreset) {
+  showConfirm({
+    title: "Delete this preset?",
+    text: `Doing this will permanently delete your
+"${p.title}" order preset.`,
+    mainText: "Delete",
+    cancelText: "Cancel",
+    intent: "danger",
+    onConfirm: () => tradingUi.removePreset(p.id),
+  });
+}
+
+/** The ORDER PRESETS section of a presets menu: each preset with its order
+ *  type, prices and exits, a delete button on hover; `active` = the one
+ *  selected (chart Buy / Sell buttons). */
+function PresetList(props: { active?: string | null; onSelect: (p: OrderPreset) => void; onClose: () => void }) {
+  return (
+    <>
+      <div class="trd-menu-section">Order presets</div>
+      <For each={tradingUi.presets()}>
+        {(p) => (
+          <div
+            class="trd-menu-row trd-preset-item"
+            classList={{ "is-selected": props.active === p.id }}
+            role="menuitem"
+            tabIndex={0}
+            onClick={() => {
+              props.onClose();
+              props.onSelect(p);
+            }}
+          >
+            <div class="trd-preset-body">
+              <div class="trd-preset-title">{p.title}</div>
+              <PresetDescription preset={p} />
+            </div>
+            <button
+              type="button"
+              class="trd-preset-remove"
+              aria-label="Delete"
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onClose();
+                confirmRemove(p);
+              }}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        )}
+      </For>
+    </>
+  );
+}
+
 /** Header button: the presets menu. `current` = the preset the ticket would
  *  save now (null: nothing to save); `apply` = choose a preset. */
 export function OrderPresetsButton(props: { current: () => Omit<OrderPreset, "id" | "title"> | null; apply: (p: OrderPreset) => void }) {
@@ -103,17 +161,6 @@ export function OrderPresetsButton(props: { current: () => Omit<OrderPreset, "id
   const [saving, setSaving] = createSignal(false);
   let btn!: HTMLButtonElement;
   const close = () => setOpen(false);
-  const remove = (p: OrderPreset) => {
-    close();
-    showConfirm({
-      title: "Delete this preset?",
-      text: `Doing this will permanently delete your\n"${p.title}" order preset.`,
-      mainText: "Delete",
-      cancelText: "Cancel",
-      intent: "danger",
-      onConfirm: () => tradingUi.removePreset(p.id),
-    });
-  };
   return (
     <>
       <Show when={!open()} fallback={<PresetsBtn ref={(e) => (btn = e)} open onClick={close} />}>
@@ -142,36 +189,7 @@ export function OrderPresetsButton(props: { current: () => Omit<OrderPreset, "id
             when={tradingUi.presets().length}
             fallback={<div class="trd-preset-empty">No order presets created yet</div>}
           >
-            <div class="trd-menu-section">Order presets</div>
-            <For each={tradingUi.presets()}>
-              {(p) => (
-                <div
-                  class="trd-menu-row trd-preset-item"
-                  role="menuitem"
-                  tabIndex={0}
-                  onClick={() => {
-                    close();
-                    props.apply(p);
-                  }}
-                >
-                  <div class="trd-preset-body">
-                    <div class="trd-preset-title">{p.title}</div>
-                    <PresetDescription preset={p} />
-                  </div>
-                  <button
-                    type="button"
-                    class="trd-preset-remove"
-                    aria-label="Delete"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      remove(p);
-                    }}
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              )}
-            </For>
+            <PresetList onSelect={props.apply} onClose={close} />
           </Show>
         </Popup>
       </Show>
@@ -180,6 +198,77 @@ export function OrderPresetsButton(props: { current: () => Omit<OrderPreset, "id
       </Show>
     </>
   );
+}
+
+/** Chevron after the chart's Buy / Sell buttons (shown while presets
+ *  exist): "Reset order preset" (no preset active: disabled), then the
+ *  presets; the one chosen titles the buttons and shapes their orders. */
+export function BuySellPresetsButton() {
+  const [open, setOpen] = createSignal(false);
+  let btn!: HTMLButtonElement;
+  const close = () => setOpen(false);
+  return (
+    <>
+      <Tooltip text="Select order preset" side="bottom">
+        <button
+          type="button"
+          ref={btn}
+          class="ot-trd-buysell__presets"
+          classList={{ "is-active": open() }}
+          aria-label="Select order preset"
+          aria-haspopup="menu"
+          aria-expanded={open()}
+          data-qa-id="sell-buy-buttons-order-presets-menu-button"
+          onClick={() => setOpen(!open())}
+        >
+          <ChevronIcon open={open()} />
+        </button>
+      </Tooltip>
+      <Show when={open()}>
+        <Popup anchor={btn} onClose={close} class="trd-menu-presets" label="Order presets">
+          <button
+            type="button"
+            class="trd-menu-row"
+            classList={{ "is-disabled": !tradingUi.activePreset() }}
+            aria-disabled={!tradingUi.activePreset()}
+            onClick={() => {
+              if (!tradingUi.activePreset()) return;
+              close();
+              tradingUi.setActivePreset(null);
+            }}
+          >
+            <span class="trd-menu-title">Reset order preset</span>
+          </button>
+          <div class="trd-menu-divider" />
+          <PresetList active={tradingUi.activePreset()?.id} onSelect={(p) => tradingUi.setActivePreset(p.id)} onClose={close} />
+        </Popup>
+      </Show>
+    </>
+  );
+}
+
+/** One-click Buy / Sell with an active preset: the preset's order at once
+ *  (the next orders' quantity); a preset that gives no valid order asks to
+ *  reset it. */
+export function placePresetOrder(p: OrderPreset, side: Side, symbol: string) {
+  const q = replayBroker.quote();
+  const tick = q?.minTick ?? 0.01;
+  const dec = Math.max(2, tickDecimals(tick) ?? 2);
+  const base: TicketDraft = { ...tradingUi.newDraft(symbol, side), qty: String(ticketQty()) };
+  const d: TicketDraft = { ...base, ...presetFields(p, base, q, tick, dec) };
+  const balance = replayBroker.settings().initialCapital + (replayBroker.report()?.performance.all.netProfit ?? 0);
+  const t = buildTicket(resolveDraft(d, q, { tick, decimals: dec, balance, pointValue: 1 }), q);
+  if (typeof t !== "string") {
+    replayBroker.place(t);
+    return;
+  }
+  showConfirm({
+    title: "Order can't be placed with current settings",
+    text: t,
+    mainText: "Reset order preset",
+    cancelText: "Cancel",
+    onConfirm: () => tradingUi.setActivePreset(null),
+  });
 }
 
 function PresetsBtn(props: { ref: (e: HTMLButtonElement) => void; open: boolean; onClick: () => void }) {

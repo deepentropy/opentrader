@@ -843,6 +843,8 @@ export type TradingAppearance = {
   /** Positions and orders on the chart. */
   positions: boolean;
   reverseButton: boolean;
+  /** Project order for market orders (a broker that projects them). */
+  projectMarket: boolean;
   /** P&L of the position / brackets on their chips (null = off). */
   plPositions: PlDisplay | null;
   plBrackets: PlDisplay | null;
@@ -879,6 +881,7 @@ export function tradingAppearance(d: Draft | undefined): TradingAppearance {
     rejectionOnly: T.checked('Show only rejection notifications'),
     positions,
     reverseButton: positions && T.checked('Reverse position button'),
+    projectMarket: T.checked('Project order for market orders'),
     plPositions: pl && T.checked('Positions') ? PL_IDS[T.sel('Positions') ?? ''] ?? 'money' : null,
     plBrackets: pl && T.checked('Brackets') ? PL_IDS[T.sel('Brackets') ?? ''] ?? 'money' : null,
     executions: marks,

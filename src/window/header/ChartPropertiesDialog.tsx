@@ -48,6 +48,8 @@ import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
 import { isEconomicSymbol } from "../../data/datafeed";
 import { symbolDetails } from "../chart/indicators/script-chart";
+import { tradingPrefs } from "../../data/trading/trading-prefs";
+import { FeatureCardIcon } from "./FeatureCard";
 
 /** Symbol events (dividends, splits, earnings) exist on stocks, funds and depositary receipts; shown while the
  *  type is not known yet. */
@@ -556,7 +558,11 @@ export function FormRowView(p: {
             <span class="cp3-title" onClick={() => p.r.cb && !inert && p.onToggle()}>{p.r.label}</span>
           </Show>
           <Show when={p.r.help}><HelpIcon tip={typeof p.r.help === "string" ? p.r.help : undefined} /></Show>
-          <Show when={p.r.info}><InfoIcon tip={typeof p.r.info === "string" ? p.r.info : undefined} /></Show>
+          <Show when={p.r.info}>
+            <Show when={p.r.card} fallback={<InfoIcon tip={typeof p.r.info === "string" ? p.r.info : undefined} />}>
+              {(c) => <FeatureCardIcon card={c()} />}
+            </Show>
+          </Show>
         </div>
         <Show when={p.r.desc}><div class="cp3-desc">{p.r.desc}</div></Show>
       </div>
@@ -588,7 +594,9 @@ type Entry = { tab: string; item: FormItem };
 export function ChartPropertiesDialog(props: Props) {
   const [active, setActive] = createSignal(props.initialTab ?? DEFAULT_SETTINGS_TAB);
   // Working copy, seeded from the committed snapshot when the dialog opens.
-  const [draft, setDraft] = createStore<Draft>(cloneDraft(props.seed ?? makeDefaultDraft()));
+  // The app-wide Trading rows (one-click, sound, notifications, snapshots)
+  // come from the app's trading settings, not from the chart.
+  const [draft, setDraft] = createStore<Draft>(cloneDraft({ ...(props.seed ?? makeDefaultDraft()), ...tradingPrefs.rows() } as Draft));
 
   const group = () => styleGroupOf(props.chartType ?? "candle");
   const entries = createMemo<Entry[]>(() => {
@@ -643,8 +651,8 @@ export function ChartPropertiesDialog(props: Props) {
     return false;
   };
 
-  const applyAll = () => { props.onCommit(draft, "all"); props.onClose(); };
-  const ok = () => { props.onCommit(draft, "active"); props.onClose(); };
+  const applyAll = () => { tradingPrefs.setRows(draft); props.onCommit(draft, "all"); props.onClose(); };
+  const ok = () => { tradingPrefs.setRows(draft); props.onCommit(draft, "active"); props.onClose(); };
   const reset = () => setDraft(reconcile(makeDefaultDraft()));
 
   // Template menu — the saved chart templates (chart-templates.ts, shared

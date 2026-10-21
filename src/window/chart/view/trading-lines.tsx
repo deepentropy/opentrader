@@ -20,14 +20,14 @@
  * Profit and loss value of the position / brackets (money, ticks, %),
  * Execution marks (labels), Extended price lines, Order and position
  * alignment; and the Buy / Sell buttons under the series legend (bid / ask =
- * the last replayed price, the spread between). The focused chart's one-click
- * trading, execution sound and rejection-only toasts apply to the trading UI.
+ * the last replayed price, the spread between). One-click trading is
+ * app-wide (trading-prefs.ts).
  */
-import { For, Show, createEffect, createMemo, createSignal, type JSX } from "solid-js";
+import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
 import type { Time } from "lightweight-charts";
 import { Icon } from "../../../components/Icon";
 import { Tooltip } from "../../../components/Tooltip";
-import { isPaneInReplay, setReplayActivePane } from "../../../data/replay";
+import { isPaneInReplay, replayActivePane, setReplayActivePane } from "../../../data/replay";
 import { tradingPrefs } from "../../../data/trading/trading-prefs";
 import { tradingAppearance, type TradingAppearance } from "../../header/chart-settings";
 import { replayBroker } from "../../../data/trading/replay-broker";
@@ -35,6 +35,8 @@ import { ticketQty, tradingUi } from "../../../data/trading/trading-ui";
 import type { TradingOrder, TradingPosition } from "../../../data/trading/types";
 import { cachedSymbolSessions } from "../../../data/session";
 import { confirmCancelOrder, confirmClosePosition } from "../../trading/confirm";
+import { BuySellPresetsButton, placePresetOrder } from "../../trading/OrderPresets";
+import { QtyCalculator, QtyPill } from "../../trading/QtyCalculator";
 import { Popover, PopDivider, PopItem } from "../../screener/Popover";
 import { lastAtOrBefore } from "../replay-feed";
 import {
@@ -47,11 +49,14 @@ import {
   orderChipText,
   orderLinePrice,
   orderMenuTitle,
+  orderTypeText,
   plText,
   positionQtyText,
   requestWithPrice,
   snapToTick,
   stackLabels,
+  SL_TICKS,
+  TP_TICKS,
 } from "../trading-lines-model";
 import { type ChartCx } from "./context";
 
@@ -63,6 +68,10 @@ const BLUE = "#2962ff";
 const TP_COLOR = "#089981";
 const SL_COLOR = "#ff9800";
 const SELL_COLOR = "#f23645";
+/** The replay broker projects no market order (reference app: none on the
+ *  chart while the ticket is on Market, whatever "Project order for market
+ *  orders" says; the setting adds Market to the project order's types). */
+const MARKET_PROJECT = false;
 
 export interface TradingLinesApi {
   /** `epoch`: the chart's coord epoch (view changes re-project the lines). */
@@ -108,13 +117,11 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   const position = () => (on() && ta().positions ? replayBroker.position(paneId) : null);
   const orders = () => (on() && ta().positions ? replayBroker.orders(paneId) : []);
   const executions = () => (on() && ta().executions ? replayBroker.executions(paneId) : []);
-  // The focused chart's one-click trading, execution sound and notifications apply.
-  createEffect(() => {
-    if (cx.props.active && cx.props.shown !== false) tradingPrefs.setPrefs(ta());
-  });
+  /** One-click trading (app-wide). */
+  const oneClick = () => tradingPrefs.prefs().oneClick;
   /** Cancel / close: asked first, unless one-click trading is on. */
-  const askCancel = (o: TradingOrder, run: () => void) => (ta().oneClick ? run() : confirmCancelOrder(o, run));
-  const askClose = (p: TradingPosition, run: () => void) => (ta().oneClick ? run() : confirmClosePosition(p, run));
+  const askCancel = (o: TradingOrder, run: () => void) => (oneClick() ? run() : confirmCancelOrder(o, run));
+  const askClose = (p: TradingPosition, run: () => void) => (oneClick() ? run() : confirmClosePosition(p, run));
   /** A line being dragged: its order id and price. */
   const [drag, setDrag] = createSignal<{ id: string; price: number } | null>(null);
 
@@ -301,11 +308,11 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     const sideColor = (side: "buy" | "sell") => (side === "buy" ? BLUE : SELL_COLOR);
     const colorOf = (o: TradingOrder) => (o.kind === "tp" ? TP_COLOR : o.kind === "sl" ? SL_COLOR : sideColor(o.side));
 
-    function AxisLabel(p: { y: number; g: Geom; color: string; filled: boolean; dotted?: boolean; text: string }) {
+    function AxisLabel(p: { y: number; g: Geom; color: string; filled: boolean; dotted?: boolean; faded?: boolean; text: string }) {
       return (
         <div
           class="ot-trd-axis"
-          classList={{ "is-filled": p.filled, "is-dotted": !!p.dotted }}
+          classList={{ "is-filled": p.filled, "is-dotted": !!p.dotted, "is-faded": !!p.faded }}
           style={{
             "--c": p.color,
             top: `${p.y}px`,
@@ -505,12 +512,183 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       );
     }
 
+    // ── Project order: the open ticket's new order on the focused chart ──
+    /** The ticket's order, its lines (the stop of a stop-limit, its limit
+     *  dotted) and exits; null when the ticket is closed, sent, modifies an
+     *  order or is on another chart. A market order is not projected (the
+     *  replay broker of the reference app projects none). */
+    const project = createMemo(() => {
+      const a = tradingUi.ticketActions();
+      const d = tradingUi.draft();
+      if (!a || !d || d.editing || tradingUi.sent() || replayActivePane() !== paneId) return null;
+      const r = a.resolved();
+      if (r.orderType === "market" && !(MARKET_PROJECT && ta().projectMarket)) return null;
+      const num = (v: string) => {
+        const n = Number(v);
+        return v !== "" && Number.isFinite(n) && n > 0 ? n : null;
+      };
+      const main = r.orderType === "limit" ? num(r.limitPrice) : r.orderType === "market" ? replayBroker.quote()?.last ?? null : num(r.stopPrice);
+      return {
+        actions: a,
+        side: r.side,
+        type: r.orderType,
+        qty: num(r.qty),
+        main,
+        mainField: (r.orderType === "limit" ? "limitPrice" : "stopPrice") as "limitPrice" | "stopPrice",
+        limit: r.orderType === "stopLimit" ? num(r.limitPrice) : null,
+        tp: r.tpOn ? num(r.takeProfit) : null,
+        sl: r.slOn ? num(r.stopLoss) : null,
+      };
+    });
+    type ProjectLine = "main" | "limit" | "tp" | "sl";
+    /** The price of a project line (the dragged price while it is dragged). */
+    const projectPrice = (k: ProjectLine): number | null => {
+      const d = drag();
+      if (d && d.id === `project#${k}`) return d.price;
+      const p = project();
+      return p ? p[k] : null;
+    };
+    /** Press on a project chip: a drag moves its price in the ticket. */
+    const onProjectDown = (e: PointerEvent, k: ProjectLine) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const g = geom();
+      const p = project();
+      if (!g || !p || (k === "main" && p.type === "market")) return;
+      const start = projectPrice(k);
+      track(e, g, (price) => setDrag({ id: `project#${k}`, price }), (moved) => {
+        const d = drag();
+        setDrag(null);
+        if (!moved || !d || d.price === start) return;
+        if (k === "main") p.actions.setPrice(p.mainField, d.price);
+        else if (k === "limit") p.actions.setPrice("limitPrice", d.price);
+        else p.actions.setExit(k, d.price);
+      });
+    };
+    const [typeMenu, setTypeMenu] = createSignal<HTMLElement | null>(null);
+    const [qtyCalc, setQtyCalc] = createSignal<HTMLElement | null>(null);
+    const [projectMenu, setProjectMenu] = createSignal<HTMLElement | null>(null);
+    /** Types the project order can switch to: Market only with "Project
+     *  order for market orders". */
+    const projectTypes = (): TradingOrder["type"][] => (ta().projectMarket ? ["market", "limit", "stop", "stopLimit"] : ["limit", "stop", "stopLimit"]);
+
+    /** Default exit of the project order: the ticket's distance from its entry. */
+    const defaultProjectExit = (kind: "tp" | "sl"): number | null => {
+      const pr = project();
+      if (!pr || pr.main === null) return null;
+      const entry = pr.type === "stopLimit" ? pr.limit ?? pr.main : pr.main;
+      const sgn = (kind === "tp" ? 1 : -1) * (pr.side === "buy" ? 1 : -1);
+      return snapToTick(entry + sgn * (kind === "tp" ? TP_TICKS : SL_TICKS) * tick(), tick());
+    };
+
+    /** The project order's main line: the send button (Buy / Sell), dotted
+     *  TP / SL chips while its exits are off, and its chip (quantity: the
+     *  calculator; type: the type menu; x: cancel), half transparent. */
+    function ProjectRow(p: { g: Geom }) {
+      const y = () => yOf(projectPrice("main"), p.g);
+      const pr = () => project()!;
+      return (
+        <Show when={y() !== null}>
+          <div
+            class="ot-trd-row is-project"
+            classList={{ "is-dragging": drag()?.id === "project#main" }}
+            style={{ "--c": sideColor(pr().side), top: `${y()}px`, ...rowBox(p.g) }}
+          >
+            <Lead />
+            <button type="button" class="ot-trd-chip is-send" onPointerDown={stop} onMouseDown={stop} onClick={() => pr().actions.submit()}>
+              {pr().side === "buy" ? "Buy" : "Sell"}
+            </button>
+            <span class="ot-trd-seg" />
+            <BracketChips
+              tp={pr().tp === null}
+              sl={pr().sl === null}
+              set={(kind, at) => pr().actions.setExit(kind, at ?? defaultProjectExit(kind))}
+            />
+            <div
+              class="ot-trd-chip"
+              classList={{ "is-fixed": pr().type === "market" }}
+              onPointerDown={(e) => onProjectDown(e, "main")}
+              onMouseDown={stop}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setProjectMenu(e.currentTarget as HTMLElement);
+              }}
+            >
+              <Tooltip text="Change order quantity" side="top">
+                <button type="button" class="ot-trd-chip__part is-qty" onPointerDown={stop} onMouseDown={stop} onClick={(e) => setQtyCalc(qtyCalc() ? null : (e.currentTarget as HTMLElement))}>
+                  <Icon name="replay-status" size={14} />
+                  {pr().qty !== null ? fmtQty(pr().qty!) : "\u2014"}
+                </button>
+              </Tooltip>
+              <Tooltip text="Change order type" side="top">
+                <button type="button" class="ot-trd-chip__part is-text" onPointerDown={stop} onMouseDown={stop} onClick={(e) => setTypeMenu(typeMenu() ? null : (e.currentTarget as HTMLElement))}>
+                  {orderTypeText(pr().type)}
+                </button>
+              </Tooltip>
+              <Tooltip text="Cancel project order" side="top">
+                <button type="button" class="ot-trd-chip__part is-close" aria-label="Cancel project order" onPointerDown={stop} onMouseDown={stop} onClick={() => tradingUi.closeTicket()}>
+                  <CloseIcon />
+                </button>
+              </Tooltip>
+            </div>
+            <Tail />
+          </div>
+        </Show>
+      );
+    }
+
+    /** A take profit / stop loss of the project order, or the limit line of
+     *  a stop-limit (dotted): dragged, the ticket follows; x turns it off. */
+    function ProjectSideRow(p: { g: Geom; k: "limit" | "tp" | "sl" }) {
+      const y = () => yOf(projectPrice(p.k), p.g);
+      const color = () => (p.k === "tp" ? TP_COLOR : p.k === "sl" ? SL_COLOR : sideColor(project()!.side));
+      const text = () => {
+        const pr = project()!;
+        if (p.k === "limit") return orderTypeText("limit");
+        const at = projectPrice(p.k);
+        const kind = ta().plBrackets;
+        if (kind && at !== null && pr.main !== null && pr.qty !== null) {
+          const base = pr.type === "stopLimit" ? pr.limit ?? pr.main : pr.main;
+          return plText((at - base) * (pr.side === "buy" ? 1 : -1), pr.qty, base, kind, tick(), ccy());
+        }
+        return p.k === "tp" ? "Take profit" : "Stop loss";
+      };
+      return (
+        <Show when={y() !== null}>
+          <div
+            class="ot-trd-row is-project"
+            classList={{ "is-dragging": drag()?.id === `project#${p.k}`, "is-limit-line": p.k === "limit" }}
+            style={{ "--c": color(), top: `${y()}px`, ...rowBox(p.g) }}
+          >
+            <Lead />
+            <div class="ot-trd-chip" classList={{ "is-dotted-chip": p.k === "limit" }} onPointerDown={(e) => onProjectDown(e, p.k)} onMouseDown={stop}>
+              <span class="ot-trd-chip__part is-qty">
+                <Icon name="replay-status" size={14} />
+                {project()!.qty !== null ? fmtQty(project()!.qty!) : "\u2014"}
+              </span>
+              <span class="ot-trd-chip__part is-text">{text()}</span>
+              <Show when={p.k !== "limit"}>
+                <Tooltip text={p.k === "tp" ? "Cancel take profit" : "Cancel stop loss"} side="top">
+                  <button type="button" class="ot-trd-chip__part is-close" aria-label={p.k === "tp" ? "Cancel take profit" : "Cancel stop loss"} onPointerDown={stop} onMouseDown={stop} onClick={() => project()!.actions.setExit(p.k as "tp" | "sl", null)}>
+                    <CloseIcon />
+                  </button>
+                </Tooltip>
+              </Show>
+            </div>
+            <Tail />
+          </div>
+        </Show>
+      );
+    }
+
     /** Axis labels of every line, stacked without overlap around the series'
      *  last price label (which keeps its place). */
     const labels = createMemo(() => {
       const g = geom();
       if (!g) return [];
-      const out: { key: string; y: number; color: string; filled: boolean; dotted?: boolean; text: string }[] = [];
+      const out: { key: string; y: number; color: string; filled: boolean; dotted?: boolean; faded?: boolean; text: string }[] = [];
       const pos = position();
       if (pos) {
         const y = yOf(pos.avgPrice, g);
@@ -522,6 +700,16 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
         const price = linePrice(o, l.limit);
         const y = yOf(price, g);
         if (y !== null && price !== null) out.push({ key: l.key, y, color: colorOf(o), filled: false, dotted: l.limit, text: fmtPrice(price, tick()) });
+      }
+      const pr = project();
+      if (pr) {
+        for (const k of ["main", "limit", "tp", "sl"] as const) {
+          const price = projectPrice(k);
+          const y = yOf(price, g);
+          if (y === null || price === null) continue;
+          const color = k === "tp" ? TP_COLOR : k === "sl" ? SL_COLOR : sideColor(pr.side);
+          out.push({ key: `project#${k}`, y, color, filled: false, dotted: k === "limit", faded: true, text: fmtPrice(price, tick()) });
+        }
       }
       const gh = ghost();
       const gy = gh ? yOf(gh.price, g) : null;
@@ -637,7 +825,55 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 </Popover>
               )}
             </Show>
-            <For each={labels()}>{(l) => <AxisLabel y={l.y} g={g()} color={l.color} filled={l.filled} dotted={l.dotted} text={l.text} />}</For>
+            <Show when={project()}>
+              <Show when={project()!.limit !== null}><ProjectSideRow g={g()} k="limit" /></Show>
+              <Show when={project()!.tp !== null}><ProjectSideRow g={g()} k="tp" /></Show>
+              <Show when={project()!.sl !== null}><ProjectSideRow g={g()} k="sl" /></Show>
+              <ProjectRow g={g()} />
+              <Show when={typeMenu()}>
+                {(anchor) => (
+                  <Popover anchor={anchor()} onClose={() => setTypeMenu(null)} class="ot-trd-menu" offset={{ x: 0, y: 4 }}>
+                    <For each={projectTypes()}>
+                      {(t) => (
+                        <PopItem
+                          title={orderTypeText(t)}
+                          selected={project()?.type === t}
+                          onClick={() => {
+                            setTypeMenu(null);
+                            project()?.actions.setType(t);
+                          }}
+                        />
+                      )}
+                    </For>
+                  </Popover>
+                )}
+              </Show>
+              <Show when={qtyCalc()}>
+                {(anchor) => (
+                  <QtyCalculator
+                    anchor={anchor()}
+                    value={() => project()?.qty ?? 1}
+                    onChange={(n) => project()?.actions.setQty(n)}
+                    onClose={() => setQtyCalc(null)}
+                  />
+                )}
+              </Show>
+              <Show when={projectMenu()}>
+                {(anchor) => (
+                  <Popover anchor={anchor()} onClose={() => setProjectMenu(null)} class="ot-trd-menu" offset={{ x: 0, y: 4 }}>
+                    <PopItem title="Edit project order" onClick={() => setProjectMenu(null)} />
+                    <PopItem
+                      title="Cancel project order"
+                      onClick={() => {
+                        setProjectMenu(null);
+                        tradingUi.closeTicket();
+                      }}
+                    />
+                  </Popover>
+                )}
+              </Show>
+            </Show>
+            <For each={labels()}>{(l) => <AxisLabel y={l.y} g={g()} color={l.color} filled={l.filled} dotted={l.dotted} faded={l.faded} text={l.text} />}</For>
           </div>
         )}
       </Show>
@@ -647,20 +883,28 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
   /** Buy / Sell buttons (Chart settings → Trading → Buy/sell buttons) while
    *  the chart is in replay: Sell (bid) | spread | Buy (ask) at the last
    *  replayed price. A click opens the order ticket on that side, or with
-   *  one-click trading sends a market order at once (the ticket's quantity). */
+   *  one-click trading sends the order at once (a market order of the next
+   *  orders' quantity, shown in the pill under the spread). With order
+   *  presets, a chevron picks the preset the buttons use (its title on them). */
   function TradingButtons() {
     const price = createMemo(() => {
       replayBroker.version();
       const last = cx.raw[cx.raw.length - 1];
       return last ? snapToTick(last.close, tick()) : null;
     });
+    const preset = () => tradingUi.activePreset();
     const go = (side: "buy" | "sell") => {
       setReplayActivePane(paneId);
-      if (!ta().oneClick) {
-        tradingUi.openOrderTicket({ side });
+      const p = preset();
+      if (!oneClick()) {
+        tradingUi.openOrderTicket({ side, presetId: p?.id });
         return;
       }
       const symbol = replayBroker.symbol() ?? cx.props.symbol ?? "";
+      if (p) {
+        placePresetOrder(p, side, symbol);
+        return;
+      }
       replayBroker.place({ symbol, side, type: "market", qty: ticketQty(), limitPrice: null, stopPrice: null, takeProfit: null, stopLoss: null });
     };
     return (
@@ -669,16 +913,24 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
           <Tooltip text="Sell" side="bottom">
             <button type="button" class="ot-trd-buysell__btn is-sell" data-name="sell-order-button" onClick={() => go("sell")}>
               <span class="ot-trd-buysell__price">{fmtPrice(price()!, tick())}</span>
-              <span class="ot-trd-buysell__title">SELL</span>
+              <span class="ot-trd-buysell__title">{preset()?.title ?? "Sell"}</span>
             </button>
           </Tooltip>
-          <span class="ot-trd-buysell__spread">{(0).toFixed(Math.max(2, String(tick()).split(".")[1]?.length ?? 2))}</span>
+          <span class="ot-trd-buysell__mid">
+            <span class="ot-trd-buysell__spread">{(0).toFixed(Math.max(2, String(tick()).split(".")[1]?.length ?? 2))}</span>
+            <Show when={oneClick()}>
+              <QtyPill />
+            </Show>
+          </span>
           <Tooltip text="Buy" side="bottom">
             <button type="button" class="ot-trd-buysell__btn is-buy" data-name="buy-order-button" onClick={() => go("buy")}>
               <span class="ot-trd-buysell__price">{fmtPrice(price()!, tick())}</span>
-              <span class="ot-trd-buysell__title">BUY</span>
+              <span class="ot-trd-buysell__title">{preset()?.title ?? "Buy"}</span>
             </button>
           </Tooltip>
+          <Show when={tradingUi.presets().length > 0}>
+            <BuySellPresetsButton />
+          </Show>
         </div>
       </Show>
     );

@@ -10,6 +10,7 @@ describe("Chart settings → Trading", () => {
       rejectionOnly: false,
       positions: true,
       reverseButton: true,
+      projectMarket: true,
       plPositions: "money",
       plBrackets: "money",
       executions: true,

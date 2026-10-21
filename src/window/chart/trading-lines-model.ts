@@ -16,6 +16,11 @@ const TYPE_TEXT: Record<TradingOrder["type"], string> = {
   stopLimit: "Stop Limit",
 };
 
+/** "Market", "Limit", "Stop", "Stop Limit". */
+export function orderTypeText(t: TradingOrder["type"]): string {
+  return TYPE_TEXT[t];
+}
+
 /** Decimals of a price tick (0.01 → 2, 0.25 → 2, 1 → 0). */
 export function tickDecimals(tick: number): number {
   if (!Number.isFinite(tick) || tick <= 0) return 2;

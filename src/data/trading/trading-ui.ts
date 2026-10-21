@@ -45,6 +45,23 @@ export type TicketDraft = {
   /** The exit values typed when not a price. */
   tpValue?: string;
   slValue?: string;
+  /** Order preset to apply when the ticket opens (chart Buy / Sell buttons
+   *  with an active preset). */
+  applyPreset?: string;
+};
+
+/** What the open order ticket offers the chart's project order line. */
+export type TicketActions = {
+  /** The draft as the order uses it (offsets, risk, exits resolved). */
+  resolved: () => TicketDraft;
+  /** Place the order (the ticket's main button). */
+  submit: () => void;
+  /** An order price dragged on the chart. */
+  setPrice: (field: "limitPrice" | "stopPrice", price: number) => void;
+  /** A take profit / stop loss dragged (null = off). */
+  setExit: (kind: "tp" | "sl", price: number | null) => void;
+  setType: (t: OrderType) => void;
+  setQty: (qty: number) => void;
 };
 
 export type ExitFieldType = "price" | "ticks" | "pricePct" | "cash" | "balancePct";
@@ -108,11 +125,20 @@ function decimalsOf(tick: number): number {
   return t.includes(".") ? t.split(".")[1].length : 0;
 }
 
+const [prefs, setPrefs] = createRoot(() => createSignal<TicketPrefs>(readPrefs()));
+
 /** Quantity the next order starts with (the ticket's last one): the chart's
- *  one-click Buy / Sell buttons use it. */
+ *  one-click Buy / Sell buttons use it (reactive). */
 export function ticketQty(): number {
-  const q = Number(readPrefs().qty);
+  const q = Number(prefs().qty);
   return Number.isFinite(q) && q > 0 ? q : 1;
+}
+
+/** The quantity of the next orders (chart Buy / Sell quantity calculator). */
+export function setTicketQty(qty: number) {
+  const next = { ...prefs(), qty: String(qty) };
+  setPrefs(next);
+  kv.setItem(K.ticketPrefs, JSON.stringify(next));
 }
 
 /** Ticket width bounds (px). */
@@ -145,8 +171,13 @@ export const tradingUi = createRoot(() => {
   };
   const [slEnablesRisk, setSlEnablesRiskRaw] = createSignal(kv.getItem(K.slRisk) === "true");
 
+  /** The order preset of the chart Buy / Sell buttons (presets menu). */
+  const [activePreset, setActivePreset] = createSignal<string | null>(null);
+  /** The open ticket's actions (project order line). */
+  const [ticketActions, setTicketActionsRaw] = createSignal<TicketActions | null>(null);
+
   const newDraft = (symbol: string, side: Side, price?: number, last?: number | null): TicketDraft => {
-    const p = readPrefs();
+    const p = prefs();
     let orderType = p.orderType;
     const px = price != null && Number.isFinite(price) ? String(price) : "";
     // A price from the chart: limit on the favourable side of the market,
@@ -197,12 +228,16 @@ export const tradingUi = createRoot(() => {
     setSent,
     /** Remember the ticket choices the next order starts from. */
     savePrefs(d: TicketDraft) {
-      kv.setItem(K.ticketPrefs, JSON.stringify({ qty: d.qty, orderType: d.orderType }));
+      const next = { qty: d.qty, orderType: d.orderType };
+      setPrefs(next);
+      kv.setItem(K.ticketPrefs, JSON.stringify(next));
     },
-    /** Open the ticket for a new order. */
-    openOrderTicket(opts: { symbol?: string; side?: Side; price?: number; last?: number | null } = {}) {
+    /** A new order's draft (the ticket's starting values). */
+    newDraft,
+    /** Open the ticket for a new order (`presetId`: applied once open). */
+    openOrderTicket(opts: { symbol?: string; side?: Side; price?: number; last?: number | null; presetId?: string } = {}) {
       const symbol = opts.symbol || replayBroker.symbol() || activeSymbol();
-      setDraft(newDraft(symbol, opts.side ?? "buy", opts.price, opts.last));
+      setDraft({ ...newDraft(symbol, opts.side ?? "buy", opts.price, opts.last), ...(opts.presetId ? { applyPreset: opts.presetId } : {}) });
       setSent(false);
       setTicketOpen(true);
     },
@@ -261,7 +296,13 @@ export const tradingUi = createRoot(() => {
     },
     removePreset(id: string) {
       setPresets(presets().filter((p) => p.id !== id));
+      if (activePreset() === id) setActivePreset(null);
     },
+    /** The preset of the chart Buy / Sell buttons (null = none). */
+    activePreset: () => presets().find((p) => p.id === activePreset()) ?? null,
+    setActivePreset,
+    ticketActions,
+    setTicketActions: (a: TicketActions | null) => setTicketActionsRaw(() => a),
     /** "SL enables quantity in risk" (ticket ⋯ menu). */
     slEnablesRisk,
     setSlEnablesRisk(v: boolean) {

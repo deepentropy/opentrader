@@ -88,6 +88,8 @@ export type FormRow = {
   help?: boolean | string;
   /** Trailing (i) info icon after the label; a string is its hover text. */
   info?: boolean | string;
+  /** Feature card the (i) icon opens on click (picture, title, text). */
+  card?: { title: string; text: string; art: 'positions' | 'executions' };
   /** Muted helper line rendered under the label. */
   desc?: string;
   /** Right-aligned controls, in order. */
@@ -432,19 +434,17 @@ export const TAB_FORMS: Record<string, FormItem[]> = {
     row({ id: 'Execution sound type', label: null, child: true, parent: 'Execution sound', controls: [{ c: 'select', value: 'Alarm Clock', options: ORDER_SOUNDS }] }),
     row({ cb: true, checked: false, label: 'Show only rejection notifications' }),
     section('Appearance'),
-    row({ cb: true, checked: true, label: 'Positions and orders', info: 'Shows your open positions and active orders directly on the chart.' }),
+    row({ cb: true, checked: true, label: 'Positions and orders', info: true, card: { art: 'positions', title: 'Your orders, where the price is', text: 'Your open position and working orders sit on the chart at their prices. Drag one to move it.' } }),
     row({ cb: true, checked: true, label: 'Reverse position button', indent: true, child: true, parent: 'Positions and orders', desc: 'Adds the reverse button next to the open position on the chart' }),
-    // No project order: a market order of the ticket fills at once (no confirmation step).
-    row({ cb: true, checked: true, label: 'Project order for market orders', desc: 'Shows a project order on the chart before sending a market order', inert: true }),
+    row({ cb: true, checked: true, label: 'Project order for market orders', desc: 'Shows a project order on the chart before sending a market order' }),
     row({ cb: true, checked: true, label: 'Profit and loss value', info: true }),
     row({ cb: true, checked: true, label: 'Positions', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY }] }),
     row({ cb: true, checked: true, label: 'Brackets', indent: true, child: true, parent: 'Profit and loss value', controls: [{ c: 'select', value: 'Money', options: PL_DISPLAY }] }),
-    row({ cb: true, checked: true, label: 'Execution marks', info: 'Shows arrows on the chart that mark where trades were executed.' }),
+    row({ cb: true, checked: true, label: 'Execution marks', info: true, card: { art: 'executions', title: 'See every fill', text: 'An arrow marks the bar where each order was filled: up for a buy, down for a sell.' } }),
     row({ cb: true, checked: false, label: 'Execution labels', indent: true, child: true, parent: 'Execution marks' }),
     row({ cb: true, checked: true, label: 'Extended price lines across the entire chart width' }),
     row({ label: 'Order and position alignment', controls: [{ c: 'select', value: 'Right', options: ['Left', 'Center', 'Right'] }] }),
-    // Snapshots are drawn from the chart canvases; the trading lines are not on them yet.
-    row({ cb: true, checked: false, label: 'Orders, executions, and positions in chart snapshots', desc: 'Shows your trades on the chart in snapshots', inert: true }),
+    row({ cb: true, checked: false, label: 'Orders, executions, and positions in chart snapshots', desc: 'Shows your trades on the chart in snapshots' }),
   ],
 
   // ── Alerts ───────────────────────────────────────────────────────────────

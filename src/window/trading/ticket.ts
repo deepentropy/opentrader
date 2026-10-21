@@ -3,7 +3,7 @@
  * request, the place-button line, the default exit prices and the hints of
  * the ticket fields (distance to the market in ticks, risk).
  */
-import type { ExitFieldType, TicketDraft } from "../../data/trading/trading-ui";
+import type { ExitFieldType, OrderPreset, TicketDraft } from "../../data/trading/trading-ui";
 import type { OrderRequest, TradingQuote } from "../../data/trading/types";
 import { fmtQty, parsePositive, tickerOf } from "./format";
 
@@ -305,4 +305,32 @@ export function describeTicket(d: TicketDraft, decimals: number): string {
     case "stopLimit":
       return `${qty} ${t} @ ${f(sp)} STOP ${f(lp)} LIMIT`;
   }
+}
+
+/** The ticket fields a preset sets on draft `d`: its order type, its
+ *  offsets for this side (in the price fields, whichever way they are typed)
+ *  and its exits; without a stop loss the quantity is in units again. */
+export function presetFields(p: OrderPreset, d: TicketDraft, q: Quote | null, tick: number, decimals: number): Partial<TicketDraft> {
+  const buy = d.side === "buy";
+  const t = fieldTypes(d);
+  const fx = (v: number | null) => (v != null && Number.isFinite(v) ? v.toFixed(decimals) : "");
+  const f: Partial<TicketDraft> = { orderType: p.orderType };
+  const off = (buy ? p.buyPrice : p.sellPrice) ?? 0;
+  const at = (base: number | null, n: number) => (base != null ? fx(base + n * tick) : "");
+  if (p.orderType === "limit") Object.assign(f, { limitPrice: at(quotePrice(q, d.side), off), limitOffset: off ? String(off) : "" });
+  if (p.orderType === "stop" || p.orderType === "stopLimit") Object.assign(f, { stopPrice: at(quotePrice(q, d.side), off), stopOffset: off ? String(off) : "" });
+  if (p.orderType === "stopLimit") {
+    const loff = (buy ? p.stopBuyLimitPrice : p.stopSellLimitPrice) ?? 0;
+    Object.assign(f, { limitPrice: at(parsePositive(f.stopPrice ?? ""), loff), limitOffset: loff ? String(loff) : "" });
+  }
+  const exit = (kind: ExitKind, v: number | undefined, type: ExitType | undefined): Partial<TicketDraft> => {
+    if (!v) return kind === "tp" ? { tpOn: false, takeProfit: "", tpValue: "" } : { slOn: false, stopLoss: "", slValue: "" };
+    const ty = type ?? "ticks";
+    const cur = kind === "tp" ? t.tpEquiv : t.slEquiv;
+    const eq = cur === ty ? "price" : cur;
+    return kind === "tp" ? { tpOn: true, tpType: ty, tpEquiv: eq, tpValue: String(v) } : { slOn: true, slType: ty, slEquiv: eq, slValue: String(v) };
+  };
+  Object.assign(f, exit("tp", p.tpPrice, p.tpPriceType), exit("sl", p.slPrice, p.slPriceType));
+  if (!p.slPrice && t.qtyType !== "units") Object.assign(f, { qtyType: "units", qtyEquiv: t.qtyType });
+  return f;
 }

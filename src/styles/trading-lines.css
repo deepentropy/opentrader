@@ -106,6 +106,22 @@
   background: color-mix(in srgb, var(--c) 34%, var(--ot-chart-bg, #0f0f0f));
 }
 
+/* Project order (the open ticket's order): half transparent but its send
+   button (reference app 3.4.1: chips, lines and labels at 50 %). */
+.ot-trd-row.is-project > :not(.is-send) { opacity: 0.5; }
+.ot-trd-chip.is-send {
+  align-items: center;
+  padding: 0 6px;
+  border-color: var(--c);
+  background: var(--c);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ot-trd-chip.is-fixed { cursor: default; }
+button.ot-trd-chip__part { cursor: pointer; }
+.ot-trd-axis.is-faded { opacity: 0.5; }
+
 /* Price labels on the axis: filled (position) or outlined (orders, brackets). */
 .ot-trd-axis {
   position: absolute;
@@ -175,12 +191,17 @@
 }
 .ot-trd-confirm__text { display: flex; flex-direction: column; }
 
-/* Buy / Sell buttons under the series legend (reference app 3.4.1 dark:
-   wrapper rgba(15,15,15,.5) 4 px 5 px; buttons 62 x 34 min, radius 6, price
-   12 px 600 / 16 px, title 11 px / 12 px +0.4 px; spread 10 px #dbdbdb). */
+/* Buy / Sell buttons under the series legend (reference app 3.4.1:
+   wrapper chart background at 50 %, 4 px 5 px, gap 8 px; buttons 34 px
+   high, radius 6, price 12 px 600 / 16 px, title 11 px / 12 px +0.4 px
+   uppercase (102 px at most); colours: red / blue 500, hover 600, pressed
+   700, text red / blue 50 on a dark chart, white on a light one; spread
+   10 px #dbdbdb / #0f0f0f; one-click quantity pill under it, 22 px, radius
+   6, 14 px / 18 px; presets chevron 30 px, 8 px after the buttons). */
 .ot-trd-buysell {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   margin: 2px 0 4px;
   padding: 4px 5px;
   background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
@@ -202,11 +223,13 @@
   color: var(--t);
   cursor: pointer;
 }
-.ot-trd-buysell__btn:hover {
-  filter: brightness(0.92);
+.ot-trd-buysell__btn.is-sell { --c: #f23645; --c-hover: #cc2f3c; --c-active: #b22833; --t: #ffebec; }
+.ot-trd-buysell__btn.is-buy { --c: #2962ff; --c-hover: #1e53e5; --c-active: #1848cc; --t: #e3effd; }
+html.theme-light .ot-trd-buysell__btn { --t: #fff; }
+@media (any-hover: hover) {
+  .ot-trd-buysell__btn:hover { background: var(--c-hover); border-color: var(--c-hover); }
 }
-.ot-trd-buysell__btn.is-sell { --c: #f23645; --t: #ffebec; }
-.ot-trd-buysell__btn.is-buy { --c: #2962ff; --t: #e3effd; }
+.ot-trd-buysell__btn:active { background: var(--c-active); border-color: var(--c-active); }
 .ot-trd-buysell__price {
   font-size: 12px;
   font-weight: 600;
@@ -214,9 +237,22 @@
   font-feature-settings: "tnum", "lnum";
 }
 .ot-trd-buysell__title {
+  max-width: 102px;
+  overflow: hidden;
   font-size: 11px;
   line-height: 12px;
   letter-spacing: 0.4px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ot-trd-buysell__mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-height: 34px;
 }
 .ot-trd-buysell__spread {
   min-width: 35px;
@@ -224,5 +260,50 @@
   font-size: 10px;
   line-height: 10px;
   color: #dbdbdb;
+  font-feature-settings: "tnum", "lnum";
 }
-html.theme-light .ot-trd-buysell__spread { color: #707070; }
+html.theme-light .ot-trd-buysell__spread { color: #0f0f0f; }
+.ot-trd-buysell__qty {
+  align-self: stretch;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 80%, transparent);
+  color: #dbdbdb;
+  font: 400 14px/18px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  font-feature-settings: "tnum", "lnum";
+  cursor: default;
+}
+@media (any-hover: hover) {
+  .ot-trd-buysell__qty:not(.is-active):hover { background: #2e2e2e; }
+}
+.ot-trd-buysell__qty.is-active { border-color: #3d3d3d; background: #3d3d3d; }
+html.theme-light .ot-trd-buysell__qty { border-color: #f2f2f2; color: #0f0f0f; }
+@media (any-hover: hover) {
+  html.theme-light .ot-trd-buysell__qty:not(.is-active):hover { background: #f2f2f2; }
+}
+html.theme-light .ot-trd-buysell__qty.is-active { border-color: #ebebeb; background: #ebebeb; }
+.ot-trd-buysell__presets {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 1px solid #3d3d3d;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
+  color: #dbdbdb;
+  cursor: pointer;
+}
+html.theme-light .ot-trd-buysell__presets { border-color: #dbdbdb; color: #0f0f0f; }
+@media (any-hover: hover) {
+  .ot-trd-buysell__presets:hover { box-shadow: inset 0 0 0 40px #ffffff1a; }
+  html.theme-light .ot-trd-buysell__presets:hover { box-shadow: inset 0 0 0 40px #1317220f; }
+}
+.ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px #ffffff1a; }
+html.theme-light .ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px #1317220f; }
