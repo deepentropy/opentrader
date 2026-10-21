@@ -3,7 +3,7 @@
  * Performance analysis and Trades analysis with their round sub-tabs.
  *
  * Only metrics whose value was matched against the reference app are shown
- * (metrics.ts); Sharpe / Sortino, margin efficiency, average margin used and
+ * (metrics.ts); margin efficiency, average margin used and
  * the sub-tab charts (periodical / benchmark bars, margin utilization, growth
  * and decline, results by time, returns distribution) are not yet.
  */
@@ -164,6 +164,8 @@ export function MetricsView(props: ViewProps) {
           <div class="st-cells">
             <Cell label="Annualized return (CAGR)" value={percent(cagr(r()), true)} tone={tone(cagr(r()))} />
             <Cell label="Total return" value={percent(total() / cap(), true)} tone={tone(total())} />
+            <Cell label="Sharpe ratio" value={ratio(perf().sharpeRatio)} />
+            <Cell label="Sortino ratio" value={ratio(perf().sortinoRatio)} />
           </div>
         </Show>
         <Show when={perfTab() === "Benchmarking"}>

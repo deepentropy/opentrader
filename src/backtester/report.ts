@@ -16,6 +16,9 @@
  *     fills, the equity is read after the fill, not before. Checked on the
  *     121 runs with the same trades as the reference (7 datasets, 5 m to
  *     1 W): drawdown and run-up 121 / 121 (.tmp/issue34).
+ *   - Sharpe / Sortino ratios: see riskRatios(). Checked on the 87 reference
+ *     runs with trades (8 datasets, 5 m to 1 W): 87 / 87 from the reference's
+ *     trade list (.tmp/backtester/code/explore_sharpe6.cjs).
  */
 import type { EquityEvent } from './broker';
 import type { Bar, Direction, Performance, SidePerformance, Trade } from './types';
@@ -100,6 +103,55 @@ function equityExtremes(events: EquityEvent[], initialCapital: number) {
   return r;
 }
 
+/** Months since year 0, UTC (calendar month buckets). */
+const monthOf = (ms: number) => {
+  const d = new Date(ms);
+  return d.getUTCFullYear() * 12 + d.getUTCMonth();
+};
+
+/**
+ * Sharpe and Sortino ratios of the monthly returns, as the reference app:
+ *   - realized PnL per calendar month (UTC): each closed trade's net profit
+ *     in its exit month; the open trades' price move (openPL, without the
+ *     exit commission) in the last bar's month;
+ *   - months from the one after the first entry (or the first PnL month when
+ *     sooner) to the last PnL month, months without PnL returning 0;
+ *   - each month's return is its PnL over the equity at its start (initial
+ *     capital plus the PnL of the months before);
+ *   - risk-free rate 2 % a year (2 / 12 % a month); population standard
+ *     deviation; Sortino's downside deviation over all months
+ *     (sqrt(mean(min(0, r - rf)^2))).
+ * Null without trades (and when a deviation is 0).
+ */
+function riskRatios(closed: Trade[], open: Trade[], openPL: number, lastBarMs: number, initialCapital: number) {
+  if (!closed.length && !open.length) return { sharpeRatio: null, sortinoRatio: null };
+  const pnl = new Map<number, number>();
+  const add = (m: number, v: number) => pnl.set(m, (pnl.get(m) ?? 0) + v);
+  for (const t of closed) add(monthOf(t.exit.time), t.profit);
+  if (open.length) add(monthOf(lastBarMs), openPL);
+  const firstEntry = monthOf((closed[0] ?? open[0]).entry.time);
+  const months = [...pnl.keys()];
+  const from = Math.min(firstEntry + 1, ...months);
+  const to = Math.max(...months);
+  const rf = 0.02 / 12;
+  const returns: number[] = [];
+  let equity = initialCapital;
+  for (let m = from; m <= to; m++) {
+    const p = pnl.get(m) ?? 0;
+    returns.push(p / equity);
+    equity += p;
+  }
+  const n = returns.length;
+  const mean = returns.reduce((a, r) => a + r, 0) / n;
+  const sd = Math.sqrt(returns.reduce((a, r) => a + (r - mean) ** 2, 0) / n);
+  const downside = Math.sqrt(returns.reduce((a, r) => a + Math.min(0, r - rf) ** 2, 0) / n);
+  const ratio = (d: number) => {
+    const v = (mean - rf) / d;
+    return Number.isFinite(v) ? v : null;
+  };
+  return { sharpeRatio: ratio(sd), sortinoRatio: ratio(downside) };
+}
+
 export function computePerformance(
   bars: Bar[],
   closed: Trade[],
@@ -142,5 +194,6 @@ export function computePerformance(
     buyHoldReturnPercent: first ? buyHoldReturn / initialCapital : null,
     buyHoldGainPercent,
     maxMarginUsed,
+    ...riskRatios(closed, open, openPL, bars.length ? bars[bars.length - 1].time * 1000 : 0, initialCapital),
   };
 }
