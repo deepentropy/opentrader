@@ -140,6 +140,17 @@ export abstract class BrokerState {
     return s;
   }
 
+  /** Margin of the open trades valued at `price` (margin_long / margin_short percent of their value). */
+  marginAt(price: number): number {
+    let s = 0;
+    for (const t of this.openTrades) s += t.qty * price * this.sym.pointValue * ((t.direction === 'long' ? this.props.marginLong : this.props.marginShort) / 100);
+    return s;
+  }
+
+  /** Largest margin of the open trades at a price reached on the path or at an entry fill (the reference app
+   *  maxMarginUsed: 1 contract of AlphaTrend on SPY 15 min = the highest high, 779.37). */
+  maxMarginUsed = 0;
+
   /** A risk rule stopped trading for the rest of the current bar's day: new orders are ignored. */
   protected get halted(): boolean {
     return this.bars.length > 0 && this.haltedDay === this.dayOf(this.bar);

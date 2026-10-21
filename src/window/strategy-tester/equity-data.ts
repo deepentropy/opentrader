@@ -96,6 +96,9 @@ export function whitespaceTimes(points: EquityPoint[], stepSec: number): number[
 }
 
 type Sample = { time: number; value: number; delta: number; pending: boolean };
+/** Cumulative PnL without binary noise: -0.07999999999999999 is the -0.08 the reference app's report holds, so it
+ *  reaches a -0.08 peak (AlphaTrend AAPL 1D trade 41). */
+const clean = (v: number) => Number(v.toPrecision(12));
 type Cursor = { index: number; time: number; value: number };
 type Dd = { startIndex: number; startValue: number; startTime: number; minValue: number; recoveryStartTime: number; recoveryStartIndex: number };
 type Ru = { startIndex: number; startValue: number; startTime: number; endIndex: number; endValue: number; endTime: number };
@@ -128,14 +131,14 @@ export function runupDrawdownPeriods(samples: Sample[], capital: number, minTrad
 
   let dd: Dd | null = null;
   let ru: Ru | null = null;
-  const prev: Cursor = { index: 0, time: samples[0].time, value: samples[0].value };
+  const prev: Cursor = { index: 0, time: samples[0].time, value: clean(samples[0].value) };
   const cur: Cursor = { index: 1, time: prev.time, value: prev.value };
   let peak = prev.value;
   const advance = () => { prev.index = cur.index; prev.time = cur.time; prev.value = cur.value; };
   for (; cur.index < samples.length; cur.index++) {
     const s = samples[cur.index];
     if (s.pending) continue;
-    cur.value = s.value;
+    cur.value = clean(s.value);
     cur.time = s.time;
     const last = cur.index === samples.length - 1 || !!samples[cur.index + 1]?.pending;
     if (s.delta < 0 && dd === null) {

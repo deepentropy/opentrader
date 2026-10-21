@@ -1,7 +1,7 @@
 /**
  * AlphaTrend Strategy (KivancOzbilgic), Pine v5.
  * Market entries on AlphaTrend / AlphaTrend[2] crosses; an entry against the
- * position reverses it. 1 contract, no costs.
+ * position reverses it. 1 contract, no costs, margin 100 % long and short.
  */
 import type { StrategyDefinition } from '../run';
 import type { Bar } from '../types';
@@ -34,7 +34,7 @@ export const alphatrendStrategy: StrategyDefinition<AlphaTrendInputs> = {
   title: 'AlphaTrend Strategy',
   shortTitle: 'ATSt',
   source: { id: 'PUB;5c59f45a445140a78edb61d9692ab2e5', name: 'AlphaTrend Strategy', author: 'KivancOzbilgic' },
-  properties: {},
+  properties: { marginLong: 100, marginShort: 100 },
   defaultInputs: { coeff: 1, period: 14, src: 'close', showSignals: false, noVolumeData: false },
   inputs: [
     { id: 'coeff', title: 'Multiplier', type: 'float', step: 0.1 },

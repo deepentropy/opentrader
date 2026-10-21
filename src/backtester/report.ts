@@ -111,6 +111,8 @@ export function computePerformance(
   events: EquityEvent[],
   /** Last close on the tick grid (buy & hold; Heikin Ashi closes are off the grid). Default: the last close. */
   lastClose?: number,
+  /** Broker.maxMarginUsed. */
+  maxMarginUsed = 0,
 ): Performance {
   const by = (d: Direction) => (t: Trade) => t.direction === d;
   const all = side(closed, open, initialCapital, maxContracts.all);
@@ -139,5 +141,6 @@ export function computePerformance(
     // The reference app: the percent fields are null without trades.
     buyHoldReturnPercent: first ? buyHoldReturn / initialCapital : null,
     buyHoldGainPercent,
+    maxMarginUsed,
   };
 }

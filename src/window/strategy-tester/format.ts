@@ -41,6 +41,15 @@ export function count(v: number): string {
   return nfInt.format(v);
 }
 
+/** Duration in its largest whole unit: "412 days", "1 day", "2 hours", "1 minute", "< 1 minute". */
+export function durationString(ms: number): string {
+  for (const [unit, size] of [["day", 86_400_000], ["hour", 3_600_000], ["minute", 60_000]] as const) {
+    const n = Math.floor(ms / size);
+    if (n > 0) return `${nfInt.format(n)} ${unit}${n === 1 ? "" : "s"}`;
+  }
+  return "< 1 minute";
+}
+
 /** Capital pill and trade sizes: 100000 -> "100 K", 36683.12 -> "36.68 K",
  *  512.5 -> "512.5" (see volume-format.ts). */
 export function compact(v: number): string {

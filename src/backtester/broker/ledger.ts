@@ -52,6 +52,7 @@ export abstract class TradeLedger extends BrokerState {
       trail: new Map(),
     };
     this.openTrades.push(t);
+    this.maxMarginUsed = Math.max(this.maxMarginUsed, this.marginAt(price));
     this.equityEvents.push({
       t: 'e',
       v: this.props.initialCapital + this.netProfit + this.openProfitAt(price),
@@ -141,6 +142,7 @@ export abstract class TradeLedger extends BrokerState {
   protected touchEquity(p: number): void {
     const r = this.roundPrice(p);
     if (this.openTrades.length) {
+      this.maxMarginUsed = Math.max(this.maxMarginUsed, this.marginAt(r));
       this.equityEvents.push({
         t: 'p',
         v: this.props.initialCapital + this.netProfit + this.openProfitAt(r),

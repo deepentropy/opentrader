@@ -2,17 +2,19 @@
  * Metrics view (the reference app 3.4.1): Key stats, Performance (equity chart),
  * Performance analysis and Trades analysis with their round sub-tabs.
  *
- * Only metrics whose value was matched against the reference app are shown; the
- * others of each sub-tab (Commission load, Sharpe / Sortino, Correlation,
- * run-up / drawdown durations, best hour / day, margin figures, returns
- * histogram) are listed as open in the design doc.
+ * Only metrics whose value was matched against the reference app are shown
+ * (metrics.ts); Sharpe / Sortino, margin efficiency, average margin used and
+ * the sub-tab charts (periodical / benchmark bars, margin utilization, growth
+ * and decline, results by time, returns distribution) are not yet.
  */
 import { For, Show, createMemo, createSignal, type JSX } from "solid-js";
 import type { BacktestReport } from "../../backtester/types";
 import { EquityChart } from "./EquityChart";
 import { strategyTester } from "../../data/strategy-tester-store";
-import { DASH, count, money, percent, ratio, tone } from "./format";
-import { bestMonth, cagr, distribution, outliers, pnlBy, streaks, totalPnl, type PnlRow } from "./metrics";
+import { DASH, compact, count, money, percent, ratio, tone } from "./format";
+import { MONTHS, bestEntry, cagr, derivedPerformance, distribution, entryBuckets, growthStats, outliers, pnlBy, streaks, totalPnl, type PnlRow } from "./metrics";
+import { cachedSymbolSessions } from "../../data/session/symbol-sessions";
+import { durationString } from "./format";
 
 /** One metric cell: label, value [+ currency] [+ second value]. */
 function Cell(props: { label: string; value: string; currency?: string; change?: string; tone?: string }): JSX.Element {
@@ -31,6 +33,10 @@ function Cell(props: { label: string; value: string; currency?: string; change?:
     </div>
   );
 }
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+/** Entry hour bucket, 24-hour clock ("14:00"). */
+const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 function RoundTabs<T extends string>(props: { tabs: readonly T[]; value: T; onChange: (t: T) => void }) {
   return (
@@ -53,7 +59,7 @@ function RoundTabs<T extends string>(props: { tabs: readonly T[]; value: T; onCh
   );
 }
 
-const PERF_TABS = ["Breakdown", "Periodical", "Benchmarking", "Growth and decline"] as const;
+const PERF_TABS = ["Breakdown", "Periodical", "Benchmarking", "Margin usage", "Growth and decline"] as const;
 const TRADE_TABS = ["Distribution", "Streaks", "Time patterns"] as const;
 
 type ViewProps = {
@@ -119,7 +125,15 @@ export function MetricsView(props: ViewProps) {
   const dist = createMemo(() => distribution(r()));
   const out = createMemo(() => outliers(r()));
   const st = createMemo(() => streaks(r()));
-  const best = createMemo(() => bestMonth(r()));
+  const derived = createMemo(() => derivedPerformance(r()));
+  const growth = createMemo(() => growthStats(r()));
+  // Entry times: local on intraday charts, the exchange's trading day on D / W / M charts.
+  const buckets = createMemo(() => entryBuckets(r(), props.intervalSec, cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? "UTC"));
+  const bestHour = createMemo(() => bestEntry(buckets(), "hour"));
+  const bestDay = createMemo(() => bestEntry(buckets(), "day"));
+  const best = createMemo(() => bestEntry(buckets(), "month"));
+  const winners = (b: { winRate: number } | undefined) => (b ? `${percent(b.winRate)} winners` : undefined);
+  const duration = (ms: number | null) => (ms == null ? DASH : durationString(ms));
   const trades = (n: number | null) => (n == null ? DASH : `${Number(n.toFixed(1))} trades`);
 
   const chart = () => <EquityChart report={r()} intraday={props.intraday} intervalSec={props.intervalSec} onShowOnChart={props.onShowOnChart} symbol={props.symbol} />;
@@ -142,6 +156,7 @@ export function MetricsView(props: ViewProps) {
             <Cell label="Gross profit" value={money(perf().all.grossProfit)} currency={cur()} change={percent(perf().all.grossProfitPercent)} />
             <Cell label="Gross loss" value={money(perf().all.grossLoss)} currency={cur()} change={percent(perf().all.grossLossPercent)} />
             <Cell label="Profit factor" value={ratio(perf().all.profitFactor)} />
+            <Cell label="Commission load" value={percent(derived().all.commissionLoadPercent)} />
           </div>
           <ProfitsAndLosses report={r()} />
         </Show>
@@ -160,12 +175,21 @@ export function MetricsView(props: ViewProps) {
                 <Cell label="Strategy return" value={percent(strat, true)} tone={tone(strat)} />
                 <Cell label="Buy and hold return" value={percent(bh, true)} tone={tone(bh)} />
                 <Cell label="Strategy outperformance" value={bh == null ? DASH : percent(strat - bh, true)} tone={bh == null ? "" : tone(strat - bh)} />
+                <Cell label="Correlation" value={ratio(derived().all.strategyAndBuyHoldCorrelation)} />
               </div>
             );
           })()}
         </Show>
+        <Show when={perfTab() === "Margin usage"}>
+          <div class="st-cells">
+            <Cell label="Margin calls" value={count(r().filledOrders.filter((o) => o.id.startsWith("Margin call")).length)} />
+            <Cell label="Total liquidated volume" value={compact(derived().all.totalLiquidatedVolume ?? 0)} currency={cur()} />
+          </div>
+        </Show>
         <Show when={perfTab() === "Growth and decline"}>
           <div class="st-cells">
+            <Cell label="Average run-up duration" value={duration(growth().averageRunupDuration)} />
+            <Cell label="Average drawdown duration" value={duration(growth().averageDrawdownDuration)} />
             <Cell label="Max drawdown" value={money(perf().maxStrategyDrawDown)} currency={cur()} change={percent(perf().maxStrategyDrawDownPercent)} />
             <Cell label="Max drawdown as % of initial capital" value={percent(perf().maxStrategyDrawDown / cap())} />
           </div>
@@ -194,11 +218,9 @@ export function MetricsView(props: ViewProps) {
         </Show>
         <Show when={tradeTab() === "Time patterns"}>
           <div class="st-cells">
-            <Cell
-              label="Best month for entries"
-              value={best()?.month ?? DASH}
-              change={best() ? `${percent(best()!.winRate)} winners` : undefined}
-            />
+            <Cell label="Best hour for entries" value={bestHour() ? hourLabel(bestHour()!.index) : DASH} change={winners(bestHour())} />
+            <Cell label="Best day for entries" value={bestDay() ? WEEKDAYS[bestDay()!.index] : DASH} change={winners(bestDay())} />
+            <Cell label="Best month for entries" value={best() ? MONTHS[best()!.index] : DASH} change={winners(best())} />
             <Cell label="Average trade duration" value={perf().all.avgBarsInTrade == null ? DASH : `${Math.round(perf().all.avgBarsInTrade!)} bars`} />
           </div>
         </Show>

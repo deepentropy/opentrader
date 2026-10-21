@@ -189,6 +189,8 @@ export interface Performance {
   buyHoldReturnPercent: number | null;
   /** Price change from the first entry price to the last close. */
   buyHoldGainPercent: number | null;
+  /** Largest margin of the open trades (margin_long / margin_short percent of their value) at a price reached. */
+  maxMarginUsed: number;
 }
 
 export interface BacktestReport {

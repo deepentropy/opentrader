@@ -21,7 +21,8 @@
  */
 import type { BacktestReport, Performance, SidePerformance, Trade } from "../../backtester/types";
 import { longIntervalLabel } from "../chart/interval-favorites";
-import { outliers, cagr } from "./metrics";
+import { derivedPerformance, growthStats, type GrowthStats } from "./metrics";
+import { durationString } from "./format";
 import type { XlsxCell, XlsxSheet } from "./xlsx-writer";
 
 export type ReportTab = "Performance" | "Trades Analysis" | "Ratios" | "List of Trades" | "Properties";
@@ -136,7 +137,7 @@ function exported(v: unknown, unit: Unit | "change" | undefined): number | "" {
     case "pc":
       return roundTo(v, 0);
     case "duration":
-      // Durations are not computed in this port.
+      // Text (metricsSheet).
       return "";
     default:
       return roundTo(v, 3);
@@ -146,28 +147,22 @@ function exported(v: unknown, unit: Unit | "change" | undefined): number | "" {
 type Side = "all" | "long" | "short";
 
 /** Values of the report not kept in `performance` (per side where the
- *  reference app reports them per side). */
+ *  reference app reports them per side): the report converter's fields
+ *  (metrics.ts derivedPerformance, growthStats). */
+const derivedCache = new WeakMap<BacktestReport, { sides: ReturnType<typeof derivedPerformance>; growth: GrowthStats }>();
 function extra(r: BacktestReport, side: Side, key: string): number | undefined {
   const closed = r.trades.filter((t) => !t.open && (side === "all" || t.direction === side));
-  switch (key) {
-    case "numberOfEvenTrades":
-      return closed.filter((t) => t.profit === 0).length;
-    default:
-      break;
-  }
+  if (key === "numberOfEvenTrades") return closed.filter((t) => t.profit === 0).length;
+  let d = derivedCache.get(r);
+  if (!d) derivedCache.set(r, (d = { sides: derivedPerformance(r), growth: growthStats(r) }));
+  if (key in d.sides[side]) return d.sides[side][key];
   if (side !== "all") return undefined;
+  if (key in d.growth) return d.growth[key as keyof GrowthStats] ?? undefined;
   switch (key) {
     case "initialCapital":
       return r.properties.initialCapital;
-    case "outliersCount":
-      return outliers(r).trades.length;
-    case "outliersPnL":
-      return outliers(r).pnl;
     case "marginCalls":
       return r.filledOrders.filter((o) => o.id.startsWith("Margin call")).length;
-    case "annualizedReturn":
-      // As the report's Annualized return (CAGR) cell.
-      return cagr(r) ?? undefined;
     default:
       return undefined;
   }
@@ -195,6 +190,9 @@ function metricsSheet(r: BacktestReport, fields: Field[], name: string): XlsxShe
       const v = valueOf(r, side, f.key);
       if (f.unit === "percent") {
         row.push("", pctCell(exported(v, "percent")));
+      } else if (f.unit === "duration") {
+        // getDurationString: "412 days".
+        row.push(typeof v === "number" && Number.isFinite(v) ? durationString(v) : "", "");
       } else {
         row.push(exported(v, f.unit), pctCell(f.percentKey ? exported(valueOf(r, side, f.percentKey), "change") : ""));
       }
