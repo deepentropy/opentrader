@@ -45,10 +45,11 @@ export function orderLinePrice(o: TradingOrder): number | null {
   return o.type === "stop" || o.type === "stopLimit" ? o.stopPrice : o.limitPrice;
 }
 
-/** Order chip text: "Buy limit", "Sell stop limit"; brackets "TP" / "SL". */
+/** Order chip text: "Buy limit", "Sell stop limit"; brackets "Take profit" /
+ *  "Stop loss" (reference app). */
 export function orderChipText(o: TradingOrder): string {
-  if (o.kind === "tp") return "TP";
-  if (o.kind === "sl") return "SL";
+  if (o.kind === "tp") return "Take profit";
+  if (o.kind === "sl") return "Stop loss";
   return `${o.side === "buy" ? "Buy" : "Sell"} ${TYPE_TEXT[o.type].toLowerCase()}`;
 }
 
@@ -88,6 +89,55 @@ export function defaultBracket(p: TradingPosition, kind: "tp" | "sl", tick: numb
   const sign = p.side === "buy" ? 1 : -1;
   const dist = (kind === "tp" ? TP_TICKS : -SL_TICKS) * tick * sign;
   return snapToTick(p.avgPrice + dist, tick);
+}
+
+/** Take profit / stop loss of a working order at the ticket's default
+ *  distance from its price (buy: above / below). */
+export function defaultOrderBracket(o: TradingOrder, kind: "tp" | "sl", tick: number): number | null {
+  const price = orderLinePrice(o);
+  if (price === null) return null;
+  const sign = o.side === "buy" ? 1 : -1;
+  const dist = (kind === "tp" ? TP_TICKS : -SL_TICKS) * tick * sign;
+  return snapToTick(price + dist, tick);
+}
+
+/** A price label on the axis: its line's y, and whether it cannot move (the
+ *  series' last price label). */
+export type AxisItem = { y: number; fixed?: boolean };
+
+/**
+ * Label positions on the price axis that do not overlap (`h` px each), the
+ * way the reference app lays out its labels: touching labels form a stack, in
+ * price order, centred on their lines, or around a fixed label (which keeps
+ * its place). Returns the y of each item, in the input order.
+ */
+export function stackLabels(items: AxisItem[], h: number): number[] {
+  // At the same price a label goes above the fixed one (the position over the last price).
+  const order = items.map((it, i) => ({ ...it, i })).sort((a, b) => a.y - b.y || (a.fixed ? 1 : 0) - (b.fixed ? 1 : 0));
+  type Cluster = { members: typeof order; top: number };
+  const place = (c: Cluster) => {
+    const k = c.members.findIndex((m) => m.fixed);
+    if (k >= 0) c.top = c.members[k].y - k * h;
+    else c.top = c.members.reduce((s, m) => s + m.y, 0) / c.members.length - ((c.members.length - 1) * h) / 2;
+  };
+  let clusters: Cluster[] = order.map((m) => ({ members: [m], top: m.y }));
+  for (let guard = 0; guard < items.length + 1; guard++) {
+    let merged = false;
+    const next: Cluster[] = [];
+    for (const c of clusters) {
+      const prev = next[next.length - 1];
+      if (prev && prev.top + prev.members.length * h > c.top + 1e-9) {
+        prev.members.push(...c.members);
+        place(prev);
+        merged = true;
+      } else next.push(c);
+    }
+    clusters = next;
+    if (!merged) break;
+  }
+  const out = new Array<number>(items.length);
+  for (const c of clusters) c.members.forEach((m, k) => (out[m.i] = c.top + k * h));
+  return out;
 }
 
 /** The request that keeps order `o` and sets its line price to `price`. */

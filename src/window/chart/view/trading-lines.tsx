@@ -6,7 +6,12 @@
  *
  * DOM over the plot, re-projected on every view change (the chart's coord
  * epoch: scroll, zoom, price scale) and every broker change. The chips sit at
- * the right of the plot; a line runs from its chips to the price axis.
+ * the right of the plot; a line runs from its chips to the price axis. As in
+ * the reference app, lines a few ticks apart keep their chips on their own
+ * line (the last placed on top) while the axis labels are stacked so none
+ * hides another (the position label goes over the last price label). Orders
+ * and the position without a take profit / stop loss carry dotted TP / SL
+ * chips that add one at the ticket's default distance.
  * × asks first (Cancel order / Close position), a chip of an order or a
  * bracket drags the price (snapped to the tick), a click on an order chip opens
  * it in the order ticket.
@@ -24,6 +29,7 @@ import { confirmCancelOrder, confirmClosePosition } from "../../trading/confirm"
 import { lastAtOrBefore } from "../replay-feed";
 import {
   defaultBracket,
+  defaultOrderBracket,
   executionLabel,
   fmtPl,
   fmtPrice,
@@ -32,11 +38,14 @@ import {
   orderLinePrice,
   requestWithPrice,
   snapToTick,
+  stackLabels,
 } from "../trading-lines-model";
 import { type ChartCx } from "./context";
 
 /** Distance of the chips from the price axis (px). */
 const RIGHT_OFFSET = 64;
+/** Height of an axis label (px). */
+const LABEL_H = 20;
 const BLUE = "#2962ff";
 const TP_COLOR = "#089981";
 const SL_COLOR = "#ff9800";
@@ -116,11 +125,23 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     };
 
     const byId = createMemo(() => new Map(orders().map((o) => [o.id, o])));
-    // Brackets under their orders, the position on top.
+    /** Drawing order (reference app: the last placed on top): the position's
+     *  brackets, then each order followed by its own brackets. */
     const ids = createMemo(() => {
       const list = orders();
-      return [...list.filter((o) => o.kind !== "order").map((o) => o.id), ...list.filter((o) => o.kind === "order").map((o) => o.id)];
+      const seq = (o: TradingOrder) => Number(o.kind === "order" ? o.id : o.parentId) || 0;
+      const rank = (o: TradingOrder) => (o.parentId === "position" ? -1 : seq(o));
+      return list
+        .map((o, i) => ({ o, i }))
+        .sort((a, b) => rank(a.o) - rank(b.o) || (a.o.kind === "order" ? -1 : 0) - (b.o.kind === "order" ? -1 : 0) || a.i - b.i)
+        .map(({ o }) => o.id);
     });
+
+    /** The line price of an order (the dragged price while it is dragged). */
+    const linePrice = (o: TradingOrder): number | null => {
+      const d = drag();
+      return d && d.id === o.id ? d.price : orderLinePrice(o);
+    };
 
     /** Price of the dragged line from a pointer y (client). */
     const priceAt = (clientY: number, g: Geom): number | null => {
@@ -204,12 +225,22 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     function OrderRow(p: { id: string; g: Geom }) {
       const o = () => byId().get(p.id);
       const price = () => {
-        const d = drag();
         const x = o();
-        if (!x) return null;
-        return d && d.id === x.id ? d.price : orderLinePrice(x);
+        return x ? linePrice(x) : null;
       };
       const y = () => yOf(price(), p.g);
+      /** Dotted TP / SL of a working order without them. */
+      const addBracket = (kind: "tp" | "sl") => {
+        const x = o();
+        if (!x) return;
+        const v = defaultOrderBracket(x, kind, tick());
+        if (v === null) return;
+        replayBroker.modify(x.id, requestWithPrice(x, null, kind === "tp" ? { takeProfit: v } : { stopLoss: v }), paneId);
+      };
+      const canAdd = (kind: "tp" | "sl") => {
+        const x = o();
+        return !!x && x.kind === "order" && x.type !== "market" && (kind === "tp" ? x.takeProfit === null : x.stopLoss === null);
+      };
       return (
         <Show when={o() && y() !== null}>
           <div
@@ -217,6 +248,23 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             classList={{ "is-dragging": drag()?.id === p.id }}
             style={{ "--c": colorOf(o()!), top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}
           >
+            <Show when={canAdd("tp")}>
+              <Tooltip text="Add take profit" side="top">
+                <button type="button" class="ot-trd-chip is-dotted is-tp" style={{ "--c": TP_COLOR }} onPointerDown={stop} onMouseDown={stop} onClick={() => addBracket("tp")}>
+                  TP
+                </button>
+              </Tooltip>
+            </Show>
+            <Show when={canAdd("sl")}>
+              <Tooltip text="Add stop loss" side="top">
+                <button type="button" class="ot-trd-chip is-dotted is-sl" style={{ "--c": SL_COLOR }} onPointerDown={stop} onMouseDown={stop} onClick={() => addBracket("sl")}>
+                  SL
+                </button>
+              </Tooltip>
+            </Show>
+            <Show when={canAdd("tp") || canAdd("sl")}>
+              <span class="ot-trd-seg" />
+            </Show>
             <div class="ot-trd-chip" onPointerDown={(e) => onChipDown(e, o()!)} onMouseDown={stop}>
               <span class="ot-trd-chip__part is-qty">
                 <Icon name="replay-status" size={14} />
@@ -241,7 +289,6 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             </div>
             <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
           </div>
-          <AxisLabel y={y()!} g={p.g} color={colorOf(o()!)} filled={false} text={fmtPrice(price()!, tick())} />
         </Show>
       );
     }
@@ -299,10 +346,33 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
             </div>
             <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
           </div>
-          <AxisLabel y={y()!} g={p.g} color={BLUE} filled={true} text={fmtPrice(p.pos.avgPrice, tick())} />
         </Show>
       );
     }
+
+    /** Axis labels of every line, stacked without overlap around the series'
+     *  last price label (which keeps its place). */
+    const labels = createMemo(() => {
+      const g = geom();
+      if (!g) return [];
+      const out: { key: string; y: number; color: string; filled: boolean; text: string }[] = [];
+      const pos = position();
+      if (pos) {
+        const y = yOf(pos.avgPrice, g);
+        if (y !== null) out.push({ key: "position", y, color: BLUE, filled: true, text: fmtPrice(pos.avgPrice, tick()) });
+      }
+      for (const o of orders()) {
+        const price = linePrice(o);
+        const y = yOf(price, g);
+        if (y !== null && price !== null) out.push({ key: o.id, y, color: colorOf(o), filled: false, text: fmtPrice(price, tick()) });
+      }
+      const items: { y: number; fixed?: boolean }[] = out.map((l) => ({ y: l.y }));
+      const last = cx.raw[cx.raw.length - 1];
+      const lastY = last && cx.series?.options().lastValueVisible ? yOf(last.close, g) : null;
+      if (lastY !== null) items.push({ y: lastY, fixed: true });
+      const ys = stackLabels(items, LABEL_H);
+      return out.map((l, i) => ({ ...l, y: ys[i] }));
+    });
 
     /** Execution arrows under (buy) / over (sell) the bar they filled on. */
     const marks = createMemo(() => {
@@ -341,8 +411,9 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                 </div>
               )}
             </For>
-            <For each={ids()}>{(id) => <OrderRow id={id} g={g()} />}</For>
             <Show when={position()}>{(pos) => <PositionRow pos={pos()} g={g()} />}</Show>
+            <For each={ids()}>{(id) => <OrderRow id={id} g={g()} />}</For>
+            <For each={labels()}>{(l) => <AxisLabel y={l.y} g={g()} color={l.color} filled={l.filled} text={l.text} />}</For>
           </div>
         )}
       </Show>
