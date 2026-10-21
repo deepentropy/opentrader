@@ -25,6 +25,19 @@ const RETRY_AFTER: Duration = Duration::from_secs(120);
 const LIMIT: usize = 300;
 /// A series is fetched again after this long (the gateway keeps it 3 h).
 const SERIES_TTL: Duration = Duration::from_secs(1800);
+/// Rows of the empty query (the popular list).
+const POPULAR_LIMIT: usize = 50;
+/// The popular list's head, in its order: inflation-protected yield, policy
+/// rates, inflation, the central bank balance sheet, breakevens, curve
+/// spreads, money supply, unemployment, reverse repo, financial conditions,
+/// overnight rates, the Treasury account, diesel price, 10-year yield,
+/// reserves, core inflation, retail sales, payrolls, jobless claims. The rest
+/// follows in catalog order.
+const POPULAR: &[&str] = &[
+    "DFII10", "FEDFUNDS", "CPIAUCSL", "DFEDTARU", "WALCL", "T10YIE", "T10Y2Y", "M2SL", "UNRATE", "RRPONTSYD", "NFCI", "SOFR",
+    "WTREGEN", "T5YIE", "EFFR", "GASDESW", "DGS10", "T10Y3M", "WRESBAL", "CPILFESL", "IORB", "RSAFS", "PAYEMS", "ICSA", "DGS2",
+    "T5YIFR",
+];
 
 /// True for an economic series symbol ("ECONOMICS:UNRATE").
 pub fn is_economic(exchange: &str) -> bool {
@@ -144,13 +157,21 @@ impl Catalog {
 
     /// Series ids starting with the query first (catalog order: most popular
     /// first), then names holding it at the start of a word.
-    /// An empty query: the most popular series. Only the rows the filter keeps.
+    /// An empty query: the popular list ([`POPULAR`] first, then catalog
+    /// order). Only the rows the filter keeps.
     fn search(&self, query: &str, filter: &Filter) -> Vec<&EconomicMeta> {
         let id_q = query.trim().to_uppercase();
         let name_q = normalize(query);
         let mut out: Vec<&EconomicMeta> = Vec::new();
         if id_q.is_empty() && name_q.is_empty() {
-            return self.rows.iter().filter(|r| filter.keeps(r)).take(LIMIT).collect();
+            let head: Vec<usize> = POPULAR.iter().filter_map(|id| self.by_id.get(*id).copied()).collect();
+            return head
+                .iter()
+                .map(|&i| &self.rows[i])
+                .chain(self.rows.iter().enumerate().filter(|(i, _)| !head.contains(i)).map(|(_, r)| r))
+                .filter(|r| filter.keeps(r))
+                .take(POPULAR_LIMIT)
+                .collect();
         }
         if !id_q.is_empty() {
             // Exact id first.
@@ -457,6 +478,17 @@ mod tests {
         assert!(ids("unrate", Filter { source: None, category: Some("Prices") }).is_empty());
         // A catalog without categories still loads.
         assert_eq!(catalog().rows[0].category, "");
+    }
+
+    #[test]
+    fn empty_query_lists_popular_series_first() {
+        let mut json: serde_json::Value = serde_json::from_slice(&catalog_json()).unwrap();
+        json["category"] = serde_json::json!(["Labor", "GDP", "Labor", "Prices"]);
+        let c = Catalog::parse(json.to_string().as_bytes()).unwrap();
+        let ids = |f: Filter| c.search("", &f).into_iter().map(|r| r.id.clone()).collect::<Vec<_>>();
+        // CPIAUCSL and UNRATE are popular (in that order), then catalog order.
+        assert_eq!(ids(Filter::default()), ["CPIAUCSL", "UNRATE", "GDP", "UNRATENSA"]);
+        assert_eq!(ids(Filter { source: None, category: Some("Labor") }), ["UNRATE", "UNRATENSA"]);
     }
 
     #[test]

@@ -163,11 +163,36 @@ function economyRows(results: SymbolSearchResult[], query: string): FilteredRow[
 }
 
 // Economy tab filters, kept for the app session (null = all).
+const [econCountry, setEconCountry] = createSignal<string | null>(null);
 const [econSource, setEconSource] = createSignal<string | null>(null);
 const [econCategory, setEconCategory] = createSignal<string | null>(null);
 
-/** A filter chip with its drop-down list (first option = no filter). */
-function FilterChip(props: { all: string; value: string | null; options: string[]; onPick: (v: string | null) => void }) {
+/** Countries of the economic catalogue (its series are US ones), by region:
+ *  the Economy tab's country filter. */
+const ECON_REGIONS: { title: string; countries: { code: string; name: string }[] }[] = [
+  { title: "North America", countries: [{ code: "US", name: "USA" }] },
+];
+const econCountryName = (code: string) =>
+  ECON_REGIONS.flatMap((r) => r.countries).find((c) => c.code === code)?.name ?? code;
+
+const caretIcon = () => (
+  <svg class="symbol-search-filter-caret" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="12" height="12">
+    <path fill="currentColor" d="M3 6l5 5 5-5z" />
+  </svg>
+);
+
+/** A filter chip with its drop-down list (first option = no filter), or
+ *  `onOpen` for a chip that opens its own panel. Set, it turns into a light
+ *  pill with a reset button. */
+function FilterChip(props: {
+  all: string;
+  value: string | null;
+  options: string[];
+  onPick: (v: string | null) => void;
+  label?: string;
+  icon?: string;
+  onOpen?: () => void;
+}) {
   const [open, setOpen] = createSignal(false);
   let wrap: HTMLDivElement | undefined;
   createEffect(() => {
@@ -182,22 +207,34 @@ function FilterChip(props: { all: string; value: string | null; options: string[
     props.onPick(v);
     setOpen(false);
   };
+  const toggle = () => (props.onOpen ? props.onOpen() : setOpen((o) => !o));
   return (
     <div class="symbol-search-filter-wrap" ref={wrap}>
-      <button
-        type="button"
-        class={"symbol-search-filter" + (props.value ? " is-active" : "")}
-        aria-haspopup="listbox"
-        aria-expanded={open()}
-        onClick={() => setOpen((o) => !o)}
+      <Show
+        when={props.value}
+        fallback={
+          <button type="button" class="symbol-search-filter" aria-haspopup="listbox" aria-expanded={open()} onClick={toggle}>
+            <span>{props.all}</span>
+            {caretIcon()}
+          </button>
+        }
       >
-        <span>{props.value ?? props.all}</span>
-        <svg class="symbol-search-filter-caret" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="12" height="12">
-          <path fill="currentColor" d="M3 6l5 5 5-5z" />
-        </svg>
-      </button>
+        <div class="symbol-search-filter-pill">
+          <button type="button" class="symbol-search-filter-pill-main" aria-haspopup="listbox" aria-expanded={open()} onClick={toggle}>
+            <Show when={props.icon}>
+              <span class="symbol-search-filter-flag" aria-hidden="true"><img src={props.icon} alt="" /></span>
+            </Show>
+            <span>{props.label ?? props.value}</span>
+          </button>
+          <button type="button" class="symbol-search-filter-reset" aria-label="Reset" onClick={() => pick(null)}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 14 14" width="14" height="14">
+              <path stroke="currentColor" stroke-width="1.2" fill="none" d="m3.5 3.5 7 7m0-7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </Show>
       <Show when={open()}>
-        <div class="symbol-search-type-menu" role="listbox">
+        <div class="symbol-search-type-menu symbol-search-filter-menu" role="listbox">
           <button type="button" role="option" aria-selected={!props.value} class={"symbol-search-type-option" + (!props.value ? " selected" : "")} onClick={() => pick(null)}>
             {props.all}
           </button>
@@ -292,6 +329,23 @@ export function SymbolSearchDialog(props: Props) {
   createEffect(() => {
     if (economy() && untrack(sources).length === 0) economicSources().then(setSources).catch(() => {});
   });
+  // Economy tab: the countries panel (opened from the country chip) and its search.
+  const [countryPanel, setCountryPanel] = createSignal(false);
+  const [countryQuery, setCountryQuery] = createSignal("");
+  createEffect(() => {
+    if (!economy()) setCountryPanel(false);
+  });
+  const countryRegions = createMemo(() => {
+    const q = countryQuery().trim().toLowerCase();
+    return ECON_REGIONS.map((r) => ({ ...r, countries: r.countries.filter((c) => !q || c.name.toLowerCase().includes(q)) })).filter(
+      (r) => r.countries.length > 0,
+    );
+  });
+  const pickCountry = (code: string | null) => {
+    setEconCountry(code);
+    setCountryPanel(false);
+    input.focus();
+  };
   // Network fetch — depends on query + type only, NOT category.
   createEffect(() => {
     const q = searchText().trim();
@@ -348,7 +402,10 @@ export function SymbolSearchDialog(props: Props) {
     const q = searchText().trim();
     const cat = category();
     const econ = econRaw();
-    if (econ) return economyRows(econ, q);
+    if (econ) {
+      const country = econCountry();
+      return economyRows(country ? econ.filter((r) => (r.locale ?? "").toUpperCase() === country) : econ, q);
+    }
     const type = activeType();
     const raw = liveRaw();
     if (!HAS_TAURI || q.length < 1 || raw == null) {
@@ -494,6 +551,8 @@ export function SymbolSearchDialog(props: Props) {
       if (e.key === "Escape") {
         e.stopPropagation();
         props.onClose();
+      } else if (countryPanel()) {
+        // The countries panel covers the list: its keys stay in its search.
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
         setHighlightIdx((i) => Math.min(listRows().length - 1, i + 1));
@@ -740,9 +799,21 @@ export function SymbolSearchDialog(props: Props) {
             </div>
           </Show>
 
-          {/* Economy tab: Sources and Categories filters (no country filter: US series only). */}
+          {/* Economy tab: Countries (its own panel), Sources and Categories filters. */}
           <Show when={economy()}>
             <div class="symbol-search-filters">
+              <FilterChip
+                all="All countries"
+                value={econCountry()}
+                label={econCountry() ? econCountryName(econCountry()!) : undefined}
+                icon={flagUrl(econCountry() ?? undefined)}
+                options={[]}
+                onPick={setEconCountry}
+                onOpen={() => {
+                  setCountryQuery("");
+                  setCountryPanel(true);
+                }}
+              />
               <FilterChip all="All sources" value={econSource()} options={sources()} onPick={setEconSource} />
               <FilterChip all="All categories" value={econCategory()} options={ECONOMIC_CATEGORIES} onPick={setEconCategory} />
             </div>
@@ -982,6 +1053,73 @@ export function SymbolSearchDialog(props: Props) {
                 </Show>
               </div>
               <div>to add symbol and close dialog</div>
+            </div>
+          </Show>
+
+          {/* Economy tab: the countries panel over the dialog (Back returns to the list). */}
+          <Show when={countryPanel()}>
+            <div class="symbol-search-country-panel" data-name="economy-countries">
+              <header class="symbol-search-header symbol-search-panel-header">
+                <button type="button" aria-label="Back" class="symbol-search-close symbol-search-back" onClick={() => setCountryPanel(false)}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+                    <path stroke="currentColor" stroke-width="1.2" fill="none" d="M11.5 3.5 6 9l5.5 5.5" />
+                  </svg>
+                </button>
+                <span class="symbol-search-title">Sources</span>
+                <button type="button" aria-label="Close menu" class="symbol-search-close" onClick={() => props.onClose()}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
+                    <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
+                  </svg>
+                </button>
+              </header>
+              <div class="symbol-search-panel-search">
+                <svg class="symbol-search-panel-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28" fill="none">
+                  <path stroke="currentColor" stroke-width="1.4" d="M19.5 19.5 24 24M21 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
+                </svg>
+                <input
+                  ref={(el) => queueMicrotask(() => el.focus())}
+                  type="search"
+                  class="symbol-search-panel-input"
+                  placeholder="Search"
+                  value={countryQuery()}
+                  onInput={(e) => setCountryQuery(e.currentTarget.value)}
+                  autocomplete="off"
+                  spellcheck={false}
+                />
+              </div>
+              <div class="symbol-search-panel-list">
+                <Show when={!countryQuery().trim()}>
+                  <div class="symbol-search-panel-grid">
+                    <button type="button" class={"symbol-search-panel-item" + (!econCountry() ? " selected" : "")} onClick={() => pickCountry(null)}>
+                      <svg class="symbol-search-panel-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none">
+                        <circle cx="12" cy="12" r="8.5" stroke="currentColor" />
+                        <ellipse cx="12" cy="12" rx="3.5" ry="8.5" stroke="currentColor" />
+                        <path stroke="currentColor" d="M3.5 12h17" />
+                      </svg>
+                      <span>All countries</span>
+                    </button>
+                  </div>
+                </Show>
+                <For each={countryRegions()}>
+                  {(r) => (
+                    <>
+                      <div class="symbol-search-panel-group">{r.title}</div>
+                      <div class="symbol-search-panel-grid">
+                        <For each={r.countries}>
+                          {(c) => (
+                            <button type="button" class={"symbol-search-panel-item" + (econCountry() === c.code ? " selected" : "")} onClick={() => pickCountry(c.code)}>
+                              <span class="symbol-search-panel-flag" aria-hidden="true">
+                                <Show when={flagUrl(c.code)}>{(src) => <img src={src()} alt="" />}</Show>
+                              </span>
+                              <span>{c.name}</span>
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </>
+                  )}
+                </For>
+              </div>
             </div>
           </Show>
         </div>
