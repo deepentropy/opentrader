@@ -730,3 +730,14 @@
   border-top: 1px solid var(--color-divider-line-primary);
   flex: none;
 }
+
+/* Web version: alerts need the tab open. */
+.ad-web-note {
+  margin: 0 20px 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--color-bg-secondary, #1f1f1f);
+  color: var(--color-text-secondary, #b8b8b8);
+  font-size: 13px;
+  line-height: 18px;
+}

@@ -429,6 +429,9 @@ const fieldText = (t: string) => t.replace(/,/g, "").replace(/−/g, "-");
 
 type SideKind = "value" | "drawing" | "indicator" | "price" | "symbol";
 
+/** The web version (alerts checked by the browser tab). */
+const WEB_BUILD = import.meta.env.MODE === "web";
+
 /** A deliverable webhook target: parses as a URL with an http(s) scheme. */
 function isValidWebhookUrl(raw: string): boolean {
   try {
@@ -1589,6 +1592,13 @@ export function AlertDialog(props: Props) {
                 </button>
               </div>
             </div>
+            {/* Web version: alerts are checked by this browser tab (no server
+                side alert engine for visitors). */}
+            <Show when={WEB_BUILD}>
+              <div class="ad-web-note" role="note">
+                Alerts run in this browser tab: they trigger only while the tab is open, and webhooks are sent by the browser. The desktop app keeps checking them in the background.
+              </div>
+            </Show>
 
             <footer class="ad-footer">
               <Show when={existing}>
