@@ -42,6 +42,7 @@ import { getFundamentals, type Fundamentals } from "../../../data/fundamentals";
 import { scriptBars } from "../../../backtester/oakscript";
 import { DEFAULT_SYMBOL } from "../../../backtester/types";
 import { scriptChartContext, symbolDetails } from "./script-chart";
+import { intervalSeconds } from "../../../backtester/magnifier";
 
 /** Session of another symbol's bars. */
 const SESSION = "RTH";
@@ -88,9 +89,21 @@ export class OtherSymbolBars {
   private chartFirst = Infinity;
   private chartSeconds = 0;
   private disposed = false;
+  /** Tell the studies; the keys whose forming bar is rebuilt from a changed key too. */
+  private changed(keys: Set<string>, live: boolean): void {
+    const all = new Set(keys);
+    for (const k of keys) for (const d of this.dependents.get(k) ?? []) all.add(d);
+    this.notify(all, live);
+  }
+
   /** Bar Replay time (seconds): bars opening after it are not read; null = all. */
   private cutoff: number | null = null;
-  private cutCache = new Map<string, { at: number; from: Bar[]; bars: Bar[] }>();
+  private cutCache = new Map<string, { at: number; from: Bar[]; lower: Bar[] | undefined; bars: Bar[] }>();
+  /** The chart's interval id: a higher-timeframe bar forming at the replay
+   *  time is rebuilt from the other symbol's bars on it. */
+  private chartInterval = '';
+  /** Keys whose forming bar is rebuilt from another key's bars (lower key -> keys). */
+  private dependents = new Map<string, Set<string>>();
 
   /** Bar Replay: read the bars up to `time` (null: all of them). The studies
    *  reading other symbols calculate again. */
@@ -102,23 +115,61 @@ export class OtherSymbolBars {
     if (keys.size) this.changed(keys, false);
   }
 
-  /** `bars` without the ones after the replay time (cached per key). */
+  /** `bars` without the ones after the replay time (cached per key). A bar of
+   *  a higher timeframe than the chart's still forming at the replay time is
+   *  rebuilt from the symbol's bars on the chart's interval up to that time
+   *  (left out while they load), as the reference app replays it. */
   private cut(key: string, bars: Bar[]): Bar[] {
     const t = this.cutoff;
-    if (t === null || bars.length === 0 || (bars[bars.length - 1].time as number) <= t) return bars;
+    if (t === null || bars.length === 0) return bars;
+    const e = this.entries.get(key);
+    const forming = e && !e.lower ? this.formingSource(key, e) : null;
+    const lower = forming ? this.bars(e!.symbol, '', this.chartInterval) : undefined;
     const c = this.cutCache.get(key);
-    if (c && c.at === t && c.from === bars) return c.bars;
+    if (c && c.at === t && c.from === bars && c.lower === lower) return c.bars;
     let n = bars.length;
     while (n > 0 && (bars[n - 1].time as number) > t) n--;
-    const out = bars.slice(0, n);
-    this.cutCache.set(key, { at: t, from: bars, bars: out });
+    let out = n === bars.length ? bars : bars.slice(0, n);
+    if (forming && n > 0) {
+      const last = out[n - 1];
+      const open = last.time as number;
+      if (open + forming.period > t) {
+        // The higher-timeframe bar is still forming at the replay time.
+        const part = (lower ?? []).filter((b) => (b.time as number) >= open && (b.time as number) <= t);
+        out = out.slice(0, n - 1);
+        if (part.length) {
+          out.push({
+            time: last.time,
+            open: part[0].open,
+            high: Math.max(...part.map((b) => b.high)),
+            low: Math.min(...part.map((b) => b.low)),
+            close: part[part.length - 1].close,
+            volume: part.reduce((s, b) => s + (b.volume ?? 0), 0),
+          });
+        }
+      }
+    }
+    this.cutCache.set(key, { at: t, from: bars, lower, bars: out });
     return out;
+  }
+
+  /** A higher timeframe than the chart's: its period (seconds), and the key
+   *  of the chart-interval bars its forming bar is rebuilt from. */
+  private formingSource(key: string, e: Entry): { period: number } | null {
+    if (!this.chartInterval || e.resolution === this.chartInterval) return null;
+    const period = intervalSeconds(e.resolution) || (/M$/.test(e.resolution) ? 31 * 86400 * (parseInt(e.resolution, 10) || 1) : 0);
+    if (!(period > this.chartSeconds) || !this.chartSeconds) return null;
+    const lowerKey = keyOf(e.symbol, this.chartInterval);
+    let deps = this.dependents.get(lowerKey);
+    if (!deps) this.dependents.set(lowerKey, (deps = new Set()));
+    deps.add(key);
+    return { period };
   }
 
   /** `changed`: keys (`symbol|resolution`) whose bars arrived or moved (`live`: only the newest bar moved).
    *  `slot`: live subscription slot prefix. */
   constructor(
-    private readonly changed: (keys: Set<string>, live: boolean) => void,
+    private readonly notify: (keys: Set<string>, live: boolean) => void,
     private readonly slot: string,
   ) {}
 
@@ -234,9 +285,10 @@ export class OtherSymbolBars {
   }
 
   /** The chart's loaded bars changed: the other symbols cover them back to their first bar. */
-  setChartSpan(firstTime: number | undefined, chartSeconds: number): void {
+  setChartSpan(firstTime: number | undefined, chartSeconds: number, chartInterval = ''): void {
     this.chartFirst = firstTime ?? Infinity;
     this.chartSeconds = chartSeconds;
+    this.chartInterval = chartInterval;
     for (const [key, e] of this.entries) this.extend(key, e);
   }
 

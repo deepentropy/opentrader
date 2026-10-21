@@ -419,7 +419,7 @@ export class IndicatorController {
    *  the newest bars changed (a live update), the studies keep their series. */
   renderAll(live = false): void {
     const bars = this.getBars();
-    if (!live) this.otherSymbols.setChartSpan(bars[0]?.time as number | undefined, intervalSeconds(this.scriptChart?.timeframe ?? '1D'));
+    if (!live) this.otherSymbols.setChartSpan(bars[0]?.time as number | undefined, intervalSeconds(this.scriptChart?.timeframe ?? '1D'), this.scriptChart?.timeframe ?? '1D');
     for (const [id, inst] of this.instances) {
       const entry = getIndicatorEntry(id);
       if (entry) this.renderOne(id, inst, entry, bars, live);
