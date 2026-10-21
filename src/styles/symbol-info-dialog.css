@@ -74,6 +74,7 @@
   all: unset;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 18px;
   font-size: 14px;
   line-height: 18px;
