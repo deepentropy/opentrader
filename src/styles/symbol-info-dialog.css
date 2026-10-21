@@ -78,10 +78,21 @@
   font-size: 14px;
   line-height: 18px;
   color: var(--color-text-secondary);
+  position: relative;
+  isolation: isolate;
   border-radius: 4px;
   cursor: pointer;
 }
-.sid-all:hover { color: var(--color-text-primary); }
+/* The hover background reaches 4px past the text on every side. */
+.sid-all::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 4px;
+  z-index: -1;
+}
+.sid-all:hover { color: var(--color-accent-content); }
+.sid-all:hover::before, .sid-all:active::before { background-color: var(--color-bg-primary-hover); }
 .sid-all svg.is-open { transform: rotate(180deg); }
 /* The session bar is the legend status popup's (legend-status-popup.css). */
 .sid-session-widget { margin-top: 10px; line-height: normal; }
