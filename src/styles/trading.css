@@ -612,3 +612,11 @@
 .trd-trade-chevron.is-open svg {
   transform: rotate(180deg);
 }
+
+/* Protect position: trade and tick values in a box under the exits. */
+.trd-tk-values {
+  margin: 4px 16px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #1f1f1f;
+}

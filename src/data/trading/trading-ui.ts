@@ -7,7 +7,7 @@
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "../kv";
 import { replayBroker } from "./replay-broker";
-import type { OrderType, Side, TradingOrder } from "./types";
+import type { OrderType, Side, TradingOrder, TradingPosition } from "./types";
 
 /** What the order ticket edits. Prices are strings while typed. */
 export type TicketDraft = {
@@ -26,6 +26,9 @@ export type TicketDraft = {
   /** Chart of the order being modified. */
   paneId: number | null;
 };
+
+/** `TicketDraft.editing` while the ticket edits the position's brackets. */
+export const POSITION_EDIT = "position";
 
 /** Replay Trading panel views (icon tabs). */
 export type ReplayReportView = "report" | "trades";
@@ -152,6 +155,25 @@ export const tradingUi = createRoot(() => {
         slOn: o.stopLoss != null,
         stopLoss: o.stopLoss != null ? String(o.stopLoss) : "",
         editing: o.id,
+        paneId,
+      });
+      setSent(false);
+      setTicketOpen(true);
+    },
+    /** Protect position: the ticket on the position's take profit / stop loss. */
+    editPosition(pos: TradingPosition, paneId: number) {
+      setDraft({
+        symbol: pos.symbol,
+        side: pos.side,
+        orderType: "limit",
+        qty: String(pos.qty),
+        limitPrice: String(pos.avgPrice),
+        stopPrice: "",
+        tpOn: pos.takeProfit != null,
+        takeProfit: pos.takeProfit != null ? String(pos.takeProfit) : "",
+        slOn: pos.stopLoss != null,
+        stopLoss: pos.stopLoss != null ? String(pos.stopLoss) : "",
+        editing: POSITION_EDIT,
         paneId,
       });
       setSent(false);

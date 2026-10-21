@@ -10,7 +10,9 @@
  * "Start creating order" until the form is used again. On a working order
  * (reference app): "QQQ, order 3" over "Buy Limit 1 @ 690.00", no side or type
  * choice, Confirm (grey until something changed, then the side colour) over
- * Discard. ArrowUp / ArrowDown step a price by the symbol's tick.
+ * Discard. "Protect position" (position line menu) opens it on the position:
+ * "Long 1 @ 644.33", its take profit / stop loss, the trade and tick values,
+ * Confirm / Discard. ArrowUp / ArrowDown step a price by the symbol's tick.
  * Off replay (or before a start point) the form gives way to "Launch replay
  * to start".
  */
@@ -24,7 +26,8 @@ import { replayActivePane, replayStartSeq } from "../../data/replay";
 import { fmtPrice, parsePositive, tickDecimals, tickerOf } from "./format";
 import { buildTicket, describeTicket, exitPrice, exitTicks, marketHint, quotePrice as quoteOf, riskReward, riskValue } from "./ticket";
 import { ChevronIcon, CloseIcon } from "./icons";
-import { orderSummary } from "../chart/trading-lines-model";
+import { orderSummary, positionSummary } from "../chart/trading-lines-model";
+import { POSITION_EDIT } from "../../data/trading/trading-ui";
 
 const TYPES: [OrderType, string][] = [
   ["market", "Market"],
@@ -48,10 +51,16 @@ function TicketBody() {
   const dec = () => Math.max(2, tickDecimals(tick()) ?? 2);
   const ccy = () => replayBroker.currency();
   const state = replayBroker.tradability;
+  /** The ticket edits the brackets of the position (Protect position). */
+  const isPos = () => tradingUi.draft()?.editing === POSITION_EDIT;
   const editing = createMemo(() => {
     const x = tradingUi.draft();
-    if (!x?.editing || x.paneId === null) return null;
+    if (!x?.editing || x.paneId === null || isPos()) return null;
     return replayBroker.orders(x.paneId).find((o) => o.id === x.editing) ?? null;
+  });
+  const editingPos = createMemo(() => {
+    const x = tradingUi.draft();
+    return x && isPos() && x.paneId !== null ? replayBroker.position(x.paneId) : null;
   });
   const [errorText, setErrorText] = createSignal<string | null>(null);
 
@@ -70,7 +79,7 @@ function TicketBody() {
   // The modified order ended (filled / cancelled): back to a new order.
   createEffect(() => {
     const x = tradingUi.draft();
-    if (x?.editing && !editing()) tradingUi.setDraft({ ...x, editing: null, paneId: null });
+    if (x?.editing && !(isPos() ? editingPos() : editing())) tradingUi.setDraft({ ...x, editing: null, paneId: null });
   });
 
   const patch = (p: Partial<TicketDraft>) => {
@@ -127,6 +136,12 @@ function TicketBody() {
       return;
     }
     const x = d();
+    if (isPos()) {
+      replayBroker.setPositionBrackets(t.takeProfit, t.stopLoss, x.paneId ?? undefined);
+      tradingUi.setDraft({ ...x, editing: null, paneId: null });
+      tradingUi.setSent(true);
+      return;
+    }
     if (x.editing) {
       replayBroker.modify(x.editing, t, x.paneId ?? undefined);
       tradingUi.setDraft({ ...x, editing: null, paneId: null });
@@ -142,6 +157,8 @@ function TicketBody() {
   const changed = createMemo(() => {
     const o = editing();
     const t = buildTicket(d(), q());
+    const pos = editingPos();
+    if (pos && typeof t !== "string") return t.takeProfit !== pos.takeProfit || t.stopLoss !== pos.stopLoss;
     if (!o || typeof t === "string") return false;
     return t.qty !== o.qty || t.limitPrice !== o.limitPrice || t.stopPrice !== o.stopPrice || t.takeProfit !== o.takeProfit || t.stopLoss !== o.stopLoss;
   });
@@ -226,7 +243,7 @@ function TicketBody() {
         </Tooltip>
         <span class="trd-tk-title">
           {tickerOf(d().symbol)}
-          {d().editing ? `, order ${d().editing}` : ""}
+          {d().editing && !isPos() ? `, order ${d().editing}` : ""}
         </span>
         <span class="trd-tk-spacer" />
         <Tooltip text="Close" side="bottom">
@@ -236,6 +253,7 @@ function TicketBody() {
         </Tooltip>
       </div>
       <Show when={editing()}>{(o) => <div class="trd-tk-sub">{orderSummary(o(), tick())}</div>}</Show>
+      <Show when={editingPos()}>{(pos) => <div class="trd-tk-sub">{positionSummary(pos(), tick())}</div>}</Show>
 
       <Show
         when={state().ok || state().reason === "loading"}
@@ -295,6 +313,7 @@ function TicketBody() {
           </div>
           </Show>
 
+          <Show when={!isPos()}>
           <div class="trd-tk-inputs" classList={{ "is-editing": !!d().editing }}>
             <Show when={d().orderType === "limit"}>{priceInput("Price", "limitPrice", () => marketHint(d(), q(), d().limitPrice, tick()))}</Show>
             <Show when={d().orderType === "stop"}>{priceInput("Stop price", "stopPrice", () => marketHint(d(), q(), d().stopPrice, tick()))}</Show>
@@ -334,6 +353,8 @@ function TicketBody() {
             </div>
           </div>
 
+          </Show>
+
           <ExitsSection>
             {exitInput("tp")}
             {exitInput("sl")}
@@ -346,6 +367,26 @@ function TicketBody() {
               )}
             </Show>
           </ExitsSection>
+          <Show when={editingPos()}>
+            {(pos) => (
+              <div class="trd-tk-values">
+                <div class="trd-tk-row">
+                  <span>Trade value</span>
+                  <span class="trd-tk-row-value">
+                    {(pos().qty * pos().avgPrice).toFixed(dec())}
+                    <small> {ccy()}</small>
+                  </span>
+                </div>
+                <div class="trd-tk-row">
+                  <span>Tick value</span>
+                  <span class="trd-tk-row-value">
+                    {(pos().qty * tick()).toFixed(dec())}
+                    <small> {ccy()}</small>
+                  </span>
+                </div>
+              </div>
+            )}
+          </Show>
         </div>
 
         <div class="trd-tk-footer">

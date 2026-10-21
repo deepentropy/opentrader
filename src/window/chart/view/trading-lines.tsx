@@ -252,8 +252,8 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     const stop = (e: Event) => e.stopPropagation();
 
     /** Right-click menu of a line (reference app): an order "<Side> <qty>
-     *  @<price> <Type>" / Modify order / Cancel order; the position Close
-     *  position / Reverse position. */
+     *  @<price> <Type>" / Modify order / Cancel order; the position Protect
+     *  position / Close position / Reverse position. */
     const [menu, setMenu] = createSignal<{ anchor: HTMLElement; order: TradingOrder | null } | null>(null);
     const openMenu = (e: MouseEvent, order: TradingOrder | null) => {
       e.preventDefault();
@@ -509,6 +509,14 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
                     when={m().order}
                     fallback={
                       <>
+                        <PopItem
+                          title="Protect position"
+                          onClick={() => {
+                            setMenu(null);
+                            const pos = position();
+                            if (pos) tradingUi.editPosition(pos, paneId);
+                          }}
+                        />
                         <PopItem
                           title="Close position"
                           onClick={() => {
