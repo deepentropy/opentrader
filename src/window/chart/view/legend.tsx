@@ -188,6 +188,7 @@ export function createLegend(cx: ChartCx): LegendApi {
             marketStatus={isEconomicSymbol(props.symbol) ? undefined : cx.marketSession()}
             showOpenStatus={appearance().legendMarketStatus ?? true}
             replayStatus={cx.replayStatus()}
+            statusSymbol={isEconomicSymbol(props.symbol) ? undefined : props.symbol}
             hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
             seriesHidden={!!props.seriesHidden}
             onToggleSeries={props.onToggleSeries}

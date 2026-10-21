@@ -39,6 +39,7 @@
 @import "./styles/bottom-bar.css";
 @import "./styles/chart-grid.css";
 @import "./styles/chart-legend.css";
+@import "./styles/legend-status-popup.css";
 @import "./styles/chart-control-bar.css";
 @import "./styles/news-card.css";
 @import "./styles/event-card.css";

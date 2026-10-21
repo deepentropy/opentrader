@@ -1,0 +1,210 @@
+/* Popup of the chart legend's status pill (reference app 3.4.1: popup
+   #1f1f1f / #fff r6, shadow 0 2px 4px, sections 16 px padding (11 top / 10
+   bottom), max 344 px; title 16/22 600, text 14/21, bold countdown; session bar
+   7 px r4, weekday 10 px uppercase, time marks 11/14, time zone 11/18). */
+
+.ot-lsp {
+  position: fixed;
+  z-index: 300;
+  max-width: 344px;
+  box-sizing: border-box;
+  border-radius: 6px;
+  background-color: var(--color-popup-background, #1f1f1f);
+  box-shadow: 0 2px 4px var(--color-shadow-primary-neutral-extra-heavy, #0006);
+  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  font-size: 14px;
+}
+
+.ot-lsp-section {
+  display: flex;
+  box-sizing: border-box;
+  padding: 11px 16px 10px;
+  outline: none;
+}
+
+.ot-lsp-icon.ot-legend-status-item {
+  flex: 0 0 auto;
+  margin: 2px 6px 2px 0;
+  border-radius: 9px;
+  overflow: hidden;
+}
+
+.ot-lsp-desc {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.ot-lsp-title {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.ot-lsp-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+}
+.ot-lsp-item:not(:last-child)::after {
+  content: " ";
+}
+.ot-lsp-item.is-bold {
+  font-weight: 700;
+}
+
+/* Session bar of the exchange day. */
+.ot-lsp-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 215px;
+  margin-top: 12px;
+  padding-inline-end: 15px;
+}
+.ot-lsp-days {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.ot-lsp-day {
+  display: flex;
+  align-items: baseline;
+}
+.ot-lsp-weekday {
+  width: 30px;
+  padding-top: 3px;
+  overflow: hidden;
+  color: var(--color-default-gray, #8c8c8c);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.ot-lsp-day.is-active .ot-lsp-weekday {
+  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+}
+.ot-lsp-segments,
+.ot-lsp-marks {
+  position: relative;
+  flex: 1 1 0%;
+  width: 100%;
+}
+.ot-lsp-segments {
+  height: 7px;
+  margin: 0 0 2px;
+  border-radius: 4px;
+}
+.ot-lsp-marks {
+  height: 16px;
+  margin-top: 3px;
+}
+.ot-lsp-segment {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  height: 100%;
+  padding: 0 2px;
+}
+.ot-lsp-segment:first-child {
+  padding-inline-start: 0;
+}
+.ot-lsp-segment:last-child {
+  padding-inline-end: 0;
+}
+.ot-lsp-segment::before {
+  content: "";
+  display: flex;
+  flex: 1 1 0%;
+  height: 100%;
+  min-width: 1px;
+  background-color: currentColor;
+}
+.ot-lsp-segment.is-small {
+  margin-inline-start: -1px;
+  padding: 0;
+  z-index: 1;
+}
+.ot-lsp-segment.is-start::before {
+  border-start-start-radius: 4px;
+  border-end-start-radius: 4px;
+}
+.ot-lsp-segment.is-end::before {
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
+}
+.ot-lsp-segment.is-open {
+  color: var(--color-content-primary-success-bold, #42bda8);
+}
+.ot-lsp-segment.is-pre {
+  color: var(--color-content-primary-warning-extra-bold, #ff9100);
+}
+.ot-lsp-segment.is-post {
+  color: var(--color-content-primary-accent-extra-bold, #82b1ff);
+}
+.ot-lsp-segment.is-closed {
+  color: var(--color-background-primary-neutral-normal, #3d3d3d);
+}
+.ot-lsp-now-wrap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline: 30px 0;
+  pointer-events: none;
+}
+.ot-lsp-now {
+  position: absolute;
+  top: 2px;
+  bottom: -1px;
+  width: 1px;
+  background-color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  outline: 1px solid var(--color-container-fill-tertiary-inverse, #1f1f1f);
+  backface-visibility: hidden;
+}
+.ot-lsp-mark-seg {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+}
+.ot-lsp-mark {
+  color: var(--color-default-gray, #8c8c8c);
+  font-size: 11px;
+  font-feature-settings: "tnum", "lnum";
+  line-height: 14px;
+}
+.ot-lsp-mark:first-child {
+  padding-inline-end: 4px;
+}
+.ot-lsp-mark:last-child {
+  padding-inline-start: 4px;
+}
+.ot-lsp-mark-seg.is-ends {
+  justify-content: space-between;
+}
+.ot-lsp-mark-seg.is-ends .ot-lsp-mark {
+  padding: 0;
+}
+.ot-lsp-mark-seg.is-ends .ot-lsp-mark:first-child {
+  transform: translateX(-50%);
+}
+.ot-lsp-mark-seg.is-ends .ot-lsp-mark:last-child {
+  transform: translateX(50%);
+}
+.ot-lsp-zone {
+  width: 100%;
+  padding-top: 4px;
+  color: var(--color-default-gray, #8c8c8c);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* The pill opens the popup. */
+.ot-legend-status-pill.is-clickable {
+  cursor: pointer;
+}

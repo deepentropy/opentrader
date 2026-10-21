@@ -14,8 +14,10 @@
  * Purely presentational: ChartView owns the crosshair subscription and hands
  * down a resolved `LegendValues` (or null while the pane is still loading).
  */
-import { Show, type JSX } from "solid-js";
+import { Show, createSignal, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
+import { STATUS_ITEMS } from "./legend-status";
+import { LegendStatusPopup } from "./LegendStatusPopup";
 
 /** Resolved, display-ready values for the legend's values line. Built by
  *  ChartView from the hovered (or latest) bar; see `buildLegend` there. */
@@ -75,6 +77,8 @@ type Props = {
   /** Bar Replay status of the chart: it takes the market status' place
    *  (picking the start point / in replay, paused or playing). */
   replayStatus?: "select" | "pause" | "play" | null;
+  /** Symbol whose sessions the status popup describes (countdown, session bar). */
+  statusSymbol?: string;
   /** Status line → "Open market status": hides only the OPEN icon; pre /
    *  post / closed statuses always show. */
   showOpenStatus?: boolean;
@@ -113,14 +117,6 @@ const EXCHANGE_TITLES: Record<string, string> = {
   "NYSE ARCA": "Arca — NYSE Arca",
   ARCA: "Arca — NYSE Arca",
   AMEX: "AMEX — NYSE American",
-};
-
-/** Market-status pill items (small icons; colours from the dark theme). */
-const STATUS_ITEMS: Record<"open" | "pre" | "post" | "closed", { title: string; color: string; overlay: string; path: string }> = {
-  open: { title: "Market open", color: "#42bda8", overlay: "#22ab9433", path: "M9 5a4 4 0 1 1 0 8 4 4 0 0 1 0-8" },
-  pre: { title: "Pre-market", color: "#ff9100", overlay: "#ff980033", path: "M9 7.2a3.48 3.48 0 0 1 3.22 4.8 7 7 0 0 0-6.44 0A3.47 3.47 0 0 1 9 7.2M4.4 8.59l-.33 1.24L2 9.27l.33-1.24zm11.6.68-2.06.56-.34-1.24 2.07-.56zM7.55 5.94l-1.17.55-.9-1.94L6.64 4zm4.97-1.4-.9 1.94-1.17-.54.9-1.94z" },
-  post: { title: "Post-market", color: "#82b1ff", overlay: "#448aff33", path: "M12.57 5.5h-.07a3.5 3.5 0 1 0 .07 7A4.98 4.98 0 0 1 4 9a5 5 0 0 1 8.57-3.5" },
-  closed: { title: "Market closed", color: "#b8b8b8", overlay: "#b8b8b833", path: "M12 7a2 2 0 1 1 0 4H6a2 2 0 1 1 0-4z" },
 };
 
 /** Compact volume ("1.23 M"), mirroring the studies legend. */
@@ -221,6 +217,9 @@ function ActionButton(props: { name: string; title: string; children: JSX.Elemen
 }
 
 export function ChartLegend(props: Props) {
+  // Status pill popup (reference app: a click opens it, a second click closes it).
+  const [statusAnchor, setStatusAnchor] = createSignal<HTMLElement | null>(null);
+  const toggleStatusPopup = (pill: HTMLElement) => setStatusAnchor((cur) => (cur ? null : pill));
   // Title select: "Name" swaps the symbol piece for the company name (ticker
   // until it loads); "Symbol and name" keeps the ticker and appends the name
   // as an extra dotted piece (before interval/exchange).
@@ -329,10 +328,12 @@ export function ChartLegend(props: Props) {
               {(rs) => (
                 <div class="ot-legend-statuses">
                   <span
-                    class="ot-legend-status-pill"
+                    class="ot-legend-status-pill is-clickable"
                     data-role="statuses-pill"
                     title={rs() === "select" ? "Select your start point" : "Replay mode"}
                     data-qa-id="legend-source-item-status"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => toggleStatusPopup(e.currentTarget)}
                   >
                     <span
                       class={`ot-legend-status-item is-replay ${rs() === "select" ? "is-replay-select" : "is-replay-on"}${rs() === "play" ? " is-replay-play" : ""}`}
@@ -347,7 +348,14 @@ export function ChartLegend(props: Props) {
             <Show when={!props.replayStatus && props.marketStatus && (props.marketStatus !== "open" || (props.showOpenStatus ?? true)) ? STATUS_ITEMS[props.marketStatus!] : null}>
               {(st) => (
                 <div class="ot-legend-statuses">
-                  <span class="ot-legend-status-pill" data-role="statuses-pill" title={st().title} data-qa-id="legend-source-item-status">
+                  <span
+                    class="ot-legend-status-pill is-clickable"
+                    data-role="statuses-pill"
+                    title={st().title}
+                    data-qa-id="legend-source-item-status"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => toggleStatusPopup(e.currentTarget)}
+                  >
                     <span class="ot-legend-status-item" style={{ color: st().color, "--status-overlay": st().overlay }} aria-hidden="true">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" d={st().path} /></svg>
                     </span>
@@ -392,6 +400,17 @@ export function ChartLegend(props: Props) {
           </Show>
         </div>
       </div>
+      <Show when={statusAnchor()}>
+        {(a) => (
+          <LegendStatusPopup
+            anchor={a()}
+            symbol={props.statusSymbol}
+            marketStatus={props.marketStatus}
+            replayStatus={props.replayStatus}
+            onClose={() => setStatusAnchor(null)}
+          />
+        )}
+      </Show>
     </div>
   );
 }
