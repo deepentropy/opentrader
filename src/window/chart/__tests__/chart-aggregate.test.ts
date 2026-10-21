@@ -55,16 +55,16 @@ describe("periodStart — months", () => {
 
   it("N months group the month index within the calendar year", () => {
     const q = { unit: "month" as const, n: 3 };
-    expect(periodStart(stamp(2026, 2, 10), q, spec)).toBe(key(2026, 1, 1));
+    expect(periodStart(stamp(2026, 2, 10), q, spec)).toBe(key(2026, 1, 2)); // 01/01 holiday
     expect(periodStart(stamp(2026, 5, 15), q, spec)).toBe(key(2026, 4, 1));
     expect(periodStart(stamp(2026, 12, 31), q, spec)).toBe(key(2026, 10, 1));
     expect(periodStart(stamp(2026, 7, 1), { unit: "month", n: 6 }, spec)).toBe(key(2026, 7, 1));
-    expect(periodStart(stamp(2026, 6, 30), { unit: "month", n: 6 }, spec)).toBe(key(2026, 1, 1));
+    expect(periodStart(stamp(2026, 6, 30), { unit: "month", n: 6 }, spec)).toBe(key(2026, 1, 2));
   });
 
   it("5 months: the last group of the year is short (Nov-Dec) and the next year restarts", () => {
     const p = { unit: "month" as const, n: 5 };
-    expect(periodStart(stamp(2026, 12, 15), p, spec)).toBe(key(2026, 11, 1));
+    expect(periodStart(stamp(2026, 12, 15), p, spec)).toBe(key(2026, 11, 2)); // 01/11 is a Sunday
     expect(periodStart(stamp(2027, 1, 4), p, spec)).toBe(key(2027, 1, 1));
   });
 });
@@ -80,13 +80,44 @@ describe("periodStart — weeks", () => {
     // First Monday of 2026: 05/01.
     expect(periodStart(stamp(2026, 1, 5), two, spec)).toBe(key(2026, 1, 5));
     expect(periodStart(stamp(2026, 1, 16), two, spec)).toBe(key(2026, 1, 5));
-    expect(periodStart(stamp(2026, 1, 19), two, spec)).toBe(key(2026, 1, 19));
+    expect(periodStart(stamp(2026, 1, 20), two, spec)).toBe(key(2026, 1, 20)); // Mon 19/01 holiday
   });
 
   it("days before the first Monday belong to the previous year's last group", () => {
     // First Monday of 2025: 06/01; 02/01/2026 is week 51 -> group 50 = Mon 22/12/2025.
     expect(periodStart(stamp(2026, 1, 2), two, spec)).toBe(key(2025, 12, 22));
     expect(periodStart(stamp(2025, 12, 29), two, spec)).toBe(key(2025, 12, 22));
+  });
+});
+
+describe("periodStart — stamped at the first trading day", () => {
+  // The reference's AAPL 1W / 1M / 2W bars of 2024 (US holidays 01/01, 15/01, 27/05, 02/09).
+  const us = new SessionSpec(NY, "0930-1600", "20240101,20240115,20240527,20240902,20250101,20250120");
+  const W = { unit: "week" as const, n: 1 };
+  const M = { unit: "month" as const, n: 1 };
+
+  it("a week opening on a holiday is stamped the next day", () => {
+    expect(periodStart(stamp(2024, 1, 5), W, us)).toBe(key(2024, 1, 2));
+    expect(periodStart(stamp(2024, 1, 2), W, us)).toBe(key(2024, 1, 2));
+    expect(periodStart(stamp(2024, 5, 31), W, us)).toBe(key(2024, 5, 28));
+    expect(periodStart(stamp(2024, 9, 6), W, us)).toBe(key(2024, 9, 3));
+    expect(periodStart(stamp(2024, 9, 13), W, us)).toBe(key(2024, 9, 9));
+  });
+
+  it("a month opening on a weekend or holiday is stamped at its first session", () => {
+    expect(periodStart(stamp(2024, 1, 31), M, us)).toBe(key(2024, 1, 2));
+    expect(periodStart(stamp(2024, 6, 14), M, us)).toBe(key(2024, 6, 3));
+    expect(periodStart(stamp(2024, 9, 30), M, us)).toBe(key(2024, 9, 3));
+    expect(periodStart(stamp(2024, 12, 2), M, us)).toBe(key(2024, 12, 2));
+  });
+
+  it("N weeks: the group's first trading day", () => {
+    const two = { unit: "week" as const, n: 2 };
+    expect(periodStart(stamp(2024, 1, 12), two, us)).toBe(key(2024, 1, 2));
+    expect(periodStart(stamp(2024, 1, 26), two, us)).toBe(key(2024, 1, 16));
+    expect(periodStart(stamp(2024, 2, 1), two, us)).toBe(key(2024, 1, 29));
+    expect(periodStart(stamp(2025, 1, 3), two, us)).toBe(key(2024, 12, 30));
+    expect(periodStart(stamp(2025, 1, 24), two, us)).toBe(key(2025, 1, 21));
   });
 });
 
@@ -140,13 +171,13 @@ describe("aggregateCandles", () => {
       { time: null, open: 1, high: 1, low: 1, close: 1, volume: 1 },
     ];
     const out = aggregateCandles(daily, { unit: "month", n: 1 }, spec);
-    expect(out).toEqual([{ time: key(2026, 2, 1), open: 19, high: 22, low: 18, close: 20.5, volume: 200 }]);
+    expect(out).toEqual([{ time: key(2026, 2, 2), open: 19, high: 22, low: 18, close: 20.5, volume: 200 }]);
   });
 
   it("empty input and a single bar", () => {
     expect(aggregateCandles([], { unit: "week", n: 1 }, spec)).toEqual([]);
     const one = aggregateCandles([c(stamp(2026, 3, 4), 1, 2, 0.5, 1.5, null)], { unit: "month", n: 3 }, spec);
-    expect(one).toEqual([{ time: key(2026, 1, 1), open: 1, high: 2, low: 0.5, close: 1.5, volume: 0 }]);
+    expect(one).toEqual([{ time: key(2026, 1, 2), open: 1, high: 2, low: 0.5, close: 1.5, volume: 0 }]);
   });
 
   it("does not mutate the input candles", () => {

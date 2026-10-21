@@ -21,6 +21,9 @@
  *              group; key = the group's first Monday.
  *   • months → month index 0-11; key = the 1st of the group's first month.
  * With N = 1 these are the plain day / week / month buckets.
+ * A week or month bar is stamped at the group's first trading day (the week
+ * of Mon 1 January 2024 opens Tue 2 January), as the reference app stamps it
+ * at its first session; a group without one keeps its first calendar day.
  */
 import type { Candle } from "../../bindings";
 import { localDay } from "../../data/session";
@@ -31,10 +34,9 @@ export type AggregateUnit = "week" | "month";
 /** N trading days, weeks or months per bar. */
 export type AggregatePeriod = { unit: "day" | AggregateUnit; n: number };
 
-/** Bucket-start (UNIX seconds, UTC) for the period containing the daily bar
- *  stamped `sec`, its date read in `timeZone` (the exchange zone).
- *  Exported so the live-tick path (datafeed bucketLiveTick) lands its
- *  weekly/monthly updates on exactly the keys this module aggregates to. */
+/** Calendar start (UNIX seconds, UTC: the Monday or the 1st) of the week or
+ *  month containing the daily bar stamped `sec`, its date read in `timeZone`
+ *  (the exchange zone). periodStart() moves it to the first trading day. */
 export function bucketStart(sec: number, unit: AggregateUnit, timeZone: string): number {
   const d = new Date(localDay(timeZone, sec) * 86400000);
   if (unit === "month") {
@@ -73,23 +75,34 @@ function tradingDaysOf(spec: SessionSpec, year: number): number[] {
   return days;
 }
 
+/** The first day of [from, to) the session trades, else `from`. */
+function firstTradingDay(spec: SessionSpec, from: number, to: number): number {
+  for (let d = from; d < to; d++) if (spec.isTradingDay(d)) return d;
+  return from;
+}
+
 /** Bucket-start (UNIX seconds, UTC) of the `p` period containing the daily
  *  bar stamped `sec`; trading days and the date come from `spec` (the
  *  symbol's session and exchange zone). */
 export function periodStart(sec: number, p: AggregatePeriod, spec: SessionSpec): number {
   const day = localDay(spec.timeZone, sec);
-  if (p.n <= 1 && p.unit !== "day") return bucketStart(sec, p.unit, spec.timeZone);
   const year = new Date(day * 86400000).getUTCFullYear();
   if (p.unit === "month") {
     const month = new Date(day * 86400000).getUTCMonth();
-    return Date.UTC(year, month - (month % p.n), 1) / 1000;
+    const m0 = p.n <= 1 ? month : month - (month % p.n);
+    return firstTradingDay(spec, Date.UTC(year, m0, 1) / 86400000, Date.UTC(year, m0 + Math.max(1, p.n), 1) / 86400000) * 86400;
   }
   if (p.unit === "week") {
+    if (p.n <= 1) {
+      const monday = bucketStart(sec, "week", spec.timeZone) / 86400;
+      return firstTradingDay(spec, monday, monday + 7) * 86400;
+    }
     let y = year;
     let first = firstMonday(y);
     if (day < first) first = firstMonday(--y);
     const index = Math.floor((day - first) / 7);
-    return (first + 7 * (index - (index % p.n))) * 86400;
+    const g = first + 7 * (index - (index % p.n));
+    return firstTradingDay(spec, g, Math.min(g + 7 * p.n, firstMonday(y + 1))) * 86400;
   }
   // Days: index of the day among the year's trading days (a bar on a day the
   // spec calls closed takes the index of the next trading day).
