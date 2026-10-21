@@ -89,6 +89,19 @@ export {
   setTemplateNameDialogOpen,
 };
 
+// App onboarding (AppOnboarding.tsx): open once on the desktop app's first
+// start, in the main window (kv ot:app-onboarding), then from the main menu.
+const ONBOARDING_KEY = "ot:app-onboarding";
+const [onboardingOpen, setOnboardingOpen] = createSignal(false);
+export { onboardingOpen, setOnboardingOpen };
+
+/** First start: open the onboarding and remember it was shown. */
+export function openFirstStartOnboarding(): void {
+  if (kv.getItem(ONBOARDING_KEY)) return;
+  kv.setItem(ONBOARDING_KEY, "shown");
+  setOnboardingOpen(true);
+}
+
 // ── Panels ───────────────────────────────────────────────────────────────
 const [activeRailTab, setActiveRailTab] = createSignal<string | null>("base");
 export { activeRailTab, setActiveRailTab };

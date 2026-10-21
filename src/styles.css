@@ -24,6 +24,7 @@
 @import "./styles/layout-name-dialog.css";
 @import "./styles/custom-interval-dialog.css";
 @import "./styles/unsaved-layout-dialog.css";
+@import "./styles/onboarding.css";
 @import "./styles/drawing-toolbar.css";
 @import "./styles/selected-toolbar.css";
 @import "./styles/drawing-settings.css";

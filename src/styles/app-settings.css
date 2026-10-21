@@ -246,6 +246,36 @@
 .app-settings-theme-label {
   text-align: left;
 }
+/* Large size (app onboarding): 125x75 tiles, labels centred. */
+.app-settings-theme.large {
+  gap: 20px;
+}
+.app-settings-theme.large .app-settings-theme-option {
+  gap: 8px;
+  align-items: center;
+  border-radius: 9px;
+}
+.app-settings-theme.large .app-settings-theme-icon {
+  width: 125px;
+  height: 75px;
+  border-radius: 9px;
+}
+.app-settings-theme.large .app-settings-theme-icon.system > .dark {
+  border-top-left-radius: 9px;
+  border-bottom-left-radius: 9px;
+}
+.app-settings-theme.large .app-settings-theme-icon.system > .light {
+  border-top-right-radius: 9px;
+  border-bottom-right-radius: 9px;
+}
+.app-settings-theme.large .app-settings-theme-inner {
+  border-radius: 9px;
+}
+.app-settings-theme.large .app-settings-theme-label {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
 
 /* Generic select / input / button */
 .app-settings-select,

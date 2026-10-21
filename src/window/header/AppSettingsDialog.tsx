@@ -176,11 +176,12 @@ function ThemeThumb(props: { theme: "dark" | "light"; half?: "left" | "right" })
   );
 }
 
-/** System / Dark / Light tiles as in the reference desktop settings. */
-function ThemePicker(props: { setting: ThemeSetting; onChange: (s: ThemeSetting) => void }) {
+/** System / Dark / Light tiles as in the reference desktop settings; `large`
+ *  is the app onboarding's size. */
+export function ThemePicker(props: { setting: ThemeSetting; onChange: (s: ThemeSetting) => void; large?: boolean }) {
   const apply = (s: ThemeSetting) => { if (s !== props.setting) props.onChange(s); };
   return (
-    <div class="app-settings-theme" role="radiogroup" aria-label="Theme">
+    <div class={`app-settings-theme${props.large ? " large" : ""}`} role="radiogroup" aria-label="Theme">
       <For each={THEME_OPTIONS}>
         {(o) => (
           <button

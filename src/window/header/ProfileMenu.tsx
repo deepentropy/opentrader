@@ -4,13 +4,17 @@
  * mock's ProfileMenu (260px, grouped rows starting at Home).
  *
  * Rows are presentational (close on click) except "Settings" (fires the
- * `app-settings` action) and the "Drawings panel" toggle, which shows/hides the
- * left drawing toolbar via the shared `drawing-panel` signal (persisted).
+ * `app-settings` action), "App onboarding..." (desktop app: opens the
+ * onboarding dialog, as the reference app's support menu does) and the
+ * "Drawings panel" toggle, which shows/hides the left drawing toolbar via the
+ * shared `drawing-panel` signal (persisted).
  */
 import { For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
 import { installUpdate, updateReady } from "../../data/app-update";
+import { setOnboardingOpen } from "../shell/app-dialogs";
+import { isTauri } from "../shell/window-bridge";
 
 type Row =
   | { type: "sep" }
@@ -26,18 +30,18 @@ type Row =
       action?: string;
     };
 
-const ROWS: Row[] = [
-  { type: "item", label: "Settings", icon: "profile-app-settings", hotkey: "Ctrl + ,", action: "app-settings" },
-  { type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true },
-];
+const SETTINGS_ROW: Row = { type: "item", label: "Settings", icon: "profile-app-settings", hotkey: "Ctrl + ,", action: "app-settings" };
+const ONBOARDING_ROW: Row = { type: "item", label: "App onboarding...", icon: "main-menu-onboarding", action: "app-onboarding" };
+const DRAWINGS_ROW: Row = { type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true };
 
-/** ROWS plus the reopen row (Ctrl + Shift + T) after "Settings" when there
- *  is something to reopen. */
+/** Settings, App onboarding... (desktop app), the reopen row (Ctrl + Shift + T)
+ *  when there is something to reopen, Drawings panel. */
 function rows(reopen: string | null | undefined): Row[] {
-  if (!reopen) return ROWS;
-  const i = ROWS.findIndex((r) => r.type === "item" && r.action === "app-settings");
-  const row: Row = { type: "item", label: reopen, icon: "main-menu-reopen", hotkey: "Ctrl + Shift + T", action: "reopen-closed" };
-  return [...ROWS.slice(0, i + 1), row, ...ROWS.slice(i + 1)];
+  const out: Row[] = [SETTINGS_ROW];
+  if (isTauri()) out.push(ONBOARDING_ROW);
+  if (reopen) out.push({ type: "item", label: reopen, icon: "main-menu-reopen", hotkey: "Ctrl + Shift + T", action: "reopen-closed" });
+  out.push(DRAWINGS_ROW);
+  return out;
 }
 
 type Props = {
@@ -117,7 +121,8 @@ export function ProfileMenu(props: Props) {
                     toggleDrawingPanel();
                     return;
                   }
-                  if (item().action) props.onAction?.(item().action!);
+                  if (item().action === "app-onboarding") setOnboardingOpen(true);
+                  else if (item().action) props.onAction?.(item().action!);
                   props.onClose();
                 }}
               >

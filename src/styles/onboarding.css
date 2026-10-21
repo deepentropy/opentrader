@@ -1,0 +1,185 @@
+/*
+ * App onboarding dialog (AppOnboarding.tsx): reference desktop app's
+ * "Workspace setup & tips" — 700x550 card on the modal backdrop.
+ */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-other-modal-background);
+  animation: onboarding-appearance 0.2s ease-in;
+}
+
+@keyframes onboarding-appearance {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.onboarding-dialog {
+  box-sizing: border-box;
+  width: 700px;
+  height: 550px;
+  overflow: hidden;
+  background-color: var(--color-background-tertiary-inverse);
+  border-radius: 12px;
+  box-shadow: 0 2px 4px var(--color-other-shadow-primary-neutral-extra-heavy);
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+  font-feature-settings: "tnum" on, "lnum" on;
+  cursor: default;
+  user-select: none;
+}
+
+.onboarding {
+  position: relative;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+/* Progress bar: the "Workspace setup & tips" section, one bar per stage. */
+.onboarding-progress-bar {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+.onboarding-progress-bar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--color-content-primary-neutral-light);
+}
+.onboarding-progress-bar-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.onboarding-progress-bar-section-title.active {
+  color: var(--color-content-primary-neutral-bold);
+}
+.onboarding-progress-bar-stages {
+  height: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.onboarding-progress-bar-stage {
+  height: 3px;
+  background-color: var(--color-container-fill-primary-neutral-light);
+  border-radius: 2px;
+}
+.onboarding-progress-bar-stage.active {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+}
+.onboarding-progress-bar-stage.tip {
+  width: 44px;
+}
+
+/* Stage: title, subtitle, then the theme picker or the clip. */
+.onboarding-content {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  margin-top: 71px;
+}
+.onboarding-content-title {
+  margin: 0 0 8px;
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 36px;
+}
+.onboarding-content-subtitle {
+  flex-grow: 1;
+  max-width: 380px;
+  height: 96px;
+  margin: 0 0 12px;
+  color: var(--color-content-primary-neutral);
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+}
+.onboarding-content-subtitle.before-theme-picker {
+  margin-bottom: 8px;
+}
+.onboarding-content-content {
+  max-height: 278px;
+}
+/* The clip spans the whole card width, over the 16px padding. */
+.onboarding-video {
+  display: block;
+  width: 700px;
+  max-width: none;
+  height: 278px;
+  object-fit: cover;
+}
+
+/* The new-window icon inside the multi-monitor subtitle. */
+.onboarding-multi-monitor-icon-wrapper {
+  display: inline-block;
+  vertical-align: middle;
+  border: 1px solid var(--color-border-primary-neutral-light);
+  border-radius: 5.6px;
+}
+.onboarding-multi-monitor-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  color: var(--color-content-primary-neutral-bold);
+}
+
+/* Prev (gray secondary) / Next (black primary), small size. */
+.onboarding-navigation-button {
+  position: absolute;
+  bottom: 20px;
+}
+.onboarding-navigation-button.prev {
+  left: 20px;
+}
+.onboarding-navigation-button.next {
+  right: 20px;
+}
+.onboarding-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  cursor: default;
+  outline: none;
+}
+.onboarding-btn:focus-visible {
+  outline: 2px solid var(--color-ot-blue-500, #2962ff);
+  outline-offset: 2px;
+}
+.onboarding-btn.is-primary {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  border-color: var(--ot-strong);
+  color: var(--ot-text-inverse);
+}
+.onboarding-btn.is-primary:hover {
+  background-color: var(--color-container-fill-primary-neutral-bold);
+  border-color: var(--color-text-primary);
+}
+.onboarding-btn.is-gray {
+  border-color: var(--color-divider);
+  color: var(--ot-text-max);
+}
+.onboarding-btn.is-gray:hover {
+  background-color: var(--color-bg-primary-hover);
+  border-color: var(--color-divider-hover);
+}

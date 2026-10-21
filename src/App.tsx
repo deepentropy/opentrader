@@ -108,6 +108,9 @@ import {
   anchorRect,
   appSettingsTab,
   closeMenu,
+  onboardingOpen,
+  openFirstStartOnboarding,
+  setOnboardingOpen,
   compareDialogOpen,
   compareTarget,
   indicatorsDialogOpen,
@@ -374,6 +377,11 @@ function App() {
     removeAllDrawings();
     removeAllIndicators();
   }
+
+  // App onboarding (loaded when shown): once on the desktop app's first start,
+  // in the main window; then from the main menu.
+  const AppOnboarding = lazy(() => import("./window/shell/AppOnboarding").then((m) => ({ default: m.AppOnboarding })));
+  onMount(() => { if (isTauri() && windowLabel === "main") openFirstStartOnboarding(); });
 
   // Main series / compared symbol menu "Symbol info…" (loaded on first use).
   const SymbolInfoDialog = lazy(() => import("./window/chart/SymbolInfoDialog").then((m) => ({ default: m.SymbolInfoDialog })));
@@ -935,6 +943,14 @@ function App() {
             onClose={() => setAppSettingsTab(null)}
           />
         )}
+      </Show>
+      <Show when={onboardingOpen()}>
+        <AppOnboarding
+          theme={theme()}
+          themeSetting={themeSetting()}
+          onThemeChange={setThemeSetting}
+          onClose={() => setOnboardingOpen(false)}
+        />
       </Show>
       <Show when={alertDialog()}>
         {(d) => (
