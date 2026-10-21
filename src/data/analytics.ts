@@ -1,5 +1,5 @@
 /*
- * Anonymous usage statistics (PostHog, EU cloud): which features are used, by
+ * Anonymous usage statistics (PostHog, US cloud): which features are used, by
  * how many installs (desktop) or visits (web). No cookies, no account, no
  * symbols or other personal data; one random id per desktop install, one per
  * browser tab session on the web. Users can switch it off (Settings > Service).
@@ -15,7 +15,7 @@ import * as kv from "./kv";
 const KEY = (import.meta.env.VITE_POSTHOG_KEY as string | undefined) ?? "";
 const WEB = import.meta.env.MODE === "web";
 const VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? "";
-const HOST = WEB ? "/ingest" : "https://eu.i.posthog.com";
+const HOST = WEB ? "/ingest" : "https://us.i.posthog.com";
 
 const ID_KEY = "ot:analytics-id";
 const ENABLED_KEY = "ot:analytics-enabled";

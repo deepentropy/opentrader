@@ -40,7 +40,7 @@ export class OpenTraderServer extends Container<Env> {
   }
 }
 
-const ANALYTICS_HOST = "https://eu.i.posthog.com";
+const ANALYTICS_HOST = "https://us.i.posthog.com";
 
 /** Relay a usage-statistics request, with the visitor's country instead of their IP. */
 async function relayAnalytics(request: Request, url: URL): Promise<Response> {
