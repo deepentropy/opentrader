@@ -7,6 +7,8 @@ import {
   fmtPl,
   orderChipText,
   orderLinePrice,
+  orderMenuTitle,
+  positionQtyText,
   orderSummary,
   cancelTitle,
   positionSummary,
@@ -88,5 +90,18 @@ describe("trading lines model", () => {
     // A chain: no two labels closer than the label height.
     const ys = stackLabels([{ y: 0 }, { y: 5 }, { y: 10 }, { y: 15 }, { y: 70 }], 20).sort((a, b) => a - b);
     for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(20 - 1e-9);
+  });
+
+  it("short position quantity and stop-limit line price", () => {
+    expect(positionQtyText(pos)).toBe("1");
+    expect(positionQtyText({ ...pos, side: "sell" })).toBe("−1");
+    const sl = order({ type: "stopLimit", side: "sell", stopPrice: 643.93, limitPrice: 643.83 });
+    expect(orderLinePrice(sl)).toBe(643.93);
+    expect(orderLinePrice({ ...sl, stopTriggered: true })).toBe(643.83);
+  });
+
+  it("context menu header", () => {
+    expect(orderMenuTitle(order({}), 0.01)).toBe("Buy 1 @640.00 Limit");
+    expect(orderMenuTitle(order({ kind: "tp", side: "sell", limitPrice: 640.75 }), 0.01)).toBe("Sell 1 @640.75 Take profit");
   });
 });

@@ -24,6 +24,8 @@ export type TradingOrder = {
   /** The brackets an order carries until it fills. */
   takeProfit: number | null;
   stopLoss: number | null;
+  /** Stop-limit: its stop was reached, only the limit works. */
+  stopTriggered?: boolean;
 };
 
 export type TradingPosition = {

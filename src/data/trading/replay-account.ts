@@ -232,6 +232,7 @@ export class ReplayAccount {
         parentId: null,
         takeProfit: w.tp,
         stopLoss: w.sl,
+        stopTriggered: w.type === "stopLimit" ? w.triggered : undefined,
       });
       if (w.tp !== null) out.push(this.bracket(`${w.id}:tp`, exitSide(w.side), w.qty, "tp", w.tp, w.id));
       if (w.sl !== null) out.push(this.bracket(`${w.id}:sl`, exitSide(w.side), w.qty, "sl", w.sl, w.id));

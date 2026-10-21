@@ -42,6 +42,8 @@ export function snapToTick(p: number, tick: number): number {
 export function orderLinePrice(o: TradingOrder): number | null {
   if (o.kind === "tp") return o.limitPrice;
   if (o.kind === "sl") return o.stopPrice;
+  // A stop-limit whose stop was reached works as its limit.
+  if (o.type === "stopLimit" && o.stopTriggered) return o.limitPrice;
   return o.type === "stop" || o.type === "stopLimit" ? o.stopPrice : o.limitPrice;
 }
 
@@ -62,9 +64,21 @@ export function orderSummary(o: TradingOrder, tick: number): string {
   return `${o.side === "buy" ? "Buy" : "Sell"} ${TYPE_TEXT[o.type]} ${fmtQty(o.qty)}${at}`;
 }
 
+/** Header of a line's context menu: "Buy 1 @640.00 Limit"; a bracket "Sell 1 @640.75 Take profit". */
+export function orderMenuTitle(o: TradingOrder, tick: number): string {
+  const price = orderLinePrice(o);
+  const type = o.kind === "tp" ? "Take profit" : o.kind === "sl" ? "Stop loss" : TYPE_TEXT[o.type];
+  return `${o.side === "buy" ? "Buy" : "Sell"} ${fmtQty(o.qty)}${price !== null ? ` @${fmtPrice(price, tick)}` : ""} ${type}`;
+}
+
 /** Cancel dialog title: "Cancel order", "Cancel take profit order", "Cancel stop loss order". */
 export function cancelTitle(o: TradingOrder): string {
   return o.kind === "tp" ? "Cancel take profit order" : o.kind === "sl" ? "Cancel stop loss order" : "Cancel order";
+}
+
+/** Quantity on the position chip: negative for a short ("−1", reference app). */
+export function positionQtyText(p: TradingPosition): string {
+  return p.side === "sell" ? `−${fmtQty(p.qty)}` : fmtQty(p.qty);
 }
 
 /** Close position dialog line: "Long 1 @ 651.42". */

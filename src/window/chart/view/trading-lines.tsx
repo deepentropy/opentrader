@@ -26,6 +26,7 @@ import { tradingUi } from "../../../data/trading/trading-ui";
 import type { TradingOrder, TradingPosition } from "../../../data/trading/types";
 import { cachedSymbolSessions } from "../../../data/session";
 import { confirmCancelOrder, confirmClosePosition } from "../../trading/confirm";
+import { Popover, PopDivider, PopItem } from "../../screener/Popover";
 import { lastAtOrBefore } from "../replay-feed";
 import {
   defaultBracket,
@@ -36,6 +37,8 @@ import {
   fmtQty,
   orderChipText,
   orderLinePrice,
+  orderMenuTitle,
+  positionQtyText,
   requestWithPrice,
   snapToTick,
   stackLabels,
@@ -125,22 +128,38 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
     };
 
     const byId = createMemo(() => new Map(orders().map((o) => [o.id, o])));
+
+    /** A line of an order: its main line (the stop of a stop-limit until the
+     *  stop is reached) or the limit line of a stop-limit. Key "<id>" or
+     *  "<id>#limit". */
+    type Line = { key: string; id: string; limit: boolean };
+
     /** Drawing order (reference app: the last placed on top): the position's
      *  brackets, then each order followed by its own brackets. */
-    const ids = createMemo(() => {
+    const lines = createMemo<Line[]>(() => {
       const list = orders();
       const seq = (o: TradingOrder) => Number(o.kind === "order" ? o.id : o.parentId) || 0;
       const rank = (o: TradingOrder) => (o.parentId === "position" ? -1 : seq(o));
-      return list
+      const out: Line[] = [];
+      for (const { o } of list
         .map((o, i) => ({ o, i }))
-        .sort((a, b) => rank(a.o) - rank(b.o) || (a.o.kind === "order" ? -1 : 0) - (b.o.kind === "order" ? -1 : 0) || a.i - b.i)
-        .map(({ o }) => o.id);
+        .sort((a, b) => rank(a.o) - rank(b.o) || (a.o.kind === "order" ? -1 : 0) - (b.o.kind === "order" ? -1 : 0) || a.i - b.i)) {
+        out.push({ key: o.id, id: o.id, limit: false });
+        if (hasLimitLine(o)) out.push({ key: `${o.id}#limit`, id: o.id, limit: true });
+      }
+      return out;
     });
 
-    /** The line price of an order (the dragged price while it is dragged). */
-    const linePrice = (o: TradingOrder): number | null => {
+    /** A stop-limit order waiting for its stop shows its limit price on a
+     *  dotted line of its own (reference app). */
+    const hasLimitLine = (o: TradingOrder) => o.kind === "order" && o.type === "stopLimit" && !o.stopTriggered && o.limitPrice !== null;
+
+    /** The price of a line (the dragged price while it is dragged). */
+    const linePrice = (o: TradingOrder, limit = false): number | null => {
       const d = drag();
-      return d && d.id === o.id ? d.price : orderLinePrice(o);
+      const key = limit ? `${o.id}#limit` : o.id;
+      if (d && d.id === key) return d.price;
+      return limit ? o.limitPrice : orderLinePrice(o);
     };
 
     /** Price of the dragged line from a pointer y (client). */
@@ -151,9 +170,11 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       return p === null ? null : snapToTick(p, tick());
     };
 
-    const commit = (o: TradingOrder, price: number) => {
+    const commit = (o: TradingOrder, price: number, limit: boolean) => {
       if (o.kind === "order") {
-        replayBroker.modify(o.id, requestWithPrice(o, price), paneId);
+        // The limit line, or the line of a stop-limit whose stop was reached: the limit price.
+        const asLimit = limit || (o.type === "stopLimit" && o.stopTriggered);
+        replayBroker.modify(o.id, asLimit ? requestWithPrice(o, null, { limitPrice: price }) : requestWithPrice(o, price), paneId);
         return;
       }
       const pos = position();
@@ -165,51 +186,89 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       if (parent) replayBroker.modify(parent.id, requestWithPrice(parent, null, o.kind === "tp" ? { takeProfit: price } : { stopLoss: price }), paneId);
     };
 
-    /** Press on an order / bracket chip: a drag moves the price, a click
-     *  opens the order in the ticket. */
-    const onChipDown = (e: PointerEvent, o: TradingOrder) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const g = geom();
-      const start = orderLinePrice(o);
-      if (!g || start === null) return;
+    /** Follow a press: `onMove` with the price under the pointer once it moved,
+     *  `onUp(moved)` on release. */
+    const track = (e: PointerEvent, g: Geom, onMove: (price: number) => void, onUp: (moved: boolean) => void) => {
       const el = e.currentTarget as HTMLElement;
-      el.setPointerCapture(e.pointerId);
+      try { el.setPointerCapture(e.pointerId); } catch { /* synthetic event */ }
       const y0 = e.clientY;
       let moved = false;
       const move = (ev: PointerEvent) => {
         if (!moved && Math.abs(ev.clientY - y0) < 3) return;
         moved = true;
         const p = priceAt(ev.clientY, g);
-        if (p !== null) setDrag({ id: o.id, price: p });
+        if (p !== null) onMove(p);
       };
       const up = () => {
         el.removeEventListener("pointermove", move);
         el.removeEventListener("pointerup", up);
         el.removeEventListener("pointercancel", up);
-        const d = drag();
-        setDrag(null);
-        if (moved) {
-          if (d && d.price !== start) commit(o, d.price);
-        } else if (o.kind === "order") {
-          tradingUi.editOrder(o, paneId);
-        }
+        onUp(moved);
       };
       el.addEventListener("pointermove", move);
       el.addEventListener("pointerup", up);
       el.addEventListener("pointercancel", up);
     };
 
+    /** Press on an order / bracket chip: a drag moves the price, a click
+     *  opens the order in the ticket. */
+    const onChipDown = (e: PointerEvent, o: TradingOrder, limit: boolean) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const g = geom();
+      const start = linePrice(o, limit);
+      if (!g || start === null) return;
+      const key = limit ? `${o.id}#limit` : o.id;
+      track(e, g, (price) => setDrag({ id: key, price }), (moved) => {
+        const d = drag();
+        setDrag(null);
+        if (moved) {
+          if (d && d.price !== start) commit(o, d.price, limit);
+        } else if (o.kind === "order") {
+          tradingUi.editOrder(o, paneId);
+        }
+      });
+    };
+
+    /** A take profit / stop loss being dragged out of a dotted chip. */
+    const [ghost, setGhost] = createSignal<{ kind: "tp" | "sl"; price: number } | null>(null);
+
+    /** Press on a dotted TP / SL chip: dragged, the bracket goes where it is
+     *  released; clicked, at the ticket's default distance. */
+    const onBracketDown = (e: PointerEvent, kind: "tp" | "sl", set: (price: number | null) => void) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const g = geom();
+      if (!g) return;
+      track(e, g, (price) => setGhost({ kind, price }), (moved) => {
+        const gh = ghost();
+        setGhost(null);
+        set(moved ? gh?.price ?? null : null);
+      });
+    };
+
     const stop = (e: Event) => e.stopPropagation();
 
-    const colorOf = (o: TradingOrder) => (o.kind === "tp" ? TP_COLOR : o.kind === "sl" ? SL_COLOR : BLUE);
+    /** Right-click menu of a line (reference app): an order "<Side> <qty>
+     *  @<price> <Type>" / Modify order / Cancel order; the position Close
+     *  position / Reverse position. */
+    const [menu, setMenu] = createSignal<{ anchor: HTMLElement; order: TradingOrder | null } | null>(null);
+    const openMenu = (e: MouseEvent, order: TradingOrder | null) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu({ anchor: e.currentTarget as HTMLElement, order });
+    };
 
-    function AxisLabel(p: { y: number; g: Geom; color: string; filled: boolean; text: string }) {
+    const sideColor = (side: "buy" | "sell") => (side === "buy" ? BLUE : SELL_COLOR);
+    const colorOf = (o: TradingOrder) => (o.kind === "tp" ? TP_COLOR : o.kind === "sl" ? SL_COLOR : sideColor(o.side));
+
+    function AxisLabel(p: { y: number; g: Geom; color: string; filled: boolean; dotted?: boolean; text: string }) {
       return (
         <div
           class="ot-trd-axis"
-          classList={{ "is-filled": p.filled }}
+          classList={{ "is-filled": p.filled, "is-dotted": !!p.dotted }}
           style={{
             "--c": p.color,
             top: `${p.y}px`,
@@ -222,70 +281,92 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       );
     }
 
-    function OrderRow(p: { id: string; g: Geom }) {
-      const o = () => byId().get(p.id);
+    /** The dotted TP / SL chips of a line without them. */
+    function BracketChips(p: { tp: boolean; sl: boolean; set: (kind: "tp" | "sl", price: number | null) => void }) {
+      return (
+        <>
+          <Show when={p.tp}>
+            <Tooltip text="Drag to add take profit" side="top">
+              <button type="button" class="ot-trd-chip is-dotted is-tp" style={{ "--c": TP_COLOR }} onPointerDown={(e) => onBracketDown(e, "tp", (v) => p.set("tp", v))} onMouseDown={stop}>
+                TP
+              </button>
+            </Tooltip>
+          </Show>
+          <Show when={p.sl}>
+            <Tooltip text="Drag to add stop loss" side="top">
+              <button type="button" class="ot-trd-chip is-dotted is-sl" style={{ "--c": SL_COLOR }} onPointerDown={(e) => onBracketDown(e, "sl", (v) => p.set("sl", v))} onMouseDown={stop}>
+                SL
+              </button>
+            </Tooltip>
+          </Show>
+          <Show when={p.tp || p.sl}>
+            <span class="ot-trd-seg" />
+          </Show>
+        </>
+      );
+    }
+
+    function OrderRow(p: { line: Line; g: Geom }) {
+      const o = () => byId().get(p.line.id);
       const price = () => {
         const x = o();
-        return x ? linePrice(x) : null;
+        return x ? linePrice(x, p.line.limit) : null;
       };
       const y = () => yOf(price(), p.g);
-      /** Dotted TP / SL of a working order without them. */
-      const addBracket = (kind: "tp" | "sl") => {
-        const x = o();
-        if (!x) return;
-        const v = defaultOrderBracket(x, kind, tick());
-        if (v === null) return;
-        replayBroker.modify(x.id, requestWithPrice(x, null, kind === "tp" ? { takeProfit: v } : { stopLoss: v }), paneId);
-      };
+      /** TP / SL of a working order without them: a stop-limit waiting for its
+       *  stop carries them on its limit line. */
       const canAdd = (kind: "tp" | "sl") => {
         const x = o();
-        return !!x && x.kind === "order" && x.type !== "market" && (kind === "tp" ? x.takeProfit === null : x.stopLoss === null);
+        if (!x || x.kind !== "order" || x.type === "market") return false;
+        if (hasLimitLine(x) !== p.line.limit) return false;
+        return kind === "tp" ? x.takeProfit === null : x.stopLoss === null;
+      };
+      const setBracket = (kind: "tp" | "sl", at: number | null) => {
+        const x = o();
+        if (!x) return;
+        const v = at ?? defaultOrderBracket(x, kind, tick());
+        if (v === null) return;
+        replayBroker.modify(x.id, requestWithPrice(x, null, kind === "tp" ? { takeProfit: v } : { stopLoss: v }), paneId);
       };
       return (
         <Show when={o() && y() !== null}>
           <div
             class="ot-trd-row"
-            classList={{ "is-dragging": drag()?.id === p.id }}
+            classList={{ "is-dragging": drag()?.id === p.line.key, "is-limit-line": p.line.limit }}
             style={{ "--c": colorOf(o()!), top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}
           >
-            <Show when={canAdd("tp")}>
-              <Tooltip text="Add take profit" side="top">
-                <button type="button" class="ot-trd-chip is-dotted is-tp" style={{ "--c": TP_COLOR }} onPointerDown={stop} onMouseDown={stop} onClick={() => addBracket("tp")}>
-                  TP
-                </button>
-              </Tooltip>
-            </Show>
-            <Show when={canAdd("sl")}>
-              <Tooltip text="Add stop loss" side="top">
-                <button type="button" class="ot-trd-chip is-dotted is-sl" style={{ "--c": SL_COLOR }} onPointerDown={stop} onMouseDown={stop} onClick={() => addBracket("sl")}>
-                  SL
-                </button>
-              </Tooltip>
-            </Show>
-            <Show when={canAdd("tp") || canAdd("sl")}>
-              <span class="ot-trd-seg" />
-            </Show>
-            <div class="ot-trd-chip" onPointerDown={(e) => onChipDown(e, o()!)} onMouseDown={stop}>
+            <BracketChips tp={canAdd("tp")} sl={canAdd("sl")} set={setBracket} />
+            <div
+              class="ot-trd-chip"
+              classList={{ "is-dotted-chip": p.line.limit }}
+              onPointerDown={(e) => onChipDown(e, o()!, p.line.limit)}
+              onMouseDown={stop}
+              onContextMenu={(e) => openMenu(e, o()!)}
+            >
               <span class="ot-trd-chip__part is-qty">
                 <Icon name="replay-status" size={14} />
                 {fmtQty(o()!.qty)}
               </span>
-              <span class="ot-trd-chip__part is-text">{orderChipText(o()!)}</span>
-              <Tooltip text={o()!.kind === "tp" ? "Cancel take profit" : o()!.kind === "sl" ? "Cancel stop loss" : "Cancel order"} side="top">
-                <button
-                  type="button"
-                  class="ot-trd-chip__part is-close"
-                  aria-label="Cancel order"
-                  onPointerDown={stop}
-                  onMouseDown={stop}
-                  onClick={() => {
-                    const x = o();
-                    if (x) confirmCancelOrder(x, () => replayBroker.cancel(x.id, paneId));
-                  }}
-                >
-                  <CloseIcon />
-                </button>
+              <Tooltip text="Modify order" side="top">
+                <span class="ot-trd-chip__part is-text">{orderChipText(o()!)}</span>
               </Tooltip>
+              <Show when={!p.line.limit}>
+                <Tooltip text={o()!.kind === "tp" ? "Cancel take profit" : o()!.kind === "sl" ? "Cancel stop loss" : "Cancel order"} side="top">
+                  <button
+                    type="button"
+                    class="ot-trd-chip__part is-close"
+                    aria-label="Cancel order"
+                    onPointerDown={stop}
+                    onMouseDown={stop}
+                    onClick={() => {
+                      const x = o();
+                      if (x) confirmCancelOrder(x, () => replayBroker.cancel(x.id, paneId));
+                    }}
+                  >
+                    <CloseIcon />
+                  </button>
+                </Tooltip>
+              </Show>
             </div>
             <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
           </div>
@@ -295,45 +376,29 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
 
     function PositionRow(p: { pos: TradingPosition; g: Geom }) {
       const y = () => yOf(p.pos.avgPrice, p.g);
-      const addBracket = (kind: "tp" | "sl") => {
+      const setBracket = (kind: "tp" | "sl", at: number | null) => {
         const pos = p.pos;
-        const v = defaultBracket(pos, kind, tick());
+        const v = at ?? defaultBracket(pos, kind, tick());
         replayBroker.setPositionBrackets(kind === "tp" ? v : pos.takeProfit, kind === "sl" ? v : pos.stopLoss, paneId);
       };
       return (
         <Show when={y() !== null}>
-          <div class="ot-trd-row is-position" style={{ "--c": BLUE, top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}>
-            <Tooltip text="Reverse position" side="top">
+          <div class="ot-trd-row is-position" style={{ "--c": sideColor(p.pos.side), top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}>
+            <Tooltip text="Reverse Position" side="top">
               <button type="button" class="ot-trd-chip is-button" aria-label="Reverse position" onPointerDown={stop} onMouseDown={stop} onClick={() => replayBroker.reverse(paneId)}>
                 <ReverseIcon />
               </button>
             </Tooltip>
             <span class="ot-trd-seg" />
-            <Show when={p.pos.takeProfit === null}>
-              <Tooltip text="Add take profit" side="top">
-                <button type="button" class="ot-trd-chip is-dotted is-tp" style={{ "--c": TP_COLOR }} onPointerDown={stop} onMouseDown={stop} onClick={() => addBracket("tp")}>
-                  TP
-                </button>
-              </Tooltip>
-            </Show>
-            <Show when={p.pos.stopLoss === null}>
-              <Tooltip text="Add stop loss" side="top">
-                <button type="button" class="ot-trd-chip is-dotted is-sl" style={{ "--c": SL_COLOR }} onPointerDown={stop} onMouseDown={stop} onClick={() => addBracket("sl")}>
-                  SL
-                </button>
-              </Tooltip>
-            </Show>
-            <Show when={p.pos.takeProfit === null || p.pos.stopLoss === null}>
-              <span class="ot-trd-seg" />
-            </Show>
-            <div class="ot-trd-chip is-position-chip" onPointerDown={stop} onMouseDown={stop}>
+            <BracketChips tp={p.pos.takeProfit === null} sl={p.pos.stopLoss === null} set={setBracket} />
+            <div class="ot-trd-chip is-position-chip" onPointerDown={stop} onMouseDown={stop} onContextMenu={(e) => openMenu(e, null)}>
               <Tooltip text={fmtPl(p.pos.pl, replayBroker.currency(paneId))} side="top">
                 <span class="ot-trd-chip__part is-qty is-filled">
                   <Icon name="replay-status" size={14} />
-                  {fmtQty(p.pos.qty)}
+                  {positionQtyText(p.pos)}
                 </span>
               </Tooltip>
-              <Tooltip text="Close position" side="top">
+              <Tooltip text="Close Position" side="top">
                 <button
                   type="button"
                   class="ot-trd-chip__part is-close"
@@ -350,22 +415,45 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
       );
     }
 
+    /** A take profit / stop loss dragged out of its dotted chip. */
+    function GhostRow(p: { g: Geom }) {
+      const y = () => {
+        const gh = ghost();
+        return gh ? yOf(gh.price, p.g) : null;
+      };
+      return (
+        <Show when={ghost() && y() !== null}>
+          <div class="ot-trd-row is-dragging" style={{ "--c": ghost()!.kind === "tp" ? TP_COLOR : SL_COLOR, top: `${y()}px`, right: `${p.g.hostW - p.g.plotRight}px` }}>
+            <div class="ot-trd-chip">
+              <span class="ot-trd-chip__part is-text">{ghost()!.kind === "tp" ? "Take profit" : "Stop loss"}</span>
+            </div>
+            <span class="ot-trd-seg is-tail" style={{ width: `${RIGHT_OFFSET}px` }} />
+          </div>
+        </Show>
+      );
+    }
+
     /** Axis labels of every line, stacked without overlap around the series'
      *  last price label (which keeps its place). */
     const labels = createMemo(() => {
       const g = geom();
       if (!g) return [];
-      const out: { key: string; y: number; color: string; filled: boolean; text: string }[] = [];
+      const out: { key: string; y: number; color: string; filled: boolean; dotted?: boolean; text: string }[] = [];
       const pos = position();
       if (pos) {
         const y = yOf(pos.avgPrice, g);
-        if (y !== null) out.push({ key: "position", y, color: BLUE, filled: true, text: fmtPrice(pos.avgPrice, tick()) });
+        if (y !== null) out.push({ key: "position", y, color: sideColor(pos.side), filled: true, text: fmtPrice(pos.avgPrice, tick()) });
       }
-      for (const o of orders()) {
-        const price = linePrice(o);
+      for (const l of lines()) {
+        const o = byId().get(l.id);
+        if (!o) continue;
+        const price = linePrice(o, l.limit);
         const y = yOf(price, g);
-        if (y !== null && price !== null) out.push({ key: o.id, y, color: colorOf(o), filled: false, text: fmtPrice(price, tick()) });
+        if (y !== null && price !== null) out.push({ key: l.key, y, color: colorOf(o), filled: false, dotted: l.limit, text: fmtPrice(price, tick()) });
       }
+      const gh = ghost();
+      const gy = gh ? yOf(gh.price, g) : null;
+      if (gh && gy !== null) out.push({ key: "ghost", y: gy, color: gh.kind === "tp" ? TP_COLOR : SL_COLOR, filled: false, text: fmtPrice(gh.price, tick()) });
       const items: { y: number; fixed?: boolean }[] = out.map((l) => ({ y: l.y }));
       const last = cx.raw[cx.raw.length - 1];
       const lastY = last && cx.series?.options().lastValueVisible ? yOf(last.close, g) : null;
@@ -412,8 +500,62 @@ export function createTradingLines(cx: ChartCx): TradingLinesApi {
               )}
             </For>
             <Show when={position()}>{(pos) => <PositionRow pos={pos()} g={g()} />}</Show>
-            <For each={ids()}>{(id) => <OrderRow id={id} g={g()} />}</For>
-            <For each={labels()}>{(l) => <AxisLabel y={l.y} g={g()} color={l.color} filled={l.filled} text={l.text} />}</For>
+            <For each={lines()}>{(l) => <OrderRow line={l} g={g()} />}</For>
+            <GhostRow g={g()} />
+            <Show when={menu()}>
+              {(m) => (
+                <Popover anchor={m().anchor} onClose={() => setMenu(null)} class="ot-trd-menu" offset={{ x: 0, y: 4 }}>
+                  <Show
+                    when={m().order}
+                    fallback={
+                      <>
+                        <PopItem
+                          title="Close position"
+                          onClick={() => {
+                            setMenu(null);
+                            const pos = position();
+                            if (pos) confirmClosePosition(pos, () => replayBroker.closePosition(null, paneId));
+                          }}
+                        />
+                        <PopItem
+                          title="Reverse position"
+                          onClick={() => {
+                            setMenu(null);
+                            replayBroker.reverse(paneId);
+                          }}
+                        />
+                      </>
+                    }
+                  >
+                    {(o) => (
+                      <>
+                        <PopItem title={orderMenuTitle(o(), tick())} disabled />
+                        <PopDivider />
+                        <Show when={o().kind === "order"}>
+                          <PopItem
+                            title="Modify order"
+                            onClick={() => {
+                              const x = o();
+                              setMenu(null);
+                              tradingUi.editOrder(x, paneId);
+                            }}
+                          />
+                        </Show>
+                        <PopItem
+                          title="Cancel order"
+                          onClick={() => {
+                            const x = o();
+                            setMenu(null);
+                            confirmCancelOrder(x, () => replayBroker.cancel(x.id, paneId));
+                          }}
+                        />
+                      </>
+                    )}
+                  </Show>
+                </Popover>
+              )}
+            </Show>
+            <For each={labels()}>{(l) => <AxisLabel y={l.y} g={g()} color={l.color} filled={l.filled} dotted={l.dotted} text={l.text} />}</For>
           </div>
         )}
       </Show>

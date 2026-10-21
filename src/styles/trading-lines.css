@@ -14,7 +14,7 @@
   position: absolute;
   display: flex;
   align-items: center;
-  height: 20px;
+  height: 19px;
   transform: translateY(-50%);
   pointer-events: none;
 }
@@ -30,7 +30,7 @@
 .ot-trd-chip {
   display: flex;
   align-items: stretch;
-  height: 20px;
+  height: 19px;
   box-sizing: border-box;
   padding: 0;
   border: 1px solid var(--c);
@@ -44,6 +44,14 @@
   user-select: none;
 }
 .ot-trd-row.is-dragging .ot-trd-chip { cursor: grabbing; }
+
+/* Limit line of a stop-limit order waiting for its stop: dotted. */
+.ot-trd-row.is-limit-line .ot-trd-seg {
+  height: 0;
+  background: none;
+  border-top: 1px dotted var(--c);
+}
+.ot-trd-chip.is-dotted-chip { border-style: dotted; }
 
 /* Single-button chips (reverse, TP / SL of the position). */
 .ot-trd-chip.is-button,
@@ -111,6 +119,7 @@
   overflow: hidden;
   pointer-events: none;
 }
+.ot-trd-axis.is-dotted { border-style: dotted; }
 .ot-trd-axis.is-filled {
   background: var(--c);
   color: #fff;
