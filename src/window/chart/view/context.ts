@@ -64,6 +64,8 @@ export type ChartViewProps = {
   /** Bottom-bar session (RTH/ETH). Drives datafeed session filtering on
    *  intraday frames (09:30–16:00 ET for RTH); ignored on daily+. */
   session?: SessionId;
+  /** Saved id of the chart in its layout (a saved replay is matched by it). */
+  chartUid?: string;
   chartType?: ChartTypeId;
   armedTool?: string | null;
   /** Cursor-group interaction mode; drives the chart-host cursor + overlay

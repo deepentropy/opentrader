@@ -67,7 +67,7 @@ import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
 import { installSourceEdits } from "./window/shell/source-edits";
 import { ReplayToolbar } from "./window/replay/ReplayToolbar";
-import { replayEnabled, replayToolbarShown } from "./data/replay";
+import { replayEnabled, replayToolbarShown, setReplaySessionStore } from "./data/replay";
 import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
 import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
 import { OrderTicket } from "./window/trading/OrderTicket";
@@ -303,6 +303,20 @@ function App() {
   // ── Undo / redo, drawings, chart edits ─────────────────────────────────
   // Undo entries are applied by the chart edits (created below; only called
   // once App is set up).
+  // A Bar Replay left with "Save this replay" is kept on its tab (the layout).
+  setReplaySessionStore({
+    load: () => appTabs.activeTab().replaySession ?? null,
+    save: (s) => appTabs.patchTab(appTabs.activeTab().id, { replaySession: s ?? undefined }),
+    restoreCharts: (s) => {
+      const tab = appTabs.activeTab();
+      const panes = tab.panes.map((p) => {
+        const c = s.charts.find((x) => x.uid === p.id);
+        return c ? { ...p, symbol: c.symbol, interval: c.interval, session: c.session as typeof p.session } : p;
+      });
+      const first = tab.panes.findIndex((p) => p.id === s.charts[0]?.uid);
+      appTabs.patchTab(tab.id, { panes, ...(first >= 0 ? { activePane: first } : {}) });
+    },
+  });
   const undo = createUndoHistory((e, side) => chartEdits.applyUndoEntry(e, side));
   // Replay trading settings changes are undo steps.
   replayBroker.setSettingsUndo((paneId, before, after, label) => undo.commit({ kind: "replay-settings", paneId, before, after, label, at: Date.now() }));

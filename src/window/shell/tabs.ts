@@ -10,6 +10,7 @@
  */
 import { isScaleKey, type ScaleKey } from "../chart/scales/scale-layout";
 import { DEFAULT_LAYOUT, LAYOUT_NUMBERING, LAYOUT_SPECS, renumberCharts, type LayoutId } from "../chart/layouts";
+import type { SavedReplay } from "../../data/replay";
 import { CHART_TYPE_IDS, DEFAULT_CHART_TYPE, type ChartTypeId } from "../chart/chart-types";
 import { SYMBOLS } from "../../data/symbol-search";
 import type { LinkChannels, LinkColor, TabLink } from "./tab-linking";
@@ -230,7 +231,19 @@ export type TabChart = {
   /** Cached display name of `savedLayoutId` — shown in the header save badge
    *  without a store lookup. Kept in sync on save / open / rename. */
   savedLayoutName?: string;
+  /** Bar Replay left with "Save this replay": continued on the next open. */
+  replaySession?: SavedReplay;
 };
+
+/** A saved replay read back (dropped when malformed). */
+export function reviveReplaySession(raw: unknown): SavedReplay | undefined {
+  const r = raw as SavedReplay | null | undefined;
+  if (!r || typeof r.time !== "number" || (r.mode !== "ActiveChart" && r.mode !== "AllCharts") || !Array.isArray(r.charts)) return undefined;
+  const charts = r.charts.filter(
+    (c) => c && typeof c.uid === "string" && typeof c.symbol === "string" && typeof c.interval === "string" && typeof c.session === "string",
+  );
+  return charts.length ? { time: r.time, mode: r.mode, charts } : undefined;
+}
 
 export type LayoutSizes = Partial<Record<LayoutId, Sizing>>;
 
@@ -441,7 +454,8 @@ export function migrateTab(raw: any): TabChart {
   const savedLayoutName = typeof raw?.savedLayoutName === "string" ? raw.savedLayoutName : undefined;
   const pinned = raw?.pinned === true ? true : undefined;
   const layoutSizes = reviveLayoutSizes(raw?.layoutSizes);
-  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName };
+  const replaySession = reviveReplaySession(raw?.replaySession);
+  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName, replaySession };
 }
 
 /** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:

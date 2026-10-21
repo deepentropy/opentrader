@@ -13,7 +13,14 @@ import * as kv from "../../data/kv";
 import {
   cancelSelect,
   closeReplay,
+  continueSavedReplay,
+  forgetSavedReplay,
   openReplay,
+  replayFinished,
+  replaySaveSession,
+  saveReplaySession,
+  savedReplay,
+  setReplaySaveSession,
   replayEnabled,
   replayMode,
   replayStarted,
@@ -26,19 +33,53 @@ import {
 
 const HIDE_RESET_CONFIRM_KEY = "ot:replay-mode-change-hide-confirm";
 
-/** Close Bar Replay; a running replay asks first. */
+/** Close Bar Replay; a running replay asks first, with "Save this replay"
+ *  (reference app: the replay can be continued later). */
 export function requestCloseReplay() {
-  if (!replayStarted()) {
+  if (!replayStarted() || replayFinished()) {
+    if (replayFinished()) forgetSavedReplay();
     closeReplay();
     return;
   }
+  const [save, setSave] = createSignal(replaySaveSession());
   showConfirm({
     title: "Leave current replay?",
-    text: "",
+    text: "You can continue this replay later by saving it.",
     mainText: "Leave",
     cancelText: "Stay",
     intent: "neutral",
-    onConfirm: () => closeReplay(),
+    doNotShow: { label: "Save this replay", checked: save, onChange: setSave },
+    onConfirm: () => {
+      setReplaySaveSession(save());
+      saveReplaySession();
+      closeReplay();
+    },
+  });
+}
+
+/** Open Bar Replay; a saved replay of this layout is offered first
+ *  ("Continue your last replay?", reference app). */
+export function requestOpenReplay() {
+  const saved = savedReplay();
+  if (!saved) {
+    openReplay();
+    return;
+  }
+  showConfirm({
+    title: "Continue your last replay?",
+    text: "We saved your last replay on the chart, so your progress is safe. Pick up where you left off or start a new one.",
+    mainText: "Continue",
+    cancelText: "Start new",
+    intent: "neutral",
+    onConfirm: () => void continueSavedReplay(saved),
+    onCancel: () => {
+      forgetSavedReplay();
+      openReplay();
+    },
+    onDismiss: () => {
+      forgetSavedReplay();
+      openReplay();
+    },
   });
 }
 
@@ -143,7 +184,7 @@ export function ReplayHeaderButton(props: { multiChart: boolean }) {
           aria-label="Bar replay"
           aria-pressed={replayEnabled()}
           class="ot-toolbar-button header-toolbar-btn is-iconText ot-replay-header-btn"
-          onClick={() => (replayEnabled() ? requestCloseReplay() : openReplay())}
+          onClick={() => (replayEnabled() ? requestCloseReplay() : requestOpenReplay())}
         >
           <Icon name="header-bar-replay" size={28} />
           <span class="header-toolbar-label">Replay</span>

@@ -58,6 +58,17 @@ const COMMENT: Record<OrderType, string> = {
 const TP_COMMENT = "Bracket Take Profit";
 const SL_COMMENT = "Bracket Stop Loss";
 
+/** A saved account: its first bar, the replayed updates and the commands
+ *  given on them (ReplayAccount.snapshot / restore). */
+export type ReplayAccountSnapshot = {
+  symbol: string;
+  sym: SymbolInfo;
+  settings: ReplaySettings;
+  currency: string;
+  bars: Bar[];
+  log: { at: number; cmd: unknown }[];
+};
+
 type Cmd =
   | { op: "place"; req: OrderRequest }
   | { op: "modify"; id: string; req: OrderRequest }
@@ -161,11 +172,20 @@ export class ReplayAccount {
     const log = this.log;
     this.log = [];
     this.reset();
+    this.replayHistory(bars, log);
+  }
+
+  /** Run the updates after the first bar and the commands given on them
+   *  again, without events (settings changed, saved replay continued). */
+  private replayHistory(bars: Bar[], log: { at: number; cmd: Cmd }[]) {
     this.quiet = true;
     try {
       let k = 0;
       const run = (at: number) => {
-        while (k < log.length && log[k].at === at) this.exec(log[k++].cmd);
+        while (k < log.length && log[k].at === at) {
+          this.log.push(log[k]);
+          this.exec(log[k++].cmd);
+        }
       };
       run(0);
       for (let i = 0; i < bars.length; i++) {
@@ -176,6 +196,25 @@ export class ReplayAccount {
       this.quiet = false;
       this.out = [];
     }
+  }
+
+  /** Everything needed to build the account again ("Save this replay"). */
+  snapshot(): ReplayAccountSnapshot {
+    return {
+      symbol: this.symbol,
+      sym: this.sym,
+      settings: this.settingsValue,
+      currency: this.currencyValue,
+      bars: this.bars.slice(),
+      log: this.log.slice(),
+    };
+  }
+
+  /** An account as it was saved (a saved replay continued). */
+  static restore(snap: ReplayAccountSnapshot): ReplayAccount {
+    const acc = new ReplayAccount(snap.symbol, snap.sym, snap.settings, snap.currency, snap.bars[0]);
+    acc.replayHistory(snap.bars.slice(1), snap.log as { at: number; cmd: Cmd }[]);
+    return acc;
   }
 
   // ------------------------------------------------------------ reads

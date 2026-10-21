@@ -25,9 +25,10 @@ import {
   replayStartSeq,
   replayStarted,
   setReplayFinishHook,
+  setReplayTradingSave,
 } from "../replay";
 import { symbolSessions } from "../session";
-import { DEFAULT_REPLAY_SETTINGS, ReplayAccount, type ReplaySettings } from "./replay-account";
+import { DEFAULT_REPLAY_SETTINGS, ReplayAccount, type ReplayAccountSnapshot, type ReplaySettings } from "./replay-account";
 import type { OrderRequest, TradingEvent, TradingExecution, TradingOrder, TradingPosition, TradingQuote } from "./types";
 
 /** What the order ticket shows instead of the form when trading is off. */
@@ -176,6 +177,27 @@ export const replayBroker = createRoot(() => {
     bump();
     return out;
   };
+
+  // A saved replay keeps each chart's account ("Save this replay").
+  setReplayTradingSave({
+    snapshot: (paneId) => {
+      const acc = accounts.get(paneId);
+      if (acc) return acc.snapshot();
+      return settingsByPane.has(paneId) ? { settingsOnly: settingsOf(paneId) } : null;
+    },
+    restore: (paneId, snap) => {
+      const s = snap as ReplayAccountSnapshot | { settingsOnly: ReplaySettings };
+      if ("settingsOnly" in s) {
+        settingsByPane.set(paneId, s.settingsOnly);
+      } else {
+        const p = panes.get(paneId);
+        if (!p || p.symbol !== s.symbol) return;
+        settingsByPane.set(paneId, s.settings);
+        accounts.set(paneId, ReplayAccount.restore(s));
+      }
+      bump();
+    },
+  });
 
   // End of the session: positions closed, results for the end dialog.
   setReplayFinishHook(() => {

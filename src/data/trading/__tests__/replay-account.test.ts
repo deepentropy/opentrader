@@ -173,4 +173,31 @@ describe("ReplayAccount", () => {
     expect(a.takeEvents()).toEqual([]);
     expect(a.report().equity).toHaveLength(2);
   });
+
+  it("settings changed twice keep the orders", () => {
+    const a = account(100);
+    a.place(req({ qty: 10 }));
+    a.update(bar(1, 100, 112, 99, 110));
+    a.applySettings({ ...DEFAULT_REPLAY_SETTINGS, commissionType: "cash_per_order", commissionValue: 5 });
+    a.applySettings({ ...DEFAULT_REPLAY_SETTINGS, commissionType: "cash_per_order", commissionValue: 1 });
+    expect(a.position()?.qty).toBe(10);
+  });
+
+  it("a snapshot builds the same account again (saved replay)", () => {
+    const a = account(100);
+    a.place(req({ qty: 2 }));
+    a.place(req({ type: "limit", limitPrice: 95, takeProfit: 99 }));
+    a.update(bar(1, 100, 101, 94, 96));
+    a.update(bar(2, 96, 100, 95, 99.5));
+    const b = ReplayAccount.restore(JSON.parse(JSON.stringify(a.snapshot())));
+    expect(b.position()).toEqual(a.position());
+    expect(b.orders()).toEqual(a.orders());
+    expect(b.executions()).toEqual(a.executions());
+    expect(b.netProfit).toBeCloseTo(a.netProfit, 9);
+    expect(b.takeEvents()).toEqual([]);
+    // It goes on like the original.
+    a.update(bar(3, 99.5, 101, 99, 100));
+    b.update(bar(3, 99.5, 101, 99, 100));
+    expect(b.position()).toEqual(a.position());
+  });
 });

@@ -398,6 +398,7 @@ export function ChartGrid(props: Props) {
               }}
             >
               <ChartView
+                chartUid={pane().id}
                 symbol={pane().symbol}
                 interval={pane().interval}
                 session={pane().session}

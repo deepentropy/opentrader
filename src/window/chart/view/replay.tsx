@@ -364,6 +364,9 @@ export function createReplay(cx: ChartCx): ReplayApi {
       replayBroker.paneStopped(paneId);
       cx.controller?.setReplayCutoff(null);
     },
+    uid: () => props.chartUid,
+    symbol: () => props.symbol ?? "",
+    session: () => props.session ?? "RTH",
     dateOnly: () => !isIntradayResolution(interval()) && !isSecondResolution(interval()),
     wallToTime: (d, minutes) =>
       !isIntradayResolution(interval()) && !isSecondResolution(interval())

@@ -166,7 +166,106 @@ export type ReplayPane = {
   timeToWall: (sec: number) => WallTime;
   /** A time inside a trading session of the chart's symbol. */
   inSession: (sec: number) => boolean;
+  /** The chart's saved id (layout pane id), symbol and session: what a saved
+   *  replay is matched and restored with. */
+  uid: () => string | undefined;
+  symbol: () => string;
+  session: () => string;
 };
+
+/** A replay saved to be continued later ("Save this replay", reference app):
+ *  the replay time and mode, and per chart its symbol, interval, session and
+ *  trading account. */
+export type SavedReplay = {
+  time: number;
+  mode: ReplayMode;
+  charts: { uid: string; symbol: string; interval: string; session: string; trading?: unknown }[];
+};
+
+/** Where the saved replay of the shown layout is kept (App: on the tab), and
+ *  how its charts get their symbol, interval and session back (the first
+ *  becomes the focused chart). */
+export type ReplaySessionStore = {
+  load: () => SavedReplay | null;
+  save: (s: SavedReplay | null) => void;
+  restoreCharts: (s: SavedReplay) => void;
+};
+let sessionStore: ReplaySessionStore | null = null;
+export function setReplaySessionStore(store: ReplaySessionStore | null) {
+  sessionStore = store;
+}
+
+/** The trading account of a chart, saved and put back with the replay
+ *  (data/trading/replay-broker.ts). */
+let tradingSave: { snapshot: (paneId: number) => unknown; restore: (paneId: number, snap: unknown) => void } | null = null;
+export function setReplayTradingSave(hooks: typeof tradingSave) {
+  tradingSave = hooks;
+}
+
+const SAVE_SESSION_KEY = "ot:replay-save-session";
+/** "Save this replay" (leave dialog), on by default. */
+export function replaySaveSession(): boolean {
+  return kv.getItem(SAVE_SESSION_KEY) !== "false";
+}
+export function setReplaySaveSession(v: boolean) {
+  kv.setItem(SAVE_SESSION_KEY, v ? "true" : "false");
+}
+
+/** Save the running replay when "Save this replay" is on, else forget the
+ *  saved one (on leave and on Jump to real-time, reference app). */
+export function saveReplaySession() {
+  if (!sessionStore) return;
+  const pt = point();
+  if (!replaySaveSession() || pt === null || !replayStarted() || finished()) {
+    sessionStore.save(null);
+    return;
+  }
+  const charts: SavedReplay["charts"] = [];
+  for (const id of inReplay()) {
+    const p = panes.get(id);
+    const uid = p?.uid();
+    if (!p || !uid) continue;
+    charts.push({ uid, symbol: p.symbol(), interval: p.interval(), session: p.session(), trading: tradingSave?.snapshot(id) ?? undefined });
+  }
+  sessionStore.save(charts.length ? { time: pt, mode: mode(), charts } : null);
+}
+
+/** The saved replay of the shown layout when one of its charts is on screen. */
+export function savedReplay(): SavedReplay | null {
+  const s = sessionStore?.load() ?? null;
+  if (!s) return null;
+  const shown = [...panes.values()].filter((p) => p.shown()).map((p) => p.uid());
+  return s.charts.some((c) => shown.includes(c.uid)) ? s : null;
+}
+
+export function forgetSavedReplay() {
+  sessionStore?.save(null);
+}
+
+/** "Continue": the mode, each chart's symbol / interval / session, then the
+ *  replay time and the trading accounts. */
+export async function continueSavedReplay(s: SavedReplay): Promise<void> {
+  setReplayMode(s.mode);
+  setEnabled(true);
+  setSelecting(false);
+  sessionStore?.restoreCharts(s);
+  // The charts load their symbol / interval first.
+  const byUid = () => new Map([...panes.values()].filter((p) => p.shown()).map((p) => [p.uid(), p] as const));
+  const ready = () =>
+    s.charts.every((c) => {
+      const p = byUid().get(c.uid);
+      return !p || (p.symbol() === c.symbol && p.interval() === c.interval && p.firstAvailable() !== null);
+    });
+  for (let i = 0; i < 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
+  const first = byUid().get(s.charts[0].uid);
+  if (first && s.mode === "ActiveChart") setActivePane(first.paneId);
+  await startAt(s.time, s.mode === "ActiveChart" ? first?.paneId : undefined);
+  for (const c of s.charts) {
+    const p = byUid().get(c.uid);
+    if (p && c.trading && inReplay().includes(p.paneId)) tradingSave?.restore(p.paneId, c.trading);
+  }
+  sessionStore?.save(null);
+}
 
 const panes = new Map<number, ReplayPane>();
 
@@ -577,6 +676,8 @@ export function jumpToRealtime() {
     stopReplay();
     return;
   }
+  // Saved first (reference app: on Jump to real-time too).
+  saveReplaySession();
   if (finishHook?.()) {
     setPlay(false);
     setFinished(true);
