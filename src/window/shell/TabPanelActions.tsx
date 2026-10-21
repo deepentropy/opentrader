@@ -9,6 +9,7 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { ProfileMenu } from "../header/ProfileMenu";
 import { updateReady } from "../../data/app-update";
+import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
 
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
@@ -45,6 +46,7 @@ export function TabPanelActions(props: Props) {
           href={DESKTOP_DOWNLOAD_URL}
           target="_blank"
           rel="noopener"
+          onClick={() => track("desktop_link_clicked")}
         >
           Get the desktop app
         </a>

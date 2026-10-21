@@ -16,6 +16,7 @@
  * Opened from the header "Create alert" button and the chart context menu
  * (prefilled with the clicked symbol + price), or with an `editId` to edit.
  */
+import { track } from "../../data/analytics";
 import { sourceSpecsOf } from "../chart/indicators/study-sources";
 import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -1089,6 +1090,7 @@ export function AlertDialog(props: Props) {
         id = existing.id;
       } else {
         id = alertStore.add(r);
+        track("alert_created");
       }
       setAlertWebhook(id, webhook);
     };

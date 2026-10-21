@@ -163,6 +163,14 @@
   font-size: 14px;
 }
 
+/* Explanation under a setting (Privacy). */
+.app-settings-note {
+  margin: 4px 0 0 28px;
+  color: var(--color-content-secondary-neutral);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 /* Theme picker: System / Dark / Light tiles (reference medium size) */
 .app-settings-theme {
   display: flex;

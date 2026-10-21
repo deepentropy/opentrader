@@ -10,6 +10,7 @@
  */
 import { createSignal } from "solid-js";
 import { emitAppEvent } from "../../data/app-events";
+import { track } from "../../data/analytics";
 import { getTickerInfo, isFullSymbol, tickerOf, toFullSymbol } from "../../data/datafeed";
 import { recentSymbols, recordRecentSymbol } from "../../data/recent-symbols";
 import { loadIndicatorDefault } from "../../data/indicator-defaults";
@@ -127,6 +128,8 @@ export function createChartEdits(
    *  call adds a new instance with its own settings, like the reference app
    *  (the same indicator can be on a chart several times). */
   function addIndicator(typeId: string, parent?: ChildStudyParent) {
+    // A user's own script is counted, not named.
+    track("indicator_added", { indicator: typeId.startsWith("user:") ? "user-script" : typeId });
     // The fixed range volume profile row picks its drawing tool, as in the reference app.
     if (typeId === FIXED_RANGE_VP_TOOL_ROW) {
       emitAppEvent("select-drawing-tool", { toolId: "fixed-range-volume-profile" });

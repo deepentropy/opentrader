@@ -2,6 +2,7 @@
  * Pictures and data of a chart view: the snapshot image (layout-snapshot.ts),
  * the Alt + S actions and the "Download chart data" source.
  */
+import { track } from "../../../data/analytics";
 import { onCleanup, onMount } from "solid-js";
 import { readFontFamily } from "../chart-tokens";
 import { type PriceSource } from "../../header/chart-settings";
@@ -225,6 +226,7 @@ export function createSnapshot(cx: ChartCx): SnapshotApi {
   // local backing for "Open in new tab": temp page in the default web
   // browser. File name: "<ticker>_<yyyy-MM-dd>_<HH-mm-ss>" (local time).
   const takeSnapshot = async (action: "copy" | "download" | "open" = "copy") => {
+    track("snapshot_taken", { action });
     if (!cx.chart) return;
     const grid = cx.paneRoot.closest<HTMLElement>(".chart-grid");
     const canvas = grid ? await layoutSnapshot(grid, snapshotTheme(props.theme ?? "dark"), props.timeZone) : null;

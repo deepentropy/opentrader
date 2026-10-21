@@ -22,6 +22,9 @@ void hydrateKv().finally(async () => {
   const { default: App } = await import("./App");
   render(() => <App />, document.getElementById("root") as HTMLElement);
   hideSplash();
+  // Anonymous usage statistics (reads kv, so after hydration).
+  const { initAnalytics } = await import("./data/analytics");
+  initAnalytics();
 });
 
 /** Minimum time the startup splash stays up, from page start, so its delay

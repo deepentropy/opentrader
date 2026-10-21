@@ -165,6 +165,7 @@ function openSocket(): Promise<void> {
         if (++failedOpens >= FAILS_BEFORE_POLLING) {
           polling = true;
           console.warn("[server] live connection blocked; reading updates by polling");
+          void import("../data/analytics").then((a) => a.track("live_fallback_polling"));
           void connected().then(resubscribe, () => undefined);
           return;
         }

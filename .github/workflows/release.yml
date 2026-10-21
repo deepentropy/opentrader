@@ -85,6 +85,9 @@ jobs:
       # update.
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # Anonymous usage statistics (src/data/analytics.ts): the analytics
+      # project key, compiled into the frontend. Without it they are off.
+      VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
 
     steps:
       # Two checkouts side by side, the layout vite.config.ts expects:

@@ -21,6 +21,7 @@ import {
   type TabTitlePartState,
 } from "../shell/tab-title";
 import { alertSettings } from "../../data/alert-settings";
+import { analyticsAvailable, analyticsEnabled, setAnalyticsEnabled } from "../../data/analytics";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
 import { commands, type BuildInfo } from "../../bindings";
@@ -423,6 +424,18 @@ function ServiceTab() {
           <ConfirmButton label="Back to defaults" confirmLabel="Erase everything and restart" onConfirm={() => void factoryReset()} />
         </div>
       </Section>
+      <Show when={analyticsAvailable()}>
+        <Section label="PRIVACY">
+          <Checkbox
+            label="Send anonymous usage statistics"
+            checked={analyticsEnabled()}
+            onChange={() => setAnalyticsEnabled(!analyticsEnabled())}
+          />
+          <div class="app-settings-note">
+            Which features are used, to know what to improve. No account, no symbols, no personal data.
+          </div>
+        </Section>
+      </Show>
     </>
   );
 }

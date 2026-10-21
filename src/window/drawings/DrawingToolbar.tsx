@@ -10,6 +10,7 @@
  * Click a submenu row → close the submenu, activate that tool, and promote
  * it to be the group's displayed default (per-group MRU behaviour).
  */
+import { track } from "../../data/analytics";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
@@ -347,6 +348,7 @@ export function DrawingToolbar(props: Props) {
   /** Promote a tool to its group's button (MRU), then arm it. Shared by the
    *  submenu picks and the favorites toolbar's `select-drawing-tool` event. */
   function selectTool(toolId: string) {
+    track("drawing_tool_selected", { tool: toolId });
     for (const g of GROUPS) {
       if (groupTools(g).some((t) => t.id === toolId)) {
         setGroupDefault({ ...groupDefault(), [g.id]: toolId });

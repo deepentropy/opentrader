@@ -1,5 +1,6 @@
 // Registers the saved-template default hook of the shared drawing core
 // before any module reads tool defaults.
+import { track } from "./data/analytics";
 import "./window/drawings/templates";
 import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show } from "solid-js";
 import { HeaderToolbar } from "./window/header/HeaderToolbar";
@@ -570,7 +571,10 @@ function App() {
         onCreateAlert={() => openCreateAlertOnSelection(symbol())}
         layoutName={layoutName()}
         layoutDirty={layoutDirty()}
-        onSaveLayout={saveActiveLayout}
+        onSaveLayout={() => {
+          track("layout_saved");
+          saveActiveLayout();
+        }}
         onApplyIndicatorTemplate={applyIndicatorTemplate}
         activeLayoutId={activeTab().savedLayoutId}
         onOpenLayout={requestOpenLayout}

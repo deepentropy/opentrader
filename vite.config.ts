@@ -56,6 +56,8 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
     ],
   },
   build: mode === "web" ? { outDir: "dist-web" } : undefined,
+  // The version, for the usage statistics (data/analytics.ts).
+  define: { "import.meta.env.VITE_APP_VERSION": JSON.stringify(tauriConf.version) },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   clearScreen: false,

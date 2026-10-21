@@ -13,6 +13,7 @@
  * every screen change re-plans it. The Refresh badge counts down the seconds
  * to the next update ("Time to refresh"), like the reference app's 10 s auto refresh.
  */
+import { track } from "../../data/analytics";
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
 import type { FieldInfo } from "../../bindings";
@@ -87,6 +88,7 @@ export function ScreenerPanel(props: Props) {
         setFields(new Map(list.map((f) => [f.id, f])));
         const st = await screenerOpen(owner);
         if (disposed) return;
+        track("screener_opened");
         if (st.updatedMs !== null) setLastUpdate(Date.now());
         unlisten = await onScreenerUpdate((u) => {
           setLastUpdate(Date.now());

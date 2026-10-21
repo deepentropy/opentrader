@@ -79,6 +79,9 @@ jobs:
       - name: Build the web frontend
         working-directory: opentrader
         run: npm run build:web
+        env:
+          # Anonymous usage statistics (src/data/analytics.ts); off without it.
+          VITE_POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
 
       - name: Upload dist-web
         uses: actions/upload-artifact@v7
