@@ -104,20 +104,26 @@ export type Snapshot = {
   updatedMs: number;
 };
 
-/** Ticker info requests in flight, one per symbol: every caller waiting out a
- *  lost connection shares one retry loop. */
-const infoInFlight = new Map<string, Promise<TickerInfo>>();
+/** Reference data changes at most once a day: an answer is reused for an hour. */
+const INFO_TTL_MS = 60 * 60_000;
+
+/** Ticker info requests, one per symbol: every caller waiting out a lost
+ *  connection shares one retry loop, and the answer serves every caller for
+ *  INFO_TTL_MS. A failure is not kept. */
+const infoCache = new Map<string, { at: number; p: Promise<TickerInfo> }>();
 
 /** Reference data of `symbol`; a server that cannot be reached is tried again
  *  until it answers (see ./connection). */
 export function getTickerInfo(symbol: string): Promise<TickerInfo> {
-  let p = infoInFlight.get(symbol);
-  if (!p) {
-    p = retryTransient(() => invoke<TickerInfo>("get_ticker_info", { symbol }));
-    infoInFlight.set(symbol, p);
-    const done = () => infoInFlight.delete(symbol);
-    p.then(done, done);
-  }
+  const hit = infoCache.get(symbol);
+  if (hit && Date.now() - hit.at < INFO_TTL_MS) return hit.p;
+  const p = retryTransient(() => invoke<TickerInfo>("get_ticker_info", { symbol }));
+  const entry = { at: Date.now(), p };
+  infoCache.set(symbol, entry);
+  p.then(
+    () => { entry.at = Date.now(); },
+    () => { if (infoCache.get(symbol) === entry) infoCache.delete(symbol); },
+  );
   return p;
 }
 
@@ -138,7 +144,19 @@ export type NewsItem = {
   description: string | null;
 };
 
+/** Charts of the same symbol refresh their headline on the same period: one
+ *  request serves them all for NEWS_SHARE_MS. */
+const NEWS_SHARE_MS = 60_000;
+const newsCache = new Map<string, { at: number; p: Promise<NewsItem[]> }>();
+
 /** Newest `limit` headlines tagged with `symbol`; `[]` on backend failure. */
-export async function getLatestNews(symbol: string, limit = 1): Promise<NewsItem[]> {
-  return invoke<NewsItem[]>("get_latest_news", { symbol, limit });
+export function getLatestNews(symbol: string, limit = 1): Promise<NewsItem[]> {
+  const key = `${symbol}|${limit}`;
+  const hit = newsCache.get(key);
+  if (hit && Date.now() - hit.at < NEWS_SHARE_MS) return hit.p;
+  const p = invoke<NewsItem[]>("get_latest_news", { symbol, limit });
+  const entry = { at: Date.now(), p };
+  newsCache.set(key, entry);
+  p.catch(() => { if (newsCache.get(key) === entry) newsCache.delete(key); });
+  return p;
 }
