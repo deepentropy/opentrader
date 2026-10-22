@@ -47,6 +47,8 @@ export function TabPanelActions(props: Props) {
           target="_blank"
           rel="noopener"
           onClick={() => track("desktop_link_clicked")}
+          // Middle click opens the link too.
+          onAuxClick={(e) => { if (e.button === 1) track("desktop_link_clicked"); }}
         >
           Get the desktop app
         </a>
