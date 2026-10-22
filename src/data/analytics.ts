@@ -139,10 +139,15 @@ export function flush(): void {
   void fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => undefined);
 }
 
-/** Start: the "app opened" event, and a last flush when the page hides. */
+/** Start: the "app opened" event, and a last flush when the page hides.
+ *  Desktop: `first_launch` when no settings of an earlier run were found (a
+ *  new install, not an update), to compare installs with the web version's
+ *  download link clicks. */
 export function initAnalytics(): void {
   if (!analyticsAvailable()) return;
-  track("app_opened", { screen_width: Math.round(window.screen.width / 100) * 100 });
+  const props: Props = { screen_width: Math.round(window.screen.width / 100) * 100 };
+  if (!WEB) props.first_launch = kv.startedEmpty();
+  track("app_opened", props);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flush();
   });

@@ -177,6 +177,7 @@ export async function hydrateKv(): Promise<void> {
     }
     useStore = true;
     await migrateFromLocalStorage();
+    startedEmptyFlag = ![...mem.keys()].some((k) => k !== MIGRATED_SENTINEL);
     // Live cross-window sync over an app-global Tauri event (see CHANGE_EVENT).
     const { emit, listen } = await import("@tauri-apps/api/event");
     broadcast = (payload) => void emit(CHANGE_EVENT, payload);
@@ -215,6 +216,10 @@ async function migrateFromLocalStorage(): Promise<void> {
     console.error("[kv] localStorage migration failed", e);
   }
 }
+
+/** Whether the store held no app state at boot (desktop): a first launch on this computer. */
+let startedEmptyFlag = false;
+export const startedEmpty = (): boolean => startedEmptyFlag;
 
 /** Synchronous read — mirrors localStorage.getItem. */
 export function getItem(key: string): string | null {
