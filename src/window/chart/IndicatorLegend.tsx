@@ -50,6 +50,12 @@ type Props = {
   onIntervalSettings?: (id: string) => void;
   /** Title clicked (compared symbol rows: "Change symbol"). */
   onTitleClick?: (id: string) => void;
+  /** The chart's indicators legend is collapsed: rows hidden, the toggler
+   *  shows their count. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+  /** The price pane's legend: its toggler shows with a single study too. */
+  mainPane?: boolean;
   /** Selected study (null = none) and the title click that selects one. */
   selectedId?: string | null;
   onSelect?: (id: string) => void;
@@ -250,8 +256,8 @@ export function IndicatorLegend(props: Props) {
   };
   return (<>
     <Show when={props.rows.length > 0}>
-      <div class="ot-ind-legend" data-name="legend-sources">
-        <For each={props.rows}>
+      <div class="ot-ind-legend" classList={{ "is-collapsed": !!props.collapsed }} data-name="legend-sources">
+        <For each={props.collapsed ? [] : props.rows}>
           {(row) => (
             <div
               class={`ot-ind-legend-row${row.hidden ? " is-hidden" : ""}${row.eyeHidden ? " is-eye-hidden" : ""}${row.offInterval ? " is-off-interval" : ""}${props.selectedId === row.id ? " is-selected" : ""}${row.loading ? " is-loading" : ""}`}
@@ -377,6 +383,9 @@ export function IndicatorLegend(props: Props) {
             </div>
           )}
         </For>
+        <Show when={props.onToggleCollapsed && (props.rows.length > 1 || props.mainPane)}>
+          <LegendToggler count={props.rows.length} collapsed={!!props.collapsed} bgColor={props.bgColor} onToggle={() => props.onToggleCollapsed?.()} />
+        </Show>
       </div>
     </Show>
     <Show when={panel() && panelError()}>
@@ -393,4 +402,54 @@ export function IndicatorLegend(props: Props) {
       )}
     </Show>
   </>);
+}
+
+/** Indicators legend toggler (reference app): under the studies, a button on
+ *  the chart background at 80 % with the arrow (up while open) and, collapsed,
+ *  the number of studies (from two). Shown on the price pane from one study,
+ *  on the other panes from two. */
+function LegendToggler(p: { count: number; collapsed: boolean; bgColor?: string; onToggle: () => void }) {
+  const title = () => `${p.collapsed ? "Show" : "Hide"} ${p.count === 1 ? "indicator" : "indicators"} legend`;
+  return (
+    <div class="ot-ind-legend-toggler-wrap" data-qa-id="legend-toggler-wrapper">
+      <button
+        type="button"
+        class="ot-ind-legend-toggler"
+        classList={{ "is-closed": p.collapsed, "is-single": p.count <= 1 }}
+        style={{ "background-color": withAlpha(p.bgColor, 0.8) }}
+        title={title()}
+        aria-label={title()}
+        data-qa-id="legend-toggler"
+        onClick={(e) => {
+          e.stopPropagation();
+          p.onToggle();
+        }}
+      >
+        <span class="ot-ind-legend-toggler-arrow">
+          <svg viewBox="0 0 15 15" width="15" height="15" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" d="m4 6 3.5 3 3.5-3" />
+          </svg>
+        </span>
+        <Show when={p.collapsed && p.count > 1}>
+          <span class="ot-ind-legend-toggler-count" data-qa-id="legend-collapsed-sources-counter">{p.count}</span>
+        </Show>
+      </button>
+    </div>
+  );
+}
+
+/** `#rrggbb` (or rgb()) at `alpha`; undefined when not parseable. */
+function withAlpha(color: string | undefined, alpha: number): string | undefined {
+  if (!color) return undefined;
+  const hex = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+  const rgb = /^rgba?\(([^)]+)\)$/i.exec(color.trim());
+  if (rgb) {
+    const [r, g, b] = rgb[1].split(",").map((x) => x.trim());
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return undefined;
 }

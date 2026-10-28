@@ -708,3 +708,69 @@ html.theme-light .ot-study-error-title.is-error { color: var(--color-ripe-red-80
   text-overflow: ellipsis;
   cursor: default;
 }
+
+/* Indicators legend toggler (reference app 3.4.1): wrapper 3 px / 5 px,
+   button 21 px high, 1 px border, radius 3, the chart background at 80 %;
+   arrow box 27 px wide (19 px while collapsed with a count), turned up while
+   open; the count 13 / 16 px. */
+.ot-ind-legend-toggler-wrap {
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  padding: 3px 5px;
+}
+.ot-ind-legend-toggler {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--ot-legend-toggler-border);
+  border-radius: 3px;
+  color: var(--ot-legend-toggler-color);
+  cursor: default;
+  pointer-events: all;
+}
+@media (any-hover: hover) {
+  .ot-ind-legend-toggler:hover { color: var(--ot-legend-toggler-hover); }
+  .ot-ind-legend-toggler:hover::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    background-color: var(--ot-legend-toggler-overlay);
+  }
+}
+.ot-ind-legend-toggler-arrow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 19px;
+  transform: rotate(-180deg);
+  transition: transform 0.1s cubic-bezier(0.06, 0.52, 1, 0.54);
+}
+.ot-ind-legend-toggler.is-closed .ot-ind-legend-toggler-arrow { transform: rotate(0deg); }
+.ot-ind-legend-toggler.is-closed:not(.is-single) .ot-ind-legend-toggler-arrow { width: 19px; }
+.ot-ind-legend-toggler-count {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  padding-right: 4px;
+  font-size: 13px;
+  line-height: 16px;
+}
+html.theme-dark {
+  --ot-legend-toggler-border: #2b2b2b;
+  --ot-legend-toggler-color: #dbdbdb;
+  --ot-legend-toggler-hover: #f2f2f2;
+  --ot-legend-toggler-overlay: rgba(255, 255, 255, 0.08);
+}
+html.theme-light {
+  --ot-legend-toggler-border: #dbdbdb;
+  --ot-legend-toggler-color: #0f0f0f;
+  --ot-legend-toggler-hover: #000;
+  --ot-legend-toggler-overlay: rgba(0, 0, 0, 0.06);
+}

@@ -64,6 +64,9 @@ export function createLegend(cx: ChartCx): LegendApi {
   const studyLegend = (pane: () => number) => (
     <IndicatorLegend
       rows={indLegend().filter((r) => r.pane === pane())}
+      collapsed={!!props.indicatorsLegendCollapsed}
+      onToggleCollapsed={props.onToggleIndicatorsLegend}
+      mainPane={pane() === (void cx.mainPaneEpoch(), cx.mainPane())}
       formatPrice={cx.legendPriceFormat()}
       showTitles={appearance().legendIndTitles}
       showInputs={appearance().legendIndInputs}

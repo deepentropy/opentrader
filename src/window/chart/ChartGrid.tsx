@@ -113,6 +113,7 @@ type Props = {
   onVisibleRange?: (paneIndex: number, range: { from: number; to: number; last?: number }) => void;
   /** Legend eye of pane `paneIndex` (hide / show its main series). */
   onToggleSeries?: (paneIndex: number) => void;
+  onToggleIndicatorsLegend?: (paneIndex: number) => void;
   /** Legend "Symbol/interval chart syncing" shown (several charts and Symbol
    *  or Interval sync on), and the group setter of pane `paneIndex`. */
   linkSyncVisible?: boolean;
@@ -443,6 +444,8 @@ export function ChartGrid(props: Props) {
                 onWheelZoom={onWheelZoom}
                 seriesHidden={!!pane().seriesHidden}
                 onToggleSeries={() => props.onToggleSeries?.(i)}
+                indicatorsLegendCollapsed={!!pane().indicatorsLegendCollapsed}
+                onToggleIndicatorsLegend={() => props.onToggleIndicatorsLegend?.(i)}
                 linkGroup={pane().linkGroup}
                 linkSyncVisible={!!props.linkSyncVisible}
                 onLinkGroup={(g) => props.onLinkGroup?.(i, g)}

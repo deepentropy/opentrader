@@ -398,6 +398,15 @@ export function createChartEdits(
     });
   }
 
+  /** Indicators legend toggler (collapse / expand the studies' rows). */
+  function toggleIndicatorsLegend(tabId: string, paneIndex: number) {
+    const tab = tabOf(tabId);
+    if (!tab) return;
+    patchTab(tabId, {
+      panes: tab.panes.map((p, k) => (k === paneIndex ? { ...p, indicatorsLegendCollapsed: p.indicatorsLegendCollapsed ? undefined : true } : p)),
+    });
+  }
+
   /** Apply one side of an undo entry. */
   function applyUndoEntry(e: UndoEntry, side: "before" | "after") {
     if (e.kind === "replay-settings") {
@@ -463,6 +472,7 @@ export function createChartEdits(
     setSourceOrderForPane,
     setPaneLinkGroup,
     toggleSeriesHidden,
+    toggleIndicatorsLegend,
     applyUndoEntry,
   };
 }

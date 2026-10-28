@@ -372,6 +372,7 @@ function App() {
     setSourceOrderForPane,
     setPaneLinkGroup,
     toggleSeriesHidden,
+    toggleIndicatorsLegend,
   } = chartEdits;
   function removeAllObjects() {
     removeAllDrawings();
@@ -735,6 +736,7 @@ function App() {
               linkSyncVisible={tab().panes.length > 1 && (tab().sync.symbol || tab().sync.interval)}
               onLinkGroup={(i, g) => setPaneLinkGroup(tabId, i, g)}
               onToggleSeries={(i) => toggleSeriesHidden(tabId, i)}
+              onToggleIndicatorsLegend={(i) => toggleIndicatorsLegend(tabId, i)}
               onChangeInterval={() => setIntervalDialog({ initVal: interval(), selectOnInit: true })}
               onSetInterval={setInterval}
               onChangeSymbol={() => {

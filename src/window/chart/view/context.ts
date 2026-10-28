@@ -77,6 +77,9 @@ export type ChartViewProps = {
   /** Main series hidden (legend eye; series `visible`). */
   seriesHidden?: boolean;
   onToggleSeries?: () => void;
+  /** Indicators legend collapsed (its toggler), and the toggle. */
+  indicatorsLegendCollapsed?: boolean;
+  onToggleIndicatorsLegend?: () => void;
   /** Legend symbol title clicked ("Change symbol"). */
   onChangeSymbol?: () => void;
   /** Legend interval clicked ("Change interval"). */

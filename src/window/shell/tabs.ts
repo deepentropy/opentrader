@@ -191,6 +191,9 @@ export type PaneChart = {
   /** Main series hidden with the legend eye (series `visible` property,
    *  saved with the chart). Absent = shown. */
   seriesHidden?: boolean;
+  /** Indicators legend collapsed with its toggler (the studies' rows hidden,
+   *  their count shown), saved with the chart. Absent = open. */
+  indicatorsLegendCollapsed?: boolean;
   /** `false` on a chart created as a copy of the focused one to fill a larger
    *  template, until it gets a study, a compared symbol, a drawing or a
    *  syncing group of its own: such a chart is not saved while a smaller
@@ -402,6 +405,7 @@ function revivePane(p: Partial<PaneChart>): PaneChart {
           }
         : undefined,
     seriesHidden: p.seriesHidden === true ? true : undefined,
+    indicatorsLegendCollapsed: p.indicatorsLegendCollapsed === true ? true : undefined,
     savedWhenHidden: p.savedWhenHidden === false ? false : undefined,
     ...revivePaneSettings(p),
   };
