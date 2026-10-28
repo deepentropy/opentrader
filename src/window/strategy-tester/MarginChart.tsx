@@ -33,7 +33,10 @@ import {
   type PrimitiveHoveredItem,
   type SeriesAttachedParameter,
   type Time,
+  type TickMarkType,
+  type UTCTimestamp,
 } from "lightweight-charts";
+import { formatTick } from "../chart/view/helpers";
 import type { BacktestReport, MarginPoint } from "../../backtester/types";
 import { Icon } from "../../components/Icon";
 import * as kv from "../../data/kv";
@@ -467,7 +470,15 @@ export function MarginChart(props: { report: BacktestReport; intraday: boolean; 
       handleScale: false,
       handleScroll: false,
       grid: { horzLines: { visible: true, color: c.grid }, vertLines: { visible: false } },
-      timeScale: { timeVisible: props.intraday, secondsVisible: false, borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      timeScale: {
+        timeVisible: props.intraday,
+        secondsVisible: false,
+        borderVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        // Tick labels in the exchange zone, as on the chart.
+        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(t as UTCTimestamp, tt, props.timeZone, {}, props.intraday),
+      },
       layout: { background: { color: "transparent" }, textColor: c.text, fontSize: 12, fontFamily: CHART_FONT, attributionLogo: false },
       leftPriceScale: { visible: false },
       rightPriceScale: { visible: true, borderVisible: false, scaleMargins: { top: 0.15, bottom: 0 }, alignLabels: true, entireTextOnly: true },
