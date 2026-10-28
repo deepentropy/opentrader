@@ -53,6 +53,8 @@ type SymbolMeta = {
   currency: string | null;
   description: string;
   iconUrl: string | null;
+  /** Script symbol type ("stock", "fund", …); null when unknown. */
+  symbolType: string | null;
 };
 
 const DEFAULTS_KEY = "ot:replay-trading:defaults";
@@ -95,6 +97,7 @@ export const replayBroker = createRoot(() => {
         currency: isEconomicSymbol(symbol) ? null : (info?.currency ?? "").toUpperCase() || null,
         description: info?.name ?? symbol,
         iconUrl: info?.iconUrl ?? null,
+        symbolType: info?.symbolType ?? null,
       });
       bump();
     });
@@ -269,6 +272,10 @@ export const replayBroker = createRoot(() => {
     },
     iconUrl(symbol: string): string | null {
       return meta(symbol)?.iconUrl ?? null;
+    },
+    /** A stock: the order ticket counts shares, else units. */
+    isStock(symbol: string): boolean {
+      return meta(symbol)?.symbolType === "stock";
     },
     /** bid = ask = the last replayed price (no spread). */
     quote: (): TradingQuote | null => {

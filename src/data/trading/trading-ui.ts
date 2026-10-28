@@ -81,7 +81,12 @@ export type OrderPreset = {
   tpPriceType?: "ticks" | "pricePct" | "balancePct";
   slPrice?: number;
   slPriceType?: "ticks" | "pricePct" | "balancePct";
+  /** Starred: a tag at the top of the order ticket. */
+  favorite?: boolean;
 };
+
+/** Most order presets kept (reference app). */
+export const MAX_PRESETS = 10;
 
 /** `TicketDraft.editing` while the ticket edits the position's brackets. */
 export const POSITION_EDIT = "position";
@@ -335,6 +340,10 @@ export const tradingUi = createRoot(() => {
     addPreset(p: Omit<OrderPreset, "id">) {
       const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       setPresets([...presets(), { ...p, id }]);
+    },
+    /** Star / unstar a preset (favourites: tags at the top of the ticket). */
+    togglePresetFavorite(id: string) {
+      setPresets(presets().map((p) => (p.id === id ? { ...p, favorite: p.favorite ? undefined : true } : p)));
     },
     removePreset(id: string) {
       setPresets(presets().filter((p) => p.id !== id));

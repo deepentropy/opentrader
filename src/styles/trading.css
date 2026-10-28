@@ -1014,3 +1014,72 @@ html.theme-light {
 }
 .trd-qty-calc__btn:hover { background: var(--trd-menu-hover); }
 .trd-qty-calc__btn.is-op { margin-bottom: 12px; }
+
+/* Favourite presets: tags at the top of the ticket (reference app: 28 px
+   round buttons, a 20 px ring with the title's first character, 10 / 16 px;
+   the applied one filled). */
+.trd-fav-presets {
+  display: flex;
+  flex-flow: row;
+  flex: 0 0 auto;
+  padding: 0 32px 0 16px;
+  margin: 12px -16px 0 0;
+  overflow: auto hidden;
+  scrollbar-width: none;
+}
+.trd-fav-presets::-webkit-scrollbar { display: none; }
+.trd-fav-preset {
+  padding: 3px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.trd-fav-preset:hover { background: var(--trd-fav-hover); }
+.trd-fav-preset-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--trd-fav-border);
+  border-radius: 50%;
+  color: var(--trd-fav-text);
+  font: 400 10px/16px var(--trd-font);
+}
+.trd-fav-preset-tag.is-applied {
+  background: var(--trd-fav-applied-bg);
+  color: var(--trd-fav-applied-text);
+}
+html.theme-dark {
+  --trd-fav-border: #464646;
+  --trd-fav-text: #ebebeb;
+  --trd-fav-hover: #1a1a1a;
+  --trd-fav-applied-bg: #f2f2f2;
+  --trd-fav-applied-text: #000;
+}
+html.theme-light {
+  --trd-fav-border: var(--color-cold-gray-150);
+  --trd-fav-text: var(--color-cold-gray-900);
+  --trd-fav-hover: var(--color-cold-gray-100);
+  --trd-fav-applied-bg: var(--color-cold-gray-800);
+  --trd-fav-applied-text: var(--color-cold-gray-150);
+}
+/* Favourite star of a preset row: on hover, kept while starred. */
+.trd-preset-favorite {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.trd-preset-item:hover .trd-preset-favorite,
+.trd-preset-favorite.is-on {
+  display: inline-flex;
+}

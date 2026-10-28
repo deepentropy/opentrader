@@ -12,7 +12,7 @@ import { Portal } from "solid-js/web";
 import { showConfirm } from "../../components/Dialogs";
 import { Tooltip } from "../../components/Tooltip";
 import { replayBroker } from "../../data/trading/replay-broker";
-import { ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
+import { MAX_PRESETS, ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
 import type { Side } from "../../data/trading/types";
 import { InfoIcon, Popup } from "./TicketMenus";
 import { buildTicket, presetFields, presetPriceText, resolveDraft } from "./ticket";
@@ -99,6 +99,48 @@ const TrashIcon = () => (
   </svg>
 );
 
+/** Favourite star: outlined, filled once starred. */
+const StarIcon = (p: { filled: boolean }) => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+    <path
+      d="M9 2.6l1.9 3.9 4.3.6-3.1 3 .7 4.3L9 12.4l-3.8 2 .7-4.3-3.1-3 4.3-.6z"
+      fill={p.filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      stroke-linejoin="round"
+    />
+  </svg>
+);
+
+/** The favourite presets as tags at the top of the order ticket (reference
+ *  app): the title's leading emoji, else its first letter; a click applies
+ *  the preset, `applied` marks the one the ticket matches. */
+export function FavoritePresets(props: { applied: (p: OrderPreset) => boolean; apply: (p: OrderPreset) => void }) {
+  const favorites = () => tradingUi.presets().filter((p) => p.favorite);
+  return (
+    <Show when={favorites().length > 0}>
+      <div class="trd-fav-presets" data-qa-id="favorite-order-presets">
+        <For each={favorites()}>
+          {(p, i) => (
+            <button type="button" class="trd-fav-preset" aria-label={p.title} data-qa-id={`favorite-preset-tag-${i() + 1}`} onClick={() => props.apply(p)}>
+              <span class="trd-fav-preset-tag" classList={{ "is-applied": props.applied(p) }}>
+                {leadingSymbol(p.title)}
+              </span>
+            </button>
+          )}
+        </For>
+      </div>
+    </Show>
+  );
+}
+
+/** The title's first character (a whole grapheme: an emoji stays whole). */
+function leadingSymbol(title: string): string {
+  const t = title.trim();
+  const seg = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+  const first = seg ? (seg.segment(t)[Symbol.iterator]().next().value?.segment ?? "") : Array.from(t)[0] ?? "";
+  return first;
+}
+
 /** Ask before deleting a preset. */
 function confirmRemove(p: OrderPreset) {
   showConfirm({
@@ -138,7 +180,7 @@ function PresetList(props: { active?: string | null; onSelect: (p: OrderPreset) 
             <button
               type="button"
               class="trd-preset-remove"
-              aria-label="Delete"
+              aria-label="Remove"
               onClick={(e) => {
                 e.stopPropagation();
                 props.onClose();
@@ -147,6 +189,21 @@ function PresetList(props: { active?: string | null; onSelect: (p: OrderPreset) 
             >
               <TrashIcon />
             </button>
+            <Tooltip text={p.favorite ? "Remove from favorites" : "Add to favorites"} side="top">
+              <button
+                type="button"
+                class="trd-preset-favorite"
+                classList={{ "is-on": !!p.favorite }}
+                aria-label={p.favorite ? "Remove from favorites" : "Add to favorites"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.currentTarget.blur();
+                  tradingUi.togglePresetFavorite(p.id);
+                }}
+              >
+                <StarIcon filled={!!p.favorite} />
+              </button>
+            </Tooltip>
           </div>
         )}
       </For>
@@ -178,6 +235,18 @@ export function OrderPresetsButton(props: { current: () => Omit<OrderPreset, "id
             onClick={() => {
               if (!props.current()) return;
               close();
+              // At most MAX_PRESETS (reference app's warning).
+              if (tradingUi.presets().length >= MAX_PRESETS) {
+                showConfirm({
+                  title: "You've reached the maximum limit of presets",
+                  text: `Currently, you can create up to ${MAX_PRESETS} presets. To create a new preset, delete an existing one.`,
+                  mainText: "Got it",
+                  cancelText: null,
+                  intent: "neutral",
+                  onConfirm: () => {},
+                });
+                return;
+              }
               setSaving(true);
             }}
           >

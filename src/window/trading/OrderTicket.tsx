@@ -24,6 +24,7 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, untrack, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { emitAppEvent } from "../../data/app-events";
+import * as kv from "../../data/kv";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { replayBroker } from "../../data/trading/replay-broker";
@@ -58,7 +59,7 @@ import {
 } from "./ticket";
 import { ChevronIcon, CloseIcon } from "./icons";
 import { EquivButton, LabelMenu, Popup, SwapButton, type MenuRow } from "./TicketMenus";
-import { OrderPresetsButton } from "./OrderPresets";
+import { FavoritePresets, OrderPresetsButton } from "./OrderPresets";
 import { DomPanel } from "./DomPanel";
 import { orderSummary, positionSummary } from "../chart/trading-lines-model";
 import { POSITION_EDIT } from "../../data/trading/trading-ui";
@@ -89,8 +90,11 @@ const exitInfo = (kind: ExitKind, t: ExitType): string | undefined =>
     balancePct:
       kind === "tp" ? "Percentage of equity you will gain if the take profit is executed" : "Percentage of equity you will lose if the stop loss is executed",
   })[t];
-const qtyTitle = (t: QtyType, ccy: string): string => ({ units: "Units", riskUsd: `Risk ${ccy}`, riskPct: "Risk % balance" })[t];
-const qtyUnit = (t: QtyType, ccy: string): string => ({ units: "unit", riskUsd: `${ccy} risk`, riskPct: "% risk" })[t];
+/** Quantity type titles: shares for a stock, else units (reference app); the
+ *  equivalent reads singular ("3 unit"). */
+const qtyTitle = (t: QtyType, ccy: string, stock = false): string =>
+  ({ units: stock ? "Shares" : "Units", riskUsd: `Risk ${ccy}`, riskPct: "Risk % balance" })[t];
+const qtyUnit = (t: QtyType, ccy: string, stock = false): string => ({ units: stock ? "share" : "unit", riskUsd: `${ccy} risk`, riskPct: "% risk" })[t];
 const qtyInfo = (t: QtyType): string | undefined =>
   ({
     units: undefined,
@@ -100,6 +104,29 @@ const qtyInfo = (t: QtyType): string | undefined =>
       "Order size equivalent to the equity percentage based on the set stop loss price. Changing the risk percentage or stop loss price changes the quantity.",
   })[t];
 const NO_MONEY_SL = "Not available when Risk USD or Risk % balance are selected as the quantity type";
+
+/** One-time tips of the quantity / stop loss fields (reference app): each
+ *  kind shows at most twice, ever. */
+const TIPS = {
+  stopLoss: "Stop loss is activated because the quantity is calculated based on risk",
+  riskQty: "The quantity is calculated based on risk because the stop loss was activated. Manage automatic risk in Order settings",
+  unitsQty: "The quantity is calculated based on units, instead of risk, because the stop loss was deactivated",
+} as const;
+type TipKind = keyof typeof TIPS;
+const TIP_COUNT_KEY = "ot:order-ticket:tip-count";
+/** Show tip `kind` once more if it was shown fewer than twice (counted). */
+function takeTip(kind: TipKind): boolean {
+  let counts: Partial<Record<TipKind, number>> = {};
+  try {
+    counts = JSON.parse(kv.getItem(TIP_COUNT_KEY) ?? "{}") ?? {};
+  } catch {
+    counts = {};
+  }
+  const n = counts[kind] ?? 0;
+  if (n >= 2) return false;
+  kv.setItem(TIP_COUNT_KEY, JSON.stringify({ ...counts, [kind]: n + 1 }));
+  return true;
+}
 
 /** Order / DOM switch: tab, title, tooltip and its Shift hotkey. */
 const TABS: ["order" | "dom", string, string, string][] = [
@@ -261,6 +288,11 @@ function TicketBody(props: { floating: boolean }) {
     return x && isPos() && x.paneId !== null ? replayBroker.position(x.paneId) : null;
   });
   const [errorText, setErrorText] = createSignal<string | null>(null);
+  /** One-time tips under the quantity / stop loss fields. */
+  const [qtyTip, setQtyTip] = createSignal<string | null>(null);
+  const [slTip, setSlTip] = createSignal<string | null>(null);
+  let qtyBox: HTMLElement | undefined;
+  let slBox: HTMLElement | undefined;
 
   // The ticket follows the focused chart; a new chart or start point starts
   // a new order (the button waits for the user: "Start creating order").
@@ -369,6 +401,8 @@ function TicketBody(props: { floating: boolean }) {
     if (!on) {
       // The quantity is in units again (reference app).
       patch({ slOn: false, stopLoss: "", slValue: "", ...(t.qtyType !== "units" ? { qtyType: "units", qtyEquiv: t.qtyType, qty: r().qty || d().qty } : {}) });
+      setSlTip(null);
+      if (t.qtyType !== "units" && takeTip("unitsQty")) setQtyTip(TIPS.unitsQty);
       return;
     }
     const sl = slOnFields();
@@ -376,6 +410,10 @@ function TicketBody(props: { floating: boolean }) {
     if (tradingUi.slEnablesRisk() && t.qtyType === "units") {
       const rt: QtyType = t.qtyEquiv === "units" ? "riskUsd" : t.qtyEquiv;
       patch({ ...toRiskQty(rt, sl), qtyEquiv: "units" });
+      if (takeTip("riskQty")) {
+        setQtyTip(TIPS.riskQty);
+        setSlTip(null);
+      }
     } else patch(sl);
   };
   const setExitType = (kind: ExitKind, type: ExitType) => {
@@ -400,7 +438,13 @@ function TicketBody(props: { floating: boolean }) {
     if (type === t.qtyType) return;
     const eq = equiv ?? (t.qtyEquiv === type ? t.qtyType : t.qtyEquiv);
     if (type === "units") patch({ qtyType: "units", qtyEquiv: eq, qty: r().qty || d().qty });
-    else patch({ ...toRiskQty(type, slOnFields()), qtyEquiv: eq });
+    else {
+      // A risk needs the stop loss: turned on, with its tip.
+      const wasOff = !d().slOn;
+      patch({ ...toRiskQty(type, slOnFields()), qtyEquiv: eq });
+      setQtyTip(null);
+      if (wasOff && takeTip("stopLoss")) setSlTip(TIPS.stopLoss);
+    }
   };
   const qtyValueText = (type: QtyType): string => {
     const v = qtyValueIn(type, r(), q(), ctx());
@@ -438,6 +482,8 @@ function TicketBody(props: { floating: boolean }) {
   const exitStep = (type: ExitType) => (type === "price" ? tick() : type === "ticks" ? 1 : 0.01);
 
   function submit() {
+    setQtyTip(null);
+    setSlTip(null);
     if (tradingUi.sent()) {
       tradingUi.setSent(false);
       return;
@@ -519,6 +565,13 @@ function TicketBody(props: { floating: boolean }) {
     // No stop loss: the quantity in units again.
     if (f.qtyType === "units") f.qty = r().qty || d().qty;
     patch(f);
+  };
+  /** The ticket's order is what preset `p` sets (its favourite tag lit). */
+  const presetApplied = (p: OrderPreset): boolean => {
+    const cur = currentPreset();
+    if (!cur) return false;
+    const keys = ["orderType", "buyPrice", "sellPrice", "stopBuyLimitPrice", "stopSellLimitPrice", "tpPrice", "tpPriceType", "slPrice", "slPriceType"] as const;
+    return keys.every((k) => (cur[k] ?? null) === (p[k] ?? null) || (k.endsWith("Price") && (cur[k] ?? 0) === (p[k] ?? 0)));
   };
   // Opened from the chart Buy / Sell buttons with an active preset.
   createEffect(() => {
@@ -626,7 +679,8 @@ function TicketBody(props: { floating: boolean }) {
         </div>
         <span
           class="trd-tk-box"
-          ref={(el) =>
+          ref={(el) => {
+            if (kind === "sl") slBox = el;
             // A click in the field of an exit that is off turns it on
             // (reference app); the click does nothing else.
             el.addEventListener(
@@ -639,8 +693,8 @@ function TicketBody(props: { floating: boolean }) {
                 queueMicrotask(() => el.querySelector("input")?.focus());
               },
               true,
-            )
-          }
+            );
+          }}
         >
           <input
             class="trd-tk-input"
@@ -664,6 +718,7 @@ function TicketBody(props: { floating: boolean }) {
     );
   };
 
+  const stock = () => replayBroker.isStock(d().symbol);
   const qtyInput = () => {
     const type = () => types().qtyType;
     const eq = () => types().qtyEquiv;
@@ -671,10 +726,10 @@ function TicketBody(props: { floating: boolean }) {
     return (
       <div class="trd-tk-field">
         <LabelMenu
-          label={qtyTitle(type(), ccy())}
-          rows={QTY_TYPES.map((t) => ({ title: qtyTitle(t, ccy()), info: qtyInfo(t), selected: t === type(), onSelect: () => setQtyType(t) }))}
+          label={qtyTitle(type(), ccy(), stock())}
+          rows={QTY_TYPES.map((t) => ({ title: qtyTitle(t, ccy(), stock()), info: qtyInfo(t), selected: t === type(), onSelect: () => setQtyType(t) }))}
         />
-        <span class="trd-tk-box">
+        <span class="trd-tk-box" ref={(el) => (qtyBox = el)}>
           <input
             class="trd-tk-input"
             inputmode="decimal"
@@ -693,9 +748,9 @@ function TicketBody(props: { floating: boolean }) {
           <SwapButton onClick={() => setQtyType(eq(), type())} />
           <EquivButton
             value={qtyValueText(eq())}
-            unit={qtyUnit(eq(), ccy())}
+            unit={qtyUnit(eq(), ccy(), stock())}
             rows={QTY_TYPES.filter((t) => t !== type()).map((t) => ({
-              title: qtyTitle(t, ccy()),
+              title: qtyTitle(t, ccy(), stock()),
               info: qtyInfo(t),
               value: qtyValueText(t),
               selected: t === eq(),
@@ -744,6 +799,7 @@ function TicketBody(props: { floating: boolean }) {
       >
         <div class="trd-tk-scroll">
           <Show when={!d().editing}>
+          <FavoritePresets applied={presetApplied} apply={applyPreset} />
           <div class="trd-tk-sides">
             <button
               type="button"
@@ -881,6 +937,8 @@ function TicketBody(props: { floating: boolean }) {
           </Show>
         </div>
       </Show>
+      <Show when={qtyTip()}>{(t) => <FieldTip anchor={qtyBox} text={t()} onClose={() => setQtyTip(null)} />}</Show>
+      <Show when={slTip()}>{(t) => <FieldTip anchor={slBox} text={t()} onClose={() => setSlTip(null)} />}</Show>
     </>
   );
   return (
@@ -1003,6 +1061,38 @@ function TicketSettingsMenu() {
         </Popup>
       </Show>
     </>
+  );
+}
+
+/** A tip under a ticket field (reference app: the tooltip under the field,
+ *  as wide as the field less 12 px), until the next press anywhere. */
+function FieldTip(p: { anchor: HTMLElement | undefined; text: string; onClose: () => void }) {
+  const [rect, setRect] = createSignal(p.anchor?.getBoundingClientRect() ?? null);
+  const onDown = () => p.onClose();
+  const t = window.setTimeout(() => document.addEventListener("mousedown", onDown, true), 0);
+  const raf = { id: 0 };
+  const track = () => {
+    if (p.anchor) setRect(p.anchor.getBoundingClientRect());
+    raf.id = requestAnimationFrame(track);
+  };
+  track();
+  onCleanup(() => {
+    clearTimeout(t);
+    cancelAnimationFrame(raf.id);
+    document.removeEventListener("mousedown", onDown, true);
+  });
+  return (
+    <Show when={rect()}>
+      {(r) => (
+        <Portal mount={document.body}>
+          <div role="tooltip" class="ot-tooltip ot-tooltip-bottom ot-tooltip-normal" style={{ left: `${r().left + r().width / 2}px`, top: `${r().bottom + 4}px`, "max-width": "none" }}>
+            <span class="ot-tooltip-label" style={{ display: "block", width: `${Math.max(0, r().width - 12)}px`, "white-space": "normal" }}>
+              {p.text}
+            </span>
+          </div>
+        </Portal>
+      )}
+    </Show>
   );
 }
 
