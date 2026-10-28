@@ -889,8 +889,23 @@
   align-items: center;
   justify-content: center;
   background: var(--ot-chart-bg);
-  color: var(--color-text-secondary);
-  font: 400 14px/20px var(--st-font);
+  --st-nodata-bg: var(--ot-chart-bg);
+  --st-nodata-fill: var(--color-bg-primary-hover);
+  --st-nodata-line: var(--color-text-secondary);
+  --st-nodata-accent: var(--color-text-primary);
+}
+/* Empty state (reference app): the illustration 12 px above the text,
+   16/24 in the primary text colour; no illustration on a short landscape
+   screen. */
+.st-nodata { width: 100%; text-align: center; cursor: default; }
+.st-nodata-icon { display: inline-block; margin-bottom: 12px; vertical-align: top; }
+.st-nodata-text {
+  color: var(--color-text-primary);
+  font: 400 16px/24px var(--st-font);
+  overflow-wrap: break-word;
+}
+@media (max-height: 440px) and (orientation: landscape) {
+  .st-nodata-icon { display: none; }
 }
 
 /* Paged chart: 28 x 28 secondary buttons (1 px border, radius 8) 10 px from the host. */

@@ -130,6 +130,7 @@ export function ResultsByTime(props: { buckets: EntryBuckets }) {
       hasData={slots().length > 0}
       alwaysActions
       minHeight={280}
+      stubSize="medium"
       actions={<DetailSwitch value={unit()} options={available()} label={(u) => UNIT_LABEL[u]} onChange={setPicked} />}
     >
       <PagedChart

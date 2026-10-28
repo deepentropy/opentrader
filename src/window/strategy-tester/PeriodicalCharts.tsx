@@ -139,6 +139,7 @@ function BucketChart(props: { config: Config; report: BacktestReport; intervalSe
       hasData={hasData()}
       alwaysActions
       minHeight={280}
+      stubSize="medium"
       actions={<DetailSwitch value={detail()} options={available()} label={(d) => DETAIL_LABEL[d]} onChange={setPicked} />}
     >
       <PagedChart

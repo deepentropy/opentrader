@@ -95,6 +95,7 @@ export function StreaksChart(props: { report: BacktestReport; intraday: boolean;
       hasData={values().length >= 1}
       alwaysActions
       minHeight={280}
+      stubSize="medium"
       actions={<DetailSwitch value={mode()} options={MODES} label={(m) => (m === "count" ? "Count" : "Amount")} onChange={setMode} />}
     >
       <PagedChart

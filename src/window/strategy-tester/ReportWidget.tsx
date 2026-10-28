@@ -23,6 +23,8 @@ export function Widget(props: {
   smallTitleMargin?: boolean;
   /** Minimum content height, px. */
   minHeight?: number;
+  /** Illustration of "Not enough data to show": 72 px, or 120 px on the larger charts (reference app). */
+  stubSize?: "small" | "medium";
   contentClass?: string;
   children: JSX.Element;
 }) {
@@ -36,11 +38,31 @@ export function Widget(props: {
       </div>
       <div class={`st-widget-content ${props.contentClass ?? ""}`} style={props.minHeight ? { "min-height": `${props.minHeight}px` } : undefined}>
         <Show when={!props.hasData}>
-          <div class="st-widget-nodata">Not enough data to show</div>
+          <div class="st-widget-nodata">
+            <div class="st-nodata">
+              <NoDataArt size={props.stubSize === "medium" ? 120 : 72} />
+              <div class="st-nodata-text">Not enough data to show</div>
+            </div>
+          </div>
         </Show>
         {props.children}
       </div>
     </div>
+  );
+}
+
+/** Illustration above "Not enough data to show": an empty chart frame and a
+ *  magnifying glass. */
+function NoDataArt(props: { size: number }) {
+  return (
+    <svg class="st-nodata-icon" width={props.size} height={props.size} viewBox="0 0 120 120" aria-hidden="true">
+      <rect x="14" y="24" width="76" height="62" rx="6" fill="var(--st-nodata-fill)" stroke="var(--st-nodata-line)" stroke-width="2" />
+      <path d="M24 74h56" stroke="var(--st-nodata-line)" stroke-width="2" stroke-dasharray="4 4" />
+      <path d="M26 64l12-10 10 6 14-16 12 8" fill="none" stroke="var(--st-nodata-line)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
+      <circle cx="80" cy="78" r="16" fill="var(--st-nodata-bg)" stroke="var(--st-nodata-accent)" stroke-width="3" />
+      <path d="M91.5 89.5l12 12" stroke="var(--st-nodata-accent)" stroke-width="5" stroke-linecap="round" />
+      <path d="M74 78h12" stroke="var(--st-nodata-accent)" stroke-width="3" stroke-linecap="round" />
+    </svg>
   );
 }
 
