@@ -25,7 +25,7 @@ import { FLAG_HEX } from "../../../data/watchlist";
 import { type PriceSource } from "../../header/chart-settings";
 import { intervalLabel, isEconomicSymbol, splitSymbol } from "../../../data/datafeed";
 import { flagUrl } from "../../../data/country-flags";
-import { CHART_TYPE_ICON } from "../chart-types";
+import { CHART_TYPE_ICON, isTransformType, transformBarsOf } from "../chart-types";
 import { ChartLegend } from "../ChartLegend";
 import { IndicatorLegend } from "../IndicatorLegend";
 import { OAKSCRIPT_OPEN_EVENT } from "../indicators/user-scripts";
@@ -114,6 +114,18 @@ export function createLegend(cx: ChartCx): LegendApi {
     if (cx.raw.length === 0) {
       setLegend(null);
       if (props.active) publishDataWindow(null);
+      return;
+    }
+    // Price-based types: the hovered (or last) brick's values, its change
+    // from the previous brick (reference app).
+    const bricks = isTransformType(cx.activeType) ? transformBarsOf(cx.series)?.bars : null;
+    if (bricks && bricks.length > 0) {
+      let k = bricks.length - 1;
+      if (time != null) {
+        const hit = indexOfTime(bricks, time);
+        if (hit >= 0) k = hit;
+      }
+      setLegend(buildLegend(bricks, k, cx.activeType, null, mainPriceSource()));
       return;
     }
     let idx = cx.raw.length - 1;
