@@ -10,6 +10,7 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 import { showConfirm } from "../../components/Dialogs";
+import { EmojiSelect, separateEmoji } from "../../components/EmojiSelect";
 import { Tooltip } from "../../components/Tooltip";
 import { replayBroker } from "../../data/trading/replay-broker";
 import { MAX_PRESETS, ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
@@ -353,7 +354,10 @@ function PresetsBtn(props: { ref: (e: HTMLButtonElement) => void; open: boolean;
 function SavePresetDialog(props: { preset: Omit<OrderPreset, "id" | "title">; onClose: () => void }) {
   const [name, setName] = createSignal("");
   const [listOpen, setListOpen] = createSignal(false);
+  const [pickerOpen, setPickerOpen] = createSignal(false);
   const names = createMemo(() => tradingUi.presets().map((p) => p.title));
+  // The field shows the name without its leading emoji (the emoji button's).
+  const parts = createMemo(() => separateEmoji(name()));
   let input!: HTMLInputElement;
   const save = () => {
     const n = name().trim();
@@ -366,6 +370,7 @@ function SavePresetDialog(props: { preset: Omit<OrderPreset, "id" | "title">; on
   onMount(() => {
     input.focus();
     const key = (e: KeyboardEvent) => {
+      if (pickerOpen()) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         if (listOpen()) setListOpen(false);
@@ -391,6 +396,15 @@ function SavePresetDialog(props: { preset: Omit<OrderPreset, "id" | "title">; on
             <label class="ot-dlg-label" for="trd-preset-name">Name</label>
             <div class="ot-dlg-field">
               <span class="ot-dlg-input-box">
+                <EmojiSelect
+                  emoji={parts().emoji}
+                  onSelect={(e) => setName(e + parts().rest)}
+                  onOpenChange={(o) => {
+                    setPickerOpen(o);
+                    if (o) setListOpen(false);
+                  }}
+                  onClose={() => input.focus()}
+                />
                 <input
                   ref={input}
                   id="trd-preset-name"
@@ -398,10 +412,18 @@ function SavePresetDialog(props: { preset: Omit<OrderPreset, "id" | "title">; on
                   type="text"
                   maxLength={64}
                   placeholder="Enter preset name"
-                  value={name()}
+                  value={parts().rest}
                   spellcheck={false}
                   autocomplete="off"
-                  onInput={(e) => setName(e.currentTarget.value)}
+                  onInput={(e) => setName(parts().emoji + e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    // Backspace at the start removes the emoji.
+                    const el = e.currentTarget;
+                    if (e.key === "Backspace" && el.selectionStart === 0 && el.selectionEnd === 0 && parts().emoji) {
+                      e.preventDefault();
+                      setName(parts().rest);
+                    }
+                  }}
                 />
                 <Show when={names().length > 0}>
                   <button type="button" class="ot-dlg-list-btn" classList={{ "is-open": listOpen() }} aria-label="Show names" tabIndex={-1} onClick={() => setListOpen(!listOpen())}>

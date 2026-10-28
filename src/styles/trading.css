@@ -975,12 +975,27 @@ html.theme-light {
   text-align: center;
 }
 .trd-preset-params-title {
-  margin: 20px 0 6px;
+  margin: 0 0 8px;
   color: var(--color-text-secondary);
   font-size: 11px;
   line-height: 16px;
   text-transform: uppercase;
 }
+/* "Save order preset" dialog (reference app): 400 wide; header 68 (title
+   20/28 600, padding 0 20, close 34 at 17 17); content and footer under a
+   1 px #464646 line, padding 16 20; label 14/18, field 34 then 16 below,
+   input 14 px; description 16 above the footer. */
+.ot-dlg.trd-preset-dlg { width: 400px; padding: 0; }
+.trd-preset-dlg .ot-dlg-title { margin: 0; padding: 20px 57px 20px 20px; line-height: 28px; }
+.trd-preset-dlg .ot-dlg-close { top: 17px; right: 17px; }
+.trd-preset-dlg .ot-dlg-content,
+.trd-preset-dlg .ot-dlg-footer { border-top: 1px solid var(--trd-dlg-divider, var(--color-popup-menu-separator)); }
+.trd-preset-dlg .ot-dlg-content { margin: 0; padding: 16px 20px 16px; font-size: 14px; line-height: 18px; }
+.trd-preset-dlg .ot-dlg-label { margin-bottom: 2px; line-height: 18px; }
+.trd-preset-dlg .ot-dlg-field { margin-bottom: 16px; }
+.trd-preset-dlg .ot-dlg-input { font-size: 14px; }
+.trd-preset-dlg .ot-dlg-footer { margin: 0; padding: 16px 20px; }
+html.theme-dark .trd-preset-dlg { --trd-dlg-divider: #464646; }
 
 /* Quantity calculator of the chart's quantity pill (reference app 3.4.1:
    200 px with the field, padding 12, radius 6; field 16 px above two
