@@ -20,7 +20,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import { customSeriesDefaultOptions, type CustomSeriesOptions } from "lightweight-charts";
-import { dashFor } from "./custom-series";
+import { dashFor, visibleBars } from "./custom-series";
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer["draw"]>[0];
 type MediaScope = { context: CanvasRenderingContext2D; mediaSize: { width: number; height: number } };
@@ -59,12 +59,13 @@ export class GradientLinePaneView implements ICustomSeriesPaneView<Time, ValueIt
           g.addColorStop(0, st.start);
           g.addColorStop(1, st.end);
           const pts: { x: number; y: number }[] = [];
-          const from = data.visibleRange ? Math.max(0, data.visibleRange.from - 1) : 0;
-          const to = data.visibleRange ? Math.min(data.bars.length, data.visibleRange.to + 1) : data.bars.length;
-          for (let i = from; i < to; i++) {
-            const b = data.bars[i];
-            const y = ptc(b.originalData.value);
-            if (y != null) pts.push({ x: b.x, y });
+          const vis = visibleBars(data);
+          if (!vis) return;
+          // A neighbour each side, placed from its index (the library only
+          // places the visible bars), so the line reaches the pane edges.
+          for (let i = Math.max(0, vis.from - 1); i < Math.min(data.bars.length, vis.to + 1); i++) {
+            const y = ptc(data.bars[i].originalData.value);
+            if (y != null) pts.push({ x: vis.xOf(i), y });
           }
           if (!pts.length) return;
           ctx.beginPath();
@@ -124,11 +125,14 @@ export class ColumnPaneView implements ICustomSeriesPaneView<Time, ColumnItem, C
           // Library histogram geometry: the bar slot minus a 1 px gap once the
           // spacing allows it.
           const w = Math.max(1, data.barSpacing >= 3 ? data.barSpacing - 1 : data.barSpacing);
-          for (const bar of data.bars) {
+          const vis = visibleBars(data);
+          if (!vis) return;
+          for (let i = vis.from; i < vis.to; i++) {
+            const bar = data.bars[i];
             const y = ptc(bar.originalData.value);
             if (y == null) continue;
             ctx.fillStyle = bar.originalData.fill;
-            const left = Math.round(bar.x - w / 2);
+            const left = Math.round(vis.xOf(i) - w / 2);
             ctx.fillRect(left, Math.round(y), Math.max(1, Math.round(w)), mediaSize.height - Math.round(y));
           }
         });

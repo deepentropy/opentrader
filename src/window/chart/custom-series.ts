@@ -46,6 +46,33 @@ function withMedia(target: DrawTarget, fn: (scope: MediaScope) => void): void {
   (target as unknown as { useMediaCoordinateSpace: (h: (s: MediaScope) => void) => void }).useMediaCoordinateSpace(fn);
 }
 
+/** The bars the library placed this frame: [visibleRange.from, to). The
+ *  others keep the x of an older frame (or none), so drawing them piles stale
+ *  bars up after a scroll-back prepend; `xOf` places any bar from its logical
+ *  index (bars sit one bar spacing apart). Null when nothing is in view. */
+export function visibleBars<T>(data: PaneRendererCustomData<Time, T & { time: Time }>): {
+  from: number;
+  to: number;
+  xOf: (i: number) => number;
+} | null {
+  const r = data.visibleRange;
+  if (!r || r.to <= r.from || r.from < 0 || r.from >= data.bars.length) return null;
+  const to = Math.min(r.to, data.bars.length);
+  const a = data.bars[r.from];
+  return { from: r.from, to, xOf: (i: number) => a.x + (data.bars[i].time - a.time) * data.barSpacing };
+}
+
+/** Largest of `pick` over all bars, cached per data set (an O(n) scan per frame otherwise). */
+function cachedMax<T>(cache: { key: string; value: number }, bars: readonly { time: number; originalData: T }[], pick: (d: T) => number): number {
+  const key = `${bars.length}:${bars[0]?.time}:${bars[bars.length - 1]?.time}`;
+  if (cache.key === key) return cache.value;
+  let v = 0;
+  for (const b of bars) v = Math.max(v, pick(b.originalData));
+  cache.key = key;
+  cache.value = v;
+  return v;
+}
+
 function toSeconds(t: Time): number {
   if (typeof t === "number") return t;
   if (typeof t === "string") return Math.floor(new Date(t).getTime() / 1000);
@@ -81,7 +108,8 @@ export class KagiPaneView implements ICustomSeriesPaneView<Time, KagiItem, Custo
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || !data.bars.length) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis) return;
         withMedia(target, ({ context: ctx }) => {
           const st = this.tokens.styles.kagi;
           let proj = false;
@@ -89,8 +117,9 @@ export class KagiPaneView implements ICustomSeriesPaneView<Time, KagiItem, Custo
             ctx.strokeStyle = yang ? (proj ? st.projUp : st.up) : (proj ? st.projDown : st.down);
             ctx.lineWidth = yang ? 2.5 : 1;
           };
-          for (let i = 0; i < data.bars.length; i++) {
+          for (let i = vis.from; i < vis.to; i++) {
             const bar = data.bars[i];
+            const x = vis.xOf(i);
             const d = bar.originalData;
             proj = d.proj;
             // Horizontal connector from the previous column at its end price.
@@ -100,8 +129,8 @@ export class KagiPaneView implements ICustomSeriesPaneView<Time, KagiItem, Custo
               if (y != null) {
                 stroke(prev.originalData.segments[prev.originalData.segments.length - 1].yang);
                 ctx.beginPath();
-                ctx.moveTo(prev.x, y);
-                ctx.lineTo(bar.x, y);
+                ctx.moveTo(vis.xOf(i - 1), y);
+                ctx.lineTo(x, y);
                 ctx.stroke();
               }
             }
@@ -111,8 +140,8 @@ export class KagiPaneView implements ICustomSeriesPaneView<Time, KagiItem, Custo
               if (y0 == null || y1 == null) continue;
               stroke(seg.yang);
               ctx.beginPath();
-              ctx.moveTo(bar.x, y0);
-              ctx.lineTo(bar.x, y1);
+              ctx.moveTo(x, y0);
+              ctx.lineTo(x, y1);
               ctx.stroke();
             }
           }
@@ -148,7 +177,8 @@ export class PnfPaneView implements ICustomSeriesPaneView<Time, PnfItem, CustomS
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || !data.bars.length) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis) return;
         withMedia(target, ({ context: ctx }) => {
           const halfW = Math.max(2, Math.min(data.barSpacing * 0.4, 14));
           ctx.lineWidth = 1.5;
@@ -172,10 +202,11 @@ export class PnfPaneView implements ICustomSeriesPaneView<Time, PnfItem, CustomS
             }
             ctx.stroke();
           };
-          for (const bar of data.bars) {
-            const d = bar.originalData;
-            for (let p = d.min; p <= d.max + 1e-9; p += d.box) drawBox(bar.x, p, d.box, d.kind, d.proj);
-            if (d.extra) drawBox(bar.x, d.extra.top, d.box, d.extra.kind, d.proj);
+          for (let i = vis.from; i < vis.to; i++) {
+            const d = data.bars[i].originalData;
+            const x = vis.xOf(i);
+            for (let p = d.min; p <= d.max + 1e-9; p += d.box) drawBox(x, p, d.box, d.kind, d.proj);
+            if (d.extra) drawBox(x, d.extra.top, d.box, d.extra.kind, d.proj);
           }
         });
       },
@@ -371,16 +402,21 @@ export class ProfilePaneView implements ICustomSeriesPaneView<Time, ProfileItem,
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || !data.bars.length) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis) return;
         withMedia(target, ({ context: ctx, mediaSize }) => {
           const bars = data.bars;
-          if (this.mode === "svp") this.drawCandles(ctx, data, ptc);
+          if (this.mode === "svp") this.drawCandles(ctx, data, ptc, vis);
           const st = this.tokens.styles.svp;
-          for (let k = 0; k < bars.length; k++) {
+          // From the first bar of the session the view starts in: its profile
+          // reaches into view.
+          let start = vis.from;
+          while (start > 0 && !bars[start].originalData.profile) start--;
+          for (let k = start; k < vis.to; k++) {
             const p = bars[k].originalData.profile;
             if (!p) continue;
             const span = p.last - p.first;
-            const x0 = bars[k].x - data.barSpacing / 2;
+            const x0 = vis.xOf(k) - data.barSpacing / 2;
             const x1 = x0 + (span + 1) * data.barSpacing;
             const yTop = ptc(p.top);
             const yBot = ptc(p.bottom);
@@ -448,16 +484,18 @@ export class ProfilePaneView implements ICustomSeriesPaneView<Time, ProfileItem,
             ctx.setLineDash(dashFor(ln.style, ln.width));
             ctx.beginPath();
             let prevY: number | null = null;
-            for (const b of bars) {
+            for (let k = Math.max(0, vis.from - 1); k < vis.to; k++) {
+              const b = bars[k];
               const d = b.originalData.dev;
               if (!d || b.originalData.profile) prevY = null;
               if (!d) continue;
               const y = ptc(pick(d));
               if (y == null) continue;
-              const xl = b.x - data.barSpacing / 2;
+              const x = vis.xOf(k);
+              const xl = x - data.barSpacing / 2;
               if (prevY == null) ctx.moveTo(xl, y);
               else ctx.lineTo(xl, y);
-              ctx.lineTo(b.x + data.barSpacing / 2, y);
+              ctx.lineTo(x + data.barSpacing / 2, y);
               prevY = y;
             }
             ctx.stroke();
@@ -475,11 +513,17 @@ export class ProfilePaneView implements ICustomSeriesPaneView<Time, ProfileItem,
       },
     } as ICustomSeriesPaneRenderer & { update: (d: PaneRendererCustomData<Time, ProfileItem>) => void };
   }
-  private drawCandles(ctx: CanvasRenderingContext2D, data: PaneRendererCustomData<Time, ProfileItem>, ptc: PriceToCoordinateConverter) {
+  private drawCandles(
+    ctx: CanvasRenderingContext2D,
+    data: PaneRendererCustomData<Time, ProfileItem>,
+    ptc: PriceToCoordinateConverter,
+    vis: NonNullable<ReturnType<typeof visibleBars>>,
+  ) {
     const c = this.tokens.styles.candle;
     const bodyW = Math.max(1, data.barSpacing * 0.6);
-    for (const bar of data.bars) {
-      const d = bar.originalData;
+    for (let i = vis.from; i < vis.to; i++) {
+      const bar = { x: vis.xOf(i) };
+      const d = data.bars[i].originalData;
       const up = d.close >= d.open;
       const yH = ptc(d.high);
       const yL = ptc(d.low);
@@ -631,12 +675,14 @@ export class FootprintPaneView implements ICustomSeriesPaneView<Time, FootprintI
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || !data.bars.length) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis) return;
         withMedia(target, ({ context: ctx }) => {
           const halfW = Math.max(2, data.barSpacing * 0.45);
           const showNumbers = data.barSpacing >= 60;
-          for (const bar of data.bars) {
-            const d = bar.originalData;
+          for (let i = vis.from; i < vis.to; i++) {
+            const bar = { x: vis.xOf(i) };
+            const d = data.bars[i].originalData;
             const up = d.close >= d.open;
             const col = up ? this.tokens.up : this.tokens.down;
             const yH = ptc(d.high);
@@ -752,10 +798,14 @@ export class HlcAreaPaneView implements ICustomSeriesPaneView<Time, HlcAreaItem,
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || data.bars.length < 2) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis || data.bars.length < 2) return;
         const st = this.tokens.styles.hlcArea;
         withMedia(target, ({ context: ctx }) => {
-          const bars = data.bars;
+          const bars: { x: number; originalData: HlcAreaItem }[] = [];
+          for (let i = Math.max(0, vis.from - 1); i < Math.min(data.bars.length, vis.to + 1); i++) {
+            bars.push({ x: vis.xOf(i), originalData: data.bars[i].originalData });
+          }
           const band = (a: (d: HlcAreaItem) => number, b: (d: HlcAreaItem) => number, color: string) => {
             ctx.beginPath();
             let started = false;
@@ -842,6 +892,7 @@ export function toVolCandles(raw: OHLC[]): VolCandleItem[] {
  *  slot, quiet bars shrink toward a sliver. Wick + colours as normal candles. */
 export class VolCandlePaneView implements ICustomSeriesPaneView<Time, VolCandleItem, CustomSeriesOptions> {
   private data: PaneRendererCustomData<Time, VolCandleItem> | null = null;
+  private maxVol = { key: "", value: 0 };
   constructor(private tokens: ChartTokens) {}
   priceValueBuilder(item: VolCandleItem): CustomSeriesPricePlotValues {
     return [item.low, item.high, item.close];
@@ -853,16 +904,17 @@ export class VolCandlePaneView implements ICustomSeriesPaneView<Time, VolCandleI
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || !data.bars.length) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis) return;
         withMedia(target, ({ context: ctx }) => {
-          let maxVol = 0;
-          for (const bar of data.bars) maxVol = Math.max(maxVol, bar.originalData.volume);
+          const maxVol = cachedMax(this.maxVol, data.bars, (d) => d.volume);
           // Full slot minus a 1px gap on either side; min keeps thin-volume
           // bars visible.
           const maxHalf = Math.max(1, data.barSpacing / 2 - 1);
           const st = this.tokens.styles.volCandles;
-          for (const bar of data.bars) {
-            const d = bar.originalData;
+          for (let i = vis.from; i < vis.to; i++) {
+            const bar = { x: vis.xOf(i) };
+            const d = data.bars[i].originalData;
             // "Color bars based on previous close": direction vs the previous
             // bar's close instead of the bar's own open.
             const up = st.prevClose && d.prevClose != null ? d.close >= d.prevClose : d.close >= d.open;
@@ -930,6 +982,21 @@ export function toHiLo(raw: OHLC[]): HiLoItem[] {
  *  8 px), padding 0.4 x font size. */
 export class HiLoPaneView implements ICustomSeriesPaneView<Time, HiLoItem, CustomSeriesOptions> {
   private data: PaneRendererCustomData<Time, HiLoItem> | null = null;
+  /** Widest high / low label shape ("000.00") of the data set, cached. */
+  private labelCache = { key: "", text: "" };
+  private longestLabel(bars: readonly { time: number; originalData: HiLoItem }[]): string {
+    const key = `${bars.length}:${bars[0]?.time}:${bars[bars.length - 1]?.time}`;
+    if (this.labelCache.key === key) return this.labelCache.text;
+    let longest = "";
+    for (const bar of bars) {
+      for (const v of [bar.originalData.high, bar.originalData.low]) {
+        const t = this.format(v).replace(/[0-9]/g, "0");
+        if (t.length > longest.length) longest = t;
+      }
+    }
+    this.labelCache = { key, text: longest };
+    return longest;
+  }
   constructor(private tokens: ChartTokens, private format: (p: number) => string = (p) => p.toFixed(2)) {}
   priceValueBuilder(item: HiLoItem): CustomSeriesPricePlotValues {
     return [item.low, item.high, item.close];
@@ -941,28 +1008,24 @@ export class HiLoPaneView implements ICustomSeriesPaneView<Time, HiLoItem, Custo
     return {
       draw: (target: DrawTarget, ptc: PriceToCoordinateConverter) => {
         const data = this.data;
-        if (!data || !data.bars.length) return;
+        const vis = data ? visibleBars(data) : null;
+        if (!data || !vis) return;
         const st = this.tokens.styles.hilo;
         const family = this.tokens.fontFamily;
         withMedia(target, ({ context: ctx }) => {
           const w = Math.max(1, Math.round(0.4 * data.barSpacing));
           let fontSize = 0;
           if (st.labels && data.barSpacing > 5) {
-            let longest = "";
-            for (const bar of data.bars) {
-              for (const v of [bar.originalData.high, bar.originalData.low]) {
-                const t = this.format(v).replace(/[0-9]/g, "0");
-                if (t.length > longest.length) longest = t;
-              }
-            }
+            const longest = this.longestLabel(data.bars);
             const room = Math.floor(data.barSpacing) - 2;
             for (let f = 36; f >= 7; f--) {
               ctx.font = f + "px " + family;
               if (ctx.measureText(longest).width <= room) { fontSize = f; break; }
             }
           }
-          for (const bar of data.bars) {
-            const d = bar.originalData;
+          for (let i = vis.from; i < vis.to; i++) {
+            const bar = { x: vis.xOf(i) };
+            const d = data.bars[i].originalData;
             const yH = ptc(d.high);
             const yL = ptc(d.low);
             if (yH == null || yL == null) continue;
