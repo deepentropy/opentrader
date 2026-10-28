@@ -65,6 +65,12 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
   // bars back from the last bar, at most SYMBOL_CHANGE_MAX_BACK; and the price
   // scale is fitted once to the new symbol, also with auto scale off.
   let pendingScaleKeep: { barSpacing: number; rightOffset: number; leftTime?: number; symbol?: boolean } | null = null;
+  // A chart a larger template added (no view of its own yet): the active
+  // chart's bar spacing and right offset (reference app), like a symbol change.
+  {
+    const init = untrack(() => (props.visibleLogicalRange ? undefined : props.initialScale));
+    if (init) pendingScaleKeep = { barSpacing: init.barSpacing, rightOffset: init.rightOffset, symbol: true };
+  }
 
 
   createEffect(() => {

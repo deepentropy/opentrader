@@ -189,11 +189,13 @@ export type ChartViewProps = {
    *  when new data loads instead of snapping to the latest bars; undefined or
    *  out-of-bounds falls back to the default framing. `last` = index of the
    *  last item when saved (price-based types: their item count changes). */
-  visibleLogicalRange?: { from: number; to: number; last?: number };
+  visibleLogicalRange?: { from: number; to: number; last?: number; barSpacing?: number; rightOffset?: number };
+  /** First framing of a chart added by a larger template (see PaneChart). */
+  initialScale?: { barSpacing: number; rightOffset: number };
   /** Report this pane's visible logical range after the user scrolls/zooms, so
    *  the anchor persists across tab switches + reloads. Debounced by the caller's
    *  store write; ChartView emits the settled range. */
-  onVisibleRange?: (range: { from: number; to: number; last?: number }) => void;
+  onVisibleRange?: (range: { from: number; to: number; last?: number; barSpacing?: number; rightOffset?: number }) => void;
 };
 
 /** An open chart menu: position, rows, and how it is anchored. */

@@ -110,7 +110,7 @@ type Props = {
   onSourceOrder?: (paneIndex: number, order: string[]) => void;
   /** Persist a specific pane's settled visible logical range (its scroll/zoom
    *  anchor), so it survives tab switches + reloads. */
-  onVisibleRange?: (paneIndex: number, range: { from: number; to: number; last?: number }) => void;
+  onVisibleRange?: (paneIndex: number, range: { from: number; to: number; last?: number; barSpacing?: number; rightOffset?: number }) => void;
   /** Legend eye of pane `paneIndex` (hide / show its main series). */
   onToggleSeries?: (paneIndex: number) => void;
   onToggleIndicatorsLegend?: (paneIndex: number) => void;
@@ -409,6 +409,7 @@ export function ChartGrid(props: Props) {
                 indicatorSettings={pane().indicatorSettings}
                 onIndicatorSettings={(id, s) => live() && props.onIndicatorSettings?.(i, id, s)}
                 visibleLogicalRange={pane().visibleLogicalRange}
+                initialScale={pane().initialScale}
                 onVisibleRange={(r) => props.onVisibleRange?.(i, r)}
                 settings={pane().settings}
                 indicatorsHidden={props.indicatorsHidden}

@@ -983,7 +983,10 @@ export function ChartView(props: ChartViewProps) {
             // Price-based types: the item count changes with the data, so
             // the view is saved relative to the last item.
             const last = isTransformType(activeType) ? mainLastIndex() : null;
-            props.onVisibleRange?.(last != null ? { from: lr.from, to: lr.to, last } : { from: lr.from, to: lr.to });
+            // Bar spacing and right offset too: a chart a larger template
+            // adds opens at them (reference app).
+            const scale = { barSpacing: chart!.timeScale().options().barSpacing, rightOffset: chart!.timeScale().scrollPosition() };
+            props.onVisibleRange?.(last != null ? { from: lr.from, to: lr.to, last, ...scale } : { from: lr.from, to: lr.to, ...scale });
           }, 250);
         }
       }

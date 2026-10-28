@@ -187,7 +187,12 @@ export type PaneChart = {
    *  anchored view instead of snapping to the latest bar. Ignored on restore
    *  when out of bounds for the loaded bar count (e.g. a shorter-history
    *  symbol), in which case the default framing is used. */
-  visibleLogicalRange?: { from: number; to: number; last?: number };
+  visibleLogicalRange?: { from: number; to: number; last?: number; barSpacing?: number; rightOffset?: number };
+  /** A chart added by a larger template opens at the active chart's bar
+   *  spacing and right offset (bars from the last bar to the right edge), as
+   *  the reference app copies them to a new chart; dropped once the chart
+   *  saves a view of its own. */
+  initialScale?: { barSpacing: number; rightOffset: number };
   /** Main series hidden with the legend eye (series `visible` property,
    *  saved with the chart). Absent = shown. */
   seriesHidden?: boolean;
@@ -286,7 +291,21 @@ export function reconcilePanes(
   const hidden = all.slice(count);
   const template = tab.panes[tab.activePane] ?? tab.panes[0];
   while (panes.length < count) {
-    panes.push({ ...template, id: newPaneId(), indicators: [...template.indicators], savedWhenHidden: false });
+    const r = template.visibleLogicalRange;
+    const { visibleLogicalRange: _drop, ...rest } = template;
+    void _drop;
+    panes.push({
+      ...rest,
+      id: newPaneId(),
+      indicators: [...template.indicators],
+      savedWhenHidden: false,
+      // Same zoom and distance from the last bar, not the template's bar
+      // numbers (its loaded history and cell width differ).
+      initialScale:
+        r && typeof r.barSpacing === "number" && typeof r.rightOffset === "number"
+          ? { barSpacing: r.barSpacing, rightOffset: r.rightOffset }
+          : template.initialScale,
+    });
   }
   return { layout, panes, hiddenPanes: hidden.length ? hidden : undefined, activePane: Math.min(tab.activePane, count - 1) };
 }
@@ -402,6 +421,8 @@ function revivePane(p: Partial<PaneChart>): PaneChart {
             from: p.visibleLogicalRange.from,
             to: p.visibleLogicalRange.to,
             ...(typeof p.visibleLogicalRange.last === "number" ? { last: p.visibleLogicalRange.last } : {}),
+            ...(typeof p.visibleLogicalRange.barSpacing === "number" ? { barSpacing: p.visibleLogicalRange.barSpacing } : {}),
+            ...(typeof p.visibleLogicalRange.rightOffset === "number" ? { rightOffset: p.visibleLogicalRange.rightOffset } : {}),
           }
         : undefined,
     seriesHidden: p.seriesHidden === true ? true : undefined,
