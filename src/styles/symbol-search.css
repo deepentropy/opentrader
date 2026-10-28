@@ -474,6 +474,47 @@
 
 /* `.symbol-search-empty` uses the shared `.ot-empty-state` class. */
 
+/* No results (reference app): centred in the list area (padding 24 0 54).
+   Nothing anywhere: a 120 px illustration over "No symbols match your
+   criteria" 18/28. Results in other markets only: "<query> not found in
+   <tab> with such criteria" 18/24 600 (query #2962FF, tab 700, 12 below),
+   "There are also N symbols in other markets" 14/18, "Show me" 16 below
+   (34 px, padding 0 11, r6, 16/24). */
+.symbol-search-none {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 24px 0 54px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--color-content-secondary-neutral-medium);
+  cursor: default;
+}
+.symbol-search-none-icon { flex: none; }
+.symbol-search-none-text { margin: 0 20px; font-size: 18px; line-height: 28px; }
+.symbol-search-other { margin: 0 20px 12px; font-size: 18px; line-height: 24px; font-weight: 600; }
+.symbol-search-other b { font-weight: 700; }
+.symbol-search-other-token { color: #2962ff; }
+.symbol-search-other-count { margin: 0 20px; font-size: 14px; line-height: 18px; }
+.symbol-search-show-me {
+  all: unset;
+  box-sizing: border-box;
+  margin-top: 16px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 6px;
+  background: var(--color-container-fill-primary-neutral-light, #1a1a1a);
+  color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+}
+.symbol-search-show-me:hover { background: var(--color-bg-primary-hover); }
+
 .symbol-search-row {
   display: grid;
   /* Ticker column sizes to its content (the widest visible ticker) so symbols

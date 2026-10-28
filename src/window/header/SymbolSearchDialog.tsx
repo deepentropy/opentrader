@@ -350,7 +350,8 @@ export function SymbolSearchDialog(props: Props) {
   createEffect(() => {
     const q = searchText().trim();
     const type = activeType();
-    if (!HAS_TAURI || q.length < 1 || economy()) {
+    // On the Economy tab too: its empty state counts the symbols of the other markets.
+    if (!HAS_TAURI || q.length < 1) {
       reqSeq++; // cancel any in-flight request
       setLiveRaw(null);
       setSearching(false);
@@ -414,6 +415,18 @@ export function SymbolSearchDialog(props: Props) {
     }
     return liveResultsToRows(raw, type ? "all" : cat, q);
   });
+
+  // Empty state of a tab other than All (reference app): "<query> not found in
+  // <tab> with such criteria", the count of the symbols of the other markets
+  // and "Show me" (the All tab); else "No symbols match your criteria".
+  const otherCount = createMemo(() => {
+    const q = searchText().trim();
+    if (!q || category() === "all") return 0;
+    const raw = liveRaw();
+    if (HAS_TAURI && raw == null) return 0;
+    return raw ? liveResultsToRows(raw, "all", q).length : filterSymbols("all", q).length;
+  });
+  const categoryLabel = () => CATEGORIES.find((c) => c.id === category())?.label ?? "";
 
   // Close the type dropdown on an outside click (capture phase so it runs
   // before the dialog's mousedown-stopPropagation).
@@ -866,7 +879,27 @@ export function SymbolSearchDialog(props: Props) {
               when={!props.compare && rows().length > 0}
               fallback={
                 <Show when={!props.compare && !searching()}>
-                  <div class="ot-empty-state symbol-search-empty">No matches</div>
+                  <Show
+                    when={otherCount() > 0}
+                    fallback={
+                      <div class="symbol-search-none">
+                        <NoSymbolsArt />
+                        <div class="symbol-search-none-text">No symbols match your criteria</div>
+                      </div>
+                    }
+                  >
+                    <div class="symbol-search-none">
+                      <div class="symbol-search-other">
+                        <span class="symbol-search-other-token">{searchText().trim()}</span> not found in <b>{categoryLabel()}</b> with such criteria
+                      </div>
+                      <div class="symbol-search-other-count">
+                        There are also {otherCount()} symbols in other markets
+                      </div>
+                      <button type="button" class="symbol-search-show-me" onClick={() => setCategory("all")}>
+                        Show me
+                      </button>
+                    </div>
+                  </Show>
                 </Show>
               }
             >
@@ -1125,5 +1158,19 @@ export function SymbolSearchDialog(props: Props) {
         </div>
       </div>
     </Portal>
+  );
+}
+
+/** Illustration of "No symbols match your criteria": a magnifying glass over
+ *  an empty list. */
+function NoSymbolsArt() {
+  return (
+    <svg class="symbol-search-none-icon" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true">
+      <rect x="22" y="26" width="64" height="70" rx="6" fill="var(--color-bg-primary-hover)" stroke="var(--color-text-secondary)" stroke-width="2" />
+      <path d="M34 44h40M34 58h28M34 72h34" stroke="var(--color-text-secondary)" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+      <circle cx="78" cy="76" r="17" fill="var(--color-bg-primary)" stroke="var(--color-text-primary)" stroke-width="3" />
+      <path d="M90.5 88.5l13 13" stroke="var(--color-text-primary)" stroke-width="5" stroke-linecap="round" />
+      <path d="M72 70l12 12M84 70L72 82" stroke="var(--color-text-primary)" stroke-width="2.5" stroke-linecap="round" />
+    </svg>
   );
 }
