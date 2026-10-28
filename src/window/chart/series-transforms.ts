@@ -42,6 +42,24 @@ export function assignTimes<T extends { time: Time }>(items: T[], raw: OHLC[]): 
   return items;
 }
 
+/** The source bar of each item (`src[k]`: index in `raw` of the bar that
+ *  completed or last extended item k): its real time, and the volume of the
+ *  bars since the previous item's source bar, as the reference app's bricks
+ *  carry them (its studies run on the bricks; the time axis reads these
+ *  times). */
+export function attachSource<T extends { realTime?: number; volume?: number }>(items: T[], raw: OHLC[], src: number[]): T[] {
+  let from = 0;
+  for (let k = 0; k < items.length; k++) {
+    const i = Math.min(raw.length - 1, Math.max(0, src[k] ?? raw.length - 1));
+    let v = 0;
+    for (let j = from; j <= i; j++) v += (raw[j] as { volume?: number }).volume ?? 0;
+    items[k].realTime = toSeconds(raw[i].time);
+    items[k].volume = v;
+    from = Math.max(from, i + 1);
+  }
+  return items;
+}
+
 /** Price-source value of a bar. */
 export function priceOf(r: OHLC, src: PriceSource): number {
   switch (src) {
@@ -121,7 +139,7 @@ export function toHeikinAshi(raw: OHLC[]): Candle[] {
 
 // ── Renko ───────────────────────────────────────────────────────────────────
 
-export type Brick = Candle & { up: boolean; proj: boolean };
+export type Brick = Candle & { up: boolean; proj: boolean; realTime?: number; volume?: number };
 
 /** Renko bricks. Up brick when price reaches the last brick's top + box, down
  *  brick when it reaches its bottom − box (two-box reversal). A brick has a
@@ -132,6 +150,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
   if (raw.length === 0 || !(box > 0)) return [];
   const tick = minTickFor(raw[raw.length - 1].close);
     const out: Brick[] = [];
+  const src: number[] = [];
   let hi = round(Math.floor(raw[0].open / box) * box, tick);
   let lo = hi;
   let minSince = raw[0].open;
@@ -146,6 +165,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
         const open = hi;
         const close = round(hi + box, tick);
         out.push({ time: 0 as Time, open, close, high: close, low: minSince < round(open - box, tick) - 1e-9 ? minSince : open, up: true, proj });
+        src.push(i);
         lo = open;
         hi = close;
         minSince = close;
@@ -155,6 +175,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
         const open = lo;
         const close = round(lo - box, tick);
         out.push({ time: 0 as Time, open, close, high: maxSince > round(open + box, tick) + 1e-9 ? maxSince : open, low: close, up: false, proj });
+        src.push(i);
         hi = open;
         lo = close;
         minSince = close;
@@ -162,7 +183,7 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
       }
     }
   }
-  return assignTimes(out, raw);
+  return assignTimes(attachSource(out, raw, src), raw);
 }
 
 // ── Line break ──────────────────────────────────────────────────────────────
@@ -172,13 +193,17 @@ export function toRenko(raw: OHLC[], box: number, source: "Close" | "OHLC", last
 export function toLineBreak(raw: OHLC[], n: number, lastForming: boolean): Brick[] {
   if (raw.length === 0) return [];
     const lines: Brick[] = [];
+  const src: number[] = [];
   const k = Math.max(1, Math.round(n));
   let base = raw[0].close;
   for (let i = 1; i < raw.length; i++) {
     const c = raw[i].close;
     const proj = lastForming && i === raw.length - 1;
     if (lines.length === 0) {
-      if (c !== base) lines.push({ time: 0 as Time, open: base, close: c, high: Math.max(base, c), low: Math.min(base, c), up: c > base, proj });
+      if (c !== base) {
+        lines.push({ time: 0 as Time, open: base, close: c, high: Math.max(base, c), low: Math.min(base, c), up: c > base, proj });
+        src.push(i);
+      }
       continue;
     }
     const last = lines.slice(-k);
@@ -188,13 +213,15 @@ export function toLineBreak(raw: OHLC[], n: number, lastForming: boolean): Brick
     if (c > hi) {
       const open = prev.up ? prev.close : prev.open;
       lines.push({ time: 0 as Time, open, close: c, high: c, low: open, up: true, proj });
+      src.push(i);
     } else if (c < lo) {
       const open = prev.up ? prev.open : prev.close;
       lines.push({ time: 0 as Time, open, close: c, high: open, low: c, up: false, proj });
+      src.push(i);
     }
     base = c;
   }
-  return assignTimes(lines, raw);
+  return assignTimes(attachSource(lines, raw, src), raw);
 }
 
 // ── Range bars ──────────────────────────────────────────────────────────────
@@ -206,17 +233,21 @@ export function toLineBreak(raw: OHLC[], n: number, lastForming: boolean): Brick
 export function toRangeBars(raw: OHLC[], range: number, phantom: boolean, lastForming: boolean): Brick[] {
   if (raw.length === 0 || !(range > 0)) return [];
     const out: Brick[] = [];
+  const src: number[] = [];
+  let at = 0;
   let open = raw[0].open;
   let hi = open;
   let lo = open;
   let last = open;
   const close = (c: number) => {
     out.push({ time: 0 as Time, open, close: c, high: Math.max(hi, c), low: Math.min(lo, c), up: c >= open, proj: false });
+    src.push(at);
     open = c;
     hi = c;
     lo = c;
   };
   for (let i = 0; i < raw.length; i++) {
+    at = i;
     const pts = ohlcPath(raw[i]);
     if (i > 0 && !phantom && Math.abs(pts[0] - last) >= range) {
       // Untraded gap, phantom bars off: finish the running bar at the last
@@ -239,8 +270,11 @@ export function toRangeBars(raw: OHLC[], range: number, phantom: boolean, lastFo
       last = p;
     }
   }
-  if (lastForming && hi !== lo) out.push({ time: 0 as Time, open, close: last, high: hi, low: lo, up: last >= open, proj: true });
-  return assignTimes(out, raw);
+  if (lastForming && hi !== lo) {
+    out.push({ time: 0 as Time, open, close: last, high: hi, low: lo, up: last >= open, proj: true });
+    src.push(raw.length - 1);
+  }
+  return assignTimes(attachSource(out, raw, src), raw);
 }
 
 /** Range size: a Range chart normally takes an interval in ticks (range
@@ -263,13 +297,15 @@ export type KagiItem = {
    *  prior shoulder, yin (thin, down colour) after it breaks the prior waist. */
   segments: { from: number; to: number; yang: boolean }[];
   proj: boolean;
+  realTime?: number;
+  volume?: number;
 };
 
 /** Kagi on closes: a column extends while price keeps its direction; a
  *  counter-move of at least `rev` starts a new column. */
 export function toKagi(raw: OHLC[], rev: number, lastForming: boolean): KagiItem[] {
   if (raw.length === 0 || !(rev > 0)) return [];
-    const cols: { start: number; end: number; proj: boolean }[] = [];
+    const cols: { start: number; end: number; proj: boolean; src: number }[] = [];
   const anchor = raw[0].close;
   let dir: 1 | -1 | 0 = 0;
   for (let i = 1; i < raw.length; i++) {
@@ -278,7 +314,7 @@ export function toKagi(raw: OHLC[], rev: number, lastForming: boolean): KagiItem
     if (dir === 0) {
       if (Math.abs(c - anchor) >= rev) {
         dir = c > anchor ? 1 : -1;
-        cols.push({ start: anchor, end: c, proj });
+        cols.push({ start: anchor, end: c, proj, src: i });
       }
       continue;
     }
@@ -286,8 +322,9 @@ export function toKagi(raw: OHLC[], rev: number, lastForming: boolean): KagiItem
     if ((dir === 1 && c > cur.end) || (dir === -1 && c < cur.end)) {
       cur.end = c;
       cur.proj = cur.proj || proj;
+      cur.src = i;
     } else if ((dir === 1 && cur.end - c >= rev) || (dir === -1 && c - cur.end >= rev)) {
-      cols.push({ start: cur.end, end: c, proj });
+      cols.push({ start: cur.end, end: c, proj, src: i });
       dir = dir === 1 ? -1 : 1;
     }
   }
@@ -315,13 +352,15 @@ export function toKagi(raw: OHLC[], rev: number, lastForming: boolean): KagiItem
     }
     items.push({ time: 0 as Time, start, end, segments, proj });
   }
-  return assignTimes(items, raw);
+  return assignTimes(attachSource(items, raw, cols.map((c) => c.src)), raw);
 }
 
 // ── Point & figure ──────────────────────────────────────────────────────────
 
 export type PnfItem = {
   time: Time; kind: "x" | "o"; min: number; max: number; box: number; proj: boolean;
+  realTime?: number;
+  volume?: number;
   /** One step back building: the single box of the other kind the column
    *  started with (its top price). */
   extra?: { kind: "x" | "o"; top: number };
@@ -336,7 +375,7 @@ export function toPnf(raw: OHLC[], box: number, reversal: number, source: "HL" |
   const rev = Math.max(1, Math.round(reversal));
     // Box k spans (k·box − box, k·box]; a column lists its boxes' tops min..max.
   const floor = (p: number) => Math.floor(p / box + 1e-9) * box;
-  type Col = { kind: "x" | "o"; min: number; max: number; proj: boolean; extra?: PnfItem["extra"] };
+  type Col = { kind: "x" | "o"; min: number; max: number; proj: boolean; src: number; extra?: PnfItem["extra"] };
   const cols: Col[] = [];
   const anchor = floor(raw[0].close);
   for (let i = 1; i < raw.length; i++) {
@@ -346,27 +385,35 @@ export function toPnf(raw: OHLC[], box: number, reversal: number, source: "HL" |
     const dn = source === "HL" ? r.low : r.close;
     const cur = cols[cols.length - 1];
     if (!cur) {
-      if (up >= anchor + box) cols.push({ kind: "x", min: anchor + box, max: floor(up), proj });
-      else if (dn <= anchor - box) cols.push({ kind: "o", min: floor(dn) + box, max: anchor, proj });
+      if (up >= anchor + box) cols.push({ kind: "x", min: anchor + box, max: floor(up), proj, src: i });
+      else if (dn <= anchor - box) cols.push({ kind: "o", min: floor(dn) + box, max: anchor, proj, src: i });
       continue;
     }
     if (cur.kind === "x") {
-      if (up >= cur.max + box) { cur.max = floor(up); cur.proj ||= proj; }
+      if (up >= cur.max + box) { cur.max = floor(up); cur.proj ||= proj; cur.src = i; }
       else if (dn <= cur.max - rev * box) {
         if (oneStepBack && rev === 1 && cur.max === cur.min && !cur.extra) {
           cur.extra = { kind: "x", top: cur.max };
-          cur.kind = "o"; cur.max = cur.max - box; cur.min = floor(dn) + box; cur.proj ||= proj;
-        } else cols.push({ kind: "o", min: floor(dn) + box, max: cur.max - box, proj });
+          cur.kind = "o"; cur.max = cur.max - box; cur.min = floor(dn) + box; cur.proj ||= proj; cur.src = i;
+        } else cols.push({ kind: "o", min: floor(dn) + box, max: cur.max - box, proj, src: i });
       }
     } else {
-      if (dn <= cur.min - box) { cur.min = floor(dn) + box; cur.proj ||= proj; }
+      if (dn <= cur.min - box) { cur.min = floor(dn) + box; cur.proj ||= proj; cur.src = i; }
       else if (up >= cur.min + rev * box) {
         if (oneStepBack && rev === 1 && cur.max === cur.min && !cur.extra) {
           cur.extra = { kind: "o", top: cur.min };
-          cur.kind = "x"; cur.min = cur.min + box; cur.max = floor(up); cur.proj ||= proj;
-        } else cols.push({ kind: "x", min: cur.min + box, max: floor(up), proj });
+          cur.kind = "x"; cur.min = cur.min + box; cur.max = floor(up); cur.proj ||= proj; cur.src = i;
+        } else cols.push({ kind: "x", min: cur.min + box, max: floor(up), proj, src: i });
       }
     }
   }
-  return assignTimes(cols.filter((c) => c.max >= c.min).map((c) => ({ time: 0 as Time, kind: c.kind, min: c.min, max: c.max, box, proj: c.proj, extra: c.extra })), raw);
+  const kept = cols.filter((c) => c.max >= c.min);
+  return assignTimes(
+    attachSource(
+      kept.map((c) => ({ time: 0 as Time, kind: c.kind, min: c.min, max: c.max, box, proj: c.proj, extra: c.extra }) as PnfItem),
+      raw,
+      kept.map((c) => c.src),
+    ),
+    raw,
+  );
 }

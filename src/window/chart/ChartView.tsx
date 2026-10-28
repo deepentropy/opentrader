@@ -61,7 +61,7 @@ import {
   type SessionId,
 } from "../../data/datafeed";
 import { type Candle } from "../../bindings";
-import { createSeriesForType, isTransformType, setDataForType, type AnySeries, type ChartTypeId, type OHLC } from "./chart-types";
+import { createSeriesForType, isTransformType, setDataForType, transformBarsOf, type AnySeries, type ChartTypeId, type OHLC } from "./chart-types";
 import { type LegendValues } from "./ChartLegend";
 import { chartPriceFormat } from "./price-format";
 import { dayKeyer } from "./day-key";
@@ -699,6 +699,8 @@ export function ChartView(props: ChartViewProps) {
     builtType = activeType;
     setDataForType(series, activeType, raw, tokens, dataExtras());
     afterSeriesData();
+    // To or from a price-based type: the studies run on other bars.
+    if (prevType !== activeType && ((prevType !== null && isTransformType(prevType)) || isTransformType(activeType))) controller?.renderAll();
     // Symbol → Precision: the picked decimals ("Default" follows the
     // symbol's tick grid), thousands grouped; the legend uses the same text.
     // The fractional choices (1/2 …) use the fractional format (123'16).
@@ -904,7 +906,8 @@ export function ChartView(props: ChartViewProps) {
 
     // The controller reads bars from `raw` on demand, so it always recomputes
     // against the freshest dataset without threading bars in.
-    controller = new IndicatorController(chart, () => raw as unknown as Bar[], String(paneId));
+    // Price-based types: the studies run on the bricks (reference app).
+    controller = new IndicatorController(chart, () => ((isTransformType(activeType) ? transformBarsOf(series)?.bars : null) ?? raw) as unknown as Bar[], String(paneId));
     controller.setLastBarOpenProbe(lastBarForming);
     controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
     // Studies over the series take its scale (its side when it has no scale).
@@ -1083,6 +1086,12 @@ export function ChartView(props: ChartViewProps) {
     },
   );
 
+  /** The time a label shows: a price-based type's brick reads the real time
+   *  of its source bar (its own time is synthetic). */
+  const realTimeOf = (t: Time): UTCTimestamp => {
+    const m = isTransformType(activeType) ? transformBarsOf(series)?.realTime : null;
+    return (m?.get(t as number) ?? (t as number)) as UTCTimestamp;
+  };
   // Time-axis precision: seconds show "14:30:05", intraday "Apr 22 14:30",
   // daily/weekly/monthly just "Apr 22".
   createEffect(() => {
@@ -1099,11 +1108,11 @@ export function ChartView(props: ChartViewProps) {
       timeScale: {
         timeVisible: second || intraday,
         secondsVisible: second,
-        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(t as UTCTimestamp, tt, tz, axisFmt, second || intraday),
+        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(realTimeOf(t), tt, tz, axisFmt, second || intraday),
       },
       localization: {
         timeFormatter: (t: Time) =>
-          formatAxisTime(t as UTCTimestamp, tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt),
+          formatAxisTime(realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt),
       },
     });
     // Day rollover (and thus session-break placement) depends on the timezone,

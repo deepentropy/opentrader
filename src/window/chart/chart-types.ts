@@ -345,6 +345,23 @@ export function createSeriesForType(
   }
 }
 
+/** A price-based type's items as bars (synthetic time, OHLC, volume) and
+ *  the real time of each: the studies run on them and the time axis shows the
+ *  real times (reference app). Kept per series by setDataForType. */
+export type TransformBars = { bars: OHLC[]; realTime: Map<number, number> };
+const transformBarsBySeries = new WeakMap<object, TransformBars>();
+export function transformBarsOf(series: AnySeries | null | undefined): TransformBars | null {
+  return series ? transformBarsBySeries.get(series) ?? null : null;
+}
+function keepTransformBars(series: AnySeries, items: { time: Time; open: number; high: number; low: number; close: number; realTime?: number; volume?: number }[]) {
+  const realTime = new Map<number, number>();
+  const bars = items.map((b) => {
+    realTime.set(b.time as number, b.realTime ?? (b.time as number));
+    return { time: b.time, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume ?? 0 } as OHLC;
+  });
+  transformBarsBySeries.set(series, { bars, realTime });
+}
+
 /** Series data for a chart type. `lastForming`: the newest bar is still
  *  forming (drives projection bars of the price-based types). */
 export function setDataForType(
@@ -360,12 +377,20 @@ export function setDataForType(
   switch (type) {
     case "kagi": {
       const box = boxSize(raw, st.kagi.box);
-      custom.setData(toKagi(raw, box, forming));
+      const items = toKagi(raw, box, forming);
+      keepTransformBars(series, items.map((k) => ({ ...k, open: k.start, close: k.end, high: Math.max(k.start, k.end), low: Math.min(k.start, k.end) })));
+      custom.setData(items);
       return;
     }
     case "pnf": {
       const box = boxSize(raw, st.pnf.box);
-      custom.setData(toPnf(raw, box, st.pnf.reversal, st.pnf.source, st.pnf.oneStepBack, forming));
+      const items = toPnf(raw, box, st.pnf.reversal, st.pnf.source, st.pnf.oneStepBack, forming);
+      // A column as a bar: its boxes' span, X rising, O falling.
+      keepTransformBars(series, items.map((c) => {
+        const lo = c.min - c.box;
+        return { ...c, open: c.kind === "x" ? lo : c.max, close: c.kind === "x" ? c.max : lo, high: c.max, low: lo };
+      }));
+      custom.setData(items);
       return;
     }
     case "svp":
@@ -467,6 +492,7 @@ export function setDataForType(
       if (type === "renko") bricks = toRenko(raw, boxSize(raw, st.renko.box), st.renko.source, forming);
       else if (type === "pb") bricks = toLineBreak(raw, st.pb.lines, forming);
       else bricks = toRangeBars(raw, rangeSize(raw), st.range.phantom, forming);
+      keepTransformBars(series, bricks);
       const data = bricks.map((b) => {
         const base = { time: b.time, open: b.open, high: b.high, low: b.low, close: b.close };
         if (type === "range") {
