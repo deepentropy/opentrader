@@ -105,6 +105,9 @@ export class EventMarkersPrimitive implements ISeriesPrimitive<Time> {
   private _coarse = false;
   private _getBars: () => OHLC[] = () => [];
   private _getFuture: () => FutureAxis | null = () => null;
+  /** Price-based chart types: the bricks and their source bars' real times. */
+  private _getBricks: () => { bars: OHLC[]; realTime: Map<number, number> } | null = () => null;
+  private _brickTimes: { of: object; times: number[] } | null = null;
   private _paths: Record<string, Path2D> = {};
   private _views: IPrimitivePaneView[] = [new EventMarkersPaneView(this)];
 
@@ -160,6 +163,8 @@ export class EventMarkersPrimitive implements ISeriesPrimitive<Time> {
 
   /** Live accessor to the chart's bars (bar of a marker's date). */
   setBarsAccessor(getBars: () => OHLC[]): void { this._getBars = getBars; }
+  /** Bricks of a price-based chart type (null on time-based types). */
+  setBricksAccessor(get: () => { bars: OHLC[]; realTime: Map<number, number> } | null): void { this._getBricks = get; }
   /** Future bars of the chart on the trading calendar, for a date after the last bar. */
   setFutureAccessor(getFuture: () => FutureAxis | null): void { this._getFuture = getFuture; }
 
@@ -177,6 +182,22 @@ export class EventMarkersPrimitive implements ISeriesPrimitive<Time> {
     const chart = this._chart;
     if (!chart) return null;
     const ts = chart.timeScale();
+    // Price-based types: the first brick dated on or after the event (reference
+    // app); none after the last brick.
+    const bricks = this._getBricks();
+    if (bricks) {
+      if (this._brickTimes?.of !== bricks) this._brickTimes = { of: bricks, times: bricks.bars.map((b) => bricks.realTime.get(b.time as number) ?? (b.time as number)) };
+      const times = this._brickTimes.times;
+      let lo = 0;
+      let hi = times.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (times[mid] < time) lo = mid + 1;
+        else hi = mid;
+      }
+      const brick = bricks.bars[lo];
+      return brick ? (ts.timeToCoordinate(brick.time as Time) as number | null) : null;
+    }
     const exact = ts.timeToCoordinate(time as unknown as Time);
     if (exact !== null) return exact as number;
     const bars = this._getBars();

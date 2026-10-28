@@ -304,6 +304,7 @@ export function ChartView(props: ChartViewProps) {
   // Lets markers fall back to gap-aware positioning when a date isn't on a bar.
   eventMarkers.setBarsAccessor(() => raw);
   eventMarkers.setFutureAccessor(() => futureAxis());
+  eventMarkers.setBricksAccessor(() => (isTransformType(activeType) ? transformBarsOf(series) : null));
   // Events -> Latest news: one lollipop on the last bar.
   const newsLollipop = new NewsLollipopPrimitive();
   newsLollipop.setLastTimeAccessor(() => (raw.length ? (raw[raw.length - 1].time as number) : null));

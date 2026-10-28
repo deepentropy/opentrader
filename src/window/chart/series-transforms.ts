@@ -44,18 +44,24 @@ export function assignTimes<T extends { time: Time }>(items: T[], raw: OHLC[]): 
 
 /** The source bar of each item (`src[k]`: index in `raw` of the bar that
  *  completed or last extended item k): its real time, and the volume of the
- *  bars since the previous item's source bar, as the reference app's bricks
- *  carry them (its studies run on the bricks; the time axis reads these
- *  times). */
+ *  bars since the previous item's source bar, shared equally by the items of
+ *  one source bar, as the reference app's bricks carry them (its studies run
+ *  on the bricks; the time axis reads these times). */
 export function attachSource<T extends { realTime?: number; volume?: number }>(items: T[], raw: OHLC[], src: number[]): T[] {
+  const at = (k: number) => Math.min(raw.length - 1, Math.max(0, src[k] ?? raw.length - 1));
   let from = 0;
-  for (let k = 0; k < items.length; k++) {
-    const i = Math.min(raw.length - 1, Math.max(0, src[k] ?? raw.length - 1));
+  for (let k = 0; k < items.length; ) {
+    const i = at(k);
+    let end = k + 1;
+    while (end < items.length && at(end) === i) end++;
     let v = 0;
     for (let j = from; j <= i; j++) v += (raw[j] as { volume?: number }).volume ?? 0;
-    items[k].realTime = toSeconds(raw[i].time);
-    items[k].volume = v;
+    for (let q = k; q < end; q++) {
+      items[q].realTime = toSeconds(raw[i].time);
+      items[q].volume = v / (end - k);
+    }
     from = Math.max(from, i + 1);
+    k = end;
   }
   return items;
 }

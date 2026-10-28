@@ -4,6 +4,7 @@ import type { OHLC } from "lightweight-charts-drawing/core/coords";
 import {
   assignTimes,
   atrAtLast,
+  attachSource,
   boxSize,
   minTickFor,
   priceOf,
@@ -310,5 +311,15 @@ describe("toPnf", () => {
   it("empty input / non-positive box", () => {
     expect(toPnf([], 1, 3, "Close", false, false)).toEqual([]);
     expect(toPnf(closes([1, 5]), 0, 3, "Close", false, false)).toEqual([]);
+  });
+});
+
+describe("attachSource", () => {
+  const bar = (i: number, volume: number) => ({ time: (T0 + i * 86_400) as Time, open: 1, high: 1, low: 1, close: 1, volume }) as OHLC;
+  it("sums the volume since the previous source bar, shared by the items of one bar", () => {
+    const raw = [bar(0, 10), bar(1, 20), bar(2, 30), bar(3, 40)];
+    const items = attachSource([{}, {}, {}] as { realTime?: number; volume?: number }[], raw, [1, 3, 3]);
+    expect(items.map((x) => x.volume)).toEqual([30, 35, 35]);
+    expect(items.map((x) => x.realTime)).toEqual([T0 + 86_400, T0 + 3 * 86_400, T0 + 3 * 86_400]);
   });
 });
