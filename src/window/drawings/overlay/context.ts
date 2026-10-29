@@ -73,6 +73,11 @@ export type OverlayProps = {
   /** Also snap to price-pane overlay-indicator values (the "Snap to
    *  indicator" magnet sub-option). */
   magnetSnapsToIndicators?: boolean;
+  /** An armed tool's cursor in the main pane (x in the plot, the price with the magnet), for the chart's own
+   *  crosshair: its lines and its labels on both scales follow the cursor before the first point, as in the
+   *  reference app (#179); null when the cursor leaves the pane or the tool is disarmed. Without it the overlay
+   *  draws dashed guide lines. */
+  onArmedCursor?: (at: { x: number; price: number } | null) => void;
   /** After placing a drawing, keep the same tool armed instead of clearing.
    *  Driven by the Keep-drawing toggle. */
   stayMode: boolean;

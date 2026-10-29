@@ -8,7 +8,7 @@
 import type { LegendValues } from "../ChartLegend";
 import type { SetStoreFunction } from "solid-js/store";
 import type { Accessor, Resource, Setter } from "solid-js";
-import type { IChartApi, IPriceScaleApi } from "lightweight-charts";
+import type { IChartApi, IPriceScaleApi, MouseEventParams } from "lightweight-charts";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { AnySeries, ChartTypeId, OHLC } from "../chart-types";
 import { setDataForType } from "../chart-types";
@@ -216,6 +216,9 @@ export interface ChartCore {
   coords: Accessor<Coords | null>;
   countdown: CountdownPrimitive;
   crosshairActive: boolean;
+  /** The chart's crosshair handler (legend, crosshair sync), for a crosshair the chart was told to show (an armed
+   *  drawing tool): the chart reports no move for it. */
+  emitCrosshair: ((param: MouseEventParams) => void) | null;
   crosshairAt: { time: number; y: number } | null;
   crosshairPrice: number | null;
   ctxMenu: Accessor<ChartMenuState | null>;

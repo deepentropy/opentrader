@@ -25,7 +25,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { Logical } from "lightweight-charts";
+import type { Logical, MouseEventParams } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
 import { chartBackgroundAt } from "./selection-markers";
 import { MAIN_SOURCE_ID } from "./object-tree-sources";
@@ -156,6 +156,7 @@ export function ChartView(props: ChartViewProps) {
     get coords() { return coords; },
     get countdown() { return countdown; },
     get crosshairActive() { return crosshairActive; }, set crosshairActive(v: ChartCore["crosshairActive"]) { crosshairActive = v; },
+    get emitCrosshair() { return emitCrosshair; }, set emitCrosshair(v: ChartCore["emitCrosshair"]) { emitCrosshair = v; },
     get crosshairAt() { return crosshairAt; }, set crosshairAt(v: ChartCore["crosshairAt"]) { crosshairAt = v; },
     get crosshairPrice() { return crosshairPrice; }, set crosshairPrice(v: ChartCore["crosshairPrice"]) { crosshairPrice = v; },
     get ctxMenu() { return ctxMenu; },
@@ -386,6 +387,7 @@ export function ChartView(props: ChartViewProps) {
   /** TRUE while the crosshair is over a bar, so the live-tick path knows not to
    *  yank the legend back to the latest bar out from under the user's cursor. */
   let crosshairActive = false;
+  let emitCrosshair: ChartCore["emitCrosshair"] = null;
   /** Last crosshair time, so indicator-set/bars changes re-resolve at the same
    *  bar the user is hovering. */
   let lastLegendTime: number | undefined;
@@ -1411,6 +1413,21 @@ export function ChartView(props: ChartViewProps) {
         anchorBg={(() => { const t = readChartTokens(appearance()); return { top: t.bg, bottom: t.bgBottom, gradient: t.bgGradient }; })()}
         magnetMode={props.magnetMode ?? "weak"}
         magnetSnapsToIndicators={!!props.magnetSnapsToIndicators}
+        onArmedCursor={(at) => {
+          // An armed drawing tool: the chart's crosshair (lines, scale labels, sync) at the cursor's bar (#179).
+          if (!chart || !series) return;
+          const time = at ? chart.timeScale().coordinateToTime(at.x) : null;
+          const y = at ? series.priceToCoordinate(at.price) : null;
+          if (!at || time === null || y === null) {
+            chart.clearCrosshairPosition();
+            cx.emitCrosshair?.({ time: undefined, logical: undefined, point: undefined, seriesData: new Map(), paneIndex: mainPane() } as unknown as MouseEventParams);
+            return;
+          }
+          chart.setCrosshairPosition(at.price, time, series);
+          // The legend and the crosshair sync follow it as they follow the mouse.
+          const logical = chart.timeScale().coordinateToLogical(at.x);
+          cx.emitCrosshair?.({ time, logical: logical ?? undefined, point: { x: at.x, y }, seriesData: new Map(), paneIndex: mainPane() } as unknown as MouseEventParams);
+        }}
         stayMode={!!props.stayMode}
         onPlace={(d) => props.onPlace?.(d)}
         onDisarm={() => props.onDisarm?.()}

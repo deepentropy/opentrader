@@ -3,7 +3,7 @@
  * magnet (with its Shift / Ctrl overrides), click / freehand / variable-length
  * placement, and the live preview with its crosshair.
  */
-import { createSignal, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import type { Accessor, Setter } from "solid-js";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import type { DataPoint, Drawing } from "lightweight-charts-drawing/core/types";
@@ -375,6 +375,23 @@ export function createPlacement(cx: OverlayCx): PlacementApi {
     );
   }
 
+  /** The armed tool's cursor in the main pane, as the chart's crosshair (see OverlayProps.onArmedCursor). */
+  const armedMain = (): { x: number; price: number } | null => {
+    if (!armedSpec()) return null;
+    const rawG = cursor();
+    const f = rawG ? placeFrame(rawG) : null;
+    if (!rawG || !f || f.key !== null) return null;
+    const rawCur = cx.toLocalClamped(rawG, f);
+    const aim = aimAt(rawCur, f);
+    const price = f.coords.yToPrice(aim.engaged ? aim.pt.y : rawCur.y);
+    return price == null ? null : { x: rawCur.x, price };
+  };
+  createEffect(() => {
+    if (!props.onArmedCursor) return;
+    props.onArmedCursor(armedMain());
+  });
+  onCleanup(() => props.onArmedCursor?.(null));
+
   /** Placement crosshair — while a tool is armed the overlay captures the pane,
    *  so lightweight-charts' own crosshair can't track the cursor; we draw it
    *  here (full-pane dashed lines + a magnet dot when snapped). Mirrors the
@@ -387,6 +404,8 @@ export function createPlacement(cx: OverlayCx): PlacementApi {
     // the placement pane (the cursor kept inside it once a point is down).
     const f = placeFrame(rawG);
     if (!f) return null;
+    // In the main pane the chart draws its own crosshair there (onArmedCursor).
+    if (props.onArmedCursor && f.key === null) return null;
     const { w, h } = cx.chartDims();
     const rawCur = cx.toLocalClamped(rawG, f);
     const aim = aimAt(rawCur, f);

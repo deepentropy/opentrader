@@ -423,6 +423,7 @@ export function createPointer(cx: ChartCx): PointerApi {
       }
     };
     cx.chart!.subscribeCrosshairMove(onCrosshair);
+    cx.emitCrosshair = onCrosshair;
     // Plus button: follows the crosshair in the pane under the pointer (not
     // a collapsed pane) while the pointer is over the chart, not while a
     // drawing tool is armed.
