@@ -12,13 +12,16 @@
  *   - OCA groups of entries and orders, and the risk rules allow_entry_in, max_intraday_loss and
  *     max_intraday_filled_orders go to the Broker; strategy.exit(oca_name), `strategy.close(immediately)`, the
  *     other risk rules and default_entry_qty are not implemented by the Broker: they throw;
- *   - calc_on_order_fills is not implemented (an extra script run inside processBar): it throws when set;
+ *   - calc_on_order_fills / calc_on_every_history_tick: the broker runs the script again inside the bar
+ *     (executeIntrabar of oakscriptjs: the bars up to that bar, the last one as it stands at the tick);
  *   - variables: the Broker state; trade statistics from its closed trades (Pine definitions,
  *     percent in %); max_drawdown / max_runup / margin_liquidation_price are not provided
  *     during the run (the report computes the drawdown at the end).
  */
 import {
+  executeIntrabar,
   executeScript,
+  StrategyRecorder,
   type ChartContext,
   type SymbolInfo as ScriptSymbolInfo,
   type ScriptRunResult,
@@ -48,7 +51,6 @@ import {
 
 /** oakscriptjs strategy() properties to the Broker properties. */
 export function brokerProperties(p: ScriptStrategyProperties): StrategyProperties {
-  if (p.calc_on_order_fills) throw new Error('strategy(calc_on_order_fills = true) is not supported by the OpenTrader broker');
   return {
     initialCapital: p.initial_capital,
     currency: p.currency ?? 'USD',
@@ -64,9 +66,9 @@ export function brokerProperties(p: ScriptStrategyProperties): StrategyPropertie
     marginShort: p.margin_short,
     fillLimitsTicks: p.backtest_fill_limits_assumption ?? 0,
     barMagnifier: p.use_bar_magnifier ?? false,
-    calcOnOrderFills: false,
+    calcOnOrderFills: p.calc_on_order_fills ?? false,
     calcOnEveryTick: p.calc_on_every_tick ?? false,
-    calcOnEveryHistoryTick: false,
+    calcOnEveryHistoryTick: p.calc_on_every_history_tick ?? false,
     fillOrdersOnStandardOhlc: p.fill_orders_on_standard_ohlc ?? false,
   };
 }
@@ -116,10 +118,16 @@ export class BrokerEngine implements StrategyEngine {
 
   processBar(bar: number): void {
     this.broker.processBar(bar);
+    this.broker.readMarginUsed();
   }
 
   processClose(bar: number): void {
-    if (this.properties.processOrdersOnClose) this.broker.processClose(bar);
+    if (this.properties.processOrdersOnClose) {
+      this.broker.processClose(bar);
+      this.broker.readMarginUsed();
+    }
+    // The average margin used leaves the last bar out (as runBacktest).
+    if (bar < this.bars.length - 1) this.broker.countMarginUsed();
     this.equity[bar] = this.broker.equity;
   }
 
@@ -430,13 +438,24 @@ export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScr
       : true);
   const skipLast = realtime && !everyTick;
   if (skipLast) seen = seen.slice(0, -1);
-  const script = executeScript(body, seen, opts.inputs ?? {}, skipLast ? { ...chart, realtime: false, lastBarConfirmed: true } : chart, {
+  const recorder = new StrategyRecorder();
+  const runChart = skipLast ? { ...chart, realtime: false, lastBarConfirmed: true } : chart;
+  const script = executeScript(body, seen, opts.inputs ?? {}, runChart, {
     strategyEngine: ({ properties }) => {
       const props = { ...brokerProperties(properties), ...opts.properties };
       fills = opts.heikinAshi && !props.fillOrdersOnStandardOhlc ? ha : bars;
       const magnify = props.barMagnifier && !opts.heikinAshi;
-      return (engine = new BrokerEngine(fills, props, symbol, magnify ? binIntrabars(fills, opts.intrabars, opts.intrabarSeconds) : undefined));
+      const e = (engine = new BrokerEngine(fills, props, symbol, magnify ? binIntrabars(fills, opts.intrabars, opts.intrabarSeconds) : undefined));
+      // "On order fill" / "On history bar tick": the script runs again inside the bar, on the bars up to it.
+      if (props.calcOnOrderFills || props.calcOnEveryHistoryTick) {
+        e.broker.onIntrabar = (i, tick) => {
+          const bar = { ...seen[i], high: tick.high, low: tick.low, close: tick.close, volume: tick.volume };
+          executeIntrabar(body, [...seen.slice(0, i), bar], opts.inputs ?? {}, chart, { bar: i, lastBarIndex: seen.length - 1, engine: e, recorder });
+        };
+      }
+      return e;
     },
+    recorder,
   });
   if (skipLast && engine && seen.length) {
     const last = bars.length - 1;

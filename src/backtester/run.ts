@@ -132,6 +132,9 @@ function commonGap(bars: Bar[]): number {
 export function runBacktest<I extends object>(bars: Bar[], def: StrategyDefinition<I>, opts: RunOptions<I> = {}): BacktestReport {
   const t0 = performance.now();
   const properties = { ...DEFAULT_PROPERTIES, ...def.properties, ...opts.properties };
+  // The scripts of the built-in ports have no calc_on_every_history_tick input: the reference app runs them as
+  // without it.
+  properties.calcOnEveryHistoryTick = false;
   const symbol = { ...DEFAULT_SYMBOL, ...opts.symbol };
   const inputs = { ...def.defaultInputs, ...opts.inputs } as I;
   const { script, fills } = chartBars(bars, opts.heikinAshi, properties.fillOrdersOnStandardOhlc);
@@ -140,11 +143,14 @@ export function runBacktest<I extends object>(bars: Bar[], def: StrategyDefiniti
   const onBar = def.setup(script, inputs, symbol);
   const equity = new Array<number>(bars.length);
   const skipLast = opts.realtime === true && !properties.calcOnEveryTick;
+  // "On order fill" / "On history bar tick": the broker runs the script again inside a bar (see intrabarRunner).
+  const answers: unknown[][] | null = properties.calcOnOrderFills || properties.calcOnEveryHistoryTick ? [] : null;
+  if (answers) broker.onIntrabar = intrabarRunner(def, script, inputs, symbol, broker, answers);
   for (let i = 0; i < bars.length; i++) {
     broker.processBar(i);
     broker.readMarginUsed();
     if (!(skipLast && i === bars.length - 1)) {
-      onBar(i, broker);
+      onBar(i, answers ? recordingBroker(broker, (answers[i] = [])) : broker);
       if (properties.processOrdersOnClose) {
         broker.processClose(i);
         broker.readMarginUsed();
@@ -155,6 +161,47 @@ export function runBacktest<I extends object>(bars: Bar[], def: StrategyDefiniti
     equity[i] = broker.equity;
   }
   return backtestReport(fills, broker, equity, t0);
+}
+
+/** The broker of a main run that records the values the script reads from it on each bar (an intrabar run
+ *  replays them on the bars before its bar). */
+function recordingBroker(broker: Broker, log: unknown[]): Broker {
+  return new Proxy(broker, {
+    get(target, key) {
+      const v = Reflect.get(target, key, target);
+      if (typeof v === 'function') return v.bind(target);
+      log.push(v);
+      return v;
+    },
+  });
+}
+
+/** A broker for a replayed bar: its reads give back the main run's values in order, its order calls do nothing. */
+function replayBroker(broker: Broker, log: readonly unknown[]): Broker {
+  let k = 0;
+  const none = () => undefined;
+  return new Proxy(broker, {
+    get(target, key) {
+      if (typeof Reflect.get(target, key, target) === 'function') return none;
+      return log[k++];
+    },
+  });
+}
+
+/**
+ * Runs a port again inside bar i (calc_on_order_fills, calc_on_every_history_tick): its series are computed again on
+ * the bars up to bar i, that bar as it stands at the tick, and its variables come back to their state at the start
+ * of the bar (PineScript rollback) by replaying the bars before from the values the main run read; bar i itself
+ * runs on the broker.
+ */
+function intrabarRunner<I extends object>(def: StrategyDefinition<I>, script: Bar[], inputs: I, symbol: SymbolInfo, broker: Broker, answers: unknown[][]) {
+  return (i: number, tick: Bar): void => {
+    const bars = script.slice(0, i + 1);
+    bars[i] = { ...script[i], high: tick.high, low: tick.low, close: tick.close, volume: tick.volume };
+    const onBar = def.setup(bars, inputs, symbol);
+    for (let k = 0; k < i; k++) onBar(k, replayBroker(broker, answers[k] ?? []));
+    onBar(i, broker);
+  };
 }
 
 /** Margin usage of a run: a zero item at the first bar (as the reference app's), then the broker's. */

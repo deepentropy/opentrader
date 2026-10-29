@@ -40,6 +40,24 @@ export abstract class OrderBook extends PricePath {
     this.placeEntry(id, direction, opts, true, 'strategy.order');
   }
 
+  /**
+   * Market entries of default quantity sized again with the state of the current script run (an intrabar run
+   * before they fill: the reference app sizes a reversal left for the next tick with the equity and price there).
+   */
+  protected resizeMarketEntries(): void {
+    for (const [id, e] of this.entries) {
+      if (e.limit !== null || e.stop !== null || !e.defaultSized) continue;
+      const sizePrice = this.sizingPrice(e.direction === 'long', null, false);
+      let qty: number;
+      try {
+        qty = this.defaultQty(sizePrice, 'strategy.entry');
+      } catch {
+        continue;
+      }
+      this.entries.set(id, { ...e, qty, sizePrice, placedClose: this.roundPrice(this.bars[this.bar].close), placedEquity: fillEquity(this.fundsEquity) });
+    }
+  }
+
   private placeEntry(id: string, direction: Direction, opts: EntryOptions, isOrder: boolean, fn: string): void {
     if (opts.when === false || this.halted) return;
     const limit = val(opts.limit);
@@ -93,6 +111,7 @@ export abstract class OrderBook extends PricePath {
     const reverseQty = !isOrder && against !== 0 && (against > 0) !== buy ? Math.abs(against) : 0;
     this.entries.set(id, {
       sizePrice,
+      defaultSized: explicit === null,
       placedClose: this.roundPrice(this.bars[this.bar].close),
       // The fill check counts this equity without binary noise (see ownFitsAt).
       placedEquity: fillEquity(this.fundsEquity),

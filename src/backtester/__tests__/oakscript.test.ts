@@ -51,8 +51,29 @@ describe("brokerProperties", () => {
     expect(brokerProperties({ ...scriptProps, backtest_fill_limits_assumption: 2, use_bar_magnifier: true }).fillLimitsTicks).toBe(2);
   });
 
-  it("rejects calc_on_order_fills (not implemented by the broker)", () => {
-    expect(() => brokerProperties({ ...scriptProps, calc_on_order_fills: true })).toThrow(/calc_on_order_fills/);
+  it("passes calc_on_order_fills and calc_on_every_history_tick to the broker", () => {
+    const p = brokerProperties({ ...scriptProps, calc_on_order_fills: true, calc_on_every_history_tick: true });
+    expect([p.calcOnOrderFills, p.calcOnEveryHistoryTick]).toEqual([true, true]);
+  });
+});
+
+describe("intrabar runs (calc_on_order_fills)", () => {
+  // Bar 2 closes above 10: a long entry fills at the open of bar 3. The script closes any open position.
+  const BARS: Bar[] = [10, 10, 11, 12, 13, 14].map((c, i) => ({ time: 1_700_000_000 + i * 86_400, open: c, high: c + 1, low: c - 1, close: c, volume: 100 }));
+  const body = (fills: boolean) => () => {
+    strategy("T", { calc_on_order_fills: fills, default_qty_type: "fixed", default_qty_value: 1 });
+    strategy.eachBar((c) => {
+      if (c.i === 2) strategy.entry("L", strategy.long);
+      if (c.i >= 3 && strategy.position_size > 0) strategy.close("L");
+    });
+  };
+  it("runs the script again at the fill: its close fills at once at the open", () => {
+    const trades = runOakScriptStrategy(body(true), BARS).report!.trades;
+    expect(trades.map((t) => [t.entry.bar, t.entry.price, t.exit.bar, t.exit.price])).toEqual([[3, 12, 3, 12]]);
+  });
+  it("without it the close waits for the bar close and fills at the next open", () => {
+    const trades = runOakScriptStrategy(body(false), BARS).report!.trades;
+    expect(trades.map((t) => [t.entry.bar, t.exit.bar, t.exit.price])).toEqual([[3, 4, 13]]);
   });
 });
 

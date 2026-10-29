@@ -374,6 +374,14 @@ function magnifies(key: string, overrides: Partial<StrategyProperties>): boolean
   return (overrides.barMagnifier ?? strategyDefaults(strategyId(key))?.barMagnifier) === true;
 }
 
+/** The strategy's script has the "On history bar tick" input: not the built-in ports (their reference scripts have
+ *  none, the reference app hides the option for them). */
+export function hasHistoryTickOption(id: string): boolean {
+  if (!isStrategyId(id)) return false;
+  const key = strategyDefKeyOf(id);
+  return userScriptIdOf(key) !== null || !STRATEGIES.some((d) => d.key === key);
+}
+
 /** strategy() properties of a strategy study before overrides: the port's
  *  declaration, or the compiled OakScript declaration (undefined when not
  *  compiled yet or not supported by the broker). */

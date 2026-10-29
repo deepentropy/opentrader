@@ -31,6 +31,8 @@ type Props = {
   /** Chart type id of the chart ("candle", "ha", "renko"...): synthetic types disable High detalization and
    *  "On history bar tick"; Heikin Ashi shows the Heikin Ashi mode row. */
   chartStyle?: string;
+  /** The script has the "On history bar tick" option (the built-in ports have not). */
+  historyTicks?: boolean;
   onChange: (patch: Partial<StrategyProperties>) => void;
 };
 
@@ -268,7 +270,7 @@ export function StrategyPropertiesTab(props: Props) {
       disabledTip: NOT_FOR_BAR_TYPE,
     },
   ];
-  // "On order fill" and "On history bar tick" need extra script runs inside a bar: not simulated (disabled).
+  // "On order fill" and "On history bar tick" run the script again inside the bars (broker intrabar runs).
   const executions = () => [
     {
       id: "close",
@@ -282,16 +284,15 @@ export function StrategyPropertiesTab(props: Props) {
       label: "On order fill",
       tip: "Runs an additional recalculation immediately after the order fills to provide instant access to the filled order data",
       checked: p().calcOnOrderFills,
-      disabled: true,
     },
-    {
+    ...(props.historyTicks === false ? [] : [{
       id: "history",
       label: "On history bar tick",
       tip: "Executes on every update in the history",
       checked: p().calcOnEveryHistoryTick,
-      disabled: true,
+      disabled: synthetic(),
       disabledTip: synthetic() ? NOT_FOR_BAR_TYPE : undefined,
-    },
+    }]),
     { id: "realtime", label: "On realtime bar tick", tip: "Executes on each real-time update, including in bar replay mode", checked: p().calcOnEveryTick },
   ];
   const currencyValue = () => (p().currency === props.chartCurrency ? "Same as chart" : p().currency);
@@ -338,7 +339,11 @@ export function StrategyPropertiesTab(props: Props) {
         <OptSelect options={detalization()} value={p().barMagnifier ? "high" : "default"} width={260} onPick={(id) => props.onChange({ barMagnifier: id === "high" })} />
       </Row>
       <Row label="Script execution">
-        <CheckSelect options={executions()} width={260} onToggle={(id) => id === "realtime" && props.onChange({ calcOnEveryTick: !p().calcOnEveryTick })} />
+        <CheckSelect options={executions()} width={260} onToggle={(id) => {
+            if (id === "realtime") props.onChange({ calcOnEveryTick: !p().calcOnEveryTick });
+            else if (id === "fill") props.onChange({ calcOnOrderFills: !p().calcOnOrderFills });
+            else if (id === "history") props.onChange({ calcOnEveryHistoryTick: !p().calcOnEveryHistoryTick });
+          }} />
       </Row>
 
       <div class="cp3-section ind3-props-broker">Broker emulator</div>

@@ -7,14 +7,38 @@ import type { OrderType } from '../types';
 import { EntryFills } from './entries';
 import { EPS, type CloseOrder, type EntryOrder, type ExitOrder, type FillAlert, type MarginCallOrder, type OpenTrade, type PriceOrder } from './types';
 
+/** A point of the bar path where the script may run inside the bar (see Broker.intrabarTick): the open, a path
+ *  point before the last one, an order fill on the way between two points, the bar's last point (the script runs at
+ *  the close anyway), the fills at the close (process_orders_on_close). */
+export type IntrabarPoint = 'open' | 'tick' | 'fill' | 'last' | 'close';
+
 export abstract class PricePath extends EntryFills {
-  /** Market orders (market entries and closes) in the order they were placed. */
-  protected fillMarketOrders(base: number): void {
-    const market: (EntryOrder | CloseOrder | MarginCallOrder)[] = [...this.closes, ...this.pendingCalls];
+  /** A script run inside the bar placed market orders: they fill at the next point of the path. */
+  protected intrabarMarket = false;
+  /** Stop / limit entries ("e:<id>") a script run inside the bar placed or changed: they do not fill on the way to
+   *  the bar's close (St-Greed), while `lastLeg` is set; exits do. */
+  protected intrabarPlaced = new Set<string>();
+  protected lastLeg = false;
+
+  /** A point of the path was processed (Broker runs the script there with calc_on_order_fills /
+   *  calc_on_every_history_tick). */
+  protected intrabarTick(_p: number, _point: IntrabarPoint, _raw?: number): void {}
+
+  /** Market orders a script run inside the bar placed, at the next point `p` of the path. */
+  protected fillIntrabarMarket(p: number, _raw?: number): void {
+    if (!this.intrabarMarket) return;
+    this.intrabarMarket = false;
+    this.fillMarketOrders(p, false);
+  }
+
+  /** Market orders (market entries and closes) in the order they were placed; margin calls too unless `calls` is
+   *  false. */
+  protected fillMarketOrders(base: number, calls = true): void {
+    const market: (EntryOrder | CloseOrder | MarginCallOrder)[] = calls ? [...this.closes, ...this.pendingCalls] : [...this.closes];
     for (const e of this.entries.values()) if (e.limit === null && e.stop === null) market.push(e);
     market.sort((a, b) => a.seq - b.seq);
     this.closes = [];
-    this.pendingCalls = [];
+    if (calls) this.pendingCalls = [];
     // A close order after a market entry of the same batch does not fill, whether the entry filled or was
     // rejected (strategy.order then strategy.close: bb-mean-reversion; a rejected reversal then strategy.close:
     // rsi-volume-macd-ema).
@@ -24,6 +48,9 @@ export abstract class PricePath extends EntryFills {
         this.fillMarginCall(o, base);
       } else if (o.kind === 'entry') {
         this.entries.delete(o.id);
+        // An entry the pyramiding limit stops is no order: a close after it fills (EMA Cross RSI ADX, an entry
+        // called again on a short opened inside the bar, then its stop-out close).
+        if (!o.isOrder && !this.canEnter(o.direction)) continue;
         this.fillEntry(o, this.slip(base, o.direction === 'long'), 'MARKET');
         afterEntry = true;
       } else if (!afterEntry) {
@@ -89,6 +116,7 @@ export abstract class PricePath extends EntryFills {
             if (call) this.pendingCalls.push({ ...call, sizeAtFill: true });
           }
           this.fillAt(cur, cur, true);
+          this.intrabarTick(o.level, 'fill');
           break;
         }
       }
@@ -101,6 +129,7 @@ export abstract class PricePath extends EntryFills {
     const out: PriceOrder[] = [];
     for (const e of this.entries.values()) {
       if (e.limit === null && e.stop === null) continue;
+      if (this.lastLeg && this.intrabarPlaced.has(`e:${e.id}`)) continue;
       // Several entries fill on one bar, in either direction, stop or limit: pyramiding ones (pivot-points SPY 4h
       // bar 29), one against the trade just opened (a buy at 43.84, then a sell limit entry at 43.87 or a sell stop
       // entry at 43.60 on the same bar).

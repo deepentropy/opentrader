@@ -156,12 +156,125 @@
  */
 import type { Bar } from './types';
 import { OrderBook } from './broker/orders';
+import type { IntrabarPoint } from './broker/path';
 import { EPS } from './broker/types';
 
 export { StrategyRuntimeError } from './broker/types';
 export type { CloseOptions, EntryOptions, EquityEvent, ExitOptions, OcaType, RiskRule } from './broker/types';
 
 export class Broker extends OrderBook {
+  // ------------------------------------------------------------ intrabar script runs
+
+  /**
+   * Runs the script inside bar `bar` (calc_on_order_fills, calc_on_every_history_tick), set by the runner. `tick` is
+   * the bar the script sees: the bar's final values after an order fill (the reference app's lookahead on history
+   * bars), the bar as it stands at a history tick (its open, the extremes reached so far, the tick price as the
+   * close, the volume traded so far).
+   */
+  onIntrabar: ((bar: number, tick: Bar) => void) | null = null;
+  private fillsSeen = 0;
+  /** Highest and lowest exact prices of the path so far, and the ticks reached (1 at the open): the bar of a
+   *  history tick. */
+  private tickHigh = 0;
+  private tickLow = 0;
+  private tickIndex = 0;
+  private inIntrabar = false;
+
+  private startIntrabar(open: number): void {
+    this.tickIndex = 0;
+    this.tickHigh = open;
+    this.tickLow = open;
+    this.fillsSeen = this.filledOrders.length;
+    this.intrabarMarket = false;
+    this.intrabarPlaced.clear();
+    this.lastLeg = false;
+  }
+
+  /**
+   * After a point (tick) of the path, the reference app's model (rules matched on .tmp/strategy-properties, #125):
+   *  - the fills at the tick (market orders a run left for it, orders crossed on the way to it) run the script once
+   *    there (calc_on_order_fills); the market orders of that run fill at once at the tick, the stop / limit orders
+   *    it places beyond the tick price too, and those fills do not run it again (a stop filled on the way down, the
+   *    close order it leads to at the low);
+   *  - a margin call filled at the tick runs it too, but its market orders wait for the next tick, sized there (a
+   *    margin call at the high, the reversal at the low);
+   *  - calc_on_every_history_tick runs it at each tick but the last, its orders filled at the tick;
+   *  - market orders left for the next tick do not fill at the bar's close but at the next open; stop / limit
+   *    entries a run placed do not fill on the way to the close;
+   *  - at the bar's last tick the script runs at the close anyway; with process_orders_on_close, the fills at the
+   *    close do not run it again.
+   */
+  protected override intrabarTick(p: number, point: IntrabarPoint, raw = p): void {
+    if (!this.onIntrabar || this.inIntrabar) return;
+    if (point === 'fill') return; // counted at the next tick
+    this.tickIndex++;
+    const fresh = this.filledOrders.slice(this.fillsSeen);
+    this.fillsSeen = this.filledOrders.length;
+    if (point === 'last') return;
+    const onFill = this.props.calcOnOrderFills && fresh.length > 0;
+    const onTick = this.props.calcOnEveryHistoryTick && (point === 'open' || point === 'tick');
+    // Its market orders fill at once, after a margin call at the next tick.
+    if (onFill || onTick) this.runIntrabar(p, raw, fresh.some((f) => f.id.startsWith('Margin call')));
+  }
+
+  /** Market orders a run left for the next tick fill at its price, sized with the state there. */
+  protected override fillIntrabarMarket(p: number, raw = p): void {
+    if (!this.intrabarMarket || !this.onIntrabar) return;
+    this.intrabarMarket = false;
+    this.atTick(p, raw, () => {
+      this.resizeMarketEntries();
+      this.fillMarketOrders(p, false);
+    });
+  }
+
+  /** Runs `fn` with the bar as it stands at tick price p (its close, the equity and position there). The script
+   *  sees the exact price `raw` (an open of 0.125558, not 0.13 on the tick grid: Lucky13EMA). */
+  private atTick(p: number, raw: number, fn: (tick: Bar) => void): void {
+    const bars = this.bars as Bar[];
+    const bar = bars[this.bar];
+    const saved = [this.scriptEquity, this.scriptPos, this.scriptClose] as const;
+    this.tickHigh = Math.max(this.tickHigh, raw);
+    this.tickLow = Math.min(this.tickLow, raw);
+    // A history tick sees the volume traded so far: a quarter of the bar's per tick reached (EWO-RSI).
+    const vol = bar.volume !== undefined ? (bar.volume * Math.min(Math.max(this.tickIndex, 1), 4)) / 4 : bar.volume;
+    const tick = { ...bar, high: Math.max(this.tickHigh, raw), low: Math.min(this.tickLow, raw), close: raw, volume: vol };
+    bars[this.bar] = tick;
+    this.scriptEquity = this.fundsEquity;
+    this.scriptPos = this.positionSize;
+    this.scriptClose = p;
+    try {
+      fn(tick);
+    } finally {
+      bars[this.bar] = bar;
+      [this.scriptEquity, this.scriptPos, this.scriptClose] = saved;
+    }
+  }
+
+  /** Runs the script at tick price p; its market orders fill at once at p, or wait for the next tick. */
+  private runIntrabar(p: number, raw: number, deferMarket: boolean): void {
+    const bar = this.bars[this.bar];
+    // On order fill the script sees the bar's final values (the reference app's lookahead on history bars); on
+    // history ticks the bar as it stands at the tick.
+    const scriptBar = (tick: Bar): Bar => (this.props.calcOnEveryHistoryTick ? tick : bar);
+    this.inIntrabar = true;
+    try {
+      this.atTick(p, raw, (tick) => {
+        const entriesBefore = new Map(this.entries);
+        this.onIntrabar!(this.bar, scriptBar(tick));
+        for (const [id, e] of this.entries) if (entriesBefore.get(id) !== e) this.intrabarPlaced.add(`e:${id}`);
+        if (this.closes.length || [...this.entries.values()].some((e) => e.limit === null && e.stop === null)) {
+          if (deferMarket) this.intrabarMarket = true;
+          else this.fillMarketOrders(p, false);
+        }
+        // Stop / limit orders the run placed beyond the tick price fill there too (a limit buy above the low).
+        if (!deferMarket) this.fillAt(p);
+      });
+    } finally {
+      this.inIntrabar = false;
+    }
+    this.fillsSeen = this.filledOrders.length;
+  }
+
   // ------------------------------------------------------------ emulation
 
   /** Fill the orders placed before bar `i` along bar i's price path. */
@@ -198,6 +311,7 @@ export class Broker extends OrderBook {
     // on the day's first tick (bar up/down strategy AAPL 1W bar 12: a short reversed with a profit of 1,410.70 at a
     // weekly open is not closed).
     const realizedBefore = this.dayMaxEquity === -Infinity ? undefined : this.props.initialCapital + this.netProfit;
+    this.startIntrabar(first.open);
     this.touchEquity(open);
     this.fillMarketOrders(open);
     this.touchTrades(open, first.open, held.filter((t) => this.openTrades.includes(t)));
@@ -217,6 +331,7 @@ export class Broker extends OrderBook {
     // (the first lower-timeframe open: ut-bot-v2 AAPL 1D, 80 shares at 32.40 sized at the 32.38 open).
     const deferMargin = !!(sub && sub.length);
     if (!deferMargin) this.checkMargin(open);
+    this.intrabarTick(open, 'open', first.open);
     for (let k = 0; k < legs.length; k++) {
       const b = legs[k];
       // Each lower-timeframe open is a tick of its own (a gap from the previous tick fills there); a bar
@@ -226,12 +341,14 @@ export class Broker extends OrderBook {
         if (k === 0) this.touchTrades(open, first.open, fresh.filter((t) => this.openTrades.includes(t)));
         this.touch(o, b.open);
         if (k === 0 && deferMargin) this.checkMargin(open, o);
+        this.fillIntrabarMarket(o, b.open);
         this.fillAt(o, b.open);
         this.fillRiskCloseNow(o);
         this.fillPendingCalls(o);
         this.fillRiskClose(o);
         this.checkMargin(o);
         this.riskPoint(o);
+        this.intrabarTick(o, 'tick', b.open);
         cur = o;
       }
       const high = this.roundPrice(b.high);
@@ -242,10 +359,13 @@ export class Broker extends OrderBook {
       const path: [number, number][] = upFirst ? [[high, b.high], [low, b.low], [close, b.close]] : [[low, b.low], [high, b.high], [close, b.close]];
       for (let n = 0; n < path.length; n++) {
         const [to, raw] = path[n];
+        this.lastLeg = n === path.length - 1 && !(sub && sub.length);
         this.walk(cur, to);
         this.fillRiskCloseNow(to);
         cur = to;
         this.touch(to, raw);
+        // Not at the bar's close: they fill at the next open (UT Bot, Crossing MA ADX).
+        if (!this.lastLeg) this.fillIntrabarMarket(to, raw);
         // A trailing stop the extreme moved to the price reached fills there (doji NVDA 1D bar 4355: a 1.025 high
         // on a 0.01 tick is 1.02, the stop 1.02 with an offset of 0 ticks; filled at 1.02 before the 1.0245 close).
         this.fillAt(to, raw, true);
@@ -259,6 +379,9 @@ export class Broker extends OrderBook {
         this.riskPoint(to);
         // The day's highest equity counts the bar closes, not the prices inside the bars.
         if (last && this.maxIntradayLoss) this.dayMaxEquity = Math.max(this.dayMaxEquity, this.props.initialCapital + this.netProfit + this.openProfitAt(to));
+        // With lower-timeframe bars the chart close comes after them.
+        this.intrabarTick(to, last ? 'last' : 'tick', raw);
+        this.lastLeg = false;
       }
     }
     // The last tick is the chart bar's close, reached by a jump like the lower-timeframe opens (an order it
@@ -267,7 +390,10 @@ export class Broker extends OrderBook {
       const b = this.bars[i];
       const close = this.roundPrice(b.close);
       this.touch(close, b.close);
+      this.lastLeg = true;
       this.fillAt(close, b.close);
+      this.lastLeg = false;
+      this.intrabarTick(close, 'last');
       this.deferPendingCalls();
       this.checkMargin(close, close, false, true);
       this.riskPoint(close);
@@ -324,6 +450,8 @@ export class Broker extends OrderBook {
     this.fillAt(close, this.bars[i].close);
     // Trades filled at this close see the close as their first price after the fill.
     this.touch(close, this.bars[i].close);
+    // The fills at the close do not run the script again (Tomukas Scale-In: no pyramiding entry there).
+    this.intrabarTick(close, 'last', this.bars[i].close);
     // The funds check after these fills is the one after the script run: its margin call is sized here and fills
     // at the next open (a short of 228,000 filled at a 43.44 close with 1.00 of slippage: 12,184 bought back at
     // the next open, 43.94 + 1.00, not at the close).

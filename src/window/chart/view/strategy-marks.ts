@@ -20,7 +20,7 @@ import { createSeriesMarkers, type ISeriesMarkersPluginApi, type SeriesMarker, t
 import { cachedSymbolSessions } from "../../../data/session";
 import { type StrategyDialogConfig } from "../IndicatorSettingsDialog";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../../backtester/types";
-import { PROPERTIES_INPUT, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf } from "../indicators/strategy-entries";
+import { PROPERTIES_INPUT, hasHistoryTickOption, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf } from "../indicators/strategy-entries";
 import { strategyTester } from "../../../data/strategy-tester-store";
 import { type ChartCx } from "./context";
 
@@ -55,6 +55,7 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
       chartCurrency: defaults.currency,
       interval: props.interval ?? "1D",
       chartStyle: props.chartType ?? "candle",
+      historyTicks: hasHistoryTickOption(id),
       // The engine runs in the charted symbol's exchange zone (chart context).
       timeZone: cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? DEFAULT_SYMBOL.timezone,
     };

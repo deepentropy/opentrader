@@ -68,6 +68,8 @@ export type StrategyDialogConfig = {
   interval: string;
   /** Chart type id (Heikin Ashi mode row, synthetic types disable High detalization). */
   chartStyle: string;
+  /** The script has the "On history bar tick" option. */
+  historyTicks: boolean;
   timeZone: string;
 };
 
@@ -804,6 +806,7 @@ export function IndicatorSettingsDialog(props: Props) {
                 chartCurrency={st().chartCurrency}
                 interval={st().interval}
                 chartStyle={st().chartStyle}
+                historyTicks={st().historyTicks}
                 onChange={(patch) => setPropDraft(patch)}
               />
             )}

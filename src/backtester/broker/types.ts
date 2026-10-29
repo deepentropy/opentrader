@@ -83,6 +83,8 @@ export interface EntryOrder {
   kind: 'entry';
   /** Price the order was sized at when placed (the close, or the order price; slippage included). */
   sizePrice: number;
+  /** Sized by the strategy's default quantity (no qty argument). */
+  defaultSized?: boolean;
   /** Close of the bar the order was placed on (tick grid, no slippage). */
   placedClose: number;
   /** Equity when the order was placed (the funds a stop / limit entry is checked against at its fill). */

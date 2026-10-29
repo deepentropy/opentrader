@@ -39,7 +39,7 @@
     "lightweight-charts": "^5.2.1",
     "lightweight-charts-indicators": "^0.16.8",
     "monaco-editor": "^0.55.1",
-    "oakscriptjs": "^0.12.3",
+    "oakscriptjs": "^0.13.0",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {
