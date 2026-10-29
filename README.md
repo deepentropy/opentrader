@@ -110,6 +110,8 @@ OpenTrader uses [TradingView Lightweight Charts™](https://github.com/tradingvi
 > TradingView Lightweight Charts™  
 > Copyright (с) 2025 TradingView, Inc. https://www.tradingview.com/
 
+Emoji images: [Twemoji](https://github.com/jdecked/twemoji) graphics, Copyright 2019 Twitter, Inc and other contributors, licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/) (from the `@twemoji/svg` package).
+
 ## License
 
 [MIT](LICENSE)

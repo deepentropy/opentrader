@@ -10,19 +10,14 @@ import { Portal } from "solid-js/web";
 import * as kv from "../data/kv";
 import { Tooltip } from "./Tooltip";
 import { EMOJI_GROUPS } from "./emoji-groups";
+import { EmojiImage } from "./emoji-images";
+
+export { separateEmoji } from "./emoji-images";
 
 /** Recently used emojis kept (reference app). */
 export const MAX_RECENTLY_USED = 18;
 const RECENT_KEY = "ot:emoji:recently-used";
 
-const segmenter = typeof Intl !== "undefined" && "Segmenter" in Intl ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
-
-/** The leading emoji of `s` (at its very start, a whole grapheme) and the rest. */
-export function separateEmoji(s: string): { emoji: string; rest: string } {
-  const first = segmenter ? (segmenter.segment(s)[Symbol.iterator]().next().value?.segment ?? "") : (Array.from(s)[0] ?? "");
-  if (first && /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣/u.test(first)) return { emoji: first, rest: s.slice(first.length) };
-  return { emoji: "", rest: s };
-}
 
 function readRecent(current: string): string[] {
   try {
@@ -168,7 +163,7 @@ export function EmojiSelect(props: { emoji: string; onSelect: (emoji: string) =>
           onClick={toggle}
         >
           <Show when={props.emoji} fallback={<AddEmojiIcon />}>
-            <span class="ot-emoji-select-glyph">{props.emoji}</span>
+            <EmojiImage emoji={props.emoji} size={18} class="ot-emoji-select-glyph" />
           </Show>
         </button>
       </Tooltip>
@@ -272,7 +267,7 @@ function EmojiPicker(props: { anchor: HTMLElement; recent: string[]; onSelect: (
                         </Tooltip>
                       ) : (
                         <button type="button" class="ot-emoji-cell" aria-label={e} onClick={() => props.onSelect(e)}>
-                          {e}
+                          <EmojiImage emoji={e} size={24} />
                         </button>
                       )
                     }

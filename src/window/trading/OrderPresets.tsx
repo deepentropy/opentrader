@@ -11,6 +11,7 @@ import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-j
 import { Portal } from "solid-js/web";
 import { showConfirm } from "../../components/Dialogs";
 import { EmojiSelect, separateEmoji } from "../../components/EmojiSelect";
+import { EmojiImage, LeadingEmojiText } from "../../components/emoji-images";
 import { Tooltip } from "../../components/Tooltip";
 import { replayBroker } from "../../data/trading/replay-broker";
 import { MAX_PRESETS, ticketQty, tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
@@ -124,7 +125,9 @@ export function FavoritePresets(props: { applied: (p: OrderPreset) => boolean; a
           {(p, i) => (
             <button type="button" class="trd-fav-preset" aria-label={p.title} data-qa-id={`favorite-preset-tag-${i() + 1}`} onClick={() => props.apply(p)}>
               <span class="trd-fav-preset-tag" classList={{ "is-applied": props.applied(p) }}>
-                {leadingSymbol(p.title)}
+                <Show when={separateEmoji(p.title.trim()).emoji} fallback={leadingSymbol(p.title)}>
+                  {(e) => <EmojiImage emoji={e()} size={18} />}
+                </Show>
               </span>
             </button>
           )}
@@ -175,7 +178,7 @@ function PresetList(props: { active?: string | null; onSelect: (p: OrderPreset) 
             }}
           >
             <div class="trd-preset-body">
-              <div class="trd-preset-title">{p.title}</div>
+              <div class="trd-preset-title"><LeadingEmojiText text={p.title} /></div>
               <PresetDescription preset={p} />
             </div>
             <button
@@ -438,7 +441,7 @@ function SavePresetDialog(props: { preset: Omit<OrderPreset, "id" | "title">; on
                   <For each={names()}>
                     {(n) => (
                       <div role="option" class="ot-dlg-suggestion" onMouseDown={(e) => e.preventDefault()} onClick={() => { setName(n); setListOpen(false); input.focus(); }}>
-                        {n}
+                        <LeadingEmojiText text={n} />
                       </div>
                     )}
                   </For>

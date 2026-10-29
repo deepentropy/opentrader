@@ -283,3 +283,4 @@
 .ot-emoji-cell:hover { background: var(--color-popup-menu-item-hover-bg); }
 html.theme-dark .ot-emoji-picker { background: #131313; }
 html.theme-dark .ot-emoji-tabs { border-bottom-color: #464646; }
+.ot-leading-emoji { margin-right: 2px; }

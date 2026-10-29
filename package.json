@@ -45,6 +45,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "@tauri-apps/cli": "^2.12.3",
+    "@twemoji/svg": "^15.0.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
