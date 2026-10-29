@@ -267,6 +267,64 @@
 .st-pill.is-open .st-pill-chevron svg {
   transform: rotate(180deg);
 }
+/* Script execution pill: the number of executions checked, a 16 px badge in
+   the inverse colours (white on the dark theme; 12/16, padding 0 4px, r8)
+   before the chevron (reference app). */
+.st-pill-counter {
+  margin-left: 4px;
+  min-width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-primary-inverse);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+}
+/* Bar detalization / Script execution menus: a 14 px title (with Reset on
+   the right for Script execution) over a divider, then the rows. */
+.st-pill-popover .st-exec-head,
+.st-pill-popover > .scr-section-title:first-child {
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--color-border-primary-neutral-light);
+}
+.st-exec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.st-pill-popover .scr-section-title {
+  height: 40px;
+  padding: 11px 8px;
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+.st-exec-head .scr-section-title { border: 0; margin: 0; }
+.st-exec-reset {
+  all: unset;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--color-text-primary);
+  cursor: default;
+}
+.st-exec-reset:hover { background: var(--color-bg-primary-hover); }
+.st-exec-check {
+  display: inline-flex;
+  width: 28px;
+  justify-content: center;
+}
+.st-pill-option-note {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-secondary);
+}
+.scr-item.is-selected .st-pill-option-note { color: inherit; }
 /* "Testing period" hover card: #3d3d3d, radius 4px, padding 6px 8px, 13/18. */
 .st-pill-hover-tip {
   display: none;

@@ -1,17 +1,20 @@
 /*
  * Report toolbar (the reference app 3.4.1): Metrics / Trades icon switch, testing
- * period pill, initial capital pill, divider, Settings.
+ * period pill, initial capital pill, Bar detalization pill, Script execution pill
+ * (the number of executions checked; the reference app shows no other sign of
+ * "On order fill", #182), divider, Settings.
  *
- * Not built (engine has no counterpart yet, see the design doc): the Bar
- * detalization and Script execution pills, Add alert, the testing period
- * choices other than the chart range.
+ * Not built: Add alert, the testing period choices other than the chart range.
  */
-import { Show, createSignal } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { Popover, PopSectionTitle } from "../screener/Popover";
+import { Popover, PopItem, PopSectionTitle } from "../screener/Popover";
 import { strategyTester } from "../../data/strategy-tester-store";
-import { DEFAULT_PROPERTIES, type BacktestReport } from "../../backtester/types";
+import { DEFAULT_PROPERTIES, type BacktestReport, type StrategyProperties } from "../../backtester/types";
+import { detalizationTicks } from "../../backtester/magnifier";
+import { CheckBox } from "../header/ChartPropertiesDialog";
+import { EXECUTION_PROPERTY, SYNTHETIC_STYLES, executionOptions } from "../chart/StrategyPropertiesTab";
 import { compact, dateRange } from "./format";
 import { cachedSymbolSessions } from "../../data/session";
 
@@ -22,11 +25,25 @@ type Props = {
   onSettings: () => void;
   /** Charted symbol: the testing period shows in its exchange time zone. */
   symbol?: string;
+  /** Chart interval (High detalization tick count) and chart type (synthetic types: no High, no history ticks). */
+  interval?: string;
+  chartStyle?: string;
+  /** The script's strategy() properties before overrides (Script execution > Reset). */
+  defaults?: StrategyProperties;
+  /** The script has the "On history bar tick" option. */
+  historyTicks?: boolean;
 };
 
 export function ReportToolbar(props: Props) {
   let capitalRef: HTMLButtonElement | undefined;
   const [capitalOpen, setCapitalOpen] = createSignal(false);
+  let detalRef: HTMLButtonElement | undefined;
+  let execRef: HTMLButtonElement | undefined;
+  const [open, setOpen] = createSignal<"detal" | "exec" | null>(null);
+  const effective = (): StrategyProperties =>
+    props.report?.properties ?? ({ ...DEFAULT_PROPERTIES, ...props.defaults, ...props.properties } as StrategyProperties);
+  const synthetic = () => SYNTHETIC_STYLES.includes(props.chartStyle ?? "");
+  const executions = () => executionOptions(effective(), synthetic(), props.historyTicks !== false);
   const capital = () => props.report?.properties.initialCapital ?? (props.properties.initialCapital as number | undefined) ?? DEFAULT_PROPERTIES.initialCapital;
   const currency = () => props.report?.currency ?? "USD";
   const period = () => {
@@ -92,6 +109,35 @@ export function ReportToolbar(props: Props) {
           <span class="st-pill-chevron"><Icon name="st-pill-chevron-down" size={18} /></span>
         </button>
 
+        <button
+          type="button"
+          ref={detalRef}
+          class="st-pill"
+          classList={{ "is-open": open() === "detal" }}
+          data-name="bar-detalization-pill"
+          aria-label="Bar detalization"
+          onClick={() => setOpen(open() === "detal" ? null : "detal")}
+        >
+          <Icon name="st-pill-detalization-icon" size={28} />
+          <span class="st-pill-text">{effective().barMagnifier ? "High detalization" : "Default detalization"}</span>
+          <span class="st-pill-chevron"><Icon name="st-pill-chevron-down" size={18} /></span>
+        </button>
+
+        <button
+          type="button"
+          ref={execRef}
+          class="st-pill"
+          classList={{ "is-open": open() === "exec" }}
+          data-name="script-execution-pill"
+          aria-label="Script execution"
+          onClick={() => setOpen(open() === "exec" ? null : "exec")}
+        >
+          <Icon name="st-pill-script-execution-icon" size={28} />
+          <span class="st-pill-text">Script execution</span>
+          <span class="st-pill-counter">{executions().filter((o) => o.checked).length}</span>
+          <span class="st-pill-chevron"><Icon name="st-pill-chevron-down" size={18} /></span>
+        </button>
+
         <hr class="st-toolbar-divider" />
 
         <Tooltip text="Settings" side="bottom">
@@ -100,6 +146,67 @@ export function ReportToolbar(props: Props) {
           </button>
         </Tooltip>
       </div>
+
+      <Show when={open() === "detal"}>
+        <Popover anchor={detalRef} onClose={() => setOpen(null)} width={286} class="st-pill-popover">
+          <PopSectionTitle title="Bar detalization" />
+          <PopItem
+            title="Default detalization"
+            right={<span class="st-pill-option-note">4 ticks per bar</span>}
+            selected={!effective().barMagnifier}
+            onClick={() => {
+              props.onPatchProperties({ barMagnifier: false });
+              setOpen(null);
+            }}
+          />
+          <PopItem
+            title="High detalization"
+            right={<span class="st-pill-option-note">~{detalizationTicks(props.interval ?? "1D")} ticks per bar</span>}
+            selected={effective().barMagnifier}
+            disabled={synthetic()}
+            onClick={() => {
+              props.onPatchProperties({ barMagnifier: true });
+              setOpen(null);
+            }}
+          />
+        </Popover>
+      </Show>
+
+      <Show when={open() === "exec"}>
+        <Popover anchor={execRef} onClose={() => setOpen(null)} width={286} class="st-pill-popover">
+          <div class="st-exec-head">
+            <PopSectionTitle title="Script execution" />
+            <button
+              type="button"
+              class="st-exec-reset"
+              onClick={() => {
+                const d = { ...DEFAULT_PROPERTIES, ...props.defaults };
+                props.onPatchProperties({ calcOnOrderFills: d.calcOnOrderFills, calcOnEveryHistoryTick: d.calcOnEveryHistoryTick, calcOnEveryTick: d.calcOnEveryTick });
+              }}
+            >
+              Reset
+            </button>
+          </div>
+          <For each={executions()}>
+            {(o) => (
+              <div
+                role="menuitemcheckbox"
+                aria-checked={o.checked}
+                aria-disabled={o.disabled || undefined}
+                class="scr-item st-exec-item"
+                classList={{ "is-disabled": !!o.disabled }}
+                onClick={() => {
+                  const key = EXECUTION_PROPERTY[o.id];
+                  if (!o.disabled && key) props.onPatchProperties({ [key]: !o.checked });
+                }}
+              >
+                <span class="st-exec-check"><CheckBox checked={o.checked} disabled={o.disabled} onToggle={() => {}} tabIndex={-1} /></span>
+                <span class="scr-item-text"><span class="scr-item-title">{o.label}</span></span>
+              </div>
+            )}
+          </For>
+        </Popover>
+      </Show>
 
       <Show when={capitalOpen()}>
         <Popover anchor={capitalRef} onClose={() => setCapitalOpen(false)} width={290} class="st-pill-popover">

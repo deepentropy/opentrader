@@ -15,7 +15,7 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { Popover, PopItem, PopDivider } from "../screener/Popover";
 import { strategyTester } from "../../data/strategy-tester-store";
-import { getStrategyEntry, strategyDefKeyOf, strategyKeyOf } from "../chart/indicators/strategy-entries";
+import { getStrategyEntry, hasHistoryTickOption, strategyDefKeyOf, strategyDefaults, strategyKeyOf } from "../chart/indicators/strategy-entries";
 import { STRATEGIES } from "../../backtester/strategies";
 import { ReportToolbar } from "./ReportToolbar";
 import { KeyStatsInline, MetricsView } from "./MetricsView";
@@ -59,6 +59,8 @@ type Props = {
   onShowOnChart: (timeSec: number) => void;
   /** The Replay Trading tab exists (the Bar Replay toolbar shows). */
   replayTab?: boolean;
+  /** Chart type of the active chart (synthetic types: no High detalization, no history ticks). */
+  chartStyle?: string;
 };
 
 export function StrategyTesterPanel(props: Props) {
@@ -315,6 +317,10 @@ export function StrategyTesterPanel(props: Props) {
                         onPatchProperties={(patch) => props.onPatchProperties(id(), patch)}
                         onSettings={() => props.onSettings(id(), "properties")}
                         symbol={props.symbol}
+                        interval={props.interval}
+                        chartStyle={props.chartStyle}
+                        defaults={strategyDefaults(id())}
+                        historyTicks={hasHistoryTickOption(id())}
                       />
                     }
                   >

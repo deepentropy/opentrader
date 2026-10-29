@@ -41,7 +41,7 @@ const CURRENCIES = ["Same as chart", "USD", "EUR", "AUD", "GBP", "NZD", "CAD", "
 const qtyTypes = (currency: string): [QtyType, string][] => [["fixed", "Quantity"], ["cash", currency], ["percent_of_equity", "% of equity"]];
 const COMMISSION_TYPES: [CommissionType, string][] = [["percent", "Percent"], ["cash_per_contract", "Per contract"], ["cash_per_order", "Fixed"]];
 /** Chart types whose bars are synthetic (the reference app's list). */
-const SYNTHETIC_STYLES = ["ha", "renko", "pb", "kagi", "pnf", "range"];
+export const SYNTHETIC_STYLES = ["ha", "renko", "pb", "kagi", "pnf", "range"];
 const NOT_FOR_BAR_TYPE = "Not available for current bar type";
 
 /** One option of a Properties select: title, its (i) tooltip, disabled state with its tooltip. */
@@ -254,24 +254,24 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function StrategyPropertiesTab(props: Props) {
-  const p = () => props.value;
-  const QTY_TYPES = () => qtyTypes(p().currency);
-  const qtyLabel = () => QTY_TYPES().find(([t]) => t === p().defaultQtyType)?.[1] ?? "Quantity";
-  const commissionLabel = () => COMMISSION_TYPES.find(([t]) => t === p().commissionType)?.[1] ?? "Percent";
-  const synthetic = () => SYNTHETIC_STYLES.includes(props.chartStyle ?? "");
-  const detalization = (): Opt[] => [
+/** Bar detalization choices (Properties tab, report toolbar pill): High is off on synthetic bar types. */
+export function detalizationOptions(interval: string | undefined, synthetic: boolean): Opt[] {
+  return [
     { id: "default", label: "Default (4 ticks per bar)", tip: "Runs a simulation using OHLC values" },
     {
       id: "high",
-      label: `High (~${detalizationTicks(props.interval)} ticks per bar)`,
+      label: `High (~${detalizationTicks(interval ?? "1D")} ticks per bar)`,
       tip: "Runs a simulation using lower-timeframe values. The number of ticks may vary due to calculation factors.",
-      disabled: synthetic(),
+      disabled: synthetic,
       disabledTip: NOT_FOR_BAR_TYPE,
     },
   ];
-  // "On order fill" and "On history bar tick" run the script again inside the bars (broker intrabar runs).
-  const executions = () => [
+}
+
+/** Script execution choices (Properties tab, report toolbar pill): "On history bar tick" only for scripts that
+ *  declare it, off on synthetic bar types. */
+export function executionOptions(p: StrategyProperties, synthetic: boolean, historyTicks: boolean): (Opt & { checked: boolean })[] {
+  return [
     {
       id: "close",
       label: "On bar close",
@@ -283,18 +283,40 @@ export function StrategyPropertiesTab(props: Props) {
       id: "fill",
       label: "On order fill",
       tip: "Runs an additional recalculation immediately after the order fills to provide instant access to the filled order data",
-      checked: p().calcOnOrderFills,
+      checked: p.calcOnOrderFills,
     },
-    ...(props.historyTicks === false ? [] : [{
-      id: "history",
-      label: "On history bar tick",
-      tip: "Executes on every update in the history",
-      checked: p().calcOnEveryHistoryTick,
-      disabled: synthetic(),
-      disabledTip: synthetic() ? NOT_FOR_BAR_TYPE : undefined,
-    }]),
-    { id: "realtime", label: "On realtime bar tick", tip: "Executes on each real-time update, including in bar replay mode", checked: p().calcOnEveryTick },
+    ...(historyTicks
+      ? [
+          {
+            id: "history",
+            label: "On history bar tick",
+            tip: "Executes on every update in the history",
+            checked: p.calcOnEveryHistoryTick,
+            disabled: synthetic,
+            disabledTip: synthetic ? NOT_FOR_BAR_TYPE : undefined,
+          },
+        ]
+      : []),
+    { id: "realtime", label: "On realtime bar tick", tip: "Executes on each real-time update, including in bar replay mode", checked: p.calcOnEveryTick },
   ];
+}
+
+/** The property an execution choice toggles. */
+export const EXECUTION_PROPERTY: Record<string, "calcOnOrderFills" | "calcOnEveryHistoryTick" | "calcOnEveryTick"> = {
+  fill: "calcOnOrderFills",
+  history: "calcOnEveryHistoryTick",
+  realtime: "calcOnEveryTick",
+};
+
+export function StrategyPropertiesTab(props: Props) {
+  const p = () => props.value;
+  const QTY_TYPES = () => qtyTypes(p().currency);
+  const qtyLabel = () => QTY_TYPES().find(([t]) => t === p().defaultQtyType)?.[1] ?? "Quantity";
+  const commissionLabel = () => COMMISSION_TYPES.find(([t]) => t === p().commissionType)?.[1] ?? "Percent";
+  const synthetic = () => SYNTHETIC_STYLES.includes(props.chartStyle ?? "");
+  const detalization = (): Opt[] => detalizationOptions(props.interval, synthetic());
+  // "On order fill" and "On history bar tick" run the script again inside the bars (broker intrabar runs).
+  const executions = () => executionOptions(p(), synthetic(), props.historyTicks !== false);
   const currencyValue = () => (p().currency === props.chartCurrency ? "Same as chart" : p().currency);
 
   return (
