@@ -12,7 +12,11 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::watch;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::http::header::{HeaderValue, USER_AGENT};
 use tokio_tungstenite::{client_async_tls, connect_async, MaybeTlsStream, WebSocketStream};
+
+use crate::data::gateway::user_agent;
 
 /// A WebSocket connection, through the proxy or not.
 pub type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -147,8 +151,10 @@ impl SharedClient {
 
 /// Opens a WebSocket, through the proxy when there is one.
 pub async fn connect_ws(url: &str) -> Result<WsStream> {
+    let mut request = url.into_client_request()?;
+    request.headers_mut().insert(USER_AGENT, HeaderValue::from_str(&user_agent())?);
     let Some(proxy) = active().read().unwrap().clone() else {
-        let (ws, _resp) = connect_async(url).await?;
+        let (ws, _resp) = connect_async(request).await?;
         return Ok(ws);
     };
     let target = Url::parse(url).context("invalid stream URL")?;
@@ -157,7 +163,7 @@ pub async fn connect_ws(url: &str) -> Result<WsStream> {
     let tunnel = tokio::time::timeout(TUNNEL_TIMEOUT, open_tunnel(&proxy.settings, &host, port))
         .await
         .map_err(|_| anyhow!("proxy: no answer after {} s", TUNNEL_TIMEOUT.as_secs()))??;
-    let (ws, _resp) = client_async_tls(url, tunnel).await?;
+    let (ws, _resp) = client_async_tls(request, tunnel).await?;
     Ok(ws)
 }
 
@@ -329,6 +335,25 @@ mod tests {
         assert!(s.url().unwrap().unwrap().as_str().starts_with("socks5h://"));
         s.port = "abc".into();
         assert!(s.url().is_err());
+    }
+
+    #[tokio::test]
+    async fn websocket_carries_the_user_agent() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut agent = None;
+            tokio_tungstenite::accept_hdr_async(tcp, |req: &tokio_tungstenite::tungstenite::handshake::server::Request, res| {
+                agent = req.headers().get(USER_AGENT).map(|v| v.to_str().unwrap().to_string());
+                Ok(res)
+            })
+            .await
+            .unwrap();
+            agent
+        });
+        let _ws = connect_ws(&format!("ws://127.0.0.1:{port}/")).await.unwrap();
+        assert_eq!(server.await.unwrap(), Some(user_agent()));
     }
 
     #[tokio::test]

@@ -76,6 +76,7 @@ type Shared = Arc<AppState>;
 
 #[tokio::main]
 async fn main() {
+    opentrader_core::data::gateway::set_client_name("OpenTrader-Server");
     let bind = std::env::var("OPENTRADER_BIND").unwrap_or_else(|_| "127.0.0.1:8787".into());
     let public = std::env::var("OPENTRADER_PUBLIC_URL").unwrap_or_default();
     let origins: Option<Vec<String>> = std::env::var("OPENTRADER_ALLOWED_ORIGINS").ok().map(|v| {

@@ -69,6 +69,7 @@ pub(crate) fn http() -> reqwest::Client {
     static CLIENT: crate::net::SharedClient = crate::net::SharedClient::new(|b| {
         b.pool_idle_timeout(std::time::Duration::from_secs(90))
             .tcp_keepalive(std::time::Duration::from_secs(60))
+            .user_agent(gateway::user_agent())
     });
     CLIENT.get()
 }

@@ -49,6 +49,20 @@ pub fn token() -> Option<&'static str> {
         .filter(|t| !t.is_empty())
 }
 
+static CLIENT_NAME: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+/// Names this process in `user_agent` (default "OpenTrader"). Set at start,
+/// before the first gateway call.
+pub fn set_client_name(name: &'static str) {
+    let _ = CLIENT_NAME.set(name);
+}
+
+/// `<client>/<app version>`, sent with every gateway call and stream: the
+/// gateway's request log counts the versions in use from it.
+pub fn user_agent() -> String {
+    format!("{}/{}", CLIENT_NAME.get().copied().unwrap_or("OpenTrader"), env!("OPENTRADER_APP_VERSION"))
+}
+
 /// Error codes of the market API (`code` of an error body). Anything else the
 /// gateway may add later reads as `Other`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -248,5 +262,30 @@ mod tests {
         let err: anyhow::Error = ApiError::from_answer("x", StatusCode::NOT_FOUND, None, br#"{"code":"NOT_FOUND","error":"not found","ref":"a1"}"#).into();
         assert_eq!(err.to_string(), "x: not found (NOT_FOUND, ref a1)");
         assert_eq!(err.downcast_ref::<ApiError>().map(|e| e.code), Some(ErrorCode::NotFound));
+    }
+
+    #[test]
+    fn user_agent_is_the_client_and_the_app_version() {
+        let root = include_str!("../../../../Cargo.toml");
+        let version = root.lines().find_map(|l| l.strip_prefix("version = \"")?.strip_suffix('"')).unwrap();
+        assert_eq!(user_agent(), format!("OpenTrader/{version}"));
+    }
+
+    /// The client of the gateway calls sends it.
+    #[tokio::test]
+    async fn gateway_calls_carry_the_user_agent() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (mut tcp, _) = listener.accept().await.unwrap();
+            let mut head = vec![0u8; 4096];
+            let n = tcp.read(&mut head).await.unwrap();
+            tcp.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+            String::from_utf8_lossy(&head[..n]).to_lowercase()
+        });
+        crate::data::market_rest::http().get(format!("http://127.0.0.1:{port}/")).send().await.unwrap();
+        let head = server.await.unwrap();
+        assert!(head.contains(&format!("user-agent: {}", user_agent()).to_lowercase()), "{head}");
     }
 }
