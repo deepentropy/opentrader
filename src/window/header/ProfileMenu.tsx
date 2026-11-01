@@ -9,12 +9,13 @@
  * "Drawings panel" toggle, which shows/hides the left drawing toolbar via the
  * shared `drawing-panel` signal (persisted).
  */
-import { For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
 import { installUpdate, updateReady } from "../../data/app-update";
 import { setOnboardingOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
+import { currentLanguage, currentLanguageLabel, LANGUAGES, setLanguage } from "../../i18n/language";
 
 type Row =
   | { type: "sep" }
@@ -35,12 +36,13 @@ const ONBOARDING_ROW: Row = { type: "item", label: "App onboarding...", icon: "m
 const DRAWINGS_ROW: Row = { type: "item", label: "Drawings panel", icon: "profile-drawings", toggle: true };
 
 /** Settings, App onboarding... (desktop app), the reopen row (Ctrl + Shift + T)
- *  when there is something to reopen, Drawings panel. */
+ *  when there is something to reopen, Drawings panel, Language. */
 function rows(reopen: string | null | undefined): Row[] {
   const out: Row[] = [SETTINGS_ROW];
   if (isTauri()) out.push(ONBOARDING_ROW);
   if (reopen) out.push({ type: "item", label: reopen, icon: "main-menu-reopen", hotkey: "Ctrl + Shift + T", action: "reopen-closed" });
   out.push(DRAWINGS_ROW);
+  out.push({ type: "item", label: "Language", icon: "profile-language", value: currentLanguageLabel(), submenu: true, action: "language" });
   return out;
 }
 
@@ -66,6 +68,8 @@ export function avatarHue(name: string): number {
 
 export function ProfileMenu(props: Props) {
   let root!: HTMLDivElement;
+  // Language list, at the side of its row.
+  const [languageRow, setLanguageRow] = createSignal<HTMLElement | null>(null);
 
   onMount(() => {
     // Outside-click / Esc dismiss. Ignore clicks on the avatar button — its own
@@ -115,7 +119,13 @@ export function ProfileMenu(props: Props) {
                 type="button"
                 role="menuitem"
                 class={`profile-menu-row${item().danger ? " is-danger" : ""}`}
+                onMouseEnter={(e) => setLanguageRow(item().action === "language" ? e.currentTarget : null)}
                 onClick={(e) => {
+                  if (item().action === "language") {
+                    e.stopPropagation();
+                    setLanguageRow(e.currentTarget);
+                    return;
+                  }
                   if (item().toggle) {
                     e.stopPropagation();
                     toggleDrawingPanel();
@@ -141,6 +151,31 @@ export function ProfileMenu(props: Props) {
           </Show>
         )}
       </For>
+      <Show when={languageRow()}>
+        {(row) => (
+          <div
+            class="ot-popover profile-menu-languages"
+            role="menu"
+            aria-label="Language"
+            data-no-translate
+            style={{ position: "fixed", left: `${Math.round(root.getBoundingClientRect().right)}px`, top: `${Math.round(row().getBoundingClientRect().top)}px` }}
+          >
+            <For each={LANGUAGES}>
+              {(l) => (
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={currentLanguage() === l.id}
+                  class={`profile-menu-language${currentLanguage() === l.id ? " is-current" : ""}`}
+                  onClick={() => void setLanguage(l.id)}
+                >
+                  {l.label}
+                </button>
+              )}
+            </For>
+          </div>
+        )}
+      </Show>
     </div>
   );
 }

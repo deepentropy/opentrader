@@ -18,6 +18,9 @@ void hydrateKv().finally(async () => {
   // Update state for the title bar, main menu and Settings > About.
   const { initAppUpdate } = await import("./data/app-update");
   initAppUpdate();
+  // The interface language, before anything is drawn.
+  const { startTranslation } = await import("./i18n/language");
+  await startTranslation();
   const { render } = await import("solid-js/web");
   const { default: App } = await import("./App");
   render(() => <App />, document.getElementById("root") as HTMLElement);

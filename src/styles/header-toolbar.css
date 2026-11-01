@@ -399,6 +399,33 @@
   line-height: 1;
 }
 
+/* Language list, at the side of the menu. */
+.profile-menu-languages {
+  display: flex;
+  flex-direction: column;
+  width: 148px;
+  padding: 4px 0;
+}
+.profile-menu-language {
+  height: 32px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-popup-element-text, #dbdbdb);
+  font-size: 14px;
+  text-align: left;
+  cursor: default;
+}
+.profile-menu-language:hover {
+  background: var(--color-popup-element-background-hover);
+  color: var(--color-popup-element-text-hover);
+}
+.profile-menu-language.is-current {
+  background: var(--color-popup-element-background-active, #f2f2f2);
+  color: var(--color-popup-element-text-active, #0f0f0f);
+}
+
 /* Sign out (danger) — red text + icon. */
 .profile-menu-row.is-danger,
 .profile-menu-row.is-danger .profile-menu-icon {
