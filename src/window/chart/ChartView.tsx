@@ -350,7 +350,7 @@ export function ChartView(props: ChartViewProps) {
   // labels the bars. Whitespace leaves the last bar and the right margin where they are (the library counts them from
   // the last bar with data). Built again for another calendar, or when the view gets near the end of them.
   let futureSeries: ISeriesApi<"Line"> | null = null;
-  let futureBuilt: { key: string; last: number; times: number[] } | null = null;
+  let futureBuilt: { key: string; spec: unknown; last: number; times: number[] } | null = null;
   let futureQueued = false;
   function dropFutureSeries() {
     if (futureSeries) chart?.removeSeries(futureSeries);
@@ -360,7 +360,7 @@ export function ChartView(props: ChartViewProps) {
   /** Future bars the view needs after the last bar. */
   function futureBarsNeeded(): number {
     const to = chart?.timeScale().getVisibleLogicalRange()?.to ?? 0;
-    return Math.max(0, Math.ceil(to - (raw.length - 1))) + FUTURE_BARS_SPARE;
+    return Math.max(0, Math.ceil(to - (mainLastIndex() ?? 0))) + FUTURE_BARS_SPARE;
   }
   /** Built future bars after the last bar. */
   function futureBarsLeft(times: number[], last: number): number {
@@ -375,8 +375,8 @@ export function ChartView(props: ChartViewProps) {
   }
   function syncFutureBars() {
     if (!chart || !series) return;
-    const axis = raw.length > 0 ? futureAxis() : null;
-    if (!axis) {
+    const spec = raw.length > 0 ? cachedSymbolSessions(props.symbol ?? "")?.spec(props.session ?? "RTH") : null;
+    if (!spec) {
       if (futureBuilt) {
         futureSeries?.setData([]);
         futureBuilt = null;
@@ -385,14 +385,13 @@ export function ChartView(props: ChartViewProps) {
     }
     const last = raw[raw.length - 1].time as number;
     const needed = futureBarsNeeded();
-    if (futureBuilt && futureBuilt.key === futureKey && last >= futureBuilt.last && futureBarsLeft(futureBuilt.times, last) >= needed) return;
-    const spec = cachedSymbolSessions(props.symbol ?? "")?.spec(props.session ?? "RTH");
-    if (!spec) return;
+    const key = `${props.symbol}|${props.interval}|${props.session}`;
+    if (futureBuilt && futureBuilt.key === key && futureBuilt.spec === spec && last >= futureBuilt.last && futureBarsLeft(futureBuilt.times, last) >= needed) return;
     const times = sessionFutureTimes(props.interval ?? "1D", spec, last, needed * 2);
     if (times.length === 0) return;
     futureSeries ??= chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, priceScaleId: "future-bars" }, mainPane());
     futureSeries.setData(times.map((t) => ({ time: t as UTCTimestamp })));
-    futureBuilt = { key: futureKey, last, times };
+    futureBuilt = { key, spec, last, times };
   }
   /** Coords bridge for the SVG overlay; refreshed on every rebuild. */
   const [coords, setCoords] = createSignal<Coords | null>(null);

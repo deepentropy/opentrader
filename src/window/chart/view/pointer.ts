@@ -7,7 +7,6 @@
  */
 import { onCleanup } from "solid-js";
 import { PriceScaleMode, type ISeriesApi, type SeriesType, type MouseEventParams, type Time } from "lightweight-charts";
-import { isTransformType } from "../chart-types";
 import { crosshairLockTime } from "../crosshair-lock";
 import { NEWS_LOLLIPOP_ID } from "../news-lollipop";
 import { EVENT_MARKER_PREFIX } from "../event-markers";
@@ -376,7 +375,7 @@ export function createPointer(cx: ChartCx): PointerApi {
     const onCrosshair = (param: MouseEventParams) => {
       // Past the last bar (the time scale's future bars) the legend stays on the latest bar.
       const lastBar = cx.raw[cx.raw.length - 1]?.time as number | undefined;
-      const barTime = param.time != null && !isTransformType(cx.activeType) && lastBar != null && (param.time as number) > lastBar ? undefined : param.time;
+      const barTime = param.time != null && lastBar != null && (param.time as number) > lastBar ? undefined : param.time;
       cx.crosshairActive = barTime != null;
       const inPricePane = ((param as { paneIndex?: number }).paneIndex ?? 0) === cx.mainPane();
       cx.crosshairAt =

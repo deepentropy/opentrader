@@ -144,8 +144,10 @@
  * carry no padding and shrink the hit-rect to match the 24px target.
  * The arrow itself is painted in the muted neutral content color (dimmer than
  * the adjacent icons), brightening to the button-text-hover color on hover. */
+/* Favourite chart type: 38 px (28 px icon). */
+.header-toolbar-btn.is-chart-type { padding: 0 5px; }
 .header-toolbar-btn.is-chevron {
-  min-width: 20px;
+  min-width: 24px;
   padding: 0 2px;
   margin-left: -2px;
   color: var(--color-content-primary-neutral, #8c8c8c);

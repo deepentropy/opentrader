@@ -288,7 +288,7 @@ export function HeaderToolbar(props: Props) {
                 data-name={`chart-type-${id}`}
                 aria-label={chartTypeLabel(id)}
                 aria-pressed={current() === id}
-                class={`ot-toolbar-button header-toolbar-btn${current() === id ? " active" : ""}${props.chartTypeAvailable?.(id) === false ? " is-disabled" : ""}`}
+                class={`ot-toolbar-button header-toolbar-btn is-chart-type${current() === id ? " active" : ""}${props.chartTypeAvailable?.(id) === false ? " is-disabled" : ""}`}
                 disabled={props.chartTypeAvailable?.(id) === false}
                 onClick={() => props.onChartTypeChange?.(id)}
               >
