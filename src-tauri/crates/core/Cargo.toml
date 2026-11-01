@@ -31,7 +31,9 @@ async-trait = "0.1"
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
 flate2 = "1"
-reqwest = { version = "0.12", features = ["json", "gzip"] }
+reqwest = { version = "0.12", features = ["json", "gzip", "socks"] }
+# WebSocket connections through a SOCKS5 proxy (Settings > Network).
+tokio-socks = "0.5"
 # Encode/decode the bare ticker logo URL into the icon proxy path so the
 # token stays out of the views.
 percent-encoding = "2"

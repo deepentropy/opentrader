@@ -31,7 +31,8 @@ import {
 } from "../../data/analytics";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
-import { commands, type BuildInfo } from "../../bindings";
+import { commands, type BuildInfo, type ProxyProtocol, type ProxySettings } from "../../bindings";
+import { isTauri } from "../shell/window-bridge";
 import { downloadDir } from "@tauri-apps/api/path";
 import { fundingStatus, type Funding } from "../../data/funding";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -96,7 +97,7 @@ kv.onExternalChange(SETTINGS_KEY, () => setSettings(loadSettings()));
 export const crosshairSyncSetting = () => settings.crosshairSync;
 
 export type AppSettingsTabId =
-  | "general" | "tabs" | "alerts" | "service" | "about";
+  | "general" | "tabs" | "alerts" | "service" | "network" | "about";
 
 type Props = {
   onClose: () => void;
@@ -115,6 +116,8 @@ const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
   { id: "tabs", label: "Tabs", icon: "settings-tabs" },
   { id: "alerts", label: "Alerts", icon: "settings-alerts" },
   { id: "service", label: "Service", icon: "settings-service" },
+  // The desktop app's own connections (the browser has its own proxy settings).
+  ...(isTauri() ? [{ id: "network" as const, label: "Network", icon: "settings-network" }] : []),
   { id: "about", label: "About", icon: "settings-about" },
 ];
 
@@ -466,6 +469,89 @@ function ServiceTab() {
   );
 }
 
+/** Waits this long after the last change before applying the proxy (typing a server name). */
+const PROXY_APPLY_DELAY_MS = 500;
+
+function NetworkTab() {
+  const [proxy, setProxy] = createSignal<ProxySettings>({ enabled: false, protocol: "http", host: "", port: "", username: "", password: "" });
+  const [shown, setShown] = createSignal(false);
+  void commands.getProxySettings().then(setProxy);
+  let timer: number | undefined;
+  const apply = () => {
+    timer = undefined;
+    void commands.setProxySettings(proxy()).then((r) => {
+      if (r.status === "error") console.warn("[settings] proxy not applied", r.error);
+    });
+  };
+  const change = (patch: Partial<ProxySettings>) => {
+    setProxy({ ...proxy(), ...patch });
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = window.setTimeout(apply, PROXY_APPLY_DELAY_MS);
+  };
+  onCleanup(() => {
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      apply();
+    }
+  });
+  const off = () => !proxy().enabled;
+  return (
+    <div class="app-settings-network">
+      <Section label="PROXY SETTINGS">
+        <Checkbox label="Use a proxy server" checked={!!proxy().enabled} onChange={() => change({ enabled: !proxy().enabled })} />
+      </Section>
+      <Section label="PROXY PROTOCOL">
+        <select
+          class="app-settings-select"
+          aria-label="Proxy protocol"
+          disabled={off()}
+          value={proxy().protocol}
+          onChange={(e) => change({ protocol: e.currentTarget.value as ProxyProtocol })}
+        >
+          <option value="http">HTTP</option>
+          <option value="socks5">SOCKS5</option>
+        </select>
+      </Section>
+      <label class="app-settings-field">
+        <span class="app-settings-field-label">Server IP address or domain name*</span>
+        <input class="app-settings-input" type="text" placeholder="127.0.0.1" disabled={off()} value={proxy().host} onInput={(e) => change({ host: e.currentTarget.value })} />
+      </label>
+      <label class="app-settings-field">
+        <span class="app-settings-field-label">Port*</span>
+        <input
+          class="app-settings-input"
+          type="text"
+          inputmode="numeric"
+          placeholder="3128"
+          disabled={off()}
+          value={proxy().port}
+          onInput={(e) => {
+            e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "");
+            change({ port: e.currentTarget.value });
+          }}
+        />
+      </label>
+      <label class="app-settings-field">
+        <span class="app-settings-field-label">Username</span>
+        <input class="app-settings-input" type="text" autocomplete="off" disabled={off()} value={proxy().username} onInput={(e) => change({ username: e.currentTarget.value })} />
+      </label>
+      <label class="app-settings-field">
+        <span class="app-settings-field-label">Password</span>
+        <span class="app-settings-password">
+          <input class="app-settings-input" type={shown() ? "text" : "password"} autocomplete="off" disabled={off()} value={proxy().password} onInput={(e) => change({ password: e.currentTarget.value })} />
+          <button type="button" class="app-settings-eye" aria-label={shown() ? "Hide password" : "Show password"} disabled={off()} onClick={(e) => { e.preventDefault(); setShown(!shown()); }}>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+              <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+              <circle cx="12" cy="12" r="3" />
+              <Show when={shown()}><path d="M4 20 20 4" /></Show>
+            </svg>
+          </button>
+        </span>
+      </label>
+    </div>
+  );
+}
+
 function AboutTab() {
   const [info, setInfo] = createSignal<BuildInfo | null>(null);
   onMount(() => {
@@ -622,6 +708,7 @@ export function AppSettingsDialog(props: Props) {
       case "tabs": return <TabsTab parts={props.tabParts} onChange={props.onTabPartsChange} />;
       case "alerts": return <AlertsTab />;
       case "service": return <ServiceTab />;
+      case "network": return <NetworkTab />;
       case "about": return <AboutTab />;
       default: return <GeneralTab themeSetting={props.themeSetting} onThemeChange={props.onThemeChange} />;
     }

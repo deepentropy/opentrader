@@ -10,6 +10,7 @@ pub mod funding;
 pub mod history;
 pub mod host;
 pub mod images;
+pub mod net;
 pub mod rt;
 pub mod screener;
 pub mod webhook;

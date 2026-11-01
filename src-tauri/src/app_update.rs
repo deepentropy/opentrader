@@ -111,6 +111,9 @@ fn updater(app: &AppHandle) -> Result<Updater, String> {
         let url = url.parse().map_err(|e| format!("OPENTRADER_UPDATE_ENDPOINT: {e}"))?;
         builder = builder.endpoints(vec![url]).map_err(|e| e.to_string())?;
     }
+    if let Some(proxy) = opentrader_core::net::proxy_url() {
+        builder = builder.proxy(proxy);
+    }
     builder.build().map_err(|e| e.to_string())
 }
 

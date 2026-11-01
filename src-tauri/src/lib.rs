@@ -2,6 +2,7 @@ mod alerts;
 mod app_update;
 mod commands;
 mod host;
+mod network;
 mod window_session;
 
 // The data side lives in the core crate, shared with the web server.
@@ -26,6 +27,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             greet,
+            network::get_proxy_settings,
+            network::set_proxy_settings,
             commands::history::get_daily_history,
             commands::history::get_minute_history,
             commands::history::get_second_history,
@@ -162,6 +165,8 @@ pub fn run() {
             // The core's background tasks start from here, outside any
             // ambient Tokio context: give them Tauri's runtime.
             opentrader_core::rt::set_handle(tauri::async_runtime::handle().inner().clone());
+            // The proxy first: everything below connects.
+            network::init(app.handle());
             let host: HostRef = Arc::new(host::DesktopHost(app.handle().clone()));
             app.manage(host.clone());
             // Restore the saved windows (main's bounds, then the others) and

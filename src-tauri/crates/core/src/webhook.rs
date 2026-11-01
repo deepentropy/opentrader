@@ -5,19 +5,13 @@
  * gate. The engine (src/data/alert-engine.ts) treats delivery as
  * fire-and-forget and only logs the returned error string.
  */
-use std::sync::OnceLock;
 
 /// Dedicated client rather than the pooled market-data one: a webhook wants a short
 /// overall deadline (a slow receiver must not hold the fire path open), which
 /// the data client deliberately doesn't set.
-fn http() -> &'static reqwest::Client {
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .expect("build webhook reqwest client")
-    })
+fn http() -> reqwest::Client {
+    static CLIENT: crate::net::SharedClient = crate::net::SharedClient::new(|b| b.timeout(std::time::Duration::from_secs(5)));
+    CLIENT.get()
 }
 
 /// POST `payload` (a pre-serialised JSON string) to `url` with a JSON

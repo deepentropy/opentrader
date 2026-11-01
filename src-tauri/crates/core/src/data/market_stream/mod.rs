@@ -58,7 +58,7 @@ use std::time::Duration;
 use crate::host::HostRef;
 use tokio::sync::mpsc;
 use tokio::time::{sleep_until, Instant};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::tungstenite::Message;
 
 mod events;
 mod subscriptions;
@@ -239,12 +239,12 @@ fn channels(prefix: &str, syms: &HashSet<String>) -> Vec<String> {
     syms.iter().map(|s| format!("{prefix}{s}")).collect()
 }
 
-type WsStream = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+use crate::net::{self, WsStream};
 
 /// Connect and authenticate (the token as the first message, so it never
 /// rides in a URL).
 async fn connect_authed(token: &str) -> Result<WsStream> {
-    let (mut ws, _resp) = connect_async(STREAM_URL).await.context("stream connect failed")?;
+    let mut ws = net::connect_ws(STREAM_URL).await.context("stream connect failed")?;
     let auth = serde_json::json!({ "op": "auth", "token": token });
     ws.send(Message::Text(auth.to_string())).await.context("stream send auth failed")?;
     tokio::time::timeout(AUTH_WAIT, wait_for_auth(&mut ws))
@@ -261,6 +261,7 @@ async fn run_session(
     mode: Mode,
     ent_rx: &mut tokio::sync::watch::Receiver<entitlements::State>,
 ) -> Result<SessionExit> {
+    let mut proxy_changes = net::proxy_changes();
     let ws = connect_authed(token).await?;
     let (mut write, mut read) = ws.split();
     eprintln!("[market_stream] connected + authenticated ({}*)", mode.chart);
@@ -299,6 +300,8 @@ async fn run_session(
                 send_op(&mut write, "unsubscribe", &drops).await?;
                 send_op(&mut write, "subscribe", &adds).await?;
             }
+            // Connect again through the new proxy.
+            _ = proxy_changes.changed() => return Ok(SessionExit::WsClosed),
             r = ent_rx.changed() => {
                 if r.is_err() {
                     return Ok(SessionExit::ShuttingDown);

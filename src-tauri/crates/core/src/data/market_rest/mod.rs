@@ -65,15 +65,12 @@ pub(crate) type DayMemo<K, V> = OnceLock<Mutex<HashMap<K, (NaiveDate, Arc<V>)>>>
 /// ~2.3s on the first call). A single keep-alive client reuses the warm
 /// connection (and multiplexes over HTTP/2), so repeat requests skip the
 /// handshake entirely.
-pub(crate) fn http() -> &'static reqwest::Client {
-    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .pool_idle_timeout(std::time::Duration::from_secs(90))
+pub(crate) fn http() -> reqwest::Client {
+    static CLIENT: crate::net::SharedClient = crate::net::SharedClient::new(|b| {
+        b.pool_idle_timeout(std::time::Duration::from_secs(90))
             .tcp_keepalive(std::time::Duration::from_secs(60))
-            .build()
-            .expect("build shared reqwest client")
-    })
+    });
+    CLIENT.get()
 }
 
 /// Longest `Retry-After` waited out on a `RATE_LIMITED` answer; a longer one

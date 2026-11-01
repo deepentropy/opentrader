@@ -321,6 +321,25 @@
   color: var(--color-content-primary-neutral-semi-bold);
 }
 
+/* Network tab: the controls take the page's width. */
+.app-settings-network .app-settings-select,
+.app-settings-network .app-settings-input { max-width: none; }
+.app-settings-network .app-settings-select:disabled { opacity: 0.5; }
+.app-settings-password { position: relative; display: block; }
+.app-settings-password .app-settings-input { padding-right: 40px; }
+.app-settings-eye {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.app-settings-eye:disabled { opacity: 0.5; cursor: default; }
+
 /* Downloads path row */
 .app-settings-path-row {
   display: flex;

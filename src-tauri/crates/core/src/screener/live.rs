@@ -35,7 +35,7 @@ use std::io::Read;
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 /// Longest silence of a healthy feed: it sends a message every 10 s, an empty
 /// one when nothing changed.
@@ -204,17 +204,19 @@ fn decode(frame: &[u8]) -> Result<FeedMessage> {
 pub struct Feed {
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
     pub table: LiveTable,
+    proxy_changes: tokio::sync::watch::Receiver<u64>,
 }
 
 impl Feed {
     /// Connect and read the first message (the full table).
     pub async fn connect(url: &str) -> Result<Self> {
         let token = gateway::token().context(gateway::NO_TOKEN)?;
-        let (ws, _resp) = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(format!("{url}?token={token}")))
+        let proxy_changes = crate::net::proxy_changes();
+        let ws = tokio::time::timeout(CONNECT_TIMEOUT, crate::net::connect_ws(&format!("{url}?token={token}")))
             .await
             .map_err(|_| anyhow!("screener feed: connection timed out"))?
             .context("screener feed: connection refused")?;
-        let mut feed = Self { ws, table: LiveTable::default() };
+        let mut feed = Self { ws, table: LiveTable::default(), proxy_changes };
         tokio::time::timeout(CONNECT_TIMEOUT, feed.next())
             .await
             .map_err(|_| anyhow!("screener feed: no table after {} s", CONNECT_TIMEOUT.as_secs()))??;
@@ -230,8 +232,12 @@ impl Feed {
     /// later.
     pub async fn next(&mut self) -> Result<bool> {
         loop {
-            let msg = tokio::time::timeout(SILENCE_TIMEOUT, self.ws.next())
-                .await
+            let msg = tokio::select! {
+                // Connect again through the new proxy.
+                _ = self.proxy_changes.changed() => bail!("screener feed: the proxy changed"),
+                msg = tokio::time::timeout(SILENCE_TIMEOUT, self.ws.next()) => msg,
+            };
+            let msg = msg
                 .map_err(|_| anyhow!("screener feed: silent for {} s", SILENCE_TIMEOUT.as_secs()))?
                 .ok_or_else(|| anyhow!("screener feed: closed"))?
                 .context("screener feed: read")?;
