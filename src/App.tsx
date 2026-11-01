@@ -48,6 +48,7 @@ import { isAdjusted, setAdjusted, isEconomicSymbol, isFullSymbol, isIntradayInte
 import { displayTimeZone } from "./data/session";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost } from "./components/Dialogs";
+import { installDialogDrag } from "./components/dialog-drag";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
 import { OAKSCRIPT_OPEN_EVENT } from "./window/chart/indicators/user-scripts";
 import * as oakScripts from "./data/oakscript-store";
@@ -174,6 +175,8 @@ function App() {
     });
   });
   onCleanup(() => disposeStorageCleanup());
+
+  onCleanup(installDialogDrag());
 
   // Tab-title parts (App Settings → Tabs).
   const [tabTitleParts, setTabTitlePartsRaw] = createSignal<TabTitlePartState[]>(loadTabTitleParts());
