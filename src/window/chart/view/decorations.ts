@@ -3,6 +3,7 @@
  * previous day close, pre / post market, the countdown plate, the baseline
  * waterline, the gradient label colour and the locked price-to-bar ratio.
  */
+import { translate } from "../../../i18n/translator";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { LineStyle } from "lightweight-charts";
 import type { IPriceLine, Logical } from "lightweight-charts";
@@ -324,8 +325,8 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
       });
     if (highLine) cx.series.removePriceLine(highLine);
     if (lowLine) cx.series.removePriceLine(lowLine);
-    highLine = mk(hi, "High");
-    lowLine = mk(lo, "Low");
+    highLine = mk(hi, translate("High"));
+    lowLine = mk(lo, translate("Low"));
   }
 
   /** Scales → "Countdown to bar close": refresh the axis label's remaining

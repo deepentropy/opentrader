@@ -16,16 +16,20 @@ const SKIP = "script,style,textarea,[contenteditable=true],.cm-editor,[data-no-t
 /** End of a text that the dictionary has without it. */
 const ENDINGS = /(\s*(?:…|\.\.\.|:|：))$/;
 
-let dictionary: Dictionary = {};
+const EMPTY: Dictionary = {};
+let dictionary: Dictionary = EMPTY;
+let rules: readonly ((text: string) => string)[] = [];
 
-export function setDictionary(d: Dictionary): void {
+/** `textRules`: text holding a value (dates), tried when the dictionary doesn't have it. */
+export function setDictionary(d: Dictionary, textRules: readonly ((text: string) => string)[] = []): void {
   dictionary = d;
+  rules = textRules;
 }
 
 /** The translation of a text, its spaces around kept; the text itself when the dictionary doesn't have it. */
 export function translate(text: string, d: Dictionary = dictionary): string {
   const core = text.trim();
-  if (core.length < 2 || !/[A-Za-z]{2}/.test(core)) return text;
+  if (core.length < 2 || !/[A-Za-z]{2}/.test(core) || d === EMPTY) return text;
   let to = d[core];
   if (to === undefined) {
     // "Save…" with "Save" in the dictionary, and the other way round.
@@ -34,7 +38,11 @@ export function translate(text: string, d: Dictionary = dictionary): string {
       const base = d[core.slice(0, -end[1].length)];
       if (base !== undefined) to = base + end[1];
     }
-    if (to === undefined) return text;
+    if (to === undefined) {
+      const rewritten = rules.reduce((t, rule) => rule(t), core);
+      if (rewritten === core) return text;
+      to = rewritten;
+    }
   }
   return core === text ? to : text.replace(core, () => to as string);
 }

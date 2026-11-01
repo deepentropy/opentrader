@@ -4,6 +4,7 @@
  */
 import * as kv from "../data/kv";
 import { observePage, setDictionary, type Dictionary } from "./translator";
+import { SIMPLIFIED_RULES, TRADITIONAL_RULES } from "./zh-patterns";
 
 const STORAGE_KEY = "ot:language";
 
@@ -46,6 +47,6 @@ export async function startTranslation(): Promise<void> {
   if (id === "en") return;
   document.documentElement.lang = id;
   const { default: dictionary } = await DICTIONARIES[id]();
-  setDictionary(dictionary);
+  setDictionary(dictionary, id === "zh-Hans" ? SIMPLIFIED_RULES : TRADITIONAL_RULES);
   observePage();
 }

@@ -28,6 +28,7 @@ import {
 } from "lightweight-charts";
 import type { Logical, MouseEventParams } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
+import { translate } from "../../i18n/translator";
 import { chartBackgroundAt } from "./selection-markers";
 import { MAIN_SOURCE_ID } from "./object-tree-sources";
 import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime } from "./crosshair-lock";
@@ -1173,11 +1174,11 @@ export function ChartView(props: ChartViewProps) {
       timeScale: {
         timeVisible: second || intraday,
         secondsVisible: second,
-        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(realTimeOf(t), tt, tz, axisFmt, second || intraday),
+        tickMarkFormatter: (t: Time, tt: TickMarkType) => translate(formatTick(realTimeOf(t), tt, tz, axisFmt, second || intraday)),
       },
       localization: {
         timeFormatter: (t: Time) =>
-          formatAxisTime(realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt),
+          translate(formatAxisTime(realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt)),
       },
     });
     // Day rollover (and thus session-break placement) depends on the timezone,
