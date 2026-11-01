@@ -337,8 +337,35 @@ mod tests {
         assert!(s.url().is_err());
     }
 
+    /// The proxy is process-wide: tests connecting through the shared clients or
+    /// `connect_ws` take turns with the test that sets it.
+    static PROXY_IN_USE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+    /// The client of the gateway calls sends the User-Agent.
+    #[tokio::test]
+    async fn gateway_calls_carry_the_user_agent() {
+        let _turn = PROXY_IN_USE.lock().await;
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (mut tcp, _) = listener.accept().await.unwrap();
+            let mut head = vec![0u8; 4096];
+            let n = tcp.read(&mut head).await.unwrap();
+            tcp.write_all(b"HTTP/1.1 200 OK
+Content-Length: 0
+Connection: close
+
+").await.unwrap();
+            String::from_utf8_lossy(&head[..n]).to_lowercase()
+        });
+        crate::data::market_rest::http().get(format!("http://127.0.0.1:{port}/")).send().await.unwrap();
+        let head = server.await.unwrap();
+        assert!(head.contains(&format!("user-agent: {}", user_agent()).to_lowercase()), "{head}");
+    }
+
     #[tokio::test]
     async fn websocket_carries_the_user_agent() {
+        let _turn = PROXY_IN_USE.lock().await;
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {
@@ -390,6 +417,7 @@ mod tests {
     /// The one test that sets the process-wide proxy: clients, streams and the change signal together.
     #[tokio::test]
     async fn the_shared_client_and_streams_follow_the_setting() {
+        let _turn = PROXY_IN_USE.lock().await;
         static CLIENT: SharedClient = SharedClient::new(|b| b);
         let (proxy, mut seen) = http_proxy(None).await;
         let server = echo_server().await;
