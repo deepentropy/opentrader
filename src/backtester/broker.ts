@@ -194,13 +194,15 @@ export class Broker extends OrderBook {
    * After a point (tick) of the path, the reference app's model (rules matched on .tmp/strategy-properties, #125):
    *  - the fills at the tick (market orders a run left for it, orders crossed on the way to it) run the script once
    *    there (calc_on_order_fills); the market orders of that run fill at once at the tick, the stop / limit orders
-   *    it places beyond the tick price too, and those fills do not run it again (a stop filled on the way down, the
-   *    close order it leads to at the low);
+   *    it places beyond the tick price too. Those fills run it again at the next tick when a trade is left open (an
+   *    entry at the tick of a stop, its exit placed at the next tick: fibonacci-cloud), not when none is (a stop filled
+   *    on the way down, the close order it leads to at the low);
    *  - a margin call filled at the tick runs it too, but its market orders wait for the next tick, sized there (a
    *    margin call at the high, the reversal at the low);
    *  - calc_on_every_history_tick runs it at each tick but the last, its orders filled at the tick;
    *  - market orders left for the next tick do not fill at the bar's close but at the next open; stop / limit
-   *    entries a run placed do not fill on the way to the close;
+   *    entries a run placed do not fill on the way to the close, unless with process_orders_on_close (the script
+   *    at the close then sees the trade: bullish-engulfing);
    *  - at the bar's last tick the script runs at the close anyway; with process_orders_on_close, the fills at the
    *    close do not run it again.
    */
@@ -272,7 +274,8 @@ export class Broker extends OrderBook {
     } finally {
       this.inIntrabar = false;
     }
-    this.fillsSeen = this.filledOrders.length;
+    // A fill of the run that leaves a trade open runs it once more at the next tick.
+    if (this.openTrades.length === 0) this.fillsSeen = this.filledOrders.length;
   }
 
   // ------------------------------------------------------------ emulation

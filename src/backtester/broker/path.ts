@@ -129,7 +129,7 @@ export abstract class PricePath extends EntryFills {
     const out: PriceOrder[] = [];
     for (const e of this.entries.values()) {
       if (e.limit === null && e.stop === null) continue;
-      if (this.lastLeg && this.intrabarPlaced.has(`e:${e.id}`)) continue;
+      if (this.lastLeg && !this.props.processOrdersOnClose && this.intrabarPlaced.has(`e:${e.id}`)) continue;
       // Several entries fill on one bar, in either direction, stop or limit: pyramiding ones (pivot-points SPY 4h
       // bar 29), one against the trade just opened (a buy at 43.84, then a sell limit entry at 43.87 or a sell stop
       // entry at 43.60 on the same bar).
