@@ -24,6 +24,7 @@ import { ReplayHeaderButton } from "../replay/ReplayHeaderButton";
 import { TradeHeaderButton } from "../trading/TradeHeaderButton";
 import { replayEnabled } from "../../data/replay";
 import { favoriteIntervals, longIntervalLabel, shortIntervalLabel } from "../chart/interval-favorites";
+import { chartTypeButtons, chartTypeLabel, favoriteChartTypes } from "../chart/chart-type-favorites";
 import { favoriteIndicatorTemplates } from "../../data/indicator-template-store";
 import { favoriteLayouts } from "../../data/layout-store";
 
@@ -35,6 +36,10 @@ type Props = {
   interval?: string;
   /** Active chart type — drives the icon shown on the Candles button. */
   chartType?: ChartTypeId;
+  /** User clicked a favourite chart type button. */
+  onChartTypeChange?: (id: ChartTypeId) => void;
+  /** Whether the active symbol can be drawn with a chart type (false: the button is disabled; a close-only symbol). */
+  chartTypeAvailable?: (id: ChartTypeId) => boolean;
   /** Active multi-chart layout — drives the icon shown on the layout-setup
    *  button (it matches the selected template). */
   layout?: LayoutId;
@@ -243,7 +248,7 @@ export function HeaderToolbar(props: Props) {
           <Show when={item.iconName}>
             <Icon
               name={
-                item.id === "candles" && props.chartType
+                item.id === "candles" && !item.chevron && props.chartType
                   ? CHART_TYPE_ICON[props.chartType]
                   : item.id === "layout-setup" && props.layout
                     ? iconNameForLayout(props.layout)
@@ -261,6 +266,39 @@ export function HeaderToolbar(props: Props) {
           </Show>
         </button>
       </Tooltip>
+    );
+  };
+
+  // Chart type strip. One button (no favourite, or the current type is the only
+  // one): it shows the current type and opens the menu. More: one button per
+  // type, then the menu's chevron.
+  const chartTypeStrip = (item: Item) => {
+    const current = () => props.chartType ?? "candle";
+    const buttons = () => chartTypeButtons(favoriteChartTypes(), current());
+    return (
+      <Show
+        when={buttons().length > 1}
+        fallback={renderItem({ ...item, get label() { return chartTypeLabel(current()); } })}
+      >
+        <For each={buttons()}>
+          {(id) => (
+            <Tooltip text={chartTypeLabel(id)} side="bottom">
+              <button
+                type="button"
+                data-name={`chart-type-${id}`}
+                aria-label={chartTypeLabel(id)}
+                aria-pressed={current() === id}
+                class={`ot-toolbar-button header-toolbar-btn${current() === id ? " active" : ""}${props.chartTypeAvailable?.(id) === false ? " is-disabled" : ""}`}
+                disabled={props.chartTypeAvailable?.(id) === false}
+                onClick={() => props.onChartTypeChange?.(id)}
+              >
+                <Icon name={CHART_TYPE_ICON[id]} size={28} />
+              </button>
+            </Tooltip>
+          )}
+        </For>
+        {renderItem({ id: item.id, label: "Bar's style", iconName: "header-chart-interval", chevron: true })}
+      </Show>
     );
   };
 
@@ -335,7 +373,7 @@ export function HeaderToolbar(props: Props) {
                     <For each={section.items}>
                       {(item) => (
                         <>
-                          {renderItem(item)}
+                          {item.id === "candles" ? chartTypeStrip(item) : renderItem(item)}
                           {/* Favorite layouts sit right after Manage layouts,
                               inside the save-load group, sorted by name. */}
                           <Show when={item.id === "save-load-menu"}>

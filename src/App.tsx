@@ -596,6 +596,8 @@ function App() {
         symbol={tickerOf(symbol())}
         interval={interval()}
         chartType={chartType()}
+        onChartTypeChange={setChartType}
+        chartTypeAvailable={(id) => !isEconomicSymbol(activeFullSymbol() ?? symbol()) || SINGLE_VALUE_TYPES.has(id)}
         layout={layout()}
         onIntervalChange={setInterval}
         intervalAvailable={(id) => symbolServesResolution(activeFullSymbol() ?? symbol(), id)}

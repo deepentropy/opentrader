@@ -13,6 +13,8 @@ import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
 import { favoriteIntervals, toggleFavoriteInterval } from "../chart/interval-favorites";
+import { favoriteChartTypes, toggleFavoriteChartType } from "../chart/chart-type-favorites";
+import { CHART_TYPE_IDS, type ChartTypeId } from "../chart/chart-types";
 import {
   addCustomInterval,
   customIntervals,
@@ -189,10 +191,11 @@ export function HeaderMenu(props: Props) {
                   const isAddIntervalRow = () =>
                     props.menuId === "chart-interval" && row.id === "add-custom-interval-button";
                   const signaling = () => isIntervalRow() && lastAddedInterval() === row.id;
-                  // Rows with a live, interactive star: interval rows, the
-                  // favourite-indicators rows, and saved indicator-template
-                  // rows. Other menus keep the static `favorited` flag
-                  // (cosmetic only).
+                  // Rows with a live, interactive star: interval rows, chart
+                  // type rows, the favourite-indicators rows, and saved
+                  // indicator-template rows. Other menus keep the static
+                  // `favorited` flag (cosmetic only).
+                  const isChartTypeRow = () => props.menuId === "candles" && CHART_TYPE_IDS.has(row.id as ChartTypeId);
                   const isFavIndicatorRow = () =>
                     props.menuId === "show-favorite-indicators" && !row.disabled;
                   const isTemplateRow = () =>
@@ -204,16 +207,17 @@ export function HeaderMenu(props: Props) {
                     props.menuId === "save-load-menu" && row.id.startsWith(OPEN_LAYOUT_PREFIX);
                   const layoutId = () => row.id.slice(OPEN_LAYOUT_PREFIX.length);
                   const favoritable = () =>
-                    (isIntervalRow() && !disabled()) || isFavIndicatorRow() || isTemplateRow() || isLayoutRow();
+                    (isIntervalRow() && !disabled()) || (isChartTypeRow() && !disabled()) || isFavIndicatorRow() || isTemplateRow() || isLayoutRow();
                   const isFav = () => {
                     if (isIntervalRow() && !disabled()) return favoriteIntervals().includes(row.id);
+                    if (isChartTypeRow()) return favoriteChartTypes().includes(row.id as ChartTypeId);
                     if (isFavIndicatorRow()) return isFavoriteIndicator(row.id);
                     if (isTemplateRow()) return !!getIndicatorTemplate(templateId())?.favorite;
                     if (isLayoutRow()) return !!getLayout(layoutId())?.favorite;
                     return !!row.favorited;
                   };
-                  // The star tooltip shows on interval, template and layout
-                  // rows; the favourite-indicators star has none.
+                  // The star tooltip shows on interval, chart type, template
+                  // and layout rows; the favourite-indicators star has none.
                   const starTip = () => (isFav() ? "Remove from favorites" : "Add to favorites");
                   const star = () => (
                     <span
@@ -232,6 +236,7 @@ export function HeaderMenu(props: Props) {
                   );
                   const toggleStar = () => {
                     if (isIntervalRow()) toggleFavoriteInterval(row.id);
+                    else if (isChartTypeRow()) toggleFavoriteChartType(row.id as ChartTypeId);
                     else if (isFavIndicatorRow()) toggleFavoriteIndicator(row.id);
                     else if (isTemplateRow()) toggleFavoriteIndicatorTemplate(templateId());
                     else if (isLayoutRow()) toggleFavoriteLayout(layoutId());
