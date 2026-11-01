@@ -15,6 +15,7 @@
  */
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
+import { commands } from "../bindings";
 
 const KEY = (import.meta.env.VITE_POSTHOG_KEY as string | undefined) ?? "";
 const WEB = import.meta.env.MODE === "web";
@@ -136,6 +137,11 @@ export function flush(): void {
   const url = `${HOST}/batch/`;
   // A beacon still leaves when the page is closing.
   if (WEB && navigator.sendBeacon?.(url, new Blob([body], { type: "application/json" }))) return;
+  // Desktop: from the backend, through the proxy of Settings > Network when there is one.
+  if (!WEB) {
+    void commands.postWebhook(url, body).catch(() => {});
+    return;
+  }
   void fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => undefined);
 }
 

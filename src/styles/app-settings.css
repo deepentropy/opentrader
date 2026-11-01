@@ -322,9 +322,7 @@
 }
 
 /* Network tab: the controls take the page's width. */
-.app-settings-network .app-settings-select,
 .app-settings-network .app-settings-input { max-width: none; }
-.app-settings-network .app-settings-select:disabled { opacity: 0.5; }
 .app-settings-password { position: relative; display: block; }
 .app-settings-password .app-settings-input { padding-right: 40px; }
 .app-settings-eye {

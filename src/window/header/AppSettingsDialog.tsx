@@ -33,6 +33,7 @@ import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
 import { commands, type BuildInfo, type ProxyProtocol, type ProxySettings } from "../../bindings";
 import { isTauri } from "../shell/window-bridge";
+import { SelectControl } from "./ChartPropertiesDialog";
 import { downloadDir } from "@tauri-apps/api/path";
 import { fundingStatus, type Funding } from "../../data/funding";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -510,16 +511,14 @@ function NetworkTab() {
         <Checkbox label="Use a proxy server" checked={!!proxy().enabled} onChange={() => change({ enabled: !proxy().enabled })} />
       </Section>
       <Section label="PROXY PROTOCOL">
-        <select
-          class="app-settings-select"
-          aria-label="Proxy protocol"
+        <SelectControl
+          value={proxy().protocol ?? "http"}
+          options={["http", "socks5"]}
+          labelOf={(o) => o.toUpperCase()}
+          width={467}
           disabled={off()}
-          value={proxy().protocol}
-          onChange={(e) => change({ protocol: e.currentTarget.value as ProxyProtocol })}
-        >
-          <option value="http">HTTP</option>
-          <option value="socks5">SOCKS5</option>
-        </select>
+          onPick={(o) => change({ protocol: o as ProxyProtocol })}
+        />
       </Section>
       <label class="app-settings-field">
         <span class="app-settings-field-label">Server IP address or domain name*</span>
