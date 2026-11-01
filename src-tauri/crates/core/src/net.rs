@@ -351,11 +351,7 @@ mod tests {
             let (mut tcp, _) = listener.accept().await.unwrap();
             let mut head = vec![0u8; 4096];
             let n = tcp.read(&mut head).await.unwrap();
-            tcp.write_all(b"HTTP/1.1 200 OK
-Content-Length: 0
-Connection: close
-
-").await.unwrap();
+            tcp.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
             String::from_utf8_lossy(&head[..n]).to_lowercase()
         });
         crate::data::market_rest::http().get(format!("http://127.0.0.1:{port}/")).send().await.unwrap();
