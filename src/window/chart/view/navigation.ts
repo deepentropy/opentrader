@@ -244,7 +244,18 @@ export function createNavigation(cx: ChartCx): NavigationApi {
     if (!cx.chart || cx.raw.length === 0) return false;
     const ts = cx.chart.timeScale();
     if (id === "All") {
-      ts.fitContent();
+      // The bars, not the future bars the time scale goes on with.
+      const last = cx.mainLastIndex();
+      if (last == null) {
+        ts.fitContent();
+        return true;
+      }
+      const fit = () => ts.setVisibleLogicalRange({ from: 0, to: last + currentTokens().rightOffset });
+      fit();
+      // Again once the data of a new interval has settled (the library counts the view from the last bar).
+      requestAnimationFrame(() => {
+        if (cx.chart && cx.mainLastIndex() === last) fit();
+      });
       return true;
     }
     const to = cx.raw[cx.raw.length - 1].time as number;

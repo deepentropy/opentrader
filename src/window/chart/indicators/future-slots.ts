@@ -14,6 +14,8 @@ import { localDay, localToUtc, type SessionSpec } from "../../../data/session";
 
 /** Days scanned at most after the last bar (a decade of pivots on a daily chart). */
 const MAX_DAYS = 3700;
+/** Days scanned at most before the first loaded bar (40 years of daily bars). */
+const MAX_PAST_DAYS = 15000;
 
 type Interval = { unit: "s" | "D" | "W" | "M"; n: number };
 
@@ -140,8 +142,48 @@ export function sessionFutureTime(interval: string, spec: SessionSpec): ((k: num
   };
 }
 
-/** Days scanned at most before the first loaded bar (40 years of daily bars). */
-const MAX_PAST_DAYS = 15000;
+/**
+ * Open times of the next `count` future bars after the bar opening at `lastTime` (fewer past the scanned range), in one
+ * pass over the calendar: what `sessionFutureTime` gives for k = 1..count. The time scale's bars after the last bar.
+ */
+export function sessionFutureTimes(interval: string, spec: SessionSpec, lastTime: number, count: number): number[] {
+  const iv = parseInterval(interval);
+  if (!iv || !(count > 0)) return [];
+  const tz = spec.timeZone;
+  const out: number[] = [];
+  if (iv.unit === "s") {
+    const step = iv.n;
+    const first = localDay(tz, lastTime) - 2;
+    for (let day = first; day <= first + MAX_DAYS; day++) {
+      for (const s of spec.dayIntervals(day)) {
+        if (s.end <= lastTime) continue;
+        const base = s.start <= lastTime ? lastTime : s.start;
+        const from = s.start <= lastTime ? lastTime + step : s.start;
+        for (let t = base + Math.ceil((from - base) / step) * step; t < s.end; t += step) {
+          out.push(t);
+          if (out.length === count) return out;
+        }
+      }
+    }
+    return out;
+  }
+  const bucket = iv.unit === "D" ? null : iv.unit === "W" ? weekOf : monthOf;
+  const lastDay = localDay(tz, lastTime);
+  let key = bucket ? Math.floor(bucket(lastDay) / iv.n) : 0;
+  let days = 0;
+  for (let day = lastDay + 1; day <= lastDay + MAX_PAST_DAYS; day++) {
+    if (!spec.isTradingDay(day)) continue;
+    days++;
+    if (bucket) {
+      const b = Math.floor(bucket(day) / iv.n);
+      if (b === key) continue;
+      key = b;
+    } else if (days % iv.n !== 0) continue;
+    out.push(localToUtc(tz, day, 0));
+    if (out.length === count) break;
+  }
+  return out;
+}
 
 /** Remembers a two-argument count (the drawings ask for the same points on every frame). */
 function memo(f: (a: number, b: number) => number): (a: number, b: number) => number {

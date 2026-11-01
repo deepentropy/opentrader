@@ -283,7 +283,14 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       if (view !== null && cx.raw.length > view) {
         cx.chart.timeScale().setVisibleLogicalRange({ from: to - view, to });
       } else {
-        cx.chart.timeScale().fitContent();
+        // The bars, not the future bars the time scale goes on with.
+        const fit = () => cx.chart?.timeScale().setVisibleLogicalRange({ from: 0, to: to - 1 + currentTokens().rightOffset });
+        fit();
+        // Again once the data has settled (the library counts the view from the last bar).
+        const bars = cx.raw;
+        requestAnimationFrame(() => {
+          if (cx.raw === bars) fit();
+        });
       }
       framed = view === null ? "all" : String(view);
     }

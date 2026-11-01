@@ -7,6 +7,7 @@
  */
 import { onCleanup } from "solid-js";
 import { PriceScaleMode, type ISeriesApi, type SeriesType, type MouseEventParams, type Time } from "lightweight-charts";
+import { isTransformType } from "../chart-types";
 import { crosshairLockTime } from "../crosshair-lock";
 import { NEWS_LOLLIPOP_ID } from "../news-lollipop";
 import { EVENT_MARKER_PREFIX } from "../event-markers";
@@ -373,17 +374,20 @@ export function createPointer(cx: ChartCx): PointerApi {
     // Legend tracks the crosshair: hovering a bar shows that bar's values;
     // moving off the pane (no `time`) falls back to the latest bar.
     const onCrosshair = (param: MouseEventParams) => {
-      cx.crosshairActive = param.time != null;
+      // Past the last bar (the time scale's future bars) the legend stays on the latest bar.
+      const lastBar = cx.raw[cx.raw.length - 1]?.time as number | undefined;
+      const barTime = param.time != null && !isTransformType(cx.activeType) && lastBar != null && (param.time as number) > lastBar ? undefined : param.time;
+      cx.crosshairActive = barTime != null;
       const inPricePane = ((param as { paneIndex?: number }).paneIndex ?? 0) === cx.mainPane();
       cx.crosshairAt =
-        param.point && param.time != null && inPricePane
-          ? { time: param.time as number, y: param.point.y }
+        param.point && barTime != null && inPricePane
+          ? { time: barTime as number, y: param.point.y }
           : null;
       // Locked cursor line: the legend shows the locked bar.
       const locked = crosshairLockTime();
       if (cx.lockViews) cx.lockViews.shown = !!param.point;
       if (locked !== null) syncLockPanes();
-      cx.lastLegendTime = (cx.crosshairActive && locked !== null ? locked : param.time) as number | undefined;
+      cx.lastLegendTime = (cx.crosshairActive && locked !== null ? locked : barTime) as number | undefined;
       refreshLegend(cx.lastLegendTime);
       refreshIndicatorLegend(cx.lastLegendTime);
       // Sync-in-layout (panes) OR "Sync crosshair across windows": mirror the

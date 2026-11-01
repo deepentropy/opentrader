@@ -6,7 +6,7 @@ import { makeCoords, type FutureAxis } from "lightweight-charts-drawing/runtime/
 import type { OHLC } from "lightweight-charts-drawing/core/coords";
 import { SessionSpec } from "../../../../data/session/spec";
 import { localToUtc } from "../../../../data/session/zone";
-import { sessionFutureAxis } from "../future-slots";
+import { sessionFutureAxis, sessionFutureTimes } from "../future-slots";
 
 const NY = "America/New_York";
 const HOLIDAYS = "20260907,20261126,20261225";
@@ -119,5 +119,29 @@ describe("a time between two bars is drawn on the bar that holds it", () => {
     const dd = coordsOn(bars(rth, 0, ny(2026, 9, 9)), "1D", rth);
     expect(dd.c.timeToBarIndex(ny(2026, 9, 4, 11, 0) as Time)).toBe(-2);
     expect(dd.c.barIndexToTime(-2)).toBe(ny(2026, 9, 4));
+  });
+});
+
+describe("future bars of the time scale (#184)", () => {
+  const cases: [string, SessionSpec, number][] = [
+    ["10S", rth, ny(2026, 10, 14, 15, 59)],
+    ["5", rth, ny(2026, 10, 14, 15, 55)],
+    ["5", eth, ny(2026, 10, 14, 12, 0)],
+    ["60", rth, ny(2026, 10, 14, 9, 30)],
+    ["1D", rth, ny(2026, 11, 20)],
+    ["2D", rth, ny(2026, 11, 20)],
+    ["1W", rth, ny(2026, 10, 12)],
+    ["1M", rth, ny(2026, 10, 1)],
+  ];
+  it.each(cases)("%s lists the bars of the slot counter", (interval, spec, last) => {
+    const count = interval === "1M" ? 100 : 400; // the slot counter scans about ten years
+    const one = sessionFutureAxis(interval, spec)!.time;
+    const list = sessionFutureTimes(interval, spec, last, count);
+    expect(list).toHaveLength(count);
+    expect(list).toEqual(list.map((_, k) => one(k + 1, last)));
+  });
+  it("skips the weekend and the holiday on a daily chart", () => {
+    const list = sessionFutureTimes("1D", rth, ny(2026, 11, 25), 3);
+    expect(list).toEqual([ny(2026, 11, 27), ny(2026, 11, 30), ny(2026, 12, 1)]);
   });
 });

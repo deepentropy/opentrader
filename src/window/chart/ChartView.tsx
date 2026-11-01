@@ -16,6 +16,7 @@ import { createStore } from "solid-js/store";
 import { typeIdOf } from "./indicators/study-id";
 import {
   CrosshairMode,
+  LineSeries,
   LineStyle,
   TickMarkType,
   createChart,
@@ -82,7 +83,7 @@ import { registerChartState, unregisterChartState, type ChartBar } from "../../d
 import { ChartContextMenu } from "./ChartContextMenu";
 import type { Bar } from "oakscriptjs";
 import { makeCoords, type Coords, type FutureAxis } from "../drawings/coords";
-import { sessionFutureAxis } from "./indicators/future-slots";
+import { sessionFutureAxis, sessionFutureTimes } from "./indicators/future-slots";
 import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
 import { attach, type ChartCore, type ChartCx, type ChartMenuState, type ChartViewProps } from "./view/context";
@@ -343,6 +344,56 @@ export function ChartView(props: ChartViewProps) {
     }
     return futureValue;
   }
+  // Spare future bars past the view (a chart with a wide right margin, a window made wider).
+  const FUTURE_BARS_SPARE = 500;
+  // The time scale's bars after the last bar, on a hidden series of whitespace: the axis then labels the future as it
+  // labels the bars. Whitespace leaves the last bar and the right margin where they are (the library counts them from
+  // the last bar with data). Built again for another calendar, or when the view gets near the end of them.
+  let futureSeries: ISeriesApi<"Line"> | null = null;
+  let futureBuilt: { key: string; last: number; times: number[] } | null = null;
+  let futureQueued = false;
+  function dropFutureSeries() {
+    if (futureSeries) chart?.removeSeries(futureSeries);
+    futureSeries = null;
+    futureBuilt = null;
+  }
+  /** Future bars the view needs after the last bar. */
+  function futureBarsNeeded(): number {
+    const to = chart?.timeScale().getVisibleLogicalRange()?.to ?? 0;
+    return Math.max(0, Math.ceil(to - (raw.length - 1))) + FUTURE_BARS_SPARE;
+  }
+  /** Built future bars after the last bar. */
+  function futureBarsLeft(times: number[], last: number): number {
+    let lo = 0;
+    let hi = times.length;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (times[m] <= last) lo = m + 1;
+      else hi = m;
+    }
+    return times.length - lo;
+  }
+  function syncFutureBars() {
+    if (!chart || !series) return;
+    const axis = raw.length > 0 ? futureAxis() : null;
+    if (!axis) {
+      if (futureBuilt) {
+        futureSeries?.setData([]);
+        futureBuilt = null;
+      }
+      return;
+    }
+    const last = raw[raw.length - 1].time as number;
+    const needed = futureBarsNeeded();
+    if (futureBuilt && futureBuilt.key === futureKey && last >= futureBuilt.last && futureBarsLeft(futureBuilt.times, last) >= needed) return;
+    const spec = cachedSymbolSessions(props.symbol ?? "")?.spec(props.session ?? "RTH");
+    if (!spec) return;
+    const times = sessionFutureTimes(props.interval ?? "1D", spec, last, needed * 2);
+    if (times.length === 0) return;
+    futureSeries ??= chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, priceScaleId: "future-bars" }, mainPane());
+    futureSeries.setData(times.map((t) => ({ time: t as UTCTimestamp })));
+    futureBuilt = { key: futureKey, last, times };
+  }
   /** Coords bridge for the SVG overlay; refreshed on every rebuild. */
   const [coords, setCoords] = createSignal<Coords | null>(null);
   /** Bumped on visible-range changes so the overlay re-projects drawings. */
@@ -534,6 +585,7 @@ export function ChartView(props: ChartViewProps) {
     syncBaseline();
     syncGradientLabel();
     updateHistoryEnd();
+    syncFutureBars();
   }
 
 
@@ -693,6 +745,7 @@ export function ChartView(props: ChartViewProps) {
     const oldPane = old ? old.getPane() : null;
     const preserved = oldPane?.preserveEmptyPane() ?? false;
     oldPane?.setPreserveEmptyPane(true);
+    dropFutureSeries();
     if (old) chart.removeSeries(old);
     forgetBaseline();
     const tokens = currentTokens();
@@ -814,6 +867,7 @@ export function ChartView(props: ChartViewProps) {
    *  committed appearance (on/off + colour) onto the primitive. Cheap and
    *  idempotent — safe to call after every data load / appearance change. */
   function updateSessionBreaks() {
+    syncFutureBars();
     const t = currentTokens();
     const intraday = isIntradayInterval(props.interval ?? "1D");
     const sessions = cachedSymbolSessions(props.symbol ?? "");
@@ -887,7 +941,8 @@ export function ChartView(props: ChartViewProps) {
       ...base,
       layout: { ...base.layout, fontFamily: readFontFamily() },
       crosshair: { ...base.crosshair, mode: CrosshairMode.Normal },
-      timeScale: { ...base.timeScale, timeVisible: false },
+      // A new bar landing on a future bar scrolls the view as any new bar does.
+      timeScale: { ...base.timeScale, timeVisible: false, allowShiftVisibleRangeOnWhitespaceReplacement: true },
       // Disable the library's cursor-anchored mouse-wheel zoom; we replace it
       // below with a right-edge-anchored zoom (see onWheel).
       handleScale: { mouseWheel: false },
@@ -1005,6 +1060,14 @@ export function ChartView(props: ChartViewProps) {
       applyLockedRatio();
       syncBaseline();
       if (currentTokens().symbolValuePercent) updateCountdown();
+      // The view reaches past the built future bars: more of them (not from inside the library's callback).
+      if (futureBuilt && raw.length > 0 && !futureQueued && futureBarsLeft(futureBuilt.times, raw[raw.length - 1].time as number) < futureBarsNeeded()) {
+        futureQueued = true;
+        queueMicrotask(() => {
+          futureQueued = false;
+          syncFutureBars();
+        });
+      }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onStyleRange);
 

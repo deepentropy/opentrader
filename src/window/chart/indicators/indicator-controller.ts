@@ -178,7 +178,11 @@ export class IndicatorController {
   /** Chart bar times of the first and last visible bars (studies that read the visible range). */
   private readonly visibleRange = (): { from: number; to: number } | null => {
     const r = this.chart.timeScale().getVisibleRange();
-    return r ? { from: r.from as number, to: r.to as number } : null;
+    if (!r) return null;
+    // The time scale goes on past the last bar with the bars the symbol would open.
+    const bars = this.getBars();
+    const last = bars.length ? (bars[bars.length - 1].time as number) : Infinity;
+    return { from: r.from as number, to: Math.min(r.to as number, last) };
   };
   private visibleKey = "";
   private visibleTimer: ReturnType<typeof setTimeout> | null = null;
