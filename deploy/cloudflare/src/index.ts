@@ -27,7 +27,7 @@ interface Env {
  * reads its environment when it starts: after changing the secret, bump the
  * name so a fresh container starts (the old one sleeps once unpinged).
  */
-const INSTANCE = "main-2";
+const INSTANCE = "main-3";
 
 export class OpenTraderServer extends Container<Env> {
   defaultPort = 8080;

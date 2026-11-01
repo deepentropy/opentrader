@@ -8,6 +8,9 @@
  * server drops them when it closes, so they are sent again after a reconnect.
  * Where the WebSocket cannot open (an extension, a proxy or an antivirus
  * blocking it), the tab reads the same events by polling `/api/poll`.
+ *
+ * The server polls quotes for as long as a tab is subscribed, so a tab left in
+ * the background lets go of its connection (see "A tab left in the background").
  */
 
 /** Server origin; empty = the page's own (the dev server proxies /api). */
@@ -156,7 +159,10 @@ function openSocket(): Promise<void> {
     };
     ws.onclose = () => {
       clearTimeout(timer);
-      if (socket !== ws) return;
+      if (socket !== ws) {
+        if (!opened) reject("server unreachable");
+        return;
+      }
       socket = null;
       ready = null;
       if (!opened) {
@@ -219,10 +225,10 @@ function startPolling(): Promise<void> {
   return pollOnce(false).then(
     ({ events }) => {
       events.forEach(dispatch);
-      void pollLoop();
+      if (!releasePause) void pollLoop(pollRun);
     },
     (e) => {
-      ready = null;
+      if (!releasePause) ready = null;
       const wait = retryMs;
       retryMs = Math.min(retryMs * 2, RETRY_MAX_MS);
       setTimeout(() => void connected().then(resubscribe, () => undefined), wait);
@@ -234,8 +240,11 @@ function startPolling(): Promise<void> {
 /** Shortest time between two polls. */
 const POLL_GAP_MS = 1000;
 
-async function pollLoop(): Promise<void> {
-  for (;;) {
+/** The poll loop allowed to run; pausing the tab ends the others. */
+let pollRun = 0;
+
+async function pollLoop(run: number): Promise<void> {
+  while (run === pollRun) {
     const started = Date.now();
     try {
       const { events, fresh } = await pollOnce(true);
@@ -257,4 +266,58 @@ function resubscribe(): void {
     if (cmd === "screener_close") continue;
     void post(cmd, args).catch((e) => console.warn(`[server] ${cmd} after reconnect failed`, e));
   }
+}
+
+// ── A tab left in the background ──
+
+/** How long a hidden tab keeps its live connection. */
+const HIDDEN_PAUSE_MS = 10 * 60_000;
+
+let hiddenTimer: ReturnType<typeof setTimeout> | undefined;
+/** Set while the tab is paused: lets the calls waiting for a connection go on. */
+let releasePause: (() => void) | null = null;
+
+/** Lets go of the connection, unless an alert needs it: alerts are checked by
+ *  this tab, for as long as it is open. */
+async function pauseHidden(): Promise<void> {
+  const { alertStore } = await import("../data/alert-store");
+  if (!document.hidden || releasePause) return;
+  if (alertStore.enabledRules().length > 0) {
+    hiddenTimer = setTimeout(() => void pauseHidden(), HIDDEN_PAUSE_MS);
+    return;
+  }
+  pollRun++;
+  const ws = socket;
+  socket = null;
+  // Anything asking for a connection meanwhile waits for the tab's return.
+  ready = new Promise<void>((resolve) => (releasePause = resolve));
+  ws?.close();
+}
+
+/** Back in view: connected and subscribed again, the charts refetched for the
+ *  bars missed meanwhile. */
+function resumeVisible(): void {
+  const release = releasePause;
+  if (!release) return;
+  releasePause = null;
+  ready = null;
+  connected().then(
+    () => {
+      release();
+      resubscribe();
+    },
+    release,
+  );
+  void import("../data/app-events").then((a) => a.emitAppEvent("chart-reload-data"));
+}
+
+function onVisibility(): void {
+  clearTimeout(hiddenTimer);
+  if (document.hidden) hiddenTimer = setTimeout(() => void pauseHidden(), HIDDEN_PAUSE_MS);
+  else resumeVisible();
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", onVisibility);
+  onVisibility();
 }
