@@ -391,6 +391,12 @@ function ConfirmButton(props: { label: string; confirmLabel: string; onConfirm: 
 async function factoryReset(): Promise<void> {
   if ("__TAURI_INTERNALS__" in window) {
     try {
+      // The proxy and its password in the system's credential store.
+      await commands.resetProxySettings();
+    } catch {
+      /* the rest of the reset still runs */
+    }
+    try {
       const { load } = await import("@tauri-apps/plugin-store");
       const store = await load("opentrader.json");
       await store.clear();
@@ -475,12 +481,15 @@ const PROXY_APPLY_DELAY_MS = 500;
 function NetworkTab() {
   const [proxy, setProxy] = createSignal<ProxySettings>({ enabled: false, protocol: "http", host: "", port: "", username: "", password: "" });
   const [shown, setShown] = createSignal(false);
+  // The password couldn't be stored: it lasts until the app closes.
+  const [notStored, setNotStored] = createSignal(false);
   void commands.getProxySettings().then(setProxy);
   let timer: number | undefined;
   const apply = () => {
     timer = undefined;
     void commands.setProxySettings(proxy()).then((r) => {
-      if (r.status === "error") console.warn("[settings] proxy not applied", r.error);
+      setNotStored(r.status === "error" && r.error.startsWith("credential store"));
+      if (r.status === "error") console.warn("[settings] proxy", r.error);
     });
   };
   const change = (patch: Partial<ProxySettings>) => {
@@ -547,6 +556,9 @@ function NetworkTab() {
             </svg>
           </button>
         </span>
+        <Show when={notStored()}>
+          <span class="app-settings-field-error">The password can't be stored securely on this system. Enter it again after a restart.</span>
+        </Show>
       </label>
     </div>
   );

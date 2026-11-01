@@ -29,6 +29,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             greet,
             network::get_proxy_settings,
             network::set_proxy_settings,
+            network::reset_proxy_settings,
             commands::history::get_daily_history,
             commands::history::get_minute_history,
             commands::history::get_second_history,

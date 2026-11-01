@@ -339,6 +339,7 @@
   cursor: pointer;
 }
 .app-settings-eye:disabled { opacity: 0.5; cursor: default; }
+.app-settings-field-error { font-size: 13px; color: var(--color-ripe-red-500, #f23645); }
 
 /* Downloads path row */
 .app-settings-path-row {
