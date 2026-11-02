@@ -63,6 +63,21 @@ pub fn user_agent() -> String {
     format!("{}/{}", CLIENT_NAME.get().copied().unwrap_or("OpenTrader"), env!("OPENTRADER_APP_VERSION"))
 }
 
+fn update_required_flag() -> &'static tokio::sync::watch::Sender<bool> {
+    static FLAG: std::sync::OnceLock<tokio::sync::watch::Sender<bool>> = std::sync::OnceLock::new();
+    FLAG.get_or_init(|| tokio::sync::watch::channel(false).0)
+}
+
+/// Becomes true (for the rest of the run) once the gateway answered that this
+/// version is no longer served: the app asks the user to update.
+pub fn update_required() -> tokio::sync::watch::Receiver<bool> {
+    update_required_flag().subscribe()
+}
+
+fn raise_update_required() {
+    update_required_flag().send_if_modified(|v| !std::mem::replace(v, true));
+}
+
 /// Error codes of the market API (`code` of an error body). Anything else the
 /// gateway may add later reads as `Other`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +87,8 @@ pub enum ErrorCode {
     NotEntitled,
     NotFound,
     RateLimited,
+    /// The gateway no longer serves this version (`MIN_APP_VERSION`).
+    UpdateRequired,
     UpstreamError,
     UpstreamTimeout,
     Internal,
@@ -86,6 +103,7 @@ impl ErrorCode {
             "NOT_ENTITLED" => Self::NotEntitled,
             "NOT_FOUND" => Self::NotFound,
             "RATE_LIMITED" => Self::RateLimited,
+            "UPDATE_REQUIRED" => Self::UpdateRequired,
             "UPSTREAM_ERROR" => Self::UpstreamError,
             "UPSTREAM_TIMEOUT" => Self::UpstreamTimeout,
             "INTERNAL" => Self::Internal,
@@ -101,6 +119,7 @@ impl ErrorCode {
             403 => Self::NotEntitled,
             404 => Self::NotFound,
             429 => Self::RateLimited,
+            426 => Self::UpdateRequired,
             502 => Self::UpstreamError,
             504 => Self::UpstreamTimeout,
             500 => Self::Internal,
@@ -139,7 +158,8 @@ impl ApiError {
         }
     }
 
-    /// An error answer: its status, headers' `Retry-After` and body.
+    /// An error answer: its status, headers' `Retry-After` and body. An
+    /// `UPDATE_REQUIRED` one also raises `update_required()`.
     pub fn from_answer(what: &'static str, status: StatusCode, retry_after: Option<Duration>, body: &[u8]) -> Self {
         #[derive(serde::Deserialize)]
         struct Body {
@@ -153,6 +173,9 @@ impl ApiError {
         let parsed: Option<Body> = serde_json::from_slice(body).ok();
         let code_text = parsed.as_ref().and_then(|b| b.code.clone());
         let code = code_text.as_deref().map_or_else(|| ErrorCode::from_status(status), ErrorCode::parse);
+        if code == ErrorCode::UpdateRequired {
+            raise_update_required();
+        }
         Self {
             what,
             code,
@@ -262,6 +285,18 @@ mod tests {
         let err: anyhow::Error = ApiError::from_answer("x", StatusCode::NOT_FOUND, None, br#"{"code":"NOT_FOUND","error":"not found","ref":"a1"}"#).into();
         assert_eq!(err.to_string(), "x: not found (NOT_FOUND, ref a1)");
         assert_eq!(err.downcast_ref::<ApiError>().map(|e| e.code), Some(ErrorCode::NotFound));
+    }
+
+    #[test]
+    fn update_required_answer_raises_the_flag() {
+        let flag = update_required();
+        let e = ApiError::from_answer("bars", StatusCode::NOT_FOUND, None, br#"{"code":"NOT_FOUND","error":"no"}"#);
+        assert_eq!(e.code, ErrorCode::NotFound);
+        let e = ApiError::from_answer("bars", StatusCode::UPGRADE_REQUIRED, None, br#"{"code":"UPDATE_REQUIRED","error":"update the app"}"#);
+        assert_eq!(e.code, ErrorCode::UpdateRequired);
+        assert!(*flag.borrow());
+        assert!(!e.is_transient());
+        assert_eq!(ErrorCode::from_status(StatusCode::UPGRADE_REQUIRED), ErrorCode::UpdateRequired);
     }
 
     #[test]

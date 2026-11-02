@@ -2478,5 +2478,9 @@
 "Color Styling": "颜色样式",
 "Trend Channel": "趋势通道",
 "RSI OB/OS": "RSI OB/OS",
-"Use Close Prices": "使用收盘价"
+"Use Close Prices": "使用收盘价",
+"This version of OpenTrader is no longer supported: market data has stopped until you update the app.": "此版本的 OpenTrader 已不再受支持：在您更新应用之前，行情数据已停止。",
+"Download the new version": "下载新版本",
+"Downloading the update…": "正在下载更新…",
+"Installing…": "正在安装…"
 }

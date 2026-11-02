@@ -72,6 +72,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             app_update::app_update_status,
             app_update::app_update_check,
             app_update::app_update_flushed,
+            app_update::app_user_active,
+            app_update::app_set_alerts_active,
             app_update::app_update_install,
             app_update::app_build_info,
             agent::agent_server_status,

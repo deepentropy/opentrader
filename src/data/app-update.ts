@@ -1,20 +1,28 @@
 /*
  * App update state for the UI (the Rust side is src-tauri/src/app_update.rs):
  * the title-bar "Update the app" button, the main-menu "Relaunch to update"
- * row and the Settings > About block. The reference app design + rules:
+ * row, the Settings > About block and the "no longer supported" banner. Every
+ * window also tells the backend when the user uses the app and whether an
+ * alert is on: a ready update installs by itself once the app is left idle. The reference app design + rules:
  * .tmp/app-update/doc.
  */
-import { createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal } from "solid-js";
 import { commands, events, type AppUpdateStatus, type BuildInfo } from "../bindings";
 import { flushKv } from "./kv";
 
-const [status, setStatus] = createSignal<AppUpdateStatus>({ state: "up-to-date", version: null });
+const [status, setStatus] = createSignal<AppUpdateStatus>({ state: "up-to-date", version: null, updateRequired: false });
 
 /** Current update state (same in every window). */
 export const appUpdateStatus = status;
 
 /** True once the new version is downloaded and can be installed. */
 export const updateReady = () => status().state === "ready-to-install";
+
+/** True once the market data server stopped serving this version. */
+export const updateRequired = () => status().updateRequired;
+
+/** Longest gap between two reports of the user using the app. */
+const ACTIVE_REPORT_MS = 60_000;
 
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -33,6 +41,19 @@ export function initAppUpdate(): void {
   void events.appUpdateBeforeInstall.listen(() => {
     void flushKv().finally(() => void commands.appUpdateFlushed());
   });
+  // The user is using the app: no update installs by itself meanwhile.
+  let reported = 0;
+  const active = () => {
+    if (Date.now() - reported < ACTIVE_REPORT_MS) return;
+    reported = Date.now();
+    void commands.appUserActive();
+  };
+  for (const type of ["pointerdown", "keydown", "wheel"]) window.addEventListener(type, active, { capture: true, passive: true });
+  // An alert on holds a ready update back until the user installs it.
+  // (Loaded apart: the alert store's modules are the app's, not the boot's.)
+  void import("./alert-store").then(({ alertStore }) =>
+    createRoot(() => createEffect(() => void commands.appSetAlertsActive(alertStore.enabledRules().length > 0))),
+  );
 }
 
 /** Check now (Settings > About opened, like the reference app). */

@@ -133,6 +133,36 @@ html.theme-dark {
   --ot-popover-shadow: 0 2px 4px #0006;
 }
 
+/* Desktop: the market data server no longer serves this version (window/shell/UpdateRequiredBanner.tsx). */
+/* Below the header: its buttons stay usable. */
+.ot-update-required {
+  position: fixed;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #ff9800;
+  color: #0f0f0f;
+  font-size: 13px;
+  line-height: 18px;
+}
+.ot-update-required button {
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 10px;
+  background: #0f0f0f;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 /* Web version: the server has no room for another visitor (src/web/server.ts). */
 .ot-server-busy {
   position: fixed;
