@@ -33,6 +33,8 @@ export type ChartStateProvider = {
   bars: () => ChartBar[];
   /** The symbols compared on the chart (alert sources). */
   compares?: () => ChartCompareSource[];
+  /** The chart is switching symbol or interval: its bars are still the previous series'. */
+  loading?: () => boolean;
 };
 
 /** A symbol compared on a chart: full name, label "<description> (<exchange>)". */
@@ -74,11 +76,12 @@ export function indicatorPlotValue(
 }
 
 /** Bars of a symbol charted on `resolution` (and on `session`, when given),
- *  or null when no chart shows it that way. */
+ *  or null when no chart shows it that way (or its bars are still loading). */
 export function chartBars(symbol: string, resolution: string, session?: string): ChartBar[] | null {
   const p = providers.get(symbol.toUpperCase());
   if (!p || p.resolution() !== resolution) return null;
   if (session !== undefined && p.session && p.session() !== session) return null;
+  if (p.loading?.()) return null;
   const bars = p.bars();
   return bars.length ? bars : null;
 }

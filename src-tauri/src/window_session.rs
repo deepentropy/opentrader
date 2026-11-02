@@ -84,6 +84,11 @@ impl Session {
     }
 }
 
+/// Label of the window the user focused last (None before the session is set up).
+pub fn focused(app: &AppHandle) -> Option<String> {
+    app.try_state::<Session>()?.file.lock().unwrap().focused.clone()
+}
+
 /// Save now (before an update install, which exits without close events).
 pub fn save(app: &AppHandle) {
     if let Some(session) = app.try_state::<Session>() {

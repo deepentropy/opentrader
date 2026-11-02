@@ -438,6 +438,30 @@ function App() {
 
   onMount(() => onCleanup(initShellBus({ stripIndexAt: appTabs.stripIndexAt, insertTab: appTabs.insertTab })));
 
+  // Settings > Coding agents: the agent tool calls the endpoint hands this window (src/agent/).
+  onMount(() => {
+    if (!isTauri()) return;
+    let stop: (() => void) | null = null;
+    let gone = false;
+    void import("./agent/bridge").then(({ installAgentBridge }) => {
+      if (gone) return;
+      stop = installAgentBridge({
+        tabs: appTabs,
+        edits: chartEdits,
+        drawings: drawingStore,
+        setSymbol: (full) => {
+          recordRecentSymbol("search", full);
+          setSymbol(full);
+        },
+        setInterval,
+      });
+    });
+    onCleanup(() => {
+      gone = true;
+      stop?.();
+    });
+  });
+
   // ── Header dropdowns ───────────────────────────────────────────────────
   function onMenuSelect(rowId: string) {
     const which = openMenu();

@@ -31,7 +31,7 @@ import {
 } from "../../data/analytics";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
-import { commands, type BuildInfo, type ProxyProtocol, type ProxySettings } from "../../bindings";
+import { commands, type AgentServerStatus, type BuildInfo, type ProxyProtocol, type ProxySettings } from "../../bindings";
 import { isTauri } from "../shell/window-bridge";
 import { SelectControl } from "./ChartPropertiesDialog";
 import { downloadDir } from "@tauri-apps/api/path";
@@ -98,7 +98,7 @@ kv.onExternalChange(SETTINGS_KEY, () => setSettings(loadSettings()));
 export const crosshairSyncSetting = () => settings.crosshairSync;
 
 export type AppSettingsTabId =
-  | "general" | "tabs" | "alerts" | "service" | "network" | "about";
+  | "general" | "tabs" | "alerts" | "service" | "network" | "agents" | "about";
 
 type Props = {
   onClose: () => void;
@@ -119,6 +119,8 @@ const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
   { id: "service", label: "Service", icon: "settings-service" },
   // The desktop app's own connections (the browser has its own proxy settings).
   ...(isTauri() ? [{ id: "network" as const, label: "Network", icon: "settings-network" }] : []),
+  // The local endpoint coding agents connect to (desktop app only).
+  ...(isTauri() ? [{ id: "agents" as const, label: "Coding agents", icon: "settings-agents" }] : []),
   { id: "about", label: "About", icon: "settings-about" },
 ];
 
@@ -563,6 +565,110 @@ function NetworkTab() {
   );
 }
 
+/** Settings > Coding agents: the local MCP endpoint (src-tauri/src/agent.rs, src/agent/), off by default. */
+function AgentsTab() {
+  const [st, setSt] = createSignal<AgentServerStatus | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
+  const [shown, setShown] = createSignal(false);
+  const [copied, setCopied] = createSignal<string | null>(null);
+  const [port, setPort] = createSignal("");
+  const take = (p: Promise<{ status: "ok"; data: AgentServerStatus } | { status: "error"; error: string }>) =>
+    void p.then((r) => {
+      if (r.status === "ok") {
+        setSt(r.data);
+        setPort(String(r.data.port));
+        setError(null);
+      } else setError(r.error);
+    });
+  void commands.agentServerStatus().then((s) => {
+    setSt(s);
+    setPort(String(s.port));
+  });
+  let copyTimer: number | undefined;
+  onCleanup(() => window.clearTimeout(copyTimer));
+  const copy = (what: string, text: string) =>
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(what);
+      window.clearTimeout(copyTimer);
+      copyTimer = window.setTimeout(() => setCopied(null), 2000);
+    });
+  const applyPort = () => {
+    const n = Number(port());
+    if (st() && n !== st()!.port) take(commands.agentServerSetPort(n));
+  };
+  const setups = (s: AgentServerStatus) => [
+    { id: "claude", label: "Claude Code (terminal)", text: `claude mcp add --transport http opentrader ${s.url} --header "Authorization: Bearer ${s.token}"` },
+    { id: "codex", label: "Codex (~/.codex/config.toml)", text: `[mcp_servers.opentrader]
+url = "${s.url}"
+http_headers = { "Authorization" = "Bearer ${s.token}" }` },
+    { id: "json", label: "Other agents (MCP JSON config)", text: JSON.stringify({ mcpServers: { opentrader: { type: "http", url: s.url, headers: { Authorization: `Bearer ${s.token}` } } } }, null, 2) },
+  ];
+  return (
+    <div class="app-settings-network app-settings-agents">
+      <Show when={st()}>
+        {(s) => (
+          <>
+            <Section label="CODING AGENTS">
+              <Checkbox label="Allow coding agents to use OpenTrader" checked={s().enabled} onChange={() => take(commands.agentServerSetEnabled(!s().enabled))} />
+              <div class="app-settings-note">
+                An agent such as Claude Code or Codex can then read your charts, add indicators, write and test scripts, run strategies and draw, on this
+                computer only. It cannot place orders. Anyone with the token below can do the same while OpenTrader runs.
+              </div>
+            </Section>
+            <Show when={s().error ?? error()}>
+              {(e) => <span class="app-settings-field-error">{e()}</span>}
+            </Show>
+            <label class="app-settings-field">
+              <span class="app-settings-field-label">Port</span>
+              <input
+                class="app-settings-input"
+                type="text"
+                inputmode="numeric"
+                value={port()}
+                onInput={(e) => {
+                  e.currentTarget.value = e.currentTarget.value.replace(/\D/g, "").slice(0, 5);
+                  setPort(e.currentTarget.value);
+                }}
+                onBlur={applyPort}
+                onKeyDown={(e) => { if (e.key === "Enter") applyPort(); }}
+              />
+            </label>
+            <label class="app-settings-field">
+              <span class="app-settings-field-label">Token</span>
+              <span class="app-settings-password">
+                <input class="app-settings-input" type={shown() ? "text" : "password"} readOnly value={s().token} />
+                <button type="button" class="app-settings-eye" aria-label={shown() ? "Hide token" : "Show token"} onClick={(e) => { e.preventDefault(); setShown(!shown()); }}>
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+                    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+                    <circle cx="12" cy="12" r="3" />
+                    <Show when={shown()}><path d="M4 20 20 4" /></Show>
+                  </svg>
+                </button>
+              </span>
+            </label>
+            <div class="app-settings-agents-row">
+              <ConfirmButton label="New token" confirmLabel="Agents set up before stop working" onConfirm={() => take(commands.agentServerNewToken())} />
+            </div>
+            <Section label="SET UP AN AGENT">
+              <For each={setups(s())}>
+                {(x) => (
+                  <div class="app-settings-agents-setup">
+                    <div class="app-settings-agents-setup-head">
+                      <span class="app-settings-field-label">{x.label}</span>
+                      <button type="button" class="app-settings-btn" onClick={() => copy(x.id, x.text)}>{copied() === x.id ? "Copied" : "Copy"}</button>
+                    </div>
+                    <pre class="app-settings-code">{shown() ? x.text : x.text.split(s().token).join("•".repeat(12))}</pre>
+                  </div>
+                )}
+              </For>
+            </Section>
+          </>
+        )}
+      </Show>
+    </div>
+  );
+}
+
 function AboutTab() {
   const [info, setInfo] = createSignal<BuildInfo | null>(null);
   onMount(() => {
@@ -720,6 +826,7 @@ export function AppSettingsDialog(props: Props) {
       case "alerts": return <AlertsTab />;
       case "service": return <ServiceTab />;
       case "network": return <NetworkTab />;
+      case "agents": return <AgentsTab />;
       case "about": return <AboutTab />;
       default: return <GeneralTab themeSetting={props.themeSetting} onThemeChange={props.onThemeChange} />;
     }

@@ -38,6 +38,19 @@ The installers are not signed with a paid certificate:
 
 Windows is the main development platform. The macOS and Linux builds are produced by the same code but are less tested.
 
+## Use with a coding agent
+
+A coding agent (Claude Code, Codex, Cursor, …) can work with the running app: read your charts, add indicators, write and test scripts, run strategies, draw, and take screenshots of the result. It cannot place orders.
+
+1. In the app, open *Settings > Coding agents* and tick *Allow coding agents to use OpenTrader*. The app then listens on this computer only (`http://127.0.0.1:47821/mcp`), and only for requests that carry its token.
+2. Copy the setup for your agent from the same page. For Claude Code it is one command:
+
+```bash
+claude mcp add --transport http opentrader http://127.0.0.1:47821/mcp --header "Authorization: Bearer <token>"
+```
+
+The agent acts on the chart tab you focused last; every change is an undo step. The app also gives the agent the guides of the scripting, indicator and drawing libraries, so you can ask in plain words, for example "write an indicator that colours the bars by RSI and add it to my chart".
+
 ## Support the project
 
 OpenTrader is free, but running it is not: market data, servers and development tools are paid every month. Donations pay these costs. Only the monthly total is published.
@@ -89,7 +102,7 @@ The first run is slow (cold Rust build, a few minutes). Later runs take seconds.
 ## Layout
 
 ```
-src/                  frontend (window/, components/, data/, styles/, assets/)
+src/                  frontend (window/, components/, data/, styles/, assets/, agent/)
 src-tauri/            backend and app config
 docs/assets/          README images
 .github/workflows/    release build

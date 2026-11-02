@@ -517,6 +517,7 @@ export function ChartView(props: ChartViewProps) {
       session: () => props.session ?? "RTH",
       bars: () => raw as ChartBar[],
       compares: () => cx.compareSources?.() ?? [],
+      loading: () => cx.swapping,
     });
     onCleanup(() => unregisterChartState(key));
   });

@@ -285,6 +285,12 @@ export function notifyScriptRenamed(scriptId: string): void {
   dispatchUpdated(scriptId, false);
 }
 
+/** Messages of the failed runs of a script (one per chart and study showing it): the coding-agent tools give them. */
+export function userScriptErrors(scriptId: string): string[] {
+  const rt = runtimes.get(scriptId);
+  return rt ? [...rt.runs.values()].flatMap((r) => (r.error ? [r.error] : [])) : [];
+}
+
 /** Editor-side hook: a script was deleted — drop its cached runtime so the
  *  registry stops resolving `user:<scriptId>` (charts skip unknown ids). */
 export function dropUserScriptRuntime(scriptId: string): void {

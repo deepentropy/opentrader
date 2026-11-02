@@ -18,6 +18,7 @@
 import { createEffect, onCleanup, onMount } from "solid-js";
 import { monaco, setupMonaco, applyOakTheme } from "./monaco-setup";
 import * as scripts from "../../data/oakscript-store";
+import { onAppEvent } from "../../data/app-events";
 
 const AUTOSAVE_MS = 400;
 /** Shown when typing into a read-only source (the reference app's wording). */
@@ -87,6 +88,20 @@ export default function OakScriptEditor(props: Props) {
     // Ctrl+S saves immediately instead of triggering the browser dialog.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, flushSave);
   });
+
+  // A coding agent saved a script: its model (open or cached) takes the new text as one edit the user can undo.
+  onCleanup(
+    onAppEvent("oakscript-source-changed", (d) => {
+      const model = monaco.editor.getModel(monaco.Uri.parse(`file:///oakscript/${d.scriptId}.js`));
+      if (!model || model.getValue() === d.source) return;
+      if (d.scriptId === activeId) {
+        if (saveTimer !== undefined) clearTimeout(saveTimer);
+        saveTimer = undefined;
+        lastSaved = d.source; // already saved: the autosave this edit starts finds nothing to write
+      }
+      model.pushEditOperations([], [{ range: model.getFullModelRange(), text: d.source }], () => null);
+    }),
+  );
 
   // Bind the model for props.scriptId (declared after onMount so the editor
   // exists on the first run; re-runs on every script switch).

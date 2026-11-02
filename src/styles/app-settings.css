@@ -337,6 +337,24 @@
   cursor: pointer;
 }
 .app-settings-eye:disabled { opacity: 0.5; cursor: default; }
+/* Coding agents tab */
+.app-settings-agents-row { padding: 4px 0 12px; }
+.app-settings-agents-setup { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+.app-settings-agents-setup-head { display: flex; align-items: center; justify-content: space-between; }
+.app-settings-code {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-family: Menlo, Consolas, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
 .app-settings-field-error { font-size: 13px; color: var(--color-ripe-red-500, #f23645); }
 
 /* Downloads path row */

@@ -1,0 +1,48 @@
+# OpenTrader: notes for coding agents
+
+A desktop charting app: a Rust backend (Tauri 2) and a SolidJS frontend. This file is for working **on this
+repository**. To work **with the running app** (charts, scripts, strategies), connect to its MCP server instead:
+see "Use with a coding agent" in the README.
+
+## Layout
+
+```
+src/                     frontend (SolidJS, TypeScript)
+  App.tsx                the window: tabs, panes, the stores below wired together
+  window/                UI by area: chart/, drawings/, oakscript/ (script editor), strategy-tester/, header/, shell/ …
+  data/                  stores and data access (datafeed, kv persistence, alerts, scripts, strategy results)
+  agent/                 the MCP server's tools, guide and protocol (answered in the window)
+  backtester/            strategy engine (worker)
+  bindings.ts            generated from the Rust commands: never edit, it is gitignored
+src-tauri/               Rust: commands (src/commands/), windows, alerts, updates, agent.rs (MCP endpoint)
+  crates/core            data side shared with the web server
+  crates/server          the web build's backend
+../lightweight-charts-drawing   drawing core, read from a sibling checkout (see README)
+```
+
+Indicators come from `lightweight-charts-indicators`, the script runtime from `oakscriptjs`, drawings from
+`lightweight-charts-drawing`. A change to an indicator, the script API or a drawing tool belongs in that library;
+each ships its own agent guide in `skills/`.
+
+## Commands
+
+```bash
+npm ci
+npm test                         # vitest (tests in __tests__/ next to the code)
+npx tsc --noEmit -p tsconfig.json
+cd src-tauri && cargo test --lib # Rust tests; also regenerates src/bindings.ts
+npm run tauri dev                # the app with hot reload (first Rust build: minutes)
+```
+
+A new Tauri command: add it in `src-tauri/src/`, list it in `specta_builder()` (`src-tauri/src/lib.rs`), then run
+`cargo test --lib export_bindings` and call it through `commands` from `src/bindings.ts`.
+
+## Conventions
+
+- Match the code around you: comments say why, in plain words; no dead code.
+- Persist through `src/data/kv.ts`, not `localStorage`.
+- Chart edits go through the stores (`window/shell/chart-edits.ts`, `window/drawings/drawing-store.ts`) so they are
+  undo steps and are saved.
+- Do not name market-data providers in code, docs or issues.
+- Dates shown to the user: dd/mm/yyyy.
+- Commit only the files you changed (no `git add -A`): other work may be in the tree.

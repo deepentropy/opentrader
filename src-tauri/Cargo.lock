@@ -2884,9 +2884,11 @@ dependencies = [
 name = "opentrader"
 version = "0.4.10"
 dependencies = [
+ "axum",
  "base64 0.22.1",
  "chrono",
  "dotenvy",
+ "getrandom 0.3.4",
  "keyring",
  "minisign-verify",
  "opentrader-core",

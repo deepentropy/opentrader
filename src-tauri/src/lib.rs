@@ -1,3 +1,4 @@
+mod agent;
 mod alerts;
 mod app_update;
 mod commands;
@@ -73,6 +74,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             app_update::app_update_flushed,
             app_update::app_update_install,
             app_update::app_build_info,
+            agent::agent_server_status,
+            agent::agent_server_set_enabled,
+            agent::agent_server_set_port,
+            agent::agent_server_new_token,
+            agent::agent_reply,
+            agent::agent_ready,
         ])
         .events(collect_events![
             data::types::ChartAggregate,
@@ -84,6 +91,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             alerts::AlertLeader,
             app_update::AppUpdateStatus,
             app_update::AppUpdateBeforeInstall,
+            agent::AgentRequest,
         ])
 }
 
@@ -188,6 +196,8 @@ pub fn run() {
             app.manage(screener::Screener::default());
             // Update check at startup, then hourly (app_update).
             app_update::init(app.handle());
+            // Settings > Coding agents (listens only when turned on).
+            agent::init(app.handle());
             // Symbol catalog for the search: disk copy, then today's from the gateway.
             data::market_rest::init_symbol_catalog();
             data::market_rest::economics::init();

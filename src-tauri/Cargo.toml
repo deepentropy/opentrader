@@ -42,6 +42,9 @@ tokio = { version = "1.52.3", features = ["full"] }
 base64 = "0.22"
 minisign-verify = "0.2"
 tauri-plugin-updater = "2"
+# Settings > Coding agents: the local MCP endpoint (agent.rs) and its token.
+axum = "0.8"
+getrandom = "0.3"
 
 # The proxy password, in the system's encrypted credential store (Settings > Network).
 [target.'cfg(windows)'.dependencies]

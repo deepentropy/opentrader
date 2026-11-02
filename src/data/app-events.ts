@@ -111,6 +111,8 @@ export interface AppEvents {
   "strategy-report-updated": { chartId: string; key: string };
   "oakscript-script-updated": { scriptId: string; structural: boolean };
   "oakscript-open-script": { scriptId: string };
+  /** A script's source was saved outside the editor (a coding agent): an open editor shows it. */
+  "oakscript-source-changed": { scriptId: string; source: string };
   "chart-tree-toggle-hide": { id: string };
   "chart-tree-remove": { id: string };
   "chart-tree-move": { id: string; target: string; below: boolean };
