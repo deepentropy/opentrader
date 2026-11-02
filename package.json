@@ -1,6 +1,6 @@
 {
   "name": "opentrader",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "description": "Free, open-source desktop charting and trading app (Rust + SolidJS).",
   "private": true,
   "type": "module",
@@ -23,7 +23,7 @@
     "url": "https://github.com/deepentropy/opentrader.git"
   },
   "config": {
-    "drawingRef": "v0.6.2"
+    "drawingRef": "v0.6.3"
   },
   "overrides": {
     "lightweight-charts-indicators": {
@@ -37,9 +37,9 @@
     "fancy-canvas": "^2.1.0",
     "flag-icons": "^7.5.0",
     "lightweight-charts": "^5.2.1",
-    "lightweight-charts-indicators": "^0.16.8",
+    "lightweight-charts-indicators": "^0.16.10",
     "monaco-editor": "^0.55.1",
-    "oakscriptjs": "^0.13.1",
+    "oakscriptjs": "^0.13.2",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {
