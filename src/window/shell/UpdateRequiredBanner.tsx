@@ -16,11 +16,11 @@ export function UpdateRequiredBanner() {
   return (
     <Show when={updateRequired()}>
       <div class="ot-update-required" role="alert">
-        <span>This version of OpenTrader is no longer supported: market data has stopped until you update the app.</span>
+        <span>This version is no longer supported. Update to restore market data.</span>
         <Switch
           fallback={
             <button type="button" onClick={() => void openUrl(DOWNLOAD_URL).catch((e) => console.warn("[update] open download page failed", e))}>
-              Download the new version
+              Download update
             </button>
           }
         >

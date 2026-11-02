@@ -150,6 +150,7 @@ html.theme-dark {
   color: #0f0f0f;
   font-size: 13px;
   line-height: 18px;
+  white-space: nowrap;
 }
 .ot-update-required button {
   border: 0;

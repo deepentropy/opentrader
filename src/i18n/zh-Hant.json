@@ -2479,8 +2479,8 @@
 "Trend Channel": "趨勢通道",
 "RSI OB/OS": "RSI OB/OS",
 "Use Close Prices": "使用收盤價",
-"This version of OpenTrader is no longer supported: market data has stopped until you update the app.": "此版本的 OpenTrader 已不再受支援：在您更新應用程式之前，行情資料已停止。",
-"Download the new version": "下載新版本",
 "Downloading the update…": "正在下載更新…",
-"Installing…": "正在安裝…"
+"Installing…": "正在安裝…",
+"This version is no longer supported. Update to restore market data.": "此版本已不再受支援。更新後即可恢復行情資料。",
+"Download update": "下載更新"
 }
