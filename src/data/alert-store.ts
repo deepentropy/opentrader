@@ -216,6 +216,8 @@ export type AlertRule = {
   /** Why a stopped alert stopped: it fired once ("triggered"), it was switched
    *  off ("manual") or its expiry passed ("expired"). Unset while active. */
   stopReason?: AlertStopReason;
+  /** A paused copy made by "Clone" (status "Paused — Cloned") until it is restarted or edited. */
+  cloned?: boolean;
   createdAt: number;
   /** Epoch ms the rule last became active (created, edited, switched on):
    *  nothing before it counts as missed. Unset on older rules (= createdAt). */
@@ -393,6 +395,7 @@ export const alertStore = {
     if (i < 0) return;
     setState("rules", i, produce((r: AlertRule) => {
       Object.assign(r, patch, { activeSince: Date.now() });
+      delete r.cloned;
       if (r.enabled) delete r.stopReason;
     }));
   },
@@ -404,9 +407,25 @@ export const alertStore = {
     if (enabled && !state.rules[i].enabled) setState("rules", i, "activeSince", Date.now());
     setState("rules", i, produce((r: AlertRule) => {
       r.enabled = enabled;
-      if (enabled) delete r.stopReason;
+      if (enabled) {
+        delete r.stopReason;
+        delete r.cloned;
+      }
       else r.stopReason = reason;
     }));
+  },
+
+  /** "Clone" (the reference app's alert menu): a paused copy of a rule, listed as "Paused — Cloned". Returns its id. */
+  clone(id: string): string | null {
+    const r = state.rules.find((x) => x.id === id);
+    if (!r) return null;
+    const { id: _id, createdAt: _c, activeSince: _a, stopReason: _s, ...rest } = JSON.parse(JSON.stringify(r)) as AlertRule;
+    const copy = alertStore.add({ ...rest, enabled: false });
+    setState("rules", (x) => x.id === copy, produce((x: AlertRule) => {
+      x.stopReason = "manual";
+      x.cloned = true;
+    }));
+    return copy;
   },
 
   remove(id: string): void {

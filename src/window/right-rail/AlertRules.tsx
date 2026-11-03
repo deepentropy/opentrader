@@ -3,9 +3,11 @@
  * and the list of alert rules.
  *
  * Row: the alert text (its message, else its condition), then "TICKER,
- * interval" and the status (Active / Inactive). On hover: Pause or Restart,
- * Edit, Delete. Right-click: the same three, then the actions on the whole
- * filtered list and "Delete all inactive".
+ * interval" and the status (Active / Inactive, "Paused — Cloned" for a copy).
+ * A click shows the alert's symbol and interval on the chart (the reference
+ * app; a screen alert opens its editor). On hover: Pause or Restart, Edit,
+ * Delete. Right-click: Pause or Restart, Edit…, Clone (a paused copy), Delete,
+ * then the actions on the whole filtered list and "Delete all inactive".
  * Sort: symbol, name, message (A to Z / Z to A), date created and time
  * triggering (oldest / newest first); date created, oldest first by default.
  * Options: Restart / Pause as per filter, Delete all inactive, and the
@@ -249,7 +251,12 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext }) {
 }
 
 /** The list of alert rules (the panel body of the Alerts view). */
-export function AlertRulesList(props: { ctx: AlertListContext; drawingMissing: (r: AlertRule) => boolean }) {
+export function AlertRulesList(props: {
+  ctx: AlertListContext;
+  drawingMissing: (r: AlertRule) => boolean;
+  /** Show a symbol and interval on the active chart (a row click). */
+  onShow?: (symbol: string, interval: string) => void;
+}) {
   const rules = createMemo(() => visibleRules(props.ctx));
   const fired = createMemo(lastFireTimes);
   const [rowMenu, setRowMenu] = createSignal<{ rule: AlertRule; x: number; y: number } | null>(null);
@@ -300,7 +307,7 @@ export function AlertRulesList(props: { ctx: AlertListContext; drawingMissing: (
               data-name="alert-rule-item"
               class="alerts-panel-rule"
               classList={{ "is-disabled": !r.enabled }}
-              onClick={() => editRule(r)}
+              onClick={() => (r.left.kind === "screen" || !props.onShow ? editRule(r) : props.onShow(r.symbol, r.resolution))}
               onContextMenu={(e) => { e.preventDefault(); setRowMenu({ rule: r, x: e.clientX, y: e.clientY }); }}
             >
               <div class="alerts-panel-rule-main">
@@ -314,7 +321,7 @@ export function AlertRulesList(props: { ctx: AlertListContext; drawingMissing: (
                 <div class="alerts-panel-rule-meta">
                   <span data-name="alert-item-ticker">{r.left.kind === "screen" ? `Screen · ${r.left.title}` : `${tickerOf(r.symbol)}, ${intervalLabel(r.resolution)}`}</span>
                   <span class="alerts-panel-rule-status" classList={{ "is-active": r.enabled }} data-name="alert-item-status">
-                    {r.enabled ? "Active" : "Inactive"}
+                    {r.enabled ? "Active" : r.cloned ? "Paused — Cloned" : "Inactive"}
                   </span>
                   <Show when={filters().triggered && fired().get(r.id)}>
                     {(t) => <span data-name="alert-item-last-triggered">{lastTriggeredText(t())}</span>}
@@ -355,6 +362,7 @@ export function AlertRulesList(props: { ctx: AlertListContext; drawingMissing: (
               ? <MenuItem label="Pause" onSelect={act(() => setRuleEnabled(m().rule, false))} />
               : <MenuItem label="Restart" onSelect={act(() => setRuleEnabled(m().rule, true))} />}
             <MenuItem label="Edit…" onSelect={act(() => editRule(m().rule))} />
+            <MenuItem label="Clone" onSelect={act(() => alertStore.clone(m().rule.id))} />
             <MenuItem label="Delete" onSelect={act(() => removeRule(m().rule))} />
             <div class="alerts-panel-menu-sep" />
             <MenuItem label="Restart as per filter" disabled={!rules().some((r) => !r.enabled)} onSelect={act(() => restartShown(props.ctx))} />

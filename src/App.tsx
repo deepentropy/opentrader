@@ -915,6 +915,7 @@ function App() {
           onSymbolSelect={onSymbolPicked}
           onAddCompare={addCompareFromList}
           interval={interval()}
+          onIntervalSelect={setInterval}
           drawings={drawings()}
           selectedDrawingId={selectedDrawingId()}
           setSelectedDrawingId={setSelectedDrawingId}

@@ -33,6 +33,8 @@ type Props = {
   onAddCompare?: (tickers: string[]) => void;
   /** Active chart interval — threaded to the watchlist for per-symbol alerts. */
   interval?: string;
+  /** Set the active chart's interval (an alert row click shows the alert's symbol and interval). */
+  onIntervalSelect?: (interval: string) => void;
   drawings: Drawing[];
   selectedDrawingId: string | null;
   setSelectedDrawingId: (id: string | null) => void;
@@ -217,7 +219,14 @@ export function RightRail(props: Props) {
             />
           </Match>
           <Match when={props.activeTab === "alerts"}>
-            <AlertsPanel symbol={props.activeSymbol} interval={props.interval} />
+            <AlertsPanel
+              symbol={props.activeSymbol}
+              interval={props.interval}
+              onShow={(sym, iv) => {
+                props.onSymbolSelect(sym);
+                props.onIntervalSelect?.(iv);
+              }}
+            />
           </Match>
           <Match when={props.activeTab === "community" && COMMUNITY_ENABLED}>
             <CommunityPanel symbol={props.activeSymbol} />

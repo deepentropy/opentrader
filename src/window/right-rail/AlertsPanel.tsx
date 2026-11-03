@@ -37,7 +37,7 @@ function clockTime(ms: number): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-export function AlertsPanel(props: { symbol?: string; interval?: string }) {
+export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?: (symbol: string, interval: string) => void }) {
   const [view, setView] = createSignal<string>("alerts");
   /** Chart the "Current symbol" / "Current time interval" filters refer to. */
   const ctx = () => ({ symbol: props.symbol ?? "", interval: props.interval ?? "" });
@@ -219,7 +219,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string }) {
       <div class="alerts-panel-body">
         {/* ── Configured rules ── */}
         <Show when={view() === "alerts"}>
-          <AlertRulesList ctx={ctx()} drawingMissing={drawingMissing} />
+          <AlertRulesList ctx={ctx()} drawingMissing={drawingMissing} onShow={props.onShow} />
         </Show>
 
         {/* ── Fired-event log ── */}
