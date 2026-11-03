@@ -31,7 +31,6 @@ import { startAlertEngine, onAlertFire } from "./data/alert-engine";
 import { whenAlertLeader } from "./data/alert-backend";
 import { AlertToasts, type AlertToastData } from "./window/alerts/AlertToast";
 import { UpdateRequiredBanner } from "./window/shell/UpdateRequiredBanner";
-import { ConsentCard } from "./window/shell/ConsentCard";
 import { loadTabTitleParts, saveTabTitleParts, type TabTitlePartState } from "./window/shell/tab-title";
 import { reopenLabel } from "./window/shell/closed-stack";
 import { initShellBus } from "./window/shell/shell-bus";
@@ -1002,7 +1001,6 @@ function App() {
       </Show>
       {/* Settings → Alerts → "Automatically hide toasts" (focused pane, default
           on): off keeps a popup until it is closed. */}
-      <ConsentCard />
       <UpdateRequiredBanner />
       <AlertToasts
         toasts={alertToasts()}

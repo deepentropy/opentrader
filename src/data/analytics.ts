@@ -6,9 +6,9 @@
  *
  * Both versions send through the web version's relay (`/ingest`, the
  * Cloudflare Worker), which adds the city, region and country Cloudflare
- * reports. The IP address itself is added only for users who agreed to it
- * (`ipConsent`, asked once by the consent card); for the others it never
- * reaches the analytics service. See https://opentrader.markets/privacy.html.
+ * reports, and the IP address unless the user switched that off
+ * (`ipConsent` "denied", Settings > Service > Privacy).
+ * See https://opentrader.markets/privacy.html.
  *
  * Off in development builds and when the build has no project key
  * (`VITE_POSTHOG_KEY`).
@@ -43,7 +43,7 @@ function readConsent(): IpConsent {
 }
 const [ipConsent, setIpConsentSignal] = createSignal<IpConsent>(readConsent());
 
-/** The user's answer about sharing their IP address (null: not asked yet). */
+/** The user's choice about sharing their IP address (null: never changed = shared). */
 export const analyticsIpConsent = ipConsent;
 
 /** Record the answer about sharing the IP address. */
@@ -52,9 +52,6 @@ export function setAnalyticsIpConsent(granted: boolean): void {
   setIpConsentSignal(granted ? "granted" : "denied");
   track(granted ? "ip_consent_granted" : "ip_consent_denied");
 }
-
-/** Whether to ask for the IP consent now (statistics on, not answered yet). */
-export const shouldAskIpConsent = (): boolean => analyticsAvailable() && enabled() && ipConsent() === null;
 
 /** Whether usage statistics are sent (the Settings switch). */
 export const analyticsEnabled = enabled;
@@ -121,8 +118,8 @@ export function track(event: string, props: Props = {}): void {
       app: WEB ? "web" : "desktop",
       app_version: VERSION,
       os: os(),
-      // The relay adds the IP address only when this is true.
-      ip_consent: ipConsent() === "granted",
+      // The relay adds the IP address only when this is true (by default).
+      ip_consent: ipConsent() !== "denied",
     },
   });
   timer ??= window.setTimeout(flush, FLUSH_MS);

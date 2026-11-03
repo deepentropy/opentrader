@@ -129,13 +129,14 @@ export function createChartEdits(
    *  call adds a new instance with its own settings, like the reference app
    *  (the same indicator can be on a chart several times). */
   function addIndicator(typeId: string, parent?: ChildStudyParent) {
-    // A user's own script is counted, not named.
-    track("indicator_added", { indicator: typeId.startsWith("user:") ? "user-script" : typeId });
-    // The fixed range volume profile row picks its drawing tool, as in the reference app.
+    // The fixed range volume profile row picks its drawing tool, as in the reference app
+    // (counted as a drawing tool, not as an indicator).
     if (typeId === FIXED_RANGE_VP_TOOL_ROW) {
       emitAppEvent("select-drawing-tool", { toolId: "fixed-range-volume-profile" });
       return;
     }
+    // A user's own script is counted, not named.
+    track("indicator_added", { indicator: typeId.startsWith("user:") ? "user-script" : typeId });
     const pane = activePaneState();
     const tab = activeTab();
     // Ids still held by undo/redo entries of this pane are not reused: undo
