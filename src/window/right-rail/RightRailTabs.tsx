@@ -9,6 +9,9 @@ import { For } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { TOP_TABS, type Tab } from "../../data/right-rail-tabs";
+import { COMMUNITY_ENABLED } from "../../data/community/api";
+
+const SHOWN_TABS = TOP_TABS.filter((t) => t.id !== "community" || COMMUNITY_ENABLED);
 
 type Props = {
   active: string | null;
@@ -44,7 +47,7 @@ export function RightRailTabs(props: Props) {
   return (
     <nav class="right-rail-tabs" aria-label="Right rail">
       <div class="right-rail-tabs-group">
-        <For each={TOP_TABS}>{renderTab}</For>
+        <For each={SHOWN_TABS}>{renderTab}</For>
       </div>
     </nav>
   );
