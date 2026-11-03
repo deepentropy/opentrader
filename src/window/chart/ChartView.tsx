@@ -1247,6 +1247,12 @@ export function ChartView(props: ChartViewProps) {
     controller?.setHeikinAshi((props.chartType ?? "candle") === "ha");
   });
 
+  // Volume Candles: column plots (Volume) as wide as their candle.
+  createEffect(() => {
+    chartReady();
+    controller?.setVolumeCandles((props.chartType ?? "candle") === "volCandles");
+  });
+
   // Indicator Visibility tab: studies off the chart interval stop drawing.
   createEffect(() => {
     chartReady();

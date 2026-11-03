@@ -18,7 +18,7 @@
  *   • hlcArea        — HLC Area: high + low lines with a band fill
  *                      between them and the close line on top.
  *   • volCandles     — Volume Candles: standard candles whose BODY WIDTH
- *                      scales with the bar's volume relative to the window max.
+ *                      follows the bar's volume weight (volume-widths.ts).
  *   • hilo           — High-Low: per-bar high↔low column + close tick,
  *                      coloured by close vs the previous close, with H/L value
  *                      labels at wide bar spacing.
@@ -37,6 +37,7 @@ import type { OHLC } from "./chart-types";
 import type { KagiItem, PnfItem } from "./series-transforms";
 import type { SvpStyle } from "../header/chart-settings";
 import { localDay, zoneOffsetFinder, type SymbolSessions } from "../../data/session";
+import { volumeHalfWidth, volumeWidthFactor } from "./volume-widths";
 export type { KagiItem, PnfItem } from "./series-transforms";
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer["draw"]>[0];
@@ -60,17 +61,6 @@ export function visibleBars<T>(data: PaneRendererCustomData<Time, T & { time: Ti
   const to = Math.min(r.to, data.bars.length);
   const a = data.bars[r.from];
   return { from: r.from, to, xOf: (i: number) => a.x + (data.bars[i].time - a.time) * data.barSpacing };
-}
-
-/** Largest of `pick` over all bars, cached per data set (an O(n) scan per frame otherwise). */
-function cachedMax<T>(cache: { key: string; value: number }, bars: readonly { time: number; originalData: T }[], pick: (d: T) => number): number {
-  const key = `${bars.length}:${bars[0]?.time}:${bars[bars.length - 1]?.time}`;
-  if (cache.key === key) return cache.value;
-  let v = 0;
-  for (const b of bars) v = Math.max(v, pick(b.originalData));
-  cache.key = key;
-  cache.value = v;
-  return v;
 }
 
 function toSeconds(t: Time): number {
@@ -887,12 +877,11 @@ export function toVolCandles(raw: OHLC[]): VolCandleItem[] {
   }));
 }
 
-/** Volume Candles: standard OHLC candles whose BODY WIDTH scales with the
- *  bar's volume relative to the series max — the busiest bar fills the bar
- *  slot, quiet bars shrink toward a sliver. Wick + colours as normal candles. */
+/** Volume Candles: standard OHLC candles whose BODY WIDTH follows the bar's
+ *  volume weight among the bars on screen (volume-widths.ts). Wick + colours
+ *  as normal candles. */
 export class VolCandlePaneView implements ICustomSeriesPaneView<Time, VolCandleItem, CustomSeriesOptions> {
   private data: PaneRendererCustomData<Time, VolCandleItem> | null = null;
-  private maxVol = { key: "", value: 0 };
   constructor(private tokens: ChartTokens) {}
   priceValueBuilder(item: VolCandleItem): CustomSeriesPricePlotValues {
     return [item.low, item.high, item.close];
@@ -906,11 +895,14 @@ export class VolCandlePaneView implements ICustomSeriesPaneView<Time, VolCandleI
         const data = this.data;
         const vis = data ? visibleBars(data) : null;
         if (!data || !vis) return;
-        withMedia(target, ({ context: ctx }) => {
-          const maxVol = cachedMax(this.maxVol, data.bars, (d) => d.volume);
-          // Full slot minus a 1px gap on either side; min keeps thin-volume
-          // bars visible.
-          const maxHalf = Math.max(1, data.barSpacing / 2 - 1);
+        withMedia(target, ({ context: ctx, mediaSize }) => {
+          // The bars on screen weigh the widths (the Volume columns read the same ones).
+          const onScreen: number[] = [];
+          for (let i = vis.from; i < vis.to; i++) {
+            const x = vis.xOf(i);
+            if (x >= 0 && x <= mediaSize.width) onScreen.push(data.bars[i].originalData.volume);
+          }
+          const factor = volumeWidthFactor(onScreen);
           const st = this.tokens.styles.volCandles;
           for (let i = vis.from; i < vis.to; i++) {
             const bar = { x: vis.xOf(i) };
@@ -931,9 +923,7 @@ export class VolCandlePaneView implements ICustomSeriesPaneView<Time, VolCandleI
               ctx.lineTo(bar.x, yL);
               ctx.stroke();
             }
-            // Body — half-width proportional to the bar's share of max volume.
-            const ratio = maxVol > 0 ? d.volume / maxVol : 1;
-            const half = Math.max(0.8, maxHalf * ratio);
+            const half = volumeHalfWidth(data.barSpacing, factor(d.volume));
             const top = Math.min(yO, yC);
             const h = Math.max(1, Math.abs(yC - yO));
             if (st.body) {

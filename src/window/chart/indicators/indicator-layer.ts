@@ -31,6 +31,7 @@ import { applyOpacity } from 'lightweight-charts-drawing/core/color';
 import { SelectionMarkers, type BackgroundAt } from '../selection-markers';
 import { labelWanted, setSeriesScale } from '../scales/extra-axes';
 import { StepDiamondsPrimitive } from './step-diamonds';
+import { VolumeColumnsPrimitive, type ColumnPoint } from './volume-columns';
 import { FundamentalLabelsPrimitive, type FundamentalLabel } from './fundamental-labels';
 import { restoreTimes, scriptBars } from '../../../backtester/oakscript';
 import { isStrategyId } from './strategy-entries';
@@ -334,6 +335,12 @@ export class IndicatorLayer {
     this.visibleRange = range;
   }
 
+  /** The chart shows Volume Candles: column plots take the widths of the candles (applied at the next draw). */
+  private volumeCandles = false;
+  setVolumeCandles(on: boolean): void {
+    this.volumeCandles = on;
+  }
+
   /** Values of another source of the chart named by a source input (study on study), aligned with the bars;
    *  null = not a source of the chart (the calculation reads close). */
   private sourceValues: ((name: string, bars: Bar[]) => ArrayLike<number> | null) | null = null;
@@ -574,6 +581,7 @@ export class IndicatorLayer {
     const ownScale = !!(entry.metadata as OwnScaleMeta | undefined)?.ownScaleId && !this.scalePinned;
     const overrides: Record<string, PlotOverride> = {};
     let plots: Record<string, PlotPoint[]> = result.plots ?? {};
+    const columns = new Map<string, { points: ColumnPoint[]; base: number }>();
     for (const def of entry.plotConfig) {
       const ov = styles[def.id];
       const style = pineStyle(ov?.plotType);
@@ -589,6 +597,20 @@ export class IndicatorLayer {
       if ((effective === 'linebr' || effective === 'steplinebr') && plots[def.id]?.length) {
         if (plots === result.plots) plots = { ...plots };
         plots[def.id] = withGaps(plots[def.id], bars);
+      }
+      // Volume Candles: the columns are drawn as wide as their candle (volume-columns.ts); the plot series draws
+      // them transparent.
+      if (this.volumeCandles && effective === 'columns' && plots[def.id]?.length) {
+        const plain = ov?.color ?? def.color ?? '#2962FF';
+        const points: ColumnPoint[] = [];
+        for (const p of plots[def.id]) {
+          if (p.value == null || Number.isNaN(p.value)) continue;
+          const own = (p as { color?: string }).color;
+          points.push({ time: p.time as unknown as number, value: p.value, color: (own && palette?.[own]) ?? own ?? plain });
+        }
+        columns.set(def.id, { points, base: (def as { histbase?: number }).histbase ?? 0 });
+        if (plots === result.plots) plots = { ...plots };
+        plots[def.id] = plots[def.id].map((p) => ({ ...p, color: 'transparent' }));
       }
     }
 
@@ -617,7 +639,7 @@ export class IndicatorLayer {
         reuseSeries,
       },
     );
-    this.afterRender(entry, result, plots, overrides, ownScale);
+    this.afterRender(entry, result, plots, overrides, ownScale, columns);
   }
 
   /** Slots after the last bar of the times a drawing gives (xloc.bar_time) on the symbol's trading calendar, as the
@@ -650,6 +672,7 @@ export class IndicatorLayer {
     plots: Record<string, PlotPoint[]>,
     overrides: Record<string, PlotOverride>,
     ownScale: boolean,
+    columns: Map<string, { points: ColumnPoint[]; base: number }>,
   ): void {
     const series = this.renderer!.series();
     const drawn = entry.plotConfig
@@ -706,6 +729,12 @@ export class IndicatorLayer {
       if (this.lastStyles[def.id]?.priceLine) s.applyOptions({ priceLineVisible: true, priceLineColor: color });
       if (anchored) continue;
       if (ownScale) this.applyOwnScale(s, entry);
+      const cols = columns.get(def.id);
+      if (cols) {
+        const primitive = new VolumeColumnsPrimitive(cols.points, cols.base, this.lastBars as { time: number; volume?: number }[]);
+        s.attachPrimitive(primitive as ISeriesPrimitive<Time>);
+        this.detachers.push(() => s.detachPrimitive(primitive as ISeriesPrimitive<Time>));
+      }
       if (style === 'stepline_diamond') {
         const points = data.filter((d) => d.value != null && !Number.isNaN(d.value));
         const primitive = new StepDiamondsPrimitive(points, color, overrides[def.id].lineWidth ?? def.lineWidth ?? 1);

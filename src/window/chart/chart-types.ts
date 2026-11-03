@@ -15,7 +15,7 @@
  *                    methods, projection bars from the forming bar).
  *   • line family  — Solid = library line; Gradient = GradientLinePaneView.
  *   • column       — ColumnPaneView (columns stand on the pane bottom).
- *   • volCandles   — candle BODY WIDTH scales with volume/max-volume.
+ *   • volCandles   — candle BODY WIDTH follows the volume weight (volume-widths.ts).
  *   • hlcArea      — high/low/close lines + two band fills.
  *   • hilo         — high→low body + value labels.
  *   • volFootprint — per-bar buy/sell cells need 1-minute sub-bars; ChartView

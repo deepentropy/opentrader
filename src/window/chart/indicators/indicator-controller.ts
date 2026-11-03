@@ -446,6 +446,15 @@ export class IndicatorController {
     for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setScriptChart(chart);
   }
 
+  /** The chart type changed to or from Volume Candles: column plots take the candles' widths or their own. */
+  private volumeCandles = false;
+  setVolumeCandles(on: boolean): void {
+    if (on === this.volumeCandles) return;
+    this.volumeCandles = on;
+    for (const inst of this.instances.values()) if (!inst.owner) inst.layer.setVolumeCandles(on);
+    this.redrawAll();
+  }
+
   /** The chart type changed: strategies rerun on Heikin Ashi bars or back on the standard bars. */
   setHeikinAshi(on: boolean): void {
     if (on === this.heikinAshi) return;
@@ -1447,6 +1456,7 @@ export class IndicatorController {
     layer.setScriptChart(this.scriptChart);
     layer.setChartState(this.chartState);
     layer.setVisibleRange(this.visibleRange);
+    layer.setVolumeCandles(this.volumeCandles);
     layer.setOtherSymbols(this.otherSymbols);
     layer.setSourceValues(this.sourceValuesFor);
     layer.setMainSeries(() => this.mainSeries());
