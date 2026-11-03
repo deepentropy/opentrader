@@ -9,14 +9,16 @@
  *   ot:screener:placement / ot:screener:height  where the panel shows (right,
  *   bottom, its own window) and the bottom panel's height
  * With autosave off (the reference app default) a change marks the screen unsaved and the
- * topbar shows the Save button until it is saved. Undo/redo hold up to 100
+ * topbar shows the Save button until it is saved; with a saved screen's "Autosave" on, each
+ * change is saved at once. Undo/redo hold up to 100
  * steps (the reference app HISTORY_MAX_SIZE) and are cleared when another screen is opened.
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
 import { LEGACY_DEFAULT_PILLS, POPULAR_SCREENS, defaultScreen, type Screen } from "./screener-catalog";
 
-export type SavedScreen = { id: string; screen: Screen; updatedAt: number };
+/** `autosave`: the screen menu's "Autosave" switch of this screen (off by default). */
+export type SavedScreen = { id: string; screen: Screen; updatedAt: number; autosave?: boolean };
 
 const SCREENS_KEY = "ot:screener:screens:v1";
 const DRAFT_KEY = "ot:screener:draft:v1";
@@ -125,6 +127,20 @@ export const screenerStore = {
     store.setFuture([]);
     store.setScreenRaw(next);
     persistDraft();
+    autosaveNow();
+  },
+
+  /** "Autosave" of the current saved screen. */
+  autosave(): boolean {
+    return !!screenerStore.saved()?.autosave;
+  },
+  /** Switch "Autosave" of the current saved screen; on saves the screen at once. */
+  setAutosave(on: boolean): void {
+    const id = store.savedId();
+    if (!id) return;
+    store.setScreens(store.screens().map((s) => (s.id === id ? { ...s, autosave: on } : s)));
+    persistScreens();
+    if (on) screenerStore.save();
   },
 
   canUndo: () => store.past().length > 0,
@@ -136,6 +152,7 @@ export const screenerStore = {
     store.setScreenRaw(p[p.length - 1]);
     store.setPast(p.slice(0, -1));
     persistDraft();
+    autosaveNow();
   },
   redo(): void {
     const f = store.future();
@@ -144,6 +161,7 @@ export const screenerStore = {
     store.setScreenRaw(f[0]);
     store.setFuture(f.slice(1));
     persistDraft();
+    autosaveNow();
   },
 
   /** Save in place. Returns false when the screen has never been saved (the
@@ -232,6 +250,11 @@ export const screenerStore = {
     return out.slice(0, RECENT_MAX);
   },
 };
+
+/** A change to a saved screen with "Autosave" on is saved at once. */
+function autosaveNow(): void {
+  if (screenerStore.autosave()) screenerStore.save();
+}
 
 // ── Split-view panel state ────────────────────────────────────────────────
 export const PANEL_MIN_WIDTH = 420;

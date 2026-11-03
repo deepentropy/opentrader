@@ -3,10 +3,12 @@
  * Desktop 3.4.1 topbar: padding 8 20 12, 20 px / 600 title with an 18 px
  * caret, 34 px buttons).
  *
- * Screen menu (local actions only): Save screen, Make a copy…, Rename…,
+ * Screen menu (local actions only): Save screen, Autosave (a saved screen's
+ * changes saved at once), Make a copy…, Rename…,
  * Download results as CSV (./screener-csv), Create new screen…, Add alert… (on a saved screen: a symbol enters or
- * leaves it), Recently used, Open screen…. The account items
- * (Autosave, Share screen) are not shown.
+ * leaves it), Recently used, Open screen…. Leaving a changed screen asks
+ * "Save changes?" (./leave-screen). The account item Share screen is not
+ * shown.
  */
 import { For, Show, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
@@ -16,6 +18,7 @@ import type { Screen } from "../../data/screener-catalog";
 import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenBrowserDialog } from "./ScreenBrowserDialog";
 import { openScreenAlertDialog } from "../alerts/screen-alert-dialog";
+import { leaveScreen } from "./leave-screen";
 import { screenerFields, screenerScan } from "../../data/screener-api";
 import { planScreen } from "../../data/screener-query";
 import { watchlistTickers } from "./FilterPills";
@@ -37,7 +40,7 @@ export function ScreenerTopbar() {
     const d = dialog();
     if (!d) return;
     if (d.mode === "rename") screenerStore.rename(name);
-    else if (d.mode === "create") screenerStore.createNew(name);
+    else if (d.mode === "create") leaveScreen(() => screenerStore.createNew(name));
     else if (d.mode === "copyOf" && d.source) screenerStore.copyOf(d.source, name);
     else screenerStore.saveAs(name);
   };
@@ -102,6 +105,21 @@ export function ScreenerTopbar() {
       <Show when={menuOpen()}>
         <Popover anchor={nameBtn} onClose={() => setMenuOpen(false)} width={320} class="scr-screen-menu">
           <PopItem title="Save screen" iconSpace disabled={!screenerStore.unsaved()} onClick={() => run(save)} />
+          <div
+            class="scr-item scr-autosave"
+            classList={{ "is-disabled": !screenerStore.saved() }}
+            role="menuitemcheckbox"
+            aria-checked={screenerStore.autosave()}
+            aria-disabled={!screenerStore.saved()}
+            title={screenerStore.saved() ? undefined : "Save the screen first"}
+            onClick={() => screenerStore.saved() && screenerStore.setAutosave(!screenerStore.autosave())}
+          >
+            <span class="scr-item-icon" />
+            <span class="scr-item-text"><span class="scr-item-title">Autosave</span></span>
+            <span class={"switch-view" + (screenerStore.autosave() ? " checked" : "")} role="switch" aria-checked={screenerStore.autosave()}>
+              <span class="switch-thumb" />
+            </span>
+          </div>
           <PopItem
             title="Make a copy…"
             icon="scr-menu-copy"
@@ -126,7 +144,7 @@ export function ScreenerTopbar() {
             <PopSectionTitle title="Recently used" />
             <For each={screenerStore.recentScreens()}>
               {(s) => (
-                <PopItem title={s.screen.title} selected={s.id === screenerStore.savedId()} onClick={() => run(() => screenerStore.open(s.id))} />
+                <PopItem title={s.screen.title} selected={s.id === screenerStore.savedId()} onClick={() => run(() => leaveScreen(() => screenerStore.open(s.id)))} />
               )}
             </For>
           </Show>

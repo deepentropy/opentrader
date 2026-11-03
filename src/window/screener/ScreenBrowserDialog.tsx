@@ -6,6 +6,7 @@
  * current screen row is highlighted; "Make a copy" (and "Delete" on saved
  * screens) show on row hover.
  */
+import { leaveScreen } from "./leave-screen";
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
@@ -98,8 +99,8 @@ export function ScreenBrowserDialog(props: { onClose: () => void; onCopy: (scree
                     class="scr-open-row"
                     classList={{ selected: isCurrentSaved(s.id) }}
                     onClick={() => {
-                      screenerStore.open(s.id);
                       props.onClose();
+                      leaveScreen(() => screenerStore.open(s.id));
                     }}
                   >
                     <span class="scr-open-row-title" title={s.screen.title}>{s.screen.title}</span>
@@ -132,8 +133,8 @@ export function ScreenBrowserDialog(props: { onClose: () => void; onCopy: (scree
                     class="scr-open-row with-description"
                     classList={{ selected: isCurrentPopular(p.id) }}
                     onClick={() => {
-                      screenerStore.openPopular(p.id);
                       props.onClose();
+                      leaveScreen(() => screenerStore.openPopular(p.id));
                     }}
                   >
                     <span class="scr-open-row-text">

@@ -1445,3 +1445,11 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-input-plain:focus {
   border-color: var(--color-brand, #2962ff);
 }
+
+/* Screen menu "Autosave": the switch at the row end. */
+.scr-autosave .switch-view {
+  margin-left: auto;
+}
+.scr-autosave.is-disabled {
+  opacity: 0.5;
+}
