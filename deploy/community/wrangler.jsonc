@@ -14,8 +14,7 @@
     {
       "binding": "DB",
       "database_name": "opentrader-community",
-      // Filled by `wrangler d1 create opentrader-community` before the first deploy.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "ec05e71e-d435-48d5-90db-865be4f6f4f8",
       "migrations_dir": "migrations"
     }
   ],
@@ -25,9 +24,9 @@
     "WEB_REDIRECTS": "https://demo.opentrader.markets/community-auth.html",
     // provider:provider_id, comma-separated.
     "ADMINS": "",
-    "GITHUB_CLIENT_ID": "",
-    "GOOGLE_CLIENT_ID": "",
-    "DISCORD_CLIENT_ID": ""
+    "GITHUB_CLIENT_ID": "Ov23lijxOPdc4uYuL0ya",
+    "GOOGLE_CLIENT_ID": "541505217152-qn4re9p4m6htg5fe2t9h5ojvhg4ip8os.apps.googleusercontent.com",
+    "DISCORD_CLIENT_ID": "1567124030622924901"
   },
   "env": {
     // `wrangler dev --env local`: the test sign-in, the Vite dev servers.
