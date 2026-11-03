@@ -1,14 +1,13 @@
 /*
- * Communities run by members (#209): members propose theme communities and
- * administrators approve them (the proposer becomes its moderator);
- * administrators appoint moderators; moderators ban members from their
- * community; each community's moderation log is public.
+ * Communities run by members (#209): administrators appoint moderators;
+ * moderators ban members from their ticker; each community's moderation log
+ * is public.
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { findCommunity, isMod, requireUser, writer } from "./api";
-import { notify, notifyStatement } from "./notify";
-import { HttpError, THEME_RE, json, newId, now, str } from "./util";
+import { findCommunity, isMod, requireUser } from "./api";
+import { notifyStatement } from "./notify";
+import { HttpError, json, newId, now, str } from "./util";
 
 type Row = Record<string, any>;
 
@@ -104,74 +103,6 @@ export async function communityBan(env: Env, user: User | null, body: any): Prom
   await env.DB.batch(stmts);
   return json({ ok: true });
 }
-
-/** POST /proposals {slug, title, description} — a member proposes a theme community. */
-export async function propose(env: Env, user: User | null, body: any): Promise<Response> {
-  const u = writer(user);
-  if (u.role !== "admin" && now() - u.created_at < PROPOSE_MIN_DAYS * 86_400) {
-    throw new HttpError(403, `Proposing a community needs an account at least ${PROPOSE_MIN_DAYS} days old.`);
-  }
-  const slug = str(body?.slug).trim().toLowerCase();
-  if (!THEME_RE.test(slug)) throw new HttpError(400, "The address has 2 to 41 lowercase letters, digits or dashes.");
-  const title = str(body?.title).trim();
-  if (title.length < 3 || title.length > 40) throw new HttpError(400, "The name has 3 to 40 characters.");
-  const description = str(body?.description).trim().slice(0, 300);
-  if (await env.DB.prepare("SELECT 1 FROM communities WHERE id = ?").bind(`c:${slug}`).first()) throw new HttpError(409, "This community exists already.");
-  if (await env.DB.prepare("SELECT 1 FROM community_proposals WHERE status = 'pending' AND (slug = ? OR proposer_id = ?)").bind(slug, u.id).first()) {
-    throw new HttpError(409, "A proposal for this address, or one of yours, is already waiting.");
-  }
-  await env.DB.prepare("INSERT INTO community_proposals (id, slug, title, description, proposer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(newId(), slug, title, description, u.id, now())
-    .run();
-  return json({ ok: true }, 201);
-}
-
-function requireAdmin(user: User | null): User {
-  const u = requireUser(user);
-  if (u.role !== "admin") throw new HttpError(403, "Only administrators do this.");
-  return u;
-}
-
-/** GET /mod/proposals — waiting proposals (administrators). */
-export async function proposals(env: Env, user: User | null): Promise<Response> {
-  requireAdmin(user);
-  const { results } = await env.DB.prepare(
-    `SELECT p.id, p.slug, p.title, p.description, p.created_at, u.name AS proposer
-       FROM community_proposals p LEFT JOIN users u ON u.id = p.proposer_id WHERE p.status = 'pending' ORDER BY p.created_at`,
-  ).all<Row>();
-  return json({ proposals: results });
-}
-
-/** POST /mod/proposals/:id {approve, reason} — the community is made (its proposer moderates it), or the proposal declined. */
-export async function decide(env: Env, user: User | null, id: string, body: any): Promise<Response> {
-  const u = requireAdmin(user);
-  const p = await env.DB.prepare("SELECT * FROM community_proposals WHERE id = ? AND status = 'pending'").bind(id).first<Row>();
-  if (!p) throw new HttpError(404, "No such proposal waiting.");
-  const approve = body?.approve === true;
-  const reason = str(body?.reason).trim().slice(0, 500);
-  if (!approve && !reason) throw new HttpError(400, "Give a reason: it is shown to the member.");
-  const at = now();
-  const stmts: D1PreparedStatement[] = [
-    env.DB.prepare("UPDATE community_proposals SET status = ?, reason = ?, decided_by = ?, decided_at = ? WHERE id = ?").bind(approve ? "approved" : "rejected", reason, u.id, at, id),
-  ];
-  if (approve) {
-    if (await env.DB.prepare("SELECT 1 FROM communities WHERE id = ?").bind(`c:${p.slug}`).first()) throw new HttpError(409, "This community exists already.");
-    stmts.push(
-      env.DB.prepare(
-        "INSERT INTO communities (id, kind, title, description, sort_order, created_at) VALUES (?, 'theme', ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM communities), ?)",
-      ).bind(`c:${p.slug}`, p.title, p.description, at),
-    );
-    if (p.proposer_id) stmts.push(env.DB.prepare("INSERT OR IGNORE INTO moderators (community_id, user_id) VALUES (?, ?)").bind(`c:${p.slug}`, p.proposer_id));
-  }
-  await env.DB.batch(stmts);
-  await notify(env, p.proposer_id, {
-    kind: "proposal",
-    actor: p.title,
-    text: approve ? `${p.title} is open, and you moderate it.` : `${p.title} was not opened. Reason: ${reason}`,
-  });
-  return json({ ok: true });
-}
-
 
 /** GET /tickers/popular — the ticker communities with the most posts (the website's front page). */
 export async function popularTickers(env: Env): Promise<Response> {

@@ -1,6 +1,8 @@
 /*
- * One post and its threaded comments: votes, replies, edits, deletion,
- * reports, and the moderators' remove / restore / lock.
+ * One post and its threaded replies: its type, an idea's levels and state,
+ * why readers found it useful, replies with their kind (the author's marked),
+ * a question's accepted answer, edits, deletion, reports, and the
+ * moderators' remove / restore / lock.
  */
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
 import { createStore, produce } from "solid-js/store";
@@ -8,13 +10,27 @@ import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { showConfirm } from "../../../components/Dialogs";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, imageUrl, type Comment, type Post, type SharedChart } from "../../../data/community/api";
+import { api, imageUrl, type Comment, type Post, type Ratings, type Reason, type ReplyKind, type SharedChart } from "../../../data/community/api";
 import { chartBridge } from "../../../data/community/chart-share";
 import { withPostingCheck } from "../../../data/community/posting-check";
 import { COMMUNITY_URL } from "../../../data/community/api";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { me } from "../../../data/community/session";
-import { Age, Author, BanForm, BotBadge, ErrorBanner, ExternalLink, MarkdownBody, ReasonForm, ReportForm, Vote, errorText } from "./parts";
+import { Age, Author, AuthorRecord, BanForm, BotBadge, ErrorBanner, ExternalLink, IdeaLevels, MarkdownBody, PostState, ReasonForm, ReportForm, TypeBadges, errorText } from "./parts";
+
+const REASONS: { id: Reason; label: string }[] = [
+  { id: "thesis", label: "Clear thesis" },
+  { id: "data", label: "Good data" },
+  { id: "view", label: "Changed my view" },
+  { id: "risk", label: "Well-defined risk" },
+  { id: "vague", label: "Vague" },
+];
+const KINDS: { id: ReplyKind; label: string }[] = [
+  { id: "data", label: "Data" },
+  { id: "counterpoint", label: "Counterpoint" },
+  { id: "question", label: "Question" },
+];
+const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update" };
 
 /** Deeper replies are drawn at this depth (the panel is narrow). */
 const MAX_INDENT = 6;
@@ -24,7 +40,7 @@ type Props = {
   onBack: () => void;
   onOpenCommunity: (id: string) => void;
   onNeedSignIn: () => void;
-  /** The post was deleted or its score changed: the list refreshes. */
+  /** The post was deleted or rated: the list refreshes. */
   onChanged: () => void;
 };
 
@@ -103,6 +119,8 @@ export function PostView(props: Props) {
   const [post, setPost] = createStore<{ p: Post | null }>({ p: null });
   const [comments, setComments] = createStore<{ list: Comment[] }>({ list: [] });
   const [isMod, setIsMod] = createSignal(false);
+  const [ratings, setRatings] = createSignal<Ratings>({ reasons: {}, mine: [] });
+  const [kind, setKind] = createSignal<ReplyKind | null>(null);
   const [error, setError] = createSignal<string | null>(null);
   const [open, setOpen] = createSignal<Open>(null);
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
@@ -151,6 +169,7 @@ export function PostView(props: Props) {
     if (!d) return;
     setPost("p", d.post);
     setComments("list", d.comments);
+    setRatings(d.ratings);
     setIsMod(d.is_mod);
   });
 
@@ -161,7 +180,7 @@ export function PostView(props: Props) {
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(c);
     }
-    for (const list of map.values()) list.sort((a, b) => b.score - a.score || a.created_at - b.created_at);
+    for (const list of map.values()) list.sort((a, b) => b.useful_count - a.useful_count || a.created_at - b.created_at);
     return map;
   });
 
@@ -176,7 +195,9 @@ export function PostView(props: Props) {
     if (!p || !draft().trim()) return;
     setBusy(true);
     try {
-      const { comment } = await withPostingCheck(() => api.comment(p.id, draft(), parentId));
+      const k = parentId ? null : p.own ? "update" : kind();
+      const { comment } = await withPostingCheck(() => api.comment(p.id, draft(), parentId, k));
+      setKind(null);
       // The live room may have brought it first.
       setComments("list", (l) => (l.some((x) => x.id === comment.id) ? l : [...l, comment]));
       setPost("p", "comment_count", (n) => n + 1);
@@ -231,6 +252,37 @@ export function PostView(props: Props) {
       },
     });
 
+  const rate = async (reason: Reason) => {
+    const p = post.p;
+    if (!p) return;
+    if (!me()) return props.onNeedSignIn();
+    try {
+      const r = await api.rate(p.id, reason, !ratings().mine.includes(reason));
+      setRatings({ reasons: r.reasons, mine: r.mine });
+      setPost("p", produce((x) => { if (x) { x.useful_count = r.useful_count; x.flag_count = r.flag_count; } }));
+      props.onChanged();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const useful = async (c: Comment) => {
+    if (!me()) return props.onNeedSignIn();
+    try {
+      const r = await api.useful(c.id, !c.my_useful);
+      setComments("list", (x) => x.id === c.id, produce((x) => { x.useful_count = r.useful_count; x.my_useful = r.my_useful; }));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  const markAnswer = async (c: Comment) => {
+    try {
+      const r = await api.markAnswer(post.p!.id, post.p!.answer_id === c.id ? null : c.id);
+      setPost("p", "answer_id", r.answer_id);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
   /** A moderator bans the author from this community (#209). */
   const banAuthor = async (name: string, days: number, reason: string) => {
     await api.communityBan(post.p!.community.id, name, true, days, reason);
@@ -266,6 +318,9 @@ export function PostView(props: Props) {
         <div class="cm-comment-head">
           <button type="button" class="cm-collapse" aria-label={isCollapsed() ? "Expand" : "Collapse"} onClick={flip}>{isCollapsed() ? "+" : "−"}</button>
           <Author name={c().author} />
+          <Show when={c().by_op}><span class="cm-type is-idea">Author</span></Show>
+          <Show when={c().kind}><span class="cm-type">{KIND_LABEL[c().kind!]}</span></Show>
+          <Show when={post.p?.answer_id === c().id}><span class="cm-type is-answer">Answer</span></Show>
           <span class="cm-dot">·</span>
           <Age at={c().created_at} />
           <Show when={c().edited_at}><span class="cm-muted"> (edited)</span></Show>
@@ -284,12 +339,16 @@ export function PostView(props: Props) {
           <Show when={c().deleted} fallback={<Show when={c().body}><MarkdownBody text={c().body} /></Show>}>
             <div class="cm-muted cm-gone">[deleted]</div>
           </Show>
+          <Show when={c().image_url}>
+            <img class="cm-chart-img" src={imageUrl(c().image_url!)} alt="Snapshot attached to the reply" loading="lazy" onClick={() => void openUrl(imageUrl(c().image_url!))} />
+          </Show>
           <div class="cm-actions">
-            <Vote
-              type="comment" id={c().id} score={c().score} myVote={c().my_vote} disabled={c().deleted || c().removed}
-              onChange={(score, my) => setComments("list", (x) => x.id === c().id, produce((x) => { x.score = score; x.my_vote = my; }))}
-              onNeedSignIn={props.onNeedSignIn} onError={setError}
-            />
+            <button type="button" class={"cm-action" + (c().my_useful ? " is-on" : "")} aria-pressed={c().my_useful} disabled={c().own || c().deleted || c().removed} onClick={() => useful(c())}>
+              {c().useful_count} useful
+            </button>
+            <Show when={post.p?.own && post.p?.type === "question" && !c().own && !c().deleted && cp.depth === 0}>
+              <button type="button" class="cm-action" onClick={() => markAnswer(c())}>{post.p?.answer_id === c().id ? "Unmark answer" : "Mark as the answer"}</button>
+            </Show>
             <Show when={!post.p?.locked && !c().deleted}>
               <button type="button" class="cm-action" onClick={needUser(() => toggle(c().id, "reply"))}>Reply</button>
             </Show>
@@ -331,7 +390,7 @@ export function PostView(props: Props) {
       <div class="cm-subheader">
         <IconButton aria-label="Back" onClick={() => props.onBack()}><Icon name="community-back" size={28} /></IconButton>
         <Show when={post.p}>
-          <button type="button" class="cm-subheader-title" onClick={() => props.onOpenCommunity(post.p!.community.id)}>{post.p!.community.title}</button>
+          <button type="button" class="cm-subheader-title" onClick={() => props.onOpenCommunity(post.p!.community.id)}>{post.p!.community.title.replace(/^\$/, "")}</button>
         </Show>
       </div>
       <div class="cm-scroll">
@@ -342,10 +401,12 @@ export function PostView(props: Props) {
               const p = () => post.p!;
               return (
                 <article class="cm-post">
+                  <div class="cm-meta"><TypeBadges post={p()} /></div>
                   <h2 class="cm-post-heading">{p().title}</h2>
                   <div class="cm-meta">
                     <Author name={p().author} />
                     <BotBadge show={p().author_bot} />
+                    <AuthorRecord post={p()} />
                     <span class="cm-dot">·</span>
                     <Age at={p().created_at} />
                     <Show when={p().edited_at}><span> (edited)</span></Show>
@@ -361,6 +422,8 @@ export function PostView(props: Props) {
                     </Show>
                   </Show>
                   <Show when={p().deleted}><div class="cm-muted cm-gone">This post was deleted by its author.</div></Show>
+                  <Show when={p().idea}><IdeaLevels idea={p().idea!} /></Show>
+                  <Show when={!p().idea}><div class="cm-meta"><PostState post={p()} /></div></Show>
                   <Show when={p().body}><MarkdownBody text={p().body} class="cm-post-body" /></Show>
                   <Show when={p().image_url || p().chart}>
                     <SharedChartBlock imagePath={p().image_url} chart={p().chart} />
@@ -368,12 +431,23 @@ export function PostView(props: Props) {
                   <Show when={p().source_url}>
                     <div class="cm-muted cm-origin">Imported test content · <ExternalLink href={p().source_url!}>source</ExternalLink></div>
                   </Show>
+                  <Show when={!p().deleted && !p().removed}>
+                    <div class="cm-rate">
+                      <div class="cm-muted">
+                        {p().own ? "What readers found useful" : "Useful? Say why"} · {p().useful_count} found it useful{p().flag_count ? ` · ${p().flag_count} flagged` : ""}
+                      </div>
+                      <div class="cm-rate-btns">
+                        <For each={REASONS}>
+                          {(r) => (
+                            <button type="button" class={"cm-chip" + (ratings().mine.includes(r.id) ? " is-on" : "")} aria-pressed={ratings().mine.includes(r.id)} disabled={p().own} onClick={() => rate(r.id)}>
+                              {r.label} <span>{ratings().reasons[r.id] ?? 0}</span>
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </div>
+                  </Show>
                   <div class="cm-actions">
-                    <Vote
-                      type="post" id={p().id} score={p().score} myVote={p().my_vote} disabled={p().deleted || p().removed}
-                      onChange={(score, my) => { setPost("p", produce((x) => { x!.score = score; x!.my_vote = my; })); props.onChanged(); }}
-                      onNeedSignIn={props.onNeedSignIn} onError={setError}
-                    />
                     <span class="cm-comment-count"><Icon name="community-comment" size={18} />{p().comment_count}</span>
                     <Show when={p().own && !p().deleted && !p().removed}>
                       <button type="button" class="cm-action" onClick={() => { toggle("post", "edit"); setDraft(p().body); }}>Edit</button>
@@ -407,10 +481,19 @@ export function PostView(props: Props) {
                       <Show
                         when={isPost("reply")}
                         fallback={
-                          <button type="button" class="cm-reply-prompt" onClick={needUser(() => toggle("post", "reply"))}>Add a comment</button>
+                          <button type="button" class="cm-reply-prompt" onClick={needUser(() => toggle("post", "reply"))}>{p().own ? "Add an update" : "Add a reply"}</button>
                         }
                       >
-                        <Editor placeholder="Add a comment" action="Comment" onSubmit={() => sendComment(null)} />
+                        <Show when={!p().own}>
+                          <div class="cm-rate-btns">
+                            <For each={KINDS}>
+                              {(k) => (
+                                <button type="button" class={"cm-chip" + (kind() === k.id ? " is-on" : "")} aria-pressed={kind() === k.id} onClick={() => setKind(kind() === k.id ? null : k.id)}>{k.label}</button>
+                              )}
+                            </For>
+                          </div>
+                        </Show>
+                        <Editor placeholder={p().own ? "Add an update: what changed. The levels stay." : "Add a counterpoint, data, or a question"} action="Reply" onSubmit={() => sendComment(null)} />
                       </Show>
                     </Show>
                   </Show>
@@ -418,7 +501,7 @@ export function PostView(props: Props) {
               );
             })()}
             <div class="cm-comments">
-              <For each={children().get(null) ?? []} fallback={<div class="ot-empty-state">No comments yet.</div>}>
+              <For each={children().get(null) ?? []} fallback={<div class="ot-empty-state">No replies yet.</div>}>
                 {(c) => <CommentNode c={c} depth={0} />}
               </For>
             </div>

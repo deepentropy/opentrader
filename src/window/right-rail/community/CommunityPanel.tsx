@@ -1,18 +1,17 @@
 /*
- * CommunityPanel — right-rail "community" tab: discussion communities per
- * ticker ($AAPL) and per theme (Penny Stocks, Options…), served by
- * deploy/community.
+ * CommunityPanel — right-rail "community" tab: posts per ticker (US stocks
+ * and ETFs) and in General, served by deploy/community. The website
+ * (src/community-site) is the full design of the same content; the panel
+ * keeps a compact one.
  *
- * The header picks what the list shows: the community of the active chart's
- * symbol (the default: it follows the chart), the posts of the followed
- * communities, all posts, a theme, or any ticker typed in. Hot / New / Top
- * sort it. A post opens in the panel with its comments; writing, voting and
- * reporting need an account (sign-in with an existing one, see
- * data/community/session.ts).
- *
- * The public website (src/community-site) shows the same panel full width:
- * `web` drops the chart's community, `route` / `onRoute` tie what is shown
- * to the page address.
+ * The header picks what the list shows: the ticker of the active chart (the
+ * default: it follows the chart), my tickers, all posts, General, or any
+ * ticker typed in. Newest / Most useful sort it. Every post has a type
+ * (idea, analysis, question, post-mortem); an idea carries locked levels
+ * and settles against price. A post opens in the panel with its replies;
+ * writing, rating and reporting need an account (data/community/session.ts).
+ * The panel also sends chart snapshots to the account (for posts written on
+ * the website) and syncs the member's tickers with the active watchlist.
  */
 import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../../components/Icon";
@@ -22,23 +21,23 @@ import { SegmentedControl } from "../../../components/SegmentedControl";
 import { tickerOf } from "../../../data/symbol-name";
 import * as kv from "../../../data/kv";
 import { plainText } from "../../../data/community/markdown";
-import { api, imageUrl, tickerCommunityId, type Community, type Post, type Sort } from "../../../data/community/api";
+import { GENERAL, api, imageUrl, tickerCommunityId, type Direction, type Post, type PostType, type Sort } from "../../../data/community/api";
+import { TYPE_LABEL, TYPES, price } from "../../../data/community/format";
 import { blobToBase64, chartBridge, type ChartCapture } from "../../../data/community/chart-share";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { initSession, me, ready, refreshMe, signOut } from "../../../data/community/session";
+import { watchlistStore, listItems, isSectionId } from "../../../data/watchlist-store";
 import { PostView } from "./PostView";
-import { AboutView, AccountView, NotificationsView, ProposeView } from "./MoreViews";
+import { AboutView, AccountView, NotificationsView } from "./MoreViews";
 import { openPost, startNotifications, unread } from "../../../data/community/notifications";
 import { withPostingCheck } from "../../../data/community/posting-check";
 import { shareRequest, takeShare } from "../../../data/community/share";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Age, Author, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, PostingCheckPrompt, RULES_URL, SentimentBar, SignInBox, Vote, errorText } from "./parts";
+import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "./parts";
 
-/** "chart" (follows the chart), "following", "all", or a community id. */
+/** "chart" (follows the chart), "following" (my tickers), "all", or a community id. */
 type Source = string;
-/** What the page address shows (the website). */
-export type CommunityRoute = { source: string; postId: string | null };
 type View =
   | { kind: "list" }
   | { kind: "post"; id: string }
@@ -47,58 +46,73 @@ type View =
   | { kind: "queue" }
   | { kind: "account" }
   | { kind: "notifications" }
-  | { kind: "about" }
-  | { kind: "propose" };
+  | { kind: "about" };
 
 const SOURCE_KEY = "ot:community:source";
 const SORT_KEY = "ot:community:sort";
+const WEBSITE = "https://community.opentrader.markets";
 
 const SORTS = [
-  { id: "hot" as const, label: "Hot" },
-  { id: "new" as const, label: "New" },
-  { id: "top" as const, label: "Top" },
+  { id: "new" as const, label: "Newest" },
+  { id: "useful" as const, label: "Most useful" },
 ];
 
 const DISCLAIMER = "Posts are members' opinions, not financial advice.";
 
-type Props = {
-  symbol?: string;
-  /** The website: no chart, the address holds the state. */
-  web?: boolean;
-  route?: CommunityRoute;
-  onRoute?: (route: CommunityRoute) => void;
-};
+const inWeeks = (n: number) => new Date(Date.now() + n * 7 * 86_400_000).toISOString().slice(0, 10);
+
+/** The active watchlist's stock tickers (the server keeps the US stocks and ETFs). */
+function watchlistTickers(): string[] {
+  const l = watchlistStore.active();
+  if (!l) return [];
+  return [...new Set(listItems(l).filter((id) => !isSectionId(id)).map((s) => tickerOf(s)).filter((t) => /^[A-Z][A-Z0-9.\-]{0,9}$/.test(t)))];
+}
+
+type Props = { symbol?: string };
 
 export function CommunityPanel(props: Props) {
-  const [source, setSource] = createSignal<Source>(props.route?.source ?? (props.web ? "all" : kv.getItem(SOURCE_KEY) ?? "chart"));
-  const [sort, setSort] = createSignal<Sort>((kv.getItem(SORT_KEY) as Sort | null) ?? "hot");
-  const [view, setView] = createSignal<View>(props.route?.postId ? { kind: "post", id: props.route.postId } : { kind: "list" });
+  const saved = kv.getItem(SOURCE_KEY);
+  const [source, setSource] = createSignal<Source>(saved && (saved === "chart" || saved === "following" || saved === "all" || saved === GENERAL || saved.startsWith("t:")) ? saved : "chart");
+  const savedSort = kv.getItem(SORT_KEY);
+  const [sort, setSort] = createSignal<Sort>(savedSort === "useful" ? "useful" : "new");
+  const [view, setView] = createSignal<View>({ kind: "list" });
   /** Where the sign-in view goes back to. */
   let afterSignIn: View = { kind: "list" };
   const [error, setError] = createSignal<string | null>(null);
+  const [notice, setNotice] = createSignal<string | null>(null);
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [menuOpen, setMenuOpen] = createSignal(false);
 
-  createEffect(() => { if (!props.web) kv.setItem(SOURCE_KEY, source()); });
-
-  // The address and the panel follow each other (website): back / forward
-  // change the panel, the panel's moves change the address.
-  const postIdOf = (v: View) => (v.kind === "post" ? v.id : null);
-  createEffect(on(() => props.route, (r) => {
-    if (!r) return;
-    if (r.source !== source()) setSource(r.source);
-    if (r.postId !== postIdOf(view())) setView(r.postId ? { kind: "post", id: r.postId } : { kind: "list" });
-  }, { defer: true }));
-  createEffect(() => {
-    const route = { source: source(), postId: postIdOf(view()) };
-    // Sign-in, composer and the other inner views keep the address.
-    if (view().kind === "list" || view().kind === "post") props.onRoute?.(route);
-  });
+  createEffect(() => kv.setItem(SOURCE_KEY, source()));
   createEffect(() => kv.setItem(SORT_KEY, sort()));
   onMount(() => void initSession().then(startNotifications));
-  // "Share to Community" elsewhere in the app: the composer (after a sign-in when needed).
+
+  /** A snapshot of the active chart, sent to the account: picked on the website when posting there. */
+  const sendSnapshot = async () => {
+    setError(null);
+    try {
+      const c = await chartBridge()?.capture();
+      if (!c) return setError("No chart to send: open a chart first.");
+      await api.addSnapshot(c.chart, await blobToBase64(c.image), c.image.type || "image/png");
+      setNotice(`Snapshot of ${c.chart.symbol}, ${shortIntervalLabel(c.chart.interval)} sent. Attach it to a post or a reply on the website.`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  // "Share to Community" elsewhere in the app: the composer, or the snapshot sent (after a sign-in when needed).
+  let pendingSnapshot = false;
   createEffect(on(shareRequest, (s) => {
     if (!s) return;
+    if (s.snapshotOnly) {
+      takeShare();
+      if (me()) void sendSnapshot();
+      else {
+        pendingSnapshot = true;
+        afterSignIn = { kind: "list" };
+        setView({ kind: "signin" });
+      }
+      return;
+    }
     if (me()) setView({ kind: "compose" });
     else {
       afterSignIn = { kind: "compose" };
@@ -117,7 +131,6 @@ export function CommunityPanel(props: Props) {
     return s;
   });
 
-  const [themes] = createResource(() => api.themes().then((r) => r.communities).catch(() => [] as Community[]));
   const [providers] = createResource(() => api.providers().then((r) => r.providers).catch(() => [] as string[]));
   const [info, { mutate: setInfo, refetch: refetchInfo }] = createResource(
     () => [communityId(), me()?.user.name ?? ""] as const,
@@ -204,6 +217,21 @@ export function CommunityPanel(props: Props) {
     }
   };
 
+  /** The member's tickers become the active watchlist's. */
+  const syncTickers = async () => {
+    setError(null);
+    const list = watchlistTickers();
+    if (!list.length) return setError("The active watchlist has no stock symbols.");
+    try {
+      const r = await api.setTickers(list);
+      await refreshMe();
+      const n = r.follows.filter((f) => f.kind === "ticker").length;
+      setNotice(`Your tickers are the ${n} US stocks and ETFs of the watchlist "${watchlistStore.active()?.name ?? ""}".`);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
   const isMod = () => {
     const m = me()?.moderates;
     return m === "all" || (Array.isArray(m) && m.length > 0);
@@ -220,13 +248,13 @@ export function CommunityPanel(props: Props) {
   document.addEventListener("pointerdown", onDocDown, true);
   onCleanup(() => document.removeEventListener("pointerdown", onDocDown, true));
 
+  const label = (id: string) => (id === GENERAL ? "General" : id.slice(2));
   const sourceLabel = () => {
     const s = source();
-    if (s === "chart") return chartCommunity() ? `$${chartCommunity()!.slice(2)}` : "This chart";
-    if (s === "following") return "Following";
-    if (s === "all") return "All communities";
-    if (s.startsWith("t:")) return `$${s.slice(2)}`;
-    return themes()?.find((t) => t.id === s)?.title ?? s.slice(2);
+    if (s === "chart") return chartCommunity() ? label(chartCommunity()!) : "This chart";
+    if (s === "following") return "My tickers";
+    if (s === "all") return "All posts";
+    return label(s);
   };
 
   // ── Header ────────────────────────────────────────────────────────────
@@ -241,24 +269,17 @@ export function CommunityPanel(props: Props) {
 
   const Picker = () => (
     <div class="ot-popover cm-picker" role="menu">
-      <Show when={!props.web}>
-        <button type="button" class="ot-menu-item" onClick={() => choose("chart")}>
-          <span class="ot-menu-item__label">{chartCommunity() ? `$${chartCommunity()!.slice(2)}` : "Chart symbol"}<span class="cm-muted"> · this chart</span></span>
-        </button>
-      </Show>
-      <button type="button" class="ot-menu-item" onClick={() => choose("following")}><span class="ot-menu-item__label">Following</span></button>
-      <button type="button" class="ot-menu-item" onClick={() => choose("all")}><span class="ot-menu-item__label">All communities</span></button>
-      <div class="cm-picker-section">Themes</div>
-      <For each={themes() ?? []}>
-        {(t) => (
-          <button type="button" class="ot-menu-item" onClick={() => choose(t.id)}><span class="ot-menu-item__label">{t.title}</span></button>
-        )}
-      </For>
+      <button type="button" class="ot-menu-item" onClick={() => choose("chart")}>
+        <span class="ot-menu-item__label">{chartCommunity() ? label(chartCommunity()!) : "Chart symbol"}<span class="cm-muted"> · this chart</span></span>
+      </button>
+      <button type="button" class="ot-menu-item" onClick={() => choose("following")}><span class="ot-menu-item__label">My tickers</span></button>
+      <button type="button" class="ot-menu-item" onClick={() => choose("all")}><span class="ot-menu-item__label">All posts</span></button>
+      <button type="button" class="ot-menu-item" onClick={() => choose(GENERAL)}><span class="ot-menu-item__label">General</span></button>
       <Show when={me()?.follows.some((f) => f.kind === "ticker")}>
-        <div class="cm-picker-section">Followed tickers</div>
+        <div class="cm-picker-section">My tickers</div>
         <For each={me()!.follows.filter((f) => f.kind === "ticker")}>
           {(f) => (
-            <button type="button" class="ot-menu-item" onClick={() => choose(f.id)}><span class="ot-menu-item__label">{f.title}</span></button>
+            <button type="button" class="ot-menu-item" onClick={() => choose(f.id)}><span class="ot-menu-item__label">{label(f.id)}</span></button>
           )}
         </For>
       </Show>
@@ -275,54 +296,55 @@ export function CommunityPanel(props: Props) {
     </div>
   );
 
+  const item = (text: string, fn: () => void) => (
+    <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); fn(); }}><span class="ot-menu-item__label">{text}</span></button>
+  );
+
   const Menu = () => (
     <div class="ot-popover cm-menu" role="menu">
-      <Show
-        when={me()}
-        fallback={
-          <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); needSignIn(); }}><span class="ot-menu-item__label">Sign in</span></button>
-        }
-      >
+      <Show when={me()} fallback={item("Sign in", needSignIn)}>
         <div class="cm-menu-user">Signed in as <strong>{me()!.user.name}</strong></div>
         <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "notifications" }); }}>
           <span class="ot-menu-item__label">Notifications<Show when={unread() > 0}><span class="cm-count">{unread()}</span></Show></span>
         </button>
-        <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "account" }); }}><span class="ot-menu-item__label">Account</span></button>
-        <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "propose" }); }}><span class="ot-menu-item__label">Propose a community</span></button>
-        <Show when={isMod()}>
-          <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "queue" }); }}><span class="ot-menu-item__label">Moderation queue</span></button>
-        </Show>
-        <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); void signOut(); }}><span class="ot-menu-item__label">Sign out</span></button>
+        {item("My profile and record", () => void openUrl(`${WEBSITE}/u/${encodeURIComponent(me()!.user.name)}`))}
+        {item("Account", () => setView({ kind: "account" }))}
+        <Show when={chartBridge()}>{item("Send snapshot to Community", () => void sendSnapshot())}</Show>
+        {item("Sync my tickers with the watchlist", () => void syncTickers())}
+        <Show when={isMod()}>{item("Moderation queue", () => setView({ kind: "queue" }))}</Show>
+        {item("Sign out", () => void signOut())}
       </Show>
       <div class="ot-popover-separator cm-menu-separator" />
-      <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); void openUrl(RULES_URL); }}><span class="ot-menu-item__label">Community rules</span></button>
-      <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); void openUrl(CONTACT_URL); }}><span class="ot-menu-item__label">Contact and reports</span></button>
+      {item("Open the Community website", () => void openUrl(WEBSITE))}
+      {item("Community guidelines", () => void openUrl(RULES_URL))}
+      {item("Contact and reports", () => void openUrl(CONTACT_URL))}
     </div>
   );
 
   // ── Views ─────────────────────────────────────────────────────────────
   const PostRow = (p: { post: Post }) => (
-    <div class="cm-post-row" role="button" tabIndex={0} onClick={() => setView({ kind: "post", id: p.post.id })} onKeyDown={(e) => e.key === "Enter" && setView({ kind: "post", id: p.post.id })}>
-      <Vote
-        vertical type="post" id={p.post.id} score={p.post.score} myVote={p.post.my_vote}
-        onChange={(score, my) => setPosts((list) => list.map((x) => (x.id === p.post.id ? { ...x, score, my_vote: my } : x)))}
-        onNeedSignIn={needSignIn} onError={setError}
-      />
+    <div class="cm-post-row is-plain" role="button" tabIndex={0} onClick={() => setView({ kind: "post", id: p.post.id })} onKeyDown={(e) => e.key === "Enter" && setView({ kind: "post", id: p.post.id })}>
       <div class="cm-post-main">
+        <div class="cm-meta">
+          <TypeBadges post={p.post} />
+          <Show when={!communityId()}>
+            <button type="button" class="cm-community-link" onClick={(e) => { e.stopPropagation(); choose(p.post.community.id); }}>{label(p.post.community.id)}</button>
+          </Show>
+        </div>
         <div class="cm-post-title">{p.post.title}</div>
         <Show when={p.post.excerpt}><div class="cm-post-excerpt">{plainText(p.post.excerpt)}</div></Show>
         <div class="cm-meta">
-          <Show when={!communityId()}>
-            <button type="button" class="cm-community-link" onClick={(e) => { e.stopPropagation(); choose(p.post.community.id); }}>{p.post.community.title}</button>
-            <span class="cm-dot">·</span>
-          </Show>
           <Author name={p.post.author} />
           <BotBadge show={p.post.author_bot} />
+          <AuthorRecord post={p.post} />
           <span class="cm-dot">·</span>
           <Age at={p.post.created_at} />
+        </div>
+        <div class="cm-meta">
+          <span>{p.post.useful_count} useful</span>
           <span class="cm-dot">·</span>
           <span class="cm-comment-count"><Icon name="community-comment" size={18} />{p.post.comment_count}</span>
-          <Show when={p.post.has_chart}><span class="cm-badge">Chart</span></Show>
+          <PostState post={p.post} />
         </div>
       </div>
       <Show when={p.post.image_url}>
@@ -340,26 +362,32 @@ export function CommunityPanel(props: Props) {
         <Show when={info()}>
           <div class="cm-info">
             <div class="cm-info-row">
-              <div class="cm-info-title">{info()!.title}</div>
-              <button type="button" class={"cm-btn is-small" + (info()!.followed ? "" : " is-primary")} onClick={toggleFollow}>
-                {info()!.followed ? "Following" : "Follow"}
-              </button>
+              <div class="cm-info-title">{label(info()!.id)}</div>
+              <Show when={info()!.kind === "ticker"}>
+                <button type="button" class={"cm-btn is-small" + (info()!.followed ? "" : " is-primary")} onClick={toggleFollow}>
+                  {info()!.followed ? "In my tickers" : "Add to my tickers"}
+                </button>
+              </Show>
             </div>
             <Show when={info()!.description}><div class="cm-muted">{info()!.description}</div></Show>
-            <Show when={info()!.kind === "ticker"}><SentimentBar community={info()!.id} onNeedSignIn={needSignIn} /></Show>
             <div class="cm-muted">
               {info()!.post_count} post{info()!.post_count === 1 ? "" : "s"}
-              <Show when={!info()!.id.startsWith("t:") || info()!.post_count > 0}>
+              {" · "}
+              <ExternalLink href={`${WEBSITE}${info()!.id === GENERAL ? "/c/general" : `/t/${encodeURIComponent(info()!.id.slice(2))}`}`}>Open ideas and record on the website</ExternalLink>
+              <Show when={info()!.post_count > 0}>
                 {" · "}
-                <button type="button" class="cm-community-link is-small" onClick={() => setView({ kind: "about" })}>About, moderators and log</button>
+                <button type="button" class="cm-community-link is-small" onClick={() => setView({ kind: "about" })}>Moderators and log</button>
               </Show>
             </div>
           </div>
         </Show>
         <ErrorBanner text={error()} onClose={() => setError(null)} />
+        <Show when={notice()}>
+          <div class="cm-notice" role="status"><span>{notice()}</span><button type="button" class="cm-error-close" aria-label="Close" onClick={() => setNotice(null)}>×</button></div>
+        </Show>
         <Switch>
           <Match when={source() === "following" && !me()}>
-            <div class="ot-empty-state">Sign in to see the posts of the communities you follow.</div>
+            <div class="ot-empty-state">Sign in to see the posts on your tickers.</div>
           </Match>
           <Match when={source() === "chart" && !chartCommunity()}>
             <div class="ot-empty-state">This symbol has no community.</div>
@@ -370,7 +398,7 @@ export function CommunityPanel(props: Props) {
               fallback={
                 <Show when={!loading()}>
                   <div class="ot-empty-state">
-                    {source() === "following" ? "No posts from the communities you follow." : "No posts yet. Start the discussion."}
+                    {source() === "following" ? "No posts on your tickers yet." : "No posts yet. Start the discussion."}
                   </div>
                 </Show>
               }
@@ -391,19 +419,25 @@ export function CommunityPanel(props: Props) {
   const Composer = () => {
     const targets = createMemo(() => {
       const list: { id: string; title: string }[] = [];
-      const add = (id: string | null, title: string) => id && !list.some((t) => t.id === id) && list.push({ id, title });
-      const cur = communityId();
-      if (cur) add(cur, info()?.title ?? (cur.startsWith("t:") ? `$${cur.slice(2)}` : cur));
-      const chart = chartCommunity();
-      if (chart) add(chart, `$${chart.slice(2)}`);
-      for (const t of themes() ?? []) add(t.id, t.title);
+      const add = (id: string | null) => id && !list.some((t) => t.id === id) && list.push({ id, title: label(id) });
+      add(communityId());
+      add(chartCommunity());
+      for (const f of me()?.follows ?? []) if (f.kind === "ticker") add(f.id);
+      add(GENERAL);
       return list;
     });
     // A share request from elsewhere fills the post in.
     const seed = takeShare();
-    const [target, setTarget] = createSignal(seed?.to && targets().some((t) => t.id === seed.to) ? seed.to : targets()[0]?.id ?? "");
+    const [type, setType] = createSignal<PostType>(seed?.body ? "analysis" : "idea");
+    const [target, setTarget] = createSignal(seed?.to && targets().some((t) => t.id === seed.to) ? seed.to : targets()[0]?.id ?? GENERAL);
     const [title, setTitle] = createSignal(seed?.title ?? "");
     const [body, setBody] = createSignal(seed?.body ?? "");
+    const [direction, setDirection] = createSignal<Direction>("long");
+    const [entry, setEntry] = createSignal("");
+    const [stop, setStop] = createSignal("");
+    const [target2, setTarget2] = createSignal("");
+    const [expires, setExpires] = createSignal(inWeeks(6));
+    const [rule, setRule] = createSignal<"close" | "touch">("close");
     const [busy, setBusy] = createSignal(false);
     const [err, setErr] = createSignal<string | null>(null);
     // "Attach my chart": the active chart's picture and state, taken when ticked.
@@ -423,7 +457,7 @@ export function CommunityPanel(props: Props) {
         if (!c) return setErr("No chart to attach: open a chart first.");
         setAttached(c);
         setPreview(URL.createObjectURL(c.image));
-        // A post about the chart goes to its ticker's community by default.
+        // A post about the chart goes to its ticker by default.
         const ticker = tickerCommunityId(tickerOf(c.chart.symbol));
         if (ticker && !seed?.to && targets().some((t) => t.id === ticker)) setTarget(ticker);
       } catch (e) {
@@ -434,13 +468,30 @@ export function CommunityPanel(props: Props) {
     };
     // "Share to Community" asked for the chart: attached at once.
     if (seed?.attach) queueMicrotask(() => void attach(true));
+    const n = (s: string) => (s.trim() ? Number(s) : NaN);
+    const levels = createMemo(() => {
+      const e = n(entry()), s = n(stop()), t = n(target2());
+      const ok = [e, s, t].every((v) => Number.isFinite(v) && v > 0) && (direction() === "long" ? s < e && e < t : t < e && e < s);
+      return { e, s, t, ok, rr: ok ? Math.abs(t - e) / Math.abs(e - s) : null };
+    });
+    const isIdea = () => type() === "idea";
+    const ready = () => title().trim().length >= 3 && !!target() && (!isIdea() || (target() !== GENERAL && levels().ok && !!expires()));
     const submit = async () => {
       setBusy(true);
       setErr(null);
       try {
         const a = attached();
         const attachment = a ? { chart: a.chart, image: await blobToBase64(a.image), imageType: a.image.type || "image/png" } : null;
-        const r = await withPostingCheck(() => api.createPost(target(), title(), body(), attachment));
+        const l = levels();
+        const r = await withPostingCheck(() =>
+          api.createPost(target(), {
+            type: type(),
+            title: title(),
+            body: body(),
+            idea: isIdea() ? { direction: direction(), entry: l.e, stop: l.s, target: l.t, expires: expires(), entry_rule: rule() } : undefined,
+            attach: attachment,
+          }),
+        );
         if (source() !== "chart" || target() !== chartCommunity()) setSource(target());
         void reload();
         setView({ kind: "post", id: r.post.id });
@@ -457,13 +508,32 @@ export function CommunityPanel(props: Props) {
           <span class="cm-subheader-title is-static">New post</span>
         </div>
         <div class="cm-scroll cm-composer">
-          <label class="cm-label">Community</label>
+          <label class="cm-label">Kind of post</label>
+          <SegmentedControl items={TYPES.map((t) => ({ id: t, label: TYPE_LABEL[t] }))} value={type()} onChange={setType} ariaLabel="Kind of post" />
+          <label class="cm-label">Ticker</label>
           <select class="cm-input" value={target()} onChange={(e) => setTarget(e.currentTarget.value)}>
             <For each={targets()}>{(t) => <option value={t.id}>{t.title}</option>}</For>
           </select>
           <label class="cm-label">Title</label>
-          <input class="cm-input" maxLength={300} value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
-          <label class="cm-label">Text</label>
+          <input class="cm-input" maxLength={300} placeholder={isIdea() ? "State the setup, not the hype" : ""} value={title()} onInput={(e) => setTitle(e.currentTarget.value)} />
+          <Show when={isIdea()}>
+            <Show when={target() === GENERAL}><div class="cm-muted cm-hint">An idea is on a ticker: pick one above.</div></Show>
+            <label class="cm-label">Levels, locked once posted</label>
+            <SegmentedControl items={[{ id: "long" as const, label: "Long" }, { id: "short" as const, label: "Short" }]} value={direction()} onChange={setDirection} ariaLabel="Direction" />
+            <div class="cm-levels-form">
+              <input class="cm-input" inputMode="decimal" placeholder="Entry" aria-label="Entry" value={entry()} onInput={(e) => setEntry(e.currentTarget.value)} />
+              <input class="cm-input" inputMode="decimal" placeholder="Stop" aria-label="Stop" value={stop()} onInput={(e) => setStop(e.currentTarget.value)} />
+              <input class="cm-input" inputMode="decimal" placeholder="Target" aria-label="Target" value={target2()} onInput={(e) => setTarget2(e.currentTarget.value)} />
+            </div>
+            <label class="cm-label">Expires</label>
+            <input class="cm-input" type="date" value={expires()} onInput={(e) => setExpires(e.currentTarget.value)} />
+            <div class="cm-muted cm-hint">
+              Reward : risk {levels().rr == null ? "—" : levels().rr!.toFixed(1)} · risk per share {levels().ok ? price(Math.abs(levels().e - levels().s)) : "—"} · entry on{" "}
+              <button type="button" class="cm-community-link is-small" onClick={() => setRule(rule() === "close" ? "touch" : "close")}>{rule() === "close" ? "a daily close" : "a trade through it"}</button>
+            </div>
+            <div class="cm-muted cm-hint">Tracked against the price and added to your public record whatever the outcome. You can add updates, not move levels.</div>
+          </Show>
+          <label class="cm-label">{isIdea() ? "Thesis, trigger and risk" : "Text"}</label>
           <textarea class="cm-textarea is-tall" maxLength={20000} value={body()} onInput={(e) => setBody(e.currentTarget.value)} />
           <div class="cm-muted cm-hint">Markdown: **bold**, *italic*, [link](https://…), - lists, &gt; quotes.</div>
           <Show when={chartBridge()}>
@@ -481,14 +551,13 @@ export function CommunityPanel(props: Props) {
           <ErrorBanner text={err()} />
           <div class="cm-form-actions">
             <button type="button" class="cm-btn" onClick={() => setView({ kind: "list" })}>Cancel</button>
-            <button type="button" class="cm-btn is-primary" disabled={busy() || title().trim().length < 3 || !target()} onClick={submit}>Post</button>
+            <button type="button" class="cm-btn is-primary" disabled={busy() || !ready()} onClick={submit}>{isIdea() ? "Post idea" : "Post"}</button>
           </div>
-          <div class="cm-disclaimer">{DISCLAIMER} Promotion, coordinated buying and undisclosed positions are removed: read the <ExternalLink href={RULES_URL}>community rules</ExternalLink>.</div>
+          <div class="cm-disclaimer">{DISCLAIMER} Promotion, coordinated buying and undisclosed positions are removed: read the <ExternalLink href={RULES_URL}>community guidelines</ExternalLink>.</div>
         </div>
       </div>
     );
   };
-
 
   return (
     <aside class="ot-rail-panel cm-panel" aria-label="Community">
@@ -539,14 +608,24 @@ export function CommunityPanel(props: Props) {
         <Match when={view().kind === "about" && info()}>
           <AboutView community={info()!} onBack={() => setView({ kind: "list" })} onOpenPost={(id) => setView({ kind: "post", id })} />
         </Match>
-        <Match when={view().kind === "propose"}><ProposeView onBack={() => setView({ kind: "list" })} /></Match>
         <Match when={view().kind === "signin"}>
           <div class="cm-post-view">
             <div class="cm-subheader">
               <IconButton aria-label="Back" onClick={() => setView(afterSignIn)}><Icon name="community-back" size={28} /></IconButton>
             </div>
             <div class="cm-scroll">
-              <SignInBox providers={providers() ?? null} error={error()} onError={setError} onSignedIn={() => setView(afterSignIn)} />
+              <SignInBox
+                providers={providers() ?? null}
+                error={error()}
+                onError={setError}
+                onSignedIn={() => {
+                  setView(afterSignIn);
+                  if (pendingSnapshot) {
+                    pendingSnapshot = false;
+                    void sendSnapshot();
+                  }
+                }}
+              />
             </div>
           </div>
         </Match>

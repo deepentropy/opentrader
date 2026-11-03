@@ -4,8 +4,7 @@
  *   - AboutView (#209): a community's description, moderators, public
  *     moderation log; its moderators see the banned members (unban),
  *     administrators appoint or remove moderators;
- *   - ProposeView (#209): a member proposes a theme community;
- *   - AccountView: the user name, sign-out, account deletion.
+ *   - AccountView: the user name, the profile line, sign-out, account deletion.
  */
 import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { Icon } from "../../../components/Icon";
@@ -160,64 +159,20 @@ export function AboutView(props: { community: Community; onBack: () => void; onO
   );
 }
 
-const slugOf = (title: string) => title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 41);
-
-export function ProposeView(props: { onBack: () => void }) {
-  const [title, setTitle] = createSignal("");
-  const [slug, setSlug] = createSignal("");
-  const [slugEdited, setSlugEdited] = createSignal(false);
-  const [description, setDescription] = createSignal("");
-  const [error, setError] = createSignal<string | null>(null);
-  const [sent, setSent] = createSignal(false);
-  const [busy, setBusy] = createSignal(false);
-  const send = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.propose(slug(), title().trim(), description().trim());
-      setSent(true);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Frame title="Propose a community" onBack={props.onBack}>
-      <div class="cm-composer">
-        <Show
-          when={!sent()}
-          fallback={<p class="cm-muted">Proposal sent. An administrator looks at it; you get a notification with the answer. If it opens, you moderate it.</p>}
-        >
-          <p class="cm-muted">A theme community for a topic that fits none of the others. If an administrator approves it, you become its moderator.</p>
-          <label class="cm-label">Name</label>
-          <input
-            class="cm-input"
-            maxLength={40}
-            value={title()}
-            onInput={(e) => {
-              setTitle(e.currentTarget.value);
-              if (!slugEdited()) setSlug(slugOf(e.currentTarget.value));
-            }}
-          />
-          <label class="cm-label">Address</label>
-          <input class="cm-input" maxLength={41} value={slug()} onInput={(e) => { setSlugEdited(true); setSlug(e.currentTarget.value.toLowerCase()); }} />
-          <div class="cm-muted cm-hint">community.opentrader.markets/c/{slug() || "…"}</div>
-          <label class="cm-label">What it is about</label>
-          <textarea class="cm-textarea" maxLength={300} value={description()} onInput={(e) => setDescription(e.currentTarget.value)} />
-          <ErrorBanner text={error()} />
-          <div class="cm-form-actions">
-            <button type="button" class="cm-btn" onClick={() => props.onBack()}>Cancel</button>
-            <button type="button" class="cm-btn is-primary" disabled={busy() || title().trim().length < 3 || slug().length < 2} onClick={send}>Send proposal</button>
-          </div>
-        </Show>
-      </div>
-    </Frame>
-  );
-}
-
 export function AccountView(props: { onBack: () => void }) {
   const [name, setName] = createSignal(me()?.user.name ?? "");
+  const [bio, setBio] = createSignal(me()?.user.bio ?? "");
+  const saveBio = async () => {
+    setErr(null);
+    setMsg(null);
+    try {
+      await api.updateMe({ bio: bio() });
+      await refreshMe();
+      setMsg("Profile line saved.");
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  };
   const [msg, setMsg] = createSignal<string | null>(null);
   const [err, setErr] = createSignal<string | null>(null);
   const save = async () => {
@@ -234,7 +189,7 @@ export function AccountView(props: { onBack: () => void }) {
   const remove = () =>
     showConfirm({
       title: "Delete account",
-      text: "Delete your Community account? Your posts and comments are emptied, your votes and follows removed. This can't be undone.",
+      text: "Delete your Community account? Your posts and replies are emptied, your ratings, snapshots and tickers removed. This can't be undone.",
       mainText: "Delete account",
       cancelText: "Cancel",
       intent: "danger",
@@ -257,6 +212,12 @@ export function AccountView(props: { onBack: () => void }) {
           <label class="cm-label">User name</label>
           <input class="cm-input" maxLength={20} value={name()} onInput={(e) => setName(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
           <div class="cm-muted cm-hint">3 to 20 letters, digits, - or _.</div>
+          <label class="cm-label">Profile line</label>
+          <input class="cm-input" maxLength={160} placeholder="US stocks · swing trades, 2–8 weeks · breakouts" value={bio()} onInput={(e) => setBio(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && saveBio()} />
+          <div class="cm-muted cm-hint">Shown on your profile, under your name: what you trade and how.</div>
+          <div class="cm-form-actions">
+            <button type="button" class="cm-btn" disabled={bio().trim() === (me()!.user.bio ?? "")} onClick={saveBio}>Save profile line</button>
+          </div>
           <ErrorBanner text={err()} />
           <Show when={msg()}><div class="cm-muted">{msg()}</div></Show>
           <div class="cm-form-actions">

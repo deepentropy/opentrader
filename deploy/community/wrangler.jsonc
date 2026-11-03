@@ -84,7 +84,8 @@
       ]
     }
   },
-  // The bot's threads (src/bot.ts): 13:00 UTC on trading days (daily, Mondays weekly too), 16:00 UTC (biggest moves).
-  "triggers": { "crons": ["0 13 * * 1-5", "0 16 * * 1-5"] },
+  // Every half hour on weekdays; index.ts runs by the hour: the bot's threads (13:00, 16:00 UTC), idea prices
+  // (14:00 to 21:30), the ideas settled on the day's bars (22:30).
+  "triggers": { "crons": ["*/30 * * * 1-5"] },
   "observability": { "enabled": true }
 }

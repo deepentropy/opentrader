@@ -1,10 +1,12 @@
 /*
  * The automatic threads, posted by "OpenTrader-bot" (a labelled account,
- * never passed off as a member). Facts and an open question, no opinions:
+ * never passed off as a member) as Analysis posts. Facts and an open
+ * question, no opinions. They show on ticker pages and in search, not in the
+ * home feed:
  *
- *   - every trading day, a daily thread for each active ticker community
- *     (posts, followers and votes of the last week), the previous one locked;
- *   - every Monday, a weekly thread in each theme, the previous one locked;
+ *   - every trading day, a daily thread for each active ticker (posts,
+ *     followers and open ideas of the last week), the previous one locked;
+ *   - every Monday, a weekly thread in General, the previous one locked;
  *   - every trading day after the open, a thread for each of the day's
  *     biggest moves among US stocks (from the market data; no figure in it).
  *
@@ -14,7 +16,9 @@
 import { Env } from "./env";
 import { User } from "./auth";
 import { HttpError, hotRank, json, newId, now } from "./util";
-import { today } from "./sentiment";
+
+/** UTC days since 1970. */
+const today = (at = now()) => Math.floor(at / 86_400);
 
 const BOT = "bot";
 const DAY = 86_400;
@@ -58,8 +62,8 @@ async function post(
     stmts.push(env.DB.prepare("INSERT OR IGNORE INTO communities (id, kind, title, created_at) VALUES (?, 'ticker', ?, ?)").bind(communityId, `$${communityId.slice(2)}`, at));
   }
   stmts.push(
-    env.DB.prepare("INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)").bind(
-      id, communityId, BOT, title, body, hotRank(1, at), at,
+    env.DB.prepare("INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at, type) VALUES (?, ?, ?, ?, ?, 0, ?, ?, 'analysis')").bind(
+      id, communityId, BOT, title, body, hotRank(0, at), at,
     ),
     env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").bind(communityId),
     env.DB.prepare("INSERT INTO bot_threads (kind, key, community_id, post_id, created_at) VALUES (?, ?, ?, ?, ?)").bind(kind, key, communityId, id, at),
@@ -68,7 +72,7 @@ async function post(
   return id;
 }
 
-/** The ticker communities active over the last week: posts, followers, votes. */
+/** The ticker communities active over the last week: posts, followers, ideas posted. */
 export async function activeTickers(env: Env): Promise<string[]> {
   const since = now() - 7 * DAY;
   const { results } = await env.DB.prepare(
@@ -76,11 +80,11 @@ export async function activeTickers(env: Env): Promise<string[]> {
        SELECT c.id,
               (SELECT COUNT(*) FROM posts p WHERE p.community_id = c.id AND p.created_at >= ? AND p.author_id IS NOT ? AND p.removed = 0 AND p.deleted = 0)
             + (SELECT COUNT(*) FROM follows f WHERE f.community_id = c.id)
-            + (SELECT COUNT(*) FROM sentiment s WHERE s.community_id = c.id AND s.day >= ?) AS score
+            + (SELECT COUNT(*) FROM posts i WHERE i.community_id = c.id AND i.type = 'idea' AND i.created_at >= ?) AS score
          FROM communities c WHERE c.kind = 'ticker')
       WHERE score >= ? ORDER BY score DESC LIMIT ?`,
   )
-    .bind(since, BOT, today() - 7, DAILY_MIN_SCORE, DAILY_MAX)
+    .bind(since, BOT, since, DAILY_MIN_SCORE, DAILY_MAX)
     .all<{ id: string }>();
   return results.map((r) => r.id);
 }
@@ -233,12 +237,12 @@ _Added on ${added} from that session's market data._`,
   return made;
 }
 
-/** The cron triggers: 13:00 UTC on trading days (daily threads; Mondays, weekly ones too), 16:00 UTC (moves). */
-export async function scheduled(env: Env, cron: string): Promise<void> {
-  if (cron.startsWith("0 13")) {
+/** From the cron (index.ts): 13:00 UTC on trading days (daily threads; Mondays, weekly ones too), 16:00 UTC (moves). */
+export async function scheduled(env: Env, hm: number): Promise<void> {
+  if (hm === 1300) {
     await dailyThreads(env);
     if (new Date().getUTCDay() === 1) await weeklyThreads(env);
-  } else if (cron.startsWith("0 16")) {
+  } else if (hm === 1600) {
     await biggestMoves(env);
   }
 }

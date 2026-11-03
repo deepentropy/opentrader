@@ -528,6 +528,8 @@ function App() {
         emitAppEvent("chart-snapshot", { action: "open" });
       } else if (rowId === "share-to-community") {
         requestShare({ attach: true });
+      } else if (rowId === "snapshot-to-community") {
+        requestShare({ snapshotOnly: true });
       }
     } else if (which === "show-favorite-indicators") {
       // A favourite row adds that study to the focused pane (one more

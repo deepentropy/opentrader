@@ -281,7 +281,7 @@ export function OakScriptPanel(props: Props) {
   /** A new Community post in Technical Analysis holding the script's code (and the chart it runs on). */
   function shareScript(): void {
     const s = builtin() ?? currentScript();
-    requestShare({ to: "c:technical-analysis", attach: true, title: s.name, body: "```js\n" + s.source.trim() + "\n```\n" });
+    requestShare({ to: "c:general", attach: true, title: s.name, body: "```js\n" + s.source.trim() + "\n```\n" });
   }
 
   function exportScript(): void {

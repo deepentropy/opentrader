@@ -1,16 +1,20 @@
 /*
- * The community API: communities, posts, threaded comments, votes, reports,
+ * The community API: ticker communities and General, posts (ideas, analysis,
+ * questions, post-mortems), replies, the readers' "useful" ratings, reports,
  * the moderation queue and the account. Reading needs no account; writing
- * needs a session (auth.ts) and an account that isn't banned.
+ * needs a session (auth.ts) and an account that isn't banned. The pages'
+ * views (home, ticker, search, profile) are in views.ts.
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
+import { SharedChart, deleteImages, parseChart, parseImage, saveImage } from "./charts";
 import { requirePostingCheck } from "./check";
 import { broadcast } from "./live";
 import { notBannedIn } from "./members";
 import { notify, notifyStatement } from "./notify";
-import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str, topSince } from "./util";
+import { IdeaRecord, emptyRecord, openingState, parseIdea, quotes, recordsOf, reference, rewardRisk, rMultiple, round2 } from "./ideas";
+import { takeSnapshot } from "./snapshots";
+import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
 
 type Row = Record<string, any>;
 
@@ -49,6 +53,9 @@ function text(v: unknown, field: string, min: number, max: number): string {
 
 // ── Communities ─────────────────────────────────────────────────────────
 
+/** Where posts go: a US stock or ETF ticker, or General. */
+export const GENERAL = "c:general";
+
 function communityOut(row: Row, followed: boolean, mod: boolean) {
   return {
     id: row.id,
@@ -77,27 +84,17 @@ export async function findCommunity(env: Env, id: string): Promise<Row> {
 const KNOWN_TTL = 30 * 86_400;
 const UNKNOWN_TTL = 86_400;
 
-/** The market data knows this ticker (stocks, then crypto, forex and indices). No gateway, or no answer: assumed known. */
+/** The market data lists this ticker among US stocks and ETFs. No gateway, or no answer: assumed known. */
 async function tickerKnown(env: Env, ticker: string): Promise<boolean> {
   if (!env.GATEWAY_URL || !env.GATEWAY_TOKEN) return true;
   const cached = await env.DB.prepare("SELECT known, checked_at FROM ticker_checks WHERE ticker = ?").bind(ticker).first<{ known: number; checked_at: number }>();
   if (cached && now() - cached.checked_at < (cached.known ? KNOWN_TTL : UNKNOWN_TTL)) return !!cached.known;
-  let known = false;
-  for (const candidate of [ticker, `X:${ticker}`, `C:${ticker}`, `I:${ticker}`]) {
-    let res: Response;
-    try {
-      res = await fetch(`${env.GATEWAY_URL}/v3/reference/tickers/${encodeURIComponent(candidate)}`, {
-        headers: { authorization: `Bearer ${env.GATEWAY_TOKEN}`, "user-agent": "OpenTrader-Community" },
-      });
-    } catch {
-      return true;
-    }
-    if (res.ok) {
-      known = true;
-      break;
-    }
-    // Anything but "unknown ticker": the answer is unknown, the community is allowed (not kept).
-    if (res.status !== 404) return true;
+  let known: boolean;
+  try {
+    known = !!(await reference(env, ticker));
+  } catch {
+    // Anything but an answer: the community is allowed (not kept).
+    return true;
   }
   await env.DB.prepare("INSERT INTO ticker_checks (ticker, known, checked_at) VALUES (?, ?, ?) ON CONFLICT (ticker) DO UPDATE SET known = excluded.known, checked_at = excluded.checked_at")
     .bind(ticker, known ? 1 : 0, now())
@@ -109,24 +106,11 @@ export async function ensureCommunity(env: Env, id: string): Promise<Row> {
   const row = await findCommunity(env, id);
   if (row.virtual) {
     const ticker = row.id.slice(2);
-    if (!(await tickerKnown(env, ticker))) throw new HttpError(404, `$${ticker} isn't a known symbol.`);
+    if (!(await tickerKnown(env, ticker))) throw new HttpError(404, `$${ticker} isn't a US stock or ETF.`);
     await env.DB.prepare("INSERT OR IGNORE INTO communities (id, kind, title, created_at) VALUES (?, 'ticker', ?, ?)").bind(row.id, row.title, now()).run();
     delete row.virtual;
   }
   return row;
-}
-
-/** GET /communities — the theme communities. */
-export async function listThemes(env: Env, user: User | null): Promise<Response> {
-  const { results } = await env.DB.prepare(
-    `SELECT c.*, f.user_id IS NOT NULL AS followed FROM communities c
-       LEFT JOIN follows f ON f.community_id = c.id AND f.user_id = ?
-      WHERE c.kind = 'theme' ORDER BY c.sort_order, c.title`,
-  )
-    .bind(user?.id ?? "")
-    .all<Row>();
-  const mods = user ? new Set(user.role === "admin" ? results.map((r) => r.id) : await moderated(env, user)) : new Set<string>();
-  return json({ communities: results.map((r) => communityOut(r, !!r.followed, mods.has(r.id))) });
 }
 
 /** GET /communities/:id */
@@ -136,7 +120,7 @@ export async function getCommunity(env: Env, user: User | null, id: string): Pro
   return json({ community: communityOut(row, followed, await isMod(env, user, row.id)) });
 }
 
-/** POST / DELETE /communities/:id/follow */
+/** POST / DELETE /communities/:id/follow — "my tickers". */
 export async function follow(env: Env, user: User | null, id: string, on: boolean): Promise<Response> {
   const u = requireUser(user);
   if (on) {
@@ -149,25 +133,82 @@ export async function follow(env: Env, user: User | null, id: string, on: boolea
   return json({ ok: true });
 }
 
+const MAX_TICKERS = 100;
+
+/** PUT /me/tickers {tickers} — the app's watchlist becomes the member's tickers. */
+export async function setTickers(env: Env, user: User | null, body: any): Promise<Response> {
+  const u = requireUser(user);
+  const list = Array.isArray(body?.tickers) ? body.tickers : null;
+  if (!list) throw new HttpError(400, "tickers is a list.");
+  const ids = [...new Set<string>(list.map((t: unknown) => `t:${str(t).trim().toUpperCase()}`))].filter((id) => parseCommunityId(id)).slice(0, MAX_TICKERS);
+  const kept: string[] = [];
+  for (const id of ids) {
+    try {
+      kept.push((await ensureCommunity(env, id)).id);
+    } catch {
+      // Not a US stock or ETF (crypto, futures, indexes): not a community.
+    }
+  }
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM follows WHERE user_id = ? AND community_id LIKE 't:%'").bind(u.id),
+    ...kept.map((id) => env.DB.prepare("INSERT OR IGNORE INTO follows (user_id, community_id, created_at) VALUES (?, ?, ?)").bind(u.id, id, now())),
+  ]);
+  return me(env, u);
+}
+
 // ── Posts ───────────────────────────────────────────────────────────────
 
-const POST_SELECT = `SELECT p.*, u.name AS author_name, u.role AS author_role, c.title AS community_title, c.kind AS community_kind, v.value AS my_vote
+export const POST_TYPES = ["idea", "analysis", "question", "postmortem"] as const;
+export type PostType = (typeof POST_TYPES)[number];
+
+export const POST_SELECT = `SELECT p.*, u.name AS author_name, u.role AS author_role, c.title AS community_title, c.kind AS community_kind,
+    l.status AS linked_status, l.result_r AS linked_r, l.title AS linked_title
   FROM posts p
   JOIN communities c ON c.id = p.community_id
   LEFT JOIN users u ON u.id = p.author_id
-  LEFT JOIN votes v ON v.user_id = ? AND v.target_type = 'post' AND v.target_id = p.id`;
+  LEFT JOIN posts l ON l.id = p.linked_id`;
 
-function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true) {
+/** The idea part of a post: levels, where it stands, and its R now (open) or final. */
+export function ideaOut(r: Row) {
+  if (r.type !== "idea" || !r.direction) return null;
+  const open = r.status === "open";
+  return {
+    direction: r.direction,
+    entry: r.entry,
+    stop: r.stop,
+    target: r.target,
+    expires: r.expires,
+    entry_rule: r.entry_rule,
+    /** The price when posted: the entry triggers when price crosses it from this side. */
+    ref_price: r.ref_price,
+    reward_risk: rewardRisk(r as any),
+    status: r.status,
+    triggered_at: r.triggered_at,
+    trigger_price: r.trigger_price,
+    resolved_at: r.resolved_at,
+    exit_price: r.exit_price,
+    last_price: r.last_price,
+    result_r: r.result_r ?? (open && r.last_price ? round2(rMultiple(r.direction, r.entry, r.stop, r.last_price)) : null),
+  };
+}
+
+export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true, record?: IdeaRecord) {
   const own = !!viewer && r.author_id === viewer.id;
   const hidden = !!r.removed && !own && !mod;
+  const shown = !hidden && !r.deleted;
+  let chart: SharedChart | null = null;
+  if (shown && r.chart) chart = JSON.parse(r.chart);
   return {
     id: r.id,
+    type: (r.type ?? "analysis") as PostType,
     community: { id: r.community_id, title: r.community_title, kind: r.community_kind },
     author: r.deleted ? null : r.author_name ?? null,
+    author_record: r.deleted || !record ? null : { resolved: record.resolved, hit_pct: record.hit_pct, avg_r: record.avg_r, open: record.open },
     title: hidden ? "[Removed by moderators]" : r.title,
-    body: withBody && !hidden && !r.deleted ? r.body : "",
-    excerpt: hidden || r.deleted ? "" : str(r.body).slice(0, 200),
-    score: r.score,
+    body: withBody && shown ? r.body : "",
+    excerpt: shown ? str(r.body).slice(0, 240) : "",
+    useful_count: r.useful_count ?? 0,
+    flag_count: r.flag_count ?? 0,
     comment_count: r.comment_count,
     created_at: r.created_at,
     edited_at: r.edited_at,
@@ -175,55 +216,55 @@ function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true) {
     deleted: !!r.deleted,
     removed: !!r.removed,
     removed_reason: r.removed && (own || mod) ? r.removed_reason : null,
-    my_vote: r.my_vote ?? 0,
     own,
     source_url: r.source_url ?? null,
     /** Posted by the automatic threads' account. */
     author_bot: r.author_role === "bot",
-    // The shared chart: its state in the post itself, its picture as a path on this server.
-    chart: withBody && !hidden && !r.deleted && r.chart ? JSON.parse(r.chart) : null,
-    has_chart: !hidden && !r.deleted && !!r.chart,
-    image_url: !hidden && !r.deleted && r.has_image ? `/images/${r.id}` : null,
+    idea: shown ? ideaOut(r) : null,
+    answer_id: r.answer_id ?? null,
+    linked: r.linked_id ? { id: r.linked_id, title: r.linked_title ?? null, status: r.linked_status ?? null, result_r: r.linked_r ?? null } : null,
+    // The shared chart: its state in the post (lists: symbol and interval only), its picture as a path on this server.
+    chart: withBody ? chart : chart ? { symbol: chart.symbol, interval: chart.interval, drawings: [] } : null,
+    has_chart: shown && !!r.chart,
+    image_url: shown && r.has_image ? `/images/${r.id}` : null,
   };
 }
 
-function order(sort: string): string {
-  switch (sort) {
-    case "new": return "p.created_at DESC";
-    case "top": return "p.score DESC, p.created_at DESC";
-    default: return "p.hot DESC";
-  }
+/** Post rows with their authors' records, as sent. */
+export async function postsOut(env: Env, rows: Row[], user: User | null): Promise<ReturnType<typeof postOut>[]> {
+  const records = await recordsOf(env, rows.map((r) => r.author_id));
+  return rows.map((r) => postOut(r, user, false, false, r.author_id ? records.get(r.author_id) ?? emptyRecord() : undefined));
 }
 
-function pageParams(url: URL) {
-  const sort = url.searchParams.get("sort") ?? "hot";
-  const offset = Math.max(0, Math.min(10_000, Number(url.searchParams.get("offset")) || 0));
-  const since = sort === "top" ? topSince(url.searchParams.get("t") ?? "all", now()) : 0;
-  return { sort, offset, since };
+export function order(sort: string): string {
+  return sort === "useful" ? "p.useful_count DESC, p.created_at DESC" : "p.created_at DESC";
 }
 
 async function listPosts(env: Env, user: User | null, where: string, binds: unknown[], url: URL) {
-  const { sort, offset, since } = pageParams(url);
+  const sort = url.searchParams.get("sort") ?? "new";
+  const offset = Math.max(0, Math.min(10_000, Number(url.searchParams.get("offset")) || 0));
+  const type = url.searchParams.get("type");
+  const typed = type && (POST_TYPES as readonly string[]).includes(type);
   const { results } = await env.DB.prepare(
-    `${POST_SELECT} WHERE ${where} AND p.removed = 0 AND p.deleted = 0 AND p.created_at >= ? ORDER BY ${order(sort)} LIMIT ? OFFSET ?`,
+    `${POST_SELECT} WHERE ${where} AND p.removed = 0 AND p.deleted = 0 ${typed ? "AND p.type = ?" : ""} ORDER BY ${order(sort)} LIMIT ? OFFSET ?`,
   )
-    .bind(user?.id ?? "", ...binds, since, LIMITS.pageSize + 1, offset)
+    .bind(...binds, ...(typed ? [type] : []), LIMITS.pageSize + 1, offset)
     .all<Row>();
   const more = results.length > LIMITS.pageSize;
   return {
-    posts: results.slice(0, LIMITS.pageSize).map((r) => postOut(r, user, false, false)),
+    posts: await postsOut(env, results.slice(0, LIMITS.pageSize), user),
     next_offset: more ? offset + LIMITS.pageSize : null,
   };
 }
 
-/** GET /communities/:id/posts?sort=hot|new|top&t=…&offset=… */
+/** GET /communities/:id/posts?sort=new|useful&type=…&offset=… */
 export async function communityPosts(env: Env, user: User | null, id: string, url: URL): Promise<Response> {
   const row = await findCommunity(env, id);
   if (row.virtual) return json({ posts: [], next_offset: null });
   return json(await listPosts(env, user, "p.community_id = ?", [row.id], url));
 }
 
-/** GET /feed?scope=following|all&sort=… */
+/** GET /feed?scope=following|all&sort=…&type=… — the app panel's lists. */
 export async function feed(env: Env, user: User | null, url: URL): Promise<Response> {
   if (url.searchParams.get("scope") === "following") {
     const u = requireUser(user);
@@ -247,7 +288,6 @@ async function rateLimit(env: Env, u: User, table: "posts" | "comments", sender:
   }
 }
 
-/** POST /communities/:id/posts {title, body} */
 /** The text that identifies a post's content: title and text, lowercase, without spacing or punctuation. */
 export function contentKey(title: string, body: string): string {
   return `${title}\n${body}`.toLowerCase().replace(/[^\p{L}\p{N}$]+/gu, " ").trim();
@@ -257,11 +297,27 @@ export function contentKey(title: string, body: string): string {
 const SAME_TEXT_WINDOW = 86_400;
 const SAME_TEXT_AUTHORS = 3;
 
+/** The chart attached to a post or a reply: a snapshot sent from the app earlier, or one sent with it. */
+async function attachment(env: Env, u: User, body: any): Promise<{ chart: SharedChart | null; image: { bytes: Uint8Array; type: string } | null }> {
+  const snapshotId = str(body?.snapshot_id);
+  if (snapshotId) {
+    const s = await takeSnapshot(env, u, snapshotId);
+    return { chart: s.chart, image: s.image };
+  }
+  return { chart: parseChart(body?.chart), image: parseImage(body?.image, body?.image_type) };
+}
+
+/** POST /communities/:id/posts {type, title, body, idea?, linked_id?, snapshot_id? | chart+image} */
 export async function createPost(env: Env, user: User | null, request: Request, id: string, body: any): Promise<Response> {
   const u = writer(user);
+  // Apps from before post types send none: an analysis; their theme communities are General now.
+  const type = (str(body?.type) || "analysis") as PostType;
+  if (!(POST_TYPES as readonly string[]).includes(type)) throw new HttpError(400, "Pick what kind of post this is.");
+  if (id.startsWith("c:")) id = GENERAL;
   const title = text(body?.title, "The title", LIMITS.titleMin, LIMITS.titleMax);
   const content = str(body?.body).trim();
   if (content.length > LIMITS.bodyMax) throw new HttpError(400, `The text is longer than ${LIMITS.bodyMax} characters.`);
+  if (!id.startsWith("t:") && id !== GENERAL) throw new HttpError(400, "Post on a ticker, or in General.");
   const community = await ensureCommunity(env, id);
   await notBannedIn(env, u, community.id);
   requirePostingCheck(env, u);
@@ -269,25 +325,47 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   if (ageDays < community.min_account_days && !(await isMod(env, u, community.id))) {
     throw new HttpError(403, `Posting in ${community.title} needs an account at least ${community.min_account_days} days old.`);
   }
-  const chart = parseChart(body?.chart);
-  const image = parseImage(body?.image, body?.image_type);
+  const at = now();
+  // An idea: its levels against the price now.
+  let idea: Row = {};
+  if (type === "idea") {
+    if (!community.id.startsWith("t:")) throw new HttpError(400, "An idea is on a ticker.");
+    const ticker = community.id.slice(2);
+    const q = (await quotes(env, [ticker]).catch(() => new Map())).get(ticker);
+    if (!q) throw new HttpError(503, `No price for $${ticker} right now, so the idea can't be tracked. Try again later.`);
+    const levels = parseIdea(body?.idea, q.last, at);
+    idea = { ...levels, ...openingState(levels, q.last, at), last_price: q.last };
+  }
+  let linked: string | null = null;
+  if (type === "postmortem" && str(body?.linked_id)) {
+    const l = await env.DB.prepare("SELECT id, author_id, type FROM posts WHERE id = ?").bind(str(body.linked_id)).first<Row>();
+    if (!l || l.author_id !== u.id || l.type !== "idea") throw new HttpError(400, "A post-mortem links one of your own ideas.");
+    linked = l.id;
+  }
+  const { chart, image } = await attachment(env, u, body);
   const sender = await senderHash(request);
   await rateLimit(env, u, "posts", sender);
   const contentHash = await sha256Hex(contentKey(title, content));
   const repeat = await env.DB.prepare("SELECT 1 FROM posts WHERE author_id = ? AND content_hash = ? AND created_at >= ? AND deleted = 0")
     .bind(u.id, contentHash, now() - 7 * 86_400)
     .first();
-  if (repeat) throw new HttpError(409, "You already posted this text. Post it once, in the community it fits best.");
+  if (repeat) throw new HttpError(409, "You already posted this text. Post it once, on the ticker it fits best.");
   const postId = newId();
-  const at = now();
   if (image) await saveImage(env, postId, image);
+  const cols: Row = {
+    id: postId, community_id: community.id, author_id: u.id, title, body: content, score: 0, hot: hotRank(0, at), created_at: at,
+    chart: chart ? JSON.stringify(chart) : null, has_image: image ? 1 : 0, sender_hash: sender, content_hash: contentHash,
+    type, linked_id: linked, ...idea,
+  };
+  const keys = Object.keys(cols);
+  const watchers = type === "idea"
+    ? (await env.DB.prepare("SELECT user_id FROM watches WHERE author_id = ?").bind(u.id).all<{ user_id: string }>()).results
+    : [];
   await env.DB.batch([
-    env.DB.prepare(
-      "INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at, chart, has_image, sender_hash, content_hash) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
-    ).bind(postId, community.id, u.id, title, content, hotRank(1, at), at, chart ? JSON.stringify(chart) : null, image ? 1 : 0, sender, contentHash),
-    // Authors vote for their own post.
-    env.DB.prepare("INSERT INTO votes (user_id, target_type, target_id, value) VALUES (?, 'post', ?, 1)").bind(u.id, postId),
+    env.DB.prepare(`INSERT INTO posts (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).bind(...keys.map((k) => cols[k])),
     env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").bind(community.id),
+    // "Notify me of new ideas".
+    ...watchers.map((w) => notifyStatement(env, w.user_id, { kind: "idea", postId, actor: u.name, text: title })!),
   ]);
   await flagSameText(env, contentHash);
   return getPost(env, user, postId, 201);
@@ -314,50 +392,76 @@ async function flagSameText(env: Env, contentHash: string): Promise<void> {
   );
 }
 
-async function postRow(env: Env, user: User | null, id: string): Promise<Row> {
-  const row = await env.DB.prepare(`${POST_SELECT} WHERE p.id = ?`).bind(user?.id ?? "", id).first<Row>();
+async function postRow(env: Env, id: string): Promise<Row> {
+  const row = await env.DB.prepare(`${POST_SELECT} WHERE p.id = ?`).bind(id).first<Row>();
   if (!row) throw new HttpError(404, "This post doesn't exist.");
   return row;
 }
 
-function commentOut(r: Row, viewer: User | null, mod: boolean) {
+function commentOut(r: Row, viewer: User | null, mod: boolean, postAuthor: string | null, record?: IdeaRecord) {
   const own = !!viewer && r.author_id === viewer.id;
   const hidden = !!r.removed && !own && !mod;
+  const shown = !hidden && !r.deleted;
   return {
     id: r.id,
     parent_id: r.parent_id,
     author: r.deleted ? null : r.author_name ?? null,
-    body: hidden || r.deleted ? "" : r.body,
-    score: r.score,
+    author_record: r.deleted || !record ? null : { resolved: record.resolved, hit_pct: record.hit_pct, avg_r: record.avg_r, open: record.open },
+    /** Written by the post's author. */
+    by_op: !r.deleted && !!postAuthor && r.author_id === postAuthor,
+    kind: r.kind ?? null,
+    body: shown ? r.body : "",
+    useful_count: r.useful_count ?? 0,
+    my_useful: !!r.my_useful,
     created_at: r.created_at,
     edited_at: r.edited_at,
     deleted: !!r.deleted,
     removed: !!r.removed,
     removed_reason: r.removed && (own || mod) ? r.removed_reason : null,
-    my_vote: r.my_vote ?? 0,
     own,
+    chart: shown && r.chart ? JSON.parse(r.chart) : null,
+    image_url: shown && r.has_image ? `/images/c/${r.id}` : null,
   };
 }
 
-/** GET /posts/:id — the post and all its comments (the client builds the tree). */
+/** How many readers gave each reason, and the viewer's. */
+async function postRatings(env: Env, postId: string, user: User | null) {
+  const { results } = await env.DB.prepare("SELECT reason, COUNT(*) AS n FROM ratings WHERE target_type = 'post' AND target_id = ? GROUP BY reason").bind(postId).all<{ reason: string; n: number }>();
+  const mine = user
+    ? (await env.DB.prepare("SELECT reason FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ?").bind(user.id, postId).all<{ reason: string }>()).results.map((r) => r.reason)
+    : [];
+  return { reasons: Object.fromEntries(results.map((r) => [r.reason, r.n])), mine };
+}
+
+/** GET /posts/:id — the post, its replies (the client builds the tree), the viewer's ratings. */
 export async function getPost(env: Env, user: User | null, id: string, status = 200): Promise<Response> {
-  const row = await postRow(env, user, id);
+  const row = await postRow(env, id);
   const mod = await isMod(env, user, row.community_id);
   const { results } = await env.DB.prepare(
-    `SELECT c.*, u.name AS author_name, v.value AS my_vote FROM comments c
+    `SELECT c.*, u.name AS author_name, r.reason IS NOT NULL AS my_useful FROM comments c
        LEFT JOIN users u ON u.id = c.author_id
-       LEFT JOIN votes v ON v.user_id = ? AND v.target_type = 'comment' AND v.target_id = c.id
+       LEFT JOIN ratings r ON r.user_id = ? AND r.target_type = 'comment' AND r.target_id = c.id AND r.reason = 'useful'
       WHERE c.post_id = ? ORDER BY c.created_at LIMIT ?`,
   )
     .bind(user?.id ?? "", id, LIMITS.commentsPerPost)
     .all<Row>();
-  return json({ post: postOut(row, user, mod), comments: results.map((c) => commentOut(c, user, mod)), is_mod: mod }, status);
+  const records = await recordsOf(env, [row.author_id, ...results.map((c) => c.author_id)]);
+  const rec = (a: string | null) => (a ? records.get(a) ?? emptyRecord() : undefined);
+  return json(
+    {
+      post: postOut(row, user, mod, true, rec(row.author_id)),
+      comments: results.map((c) => commentOut(c, user, mod, row.author_id, rec(c.author_id))),
+      ratings: await postRatings(env, id, user),
+      is_mod: mod,
+    },
+    status,
+  );
 }
 
-/** PATCH /posts/:id {body} — the author edits the text (the title stays). */
+/** PATCH /posts/:id {body} — the author edits the text (the title and an idea's levels stay). */
 export async function editPost(env: Env, user: User | null, id: string, body: any): Promise<Response> {
   const u = writer(user);
-  const row = await postRow(env, u, id);
+  const row = await postRow(env, id);
   if (row.author_id !== u.id || row.deleted || row.removed) throw new HttpError(403, "You can't edit this post.");
   const content = str(body?.body).trim();
   if (content.length > LIMITS.bodyMax) throw new HttpError(400, `The text is longer than ${LIMITS.bodyMax} characters.`);
@@ -365,11 +469,14 @@ export async function editPost(env: Env, user: User | null, id: string, body: an
   return getPost(env, user, id);
 }
 
-/** DELETE /posts/:id — by its author: the text and name go, the comments stay. */
+/** DELETE /posts/:id — by its author: the text and name go, the comments stay. An idea stays in its author's record. */
 export async function deletePost(env: Env, user: User | null, id: string): Promise<Response> {
   const u = requireUser(user);
-  const row = await postRow(env, u, id);
+  const row = await postRow(env, id);
   if (row.author_id !== u.id) throw new HttpError(403, "You can't delete this post.");
+  if (row.type === "idea" && row.status && row.status !== "untriggered" && row.status !== "pending") {
+    throw new HttpError(403, "A triggered idea stays in your record: edit its text, or add an update.");
+  }
   if (!row.deleted) {
     if (row.has_image) await deleteImages(env, [id]);
     await env.DB.batch([
@@ -380,17 +487,36 @@ export async function deletePost(env: Env, user: User | null, id: string): Promi
   return json({ ok: true });
 }
 
+/** POST /posts/:id/answer {comment_id | null} — the asker marks the reply that answers the question. */
+export async function markAnswer(env: Env, user: User | null, id: string, body: any): Promise<Response> {
+  const u = writer(user);
+  const row = await postRow(env, id);
+  if (row.author_id !== u.id || row.type !== "question") throw new HttpError(403, "Only the person who asked marks the answer.");
+  const commentId = str(body?.comment_id) || null;
+  if (commentId) {
+    const c = await env.DB.prepare("SELECT post_id, deleted, removed FROM comments WHERE id = ?").bind(commentId).first<Row>();
+    if (!c || c.post_id !== id || c.deleted || c.removed) throw new HttpError(400, "This reply isn't in the question.");
+  }
+  await env.DB.prepare("UPDATE posts SET answer_id = ? WHERE id = ?").bind(commentId, id).run();
+  return json({ answer_id: commentId });
+}
+
 // ── Comments ────────────────────────────────────────────────────────────
 
-/** POST /posts/:id/comments {body, parent_id?} */
+export const REPLY_KINDS = ["data", "counterpoint", "question", "update"] as const;
+
+/** POST /posts/:id/comments {body, parent_id?, kind?, snapshot_id? | chart+image} */
 export async function createComment(env: Env, user: User | null, request: Request, postId: string, body: any, ctx?: ExecutionContext): Promise<Response> {
   const u = writer(user);
-  const post = await postRow(env, u, postId);
+  const post = await postRow(env, postId);
   if (post.deleted || post.removed) throw new HttpError(403, "This post no longer takes comments.");
   if (post.locked && !(await isMod(env, u, post.community_id))) throw new HttpError(403, "This post is locked: no new comments.");
   await notBannedIn(env, u, post.community_id);
   requirePostingCheck(env, u);
   const content = text(body?.body, "The comment", 1, LIMITS.commentMax);
+  const kind = str(body?.kind) || null;
+  if (kind && !(REPLY_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, "Unknown kind of reply.");
+  if (kind === "update" && post.author_id !== u.id) throw new HttpError(400, "Updates are by the post's author.");
   const parentId = str(body?.parent_id) || null;
   let parentAuthor: string | null = null;
   if (parentId) {
@@ -398,26 +524,30 @@ export async function createComment(env: Env, user: User | null, request: Reques
     if (!parent || parent.post_id !== postId) throw new HttpError(400, "The comment you reply to isn't in this post.");
     parentAuthor = parent.author_id;
   }
+  const { chart, image } = await attachment(env, u, body);
   const sender = await senderHash(request);
   await rateLimit(env, u, "comments", sender);
   const id = newId();
+  if (image) await saveImage(env, id, image, "comments");
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO comments (id, post_id, parent_id, author_id, body, score, created_at, sender_hash) VALUES (?, ?, ?, ?, ?, 1, ?, ?)").bind(id, postId, parentId, u.id, content, now(), sender),
-    env.DB.prepare("INSERT INTO votes (user_id, target_type, target_id, value) VALUES (?, 'comment', ?, 1)").bind(u.id, id),
+    env.DB.prepare("INSERT INTO comments (id, post_id, parent_id, author_id, body, score, created_at, sender_hash, kind, chart, has_image) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)").bind(
+      id, postId, parentId, u.id, content, now(), sender, kind, chart ? JSON.stringify(chart) : null, image ? 1 : 0,
+    ),
     env.DB.prepare("UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?").bind(postId),
   ]);
-  const row = await env.DB.prepare("SELECT c.*, ? AS author_name, 1 AS my_vote FROM comments c WHERE c.id = ?").bind(u.name, id).first<Row>();
+  const row = await env.DB.prepare("SELECT c.*, ? AS author_name, 0 AS my_useful FROM comments c WHERE c.id = ?").bind(u.name, id).first<Row>();
+  const record = (await recordsOf(env, [u.id])).get(u.id) ?? emptyRecord();
   // The person replied to hears of it; the post's readers see it come in.
   const to = parentId ? parentAuthor : post.author_id;
   if (to && to !== u.id) await notify(env, to, { kind: "reply", postId, commentId: id, actor: u.name, text: content.slice(0, 200) });
-  const live = broadcast(env, postId, { type: "comment", comment: commentOut(row!, null, false) });
+  const live = broadcast(env, postId, { type: "comment", comment: commentOut(row!, null, false, post.author_id, record) });
   if (ctx) ctx.waitUntil(live);
   else await live;
-  return json({ comment: commentOut(row!, u, false) }, 201);
+  return json({ comment: commentOut(row!, u, false, post.author_id, record) }, 201);
 }
 
 async function commentRow(env: Env, id: string): Promise<Row> {
-  const row = await env.DB.prepare("SELECT c.*, p.community_id FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.id = ?").bind(id).first<Row>();
+  const row = await env.DB.prepare("SELECT c.*, p.community_id, p.author_id AS post_author FROM comments c JOIN posts p ON p.id = c.post_id WHERE c.id = ?").bind(id).first<Row>();
   if (!row) throw new HttpError(404, "This comment doesn't exist.");
   return row;
 }
@@ -429,7 +559,7 @@ export async function editComment(env: Env, user: User | null, id: string, body:
   if (row.author_id !== u.id || row.deleted || row.removed) throw new HttpError(403, "You can't edit this comment.");
   const content = text(body?.body, "The comment", 1, LIMITS.commentMax);
   await env.DB.prepare("UPDATE comments SET body = ?, edited_at = ? WHERE id = ?").bind(content, now(), id).run();
-  return json({ comment: commentOut({ ...row, body: content, edited_at: now(), author_name: u.name, my_vote: 0 }, u, false) });
+  return json({ comment: commentOut({ ...row, body: content, edited_at: now(), author_name: u.name }, u, false, row.post_author) });
 }
 
 /** DELETE /comments/:id — by its author; the replies stay. */
@@ -437,33 +567,66 @@ export async function deleteComment(env: Env, user: User | null, id: string): Pr
   const u = requireUser(user);
   const row = await commentRow(env, id);
   if (row.author_id !== u.id) throw new HttpError(403, "You can't delete this comment.");
-  await env.DB.prepare("UPDATE comments SET deleted = 1, body = '' WHERE id = ?").bind(id).run();
+  if (row.has_image) await deleteImages(env, [id], "comments");
+  await env.DB.prepare("UPDATE comments SET deleted = 1, body = '', chart = NULL, has_image = 0 WHERE id = ?").bind(id).run();
   return json({ ok: true });
 }
 
-// ── Votes ───────────────────────────────────────────────────────────────
+// ── Ratings ─────────────────────────────────────────────────────────────
 
-/** POST /posts/:id/vote, /comments/:id/vote {value: 1 | 0 | -1} */
-export async function vote(env: Env, user: User | null, type: "post" | "comment", id: string, body: any): Promise<Response> {
+/** Why a post was useful; 'vague': it wasn't. */
+export const REASONS = ["thesis", "data", "view", "risk", "vague"] as const;
+
+/** POST /posts/:id/rate {reason, on} — a reason on or off; "vague" and the useful reasons exclude each other. */
+export async function ratePost(env: Env, user: User | null, id: string, body: any): Promise<Response> {
   const u = writer(user);
-  const value = Number(body?.value);
-  if (![1, 0, -1].includes(value)) throw new HttpError(400, "value must be 1, 0 or -1");
-  const table = type === "post" ? "posts" : "comments";
-  const target = await env.DB.prepare(`SELECT id, created_at, deleted, removed FROM ${table} WHERE id = ?`).bind(id).first<Row>();
-  if (!target) throw new HttpError(404, `This ${type} doesn't exist.`);
-  await notBannedIn(env, u, await targetCommunity(env, type, id));
-  if (target.deleted || target.removed) throw new HttpError(403, `This ${type} can't be voted on.`);
-  const old = (await env.DB.prepare("SELECT value FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?").bind(u.id, type, id).first<{ value: number }>())?.value ?? 0;
-  const delta = value - old;
-  if (delta !== 0) {
-    const write = value === 0
-      ? env.DB.prepare("DELETE FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?").bind(u.id, type, id)
-      : env.DB.prepare("INSERT INTO votes (user_id, target_type, target_id, value) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET value = excluded.value").bind(u.id, type, id, value);
-    await env.DB.batch([write, env.DB.prepare(`UPDATE ${table} SET score = score + ? WHERE id = ?`).bind(delta, id)]);
+  const reason = str(body?.reason);
+  if (!(REASONS as readonly string[]).includes(reason)) throw new HttpError(400, "Unknown reason.");
+  const post = await postRow(env, id);
+  if (post.deleted || post.removed) throw new HttpError(403, "This post can't be rated.");
+  if (post.author_id === u.id) throw new HttpError(403, "Readers rate a post, not its author.");
+  await notBannedIn(env, u, post.community_id);
+  const on = body?.on !== false;
+  const stmts: D1PreparedStatement[] = [];
+  if (on) {
+    stmts.push(
+      reason === "vague"
+        ? env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason <> 'vague'").bind(u.id, id)
+        : env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason = 'vague'").bind(u.id, id),
+      env.DB.prepare("INSERT OR IGNORE INTO ratings (user_id, target_type, target_id, reason, created_at) VALUES (?, 'post', ?, ?, ?)").bind(u.id, id, reason, now()),
+    );
+  } else {
+    stmts.push(env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason = ?").bind(u.id, id, reason));
   }
-  const score = (await env.DB.prepare(`SELECT score FROM ${table} WHERE id = ?`).bind(id).first<{ score: number }>())!.score;
-  if (type === "post" && delta !== 0) await env.DB.prepare("UPDATE posts SET hot = ? WHERE id = ?").bind(hotRank(score, target.created_at), id).run();
-  return json({ score, my_vote: value });
+  stmts.push(
+    env.DB.prepare(
+      `UPDATE posts SET
+         useful_count = (SELECT COUNT(DISTINCT user_id) FROM ratings WHERE target_type = 'post' AND target_id = ?1 AND reason <> 'vague'),
+         flag_count = (SELECT COUNT(*) FROM ratings WHERE target_type = 'post' AND target_id = ?1 AND reason = 'vague')
+       WHERE id = ?1`,
+    ).bind(id),
+  );
+  await env.DB.batch(stmts);
+  const counts = await env.DB.prepare("SELECT useful_count, flag_count FROM posts WHERE id = ?").bind(id).first<Row>();
+  return json({ useful_count: counts!.useful_count, flag_count: counts!.flag_count, ...(await postRatings(env, id, u)) });
+}
+
+/** POST /comments/:id/useful {on} */
+export async function rateComment(env: Env, user: User | null, id: string, body: any): Promise<Response> {
+  const u = writer(user);
+  const row = await commentRow(env, id);
+  if (row.deleted || row.removed) throw new HttpError(403, "This comment can't be rated.");
+  if (row.author_id === u.id) throw new HttpError(403, "Readers rate a reply, not its author.");
+  await notBannedIn(env, u, row.community_id);
+  const on = body?.on !== false;
+  await env.DB.batch([
+    on
+      ? env.DB.prepare("INSERT OR IGNORE INTO ratings (user_id, target_type, target_id, reason, created_at) VALUES (?, 'comment', ?, 'useful', ?)").bind(u.id, id, now())
+      : env.DB.prepare("DELETE FROM ratings WHERE user_id = ? AND target_type = 'comment' AND target_id = ?").bind(u.id, id),
+    env.DB.prepare("UPDATE comments SET useful_count = (SELECT COUNT(*) FROM ratings WHERE target_type = 'comment' AND target_id = ?1) WHERE id = ?1").bind(id),
+  ]);
+  const r = await env.DB.prepare("SELECT useful_count FROM comments WHERE id = ?").bind(id).first<{ useful_count: number }>();
+  return json({ useful_count: r!.useful_count, my_useful: on });
 }
 
 // ── Reports and moderation ──────────────────────────────────────────────
@@ -650,17 +813,24 @@ export async function me(env: Env, user: User | null): Promise<Response> {
   )
     .bind(u.id)
     .all<Row>();
+  const bio = (await env.DB.prepare("SELECT bio FROM users WHERE id = ?").bind(u.id).first<{ bio: string }>())?.bio ?? "";
   return json({
-    user: { name: u.name, role: u.role, created_at: u.created_at, banned_until: u.banned_until, ban_reason: u.ban_reason, post_checked: !!u.post_checked },
+    user: { name: u.name, role: u.role, created_at: u.created_at, banned_until: u.banned_until, ban_reason: u.ban_reason, post_checked: !!u.post_checked, bio },
     moderates: u.role === "admin" ? "all" : await moderated(env, u),
     follows,
   });
 }
 
-/** PATCH /me {name} */
+const BIO_MAX = 160;
+
+/** PATCH /me {name?, bio?} */
 export async function rename(env: Env, user: User | null, body: any): Promise<Response> {
   const u = writer(user);
-  const name = str(body?.name).trim();
+  if (typeof body?.bio === "string") {
+    await env.DB.prepare("UPDATE users SET bio = ? WHERE id = ?").bind(body.bio.trim().replace(/\s+/g, " ").slice(0, BIO_MAX), u.id).run();
+  }
+  if (typeof body?.name !== "string") return me(env, u);
+  const name = body.name.trim();
   if (!NAME_RE.test(name)) throw new HttpError(400, "A name has 3 to 20 letters, digits, - or _.");
   const res = await env.DB.prepare("UPDATE users SET name = ?, name_key = ? WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE name_key = ? AND id <> ?)")
     .bind(name, name.toLowerCase(), u.id, name.toLowerCase(), u.id)
@@ -669,14 +839,18 @@ export async function rename(env: Env, user: User | null, body: any): Promise<Re
   return me(env, { ...u, name });
 }
 
-/** DELETE /me — the account, its sessions, votes and follows; its posts and comments are emptied. */
+/** DELETE /me — the account, its sessions, ratings, snapshots and follows; its posts and comments are emptied. */
 export async function deleteAccount(env: Env, user: User | null): Promise<Response> {
   const u = requireUser(user);
   const { results: pictured } = await env.DB.prepare("SELECT id FROM posts WHERE author_id = ? AND has_image = 1").bind(u.id).all<{ id: string }>();
   await deleteImages(env, pictured.map((p) => p.id));
+  const { results: replies } = await env.DB.prepare("SELECT id FROM comments WHERE author_id = ? AND has_image = 1").bind(u.id).all<{ id: string }>();
+  await deleteImages(env, replies.map((c) => c.id), "comments");
+  const { results: snaps } = await env.DB.prepare("SELECT id FROM snapshots WHERE user_id = ?").bind(u.id).all<{ id: string }>();
+  await deleteImages(env, snaps.map((s) => s.id), "snapshots");
   await env.DB.batch([
     env.DB.prepare("UPDATE posts SET deleted = 1, title = '[deleted]', body = '', chart = NULL, has_image = 0 WHERE author_id = ?").bind(u.id),
-    env.DB.prepare("UPDATE comments SET deleted = 1, body = '' WHERE author_id = ?").bind(u.id),
+    env.DB.prepare("UPDATE comments SET deleted = 1, body = '', chart = NULL, has_image = 0 WHERE author_id = ?").bind(u.id),
     env.DB.prepare("DELETE FROM users WHERE id = ?").bind(u.id),
   ]);
   return json({ ok: true });

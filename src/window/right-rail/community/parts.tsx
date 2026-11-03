@@ -1,15 +1,17 @@
 /*
- * Pieces shared by the Community panel's views: votes, ages, the rendered
- * text, the report and reason forms, the sign-in box.
+ * Pieces shared by the Community panel's views: ages, the post's type and
+ * an idea's levels and state, the rendered text, the report and reason
+ * forms, the sign-in box.
  */
-import { For, Show, createEffect, createSignal, on } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Icon } from "../../../components/Icon";
 import { renderMarkdown } from "../../../data/community/markdown";
 import { chartBridge } from "../../../data/community/chart-share";
 import { cancelCheck, checkError, openCheck, pending as checkPending, waiting as checkWaiting } from "../../../data/community/posting-check";
-import { api, CommunityError, type ReportReason, type Sentiment } from "../../../data/community/api";
-import { me, signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
+import { api, CommunityError, type Idea, type Post, type ReportReason } from "../../../data/community/api";
+import { TYPE_LABEL, ideaState, postState, price, recordLine, day } from "../../../data/community/format";
+import { signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
 
 export const RULES_URL = "https://opentrader.markets/community-rules.html";
 export const TERMS_URL = "https://opentrader.markets/terms.html";
@@ -77,45 +79,43 @@ export function ExternalLink(props: { href: string; children: any }) {
   );
 }
 
-/** Up / score / down. `onNeedSignIn` when signed out. */
-export function Vote(props: {
-  type: "post" | "comment";
-  id: string;
-  score: number;
-  myVote: number;
-  disabled?: boolean;
-  vertical?: boolean;
-  onChange: (score: number, myVote: number) => void;
-  onNeedSignIn: () => void;
-  onError: (msg: string) => void;
-}) {
-  const cast = async (e: MouseEvent, value: number) => {
-    e.stopPropagation();
-    if (props.disabled) return;
-    if (!me()) return props.onNeedSignIn();
-    const next = props.myVote === value ? 0 : value;
-    const before = { score: props.score, my: props.myVote };
-    // Shown at once, put back if the server refuses.
-    props.onChange(props.score + next - props.myVote, next);
-    try {
-      const r = await api.vote(props.type, props.id, next);
-      props.onChange(r.score, r.my_vote);
-    } catch (err) {
-      props.onChange(before.score, before.my);
-      props.onError(errorText(err));
-    }
-  };
+/** The post's type ("Idea", "Analysis"…) and an idea's direction. */
+export function TypeBadges(props: { post: Post }) {
   return (
-    <div class={"cm-vote" + (props.vertical ? " is-vertical" : "")} onClick={(e) => e.stopPropagation()}>
-      <button type="button" class={"cm-vote-btn is-up" + (props.myVote > 0 ? " is-on" : "")} aria-label="Upvote" aria-pressed={props.myVote > 0} onClick={(e) => cast(e, 1)}>
-        <Icon name="community-up" size={18} />
-      </button>
-      <span class={"cm-score" + (props.myVote > 0 ? " is-up" : props.myVote < 0 ? " is-down" : "")}>{props.score}</span>
-      <button type="button" class={"cm-vote-btn is-down" + (props.myVote < 0 ? " is-on" : "")} aria-label="Downvote" aria-pressed={props.myVote < 0} onClick={(e) => cast(e, -1)}>
-        <Icon name="community-down" size={18} />
-      </button>
+    <>
+      <span class={`cm-type is-${props.post.type}`}>{TYPE_LABEL[props.post.type]}</span>
+      <Show when={props.post.idea}><span class="cm-type is-dir">{props.post.idea!.direction === "long" ? "Long" : "Short"}</span></Show>
+    </>
+  );
+}
+
+/** A post's status: an idea's state, an answered question, a post-mortem's idea. */
+export function PostState(props: { post: Post }) {
+  const st = () => postState(props.post);
+  return <Show when={st()}><span class="cm-state" style={{ color: st()!.color }}>{st()!.text}</span></Show>;
+}
+
+/** An idea's levels in a line: "E 148.20 · S 141.00 · T 165.00 · R:R 2.3 · until 15/12/2026". */
+export function IdeaLevels(props: { idea: Idea }) {
+  const i = () => props.idea;
+  const st = () => ideaState(i());
+  return (
+    <div class="cm-idea">
+      <div class="cm-idea-levels">
+        E {price(i().entry)} · S {price(i().stop)} · T {price(i().target)} · R:R {i().reward_risk.toFixed(1)} · until {day(i().expires)}
+      </div>
+      <div class="cm-idea-state">
+        <span style={{ color: st().color }}>{st().text}</span>
+        <Show when={i().last_price != null && (i().status === "open" || i().status === "pending")}><span class="cm-muted"> · last {price(i().last_price)}</span></Show>
+        <span class="cm-muted"> · levels locked at posting</span>
+      </div>
     </div>
   );
+}
+
+/** "34 ideas · 62% hit" after an author's name. */
+export function AuthorRecord(props: { post: Post }) {
+  return <Show when={!props.post.author_bot && props.post.author_record}><span class="cm-muted">{recordLine(props.post.author_record)}</span></Show>;
 }
 
 export function ErrorBanner(props: { text: string | null; onClose?: () => void }) {
@@ -316,60 +316,6 @@ export function BanForm(props: { name: string; communityTitle: string; onSubmit:
         <button type="button" class="cm-btn" onClick={() => props.onCancel()}>Cancel</button>
         <button type="button" class="cm-btn is-danger" disabled={busy()} onClick={submit}>Ban</button>
       </div>
-    </div>
-  );
-}
-
-/** Bullish / bearish votes of a ticker community: today's split, the member's vote, the last two weeks. */
-export function SentimentBar(props: { community: string; onNeedSignIn: () => void }) {
-  const [data, setData] = createSignal<Sentiment | null>(null);
-  const [error, setError] = createSignal<string | null>(null);
-  createEffect(on(() => [props.community, me()?.user.name] as const, ([id]) => {
-    setData(null);
-    void api.sentiment(id).then(setData, () => setData(null));
-  }));
-  const total = () => (data()?.today.bull ?? 0) + (data()?.today.bear ?? 0);
-  const bullPct = () => (total() ? Math.round(((data()?.today.bull ?? 0) / total()) * 100) : 50);
-  const vote = async (value: number) => {
-    if (!me()) return props.onNeedSignIn();
-    setError(null);
-    try {
-      setData(await api.voteSentiment(props.community, data()?.mine === value ? 0 : value));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  /** The bullish share of each of the last 14 days with votes, as a small line. */
-  const trend = () => {
-    const days = (data()?.days ?? []).filter((d) => d.bull + d.bear > 0);
-    if (days.length < 2) return "";
-    const first = days[0].day;
-    const span = Math.max(1, days[days.length - 1].day - first);
-    return days.map((d) => `${((d.day - first) / span) * 60},${16 - (d.bull / (d.bull + d.bear)) * 16}`).join(" ");
-  };
-  return (
-    <div class="cm-sentiment">
-      <div class="cm-sentiment-buttons">
-        <button type="button" class={"cm-sentiment-btn is-bull" + (data()?.mine === 1 ? " is-on" : "")} aria-pressed={data()?.mine === 1} onClick={() => vote(1)}>
-          Bullish <span>{data()?.today.bull ?? 0}</span>
-        </button>
-        <button type="button" class={"cm-sentiment-btn is-bear" + (data()?.mine === -1 ? " is-on" : "")} aria-pressed={data()?.mine === -1} onClick={() => vote(-1)}>
-          Bearish <span>{data()?.today.bear ?? 0}</span>
-        </button>
-        <Show when={trend()}>
-          <svg class="cm-sentiment-trend" viewBox="0 0 60 16" width="60" height="16" aria-label="Bullish share, last two weeks">
-            <line x1="0" y1="8" x2="60" y2="8" class="cm-sentiment-mid" />
-            <polyline points={trend()} />
-          </svg>
-        </Show>
-      </div>
-      <div class="cm-sentiment-bar" aria-hidden="true">
-        <span style={{ width: `${bullPct()}%` }} />
-      </div>
-      <div class="cm-muted cm-sentiment-note">
-        {total() ? `${bullPct()}% bullish, ${total()} vote${total() === 1 ? "" : "s"} today` : "No votes yet today. Bullish or bearish?"}
-      </div>
-      <ErrorBanner text={error()} />
     </div>
   );
 }

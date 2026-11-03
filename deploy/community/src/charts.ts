@@ -1,7 +1,8 @@
 /*
- * Charts shared in posts: the author's chart state (symbol, interval,
- * drawings: "Open on my chart" in the app) and its picture, stored in the
- * IMAGES bucket under charts/<post id> and served at /images/<post id>.
+ * Charts shared in posts and replies: the author's chart state (symbol,
+ * interval, drawings: "Open on my chart" in the app) and its picture, stored
+ * in the IMAGES bucket under charts/<post id> (served at /images/<post id>),
+ * comments/<comment id> (/images/c/<comment id>) and snapshots/<id>.
  */
 import { Env } from "./env";
 import { HttpError } from "./util";
@@ -42,25 +43,29 @@ export function parseImage(data: unknown, type: unknown): { bytes: Uint8Array; t
   return { bytes, type };
 }
 
-export async function saveImage(env: Env, postId: string, image: { bytes: Uint8Array; type: string }): Promise<void> {
+type Folder = "charts" | "comments" | "snapshots";
+
+export async function saveImage(env: Env, id: string, image: { bytes: Uint8Array; type: string }, folder: Folder = "charts"): Promise<void> {
   if (!env.IMAGES) throw new HttpError(503, "Pictures can't be stored right now.");
-  await env.IMAGES.put(`charts/${postId}`, image.bytes, { httpMetadata: { contentType: image.type } });
+  await env.IMAGES.put(`${folder}/${id}`, image.bytes, { httpMetadata: { contentType: image.type } });
 }
 
-export async function deleteImages(env: Env, postIds: string[]): Promise<void> {
-  if (env.IMAGES && postIds.length) await env.IMAGES.delete(postIds.map((id) => `charts/${id}`));
+export async function deleteImages(env: Env, ids: string[], folder: Folder = "charts"): Promise<void> {
+  if (env.IMAGES && ids.length) await env.IMAGES.delete(ids.map((id) => `${folder}/${id}`));
 }
 
-/** GET /images/:postId — the picture of a post that is still shown. */
-export async function serveImage(env: Env, postId: string): Promise<Response> {
-  const post = await env.DB.prepare("SELECT has_image, removed, deleted FROM posts WHERE id = ?").bind(postId).first<{ has_image: number; removed: number; deleted: number }>();
-  if (!post || !post.has_image || post.removed || post.deleted || !env.IMAGES) throw new HttpError(404, "No picture.");
-  const obj = await env.IMAGES.get(`charts/${postId}`);
+/** GET /images/:postId, /images/c/:commentId — the picture of a post or a reply that is still shown. */
+export async function serveImage(env: Env, id: string, folder: "charts" | "comments" = "charts"): Promise<Response> {
+  const row = await env.DB.prepare(`SELECT has_image, removed, deleted FROM ${folder === "charts" ? "posts" : "comments"} WHERE id = ?`)
+    .bind(id)
+    .first<{ has_image: number; removed: number; deleted: number }>();
+  if (!row || !row.has_image || row.removed || row.deleted || !env.IMAGES) throw new HttpError(404, "No picture.");
+  const obj = await env.IMAGES.get(`${folder}/${id}`);
   if (!obj) throw new HttpError(404, "No picture.");
   return new Response(obj.body, {
     headers: {
       "content-type": obj.httpMetadata?.contentType ?? "image/webp",
-      // A post's picture never changes; a removal is checked above, so keep browser caching short.
+      // A picture never changes; a removal is checked above, so keep browser caching short.
       "cache-control": "public, max-age=3600",
     },
   });

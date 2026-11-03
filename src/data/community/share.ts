@@ -2,7 +2,9 @@
  * "Share to Community" from anywhere in the app: the chart's menu, the
  * snapshot menu, the Strategy Tester report, the script editor. A request
  * opens the Community panel on a new post, already holding the chart and,
- * for a report or a script, the user's own figures or code.
+ * for a report or a script, the user's own figures or code. "Send snapshot
+ * to Community" only sends the chart's picture to the account, to attach to
+ * a post written on the website.
  */
 import { createSignal } from "solid-js";
 
@@ -14,6 +16,8 @@ export type ShareSeed = {
   attach?: boolean;
   /** The community to post in (default: the chart's ticker). */
   to?: string;
+  /** Only send the chart's snapshot to the account (no post). */
+  snapshotOnly?: boolean;
 };
 
 const [shareRequest, setShareRequest] = createSignal<ShareSeed | null>(null);

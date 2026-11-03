@@ -9,7 +9,7 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
-import { api, type ContactMessage, type Proposal, type QueueItem } from "../../../data/community/api";
+import { api, type ContactMessage, type QueueItem } from "../../../data/community/api";
 import { me } from "../../../data/community/session";
 import { Age, Author, ErrorBanner, ReasonForm, errorText } from "./parts";
 
@@ -38,20 +38,6 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
     () => (isAdmin() ? "admin" : null),
     () => api.messages().then((r) => r.messages).catch(() => [] as ContactMessage[]),
   );
-  const [proposals, { refetch: refetchProposals }] = createResource(
-    () => (isAdmin() ? "admin" : null),
-    () => api.proposals().then((r) => r.proposals).catch(() => [] as Proposal[]),
-  );
-  const [declining, setDeclining] = createSignal<string | null>(null);
-  const decide = async (p: Proposal, approve: boolean, reason = "") => {
-    try {
-      await api.decideProposal(p.id, approve, reason);
-      setDeclining(null);
-      await refetchProposals();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
   const handled = async (m: ContactMessage) => {
     try {
       await api.messageDone(m.id);
@@ -79,35 +65,6 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
       </div>
       <div class="cm-scroll">
         <ErrorBanner text={error()} onClose={() => setError(null)} />
-        <Show when={isAdmin() && (proposals() ?? []).length}>
-          <div class="cm-picker-section">Community proposals</div>
-          <For each={proposals()}>
-            {(p) => (
-              <div class="cm-queue-item">
-                <div class="cm-post-title">{p.title}</div>
-                <div class="cm-meta">
-                  <span>/c/{p.slug}</span>
-                  <span class="cm-dot">·</span>
-                  <span>by <Author name={p.proposer} /></span>
-                  <span class="cm-dot">·</span>
-                  <Age at={p.created_at} />
-                </div>
-                <Show when={p.description}><div class="cm-queue-body">{p.description}</div></Show>
-                <Show
-                  when={declining() === p.id}
-                  fallback={
-                    <div class="cm-actions">
-                      <button type="button" class="cm-action is-mod" onClick={() => decide(p, true)}>Approve</button>
-                      <button type="button" class="cm-action" onClick={() => setDeclining(p.id)}>Decline</button>
-                    </div>
-                  }
-                >
-                  <ReasonForm title="Decline this proposal" action="Decline" placeholder="Reason, shown to the member" required="Give a reason: it is shown to the member." onCancel={() => setDeclining(null)} onSubmit={(r) => decide(p, false, r)} />
-                </Show>
-              </div>
-            )}
-          </For>
-        </Show>
         <Show when={isAdmin() && (inbox() ?? []).length}>
           <div class="cm-picker-section">Contact messages</div>
           <For each={inbox()}>

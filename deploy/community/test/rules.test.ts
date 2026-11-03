@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { base64url, hotRank, nameFromProfile, parseCommunityId, pkceMatches, sha256, topSince } from "../src/util";
+import { base64url, hotRank, nameFromProfile, parseCommunityId, pkceMatches, sha256 } from "../src/util";
 
 describe("hotRank", () => {
   const t = 1_800_000_000;
@@ -47,13 +47,6 @@ describe("PKCE", () => {
   });
 });
 
-describe("topSince", () => {
-  it("bounds the period", () => {
-    expect(topSince("day", 1000_000)).toBe(1000_000 - 86_400);
-    expect(topSince("all", 1000_000)).toBe(0);
-  });
-});
-
 describe("contentKey", () => {
   it("ignores case, spacing and punctuation", async () => {
     const { contentKey } = await import("../src/api");
@@ -77,5 +70,16 @@ describe("pickMoves", () => {
   it("finds nothing before the session (no volume)", async () => {
     const { pickMoves } = await import("../src/bot");
     expect(pickMoves([{ ticker: "AAA", changePct: 50, day: { c: 5, v: 0 } }])).toEqual([]);
+  });
+});
+
+describe("search", () => {
+  it("reads tickers, types, outcomes and authors in the query", async () => {
+    const { parseQuery, snippet } = await import("../src/views");
+    expect(parseQuery("earnings gap fade $nvda type:post-mortem outcome:stopped by:mkoval")).toEqual({
+      terms: ["earnings", "gap", "fade"], ticker: "NVDA", types: ["postmortem"], outcomes: ["stopped"], author: "mkoval",
+    });
+    expect(parseQuery("50%_off").terms).toEqual(["50off"]);
+    expect(snippet("a ".repeat(100) + "the gap filled", ["gap"]).startsWith("…")).toBe(true);
   });
 });

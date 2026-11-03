@@ -19,7 +19,7 @@ export async function page(env: Env, request: Request, url: URL): Promise<Respon
     return new Response(`User-agent: *\nAllow: /\nDisallow: /auth/\nSitemap: ${env.PUBLIC_URL}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
   }
   if (path === "/sitemap.xml") return sitemap(env);
-  const m = /^\/(p|t|c)\/([^/]+)\/?$/.exec(path);
+  const m = /^\/(p|t|c|u)\/([^/]+)\/?$/.exec(path);
   if (!m) return null;
   const meta = await metaFor(env, m[1], decodeURIComponent(m[2]));
   const shell = await env.ASSETS.fetch(new Request(new URL("/", url)));
@@ -41,6 +41,11 @@ const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd
 const plain = (s: string) => s.replace(/[#*_~`>|[\]()]/g, " ").replace(/\s+/g, " ").trim();
 
 async function metaFor(env: Env, kind: string, key: string): Promise<Meta> {
+  if (kind === "u") {
+    const u = await env.DB.prepare("SELECT name, bio FROM users WHERE name_key = ?").bind(key.toLowerCase()).first<{ name: string; bio: string }>();
+    if (!u) return { title: `Member not found · ${SITE}`, description: "", status: 404 };
+    return { title: `${u.name} · ${SITE}`, description: clip(u.bio || `${u.name}'s ideas and their outcomes, winners and losers.`, 200) };
+  }
   if (kind === "p") {
     const p = await env.DB.prepare(
       "SELECT p.title, p.body, p.removed, p.deleted, c.title AS community FROM posts p JOIN communities c ON c.id = p.community_id WHERE p.id = ?",
@@ -57,7 +62,7 @@ async function metaFor(env: Env, kind: string, key: string): Promise<Meta> {
   const parsed = parseCommunityId(`${kind}:${key}`);
   if (!parsed) return { title: `Not found · ${SITE}`, description: "", status: 404 };
   if (parsed.kind === "ticker") {
-    return { title: `$${parsed.key} discussion · ${SITE}`, description: `Ideas, analysis and questions about $${parsed.key}.` };
+    return { title: `${parsed.key} · ${SITE}`, description: `Open ideas with their levels, analysis and questions about ${parsed.key}.` };
   }
   const c = await env.DB.prepare("SELECT title, description FROM communities WHERE id = ?").bind(`c:${parsed.key}`).first<{ title: string; description: string }>();
   if (!c) return { title: `Community not found · ${SITE}`, description: "", status: 404 };

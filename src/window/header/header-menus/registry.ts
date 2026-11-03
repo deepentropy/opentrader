@@ -1061,6 +1061,14 @@ export const HEADER_MENUS: Record<string, HeaderMenuDef> = {
             "hotkey": null,
             "checked": false,
             "favorited": false
+          },
+          {
+            "id": "snapshot-to-community",
+            "label": "Send snapshot to Community",
+            "iconName": "community-share",
+            "hotkey": null,
+            "checked": false,
+            "favorited": false
           }
         ]
       }

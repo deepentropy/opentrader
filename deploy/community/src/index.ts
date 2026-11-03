@@ -1,7 +1,7 @@
 /*
- * OpenTrader Community: discussion communities per ticker ($AAPL) and per
- * theme (c/penny-stocks), served from one Worker and one D1 database, with
- * its website (./site, see pages.ts) at the same address.
+ * OpenTrader Community: posts per ticker ($AAPL, US stocks and ETFs) and in
+ * General, ideas settled against price, served from one Worker and one D1
+ * database, with its website (./site, see pages.ts) at the same address.
  * The desktop app and the web version call it directly (CORS below).
  * See migrations/ for the data, auth.ts for sign-in, api.ts for the rest.
  */
@@ -14,8 +14,10 @@ import * as check from "./check";
 import * as live from "./live";
 import * as members from "./members";
 import * as notices from "./notify";
-import * as sentiment from "./sentiment";
 import * as bot from "./bot";
+import * as ideas from "./ideas";
+import * as snapshots from "./snapshots";
+import * as views from "./views";
 
 export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
@@ -23,8 +25,11 @@ import { HttpError, json } from "./util";
 /** Page origins of the desktop app's webview (Windows; macOS and Linux). */
 const DESKTOP_ORIGINS = ["http://tauri.localhost", "tauri://localhost"];
 const MAX_BODY = 64 * 1024;
-/** A new post may carry its chart's picture. */
+/** A new post, a reply or a snapshot may carry a chart's picture. */
 const MAX_POST_BODY = 2_500_000;
+/** Website pages whose address the API also answers (with JSON). */
+const BOTH = /^\/(search|tickers)\/?$/;
+const PICTURED = /^\/(communities\/[^/]+\/posts|posts\/[a-z0-9]+\/comments|me\/snapshots)$/;
 
 function cors(request: Request, env: Env): Record<string, string> {
   const origin = request.headers.get("Origin");
@@ -33,7 +38,7 @@ function cors(request: Request, env: Env): Record<string, string> {
   if (!allowed.includes(origin)) return {};
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
     "Access-Control-Allow-Headers": "authorization, content-type",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
@@ -43,7 +48,7 @@ function cors(request: Request, env: Env): Record<string, string> {
 async function readBody(request: Request, path: string): Promise<any> {
   if (request.method === "GET" || request.method === "DELETE") return null;
   const text = await request.text();
-  if (text.length > (/^\/communities\/[^/]+\/posts$/.test(path) ? MAX_POST_BODY : MAX_BODY)) throw new HttpError(413, "Too long.");
+  if (text.length > (PICTURED.test(path) ? MAX_POST_BODY : MAX_BODY)) throw new HttpError(413, "Too long.");
   if (!text) return {};
   try {
     return JSON.parse(text);
@@ -52,7 +57,7 @@ async function readBody(request: Request, path: string): Promise<any> {
   }
 }
 
-/** Bursts from one connection: sign-ins, and writes (posts, comments, votes, reports). */
+/** Bursts from one connection: sign-ins, and writes (posts, comments, ratings, reports). */
 async function burstLimit(env: Env, request: Request, path: string): Promise<void> {
   const key = request.headers.get("CF-Connecting-IP") ?? "unknown";
   const limiter = path === "/auth/start" || path === "/auth/token" || path === "/auth/verify" || path === "/check/verify" ? env.AUTH_LIMITER : request.method === "GET" ? undefined : env.WRITE_LIMITER;
@@ -77,19 +82,29 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/check\/start$/, ({ env, user }) => check.startCheck(env, user)],
   ["GET", /^\/check$/, ({ env, url }) => check.checkPage(env, url)],
   ["POST", /^\/check\/verify$/, ({ env, request }) => check.verifyCheck(env, request)],
-  ["POST", /^\/proposals$/, ({ env, user, body }) => members.propose(env, user, body)],
-  ["GET", /^\/mod\/proposals$/, ({ env, user }) => members.proposals(env, user)],
-  ["POST", /^\/mod\/proposals\/([a-z0-9]+)$/, ({ env, user, params, body }) => members.decide(env, user, params[0], body)],
   ["POST", /^\/mod\/bot$/, ({ env, user, body }) => bot.runJob(env, user, body)],
   ["POST", /^\/mod\/community-ban$/, ({ env, user, body }) => members.communityBan(env, user, body)],
   ["PATCH", /^\/me$/, ({ env, user, body }) => api.rename(env, user, body)],
   ["DELETE", /^\/me$/, ({ env, user }) => api.deleteAccount(env, user)],
+  ["PUT", /^\/me\/tickers$/, ({ env, user, body }) => api.setTickers(env, user, body)],
+  ["GET", /^\/me\/snapshots$/, ({ env, user }) => snapshots.listSnapshots(env, user)],
+  ["POST", /^\/me\/snapshots$/, ({ env, user, body }) => snapshots.addSnapshot(env, user, body)],
+  ["GET", /^\/me\/snapshots\/([a-z0-9]+)\/image$/, ({ env, user, params }) => snapshots.snapshotImage(env, user, params[0])],
+  ["DELETE", /^\/me\/snapshots\/([a-z0-9]+)$/, ({ env, user, params }) => snapshots.deleteSnapshot(env, user, params[0])],
 
-  ["GET", /^\/communities$/, ({ env, user }) => api.listThemes(env, user)],
+  ["GET", /^\/home$/, ({ env, user, url }) => views.home(env, user, url)],
+  ["GET", /^\/search$/, ({ env, user, url }) => views.search(env, user, url)],
+  ["GET", /^\/tickers$/, ({ env, user }) => views.tickersIndex(env, user)],
   ["GET", /^\/tickers\/popular$/, ({ env }) => members.popularTickers(env)],
+  ["GET", /^\/tickers\/([^/]+)$/, ({ env, user, params }) => views.tickerPage(env, user, params[0])],
+  ["GET", /^\/tickers\/([^/]+)\/bars$/, ({ env, params }) => views.tickerBars(env, params[0])],
+  ["GET", /^\/users\/([^/]+)$/, ({ env, user, params }) => views.profile(env, user, params[0])],
+  ["GET", /^\/users\/([^/]+)\/posts$/, ({ env, user, params, url }) => views.userPosts(env, user, params[0], url)],
+  ["GET", /^\/users\/([^/]+)\/replies$/, ({ env, params, url }) => views.userReplies(env, params[0], url)],
+  ["POST", /^\/users\/([^/]+)\/watch$/, ({ env, user, params }) => views.watch(env, user, params[0], true)],
+  ["DELETE", /^\/users\/([^/]+)\/watch$/, ({ env, user, params }) => views.watch(env, user, params[0], false)],
+
   ["GET", /^\/communities\/([^/]+)$/, ({ env, user, params }) => api.getCommunity(env, user, params[0])],
-  ["GET", /^\/communities\/([^/]+)\/sentiment$/, ({ env, user, params }) => sentiment.getSentiment(env, user, params[0])],
-  ["POST", /^\/communities\/([^/]+)\/sentiment$/, ({ env, user, params, body }) => sentiment.setSentiment(env, user, params[0], body)],
   ["GET", /^\/communities\/([^/]+)\/moderators$/, ({ env, params }) => members.moderators(env, params[0])],
   ["GET", /^\/communities\/([^/]+)\/log$/, ({ env, params }) => members.publicLog(env, params[0])],
   ["GET", /^\/communities\/([^/]+)\/bans$/, ({ env, user, params }) => members.bans(env, user, params[0])],
@@ -100,15 +115,19 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/feed$/, ({ env, user, url }) => api.feed(env, user, url)],
 
   ["GET", /^\/images\/([a-z0-9]+)$/, ({ env, params }) => serveImage(env, params[0])],
+  ["GET", /^\/images\/c\/([a-z0-9]+)$/, ({ env, params }) => serveImage(env, params[0], "comments")],
   ["GET", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.getPost(env, user, params[0])],
   ["PATCH", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editPost(env, user, params[0], body)],
   ["DELETE", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.deletePost(env, user, params[0])],
-  ["POST", /^\/posts\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "post", params[0], body)],
+  ["POST", /^\/posts\/([a-z0-9]+)\/rate$/, ({ env, user, params, body }) => api.ratePost(env, user, params[0], body)],
+  ["POST", /^\/posts\/([a-z0-9]+)\/answer$/, ({ env, user, params, body }) => api.markAnswer(env, user, params[0], body)],
   ["POST", /^\/posts\/([a-z0-9]+)\/comments$/, ({ env, user, request, params, body, ctx }) => api.createComment(env, user, request, params[0], body, ctx)],
   ["GET", /^\/posts\/([a-z0-9]+)\/live$/, ({ env, request, params }) => live.joinRoom(env, request, params[0])],
   ["PATCH", /^\/comments\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editComment(env, user, params[0], body)],
   ["DELETE", /^\/comments\/([a-z0-9]+)$/, ({ env, user, params }) => api.deleteComment(env, user, params[0])],
-  ["POST", /^\/comments\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "comment", params[0], body)],
+  // Apps from before the ratings: votes are gone.
+  ["POST", /^\/(posts|comments)\/[a-z0-9]+\/vote$/, async () => json({ error: "Votes were replaced by \"useful\" ratings. Update OpenTrader to rate posts." }, 410)],
+  ["POST", /^\/comments\/([a-z0-9]+)\/useful$/, ({ env, user, params, body }) => api.rateComment(env, user, params[0], body)],
 
   ["POST", /^\/reports$/, ({ env, user, body }) => api.report(env, user, body)],
   ["POST", /^\/appeals$/, ({ env, user, body }) => api.appeal(env, user, body)],
@@ -135,6 +154,8 @@ export default {
     try {
       const html = await page(env, request, url);
       if (html) return html;
+      // Addresses both a page and an API answer: a browser opening the page gets the website.
+      if (request.method === "GET" && env.ASSETS && BOTH.test(url.pathname) && (request.headers.get("Accept") ?? "").includes("text/html")) return env.ASSETS.fetch(request);
       const path = decodeURIComponent(url.pathname).replace(/\/+$/, "") || "/";
       let handler: Handler | null = null;
       let params: string[] = [];
@@ -170,8 +191,17 @@ export default {
     return out;
   },
 
-  /** The bot's threads (cron triggers in wrangler.jsonc). */
+  /**
+   * Every half hour on weekdays (wrangler.jsonc), by UTC time: the bot's threads
+   * at 13:00 and 16:00, idea prices from 14:00 to 21:30, the ideas settled at
+   * 22:30 on the day's bars.
+   */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(bot.scheduled(env, controller.cron).catch((e) => console.error("[bot]", e)));
+    const t = new Date(controller.scheduledTime);
+    const hm = t.getUTCHours() * 100 + t.getUTCMinutes();
+    const run = (name: string, job: () => Promise<unknown>) => ctx.waitUntil(job().catch((e) => console.error(`[${name}]`, e)));
+    if (hm === 1300 || hm === 1600) run("bot", () => bot.scheduled(env, hm));
+    if (hm >= 1400 && hm <= 2130) run("prices", () => ideas.refreshPrices(env));
+    if (hm === 2230) run("ideas", () => ideas.settleIdeas(env));
   },
 };

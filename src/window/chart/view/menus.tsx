@@ -109,7 +109,10 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     { kind: "item", id: "table-view", label: "Table view", onSelect: a.tableView },
     { kind: "item", id: "object-tree", label: "Object tree", onSelect: a.objectTree },
     // Community: a new post holding this chart.
-    ...(COMMUNITY_ENABLED ? [{ kind: "item", id: "share-community", label: "Share to Community…", onSelect: () => requestShare({ attach: true }) }] as CtxNode[] : []),
+    ...(COMMUNITY_ENABLED ? [
+      { kind: "item", id: "share-community", label: "Share to Community…", onSelect: () => requestShare({ attach: true }) },
+      { kind: "item", id: "snapshot-community", label: "Send snapshot to Community", onSelect: () => requestShare({ snapshotOnly: true }) },
+    ] as CtxNode[] : []),
     // Chart template: "Save as…", then the saved chart templates (a row
     // applies it to this chart, its trash removes it).
     {

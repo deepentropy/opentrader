@@ -109,18 +109,6 @@ export const LIMITS = {
 
 export const REPORT_REASONS = ["spam", "manipulation", "harassment", "illegal", "other"] as const;
 
-/** Lower bound of a Top period. */
-export function topSince(t: string, at: number): number {
-  const day = 86_400;
-  switch (t) {
-    case "day": return at - day;
-    case "week": return at - 7 * day;
-    case "month": return at - 30 * day;
-    case "year": return at - 365 * day;
-    default: return 0;
-  }
-}
-
 /** SHA-256 of the sender's IP address and the day: daily limits per connection without keeping the address. */
 export async function senderHash(request: Request): Promise<string> {
   return sha256Hex(`${request.headers.get("CF-Connecting-IP") ?? "unknown"}:${Math.floor(Date.now() / 86_400_000)}`);
