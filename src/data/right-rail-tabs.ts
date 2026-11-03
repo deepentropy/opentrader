@@ -29,6 +29,12 @@ export const TOP_TABS: Tab[] = [
     "iconName": "rr-object_tree"
   },
   {
+    // Discussion communities per ticker and per theme (deploy/community).
+    "id": "community",
+    "label": "Community",
+    "iconName": "rr-community"
+  },
+  {
     // Stock screener: opens as a right split-view panel (App.tsx toggles it
     // instead of making it the active rail tab).
     "id": "screener-dialog-button",

@@ -15,6 +15,7 @@ import { Watchlist } from "./Watchlist";
 import { WatchlistDetail } from "./WatchlistDetail";
 import { ObjectTreePanel } from "./ObjectTreePanel";
 import { AlertsPanel } from "./AlertsPanel";
+import { CommunityPanel } from "./community/CommunityPanel";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
 
@@ -212,6 +213,9 @@ export function RightRail(props: Props) {
           </Match>
           <Match when={props.activeTab === "alerts"}>
             <AlertsPanel symbol={props.activeSymbol} interval={props.interval} />
+          </Match>
+          <Match when={props.activeTab === "community"}>
+            <CommunityPanel symbol={props.activeSymbol} />
           </Match>
         </Switch>
       </Show>

@@ -60,6 +60,7 @@
 @import "./styles/trading-dom.css";
 @import "./styles/replay-trading.css";
 @import "./styles/trading-lines.css";
+@import "./styles/community.css";
 
 :root {
   --font-family-base: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto,

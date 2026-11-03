@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Web version: the Community sign-in ends here, in the pop-up the app opened
+     (src/data/community/session.ts). The answer goes back to the app's page. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>OpenTrader Community</title>
+<style>body{font:15px system-ui,sans-serif;background:#131722;color:#d1d4dc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}</style>
+</head>
+<body>
+<p id="text">Signing in…</p>
+<script>
+  if (window.opener) {
+    window.opener.postMessage({ type: "community-auth", query: location.search.slice(1) }, location.origin);
+    window.close();
+  } else {
+    document.getElementById("text").textContent = "You can close this tab and return to OpenTrader.";
+  }
+</script>
+</body>
+</html>

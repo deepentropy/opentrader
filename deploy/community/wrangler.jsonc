@@ -1,0 +1,57 @@
+// OpenTrader Community: API Worker + D1 database.
+// Local run: `npm run dev` (test sign-in on, local database: `npm run db:local`).
+// Deploy: `npm run db:remote` once per new migration, then `npm run deploy`.
+// Secrets (`wrangler secret put`): GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET,
+// DISCORD_CLIENT_SECRET. A provider without its id and secret is not offered.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "opentrader-community",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "routes": [{ "pattern": "community.opentrader.markets", "custom_domain": true }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "opentrader-community",
+      // Filled by `wrangler d1 create opentrader-community` before the first deploy.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "PUBLIC_URL": "https://community.opentrader.markets",
+    "ALLOWED_ORIGINS": "https://demo.opentrader.markets",
+    "WEB_REDIRECTS": "https://demo.opentrader.markets/community-auth.html",
+    // provider:provider_id, comma-separated.
+    "ADMINS": "",
+    "GITHUB_CLIENT_ID": "",
+    "GOOGLE_CLIENT_ID": "",
+    "DISCORD_CLIENT_ID": ""
+  },
+  "env": {
+    // `wrangler dev --env local`: the test sign-in, the Vite dev servers.
+    "local": {
+      "vars": {
+        "PUBLIC_URL": "http://127.0.0.1:8788",
+        "ALLOWED_ORIGINS": "http://localhost:1420,http://localhost:1430,http://localhost:1440",
+        "WEB_REDIRECTS": "http://localhost:1430/community-auth.html",
+        "ADMINS": "",
+        "DEV_LOGIN": "1",
+        "DEV_ADMINS": "dev:admin",
+        "GITHUB_CLIENT_ID": "",
+        "GOOGLE_CLIENT_ID": "",
+        "DISCORD_CLIENT_ID": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "opentrader-community",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  },
+  "observability": { "enabled": true }
+}

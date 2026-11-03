@@ -2,6 +2,7 @@ mod agent;
 mod alerts;
 mod app_update;
 mod commands;
+mod community;
 mod host;
 mod network;
 mod window_session;
@@ -31,6 +32,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             network::get_proxy_settings,
             network::set_proxy_settings,
             network::reset_proxy_settings,
+            community::community_auth_listen,
+            community::community_auth_wait,
+            community::community_auth_cancel,
+            community::community_token_get,
+            community::community_token_set,
             commands::history::get_daily_history,
             commands::history::get_minute_history,
             commands::history::get_second_history,

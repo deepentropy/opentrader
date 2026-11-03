@@ -1,0 +1,21 @@
+{
+  "name": "opentrader-community",
+  "private": true,
+  "description": "OpenTrader Community: discussion API on Cloudflare (Worker + D1)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env local --port 8788 --ip 127.0.0.1",
+    "db:local": "wrangler d1 migrations apply opentrader-community --env local --local",
+    "db:remote": "wrangler d1 migrations apply opentrader-community --remote",
+    "import:reddit": "node scripts/import-reddit.mjs",
+    "deploy": "wrangler deploy",
+    "check": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261019.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.0.0",
+    "wrangler": "^4.151.3"
+  }
+}

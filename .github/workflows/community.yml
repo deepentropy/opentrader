@@ -1,0 +1,54 @@
+name: Community
+
+# The Community API (deploy/community): Worker + D1 database at
+# community.opentrader.markets. Deployed on demand.
+#
+# One-time setup: `wrangler d1 create opentrader-community` (its id goes in
+# deploy/community/wrangler.jsonc), the sign-in apps' client ids in the
+# wrangler.jsonc vars, their secrets as repository secrets (below).
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency: community-deploy
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    defaults:
+      run:
+        working-directory: deploy/community
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: deploy/community/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Check
+        run: npm run check && npm test
+
+      - name: Migrate the database
+        run: npx wrangler d1 migrations apply opentrader-community --remote
+
+      # Only the sign-in methods whose secret is set.
+      - name: Sign-in secrets
+        run: |
+          for name in GITHUB_CLIENT_SECRET GOOGLE_CLIENT_SECRET DISCORD_CLIENT_SECRET; do
+            value="${!name}"
+            if [ -n "$value" ]; then printf '%s' "$value" | npx wrangler secret put "$name"; fi
+          done
+        env:
+          GITHUB_CLIENT_SECRET: ${{ secrets.COMMUNITY_GITHUB_CLIENT_SECRET }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.COMMUNITY_GOOGLE_CLIENT_SECRET }}
+          DISCORD_CLIENT_SECRET: ${{ secrets.COMMUNITY_DISCORD_CLIENT_SECRET }}
+
+      - name: Deploy
+        run: npx wrangler deploy
