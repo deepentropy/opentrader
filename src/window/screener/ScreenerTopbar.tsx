@@ -4,9 +4,9 @@
  * caret, 34 px buttons).
  *
  * Screen menu (local actions only): Save screen, Make a copy…, Rename…,
- * Create new screen…, Add alert… (on a saved screen: a symbol enters or
+ * Download results as CSV (./screener-csv), Create new screen…, Add alert… (on a saved screen: a symbol enters or
  * leaves it), Recently used, Open screen…. The account items
- * (Autosave, Share screen) and Download results as CSV are not shown.
+ * (Autosave, Share screen) are not shown.
  */
 import { For, Show, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
@@ -16,6 +16,10 @@ import type { Screen } from "../../data/screener-catalog";
 import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenBrowserDialog } from "./ScreenBrowserDialog";
 import { openScreenAlertDialog } from "../alerts/screen-alert-dialog";
+import { screenerFields, screenerScan } from "../../data/screener-api";
+import { planScreen } from "../../data/screener-query";
+import { watchlistTickers } from "./FilterPills";
+import { MAX_ROWS, csvFileName, downloadText, screenCsv } from "./screener-csv";
 
 /** `copyOf`: "Make a copy" of an Open screen row (`source`), not opened. */
 type NameDialog = { mode: "saveAs" | "copy" | "copyOf" | "rename" | "create"; initial: string; source?: Screen };
@@ -36,6 +40,14 @@ export function ScreenerTopbar() {
     else if (d.mode === "create") screenerStore.createNew(name);
     else if (d.mode === "copyOf" && d.source) screenerStore.copyOf(d.source, name);
     else screenerStore.saveAs(name);
+  };
+  /** Every row of the screen (its own scan), in the reference CSV format. */
+  const downloadCsv = async () => {
+    const s = screenerStore.screen();
+    const known = new Set((await screenerFields()).filter((f) => f.available).map((f) => f.id));
+    const plan = planScreen(s, (f) => known.has(f), watchlistTickers(s.watchlistId));
+    const res = await screenerScan({ columns: plan.fields, filter: plan.filter, sort: plan.sort, range: [0, MAX_ROWS], tickers: plan.tickers });
+    downloadText(csvFileName(s.title), screenCsv(res.rows, plan.columns, plan.fields));
   };
   const run = (fn: () => void) => {
     setMenuOpen(false);
@@ -96,6 +108,7 @@ export function ScreenerTopbar() {
             onClick={() => run(() => setDialog({ mode: "copy", initial: `${screenerStore.screen().title} copy` }))}
           />
           <PopItem title="Rename…" icon="scr-menu-rename" onClick={() => run(() => setDialog({ mode: "rename", initial: screenerStore.screen().title }))} />
+          <PopItem title="Download results as CSV" iconSpace onClick={() => run(() => void downloadCsv())} />
           <PopDivider />
           <PopItem title="Create new screen…" iconSpace onClick={() => run(() => setDialog({ mode: "create", initial: "" }))} />
           <PopItem

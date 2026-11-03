@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EXTRA_FIELDS,
+  PRIMARY_UNIVERSE_CLAUSE,
   UNIVERSE_CLAUSE,
   activeColumns,
   filterClauses,
@@ -246,7 +247,8 @@ describe("planScreen", () => {
     const plan = planScreen(defaultScreen(), all, null);
     expect(plan.columns.map((c) => c.id)).toEqual(["Price", "Change", "Volume", "RelativeVolume", "MarketCap", "DividendsYield", "Sector"]);
     expect(plan.fields).toEqual(["close", "change", "volume", "relative_volume_10d_calc", "market_cap_basic", "dividends_yield_current", "sector", ...EXTRA_FIELDS]);
-    expect(plan.filter).toEqual([UNIVERSE_CLAUSE]);
+    expect(plan.filter).toEqual([PRIMARY_UNIVERSE_CLAUSE]);
+    expect(planScreen({ ...defaultScreen(), primaryListing: false }, all, null).filter).toEqual([UNIVERSE_CLAUSE]);
     expect(plan.sort).toEqual({ sortBy: "market_cap_basic", sortOrder: "desc" });
     expect(plan.tickers).toBeNull();
   });
@@ -273,7 +275,7 @@ describe("planScreen", () => {
       cond(C("Nope"), "above", { value: 1 }), // unknown column
     ];
     const plan = planScreen(s, without("EMA50"), null);
-    expect(plan.filter).toEqual([UNIVERSE_CLAUSE, { left: "close", operation: "egreater", right: 5 }, { left: "sector", operation: "in_range", right: ["Technology"] }]);
+    expect(plan.filter).toEqual([PRIMARY_UNIVERSE_CLAUSE, { left: "close", operation: "egreater", right: 5 }, { left: "sector", operation: "in_range", right: ["Technology"] }]);
     const full = planScreen(s, all, null);
     expect(full.filter).toHaveLength(5);
     expect(full.filter).toContainEqual({ left: "EMA50", operation: "above%", right: ["close", 10] });

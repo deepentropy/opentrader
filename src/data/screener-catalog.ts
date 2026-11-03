@@ -500,6 +500,8 @@ export type Screen = {
   sort: { sortBy: ColumnRef; sortOrder: "asc" | "desc" };
   /** OpenTrader watchlist id scoping the scan, or null for the whole market. */
   watchlistId: string | null;
+  /** Market pill "Primary listing" (unset = on, the reference default). */
+  primaryListing?: boolean;
 };
 
 export const DEFAULT_SCREEN_TITLE = "Untitled screen";

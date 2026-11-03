@@ -77,7 +77,7 @@ type Props = {
   onSymbolPicked: (ticker: string) => void;
   flagOf: (ticker: string) => FlagColor | null;
   /** Rows shown (filtered, sorted), for the panel's title menu (CSV, save as watchlist). */
-  onShownRows?: (rows: () => ScriptRow[], columns: () => ScriptColumn[]) => void;
+  onShownRows?: (rows: () => ScriptRow[], columns: () => ScriptColumn[], names: () => ReadonlyMap<string, string>) => void;
 };
 
 /** The screener can run an indicator of the library or one of the user's OakScript indicators that draws something
@@ -287,7 +287,7 @@ export function ScriptScreener(props: Props) {
     const sort = screen().sort ?? { key: SYMBOL_KEY, order: "asc" as const };
     return screenRows(all, screen().filters, sort);
   });
-  props.onShownRows?.(rows, visible);
+  props.onShownRows?.(rows, visible, names);
 
   // ── Indicator picking ──
   const [pickerOpen, setPickerOpen] = createSignal(false);

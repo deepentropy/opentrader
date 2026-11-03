@@ -9,7 +9,9 @@
  *   active    #f2f2f2, #575757 title + operation icon + bold #000 value, and a
  *             34 px reset (×) area behind a #8c8c8c divider; hover #dbdbdb.
  *   market    like inactive with #dbdbdb text (US flag + primary listing icon).
- * The market pill is static here (US stocks only); the AI pill is not shown.
+ * Market pill: "Market" popover with the one market served (USA) and the
+ * "Primary listing" switch (on by default; the pill shows its marker while
+ * on). The AI pill is not shown.
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
@@ -156,15 +158,26 @@ export function FilterPills(props: Props) {
   };
 
   let wlEl!: HTMLDivElement;
+  let marketEl!: HTMLDivElement;
+  const primary = () => screen().primaryListing !== false;
   return (
     <div class="scr-pills">
-      {/* Market: static US pill (flag, name, primary listing marker). */}
-      <div class="scr-pill scr-pill--market" aria-label="Market: USA, primary listing">
-        <span class="scr-pill-main is-static">
+      {/* Market: US (flag, name, primary listing marker); the popover holds "Primary listing". */}
+      <div ref={marketEl} class="scr-pill scr-pill--market" classList={{ "is-open": openId() === "market" }}>
+        <button
+          type="button"
+          class="scr-pill-main"
+          aria-label={primary() ? "Market: USA, primary listing" : "Market: USA"}
+          aria-expanded={openId() === "market"}
+          onClick={() => toggle("market")}
+        >
           <span class="scr-pill-flag"><Icon name="scr-flag-us" size={18} /></span>
           <span class="scr-pill-text">US</span>
-          <span class="scr-pill-icon"><Icon name="scr-market-primary" size={18} /></span>
-        </span>
+          <Show when={primary()}>
+            <span class="scr-pill-icon"><Icon name="scr-market-primary" size={18} /></span>
+          </Show>
+          <span class="scr-pill-caret"><Icon name="scr-pill-caret" size={18} /></span>
+        </button>
       </div>
       <div class="scr-pills-watchlist">
         <div ref={wlEl} class="scr-pill" classList={{ "is-active": !!watchlist(), "is-open": openId() === "watchlist" }}>
@@ -228,6 +241,26 @@ export function FilterPills(props: Props) {
       </div>
 
       {/* Popovers */}
+      <Show when={openId() === "market"}>
+        <Popover anchor={marketEl} onClose={close} width={240} class="scr-market-pop">
+          <div class="scr-editor-header"><div class="scr-editor-title">Market</div></div>
+          <PopItem title="USA" selected right={<Icon name="scr-flag-us" size={18} />} />
+          <div class="scr-item-sep" />
+          <div
+            class="scr-item scr-market-primary"
+            role="menuitemcheckbox"
+            aria-checked={primary()}
+            title="One listing per company: its common shares, depositary receipts and closed-end funds, without its preferred shares, units and structured products"
+            onClick={() => screenerStore.update((s) => ({ ...s, primaryListing: !primary() }))}
+          >
+            <span class="scr-item-icon"><Icon name="scr-market-primary" size={18} /></span>
+            <span class="scr-item-text"><span class="scr-item-title">Primary listing</span></span>
+            <span class={"switch-view" + (primary() ? " checked" : "")} role="switch" aria-checked={primary()}>
+              <span class="switch-thumb" />
+            </span>
+          </div>
+        </Popover>
+      </Show>
       <Show when={openId() === "watchlist"}>
         <Popover anchor={wlEl} onClose={close} width={212} class="scr-watchlist-pop">
           <div class="scr-editor-header"><div class="scr-editor-title">Watchlist</div></div>

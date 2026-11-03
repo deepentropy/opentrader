@@ -1397,3 +1397,8 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
   color: var(--color-content-primary-neutral-bold);
   font: inherit;
 }
+
+/* Market popover: the "Primary listing" switch at the row end. */
+.scr-market-primary .switch-view {
+  margin-left: auto;
+}

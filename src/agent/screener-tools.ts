@@ -5,7 +5,7 @@
  */
 import type { Clause, FieldInfo, Operand, ScanRow } from "../bindings";
 import { COLUMNS, INDEXES, POPULAR_SCREENS } from "../data/screener-catalog";
-import { planScreen, UNIVERSE_CLAUSE } from "../data/screener-query";
+import { planScreen, PRIMARY_UNIVERSE_CLAUSE } from "../data/screener-query";
 import { onScreenerUpdate, screenerClose, screenerFields, screenerOpen, screenerScan } from "../data/screener-api";
 import { screenerPanel, screenerStore } from "../data/screener-store";
 import { scriptScreenStore } from "../data/script-screen-store";
@@ -195,7 +195,7 @@ export function createScreenerTools(): AgentTool[] {
         if (sortField && sortField !== "name" && !has(sortField)) throw new AgentError(`Unknown sort field "${sortField}".`);
         const res = await screenerScan({
           columns: out,
-          filter: [...(has(UNIVERSE_CLAUSE.left) ? [UNIVERSE_CLAUSE] : []), ...filters],
+          filter: [...(has(PRIMARY_UNIVERSE_CLAUSE.left) ? [PRIMARY_UNIVERSE_CLAUSE] : []), ...filters],
           sort: sortField ? { sortBy: sortField, sortOrder: sortArg?.order === "asc" ? "asc" : "desc" } : null,
           range: [0, limit],
           tickers: await scopeTickers(args.scope),

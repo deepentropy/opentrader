@@ -46,6 +46,7 @@ import { bareTicker, type ScriptColumn, type ScriptRow } from "../../data/script
 import { watchlistStore } from "../../data/watchlist-store";
 import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { scriptResultsCsv } from "./script-csv";
+import { csvFileName, downloadText } from "./screener-csv";
 import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
 
 type Props = {
@@ -72,13 +73,9 @@ export function ScreenerPanel(props: Props) {
   // The script screener's shown rows and columns, for the title menu.
   let scriptRows: () => ScriptRow[] = () => [];
   let scriptColumns: () => ScriptColumn[] = () => [];
-  const downloadCsv = () => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([scriptResultsCsv(scriptRows(), scriptColumns())], { type: "text/csv" }));
-    a.download = `Script screener ${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
+  let scriptNames: () => ReadonlyMap<string, string> = () => new Map();
+  const downloadCsv = () =>
+    downloadText(csvFileName(scriptScreenStore.current()?.name ?? "Script screener"), scriptResultsCsv(scriptRows(), scriptColumns(), scriptNames()));
   const saveScreenAs = () =>
     showRename({
       title: "Save screen as",
@@ -273,9 +270,10 @@ export function ScreenerPanel(props: Props) {
             <ScriptScreener
               onSymbolPicked={props.onSymbolPicked}
               flagOf={(t) => flags().get(t) ?? null}
-              onShownRows={(rows, cols) => {
+              onShownRows={(rows, cols, names) => {
                 scriptRows = rows;
                 scriptColumns = cols;
+                scriptNames = names;
               }}
             />
           }

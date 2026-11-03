@@ -240,6 +240,15 @@ export const UNIVERSE_CLAUSE: Clause = {
   right: ["stock", "preferred", "structured", "adr", "fund", "unit"],
 };
 
+/** "Primary listing" on (the market pill, on by default): one listing per company. The data has no primary-listing
+ *  flag: the other securities of a company (preferred shares, units, structured products) are left out, its
+ *  common shares, depositary receipts and closed-end funds stay. Measured on 03/11/2026: 6,015 symbols on, 6,889 off;
+ *  the reference counts 5,534 exchange-listed symbols on, 6,663 off (it adds the OTC market, not served here). */
+export const PRIMARY_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["stock", "adr", "fund"] };
+
+/** The securities a screen scans. */
+export const universeClause = (s: Pick<Screen, "primaryListing">): Clause => (s.primaryListing === false ? UNIVERSE_CLAUSE : PRIMARY_UNIVERSE_CLAUSE);
+
 /** Extra hidden columns requested for every row (tooltip, currency unit). */
 export const EXTRA_FIELDS = ["description", "currency"] as const;
 
@@ -262,7 +271,7 @@ export function planScreen(s: Screen, has: (field: string) => boolean, tickers: 
   });
   const fields = columns.map((c) => fieldOf(c) as string);
   for (const x of EXTRA_FIELDS) if (has(x)) fields.push(x);
-  const filter: Clause[] = has(UNIVERSE_CLAUSE.left) ? [UNIVERSE_CLAUSE] : [];
+  const filter: Clause[] = has(UNIVERSE_CLAUSE.left) ? [universeClause(s)] : [];
   for (const f of s.filters) {
     if (!isActive(f)) continue;
     const cl = filterClauses(f);
