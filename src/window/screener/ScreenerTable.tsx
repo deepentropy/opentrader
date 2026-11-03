@@ -15,6 +15,7 @@
  */
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
 import { Icon } from "../../components/Icon";
+import { LoadingWheel } from "../../components/LoadingWheel";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
 import {
   COLUMN_BY_ID,
@@ -61,6 +62,8 @@ const SETUP_W = 45;
 
 type Props = {
   ctl: ScanController;
+  /** No market table yet: the loading wheel instead of "no symbols". */
+  loading: boolean;
   columns: ColumnRef[];
   /** Request field order (visible columns, then EXTRA_FIELDS present). */
   fields: string[];
@@ -290,7 +293,7 @@ export function ScreenerTable(props: Props) {
                   >
                     <Icon name={isSorted(TICKER_COLUMN) ? "scr-sort-active" : "scr-sort-inactive"} size={18} />
                   </button>
-                  <span class="scr-th-count">{props.ctl.total() ?? ""}</span>
+                  <span class="scr-th-count">{props.loading ? "" : (props.ctl.total() ?? "")}</span>
                 </div>
               </div>
             </th>
@@ -355,8 +358,10 @@ export function ScreenerTable(props: Props) {
           <tr class="scr-spacer" style={{ height: `${Math.max(0, total() - range().last - 1) * ROW_H}px` }} />
         </tbody>
       </table>
-      <Show when={props.ctl.total() === 0}>
-        <div class="scr-empty">No symbols match your filters</div>
+      <Show when={!props.loading} fallback={<LoadingWheel />}>
+        <Show when={props.ctl.total() === 0}>
+          <div class="scr-empty">No symbols match your filters</div>
+        </Show>
       </Show>
       <Show when={props.ctl.error()} keyed>
         {(e) => <div class="scr-empty scr-error">{e}</div>}

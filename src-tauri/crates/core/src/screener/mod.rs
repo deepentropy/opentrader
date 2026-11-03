@@ -53,6 +53,8 @@ pub struct ScreenerUpdate {
     pub updated_ms: Option<f64>,
     pub total: u32,
     pub state_asof: Option<String>,
+    /// See `Table::complete`: until then an empty scan is not "no symbols match".
+    pub complete: bool,
     pub error: Option<String>,
 }
 
@@ -65,6 +67,7 @@ pub struct ScreenerStatus {
     pub updated_ms: Option<f64>,
     pub total: u32,
     pub state_asof: Option<String>,
+    pub complete: bool,
 }
 
 #[derive(Default)]
@@ -97,6 +100,7 @@ impl Screener {
             updated_ms: t.updated_ms,
             total: t.rows.len() as u32,
             state_asof: t.state_asof().map(|d| d.to_string()),
+            complete: t.complete,
         }
     }
 
@@ -266,6 +270,12 @@ impl Sources {
         }
     }
 
+    /// No download the table waits on: the reference list while none is held, the state and the closes while they
+    /// load (a state a session old joins as missing values).
+    fn complete(&self) -> bool {
+        (!self.refs.is_empty() || self.refs_task.is_none()) && self.state_task.is_none() && self.closes_task.is_none()
+    }
+
     /// The state the table joins: with the custom lengths' columns once the closes of its session are in.
     fn table_state(&mut self, wanted: &[String]) -> Option<Arc<StateFile>> {
         let s = self.state.as_ref()?;
@@ -399,12 +409,15 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         let update = match snap {
             Ok(rows) => {
                 version = version.wrapping_add(1);
-                let t = Arc::new(Table::build(version, rows, src.refs.clone(), src.table_state(&wanted)));
+                let mut t = Table::build(version, rows, src.refs.clone(), src.table_state(&wanted));
+                t.complete = src.complete();
+                let t = Arc::new(t);
                 let update = ScreenerUpdate {
                     version,
                     updated_ms: t.updated_ms,
                     total: t.rows.len() as u32,
                     state_asof: t.state_asof().map(|d| d.to_string()),
+                    complete: t.complete,
                     error: None,
                 };
                 *inner.table.write().expect("screener table lock") = Some(t);
@@ -417,6 +430,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                     updated_ms: t.as_ref().and_then(|t| t.updated_ms),
                     total: t.as_ref().map_or(0, |t| t.rows.len() as u32),
                     state_asof: t.as_ref().and_then(|t| t.state_asof()).map(|d| d.to_string()),
+                    complete: t.as_ref().map_or(false, |t| t.complete),
                     error: Some(format!("{e:#}")),
                 }
             }
@@ -446,13 +460,13 @@ fn refs_cache_path() -> PathBuf {
     crate::data::cache_root().join("screener_refs_v2.json")
 }
 
-/// The saved reference list and its day, when it is today's.
+/// The saved reference list and its day. An older day's list serves until today's arrives: names and types rarely
+/// change, and without them the first table matches no type or exchange filter.
 fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
     if let Some(dir) = refs_cache_path().parent() {
         let _ = std::fs::remove_file(dir.join("screener_refs.json"));
     }
     let c: RefsCache = serde_json::from_slice(&std::fs::read(refs_cache_path()).ok()?).ok()?;
-    let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64)?;
     let tickers = c
         .tickers
         .into_iter()
@@ -461,7 +475,7 @@ fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
             r
         })
         .collect();
-    (c.day == today).then_some((c.day, tickers))
+    Some((c.day, tickers))
 }
 
 fn write_refs_cache(day: Option<NaiveDate>, list: &[RefTicker]) {

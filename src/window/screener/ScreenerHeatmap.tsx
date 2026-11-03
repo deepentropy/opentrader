@@ -13,6 +13,7 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import type { ScanRow } from "../../bindings";
 import { Icon } from "../../components/Icon";
+import { LoadingWheel } from "../../components/LoadingWheel";
 import { screenerScan } from "../../data/screener-api";
 import { COLUMN_BY_ID, fieldOf } from "../../data/screener-catalog";
 import { displayCell } from "../../data/screener-display";
@@ -95,6 +96,8 @@ function luminance(hex: string): number {
 
 type Props = {
   plan: Plan;
+  /** No market table yet: the loading wheel instead of "no symbols". */
+  loading: boolean;
   has: (field: string) => boolean;
   onPick: (ticker: string) => void;
   refreshTick: number;
@@ -384,8 +387,10 @@ export function ScreenerHeatmap(props: Props) {
             else if (hit.tile) props.onPick(hit.tile.ticker);
           }}
         />
-        <Show when={rows() !== null && tiles().length === 0}>
-          <div class="scr-empty">No symbols match your filters</div>
+        <Show when={!props.loading} fallback={<LoadingWheel />}>
+          <Show when={rows() !== null && tiles().length === 0}>
+            <div class="scr-empty">No symbols match your filters</div>
+          </Show>
         </Show>
       </div>
       <div class="scr-heat-legend">

@@ -100,6 +100,10 @@ export function ScreenerPanel(props: Props) {
   const [refreshTick, setRefreshTick] = createSignal(0);
   const [lastRefresh, setLastRefresh] = createSignal(Date.now());
   const [heatTotal, setHeatTotal] = createSignal<number | null>(null);
+  // The backend holds its first complete market table and a scan of it is in: until then the views show the
+  // loading wheel, not "no symbols".
+  const [backendLoaded, setBackendLoaded] = createSignal(false);
+  const [tableReady, setTableReady] = createSignal(false);
   const [viewOpen, setViewOpen] = createSignal(false);
   let viewBtn!: HTMLButtonElement;
   let setsBtn!: HTMLButtonElement;
@@ -202,6 +206,9 @@ export function ScreenerPanel(props: Props) {
   createEffect(() => {
     if (!ctl.loading()) setManualRefresh(false);
   });
+  createEffect(() => {
+    if (backendLoaded() && !ctl.loading()) setTableReady(true);
+  });
 
   onMount(() => {
     let disposed = false;
@@ -216,9 +223,10 @@ export function ScreenerPanel(props: Props) {
         track("screener_opened");
         if (st.updatedMs !== null) setLastUpdate(Date.now());
         let stateAsof = st.stateAsof;
-        // The first scan ran on an empty table when the backend had none yet: its first table is shown at once,
-        // whatever the auto-refresh setting.
-        let loaded = st.updatedMs !== null;
+        // The first scan ran on an empty table when the backend had no complete one yet (no table, or one still
+        // waiting on the ticker list or the daily state): that one is shown at once, whatever the auto-refresh setting.
+        let loaded = st.updatedMs !== null && st.complete;
+        setBackendLoaded(loaded);
         unlisten = await onScreenerUpdate((u) => {
           setLastUpdate(Date.now());
           // A new daily state brings its fields (the fundamentals): the field list is read again.
@@ -227,11 +235,15 @@ export function ScreenerPanel(props: Props) {
             void screenerFields().then((l) => !disposed && setFields(new Map(l.map((f) => [f.id, f]))));
           }
           if (u.error) return;
-          const first = !loaded && u.updatedMs !== null;
-          if (first) loaded = true;
+          const first = !loaded && u.updatedMs !== null && u.complete;
           // Auto-refresh: every update (10 s), the first update a minute after the last refresh, or never.
           const period = refreshMs(screenerSettings().autoRefresh);
           if (first || (period !== null && Date.now() - lastRefresh() >= period - 1000)) refreshNow();
+          // After the refresh started: the wheel stays until its scan is in.
+          if (first) {
+            loaded = true;
+            setBackendLoaded(true);
+          }
         });
         if (disposed) unlisten();
       } catch (e) {
@@ -420,7 +432,7 @@ export function ScreenerPanel(props: Props) {
               </button>
               </Show>
               <div class="scr-header-controls">
-                <Show when={view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
+                <Show when={tableReady() && view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
                   <span class="scr-total">{(view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US")} total</span>
                 </Show>
                 <div class="scr-refresh-wrap">
@@ -456,6 +468,7 @@ export function ScreenerPanel(props: Props) {
           <Show when={fields() && view() === "chart"}>
             <ScreenerCharts
               ctl={ctl}
+              loading={!tableReady()}
               fields={plan()?.fields ?? []}
               onPick={(t) => {
                 setSelected(t);
@@ -470,6 +483,7 @@ export function ScreenerPanel(props: Props) {
             {(p) => (
               <ScreenerHeatmap
                 plan={p}
+                loading={!tableReady()}
                 has={has}
                 onPick={(t) => {
                   setSelected(t);
@@ -483,6 +497,7 @@ export function ScreenerPanel(props: Props) {
           <Show when={fields() && view() === "table"}>
             <ScreenerTable
               ctl={ctl}
+              loading={!tableReady()}
               columns={plan()?.columns ?? []}
               fields={plan()?.fields ?? []}
               sort={screen().sort}

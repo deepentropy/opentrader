@@ -28,8 +28,8 @@ function useTable(): Promise<void> {
   }, KEEP_MS);
   ready ??= (async () => {
     const st = await screenerOpen(OWNER);
-    if (st.updatedMs !== null) return;
-    // The first poll: wait for its update (at most 30 s).
+    if (st.updatedMs !== null && st.complete) return;
+    // The first complete table (with the ticker list and the daily state): wait for its update (at most 30 s).
     await new Promise<void>((resolve) => {
       let off: (() => void) | null = null;
       const timer = setTimeout(done, 30_000);
@@ -38,7 +38,7 @@ function useTable(): Promise<void> {
         off?.();
         resolve();
       }
-      void onScreenerUpdate(done).then((f) => (off = f));
+      void onScreenerUpdate((u) => u.complete && done()).then((f) => (off = f));
     });
   })().catch((e) => {
     ready = null;

@@ -30,6 +30,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { Icon } from "../../components/Icon";
+import { LoadingWheel } from "../../components/LoadingWheel";
 import { getBars } from "../../data/datafeed";
 import { timezone } from "../../data/chart-timezone";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
@@ -274,6 +275,8 @@ function MiniChart(props: { ticker: string; name: string | null; flag: FlagColor
 
 type Props = {
   ctl: ScanController;
+  /** No market table yet: the loading wheel instead of "no symbols". */
+  loading: boolean;
   /** Request fields (the row's description is read from them). */
   fields: string[];
   onPick: (ticker: string) => void;
@@ -348,8 +351,10 @@ export function ScreenerCharts(props: Props) {
           )}
         </For>
       </div>
-      <Show when={props.ctl.total() === 0}>
-        <div class="scr-empty">No symbols match your filters</div>
+      <Show when={!props.loading} fallback={<LoadingWheel />}>
+        <Show when={props.ctl.total() === 0}>
+          <div class="scr-empty">No symbols match your filters</div>
+        </Show>
       </Show>
     </div>
   );
