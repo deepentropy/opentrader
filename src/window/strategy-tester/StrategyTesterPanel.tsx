@@ -321,6 +321,7 @@ export function StrategyTesterPanel(props: Props) {
                         chartStyle={props.chartStyle}
                         defaults={strategyDefaults(id())}
                         historyTicks={hasHistoryTickOption(id())}
+                        strategyName={title(id())}
                       />
                     }
                   >

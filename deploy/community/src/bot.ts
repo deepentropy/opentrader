@@ -1,0 +1,185 @@
+/*
+ * The automatic threads, posted by "OpenTrader-bot" (a labelled account,
+ * never passed off as a member). Facts and an open question, no opinions:
+ *
+ *   - every trading day, a daily thread for each active ticker community
+ *     (posts, followers and votes of the last week), the previous one locked;
+ *   - every Monday, a weekly thread in each theme, the previous one locked;
+ *   - every trading day after the open, a thread for each of the day's
+ *     biggest moves among US stocks (from the market data; no figure in it).
+ *
+ * Run by the Worker's cron triggers (wrangler.jsonc), or by an administrator
+ * (POST /mod/bot {job}).
+ */
+import { Env } from "./env";
+import { User } from "./auth";
+import { HttpError, hotRank, json, newId, now } from "./util";
+import { today } from "./sentiment";
+
+const BOT = "bot";
+const DAY = 86_400;
+/** Active ticker communities that get a daily thread, at most. */
+const DAILY_MAX = 15;
+const DAILY_MIN_SCORE = 3;
+/** Movers: at most this many each way, past this change, with this volume and price. */
+const MOVERS_EACH_WAY = 3;
+const MOVER_MIN_CHANGE = 15;
+const MOVER_MIN_VOLUME = 1_000_000;
+const MOVER_MIN_PRICE = 0.5;
+
+const pad = (n: number) => String(n).padStart(2, "0");
+const ddmmyyyy = (at: number) => {
+  const d = new Date(at * 1000);
+  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+};
+
+/** Posts a bot thread once per key; locks the previous thread of the same kind in that community. */
+async function post(env: Env, kind: string, communityId: string, period: string, title: string, body: string, lockPrevious: boolean): Promise<string | null> {
+  const key = `${communityId}:${period}`;
+  if (await env.DB.prepare("SELECT 1 FROM bot_threads WHERE kind = ? AND key = ?").bind(kind, key).first()) return null;
+  const id = newId();
+  const at = now();
+  const stmts: D1PreparedStatement[] = [];
+  if (lockPrevious) {
+    stmts.push(
+      env.DB.prepare("UPDATE posts SET locked = 1 WHERE id IN (SELECT post_id FROM bot_threads WHERE kind = ? AND community_id = ?)").bind(kind, communityId),
+    );
+  }
+  if (communityId.startsWith("t:")) {
+    stmts.push(env.DB.prepare("INSERT OR IGNORE INTO communities (id, kind, title, created_at) VALUES (?, 'ticker', ?, ?)").bind(communityId, `$${communityId.slice(2)}`, at));
+  }
+  stmts.push(
+    env.DB.prepare("INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)").bind(
+      id, communityId, BOT, title, body, hotRank(1, at), at,
+    ),
+    env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").bind(communityId),
+    env.DB.prepare("INSERT INTO bot_threads (kind, key, community_id, post_id, created_at) VALUES (?, ?, ?, ?, ?)").bind(kind, key, communityId, id, at),
+  );
+  await env.DB.batch(stmts);
+  return id;
+}
+
+/** The ticker communities active over the last week: posts, followers, votes. */
+export async function activeTickers(env: Env): Promise<string[]> {
+  const since = now() - 7 * DAY;
+  const { results } = await env.DB.prepare(
+    `SELECT id, score FROM (
+       SELECT c.id,
+              (SELECT COUNT(*) FROM posts p WHERE p.community_id = c.id AND p.created_at >= ? AND p.author_id IS NOT ? AND p.removed = 0 AND p.deleted = 0)
+            + (SELECT COUNT(*) FROM follows f WHERE f.community_id = c.id)
+            + (SELECT COUNT(*) FROM sentiment s WHERE s.community_id = c.id AND s.day >= ?) AS score
+         FROM communities c WHERE c.kind = 'ticker')
+      WHERE score >= ? ORDER BY score DESC LIMIT ?`,
+  )
+    .bind(since, BOT, today() - 7, DAILY_MIN_SCORE, DAILY_MAX)
+    .all<{ id: string }>();
+  return results.map((r) => r.id);
+}
+
+export async function dailyThreads(env: Env): Promise<string[]> {
+  const at = now();
+  const made: string[] = [];
+  for (const id of await activeTickers(env)) {
+    const t = `$${id.slice(2)}`;
+    const p = await post(
+      env,
+      "daily",
+      id,
+      String(today(at)),
+      `${t} daily thread, ${ddmmyyyy(at)}`,
+      `Today's thread for ${t}: plans, levels, charts and news for the session.\n\n_Posted automatically every trading day. Yesterday's thread is locked._`,
+      true,
+    );
+    if (p) made.push(p);
+  }
+  return made;
+}
+
+/** Monday's date of the week holding `at`. */
+const weekOf = (at: number) => {
+  const d = new Date(at * 1000);
+  const back = (d.getUTCDay() + 6) % 7;
+  return Math.floor(at / DAY) * DAY - back * DAY;
+};
+
+export async function weeklyThreads(env: Env): Promise<string[]> {
+  const monday = weekOf(now());
+  const { results } = await env.DB.prepare("SELECT id, title FROM communities WHERE kind = 'theme' ORDER BY sort_order").all<{ id: string; title: string }>();
+  const made: string[] = [];
+  for (const c of results) {
+    const p = await post(
+      env,
+      "weekly",
+      c.id,
+      String(monday),
+      `${c.title} weekly thread, week of ${ddmmyyyy(monday)}`,
+      `This week's open thread for ${c.title}: questions, trades and ideas that don't need a post of their own.\n\n_Posted automatically every Monday. Last week's thread is locked._`,
+      true,
+    );
+    if (p) made.push(p);
+  }
+  return made;
+}
+
+export type Snap = { ticker: string; changePct: number | null; day: { c: number | null; v: number | null } | null };
+
+/** The day's biggest moves: common stocks (1 to 5 letters, not the warrants, rights and units: a fifth letter W, R
+ *  or U) traded enough, past the change, the largest each way. */
+export function pickMoves(tickers: Snap[]): Snap[] {
+  const eligible = tickers.filter(
+    (s) =>
+      /^[A-Z]{1,5}$/.test(s.ticker) &&
+      !/^[A-Z]{4}[WRU]$/.test(s.ticker) &&
+      s.changePct != null &&
+      Number.isFinite(s.changePct) &&
+      (s.day?.v ?? 0) >= MOVER_MIN_VOLUME &&
+      (s.day?.c ?? 0) >= MOVER_MIN_PRICE,
+  );
+  const up = eligible.filter((s) => s.changePct! >= MOVER_MIN_CHANGE).sort((a, b) => b.changePct! - a.changePct!).slice(0, MOVERS_EACH_WAY);
+  const down = eligible.filter((s) => s.changePct! <= -MOVER_MIN_CHANGE).sort((a, b) => a.changePct! - b.changePct!).slice(0, MOVERS_EACH_WAY);
+  return [...up, ...down];
+}
+
+/** The day's biggest moves among US common stocks (none on a closed market). */
+export async function biggestMoves(env: Env): Promise<string[]> {
+  if (!env.GATEWAY_URL || !env.GATEWAY_TOKEN) return [];
+  const res = await fetch(`${env.GATEWAY_URL}/market/v1/snapshot`, {
+    headers: { authorization: `Bearer ${env.GATEWAY_TOKEN}`, "user-agent": "OpenTrader-Community" },
+  });
+  if (!res.ok) throw new Error(`market snapshot answered ${res.status}`);
+  const { tickers } = (await res.json()) as { tickers: Snap[] };
+  const made: string[] = [];
+  for (const s of pickMoves(tickers)) {
+    const t = `$${s.ticker}`;
+    const p = await post(
+      env,
+      "mover",
+      `t:${s.ticker}`,
+      String(today()),
+      `${t}: one of today's biggest moves`,
+      `${t} is among today's biggest moves in US stocks. What's behind it? Share the news, your levels and charts.\n\n_Posted automatically for the day's biggest moves._`,
+      false,
+    );
+    if (p) made.push(p);
+  }
+  return made;
+}
+
+/** The cron triggers: 13:00 UTC on trading days (daily threads; Mondays, weekly ones too), 16:00 UTC (moves). */
+export async function scheduled(env: Env, cron: string): Promise<void> {
+  if (cron.startsWith("0 13")) {
+    await dailyThreads(env);
+    if (new Date().getUTCDay() === 1) await weeklyThreads(env);
+  } else if (cron.startsWith("0 16")) {
+    await biggestMoves(env);
+  }
+}
+
+/** POST /mod/bot {job: "daily" | "weekly" | "movers"} — an administrator runs a job now. */
+export async function runJob(env: Env, user: User | null, body: any): Promise<Response> {
+  if (!user || user.role !== "admin") throw new HttpError(403, "Only administrators run the bot.");
+  const job = String(body?.job ?? "");
+  const made = job === "daily" ? await dailyThreads(env) : job === "weekly" ? await weeklyThreads(env) : job === "movers" ? await biggestMoves(env) : null;
+  if (!made) throw new HttpError(400, "Unknown job.");
+  return json({ posts: made });
+}

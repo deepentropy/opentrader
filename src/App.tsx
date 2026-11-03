@@ -82,6 +82,7 @@ import { replayBroker } from "./data/trading/replay-broker";
 import { createDrawingStore } from "./window/drawings/drawing-store";
 import { createChartBridge } from "./window/right-rail/community/chart-bridge";
 import { setChartBridge } from "./data/community/chart-share";
+import { requestShare } from "./data/community/share";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
   alwaysRemoveLocked,
@@ -525,6 +526,8 @@ function App() {
         emitAppEvent("chart-snapshot", { action: "copy" });
       } else if (rowId === "open-image-in-new-tab") {
         emitAppEvent("chart-snapshot", { action: "open" });
+      } else if (rowId === "share-to-community") {
+        requestShare({ attach: true });
       }
     } else if (which === "show-favorite-indicators") {
       // A favourite row adds that study to the focused pane (one more

@@ -460,3 +460,9 @@ a.cs-tag:hover::before { border-right-color: var(--cs-signal-hover); }
   .cs-hero { padding: 20px 18px; }
   .cs-hero h1 { font-size: 24px; }
 }
+
+/* Votes on a ticker's page. */
+.cs-feed-head .cm-sentiment { max-width: 420px; margin-top: 14px; }
+.cs-feed-head .cm-sentiment-btn { height: 30px; padding: 0 14px; font-size: 13px; border-radius: 15px; }
+.cs-feed-head .cm-sentiment-note { font-size: 12px; }
+.cs-card-meta .cm-bot-badge { font-size: 11px; }

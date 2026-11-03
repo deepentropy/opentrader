@@ -2,13 +2,13 @@
  * Pieces shared by the Community panel's views: votes, ages, the rendered
  * text, the report and reason forms, the sign-in box.
  */
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, on } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Icon } from "../../../components/Icon";
 import { renderMarkdown } from "../../../data/community/markdown";
 import { chartBridge } from "../../../data/community/chart-share";
 import { cancelCheck, checkError, openCheck, pending as checkPending, waiting as checkWaiting } from "../../../data/community/posting-check";
-import { api, CommunityError, type ReportReason } from "../../../data/community/api";
+import { api, CommunityError, type ReportReason, type Sentiment } from "../../../data/community/api";
 import { me, signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
 
 export const RULES_URL = "https://opentrader.markets/community-rules.html";
@@ -318,4 +318,63 @@ export function BanForm(props: { name: string; communityTitle: string; onSubmit:
       </div>
     </div>
   );
+}
+
+/** Bullish / bearish votes of a ticker community: today's split, the member's vote, the last two weeks. */
+export function SentimentBar(props: { community: string; onNeedSignIn: () => void }) {
+  const [data, setData] = createSignal<Sentiment | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
+  createEffect(on(() => [props.community, me()?.user.name] as const, ([id]) => {
+    setData(null);
+    void api.sentiment(id).then(setData, () => setData(null));
+  }));
+  const total = () => (data()?.today.bull ?? 0) + (data()?.today.bear ?? 0);
+  const bullPct = () => (total() ? Math.round(((data()?.today.bull ?? 0) / total()) * 100) : 50);
+  const vote = async (value: number) => {
+    if (!me()) return props.onNeedSignIn();
+    setError(null);
+    try {
+      setData(await api.voteSentiment(props.community, data()?.mine === value ? 0 : value));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  /** The bullish share of each of the last 14 days with votes, as a small line. */
+  const trend = () => {
+    const days = (data()?.days ?? []).filter((d) => d.bull + d.bear > 0);
+    if (days.length < 2) return "";
+    const first = days[0].day;
+    const span = Math.max(1, days[days.length - 1].day - first);
+    return days.map((d) => `${((d.day - first) / span) * 60},${16 - (d.bull / (d.bull + d.bear)) * 16}`).join(" ");
+  };
+  return (
+    <div class="cm-sentiment">
+      <div class="cm-sentiment-buttons">
+        <button type="button" class={"cm-sentiment-btn is-bull" + (data()?.mine === 1 ? " is-on" : "")} aria-pressed={data()?.mine === 1} onClick={() => vote(1)}>
+          Bullish <span>{data()?.today.bull ?? 0}</span>
+        </button>
+        <button type="button" class={"cm-sentiment-btn is-bear" + (data()?.mine === -1 ? " is-on" : "")} aria-pressed={data()?.mine === -1} onClick={() => vote(-1)}>
+          Bearish <span>{data()?.today.bear ?? 0}</span>
+        </button>
+        <Show when={trend()}>
+          <svg class="cm-sentiment-trend" viewBox="0 0 60 16" width="60" height="16" aria-label="Bullish share, last two weeks">
+            <line x1="0" y1="8" x2="60" y2="8" class="cm-sentiment-mid" />
+            <polyline points={trend()} />
+          </svg>
+        </Show>
+      </div>
+      <div class="cm-sentiment-bar" aria-hidden="true">
+        <span style={{ width: `${bullPct()}%` }} />
+      </div>
+      <div class="cm-muted cm-sentiment-note">
+        {total() ? `${bullPct()}% bullish, ${total()} vote${total() === 1 ? "" : "s"} today` : "No votes yet today. Bullish or bearish?"}
+      </div>
+      <ErrorBanner text={error()} />
+    </div>
+  );
+}
+
+/** "bot" next to the automatic threads' author. */
+export function BotBadge(props: { show?: boolean }) {
+  return <Show when={props.show}><span class="cm-badge cm-bot-badge" title="Posted automatically">bot</span></Show>;
 }

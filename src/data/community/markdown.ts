@@ -129,6 +129,7 @@ export function plainText(src: string): string {
     .replace(/(\*\*|__|~~|`)/g, "")
     .replace(/\|/g, " ")
     .replace(/(^|[^\w*])\*(?=\S)([^*\n]*?\S)\*/g, "$1$2")
+    .replace(/(^|[^\w])_(?=\S)([^_\n]*?\S)_(?!\w)/g, "$1$2")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -1053,6 +1053,14 @@ export const HEADER_MENUS: Record<string, HeaderMenuDef> = {
             "hotkey": null,
             "checked": false,
             "favorited": false
+          },
+          {
+            "id": "share-to-community",
+            "label": "Share to Community",
+            "iconName": "community-share",
+            "hotkey": null,
+            "checked": false,
+            "favorited": false
           }
         ]
       }

@@ -14,6 +14,8 @@ import * as check from "./check";
 import * as live from "./live";
 import * as members from "./members";
 import * as notices from "./notify";
+import * as sentiment from "./sentiment";
+import * as bot from "./bot";
 
 export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
@@ -78,6 +80,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/proposals$/, ({ env, user, body }) => members.propose(env, user, body)],
   ["GET", /^\/mod\/proposals$/, ({ env, user }) => members.proposals(env, user)],
   ["POST", /^\/mod\/proposals\/([a-z0-9]+)$/, ({ env, user, params, body }) => members.decide(env, user, params[0], body)],
+  ["POST", /^\/mod\/bot$/, ({ env, user, body }) => bot.runJob(env, user, body)],
   ["POST", /^\/mod\/community-ban$/, ({ env, user, body }) => members.communityBan(env, user, body)],
   ["PATCH", /^\/me$/, ({ env, user, body }) => api.rename(env, user, body)],
   ["DELETE", /^\/me$/, ({ env, user }) => api.deleteAccount(env, user)],
@@ -85,6 +88,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/communities$/, ({ env, user }) => api.listThemes(env, user)],
   ["GET", /^\/tickers\/popular$/, ({ env }) => members.popularTickers(env)],
   ["GET", /^\/communities\/([^/]+)$/, ({ env, user, params }) => api.getCommunity(env, user, params[0])],
+  ["GET", /^\/communities\/([^/]+)\/sentiment$/, ({ env, user, params }) => sentiment.getSentiment(env, user, params[0])],
+  ["POST", /^\/communities\/([^/]+)\/sentiment$/, ({ env, user, params, body }) => sentiment.setSentiment(env, user, params[0], body)],
   ["GET", /^\/communities\/([^/]+)\/moderators$/, ({ env, params }) => members.moderators(env, params[0])],
   ["GET", /^\/communities\/([^/]+)\/log$/, ({ env, params }) => members.publicLog(env, params[0])],
   ["GET", /^\/communities\/([^/]+)\/bans$/, ({ env, user, params }) => members.bans(env, user, params[0])],
@@ -163,5 +168,10 @@ export default {
     const out = new Response(res.body, res);
     for (const [k, v] of Object.entries(headers)) out.headers.set(k, v);
     return out;
+  },
+
+  /** The bot's threads (cron triggers in wrangler.jsonc). */
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(bot.scheduled(env, controller.cron).catch((e) => console.error("[bot]", e)));
   },
 };

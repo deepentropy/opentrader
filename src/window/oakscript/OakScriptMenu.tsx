@@ -19,6 +19,8 @@ type Props = {
   readOnly?: boolean;
   onSelect: (id: string) => void;
   onCopy: () => void;
+  /** A new Community post with the script (Technical Analysis). */
+  onShare?: () => void;
   onRename: () => void;
   onCreateNew: () => void;
   onBuiltin: () => void;
@@ -72,6 +74,7 @@ export function OakScriptMenu(props: Props) {
     <div ref={root} class="ot-popover oak-script-menu" role="menu" aria-label="Script menu">
       {item("Make a copy…", props.onCopy)}
       {item("Rename…", props.onRename, { disabled: props.readOnly })}
+      <Show when={props.onShare}>{item("Share to Community…", props.onShare!)}</Show>
       <div class="ot-popover__divider" />
       {item("Create new indicator", props.onCreateNew)}
       {item("Built-in…", props.onBuiltin)}

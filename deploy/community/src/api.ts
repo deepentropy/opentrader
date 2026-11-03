@@ -151,7 +151,7 @@ export async function follow(env: Env, user: User | null, id: string, on: boolea
 
 // ── Posts ───────────────────────────────────────────────────────────────
 
-const POST_SELECT = `SELECT p.*, u.name AS author_name, c.title AS community_title, c.kind AS community_kind, v.value AS my_vote
+const POST_SELECT = `SELECT p.*, u.name AS author_name, u.role AS author_role, c.title AS community_title, c.kind AS community_kind, v.value AS my_vote
   FROM posts p
   JOIN communities c ON c.id = p.community_id
   LEFT JOIN users u ON u.id = p.author_id
@@ -178,6 +178,8 @@ function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true) {
     my_vote: r.my_vote ?? 0,
     own,
     source_url: r.source_url ?? null,
+    /** Posted by the automatic threads' account. */
+    author_bot: r.author_role === "bot",
     // The shared chart: its state in the post itself, its picture as a path on this server.
     chart: withBody && !hidden && !r.deleted && r.chart ? JSON.parse(r.chart) : null,
     has_chart: !hidden && !r.deleted && !!r.chart,

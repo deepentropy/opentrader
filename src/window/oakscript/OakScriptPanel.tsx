@@ -17,6 +17,8 @@
 import { For, Show, Suspense, createEffect, createSignal, lazy, on, onCleanup, onMount } from "solid-js";
 import oakPackage from "../../../node_modules/oakscriptjs/package.json";
 import { Icon } from "../../components/Icon";
+import { COMMUNITY_ENABLED } from "../../data/community/api";
+import { requestShare } from "../../data/community/share";
 import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
 import * as scripts from "../../data/oakscript-store";
@@ -276,6 +278,12 @@ export function OakScriptPanel(props: Props) {
     setCurrentScript(s);
   }
 
+  /** A new Community post in Technical Analysis holding the script's code (and the chart it runs on). */
+  function shareScript(): void {
+    const s = builtin() ?? currentScript();
+    requestShare({ to: "c:technical-analysis", attach: true, title: s.name, body: "```js\n" + s.source.trim() + "\n```\n" });
+  }
+
   function exportScript(): void {
     const s = builtin() ?? currentScript();
     const url = URL.createObjectURL(new Blob([s.source], { type: "text/javascript" }));
@@ -413,6 +421,7 @@ export function OakScriptPanel(props: Props) {
               readOnly={builtin() !== null}
               onSelect={openScript}
               onCopy={copyScript}
+              onShare={COMMUNITY_ENABLED ? shareScript : undefined}
               onRename={() => setRenaming(true)}
               onCreateNew={createNewScript}
               onBuiltin={() => setBuiltinDialog(true)}

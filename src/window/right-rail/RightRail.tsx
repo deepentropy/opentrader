@@ -9,7 +9,7 @@
  * 300 px, so the panel narrows with a small window and hides when even
  * 200 px do not fit.
  */
-import { Match, Show, Switch, createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { Match, Show, Switch, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
 import { RightRailTabs } from "./RightRailTabs";
 import { Watchlist } from "./Watchlist";
 import { WatchlistDetail } from "./WatchlistDetail";
@@ -17,6 +17,7 @@ import { ObjectTreePanel } from "./ObjectTreePanel";
 import { AlertsPanel } from "./AlertsPanel";
 import { CommunityPanel } from "./community/CommunityPanel";
 import { CommunityNotifier } from "./community/CommunityNotifier";
+import { shareRequest } from "../../data/community/share";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
@@ -67,6 +68,8 @@ function loadDetailHeight(): number {
 }
 
 export function RightRail(props: Props) {
+  // "Share to Community" anywhere in the app opens the panel.
+  createEffect(on(shareRequest, (s) => { if (s && props.activeTab !== "community") props.setActiveTab("community"); }));
   // Resizable detail panel: the watchlist flexes to fill, the detail holds a
   // persisted fixed height, and the divider between them drags to adjust it.
   // The details render as an accordion — collapsing leaves a 48px header.

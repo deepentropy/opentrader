@@ -9,7 +9,7 @@ import { api, imageUrl, type Community, type Post, type Sort } from "../data/com
 import { plainText } from "../data/community/markdown";
 import { me, ready, refreshMe } from "../data/community/session";
 import * as kv from "../data/kv";
-import { Vote, errorText } from "../window/right-rail/community/parts";
+import { BotBadge, SentimentBar, Vote, errorText } from "../window/right-rail/community/parts";
 import { shortIntervalLabel } from "../window/chart/interval-favorites";
 import { ago, communityPath, go, navigate } from "./router";
 
@@ -64,6 +64,7 @@ export function PostCard(props: { post: Post; showCommunity: boolean; onChange: 
           <span>
             {p().author ?? "[deleted]"}, {ago(p().created_at)}
           </span>
+          <BotBadge show={p().author_bot} />
         </div>
         <h2 class="cs-card-title">
           <a href={`/p/${p().id}`} onClick={go(`/p/${p().id}`)}>{p().title}</a>
@@ -114,6 +115,9 @@ export function CommunityHeader(props: { community: Community; onChange: (c: Com
       <p class="cs-feed-desc">
         {props.community.description || (props.community.kind === "ticker" ? `Ideas, analysis and questions about ${props.community.title}.` : "")}
       </p>
+      <Show when={props.community.kind === "ticker"}>
+        <SentimentBar community={props.community.id} onNeedSignIn={() => navigate(signInPath())} />
+      </Show>
       <Show when={error()}><p class="cs-error">{error()}</p></Show>
     </header>
   );

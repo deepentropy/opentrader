@@ -14,7 +14,7 @@ import { withPostingCheck } from "../../../data/community/posting-check";
 import { COMMUNITY_URL } from "../../../data/community/api";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { me } from "../../../data/community/session";
-import { Age, Author, BanForm, ErrorBanner, ExternalLink, MarkdownBody, ReasonForm, ReportForm, Vote, errorText } from "./parts";
+import { Age, Author, BanForm, BotBadge, ErrorBanner, ExternalLink, MarkdownBody, ReasonForm, ReportForm, Vote, errorText } from "./parts";
 
 /** Deeper replies are drawn at this depth (the panel is narrow). */
 const MAX_INDENT = 6;
@@ -345,6 +345,7 @@ export function PostView(props: Props) {
                   <h2 class="cm-post-heading">{p().title}</h2>
                   <div class="cm-meta">
                     <Author name={p().author} />
+                    <BotBadge show={p().author_bot} />
                     <span class="cm-dot">·</span>
                     <Age at={p().created_at} />
                     <Show when={p().edited_at}><span> (edited)</span></Show>

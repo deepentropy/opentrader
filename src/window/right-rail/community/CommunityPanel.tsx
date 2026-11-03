@@ -30,9 +30,10 @@ import { PostView } from "./PostView";
 import { AboutView, AccountView, NotificationsView, ProposeView } from "./MoreViews";
 import { openPost, startNotifications, unread } from "../../../data/community/notifications";
 import { withPostingCheck } from "../../../data/community/posting-check";
+import { shareRequest, takeShare } from "../../../data/community/share";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Age, Author, CONTACT_URL, ErrorBanner, ExternalLink, PostingCheckPrompt, RULES_URL, SignInBox, Vote, errorText } from "./parts";
+import { Age, Author, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, PostingCheckPrompt, RULES_URL, SentimentBar, SignInBox, Vote, errorText } from "./parts";
 
 /** "chart" (follows the chart), "following", "all", or a community id. */
 type Source = string;
@@ -95,6 +96,15 @@ export function CommunityPanel(props: Props) {
   });
   createEffect(() => kv.setItem(SORT_KEY, sort()));
   onMount(() => void initSession().then(startNotifications));
+  // "Share to Community" elsewhere in the app: the composer (after a sign-in when needed).
+  createEffect(on(shareRequest, (s) => {
+    if (!s) return;
+    if (me()) setView({ kind: "compose" });
+    else {
+      afterSignIn = { kind: "compose" };
+      setView({ kind: "signin" });
+    }
+  }));
   // A notification's pop-up asked for its post.
   createEffect(on(openPost, (o) => o && setView({ kind: "post", id: o.id })));
 
@@ -307,6 +317,7 @@ export function CommunityPanel(props: Props) {
             <span class="cm-dot">·</span>
           </Show>
           <Author name={p.post.author} />
+          <BotBadge show={p.post.author_bot} />
           <span class="cm-dot">·</span>
           <Age at={p.post.created_at} />
           <span class="cm-dot">·</span>
@@ -335,6 +346,7 @@ export function CommunityPanel(props: Props) {
               </button>
             </div>
             <Show when={info()!.description}><div class="cm-muted">{info()!.description}</div></Show>
+            <Show when={info()!.kind === "ticker"}><SentimentBar community={info()!.id} onNeedSignIn={needSignIn} /></Show>
             <div class="cm-muted">
               {info()!.post_count} post{info()!.post_count === 1 ? "" : "s"}
               <Show when={!info()!.id.startsWith("t:") || info()!.post_count > 0}>
@@ -387,9 +399,11 @@ export function CommunityPanel(props: Props) {
       for (const t of themes() ?? []) add(t.id, t.title);
       return list;
     });
-    const [target, setTarget] = createSignal(targets()[0]?.id ?? "");
-    const [title, setTitle] = createSignal("");
-    const [body, setBody] = createSignal("");
+    // A share request from elsewhere fills the post in.
+    const seed = takeShare();
+    const [target, setTarget] = createSignal(seed?.to && targets().some((t) => t.id === seed.to) ? seed.to : targets()[0]?.id ?? "");
+    const [title, setTitle] = createSignal(seed?.title ?? "");
+    const [body, setBody] = createSignal(seed?.body ?? "");
     const [busy, setBusy] = createSignal(false);
     const [err, setErr] = createSignal<string | null>(null);
     // "Attach my chart": the active chart's picture and state, taken when ticked.
@@ -411,13 +425,15 @@ export function CommunityPanel(props: Props) {
         setPreview(URL.createObjectURL(c.image));
         // A post about the chart goes to its ticker's community by default.
         const ticker = tickerCommunityId(tickerOf(c.chart.symbol));
-        if (ticker && !title() && targets().some((t) => t.id === ticker)) setTarget(ticker);
+        if (ticker && !seed?.to && targets().some((t) => t.id === ticker)) setTarget(ticker);
       } catch (e) {
         setErr(errorText(e));
       } finally {
         setCapturing(false);
       }
     };
+    // "Share to Community" asked for the chart: attached at once.
+    if (seed?.attach) queueMicrotask(() => void attach(true));
     const submit = async () => {
       setBusy(true);
       setErr(null);

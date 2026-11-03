@@ -46,6 +46,8 @@ export type Post = {
   my_vote: number;
   own: boolean;
   source_url: string | null;
+  /** Posted by the automatic threads' account (OpenTrader-bot). */
+  author_bot?: boolean;
   /** Shared chart (in a post's own view; null in lists). */
   chart: SharedChart | null;
   has_chart: boolean;
@@ -78,6 +80,9 @@ export type Me = {
 };
 
 export type Sort = "hot" | "new" | "top";
+
+/** Bullish / bearish votes of a ticker community: today, the member's, the last two weeks (days since 1970, UTC). */
+export type Sentiment = { today: { bull: number; bear: number }; mine: number; days: { day: number; bull: number; bear: number }[] };
 export type ContactKind = "illegal" | "appeal" | "authority" | "other";
 
 /** A message sent through the website's contact form (administrators). */
@@ -198,6 +203,8 @@ export const api = {
   appeal: (type: "post" | "comment", id: string, details: string) => request<{ ok: true }>("POST", "/appeals", { target_type: type, target_id: id, details }),
   contact: (kind: ContactKind, email: string, url: string, body: string) => request<{ ok: true }>("POST", "/contact", { kind, email, url, body }),
   queue: () => request<{ items: QueueItem[] }>("GET", "/mod/queue"),
+  sentiment: (id: string) => request<Sentiment>("GET", `/communities/${enc(id)}/sentiment`),
+  voteSentiment: (id: string, value: number) => request<Sentiment>("POST", `/communities/${enc(id)}/sentiment`, { value }),
   checkStart: () => request<{ url: string }>("POST", "/check/start"),
   unread: () => request<{ unread: number }>("GET", "/me/unread"),
   notifications: () => request<{ notifications: Notice[] }>("GET", "/me/notifications"),

@@ -17,6 +17,9 @@ import { CheckBox } from "../header/ChartPropertiesDialog";
 import { EXECUTION_PROPERTY, SYNTHETIC_STYLES, executionOptions } from "../chart/StrategyPropertiesTab";
 import { compact, dateRange } from "./format";
 import { cachedSymbolSessions } from "../../data/session";
+import { COMMUNITY_ENABLED } from "../../data/community/api";
+import { backtestTable, requestShare } from "../../data/community/share";
+import { shortIntervalLabel } from "../chart/interval-favorites";
 
 type Props = {
   report: BacktestReport | null;
@@ -32,9 +35,33 @@ type Props = {
   defaults?: StrategyProperties;
   /** The script has the "On history bar tick" option. */
   historyTicks?: boolean;
+  /** The strategy's name (the report shared to Community). */
+  strategyName?: string;
 };
 
 export function ReportToolbar(props: Props) {
+  /** A new Community post with the chart and the report's headline figures. */
+  const shareReport = () => {
+    const r = props.report;
+    if (!r) return;
+    const all = r.performance.all;
+    requestShare({
+      attach: true,
+      title: `${props.strategyName ?? "Strategy"} backtest on ${(props.symbol ?? "").split(":").pop()}`,
+      body: backtestTable({
+        strategy: props.strategyName ?? "a strategy",
+        symbol: (props.symbol ?? "").split(":").pop() ?? "",
+        interval: shortIntervalLabel(props.interval ?? "1D"),
+        currency: r.currency,
+        netProfit: all.netProfit,
+        netProfitPercent: all.netProfitPercent,
+        totalTrades: all.totalTrades,
+        percentProfitable: all.percentProfitable,
+        profitFactor: all.profitFactor,
+        maxDrawdownPercent: r.performance.maxStrategyDrawDownPercent,
+      }),
+    });
+  };
   let capitalRef: HTMLButtonElement | undefined;
   const [capitalOpen, setCapitalOpen] = createSignal(false);
   let detalRef: HTMLButtonElement | undefined;
@@ -140,6 +167,13 @@ export function ReportToolbar(props: Props) {
 
         <hr class="st-toolbar-divider" />
 
+        <Show when={COMMUNITY_ENABLED && props.report}>
+          <Tooltip text="Share to Community" side="bottom">
+            <button type="button" class="st-icon-btn" aria-label="Share to Community" onClick={shareReport}>
+              <Icon name="community-share" size={28} />
+            </button>
+          </Tooltip>
+        </Show>
         <Tooltip text="Settings" side="bottom">
           <button type="button" class="st-icon-btn" aria-label="Settings" onClick={() => props.onSettings()}>
             <Icon name="st-toolbar-settings" size={28} />

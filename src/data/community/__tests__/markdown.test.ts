@@ -53,5 +53,7 @@ describe("community markdown", () => {
 
   it("strips marks for previews", () => {
     expect(plainText("# Title\n\n**Source:** [site](https://x.com)\n- *one*\n- `two`")).toBe("Title Source: site one two");
+    expect(plainText("Today.\n\n_Posted automatically every day._")).toBe("Today. Posted automatically every day.");
+    expect(plainText("snake_case_name")).toBe("snake_case_name");
   });
 });

@@ -62,3 +62,20 @@ describe("contentKey", () => {
     expect(contentKey("$AAPL up", "")).toBe("$aapl up");
   });
 });
+
+describe("pickMoves", () => {
+  it("keeps the largest moves each way among traded common stocks", async () => {
+    const { pickMoves } = await import("../src/bot");
+    const s = (ticker: string, changePct: number | null, v = 5_000_000, c = 10) => ({ ticker, changePct, day: { c, v } });
+    const picked = pickMoves([
+      s("AAA", 40), s("BBB", 25), s("CCC", 20), s("DDD", 16), s("EEE", 10),
+      s("FFF", -30), s("GGG", -18),
+      s("WARRW", 90, 5_000_000), s("ABC.U", 80), s("THIN", 70, 1000), s("PENNY", 60, 5_000_000, 0.2), s("NONE", null),
+    ]).map((x) => x.ticker);
+    expect(picked).toEqual(["AAA", "BBB", "CCC", "FFF", "GGG"]);
+  });
+  it("finds nothing before the session (no volume)", async () => {
+    const { pickMoves } = await import("../src/bot");
+    expect(pickMoves([{ ticker: "AAA", changePct: 50, day: { c: 5, v: 0 } }])).toEqual([]);
+  });
+});

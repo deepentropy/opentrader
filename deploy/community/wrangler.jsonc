@@ -84,5 +84,7 @@
       ]
     }
   },
+  // The bot's threads (src/bot.ts): 13:00 UTC on trading days (daily, Mondays weekly too), 16:00 UTC (biggest moves).
+  "triggers": { "crons": ["0 13 * * 1-5", "0 16 * * 1-5"] },
   "observability": { "enabled": true }
 }

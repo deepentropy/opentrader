@@ -28,6 +28,8 @@ import { isDeletedList, watchlistStore } from "../../../data/watchlist-store";
 import { isFavoriteIndicator, toggleFavoriteIndicator } from "../../../data/indicator-favorites";
 import { menuPrice, roundedPrice } from "./helpers";
 import { PANE_MENU_ICONS } from "./pane-icons";
+import { COMMUNITY_ENABLED } from "../../../data/community/api";
+import { requestShare } from "../../../data/community/share";
 import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
 import { replayEnabled } from "../../../data/replay";
@@ -106,6 +108,8 @@ function buildChartContextMenu(ctx: ChartMenuCtx, a: ChartMenuActions): CtxNode[
     { kind: "separator" },
     { kind: "item", id: "table-view", label: "Table view", onSelect: a.tableView },
     { kind: "item", id: "object-tree", label: "Object tree", onSelect: a.objectTree },
+    // Community: a new post holding this chart.
+    ...(COMMUNITY_ENABLED ? [{ kind: "item", id: "share-community", label: "Share to Community…", onSelect: () => requestShare({ attach: true }) }] as CtxNode[] : []),
     // Chart template: "Save as…", then the saved chart templates (a row
     // applies it to this chart, its trash removes it).
     {
