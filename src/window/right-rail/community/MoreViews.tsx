@@ -4,14 +4,16 @@
  *   - AboutView (#209): a community's description, moderators, public
  *     moderation log; its moderators see the banned members (unban),
  *     administrators appoint or remove moderators;
- *   - ProposeView (#209): a member proposes a theme community.
+ *   - ProposeView (#209): a member proposes a theme community;
+ *   - AccountView: the user name, sign-out, account deletion.
  */
 import { For, Show, createResource, createSignal, onMount } from "solid-js";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { api, type Community, type LogEntry, type Notice } from "../../../data/community/api";
 import { markAllRead, refreshNotifications } from "../../../data/community/notifications";
-import { me } from "../../../data/community/session";
+import { deleteAccount, me, refreshMe, signOut } from "../../../data/community/session";
+import { showConfirm } from "../../../components/Dialogs";
 import { noticeTitle } from "./CommunityNotifier";
 import { Age, ErrorBanner, errorText, fullDate } from "./parts";
 
@@ -207,6 +209,63 @@ export function ProposeView(props: { onBack: () => void }) {
           <div class="cm-form-actions">
             <button type="button" class="cm-btn" onClick={() => props.onBack()}>Cancel</button>
             <button type="button" class="cm-btn is-primary" disabled={busy() || title().trim().length < 3 || slug().length < 2} onClick={send}>Send proposal</button>
+          </div>
+        </Show>
+      </div>
+    </Frame>
+  );
+}
+
+export function AccountView(props: { onBack: () => void }) {
+  const [name, setName] = createSignal(me()?.user.name ?? "");
+  const [msg, setMsg] = createSignal<string | null>(null);
+  const [err, setErr] = createSignal<string | null>(null);
+  const save = async () => {
+    setErr(null);
+    setMsg(null);
+    try {
+      await api.rename(name().trim());
+      await refreshMe();
+      setMsg("Name saved.");
+    } catch (e) {
+      setErr(errorText(e));
+    }
+  };
+  const remove = () =>
+    showConfirm({
+      title: "Delete account",
+      text: "Delete your Community account? Your posts and comments are emptied, your votes and follows removed. This can't be undone.",
+      mainText: "Delete account",
+      cancelText: "Cancel",
+      intent: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteAccount();
+          props.onBack();
+        } catch (e) {
+          setErr(errorText(e));
+        }
+      },
+    });
+  return (
+    <Frame title="Account" onBack={props.onBack}>
+      <div class="cm-composer">
+        <Show when={me()} fallback={<div class="ot-empty-state">Signed out.</div>}>
+          <Show when={me()!.user.banned_until && me()!.user.banned_until! > Date.now() / 1000}>
+            <div class="cm-removed">Your account is banned. Reason: {me()!.user.ban_reason || "not given"}</div>
+          </Show>
+          <label class="cm-label">User name</label>
+          <input class="cm-input" maxLength={20} value={name()} onInput={(e) => setName(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
+          <div class="cm-muted cm-hint">3 to 20 letters, digits, - or _.</div>
+          <ErrorBanner text={err()} />
+          <Show when={msg()}><div class="cm-muted">{msg()}</div></Show>
+          <div class="cm-form-actions">
+            <button type="button" class="cm-btn is-primary" disabled={name().trim() === me()!.user.name} onClick={save}>Save name</button>
+          </div>
+          <div class="cm-muted cm-hint">Member since <Age at={me()!.user.created_at} />.</div>
+          <div class="cm-form-actions is-spread">
+            <button type="button" class="cm-btn" onClick={() => { void signOut(); props.onBack(); }}>Sign out</button>
+            <button type="button" class="cm-btn is-danger" onClick={remove}>Delete account</button>
           </div>
         </Show>
       </div>

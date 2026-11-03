@@ -19,16 +19,15 @@ import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { PanelHeader } from "../../../components/PanelHeader";
 import { SegmentedControl } from "../../../components/SegmentedControl";
-import { showConfirm } from "../../../components/Dialogs";
 import { tickerOf } from "../../../data/symbol-name";
 import * as kv from "../../../data/kv";
 import { plainText } from "../../../data/community/markdown";
 import { api, imageUrl, tickerCommunityId, type Community, type Post, type Sort } from "../../../data/community/api";
 import { blobToBase64, chartBridge, type ChartCapture } from "../../../data/community/chart-share";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
-import { deleteAccount, initSession, me, ready, refreshMe, signOut } from "../../../data/community/session";
+import { initSession, me, ready, refreshMe, signOut } from "../../../data/community/session";
 import { PostView } from "./PostView";
-import { AboutView, NotificationsView, ProposeView } from "./MoreViews";
+import { AboutView, AccountView, NotificationsView, ProposeView } from "./MoreViews";
 import { openPost, startNotifications, unread } from "../../../data/community/notifications";
 import { withPostingCheck } from "../../../data/community/posting-check";
 import { ModQueue } from "./ModQueue";
@@ -474,66 +473,6 @@ export function CommunityPanel(props: Props) {
     );
   };
 
-  const Account = () => {
-    const [name, setName] = createSignal(me()?.user.name ?? "");
-    const [msg, setMsg] = createSignal<string | null>(null);
-    const [err, setErr] = createSignal<string | null>(null);
-    const save = async () => {
-      setErr(null);
-      setMsg(null);
-      try {
-        await api.rename(name().trim());
-        await refreshMe();
-        setMsg("Name saved.");
-      } catch (e) {
-        setErr(errorText(e));
-      }
-    };
-    const remove = () =>
-      showConfirm({
-        title: "Delete account",
-        text: "Delete your Community account? Your posts and comments are emptied, your votes and follows removed. This can't be undone.",
-        mainText: "Delete account",
-        cancelText: "Cancel",
-        intent: "danger",
-        onConfirm: async () => {
-          try {
-            await deleteAccount();
-            setView({ kind: "list" });
-          } catch (e) {
-            setErr(errorText(e));
-          }
-        },
-      });
-    return (
-      <div class="cm-post-view">
-        <div class="cm-subheader">
-          <IconButton aria-label="Back" onClick={() => setView({ kind: "list" })}><Icon name="community-back" size={28} /></IconButton>
-          <span class="cm-subheader-title is-static">Account</span>
-        </div>
-        <div class="cm-scroll cm-composer">
-          <Show when={me()} fallback={<div class="ot-empty-state">Signed out.</div>}>
-            <Show when={me()!.user.banned_until && me()!.user.banned_until! > Date.now() / 1000}>
-              <div class="cm-removed">Your account is banned. Reason: {me()!.user.ban_reason || "not given"}</div>
-            </Show>
-            <label class="cm-label">User name</label>
-            <input class="cm-input" maxLength={20} value={name()} onInput={(e) => setName(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
-            <div class="cm-muted cm-hint">3 to 20 letters, digits, - or _.</div>
-            <ErrorBanner text={err()} />
-            <Show when={msg()}><div class="cm-muted">{msg()}</div></Show>
-            <div class="cm-form-actions">
-              <button type="button" class="cm-btn is-primary" disabled={name().trim() === me()!.user.name} onClick={save}>Save name</button>
-            </div>
-            <div class="cm-muted cm-hint">Member since <Age at={me()!.user.created_at} />.</div>
-            <div class="cm-form-actions is-spread">
-              <button type="button" class="cm-btn" onClick={() => { void signOut(); setView({ kind: "list" }); }}>Sign out</button>
-              <button type="button" class="cm-btn is-danger" onClick={remove}>Delete account</button>
-            </div>
-          </Show>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <aside class="ot-rail-panel cm-panel" aria-label="Community">
@@ -577,7 +516,7 @@ export function CommunityPanel(props: Props) {
         <Match when={view().kind === "queue"}>
           <ModQueue onBack={() => setView({ kind: "list" })} onOpenPost={(id) => id && setView({ kind: "post", id })} />
         </Match>
-        <Match when={view().kind === "account"}><Account /></Match>
+        <Match when={view().kind === "account"}><AccountView onBack={() => setView({ kind: "list" })} /></Match>
         <Match when={view().kind === "notifications"}>
           <NotificationsView onBack={() => setView({ kind: "list" })} onOpenPost={(id) => setView({ kind: "post", id })} />
         </Match>

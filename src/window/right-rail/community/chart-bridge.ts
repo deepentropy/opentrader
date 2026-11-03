@@ -1,13 +1,13 @@
 /*
  * The app's side of the Community chart sharing (data/community/chart-share.ts):
- * the active chart's picture (the snapshot image, as "Take a snapshot" makes
- * it), state and drawings; and "Open on my chart", which shows a shared
+ * the active chart's picture (the chart alone: panes, axes and legend, without
+ * the app around it), state and drawings; and "Open on my chart", which shows a shared
  * chart's symbol and interval and adds its drawings to it.
  */
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import { parseDrawings } from "lightweight-charts-drawing/core/serialize";
 import { exportableCharts } from "../../chart/chart-export";
-import { layoutSnapshot, snapshotTheme } from "../../chart/layout-snapshot";
+import { chartSnapshot } from "../../chart/layout-snapshot";
 import { isSupportedResolution, toFullSymbol } from "../../../data/datafeed";
 import type { AppTabs } from "../../shell/app-tabs";
 import type { DrawingStore } from "../../drawings/drawing-store";
@@ -35,10 +35,9 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Prom
 async function picture(): Promise<Blob | null> {
   const charts = exportableCharts();
   const source = (charts.find((c) => c.source.active()) ?? charts[0])?.source;
-  const grid = source?.host()?.closest<HTMLElement>(".chart-grid");
-  if (!source || !grid) return null;
-  const theme = document.documentElement.classList.contains("theme-light") ? "light" : "dark";
-  let canvas = await layoutSnapshot(grid, snapshotTheme(theme), source.timeZone());
+  const host = source?.host();
+  if (!host) return null;
+  let canvas = await chartSnapshot(host);
   if (!canvas) return null;
   if (canvas.width > MAX_WIDTH) {
     const scaled = document.createElement("canvas");

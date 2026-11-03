@@ -160,6 +160,45 @@ export const snapshotTheme = (theme: "dark" | "light"): SnapshotTheme =>
     ? { background: "#FFFFFF", border: "#EBEBEB", text: "#0F0F0F" }
     : { background: "#1F1F1F", border: "#3D3D3D", text: "#DBDBDB" };
 
+/** One chart at the context's origin: its canvas and the legend lines of its panes. */
+function drawChart(ctx: CanvasRenderingContext2D, s: ChartSnapshot): void {
+  const dpr = s.dpr;
+  const lineH = Math.ceil(FONT_SIZE * LINE_SPACING * dpr);
+  ctx.drawImage(s.canvas, 0, 0);
+  ctx.font = `${FONT_SIZE * dpr}px ${s.fontFamily}`;
+  ctx.textBaseline = "top";
+  for (const p of s.panes) {
+    const top = Math.round(p.top * dpr);
+    const bottom = top + Math.round(p.height * dpr);
+    const x = Math.round((p.left + LEGEND_LEFT) * dpr);
+    let y = top + Math.round(LEGEND_TOP * dpr);
+    for (const line of p.lines) {
+      if (y + lineH >= bottom) break;
+      drawLine(ctx, line, x, y, Math.round(p.width * dpr), s.textColor);
+      y += lineH;
+    }
+  }
+}
+
+/** The picture of one chart alone (panes, axes, legends), nothing around it:
+ *  no header line, other charts, border or wordmark. `chart` is the chart's
+ *  element or one inside it. Null when it isn't drawn. */
+export async function chartSnapshot(chart: HTMLElement): Promise<HTMLCanvasElement | null> {
+  for (const [el, take] of sources) {
+    if (!el.contains(chart) && !chart.contains(el)) continue;
+    const s = await take();
+    if (!s || s.canvas.width === 0 || s.canvas.height === 0) return null;
+    const out = document.createElement("canvas");
+    out.width = s.canvas.width;
+    out.height = s.canvas.height;
+    const ctx = out.getContext("2d");
+    if (!ctx) return null;
+    drawChart(ctx, s);
+    return out;
+  }
+  return null;
+}
+
 /** The image of the charts shown in `grid` (null when none is drawn). */
 export async function layoutSnapshot(grid: HTMLElement, theme: SnapshotTheme, timeZone?: string): Promise<HTMLCanvasElement | null> {
   const shots: ChartSnapshot[] = [];
@@ -198,20 +237,7 @@ export async function layoutSnapshot(grid: HTMLElement, theme: SnapshotTheme, ti
   shots.forEach((s, i) => {
     ctx.save();
     ctx.translate(pos[i].x, headerH + pos[i].y);
-    ctx.drawImage(s.canvas, 0, 0);
-    ctx.font = `${FONT_SIZE * dpr}px ${font}`;
-    ctx.textBaseline = "top";
-    for (const p of s.panes) {
-      const top = Math.round(p.top * dpr);
-      const bottom = top + Math.round(p.height * dpr);
-      const x = Math.round((p.left + LEGEND_LEFT) * dpr);
-      let y = top + Math.round(LEGEND_TOP * dpr);
-      for (const line of p.lines) {
-        if (y + lineH >= bottom) break;
-        drawLine(ctx, line, x, y, Math.round(p.width * dpr), s.textColor);
-        y += lineH;
-      }
-    }
+    drawChart(ctx, s);
     ctx.strokeStyle = theme.border;
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, s.canvas.width, s.canvas.height);

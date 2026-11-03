@@ -84,7 +84,10 @@ function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart 
           <span class="cm-muted">
             {props.chart!.symbol} · {shortIntervalLabel(props.chart!.interval)} · {drawings()} drawing{drawings() === 1 ? "" : "s"}
           </span>
-          <Show when={chartBridge()}>
+          <Show
+            when={chartBridge()}
+            fallback={<ExternalLink href="https://opentrader.markets/download.html">Open it in the OpenTrader app</ExternalLink>}
+          >
             <button type="button" class="cm-btn is-small is-primary" onClick={open}>Open on my chart</button>
           </Show>
         </div>
