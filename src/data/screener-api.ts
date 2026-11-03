@@ -5,6 +5,7 @@
  * table.
  */
 import { commands, events, type FieldInfo, type ScanRequest, type ScanResult, type ScreenerStatus, type ScreenerUpdate } from "../bindings";
+import { isCustomField } from "./screener-catalog";
 
 async function unwrap<T>(p: Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>): Promise<T> {
   const r = await p;
@@ -16,7 +17,34 @@ async function unwrap<T>(p: Promise<{ status: "ok"; data: T } | { status: "error
 export const screenerOpen = (owner: string): Promise<ScreenerStatus> => unwrap(commands.screenerOpen(owner));
 /** Stop polling for `owner`. */
 export const screenerClose = (owner: string): Promise<null> => unwrap(commands.screenerClose(owner));
-export const screenerScan = (req: ScanRequest): Promise<ScanResult> => unwrap(commands.screenerScan(req));
+/** Scan the market table. The custom lengths it reads ("EMA137") are asked for first: the backend computes them
+ *  from the closes file and they hold values from its next update (null before). */
+export const screenerScan = async (req: ScanRequest): Promise<ScanResult> => {
+  const custom = customFieldsOf(req).filter((f) => !askedCustom.has(f));
+  if (custom.length) {
+    for (const f of custom) askedCustom.add(f);
+    await unwrap(commands.screenerCustomFields(custom)).catch((e) => console.warn("[screener] custom lengths", e));
+  }
+  return unwrap(commands.screenerScan(req));
+};
+
+const askedCustom = new Set<string>();
+
+/** Custom-length field ids a scan reads: columns, filter sides, sort. */
+export function customFieldsOf(req: ScanRequest): string[] {
+  const ids = new Set<string>();
+  const visit = (v: unknown) => {
+    if (typeof v === "string" && isCustomField(v)) ids.add(v);
+    else if (Array.isArray(v)) v.forEach(visit);
+  };
+  for (const c of req.columns) visit(c);
+  for (const cl of req.filter) {
+    visit(cl.left);
+    visit(cl.right);
+  }
+  if (req.sort) visit(req.sort.sortBy);
+  return [...ids];
+}
 export const screenerFields = (): Promise<FieldInfo[]> => unwrap(commands.screenerFields());
 /** Distinct values of a text field (sector, industry) in the loaded data. */
 export const screenerValues = (field: string): Promise<string[]> => unwrap(commands.screenerValues(field));

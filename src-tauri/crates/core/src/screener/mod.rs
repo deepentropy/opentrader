@@ -12,6 +12,7 @@
  * `ScreenerUpdate` event; the panel then re-runs its scan.
  */
 pub mod clock;
+pub mod closes;
 pub mod fields;
 pub mod live;
 pub mod scan;
@@ -23,7 +24,7 @@ use crate::data::market_rest::{self, MarketRow, RefTicker};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use state::StateFile;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -72,6 +73,8 @@ struct Inner {
     /// Wakes the task when a panel closes, so it need not wait for the next
     /// feed message to see that none is left.
     closed: tokio::sync::Notify,
+    /// Custom lengths the screens asked for ("EMA137"): computed from the closes file into the state.
+    custom: Mutex<BTreeSet<String>>,
 }
 
 /// Managed app state (`app.manage(Screener::default())`).
@@ -105,6 +108,14 @@ impl Screener {
         }
         drop(owners);
         self.status()
+    }
+
+    /// Ask for custom lengths ("EMA137", "SMA150", "RSI21"); returns the ids accepted (lengths 1 to 500). Their
+    /// columns join the table from its next update (the closes file is fetched first when needed).
+    pub fn request_custom(&self, ids: Vec<String>) -> Vec<String> {
+        let ok: Vec<String> = ids.into_iter().filter(|id| closes::custom_id(id).is_some()).collect();
+        self.inner.custom.lock().expect("screener custom lock").extend(ok.iter().cloned());
+        ok
     }
 
     /// Unregister a panel; the task stops (and leaves the live feed) when none is left.
@@ -146,6 +157,10 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
     let mut refs_failed: Option<Instant> = None;
     let mut state: Option<Arc<StateFile>> = state::read_cache().map(Arc::new);
     let mut state_checked: Option<Instant> = None;
+    // Custom lengths: the closes file (fetched while a screen uses one) and the state with their columns.
+    let mut closes: Option<Arc<closes::Closes>> = None;
+    let mut closes_checked: Option<Instant> = None;
+    let mut merged: Option<(NaiveDate, Vec<String>, Arc<StateFile>)> = None;
     let feed_url = feed_url();
     let mut feed: Option<live::Feed> = None;
     // The feed holds a table not shown yet (just connected).
@@ -198,6 +213,36 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                 Err(e) => eprintln!("[screener] state: {e:#}"),
             }
         }
+
+        // Custom lengths: the closes of the state's session, then the state with their columns (again only when the
+        // session or the lengths change).
+        let wanted: Vec<String> = inner.custom.lock().expect("screener custom lock").iter().cloned().collect();
+        let table_state = match (&state, wanted.is_empty()) {
+            (Some(s), false) => {
+                if closes.is_none() {
+                    closes = closes::read_cache().map(Arc::new);
+                }
+                if closes.as_ref().map(|c| c.asof) != Some(s.asof) && closes_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK) {
+                    closes_checked = Some(Instant::now());
+                    match closes::fetch().await {
+                        Ok(Some(c)) => closes = Some(Arc::new(c)),
+                        Ok(None) => {}
+                        Err(e) => eprintln!("[screener] closes: {e:#}"),
+                    }
+                }
+                match &closes {
+                    Some(c) if c.asof == s.asof => {
+                        let fresh = merged.as_ref().map_or(false, |(d, ids, _)| *d == s.asof && *ids == wanted);
+                        if !fresh {
+                            merged = Some((s.asof, wanted.clone(), Arc::new(closes::with_custom(s, c, &wanted))));
+                        }
+                        merged.as_ref().map(|(_, _, m)| m.clone())
+                    }
+                    _ => state.clone(),
+                }
+            }
+            _ => state.clone(),
+        };
 
         // Live feed: connect when there is none and its retry time has come.
         if feed.is_none() && feed_retry.map_or(true, |t| Instant::now() >= t) {
@@ -263,7 +308,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         let update = match snap {
             Ok(rows) => {
                 version = version.wrapping_add(1);
-                let t = Arc::new(Table::build(version, rows, refs.clone(), state.clone()));
+                let t = Arc::new(Table::build(version, rows, refs.clone(), table_state.clone()));
                 let update = ScreenerUpdate {
                     version,
                     updated_ms: t.updated_ms,

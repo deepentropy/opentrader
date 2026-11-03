@@ -22,6 +22,8 @@ import {
   emptyFilter,
   fullParams,
   isOffered,
+  MAX_CUSTOM_LENGTH,
+  optionOf,
   visibleParams,
   type CheckboxFilter,
   type ColumnRef,
@@ -51,7 +53,14 @@ export function ParamButtons(props: { col: ColumnRef; has: (f: string) => boolea
         let btn!: HTMLButtonElement;
         const [open, setOpen] = createSignal(false);
         const cur = () => fullParams(def()!, props.col.params)[p.key];
-        const label = () => p.options.find((o) => o.value === cur())?.label ?? p.options[0].label;
+        const label = () => optionOf(p, cur())?.label ?? p.options[0].label;
+        const pick = (value: string) => {
+          props.onChange({ id: props.col.id, params: { ...fullParams(def()!, props.col.params), [p.key]: value } });
+          setOpen(false);
+        };
+        // "Custom…": any length (1 to MAX_CUSTOM_LENGTH) typed in, set with Enter.
+        const [custom, setCustom] = createSignal("");
+        const customOk = () => /^[1-9]\d*$/.test(custom()) && Number(custom()) <= MAX_CUSTOM_LENGTH;
         return (
           <>
             <button ref={btn} type="button" class="scr-param-btn" classList={{ "is-open": open() }} aria-label={label()} onClick={() => setOpen(!open())}>
@@ -66,13 +75,31 @@ export function ParamButtons(props: { col: ColumnRef; has: (f: string) => boolea
                       <PopItem
                         title={o.label}
                         selected={o.value === cur()}
-                        onClick={() => {
-                          props.onChange({ id: props.col.id, params: { ...fullParams(def()!, props.col.params), [p.key]: o.value } });
-                          setOpen(false);
-                        }}
+                        onClick={() => pick(o.value)}
                       />
                     )}
                   </For>
+                  <Show when={p.custom}>
+                    <Show when={!p.options.some((o) => o.value === cur())}>
+                      <PopItem title={cur()} selected onClick={() => setOpen(false)} />
+                    </Show>
+                    <div class="scr-param-custom">
+                      <input
+                        class="scr-input-plain"
+                        type="text"
+                        inputmode="numeric"
+                        placeholder={`Custom… (1–${MAX_CUSTOM_LENGTH})`}
+                        value={custom()}
+                        onInput={(e) => setCustom(e.currentTarget.value.trim())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && customOk()) pick(String(Number(custom())));
+                        }}
+                      />
+                      <button type="button" class="scr-text-btn" disabled={!customOk()} onClick={() => pick(String(Number(custom())))}>
+                        Set
+                      </button>
+                    </div>
+                  </Show>
                 </div>
               </Popover>
             </Show>

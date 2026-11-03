@@ -1402,3 +1402,29 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-market-primary .switch-view {
   margin-left: auto;
 }
+
+/* Length "Custom…" row under the options (EMA, SMA, RSI). */
+.scr-param-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 8px;
+  border-top: 1px solid var(--color-border-primary-neutral-light);
+}
+.scr-input-plain {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-primary-neutral-light); /* #4a4a4a */
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-content-primary-neutral-bold);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.scr-input-plain:focus {
+  border-color: var(--color-brand, #2962ff);
+}

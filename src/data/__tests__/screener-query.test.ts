@@ -223,7 +223,7 @@ describe("filterClauses", () => {
   it("gives nothing for an empty value, null for an unknown column", () => {
     expect(filterClauses(cond(C("Price"), "above", { value: null }))).toEqual([]);
     expect(filterClauses(cond(C("Nope"), "above", { value: 1 }))).toBeNull();
-    expect(filterClauses(cond(C("Ema", { length: "7" }), "above", { value: 1 }))).toBeNull();
+    expect(filterClauses(cond(C("Ema", { length: "0" }), "above", { value: 1 }))).toBeNull();
     // A range operation with a single value cannot be compiled.
     expect(filterClauses(cond(C("Price"), "between", { value: 1 }))).toEqual([]);
   });

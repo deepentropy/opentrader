@@ -192,7 +192,17 @@ impl Field {
         if let Some((_, f)) = REFERENCE.iter().find(|(k, _)| *k == id) {
             return Some(Field::Reference(*f));
         }
-        STATE.iter().find(|(k, _)| *k == id).map(|(k, s)| Field::State(k, *s))
+        if let Some((k, s)) = STATE.iter().find(|(k, _)| *k == id) {
+            return Some(Field::State(k, *s));
+        }
+        // A custom length ("EMA137"): its columns come from the closes file (`closes.rs`) once a screen asks for it.
+        let (kind, n) = crate::screener::closes::custom_id(id)?;
+        let step = match kind {
+            "EMA" => Step::Ema(n),
+            "SMA" => Step::Sma(n),
+            _ => Step::Rsi(n),
+        };
+        Some(Field::State(intern(id), step))
     }
 
     pub fn is_text(&self) -> bool {
@@ -324,6 +334,18 @@ fn atr_step(s: &StateFile, i: usize, m: &MarketRow, n: u32) -> Option<f64> {
     Some((s.num("ATR", i)? * (n - 1.0) + tr) / n)
 }
 
+/// A custom field id as a `'static` key (a few hundred at most: lengths 1 to 500 of three kinds).
+fn intern(id: &str) -> &'static str {
+    static KEYS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, &'static str>>> = std::sync::OnceLock::new();
+    let mut keys = KEYS.get_or_init(Default::default).lock().expect("field keys lock");
+    if let Some(k) = keys.get(id) {
+        return k;
+    }
+    let k: &'static str = Box::leak(id.to_string().into_boxed_str());
+    keys.insert(id.to_string(), k);
+    k
+}
+
 /// One entry of the field catalog sent to the frontend.
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -351,6 +373,14 @@ pub fn catalog(t: &Table) -> Vec<FieldInfo> {
     for (id, step) in STATE {
         let kind = if matches!(step, Step::Text | Step::List) { "text" } else { "number" };
         out.push(FieldInfo { id: id.to_string(), kind: kind.into(), source: "state".into(), available: has_state });
+    }
+    // The custom lengths computed for the screens that use them.
+    if let Some(s) = &t.state {
+        let mut custom: Vec<&String> = s.num.keys().filter(|k| crate::screener::closes::custom_id(k).is_some() && !STATE.iter().any(|(id, _)| id == k)).collect();
+        custom.sort();
+        for id in custom {
+            out.push(FieldInfo { id: id.clone(), kind: "number".into(), source: "state".into(), available: true });
+        }
     }
     out
 }

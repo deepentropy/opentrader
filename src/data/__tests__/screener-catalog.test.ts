@@ -6,6 +6,7 @@ import {
   DEFAULT_SCREEN_TITLE,
   POPULAR_SCREENS,
   configuredLong,
+  isCustomField,
   configuredShort,
   defaultRef,
   defaultScreen,
@@ -65,7 +66,21 @@ describe("fullParams / fieldOf", () => {
 
   it("gives null for an unknown column or option", () => {
     expect(fieldOf(C("Nope"))).toBeNull();
-    expect(fieldOf(C("Ema", { length: "7" }))).toBeNull();
+    expect(fieldOf(C("Ema", { length: "0" }))).toBeNull();
+    expect(fieldOf(C("Ema", { length: "501" }))).toBeNull();
+  });
+
+  it("gives a custom length's field and titles (any length of EMA, SMA, RSI up to 500)", () => {
+    expect(fieldOf(C("Ema", { length: "137" }))).toBe("EMA137");
+    expect(fieldOf(C("Ma", { length: "150" }))).toBe("SMA150");
+    expect(fieldOf(C("RelativeStrengthIndex", { length: "21" }))).toBe("RSI21");
+    expect(fieldOf(C("RelativeStrengthIndex", { length: "14" }))).toBe("RSI");
+    expect(configuredLong(C("Ema", { length: "137" }))).toBe("Exponential moving average, 137, 1 day");
+    expect(isCustomField("EMA137")).toBe(true);
+    expect(isCustomField("EMA50")).toBe(false);
+    expect(isCustomField("RSI7")).toBe(false);
+    expect(isCustomField("RSI21")).toBe(true);
+    expect(isCustomField("SMA501")).toBe(false);
   });
 });
 

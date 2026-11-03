@@ -12,6 +12,7 @@ import {
   TICKER_SORT_FIELD,
   configuredShort,
   fieldOf,
+  isCustomField,
   type ColumnRef,
   type ConditionFilter,
   type Filter,
@@ -264,7 +265,9 @@ export type Plan = {
 
 /** Build the scan plan of a screen. `has` tells whether a field id exists in
  *  the backend catalog (`screenerFields()`); unknown ids are never sent. */
-export function planScreen(s: Screen, has: (field: string) => boolean, tickers: string[] | null): Plan {
+export function planScreen(s: Screen, known: (field: string) => boolean, tickers: string[] | null): Plan {
+  // A custom length ("EMA137") is served once a scan asks for it (screener-api).
+  const has = (f: string) => known(f) || isCustomField(f);
   const columns = activeColumns(s).filter((c) => {
     const f = fieldOf(c);
     return f !== null && has(f);

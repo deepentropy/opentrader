@@ -39,7 +39,27 @@ export type OffsetOperation = "abovePercent" | "belowPercent";
 export type OffsetRangeId = "offset_range_0_10" | "offset_range_10" | "offset_range_20";
 
 export type ParamOption = { value: string; label: string; short: string; field: string };
-export type ParamDef = { key: string; title: string; default: string; options: ParamOption[] };
+/** `custom`: any length from 1 to MAX_CUSTOM_LENGTH can be typed ("Custom…"); its field is the prefix and the
+ *  length ("EMA137"), computed by the backend from the closes file when a screen uses it. */
+export type ParamDef = { key: string; title: string; default: string; options: ParamOption[]; custom?: { prefix: "EMA" | "SMA" | "RSI" } };
+
+/** Longest custom length (the backend's closes::MAX_LENGTH). */
+export const MAX_CUSTOM_LENGTH = 500;
+
+/** A custom length's field id ("EMA137", "SMA150", "RSI21"): one the daily state does not hold. */
+export function isCustomField(field: string): boolean {
+  const m = /^(EMA|SMA|RSI)([1-9]\d*)$/.exec(field);
+  if (!m || Number(m[2]) > MAX_CUSTOM_LENGTH) return false;
+  const n = Number(m[2]);
+  return m[1] === "RSI" ? n !== 7 : !MA_LENGTHS.includes(n);
+}
+
+/** The option of a param value: one of its options, else a typed custom length. */
+export function optionOf(pd: ParamDef, value: string): ParamOption | undefined {
+  const opt = pd.options.find((o) => o.value === value);
+  if (opt || !pd.custom || !/^[1-9]\d*$/.test(value) || Number(value) > MAX_CUSTOM_LENGTH) return opt;
+  return { value, label: value, short: value, field: `${pd.custom.prefix}${value}` };
+}
 
 /** One filter preset (a row of the pill popover list). */
 export type Preset = {
@@ -105,6 +125,7 @@ const MA_PARAMS = (prefix: "EMA" | "SMA"): ParamDef[] => [
     title: "Length",
     default: "50",
     options: MA_LENGTHS.map((n) => ({ value: String(n), label: String(n), short: String(n), field: `${prefix}${n}` })),
+    custom: { prefix },
   },
   { key: "resolution", title: "Interval", default: "TimeResolution1D", options: [{ value: "TimeResolution1D", label: "1 day", short: "1D", field: "" }] },
 ];
@@ -282,7 +303,7 @@ export const COLUMNS: ColumnDef[] = [
   { id: "Ema", title: "Exponential moving average", short: "EMA", category: "technicals", align: "right", fmt: "price", width: 99, params: MA_PARAMS("EMA"),
     filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS("Ema"), presets: MA_PRESETS("Ema") } },
   { id: "RelativeStrengthIndex", title: "Relative strength index", short: "RSI", category: "technicals", align: "right", fmt: "number", width: 74,
-    params: [{ key: "length", title: "Length", default: "14", options: [
+    params: [{ key: "length", title: "Length", default: "14", custom: { prefix: "RSI" }, options: [
       { value: "7", label: "7", short: "7", field: "RSI7" },
       { value: "14", label: "14", short: "14", field: "RSI" },
     ] },
@@ -378,7 +399,7 @@ export function fieldOf(col: ColumnRef): string | null {
   if (def.field) return def.field;
   const p = fullParams(def, col.params);
   for (const pd of def.params ?? []) {
-    const opt = pd.options.find((o) => o.value === p[pd.key]);
+    const opt = optionOf(pd, p[pd.key]);
     if (opt?.field) return opt.field;
   }
   return null;
@@ -423,7 +444,7 @@ export function paramShorts(col: ColumnRef): string[] {
   const p = fullParams(def, col.params);
   const out: string[] = [];
   for (const pd of def.params) {
-    const opt = pd.options.find((o) => o.value === p[pd.key]);
+    const opt = optionOf(pd, p[pd.key]);
     if (!opt || opt.value === "TimeResolution1D") continue;
     out.push(opt.short);
   }
@@ -444,7 +465,7 @@ export function configuredLong(col: ColumnRef): string {
   const p = fullParams(def, col.params);
   const parts = [def.title];
   for (const pd of def.params ?? []) {
-    const opt = pd.options.find((o) => o.value === p[pd.key]);
+    const opt = optionOf(pd, p[pd.key]);
     if (opt) parts.push(opt.label);
   }
   return parts.join(", ");

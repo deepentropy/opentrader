@@ -44,6 +44,14 @@ pub async fn screener_fields(screener: State<'_, Screener>) -> Result<Vec<FieldI
     Ok(fields::catalog(&screener.table()))
 }
 
+/// Ask for custom moving-average / RSI lengths ("EMA137", "SMA150", "RSI21"): they join the field catalog and the
+/// scans from the table's next update. Returns the ids accepted.
+#[tauri::command]
+#[specta::specta]
+pub async fn screener_custom_fields(screener: State<'_, Screener>, ids: Vec<String>) -> Result<Vec<String>, String> {
+    Ok(screener.request_custom(ids))
+}
+
 /// Distinct values of a text field (sector, industry, type, exchange) in the
 /// current table, sorted: the options of the checkbox filters.
 #[tauri::command]

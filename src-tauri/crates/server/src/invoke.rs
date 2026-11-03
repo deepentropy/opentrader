@@ -214,6 +214,11 @@ struct Scan {
     req: scan::ScanRequest,
 }
 
+#[derive(serde::Deserialize)]
+struct CustomFields {
+    ids: Vec<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Field {
@@ -380,6 +385,10 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
             ok(scan::run(&state.screener.table(), &a.req)?)
         }
         "screener_fields" => ok(fields::catalog(&state.screener.table())),
+        "screener_custom_fields" => {
+            let a: CustomFields = args(body)?;
+            ok(state.screener.request_custom(a.ids))
+        }
         "screener_values" => {
             let a: Field = args(body)?;
             ok(fields::text_values(&state.screener.table(), &a.field)?)
