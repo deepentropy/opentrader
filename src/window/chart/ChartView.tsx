@@ -1307,8 +1307,11 @@ export function ChartView(props: ChartViewProps) {
       for (const layer of compareLayers.values()) layer.setSeriesOnlyScale(id);
     });
   });
-  // The series pinned to a scale (series menu "Pin to scale", undo): it goes there, the layout follows.
-  createEffect(on(() => props.seriesScale, () => {
+  // The series pinned to a scale (series menu "Pin to scale", undo): it goes there, the layout follows. On a change
+  // of the scale only: the pane's props are read again on every save of the view, and redrawing every study then
+  // (a projection after the last bar removed and drawn again) moved the view, which saved it again, in a loop.
+  const seriesScale = createMemo(() => props.seriesScale);
+  createEffect(on(seriesScale, () => {
     applySeriesScale();
     controller?.redrawAll();
     cx.syncScaleLayout();

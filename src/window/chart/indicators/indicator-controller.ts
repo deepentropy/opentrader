@@ -13,7 +13,7 @@
  * position (pane controls, chart drag) and the main series can share a study
  * pane: `mainPane` is the pane of the series and of the studies drawn over it.
  */
-import { PriceScaleMode, type IChartApi, type ISeriesApi, type SeriesType } from 'lightweight-charts';
+import { PriceScaleMode, type IChartApi, type ISeriesApi, type SeriesType, type Time } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
@@ -298,9 +298,11 @@ export class IndicatorController {
   /**
    * Run a change of the studies (added, removed, hidden, set again) keeping the view as the reference does. A plot
    * drawn after the last bar (Ichimoku's cloud, a plot offset) gives the chart data points there, and the chart counts
-   * the last data point of any series as its last bar, so the view would move by the projection. Instead: a longer
-   * projection keeps the left edge and widens the right margin to show it (one bar past its end) when narrower; a
-   * shorter one leaves the view where it was.
+   * the last data point of any series as its last bar, so the view would move by the projection. Instead, as
+   * measured on the reference: with the last bar in view, a longer projection keeps the left edge and widens the right
+   * margin to show it (one bar past its end) when narrower; otherwise the view stays where it was. A study drawn again
+   * with the same projection also moved the view (its series are removed, then added while the last bar is out of
+   * view): the view is put back.
    */
   keepView<T>(change: () => T): T {
     const ts = this.chart.timeScale();
@@ -310,9 +312,11 @@ export class IndicatorController {
     const after = ts.getVisibleLogicalRange();
     if (before && after && lastBefore != null) {
       const last = after.to - ts.scrollPosition();
-      if (Math.abs(last - lastBefore) > 1e-6) {
-        ts.setVisibleLogicalRange({ from: before.from, to: last > lastBefore ? Math.max(before.to, last + 1) : before.to });
-      }
+      const bars = this.getBars();
+      const lastBar = bars.length ? ts.timeToIndex(bars[bars.length - 1].time as unknown as Time, true) : null;
+      const widen = last > lastBefore + 1e-6 && lastBar != null && before.to >= lastBar;
+      const to = widen ? Math.max(before.to, last + 1) : before.to;
+      if (Math.abs(after.from - before.from) > 1e-6 || Math.abs(after.to - to) > 1e-6) ts.setVisibleLogicalRange({ from: before.from, to });
     }
     return out;
   }
@@ -499,8 +503,12 @@ export class IndicatorController {
   }
 
   /** Redraw every study from its last result (the main series was replaced:
-   *  markers and bar colours move to the new one). */
+   *  markers and bar colours move to the new one). The view stays (keepView). */
   redrawAll(): void {
+    this.keepView(() => this.redrawStudies());
+  }
+
+  private redrawStudies(): void {
     for (const [id, inst] of this.instances) {
       if (inst.owner) continue;
       // The scales may have changed (a scale emptied, the series pinned elsewhere): each study reads its scale again.

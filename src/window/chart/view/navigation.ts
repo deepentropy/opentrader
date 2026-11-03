@@ -20,7 +20,7 @@ import {
   pointerNearBox,
   type GroupId,
 } from "../control-bar";
-import { barsSpan } from "./helpers";
+import { barsSpan, projectionBars } from "./helpers";
 import { type ChartCx } from "./context";
 import type { Accessor } from "solid-js";
 
@@ -96,6 +96,8 @@ export function createNavigation(cx: ChartCx): NavigationApi {
     const ts = cx.chart.timeScale();
     let target = currentTokens().rightOffset;
     if (target < 0) target = 10;
+    // the margin counts from the last bar: a projection after it (Ichimoku's cloud) stays cut at the edge (reference)
+    target -= projectionBars(cx.chart, cx.mainLastIndex());
     const from = ts.scrollPosition();
     if (gotoAnim !== null) cancelAnimationFrame(gotoAnim);
     const started = performance.now();
@@ -228,7 +230,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
     // Derived from width/span, so sub-pixel drift is expected; 0.05px of bar
     // spacing is far below anything a user could set deliberately.
     if (bs !== null && Math.abs(bs - DEFAULT_BAR_SPACING) > 0.05) return true;
-    return Math.abs(cx.chart.timeScale().scrollPosition() - currentTokens().rightOffset) > 0.01;
+    return Math.abs(cx.chart.timeScale().scrollPosition() + projectionBars(cx.chart, cx.mainLastIndex()) - currentTokens().rightOffset) > 0.01;
   };
 
   onCleanup(() => {
@@ -307,7 +309,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
         const left = anchor.centre(groupsWidth(fits));
         setBarLeft(left);
       }
-      setGotoShown(canShow(behavior, nearGoto) && cx.chart.timeScale().scrollPosition() < 0);
+      setGotoShown(canShow(behavior, nearGoto) && cx.chart.timeScale().scrollPosition() + projectionBars(cx.chart, cx.mainLastIndex()) < 0);
       setBarShown(canShow(behavior, nearBar));
       setResetAvailable(scalesOffDefault());
     };

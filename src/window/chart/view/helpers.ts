@@ -3,7 +3,7 @@
  * colour arithmetic, chart options from the appearance tokens, the legend
  * values of a bar and the backend candle mapping.
  */
-import { ColorType, LineStyle, TickMarkType, type ISeriesApi, type SeriesType, type UTCTimestamp } from "lightweight-charts";
+import { ColorType, LineStyle, TickMarkType, type IChartApi, type ISeriesApi, type SeriesType, type UTCTimestamp } from "lightweight-charts";
 import { readChartTokens } from "../chart-tokens";
 import { formatChartTime, formatTickMark } from "../time-format";
 import { type PriceSource } from "../../header/chart-settings";
@@ -246,3 +246,13 @@ export function roundedOnSeries(s: ISeriesApi<SeriesType>, v: number): number {
     const n = Number(text);
     return Number.isFinite(n) ? n : v;
   }
+
+/** Bars between the chart library's last bar and the main series' last bar. The library counts its right margin from
+ *  the last data point of any series, so a study plotting after the last bar (Ichimoku's cloud) moves it to the end
+ *  of the projection; the reference counts the right margin from the last bar. 0 without a projection. */
+export function projectionBars(chart: IChartApi, mainLast: number | null): number {
+  if (mainLast == null) return 0;
+  const ts = chart.timeScale();
+  const r = ts.getVisibleLogicalRange();
+  return r ? Math.max(0, Math.round(r.to - ts.scrollPosition() - mainLast)) : 0;
+}
