@@ -171,6 +171,7 @@ export const api = {
   logout: () => request<{ ok: true }>("POST", "/auth/logout"),
 
   themes: () => request<{ communities: Community[] }>("GET", "/communities"),
+  popularTickers: () => request<{ tickers: { id: string; title: string; post_count: number }[] }>("GET", "/tickers/popular"),
   community: (id: string) => request<{ community: Community }>("GET", `/communities/${enc(id)}`),
   follow: (id: string, on: boolean) => request<{ ok: true }>(on ? "POST" : "DELETE", `/communities/${enc(id)}/follow`),
   posts: (id: string, sort: Sort, offset = 0, t = "week") =>

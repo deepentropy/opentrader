@@ -249,7 +249,8 @@ export function SignInBox(props: { providers: string[] | null; error: string | n
             <For each={props.providers!}>
               {(p) => (
                 <button type="button" class="cm-btn is-provider" onClick={() => go(p)}>
-                  Continue with {PROVIDER_LABELS[p] ?? p}
+                  <Show when={p !== "dev"}><Icon name={`signin-${p}`} size={18} class="cm-provider-logo" /></Show>
+                  <span>Continue with {PROVIDER_LABELS[p] ?? p}</span>
                 </button>
               )}
             </For>

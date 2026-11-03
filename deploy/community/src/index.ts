@@ -83,6 +83,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["DELETE", /^\/me$/, ({ env, user }) => api.deleteAccount(env, user)],
 
   ["GET", /^\/communities$/, ({ env, user }) => api.listThemes(env, user)],
+  ["GET", /^\/tickers\/popular$/, ({ env }) => members.popularTickers(env)],
   ["GET", /^\/communities\/([^/]+)$/, ({ env, user, params }) => api.getCommunity(env, user, params[0])],
   ["GET", /^\/communities\/([^/]+)\/moderators$/, ({ env, params }) => members.moderators(env, params[0])],
   ["GET", /^\/communities\/([^/]+)\/log$/, ({ env, params }) => members.publicLog(env, params[0])],

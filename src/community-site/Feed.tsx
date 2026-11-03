@@ -119,7 +119,7 @@ export function CommunityHeader(props: { community: Community; onChange: (c: Com
   );
 }
 
-export function Feed(props: { source: string }) {
+export function Feed(props: { source: string; popular: { id: string; title: string }[] }) {
   const [sort, setSort] = createSignal<Sort>((kv.getItem(SORT_KEY) as Sort | null) ?? "hot");
   const [period, setPeriod] = createSignal("week");
   const [posts, setPosts] = createSignal<Post[]>([]);
@@ -163,6 +163,26 @@ export function Feed(props: { source: string }) {
   const title = () => (props.source === "following" ? "Following" : props.source === "all" ? "All communities" : "");
   return (
     <section class="cs-feed" aria-label="Posts">
+      <Show when={props.source === "all" && ready() && !me()}>
+        <div class="cs-hero">
+          <h1>Trading ideas, one community per ticker.</h1>
+          <p>
+            Every stock, ETF and crypto has its own discussion, themes gather the rest. Read freely; sign in with Google, GitHub or Discord to post,
+            and share charts with their drawings from the OpenTrader app.
+          </p>
+          <Show when={props.popular.length}>
+            <div class="cs-hero-tags" aria-label="Popular tickers">
+              <For each={props.popular.slice(0, 8)}>
+                {(t) => <a class="cs-tag" href={communityPath(t.id)} onClick={go(communityPath(t.id))}>{t.title}</a>}
+              </For>
+            </div>
+          </Show>
+          <div class="cs-hero-actions">
+            <a class="cs-btn is-primary" href={signInPath()} onClick={go(signInPath())}>Sign in to post</a>
+            <a class="cs-btn" href="https://opentrader.markets/download.html">Get the app</a>
+          </div>
+        </div>
+      </Show>
       <Show
         when={single()}
         fallback={

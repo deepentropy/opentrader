@@ -8,7 +8,7 @@ import { communityPath, go } from "./router";
 
 const APP_URL = "https://opentrader.markets";
 
-export function Sidebar(props: { community: string | null }) {
+export function Sidebar(props: { community: string | null; popular: { id: string; title: string; post_count: number }[] }) {
   const single = () => !!props.community && (props.community.startsWith("t:") || props.community.startsWith("c:"));
   const [mods] = createResource(
     () => (single() ? props.community : null),
@@ -21,9 +21,22 @@ export function Sidebar(props: { community: string | null }) {
         when={single()}
         fallback={
           <section class="cs-side-card">
-            <h2>Trading ideas, one community per ticker</h2>
-            <p>Every symbol has its own discussion, and themes gather the rest: penny stocks, options, earnings, crypto.</p>
-            <p>Go to any ticker with the search box, or follow the ones you trade.</p>
+            <h2>Popular tickers</h2>
+            <Show
+              when={props.popular.length}
+              fallback={<p>Every symbol has its own community. Go to any ticker with the search box, or follow the ones you trade.</p>}
+            >
+              <ul class="cs-popular">
+                <For each={props.popular.slice(0, 8)}>
+                  {(t) => (
+                    <li>
+                      <a class="cs-tag is-small" href={communityPath(t.id)} onClick={go(communityPath(t.id))}>{t.title}</a>
+                      <span>{t.post_count} post{t.post_count === 1 ? "" : "s"}</span>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
           </section>
         }
       >

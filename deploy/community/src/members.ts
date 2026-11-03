@@ -172,3 +172,9 @@ export async function decide(env: Env, user: User | null, id: string, body: any)
   return json({ ok: true });
 }
 
+
+/** GET /tickers/popular — the ticker communities with the most posts (the website's front page). */
+export async function popularTickers(env: Env): Promise<Response> {
+  const { results } = await env.DB.prepare("SELECT id, title, post_count FROM communities WHERE kind = 'ticker' AND post_count > 0 ORDER BY post_count DESC, title LIMIT 12").all<Row>();
+  return json({ tickers: results }, 200, { "cache-control": "public, max-age=300" });
+}

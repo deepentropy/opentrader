@@ -12,6 +12,8 @@ import { render } from "solid-js/web";
 import { Match, Show, Switch, createResource, createSignal } from "solid-js";
 import { hydrateKv } from "../data/kv";
 import { api, type Community } from "../data/community/api";
+
+type Popular = { id: string; title: string; post_count: number };
 import { initSession, me } from "../data/community/session";
 import { startNotifications } from "../data/community/notifications";
 import { PostView } from "../window/right-rail/community/PostView";
@@ -67,6 +69,7 @@ function AboutPage(props: { id: string }) {
 
 function Site() {
   const [themes] = createResource(() => api.themes().then((r) => r.communities).catch(() => [] as Community[]));
+  const [popular] = createResource(() => api.popularTickers().then((r) => r.tickers).catch(() => [] as Popular[]));
   const [navOpen, setNavOpen] = createSignal(false);
   void initSession().then(startNotifications);
 
@@ -85,10 +88,10 @@ function Site() {
       <a class="cs-skip" href="#cs-main">Skip to the posts</a>
       <TopBar themes={themes() ?? []} onMenu={() => setNavOpen((o) => !o)} />
       <div class={"cs-layout" + (showSide() ? "" : " no-side")}>
-        <LeftNav themes={themes() ?? []} open={navOpen()} onClose={() => setNavOpen(false)} />
+        <LeftNav themes={themes() ?? []} popular={popular() ?? []} open={navOpen()} onClose={() => setNavOpen(false)} />
         <main id="cs-main" class="cs-main">
           <Switch>
-            <Match when={r().page === "feed" && (r() as { source: string }).source}>{(source) => <Feed source={source()} />}</Match>
+            <Match when={r().page === "feed" && (r() as { source: string }).source}>{(source) => <Feed source={source()} popular={popular() ?? []} />}</Match>
             <Match when={r().page === "post" && (r() as { id: string }).id}>
               {(id) => (
                 <div class="cs-post">
@@ -118,7 +121,7 @@ function Site() {
             <Match when={r().page === "signin" && (r() as { next: string }).next}>{(next) => <SignInPage next={next()} />}</Match>
           </Switch>
         </main>
-        <Show when={showSide()}><Sidebar community={sideCommunity()} /></Show>
+        <Show when={showSide()}><Sidebar community={sideCommunity()} popular={popular() ?? []} /></Show>
       </div>
       <footer class="cs-foot">
         <a href={`${APP_URL}/community-rules.html`}>Rules</a>

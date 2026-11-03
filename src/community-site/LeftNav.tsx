@@ -7,7 +7,7 @@ import type { Community } from "../data/community/api";
 import { me } from "../data/community/session";
 import { communityPath, go, route } from "./router";
 
-export function LeftNav(props: { themes: Community[]; open: boolean; onClose: () => void }) {
+export function LeftNav(props: { themes: Community[]; popular: { id: string; title: string }[]; open: boolean; onClose: () => void }) {
   const current = () => {
     const r = route();
     return r.page === "feed" ? r.source : r.page === "about" ? r.community : "";
@@ -34,6 +34,16 @@ export function LeftNav(props: { themes: Community[]; open: boolean; onClose: ()
         <Show when={tickers().length}>
           <h2 class="cs-nav-heading">Your tickers</h2>
           <For each={tickers()}>{(t) => <Item id={t.id} label={t.title} tag />}</For>
+        </Show>
+        <Show when={props.popular.length}>
+          <h2 class="cs-nav-heading">Popular tickers</h2>
+          <div class="cs-nav-tags">
+            <For each={props.popular.filter((p) => !tickers().some((t) => t.id === p.id)).slice(0, 10)}>
+              {(t) => (
+                <a class="cs-tag is-small" href={communityPath(t.id)} onClick={(e) => { props.onClose(); go(communityPath(t.id))(e); }}>{t.title}</a>
+              )}
+            </For>
+          </div>
         </Show>
         <a class="cs-nav-item is-quiet" href="/propose" onClick={(e) => { props.onClose(); go("/propose")(e); }}>Propose a community</a>
       </aside>

@@ -327,8 +327,8 @@ a.cs-tag:hover::before { border-right-color: var(--cs-signal-hover); }
 .cs-side-card { padding: 14px 16px; border: 1px solid var(--cs-rule); border-radius: 10px; background: var(--cs-slate); font-size: 14px; }
 .cs-side-card h2 { margin: 0 0 8px; color: #fff; font-size: 15px; font-weight: 600; }
 .cs-side-card p { margin: 0 0 10px; color: #b3b6bd; }
-.cs-side-card a:not(.cs-btn) { color: #82a4ff; text-decoration: none; font-size: 14px; }
-.cs-side-card a:not(.cs-btn):hover { text-decoration: underline; }
+.cs-side-card a:not(.cs-btn):not(.cs-tag) { color: #82a4ff; text-decoration: none; font-size: 14px; }
+.cs-side-card a:not(.cs-btn):not(.cs-tag):hover { text-decoration: underline; }
 .cs-side-card.is-app { border-color: #23345e; background: linear-gradient(#16171b, #16171b) padding-box; }
 .cs-plain-list { margin: 0 0 10px; padding: 0; list-style: none; }
 .cs-plain-list li { padding: 2px 0; }
@@ -436,4 +436,27 @@ a.cs-tag:hover::before { border-right-color: var(--cs-signal-hover); }
   .cs-tag.is-large::before { border-width: 19px var(--notch) 19px 0; }
   .cs-post .cm-post { padding: 14px; }
   .cs-post .cm-comments { padding: 6px 12px 16px; }
+}
+
+/* ── Front page for new visitors, popular tickers ────────────────────── */
+.cs-hero {
+  margin-bottom: 26px;
+  padding: 26px 28px 24px;
+  border: 1px solid #23345e;
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(41, 98, 255, 0.07) 1px, transparent 1px) 0 0 / 48px 100%,
+    linear-gradient(rgba(41, 98, 255, 0.07) 1px, transparent 1px) 0 0 / 100% 40px,
+    var(--cs-slate);
+}
+.cs-hero h1 { margin: 0 0 10px; max-width: 22ch; color: #fff; font-size: 30px; font-weight: 600; line-height: 1.2; letter-spacing: -0.015em; }
+.cs-hero p { margin: 0 0 18px; max-width: 60ch; color: #b3b6bd; }
+.cs-hero-tags { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 20px; }
+.cs-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.cs-nav-tags { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 4px 10px 0; }
+.cs-popular { margin: 0; padding: 0; list-style: none; }
+.cs-popular li { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; color: var(--cs-fog); font-size: 13px; }
+@media (max-width: 560px) {
+  .cs-hero { padding: 20px 18px; }
+  .cs-hero h1 { font-size: 24px; }
 }
