@@ -13,6 +13,8 @@ import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTempl
 import { patchDraftScales, saveChartSettingsDefaults, SETTINGS_FINGERPRINT, SETTINGS_REV, type Draft } from "../header/chart-settings";
 import type { AppTabs } from "./app-tabs";
 import { setActiveRailTab, setAlertDialog, setIndicatorsDialogOpen, setIndicatorsParent, setSettingsDialogOpen, setSettingsDialogTab } from "./app-dialogs";
+import { alertStore, isScreenRule } from "../../data/alert-store";
+import { openScreenAlertDialog } from "../alerts/screen-alert-dialog";
 
 export type RequestActions = {
   tabs: Pick<AppTabs, "activePaneState" | "patchActivePane">;
@@ -65,6 +67,12 @@ export function installAppRequests(a: RequestActions): () => void {
     // Chart context-menu "Add alert", AlertsPanel "edit", header "Create alert".
     onAppEvent("chart-open-alert-dialog", (detail) => {
       const d = detail ?? {};
+      // An alert on a stock screen has its own dialog (it is made from the screener).
+      const rule = d.editId ? alertStore.rules().find((r) => r.id === d.editId) : undefined;
+      if (rule && isScreenRule(rule)) {
+        openScreenAlertDialog({ editId: rule.id });
+        return;
+      }
       setAlertDialog({ editId: d.editId, symbol: d.symbol, price: d.price, indicatorId: d.indicatorId, compareSymbol: d.compareSymbol, drawingId: d.drawingId });
     }),
     // Price-scale context menu (right-click on the price axis): checkable

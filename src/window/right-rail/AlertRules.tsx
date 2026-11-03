@@ -312,7 +312,7 @@ export function AlertRulesList(props: { ctx: AlertListContext; drawingMissing: (
                   <Show when={filters().message || !r.name}>{ruleText(r)}</Show>
                 </div>
                 <div class="alerts-panel-rule-meta">
-                  <span data-name="alert-item-ticker">{`${tickerOf(r.symbol)}, ${intervalLabel(r.resolution)}`}</span>
+                  <span data-name="alert-item-ticker">{r.left.kind === "screen" ? `Screen · ${r.left.title}` : `${tickerOf(r.symbol)}, ${intervalLabel(r.resolution)}`}</span>
                   <span class="alerts-panel-rule-status" classList={{ "is-active": r.enabled }} data-name="alert-item-status">
                     {r.enabled ? "Active" : "Inactive"}
                   </span>

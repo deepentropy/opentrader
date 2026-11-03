@@ -85,6 +85,13 @@ export type Operand =
       symbol: string;
       /** As the dialog names it: "<description> (<exchange>)". */
       label?: string;
+    }
+  | {
+      /** A saved stock screen (operators `screen_enter` / `screen_exit`): the alert watches its results. */
+      kind: "screen";
+      screenId: string;
+      /** The screen's name when the alert was made (shown while the screen is gone). */
+      title: string;
     };
 
 /** A condition a study declares for alerts. */
@@ -112,6 +119,9 @@ export type DrawingShape = "channel" | "rectangle" | "time" | "position";
  *  strategy on the left (its study id `strategy:<key>`): fires on each order
  *  fill (with the rule's message, filled with the order), on the fills and on
  *  the script's alert() calls, or on the calls only; the right operand is
+ *  unused;
+ *  `screen_enter` / `screen_exit`: a symbol enters / leaves the results of the
+ *  saved stock screen on the left (kind `screen`); the right operand is
  *  unused. */
 export type AlertOperator =
   | "crossing"
@@ -132,7 +142,15 @@ export type AlertOperator =
   | "alert_function"
   | "strategy_orders"
   | "strategy_orders_and_alerts"
-  | "strategy_alerts";
+  | "strategy_alerts"
+  | "screen_enter"
+  | "screen_exit";
+
+/** An alert on a stock screen: a symbol enters (`screen_enter`) or leaves (`screen_exit`) its results. Read on the
+ *  screener's market table by ./screen-alerts, not on a symbol's ticks; its `symbol` is empty. */
+export function isScreenRule(r: Pick<AlertRule, "op">): boolean {
+  return r.op === "screen_enter" || r.op === "screen_exit";
+}
 
 /** How often a rule may fire (trigger-frequency options). */
 export type AlertFrequency =

@@ -42,6 +42,8 @@ export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   strategy_orders: "Order fills only",
   strategy_orders_and_alerts: "Order fills and alert() function calls",
   strategy_alerts: "alert() function calls only",
+  screen_enter: "A symbol enters the screen",
+  screen_exit: "A symbol leaves the screen",
 };
 
 /** A strategy's conditions: its order fills, with or without its alert() calls, or the calls only. */
@@ -523,6 +525,8 @@ export function operandValue(symbol: string, op: Operand, ctx: EvalContext, reso
     }
     case "symbol":
       return ctx.symbolPrice ? ctx.symbolPrice(op.symbol) : ctx.price;
+    case "screen":
+      return null;
   }
 }
 
@@ -538,6 +542,8 @@ export function operandLabel(op: Operand): string {
       return op.label ?? "indicator";
     case "symbol":
       return op.label ?? tickerOf(op.symbol);
+    case "screen":
+      return op.title;
   }
 }
 
@@ -571,6 +577,8 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
     const title = rule.left.kind === "indicator" ? rule.left.condition?.title : undefined;
     return `${operandLabel(rule.left)}: ${title ?? OPERATOR_LABELS.alert_condition}`;
   }
+  // A stock screen: "Oversold: A symbol enters the screen".
+  if (rule.op === "screen_enter" || rule.op === "screen_exit") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS[rule.op]}`;
   // A script's alert() calls: "Auto fib retracement (3, 10): Any alert() function call".
   if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS.alert_function}`;
   // A strategy's condition: "MA Cross (9, 21): Order fills only".
@@ -659,6 +667,10 @@ export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution
       .join(` ${CONDITIONS_SEPARATOR} `);
   }
   if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
+  // A stock screen: each fire is one symbol ("AAPL entered Oversold").
+  if ((rule.op === "screen_enter" || rule.op === "screen_exit") && rule.left.kind === "screen") {
+    return `${tickerOf(rule.symbol)} ${rule.op === "screen_enter" ? "entered" : "left"} ${rule.left.title}`;
+  }
   // The message of a fire is the alert() call's: the alert is known by its name, the condition.
   if (rule.op === "alert_function" || rule.op === "strategy_alerts") return describeCondition(rule);
   // A strategy's order fills: the strategy's order-fill message.

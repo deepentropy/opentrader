@@ -1366,3 +1366,34 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .sscr-search-input:focus {
   border-color: var(--color-brand, #2962ff);
 }
+
+/* Alert on a stock screen (window/alerts/screen-alert-dialog.tsx). */
+.screen-alert-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.screen-alert-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.screen-alert-row > * {
+  flex: 0 0 auto;
+}
+.screen-alert-label {
+  min-width: 96px;
+}
+.screen-alert-name {
+  flex: 1 1 auto;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-primary-neutral-light); /* #4a4a4a */
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-content-primary-neutral-bold);
+  font: inherit;
+}

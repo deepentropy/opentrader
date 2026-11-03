@@ -170,6 +170,9 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
   strategy_orders: "",
   strategy_orders_and_alerts: "",
   strategy_alerts: "",
+  // Alerts on a stock screen are made from the screener, not in this dialog.
+  screen_enter: "",
+  screen_exit: "",
 };
 
 /** Dropdown of the dialog. `box`: a 34 px bordered control showing the value;

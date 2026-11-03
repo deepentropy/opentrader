@@ -29,6 +29,7 @@ import { AppSettingsDialog } from "./window/header/AppSettingsDialog";
 import { AlertDialog } from "./window/alerts/AlertDialog";
 import { startAlertEngine, onAlertFire } from "./data/alert-engine";
 import { whenAlertLeader } from "./data/alert-backend";
+import { startScreenAlerts } from "./data/screen-alerts";
 import { AlertToasts, type AlertToastData } from "./window/alerts/AlertToast";
 import { UpdateRequiredBanner } from "./window/shell/UpdateRequiredBanner";
 import { loadTabTitleParts, saveTabTitleParts, type TabTitlePartState } from "./window/shell/tab-title";
@@ -565,7 +566,10 @@ function App() {
     // OS notification, webhook POST) and race the shared kv fire log. The
     // backend names the window that runs it (another one takes over when it
     // is closed). The other windows still read the store for their alert UI.
-    whenAlertLeader(windowLabel, () => startAlertEngine(windowLabel));
+    whenAlertLeader(windowLabel, () => {
+      startAlertEngine(windowLabel);
+      startScreenAlerts();
+    });
     let toastSeq = 0;
     const offFire = onAlertFire((f) => {
       setAlertToasts((list) => [...list, { id: `${f.time}-${++toastSeq}`, alertId: f.alertId, symbol: f.symbol, message: f.message, time: f.time, sound: f.sound }]);

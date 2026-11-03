@@ -4,7 +4,8 @@
  * caret, 34 px buttons).
  *
  * Screen menu (local actions only): Save screen, Make a copy…, Rename…,
- * Create new screen…, Recently used, Open screen…. The account items
+ * Create new screen…, Add alert… (on a saved screen: a symbol enters or
+ * leaves it), Recently used, Open screen…. The account items
  * (Autosave, Share screen) and Download results as CSV are not shown.
  */
 import { For, Show, createSignal } from "solid-js";
@@ -14,6 +15,7 @@ import { screenerStore } from "../../data/screener-store";
 import type { Screen } from "../../data/screener-catalog";
 import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenBrowserDialog } from "./ScreenBrowserDialog";
+import { openScreenAlertDialog } from "../alerts/screen-alert-dialog";
 
 /** `copyOf`: "Make a copy" of an Open screen row (`source`), not opened. */
 type NameDialog = { mode: "saveAs" | "copy" | "copyOf" | "rename" | "create"; initial: string; source?: Screen };
@@ -96,6 +98,16 @@ export function ScreenerTopbar() {
           <PopItem title="Rename…" icon="scr-menu-rename" onClick={() => run(() => setDialog({ mode: "rename", initial: screenerStore.screen().title }))} />
           <PopDivider />
           <PopItem title="Create new screen…" iconSpace onClick={() => run(() => setDialog({ mode: "create", initial: "" }))} />
+          <PopItem
+            title="Add alert…"
+            description={screenerStore.savedId() ? undefined : "Save the screen first"}
+            iconSpace
+            disabled={!screenerStore.saved()}
+            onClick={() => run(() => {
+              const s = screenerStore.saved();
+              if (s) openScreenAlertDialog({ screen: { id: s.id, title: s.screen.title } });
+            })}
+          />
           <Show when={screenerStore.recentScreens().length > 0}>
             <PopDivider />
             <PopSectionTitle title="Recently used" />

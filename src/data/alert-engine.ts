@@ -31,7 +31,7 @@ import { onTradeTick, getBars, getTickerInfo, isSupportedResolution, tickerOf, t
 import { cachedSymbolSessions, localToUtc, symbolSessions } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
-import { alertStore, type AlertRule, type Operand } from "./alert-store";
+import { alertStore, isScreenRule, type AlertRule, type Operand } from "./alert-store";
 import { inSchedule } from "./alert-schedule";
 import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
@@ -60,6 +60,9 @@ import { isStrategyId, strategyKeyOf } from "../window/chart/indicators/strategy
 import { typeIdOf } from "../window/chart/indicators/study-id";
 import { strategyTester } from "./strategy-tester-store";
 import type { BacktestReport } from "../backtester/types";
+
+/** The enabled rules read here: an alert on a stock screen is read on the screener's table (./screen-alerts). */
+const engineRules = (): AlertRule[] => alertStore.enabledRules().filter((r) => !isScreenRule(r));
 
 /** True inside the Tauri shell — gates the native webhook route. */
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -549,6 +552,17 @@ function deliverFire(rule: AlertRule, price: number, barTime: number | null, off
     .then((message) => sendFire(rule, price, barTime, message, offline));
 }
 
+/** Symbols entered or left the results of a stock screen the rule watches (./screen-alerts): one fire, delivered like
+ *  the others (log, sound, notification, toast, webhook), for one symbol (its price) or for several (listed in the
+ *  message unless the rule has its own). */
+export function deliverScreenFire(rule: AlertRule, symbols: string[], price: number | null): void {
+  if (!symbols.length) return;
+  const title = rule.left.kind === "screen" ? rule.left.title : "";
+  const verb = rule.op === "screen_enter" ? "entered" : "left";
+  const message = rule.message?.trim() || (symbols.length > 1 ? `${symbols.join(", ")} ${verb} ${title}` : "");
+  deliverFire({ ...rule, symbol: symbols[0], message }, symbols.length > 1 ? NaN : (price ?? NaN), null);
+}
+
 function sendFire(rule: AlertRule, price: number, barTime: number | null, message: string, offline?: { fireTime: number }): void {
   const now = Date.now();
   const condText = describeCondition(rule);
@@ -657,7 +671,7 @@ function onTick(t: TradeTick): void {
   // The backend evaluates the other rules of the symbol. A rule on a compared
   // symbol is read on the quotes of both symbols (it may compare the compared
   // symbol's price with the chart symbol's price or studies).
-  const rules = alertStore.enabledRules().filter((r) => (r.symbol === symbol || ruleComparedSymbols(r).includes(symbol)) && !evaluatedByBackend(r));
+  const rules = engineRules().filter((r) => (r.symbol === symbol || ruleComparedSymbols(r).includes(symbol)) && !evaluatedByBackend(r));
   if (rules.length === 0) return;
 
   const now = Date.now();
@@ -1279,7 +1293,7 @@ let drawingPollBusy = false;
 async function pollDrawingBars(onlyMissing = false): Promise<void> {
   if (drawingPollBusy) return;
   const jobs = new Map<string, { symbol: string; resolution: string; session: SessionId }>();
-  for (const rule of alertStore.enabledRules().flatMap(conditionRules)) {
+  for (const rule of engineRules().flatMap(conditionRules)) {
     const fromBars = (rule.right.kind === "drawing" && rule.right.plot != null) || rule.left.kind === "indicator" || rule.right.kind === "indicator" || rule.right2?.kind === "indicator";
     if (!fromBars || !isSupportedResolution(rule.resolution)) continue;
     const session = rule.session ?? DEFAULT_SESSION;
@@ -1321,7 +1335,7 @@ let movingPollBusy = false;
 
 async function pollMovingRefs(): Promise<void> {
   if (movingPollBusy) return;
-  const rules = alertStore.enabledRules().flatMap(conditionRules).filter((r) => isMovingOperator(r.op) && isSupportedResolution(r.resolution));
+  const rules = engineRules().flatMap(conditionRules).filter((r) => isMovingOperator(r.op) && isSupportedResolution(r.resolution));
   if (rules.length === 0) return;
   movingPollBusy = true;
   try {
@@ -1524,7 +1538,7 @@ async function replayBars(cache: Map<string, ChartBar[]>, symbol: string, resolu
 export async function replayMissedFires(previous: Record<string, number | null | undefined>, nowSec = Math.floor(Date.now() / 1000)): Promise<number> {
   let found = 0;
   const barsBy = new Map<string, ChartBar[]>();
-  for (const rule of alertStore.enabledRules()) {
+  for (const rule of engineRules()) {
     if (evaluatedByBackend(rule) || !isSupportedResolution(rule.resolution)) continue;
     // Several conditions read in the window: each on its own interval's bars, read together at every bar close.
     if (rule.and?.length) {
@@ -1688,7 +1702,7 @@ export function startAlertEngine(windowLabel = "main"): void {
   createRoot(() => {
     createEffect(() => {
       // A rule on a compared symbol needs that symbol's quotes.
-      const symbols = [...new Set(alertStore.enabledRules().flatMap((r) => [r.symbol, ...ruleComparedSymbols(r)]))];
+      const symbols = [...new Set(engineRules().flatMap((r) => [r.symbol, ...ruleComparedSymbols(r)]))];
       setSubscription("alerts", symbols);
     });
 
@@ -1698,7 +1712,7 @@ export function startAlertEngine(windowLabel = "main"): void {
     createEffect(() => {
       const now = Date.now();
       let next = Infinity;
-      for (const r of alertStore.enabledRules()) {
+      for (const r of engineRules()) {
         if (r.expiresAt == null) continue;
         if (r.expiresAt <= now) alertStore.setEnabled(r.id, false, "expired");
         else next = Math.min(next, r.expiresAt);
