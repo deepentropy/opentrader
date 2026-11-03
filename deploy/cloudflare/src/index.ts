@@ -8,8 +8,8 @@
  * `/ingest/*` relays the usage statistics of the web version and the desktop
  * app (src/data/analytics.ts) to the analytics service, adding the city,
  * region and country Cloudflare reports. The user's IP address is passed on
- * in events marked `ip_consent` (unless the user switched it off in the app's
- * settings); otherwise it never reaches the service.
+ * in events marked `ip_consent` (all, except users who declined it on the
+ * former consent card); otherwise it never reaches the service.
  */
 import { Container, getContainer } from "@cloudflare/containers";
 
@@ -77,7 +77,7 @@ async function relayAnalytics(request: Request, url: URL): Promise<Response> {
     const props: Record<string, unknown> = { ...e.properties, ...location };
     // The service would locate Cloudflare's address, not the user's: the location above stands instead.
     props.$geoip_disable = true;
-    // A custom property (the project discards `$ip`); not when the user switched it off.
+    // A custom property (the project discards `$ip`); not for users who declined it.
     if (props.ip_consent === true && ip) props.ip = ip;
     else delete props.ip;
     e.properties = props;

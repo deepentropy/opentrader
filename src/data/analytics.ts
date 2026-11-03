@@ -6,8 +6,8 @@
  *
  * Both versions send through the web version's relay (`/ingest`, the
  * Cloudflare Worker), which adds the city, region and country Cloudflare
- * reports, and the IP address unless the user switched that off
- * (`ipConsent` "denied", Settings > Service > Privacy).
+ * reports, and the IP address. One switch covers it all (Settings > Service >
+ * Privacy > Send usage statistics, on by default).
  * See https://opentrader.markets/privacy.html.
  *
  * Off in development builds and when the build has no project key
@@ -36,22 +36,9 @@ type Queued = { event: string; properties: Props; timestamp: string };
 
 const [enabled, setEnabledSignal] = createSignal(kv.getItem(ENABLED_KEY) !== "false");
 
-type IpConsent = "granted" | "denied" | null;
-function readConsent(): IpConsent {
-  const v = kv.getItem(IP_CONSENT_KEY);
-  return v === "granted" || v === "denied" ? v : null;
-}
-const [ipConsent, setIpConsentSignal] = createSignal<IpConsent>(readConsent());
-
-/** The user's choice about sharing their IP address (null: never changed = shared). */
-export const analyticsIpConsent = ipConsent;
-
-/** Record the answer about sharing the IP address. */
-export function setAnalyticsIpConsent(granted: boolean): void {
-  kv.setItem(IP_CONSENT_KEY, granted ? "granted" : "denied");
-  setIpConsentSignal(granted ? "granted" : "denied");
-  track(granted ? "ip_consent_granted" : "ip_consent_denied");
-}
+/** Users who declined the IP address on the former consent card (before
+ *  0.4.12) keep that answer: their events still go without it. */
+const IP_DECLINED = kv.getItem(IP_CONSENT_KEY) === "denied";
 
 /** Whether usage statistics are sent (the Settings switch). */
 export const analyticsEnabled = enabled;
@@ -118,8 +105,8 @@ export function track(event: string, props: Props = {}): void {
       app: WEB ? "web" : "desktop",
       app_version: VERSION,
       os: os(),
-      // The relay adds the IP address only when this is true (by default).
-      ip_consent: ipConsent() !== "denied",
+      // The relay adds the IP address only when this is true.
+      ip_consent: !IP_DECLINED,
     },
   });
   timer ??= window.setTimeout(flush, FLUSH_MS);

@@ -24,10 +24,8 @@ import { alertSettings } from "../../data/alert-settings";
 import {
   analyticsAvailable,
   analyticsEnabled,
-  analyticsIpConsent,
   PRIVACY_URL,
   setAnalyticsEnabled,
-  setAnalyticsIpConsent,
 } from "../../data/analytics";
 import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
@@ -452,15 +450,8 @@ function ServiceTab() {
             onChange={() => setAnalyticsEnabled(!analyticsEnabled())}
           />
           <div class="app-settings-note">
-            Which features are used and from which city, to know what to improve. No account, no symbols.
-          </div>
-          <Checkbox
-            label="Include my IP address"
-            checked={analyticsIpConsent() !== "denied"}
-            disabled={!analyticsEnabled()}
-            onChange={() => setAnalyticsIpConsent(analyticsIpConsent() === "denied")}
-          />
-          <div class="app-settings-note">
+            Which features are used, with your IP address and city, to know what to improve. No account, no
+            symbols.{" "}
             <a
               class="app-settings-about-link"
               href={PRIVACY_URL}
