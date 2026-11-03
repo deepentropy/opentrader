@@ -36,6 +36,8 @@ use tauri::{
 
 const FILE: &str = "window-session.json";
 const MAIN: &str = "main";
+/// The screener's own window (placement "Separate window", window-bridge.ts).
+const SCREENER_WINDOW: &str = "screener";
 /// Minimum overlap (physical px) between a saved window and a monitor for the
 /// saved position to be used.
 const MIN_VISIBLE: i32 = 64;
@@ -152,6 +154,10 @@ fn record(session: &Session, window: &Window) {
 /// Window events: keep bounds / focus current, forget a window the user closes
 /// while others stay open.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
+    // The screener's own window is not a chart window: not saved, not restored.
+    if window.label() == SCREENER_WINDOW {
+        return;
+    }
     let app = window.app_handle();
     let Some(session) = app.try_state::<Session>() else { return };
     match event {

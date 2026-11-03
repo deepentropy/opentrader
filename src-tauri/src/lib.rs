@@ -147,6 +147,10 @@ pub fn run() {
                 use tauri::Manager;
                 let owner = window.label().to_string();
                 alerts::on_window_destroyed(window.app_handle(), &owner);
+                // Its screener panel can no longer close itself: stop its market table polling.
+                if let Some(s) = window.app_handle().try_state::<screener::Screener>() {
+                    s.close(&format!("{owner}:screener"));
+                }
                 if let Some(handle) = window.app_handle().try_state::<data::types::WsHandle>() {
                     let tx = handle.tx.clone();
                     tauri::async_runtime::spawn(async move {

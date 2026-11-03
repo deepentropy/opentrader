@@ -93,6 +93,36 @@ export function detachTabToWindow(tab: TabChart, screenX: number, screenY: numbe
   }
 }
 
+/** Label of the screener's own window (placement "Separate window"): one at a time. */
+export const SCREENER_WINDOW = "screener";
+
+/** Open the screener's window, or bring it to the front. Returns true inside Tauri. */
+let screenerOpening = false;
+export function openScreenerWindow(): boolean {
+  if (!isTauri()) return false;
+  if (screenerOpening) return true;
+  screenerOpening = true;
+  void WebviewWindow.getByLabel(SCREENER_WINDOW).then((existing) => {
+    screenerOpening = false;
+    if (existing) {
+      void existing.setFocus();
+      return;
+    }
+    new WebviewWindow(SCREENER_WINDOW, {
+      url: "index.html?view=screener",
+      width: 1100,
+      height: 760,
+      center: true,
+      title: "Screener",
+      focus: true,
+      decorations: false,
+      shadow: true,
+      dragDropEnabled: false,
+    });
+  });
+  return true;
+}
+
 let newWindowSeq = 0;
 
 /**

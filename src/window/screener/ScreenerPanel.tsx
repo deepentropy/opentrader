@@ -13,6 +13,11 @@
  * as CSV", "Save results as watchlist", its saved screens (Save screen,
  * Save screen as…, open or delete one) and "About Script Screener".
  *
+ * Placement (title menu, beyond the reference app which has the right panel
+ * only): the right split view, the bottom panel under the charts (a 4 px seam
+ * at its top edge, height persisted) or its own window (`dock` "window": the
+ * header is the window's title bar, Close closes the window).
+ *
  * Data: `screenerOpen(owner)` starts the backend's 10 s polling while the
  * panel is mounted; every `screener-update` re-runs the scan (visible pages),
  * every screen change re-plans it. The Refresh badge counts down the seconds
@@ -32,7 +37,12 @@ import {
   type ColumnRef,
 } from "../../data/screener-catalog";
 import { activeColumns, planScreen, type Plan } from "../../data/screener-query";
-import { PANEL_MIN_WIDTH, screenerPanel, screenerStore } from "../../data/screener-store";
+import { PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH, screenerPanel, screenerStore, type ScreenerPlacement } from "../../data/screener-store";
+import { isTauri } from "../shell/window-bridge";
+import { emitTo } from "@tauri-apps/api/event";
+
+/** Event to the main window from the screener's own window: show the screener there, at `placement`. */
+export const SCREENER_PLACE_EVENT = "screener-placement";
 import type { FlagColor } from "../../data/watchlist";
 import { allFlags } from "../../data/symbol-flags";
 import { FilterPills, watchlistTickers } from "./FilterPills";
@@ -54,10 +64,15 @@ type Props = {
   windowLabel: string;
   /** Same callback as the watchlist row pick (sets the chart symbol). */
   onSymbolPicked: (ticker: string) => void;
+  /** Where it is drawn: the right split view (default), the bottom panel, or a window of its own. */
+  dock?: "right" | "bottom" | "window";
+  /** Window dock: close the window. */
+  onCloseWindow?: () => void;
 };
 
 export function ScreenerPanel(props: Props) {
   const owner = `${props.windowLabel}:screener`;
+  const dock = () => props.dock ?? "right";
   const [fields, setFields] = createSignal<Map<string, FieldInfo> | null>(null);
   const has = (f: string) => fields()?.has(f) ?? false;
   const [lastUpdate, setLastUpdate] = createSignal<number | null>(null);
@@ -76,6 +91,17 @@ export function ScreenerPanel(props: Props) {
   let scriptNames: () => ReadonlyMap<string, string> = () => new Map();
   const downloadCsv = () =>
     downloadText(csvFileName(scriptScreenStore.current()?.name ?? "Script screener"), scriptResultsCsv(scriptRows(), scriptColumns(), scriptNames()));
+  /** Move the screener: the main window shows it in its new place (App opens its own window for "window"). From its
+   *  own window: the main window is told (event), then the window closes. */
+  const place = (p: ScreenerPlacement) => {
+    if (p === screenerPanel.placement()) return;
+    if (dock() === "window") {
+      void emitTo("main", SCREENER_PLACE_EVENT, { placement: p }).finally(() => props.onCloseWindow?.());
+      return;
+    }
+    screenerPanel.setPlacement(p);
+    screenerPanel.setOpen(true);
+  };
   const saveScreenAs = () =>
     showRename({
       title: "Save screen as",
@@ -203,6 +229,24 @@ export function ScreenerPanel(props: Props) {
     return m;
   });
 
+  // Bottom panel: drag the 4 px strip at its top edge; the panel grows upward.
+  const beginResizeHeight = (e: MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = screenerPanel.height();
+    const maxH = () => Math.max(PANEL_MIN_HEIGHT, document.documentElement.clientHeight - 200);
+    const onMove = (ev: MouseEvent) => screenerPanel.setHeight(Math.min(maxH(), startH + (startY - ev.clientY)));
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      screenerPanel.setHeight(screenerPanel.height(), true);
+    };
+    document.body.style.cursor = "ns-resize";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   // Resizer: drag the 4 px strip; the panel grows to the left.
   const beginResize = (e: MouseEvent) => {
     e.preventDefault();
@@ -224,14 +268,23 @@ export function ScreenerPanel(props: Props) {
   return (
     <div
       class="scr-split"
-      classList={{ "is-fullscreen": screenerPanel.fullscreen() }}
-      style={{ width: screenerPanel.fullscreen() ? undefined : `${screenerPanel.width()}px` }}
+      classList={{ "is-fullscreen": dock() === "right" && screenerPanel.fullscreen(), "is-bottom": dock() === "bottom", "is-window": dock() === "window" }}
+      style={
+        dock() === "bottom"
+          ? { height: `${screenerPanel.height()}px` }
+          : dock() === "right" && !screenerPanel.fullscreen()
+            ? { width: `${screenerPanel.width()}px` }
+            : undefined
+      }
     >
-      <Show when={!screenerPanel.fullscreen()}>
+      <Show when={dock() === "right" && !screenerPanel.fullscreen()}>
         <div class="scr-resizer" role="separator" aria-orientation="vertical" onMouseDown={beginResize} />
       </Show>
+      <Show when={dock() === "bottom"}>
+        <div class="scr-resizer scr-resizer--top" role="separator" aria-orientation="horizontal" onMouseDown={beginResizeHeight} />
+      </Show>
       <section class="scr-panel" aria-label="Stock Screener">
-        <header class="scr-panel-header">
+        <header class="scr-panel-header" data-tauri-drag-region={dock() === "window" ? "" : undefined}>
           <button
             ref={titleBtn}
             type="button"
@@ -244,6 +297,7 @@ export function ScreenerPanel(props: Props) {
             <span class="scr-screen-caret" classList={{ "is-open": titleOpen() }}><Icon name="scr-caret" size={18} /></span>
           </button>
           <div class="scr-panel-buttons">
+            <Show when={dock() === "right"}>
             <button
               type="button"
               class="scr-light-btn scr-light-btn--ghost is-icon-only"
@@ -253,12 +307,13 @@ export function ScreenerPanel(props: Props) {
             >
               <Icon name={screenerPanel.fullscreen() ? "scr-panel-restore" : "scr-panel-fullscreen"} size={28} />
             </button>
+            </Show>
             <button
               type="button"
               class="scr-light-btn scr-light-btn--ghost is-icon-only"
               title="Close"
               aria-label="Close"
-              onClick={() => screenerPanel.setOpen(false)}
+              onClick={() => (dock() === "window" ? props.onCloseWindow?.() : screenerPanel.setOpen(false))}
             >
               <Icon name="scr-panel-close" size={28} />
             </button>
@@ -377,6 +432,13 @@ export function ScreenerPanel(props: Props) {
         <Popover anchor={titleBtn} onClose={() => setTitleOpen(false)} width={260}>
           <PopItem title="Stock Screener" selected={!script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("stock"); }} />
           <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("script"); }} />
+          <PopDivider />
+          <PopSectionTitle title="Placement" />
+          <PopItem title="Right panel" selected={screenerPanel.placement() === "right"} onClick={() => { setTitleOpen(false); place("right"); }} />
+          <PopItem title="Bottom panel" selected={screenerPanel.placement() === "bottom"} onClick={() => { setTitleOpen(false); place("bottom"); }} />
+          <Show when={isTauri()}>
+            <PopItem title="Separate window" selected={screenerPanel.placement() === "window"} onClick={() => { setTitleOpen(false); place("window"); }} />
+          </Show>
           <Show when={script()}>
             <PopDivider />
             <PopItem title="Save screen" disabled={!scriptScreenStore.unsaved()} onClick={() => { setTitleOpen(false); saveScreen(); }} />

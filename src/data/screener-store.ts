@@ -6,6 +6,8 @@
  *   ot:screener:screens:v1  saved screens + recently used order
  *   ot:screener:draft:v1    the current screen and the saved screen it came from
  *   ot:screener:open / ot:screener:width  split-view panel
+ *   ot:screener:placement / ot:screener:height  where the panel shows (right,
+ *   bottom, its own window) and the bottom panel's height
  * With autosave off (the reference app default) a change marks the screen unsaved and the
  * topbar shows the Save button until it is saved. Undo/redo hold up to 100
  * steps (the reference app HISTORY_MAX_SIZE) and are cleared when another screen is opened.
@@ -234,14 +236,30 @@ export const screenerStore = {
 // ── Split-view panel state ────────────────────────────────────────────────
 export const PANEL_MIN_WIDTH = 420;
 export const PANEL_DEFAULT_WIDTH = 931;
+export const PANEL_MIN_HEIGHT = 240;
+export const PANEL_DEFAULT_HEIGHT = 380;
+const PLACEMENT_KEY = "ot:screener:placement";
+const HEIGHT_KEY = "ot:screener:height";
+
+/** Where the screener shows: the right split view (the reference app's only place, the default), the bottom panel
+ *  under the charts, or its own window (desktop). */
+export type ScreenerPlacement = "right" | "bottom" | "window";
 
 const panel = createRoot(() => {
   const [open, setOpen] = createSignal(kv.getItem(OPEN_KEY) === "1");
   const w = Number(kv.getItem(WIDTH_KEY));
   const [width, setWidth] = createSignal(Number.isFinite(w) && w >= PANEL_MIN_WIDTH ? w : PANEL_DEFAULT_WIDTH);
   const [fullscreen, setFullscreen] = createSignal(false);
-  return { open, setOpen, width, setWidth, fullscreen, setFullscreen };
+  const stored = kv.getItem(PLACEMENT_KEY);
+  const [placement, setPlacement] = createSignal<ScreenerPlacement>(stored === "bottom" || stored === "window" ? stored : "right");
+  const h = Number(kv.getItem(HEIGHT_KEY));
+  const [height, setHeight] = createSignal(Number.isFinite(h) && h >= PANEL_MIN_HEIGHT ? h : PANEL_DEFAULT_HEIGHT);
+  return { open, setOpen, width, setWidth, fullscreen, setFullscreen, placement, setPlacement, height, setHeight };
 });
+
+// Another window (the screener's own) moved the screener or closed it: follow.
+kv.onExternalChange(PLACEMENT_KEY, (v) => panel.setPlacement(v === "bottom" || v === "window" ? v : "right"));
+kv.onExternalChange(OPEN_KEY, (v) => panel.setOpen(v === "1"));
 
 export const screenerPanel = {
   open: panel.open,
@@ -261,4 +279,16 @@ export const screenerPanel = {
     if (commit) kv.setItem(WIDTH_KEY, String(panel.width()));
   },
   setFullscreen: panel.setFullscreen,
+  placement: panel.placement,
+  setPlacement(p: ScreenerPlacement): void {
+    panel.setPlacement(p);
+    panel.setFullscreen(false);
+    kv.setItem(PLACEMENT_KEY, p);
+  },
+  height: panel.height,
+  /** Live height of the bottom panel while dragging; `commit` persists it. */
+  setHeight(px: number, commit = false): void {
+    panel.setHeight(Math.max(PANEL_MIN_HEIGHT, Math.round(px)));
+    if (commit) kv.setItem(HEIGHT_KEY, String(panel.height()));
+  },
 };

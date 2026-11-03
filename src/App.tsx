@@ -35,7 +35,7 @@ import { UpdateRequiredBanner } from "./window/shell/UpdateRequiredBanner";
 import { loadTabTitleParts, saveTabTitleParts, type TabTitlePartState } from "./window/shell/tab-title";
 import { reopenLabel } from "./window/shell/closed-stack";
 import { initShellBus } from "./window/shell/shell-bus";
-import { currentWindowLabel, initWindowStorageCleanup, isTauri, toggleFullscreen } from "./window/shell/window-bridge";
+import { currentWindowLabel, initWindowStorageCleanup, isTauri, openScreenerWindow, toggleFullscreen } from "./window/shell/window-bridge";
 import { RightRail } from "./window/right-rail/RightRail";
 import { BottomBar } from "./window/bottom-bar/BottomBar";
 import { OakScriptPanel } from "./window/oakscript/OakScriptPanel";
@@ -43,7 +43,10 @@ import { StrategyTesterPanel } from "./window/strategy-tester/StrategyTesterPane
 import { intervalSeconds } from "./window/strategy-tester/equity-data";
 import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strategy-entries";
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
-import { screenerPanel } from "./data/screener-store";
+import { screenerPanel, type ScreenerPlacement } from "./data/screener-store";
+import { SCREENER_PLACE_EVENT } from "./window/screener/ScreenerPanel";
+import { SCREENER_PICK_EVENT } from "./window/screener/ScreenerWindow";
+import { listen } from "@tauri-apps/api/event";
 import { CHART_TYPE_IDS, SINGLE_VALUE_TYPES, rememberSingleValueType, type ChartTypeId } from "./window/chart/chart-types";
 import { isAdjusted, setAdjusted, isEconomicSymbol, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { displayTimeZone } from "./data/session";
@@ -419,6 +422,26 @@ function App() {
     if (!replayEnabled()) tradingUi.closeTicket();
   });
 
+  // The screener in its own window: opening it (the rail button) opens or raises the window; its row picks change
+  // this window's chart (the main window only).
+  createEffect(() => {
+    if (screenerPanel.open() && screenerPanel.placement() === "window") {
+      openScreenerWindow();
+      screenerPanel.setOpen(false);
+    }
+  });
+  if (windowLabel === "main" && isTauri()) {
+    const off = listen<{ ticker: string }>(SCREENER_PICK_EVENT, (e) => onSymbolPicked(e.payload.ticker));
+    const offPlace = listen<{ placement: ScreenerPlacement }>(SCREENER_PLACE_EVENT, (e) => {
+      screenerPanel.setPlacement(e.payload.placement);
+      screenerPanel.setOpen(true);
+    });
+    onCleanup(() => {
+      void off.then((f) => f());
+      void offPlace.then((f) => f());
+    });
+  }
+
   /** A picked symbol: the full name "EXCHANGE:TICKER" from the search dialog,
    *  the watchlist and the static catalog; a bare ticker (screener rows) gets
    *  its primary listing first. */
@@ -638,7 +661,7 @@ function App() {
           "min-height": 0,
           "min-width": 0,
           overflow: "hidden",
-          display: screenerPanel.open() && screenerPanel.fullscreen() ? "none" : undefined,
+          display: screenerPanel.open() && screenerPanel.placement() === "right" && screenerPanel.fullscreen() ? "none" : undefined,
         }}
       >
       <HeaderToolbar
@@ -834,6 +857,10 @@ function App() {
               onClose={() => setOakPanelOpen(false)}
             />
           </Show>
+          {/* The screener placed in the bottom panel (its title menu, Placement). */}
+          <Show when={screenerPanel.open() && screenerPanel.placement() === "bottom"}>
+            <ScreenerPanel windowLabel={windowLabel} onSymbolPicked={onSymbolPicked} dock="bottom" />
+          </Show>
           {/* Bar Replay toolbar, above the bottom bar while replay is on. */}
           <Show when={replayToolbarShown()}>
             <ReplayToolbar />
@@ -896,7 +923,7 @@ function App() {
         />
       </div>
       </div>
-      <Show when={screenerPanel.open()}>
+      <Show when={screenerPanel.open() && screenerPanel.placement() === "right"}>
         <ScreenerPanel windowLabel={windowLabel} onSymbolPicked={onSymbolPicked} />
       </Show>
       </div>

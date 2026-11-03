@@ -18,6 +18,23 @@
 .scr-split.is-fullscreen {
   flex: 1 1 auto;
 }
+/* Bottom panel: full width under the charts, its height set inline. */
+.scr-split.is-bottom {
+  flex-direction: column;
+  width: 100%;
+  height: auto;
+}
+/* Its own window: the whole window. */
+.scr-split.is-window {
+  flex: 1 1 auto;
+  width: 100%;
+}
+.scr-resizer--top {
+  flex: 0 0 4px;
+  width: auto;
+  height: 4px;
+  cursor: ns-resize;
+}
 /* 4 px seam at the panel's left edge; drag to resize. */
 .scr-resizer {
   flex: 0 0 4px;
