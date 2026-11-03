@@ -16,6 +16,10 @@
  * Beyond the reference: signal columns (alert conditions and the marks the
  * indicator draws) read as "bars since it happened", with a "True within"
  * filter, and the session in progress counts as the newest bar.
+ * Rows: a click picks the symbol on the chart; the right-click menu flags it,
+ * unflags every symbol or adds it to the active watchlist; the magnifier of
+ * the Symbol header searches the rows. Shift+F: Add new filter, Shift+C:
+ * Manage columns. Intraday intervals scan INTRADAY_MAX_SYMBOLS symbols at most.
  */
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from "solid-js";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
@@ -25,10 +29,12 @@ import * as kv from "../../data/kv";
 import { FLAG_HEX, FLAG_SORT_ORDER, type FlagColor } from "../../data/watchlist";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { INDEXES } from "../../data/screener-catalog";
+import { allFlags, clearAllFlags, lastFlagColor, setFlag } from "../../data/symbol-flags";
 import {
   OP_ICON,
   OP_LABEL,
   PRICE_TARGETS,
+  INTRADAY_MAX_SYMBOLS,
   SCRIPT_INTERVALS,
   SIGNAL_OPS,
   SYMBOL_KEY,
@@ -36,6 +42,7 @@ import {
   bareTicker,
   declaredColumns,
   filterComplete,
+  intradayMinutes,
   screenRows,
   type ScriptColumn,
   type ScriptFilter,
@@ -46,6 +53,9 @@ import { indexTickers, runScriptScan, tickerNames } from "../../data/script-scre
 import { onScreenerUpdate } from "../../data/screener-api";
 import { scriptScreenStore, type ScriptScreen, type ScriptSource } from "../../data/script-screen-store";
 import { getIndicatorEntry, indicatorName, isLibraryIndicatorId, loadIndicatorLibrary } from "../chart/indicators/registry";
+import { isUserIndicatorId } from "../chart/indicators/user-scripts";
+import { ChartContextMenu, type CtxNode } from "../chart/ChartContextMenu";
+import { CheckBox, SelectControl } from "../header/ChartPropertiesDialog";
 import { defaultIndicatorOptions } from "../chart/indicators/indicator-options";
 import { IndicatorsDialog } from "../header/IndicatorsDialog";
 import { IndicatorSettingsDialog } from "../chart/IndicatorSettingsDialog";
@@ -70,12 +80,13 @@ type Props = {
   onShownRows?: (rows: () => ScriptRow[], columns: () => ScriptColumn[]) => void;
 };
 
-/** The screener can run an indicator of the library that draws something it can read (plots, conditions, marks)
- *  and does not depend on the chart's visible range. */
+/** The screener can run an indicator of the library or one of the user's OakScript indicators that draws something
+ *  it can read (plots, conditions, marks) and does not depend on the chart's visible range. Strategies cannot. */
 export function scriptScreenerSupports(id: string): boolean {
-  if (!isLibraryIndicatorId(id)) return false;
+  const user = isUserIndicatorId(id);
+  if (!user && !isLibraryIndicatorId(id)) return false;
   const e = getIndicatorEntry(id);
-  if (!e) return true;
+  if (!e) return !user;
   if (e.usesVisibleRange) return false;
   return (e.plotConfig?.length ?? 0) > 0 || (e.alertConditions?.length ?? 0) > 0;
 }
@@ -181,12 +192,15 @@ export function ScriptScreener(props: Props) {
   });
 
   // ── Scan ──
+  /** The interval the indicator runs on: its own calculation timeframe, else the screener's. */
+  const runInterval = () => screen().calcInterval ?? screen().interval;
+  const overCap = () => intradayMinutes(runInterval()) !== null && symbols().length > INTRADAY_MAX_SYMBOLS;
   const [results, setResults] = createSignal<Map<string, ScriptRow>>(new Map());
   const [scanning, setScanning] = createSignal(false);
   const [progress, setProgress] = createSignal({ done: 0, total: 0 });
   const [toast, setToast] = createSignal<"done" | "rescan" | null>(null);
   /** What the shown results were computed for: a change of it asks for a rescan. */
-  const scanKey = () => JSON.stringify([screen().indicatorId, screen().inputs, screen().interval, screen().source]);
+  const scanKey = () => JSON.stringify([screen().indicatorId, screen().inputs, runInterval(), screen().waitClose, screen().source]);
   const [resultsKey, setResultsKey] = createSignal<string | null>(null);
   let gen = 0;
   let toastTimer: number | undefined;
@@ -202,7 +216,7 @@ export function ScriptScreener(props: Props) {
 
   const scan = async () => {
     const e = entry();
-    if (!e || scanning()) return;
+    if (!e || scanning() || overCap()) return;
     const my = ++gen;
     const list = symbols();
     const key = scanKey();
@@ -229,7 +243,7 @@ export function ScriptScreener(props: Props) {
     setResultsKey(key);
     try {
       await runScriptScan(
-        { entry: e, inputs: inputs(), interval: screen().interval, symbols: list },
+        { entry: e, inputs: inputs(), interval: runInterval(), closedOnly: screen().waitClose, symbols: list },
         {
           wanted: () => my === gen,
           onRow: (row) => {
@@ -264,9 +278,12 @@ export function ScriptScreener(props: Props) {
   );
 
   // ── Rows shown ──
+  const [search, setSearch] = createSignal<string | null>(null);
   const rows = createMemo<ScriptRow[]>(() => {
     const res = results();
-    const all = symbols().map((s) => res.get(s) ?? { symbol: s, cells: {} });
+    const q = search()?.trim().toUpperCase() ?? "";
+    const hit = (s: string) => !q || bareTicker(s).toUpperCase().includes(q) || (names().get(bareTicker(s)) ?? "").toUpperCase().includes(q);
+    const all = symbols().filter(hit).map((s) => res.get(s) ?? { symbol: s, cells: {} });
     const sort = screen().sort ?? { key: SYMBOL_KEY, order: "asc" as const };
     return screenRows(all, screen().filters, sort);
   });
@@ -309,7 +326,35 @@ export function ScriptScreener(props: Props) {
       },
     });
   };
-  const hasInputs = () => (entry()?.inputConfig ?? []).some((c) => !(c as { hidden?: boolean }).hidden);
+  // "CALCULATION" rows of the Settings dialog: a draft committed with Apply.
+  const [calcDraft, setCalcDraft] = createSignal<{ interval: string; waitClose: boolean }>({ interval: "", waitClose: false });
+  const openSettings = () => {
+    setCalcDraft({ interval: screen().calcInterval ?? "", waitClose: screen().waitClose });
+    setSettingsOpen(true);
+  };
+  const intervalLabel = (id: string) => (id ? SCRIPT_INTERVALS.find((i) => i.id === id)?.label ?? id : "Script Screener");
+  const calculationRows = () => (
+    <>
+      <div class="cp3-section ind3-group">Calculation</div>
+      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Timeframe</span></div></div>
+      <div class="cp3-cell cp3-controls">
+        <SelectControl
+          value={calcDraft().interval}
+          options={["", ...SCRIPT_INTERVALS.map((i) => i.id)]}
+          width={160}
+          labelOf={intervalLabel}
+          display={intervalLabel(calcDraft().interval)}
+          onPick={(v) => setCalcDraft({ ...calcDraft(), interval: v })}
+        />
+      </div>
+      <div class="cp3-cell cp3-label is-full ind3-check-row">
+        <div class="cp3-label-inner">
+          <CheckBox checked={calcDraft().waitClose} onToggle={() => setCalcDraft({ ...calcDraft(), waitClose: !calcDraft().waitClose })} />
+          <span class="cp3-title" onClick={() => setCalcDraft({ ...calcDraft(), waitClose: !calcDraft().waitClose })}>Wait for timeframe closes</span>
+        </div>
+      </div>
+    </>
+  );
 
   // ── Source pill ──
   let sourceBtn!: HTMLDivElement;
@@ -408,6 +453,51 @@ export function ScriptScreener(props: Props) {
 
   const pending = (r: ScriptRow) => !r.error && Object.keys(r.cells).length === 0;
 
+  // ── Row menu ──
+  const [rowMenu, setRowMenu] = createSignal<{ x: number; y: number; symbol: string } | null>(null);
+  /** The flag key of a symbol: the one it is flagged under (a watchlist row's "EXCHANGE:TICKER"), else as listed. */
+  const flagKey = (symbol: string) => {
+    const t = bareTicker(symbol);
+    return Object.keys(allFlags()).find((k) => bareTicker(k) === t) ?? symbol;
+  };
+  const toggleFlag = (symbol: string) => {
+    const t = bareTicker(symbol);
+    setFlag(flagKey(symbol), props.flagOf(t) ? null : lastFlagColor());
+  };
+  const rowMenuNodes = (symbol: string): CtxNode[] => {
+    const t = bareTicker(symbol);
+    const flagged = !!props.flagOf(t);
+    return [
+      { kind: "item", id: "flag", label: `${flagged ? "Unflag" : "Flag"} ${t}`, shortcut: "Alt + Enter", onSelect: () => toggleFlag(symbol) },
+      { kind: "item", id: "unflag-all", label: "Unflag all symbols", disabled: Object.keys(allFlags()).length === 0, onSelect: () => clearAllFlags() },
+      { kind: "separator" },
+      {
+        kind: "item",
+        id: "add",
+        label: `Add ${t} to watchlist`,
+        disabled: watchlistStore.listHas(watchlistStore.activeId(), symbol) || watchlistStore.listHas(watchlistStore.activeId(), t),
+        onSelect: () => watchlistStore.addSymbols([{ ticker: symbol, short: t, last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null }], null),
+      },
+    ];
+  };
+  // Shift+F: Add new filter; Shift+C: Manage columns; Alt+Enter: flag the selected row (not while typing).
+  const onKey = (e: KeyboardEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+    if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && e.code === "KeyF" && entry()) {
+      e.preventDefault();
+      setAddOpen(true);
+    } else if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && e.code === "KeyC" && allColumns().length) {
+      e.preventDefault();
+      setManageOpen(true);
+    } else if (e.altKey && e.key === "Enter" && selected()) {
+      e.preventDefault();
+      toggleFlag(selected()!);
+    }
+  };
+  window.addEventListener("keydown", onKey);
+  onCleanup(() => window.removeEventListener("keydown", onKey));
+
   return (
     <div class="sscr">
       <div class="sscr-toolbar">
@@ -435,15 +525,15 @@ export function ScriptScreener(props: Props) {
             <span>{indicatorTitle()}</span>
           </button>
           <button ref={intervalBtn} type="button" class="sscr-block-btn" classList={{ "is-open": intervalOpen() }} title="Interval" onClick={() => setIntervalOpen(!intervalOpen())}>
-            {screen().interval}
+            {SCRIPT_INTERVALS.find((i) => i.id === screen().interval)?.short ?? screen().interval}
           </button>
           <button
             type="button"
             class="sscr-block-btn is-icon"
             title="Settings"
             aria-label="Settings"
-            disabled={!entry() || !hasInputs()}
-            onClick={() => setSettingsOpen(true)}
+            disabled={!entry()}
+            onClick={openSettings}
           >
             <Icon name="sscr-settings" size={18} />
           </button>
@@ -514,12 +604,15 @@ export function ScriptScreener(props: Props) {
         <button
           type="button"
           class="scr-light-btn sscr-scan-btn"
-          disabled={!entry() || (!scanning() && !symbols().length)}
+          disabled={!entry() || (!scanning() && (!symbols().length || overCap()))}
           onClick={() => (scanning() ? stop() : void scan())}
         >
           <Icon name={scanning() ? "sscr-stop" : "sscr-scan"} size={18} />
           <span class="scr-light-btn-text">{scanning() ? "Stop" : "Scan"}</span>
         </button>
+        <Show when={!scanning() && overCap()}>
+          <span class="sscr-progress">Intraday intervals scan up to {INTRADAY_MAX_SYMBOLS} symbols</span>
+        </Show>
         <Show when={scanning()}>
           <span class="sscr-progress" role="status">
             {progress().done} / {progress().total}
@@ -549,9 +642,39 @@ export function ScriptScreener(props: Props) {
               <th
                 class="scr-th scr-th-symbol"
                 classList={{ "is-sorted": isSorted(SYMBOL_KEY), "is-menu": headMenu()?.key === SYMBOL_KEY }}
-                onClick={(e) => setHeadMenu({ key: SYMBOL_KEY, el: e.currentTarget })}
+                onClick={(e) => search() === null && setHeadMenu({ key: SYMBOL_KEY, el: e.currentTarget })}
               >
-                <div class="scr-th-wrap" title="Symbol">
+                <div class="scr-th-wrap sscr-th-symbol" title="Symbol">
+                  <button
+                    type="button"
+                    class="sscr-search-btn"
+                    classList={{ "is-active": search() !== null }}
+                    title="Search"
+                    aria-label="Search"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSearch(search() === null ? "" : null);
+                    }}
+                  >
+                    <Icon name="scr-search" size={18} />
+                  </button>
+                  <Show
+                    when={search() === null}
+                    fallback={
+                      <>
+                      <input
+                        class="sscr-search-input"
+                        placeholder="Search"
+                        value={search() ?? ""}
+                        ref={(el) => queueMicrotask(() => el.focus())}
+                        onClick={(e) => e.stopPropagation()}
+                        onInput={(e) => setSearch(e.currentTarget.value)}
+                        onKeyDown={(e) => e.key === "Escape" && setSearch(null)}
+                      />
+                      <span class="scr-th-count">{rows().length}</span>
+                      </>
+                    }
+                  >
                   <div class="scr-th-symbol-data">
                     <div class="scr-th-upper">Symbol</div>
                     <Show when={isSorted(SYMBOL_KEY)}>
@@ -561,6 +684,7 @@ export function ScriptScreener(props: Props) {
                     </Show>
                     <span class="scr-th-count">{rows().length}</span>
                   </div>
+                  </Show>
                 </div>
               </th>
               <For each={visible()}>
@@ -612,6 +736,11 @@ export function ScriptScreener(props: Props) {
                     onClick={() => {
                       setSelected(r.symbol);
                       props.onSymbolPicked(ticker);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setSelected(r.symbol);
+                      setRowMenu({ x: e.clientX, y: e.clientY, symbol: r.symbol });
                     }}
                   >
                     <td class="scr-td scr-td-symbol">
@@ -859,6 +988,10 @@ export function ScriptScreener(props: Props) {
         }}
       </Show>
 
+      <Show when={rowMenu()} keyed>
+        {(m) => <ChartContextMenu x={m.x} y={m.y} nodes={rowMenuNodes(m.symbol)} onClose={() => setRowMenu(null)} />}
+      </Show>
+
       <Show when={pickerOpen()}>
         <IndicatorsDialog
           title="Indicators"
@@ -874,6 +1007,11 @@ export function ScriptScreener(props: Props) {
           <IndicatorSettingsDialog
             title={e.name}
             inputsOnly
+            extraRows={calculationRows}
+            onOk={() => {
+              const d = calcDraft();
+              update((s) => ({ ...s, calcInterval: (d.interval || null) as ScriptScreen["calcInterval"], waitClose: d.waitClose }));
+            }}
             inputConfig={e.inputConfig}
             plotConfig={e.plotConfig}
             inputs={inputs()}

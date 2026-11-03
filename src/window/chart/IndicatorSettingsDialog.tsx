@@ -11,7 +11,7 @@
  * swatches), footer "Defaults" menu + Cancel / Ok. The controls are the chart
  * Settings dialog's. Edits a local draft; Cancel discards, Ok commits.
  */
-import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from "solid-js";
+import { For, Show, createEffect, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
 import type { PlotDefaultVisible, PlotPalette } from "./indicators/volume";
@@ -113,6 +113,10 @@ type Props = {
   /** The inputs of an indicator used off the chart (the script screener): the Inputs tab only, "Apply" for Ok and no
    *  "Save as default". */
   inputsOnly?: boolean;
+  /** Rows of the caller under the inputs (the screener's "CALCULATION" section), in the same grid; `onOk` commits
+   *  them with Ok / Apply. */
+  extraRows?: () => JSX.Element;
+  onOk?: () => void;
   /** Strategy study: Properties tab + strategy Style tab. */
   strategy?: StrategyDialogConfig;
   /** Exchange time zone of the charted symbol: time inputs of indicators. */
@@ -345,7 +349,7 @@ export function IndicatorSettingsDialog(props: Props) {
   const hasInputs = props.inputConfig.some((c) => !c.hidden);
   const tabs = (): DialogTab[] =>
     (props.inputsOnly ? ["inputs"] as DialogTab[] : props.strategy ? ["inputs", "properties", "style", "visibility"] as DialogTab[] : props.tpo ? ["inputs", "style", "volume", "visibility"] as DialogTab[] : ["inputs", "style", "visibility"] as DialogTab[])
-      .filter((t) => t !== "inputs" || hasInputs);
+      .filter((t) => t !== "inputs" || hasInputs || !!props.extraRows);
   const TAB_TITLES: Record<DialogTab, string> = { inputs: "Inputs", properties: "Properties", style: "Style", volume: "Volume profile", visibility: "Visibility" };
   const stored = props.strategy ? (kv.getItem(TAB_KEY) as DialogTab | null) : null;
   const [tab, setTabRaw] = createSignal<DialogTab>(
@@ -435,6 +439,7 @@ export function IndicatorSettingsDialog(props: Props) {
     ),
   );
   const ok = () => {
+    props.onOk?.();
     if (JSON.stringify(current()) !== initial) props.onApply(current());
     else if (previewed) props.onPreview?.(null);
     props.onClose();
@@ -738,7 +743,7 @@ export function IndicatorSettingsDialog(props: Props) {
           {/* ── Inputs ── */}
           <Show when={tab() === "inputs"}>
             <Show
-              when={props.inputConfig.length > 0}
+              when={props.inputConfig.length > 0 || props.extraRows}
               fallback={<div class="ot-empty-state ind3-empty">This indicator has no inputs.</div>}
             >
               <div class="ind3-grid">
@@ -797,6 +802,7 @@ export function IndicatorSettingsDialog(props: Props) {
                     );
                   }}
                 </For>
+                {props.extraRows?.()}
               </div>
             </Show>
           </Show>

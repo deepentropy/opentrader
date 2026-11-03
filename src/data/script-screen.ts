@@ -17,12 +17,29 @@ import type { Candle } from "../bindings";
 import { messageOutputs, outputKey, outputValue, type MessageOutput } from "./alert-outputs";
 import { studyConditions, conditionBars } from "./alert-study-conditions";
 
-export type ScriptInterval = "1D" | "1W" | "1M";
-export const SCRIPT_INTERVALS: { id: ScriptInterval; label: string }[] = [
-  { id: "1D", label: "1 day" },
-  { id: "1W", label: "1 week" },
-  { id: "1M", label: "1 month" },
+/** Intervals of the screener and of an indicator's own calculation timeframe (the reference list): minutes as chart
+ *  ids ("60" = 1 hour), then 1D / 1W / 1M. */
+export type ScriptInterval = "1" | "5" | "15" | "30" | "60" | "120" | "240" | "1D" | "1W" | "1M";
+export const SCRIPT_INTERVALS: { id: ScriptInterval; label: string; short: string }[] = [
+  { id: "1", label: "1 minute", short: "1m" },
+  { id: "5", label: "5 minutes", short: "5m" },
+  { id: "15", label: "15 minutes", short: "15m" },
+  { id: "30", label: "30 minutes", short: "30m" },
+  { id: "60", label: "1 hour", short: "1h" },
+  { id: "120", label: "2 hours", short: "2h" },
+  { id: "240", label: "4 hours", short: "4h" },
+  { id: "1D", label: "1 day", short: "1D" },
+  { id: "1W", label: "1 week", short: "1W" },
+  { id: "1M", label: "1 month", short: "1M" },
 ];
+export const isScriptInterval = (v: unknown): v is ScriptInterval => SCRIPT_INTERVALS.some((i) => i.id === v);
+/** Minutes of an intraday interval; null for 1D / 1W / 1M. */
+export const intradayMinutes = (iv: ScriptInterval): number | null => (/^\d+$/.test(iv) ? Number(iv) : null);
+/** Symbols an intraday scan takes at most: each symbol costs a history request per scan (the session in progress
+ *  cannot be served from a cache). */
+export const INTRADAY_MAX_SYMBOLS = 200;
+/** Bars an indicator is given at most (the newest ones), as the reference screener. */
+export const MAX_BARS = 500;
 
 /** A column of the script screen. */
 export type ScriptColumn = { key: string; title: string; kind: "value" | "signal" };

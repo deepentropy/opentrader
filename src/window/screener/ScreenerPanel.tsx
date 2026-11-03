@@ -10,7 +10,8 @@
  *
  * The title is a menu: Stock Screener / Script Screener (./ScriptScreener,
  * which reads the same live table), and for the script one "Download results
- * as CSV" and "Save results as watchlist".
+ * as CSV", "Save results as watchlist", its saved screens (Save screen,
+ * Save screen as…, open or delete one) and "About Script Screener".
  *
  * Data: `screenerOpen(owner)` starts the backend's 10 s polling while the
  * panel is mounted; every `screener-update` re-runs the scan (visible pages),
@@ -45,6 +46,7 @@ import { bareTicker, type ScriptColumn, type ScriptRow } from "../../data/script
 import { watchlistStore } from "../../data/watchlist-store";
 import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { scriptResultsCsv } from "./script-csv";
+import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
 
 type Props = {
   /** Window label; the backend owner is `${label}:screener`. */
@@ -77,6 +79,42 @@ export function ScreenerPanel(props: Props) {
     a.click();
     URL.revokeObjectURL(a.href);
   };
+  const saveScreenAs = () =>
+    showRename({
+      title: "Save screen as",
+      label: "Screen name",
+      maxLength: 64,
+      names: scriptScreenStore.saved().map((x) => x.name),
+      replaceText: (name) => `"${name}" already exists. Replace it?`,
+      initialValue: scriptScreenStore.current()?.name ?? "",
+      onSave: (name) => {
+        const same = scriptScreenStore.saved().find((x) => x.name === name);
+        if (same) scriptScreenStore.remove(same.id);
+        scriptScreenStore.saveAs(name);
+      },
+    });
+  const saveScreen = () => {
+    if (!scriptScreenStore.save()) saveScreenAs();
+  };
+  const removeScreen = (id: string, name: string) =>
+    showConfirm({
+      title: "Delete screen",
+      text: `Do you really want to delete "${name}"?`,
+      mainText: "Delete",
+      cancelText: "Cancel",
+      intent: "danger",
+      onConfirm: () => scriptScreenStore.remove(id),
+    });
+  const about = () =>
+    showNotice({
+      title: "About Script Screener",
+      text:
+        "Runs one indicator over every symbol of an index or a watchlist and reads it on the newest bar: its plots as " +
+        "columns and filters, its alert conditions and the marks it draws as signals. Built-in indicators and your own " +
+        "OakScript indicators can be scanned; strategies cannot. Each symbol gets the newest 500 bars of the regular " +
+        "session. Daily and longer intervals reuse the charts' cached history; intraday intervals load each symbol " +
+        "again on every scan, so they take 200 symbols at most. Market data is delayed by 15 minutes.",
+    });
   const saveAsWatchlist = () => {
     const rows = scriptRows().filter((r) => !r.error);
     promptNewWatchlist((name) =>
@@ -343,8 +381,36 @@ export function ScreenerPanel(props: Props) {
           <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("script"); }} />
           <Show when={script()}>
             <PopDivider />
+            <PopItem title="Save screen" disabled={!scriptScreenStore.unsaved()} onClick={() => { setTitleOpen(false); saveScreen(); }} />
+            <PopItem title="Save screen as…" onClick={() => { setTitleOpen(false); saveScreenAs(); }} />
+            <Show when={scriptScreenStore.saved().length > 0}>
+              <PopSectionTitle title="Saved screens" />
+              <For each={scriptScreenStore.saved()}>
+                {(x) => (
+                  <PopItem
+                    title={x.name}
+                    selected={x.id === scriptScreenStore.savedId()}
+                    onClick={() => { setTitleOpen(false); scriptScreenStore.open(x.id); }}
+                    right={
+                      <button
+                        type="button"
+                        class="scr-text-btn scr-icon-only"
+                        aria-label={`Delete ${x.name}`}
+                        title="Delete"
+                        onClick={(e) => { e.stopPropagation(); setTitleOpen(false); removeScreen(x.id, x.name); }}
+                      >
+                        <Icon name="scr-trash" size={18} />
+                      </button>
+                    }
+                  />
+                )}
+              </For>
+            </Show>
+            <PopDivider />
             <PopItem title="Download results as CSV" disabled={!scriptRows().length} onClick={() => { setTitleOpen(false); downloadCsv(); }} />
             <PopItem title="Save results as watchlist" disabled={!scriptRows().length} onClick={() => { setTitleOpen(false); saveAsWatchlist(); }} />
+            <PopDivider />
+            <PopItem title="About Script Screener" onClick={() => { setTitleOpen(false); about(); }} />
           </Show>
         </Popover>
       </Show>
