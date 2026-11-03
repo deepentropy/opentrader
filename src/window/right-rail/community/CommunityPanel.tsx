@@ -23,7 +23,9 @@ import { showConfirm } from "../../../components/Dialogs";
 import { tickerOf } from "../../../data/symbol-name";
 import * as kv from "../../../data/kv";
 import { plainText } from "../../../data/community/markdown";
-import { api, tickerCommunityId, type Community, type Post, type Sort } from "../../../data/community/api";
+import { api, imageUrl, tickerCommunityId, type Community, type Post, type Sort } from "../../../data/community/api";
+import { blobToBase64, chartBridge, type ChartCapture } from "../../../data/community/chart-share";
+import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { deleteAccount, initSession, me, ready, refreshMe, signOut } from "../../../data/community/session";
 import { PostView } from "./PostView";
 import { ModQueue } from "./ModQueue";
@@ -292,8 +294,12 @@ export function CommunityPanel(props: Props) {
           <Age at={p.post.created_at} />
           <span class="cm-dot">·</span>
           <span class="cm-comment-count"><Icon name="community-comment" size={18} />{p.post.comment_count}</span>
+          <Show when={p.post.has_chart}><span class="cm-badge">Chart</span></Show>
         </div>
       </div>
+      <Show when={p.post.image_url}>
+        <img class="cm-thumb" src={imageUrl(p.post.image_url!)} alt="" loading="lazy" />
+      </Show>
     </div>
   );
 
@@ -363,11 +369,39 @@ export function CommunityPanel(props: Props) {
     const [body, setBody] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [err, setErr] = createSignal<string | null>(null);
+    // "Attach my chart": the active chart's picture and state, taken when ticked.
+    const [attached, setAttached] = createSignal<ChartCapture | null>(null);
+    const [preview, setPreview] = createSignal<string | null>(null);
+    const [capturing, setCapturing] = createSignal(false);
+    onCleanup(() => { const u = preview(); if (u) URL.revokeObjectURL(u); });
+    const attach = async (on: boolean) => {
+      const old = preview();
+      if (old) URL.revokeObjectURL(old);
+      setPreview(null);
+      setAttached(null);
+      if (!on) return;
+      setCapturing(true);
+      try {
+        const c = await chartBridge()?.capture();
+        if (!c) return setErr("No chart to attach: open a chart first.");
+        setAttached(c);
+        setPreview(URL.createObjectURL(c.image));
+        // A post about the chart goes to its ticker's community by default.
+        const ticker = tickerCommunityId(tickerOf(c.chart.symbol));
+        if (ticker && !title() && targets().some((t) => t.id === ticker)) setTarget(ticker);
+      } catch (e) {
+        setErr(errorText(e));
+      } finally {
+        setCapturing(false);
+      }
+    };
     const submit = async () => {
       setBusy(true);
       setErr(null);
       try {
-        const r = await api.createPost(target(), title(), body());
+        const a = attached();
+        const attachment = a ? { chart: a.chart, image: await blobToBase64(a.image), imageType: a.image.type || "image/png" } : null;
+        const r = await api.createPost(target(), title(), body(), attachment);
         if (source() !== "chart" || target() !== chartCommunity()) setSource(target());
         void reload();
         setView({ kind: "post", id: r.post.id });
@@ -393,6 +427,18 @@ export function CommunityPanel(props: Props) {
           <label class="cm-label">Text</label>
           <textarea class="cm-textarea is-tall" maxLength={20000} value={body()} onInput={(e) => setBody(e.currentTarget.value)} />
           <div class="cm-muted cm-hint">Markdown: **bold**, *italic*, [link](https://…), - lists, &gt; quotes.</div>
+          <Show when={chartBridge()}>
+            <label class="cm-radio cm-attach">
+              <input type="checkbox" checked={!!attached()} disabled={capturing()} onChange={(e) => void attach(e.currentTarget.checked)} />
+              <span>Attach my chart (picture, symbol, interval and drawings)</span>
+            </label>
+            <Show when={preview()}>
+              <img class="cm-chart-img" src={preview()!} alt="Attached chart" />
+              <div class="cm-muted cm-hint">
+                {attached()!.chart.symbol} · {shortIntervalLabel(attached()!.chart.interval)} · {attached()!.chart.drawings.length} drawing{attached()!.chart.drawings.length === 1 ? "" : "s"}
+              </div>
+            </Show>
+          </Show>
           <ErrorBanner text={err()} />
           <div class="cm-form-actions">
             <button type="button" class="cm-btn" onClick={() => setView({ kind: "list" })}>Cancel</button>

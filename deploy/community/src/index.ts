@@ -9,11 +9,14 @@ import { Env } from "./env";
 import * as auth from "./auth";
 import * as api from "./api";
 import { page } from "./pages";
+import { serveImage } from "./charts";
 import { HttpError, json } from "./util";
 
 /** Page origins of the desktop app's webview (Windows; macOS and Linux). */
 const DESKTOP_ORIGINS = ["http://tauri.localhost", "tauri://localhost"];
 const MAX_BODY = 64 * 1024;
+/** A new post may carry its chart's picture. */
+const MAX_POST_BODY = 2_500_000;
 
 function cors(request: Request, env: Env): Record<string, string> {
   const origin = request.headers.get("Origin");
@@ -29,10 +32,10 @@ function cors(request: Request, env: Env): Record<string, string> {
   };
 }
 
-async function readBody(request: Request): Promise<any> {
+async function readBody(request: Request, path: string): Promise<any> {
   if (request.method === "GET" || request.method === "DELETE") return null;
   const text = await request.text();
-  if (text.length > MAX_BODY) throw new HttpError(413, "Too long.");
+  if (text.length > (/^\/communities\/[^/]+\/posts$/.test(path) ? MAX_POST_BODY : MAX_BODY)) throw new HttpError(413, "Too long.");
   if (!text) return {};
   try {
     return JSON.parse(text);
@@ -63,6 +66,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/communities\/([^/]+)\/posts$/, ({ env, user, params, body }) => api.createPost(env, user, params[0], body)],
   ["GET", /^\/feed$/, ({ env, user, url }) => api.feed(env, user, url)],
 
+  ["GET", /^\/images\/([a-z0-9]+)$/, ({ env, params }) => serveImage(env, params[0])],
   ["GET", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.getPost(env, user, params[0])],
   ["PATCH", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editPost(env, user, params[0], body)],
   ["DELETE", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.deletePost(env, user, params[0])],
@@ -88,7 +92,8 @@ export default {
     const headers = cors(request, env);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     const url = new URL(request.url);
-    if (url.protocol === "http:" && url.hostname !== "127.0.0.1" && url.hostname !== "localhost") {
+    // Plain HTTP to the public address: HTTPS (a local run serves HTTP).
+    if (url.protocol === "http:" && env.PUBLIC_URL.startsWith("https:")) {
       url.protocol = "https:";
       return Response.redirect(url.toString(), 301);
     }
@@ -113,7 +118,7 @@ export default {
       // The website's files and pages (an address the API also uses, /contact, is a page for a browser).
       if (!handler && request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(request);
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
-      const body = await readBody(request);
+      const body = await readBody(request, path);
       const user = await auth.currentUser(env, request);
       res = await handler({ env, request, url, params, body, user });
     } catch (e) {

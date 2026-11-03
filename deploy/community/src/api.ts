@@ -5,6 +5,7 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
+import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
 import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, sha256Hex, str, topSince } from "./util";
 
 type Row = Record<string, any>;
@@ -139,6 +140,10 @@ function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true) {
     my_vote: r.my_vote ?? 0,
     own,
     source_url: r.source_url ?? null,
+    // The shared chart: its state in the post itself, its picture as a path on this server.
+    chart: withBody && !hidden && !r.deleted && r.chart ? JSON.parse(r.chart) : null,
+    has_chart: !hidden && !r.deleted && !!r.chart,
+    image_url: !hidden && !r.deleted && r.has_image ? `/images/${r.id}` : null,
   };
 }
 
@@ -188,6 +193,7 @@ export async function feed(env: Env, user: User | null, url: URL): Promise<Respo
 }
 
 async function rateLimit(env: Env, u: User, table: "posts" | "comments"): Promise<void> {
+  if (u.role === "admin") return;
   const young = now() - u.created_at < LIMITS.newAccountSeconds;
   const max = table === "posts" ? (young ? LIMITS.postsPerDayNew : LIMITS.postsPerDay) : young ? LIMITS.commentsPerDayNew : LIMITS.commentsPerDay;
   const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE author_id = ? AND created_at >= ?`).bind(u.id, now() - 86_400).first<{ n: number }>();
@@ -207,12 +213,15 @@ export async function createPost(env: Env, user: User | null, id: string, body: 
   if (ageDays < community.min_account_days && !(await isMod(env, u, community.id))) {
     throw new HttpError(403, `Posting in ${community.title} needs an account at least ${community.min_account_days} days old.`);
   }
+  const chart = parseChart(body?.chart);
+  const image = parseImage(body?.image, body?.image_type);
   await rateLimit(env, u, "posts");
   const postId = newId();
   const at = now();
+  if (image) await saveImage(env, postId, image);
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)").bind(
-      postId, community.id, u.id, title, content, hotRank(1, at), at,
+    env.DB.prepare("INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at, chart, has_image) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)").bind(
+      postId, community.id, u.id, title, content, hotRank(1, at), at, chart ? JSON.stringify(chart) : null, image ? 1 : 0,
     ),
     // Authors vote for their own post.
     env.DB.prepare("INSERT INTO votes (user_id, target_type, target_id, value) VALUES (?, 'post', ?, 1)").bind(u.id, postId),
@@ -278,8 +287,9 @@ export async function deletePost(env: Env, user: User | null, id: string): Promi
   const row = await postRow(env, u, id);
   if (row.author_id !== u.id) throw new HttpError(403, "You can't delete this post.");
   if (!row.deleted) {
+    if (row.has_image) await deleteImages(env, [id]);
     await env.DB.batch([
-      env.DB.prepare("UPDATE posts SET deleted = 1, body = '' WHERE id = ?").bind(id),
+      env.DB.prepare("UPDATE posts SET deleted = 1, body = '', chart = NULL, has_image = 0 WHERE id = ?").bind(id),
       env.DB.prepare("UPDATE communities SET post_count = MAX(post_count - 1, 0) WHERE id = ?").bind(row.community_id),
     ]);
   }
@@ -551,8 +561,10 @@ export async function rename(env: Env, user: User | null, body: any): Promise<Re
 /** DELETE /me — the account, its sessions, votes and follows; its posts and comments are emptied. */
 export async function deleteAccount(env: Env, user: User | null): Promise<Response> {
   const u = requireUser(user);
+  const { results: pictured } = await env.DB.prepare("SELECT id FROM posts WHERE author_id = ? AND has_image = 1").bind(u.id).all<{ id: string }>();
+  await deleteImages(env, pictured.map((p) => p.id));
   await env.DB.batch([
-    env.DB.prepare("UPDATE posts SET deleted = 1, title = '[deleted]', body = '' WHERE author_id = ?").bind(u.id),
+    env.DB.prepare("UPDATE posts SET deleted = 1, title = '[deleted]', body = '', chart = NULL, has_image = 0 WHERE author_id = ?").bind(u.id),
     env.DB.prepare("UPDATE comments SET deleted = 1, body = '' WHERE author_id = ?").bind(u.id),
     env.DB.prepare("DELETE FROM users WHERE id = ?").bind(u.id),
   ]);

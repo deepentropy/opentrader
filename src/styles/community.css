@@ -333,3 +333,25 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
 .cm-queue-item { padding: 10px 16px; border-bottom: 1px solid var(--color-divider-line-primary); display: flex; flex-direction: column; gap: 4px; }
 .cm-queue-body { font-size: 12px; line-height: 17px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow: hidden; }
 .cm-queue-reasons { margin: 2px 0 0; padding-left: 18px; font-size: 12px; color: var(--color-text-secondary); }
+
+/* Charts shared in posts (#206). */
+.cm-attach { margin-top: 10px; }
+.cm-chart-img {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--color-divider-line-primary);
+  border-radius: 6px;
+  cursor: zoom-in;
+}
+.cm-shared-chart { margin-top: 4px; }
+.cm-shared-chart .cm-actions { justify-content: space-between; }
+.cm-thumb {
+  flex-shrink: 0;
+  align-self: center;
+  width: 72px;
+  height: 48px;
+  object-fit: cover;
+  border: 1px solid var(--color-divider-line-primary);
+  border-radius: 4px;
+}

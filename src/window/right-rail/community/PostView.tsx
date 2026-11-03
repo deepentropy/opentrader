@@ -7,7 +7,10 @@ import { createStore, produce } from "solid-js/store";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { showConfirm } from "../../../components/Dialogs";
-import { api, type Comment, type Post } from "../../../data/community/api";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { api, imageUrl, type Comment, type Post, type SharedChart } from "../../../data/community/api";
+import { chartBridge } from "../../../data/community/chart-share";
+import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { me } from "../../../data/community/session";
 import { Age, Author, ErrorBanner, ExternalLink, MarkdownBody, ReasonForm, ReportForm, Vote, errorText } from "./parts";
 
@@ -43,6 +46,50 @@ function AppealForm(props: { type: "post" | "comment"; id: string; onDone: () =>
         }}
       />
     </Show>
+  );
+}
+
+/** The chart shared in a post: its picture (opens full size in the browser) and "Open on my chart". */
+function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart | null }) {
+  const [done, setDone] = createSignal<string | null>(null);
+  const [failed, setFailed] = createSignal<string | null>(null);
+  const open = async () => {
+    const b = chartBridge();
+    if (!b || !props.chart) return;
+    setFailed(null);
+    try {
+      const n = await b.open(props.chart);
+      setDone(`Opened ${props.chart.symbol}, ${shortIntervalLabel(props.chart.interval)}${n ? ` with ${n} drawing${n === 1 ? "" : "s"}` : ""}.`);
+    } catch (e) {
+      setFailed(errorText(e));
+    }
+  };
+  const drawings = () => props.chart?.drawings.length ?? 0;
+  return (
+    <div class="cm-shared-chart">
+      <Show when={props.imagePath}>
+        <img
+          class="cm-chart-img"
+          src={imageUrl(props.imagePath!)}
+          alt="Shared chart"
+          loading="lazy"
+          title="Open the picture full size"
+          onClick={() => void openUrl(imageUrl(props.imagePath!))}
+        />
+      </Show>
+      <Show when={props.chart}>
+        <div class="cm-actions">
+          <span class="cm-muted">
+            {props.chart!.symbol} · {shortIntervalLabel(props.chart!.interval)} · {drawings()} drawing{drawings() === 1 ? "" : "s"}
+          </span>
+          <Show when={chartBridge()}>
+            <button type="button" class="cm-btn is-small is-primary" onClick={open}>Open on my chart</button>
+          </Show>
+        </div>
+        <Show when={done()}><div class="cm-muted cm-hint">{done()}</div></Show>
+        <ErrorBanner text={failed()} />
+      </Show>
+    </div>
   );
 }
 
@@ -259,6 +306,9 @@ export function PostView(props: Props) {
                   </Show>
                   <Show when={p().deleted}><div class="cm-muted cm-gone">This post was deleted by its author.</div></Show>
                   <Show when={p().body}><MarkdownBody text={p().body} class="cm-post-body" /></Show>
+                  <Show when={p().image_url || p().chart}>
+                    <SharedChartBlock imagePath={p().image_url} chart={p().chart} />
+                  </Show>
                   <Show when={p().source_url}>
                     <div class="cm-muted cm-origin">Imported test content · <ExternalLink href={p().source_url!}>source</ExternalLink></div>
                   </Show>

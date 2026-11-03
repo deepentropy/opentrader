@@ -25,6 +25,9 @@ export type Community = {
 
 export type CommunityRef = { id: string; kind: CommunityKind; title: string };
 
+/** A chart shared in a post: what "Open on my chart" applies. */
+export type SharedChart = { symbol: string; interval: string; drawings: unknown[] };
+
 export type Post = {
   id: string;
   community: CommunityRef;
@@ -43,7 +46,15 @@ export type Post = {
   my_vote: number;
   own: boolean;
   source_url: string | null;
+  /** Shared chart (in a post's own view; null in lists). */
+  chart: SharedChart | null;
+  has_chart: boolean;
+  /** Path of the chart's picture on the community server (see imageUrl). */
+  image_url: string | null;
 };
+
+/** A chart attached to a new post: its state and its picture (base64). */
+export type ChartAttachment = { chart: SharedChart; image: string; imageType: string };
 
 export type Comment = {
   id: string;
@@ -122,6 +133,11 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 
 const enc = encodeURIComponent;
 
+/** Full address of a picture path the server gives. */
+export function imageUrl(path: string): string {
+  return /^https?:/.test(path) ? path : COMMUNITY_URL + path;
+}
+
 /** `t:AAPL` for a chart symbol (`NASDAQ:AAPL`, `AAPL`), or null when it can't be a community. */
 export function tickerCommunityId(ticker: string): string | null {
   const t = ticker.trim().toUpperCase();
@@ -142,7 +158,12 @@ export const api = {
     request<{ posts: Post[]; next_offset: number | null }>("GET", `/communities/${enc(id)}/posts?sort=${sort}&t=${t}&offset=${offset}`),
   feed: (scope: "following" | "all", sort: Sort, offset = 0, t = "week") =>
     request<{ posts: Post[]; next_offset: number | null }>("GET", `/feed?scope=${scope}&sort=${sort}&t=${t}&offset=${offset}`),
-  createPost: (id: string, title: string, body: string) => request<{ post: Post; comments: Comment[] }>("POST", `/communities/${enc(id)}/posts`, { title, body }),
+  createPost: (id: string, title: string, body: string, attach?: ChartAttachment | null) =>
+    request<{ post: Post; comments: Comment[] }>("POST", `/communities/${enc(id)}/posts`, {
+      title,
+      body,
+      ...(attach ? { chart: attach.chart, image: attach.image, image_type: attach.imageType } : {}),
+    }),
 
   post: (id: string) => request<{ post: Post; comments: Comment[]; is_mod: boolean }>("GET", `/posts/${enc(id)}`),
   editPost: (id: string, body: string) => request<{ post: Post; comments: Comment[] }>("PATCH", `/posts/${enc(id)}`, { body }),

@@ -77,6 +77,8 @@ import { TradingToasts } from "./window/trading/TradingToasts";
 import { tradingUi } from "./data/trading/trading-ui";
 import { replayBroker } from "./data/trading/replay-broker";
 import { createDrawingStore } from "./window/drawings/drawing-store";
+import { createChartBridge } from "./window/right-rail/community/chart-bridge";
+import { setChartBridge } from "./data/community/chart-share";
 import { selectedDrawingId, selectedDrawingIds, setSelectedDrawingId, toggleSelectedDrawing } from "./window/drawings/drawing-selection";
 import {
   alwaysRemoveLocked,
@@ -461,6 +463,22 @@ function App() {
       gone = true;
       stop?.();
     });
+  });
+
+  // Community: the active chart attached to a post, a shared chart opened on it (#206).
+  onMount(() => {
+    setChartBridge(
+      createChartBridge({
+        tabs: appTabs,
+        drawings: drawingStore,
+        setSymbol: (full) => {
+          recordRecentSymbol("search", full);
+          setSymbol(full);
+        },
+        setInterval,
+      }),
+    );
+    onCleanup(() => setChartBridge(null));
   });
 
   // ── Header dropdowns ───────────────────────────────────────────────────

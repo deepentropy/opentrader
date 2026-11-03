@@ -27,6 +27,7 @@
       "migrations_dir": "migrations"
     }
   ],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
   "vars": {
     "PUBLIC_URL": "https://community.opentrader.markets",
     "ALLOWED_ORIGINS": "https://demo.opentrader.markets",
@@ -51,6 +52,7 @@
         "GOOGLE_CLIENT_ID": "",
         "DISCORD_CLIENT_ID": ""
       },
+      "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
       "d1_databases": [
         {
           "binding": "DB",
