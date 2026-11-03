@@ -23,7 +23,7 @@
     "ALLOWED_ORIGINS": "https://demo.opentrader.markets",
     "WEB_REDIRECTS": "https://demo.opentrader.markets/community-auth.html",
     // provider:provider_id, comma-separated.
-    "ADMINS": "",
+    "ADMINS": "google:112079201386783875064",
     "GITHUB_CLIENT_ID": "Ov23lijxOPdc4uYuL0ya",
     "GOOGLE_CLIENT_ID": "541505217152-qn4re9p4m6htg5fe2t9h5ojvhg4ip8os.apps.googleusercontent.com",
     "DISCORD_CLIENT_ID": "1567124030622924901"

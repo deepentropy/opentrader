@@ -7,8 +7,8 @@
 /** The community server; VITE_COMMUNITY_URL points a dev build at a local one. */
 export const COMMUNITY_URL = ((import.meta.env.VITE_COMMUNITY_URL as string | undefined) ?? "https://community.opentrader.markets").replace(/\/+$/, "");
 
-/** The Community tab is shown: only with a community server set, until the public one is deployed (#205). */
-export const COMMUNITY_ENABLED = !!import.meta.env.VITE_COMMUNITY_URL;
+/** The Community tab is shown (VITE_COMMUNITY_ENABLED=0 hides it, e.g. for a self-hosted build). */
+export const COMMUNITY_ENABLED = import.meta.env.VITE_COMMUNITY_ENABLED !== "0";
 
 export type CommunityKind = "ticker" | "theme";
 
