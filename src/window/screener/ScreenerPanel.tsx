@@ -3,8 +3,10 @@
  * Desktop 3.4.1, opened by the right-rail "Screeners" button):
  *   a 4 px resizer at its left edge (drag, width persisted), a 50 px header
  *   (title "Stock Screener", Fullscreen mode, Close), then the screener:
- *   topbar, filter pills, control panel (Column sets, Refresh with its
- *   countdown badge, Maximize) and the results table.
+ *   topbar, filter pills, control panel (View type, then Column sets or the
+ *   Charts / Heatmap tools, Refresh with its countdown badge, Maximize) and
+ *   the results as a table, charts (./ScreenerCharts) or a heatmap
+ *   (./ScreenerHeatmap); the view type is kept in the screen.
  * The main layout (header toolbar, drawing toolbar, charts, rail) shrinks to
  * the remaining width; Fullscreen mode gives the panel the whole window.
  *
@@ -20,8 +22,9 @@
  *
  * Data: `screenerOpen(owner)` starts the backend's 10 s polling while the
  * panel is mounted; every `screener-update` re-runs the scan (visible pages),
- * every screen change re-plans it. The Refresh badge counts down the seconds
- * to the next update ("Time to refresh"), like the reference app's 10 s auto refresh.
+ * every screen change re-plans it. Screener settings' Auto-refresh decides
+ * which updates refresh the results (every one, one a minute, none); the
+ * Refresh badge counts down to the next ("Time to refresh").
  */
 import { track } from "../../data/analytics";
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
@@ -48,6 +51,10 @@ import { allFlags } from "../../data/symbol-flags";
 import { FilterPills, watchlistTickers } from "./FilterPills";
 import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenerTable } from "./ScreenerTable";
+import { ChartsToolbar, ScreenerCharts } from "./ScreenerCharts";
+import { HeatmapToolbar, ScreenerHeatmap } from "./ScreenerHeatmap";
+import { refreshMs, screenerSettings } from "../../data/screener-settings";
+import type { ViewMode } from "../../data/screener-catalog";
 import { ScreenerTopbar } from "./ScreenerTopbar";
 import { createScanController } from "./scan-controller";
 import { ScriptScreener } from "./ScriptScreener";
@@ -58,6 +65,13 @@ import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { scriptResultsCsv } from "./script-csv";
 import { csvFileName, downloadText } from "./screener-csv";
 import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
+
+/** The view type menu (the reference app order). */
+const VIEWS: { id: ViewMode; title: string; icon: string }[] = [
+  { id: "table", title: "Table", icon: "scr-view-table" },
+  { id: "chart", title: "Charts", icon: "scr-view-charts" },
+  { id: "heatmap", title: "Heatmap", icon: "scr-view-heatmap" },
+];
 
 type Props = {
   /** Window label; the backend owner is `${label}:screener`. */
@@ -81,6 +95,12 @@ export function ScreenerPanel(props: Props) {
   const [setsOpen, setSetsOpen] = createSignal(false);
   const [manualRefresh, setManualRefresh] = createSignal(false);
   const [resetKey, setResetKey] = createSignal(0);
+  // Bumped on every refresh (auto or the button): the Charts and Heatmap views reload with it.
+  const [refreshTick, setRefreshTick] = createSignal(0);
+  const [lastRefresh, setLastRefresh] = createSignal(Date.now());
+  const [heatTotal, setHeatTotal] = createSignal<number | null>(null);
+  const [viewOpen, setViewOpen] = createSignal(false);
+  let viewBtn!: HTMLButtonElement;
   let setsBtn!: HTMLButtonElement;
   let titleBtn!: HTMLButtonElement;
   const [titleOpen, setTitleOpen] = createSignal(false);
@@ -149,6 +169,12 @@ export function ScreenerPanel(props: Props) {
   };
 
   const screen = screenerStore.screen;
+  const view = (): ViewMode => screen().viewMode ?? "table";
+  const refreshNow = () => {
+    setLastRefresh(Date.now());
+    setRefreshTick((k) => k + 1);
+    ctl.refresh();
+  };
   const tickers = createMemo(() => watchlistTickers(screen().watchlistId));
   const plan = createMemo<Plan | null>(() => (fields() ? planScreen(screen(), has, tickers()) : null));
   const ctl = createScanController(plan);
@@ -185,7 +211,9 @@ export function ScreenerPanel(props: Props) {
         if (st.updatedMs !== null) setLastUpdate(Date.now());
         unlisten = await onScreenerUpdate((u) => {
           setLastUpdate(Date.now());
-          if (!u.error) ctl.refresh();
+          // Auto-refresh: every update (10 s), the first update a minute after the last refresh, or never.
+          const period = refreshMs(screenerSettings().autoRefresh);
+          if (!u.error && period !== null && Date.now() - lastRefresh() >= period - 1000) refreshNow();
         });
         if (disposed) unlisten();
       } catch (e) {
@@ -201,11 +229,13 @@ export function ScreenerPanel(props: Props) {
     });
   });
 
-  // Seconds to the next backend update (the reference app "Time to refresh").
+  // Seconds to the next refresh (the reference app "Time to refresh"); none with auto-refresh off.
   const countdown = () => {
     const t = lastUpdate();
-    if (t === null) return null;
-    const s = Math.floor((t + POLL_MS - now()) / 1000);
+    const period = refreshMs(screenerSettings().autoRefresh);
+    if (t === null || period === null) return null;
+    const next = period === POLL_MS ? t + POLL_MS : lastRefresh() + period;
+    const s = Math.floor((next - now()) / 1000);
     return s > 0 ? s : null;
   };
 
@@ -339,6 +369,26 @@ export function ScreenerPanel(props: Props) {
             <FilterPills has={has} />
             <div class="scr-control-panel">
               <button
+                ref={viewBtn}
+                type="button"
+                class="scr-light-btn scr-light-btn--ghost scr-sets-btn"
+                classList={{ "is-open": viewOpen() }}
+                title="View type"
+                onClick={() => setViewOpen(!viewOpen())}
+              >
+                <Icon name={VIEWS.find((v) => v.id === view())!.icon} size={28} />
+                <span class="scr-light-btn-text">{VIEWS.find((v) => v.id === view())!.title}</span>
+                <span class="scr-sets-caret" classList={{ "is-open": viewOpen() }}><Icon name="scr-caret-small" size={18} /></span>
+              </button>
+              <span class="scr-control-divider" />
+              <Show when={view() === "chart"}>
+                <ChartsToolbar />
+              </Show>
+              <Show when={view() === "heatmap"}>
+                <HeatmapToolbar has={has} />
+              </Show>
+              <Show when={view() === "table"}>
+              <button
                 ref={setsBtn}
                 type="button"
                 class="scr-light-btn scr-light-btn--ghost scr-sets-btn"
@@ -350,7 +400,11 @@ export function ScreenerPanel(props: Props) {
                 <span class="scr-light-btn-text">{setTitle()}</span>
                 <span class="scr-sets-caret" classList={{ "is-open": setsOpen() }}><Icon name="scr-caret-small" size={18} /></span>
               </button>
+              </Show>
               <div class="scr-header-controls">
+                <Show when={view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
+                  <span class="scr-total">{(view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US")} total</span>
+                </Show>
                 <div class="scr-refresh-wrap">
                   <Show when={countdown()} keyed>
                     {(s) => <span class="scr-counter" role="img" aria-label="Time to refresh">{s}</span>}
@@ -363,7 +417,7 @@ export function ScreenerPanel(props: Props) {
                     aria-label="Refresh"
                     onClick={() => {
                       setManualRefresh(true);
-                      ctl.refresh();
+                      refreshNow();
                     }}
                   >
                     <Icon name="scr-refresh" size={28} />
@@ -381,7 +435,34 @@ export function ScreenerPanel(props: Props) {
               </div>
             </div>
           </div>
-          <Show when={fields()}>
+          <Show when={fields() && view() === "chart"}>
+            <ScreenerCharts
+              ctl={ctl}
+              fields={plan()?.fields ?? []}
+              onPick={(t) => {
+                setSelected(t);
+                props.onSymbolPicked(t);
+              }}
+              flagOf={(t) => flags().get(t) ?? null}
+              resetKey={resetKey()}
+              refreshTick={refreshTick()}
+            />
+          </Show>
+          <Show when={fields() && view() === "heatmap" && plan()} keyed>
+            {(p) => (
+              <ScreenerHeatmap
+                plan={p}
+                has={has}
+                onPick={(t) => {
+                  setSelected(t);
+                  props.onSymbolPicked(t);
+                }}
+                refreshTick={refreshTick()}
+                onTotal={setHeatTotal}
+              />
+            )}
+          </Show>
+          <Show when={fields() && view() === "table"}>
             <ScreenerTable
               ctl={ctl}
               columns={plan()?.columns ?? []}
@@ -472,6 +553,25 @@ export function ScreenerPanel(props: Props) {
             <PopDivider />
             <PopItem title="About Script Screener" onClick={() => { setTitleOpen(false); about(); }} />
           </Show>
+        </Popover>
+      </Show>
+
+      <Show when={viewOpen()}>
+        <Popover anchor={viewBtn} onClose={() => setViewOpen(false)} width={160}>
+          <PopSectionTitle title="View type" />
+          <For each={VIEWS}>
+            {(v) => (
+              <PopItem
+                title={v.title}
+                icon={v.icon}
+                selected={view() === v.id}
+                onClick={() => {
+                  setViewOpen(false);
+                  screenerStore.update((s) => ({ ...s, viewMode: v.id === "table" ? undefined : v.id }));
+                }}
+              />
+            )}
+          </For>
         </Popover>
       </Show>
 

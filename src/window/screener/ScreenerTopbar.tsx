@@ -7,7 +7,8 @@
  * changes saved at once), Make a copy…, Rename…,
  * Download results as CSV (./screener-csv), Create new screen…, Add alert… (on a saved screen: a symbol enters or
  * leaves it), Recently used, Open screen…. Leaving a changed screen asks
- * "Save changes?" (./leave-screen). The account item Share screen is not
+ * "Save changes?" (./leave-screen). The gear at the right opens "Screener
+ * settings" (./ScreenerSettingsDialog). The account item Share screen is not
  * shown.
  */
 import { For, Show, createSignal } from "solid-js";
@@ -19,6 +20,7 @@ import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenBrowserDialog } from "./ScreenBrowserDialog";
 import { openScreenAlertDialog } from "../alerts/screen-alert-dialog";
 import { leaveScreen } from "./leave-screen";
+import { ScreenerSettingsDialog } from "./ScreenerSettingsDialog";
 import { screenerFields, screenerScan } from "../../data/screener-api";
 import { planScreen } from "../../data/screener-query";
 import { watchlistTickers } from "./FilterPills";
@@ -31,6 +33,7 @@ export function ScreenerTopbar() {
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [dialog, setDialog] = createSignal<NameDialog | null>(null);
   const [browserOpen, setBrowserOpen] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
   let nameBtn!: HTMLDivElement;
 
   const save = () => {
@@ -100,7 +103,20 @@ export function ScreenerTopbar() {
         >
           <Icon name="scr-redo" size={18} />
         </button>
+        <button
+          type="button"
+          class="scr-light-btn scr-light-btn--secondary is-icon-only"
+          title="Settings"
+          aria-label="Settings"
+          data-qa-id="screener-topbar-settings"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Icon name="scr-settings" size={28} />
+        </button>
       </div>
+      <Show when={settingsOpen()}>
+        <ScreenerSettingsDialog onClose={() => setSettingsOpen(false)} />
+      </Show>
 
       <Show when={menuOpen()}>
         <Popover anchor={nameBtn} onClose={() => setMenuOpen(false)} width={320} class="scr-screen-menu">

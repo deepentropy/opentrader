@@ -98,6 +98,8 @@ export type ColumnDef = {
   cellText?: (raw: string) => string;
   /** Kept out of the Column setup list (the reference app `isExcludedFromColumnsList`). */
   noColumn?: boolean;
+  /** A financial amount: shown in the "Convert financials" currency when that setting is on (prices are not). */
+  financial?: boolean;
 };
 
 // ── Param option sets ─────────────────────────────────────────────────────
@@ -321,7 +323,7 @@ export const COLUMNS: ColumnDef[] = [
   { id: "Ma", title: "Simple moving average", short: "SMA", category: "technicals", align: "right", fmt: "price", width: 99, params: MA_PARAMS("SMA"),
     filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS("Ma"), presets: MA_PRESETS("Ma") } },
   // Valuation
-  { id: "MarketCap", title: "Market capitalization", short: "Mkt cap", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic",
+  { id: "MarketCap", title: "Market capitalization", short: "Mkt cap", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic", financial: true,
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]], presets: [
       { operation: "between", target: "value", right: { left: 200e9, right: null }, ...d("Mega") },
       { operation: "between", target: "value", right: { left: 10e9, right: 200e9 }, ...d("Large") },
@@ -523,7 +525,11 @@ export type Screen = {
   watchlistId: string | null;
   /** Market pill "Primary listing" (unset = on, the reference default). */
   primaryListing?: boolean;
+  /** How the results show (unset = table). */
+  viewMode?: ViewMode;
 };
+
+export type ViewMode = "table" | "chart" | "heatmap";
 
 export const DEFAULT_SCREEN_TITLE = "Untitled screen";
 

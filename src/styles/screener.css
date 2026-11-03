@@ -358,7 +358,7 @@
 .scr-control-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 4px;
   padding: 12px 20px;
 }
 .scr-sets-btn {
@@ -370,7 +370,9 @@
 }
 .scr-header-controls {
   display: flex;
+  align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 .scr-refresh-wrap {
   position: relative;
@@ -1452,4 +1454,257 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 }
 .scr-autosave.is-disabled {
   opacity: 0.5;
+}
+
+/* ── Views (#215): view type button, Charts and Heatmap ───────────────────
+   The reference app 3.5: "Table ⌄" first in the control panel, a 1 px
+   divider, then the view's tools; Charts and Heatmap show "N total" before
+   Refresh. */
+.scr-control-divider {
+  width: 1px;
+  height: 28px;
+  margin: 0 8px;
+  background: var(--color-divider, #3d3d3d);
+}
+.scr-view-tool {
+  padding: 0 7px;
+}
+.scr-view-tool .scr-light-btn-text {
+  margin-left: 4px;
+  margin-right: 2px;
+}
+.scr-view-tool.is-icon-only {
+  padding: 0 3px;
+}
+.scr-total {
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  font-size: 14px;
+  white-space: nowrap;
+}
+/* Symbol column with the name (Screener settings, Table: Name). */
+.scr-ticker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Screener settings: the reference dialog is 634 × 487, centred; Cancel / Ok on the right. */
+.settings-backdrop.cp3-backdrop .settings-dialog.scr-settings-dialog {
+  width: 634px;
+  height: 487px;
+  top: max(20px, calc(50% - 243px));
+}
+.scr-settings-dialog .cp3-footer {
+  justify-content: flex-end;
+}
+.scr-settings-dialog .cp3-title.is-disabled {
+  color: var(--color-text-disabled, #707070);
+}
+
+/* Charts view: cards 8 px apart, a 40 px label, the chart under it. */
+.scr-charts {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 12px 0 20px;
+}
+.scr-charts-inner {
+  position: relative;
+}
+.scr-charts-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 8px;
+  padding-bottom: 8px;
+  box-sizing: border-box;
+}
+.scr-chart-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-container-fill-primary-neutral-extra-light, #2e2e2e);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.scr-chart-cell.is-skeleton {
+  cursor: default;
+}
+.scr-chart-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: var(--color-content-primary-neutral-bold);
+}
+.scr-chart-cell:hover .scr-ticker-chip {
+  background: var(--color-brand, #2962ff);
+  color: #fff;
+}
+.scr-chart-flag {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  display: flex;
+}
+.scr-chart-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scr-chart-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.scr-chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  font-size: 13px;
+}
+.scr-chart-tip {
+  position: absolute;
+  z-index: 3;
+  min-width: 96px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(46, 46, 46, 0.92);
+  color: #dbdbdb;
+  font-size: 12px;
+  line-height: 18px;
+  pointer-events: none;
+}
+.scr-chart-tip-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+.scr-chart-tip-label {
+  font-weight: 600;
+}
+.scr-chart-tip-time {
+  margin-top: 2px;
+  text-align: center;
+  color: #b8b8b8;
+  font-size: 11px;
+}
+/* Chart grid picker: 4 × 4 cells, the hovered or chosen block filled. */
+.scr-grid-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 34px);
+  gap: 2px;
+  padding: 8px 12px 4px;
+}
+.scr-grid-cell {
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--color-container-fill-primary-neutral-extra-light, #2e2e2e);
+  cursor: pointer;
+}
+.scr-grid-cell.is-on {
+  background: var(--color-content-primary-neutral, #8c8c8c);
+}
+.scr-grid-caption {
+  padding: 8px 12px 12px;
+  text-align: center;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  font-size: 14px;
+}
+.scr-check-item {
+  cursor: pointer;
+}
+
+/* Heatmap view: the map, then the legend (7 buckets and Color depth). */
+.scr-heatmap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 20px;
+}
+.scr-heat-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+}
+.scr-heat-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.scr-heat-crumb:hover {
+  color: var(--color-content-primary-neutral-bold);
+}
+.scr-heat-box {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.scr-heat-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.scr-heat-legend {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 44px;
+  padding-bottom: 6px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+}
+.scr-heat-legend-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 56px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 11px;
+  cursor: pointer;
+}
+.scr-heat-legend-swatch {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 2px;
+}
+.scr-heat-legend-item.is-hidden {
+  opacity: 0.35;
+}
+.scr-heat-depth {
+  margin-left: 12px;
 }

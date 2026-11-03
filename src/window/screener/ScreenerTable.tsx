@@ -24,7 +24,9 @@ import {
   sameColumn,
   type ColumnRef,
 } from "../../data/screener-catalog";
-import { DASH, formatCell } from "../../data/screener-format";
+import { DASH } from "../../data/screener-format";
+import { displayCell } from "../../data/screener-display";
+import { screenerSettings } from "../../data/screener-settings";
 import { EXTRA_FIELDS } from "../../data/screener-query";
 import type { ScanController } from "./scan-controller";
 import { CategoryMenu } from "./CategoryMenu";
@@ -53,6 +55,8 @@ export const ROW_H = 41;
 const HEAD_H = 50;
 const OVERSCAN = 8;
 const SYMBOL_W = 144;
+/** Symbol column with the instrument name shown (Screener settings, Table: Name). */
+const SYMBOL_NAME_W = 320;
 const SETUP_W = 45;
 
 type Props = {
@@ -152,7 +156,7 @@ export function ScreenerTable(props: Props) {
         const row = untrack(() => props.ctl.row(i));
         if (!row) continue;
         const cur = extra(row, "currency");
-        const f = formatCell(def?.fmt ?? "text", row.d[ci], typeof cur === "string" ? cur : null);
+        const f = displayCell(def, row.d[ci], typeof cur === "string" ? cur : null);
         let px = textWidth(f.text, `14px ${FONT}`);
         if (f.unit && f.text !== DASH) px += textWidth(` ${f.unit}`, `500 10px ${FONT}`);
         w = Math.max(w, Math.ceil(px) + 24 + 1);
@@ -170,7 +174,8 @@ export function ScreenerTable(props: Props) {
     const content = def?.fmt === "text" ? 0 : grown()[colKey(c)] ?? 0;
     return Math.max(headerWidth(c), content);
   };
-  const tableWidth = () => SYMBOL_W + props.columns.reduce((a, c) => a + columnWidth(c), 0) + SETUP_W;
+  const symbolWidth = () => (screenerSettings().showName ? SYMBOL_NAME_W : SYMBOL_W);
+  const tableWidth = () => symbolWidth() + props.columns.reduce((a, c) => a + columnWidth(c), 0) + SETUP_W;
 
   const isSorted = (c: ColumnRef) => sameColumn(props.sort.sortBy, c);
   const sortClick = (c: ColumnRef, e: MouseEvent) => {
@@ -227,9 +232,7 @@ export function ScreenerTable(props: Props) {
       const r = row();
       if (!r) return null;
       const cur = extra(r, "currency");
-      const v = r.d[ci()];
-      if (def?.cellText && typeof v === "string" && v) return { text: def.cellText(v) };
-      return formatCell(def?.fmt ?? "text", v, typeof cur === "string" ? cur : null);
+      return displayCell(def, r.d[ci()], typeof cur === "string" ? cur : null);
     };
     // Plain accessors (no Show): a row can vanish while its cells update.
     const text = () => f()?.text ?? "";
@@ -265,7 +268,7 @@ export function ScreenerTable(props: Props) {
     <div class="scr-table-scroll" ref={scroller} onScroll={onScroll} classList={{ "is-scrolled-x": scrolledX() }}>
       <table class="scr-table" style={{ width: `max(${tableWidth()}px, 100%)` }}>
         <colgroup>
-          <col style={{ width: `${SYMBOL_W}px` }} />
+          <col style={{ width: `${symbolWidth()}px` }} />
           <For each={props.columns}>{(c) => <col style={{ width: `${columnWidth(c)}px` }} />}</For>
           {/* Last column takes the width left over (the reference app table fills the panel). */}
           <col />
@@ -331,8 +334,15 @@ export function ScreenerTable(props: Props) {
                             </span>
                           )}
                         </Show>
-                        <span class="ot-ticker-logo ot-ticker-logo--md scr-row-logo" aria-hidden="true">{ticker().charAt(0)}</span>
-                        <span class="scr-ticker-chip" title={desc() ? `${ticker()} − ${desc()}` : ticker()}>{ticker()}</span>
+                        <Show when={screenerSettings().showLogo}>
+                          <span class="ot-ticker-logo ot-ticker-logo--md scr-row-logo" aria-hidden="true">{ticker().charAt(0)}</span>
+                        </Show>
+                        <Show when={screenerSettings().showSymbol}>
+                          <span class="scr-ticker-chip" title={desc() ? `${ticker()} − ${desc()}` : ticker()}>{ticker()}</span>
+                        </Show>
+                        <Show when={screenerSettings().showName}>
+                          <span class="scr-ticker-name" title={typeof desc() === "string" ? `${ticker()} − ${desc()}` : ticker()}>{desc() ?? ticker()}</span>
+                        </Show>
                       </span>
                     </Show>
                   </td>
