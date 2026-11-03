@@ -53,6 +53,12 @@ type Props = {
   onClose: () => void;
   /** Add an instance of an indicator (by registry id) to the chart. */
   onAddIndicator?: (indicatorId: string) => void;
+  /** Dialog title (default: the chart's "Indicators, metrics, and strategies"). */
+  title?: string;
+  /** Picker of another tool (the script screener): the rows it cannot use are greyed, with `unsupportedText` as
+   *  their tooltip, and the fundamentals metrics cannot be picked. */
+  supported?: (indicatorId: string) => boolean;
+  unsupportedText?: string;
 };
 
 // Kept for the app session: the reference dialog reopens on its last tab,
@@ -347,7 +353,7 @@ export function IndicatorsDialog(props: Props) {
       } else if (e.key === "Enter") {
         const item = items()[selectedIdx()];
         const id = item && !isSection(item) ? item.indicatorId : undefined;
-        if (id && props.onAddIndicator) { e.preventDefault(); props.onAddIndicator(id); }
+        if (id && props.onAddIndicator && (props.supported?.(id) ?? true)) { e.preventDefault(); props.onAddIndicator(id); }
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -365,12 +371,12 @@ export function IndicatorsDialog(props: Props) {
         class="indicators-dialog"
         data-name="indicators-dialog"
         role="dialog"
-        aria-label="Indicators, metrics, and strategies"
+        aria-label={props.title ?? "Indicators, metrics, and strategies"}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* ─── Header ─── */}
         <header class="indicators-header">
-          <div class="indicators-title">Indicators, metrics, and strategies</div>
+          <div class="indicators-title">{props.title ?? "Indicators, metrics, and strategies"}</div>
           <button
             type="button"
             data-qa-id="close"
@@ -484,7 +490,7 @@ export function IndicatorsDialog(props: Props) {
                     </Show>
 
                     <Show when={c().kind === "fundamentals"}>
-                      <FundamentalsView subtabs={(c() as any).subtabs} query={query()} onAdd={props.onAddIndicator} />
+                      <FundamentalsView subtabs={(c() as any).subtabs} query={query()} onAdd={props.supported ? undefined : props.onAddIndicator} />
                     </Show>
                   </>
                 )}
@@ -504,12 +510,15 @@ export function IndicatorsDialog(props: Props) {
                           return <div class="indicators-section-title" role="presentation">{item.section}</div>;
                         }
                         const row = item;
-                        const addable = () => !!row.indicatorId && !!props.onAddIndicator;
+                        const unsupported = () => !!row.indicatorId && !!props.supported && !props.supported(row.indicatorId);
+                        const addable = () => !!row.indicatorId && !!props.onAddIndicator && !unsupported();
                         const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
                         return (
                           <div
-                            class={`indicators-row${row.metricKey ? " is-metric" : ""}${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}`}
+                            class={`indicators-row${row.metricKey ? " is-metric" : ""}${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}${unsupported() ? " is-unsupported" : ""}`}
                             role="option"
+                            aria-disabled={unsupported() || undefined}
+                            title={unsupported() ? props.unsupportedText : undefined}
                             aria-selected={i() === selectedIdx()}
                             onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
                           >

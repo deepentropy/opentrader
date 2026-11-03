@@ -32,6 +32,9 @@ pub struct Row {
     /// Index into the state file columns.
     pub st: Option<usize>,
     pub join: Join,
+    /// New York date of the session the row shows (today once traded, else
+    /// the last session before today).
+    pub day: Option<NaiveDate>,
 }
 
 pub struct Table {
@@ -91,7 +94,7 @@ impl Table {
                 // The reference list and the state are keyed by the source's
                 // spelling; from here on the row carries the app's name.
                 m.ticker = ticker_case::to_app(&m.ticker);
-                Row { m, r, st, join }
+                Row { m, r, st, join, day: shown }
             })
             .collect();
         Table { version, updated_ms, rows, refs, state }

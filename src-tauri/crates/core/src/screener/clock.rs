@@ -37,6 +37,13 @@ pub fn ny_date_ms(ms: f64) -> Option<NaiveDate> {
     Some((utc + Duration::hours(ny_offset_hours(utc))).date_naive())
 }
 
+/// 00:00 New York of `date`, as UNIX seconds (the time of a daily bar).
+/// Summer time never changes at midnight, so the offset at noon holds.
+pub fn ny_midnight_sec(date: NaiveDate) -> Option<f64> {
+    let noon = date.and_hms_opt(12, 0, 0)?.and_utc();
+    Some((date.and_hms_opt(0, 0, 0)?.and_utc() - Duration::hours(ny_offset_hours(noon))).timestamp() as f64)
+}
+
 /// The trading day before `date`.
 pub fn prev_trading_day(date: NaiveDate) -> Option<NaiveDate> {
     trading_calendar::trading_days_before(date - Duration::days(1), 1).first().copied()
@@ -74,6 +81,13 @@ mod tests {
         assert_eq!(ny_offset_hours(utc(2026, 3, 8, 7, 0)), -4);
         assert_eq!(ny_offset_hours(utc(2026, 11, 1, 5, 59)), -4);
         assert_eq!(ny_offset_hours(utc(2026, 11, 1, 6, 0)), -5);
+    }
+
+    #[test]
+    fn ny_midnight_in_summer_and_winter_time() {
+        let d = |m, day| NaiveDate::from_ymd_opt(2026, m, day).unwrap();
+        assert_eq!(ny_midnight_sec(d(9, 29)), Some(utc(2026, 9, 29, 4, 0).timestamp() as f64));
+        assert_eq!(ny_midnight_sec(d(11, 3)), Some(utc(2026, 11, 3, 5, 0).timestamp() as f64));
     }
 
     #[test]

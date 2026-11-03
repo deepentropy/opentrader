@@ -34,6 +34,10 @@ pub enum Live {
     ValueTraded,
     /// 100 * true range / low.
     VolatilityD,
+    /// The shown session as a daily bar time (00:00 New York of its date,
+    /// UNIX seconds, the stamp of the daily bars): where the row's open /
+    /// high / low / close / volume go in a daily series.
+    SessionDay,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -112,6 +116,7 @@ const LIVE: &[(&str, Live)] = &[
     ("change_from_open", Live::ChangeFromOpen),
     ("Value.Traded", Live::ValueTraded),
     ("Volatility.D", Live::VolatilityD),
+    ("session_day", Live::SessionDay),
 ];
 
 const REFERENCE: &[(&str, Reference)] = &[
@@ -242,6 +247,7 @@ fn live(f: Live, row: &Row) -> Option<f64> {
             (pos(m.last)? - o) / o * 100.0
         }
         Live::ValueTraded => pos(m.last)? * m.volume,
+        Live::SessionDay => crate::screener::clock::ny_midnight_sec(row.day?)?,
         Live::VolatilityD => {
             let (h, l, pc) = (pos(m.high)?, pos(m.low)?, m.prev_close.filter(|p| *p > 0.0)?);
             100.0 * (h - l).max((h - pc).abs()).max((l - pc).abs()) / l

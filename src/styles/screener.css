@@ -1154,3 +1154,179 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-item-sep {
   color: var(--color-content-primary-neutral-light);
 }
+
+/* ── Script screener (ScriptScreener.tsx) ───────────────────────────────── */
+.sscr-title-btn {
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+  cursor: default;
+}
+.sscr {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 4px;
+}
+.sscr-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 20px 12px;
+}
+.sscr-source .scr-pill-main {
+  color: var(--color-content-primary-neutral-bold);
+}
+/* Indicator · interval · settings: one bordered block of 34 px buttons. */
+.sscr-indicator-block {
+  display: flex;
+  height: 34px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-primary-neutral-light); /* #4a4a4a */
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sscr-block-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  padding: 0 11px;
+  border: 0;
+  background: transparent;
+  color: var(--color-content-primary-neutral-bold);
+  font: inherit;
+  font-size: 16px;
+  white-space: nowrap;
+  cursor: default;
+}
+.sscr-block-btn + .sscr-block-btn {
+  border-left: 1px solid var(--color-border-primary-neutral-light);
+}
+.sscr-block-btn.is-icon {
+  padding: 0 7px;
+}
+.sscr-indicator-btn {
+  font-weight: 600;
+  max-width: 260px;
+}
+.sscr-indicator-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sscr-indicator-btn.is-empty {
+  font-weight: 400;
+  color: var(--color-content-primary-neutral);
+}
+.sscr-block-btn:hover:not(:disabled),
+.sscr-block-btn.is-open {
+  background-color: var(--color-container-fill-primary-neutral-extra-light); /* #2e2e2e */
+}
+.sscr-block-btn:disabled {
+  color: var(--color-content-primary-neutral-light);
+}
+/* Scan: the primary light button (#f2f2f2 / black text). */
+.sscr-scan-btn {
+  gap: 6px;
+  padding: 0 12px 0 10px;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold); /* #f2f2f2 */
+  color: var(--color-content-primary-inverse); /* #000 */
+}
+.sscr-scan-btn:hover:not(:disabled) {
+  background-color: var(--color-content-primary-neutral-bold) !important; /* #dbdbdb */
+}
+.sscr-scan-btn:disabled {
+  opacity: 0.4;
+}
+.sscr-progress {
+  color: var(--color-content-primary-neutral);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.sscr-table-scroll .scr-table.is-scanning .scr-tr.is-pending > .scr-td {
+  opacity: 0.4;
+}
+.sscr-name {
+  min-width: 0;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-content-primary-neutral-bold);
+}
+.sscr-count {
+  color: var(--color-content-primary-neutral);
+  font-size: 13px;
+}
+.sscr-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+}
+.sscr-tab {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-content-primary-neutral);
+  font: inherit;
+  font-size: 14px;
+  cursor: default;
+}
+.sscr-tab:hover {
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
+}
+.sscr-tab.is-active {
+  background-color: var(--color-container-fill-primary-neutral-light); /* #3d3d3d */
+  color: var(--color-content-primary-neutral-bold);
+}
+/* Toast at the bottom centre of the results: "Scan completed", "Rescan to update the results". */
+.sscr-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  border-radius: 6px;
+  background-color: var(--color-container-fill-primary-neutral-light); /* #3d3d3d */
+  color: var(--color-content-primary-neutral-bold);
+  font-size: 14px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+}
+.sscr-toast > svg {
+  color: var(--color-ot-green, #22ab94);
+}
+.sscr-toast-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold);
+  color: var(--color-content-primary-inverse);
+  font: inherit;
+  font-size: 14px;
+  cursor: default;
+}
+.sscr-toast-x {
+  display: flex;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--color-content-primary-neutral);
+  cursor: default;
+}

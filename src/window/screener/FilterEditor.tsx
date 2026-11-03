@@ -127,14 +127,15 @@ function valueUnit(col: ColumnRef): string | null {
 }
 
 /** Input text of a value: volumes and money in K / M / B ("500 K"), as the reference app. */
-function inputText(col: ColumnRef, v: number | null): string {
+function inputText(col: ColumnRef | undefined, v: number | null): string {
   if (v === null) return "";
-  const fmt = COLUMN_BY_ID[col.id]?.fmt;
+  const fmt = col ? COLUMN_BY_ID[col.id]?.fmt : undefined;
   return fmt === "volume" || fmt === "money" ? abbrev(v) : String(v);
 }
 
-/** Number input with the reference app stepper (increase / decrease). */
-function ValueInput(props: { col: ColumnRef; value: number | null; placeholder: string; unit: string | null; onValue: (v: number | null) => void }) {
+/** Number input with the reference app stepper (increase / decrease). `col`: the column whose format the text
+ *  takes (volumes in K / M / B); none: a plain number. */
+export function ValueInput(props: { col?: ColumnRef; value: number | null; placeholder: string; unit: string | null; onValue: (v: number | null) => void }) {
   const [text, setText] = createSignal(inputText(props.col, props.value));
   let input!: HTMLInputElement;
   let timer: number | undefined;

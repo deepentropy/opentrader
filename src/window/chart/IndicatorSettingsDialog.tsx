@@ -110,6 +110,9 @@ type Props = {
    *  added instance of this indicator starts with. */
   onSaveAsDefault: (next: Next) => void;
   onClose: () => void;
+  /** The inputs of an indicator used off the chart (the script screener): the Inputs tab only, "Apply" for Ok and no
+   *  "Save as default". */
+  inputsOnly?: boolean;
   /** Strategy study: Properties tab + strategy Style tab. */
   strategy?: StrategyDialogConfig;
   /** Exchange time zone of the charted symbol: time inputs of indicators. */
@@ -341,7 +344,7 @@ export function IndicatorSettingsDialog(props: Props) {
   // The Inputs tab only with inputs a user can edit (reference).
   const hasInputs = props.inputConfig.some((c) => !c.hidden);
   const tabs = (): DialogTab[] =>
-    (props.strategy ? ["inputs", "properties", "style", "visibility"] as DialogTab[] : props.tpo ? ["inputs", "style", "volume", "visibility"] as DialogTab[] : ["inputs", "style", "visibility"] as DialogTab[])
+    (props.inputsOnly ? ["inputs"] as DialogTab[] : props.strategy ? ["inputs", "properties", "style", "visibility"] as DialogTab[] : props.tpo ? ["inputs", "style", "volume", "visibility"] as DialogTab[] : ["inputs", "style", "visibility"] as DialogTab[])
       .filter((t) => t !== "inputs" || hasInputs);
   const TAB_TITLES: Record<DialogTab, string> = { inputs: "Inputs", properties: "Properties", style: "Style", volume: "Volume profile", visibility: "Visibility" };
   const stored = props.strategy ? (kv.getItem(TAB_KEY) as DialogTab | null) : null;
@@ -1120,15 +1123,17 @@ export function IndicatorSettingsDialog(props: Props) {
                 <div role="menuitem" class="cp3-menu-item" onClick={() => { reset(); setDefaultsOpen(false); }}>
                   <span class="cp3-menu-title">Reset settings</span>
                 </div>
-                <div role="menuitem" class="cp3-menu-item" onClick={() => { props.onSaveAsDefault(current()); setDefaultsOpen(false); }}>
-                  <span class="cp3-menu-title">Save as default</span>
-                </div>
+                <Show when={!props.inputsOnly}>
+                  <div role="menuitem" class="cp3-menu-item" onClick={() => { props.onSaveAsDefault(current()); setDefaultsOpen(false); }}>
+                    <span class="cp3-menu-title">Save as default</span>
+                  </div>
+                </Show>
               </div>
             </Show>
           </div>
           <div class="cp3-footer-actions">
             <button type="button" class="cp3-btn" onClick={() => cancel()}>Cancel</button>
-            <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>Ok</button>
+            <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>{props.inputsOnly ? "Apply" : "Ok"}</button>
           </div>
         </footer>
       </div>

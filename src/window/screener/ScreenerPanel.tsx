@@ -8,6 +8,10 @@
  * The main layout (header toolbar, drawing toolbar, charts, rail) shrinks to
  * the remaining width; Fullscreen mode gives the panel the whole window.
  *
+ * The title is a menu: Stock Screener / Script Screener (./ScriptScreener,
+ * which reads the same live table), and for the script one "Download results
+ * as CSV" and "Save results as watchlist".
+ *
  * Data: `screenerOpen(owner)` starts the backend's 10 s polling while the
  * panel is mounted; every `screener-update` re-runs the scan (visible pages),
  * every screen change re-plans it. The Refresh badge counts down the seconds
@@ -31,10 +35,16 @@ import { PANEL_MIN_WIDTH, screenerPanel, screenerStore } from "../../data/screen
 import type { FlagColor } from "../../data/watchlist";
 import { allFlags } from "../../data/symbol-flags";
 import { FilterPills, watchlistTickers } from "./FilterPills";
-import { PopItem, PopSectionTitle, Popover } from "./Popover";
+import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
 import { ScreenerTable } from "./ScreenerTable";
 import { ScreenerTopbar } from "./ScreenerTopbar";
 import { createScanController } from "./scan-controller";
+import { ScriptScreener } from "./ScriptScreener";
+import { scriptScreenStore } from "../../data/script-screen-store";
+import { bareTicker, type ScriptColumn, type ScriptRow } from "../../data/script-screen";
+import { watchlistStore } from "../../data/watchlist-store";
+import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
+import { scriptResultsCsv } from "./script-csv";
 
 type Props = {
   /** Window label; the backend owner is `${label}:screener`. */
@@ -54,6 +64,28 @@ export function ScreenerPanel(props: Props) {
   const [manualRefresh, setManualRefresh] = createSignal(false);
   const [resetKey, setResetKey] = createSignal(0);
   let setsBtn!: HTMLButtonElement;
+  let titleBtn!: HTMLButtonElement;
+  const [titleOpen, setTitleOpen] = createSignal(false);
+  const script = () => scriptScreenStore.kind() === "script";
+  // The script screener's shown rows and columns, for the title menu.
+  let scriptRows: () => ScriptRow[] = () => [];
+  let scriptColumns: () => ScriptColumn[] = () => [];
+  const downloadCsv = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([scriptResultsCsv(scriptRows(), scriptColumns())], { type: "text/csv" }));
+    a.download = `Script screener ${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  const saveAsWatchlist = () => {
+    const rows = scriptRows().filter((r) => !r.error);
+    promptNewWatchlist((name) =>
+      watchlistStore.createListWith(
+        rows.map((r) => ({ ticker: r.symbol, short: bareTicker(r.symbol), last: "—", changePercent: "0.00%", prePostChange: "0.00%", flag: null })),
+        name,
+      ),
+    );
+  };
 
   const screen = screenerStore.screen;
   const tickers = createMemo(() => watchlistTickers(screen().watchlistId));
@@ -165,7 +197,17 @@ export function ScreenerPanel(props: Props) {
       </Show>
       <section class="scr-panel" aria-label="Stock Screener">
         <header class="scr-panel-header">
-          <div class="scr-panel-title">Stock Screener</div>
+          <button
+            ref={titleBtn}
+            type="button"
+            class="scr-panel-title sscr-title-btn"
+            classList={{ "is-open": titleOpen() }}
+            aria-haspopup="menu"
+            onClick={() => setTitleOpen(!titleOpen())}
+          >
+            {script() ? "Script Screener" : "Stock Screener"}
+            <span class="scr-screen-caret" classList={{ "is-open": titleOpen() }}><Icon name="scr-caret" size={18} /></span>
+          </button>
           <div class="scr-panel-buttons">
             <button
               type="button"
@@ -187,6 +229,19 @@ export function ScreenerPanel(props: Props) {
             </button>
           </div>
         </header>
+        <Show
+          when={!script()}
+          fallback={
+            <ScriptScreener
+              onSymbolPicked={props.onSymbolPicked}
+              flagOf={(t) => flags().get(t) ?? null}
+              onShownRows={(rows, cols) => {
+                scriptRows = rows;
+                scriptColumns = cols;
+              }}
+            />
+          }
+        >
         <div class="scr-body">
           <div class="scr-head">
             <ScreenerTopbar />
@@ -279,7 +334,20 @@ export function ScreenerPanel(props: Props) {
             />
           </Show>
         </div>
+        </Show>
       </section>
+
+      <Show when={titleOpen()}>
+        <Popover anchor={titleBtn} onClose={() => setTitleOpen(false)} width={260}>
+          <PopItem title="Stock Screener" selected={!script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("stock"); }} />
+          <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("script"); }} />
+          <Show when={script()}>
+            <PopDivider />
+            <PopItem title="Download results as CSV" disabled={!scriptRows().length} onClick={() => { setTitleOpen(false); downloadCsv(); }} />
+            <PopItem title="Save results as watchlist" disabled={!scriptRows().length} onClick={() => { setTitleOpen(false); saveAsWatchlist(); }} />
+          </Show>
+        </Popover>
+      </Show>
 
       <Show when={setsOpen()}>
         <Popover anchor={setsBtn} onClose={() => setSetsOpen(false)} class="scr-sets-menu">

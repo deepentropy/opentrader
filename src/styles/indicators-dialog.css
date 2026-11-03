@@ -370,6 +370,12 @@ html.theme-light {
 .indicators-row.is-addable {
   cursor: pointer;
 }
+/* A script another tool (the script screener) cannot use: greyed, not picked. */
+.indicators-row.is-unsupported .indicators-name,
+.indicators-row.is-unsupported .indicators-author-cell {
+  opacity: 0.4;
+}
+.indicators-row.is-unsupported { cursor: default; }
 
 .indicators-cell {
   min-width: 0;

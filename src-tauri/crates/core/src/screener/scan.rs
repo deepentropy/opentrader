@@ -424,6 +424,25 @@ mod tests {
     }
 
     #[test]
+    fn session_day_is_the_shown_session_as_a_daily_bar_time() {
+        // A traded row shows the New York day of its update; a quiet row the last session before today.
+        let rows = vec![mrow("AAA", 10.0, 1000.0, true, "2026-09-29T20:30:00Z"), mrow("BBB", 4.0, 0.0, false, "2026-09-25T20:00:00Z")];
+        let t = Table::build(1, rows, Arc::new(vec![]), None);
+        let mut r = req(vec![], Some(("name", SortOrder::Asc)));
+        r.columns = vec!["session_day".into()];
+        let r = run(&t, &r).unwrap();
+        let day = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp() as f64;
+        // 00:00 New York in summer time: 04:00 UTC.
+        assert_eq!(r.rows[0].d[0], Some(Cell::Num(day(2026, 9, 29) + 4.0 * 3600.0)));
+        let quiet = match r.rows[1].d[0] {
+            Some(Cell::Num(v)) => v,
+            ref other => panic!("no session day: {other:?}"),
+        };
+        // The quiet row's session is a trading day before today.
+        assert!(quiet < chrono::Utc::now().timestamp() as f64 && quiet >= day(2026, 9, 29));
+    }
+
+    #[test]
     fn filters_sorts_and_pages() {
         let t = table(None);
         let r = run(&t, &req(vec![clause("close", Op::EGreater, Operand::Num(5.0))], Some(("volume", SortOrder::Desc)))).unwrap();
