@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   EXTRA_FIELDS,
+  ETF_PRIMARY_UNIVERSE_CLAUSE,
+  ETF_UNIVERSE_CLAUSE,
   PRIMARY_UNIVERSE_CLAUSE,
   UNIVERSE_CLAUSE,
   activeColumns,
@@ -15,6 +17,7 @@ import {
 import {
   COLUMN_BY_ID,
   COLUMN_SETS,
+  defaultEtfScreen,
   type CheckboxFilter,
   type ColumnRef,
   type ConditionFilter,
@@ -245,12 +248,21 @@ describe("planScreen", () => {
 
   it("plans the default screen: overview columns, extra fields, universe clause, market cap sort", () => {
     const plan = planScreen(defaultScreen(), all, null);
-    expect(plan.columns.map((c) => c.id)).toEqual(["Price", "Change", "Volume", "RelativeVolume", "MarketCap", "DividendsYield", "Sector"]);
-    expect(plan.fields).toEqual(["close", "change", "volume", "relative_volume_10d_calc", "market_cap_basic", "dividends_yield_current", "sector", ...EXTRA_FIELDS]);
+    expect(plan.columns.map((c) => c.id)).toEqual(["Price", "Change", "Volume", "RelativeVolume", "MarketCap", "PriceToEarnings", "EpsDiluted", "EpsDilutedGrowth", "DividendsYield", "Sector"]);
+    expect(plan.fields).toEqual([
+      "close", "change", "volume", "relative_volume_10d_calc", "market_cap_basic", "f.pe", "f.eps_dil_ttm", "f.eps_dil_growth_ttm_yoy", "dividends_yield_current", "sector", ...EXTRA_FIELDS,
+    ]);
     expect(plan.filter).toEqual([PRIMARY_UNIVERSE_CLAUSE]);
     expect(planScreen({ ...defaultScreen(), primaryListing: false }, all, null).filter).toEqual([UNIVERSE_CLAUSE]);
     expect(plan.sort).toEqual({ sortBy: "market_cap_basic", sortOrder: "desc" });
     expect(plan.tickers).toBeNull();
+  });
+
+  it("scans ETFs, notes and commodity trusts on an ETF screen", () => {
+    const plan = planScreen(defaultEtfScreen(), all, null);
+    expect(plan.filter).toEqual([ETF_UNIVERSE_CLAUSE]);
+    expect(planScreen({ ...defaultEtfScreen(), primaryListing: true }, all, null).filter).toEqual([ETF_PRIMARY_UNIVERSE_CLAUSE]);
+    expect(plan.columns.map((c) => c.id)).toEqual(["Price", "Change", "VolumePrice", "RelativeVolume", "AssetsUnderManagement"]);
   });
 
   it("never sends fields the backend does not have", () => {

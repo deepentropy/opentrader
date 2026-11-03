@@ -168,10 +168,13 @@ describe("filters and screens", () => {
     expect(ids.size).toBe(50);
   });
 
-  it("the default screen: 8 pills, Overview columns, market cap descending", () => {
+  it("the default screen: 13 pills, Overview columns, market cap descending", () => {
     const s = defaultScreen();
     expect(s.title).toBe(DEFAULT_SCREEN_TITLE);
-    expect(s.filters.map((f) => f.left.id)).toEqual(["Index", "Price", "Change", "MarketCap", "DividendsYield", "Sector", "Performance", "Beta"]);
+    expect(s.filters.map((f) => f.left.id)).toEqual([
+      "Index", "Price", "Change", "MarketCap", "PriceToEarnings", "EpsDilutedGrowth", "DividendsYield", "Sector", "Performance", "RevenueGrowth",
+      "PriceToEarningsToGrowth", "ReturnOnEquity", "Beta",
+    ]);
     expect(s.activeColumnSetId).toBe("overview");
     expect(s.customColumns).toBeNull();
     expect(s.sort).toEqual({ sortBy: C("MarketCap"), sortOrder: "desc" });
@@ -182,8 +185,20 @@ describe("filters and screens", () => {
   it("popular screens: 'Most capitalized' sets the market cap pill to 10 B and above", () => {
     const s = POPULAR_SCREENS.find((p) => p.id === "1")!.screen();
     const mc = s.filters.find((f) => f.left.id === "MarketCap");
-    expect(mc).toMatchObject({ operation: "aboveOrEqual", right: { value: 1e10 } });
+    expect(mc).toMatchObject({ operation: "between", right: { left: 1e10, right: null } });
     expect(s.filters.filter((f) => f.left.id !== "MarketCap").every((f) => f.type === "CheckboxGroup" ? f.values.length === 0 : "value" in f.right ? f.right.value === null : true)).toBe(true);
     expect(POPULAR_SCREENS.find((p) => p.id === "14")!.screen().title).toBe("All stocks");
+  });
+
+  it("popular screens: own values on the default pills, extra pills after them, column set and sort", () => {
+    const s = POPULAR_SCREENS.find((p) => p.title === "Close to new-high and undervalued")!.screen();
+    const ids = s.filters.map((f) => f.left.id);
+    expect(ids.slice(-1)).toEqual(["High"]);
+    expect(s.filters.find((f) => f.left.id === "PriceToEarnings")).toMatchObject({ operation: "between", right: { left: null, right: 20 } });
+    expect(s.filters.find((f) => f.left.id === "High")).toMatchObject({ operation: "abovePercent", offsetRangeId: "offset_range_0_10", target: "Price" });
+    const cash = POPULAR_SCREENS.find((p) => p.title === "Highest cash")!.screen();
+    expect(cash.activeColumnSetId).toBe("balanceSheet");
+    expect(cash.sort).toEqual({ sortBy: C("CashNShortTermInvest", { fiscalPeriod: "fq" }), sortOrder: "desc" });
+    expect(new Set(POPULAR_SCREENS.map((p) => p.id)).size).toBe(POPULAR_SCREENS.length);
   });
 });

@@ -10,7 +10,7 @@ import { leaveScreen } from "./leave-screen";
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
-import { POPULAR_SCREENS, type Screen } from "../../data/screener-catalog";
+import { popularScreens, type Screen } from "../../data/screener-catalog";
 import { screenerStore } from "../../data/screener-store";
 
 export function ScreenBrowserDialog(props: { onClose: () => void; onCopy: (screen: Screen) => void }) {
@@ -20,11 +20,11 @@ export function ScreenBrowserDialog(props: { onClose: () => void; onCopy: (scree
   const match = (title: string) => title.toLowerCase().includes(query().trim().toLowerCase());
   const mine = () => {
     const order = new Map(screenerStore.recentScreens().map((s, i) => [s.id, i] as const));
-    return [...screenerStore.savedScreens()]
+    return [...screenerStore.typeScreens()]
       .filter((s) => match(s.screen.title))
       .sort((a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9) || b.updatedAt - a.updatedAt);
   };
-  const popular = () => POPULAR_SCREENS.filter((p) => match(p.title));
+  const popular = () => popularScreens(screenerStore.type()).filter((p) => match(p.title));
   const isCurrentSaved = (id: string) => screenerStore.savedId() === id;
   const isCurrentPopular = (id: string) => !screenerStore.savedId() && screenerStore.popularId() === id;
 

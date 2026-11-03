@@ -60,6 +60,14 @@ export function formatCell(fmt: Fmt, v: number | string | null | undefined, curr
       return { text: volumeFormat(v, 0), unit };
     case "number":
       return { text: `${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}` };
+    case "integer":
+      return { text: `${v < 0 ? MINUS : ""}${Math.round(Math.abs(v))}` };
+    // A date (UNIX seconds of a UTC day), dd/mm/yyyy.
+    case "date": {
+      const d = new Date(v * 1000);
+      const two = (n: number) => String(n).padStart(2, "0");
+      return { text: `${two(d.getUTCDate())}/${two(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}` };
+    }
     default:
       return { text: String(v) };
   }

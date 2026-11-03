@@ -22,6 +22,7 @@ import {
   type HeatScheme,
 } from "../../data/screener-settings";
 import { heatOption } from "../../data/screener-heatmap";
+import { screenerStore } from "../../data/screener-store";
 
 type Tab = "general" | "table" | "charts" | "heatmap";
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -145,7 +146,7 @@ export function ScreenerSettingsDialog(props: { onClose: () => void }) {
                     width={180}
                     value={s().heatValue}
                     options={["color", "size"]}
-                    labelOf={(o) => (o === "size" ? heatOption("size", s().heatSize)?.valueShort : heatOption("color", s().heatColor)?.valueShort) ?? o}
+                    labelOf={(o) => (o === "size" ? heatOption("size", s().heatSize, screenerStore.type()) : heatOption("color", s().heatColor, screenerStore.type())).valueShort}
                     disabled={!s().heatValueOn}
                     onPick={(v) => setScreenerSettings({ heatValue: v as "color" | "size" })}
                   />

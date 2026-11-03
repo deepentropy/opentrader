@@ -476,6 +476,36 @@ mod tests {
     }
 
     #[test]
+    fn fundamentals_and_their_price_ratios() {
+        // AAA: price 10, 100 shares (market cap 1000).
+        let mut st = state((2026, 9, 28));
+        let col = |a: f64| vec![Some(a), None, None];
+        for (k, v) in [("f.eps_dil_ttm", 2.0), ("f.eps_dil_growth_ttm_yoy", 25.0), ("f.revenue_ps_ttm", 4.0), ("f.total_debt_fq", 300.0), ("f.cash_fq", 100.0), ("f.ebitda_ttm", 240.0), ("f.div_indicated", 0.5), ("f.market_cap_1y", 500.0)] {
+            st.num.insert(k.to_string(), col(v));
+        }
+        st.text.insert("f.fiscal_period".to_string(), vec![Some("Q3 2026".to_string()), None, None]);
+        let t = table(Some(st));
+        let row = &t.rows[0];
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, row);
+        assert_eq!(v("f.eps_dil_ttm"), Some(Val::Num(2.0)));
+        assert_eq!(v("f.fiscal_period"), Some(Val::Text("Q3 2026")));
+        assert_eq!(v("f.pe"), Some(Val::Num(5.0)));
+        assert_eq!(v("f.peg"), Some(Val::Num(0.2)));
+        assert_eq!(v("f.ps"), Some(Val::Num(2.5)));
+        assert_eq!(v("f.ev"), Some(Val::Num(1200.0)));
+        assert_eq!(v("f.ev_ebitda"), Some(Val::Num(5.0)));
+        assert_eq!(v("f.div_yield_indicated"), Some(Val::Num(5.0)));
+        assert_eq!(v("f.market_cap_perf_1y"), Some(Val::Num(100.0)));
+        // A ratio whose input is missing is null; a loss has no P/E.
+        assert_eq!(v("f.pb"), None);
+        assert_eq!(Field::parse("f.pe").unwrap().eval(&t, &t.rows[1]), None);
+        // Offered: the fundamentals held and the ratios whose inputs are held.
+        let ids: Vec<String> = crate::screener::fields::catalog(&t).into_iter().map(|f| f.id).collect();
+        assert!(ids.contains(&"f.eps_dil_ttm".to_string()) && ids.contains(&"f.ev_ebitda".to_string()) && ids.contains(&"f.fiscal_period".to_string()));
+        assert!(!ids.contains(&"f.pb".to_string()));
+    }
+
+    #[test]
     fn state_of_the_same_day_is_used_as_is_and_old_state_is_dropped() {
         let t = table(Some(state((2026, 9, 29))));
         let ema = Field::parse("EMA50").unwrap();

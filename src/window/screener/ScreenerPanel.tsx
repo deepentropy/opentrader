@@ -32,7 +32,7 @@ import { Icon } from "../../components/Icon";
 import type { FieldInfo } from "../../bindings";
 import { POLL_MS, onScreenerUpdate, screenerClose, screenerFields, screenerOpen } from "../../data/screener-api";
 import {
-  COLUMN_SETS,
+  columnSets,
   CUSTOM_SET_ID,
   CUSTOM_SET_TITLE,
   fieldOf,
@@ -40,6 +40,7 @@ import {
   type ColumnRef,
 } from "../../data/screener-catalog";
 import { activeColumns, planScreen, type Plan } from "../../data/screener-query";
+import { leaveScreen } from "./leave-screen";
 import { PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH, screenerPanel, screenerStore, type ScreenerPlacement } from "../../data/screener-store";
 import { isTauri } from "../shell/window-bridge";
 import { emitTo } from "@tauri-apps/api/event";
@@ -54,7 +55,7 @@ import { ScreenerTable } from "./ScreenerTable";
 import { ChartsToolbar, ScreenerCharts } from "./ScreenerCharts";
 import { HeatmapToolbar, ScreenerHeatmap } from "./ScreenerHeatmap";
 import { refreshMs, screenerSettings } from "../../data/screener-settings";
-import type { ViewMode } from "../../data/screener-catalog";
+import type { ScreenerType, ViewMode } from "../../data/screener-catalog";
 import { ScreenerTopbar } from "./ScreenerTopbar";
 import { createScanController } from "./scan-controller";
 import { ScriptScreener } from "./ScriptScreener";
@@ -121,6 +122,11 @@ export function ScreenerPanel(props: Props) {
     }
     screenerPanel.setPlacement(p);
     screenerPanel.setOpen(true);
+  };
+  /** The Stock or ETF Screener; leaving a changed screen asks first. */
+  const showScreener = (t: ScreenerType) => {
+    if (script()) scriptScreenStore.setKind("stock");
+    if (screenerStore.type() !== t) leaveScreen(() => screenerStore.setType(t));
   };
   const saveScreenAs = () =>
     showRename({
@@ -209,8 +215,14 @@ export function ScreenerPanel(props: Props) {
         if (disposed) return;
         track("screener_opened");
         if (st.updatedMs !== null) setLastUpdate(Date.now());
+        let stateAsof = st.stateAsof;
         unlisten = await onScreenerUpdate((u) => {
           setLastUpdate(Date.now());
+          // A new daily state brings its fields (the fundamentals): the field list is read again.
+          if (u.stateAsof !== stateAsof) {
+            stateAsof = u.stateAsof;
+            void screenerFields().then((l) => !disposed && setFields(new Map(l.map((f) => [f.id, f]))));
+          }
           // Auto-refresh: every update (10 s), the first update a minute after the last refresh, or never.
           const period = refreshMs(screenerSettings().autoRefresh);
           if (!u.error && period !== null && Date.now() - lastRefresh() >= period - 1000) refreshNow();
@@ -241,12 +253,12 @@ export function ScreenerPanel(props: Props) {
 
   // Column set helpers.
   const offeredSets = () =>
-    COLUMN_SETS.filter((s) => s.columns.some((c) => {
+    columnSets(screenerStore.type()).filter((s) => s.columns.some((c) => {
       const f = fieldOf(c);
       return f !== null && has(f);
     }));
   const setTitle = () =>
-    screen().activeColumnSetId === CUSTOM_SET_ID ? CUSTOM_SET_TITLE : COLUMN_SETS.find((s) => s.id === screen().activeColumnSetId)?.title ?? "";
+    screen().activeColumnSetId === CUSTOM_SET_ID ? CUSTOM_SET_TITLE : columnSets(screenerStore.type()).find((s) => s.id === screen().activeColumnSetId)?.title ?? "";
   /** Write a new column list: the reference app stores it as the "custom" set and selects it. */
   const setColumns = (fn: (cols: ColumnRef[]) => ColumnRef[]) =>
     screenerStore.update((s) => ({ ...s, customColumns: fn([...activeColumns(s)]), activeColumnSetId: CUSTOM_SET_ID }));
@@ -323,7 +335,7 @@ export function ScreenerPanel(props: Props) {
             aria-haspopup="menu"
             onClick={() => setTitleOpen(!titleOpen())}
           >
-            {script() ? "Script Screener" : "Stock Screener"}
+            {script() ? "Script Screener" : screenerStore.type() === "etf" ? "ETF Screener" : "Stock Screener"}
             <span class="scr-screen-caret" classList={{ "is-open": titleOpen() }}><Icon name="scr-caret" size={18} /></span>
           </button>
           <div class="scr-panel-buttons">
@@ -511,7 +523,8 @@ export function ScreenerPanel(props: Props) {
 
       <Show when={titleOpen()}>
         <Popover anchor={titleBtn} onClose={() => setTitleOpen(false)} width={260}>
-          <PopItem title="Stock Screener" selected={!script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("stock"); }} />
+          <PopItem title="Stock Screener" selected={!script() && screenerStore.type() === "stock"} onClick={() => { setTitleOpen(false); showScreener("stock"); }} />
+          <PopItem title="ETF Screener" selected={!script() && screenerStore.type() === "etf"} onClick={() => { setTitleOpen(false); showScreener("etf"); }} />
           <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("script"); }} />
           <PopDivider />
           <PopSectionTitle title="Placement" />

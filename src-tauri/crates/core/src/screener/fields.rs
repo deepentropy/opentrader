@@ -7,6 +7,9 @@
  *   state      history-derived: the daily state file (`state.rs`) joined with
  *              the live bar. State key `<id>` is the value at the close of D;
  *              `<id>|next` is the carry-over the next session needs.
+ *   fundamentals  state keys `f.<name>`: company financials as of D (the
+ *              same all session), and the price ratios built from them
+ *              with the live price (`Ratio`: P/E, P/S, EV...).
  */
 use crate::data::market_rest::MarketRow;
 use crate::screener::state::StateFile;
@@ -97,11 +100,32 @@ pub enum Step {
     Daily,
 }
 
+/// A price ratio of the fundamentals: the live price (or market cap) against
+/// a financial value of the state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ratio {
+    /// Price / a per-share amount (P/S, P/B, P/CF, P/FCF, price to cash).
+    PriceOver(&'static str),
+    /// Price / diluted EPS (TTM): none when the company lost money.
+    Pe,
+    /// P/E / diluted EPS growth (TTM YoY): none unless both are positive.
+    Peg,
+    /// Enterprise value: market cap + total debt + minority interest - cash and short-term investments.
+    Ev,
+    /// Enterprise value / an amount (revenue, EBIT, EBITDA).
+    EvOver(&'static str),
+    /// 100 * an annual dividend amount / price.
+    YieldOf(&'static str),
+    /// 100 * (market cap / a past market cap - 1).
+    McapPerf(&'static str),
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Field {
     Live(Live),
     Reference(Reference),
     State(&'static str, Step),
+    Ratio(Ratio),
 }
 
 const LIVE: &[(&str, Live)] = &[
@@ -168,6 +192,7 @@ const STATE: &[(&str, Step)] = &[
     ("Perf.3M", Step::Perf),
     ("Perf.6M", Step::Perf),
     ("Perf.Y", Step::Perf),
+    ("Perf.5Y", Step::Perf),
     ("Perf.YTD", Step::PerfYtd),
     ("average_volume_10d_calc", Step::AvgVolIncl(10)),
     ("average_volume_30d_calc", Step::AvgVolIncl(30)),
@@ -184,8 +209,50 @@ const STATE: &[(&str, Step)] = &[
     ("beta_5_year", Step::Daily),
 ];
 
+/// Price ratios (field id -> ratio).
+const RATIO: &[(&str, Ratio)] = &[
+    ("f.pe", Ratio::Pe),
+    ("f.peg", Ratio::Peg),
+    ("f.ps", Ratio::PriceOver("f.revenue_ps_ttm")),
+    ("f.pb", Ratio::PriceOver("f.book_ps_fq")),
+    ("f.pcf", Ratio::PriceOver("f.ocf_ps_ttm")),
+    ("f.pfcf", Ratio::PriceOver("f.fcf_ps_ttm")),
+    ("f.pcash", Ratio::PriceOver("f.cash_ps_fq")),
+    ("f.ev", Ratio::Ev),
+    ("f.ev_revenue", Ratio::EvOver("f.revenue_ttm")),
+    ("f.ev_ebit", Ratio::EvOver("f.ebit_ttm")),
+    ("f.ev_ebitda", Ratio::EvOver("f.ebitda_ttm")),
+    ("f.div_yield_indicated", Ratio::YieldOf("f.div_indicated")),
+    ("f.market_cap_perf_1y", Ratio::McapPerf("f.market_cap_1y")),
+];
+
+/// Text fundamentals (every other `f.` key is a number).
+const FUND_TEXT: &[&str] = &["f.fiscal_period"];
+
+/// State keys a ratio reads (its field is offered when they are all in the state).
+fn ratio_inputs(r: Ratio) -> Vec<&'static str> {
+    match r {
+        Ratio::PriceOver(k) | Ratio::YieldOf(k) => vec![k],
+        Ratio::Pe => vec!["f.eps_dil_ttm"],
+        Ratio::Peg => vec!["f.eps_dil_ttm", "f.eps_dil_growth_ttm_yoy"],
+        Ratio::Ev => vec!["shares", "f.total_debt_fq", "f.cash_fq"],
+        Ratio::EvOver(k) => vec!["shares", "f.total_debt_fq", "f.cash_fq", k],
+        Ratio::McapPerf(k) => vec!["shares", k],
+    }
+}
+
+/// State fields offered only once the served state holds their key (added after the first state version).
+const STATE_OPTIONAL: &[&str] = &["Perf.5Y"];
+
 impl Field {
     pub fn parse(id: &str) -> Option<Field> {
+        if let Some((_, r)) = RATIO.iter().find(|(k, _)| *k == id) {
+            return Some(Field::Ratio(*r));
+        }
+        if id.len() > 2 && id.starts_with("f.") {
+            let step = if FUND_TEXT.contains(&id) { Step::Text } else { Step::Daily };
+            return Some(Field::State(intern(id), step));
+        }
         if let Some((_, f)) = LIVE.iter().find(|(k, _)| *k == id) {
             return Some(Field::Live(*f));
         }
@@ -233,6 +300,35 @@ impl Field {
                 s.text(key, row.st?).filter(|v| !v.is_empty()).map(Val::Text)
             }
             Field::State(key, step) => state_num(t, row, key, step).filter(|v| v.is_finite()).map(Val::Num),
+            Field::Ratio(r) => ratio(t, row, r).filter(|v| v.is_finite()).map(Val::Num),
+        }
+    }
+}
+
+fn ratio(t: &Table, row: &Row, r: Ratio) -> Option<f64> {
+    if row.join == Join::Missing {
+        return None;
+    }
+    let s = t.state.as_ref()?;
+    let i = row.st?;
+    let price = (row.m.last > 0.0).then_some(row.m.last)?;
+    let num = |k: &str| s.num(k, i);
+    let div = |a: f64, b: f64| (b != 0.0).then(|| a / b);
+    // The app's enterprise value: market cap + total debt + minority interest - cash and short-term investments.
+    let ev = || Some(price * num("shares")? + num("f.total_debt_fq")? + num("f.minority_interest_fq").unwrap_or(0.0) - num("f.cash_fq")?);
+    match r {
+        Ratio::PriceOver(k) => div(price, num(k)?),
+        Ratio::Pe => num("f.eps_dil_ttm").filter(|e| *e > 0.0).map(|e| price / e),
+        Ratio::Peg => {
+            let pe = num("f.eps_dil_ttm").filter(|e| *e > 0.0).map(|e| price / e)?;
+            num("f.eps_dil_growth_ttm_yoy").filter(|g| *g > 0.0).map(|g| pe / g)
+        }
+        Ratio::Ev => ev(),
+        Ratio::EvOver(k) => div(ev()?, num(k)?),
+        Ratio::YieldOf(k) => Some(100.0 * num(k)? / price),
+        Ratio::McapPerf(k) => {
+            let before = num(k).filter(|v| *v > 0.0)?;
+            Some(100.0 * (price * num("shares")? / before - 1.0))
         }
     }
 }
@@ -372,7 +468,21 @@ pub fn catalog(t: &Table) -> Vec<FieldInfo> {
     }
     for (id, step) in STATE {
         let kind = if matches!(step, Step::Text | Step::List) { "text" } else { "number" };
-        out.push(FieldInfo { id: id.to_string(), kind: kind.into(), source: "state".into(), available: has_state });
+        let held = !STATE_OPTIONAL.contains(id) || t.state.as_ref().is_some_and(|s| s.num.contains_key(&format!("{id}|next")));
+        out.push(FieldInfo { id: id.to_string(), kind: kind.into(), source: "state".into(), available: has_state && held });
+    }
+    // The fundamentals the served state holds, and the ratios whose inputs it holds.
+    if let Some(s) = &t.state {
+        let mut fund: Vec<(&String, &str)> = s.num.keys().map(|k| (k, "number")).chain(s.text.keys().map(|k| (k, "text"))).filter(|(k, _)| k.starts_with("f.")).collect();
+        fund.sort();
+        for (id, kind) in fund {
+            out.push(FieldInfo { id: id.clone(), kind: kind.into(), source: "state".into(), available: true });
+        }
+        for (id, r) in RATIO {
+            if ratio_inputs(*r).iter().all(|k| s.num.contains_key(*k)) {
+                out.push(FieldInfo { id: id.to_string(), kind: "number".into(), source: "state".into(), available: true });
+            }
+        }
     }
     // The custom lengths computed for the screens that use them.
     if let Some(s) = &t.state {

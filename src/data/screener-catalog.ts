@@ -27,9 +27,11 @@ export type Fmt =
   | "volume" //      9.07 M
   | "money" //       4.8 B USD
   | "number" //      1.79
+  | "integer" //     25
+  | "date" //        27/09/2026 (UNIX seconds)
   | "text";
 
-export type Category = "securityInfo" | "marketData" | "technicals" | "valuation" | "dividends";
+export type Category = "securityInfo" | "marketData" | "technicals" | "financials" | "valuation" | "growth" | "margins" | "dividends";
 
 /** The reference app filter operations the backend can evaluate (crosses and the % offset
  *  manual operations are left out). */
@@ -185,6 +187,107 @@ const INDEX_NAME: Record<string, string> = Object.fromEntries(INDEXES);
 /** "SPX,NDX" → "S&P 500, NASDAQ 100" (the Index cell). */
 const indexNames = (raw: string) => raw.split(",").map((c) => INDEX_NAME[c] ?? c).join(", ");
 
+// ── Fundamentals (state keys `f.*`, see the backend's fields.rs) ─────────────
+const FP_LABEL = { ttm: ["Trailing 12 months", "TTM"], fy: ["Annual", "FY"], fq: ["Quarterly", "FQ"], current: ["Current", "Current"] } as const;
+/** A fiscal period param: each option one field. */
+const FP = (...opts: [period: keyof typeof FP_LABEL, field: string][]): ParamDef[] => [
+  { key: "fiscalPeriod", title: "Fiscal period", default: opts[0][0], options: opts.map(([v, field]) => ({ value: v, label: FP_LABEL[v][0], short: FP_LABEL[v][1], field })) },
+];
+/** A growth period param ("TTM YoY" or "Annual YoY"). */
+const YOY = (v: "YoYTTM" | "YoYAnnual", field: string): ParamDef[] => {
+  const label = v === "YoYTTM" ? "TTM YoY" : "Annual YoY";
+  return [{ key: "period", title: "Period", default: v, options: [{ value: v, label, short: label, field }] }];
+};
+/** A number filter (the reference filter configs of these columns were not captured: no presets). */
+const NUM_FILTER: ColumnDef["filter"] = { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] };
+type FundSpec = [id: string, title: string, short: string, category: Category, fmt: Fmt, source: string | ParamDef[], financial?: boolean];
+const fund = ([id, title, short, category, fmt, source, financial]: FundSpec): ColumnDef => ({
+  id,
+  title,
+  short,
+  category,
+  fmt,
+  financial,
+  align: fmt === "text" ? "left" : "right",
+  width: fmt === "money" || fmt === "price" ? 110 : 90,
+  ...(typeof source === "string" ? { field: source } : { params: source }),
+  ...(fmt === "text" || fmt === "date" ? {} : { filter: NUM_FILTER }),
+});
+const FUNDAMENTALS: ColumnDef[] = ([
+  // Security info
+  ["RecentFiscalPeriod", "Recent fiscal period", "Fiscal period", "securityInfo", "text", FP(["current", "f.fiscal_period"])],
+  ["FiscalPeriodEndDate", "Fiscal period end date", "Fiscal period end", "securityInfo", "date", FP(["current", "f.fiscal_period_end"])],
+  // Financials: income statement, balance sheet, cash flow
+  ["TotalRevenue", "Total revenue", "Revenue", "financials", "money", FP(["ttm", "f.revenue_ttm"]), true],
+  ["GrossProfit", "Gross profit", "Gross profit", "financials", "money", FP(["ttm", "f.gross_profit_ttm"]), true],
+  ["OperatingIncome", "Operating income", "Op income", "financials", "money", FP(["ttm", "f.operating_income_ttm"]), true],
+  ["NetIncome", "Net income", "Net income", "financials", "money", FP(["ttm", "f.net_income_ttm"]), true],
+  ["Ebitda", "EBITDA", "EBITDA", "financials", "money", FP(["ttm", "f.ebitda_ttm"]), true],
+  ["EpsDiluted", "Earnings per share diluted", "EPS dil", "financials", "price", FP(["ttm", "f.eps_dil_ttm"]), true],
+  ["BasicEps", "Basic earnings per share", "EPS basic", "financials", "price", FP(["ttm", "f.eps_basic_ttm"]), true],
+  ["TotalAssets", "Total assets", "Total assets", "financials", "money", FP(["fq", "f.total_assets_fq"]), true],
+  ["TotalCurrentAssets", "Total current assets", "Current assets", "financials", "money", FP(["fq", "f.current_assets_fq"]), true],
+  ["CashNShortTermInvest", "Cash and short-term investments", "Cash on hand", "financials", "money", FP(["fq", "f.cash_fq"]), true],
+  ["TotalLiabilities", "Total liabilities", "Total liabilities", "financials", "money", FP(["fq", "f.total_liabilities_fq"]), true],
+  ["TotalDebt", "Total debt", "Total debt", "financials", "money", FP(["fq", "f.total_debt_fq"]), true],
+  ["NetDebt", "Net debt", "Net debt", "financials", "money", FP(["fq", "f.net_debt_fq"]), true],
+  ["TotalEquity", "Total equity", "Total equity", "financials", "money", FP(["fq", "f.total_equity_fq"]), true],
+  ["CashFromOperating", "Cash flow from operating activities", "Operating CF", "financials", "money", FP(["ttm", "f.cfo_ttm"]), true],
+  ["CashFromInvesting", "Cash flow from investing activities", "Investing CF", "financials", "money", FP(["ttm", "f.cfi_ttm"]), true],
+  ["CashFromFinancing", "Cash flow from financing activities", "Financing CF", "financials", "money", FP(["ttm", "f.cff_ttm"]), true],
+  ["FreeCashFlow", "Free cash flow", "FCF", "financials", "money", FP(["ttm", "f.fcf_ttm"]), true],
+  ["CapitalExpenditures", "Capital expenditures", "CapEx", "financials", "money", FP(["ttm", "f.capex_ttm"]), true],
+  // Valuation (price ratios computed with the live price)
+  ["PriceToEarnings", "Price to earnings ratio", "P/E", "valuation", "number", "f.pe"],
+  ["PriceToEarningsToGrowth", "Price to earning to growth", "PEG", "valuation", "number", FP(["ttm", "f.peg"])],
+  ["PriceToSales", "Price to sales ratio", "P/S", "valuation", "number", "f.ps"],
+  ["PriceToBook", "Price to book ratio", "P/B", "valuation", "number", "f.pb"],
+  ["PriceToCashFlow", "Price to cash flow ratio", "P/CF", "valuation", "number", "f.pcf"],
+  ["PriceToFreeCashFlow", "Price to free cash flow ratio", "P/FCF", "valuation", "number", "f.pfcf"],
+  ["PriceToCashRatio", "Price to cash ratio", "Price/cash", "valuation", "number", "f.pcash"],
+  ["Ev", "Enterprise value", "EV", "valuation", "money", "f.ev", true],
+  ["EvToRevenue", "Enterprise value to revenue ratio", "EV/revenue", "valuation", "number", FP(["ttm", "f.ev_revenue"])],
+  ["EvToEbit", "Enterprise value to EBIT ratio", "EV/EBIT", "valuation", "number", FP(["ttm", "f.ev_ebit"])],
+  ["EvToEbitda", "Enterprise value to EBITDA ratio", "EV/EBITDA", "valuation", "number", FP(["ttm", "f.ev_ebitda"])],
+  ["MarketCapPerf", "Market capitalization performance %", "Mkt cap perf %", "valuation", "change",
+    [{ key: "interval", title: "Date Range", default: "Interval1Y", options: [{ value: "Interval1Y", label: "1 year", short: "1Y", field: "f.market_cap_perf_1y" }] }]],
+  // Growth
+  ["RevenueGrowth", "Revenue growth %", "Revenue growth", "growth", "change", YOY("YoYTTM", "f.revenue_growth_ttm_yoy")],
+  ["EpsDilutedGrowth", "Earnings per share diluted growth %", "EPS dil growth", "growth", "change", YOY("YoYTTM", "f.eps_dil_growth_ttm_yoy")],
+  ["EbitdaGrowth", "EBITDA growth %", "EBITDA growth %", "growth", "change", YOY("YoYTTM", "f.ebitda_growth_ttm_yoy")],
+  ["TotalDebtGrowth", "Total debt growth %", "Total debt growth %", "growth", "change", YOY("YoYAnnual", "f.total_debt_growth_fy_yoy")],
+  // Margins and ratios
+  ["GrossMargin", "Gross margin %", "Gross margin", "margins", "percent", FP(["ttm", "f.gross_margin_ttm"])],
+  ["OperatingMargin", "Operating margin %", "Op margin %", "margins", "percent", FP(["ttm", "f.operating_margin_ttm"])],
+  ["PreTaxMargin", "Pretax margin %", "Pretax margin", "margins", "percent", FP(["ttm", "f.pretax_margin_ttm"])],
+  ["NetMargin", "Net margin %", "Net margin %", "margins", "percent", FP(["ttm", "f.net_margin_ttm"])],
+  ["FreeCashFlowMargin", "Free cash flow margin %", "FCF margin", "margins", "percent", FP(["ttm", "f.fcf_margin_ttm"])],
+  ["ReturnOnAssets", "Return on assets %", "ROA", "margins", "percent", FP(["ttm", "f.roa_ttm"], ["fy", "f.roa_fy"])],
+  ["ReturnOnEquity", "Return on equity %", "ROE", "margins", "percent", FP(["ttm", "f.roe_ttm"], ["fy", "f.roe_fy"])],
+  ["ReturnOnInvestedCapital", "Return on invested capital %", "ROIC", "margins", "percent", FP(["ttm", "f.roic_ttm"], ["fy", "f.roic_fy"])],
+  ["ResearchNDevelopmentRatio", "Research and development ratio", "R&D ratio", "margins", "percent", FP(["ttm", "f.rnd_ratio_ttm"])],
+  ["SellingGeneralNAdminExpensesRatio", "Selling, general, and admin expenses ratio", "SG&A ratio", "margins", "percent", FP(["ttm", "f.sga_ratio_ttm"])],
+  ["CurrentRatio", "Current ratio", "Current ratio", "margins", "number", FP(["fq", "f.current_ratio_fq"])],
+  ["QuickRatio", "Quick ratio", "Quick ratio", "margins", "number", FP(["fq", "f.quick_ratio_fq"])],
+  ["DebtToEquityRatio", "Debt to equity ratio", "Debt/equity", "margins", "number", FP(["fq", "f.debt_to_equity_fq"])],
+  ["CashToDebt", "Cash to debt ratio", "Cash/debt", "margins", "number", FP(["fq", "f.cash_to_debt_fq"])],
+  ["RevenuePerShare", "Revenue per share", "Revenue per share", "margins", "price", FP(["ttm", "f.revenue_ps_ttm"]), true],
+  ["OperatingCashFlowPerShare", "Operating cash flow per share", "Op cash flow per share", "margins", "price", FP(["ttm", "f.ocf_ps_ttm"]), true],
+  ["FreeCashFlowPerShare", "Free cash flow per share", "FCF per share", "margins", "price", FP(["ttm", "f.fcf_ps_ttm"]), true],
+  ["EBITPerShare", "EBIT per share", "EBIT per share", "margins", "price", FP(["ttm", "f.ebit_ps_ttm"]), true],
+  ["EBITDAPerShare", "EBITDA per share", "EBITDA per share", "margins", "price", FP(["ttm", "f.ebitda_ps_ttm"]), true],
+  ["BookPerShare", "Book value per share", "Book per share", "margins", "price", FP(["fq", "f.book_ps_fq"]), true],
+  ["TotalDebtPerShare", "Total debt per share", "Total debt per share", "margins", "price", FP(["fq", "f.debt_ps_fq"]), true],
+  ["CashPerShare", "Cash per share", "Cash per share", "margins", "price", FP(["fq", "f.cash_ps_fq"]), true],
+  // Dividends
+  ["DividendsPerShare", "Dividends per share", "Div per share", "dividends", "price", FP(["fy", "f.dps_fy"], ["fq", "f.dps_fq"]), true],
+  ["DividendsYieldForward", "Dividend yield % (indicated)", "Div yield % (indicated)", "dividends", "percent", "f.div_yield_indicated"],
+  ["DividendPayoutRatio", "Dividend payout ratio %", "Div payout ratio %", "dividends", "percent", FP(["ttm", "f.payout_ratio_ttm"])],
+  ["DividendsPerShareGrowth", "Dividends per share growth %", "DPS growth %", "dividends", "change", YOY("YoYAnnual", "f.dps_growth_fy_yoy")],
+  ["ContinuousDivPayout", "Continuous dividend payout", "Cont div payout", "dividends", "integer", "f.cont_div_payout"],
+  ["ContinuousDivGrowth", "Continuous dividend growth", "Cont div growth", "dividends", "integer", "f.cont_div_growth"],
+] as FundSpec[]).map(fund);
+
 // ── Column catalog ────────────────────────────────────────────────────────
 export const COLUMNS: ColumnDef[] = [
   // Security info
@@ -255,6 +358,7 @@ export const COLUMNS: ColumnDef[] = [
       { value: "Interval6M", label: "6 months", short: "6M", field: "Perf.6M" },
       { value: "IntervalYTD", label: "Year to date", short: "YTD", field: "Perf.YTD" },
       { value: "Interval1Y", label: "1 year", short: "1Y", field: "Perf.Y" },
+      { value: "Interval5Y", label: "5 years", short: "5Y", field: "Perf.5Y" },
     ] }],
     filter: { type: "Condition", operations: CHANGE_OPS, defaultOperation: "above", targets: [["value"]], presets: BANDS } },
   { id: "Price", title: "Price", short: "Price", category: "marketData", align: "right", fmt: "price", width: 99, field: "close",
@@ -346,7 +450,21 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "between", target: "value", right: { left: 0, right: 2 }, ...d("Very low") },
       { operation: "equal", target: "value", right: { value: 0 }, ...d("No dividend") },
     ] } },
+  ...FUNDAMENTALS,
+  // ETF: assets under management (shares outstanding x price).
+  { id: "AssetsUnderManagement", title: "Assets under management", short: "AUM", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic", financial: true,
+    filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]] } },
 ];
+
+/** Columns of the ETF Screener (the reference ETF catalog restricted to ours): market data, technicals, exchange,
+ *  indicated dividend yield and AUM. The Stock Screener has every other column. */
+const ETF_EXTRA = new Set(["Exchange", "DividendsYieldForward", "AssetsUnderManagement"]);
+export function columnForType(def: ColumnDef, type: ScreenerType): boolean {
+  if (def.id === "AssetsUnderManagement") return type === "etf";
+  if (type === "stock") return true;
+  if (def.id === "Index" || def.id === "Sector" || def.id === "Industry" || def.id === "MarketCap") return false;
+  return def.category === "marketData" || def.category === "technicals" || ETF_EXTRA.has(def.id);
+}
 
 export const COLUMN_BY_ID: Record<string, ColumnDef> = Object.fromEntries(COLUMNS.map((c) => [c.id, c]));
 
@@ -359,7 +477,10 @@ export const CATEGORIES: { id: Category; title: string; icon: string }[] = [
   { id: "securityInfo", title: "Security info", icon: "scr-cat-security-info" },
   { id: "marketData", title: "Market data", icon: "scr-cat-market-data" },
   { id: "technicals", title: "Technicals", icon: "scr-cat-technicals" },
+  { id: "financials", title: "Financials", icon: "scr-cat-financials" },
   { id: "valuation", title: "Valuation", icon: "scr-cat-valuation" },
+  { id: "growth", title: "Growth", icon: "scr-cat-growth" },
+  { id: "margins", title: "Margins", icon: "scr-cat-margins" },
   { id: "dividends", title: "Dividends", icon: "scr-cat-dividends" },
 ];
 
@@ -486,18 +607,51 @@ export function sameColumn(a: ColumnRef, b: ColumnRef): boolean {
 const C = (id: string, params: Record<string, string> = {}): ColumnRef => ({ id, params });
 const R1D = { resolution: "TimeResolution1D" };
 const TTM = { fiscalPeriod: "ttm" };
-/** The reference app column-set presets, in the reference app menu order. Columns without a data source
- *  are left out; a preset with no column left is not listed. */
+const FY = { fiscalPeriod: "fy" };
+const FQ = { fiscalPeriod: "fq" };
+const CURRENT = { fiscalPeriod: "current" };
+const YOY_TTM = { period: "YoYTTM" };
+const YOY_FY = { period: "YoYAnnual" };
+const FISCAL = [C("RecentFiscalPeriod", CURRENT), C("FiscalPeriodEndDate", CURRENT)];
+/** The reference app column-set presets, in the reference app menu order (03/11/2026). Columns without a data
+ *  source are left out (ratings, estimates, extended hours, 10-year and all-time performance...); a preset
+ *  with no column the backend has is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
-  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector")] },
+  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("PriceToEarnings"),
+    C("EpsDiluted", TTM), C("EpsDilutedGrowth", YOY_TTM), C("DividendsYield", TTM), C("Sector")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
-    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y"].map((i) => C("Performance", { interval: i }))] },
+    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i }))] },
   { id: "technicals", title: "Technicals", columns: [C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" })] },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
   { id: "forecasts", title: "Forecasts", columns: [C("MarketCap"), C("Price")] },
-  { id: "valuation", title: "Valuation", columns: [C("MarketCap")] },
-  { id: "dividends", title: "Dividends", columns: [C("DividendsYield", TTM)] },
+  { id: "valuation", title: "Valuation", columns: [C("MarketCap"), C("MarketCapPerf", { interval: "Interval1Y" }), C("PriceToEarnings"), C("PriceToEarningsToGrowth", TTM),
+    C("PriceToSales"), C("PriceToBook"), C("PriceToCashFlow"), C("PriceToFreeCashFlow"), C("PriceToCashRatio"), C("Ev"), C("EvToRevenue", TTM), C("EvToEbit", TTM), C("EvToEbitda", TTM)] },
+  { id: "dividends", title: "Dividends", columns: [C("DividendsPerShare", FY), C("DividendsPerShare", FQ), C("DividendsYield", TTM), C("DividendsYieldForward"),
+    C("DividendPayoutRatio", TTM), C("DividendsPerShareGrowth", YOY_FY), C("ContinuousDivPayout"), C("ContinuousDivGrowth")] },
+  { id: "profitability", title: "Profitability", columns: [C("GrossMargin", TTM), C("OperatingMargin", TTM), C("PreTaxMargin", TTM), C("NetMargin", TTM), C("FreeCashFlowMargin", TTM),
+    C("ReturnOnAssets", TTM), C("ReturnOnEquity", TTM), C("ReturnOnInvestedCapital", TTM), C("ResearchNDevelopmentRatio", TTM), C("SellingGeneralNAdminExpensesRatio", TTM)] },
+  { id: "incomeStatement", title: "Income statement", columns: [...FISCAL, C("TotalRevenue", TTM), C("RevenueGrowth", YOY_TTM), C("GrossProfit", TTM), C("OperatingIncome", TTM),
+    C("NetIncome", TTM), C("Ebitda", TTM), C("EpsDiluted", TTM), C("EpsDilutedGrowth", YOY_TTM)] },
+  { id: "balanceSheet", title: "Balance sheet", columns: [...FISCAL, C("TotalAssets", FQ), C("TotalCurrentAssets", FQ), C("CashNShortTermInvest", FQ), C("TotalLiabilities", FQ),
+    C("TotalDebt", FQ), C("NetDebt", FQ), C("TotalEquity", FQ), C("CurrentRatio", FQ), C("QuickRatio", FQ), C("DebtToEquityRatio", FQ), C("CashToDebt", FQ)] },
+  { id: "cashFlow", title: "Cash flow", columns: [...FISCAL, C("CashFromOperating", TTM), C("CashFromInvesting", TTM), C("CashFromFinancing", TTM), C("FreeCashFlow", TTM),
+    C("CapitalExpenditures", TTM)] },
+  { id: "perShare", title: "Per share", columns: [C("RevenuePerShare", TTM), C("BasicEps", TTM), C("EpsDiluted", TTM), C("OperatingCashFlowPerShare", TTM), C("FreeCashFlowPerShare", TTM),
+    C("EBITPerShare", TTM), C("EBITDAPerShare", TTM), C("BookPerShare", FQ), C("TotalDebtPerShare", FQ), C("CashPerShare", FQ)] },
 ];
+/** The reference ETF column sets restricted to ours (Fund flows, NAV performance and Holdings have no data source). */
+export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
+  { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("VolumePrice", R1D), C("RelativeVolume", R1D), C("AssetsUnderManagement")] },
+  { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
+    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i }))] },
+  { id: "technicals", title: "Technicals", columns: [C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" })] },
+  { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
+  { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward")] },
+  { id: "risk", title: "Risk", columns: [C("Beta", { interval: "Interval1Y" }), C("Beta", { interval: "Interval3Y" }), C("Beta", { interval: "Interval5Y" }),
+    C("Volatility", { interval: "Interval1D" })] },
+];
+export const columnSets = (type: ScreenerType) => (type === "etf" ? ETF_COLUMN_SETS : COLUMN_SETS);
+
 export const CUSTOM_SET_ID = "custom";
 export const CUSTOM_SET_TITLE = "Custom";
 
@@ -527,7 +681,13 @@ export type Screen = {
   primaryListing?: boolean;
   /** How the results show (unset = table). */
   viewMode?: ViewMode;
+  /** The screener it belongs to (unset = the Stock Screener). */
+  type?: "etf";
 };
+
+/** Screeners: Stock and ETF (the reference app's Bond and crypto screeners have no data source). */
+export type ScreenerType = "stock" | "etf";
+export const screenType = (s: Pick<Screen, "type">): ScreenerType => s.type ?? "stock";
 
 export type ViewMode = "table" | "chart" | "heatmap";
 
@@ -557,24 +717,30 @@ export function emptyFilter(col: ColumnRef): Filter | null {
 }
 
 /** Pills of a new screen: the reference app default pills, in its order, that have a
- *  data source. Left out (no data source): P/E, EPS dil growth,
- *  Analyst rating, Revenue growth, PEG, ROE, Recent and Upcoming earnings date. */
+ *  data source (a pill whose column the backend does not hold is not shown). Left out:
+ *  Analyst rating, Recent and Upcoming earnings date. */
 const DEFAULT_PILLS: ColumnRef[] = [
   C("Index"),
   C("Price"),
   C("Change", R1D),
   C("MarketCap"),
+  C("PriceToEarnings"),
+  C("EpsDilutedGrowth", YOY_TTM),
   C("DividendsYield", TTM),
   C("Sector"),
   C("Performance", { interval: "IntervalYTD" }),
+  C("RevenueGrowth", YOY_TTM),
+  C("PriceToEarningsToGrowth", TTM),
+  C("ReturnOnEquity", TTM),
   C("Beta", { interval: "Interval5Y" }),
 ];
 /** Default pills of earlier versions (before dividend yield and beta, then
- *  before Index). A stored screen still equal to one of those defaults moves
- *  to the current one. */
+ *  before Index, then before the fundamentals). A stored screen still equal to
+ *  one of those defaults moves to the current one. */
 export const LEGACY_DEFAULT_PILLS: ColumnRef[][] = [
   [C("Price"), C("Change", R1D), C("MarketCap"), C("Sector"), C("Performance", { interval: "IntervalYTD" })],
   [C("Price"), C("Change", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector"), C("Performance", { interval: "IntervalYTD" }), C("Beta", { interval: "Interval5Y" })],
+  [C("Index"), C("Price"), C("Change", R1D), C("MarketCap"), C("DividendsYield", TTM), C("Sector"), C("Performance", { interval: "IntervalYTD" }), C("Beta", { interval: "Interval5Y" })],
 ];
 
 /** The reference app default screen ("Untitled screen") restricted to the catalog:
@@ -590,34 +756,118 @@ export function defaultScreen(title = DEFAULT_SCREEN_TITLE, pills: ColumnRef[] =
   };
 }
 
+/** The reference ETF default pills that have a data source (Asset class, Focus, Niche, Holdings region, Brand,
+ *  NAV total return, Management style, Strategy, Div treat, Div freq, Leveraged, Expense ratio and UCITS have none). */
+const ETF_DEFAULT_PILLS: ColumnRef[] = [C("Performance", { interval: "IntervalYTD" }), C("AssetsUnderManagement"), C("DividendsYieldForward")];
+
+/** The reference ETF Screener's "Untitled screen": its default pills, Overview, sorted by AUM; primary listing off. */
+export function defaultEtfScreen(title = DEFAULT_SCREEN_TITLE): Screen {
+  return {
+    ...defaultScreen(title, ETF_DEFAULT_PILLS),
+    sort: { sortBy: C("AssetsUnderManagement"), sortOrder: "desc" },
+    primaryListing: false,
+    type: "etf",
+  };
+}
+
+/** A new screen of a screener type. */
+export const newScreen = (type: ScreenerType, title?: string): Screen => (type === "etf" ? defaultEtfScreen(title) : defaultScreen(title));
+
 // ── Popular screens ───────────────────────────────────────────────────────
-/** The reference app "Popular screens" (module `popularScreens`, the reference desktop app 3.4.1,
- *  30/09/2026) whose filters, columns and sort exist in this catalog. The
- *  other 12 (net income, cash, P/E, EPS and revenue growth, dividends, debt,
- *  ROE, revenue per employee, market-cap performance, technical rating) have
- *  no data source and are left out. Filters = the reference app's default pills with the
- *  screen's own values. */
+/** The reference app "Popular screens" (03/11/2026, in its order) whose filters, columns and sort the backend can
+ *  serve. Left out: "Healthy growth technology stocks" (the reference sector names; ours are the industry
+ *  classification's divisions), "Dividend princes" and "Dividend kings" (25 to 40+ years of dividends; the dividend
+ *  history starts in 2003), "Bullish and undervalued" (technical rating) and "Large, efficient and innovative"
+ *  (revenue per employee). Each one = the default pills with the screen's own values, its extra filters after them,
+ *  its column set and its sort (descending). */
 export type PopularScreen = { id: string; title: string; description: string; screen: (pills?: ColumnRef[]) => Screen };
 
-export const POPULAR_SCREENS: PopularScreen[] = [
-  {
-    id: "14",
-    title: "All stocks",
-    description: "Complete list of stocks by market cap",
-    screen: (pills) => defaultScreen("All stocks", pills),
-  },
-  {
-    id: "1",
-    title: "Most capitalized",
-    description: "Largest companies by market cap",
+type PopFilter =
+  | { col: ColumnRef; operation: Operation; right: ConditionFilter["right"] }
+  | { col: ColumnRef; operation: OffsetOperation; offsetRangeId: OffsetRangeId; target: string; right: ConditionFilter["right"] }
+  | { col: ColumnRef; values: string[] };
+
+const atLeast = (col: ColumnRef, v: number): PopFilter => ({ col, operation: "between", right: { left: v, right: null } });
+const atMost = (col: ColumnRef, v: number): PopFilter => ({ col, operation: "between", right: { left: null, right: v } });
+const above = (col: ColumnRef, v: number): PopFilter => ({ col, operation: "above", right: { value: v } });
+const below = (col: ColumnRef, v: number): PopFilter => ({ col, operation: "below", right: { value: v } });
+const MKT_CAP = C("MarketCap");
+const EPS_GROWTH = C("EpsDilutedGrowth", YOY_TTM);
+
+function popular(id: string, title: string, description: string, setId: string, sortBy: ColumnRef, filters: PopFilter[] = []): PopularScreen {
+  return {
+    id,
+    title,
+    description,
     screen: (pills) => {
-      const s = defaultScreen("Most capitalized", pills);
-      s.filters = s.filters.map((f) =>
-        f.left.id === "MarketCap"
-          ? { id: f.id, type: "Condition", left: f.left, operation: "aboveOrEqual", target: "value", right: { value: 1e10 } }
-          : f,
-      );
+      const s = defaultScreen(title, pills);
+      for (const f of filters) {
+        const filter: Filter =
+          "values" in f
+            ? { id: newFilterId(), type: "CheckboxGroup", left: f.col, values: f.values }
+            : "offsetRangeId" in f
+              ? { id: newFilterId(), type: "Condition", left: f.col, operation: f.operation, offsetRangeId: f.offsetRangeId, target: f.target, right: f.right }
+              : { id: newFilterId(), type: "Condition", left: f.col, operation: f.operation, target: "value", right: f.right };
+        const at = s.filters.findIndex((x) => sameColumn(x.left, f.col));
+        if (at >= 0) s.filters[at] = { ...filter, id: s.filters[at].id };
+        else s.filters.push(filter);
+      }
+      s.activeColumnSetId = setId;
+      s.sort = { sortBy, sortOrder: "desc" };
+      return s;
+    },
+  };
+}
+
+export const POPULAR_SCREENS: PopularScreen[] = [
+  popular("14", "All stocks", "Complete list of stocks by market cap", "overview", MKT_CAP),
+  popular("1", "Most capitalized", "Largest companies by market cap", "overview", MKT_CAP, [atLeast(MKT_CAP, 1e10)]),
+  popular("2", "Highest net income", "Stocks raking in the cash", "incomeStatement", C("NetIncome", TTM), [atLeast(MKT_CAP, 1e10)]),
+  popular("3", "Highest cash", "Companies with the most cash on hand", "balanceSheet", C("CashNShortTermInvest", FQ), [atLeast(MKT_CAP, 1e10)]),
+  popular("4", "Close to new-high and undervalued", "Stocks breaking new local high backed by strong fundamentals", "overview", MKT_CAP, [
+    atLeast(MKT_CAP, 7.5e8),
+    atMost(C("PriceToEarnings"), 20),
+    above(EPS_GROWTH, 25),
+    { col: C("High", { timebased: "Interval52Weeks" }), operation: "abovePercent", offsetRangeId: "offset_range_0_10", target: "Price", right: { column: PRICE } },
+  ]),
+  popular("6", "High capital efficiency stocks", "Stocks with industry-high capital efficiency ratios", "overview", MKT_CAP, [
+    above(EPS_GROWTH, 15),
+    above(C("ReturnOnEquity", FY), 30),
+    above(C("ReturnOnInvestedCapital", FY), 20),
+    above(C("ReturnOnAssets", FY), 15),
+  ]),
+  popular("7", "Strong performance small caps", "Small-cap stocks with strong fundamentals", "overview", MKT_CAP, [
+    above(C("Change", R1D), 7),
+    atMost(MKT_CAP, 1e9),
+    above(EPS_GROWTH, 25),
+    above(C("EpsDiluted", TTM), 0),
+  ]),
+  popular("8", "Debt reduction and business growth", "Stocks of companies with both significantly improving debt level and business performance", "overview", MKT_CAP, [
+    above(C("RevenueGrowth", YOY_TTM), 15),
+    below(C("TotalDebtGrowth", YOY_FY), -15),
+    below(C("DebtToEquityRatio", FQ), 1),
+    above(C("EbitdaGrowth", YOY_TTM), 15),
+  ]),
+  popular("13", "Doubled", "Large cap stocks that've doubled their market cap in the last year", "valuation", C("MarketCapPerf", { interval: "Interval1Y" }), [
+    atLeast(MKT_CAP, 1e10),
+    above(C("MarketCapPerf", { interval: "Interval1Y" }), 100),
+  ]),
+];
+
+const AUM = C("AssetsUnderManagement");
+/** The reference ETF popular screens that need no fund data we lack (the other 11 filter on asset class, focus,
+ *  NAV total return, leverage, fund flows, strategy...). */
+export const POPULAR_ETF_SCREENS: PopularScreen[] = [
+  { id: "etf-13", title: "ETF vault", description: "All ETFs ranked by total assets under management", screen: () => defaultEtfScreen("ETF vault") },
+  {
+    id: "etf-12",
+    title: "Largest AUM",
+    description: "The biggest, baddest ETFs, as ranked by assets under management",
+    screen: () => {
+      const s = defaultEtfScreen("Largest AUM");
+      s.filters = s.filters.map((f) => (sameColumn(f.left, AUM) ? { id: f.id, type: "Condition", left: AUM, operation: "between", target: "value", right: { left: 1e9, right: null } } : f));
       return s;
     },
   },
 ];
+export const popularScreens = (type: ScreenerType) => (type === "etf" ? POPULAR_ETF_SCREENS : POPULAR_SCREENS);

@@ -137,8 +137,8 @@ async function scopeTickers(scope: unknown): Promise<string[] | null> {
 }
 
 export function createScreenerTools(): AgentTool[] {
-  let catalog: FieldInfo[] | null = null;
-  const fields = async () => (catalog ??= await screenerFields());
+  // Read each time: a new daily state adds fields (the fundamentals).
+  const fields = (): Promise<FieldInfo[]> => screenerFields();
 
   return [
     {

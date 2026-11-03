@@ -14,6 +14,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import {
   CATEGORIES,
   COLUMNS,
+  columnForType,
   defaultRef,
   isOffered,
   visibleParams,
@@ -22,6 +23,7 @@ import {
   type ColumnRef,
 } from "../../data/screener-catalog";
 import { PopBack, PopDivider, PopItem, PopSearch, Popover, SelectButton } from "./Popover";
+import { screenerStore } from "../../data/screener-store";
 
 type Props = {
   anchor: HTMLElement | undefined;
@@ -37,7 +39,7 @@ export function CategoryMenu(props: Props) {
   const [config, setConfig] = createSignal<{ def: ColumnDef; col: ColumnRef } | null>(null);
 
   const items = createMemo(() =>
-    COLUMNS.filter((d) => isOffered(d, props.has) && (props.kind === "filters" ? !!d.filter : !d.noColumn)).sort((a, b) =>
+    COLUMNS.filter((d) => isOffered(d, props.has) && columnForType(d, screenerStore.type()) && (props.kind === "filters" ? !!d.filter : !d.noColumn)).sort((a, b) =>
       a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" }),
     ),
   );

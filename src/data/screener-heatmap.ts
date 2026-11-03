@@ -7,9 +7,9 @@
  * (Chg % 1h / 4h, Vol and Price × vol over 1W / 1M and the pre/post-market
  * changes have no data source).
  */
-import type { ColumnRef } from "./screener-catalog";
+import type { ColumnRef, ScreenerType } from "./screener-catalog";
 
-export type HeatScale = "signed" | "gap" | "relVol" | "volatility";
+export type HeatScale = "signed" | "gap" | "relVol" | "volatility" | "beta";
 export type HeatOption = {
   id: string;
   /** Menu text. */
@@ -23,6 +23,8 @@ export type HeatOption = {
   mono?: boolean;
   /** Color by: how values map to colours. */
   scale?: HeatScale;
+  /** Only in this screener (unset: both). */
+  type?: ScreenerType;
 };
 
 const R1D = { resolution: "TimeResolution1D" };
@@ -36,10 +38,12 @@ const perf = (interval: string, short: string): HeatOption => ({
 });
 
 export const HEAT_SIZE: HeatOption[] = [
-  { id: "MarketCap", short: "Mkt cap", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 0 },
+  { id: "MarketCap", short: "Mkt cap", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 0, type: "stock" },
+  { id: "AUM", short: "AUM", valueShort: "AUM", column: { id: "AssetsUnderManagement", params: {} }, group: 0, type: "etf" },
   { id: "Volume", short: "Vol, 1D", valueShort: "Vol, 1D", column: { id: "Volume", params: R1D }, group: 1 },
   { id: "VolumePrice", short: "Price × vol, 1D", valueShort: "Price × vol, 1D", column: { id: "VolumePrice", params: R1D }, group: 2 },
-  { id: "Mono", short: "Mono size", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 3, mono: true },
+  { id: "Mono", short: "Mono size", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 3, mono: true, type: "stock" },
+  { id: "MonoEtf", short: "Mono size", valueShort: "AUM", column: { id: "AssetsUnderManagement", params: {} }, group: 3, mono: true, type: "etf" },
 ];
 
 export const HEAT_COLOR: HeatOption[] = [
@@ -50,18 +54,34 @@ export const HEAT_COLOR: HeatOption[] = [
   perf("Interval6M", "6M"),
   perf("IntervalYTD", "YTD"),
   perf("Interval1Y", "1Y"),
-  { id: "RelativeVolume", short: "Rel vol", valueShort: "Rel vol", column: { id: "RelativeVolume", params: R1D }, group: 2, scale: "relVol" },
+  { id: "RelativeVolume", short: "Rel vol", valueShort: "Rel vol", column: { id: "RelativeVolume", params: R1D }, group: 2, scale: "relVol", type: "stock" },
   { id: "Volatility", short: "Volatility, 1D", valueShort: "Volatility, 1D", column: { id: "Volatility", params: { interval: "Interval1D" } }, group: 2, scale: "volatility" },
-  { id: "Gap", short: "Gap %", valueShort: "Gap %", column: { id: "Gap", params: R1D }, group: 2, scale: "gap" },
+  { id: "Gap", short: "Gap %", valueShort: "Gap %", column: { id: "Gap", params: R1D }, group: 2, scale: "gap", type: "stock" },
+  ...(["1Y", "3Y", "5Y"] as const).map((y): HeatOption => ({
+    id: `Beta${y}`, short: `Beta, ${y}`, valueShort: `Beta, ${y}`, column: { id: "Beta", params: { interval: `Interval${y}` } }, group: 3, scale: "beta", type: "etf",
+  })),
 ];
 
-export const HEAT_GROUP: { id: string; short: string; column: ColumnRef | null }[] = [
+/** Group by (the ETF Screener's "Asset class" has no data source). */
+export const HEAT_GROUP: { id: string; short: string; column: ColumnRef | null; type?: ScreenerType }[] = [
   { id: "None", short: "No group", column: null },
-  { id: "Sector", short: "Sector", column: { id: "Sector", params: {} } },
+  { id: "Sector", short: "Sector", column: { id: "Sector", params: {} }, type: "stock" },
 ];
 
-export function heatOption(kind: "size" | "color", id: string): HeatOption | undefined {
-  return (kind === "size" ? HEAT_SIZE : HEAT_COLOR).find((o) => o.id === id);
+const ofType = <T extends { type?: ScreenerType }>(list: T[], type: ScreenerType) => list.filter((o) => !o.type || o.type === type);
+export const heatSizes = (type: ScreenerType) => ofType(HEAT_SIZE, type);
+export const heatColors = (type: ScreenerType) => ofType(HEAT_COLOR, type);
+/** Group by options; the reference default is the first group (Sector), "No group" when there is none. */
+export const heatGroups = (type: ScreenerType) => ofType(HEAT_GROUP, type);
+
+/** A toolbar option of the screener, else its first one (a setting chosen in the other screener). */
+export function heatOption(kind: "size" | "color", id: string, type: ScreenerType = "stock"): HeatOption {
+  const list = kind === "size" ? heatSizes(type) : heatColors(type);
+  return list.find((o) => o.id === id) ?? list[0];
+}
+export function heatGroup(id: string, type: ScreenerType) {
+  const list = heatGroups(type);
+  return list.find((g) => g.id === id) ?? list[list.length - 1];
 }
 
 // ── Treemap ───────────────────────────────────────────────────────────────
@@ -190,8 +210,8 @@ export function colorScale(scale: HeatScale, values: number[], depth: number | n
     return { ranges: byCentres(centres).map(([lo, hi], i) => [i === 0 ? 0 : lo, hi]), centres, percent: true, positive: true };
   }
   if (depth !== null) {
-    const centres = k3.map((k) => k * depth);
-    return { ranges: byCentres(centres), centres, percent: true, positive: false };
+    const centres = scale === "beta" ? [-1, -0.5, -0.1, 0, 0.1, 0.5, 1].map((k) => k * depth) : k3.map((k) => k * depth);
+    return { ranges: byCentres(centres), centres, percent: scale !== "beta", positive: false };
   }
   const ext = extremum(values);
   if (scale === "gap") {
@@ -200,10 +220,11 @@ export function colorScale(scale: HeatScale, values: number[], depth: number | n
     return { ranges: byCentres(centres), centres, percent: true, positive: false };
   }
   const S = nearest(ext, SIGNED_SNAP);
+  const percent = scale !== "beta";
   if (ext <= 3.25) {
     const s = S / 3;
     const centres = k3.map((k) => k * s);
-    return { ranges: byCentres(centres), centres, percent: true, positive: false };
+    return { ranges: byCentres(centres), centres, percent, positive: false };
   }
   // Widened: a ±0.5 neutral band, then three steps of e up to S.
   const e = (S - 0.5) / 3;
@@ -211,7 +232,7 @@ export function colorScale(scale: HeatScale, values: number[], depth: number | n
   const t = 0.5 + 2 * e;
   const ranges: [number, number][] = [[-Infinity, -t], [-t, -o], [-o, -0.5], [-0.5, 0.5], [0.5, o], [o, t], [t, Infinity]];
   const centres = [-(t + e / 2), -(o + e / 2), -(0.5 + e / 2), 0, 0.5 + e / 2, o + e / 2, t + e / 2];
-  return { ranges, centres, percent: true, positive: false };
+  return { ranges, centres, percent, positive: false };
 }
 
 /** Bucket of a value (0..6): a missing value is 0 (neutral on signed scales); below a positive-only scale = 0. */

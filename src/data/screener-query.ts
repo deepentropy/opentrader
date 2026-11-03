@@ -6,7 +6,8 @@
 import type { Clause, Operand, ScanRequest } from "../bindings";
 import {
   COLUMN_BY_ID,
-  COLUMN_SETS,
+  columnSets,
+  screenType,
   OPERATION_LABEL,
   CUSTOM_SET_ID,
   TICKER_SORT_FIELD,
@@ -229,7 +230,8 @@ export function filterClauses(f: Filter): Clause[] | null {
 /** Columns of the active column set (custom or preset). */
 export function activeColumns(s: Screen): ColumnRef[] {
   if (s.activeColumnSetId === CUSTOM_SET_ID && s.customColumns) return s.customColumns;
-  return COLUMN_SETS.find((c) => c.id === s.activeColumnSetId)?.columns ?? COLUMN_SETS[0].columns;
+  const sets = columnSets(screenType(s));
+  return sets.find((c) => c.id === s.activeColumnSetId)?.columns ?? sets[0].columns;
 }
 
 /** The reference app's implicit stock-screen universe (scan `filter2`: common and preferred
@@ -247,8 +249,17 @@ export const UNIVERSE_CLAUSE: Clause = {
  *  the reference counts 5,534 exchange-listed symbols on, 6,663 off (it adds the OTC market, not served here). */
 export const PRIMARY_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["stock", "adr", "fund"] };
 
+/** The ETF Screener's universe (the reference: ETFs and structured products): exchange-traded funds, notes and
+ *  commodity trusts, plus the structured notes with "Primary listing" off (5,941 and 5,787 symbols on 03/11/2026;
+ *  the reference counted 6,117 and 5,735). */
+export const ETF_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["etf", "etn", "etv", "structured"] };
+export const ETF_PRIMARY_UNIVERSE_CLAUSE: Clause = { left: "type", operation: "in_range", right: ["etf", "etn", "etv"] };
+
 /** The securities a screen scans. */
-export const universeClause = (s: Pick<Screen, "primaryListing">): Clause => (s.primaryListing === false ? UNIVERSE_CLAUSE : PRIMARY_UNIVERSE_CLAUSE);
+export const universeClause = (s: Pick<Screen, "primaryListing" | "type">): Clause =>
+  screenType(s) === "etf"
+    ? s.primaryListing === false ? ETF_UNIVERSE_CLAUSE : ETF_PRIMARY_UNIVERSE_CLAUSE
+    : s.primaryListing === false ? UNIVERSE_CLAUSE : PRIMARY_UNIVERSE_CLAUSE;
 
 /** Extra hidden columns requested for every row (tooltip, currency unit). */
 export const EXTRA_FIELDS = ["description", "currency"] as const;

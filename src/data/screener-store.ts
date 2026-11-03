@@ -3,8 +3,10 @@
  * and the undo/redo history, plus the split-view panel state.
  *
  * the reference app keeps screens in the account; OpenTrader keeps them in kv:
- *   ot:screener:screens:v1  saved screens + recently used order
- *   ot:screener:draft:v1    the current screen and the saved screen it came from
+ *   ot:screener:screens:v1  saved screens (Stock and ETF ones: Screen.type) + recently used order
+ *   ot:screener:draft:v1    the current Stock screen and the saved screen it came from
+ *   ot:screener:draft-etf:v1  the same for the ETF Screener
+ *   ot:screener:type:v1     the screener shown: "stock" or "etf"
  *   ot:screener:open / ot:screener:width  split-view panel
  *   ot:screener:placement / ot:screener:height  where the panel shows (right,
  *   bottom, its own window) and the bottom panel's height
@@ -15,13 +17,14 @@
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
-import { LEGACY_DEFAULT_PILLS, POPULAR_SCREENS, defaultScreen, type Screen } from "./screener-catalog";
+import { LEGACY_DEFAULT_PILLS, defaultScreen, newScreen, popularScreens, screenType, type Screen, type ScreenerType } from "./screener-catalog";
 
 /** `autosave`: the screen menu's "Autosave" switch of this screen (off by default). */
 export type SavedScreen = { id: string; screen: Screen; updatedAt: number; autosave?: boolean };
 
 const SCREENS_KEY = "ot:screener:screens:v1";
-const DRAFT_KEY = "ot:screener:draft:v1";
+const DRAFT_KEYS: Record<ScreenerType, string> = { stock: "ot:screener:draft:v1", etf: "ot:screener:draft-etf:v1" };
+const TYPE_KEY = "ot:screener:type:v1";
 const OPEN_KEY = "ot:screener:open";
 const WIDTH_KEY = "ot:screener:width";
 const HISTORY_MAX = 100;
@@ -55,10 +58,17 @@ function isScreen(v: unknown): v is Screen {
  *  default or popular screen of an earlier version, with fewer default pills)
  *  becomes the current default, as a new screen would be. */
 function draftScreen(d: Draft): Screen {
-  if (d.savedId) return d.screen;
-  const popular = POPULAR_SCREENS.find((p) => p.id === d.popularId);
+  if (d.savedId || screenType(d.screen) === "etf") return d.screen;
+  const popular = popularScreens("stock").find((p) => p.id === d.popularId);
   const make = (pills?: (typeof LEGACY_DEFAULT_PILLS)[number]) => (popular ? popular.screen(pills) : defaultScreen(d.screen.title, pills));
   return LEGACY_DEFAULT_PILLS.some((pills) => same(content(d.screen), content(make(pills)))) ? make() : d.screen;
+}
+
+/** The stored draft of a screener type (a new screen when there is none). */
+function readDraft(type: ScreenerType): { screen: Screen; savedId: string | null; popularId: string | null } {
+  const d = readJson<Draft>(DRAFT_KEYS[type]);
+  if (!d || !isScreen(d.screen) || screenType(d.screen) !== type) return { screen: newScreen(type), savedId: null, popularId: null };
+  return { screen: draftScreen(d), savedId: d.savedId ?? null, popularId: d.popularId ?? null };
 }
 
 const store = createRoot(() => {
@@ -67,27 +77,30 @@ const store = createRoot(() => {
     (persisted?.screens ?? []).filter((x) => x && typeof x.id === "string" && isScreen(x.screen)),
   );
   const [recent, setRecent] = createSignal<string[]>(persisted?.recent ?? []);
-  const draft = readJson<Draft>(DRAFT_KEY);
-  const [screen, setScreenRaw] = createSignal<Screen>(draft && isScreen(draft.screen) ? draftScreen(draft) : defaultScreen());
-  const [savedId, setSavedId] = createSignal<string | null>(draft?.savedId ?? null);
-  const [popularId, setPopularId] = createSignal<string | null>(draft?.popularId ?? null);
+  const [type, setType] = createSignal<ScreenerType>(kv.getItem(TYPE_KEY) === "etf" ? "etf" : "stock");
+  const draft = readDraft(type());
+  const [screen, setScreenRaw] = createSignal<Screen>(draft.screen);
+  const [savedId, setSavedId] = createSignal<string | null>(draft.savedId);
+  const [popularId, setPopularId] = createSignal<string | null>(draft.popularId);
   const [past, setPast] = createSignal<Screen[]>([]);
   const [future, setFuture] = createSignal<Screen[]>([]);
-  return { screens, setScreens, recent, setRecent, screen, setScreenRaw, savedId, setSavedId, popularId, setPopularId, past, setPast, future, setFuture };
+  return { screens, setScreens, recent, setRecent, type, setType, screen, setScreenRaw, savedId, setSavedId, popularId, setPopularId, past, setPast, future, setFuture };
 });
 
 function persistScreens(): void {
   kv.setItem(SCREENS_KEY, JSON.stringify({ screens: store.screens(), recent: store.recent() }));
 }
 function persistDraft(): void {
-  kv.setItem(DRAFT_KEY, JSON.stringify({ savedId: store.savedId(), popularId: store.popularId(), screen: store.screen() }));
+  kv.setItem(DRAFT_KEYS[screenType(store.screen())], JSON.stringify({ savedId: store.savedId(), popularId: store.popularId(), screen: store.screen() }));
 }
 function touchRecent(id: string): void {
   store.setRecent([id, ...store.recent().filter((x) => x !== id)].slice(0, 50));
 }
 
-/** Replace the current screen without touching the history (open / new). */
+/** Replace the current screen without touching the history (open / new). A screen of the other screener
+ *  switches to it. */
 function load(s: Screen, savedId: string | null, popularId: string | null = null): void {
+  setTypeOnly(screenType(s));
   store.setScreenRaw(clone(s));
   store.setSavedId(savedId);
   store.setPopularId(popularId);
@@ -96,7 +109,25 @@ function load(s: Screen, savedId: string | null, popularId: string | null = null
   persistDraft();
 }
 
+/** The current screen of the screener not shown, while this window runs. */
+const parked: Partial<Record<ScreenerType, { screen: Screen; savedId: string | null; popularId: string | null }>> = {};
+
+function setTypeOnly(t: ScreenerType): void {
+  if (store.type() === t) return;
+  store.setType(t);
+  kv.setItem(TYPE_KEY, t);
+}
+
 export const screenerStore = {
+  /** The screener shown: Stock or ETF. */
+  type: store.type,
+  /** Show the other screener: its own current screen comes back. */
+  setType(t: ScreenerType): void {
+    if (store.type() === t) return;
+    parked[store.type()] = { screen: store.screen(), savedId: store.savedId(), popularId: store.popularId() };
+    const d = parked[t] ?? readDraft(t);
+    load(d.screen, d.savedId, d.popularId);
+  },
   screen: store.screen,
   savedId: store.savedId,
   popularId: store.popularId,
@@ -113,8 +144,8 @@ export const screenerStore = {
   unsaved(): boolean {
     const saved = screenerStore.saved();
     const cur = store.screen();
-    const popular = POPULAR_SCREENS.find((p) => p.id === store.popularId());
-    const base = saved ? saved.screen : popular ? popular.screen() : defaultScreen(cur.title);
+    const popular = popularScreens(screenType(cur)).find((p) => p.id === store.popularId());
+    const base = saved ? saved.screen : popular ? popular.screen() : newScreen(screenType(cur), cur.title);
     return !same(content(cur), content(base));
   },
 
@@ -204,7 +235,7 @@ export const screenerStore = {
   /** Create a saved screen from the default template and open it. */
   createNew(name: string): void {
     const id = newId();
-    const s = defaultScreen(name);
+    const s = newScreen(store.type(), name);
     store.setScreens([...store.screens(), { id, screen: s, updatedAt: Date.now() }]);
     touchRecent(id);
     persistScreens();
@@ -221,7 +252,7 @@ export const screenerStore = {
 
   /** Open a reference app popular screen (not saved: Save asks for a name). */
   openPopular(id: string): void {
-    const p = POPULAR_SCREENS.find((x) => x.id === id);
+    const p = popularScreens(store.type()).find((x) => x.id === id);
     if (p) load(p.screen(), null, id);
   },
 
@@ -243,10 +274,15 @@ export const screenerStore = {
     }
   },
 
-  /** Recently used saved screens (menu "Recently used"). */
+  /** Saved screens of the screener shown. */
+  typeScreens(): SavedScreen[] {
+    return store.screens().filter((s) => screenType(s.screen) === store.type());
+  },
+
+  /** Recently used saved screens of the screener shown (menu "Recently used"). */
   recentScreens(): SavedScreen[] {
     const byId = new Map(store.screens().map((s) => [s.id, s] as const));
-    const out = store.recent().map((id) => byId.get(id)).filter((s): s is SavedScreen => !!s);
+    const out = store.recent().map((id) => byId.get(id)).filter((s): s is SavedScreen => !!s && screenType(s.screen) === store.type());
     return out.slice(0, RECENT_MAX);
   },
 };

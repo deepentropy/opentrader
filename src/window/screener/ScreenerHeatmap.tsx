@@ -18,18 +18,21 @@ import { COLUMN_BY_ID, fieldOf } from "../../data/screener-catalog";
 import { displayCell } from "../../data/screener-display";
 import {
   COLOR_DEPTHS,
-  HEAT_COLOR,
-  HEAT_GROUP,
-  HEAT_SIZE,
   SCHEME_COLORS,
   bucketOf,
   colorScale,
+  heatColors,
+  heatGroup,
+  heatGroups,
   heatOption,
+  heatSizes,
   legendLabel,
   squarify,
+  type HeatOption,
   type Placed,
   type Rect,
 } from "../../data/screener-heatmap";
+import { screenerStore } from "../../data/screener-store";
 import type { Plan } from "../../data/screener-query";
 import { screenerSettings, setScreenerSettings } from "../../data/screener-settings";
 import { PopDivider, PopItem, PopSectionTitle, Popover } from "./Popover";
@@ -111,9 +114,9 @@ export function ScreenerHeatmap(props: Props) {
   let depthBtn!: HTMLButtonElement;
   const st = screenerSettings;
 
-  const sizeOpt = () => heatOption("size", st().heatSize) ?? HEAT_SIZE[0];
-  const colorOpt = () => heatOption("color", st().heatColor) ?? HEAT_COLOR[0];
-  const groupOpt = () => HEAT_GROUP.find((g) => g.id === st().heatGroup) ?? HEAT_GROUP[1];
+  const sizeOpt = () => heatOption("size", st().heatSize, screenerStore.type());
+  const colorOpt = () => heatOption("color", st().heatColor, screenerStore.type());
+  const groupOpt = () => heatGroup(st().heatGroup, screenerStore.type());
   const sizeField = () => fieldOf(sizeOpt().column);
   const colorField = () => fieldOf(colorOpt().column);
   const groupField = () => (groupOpt().column ? fieldOf(groupOpt().column!) : null);
@@ -431,7 +434,7 @@ export function HeatmapToolbar(props: { has: (field: string) => boolean }) {
   const [open, setOpen] = createSignal<"size" | "color" | "group" | null>(null);
   const refs: Partial<Record<"size" | "color" | "group", HTMLButtonElement>> = {};
   const st = screenerSettings;
-  const offered = (list: typeof HEAT_SIZE) => list.filter((o) => {
+  const offered = (list: HeatOption[]) => list.filter((o) => {
     const f = fieldOf(o.column);
     return f !== null && props.has(f);
   });
@@ -448,7 +451,7 @@ export function HeatmapToolbar(props: { has: (field: string) => boolean }) {
       <Icon name={p.icon} size={28} />
     </button>
   );
-  const Menu = (p: { k: "size" | "color"; title: string; list: typeof HEAT_SIZE; value: string; pick: (id: string) => void }) => (
+  const Menu = (p: { k: "size" | "color"; title: string; list: HeatOption[]; value: string; pick: (id: string) => void }) => (
     <Show when={open() === p.k}>
       <Popover anchor={refs[p.k]!} onClose={() => setOpen(null)} width={180}>
         <PopSectionTitle title={p.title} />
@@ -470,13 +473,13 @@ export function HeatmapToolbar(props: { has: (field: string) => boolean }) {
       <Btn k="size" icon="scr-heat-size" title="Size by" />
       <Btn k="color" icon="scr-heat-color" title="Color by" />
       <Btn k="group" icon="scr-heat-group" title="Group by" />
-      <Menu k="size" title="Size by" list={HEAT_SIZE} value={st().heatSize} pick={(id) => setScreenerSettings({ heatSize: id })} />
-      <Menu k="color" title="Color by" list={HEAT_COLOR} value={st().heatColor} pick={(id) => setScreenerSettings({ heatColor: id, heatDepth: null })} />
+      <Menu k="size" title="Size by" list={heatSizes(screenerStore.type())} value={heatOption("size", st().heatSize, screenerStore.type()).id} pick={(id) => setScreenerSettings({ heatSize: id })} />
+      <Menu k="color" title="Color by" list={heatColors(screenerStore.type())} value={heatOption("color", st().heatColor, screenerStore.type()).id} pick={(id) => setScreenerSettings({ heatColor: id, heatDepth: null })} />
       <Show when={open() === "group"}>
         <Popover anchor={refs.group!} onClose={() => setOpen(null)} width={150}>
           <PopSectionTitle title="Group by" />
-          <For each={HEAT_GROUP}>
-            {(g) => <PopItem title={g.short} selected={st().heatGroup === g.id} onClick={() => { setScreenerSettings({ heatGroup: g.id }); setOpen(null); }} />}
+          <For each={heatGroups(screenerStore.type())}>
+            {(g) => <PopItem title={g.short} selected={heatGroup(st().heatGroup, screenerStore.type()).id === g.id} onClick={() => { setScreenerSettings({ heatGroup: g.id }); setOpen(null); }} />}
           </For>
         </Popover>
       </Show>

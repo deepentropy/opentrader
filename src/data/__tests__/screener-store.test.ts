@@ -21,3 +21,24 @@ describe("screener screens: Autosave", () => {
     expect(screenerStore.saved()?.screen.watchlistId).toBe("w1");
   });
 });
+
+describe("screener screens: Stock and ETF screeners", () => {
+  it("keeps one current screen per screener and lists each one's saved screens", () => {
+    screenerStore.setType("stock");
+    screenerStore.createNew("Stock one");
+    screenerStore.setType("etf");
+    expect(screenerStore.type()).toBe("etf");
+    expect(screenerStore.screen().type).toBe("etf");
+    expect(screenerStore.screen().sort.sortBy.id).toBe("AssetsUnderManagement");
+    screenerStore.createNew("ETF one");
+    expect(screenerStore.typeScreens().map((s) => s.screen.title)).toContain("ETF one");
+    expect(screenerStore.typeScreens().map((s) => s.screen.title)).not.toContain("Stock one");
+    screenerStore.setType("stock");
+    expect(screenerStore.screen().title).toBe("Stock one");
+    // Opening a screen of the other screener switches to it.
+    const etf = screenerStore.savedScreens().find((s) => s.screen.title === "ETF one")!;
+    screenerStore.open(etf.id);
+    expect(screenerStore.type()).toBe("etf");
+    screenerStore.setType("stock");
+  });
+});

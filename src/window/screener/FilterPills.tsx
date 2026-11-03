@@ -17,7 +17,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { FLAG_HEX, FLAG_SORT_ORDER } from "../../data/watchlist";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
-import { COLUMN_BY_ID, OPERATION_ICON, emptyFilter, type ColumnRef, type Filter } from "../../data/screener-catalog";
+import { COLUMN_BY_ID, OPERATION_ICON, emptyFilter, isOffered, type ColumnRef, type Filter } from "../../data/screener-catalog";
 import { isActive, pillTexts } from "../../data/screener-query";
 import { screenerStore } from "../../data/screener-store";
 import { CategoryMenu } from "./CategoryMenu";
@@ -88,8 +88,14 @@ export function FilterPills(props: Props) {
 
   // Pills and editors are keyed by filter id so an edit keeps the pill element
   // (the open popover's anchor) and the editor's focus.
+  // A pill whose column the backend does not hold (a fundamental before the data is served) is not shown;
+  // all show until the field list is loaded ("close" is always there once it is).
+  const shown = (f: Filter) => {
+    const def = COLUMN_BY_ID[f.left.id];
+    return !!def && (!props.has("close") || isOffered(def, props.has));
+  };
   const ids = createMemo(
-    () => screen().filters.filter((f) => !!COLUMN_BY_ID[f.left.id]).map((f) => f.id),
+    () => screen().filters.filter(shown).map((f) => f.id),
     [],
     { equals: (a, b) => a.length === b.length && a.every((x, i) => x === b[i]) },
   );

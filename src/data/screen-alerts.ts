@@ -46,7 +46,6 @@ let started = false;
 export function startScreenAlerts(): void {
   if (started) return;
   started = true;
-  let known: Set<string> | null = null;
   let open = false;
   let busy = false;
 
@@ -56,8 +55,9 @@ export function startScreenAlerts(): void {
     try {
       const rules = alertStore.enabledRules().filter(isScreenRule);
       if (!rules.length) return;
-      known ??= new Set((await screenerFields()).filter((f) => f.available).map((f) => f.id));
-      const has = (f: string) => known!.has(f);
+      // Read on every evaluation: a new daily state adds fields (the fundamentals).
+      const known = new Set((await screenerFields()).filter((f) => f.available).map((f) => f.id));
+      const has = (f: string) => known.has(f);
       const now = Date.now();
       for (const rule of rules) {
         if (rule.expiresAt != null && now >= rule.expiresAt) {
