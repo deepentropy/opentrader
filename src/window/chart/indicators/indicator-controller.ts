@@ -295,7 +295,33 @@ export class IndicatorController {
   }
 
   /** Reconcile the live layers with the desired ordered list of registry ids. */
+  /**
+   * Run a change of the studies (added, removed, hidden, set again) keeping the view as the reference does. A plot
+   * drawn after the last bar (Ichimoku's cloud, a plot offset) gives the chart data points there, and the chart counts
+   * the last data point of any series as its last bar, so the view would move by the projection. Instead: a longer
+   * projection keeps the left edge and widens the right margin to show it (one bar past its end) when narrower; a
+   * shorter one leaves the view where it was.
+   */
+  keepView<T>(change: () => T): T {
+    const ts = this.chart.timeScale();
+    const before = ts.getVisibleLogicalRange();
+    const lastBefore = before ? before.to - ts.scrollPosition() : null;
+    const out = change();
+    const after = ts.getVisibleLogicalRange();
+    if (before && after && lastBefore != null) {
+      const last = after.to - ts.scrollPosition();
+      if (Math.abs(last - lastBefore) > 1e-6) {
+        ts.setVisibleLogicalRange({ from: before.from, to: last > lastBefore ? Math.max(before.to, last + 1) : before.to });
+      }
+    }
+    return out;
+  }
+
   sync(ids: string[]): void {
+    this.keepView(() => this.syncStudies(ids));
+  }
+
+  private syncStudies(ids: string[]): void {
     const desired = new Set(ids);
 
     // Remove studies no longer wanted (pane owners are not studies).
@@ -833,7 +859,7 @@ export class IndicatorController {
     this.inputs.set(id, { ...inputs });
     this.styles.set(id, { ...styles });
     if (options) this.options.set(id, cloneIndicatorOptions(options));
-    this.renderOne(id, inst, entry, this.getBars());
+    this.keepView(() => this.renderOne(id, inst, entry, this.getBars()));
   }
 
   /** Seed persisted per-study overrides (from the pane's saved
@@ -1395,7 +1421,7 @@ export class IndicatorController {
     const nowHidden = !this.hidden.has(id);
     if (nowHidden) this.hidden.add(id); else this.hidden.delete(id);
     const entry = getIndicatorEntry(id);
-    if (entry) this.renderOne(id, inst, entry, this.getBars());
+    if (entry) this.keepView(() => this.renderOne(id, inst, entry, this.getBars()));
     return nowHidden;
   }
 

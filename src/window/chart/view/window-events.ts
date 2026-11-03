@@ -257,8 +257,13 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
         // Every instance of the script on this chart (a re-added one is "#2"…).
         const ids = (props.indicators ?? []).filter((id) => typeIdOf(id) === uid);
         if (!ids.length) return;
-        if (detail.structural) for (const id of ids) cx.controller?.refresh(id);
-        else cx.controller?.renderAll();
+        const controller = cx.controller;
+        if (!controller) return;
+        // a script's first result may plot after the last bar: the view stays as for a study added
+        controller.keepView(() => {
+          if (detail.structural) for (const id of ids) controller.refresh(id);
+          else controller.renderAll();
+        });
         refreshIndicatorLegend();
       };
       onCleanup(onAppEvent(OAKSCRIPT_UPDATED_EVENT, onOakScriptUpdated));
