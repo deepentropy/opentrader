@@ -216,6 +216,9 @@ export function ScreenerPanel(props: Props) {
         track("screener_opened");
         if (st.updatedMs !== null) setLastUpdate(Date.now());
         let stateAsof = st.stateAsof;
+        // The first scan ran on an empty table when the backend had none yet: its first table is shown at once,
+        // whatever the auto-refresh setting.
+        let loaded = st.updatedMs !== null;
         unlisten = await onScreenerUpdate((u) => {
           setLastUpdate(Date.now());
           // A new daily state brings its fields (the fundamentals): the field list is read again.
@@ -223,9 +226,12 @@ export function ScreenerPanel(props: Props) {
             stateAsof = u.stateAsof;
             void screenerFields().then((l) => !disposed && setFields(new Map(l.map((f) => [f.id, f]))));
           }
+          if (u.error) return;
+          const first = !loaded && u.updatedMs !== null;
+          if (first) loaded = true;
           // Auto-refresh: every update (10 s), the first update a minute after the last refresh, or never.
           const period = refreshMs(screenerSettings().autoRefresh);
-          if (!u.error && period !== null && Date.now() - lastRefresh() >= period - 1000) refreshNow();
+          if (first || (period !== null && Date.now() - lastRefresh() >= period - 1000)) refreshNow();
         });
         if (disposed) unlisten();
       } catch (e) {

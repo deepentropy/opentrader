@@ -46,8 +46,8 @@ pub const SILENCE_TIMEOUT: Duration = Duration::from_secs(30);
 /// failed polls in a row are ridden out, the third leaves the feed.
 pub const STALE_LIMIT: Duration = Duration::from_secs(30);
 /// Longest wait for the connection and for the table that follows it (a
-/// healthy feed sends it at once: 1.3 s measured). Short, because the panel
-/// is empty meanwhile and the REST snapshot can fill it.
+/// healthy feed sends it at once: 1.3 s measured). Short, because the table
+/// is not updated meanwhile and the REST snapshot can update it.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Deserialize)]

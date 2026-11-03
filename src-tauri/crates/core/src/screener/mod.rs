@@ -7,7 +7,8 @@
  * from the gateway's live feed (`live.rs`: one table, then its changes every
  * 10 s, shared by every app); while the feed is refused, silent, in error or
  * failing its polls for too long the task polls the REST snapshot every 10 s
- * instead and tries the feed again later. Scans (`scan.rs`) read the current table only, so filter / sort /
+ * instead and tries the feed again later. The first table comes from whichever answers first, the feed or the REST
+ * snapshot. Scans (`scan.rs`) read the current table only, so filter / sort /
  * scroll never wait on the network. Each new table is announced with a
  * `ScreenerUpdate` event; the panel then re-runs its scan.
  */
@@ -30,6 +31,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use table::Table;
+use tokio::task::JoinHandle;
 use crate::host::{event, Event, HostRef};
 
 /// REST snapshot poll cadence while a panel is open and the live feed is down.
@@ -135,37 +137,161 @@ fn feed_url() -> Option<String> {
     }
 }
 
-/// The reference list task's result, or never when none is running.
-async fn refs_result(
-    task: &mut Option<tokio::task::JoinHandle<Option<Vec<RefTicker>>>>,
-) -> Option<Vec<RefTicker>> {
+/// A background download's result, or never when none is running.
+async fn finished<T>(task: &mut Option<JoinHandle<Option<T>>>) -> Option<T> {
     match task.as_mut() {
         Some(t) => t.await.ok().flatten(),
         None => std::future::pending().await,
     }
 }
 
+/// A finished background download.
+enum Arrived {
+    Refs(Option<Vec<RefTicker>>),
+    State(Option<StateFile>),
+    Closes(Option<closes::Closes>),
+}
+
+/// The data joined with the snapshot. The reference list, the daily state and the closes file download in the
+/// background, so the first table does not wait for them (the state file took from 0.4 s to over 2 minutes when the
+/// gateway was slow, measured 03/11/2026); each one's arrival ends the current wait and the table gains it at once.
+#[derive(Default)]
+struct Sources {
+    refs: Arc<Vec<RefTicker>>,
+    refs_day: Option<NaiveDate>,
+    refs_task: Option<JoinHandle<Option<Vec<RefTicker>>>>,
+    refs_failed: Option<Instant>,
+    state: Option<Arc<StateFile>>,
+    state_task: Option<JoinHandle<Option<StateFile>>>,
+    state_checked: Option<Instant>,
+    // Custom lengths: the closes file (fetched while a screen uses one) and the state with their columns.
+    closes: Option<Arc<closes::Closes>>,
+    closes_task: Option<JoinHandle<Option<closes::Closes>>>,
+    closes_checked: Option<Instant>,
+    merged: Option<(NaiveDate, Vec<String>, Arc<StateFile>)>,
+}
+
+impl Sources {
+    fn from_cache() -> Self {
+        let mut s = Sources { state: state::read_cache().map(Arc::new), ..Default::default() };
+        if let Some((day, list)) = read_refs_cache() {
+            s.refs = Arc::new(list);
+            s.refs_day = Some(day);
+        }
+        s
+    }
+
+    /// Start the downloads that are due: the reference list once per New York day, the daily state when missing
+    /// or older than the last closed session, the closes of the state's session while custom lengths are asked for
+    /// (both at most every STATE_RECHECK).
+    fn start(&mut self, today: Option<NaiveDate>, wanted: &[String]) {
+        let refs_retry = self.refs_failed.map_or(true, |t| t.elapsed() >= REFS_RETRY);
+        if self.refs_task.is_none() && self.refs_day != today && refs_retry {
+            self.refs_task = Some(crate::rt::spawn(async {
+                match market_rest::fetch_reference_tickers().await {
+                    Ok(list) => Some(list),
+                    Err(e) => {
+                        eprintln!("[screener] reference tickers: {e:#}");
+                        None
+                    }
+                }
+            }));
+        }
+        let expected = clock::last_closed_session(chrono::Utc::now());
+        let stale = self.state.as_ref().map(|s| s.asof) < expected;
+        if stale && self.state_task.is_none() && self.state_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK) {
+            self.state_checked = Some(Instant::now());
+            self.state_task = Some(crate::rt::spawn(async {
+                state::fetch().await.unwrap_or_else(|e| {
+                    eprintln!("[screener] state: {e:#}");
+                    None
+                })
+            }));
+        }
+        let Some(asof) = self.state.as_ref().map(|s| s.asof) else { return };
+        if wanted.is_empty() {
+            return;
+        }
+        if self.closes.is_none() {
+            self.closes = closes::read_cache().map(Arc::new);
+        }
+        let due = self.closes_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK);
+        if self.closes.as_ref().map(|c| c.asof) != Some(asof) && self.closes_task.is_none() && due {
+            self.closes_checked = Some(Instant::now());
+            self.closes_task = Some(crate::rt::spawn(async {
+                closes::fetch().await.unwrap_or_else(|e| {
+                    eprintln!("[screener] closes: {e:#}");
+                    None
+                })
+            }));
+        }
+    }
+
+    /// The next download to finish, or never when none is running.
+    async fn next(&mut self) -> Arrived {
+        tokio::select! {
+            r = finished(&mut self.refs_task) => {
+                self.refs_task = None;
+                Arrived::Refs(r)
+            }
+            s = finished(&mut self.state_task) => {
+                self.state_task = None;
+                Arrived::State(s)
+            }
+            c = finished(&mut self.closes_task) => {
+                self.closes_task = None;
+                Arrived::Closes(c)
+            }
+        }
+    }
+
+    fn apply(&mut self, arrived: Arrived, today: Option<NaiveDate>) {
+        match arrived {
+            Arrived::Refs(Some(list)) => {
+                write_refs_cache(today, &list);
+                self.refs = Arc::new(list);
+                self.refs_day = today;
+            }
+            Arrived::Refs(None) => self.refs_failed = Some(Instant::now()),
+            Arrived::State(s) => {
+                if let Some(s) = s {
+                    self.state = Some(Arc::new(s));
+                }
+            }
+            Arrived::Closes(c) => {
+                if let Some(c) = c {
+                    self.closes = Some(Arc::new(c));
+                }
+            }
+        }
+    }
+
+    /// The state the table joins: with the custom lengths' columns once the closes of its session are in.
+    fn table_state(&mut self, wanted: &[String]) -> Option<Arc<StateFile>> {
+        let s = self.state.as_ref()?;
+        match &self.closes {
+            Some(c) if !wanted.is_empty() && c.asof == s.asof => {
+                let fresh = self.merged.as_ref().map_or(false, |(d, ids, _)| *d == s.asof && ids == wanted);
+                if !fresh {
+                    self.merged = Some((s.asof, wanted.to_vec(), Arc::new(closes::with_custom(s, c, wanted))));
+                }
+                self.merged.as_ref().map(|(_, _, m)| m.clone())
+            }
+            _ => Some(s.clone()),
+        }
+    }
+}
+
 async fn run(app: HostRef, inner: Arc<Inner>) {
     let mut version = inner.table.read().expect("screener table lock").as_ref().map_or(0, |t| t.version);
-    let mut refs: Arc<Vec<RefTicker>> = Arc::new(Vec::new());
-    let mut refs_day: Option<NaiveDate> = None;
-    if let Some((day, list)) = read_refs_cache() {
-        refs = Arc::new(list);
-        refs_day = Some(day);
-    }
-    let mut refs_task: Option<tokio::task::JoinHandle<Option<Vec<RefTicker>>>> = None;
-    let mut refs_failed: Option<Instant> = None;
-    let mut state: Option<Arc<StateFile>> = state::read_cache().map(Arc::new);
-    let mut state_checked: Option<Instant> = None;
-    // Custom lengths: the closes file (fetched while a screen uses one) and the state with their columns.
-    let mut closes: Option<Arc<closes::Closes>> = None;
-    let mut closes_checked: Option<Instant> = None;
-    let mut merged: Option<(NaiveDate, Vec<String>, Arc<StateFile>)> = None;
+    let mut src = Sources::from_cache();
     let feed_url = feed_url();
     let mut feed: Option<live::Feed> = None;
     // The feed holds a table not shown yet (just connected).
     let mut feed_fresh = false;
     let mut feed_retry: Option<Instant> = None;
+    // While there is no table: the REST snapshot, racing the feed's connection.
+    let mut first_rest: Option<JoinHandle<anyhow::Result<Vec<MarketRow>>>> = None;
 
     loop {
         let none_left = inner.owners.lock().expect("screener owners lock").is_empty();
@@ -184,80 +310,49 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         }
         let started = Instant::now();
         let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64);
-
-        // Reference list: once per New York day, in the background so the
-        // first table does not wait for its ~13 pages. Its arrival ends the
-        // wait below, so the table gains names and types at once.
-        let refs_retry = refs_failed.map_or(true, |t: Instant| t.elapsed() >= REFS_RETRY);
-        if refs_task.is_none() && refs_day != today && refs_retry {
-            refs_task = Some(crate::rt::spawn(async {
-                match market_rest::fetch_reference_tickers().await {
-                    Ok(list) => Some(list),
-                    Err(e) => {
-                        eprintln!("[screener] reference tickers: {e:#}");
-                        None
-                    }
-                }
-            }));
-        }
-
-        // Daily state: fetch when missing or older than the last closed
-        // session, at most every STATE_RECHECK.
-        let expected = clock::last_closed_session(chrono::Utc::now());
-        let stale = state.as_ref().map(|s| s.asof) < expected;
-        if stale && state_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK) {
-            state_checked = Some(Instant::now());
-            match state::fetch().await {
-                Ok(Some(s)) => state = Some(Arc::new(s)),
-                Ok(None) => {}
-                Err(e) => eprintln!("[screener] state: {e:#}"),
-            }
-        }
-
-        // Custom lengths: the closes of the state's session, then the state with their columns (again only when the
-        // session or the lengths change).
         let wanted: Vec<String> = inner.custom.lock().expect("screener custom lock").iter().cloned().collect();
-        let table_state = match (&state, wanted.is_empty()) {
-            (Some(s), false) => {
-                if closes.is_none() {
-                    closes = closes::read_cache().map(Arc::new);
-                }
-                if closes.as_ref().map(|c| c.asof) != Some(s.asof) && closes_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK) {
-                    closes_checked = Some(Instant::now());
-                    match closes::fetch().await {
-                        Ok(Some(c)) => closes = Some(Arc::new(c)),
-                        Ok(None) => {}
-                        Err(e) => eprintln!("[screener] closes: {e:#}"),
-                    }
-                }
-                match &closes {
-                    Some(c) if c.asof == s.asof => {
-                        let fresh = merged.as_ref().map_or(false, |(d, ids, _)| *d == s.asof && *ids == wanted);
-                        if !fresh {
-                            merged = Some((s.asof, wanted.clone(), Arc::new(closes::with_custom(s, c, &wanted))));
-                        }
-                        merged.as_ref().map(|(_, _, m)| m.clone())
-                    }
-                    _ => state.clone(),
-                }
-            }
-            _ => state.clone(),
-        };
+        src.start(today, &wanted);
+
+        // No table yet: the REST snapshot starts now and races the feed's connection. Either can take from 1 s to
+        // over 25 s when the gateway is slow (measured 03/11/2026); the first to arrive fills the panel.
+        let no_table = inner.table.read().expect("screener table lock").is_none();
+        if no_table && feed.is_none() && first_rest.is_none() && feed_url.is_some() {
+            first_rest = Some(crate::rt::spawn(market_rest::fetch_market_snapshot()));
+        }
 
         // Live feed: connect when there is none and its retry time has come.
+        let mut rest_rows: Option<anyhow::Result<Vec<MarketRow>>> = None;
         if feed.is_none() && feed_retry.map_or(true, |t| Instant::now() >= t) {
             if let Some(url) = feed_url.as_deref() {
-                match live::Feed::connect(url).await {
-                    Ok(f) => {
+                let connected = match first_rest.as_mut() {
+                    Some(task) => tokio::select! {
+                        res = live::Feed::connect(url) => Some(res),
+                        rows = task => {
+                            rest_rows = Some(rows.unwrap_or_else(|e| Err(anyhow::anyhow!(e))));
+                            None
+                        }
+                    },
+                    None => Some(live::Feed::connect(url).await),
+                };
+                if rest_rows.is_some() {
+                    first_rest = None;
+                }
+                match connected {
+                    Some(Ok(f)) => {
                         eprintln!("[screener] live feed connected ({} tickers)", f.table.len());
                         feed = Some(f);
                         feed_fresh = true;
                         feed_retry = None;
+                        if let Some(t) = first_rest.take() {
+                            t.abort();
+                        }
                     }
-                    Err(e) => {
+                    Some(Err(e)) => {
                         eprintln!("[screener] {e:#}; polling the snapshot instead");
                         feed_retry = Some(Instant::now() + FEED_RETRY);
                     }
+                    // The REST snapshot came first: the feed connects on the next turn.
+                    None => {}
                 }
             }
         }
@@ -265,23 +360,16 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         // The snapshot rows: from the feed's table after its next message,
         // else from a REST poll.
         let via_feed = feed.is_some();
-        let snap: anyhow::Result<Vec<MarketRow>> = if let Some(f) = feed.as_mut() {
+        let rest_won = matches!(rest_rows, Some(Ok(_)));
+        let snap: anyhow::Result<Vec<MarketRow>> = if let Some(rows) = rest_rows {
+            rows
+        } else if let Some(f) = feed.as_mut() {
             let mut lost = None;
             if !feed_fresh {
                 tokio::select! {
                     res = f.next() => lost = res.err(),
                     _ = inner.closed.notified() => continue,
-                    list = refs_result(&mut refs_task) => {
-                        refs_task = None;
-                        match list {
-                            Some(list) => {
-                                write_refs_cache(today, &list);
-                                refs = Arc::new(list);
-                                refs_day = today;
-                            }
-                            None => refs_failed = Some(Instant::now()),
-                        }
-                    }
+                    arrived = src.next() => src.apply(arrived, today),
                 }
             }
             feed_fresh = false;
@@ -289,6 +377,9 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                 None => market_rest::shape_feed_snapshots(f.table.snapshots()).await,
                 Some(e) => Err(e),
             }
+        } else if let Some(task) = first_rest.take() {
+            // The feed failed: the snapshot asked for at the start is on its way.
+            task.await.unwrap_or_else(|e| Err(anyhow::anyhow!(e)))
         } else {
             market_rest::fetch_market_snapshot().await
         };
@@ -308,7 +399,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         let update = match snap {
             Ok(rows) => {
                 version = version.wrapping_add(1);
-                let t = Arc::new(Table::build(version, rows, refs.clone(), table_state.clone()));
+                let t = Arc::new(Table::build(version, rows, src.refs.clone(), src.table_state(&wanted)));
                 let update = ScreenerUpdate {
                     version,
                     updated_ms: t.updated_ms,
@@ -331,24 +422,14 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
             }
         };
         let _ = update.emit(&app);
-        // With the feed, its next message is the wait.
-        if via_feed {
+        // With the feed, its next message is the wait; after a first table from REST, the feed connects at once.
+        if via_feed || rest_won {
             continue;
         }
         tokio::select! {
             _ = tokio::time::sleep(POLL_INTERVAL.saturating_sub(started.elapsed())) => {}
             _ = inner.closed.notified() => {}
-            list = refs_result(&mut refs_task) => {
-                refs_task = None;
-                match list {
-                    Some(list) => {
-                        write_refs_cache(today, &list);
-                        refs = Arc::new(list);
-                        refs_day = today;
-                    }
-                    None => refs_failed = Some(Instant::now()),
-                }
-            }
+            arrived = src.next() => src.apply(arrived, today),
         }
     }
 }
