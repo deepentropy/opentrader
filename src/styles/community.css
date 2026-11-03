@@ -358,3 +358,68 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
 
 /* $TICKER mentions (#207). */
 .cm-markdown a.cm-ticker { font-weight: 600; }
+
+/* Notifications (#208): menu count, rail dot, pop-ups, list. */
+.cm-count {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #f23645;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+.right-rail-tab-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f23645;
+  box-shadow: 0 0 0 2px var(--ot-chart-bg, #0f0f0f);
+  pointer-events: none;
+}
+.cm-toasts {
+  position: fixed;
+  right: 60px;
+  bottom: 40px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+}
+.cm-toast {
+  position: relative;
+  padding: 10px 32px 10px 12px;
+  border-radius: 8px;
+  background: var(--ot-popover-bg, #1e1e1e);
+  box-shadow: var(--ot-popover-shadow, 0 2px 12px rgba(0, 0, 0, 0.5));
+  color: var(--color-toolbar-button-text);
+  cursor: pointer;
+}
+.cm-toast-title { font-size: 13px; font-weight: 600; color: var(--ot-strong); }
+.cm-toast-text { margin-top: 3px; font-size: 12px; line-height: 16px; color: var(--color-text-secondary); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cm-toast-close { all: unset; position: absolute; top: 6px; right: 10px; font-size: 16px; color: var(--color-text-secondary); cursor: default; }
+.cm-notice { padding: 10px 16px; border-bottom: 1px solid var(--color-divider-line-primary); }
+.cm-notice.is-link { cursor: default; }
+.cm-notice.is-link:hover { background: var(--color-bg-primary-hover); }
+.cm-notice.is-new { box-shadow: inset 3px 0 0 #2962ff; }
+.cm-notice-text { margin-top: 2px; font-size: 12px; line-height: 17px; overflow-wrap: anywhere; }
+
+/* The bot check before a first post (#219). */
+.cm-check { margin: 8px 16px; padding: 10px 12px; border: 1px solid #2962ff; border-radius: 8px; }
+.cm-check p { margin: 4px 0 8px; font-size: 12px; }
+
+/* A community's About page (#209). */
+.cm-about { padding: 8px 0 16px; }
+.cm-about > p { margin: 4px 16px 8px; font-size: 13px; line-height: 19px; }
+.cm-about .cm-picker-section { padding-left: 16px; }
+.cm-about-block { padding: 0 16px 8px; font-size: 13px; }
+.cm-about-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.cm-log-row { padding: 6px 0; border-bottom: 1px solid var(--color-divider-line-primary); font-size: 12px; }
+.cm-community-link.is-small { font-weight: 400; color: var(--color-brand); }

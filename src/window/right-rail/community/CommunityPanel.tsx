@@ -28,15 +28,27 @@ import { blobToBase64, chartBridge, type ChartCapture } from "../../../data/comm
 import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { deleteAccount, initSession, me, ready, refreshMe, signOut } from "../../../data/community/session";
 import { PostView } from "./PostView";
+import { AboutView, NotificationsView, ProposeView } from "./MoreViews";
+import { openPost, startNotifications, unread } from "../../../data/community/notifications";
+import { withPostingCheck } from "../../../data/community/posting-check";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Age, Author, CONTACT_URL, ErrorBanner, ExternalLink, RULES_URL, SignInBox, Vote, errorText } from "./parts";
+import { Age, Author, CONTACT_URL, ErrorBanner, ExternalLink, PostingCheckPrompt, RULES_URL, SignInBox, Vote, errorText } from "./parts";
 
 /** "chart" (follows the chart), "following", "all", or a community id. */
 type Source = string;
 /** What the page address shows (the website). */
 export type CommunityRoute = { source: string; postId: string | null };
-type View = { kind: "list" } | { kind: "post"; id: string } | { kind: "compose" } | { kind: "signin" } | { kind: "queue" } | { kind: "account" };
+type View =
+  | { kind: "list" }
+  | { kind: "post"; id: string }
+  | { kind: "compose" }
+  | { kind: "signin" }
+  | { kind: "queue" }
+  | { kind: "account" }
+  | { kind: "notifications" }
+  | { kind: "about" }
+  | { kind: "propose" };
 
 const SOURCE_KEY = "ot:community:source";
 const SORT_KEY = "ot:community:sort";
@@ -83,7 +95,9 @@ export function CommunityPanel(props: Props) {
     if (view().kind === "list" || view().kind === "post") props.onRoute?.(route);
   });
   createEffect(() => kv.setItem(SORT_KEY, sort()));
-  onMount(() => void initSession());
+  onMount(() => void initSession().then(startNotifications));
+  // A notification's pop-up asked for its post.
+  createEffect(on(openPost, (o) => o && setView({ kind: "post", id: o.id })));
 
   const chartCommunity = () => (props.symbol ? tickerCommunityId(tickerOf(props.symbol)) : null);
   /** The single community shown, or null for a feed. */
@@ -261,7 +275,11 @@ export function CommunityPanel(props: Props) {
         }
       >
         <div class="cm-menu-user">Signed in as <strong>{me()!.user.name}</strong></div>
+        <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "notifications" }); }}>
+          <span class="ot-menu-item__label">Notifications<Show when={unread() > 0}><span class="cm-count">{unread()}</span></Show></span>
+        </button>
         <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "account" }); }}><span class="ot-menu-item__label">Account</span></button>
+        <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "propose" }); }}><span class="ot-menu-item__label">Propose a community</span></button>
         <Show when={isMod()}>
           <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); setView({ kind: "queue" }); }}><span class="ot-menu-item__label">Moderation queue</span></button>
         </Show>
@@ -318,7 +336,13 @@ export function CommunityPanel(props: Props) {
               </button>
             </div>
             <Show when={info()!.description}><div class="cm-muted">{info()!.description}</div></Show>
-            <div class="cm-muted">{info()!.post_count} post{info()!.post_count === 1 ? "" : "s"}</div>
+            <div class="cm-muted">
+              {info()!.post_count} post{info()!.post_count === 1 ? "" : "s"}
+              <Show when={!info()!.id.startsWith("t:") || info()!.post_count > 0}>
+                {" · "}
+                <button type="button" class="cm-community-link is-small" onClick={() => setView({ kind: "about" })}>About, moderators and log</button>
+              </Show>
+            </div>
           </div>
         </Show>
         <ErrorBanner text={error()} onClose={() => setError(null)} />
@@ -401,7 +425,7 @@ export function CommunityPanel(props: Props) {
       try {
         const a = attached();
         const attachment = a ? { chart: a.chart, image: await blobToBase64(a.image), imageType: a.image.type || "image/png" } : null;
-        const r = await api.createPost(target(), title(), body(), attachment);
+        const r = await withPostingCheck(() => api.createPost(target(), title(), body(), attachment));
         if (source() !== "chart" || target() !== chartCommunity()) setSource(target());
         void reload();
         setView({ kind: "post", id: r.post.id });
@@ -535,6 +559,7 @@ export function CommunityPanel(props: Props) {
         <Show when={pickerOpen()}><Picker /></Show>
         <Show when={menuOpen()}><Menu /></Show>
       </div>
+      <PostingCheckPrompt />
       <Switch>
         <Match when={view().kind === "list"}><ListView /></Match>
         <Match when={view().kind === "post" && (view() as { id: string }).id}>
@@ -553,6 +578,13 @@ export function CommunityPanel(props: Props) {
           <ModQueue onBack={() => setView({ kind: "list" })} onOpenPost={(id) => id && setView({ kind: "post", id })} />
         </Match>
         <Match when={view().kind === "account"}><Account /></Match>
+        <Match when={view().kind === "notifications"}>
+          <NotificationsView onBack={() => setView({ kind: "list" })} onOpenPost={(id) => setView({ kind: "post", id })} />
+        </Match>
+        <Match when={view().kind === "about" && info()}>
+          <AboutView community={info()!} onBack={() => setView({ kind: "list" })} onOpenPost={(id) => setView({ kind: "post", id })} />
+        </Match>
+        <Match when={view().kind === "propose"}><ProposeView onBack={() => setView({ kind: "list" })} /></Match>
         <Match when={view().kind === "signin"}>
           <div class="cm-post-view">
             <div class="cm-subheader">

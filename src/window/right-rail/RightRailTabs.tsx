@@ -10,6 +10,7 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { TOP_TABS, type Tab } from "../../data/right-rail-tabs";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
+import { unread as communityUnread } from "../../data/community/notifications";
 
 const SHOWN_TABS = TOP_TABS.filter((t) => t.id !== "community" || COMMUNITY_ENABLED);
 
@@ -39,6 +40,7 @@ export function RightRailTabs(props: Props) {
           onClick={() => select(t.id)}
         >
           {t.iconName && <Icon name={t.iconName} size={44} />}
+          {t.id === "community" && communityUnread() > 0 && <span class="right-rail-tab-dot" aria-label={`${communityUnread()} unread`} />}
         </button>
       </Tooltip>
     );

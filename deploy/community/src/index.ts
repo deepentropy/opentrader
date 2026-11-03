@@ -10,6 +10,12 @@ import * as auth from "./auth";
 import * as api from "./api";
 import { page } from "./pages";
 import { serveImage } from "./charts";
+import * as check from "./check";
+import * as live from "./live";
+import * as members from "./members";
+import * as notices from "./notify";
+
+export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
 
 /** Page origins of the desktop app's webview (Windows; macOS and Linux). */
@@ -47,11 +53,11 @@ async function readBody(request: Request, path: string): Promise<any> {
 /** Bursts from one connection: sign-ins, and writes (posts, comments, votes, reports). */
 async function burstLimit(env: Env, request: Request, path: string): Promise<void> {
   const key = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  const limiter = path === "/auth/start" || path === "/auth/token" || path === "/auth/verify" ? env.AUTH_LIMITER : request.method === "GET" ? undefined : env.WRITE_LIMITER;
+  const limiter = path === "/auth/start" || path === "/auth/token" || path === "/auth/verify" || path === "/check/verify" ? env.AUTH_LIMITER : request.method === "GET" ? undefined : env.WRITE_LIMITER;
   if (limiter && !(await limiter.limit({ key })).success) throw new HttpError(429, "Too many requests. Wait a minute and try again.");
 }
 
-type Handler = (ctx: { env: Env; request: Request; url: URL; params: string[]; body: any; user: auth.User | null }) => Promise<Response>;
+type Handler = (ctx: { env: Env; request: Request; url: URL; params: string[]; body: any; user: auth.User | null; ctx: ExecutionContext }) => Promise<Response>;
 
 const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/auth\/providers$/, async ({ env }) => json({ providers: auth.enabledProviders(env) })],
@@ -63,11 +69,24 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/auth\/logout$/, async ({ env, user }) => (user ? auth.logout(env, user) : json({ ok: true }))],
 
   ["GET", /^\/me$/, ({ env, user }) => api.me(env, user)],
+  ["GET", /^\/me\/unread$/, ({ env, user }) => notices.unread(env, user)],
+  ["GET", /^\/me\/notifications$/, ({ env, user }) => notices.list(env, user)],
+  ["POST", /^\/me\/notifications\/read$/, ({ env, user }) => notices.markRead(env, user)],
+  ["POST", /^\/check\/start$/, ({ env, user }) => check.startCheck(env, user)],
+  ["GET", /^\/check$/, ({ env, url }) => check.checkPage(env, url)],
+  ["POST", /^\/check\/verify$/, ({ env, request }) => check.verifyCheck(env, request)],
+  ["POST", /^\/proposals$/, ({ env, user, body }) => members.propose(env, user, body)],
+  ["GET", /^\/mod\/proposals$/, ({ env, user }) => members.proposals(env, user)],
+  ["POST", /^\/mod\/proposals\/([a-z0-9]+)$/, ({ env, user, params, body }) => members.decide(env, user, params[0], body)],
+  ["POST", /^\/mod\/community-ban$/, ({ env, user, body }) => members.communityBan(env, user, body)],
   ["PATCH", /^\/me$/, ({ env, user, body }) => api.rename(env, user, body)],
   ["DELETE", /^\/me$/, ({ env, user }) => api.deleteAccount(env, user)],
 
   ["GET", /^\/communities$/, ({ env, user }) => api.listThemes(env, user)],
   ["GET", /^\/communities\/([^/]+)$/, ({ env, user, params }) => api.getCommunity(env, user, params[0])],
+  ["GET", /^\/communities\/([^/]+)\/moderators$/, ({ env, params }) => members.moderators(env, params[0])],
+  ["GET", /^\/communities\/([^/]+)\/log$/, ({ env, params }) => members.publicLog(env, params[0])],
+  ["GET", /^\/communities\/([^/]+)\/bans$/, ({ env, user, params }) => members.bans(env, user, params[0])],
   ["POST", /^\/communities\/([^/]+)\/follow$/, ({ env, user, params }) => api.follow(env, user, params[0], true)],
   ["DELETE", /^\/communities\/([^/]+)\/follow$/, ({ env, user, params }) => api.follow(env, user, params[0], false)],
   ["GET", /^\/communities\/([^/]+)\/posts$/, ({ env, user, params, url }) => api.communityPosts(env, user, params[0], url)],
@@ -79,7 +98,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["PATCH", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editPost(env, user, params[0], body)],
   ["DELETE", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.deletePost(env, user, params[0])],
   ["POST", /^\/posts\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "post", params[0], body)],
-  ["POST", /^\/posts\/([a-z0-9]+)\/comments$/, ({ env, user, request, params, body }) => api.createComment(env, user, request, params[0], body)],
+  ["POST", /^\/posts\/([a-z0-9]+)\/comments$/, ({ env, user, request, params, body, ctx }) => api.createComment(env, user, request, params[0], body, ctx)],
+  ["GET", /^\/posts\/([a-z0-9]+)\/live$/, ({ env, request, params }) => live.joinRoom(env, request, params[0])],
   ["PATCH", /^\/comments\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editComment(env, user, params[0], body)],
   ["DELETE", /^\/comments\/([a-z0-9]+)$/, ({ env, user, params }) => api.deleteComment(env, user, params[0])],
   ["POST", /^\/comments\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "comment", params[0], body)],
@@ -96,7 +116,7 @@ const ROUTES: [string, RegExp, Handler][] = [
 ];
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const headers = cors(request, env);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     const url = new URL(request.url);
@@ -128,11 +148,11 @@ export default {
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
       await burstLimit(env, request, path);
       // The bot check's form is read by its handler.
-      const body = path === "/auth/verify" ? null : await readBody(request, path);
+      const body = path === "/auth/verify" || path === "/check/verify" ? null : await readBody(request, path);
       const user = await auth.currentUser(env, request);
-      res = await handler({ env, request, url, params, body, user });
+      res = await handler({ env, request, url, params, body, user, ctx });
     } catch (e) {
-      if (e instanceof HttpError) res = json({ error: e.message }, e.status);
+      if (e instanceof HttpError) res = json({ error: e.message, ...e.extra }, e.status);
       else {
         console.error(e);
         res = json({ error: "Something went wrong. Try again." }, 500);

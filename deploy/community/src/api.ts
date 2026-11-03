@@ -6,17 +6,21 @@
 import { Env } from "./env";
 import { User } from "./auth";
 import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
+import { requirePostingCheck } from "./check";
+import { broadcast } from "./live";
+import { notBannedIn } from "./members";
+import { notify, notifyStatement } from "./notify";
 import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str, topSince } from "./util";
 
 type Row = Record<string, any>;
 
-function requireUser(user: User | null): User {
+export function requireUser(user: User | null): User {
   if (!user) throw new HttpError(401, "Sign in to do this.");
   return user;
 }
 
 /** A signed-in user allowed to write. */
-function writer(user: User | null): User {
+export function writer(user: User | null): User {
   const u = requireUser(user);
   if (u.banned_until && u.banned_until > now()) {
     const until = u.banned_until > 4_000_000_000 ? "permanently" : `until ${new Date(u.banned_until * 1000).toISOString().slice(0, 10)}`;
@@ -25,7 +29,7 @@ function writer(user: User | null): User {
   return u;
 }
 
-async function isMod(env: Env, user: User | null, communityId: string): Promise<boolean> {
+export async function isMod(env: Env, user: User | null, communityId: string): Promise<boolean> {
   if (!user) return false;
   if (user.role === "admin") return true;
   return !!(await env.DB.prepare("SELECT 1 FROM moderators WHERE community_id = ? AND user_id = ?").bind(communityId, user.id).first());
@@ -59,7 +63,7 @@ function communityOut(row: Row, followed: boolean, mod: boolean) {
 }
 
 /** The community row; a ticker community is a virtual one until its first post or follower. */
-async function findCommunity(env: Env, id: string): Promise<Row> {
+export async function findCommunity(env: Env, id: string): Promise<Row> {
   const parsed = parseCommunityId(id);
   if (!parsed) throw new HttpError(404, "No such community.");
   const cid = parsed.kind === "ticker" ? `t:${parsed.key}` : `c:${parsed.key}`;
@@ -101,7 +105,7 @@ async function tickerKnown(env: Env, ticker: string): Promise<boolean> {
   return known;
 }
 
-async function ensureCommunity(env: Env, id: string): Promise<Row> {
+export async function ensureCommunity(env: Env, id: string): Promise<Row> {
   const row = await findCommunity(env, id);
   if (row.virtual) {
     const ticker = row.id.slice(2);
@@ -257,6 +261,8 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   const content = str(body?.body).trim();
   if (content.length > LIMITS.bodyMax) throw new HttpError(400, `The text is longer than ${LIMITS.bodyMax} characters.`);
   const community = await ensureCommunity(env, id);
+  await notBannedIn(env, u, community.id);
+  requirePostingCheck(env, u);
   const ageDays = (now() - u.created_at) / 86_400;
   if (ageDays < community.min_account_days && !(await isMod(env, u, community.id))) {
     throw new HttpError(403, `Posting in ${community.title} needs an account at least ${community.min_account_days} days old.`);
@@ -375,16 +381,20 @@ export async function deletePost(env: Env, user: User | null, id: string): Promi
 // ── Comments ────────────────────────────────────────────────────────────
 
 /** POST /posts/:id/comments {body, parent_id?} */
-export async function createComment(env: Env, user: User | null, request: Request, postId: string, body: any): Promise<Response> {
+export async function createComment(env: Env, user: User | null, request: Request, postId: string, body: any, ctx?: ExecutionContext): Promise<Response> {
   const u = writer(user);
   const post = await postRow(env, u, postId);
   if (post.deleted || post.removed) throw new HttpError(403, "This post no longer takes comments.");
   if (post.locked && !(await isMod(env, u, post.community_id))) throw new HttpError(403, "This post is locked: no new comments.");
+  await notBannedIn(env, u, post.community_id);
+  requirePostingCheck(env, u);
   const content = text(body?.body, "The comment", 1, LIMITS.commentMax);
   const parentId = str(body?.parent_id) || null;
+  let parentAuthor: string | null = null;
   if (parentId) {
-    const parent = await env.DB.prepare("SELECT post_id FROM comments WHERE id = ?").bind(parentId).first<{ post_id: string }>();
+    const parent = await env.DB.prepare("SELECT post_id, author_id FROM comments WHERE id = ?").bind(parentId).first<{ post_id: string; author_id: string | null }>();
     if (!parent || parent.post_id !== postId) throw new HttpError(400, "The comment you reply to isn't in this post.");
+    parentAuthor = parent.author_id;
   }
   const sender = await senderHash(request);
   await rateLimit(env, u, "comments", sender);
@@ -395,6 +405,12 @@ export async function createComment(env: Env, user: User | null, request: Reques
     env.DB.prepare("UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?").bind(postId),
   ]);
   const row = await env.DB.prepare("SELECT c.*, ? AS author_name, 1 AS my_vote FROM comments c WHERE c.id = ?").bind(u.name, id).first<Row>();
+  // The person replied to hears of it; the post's readers see it come in.
+  const to = parentId ? parentAuthor : post.author_id;
+  if (to && to !== u.id) await notify(env, to, { kind: "reply", postId, commentId: id, actor: u.name, text: content.slice(0, 200) });
+  const live = broadcast(env, postId, { type: "comment", comment: commentOut(row!, null, false) });
+  if (ctx) ctx.waitUntil(live);
+  else await live;
   return json({ comment: commentOut(row!, u, false) }, 201);
 }
 
@@ -433,6 +449,7 @@ export async function vote(env: Env, user: User | null, type: "post" | "comment"
   const table = type === "post" ? "posts" : "comments";
   const target = await env.DB.prepare(`SELECT id, created_at, deleted, removed FROM ${table} WHERE id = ?`).bind(id).first<Row>();
   if (!target) throw new HttpError(404, `This ${type} doesn't exist.`);
+  await notBannedIn(env, u, await targetCommunity(env, type, id));
   if (target.deleted || target.removed) throw new HttpError(403, `This ${type} can't be voted on.`);
   const old = (await env.DB.prepare("SELECT value FROM votes WHERE user_id = ? AND target_type = ? AND target_id = ?").bind(u.id, type, id).first<{ value: number }>())?.value ?? 0;
   const delta = value - old;
@@ -550,9 +567,15 @@ export async function modAction(env: Env, user: User | null, body: any): Promise
     } else if (action === "unban") {
       stmt = env.DB.prepare("UPDATE users SET banned_until = NULL, ban_reason = NULL WHERE id = ?").bind(target.id);
     } else throw new HttpError(400, "Unknown action.");
+    const days = Math.max(0, Number(body?.days) || 0);
+    const notice = notifyStatement(env, target.id, {
+      kind: "banned",
+      text: action === "ban" ? `Your account is banned ${days ? `for ${days} day${days === 1 ? "" : "s"}` : "permanently"}. Reason: ${reason}` : "Your account's ban was lifted.",
+    });
     await env.DB.batch([
       stmt,
       env.DB.prepare("INSERT INTO mod_actions (id, moderator_id, action, target_type, target_id, reason, created_at) VALUES (?, ?, ?, 'user', ?, ?, ?)").bind(newId(), u.id, action, target.id, reason, at),
+      ...(notice ? [notice] : []),
     ]);
     return json({ ok: true });
   }
@@ -565,10 +588,19 @@ export async function modAction(env: Env, user: User | null, body: any): Promise
   const settle = (status: string) =>
     env.DB.prepare("UPDATE reports SET status = ?, resolved_by = ?, resolved_at = ? WHERE status = 'open' AND target_type = ? AND target_id = ?").bind(status, u.id, at, type, targetId);
   switch (action) {
-    case "remove":
+    case "remove": {
       stmts.push(env.DB.prepare(`UPDATE ${table} SET removed = 1, removed_reason = ? WHERE id = ?`).bind(reason, targetId), settle("actioned"));
+      const authored = await env.DB.prepare(`SELECT author_id${type === "comment" ? ", post_id" : ""} FROM ${table} WHERE id = ?`).bind(targetId).first<Row>();
+      const notice = notifyStatement(env, authored?.author_id, {
+        kind: "removed",
+        postId: type === "post" ? targetId : authored?.post_id,
+        commentId: type === "comment" ? targetId : null,
+        text: `Your ${type} was removed by the moderators. Reason: ${reason}`,
+      });
+      if (notice) stmts.push(notice);
       if (type === "post") stmts.push(env.DB.prepare("UPDATE communities SET post_count = MAX(post_count - 1, 0) WHERE id = ? AND (SELECT removed FROM posts WHERE id = ?) = 0").bind(community, targetId));
       break;
+    }
     case "restore":
       if (type === "post") stmts.push(env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ? AND (SELECT removed FROM posts WHERE id = ?) = 1").bind(community, targetId));
       stmts.push(env.DB.prepare(`UPDATE ${table} SET removed = 0, removed_reason = NULL WHERE id = ?`).bind(targetId), settle("actioned"));
@@ -617,7 +649,7 @@ export async function me(env: Env, user: User | null): Promise<Response> {
     .bind(u.id)
     .all<Row>();
   return json({
-    user: { name: u.name, role: u.role, created_at: u.created_at, banned_until: u.banned_until, ban_reason: u.ban_reason },
+    user: { name: u.name, role: u.role, created_at: u.created_at, banned_until: u.banned_until, ban_reason: u.ban_reason, post_checked: !!u.post_checked },
     moderates: u.role === "admin" ? "all" : await moderated(env, u),
     follows,
   });

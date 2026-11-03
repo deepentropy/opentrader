@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database;
   /** The website (build of src/community-site); absent in a local run without it. */
   ASSETS?: Fetcher;
+  /** Live comments: one room per post (live.ts). */
+  ROOMS?: DurableObjectNamespace;
   /** Pictures of the charts shared in posts. */
   IMAGES?: R2Bucket;
   /** This Worker's public address, without a trailing slash (OAuth callbacks). */

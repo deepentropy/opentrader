@@ -102,7 +102,7 @@ export function redirectAllowed(env: Env, redirect: string): boolean {
 const STATE_RE = /^[A-Za-z0-9_-]{32,128}$/;
 const CHALLENGE_RE = /^[A-Za-z0-9_-]{43}$/;
 
-function page(title: string, body: string, status = 200, head = ""): Response {
+export function page(title: string, body: string, status = 200, head = ""): Response {
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title>
 <style>body{font:15px system-ui,sans-serif;background:#131722;color:#d1d4dc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
 main{max-width:420px;padding:32px;background:#1e222d;border-radius:8px}h1{font-size:20px;margin:0 0 12px}input{font:inherit;padding:8px;width:100%;box-sizing:border-box;margin:8px 0 12px;background:#131722;color:inherit;border:1px solid #434651;border-radius:4px}
@@ -142,25 +142,22 @@ export async function start(env: Env, url: URL): Promise<Response> {
   return toProvider(env, provider, state);
 }
 
-/** The bot check page: Turnstile, then POST /auth/verify. */
-function botCheck(env: Env, state: string): Response {
+/** A Turnstile check page that posts `hidden` to `action` once passed. */
+export function turnstilePage(env: Env, action: string, hidden: Record<string, string>, title: string, text: string): Response {
+  const fields = Object.entries(hidden).map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`).join("");
   return page(
-    "Signing in…",
-    `<p>A quick check that you're not a robot, then the sign-in continues.</p>
-<form id="f" method="post" action="/auth/verify"><input type="hidden" name="state" value="${escapeHtml(state)}">
-<div class="cf-turnstile" data-sitekey="${escapeHtml(env.TURNSTILE_SITE_KEY!)}" data-callback="passed" data-theme="dark"></div></form>
+    title,
+    `<p>${escapeHtml(text)}</p>
+<form id="f" method="post" action="${escapeHtml(action)}">${fields}
+<div class="cf-turnstile" data-sitekey="${escapeHtml(env.TURNSTILE_SITE_KEY ?? "")}" data-callback="passed" data-theme="dark"></div></form>
 <script>function passed(){document.getElementById("f").submit()}</script>`,
     200,
     '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>',
   );
 }
 
-/** POST /auth/verify (form: state, cf-turnstile-response) */
-export async function verify(env: Env, request: Request): Promise<Response> {
-  const form = await request.formData();
-  const state = String(form.get("state") ?? "");
-  const login = await pendingLogin(env, state);
-  if (!login) return page("Sign-in failed", "<p>This sign-in has expired. Start again from OpenTrader.</p>", 400);
+/** The Turnstile answer a check page posted is valid. */
+export async function turnstilePassed(env: Env, request: Request, form: FormData): Promise<boolean> {
   const check = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
     method: "POST",
     body: new URLSearchParams({
@@ -169,7 +166,21 @@ export async function verify(env: Env, request: Request): Promise<Response> {
       remoteip: request.headers.get("CF-Connecting-IP") ?? "",
     }),
   }).then((r) => r.json() as Promise<{ success?: boolean }>, () => ({ success: false }));
-  if (!check.success) return page("Sign-in failed", "<p>The check did not pass. Start again from OpenTrader.</p>", 403);
+  return !!check.success;
+}
+
+/** The bot check page of a sign-in. */
+function botCheck(env: Env, state: string): Response {
+  return turnstilePage(env, "/auth/verify", { state }, "Signing in…", "A quick check that you're not a robot, then the sign-in continues.");
+}
+
+/** POST /auth/verify (form: state, cf-turnstile-response) */
+export async function verify(env: Env, request: Request): Promise<Response> {
+  const form = await request.formData();
+  const state = String(form.get("state") ?? "");
+  const login = await pendingLogin(env, state);
+  if (!login) return page("Sign-in failed", "<p>This sign-in has expired. Start again from OpenTrader.</p>", 400);
+  if (!(await turnstilePassed(env, request, form))) return page("Sign-in failed", "<p>The check did not pass. Start again from OpenTrader.</p>", 403);
   await env.DB.prepare("UPDATE logins SET verified = 1 WHERE state = ?").bind(state).run();
   // 303: the browser follows with a GET.
   const next = await toProvider(env, login.provider, state);
@@ -298,7 +309,17 @@ export async function token(env: Env, body: any): Promise<Response> {
   return json({ token: tok });
 }
 
-export type User = { id: string; name: string; role: string; created_at: number; banned_until: number | null; ban_reason: string | null; token_hash: string };
+export type User = {
+  id: string;
+  name: string;
+  role: string;
+  created_at: number;
+  banned_until: number | null;
+  ban_reason: string | null;
+  /** Passed the bot check before posting (#219). */
+  post_checked: number;
+  token_hash: string;
+};
 
 /** The signed-in user (Authorization: Bearer <token>), or null. */
 export async function currentUser(env: Env, request: Request): Promise<User | null> {
@@ -307,7 +328,7 @@ export async function currentUser(env: Env, request: Request): Promise<User | nu
   if (!m) return null;
   const hash = await sha256Hex(m[1]);
   const row = await env.DB.prepare(
-    `SELECT u.id, u.name, u.role, u.created_at, u.banned_until, u.ban_reason, s.expires_at, s.token_hash
+    `SELECT u.id, u.name, u.role, u.created_at, u.banned_until, u.ban_reason, u.post_checked, s.expires_at, s.token_hash
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
   )
     .bind(hash)

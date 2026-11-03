@@ -7,6 +7,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Icon } from "../../../components/Icon";
 import { renderMarkdown } from "../../../data/community/markdown";
 import { chartBridge } from "../../../data/community/chart-share";
+import { cancelCheck, checkError, openCheck, pending as checkPending, waiting as checkWaiting } from "../../../data/community/posting-check";
 import { api, CommunityError, type ReportReason } from "../../../data/community/api";
 import { me, signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
 
@@ -256,6 +257,64 @@ export function SignInBox(props: { providers: string[] | null; error: string | n
         </Show>
       </Show>
       <ErrorBanner text={props.error} />
+    </div>
+  );
+}
+
+/** The bot check before a first post (#219): shown while a post waits for it. */
+export function PostingCheckPrompt() {
+  return (
+    <Show when={checkPending()}>
+      <div class="cm-check" role="alert">
+        <div class="cm-form-title">One quick check before your first post</div>
+        <p class="cm-muted">Confirm in your browser that you're not a robot. Your post is sent as soon as it's done.</p>
+        <Show when={checkWaiting()} fallback={<button type="button" class="cm-btn is-primary is-small" onClick={() => void openCheck()}>Open the check</button>}>
+          <p class="cm-muted">Waiting for the check in your browser…</p>
+        </Show>
+        <ErrorBanner text={checkError()} />
+        <div class="cm-form-actions">
+          <button type="button" class="cm-btn is-small" onClick={cancelCheck}>Cancel</button>
+        </div>
+      </div>
+    </Show>
+  );
+}
+
+const BAN_DAYS = [
+  { days: 1, label: "1 day" },
+  { days: 7, label: "7 days" },
+  { days: 30, label: "30 days" },
+  { days: 0, label: "Permanently" },
+];
+
+/** A moderator bans a member from the community (#209). */
+export function BanForm(props: { name: string; communityTitle: string; onSubmit: (days: number, reason: string) => Promise<void>; onCancel: () => void }) {
+  const [days, setDays] = createSignal(7);
+  const [reason, setReason] = createSignal("");
+  const [error, setError] = createSignal<string | null>(null);
+  const [busy, setBusy] = createSignal(false);
+  const submit = async () => {
+    if (!reason().trim()) return setError("Give a reason: it is shown to the member.");
+    setBusy(true);
+    try {
+      await props.onSubmit(days(), reason().trim());
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="cm-form" onClick={(e) => e.stopPropagation()}>
+      <div class="cm-form-title">Ban {props.name} from {props.communityTitle}</div>
+      <select class="cm-input" value={String(days())} onChange={(e) => setDays(Number(e.currentTarget.value))}>
+        <For each={BAN_DAYS}>{(d) => <option value={String(d.days)}>{d.label}</option>}</For>
+      </select>
+      <input class="cm-input" placeholder="Reason, shown to the member" maxLength={500} value={reason()} onInput={(e) => setReason(e.currentTarget.value)} />
+      <ErrorBanner text={error()} />
+      <div class="cm-form-actions">
+        <button type="button" class="cm-btn" onClick={() => props.onCancel()}>Cancel</button>
+        <button type="button" class="cm-btn is-danger" disabled={busy()} onClick={submit}>Ban</button>
+      </div>
     </div>
   );
 }

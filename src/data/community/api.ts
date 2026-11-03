@@ -72,7 +72,7 @@ export type Comment = {
 };
 
 export type Me = {
-  user: { name: string; role: string; created_at: number; banned_until: number | null; ban_reason: string | null };
+  user: { name: string; role: string; created_at: number; banned_until: number | null; ban_reason: string | null; post_checked: boolean };
   moderates: string[] | "all";
   follows: CommunityRef[];
 };
@@ -97,10 +97,29 @@ export type QueueItem = {
 };
 
 export class CommunityError extends Error {
-  constructor(public status: number, message: string) {
+  /** `data`: the error answer's other fields (`check: true`: the bot check is needed first). */
+  constructor(public status: number, message: string, public data: Record<string, unknown> = {}) {
     super(message);
   }
 }
+
+/** A notification: a reply, a moderation decision, a proposal's answer. */
+export type Notice = {
+  id: string;
+  kind: "reply" | "removed" | "banned" | "proposal";
+  post_id: string | null;
+  comment_id: string | null;
+  actor: string | null;
+  text: string;
+  created_at: number;
+  read_at: number | null;
+  post_title: string | null;
+};
+
+/** A line of a community's public moderation log. */
+export type LogEntry = { action: string; target_type: string; reason: string; created_at: number; post_id: string | null; post_title: string | null };
+export type CommunityBan = { name: string; until: number; reason: string; created_at: number };
+export type Proposal = { id: string; slug: string; title: string; description: string; created_at: number; proposer: string | null };
 
 let token: string | null = null;
 /** Set by the session (./session.ts). */
@@ -126,7 +145,7 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && token) onUnauthorized();
-    throw new CommunityError(res.status, (data as { error?: string }).error ?? `Error ${res.status}`);
+    throw new CommunityError(res.status, (data as { error?: string }).error ?? `Error ${res.status}`, data as Record<string, unknown>);
   }
   return data as T;
 }
@@ -178,6 +197,19 @@ export const api = {
   appeal: (type: "post" | "comment", id: string, details: string) => request<{ ok: true }>("POST", "/appeals", { target_type: type, target_id: id, details }),
   contact: (kind: ContactKind, email: string, url: string, body: string) => request<{ ok: true }>("POST", "/contact", { kind, email, url, body }),
   queue: () => request<{ items: QueueItem[] }>("GET", "/mod/queue"),
+  checkStart: () => request<{ url: string }>("POST", "/check/start"),
+  unread: () => request<{ unread: number }>("GET", "/me/unread"),
+  notifications: () => request<{ notifications: Notice[] }>("GET", "/me/notifications"),
+  markRead: () => request<{ ok: true }>("POST", "/me/notifications/read"),
+  moderators: (id: string) => request<{ moderators: string[] }>("GET", `/communities/${enc(id)}/moderators`),
+  communityLog: (id: string) => request<{ actions: LogEntry[] }>("GET", `/communities/${enc(id)}/log`),
+  bans: (id: string) => request<{ bans: CommunityBan[] }>("GET", `/communities/${enc(id)}/bans`),
+  communityBan: (id: string, name: string, ban: boolean, days = 0, reason = "") =>
+    request<{ ok: true }>("POST", "/mod/community-ban", { community_id: id, name, ban, days, reason }),
+  setModerator: (id: string, name: string, add: boolean) => request<{ ok: true }>("POST", "/mod/moderators", { community_id: id, name, add }),
+  propose: (slug: string, title: string, description: string) => request<{ ok: true }>("POST", "/proposals", { slug, title, description }),
+  proposals: () => request<{ proposals: Proposal[] }>("GET", "/mod/proposals"),
+  decideProposal: (id: string, approve: boolean, reason = "") => request<{ ok: true }>("POST", `/mod/proposals/${enc(id)}`, { approve, reason }),
   messages: () => request<{ messages: ContactMessage[] }>("GET", "/mod/messages"),
   messageDone: (id: string) => request<{ ok: true }>("POST", `/mod/messages/${enc(id)}/done`),
   modAction: (action: string, type: "post" | "comment" | "user", id: string, reason = "", days?: number) =>

@@ -2,7 +2,7 @@
  * One post and its threaded comments: votes, replies, edits, deletion,
  * reports, and the moderators' remove / restore / lock.
  */
-import { For, Show, createMemo, createResource, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
@@ -10,9 +10,11 @@ import { showConfirm } from "../../../components/Dialogs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, imageUrl, type Comment, type Post, type SharedChart } from "../../../data/community/api";
 import { chartBridge } from "../../../data/community/chart-share";
+import { withPostingCheck } from "../../../data/community/posting-check";
+import { COMMUNITY_URL } from "../../../data/community/api";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
 import { me } from "../../../data/community/session";
-import { Age, Author, ErrorBanner, ExternalLink, MarkdownBody, ReasonForm, ReportForm, Vote, errorText } from "./parts";
+import { Age, Author, BanForm, ErrorBanner, ExternalLink, MarkdownBody, ReasonForm, ReportForm, Vote, errorText } from "./parts";
 
 /** Deeper replies are drawn at this depth (the panel is narrow). */
 const MAX_INDENT = 6;
@@ -27,7 +29,7 @@ type Props = {
 };
 
 /** Inline form under a post or comment: reply, edit, report, remove. */
-type Open = { id: string; kind: "reply" | "edit" | "report" | "remove" | "appeal" } | null;
+type Open = { id: string; kind: "reply" | "edit" | "report" | "remove" | "appeal" | "ban" } | null;
 
 /** The author asks the moderators to look again at a removal. */
 function AppealForm(props: { type: "post" | "comment"; id: string; onDone: () => void }) {
@@ -104,6 +106,42 @@ export function PostView(props: Props) {
   const [draft, setDraft] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
+  // Live comments (#208): the post's room passes on each new comment; a lost
+  // connection comes back after a pause (not while the panel shows nothing).
+  let socket: WebSocket | null = null;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+  let closed = false;
+  const connect = (postId: string, delay = 2000) => {
+    socket?.close();
+    try {
+      socket = new WebSocket(`${COMMUNITY_URL.replace(/^http/, "ws") || (location.protocol === "https:" ? "wss://" : "ws://") + location.host}/posts/${encodeURIComponent(postId)}/live`);
+    } catch {
+      return;
+    }
+    socket.onmessage = (e) => {
+      let m: { type?: string; comment?: Comment };
+      try {
+        m = JSON.parse(String(e.data));
+      } catch {
+        return;
+      }
+      const c = m.comment;
+      if (m.type !== "comment" || !c || comments.list.some((x) => x.id === c.id)) return;
+      setComments("list", (l) => [...l, c]);
+      setPost("p", produce((x) => { if (x) x.comment_count += 1; }));
+    };
+    socket.onclose = () => {
+      if (closed) return;
+      retry = setTimeout(() => connect(postId, Math.min(delay * 2, 60_000)), delay);
+    };
+  };
+  createEffect(on(() => props.postId, (id) => connect(id)));
+  onCleanup(() => {
+    closed = true;
+    if (retry) clearTimeout(retry);
+    socket?.close();
+  });
+
   // The fetched post feeds the stores the view edits in place.
   createMemo(() => {
     const d = data();
@@ -135,8 +173,9 @@ export function PostView(props: Props) {
     if (!p || !draft().trim()) return;
     setBusy(true);
     try {
-      const { comment } = await api.comment(p.id, draft(), parentId);
-      setComments("list", (l) => [...l, comment]);
+      const { comment } = await withPostingCheck(() => api.comment(p.id, draft(), parentId));
+      // The live room may have brought it first.
+      setComments("list", (l) => (l.some((x) => x.id === comment.id) ? l : [...l, comment]));
       setPost("p", "comment_count", (n) => n + 1);
       setDraft("");
       setOpen(null);
@@ -188,6 +227,13 @@ export function PostView(props: Props) {
         }
       },
     });
+
+  /** A moderator bans the author from this community (#209). */
+  const banAuthor = async (name: string, days: number, reason: string) => {
+    await api.communityBan(post.p!.community.id, name, true, days, reason);
+    setOpen(null);
+    setError(null);
+  };
 
   const moderate = async (action: string, type: "post" | "comment", id: string, reason = "") => {
     await api.modAction(action, type, id, reason);
@@ -255,6 +301,9 @@ export function PostView(props: Props) {
               <Show when={c().removed} fallback={<button type="button" class="cm-action is-mod" onClick={() => toggle(c().id, "remove")}>Remove</button>}>
                 <button type="button" class="cm-action is-mod" onClick={() => moderate("restore", "comment", c().id).catch((e) => setError(errorText(e)))}>Restore</button>
               </Show>
+              <Show when={c().author && !c().own}>
+                <button type="button" class="cm-action is-mod" onClick={() => toggle(c().id, "ban")}>Ban</button>
+              </Show>
             </Show>
           </div>
           <Show when={is("reply")}><Editor placeholder="Write a reply" action="Reply" onSubmit={() => sendComment(c().id)} /></Show>
@@ -262,6 +311,9 @@ export function PostView(props: Props) {
           <Show when={is("report")}><ReportForm type="comment" id={c().id} onDone={(sent) => { setOpen(null); if (sent) setError(null); }} /></Show>
           <Show when={is("remove")}>
             <ReasonForm title="Remove this comment" action="Remove" danger onCancel={() => setOpen(null)} onSubmit={(r) => moderate("remove", "comment", c().id, r)} />
+          </Show>
+          <Show when={is("ban") && post.p}>
+            <BanForm name={c().author!} communityTitle={post.p!.community.title} onCancel={() => setOpen(null)} onSubmit={(days, r) => banAuthor(c().author!, days, r)} />
           </Show>
           <For each={kids()}>{(k) => <CommentNode c={k} depth={cp.depth + 1} />}</For>
         </Show>
@@ -333,12 +385,18 @@ export function PostView(props: Props) {
                       <button type="button" class="cm-action is-mod" onClick={() => moderate(p().locked ? "unlock" : "lock", "post", p().id).catch((e) => setError(errorText(e)))}>
                         {p().locked ? "Unlock" : "Lock"}
                       </button>
+                      <Show when={p().author && !p().own}>
+                        <button type="button" class="cm-action is-mod" onClick={() => toggle("post", "ban")}>Ban</button>
+                      </Show>
                     </Show>
                   </div>
                   <Show when={isPost("edit")}><Editor placeholder="Text" action="Save" onSubmit={() => saveEdit("post")} /></Show>
                   <Show when={isPost("report")}><ReportForm type="post" id={p().id} onDone={() => setOpen(null)} /></Show>
                   <Show when={isPost("remove")}>
                     <ReasonForm title="Remove this post" action="Remove" danger onCancel={() => setOpen(null)} onSubmit={(r) => moderate("remove", "post", p().id, r)} />
+                  </Show>
+                  <Show when={isPost("ban")}>
+                    <BanForm name={p().author!} communityTitle={p().community.title} onCancel={() => setOpen(null)} onSubmit={(days, r) => banAuthor(p().author!, days, r)} />
                   </Show>
                   <Show when={!p().deleted && !p().removed}>
                     <Show when={!p().locked} fallback={<div class="cm-muted cm-locked">Locked: no new comments.</div>}>

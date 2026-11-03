@@ -4,7 +4,8 @@
  */
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  /** `extra`: more fields of the error answer (e.g. `check: true`). */
+  constructor(public status: number, message: string, public extra: Record<string, unknown> = {}) {
     super(message);
   }
 }

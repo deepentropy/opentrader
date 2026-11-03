@@ -29,6 +29,9 @@
     }
   ],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
+  // Live comments: one room per post (src/live.ts).
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "PostRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PostRoom"] }],
   // Bursts per connection (#210): sign-ins, and writes.
   "ratelimits": [
     { "name": "AUTH_LIMITER", "namespace_id": "2101", "simple": { "limit": 20, "period": 60 } },
@@ -70,6 +73,7 @@
         { "name": "WRITE_LIMITER", "namespace_id": "2102", "simple": { "limit": 30, "period": 60 } }
       ],
       "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
+      "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "PostRoom" }] },
       "d1_databases": [
         {
           "binding": "DB",

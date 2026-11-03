@@ -16,6 +16,7 @@ import { WatchlistDetail } from "./WatchlistDetail";
 import { ObjectTreePanel } from "./ObjectTreePanel";
 import { AlertsPanel } from "./AlertsPanel";
 import { CommunityPanel } from "./community/CommunityPanel";
+import { CommunityNotifier } from "./community/CommunityNotifier";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
@@ -221,6 +222,9 @@ export function RightRail(props: Props) {
         </Switch>
       </Show>
       <RightRailTabs active={props.activeTab} setActive={props.setActiveTab} pressed={props.pressedTab} />
+      <Show when={COMMUNITY_ENABLED}>
+        <CommunityNotifier openPanel={() => props.activeTab !== "community" && props.setActiveTab("community")} />
+      </Show>
     </div>
   );
 }
