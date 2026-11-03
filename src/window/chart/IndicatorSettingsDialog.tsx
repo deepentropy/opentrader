@@ -37,6 +37,9 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import * as kv from "../../data/kv";
 import { OutputRows } from "./StyleOutputRows";
+import { matchInputs, parseSettingsFile, settingsFile, settingsFileName } from "../../data/study-settings-file";
+import { downloadText } from "../screener/screener-csv";
+import { showNotice } from "../../components/Dialogs";
 import type { StyleItem } from "./indicators/style-outputs";
 import type { PlotStyleOverride } from "./indicators/indicator-layer";
 
@@ -487,8 +490,8 @@ export function IndicatorSettingsDialog(props: Props) {
       </For>
     </>
   );
-  // "Defaults" menu: Reset settings /
-  // Save as default. Opens upward from the footer button.
+  // "Defaults" menu: Reset settings / Save as default (the reference app), then Export settings… / Import settings…
+  // (a JSON file, ../../data/study-settings-file). Opens upward from the footer button.
   const [defaultsOpen, setDefaultsOpen] = createSignal(false);
   let defaultsBtn: HTMLButtonElement | undefined;
   let defaultsMenu: HTMLDivElement | undefined;
@@ -501,6 +504,49 @@ export function IndicatorSettingsDialog(props: Props) {
     window.addEventListener("mousedown", onDown, true);
     onCleanup(() => window.removeEventListener("mousedown", onDown, true));
   });
+  /** The dialog's values as a settings file (strategy properties in full). */
+  const exportSettings = () => {
+    const file = settingsFile(props.title, current(), props.strategy ? ({ ...propDraft } as StrategyProperties) : undefined);
+    downloadText(settingsFileName(props.title), JSON.stringify(file, null, 2));
+  };
+  let importInput: HTMLInputElement | undefined;
+  // Read here, in the dialog's scope: read from the file input's handler (no owner) or after the file's await, some
+  // of these props build computations no owner disposes, which then read the closed dialog.
+  const importCtx = { inputConfig: props.inputConfig, strategy: props.strategy, profile: props.profile, tpo: props.tpo, title: props.title };
+  /** Fill the dialog from a settings file: the inputs the script still has, the outputs it still draws, the options;
+   *  Ok applies them. */
+  const importSettings = async (fileObj: File) => {
+    const { inputConfig, strategy, profile, tpo, title } = importCtx;
+    let file;
+    try {
+      file = parseSettingsFile(await fileObj.text());
+    } catch (e) {
+      showNotice({ title: "Import settings", text: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    const { inputs, skipped } = matchInputs(inputConfig as { id: string; title?: string; defval: unknown }[], file.inputs);
+    setInputDraft(inputs);
+    const style = file.inputs[STYLE_INPUT];
+    if (strategy) {
+      if (file.properties) {
+        const known = Object.keys(strategy.defaults);
+        setPropDraft(Object.fromEntries(Object.entries(file.properties).filter(([k]) => known.includes(k))) as Partial<StrategyProperties>);
+      }
+      if (style && typeof style === "object") setStratStyle({ ...DEFAULT_STRATEGY_STYLE, ...(style as Partial<StrategyStyle>) });
+    }
+    if (profile && style) setVbpDraft(vbpStyleOf(file.inputs, profile.placement));
+    if (tpo && style) setTpoDraft(tpoStyleOf(file.inputs));
+    for (const [key, ov] of Object.entries(file.styles ?? {})) {
+      if (!ov || typeof ov !== "object") continue;
+      if (key in styleDraft) setStyleDraft(key, (row) => ({ ...row, ...(ov as Partial<StyleRow>) }));
+      else if (key in outDraft) setOutDraft(key, JSON.parse(JSON.stringify(ov)) as PlotStyleOverride);
+    }
+    if (file.options && typeof file.options === "object") setOptDraft(cloneIndicatorOptions({ ...cloneIndicatorOptions(optDraft), ...(file.options as IndicatorOptions) }));
+    const notes: string[] = [];
+    if (file.study && file.study !== title) notes.push(`The file holds the settings of "${file.study}".`);
+    if (skipped.length) notes.push(`Not imported (not in this script, or of another type): ${skipped.join(", ")}.`);
+    if (notes.length) showNotice({ title: "Import settings", text: `${notes.join(" ")} Click Ok to apply the other settings.` });
+  };
   const reset = () => {
     const inputs: Record<string, unknown> = {};
     for (const cfg of props.inputConfig) inputs[cfg.id] = cfg.defval;
@@ -1134,8 +1180,26 @@ export function IndicatorSettingsDialog(props: Props) {
                     <span class="cp3-menu-title">Save as default</span>
                   </div>
                 </Show>
+                <div class="settings-popup-sep" role="separator" />
+                <div role="menuitem" class="cp3-menu-item" onClick={() => { exportSettings(); setDefaultsOpen(false); }}>
+                  <span class="cp3-menu-title">Export settings…</span>
+                </div>
+                <div role="menuitem" class="cp3-menu-item" onClick={() => { importInput?.click(); setDefaultsOpen(false); }}>
+                  <span class="cp3-menu-title">Import settings…</span>
+                </div>
               </div>
             </Show>
+            <input
+              ref={importInput}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.currentTarget.files?.[0];
+                if (f) void importSettings(f);
+                e.currentTarget.value = "";
+              }}
+            />
           </div>
           <div class="cp3-footer-actions">
             <button type="button" class="cp3-btn" onClick={() => cancel()}>Cancel</button>
