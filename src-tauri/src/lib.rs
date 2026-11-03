@@ -3,6 +3,7 @@ mod alerts;
 mod app_update;
 mod commands;
 mod community;
+mod deep_link;
 mod host;
 mod network;
 mod window_session;
@@ -90,6 +91,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             agent::agent_server_new_token,
             agent::agent_reply,
             agent::agent_ready,
+            deep_link::deep_link_take,
         ])
         .events(collect_events![
             data::types::ChartAggregate,
@@ -99,6 +101,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             screener::ScreenerUpdate,
             alerts::AlertFired,
             alerts::AlertLeader,
+            deep_link::DeepLinkOpened,
             app_update::AppUpdateStatus,
             app_update::AppUpdateBeforeInstall,
             agent::AgentRequest,
@@ -134,7 +137,8 @@ pub fn run() {
         )
         .expect("Failed to export typescript bindings");
 
-    tauri::Builder::default()
+    // One app at a time, and `opentrader://` links (deep_link): the single-instance plugin comes first.
+    deep_link::plugins(tauri::Builder::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -195,6 +199,8 @@ pub fn run() {
             // Restore the saved windows (main's bounds, then the others) and
             // show them; the config creates main hidden for this.
             window_session::init(app.handle());
+            // `opentrader://` links: the ones the app started with wait for main's page.
+            deep_link::init(app.handle());
             alerts::init(app.handle());
             // Spawn the provider's live-data task and expose its subscription
             // handle (`WsHandle`, an mpsc of `SubscribeMsg`) in app state — the

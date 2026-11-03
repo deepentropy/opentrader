@@ -72,6 +72,18 @@ export function PostPage(props: { id: string }) {
   const [picking, setPicking] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [sort, setSort] = createSignal<"useful" | "oldest">("useful");
+  // "Open in OpenTrader" (#233): the browser hands opentrader:// to the app; a page that keeps the focus means none answered.
+  const [noApp, setNoApp] = createSignal(false);
+  const openInApp = () => {
+    setNoApp(false);
+    let left = false;
+    const away = () => (left = true);
+    window.addEventListener("blur", away, { once: true });
+    setTimeout(() => {
+      window.removeEventListener("blur", away);
+      if (!left && !document.hidden) setNoApp(true);
+    }, 1800);
+  };
 
   createMemo(() => {
     const d = data();
@@ -465,11 +477,14 @@ export function PostPage(props: { id: string }) {
                     <strong>{ticker()}</strong>
                     <Show when={p().chart}> · {tfLong(p().chart!.interval)}</Show> · Snapshot {dateTime(p().created_at)}
                   </span>
-                  <a href={APP_URL}>
+                  <a href={`opentrader://post/${p().id}`} onClick={openInApp} title="Opens the post and its chart in the OpenTrader app">
                     Open in OpenTrader
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10" /><path d="M7 17 17 7" /></svg>
                   </a>
                 </div>
+                <Show when={noApp()}>
+                  <div class="cs-figure-hint">Nothing opened? The chart opens in the OpenTrader app, free: <a href={APP_URL}>get OpenTrader</a>, then open this link again.</div>
+                </Show>
                 <a class="cs-figure-img" href={imageUrl(p().image_url!)} target="_blank" rel="noopener"><img src={imageUrl(p().image_url!)} alt={`Chart shared with "${p().title}"`} /></a>
               </figure>
             </Show>

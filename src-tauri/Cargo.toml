@@ -42,6 +42,9 @@ tokio = { version = "1.52.3", features = ["full"] }
 base64 = "0.22"
 minisign-verify = "0.2"
 tauri-plugin-updater = "2"
+# `opentrader://` links from the Community website, delivered to the running app (deep_link.rs).
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 # Settings > Coding agents: the local MCP endpoint (agent.rs) and its token.
 axum = "0.8"
 getrandom = "0.3"

@@ -12,7 +12,7 @@ const POLL_MS = 60_000;
 
 const [unread, setUnread] = createSignal(0);
 const [incoming, setIncoming] = createSignal<Notice[]>([]);
-const [openPost, setOpenPost] = createSignal<{ id: string; at: number } | null>(null);
+const [openPost, setOpenPost] = createSignal<{ id: string; at: number; openChart?: boolean } | null>(null);
 /** Unread notifications; new ones since the last look (pop-ups); a post to open in the panel. */
 export { unread, incoming, openPost };
 
@@ -64,7 +64,7 @@ export async function markAllRead(): Promise<void> {
   await api.markRead().catch(() => {});
 }
 
-/** Opens a post in the Community panel (from a pop-up or elsewhere). */
-export function requestOpenPost(id: string): void {
-  setOpenPost({ id, at: Date.now() });
+/** Opens a post in the Community panel (from a pop-up, a link…); `openChart`: its shared chart on the active chart too. */
+export function requestOpenPost(id: string, opts: { openChart?: boolean } = {}): void {
+  setOpenPost({ id, at: Date.now(), openChart: opts.openChart });
 }

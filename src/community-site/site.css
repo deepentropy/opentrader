@@ -603,3 +603,5 @@ select.cs-input { padding-right: 8px; }
   .cs-item-title { font-size: 17px; }
   .cs-post-title { font-size: 24px; }
 }
+/* "Open in OpenTrader" found no app (#233). */
+.cs-figure-hint { padding: 8px 12px; border: 1px solid var(--cs-rule); border-top: 0; background: rgba(41, 98, 255, 0.08); color: var(--cs-dim); font-size: 13px; }

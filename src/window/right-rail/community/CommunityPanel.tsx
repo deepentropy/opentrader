@@ -40,7 +40,7 @@ import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, External
 type Source = string;
 type View =
   | { kind: "list" }
-  | { kind: "post"; id: string }
+  | { kind: "post"; id: string; openChart?: boolean }
   | { kind: "compose" }
   | { kind: "signin" }
   | { kind: "queue" }
@@ -120,7 +120,7 @@ export function CommunityPanel(props: Props) {
     }
   }));
   // A notification's pop-up asked for its post.
-  createEffect(on(openPost, (o) => o && setView({ kind: "post", id: o.id })));
+  createEffect(on(openPost, (o) => o && setView({ kind: "post", id: o.id, openChart: o.openChart })));
 
   const chartCommunity = () => (props.symbol ? tickerCommunityId(tickerOf(props.symbol)) : null);
   /** The single community shown, or null for a feed. */
@@ -590,6 +590,7 @@ export function CommunityPanel(props: Props) {
           {(id) => (
             <PostView
               postId={id()}
+              openChart={(view() as { openChart?: boolean }).openChart}
               onBack={() => setView({ kind: "list" })}
               onOpenCommunity={choose}
               onNeedSignIn={needSignIn}

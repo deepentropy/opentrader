@@ -37,6 +37,8 @@ const MAX_INDENT = 6;
 
 type Props = {
   postId: string;
+  /** Put its shared chart on the active chart once loaded (an "Open in OpenTrader" link). */
+  openChart?: boolean;
   onBack: () => void;
   onOpenCommunity: (id: string) => void;
   onNeedSignIn: () => void;
@@ -68,7 +70,7 @@ function AppealForm(props: { type: "post" | "comment"; id: string; onDone: () =>
 }
 
 /** The chart shared in a post: its picture (opens full size in the browser) and "Open on my chart". */
-function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart | null }) {
+function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart | null; auto?: boolean }) {
   const [done, setDone] = createSignal<string | null>(null);
   const [failed, setFailed] = createSignal<string | null>(null);
   const open = async () => {
@@ -82,6 +84,8 @@ function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart 
       setFailed(errorText(e));
     }
   };
+  // Opened from an "Open in OpenTrader" link: the chart is what was asked for.
+  if (props.auto) queueMicrotask(() => void open());
   const drawings = () => props.chart?.drawings.length ?? 0;
   return (
     <div class="cm-shared-chart">
@@ -426,7 +430,7 @@ export function PostView(props: Props) {
                   <Show when={!p().idea}><div class="cm-meta"><PostState post={p()} /></div></Show>
                   <Show when={p().body}><MarkdownBody text={p().body} class="cm-post-body" /></Show>
                   <Show when={p().image_url || p().chart}>
-                    <SharedChartBlock imagePath={p().image_url} chart={p().chart} />
+                    <SharedChartBlock imagePath={p().image_url} chart={p().chart} auto={props.openChart} />
                   </Show>
                   <Show when={p().source_url}>
                     <div class="cm-muted cm-origin">Imported test content · <ExternalLink href={p().source_url!}>source</ExternalLink></div>
