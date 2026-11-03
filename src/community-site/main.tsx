@@ -84,6 +84,7 @@ function Site() {
         <a href={`${APP_URL}/community-rules.html`}>Rules</a>
         <a href={`${APP_URL}/terms.html`}>Terms</a>
         <a href={`${APP_URL}/privacy.html`}>Privacy</a>
+        <a href={`${APP_URL}/legal.html`}>Legal notice</a>
         <a href="/contact" onClick={(e) => { e.preventDefault(); go("/contact"); }}>Contact and reports</a>
         <span>Posts are members' opinions, not financial advice.</span>
       </footer>
