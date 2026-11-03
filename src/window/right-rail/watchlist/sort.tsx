@@ -3,6 +3,7 @@
  * the tile-view "Sort by" menu, the row comparison (live quote first), and
  * the header state (direction, 5 s arrow / label flash, tooltip glyph).
  */
+import { relativeVolumeOf } from "../../../data/watchlist-metrics";
 import { createEffect, createSignal, onCleanup } from "solid-js";
 import {
   COLUMN_HEADERS,
@@ -34,6 +35,8 @@ const COL_SORT: Record<HeaderCol, SortField> = {
   change_percent: "change",
   volume: "volume",
   rchp: "ext",
+  rvol: "rvol",
+  turnover: "turnover",
 };
 /** Tile-view "Sort by" menu: each field has an ascending and a descending row. */
 export const SORT_MENU_FIELDS: { field: SortField; label: string }[] = [
@@ -66,6 +69,8 @@ export function createSort(cx: WatchlistCx): SortApi {
       case "last": return q?.last ?? numFromStr(r.last);
       case "volume": return q?.volume ?? numFromStr(r.volume);
       case "ext": return q?.extChangePercent ?? numFromStr(r.prePostChange);
+      case "rvol": return relativeVolumeOf(r.ticker) ?? NaN;
+      case "turnover": return q?.last != null && q.volume != null ? q.last * q.volume : NaN;
     }
   };
   const sortRows = (key: Exclude<SortKey, "default">, rows: Row[]): Row[] => {

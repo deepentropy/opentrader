@@ -1,12 +1,14 @@
 /*
  * Watchlist cell values: the live quote overlay on the stored rows (last,
- * change, change %, volume, Ext), the company names, the row label and the
+ * change, change %, volume, Ext, turnover), the relative volume of the
+ * screener's market table, the company names, the row label and the
  * market-status dot.
  */
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import { type Row, type WlColumnKey } from "../../../data/watchlist";
 import { quoteFor as liveQuoteFor, type LiveQuote } from "../../../data/quotes";
 import { getTickerInfo } from "../../../data/datafeed";
+import { relativeVolumeOf, useRelativeVolumes } from "../../../data/watchlist-metrics";
 import { fmtChange, fmtPercent, fmtVolume, formatLast, isNegative, marketState } from "./format";
 import { type WatchlistCx } from "./context";
 
@@ -27,6 +29,11 @@ export function createCells(cx: WatchlistCx): CellsApi {
   // subscription and the trade-tick feed for the app's lifetime. The panel just
   // reads them, so closing/reopening keeps prices and never refetches.
   const quoteFor = (symbol: string): LiveQuote | undefined => liveQuoteFor(symbol);
+  // "Rel Vol": loaded from the screener's market table while the column shows.
+  useRelativeVolumes(
+    () => allRows().map((r) => r.ticker),
+    () => settings().tableView && settings().columns.rvol,
+  );
 
   // (List-alert evaluation runs in the module-level singleton of
   // list-alerts.ts — it must keep firing while this panel is unmounted.)
@@ -119,6 +126,13 @@ export function createCells(cx: WatchlistCx): CellsApi {
         return { text: q?.volume != null ? fmtVolume(q.volume) : r.volume ?? "—" };
       }
       case "rchp": return extForRow(r);
+      case "rvol": {
+        const v = relativeVolumeOf(r.ticker);
+        return { text: v != null ? v.toFixed(2) : "—" };
+      }
+      case "turnover": {
+        return { text: q?.last != null && q.volume != null ? fmtVolume(q.last * q.volume) : "—" };
+      }
     }
   }
 

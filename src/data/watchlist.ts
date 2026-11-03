@@ -34,7 +34,7 @@ export type Group = {
  *  order. Shared by the table-header click-sort and the tile "Sort by" menu.
  *  `change` is change-PERCENT; `chg` is absolute change; `ext` is extended-hours;
  *  `flag` is the row flag colour (the header's flag button). */
-export type SortField = "symbol" | "last" | "chg" | "change" | "volume" | "ext" | "flag";
+export type SortField = "symbol" | "last" | "chg" | "change" | "volume" | "ext" | "flag" | "rvol" | "turnover";
 export type SortKey = "default" | `${SortField}-asc` | `${SortField}-desc`;
 
 export type HeaderItem = {
@@ -115,7 +115,7 @@ export const WL_SETTINGS_ICONS = {
 };
 
 /** Customize-columns checkbox keys (`data-qa-id`s). */
-export type WlColumnKey = "last" | "change" | "change_percent" | "volume" | "rchp";
+export type WlColumnKey = "last" | "change" | "change_percent" | "volume" | "rchp" | "rvol" | "turnover";
 /** Symbol-display radio value (`ticker` = symbol, `description` = company name). */
 export type WlSymbolDisplay = "ticker" | "description";
 
@@ -133,7 +133,7 @@ export interface WlSettings {
 /** Default checkbox/toggle/radio states. */
 export const WL_SETTINGS_DEFAULTS: WlSettings = {
   tableView: true,
-  columns: { last: true, change: false, change_percent: true, volume: false, rchp: true },
+  columns: { last: true, change: false, change_percent: true, volume: false, rchp: true, rvol: false, turnover: false },
   logo: true,
   symbolDisplay: "ticker",
 };
@@ -146,6 +146,10 @@ export const WL_COLUMNS: { key: WlColumnKey; menuLabel: string; header: string }
   { key: "change_percent", menuLabel: "Change %", header: "Chg%" },
   { key: "volume", menuLabel: "Volume", header: "Vol" },
   { key: "rchp", menuLabel: "Extended Hours", header: "Ext" },
+  // Not in the reference watchlist (asked for by its users): today's volume against the average of the last 10
+  // sessions, and last price × volume.
+  { key: "rvol", menuLabel: "Relative volume", header: "Rel Vol" },
+  { key: "turnover", menuLabel: "Turnover", header: "Turnover" },
 ];
 
 /** Symbol-display radio options (order: Symbol then Name). */
