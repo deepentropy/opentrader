@@ -42,6 +42,13 @@ export const TOP_TABS: Tab[] = [
     "iconName": "rr-screener-dialog-button"
   },
   {
+    // Trade journal: toggles its tab in the footer panel (App.tsx intercepts
+    // this id instead of making it the active rail tab).
+    "id": "trade-journal-button",
+    "label": "Trade journal",
+    "iconName": "rr-trade-journal"
+  },
+  {
     // Script editor button — runs oakscriptjs (App.tsx intercepts this id to
     // toggle the bottom editor drawer instead of a rail panel).
     "id": "pine-dialog-button",

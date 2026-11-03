@@ -1,0 +1,302 @@
+/*
+ * Trade journal: its tab in the footer panel (TradeJournalView) and the
+ * Import trades dialog. Colours and type follow the Strategy Tester list of
+ * trades (strategy-tester.css).
+ */
+.tj-view {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font: 400 13px/18px var(--st-font);
+  color: var(--color-text-primary);
+}
+.tj-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--color-divider);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tj-journal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  max-width: 240px;
+  padding: 0 6px 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 600 15px/20px var(--st-font);
+}
+.tj-journal-btn:hover,
+.tj-journal-btn.is-open {
+  background: var(--color-bg-primary-hover);
+}
+.tj-journal-btn.is-open svg {
+  transform: rotate(180deg);
+}
+.tj-journal-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tj-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+}
+.tj-btn:hover {
+  background: var(--color-bg-primary-hover);
+}
+.tj-toolbar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+}
+.tj-select,
+.tj-input {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: 400 13px/18px var(--st-font);
+  outline: none;
+}
+.tj-select:focus,
+.tj-input:focus {
+  border-color: #2962ff;
+}
+.tj-select option {
+  background: var(--color-bg-primary);
+}
+.tj-summary {
+  display: flex;
+  gap: 14px;
+  margin-left: auto;
+}
+.tj-muted {
+  color: var(--color-text-secondary);
+}
+
+/* ─── List ─── */
+.tj-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  outline: none;
+}
+.tj-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  height: 40px;
+  min-width: 1300px;
+  align-items: center;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-divider);
+  color: var(--color-text-secondary);
+}
+.tj-th {
+  padding: 0 10px;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tj-th:first-child {
+  padding-left: 20px;
+}
+.tj-th.is-end {
+  text-align: end;
+}
+.tj-th-sort {
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.tj-th-sort:hover {
+  color: var(--color-text-primary);
+}
+.tj-body {
+  position: relative;
+  min-width: 1300px;
+}
+.tj-row,
+.tj-group {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 32px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-divider-hover);
+}
+.tj-row {
+  display: grid;
+  font-feature-settings: "tnum", "lnum";
+}
+.tj-row:hover {
+  background: var(--color-bg-primary-hover);
+}
+.tj-row.is-selected {
+  background: var(--color-container-fill-primary-neutral-light);
+  box-shadow: inset 2px 0 0 #2962ff;
+}
+.tj-row.is-failed .tj-td:not(.tj-notes):not(.tj-symbol) {
+  color: var(--color-text-secondary);
+}
+.tj-td {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tj-td:first-child {
+  padding-left: 20px;
+}
+.tj-td.is-end {
+  justify-content: flex-end;
+}
+.tj-symbol {
+  gap: 8px;
+  font-weight: 600;
+}
+.tj-symbol span {
+  font-weight: 400;
+}
+.tj-notes {
+  display: block;
+  line-height: 32px;
+  text-overflow: ellipsis;
+}
+.tj-estimated {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+.tj-actions .st-goto-btn {
+  opacity: 0;
+}
+.tj-row:hover .st-goto-btn,
+.tj-row.is-selected .st-goto-btn {
+  opacity: 1;
+}
+.tj-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-left: 12px;
+  background: var(--color-bg-secondary);
+  min-width: 1300px;
+  font-weight: 600;
+  cursor: default;
+}
+.tj-group .tj-muted,
+.tj-group .is-positive,
+.tj-group .is-negative {
+  font-weight: 400;
+}
+.tj-group-caret {
+  display: inline-flex;
+}
+.tj-group-caret.is-collapsed svg {
+  transform: rotate(-90deg);
+}
+.tj-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 40px;
+  text-align: center;
+}
+.tj-tab-close {
+  color: var(--color-text-secondary);
+}
+
+/* ─── Import trades dialog ─── */
+.ot-dlg.tj-import {
+  width: 760px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+.tj-import-body {
+  overflow-y: auto;
+  font: 400 13px/18px var(--st-font);
+}
+.tj-form,
+.tj-mapping {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 8px 12px;
+  align-items: center;
+}
+.tj-mapping {
+  grid-template-columns: 170px 1fr 170px 1fr;
+}
+.tj-form-label {
+  color: var(--color-text-secondary);
+}
+.tj-required {
+  margin-left: 2px;
+  color: #f23645;
+}
+.tj-section-title {
+  margin: 18px 0 8px;
+  font-weight: 600;
+}
+.tj-import-note {
+  margin-top: 16px;
+  color: var(--color-text-secondary);
+}
+.tj-preview {
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tj-preview-row {
+  display: grid;
+  grid-template-columns: 80px 50px 1fr 1fr 60px 80px 80px;
+  gap: 8px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--color-divider-hover);
+  white-space: nowrap;
+  font-feature-settings: "tnum", "lnum";
+}
+.tj-preview-row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tj-preview-head {
+  border-top: 0;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+.tj-preview-row .is-end {
+  text-align: end;
+}
+.tj-import-errors {
+  margin-top: 10px;
+  color: #f7525f;
+}

@@ -696,6 +696,15 @@ export function openReplay() {
   else if (timing() === "date") setDateDialog(true);
 }
 
+/** Open the toolbar and start at `sec` on the active chart (trade journal
+ *  "Replay from entry"): no bar selection, no date dialog. */
+export function startReplayAt(sec: number) {
+  setEnabled(true);
+  setSelecting(false);
+  setDateDialog(false);
+  selectDate(sec);
+}
+
 /** What replay trading does at the end of a session (see jumpToRealtime):
  *  true when it had trades. */
 let finishHook: (() => boolean) | null = null;

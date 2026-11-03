@@ -2,7 +2,7 @@
 // before any module reads tool defaults.
 import { track } from "./data/analytics";
 import "./window/drawings/templates";
-import { createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show } from "solid-js";
 import { HeaderToolbar } from "./window/header/HeaderToolbar";
 import { HeaderMenu } from "./window/header/HeaderMenu";
 import { buildIntervalMenu } from "./window/chart/custom-intervals";
@@ -50,6 +50,8 @@ import { listen } from "@tauri-apps/api/event";
 import { CHART_TYPE_IDS, SINGLE_VALUE_TYPES, rememberSingleValueType, type ChartTypeId } from "./window/chart/chart-types";
 import { isAdjusted, setAdjusted, isEconomicSymbol, isFullSymbol, isIntradayInterval, isIntradayResolution, isSupportedResolution, symbolServesResolution, tickerOf, toFullSymbol, type SessionId } from "./data/datafeed";
 import { displayTimeZone } from "./data/session";
+import { tradeJournal } from "./data/trade-journal";
+import { chartFrame } from "./data/trade-journal-calc";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
 import { DialogHost } from "./components/Dialogs";
 import { installDialogDrag } from "./components/dialog-drag";
@@ -416,6 +418,18 @@ function App() {
     const s = symbol();
     return s && isFullSymbol(s) ? s : undefined;
   };
+
+  // Trade journal: a trade goes to the active chart (its symbol, the interval
+  // that fits it when asked), then the chart frames it once loaded.
+  tradeJournal.setNavigator((r) => {
+    batch(() => {
+      if (symbol() !== r.symbol) setSymbol(r.symbol);
+      if (r.interval && r.interval !== interval() && symbolServesResolution(r.symbol, r.interval)) setInterval(r.interval);
+    });
+    const { from, to } = chartFrame(r, interval());
+    emitAppEvent("chart-show-range", { from, to, replayAt: r.replayAt });
+  });
+  onCleanup(() => tradeJournal.setNavigator(null));
 
   // The order ticket's default symbol; it closes with Bar Replay.
   createEffect(() => tradingUi.setActiveSymbol(activeFullSymbol() ?? symbol()));
@@ -899,6 +913,7 @@ function App() {
             onSettings={(id, tab) => emitAppEvent("chart-open-study-settings", { id, tab })}
             onAddStrategy={() => emitAppEvent("chart-open-indicators")}
             onShowOnChart={(time) => emitAppEvent("chart-link-time", { time })}
+            timeZone={{ label: timezone().label, iana: displayTimeZone(timezone().label, timezone().iana, activeFullSymbol() ?? symbol()) }}
           />
         </div>
         {/* activeSymbol falls back to the bare ticker: most watchlist symbols
@@ -925,7 +940,7 @@ function App() {
           removeDrawing={removeDrawing}
           moveDrawing={moveDrawingToDisplayIndex}
           cloneDrawing={cloneDrawing}
-          pressedTab={(id) => id === "screener-dialog-button" && screenerPanel.open()}
+          pressedTab={(id) => (id === "screener-dialog-button" && screenerPanel.open()) || (id === "trade-journal-button" && tradeJournal.open())}
         />
       </div>
       </div>

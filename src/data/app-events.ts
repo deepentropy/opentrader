@@ -97,6 +97,9 @@ export interface AppEvents {
   "chart-goto-date": { date: WallDate; minutes: number };
   /** Go to dialog, Custom range tab. */
   "chart-goto-range": { from: WallTime; to: WallTime };
+  /** Trade journal: frame [from, to] (UTC s) on the active chart, once its
+   *  symbol / interval change has loaded; then start Bar Replay at `replayAt`. */
+  "chart-show-range": { from: number; to: number; replayAt?: number };
   /** Go to dialog opening: the active chart fills the query in place. */
   "chart-goto-query": GotoQuery;
 

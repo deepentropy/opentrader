@@ -587,6 +587,7 @@ export function ChartView(props: ChartViewProps) {
     syncGradientLabel();
     updateHistoryEnd();
     syncFutureBars();
+    syncJournalMarks();
   }
 
 
@@ -1123,7 +1124,7 @@ export function ChartView(props: ChartViewProps) {
   // symbol/interval re-fetches.
   const [reloadTick, setReloadTick] = createSignal(0);
   installDataEvents();
-  const { applyStrategyMarkers, forgetTradeMarkers, strategyDialogConfig } = attach(cx, createStrategyMarks(cx));
+  const { applyStrategyMarkers, forgetTradeMarkers, strategyDialogConfig, syncJournalMarks } = attach(cx, createStrategyMarks(cx));
   const historyKey = () =>
     `${props.symbol ?? "AAPL"} ${props.interval ?? "1D"} ${props.session ?? "RTH"} ${reloadTick()}`;
   const [history] = createResource<BarsResult | null, string>(

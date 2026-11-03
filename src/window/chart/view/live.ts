@@ -127,7 +127,7 @@ export function createLive(cx: ChartCx): LiveApi {
     // track the live bar instead of lagging until the next reload.
     cx.controller?.renderAll(true);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
-    if (appended) { updateSessionBreaks(); cx.renderCompareAll(); }
+    if (appended) { updateSessionBreaks(); cx.renderCompareAll(); cx.syncJournalMarks(); }
     // A forming bar can push a new visible extreme without appending.
     else cx.updateHighLowLines();
     // Keep the legend on the latest bar unless the user is hovering one.

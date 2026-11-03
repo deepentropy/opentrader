@@ -25,7 +25,9 @@ Rules:
 - Library indicators: list_indicators, describe_indicator, then add_indicator with inputs.
 - Drawings: the kinds and their point counts are in opentrader://drawings/tools.
 - Screening the US market: list_screener_fields, then run_screen (filters, sort, scope: market, a watchlist or an
-  index); the user's screens: list_screens, run_screen with screen, open_screen to show one in the screener panel.`;
+  index); the user's screens: list_screens, run_screen with screen, open_screen to show one in the screener panel.
+- Trade journal: import_trades (symbol, entry, exit per trade), list_journal_trades (P&L, run-up, drawdown read on the
+  bars; wait: true until computed), show_journal_trade to show one on the chart or replay it from its entry.`;
 
 // The libraries' agent guides (skills/ in each package), bundled as text; empty until a library ships one.
 const oakGuides = import.meta.glob("../../node_modules/oakscriptjs/skills/**/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;

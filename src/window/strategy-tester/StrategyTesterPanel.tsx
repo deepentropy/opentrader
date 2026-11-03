@@ -2,7 +2,8 @@
  * Strategy Tester — the reference desktop app 3.4.1 footer report panel
  * (.tmp/backtester/design/doc/STRATEGY-TESTER-DESIGN-3.4.1.md).
  *
- * Shown under the chart only while the active chart holds a strategy: a 38 px
+ * Shown under the chart while the active chart holds a strategy, Bar Replay
+ * is on or the trade journal is open: a 38 px
  * footer bar with one tab per strategy (icon + short title + caret menu) and
  * Collapse / Maximize buttons, then the report (toolbar + Metrics or Trades
  * view). Clicking the active tab closes (collapses) the report.
@@ -21,6 +22,8 @@ import { ReportToolbar } from "./ReportToolbar";
 import { KeyStatsInline, MetricsView } from "./MetricsView";
 import { TradesView } from "./TradesView";
 import { ReplayTradingReport } from "../replay/ReplayTradingReport";
+import { TradeJournalView } from "../trade-journal/TradeJournalView";
+import { tradeJournal } from "../../data/trade-journal";
 import { replayStarted } from "../../data/replay";
 import { tradingUi } from "../../data/trading/trading-ui";
 import { replayBroker } from "../../data/trading/replay-broker";
@@ -31,6 +34,8 @@ import { buildXlsx } from "./xlsx-writer";
 
 /** Tab id of the Replay Trading tab (strategy tabs use their study ids). */
 const REPLAY_TAB = "replay-trading";
+/** Tab id of the trade journal tab. */
+const JOURNAL_TAB = "trade-journal";
 
 /** Report content height when the panel opens (MEASURED: 275 px under the 38 px bar). */
 const DEFAULT_HEIGHT = 275;
@@ -61,6 +66,8 @@ type Props = {
   replayTab?: boolean;
   /** Chart type of the active chart (synthetic types: no High detalization, no history ticks). */
   chartStyle?: string;
+  /** Chart time zone: its menu label and the IANA zone it shows (trade journal). */
+  timeZone: { label: string; iana: string };
 };
 
 export function StrategyTesterPanel(props: Props) {
@@ -74,8 +81,18 @@ export function StrategyTesterPanel(props: Props) {
     const ids = props.strategyIds;
     const cur = selected();
     if (cur === REPLAY_TAB && props.replayTab) return;
-    if (!cur || !ids.includes(cur)) setSelected(ids[ids.length - 1] ?? (props.replayTab ? REPLAY_TAB : null));
+    if (cur === JOURNAL_TAB && tradeJournal.open()) return;
+    if (!cur || !ids.includes(cur)) setSelected(ids[ids.length - 1] ?? (props.replayTab ? REPLAY_TAB : tradeJournal.open() ? JOURNAL_TAB : null));
   });
+  // The trade journal tab is brought forward when it opens.
+  createEffect(
+    on(tradeJournal.open, (shown, was) => {
+      if (shown && !was) {
+        setSelected(JOURNAL_TAB);
+        strategyTester.setCollapsed(false);
+      }
+    }),
+  );
   // The Replay Trading tab is brought forward when it appears (the reference app's
   // setAsActive) and on "Open full report".
   const showReplayTab = () => {
@@ -107,7 +124,7 @@ export function StrategyTesterPanel(props: Props) {
   };
   const run = createMemo(() => {
     const id = selected();
-    return id && id !== REPLAY_TAB ? strategyTester.run(strategyTester.activeChartId(), strategyKeyOf(id)) : undefined;
+    return id && id !== REPLAY_TAB && id !== JOURNAL_TAB ? strategyTester.run(strategyTester.activeChartId(), strategyKeyOf(id)) : undefined;
   });
 
   /** "Download data as XLSX": the report's workbook (the reference app's
@@ -179,7 +196,7 @@ export function StrategyTesterPanel(props: Props) {
   };
 
   return (
-    <Show when={props.strategyIds.length > 0 || props.replayTab}>
+    <Show when={props.strategyIds.length > 0 || props.replayTab || tradeJournal.open()}>
       <section
         ref={rootRef}
         class="st-panel"
@@ -223,6 +240,30 @@ export function StrategyTesterPanel(props: Props) {
                           onClick={() => setMenuFor(menuFor()?.id === REPLAY_TAB ? null : { id: REPLAY_TAB, anchor: caretRef! })}
                         >
                           <Icon name="st-footer-tab-caret" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  );
+                })()}
+              </Show>
+              <Show when={tradeJournal.open()}>
+                {(() => {
+                  const active = () => selected() === JOURNAL_TAB && !strategyTester.collapsed();
+                  return (
+                    <div class="st-tab" classList={{ "is-active": active() }} role="tab" aria-selected={active()} data-name="trade-journal-tab">
+                      <Tooltip text={active() ? "Close trade journal" : "Open trade journal"} side="top">
+                        <button type="button" class="st-tab-btn" onClick={() => onTabClick(JOURNAL_TAB)}>
+                          <span class="st-tab-icon">
+                            <Icon name="st-footer-tab-journal" size={24} />
+                          </span>
+                          <span class="st-tab-title">Trade journal</span>
+                        </button>
+                      </Tooltip>
+                      <Tooltip text="Remove trade journal tab" side="top">
+                        <button type="button" class="st-tab-caret tj-tab-close" aria-label="Remove trade journal tab" onClick={() => tradeJournal.setOpen(false)}>
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="12" height="12" aria-hidden="true">
+                            <path stroke="currentColor" stroke-width="1.5" fill="none" d="m3 3 12 12m0-12L3 15" />
+                          </svg>
                         </button>
                       </Tooltip>
                     </div>
@@ -305,7 +346,10 @@ export function StrategyTesterPanel(props: Props) {
                 onShowOnChart={props.onShowOnChart}
               />
             </Show>
-            <Show when={selected() !== REPLAY_TAB && selected()}>
+            <Show when={selected() === JOURNAL_TAB && tradeJournal.open()}>
+              <TradeJournalView timeZone={props.timeZone.iana} chartTimeZone={props.timeZone} symbol={props.symbol} />
+            </Show>
+            <Show when={selected() !== REPLAY_TAB && selected() !== JOURNAL_TAB && selected()}>
               {(id) => (
                 <>
                   <Show

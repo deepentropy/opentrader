@@ -1,6 +1,7 @@
 /*
  * Strategies on a chart view: their filled orders as trade marks on the price
- * series, and the Settings dialog config of a strategy study.
+ * series, and the Settings dialog config of a strategy study. The trade
+ * journal's trades on the chart's symbol share the same marks.
  */
 /*
  * ChartView — single chart pane backed by lightweight-charts (v5).
@@ -22,12 +23,16 @@ import { type StrategyDialogConfig } from "../IndicatorSettingsDialog";
 import { DEFAULT_SYMBOL, type StrategyProperties } from "../../../backtester/types";
 import { PROPERTIES_INPUT, hasHistoryTickOption, isStrategyId, strategyDefaults, strategyKeyOf, strategyStyleOf } from "../indicators/strategy-entries";
 import { strategyTester } from "../../../data/strategy-tester-store";
+import { tradeJournal, type JournalTrade } from "../../../data/trade-journal";
+import { intervalSec } from "../../../data/trade-journal-calc";
 import { type ChartCx } from "./context";
 
 /** What createStrategyMarks adds to the chart context. */
 export interface StrategyMarksApi {
   applyStrategyMarkers: () => void;
   forgetTradeMarkers: () => void;
+  /** New bars (a symbol load, older history, a new bar): journal marks placed again. */
+  syncJournalMarks: () => void;
   strategyDialogConfig: (id: string, inputs: Record<string, unknown>) => StrategyDialogConfig | undefined;
 }
 
@@ -80,6 +85,7 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
         );
       }
     }
+    marks.push(...journalMarks());
     marks.sort((a, b) => (a.time as number) - (b.time as number));
     if (tradeMarkersSeries !== cx.series) {
       tradeMarkers?.detach();
@@ -92,6 +98,66 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
     applyStrategyMarkers();
   });
 
+  // Trade journal: the active journal's trades on this symbol, the selected
+  // one labelled. A mark sits on the bar holding its time (a date-only trade:
+  // the first bar of its day), so it moves with the interval.
+  const journalTrades = () => tradeJournal.marksFor(props.symbol ?? "");
+  /** Bar time holding `sec`: the last bar at or before it, or (`after`) the first at or after it. */
+  function barTimeAt(sec: number, after: boolean): number | null {
+    const raw = cx.raw;
+    if (raw.length === 0) return null;
+    let lo = 0;
+    let hi = raw.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if ((raw[mid].time as number) <= sec) lo = mid;
+      else hi = mid - 1;
+    }
+    const t = raw[lo].time as number;
+    // Past the last bar (Bar Replay hides what follows): no bar holds it.
+    if (lo === raw.length - 1 && sec >= t + intervalSec(props.interval ?? "1D")) return null;
+    if (!after) return t <= sec ? t : null;
+    const next = t >= sec ? t : lo + 1 < raw.length ? (raw[lo + 1].time as number) : null;
+    // Not the same day: the loaded bars do not hold it.
+    return next !== null && next - sec < 86400 ? next : null;
+  }
+  function journalMarks(): SeriesMarker<Time>[] {
+    const out: SeriesMarker<Time>[] = [];
+    const sel = tradeJournal.selectedId();
+    const push = (t: JournalTrade, sec: number, buy: boolean, text: string) => {
+      // A date on intraday bars: its first bar; on W / M bars: the bar holding it.
+      const at = (t.dateOnly ? barTimeAt(sec, true) : null) ?? barTimeAt(sec, false);
+      if (at === null) return;
+      out.push(
+        buy
+          ? { time: at as Time, position: "belowBar", shape: "arrowUp", color: "#2962ff", text }
+          : { time: at as Time, position: "aboveBar", shape: "arrowDown", color: "#ff1744", text },
+      );
+    };
+    for (const t of journalTrades()) {
+      const on = t.id === sel;
+      const long = t.side === "long";
+      const pct = t.calc ? ` ${t.calc.pnlPct >= 0 ? "+" : "−"}${Math.abs(t.calc.pnlPct * 100).toFixed(2)}%` : "";
+      push(t, t.entryTime, long, on ? (long ? "Long" : "Short") : "");
+      push(t, t.exitTime, !long, on ? `Exit${pct}` : "");
+    }
+    return out;
+  }
+  createEffect(() => {
+    journalTrades();
+    tradeJournal.selectedId();
+    applyStrategyMarkers();
+  });
+  let journalKey = "";
+  function syncJournalMarks() {
+    // First and last bar: older history, a new bar, a Bar Replay step.
+    const raw = cx.raw;
+    const key = `${props.symbol}|${raw.length ? `${raw[0].time as number}-${raw[raw.length - 1].time as number}` : ""}`;
+    if (key === journalKey) return;
+    journalKey = key;
+    if (journalTrades().length > 0) applyStrategyMarkers();
+  }
+
   /** A rebuilt series took its trade marks with it: they are made again. */
   function forgetTradeMarkers() {
     tradeMarkersSeries = null;
@@ -101,6 +167,7 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
   return {
     applyStrategyMarkers,
     forgetTradeMarkers,
+    syncJournalMarks,
     strategyDialogConfig,
   };
 }

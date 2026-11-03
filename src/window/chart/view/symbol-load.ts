@@ -319,6 +319,8 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       cx.pendingLinkTime = null;
       void cx.goToTime(t);
     }
+    // A trade journal range that arrived while this pane was loading.
+    cx.flushShowRange();
     if (!cx.crosshairActive) cx.refreshLegend();
     cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
     // Warm a read-ahead window now so the first scroll-back doesn't wait on the

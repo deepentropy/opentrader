@@ -14,16 +14,29 @@ import type { GotoQuery } from "../goto-query";
 import { OAKSCRIPT_UPDATED_EVENT, userIndicatorId, type OakScriptUpdatedDetail } from "../indicators/user-scripts";
 import { STRATEGY_UPDATED_EVENT, type StrategyUpdatedDetail } from "../indicators/strategy-entries";
 import { emitAppEvent, onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
+import { startReplayAt } from "../../../data/replay";
 import { type ChartCx } from "./context";
 
 /** What createWindowEvents adds to the chart context. */
 export interface WindowEventsApi {
+  /** A trade journal range that waited for the pane's data: framed now. */
+  flushShowRange: () => void;
   installChartEvents: () => void;
   installDataEvents: () => void;
 }
 
 export function createWindowEvents(cx: ChartCx): WindowEventsApi {
   const { paneId, props, refreshIndicatorLegend, refreshLegend, setSettingsForId, setSettingsTab } = cx;
+  /** Trade journal range sent while the pane was loading (a symbol switch). */
+  let pendingShowRange: AppEvents["chart-show-range"] | null = null;
+  function flushShowRange() {
+    const d = pendingShowRange;
+    if (!d || !cx.chart || cx.raw.length === 0 || cx.history.loading || cx.swapping) return;
+    pendingShowRange = null;
+    // Bar Replay frames its own start: the range would fight it.
+    if (d.replayAt !== undefined) startReplayAt(d.replayAt);
+    else void cx.goToRange(d.from, d.to);
+  }
   /** The window-wide chart events belong to the shown tab: a hidden tab's
    *  chart ignores them. Removed with the chart. */
   const listenWhenShown = <K extends AppEventName>(type: K, fn: (detail: AppEvents[K]) => void) =>
@@ -121,6 +134,14 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
       void cx.goToTime(sec, { alignIfVisible: true, driver: true, index: cx.gotoDateIndex });
     };
     listenWhenShown("chart-goto-date", onGoToDate);
+
+    // Trade journal (the active chart): its symbol / interval may have just
+    // changed, so the range waits for the data (see symbol-load).
+    listenWhenShown("chart-show-range", (d) => {
+      if (!props.active) return;
+      pendingShowRange = d;
+      flushShowRange();
+    });
 
     // Custom range tab (the reference app `setTimeFrame`): the active chart, or every chart
     // when Interval sync is on. Frames [From, To] (date + time; DWM: dates).
@@ -301,6 +322,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
   }
 
   return {
+    flushShowRange,
     installChartEvents,
     installDataEvents,
   };

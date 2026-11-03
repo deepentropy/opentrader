@@ -11,6 +11,7 @@ import { createSignal } from "solid-js";
 import * as kv from "../../data/kv";
 import type { OpenAlertDialogDetail } from "../../data/app-events";
 import { screenerPanel } from "../../data/screener-store";
+import { tradeJournal } from "../../data/trade-journal";
 import type { AppSettingsTabId } from "../header/AppSettingsDialog";
 
 // ── Header dropdown ──────────────────────────────────────────────────────
@@ -115,10 +116,14 @@ export const setOakPanelOpen = (open: boolean): void => {
   kv.setItem("ot:oakscript:panelOpen", open ? "1" : "0");
 };
 /** A right-rail button: a page of the rail, or a toggle of the OakScript
- *  drawer / the screener split view. */
+ *  drawer / the screener split view / the trade journal tab. */
 export const onRailTabSelect = (id: string | null): void => {
   if (id === "pine-dialog-button") {
     setOakPanelOpen(!oakPanelOpen());
+    return;
+  }
+  if (id === "trade-journal-button") {
+    tradeJournal.setOpen(!tradeJournal.open());
     return;
   }
   // Screeners: toggles the stock screener split view (right of the layout).
