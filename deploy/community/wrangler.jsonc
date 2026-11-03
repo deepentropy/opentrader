@@ -2,7 +2,8 @@
 // Local run: `npm run dev` (test sign-in on, local database: `npm run db:local`).
 // Deploy: `npm run db:remote` once per new migration, then `npm run deploy`.
 // Secrets (`wrangler secret put`): GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET,
-// DISCORD_CLIENT_SECRET. A provider without its id and secret is not offered.
+// DISCORD_CLIENT_SECRET (a provider without its id and secret is not offered),
+// TURNSTILE_SECRET, GATEWAY_TOKEN.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "opentrader-community",
@@ -28,6 +29,11 @@
     }
   ],
   "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
+  // Bursts per connection (#210): sign-ins, and writes.
+  "ratelimits": [
+    { "name": "AUTH_LIMITER", "namespace_id": "2101", "simple": { "limit": 20, "period": 60 } },
+    { "name": "WRITE_LIMITER", "namespace_id": "2102", "simple": { "limit": 30, "period": 60 } }
+  ],
   "vars": {
     "PUBLIC_URL": "https://community.opentrader.markets",
     "ALLOWED_ORIGINS": "https://demo.opentrader.markets",
@@ -36,7 +42,11 @@
     "ADMINS": "google:112079201386783875064",
     "GITHUB_CLIENT_ID": "Ov23lijxOPdc4uYuL0ya",
     "GOOGLE_CLIENT_ID": "541505217152-qn4re9p4m6htg5fe2t9h5ojvhg4ip8os.apps.googleusercontent.com",
-    "DISCORD_CLIENT_ID": "1567124030622924901"
+    "DISCORD_CLIENT_ID": "1567124030622924901",
+    // Bot check at sign-in; its secret is TURNSTILE_SECRET.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFx6K_eX2hXdUuKw",
+    // Ticker communities only for known symbols; its token is GATEWAY_TOKEN.
+    "GATEWAY_URL": "https://opentrader-gateway.cloudflare-breeder165.workers.dev"
   },
   "env": {
     // `wrangler dev --env local`: the test sign-in, the Vite dev servers.
@@ -50,8 +60,15 @@
         "DEV_ADMINS": "dev:admin",
         "GITHUB_CLIENT_ID": "",
         "GOOGLE_CLIENT_ID": "",
-        "DISCORD_CLIENT_ID": ""
+        "DISCORD_CLIENT_ID": "",
+        // Turnstile's test keys: the check always passes.
+        "TURNSTILE_SITE_KEY": "1x00000000000000000000AA",
+        "TURNSTILE_SECRET": "1x0000000000000000000000000000000AA"
       },
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "2101", "simple": { "limit": 20, "period": 60 } },
+        { "name": "WRITE_LIMITER", "namespace_id": "2102", "simple": { "limit": 30, "period": 60 } }
+      ],
       "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "opentrader-community" }],
       "d1_databases": [
         {

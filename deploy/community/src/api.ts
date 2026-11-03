@@ -6,7 +6,7 @@
 import { Env } from "./env";
 import { User } from "./auth";
 import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
-import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, sha256Hex, str, topSince } from "./util";
+import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str, topSince } from "./util";
 
 type Row = Record<string, any>;
 
@@ -69,9 +69,43 @@ async function findCommunity(env: Env, id: string): Promise<Row> {
   return { id: cid, kind: "ticker", title: `$${parsed.key}`, description: "", post_count: 0, min_account_days: 0, virtual: true };
 }
 
+/** Known checks are kept a month, unknown ones a day (a new listing). */
+const KNOWN_TTL = 30 * 86_400;
+const UNKNOWN_TTL = 86_400;
+
+/** The market data knows this ticker (stocks, then crypto, forex and indices). No gateway, or no answer: assumed known. */
+async function tickerKnown(env: Env, ticker: string): Promise<boolean> {
+  if (!env.GATEWAY_URL || !env.GATEWAY_TOKEN) return true;
+  const cached = await env.DB.prepare("SELECT known, checked_at FROM ticker_checks WHERE ticker = ?").bind(ticker).first<{ known: number; checked_at: number }>();
+  if (cached && now() - cached.checked_at < (cached.known ? KNOWN_TTL : UNKNOWN_TTL)) return !!cached.known;
+  let known = false;
+  for (const candidate of [ticker, `X:${ticker}`, `C:${ticker}`, `I:${ticker}`]) {
+    let res: Response;
+    try {
+      res = await fetch(`${env.GATEWAY_URL}/v3/reference/tickers/${encodeURIComponent(candidate)}`, {
+        headers: { authorization: `Bearer ${env.GATEWAY_TOKEN}`, "user-agent": "OpenTrader-Community" },
+      });
+    } catch {
+      return true;
+    }
+    if (res.ok) {
+      known = true;
+      break;
+    }
+    // Anything but "unknown ticker": the answer is unknown, the community is allowed (not kept).
+    if (res.status !== 404) return true;
+  }
+  await env.DB.prepare("INSERT INTO ticker_checks (ticker, known, checked_at) VALUES (?, ?, ?) ON CONFLICT (ticker) DO UPDATE SET known = excluded.known, checked_at = excluded.checked_at")
+    .bind(ticker, known ? 1 : 0, now())
+    .run();
+  return known;
+}
+
 async function ensureCommunity(env: Env, id: string): Promise<Row> {
   const row = await findCommunity(env, id);
   if (row.virtual) {
+    const ticker = row.id.slice(2);
+    if (!(await tickerKnown(env, ticker))) throw new HttpError(404, `$${ticker} isn't a known symbol.`);
     await env.DB.prepare("INSERT OR IGNORE INTO communities (id, kind, title, created_at) VALUES (?, 'ticker', ?, ?)").bind(row.id, row.title, now()).run();
     delete row.virtual;
   }
@@ -192,8 +226,13 @@ export async function feed(env: Env, user: User | null, url: URL): Promise<Respo
   return json(await listPosts(env, user, "1 = 1", [], url));
 }
 
-async function rateLimit(env: Env, u: User, table: "posts" | "comments"): Promise<void> {
+/** Posts and comments a connection may send a day, whatever the account. */
+const PER_CONNECTION = { posts: 30, comments: 300 } as const;
+
+async function rateLimit(env: Env, u: User, table: "posts" | "comments", sender: string): Promise<void> {
   if (u.role === "admin") return;
+  const fromHere = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE sender_hash = ? AND created_at >= ?`).bind(sender, now() - 86_400).first<{ n: number }>();
+  if ((fromHere?.n ?? 0) >= PER_CONNECTION[table]) throw new HttpError(429, `Too many ${table} from your connection today. Try again tomorrow.`);
   const young = now() - u.created_at < LIMITS.newAccountSeconds;
   const max = table === "posts" ? (young ? LIMITS.postsPerDayNew : LIMITS.postsPerDay) : young ? LIMITS.commentsPerDayNew : LIMITS.commentsPerDay;
   const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE author_id = ? AND created_at >= ?`).bind(u.id, now() - 86_400).first<{ n: number }>();
@@ -203,7 +242,16 @@ async function rateLimit(env: Env, u: User, table: "posts" | "comments"): Promis
 }
 
 /** POST /communities/:id/posts {title, body} */
-export async function createPost(env: Env, user: User | null, id: string, body: any): Promise<Response> {
+/** The text that identifies a post's content: title and text, lowercase, without spacing or punctuation. */
+export function contentKey(title: string, body: string): string {
+  return `${title}\n${body}`.toLowerCase().replace(/[^\p{L}\p{N}$]+/gu, " ").trim();
+}
+
+/** Accounts posting the same text within this time: coordinated promotion, sent to the moderators. */
+const SAME_TEXT_WINDOW = 86_400;
+const SAME_TEXT_AUTHORS = 3;
+
+export async function createPost(env: Env, user: User | null, request: Request, id: string, body: any): Promise<Response> {
   const u = writer(user);
   const title = text(body?.title, "The title", LIMITS.titleMin, LIMITS.titleMax);
   const content = str(body?.body).trim();
@@ -215,19 +263,47 @@ export async function createPost(env: Env, user: User | null, id: string, body: 
   }
   const chart = parseChart(body?.chart);
   const image = parseImage(body?.image, body?.image_type);
-  await rateLimit(env, u, "posts");
+  const sender = await senderHash(request);
+  await rateLimit(env, u, "posts", sender);
+  const contentHash = await sha256Hex(contentKey(title, content));
+  const repeat = await env.DB.prepare("SELECT 1 FROM posts WHERE author_id = ? AND content_hash = ? AND created_at >= ? AND deleted = 0")
+    .bind(u.id, contentHash, now() - 7 * 86_400)
+    .first();
+  if (repeat) throw new HttpError(409, "You already posted this text. Post it once, in the community it fits best.");
   const postId = newId();
   const at = now();
   if (image) await saveImage(env, postId, image);
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at, chart, has_image) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)").bind(
-      postId, community.id, u.id, title, content, hotRank(1, at), at, chart ? JSON.stringify(chart) : null, image ? 1 : 0,
-    ),
+    env.DB.prepare(
+      "INSERT INTO posts (id, community_id, author_id, title, body, score, hot, created_at, chart, has_image, sender_hash, content_hash) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)",
+    ).bind(postId, community.id, u.id, title, content, hotRank(1, at), at, chart ? JSON.stringify(chart) : null, image ? 1 : 0, sender, contentHash),
     // Authors vote for their own post.
     env.DB.prepare("INSERT INTO votes (user_id, target_type, target_id, value) VALUES (?, 'post', ?, 1)").bind(u.id, postId),
     env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").bind(community.id),
   ]);
+  await flagSameText(env, contentHash);
   return getPost(env, user, postId, 201);
+}
+
+/** The same text from several accounts in a day: each copy goes to the moderation queue (a report with no reporter). */
+async function flagSameText(env: Env, contentHash: string): Promise<void> {
+  const { results } = await env.DB.prepare(
+    "SELECT id, community_id, author_id FROM posts WHERE content_hash = ? AND created_at >= ? AND removed = 0 AND deleted = 0",
+  )
+    .bind(contentHash, now() - SAME_TEXT_WINDOW)
+    .all<{ id: string; community_id: string; author_id: string | null }>();
+  const authors = new Set(results.map((r) => r.author_id));
+  if (authors.size < SAME_TEXT_AUTHORS) return;
+  const details = `The same text was posted by ${authors.size} accounts within 24 hours (possible coordinated promotion).`;
+  await env.DB.batch(
+    results.map((r) =>
+      env.DB.prepare(
+        `INSERT INTO reports (id, target_type, target_id, community_id, reporter_id, reason, details, created_at)
+         SELECT ?, 'post', ?, ?, NULL, 'spam', ?, ? WHERE NOT EXISTS
+           (SELECT 1 FROM reports WHERE target_type = 'post' AND target_id = ? AND reporter_id IS NULL AND status = 'open')`,
+      ).bind(newId(), r.id, r.community_id, details, now(), r.id),
+    ),
+  );
 }
 
 async function postRow(env: Env, user: User | null, id: string): Promise<Row> {
@@ -299,7 +375,7 @@ export async function deletePost(env: Env, user: User | null, id: string): Promi
 // ── Comments ────────────────────────────────────────────────────────────
 
 /** POST /posts/:id/comments {body, parent_id?} */
-export async function createComment(env: Env, user: User | null, postId: string, body: any): Promise<Response> {
+export async function createComment(env: Env, user: User | null, request: Request, postId: string, body: any): Promise<Response> {
   const u = writer(user);
   const post = await postRow(env, u, postId);
   if (post.deleted || post.removed) throw new HttpError(403, "This post no longer takes comments.");
@@ -310,10 +386,11 @@ export async function createComment(env: Env, user: User | null, postId: string,
     const parent = await env.DB.prepare("SELECT post_id FROM comments WHERE id = ?").bind(parentId).first<{ post_id: string }>();
     if (!parent || parent.post_id !== postId) throw new HttpError(400, "The comment you reply to isn't in this post.");
   }
-  await rateLimit(env, u, "comments");
+  const sender = await senderHash(request);
+  await rateLimit(env, u, "comments", sender);
   const id = newId();
   await env.DB.batch([
-    env.DB.prepare("INSERT INTO comments (id, post_id, parent_id, author_id, body, score, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)").bind(id, postId, parentId, u.id, content, now()),
+    env.DB.prepare("INSERT INTO comments (id, post_id, parent_id, author_id, body, score, created_at, sender_hash) VALUES (?, ?, ?, ?, ?, 1, ?, ?)").bind(id, postId, parentId, u.id, content, now(), sender),
     env.DB.prepare("INSERT INTO votes (user_id, target_type, target_id, value) VALUES (?, 'comment', ?, 1)").bind(u.id, id),
     env.DB.prepare("UPDATE posts SET comment_count = comment_count + 1 WHERE id = ?").bind(postId),
   ]);

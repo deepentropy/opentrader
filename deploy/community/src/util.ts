@@ -120,6 +120,11 @@ export function topSince(t: string, at: number): number {
   }
 }
 
+/** SHA-256 of the sender's IP address and the day: daily limits per connection without keeping the address. */
+export async function senderHash(request: Request): Promise<string> {
+  return sha256Hex(`${request.headers.get("CF-Connecting-IP") ?? "unknown"}:${Math.floor(Date.now() / 86_400_000)}`);
+}
+
 export function str(v: unknown): string {
   return typeof v === "string" ? v : "";
 }

@@ -2,3 +2,4 @@
 node_modules/
 .reddit-cache/
 site/
+.dev.vars*

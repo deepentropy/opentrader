@@ -53,3 +53,12 @@ describe("topSince", () => {
     expect(topSince("all", 1000_000)).toBe(0);
   });
 });
+
+describe("contentKey", () => {
+  it("ignores case, spacing and punctuation", async () => {
+    const { contentKey } = await import("../src/api");
+    expect(contentKey("Buy XYZ now!!", "To the  moon.")).toBe(contentKey("buy xyz now", "to the moon"));
+    expect(contentKey("Buy XYZ", "")).not.toBe(contentKey("Buy XYZW", ""));
+    expect(contentKey("$AAPL up", "")).toBe("$aapl up");
+  });
+});

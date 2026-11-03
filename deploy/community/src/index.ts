@@ -44,13 +44,21 @@ async function readBody(request: Request, path: string): Promise<any> {
   }
 }
 
+/** Bursts from one connection: sign-ins, and writes (posts, comments, votes, reports). */
+async function burstLimit(env: Env, request: Request, path: string): Promise<void> {
+  const key = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const limiter = path === "/auth/start" || path === "/auth/token" || path === "/auth/verify" ? env.AUTH_LIMITER : request.method === "GET" ? undefined : env.WRITE_LIMITER;
+  if (limiter && !(await limiter.limit({ key })).success) throw new HttpError(429, "Too many requests. Wait a minute and try again.");
+}
+
 type Handler = (ctx: { env: Env; request: Request; url: URL; params: string[]; body: any; user: auth.User | null }) => Promise<Response>;
 
 const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/auth\/providers$/, async ({ env }) => json({ providers: auth.enabledProviders(env) })],
   ["GET", /^\/auth\/start$/, ({ env, url }) => auth.start(env, url)],
-  ["GET", /^\/auth\/callback\/(github|google|discord)$/, ({ env, url, params }) => auth.callback(env, url, params[0])],
-  ["GET", /^\/auth\/dev$/, ({ env, url }) => auth.devLogin(env, url)],
+  ["POST", /^\/auth\/verify$/, ({ env, request }) => auth.verify(env, request)],
+  ["GET", /^\/auth\/callback\/(github|google|discord)$/, ({ env, request, url, params }) => auth.callback(env, request, url, params[0])],
+  ["GET", /^\/auth\/dev$/, ({ env, request, url }) => auth.devLogin(env, request, url)],
   ["POST", /^\/auth\/token$/, ({ env, body }) => auth.token(env, body)],
   ["POST", /^\/auth\/logout$/, async ({ env, user }) => (user ? auth.logout(env, user) : json({ ok: true }))],
 
@@ -63,7 +71,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/communities\/([^/]+)\/follow$/, ({ env, user, params }) => api.follow(env, user, params[0], true)],
   ["DELETE", /^\/communities\/([^/]+)\/follow$/, ({ env, user, params }) => api.follow(env, user, params[0], false)],
   ["GET", /^\/communities\/([^/]+)\/posts$/, ({ env, user, params, url }) => api.communityPosts(env, user, params[0], url)],
-  ["POST", /^\/communities\/([^/]+)\/posts$/, ({ env, user, params, body }) => api.createPost(env, user, params[0], body)],
+  ["POST", /^\/communities\/([^/]+)\/posts$/, ({ env, user, request, params, body }) => api.createPost(env, user, request, params[0], body)],
   ["GET", /^\/feed$/, ({ env, user, url }) => api.feed(env, user, url)],
 
   ["GET", /^\/images\/([a-z0-9]+)$/, ({ env, params }) => serveImage(env, params[0])],
@@ -71,7 +79,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["PATCH", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editPost(env, user, params[0], body)],
   ["DELETE", /^\/posts\/([a-z0-9]+)$/, ({ env, user, params }) => api.deletePost(env, user, params[0])],
   ["POST", /^\/posts\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "post", params[0], body)],
-  ["POST", /^\/posts\/([a-z0-9]+)\/comments$/, ({ env, user, params, body }) => api.createComment(env, user, params[0], body)],
+  ["POST", /^\/posts\/([a-z0-9]+)\/comments$/, ({ env, user, request, params, body }) => api.createComment(env, user, request, params[0], body)],
   ["PATCH", /^\/comments\/([a-z0-9]+)$/, ({ env, user, params, body }) => api.editComment(env, user, params[0], body)],
   ["DELETE", /^\/comments\/([a-z0-9]+)$/, ({ env, user, params }) => api.deleteComment(env, user, params[0])],
   ["POST", /^\/comments\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "comment", params[0], body)],
@@ -118,7 +126,9 @@ export default {
       // The website's files and pages (an address the API also uses, /contact, is a page for a browser).
       if (!handler && request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(request);
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
-      const body = await readBody(request, path);
+      await burstLimit(env, request, path);
+      // The bot check's form is read by its handler.
+      const body = path === "/auth/verify" ? null : await readBody(request, path);
       const user = await auth.currentUser(env, request);
       res = await handler({ env, request, url, params, body, user });
     } catch (e) {

@@ -58,6 +58,7 @@
       <li>What you do in Community: your posts, comments, votes, follows, reports and appeals, with their dates.</li>
       <li>Your sessions (a code stored only in scrambled form), so the app stays signed in. On the desktop the session sits in your system's credential store; on the website, in your browser.</li>
       <li>Moderation decisions about your content or account, with their reasons.</li>
+      <li>To limit abuse, a scrambled form of your IP address combined with the day is kept with your account's creation, your posts and your comments (it can't be used to find your address), and the sign-in page runs Cloudflare's bot check (Turnstile), which processes your connection and browser data to tell people from robots.</li>
       <li>Messages sent through the contact form: the message, and your e-mail address if you gave one. The address is erased once the message is handled. To limit abuse we keep a scrambled form of your IP address combined with the day, which can't be used to find your address.</li>
     </ul>
     <p><strong>Why:</strong> to run the service you asked for (your account and what you post), to moderate it and prevent abuse (legitimate interest), and to meet our legal duties as a host of public content.</p>

@@ -16,6 +16,15 @@ export interface Env {
   DEV_LOGIN?: string;
   /** Administrators of the test sign-in: `dev:<name>`. */
   DEV_ADMINS?: string;
+  /** Bot check at sign-in (Cloudflare Turnstile); no key: no check. */
+  TURNSTILE_SITE_KEY?: string;
+  TURNSTILE_SECRET?: string;
+  /** Market data gateway: ticker communities only for symbols it knows. No token: no check. */
+  GATEWAY_URL?: string;
+  GATEWAY_TOKEN?: string;
+  /** Burst limits per connection (Workers rate limiting). */
+  WRITE_LIMITER?: RateLimit;
+  AUTH_LIMITER?: RateLimit;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
