@@ -5,6 +5,7 @@
  */
 use crate::screener::fields::{self, FieldInfo};
 use crate::screener::scan::{self, ScanRequest, ScanResult};
+use crate::screener::progress::ScreenerProgress;
 use crate::screener::{Screener, ScreenerStatus};
 use opentrader_core::host::HostRef;
 use tauri::State;
@@ -35,6 +36,13 @@ pub async fn screener_scan(
 ) -> Result<ScanResult, String> {
     let table = screener.table();
     scan::run(&table, &req)
+}
+
+/// Download progress of what the next complete table waits on (the loading wheel).
+#[tauri::command]
+#[specta::specta]
+pub async fn screener_progress(screener: State<'_, Screener>) -> Result<ScreenerProgress, String> {
+    Ok(screener.progress())
 }
 
 /// The field ids a scan accepts, and whether their source is loaded.

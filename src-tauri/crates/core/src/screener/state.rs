@@ -12,11 +12,12 @@
  * state field reads as null ("—" in the table).
  */
 use crate::data::gateway::{self, BASE, NO_TOKEN};
-use crate::data::market_rest::http;
+use crate::screener::progress::{self, Download};
 use anyhow::{anyhow, Context, Result};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::PathBuf;
 
 /// Contract version the app reads. A file with another version is ignored.
@@ -81,12 +82,25 @@ pub fn read_cache() -> Option<StateFile> {
     Some(s)
 }
 
-/// Fetch the state from the gateway. `Ok(None)` when the gateway does not
+/// A client that leaves the body compressed: the bytes read then match the size the answer tells, for the
+/// download progress.
+fn raw_http() -> reqwest::Client {
+    static CLIENT: crate::net::SharedClient = crate::net::SharedClient::new(|b| b.no_gzip().user_agent(gateway::user_agent()));
+    CLIENT.get()
+}
+
+/// Fetch the state from the gateway, counting its bytes on `d`. `Ok(None)` when the gateway does not
 /// serve it (404). The raw body is cached on disk for the next start.
-pub async fn fetch() -> Result<Option<StateFile>> {
+pub async fn fetch(d: Option<&Download>) -> Result<Option<StateFile>> {
     let token = gateway::token().context(NO_TOKEN)?;
     let url = format!("{BASE}/screener/v1/state");
-    let resp = http().get(&url).bearer_auth(token).send().await.context("screener state request")?;
+    let resp = raw_http()
+        .get(&url)
+        .bearer_auth(token)
+        .header(reqwest::header::ACCEPT_ENCODING, "gzip")
+        .send()
+        .await
+        .context("screener state request")?;
     let status = resp.status();
     if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::FORBIDDEN {
         return Ok(None);
@@ -94,7 +108,18 @@ pub async fn fetch() -> Result<Option<StateFile>> {
     if !status.is_success() {
         return Err(anyhow!("screener state {status}"));
     }
-    let bytes = resp.bytes().await.context("screener state body")?;
+    if let Some(d) = d {
+        d.set_total(resp.content_length());
+    }
+    let gzipped = resp.headers().get(reqwest::header::CONTENT_ENCODING).is_some_and(|v| v == "gzip");
+    let body = progress::read_body(resp, d, "screener state").await?;
+    let bytes = if gzipped {
+        let mut out = Vec::new();
+        flate2::read::GzDecoder::new(&body[..]).read_to_end(&mut out).context("screener state: gunzip")?;
+        out
+    } else {
+        body
+    };
     let s: StateFile = serde_json::from_slice(&bytes).context("screener state: parse json")?;
     s.check()?;
     let path = cache_path();

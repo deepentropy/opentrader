@@ -81,8 +81,9 @@ pub fn read_cache() -> Option<Closes> {
     Closes::parse(&std::fs::read(cache_path()).ok()?).ok()
 }
 
-/// Fetch the closes from the gateway; `Ok(None)` when it serves none (404). Cached on disk.
-pub async fn fetch() -> Result<Option<Closes>> {
+/// Fetch the closes from the gateway, counting their bytes on `d`; `Ok(None)` when it serves none (404). Cached on
+/// disk.
+pub async fn fetch(d: Option<&crate::screener::progress::Download>) -> Result<Option<Closes>> {
     let token = gateway::token().context(NO_TOKEN)?;
     let resp = http().get(format!("{BASE}/screener/v1/closes")).bearer_auth(token).send().await.context("screener closes request")?;
     let status = resp.status();
@@ -92,7 +93,10 @@ pub async fn fetch() -> Result<Option<Closes>> {
     if !status.is_success() {
         return Err(anyhow!("screener closes {status}"));
     }
-    let bytes = resp.bytes().await.context("screener closes body")?;
+    if let Some(d) = d {
+        d.set_total(resp.content_length());
+    }
+    let bytes = crate::screener::progress::read_body(resp, d, "screener closes").await?;
     let c = Closes::parse(&bytes)?;
     let path = cache_path();
     if let Some(dir) = path.parent() {

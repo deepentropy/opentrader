@@ -16,6 +16,7 @@ pub mod clock;
 pub mod closes;
 pub mod fields;
 pub mod live;
+pub mod progress;
 pub mod scan;
 pub mod state;
 pub mod table;
@@ -80,6 +81,8 @@ struct Inner {
     closed: tokio::sync::Notify,
     /// Custom lengths the screens asked for ("EMA137"): computed from the closes file into the state.
     custom: Mutex<BTreeSet<String>>,
+    /// What the first complete table waits on, for the loading wheel.
+    downloads: progress::Downloads,
 }
 
 /// Managed app state (`app.manage(Screener::default())`).
@@ -122,6 +125,11 @@ impl Screener {
         let ok: Vec<String> = ids.into_iter().filter(|id| closes::custom_id(id).is_some()).collect();
         self.inner.custom.lock().expect("screener custom lock").extend(ok.iter().cloned());
         ok
+    }
+
+    /// Download progress of what the next complete table waits on.
+    pub fn progress(&self) -> progress::ScreenerProgress {
+        self.inner.downloads.progress()
     }
 
     /// Unregister a panel; the task stops (and leaves the live feed) when none is left.
@@ -188,11 +196,17 @@ impl Sources {
     /// Start the downloads that are due: the reference list once per New York day, the daily state when missing
     /// or older than the last closed session, the closes of the state's session while custom lengths are asked for
     /// (both at most every STATE_RECHECK).
-    fn start(&mut self, today: Option<NaiveDate>, wanted: &[String]) {
+    fn start(&mut self, today: Option<NaiveDate>, wanted: &[String], downloads: &progress::Downloads) {
         let refs_retry = self.refs_failed.map_or(true, |t| t.elapsed() >= REFS_RETRY);
         if self.refs_task.is_none() && self.refs_day != today && refs_retry {
-            self.refs_task = Some(crate::rt::spawn(async {
-                match market_rest::fetch_reference_tickers().await {
+            // Counted only when the table waits on it: no list held yet.
+            let d = self.refs.is_empty().then(|| downloads.start("tickers"));
+            self.refs_task = Some(crate::rt::spawn(async move {
+                let list = market_rest::fetch_reference_tickers_counted(d.as_deref()).await;
+                if let Some(d) = d {
+                    d.finish();
+                }
+                match list {
                     Ok(list) => Some(list),
                     Err(e) => {
                         eprintln!("[screener] reference tickers: {e:#}");
@@ -205,8 +219,11 @@ impl Sources {
         let stale = self.state.as_ref().map(|s| s.asof) < expected;
         if stale && self.state_task.is_none() && self.state_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK) {
             self.state_checked = Some(Instant::now());
-            self.state_task = Some(crate::rt::spawn(async {
-                state::fetch().await.unwrap_or_else(|e| {
+            let d = downloads.start("state");
+            self.state_task = Some(crate::rt::spawn(async move {
+                let s = state::fetch(Some(&d)).await;
+                d.finish();
+                s.unwrap_or_else(|e| {
                     eprintln!("[screener] state: {e:#}");
                     None
                 })
@@ -222,8 +239,11 @@ impl Sources {
         let due = self.closes_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK);
         if self.closes.as_ref().map(|c| c.asof) != Some(asof) && self.closes_task.is_none() && due {
             self.closes_checked = Some(Instant::now());
-            self.closes_task = Some(crate::rt::spawn(async {
-                closes::fetch().await.unwrap_or_else(|e| {
+            let d = downloads.start("closes");
+            self.closes_task = Some(crate::rt::spawn(async move {
+                let c = closes::fetch(Some(&d)).await;
+                d.finish();
+                c.unwrap_or_else(|e| {
                     eprintln!("[screener] closes: {e:#}");
                     None
                 })
@@ -302,6 +322,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
     let mut feed_retry: Option<Instant> = None;
     // While there is no table: the REST snapshot, racing the feed's connection.
     let mut first_rest: Option<JoinHandle<anyhow::Result<Vec<MarketRow>>>> = None;
+    let mut first_rest_download: Option<Arc<progress::Download>> = None;
 
     loop {
         let none_left = inner.owners.lock().expect("screener owners lock").is_empty();
@@ -321,13 +342,19 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         let started = Instant::now();
         let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64);
         let wanted: Vec<String> = inner.custom.lock().expect("screener custom lock").iter().cloned().collect();
-        src.start(today, &wanted);
+        src.start(today, &wanted, &inner.downloads);
 
         // No table yet: the REST snapshot starts now and races the feed's connection. Either can take from 1 s to
         // over 25 s when the gateway is slow (measured 03/11/2026); the first to arrive fills the panel.
         let no_table = inner.table.read().expect("screener table lock").is_none();
         if no_table && feed.is_none() && first_rest.is_none() && feed_url.is_some() {
-            first_rest = Some(crate::rt::spawn(market_rest::fetch_market_snapshot()));
+            let d = inner.downloads.start("market");
+            first_rest_download = Some(d.clone());
+            first_rest = Some(crate::rt::spawn(async move {
+                let rows = market_rest::fetch_market_snapshot_counted(Some(&d)).await;
+                d.finish();
+                rows
+            }));
         }
 
         // Live feed: connect when there is none and its retry time has come.
@@ -355,6 +382,10 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                         feed_retry = None;
                         if let Some(t) = first_rest.take() {
                             t.abort();
+                        }
+                        // The feed brought the market data: its REST copy is no longer waited for.
+                        if let Some(d) = first_rest_download.take() {
+                            d.finish();
                         }
                     }
                     Some(Err(e)) => {
@@ -420,6 +451,9 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                     complete: t.complete,
                     error: None,
                 };
+                if t.complete {
+                    inner.downloads.clear();
+                }
                 *inner.table.write().expect("screener table lock") = Some(t);
                 update
             }

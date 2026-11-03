@@ -29,8 +29,9 @@
 import { track } from "../../data/analytics";
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
-import type { FieldInfo } from "../../bindings";
-import { POLL_MS, onScreenerUpdate, screenerClose, screenerFields, screenerOpen } from "../../data/screener-api";
+import type { FieldInfo, ScreenerProgress } from "../../bindings";
+import { POLL_MS, onScreenerUpdate, screenerClose, screenerFields, screenerOpen, screenerProgress } from "../../data/screener-api";
+import { wheelText } from "../../data/screener-progress";
 import {
   columnSets,
   CUSTOM_SET_ID,
@@ -208,6 +209,20 @@ export function ScreenerPanel(props: Props) {
   });
   createEffect(() => {
     if (backendLoaded() && !ctl.loading()) setTableReady(true);
+  });
+  // While the wheel shows: what the table waits on, read every 300 ms.
+  const [progress, setProgress] = createSignal<ScreenerProgress | null>(null);
+  const wheel = createMemo(() => wheelText(progress()));
+  createEffect(() => {
+    if (tableReady()) return;
+    let stop = false;
+    const read = () => void screenerProgress().then((p) => !stop && setProgress(p), () => {});
+    read();
+    const timer = window.setInterval(read, 300);
+    onCleanup(() => {
+      stop = true;
+      window.clearInterval(timer);
+    });
   });
 
   onMount(() => {
@@ -469,6 +484,7 @@ export function ScreenerPanel(props: Props) {
             <ScreenerCharts
               ctl={ctl}
               loading={!tableReady()}
+              wheel={wheel()}
               fields={plan()?.fields ?? []}
               onPick={(t) => {
                 setSelected(t);
@@ -484,6 +500,7 @@ export function ScreenerPanel(props: Props) {
               <ScreenerHeatmap
                 plan={p}
                 loading={!tableReady()}
+                wheel={wheel()}
                 has={has}
                 onPick={(t) => {
                   setSelected(t);
@@ -498,6 +515,7 @@ export function ScreenerPanel(props: Props) {
             <ScreenerTable
               ctl={ctl}
               loading={!tableReady()}
+              wheel={wheel()}
               columns={plan()?.columns ?? []}
               fields={plan()?.fields ?? []}
               sort={screen().sort}

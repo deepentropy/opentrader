@@ -31,6 +31,7 @@ import {
 } from "lightweight-charts";
 import { Icon } from "../../components/Icon";
 import { LoadingWheel } from "../../components/LoadingWheel";
+import type { WheelText } from "../../data/screener-progress";
 import { getBars } from "../../data/datafeed";
 import { timezone } from "../../data/chart-timezone";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
@@ -277,6 +278,8 @@ type Props = {
   ctl: ScanController;
   /** No market table yet: the loading wheel instead of "no symbols". */
   loading: boolean;
+  /** The wheel's text: the download progress. */
+  wheel: WheelText;
   /** Request fields (the row's description is read from them). */
   fields: string[];
   onPick: (ticker: string) => void;
@@ -351,7 +354,7 @@ export function ScreenerCharts(props: Props) {
           )}
         </For>
       </div>
-      <Show when={!props.loading} fallback={<LoadingWheel />}>
+      <Show when={!props.loading} fallback={<LoadingWheel label={props.wheel.label} caption={props.wheel.caption} />}>
         <Show when={props.ctl.total() === 0}>
           <div class="scr-empty">No symbols match your filters</div>
         </Show>

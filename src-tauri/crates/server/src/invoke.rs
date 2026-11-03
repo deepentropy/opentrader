@@ -393,6 +393,7 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
             let a: Field = args(body)?;
             ok(fields::text_values(&state.screener.table(), &a.field)?)
         }
+        "screener_progress" => ok(state.screener.progress()),
 
         _ => Err(Fail(StatusCode::NOT_FOUND, format!("unknown command: {command}"))),
     }

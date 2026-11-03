@@ -4,7 +4,7 @@
  * and emits `screener-update` after every poll; scans run on its in-memory
  * table.
  */
-import { commands, events, type FieldInfo, type ScanRequest, type ScanResult, type ScreenerStatus, type ScreenerUpdate } from "../bindings";
+import { commands, events, type FieldInfo, type ScanRequest, type ScanResult, type ScreenerProgress, type ScreenerStatus, type ScreenerUpdate } from "../bindings";
 import { isCustomField } from "./screener-catalog";
 
 async function unwrap<T>(p: Promise<{ status: "ok"; data: T } | { status: "error"; error: string }>): Promise<T> {
@@ -45,6 +45,8 @@ export function customFieldsOf(req: ScanRequest): string[] {
   if (req.sort) visit(req.sort.sortBy);
   return [...ids];
 }
+/** Download progress of what the next complete table waits on (the loading wheel). */
+export const screenerProgress = (): Promise<ScreenerProgress> => unwrap(commands.screenerProgress());
 export const screenerFields = (): Promise<FieldInfo[]> => unwrap(commands.screenerFields());
 /** Distinct values of a text field (sector, industry) in the loaded data. */
 export const screenerValues = (field: string): Promise<string[]> => unwrap(commands.screenerValues(field));

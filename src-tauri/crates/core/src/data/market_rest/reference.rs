@@ -1,6 +1,7 @@
 //! Reference data: company info, listing date, symbol history, logos and the
 //! list of active tickers.
-use super::{get_bytes, get_json, seg, DayMemo};
+use super::{get_bytes, get_json, get_raw, seg, DayMemo};
+use crate::screener::progress::{read_body, Download};
 use crate::data::gateway::{ApiError, ErrorCode, BASE, MARKET};
 use anyhow::{anyhow, Context, Result};
 use chrono::{NaiveDate, Utc};
@@ -277,10 +278,16 @@ struct TickerPage {
 /// Every active ticker of the US stocks market (~13 pages of 1000): the first
 /// page, then `cursor=<next>` alone until `next` is null.
 pub async fn fetch_reference_tickers() -> Result<Vec<RefTicker>> {
+    fetch_reference_tickers_counted(None).await
+}
+
+/// The same, counting the bytes of its pages on `d` (the number of pages is not known before the last).
+pub async fn fetch_reference_tickers_counted(d: Option<&Download>) -> Result<Vec<RefTicker>> {
     let mut query = vec![("limit", "1000".to_string())];
     let mut out = Vec::new();
     for _page in 0..40 {
-        let page: TickerPage = get_json("ticker list", "tickers", &query).await?;
+        let body = read_body(get_raw("ticker list", "tickers", &query).await?, d, "ticker list").await?;
+        let page: TickerPage = serde_json::from_slice(&body).context("ticker list: unreadable answer")?;
         out.extend(page.tickers.into_iter().filter(|r| !r.ticker.is_empty()).map(|mut r| {
             r.currency = r.currency.to_uppercase();
             r

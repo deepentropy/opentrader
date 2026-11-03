@@ -45,6 +45,29 @@ html.theme-dark .ot-chart-loader {
   stroke-dasharray: 47 142;
 }
 
+/* Optional text: a short label inside the wheel, a caption under it. */
+.ot-chart-loader__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ot-loader-fg);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ot-chart-loader__caption {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: var(--color-content-secondary-neutral, var(--ot-loader-fg));
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 @keyframes ot-chart-loader-spin {
   0% {
     transform: rotate(0deg);

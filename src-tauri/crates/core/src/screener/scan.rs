@@ -582,7 +582,7 @@ mod live_step {
     pub(super) async fn load_state() -> StateFile {
         let src = std::env::var("SCREENER_STATE").unwrap();
         if src == "gateway" {
-            return crate::screener::state::fetch().await.unwrap().expect("gateway serves the state");
+            return crate::screener::state::fetch(None).await.unwrap().expect("gateway serves the state");
         }
         serde_json::from_slice(&std::fs::read(src).unwrap()).unwrap()
     }

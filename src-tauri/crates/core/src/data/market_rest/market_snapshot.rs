@@ -1,9 +1,10 @@
 //! Full-market snapshot for the screener, from the REST snapshot or the
 //! live feed, shaped with the watchlist rules.
-use super::get_json;
+use super::get_raw;
+use crate::screener::progress::{read_body, Download};
 use super::prior_close::prior_session_closes;
 use super::snapshot::{is_closed, shape_snapshot, MinBar, SnapBar, SnapEntry, SnapshotList};
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 // ── Full-market snapshot (`snapshot`, no ticker list) ────────────────────
 //
@@ -36,7 +37,17 @@ pub struct MarketRow {
 
 /// Fetch and shape the whole-market delayed snapshot.
 pub async fn fetch_market_snapshot() -> Result<Vec<MarketRow>> {
-    let list: SnapshotList = get_json("market snapshot", "snapshot", &[]).await?;
+    fetch_market_snapshot_counted(None).await
+}
+
+/// The same, counting its bytes on `d` against the size the gateway tells (`X-Body-Length`, before compression).
+pub async fn fetch_market_snapshot_counted(d: Option<&Download>) -> Result<Vec<MarketRow>> {
+    let resp = get_raw("market snapshot", "snapshot", &[]).await?;
+    if let Some(d) = d {
+        d.set_total(resp.headers().get("x-body-length").and_then(|v| v.to_str().ok()?.parse().ok()));
+    }
+    let body = read_body(resp, d, "market snapshot").await?;
+    let list: SnapshotList = serde_json::from_slice(&body).context("market snapshot: unreadable answer")?;
     Ok(market_rows(&list.entries()).await)
 }
 

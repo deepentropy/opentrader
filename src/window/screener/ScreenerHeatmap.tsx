@@ -14,6 +14,7 @@ import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMou
 import type { ScanRow } from "../../bindings";
 import { Icon } from "../../components/Icon";
 import { LoadingWheel } from "../../components/LoadingWheel";
+import type { WheelText } from "../../data/screener-progress";
 import { screenerScan } from "../../data/screener-api";
 import { COLUMN_BY_ID, fieldOf } from "../../data/screener-catalog";
 import { displayCell } from "../../data/screener-display";
@@ -98,6 +99,8 @@ type Props = {
   plan: Plan;
   /** No market table yet: the loading wheel instead of "no symbols". */
   loading: boolean;
+  /** The wheel's text: the download progress. */
+  wheel: WheelText;
   has: (field: string) => boolean;
   onPick: (ticker: string) => void;
   refreshTick: number;
@@ -387,7 +390,7 @@ export function ScreenerHeatmap(props: Props) {
             else if (hit.tile) props.onPick(hit.tile.ticker);
           }}
         />
-        <Show when={!props.loading} fallback={<LoadingWheel />}>
+        <Show when={!props.loading} fallback={<LoadingWheel label={props.wheel.label} caption={props.wheel.caption} />}>
           <Show when={rows() !== null && tiles().length === 0}>
             <div class="scr-empty">No symbols match your filters</div>
           </Show>

@@ -16,6 +16,7 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { LoadingWheel } from "../../components/LoadingWheel";
+import type { WheelText } from "../../data/screener-progress";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
 import {
   COLUMN_BY_ID,
@@ -64,6 +65,8 @@ type Props = {
   ctl: ScanController;
   /** No market table yet: the loading wheel instead of "no symbols". */
   loading: boolean;
+  /** The wheel's text: the download progress. */
+  wheel: WheelText;
   columns: ColumnRef[];
   /** Request field order (visible columns, then EXTRA_FIELDS present). */
   fields: string[];
@@ -358,7 +361,7 @@ export function ScreenerTable(props: Props) {
           <tr class="scr-spacer" style={{ height: `${Math.max(0, total() - range().last - 1) * ROW_H}px` }} />
         </tbody>
       </table>
-      <Show when={!props.loading} fallback={<LoadingWheel />}>
+      <Show when={!props.loading} fallback={<LoadingWheel label={props.wheel.label} caption={props.wheel.caption} />}>
         <Show when={props.ctl.total() === 0}>
           <div class="scr-empty">No symbols match your filters</div>
         </Show>

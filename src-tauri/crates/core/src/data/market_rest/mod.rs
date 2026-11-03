@@ -46,11 +46,11 @@ pub use corporate_actions::{
 #[cfg(test)]
 pub(crate) use corporate_actions::set_splits_for_test;
 pub use fundamentals::{fetch_fundamentals, Fundamentals};
-pub use market_snapshot::{fetch_market_snapshot, shape_feed_snapshots, FeedSnapshot, MarketRow};
+pub use market_snapshot::{fetch_market_snapshot, fetch_market_snapshot_counted, shape_feed_snapshots, FeedSnapshot, MarketRow};
 pub use news::{latest_news, NewsItem};
 pub use quotes::{fetch_snapshots, LiveTick};
 pub use reference::{
-    fetch_icon, fetch_reference_tickers, fetch_ticker_info, listing_date, set_icon_proxy_base, ticker_changes, RefTicker, TickerInfo,
+    fetch_icon, fetch_reference_tickers, fetch_reference_tickers_counted, fetch_ticker_info, listing_date, set_icon_proxy_base, ticker_changes, RefTicker, TickerInfo,
 };
 pub use search::{search_tickers, SymbolSearchResult};
 pub use snapshot::{fetch_ticker_snapshot, Snapshot};
