@@ -34,11 +34,20 @@ const ddmmyyyy = (at: number) => {
 };
 
 /** Posts a bot thread once per key; locks the previous thread of the same kind in that community. */
-async function post(env: Env, kind: string, communityId: string, period: string, title: string, body: string, lockPrevious: boolean): Promise<string | null> {
+async function post(
+  env: Env,
+  kind: string,
+  communityId: string,
+  period: string,
+  title: string,
+  body: string,
+  lockPrevious: boolean,
+  /** The thread's date (a past trading day for the backfill); now by default. */
+  at = now(),
+): Promise<string | null> {
   const key = `${communityId}:${period}`;
   if (await env.DB.prepare("SELECT 1 FROM bot_threads WHERE kind = ? AND key = ?").bind(kind, key).first()) return null;
   const id = newId();
-  const at = now();
   const stmts: D1PreparedStatement[] = [];
   if (lockPrevious) {
     stmts.push(
@@ -165,6 +174,65 @@ export async function biggestMoves(env: Env): Promise<string[]> {
   return made;
 }
 
+type DayBar = { T: string; c: number; v: number };
+
+/** The whole market's daily bars of a date (YYYY-MM-DD); empty on a day without a session. */
+async function dailyBars(env: Env, date: string): Promise<DayBar[]> {
+  const res = await fetch(`${env.GATEWAY_URL}/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true`, {
+    headers: { authorization: `Bearer ${env.GATEWAY_TOKEN}`, "user-agent": "OpenTrader-Community" },
+  });
+  if (!res.ok) throw new Error(`daily bars of ${date} answered ${res.status}`);
+  return ((await res.json()) as { results?: DayBar[] }).results ?? [];
+}
+
+const isoDate = (day: number) => new Date(day * DAY * 1000).toISOString().slice(0, 10);
+
+/**
+ * The biggest moves of past trading days (the last `days` sessions before today), each compared with the session
+ * before; the same rules as the daily job. Each thread is dated to its session (after the close) and says it was
+ * added later. Days already done are skipped.
+ */
+export async function backfillMoves(env: Env, days: number): Promise<string[]> {
+  if (!env.GATEWAY_URL || !env.GATEWAY_TOKEN) return [];
+  const made: string[] = [];
+  const added = ddmmyyyy(now());
+  // Sessions newest first, each with the session before it.
+  const sessions: { day: number; bars: DayBar[] }[] = [];
+  for (let d = today() - 1; sessions.length < days + 1 && d > today() - (days + 1) * 2 - 10; d--) {
+    const wd = new Date(d * DAY * 1000).getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    const bars = await dailyBars(env, isoDate(d));
+    if (bars.length) sessions.push({ day: d, bars });
+  }
+  for (let i = 0; i + 1 < sessions.length && i < days; i++) {
+    const { day, bars } = sessions[i];
+    const prev = new Map(sessions[i + 1].bars.map((b) => [b.T, b.c]));
+    const snaps: Snap[] = bars.map((b) => {
+      const p = prev.get(b.T);
+      return { ticker: b.T, changePct: p ? ((b.c - p) / p) * 100 : null, day: { c: b.c, v: b.v } };
+    });
+    const date = ddmmyyyy(day * DAY);
+    for (const s of pickMoves(snaps)) {
+      const t = `$${s.ticker}`;
+      const p = await post(
+        env,
+        "mover",
+        `t:${s.ticker}`,
+        String(day),
+        `${t}: one of the biggest moves of ${date}`,
+        `${t} was among the biggest moves in US stocks on ${date}. What was behind it? Share the news, your levels and charts.
+
+_Added on ${added} from that session's market data._`,
+        false,
+        // After that session's close.
+        day * DAY + 21 * 3600,
+      );
+      if (p) made.push(p);
+    }
+  }
+  return made;
+}
+
 /** The cron triggers: 13:00 UTC on trading days (daily threads; Mondays, weekly ones too), 16:00 UTC (moves). */
 export async function scheduled(env: Env, cron: string): Promise<void> {
   if (cron.startsWith("0 13")) {
@@ -175,11 +243,17 @@ export async function scheduled(env: Env, cron: string): Promise<void> {
   }
 }
 
-/** POST /mod/bot {job: "daily" | "weekly" | "movers"} — an administrator runs a job now. */
+/** POST /mod/bot {job: "daily" | "weekly" | "movers" | "backfill", days?} — an administrator runs a job now. */
 export async function runJob(env: Env, user: User | null, body: any): Promise<Response> {
   if (!user || user.role !== "admin") throw new HttpError(403, "Only administrators run the bot.");
   const job = String(body?.job ?? "");
-  const made = job === "daily" ? await dailyThreads(env) : job === "weekly" ? await weeklyThreads(env) : job === "movers" ? await biggestMoves(env) : null;
+  const days = Math.min(30, Math.max(1, Number(body?.days) || 10));
+  const made =
+    job === "daily" ? await dailyThreads(env)
+    : job === "weekly" ? await weeklyThreads(env)
+    : job === "movers" ? await biggestMoves(env)
+    : job === "backfill" ? await backfillMoves(env, days)
+    : null;
   if (!made) throw new HttpError(400, "Unknown job.");
   return json({ posts: made });
 }
