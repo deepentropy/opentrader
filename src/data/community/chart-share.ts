@@ -12,6 +12,8 @@ export type ChartBridge = {
   capture: () => Promise<ChartCapture | null>;
   /** Shows the shared chart's symbol and interval on the active chart and adds its drawings; how many were added. */
   open: (chart: SharedChart) => Promise<number>;
+  /** Shows a ticker (a `$AAPL` mention) on the active chart. */
+  showSymbol: (ticker: string) => Promise<void>;
 };
 
 let bridge: ChartBridge | null = null;

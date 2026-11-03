@@ -6,6 +6,7 @@ import { For, Show, createSignal } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Icon } from "../../../components/Icon";
 import { renderMarkdown } from "../../../data/community/markdown";
+import { chartBridge } from "../../../data/community/chart-share";
 import { api, CommunityError, type ReportReason } from "../../../data/community/api";
 import { me, signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
 
@@ -44,6 +45,19 @@ export function Author(props: { name: string | null }) {
 
 /** Opens the text's links in the browser instead of the app's window. */
 function onLinkClick(e: MouseEvent) {
+  const mention = (e.target as HTMLElement).closest("a[data-ticker]") as HTMLAnchorElement | null;
+  if (mention) {
+    e.preventDefault();
+    const ticker = mention.dataset.ticker!;
+    const bridge = chartBridge();
+    // The app: the chart shows it (the panel follows when it follows the chart). The website: its community.
+    if (bridge) void bridge.showSymbol(ticker).catch((err) => console.warn("[community] symbol not shown", err));
+    else {
+      history.pushState(null, "", `/t/${encodeURIComponent(ticker)}`);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+    return;
+  }
   const a = (e.target as HTMLElement).closest("a[data-external]") as HTMLAnchorElement | null;
   if (!a) return;
   e.preventDefault();

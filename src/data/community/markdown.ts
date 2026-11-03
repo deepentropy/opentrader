@@ -2,13 +2,17 @@
  * Markdown of community posts and comments, to safe HTML. The text is escaped first, then a small subset is
  * rendered: paragraphs (a line break stays one), headings, bold / italic / strikethrough, inline code and code
  * blocks, quotes, lists, tables, rules, links (http and https only) and bare addresses. No raw HTML, no images.
- * Links carry `data-external`: the panel opens them in the browser.
+ * Links carry `data-external`: the panel opens them in the browser. `$AAPL` mentions carry `data-ticker`: the
+ * panel shows the symbol on the chart (the website opens its community).
  */
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ESC[c]);
 
 const link = (url: string, text: string) => `<a href="${url}" data-external="1" rel="noopener noreferrer">${text}</a>`;
+
+/** `$AAPL`, `$BRK.B`: a dollar sign, a capital, up to 6 capitals or digits (not `$5`, not `US$`). */
+const TICKER = /(^|[^\w$])\$([A-Z][A-Z0-9]{0,5}(?:\.[A-Z])?)(?![\w.]*\w)/g;
 
 /** Bare address: trailing punctuation stays outside. */
 const AUTOLINK = /\bhttps?:\/\/[^\s<]+[^\s<.,:;!?'")\]]/g;
@@ -29,6 +33,7 @@ export function renderInline(src: string): string {
   let s = src.replace(/\u0000/g, "").replace(/`([^`\n]+)`/g, (_m, code: string) => keep(`<code>${esc(code)}</code>`));
   s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, text: string, url: string) => keep(link(esc(url), emphasis(esc(text)))));
   s = s.replace(AUTOLINK, (url) => keep(link(esc(url), esc(url))));
+  s = s.replace(TICKER, (_m, before: string, t: string) => before + keep(`<a href="/t/${t}" data-ticker="${t}" class="cm-ticker">$${t}</a>`));
   s = emphasis(esc(s));
   return s.replace(/\u0000(\d+)\u0000/g, (_m, i: string) => kept[Number(i)]);
 }

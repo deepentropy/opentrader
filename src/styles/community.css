@@ -355,3 +355,6 @@ select.cm-input option { background: var(--color-popup-background, #1e1e1e); }
   border: 1px solid var(--color-divider-line-primary);
   border-radius: 4px;
 }
+
+/* $TICKER mentions (#207). */
+.cm-markdown a.cm-ticker { font-weight: 600; }

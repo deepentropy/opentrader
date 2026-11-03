@@ -8,7 +8,7 @@ import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types"
 import { parseDrawings } from "lightweight-charts-drawing/core/serialize";
 import { exportableCharts } from "../../chart/chart-export";
 import { layoutSnapshot, snapshotTheme } from "../../chart/layout-snapshot";
-import { isSupportedResolution } from "../../../data/datafeed";
+import { isSupportedResolution, toFullSymbol } from "../../../data/datafeed";
 import type { AppTabs } from "../../shell/app-tabs";
 import type { DrawingStore } from "../../drawings/drawing-store";
 import type { ChartBridge } from "../../../data/community/chart-share";
@@ -79,6 +79,9 @@ export function createChartBridge(host: ChartBridgeHost): ChartBridge {
         added++;
       }
       return added;
+    },
+    showSymbol: async (ticker) => {
+      host.setSymbol(await toFullSymbol(ticker));
     },
   };
 }

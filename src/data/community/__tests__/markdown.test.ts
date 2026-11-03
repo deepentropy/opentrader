@@ -42,6 +42,15 @@ describe("community markdown", () => {
     expect(renderMarkdown("Pros:\n- cheap\n- fast")).toBe("<p>Pros:</p><ul><li>cheap</li><li>fast</li></ul>");
   });
 
+  it("links $TICKER mentions", () => {
+    const link = (t: string) => `<a href="/t/${t}" data-ticker="${t}" class="cm-ticker">$${t}</a>`;
+    expect(renderInline("Long $AAPL, short $BRK.B.")).toBe(`Long ${link("AAPL")}, short ${link("BRK.B")}.`);
+    expect(renderInline("($TSLA's chart)")).toBe(`(${link("TSLA")}&#39;s chart)`);
+    expect(renderInline("$5 and $100k, US$ and $TOOLONGNAME")).toBe("$5 and $100k, US$ and $TOOLONGNAME");
+    expect(renderInline("`$AAPL` in code")).toBe("<code>$AAPL</code> in code");
+    expect(renderInline("https://x.com/$AAPL")).toContain('href="https://x.com/$AAPL"');
+  });
+
   it("strips marks for previews", () => {
     expect(plainText("# Title\n\n**Source:** [site](https://x.com)\n- *one*\n- `two`")).toBe("Title Source: site one two");
   });
