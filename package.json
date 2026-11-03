@@ -11,6 +11,8 @@
     "serve": "vite preview",
     "dev:web": "vite --mode web",
     "build:web": "vite build --mode web",
+    "dev:community": "vite --mode community",
+    "build:community": "vite build --mode community",
     "tauri": "tauri",
     "test": "vitest run",
     "test:watch": "vitest",

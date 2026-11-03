@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database;
+  /** The website (build of src/community-site); absent in a local run without it. */
+  ASSETS?: Fetcher;
   /** This Worker's public address, without a trailing slash (OAuth callbacks). */
   PUBLIC_URL: string;
   /** Page origins allowed to call the API (comma-separated), besides the desktop app's. */

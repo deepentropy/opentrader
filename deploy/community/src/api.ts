@@ -5,7 +5,7 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, str, topSince } from "./util";
+import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, sha256Hex, str, topSince } from "./util";
 
 type Row = Record<string, any>;
 
@@ -484,7 +484,7 @@ export async function modAction(env: Env, user: User | null, body: any): Promise
       break;
     case "restore":
       if (type === "post") stmts.push(env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ? AND (SELECT removed FROM posts WHERE id = ?) = 1").bind(community, targetId));
-      stmts.push(env.DB.prepare(`UPDATE ${table} SET removed = 0, removed_reason = NULL WHERE id = ?`).bind(targetId));
+      stmts.push(env.DB.prepare(`UPDATE ${table} SET removed = 0, removed_reason = NULL WHERE id = ?`).bind(targetId), settle("actioned"));
       break;
     case "dismiss":
       stmts.push(settle("dismissed"));
@@ -557,4 +557,70 @@ export async function deleteAccount(env: Env, user: User | null): Promise<Respon
     env.DB.prepare("DELETE FROM users WHERE id = ?").bind(u.id),
   ]);
   return json({ ok: true });
+}
+
+// ── Contact point and appeals ───────────────────────────────────────────
+
+export const CONTACT_KINDS = ["illegal", "appeal", "authority", "other"] as const;
+const CONTACTS_PER_DAY = 5;
+
+/** POST /contact {kind, email?, url?, body} — anyone, signed in or not. */
+export async function contact(env: Env, user: User | null, request: Request, body: any): Promise<Response> {
+  const kind = str(body?.kind);
+  if (!(CONTACT_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, "Pick a subject.");
+  const message = text(body?.body, "The message", 10, 5_000);
+  const email = str(body?.email).trim().slice(0, 200);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "This e-mail address doesn't look right.");
+  const url = str(body?.url).trim().slice(0, 500);
+  const day = Math.floor(now() / 86_400);
+  const sender = await sha256Hex(`${request.headers.get("CF-Connecting-IP") ?? "unknown"}:${day}`);
+  const sent = await env.DB.prepare("SELECT COUNT(*) AS n FROM messages WHERE sender_hash = ? AND created_at >= ?").bind(sender, now() - 86_400).first<{ n: number }>();
+  if ((sent?.n ?? 0) >= CONTACTS_PER_DAY) throw new HttpError(429, "Too many messages today. Try again tomorrow.");
+  await env.DB.prepare("INSERT INTO messages (id, kind, email, url, body, user_id, sender_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(newId(), kind, email || null, url, message, user?.id ?? null, sender, now())
+    .run();
+  return json({ ok: true }, 201);
+}
+
+function requireAdmin(user: User | null): User {
+  const u = requireUser(user);
+  if (u.role !== "admin") throw new HttpError(403, "Only administrators read the messages.");
+  return u;
+}
+
+/** GET /mod/messages — open messages, oldest first (administrators). */
+export async function messages(env: Env, user: User | null): Promise<Response> {
+  requireAdmin(user);
+  const { results } = await env.DB.prepare(
+    `SELECT m.id, m.kind, m.email, m.url, m.body, m.created_at, u.name AS user_name FROM messages m
+       LEFT JOIN users u ON u.id = m.user_id WHERE m.status = 'open' ORDER BY m.created_at LIMIT 200`,
+  ).all<Row>();
+  return json({ messages: results });
+}
+
+/** POST /mod/messages/:id/done — handled: its e-mail address is erased. */
+export async function messageDone(env: Env, user: User | null, id: string): Promise<Response> {
+  const u = requireAdmin(user);
+  await env.DB.prepare("UPDATE messages SET status = 'done', email = NULL, handled_by = ?, handled_at = ? WHERE id = ?").bind(u.id, now(), id).run();
+  return json({ ok: true });
+}
+
+/** POST /appeals {target_type, target_id, details} — the author asks the moderators to look again at a removal. */
+export async function appeal(env: Env, user: User | null, body: any): Promise<Response> {
+  const u = requireUser(user);
+  const type = str(body?.target_type);
+  const id = str(body?.target_id);
+  if (type !== "post" && type !== "comment") throw new HttpError(400, "Unknown target.");
+  const row = await env.DB.prepare(`SELECT author_id, removed FROM ${type === "post" ? "posts" : "comments"} WHERE id = ?`).bind(id).first<Row>();
+  if (!row || row.author_id !== u.id) throw new HttpError(403, "You can only appeal the removal of your own content.");
+  if (!row.removed) throw new HttpError(400, "This content isn't removed.");
+  const details = text(body?.details, "The explanation", 10, LIMITS.reportDetailsMax);
+  const community = await targetCommunity(env, type, id);
+  await env.DB.prepare(
+    `INSERT INTO reports (id, target_type, target_id, community_id, reporter_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, 'appeal', ?, ?)
+     ON CONFLICT (reporter_id, target_type, target_id) DO UPDATE SET reason = 'appeal', details = excluded.details, status = 'open', created_at = excluded.created_at`,
+  )
+    .bind(newId(), type, id, community, u.id, details, now())
+    .run();
+  return json({ ok: true }, 201);
 }

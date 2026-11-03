@@ -67,7 +67,13 @@ export type Me = {
 };
 
 export type Sort = "hot" | "new" | "top";
+export type ContactKind = "illegal" | "appeal" | "authority" | "other";
+
+/** A message sent through the website's contact form (administrators). */
+export type ContactMessage = { id: string; kind: ContactKind; email: string | null; url: string; body: string; created_at: number; user_name: string | null };
 export type ReportReason = "spam" | "manipulation" | "harassment" | "illegal" | "other";
+/** Queue entries also hold the authors' appeals against a removal. */
+export type QueueReason = ReportReason | "appeal";
 
 export type QueueItem = {
   target_type: "post" | "comment";
@@ -76,7 +82,7 @@ export type QueueItem = {
   reports: number;
   first_at: number;
   content: { id: string; post_id?: string; title?: string; body: string; removed: number; locked?: number; author: string | null } | null;
-  reasons: { reason: ReportReason; details: string; created_at: number }[];
+  reasons: { reason: QueueReason; details: string; created_at: number }[];
 };
 
 export class CommunityError extends Error {
@@ -148,7 +154,11 @@ export const api = {
 
   report: (type: "post" | "comment", id: string, reason: ReportReason, details: string) =>
     request<{ ok: true }>("POST", "/reports", { target_type: type, target_id: id, reason, details }),
+  appeal: (type: "post" | "comment", id: string, details: string) => request<{ ok: true }>("POST", "/appeals", { target_type: type, target_id: id, details }),
+  contact: (kind: ContactKind, email: string, url: string, body: string) => request<{ ok: true }>("POST", "/contact", { kind, email, url, body }),
   queue: () => request<{ items: QueueItem[] }>("GET", "/mod/queue"),
+  messages: () => request<{ messages: ContactMessage[] }>("GET", "/mod/messages"),
+  messageDone: (id: string) => request<{ ok: true }>("POST", `/mod/messages/${enc(id)}/done`),
   modAction: (action: string, type: "post" | "comment" | "user", id: string, reason = "", days?: number) =>
     request<{ ok: true }>("POST", "/mod/action", { action, target_type: type, target_id: id, reason, days }),
 };

@@ -23,11 +23,27 @@ const webShims = [
   { find: /^@tauri-apps\/api\/event$/, replacement: fileURLToPath(new URL("./src/web/tauri-event.ts", import.meta.url)) },
   { find: /^@tauri-apps\/plugin-opener$/, replacement: fileURLToPath(new URL("./src/web/tauri-opener.ts", import.meta.url)) },
 ];
+// Community website (`--mode community`, src/community-site): the Community
+// panel alone, full width, served by deploy/community. No desktop bridge and
+// no app server: the bindings, the dialogs and the opener are stand-ins.
+const communityShims = [
+  { find: /^(\.\.?\/)+bindings$/, replacement: fileURLToPath(new URL("./src/community-site/shims/bindings.ts", import.meta.url)) },
+  { find: /^(\.\.?\/)+components\/Dialogs$/, replacement: fileURLToPath(new URL("./src/community-site/shims/dialogs.ts", import.meta.url)) },
+  { find: /^@tauri-apps\/plugin-opener$/, replacement: fileURLToPath(new URL("./src/web/tauri-opener.ts", import.meta.url)) },
+];
+const COMMUNITY = (mode: string) => mode === "community";
+
 // Where the web dev server forwards /api (the server's default address).
 // @ts-expect-error process is a nodejs global
 const webServer = process.env.OPENTRADER_SERVER ?? "http://127.0.0.1:8787";
 
 export default defineConfig(async ({ mode }: { mode: string }) => ({
+  ...(COMMUNITY(mode)
+    ? {
+        root: fileURLToPath(new URL("./src/community-site", import.meta.url)),
+        publicDir: fileURLToPath(new URL("./public", import.meta.url)),
+      }
+    : {}),
   plugins: [
     solid(),
     tailwindcss(),
@@ -57,16 +73,26 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
       { find: /^lightweight-charts-drawing\/core/, replacement: drawingCore },
       { find: /^lightweight-charts-drawing\/runtime/, replacement: drawingRuntime },
       ...(mode === "web" ? webShims : []),
+      ...(COMMUNITY(mode) ? communityShims : []),
     ],
   },
-  build: mode === "web" ? { outDir: "dist-web" } : undefined,
+  build: mode === "web"
+    ? { outDir: "dist-web" }
+    : COMMUNITY(mode)
+      ? { outDir: fileURLToPath(new URL("./deploy/community/site", import.meta.url)), emptyOutDir: true }
+      : undefined,
   // The version, for the usage statistics (data/analytics.ts).
-  define: { "import.meta.env.VITE_APP_VERSION": JSON.stringify(tauriConf.version) },
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(tauriConf.version),
+    // The website calls its own server (same address), unless pointed elsewhere for a local run.
+    // @ts-expect-error process is a nodejs global
+    ...(COMMUNITY(mode) ? { "import.meta.env.VITE_COMMUNITY_URL": JSON.stringify(process.env.VITE_COMMUNITY_URL ?? "") } : {}),
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   clearScreen: false,
   server: {
-    port: mode === "web" ? 1430 : 1420,
+    port: mode === "web" ? 1430 : COMMUNITY(mode) ? 1450 : 1420,
     strictPort: true,
     host: host || false,
     hmr: host

@@ -24,7 +24,27 @@ type Props = {
 };
 
 /** Inline form under a post or comment: reply, edit, report, remove. */
-type Open = { id: string; kind: "reply" | "edit" | "report" | "remove" } | null;
+type Open = { id: string; kind: "reply" | "edit" | "report" | "remove" | "appeal" } | null;
+
+/** The author asks the moderators to look again at a removal. */
+function AppealForm(props: { type: "post" | "comment"; id: string; onDone: () => void }) {
+  const [sent, setSent] = createSignal(false);
+  return (
+    <Show when={!sent()} fallback={<div class="cm-muted cm-hint">Appeal sent. A moderator will review the removal.</div>}>
+      <ReasonForm
+        title="Appeal this removal"
+        action="Send appeal"
+        placeholder="Why the removal should be reconsidered"
+        required="Explain why the removal should be reconsidered."
+        onCancel={props.onDone}
+        onSubmit={async (text) => {
+          await api.appeal(props.type, props.id, text);
+          setSent(true);
+        }}
+      />
+    </Show>
+  );
+}
 
 export function PostView(props: Props) {
   const [data, { refetch }] = createResource(() => props.postId, (id) => api.post(id));
@@ -157,7 +177,13 @@ export function PostView(props: Props) {
         </div>
         <Show when={!isCollapsed()}>
           <Show when={c().removed}>
-            <div class="cm-removed">Removed by moderators{c().removed_reason ? `: ${c().removed_reason}` : ""}</div>
+            <div class="cm-removed">
+              Removed by moderators{c().removed_reason ? `: ${c().removed_reason}` : ""}
+              <Show when={c().own}> <button type="button" class="cm-action is-inline" onClick={() => toggle(c().id, "appeal")}>Appeal</button></Show>
+            </div>
+            <Show when={is("appeal")}>
+              <AppealForm type="comment" id={c().id} onDone={() => setOpen(null)} />
+            </Show>
           </Show>
           <Show when={c().deleted} fallback={<Show when={c().body}><MarkdownBody text={c().body} /></Show>}>
             <div class="cm-muted cm-gone">[deleted]</div>
@@ -223,7 +249,13 @@ export function PostView(props: Props) {
                     <Show when={p().locked}><span class="cm-badge">Locked</span></Show>
                   </div>
                   <Show when={p().removed}>
-                    <div class="cm-removed">Removed by moderators{p().removed_reason ? `: ${p().removed_reason}` : ""}</div>
+                    <div class="cm-removed">
+                      Removed by moderators{p().removed_reason ? `: ${p().removed_reason}` : ""}
+                      <Show when={p().own}> <button type="button" class="cm-action is-inline" onClick={() => toggle("post", "appeal")}>Appeal</button></Show>
+                    </div>
+                    <Show when={isPost("appeal")}>
+                      <AppealForm type="post" id={p().id} onDone={() => setOpen(null)} />
+                    </Show>
                   </Show>
                   <Show when={p().deleted}><div class="cm-muted cm-gone">This post was deleted by its author.</div></Show>
                   <Show when={p().body}><MarkdownBody text={p().body} class="cm-post-body" /></Show>

@@ -9,6 +9,10 @@
  * sort it. A post opens in the panel with its comments; writing, voting and
  * reporting need an account (sign-in with an existing one, see
  * data/community/session.ts).
+ *
+ * The public website (src/community-site) shows the same panel full width:
+ * `web` drops the chart's community, `route` / `onRoute` tie what is shown
+ * to the page address.
  */
 import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../../components/Icon";
@@ -23,10 +27,13 @@ import { api, tickerCommunityId, type Community, type Post, type Sort } from "..
 import { deleteAccount, initSession, me, ready, refreshMe, signOut } from "../../../data/community/session";
 import { PostView } from "./PostView";
 import { ModQueue } from "./ModQueue";
-import { Age, Author, ErrorBanner, SignInBox, Vote, errorText } from "./parts";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Age, Author, CONTACT_URL, ErrorBanner, ExternalLink, RULES_URL, SignInBox, Vote, errorText } from "./parts";
 
 /** "chart" (follows the chart), "following", "all", or a community id. */
 type Source = string;
+/** What the page address shows (the website). */
+export type CommunityRoute = { source: string; postId: string | null };
 type View = { kind: "list" } | { kind: "post"; id: string } | { kind: "compose" } | { kind: "signin" } | { kind: "queue" } | { kind: "account" };
 
 const SOURCE_KEY = "ot:community:source";
@@ -40,17 +47,39 @@ const SORTS = [
 
 const DISCLAIMER = "Posts are members' opinions, not financial advice.";
 
-export function CommunityPanel(props: { symbol?: string }) {
-  const [source, setSource] = createSignal<Source>(kv.getItem(SOURCE_KEY) ?? "chart");
+type Props = {
+  symbol?: string;
+  /** The website: no chart, the address holds the state. */
+  web?: boolean;
+  route?: CommunityRoute;
+  onRoute?: (route: CommunityRoute) => void;
+};
+
+export function CommunityPanel(props: Props) {
+  const [source, setSource] = createSignal<Source>(props.route?.source ?? (props.web ? "all" : kv.getItem(SOURCE_KEY) ?? "chart"));
   const [sort, setSort] = createSignal<Sort>((kv.getItem(SORT_KEY) as Sort | null) ?? "hot");
-  const [view, setView] = createSignal<View>({ kind: "list" });
+  const [view, setView] = createSignal<View>(props.route?.postId ? { kind: "post", id: props.route.postId } : { kind: "list" });
   /** Where the sign-in view goes back to. */
   let afterSignIn: View = { kind: "list" };
   const [error, setError] = createSignal<string | null>(null);
   const [pickerOpen, setPickerOpen] = createSignal(false);
   const [menuOpen, setMenuOpen] = createSignal(false);
 
-  createEffect(() => kv.setItem(SOURCE_KEY, source()));
+  createEffect(() => { if (!props.web) kv.setItem(SOURCE_KEY, source()); });
+
+  // The address and the panel follow each other (website): back / forward
+  // change the panel, the panel's moves change the address.
+  const postIdOf = (v: View) => (v.kind === "post" ? v.id : null);
+  createEffect(on(() => props.route, (r) => {
+    if (!r) return;
+    if (r.source !== source()) setSource(r.source);
+    if (r.postId !== postIdOf(view())) setView(r.postId ? { kind: "post", id: r.postId } : { kind: "list" });
+  }, { defer: true }));
+  createEffect(() => {
+    const route = { source: source(), postId: postIdOf(view()) };
+    // Sign-in, composer and the other inner views keep the address.
+    if (view().kind === "list" || view().kind === "post") props.onRoute?.(route);
+  });
   createEffect(() => kv.setItem(SORT_KEY, sort()));
   onMount(() => void initSession());
 
@@ -187,9 +216,11 @@ export function CommunityPanel(props: { symbol?: string }) {
 
   const Picker = () => (
     <div class="ot-popover cm-picker" role="menu">
-      <button type="button" class="ot-menu-item" onClick={() => choose("chart")}>
-        <span class="ot-menu-item__label">{chartCommunity() ? `$${chartCommunity()!.slice(2)}` : "Chart symbol"}<span class="cm-muted"> · this chart</span></span>
-      </button>
+      <Show when={!props.web}>
+        <button type="button" class="ot-menu-item" onClick={() => choose("chart")}>
+          <span class="ot-menu-item__label">{chartCommunity() ? `$${chartCommunity()!.slice(2)}` : "Chart symbol"}<span class="cm-muted"> · this chart</span></span>
+        </button>
+      </Show>
       <button type="button" class="ot-menu-item" onClick={() => choose("following")}><span class="ot-menu-item__label">Following</span></button>
       <button type="button" class="ot-menu-item" onClick={() => choose("all")}><span class="ot-menu-item__label">All communities</span></button>
       <div class="cm-picker-section">Themes</div>
@@ -234,6 +265,9 @@ export function CommunityPanel(props: { symbol?: string }) {
         </Show>
         <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); void signOut(); }}><span class="ot-menu-item__label">Sign out</span></button>
       </Show>
+      <div class="ot-popover-separator cm-menu-separator" />
+      <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); void openUrl(RULES_URL); }}><span class="ot-menu-item__label">Community rules</span></button>
+      <button type="button" class="ot-menu-item" onClick={() => { setMenuOpen(false); void openUrl(CONTACT_URL); }}><span class="ot-menu-item__label">Contact and reports</span></button>
     </div>
   );
 
@@ -364,7 +398,7 @@ export function CommunityPanel(props: { symbol?: string }) {
             <button type="button" class="cm-btn" onClick={() => setView({ kind: "list" })}>Cancel</button>
             <button type="button" class="cm-btn is-primary" disabled={busy() || title().trim().length < 3 || !target()} onClick={submit}>Post</button>
           </div>
-          <div class="cm-disclaimer">{DISCLAIMER} Promotion, coordinated buying and undisclosed positions are removed.</div>
+          <div class="cm-disclaimer">{DISCLAIMER} Promotion, coordinated buying and undisclosed positions are removed: read the <ExternalLink href={RULES_URL}>community rules</ExternalLink>.</div>
         </div>
       </div>
     );

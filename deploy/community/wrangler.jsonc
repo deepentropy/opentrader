@@ -10,6 +10,15 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "routes": [{ "pattern": "community.opentrader.markets", "custom_domain": true }],
+  // The website: `npm run build:community` at the repository root writes ./site.
+  // Every request reaches the Worker first (HTTPS redirect, API, page titles),
+  // which hands the rest to the website's files.
+  "assets": {
+    "directory": "./site",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
   "d1_databases": [
     {
       "binding": "DB",
@@ -21,7 +30,7 @@
   "vars": {
     "PUBLIC_URL": "https://community.opentrader.markets",
     "ALLOWED_ORIGINS": "https://demo.opentrader.markets",
-    "WEB_REDIRECTS": "https://demo.opentrader.markets/community-auth.html",
+    "WEB_REDIRECTS": "https://demo.opentrader.markets/community-auth.html,https://community.opentrader.markets/community-auth.html",
     // provider:provider_id, comma-separated.
     "ADMINS": "google:112079201386783875064",
     "GITHUB_CLIENT_ID": "Ov23lijxOPdc4uYuL0ya",
@@ -33,8 +42,8 @@
     "local": {
       "vars": {
         "PUBLIC_URL": "http://127.0.0.1:8788",
-        "ALLOWED_ORIGINS": "http://localhost:1420,http://localhost:1430,http://localhost:1440",
-        "WEB_REDIRECTS": "http://localhost:1430/community-auth.html",
+        "ALLOWED_ORIGINS": "http://localhost:1420,http://localhost:1430,http://localhost:1440,http://localhost:1450",
+        "WEB_REDIRECTS": "http://localhost:1430/community-auth.html,http://127.0.0.1:8788/community-auth.html,http://localhost:1450/community-auth.html",
         "ADMINS": "",
         "DEV_LOGIN": "1",
         "DEV_ADMINS": "dev:admin",

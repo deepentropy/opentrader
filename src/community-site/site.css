@@ -1,0 +1,88 @@
+/*
+ * Community website: the app's theme tokens and the shared pieces the
+ * Community panel uses, around a centred column.
+ */
+@import "../styles/fonts.css";
+@import "../styles/tokens.css";
+@import "../styles/base.css";
+@import "../styles/panel-header.css";
+@import "../styles/segmented-control.css";
+@import "../styles/popover.css";
+@import "../styles/menu-item.css";
+@import "../styles/toolbar-button.css";
+@import "../styles/icon-button.css";
+@import "../styles/rail-panel.css";
+@import "../styles/empty-state.css";
+@import "../styles/community.css";
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--ot-chart-bg, #0f0f0f);
+  color: var(--color-toolbar-button-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
+}
+button, input, select, textarea { font-family: inherit; }
+
+.cs-page { min-height: 100%; display: flex; flex-direction: column; }
+.cs-top {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  padding: 0 24px;
+  background: var(--ot-chart-bg, #0f0f0f);
+  border-bottom: 1px solid var(--color-divider-line-primary);
+}
+.cs-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ot-strong); text-decoration: none; font-size: 17px; }
+.cs-nav { display: flex; align-items: center; gap: 16px; font-size: 14px; }
+.cs-nav a { color: var(--color-toolbar-button-text); text-decoration: none; }
+.cs-nav a:hover { color: var(--ot-strong); }
+.cs-btn { padding: 7px 14px; border-radius: 6px; background: #2962ff; color: #fff !important; font-weight: 600; }
+
+.cs-main {
+  flex: 1;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--color-divider-line-primary);
+  border-right: 1px solid var(--color-divider-line-primary);
+  --ot-rail-width: 100%;
+}
+/* The panel scrolls with the page instead of inside itself. */
+.cs-main .cm-panel { height: auto; flex: 1; }
+.cs-main .cm-scroll { overflow: visible; }
+.cs-main .cm-header-wrap { position: sticky; top: 56px; z-index: 30; background: var(--ot-chart-bg, #0f0f0f); }
+.cs-main .cm-toolbar { position: sticky; top: 104px; z-index: 20; background: var(--ot-chart-bg, #0f0f0f); }
+.cs-main .cm-post-title { font-size: 16px; line-height: 22px; }
+.cs-main .cm-markdown { font-size: 14px; line-height: 21px; }
+
+.cs-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+  padding: 20px 24px 28px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-divider-line-primary);
+}
+.cs-foot a { color: var(--color-text-secondary); text-decoration: none; }
+.cs-foot a:hover { color: var(--ot-strong); }
+
+.cs-contact { padding: 24px; }
+.cs-contact h1 { margin: 0 0 8px; font-size: 22px; color: var(--ot-strong); }
+.cs-contact p { margin: 0 0 12px; font-size: 14px; line-height: 21px; }
+.cs-contact .cm-input, .cs-contact .cm-textarea { font-size: 14px; }
+
+@media (max-width: 600px) {
+  .cs-top { padding: 0 12px; }
+  .cs-nav a:not(.cs-btn) { display: none; }
+  .cs-main { border: 0; }
+}

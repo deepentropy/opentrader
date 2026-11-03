@@ -44,6 +44,7 @@
   color: var(--color-text-secondary);
 }
 .cm-picker-input { padding: 4px 12px 8px; }
+.cm-menu-separator { height: 1px; margin: 4px 0; background: var(--color-divider-line-primary); }
 .cm-menu-user { padding: 8px 16px; font-size: 13px; color: var(--color-text-secondary); }
 .cm-menu-user strong { color: var(--color-toolbar-button-text); }
 
@@ -179,6 +180,7 @@
 }
 .cm-action:hover { background: var(--color-toolbar-button-background-hover); color: var(--color-toolbar-button-text); }
 .cm-action.is-mod { color: #f7a600; }
+.cm-action.is-inline { padding: 0 2px; color: inherit; text-decoration: underline; }
 .cm-reply-prompt {
   all: unset;
   box-sizing: border-box;

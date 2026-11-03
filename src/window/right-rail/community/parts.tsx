@@ -9,6 +9,10 @@ import { renderMarkdown } from "../../../data/community/markdown";
 import { api, CommunityError, type ReportReason } from "../../../data/community/api";
 import { me, signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
 
+export const RULES_URL = "https://opentrader.markets/community-rules.html";
+export const TERMS_URL = "https://opentrader.markets/terms.html";
+export const CONTACT_URL = "https://community.opentrader.markets/contact";
+
 export function errorText(e: unknown): string {
   if (e instanceof CommunityError || e instanceof Error) return e.message;
   return String(e);
@@ -160,12 +164,22 @@ export function ReportForm(props: { type: "post" | "comment"; id: string; onDone
 }
 
 /** A moderator's reason (shown to the author). */
-export function ReasonForm(props: { title: string; action: string; danger?: boolean; onSubmit: (reason: string) => Promise<void>; onCancel: () => void }) {
+export function ReasonForm(props: {
+  title: string;
+  action: string;
+  danger?: boolean;
+  /** Field hint (default: a moderator's reason). */
+  placeholder?: string;
+  /** Required error text (default: a moderator's reason). */
+  required?: string;
+  onSubmit: (reason: string) => Promise<void>;
+  onCancel: () => void;
+}) {
   const [reason, setReason] = createSignal("");
   const [error, setError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
   const submit = async () => {
-    if (!reason().trim()) return setError("Give a reason: it is shown to the author.");
+    if (!reason().trim()) return setError(props.required ?? "Give a reason: it is shown to the author.");
     setBusy(true);
     try {
       await props.onSubmit(reason().trim());
@@ -177,7 +191,7 @@ export function ReasonForm(props: { title: string; action: string; danger?: bool
   return (
     <div class="cm-form" onClick={(e) => e.stopPropagation()}>
       <div class="cm-form-title">{props.title}</div>
-      <input class="cm-input" placeholder="Reason, shown to the author" maxLength={500} value={reason()} onInput={(e) => setReason(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
+      <input class="cm-input" placeholder={props.placeholder ?? "Reason, shown to the author"} maxLength={500} value={reason()} onInput={(e) => setReason(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
       <ErrorBanner text={error()} />
       <div class="cm-form-actions">
         <button type="button" class="cm-btn" onClick={() => props.onCancel()}>Cancel</button>
@@ -202,6 +216,10 @@ export function SignInBox(props: { providers: string[] | null; error: string | n
     <div class="cm-signin">
       <div class="cm-signin-title">Sign in to Community</div>
       <p class="cm-muted">Use an account you already have. Community keeps only a user name, never your e-mail address or a password.</p>
+      <p class="cm-muted">
+        By signing in you accept the <ExternalLink href={TERMS_URL}>terms of use</ExternalLink> and the{" "}
+        <ExternalLink href={RULES_URL}>community rules</ExternalLink>.
+      </p>
       <Show
         when={!signingIn()}
         fallback={

@@ -1,7 +1,7 @@
 name: Community
 
-# The Community API (deploy/community): Worker + D1 database at
-# community.opentrader.markets. Deployed on demand.
+# The Community API and website (deploy/community, src/community-site):
+# Worker + D1 database at community.opentrader.markets. Deployed on demand.
 #
 # One-time setup: `wrangler d1 create opentrader-community` (its id goes in
 # deploy/community/wrangler.jsonc), the sign-in apps' client ids in the
@@ -31,6 +31,11 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      # The website (src/community-site) into deploy/community/site.
+      - name: Build the website
+        working-directory: .
+        run: npm ci && npm run build:community
 
       - name: Check
         run: npm run check && npm test

@@ -1,12 +1,14 @@
 /*
  * OpenTrader Community: discussion communities per ticker ($AAPL) and per
- * theme (c/penny-stocks), served from one Worker and one D1 database.
+ * theme (c/penny-stocks), served from one Worker and one D1 database, with
+ * its website (./site, see pages.ts) at the same address.
  * The desktop app and the web version call it directly (CORS below).
  * See migrations/ for the data, auth.ts for sign-in, api.ts for the rest.
  */
 import { Env } from "./env";
 import * as auth from "./auth";
 import * as api from "./api";
+import { page } from "./pages";
 import { HttpError, json } from "./util";
 
 /** Page origins of the desktop app's webview (Windows; macOS and Linux). */
@@ -71,6 +73,10 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/comments\/([a-z0-9]+)\/vote$/, ({ env, user, params, body }) => api.vote(env, user, "comment", params[0], body)],
 
   ["POST", /^\/reports$/, ({ env, user, body }) => api.report(env, user, body)],
+  ["POST", /^\/appeals$/, ({ env, user, body }) => api.appeal(env, user, body)],
+  ["POST", /^\/contact$/, ({ env, user, request, body }) => api.contact(env, user, request, body)],
+  ["GET", /^\/mod\/messages$/, ({ env, user }) => api.messages(env, user)],
+  ["POST", /^\/mod\/messages\/([a-z0-9]+)\/done$/, ({ env, user, params }) => api.messageDone(env, user, params[0])],
   ["GET", /^\/mod\/queue$/, ({ env, user }) => api.modQueue(env, user)],
   ["GET", /^\/mod\/log$/, ({ env, user, url }) => api.modLog(env, user, url)],
   ["POST", /^\/mod\/action$/, ({ env, user, body }) => api.modAction(env, user, body)],
@@ -82,8 +88,14 @@ export default {
     const headers = cors(request, env);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     const url = new URL(request.url);
+    if (url.protocol === "http:" && url.hostname !== "127.0.0.1" && url.hostname !== "localhost") {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
     let res: Response;
     try {
+      const html = await page(env, request, url);
+      if (html) return html;
       const path = decodeURIComponent(url.pathname).replace(/\/+$/, "") || "/";
       let handler: Handler | null = null;
       let params: string[] = [];
@@ -98,6 +110,8 @@ export default {
           break;
         }
       }
+      // The website's files and pages (an address the API also uses, /contact, is a page for a browser).
+      if (!handler && request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(request);
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
       const body = await readBody(request);
       const user = await auth.currentUser(env, request);

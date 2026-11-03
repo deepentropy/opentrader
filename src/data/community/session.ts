@@ -14,7 +14,8 @@ import { commands } from "../../bindings";
 import * as kv from "../kv";
 import { COMMUNITY_URL, api, request, setApiToken, setUnauthorizedHandler, type Me } from "./api";
 
-const WEB = import.meta.env.MODE === "web";
+/** In a browser: the web version, or the Community website. */
+const WEB = import.meta.env.MODE === "web" || import.meta.env.MODE === "community";
 const WEB_TOKEN_KEY = "ot:community:token";
 
 const [me, setMe] = createSignal<Me | null>(null);
