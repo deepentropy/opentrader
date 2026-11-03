@@ -36,6 +36,7 @@ import type { DrawingStore } from "../window/drawings/drawing-store";
 import type { createChartEdits } from "../window/shell/chart-edits";
 import { AgentError, type AgentTool } from "./mcp";
 import { locateSyntaxError } from "./syntax";
+import { createScreenerTools } from "./screener-tools";
 
 /** What App hands the tools. */
 export type AgentHost = {
@@ -641,6 +642,8 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
         return { removed: id };
       },
     },
+    // ── Screener ───────────────────────────────────────────────────────
+    ...createScreenerTools(),
   ];
   return tools;
 }

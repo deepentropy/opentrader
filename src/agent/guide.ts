@@ -23,7 +23,9 @@ Rules:
 - Don't remove the user's studies, drawings or scripts unless asked; prefer a new script to overwriting one.
 - Times are UNIX seconds (bar open). Symbols are EXCHANGE:TICKER ("NASDAQ:AAPL"). Live data may be delayed.
 - Library indicators: list_indicators, describe_indicator, then add_indicator with inputs.
-- Drawings: the kinds and their point counts are in opentrader://drawings/tools.`;
+- Drawings: the kinds and their point counts are in opentrader://drawings/tools.
+- Screening the US market: list_screener_fields, then run_screen (filters, sort, scope: market, a watchlist or an
+  index); the user's screens: list_screens, run_screen with screen, open_screen to show one in the screener panel.`;
 
 // The libraries' agent guides (skills/ in each package), bundled as text; empty until a library ships one.
 const oakGuides = import.meta.glob("../../node_modules/oakscriptjs/skills/**/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
