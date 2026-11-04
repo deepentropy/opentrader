@@ -1,5 +1,6 @@
 mod agent;
 mod alerts;
+mod assistant;
 mod app_update;
 mod commands;
 mod community;
@@ -91,6 +92,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
             agent::agent_server_new_token,
             agent::agent_reply,
             agent::agent_ready,
+            assistant::assistant_config,
+            assistant::assistant_save_model,
+            assistant::assistant_remove_model,
+            assistant::assistant_select,
+            assistant::assistant_list_models,
+            assistant::assistant_chat,
+            assistant::assistant_cancel,
             deep_link::deep_link_take,
         ])
         .events(collect_events![

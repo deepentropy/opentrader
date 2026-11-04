@@ -12,7 +12,7 @@ export type RailGroup = keyof RailLayout;
 const KEY = "ot:right-rail:layout";
 
 /** Buttons that start in the bottom group. */
-const BOTTOM_DEFAULT = new Set(["pine-dialog-button"]);
+const BOTTOM_DEFAULT = new Set(["assistant-button", "pine-dialog-button"]);
 
 /** Default layout of `ids` (toolbar order). */
 export function defaultLayout(ids: string[]): RailLayout {

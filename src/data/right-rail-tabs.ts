@@ -49,6 +49,12 @@ export const TOP_TABS: Tab[] = [
     "iconName": "rr-trade-journal"
   },
   {
+    // AI assistant: toggles its panel at the window's right (App.tsx intercepts this id).
+    "id": "assistant-button",
+    "label": "AI assistant",
+    "iconName": "rr-assistant-button"
+  },
+  {
     // Script editor button — runs oakscriptjs (App.tsx intercepts this id to
     // toggle the bottom editor drawer instead of a rail panel).
     "id": "pine-dialog-button",

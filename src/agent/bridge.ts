@@ -1,6 +1,6 @@
 /*
  * Settings > Coding agents, window side: answers the MCP messages the Rust endpoint hands this window (agent.rs).
- * Installed by App in the desktop app only.
+ * Installed by App in the desktop app only; the AI assistant panel runs the same tools (src/data/assistant/).
  */
 import { commands, events } from "../bindings";
 import { buildInfo } from "../data/app-update";
@@ -23,9 +23,9 @@ export function createAgentServer(host: AgentHost): AgentServerDef {
   };
 }
 
-/** Listen for the endpoint's messages; returns the stop function. */
-export function installAgentBridge(host: AgentHost): () => void {
-  const server = createAgentServer(host);
+/** Listen for the endpoint's messages, answered by `server` (the one the AI assistant panel shares); returns the stop
+ *  function. */
+export function installAgentBridge(server: AgentServerDef): () => void {
   let stop: (() => void) | null = null;
   let stopped = false;
   const label = currentWindowLabel();

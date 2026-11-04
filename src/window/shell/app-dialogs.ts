@@ -10,6 +10,7 @@ import type { ChildStudyParent } from "../../data/app-events";
 import { createSignal } from "solid-js";
 import * as kv from "../../data/kv";
 import type { OpenAlertDialogDetail } from "../../data/app-events";
+import { assistantPanel } from "../../data/assistant/panel";
 import { screenerPanel } from "../../data/screener-store";
 import { tradeJournal } from "../../data/trade-journal";
 import type { AppSettingsTabId } from "../header/AppSettingsDialog";
@@ -117,7 +118,7 @@ export const setOakPanelOpen = (open: boolean): void => {
   kv.setItem("ot:oakscript:panelOpen", open ? "1" : "0");
 };
 /** A right-rail button: a page of the rail, or a toggle of the OakScript
- *  drawer / the screener split view / the trade journal tab. */
+ *  drawer / the screener split view / the trade journal tab / the AI assistant. */
 export const onRailTabSelect = (id: string | null): void => {
   if (id === "pine-dialog-button") {
     setOakPanelOpen(!oakPanelOpen());
@@ -125,6 +126,11 @@ export const onRailTabSelect = (id: string | null): void => {
   }
   if (id === "trade-journal-button") {
     tradeJournal.setOpen(!tradeJournal.open());
+    return;
+  }
+  // AI assistant: toggles its panel (right of the layout).
+  if (id === "assistant-button") {
+    assistantPanel.toggle();
     return;
   }
   // Screeners: toggles the stock screener split view (right of the layout).

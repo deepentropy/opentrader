@@ -14,10 +14,12 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { TOP_TABS, type Tab } from "../../data/right-rail-tabs";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
+import { isTauri } from "../shell/window-bridge";
 import { unread as communityUnread } from "../../data/community/notifications";
 import { moveInLayout, railLayout, setRailLayout, type RailGroup } from "../../data/right-rail-layout";
 
-const SHOWN_TABS = TOP_TABS.filter((t) => t.id !== "community" || COMMUNITY_ENABLED);
+// The AI assistant needs the desktop app (its requests go through Rust).
+const SHOWN_TABS = TOP_TABS.filter((t) => (t.id !== "community" || COMMUNITY_ENABLED) && (t.id !== "assistant-button" || isTauri()));
 const TAB_BY_ID = new Map(SHOWN_TABS.map((t) => [t.id, t]));
 const IDS = SHOWN_TABS.map((t) => t.id);
 /** Pointer travel (px) before a press becomes a drag. */

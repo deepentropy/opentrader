@@ -43,6 +43,9 @@ import { StrategyTesterPanel } from "./window/strategy-tester/StrategyTesterPane
 import { intervalSeconds } from "./window/strategy-tester/equity-data";
 import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strategy-entries";
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
+import { AssistantPanel } from "./window/assistant/AssistantPanel";
+import { assistantPanel } from "./data/assistant/panel";
+import { watchlistStore } from "./data/watchlist-store";
 import { screenerPanel, type ScreenerPlacement } from "./data/screener-store";
 import { SCREENER_PLACE_EVENT } from "./window/screener/ScreenerPanel";
 import { SCREENER_PICK_EVENT } from "./window/screener/ScreenerWindow";
@@ -520,14 +523,15 @@ function App() {
 
   onMount(() => onCleanup(initShellBus({ stripIndexAt: appTabs.stripIndexAt, insertTab: appTabs.insertTab })));
 
-  // Settings > Coding agents: the agent tool calls the endpoint hands this window (src/agent/).
+  // Settings > Coding agents: the agent tool calls the endpoint hands this window (src/agent/), and the AI assistant
+  // panel's.
   onMount(() => {
     if (!isTauri()) return;
     let stop: (() => void) | null = null;
     let gone = false;
-    void import("./agent/bridge").then(({ installAgentBridge }) => {
+    void Promise.all([import("./agent/bridge"), import("./data/assistant/session")]).then(([{ createAgentServer, installAgentBridge }, { setAssistantHost }]) => {
       if (gone) return;
-      stop = installAgentBridge({
+      const server = createAgentServer({
         tabs: appTabs,
         edits: chartEdits,
         drawings: drawingStore,
@@ -538,6 +542,9 @@ function App() {
         setInterval,
         layouts,
       });
+      // The AI assistant panel runs the same tools in this window.
+      setAssistantHost(server, () => ({ symbol: activeFullSymbol() ?? symbol(), interval: interval(), watchlist: watchlistStore.active()?.name }));
+      stop = installAgentBridge(server);
     });
     onCleanup(() => {
       gone = true;
@@ -983,13 +990,21 @@ function App() {
           removeDrawing={removeDrawing}
           moveDrawing={moveDrawingToDisplayIndex}
           cloneDrawing={cloneDrawing}
-          pressedTab={(id) => (id === "screener-dialog-button" && screenerPanel.open()) || (id === "trade-journal-button" && tradeJournal.open())}
-          collapsedTab={(id) => id === "screener-dialog-button" && screenerPanel.collapsed()}
+          pressedTab={(id) =>
+            (id === "screener-dialog-button" && screenerPanel.open()) ||
+            (id === "trade-journal-button" && tradeJournal.open()) ||
+            (id === "assistant-button" && assistantPanel.open())
+          }
+          collapsedTab={(id) => (id === "screener-dialog-button" && screenerPanel.collapsed()) || (id === "assistant-button" && assistantPanel.collapsed())}
         />
       </div>
       </div>
       <Show when={screenerPanel.open() && screenerPanel.placement() === "right"}>
         <ScreenerPanel windowLabel={windowLabel} onSymbolPicked={onSymbolPicked} />
+      </Show>
+      {/* AI assistant (desktop: its requests go through Rust). */}
+      <Show when={assistantPanel.open() && isTauri()}>
+        <AssistantPanel ticker={tickerOf(symbol())} />
       </Show>
       </div>
       <Show when={openMenu() && currentMenuDef() && anchorRect()}>
