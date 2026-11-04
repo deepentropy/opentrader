@@ -67,6 +67,8 @@ type Props = {
    *  hidden grid sits under the shown one at the same size (no resize, no
    *  reload) and takes no input. */
   shown?: boolean;
+  /** The tab this grid shows (Bar Replay runs per tab). */
+  tabId?: string;
   layout: LayoutId;
   /** One entry per grid cell (same length as the layout's cells). */
   panes: PaneChart[];
@@ -419,6 +421,7 @@ export function ChartGrid(props: Props) {
                 timeZoneLabel={props.timeZoneLabel}
                 active={isActive()}
                 shown={live()}
+                tabId={props.tabId}
                 // Control bar → maximize. Only offered when there is more
                 // than one cell to grow over. No
                 // setActivePane here: the cell's capture-phase mousedown above

@@ -74,7 +74,7 @@ import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
 import { installSourceEdits } from "./window/shell/source-edits";
 import { ReplayToolbar } from "./window/replay/ReplayToolbar";
-import { replayEnabled, replayToolbarShown, setReplaySessionStore } from "./data/replay";
+import { replayEnabled, replayToolbarShown, setReplaySessionStore, setReplayTabSource } from "./data/replay";
 import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
 import { ReplayEndDialog } from "./window/replay/ReplayEndDialog";
 import { OrderTicket } from "./window/trading/OrderTicket";
@@ -352,10 +352,14 @@ function App() {
   // ── Undo / redo, drawings, chart edits ─────────────────────────────────
   // Undo entries are applied by the chart edits (created below; only called
   // once App is set up).
+  // Each tab has its own Bar Replay; the toolbar shows the shown tab's.
+  setReplayTabSource(activeTabId);
   // A Bar Replay left with "Save this replay" is kept on its tab (the layout).
   setReplaySessionStore({
-    load: () => appTabs.activeTab().replaySession ?? null,
-    save: (s) => appTabs.patchTab(appTabs.activeTab().id, { replaySession: s ?? undefined }),
+    load: (tabId) => tabById().get(tabId)?.replaySession ?? null,
+    save: (tabId, s) => {
+      if (tabById().has(tabId)) appTabs.patchTab(tabId, { replaySession: s ?? undefined });
+    },
     restoreCharts: (s) => {
       const tab = appTabs.activeTab();
       const panes = tab.panes.map((p) => {
@@ -467,9 +471,12 @@ function App() {
 
   // The order ticket's default symbol; it closes with Bar Replay.
   createEffect(() => tradingUi.setActiveSymbol(activeFullSymbol() ?? symbol()));
-  createEffect(() => {
-    if (!replayEnabled()) tradingUi.closeTicket();
-  });
+  // A tab switch only hides it: the tab left keeps its replay.
+  createEffect(
+    on([activeTabId, replayEnabled], ([tab, on], prev) => {
+      if (!on && (!prev || prev[0] === tab)) tradingUi.closeTicket();
+    }),
+  );
 
   // The screener in its own window: opening it (the rail button) opens or raises the window; its row picks change
   // this window's chart (the main window only).
@@ -834,6 +841,7 @@ function App() {
               {(tab) => (
             <ChartGrid
               shown={tabId === activeTabId()}
+              tabId={tabId}
               layout={tab().layout}
               panes={tab().panes}
               activePane={tab().activePane}

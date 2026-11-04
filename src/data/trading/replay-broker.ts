@@ -11,7 +11,7 @@
  * results shown (SessionResult). The settings ("Trading on historical data")
  * are per chart, dropped when replay closes; "Save as default" keeps them.
  */
-import { createEffect, createRoot, createSignal, on } from "solid-js";
+import { createRoot, createSignal } from "solid-js";
 import type { BacktestReport, Bar } from "../../backtester/types";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
 import { getTickerInfo } from "../datafeed";
@@ -22,9 +22,8 @@ import {
   replayActivePane,
   replayEnabled,
   replayFinished,
-  replayStartSeq,
-  replayStarted,
   setReplayFinishHook,
+  setReplayResetHook,
   setReplayTradingSave,
 } from "../replay";
 import { symbolSessions } from "../session";
@@ -104,24 +103,20 @@ export const replayBroker = createRoot(() => {
     return null;
   };
 
-  const clearAll = () => {
-    accounts.clear();
+  // A new start point, and the replay starting or stopping: new accounts on
+  // the charts of that tab (each tab has its own replay). Replay closed: the
+  // settings that were not saved as default go too.
+  setReplayResetHook((paneIds, closed) => {
+    for (const id of paneIds) {
+      accounts.delete(id);
+      if (closed) {
+        settingsByPane.delete(id);
+        panes.delete(id);
+      }
+    }
     setResults([]);
     bump();
-  };
-
-  // A new start point, and the replay starting or stopping: new accounts.
-  createEffect(on(replayStartSeq, clearAll, { defer: true }));
-  createEffect(on(replayStarted, clearAll, { defer: true }));
-  // Replay closed: the settings that were not saved as default go.
-  createEffect(
-    on(replayEnabled, (on) => {
-      if (on) return;
-      settingsByPane.clear();
-      panes.clear();
-      clearAll();
-    }),
-  );
+  });
 
   const emit = (acc: ReplayAccount) => {
     for (const e of acc.takeEvents()) for (const l of listeners) l(e);
@@ -203,11 +198,11 @@ export const replayBroker = createRoot(() => {
   });
 
   // End of the session: positions closed, results for the end dialog.
-  setReplayFinishHook(() => {
+  setReplayFinishHook((paneIds) => {
     let traded = false;
     const out: SessionResult[] = [];
     for (const [paneId, acc] of accounts) {
-      if (!isPaneInReplay(paneId) || !acc.hasExecutions) continue;
+      if (!paneIds.includes(paneId) || !acc.hasExecutions) continue;
       traded = true;
       acc.flatten();
       emit(acc);

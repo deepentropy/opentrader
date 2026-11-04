@@ -1,6 +1,6 @@
 /*
  * Bar Replay: the state shared by the header button, the replay toolbar and
- * the charts (one replay per window).
+ * the charts (one replay per tab).
  *
  * The reference app runs replay on its servers (a session that steps a cursor
  * over the bars); here every chart pane replays its own loaded bars and
@@ -129,6 +129,7 @@ export function fallbackUpdateInterval(list: string[], current: string): string 
   return shorter.length > 0 ? shorter[shorter.length - 1] : list[0] ?? null;
 }
 
+
 // ── Pane handles ─────────────────────────────────────────────────────────────
 
 /** Why a chart cannot be replayed (the reference app "Caution!" hints), or null. */
@@ -137,8 +138,8 @@ export type ReplayUnavailable = "chartType" | "interval" | "symbol" | null;
 /** What a chart pane gives the replay. */
 export type ReplayPane = {
   paneId: number;
-  /** The pane is on screen (its tab is shown). */
-  shown: () => boolean;
+  /** The tab the pane is on: its replay is that tab's. */
+  tab: string;
   /** Chart interval id. */
   interval: () => string;
   /** Why it cannot be replayed now, or null. */
@@ -182,12 +183,12 @@ export type SavedReplay = {
   charts: { uid: string; symbol: string; interval: string; session: string; trading?: unknown }[];
 };
 
-/** Where the saved replay of the shown layout is kept (App: on the tab), and
- *  how its charts get their symbol, interval and session back (the first
+/** Where the saved replay of a tab is kept (App: on the tab), and how the
+ *  shown tab's charts get their symbol, interval and session back (the first
  *  becomes the focused chart). */
 export type ReplaySessionStore = {
-  load: () => SavedReplay | null;
-  save: (s: SavedReplay | null) => void;
+  load: (tab: string) => SavedReplay | null;
+  save: (tab: string, s: SavedReplay | null) => void;
   restoreCharts: (s: SavedReplay) => void;
 };
 let sessionStore: ReplaySessionStore | null = null;
@@ -200,6 +201,13 @@ export function setReplaySessionStore(store: ReplaySessionStore | null) {
 let tradingSave: { snapshot: (paneId: number) => unknown; restore: (paneId: number, snap: unknown) => void } | null = null;
 export function setReplayTradingSave(hooks: typeof tradingSave) {
   tradingSave = hooks;
+}
+
+/** Replay trading starts over on the charts of a tab: a new start point, the
+ *  replay starting or stopping, and (`closed`) the toolbar closed. */
+let resetHook: ((paneIds: number[], closed: boolean) => void) | null = null;
+export function setReplayResetHook(fn: typeof resetHook) {
+  resetHook = fn;
 }
 
 // ── First-use hints (reference app) ─────────────────────────────────────────
@@ -221,7 +229,7 @@ export function stopReplayToolbarHighlight() {
 const [jumpHintClosed, setJumpHintClosed] = createSignal(kv.getItem(JUMP_HINT_KEY) === "true");
 /** "Click to select the starting point." while a bar is picked, until it is
  *  closed once. */
-export const replayJumpHintShown = () => selecting() && !jumpHintClosed();
+export const replayJumpHintShown = () => cur().selecting() && !jumpHintClosed();
 export function closeReplayJumpHint() {
   setJumpHintClosed(true);
   kv.setItem(JUMP_HINT_KEY, "true");
@@ -236,174 +244,194 @@ export function setReplaySaveSession(v: boolean) {
   kv.setItem(SAVE_SESSION_KEY, v ? "true" : "false");
 }
 
-/** Save the running replay when "Save this replay" is on, else forget the
- *  saved one (on leave and on Jump to real-time, reference app). */
-export function saveReplaySession() {
-  if (!sessionStore) return;
-  const pt = point();
-  if (!replaySaveSession() || pt === null || !replayStarted() || finished()) {
-    sessionStore.save(null);
-    return;
+// ── Sessions: one replay per tab ─────────────────────────────────────────────
+// The reference app runs each tab as its own page, so each has its own
+// replay: turning it on, the start point and playback stay on their tab, and
+// a tab left while playing keeps playing. The header button, the toolbar and
+// the dialogs act on the shown tab's.
+
+function createSession(tab: string) {
+  const [enabled, setEnabled] = createSignal(false);
+  const [selecting, setSelecting] = createSignal(false);
+  const [playing, setPlaying] = createSignal(false);
+  /** Panes cut at the replay time (empty = not started). */
+  const [inReplay, setInReplay] = createSignal<number[]>([]);
+  /** Replay time (s): the data shown ends at it. */
+  const [point, setPoint] = createSignal<number | null>(null);
+  // Mode, start mode and speed: a new tab's replay starts with the last ones used.
+  const [mode, setMode] = createSignal<ReplayMode>(readMode());
+  const [timing, setTiming] = createSignal<TimingMode>(readTiming());
+  const [delay, setDelay] = createSignal<number>(readDelay());
+  /** Fixed update interval; null = Auto. */
+  const [fixedUpdate, setFixedUpdate] = createSignal<string | null>(null);
+  const [dateDialog, setDateDialog] = createSignal(false);
+  /** The focused chart pane of the tab (the charts keep it current). */
+  const [activePane, setActivePane] = createSignal<number | null>(null);
+  /** Time under the pointer while selecting (All charts: every chart draws it). */
+  const [hoverTime, setHoverTime] = createSignal<number | null>(null);
+  /** Bumped when the data a pane in replay can serve changed (interval list). */
+  const [epoch, setEpoch] = createSignal(0);
+  /** The session ended with trades (end of the data, or Jump to real-time): the
+   *  bars stay, trading stops; Play / Forward / Jump go back to real time. */
+  const [finished, setFinished] = createSignal(false);
+  /** Charts a start point could not be replayed on: no data that far back
+   *  (the reference app's "too far away" Caution hint). Cleared by the next
+   *  start point and when the replay stops. */
+  const [tooDeep, setTooDeep] = createSignal<number[]>([]);
+  /** Bumped when a new start point is taken (replay trading starts over). */
+  const [startSeq, setStartSeq] = createSignal(0);
+  return {
+    tab,
+    enabled, setEnabled, selecting, setSelecting, playing, setPlaying, inReplay, setInReplay, point, setPoint,
+    mode, setMode, timing, setTiming, delay, setDelay, fixedUpdate, setFixedUpdate, dateDialog, setDateDialog,
+    activePane, setActivePane, hoverTime, setHoverTime, epoch, setEpoch, finished, setFinished,
+    tooDeep, setTooDeep, startSeq, setStartSeq,
+    timer: undefined as number | undefined,
+    stepping: false,
+  };
+}
+type Session = ReturnType<typeof createSession>;
+
+const sessions = new Map<string, Session>();
+function sessionOf(tab: string): Session {
+  let s = sessions.get(tab);
+  if (!s) {
+    s = createSession(tab);
+    sessions.set(tab, s);
   }
-  const charts: SavedReplay["charts"] = [];
-  for (const id of inReplay()) {
-    const p = panes.get(id);
-    const uid = p?.uid();
-    if (!p || !uid) continue;
-    charts.push({ uid, symbol: p.symbol(), interval: p.interval(), session: p.session(), trading: tradingSave?.snapshot(id) ?? undefined });
-  }
-  sessionStore.save(charts.length ? { time: pt, mode: mode(), charts } : null);
+  return s;
 }
 
-/** The saved replay of the shown layout when one of its charts is on screen. */
-export function savedReplay(): SavedReplay | null {
-  const s = sessionStore?.load() ?? null;
-  if (!s) return null;
-  const shown = [...panes.values()].filter((p) => p.shown()).map((p) => p.uid());
-  return s.charts.some((c) => shown.includes(c.uid)) ? s : null;
+const [tabSource, setTabSource] = createSignal<() => string>(() => "");
+/** The shown tab's id (App). */
+export function setReplayTabSource(fn: () => string) {
+  setTabSource(() => fn);
 }
-
-export function forgetSavedReplay() {
-  sessionStore?.save(null);
-}
-
-/** "Continue": the mode, each chart's symbol / interval / session, then the
- *  replay time and the trading accounts. */
-export async function continueSavedReplay(s: SavedReplay): Promise<void> {
-  setReplayMode(s.mode);
-  setEnabled(true);
-  setSelecting(false);
-  sessionStore?.restoreCharts(s);
-  // The charts load their symbol / interval first.
-  const byUid = () => new Map([...panes.values()].filter((p) => p.shown()).map((p) => [p.uid(), p] as const));
-  const ready = () =>
-    s.charts.every((c) => {
-      const p = byUid().get(c.uid);
-      return !p || (p.symbol() === c.symbol && p.interval() === c.interval && p.firstAvailable() !== null);
-    });
-  for (let i = 0; i < 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
-  const first = byUid().get(s.charts[0].uid);
-  if (first && s.mode === "ActiveChart") setActivePane(first.paneId);
-  await startAt(s.time, s.mode === "ActiveChart" ? first?.paneId : undefined);
-  for (const c of s.charts) {
-    const p = byUid().get(c.uid);
-    if (p && c.trading && inReplay().includes(p.paneId)) tradingSave?.restore(p.paneId, c.trading);
-  }
-  sessionStore?.save(null);
-}
+/** The shown tab's replay. */
+const cur = () => sessionOf(tabSource()());
 
 const panes = new Map<number, ReplayPane>();
+const paneSession = (paneId: number): Session | null => {
+  const p = panes.get(paneId);
+  return p ? sessionOf(p.tab) : null;
+};
+const tabPaneIds = (s: Session) => [...panes.values()].filter((p) => p.tab === s.tab).map((p) => p.paneId);
+
+/** Set the panes in replay; replay trading starts over when the replay starts
+ *  or stops. */
+function setPanesInReplay(s: Session, ids: number[]) {
+  const was = s.inReplay().length > 0;
+  s.setInReplay(ids);
+  if (was !== ids.length > 0) resetHook?.(tabPaneIds(s), false);
+}
 
 /** Register a chart pane; returns the unregister function. */
 export function registerReplayPane(p: ReplayPane): () => void {
   panes.set(p.paneId, p);
   return () => {
+    const s = sessionOf(p.tab);
     panes.delete(p.paneId);
-    if (inReplay().includes(p.paneId)) setInReplay(inReplay().filter((id) => id !== p.paneId));
+    if (!s.inReplay().includes(p.paneId)) return;
+    const rest = s.inReplay().filter((id) => id !== p.paneId);
+    setPanesInReplay(s, rest);
+    if (rest.length === 0) {
+      setPlay(s, false);
+      s.setPoint(null);
+    }
   };
 }
 
-// ── State ────────────────────────────────────────────────────────────────────
+/** The replay of a tab, as its charts read it. */
+export type TabReplay = {
+  enabled: () => boolean;
+  playing: () => boolean;
+  selecting: () => boolean;
+  mode: () => ReplayMode;
+  point: () => number | null;
+  hoverTime: () => number | null;
+  setHoverTime: (t: number | null) => void;
+};
+export function replayOfTab(tab: string): TabReplay {
+  const s = sessionOf(tab);
+  return { enabled: s.enabled, playing: s.playing, selecting: s.selecting, mode: s.mode, point: s.point, hoverTime: s.hoverTime, setHoverTime: s.setHoverTime };
+}
 
-const [enabled, setEnabled] = createSignal(false);
-const [selecting, setSelecting] = createSignal(false);
-const [playing, setPlaying] = createSignal(false);
-/** Panes cut at the replay time (empty = not started). */
-const [inReplay, setInReplay] = createSignal<number[]>([]);
-/** Replay time (s): the data shown ends at it. */
-const [point, setPoint] = createSignal<number | null>(null);
-const [mode, setModeSignal] = createSignal<ReplayMode>(readMode());
-const [timing, setTimingSignal] = createSignal<TimingMode>(readTiming());
-const [delay, setDelaySignal] = createSignal<number>(readDelay());
-/** Fixed update interval; null = Auto. */
-const [fixedUpdate, setFixedUpdate] = createSignal<string | null>(null);
-const [dateDialog, setDateDialog] = createSignal(false);
-/** The focused chart pane (the charts keep it current). */
-const [activePane, setActivePane] = createSignal<number | null>(null);
-/** Time under the pointer while selecting (All charts: every chart draws it). */
-const [hoverTime, setHoverTime] = createSignal<number | null>(null);
-/** Bumped when the data a pane in replay can serve changed (interval list). */
-const [epoch, setEpoch] = createSignal(0);
-/** The session ended with trades (end of the data, or Jump to real-time): the
- *  bars stay, trading stops; Play / Forward / Jump go back to real time. */
-const [finished, setFinished] = createSignal(false);
-/** Charts a start point could not be replayed on: no data that far back
- *  (the reference app's "too far away" Caution hint). Cleared by the next
- *  start point and when the replay stops. */
-const [tooDeep, setTooDeep] = createSignal<number[]>([]);
-/** Bumped when a new start point is taken (replay trading starts over). */
-const [startSeq, setStartSeq] = createSignal(0);
+// ── The shown tab's replay ───────────────────────────────────────────────────
 
-export const replayEnabled = enabled;
-export const replaySelecting = selecting;
-export const replayPlaying = playing;
-export const replayPanes = inReplay;
-export const replayPoint = point;
-export const replayMode = mode;
-export const replayTiming = timing;
-export const replayDelay = delay;
-export const replayFixedUpdate = fixedUpdate;
-export const replayDateDialog = dateDialog;
-export const replaySelectHoverTime = hoverTime;
-export const setReplaySelectHoverTime = setHoverTime;
-export const replayActivePane = activePane;
-export const setReplayActivePane = setActivePane;
-export const replayEpoch = epoch;
-export const replayFinished = finished;
+export const replayEnabled = () => cur().enabled();
+export const replaySelecting = () => cur().selecting();
+export const replayPlaying = () => cur().playing();
+export const replayPanes = () => cur().inReplay();
+export const replayPoint = () => cur().point();
+export const replayMode = () => cur().mode();
+export const replayTiming = () => cur().timing();
+export const replayDelay = () => cur().delay();
+export const replayFixedUpdate = () => cur().fixedUpdate();
+export const replayDateDialog = () => cur().dateDialog();
+export const replayActivePane = () => cur().activePane();
+export const replayEpoch = () => cur().epoch();
+export const replayFinished = () => cur().finished();
+export const replayStartSeq = () => cur().startSeq();
+/** The focused chart of the pane's tab is this pane. */
+export const setReplayActivePane = (paneId: number) => paneSession(paneId)?.setActivePane(paneId);
 /** The replay point is older than the data of this chart. */
-export const isPaneTooDeep = (paneId: number) => tooDeep().includes(paneId);
-export const replayStartSeq = startSeq;
-export const bumpReplayEpoch = () => setEpoch((n) => n + 1);
+export const isPaneTooDeep = (paneId: number) => paneSession(paneId)?.tooDeep().includes(paneId) ?? false;
+/** The data a pane can serve changed (the update interval list of its tab). */
+export const bumpReplayEpoch = (paneId: number) => paneSession(paneId)?.setEpoch((n) => n + 1);
 
 /** Handle of the focused chart (the Select date dialog reads its time zone). */
 export function activeReplayPane(): ReplayPane | null {
-  const a = activePane();
+  const a = cur().activePane();
   return a === null ? null : panes.get(a) ?? null;
 }
 
 /** The toolbar shows while replay is on and the focused chart can be
  *  replayed (a Renko chart hides it; replay mode stays on). */
 export function replayToolbarShown(): boolean {
-  if (!enabled()) return false;
-  epoch();
+  if (!cur().enabled()) return false;
+  cur().epoch();
   const p = activeReplayPane();
   return !p || p.unavailable() === null;
 }
 
 /** The replay has a point (charts cut). */
-export const replayStarted = () => inReplay().length > 0;
+export const replayStarted = () => cur().inReplay().length > 0;
 /** A pane is cut at the replay time. */
-export const isPaneInReplay = (paneId: number) => inReplay().includes(paneId);
+export const isPaneInReplay = (paneId: number) => paneSession(paneId)?.inReplay().includes(paneId) ?? false;
 /** The focused chart is in replay (Play / Forward / Jump are enabled). */
 export const activeInReplay = () => {
-  const a = activePane();
-  return a !== null && inReplay().includes(a);
+  const s = cur();
+  const a = s.activePane();
+  return a !== null && s.inReplay().includes(a);
 };
 
+const started = (s: Session) => s.inReplay().length > 0;
+
 /** Panes a new replay covers: the focused chart (Single chart), or every
- *  shown chart that can be replayed (All charts). */
-function targetPanes(clickedPane?: number): ReplayPane[] {
-  const ok = (p: ReplayPane | undefined): p is ReplayPane => !!p && p.shown() && p.unavailable() === null;
-  if (mode() === "AllCharts") return [...panes.values()].filter(ok);
-  const id = clickedPane ?? activePane();
+ *  chart of the tab that can be replayed (All charts). */
+function targetPanes(s: Session, clickedPane?: number): ReplayPane[] {
+  const ok = (p: ReplayPane | undefined): p is ReplayPane => !!p && p.tab === s.tab && p.unavailable() === null;
+  if (s.mode() === "AllCharts") return [...panes.values()].filter(ok);
+  const id = clickedPane ?? s.activePane();
   const p = id !== null && id !== undefined ? panes.get(id) : undefined;
   return ok(p) ? [p] : [];
 }
 
 /** Charts the update interval list is built from: the panes in replay, else
  *  the ones a replay would cover. */
-function intervalPanes(): ReplayPane[] {
-  const ids = inReplay();
+function intervalPanes(s: Session): ReplayPane[] {
+  const ids = s.inReplay();
   if (ids.length > 0) return ids.map((id) => panes.get(id)).filter((p): p is ReplayPane => !!p);
-  return targetPanes();
+  return targetPanes(s);
 }
 
 /** Update intervals offered now (the menu rows). */
 export function replayUpdateIntervals(): string[] {
-  epoch();
-  const ps = intervalPanes();
+  const s = cur();
+  s.epoch();
+  const ps = intervalPanes(s);
   if (ps.length === 0) return [];
-  const pt = point();
+  const pt = s.point();
   const depth = (id: string) => Math.max(...ps.map((p) => p.depthOf(id)));
   return updateIntervals(
     ps.map((p) => p.interval()),
@@ -413,9 +441,10 @@ export function replayUpdateIntervals(): string[] {
 
 /** Update interval in use: the fixed one when still offered, else Auto. */
 export function replayUpdateInterval(): string {
+  const s = cur();
   const list = replayUpdateIntervals();
-  const main = intervalPanes()[0]?.interval() ?? "1D";
-  const fixed = fixedUpdate();
+  const main = intervalPanes(s)[0]?.interval() ?? "1D";
+  const fixed = s.fixedUpdate();
   if (fixed !== null) {
     const f = fallbackUpdateInterval(list, fixed);
     if (f !== null) return f;
@@ -425,9 +454,9 @@ export function replayUpdateInterval(): string {
 
 /** Earliest time a replay can start on (the reference app depth): the latest first
  *  available time of the charts it covers, null while unknown. */
-export function replayFirstAvailable(): number | null {
-  epoch();
-  const ps = intervalPanes();
+function firstAvailableOf(s: Session): number | null {
+  s.epoch();
+  const ps = intervalPanes(s);
   if (ps.length === 0) return null;
   let out = -Infinity;
   for (const p of ps) {
@@ -437,120 +466,182 @@ export function replayFirstAvailable(): number | null {
   }
   return Number.isFinite(out) ? out : null;
 }
+export const replayFirstAvailable = () => firstAvailableOf(cur());
+
+// ── Saved replay ─────────────────────────────────────────────────────────────
+
+/** Save the running replay when "Save this replay" is on, else forget the
+ *  saved one (on leave and on Jump to real-time, reference app). */
+function saveSession(s: Session) {
+  if (!sessionStore) return;
+  const pt = s.point();
+  if (!replaySaveSession() || pt === null || !started(s) || s.finished()) {
+    sessionStore.save(s.tab, null);
+    return;
+  }
+  const charts: SavedReplay["charts"] = [];
+  for (const id of s.inReplay()) {
+    const p = panes.get(id);
+    const uid = p?.uid();
+    if (!p || !uid) continue;
+    charts.push({ uid, symbol: p.symbol(), interval: p.interval(), session: p.session(), trading: tradingSave?.snapshot(id) ?? undefined });
+  }
+  sessionStore.save(s.tab, charts.length ? { time: pt, mode: s.mode(), charts } : null);
+}
+export const saveReplaySession = () => saveSession(cur());
+
+/** The saved replay of the shown tab when one of its charts is on screen. */
+export function savedReplay(): SavedReplay | null {
+  const tab = cur().tab;
+  const s = sessionStore?.load(tab) ?? null;
+  if (!s) return null;
+  const shown = [...panes.values()].filter((p) => p.tab === tab).map((p) => p.uid());
+  return s.charts.some((c) => shown.includes(c.uid)) ? s : null;
+}
+
+export function forgetSavedReplay() {
+  sessionStore?.save(cur().tab, null);
+}
+
+/** "Continue": the mode, each chart's symbol / interval / session, then the
+ *  replay time and the trading accounts. */
+export async function continueSavedReplay(saved: SavedReplay): Promise<void> {
+  const s = cur();
+  setMode(s, saved.mode);
+  s.setEnabled(true);
+  s.setSelecting(false);
+  sessionStore?.restoreCharts(saved);
+  // The charts load their symbol / interval first.
+  const byUid = () => new Map([...panes.values()].filter((p) => p.tab === s.tab).map((p) => [p.uid(), p] as const));
+  const ready = () =>
+    saved.charts.every((c) => {
+      const p = byUid().get(c.uid);
+      return !p || (p.symbol() === c.symbol && p.interval() === c.interval && p.firstAvailable() !== null);
+    });
+  for (let i = 0; i < 100 && !ready(); i++) await new Promise((r) => setTimeout(r, 100));
+  const first = byUid().get(saved.charts[0].uid);
+  if (first && saved.mode === "ActiveChart") s.setActivePane(first.paneId);
+  await startAt(s, saved.time, saved.mode === "ActiveChart" ? first?.paneId : undefined);
+  for (const c of saved.charts) {
+    const p = byUid().get(c.uid);
+    if (p && c.trading && s.inReplay().includes(p.paneId)) tradingSave?.restore(p.paneId, c.trading);
+  }
+  sessionStore?.save(s.tab, null);
+}
 
 // ── Autoplay ─────────────────────────────────────────────────────────────────
 
-let timer: number | undefined;
-let stepping = false;
-
-function stopTimer() {
-  if (timer !== undefined) window.clearInterval(timer);
-  timer = undefined;
+function stopTimer(s: Session) {
+  if (s.timer !== undefined) window.clearInterval(s.timer);
+  s.timer = undefined;
 }
-function startTimer() {
-  stopTimer();
-  timer = window.setInterval(() => {
-    if (!stepping) void step();
-  }, delay());
+function startTimer(s: Session) {
+  stopTimer(s);
+  s.timer = window.setInterval(() => {
+    if (!s.stepping) void stepSession(s);
+  }, s.delay());
 }
 
 /** One update on every pane in replay: the earliest next update time across
  *  them; at the end of the data the replay stops (charts back to real time,
  *  toolbar kept). */
-export async function step(): Promise<void> {
-  if (finished()) {
-    stopReplay();
+async function stepSession(s: Session): Promise<void> {
+  if (s.finished()) {
+    stopSession(s);
     return;
   }
-  if (!replayStarted() || stepping) return;
-  stepping = true;
+  if (!started(s) || s.stepping) return;
+  s.stepping = true;
   try {
-    const ps = inReplay().map((id) => panes.get(id)).filter((p): p is ReplayPane => !!p);
+    const ps = s.inReplay().map((id) => panes.get(id)).filter((p): p is ReplayPane => !!p);
     const times = await Promise.all(ps.map((p) => p.next()));
-    if (!replayStarted()) return;
+    if (!started(s)) return;
     const valid = times.filter((t): t is number => t !== null);
     if (valid.length === 0) {
-      jumpToRealtime();
+      jumpSession(s);
       return;
     }
     const t = Math.min(...valid);
     for (const p of ps) p.advanceTo(t);
-    setPoint(t);
+    s.setPoint(t);
   } finally {
-    stepping = false;
+    s.stepping = false;
   }
 }
+export const step = () => stepSession(cur());
 
-export function setPlay(on: boolean) {
-  if (on && finished()) {
-    stopReplay();
+function setPlay(s: Session, on: boolean) {
+  if (on && s.finished()) {
+    stopSession(s);
     return;
   }
-  if (on && !replayStarted()) return;
-  setPlaying(on);
-  if (on) startTimer();
-  else stopTimer();
+  if (on && !started(s)) return;
+  s.setPlaying(on);
+  if (on) startTimer(s);
+  else stopTimer(s);
 }
 
 /** Play / Pause (Shift+↓): a selection in progress is cancelled first. */
 export function togglePlay() {
-  if (finished()) {
-    stopReplay();
+  const s = cur();
+  if (s.finished()) {
+    stopSession(s);
     return;
   }
-  if (!replayStarted()) return;
-  if (selecting()) setSelecting(false);
-  setPlay(!playing());
+  if (!started(s)) return;
+  if (s.selecting()) s.setSelecting(false);
+  setPlay(s, !s.playing());
 }
 
 export function setReplayDelay(ms: number) {
+  const s = cur();
   const d = clampDelay(ms);
-  setDelaySignal(d);
+  s.setDelay(d);
   kv.setItem(DELAY_KEY, String(d));
   // Playing: restart at the new speed.
-  if (playing()) startTimer();
+  if (s.playing()) startTimer(s);
 }
 
 export function setReplayUpdateInterval(id: string | null) {
-  setFixedUpdate(id);
-  restartPanes();
+  const s = cur();
+  s.setFixedUpdate(id);
+  restartPanes(s);
 }
 
 // ── Start point ──────────────────────────────────────────────────────────────
 
 /** Cut the panes at `pt` (seconds; the data shown ends at it). */
-async function startAt(pt: number, clickedPane?: number): Promise<void> {
-  const wasPlaying = playing();
-  setPlay(false);
-  setSelecting(false);
-  setFinished(false);
-  setStartSeq((n) => n + 1);
+async function startAt(s: Session, pt: number, clickedPane?: number): Promise<void> {
+  setPlay(s, false);
+  s.setSelecting(false);
+  s.setFinished(false);
+  s.setStartSeq((n) => n + 1);
+  resetHook?.(tabPaneIds(s), false);
   // Single chart: a replay on another chart moves to this one.
-  const targets = targetPanes(clickedPane);
-  for (const id of inReplay()) if (!targets.some((p) => p.paneId === id)) panes.get(id)?.stop();
+  const targets = targetPanes(s, clickedPane);
+  for (const id of s.inReplay()) if (!targets.some((p) => p.paneId === id)) panes.get(id)?.stop();
   if (targets.length === 0) {
-    setInReplay([]);
-    setPoint(null);
+    setPanesInReplay(s, []);
+    s.setPoint(null);
     return;
   }
-  if (clickedPane !== undefined && mode() === "ActiveChart") setActivePane(clickedPane);
-  setPoint(pt);
+  if (clickedPane !== undefined && s.mode() === "ActiveChart") s.setActivePane(clickedPane);
+  s.setPoint(pt);
   // The update interval list depends on the replay point.
-  setEpoch((n) => n + 1);
-  const update = replayUpdateIntervalFor(targets, pt);
+  s.setEpoch((n) => n + 1);
+  const update = updateIntervalFor(s, targets, pt);
   const ok = await Promise.all(targets.map((p) => p.start(pt, update)));
-  const started = targets.filter((_, i) => ok[i]);
-  for (const p of targets) if (!started.includes(p)) p.stop();
-  setTooDeep(targets.filter((p) => !started.includes(p) && p.unavailable() === null).map((p) => p.paneId));
-  setInReplay(started.map((p) => p.paneId));
-  if (started.length === 0) setPoint(null);
-  void wasPlaying;
+  const ran = targets.filter((_, i) => ok[i]);
+  for (const p of targets) if (!ran.includes(p)) p.stop();
+  s.setTooDeep(targets.filter((p) => !ran.includes(p) && p.unavailable() === null).map((p) => p.paneId));
+  setPanesInReplay(s, ran.map((p) => p.paneId));
+  if (ran.length === 0) s.setPoint(null);
 }
 
-function replayUpdateIntervalFor(ps: ReplayPane[], pt: number): string {
+function updateIntervalFor(s: Session, ps: ReplayPane[], pt: number): string {
   const depth = (id: string) => Math.max(...ps.map((p) => p.depthOf(id)));
   const list = updateIntervals(ps.map((p) => p.interval()), (id) => depth(id) <= pt);
-  const fixed = fixedUpdate();
+  const fixed = s.fixedUpdate();
   if (fixed !== null) {
     const f = fallbackUpdateInterval(list, fixed);
     if (f !== null) return f;
@@ -560,29 +651,30 @@ function replayUpdateIntervalFor(ps: ReplayPane[], pt: number): string {
 
 /** Re-cut the panes in replay at the current point (update interval or
  *  chart data changed). Autoplay resumes after. */
-function restartPanes() {
-  const pt = point();
-  if (pt === null || !replayStarted()) return;
-  const wasPlaying = playing();
-  setPlay(false);
-  const ps = inReplay().map((id) => panes.get(id)).filter((p): p is ReplayPane => !!p);
-  const update = replayUpdateIntervalFor(ps, pt);
+function restartPanes(s: Session) {
+  const pt = s.point();
+  if (pt === null || !started(s)) return;
+  const wasPlaying = s.playing();
+  setPlay(s, false);
+  const ps = s.inReplay().map((id) => panes.get(id)).filter((p): p is ReplayPane => !!p);
+  const update = updateIntervalFor(s, ps, pt);
   void Promise.all(ps.map((p) => p.start(pt, update))).then(() => {
-    if (wasPlaying && replayStarted()) setPlay(true);
+    if (wasPlaying && started(s)) setPlay(s, true);
   });
 }
 
 /** A chart in replay loaded new data (interval, symbol, session, reload):
  *  it continues at the same replay time. */
 export function replayPaneReloaded(paneId: number) {
-  const pt = point();
+  const s = paneSession(paneId);
   const p = panes.get(paneId);
-  if (pt === null || !p || !inReplay().includes(paneId)) return;
-  setEpoch((n) => n + 1);
-  const update = replayUpdateIntervalFor([p], pt);
+  const pt = s?.point() ?? null;
+  if (!s || pt === null || !p || !s.inReplay().includes(paneId)) return;
+  s.setEpoch((n) => n + 1);
+  const update = updateIntervalFor(s, [p], pt);
   void p.start(pt, update).then((ok) => {
     if (!ok) {
-      if (p.unavailable() === null) setTooDeep((l) => (l.includes(paneId) ? l : [...l, paneId]));
+      if (p.unavailable() === null) s.setTooDeep((l) => (l.includes(paneId) ? l : [...l, paneId]));
       leavePane(paneId);
     }
   });
@@ -591,42 +683,48 @@ export function replayPaneReloaded(paneId: number) {
 /** A chart leaves the replay (its style can't be replayed, …); the replay
  *  stops when no chart is left. */
 export function leavePane(paneId: number) {
-  if (!inReplay().includes(paneId)) return;
+  const s = paneSession(paneId);
+  if (!s || !s.inReplay().includes(paneId)) return;
   panes.get(paneId)?.stop();
-  const rest = inReplay().filter((id) => id !== paneId);
-  setInReplay(rest);
+  const rest = s.inReplay().filter((id) => id !== paneId);
+  setPanesInReplay(s, rest);
   if (rest.length === 0) {
-    setPlay(false);
-    setPoint(null);
+    setPlay(s, false);
+    s.setPoint(null);
   }
 }
 
 /** A bar was clicked while selecting: it becomes the first hidden bar. */
 export function selectBar(paneId: number, barTime: number) {
-  const first = replayFirstAvailable();
+  const s = paneSession(paneId);
+  if (!s) return;
+  const first = firstAvailableOf(s);
   const pt = Math.max(first ?? -Infinity, barTime - 1);
-  void startAt(pt, paneId);
+  void startAt(s, pt, paneId);
 }
 
 /** A date from the Select date dialog (UTC seconds): the bar opening at it
  *  is the first hidden one. Returns false (and starts at the first available
  *  point) when the date is older than the data. */
 export function selectDate(sec: number): boolean {
-  const first = replayFirstAvailable();
+  const s = cur();
+  const first = firstAvailableOf(s);
   const early = first !== null && sec - 1 < first;
-  void startAt(early ? first! : sec - 1);
+  void startAt(s, early ? first! : sec - 1);
   return !early;
 }
 
 export function selectFirstAvailable() {
-  const first = replayFirstAvailable();
-  if (first !== null) void startAt(first);
+  const s = cur();
+  const first = firstAvailableOf(s);
+  if (first !== null) void startAt(s, first);
 }
 
 /** A random time between the first available point and now (up to 10 draws
  *  to land in a session: `inSession`). */
 export function selectRandom(inSession: (sec: number) => boolean = () => true) {
-  const first = replayFirstAvailable();
+  const s = cur();
+  const first = firstAvailableOf(s);
   if (first === null) return;
   const now = Date.now() / 1000;
   let t = first;
@@ -634,32 +732,33 @@ export function selectRandom(inSession: (sec: number) => boolean = () => true) {
     t = first + Math.round((now - first) * Math.random());
     if (inSession(t)) break;
   }
-  void startAt(t);
+  void startAt(s, t);
 }
 
 // ── Toolbar / header actions ─────────────────────────────────────────────────
 
 export function setTimingMode(m: TimingMode) {
-  setTimingSignal(m);
+  cur().setTiming(m);
   kv.setItem(TIMING_KEY, m);
 }
 
 /** Run the start-point action of the current timing mode. */
 export function runTimingMode() {
-  switch (timing()) {
+  const s = cur();
+  switch (s.timing()) {
     case "bar":
       toggleSelect();
       break;
     case "date":
-      setSelecting(false);
-      setDateDialog(true);
+      s.setSelecting(false);
+      s.setDateDialog(true);
       break;
     case "first":
-      setSelecting(false);
+      s.setSelecting(false);
       selectFirstAvailable();
       break;
     case "random": {
-      setSelecting(false);
+      s.setSelecting(false);
       const p = activeReplayPane();
       selectRandom(p ? p.inSession : undefined);
       break;
@@ -669,89 +768,98 @@ export function runTimingMode() {
 
 /** "Select bar": start / cancel the bar selection (autoplay stops). */
 export function toggleSelect() {
-  if (selecting()) {
-    setSelecting(false);
+  const s = cur();
+  if (s.selecting()) {
+    s.setSelecting(false);
     return;
   }
-  setPlay(false);
-  setSelecting(true);
+  setPlay(s, false);
+  s.setSelecting(true);
 }
 
 export function cancelSelect() {
-  setSelecting(false);
-  setHoverTime(null);
+  const s = cur();
+  s.setSelecting(false);
+  s.setHoverTime(null);
 }
 
 export function closeDateDialog() {
-  setDateDialog(false);
+  cur().setDateDialog(false);
 }
 
 /** Header button: open the toolbar and run the start mode (Bar: select a
  *  bar; Date: the dialog; First / Random wait for a click). */
 export function openReplay() {
-  if (enabled()) return;
-  setEnabled(true);
-  if (targetPanes().length === 0) return;
-  if (timing() === "bar") setSelecting(true);
-  else if (timing() === "date") setDateDialog(true);
+  const s = cur();
+  if (s.enabled()) return;
+  s.setEnabled(true);
+  if (targetPanes(s).length === 0) return;
+  if (s.timing() === "bar") s.setSelecting(true);
+  else if (s.timing() === "date") s.setDateDialog(true);
 }
 
 /** Open the toolbar and start at `sec` on the active chart (trade journal
  *  "Replay from entry"): no bar selection, no date dialog. */
 export function startReplayAt(sec: number) {
-  setEnabled(true);
-  setSelecting(false);
-  setDateDialog(false);
+  const s = cur();
+  s.setEnabled(true);
+  s.setSelecting(false);
+  s.setDateDialog(false);
   selectDate(sec);
 }
 
 /** What replay trading does at the end of a session (see jumpToRealtime):
- *  true when it had trades. */
-let finishHook: (() => boolean) | null = null;
-export function setReplayFinishHook(fn: (() => boolean) | null) {
+ *  true when it had trades on the given charts. */
+let finishHook: ((paneIds: number[]) => boolean) | null = null;
+export function setReplayFinishHook(fn: typeof finishHook) {
   finishHook = fn;
 }
 
 /** Jump to real-time chart (and the end of the data): a session with trades
  *  ends (positions closed, results shown) and the bars stay; otherwise the
  *  charts go back to live data. Again once ended: back to live data. */
-export function jumpToRealtime() {
-  if (finished() || !replayStarted()) {
-    stopReplay();
+function jumpSession(s: Session) {
+  if (s.finished() || !started(s)) {
+    stopSession(s);
     return;
   }
   // Saved first (reference app: on Jump to real-time too).
-  saveReplaySession();
-  if (finishHook?.()) {
-    setPlay(false);
-    setFinished(true);
+  saveSession(s);
+  if (finishHook?.(s.inReplay())) {
+    setPlay(s, false);
+    s.setFinished(true);
     return;
   }
-  stopReplay();
+  stopSession(s);
 }
+export const jumpToRealtime = () => jumpSession(cur());
 
 /** The charts go back to live data, the toolbar stays. */
-export function stopReplay() {
-  setFinished(false);
-  setTooDeep([]);
-  setPlay(false);
-  for (const id of inReplay()) panes.get(id)?.stop();
-  setInReplay([]);
-  setPoint(null);
-  setEpoch((n) => n + 1);
+function stopSession(s: Session) {
+  s.setFinished(false);
+  s.setTooDeep([]);
+  setPlay(s, false);
+  for (const id of s.inReplay()) panes.get(id)?.stop();
+  setPanesInReplay(s, []);
+  s.setPoint(null);
+  s.setEpoch((n) => n + 1);
 }
+export const stopReplay = () => stopSession(cur());
 
 /** Close the toolbar (Exit Bar Replay / header button). */
 export function closeReplay() {
-  stopReplay();
-  setSelecting(false);
-  setDateDialog(false);
-  setHoverTime(null);
-  setFixedUpdate(null);
-  setEnabled(false);
+  const s = cur();
+  stopSession(s);
+  s.setSelecting(false);
+  s.setDateDialog(false);
+  s.setHoverTime(null);
+  s.setFixedUpdate(null);
+  s.setEnabled(false);
+  resetHook?.(tabPaneIds(s), true);
 }
 
-export function setReplayMode(m: ReplayMode) {
-  setModeSignal(m);
+function setMode(s: Session, m: ReplayMode) {
+  s.setMode(m);
   kv.setItem(MODE_KEY, m);
 }
+export const setReplayMode = (m: ReplayMode) => setMode(cur(), m);

@@ -173,6 +173,8 @@ export type ChartViewProps = {
   /** False while this pane's tab is hidden. App keeps every opened tab's grid
    *  mounted (each tab page stays alive), so a tab switch only shows it. */
   shown?: boolean;
+  /** The tab the pane is on (Bar Replay runs per tab). */
+  tabId?: string;
   /** Number of charts of the layout (the "entire layout" rows and "Move
    *  chart" need several). */
   layoutCount?: number;

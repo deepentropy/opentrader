@@ -14,15 +14,9 @@ import {
   isPaneInReplay,
   isPaneTooDeep,
   registerReplayPane,
-  replayEnabled,
-  replayMode,
+  replayOfTab,
   replayPaneReloaded,
-  replayPlaying,
-  replayPoint,
-  replaySelectHoverTime,
-  replaySelecting,
   selectBar,
-  setReplaySelectHoverTime,
   leavePane,
   setReplayActivePane,
   type ReplayUnavailable,
@@ -97,6 +91,8 @@ const isoDay = (iso: string | null | undefined) => (iso ? Date.parse(`${iso}T00:
 
 export function createReplay(cx: ChartCx): ReplayApi {
   const { paneId, props } = cx;
+  // The replay of the pane's tab (each tab has its own).
+  const rs = replayOfTab(props.tabId ?? "");
   let feed: ReplayFeed | null = null;
   let active = false;
   /** Bumped by every start / stop: async loads of an older one are dropped. */
@@ -133,14 +129,14 @@ export function createReplay(cx: ChartCx): ReplayApi {
   createEffect(() => {
     const sym = props.symbol;
     setFirstDaily(null);
-    if (!replayEnabled() || !sym || isEconomicSymbol(cx.fullSymbol())) return;
+    if (!rs.enabled() || !sym || isEconomicSymbol(cx.fullSymbol())) return;
     let alive = true;
     getBars(sym, "1D", "RTH")
       .then((r) => {
         if (!alive) return;
         const t0 = r.daily?.[0]?.time ?? r.bars[0]?.time;
         setFirstDaily(t0 != null ? (t0 as number) : null);
-        bumpReplayEpoch();
+        bumpReplayEpoch(paneId);
       })
       .catch(() => {});
     onCleanup(() => { alive = false; });
@@ -344,7 +340,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
 
   const unregister = registerReplayPane({
     paneId,
-    shown: () => props.shown !== false,
+    tab: props.tabId ?? "",
     interval,
     unavailable,
     firstAvailable,
@@ -394,7 +390,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
   createEffect(() => {
     interval();
     props.symbol;
-    bumpReplayEpoch();
+    bumpReplayEpoch(paneId);
   });
 
   const replayAfterApply = () => {
@@ -418,9 +414,9 @@ export function createReplay(cx: ChartCx): ReplayApi {
   };
 
   const replayStatus = createMemo<ReplayLegendStatus>(() => {
-    if (!replayEnabled() || unavailable() !== null) return null;
-    if (isPaneInReplay(paneId)) return replayPlaying() ? "play" : "pause";
-    if (replaySelecting()) return "select";
+    if (!rs.enabled() || unavailable() !== null) return null;
+    if (isPaneInReplay(paneId)) return rs.playing() ? "play" : "pause";
+    if (rs.selecting()) return "select";
     return null;
   });
   const replayWatermark = createMemo(() => isPaneInReplay(paneId));
@@ -452,7 +448,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
   });
 
   // ── Bar selection ─────────────────────────────────────────────────────────
-  const selectingHere = () => replaySelecting() && unavailable() === null && props.shown !== false;
+  const selectingHere = () => rs.selecting() && unavailable() === null && props.shown !== false;
   /** Hidden crosshair while selecting (the line replaces it). */
   let savedCrosshair: CrosshairMode | null = null;
   createEffect(() => {
@@ -510,10 +506,10 @@ export function createReplay(cx: ChartCx): ReplayApi {
     tooDeep: "The starting point for this chart replay is too far away.",
   };
   const [cautionClosed, setCautionClosed] = createSignal<string | null>(null);
-  createEffect(on(replayEnabled, (on) => on && setCautionClosed(null)));
+  createEffect(on(rs.enabled, (on) => on && setCautionClosed(null)));
   const cautionReason = createMemo<string | null>(() => {
-    if (!replayEnabled() || props.shown === false) return null;
-    if (replayMode() === "ActiveChart" && !props.active) return null;
+    if (!rs.enabled() || props.shown === false) return null;
+    if (rs.mode() === "ActiveChart" && !props.active) return null;
     const u = unavailable();
     const reason = u ?? (isPaneTooDeep(paneId) ? "tooDeep" : null);
     if (reason === null) return null;
@@ -521,7 +517,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
   });
   // Back to available: a later problem shows again.
   createEffect(() => {
-    if (replayEnabled() && unavailable() === null && !isPaneTooDeep(paneId)) setCautionClosed(null);
+    if (rs.enabled() && unavailable() === null && !isPaneTooDeep(paneId)) setCautionClosed(null);
   });
   /** Bumped when the plot's size changes (the hint follows its width). */
   const [plotEpoch, setPlotEpoch] = createSignal(0);
@@ -587,7 +583,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
     const lineTime = () => {
       const h = hover();
       if (h) return h.time;
-      return replayMode() === "AllCharts" ? replaySelectHoverTime() : null;
+      return rs.mode() === "AllCharts" ? rs.hoverTime() : null;
     };
     const geom = createMemo(() => {
       const time = lineTime();
@@ -620,9 +616,9 @@ export function createReplay(cx: ChartCx): ReplayApi {
             const time = barAt(e.clientX - r.left);
             if (time === null) { setHover(null); return; }
             setHover({ time, y: e.clientY - r.top });
-            setReplaySelectHoverTime(time);
+            rs.setHoverTime(time);
           }}
-          onPointerLeave={() => { setHover(null); setReplaySelectHoverTime(null); }}
+          onPointerLeave={() => { setHover(null); rs.setHoverTime(null); }}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
@@ -668,7 +664,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
 
   // The point of the replay is gone: nothing in replay here any more.
   createEffect(() => {
-    if (replayPoint() === null && active) stop();
+    if (rs.point() === null && active) stop();
   });
 
   return {
