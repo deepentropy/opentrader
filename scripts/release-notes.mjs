@@ -12,8 +12,11 @@ const tryJson = (cmd) => {
   try { return JSON.parse(sh(cmd)); } catch { return null; }
 };
 
-const tags = sh("git tag --list v*.*.* --sort=-v:refname").split("\n");
-const previous = tags[tags.indexOf(tag) + 1];
+// The release job checks out the new tag alone: fetch the others, then take the newest version tag in its history
+// (without it the notes listed every commit since the first one).
+try { sh("git fetch --tags --force --quiet"); } catch { /* offline: the tags at hand */ }
+let previous;
+try { previous = sh(`git describe --tags --abbrev=0 --match "v*.*.*" ${tag}~1`); } catch { previous = undefined; }
 
 const lines = [];
 
