@@ -262,15 +262,18 @@ export type DrawingOption = {
 /** Drawings on `symbol` that expose a usable price level, for the dialog's
  *  "drawing" operand picker. */
 export function priceableDrawings(symbol: string): DrawingOption[] {
-  return loadDrawings(symbol)
-    .filter((d) => drawingCanAlert(d.kind))
-    .map((d) => ({
-      id: d.id,
-      label: drawingLabel(d),
-      band: drawingBandType(d.kind),
-      ...(FIB_KINDS.has(d.kind) ? { levels: drawingFibLevels(d) } : {}),
-      ...(d.kind === VWAP_KIND ? { plots: VWAP_PLOTS } : {}),
-    }));
+  return loadDrawings(symbol).filter((d) => drawingCanAlert(d.kind)).map(drawingOption);
+}
+
+/** A drawing an alert can be set on, as the condition offers it: its name, shape, fib levels or VWAP lines. */
+export function drawingOption(d: Drawing): DrawingOption {
+  return {
+    id: d.id,
+    label: drawingLabel(d),
+    band: drawingBandType(d.kind),
+    ...(FIB_KINDS.has(d.kind) ? { levels: drawingFibLevels(d) } : {}),
+    ...(d.kind === VWAP_KIND ? { plots: VWAP_PLOTS } : {}),
+  };
 }
 
 /** Names of the drawing kinds in alert messages (the dialog shows them with

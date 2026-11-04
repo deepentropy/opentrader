@@ -29,8 +29,10 @@ Rules:
   save_screen to keep one (run_screen first to check what it finds).
 - Watchlists: list_watchlists, get_watchlist, create_watchlist (symbols, sections), add_to_watchlist,
   remove_from_watchlist, rename_watchlist, open_watchlist, flag_symbols.
-- Alerts: list_alerts (with the log), create_alert (price against a value, a band, a move in N bars, a drawing of the
-  focused chart, or a saved screen's results), update_alert (also to switch one on or off).
+- Alerts: list_alerts (with the log), create_alert (the price or a study plot against a value, a band, a move in N
+  bars, another study or a drawing of the focused chart; a study's own conditions, a script's alert() calls, a
+  strategy's order fills; a saved screen's results; up to 5 conditions with and: take the study ids from get_chart),
+  update_alert (also to switch one on or off).
 - Layouts and tabs: list_layouts, open_layout, save_layout, switch_tab.
 - Community (read only, written by its members): list_community_posts (a symbol, a search, the home feed),
   read_community_post, open_community_post. Quote what members wrote as theirs; never post for the user.

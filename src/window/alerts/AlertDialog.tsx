@@ -17,7 +17,6 @@
  * (prefilled with the clicked symbol + price), or with an `editId` to edit.
  */
 import { track } from "../../data/analytics";
-import { sourceSpecsOf } from "../chart/indicators/study-sources";
 import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { Portal } from "solid-js/web";
 import {
@@ -30,11 +29,29 @@ import {
   type StudyConditionRef,
 } from "../../data/alert-store";
 import {
+  callsGiveMessages,
+  chartStudies,
+  choiceOf,
+  defaultFibLevel,
+  defaultFibLevel2,
+  drawingOperand,
+  drawingOperators,
+  fibLevelText,
+  fixedFrequency,
+  indicatorOperand as studyOperand,
+  movingBarsMin,
+  savedConditions,
+  sharedBarInterval,
+  strategyOperators,
+  studyConditionOperand,
+  studyLabel,
+  studyPlots,
+} from "../../data/alert-operands";
+import {
   LEVEL_OPERATORS,
   OPERATOR_LABELS,
   bandOperatorLabel,
   isBandOperator,
-  shapeOperators,
   defaultAlertMessage,
   isPercentOperator,
   priceableDrawings,
@@ -45,11 +62,9 @@ import {
   drawingSelectLabel,
   isMovingOperator,
   VALUE_OPERATORS,
-  STRATEGY_OPERATORS,
   isStrategyOperator,
   MAX_CONDITIONS,
   blocksMoreConditions,
-  conditionReadsStudy,
   ruleConditions,
 } from "../../data/alert-condition";
 import { isStrategyId } from "../chart/indicators/strategy-entries";
@@ -58,15 +73,13 @@ import { quoteFor } from "../../data/quotes";
 import { cachedSymbolSessions } from "../../data/session";
 import { buildIntervalMenu, sectionOf, SECTION_TITLES, type IntervalSection } from "../chart/custom-intervals";
 import { compareIntervals, favoriteIntervals, longIntervalLabel } from "../chart/interval-favorites";
-import { indicatorLegendFor } from "../../data/chart-state-registry";
 import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
-import { choiceIndex, messageOutputs, outputChoices } from "../../data/alert-outputs";
+import { messageOutputs } from "../../data/alert-outputs";
 import { studyOperandValue } from "../../data/alert-engine";
-import { parseAmountText, stepAmountText, type StudyFormat } from "../../data/study-format";
+import { parseAmountText, stepAmountText } from "../../data/study-format";
 import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
-import { statusLineInputs } from "../chart/indicators/indicator-options";
 import type { SessionId } from "../../data/session/symbol-sessions";
 import { isFullSymbol, isSupportedResolution, toFullSymbol } from "../../data/datafeed";
 import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playAlertSound, stopAlertSound } from "../../data/alert-sounds";
@@ -114,9 +127,6 @@ const STUDY_FREQUENCIES: { key: AlertFrequency; label: string; desc: string }[] 
   { key: "once_per_bar_close", label: "Once per bar close", desc: "Triggers every time condition is met at bar close" },
   { key: "every_time", label: "Once per minute", desc: "Triggers once per minute while condition remains met" },
 ];
-
-/** A strategy's order fills fire every time an order fills (the rule stays active). */
-const STRATEGY_FREQUENCY: AlertFrequency = "every_time";
 
 type ExpiryKey = "open" | "eod" | "1w" | "1m" | "custom";
 
@@ -446,11 +456,6 @@ function isValidWebhookUrl(raw: string): boolean {
 }
 
 
-/** The row of a study's plot select an operand reads (0 for any other operand). */
-function choiceOf(o: Operand | undefined): number {
-  return o?.kind === "indicator" ? choiceIndex(getIndicatorEntry(o.indicatorId), o) : 0;
-}
-
 export function AlertDialog(props: Props) {
   const existing = props.editId ? alertStore.rule(props.editId) : undefined;
 
@@ -468,7 +473,6 @@ export function AlertDialog(props: Props) {
 
   // The set of indicators / priceable drawings available for the symbol comes
   // from the charted symbol; captured once at open (the dialog is short-lived).
-  const indicators = () => indicatorLegendFor(symbol());
   // A drawing is a choice only in the dialog opened from it (its alert button) or the alert made on it.
   const drawings = () =>
     priceableDrawings(symbol()).filter((d) => d.id === props.drawingId || (existing?.right.kind === "drawing" && existing.right.drawingId === d.id));
@@ -477,7 +481,7 @@ export function AlertDialog(props: Props) {
   // isn't currently charted (or the study/drawing is gone), so editing never
   // silently drops or mis-displays an indicator/drawing operand.
   const indicatorOptions = createMemo(() => {
-    const opts: { id: string; label: string; inputs?: Record<string, unknown> }[] = indicators().map((r) => ({ id: r.id, label: r.title, inputs: r.inputValues }));
+    const opts = chartStudies(symbol());
     const ids = new Set(opts.map((o) => o.id));
     const saved = [...(existing ? ruleConditions(existing) : []), ...conds()];
     for (const o of saved.flatMap((c) => [c.left, c.right, c.right2])) {
@@ -500,13 +504,7 @@ export function AlertDialog(props: Props) {
     return opts.filter((o, i) => opts.findIndex((x) => x.symbol === o.symbol) === i);
   });
   /** A study as the selects name it: its legend title with its inputs ("MACD (close, 12, 26, 9)"). */
-  const studyName = (id: string): string => {
-    const o = indicatorOptions().find((x) => x.id === id);
-    if (!o) return "indicator";
-    const entry = getIndicatorEntry(id);
-    const shown = entry && o.inputs ? statusLineInputs(entry, o.inputs, ", ", (v) => sourceSpecsOf(o.inputs)?.[v]?.label ?? null) : "";
-    return shown ? `${o.label} (${shown})` : o.label;
-  };
+  const studyName = (id: string): string => studyLabel(indicatorOptions(), id);
   const drawingOptions = createMemo(() => {
     const opts = drawings();
     const r = seed()?.right;
@@ -550,7 +548,7 @@ export function AlertDialog(props: Props) {
   const callsOf = (indicatorId: string): boolean =>
     hasAlertFunction(getIndicatorEntry(indicatorId)) || (seed()?.op === "alert_function" && seed()?.left.kind === "indicator" && (seed()!.left as { indicatorId: string }).indicatorId === indicatorId);
   /** A strategy's conditions: its order fills, with its alert() calls and the calls only when it calls alert(). */
-  const strategyOpsOf = (indicatorId: string): AlertOperator[] => (callsOf(indicatorId) ? STRATEGY_OPERATORS : ["strategy_orders"]);
+  const strategyOpsOf = (indicatorId: string): AlertOperator[] => strategyOperators(callsOf(indicatorId));
   // A study with alert() calls opens on them, one that declares conditions on its first one; a strategy on its
   // first condition.
   const firstStrategy = !existing && !!props.indicatorId && isStrategyId(props.indicatorId) ? strategyOpsOf(props.indicatorId)[0] : undefined;
@@ -564,7 +562,7 @@ export function AlertDialog(props: Props) {
   /** A strategy's condition (its order fills, its alert() calls). */
   const isStrat = () => isStrategyOperator(op());
   /** The alert() calls give the messages: "Any alert() function call", a strategy's "alert() function calls only". */
-  const isCallsOnly = () => isCalls() || op() === "strategy_alerts";
+  const isCallsOnly = () => callsGiveMessages(op());
   /** A condition of the study itself: no plot, nothing compared. */
   const isOwn = () => isCond() || isCalls() || isStrat();
   const leftStrategy = () => leftKind() === "indicator" && isStrategyId(leftIndicator());
@@ -605,9 +603,7 @@ export function AlertDialog(props: Props) {
     existing?.right.kind === "indicator" ? existing.right.indicatorId : "",
   );
   const [rightPlot, setRightPlot] = createSignal(choiceOf(existing?.right));
-  /** The outputs of an indicator in message order (line plots, shapes, characters, arrows, candle prices), for the
-   *  plot select shown next to a study with 2 or more of them. The plot signals hold the row. */
-  const plotsOf = (indicatorId: string) => outputChoices(getIndicatorEntry(indicatorId));
+  // The plot select (studyPlots) shows next to a study with 2 or more outputs; the plot signals hold its row.
 
   // ── Moving conditions: the amount (or %) "in N bars" ──
   const [pct, setPct] = createSignal(
@@ -619,7 +615,7 @@ export function AlertDialog(props: Props) {
   // study until it is edited.
   const [bars, setBars] = createSignal(existing?.bars != null ? String(existing.bars) : "");
   // A compared symbol is read like a study.
-  const barsMin = () => (leftKind() !== "price" ? 2 : 1);
+  const barsMin = () => movingBarsMin(leftKind());
   const barsValue = () => {
     const n = Math.round(Number(bars()));
     return bars() !== "" && Number.isFinite(n) ? Math.max(barsMin(), Math.min(300, n)) : barsMin();
@@ -704,7 +700,7 @@ export function AlertDialog(props: Props) {
   /** Current value of the source: the study's last value, the compared symbol's price, else the price. */
   const sourceValue = (): number | null => {
     if (leftKind() === "indicator") {
-      const c = plotsOf(leftIndicator())[leftPlot()];
+      const c = studyPlots(leftIndicator())[leftPlot()];
       if (!c?.output) return indicatorPlotValue(symbol(), leftIndicator(), c?.plot ?? 0);
       // An output the legend does not show: computed as the alert reads it.
       const o = untrack(buildLeft);
@@ -736,9 +732,9 @@ export function AlertDialog(props: Props) {
   // An anchored VWAP: the five level conditions on one of its lines.
   const vwapPlots = () => drawingOption()?.plots ?? [];
   const [rightVwapPlot, setRightVwapPlot] = createSignal(existing?.right.kind === "drawing" ? (existing.right.plot ?? 0) : 0);
-  const fixedOperators = () => (vwapPlots().length > 0 ? LEVEL_OPERATORS : shapeOperators(band(), fibLevels().length > 0));
+  const fixedOperators = () => drawingOperators(drawingOption());
   // A study without plots (a TPO) has only its conditions.
-  const operators = () => (leftStrategy() || (leftKind() === "indicator" && plotsOf(leftIndicator()).length === 0) ? [] : (fixedOperators() ?? VALUE_OPERATORS));
+  const operators = () => (leftStrategy() || (leftKind() === "indicator" && studyPlots(leftIndicator()).length === 0) ? [] : (fixedOperators() ?? VALUE_OPERATORS));
   const operatorLabel = (o: AlertOperator) =>
     !isBandOperator(o) ? OPERATOR_LABELS[o] : bandOperatorLabel(o, band() === "rectangle" ? "rectangle" : "channel");
   createEffect(() => {
@@ -785,9 +781,8 @@ export function AlertDialog(props: Props) {
   const [rightLevel, setRightLevel] = createSignal<number>(existing?.right.kind === "drawing" && existing.right.level != null ? existing.right.level : 0.5);
   createEffect(() => {
     const lv = fibLevels();
-    if (lv.length && !lv.some((l) => l.coeff === untrack(rightLevel))) setRightLevel((lv.find((l) => l.coeff === 0.5) ?? lv[0]).coeff);
+    if (lv.length && !lv.some((l) => l.coeff === untrack(rightLevel))) setRightLevel(defaultFibLevel(lv));
   });
-  const levelText = (l: { coeff: number; price: number }) => `${l.coeff} (${l.price.toFixed(2)})`;
   // Fib tool, channel condition: a second level (the lower bound), by
   // default the level after the first one.
   const fibChannel = () => fibLevels().length > 0 && isBandOperator(op());
@@ -797,25 +792,14 @@ export function AlertDialog(props: Props) {
     if (!lv.length) return;
     const cur = untrack(rightLevel2);
     if (cur != null && lv.some((l) => l.coeff === cur)) return;
-    const i = lv.findIndex((l) => l.coeff === rightLevel());
-    setRightLevel2((lv[i + 1] ?? lv[i - 1] ?? lv[0]).coeff);
+    setRightLevel2(defaultFibLevel2(lv, rightLevel()));
   });
 
   function buildLeft(): Operand {
     if (leftKind() === "indicator" && leftIndicator()) {
       if (!isOwn()) return indicatorOperand(leftIndicator(), leftPlot(), seed()?.left);
       // A condition reads no plot: the study's label without a plot title.
-      const o = indicatorOperand(leftIndicator(), 0, seed()?.left);
-      if (o.kind !== "indicator") return o;
-      const plots = plotsOf(leftIndicator());
-      const label = plots.length >= 2 && o.label ? o.label.slice(0, o.label.length - `: ${plots[0]?.title ?? ""}`.length) : o.label;
-      if (isCalls() || isStrat()) {
-        const { condition: _condition, ...rest } = o;
-        return { ...rest, label };
-      }
-      const cond = leftCondition();
-      if (!cond) return o;
-      return { ...o, label, condition: cond };
+      return studyConditionOperand(indicatorOptions(), leftIndicator(), op(), leftCondition(), seed()?.left);
     }
     if (leftKind() === "symbol" && leftSymbol()) return symbolOperand(leftSymbol());
     return { kind: "price" };
@@ -846,20 +830,8 @@ export function AlertDialog(props: Props) {
     if (isMoving()) return { kind: "value", value: parseFloat(pct()) || 0 };
     if (valueBand()) return boundOperand(upperSel(), upperValue(), upperPlot(), seed()?.right);
     switch (rightKind()) {
-      case "drawing": {
-        const o = drawingOptions().find((x) => x.id === rightDrawing());
-        const lv = o?.levels?.find((l) => l.coeff === rightLevel());
-        const lv2 = fibChannel() ? o?.levels?.find((l) => l.coeff === rightLevel2()) : undefined;
-        return {
-          kind: "drawing",
-          drawingId: rightDrawing(),
-          label: lv && lv2 ? `${o?.label} (upper bound: level ${lv.coeff}, lower bound: level ${lv2.coeff})` : lv ? `${o?.label} level ${levelText(lv)}` : o?.label,
-          ...(o?.band ? { band: o.band } : {}),
-          ...(lv ? { level: lv.coeff } : {}),
-          ...(lv2 ? { level2: lv2.coeff } : {}),
-          ...(o?.plots ? { plot: rightVwapPlot() } : {}),
-        };
-      }
+      case "drawing":
+        return drawingOperand(rightDrawing(), drawingOptions().find((x) => x.id === rightDrawing()), { level: rightLevel(), level2: fibChannel() ? rightLevel2() : null, plot: rightVwapPlot() });
       case "indicator": {
         return indicatorOperand(rightIndicator(), rightPlot(), seed()?.right);
       }
@@ -872,35 +844,8 @@ export function AlertDialog(props: Props) {
     }
   }
 
-  /** Operand label: the study title with its inputs, and the plot title for
-   *  a study with several plots ("BB (20, 2): Upper"). */
-  function plotLabel(title: string | undefined, indicatorId: string, plot: number, inputs?: Record<string, unknown>): string | undefined {
-    const plots = plotsOf(indicatorId);
-    const entry = getIndicatorEntry(indicatorId);
-    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ", (v) => sourceSpecsOf(inputs)?.[v]?.label ?? null) : "";
-    const name = title && shown ? `${title} (${shown})` : title;
-    return plots.length >= 2 && name ? `${name}: ${plots[plot]?.title ?? ""}` : name;
-  }
-
-  /** An operand on a study. It carries the study's inputs as they are now on
-   *  the chart; an alert being edited keeps the ones it was made with. */
-  function indicatorOperand(indicatorId: string, plot: number, was: Operand | undefined): Operand {
-    const o = indicatorOptions().find((x) => x.id === indicatorId);
-    const kept = was?.kind === "indicator" && was.indicatorId === indicatorId ? was : undefined;
-    const inputs = kept?.inputs ?? (o?.inputs ? { ...o.inputs } : undefined);
-    const label = kept?.inputs && choiceOf(kept) === plot && kept.label ? kept.label : plotLabel(kept?.inputs ? kept.label?.replace(/ \(.*$/, "") ?? o?.label : o?.label, indicatorId, plot, inputs);
-    // `plot`: the row of the plot select; a line plot by its index, another output by its key.
-    const choice = plotsOf(indicatorId)[plot];
-    // Messages name the study by its full title with its inputs.
-    const entry = getIndicatorEntry(indicatorId);
-    const shown = entry && inputs ? statusLineInputs(entry, inputs, ", ", (v) => sourceSpecsOf(inputs)?.[v]?.label ?? null) : "";
-    const full = entry?.metadata.title;
-    const title = kept?.title ?? (full ? (shown ? `${full} (${shown})` : full) : undefined);
-    const precision = (entry?.metadata as { precision?: number } | undefined)?.precision;
-    const format = (entry as { format?: StudyFormat } | undefined)?.format;
-    const read = choice?.output ? { output: choice.output } : { plot: choice?.plot ?? 0 };
-    return { kind: "indicator", indicatorId, ...read, label, ...(title ? { title } : {}), ...(precision != null ? { precision } : {}), ...(format ? { format } : {}), ...(inputs ? { inputs } : {}) };
-  }
+  /** An operand on a study, with its inputs on the chart (an alert being edited keeps its own). */
+  const indicatorOperand = (indicatorId: string, plot: number, was: Operand | undefined): Operand => studyOperand(indicatorOptions(), indicatorId, plot, was);
 
   /** Default message: the condition as it is set ("AZO Crossing 150"), or
    *  the message a study's condition declares. An alert keeps no message of
@@ -1044,11 +989,6 @@ export function AlertDialog(props: Props) {
     const first = multi() ? conds()[0] : { op: op(), right: condition().right };
     return blocksMoreConditions(first);
   };
-  /** The interval the conditions read on bars share, else null. */
-  const sharedBarInterval = (list: AlertCondition[]): string | null => {
-    const bars = list.filter(conditionReadsStudy);
-    return bars.length > 0 && bars.every((c) => c.resolution === bars[0].resolution) ? bars[0].resolution : null;
-  };
 
   function save() {
     if (!canSave()) return;
@@ -1057,8 +997,7 @@ export function AlertDialog(props: Props) {
     const typed = symbol().trim().toUpperCase();
     // Several conditions: the first in the rule's own fields, the others in `and`. A condition read on every
     // update takes the interval the others read on bars, so the per-bar triggers count those bars.
-    const shared = multi() ? sharedBarInterval(conds()) : null;
-    const list = multi() ? conds().map((c) => (shared && !conditionReadsStudy(c) ? { ...c, resolution: shared } : c)) : [];
+    const list = multi() ? savedConditions(conds()) : [];
     const [first, ...others] = list;
     const rule = {
       symbol: typed,
@@ -1071,7 +1010,7 @@ export function AlertDialog(props: Props) {
       bars: first ? first.bars : isMoving() ? barsValue() : undefined,
       and: others.length ? others : undefined,
       // alert() calls: each call's frequency and message; order fills: every fill.
-      frequency: isCalls() ? ("once_per_bar" as AlertFrequency) : isStrat() ? STRATEGY_FREQUENCY : band() === "time" || band() === "position" ? ("only_once" as AlertFrequency) : frequency(),
+      frequency: fixedFrequency(op(), band()) ?? frequency(),
       name: isCallsOnly() && name().trim() === preview() ? "" : name().trim(),
       message: isCallsOnly() ? "" : message().trim(),
       sound: sound(),
@@ -1143,7 +1082,7 @@ export function AlertDialog(props: Props) {
   };
   // A study is a source when it has plots or conditions; the one being edited stays.
   const alertable = (id: string) =>
-    isStrategyId(id) || plotsOf(id).length > 0 || condsOf(id).length > 0 || callsOf(id) || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
+    isStrategyId(id) || studyPlots(id).length > 0 || condsOf(id).length > 0 || callsOf(id) || (existing?.left.kind === "indicator" && existing.left.indicatorId === id);
   const sourceOptions = (): MenuOption[] => [
     { value: "price", label: "Price" },
     ...indicatorOptions().filter((r) => alertable(r.id) && !(draft() && isStrategyId(r.id))).map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
@@ -1158,7 +1097,7 @@ export function AlertDialog(props: Props) {
     { value: "value", label: "Value" },
     ...(leftKind() !== "price" && LEVEL_OPERATORS.includes(op()) ? [{ value: "price", label: "Price" }] : []),
     ...indicatorOptions()
-      .filter((r) => (plotsOf(r.id).length > 0 || r.id === rightIndicator()) && !(leftKind() === "indicator" && r.id === leftIndicator()))
+      .filter((r) => (studyPlots(r.id).length > 0 || r.id === rightIndicator()) && !(leftKind() === "indicator" && r.id === leftIndicator()))
       .map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
     ...otherCompares().map((c) => ({ value: `sym:${c.symbol}`, label: c.label })),
     ...drawingOptions().filter((d) => !(draft() && d.band === "position")).map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
@@ -1177,8 +1116,8 @@ export function AlertDialog(props: Props) {
       setRightDrawing(v.slice(4));
     } else setRightKind(v as SideKind);
   };
-  const levelOptions = (): MenuOption[] => fibLevels().map((l) => ({ value: String(l.coeff), label: levelText(l) }));
-  const plotOptions = (id: string): MenuOption[] => plotsOf(id).map((p) => ({ value: String(p.index), label: p.title }));
+  const levelOptions = (): MenuOption[] => fibLevels().map((l) => ({ value: String(l.coeff), label: fibLevelText(l) }));
+  const plotOptions = (id: string): MenuOption[] => studyPlots(id).map((p) => ({ value: String(p.index), label: p.title }));
   /** The Notifications row: what notifies, "Scheduled: …" with a schedule other than 24/7, else "None". */
   const notificationsText = () => {
     const on = [popup() && "Notification", toast() && "Toasts", webhookOn() && "Webhook", sound() && "Sound"].filter(Boolean).join(", ");
@@ -1223,7 +1162,7 @@ export function AlertDialog(props: Props) {
    *  the dialog was opened for (picking it makes the drawing the level). The price is not a bound. */
   const boundOptions = (): MenuOption[] => [
     { value: "value", label: "Value" },
-    ...indicatorOptions().filter((r) => plotsOf(r.id).length > 0 && !(leftKind() === "indicator" && r.id === leftIndicator())).map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
+    ...indicatorOptions().filter((r) => studyPlots(r.id).length > 0 && !(leftKind() === "indicator" && r.id === leftIndicator())).map((r) => ({ value: `ind:${r.id}`, label: studyName(r.id) })),
     ...otherCompares().map((c) => ({ value: `sym:${c.symbol}`, label: c.label })),
     ...drawingOptions().filter((d) => d.band === "channel" || d.band === "rectangle" || (d.levels?.length ?? 0) > 0).map((d) => ({ value: `drw:${d.id}`, label: drawingSelectLabel(d.label) })),
   ];
@@ -1252,7 +1191,7 @@ export function AlertDialog(props: Props) {
           />
           <Show when={sel() === "value"}>{valueBox(value, (v) => { setBoundsEdited(true); setValue(v); }, title)}</Show>
         </div>
-        <Show when={sel().startsWith("ind:") && plotsOf(sel().slice(4)).length >= 2}>
+        <Show when={sel().startsWith("ind:") && studyPlots(sel().slice(4)).length >= 2}>
           <AdMenu variant="box" label={`${title} plot`} value={String(plot())} options={plotOptions(sel().slice(4))} onPick={(v) => setPlot(Number(v))} />
         </Show>
       </div>
@@ -1321,7 +1260,7 @@ export function AlertDialog(props: Props) {
                     }}
                   />
                   {/* Plot select: a study with 2 or more plots (not for one of its conditions). */}
-                  <Show when={!isOwn() && leftKind() === "indicator" && plotsOf(leftIndicator()).length >= 2}>
+                  <Show when={!isOwn() && leftKind() === "indicator" && studyPlots(leftIndicator()).length >= 2}>
                     <AdMenu variant="box" label="Plot" value={String(leftPlot())} options={plotOptions(leftIndicator())} onPick={(v) => setLeftPlot(Number(v))} />
                   </Show>
 
@@ -1377,7 +1316,7 @@ export function AlertDialog(props: Props) {
                     <Show when={rightKind() === "drawing" && vwapPlots().length > 0}>
                       <AdMenu variant="box" label="Line" value={String(rightVwapPlot())} options={vwapPlots().map((p, i) => ({ value: String(i), label: p }))} onPick={(v) => setRightVwapPlot(Number(v))} />
                     </Show>
-                    <Show when={rightKind() === "indicator" && plotsOf(rightIndicator()).length >= 2}>
+                    <Show when={rightKind() === "indicator" && studyPlots(rightIndicator()).length >= 2}>
                       <AdMenu variant="box" label="Plot" value={String(rightPlot())} options={plotOptions(rightIndicator())} onPick={(v) => setRightPlot(Number(v))} />
                     </Show>
                     </Show>
