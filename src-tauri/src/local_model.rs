@@ -76,7 +76,7 @@ const ADAPTER: Asset = Asset {
     size: 66_095_232,
 };
 /// The fine-tune is on the release page: the download is offered.
-const PUBLISHED: bool = false;
+const PUBLISHED: bool = true;
 
 /// RAM the server needs with an 8k context (measured: about 4.3 GB private at 16k), with a margin.
 const RAM_NEEDED: u64 = 6 * 1024 * 1024 * 1024;

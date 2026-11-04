@@ -15,7 +15,8 @@ const blank = (): Draft => ({ id: null, preset: "llama", label: "", description:
 const fromModel = (m: AssistantModel): Draft => ({ id: m.id, preset: presetOf(m.baseUrl), label: m.label, description: m.description, baseUrl: m.baseUrl, model: m.model, key: "", keyTouched: false, compact: m.compact });
 
 export function ModelSettings(props: { onDone: () => void; canClose: boolean }) {
-  const [draft, setDraft] = createSignal<Draft | null>(config().models.length ? null : blank());
+  // The list first: "Run on this computer" leads, a server is added from there.
+  const [draft, setDraft] = createSignal<Draft | null>(null);
   const [ids, setIds] = createSignal<string[]>([]);
   const [status, setStatus] = createSignal<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = createSignal(false);
@@ -80,7 +81,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
               <div class="asst-model-row">
                 <div class="asst-model-row-text">
                   <span class="asst-model-name">{m.label}</span>
-                  <span class="asst-muted">{m.model} · {m.baseUrl}{m.hasKey ? " · key saved" : ""}</span>
+                  <span class="asst-muted">{m.baseUrl === "local" ? "On this computer" : `${m.model} · ${m.baseUrl}${m.hasKey ? " · key saved" : ""}`}</span>
                 </div>
                 <Show when={m.baseUrl !== "local"}>
                   <button type="button" class="asst-btn" onClick={() => { setDraft(fromModel(m)); setStatus(null); }}>Edit</button>
@@ -90,7 +91,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
             )}
           </For>
         </div>
-        <button type="button" class="asst-btn is-primary" onClick={() => { setDraft(blank()); setStatus(null); }}>Add a model</button>
+        <button type="button" class="asst-btn is-primary" onClick={() => { setDraft(blank()); setStatus(null); }}>Add a server or a cloud model</button>
       </Show>
       <Show when={draft()}>
         {(d) => (
@@ -155,9 +156,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
             </label>
             <div class="asst-inline">
               <button type="submit" class="asst-btn is-primary" disabled={busy() || !d().model.trim() || !d().baseUrl.trim()}>Save</button>
-              <Show when={config().models.length}>
-                <button type="button" class="asst-btn" onClick={() => { setDraft(null); setStatus(null); }}>Cancel</button>
-              </Show>
+              <button type="button" class="asst-btn" onClick={() => { setDraft(null); setStatus(null); }}>Cancel</button>
             </div>
           </form>
         )}

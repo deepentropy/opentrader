@@ -600,3 +600,6 @@
   background-color: var(--color-content-accent, #2962ff);
   transition: width 0.25s;
 }
+.asst-local .asst-model-row-text .asst-muted {
+  white-space: normal;
+}
