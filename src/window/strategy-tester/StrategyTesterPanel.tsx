@@ -23,6 +23,8 @@ import { KeyStatsInline, MetricsView } from "./MetricsView";
 import { TradesView } from "./TradesView";
 import { ReplayTradingReport } from "../replay/ReplayTradingReport";
 import { TradeJournalView } from "../trade-journal/TradeJournalView";
+import { JournalMenu } from "../trade-journal/JournalMenu";
+import { ImportTradesHost } from "../trade-journal/ImportTradesDialog";
 import { tradeJournal } from "../../data/trade-journal";
 import { replayStarted } from "../../data/replay";
 import { tradingUi } from "../../data/trading/trading-ui";
@@ -249,6 +251,7 @@ export function StrategyTesterPanel(props: Props) {
               <Show when={tradeJournal.open()}>
                 {(() => {
                   const active = () => selected() === JOURNAL_TAB && !strategyTester.collapsed();
+                  let caretRef: HTMLButtonElement | undefined;
                   return (
                     <div class="st-tab" classList={{ "is-active": active() }} role="tab" aria-selected={active()} data-name="trade-journal-tab">
                       <Tooltip text={active() ? "Close trade journal" : "Open trade journal"} side="top">
@@ -259,11 +262,16 @@ export function StrategyTesterPanel(props: Props) {
                           <span class="st-tab-title">Trade journal</span>
                         </button>
                       </Tooltip>
-                      <Tooltip text="Remove trade journal tab" side="top">
-                        <button type="button" class="st-tab-caret tj-tab-close" aria-label="Remove trade journal tab" onClick={() => tradeJournal.setOpen(false)}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="12" height="12" aria-hidden="true">
-                            <path stroke="currentColor" stroke-width="1.5" fill="none" d="m3 3 12 12m0-12L3 15" />
-                          </svg>
+                      <Tooltip text="Open context menu" side="top">
+                        <button
+                          type="button"
+                          ref={caretRef}
+                          class="st-tab-caret"
+                          classList={{ "is-open": menuFor()?.id === JOURNAL_TAB }}
+                          aria-label="Open context menu"
+                          onClick={() => setMenuFor(menuFor()?.id === JOURNAL_TAB ? null : { id: JOURNAL_TAB, anchor: caretRef! })}
+                        >
+                          <Icon name="st-footer-tab-caret" />
                         </button>
                       </Tooltip>
                     </div>
@@ -347,7 +355,7 @@ export function StrategyTesterPanel(props: Props) {
               />
             </Show>
             <Show when={selected() === JOURNAL_TAB && tradeJournal.open()}>
-              <TradeJournalView timeZone={props.timeZone.iana} chartTimeZone={props.timeZone} symbol={props.symbol} />
+              <TradeJournalView timeZone={props.timeZone.iana} />
             </Show>
             <Show when={selected() !== REPLAY_TAB && selected() !== JOURNAL_TAB && selected()}>
               {(id) => (
@@ -429,7 +437,13 @@ export function StrategyTesterPanel(props: Props) {
             </Popover>
           )}
         </Show>
-        <Show when={menuFor()?.id !== REPLAY_TAB ? menuFor() : null}>
+        <Show when={menuFor()?.id === JOURNAL_TAB ? menuFor() : null}>
+          {(m) => <JournalMenu anchor={m().anchor} onClose={() => setMenuFor(null)} />}
+        </Show>
+        <Show when={tradeJournal.open()}>
+          <ImportTradesHost defaultSymbol={props.symbol} chartTimeZone={props.timeZone} />
+        </Show>
+        <Show when={menuFor()?.id !== REPLAY_TAB && menuFor()?.id !== JOURNAL_TAB ? menuFor() : null}>
           {(m) => (
             <Popover anchor={m().anchor} onClose={() => setMenuFor(null)} class="st-tab-menu" offset={{ x: 0, y: 4 }}>
               <PopItem

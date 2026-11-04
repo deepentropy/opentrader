@@ -7,18 +7,13 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { showConfirm, showRename } from "../../components/Dialogs";
-import { Popover, PopItem, PopDivider } from "../screener/Popover";
 import { tradeJournal, type JournalTrade, type SortCol } from "../../data/trade-journal";
 import { GROUP_LABELS, groupTrades, type GroupBy } from "../../data/trade-journal-calc";
-import { ImportTradesDialog } from "./ImportTradesDialog";
+import { pickTradeFile } from "./ImportTradesDialog";
 
 type Props = {
   /** Chart time zone (IANA): times and day groups are read in it. */
   timeZone: string;
-  chartTimeZone: { label: string; iana: string };
-  /** Active chart symbol (the import's default symbol). */
-  symbol: string;
 };
 
 const ROW = 32;
@@ -100,13 +95,9 @@ function sortValue(t: JournalTrade, col: SortCol): number | string {
 
 export function TradeJournalView(props: Props) {
   let scroller!: HTMLDivElement;
-  let fileInput!: HTMLInputElement;
-  let journalBtn!: HTMLButtonElement;
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewH, setViewH] = createSignal(300);
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
-  const [importing, setImporting] = createSignal<{ fileName: string; text: string } | null>(null);
-  const [menuOpen, setMenuOpen] = createSignal(false);
 
   onMount(() => {
     const ro = new ResizeObserver(() => setViewH(scroller.clientHeight));
@@ -199,27 +190,13 @@ export function TradeJournalView(props: Props) {
     setCollapsed(next);
   }
 
-  async function onFile(e: Event) {
-    const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = "";
-    if (!file) return;
-    setImporting({ fileName: file.name, text: await file.text() });
-  }
-
   const statusText = (t: JournalTrade) =>
     t.status === "unknown" ? "Unknown symbol" : t.status === "nodata" ? "No bars for these dates" : t.status === "pending" ? "Reading the bars…" : "";
 
   return (
     <div class="tj-view" data-name="trade-journal">
       <div class="tj-toolbar">
-        <button type="button" ref={journalBtn} class="tj-journal-btn" classList={{ "is-open": menuOpen() }} onClick={() => setMenuOpen(!menuOpen())}>
-          <span class="tj-journal-name">{journal()?.name ?? "Trade journal"}</span>
-          <Icon name="st-footer-tab-caret" />
-        </button>
-        <button type="button" class="tj-btn" onClick={() => fileInput.click()}>
-          Import trades…
-        </button>
+        <Show when={journal()}>{(j) => <span class="tj-journal-name">{j().name}</span>}</Show>
         <label class="tj-toolbar-label">
           Group by
           <select class="tj-select" value={prefs().groupBy} onChange={(e) => tradeJournal.setPrefs({ groupBy: e.currentTarget.value as GroupBy })}>
@@ -250,7 +227,6 @@ export function TradeJournalView(props: Props) {
             </Show>
           </div>
         </Show>
-        <input ref={fileInput} type="file" accept=".csv,.tsv,.txt,text/csv" style={{ display: "none" }} onChange={(e) => void onFile(e)} />
       </div>
 
       <div class="tj-scroll" ref={scroller} tabIndex={0} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} onKeyDown={onKeyDown}>
@@ -260,7 +236,7 @@ export function TradeJournalView(props: Props) {
             <div class="tj-empty">
               <div>Import a CSV of trades: one row per trade with its symbol, entry date and exit date.</div>
               <div class="tj-muted">Side, quantity, prices, fees and notes are read when the file has them. A Strategy Tester list of trades can be imported as is.</div>
-              <button type="button" class="tj-btn" onClick={() => fileInput.click()}>
+              <button type="button" class="tj-btn" onClick={pickTradeFile}>
                 Import trades…
               </button>
             </div>
@@ -363,89 +339,6 @@ export function TradeJournalView(props: Props) {
         </Show>
       </div>
 
-      <Show when={menuOpen()}>
-        <Popover anchor={journalBtn} onClose={() => setMenuOpen(false)} class="st-tab-menu" offset={{ x: 0, y: 4 }}>
-          <For each={tradeJournal.journals()}>
-            {(j) => (
-              <PopItem
-                title={j.name}
-                right={<span class="st-check">{j.id === journal()?.id ? "✓" : ""}</span>}
-                onClick={() => {
-                  setMenuOpen(false);
-                  tradeJournal.setActiveId(j.id);
-                }}
-              />
-            )}
-          </For>
-          <Show when={tradeJournal.journals().length > 0}>
-            <PopDivider />
-          </Show>
-          <PopItem
-            title="Import trades…"
-            onClick={() => {
-              setMenuOpen(false);
-              fileInput.click();
-            }}
-          />
-          <Show when={journal()}>
-            {(j) => (
-              <>
-                <PopItem
-                  title="Rename…"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    const id = j().id;
-                    showRename({
-                      title: "Rename journal",
-                      label: "Name",
-                      maxLength: 64,
-                      names: tradeJournal.journals().filter((x) => x.id !== id).map((x) => x.name),
-                      replaceText: (n) => `A journal named "${n}" exists. Use this name too?`,
-                      initialValue: j().name,
-                      onSave: (n) => tradeJournal.rename(id, n),
-                    });
-                  }}
-                />
-                <PopItem
-                  title="Read the values again"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    tradeJournal.recompute(j().id);
-                  }}
-                />
-                <PopItem
-                  title="Delete…"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    const id = j().id;
-                    const name = j().name;
-                    showConfirm({
-                      title: "Delete journal",
-                      text: `Delete "${name}" and its ${j().trades.length} trades?`,
-                      mainText: "Delete",
-                      cancelText: "Cancel",
-                      intent: "danger",
-                      onConfirm: () => tradeJournal.remove(id),
-                    });
-                  }}
-                />
-              </>
-            )}
-          </Show>
-        </Popover>
-      </Show>
-
-      <Show when={importing()}>
-        {(f) => (
-          <ImportTradesDialog
-            fileName={f().fileName}
-            text={f().text}
-            defaultSymbol={props.symbol}
-            chartTimeZone={props.chartTimeZone}
-            onClose={() => setImporting(null)}
-          />
-        )}
-      </Show>
     </div>
   );
 }

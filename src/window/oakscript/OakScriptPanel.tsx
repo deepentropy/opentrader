@@ -403,7 +403,7 @@ export function OakScriptPanel(props: Props) {
               onClick={() => setMenuOpen((o) => !o)}
             >
               <span class="oak-panel__logo">
-                <Icon name="rr-pine-dialog-button" size={18} />
+                <Icon name="oak-editor-logo" size={18} />
               </span>
               <span class="oak-panel__title">{shownName()}</span>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">

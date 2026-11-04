@@ -22,29 +22,11 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.tj-journal-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  max-width: 240px;
-  padding: 0 6px 0 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--color-text-primary);
-  font: 600 15px/20px var(--st-font);
-}
-.tj-journal-btn:hover,
-.tj-journal-btn.is-open {
-  background: var(--color-bg-primary-hover);
-}
-.tj-journal-btn.is-open svg {
-  transform: rotate(180deg);
-}
 .tj-journal-name {
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
+  font: 600 15px/20px var(--st-font);
 }
 .tj-btn {
   height: 28px;
@@ -229,9 +211,6 @@
   height: 100%;
   padding: 0 40px;
   text-align: center;
-}
-.tj-tab-close {
-  color: var(--color-text-secondary);
 }
 
 /* ─── Import trades dialog ─── */

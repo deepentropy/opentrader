@@ -2,6 +2,9 @@
  * Import trades: a CSV file read into the trade journal. The columns are
  * guessed from the header and can be changed; the preview shows the first
  * trades as they will be read, and the rows that cannot be.
+ *
+ * pickTradeFile opens the file picker (the panel's Import button, the tab
+ * menu); ImportTradesHost, mounted with the footer panel, shows the dialog.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -30,6 +33,38 @@ type Props = {
   chartTimeZone: { label: string; iana: string };
   onClose: () => void;
 };
+
+/** The file picked, waiting for the dialog. */
+const [picked, setPicked] = createSignal<{ fileName: string; text: string } | null>(null);
+
+/** Open the file picker; the file chosen opens the Import trades dialog. */
+export function pickTradeFile(): void {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".csv,.tsv,.txt,text/csv";
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (file) setPicked({ fileName: file.name, text: await file.text() });
+  };
+  input.click();
+}
+
+/** The Import trades dialog of the picked file. */
+export function ImportTradesHost(props: { defaultSymbol: string; chartTimeZone: { label: string; iana: string } }) {
+  return (
+    <Show when={picked()}>
+      {(f) => (
+        <ImportTradesDialog
+          fileName={f().fileName}
+          text={f().text}
+          defaultSymbol={props.defaultSymbol}
+          chartTimeZone={props.chartTimeZone}
+          onClose={() => setPicked(null)}
+        />
+      )}
+    </Show>
+  );
+}
 
 const ORDER_LABELS: Record<DateOrder, string> = { ymd: "Year-month-day", mdy: "Month/day/year", dmy: "Day/month/year" };
 const PREVIEW_ROWS = 5;
