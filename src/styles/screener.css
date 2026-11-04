@@ -1736,3 +1736,131 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-heat-depth {
   margin-left: 12px;
 }
+
+/* ── Narrow screener (the reference app's container breakpoints, see ScreenerPanel `narrow` / `roomy`) ──────── */
+/* Under 702 px: the view type and the Charts tools show their icon only. */
+.scr-panel.is-narrow .scr-view-type-btn,
+.scr-panel.is-narrow .scr-view-tool {
+  padding: 0 2px;
+}
+.scr-panel.is-narrow .scr-view-type-btn .scr-light-btn-text,
+.scr-panel.is-narrow .scr-view-type-btn .scr-sets-caret,
+.scr-panel.is-narrow .scr-view-tool .scr-light-btn-text,
+.scr-panel.is-narrow .scr-view-tool .scr-sets-caret {
+  display: none;
+}
+/* Under 548 px: Column sets too. */
+.scr-panel.is-tight .scr-column-sets-btn {
+  padding: 0 2px;
+}
+.scr-panel.is-tight .scr-column-sets-btn .scr-light-btn-text,
+.scr-panel.is-tight .scr-column-sets-btn .scr-sets-caret {
+  display: none;
+}
+/* The Filters button and the controls on one row (548-702 px), or the button over a row of controls. */
+.scr-head-row.is-row {
+  display: flex;
+  align-items: center;
+}
+.scr-head-row.is-row .scr-control-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 0;
+}
+.scr-filters-btn-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 20px;
+}
+.scr-head-row.is-stacked .scr-filters-btn-wrap {
+  display: flex;
+  margin: 4px 20px 0;
+}
+.scr-head-row.is-stacked .scr-filters-btn {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+.scr-filters-btn .scr-light-btn-text {
+  margin-left: 4px;
+}
+/* Its count: the active filters, the market, the watchlist. */
+.scr-filters-counter {
+  top: -4px;
+  left: auto;
+  right: -4px;
+  box-shadow: 0 0 0 1px var(--color-body-bg);
+}
+.scr-control-divider.scr-control-divider--pills {
+  margin: 0 12px 0 4px;
+}
+
+/* ── Filters dialog (480 × 600, the reference app) ───────────────────────────────────────── */
+.scr-filters-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 480px;
+  height: 600px;
+  max-height: calc(100vh - 40px);
+}
+.scr-pills.is-dialog {
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
+.scr-pills-list {
+  display: contents;
+}
+.scr-pills.is-dialog .scr-pills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: auto;
+  overflow-y: auto;
+  padding: 20px;
+}
+.scr-pills.is-dialog .scr-pill,
+.scr-pills.is-dialog .scr-pills-watchlist {
+  width: 100%;
+}
+.scr-pills.is-dialog .scr-pills-watchlist .scr-pill {
+  flex: 1 1 auto;
+}
+.scr-pills.is-dialog .scr-pills-divider {
+  display: none;
+}
+.scr-pills.is-dialog .scr-pill-main {
+  flex: 1 1 auto;
+}
+.scr-pills.is-dialog .scr-pill-caret {
+  margin-left: auto;
+}
+.scr-filters-divider {
+  flex-shrink: 0;
+  height: 1px;
+  margin: 8px 0;
+  background-color: var(--color-border-primary-neutral-light);
+}
+.scr-filters-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-container-fill-primary-neutral-light);
+}
+.scr-filters-footer .scr-pills-controls {
+  gap: 12px;
+}
+.scr-filters-ok {
+  padding: 0 16px;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold); /* #f2f2f2 */
+  color: var(--color-content-primary-inverse); /* #000 */
+}
+.scr-filters-ok:hover:not(:disabled) {
+  background-color: var(--color-content-primary-neutral-bold) !important; /* #dbdbdb */
+}

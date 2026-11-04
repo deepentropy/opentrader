@@ -12,6 +12,8 @@
  * Market pill: "Market" popover with the one market served (USA) and the
  * "Primary listing" switch (on by default; the pill shows its marker while
  * on). The AI pill is not shown.
+ *
+ * `dialog`: the same pills in the Filters dialog (./ScreenerFiltersDialog).
  */
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
@@ -24,7 +26,13 @@ import { CategoryMenu } from "./CategoryMenu";
 import { FilterEditor } from "./FilterEditor";
 import { PopItem, Popover } from "./Popover";
 
-type Props = { has: (field: string) => boolean };
+type Props = {
+  has: (field: string) => boolean;
+  /** In the Filters dialog (a narrow screener): one pill per row, full width, a divider before the filters, and
+   *  Add filter / Reset options in a footer with Ok. */
+  dialog?: boolean;
+  onOk?: () => void;
+};
 
 /** Bare tickers of an OpenTrader watchlist (sections + extras). */
 export function watchlistTickers(id: string | null): string[] | null {
@@ -166,8 +174,40 @@ export function FilterPills(props: Props) {
   let wlEl!: HTMLDivElement;
   let marketEl!: HTMLDivElement;
   const primary = () => screen().primaryListing !== false;
+  const controls = () => (
+    <div class="scr-pills-controls">
+      <button
+        ref={addBtn}
+        type="button"
+        class="scr-light-btn scr-light-btn--secondary"
+        classList={{ "is-icon-only": !props.dialog && screen().filters.length > 0, "is-open": openId() === "add" }}
+        title="Add new filter"
+        aria-label="Add new filter"
+        onClick={() => toggle("add")}
+      >
+        <Icon name="scr-add" size={28} />
+        <Show when={props.dialog || screen().filters.length === 0}>
+          <span class="scr-light-btn-text">Add filter</span>
+        </Show>
+      </button>
+      <Show when={activeCount() > 0 || inactiveCount() > 0}>
+        <button
+          ref={moreBtn}
+          type="button"
+          class="scr-light-btn scr-light-btn--ghost is-icon-only"
+          classList={{ "is-open": openId() === "more" }}
+          title="Reset options"
+          aria-label="Reset options"
+          onClick={() => toggle("more")}
+        >
+          <Icon name="scr-more" size={28} />
+        </button>
+      </Show>
+    </div>
+  );
   return (
-    <div class="scr-pills">
+    <div class="scr-pills" classList={{ "is-dialog": !!props.dialog }}>
+      <div class="scr-pills-list">
       {/* Market: US (flag, name, primary listing marker); the popover holds "Primary listing". */}
       <div ref={marketEl} class="scr-pill scr-pill--market" classList={{ "is-open": openId() === "market" }}>
         <button
@@ -215,36 +255,20 @@ export function FilterPills(props: Props) {
         </div>
         <div class="scr-pills-divider" />
       </div>
+      <Show when={props.dialog && screen().filters.length > 0}>
+        <div class="scr-filters-divider" />
+      </Show>
       <For each={ids()}>{(id) => filterPill(id)}</For>
-      <div class="scr-pills-controls">
-        <button
-          ref={addBtn}
-          type="button"
-          class="scr-light-btn scr-light-btn--secondary"
-          classList={{ "is-icon-only": screen().filters.length > 0, "is-open": openId() === "add" }}
-          title="Add new filter"
-          aria-label="Add new filter"
-          onClick={() => toggle("add")}
-        >
-          <Icon name="scr-add" size={28} />
-          <Show when={screen().filters.length === 0}>
-            <span class="scr-light-btn-text">Add filter</span>
-          </Show>
-        </button>
-        <Show when={activeCount() > 0 || inactiveCount() > 0}>
-          <button
-            ref={moreBtn}
-            type="button"
-            class="scr-light-btn scr-light-btn--ghost is-icon-only"
-            classList={{ "is-open": openId() === "more" }}
-            title="Reset options"
-            aria-label="Reset options"
-            onClick={() => toggle("more")}
-          >
-            <Icon name="scr-more" size={28} />
-          </button>
-        </Show>
+      <Show when={!props.dialog}>{controls()}</Show>
       </div>
+      <Show when={props.dialog}>
+        <div class="scr-filters-footer">
+          {controls()}
+          <button type="button" class="scr-light-btn scr-filters-ok" onClick={() => props.onOk?.()}>
+            <span class="scr-light-btn-text">Ok</span>
+          </button>
+        </div>
+      </Show>
 
       {/* Popovers */}
       <Show when={openId() === "market"}>

@@ -5,7 +5,9 @@
  *   (title "Stock Screener", Fullscreen mode, Close), then the screener:
  *   topbar, filter pills, control panel (View type, then Column sets or the
  *   Charts / Heatmap tools, Refresh with its countdown badge, Maximize: the
- *   pills and the control panel fold into the topbar row) and
+ *   pills and the control panel fold into the topbar row) and; in a narrow
+ *   panel, a "Filters" button (./ScreenerFiltersDialog) in place of the pills
+ *   (see `narrow` / `roomy`) and
  *   the results as a table, charts (./ScreenerCharts) or a heatmap
  *   (./ScreenerHeatmap); the view type is kept in the screen.
  * The main layout (header toolbar, drawing toolbar, charts, rail) shrinks to
@@ -47,7 +49,7 @@ import {
 } from "../../data/screener-catalog";
 import { activeColumns, isActive, planScreen, type Plan } from "../../data/screener-query";
 import { leaveScreen } from "./leave-screen";
-import { PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH, screenerPanel, screenerStore, type ScreenerPlacement } from "../../data/screener-store";
+import { OVERLAY_MIN_WIDTH, PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH, screenerPanel, screenerStore, type ScreenerPlacement } from "../../data/screener-store";
 import { isTauri } from "../shell/window-bridge";
 import { emitTo } from "@tauri-apps/api/event";
 
@@ -63,6 +65,7 @@ import { HeatmapToolbar, ScreenerHeatmap } from "./ScreenerHeatmap";
 import { refreshMs, screenerSettings } from "../../data/screener-settings";
 import type { ScreenerType, ViewMode } from "../../data/screener-catalog";
 import { ScreenerTopbar } from "./ScreenerTopbar";
+import { ScreenerFiltersDialog } from "./ScreenerFiltersDialog";
 import { createScanController } from "./scan-controller";
 import { ScriptScreener } from "./ScriptScreener";
 import { scriptScreenStore } from "../../data/script-screen-store";
@@ -341,7 +344,7 @@ export function ScreenerPanel(props: Props) {
     const over = overlay();
     const startW = over ? overlayWidth() : screenerPanel.width();
     const set = (px: number, commit = false) => (over ? screenerPanel.setOverlayWidth(px, commit) : screenerPanel.setWidth(px, commit));
-    const maxW = () => Math.max(PANEL_MIN_WIDTH, document.documentElement.clientWidth - (over ? 100 : 360));
+    const maxW = () => Math.max(over ? OVERLAY_MIN_WIDTH : PANEL_MIN_WIDTH, document.documentElement.clientWidth - (over ? 100 : 360));
     const onMove = (ev: MouseEvent) => set(Math.min(maxW(), startW + (startX - ev.clientX)));
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
@@ -358,6 +361,46 @@ export function ScreenerPanel(props: Props) {
   // app's in-panel full screen; the header's Fullscreen mode gives the panel the window). Escape inside the screener
   // goes back.
   const [maximized, setMaximized] = createSignal(false);
+  // The screener's width decides its layout (the reference app's container breakpoints, its container = the panel
+  // less 20 px): under 702 px the pills fold into a "Filters" button (its dialog holds them) and the view controls
+  // show icons only; under 548 px the controls take a row of their own, Refresh and Undo / Redo are not shown and
+  // Column sets shows its icon only.
+  let panelEl!: HTMLElement;
+  const [panelWidth, setPanelWidth] = createSignal(Number.POSITIVE_INFINITY);
+  onMount(() => {
+    const ro = new ResizeObserver(() => setPanelWidth(panelEl.clientWidth));
+    ro.observe(panelEl);
+    onCleanup(() => ro.disconnect());
+  });
+  const narrow = () => panelWidth() - 20 < 702;
+  const roomy = () => panelWidth() - 20 >= 548;
+  const [filtersOpen, setFiltersOpen] = createSignal(false);
+  createEffect(() => {
+    if (!narrow()) setFiltersOpen(false);
+  });
+  // Shift+F opens the Filters dialog while the pills are folded (not while typing).
+  onMount(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.key.toLowerCase() !== "f" || !narrow() || script()) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.("input,textarea,select,[contenteditable=true]")) return;
+      e.preventDefault();
+      setFiltersOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
+  // Escape closes the overlay (the reference app), unless a menu, a dialog or a field takes it.
+  onMount(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || !overlay()) return;
+      if (document.querySelector(".scr-popover,[role=dialog]")) return;
+      if ((e.target as HTMLElement | null)?.closest?.("input,textarea,select,[contenteditable=true]")) return;
+      screenerPanel.setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => window.removeEventListener("keydown", onKey));
+  });
   // The badge on Minimize: each active filter, the market (always set), the watchlist (the reference app's count).
   const filterCount = () => screen().filters.filter(isActive).length + 1 + (screen().watchlistId ? 1 : 0);
   /** The view's tools: Column sets for the table, the Charts or Heatmap buttons. */
@@ -373,7 +416,7 @@ export function ScreenerPanel(props: Props) {
         <button
           ref={setsBtn}
           type="button"
-          class="scr-light-btn scr-light-btn--ghost scr-sets-btn"
+          class="scr-light-btn scr-light-btn--ghost scr-sets-btn scr-column-sets-btn"
           classList={{ "is-open": setsOpen() }}
           title="Column sets"
           onClick={() => setSetsOpen(!setsOpen())}
@@ -432,10 +475,15 @@ export function ScreenerPanel(props: Props) {
         <div class="scr-resizer scr-resizer--top" role="separator" aria-orientation="horizontal" onMouseDown={beginResizeHeight} />
       </Show>
       <section
+        ref={panelEl}
         class="scr-panel"
+        classList={{ "is-narrow": narrow(), "is-tight": !roomy() }}
         aria-label="Stock Screener"
         onKeyDown={(e) => {
-          if (e.key === "Escape" && maximized() && !e.defaultPrevented) setMaximized(false);
+          if (e.key === "Escape" && maximized() && !e.defaultPrevented) {
+            e.preventDefault();
+            setMaximized(false);
+          }
         }}
       >
         <header class="scr-panel-header" data-tauri-drag-region={dock() === "window" ? "" : undefined}>
@@ -518,23 +566,47 @@ export function ScreenerPanel(props: Props) {
           <div class="scr-head">
             <ScreenerTopbar
               maximized={maximized()}
+              compact={!roomy()}
               tools={
                 <>
-                  {viewTools()}
-                  <span class="scr-control-divider" />
-                  {refreshButton()}
+                  <Show when={!narrow()}>
+                    {viewTools()}
+                    <span class="scr-control-divider" />
+                  </Show>
+                  <Show when={roomy()}>{refreshButton()}</Show>
                 </>
               }
               filterCount={filterCount()}
               onMinimize={() => setMaximized(false)}
             />
             <Show when={!maximized()}>
-            <FilterPills has={has} />
+            <Show when={!narrow()}>
+              <FilterPills has={has} />
+            </Show>
+            <div class="scr-head-row" classList={{ "is-row": narrow() && roomy(), "is-stacked": narrow() && !roomy() }}>
+            <Show when={narrow()}>
+              <div class="scr-filters-btn-wrap">
+                <button
+                  type="button"
+                  class="scr-light-btn scr-light-btn--secondary scr-filters-btn"
+                  classList={{ "is-open": filtersOpen() }}
+                  title="Filters"
+                  onClick={() => setFiltersOpen(true)}
+                >
+                  <Icon name="scr-filters" size={28} />
+                  <span class="scr-light-btn-text">Filters</span>
+                </button>
+                <span class="scr-counter scr-counter--bold scr-filters-counter">{filterCount()}</span>
+              </div>
+              <Show when={roomy()}>
+                <span class="scr-control-divider scr-control-divider--pills" />
+              </Show>
+            </Show>
             <div class="scr-control-panel">
               <button
                 ref={viewBtn}
                 type="button"
-                class="scr-light-btn scr-light-btn--ghost scr-sets-btn"
+                class="scr-light-btn scr-light-btn--ghost scr-sets-btn scr-view-type-btn"
                 classList={{ "is-open": viewOpen() }}
                 title="View type"
                 onClick={() => setViewOpen(!viewOpen())}
@@ -549,7 +621,7 @@ export function ScreenerPanel(props: Props) {
                 <Show when={!waiting() && view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
                   <span class="scr-total">{(view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US")} total</span>
                 </Show>
-                {refreshButton()}
+                <Show when={roomy()}>{refreshButton()}</Show>
                 <button
                   type="button"
                   class="scr-light-btn scr-light-btn--secondary is-icon-only"
@@ -561,6 +633,7 @@ export function ScreenerPanel(props: Props) {
                   <Icon name="scr-maximize" size={28} />
                 </button>
               </div>
+            </div>
             </div>
             </Show>
           </div>
@@ -690,6 +763,10 @@ export function ScreenerPanel(props: Props) {
             <PopItem title="About Script Screener" onClick={() => { setTitleOpen(false); about(); }} />
           </Show>
         </Popover>
+      </Show>
+
+      <Show when={filtersOpen()}>
+        <ScreenerFiltersDialog has={has} onClose={() => setFiltersOpen(false)} />
       </Show>
 
       <Show when={viewOpen()}>

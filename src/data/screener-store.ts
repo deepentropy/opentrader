@@ -294,6 +294,8 @@ function autosaveNow(): void {
 
 // ── Split-view panel state ────────────────────────────────────────────────
 export const PANEL_MIN_WIDTH = 420;
+/** The overlay goes narrower: its compact layout (a "Filters" button) fits 350 px in the reference app. */
+export const OVERLAY_MIN_WIDTH = 320;
 export const PANEL_DEFAULT_WIDTH = 931;
 export const PANEL_MIN_HEIGHT = 240;
 export const PANEL_DEFAULT_HEIGHT = 380;
@@ -322,7 +324,7 @@ const panel = createRoot(() => {
   const [mode, setMode] = createSignal<ScreenerMode>(kv.getItem(MODE_KEY) === "overlay" ? "overlay" : "split");
   // The overlay's width; none saved = half the window (the reference app).
   const ow = Number(kv.getItem(OVERLAY_WIDTH_KEY));
-  const [overlayWidth, setOverlayWidth] = createSignal<number | null>(Number.isFinite(ow) && ow >= PANEL_MIN_WIDTH ? ow : null);
+  const [overlayWidth, setOverlayWidth] = createSignal<number | null>(Number.isFinite(ow) && ow >= OVERLAY_MIN_WIDTH ? ow : null);
   const [collapsed, setCollapsed] = createSignal(false);
   return {
     open, setOpen, width, setWidth, fullscreen, setFullscreen, placement, setPlacement, height, setHeight,
@@ -358,7 +360,7 @@ export const screenerPanel = {
   overlayWidth: panel.overlayWidth,
   /** Live overlay width while dragging; `commit` persists it. */
   setOverlayWidth(px: number, commit = false): void {
-    panel.setOverlayWidth(Math.max(PANEL_MIN_WIDTH, Math.round(px)));
+    panel.setOverlayWidth(Math.max(OVERLAY_MIN_WIDTH, Math.round(px)));
     if (commit) kv.setItem(OVERLAY_WIDTH_KEY, String(panel.overlayWidth()));
   },
   toggle(): void {

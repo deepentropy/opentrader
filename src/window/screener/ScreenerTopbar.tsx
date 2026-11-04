@@ -38,6 +38,8 @@ type Props = {
   maximized?: boolean;
   /** Maximized: the view's tools and Refresh, before the gear. */
   tools?: JSX.Element;
+  /** A tight screener (under 548 px): no Undo / Redo (the reference app). */
+  compact?: boolean;
   /** Maximized: the filters the hidden pills hold. */
   filterCount?: number;
   onMinimize?: () => void;
@@ -98,7 +100,7 @@ export function ScreenerTopbar(props: Props) {
       </div>
       <div class="scr-topbar-controls" classList={{ "is-maximized": !!props.maximized }}>
         <Show when={props.maximized}>{props.tools}</Show>
-        <Show when={!props.maximized}>
+        <Show when={!props.maximized && !props.compact}>
         <button
           type="button"
           class="scr-light-btn scr-light-btn--ghost is-icon-only is-small-icon"
