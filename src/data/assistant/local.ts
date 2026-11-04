@@ -21,7 +21,7 @@ export async function refreshLocal(): Promise<void> {
 export function localBlocker(i: LocalModelInfo): string | null {
   const [ram, need, free, down] = [i.ramBytes ?? 0, i.ramNeededBytes ?? 0, i.freeDiskBytes ?? 0, i.downloadBytes ?? 0];
   if (!i.available) return "No model for this system in this version.";
-  if (ram && ram < need) return `It needs ${gb(need)} of memory; this computer has ${gb(ram)}. Use a cloud model instead.`;
+  if (ram && ram < need) return `It needs ${gb(need)} of memory; this computer has ${gb(ram)}.`;
   if (!i.installed && free && free < down * 1.1) return `It needs ${gb(down)} of free disk space (${gb(free)} free).`;
   return null;
 }

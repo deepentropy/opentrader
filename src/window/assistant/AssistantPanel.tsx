@@ -16,7 +16,8 @@ import { config, loadModels, loaded, selectedModel } from "../../data/assistant/
 import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
 import { ModelPicker } from "./ModelPicker";
 import { Popup } from "./Popup";
-import { ModelSettings } from "./ModelSettings";
+import { LocalModelCard, ModelSettings } from "./ModelSettings";
+import { localBlocker, localInfo } from "../../data/assistant/local";
 import { stepTitle } from "./steps";
 import "../../styles/screener.css";
 import "../../styles/community.css";
@@ -35,10 +36,11 @@ const suggestions = (ticker: string) => [
 export function AssistantPanel(props: { ticker: string }) {
   onMount(() => void loadModels());
   const overlay = () => assistantPanel.mode() === "overlay";
-  const [view, setView] = createSignal<"chat" | "models" | "chats">("chat");
+  const [view, setView] = createSignal<"chat" | "setup" | "models" | "chats">("chat");
   createEffect(() => {
     // No model yet: the settings come first.
-    if (loaded() && !config().models.length) setView("models");
+    if (loaded() && !config().models.length) setView("setup");
+    else if (view() === "setup" && config().models.length) setView("chat");
   });
 
   // Resizer: drag the 4 px strip; the panel grows to the left.
@@ -98,6 +100,9 @@ export function AssistantPanel(props: { ticker: string }) {
         </header>
         <div class="asst-body">
           <Switch>
+            <Match when={view() === "setup"}>
+              <Setup onOtherModel={() => setView("models")} />
+            </Match>
             <Match when={view() === "models"}>
               <ModelSettings onDone={() => setView("chat")} canClose={config().models.length > 0} />
             </Match>
@@ -345,6 +350,22 @@ function ChatList(props: { onDone: () => void }) {
           )}
         </For>
       </div>
+    </div>
+  );
+}
+
+/** First open: OpenTrader's assistant, downloaded once. Another model is offered only where this one can't run. */
+function Setup(props: { onOtherModel: () => void }) {
+  return (
+    <div class="asst-column asst-models">
+      <div class="asst-empty asst-setup">
+        <p class="asst-greeting">OpenTrader's assistant works the app for you: charts, indicators, screens, watchlists, alerts.</p>
+        <p class="asst-muted">Download it once to start.</p>
+      </div>
+      <LocalModelCard />
+      <Show when={localInfo() && localBlocker(localInfo()!)}>
+        <button type="button" class="asst-btn" onClick={props.onOtherModel}>Use another model</button>
+      </Show>
     </div>
   );
 }

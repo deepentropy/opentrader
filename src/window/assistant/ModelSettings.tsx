@@ -71,7 +71,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
         <span class="asst-section-title">Models</span>
       </div>
       <p class="asst-muted">
-        The assistant works with any server that speaks the OpenAI chat API: a cloud provider (with your API key) or a model running on this computer (llama.cpp, Ollama, LM Studio…). Keys are kept in the system's credential store.
+        OpenTrader's assistant runs on this computer. For advanced use, another model can be added: any server that speaks the OpenAI chat API, with its API key if it needs one (kept in the system's credential store).
       </p>
       <Show when={!draft()}>
         <LocalModelCard />
@@ -91,7 +91,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
             )}
           </For>
         </div>
-        <button type="button" class="asst-btn is-primary" onClick={() => { setDraft(blank()); setStatus(null); }}>Add a server or a cloud model</button>
+        <button type="button" class="asst-btn is-primary" onClick={() => { setDraft(blank()); setStatus(null); }}>Add another model</button>
       </Show>
       <Show when={draft()}>
         {(d) => (
@@ -169,7 +169,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
 }
 
 /** "Run on this computer": OpenTrader's small model, downloaded when asked for (nothing in the installer). */
-function LocalModelCard() {
+export function LocalModelCard() {
   onMount(() => void refreshLocal());
   const busy = () => !!localInfo()?.installing || !!localProgress();
   const pct = () => {

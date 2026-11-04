@@ -603,3 +603,7 @@
 .asst-local .asst-model-row-text .asst-muted {
   white-space: normal;
 }
+.asst-setup {
+  margin-top: 0;
+  padding-top: 24px;
+}
