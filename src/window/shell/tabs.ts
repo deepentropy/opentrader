@@ -241,7 +241,23 @@ export type TabChart = {
   savedLayoutName?: string;
   /** Bar Replay left with "Save this replay": continued on the next open. */
   replaySession?: SavedReplay;
+  /** The panels the tab shows (see app-dialogs `showPanels`). Absent = a new tab's. */
+  panels?: TabPanels;
 };
+
+/** The panels of a tab: the right panel's page (null = closed), the screener (right or bottom panel), the OakScript
+ *  editor and the trade journal tab. */
+export type TabPanels = { rail: string | null; screener: boolean; editor: boolean; journal: boolean };
+
+/** A new tab's panels: the watchlist in the right panel. */
+export const DEFAULT_PANELS: TabPanels = { rail: "base", screener: false, editor: false, journal: false };
+
+/** Stored panels read back (dropped when malformed). */
+export function revivePanels(raw: unknown): TabPanels | undefined {
+  const p = raw as Partial<TabPanels> | null | undefined;
+  if (!p || typeof p !== "object" || !(p.rail === null || typeof p.rail === "string")) return undefined;
+  return { rail: p.rail, screener: p.screener === true, editor: p.editor === true, journal: p.journal === true };
+}
 
 /** A saved replay read back (dropped when malformed). */
 export function reviveReplaySession(raw: unknown): SavedReplay | undefined {
@@ -480,7 +496,8 @@ export function migrateTab(raw: any): TabChart {
   const pinned = raw?.pinned === true ? true : undefined;
   const layoutSizes = reviveLayoutSizes(raw?.layoutSizes);
   const replaySession = reviveReplaySession(raw?.replaySession);
-  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName, replaySession };
+  const panels = revivePanels(raw?.panels);
+  return { id, isChart, ...reconciled, numbering: LAYOUT_NUMBERING, sync, layoutSizes, link, pinned, savedLayoutId, savedLayoutName, replaySession, panels };
 }
 
 /** Full "EXCHANGE:TICKER" of a pane symbol (a bare ticker not migrated yet:

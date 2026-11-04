@@ -85,6 +85,19 @@ export function indexOfTime(bars: OHLC[], time: number): number {
   return -1;
 }
 
+/** Index of the bar holding `time`: the last bar opened at or before it, -1 before the first. A synced crosshair
+ *  from another interval lands on it (a 5 m time on its day in a daily chart). */
+export function indexAtOrBefore(bars: OHLC[], time: number): number {
+  let lo = 0;
+  let hi = bars.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if ((bars[mid].time as number) <= time) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return hi;
+}
+
 /** Non-series chart options derived from this pane's committed appearance tokens
  *  (Canvas tab: background, grid, crosshair, scale text/lines, price margins).
  *  Shared by createChart and the theme/appearance effect so both stay in lockstep.

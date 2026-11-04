@@ -16,6 +16,7 @@ import { STRATEGY_UPDATED_EVENT, type StrategyUpdatedDetail } from "../indicator
 import { emitAppEvent, onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
 import { startReplayAt } from "../../../data/replay";
 import { type ChartCx } from "./context";
+import { indexAtOrBefore } from "./helpers";
 
 /** What createWindowEvents adds to the chart context. */
 export interface WindowEventsApi {
@@ -51,6 +52,8 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
       if (!cx.chart || !cx.series || d.sourceId === paneId || !layoutSync().crosshair) return;
       cx.suppressCrosshairBroadcast = true;
       cx.crosshairAt = null;
+      // The legend's bar under the mirrored crosshair; none past the last bar (the legend shows the latest).
+      let legendTime: number | undefined;
       try {
         if (d.time == null) {
           cx.chart.clearCrosshairPosition();
@@ -66,20 +69,27 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
           // cursor's price (so it mirrors too). Fall back to the latest close
           // only if no price was sent (older broadcast / off-scale cursor).
           const price = d.price != null ? d.price : (cx.raw.length ? cx.raw[cx.raw.length - 1].close : 0);
-          cx.chart.setCrosshairPosition(price, d.time as UTCTimestamp, cx.series);
+          // The bar holding the time (another interval's time falls inside one): the library would take the next.
+          const k = indexAtOrBefore(cx.raw, d.time);
+          const past = k === cx.raw.length - 1 && d.time > (cx.raw[k].time as number);
+          const time = past ? d.time : (cx.raw[k].time as number);
+          cx.chart.setCrosshairPosition(price, time as UTCTimestamp, cx.series);
           const y = cx.series.priceToCoordinate(price);
-          cx.crosshairAt = y === null ? null : { time: d.time as number, y };
+          cx.crosshairAt = y === null ? null : { time, y };
+          legendTime = past ? undefined : time;
         }
       } catch {
         /* time out of range / series swapped mid-apply — ignore */
       }
-      // Cleared: the legend goes back to the latest bar (clearing the
-      // crosshair fires no crosshair move).
-      if (cx.crosshairAt === null && cx.crosshairActive) {
-        cx.crosshairActive = false;
-        cx.lastLegendTime = undefined;
-        refreshLegend();
-        refreshIndicatorLegend();
+      // A crosshair set by the chart fires no crosshair move: the legend follows it here (the bar under it, or
+      // back to the latest bar once cleared).
+      const was = cx.crosshairActive;
+      cx.crosshairActive = legendTime !== undefined;
+      cx.crosshairMirrored = cx.crosshairActive;
+      if (cx.crosshairActive || was) {
+        cx.lastLegendTime = legendTime;
+        refreshLegend(legendTime);
+        refreshIndicatorLegend(legendTime);
       }
       requestAnimationFrame(() => (cx.suppressCrosshairBroadcast = false));
     };

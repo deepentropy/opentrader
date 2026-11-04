@@ -316,9 +316,8 @@ const panel = createRoot(() => {
   return { open, setOpen, width, setWidth, fullscreen, setFullscreen, placement, setPlacement, height, setHeight };
 });
 
-// Another window (the screener's own) moved the screener or closed it: follow.
+// Another window (the screener's own) moved the screener: follow. Whether it shows belongs to each window's tab.
 kv.onExternalChange(PLACEMENT_KEY, (v) => panel.setPlacement(v === "bottom" || v === "window" ? v : "right"));
-kv.onExternalChange(OPEN_KEY, (v) => panel.setOpen(v === "1"));
 
 export const screenerPanel = {
   open: panel.open,

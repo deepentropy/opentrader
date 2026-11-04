@@ -139,10 +139,10 @@ export function createLegend(cx: ChartCx): LegendApi {
 
   /** Publish this pane's data-window snapshot for the bar at `idx`, but only
    *  when this pane owns the data window: the crosshair is over it, or it's the
-   *  focused pane (so a sibling pane's live tick can't steal it). Indicator
+   *  focused pane (so a sibling pane's live tick can't steal it), and not under a mirrored crosshair. Indicator
    *  values resolve at the same `time` the legend used. */
   function publishDataWindowIfOwner(idx: number, time?: number) {
-    if (!(props.active || cx.crosshairActive)) return;
+    if (cx.crosshairMirrored || !(props.active || cx.crosshairActive)) return;
     const bar = cx.raw[idx];
     const prevClose = idx > 0 ? cx.raw[idx - 1].close : null;
     const changeAbs = prevClose == null ? 0 : bar.close - prevClose;

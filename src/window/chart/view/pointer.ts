@@ -377,6 +377,7 @@ export function createPointer(cx: ChartCx): PointerApi {
       const lastBar = cx.raw[cx.raw.length - 1]?.time as number | undefined;
       const barTime = param.time != null && lastBar != null && (param.time as number) > lastBar ? undefined : param.time;
       cx.crosshairActive = barTime != null;
+      cx.crosshairMirrored = false;
       const inPricePane = ((param as { paneIndex?: number }).paneIndex ?? 0) === cx.mainPane();
       cx.crosshairAt =
         param.point && barTime != null && inPricePane

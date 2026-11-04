@@ -216,6 +216,8 @@ export interface ChartCore {
   coords: Accessor<Coords | null>;
   countdown: CountdownPrimitive;
   crosshairActive: boolean;
+  /** The crosshair is a sibling pane's, mirrored by Crosshair sync: the legend follows it, the data window does not. */
+  crosshairMirrored: boolean;
   /** The chart's crosshair handler (legend, crosshair sync), for a crosshair the chart was told to show (an armed
    *  drawing tool): the chart reports no move for it. */
   emitCrosshair: ((param: MouseEventParams) => void) | null;

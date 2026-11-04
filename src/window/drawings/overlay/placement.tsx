@@ -3,7 +3,7 @@
  * magnet (with its Shift / Ctrl overrides), click / freehand / variable-length
  * placement, and the live preview with its crosshair.
  */
-import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import type { Accessor, Setter } from "solid-js";
 import { defaultStyleFor } from "lightweight-charts-drawing/core/specs";
 import type { DataPoint, Drawing } from "lightweight-charts-drawing/core/types";
@@ -386,11 +386,12 @@ export function createPlacement(cx: OverlayCx): PlacementApi {
     const price = f.coords.yToPrice(aim.engaged ? aim.pt.y : rawCur.y);
     return price == null ? null : { x: rawCur.x, price };
   };
+  // Not told again on unmount: the overlay goes with its chart, whose legend then reads a closed tab (the error
+  // stopped the tab from closing).
   createEffect(() => {
     if (!props.onArmedCursor) return;
     props.onArmedCursor(armedMain());
   });
-  onCleanup(() => props.onArmedCursor?.(null));
 
   /** Placement crosshair — while a tool is armed the overlay captures the pane,
    *  so lightweight-charts' own crosshair can't track the cursor; we draw it

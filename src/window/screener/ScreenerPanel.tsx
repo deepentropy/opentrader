@@ -4,7 +4,8 @@
  *   a 4 px resizer at its left edge (drag, width persisted), a 50 px header
  *   (title "Stock Screener", Fullscreen mode, Close), then the screener:
  *   topbar, filter pills, control panel (View type, then Column sets or the
- *   Charts / Heatmap tools, Refresh with its countdown badge, Maximize) and
+ *   Charts / Heatmap tools, Refresh with its countdown badge, Maximize: the
+ *   pills and the control panel fold into the topbar row) and
  *   the results as a table, charts (./ScreenerCharts) or a heatmap
  *   (./ScreenerHeatmap); the view type is kept in the screen.
  * The main layout (header toolbar, drawing toolbar, charts, rail) shrinks to
@@ -40,7 +41,7 @@ import {
   sameColumn,
   type ColumnRef,
 } from "../../data/screener-catalog";
-import { activeColumns, planScreen, type Plan } from "../../data/screener-query";
+import { activeColumns, isActive, planScreen, type Plan } from "../../data/screener-query";
 import { leaveScreen } from "./leave-screen";
 import { PANEL_MIN_HEIGHT, PANEL_MIN_WIDTH, screenerPanel, screenerStore, type ScreenerPlacement } from "../../data/screener-store";
 import { isTauri } from "../shell/window-bridge";
@@ -210,11 +211,14 @@ export function ScreenerPanel(props: Props) {
   createEffect(() => {
     if (backendLoaded() && !ctl.loading()) setTableReady(true);
   });
+  // The wheel stands over the views while there is nothing to show: rows of a table still waiting on a download
+  // (the daily state, the closes) are shown as they come, and its complete table replaces them.
+  const waiting = () => !tableReady() && !((view() === "heatmap" ? heatTotal() : ctl.total()) ?? 0);
   // While the wheel shows: what the table waits on, read every 300 ms.
   const [progress, setProgress] = createSignal<ScreenerProgress | null>(null);
   const wheel = createMemo(() => wheelText(progress()));
   createEffect(() => {
-    if (tableReady()) return;
+    if (!waiting()) return;
     let stop = false;
     const read = () => void screenerProgress().then((p) => !stop && setProgress(p), () => {});
     read();
@@ -340,6 +344,58 @@ export function ScreenerPanel(props: Props) {
     window.addEventListener("mouseup", onUp);
   };
 
+  // Maximize (the control panel's): the head folds into the topbar row, the results take the panel (the reference
+  // app's in-panel full screen; the header's Fullscreen mode gives the panel the window). Escape inside the screener
+  // goes back.
+  const [maximized, setMaximized] = createSignal(false);
+  // The badge on Minimize: each active filter, the market (always set), the watchlist (the reference app's count).
+  const filterCount = () => screen().filters.filter(isActive).length + 1 + (screen().watchlistId ? 1 : 0);
+  /** The view's tools: Column sets for the table, the Charts or Heatmap buttons. */
+  const viewTools = () => (
+    <>
+      <Show when={view() === "chart"}>
+        <ChartsToolbar />
+      </Show>
+      <Show when={view() === "heatmap"}>
+        <HeatmapToolbar has={has} />
+      </Show>
+      <Show when={view() === "table"}>
+        <button
+          ref={setsBtn}
+          type="button"
+          class="scr-light-btn scr-light-btn--ghost scr-sets-btn"
+          classList={{ "is-open": setsOpen() }}
+          title="Column sets"
+          onClick={() => setSetsOpen(!setsOpen())}
+        >
+          <Icon name="scr-column-sets" size={28} />
+          <span class="scr-light-btn-text">{setTitle()}</span>
+          <span class="scr-sets-caret" classList={{ "is-open": setsOpen() }}><Icon name="scr-caret-small" size={18} /></span>
+        </button>
+      </Show>
+    </>
+  );
+  const refreshButton = () => (
+    <div class="scr-refresh-wrap">
+      <Show when={countdown()} keyed>
+        {(s) => <span class="scr-counter" role="img" aria-label="Time to refresh">{s}</span>}
+      </Show>
+      <button
+        type="button"
+        class="scr-light-btn scr-light-btn--secondary is-icon-only"
+        classList={{ "is-rotating": manualRefresh() && ctl.loading() }}
+        title="Refresh"
+        aria-label="Refresh"
+        onClick={() => {
+          setManualRefresh(true);
+          refreshNow();
+        }}
+      >
+        <Icon name="scr-refresh" size={28} />
+      </button>
+    </div>
+  );
+
   return (
     <div
       class="scr-split"
@@ -358,7 +414,13 @@ export function ScreenerPanel(props: Props) {
       <Show when={dock() === "bottom"}>
         <div class="scr-resizer scr-resizer--top" role="separator" aria-orientation="horizontal" onMouseDown={beginResizeHeight} />
       </Show>
-      <section class="scr-panel" aria-label="Stock Screener">
+      <section
+        class="scr-panel"
+        aria-label="Stock Screener"
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && maximized() && !e.defaultPrevented) setMaximized(false);
+        }}
+      >
         <header class="scr-panel-header" data-tauri-drag-region={dock() === "window" ? "" : undefined}>
           <button
             ref={titleBtn}
@@ -410,7 +472,19 @@ export function ScreenerPanel(props: Props) {
         >
         <div class="scr-body">
           <div class="scr-head">
-            <ScreenerTopbar />
+            <ScreenerTopbar
+              maximized={maximized()}
+              tools={
+                <>
+                  {viewTools()}
+                  <span class="scr-control-divider" />
+                  {refreshButton()}
+                </>
+              }
+              filterCount={filterCount()}
+              onMinimize={() => setMaximized(false)}
+            />
+            <Show when={!maximized()}>
             <FilterPills has={has} />
             <div class="scr-control-panel">
               <button
@@ -426,64 +500,30 @@ export function ScreenerPanel(props: Props) {
                 <span class="scr-sets-caret" classList={{ "is-open": viewOpen() }}><Icon name="scr-caret-small" size={18} /></span>
               </button>
               <span class="scr-control-divider" />
-              <Show when={view() === "chart"}>
-                <ChartsToolbar />
-              </Show>
-              <Show when={view() === "heatmap"}>
-                <HeatmapToolbar has={has} />
-              </Show>
-              <Show when={view() === "table"}>
-              <button
-                ref={setsBtn}
-                type="button"
-                class="scr-light-btn scr-light-btn--ghost scr-sets-btn"
-                classList={{ "is-open": setsOpen() }}
-                title="Column sets"
-                onClick={() => setSetsOpen(!setsOpen())}
-              >
-                <Icon name="scr-column-sets" size={28} />
-                <span class="scr-light-btn-text">{setTitle()}</span>
-                <span class="scr-sets-caret" classList={{ "is-open": setsOpen() }}><Icon name="scr-caret-small" size={18} /></span>
-              </button>
-              </Show>
+              {viewTools()}
               <div class="scr-header-controls">
-                <Show when={tableReady() && view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
+                <Show when={!waiting() && view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
                   <span class="scr-total">{(view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US")} total</span>
                 </Show>
-                <div class="scr-refresh-wrap">
-                  <Show when={countdown()} keyed>
-                    {(s) => <span class="scr-counter" role="img" aria-label="Time to refresh">{s}</span>}
-                  </Show>
-                  <button
-                    type="button"
-                    class="scr-light-btn scr-light-btn--secondary is-icon-only"
-                    classList={{ "is-rotating": manualRefresh() && ctl.loading() }}
-                    title="Refresh"
-                    aria-label="Refresh"
-                    onClick={() => {
-                      setManualRefresh(true);
-                      refreshNow();
-                    }}
-                  >
-                    <Icon name="scr-refresh" size={28} />
-                  </button>
-                </div>
+                {refreshButton()}
                 <button
                   type="button"
                   class="scr-light-btn scr-light-btn--secondary is-icon-only"
-                  title={screenerPanel.fullscreen() ? "Restore panel" : "Maximize"}
-                  aria-label={screenerPanel.fullscreen() ? "Restore panel" : "Maximize"}
-                  onClick={() => screenerPanel.setFullscreen(!screenerPanel.fullscreen())}
+                  title="Maximize"
+                  aria-label="Maximize"
+                  data-qa-id="screener-enter-fullscreen"
+                  onClick={() => setMaximized(true)}
                 >
-                  <Icon name={screenerPanel.fullscreen() ? "scr-panel-restore" : "scr-maximize"} size={28} />
+                  <Icon name="scr-maximize" size={28} />
                 </button>
               </div>
             </div>
+            </Show>
           </div>
           <Show when={fields() && view() === "chart"}>
             <ScreenerCharts
               ctl={ctl}
-              loading={!tableReady()}
+              loading={waiting()}
               wheel={wheel()}
               fields={plan()?.fields ?? []}
               onPick={(t) => {
@@ -499,7 +539,7 @@ export function ScreenerPanel(props: Props) {
             {(p) => (
               <ScreenerHeatmap
                 plan={p}
-                loading={!tableReady()}
+                loading={waiting()}
                 wheel={wheel()}
                 has={has}
                 onPick={(t) => {
@@ -514,7 +554,7 @@ export function ScreenerPanel(props: Props) {
           <Show when={fields() && view() === "table"}>
             <ScreenerTable
               ctl={ctl}
-              loading={!tableReady()}
+              loading={waiting()}
               wheel={wheel()}
               columns={plan()?.columns ?? []}
               fields={plan()?.fields ?? []}

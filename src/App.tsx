@@ -2,7 +2,7 @@
 // before any module reads tool defaults.
 import { track } from "./data/analytics";
 import "./window/drawings/templates";
-import { batch, createEffect, createMemo, createSignal, For, lazy, onCleanup, onMount, Show } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, For, lazy, on, onCleanup, onMount, Show, untrack } from "solid-js";
 import { HeaderToolbar } from "./window/header/HeaderToolbar";
 import { HeaderMenu } from "./window/header/HeaderMenu";
 import { buildIntervalMenu } from "./window/chart/custom-intervals";
@@ -23,7 +23,7 @@ import { FavoritesToolbar } from "./window/drawings/FavoritesToolbar";
 import { TabPanel } from "./window/shell/TabPanel";
 import { TabPanelActions } from "./window/shell/TabPanelActions";
 import { WindowControls } from "./window/shell/WindowControls";
-import { reconcilePanes } from "./window/shell/tabs";
+import { DEFAULT_PANELS, reconcilePanes } from "./window/shell/tabs";
 import { recordRecentSymbol } from "./data/recent-symbols";
 import { AppSettingsDialog } from "./window/header/AppSettingsDialog";
 import { AlertDialog } from "./window/alerts/AlertDialog";
@@ -144,6 +144,8 @@ import {
   setSymbolDialogOpen,
   setTemplateNameDialogOpen,
   settingsDialogOpen,
+  showPanels,
+  shownPanels,
   settingsDialogTab,
   symbolDialogOpen,
   symbolSearchSeed,
@@ -174,6 +176,19 @@ function App() {
     setActivePaneIndex,
     layoutSync,
   } = appTabs;
+
+  // Panels are per tab (the reference app): the shown ones are kept in the active tab, a tab switch shows the next
+  // tab's (a new tab's: the watchlist only). A tab saved before has none: the panels stay as they were.
+  const startPanels = activeTab().panels;
+  if (startPanels) showPanels(startPanels);
+  createEffect(() => {
+    const p = shownPanels();
+    untrack(() => {
+      const t = activeTab();
+      if (JSON.stringify(t.panels) !== JSON.stringify(p)) appTabs.patchTab(t.id, { panels: p });
+    });
+  });
+  createEffect(on(activeTabId, (id) => showPanels(tabById().get(id)?.panels ?? DEFAULT_PANELS), { defer: true }));
 
   // Reap localStorage for closed detached/new windows: non-main windows clear
   // themselves on close; the main window sweeps orphans at launch.

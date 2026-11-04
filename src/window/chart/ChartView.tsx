@@ -158,6 +158,7 @@ export function ChartView(props: ChartViewProps) {
     get coords() { return coords; },
     get countdown() { return countdown; },
     get crosshairActive() { return crosshairActive; }, set crosshairActive(v: ChartCore["crosshairActive"]) { crosshairActive = v; },
+    get crosshairMirrored() { return crosshairMirrored; }, set crosshairMirrored(v: ChartCore["crosshairMirrored"]) { crosshairMirrored = v; },
     get emitCrosshair() { return emitCrosshair; }, set emitCrosshair(v: ChartCore["emitCrosshair"]) { emitCrosshair = v; },
     get crosshairAt() { return crosshairAt; }, set crosshairAt(v: ChartCore["crosshairAt"]) { crosshairAt = v; },
     get crosshairPrice() { return crosshairPrice; }, set crosshairPrice(v: ChartCore["crosshairPrice"]) { crosshairPrice = v; },
@@ -438,6 +439,7 @@ export function ChartView(props: ChartViewProps) {
   /** TRUE while the crosshair is over a bar, so the live-tick path knows not to
    *  yank the legend back to the latest bar out from under the user's cursor. */
   let crosshairActive = false;
+  let crosshairMirrored = false;
   let emitCrosshair: ChartCore["emitCrosshair"] = null;
   /** Last crosshair time, so indicator-set/bars changes re-resolve at the same
    *  bar the user is hovering. */

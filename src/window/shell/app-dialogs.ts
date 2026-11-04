@@ -13,6 +13,7 @@ import type { OpenAlertDialogDetail } from "../../data/app-events";
 import { screenerPanel } from "../../data/screener-store";
 import { tradeJournal } from "../../data/trade-journal";
 import type { AppSettingsTabId } from "../header/AppSettingsDialog";
+import type { TabPanels } from "./tabs";
 
 // ── Header dropdown ──────────────────────────────────────────────────────
 const [openMenu, setOpenMenu] = createSignal<string | null>(null);
@@ -132,4 +133,19 @@ export const onRailTabSelect = (id: string | null): void => {
     return;
   }
   setActiveRailTab(id);
+};
+
+/** The shown tab's panels, read from their stores. */
+export const shownPanels = (): TabPanels => ({
+  rail: activeRailTab(),
+  screener: screenerPanel.open(),
+  editor: oakPanelOpen(),
+  journal: tradeJournal.open(),
+});
+/** Show a tab's panels (a tab switch). The screener in its own window is not a tab's: it stays as it is. */
+export const showPanels = (p: TabPanels): void => {
+  setActiveRailTab(p.rail);
+  if (screenerPanel.placement() !== "window" && screenerPanel.open() !== p.screener) screenerPanel.setOpen(p.screener);
+  if (oakPanelOpen() !== p.editor) setOakPanelOpen(p.editor);
+  if (tradeJournal.open() !== p.journal) tradeJournal.setOpen(p.journal);
 };

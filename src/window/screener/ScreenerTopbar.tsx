@@ -10,8 +10,12 @@
  * "Save changes?" (./leave-screen). The gear at the right opens "Screener
  * settings" (./ScreenerSettingsDialog). The account item Share screen is not
  * shown.
+ *
+ * Maximized (the control panel's Maximize): the bar is the screener's only head row: the screen name, the view's
+ * tools (`tools`, from the panel), the gear and Minimize, whose badge counts the filters (each active filter, the
+ * market, the watchlist). Undo / Redo are not shown.
  */
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, type JSX } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { LayoutNameDialog } from "../header/LayoutNameDialog";
 import { screenerStore } from "../../data/screener-store";
@@ -29,7 +33,17 @@ import { MAX_ROWS, csvFileName, downloadText, screenCsv } from "./screener-csv";
 /** `copyOf`: "Make a copy" of an Open screen row (`source`), not opened. */
 type NameDialog = { mode: "saveAs" | "copy" | "copyOf" | "rename" | "create"; initial: string; source?: Screen };
 
-export function ScreenerTopbar() {
+type Props = {
+  /** The control panel's Maximize is on (see the header). */
+  maximized?: boolean;
+  /** Maximized: the view's tools and Refresh, before the gear. */
+  tools?: JSX.Element;
+  /** Maximized: the filters the hidden pills hold. */
+  filterCount?: number;
+  onMinimize?: () => void;
+};
+
+export function ScreenerTopbar(props: Props) {
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [dialog, setDialog] = createSignal<NameDialog | null>(null);
   const [browserOpen, setBrowserOpen] = createSignal(false);
@@ -82,7 +96,9 @@ export function ScreenerTopbar() {
           </button>
         </Show>
       </div>
-      <div class="scr-topbar-controls">
+      <div class="scr-topbar-controls" classList={{ "is-maximized": !!props.maximized }}>
+        <Show when={props.maximized}>{props.tools}</Show>
+        <Show when={!props.maximized}>
         <button
           type="button"
           class="scr-light-btn scr-light-btn--ghost is-icon-only is-small-icon"
@@ -103,6 +119,7 @@ export function ScreenerTopbar() {
         >
           <Icon name="scr-redo" size={18} />
         </button>
+        </Show>
         <button
           type="button"
           class="scr-light-btn scr-light-btn--secondary is-icon-only"
@@ -113,6 +130,23 @@ export function ScreenerTopbar() {
         >
           <Icon name="scr-settings" size={28} />
         </button>
+        <Show when={props.maximized}>
+          <div class="scr-refresh-wrap">
+            <button
+              type="button"
+              class="scr-light-btn scr-light-btn--secondary is-icon-only"
+              title="Minimize"
+              aria-label="Minimize"
+              data-qa-id="screener-exit-fullscreen"
+              onClick={() => props.onMinimize?.()}
+            >
+              <Icon name="scr-minimize" size={28} />
+            </button>
+            <Show when={(props.filterCount ?? 0) > 0}>
+              <span class="scr-counter scr-counter--bold">{props.filterCount}</span>
+            </Show>
+          </div>
+        </Show>
       </div>
       <Show when={settingsOpen()}>
         <ScreenerSettingsDialog onClose={() => setSettingsOpen(false)} />
