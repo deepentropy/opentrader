@@ -10,7 +10,7 @@
  */
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
-import { MarkdownBody } from "../right-rail/community/parts";
+import { AnswerText, symbolsOf } from "./AnswerText";
 import { assistantPanel, ASSISTANT_MIN_WIDTH } from "../../data/assistant/panel";
 import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
 import { Popup } from "./Popup";
@@ -117,6 +117,18 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
   let list!: HTMLDivElement;
   let area!: HTMLTextAreaElement;
   const messages = () => activeChat()?.messages ?? [];
+  // The symbols the chat's tools met (bare ticker → full name): the answers link them.
+  const known = createMemo(() => {
+    const m = new Map<string, string>();
+    for (const msg of messages()) {
+      if (msg.role !== "assistant") continue;
+      for (const t of msg.tools ?? []) {
+        symbolsOf(t.arguments, m);
+        if (t.result) symbolsOf(t.result, m);
+      }
+    }
+    return m;
+  });
   // Keep the newest message in view while the answer streams, unless the user scrolled up.
   let pinned = true;
   createEffect(() => {
@@ -176,7 +188,7 @@ function ChatView(props: { ticker: string; onOpenChats: () => void }) {
             </div>
           }
         >
-          <For each={messages()}>{(m) => <Message message={m} />}</For>
+          <For each={messages()}>{(m) => <Message message={m} known={known()} />}</For>
           <Show when={running() && isThinking(messages())}>
             <div class="asst-thinking"><span /><span /><span /></div>
           </Show>
@@ -227,7 +239,7 @@ function isThinking(ms: ChatMessage[]): boolean {
   return !last || last.role === "user" || (!last.text && !(last.tools?.length));
 }
 
-function Message(props: { message: ChatMessage }) {
+function Message(props: { message: ChatMessage; known: Map<string, string> }) {
   return (
     <Show
       when={props.message.role === "assistant" ? (props.message as Extract<ChatMessage, { role: "assistant" }>) : null}
@@ -242,7 +254,7 @@ function Message(props: { message: ChatMessage }) {
             </details>
           </Show>
           <Show when={m().text}>
-            <MarkdownBody class="asst-markdown" text={m().text} />
+            <AnswerText text={m().text} known={props.known} />
           </Show>
           <For each={m().tools ?? []}>{(t) => <Step step={t} />}</For>
           <Show when={m().error}>

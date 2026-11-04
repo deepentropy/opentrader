@@ -507,3 +507,11 @@
   margin-top: 0;
   padding-top: 24px;
 }
+.asst-markdown a.asst-ticker {
+  color: var(--color-content-accent, #5b9cf6);
+  text-decoration: none;
+  cursor: pointer;
+}
+.asst-markdown a.asst-ticker:hover {
+  text-decoration: underline;
+}
