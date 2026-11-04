@@ -45,7 +45,6 @@ import { PROPERTIES_INPUT, isStrategyId } from "./window/chart/indicators/strate
 import { ScreenerPanel } from "./window/screener/ScreenerPanel";
 import { AssistantPanel } from "./window/assistant/AssistantPanel";
 import { assistantPanel } from "./data/assistant/panel";
-import { watchlistStore } from "./data/watchlist-store";
 import { screenerPanel, type ScreenerPlacement } from "./data/screener-store";
 import { SCREENER_PLACE_EVENT } from "./window/screener/ScreenerPanel";
 import { SCREENER_PICK_EVENT } from "./window/screener/ScreenerWindow";
@@ -543,7 +542,7 @@ function App() {
         layouts,
       });
       // The AI assistant panel runs the same tools in this window.
-      setAssistantHost(server, () => ({ symbol: activeFullSymbol() ?? symbol(), interval: interval(), watchlist: watchlistStore.active()?.name }));
+      setAssistantHost(server);
       stop = installAgentBridge(server);
     });
     onCleanup(() => {

@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-const kv = vi.hoisted(() => ({ store: new Map<string, string>() }));
-vi.mock("../../kv", () => ({
-  getItem: (k: string) => kv.store.get(k) ?? null,
-  setItem: (k: string, v: string) => void kv.store.set(k, v),
-  removeItem: (k: string) => void kv.store.delete(k),
-  onExternalChange: () => () => undefined,
-}));
+vi.mock("../../kv", () => ({ getItem: () => null, setItem: () => undefined, removeItem: () => undefined, onExternalChange: () => () => undefined }));
 vi.mock("@tauri-apps/api/core", () => ({
   Channel: class {
     onmessage: (d: string) => void = () => {};
@@ -16,8 +10,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 const server = vi.hoisted(() => ({ script: [] as string[][], bodies: [] as any[] }));
 vi.mock("../../../bindings", () => ({
   commands: {
-    assistantConfig: async () => ({ models: [{ id: "m1", label: "Test", description: "", baseUrl: "http://x/v1", model: "t", hasKey: false }], selected: "m1", effort: null }),
-    assistantChat: async (_id: string, _req: number, body: string, ch: { onmessage: (d: string) => void }) => {
+    assistantChat: async (_req: number, body: string, ch: { onmessage: (d: string) => void }) => {
       server.bodies.push(JSON.parse(body));
       for (const e of server.script.shift() ?? []) ch.onmessage(e);
       return { status: "ok", data: null };
@@ -26,17 +19,16 @@ vi.mock("../../../bindings", () => ({
   },
 }));
 
-import { loadModels } from "../models";
-import { activeChat, answerConfirm, newChat, send, setAssistantHost } from "../session";
-import type { AgentServerDef, AgentTool } from "../../../agent/mcp";
+import { activeChat, answerConfirm, COMPACT_V1, describeTool, newChat, send, setAssistantHost } from "../session";
+import type { AgentTool } from "../../../agent/mcp";
 
-const text = (s: string) => JSON.stringify({ choices: [{ delta: { content: s }, finish_reason: "stop" }] });
-const call = (id: string, name: string, args: object) =>
-  JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id, function: { name, arguments: JSON.stringify(args) } }] }, finish_reason: "tool_calls" }] });
+const say = (s: string) => JSON.stringify({ choices: [{ delta: { content: s }, finish_reason: null }] });
+const call = (name: string, args: object) => say(`<tool_call>\n${JSON.stringify({ name, arguments: args })}\n</tool_call>`);
 
 const ran: string[] = [];
 const tools: AgentTool[] = [
-  { name: "get_chart", title: "Get chart", description: "", inputSchema: { type: "object" }, run: async () => (ran.push("get_chart"), { symbol: "NASDAQ:AAPL" }) },
+  { name: "set_symbol", title: "Set symbol", description: "Show a symbol.", inputSchema: { type: "object", properties: { symbol: { type: "string" } } }, run: async (a) => (ran.push(`set ${a.symbol}`), { symbol: `NASDAQ:${a.symbol}` }) },
+  { name: "get_chart", title: "Get chart", description: "", inputSchema: { type: "object" }, run: async () => { throw new Error("boom"); } },
   {
     name: "delete_watchlist",
     title: "Delete",
@@ -46,54 +38,61 @@ const tools: AgentTool[] = [
     run: async (a) => (ran.push(`delete ${a.name}`), { deleted: a.name }),
   },
 ];
-const def: AgentServerDef = { name: "t", version: () => "1", instructions: "", tools, resources: () => [], prompts: [] };
-setAssistantHost(def, () => ({ symbol: "NASDAQ:AAPL", interval: "1D" }));
+setAssistantHost({ name: "t", version: () => "1", instructions: "", tools, resources: () => [], prompts: [] });
 
 describe("assistant agent loop", () => {
-  it("runs the tool calls, sends their results back, ends on the model's words", async () => {
-    await loadModels();
-    server.script = [[call("c1", "get_chart", {})], [text("AAPL on 1D.")]];
-    await send("What is on my chart?");
-    const c = activeChat()!;
-    expect(c.title).toBe("What is on my chart?");
-    expect(ran).toEqual(["get_chart"]);
-    const [user, first, second] = c.messages;
-    expect(user).toEqual({ role: "user", text: "What is on my chart?" });
-    expect(first).toMatchObject({ role: "assistant", tools: [{ name: "get_chart", status: "done", result: '{"symbol":"NASDAQ:AAPL"}' }] });
-    expect(second).toMatchObject({ role: "assistant", text: "AAPL on 1D." });
-    // The second request carries the call and its result, and the tools in the OpenAI shape.
-    const body = server.bodies[1];
-    expect(body.messages[0].role).toBe("system");
-    expect(body.messages.slice(-2)).toEqual([
-      { role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "get_chart", arguments: "{}" } }] },
-      { role: "tool", tool_call_id: "c1", content: '{"symbol":"NASDAQ:AAPL"}' },
+  it("sends the trained short tool list, byte for byte, and no schemas", async () => {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(COMPACT_V1));
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    expect(hex).toBe("4c2056112f7b16cad48a1be0a75eead5e5afbd6a6bc5d66a42a2e8778941bc54");
+    server.script = [[say("Showing it.\n<tool_call>\n"), say('{"name": "set_symbol", "arguments": {"symbol": "AAPL"}}\n</tool_call>')], [say("AAPL is on the chart.")]];
+    await send("show apple");
+    const [first, second] = server.bodies;
+    expect(first.tools).toBeUndefined();
+    expect(first.messages[0]).toEqual({ role: "system", content: COMPACT_V1 });
+    const ms = activeChat()!.messages;
+    expect(activeChat()!.title).toBe("show apple");
+    expect(ms[1]).toMatchObject({ role: "assistant", text: "Showing it.", tools: [{ name: "set_symbol", status: "done", result: '{"symbol":"NASDAQ:AAPL"}' }] });
+    expect(ms[2]).toMatchObject({ text: "AAPL is on the chart." });
+    // The call goes back as a tool call, its result as a tool message.
+    expect(second.messages.slice(-2)).toEqual([
+      { role: "assistant", content: "Showing it.", tool_calls: [{ id: expect.any(String), type: "function", function: { name: "set_symbol", arguments: '{"symbol":"AAPL"}' } }] },
+      { role: "tool", tool_call_id: expect.any(String), content: '{"symbol":"NASDAQ:AAPL"}' },
     ]);
-    expect(body.tools[0]).toEqual({ type: "function", function: { name: "get_chart", description: "", parameters: { type: "object" } } });
-    expect(body.stream).toBe(true);
   });
 
   it("waits for the user's go-ahead before a tool that deletes", async () => {
     newChat();
     ran.length = 0;
-    server.script = [[call("d1", "delete_watchlist", { name: "Old" })], [text("Kept it.")], [call("d2", "delete_watchlist", { name: "Old" })], [text("Deleted.")]];
+    server.script = [[call("delete_watchlist", { name: "Old" })], [say("Kept it.")], [call("delete_watchlist", { name: "Old" })], [say("Deleted.")]];
     const denied = send("Delete Old");
     await vi.waitFor(() => expect(activeChat()!.messages[1]).toMatchObject({ tools: [{ status: "confirm" }] }));
-    answerConfirm("d1", false);
+    answerConfirm((activeChat()!.messages[1] as { tools: { id: string }[] }).tools[0].id, false);
     await denied;
     expect(ran).toEqual([]);
     expect(activeChat()!.messages[1]).toMatchObject({ tools: [{ status: "denied", result: "The user did not allow it." }] });
     const allowed = send("Yes, delete it");
     await vi.waitFor(() => expect(activeChat()!.messages[4]).toMatchObject({ tools: [{ status: "confirm" }] }));
-    answerConfirm("d2", true);
+    answerConfirm((activeChat()!.messages[4] as { tools: { id: string }[] }).tools[0].id, true);
     await allowed;
     expect(ran).toEqual(["delete Old"]);
     expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ text: "Deleted." });
   });
 
-  it("shows the server's error in the chat", async () => {
+  it("stops a call that keeps failing, and shows the server's error", async () => {
     newChat();
-    server.script = [[JSON.stringify({ error: { message: "No credit left" } })]];
+    server.script = [[call("get_chart", {})], [call("get_chart", {})], [call("get_chart", {})], [say("never asked")]];
+    await send("What is on my chart?");
+    expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ error: "Stopped: get_chart failed three times (boom)." });
+    newChat();
+    server.script = [[JSON.stringify({ error: { message: "out of memory" } })]];
     await send("Hello");
-    expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ role: "assistant", error: "No credit left" });
+    expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ role: "assistant", error: "out of memory" });
+  });
+
+  it("describe_tool answers with the tool's entry, compact", async () => {
+    const d = describeTool(tools);
+    expect(await d.run({ name: "set_symbol" })).toBe('{"name":"set_symbol","description":"Show a symbol.","inputSchema":{"type":"object","properties":{"symbol":{"type":"string"}}}}');
+    expect(await d.run({ name: "nope" })).toBe('Unknown tool "nope"');
   });
 });

@@ -1,7 +1,8 @@
 /*
- * The AI assistant's chats and its agent loop. A message goes to the selected model with the app's agent tools (the
- * same ones the MCP server gives coding agents, src/agent/); the tool calls it answers with run in this window, their
- * results go back, until the model answers in words. A tool that deletes something waits for the user's go-ahead.
+ * The AI assistant's chats and its agent loop. A message goes to OpenTrader's model (on this computer, local_model.rs)
+ * with the short tool list it was trained with; the tool calls it writes run in this window with the app's agent tools
+ * (the same ones the MCP server gives coding agents, src/agent/), their results go back, until the model answers in
+ * words. A tool that deletes something waits for the user's go-ahead.
  *
  * Chats are kept in kv (the 50 latest, pictures left out).
  */
@@ -12,11 +13,9 @@ import { commands } from "../../bindings";
 import type { AgentServerDef, AgentTool, ToolResult } from "../../agent/mcp";
 import { AgentError } from "../../agent/mcp";
 import * as kv from "../kv";
-import { config, selectedModel } from "./models";
 import { applyEvent, finishedCalls, newTurn, shownText, StreamError, textToolCalls, type ToolCall, type Turn } from "./stream";
-// The short tool list OpenTrader's small model was trained with, byte for byte (its sha256 is checked by a test).
+// The short tool list the model was trained with, byte for byte (its sha256 is checked by a test).
 import COMPACT_V1_RAW from "./compact-v1.txt?raw";
-import { systemPrompt, type ChatContext } from "./prompt";
 
 export type ToolStep = {
   id: string;
@@ -67,39 +66,19 @@ function save(): void {
 
 // ── The window's tools ───────────────────────────────────────────────────
 let server: AgentServerDef | null = null;
-let chatContext: () => ChatContext = () => ({});
 let hostReady: () => void = () => {};
 /** Resolves once App has handed the tools (they load after the window's first paint). */
 const host = new Promise<void>((resolve) => (hostReady = resolve));
-/** App hands the agent server (its tools and reference texts) and what the focused chart shows. */
-export function setAssistantHost(s: AgentServerDef, context: () => ChatContext): void {
+/** App hands the agent server (its tools). */
+export function setAssistantHost(s: AgentServerDef): void {
   server = s;
-  chatContext = context;
   hostReady();
-}
-
-/** The reference texts (guides, catalogues) as one more tool: the panel has no MCP resources to read. */
-async function referenceTool(): Promise<AgentTool | null> {
-  const res = server ? await server.resources() : [];
-  if (!res.length) return null;
-  return {
-    name: "read_reference",
-    title: "Read reference",
-    description: `Read one of OpenTrader's reference texts. Read the oakscriptjs guide before writing a script. uri: ${res.map((r) => `${r.uri} (${r.description})`).join("; ")}.`,
-    inputSchema: { type: "object", properties: { uri: { type: "string", enum: res.map((r) => r.uri) } }, required: ["uri"] },
-    annotations: { readOnlyHint: true },
-    run: async (args) => {
-      const r = res.find((x) => x.uri === args.uri);
-      if (!r) throw new AgentError(`No reference "${String(args.uri)}".`);
-      return await r.read();
-    },
-  };
 }
 
 /** The short tool list as the model saw it in training (line ends as written there). */
 export const COMPACT_V1 = COMPACT_V1_RAW.replace(/\r\n/g, "\n");
 
-/** With the short tool list, the model reads a tool's schema when it needs it. */
+/** The model reads a tool's schema when it needs it. */
 export function describeTool(tools: AgentTool[]): AgentTool {
   return {
     name: "describe_tool",
@@ -115,17 +94,12 @@ export function describeTool(tools: AgentTool[]): AgentTool {
   };
 }
 
-async function toolList(compact: boolean): Promise<AgentTool[]> {
+async function toolList(): Promise<AgentTool[]> {
   // A message sent right after the window opened waits for the tools.
   await Promise.race([host, new Promise((r) => setTimeout(r, 30_000))]);
   if (!server) throw new Error("The app's tools are not ready: try again in a moment.");
-  const ref = compact ? null : await referenceTool();
-  const tools = [...(server?.tools ?? []), ...(ref ? [ref] : [])];
-  return compact ? [...tools, describeTool(tools)] : tools;
+  return [...server.tools, describeTool(server.tools)];
 }
-
-const asFunctions = (tools: AgentTool[]) =>
-  tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.inputSchema } }));
 
 /** A tool's answer as the text the model reads, and a picture to show. */
 function resultOf(value: unknown): { text: string; image?: string } {
@@ -216,8 +190,8 @@ export function stop(): void {
 }
 
 /** The chat as the model reads it. */
-function wireMessages(c: Chat, context: ChatContext, tools: AgentTool[], compact: boolean) {
-  const out: unknown[] = [{ role: "system", content: compact ? COMPACT_V1 : systemPrompt(context, tools) }];
+function wireMessages(c: Chat) {
+  const out: unknown[] = [{ role: "system", content: COMPACT_V1 }];
   for (const m of c.messages) {
     if (m.role === "user") {
       out.push({ role: "user", content: m.text });
@@ -238,11 +212,8 @@ function wireMessages(c: Chat, context: ChatContext, tools: AgentTool[], compact
 }
 
 /** One request to the model; the turn grows in the chat's last message while it streams. */
-async function ask(c: Chat, tools: AgentTool[]): Promise<Turn> {
-  const model = selectedModel();
-  if (!model) throw new Error("Add a model first (the model picker).");
-  // The small model: the short tool list in the system text (no schemas sent), its calls written in its text.
-  const compact = model.compact;
+async function ask(c: Chat): Promise<Turn> {
+  // The short tool list is in the system text (no schemas sent); the model writes its calls in its text.
   const request = ++requestSeq;
   current = request;
   let turn = newTurn();
@@ -250,21 +221,15 @@ async function ask(c: Chat, tools: AgentTool[]): Promise<Turn> {
   channel.onmessage = (data) => {
     turn = applyEvent(turn, data);
     editLast((m) => {
-      m.text = compact ? shownText(turn.content) : turn.content;
+      m.text = shownText(turn.content);
       if (turn.reasoning) m.reasoning = turn.reasoning;
     });
   };
-  const effort = config().effort;
-  const body = {
-    messages: wireMessages(c, chatContext(), tools, compact),
-    ...(compact ? {} : { tools: asFunctions(tools) }),
-    stream: true,
-    ...(effort ? { reasoning_effort: effort } : {}),
-  };
-  const r = await commands.assistantChat(model.id, request, JSON.stringify(body), channel);
+  const body = { messages: wireMessages(c), stream: true };
+  const r = await commands.assistantChat(request, JSON.stringify(body), channel);
   current = null;
   if (r.status === "error") throw new Error(r.error);
-  if (compact && !turn.toolCalls.length) {
+  if (!turn.toolCalls.length) {
     const { text, calls } = textToolCalls(turn.content, `call${request}`);
     turn = { ...turn, content: text, toolCalls: calls };
     editLast((m) => (m.text = text));
@@ -322,11 +287,11 @@ export async function send(text: string): Promise<void> {
   setRunning(true);
   stopped = false;
   try {
-    const tools = await toolList(!!selectedModel()?.compact);
+    const tools = await toolList();
     const failures = new Map<string, number>();
     for (let round = 0; round < MAX_ROUNDS && !stopped; round++) {
       edit((c) => c.messages.push({ role: "assistant", text: "" }));
-      const turn = await ask(activeChat()!, tools);
+      const turn = await ask(activeChat()!);
       if (stopped) break;
       const calls = finishedCalls(turn, `call${requestSeq}`);
       if (!calls.length) break;

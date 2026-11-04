@@ -1,12 +1,11 @@
 /*
- * The AI assistant's model on this computer (#239): nothing in the installer, downloaded when the user asks for it.
+ * The AI assistant's model, on this computer (#239): nothing in the installer, downloaded when the user asks for it.
  * Three files: the llama.cpp server for this system (a pinned build: Vulkan where there is one, with a CPU build to
  * fall back on; Metal on Apple silicon), the open base model (Qwen3-4B-Instruct-2507, Q4_K_M) and OpenTrader's
  * fine-tune of it (a LoRA, the small file that changes with each version). Each is checked against its sha256; a
  * download stopped midway goes on from where it was.
  *
- * The server runs on 127.0.0.1 only, started with the first chat and stopped with the app. The assistant's model list
- * holds it as the model `local`, with the short tool list it was trained with (compact).
+ * The server runs on 127.0.0.1 only, started with the first chat and stopped with the app.
  */
 use opentrader_core::net::SharedClient;
 use serde::Serialize;
@@ -18,10 +17,6 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot;
-
-/// The model id in the assistant's list, and its address (resolved to the running server).
-pub const LOCAL_ID: &str = "local";
-pub const LOCAL_URL: &str = "local";
 
 static CLIENT: SharedClient = SharedClient::new(|b| b.connect_timeout(Duration::from_secs(20)).read_timeout(Duration::from_secs(60)));
 
@@ -266,7 +261,7 @@ fn unpack(archive: &Path, to: &Path) -> Result<(), String> {
     }
 }
 
-/// Downloads what is missing, then adds the model to the assistant's list (selected).
+/// Downloads what is missing.
 #[tauri::command]
 #[specta::specta]
 pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgress>) -> Result<(), String> {
@@ -291,8 +286,7 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
             let _ = std::fs::remove_file(base.join(r.file));
         }
         fetch(&base, &ADAPTER, &on_progress, &mut rx).await?;
-        fetch(&base, &BASE, &on_progress, &mut rx).await?;
-        crate::assistant::add_local_model(&app)
+        fetch(&base, &BASE, &on_progress, &mut rx).await
     }
     .await;
     *INSTALL_STOP.lock().unwrap() = None;
@@ -307,7 +301,7 @@ pub fn local_model_cancel() {
     }
 }
 
-/// Stops the server, deletes the files and takes the model out of the list.
+/// Stops the server and deletes the files.
 #[tauri::command]
 #[specta::specta]
 pub async fn local_model_remove(app: AppHandle) -> Result<(), String> {
@@ -316,7 +310,7 @@ pub async fn local_model_remove(app: AppHandle) -> Result<(), String> {
     if base.exists() {
         std::fs::remove_dir_all(&base).map_err(|e| format!("The files could not all be deleted: {e}"))?;
     }
-    crate::assistant::remove_local_model(&app)
+    Ok(())
 }
 
 pub async fn stop_server() {
@@ -388,7 +382,7 @@ pub async fn ensure_server(app: &AppHandle) -> Result<String, String> {
     }
     let base = dir(app)?;
     if !installed(&base) {
-        return Err("The model on this computer is not installed: Manage models > Run on this computer.".into());
+        return Err("The assistant's model is not downloaded yet.".into());
     }
     let mut last = String::new();
     for (i, r) in runtimes().iter().enumerate() {

@@ -2,22 +2,20 @@
  * The AI assistant panel (right rail's AI button), laid out as the reference desktop app's (3.5.0, measured over CDP
  * on 04/11/2026, .tmp/ai-panel): an overlay at the window's right (or a split view), its header with "Move overlay to
  * split-view", the title, Collapse panel and Close; a 680 px column with the chat's title menu (Create new chat /
- * Open chat…), the greeting and its suggestions on an empty chat, the messages, then the composer with the model and
- * effort picker and Send, and the note under it.
+ * Open chat…), the greeting and its suggestions on an empty chat, the messages, then the composer with Send, and the
+ * note under it.
  *
- * Unlike the reference, the model is the user's: any OpenAI-compatible server, in the cloud or on this computer
- * (Manage models…). The chat runs the app's agent tools (src/data/assistant/session.ts).
+ * Unlike the reference, the model is OpenTrader's own and runs on this computer (downloaded once, then offline), so
+ * there is no model or effort picker. The chat runs the app's agent tools (src/data/assistant/session.ts).
  */
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { MarkdownBody } from "../right-rail/community/parts";
 import { assistantPanel, ASSISTANT_MIN_WIDTH } from "../../data/assistant/panel";
-import { config, loadModels, loaded, selectedModel } from "../../data/assistant/models";
 import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
-import { ModelPicker } from "./ModelPicker";
 import { Popup } from "./Popup";
-import { LocalModelCard, ModelSettings } from "./ModelSettings";
-import { localBlocker, localInfo } from "../../data/assistant/local";
+import { LocalModelCard } from "./LocalModel";
+import { localInfo, refreshLocal, removeLocal } from "../../data/assistant/local";
 import { stepTitle } from "./steps";
 import "../../styles/screener.css";
 import "../../styles/community.css";
@@ -34,14 +32,11 @@ const suggestions = (ticker: string) => [
 ];
 
 export function AssistantPanel(props: { ticker: string }) {
-  onMount(() => void loadModels());
+  onMount(() => void refreshLocal());
+  const ready = () => !!localInfo()?.installed;
   const overlay = () => assistantPanel.mode() === "overlay";
-  const [view, setView] = createSignal<"chat" | "setup" | "models" | "chats">("chat");
-  createEffect(() => {
-    // No model yet: the settings come first.
-    if (loaded() && !config().models.length) setView("setup");
-    else if (view() === "setup" && config().models.length) setView("chat");
-  });
+  const [view, setView] = createSignal<"chat" | "chats">("chat");
+
 
   // Resizer: drag the 4 px strip; the panel grows to the left.
   const beginResize = (e: MouseEvent) => {
@@ -100,17 +95,14 @@ export function AssistantPanel(props: { ticker: string }) {
         </header>
         <div class="asst-body">
           <Switch>
-            <Match when={view() === "setup"}>
-              <Setup onOtherModel={() => setView("models")} />
-            </Match>
-            <Match when={view() === "models"}>
-              <ModelSettings onDone={() => setView("chat")} canClose={config().models.length > 0} />
+            <Match when={localInfo() && !ready()}>
+              <Setup />
             </Match>
             <Match when={view() === "chats"}>
               <ChatList onDone={() => setView("chat")} />
             </Match>
             <Match when={view() === "chat"}>
-              <ChatView ticker={props.ticker} onManageModels={() => setView("models")} onOpenChats={() => setView("chats")} />
+              <ChatView ticker={props.ticker} onOpenChats={() => setView("chats")} />
             </Match>
           </Switch>
         </div>
@@ -119,7 +111,7 @@ export function AssistantPanel(props: { ticker: string }) {
   );
 }
 
-function ChatView(props: { ticker: string; onManageModels: () => void; onOpenChats: () => void }) {
+function ChatView(props: { ticker: string; onOpenChats: () => void }) {
   const [menuOpen, setMenuOpen] = createSignal(false);
   const [draft, setDraft] = createSignal("");
   let list!: HTMLDivElement;
@@ -134,7 +126,7 @@ function ChatView(props: { ticker: string; onManageModels: () => void; onOpenCha
     if (pinned) queueMicrotask(() => (list.scrollTop = list.scrollHeight));
   });
   const submit = (text = draft()) => {
-    if (!text.trim() || running() || !selectedModel()) return;
+    if (!text.trim() || running() || !localInfo()?.installed) return;
     setDraft("");
     pinned = true;
     void send(text);
@@ -156,6 +148,10 @@ function ChatView(props: { ticker: string; onManageModels: () => void; onOpenCha
             <button type="button" class="asst-menu-item" role="menuitem" disabled={!chats().length} onClick={() => { setMenuOpen(false); props.onOpenChats(); }}>
               Open chat…
             </button>
+            <div class="asst-menu-sep" />
+            <button type="button" class="asst-menu-item" role="menuitem" disabled={running()} onClick={() => { setMenuOpen(false); void removeLocal(); }}>
+              Remove the model from this computer
+            </button>
           </Popup>
         </Show>
       </div>
@@ -171,7 +167,7 @@ function ChatView(props: { ticker: string; onManageModels: () => void; onOpenCha
               <p class="asst-greeting">Hi, I'm your assistant: ask me to work the app for you.</p>
               <For each={suggestions(props.ticker)}>
                 {(s) => (
-                  <button type="button" class="asst-suggestion" disabled={!selectedModel() || running()} onClick={() => submit(s)}>
+                  <button type="button" class="asst-suggestion" disabled={!localInfo()?.installed || running()} onClick={() => submit(s)}>
                     <Icon name="ai-sparkle" size={18} />
                     <span>{s}</span>
                   </button>
@@ -206,11 +202,10 @@ function ChatView(props: { ticker: string; onManageModels: () => void; onOpenCha
           }}
         />
         <div class="asst-composer-row">
-          <ModelPicker onManage={props.onManageModels} />
           <Show
             when={running()}
             fallback={
-              <button type="button" class="asst-send" title="Send message" aria-label="Send message" disabled={!draft().trim() || !selectedModel()} onClick={() => submit()}>
+              <button type="button" class="asst-send" title="Send message" aria-label="Send message" disabled={!draft().trim() || !localInfo()?.installed} onClick={() => submit()}>
                 <Icon name="ai-send" size={28} />
               </button>
             }
@@ -354,8 +349,8 @@ function ChatList(props: { onDone: () => void }) {
   );
 }
 
-/** First open: OpenTrader's assistant, downloaded once. Another model is offered only where this one can't run. */
-function Setup(props: { onOtherModel: () => void }) {
+/** First open: OpenTrader's assistant, downloaded once. */
+function Setup() {
   return (
     <div class="asst-column asst-models">
       <div class="asst-empty asst-setup">
@@ -363,9 +358,6 @@ function Setup(props: { onOtherModel: () => void }) {
         <p class="asst-muted">Download it once to start.</p>
       </div>
       <LocalModelCard />
-      <Show when={localInfo() && localBlocker(localInfo()!)}>
-        <button type="button" class="asst-btn" onClick={props.onOtherModel}>Use another model</button>
-      </Show>
     </div>
   );
 }

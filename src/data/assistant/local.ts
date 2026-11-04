@@ -1,11 +1,10 @@
 /*
- * The AI assistant's model on this computer (src-tauri/src/local_model.rs): what it needs, its download and its
- * removal. Once installed it is the model `local` of the list, with the short tool list.
+ * The AI assistant's model, on this computer (src-tauri/src/local_model.rs): what it needs, its download and its
+ * removal.
  */
 import { Channel } from "@tauri-apps/api/core";
 import { createSignal } from "solid-js";
 import { commands, type LocalModelInfo, type LocalProgress } from "../../bindings";
-import { reloadModels } from "./models";
 
 const [info, setInfo] = createSignal<LocalModelInfo | null>(null);
 const [progress, setProgress] = createSignal<LocalProgress | null>(null);
@@ -40,7 +39,6 @@ export async function installLocal(): Promise<void> {
   setProgress(null);
   if (r.status === "error" && r.error !== "Stopped.") setError(r.error);
   await refreshLocal();
-  await reloadModels();
 }
 
 export const cancelLocal = () => void commands.localModelCancel();
@@ -49,5 +47,4 @@ export async function removeLocal(): Promise<void> {
   const r = await commands.localModelRemove();
   if (r.status === "error") setError(r.error);
   await refreshLocal();
-  await reloadModels();
 }
