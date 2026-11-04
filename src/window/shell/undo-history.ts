@@ -85,6 +85,10 @@ export type LayoutSourcesUndoEntry = {
   slices: DrawingSlice[];
   label: string;
   at: number;
+  /** Steps with the same key one after the other are one step (the keystrokes of one field of a dialog). */
+  coalesce?: string;
+  /** The open dialog the step was made in: its Cancel takes the session's steps back (`rollback`). */
+  session?: string;
 };
 /** Two charts of a layout swapped their places (chart menu "Move chart");
  *  the focused chart before and after. Swapping again undoes it. */
@@ -194,8 +198,24 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
   function commit(entry: UndoEntry) {
     apply(entry, "after");
     const stack = undoStack();
-    setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
+    const last = stack[stack.length - 1];
+    if (entry.kind === "layout-sources" && entry.coalesce && last?.kind === "layout-sources" && last.coalesce === entry.coalesce) {
+      // The same field again: the open step takes the new value (its `before` stays).
+      setUndoStack([...stack.slice(0, -1), { ...entry, before: last.before }]);
+    } else {
+      setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
+    }
     if (redoStack().length) setRedoStack([]);
+  }
+  /** Take back the steps of a dialog session on top of the stack (its Cancel): undone, and not left to redo. */
+  function rollback(session: string) {
+    for (;;) {
+      const stack = undoStack();
+      const e = stack[stack.length - 1];
+      if (!e || e.kind !== "layout-sources" || e.session !== session) return;
+      setUndoStack(stack.slice(0, -1));
+      apply(e, "before");
+    }
   }
   /** Record an entry whose change is already made (no apply). */
   function record(entry: UndoEntry) {
@@ -220,7 +240,7 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
     apply(e, "after");
   }
 
-  return { undoStack, redoStack, canUndo, canRedo, undoLabel, redoLabel, recordDrawingChange, commit, record, undo, redo };
+  return { undoStack, redoStack, canUndo, canRedo, undoLabel, redoLabel, recordDrawingChange, commit, record, rollback, undo, redo };
 }
 
 export type UndoHistory = ReturnType<typeof createUndoHistory>;

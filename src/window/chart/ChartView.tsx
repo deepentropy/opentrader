@@ -71,6 +71,9 @@ import { cachedSymbolSessions } from "../../data/session";
 import { IndicatorSettingsDialog, type DialogTab } from "./IndicatorSettingsDialog";
 import { outputValueRows, styleItems, type StyleEntry } from "./indicators/style-outputs";
 import { sourcesEdit } from "../shell/source-edits";
+import { emitAppEvent } from "../../data/app-events";
+import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
+import type { IndicatorOptions } from "./indicators/indicator-options";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry } from "./profiles/tpo";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
@@ -1608,8 +1611,25 @@ export function ChartView(props: ChartViewProps) {
           const tab = settingsTab();
           // The study as it was when the dialog opened: Cancel puts it back after a preview.
           const snapshot = controller?.settingsSnapshot(id());
-          // Its inputs then, for the undo text (a preview has already put the new ones on the study).
-          const openedInputs = JSON.parse(JSON.stringify(values ?? {})) as Record<string, unknown>;
+          // Every change is drawn and saved as it is made, one undo step each (the reference app), the keystrokes of
+          // one field as one step; Cancel takes the dialog's steps back. `shown`: the settings last drawn.
+          const session = `${paneId}:${id()}:${Date.now()}`;
+          let shown = JSON.stringify({ inputs: values ?? {}, styles: styles ?? {}, options: controller?.getOptions(id()) });
+          const step = (next: { inputs: Record<string, unknown>; styles: IndicatorStyleOverrides; options: IndicatorOptions }) => {
+            const was = JSON.parse(shown) as typeof next;
+            const changed = (entry!.inputConfig ?? []).find((c) => JSON.stringify(next.inputs[c.id]) !== JSON.stringify(was.inputs[c.id]));
+            const title = indLegend().find((r) => r.id === id())?.title ?? entry!.name;
+            const key = changed ? `input:${changed.id}` : JSON.stringify(next.styles) !== JSON.stringify(was.styles) ? "style" : "options";
+            shown = JSON.stringify(next);
+            sourcesEdit(
+              changed ? `change ${changed.title || changed.id} property` : `change ${title} style`,
+              () => {
+                controller?.applySettings(id(), next.inputs, next.styles, next.options);
+                props.onIndicatorSettings?.(id(), { inputs: next.inputs, styles: next.styles, options: next.options });
+              },
+              { coalesce: `${session}:${key}`, session },
+            );
+          };
           const redrawn = () => {
             refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
             if (isStrategyId(id())) applyStrategyMarkers();
@@ -1629,24 +1649,20 @@ export function ChartView(props: ChartViewProps) {
                 styleItems={styleItems(entry! as unknown as StyleEntry)}
                 valueRows={outputValueRows(entry! as unknown as Parameters<typeof outputValueRows>[0])}
                 onPreview={(next) => {
-                  if (next) controller?.applySettings(id(), next.inputs, next.styles, next.options);
-                  else if (snapshot) controller?.restoreSettings(id(), snapshot);
+                  if (next) step(next);
+                  else {
+                    // Cancel (or back to the opening values): the study as it was, the dialog's steps taken back.
+                    if (snapshot) controller?.restoreSettings(id(), snapshot);
+                    emitAppEvent("chart-sources-rollback", { session });
+                  }
                   redrawn();
                 }}
                 inputs={values!}
                 styles={styles!}
                 options={controller!.getOptions(id())}
-                onApply={({ inputs, styles: s, options }) => {
-                  // One undo step (reference texts): the first input changed, else the study's style.
-                  const changed = (entry!.inputConfig ?? []).find((c) => JSON.stringify(inputs[c.id]) !== JSON.stringify(openedInputs[c.id]));
-                  const title = indLegend().find((r) => r.id === id())?.title ?? entry!.name;
-                  // The study as it was when the dialog opened (the preview put the new values on it): the undo step
-                  // reads it as the state before the edit.
-                  if (snapshot) controller?.restoreSettings(id(), snapshot);
-                  sourcesEdit(changed ? `change ${changed.title || changed.id} property` : `change ${title} style`, () => {
-                    controller?.applySettings(id(), inputs, s, options);
-                    props.onIndicatorSettings?.(id(), { inputs, styles: s, options });
-                  });
+                onApply={(next) => {
+                  // Ok: the changes are drawn and saved already; one not drawn yet is a step of its own.
+                  if (JSON.stringify(next) !== shown) step(next);
                   refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
                   if (isStrategyId(id())) applyStrategyMarkers();
                 }}
