@@ -37,7 +37,7 @@ import type { DrawingStore } from "../drawings/drawing-store";
 
 export function createChartEdits(
   t: Pick<AppTabs, "tabOf" | "patchTab" | "activeTab" | "activePaneState" | "patchActivePane">,
-  undo: Pick<UndoHistory, "commit" | "undoStack" | "redoStack">,
+  undo: Pick<UndoHistory, "commit" | "record" | "undoStack" | "redoStack">,
   d: Pick<DrawingStore, "drawingKeyFor" | "drawingsFor" | "splitView" | "restoreSlice">,
 ) {
   const { tabOf, patchTab, activeTab, activePaneState, patchActivePane } = t;
@@ -182,6 +182,19 @@ export function createChartEdits(
       // A new study goes behind the other sources (no place kept from an
       // earlier, removed instance of the same id).
       ...(pane.sourceOrder?.includes(id) ? { sourceOrder: pane.sourceOrder.filter((x) => x !== id) } : {}),
+    });
+    // One undo step, "insert <name>" (the reference app): undo takes it off, redo puts it back.
+    undo.record({
+      kind: "study",
+      added: true,
+      tabId: tab.id,
+      paneIndex: tab.activePane,
+      ids: [id],
+      positions: [pane.indicators.length],
+      settings: seed ? { [id]: seed } : {},
+      slices: [],
+      label: `insert ${entry?.name ?? typeId}`,
+      at: Date.now(),
     });
   }
   /** OakScript panel: add the script to the chart, or take every instance of
@@ -446,7 +459,7 @@ export function createChartEdits(
       return;
     }
     if (e.kind === "study") {
-      setPaneStudies(e, side === "before");
+      setPaneStudies(e, e.added ? side === "after" : side === "before");
       for (const sl of e.slices) d.restoreSlice(sl.key, sl[side]);
       return;
     }

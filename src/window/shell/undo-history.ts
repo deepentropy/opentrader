@@ -32,9 +32,12 @@ export type DrawingUndoEntry = {
 };
 /** Studies removed from a chart, with the drawings they owned (removed with
  *  them): one undo step brings both back, settings included. Only these
- *  studies are put back / removed again (a study added since is kept). */
+ *  studies are put back / removed again (a study added since is kept).
+ *  `added`: a study added to the chart (the reference app's "insert …"): undo
+ *  takes it off, redo puts it back with its settings. */
 export type StudyUndoEntry = {
   kind: "study";
+  added?: true;
   tabId: string;
   paneIndex: number;
   /** Removed study ids and their index in the list before the removal. */
