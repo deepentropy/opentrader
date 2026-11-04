@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FieldInfo } from "../../bindings";
-import { agentFields, clauseOf } from "../screener-tools";
+import { agentFields, clauseOf, columnOfField, pillOf, screenOf } from "../screener-tools";
 
 const fi = (id: string, kind = "number", available = true): FieldInfo => ({ id, kind, source: "live", available });
 
@@ -31,5 +31,48 @@ describe("clauseOf", () => {
     expect(() => clauseOf({ field: "close", op: "~", value: 1 }, known)).toThrow(/op must be/);
     expect(() => clauseOf({ field: "close", op: "between", value: 3 }, known)).toThrow(/low, high/);
     expect(() => clauseOf({ field: "close", op: ">", value: { field: "nope" } }, known)).toThrow(/Unknown field/);
+  });
+});
+
+describe("saved screens from run_screen filters", () => {
+  it("finds the column of a field, with its params", () => {
+    expect(columnOfField("close")).toEqual({ id: "Price", params: {} });
+    expect(columnOfField("EMA50")).toEqual({ id: "Ema", params: { length: "50", resolution: "TimeResolution1D" } });
+    // A custom length is a column too.
+    expect(columnOfField("EMA137")).toEqual({ id: "Ema", params: { length: "137", resolution: "TimeResolution1D" } });
+    expect(columnOfField("nope")).toBeNull();
+  });
+  it("writes the filters as the screener's pills", () => {
+    expect(pillOf({ field: "close", op: ">", value: 10 })).toMatchObject({ type: "Condition", left: { id: "Price" }, operation: "above", right: { value: 10 } });
+    // At least: an open range, as the presets write it.
+    expect(pillOf({ field: "market_cap_basic", op: ">=", value: 1e10 })).toMatchObject({ operation: "between", right: { left: 1e10, right: null } });
+    expect(pillOf({ field: "change", op: "between", value: [5, -5] })).toMatchObject({ operation: "between", right: { left: -5, right: 5 } });
+    expect(pillOf({ field: "close", op: ">", value: { field: "EMA200" } })).toMatchObject({
+      operation: "above",
+      target: "Ema",
+      right: { column: { id: "Ema", params: { length: "200" } } },
+    });
+    expect(pillOf({ field: "sector", op: "in", value: ["Finance"] })).toMatchObject({ type: "CheckboxGroup", left: { id: "Sector" }, values: ["Finance"] });
+  });
+  it("refuses what a saved screen cannot hold", () => {
+    expect(() => pillOf({ field: "exchange", op: "in", value: ["NASDAQ"] })).toThrow(/cannot be a filter/);
+    expect(() => pillOf({ field: "close", op: "!=", value: 1 })).toThrow(/op is one of/);
+    expect(() => pillOf({ field: "sector", op: ">", value: 1 })).toThrow(/"in"/);
+  });
+  it("puts the filters on the default pills, then the scope, columns and sort", () => {
+    const s = screenOf(
+      { filters: [{ field: "close", op: ">", value: 5 }, { field: "RSI", op: "<", value: 30 }], scope: { index: "ndx" }, columns: ["close", "RSI"], sort: { field: "RSI", order: "asc" } },
+      "Oversold NDX",
+      null,
+    );
+    expect(s.title).toBe("Oversold NDX");
+    const price = s.filters.filter((f) => f.left.id === "Price");
+    expect(price).toHaveLength(1);
+    expect(price[0]).toMatchObject({ operation: "above", right: { value: 5 } });
+    expect(s.filters.find((f) => f.left.id === "Index")).toMatchObject({ values: ["NDX"] });
+    expect(s.filters.some((f) => f.left.id === "RelativeStrengthIndex")).toBe(true);
+    expect(s.activeColumnSetId).toBe("custom");
+    expect(s.customColumns?.map((c) => c.id)).toEqual(["Price", "RelativeStrengthIndex"]);
+    expect(s.sort).toMatchObject({ sortBy: { id: "RelativeStrengthIndex" }, sortOrder: "asc" });
   });
 });

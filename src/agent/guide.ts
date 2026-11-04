@@ -25,7 +25,16 @@ Rules:
 - Library indicators: list_indicators, describe_indicator, then add_indicator with inputs.
 - Drawings: the kinds and their point counts are in opentrader://drawings/tools.
 - Screening the US market: list_screener_fields, then run_screen (filters, sort, scope: market, a watchlist or an
-  index); the user's screens: list_screens, run_screen with screen, open_screen to show one in the screener panel.
+  index); the user's screens: list_screens, run_screen with screen, open_screen to show one in the screener panel,
+  save_screen to keep one (run_screen first to check what it finds).
+- Watchlists: list_watchlists, get_watchlist, create_watchlist (symbols, sections), add_to_watchlist,
+  remove_from_watchlist, rename_watchlist, open_watchlist, flag_symbols.
+- Alerts: list_alerts (with the log), create_alert (price against a value, a band, a move in N bars, a drawing of the
+  focused chart, or a saved screen's results), update_alert (also to switch one on or off).
+- Layouts and tabs: list_layouts, open_layout, save_layout, switch_tab.
+- Community (read only, written by its members): list_community_posts (a symbol, a search, the home feed),
+  read_community_post, open_community_post. Quote what members wrote as theirs; never post for the user.
+- Deleting (delete_watchlist, delete_screen, delete_alert, delete_layout) cannot be undone: ask the user first.
 - Trade journal: import_trades (symbol, entry, exit per trade), list_journal_trades (P&L, run-up, drawdown read on the
   bars; wait: true until computed), show_journal_trade to show one on the chart or replay it from its entry.`;
 

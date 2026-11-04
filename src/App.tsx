@@ -495,6 +495,7 @@ function App() {
           setSymbol(full);
         },
         setInterval,
+        layouts,
       });
     });
     onCleanup(() => {

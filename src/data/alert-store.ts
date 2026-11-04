@@ -298,7 +298,12 @@ function load(): StoreShape {
       if (Array.isArray(parsed)) {
         const current = <T extends { left: Operand; right: Operand; right2?: Operand }>(c: T): T =>
           ({ ...c, left: currentOperand(c.left), right: currentOperand(c.right), ...(c.right2 ? { right2: currentOperand(c.right2) } : {}) });
-        rules = parsed.filter(isRule).map((r: AlertRule) => ({ ...current(r), ...(Array.isArray(r.and) && r.and.length ? { and: r.and.map(current) } : {}) }));
+        rules = parsed.filter(isRule).map((r: AlertRule) => ({
+          ...current(r),
+          ...(Array.isArray(r.and) && r.and.length ? { and: r.and.map(current) } : {}),
+          // Screen alerts the migration below gave an exchange with no ticker ("NASDAQ:") get their empty symbol back.
+          ...(isScreenRule(r) && r.symbol.endsWith(":") ? { symbol: "" } : {}),
+        }));
       }
     }
   } catch {
@@ -320,9 +325,9 @@ const [state, setState] = createStore<StoreShape>(load());
 
 // Rules saved with a bare ticker get their primary listing once (the live
 // events and the chart state are keyed by the full name); the drawings an
-// operand points at move with them.
+// operand points at move with them. A screen alert has no symbol: it stays empty.
 void (async () => {
-  const bare = [...new Set(state.rules.map((r) => r.symbol).filter((s) => !isFullSymbol(s)))];
+  const bare = [...new Set(state.rules.map((r) => r.symbol).filter((s) => s !== "" && !isFullSymbol(s)))];
   for (const b of bare) {
     try {
       const full = await toFullSymbol(b);

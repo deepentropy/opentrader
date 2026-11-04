@@ -287,6 +287,7 @@ export function createSavedLayouts(t: Pick<AppTabs, "tabs" | "setTabs" | "active
     pendingOpenId,
     deleteSavedLayout,
     saveActiveLayout,
+    saveActiveLayoutAs,
     requestOpenLayout,
     resolvePendingOpen,
     submitLayoutName,

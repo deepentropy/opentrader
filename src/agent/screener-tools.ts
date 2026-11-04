@@ -4,7 +4,25 @@
  * (the whole market every 10 s); the tools keep it loading while an agent uses them and for two minutes after.
  */
 import type { Clause, FieldInfo, Operand, ScanRow } from "../bindings";
-import { COLUMNS, INDEXES, POPULAR_SCREENS } from "../data/screener-catalog";
+import {
+  COLUMN_BY_ID,
+  COLUMN_SETS,
+  COLUMNS,
+  CUSTOM_SET_ID,
+  INDEXES,
+  POPULAR_SCREENS,
+  TICKER_COLUMN,
+  fullParams,
+  newFilterId,
+  newScreen,
+  optionOf,
+  sameColumn,
+  type ColumnRef,
+  type ConditionFilter,
+  type Filter,
+  type Operation,
+  type Screen,
+} from "../data/screener-catalog";
 import { planScreen, PRIMARY_UNIVERSE_CLAUSE } from "../data/screener-query";
 import { onScreenerUpdate, screenerClose, screenerFields, screenerOpen, screenerScan } from "../data/screener-api";
 import { screenerPanel, screenerStore } from "../data/screener-store";
@@ -107,6 +125,117 @@ export function clauseOf(f: unknown, known: (field: string) => boolean): Clause 
     throw new AgentError(`Filter value of "${x.field}": a number, a text, or {"field": "<id>"} to compare with another field.`);
   }
   return { left: x.field, operation: op, right };
+}
+
+/** The screener column (with its params) that gives a backend field, or null. */
+export function columnOfField(field: string): ColumnRef | null {
+  for (const c of COLUMNS) {
+    if (c.field === field) return { id: c.id, params: {} };
+    for (const p of c.params ?? []) {
+      const custom = p.custom && field.startsWith(p.custom.prefix) ? field.slice(p.custom.prefix.length) : null;
+      const o = p.options.find((x) => x.field === field) ?? (custom && optionOf(p, custom)?.field === field ? optionOf(p, custom) : undefined);
+      if (o) return { id: c.id, params: { ...fullParams(c, {}), [p.key]: o.value } };
+    }
+  }
+  return null;
+}
+
+const refOf = (field: unknown, what: string): ColumnRef => {
+  const ref = typeof field === "string" ? columnOfField(field) : null;
+  if (!ref) throw new AgentError(`${what}: "${String(field)}" is not a screener column. See list_screener_fields.`);
+  return ref;
+};
+
+/** A run_screen filter as a pill of a saved screen (the screener's own filter model). */
+export function pillOf(f: unknown): Filter {
+  const x = (f ?? {}) as { field?: unknown; op?: unknown; value?: unknown };
+  const left = refOf(x.field, "Filter field");
+  const def = COLUMN_BY_ID[left.id];
+  const cfg = def.filter;
+  if (!cfg) throw new AgentError(`"${def.title}" cannot be a filter of a saved screen (run_screen can still filter on it).`);
+  const id = newFilterId();
+  const v = x.value;
+  if (cfg.type === "CheckboxGroup") {
+    if (x.op !== "in" && x.op !== "=") throw new AgentError(`"${def.title}" takes op "in" with a list of values.`);
+    const values = Array.isArray(v) ? v : [v];
+    if (!values.length || !values.every((s) => typeof s === "string")) throw new AgentError(`"${def.title}": value is a list of texts.`);
+    return { id, type: "CheckboxGroup", left, values: values as string[] };
+  }
+  const num = (n: unknown) => {
+    if (typeof n !== "number" || !Number.isFinite(n)) throw new AgentError(`Filter "${def.title}": the value must be a number.`);
+    return n;
+  };
+  const cond = (operation: ConditionFilter["operation"], right: ConditionFilter["right"], target = "value"): Filter => {
+    if (operation !== "between" && !cfg.operations.includes(operation as Operation)) {
+      throw new AgentError(`"${def.title}" in a saved screen takes ${cfg.operations.join(", ")} (>, <, between, outside, =).`);
+    }
+    return { id, type: "Condition", left, operation, target, right };
+  };
+  // Another column on the right ("close > EMA200"): one of the targets the screener offers for this column.
+  if (v && typeof v === "object" && !Array.isArray(v) && typeof (v as { field?: unknown }).field === "string") {
+    const column = refOf((v as { field: string }).field, "Filter value");
+    if (!cfg.targets.flat().includes(column.id)) {
+      throw new AgentError(`"${def.title}" can be compared in a saved screen with: ${cfg.targets.flat().filter((t) => t !== "value").join(", ") || "values only"}.`);
+    }
+    const op = x.op === ">" ? "above" : x.op === "<" ? "below" : null;
+    if (!op) throw new AgentError('A comparison with another column takes op ">" or "<".');
+    return cond(op, { column }, column.id);
+  }
+  switch (x.op) {
+    case ">":
+      return cond("above", { value: num(v) });
+    case "<":
+      return cond("below", { value: num(v) });
+    // At least / at most: an open range, as the screener's presets write them.
+    case ">=":
+      return cond("between", { left: num(v), right: null });
+    case "<=":
+      return cond("between", { left: null, right: num(v) });
+    case "=":
+      return cond("equal", { value: num(v) });
+    case "between":
+    case "outside": {
+      if (!Array.isArray(v) || v.length !== 2) throw new AgentError(`"${x.op}" takes value [low, high].`);
+      const [a, b] = [num(v[0]), num(v[1])];
+      return cond(x.op, { left: Math.min(a, b), right: Math.max(a, b) });
+    }
+    default:
+      throw new AgentError(`A saved screen's filter op is one of >, >=, <, <=, =, between, outside, in.`);
+  }
+}
+
+/** A saved screen from save_screen's arguments: the default pills, the filters on them (or added after them), the
+ *  columns (a column set, or the given fields as a custom set) and the sort. */
+export function screenOf(args: Record<string, unknown>, title: string, watchlistId: string | null): Screen {
+  const s = newScreen("stock", title);
+  for (const f of Array.isArray(args.filters) ? args.filters : []) {
+    const pill = pillOf(f);
+    const at = s.filters.findIndex((x) => sameColumn(x.left, pill.left));
+    if (at >= 0) s.filters[at] = { ...pill, id: s.filters[at].id };
+    else s.filters.push(pill);
+  }
+  const scope = args.scope as { index?: unknown } | undefined;
+  if (scope && typeof scope === "object" && typeof scope.index === "string") {
+    const code = scope.index.toUpperCase();
+    if (!INDEXES.some(([c]) => c === code)) throw new AgentError(`Index codes: ${INDEXES.map(([c]) => c).join(", ")}.`);
+    const at = s.filters.findIndex((x) => x.left.id === "Index");
+    const pill: Filter = { id: at >= 0 ? s.filters[at].id : newFilterId(), type: "CheckboxGroup", left: { id: "Index", params: {} }, values: [code] };
+    if (at >= 0) s.filters[at] = pill;
+    else s.filters.unshift(pill);
+  }
+  s.watchlistId = watchlistId;
+  if (typeof args.columnSet === "string") {
+    if (!COLUMN_SETS.some((c) => c.id === args.columnSet)) throw new AgentError(`columnSet: ${COLUMN_SETS.map((c) => c.id).join(", ")}.`);
+    s.activeColumnSetId = args.columnSet;
+  } else if (Array.isArray(args.columns) && args.columns.length) {
+    s.customColumns = args.columns.map((c) => refOf(c, "Column"));
+    s.activeColumnSetId = CUSTOM_SET_ID;
+  }
+  const sort = args.sort as { field?: unknown; order?: unknown } | undefined;
+  if (sort && typeof sort.field === "string") {
+    s.sort = { sortBy: sort.field === "name" ? TICKER_COLUMN : refOf(sort.field, "Sort field"), sortOrder: sort.order === "asc" ? "asc" : "desc" };
+  }
+  return s;
 }
 
 /** Rows of a scan as {symbol, name, <field>: value}. */
@@ -236,6 +365,66 @@ export function createScreenerTools(): AgentTool[] {
         }
         screenerPanel.setOpen(true);
         return { opened: saved?.screen.title ?? popular?.title ?? script!.name, kind: saved || popular ? "stock" : "script" };
+      },
+    },
+    {
+      name: "save_screen",
+      title: "Save a screen",
+      description:
+        'Save a stock screen under a name and show it in the screener panel. filters as in run_screen (op ">", ">=", "<", "<=", "=", "between", "outside", or "in" for Sector, Industry, Index); scope: {"watchlist": "<name>"} or {"index": "SPX"}; columns: fields to show, or columnSet: overview, performance, valuation, dividends, profitability, incomeStatement, balanceSheet, cashFlow, perShare, technicals, extendedHours. A screen of that name is replaced only with replace: true. Returns how many symbols it finds.',
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          filters: { type: "array", items: { type: "object" } },
+          columns: { type: "array", items: { type: "string" } },
+          columnSet: { type: "string" },
+          sort: { type: "object", properties: { field: { type: "string" }, order: { type: "string", enum: ["asc", "desc"] } } },
+          scope: {},
+          replace: { type: "boolean" },
+        },
+        required: ["name"],
+      },
+      run: async (args) => {
+        const name = typeof args.name === "string" ? args.name.trim() : "";
+        if (!name) throw new AgentError('"name" is required.');
+        const scope = args.scope as { watchlist?: unknown } | undefined;
+        let watchlistId: string | null = null;
+        if (scope && typeof scope === "object" && typeof scope.watchlist === "string") {
+          const l = watchlistStore.lists().find((x) => x.name.toLowerCase() === (scope.watchlist as string).toLowerCase());
+          if (!l) throw new AgentError(`No watchlist named "${scope.watchlist}".`);
+          watchlistId = l.id;
+        }
+        const screen = screenOf(args, name, watchlistId);
+        const same = screenerStore.savedScreens().find((s) => s.screen.title.toLowerCase() === name.toLowerCase());
+        if (same && args.replace !== true) throw new AgentError(`A screen is already named "${same.screen.title}": pass replace: true to replace it, or another name.`);
+        // As the screener does it: open the saved screen, change it (one undo step), save.
+        if (same) screenerStore.open(same.id);
+        else screenerStore.createNew(name);
+        screenerStore.update(() => screen);
+        screenerStore.save();
+        scriptScreenStore.setKind("stock");
+        screenerPanel.setOpen(true);
+        await useTable();
+        const cat = await fields();
+        const known = new Set(cat.filter((f) => f.available).map((f) => f.id));
+        const plan = planScreen(screen, (f) => known.has(f), await scopeTickers(watchlistId ? { watchlist: scope!.watchlist } : null));
+        const res = await screenerScan({ columns: plan.fields, filter: plan.filter, sort: plan.sort, range: [0, 10], tickers: plan.tickers });
+        return { saved: name, replaced: !!same, total: res.totalCount, first: res.rows.map((r) => r.s) };
+      },
+    },
+    {
+      name: "delete_screen",
+      title: "Delete a screen",
+      description: "Delete one of the user's saved stock screens. Ask the user first: it cannot be undone.",
+      inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+      annotations: { destructiveHint: true },
+      run: async (args) => {
+        const name = typeof args.name === "string" ? args.name.trim().toLowerCase() : "";
+        const saved = screenerStore.savedScreens().find((s) => s.screen.title.toLowerCase() === name);
+        if (!saved) throw new AgentError(`No saved screen named "${args.name}": see list_screens.`);
+        screenerStore.remove(saved.id);
+        return { deleted: saved.screen.title };
       },
     },
   ];

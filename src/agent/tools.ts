@@ -38,14 +38,19 @@ import { AgentError, type AgentTool } from "./mcp";
 import { locateSyntaxError } from "./syntax";
 import { createScreenerTools } from "./screener-tools";
 import { createJournalTools } from "./journal-tools";
+import { createWatchlistTools } from "./watchlist-tools";
+import { createAlertTools } from "./alert-tools";
+import { createCommunityTools } from "./community-tools";
+import { createLayoutTools, type LayoutHost } from "./layout-tools";
 
 /** What App hands the tools. */
 export type AgentHost = {
-  tabs: Pick<AppTabs, "activeTab" | "activePaneState">;
+  tabs: Pick<AppTabs, "activeTab" | "activePaneState" | "tabs" | "activateTab">;
   edits: Pick<ReturnType<typeof createChartEdits>, "addIndicator" | "removeIndicatorFromPane" | "setIndicatorSettingsForPane">;
   drawings: Pick<DrawingStore, "drawingKeyFor" | "drawingsFor" | "addDrawingToSymbol" | "updateDrawingForSymbol" | "removeDrawingForSymbol">;
   setSymbol: (symbol: string) => void;
   setInterval: (interval: string) => void;
+  layouts: LayoutHost["layouts"];
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -647,6 +652,14 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     ...createScreenerTools(),
     // ── Trade journal ──────────────────────────────────────────────────
     ...createJournalTools(),
+    // ── Watchlists ─────────────────────────────────────────────────────
+    ...createWatchlistTools(),
+    // ── Alerts ─────────────────────────────────────────────────────────
+    ...createAlertTools(() => ({ symbol: pane().symbol, interval: pane().interval, session: pane().session, drawings: () => host.drawings.drawingsFor(drawingKey()) })),
+    // ── Layouts and tabs ───────────────────────────────────────────────
+    ...createLayoutTools({ tabs: host.tabs, layouts: host.layouts }),
+    // ── Community (read only) ──────────────────────────────────────────
+    ...createCommunityTools(),
   ];
   return tools;
 }
