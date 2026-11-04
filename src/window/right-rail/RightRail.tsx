@@ -44,6 +44,8 @@ type Props = {
   cloneDrawing: (id: string) => void;
   /** Rail buttons shown pressed without owning the panel (screener). */
   pressedTab?: (id: string) => boolean;
+  /** Buttons whose panel is collapsed (see RightRailTabs). */
+  collapsedTab?: (id: string) => boolean;
 };
 
 const WIDTH_KEY = "ot:rail:width";
@@ -233,7 +235,7 @@ export function RightRail(props: Props) {
           </Match>
         </Switch>
       </Show>
-      <RightRailTabs active={props.activeTab} setActive={props.setActiveTab} pressed={props.pressedTab} />
+      <RightRailTabs active={props.activeTab} setActive={props.setActiveTab} pressed={props.pressedTab} collapsed={props.collapsedTab} />
       <Show when={COMMUNITY_ENABLED}>
         <CommunityNotifier openPanel={() => props.activeTab !== "community" && props.setActiveTab("community")} />
       </Show>

@@ -30,6 +30,8 @@ type Props = {
   /** Buttons shown pressed without being the active panel tab (the
    *  screener split view while it is open). */
   pressed?: (id: string) => boolean;
+  /** Buttons whose panel was collapsed (its "Collapse panel"): a dot at their left edge. */
+  collapsed?: (id: string) => boolean;
 };
 
 type Drag = { id: string; x: number; y: number; group: RailGroup; index: number };
@@ -128,6 +130,7 @@ export function RightRailTabs(props: Props) {
           aria-label={t.label}
           aria-pressed={isActive()}
           class={"ot-toolbar-button right-rail-tab" + (isActive() ? " active" : "")}
+          classList={{ "is-collapsed": !!props.collapsed?.(t.id) }}
           onPointerDown={(e) => onPointerDown(e, t.id)}
           onClick={() => select(t.id)}
         >

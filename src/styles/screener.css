@@ -18,6 +18,17 @@
 .scr-split.is-fullscreen {
   flex: 1 1 auto;
 }
+/* Overlay: over the header toolbar, the charts and the rail at the window's right edge, under the tab strip
+   (the reference app's drawer and its shadow); its width set inline. */
+.scr-split.is-overlay {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  height: auto;
+  box-shadow: 0 4px 16px 0 #303030, 0 0 2px 0 #303030;
+}
 /* Bottom panel: full width under the charts, its height set inline. */
 .scr-split.is-bottom {
   flex-direction: column;
@@ -74,6 +85,13 @@
 .scr-panel-buttons {
   display: flex;
   gap: 8px;
+}
+/* The split / overlay button, 4 px, then the title (the reference app). */
+.scr-panel-title-block {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
 .scr-body {
   flex: 1 1 auto;

@@ -16,6 +16,10 @@
  * as CSV", "Save results as watchlist", its saved screens (Save screen,
  * Save screen as…, open or delete one) and "About Script Screener".
  *
+ * Header (the reference app): "Move split-view to overlay" before the title (the right panel then floats over
+ * the charts with its own width, the mode kept for the next opening; "Move overlay to split-view" brings it back),
+ * Collapse panel (closes it; the rail button keeps a dot), Fullscreen mode (split view only), Close.
+ *
  * Placement (title menu, beyond the reference app which has the right panel
  * only): the right split view, the bottom panel under the charts (a 4 px seam
  * at its top edge, height persisted) or its own window (`dock` "window": the
@@ -326,18 +330,24 @@ export function ScreenerPanel(props: Props) {
     window.addEventListener("mouseup", onUp);
   };
 
-  // Resizer: drag the 4 px strip; the panel grows to the left.
+  // The right panel over the charts (the header's "Move split-view to overlay") instead of beside them.
+  const overlay = () => dock() === "right" && screenerPanel.mode() === "overlay";
+  /** The overlay's width: the one dragged last, else half the window (the reference app). */
+  const overlayWidth = () => screenerPanel.overlayWidth() ?? Math.max(PANEL_MIN_WIDTH, Math.round(document.documentElement.clientWidth / 2));
+  // Resizer: drag the 4 px strip; the panel grows to the left. The split view and the overlay keep their own widths.
   const beginResize = (e: MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
-    const startW = screenerPanel.width();
-    const maxW = () => Math.max(PANEL_MIN_WIDTH, document.documentElement.clientWidth - 360);
-    const onMove = (ev: MouseEvent) => screenerPanel.setWidth(Math.min(maxW(), startW + (startX - ev.clientX)));
+    const over = overlay();
+    const startW = over ? overlayWidth() : screenerPanel.width();
+    const set = (px: number, commit = false) => (over ? screenerPanel.setOverlayWidth(px, commit) : screenerPanel.setWidth(px, commit));
+    const maxW = () => Math.max(PANEL_MIN_WIDTH, document.documentElement.clientWidth - (over ? 100 : 360));
+    const onMove = (ev: MouseEvent) => set(Math.min(maxW(), startW + (startX - ev.clientX)));
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       document.body.style.cursor = "";
-      screenerPanel.setWidth(screenerPanel.width(), true);
+      set(over ? overlayWidth() : screenerPanel.width(), true);
     };
     document.body.style.cursor = "ew-resize";
     window.addEventListener("mousemove", onMove);
@@ -399,13 +409,20 @@ export function ScreenerPanel(props: Props) {
   return (
     <div
       class="scr-split"
-      classList={{ "is-fullscreen": dock() === "right" && screenerPanel.fullscreen(), "is-bottom": dock() === "bottom", "is-window": dock() === "window" }}
+      classList={{
+        "is-fullscreen": dock() === "right" && screenerPanel.fullscreen(),
+        "is-overlay": overlay(),
+        "is-bottom": dock() === "bottom",
+        "is-window": dock() === "window",
+      }}
       style={
         dock() === "bottom"
           ? { height: `${screenerPanel.height()}px` }
-          : dock() === "right" && !screenerPanel.fullscreen()
-            ? { width: `${screenerPanel.width()}px` }
-            : undefined
+          : overlay()
+            ? { width: `${overlayWidth()}px` }
+            : dock() === "right" && !screenerPanel.fullscreen()
+              ? { width: `${screenerPanel.width()}px` }
+              : undefined
       }
     >
       <Show when={dock() === "right" && !screenerPanel.fullscreen()}>
@@ -422,6 +439,21 @@ export function ScreenerPanel(props: Props) {
         }}
       >
         <header class="scr-panel-header" data-tauri-drag-region={dock() === "window" ? "" : undefined}>
+          <div class="scr-panel-title-block">
+          <Show when={dock() === "right"}>
+            {/* Disabled while the panel has the whole window (the reference app). */}
+            <button
+              type="button"
+              class="scr-light-btn scr-light-btn--ghost is-icon-only"
+              title={screenerPanel.fullscreen() ? undefined : overlay() ? "Move overlay to split-view" : "Move split-view to overlay"}
+              aria-label={screenerPanel.fullscreen() ? undefined : overlay() ? "Move overlay to split-view" : "Move split-view to overlay"}
+              data-qa-id="split-view-button"
+              disabled={screenerPanel.fullscreen()}
+              onClick={() => screenerPanel.setMode(overlay() ? "split" : "overlay")}
+            >
+              <Icon name={overlay() ? "scr-overlay-to-split" : "scr-split-to-overlay"} size={28} />
+            </button>
+          </Show>
           <button
             ref={titleBtn}
             type="button"
@@ -433,8 +465,20 @@ export function ScreenerPanel(props: Props) {
             {script() ? "Script Screener" : screenerStore.type() === "etf" ? "ETF Screener" : "Stock Screener"}
             <span class="scr-screen-caret" classList={{ "is-open": titleOpen() }}><Icon name="scr-caret" size={18} /></span>
           </button>
+          </div>
           <div class="scr-panel-buttons">
-            <Show when={dock() === "right"}>
+            <Show when={dock() !== "window"}>
+              <button
+                type="button"
+                class="scr-light-btn scr-light-btn--ghost is-icon-only"
+                title="Collapse panel"
+                aria-label="Collapse panel"
+                onClick={() => screenerPanel.collapse()}
+              >
+                <Icon name="st-footer-collapse-panel" size={28} />
+              </button>
+            </Show>
+            <Show when={dock() === "right" && !overlay()}>
             <button
               type="button"
               class="scr-light-btn scr-light-btn--ghost is-icon-only"

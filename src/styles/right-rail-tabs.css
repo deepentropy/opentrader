@@ -31,6 +31,20 @@
   --ot-tb-pill-inset: 3px;
   --ot-tb-pill-radius: 8px;
 }
+/* A collapsed panel's button: a 4 px dot at its left edge (the reference app). */
+.right-rail-tab.is-collapsed {
+  position: relative;
+}
+.right-rail-tab.is-collapsed::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 2px);
+  left: 1px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--color-container-fill-secondary-neutral);
+}
 .right-rail-tabs-group > * + * {
   margin-top: 2px;
 }

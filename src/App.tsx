@@ -689,7 +689,7 @@ function App() {
       {/* Main layout (header toolbar + chart area) | screener split view.
           The split view takes its width from the right; in its fullscreen
           mode the main layout is hidden (kept mounted). */}
-      <div class="flex flex-1 flex-row" style={{ "min-height": 0, "min-width": 0 }}>
+      <div class="flex flex-1 flex-row" style={{ "min-height": 0, "min-width": 0, position: "relative" }}>
       <div
         class="flex flex-1 flex-col"
         style={{
@@ -957,6 +957,7 @@ function App() {
           moveDrawing={moveDrawingToDisplayIndex}
           cloneDrawing={cloneDrawing}
           pressedTab={(id) => (id === "screener-dialog-button" && screenerPanel.open()) || (id === "trade-journal-button" && tradeJournal.open())}
+          collapsedTab={(id) => id === "screener-dialog-button" && screenerPanel.collapsed()}
         />
       </div>
       </div>

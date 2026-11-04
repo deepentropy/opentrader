@@ -299,6 +299,12 @@ export const PANEL_MIN_HEIGHT = 240;
 export const PANEL_DEFAULT_HEIGHT = 380;
 const PLACEMENT_KEY = "ot:screener:placement";
 const HEIGHT_KEY = "ot:screener:height";
+const MODE_KEY = "ot:screener:mode";
+const OVERLAY_WIDTH_KEY = "ot:screener:overlay-width";
+
+/** The right panel: a split view the charts shrink for, or an overlay over them (the reference app's
+ *  "Move split-view to overlay", kept for the next opening). */
+export type ScreenerMode = "split" | "overlay";
 
 /** Where the screener shows: the right split view (the reference app's only place, the default), the bottom panel
  *  under the charts, or its own window (desktop). */
@@ -313,7 +319,15 @@ const panel = createRoot(() => {
   const [placement, setPlacement] = createSignal<ScreenerPlacement>(stored === "bottom" || stored === "window" ? stored : "right");
   const h = Number(kv.getItem(HEIGHT_KEY));
   const [height, setHeight] = createSignal(Number.isFinite(h) && h >= PANEL_MIN_HEIGHT ? h : PANEL_DEFAULT_HEIGHT);
-  return { open, setOpen, width, setWidth, fullscreen, setFullscreen, placement, setPlacement, height, setHeight };
+  const [mode, setMode] = createSignal<ScreenerMode>(kv.getItem(MODE_KEY) === "overlay" ? "overlay" : "split");
+  // The overlay's width; none saved = half the window (the reference app).
+  const ow = Number(kv.getItem(OVERLAY_WIDTH_KEY));
+  const [overlayWidth, setOverlayWidth] = createSignal<number | null>(Number.isFinite(ow) && ow >= PANEL_MIN_WIDTH ? ow : null);
+  const [collapsed, setCollapsed] = createSignal(false);
+  return {
+    open, setOpen, width, setWidth, fullscreen, setFullscreen, placement, setPlacement, height, setHeight,
+    mode, setMode, overlayWidth, setOverlayWidth, collapsed, setCollapsed,
+  };
 });
 
 // Another window (the screener's own) moved the screener: follow. Whether it shows belongs to each window's tab.
@@ -325,8 +339,27 @@ export const screenerPanel = {
   fullscreen: panel.fullscreen,
   setOpen(v: boolean): void {
     panel.setOpen(v);
+    panel.setCollapsed(false);
     if (!v) panel.setFullscreen(false);
     kv.setItem(OPEN_KEY, v ? "1" : "0");
+  },
+  /** Collapse panel: the panel closes and the rail button keeps a dot until it opens or closes again. */
+  collapse(): void {
+    screenerPanel.setOpen(false);
+    panel.setCollapsed(true);
+  },
+  collapsed: panel.collapsed,
+  mode: panel.mode,
+  setMode(m: ScreenerMode): void {
+    panel.setMode(m);
+    panel.setFullscreen(false);
+    kv.setItem(MODE_KEY, m);
+  },
+  overlayWidth: panel.overlayWidth,
+  /** Live overlay width while dragging; `commit` persists it. */
+  setOverlayWidth(px: number, commit = false): void {
+    panel.setOverlayWidth(Math.max(PANEL_MIN_WIDTH, Math.round(px)));
+    if (commit) kv.setItem(OVERLAY_WIDTH_KEY, String(panel.overlayWidth()));
   },
   toggle(): void {
     screenerPanel.setOpen(!panel.open());
