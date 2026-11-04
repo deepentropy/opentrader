@@ -7,7 +7,8 @@
  *   Charts / Heatmap tools, Refresh with its countdown badge, Maximize: the
  *   pills and the control panel fold into the topbar row) and; in a narrow
  *   panel, a "Filters" button (./ScreenerFiltersDialog) in place of the pills
- *   (see `narrow` / `roomy`) and
+ *   (see `narrow` / `roomy`); in a wide one (958 px), the column sets and the
+ *   Charts date range as tabs (./SquareTabs) and
  *   the results as a table, charts (./ScreenerCharts) or a heatmap
  *   (./ScreenerHeatmap); the view type is kept in the screen.
  * The main layout (header toolbar, drawing toolbar, charts, rail) shrinks to
@@ -66,6 +67,7 @@ import { refreshMs, screenerSettings } from "../../data/screener-settings";
 import type { ScreenerType, ViewMode } from "../../data/screener-catalog";
 import { ScreenerTopbar } from "./ScreenerTopbar";
 import { ScreenerFiltersDialog } from "./ScreenerFiltersDialog";
+import { SquareTabs, type SquareTab } from "./SquareTabs";
 import { createScanController } from "./scan-controller";
 import { ScriptScreener } from "./ScriptScreener";
 import { scriptScreenStore } from "../../data/script-screen-store";
@@ -373,6 +375,8 @@ export function ScreenerPanel(props: Props) {
     onCleanup(() => ro.disconnect());
   });
   const narrow = () => panelWidth() - 20 < 702;
+  // From 958 px, and not maximized: the column sets and the Charts date range as tabs (#237).
+  const tabsView = () => panelWidth() - 20 >= 958 && !maximized();
   const roomy = () => panelWidth() - 20 >= 548;
   const [filtersOpen, setFiltersOpen] = createSignal(false);
   createEffect(() => {
@@ -403,16 +407,29 @@ export function ScreenerPanel(props: Props) {
   });
   // The badge on Minimize: each active filter, the market (always set), the watchlist (the reference app's count).
   const filterCount = () => screen().filters.filter(isActive).length + 1 + (screen().watchlistId ? 1 : 0);
+  /** The column sets offered as tabs: the custom one first when the screen has it. */
+  const setTabs = (): SquareTab[] => [
+    ...(screen().customColumns ? [{ id: CUSTOM_SET_ID, label: CUSTOM_SET_TITLE }] : []),
+    ...offeredSets().map((s) => ({ id: s.id, label: s.title })),
+  ];
   /** The view's tools: Column sets for the table, the Charts or Heatmap buttons. */
   const viewTools = () => (
     <>
       <Show when={view() === "chart"}>
-        <ChartsToolbar />
+        <ChartsToolbar tabs={tabsView()} />
       </Show>
       <Show when={view() === "heatmap"}>
         <HeatmapToolbar has={has} />
       </Show>
-      <Show when={view() === "table"}>
+      <Show when={view() === "table" && tabsView()}>
+        <SquareTabs
+          items={setTabs()}
+          active={screen().activeColumnSetId}
+          label="Column sets"
+          onPick={(id) => screenerStore.update((s) => ({ ...s, activeColumnSetId: id }))}
+        />
+      </Show>
+      <Show when={view() === "table" && !tabsView()}>
         <button
           ref={setsBtn}
           type="button"

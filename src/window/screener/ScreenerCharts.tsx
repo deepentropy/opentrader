@@ -31,6 +31,7 @@ import {
 } from "lightweight-charts";
 import { Icon } from "../../components/Icon";
 import { LoadingWheel } from "../../components/LoadingWheel";
+import { SquareTabs } from "./SquareTabs";
 import type { WheelText } from "../../data/screener-progress";
 import { getBars } from "../../data/datafeed";
 import { timezone } from "../../data/chart-timezone";
@@ -363,8 +364,9 @@ export function ScreenerCharts(props: Props) {
   );
 }
 
-/** The Charts view's toolbar buttons (control panel, after the view button). */
-export function ChartsToolbar() {
+/** The Charts view's toolbar buttons (control panel, after the view button). `tabs` (a wide screener): the
+ *  date range as tabs filling the rest of the row (the reference app). */
+export function ChartsToolbar(props: { tabs?: boolean }) {
   const [open, setOpen] = createSignal<"grid" | "type" | "ind" | "range" | null>(null);
   const [hoverCell, setHoverCell] = createSignal<{ cols: number; rows: number } | null>(null);
   const refs: Partial<Record<"grid" | "type" | "ind" | "range", HTMLButtonElement>> = {};
@@ -401,7 +403,16 @@ export function ChartsToolbar() {
       <Btn k="grid" icon="scr-chart-grid" label={gridLabel()} title="Chart grid" />
       <Btn k="type" icon={type().icon} label={type().label} title="Chart type" />
       <Btn k="ind" icon="scr-chart-indicators" label={indCount() === 1 ? "1 indicator" : indCount() ? `${indCount()} indicators` : "Indicators"} title="Indicators" />
-      <Btn k="range" label={st().chartRange} title="Date range" />
+      <Show when={props.tabs} fallback={<Btn k="range" label={st().chartRange} title="Date range" />}>
+        <div class="scr-chart-range-tabs">
+          <SquareTabs
+            items={CHART_RANGES.map((r) => ({ id: r.id, label: r.id }))}
+            active={st().chartRange}
+            label="Date range"
+            onPick={(id) => setScreenerSettings({ chartRange: id as ChartRange })}
+          />
+        </div>
+      </Show>
 
       <Show when={open() === "grid"}>
         <Popover anchor={refs.grid!} onClose={() => setOpen(null)} width={164}>

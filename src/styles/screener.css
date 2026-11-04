@@ -1864,3 +1864,87 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-filters-ok:hover:not(:disabled) {
   background-color: var(--color-content-primary-neutral-bold) !important; /* #dbdbdb */
 }
+
+/* ── Square tabs (a wide screener's column sets and Charts date range, ./SquareTabs; the reference app's small
+   square tabs) ─────────────────────────────────────────────────────────────────────────── */
+.scr-sqtabs {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.scr-chart-range-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: 8px;
+}
+.scr-sqtab {
+  display: inline-grid;
+  grid-auto-flow: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 34px;
+  min-width: 34px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  font-feature-settings: "tnum", "lnum";
+  white-space: nowrap;
+  cursor: default;
+}
+/* The label and its bold copy share a cell: the tab keeps the bold width. */
+.scr-sqtab-text,
+.scr-sqtab-bold {
+  grid-area: 1 / 1;
+}
+.scr-sqtab-bold {
+  visibility: hidden;
+  font-weight: 600;
+}
+.scr-sqtab.is-selected .scr-sqtab-text {
+  font-weight: 600;
+}
+.scr-sqtab.is-selected,
+.scr-sqtab:hover,
+.scr-sqtab.is-open {
+  background-color: var(--color-bg-primary-hover); /* #2e2e2e */
+  color: var(--color-content-secondary-neutral-bold); /* #fff */
+}
+.scr-sqtab:active {
+  background-color: var(--color-background-primary-neutral-normal); /* #3d3d3d */
+  color: var(--color-content-secondary-neutral-bold);
+}
+.scr-sqtab-more {
+  grid-auto-flow: column;
+}
+.scr-sqtab-arrow {
+  display: inline-flex;
+  grid-area: 1 / 2;
+  width: 18px;
+  height: 18px;
+  margin: 0 -4px 0 4px;
+  transition: transform 0.35s;
+}
+.scr-sqtab-arrow.is-open {
+  transform: rotate(180deg);
+}
+.scr-sqtabs-measure {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  display: flex;
+  gap: 8px;
+  visibility: hidden;
+  pointer-events: none;
+}
