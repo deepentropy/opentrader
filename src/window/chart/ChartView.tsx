@@ -1608,6 +1608,8 @@ export function ChartView(props: ChartViewProps) {
           const tab = settingsTab();
           // The study as it was when the dialog opened: Cancel puts it back after a preview.
           const snapshot = controller?.settingsSnapshot(id());
+          // Its inputs then, for the undo text (a preview has already put the new ones on the study).
+          const openedInputs = JSON.parse(JSON.stringify(values ?? {})) as Record<string, unknown>;
           const redrawn = () => {
             refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
             if (isStrategyId(id())) applyStrategyMarkers();
@@ -1636,9 +1638,11 @@ export function ChartView(props: ChartViewProps) {
                 options={controller!.getOptions(id())}
                 onApply={({ inputs, styles: s, options }) => {
                   // One undo step (reference texts): the first input changed, else the study's style.
-                  const was = controller?.getInputs(id()) ?? {};
-                  const changed = (entry!.inputConfig ?? []).find((c) => JSON.stringify(inputs[c.id]) !== JSON.stringify(was[c.id]));
+                  const changed = (entry!.inputConfig ?? []).find((c) => JSON.stringify(inputs[c.id]) !== JSON.stringify(openedInputs[c.id]));
                   const title = indLegend().find((r) => r.id === id())?.title ?? entry!.name;
+                  // The study as it was when the dialog opened (the preview put the new values on it): the undo step
+                  // reads it as the state before the edit.
+                  if (snapshot) controller?.restoreSettings(id(), snapshot);
                   sourcesEdit(changed ? `change ${changed.title || changed.id} property` : `change ${title} style`, () => {
                     controller?.applySettings(id(), inputs, s, options);
                     props.onIndicatorSettings?.(id(), { inputs, styles: s, options });

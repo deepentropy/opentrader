@@ -815,10 +815,11 @@ export class IndicatorController {
     return this.getOptions(id);
   }
 
-  /** Registry defaults merged with any user input overrides for `id`. */
+  /** Registry defaults merged with any user input overrides for `id`. A copy either way: the Settings dialog edits
+   *  what it is given, which must never be the registry's defaults (every chart's next study would take them). */
   private effectiveInputs(id: string, entry: IndicatorRegistryEntry): Record<string, unknown> {
     const override = this.inputs.get(id);
-    return override ? { ...entry.defaultInputs, ...override } : entry.defaultInputs;
+    return override ? { ...entry.defaultInputs, ...override } : { ...entry.defaultInputs };
   }
 
   /** A study's current per-plot style overrides (empty = registry defaults),

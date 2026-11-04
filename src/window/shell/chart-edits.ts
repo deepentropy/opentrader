@@ -226,12 +226,26 @@ export function createChartEdits(
     }
     saveIndicatorTemplate(name, pane.indicators, settings);
   }
+  /** Replace the focused chart's studies with a template's, as one undo step ("apply study template <name>", the
+   *  reference app). */
   function applyIndicatorTemplate(id: string) {
     const tpl = getIndicatorTemplate(id);
     if (!tpl) return;
-    patchActivePane({
+    const tab = activeTab();
+    const before = chartSources(activePaneState());
+    const after: ChartSources = {
+      ...before,
       indicators: [...tpl.indicators],
       indicatorSettings: JSON.parse(JSON.stringify(tpl.settings)) as PaneChart["indicatorSettings"],
+    };
+    undo.commit({
+      kind: "layout-sources",
+      tabId: tab.id,
+      before: { [tab.activePane]: before },
+      after: { [tab.activePane]: after },
+      slices: [],
+      label: `apply study template ${tpl.name}`,
+      at: Date.now(),
     });
     touchIndicatorTemplate(id);
   }

@@ -17,6 +17,8 @@ import { emitAppEvent, onAppEvent, type AppEventName, type AppEvents } from "../
 import { startReplayAt } from "../../../data/replay";
 import { type ChartCx } from "./context";
 import { indexAtOrBefore } from "./helpers";
+import { sourcesEdit } from "../../shell/source-edits";
+import { getIndicatorEntry } from "../indicators/registry";
 
 /** What createWindowEvents adds to the chart context. */
 export interface WindowEventsApi {
@@ -120,6 +122,17 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
       void cx.goToTime(d.time);
     };
     listenWhenShown("chart-sync-crosshair", onSyncCrosshair);
+    // An edit of a source begins on the focused chart: its studies as drawn, for the undo step (source-edits.ts).
+    listenWhenShown("chart-sources-snapshot", (d) => {
+      const c = cx.controller;
+      if (!props.active || !c || !d) return;
+      const out: Record<string, { inputs: Record<string, unknown>; styles: unknown; options: unknown }> = {};
+      for (const id of props.indicators ?? []) {
+        const inputs = c.getInputs(id);
+        if (inputs) out[id] = { inputs: { ...inputs }, styles: { ...c.getStyles(id) }, options: c.getOptions(id) };
+      }
+      d.fill(out);
+    });
     listenWhenShown("chart-sync-range", onSyncRange);
     listenWhenShown("chart-sync-time", onSyncTime);
     listenWhenShown("chart-link-range", onLinkRange);
@@ -310,11 +323,15 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
       };
       const onPatchInputs = (d: AppEvents["chart-patch-study-inputs"] | undefined) => {
         if (!props.active || props.shown === false || !d || !cx.controller || !(props.indicators ?? []).includes(d.id)) return;
-        const inputs = { ...(cx.controller.getInputs(d.id) ?? {}), ...d.patch };
-        const styles = cx.controller.getStyles(d.id) ?? {};
-        const options = cx.controller.getOptions(d.id);
-        cx.controller.applySettings(d.id, inputs, styles, options);
-        props.onIndicatorSettings?.(d.id, { inputs, styles, options });
+        const c = cx.controller;
+        const inputs = { ...(c.getInputs(d.id) ?? {}), ...d.patch };
+        const styles = c.getStyles(d.id) ?? {};
+        const options = c.getOptions(d.id);
+        // One undo step, as the Settings dialog's Ok.
+        sourcesEdit(`change ${getIndicatorEntry(d.id)?.name ?? d.id} properties`, () => {
+          c.applySettings(d.id, inputs, styles, options);
+          props.onIndicatorSettings?.(d.id, { inputs, styles, options });
+        });
       };
       onCleanup(onAppEvent("chart-open-study-settings", onOpenSettings));
       onCleanup(onAppEvent("chart-patch-study-inputs", onPatchInputs));
