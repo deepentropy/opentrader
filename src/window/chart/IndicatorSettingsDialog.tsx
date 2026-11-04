@@ -803,13 +803,24 @@ export function IndicatorSettingsDialog(props: Props) {
                     const more = () => (
                       <For each={rest}>
                         {(cfg) => (
-                          <>
-                            {/* Reference inline cells: a title cell (empty or not) 8 px before each control. */}
-                            <Show when={cfg.type !== "bool"}>
-                              <span class="cp3-title">{cfg.title}</span>
-                            </Show>
-                            {cfg.type === "bool" ? <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} /> : inputControl(cfg)}
-                          </>
+                          // Reference inline items: a check box with its title after it (an empty title still takes
+                          // its 8 px gap), any other input its title (when it has one) 8 px before the control; an
+                          // item with a title starts 12 px further.
+                          <span class="ind3-inline-item" classList={{ "is-wide": !!cfg.title }}>
+                            {cfg.type === "bool" ? (
+                              <>
+                                <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} />
+                                <span class="cp3-title" onClick={() => toggleInput(cfg.id)}>{cfg.title}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Show when={cfg.title}>
+                                  <span class="cp3-title">{cfg.title}</span>
+                                </Show>
+                                {inputControl(cfg)}
+                              </>
+                            )}
+                          </span>
                         )}
                       </For>
                     );

@@ -1163,6 +1163,9 @@ html.theme-light .cp3-card { background: #fff; color: #0f0f0f; }
 .ind3-section.ind3-after-plots { margin-top: 24px; }
 .ind3-check-row { padding: 8px 0; }
 .ind3-check-row .cp3-label-inner { min-height: 18px; }
+/* One input of a shared (inline) row after the first: 8 px after the previous item, 20 px when it has a title. */
+.ind3-inline-item { display: inline-flex; align-items: center; gap: 8px; }
+.ind3-inline-item.is-wide { margin-left: 12px; }
 .ind3-vis-controls { gap: 0; }
 .ind3-vis-slider {
   display: flex;
@@ -1284,6 +1287,9 @@ html.theme-light .cp3-card { background: #fff; color: #0f0f0f; }
 }
 .ind3-info:hover { color: var(--color-text-secondary); }
 .ind3-group-gap { grid-column: 1 / -1; height: 10px; }
+/* Pine group title: a 50 px cell (34 px + 8 px padding), 16 px after the row above it, a group's rows included. */
+.cp3-section.ind3-group { height: 50px; }
+.ind3-group-gap + .cp3-section.ind3-group { margin-top: 6px; }
 .ind3-datetime { display: inline-flex; align-items: center; gap: 8px; }
 .ind3-date { width: 150px; }
 .ind3-time { display: inline-flex; width: 100px; }
