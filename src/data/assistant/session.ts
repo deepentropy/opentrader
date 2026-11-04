@@ -225,7 +225,8 @@ async function ask(c: Chat): Promise<Turn> {
       if (turn.reasoning) m.reasoning = turn.reasoning;
     });
   };
-  const body = { messages: wireMessages(c), stream: true };
+  // Temperature 0: the model was trained and measured that way; sampling makes it pick other routes each time.
+  const body = { messages: wireMessages(c), stream: true, temperature: 0 };
   const r = await commands.assistantChat(request, JSON.stringify(body), channel);
   current = null;
   if (r.status === "error") throw new Error(r.error);
@@ -288,7 +289,7 @@ export async function send(text: string): Promise<void> {
   stopped = false;
   try {
     const tools = await toolList();
-    const failures = new Map<string, number>();
+    const repeats = new Map<string, number>();
     for (let round = 0; round < MAX_ROUNDS && !stopped; round++) {
       edit((c) => c.messages.push({ role: "assistant", text: "" }));
       const turn = await ask(activeChat()!);
@@ -300,14 +301,21 @@ export async function send(text: string): Promise<void> {
         if (stopped) break;
         await runTool(tools, call, call.id);
       }
-      // A small model can repeat a call that keeps failing: the third time in this answer, stop and say so.
+      // A small model can go round in circles: the same call a third time in this answer gets the same result, so stop
+      // and say so (with the error when it failed).
       const ms = activeChat()!.messages;
       const steps = (ms[ms.length - 1] as Extract<ChatMessage, { role: "assistant" }>).tools ?? [];
       const key = (t: ToolStep) => `${t.name} ${t.arguments}`;
-      for (const t of steps) if (t.status === "error") failures.set(key(t), (failures.get(key(t)) ?? 0) + 1);
-      const repeated = steps.find((t) => t.status === "error" && (failures.get(key(t)) ?? 0) >= 3);
+      for (const t of steps) repeats.set(key(t), (repeats.get(key(t)) ?? 0) + 1);
+      const repeated = steps.find((t) => (repeats.get(key(t)) ?? 0) >= 3);
       if (repeated) {
-        editLast((m) => (m.error = `Stopped: ${repeated.name} failed three times (${repeated.result}).`));
+        editLast(
+          (m) =>
+            (m.error =
+              repeated.status === "error"
+                ? `Stopped: ${repeated.name} failed three times (${repeated.result}).`
+                : `Stopped: the same ${repeated.name} came back three times with the same result. Try asking another way.`),
+        );
         break;
       }
       if (round === MAX_ROUNDS - 1) editLast((m) => (m.error = "Stopped after too many steps: ask again to go on."));

@@ -49,6 +49,7 @@ describe("assistant agent loop", () => {
     await send("show apple");
     const [first, second] = server.bodies;
     expect(first.tools).toBeUndefined();
+    expect(first.temperature).toBe(0);
     expect(first.messages[0]).toEqual({ role: "system", content: COMPACT_V1 });
     const ms = activeChat()!.messages;
     expect(activeChat()!.title).toBe("show apple");
@@ -88,6 +89,15 @@ describe("assistant agent loop", () => {
     server.script = [[JSON.stringify({ error: { message: "out of memory" } })]];
     await send("Hello");
     expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ role: "assistant", error: "out of memory" });
+  });
+
+  it("stops when the same call comes back three times with the same result", async () => {
+    newChat();
+    ran.length = 0;
+    server.script = [[call("set_symbol", { symbol: "X" })], [call("set_symbol", { symbol: "X" })], [call("set_symbol", { symbol: "X" })], [say("never asked")]];
+    await send("loop");
+    expect(ran).toEqual(["set X", "set X", "set X"]);
+    expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ error: "Stopped: the same set_symbol came back three times with the same result. Try asking another way." });
   });
 
   it("describe_tool answers with the tool's entry, compact", async () => {

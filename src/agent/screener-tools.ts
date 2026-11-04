@@ -24,7 +24,7 @@ import {
   type Screen,
 } from "../data/screener-catalog";
 import { planScreen, PRIMARY_UNIVERSE_CLAUSE } from "../data/screener-query";
-import { onScreenerUpdate, screenerClose, screenerFields, screenerOpen, screenerScan } from "../data/screener-api";
+import { onScreenerUpdate, screenerClose, screenerFields, screenerOpen, screenerScan, screenerValues } from "../data/screener-api";
 import { screenerPanel, screenerStore } from "../data/screener-store";
 import { scriptScreenStore } from "../data/script-screen-store";
 import { watchlistStore } from "../data/watchlist-store";
@@ -238,6 +238,82 @@ export function screenOf(args: Record<string, unknown>, title: string, watchlist
   return s;
 }
 
+/** Text fields whose "in" values are names of the data (sector, industry, exchange…), not codes. */
+const NAMED_FIELDS = new Set(["sector", "industry", "exchange"]);
+
+/** A name as typed against the field's names: the same name (any case), else the one name that starts with it
+ *  ("semiconductors" → "Semiconductors & Related Devices"), else an error with the names to pick from (a name that only
+ *  holds the word somewhere is a guess: "electronics" is not "Retail-Radio, Tv & Consumer Electronics Stores"). */
+export function matchName(asked: string, names: string[], field: string): string {
+  const a = asked.trim().toLowerCase();
+  const exact = names.find((n) => n.toLowerCase() === a);
+  if (exact) return exact;
+  const starting = names.filter((n) => n.toLowerCase().startsWith(a));
+  if (starting.length === 1) return starting[0];
+  // Names sharing a word with the one asked, else all of them (cut).
+  const words = a.split(/[^a-z0-9]+/).filter((w) => w.length > 3);
+  const near = starting.length ? starting : names.filter((n) => words.some((w) => n.toLowerCase().includes(w)));
+  const offer = (near.length ? near : names).slice(0, 40);
+  // Sectors are the industry classification's divisions (Manufacturing, Services…): a business line is an industry.
+  const hint = field === "sector" ? ' For a line of business ("semiconductors", "banks"), filter on industry.' : "";
+  throw new AgentError(
+    `No ${field} named "${asked}". ${near.length ? "Close" : "The"} ${field} names: ${offer.map((n) => JSON.stringify(n)).join(", ")}${(near.length ? near : names).length > offer.length ? ", …" : ""}.${hint}`,
+  );
+}
+
+const tryMatch = (asked: string, names: string[], field: string): string | null => {
+  try {
+    return matchName(asked, names, field);
+  } catch {
+    return null;
+  }
+};
+
+/** The filters with their "in" names on sector / industry / exchange put as the data writes them, and what was
+ *  renamed (to tell the agent). */
+async function namedFilters(filters: unknown[]): Promise<{ filters: unknown[]; matched: Record<string, string> }> {
+  const matched: Record<string, string> = {};
+  const cache = new Map<string, string[]>();
+  const out = [];
+  for (const f of filters) {
+    const x = f as { field?: unknown; op?: unknown; value?: unknown };
+    if (typeof x?.field !== "string" || !NAMED_FIELDS.has(x.field) || (x.op !== "in" && x.op !== "=")) {
+      out.push(f);
+      continue;
+    }
+    const namesOf = async (name: string) => {
+      if (!cache.has(name)) cache.set(name, (await screenerValues(name).catch(() => [] as string[])).filter(Boolean));
+      return cache.get(name)!;
+    };
+    const field = x.field;
+    const names = await namesOf(field);
+    const asked = (Array.isArray(x.value) ? x.value : [x.value]).filter((v): v is string => typeof v === "string");
+    if (!names.length || !asked.length) {
+      out.push(f);
+      continue;
+    }
+    // A line of business asked as a sector ("Semiconductors"), or a sector asked as an industry: when none of the names
+    // is one of this field's and the other field has each of them, the filter moves there.
+    const other = field === "sector" ? "industry" : field === "industry" ? "sector" : null;
+    if (other && asked.every((v) => tryMatch(v, names, field) === null)) {
+      const there = await namesOf(other);
+      const moved = asked.map((v) => tryMatch(v, there, other));
+      if (moved.every((n): n is string => n !== null)) {
+        asked.forEach((v, k) => (matched[`${field} ${v}`] = `${other} ${moved[k]}`));
+        out.push({ ...x, field: other, op: "in", value: moved });
+        continue;
+      }
+    }
+    const value = asked.map((v) => {
+      const n = matchName(v, names, field);
+      if (n !== v) matched[v] = n;
+      return n;
+    });
+    out.push({ ...x, op: "in", value });
+  }
+  return { filters: out, matched };
+}
+
 /** Rows of a scan as {symbol, name, <field>: value}. */
 function rowsOf(rows: ScanRow[], fields: string[]): Record<string, unknown>[] {
   return rows.map((r) => {
@@ -312,7 +388,8 @@ export function createScreenerTools(): AgentTool[] {
           const res = await screenerScan({ columns: plan.fields, filter: plan.filter, sort: plan.sort, range: [0, limit], tickers: plan.tickers });
           return { screen: screen.title, total: res.totalCount, rows: rowsOf(res.rows, plan.fields) };
         }
-        const filters = Array.isArray(args.filters) ? args.filters.map((f) => clauseOf(f, has)) : [];
+        const named = await namedFilters(Array.isArray(args.filters) ? args.filters : []);
+        const filters = named.filters.map((f) => clauseOf(f, has));
         const cols = (Array.isArray(args.columns) && args.columns.length ? args.columns : ["close", "change", "volume", "market_cap_basic"]).filter(
           (c): c is string => typeof c === "string",
         );
@@ -329,7 +406,7 @@ export function createScreenerTools(): AgentTool[] {
           range: [0, limit],
           tickers: await scopeTickers(args.scope),
         });
-        return { total: res.totalCount, rows: rowsOf(res.rows, out) };
+        return { total: res.totalCount, ...(Object.keys(named.matched).length ? { matched: named.matched } : {}), rows: rowsOf(res.rows, out) };
       },
     },
     {
@@ -395,7 +472,8 @@ export function createScreenerTools(): AgentTool[] {
           if (!l) throw new AgentError(`No watchlist named "${scope.watchlist}".`);
           watchlistId = l.id;
         }
-        const screen = screenOf(args, name, watchlistId);
+        const named = await namedFilters(Array.isArray(args.filters) ? args.filters : []);
+        const screen = screenOf({ ...args, filters: named.filters }, name, watchlistId);
         const same = screenerStore.savedScreens().find((s) => s.screen.title.toLowerCase() === name.toLowerCase());
         if (same && args.replace !== true) throw new AgentError(`A screen is already named "${same.screen.title}": pass replace: true to replace it, or another name.`);
         // As the screener does it: open the saved screen, change it (one undo step), save.
@@ -410,7 +488,7 @@ export function createScreenerTools(): AgentTool[] {
         const known = new Set(cat.filter((f) => f.available).map((f) => f.id));
         const plan = planScreen(screen, (f) => known.has(f), await scopeTickers(watchlistId ? { watchlist: scope!.watchlist } : null));
         const res = await screenerScan({ columns: plan.fields, filter: plan.filter, sort: plan.sort, range: [0, 10], tickers: plan.tickers });
-        return { saved: name, replaced: !!same, total: res.totalCount, first: res.rows.map((r) => r.s) };
+        return { saved: name, replaced: !!same, ...(Object.keys(named.matched).length ? { matched: named.matched } : {}), total: res.totalCount, first: res.rows.map((r) => r.s) };
       },
     },
     {

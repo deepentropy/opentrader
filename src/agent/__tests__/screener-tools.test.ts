@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FieldInfo } from "../../bindings";
-import { agentFields, clauseOf, columnOfField, pillOf, screenOf } from "../screener-tools";
+import { agentFields, clauseOf, columnOfField, matchName, pillOf, screenOf } from "../screener-tools";
 
 const fi = (id: string, kind = "number", available = true): FieldInfo => ({ id, kind, source: "live", available });
 
@@ -74,5 +74,19 @@ describe("saved screens from run_screen filters", () => {
     expect(s.activeColumnSetId).toBe("custom");
     expect(s.customColumns?.map((c) => c.id)).toEqual(["Price", "RelativeStrengthIndex"]);
     expect(s.sort).toMatchObject({ sortBy: { id: "RelativeStrengthIndex" }, sortOrder: "asc" });
+  });
+});
+
+describe("sector and industry names", () => {
+  const industries = ["Semiconductors & Related Devices", "Electronic Computers", "National Commercial Banks", "State Commercial Banks"];
+  it("takes the name as the data writes it, any case, or the one name that starts with it", () => {
+    expect(matchName("electronic computers", industries, "industry")).toBe("Electronic Computers");
+    expect(matchName("Semiconductors", industries, "industry")).toBe("Semiconductors & Related Devices");
+  });
+  it("names the choices when it is ambiguous or unknown, and points from sector to industry", () => {
+    expect(() => matchName("Commercial Banks", industries, "industry")).toThrow(/Close industry names: "National Commercial Banks", "State Commercial Banks"/);
+    expect(() => matchName("Semiconductors", ["Manufacturing", "Services"], "sector")).toThrow(/The sector names: "Manufacturing", "Services"\. For a line of business/);
+    // A word found inside another name is not taken as that name.
+    expect(() => matchName("Electronics", [...industries, "Retail-Radio, Tv & Consumer Electronics Stores"], "industry")).toThrow(/Close industry names: "Retail-Radio/);
   });
 });
