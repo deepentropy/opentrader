@@ -565,3 +565,38 @@
   margin: 0;
   font-size: 13px;
 }
+.asst-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #b8b8b8;
+}
+.asst-check input {
+  margin: 1px 0 0;
+}
+.asst-local {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+}
+.asst-progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.asst-progress {
+  height: 4px;
+  border-radius: 2px;
+  background-color: #2e2e2e;
+  overflow: hidden;
+}
+.asst-progress > div {
+  height: 100%;
+  background-color: var(--color-content-accent, #2962ff);
+  transition: width 0.25s;
+}

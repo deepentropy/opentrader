@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyEvent, finishedCalls, newTurn, StreamError } from "../stream";
+import { applyEvent, finishedCalls, newTurn, shownText, StreamError, textToolCalls } from "../stream";
 
 const ev = (delta: object, finish: string | null = null) => JSON.stringify({ choices: [{ delta, finish_reason: finish }] });
 
@@ -35,5 +35,24 @@ describe("assistant stream", () => {
   it("throws on an error event and skips what is not JSON", () => {
     expect(() => applyEvent(newTurn(), JSON.stringify({ error: { message: "quota" } }))).toThrow(StreamError);
     expect(applyEvent(newTurn(), ": keep-alive")).toEqual(newTurn());
+  });
+});
+
+describe("tool calls written in the text", () => {
+  it("reads <tool_call> blocks and leaves the words", () => {
+    const r = textToolCalls('Sure.\n<tool_call>\n{"name": "set_symbol", "arguments": {"symbol": "AAPL"}}\n</tool_call>\n<tool_call>{"name":"get_chart","arguments":{}}</tool_call>', "r1");
+    expect(r.text).toBe("Sure.");
+    expect(r.calls).toEqual([
+      { id: "r1-0", name: "set_symbol", arguments: '{"symbol":"AAPL"}' },
+      { id: "r1-1", name: "get_chart", arguments: "{}" },
+    ]);
+    // An unclosed last call (the stream ended) still counts; a block that is no JSON is dropped.
+    expect(textToolCalls('<tool_call>{"name":"get_bars","arguments":{"limit":5}}', "r2").calls[0]).toMatchObject({ name: "get_bars", arguments: '{"limit":5}' });
+    expect(textToolCalls("<tool_call>oops</tool_call> ok", "r3")).toEqual({ text: "ok", calls: [] });
+  });
+  it("hides a call while it streams, even half written", () => {
+    expect(shownText("Adding RSI.\n<tool_call>\n{\"name\"")).toBe("Adding RSI.");
+    expect(shownText("Adding RSI. <tool_c")).toBe("Adding RSI.");
+    expect(shownText("x < y")).toBe("x < y");
   });
 });

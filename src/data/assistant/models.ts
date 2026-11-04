@@ -43,6 +43,12 @@ export function loadModels(): Promise<void> {
   return loading;
 }
 
+/** Reads the models again (the model on this computer was added or removed). */
+export async function reloadModels(): Promise<void> {
+  setConfig(await commands.assistantConfig());
+  setLoaded(true);
+}
+
 export const selectedModel = () => {
   const c = config();
   return c.models.find((m) => m.id === c.selected) ?? c.models[0] ?? null;

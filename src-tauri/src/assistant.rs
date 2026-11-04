@@ -35,6 +35,7 @@ struct StoredModel {
     base_url: String,
     model: String,
     has_key: bool,
+    compact: bool,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -58,6 +59,8 @@ pub struct AssistantModel {
     /// The model id the server takes.
     pub model: String,
     pub has_key: bool,
+    /// Sent the short tool list it was trained with (OpenTrader's own small model) instead of every tool's schema.
+    pub compact: bool,
 }
 
 #[derive(Clone, Serialize, specta::Type)]
@@ -79,6 +82,8 @@ pub struct AssistantModelInput {
     pub base_url: String,
     pub model: String,
     pub api_key: Option<String>,
+    #[serde(default)]
+    pub compact: bool,
 }
 
 fn credential(app: &AppHandle, id: &str) -> keyring::Result<keyring::Entry> {
@@ -154,6 +159,7 @@ fn config_of(file: &SavedFile) -> AssistantConfig {
                 base_url: m.base_url.clone(),
                 model: m.model.clone(),
                 has_key: m.has_key || keys.as_ref().is_some_and(|k| k.contains_key(&m.id)),
+                compact: m.compact,
             })
             .collect(),
         selected: file.selected.clone().filter(|s| file.models.iter().any(|m| &m.id == s)),
@@ -208,7 +214,7 @@ pub fn assistant_save_model(app: AppHandle, input: AssistantModelInput) -> Resul
         }
     };
     let label = if input.label.trim().is_empty() { input.model.trim().to_string() } else { input.label.trim().to_string() };
-    let entry = StoredModel { id: id.clone(), label, description: input.description.trim().to_string(), base_url, model: input.model.trim().to_string(), has_key };
+    let entry = StoredModel { id: id.clone(), label, description: input.description.trim().to_string(), base_url, model: input.model.trim().to_string(), has_key, compact: input.compact };
     match file.models.iter_mut().find(|m| m.id == id) {
         Some(m) => *m = entry,
         None => file.models.push(entry),
@@ -295,17 +301,20 @@ fn server_error(status: u16, body: &str) -> String {
 pub async fn assistant_chat(app: AppHandle, id: String, request: u32, body: String, on_event: Channel<String>) -> Result<(), String> {
     let file = read_file(&app);
     let m = file.models.iter().find(|m| m.id == id).ok_or_else(|| format!("No model \"{id}\": add one in the model picker."))?;
+    let local = m.base_url == crate::local_model::LOCAL_URL;
+    // The model on this computer: its server, started on the first chat.
+    let base_url = if local { crate::local_model::ensure_server(&app).await? } else { m.base_url.clone() };
     let mut payload: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
     payload["model"] = serde_json::Value::String(m.model.clone());
     let (stop_tx, mut stop_rx) = oneshot::channel();
     RUNNING.lock().unwrap().get_or_insert_with(HashMap::new).insert(request, stop_tx);
     let result = async {
-        let mut req = CLIENT.get().post(format!("{}/chat/completions", m.base_url)).json(&payload);
+        let mut req = CLIENT.get().post(format!("{base_url}/chat/completions")).json(&payload);
         if let Some(k) = read_key(&app, &m.id) {
             req = req.bearer_auth(k);
         }
         let mut res = tokio::select! {
-            r = req.send() => r.map_err(|e| format!("No answer from {}: {e}", m.base_url))?,
+            r = req.send() => r.map_err(|e| format!("No answer from {base_url}: {e}"))?,
             _ = &mut stop_rx => return Ok(()),
         };
         let status = res.status();
@@ -347,7 +356,39 @@ pub async fn assistant_chat(app: AppHandle, id: String, request: u32, body: Stri
     }
     .await;
     RUNNING.lock().unwrap().get_or_insert_with(HashMap::new).remove(&request);
+    if local && result.is_ok() {
+        crate::local_model::save_prefix(&app).await;
+    }
     result
+}
+
+/// The model on this computer joins the list (selected), once its files are in place.
+pub fn add_local_model(app: &AppHandle) -> Result<(), String> {
+    let mut file = read_file(app);
+    file.models.retain(|m| m.id != crate::local_model::LOCAL_ID);
+    file.models.insert(
+        0,
+        StoredModel {
+            id: crate::local_model::LOCAL_ID.into(),
+            label: "OpenTrader (this computer)".into(),
+            description: "Runs on this computer, offline".into(),
+            base_url: crate::local_model::LOCAL_URL.into(),
+            model: "opentrader-assistant".into(),
+            has_key: false,
+            compact: true,
+        },
+    );
+    file.selected = Some(crate::local_model::LOCAL_ID.into());
+    write_file(app, &file)
+}
+
+pub fn remove_local_model(app: &AppHandle) -> Result<(), String> {
+    let mut file = read_file(app);
+    file.models.retain(|m| m.id != crate::local_model::LOCAL_ID);
+    if file.selected.as_deref() == Some(crate::local_model::LOCAL_ID) {
+        file.selected = file.models.first().map(|m| m.id.clone());
+    }
+    write_file(app, &file)
 }
 
 /// Stops a chat request under way (its answer so far stays).

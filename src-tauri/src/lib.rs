@@ -1,6 +1,7 @@
 mod agent;
 mod alerts;
 mod assistant;
+mod local_model;
 mod app_update;
 mod commands;
 mod community;
@@ -99,6 +100,10 @@ fn specta_builder() -> Builder<tauri::Wry> {
             assistant::assistant_list_models,
             assistant::assistant_chat,
             assistant::assistant_cancel,
+            local_model::local_model_info,
+            local_model::local_model_install,
+            local_model::local_model_cancel,
+            local_model::local_model_remove,
             deep_link::deep_link_take,
         ])
         .events(collect_events![
@@ -237,6 +242,8 @@ pub fn run() {
             // A normal quit installs a ready update (app_update).
             if let tauri::RunEvent::Exit = event {
                 app_update::on_exit(app);
+                // The AI assistant's model server would outlive the app.
+                local_model::shutdown();
             }
         });
 }

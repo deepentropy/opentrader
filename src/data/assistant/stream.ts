@@ -66,3 +66,33 @@ export function applyEvent(turn: Turn, json: string): Turn {
 export function finishedCalls(turn: Turn, prefix: string): ToolCall[] {
   return turn.toolCalls.filter((c) => c && c.name).map((c, i) => ({ ...c, id: c.id || `${prefix}-${i}`, arguments: c.arguments || "{}" }));
 }
+
+/** The tool calls a model writes in its text (`<tool_call>{"name", "arguments"}</tool_call>`, the chat template's
+ *  form), when the server is not asked to read them: OpenTrader's small model with its short tool list. */
+export function textToolCalls(content: string, prefix: string): { text: string; calls: ToolCall[] } {
+  const calls: ToolCall[] = [];
+  const text = content
+    .replace(/<tool_call>\s*([\s\S]*?)\s*(?:<\/tool_call>|$)/g, (_m, body: string) => {
+      try {
+        const v = JSON.parse(body) as { name?: unknown; arguments?: unknown };
+        if (typeof v.name === "string") {
+          const args = typeof v.arguments === "string" ? v.arguments : JSON.stringify(v.arguments ?? {});
+          calls.push({ id: `${prefix}-${calls.length}`, name: v.name, arguments: args });
+        }
+      } catch {
+        /* not a call: dropped from the text all the same */
+      }
+      return "";
+    })
+    .trim();
+  return { text, calls };
+}
+
+/** The text to show while it streams: what comes before a tool call (or the start of one). */
+export function shownText(content: string): string {
+  const at = content.indexOf("<tool_call>");
+  const s = at >= 0 ? content.slice(0, at) : content;
+  // A tag being written: "<", "<tool", "<tool_ca"…
+  const m = /<(t(o(o(l(_(c(a(l(l)?)?)?)?)?)?)?)?)?$/.exec(s);
+  return (m ? s.slice(0, m.index) : s).trimEnd();
+}

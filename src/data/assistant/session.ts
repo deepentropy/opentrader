@@ -13,7 +13,9 @@ import type { AgentServerDef, AgentTool, ToolResult } from "../../agent/mcp";
 import { AgentError } from "../../agent/mcp";
 import * as kv from "../kv";
 import { config, selectedModel } from "./models";
-import { applyEvent, finishedCalls, newTurn, StreamError, type ToolCall, type Turn } from "./stream";
+import { applyEvent, finishedCalls, newTurn, shownText, StreamError, textToolCalls, type ToolCall, type Turn } from "./stream";
+// The short tool list OpenTrader's small model was trained with, byte for byte (its sha256 is checked by a test).
+import COMPACT_V1_RAW from "./compact-v1.txt?raw";
 import { systemPrompt, type ChatContext } from "./prompt";
 
 export type ToolStep = {
@@ -66,10 +68,14 @@ function save(): void {
 // ── The window's tools ───────────────────────────────────────────────────
 let server: AgentServerDef | null = null;
 let chatContext: () => ChatContext = () => ({});
+let hostReady: () => void = () => {};
+/** Resolves once App has handed the tools (they load after the window's first paint). */
+const host = new Promise<void>((resolve) => (hostReady = resolve));
 /** App hands the agent server (its tools and reference texts) and what the focused chart shows. */
 export function setAssistantHost(s: AgentServerDef, context: () => ChatContext): void {
   server = s;
   chatContext = context;
+  hostReady();
 }
 
 /** The reference texts (guides, catalogues) as one more tool: the panel has no MCP resources to read. */
@@ -90,9 +96,32 @@ async function referenceTool(): Promise<AgentTool | null> {
   };
 }
 
-async function toolList(): Promise<AgentTool[]> {
-  const ref = await referenceTool();
-  return [...(server?.tools ?? []), ...(ref ? [ref] : [])];
+/** The short tool list as the model saw it in training (line ends as written there). */
+export const COMPACT_V1 = COMPACT_V1_RAW.replace(/\r\n/g, "\n");
+
+/** With the short tool list, the model reads a tool's schema when it needs it. */
+export function describeTool(tools: AgentTool[]): AgentTool {
+  return {
+    name: "describe_tool",
+    title: "Describe tool",
+    description: "The full JSON schema of a tool.",
+    inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
+    annotations: { readOnlyHint: true },
+    run: async (args) => {
+      const t = tools.find((x) => x.name === args.name);
+      if (!t) return `Unknown tool "${String(args.name)}"`;
+      return JSON.stringify({ name: t.name, description: t.description, inputSchema: t.inputSchema });
+    },
+  };
+}
+
+async function toolList(compact: boolean): Promise<AgentTool[]> {
+  // A message sent right after the window opened waits for the tools.
+  await Promise.race([host, new Promise((r) => setTimeout(r, 30_000))]);
+  if (!server) throw new Error("The app's tools are not ready: try again in a moment.");
+  const ref = compact ? null : await referenceTool();
+  const tools = [...(server?.tools ?? []), ...(ref ? [ref] : [])];
+  return compact ? [...tools, describeTool(tools)] : tools;
 }
 
 const asFunctions = (tools: AgentTool[]) =>
@@ -187,8 +216,8 @@ export function stop(): void {
 }
 
 /** The chat as the model reads it. */
-function wireMessages(c: Chat, context: ChatContext, tools: AgentTool[]) {
-  const out: unknown[] = [{ role: "system", content: systemPrompt(context, tools) }];
+function wireMessages(c: Chat, context: ChatContext, tools: AgentTool[], compact: boolean) {
+  const out: unknown[] = [{ role: "system", content: compact ? COMPACT_V1 : systemPrompt(context, tools) }];
   for (const m of c.messages) {
     if (m.role === "user") {
       out.push({ role: "user", content: m.text });
@@ -212,6 +241,8 @@ function wireMessages(c: Chat, context: ChatContext, tools: AgentTool[]) {
 async function ask(c: Chat, tools: AgentTool[]): Promise<Turn> {
   const model = selectedModel();
   if (!model) throw new Error("Add a model first (the model picker).");
+  // The small model: the short tool list in the system text (no schemas sent), its calls written in its text.
+  const compact = model.compact;
   const request = ++requestSeq;
   current = request;
   let turn = newTurn();
@@ -219,20 +250,25 @@ async function ask(c: Chat, tools: AgentTool[]): Promise<Turn> {
   channel.onmessage = (data) => {
     turn = applyEvent(turn, data);
     editLast((m) => {
-      m.text = turn.content;
+      m.text = compact ? shownText(turn.content) : turn.content;
       if (turn.reasoning) m.reasoning = turn.reasoning;
     });
   };
   const effort = config().effort;
   const body = {
-    messages: wireMessages(c, chatContext(), tools),
-    tools: asFunctions(tools),
+    messages: wireMessages(c, chatContext(), tools, compact),
+    ...(compact ? {} : { tools: asFunctions(tools) }),
     stream: true,
     ...(effort ? { reasoning_effort: effort } : {}),
   };
   const r = await commands.assistantChat(model.id, request, JSON.stringify(body), channel);
   current = null;
   if (r.status === "error") throw new Error(r.error);
+  if (compact && !turn.toolCalls.length) {
+    const { text, calls } = textToolCalls(turn.content, `call${request}`);
+    turn = { ...turn, content: text, toolCalls: calls };
+    editLast((m) => (m.text = text));
+  }
   return turn;
 }
 
@@ -286,7 +322,8 @@ export async function send(text: string): Promise<void> {
   setRunning(true);
   stopped = false;
   try {
-    const tools = await toolList();
+    const tools = await toolList(!!selectedModel()?.compact);
+    const failures = new Map<string, number>();
     for (let round = 0; round < MAX_ROUNDS && !stopped; round++) {
       edit((c) => c.messages.push({ role: "assistant", text: "" }));
       const turn = await ask(activeChat()!, tools);
@@ -297,6 +334,16 @@ export async function send(text: string): Promise<void> {
       for (const call of calls) {
         if (stopped) break;
         await runTool(tools, call, call.id);
+      }
+      // A small model can repeat a call that keeps failing: the third time in this answer, stop and say so.
+      const ms = activeChat()!.messages;
+      const steps = (ms[ms.length - 1] as Extract<ChatMessage, { role: "assistant" }>).tools ?? [];
+      const key = (t: ToolStep) => `${t.name} ${t.arguments}`;
+      for (const t of steps) if (t.status === "error") failures.set(key(t), (failures.get(key(t)) ?? 0) + 1);
+      const repeated = steps.find((t) => t.status === "error" && (failures.get(key(t)) ?? 0) >= 3);
+      if (repeated) {
+        editLast((m) => (m.error = `Stopped: ${repeated.name} failed three times (${repeated.result}).`));
+        break;
       }
       if (round === MAX_ROUNDS - 1) editLast((m) => (m.error = "Stopped after too many steps: ask again to go on."));
     }

@@ -3,15 +3,16 @@
  * (kept in the system's credential store; none for a server on this computer) and the model id it takes, with the
  * name and the description the picker shows. "Check" asks the server for its models (and fills the list to pick from).
  */
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createSignal, onMount } from "solid-js";
 import type { AssistantModel } from "../../bindings";
 import { SERVER_PRESETS, config, listServerModels, removeModel, saveModel } from "../../data/assistant/models";
+import { cancelLocal, gb, installLocal, localBlocker, localError, localInfo, localProgress, refreshLocal, removeLocal } from "../../data/assistant/local";
 
-type Draft = { id: string | null; preset: string; label: string; description: string; baseUrl: string; model: string; key: string; keyTouched: boolean };
+type Draft = { id: string | null; preset: string; label: string; description: string; baseUrl: string; model: string; key: string; keyTouched: boolean; compact: boolean };
 
 const presetOf = (url: string) => SERVER_PRESETS.find((p) => p.baseUrl && p.baseUrl === url.replace(/\/+$/, ""))?.id ?? "custom";
-const blank = (): Draft => ({ id: null, preset: "llama", label: "", description: "", baseUrl: SERVER_PRESETS[0].baseUrl, model: "", key: "", keyTouched: false });
-const fromModel = (m: AssistantModel): Draft => ({ id: m.id, preset: presetOf(m.baseUrl), label: m.label, description: m.description, baseUrl: m.baseUrl, model: m.model, key: "", keyTouched: false });
+const blank = (): Draft => ({ id: null, preset: "llama", label: "", description: "", baseUrl: SERVER_PRESETS[0].baseUrl, model: "", key: "", keyTouched: false, compact: false });
+const fromModel = (m: AssistantModel): Draft => ({ id: m.id, preset: presetOf(m.baseUrl), label: m.label, description: m.description, baseUrl: m.baseUrl, model: m.model, key: "", keyTouched: false, compact: m.compact });
 
 export function ModelSettings(props: { onDone: () => void; canClose: boolean }) {
   const [draft, setDraft] = createSignal<Draft | null>(config().models.length ? null : blank());
@@ -47,6 +48,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
       baseUrl: d.baseUrl,
       model: d.model,
       apiKey: d.keyTouched ? d.key : null,
+      compact: d.compact,
     });
     setBusy(false);
     if (err && !config().models.some((m) => m.model === d.model.trim())) {
@@ -71,6 +73,7 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
         The assistant works with any server that speaks the OpenAI chat API: a cloud provider (with your API key) or a model running on this computer (llama.cpp, Ollama, LM Studio…). Keys are kept in the system's credential store.
       </p>
       <Show when={!draft()}>
+        <LocalModelCard />
         <div class="asst-model-rows">
           <For each={config().models}>
             {(m) => (
@@ -79,8 +82,10 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
                   <span class="asst-model-name">{m.label}</span>
                   <span class="asst-muted">{m.model} · {m.baseUrl}{m.hasKey ? " · key saved" : ""}</span>
                 </div>
-                <button type="button" class="asst-btn" onClick={() => { setDraft(fromModel(m)); setStatus(null); }}>Edit</button>
-                <button type="button" class="asst-btn" onClick={() => void removeModel(m.id)}>Remove</button>
+                <Show when={m.baseUrl !== "local"}>
+                  <button type="button" class="asst-btn" onClick={() => { setDraft(fromModel(m)); setStatus(null); }}>Edit</button>
+                  <button type="button" class="asst-btn" onClick={() => void removeModel(m.id)}>Remove</button>
+                </Show>
               </div>
             )}
           </For>
@@ -141,6 +146,13 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
               Description
               <input class="asst-field" placeholder="e.g. Runs on this computer" value={d().description} onInput={(e) => patch({ description: e.currentTarget.value })} />
             </label>
+            <label class="asst-check">
+              <input type="checkbox" checked={d().compact} onChange={(e) => patch({ compact: e.currentTarget.checked })} />
+              <span>
+                OpenTrader's small model: send the short tool list it was trained with (much faster on a computer without a
+                graphics card). Leave off for any other model.
+              </span>
+            </label>
             <div class="asst-inline">
               <button type="submit" class="asst-btn is-primary" disabled={busy() || !d().model.trim() || !d().baseUrl.trim()}>Save</button>
               <Show when={config().models.length}>
@@ -154,5 +166,62 @@ export function ModelSettings(props: { onDone: () => void; canClose: boolean }) 
         {(s) => <p class="asst-status" classList={{ "is-error": !!s().error }}>{s().text}</p>}
       </Show>
     </div>
+  );
+}
+
+/** "Run on this computer": OpenTrader's small model, downloaded when asked for (nothing in the installer). */
+function LocalModelCard() {
+  onMount(() => void refreshLocal());
+  const busy = () => !!localInfo()?.installing || !!localProgress();
+  const pct = () => {
+    const p = localProgress();
+    return p && p.total ? Math.round(((p.done ?? 0) / p.total) * 100) : 0;
+  };
+  return (
+    <Show when={localInfo()}>
+      {(i) => (
+        <div class="asst-local">
+          <div class="asst-model-row-text">
+            <span class="asst-model-name">Run on this computer</span>
+            <span class="asst-muted">
+              OpenTrader's own small model, trained to work the app: offline, private, free. It runs on the graphics card when there is one, else on the processor.
+            </span>
+          </div>
+          <Show
+            when={!i().installed}
+            fallback={
+              <div class="asst-inline">
+                <span class="asst-muted">Installed ({gb(i().diskBytes)}){i().running ? " · running" : ""}</span>
+                <button type="button" class="asst-btn" onClick={() => void removeLocal()}>Remove</button>
+              </div>
+            }
+          >
+            <Show
+              when={!busy()}
+              fallback={
+                <div class="asst-progress-block">
+                  <div class="asst-progress"><div style={{ width: `${pct()}%` }} /></div>
+                  <div class="asst-inline">
+                    <span class="asst-muted">
+                      {localProgress()?.file ?? "Starting…"} · {pct()}%
+                    </span>
+                    <button type="button" class="asst-btn" onClick={cancelLocal}>Stop</button>
+                  </div>
+                </div>
+              }
+            >
+              <Show when={localBlocker(i())} fallback={
+                <button type="button" class="asst-btn is-primary" onClick={() => void installLocal()}>
+                  Download ({gb(i().downloadBytes)})
+                </button>
+              }>
+                {(why) => <span class="asst-muted">{why()}</span>}
+              </Show>
+            </Show>
+          </Show>
+          <Show when={localError()}>{(e) => <p class="asst-status is-error">{e()}</p>}</Show>
+        </div>
+      )}
+    </Show>
   );
 }
