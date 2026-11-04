@@ -410,6 +410,13 @@ export function createChartEdits(
 
   /** Apply one side of an undo entry. */
   function applyUndoEntry(e: UndoEntry, side: "before" | "after") {
+    if (e.kind === "pane-fields") {
+      const tab = tabOf(e.tabId);
+      if (!tab) return;
+      const snap = e[side];
+      patchTab(e.tabId, { panes: tab.panes.map((p) => (snap[p.id] ? { ...p, ...snap[p.id] } : p)) });
+      return;
+    }
     if (e.kind === "replay-settings") {
       replayBroker.setSettings(e[side], e.paneId);
       return;

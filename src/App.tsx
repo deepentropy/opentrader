@@ -67,7 +67,7 @@ import { createAppTabs } from "./window/shell/app-tabs";
 import { createTabLinkSync } from "./window/shell/tab-link-sync";
 import { createSavedLayouts } from "./window/shell/saved-layouts";
 import { LayoutNamingDialog, SavedLayoutDialogs } from "./window/shell/SavedLayoutDialogs";
-import { createUndoHistory } from "./window/shell/undo-history";
+import { createUndoHistory, type PaneFields } from "./window/shell/undo-history";
 import { createChartEdits } from "./window/shell/chart-edits";
 import { installKeyboardShortcuts } from "./window/shell/keyboard-shortcuts";
 import { installAppRequests } from "./window/shell/app-requests";
@@ -217,6 +217,21 @@ function App() {
   // Symbol / interval honour the Sync-in-layout toggles: when on, the change
   // mirrors to every pane of the layout instead of just the focused one. Either
   // way the change then propagates to colour-linked tabs.
+  /** A symbol, interval or chart type change of the active tab's charts, as one undo step (the reference app):
+   *  the charts `change` set, before and after. */
+  const undoablePaneChange = (field: "symbol" | "interval" | "chartType", label: string, change: () => void) => {
+    const tab = activeTab();
+    const was = new Map(tab.panes.map((p) => [p.id, p[field]]));
+    change();
+    const before: Record<string, PaneFields> = {};
+    const after: Record<string, PaneFields> = {};
+    for (const p of tabById().get(tab.id)?.panes ?? []) {
+      if (!was.has(p.id) || was.get(p.id) === p[field]) continue;
+      before[p.id] = { [field]: was.get(p.id) };
+      after[p.id] = { [field]: p[field] };
+    }
+    if (Object.keys(after).length) undo.record({ kind: "pane-fields", tabId: tab.id, before, after, label, at: Date.now() });
+  };
   const setInterval = (v: string) => {
     // Source-level gate: ignore intervals the datafeed can't serve (ticks,
     // ranges, too large a multiplier). The picker greys these out and
@@ -224,8 +239,10 @@ function App() {
     // digit-entry, a stale persisted favourite — from ever applying an
     // unservable id.
     if (!isSupportedResolution(v)) return;
-    if (layoutSync().interval) patchSyncGroupPanes({ interval: v });
-    else patchActivePane({ interval: v });
+    undoablePaneChange("interval", "change resolution", () => {
+      if (layoutSync().interval) patchSyncGroupPanes({ interval: v });
+      else patchActivePane({ interval: v });
+    });
     broadcastLink("interval", v);
   };
   const symbol = () => activePaneState().symbol;
@@ -237,8 +254,10 @@ function App() {
     w.__clickT = performance.now();
     w.__clickSym = v;
     console.log(`[select] ${v} @ ${w.__clickT.toFixed(0)}ms`);
-    if (layoutSync().symbol) patchSyncGroupPanes({ symbol: v });
-    else patchActivePane({ symbol: v });
+    undoablePaneChange("symbol", "change symbol", () => {
+      if (layoutSync().symbol) patchSyncGroupPanes({ symbol: v });
+      else patchActivePane({ symbol: v });
+    });
     broadcastLink("symbol", v);
   };
 
@@ -246,7 +265,7 @@ function App() {
   const setChartType = (v: ChartTypeId) => {
     // A type picked on a close-only symbol is the one such symbols take next.
     if (isEconomicSymbol(activePaneState().symbol)) rememberSingleValueType(v);
-    patchActivePane({ chartType: v });
+    undoablePaneChange("chartType", "change series style", () => patchActivePane({ chartType: v }));
   };
   // Bottom-bar RTH/ETH session — per focused pane (not a layout-sync
   // channel), so it only ever patches the active pane.

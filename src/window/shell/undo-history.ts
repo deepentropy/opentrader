@@ -1,7 +1,8 @@
 /*
  * Undo / redo history of the window (header Undo/Redo + Ctrl+Z / Ctrl+Y):
  * drawing changes, studies removed with the drawings they own, compared
- * symbols added / removed and layout splitter sizes. Session-scoped, not
+ * symbols added / removed, layout splitter sizes and a chart's symbol,
+ * interval or chart type. Session-scoped, not
  * persisted with the layout. Every drawing mutation that flows through the
  * drawing store's setSlice records {key, before, after}; drag streams
  * (updateDrawing per pointer-move) coalesce into ONE entry via coalesceId + a
@@ -104,8 +105,21 @@ export type ReplaySettingsUndoEntry = {
   label: string;
   at: number;
 };
+/** The fields a symbol, interval or chart type change sets. */
+export type PaneFields = Partial<Pick<PaneChart, "symbol" | "interval" | "chartType">>;
+/** A chart's symbol, interval or chart type changed (the reference app's "change symbol", "change resolution",
+ *  "change series style"): the charts it changed, by pane id (a synced change sets several), before and after. */
+export type PaneFieldsUndoEntry = {
+  kind: "pane-fields";
+  tabId: string;
+  before: Record<string, PaneFields>;
+  after: Record<string, PaneFields>;
+  label: string;
+  at: number;
+};
 export type UndoEntry =
   | DrawingUndoEntry
+  | PaneFieldsUndoEntry
   | StudyUndoEntry
   | CompareUndoEntry
   | LayoutSizesUndoEntry
@@ -180,6 +194,12 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
     setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
     if (redoStack().length) setRedoStack([]);
   }
+  /** Record an entry whose change is already made (no apply). */
+  function record(entry: UndoEntry) {
+    const stack = undoStack();
+    setUndoStack([...stack.slice(Math.max(0, stack.length - (UNDO_CAP - 1))), entry]);
+    if (redoStack().length) setRedoStack([]);
+  }
   function undo() {
     const stack = undoStack();
     const e = stack[stack.length - 1];
@@ -197,7 +217,7 @@ export function createUndoHistory(apply: (e: UndoEntry, side: "before" | "after"
     apply(e, "after");
   }
 
-  return { undoStack, redoStack, canUndo, canRedo, undoLabel, redoLabel, recordDrawingChange, commit, undo, redo };
+  return { undoStack, redoStack, canUndo, canRedo, undoLabel, redoLabel, recordDrawingChange, commit, record, undo, redo };
 }
 
 export type UndoHistory = ReturnType<typeof createUndoHistory>;
