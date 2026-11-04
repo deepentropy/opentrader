@@ -74,6 +74,7 @@ import { sourcesEdit } from "../shell/source-edits";
 import { emitAppEvent } from "../../data/app-events";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
 import type { IndicatorOptions } from "./indicators/indicator-options";
+import { settingsUndoText } from "./indicators/settings-undo-text";
 import { chartSeconds, profileMetaOf } from "./profiles/vbp-studies";
 import { isTpoEntry } from "./profiles/tpo";
 import { autoTicksPerRow } from "./profiles/tpo-engine";
@@ -1617,12 +1618,11 @@ export function ChartView(props: ChartViewProps) {
           let shown = JSON.stringify({ inputs: values ?? {}, styles: styles ?? {}, options: controller?.getOptions(id()) });
           const step = (next: { inputs: Record<string, unknown>; styles: IndicatorStyleOverrides; options: IndicatorOptions }) => {
             const was = JSON.parse(shown) as typeof next;
-            const changed = (entry!.inputConfig ?? []).find((c) => JSON.stringify(next.inputs[c.id]) !== JSON.stringify(was.inputs[c.id]));
             const title = indLegend().find((r) => r.id === id())?.title ?? entry!.name;
-            const key = changed ? `input:${changed.id}` : JSON.stringify(next.styles) !== JSON.stringify(was.styles) ? "style" : "options";
+            const { key, label } = settingsUndoText(was, next, entry!.inputConfig ?? [], title);
             shown = JSON.stringify(next);
             sourcesEdit(
-              changed ? `change ${changed.title || changed.id} property` : `change ${title} style`,
+              label,
               () => {
                 controller?.applySettings(id(), next.inputs, next.styles, next.options);
                 props.onIndicatorSettings?.(id(), { inputs: next.inputs, styles: next.styles, options: next.options });
