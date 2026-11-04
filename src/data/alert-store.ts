@@ -452,6 +452,11 @@ export const alertStore = {
     return full;
   },
 
+  /** Delete one event of the log (its row's Delete button). */
+  removeFire(fireId: string): void {
+    setState("fires", (fs) => fs.filter((f) => f.fireId !== fireId));
+  },
+
   clearFires(): void {
     setState("fires", []);
   },

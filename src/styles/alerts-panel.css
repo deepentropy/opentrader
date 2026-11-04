@@ -1,74 +1,73 @@
 /*
- * Alerts panel — right-rail tab content.  Width matches the watchlist
- * column so switching rail tabs doesn't reflow the chart pane.
+ * Alerts panel — right-rail tab content (AlertsPanel.tsx, AlertRules.tsx,
+ * alerts-menu.tsx). Width / bg / flex column come from `.ot-rail-panel`.
+ *
+ * Reference geometry: the Alerts / Log switch spans the 48 px header; under
+ * it a 39 px toolbar row (38 px buttons, 28 px icons) closed by a 1 px
+ * #4a4a4a line; rows of one text line (14/18) and one attributes line
+ * (12/18) with 16 px side padding, 1 px #2e2e2e separators and a #2e2e2e
+ * hover; the row buttons (22 px) sit over the end of the text on hover.
  */
 
-/* Panel: 331 px wide
- * with NO left border, 14 px body font.  Header strip is 48 px tall with
- * 16 px horizontal padding and no border-bottom.  Tabs are a segmented
- * control, not an underline strip. */
-/* Width / bg / flex column come from the shared `.ot-rail-panel` base. */
-
-/* `.alerts-panel-header` is now rendered by the shared <PanelHeader>
- * (`.ot-panel-header`).  See panel-header.css. */
-
-/* Segmented-control tabs ("Alerts | Log") are rendered by the shared
- * <SegmentedControl> component; styles live in `segmented-control.css`. */
-
-/* `.alerts-panel-toolbar` / `.alerts-panel-toolbar-btn` are now rendered
- * by the shared <PanelHeader right=…> + <IconButton>.  See panel-header.css
- * + icon-button.css. */
-.alerts-panel-toolbar-text {
-  font-size: 12px;
-  white-space: nowrap;
+/* ── Header: the switch, full width ── */
+.alerts-panel .ot-panel-header {
+  padding: 12px 16px 2px;
 }
 
-/* Toolbar cluster — the popovers (Options / Filters) anchor to it. */
-.alerts-panel-toolbar-group {
+.alerts-panel-tabs.ot-segmented-control {
+  border-radius: 8px;
+  background-color: var(--color-container-fill-primary-neutral-extra-light, #2e2e2e);
+}
+.alerts-panel-tabs .ot-segmented-control__segment {
+  border-radius: 5px;
+  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+}
+.alerts-panel-tabs .ot-segmented-control__segment.selected {
+  background-color: var(--color-container-fill-primary-neutral-normal, #4a4a4a);
+  color: var(--ot-text-max);
+  box-shadow: 0 0 6px 0 rgb(0 0 0);
+}
+
+/* ── Toolbar row ── */
+.alerts-panel-subheader {
   position: relative;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 2px;
+  height: 39px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-toolbar-divider-background, #4a4a4a);
+}
+.alerts-panel-subheader-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+.alerts-panel-tool.ot-icon-button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
 }
 
-/* Options / Filters popovers, dropped under the toolbar's right edge. */
-.alerts-panel-menu {
+/* Filters applied, on the Options button's top-right corner. */
+.alerts-panel-count {
   position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 30;
-  min-width: 180px;
-  padding: 4px 0;
-}
-
-.alerts-panel-filters {
-  min-width: 220px;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.alerts-panel-filter-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--color-content-primary-neutral);
-}
-.alerts-panel-filter-row select {
-  flex: 1;
-  min-width: 0;
-}
-.alerts-panel-filter-check {
-  cursor: pointer;
-}
-.alerts-panel-filter-check input {
-  accent-color: var(--ot-color-accent, #2962ff);
-  cursor: pointer;
-}
-.alerts-panel-filter-reset {
-  justify-content: center;
+  top: 0;
+  right: -2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+  color: var(--ot-chart-bg, #0f0f0f);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
 }
 
 .alerts-panel-body {
@@ -78,229 +77,249 @@
 
 /* `.alerts-panel-empty` uses the shared `.ot-empty-state` class. */
 
-/* Log item: 56 px tall, padding 8 px 16 px,
- * 14 px message font, 12 px ticker label sitting *above* the message. */
-.alerts-panel-log-item {
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--color-toolbar-divider-background);
+.alerts-panel-search {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border-table, #2e2e2e);
+}
+.alerts-panel-search input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Rows (alert rules and log events) ── */
+.alerts-panel-item {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  padding: 8px 16px 7px;
+  border-bottom: 1px solid var(--color-border-table, #2e2e2e);
+  cursor: default;
 }
-
-.alerts-panel-log-item:hover {
-  background-color: var(--color-toolbar-button-background-hover);
+.alerts-panel-item:hover {
+  background-color: var(--color-border-table, #2e2e2e);
 }
-
-/* Unread fire (newer than the read watermark) — accent dot before the message. */
-.alerts-panel-log-item.unread {
-  position: relative;
+/* The row whose menu is open. */
+.alerts-panel-item.is-menu-open {
+  background-color: var(--color-ot-blue-a800, #142e61);
 }
-.alerts-panel-log-item.unread::before {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 16px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--ot-color-accent, #2962ff);
-}
-
-.alerts-panel-log-message {
-  font-size: 14px;
-  color: var(--color-toolbar-button-text);
-  line-height: 21px;
-}
-
-.alerts-panel-log-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--color-content-primary-neutral);
-}
-
-/* `.alerts-panel-log-logo` uses the shared `.ot-ticker-logo
- * .ot-ticker-logo--sm` pair; the placeholder background is already in
- * the base.  Used by both <img> and <span> renderings. */
-
-.alerts-panel-log-ticker {
-  font-weight: 600;
-  color: var(--color-toolbar-button-text);
-}
-
-.alerts-panel-log-time {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Configured-rule rows ── */
-.alerts-panel-rule {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 14px;
-  border-bottom: 1px solid var(--color-toolbar-divider-background);
-  cursor: pointer;
-}
-
-.alerts-panel-rule:hover {
-  background-color: var(--color-toolbar-button-background-hover);
-}
-
-.alerts-panel-rule.is-disabled {
+.alerts-panel-item.is-disabled > :not(.alerts-panel-row-actions) {
   opacity: 0.5;
 }
 
-.alerts-panel-rule-toggle {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.alerts-panel-rule-toggle input {
-  accent-color: var(--ot-color-accent, #2962ff);
-  cursor: pointer;
-}
-
-.alerts-panel-rule-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.alerts-panel-rule-title {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.alerts-panel-rule-symbol {
+.alerts-panel-item-text {
+  padding-bottom: 3px;
   font-size: 14px;
-  font-weight: 600;
-  color: var(--color-toolbar-button-text);
-}
-
-.alerts-panel-rule-name {
-  font-size: 12px;
-  color: var(--color-content-primary-neutral);
+  line-height: 18px;
+  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.alerts-panel-attrs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 18px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-content-primary-neutral, #8c8c8c);
   white-space: nowrap;
+  overflow: hidden;
 }
-
-.alerts-panel-rule-cond {
-  font-size: 12px;
-  color: var(--color-content-primary-neutral);
-  margin-top: 2px;
+.alerts-panel-logo {
+  margin-right: 4px;
 }
-
-.alerts-panel-rule-delete {
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  display: flex;
+.alerts-panel-attr {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--color-content-primary-neutral);
-  border-radius: 4px;
-  cursor: pointer;
-  opacity: 0;
+  flex-shrink: 0;
 }
-
-.alerts-panel-rule:hover .alerts-panel-rule-delete {
-  opacity: 1;
+.alerts-panel-attr + .alerts-panel-attr::before {
+  content: "•";
+  margin: 0 6px;
+  color: var(--color-content-primary-neutral, #8c8c8c);
 }
-
-.alerts-panel-rule-delete:hover {
-  background-color: var(--color-toolbar-button-background-hover);
-  color: var(--color-toolbar-button-text);
+.alerts-panel-attr--strong,
+.alerts-panel-source {
+  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
 }
-
-/* ── Alerts view: row meta + hover actions, menus, search (AlertRules.tsx) ── */
-.alerts-panel-rule-cond .alerts-panel-rule-name {
-  display: block;
-  font-weight: 600;
-  color: var(--color-toolbar-button-text);
-}
-
-.alerts-panel-rule-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--color-content-primary-neutral);
-}
-
-.alerts-panel-rule-status.is-active {
+.alerts-panel-status.is-active {
   color: var(--color-minty-green-500, #089981);
 }
+.alerts-panel-warn {
+  color: var(--color-invalid-symbol);
+}
 
-.alerts-panel-rule-actions {
+/* Row buttons: over the end of the text, on the row's hover colour. */
+.alerts-panel-row-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   display: flex;
-  flex: 0 0 auto;
-  opacity: 0;
+  gap: 4px;
+  padding-left: 16px;
+  background-color: inherit;
+  visibility: hidden;
 }
-
-.alerts-panel-rule:hover .alerts-panel-rule-actions {
-  opacity: 1;
+.alerts-panel-item:hover .alerts-panel-row-actions {
+  visibility: visible;
 }
-
-.alerts-panel-rule-btn {
+.alerts-panel-row-btn {
   all: unset;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: var(--color-content-primary-neutral);
-  cursor: pointer;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  cursor: default;
 }
-
-.alerts-panel-rule-btn:hover {
-  background-color: var(--color-toolbar-button-background-hover);
+.alerts-panel-row-btn:hover {
   color: var(--color-toolbar-button-text);
 }
 
-.alerts-panel-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
+/* Log day title ("OCTOBER 22"). */
+.alerts-panel-day {
+  padding: 16px 16px 8px;
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+  color: var(--color-content-primary-neutral, #8c8c8c);
 }
 
-.alerts-panel-menu-item.is-disabled {
-  opacity: 0.4;
-  cursor: default;
+/* ── Menus (alerts-menu.tsx) ── */
+.alerts-panel-menu {
+  position: absolute;
+  top: calc(100% - 1px);
+  right: 8px;
+  z-index: 30;
+  width: 260px;
+  box-sizing: border-box;
 }
-
-.alerts-panel-menu-check {
-  flex: 0 0 14px;
-  font-size: 12px;
+/* The Sort menu ends under the Sort button (left of Options). */
+.alerts-panel-menu--sort {
+  right: 46px;
 }
-
-.alerts-panel-menu-sep {
-  height: 1px;
-  margin: 4px 0;
-  background: var(--color-toolbar-divider-background);
-}
-
 .alerts-panel-row-menu {
   position: fixed;
   right: auto;
   z-index: 1100;
 }
 
-.alerts-panel-search {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--color-toolbar-divider-background);
+.alerts-menu-row {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  cursor: default;
+}
+.alerts-menu-row:hover:not(.is-disabled) {
+  background-color: var(--color-popup-element-background-hover);
+}
+.alerts-menu-row.is-disabled {
+  opacity: 0.55;
+}
+.alerts-menu-action {
+  padding-left: 0;
+}
+.alerts-menu-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 10px 0 4px;
+}
+.alerts-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.alerts-menu-count {
+  margin-left: 12px;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  font-variant-numeric: tabular-nums;
 }
 
-.alerts-panel-search input {
-  width: 100%;
+/* Check box and radio: outlined, white when on. */
+.alerts-menu-mark {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 8px;
   box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+  border-radius: 3px;
+}
+.alerts-menu-mark.is-checked {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+  color: var(--ot-chart-bg, #0f0f0f);
+}
+.alerts-menu-mark.is-radio {
+  border-radius: 50%;
+}
+.alerts-menu-mark.is-radio.is-checked::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--ot-chart-bg, #0f0f0f);
+}
+
+/* Sort rows: the label 6 px after the direction icon. */
+.alerts-menu-sort .alerts-menu-icon {
+  margin-right: 6px;
+}
+
+/* The current sort. */
+.alerts-menu-sort.is-selected,
+.alerts-menu-sort.is-selected:hover {
+  background-color: var(--color-container-fill-primary-neutral-extra-bold, #f2f2f2);
+  color: var(--ot-chart-bg, #0f0f0f);
+}
+
+.alerts-menu-sep {
+  height: 1px;
+  margin: 6px 0;
+  background-color: var(--color-toolbar-divider-background, #4a4a4a);
+}
+.alerts-menu-sep + .alerts-menu-title {
+  margin-top: -6px;
+}
+
+/* Collapsible section title ("SHOW ALERTS"). */
+.alerts-menu-title {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 30px;
+  padding: 6px 8px 0 12px;
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+  color: var(--color-content-primary-neutral, #8c8c8c);
+  cursor: default;
+}
+.alerts-menu-chevron {
+  transition: transform 80ms ease;
+}
+.alerts-menu-chevron.is-closed {
+  transform: rotate(180deg);
 }

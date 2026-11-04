@@ -48,6 +48,8 @@ type Props = {
   pressedTab?: (id: string) => boolean;
   /** Buttons whose panel is collapsed (see RightRailTabs). */
   collapsedTab?: (id: string) => boolean;
+  /** The Alerts panel's "Alerts settings..." (the app settings, Alerts page). */
+  onOpenAlertSettings?: () => void;
 };
 
 const WIDTH_KEY = "ot:rail:width";
@@ -232,6 +234,7 @@ export function RightRail(props: Props) {
                 props.onSymbolSelect(sym);
                 props.onIntervalSelect?.(iv);
               }}
+              onOpenSettings={props.onOpenAlertSettings}
             />
           </Match>
           <Match when={props.activeTab === "community" && COMMUNITY_ENABLED}>

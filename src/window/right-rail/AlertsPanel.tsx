@@ -1,16 +1,18 @@
 /*
- * AlertsPanel — right-rail "alerts" tab. Two views via the segmented control:
+ * AlertsPanel — right-rail "alerts" tab: the Alerts / Log switch across the
+ * header, a toolbar row under it, then the view:
  *   • Alerts — the configured alert *rules* (./AlertRules: list + toolbar)
- *   • Log    — the fired-event history
+ *   • Log    — the fired-event history, grouped by day
  *
  * Both are backed by the local alert-store (data/alert-store.ts); the engine
  * (data/alert-engine.ts) evaluates the rules and appends fires. Editing a rule
  * dispatches the same window event the header/chart use to open AlertDialog.
  *
- * Header toolbar: clear-log, an Options menu (mark all read / clear log), and
- * a filters popover (symbol + active-rules-only) that narrows the Log view.
- * "Read" state is a single kv watermark (fires newer than it show a dot) —
- * the store's Fire records stay untouched.
+ * Log toolbar: Clear log on the left; on the right the Options menu
+ * (Download log as CSV, then the sections Filter events: current symbol /
+ * time interval; Show events by type: price, technicals, watchlist; Customize
+ * list: name, message, instrument logo), its button counting the filters
+ * applied. A row's Delete button (on hover) removes that event.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { tickerOf } from "../../data/symbol-name";
@@ -19,25 +21,53 @@ import { Tooltip } from "../../components/Tooltip";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { PanelHeader } from "../../components/PanelHeader";
 import { IconButton } from "../../components/IconButton";
-import { TABS, TOOLBAR } from "../../data/alerts-panel";
-import { alertStore, type AlertRule } from "../../data/alert-store";
+import { TABS } from "../../data/alerts-panel";
+import { alertStore, type AlertFire, type AlertRule } from "../../data/alert-store";
 import { ruleDrawingMissing } from "../../data/alert-condition";
-import { AlertRulesList, AlertRulesToolbar } from "./AlertRules";
+import { intervalLabel } from "../../data/datafeed";
+import { csvFileName, downloadText } from "../screener/screener-csv";
+import { AlertRulesList, AlertRulesToolbar, OptionsButton, RowLogo, isTechnical } from "./AlertRules";
+import { GLYPH, MenuAction, MenuSection, MenuToggle } from "./alerts-menu";
 import * as kv from "../../data/kv";
 
-const LOG_READ_KEY = "ot:alerts:log-read:v1";
-function loadLastRead(): number {
-  const n = Number(kv.getItem(LOG_READ_KEY));
-  return Number.isFinite(n) ? n : 0;
+type LogFilters = { symbol: boolean; interval: boolean; price: boolean; technicals: boolean; watchlist: boolean; name: boolean; message: boolean; logo: boolean };
+const LOG_DEFAULTS: LogFilters = { symbol: false, interval: false, price: true, technicals: true, watchlist: true, name: true, message: true, logo: true };
+const LOG_VIEW_KEY = "ot:alerts:log-view:v1";
+function loadLogFilters(): LogFilters {
+  try {
+    const v = JSON.parse(kv.getItem(LOG_VIEW_KEY) ?? "null") as Partial<LogFilters> | null;
+    const out = { ...LOG_DEFAULTS };
+    for (const k of Object.keys(LOG_DEFAULTS) as (keyof LogFilters)[]) if (typeof v?.[k] === "boolean") out[k] = v[k]!;
+    return out;
+  } catch {
+    return { ...LOG_DEFAULTS };
+  }
 }
 
-function clockTime(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+const pad = (n: number) => String(n).padStart(2, "0");
+const clockTime = (ms: number) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+/** Day group title ("October 22"; the panel writes it in capitals). */
+const dayTitle = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+const dayKey = (ms: number) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+
+/** Type of an event: a watchlist alert, else that of its rule (price when the rule is gone). */
+function fireType(f: AlertFire, rules: Map<string, AlertRule>): "price" | "technicals" | "watchlist" {
+  if (f.alertId.startsWith("list:")) return "watchlist";
+  const r = rules.get(f.alertId);
+  return r && isTechnical(r) ? "technicals" : "price";
 }
 
-export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?: (symbol: string, interval: string) => void }) {
+/** The log as CSV: one row per event, as the list shows them. */
+function logCsv(fires: AlertFire[]): string {
+  const cell = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const rows = fires.map((f) => {
+    const d = new Date(f.fireTime);
+    return [`${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${clockTime(f.fireTime)}`, f.symbol, intervalLabel(f.resolution), f.name ?? "", f.message].map(cell).join(",");
+  });
+  return ["Time,Symbol,Interval,Name,Message", ...rows].join("\n");
+}
+
+export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?: (symbol: string, interval: string) => void; onOpenSettings?: () => void }) {
   const [view, setView] = createSignal<string>("alerts");
   /** Chart the "Current symbol" / "Current time interval" filters refer to. */
   const ctx = () => ({ symbol: props.symbol ?? "", interval: props.interval ?? "" });
@@ -54,168 +84,93 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
     return ruleDrawingMissing(rule);
   };
 
-  // One popover at a time: the Options menu or the filters menu.
-  const [optionsOpen, setOptionsOpen] = createSignal(false);
-  const [filtersOpen, setFiltersOpen] = createSignal(false);
-  let toolbarEl: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => {
-      if (!toolbarEl || toolbarEl.contains(e.target as Node)) return;
-      setOptionsOpen(false);
-      setFiltersOpen(false);
-    };
-    window.addEventListener("pointerdown", onDown);
-    onCleanup(() => window.removeEventListener("pointerdown", onDown));
-  });
-
-  // ── Log filters ── symbol (from the fires present) + active-rules-only.
-  const [filterSymbol, setFilterSymbol] = createSignal<string>("");
-  const [filterActive, setFilterActive] = createSignal(false);
-  const filterCount = () => (filterSymbol() ? 1 : 0) + (filterActive() ? 1 : 0);
-  const logSymbols = createMemo(() =>
-    [...new Set(alertStore.fires().map((f) => f.symbol))].sort(),
-  );
-  const enabledIds = createMemo(() => new Set(alertStore.enabledRules().map((r) => r.id)));
-  const visibleFires = createMemo(() =>
-    alertStore.fires().filter(
-      (f) =>
-        (!filterSymbol() || f.symbol === filterSymbol()) &&
-        (!filterActive() || enabledIds().has(f.alertId)),
-    ),
-  );
-
-  // ── Read watermark ── fires newer than it render an unread dot.
-  const [lastRead, setLastRead] = createSignal(loadLastRead());
-  onCleanup(kv.onExternalChange(LOG_READ_KEY, () => setLastRead(loadLastRead())));
-  const markAllRead = () => {
-    const now = Date.now();
-    setLastRead(now);
+  // ── Log ──
+  const [logFilters, setLogFiltersSignal] = createSignal<LogFilters>(loadLogFilters());
+  const flipLog = (k: keyof LogFilters) => {
+    const next = { ...logFilters(), [k]: !logFilters()[k] };
+    setLogFiltersSignal(next);
     try {
-      kv.setItem(LOG_READ_KEY, String(now));
+      kv.setItem(LOG_VIEW_KEY, JSON.stringify(next));
     } catch {
       /* best-effort */
     }
   };
-
-  const clearLog = () => alertStore.clearFires();
-
-  const onToolbarClick = (dataName: string) => {
-    if (dataName === "clear-log-button") clearLog();
-    else if (dataName === "alerts-log-actions-button") {
-      setFiltersOpen(false);
-      setOptionsOpen((o) => !o);
-    } else if (dataName === "alerts-dropdown-filters-count") {
-      setOptionsOpen(false);
-      setFiltersOpen((o) => !o);
-    }
+  const logFilterCount = () => {
+    const f = logFilters();
+    return (f.symbol ? 1 : 0) + (f.interval ? 1 : 0) + (f.price ? 0 : 1) + (f.technicals ? 0 : 1) + (f.watchlist ? 0 : 1);
   };
+  const visibleFires = createMemo(() => {
+    const f = logFilters();
+    const rules = new Map(alertStore.rules().map((r) => [r.id, r]));
+    const sym = ctx().symbol.toUpperCase();
+    return alertStore.fires().filter(
+      (e) => (!f.symbol || e.symbol === sym) && (!f.interval || e.resolution === ctx().interval) && f[fireType(e, rules)],
+    );
+  });
+  /** Events by day, newest day first (the log is kept newest first). */
+  const days = createMemo(() => {
+    const out: { key: string; title: string; fires: AlertFire[] }[] = [];
+    for (const e of visibleFires()) {
+      const key = dayKey(e.fireTime);
+      if (out[out.length - 1]?.key !== key) out.push({ key, title: dayTitle(e.fireTime), fires: [] });
+      out[out.length - 1].fires.push(e);
+    }
+    return out;
+  });
+
+  const [logMenu, setLogMenu] = createSignal(false);
+  let logToolbarEl: HTMLDivElement | undefined;
+  onMount(() => {
+    const onDown = (e: PointerEvent) => { if (logToolbarEl && !logToolbarEl.contains(e.target as Node)) setLogMenu(false); };
+    window.addEventListener("pointerdown", onDown);
+    onCleanup(() => window.removeEventListener("pointerdown", onDown));
+  });
 
   return (
     <aside class="ot-rail-panel alerts-panel" aria-label="Alerts">
       <PanelHeader
         ariaLabel="Alerts header"
-        left={<SegmentedControl items={TABS} value={view()} onChange={setView} ariaLabel="Alerts view" />}
-        right={
-          <Show when={view() === "log"} fallback={<AlertRulesToolbar ctx={ctx()} />}>
-          <div class="alerts-panel-toolbar-group" ref={toolbarEl}>
-            <For each={TOOLBAR}>
-              {(t) => (
-                <Tooltip text={t.label ?? "Filters"} side="bottom">
-                  <IconButton
-                    data-name={t.dataName}
-                    aria-label={t.label ?? "Filters"}
-                    aria-pressed={
-                      (t.dataName === "alerts-log-actions-button" && optionsOpen()) ||
-                      (t.dataName === "alerts-dropdown-filters-count" && (filtersOpen() || filterCount() > 0)) ||
-                      undefined
-                    }
-                    onClick={() => onToolbarClick(t.dataName)}
-                  >
-                    <Show
-                      when={t.iconName}
-                      fallback={
-                        <span class="alerts-panel-toolbar-text">
-                          {t.dataName === "alerts-dropdown-filters-count"
-                            ? `Filters${filterCount() ? ` · ${filterCount()}` : ""}`
-                            : t.label}
-                        </span>
-                      }
-                    >
-                      <Icon name={t.iconName!} size={18} />
-                    </Show>
-                  </IconButton>
-                </Tooltip>
-              )}
-            </For>
-
-            {/* Options menu */}
-            <Show when={optionsOpen()}>
-              <div class="ot-popover alerts-panel-menu" role="menu" aria-label="Alert log options">
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="ot-menu-item"
-                  onClick={() => {
-                    markAllRead();
-                    setOptionsOpen(false);
-                  }}
-                >
-                  <span class="ot-menu-item__label">Mark all as read</span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="ot-menu-item"
-                  onClick={() => {
-                    clearLog();
-                    setOptionsOpen(false);
-                  }}
-                >
-                  <span class="ot-menu-item__label">Clear log</span>
-                </button>
-              </div>
-            </Show>
-
-            {/* Filters popover */}
-            <Show when={filtersOpen()}>
-              <div class="ot-popover alerts-panel-menu alerts-panel-filters" aria-label="Alert log filters">
-                <label class="alerts-panel-filter-row">
-                  <span>Symbol</span>
-                  <select
-                    class="wl-dialog-input"
-                    value={filterSymbol()}
-                    onChange={(e) => setFilterSymbol(e.currentTarget.value)}
-                  >
-                    <option value="">All symbols</option>
-                    <For each={logSymbols()}>{(s) => <option value={s}>{s}</option>}</For>
-                  </select>
-                </label>
-                <label class="alerts-panel-filter-row alerts-panel-filter-check">
-                  <input
-                    type="checkbox"
-                    checked={filterActive()}
-                    onChange={() => setFilterActive((v) => !v)}
-                  />
-                  <span>Active alerts only</span>
-                </label>
-                <Show when={filterCount() > 0}>
-                  <button
-                    type="button"
-                    class="ot-menu-item alerts-panel-filter-reset"
-                    onClick={() => {
-                      setFilterSymbol("");
-                      setFilterActive(false);
-                    }}
-                  >
-                    <span class="ot-menu-item__label">Reset filters</span>
-                  </button>
-                </Show>
-              </div>
-            </Show>
-          </div>
-          </Show>
-        }
+        left={<SegmentedControl items={TABS} value={view()} onChange={setView} ariaLabel="Alerts view" class="alerts-panel-tabs" />}
       />
+      <Show
+        when={view() === "log"}
+        fallback={<AlertRulesToolbar ctx={ctx()} onOpenSettings={props.onOpenSettings} />}
+      >
+        <div class="alerts-panel-subheader" ref={logToolbarEl}>
+          <Tooltip text="Clear log" side="bottom">
+            <IconButton data-name="clear-log-button" aria-label="Clear log" class="alerts-panel-tool" onClick={() => alertStore.clearFires()}>
+              <Icon name="al-clear-log" size={28} />
+            </IconButton>
+          </Tooltip>
+          <div class="alerts-panel-subheader-right">
+            <OptionsButton name="alerts-log-actions-button" count={logFilterCount()} pressed={logMenu()} onClick={() => setLogMenu((o) => !o)} />
+          </div>
+          <Show when={logMenu()}>
+            <div class="ot-popover alerts-panel-menu" role="menu" aria-label="Alert log options">
+              <MenuAction
+                icon={GLYPH.download()}
+                label="Download log as CSV"
+                disabled={visibleFires().length === 0}
+                onSelect={() => { downloadText(csvFileName("Alerts log"), logCsv(visibleFires())); setLogMenu(false); }}
+              />
+              <MenuSection title="Filter events">
+                <MenuToggle label="Current symbol" checked={logFilters().symbol} onSelect={() => flipLog("symbol")} />
+                <MenuToggle label="Current time interval" checked={logFilters().interval} onSelect={() => flipLog("interval")} />
+              </MenuSection>
+              <MenuSection title="Show events by type">
+                <MenuToggle label="Price" checked={logFilters().price} onSelect={() => flipLog("price")} />
+                <MenuToggle label="Technicals" checked={logFilters().technicals} onSelect={() => flipLog("technicals")} />
+                <MenuToggle label="Watchlist" checked={logFilters().watchlist} onSelect={() => flipLog("watchlist")} />
+              </MenuSection>
+              <MenuSection title="Customize list">
+                <MenuToggle label="Name" checked={logFilters().name} onSelect={() => flipLog("name")} />
+                <MenuToggle label="Message" checked={logFilters().message} onSelect={() => flipLog("message")} />
+                <MenuToggle label="Instrument logo" checked={logFilters().logo} onSelect={() => flipLog("logo")} />
+              </MenuSection>
+            </div>
+          </Show>
+        </div>
+      </Show>
       <div class="alerts-panel-body">
         {/* ── Configured rules ── */}
         <Show when={view() === "alerts"}>
@@ -227,30 +182,42 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
           <Show
             when={visibleFires().length > 0}
             fallback={
-              <div class="ot-empty-state alerts-panel-empty">
-                {alertStore.fires().length > 0 ? "No events match the filters" : "No events yet"}
-              </div>
+              <Show when={alertStore.fires().length === 0}>
+                <div class="ot-empty-state alerts-panel-empty">No events yet</div>
+              </Show>
             }
           >
-            <For each={visibleFires()}>
-              {(e) => (
-                <div
-                  data-name="alert-log-item"
-                  class="alerts-panel-log-item"
-                  classList={{ unread: (e.receivedAt ?? e.fireTime) > lastRead() }}
-                >
-                  <div class="alerts-panel-log-message">{e.message}</div>
-                  <div class="alerts-panel-log-meta">
-                    <Show
-                      when={e.logoUrl}
-                      fallback={<span class="alerts-panel-log-logo placeholder" />}
-                    >
-                      <img src={e.logoUrl!} alt="" class="ot-ticker-logo ot-ticker-logo--sm alerts-panel-log-logo" crossorigin="anonymous" referrerpolicy="no-referrer" />
-                    </Show>
-                    <span class="alerts-panel-log-ticker">{`${tickerOf(e.symbol)}, ${e.resolution}`}</span>
-                    <span class="alerts-panel-log-time">{clockTime(e.fireTime)}</span>
-                  </div>
-                </div>
+            <For each={days()}>
+              {(day) => (
+                <>
+                  <div class="alerts-panel-day">{day.title}</div>
+                  <For each={day.fires}>
+                    {(e) => (
+                      <div data-name="alert-log-item" class="alerts-panel-item">
+                        <Show when={logFilters().name && e.name}>
+                          <div class="alerts-panel-item-text">{e.name}</div>
+                        </Show>
+                        <Show when={logFilters().message || !(logFilters().name && e.name)}>
+                          <div class="alerts-panel-item-text">{e.message}</div>
+                        </Show>
+                        <div class="alerts-panel-attrs">
+                          <Show when={logFilters().logo}>
+                            <RowLogo symbol={e.symbol} />
+                          </Show>
+                          <span class="alerts-panel-attr alerts-panel-attr--strong">{`${tickerOf(e.symbol)}, ${intervalLabel(e.resolution)}`}</span>
+                          <span class="alerts-panel-attr">{clockTime(e.fireTime)}</span>
+                        </div>
+                        <div class="alerts-panel-row-actions">
+                          <Tooltip text="Delete" side="bottom">
+                            <button type="button" class="alerts-panel-row-btn" data-name="event-delete-button" aria-label="Delete" onClick={() => alertStore.removeFire(e.fireId)}>
+                              {GLYPH.trash()}
+                            </button>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    )}
+                  </For>
+                </>
               )}
             </For>
           </Show>
