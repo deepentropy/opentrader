@@ -409,6 +409,7 @@ html.theme-light .watchlist-col-guide {
 
 .watchlist-rows {
   flex: 1;
+  overflow-x: hidden; /* the panel opens as wide as the columns need (RightRail) */
   overflow-y: auto;
 }
 

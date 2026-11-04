@@ -4,7 +4,8 @@
  * activeTab is null, only the 45-px strip remains.
  *
  * Width: a 5 px handle on the panel's left edge drags the panel width (one
- * width for every panel, saved). 200 px at least; dragged under 50 px the
+ * width for every panel, saved). 200 px at least, the watchlist as wide as its
+ * columns need (no sideways scrolling); dragged under 50 px the
  * panel closes, dragged back out it opens again; the chart area keeps
  * 300 px, so the panel narrows with a small window and hides when even
  * 200 px do not fit.
@@ -21,6 +22,7 @@ import { shareRequest } from "../../data/community/share";
 import { COMMUNITY_ENABLED } from "../../data/community/api";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import * as kv from "../../data/kv";
+import { watchlistNeed } from "./watchlist/need-width";
 
 type Props = {
   activeTab: string | null;
@@ -119,7 +121,9 @@ export function RightRail(props: Props) {
   createEffect(() => {
     if (props.activeTab) lastTab = props.activeTab;
   });
-  const shownWidth = () => Math.min(width(), room());
+  // The watchlist: at least what its columns need (./watchlist/need-width), so the table never scrolls sideways.
+  const minWidth = () => (props.activeTab === "base" ? Math.max(WIDTH_MIN, watchlistNeed()) : WIDTH_MIN);
+  const shownWidth = () => Math.min(Math.max(width(), minWidth()), room());
   const fits = () => room() >= WIDTH_MIN;
   /** Chart area + panel: what the two share. */
   const shared = () => {
@@ -152,7 +156,7 @@ export function RightRail(props: Props) {
         if (props.activeTab) props.setActiveTab(null);
         return;
       }
-      setWidth(Math.min(max, Math.max(WIDTH_MIN, w)));
+      setWidth(Math.min(max, Math.max(minWidth(), w)));
       if (!props.activeTab) props.setActiveTab(lastTab);
     };
     const onUp = () => {

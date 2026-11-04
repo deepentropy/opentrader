@@ -1,12 +1,14 @@
 /*
  * Watchlist table columns: the per-column widths (drag-resizable from the
  * header dividers, persisted), the shared grid template of the header and
- * the rows, and the guide line under a hovered or dragged divider.
+ * the rows, the width they need (./need-width: the right panel opens that
+ * wide) and the guide line under a hovered or dragged divider.
  */
-import { createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup } from "solid-js";
 import * as kv from "../../../data/kv";
 import { COL_WIDTHS_KEY, DEFAULT_COL_W, DEFAULT_SYMBOL_W, MAX_COL_W, MIN_COL_W, SYMBOL_COL_KEY, loadColWidths } from "./prefs";
 import { type WatchlistCx } from "./context";
+import { setWatchlistNeed, tableWidth } from "./need-width";
 import type { Accessor, JSX } from "solid-js";
 
 /** What createColumns adds to the watchlist context. */
@@ -28,6 +30,11 @@ export function createColumns(cx: WatchlistCx): ColumnsApi {
   const symbolW = () => colWidths()[SYMBOL_COL_KEY] ?? DEFAULT_SYMBOL_W;
   const gridTemplate = () =>
     `minmax(${symbolW()}px, 1fr) ${visibleCols().map((c) => `${colWidths()[c.key] ?? DEFAULT_COL_W}px`).join(" ")}`;
+  // The right panel opens wide enough for every column (no sideways scrolling); nothing asked in the tile view.
+  createEffect(() =>
+    setWatchlistNeed(cx.settings().tableView ? tableWidth(symbolW(), visibleCols().map((c) => colWidths()[c.key] ?? DEFAULT_COL_W)) : 0),
+  );
+  onCleanup(() => setWatchlistNeed(0));
 
   // Root <aside> + column-header refs, and the guide line under a column
   // divider (x = divider centre, top = header bottom, both px from the aside).
