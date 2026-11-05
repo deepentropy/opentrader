@@ -148,7 +148,19 @@ type OffThreadRun = {
   raw: unknown;
   /** Worker the study's jobs go to (it keeps the study's last result). */
   slot: number | undefined;
+  /** A live update does not calculate before this time (performance.now()): see LIVE_PAUSE_FACTOR. */
+  liveAfter: number;
+  /** Timer that starts the queued live update at `liveAfter`. */
+  liveTimer: ReturnType<typeof setTimeout> | null;
 };
+/**
+ * After a calculation of `ms`, the next live update of the study waits LIVE_PAUSE_FACTOR × ms (at most
+ * LIVE_PAUSE_MAX_MS; the newest one is calculated): a study that takes 400 ms recalculates about every 1.6 s and uses
+ * a quarter of a worker, instead of calculating without a pause on every tick. A light study is not delayed (its pause
+ * is shorter than the time between updates); a change of bars, inputs or symbol calculates at once.
+ */
+const LIVE_PAUSE_FACTOR = 3;
+const LIVE_PAUSE_MAX_MS = 3000;
 type StudyWork = Omit<StudyJob, 'id' | 'kind'>;
 
 /** Change detector of bars: more history, a live update of the last bar, prices adjusted again (a checksum over
@@ -544,7 +556,7 @@ export class IndicatorLayer {
 
   // ── Off the window's thread (study-calc.ts) ───────────────────────────
   /** Run state of the worker calculations (library studies). */
-  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], version: null, raw: null, slot: undefined };
+  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], version: null, raw: null, slot: undefined, liveAfter: 0, liveTimer: null };
   /** The worker's result the last calculation gave (null: not a worker result), and the one drawn. */
   private workerResult: unknown = null;
   private drawnWorkerResult: unknown = null;
@@ -605,7 +617,16 @@ export class IndicatorLayer {
     }
     const job: StudyWork = { entryId: entry.id, study: `${this.chartId}|${this.studyId ?? entry.id}`, base: null, bars, restamp: true, inputs, ctx: plain, accessors, data, sources };
     if (off.running) off.queued = { job, key, series, live };
-    else this.runOffThread(job, key, series, live);
+    else if (live && (off.liveTimer || performance.now() < off.liveAfter)) {
+      off.queued = { job, key, series, live };
+      this.startQueuedLater(off);
+    } else {
+      // not a live update (bars, inputs, symbol): no pause
+      if (off.liveTimer) clearTimeout(off.liveTimer);
+      off.liveTimer = null;
+      off.queued = null;
+      this.runOffThread(job, key, series, live);
+    }
     if (off.series !== series || off.result === null) return { result: PENDING_RESULT };
     this.workerResult = off.result;
     return off.error ? { error: off.error } : { result: off.result };
@@ -644,11 +665,30 @@ export class IndicatorLayer {
         off.result = reply.error ? null : reply.pending ? PENDING_RESULT : reply.result;
         off.error = reply.error ? studyErrorOf(Object.assign(new Error(reply.error), { studyTitle: reply.errorTitle })) : null;
       }
+      off.liveAfter = performance.now() + Math.min(LIVE_PAUSE_MAX_MS, LIVE_PAUSE_FACTOR * (reply.ms || 0));
       const next = off.queued;
+      if (next && next.key !== off.key && next.live && performance.now() < off.liveAfter) {
+        // the newest live update waits for the pause; the result that came is drawn meanwhile
+        this.startQueuedLater(off);
+        this.calculated?.(live);
+        return;
+      }
       off.queued = null;
       if (next && next.key !== off.key) this.runOffThread(next.job, next.key, next.series, next.live);
       else this.calculated?.(live && !next);
     });
+  }
+
+  /** The queued job starts at the end of the live pause (a newer one queued meanwhile replaces it). */
+  private startQueuedLater(off: OffThreadRun): void {
+    if (off.liveTimer) return;
+    off.liveTimer = setTimeout(() => {
+      off.liveTimer = null;
+      if (this.off !== off || off.running) return;
+      const next = off.queued;
+      off.queued = null;
+      if (next && next.key !== off.key) this.runOffThread(next.job, next.key, next.series, next.live);
+    }, Math.max(0, off.liveAfter - performance.now()));
   }
 
   /** Redraw the last result without recomputing it (main series replaced,
