@@ -31,7 +31,7 @@ import { onTradeTick, getBars, getTickerInfo, isSupportedResolution, tickerOf, t
 import { cachedSymbolSessions, localToUtc, symbolSessions } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { setSubscription } from "./subscriptions";
-import { alertStore, isScreenRule, type AlertRule, type Operand } from "./alert-store";
+import { alertStore, isScreenRule, type AlertRule, type Operand, type WebhookOutcome } from "./alert-store";
 import { inSchedule } from "./alert-schedule";
 import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
@@ -569,7 +569,7 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
   // An alert on a script's alert() calls is known by its condition (its fires carry the calls' messages).
   const title = rule.name?.trim() ? rule.name : rule.op === "alert_function" || rule.op === "strategy_alerts" ? condText : `Alert · ${tickerOf(rule.symbol)}`;
 
-  alertStore.recordFire({
+  const fire = alertStore.recordFire({
     alertId: rule.id,
     symbol: rule.symbol,
     resolution: rule.resolution,
@@ -587,8 +587,9 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
 
   if (!offline) playAlertSound(rule.sound, { duration: rule.soundDuration ?? 0 });
 
-  // Webhook — fire-and-forget; a failing endpoint must not affect local delivery.
-  // An offline fire is posted too, with the time it happened and `offline`.
+  // Webhook — not waited on; a failing endpoint must not affect local delivery.
+  // Its outcome is written on the event. An offline fire is posted too, with
+  // the time it happened and `offline`.
   const webhookUrl = alertWebhook(rule.id);
   if (webhookUrl) {
     const payload = JSON.stringify({
@@ -604,20 +605,18 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
     // Native POST in the shell: the webview's fetch originates from
     // tauri.localhost, so most receivers reject its CORS preflight. Plain fetch
     // covers the browser / headless-verify harness (which stubs invoke).
+    const done = (r: WebhookOutcome) => {
+      alertStore.setFireWebhook(fire.fireId, r);
+      if (r.error || (r.httpCode != null && (r.httpCode < 200 || r.httpCode >= 300))) console.warn("[alerts] webhook post failed", r.httpCode, r.error);
+    };
     if (HAS_TAURI) {
-      void commands.postWebhook(webhookUrl, payload).then((r) => {
-        if (r.status === "error") console.warn("[alerts] webhook post failed", r.error);
-      });
+      void commands.postWebhook(webhookUrl, payload).then(done, (e) => done({ httpCode: null, error: String(e) }));
     } else {
-      try {
-        void fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: payload,
-        }).catch((e) => console.warn("[alerts] webhook post failed", e));
-      } catch (e) {
-        console.warn("[alerts] webhook post failed", e);
-      }
+      void fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then((res) => done({ httpCode: res.status, error: null }), (e) => done({ httpCode: null, error: e instanceof Error ? e.message : String(e) }));
     }
   }
   if (offline) return;

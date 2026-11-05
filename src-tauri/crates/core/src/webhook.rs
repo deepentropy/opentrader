@@ -2,8 +2,8 @@
  * Alert delivery — the webhook POST routed through Rust. The webview's
  * fetch originates from tauri.localhost, so most webhook receivers reject its
  * CORS preflight and never see the payload; a native reqwest call has no such
- * gate. The engine (src/data/alert-engine.ts) treats delivery as
- * fire-and-forget and only logs the returned error string.
+ * gate. The engine (src/data/alert-engine.ts) does not wait on delivery; it
+ * writes the outcome on the event (the Alerts log's "Webhook status").
  */
 
 /// Dedicated client rather than the pooled market-data one: a webhook wants a short
@@ -14,18 +14,26 @@ fn http() -> reqwest::Client {
     CLIENT.get()
 }
 
+/// What a webhook POST came to: the receiver's HTTP status, or the error that
+/// kept the request from getting one (unreachable host, timeout).
+#[derive(Clone, Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct WebhookResult {
+    pub http_code: Option<u16>,
+    pub error: Option<String>,
+}
+
 /// POST `payload` (a pre-serialised JSON string) to `url` with a JSON
-/// content-type. One attempt, ~5s deadline, no retry; a non-2xx status is an
-/// error too so the frontend log names the receiver's rejection.
-pub async fn post_webhook(url: String, payload: String) -> Result<(), String> {
-    let resp = http()
+/// content-type. One attempt, ~5s deadline, no retry.
+pub async fn post_webhook(url: String, payload: String) -> WebhookResult {
+    match http()
         .post(&url)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .body(payload)
         .send()
         .await
-        .map_err(|e| e.to_string())?;
-    resp.error_for_status()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    {
+        Ok(resp) => WebhookResult { http_code: Some(resp.status().as_u16()), error: None },
+        Err(e) => WebhookResult { http_code: e.status().map(|s| s.as_u16()), error: Some(e.to_string()) },
+    }
 }

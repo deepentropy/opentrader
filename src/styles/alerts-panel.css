@@ -152,6 +152,30 @@
   color: var(--color-invalid-symbol);
 }
 
+/* The alert's name, above its message. */
+.alerts-panel-item-name {
+  font-weight: 700;
+}
+
+/* Log: the outcome of the event's webhook. */
+.alerts-panel-webhook {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-ripe-red-500, #f23645);
+}
+.alerts-panel-webhook.is-ok {
+  color: var(--color-minty-green-500, #089981);
+}
+.alerts-panel-webhook > svg {
+  flex: 0 0 18px;
+}
+.alerts-panel-webhook > span {
+  padding-top: 1px;
+}
+
 /* Row buttons: over the end of the text, on the row's hover colour. */
 .alerts-panel-row-actions {
   position: absolute;

@@ -47,8 +47,12 @@ export type WatchList = {
 /** Per-list price-move alert: notify when any symbol's |change%| ≥ threshold.
  *  Keyed by list id; absent = no alert. A local list alert. */
 type AlertMap = Record<string, number>;
+/** When a list alert was made and whether it is paused (the Alerts panel's
+ *  date-created sort, Pause / Restart). Keyed by list id like the thresholds. */
+export type ListAlertMeta = { createdAt: number; paused?: boolean };
+type AlertMetaMap = Record<string, ListAlertMeta>;
 
-type StoreShape = { lists: WatchList[]; activeId: string; alerts: AlertMap; v?: number };
+type StoreShape = { lists: WatchList[]; activeId: string; alerts: AlertMap; alertMeta: AlertMetaMap; v?: number };
 
 /** Saved shape version. 2: the rows with no section come before the first
  *  section (they came after the last one). */
@@ -90,7 +94,7 @@ function seed(): StoreShape {
     sort: "default",
   }));
   const active = WATCHLIST_TABS.find((t) => t.active) ?? WATCHLIST_TABS[0];
-  return { lists, activeId: slug(active.name), alerts: {}, v: SHAPE_VERSION };
+  return { lists, activeId: slug(active.name), alerts: {}, alertMeta: {}, v: SHAPE_VERSION };
 }
 
 function isValid(s: unknown): s is StoreShape {
@@ -119,6 +123,7 @@ function load(): StoreShape {
           sort: "default" as SortKey,
         }));
         parsed.alerts ??= {};
+        parsed.alertMeta ??= {};
         // Older saves drew the rows with no section after the last section:
         // they join it, so every row stays where it was on screen.
         if ((parsed.v ?? 1) < SHAPE_VERSION) {
@@ -166,6 +171,7 @@ createRoot(() => {
           lists: state.lists.map((l) => ({ ...l, sort: "default" })),
           activeId: state.activeId,
           alerts: state.alerts,
+          alertMeta: state.alertMeta,
           v: SHAPE_VERSION,
         }),
       );
@@ -614,6 +620,11 @@ export const watchlistStore = {
         delete a[id];
       }));
     }
+    if (id in state.alertMeta) {
+      setState("alertMeta", produce((m: AlertMetaMap) => {
+        delete m[id];
+      }));
+    }
     clearFiredForList(id);
     if (recents().includes(id)) setRecents(recents().filter((x) => x !== id));
   },
@@ -968,12 +979,26 @@ export const watchlistStore = {
   // ── List alerts (local price-move alert per list) ──
   alerts: () => state.alerts,
   alertFor: (listId: string): number | undefined => state.alerts[listId],
+  /** Creation time and paused state of a list alert (a list alert saved before
+   *  they were kept counts as made at time 0, active). */
+  alertMetaFor: (listId: string): ListAlertMeta => state.alertMeta[listId] ?? { createdAt: 0 },
+  /** An active list alert: set and not paused. */
+  alertActive: (listId: string): boolean => state.alerts[listId] != null && !state.alertMeta[listId]?.paused,
+  /** Set a list's threshold: a new alert, or an edit that restarts it. */
   setAlert(listId: string, threshold: number): void {
     setState("alerts", listId, threshold);
+    setState("alertMeta", listId, { createdAt: state.alertMeta[listId]?.createdAt ?? Date.now(), paused: false });
+  },
+  setAlertPaused(listId: string, paused: boolean): void {
+    if (state.alerts[listId] == null) return;
+    setState("alertMeta", listId, { ...watchlistStore.alertMetaFor(listId), paused });
   },
   clearAlert(listId: string): void {
     setState("alerts", produce((a: AlertMap) => {
       delete a[listId];
+    }));
+    setState("alertMeta", produce((m: AlertMetaMap) => {
+      delete m[listId];
     }));
   },
 };

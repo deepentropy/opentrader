@@ -15,7 +15,7 @@ import { cachedSymbolSessions, localDay } from "../../../data/session";
 
 // ── List alerts (module singleton) ───────────────────────────────────────────
 // Notify when a symbol of a list with an alert moves by at least the list's
-// threshold (|session change %|). Every list with an alert is checked, not
+// threshold (|session change %|). Every list with an active (not paused) alert is checked, not
 // only the open one (its symbols are kept subscribed below). A symbol fires
 // once per trading day (its exchange day), so the alert re-arms each day.
 // A fire follows the alert settings (system notification, sound) and is
@@ -73,7 +73,7 @@ createRoot(() => {
   createEffect(() => {
     const syms = new Set<string>();
     for (const l of watchlistStore.lists()) {
-      if (watchlistStore.alertFor(l.id) == null) continue;
+      if (!watchlistStore.alertActive(l.id)) continue;
       for (const r of [...l.groups.flatMap((g) => g.rows), ...l.extras]) syms.add(r.ticker.toUpperCase());
     }
     setSubscription("list-alerts", [...syms]);
@@ -93,7 +93,7 @@ createRoot(() => {
     if (pruned) saveFiredAlerts();
     for (const list of watchlistStore.lists()) {
       const threshold = watchlistStore.alertFor(list.id);
-      if (threshold == null) continue;
+      if (threshold == null || !watchlistStore.alertActive(list.id)) continue;
       const rows = [...list.groups.flatMap((g) => g.rows), ...list.extras];
       for (const r of rows) {
         const cp = liveQuoteFor(r.ticker)?.changePercent ?? null;

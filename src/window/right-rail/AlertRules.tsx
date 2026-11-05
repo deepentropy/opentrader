@@ -1,22 +1,26 @@
 /*
  * Alerts panel, "Alerts" view: the toolbar row (create on the left; search,
- * sort, options on the right) and the list of alert rules.
+ * sort, options on the right) and the list of alerts: the alert rules and
+ * the watchlist alerts (a list's price-move threshold, watchlist-store).
  *
- * Row, as the reference app draws it: one line of text (the alert's name,
- * else its message or condition), then the attributes line: instrument logo,
- * "TICKER, interval", the status (Active / Inactive, "Paused — Cloned" for a
- * copy), the source icon (the indicator or drawing the alert reads) and the
- * last trigger time, separated by dots. A click shows the alert's symbol and
- * interval on the chart (a screen alert opens its editor). On hover: Pause or
- * Restart, Edit, Delete, over the end of the text. Right-click: Pause or
- * Restart, Edit…, Clone (a paused copy), Delete, then the actions on the
- * whole filtered list and "Delete all inactive".
+ * Row, as the reference app draws it: the alert's name (bold) and its
+ * message (or condition), then the attributes line: instrument logo (a list
+ * icon for a watchlist alert), "TICKER, interval" ("List, 1D"), the status
+ * (Active / Inactive, "Paused — Cloned" for a copy), the source icon (the
+ * indicator or drawing the alert reads) and the last trigger time, separated
+ * by dots. A click shows the alert's symbol and interval on the chart (a
+ * screen alert opens its editor, a watchlist alert does nothing); a double
+ * click on a watchlist alert edits it. On hover: Pause or Restart, Edit,
+ * Delete, over the end of the text. Right-click: Pause or Restart, Edit…,
+ * Clone (a paused copy; not for a watchlist alert), Delete, then the actions
+ * on the whole filtered list and "Delete all inactive".
  * Sort: symbol, name, message (A to Z / Z to A), date created and time
  * triggering (oldest / newest first); date created, oldest first by default.
  * Options: Restart / Pause as per filter, Delete all inactive, then the
  * sections Show alerts (All / Active only / Inactive only), Filter alerts
  * (Current symbol, Current time interval), Show alerts by type (Price: price
- * against a value; Technicals: an alert on an indicator or a drawing),
+ * against a value; Technicals: an alert on an indicator or a drawing;
+ * Watchlist),
  * Customize list (the row parts) and "Alerts settings...". Sort, filters and
  * row parts are kept across sessions; the Options button counts the filters
  * applied.
@@ -27,6 +31,8 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { IconButton } from "../../components/IconButton";
 import { alertStore, type AlertRule, type Operand } from "../../data/alert-store";
+import { watchlistStore, clearFiredForList } from "../../data/watchlist-store";
+import { AddAlertDialog } from "./AddAlertDialog";
 import { defaultAlertMessage, ruleConditions } from "../../data/alert-condition";
 import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
 import { intervalLabel } from "../../data/datafeed";
@@ -46,6 +52,7 @@ type Filters = {
   /** Types shown. */
   price: boolean;
   technicals: boolean;
+  watchlist: boolean;
   /** Row parts shown. */
   name: boolean;
   message: boolean;
@@ -53,8 +60,8 @@ type Filters = {
   logo: boolean;
   triggered: boolean;
 };
-type Part = "price" | "technicals" | "name" | "message" | "source" | "logo" | "triggered";
-const DEFAULT_FILTERS: Filters = { status: "all", symbol: false, interval: false, price: true, technicals: true, name: true, message: true, source: true, logo: true, triggered: false };
+type Part = "price" | "technicals" | "watchlist" | "name" | "message" | "source" | "logo" | "triggered";
+const DEFAULT_FILTERS: Filters = { status: "all", symbol: false, interval: false, price: true, technicals: true, watchlist: true, name: true, message: true, source: true, logo: true, triggered: false };
 
 /** "Technicals": a condition on a study, a compared symbol or a drawing (any of an alert's conditions). */
 export const isTechnical = (r: AlertRule) => ruleConditions(r).some((c) => c.left.kind !== "price" || c.right.kind === "indicator" || c.right.kind === "drawing");
@@ -85,7 +92,7 @@ function loadView(): { sort: Sort; filters: Filters } {
     const on = (k: Part) => (typeof f?.[k] === "boolean" ? f[k] : DEFAULT_FILTERS[k]);
     return {
       sort,
-      filters: { status, symbol: !!f?.symbol, interval: !!f?.interval, price: on("price"), technicals: on("technicals"), name: on("name"), message: on("message"), source: on("source"), logo: on("logo"), triggered: on("triggered") },
+      filters: { status, symbol: !!f?.symbol, interval: !!f?.interval, price: on("price"), technicals: on("technicals"), watchlist: on("watchlist"), name: on("name"), message: on("message"), source: on("source"), logo: on("logo"), triggered: on("triggered") },
     };
   } catch {
     return base;
@@ -113,13 +120,38 @@ const flip = (k: Exclude<keyof Filters, "status">) => setFilters({ ...filters(),
 /** Filters applied (the Options button's count). */
 const filterCount = () => {
   const f = filters();
-  return (f.status !== "all" ? 1 : 0) + (f.symbol ? 1 : 0) + (f.interval ? 1 : 0) + (f.price ? 0 : 1) + (f.technicals ? 0 : 1);
+  return (f.status !== "all" ? 1 : 0) + (f.symbol ? 1 : 0) + (f.interval ? 1 : 0) + (f.price ? 0 : 1) + (f.technicals ? 0 : 1) + (f.watchlist ? 0 : 1);
 };
 
 /** Chart context of the "Current symbol" / "Current time interval" filters. */
 export type AlertListContext = { symbol: string; interval: string };
 
 const ruleText = (r: AlertRule) => r.message || defaultAlertMessage(r);
+
+/** A watchlist alert: notify when a symbol of the list moves by the threshold. */
+type ListAlert = { listId: string; name: string; threshold: number; createdAt: number; enabled: boolean };
+/** A row of the list: an alert rule or a watchlist alert. */
+type Item = { kind: "rule"; rule: AlertRule } | { kind: "list"; list: ListAlert };
+
+/** Id of a row: the rule's, or the one its log events carry ("list:<id>"). */
+const itemId = (i: Item) => (i.kind === "rule" ? i.rule.id : `list:${i.list.listId}`);
+const itemEnabled = (i: Item) => (i.kind === "rule" ? i.rule.enabled : i.list.enabled);
+const itemName = (i: Item) => (i.kind === "rule" ? i.rule.name : "");
+const listMessage = (l: ListAlert) => `Absolute change ≥ ${l.threshold}%`;
+const itemMessage = (i: Item) => (i.kind === "rule" ? ruleText(i.rule) : listMessage(i.list));
+const itemType = (i: Item): "price" | "technicals" | "watchlist" => (i.kind === "list" ? "watchlist" : isTechnical(i.rule) ? "technicals" : "price");
+
+function listAlerts(): ListAlert[] {
+  return watchlistStore.lists().flatMap((l) => {
+    const threshold = watchlistStore.alertFor(l.id);
+    if (threshold == null) return [];
+    return [{ listId: l.id, name: l.name, threshold, createdAt: watchlistStore.alertMetaFor(l.id).createdAt, enabled: watchlistStore.alertActive(l.id) }];
+  });
+}
+const allItems = (): Item[] => [
+  ...alertStore.rules().map((rule) => ({ kind: "rule" as const, rule })),
+  ...listAlerts().map((list) => ({ kind: "list" as const, list })),
+];
 
 /** "Last triggered" part: day and time of the last fire. */
 function lastTriggeredText(ms: number): string {
@@ -134,46 +166,65 @@ function lastFireTimes(): Map<string, number> {
   return m;
 }
 
-/** The rules the list shows: filtered, searched, sorted. */
-function visibleRules(ctx: AlertListContext): AlertRule[] {
+/** The rows the list shows: filtered, searched, sorted. */
+function visibleItems(ctx: AlertListContext): Item[] {
   const f = filters();
   const q = search().trim().toLowerCase();
   const sym = ctx.symbol.toUpperCase();
-  const list = alertStore.rules().filter(
-    (r) =>
-      (f.status === "all" || (f.status === "active") === r.enabled) &&
-      (isTechnical(r) ? f.technicals : f.price) &&
-      (!f.symbol || r.symbol === sym) &&
-      (!f.interval || r.resolution === ctx.interval) &&
-      (!q || `${r.symbol} ${r.name} ${ruleText(r)}`.toLowerCase().includes(q)),
-  );
+  const list = allItems().filter((i) => {
+    const r = i.kind === "rule" ? i.rule : null;
+    const where = r ? r.symbol : i.kind === "list" ? i.list.name : "";
+    return (
+      (f.status === "all" || (f.status === "active") === itemEnabled(i)) &&
+      f[itemType(i)] &&
+      (!f.symbol || r?.symbol === sym) &&
+      (!f.interval || (r ? r.resolution : "1D") === ctx.interval) &&
+      (!q || `${where} ${itemName(i)} ${itemMessage(i)}`.toLowerCase().includes(q))
+    );
+  });
   const s = sort();
   const fired = s.key === "triggered" ? lastFireTimes() : null;
-  const text = (r: AlertRule) => (s.key === "symbol" ? tickerOf(r.symbol) : s.key === "name" ? r.name : ruleText(r)).toLowerCase();
-  const cmp = (a: AlertRule, b: AlertRule) => {
-    if (s.key === "created") return a.createdAt - b.createdAt;
-    if (s.key === "triggered") return (fired!.get(a.id) ?? 0) - (fired!.get(b.id) ?? 0);
+  const created = (i: Item) => (i.kind === "rule" ? i.rule.createdAt : i.list.createdAt);
+  const text = (i: Item) =>
+    (s.key === "symbol" ? (i.kind === "rule" ? tickerOf(i.rule.symbol) : i.list.name) : s.key === "name" ? itemName(i) : itemMessage(i)).toLowerCase();
+  const cmp = (a: Item, b: Item) => {
+    if (s.key === "created") return created(a) - created(b);
+    if (s.key === "triggered") return (fired!.get(itemId(a)) ?? 0) - (fired!.get(itemId(b)) ?? 0);
     return text(a).localeCompare(text(b));
   };
   return [...list].sort((a, b) => (s.desc ? -cmp(a, b) : cmp(a, b)));
 }
 
-function removeRule(r: AlertRule) {
-  resetRuleEvalState(r.id);
-  setAlertWebhook(r.id, null);
-  alertStore.remove(r.id);
+function removeItem(i: Item) {
+  if (i.kind === "list") {
+    watchlistStore.clearAlert(i.list.listId);
+    clearFiredForList(i.list.listId);
+    return;
+  }
+  resetRuleEvalState(i.rule.id);
+  setAlertWebhook(i.rule.id, null);
+  alertStore.remove(i.rule.id);
 }
-function setRuleEnabled(r: AlertRule, enabled: boolean) {
-  if (enabled && !r.enabled) resetRuleEvalState(r.id);
-  alertStore.setEnabled(r.id, enabled);
+function setItemEnabled(i: Item, enabled: boolean) {
+  if (i.kind === "list") {
+    // A restarted watchlist alert may notify again the symbols it notified today.
+    if (enabled && !i.list.enabled) clearFiredForList(i.list.listId);
+    watchlistStore.setAlertPaused(i.list.listId, !enabled);
+    return;
+  }
+  if (enabled && !i.rule.enabled) resetRuleEvalState(i.rule.id);
+  alertStore.setEnabled(i.rule.id, enabled);
 }
-const editRule = (r: AlertRule) => emitAppEvent("chart-open-alert-dialog", { editId: r.id });
 
-/** Actions on every rule the list shows. */
-const restartShown = (ctx: AlertListContext) => visibleRules(ctx).forEach((r) => setRuleEnabled(r, true));
-const pauseShown = (ctx: AlertListContext) => visibleRules(ctx).forEach((r) => setRuleEnabled(r, false));
-const deleteShown = (ctx: AlertListContext) => visibleRules(ctx).forEach(removeRule);
-const deleteInactive = () => alertStore.rules().filter((r) => !r.enabled).forEach(removeRule);
+// The watchlist alert being edited (its threshold dialog).
+const [editingList, setEditingList] = createSignal<ListAlert | null>(null);
+const editItem = (i: Item) => (i.kind === "rule" ? emitAppEvent("chart-open-alert-dialog", { editId: i.rule.id }) : setEditingList(i.list));
+
+/** Actions on every row the list shows. */
+const restartShown = (ctx: AlertListContext) => visibleItems(ctx).forEach((i) => setItemEnabled(i, true));
+const pauseShown = (ctx: AlertListContext) => visibleItems(ctx).forEach((i) => setItemEnabled(i, false));
+const deleteShown = (ctx: AlertListContext) => visibleItems(ctx).forEach(removeItem);
+const deleteInactive = () => allItems().filter((i) => !itemEnabled(i)).forEach(removeItem);
 
 /** Source icon: the drawing's tool icon or the indicator glyph; none for a price alert. */
 function SourceIcon(props: { rule: AlertRule }) {
@@ -197,6 +248,13 @@ function SourceIcon(props: { rule: AlertRule }) {
 /** Logo of a row (the letter badge). */
 export const RowLogo = (props: { symbol: string }) => (
   <span class="ot-ticker-logo ot-ticker-logo--sm alerts-panel-logo" aria-hidden="true">{tickerOf(props.symbol).charAt(0)}</span>
+);
+
+/** Logo of a watchlist alert's row. */
+const ListLogo = () => (
+  <span class="ot-ticker-logo ot-ticker-logo--sm alerts-panel-logo" aria-hidden="true">
+    <svg viewBox="0 0 18 18" width="12" height="12"><path fill="none" stroke="currentColor" stroke-linecap="round" d="M4 5.5h10M4 9h10M4 12.5h10" /></svg>
+  </span>
 );
 
 /** Options button with the count of the filters applied. */
@@ -223,8 +281,8 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext; onOpenSettings
     onCleanup(() => window.removeEventListener("pointerdown", onDown));
   });
   const toggle = (m: "sort" | "options") => setMenu((cur) => (cur === m ? null : m));
-  const rules = () => alertStore.rules();
-  const shown = () => visibleRules(props.ctx);
+  const items = () => allItems();
+  const shown = () => visibleItems(props.ctx);
   const tool = (name: string, label: string, icon: string, onClick: () => void, pressed?: boolean) => (
     <Tooltip text={label} side="bottom">
       <IconButton data-name={name} aria-label={label} aria-pressed={pressed || undefined} class="alerts-panel-tool" onClick={onClick}>
@@ -260,21 +318,22 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext; onOpenSettings
       </Show>
       <Show when={menu() === "options"}>
         <div class="ot-popover alerts-panel-menu" role="menu" aria-label="Alerts options">
-          <MenuAction icon={GLYPH.restart()} label="Restart as per filter" disabled={!shown().some((r) => !r.enabled)} onSelect={close(() => restartShown(props.ctx))} />
-          <MenuAction icon={GLYPH.pause()} label="Pause as per filter" disabled={!shown().some((r) => r.enabled)} onSelect={close(() => pauseShown(props.ctx))} />
-          <MenuAction icon={GLYPH.trash()} label="Delete all inactive" disabled={!rules().some((r) => !r.enabled)} onSelect={close(deleteInactive)} />
+          <MenuAction icon={GLYPH.restart()} label="Restart as per filter" disabled={!shown().some((i) => !itemEnabled(i))} onSelect={close(() => restartShown(props.ctx))} />
+          <MenuAction icon={GLYPH.pause()} label="Pause as per filter" disabled={!shown().some(itemEnabled)} onSelect={close(() => pauseShown(props.ctx))} />
+          <MenuAction icon={GLYPH.trash()} label="Delete all inactive" disabled={!items().some((i) => !itemEnabled(i))} onSelect={close(deleteInactive)} />
           <MenuSection title="Show alerts">
-            <MenuToggle radio label="All" count={rules().length} checked={filters().status === "all"} onSelect={() => setFilters({ ...filters(), status: "all" })} />
-            <MenuToggle radio label="Active only" count={rules().filter((r) => r.enabled).length} checked={filters().status === "active"} onSelect={() => setFilters({ ...filters(), status: "active" })} />
-            <MenuToggle radio label="Inactive only" count={rules().filter((r) => !r.enabled).length} checked={filters().status === "inactive"} onSelect={() => setFilters({ ...filters(), status: "inactive" })} />
+            <MenuToggle radio label="All" count={items().length} checked={filters().status === "all"} onSelect={() => setFilters({ ...filters(), status: "all" })} />
+            <MenuToggle radio label="Active only" count={items().filter(itemEnabled).length} checked={filters().status === "active"} onSelect={() => setFilters({ ...filters(), status: "active" })} />
+            <MenuToggle radio label="Inactive only" count={items().filter((i) => !itemEnabled(i)).length} checked={filters().status === "inactive"} onSelect={() => setFilters({ ...filters(), status: "inactive" })} />
           </MenuSection>
           <MenuSection title="Filter alerts">
             <MenuToggle label="Current symbol" checked={filters().symbol} onSelect={() => flip("symbol")} />
             <MenuToggle label="Current time interval" checked={filters().interval} onSelect={() => flip("interval")} />
           </MenuSection>
           <MenuSection title="Show alerts by type">
-            <MenuToggle label="Price" count={rules().filter((r) => !isTechnical(r)).length} checked={filters().price} onSelect={() => flip("price")} />
-            <MenuToggle label="Technicals" count={rules().filter(isTechnical).length} checked={filters().technicals} onSelect={() => flip("technicals")} />
+            <MenuToggle label="Price" count={items().filter((i) => itemType(i) === "price").length} checked={filters().price} onSelect={() => flip("price")} />
+            <MenuToggle label="Technicals" count={items().filter((i) => itemType(i) === "technicals").length} checked={filters().technicals} onSelect={() => flip("technicals")} />
+            <MenuToggle label="Watchlist" count={items().filter((i) => i.kind === "list").length} checked={filters().watchlist} onSelect={() => flip("watchlist")} />
           </MenuSection>
           <MenuSection title="Customize list">
             <MenuToggle label="Name" checked={filters().name} onSelect={() => flip("name")} />
@@ -293,16 +352,16 @@ export function AlertRulesToolbar(props: { ctx: AlertListContext; onOpenSettings
   );
 }
 
-/** The list of alert rules (the panel body of the Alerts view). */
+/** The list of alerts (the panel body of the Alerts view). */
 export function AlertRulesList(props: {
   ctx: AlertListContext;
   drawingMissing: (r: AlertRule) => boolean;
   /** Show a symbol and interval on the active chart (a row click). */
   onShow?: (symbol: string, interval: string) => void;
 }) {
-  const rules = createMemo(() => visibleRules(props.ctx));
+  const items = createMemo(() => visibleItems(props.ctx));
   const fired = createMemo(lastFireTimes);
-  const [rowMenu, setRowMenu] = createSignal<{ rule: AlertRule; x: number; y: number } | null>(null);
+  const [rowMenu, setRowMenu] = createSignal<{ item: Item; x: number; y: number } | null>(null);
   onMount(() => {
     const close = () => setRowMenu(null);
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
@@ -318,8 +377,15 @@ export function AlertRulesList(props: {
     </Tooltip>
   );
   const act = (run: () => void) => () => { run(); setRowMenu(null); };
-  /** The row's line of text: its name when shown, else its message (an alert without a name keeps its text when Message is off). */
-  const description = (r: AlertRule) => (r.name && (filters().name || !filters().message) ? r.name : ruleText(r));
+  const onRowClick = (i: Item) => {
+    if (i.kind === "list") return;
+    if (i.rule.left.kind === "screen" || !props.onShow) editItem(i);
+    else props.onShow(i.rule.symbol, i.rule.resolution);
+  };
+  const ticker = (i: Item) =>
+    i.kind === "list" ? `${i.list.name}, 1D` : i.rule.left.kind === "screen" ? `Screen · ${i.rule.left.title}` : `${tickerOf(i.rule.symbol)}, ${intervalLabel(i.rule.resolution)}`;
+  const status = (i: Item) => (itemEnabled(i) ? "Active" : i.kind === "rule" && i.rule.cloned ? "Paused — Cloned" : "Inactive");
+  const ruleOf = (i: Item) => (i.kind === "rule" ? i.rule : null);
   return (
     <>
       <Show when={searchOpen()}>
@@ -337,45 +403,46 @@ export function AlertRulesList(props: {
         </div>
       </Show>
       <Show
-        when={rules().length > 0}
+        when={items().length > 0}
         fallback={
           <div class="ot-empty-state alerts-panel-empty">
-            {alertStore.rules().length > 0
+            {allItems().length > 0
               ? "No alerts match the filters"
               : "No alerts yet. Right-click the chart or use the header “Alert” button to create one."}
           </div>
         }
       >
-        <For each={rules()}>
-          {(r) => (
+        <For each={items()}>
+          {(i) => (
             <div
               data-name="alert-rule-item"
               class="alerts-panel-item"
-              classList={{ "is-disabled": !r.enabled, "is-menu-open": rowMenu()?.rule.id === r.id }}
-              onClick={() => (r.left.kind === "screen" || !props.onShow ? editRule(r) : props.onShow(r.symbol, r.resolution))}
-              onContextMenu={(e) => { e.preventDefault(); setRowMenu({ rule: r, x: e.clientX, y: e.clientY }); }}
+              classList={{ "is-disabled": !itemEnabled(i), "is-menu-open": !!rowMenu() && itemId(rowMenu()!.item) === itemId(i) }}
+              onClick={() => onRowClick(i)}
+              onDblClick={() => { if (i.kind === "list") editItem(i); }}
+              onContextMenu={(e) => { e.preventDefault(); setRowMenu({ item: i, x: e.clientX, y: e.clientY }); }}
             >
-              <div class="alerts-panel-item-text" data-name="alert-item-description">{description(r)}</div>
-              <Show when={r.name && filters().name && filters().message && r.message}>
-                <div class="alerts-panel-item-text">{r.message}</div>
+              <Show when={filters().name && itemName(i)}>
+                <div class="alerts-panel-item-text alerts-panel-item-name" data-name="alert-item-name">{itemName(i)}</div>
+              </Show>
+              <Show when={filters().message}>
+                <div class="alerts-panel-item-text" data-name="alert-item-description">{itemMessage(i)}</div>
               </Show>
               <div class="alerts-panel-attrs">
-                <Show when={filters().logo && r.left.kind !== "screen"}>
-                  <RowLogo symbol={r.symbol} />
+                <Show when={filters().logo && ruleOf(i)?.left.kind !== "screen"}>
+                  {i.kind === "list" ? <ListLogo /> : <RowLogo symbol={i.rule.symbol} />}
                 </Show>
-                <span class="alerts-panel-attr alerts-panel-attr--strong" data-name="alert-item-ticker">
-                  {r.left.kind === "screen" ? `Screen · ${r.left.title}` : `${tickerOf(r.symbol)}, ${intervalLabel(r.resolution)}`}
+                <span class="alerts-panel-attr alerts-panel-attr--strong" data-name="alert-item-ticker">{ticker(i)}</span>
+                <span class="alerts-panel-attr alerts-panel-status" classList={{ "is-active": itemEnabled(i) }} data-name="alert-item-status">
+                  {status(i)}
                 </span>
-                <span class="alerts-panel-attr alerts-panel-status" classList={{ "is-active": r.enabled }} data-name="alert-item-status">
-                  {r.enabled ? "Active" : r.cloned ? "Paused — Cloned" : "Inactive"}
-                </span>
-                <Show when={filters().source}>
-                  <SourceIcon rule={r} />
+                <Show when={filters().source && ruleOf(i)}>
+                  {(r) => <SourceIcon rule={r()} />}
                 </Show>
-                <Show when={filters().triggered && fired().get(r.id)}>
+                <Show when={filters().triggered && fired().get(itemId(i))}>
                   {(t) => <span class="alerts-panel-attr" data-name="alert-item-time">{lastTriggeredText(t())}</span>}
                 </Show>
-                <Show when={props.drawingMissing(r)}>
+                <Show when={ruleOf(i) && props.drawingMissing(ruleOf(i)!)}>
                   <span class="alerts-panel-attr alerts-panel-warn" title="Source drawing was deleted — this alert can't trigger">
                     <svg viewBox="0 0 18 18" width="14" height="14" aria-hidden="true">
                       <path fill="currentColor" fill-rule="evenodd" d="M9 1.5 17 16H1L9 1.5Zm-.75 5.5h1.5v5h-1.5V7Zm.75 8.1a.9.9 0 1 0 0-1.8.9.9 0 0 0 0 1.8Z" />
@@ -384,11 +451,11 @@ export function AlertRulesList(props: {
                 </Show>
               </div>
               <div class="alerts-panel-row-actions">
-                {r.enabled
-                  ? rowBtn("alert-stop-button", "Pause", GLYPH.pause, () => setRuleEnabled(r, false))
-                  : rowBtn("alert-restart-button", "Restart", GLYPH.restart, () => setRuleEnabled(r, true))}
-                {rowBtn("alert-edit-button", "Edit", GLYPH.edit, () => editRule(r))}
-                {rowBtn("alert-delete-button", "Delete", GLYPH.trash, () => removeRule(r))}
+                {itemEnabled(i)
+                  ? rowBtn("alert-stop-button", "Pause", GLYPH.pause, () => setItemEnabled(i, false))
+                  : rowBtn("alert-restart-button", "Restart", GLYPH.restart, () => setItemEnabled(i, true))}
+                {rowBtn("alert-edit-button", "Edit", GLYPH.edit, () => editItem(i))}
+                {rowBtn("alert-delete-button", "Delete", GLYPH.trash, () => removeItem(i))}
               </div>
             </div>
           )}
@@ -402,18 +469,37 @@ export function AlertRulesList(props: {
             style={{ left: `${Math.min(m().x, window.innerWidth - 270)}px`, top: `${Math.min(m().y, window.innerHeight - 300)}px` }}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {m().rule.enabled
-              ? <MenuAction icon={GLYPH.pause()} label="Pause" onSelect={act(() => setRuleEnabled(m().rule, false))} />
-              : <MenuAction icon={GLYPH.restart()} label="Restart" onSelect={act(() => setRuleEnabled(m().rule, true))} />}
-            <MenuAction icon={GLYPH.edit()} label="Edit…" onSelect={act(() => editRule(m().rule))} />
-            <MenuAction icon={<Icon name="ot-header-copy-clone" size={28} />} label="Clone" onSelect={act(() => alertStore.clone(m().rule.id))} />
-            <MenuAction icon={GLYPH.trash()} label="Delete" onSelect={act(() => removeRule(m().rule))} />
+            {itemEnabled(m().item)
+              ? <MenuAction icon={GLYPH.pause()} label="Pause" onSelect={act(() => setItemEnabled(m().item, false))} />
+              : <MenuAction icon={GLYPH.restart()} label="Restart" onSelect={act(() => setItemEnabled(m().item, true))} />}
+            <MenuAction icon={GLYPH.edit()} label="Edit…" onSelect={act(() => editItem(m().item))} />
+            <Show when={m().item.kind === "rule"}>
+              <MenuAction icon={<Icon name="ot-header-copy-clone" size={28} />} label="Clone" onSelect={act(() => alertStore.clone(itemId(m().item)))} />
+            </Show>
+            <MenuAction icon={GLYPH.trash()} label="Delete" onSelect={act(() => removeItem(m().item))} />
             <MenuSep />
-            <MenuAction label="Restart as per filter" disabled={!rules().some((r) => !r.enabled)} onSelect={act(() => restartShown(props.ctx))} />
-            <MenuAction label="Pause as per filter" disabled={!rules().some((r) => r.enabled)} onSelect={act(() => pauseShown(props.ctx))} />
+            <MenuAction label="Restart as per filter" disabled={!items().some((i) => !itemEnabled(i))} onSelect={act(() => restartShown(props.ctx))} />
+            <MenuAction label="Pause as per filter" disabled={!items().some(itemEnabled)} onSelect={act(() => pauseShown(props.ctx))} />
             <MenuAction label="Delete as per filter" onSelect={act(() => deleteShown(props.ctx))} />
-            <MenuAction label="Delete all inactive" disabled={!alertStore.rules().some((r) => !r.enabled)} onSelect={act(deleteInactive)} />
+            <MenuAction label="Delete all inactive" disabled={!allItems().some((i) => !itemEnabled(i))} onSelect={act(deleteInactive)} />
           </div>
+        )}
+      </Show>
+      <Show when={editingList()}>
+        {(l) => (
+          <AddAlertDialog
+            listName={l().name}
+            initial={l().threshold}
+            onSave={(threshold) => {
+              watchlistStore.setAlert(l().listId, threshold);
+              clearFiredForList(l().listId);
+            }}
+            onRemove={() => {
+              watchlistStore.clearAlert(l().listId);
+              clearFiredForList(l().listId);
+            }}
+            onClose={() => setEditingList(null)}
+          />
         )}
       </Show>
     </>

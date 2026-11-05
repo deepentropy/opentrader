@@ -11,8 +11,8 @@
  * Log toolbar: Clear log on the left; on the right the Options menu
  * (Download log as CSV, then the sections Filter events: current symbol /
  * time interval; Show events by type: price, technicals, watchlist; Customize
- * list: name, message, instrument logo), its button counting the filters
- * applied. A row's Delete button (on hover) removes that event.
+ * list: name, message, instrument logo, webhook status), its button counting
+ * the filters applied. A row's Delete button (on hover) removes that event.
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { tickerOf } from "../../data/symbol-name";
@@ -26,12 +26,13 @@ import { alertStore, type AlertFire, type AlertRule } from "../../data/alert-sto
 import { ruleDrawingMissing } from "../../data/alert-condition";
 import { intervalLabel } from "../../data/datafeed";
 import { csvFileName, downloadText } from "../screener/screener-csv";
+import { webhookStatus } from "../../data/webhook-status";
 import { AlertRulesList, AlertRulesToolbar, OptionsButton, RowLogo, isTechnical } from "./AlertRules";
 import { GLYPH, MenuAction, MenuSection, MenuToggle } from "./alerts-menu";
 import * as kv from "../../data/kv";
 
-type LogFilters = { symbol: boolean; interval: boolean; price: boolean; technicals: boolean; watchlist: boolean; name: boolean; message: boolean; logo: boolean };
-const LOG_DEFAULTS: LogFilters = { symbol: false, interval: false, price: true, technicals: true, watchlist: true, name: true, message: true, logo: true };
+type LogFilters = { symbol: boolean; interval: boolean; price: boolean; technicals: boolean; watchlist: boolean; name: boolean; message: boolean; logo: boolean; webhook: boolean };
+const LOG_DEFAULTS: LogFilters = { symbol: false, interval: false, price: true, technicals: true, watchlist: true, name: true, message: true, logo: true, webhook: true };
 const LOG_VIEW_KEY = "ot:alerts:log-view:v1";
 function loadLogFilters(): LogFilters {
   try {
@@ -166,6 +167,7 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
                 <MenuToggle label="Name" checked={logFilters().name} onSelect={() => flipLog("name")} />
                 <MenuToggle label="Message" checked={logFilters().message} onSelect={() => flipLog("message")} />
                 <MenuToggle label="Instrument logo" checked={logFilters().logo} onSelect={() => flipLog("logo")} />
+                <MenuToggle label="Webhook status" checked={logFilters().webhook} onSelect={() => flipLog("webhook")} />
               </MenuSection>
             </div>
           </Show>
@@ -195,9 +197,9 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
                     {(e) => (
                       <div data-name="alert-log-item" class="alerts-panel-item">
                         <Show when={logFilters().name && e.name}>
-                          <div class="alerts-panel-item-text">{e.name}</div>
+                          <div class="alerts-panel-item-text alerts-panel-item-name">{e.name}</div>
                         </Show>
-                        <Show when={logFilters().message || !(logFilters().name && e.name)}>
+                        <Show when={logFilters().message}>
                           <div class="alerts-panel-item-text">{e.message}</div>
                         </Show>
                         <div class="alerts-panel-attrs">
@@ -207,6 +209,16 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
                           <span class="alerts-panel-attr alerts-panel-attr--strong">{`${tickerOf(e.symbol)}, ${intervalLabel(e.resolution)}`}</span>
                           <span class="alerts-panel-attr">{clockTime(e.fireTime)}</span>
                         </div>
+                        <Show when={logFilters().webhook && webhookStatus(e.webhook)}>
+                          {(w) => (
+                            <div class="alerts-panel-webhook" classList={{ "is-ok": w().ok }} data-name="alert-log-webhook-status">
+                              <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                                <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" d={w().ok ? "M9 16a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM6 9.2l2 2 4-4.4" : "M9 16a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM9 5.5v4.5M9 12.5v.01"} />
+                              </svg>
+                              <span>{w().text}</span>
+                            </div>
+                          )}
+                        </Show>
                         <div class="alerts-panel-row-actions">
                           <Tooltip text="Delete" side="bottom">
                             <button type="button" class="alerts-panel-row-btn" data-name="event-delete-button" aria-label="Delete" onClick={() => alertStore.removeFire(e.fireId)}>

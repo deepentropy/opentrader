@@ -182,6 +182,22 @@ describe("watchlistStore: lists", () => {
     wl.clearAlert("x");
     expect(wl.alertFor("x")).toBeUndefined();
   });
+
+  it("list alerts: creation time kept on edit, pause and restart", () => {
+    wl.setAlert("y", 3);
+    const created = wl.alertMetaFor("y").createdAt;
+    expect(created).toBeGreaterThan(0);
+    expect(wl.alertActive("y")).toBe(true);
+    wl.setAlertPaused("y", true);
+    expect(wl.alertActive("y")).toBe(false);
+    wl.setAlert("y", 4);
+    expect(wl.alertActive("y")).toBe(true);
+    expect(wl.alertMetaFor("y").createdAt).toBe(created);
+    wl.setAlertPaused("nope", true);
+    expect(wl.alertActive("nope")).toBe(false);
+    wl.clearAlert("y");
+    expect(wl.alertMetaFor("y").createdAt).toBe(0);
+  });
 });
 
 describe("watchlistStore: sections", () => {

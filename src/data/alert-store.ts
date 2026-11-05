@@ -248,7 +248,13 @@ export type AlertFire = {
   /** Epoch ms the event entered the log, when it differs from `fireTime`
    *  (offline events): what the unread mark compares. */
   receivedAt?: number;
+  /** Outcome of the rule's webhook for this event (the log's "Webhook
+   *  status"): the receiver's HTTP status, or the error that kept the request
+   *  from getting one. Unset: no webhook was sent. */
+  webhook?: WebhookOutcome;
 };
+
+export type WebhookOutcome = { httpCode: number | null; error: string | null };
 
 type StoreShape = { rules: AlertRule[]; fires: AlertFire[] };
 
@@ -450,6 +456,11 @@ export const alertStore = {
       return (at < 0 ? [...fs, full] : [...fs.slice(0, at), full, ...fs.slice(at)]).slice(0, MAX_FIRES);
     });
     return full;
+  },
+
+  /** Write the outcome of an event's webhook. */
+  setFireWebhook(fireId: string, webhook: WebhookOutcome): void {
+    setState("fires", (f) => f.fireId === fireId, "webhook", webhook);
   },
 
   /** Delete one event of the log (its row's Delete button). */
