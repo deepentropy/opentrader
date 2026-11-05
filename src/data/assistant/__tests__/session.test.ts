@@ -6,6 +6,9 @@ vi.mock("@tauri-apps/api/core", () => ({
     onmessage: (d: string) => void = () => {};
   },
 }));
+// The statistics: the events sent.
+const sent = vi.hoisted(() => ({ events: [] as { event: string; props: Record<string, any> }[] }));
+vi.mock("../../analytics", () => ({ track: (event: string, props: Record<string, any>) => sent.events.push({ event, props }) }));
 // The model: the answers queued in `script`, each a list of stream events; the request bodies are kept.
 const server = vi.hoisted(() => ({ script: [] as string[][], bodies: [] as any[] }));
 vi.mock("../../../bindings", () => ({
@@ -19,7 +22,7 @@ vi.mock("../../../bindings", () => ({
   },
 }));
 
-import { activeChat, answerConfirm, COMPACT_V1, describeTool, newChat, send, setAssistantHost } from "../session";
+import { activeChat, answerConfirm, COMPACT_V1, describeTool, newChat, rateAnswer, send, setAssistantHost } from "../session";
 import type { AgentTool } from "../../../agent/mcp";
 
 const say = (s: string) => JSON.stringify({ choices: [{ delta: { content: s }, finish_reason: null }] });
@@ -98,6 +101,30 @@ describe("assistant agent loop", () => {
     await send("loop");
     expect(ran).toEqual(["set X", "set X", "set X"]);
     expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ error: "Stopped: the same set_symbol came back three times with the same result. Try asking another way." });
+  });
+
+  it("puts each question in the statistics: its requests, actions and outcome, and the thumbs given", async () => {
+    newChat();
+    sent.events.length = 0;
+    server.script = [[call("set_symbol", { symbol: "MU" })], [say("MU is on the chart.")]];
+    await send("show micron");
+    const names = sent.events.map((e) => e.event);
+    expect(names).toEqual(["$ai_generation", "$ai_span", "$ai_generation", "$ai_trace"]);
+    const [gen, span, , trace] = sent.events.map((e) => e.props);
+    const id = trace.$ai_trace_id;
+    expect(sent.events.every((e) => e.props.$ai_trace_id === id && e.props.$ai_session_id === activeChat()!.id)).toBe(true);
+    // The system prompt goes by its name; the model's calls go as tool calls.
+    expect(gen).toMatchObject({ $ai_model: "opentrader-assistant-v2", $ai_provider: "local", $ai_stop_reason: "tool_use", $ai_is_error: false });
+    expect(gen.$ai_input[0]).toEqual({ role: "system", content: "[compact-v1]" });
+    expect(gen.$ai_output_choices[0].tool_calls[0].function).toEqual({ name: "set_symbol", arguments: '{"symbol":"MU"}' });
+    expect(span).toMatchObject({ $ai_span_name: "set_symbol", $ai_parent_id: gen.$ai_span_id, $ai_output_state: '{"symbol":"NASDAQ:MU"}', tool_status: "done" });
+    expect(trace).toMatchObject({ $ai_input_state: "show micron", $ai_output_state: "MU is on the chart.", rounds: 2, $ai_is_error: false });
+    // The thumbs: on the answer's last message, once (the same again takes it back).
+    rateAnswer(id, "bad");
+    expect(sent.events.slice(-1)[0]).toMatchObject({ event: "assistant_feedback", props: { $ai_trace_id: id, rating: "bad" } });
+    expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ trace: id, rating: "bad" });
+    rateAnswer(id, "bad");
+    expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ rating: undefined });
   });
 
   it("describe_tool answers with the tool's entry, compact", async () => {

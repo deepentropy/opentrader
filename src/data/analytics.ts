@@ -1,8 +1,9 @@
 /*
  * Usage statistics (PostHog, US cloud): which features are used, by how many
- * installs (desktop) or visits (web), and from where. No cookies, no account,
- * no symbols; one random id per desktop install, one per browser tab session
- * on the web. Users can switch it off (Settings > Service > Privacy).
+ * installs (desktop) or visits (web), and from where, and the AI assistant's
+ * conversations (src/data/assistant/telemetry.ts). No cookies, no account; one
+ * random id per desktop install, one per browser tab session on the web. Users
+ * can switch it off (Settings > Service > Privacy).
  *
  * Both versions send through the web version's relay (`/ingest`, the
  * Cloudflare Worker), which adds the city, region and country Cloudflare
@@ -31,7 +32,8 @@ const IP_CONSENT_KEY = "ot:analytics-ip-consent";
 const FLUSH_MS = 15_000;
 const MAX_QUEUE = 200;
 
-type Props = Record<string, string | number | boolean | null>;
+/** Event properties: values, or JSON for the assistant's conversation events (PostHog LLM analytics). */
+type Props = Record<string, unknown>;
 type Queued = { event: string; properties: Props; timestamp: string };
 
 const [enabled, setEnabledSignal] = createSignal(kv.getItem(ENABLED_KEY) !== "false");
@@ -89,7 +91,8 @@ let id: string | null = null;
 const queue: Queued[] = [];
 let timer: number | undefined;
 
-/** Record one usage event. Properties must not carry personal data or symbols. */
+/** Record one usage event. Properties must not carry personal data (the assistant's conversations, which the
+ *  privacy policy names, aside). */
 export function track(event: string, props: Props = {}): void {
   if (!analyticsAvailable() || !enabled()) return;
   id ??= anonymousId();

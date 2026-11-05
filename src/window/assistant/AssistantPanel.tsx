@@ -12,7 +12,7 @@ import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCle
 import { Icon } from "../../components/Icon";
 import { AnswerText, symbolsOf } from "./AnswerText";
 import { assistantPanel, ASSISTANT_MIN_WIDTH } from "../../data/assistant/panel";
-import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
+import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAnswer, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
 import { Popup } from "./Popup";
 import { LocalModelCard } from "./LocalModel";
 import { localInfo, refreshLocal, removeLocal } from "../../data/assistant/local";
@@ -259,6 +259,34 @@ function Message(props: { message: ChatMessage; known: Map<string, string> }) {
           <For each={m().tools ?? []}>{(t) => <Step step={t} />}</For>
           <Show when={m().error}>
             <div class="asst-error">{m().error}</div>
+          </Show>
+          <Show when={m().trace}>
+            {(trace) => (
+              <div class="asst-rate">
+                <button
+                  type="button"
+                  class="asst-rate-btn"
+                  classList={{ "is-on": m().rating === "good" }}
+                  title="Good answer"
+                  aria-label="Good answer"
+                  aria-pressed={m().rating === "good"}
+                  onClick={() => rateAnswer(trace(), "good")}
+                >
+                  <Icon name="ai-thumb-up" size={18} />
+                </button>
+                <button
+                  type="button"
+                  class="asst-rate-btn"
+                  classList={{ "is-on": m().rating === "bad" }}
+                  title="Bad answer"
+                  aria-label="Bad answer"
+                  aria-pressed={m().rating === "bad"}
+                  onClick={() => rateAnswer(trace(), "bad")}
+                >
+                  <Icon name="ai-thumb-down" size={18} />
+                </button>
+              </div>
+            )}
           </Show>
         </div>
       )}

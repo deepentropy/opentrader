@@ -515,3 +515,28 @@
 .asst-markdown a.asst-ticker:hover {
   text-decoration: underline;
 }
+/* Thumbs up / down under an answer (its rating goes with the conversation in the statistics). */
+.asst-rate {
+  display: flex;
+  gap: 2px;
+}
+.asst-rate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #575757;
+  cursor: default;
+}
+.asst-rate-btn:hover {
+  background-color: #2e2e2e;
+  color: #b8b8b8;
+}
+.asst-rate-btn.is-on {
+  color: #dbdbdb;
+}

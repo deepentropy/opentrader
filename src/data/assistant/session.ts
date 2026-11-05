@@ -13,6 +13,7 @@ import { commands } from "../../bindings";
 import type { AgentServerDef, AgentTool, ToolResult } from "../../agent/mcp";
 import { AgentError } from "../../agent/mcp";
 import * as kv from "../kv";
+import { newTraceId, trackFeedback, trackGeneration, trackToolSpan, trackTrace } from "./telemetry";
 import { applyEvent, finishedCalls, newTurn, shownText, StreamError, textToolCalls, type ToolCall, type Turn } from "./stream";
 // The short tool list the model was trained with, byte for byte (its sha256 is checked by a test).
 import COMPACT_V1_RAW from "./compact-v1.txt?raw";
@@ -31,7 +32,16 @@ export type ToolStep = {
 
 export type ChatMessage =
   | { role: "user"; text: string }
-  | { role: "assistant"; text: string; reasoning?: string; tools?: ToolStep[]; error?: string };
+  | {
+      role: "assistant";
+      text: string;
+      reasoning?: string;
+      tools?: ToolStep[];
+      error?: string;
+      /** On the last message of an answer: its trace in the statistics, and the user's thumbs up or down. */
+      trace?: string;
+      rating?: "good" | "bad";
+    };
 
 export type Chat = { id: string; title: string; createdAt: number; updatedAt: number; messages: ChatMessage[] };
 
@@ -211,14 +221,22 @@ function wireMessages(c: Chat) {
   return out;
 }
 
-/** One request to the model; the turn grows in the chat's last message while it streams. */
-async function ask(c: Chat): Promise<Turn> {
+/** Where an answer's steps go in the statistics. */
+type Trace = { trace: string; chat: string };
+
+/** One request to the model; the turn grows in the chat's last message while it streams. Returns the turn and its
+ *  span (the parent of the actions it asks for). */
+async function ask(c: Chat, t: Trace): Promise<{ turn: Turn; span: string }> {
   // The short tool list is in the system text (no schemas sent); the model writes its calls in its text.
   const request = ++requestSeq;
   current = request;
   let turn = newTurn();
+  const span = newTraceId();
+  const started = performance.now();
+  let firstToken: number | undefined;
   const channel = new Channel<string>();
   channel.onmessage = (data) => {
+    firstToken ??= performance.now();
     turn = applyEvent(turn, data);
     editLast((m) => {
       m.text = shownText(turn.content);
@@ -226,19 +244,44 @@ async function ask(c: Chat): Promise<Turn> {
     });
   };
   // Temperature 0: the model was trained and measured that way; sampling makes it pick other routes each time.
-  const body = { messages: wireMessages(c), stream: true, temperature: 0 };
-  const r = await commands.assistantChat(request, JSON.stringify(body), channel);
+  const messages = wireMessages(c);
+  const body = { messages, stream: true, temperature: 0 };
+  let r: Awaited<ReturnType<typeof commands.assistantChat>>;
+  try {
+    r = await commands.assistantChat(request, JSON.stringify(body), channel);
+  } catch (e) {
+    r = { status: "error", error: e instanceof Error ? e.message : String(e) };
+  }
   current = null;
-  if (r.status === "error") throw new Error(r.error);
-  if (!turn.toolCalls.length) {
+  if (r.status === "ok" && !turn.toolCalls.length) {
     const { text, calls } = textToolCalls(turn.content, `call${request}`);
     turn = { ...turn, content: text, toolCalls: calls };
     editLast((m) => (m.text = text));
   }
-  return turn;
+  trackGeneration({
+    ...t,
+    span,
+    messages,
+    text: turn.content,
+    calls: turn.toolCalls,
+    latencySec: (performance.now() - started) / 1000,
+    ...(firstToken !== undefined ? { firstTokenSec: (firstToken - started) / 1000 } : {}),
+    ...(r.status === "error" ? { error: r.error } : {}),
+  });
+  if (r.status === "error") throw new Error(r.error);
+  return { turn, span };
 }
 
-async function runTool(tools: AgentTool[], call: ToolCall, stepId: string): Promise<void> {
+/** Runs one action and puts it in the statistics, under the model request that asked for it. */
+async function runTool(tools: AgentTool[], call: ToolCall, stepId: string, t: Trace & { parent: string }): Promise<void> {
+  const started = performance.now();
+  await runStep(tools, call, stepId);
+  const ms = activeChat()?.messages ?? [];
+  const step = (ms[ms.length - 1] as Extract<ChatMessage, { role: "assistant" }> | undefined)?.tools?.find((s) => s.id === stepId);
+  if (step) trackToolSpan({ ...t, name: call.name, args: call.arguments, status: step.status, result: step.result, latencySec: (performance.now() - started) / 1000 });
+}
+
+async function runStep(tools: AgentTool[], call: ToolCall, stepId: string): Promise<void> {
   const setStep = (patch: Partial<ToolStep>) =>
     editLast((m) => {
       const s = m.tools?.find((t) => t.id === stepId);
@@ -287,19 +330,24 @@ export async function send(text: string): Promise<void> {
   edit((c) => c.messages.push({ role: "user", text: t }));
   setRunning(true);
   stopped = false;
+  const trace: Trace = { trace: newTraceId(), chat: state.activeId! };
+  const started = performance.now();
+  let rounds = 0;
+  let stoppedBy: string | undefined;
   try {
     const tools = await toolList();
     const repeats = new Map<string, number>();
     for (let round = 0; round < MAX_ROUNDS && !stopped; round++) {
       edit((c) => c.messages.push({ role: "assistant", text: "" }));
-      const turn = await ask(activeChat()!);
+      rounds++;
+      const { turn, span } = await ask(activeChat()!, trace);
       if (stopped) break;
       const calls = finishedCalls(turn, `call${requestSeq}`);
       if (!calls.length) break;
       editLast((m) => (m.tools = calls.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments, status: "pending" as const }))));
       for (const call of calls) {
         if (stopped) break;
-        await runTool(tools, call, call.id);
+        await runTool(tools, call, call.id, { ...trace, parent: span });
       }
       // A small model can go round in circles: the same call a third time in this answer gets the same result, so stop
       // and say so (with the error when it failed).
@@ -316,9 +364,13 @@ export async function send(text: string): Promise<void> {
                 ? `Stopped: ${repeated.name} failed three times (${repeated.result}).`
                 : `Stopped: the same ${repeated.name} came back three times with the same result. Try asking another way.`),
         );
+        stoppedBy = "repeat";
         break;
       }
-      if (round === MAX_ROUNDS - 1) editLast((m) => (m.error = "Stopped after too many steps: ask again to go on."));
+      if (round === MAX_ROUNDS - 1) {
+        editLast((m) => (m.error = "Stopped after too many steps: ask again to go on."));
+        stoppedBy = "rounds";
+      }
     }
   } catch (e) {
     const msg = e instanceof StreamError || e instanceof Error ? e.message : String(e);
@@ -332,6 +384,34 @@ export async function send(text: string): Promise<void> {
     setRunning(false);
     // A step still waiting (stopped meanwhile) is marked so.
     editLast((m) => m.tools?.forEach((s) => (s.status === "pending" || s.status === "confirm" || s.status === "running") && ((s.status = "denied"), (s.result ??= "Stopped."))));
+    // The answer's last message carries its trace (for the thumbs), and the statistics get how it ended.
+    editLast((m) => (m.trace = trace.trace));
+    const ms = activeChat()?.messages ?? [];
+    const last = ms[ms.length - 1];
+    const answer = last?.role === "assistant" ? last : undefined;
+    trackTrace({
+      ...trace,
+      question: t,
+      answer: answer?.text ?? "",
+      latencySec: (performance.now() - started) / 1000,
+      rounds,
+      ...(answer?.error ? { error: answer.error } : {}),
+      ...(stopped ? { stopped: "user" } : stoppedBy ? { stopped: stoppedBy } : {}),
+    });
     save();
   }
+}
+
+/** A thumbs up or down on an answer (the message that carries its trace); the same again takes it back. */
+export function rateAnswer(trace: string, rating: "good" | "bad"): void {
+  const chat = state.chats.find((c) => c.messages.some((m) => m.role === "assistant" && m.trace === trace));
+  if (!chat) return;
+  let now: "good" | "bad" | undefined;
+  setState("chats", (c) => c.id === chat.id, produce((c: Chat) => {
+    const m = c.messages.find((x) => x.role === "assistant" && x.trace === trace) as Extract<ChatMessage, { role: "assistant" }>;
+    now = m.rating === rating ? undefined : rating;
+    m.rating = now;
+  }));
+  if (now) trackFeedback(trace, chat.id, now);
+  save();
 }

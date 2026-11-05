@@ -20,7 +20,7 @@ export function LocalModelCard() {
           <div class="asst-model-row-text">
             <span class="asst-model-name">Run on this computer</span>
             <span class="asst-muted">
-              OpenTrader's own small model, trained to work the app: offline, private, free. It runs on the graphics card when there is one, else on the processor.
+              OpenTrader's own small model, trained to work the app: offline and free. It runs on the graphics card when there is one, else on the processor.
             </span>
           </div>
           <Show
