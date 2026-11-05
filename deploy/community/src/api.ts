@@ -14,6 +14,7 @@ import { notBannedIn } from "./members";
 import { notify, notifyStatement } from "./notify";
 import { IdeaRecord, emptyRecord, openingState, parseIdea, quotes, recordsOf, reference, rewardRisk, rMultiple, round2 } from "./ideas";
 import { takeSnapshot } from "./snapshots";
+import { cancelForDeletedAccount } from "./billing";
 import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
 
 type Row = Record<string, any>;
@@ -842,6 +843,8 @@ export async function rename(env: Env, user: User | null, body: any): Promise<Re
 /** DELETE /me — the account, its sessions, ratings, snapshots and follows; its posts and comments are emptied. */
 export async function deleteAccount(env: Env, user: User | null): Promise<Response> {
   const u = requireUser(user);
+  // A paid subscription ends first: the account is not charged again.
+  await cancelForDeletedAccount(env, u.id);
   const { results: pictured } = await env.DB.prepare("SELECT id FROM posts WHERE author_id = ? AND has_image = 1").bind(u.id).all<{ id: string }>();
   await deleteImages(env, pictured.map((p) => p.id));
   const { results: replies } = await env.DB.prepare("SELECT id FROM comments WHERE author_id = ? AND has_image = 1").bind(u.id).all<{ id: string }>();

@@ -18,6 +18,7 @@ import * as bot from "./bot";
 import * as ideas from "./ideas";
 import * as snapshots from "./snapshots";
 import * as views from "./views";
+import * as billing from "./billing";
 
 export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
@@ -74,6 +75,14 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/auth\/dev$/, ({ env, request, url }) => auth.devLogin(env, request, url)],
   ["POST", /^\/auth\/token$/, ({ env, body }) => auth.token(env, body)],
   ["POST", /^\/auth\/logout$/, async ({ env, user }) => (user ? auth.logout(env, user) : json({ ok: true }))],
+  ["POST", /^\/auth\/pass$/, ({ env, user }) => billing.issuePass(env, user)],
+
+  // Paid tier (#252).
+  ["GET", /^\/me\/plan$/, ({ env, user }) => billing.myPlan(env, user)],
+  ["POST", /^\/billing\/checkout$/, ({ env, user }) => billing.checkout(env, user)],
+  ["POST", /^\/billing\/portal$/, ({ env, user }) => billing.portal(env, user)],
+  ["POST", /^\/billing\/webhook$/, ({ env, request }) => billing.webhook(env, request)],
+  ["GET", /^\/billing\/(done|cancelled)$/, async ({ params }) => billing.returnPage(params[0] === "done")],
 
   ["GET", /^\/me$/, ({ env, user }) => api.me(env, user)],
   ["GET", /^\/me\/unread$/, ({ env, user }) => notices.unread(env, user)],
@@ -173,9 +182,11 @@ export default {
       // The website's files and pages (an address the API also uses, /contact, is a page for a browser).
       if (!handler && request.method === "GET" && env.ASSETS) return env.ASSETS.fetch(request);
       if (!handler) throw new HttpError(pathMatched ? 405 : 404, pathMatched ? "Method not allowed." : "Not found.");
-      await burstLimit(env, request, path);
-      // The bot check's form is read by its handler.
-      const body = path === "/auth/verify" || path === "/check/verify" ? null : await readBody(request, path);
+      // The payment provider's deliveries come in bursts from a few addresses.
+      const raw = path === "/billing/webhook";
+      if (!raw) await burstLimit(env, request, path);
+      // The bot check's form and the webhook's signed body are read by their handlers.
+      const body = raw || path === "/auth/verify" || path === "/check/verify" ? null : await readBody(request, path);
       const user = await auth.currentUser(env, request);
       res = await handler({ env, request, url, params, body, user, ctx });
     } catch (e) {
@@ -194,7 +205,7 @@ export default {
   /**
    * Every half hour on weekdays (wrangler.jsonc), by UTC time: the bot's threads
    * at 13:00 and 16:00, idea prices from 14:00 to 21:30, the ideas settled at
-   * 22:30 on the day's bars.
+   * 22:30 on the day's bars, subscriptions read back from the payment provider at 23:00.
    */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const t = new Date(controller.scheduledTime);
@@ -203,5 +214,6 @@ export default {
     if (hm === 1300 || hm === 1600) run("bot", () => bot.scheduled(env, hm));
     if (hm >= 1400 && hm <= 2130) run("prices", () => ideas.refreshPrices(env));
     if (hm === 2230) run("ideas", () => ideas.settleIdeas(env));
+    if (hm === 2300) run("billing", () => billing.reconcile(env));
   },
 };

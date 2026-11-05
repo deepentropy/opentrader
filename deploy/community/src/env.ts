@@ -33,4 +33,14 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
+  /** Paid tier (billing.ts, pass.ts). Passes: Ed25519 PKCS #8, base64url. Unset = no passes. */
+  PASS_PRIVATE_KEY?: string;
+  /** The gateway's admin token: closes an account's real-time stream when it loses its plan. */
+  GATEWAY_ADMIN_TOKEN?: string;
+  /** Payment provider: secret key, webhook signing secret, the monthly price's id. Unset = no checkout. */
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_ID?: string;
+  /** Local test only: the provider API's base URL. */
+  STRIPE_API_URL?: string;
 }
