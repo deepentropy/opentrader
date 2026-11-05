@@ -20,6 +20,11 @@
  * is ridden out here too: the feed is left only when its polls have failed
  * for `STALE_LIMIT`.
  *
+ * A subscriber whose real-time stream session is up reads the real-time feed
+ * (`gateway::SCREENER_LIVE_RT_URL`, #253) with its pass; the gateway closes it
+ * when that session ends, and a change of tier here leaves it, so the next
+ * connection takes the other feed.
+ *
  * This file keeps the raw table (`LiveTable`, pure) and reads the socket
  * (`Feed`). The poll loop in `mod.rs` turns the table into rows with the REST
  * snapshot's rules and falls back to REST polling whenever the feed fails.
@@ -205,18 +210,40 @@ pub struct Feed {
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
     pub table: LiveTable,
     proxy_changes: tokio::sync::watch::Receiver<u64>,
+    /// The real-time feed (#253), and the pass changes that may end it.
+    realtime: bool,
+    pass_changes: tokio::sync::watch::Receiver<crate::data::pass::State>,
 }
 
 impl Feed {
-    /// Connect and read the first message (the full table).
+    /// Connect and read the first message (the full table): the real-time
+    /// feed for a subscriber whose session is up, else (or when it is refused)
+    /// the feed at `url`.
     pub async fn connect(url: &str) -> Result<Self> {
+        if url == gateway::SCREENER_LIVE_URL {
+            if let Some(pass) = crate::data::pass::current_live() {
+                match Self::open(gateway::SCREENER_LIVE_RT_URL, Some(&pass)).await {
+                    Ok(feed) => return Ok(feed),
+                    Err(e) => eprintln!("[screener] real-time feed: {e:#}; the delayed one instead"),
+                }
+            }
+        }
+        Self::open(url, None).await
+    }
+
+    async fn open(url: &str, pass: Option<&str>) -> Result<Self> {
         let token = gateway::token().context(gateway::NO_TOKEN)?;
         let proxy_changes = crate::net::proxy_changes();
-        let ws = tokio::time::timeout(CONNECT_TIMEOUT, crate::net::connect_ws(&format!("{url}?token={token}")))
+        let pass_changes = crate::data::pass::subscribe();
+        let address = match pass {
+            Some(p) => format!("{url}?token={token}&pass={p}"),
+            None => format!("{url}?token={token}"),
+        };
+        let ws = tokio::time::timeout(CONNECT_TIMEOUT, crate::net::connect_ws(&address))
             .await
             .map_err(|_| anyhow!("screener feed: connection timed out"))?
             .context("screener feed: connection refused")?;
-        let mut feed = Self { ws, table: LiveTable::default(), proxy_changes };
+        let mut feed = Self { ws, table: LiveTable::default(), proxy_changes, realtime: pass.is_some(), pass_changes };
         tokio::time::timeout(CONNECT_TIMEOUT, feed.next())
             .await
             .map_err(|_| anyhow!("screener feed: no table after {} s", CONNECT_TIMEOUT.as_secs()))??;
@@ -235,6 +262,13 @@ impl Feed {
             let msg = tokio::select! {
                 // Connect again through the new proxy.
                 _ = self.proxy_changes.changed() => bail!("screener feed: the proxy changed"),
+                // Real-time came or went: the next connection takes the other feed.
+                r = self.pass_changes.changed() => {
+                    if r.is_err() || self.realtime != crate::data::pass::current_live().is_some() {
+                        bail!("screener feed: the data tier changed");
+                    }
+                    continue;
+                }
                 msg = tokio::time::timeout(SILENCE_TIMEOUT, self.ws.next()) => msg,
             };
             let msg = msg

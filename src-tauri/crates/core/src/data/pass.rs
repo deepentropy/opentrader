@@ -97,6 +97,16 @@ pub fn current() -> Option<String> {
     cell().borrow().usable(chrono::Utc::now().timestamp()).map(str::to_string)
 }
 
+/// The pass, once this device's real-time stream session is up: what the
+/// gateway's real-time screener feed takes (gateway#20).
+pub fn current_live() -> Option<String> {
+    let s = cell().borrow();
+    if !s.live {
+        return None;
+    }
+    s.usable(chrono::Utc::now().timestamp()).map(str::to_string)
+}
+
 /// Real-time data is asked for (a usable pass): the tier the entitlements are probed for.
 pub fn realtime() -> bool {
     current().is_some()

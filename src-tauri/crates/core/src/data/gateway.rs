@@ -34,6 +34,9 @@ pub const STREAM_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.wor
 /// pass (`data::pass`) instead of the app token.
 pub const STREAM_RT_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1/stream/rt";
 
+/// The screener's real-time live feed (#253): a subscriber's, with the pass.
+pub const SCREENER_LIVE_RT_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/screener/v2/live/rt";
+
 /// The screener's live feed: one full-market table, then its changes every
 /// 10 s, polled once by the gateway for every app (`?token=<token>`).
 pub const SCREENER_LIVE_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/screener/v2/live";

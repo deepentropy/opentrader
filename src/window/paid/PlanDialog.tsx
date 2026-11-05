@@ -11,7 +11,7 @@ import { request } from "../../data/community/api";
 import { openPortal, planInfo, realtimeActive, realtimeElsewhere, startCheckout, useRealtimeHere } from "../../data/paid/plan";
 
 const PRICE = "$10/month";
-const WHAT = "Real-time prices on charts and in the watchlist, instead of 15-minute delayed data.";
+const WHAT = "Real-time prices on charts, in the watchlist and in the screener, instead of 15-minute delayed data.";
 
 /** dd/mm/yyyy of a UNIX time. */
 function day(sec: number): string {
