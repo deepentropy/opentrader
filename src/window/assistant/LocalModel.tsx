@@ -1,12 +1,11 @@
 /*
- * The assistant's model on this computer (src/data/assistant/local.ts): its download, its progress, and Remove once
- * it is there. Nothing comes with the installer.
+ * First open of the assistant: one sentence and Activate, which downloads its model (src/data/assistant/local.ts).
+ * Nothing comes with the installer; Remove is in the panel's menu once it is there.
  */
 import { Show, onMount } from "solid-js";
-import { cancelLocal, gb, installLocal, localBlocker, localError, localInfo, localProgress, refreshLocal, removeLocal } from "../../data/assistant/local";
+import { cancelLocal, gb, installLocal, localBlocker, localError, localInfo, localProgress, refreshLocal } from "../../data/assistant/local";
 
-/** "Run on this computer": OpenTrader's small model, downloaded when asked for (nothing in the installer). */
-export function LocalModelCard() {
+export function AssistantSetup() {
   onMount(() => void refreshLocal());
   const busy = () => !!localInfo()?.installing || !!localProgress();
   const pct = () => {
@@ -14,33 +13,18 @@ export function LocalModelCard() {
     return p && p.total ? Math.round(((p.done ?? 0) / p.total) * 100) : 0;
   };
   return (
-    <Show when={localInfo()}>
-      {(i) => (
-        <div class="asst-local">
-          <div class="asst-model-row-text">
-            <span class="asst-model-name">Run on this computer</span>
-            <span class="asst-muted">
-              OpenTrader's own small model, trained to work the app: offline and free. It runs on the graphics card when there is one, else on the processor.
-            </span>
-          </div>
-          <Show
-            when={!i().installed}
-            fallback={
-              <div class="asst-inline">
-                <span class="asst-muted">Installed ({gb(i().diskBytes)}){i().running ? " · running" : ""}</span>
-                <button type="button" class="asst-btn" onClick={() => void removeLocal()}>Remove</button>
-              </div>
-            }
-          >
+    <div class="asst-column asst-models">
+      <div class="asst-empty asst-setup">
+        <p class="asst-greeting">Your assistant works the app for you: charts, indicators, screens and alerts.</p>
+        <Show when={localInfo()}>
+          {(i) => (
             <Show
               when={!busy()}
               fallback={
                 <div class="asst-progress-block">
                   <div class="asst-progress"><div style={{ width: `${pct()}%` }} /></div>
                   <div class="asst-inline">
-                    <span class="asst-muted">
-                      {localProgress()?.file ?? "Starting…"} · {pct()}%
-                    </span>
+                    <span class="asst-muted">Activating… {pct()}%</span>
                     <button type="button" class="asst-btn" onClick={cancelLocal}>Stop</button>
                   </div>
                 </div>
@@ -48,16 +32,16 @@ export function LocalModelCard() {
             >
               <Show when={localBlocker(i())} fallback={
                 <button type="button" class="asst-btn is-primary" onClick={() => void installLocal()}>
-                  Download ({gb(i().downloadBytes)})
+                  Activate ({gb(i().downloadBytes)})
                 </button>
               }>
                 {(why) => <span class="asst-muted">{why()}</span>}
               </Show>
             </Show>
-          </Show>
-          <Show when={localError()}>{(e) => <p class="asst-status is-error">{e()}</p>}</Show>
-        </div>
-      )}
-    </Show>
+          )}
+        </Show>
+        <Show when={localError()}>{(e) => <p class="asst-status is-error">{e()}</p>}</Show>
+      </div>
+    </div>
   );
 }

@@ -14,7 +14,7 @@ import { AnswerText, symbolsOf } from "./AnswerText";
 import { assistantPanel, ASSISTANT_MIN_WIDTH } from "../../data/assistant/panel";
 import { activeChat, answerConfirm, chats, deleteChat, newChat, openChat, rateAnswer, renameChat, running, send, stop, type ChatMessage, type ToolStep } from "../../data/assistant/session";
 import { Popup } from "./Popup";
-import { LocalModelCard } from "./LocalModel";
+import { AssistantSetup } from "./LocalModel";
 import { localInfo, refreshLocal, removeLocal } from "../../data/assistant/local";
 import { stepTitle } from "./steps";
 import "../../styles/screener.css";
@@ -96,7 +96,7 @@ export function AssistantPanel(props: { ticker: string }) {
         <div class="asst-body">
           <Switch>
             <Match when={localInfo() && !ready()}>
-              <Setup />
+              <AssistantSetup />
             </Match>
             <Match when={view() === "chats"}>
               <ChatList onDone={() => setView("chat")} />
@@ -385,19 +385,6 @@ function ChatList(props: { onDone: () => void }) {
           )}
         </For>
       </div>
-    </div>
-  );
-}
-
-/** First open: OpenTrader's assistant, downloaded once. */
-function Setup() {
-  return (
-    <div class="asst-column asst-models">
-      <div class="asst-empty asst-setup">
-        <p class="asst-greeting">OpenTrader's assistant works the app for you: charts, indicators, screens, watchlists, alerts.</p>
-        <p class="asst-muted">Download it once to start.</p>
-      </div>
-      <LocalModelCard />
     </div>
   );
 }
