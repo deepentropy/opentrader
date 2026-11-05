@@ -48,6 +48,9 @@ import { uiTheme } from '../../header/chart-settings';
 import { cachedSymbolSessions } from '../../../data/session';
 import { sessionFutureSlots } from './future-slots';
 import { applyStyleOverrides, type StyleEntry } from './style-outputs';
+import { isLibraryEntry } from './registry';
+import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
+import { ACCESSORS, applyDelta, callKey, type StudyCall, type StudyJob } from './study-worker-types';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -124,6 +127,73 @@ function studyErrorOf(err: unknown): StudyError {
   const title = (err as { studyTitle?: unknown } | null)?.studyTitle;
   if (typeof title === 'string') return { kind: 'error', title, message };
   return { kind: 'error', title: 'Runtime error', message };
+}
+
+/** What a study shows while its first result is calculated in the worker (or its data loads): loading. */
+const PENDING_RESULT = { plots: {}, pending: true };
+
+/** Worker calculations of a study: the result of `key`, the request waiting while one runs, the accessor calls its
+ *  runs made. */
+type OffThreadRun = {
+  key: string | null;
+  result: unknown;
+  error: StudyError | null;
+  /** Symbol, interval and session the result is for. */
+  series: string;
+  running: boolean;
+  queued: { job: StudyWork; key: string; series: string; live: boolean } | null;
+  calls: StudyCall[];
+  /** Job id of the last whole result the worker gave, and that result (its next one may be the changes from it). */
+  version: number | null;
+  raw: unknown;
+  /** Worker the study's jobs go to (it keeps the study's last result). */
+  slot: number | undefined;
+};
+type StudyWork = Omit<StudyJob, 'id' | 'kind'>;
+
+/** Change detector of bars: more history, a live update of the last bar, prices adjusted again (a checksum over
+ *  every bar, a few microseconds on long histories). */
+function barsSignature(bars: ArrayLike<Bar>): string {
+  const first = bars[0];
+  const last = bars[bars.length - 1];
+  let sum = 0;
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    sum += ((i % 13) + 1) * (b.open + 2 * b.high + 3 * b.low + 5 * b.close) + ((i % 7) + 1) * (b.volume ?? 0);
+  }
+  return `${bars.length}:${first?.time}:${last?.time}:${last?.open}:${last?.high}:${last?.low}:${last?.close}:${last?.volume}:${sum}`;
+}
+
+/** Checksum of values (NaN counted apart). */
+function valuesSignature(list: ArrayLike<unknown>): string {
+  let sum = 0;
+  let na = 0;
+  for (let i = 0; i < list.length; i++) {
+    const v = list[i] as number;
+    if (Number.isFinite(v)) sum += ((i % 13) + 1) * v;
+    else na += i + 1;
+  }
+  return `${list.length}:${sum}:${na}`;
+}
+
+function isBar(v: object): v is Bar {
+  return typeof (v as Bar).close === 'number' && typeof (v as Bar).time === 'number';
+}
+
+const signatures = new WeakMap<object, string>();
+/** Change detector of the data an accessor or a source gives: bars and values by checksum, the other data (symbol
+ *  info, events, fundamentals) by content. */
+function valueSignature(v: unknown): string {
+  if (v === undefined) return '-';
+  if (v === null || typeof v !== 'object') return String(v);
+  const list = v as ArrayLike<unknown>;
+  if (typeof list.length === 'number' && (Array.isArray(v) || ArrayBuffer.isView(v))) {
+    const first = list[0];
+    return first !== null && typeof first === 'object' ? (isBar(first) ? barsSignature(list as ArrayLike<Bar>) : JSON.stringify(v)) : valuesSignature(list);
+  }
+  let sig = signatures.get(v);
+  if (sig === undefined) signatures.set(v, (sig = JSON.stringify(v)));
+  return sig;
 }
 
 /** Results already put back on the chart's bar times: a user script returns its cached result again. */
@@ -433,7 +503,9 @@ export class IndicatorLayer {
    *  `styles` carries the user's per-plot colour/width/visibility overrides
    *  (Settings → Style); empty = registry defaults. `live`: only the newest
    *  bars changed, the drawn series are kept and take the new points (a full
-   *  redraw of every series per live update was 10-200 ms on long histories). */
+   *  redraw of every series per live update was 10-200 ms on long histories). `calculate` false: a study that is not
+   *  drawn and that nothing reads does not calculate (hidden studies kept the CPU busy on every live update); its
+   *  result is calculated when it is read (`ensureResult`) or drawn again. */
   render(
     entry: IndicatorRegistryEntry,
     bars: Bar[],
@@ -441,15 +513,141 @@ export class IndicatorLayer {
     draw = true,
     styles: IndicatorStyleOverrides = {},
     live = false,
+    calculate = true,
   ): void {
     this.inPreservedPane(() => {
+      const drewBefore = this.lastDraw && this.entry === entry;
       this.entry = entry;
       this.lastInputs = inputs;
       this.lastStyles = styles;
       this.lastBars = bars;
       this.lastDraw = draw;
-      this.lastResult = bars.length ? this.calculate(entry, bars, inputs, styles) : null;
+      this.stale = !calculate;
+      this.workerResult = null;
+      if (calculate) this.lastResult = bars.length ? this.calculate(entry, bars, inputs, styles, live) : null;
+      else { this.lastResult = null; this.error = null; this.loading = false; }
+      // A live update while the worker calculates: the result drawn stays as it is.
+      if (live && drewBefore && draw && this.workerResult !== null && this.workerResult === this.drawnWorkerResult) return;
       this.draw(live);
+      this.drawnWorkerResult = draw ? this.workerResult : null;
+    });
+  }
+
+  /** The last render did not calculate. */
+  private stale = false;
+  /** Calculate the result the last render skipped (another study reads it), without drawing. */
+  ensureResult(): void {
+    if (!this.stale || !this.entry) return;
+    this.stale = false;
+    this.lastResult = this.lastBars.length ? this.calculate(this.entry, this.lastBars, this.lastInputs, this.lastStyles) : null;
+  }
+
+  // ── Off the window's thread (study-calc.ts) ───────────────────────────
+  /** Run state of the worker calculations (library studies). */
+  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], version: null, raw: null, slot: undefined };
+  /** The worker's result the last calculation gave (null: not a worker result), and the one drawn. */
+  private workerResult: unknown = null;
+  private drawnWorkerResult: unknown = null;
+  /** The worker's result arrived: the chart draws the study again (`live`: it was asked for a live update). */
+  private calculated: ((live: boolean) => void) | null = null;
+  setOnCalculated(fn: ((live: boolean) => void) | null): void {
+    this.calculated = fn;
+  }
+
+  /** The indicator library's studies calculate in a worker (a strategy runs in the backtester, the app's own studies
+   *  read the window's data). */
+  private calculatesOffThread(entry: IndicatorRegistryEntry): boolean {
+    return !!this.calculated && studyWorkersAvailable() && !isStrategyId(entry.id) && isLibraryEntry(entry);
+  }
+
+  /**
+   * The study's result for these bars and inputs: the worker's when it calculated them, else it is asked for it (the
+   * newest request waits while one runs) and the result before stays meanwhile on the same symbol and interval (a
+   * live update, more history), the study shows loading on another one. The accessors the study called in its last
+   * run are read here (their loads start, the symbols it reads are kept) and sent with the job.
+   */
+  private offThreadResult(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, ctx: StudyCalcContext, live: boolean): { result?: unknown; error?: StudyError } {
+    const off = this.off;
+    const plain: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(ctx)) if (typeof v !== 'function') plain[k] = v;
+    const fns = ctx as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>;
+    const accessors = ACCESSORS.filter((k) => typeof fns[k] === 'function');
+    const data: Record<string, unknown> = {};
+    let key = `${barsSignature(bars)}|${JSON.stringify(inputs)}|${JSON.stringify(plain)}`;
+    for (const c of off.calls) {
+      const fn = fns[c.kind];
+      if (!fn) continue;
+      let v: unknown;
+      try {
+        v = fn(...c.args);
+      } catch (err) {
+        if (!(err instanceof MissingSymbolDataError)) throw err;
+      }
+      const ck = callKey(c.kind, c.args);
+      key += `|${ck}=${valueSignature(v)}`;
+      if (v !== undefined) data[ck] = v;
+    }
+    const sources: Record<string, ArrayLike<number>> = {};
+    const values = this.sourceValues;
+    if (values) {
+      for (const v of Object.values(inputs)) {
+        if (typeof v !== 'string' || v in sources) continue;
+        const arr = values(v, bars);
+        if (!arr) continue;
+        sources[v] = arr;
+        key += `|${v}=${valueSignature(arr)}`;
+      }
+    }
+    const series = `${ctx.tickerid}|${ctx.timeframe}|${ctx.sessionType}`;
+    if (off.key === key) {
+      this.workerResult = off.result;
+      return off.error ? { error: off.error } : { result: off.result ?? PENDING_RESULT };
+    }
+    const job: StudyWork = { entryId: entry.id, study: `${this.chartId}|${this.studyId ?? entry.id}`, base: null, bars, restamp: true, inputs, ctx: plain, accessors, data, sources };
+    if (off.running) off.queued = { job, key, series, live };
+    else this.runOffThread(job, key, series, live);
+    if (off.series !== series || off.result === null) return { result: PENDING_RESULT };
+    this.workerResult = off.result;
+    return off.error ? { error: off.error } : { result: off.result };
+  }
+
+  private runOffThread(job: StudyWork, key: string, series: string, live: boolean): void {
+    const off = this.off;
+    off.running = true;
+    // Snapshot: the chart's bars change in place on live updates. The worker sends the changes from the result held
+    // here (`base`) when it has it.
+    const sent = { ...job, bars: job.bars.slice(), base: off.version };
+    void calculateInWorker(sent, off.slot).then(({ reply, slot }) => {
+      if (this.off !== off) return;
+      off.running = false;
+      off.slot = slot;
+      if (reply.base != null) {
+        reply.result = reply.base === off.version && off.raw !== null ? applyDelta(reply.result, off.raw) : undefined;
+        // The result it changed is not the one held here: ask again for a whole one.
+        if (reply.result === undefined) { reply.retry = true; off.version = null; off.raw = null; }
+      }
+      if (!reply.retry && !reply.error && !reply.pending && reply.result !== undefined) {
+        off.version = reply.id;
+        off.raw = reply.result;
+      }
+      for (const m of reply.missing) if (!off.calls.some((c) => c.kind === m.kind && callKey(c.kind, c.args) === callKey(m.kind, m.args))) off.calls.push(m);
+      if (reply.retry) off.key = null;
+      else if (reply.missing.length && !reply.error) {
+        // It read data it was not given: the next calculation reads it and asks again (loading meanwhile).
+        off.key = null;
+        off.series = series;
+        off.result = reply.result ?? PENDING_RESULT;
+        off.error = null;
+      } else {
+        off.key = key;
+        off.series = series;
+        off.result = reply.error ? null : reply.pending ? PENDING_RESULT : reply.result;
+        off.error = reply.error ? studyErrorOf(Object.assign(new Error(reply.error), { studyTitle: reply.errorTitle })) : null;
+      }
+      const next = off.queued;
+      off.queued = null;
+      if (next && next.key !== off.key) this.runOffThread(next.job, next.key, next.series, next.live);
+      else this.calculated?.(live && !next);
     });
   }
 
@@ -475,7 +673,7 @@ export class IndicatorLayer {
     }
   }
 
-  private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): any {
+  private calculate(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides, live = false): any {
     this.error = null;
     this.loading = false;
     try {
@@ -511,14 +709,18 @@ export class IndicatorLayer {
       }
       // Daily and longer bars at the session open, as studies read them (strategies restamp their own bars: the
       // broker and the report keep the chart's bar times).
-      const seen = isStrategyId(entry.id) ? bars : scriptBars(bars, ctx);
+      // A worker calculation restamps them in the worker (and puts the result back on the chart's times there).
+      const offThread = this.calculatesOffThread(entry);
+      const restamp = (list: Bar[]) => (isStrategyId(entry.id) ? list : scriptBars(list, ctx));
+      const seen = offThread ? bars : restamp(bars);
       const range = this.visibleRange();
       if (range) {
         const left = barIndexAt(bars, range.from, true);
         const right = barIndexAt(bars, range.to, false);
         if (left >= 0 && right >= left) {
-          ctx.leftVisibleBarTime = (seen[left].time as unknown as number) * 1000;
-          ctx.rightVisibleBarTime = (seen[right].time as unknown as number) * 1000;
+          const [l, r] = seen === bars && offThread ? restamp([bars[left], bars[right]]) : [seen[left], seen[right]];
+          ctx.leftVisibleBarTime = (l.time as unknown as number) * 1000;
+          ctx.rightVisibleBarTime = (r.time as unknown as number) * 1000;
         }
       }
       // Source inputs naming another source of the chart read its values (the bars keep their index).
@@ -526,7 +728,16 @@ export class IndicatorLayer {
       setSourceResolver(values ? (name) => values(name, bars) : null);
       let result: unknown;
       try {
-        result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+        if (offThread) {
+          const off = this.offThreadResult(entry, bars, inputs, ctx, live);
+          if (off.error) {
+            this.error = off.error;
+            return null;
+          }
+          result = off.result;
+        } else {
+          result = (entry.calculate as (b: Bar[], i: Record<string, unknown>, ctx: StudyCalcContext) => unknown)(seen, inputs, ctx);
+        }
       } finally {
         setSourceResolver(null);
       }
@@ -586,13 +797,16 @@ export class IndicatorLayer {
       const ov = styles[def.id];
       const style = pineStyle(ov?.plotType);
       const palette = plotPaletteOverride(def as PlotConfig & PlotPalette, ov);
+      const shown = plotShown(def as PlotDefaultVisible, ov);
       overrides[def.id] = {
-        ...(plotShown(def as PlotDefaultVisible, ov) ? {} : { visible: false }),
+        ...(shown ? {} : { visible: false }),
         ...(ov?.color !== undefined && { color: ov.color }),
         ...(ov?.lineWidth !== undefined && { lineWidth: ov.lineWidth }),
         ...(style && { style }),
         ...(palette && { palette }),
       };
+      // A plot turned off is not drawn (the renderer skips it): nothing to prepare.
+      if (!shown) continue;
       const effective = style ?? def.style ?? 'line';
       if ((effective === 'linebr' || effective === 'steplinebr') && plots[def.id]?.length) {
         if (plots === result.plots) plots = { ...plots };

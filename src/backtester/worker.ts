@@ -14,6 +14,8 @@ import { STRATEGIES } from './strategies';
 import type { BacktestOutput, BacktestRequest, BacktestResponse } from './worker-types';
 import { intervalSeconds } from './magnifier';
 import { intrabarsOf } from './intrabar-cache';
+// The chart's library studies calculate in this worker too (it carries the library already).
+import { calculateStudy, isStudyJob } from '../window/chart/indicators/study-calc';
 
 function runStrategy(req: BacktestRequest): BacktestOutput | string {
   const intrabars = intrabarsOf(req.intrabars);
@@ -49,6 +51,10 @@ function loadRatings(): Promise<void> {
 }
 
 self.onmessage = async (e: MessageEvent<BacktestRequest>) => {
+  if (isStudyJob(e.data)) {
+    (self as unknown as Worker).postMessage(await calculateStudy(e.data));
+    return;
+  }
   const req = e.data;
   let res: BacktestResponse;
   try {

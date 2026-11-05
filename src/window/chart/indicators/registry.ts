@@ -38,6 +38,8 @@ LOCAL.set(VOLUME_ENTRY.id, VOLUME_ENTRY);
 for (const e of [...VBP_ENTRIES, ...TPO_ENTRIES]) LOCAL.set(e.id, e);
 
 const byId = new Map<string, IndicatorRegistryEntry>(LOCAL);
+/** The library's own entries (the app's built-ins of the same id replace theirs). */
+const libraryEntries = new WeakSet<IndicatorRegistryEntry>();
 const [loaded, setLoaded] = createSignal(false);
 /** The indicator library is loaded (its entries are in the registry). */
 export const indicatorLibraryLoaded = loaded;
@@ -46,10 +48,15 @@ let loading: Promise<void> | null = null;
 /** Import the indicator library (once); its entries join the registry. */
 export function loadIndicatorLibrary(): Promise<void> {
   loading ??= import('lightweight-charts-indicators').then((m) => {
-    for (const e of m.indicatorRegistry) if (!LOCAL.has(e.id)) byId.set(e.id, e);
+    for (const e of m.indicatorRegistry) if (!LOCAL.has(e.id)) { byId.set(e.id, e); libraryEntries.add(e); }
     setLoaded(true);
   });
   return loading;
+}
+
+/** An entry of the indicator library itself (its studies calculate in a worker, which loads the library). */
+export function isLibraryEntry(entry: IndicatorRegistryEntry): boolean {
+  return libraryEntries.has(entry);
 }
 
 /** An id of the library (known before the library is loaded). */

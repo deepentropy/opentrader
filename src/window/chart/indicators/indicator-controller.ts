@@ -461,6 +461,18 @@ export class IndicatorController {
     if (!live) this.retainSymbols();
   }
 
+  /** Studies whose result came on its own (a script's worker run): they are drawn again with their dependents, the
+   *  other studies keep theirs. */
+  renderStudies(ids: string[]): void {
+    const bars = this.getBars();
+    for (const id of ids) {
+      const inst = this.instances.get(id);
+      const entry = getIndicatorEntry(id);
+      if (inst && !inst.owner && entry) this.renderOne(id, inst, entry, bars);
+    }
+    this.retainSymbols();
+  }
+
   /** The study's options (defaults when never edited). */
   getOptions(id: string): IndicatorOptions {
     return cloneIndicatorOptions(this.options.get(id) ?? defaultIndicatorOptions());
@@ -565,7 +577,13 @@ export class IndicatorController {
     inst.layer.setPlotOptions({ labelsOnScale: o.labelsOnScale, precision: precisionDigits(o.precision) });
     const det = this.detachedScale(id, inst, entry);
     inst.layer.setDetachedScale(det?.id ?? null, det?.axis ?? false, !!o.scale);
-    inst.layer.render(entry, bars, this.effectiveInputs(id, entry), !this.hidden.has(id) && this.onInterval(id), this.styles.get(id) ?? {}, live);
+    const drawn = !this.hidden.has(id) && this.onInterval(id);
+    const inputs = this.effectiveInputs(id, entry);
+    // The studies it reads that were not calculated (hidden) calculate now.
+    this.ensureSources(id, entry, inputs);
+    // Not drawn: nothing shows its values (legend, data window, export), so it does not calculate, except a strategy
+    // (its report) — a study reading it calculates it when it reads it.
+    inst.layer.render(entry, bars, inputs, drawn, this.styles.get(id) ?? {}, live, drawn || isStrategyId(id));
     if (!inst.overlay) this.paneScaleDefaults(inst.paneIndex);
     if (!live) this.seriesChanged();
     this.renderDependents(id, bars, live);
@@ -618,6 +636,17 @@ export class IndicatorController {
   private externalSource: (id: string) => ReadonlyArray<{ time: unknown; value?: number | null }> | null = () => null;
   setExternalSourceProbe(fn: (id: string) => ReadonlyArray<{ time: unknown; value?: number | null }> | null): void {
     this.externalSource = fn;
+  }
+  /** The studies `id` reads (directly or through others) that skipped their calculation calculate it. */
+  private ensureSources(id: string, entry: IndicatorRegistryEntry, inputs: Record<string, unknown>, seen = new Set<string>([id])): void {
+    for (const pid of parentsOf(entry, inputs)) {
+      const p = this.instances.get(pid);
+      const pe = p && !p.owner && !seen.has(pid) ? getIndicatorEntry(pid) : undefined;
+      if (!p || !pe) continue;
+      seen.add(pid);
+      this.ensureSources(pid, pe, this.effectiveInputs(pid, pe), seen);
+      p.layer.ensureResult();
+    }
   }
   /** Studies whose source inputs read `id`. */
   childrenOf(id: string): string[] {
@@ -1494,6 +1523,7 @@ export class IndicatorController {
     layer.setVolumeCandles(this.volumeCandles);
     layer.setOtherSymbols(this.otherSymbols);
     layer.setSourceValues(this.sourceValuesFor);
+    layer.setOnCalculated((live) => this.studyCalculated(id, layer, live));
     layer.setMainSeries(() => this.mainSeries());
     layer.setPricePane(overlay, () => this.scaleIds());
     const ownScale = !!(entry.metadata as { ownScaleId?: string }).ownScaleId;
@@ -1504,9 +1534,22 @@ export class IndicatorController {
     this.renderOne(id, inst, entry, this.getBars());
   }
 
+  /** A study's result came from its worker: it is drawn (its dependents calculate again) and the legend reads it. */
+  private studyCalculated(id: string, layer: IndicatorLayer, live: boolean): void {
+    const inst = this.instances.get(id);
+    const entry = getIndicatorEntry(id);
+    if (!inst || inst.layer !== layer || !entry) return;
+    const bars = this.getBars();
+    if (live) this.renderOne(id, inst, entry, bars, true);
+    // its first result may plot after the last bar: the view stays as for a study added
+    else this.keepView(() => this.renderOne(id, inst, entry, bars));
+    this.redrawn();
+  }
+
   private removeLayer(id: string): void {
     const inst = this.instances.get(id);
     if (!inst) return;
+    inst.layer.setOnCalculated(null);
     const panesBefore = this.chart.panes();
     if (inst.owner) inst.owner.clear();
     else inst.layer.clear();

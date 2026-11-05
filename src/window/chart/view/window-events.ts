@@ -306,7 +306,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
         // a script's first result may plot after the last bar: the view stays as for a study added
         controller.keepView(() => {
           if (detail.structural) for (const id of ids) controller.refresh(id);
-          else controller.renderAll();
+          else controller.renderStudies(ids);
         });
         refreshIndicatorLegend();
       };
