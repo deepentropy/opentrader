@@ -87,10 +87,12 @@ async fn get_raw(what: &'static str, path: &str, query: &[(&str, String)]) -> Re
     let url = format!("{MARKET}/{path}");
     let mut attempt = 0;
     loop {
-        let resp = http()
-            .get(&url)
-            .query(query)
-            .bearer_auth(token)
+        let mut req = http().get(&url).query(query).bearer_auth(token);
+        // A subscriber's bars and snapshots come real-time (#252).
+        if let Some(pass) = crate::data::pass::current() {
+            req = req.header(crate::data::pass::HEADER, pass);
+        }
+        let resp = req
             .send()
             .await
             .map_err(|e| ApiError::transport(what, format!("request failed: {}", e.without_url())))?;

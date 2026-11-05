@@ -119,8 +119,26 @@ fn publish(app: &HostRef, provider: &Provider, state: State) {
 }
 
 /// Startup: publish the cached result for this provider + key, then refresh in
-/// the background when it is missing or stale.
+/// the background when it is missing or stale. Again whenever a pass is given
+/// or taken back (#252): a subscriber's real-time plan is probed and cached
+/// apart (`credential_id`).
 pub fn init(app: &HostRef, provider: Provider) {
+    load(app, provider.clone());
+    let app = app.clone();
+    crate::rt::spawn(async move {
+        let mut rx = crate::data::pass::subscribe();
+        let mut realtime = crate::data::pass::realtime();
+        while rx.changed().await.is_ok() {
+            let now = crate::data::pass::realtime();
+            if now != realtime {
+                realtime = now;
+                load(&app, provider.clone());
+            }
+        }
+    });
+}
+
+fn load(app: &HostRef, provider: Provider) {
     let cached = provider
         .credential_id()
         .and_then(|cred| read_cache(provider.name(), &cred));

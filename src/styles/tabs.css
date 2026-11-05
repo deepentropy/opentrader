@@ -283,6 +283,39 @@ html.theme-dark .data-delay-badge {
   background-color: rgba(255, 152, 0, 0.16);
   color: var(--color-tan-orange-400);
 }
+/* Paid tier (#252): the badge opens the real-time data dialog. */
+.data-delay-badge.is-button {
+  -webkit-app-region: no-drag;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+.data-delay-badge.is-realtime {
+  background-color: rgba(8, 153, 129, 0.12);
+  color: #089981;
+}
+html.theme-dark .data-delay-badge.is-realtime {
+  background-color: rgba(8, 153, 129, 0.2);
+  color: #22ab94;
+}
+.plan-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.plan-signin-button {
+  height: 34px;
+  border: 1px solid var(--color-cold-gray-650, #434651);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.plan-signin-button:hover {
+  background-color: var(--color-cold-gray-800, #2a2e39);
+}
 .action-button {
   -webkit-app-region: no-drag;
   width: 50px;

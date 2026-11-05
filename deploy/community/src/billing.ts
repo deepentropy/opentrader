@@ -233,8 +233,9 @@ export async function reconcile(env: Env): Promise<void> {
 
 /** An account being deleted: end its subscription first so it is not charged again. */
 export async function cancelForDeletedAccount(env: Env, userId: string): Promise<void> {
+  if (!billingOn(env)) return;
   const r = await row(env, userId);
-  if (!r || !billingOn(env)) return;
+  if (!r) return;
   await cancelCustomer(env, r.customer_id);
   await revokeRealtime(env, userId);
 }

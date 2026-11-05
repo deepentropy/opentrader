@@ -63,3 +63,20 @@ pub async fn set_watchlist_subscription(
         .map_err(|e| format!("realtime task dropped: {e}"))?;
     Ok(())
 }
+
+/// The subscribed account's pass (#252) from the frontend, or none (signed out,
+/// free plan). `exp`: its expiry, UNIX seconds. Market calls and the stream
+/// use it from now on (`data::pass`).
+#[tauri::command]
+#[specta::specta]
+pub fn market_pass_set(pass: Option<String>, exp: Option<f64>) {
+    crate::data::pass::set(pass.zip(exp).map(|(token, exp)| crate::data::pass::Pass { token, exp: exp as i64 }));
+}
+
+/// Take the account's real-time session back on this device after another one
+/// took it ("signed in elsewhere"): that device goes back to delayed data.
+#[tauri::command]
+#[specta::specta]
+pub fn market_pass_resume() {
+    crate::data::pass::set_elsewhere(false);
+}

@@ -4,6 +4,7 @@ pub mod gateway;
 pub mod install_token;
 pub mod market_rest;
 pub mod market_stream;
+pub mod pass;
 pub mod provider;
 pub mod quote_poll;
 pub mod session;

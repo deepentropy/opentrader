@@ -71,6 +71,21 @@ pub struct TradeTick {
     pub trade_time: Option<f64>,
 }
 
+/// The live stream left or joined real-time data (#252). Sent when a session
+/// authenticates (`reason` none), and when the gateway sends this device back
+/// to delayed data.
+#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[cfg_attr(feature = "tauri", derive(tauri_specta::Event))]
+pub struct MarketTier {
+    /// "realtime" | "delayed"
+    pub tier: String,
+    /// Why real-time ended: "expired", "renewal_refused", "invalid", "revoked"
+    /// (the gateway's `downgraded` reasons), "signed_in_elsewhere", or
+    /// "not_allowed" (the pass opens no real-time session).
+    pub reason: Option<String>,
+}
+
+event!(MarketTier, "market-tier");
 event!(ChartAggregate, "chart-aggregate");
 event!(SecondAggregate, "second-aggregate");
 event!(TradeTick, "trade-tick");

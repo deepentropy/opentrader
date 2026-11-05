@@ -21,6 +21,15 @@
  *   • A clean session-end (rx closed = app shutting down) returns the
  *     task. A graceful WS close resets the backoff.
  *
+ * Real-time tier (#252): with a pass (`data::pass`, a subscribed account)
+ * the session connects to `/market/v1/stream/rt` with the pass instead of the
+ * app token, renews the pass on the open socket when the frontend hands a new
+ * one, and stays connected while there is nothing to stream, so the gateway's
+ * one-session-per-account rule sees this device. The gateway's `downgraded`
+ * (pass expired, renewal refused, revoked) or `signed_in_elsewhere` ends the
+ * session and the next one uses the delayed route (`MarketTier` tells the
+ * frontend why).
+ *
  * Modes (see `Mode`):
  *   • SECOND_BARS — spawned today, next to the REST poller: `bar1s:<T>` for
  *     charted symbols, gated on the probed `StreamCaps.second_bars`, and
@@ -48,7 +57,9 @@
 // trade / quote NOT_ENTITLED). Allow dead code module-wide rather than
 // per-fn attributes.
 #![allow(dead_code)]
-use crate::data::gateway::{self, STREAM_URL};
+use crate::data::gateway::{self, STREAM_RT_URL, STREAM_URL};
+use crate::data::pass;
+use crate::host::Event;
 use crate::data::provider::capabilities::StreamCaps;
 use crate::data::provider::entitlements;
 use anyhow::{anyhow, Context, Result};
@@ -63,7 +74,7 @@ use tokio_tungstenite::tungstenite::Message;
 mod events;
 mod subscriptions;
 
-pub use events::{ChartAggregate, SecondAggregate, TradeTick};
+pub use events::{ChartAggregate, MarketTier, SecondAggregate, TradeTick};
 use events::handle_text;
 pub use subscriptions::{ticker_of, SubscribeMsg, SubscriptionState};
 
@@ -151,10 +162,46 @@ fn has_work(mode: Mode, state: &SubscriptionState) -> bool {
     !state.chart_symbols().is_empty() || (mode.watch.is_some() && !state.watch_union().is_empty())
 }
 
-/// Entitled (per the probe) and, for a lazy mode, something to subscribe to.
-fn may_connect(mode: Mode, ent: &entitlements::State, state: &SubscriptionState) -> bool {
+/// Entitled (per the probe) and, for a lazy mode, something to subscribe to
+/// (a subscriber's session stays: it holds the account's real-time session).
+fn may_connect(mode: Mode, ent: &entitlements::State, state: &SubscriptionState, realtime: bool) -> bool {
     let entitled = mode.gate.is_none_or(|g| ent.stream_allows(g));
-    entitled && (!mode.lazy || has_work(mode, state))
+    entitled && (!mode.lazy || realtime || has_work(mode, state))
+}
+
+/// The route of the next session: real-time with the pass when there is one,
+/// else delayed with the app token. `None`: neither.
+fn route() -> Option<Route> {
+    if let Some(credential) = pass::current() {
+        return Some(Route { url: STREAM_RT_URL, credential, realtime: true });
+    }
+    gateway::token().map(|t| Route { url: STREAM_URL, credential: t.to_string(), realtime: false })
+}
+
+struct Route {
+    url: &'static str,
+    credential: String,
+    realtime: bool,
+}
+
+/// The stream refused the credential (an auth error answer), as opposed to a
+/// network failure.
+#[derive(Debug)]
+struct AuthRefused(String);
+
+impl std::fmt::Display for AuthRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "stream auth failed: {}", self.0)
+    }
+}
+
+impl std::error::Error for AuthRefused {}
+
+fn emit_tier(app: &HostRef, realtime: bool, reason: Option<&str>) {
+    let ev = MarketTier { tier: if realtime { "realtime" } else { "delayed" }.into(), reason: reason.map(str::to_string) };
+    if let Err(e) = ev.emit(app) {
+        eprintln!("[market_stream] tier event: {e}");
+    }
 }
 
 async fn run_connection(
@@ -167,11 +214,12 @@ async fn run_connection(
     let mut state = SubscriptionState::default();
     let mut backoff = BACKOFF_START;
     let mut ent_rx = entitlements::subscribe();
+    let mut pass_rx = pass::subscribe();
 
     loop {
         // Gate: wait (still applying subscription updates) until the plan is
         // entitled and there is something to stream.
-        let ready = may_connect(mode, &ent_rx.borrow(), &state);
+        let ready = may_connect(mode, &ent_rx.borrow(), &state, pass::realtime());
         if !ready {
             tokio::select! {
                 msg = rx.recv() => {
@@ -183,20 +231,25 @@ async fn run_connection(
                         return Ok(());
                     }
                 }
+                r = pass_rx.changed() => {
+                    if r.is_err() {
+                        return Ok(());
+                    }
+                }
             }
             continue;
         }
 
         // No token compiled in: stay idle (still draining subscription
         // updates) rather than end the task.
-        let Some(token) = gateway::token() else {
+        let Some(route) = route() else {
             if wait_with_drain(&mut rx, NO_KEY_RETRY, &mut state).await {
                 return Ok(()); // mpsc closed — app shutting down
             }
             continue;
         };
 
-        match run_session(&app, token, &mut rx, &mut state, mode, &mut ent_rx).await {
+        match run_session(&app, &route, &mut rx, &mut state, mode, &mut ent_rx, &mut pass_rx).await {
             Ok(SessionExit::ShuttingDown) => {
                 // mpsc closed — the app handle was dropped. Exit cleanly.
                 return Ok(());
@@ -210,6 +263,15 @@ async fn run_connection(
             Ok(SessionExit::WsClosed) => {
                 eprintln!("[market_stream] closed cleanly; reconnecting");
                 backoff = BACKOFF_START;
+            }
+            Err(e) if route.realtime && e.downcast_ref::<AuthRefused>().is_some() => {
+                // A pass that opens no real-time session (an account outside the
+                // pilot, a plan just ended): delayed data, at once.
+                eprintln!("[market_stream] real-time refused: {e:#}; delayed data");
+                pass::set(None);
+                emit_tier(&app, false, Some("not_allowed"));
+                backoff = BACKOFF_START;
+                continue;
             }
             Err(e) => {
                 eprintln!(
@@ -243,8 +305,8 @@ use crate::net::{self, WsStream};
 
 /// Connect and authenticate (the token as the first message, so it never
 /// rides in a URL).
-async fn connect_authed(token: &str) -> Result<WsStream> {
-    let mut ws = net::connect_ws(STREAM_URL).await.context("stream connect failed")?;
+async fn connect_authed(url: &str, token: &str) -> Result<WsStream> {
+    let mut ws = net::connect_ws(url).await.context("stream connect failed")?;
     let auth = serde_json::json!({ "op": "auth", "token": token });
     ws.send(Message::Text(auth.to_string())).await.context("stream send auth failed")?;
     tokio::time::timeout(AUTH_WAIT, wait_for_auth(&mut ws))
@@ -255,16 +317,21 @@ async fn connect_authed(token: &str) -> Result<WsStream> {
 
 async fn run_session(
     app: &HostRef,
-    token: &str,
+    route: &Route,
     rx: &mut mpsc::Receiver<SubscribeMsg>,
     state: &mut SubscriptionState,
     mode: Mode,
     ent_rx: &mut tokio::sync::watch::Receiver<entitlements::State>,
+    pass_rx: &mut tokio::sync::watch::Receiver<pass::State>,
 ) -> Result<SessionExit> {
     let mut proxy_changes = net::proxy_changes();
-    let ws = connect_authed(token).await?;
+    let ws = connect_authed(route.url, &route.credential).await?;
     let (mut write, mut read) = ws.split();
-    eprintln!("[market_stream] connected + authenticated ({}*)", mode.chart);
+    let tier = if route.realtime { "real-time" } else { "delayed" };
+    eprintln!("[market_stream] connected + authenticated ({}*, {tier})", mode.chart);
+    emit_tier(app, route.realtime, None);
+    // The pass last sent on this socket: a new one is a renewal.
+    let mut sent = route.credential.clone();
 
     // Replay desired subscription state. The frontend may have churned
     // the chart slots / watchlists while we were disconnected.
@@ -286,7 +353,7 @@ async fn run_session(
                 let prev_c = state.chart_tickers();
                 let prev_w = state.watch_tickers();
                 state.apply(sub);
-                if mode.lazy && !has_work(mode, state) {
+                if mode.lazy && !route.realtime && !has_work(mode, state) {
                     return Ok(SessionExit::Idle);
                 }
                 let next_c = state.chart_tickers();
@@ -302,6 +369,22 @@ async fn run_session(
             }
             // Connect again through the new proxy.
             _ = proxy_changes.changed() => return Ok(SessionExit::WsClosed),
+            r = pass_rx.changed() => {
+                if r.is_err() {
+                    return Ok(SessionExit::ShuttingDown);
+                }
+                match (route.realtime, pass::current()) {
+                    // A renewed pass: on this socket, no reconnect.
+                    (true, Some(p)) if p != sent => {
+                        let auth = serde_json::json!({ "op": "auth", "token": p });
+                        write.send(Message::Text(auth.to_string())).await.context("stream send renewal failed")?;
+                        sent = p;
+                    }
+                    (true, Some(_)) | (false, None) => {}
+                    // The tier changed: the next session takes the other route.
+                    _ => return Ok(SessionExit::Idle),
+                }
+            }
             r = ent_rx.changed() => {
                 if r.is_err() {
                     return Ok(SessionExit::ShuttingDown);
@@ -316,7 +399,20 @@ async fn run_session(
                 let Some(frame) = frame else { return Ok(SessionExit::WsClosed); };
                 let frame = frame.context("stream read error")?;
                 match frame {
-                    Message::Text(txt) => handle_text(app, state, &txt),
+                    Message::Text(txt) => {
+                        if let Some(reason) = tier_exit(&txt) {
+                            eprintln!("[market_stream] real-time ended: {reason}");
+                            if reason == "signed_in_elsewhere" {
+                                pass::set_elsewhere(true);
+                            } else {
+                                // The frontend asks a new pass; still subscribed, it brings real-time back.
+                                pass::set(None);
+                            }
+                            emit_tier(app, false, Some(&reason));
+                            return Ok(SessionExit::Idle);
+                        }
+                        handle_text(app, state, &txt)
+                    }
                     Message::Close(_) => return Ok(SessionExit::WsClosed),
                     _ => {}
                 }
@@ -367,6 +463,19 @@ fn error_text(m: &serde_json::Value) -> String {
     }
 }
 
+/// The gateway's reason for sending this device back to delayed data, when
+/// the frame carries one (`downgraded` and its reason, `signed_in_elsewhere`).
+fn tier_exit(txt: &str) -> Option<String> {
+    if !txt.contains("downgraded") && !txt.contains("signed_in_elsewhere") {
+        return None;
+    }
+    messages(txt).iter().find_map(|m| match (field(m, "type"), field(m, "status")) {
+        (Some("status"), Some("signed_in_elsewhere")) => Some("signed_in_elsewhere".to_string()),
+        (Some("status"), Some("downgraded")) => Some(field(m, "reason").unwrap_or("downgraded").to_string()),
+        _ => None,
+    })
+}
+
 async fn wait_for_auth(ws: &mut WsStream) -> Result<()> {
     while let Some(frame) = ws.next().await {
         let frame = frame.context("stream closed before auth")?;
@@ -374,7 +483,7 @@ async fn wait_for_auth(ws: &mut WsStream) -> Result<()> {
         for m in messages(&txt) {
             match field(&m, "type") {
                 Some("status") if field(&m, "status") == Some("authenticated") => return Ok(()),
-                Some("error") => return Err(anyhow!("stream auth failed: {}", error_text(&m))),
+                Some("error") => return Err(AuthRefused(error_text(&m)).into()),
                 _ => {}
             }
         }
@@ -401,8 +510,8 @@ where
 /// one bool per channel (true = subscribed), then closes. A channel without a
 /// reply within `PROBE_REPLY_WAIT` is an error.
 pub async fn probe_channels(channels: &[String]) -> Result<Vec<bool>> {
-    let token = gateway::token().ok_or_else(|| anyhow!(gateway::NO_TOKEN))?;
-    let mut ws = connect_authed(token).await?;
+    let route = route().ok_or_else(|| anyhow!(gateway::NO_TOKEN))?;
+    let mut ws = connect_authed(route.url, &route.credential).await?;
     send_op(&mut ws, "subscribe", channels).await?;
     let mut granted: HashMap<&str, bool> = HashMap::new();
     let deadline = Instant::now() + PROBE_REPLY_WAIT;
@@ -462,16 +571,26 @@ mod gate_tests {
     #[test]
     fn second_bars_gate() {
         let mut state = SubscriptionState::default();
-        assert!(!may_connect(SECOND_BARS, &ent(caps(true)), &state), "no chart open");
+        assert!(!may_connect(SECOND_BARS, &ent(caps(true)), &state, false), "no chart open");
+        assert!(may_connect(SECOND_BARS, &ent(caps(true)), &state, true), "a subscriber holds the session");
         state.apply(SubscribeMsg::SetChart { owner: "main:0".into(), symbol: Some("AAPL".into()) });
-        assert!(may_connect(SECOND_BARS, &ent(caps(true)), &state));
-        assert!(!may_connect(SECOND_BARS, &ent(caps(false)), &state), "bar1s not granted");
-        assert!(!may_connect(SECOND_BARS, &ent(None), &state), "stream not probed yet");
-        assert!(!may_connect(SECOND_BARS, &entitlements::State::default(), &state), "no entitlements");
+        assert!(may_connect(SECOND_BARS, &ent(caps(true)), &state, false));
+        assert!(!may_connect(SECOND_BARS, &ent(caps(false)), &state, false), "bar1s not granted");
+        assert!(!may_connect(SECOND_BARS, &ent(None), &state, false), "stream not probed yet");
+        assert!(!may_connect(SECOND_BARS, &entitlements::State::default(), &state, false), "no entitlements");
         // A watchlist alone is no work for a chart-only mode.
         let mut w = SubscriptionState::default();
         w.apply(SubscribeMsg::SetWatchlist { owner: "main".into(), symbols: vec!["AAPL".into()] });
-        assert!(!may_connect(SECOND_BARS, &ent(caps(true)), &w));
+        assert!(!may_connect(SECOND_BARS, &ent(caps(true)), &w, false));
+    }
+
+    #[test]
+    fn tier_exit_reads_the_gateway_reasons() {
+        assert_eq!(tier_exit(r#"[{"type":"status","status":"downgraded","reason":"revoked"}]"#).as_deref(), Some("revoked"));
+        assert_eq!(tier_exit(r#"[{"type":"status","status":"signed_in_elsewhere"}]"#).as_deref(), Some("signed_in_elsewhere"));
+        assert_eq!(tier_exit(r#"[{"type":"bar","ticker":"AAPL","c":1}]"#), None);
+        // Text that only looks like one is no status.
+        assert_eq!(tier_exit(r#"[{"type":"error","code":"NOT_ENTITLED","error":"downgraded"}]"#), None);
     }
 
     #[test]

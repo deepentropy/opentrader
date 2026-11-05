@@ -338,7 +338,9 @@ impl DataProvider for GatewayProvider {
     fn credential_id(&self) -> Option<String> {
         // Gateway + token: a new gateway or a rotated token re-probes.
         // The shared token: an install token arriving mid-run is no new credential.
-        gateway::shared_token().map(|t| entitlements::fingerprint(&format!("{}|{t}", gateway::BASE)))
+        // A subscriber's pass (#252) is another plan: real-time, probed and cached apart.
+        let tier = if crate::data::pass::realtime() { "|rt" } else { "" };
+        gateway::shared_token().map(|t| entitlements::fingerprint(&format!("{}|{t}{tier}", gateway::BASE)))
     }
 
     async fn probe_history(&self) -> Result<HistoryProbe> {
@@ -369,8 +371,8 @@ impl DataProvider for GatewayProvider {
         })
     }
 
-    /// One stream URL: the gateway picks the delayed or real-time feed, so
-    /// `data_status` does not choose the endpoint.
+    /// The stream route follows the pass (`market_stream::connect_authed`), not
+    /// `data_status`.
     async fn probe_stream(&self, _data_status: DataStatus) -> Result<StreamCaps> {
         let channels = ["bar1m:", "bar1s:", "trade:", "quote:"].map(|p| format!("{p}{PROBE_TICKER}"));
         let granted = market_stream::probe_channels(&channels).await?;

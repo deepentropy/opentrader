@@ -26,9 +26,13 @@ pub const BASE: &str = "https://opentrader-gateway.cloudflare-breeder165.workers
 /// REST base of the market API: `<MARKET>/<path>?<query>`.
 pub const MARKET: &str = "https://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1";
 
-/// The market stream. The gateway holds the one upstream connection and picks
-/// the delayed or real-time feed itself.
+/// The market stream of the free tier (delayed). The gateway holds the one
+/// upstream connection and shares it between the apps.
 pub const STREAM_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1/stream";
+
+/// The real-time stream of subscribed accounts (#252): the same protocol, a
+/// pass (`data::pass`) instead of the app token.
+pub const STREAM_RT_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1/stream/rt";
 
 /// The screener's live feed: one full-market table, then its changes every
 /// 10 s, polled once by the gateway for every app (`?token=<token>`).

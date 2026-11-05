@@ -4,13 +4,15 @@
  * main-menu button (meatballs glyph for a signed-in user) which opens the
  * account / app main menu (reusing the header's ProfileMenu).
  */
-import { createSignal, Show } from "solid-js";
+import { createSignal, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { ProfileMenu } from "../header/ProfileMenu";
 import { updateReady } from "../../data/app-update";
 import { track } from "../../data/analytics";
 import { isTauri, openNewWindow } from "./window-bridge";
+import { PAID_ENABLED, initPaid, realtimeActive, realtimeElsewhere } from "../../data/paid/plan";
+import { showPlanDialog } from "../paid/PlanDialog";
 
 /** The web version (`vite --mode web`): its title bar links to the desktop app. */
 const WEB_BUILD = import.meta.env.MODE === "web";
@@ -30,13 +32,39 @@ export function TabPanelActions(props: Props) {
   const userName = () => props.userName ?? "Trader";
   const toggleMenu = (e: MouseEvent & { currentTarget: HTMLButtonElement }) =>
     setAnchor((cur) => (cur ? null : e.currentTarget.getBoundingClientRect()));
+  const paid = PAID_ENABLED && isTauri();
+  onMount(initPaid);
+  const badgeTip = () =>
+    realtimeActive()
+      ? "Market data is real-time."
+      : realtimeElsewhere()
+        ? "Real-time data is in use on another device. Click to use it here."
+        : "Market data is delayed by 15 minutes. Click for real-time data.";
 
   return (
     <div class="tab-panel-actions">
-      {/* Market data delay notice (the gateway serves 15-minute delayed data). */}
-      <Tooltip text="Market data is delayed by 15 minutes." side="bottom">
-        <span class="data-delay-badge" data-qa-id="data-delay-badge">Delayed 15 min</span>
-      </Tooltip>
+      {/* Market data delay notice (the gateway serves 15-minute delayed data);
+          with the paid tier (#252), the plan's state, which opens its dialog. */}
+      <Show
+        when={paid}
+        fallback={
+          <Tooltip text="Market data is delayed by 15 minutes." side="bottom">
+            <span class="data-delay-badge" data-qa-id="data-delay-badge">Delayed 15 min</span>
+          </Tooltip>
+        }
+      >
+        <Tooltip text={badgeTip()} side="bottom">
+          <button
+            type="button"
+            class="data-delay-badge is-button"
+            classList={{ "is-realtime": realtimeActive() }}
+            data-qa-id="data-delay-badge"
+            onClick={() => showPlanDialog()}
+          >
+            {realtimeActive() ? "Real-time" : realtimeElsewhere() ? "Real-time elsewhere" : "Delayed 15 min"}
+          </button>
+        </Tooltip>
+      </Show>
       {/* Web version: where to get the desktop app (the desktop shows its window
           controls in this place). */}
       <Show when={WEB_BUILD}>
