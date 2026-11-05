@@ -1,8 +1,7 @@
 /*
  * The window's side of the study workers (study-calc.ts, in backtest workers): a small pool of their own, each job to
- * the least busy worker. A job
- * still running after JOB_TIMEOUT_MS ends its worker (the next job starts a new one) and fails, so a study that never
- * ends cannot hold the others.
+ * the least busy worker. A job still running after JOB_TIMEOUT_MS ends its worker (the next job starts a new one) and
+ * fails, so a study that never ends cannot hold the others.
  */
 import StudyWorkerCtor from "../../../backtester/worker?worker";
 import type { StudyJob, StudyReply } from "./study-worker-types";

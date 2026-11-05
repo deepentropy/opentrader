@@ -30,4 +30,14 @@ describe("study worker result changes", () => {
     next.plots.a[200] = { time: 200, value: -1, color: "#fff" };
     expect(applyDelta(encodeDelta(next, prev), prev)).toEqual(next);
   });
+
+  it("changes an array the result holds twice once", () => {
+    const shared = points(100, 1);
+    const prev = { plots: { a: shared, b: shared } };
+    const nextShared = points(101, 7);
+    const next = { plots: { a: nextShared, b: nextShared } };
+    const delta = structuredClone(encodeDelta(next, prev));
+    const out = applyDelta(delta, structuredClone(prev)) as typeof next;
+    expect(out).toEqual(next);
+  });
 });
