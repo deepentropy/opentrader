@@ -85,6 +85,8 @@ async fn main() {
     if opentrader_core::data::gateway::token().is_none() {
         eprintln!("[server] {}", opentrader_core::data::gateway::NO_TOKEN);
     }
+    // The server's own gateway token, kept with its caches.
+    opentrader_core::data::install_token::init(opentrader_core::data::cache_root().join("gateway-install.json"));
 
     market_rest::set_icon_proxy_base(format!("{}/api/ticker-icon/", public.trim_end_matches('/')));
     let host = Arc::new(ServerHost::new());

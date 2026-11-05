@@ -1,6 +1,7 @@
 pub mod calendar;
 pub mod daily_archive;
 pub mod gateway;
+pub mod install_token;
 pub mod market_rest;
 pub mod market_stream;
 pub mod provider;

@@ -202,6 +202,10 @@ pub fn run() {
             opentrader_core::rt::set_handle(tauri::async_runtime::handle().inner().clone());
             // The proxy first: everything below connects.
             network::init(app.handle());
+            // This install's own gateway token (registered once, in the background).
+            if let Ok(dir) = app.path().app_local_data_dir() {
+                opentrader_core::data::install_token::init(dir.join("gateway-install.json"));
+            }
             let host: HostRef = Arc::new(host::DesktopHost(app.handle().clone()));
             app.manage(host.clone());
             // Restore the saved windows (main's bounds, then the others) and

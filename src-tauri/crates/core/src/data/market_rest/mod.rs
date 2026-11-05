@@ -106,6 +106,10 @@ async fn get_raw(what: &'static str, path: &str, query: &[(&str, String)]) -> Re
             .map(Duration::from_secs);
         let body = resp.bytes().await.unwrap_or_default();
         let err = ApiError::from_answer(what, status, retry_after, &body);
+        if err.code == ErrorCode::Unauthorized {
+            // A revoked install token: the shared one stands in, a new one is asked.
+            crate::data::install_token::refused();
+        }
         if err.code == ErrorCode::RateLimited && attempt < RATE_LIMIT_RETRIES {
             let wait = err.retry_after.unwrap_or(Duration::from_secs(1));
             if wait <= RATE_LIMIT_MAX_WAIT {

@@ -337,7 +337,8 @@ impl DataProvider for GatewayProvider {
 
     fn credential_id(&self) -> Option<String> {
         // Gateway + token: a new gateway or a rotated token re-probes.
-        gateway::token().map(|t| entitlements::fingerprint(&format!("{}|{t}", gateway::BASE)))
+        // The shared token: an install token arriving mid-run is no new credential.
+        gateway::shared_token().map(|t| entitlements::fingerprint(&format!("{}|{t}", gateway::BASE)))
     }
 
     async fn probe_history(&self) -> Result<HistoryProbe> {

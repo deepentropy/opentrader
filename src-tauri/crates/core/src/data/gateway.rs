@@ -39,9 +39,16 @@ pub const SCREENER_LIVE_URL: &str = "wss://opentrader-gateway.cloudflare-breeder
 pub const NO_TOKEN: &str =
     "No gateway token — set OPENTRADER_GATEWAY_TOKEN when building the app or starting the server";
 
-/// The app token: the compiled-in one, else `OPENTRADER_GATEWAY_TOKEN` from
-/// the process environment. `None` when neither is set.
+/// The token the gateway calls send: this install's own (`install_token`),
+/// else the shared one. `None` when there is neither.
 pub fn token() -> Option<&'static str> {
+    crate::data::install_token::current().or_else(shared_token)
+}
+
+/// The shared app token: the compiled-in one, else `OPENTRADER_GATEWAY_TOKEN`
+/// from the process environment. `None` when neither is set. It registers the
+/// install's own token, and stands in until there is one.
+pub fn shared_token() -> Option<&'static str> {
     static RUNTIME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     option_env!("OPENTRADER_GATEWAY_TOKEN")
         .or_else(|| RUNTIME.get_or_init(|| std::env::var("OPENTRADER_GATEWAY_TOKEN").ok()).as_deref())
