@@ -32,7 +32,7 @@ const session = vi.hoisted(() => ({ me: null as unknown }));
 vi.mock("../../community/session", () => ({ me: () => session.me, initSession: async () => undefined }));
 
 import { CommunityError } from "../../community/api";
-import { planInfo, realtimeActive, refreshPass } from "../plan";
+import { onMarketTier, planInfo, realtimeActive, refreshPass } from "../plan";
 
 const exp = () => Math.floor(Date.now() / 1000) + 900;
 const plan = (p: "free" | "rt") => ({ plan: p, status: p === "rt" ? "active" : "none", renews_at: null, cancel_at_period_end: false, billing: true });
@@ -52,6 +52,9 @@ describe("refreshPass", () => {
     await refreshPass();
     await vi.advanceTimersByTimeAsync(0);
     expect(rust.passes).toEqual(["otp1.a.b"]);
+    expect(realtimeActive()).toBe(false);
+    // Real-time once the stream's real-time session is up.
+    onMarketTier({ tier: "realtime", reason: null });
     expect(realtimeActive()).toBe(true);
     expect(planInfo()?.plan).toBe("rt");
     server.answers["/auth/pass"] = { pass: "otp1.c.d", plan: "rt", exp: exp() + 780 };
@@ -60,6 +63,23 @@ describe("refreshPass", () => {
     expect(rust.passes).toEqual(["otp1.a.b"]);
     await vi.advanceTimersByTimeAsync(2_000);
     expect(rust.passes).toEqual(["otp1.a.b", "otp1.c.d"]);
+  });
+
+  it("leaves real-time when another device takes the session, or the pass is refused", async () => {
+    server.answers["/auth/pass"] = { pass: "otp1.a.b", plan: "rt", exp: exp() };
+    server.answers["/me/plan"] = plan("rt");
+    await refreshPass();
+    onMarketTier({ tier: "realtime", reason: null });
+    onMarketTier({ tier: "delayed", reason: "signed_in_elsewhere" });
+    expect(realtimeActive()).toBe(false);
+    onMarketTier({ tier: "realtime", reason: null });
+    expect(realtimeActive()).toBe(true);
+    onMarketTier({ tier: "delayed", reason: "revoked" });
+    expect(realtimeActive()).toBe(false);
+    // A new pass is asked a second later.
+    const before = server.calls.filter((c) => c === "POST /auth/pass").length;
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(server.calls.filter((c) => c === "POST /auth/pass").length).toBe(before + 1);
   });
 
   it("hands no pass on the free plan", async () => {

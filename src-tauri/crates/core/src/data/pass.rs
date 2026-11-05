@@ -9,6 +9,10 @@
  * and the market stream connects to the real-time route with it and renews it
  * on the open socket. No pass: the free tier, delayed data, as before.
  *
+ * The gateway gives REST real-time answers only to the device holding the
+ * account's real-time stream session (gateway#19), so the stream connects as
+ * soon as there is a pass and `session_live` says when it is up.
+ *
  * The gateway keeps one real-time session per account. When another device
  * takes it, this one is told "signed in elsewhere": it stays on delayed data
  * (`elsewhere`) until the user takes the session back, so two devices do not
@@ -32,6 +36,8 @@ pub struct State {
     pub pass: Option<Pass>,
     /// Another device holds the account's real-time session.
     pub elsewhere: bool,
+    /// This device's real-time stream session is authenticated.
+    pub live: bool,
 }
 
 impl State {
@@ -71,6 +77,21 @@ pub fn set_elsewhere(elsewhere: bool) {
     });
 }
 
+/// The real-time stream session authenticated (`true`) or ended.
+pub fn set_live(live: bool) {
+    cell().send_if_modified(|s| {
+        let changed = s.live != live;
+        s.live = live;
+        changed
+    });
+}
+
+/// Wait until the real-time stream session is up, at most `timeout`. True when it is.
+pub async fn wait_live(timeout: std::time::Duration) -> bool {
+    let mut rx = subscribe();
+    tokio::time::timeout(timeout, rx.wait_for(|s| s.live)).await.is_ok_and(|r| r.is_ok())
+}
+
 /// The pass the gateway calls send now, if any.
 pub fn current() -> Option<String> {
     cell().borrow().usable(chrono::Utc::now().timestamp()).map(str::to_string)
@@ -87,7 +108,7 @@ mod tests {
 
     #[test]
     fn a_pass_is_usable_until_it_expires_and_not_while_elsewhere() {
-        let mut s = State { pass: Some(Pass { token: "otp1.a.b".into(), exp: 100 }), elsewhere: false };
+        let mut s = State { pass: Some(Pass { token: "otp1.a.b".into(), exp: 100 }), elsewhere: false, live: false };
         assert_eq!(s.usable(99), Some("otp1.a.b"));
         assert_eq!(s.usable(100), None);
         s.elsewhere = true;

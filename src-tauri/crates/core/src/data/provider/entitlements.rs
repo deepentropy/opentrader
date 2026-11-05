@@ -121,7 +121,8 @@ fn publish(app: &HostRef, provider: &Provider, state: State) {
 /// Startup: publish the cached result for this provider + key, then refresh in
 /// the background when it is missing or stale. Again whenever a pass is given
 /// or taken back (#252): a subscriber's real-time plan is probed and cached
-/// apart (`credential_id`).
+/// apart (`credential_id`), once its stream session is up, since only that
+/// session's REST calls get real-time answers (gateway#19).
 pub fn init(app: &HostRef, provider: Provider) {
     load(app, provider.clone());
     let app = app.clone();
@@ -132,11 +133,17 @@ pub fn init(app: &HostRef, provider: Provider) {
             let now = crate::data::pass::realtime();
             if now != realtime {
                 realtime = now;
+                if realtime && !crate::data::pass::wait_live(LIVE_WAIT).await {
+                    eprintln!("[entitlements] real-time session not up after {} s; probing anyway", LIVE_WAIT.as_secs());
+                }
                 load(&app, provider.clone());
             }
         }
     });
 }
+
+/// Longest wait for the real-time stream session before the probe.
+const LIVE_WAIT: std::time::Duration = std::time::Duration::from_secs(15);
 
 fn load(app: &HostRef, provider: Provider) {
     let cached = provider

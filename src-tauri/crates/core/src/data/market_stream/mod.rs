@@ -162,11 +162,11 @@ fn has_work(mode: Mode, state: &SubscriptionState) -> bool {
     !state.chart_symbols().is_empty() || (mode.watch.is_some() && !state.watch_union().is_empty())
 }
 
-/// Entitled (per the probe) and, for a lazy mode, something to subscribe to
-/// (a subscriber's session stays: it holds the account's real-time session).
+/// Entitled (per the probe) and, for a lazy mode, something to subscribe to.
+/// A subscriber connects at once, before any probe: its session is what
+/// gives the account's REST calls real-time answers (gateway#19).
 fn may_connect(mode: Mode, ent: &entitlements::State, state: &SubscriptionState, realtime: bool) -> bool {
-    let entitled = mode.gate.is_none_or(|g| ent.stream_allows(g));
-    entitled && (!mode.lazy || realtime || has_work(mode, state))
+    realtime || (mode.gate.is_none_or(|g| ent.stream_allows(g)) && (!mode.lazy || has_work(mode, state)))
 }
 
 /// The route of the next session: real-time with the pass when there is one,
@@ -196,6 +196,26 @@ impl std::fmt::Display for AuthRefused {
 }
 
 impl std::error::Error for AuthRefused {}
+
+/// `pass::live` while a real-time session runs.
+struct LiveGuard(bool);
+
+impl LiveGuard {
+    fn new(realtime: bool) -> Self {
+        if realtime {
+            pass::set_live(true);
+        }
+        LiveGuard(realtime)
+    }
+}
+
+impl Drop for LiveGuard {
+    fn drop(&mut self) {
+        if self.0 {
+            pass::set_live(false);
+        }
+    }
+}
 
 fn emit_tier(app: &HostRef, realtime: bool, reason: Option<&str>) {
     let ev = MarketTier { tier: if realtime { "realtime" } else { "delayed" }.into(), reason: reason.map(str::to_string) };
@@ -304,10 +324,15 @@ fn channels(prefix: &str, syms: &HashSet<String>) -> Vec<String> {
 use crate::net::{self, WsStream};
 
 /// Connect and authenticate (the token as the first message, so it never
-/// rides in a URL).
-async fn connect_authed(url: &str, token: &str) -> Result<WsStream> {
+/// rides in a URL). A `probe` gets subscribe replies only and never takes the
+/// account's real-time session.
+async fn connect_authed(url: &str, token: &str, probe: bool) -> Result<WsStream> {
     let mut ws = net::connect_ws(url).await.context("stream connect failed")?;
-    let auth = serde_json::json!({ "op": "auth", "token": token });
+    let auth = if probe {
+        serde_json::json!({ "op": "auth", "token": token, "probe": true })
+    } else {
+        serde_json::json!({ "op": "auth", "token": token })
+    };
     ws.send(Message::Text(auth.to_string())).await.context("stream send auth failed")?;
     tokio::time::timeout(AUTH_WAIT, wait_for_auth(&mut ws))
         .await
@@ -325,8 +350,10 @@ async fn run_session(
     pass_rx: &mut tokio::sync::watch::Receiver<pass::State>,
 ) -> Result<SessionExit> {
     let mut proxy_changes = net::proxy_changes();
-    let ws = connect_authed(route.url, &route.credential).await?;
+    let ws = connect_authed(route.url, &route.credential, false).await?;
     let (mut write, mut read) = ws.split();
+    // Down again whichever way the session ends.
+    let _live = LiveGuard::new(route.realtime);
     let tier = if route.realtime { "real-time" } else { "delayed" };
     eprintln!("[market_stream] connected + authenticated ({}*, {tier})", mode.chart);
     emit_tier(app, route.realtime, None);
@@ -511,7 +538,7 @@ where
 /// reply within `PROBE_REPLY_WAIT` is an error.
 pub async fn probe_channels(channels: &[String]) -> Result<Vec<bool>> {
     let route = route().ok_or_else(|| anyhow!(gateway::NO_TOKEN))?;
-    let mut ws = connect_authed(route.url, &route.credential).await?;
+    let mut ws = connect_authed(route.url, &route.credential, true).await?;
     send_op(&mut ws, "subscribe", channels).await?;
     let mut granted: HashMap<&str, bool> = HashMap::new();
     let deadline = Instant::now() + PROBE_REPLY_WAIT;
@@ -573,6 +600,7 @@ mod gate_tests {
         let mut state = SubscriptionState::default();
         assert!(!may_connect(SECOND_BARS, &ent(caps(true)), &state, false), "no chart open");
         assert!(may_connect(SECOND_BARS, &ent(caps(true)), &state, true), "a subscriber holds the session");
+        assert!(may_connect(SECOND_BARS, &entitlements::State::default(), &state, true), "before any probe");
         state.apply(SubscribeMsg::SetChart { owner: "main:0".into(), symbol: Some("AAPL".into()) });
         assert!(may_connect(SECOND_BARS, &ent(caps(true)), &state, false));
         assert!(!may_connect(SECOND_BARS, &ent(caps(false)), &state, false), "bar1s not granted");
