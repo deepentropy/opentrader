@@ -78,7 +78,27 @@ export function createLive(cx: ChartCx): LiveApi {
       liveAppendedWhileHidden = liveAppendedWhileHidden || appended;
       return;
     }
-    paintLive(next, appended);
+    paintWhenCalculated(next, appended);
+  }
+  /** A tick waiting for its studies' worker results (#259): the chart is painted once, with them. A newer tick in
+   *  the meantime joins it (another bar than the one waiting: the whole series is set again). */
+  let waiting: { next: OHLC | null; appended: boolean } | null = null;
+  function paintWhenCalculated(next: OHLC | null, appended: boolean) {
+    const controller = cx.controller;
+    if (!controller) {
+      paintLive(next, appended);
+      return;
+    }
+    if (waiting) {
+      waiting = { next: waiting.next && next && waiting.next.time === next.time ? next : null, appended: waiting.appended || appended };
+      return;
+    }
+    waiting = { next, appended };
+    controller.whenLiveCalculated(() => {
+      const w = waiting;
+      waiting = null;
+      if (w && cx.series && !cx.swapping && !cx.replayActive) paintLive(w.next, w.appended);
+    });
   }
   /** Run `fn` (several series data changes) with the crosshair parked. While a
    *  crosshair is shown, each data change of the library re-runs its hit test,

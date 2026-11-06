@@ -46,6 +46,8 @@ const VISIBLE_RANGE_DELAY_MS = 120;
 
 /** Bars of other symbols arriving together (several loads, a burst of live updates) give one recalculation. */
 const SYMBOLS_DELAY_MS = 50;
+/** Longest wait of a live update for its studies' worker results (whenLiveCalculated): the chart is painted once. */
+const LIVE_WAIT_MS = 50;
 
 /** A stacked-pane owner that is not a study (a compared symbol drawn in
  *  "New pane"): it shares the pane numbering with the studies. */
@@ -1535,7 +1537,40 @@ export class IndicatorController {
   }
 
   /** A study's result came from its worker: it is drawn (its dependents calculate again) and the legend reads it. */
+  /**
+   * A live update: the studies' worker calculations start now and `paint` (the chart's update with the new bar)
+   * runs once they are back, at most LIVE_WAIT_MS later, so a tick paints the chart once instead of once for the bar
+   * and once per study result (#259). A study still calculating then keeps its result and draws on its own.
+   */
+  whenLiveCalculated(paint: () => void): void {
+    const bars = this.getBars();
+    const layers = new Set<IndicatorLayer>();
+    for (const [id, inst] of this.instances) {
+      const entry = inst.owner ? undefined : getIndicatorEntry(id);
+      if (entry && this.isDrawn(id) && inst.layer.startLiveJob(entry, bars, this.effectiveInputs(id, entry), this.styles.get(id) ?? {})) layers.add(inst.layer);
+    }
+    if (!layers.size) {
+      paint();
+      return;
+    }
+    if (this.liveWait) clearTimeout(this.liveWait.timer);
+    this.liveWait = { layers, paint, timer: setTimeout(() => this.liveCalculated(), LIVE_WAIT_MS) };
+  }
+  private liveWait: { layers: Set<IndicatorLayer>; paint: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+  private liveCalculated(): void {
+    const wait = this.liveWait;
+    if (!wait) return;
+    clearTimeout(wait.timer);
+    this.liveWait = null;
+    wait.paint();
+  }
+
   private studyCalculated(id: string, layer: IndicatorLayer, live: boolean): void {
+    // A live update waits for this result: its paint draws it with the others.
+    if (live && this.liveWait?.layers.delete(layer)) {
+      if (!this.liveWait.layers.size) this.liveCalculated();
+      return;
+    }
     const inst = this.instances.get(id);
     const entry = getIndicatorEntry(id);
     if (!inst || inst.layer !== layer || !entry) return;

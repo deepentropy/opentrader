@@ -29,6 +29,26 @@ export type ChartPriceFormat = {
  *  tick grid (null until its session resolves: 2 decimals). The fractional
  *  choices "1/2" … "1/320" use the fractional format. */
 export function chartPriceFormat(precision: string | undefined, grid: SymbolSessions | null, abbreviated = false): ChartPriceFormat | null {
+  const f = priceFormatOf(precision, grid, abbreviated);
+  return f && { format: remembered(f.format), minMove: f.minMove };
+}
+
+/** Texts kept per formatter: every paint formats the same prices again (each plot's price label, the axis and the
+ *  legend), dozens of times per live tick with a many-level study (#259). */
+const REMEMBERED = 4096;
+function remembered(format: (v: number) => string): (v: number) => string {
+  const texts = new Map<number, string>();
+  return (v) => {
+    let t = texts.get(v);
+    if (t === undefined) {
+      if (texts.size >= REMEMBERED) texts.clear();
+      texts.set(v, (t = format(v)));
+    }
+    return t;
+  };
+}
+
+function priceFormatOf(precision: string | undefined, grid: SymbolSessions | null, abbreviated: boolean): ChartPriceFormat | null {
   const p = precision || "Default";
   if (p === "Default") {
     const base = grid ? { format: (v: number) => groupThousands(grid.formatPrice(v)), minMove: grid.mintick } : fixed(2);

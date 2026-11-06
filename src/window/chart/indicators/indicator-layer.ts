@@ -200,6 +200,25 @@ function valuesSignature(list: ArrayLike<unknown>): string {
   return `${list.length}:${sum}:${na}`;
 }
 
+/**
+ * Options applied only when they differ from the target's: applying the same series or scale options again on every
+ * draw (a live tick) made the chart lay its panes out again and paint a second time (#259).
+ */
+function applyChanged(target: { options(): unknown; applyOptions(o: never): void }, patch: Record<string, unknown>): void {
+  if (!holds(target.options(), patch)) target.applyOptions(patch as never);
+}
+
+/** `current` has the values of `wanted` (the keys of `wanted` only, objects compared key by key). */
+function holds(current: unknown, wanted: unknown): boolean {
+  if (wanted !== null && typeof wanted === 'object' && !Array.isArray(wanted)) {
+    if (current === null || typeof current !== 'object') return false;
+    for (const k in wanted as Record<string, unknown>) if (!holds((current as Record<string, unknown>)[k], (wanted as Record<string, unknown>)[k])) return false;
+    return true;
+  }
+  // Functions by identity: the main series' formatter is the same one, an autoscale provider is new on every draw.
+  return Object.is(current, wanted);
+}
+
 function isBar(v: object): v is Bar {
   return typeof (v as Bar).close === 'number' && typeof (v as Bar).time === 'number';
 }
@@ -576,6 +595,15 @@ export class IndicatorLayer {
   private calculated: ((live: boolean) => void) | null = null;
   setOnCalculated(fn: ((live: boolean) => void) | null): void {
     this.calculated = fn;
+  }
+
+  /** A live update starts the study's worker calculation (without drawing): true when one runs now, whose result the
+   *  update waits for (IndicatorController.whenLiveCalculated). */
+  startLiveJob(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): boolean {
+    if (!bars.length || !this.calculatesOffThread(entry)) return false;
+    const before = this.off.running;
+    this.calculate(entry, bars, inputs, styles, true);
+    return !before && this.off.running;
   }
 
   /** The indicator library's studies calculate in a worker (a strategy runs in the backtester, the app's own studies
@@ -958,13 +986,13 @@ export class IndicatorLayer {
     // scale takes its number format from one of its series, so a second
     // format on it would change the labels and the scale width.
     const mainFormat = this.pricePane && !ownScale && !this.detachedScale && this.precision === null ? this.mainSeries()?.options().priceFormat : undefined;
-    if (mainFormat) for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat: mainFormat });
+    if (mainFormat) for (const s of series) applyChanged(s, { priceFormat: mainFormat });
     // Elsewhere, with the default precision: the study's own value format (reference), for its scale labels.
     const own = (entry as { format?: { type: "price" | "volume" | "percent"; precision?: number } }).format;
     if (!mainFormat && this.precision === null && own) {
       const precision = own.type === "volume" ? 2 : (own.precision ?? 2);
       const priceFormat = own.type === "volume" ? { type: "volume" as const, precision } : { type: own.type, precision, minMove: 1 / 10 ** precision };
-      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceFormat });
+      for (const s of series) applyChanged(s, { priceFormat });
     }
     if (this.detachedScale && !ownScale && this.detachedAxis) {
       // A scale with its axis (a side scale, or an extra axis that draws the
@@ -972,8 +1000,9 @@ export class IndicatorLayer {
       for (const s of series) setSeriesScale(s as ISeriesApi<SeriesType>, this.detachedScale, (s as ISeriesApi<SeriesType>).options().lastValueVisible || labelWanted(s));
     } else if (this.detachedScale && !ownScale) {
       // No axis for this scale: no value label either.
-      for (const s of series) (s as ISeriesApi<SeriesType>).applyOptions({ priceScaleId: this.detachedScale, lastValueVisible: false });
-      (series[0] as ISeriesApi<SeriesType> | undefined)?.priceScale().applyOptions({ visible: false });
+      for (const s of series) applyChanged(s, { priceScaleId: this.detachedScale, lastValueVisible: false });
+      const scale = (series[0] as ISeriesApi<SeriesType> | undefined)?.priceScale();
+      if (scale) applyChanged(scale, { visible: false });
     } else if (!ownScale) {
       // Over the series: on the series' scale (in a pane it shares with
       // another study the series has the other side); a study pane: on the
@@ -1000,7 +1029,7 @@ export class IndicatorLayer {
       this.plotSeries.push({ series: s, data: result.plots?.[def.id] ?? data });
       const color = overrides[def.id].color ?? def.color ?? '#2962FF';
       // Plot-type menu "Price line".
-      if (this.lastStyles[def.id]?.priceLine) s.applyOptions({ priceLineVisible: true, priceLineColor: color });
+      if (this.lastStyles[def.id]?.priceLine) applyChanged(s, { priceLineVisible: true, priceLineColor: color });
       if (anchored) continue;
       if (ownScale) this.applyOwnScale(s, entry);
       const cols = columns.get(def.id);
@@ -1066,11 +1095,8 @@ export class IndicatorLayer {
     // The scale is hidden, so a last-value badge would print raw volume
     // numbers onto the PRICE axis strip — always off, whatever the
     // "Indicators and financials" setting says.
-    series.applyOptions({ priceScaleId: md.ownScaleId, lastValueVisible: false });
-    series.priceScale().applyOptions({
-      scaleMargins: md.ownScaleMargins ?? { top: 0.75, bottom: 0 },
-      visible: false,
-    });
+    applyChanged(series, { priceScaleId: md.ownScaleId, lastValueVisible: false });
+    applyChanged(series.priceScale(), { scaleMargins: md.ownScaleMargins ?? { top: 0.75, bottom: 0 }, visible: false });
   }
 
   /** Time price opportunity study: its drawn profiles. */
