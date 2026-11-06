@@ -94,6 +94,9 @@ export type OakRequest =
       sources?: OakSourceData;
       /** A study on a chart: the worker keeps its run, `bars` are the bars from `live.from` (see live-runs.ts). */
       live?: LiveRequest;
+      /** The chart's daily and longer bars: the worker puts them at the session open as scripts read them, and the
+       *  result back on the chart's times. */
+      restamp?: boolean;
     }
   | {
       id: number;

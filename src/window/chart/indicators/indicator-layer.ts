@@ -49,6 +49,7 @@ import { cachedSymbolSessions } from '../../../data/session';
 import { sessionFutureSlots } from './future-slots';
 import { applyStyleOverrides, type StyleEntry } from './style-outputs';
 import { isLibraryEntry } from './registry';
+import { isUserIndicatorId } from './user-scripts';
 import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
 import { ACCESSORS, applyDelta, callKey, jobChanges, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
 
@@ -219,7 +220,7 @@ function valueSignature(v: unknown): string {
   return sig;
 }
 
-/** Results already put back on the chart's bar times: a user script returns its cached result again. */
+/** Results already put back on the chart's bar times: a study may return its cached result again. */
 const restored = new WeakSet<object>();
 
 /** Index of the first bar at or after `time` (`after`), else of the last bar at or before it; -1 = none. */
@@ -769,13 +770,15 @@ export class IndicatorLayer {
       // A worker calculation restamps them in the worker (and puts the result back on the chart's times there).
       const offThread = this.calculatesOffThread(entry);
       const restamp = (list: Bar[]) => (isStrategyId(entry.id) ? list : scriptBars(list, ctx));
-      const seen = offThread ? bars : restamp(bars);
+      // The workers restamp the library studies' and the user scripts' bars (and put their results back) themselves.
+      const workerBars = offThread || isUserIndicatorId(entry.id);
+      const seen = workerBars ? bars : restamp(bars);
       const range = this.visibleRange();
       if (range) {
         const left = barIndexAt(bars, range.from, true);
         const right = barIndexAt(bars, range.to, false);
         if (left >= 0 && right >= left) {
-          const [l, r] = seen === bars && offThread ? restamp([bars[left], bars[right]]) : [seen[left], seen[right]];
+          const [l, r] = workerBars ? restamp([bars[left], bars[right]]) : [seen[left], seen[right]];
           ctx.leftVisibleBarTime = (l.time as unknown as number) * 1000;
           ctx.rightVisibleBarTime = (r.time as unknown as number) * 1000;
         }

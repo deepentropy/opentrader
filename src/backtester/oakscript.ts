@@ -430,11 +430,19 @@ function chartTimeOf(seen: Bar[], bars: Bar[]): (t: number) => number {
 }
 
 /** restoreTimes on a copy: the result of a live run shares its points with the next update's (which compares them
- *  with a full run's), so they keep the script's times. An object reached twice is copied once. */
-function withChartTimes<T>(result: T, seen: Bar[], bars: Bar[]): T {
+ *  with a full run's), so they keep the script's times. An object reached twice is copied once. `kept`: the copies
+ *  of the plots' points made before, taken again for the same points (a live update copies the new points only; a
+ *  resumed run gives its unchanged points again as the same objects). */
+export function withChartTimes<T>(result: T, seen: Bar[], bars: Bar[], kept?: WeakMap<object, object>): T {
   const at = chartTimeOf(seen, bars);
   const copies = new Map<object, unknown>();
-  const copy = (node: unknown): unknown => {
+  const point = (p: unknown): unknown => {
+    if (!kept || !p || typeof p !== 'object') return copy(p);
+    let c = kept.get(p);
+    if (!c) kept.set(p, (c = copy(p) as object));
+    return c;
+  };
+  const copy = (node: unknown, plots = false): unknown => {
     if (!node || typeof node !== 'object') return node;
     const done = copies.get(node);
     if (done) return done;
@@ -449,7 +457,9 @@ function withChartTimes<T>(result: T, seen: Bar[], bars: Bar[]): T {
     const obj = node as Record<string, unknown>;
     for (const k in obj) {
       const v = obj[k];
-      out[k] = typeof v === 'number' && TIME_KEY.test(k) ? at(v) : copy(v);
+      if (typeof v === 'number' && TIME_KEY.test(k)) out[k] = at(v);
+      else if (plots && Array.isArray(v)) out[k] = v.map(point);
+      else out[k] = copy(v, !plots && k === 'plots' && node === result);
     }
     return out;
   };

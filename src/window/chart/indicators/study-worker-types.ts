@@ -143,6 +143,9 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 /** Two points of a result: the same fields with the same values. */
 function samePoint(a: unknown, b: unknown): boolean {
+  // The same object: a resumed run gives its unchanged points again (a run that changes points in place is sent
+  // from its first recalculated bar instead, see encodeDelta's bound).
+  if (a === b) return true;
   if (!isPlain(a) || !isPlain(b)) return sameValue(a, b);
   let n = 0;
   for (const k in a) {

@@ -133,8 +133,10 @@ export class OakEngine {
   /**
    * Run a compiled script as the study `runKey` of a chart (one per chart and study instance): the worker keeps its
    * run and bars, so a live update sends the changed bars only and the script calculates the newest bars when it
-   * can. `fullRunReason`: why it calculates every bar instead (null: it does not). `delta`: the reply may be the
-   * changes from the previous result, applied to it in place (false: the caller changes the results it gets).
+   * can. `fullRunReason`: why it calculates every bar instead (null: it does not). The reply may be the changes from
+   * the previous result, applied to it in place (the caller does not change the results it gets). `restamp`: the
+   * chart's daily and longer bars, put at the session open in the worker (the result comes back on the chart's
+   * times).
    */
   async update(
     runKey: string,
@@ -144,13 +146,13 @@ export class OakEngine {
     chart?: ChartContext,
     symbols?: OakSymbolData,
     sources?: OakSourceData,
-    delta = true,
+    restamp = false,
   ): Promise<{ result: unknown; fullRunReason: string | null }> {
     const key = `run:${runKey}`;
     for (let whole = false; ; whole = true) {
-      const sent = this.live.request(key, bars, whole, delta);
+      const sent = this.live.request(key, bars, whole);
       const res = await this.request(
-        { id: ++this.seq, type: "run", scriptId, bars: sent.bars, inputs, chart, symbols, live: sent.live, ...(sources ? { sources } : {}) },
+        { id: ++this.seq, type: "run", scriptId, bars: sent.bars, inputs, chart, symbols, live: sent.live, restamp, ...(sources ? { sources } : {}) },
         RUN_TIMEOUT_MS,
       );
       if (res.type !== "run") throw new OakEngineError({ message: "Protocol mismatch." }, true);

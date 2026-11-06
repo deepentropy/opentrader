@@ -6,9 +6,9 @@
 import { describe, expect, it } from "vitest";
 import { close, eachBar, executeScript, indicator, input, label, persist, plot, strategy, ta, type ChartContext } from "oakscriptjs/script";
 import { KeptRuns, SentRuns, updateLiveStrategy, type KeptStrategy } from "../../../backtester/live-runs";
-import { runOakScriptStrategy, type OakScriptRunOptions } from "../../../backtester/oakscript";
+import { restoreTimes, runOakScriptStrategy, scriptBars, type OakScriptRunOptions } from "../../../backtester/oakscript";
 import { liveFeed } from "../../../backtester/__tests__/live-feed";
-import { intradaySeries } from "../../../backtester/__tests__/synthetic";
+import { dailySeries, intradaySeries } from "../../../backtester/__tests__/synthetic";
 import type { Bar } from "../../../backtester/types";
 import { updateLiveScript, type Compiled, type LiveScript } from "../live-script";
 
@@ -20,10 +20,10 @@ class ScriptChannel {
   host = new SentRuns();
   worker = new KeptRuns<LiveScript>();
 
-  update(entry: Compiled, key: string, bars: Bar[], inputs: Record<string, unknown> = {}) {
+  update(entry: Compiled, key: string, bars: Bar[], inputs: Record<string, unknown> = {}, chart: ChartContext = CHART, restamp = false) {
     for (let whole = false; ; whole = true) {
       const sent = this.host.request(key, bars, whole);
-      const out = updateLiveScript(this.worker, entry, structuredClone({ bars: sent.bars, inputs, chart: CHART, live: sent.live }));
+      const out = updateLiveScript(this.worker, entry, structuredClone({ bars: sent.bars, inputs, chart, live: sent.live, restamp }));
       if (!out) {
         expect(whole).toBe(false);
         continue;
@@ -113,6 +113,27 @@ describe("user scripts on live updates", () => {
       if (why) expect(reason).toMatch(why);
       else expect(reason).toBeNull();
     }
+  });
+
+  it("daily bars: restamped in the worker, the changes on the chart's times, the results of full runs", () => {
+    const daily: ChartContext = { timeframe: "1D", timezone: "America/New_York", session: "0930-1600", regularSession: "0930-1600" };
+    const bars0 = dailySeries();
+    const ch = new ScriptChannel();
+    const entry: Compiled = { kind: "script", run: trendBody };
+    liveFeed(bars0, bars0.length - 60, 30).forEach((bars, k) => {
+      const got = ch.update(entry, "chart|daily", bars, {}, daily, true);
+      // The full run on the bars as scripts read them, put back on the chart's times (as the chart did before).
+      const seen = scriptBars(bars, daily);
+      expect(seen).not.toBe(bars);
+      const run = executeScript(trendBody, seen, {}, daily);
+      const want = structuredClone(run.result);
+      restoreTimes(want, seen, bars);
+      expect(got.result).toEqual(want);
+      if (k > 0) {
+        expect(got.sent).toBeLessThanOrEqual(2);
+        expect(got.delta).toBe(true);
+      }
+    });
   });
 
   it("a calculate() module: the kept bars with the changed ones, a reason", () => {

@@ -155,10 +155,10 @@ async function runInWorker(
       scripts.saveCompiledMeta(scriptId, meta);
       applyMeta(rt.entry, script.name, meta);
     }
-    // Daily and longer bars come at the session open and the chart puts the result back on its own times in place
-    // (indicator-layer restoreTimes): a result changed so is no base for the changes of the next one.
-    const restamped = /^\d*[DWM]$/i.test(chart?.timeframe ?? "");
-    const out = await engine.update(runKey, scriptId, bars, inputs, chart, symbols, sources, !restamped);
+    // Daily and longer bars: put at the session open in the worker, as scripts read them; the result comes back on the
+    // chart's times (the chart gives its own bars to user scripts).
+    const restamp = /^\d*[DWM]$/i.test(chart?.timeframe ?? "");
+    const out = await engine.update(runKey, scriptId, bars, inputs, chart, symbols, sources, restamp);
     run.result = out.result;
     run.fullRunReason = out.fullRunReason;
     noteDrawingKinds(rt.entry, run.result);
