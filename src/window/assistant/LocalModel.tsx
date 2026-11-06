@@ -1,5 +1,6 @@
 /*
- * First open of the assistant: one sentence and Activate, which downloads its model (src/data/assistant/local.ts).
+ * First open of the assistant: one sentence, a beta warning and Activate, which downloads its model
+ * (src/data/assistant/local.ts).
  * Nothing comes with the installer; Remove is in the panel's menu once it is there.
  */
 import { Show, onMount } from "solid-js";
@@ -31,9 +32,15 @@ export function AssistantSetup() {
               }
             >
               <Show when={localBlocker(i())} fallback={
-                <button type="button" class="asst-btn is-primary" onClick={() => void installLocal()}>
-                  Activate ({gb(i().downloadBytes)})
-                </button>
+                <>
+                  <p class="asst-beta">
+                    <span class="asst-beta-tag">Beta</span>
+                    The assistant is a beta release: it can misread a request, and some of its steps can fail.
+                  </p>
+                  <button type="button" class="asst-btn is-primary" onClick={() => void installLocal()}>
+                    Activate ({gb(i().downloadBytes)})
+                  </button>
+                </>
               }>
                 {(why) => <span class="asst-muted">{why()}</span>}
               </Show>

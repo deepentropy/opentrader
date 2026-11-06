@@ -497,6 +497,27 @@
   margin-top: 0;
   padding-top: 24px;
 }
+/* Before Activate: the assistant is a beta and says so. */
+.asst-beta {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 152, 0, 0.4);
+  border-radius: 6px;
+  background-color: rgba(255, 152, 0, 0.08);
+  font-size: 12px;
+  line-height: 18px;
+}
+.asst-beta-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background-color: #ff9800;
+  color: #131722;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
 .asst-markdown a.asst-ticker {
   color: var(--color-content-accent, #5b9cf6);
   text-decoration: none;
