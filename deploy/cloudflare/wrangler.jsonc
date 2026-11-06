@@ -31,7 +31,9 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpenTraderServer"] }],
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
-    "PUBLIC_ORIGIN": "https://demo.opentrader.markets,https://opentrader-web.cloudflare-breeder165.workers.dev"
+    "PUBLIC_ORIGIN": "https://demo.opentrader.markets,https://opentrader-web.cloudflare-breeder165.workers.dev",
+    // The gateway's BLOCKED_ASNS: usage statistics from those networks are dropped.
+    "BLOCKED_ASNS": "31898,32934,45102"
   },
   "observability": { "enabled": true }
 }

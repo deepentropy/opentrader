@@ -10,6 +10,9 @@
  * region and country Cloudflare reports. The user's IP address is passed on
  * in events marked `ip_consent` (all, except users who declined it on the
  * former consent card); otherwise it never reaches the service.
+ *
+ * Events from the networks of `BLOCKED_ASNS` (cloud networks the gateway
+ * refuses, where copies of the app run unattended) are dropped.
  */
 import { Container, getContainer } from "@cloudflare/containers";
 
@@ -20,6 +23,9 @@ interface Env {
   OPENTRADER_GATEWAY_TOKEN: string;
   /** Origins of the public site (comma-separated): the only pages allowed to call the API. */
   PUBLIC_ORIGIN: string;
+  /** Networks (AS numbers, comma-separated) whose usage statistics are dropped: the
+   *  cloud networks the gateway refuses, where copies of the app run unattended. */
+  BLOCKED_ASNS?: string;
 }
 
 /**
@@ -90,6 +96,13 @@ async function relayAnalytics(request: Request, url: URL): Promise<Response> {
   return new Response(res.body, { status: res.status, headers: { ...cors, "content-type": res.headers.get("content-type") ?? "application/json" } });
 }
 
+/** True when the request comes from one of the networks of `BLOCKED_ASNS`. */
+function blockedNetwork(request: Request, env: Env): boolean {
+  const asn = (request.cf as { asn?: number } | undefined)?.asn;
+  if (!asn) return false;
+  return (env.BLOCKED_ASNS ?? "").split(",").some((a) => a.trim() !== "" && Number(a) === asn);
+}
+
 /** A page of another site calling the API (browsers send `Origin` on
  *  WebSocket and cross-origin requests). */
 function foreignOrigin(request: Request, env: Env): boolean {
@@ -106,6 +119,9 @@ export default {
       if (foreignOrigin(request, env) && !(origin && DESKTOP_ORIGINS.includes(origin))) {
         return new Response("origin not allowed", { status: 403 });
       }
+      // Copies of the app run on refused cloud networks: their events would count as users.
+      // Answered as accepted, so they are not sent again.
+      if (blockedNetwork(request, env)) return new Response(null, { status: 204, headers: ingestCors(request) });
       return relayAnalytics(request, url);
     }
     if (url.pathname.startsWith("/api/")) {
