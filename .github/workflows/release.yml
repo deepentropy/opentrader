@@ -183,9 +183,11 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # The frontend build peaks between 1.5 and 2 GB of JS heap (measured
-          # 01/10/2026); Node's default limit on the macOS runner ran out.
-          NODE_OPTIONS: --max-old-space-size=4096
+          # The frontend build peaked at 1.5-2 GB of JS heap (01/10/2026); with the
+          # indicator library's live runs (~20 MB bundles, in the window and in
+          # the study worker) it ran out at 4 GB on the Linux and macOS runners
+          # (06/11/2026, #258). The macOS runner has 7 GB of memory.
+          NODE_OPTIONS: --max-old-space-size=6144
         with:
           projectPath: opentrader
           releaseId: ${{ needs.draft.outputs.release_id }}
