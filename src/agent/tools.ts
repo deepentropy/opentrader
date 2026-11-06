@@ -3,7 +3,7 @@
  * the same store functions as the app's own menus and dialogs (so every change is an undo step, saved and shown).
  */
 import { emitAppEvent } from "../data/app-events";
-import { chartBars } from "../data/chart-state-registry";
+import { chartBars, chartComparesFor } from "../data/chart-state-registry";
 import { isSupportedResolution, supportedResolutions, toFullSymbol } from "../data/datafeed";
 import * as scripts from "../data/oakscript-store";
 import { strategyTester } from "../data/strategy-tester-store";
@@ -64,6 +64,12 @@ async function waitFor<T>(get: () => T | null | undefined, ms: number): Promise<
     if (Date.now() >= end) return null;
     await sleep(100);
   }
+}
+
+/** The symbols compared on the chart of a pane (shown ones only: a chart in another tab is not built), for get_chart. */
+function comparesOf(symbol: string): { compares?: { symbol: string; label: string; hidden?: true }[] } {
+  const list = chartComparesFor(symbol).map((c) => ({ symbol: c.symbol, label: c.label, ...(c.hidden ? { hidden: true as const } : {}) }));
+  return list.length ? { compares: list } : {};
 }
 
 const str = (args: Record<string, unknown>, key: string, required = true): string => {
@@ -199,7 +205,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
       name: "get_chart",
       title: "Get chart",
       description:
-        "The focused chart tab: its layout, the focused pane, and for each pane the symbol, interval, chart type, session and studies (id, type, name, inputs the user changed). Call it first.",
+        "The focused chart tab: its layout, the focused pane, and for each pane the symbol, interval, chart type, session, studies (id, type, name, inputs the user changed) and compared symbols (symbol, label). Call it first.",
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true },
       run: async () => {
@@ -226,6 +232,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
                 ...(errors.length ? { error: errors[0] } : {}),
               };
             }),
+            ...comparesOf(p.symbol),
           })),
         };
       },

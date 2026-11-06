@@ -1,5 +1,6 @@
 /*
- * Alert operands — how an alert condition names and reads a study, a study's own conditions and a drawing.
+ * Alert operands — how an alert condition names and reads a study, a study's own conditions, a drawing and a
+ * compared symbol.
  *
  * The alert dialog (window/alerts/AlertDialog.tsx) and the agent's create_alert tool (agent/alert-tools.ts) build
  * their operands here, so an alert made either way reads the same plot, keeps the same inputs and writes the same
@@ -18,6 +19,14 @@ import { sourceSpecsOf } from "../window/chart/indicators/study-sources";
 export type StudyChoice = { id: string; label: string; inputs?: Record<string, unknown> };
 
 export type IndicatorOperand = Extract<Operand, { kind: "indicator" }>;
+
+/** An operand on a symbol compared on the chart, named as the dialog's selects name it ("Microsoft Corp. (NASDAQ)");
+ *  `compares`: the chart's compared symbols (a symbol no longer there keeps its own name). */
+export function symbolOperand(compares: readonly { symbol: string; label: string }[], sym: string): Operand {
+  const s = sym.toUpperCase();
+  const c = compares.find((x) => x.symbol.toUpperCase() === s);
+  return { kind: "symbol", symbol: s, label: c?.label ?? s };
+}
 
 /** The studies of the chart showing `symbol`, as alert sources. */
 export function chartStudies(symbol: string): StudyChoice[] {

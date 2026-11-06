@@ -40,8 +40,10 @@ import {
   studyConditionOperand,
   studyLabel,
   studyPlots,
+  symbolOperand,
   type StudyChoice,
 } from "../data/alert-operands";
+import { chartComparesFor } from "../data/chart-state-registry";
 import { hasAlertFunction, studyConditions } from "../data/alert-study-conditions";
 import { resetRuleEvalState, setAlertWebhook } from "../data/alert-engine";
 import { alertStore, isScreenRule, type AlertCondition, type AlertFrequency, type AlertOperator, type AlertRule, type DrawingShape, type NewAlertRule, type Operand } from "../data/alert-store";
@@ -108,16 +110,21 @@ const bandOf = (c: Pick<AlertCondition, "right">): DrawingShape | null => (c.rig
 /** The fields of one condition (the tool's own arguments, or an item of "and"). */
 const CONDITION_PROPERTIES = {
   condition: { type: "string", enum: CONDITIONS },
-  study: { type: "string", description: "The source: a study of the focused chart (its id from get_chart). Default: the price." },
+  study: {
+    type: ["string", "object"],
+    description: 'The source: a study of the focused chart (its id from get_chart), or a symbol compared on it {"symbol": "NASDAQ:MSFT"} (get_chart: compares). Default: the price.',
+    properties: { symbol: { type: "string" } },
+  },
   plot: { type: ["integer", "string"], description: "The study's plot: its number (0 first) or title. Default: the first." },
   alertCondition: { type: "string", description: "alert_condition: the study's condition, by id or title (default: its first)." },
   value: {
     type: ["number", "string", "object"],
-    description: 'What the source is compared with: a number, "price" (a study source, crossing / greater / less), or a study plot {"study": id, "plot": number or title}. Moving conditions: the amount or percentage.',
-    properties: { study: { type: "string" }, plot: { type: ["integer", "string"] } },
+    description:
+      'What the source is compared with: a number, "price" (a study or compared-symbol source, crossing / greater / less), a study plot {"study": id, "plot": number or title}, or a compared symbol {"symbol"}. Moving conditions: the amount or percentage.',
+    properties: { study: { type: "string" }, plot: { type: ["integer", "string"] }, symbol: { type: "string" } },
   },
-  low: { type: ["number", "object"], description: 'Channel conditions: the lower bound, a number or a study plot {"study", "plot"}.' },
-  high: { type: ["number", "object"], description: 'Channel conditions: the upper bound, a number or a study plot {"study", "plot"}.' },
+  low: { type: ["number", "object"], description: 'Channel conditions: the lower bound, a number, a study plot {"study", "plot"} or a compared symbol {"symbol"}.' },
+  high: { type: ["number", "object"], description: 'Channel conditions: the upper bound, a number, a study plot {"study", "plot"} or a compared symbol {"symbol"}.' },
   bars: { type: "integer", description: "Moving conditions: within this many bars (1-300 on the price, 2-300 on a study; default the fewest)." },
   drawingId: { type: "string", description: "Compare with a drawing of the focused chart (list_drawings)." },
   level: { type: "number", description: "Fib drawing: the level's coefficient (default 0.5, else its first visible level)." },
@@ -135,6 +142,23 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
     return s;
   }
 
+  /** A symbol compared on the focused chart, by its full name or its ticker ("MSFT"), as an operand. */
+  function compareOf(v: { symbol?: unknown }, what: string, symbol: string): Operand {
+    const c = chart();
+    if (symbol !== c.symbol) throw new AgentError(`A compared-symbol alert is on the focused chart's symbol (${c.symbol}).`);
+    const compares = chartComparesFor(c.symbol);
+    const asked = typeof v.symbol === "string" ? v.symbol.trim().toUpperCase() : "";
+    const ticker = (s: string) => s.toUpperCase().split(":").pop();
+    const hit = compares.find((x) => x.symbol.toUpperCase() === asked) ?? compares.find((x) => ticker(x.symbol) === ticker(asked));
+    if (!asked || !hit) {
+      const list = compares.map((x) => x.symbol).join(", ");
+      throw new AgentError(`"${what}": ${JSON.stringify(v.symbol ?? null)} is not compared on the focused chart. ${list ? `Compared: ${list}.` : "No symbol is compared on it."}`);
+    }
+    return symbolOperand(compares, hit.symbol);
+  }
+
+  const isSymbolSpec = (v: unknown): v is { symbol: unknown } => !!v && typeof v === "object" && !Array.isArray(v) && "symbol" in v;
+
   /** The row of a study's plot select, by number or title. */
   function plotOf(studies: readonly StudyChoice[], id: string, plot: unknown): number {
     const plots = studyPlots(id);
@@ -145,11 +169,16 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
     return i;
   }
 
-  /** The source of a condition: the price, a study's plot, or the study of one of its own conditions. */
+  /** The source of a condition: the price, a study's plot, the study of one of its own conditions, or a compared
+   *  symbol. */
   function leftOf(spec: Record<string, unknown>, op: AlertOperator, studies: readonly StudyChoice[], symbol: string, later: boolean): Operand {
     if (spec.study === undefined) {
       if (OWN.includes(op)) throw new AgentError(`"${op}" is a condition of a study: give "study" (its id from get_chart).`);
       return { kind: "price" };
+    }
+    if (isSymbolSpec(spec.study)) {
+      if (OWN.includes(op)) throw new AgentError(`"${op}" is a condition of a study, not of a compared symbol.`);
+      return compareOf(spec.study, "study", symbol);
     }
     const s = studyOf(studies, spec.study, symbol);
     const name = studyLabel(studies, s.id);
@@ -186,13 +215,18 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
       if (what !== "value" || left.kind === "price" || !LEVEL_OPERATORS.includes(op)) throw new AgentError(`"${what}": "price" compares a study source on crossing, greater or less.`);
       return { kind: "price" };
     }
+    if (isSymbolSpec(v)) {
+      const o = compareOf(v, what, symbol);
+      if (left.kind === "symbol" && o.kind === "symbol" && left.symbol === o.symbol) throw new AgentError(`"${what}": another compared symbol than the source.`);
+      return o;
+    }
     if (v && typeof v === "object" && "study" in v) {
       const { study, plot } = v as { study: unknown; plot?: unknown };
       const s = studyOf(studies, study, symbol);
       if (left.kind === "indicator" && left.indicatorId === s.id) throw new AgentError(`"${what}": another study than the source.`);
       return indicatorOperand(studies, s.id, plotOf(studies, s.id, plot), undefined);
     }
-    throw new AgentError(`"${what}": a number${what === "value" ? ', "price"' : ""} or a study plot {"study": id, "plot": number or title}.`);
+    throw new AgentError(`"${what}": a number${what === "value" ? ', "price"' : ""}, a study plot {"study": id, "plot": number or title} or a compared symbol {"symbol"}.`);
   }
 
   /** The drawing a condition compares with: its level, fib levels or VWAP line. */
@@ -284,9 +318,9 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
       name: "create_alert",
       title: "Create alert",
       description:
-        "Create an alert and show the Alerts panel. The source is the price, or a study of the focused chart (study: its id from get_chart; plot: its number or title). condition: " +
-        'crossing, crossing_up, crossing_down, greater, less (with value: a number, "price" for a study source, or another study\'s plot {"study","plot"}; or drawingId); ' +
-        "entering, exiting, inside, outside (with low and high: numbers or study plots; or the drawingId of a channel, a rectangle or a fib drawing with level and level2); " +
+        'Create an alert and show the Alerts panel. The source is the price, a study of the focused chart (study: its id from get_chart; plot: its number or title), or a symbol compared on it (study: {"symbol": "NASDAQ:MSFT"}). condition: ' +
+        'crossing, crossing_up, crossing_down, greater, less (with value: a number, "price" for a study or compared-symbol source, another study\'s plot {"study","plot"}, or a compared symbol {"symbol"}; or drawingId); ' +
+        "entering, exiting, inside, outside (with low and high: numbers, study plots or compared symbols; or the drawingId of a channel, a rectangle or a fib drawing with level and level2); " +
         "moving_up, moving_down (an amount), moving_up_pct, moving_down_pct (a percentage) with value and bars; " +
         "alert_condition (a study's alertcondition(), alertCondition: its id or title), alert_function (a script's alert() calls), " +
         "strategy_orders, strategy_orders_and_alerts, strategy_alerts (a strategy's order fills and alert() calls); " +
@@ -294,7 +328,7 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
         "screen_enter, screen_exit (with screen: a saved stock screen's name; a symbol entering or leaving its results). " +
         `and: up to ${MAX_CONDITIONS - 1} more conditions, each with the same fields and its own interval; the alert fires when all hold (not after a strategy, alert_function or a position). ` +
         "symbol: default the focused chart's (studies and drawings: the focused chart's); interval: the focused chart's by default. " +
-        "frequency: only_once (default), every_time, and on a study once_per_bar, once_per_bar_close; alert() calls, order fills, vertical lines and positions set their own. " +
+        "frequency: only_once (default), every_time, and on a study or a compared symbol once_per_bar, once_per_bar_close; alert() calls, order fills, vertical lines and positions set their own. " +
         "The message defaults to the condition (alert() calls give their own).",
       inputSchema: {
         type: "object",

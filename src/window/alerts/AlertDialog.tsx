@@ -46,6 +46,7 @@ import {
   studyConditionOperand,
   studyLabel,
   studyPlots,
+  symbolOperand as compareOperand,
 } from "../../data/alert-operands";
 import {
   LEVEL_OPERATORS,
@@ -806,10 +807,7 @@ export function AlertDialog(props: Props) {
   }
 
   /** An operand on a compared symbol, named as the select shows it. */
-  function symbolOperand(sym: string): Operand {
-    const c = compareOptions_().find((x) => x.symbol === sym);
-    return { kind: "symbol", symbol: sym, label: c?.label ?? sym };
-  }
+  const symbolOperand = (sym: string): Operand => compareOperand(compareOptions_(), sym);
 
   /** A bound of a channel: a value, the price or a study's plot. */
   function boundOperand(sel: string, text: string, plot: number, was: Operand | undefined): Operand {

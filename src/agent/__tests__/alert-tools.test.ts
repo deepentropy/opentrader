@@ -42,6 +42,13 @@ vi.mock("../../window/chart/indicators/registry", () => ({
 vi.mock("../../data/chart-state-registry", async (orig) => ({
   ...(await orig<typeof import("../../data/chart-state-registry")>()),
   indicatorLegendFor: (symbol: string) => (symbol === "NASDAQ:AAPL" ? studies.legend : []),
+  chartComparesFor: (symbol: string) =>
+    symbol === "NASDAQ:AAPL"
+      ? [
+          { id: "c1", symbol: "NASDAQ:MSFT", label: "Microsoft Corp. (NASDAQ)", hidden: false, last: 410 },
+          { id: "c2", symbol: "NYSE:IBM", label: "IBM Corp. (NYSE)", hidden: false, last: 250 },
+        ]
+      : [],
 }));
 
 import { createAlertTools } from "../alert-tools";
@@ -175,6 +182,23 @@ describe("alert tools", () => {
     expect((listed.alerts as { id: string }[]).some((a) => a.id === id)).toBe(true);
     await run("delete_alert", { id });
     expect(alertStore.rule(id)).toBeUndefined();
+  });
+
+  it("takes a symbol compared on the focused chart as the source, the value or a bound, as the dialog does", async () => {
+    const src = await create({ condition: "crossing_up", study: { symbol: "msft" }, value: "price", frequency: "once_per_bar_close" });
+    expect(src).toMatchObject({ symbol: "NASDAQ:AAPL", frequency: "once_per_bar_close", right: { kind: "price" } });
+    expect(src.left).toEqual({ kind: "symbol", symbol: "NASDAQ:MSFT", label: "Microsoft Corp. (NASDAQ)" });
+    const vs = await create({ condition: "greater", value: { symbol: "NYSE:IBM" } });
+    expect(vs).toMatchObject({ left: { kind: "price" }, right: { kind: "symbol", symbol: "NYSE:IBM", label: "IBM Corp. (NYSE)" } });
+    const band = await create({ condition: "inside", study: { symbol: "MSFT" }, high: { symbol: "IBM" }, low: 100 });
+    expect(band).toMatchObject({ right: { kind: "symbol", symbol: "NYSE:IBM" }, right2: { kind: "value", value: 100 } });
+    // A move on a compared symbol, as on a study: two bars at least.
+    expect((await create({ condition: "moving_down_pct", study: { symbol: "MSFT" }, value: 3 })).bars).toBe(2);
+    await expect(run("create_alert", { condition: "moving_up", study: { symbol: "MSFT" }, value: 1, bars: 1 })).rejects.toThrow(/2 to 300/);
+    await expect(run("create_alert", { condition: "greater", study: { symbol: "MSFT" }, value: { symbol: "MSFT" } })).rejects.toThrow(/another compared symbol/);
+    await expect(run("create_alert", { condition: "greater", study: { symbol: "TSLA" }, value: 1 })).rejects.toThrow(/Compared: NASDAQ:MSFT, NYSE:IBM/);
+    await expect(run("create_alert", { condition: "alert_condition", study: { symbol: "MSFT" } })).rejects.toThrow(/not of a compared symbol/);
+    await expect(run("create_alert", { condition: "greater", symbol: "TSLA", value: { symbol: "MSFT" } })).rejects.toThrow(/focused chart's symbol/);
   });
 
   it("refuses unknown conditions and past expiries", async () => {
