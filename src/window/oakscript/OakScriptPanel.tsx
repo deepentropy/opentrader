@@ -29,9 +29,17 @@ import {
   notifyScriptCompiled,
   notifyScriptRenamed,
   OAKSCRIPT_OPEN_EVENT,
+  OAKSCRIPT_UPDATED_EVENT,
   userIndicatorId,
+  userScriptFullRunReason,
 } from "../chart/indicators/user-scripts";
-import { dropUserStrategy, notifyUserStrategyCompiled, userStrategyId } from "../chart/indicators/strategy-entries";
+import {
+  dropUserStrategy,
+  notifyUserStrategyCompiled,
+  STRATEGY_UPDATED_EVENT,
+  userStrategyFullRunReason,
+  userStrategyId,
+} from "../chart/indicators/strategy-entries";
 import { typeIdOf } from "../chart/indicators/study-id";
 import { onAppEvent } from "../../data/app-events";
 import { showRename } from "../../components/Dialogs";
@@ -206,6 +214,20 @@ export function OakScriptPanel(props: Props) {
       }
     }
   }
+
+  // Why the shown script, on a chart, calculates every bar on each live update instead of the newest bars only (the
+  // runtime names what it cannot resume): shown in the status bar and logged once per reason.
+  const [fullRun, setFullRun] = createSignal<string | null>(null);
+  function readFullRun(): void {
+    const id = currentScript().id;
+    const reason = builtin() ? null : (userScriptFullRunReason(id) ?? userStrategyFullRunReason(id));
+    if (reason === fullRun()) return;
+    setFullRun(reason);
+    if (reason) log("info", `Live updates recalculate every bar: ${reason}.`);
+  }
+  onCleanup(onAppEvent(OAKSCRIPT_UPDATED_EVENT, readFullRun));
+  onCleanup(onAppEvent(STRATEGY_UPDATED_EVENT, readFullRun));
+  createEffect(on(() => [currentScript().id, builtin()], readFullRun));
 
   // Opening a script (including the initial one) logs + compiles it. When the
   // editor opens on a built-in, the held stored script is not "opened".
@@ -563,6 +585,13 @@ export function OakScriptPanel(props: Props) {
             </Tooltip>
           </div>
           <div class="oak-panel__status-right">
+            <Show when={fullRun()}>
+              {(reason) => (
+                <Tooltip text={`Live updates recalculate every bar: ${reason()}`} side="top">
+                  <span class="oak-panel__status-item">Full recalculation</span>
+                </Tooltip>
+              )}
+            </Show>
             <Show when={cursor()}>
               {(c) => (
                 <span class="oak-panel__status-item">{`Line ${c().line}, Col ${c().col}`}</span>

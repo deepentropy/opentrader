@@ -23,9 +23,11 @@ import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from ".
 import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
 import { BrokerEngine, brokerProperties, chartWithSymbols, DECLARATION_CHART, runOakScriptStrategy } from "../../backtester/oakscript";
-import { DEFAULT_SYMBOL } from "../../backtester/types";
+import { DEFAULT_SYMBOL, type BacktestReport } from "../../backtester/types";
 import { intrabarsOf } from "../../backtester/intrabar-cache";
 import { intervalSeconds } from "../../backtester/magnifier";
+import { KeptRuns, updateLiveStrategy, type KeptStrategy, type LiveReply } from "../../backtester/live-runs";
+import { updateLiveScript, type Compiled, type LiveScript, type UserModule } from "./live-script";
 
 const ctx = self as unknown as {
   postMessage(message: OakResponse): void;
@@ -89,16 +91,16 @@ function toScriptError(err: unknown, lineOffset = 0): OakScriptError {
   return { message };
 }
 
-type UserModule = Record<string, unknown> & {
-  calculate?: (bars: unknown[], inputs?: Record<string, unknown>, chart?: unknown) => unknown;
-  __run?: () => void;
-};
-
-type Compiled =
-  | { kind: "convention"; mod: UserModule }
-  | { kind: "script"; run: () => void };
-
 const compiled = new Map<string, Compiled>();
+/** The runs of the studies and strategies on the charts, by script and run key (see live-runs.ts). */
+const liveScripts = new KeptRuns<LiveScript>();
+const liveStrategies = new KeptRuns<KeptStrategy | null>();
+const liveKey = (scriptId: string, key: string) => `${scriptId}\n${key}`;
+
+/** The reply to a live request whose bars the worker no longer has. */
+function resend(id: number, type: "run" | "backtest"): OakResponse {
+  return { id, type, ok: false, resend: true, error: { message: "The worker no longer has the bars of this run." } };
+}
 
 function metaOf(mod: UserModule): OakCompiledMeta {
   const md = (mod.metadata ?? {}) as Record<string, unknown>;
@@ -178,6 +180,7 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
         strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), DEFAULT_SYMBOL),
       });
       compiled.set(req.scriptId, { kind: "script", run: mod.__run });
+      dropLiveRuns(req.scriptId);
       return { id: req.id, type: "compile", ok: true, meta: scriptMetaOf(dry, req.source) };
     }
     if (typeof mod.calculate !== "function") {
@@ -192,12 +195,20 @@ async function handleCompile(req: Extract<OakRequest, { type: "compile" }>): Pro
       };
     }
     compiled.set(req.scriptId, { kind: "convention", mod });
+    dropLiveRuns(req.scriptId);
     return { id: req.id, type: "compile", ok: true, meta: metaOf(mod) };
   } catch (err) {
     return { id: req.id, type: "compile", ok: false, error: toScriptError(err, lineOffset) };
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** A script compiled again: the runs of the module before are not used again. */
+function dropLiveRuns(scriptId: string): void {
+  const prefix = liveKey(scriptId, "");
+  liveScripts.dropWhere((k) => k.startsWith(prefix));
+  liveStrategies.dropWhere((k) => k.startsWith(prefix));
 }
 
 function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
@@ -214,6 +225,11 @@ function handleRun(req: Extract<OakRequest, { type: "run" }>): OakResponse {
   const sources = req.sources;
   setSourceResolver(sources ? (name) => sources[name] ?? null : null);
   try {
+    if (req.live) {
+      const live = { ...req.live, key: liveKey(req.scriptId, req.live.key) };
+      const out = updateLiveScript(liveScripts, entry, { ...req, live });
+      return out ? { id: req.id, type: "run", ok: true, result: out.result, live: out.live } : resend(req.id, "run");
+    }
     if (entry.kind === "script") {
       const run = oakScript.executeScript(entry.run, req.bars as never[], req.inputs ?? {}, chartWithSymbols(req.chart, req.symbols));
       // The kinds of drawings this run created: the drawing rows of the Style settings.
@@ -240,7 +256,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
     return { id: req.id, type: "backtest", ok: false, error: { message } };
   }
   try {
-    const { report, script } = runOakScriptStrategy(entry.run, req.bars, {
+    const opts = {
       inputs: req.inputs ?? {},
       properties: req.properties,
       chart: req.chart,
@@ -248,7 +264,19 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
       symbols: req.symbols,
       intrabars: intrabarsOf(req.intrabars),
       intrabarSeconds: req.intrabars ? intervalSeconds(req.intrabars.interval) : undefined,
-    });
+    };
+    let report: BacktestReport | undefined;
+    let visuals: unknown;
+    let live: LiveReply | undefined;
+    if (req.live) {
+      const out = updateLiveStrategy(liveStrategies, { ...req.live, key: liveKey(req.scriptId, req.live.key) }, entry.run, req.bars, opts);
+      if (!out) return resend(req.id, "backtest");
+      ({ report, visuals, live } = out);
+    } else {
+      const { report: r, script } = runOakScriptStrategy(entry.run, req.bars, opts);
+      report = r;
+      visuals = script.drawingKinds.length ? { ...script.result, drawingKinds: script.drawingKinds } : script.result;
+    }
     if (!report) {
       return {
         id: req.id,
@@ -257,7 +285,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
         error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
       };
     }
-    return { id: req.id, type: "backtest", ok: true, report, visuals: script.drawingKinds.length ? { ...script.result, drawingKinds: script.drawingKinds } : script.result };
+    return { id: req.id, type: "backtest", ok: true, report, visuals, ...(live ? { live } : {}) };
   } catch (err) {
     if (err instanceof StrategyRuntimeError) {
       return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };

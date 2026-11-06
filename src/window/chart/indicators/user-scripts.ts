@@ -14,7 +14,9 @@
  * study instance on a chart (a newer request supersedes a queued one), so a
  * live-tick burst costs at most one in-flight run plus one queued. Each
  * instance keeps its own result: two instances (or two charts) of a script
- * with different inputs or bars do not overwrite each other.
+ * with different inputs or bars do not overwrite each other. The worker keeps
+ * the run of each instance too (engine.update): a live update sends the
+ * changed bars only, and the script calculates the newest bars when it can.
  *
  * One entry OBJECT per script, mutated in place on recompile — every layer
  * re-reads plotConfig etc. from the entry on render, so non-structural shape
@@ -75,6 +77,8 @@ type Run = {
   requests: { symbol: string; timeframe: string }[];
   /** Message of the failed run for `key` (null = it did not fail). */
   error: string | null;
+  /** Why the last run calculated every bar instead of the newest ones (null: it did not). */
+  fullRunReason: string | null;
 };
 
 type Runtime = {
@@ -132,6 +136,7 @@ function applyMeta(entry: IndicatorRegistryEntry, name: string, meta: OakCompile
 async function runInWorker(
   rt: Runtime,
   run: Run,
+  runKey: string,
   scriptId: string,
   bars: OakBar[],
   inputs: Record<string, unknown>,
@@ -150,7 +155,12 @@ async function runInWorker(
       scripts.saveCompiledMeta(scriptId, meta);
       applyMeta(rt.entry, script.name, meta);
     }
-    run.result = await engine.run(scriptId, bars, inputs, chart, symbols, sources);
+    // Daily and longer bars come at the session open and the chart puts the result back on its own times in place
+    // (indicator-layer restoreTimes): a result changed so is no base for the changes of the next one.
+    const restamped = /^\d*[DWM]$/i.test(chart?.timeframe ?? "");
+    const out = await engine.update(runKey, scriptId, bars, inputs, chart, symbols, sources, !restamped);
+    run.result = out.result;
+    run.fullRunReason = out.fullRunReason;
     noteDrawingKinds(rt.entry, run.result);
     run.key = key;
     run.error = null;
@@ -176,7 +186,7 @@ async function runInWorker(
     run.queued = null;
     if (next && next.key !== run.key) {
       run.running = true;
-      void runInWorker(rt, run, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key, next.sources);
+      void runInWorker(rt, run, runKey, scriptId, next.bars, next.inputs, next.chart, next.symbols, next.key, next.sources);
     } else {
       dispatchUpdated(scriptId, false);
     }
@@ -205,7 +215,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
     const chart = Object.fromEntries(Object.entries(withFns).filter(([, v]) => typeof v !== "function")) as typeof withFns;
     const runKey = `${chartId ?? ""}|${studyId ?? ""}`;
     let run = rt.runs.get(runKey);
-    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [], error: null }));
+    if (!run) rt.runs.set(runKey, (run = { key: null, result: null, running: false, queued: null, requests: [], error: null, fullRunReason: null }));
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps
     // them while a study reads them); one not loaded yet holds the run until it arrives.
     let symbols: OakSymbolData | undefined;
@@ -242,7 +252,7 @@ function makeCalculate(scriptId: string): IndicatorRegistryEntry["calculate"] {
         run.queued = { bars: snapshot, inputs: typedInputs, chart, symbols, sources, key };
       } else {
         run.running = true;
-        void runInWorker(rt, run, scriptId, snapshot, typedInputs, chart, symbols, key, sources);
+        void runInWorker(rt, run, runKey, scriptId, snapshot, typedInputs, chart, symbols, key, sources);
       }
     }
     // The run for these bars and inputs failed: the chart shows the error with the study.
@@ -289,6 +299,15 @@ export function notifyScriptRenamed(scriptId: string): void {
 export function userScriptErrors(scriptId: string): string[] {
   const rt = runtimes.get(scriptId);
   return rt ? [...rt.runs.values()].flatMap((r) => (r.error ? [r.error] : [])) : [];
+}
+
+/** Why a script recalculates every bar on the live updates of a chart showing it (null: it does not, or it is on no
+ *  chart): the script editor shows it. */
+export function userScriptFullRunReason(scriptId: string): string | null {
+  const rt = runtimes.get(scriptId);
+  if (!rt) return null;
+  for (const r of rt.runs.values()) if (r.fullRunReason !== null) return r.fullRunReason;
+  return null;
 }
 
 /** Editor-side hook: a script was deleted — drop its cached runtime so the

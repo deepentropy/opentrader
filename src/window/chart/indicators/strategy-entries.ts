@@ -79,6 +79,8 @@ type Runtime = {
   visuals: unknown;
   /** Bars of other symbols the script asked for (`request.security`): given with every run. */
   requests: { symbol: string; timeframe: string }[];
+  /** Why the last run calculated every bar instead of the newest ones (null: it did not, or not known). */
+  fullRunReason: string | null;
 };
 
 const runtimes = new Map<string, Runtime>();
@@ -122,6 +124,7 @@ async function run(
     const out = await execute(`${chartId}|${strategyKey}`, bars, inputs, (properties ?? {}) as Partial<StrategyProperties>, chart, heikinAshi, symbols);
     if (out) {
       rt.visuals = out.visuals ?? null;
+      rt.fullRunReason = out.fullRunReason ?? null;
       strategyTester.setRun(chartId, strategyKey, { status: "done", report: out.report, error: null, bars: bars.length });
     }
   } catch (err) {
@@ -169,7 +172,7 @@ function makeCalculate(
     const typedInputs = { ...defaultInputs(), ...rest, [PROPERTIES_INPUT]: props ?? {} };
     const rtKey = `${chartId}|${runKey}`;
     let rt = runtimes.get(rtKey);
-    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null, requests: [] }));
+    if (!rt) runtimes.set(rtKey, (rt = { key: null, running: false, queued: null, visuals: null, requests: [], fullRunReason: null }));
     // Bars of the other symbols the script reads: read on every calculation (the chart loads them and keeps them
     // while a study reads them); one not loaded yet holds the run until it arrives.
     let symbols: OtherSymbolData | undefined;
@@ -247,7 +250,7 @@ type DrawingConfigs = {
 };
 
 function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
-  return async (_channel, bars, inputs, properties, chart, heikinAshi, symbols) => {
+  return async (channel, bars, inputs, properties, chart, heikinAshi, symbols) => {
     const engine = getOakEngine();
     if (compiledGen.get(scriptId) !== engine.generation) {
       const script = scripts.loadScript(scriptId);
@@ -257,7 +260,8 @@ function userExecute(scriptId: string, entry: IndicatorRegistryEntry): Execute {
       scripts.saveCompiledMeta(scriptId, meta);
       applyUserMeta(entry, script.name, meta);
     }
-    const out = await engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties), symbols);
+    // The worker keeps the run of each chart's strategy (the channel): a live update sends the changed bars.
+    const out = await engine.backtest(scriptId, bars, inputs, properties, chart, heikinAshi, magnifies(USER_KEY_PREFIX + scriptId, properties), symbols, channel);
     noteDrawingKinds(entry, out?.visuals);
     return out;
   };
@@ -301,6 +305,16 @@ export function notifyUserStrategyCompiled(scriptId: string, meta: OakCompiledMe
     const chartId = rtKey.slice(0, bar);
     emitAppEvent(STRATEGY_UPDATED_EVENT, { chartId, key: runKey });
   }
+}
+
+/** Why a user strategy recalculates every bar on the live updates of a chart showing it (null: it does not, or it is
+ *  on no chart): the script editor shows it. */
+export function userStrategyFullRunReason(scriptId: string): string | null {
+  const key = USER_KEY_PREFIX + scriptId;
+  for (const [rtKey, rt] of runtimes) {
+    if (rt.fullRunReason !== null && typeIdOf(rtKey.slice(rtKey.indexOf("|") + 1)) === key) return rt.fullRunReason;
+  }
+  return null;
 }
 
 /** Editor-side hook: a script was deleted. */
@@ -359,7 +373,7 @@ function scriptStrategyEntry(id: string, def: ScriptStrategy): IndicatorRegistry
       def.key,
       () => d.defaultInputs,
       async (channel, bars, inputs, properties, chart, heikinAshi, symbols) => {
-        const out = await getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi, symbols }, { magnify: magnifies(def.key, properties) });
+        const out = await getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi, symbols }, { magnify: magnifies(def.key, properties), live: true });
         noteDrawingKinds(entry as unknown as IndicatorRegistryEntry, out?.visuals);
         return out;
       },
@@ -453,7 +467,7 @@ export function getStrategyEntry(studyId: string): IndicatorRegistryEntry | unde
       def.key,
       () => def.defaultInputs as Record<string, unknown>,
       (channel, bars, inputs, properties, chart, heikinAshi) =>
-        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi }, { magnify: magnifies(def.key, properties) }),
+        getBacktestClient().run(channel, { strategy: def.key, bars, inputs, properties, chart, heikinAshi }, { magnify: magnifies(def.key, properties), live: true }),
     ),
   } as unknown as IndicatorRegistryEntry;
   entries.set(id, entry);

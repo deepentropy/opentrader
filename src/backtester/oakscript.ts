@@ -19,10 +19,13 @@
  *     during the run (the report computes the drawdown at the end).
  */
 import {
+  createScriptRun,
   executeIntrabar,
   executeScript,
   StrategyRecorder,
   type ChartContext,
+  type ScriptOptions,
+  type ScriptRun,
   type SymbolInfo as ScriptSymbolInfo,
   type ScriptRunResult,
   type StrategyCloseAllOptions,
@@ -100,6 +103,12 @@ function tradeInfo(t: Trade): StrategyTrade {
   }
   return info;
 }
+
+/** Broker fields that are its setup, not its state: the engine a state is restored on has its own. */
+const BROKER_SETUP = new Set(['bars', 'props', 'sym', 'intrabars', 'onIntrabar', 'long', 'short']);
+
+/** What BrokerEngine.save() gives: the broker state (orders, trades, position, report records) and the equity. */
+type EngineState = { broker: Record<string, unknown>; equity: number[] };
 
 /** oakscriptjs StrategyEngine on the OpenTrader Broker. `equity` holds the equity at each bar close. */
 export class BrokerEngine implements StrategyEngine {
@@ -275,6 +284,26 @@ export class BrokerEngine implements StrategyEngine {
     const t = this.broker.closedTrades[index];
     return t && tradeInfo(t);
   }
+
+  /**
+   * The state at the end of a bar, for a live update that calculates the newest bars only: every field of the
+   * broker but its setup, copied as one graph (an open trade is in the open trades and in the exit legs: still one
+   * trade once restored).
+   */
+  save(): unknown {
+    const broker: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(this.broker)) if (!BROKER_SETUP.has(k)) broker[k] = v;
+    return structuredClone({ broker, equity: this.equity } satisfies EngineState);
+  }
+
+  /** Puts back a state of save() on this engine (same script and properties, the bars it was saved on and newer
+   *  ones). Copied again: the state is restored on each update until the next bar closes. */
+  restore(state: unknown): void {
+    const s = structuredClone(state as EngineState);
+    Object.assign(this.broker, s.broker);
+    const n = Math.min(s.equity.length, this.equity.length);
+    for (let i = 0; i < n; i++) this.equity[i] = s.equity[i];
+  }
 }
 
 /** A built-in strategy written as an OakScript script (src/backtester/scripts/). Its title, inputs and
@@ -370,11 +399,7 @@ export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] 
  *  library indicator such as the pivots of a zigzag). A time after the last bar (a drawing on a future bar) keeps its
  *  distance from the last bar. In place; an object reached twice (the lines of a linefill) moves once. */
 export function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
-  const back = new Map<number, number>();
-  seen.forEach((b, i) => back.set(b.time, bars[i].time));
-  const lastSeen = seen.length ? seen[seen.length - 1].time : NaN;
-  const lastBar = bars.length ? bars[bars.length - 1].time : NaN;
-  const at = (t: number) => back.get(t) ?? (t > lastSeen ? lastBar + (t - lastSeen) : t);
+  const at = chartTimeOf(seen, bars);
   const done = new Set<object>();
   const walk = (node: unknown): void => {
     if (!node || typeof node !== 'object' || done.has(node)) return;
@@ -395,6 +420,42 @@ export function restoreTimes(result: unknown, seen: Bar[], bars: Bar[]): void {
 }
 const TIME_KEY = /^time\d*$/;
 
+/** The chart time of a time the script saw (see restoreTimes). */
+function chartTimeOf(seen: Bar[], bars: Bar[]): (t: number) => number {
+  const back = new Map<number, number>();
+  seen.forEach((b, i) => back.set(b.time, bars[i].time));
+  const lastSeen = seen.length ? seen[seen.length - 1].time : NaN;
+  const lastBar = bars.length ? bars[bars.length - 1].time : NaN;
+  return (t) => back.get(t) ?? (t > lastSeen ? lastBar + (t - lastSeen) : t);
+}
+
+/** restoreTimes on a copy: the result of a live run shares its points with the next update's (which compares them
+ *  with a full run's), so they keep the script's times. An object reached twice is copied once. */
+function withChartTimes<T>(result: T, seen: Bar[], bars: Bar[]): T {
+  const at = chartTimeOf(seen, bars);
+  const copies = new Map<object, unknown>();
+  const copy = (node: unknown): unknown => {
+    if (!node || typeof node !== 'object') return node;
+    const done = copies.get(node);
+    if (done) return done;
+    if (Array.isArray(node)) {
+      const out: unknown[] = [];
+      copies.set(node, out);
+      for (const item of node) out.push(copy(item));
+      return out;
+    }
+    const out: Record<string, unknown> = {};
+    copies.set(node, out);
+    const obj = node as Record<string, unknown>;
+    for (const k in obj) {
+      const v = obj[k];
+      out[k] = typeof v === 'number' && TIME_KEY.test(k) ? at(v) : copy(v);
+    }
+    return out;
+  };
+  return copy(result) as T;
+}
+
 export interface OakScriptRunResult {
   /** undefined when the script did not declare strategy() or did not run strategy.eachBar(). */
   report?: BacktestReport;
@@ -410,44 +471,49 @@ export function symbolOf(chart: ChartContext | undefined): Partial<SymbolInfo> {
   return out;
 }
 
-/** Runs an OakScript strategy (a script body using oakscriptjs/script) on the OpenTrader broker. */
-export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScriptRunOptions = {}): OakScriptRunResult {
-  const t0 = performance.now();
-  // The chart context carries the charted symbol's exchange zone and tick.
-  const symbol = { ...DEFAULT_SYMBOL, ...symbolOf(opts.chart), ...opts.symbol };
-  const chart: ChartContext = {
-    timezone: symbol.timezone,
-    ...chartWithSymbols(opts.chart, opts.symbols),
-    mintick: symbol.mintick,
-    pointvalue: symbol.pointValue,
-    mincontract: symbol.qtyStep,
-  };
-  let engine: BrokerEngine | undefined;
-  let fills = bars;
-  const ha = opts.heikinAshi ? heikinAshiBars(bars) : bars;
-  let seen = scriptBars(ha, opts.chart);
-  // A realtime last bar: the script does not run on it without calc_on_every_tick ("On realtime bar tick"); the
-  // broker still fills the pending orders on it below. The declared property is read from a zero-bar run.
-  const realtime = chart.realtime === true && bars.length > 0;
-  const everyTick =
-    opts.properties?.calcOnEveryTick ??
-    (realtime
-      ? (executeScript(body, [], opts.inputs ?? {}, chart, {
-          strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), symbol),
-        }).strategyConfig?.calc_on_every_tick ?? false)
-      : true);
-  const skipLast = realtime && !everyTick;
-  if (skipLast) seen = seen.slice(0, -1);
-  const recorder = new StrategyRecorder();
-  const runChart = skipLast ? { ...chart, realtime: false, lastBarConfirmed: true } : chart;
-  const script = executeScript(body, seen, opts.inputs ?? {}, runChart, {
+/** The bars of one calculation of a strategy, read by its engine factory (a live run keeps one factory for all its
+ *  updates). */
+interface StrategyPass {
+  /** The chart bars, the bars the strategy runs on (Heikin Ashi or the chart bars) and the bars the script sees. */
+  bars: Bar[];
+  ha: Bar[];
+  seen: Bar[];
+  /** The bars the broker fills on. */
+  fills: Bar[];
+  /** The chart context of the intrabar runs. */
+  chart: ChartContext;
+  engine?: BrokerEngine;
+}
+
+/** The charted symbol of a run: the chart context carries its exchange zone and tick. */
+function strategySymbol(opts: OakScriptRunOptions): SymbolInfo {
+  return { ...DEFAULT_SYMBOL, ...symbolOf(opts.chart), ...opts.symbol };
+}
+
+/** The chart context of a strategy script: the chart's (with the accessors of other symbols' bars) and the symbol's. */
+function strategyChart(chart: ChartContext, symbol: SymbolInfo): ChartContext {
+  return { timezone: symbol.timezone, ...chart, mintick: symbol.mintick, pointvalue: symbol.pointValue, mincontract: symbol.qtyStep };
+}
+
+/** The strategy() properties a script declares: a run on zero bars (undefined when it declares none). */
+function declaredProperties(body: () => void, opts: OakScriptRunOptions, chart: ChartContext, symbol: SymbolInfo): ScriptStrategyProperties | undefined {
+  return executeScript(body, [], opts.inputs ?? {}, chart, {
+    strategyEngine: ({ properties }) => new BrokerEngine([], brokerProperties(properties), symbol),
+  }).strategyConfig;
+}
+
+/** The script options of a strategy on the broker: its engine on the bars of the current pass. With a recorder, the
+ *  script runs again inside the bars when its properties ask for it. */
+function strategyOptions(body: () => void, opts: OakScriptRunOptions, symbol: SymbolInfo, pass: StrategyPass, recorder?: StrategyRecorder): ScriptOptions {
+  return {
     strategyEngine: ({ properties }) => {
       const props = { ...brokerProperties(properties), ...opts.properties };
-      fills = opts.heikinAshi && !props.fillOrdersOnStandardOhlc ? ha : bars;
+      pass.fills = opts.heikinAshi && !props.fillOrdersOnStandardOhlc ? pass.ha : pass.bars;
       const magnify = props.barMagnifier && !opts.heikinAshi;
-      const e = (engine = new BrokerEngine(fills, props, symbol, magnify ? binIntrabars(fills, opts.intrabars, opts.intrabarSeconds) : undefined));
+      const e = (pass.engine = new BrokerEngine(pass.fills, props, symbol, magnify ? binIntrabars(pass.fills, opts.intrabars, opts.intrabarSeconds) : undefined));
       // "On order fill" / "On history bar tick": the script runs again inside the bar, on the bars up to it.
-      if (props.calcOnOrderFills || props.calcOnEveryHistoryTick) {
+      if (recorder && (props.calcOnOrderFills || props.calcOnEveryHistoryTick)) {
+        const { seen, chart } = pass;
         e.broker.onIntrabar = (i, tick) => {
           const bar = { ...seen[i], high: tick.high, low: tick.low, close: tick.close, volume: tick.volume };
           executeIntrabar(body, [...seen.slice(0, i), bar], opts.inputs ?? {}, chart, { bar: i, lastBarIndex: seen.length - 1, engine: e, recorder });
@@ -456,13 +522,129 @@ export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScr
       return e;
     },
     recorder,
-  });
-  if (skipLast && engine && seen.length) {
-    const last = bars.length - 1;
+  };
+}
+
+/**
+ * Sets `pass` to the bars of a calculation; returns the chart context of the script run. `skipLast`: a realtime last
+ * bar the script does not run on without calc_on_every_tick ("On realtime bar tick"); the broker still fills the
+ * pending orders on it (see strategyResult).
+ */
+function setPass(pass: StrategyPass, bars: Bar[], opts: OakScriptRunOptions, chart: ChartContext, skipLast: boolean): ChartContext {
+  pass.bars = bars;
+  pass.ha = opts.heikinAshi ? heikinAshiBars(bars) : bars;
+  pass.fills = bars;
+  const seen = scriptBars(pass.ha, opts.chart);
+  pass.seen = skipLast ? seen.slice(0, -1) : seen;
+  pass.chart = chart;
+  pass.engine = undefined;
+  return skipLast ? { ...chart, realtime: false, lastBarConfirmed: true } : chart;
+}
+
+/** The report of a calculation, and the script's output on the chart's bar times. `copyTimes`: the output is a live
+ *  run's (see withChartTimes). */
+function strategyResult(pass: StrategyPass, script: ScriptRunResult, skipLast: boolean, t0: number, copyTimes: boolean): OakScriptRunResult {
+  const engine = pass.engine;
+  if (skipLast && engine && pass.seen.length) {
+    const last = pass.bars.length - 1;
     engine.processBar(last);
     engine.equity[last] = engine.broker.equity;
   }
-  if (seen !== ha) restoreTimes(script.result, seen, bars);
+  if (pass.seen !== pass.ha) {
+    if (copyTimes) script = { ...script, result: withChartTimes(script.result, pass.seen, pass.bars) };
+    else restoreTimes(script.result, pass.seen, pass.bars);
+  }
   const ran = engine !== undefined && !engine.equity.some(Number.isNaN);
-  return { script, report: ran ? backtestReport(fills, engine!.broker, engine!.equity, t0) : undefined };
+  return { script, report: ran ? backtestReport(pass.fills, engine!.broker, engine!.equity, t0) : undefined };
+}
+
+/** Runs an OakScript strategy (a script body using oakscriptjs/script) on the OpenTrader broker. */
+export function runOakScriptStrategy(body: () => void, bars: Bar[], opts: OakScriptRunOptions = {}): OakScriptRunResult {
+  const t0 = performance.now();
+  const symbol = strategySymbol(opts);
+  const chart = strategyChart(chartWithSymbols(opts.chart, opts.symbols), symbol);
+  // The declared "On realtime bar tick" is read from a zero-bar run.
+  const realtime = chart.realtime === true && bars.length > 0;
+  const everyTick = opts.properties?.calcOnEveryTick ?? (realtime ? (declaredProperties(body, opts, chart, symbol)?.calc_on_every_tick ?? false) : true);
+  const skipLast = realtime && !everyTick;
+  const pass = {} as StrategyPass;
+  const runChart = setPass(pass, bars, opts, chart, skipLast);
+  const recorder = new StrategyRecorder();
+  const script = executeScript(body, pass.seen, opts.inputs ?? {}, runChart, strategyOptions(body, opts, symbol, pass, recorder));
+  return strategyResult(pass, script, skipLast, t0, false);
+}
+
+/** A run of runOakScriptStrategy on each update of the chart bars (see createStrategyRun). */
+export interface OakScriptStrategyRun {
+  /** The strategy on `bars`, with why it calculated every bar (null: the newest bars only). */
+  update(bars: Bar[], opts?: OakScriptRunOptions): OakScriptRunResult & { fullRunReason: string | null };
+}
+
+/** The run of one set of inputs, properties, symbol and lower-timeframe bars. */
+type LiveStrategy = {
+  fixed: string;
+  intrabars: Bar[] | undefined;
+  /** null: every update is a full run (`reason`). */
+  run: ScriptRun | null;
+  reason: string | null;
+  everyTick: boolean;
+  pass: StrategyPass;
+  /** Bars of other symbols of the last update, read through accessors that stay the same (a new accessor is another
+   *  chart context: a full run). */
+  symbols: OtherSymbolData | undefined;
+  barsOf: NonNullable<ChartContext['bars']>;
+  infoOf: NonNullable<ChartContext['symbolInfo']>;
+};
+
+/**
+ * A strategy that calculates only the newest bars on a live update (oakscriptjs createScriptRun): the broker state at
+ * the last confirmed bar is put back (BrokerEngine.save / restore) and the bars from the forming bar are calculated
+ * again; the report, the trades and the drawn outputs are those of runOakScriptStrategy on the same bars. Other inputs,
+ * properties, symbol, Heikin Ashi or lower-timeframe bars start a new run. A strategy that runs inside the bars (on
+ * order fills, on history ticks) calculates every bar. `verify`: see ScriptRunOptions.
+ */
+export function createStrategyRun(body: () => void, options: { verify?: number } = {}): OakScriptStrategyRun {
+  let current: LiveStrategy | null = null;
+  const start = (opts: OakScriptRunOptions, symbol: SymbolInfo, fixed: string): LiveStrategy => {
+    const live: LiveStrategy = {
+      fixed,
+      intrabars: opts.intrabars,
+      run: null,
+      reason: null,
+      everyTick: false,
+      pass: {} as StrategyPass,
+      symbols: opts.symbols,
+      barsOf: (s, tf) => live.symbols?.bars[`${s}|${tf}`],
+      infoOf: (s) => live.symbols?.info[s],
+    };
+    const declared = declaredProperties(body, opts, strategyChart(chartWithSymbols(opts.chart, opts.symbols), symbol), symbol);
+    if (!declared) {
+      live.reason = 'the script does not declare strategy()';
+      return live;
+    }
+    const props = { ...brokerProperties(declared), ...opts.properties };
+    live.everyTick = props.calcOnEveryTick;
+    if (props.calcOnOrderFills || props.calcOnEveryHistoryTick) {
+      live.reason = 'the strategy calculates again inside the bars (on order fills or on history ticks)';
+      return live;
+    }
+    live.run = createScriptRun(body, opts.inputs ?? {}, {}, { ...strategyOptions(body, opts, symbol, live.pass), verify: options.verify });
+    return live;
+  };
+  return {
+    update(bars, opts = {}) {
+      const t0 = performance.now();
+      const symbol = strategySymbol(opts);
+      const fixed = JSON.stringify([opts.inputs ?? {}, opts.properties ?? {}, symbol, opts.heikinAshi === true, opts.intrabarSeconds ?? null]);
+      if (!current || current.fixed !== fixed || current.intrabars !== opts.intrabars) current = start(opts, symbol, fixed);
+      const live = current;
+      if (!live.run) return { ...runOakScriptStrategy(body, bars, opts), fullRunReason: live.reason };
+      live.symbols = opts.symbols;
+      const chart = strategyChart(opts.symbols ? { ...opts.chart, bars: live.barsOf, symbolInfo: live.infoOf } : (opts.chart ?? {}), symbol);
+      const skipLast = chart.realtime === true && bars.length > 0 && !live.everyTick;
+      const runChart = setPass(live.pass, bars, opts, chart, skipLast);
+      const script = live.run.update(live.pass.seen, runChart);
+      return { ...strategyResult(live.pass, script, skipLast, t0, true), fullRunReason: live.run.fullRunReason };
+    },
+  };
 }

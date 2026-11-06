@@ -16,6 +16,7 @@ import type { ChartContext } from "oakscriptjs/script";
 import type { StrategyProperties } from "../../backtester/types";
 import type { BacktestOutput } from "../../backtester/worker-types";
 import { intrabarsRef } from "../../backtester/intrabars";
+import { SentRuns } from "../../backtester/live-runs";
 
 export type { OakBacktestError, OakBar, OakCompiledMeta, OakScriptError };
 
@@ -48,6 +49,9 @@ export class OakEngine {
   private gen = 0;
   /** Bar magnifier series version already sent to the current worker, by key. */
   private sent = new Map<string, number>();
+  /** The bars and results of the studies (`run:<run key>`) and strategies (`backtest:<run key>`) on the charts:
+   *  the worker keeps them apart. */
+  private live = new SentRuns();
 
   /** Worker generation: bumped when the worker is killed, so callers know
    *  their compiled scripts are gone. */
@@ -74,6 +78,7 @@ export class OakEngine {
   private restart(reason: string): void {
     this.worker?.terminate();
     this.sent.clear();
+    this.live.clear();
     this.worker = null;
     this.gen++;
     const failed = [...this.pending.values()];
@@ -125,10 +130,45 @@ export class OakEngine {
     return res.result;
   }
 
+  /**
+   * Run a compiled script as the study `runKey` of a chart (one per chart and study instance): the worker keeps its
+   * run and bars, so a live update sends the changed bars only and the script calculates the newest bars when it
+   * can. `fullRunReason`: why it calculates every bar instead (null: it does not). `delta`: the reply may be the
+   * changes from the previous result, applied to it in place (false: the caller changes the results it gets).
+   */
+  async update(
+    runKey: string,
+    scriptId: string,
+    bars: OakBar[],
+    inputs?: Record<string, unknown>,
+    chart?: ChartContext,
+    symbols?: OakSymbolData,
+    sources?: OakSourceData,
+    delta = true,
+  ): Promise<{ result: unknown; fullRunReason: string | null }> {
+    const key = `run:${runKey}`;
+    for (let whole = false; ; whole = true) {
+      const sent = this.live.request(key, bars, whole, delta);
+      const res = await this.request(
+        { id: ++this.seq, type: "run", scriptId, bars: sent.bars, inputs, chart, symbols, live: sent.live, ...(sources ? { sources } : {}) },
+        RUN_TIMEOUT_MS,
+      );
+      if (res.type !== "run") throw new OakEngineError({ message: "Protocol mismatch." }, true);
+      if (!res.ok && "resend" in res && !whole) continue;
+      if (!res.ok) {
+        this.live.forget(key);
+        throw new OakEngineError(res.error);
+      }
+      if (!res.live) return { result: res.result, fullRunReason: null };
+      return { result: this.live.received(key, res.result, res.live), fullRunReason: res.live.fullRunReason };
+    }
+  }
+
   /** Backtest a compiled strategy script over `bars` on the OpenTrader broker.
    *  `properties` overrides the script's strategy() properties; `heikinAshi`:
    *  the chart shows Heikin Ashi bars of `bars`; `magnify`: the effective bar
-   *  magnifier property (the lower-timeframe bars are fetched here). */
+   *  magnifier property (the lower-timeframe bars are fetched here). `live`: the run key of a strategy on a chart
+   *  (see update()). */
   async backtest(
     scriptId: string,
     bars: OakBar[],
@@ -138,18 +178,28 @@ export class OakEngine {
     heikinAshi?: boolean,
     magnify = properties?.barMagnifier === true,
     symbols?: OakSymbolData,
+    live?: string,
   ): Promise<BacktestOutput> {
     const intrabars = await intrabarsRef(magnify, heikinAshi, bars, chart, this.sent);
-    const res = await this.request(
-      { id: ++this.seq, type: "backtest", scriptId, bars, inputs, properties, chart, heikinAshi, intrabars, symbols },
-      BACKTEST_TIMEOUT_MS,
-      () => {
-        if (intrabars?.bars) this.sent.set(intrabars.key, intrabars.version);
-      },
-    );
-    if (res.type !== "backtest") throw new OakEngineError({ message: "Protocol mismatch." }, true);
-    if (!res.ok) throw new OakEngineError(res.error);
-    return { report: res.report, visuals: res.visuals };
+    const key = live === undefined ? null : `backtest:${live}`;
+    for (let whole = false; ; whole = true) {
+      const sent = key === null ? null : this.live.request(key, bars, whole);
+      const res = await this.request(
+        { id: ++this.seq, type: "backtest", scriptId, bars: sent?.bars ?? bars, inputs, properties, chart, heikinAshi, intrabars, symbols, ...(sent ? { live: sent.live } : {}) },
+        BACKTEST_TIMEOUT_MS,
+        () => {
+          if (intrabars?.bars) this.sent.set(intrabars.key, intrabars.version);
+        },
+      );
+      if (res.type !== "backtest") throw new OakEngineError({ message: "Protocol mismatch." }, true);
+      if (!res.ok && "resend" in res && !whole) continue;
+      if (!res.ok) {
+        if (key !== null) this.live.forget(key);
+        throw new OakEngineError(res.error);
+      }
+      if (key === null || !res.live) return { report: res.report, visuals: res.visuals };
+      return { report: res.report, visuals: this.live.received(key, res.visuals, res.live), fullRunReason: res.live.fullRunReason };
+    }
   }
 
   dispose(): void {

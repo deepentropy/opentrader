@@ -22,6 +22,7 @@ import type { ChartContext } from "oakscriptjs/script";
 import type { BacktestReport, StrategyProperties } from "../../backtester/types";
 import type { IntrabarsRef } from "../../backtester/worker-types";
 import type { OtherSymbolData } from "../../backtester/oakscript";
+import type { LiveReply, LiveRequest } from "../../backtester/live-runs";
 
 export type OakScriptError = {
   message: string;
@@ -82,7 +83,18 @@ export type OakBacktestError = OakScriptError & { code?: string; bar?: number };
 
 export type OakRequest =
   | { id: number; type: "compile"; scriptId: string; source: string }
-  | { id: number; type: "run"; scriptId: string; bars: OakBar[]; inputs?: Record<string, unknown>; chart?: ChartContext; symbols?: OakSymbolData; sources?: OakSourceData }
+  | {
+      id: number;
+      type: "run";
+      scriptId: string;
+      bars: OakBar[];
+      inputs?: Record<string, unknown>;
+      chart?: ChartContext;
+      symbols?: OakSymbolData;
+      sources?: OakSourceData;
+      /** A study on a chart: the worker keeps its run, `bars` are the bars from `live.from` (see live-runs.ts). */
+      live?: LiveRequest;
+    }
   | {
       id: number;
       type: "backtest";
@@ -99,15 +111,19 @@ export type OakRequest =
       intrabars?: IntrabarsRef;
       /** Bars of other symbols the script reads. */
       symbols?: OakSymbolData;
+      /** A strategy on a chart: the worker keeps its run, `bars` are the bars from `live.from` (see live-runs.ts). */
+      live?: LiveRequest;
     };
 
 export type OakResponse =
   | { id: number; type: "compile"; ok: true; meta: OakCompiledMeta }
   | { id: number; type: "compile"; ok: false; error: OakScriptError }
-  | { id: number; type: "run"; ok: true; result: unknown }
+  | { id: number; type: "run"; ok: true; result: unknown; live?: LiveReply }
   | { id: number; type: "run"; ok: false; error: OakScriptError }
-  | { id: number; type: "backtest"; ok: true; report: BacktestReport; visuals?: unknown }
-  | { id: number; type: "backtest"; ok: false; error: OakBacktestError };
+  | { id: number; type: "backtest"; ok: true; report: BacktestReport; visuals?: unknown; live?: LiveReply }
+  | { id: number; type: "backtest"; ok: false; error: OakBacktestError }
+  /** A live request counts on bars the worker no longer has (a new worker, a run dropped): send them all again. */
+  | { id: number; type: "run" | "backtest"; ok: false; resend: true; error: OakScriptError };
 
 /** Values of the sources a script's source inputs name besides the bar fields (study on study), by input value,
  *  aligned with the bars of the run. */

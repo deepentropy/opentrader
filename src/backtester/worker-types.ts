@@ -1,6 +1,7 @@
 import type { ChartContext } from 'oakscriptjs/script';
 import type { BacktestReport, Bar, StrategyProperties, SymbolInfo } from './types';
 import type { OtherSymbolData } from './oakscript';
+import type { LiveReply, LiveRequest } from './live-runs';
 
 /** Bar magnifier series: `bars` rides once per worker and version; later requests carry the key and version only. */
 export interface IntrabarsRef {
@@ -28,6 +29,8 @@ export interface BacktestRequest {
   heikinAshi?: boolean;
   /** Bars and properties of other symbols the script reads (OakScript strategies). */
   symbols?: OtherSymbolData;
+  /** A strategy on a chart: the worker keeps its run, `bars` are the bars from `live.from` (see live-runs.ts). */
+  live?: LiveRequest;
 }
 
 export interface BacktestError {
@@ -43,6 +46,12 @@ export interface BacktestError {
 export interface BacktestOutput {
   report: BacktestReport;
   visuals?: unknown;
+  /** A live run calculates every bar on each update, for this reason (null or absent: it does not). */
+  fullRunReason?: string | null;
 }
 
-export type BacktestResponse = ({ id: number; ok: true } & BacktestOutput) | { id: number; ok: false; error: BacktestError };
+export type BacktestResponse =
+  | ({ id: number; ok: true; live?: LiveReply } & Omit<BacktestOutput, 'fullRunReason'>)
+  | { id: number; ok: false; error: BacktestError }
+  /** A live request counts on bars the worker no longer has (a new worker, a run dropped): send them all again. */
+  | { id: number; ok: false; resend: true; error: BacktestError };
