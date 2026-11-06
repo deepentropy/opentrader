@@ -24,6 +24,7 @@ import type {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import { firstAxisWidth } from "./scales/extra-axes";
+import { lightUpdate } from "./light-update";
 import { localDay, weekdayOf, type SessionId, type SymbolSessions } from "../../data/session";
 
 export type CountdownState = {
@@ -75,6 +76,7 @@ export class CountdownPrimitive implements ISeriesPrimitive<Time> {
   }
   detached(): void {
     this._series = null;
+    this._chart = null;
     this._requestUpdate = null;
   }
 
@@ -102,9 +104,8 @@ export class CountdownPrimitive implements ISeriesPrimitive<Time> {
     ) {
       return;
     }
-    // A light update of its series: the chart library's requestUpdate is a full one (the panes laid out again, then
-    // a second paint), every second the countdown ticks (#260).
-    if (this._series) this._series.applyOptions({});
+    // A light update: the countdown ticks every second (#260).
+    if (this._chart) lightUpdate(this._chart);
     else this._requestUpdate?.();
   }
 

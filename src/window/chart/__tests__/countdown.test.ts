@@ -96,12 +96,13 @@ describe("CountdownPrimitive.setState", () => {
     backColor: "#000", textColor: "#fff", fontSize: 12, fontFamily: "x", ...over,
   });
 
-  it("repaints only when something drawn changes, with a light update of its series", () => {
+  it("repaints only when something drawn changes, with a light update of the chart", () => {
     const p = new CountdownPrimitive();
-    // The series' empty options update (a light chart update), not the primitive's requestUpdate (a full one).
+    // A pane primitive detached (a light chart update), not the primitive's requestUpdate (a full one).
     const requestUpdate = vi.fn();
     const full = vi.fn();
-    p.attached({ series: { applyOptions: requestUpdate }, requestUpdate: full } as unknown as Parameters<CountdownPrimitive["attached"]>[0]);
+    const chart = { panes: () => [{ detachPrimitive: requestUpdate }] };
+    p.attached({ series: {}, chart, requestUpdate: full } as unknown as Parameters<CountdownPrimitive["attached"]>[0]);
     p.setState(state());
     expect(requestUpdate).toHaveBeenCalledTimes(1);
     p.setState(state());
