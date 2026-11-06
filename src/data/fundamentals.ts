@@ -1,6 +1,7 @@
 /*
  * Company fundamentals — the financial statement items per fiscal quarter /
- * year and the earnings releases of the company behind a symbol, as the
+ * year, the earnings releases, the profile, the dated filing events and the
+ * projected next earnings date of the company behind a symbol, as the
  * backend serves them (`get_fundamentals`). One request per symbol per run
  * while it answers; a failed lookup is asked again on the next call.
  *
@@ -10,7 +11,7 @@
 import { commands, type Fundamentals } from "../bindings";
 import { isTransientError, retryTransient } from "./connection";
 
-export type { Fundamentals, EarningsEvent, FundamentalPeriods } from "../bindings";
+export type { Fundamentals, EarningsEvent, FundamentalPeriods, CompanyProfile, FilingEvent, NextEarnings } from "../bindings";
 
 const memo = new Map<string, Promise<Fundamentals | null>>();
 
