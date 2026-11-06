@@ -323,7 +323,10 @@ export async function send(text: string): Promise<void> {
   if (!t || running()) return;
   if (!state.activeId) {
     const now = Date.now();
-    const chat: Chat = { id: `c${now.toString(36)}`, title: t.length > 60 ? `${t.slice(0, 57)}…` : t, createdAt: now, updatedAt: now, messages: [] };
+    // Its id from the time, made unique: two chats begun in the same millisecond would share one.
+    let id = `c${now.toString(36)}`;
+    for (let n = 1; state.chats.some((c) => c.id === id); n++) id = `c${now.toString(36)}-${n}`;
+    const chat: Chat = { id, title: t.length > 60 ? `${t.slice(0, 57)}…` : t, createdAt: now, updatedAt: now, messages: [] };
     setState("chats", (cs) => [...cs, chat]);
     setState("activeId", chat.id);
   }
