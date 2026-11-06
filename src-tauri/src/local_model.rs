@@ -179,7 +179,8 @@ pub async fn local_model_info(app: AppHandle) -> Result<LocalModelInfo, String> 
     })
 }
 
-/// Download progress: the file, its bytes so far and its size.
+/// Download progress over the whole install: the file under way, the bytes so far and the size of all that is
+/// downloaded, so the bar fills once instead of once per file.
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalProgress {
@@ -188,12 +189,21 @@ pub struct LocalProgress {
     pub total: f64,
 }
 
+/// The install's progress: bytes of the files already done, and the size of all the files to download.
+struct Tally {
+    before: u64,
+    total: u64,
+}
+
 /// Downloads `a` into `base` (resuming a `.part` file), checks its sha256 and keeps it under its name.
-async fn fetch(base: &Path, a: &Asset, on: &Channel<LocalProgress>, stop: &mut oneshot::Receiver<()>) -> Result<(), String> {
+async fn fetch(base: &Path, a: &Asset, on: &Channel<LocalProgress>, t: &mut Tally, stop: &mut oneshot::Receiver<()>) -> Result<(), String> {
     let path = base.join(a.file);
     if std::fs::metadata(&path).is_ok_and(|m| m.len() == a.size) {
         return Ok(());
     }
+    let send = |file: String, have: u64| {
+        let _ = on.send(LocalProgress { file, done: (t.before + have) as f64, total: t.total as f64 });
+    };
     let part = base.join(format!("{}.part", a.file));
     let mut have = std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
     if have > a.size {
@@ -228,12 +238,12 @@ async fn fetch(base: &Path, a: &Asset, on: &Channel<LocalProgress>, stop: &mut o
             have += bytes.len() as u64;
             if last.elapsed() > Duration::from_millis(250) {
                 last = std::time::Instant::now();
-                let _ = on.send(LocalProgress { file: a.file.into(), done: have as f64, total: a.size as f64 });
+                send(a.file.into(), have);
             }
         }
         f.flush().await.map_err(|e| e.to_string())?;
     }
-    let _ = on.send(LocalProgress { file: format!("Checking {}", a.file), done: a.size as f64, total: a.size as f64 });
+    send(format!("Checking {}", a.file), a.size);
     let p = part.clone();
     let sum = tokio::task::spawn_blocking(move || -> std::io::Result<String> {
         let mut h = Sha256::new();
@@ -248,7 +258,9 @@ async fn fetch(base: &Path, a: &Asset, on: &Channel<LocalProgress>, stop: &mut o
         let _ = std::fs::remove_file(&part);
         return Err(format!("{} is not the expected file (checksum): download it again.", a.file));
     }
-    std::fs::rename(&part, &path).map_err(|e| e.to_string())
+    std::fs::rename(&part, &path).map_err(|e| e.to_string())?;
+    t.before += a.size;
+    Ok(())
 }
 
 fn unpack(archive: &Path, to: &Path) -> Result<(), String> {
@@ -275,18 +287,17 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
         }
         *slot = Some(tx);
     }
+    let runtimes: Vec<Asset> = runtimes().into_iter().filter(|r| server_exe(&runtime_dir(&base, r)).is_none()).collect();
+    let total = runtimes.iter().chain([&ADAPTER, &BASE]).filter(|a| !present(&base, a)).map(|a| a.size).sum();
+    let mut t = Tally { before: 0, total };
     let result = async {
-        for r in runtimes() {
-            let to = runtime_dir(&base, &r);
-            if server_exe(&to).is_some() {
-                continue;
-            }
-            fetch(&base, &r, &on_progress, &mut rx).await?;
-            unpack(&base.join(r.file), &to)?;
+        for r in &runtimes {
+            fetch(&base, r, &on_progress, &mut t, &mut rx).await?;
+            unpack(&base.join(r.file), &runtime_dir(&base, r))?;
             let _ = std::fs::remove_file(base.join(r.file));
         }
-        fetch(&base, &ADAPTER, &on_progress, &mut rx).await?;
-        fetch(&base, &BASE, &on_progress, &mut rx).await
+        fetch(&base, &ADAPTER, &on_progress, &mut t, &mut rx).await?;
+        fetch(&base, &BASE, &on_progress, &mut t, &mut rx).await
     }
     .await;
     *INSTALL_STOP.lock().unwrap() = None;
