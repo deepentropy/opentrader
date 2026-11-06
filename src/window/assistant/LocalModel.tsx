@@ -35,7 +35,7 @@ export function AssistantSetup() {
                 <>
                   <p class="asst-beta">
                     <span class="asst-beta-tag">Beta</span>
-                    The assistant is a beta release: it can misread a request, and some of its steps can fail.
+                    It can make mistakes and some steps may fail.
                   </p>
                   <button type="button" class="asst-btn is-primary" onClick={() => void installLocal()}>
                     Activate ({gb(i().downloadBytes)})
