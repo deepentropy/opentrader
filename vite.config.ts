@@ -76,11 +76,16 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
       ...(COMMUNITY(mode) ? communityShims : []),
     ],
   },
-  build: mode === "web"
-    ? { outDir: "dist-web" }
-    : COMMUNITY(mode)
-      ? { outDir: fileURLToPath(new URL("./deploy/community/site", import.meta.url)), emptyOutDir: true }
-      : undefined,
+  // No gzip sizes in the build report: computing them for the indicator library's chunks (~20 MB each, in the window
+  // and in the study worker) took the build past the release workflow's 4 GB heap (#258).
+  build: {
+    reportCompressedSize: false,
+    ...(mode === "web"
+      ? { outDir: "dist-web" }
+      : COMMUNITY(mode)
+        ? { outDir: fileURLToPath(new URL("./deploy/community/site", import.meta.url)), emptyOutDir: true }
+        : {}),
+  },
   // The version, for the usage statistics (data/analytics.ts).
   define: {
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(tauriConf.version),
