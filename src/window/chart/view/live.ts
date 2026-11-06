@@ -20,6 +20,10 @@ import { setDataForType, type OHLC } from "../chart-types";
 import { toOHLC } from "./helpers";
 import { type ChartCx } from "./context";
 
+/** Shortest time between two live paints: 30 per second. The reference app's live updates come 25 ms apart at the
+ *  closest (277 ms median), measured on a busy symbol. */
+const LIVE_PAINT_MS = 33;
+
 /** What createLive adds to the chart context. */
 export interface LiveApi {
   liveAppendedWhileHidden: boolean;
@@ -80,26 +84,57 @@ export function createLive(cx: ChartCx): LiveApi {
     }
     paintWhenCalculated(next, appended);
   }
-  /** A tick waiting for its studies' worker results (#259): the chart is painted once, with them. A newer tick in
-   *  the meantime joins it (another bar than the one waiting: the whole series is set again). */
+  /** The live bar to paint: a tick merges into it, and it is painted at most once per animation frame, after its
+   *  studies' worker results (#259, #262). A newer tick of the same bar takes its place; another bar's sets the
+   *  whole series again (next = null). Ticks that come while the studies calculate wait for the next frame. */
   let waiting: { next: OHLC | null; appended: boolean } | null = null;
+  let frame = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let calculating = false;
+  let paintedAt = -Infinity;
   function paintWhenCalculated(next: OHLC | null, appended: boolean) {
+    waiting = waiting
+      ? { next: waiting.next && next && waiting.next.time === next.time ? next : null, appended: waiting.appended || appended }
+      : { next, appended };
+    schedulePaint();
+  }
+  /** The next live paint: on an animation frame, at least LIVE_PAINT_MS after the one before. The chart library draws
+   *  every series of the pane again on each paint, which at 60 per second takes cores on charts with many plots
+   *  (#264). */
+  function schedulePaint() {
+    if (frame || timer || calculating) return;
+    const wait = paintedAt + LIVE_PAINT_MS - performance.now();
+    if (wait <= 0) frame = requestAnimationFrame(paintFrame);
+    else timer = setTimeout(() => {
+      timer = null;
+      frame = requestAnimationFrame(paintFrame);
+    }, wait);
+  }
+  function paintFrame() {
+    frame = 0;
+    paintedAt = performance.now();
+    const w = waiting;
+    waiting = null;
+    if (!w) return;
+    const paint = () => {
+      if (cx.series && !cx.swapping && !cx.replayActive) paintLive(w.next, w.appended);
+    };
     const controller = cx.controller;
     if (!controller) {
-      paintLive(next, appended);
+      paint();
       return;
     }
-    if (waiting) {
-      waiting = { next: waiting.next && next && waiting.next.time === next.time ? next : null, appended: waiting.appended || appended };
-      return;
-    }
-    waiting = { next, appended };
+    calculating = true;
     controller.whenLiveCalculated(() => {
-      const w = waiting;
-      waiting = null;
-      if (w && cx.series && !cx.swapping && !cx.replayActive) paintLive(w.next, w.appended);
+      calculating = false;
+      paint();
+      if (waiting) schedulePaint();
     });
   }
+  onCleanup(() => {
+    if (frame) cancelAnimationFrame(frame);
+    if (timer) clearTimeout(timer);
+  });
   /** Run `fn` (several series data changes) with the crosshair parked. While a
    *  crosshair is shown, each data change of the library re-runs its hit test,
    *  which rebuilds every changed series' points over ALL bars (05/10/2026,

@@ -598,12 +598,12 @@ export class IndicatorLayer {
   }
 
   /** A live update starts the study's worker calculation (without drawing): true when one runs now, whose result the
-   *  update waits for (IndicatorController.whenLiveCalculated). */
+   *  update waits for (IndicatorController.whenLiveCalculated). One that was running already counts: this one runs
+   *  after it, and painting at once would draw every study again on each tick that comes meanwhile (#262). */
   startLiveJob(entry: IndicatorRegistryEntry, bars: Bar[], inputs: Record<string, unknown>, styles: IndicatorStyleOverrides): boolean {
     if (!bars.length || !this.calculatesOffThread(entry)) return false;
-    const before = this.off.running;
     this.calculate(entry, bars, inputs, styles, true);
-    return !before && this.off.running;
+    return this.off.running;
   }
 
   /** The indicator library's studies calculate in a worker (a strategy runs in the backtester, the app's own studies
