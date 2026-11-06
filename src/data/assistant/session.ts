@@ -343,7 +343,11 @@ export async function send(text: string): Promise<void> {
       const { turn, span } = await ask(activeChat()!, trace);
       if (stopped) break;
       const calls = finishedCalls(turn, `call${requestSeq}`);
-      if (!calls.length) break;
+      if (!calls.length) {
+        // The model can end with nothing to say (often after a failed step): the answer would be blank.
+        if (!activeChat()!.messages.slice(-1)[0].text.trim()) editLast((m) => (m.error = "No answer: try asking another way."));
+        break;
+      }
       editLast((m) => (m.tools = calls.map((c) => ({ id: c.id, name: c.name, arguments: c.arguments, status: "pending" as const }))));
       for (const call of calls) {
         if (stopped) break;

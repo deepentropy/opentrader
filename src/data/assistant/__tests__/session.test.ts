@@ -94,6 +94,15 @@ describe("assistant agent loop", () => {
     expect(activeChat()!.messages.slice(-1)[0]).toMatchObject({ role: "assistant", error: "out of memory" });
   });
 
+  it("says so when the model ends with no text after a failed step", async () => {
+    newChat();
+    server.script = [[call("get_chart", {})], [say("")]];
+    await send("What is on my chart?");
+    const ms = activeChat()!.messages;
+    expect(ms[1]).toMatchObject({ tools: [{ status: "error", result: "boom" }] });
+    expect(ms.slice(-1)[0]).toMatchObject({ text: "", error: "No answer: try asking another way." });
+  });
+
   it("stops when the same call comes back three times with the same result", async () => {
     newChat();
     ran.length = 0;

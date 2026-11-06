@@ -323,6 +323,23 @@ function rowsOf(rows: ScanRow[], fields: string[]): Record<string, unknown>[] {
   });
 }
 
+/** The arguments of run_screen / save_screen with the slips a small model makes put right: run_screen's own keys put
+ *  in scope ({"scope": {"limit": 10}}) go back to the top, a scope that names neither a watchlist nor an index is the
+ *  market, and an index code given as the scope ("SPX") is that index. */
+export function screenArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...args };
+  const scope = args.scope;
+  if (typeof scope === "string") {
+    const code = scope.toUpperCase();
+    out.scope = INDEXES.some(([c]) => c === code) ? { index: code } : scope.toLowerCase() === "market" ? undefined : scope;
+  } else if (scope && typeof scope === "object" && !Array.isArray(scope)) {
+    const { watchlist, index, ...rest } = scope as Record<string, unknown>;
+    for (const [k, v] of Object.entries(rest)) if (!(k in out)) out[k] = v;
+    out.scope = typeof watchlist === "string" ? { watchlist } : typeof index === "string" ? { index } : undefined;
+  }
+  return out;
+}
+
 /** Tickers of a watchlist (by name) or of an index (its code: SPX, NDX...). */
 async function scopeTickers(scope: unknown): Promise<string[] | null> {
   if (scope === undefined || scope === null || scope === "market") return null;
@@ -372,7 +389,8 @@ export function createScreenerTools(): AgentTool[] {
         },
       },
       annotations: { readOnlyHint: true },
-      run: async (args) => {
+      run: async (given) => {
+        const args = screenArgs(given);
         await useTable();
         const cat = await fields();
         const known = new Set(cat.filter((f) => f.available).map((f) => f.id));
@@ -462,7 +480,8 @@ export function createScreenerTools(): AgentTool[] {
         },
         required: ["name"],
       },
-      run: async (args) => {
+      run: async (given) => {
+        const args = screenArgs(given);
         const name = typeof args.name === "string" ? args.name.trim() : "";
         if (!name) throw new AgentError('"name" is required.');
         const scope = args.scope as { watchlist?: unknown } | undefined;

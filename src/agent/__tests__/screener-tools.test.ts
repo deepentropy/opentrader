@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FieldInfo } from "../../bindings";
-import { agentFields, clauseOf, columnOfField, matchName, pillOf, screenOf } from "../screener-tools";
+import { agentFields, clauseOf, columnOfField, matchName, pillOf, screenArgs, screenOf } from "../screener-tools";
 
 const fi = (id: string, kind = "number", available = true): FieldInfo => ({ id, kind, source: "live", available });
 
@@ -88,5 +88,19 @@ describe("sector and industry names", () => {
     expect(() => matchName("Semiconductors", ["Manufacturing", "Services"], "sector")).toThrow(/The sector names: "Manufacturing", "Services"\. For a line of business/);
     // A word found inside another name is not taken as that name.
     expect(() => matchName("Electronics", [...industries, "Retail-Radio, Tv & Consumer Electronics Stores"], "industry")).toThrow(/Close industry names: "Retail-Radio/);
+  });
+});
+
+describe("screenArgs", () => {
+  it("puts run_screen's keys given in scope back at the top, and a scope with no watchlist or index is the market", () => {
+    expect(screenArgs({ scope: { limit: 10 }, sort: { field: "change", order: "asc" } })).toEqual({ scope: undefined, limit: 10, sort: { field: "change", order: "asc" } });
+    // A key given at both places: the top one wins.
+    expect(screenArgs({ scope: { watchlist: "Tech", limit: 5 }, limit: 20 })).toEqual({ scope: { watchlist: "Tech" }, limit: 20 });
+    expect(screenArgs({ scope: { index: "NDX" } }).scope).toEqual({ index: "NDX" });
+  });
+  it("reads a scope given as text", () => {
+    expect(screenArgs({ scope: "Market" }).scope).toBeUndefined();
+    expect(screenArgs({ scope: "spx" }).scope).toEqual({ index: "SPX" });
+    expect(screenArgs({ scope: "nope" }).scope).toBe("nope");
   });
 });
