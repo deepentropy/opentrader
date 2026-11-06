@@ -96,10 +96,12 @@ describe("CountdownPrimitive.setState", () => {
     backColor: "#000", textColor: "#fff", fontSize: 12, fontFamily: "x", ...over,
   });
 
-  it("repaints only when something drawn changes", () => {
+  it("repaints only when something drawn changes, with a light update of its series", () => {
     const p = new CountdownPrimitive();
+    // The series' empty options update (a light chart update), not the primitive's requestUpdate (a full one).
     const requestUpdate = vi.fn();
-    p.attached({ series: {}, requestUpdate } as unknown as Parameters<CountdownPrimitive["attached"]>[0]);
+    const full = vi.fn();
+    p.attached({ series: { applyOptions: requestUpdate }, requestUpdate: full } as unknown as Parameters<CountdownPrimitive["attached"]>[0]);
     p.setState(state());
     expect(requestUpdate).toHaveBeenCalledTimes(1);
     p.setState(state());
@@ -112,5 +114,6 @@ describe("CountdownPrimitive.setState", () => {
     p.setState(state({ visible: false, text: "00:58" }));
     expect(requestUpdate).toHaveBeenCalledTimes(3);
     expect(p.getState().text).toBe("00:58");
+    expect(full).not.toHaveBeenCalled();
   });
 });

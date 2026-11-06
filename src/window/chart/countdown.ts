@@ -102,7 +102,10 @@ export class CountdownPrimitive implements ISeriesPrimitive<Time> {
     ) {
       return;
     }
-    this._requestUpdate?.();
+    // A light update of its series: the chart library's requestUpdate is a full one (the panes laid out again, then
+    // a second paint), every second the countdown ticks (#260).
+    if (this._series) this._series.applyOptions({});
+    else this._requestUpdate?.();
   }
 
   getState(): CountdownState {
