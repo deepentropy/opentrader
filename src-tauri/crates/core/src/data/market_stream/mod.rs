@@ -368,11 +368,17 @@ async fn run_session(
     }
     send_op(&mut write, "subscribe", &replay).await?;
 
+    // The data messages wait here for the next flush (#261).
+    let mut pending = events::Pending::new(app);
+    let mut flush = tokio::time::interval(events::BAR_FLUSH);
+    flush.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
     // Main loop — diff incoming subscription updates against current
     // state and emit minimal sub/unsub messages; forward incoming data
     // messages as typed events.
     loop {
         tokio::select! {
+            _ = flush.tick(), if !pending.is_empty() => pending.flush(),
             sub = rx.recv() => {
                 let Some(sub) = sub else { return Ok(SessionExit::ShuttingDown); };
                 // Diff the UNION views before/after applying — an owner update
@@ -438,7 +444,7 @@ async fn run_session(
                             emit_tier(app, false, Some(&reason));
                             return Ok(SessionExit::Idle);
                         }
-                        handle_text(app, state, &txt)
+                        handle_text(&mut pending, state, &txt)
                     }
                     Message::Close(_) => return Ok(SessionExit::WsClosed),
                     _ => {}

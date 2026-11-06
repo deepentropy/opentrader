@@ -3,6 +3,9 @@
 use super::subscriptions::SubscriptionState;
 use crate::data::market_rest::Candle;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::Duration;
+use tokio::time::Instant;
 use crate::host::{event, Event, HostRef};
 
 /// Per-minute bar (`bar1m` channel, or the polled snapshot) re-emitted to
@@ -90,23 +93,99 @@ event!(ChartAggregate, "chart-aggregate");
 event!(SecondAggregate, "second-aggregate");
 event!(TradeTick, "trade-tick");
 
-/// Parse one text frame and emit its events, once per subscribed full name
+/// How often the bars of the stream go to the views: about one display frame.
+pub(super) const BAR_FLUSH: Duration = Duration::from_millis(16);
+/// How often the trades do: the watchlist and the alerts read the last price.
+const TRADE_FLUSH: Duration = Duration::from_millis(100);
+
+/// The stream's events since the last flush, the newest per symbol: a busy symbol (hundreds of messages a second)
+/// sends the views one event per flush instead of one per message, each a JSON message the page parses and handles
+/// (#261). A bar of another time first sends the one it follows, so a closed bar keeps its last values.
+pub(super) struct Pending {
+    app: HostRef,
+    minute: HashMap<String, ChartAggregate>,
+    second: HashMap<String, SecondAggregate>,
+    trades: HashMap<String, TradeTick>,
+    trades_sent: Instant,
+}
+
+impl Pending {
+    pub(super) fn new(app: &HostRef) -> Self {
+        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), trades: HashMap::new(), trades_sent: Instant::now() }
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.minute.is_empty() && self.second.is_empty() && self.trades.is_empty()
+    }
+
+    fn minute(&mut self, agg: ChartAggregate) {
+        let time = agg.time;
+        if let Some(prev) = self.minute.insert(agg.symbol.clone(), agg) {
+            if prev.time != time {
+                let _ = prev.emit(&self.app);
+            }
+        }
+    }
+
+    fn second(&mut self, bar: SecondAggregate) {
+        let time = bar.time;
+        if let Some(prev) = self.second.insert(bar.symbol.clone(), bar) {
+            if prev.time != time {
+                let _ = prev.emit(&self.app);
+            }
+        }
+    }
+
+    fn trade(&mut self, tick: TradeTick) {
+        self.trades.insert(tick.symbol.clone(), tick);
+    }
+
+    /// Send the bars, and the trades when their interval is over.
+    pub(super) fn flush(&mut self) {
+        for (_, agg) in self.minute.drain() {
+            let _ = agg.emit(&self.app);
+        }
+        for (_, bar) in self.second.drain() {
+            let _ = bar.emit(&self.app);
+        }
+        if self.trades_sent.elapsed() >= TRADE_FLUSH {
+            self.flush_trades();
+        }
+    }
+
+    fn flush_trades(&mut self) {
+        for (_, tick) in self.trades.drain() {
+            let _ = tick.emit(&self.app);
+        }
+        self.trades_sent = Instant::now();
+    }
+}
+
+impl Drop for Pending {
+    /// The session ended: what it received is sent.
+    fn drop(&mut self) {
+        self.flush();
+        self.flush_trades();
+    }
+}
+
+/// Parse one text frame and queue its events, once per subscribed full name
 /// of the message's ticker. Replies and errors are logged.
-pub(super) fn handle_text(app: &HostRef, state: &SubscriptionState, txt: &str) {
+pub(super) fn handle_text(pending: &mut Pending, state: &SubscriptionState, txt: &str) {
     for m in super::messages(txt) {
         match m.get("type").and_then(|v| v.as_str()).unwrap_or("") {
             "bar" => match m.get("tf").and_then(|v| v.as_str()) {
                 Some("1m") => {
                     if let Some(agg) = parse_minute(&m) {
                         for symbol in state.chart_symbols_for(&agg.symbol) {
-                            let _ = ChartAggregate { symbol, ..agg.clone() }.emit(app);
+                            pending.minute(ChartAggregate { symbol, ..agg.clone() });
                         }
                     }
                 }
                 Some("1s") => {
                     if let Some(bar) = parse_second(&m) {
                         for symbol in state.chart_symbols_for(&bar.symbol) {
-                            let _ = SecondAggregate { symbol, ..bar.clone() }.emit(app);
+                            pending.second(SecondAggregate { symbol, ..bar.clone() });
                         }
                     }
                 }
@@ -115,7 +194,7 @@ pub(super) fn handle_text(app: &HostRef, state: &SubscriptionState, txt: &str) {
             "trade" => {
                 if let Some(tick) = parse_trade(&m) {
                     for symbol in state.symbols_for(&tick.symbol) {
-                        let _ = TradeTick { symbol, ..tick.clone() }.emit(app);
+                        pending.trade(TradeTick { symbol, ..tick.clone() });
                     }
                 }
             }
@@ -192,5 +271,62 @@ mod tests {
             serde_json::from_str(r#"{"type":"trade","ticker":"SPY","t":1792000061000,"p":601.5,"size":100}"#).unwrap();
         let t = parse_trade(&trade).unwrap();
         assert_eq!((t.symbol.as_str(), t.price, t.trade_time), ("SPY", 601.5, Some(1_792_000_020.0)));
+    }
+
+    /// The events sent, by name and with their payload.
+    struct Recorder(std::sync::Mutex<Vec<(&'static str, serde_json::Value)>>);
+    impl crate::host::Host for Recorder {
+        fn emit_value(&self, name: &'static str, payload: serde_json::Value) {
+            self.0.lock().unwrap().push((name, payload));
+        }
+    }
+
+    fn minute(symbol: &str, time: f64, close: f64) -> ChartAggregate {
+        ChartAggregate { symbol: symbol.into(), time, open: 1.0, high: close, low: 1.0, close, volume: 1.0, day: None }
+    }
+
+    #[test]
+    fn pending_sends_the_newest_bar_per_symbol_and_closed_bars() {
+        let rec = std::sync::Arc::new(Recorder(Default::default()));
+        let host: HostRef = rec.clone();
+        let sent = |rec: &Recorder| rec.0.lock().unwrap().drain(..).map(|(n, v)| (n, v["symbol"].as_str().unwrap().to_string(), v["time"].as_f64(), v["close"].as_f64())).collect::<Vec<_>>();
+        let mut p = Pending::new(&host);
+        for c in [2.0, 3.0, 4.0] {
+            p.minute(minute("A", 60.0, c));
+        }
+        p.minute(minute("B", 60.0, 9.0));
+        assert!(sent(&rec).is_empty());
+        p.flush();
+        let mut out = sent(&rec);
+        out.sort_by(|a, b| a.1.cmp(&b.1));
+        assert_eq!(out, vec![("chart-aggregate", "A".into(), Some(60.0), Some(4.0)), ("chart-aggregate", "B".into(), Some(60.0), Some(9.0))]);
+        // a new bar sends the one it follows at once
+        p.minute(minute("A", 60.0, 5.0));
+        p.minute(minute("A", 120.0, 6.0));
+        assert_eq!(sent(&rec), vec![("chart-aggregate", "A".into(), Some(60.0), Some(5.0))]);
+        p.flush();
+        assert_eq!(sent(&rec), vec![("chart-aggregate", "A".into(), Some(120.0), Some(6.0))]);
+        assert!(p.is_empty());
+    }
+
+    #[test]
+    fn pending_sends_trades_every_trade_flush() {
+        let rec = std::sync::Arc::new(Recorder(Default::default()));
+        let host: HostRef = rec.clone();
+        let trade = |price: f64| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: None };
+        let mut p = Pending::new(&host);
+        p.trade(trade(1.0));
+        p.trade(trade(2.0));
+        p.flush();
+        assert!(rec.0.lock().unwrap().is_empty());
+        // the trade interval is over
+        p.trades_sent = Instant::now() - TRADE_FLUSH;
+        p.flush();
+        let out: Vec<_> = rec.0.lock().unwrap().drain(..).map(|(n, v)| (n, v["price"].as_f64())).collect();
+        assert_eq!(out, vec![("trade-tick", Some(2.0))]);
+        // the session ends: what is left is sent
+        p.trade(trade(3.0));
+        drop(p);
+        assert_eq!(rec.0.lock().unwrap().len(), 1);
     }
 }
