@@ -45,7 +45,7 @@ import { ChartControlBar } from "./ChartControlBar";
 import { ZOOM_FACTOR } from "./control-bar";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { appearanceFrom } from "../header/chart-settings";
+import { appearanceFrom, uiTheme } from "../header/chart-settings";
 import { clearActiveChartProbe, setActiveChartProbe } from "./active-chart";
 import { CompareSettingsDialog } from "./compare/CompareSettingsDialog";
 import {
@@ -144,7 +144,14 @@ export function ChartView(props: ChartViewProps) {
   // helpers (createChart, rebuildSeries, the data-apply effect) read the live
   // value but only the dedicated theme/appearance effect below re-runs when the
   // pane's settings change (otherwise a commit would re-frame the chart).
-  const currentTokens = () => readChartTokens(untrack(appearance));
+  // Read once per appearance and theme: reading the CSS variables made every live tick recalculate styles (#249).
+  let tokens: { appearance: unknown; theme: string; value: ReturnType<typeof readChartTokens> } | null = null;
+  const currentTokens = () => {
+    const a = untrack(appearance);
+    const theme = uiTheme();
+    if (tokens?.appearance !== a || tokens.theme !== theme) tokens = { appearance: a, theme, value: readChartTokens(a) };
+    return tokens.value;
+  };
   // Unique id for the layout-sync bus (crosshair / time / date-range mirroring).
   const paneId = ++paneSyncSeq;
   // Shared context of this view's parts (view/*.ts): live accessors of the
@@ -956,7 +963,7 @@ export function ChartView(props: ChartViewProps) {
       handleScale: { mouseWheel: false },
     });
     lockViews = new CrosshairLockViews(chart, () => {
-      const t = readChartTokens(untrack(appearance));
+      const t = currentTokens();
       return {
         color: t.crosshairColor,
         width: Math.max(1, Math.min(4, t.crosshairWidth)),

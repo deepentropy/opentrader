@@ -50,7 +50,7 @@ import { sessionFutureSlots } from './future-slots';
 import { applyStyleOverrides, type StyleEntry } from './style-outputs';
 import { isLibraryEntry } from './registry';
 import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
-import { ACCESSORS, applyDelta, callKey, type StudyCall, type StudyJob } from './study-worker-types';
+import { ACCESSORS, applyDelta, callKey, jobChanges, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -152,6 +152,8 @@ type OffThreadRun = {
   liveAfter: number;
   /** Timer that starts the queued live update at `liveAfter`. */
   liveTimer: ReturnType<typeof setTimeout> | null;
+  /** What the worker holds for the study: the next job sends the changes only (#255). */
+  sent: SentState;
 };
 /**
  * After a calculation of `ms`, the next live update of the study waits LIVE_PAUSE_FACTOR × ms (at most
@@ -161,19 +163,28 @@ type OffThreadRun = {
  */
 const LIVE_PAUSE_FACTOR = 3;
 const LIVE_PAUSE_MAX_MS = 3000;
-type StudyWork = Omit<StudyJob, 'id' | 'kind'>;
+/** A job before it is sent: the whole bars and accessor values (runOffThread sends what changed). */
+type StudyWork = Omit<StudyJob, 'id' | 'kind' | 'prev' | 'barsFrom' | 'data'> & { data: Record<string, unknown> };
+
+/** The last signature of a list of bars, kept while its length and its first and last bar objects are the same (a
+ *  live update replaces the last bar, a history load the list): every study calculating on a tick read it again. */
+const barsSignatures = new WeakMap<object, { n: number; first: unknown; last: unknown; sig: string }>();
 
 /** Change detector of bars: more history, a live update of the last bar, prices adjusted again (a checksum over
- *  every bar, a few microseconds on long histories). */
+ *  every bar). */
 function barsSignature(bars: ArrayLike<Bar>): string {
   const first = bars[0];
   const last = bars[bars.length - 1];
+  const kept = barsSignatures.get(bars);
+  if (kept && kept.n === bars.length && kept.first === first && kept.last === last) return kept.sig;
   let sum = 0;
   for (let i = 0; i < bars.length; i++) {
     const b = bars[i];
     sum += ((i % 13) + 1) * (b.open + 2 * b.high + 3 * b.low + 5 * b.close) + ((i % 7) + 1) * (b.volume ?? 0);
   }
-  return `${bars.length}:${first?.time}:${last?.time}:${last?.open}:${last?.high}:${last?.low}:${last?.close}:${last?.volume}:${sum}`;
+  const sig = `${bars.length}:${first?.time}:${last?.time}:${last?.open}:${last?.high}:${last?.low}:${last?.close}:${last?.volume}:${sum}`;
+  barsSignatures.set(bars, { n: bars.length, first, last, sig });
+  return sig;
 }
 
 /** Checksum of values (NaN counted apart). */
@@ -556,7 +567,7 @@ export class IndicatorLayer {
 
   // ── Off the window's thread (study-calc.ts) ───────────────────────────
   /** Run state of the worker calculations (library studies). */
-  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], version: null, raw: null, slot: undefined, liveAfter: 0, liveTimer: null };
+  private off: OffThreadRun = { key: null, result: null, error: null, series: '', running: false, queued: null, calls: [], version: null, raw: null, slot: undefined, liveAfter: 0, liveTimer: null, sent: { stateId: null, bars: null, data: new Map() } };
   /** The worker's result the last calculation gave (null: not a worker result), and the one drawn. */
   private workerResult: unknown = null;
   private drawnWorkerResult: unknown = null;
@@ -632,16 +643,22 @@ export class IndicatorLayer {
     return off.error ? { error: off.error } : { result: off.result };
   }
 
+  /**
+   * Send a job: the bars and accessor values whole the first time, then only what changed since the job before (the
+   * worker holds the rest): a live update sends the forming bar and the new ones (#255). The worker sends the changes
+   * from the result held here (`base`) when it has it.
+   */
   private runOffThread(job: StudyWork, key: string, series: string, live: boolean): void {
     const off = this.off;
     off.running = true;
-    // Snapshot: the chart's bars change in place on live updates. The worker sends the changes from the result held
-    // here (`base`) when it has it.
-    const sent = { ...job, bars: job.bars.slice(), base: off.version };
+    const sent = { ...job, ...jobChanges(off.sent, job.bars, job.data, valueSignature), base: off.version };
     void calculateInWorker(sent, off.slot).then(({ reply, slot }) => {
       if (this.off !== off) return;
       off.running = false;
       off.slot = slot;
+      // The worker holds this job's state now, unless it did not take it: the next job sends everything again.
+      if (reply.retry) { off.sent.stateId = null; off.version = null; off.raw = null; }
+      else off.sent.stateId = reply.id;
       if (reply.base != null) {
         reply.result = reply.base === off.version && off.raw !== null ? applyDelta(reply.result, off.raw) : undefined;
         // The result it changed is not the one held here: ask again for a whole one.
