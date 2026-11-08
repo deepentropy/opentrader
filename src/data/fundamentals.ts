@@ -17,7 +17,7 @@ const memo = new Map<string, Promise<Fundamentals | null>>();
 
 /** True for the symbols that have company fundamentals (not economic series). */
 export function hasFundamentals(symbol: string): boolean {
-  return !/^ECONOMICS:/i.test(symbol.trim());
+  return !/^(ECONOMICS|LOCAL):/i.test(symbol.trim());
 }
 
 /** Fundamentals of `symbol`, or null when the company has none (or they cannot be read). */

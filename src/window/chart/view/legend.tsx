@@ -23,7 +23,7 @@ import { FlagColorPopup } from "../FlagColorPopup";
 import { ChartSyncMenu, SYNC_GROUPS } from "../ChartSyncMenu";
 import { FLAG_HEX } from "../../../data/watchlist";
 import { type PriceSource } from "../../header/chart-settings";
-import { intervalLabel, isEconomicSymbol, splitSymbol } from "../../../data/datafeed";
+import { intervalLabel, isEconomicSymbol, isLocalSymbol, splitSymbol } from "../../../data/datafeed";
 import { flagUrl } from "../../../data/country-flags";
 import { CHART_TYPE_ICON, isTransformType, transformBarsOf } from "../chart-types";
 import { ChartLegend } from "../ChartLegend";
@@ -200,10 +200,10 @@ export function createLegend(cx: ChartCx): LegendApi {
             showBarChange={appearance().legendBarChange}
             showVolume={appearance().legendVolume}
             showLastDayChange={appearance().legendLastDayChange}
-            marketStatus={isEconomicSymbol(props.symbol) ? undefined : cx.marketSession()}
+            marketStatus={isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol) ? undefined : cx.marketSession()}
             showOpenStatus={appearance().legendMarketStatus ?? true}
             replayStatus={cx.replayStatus()}
-            statusSymbol={isEconomicSymbol(props.symbol) ? undefined : props.symbol}
+            statusSymbol={isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol) ? undefined : props.symbol}
             hideChangeValues={(props.chartType ?? "candle") === "hilo" || (props.chartType ?? "candle") === "svp"}
             seriesHidden={!!props.seriesHidden}
             onToggleSeries={props.onToggleSeries}

@@ -9,6 +9,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Candle, History } from "../bindings";
 import { retryTransient } from "./connection";
+import { isLocalSymbol, localSnapshot, localTickerInfo } from "./local-series";
 
 /** Fetch `mult`-second OHLC bars for `symbol` over the trailing `days`.
  *  Throws on backend error (the caller wraps in try/catch). */
@@ -115,6 +116,7 @@ const infoCache = new Map<string, { at: number; p: Promise<TickerInfo> }>();
 /** Reference data of `symbol`; a server that cannot be reached is tried again
  *  until it answers (see ./connection). */
 export function getTickerInfo(symbol: string): Promise<TickerInfo> {
+  if (isLocalSymbol(symbol)) return localTickerInfo(symbol);
   const hit = infoCache.get(symbol);
   if (hit && Date.now() - hit.at < INFO_TTL_MS) return hit.p;
   const p = retryTransient(() => invoke<TickerInfo>("get_ticker_info", { symbol }));
@@ -130,6 +132,7 @@ export function getTickerInfo(symbol: string): Promise<TickerInfo> {
 /** Latest quote of `symbol`; a server that cannot be reached is tried again
  *  while `wanted()` holds (see ./connection). */
 export function getTickerSnapshot(symbol: string, wanted?: () => boolean): Promise<Snapshot> {
+  if (isLocalSymbol(symbol)) return localSnapshot(symbol) as Promise<Snapshot>;
   return retryTransient(() => invoke<Snapshot>("get_ticker_snapshot", { symbol }), wanted);
 }
 
@@ -151,6 +154,7 @@ const newsCache = new Map<string, { at: number; p: Promise<NewsItem[]> }>();
 
 /** Newest `limit` headlines tagged with `symbol`; `[]` on backend failure. */
 export function getLatestNews(symbol: string, limit = 1): Promise<NewsItem[]> {
+  if (isLocalSymbol(symbol)) return Promise.resolve([]);
   const key = `${symbol}|${limit}`;
   const hit = newsCache.get(key);
   if (hit && Date.now() - hit.at < NEWS_SHARE_MS) return hit.p;

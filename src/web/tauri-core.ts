@@ -6,6 +6,7 @@
  */
 import { call } from "./server";
 import { readImage, saveImage } from "./images";
+import { localSeriesCommands } from "./local-series";
 
 // By path: the package name is aliased to this file.
 export * from "../../node_modules/@tauri-apps/api/core.js";
@@ -24,6 +25,8 @@ const LOCAL: Record<string, (args: Args) => Promise<unknown>> = {
   },
   save_drawing_image: (a) => saveImage(String(a.dataBase64 ?? ""), String(a.ext ?? "")),
   read_drawing_image: (a) => readImage(String(a.name ?? "")),
+  // Imported series: kept in the browser for the session.
+  ...localSeriesCommands,
 };
 
 export async function invoke<T>(cmd: string, args: Args = {}): Promise<T> {

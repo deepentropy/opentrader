@@ -1,0 +1,67 @@
+/* ─── Import CSV dialog (imported series, #266) ─── */
+.ot-dlg.ls-import {
+  width: 620px;
+}
+.ls-import .tj-form {
+  grid-template-columns: 210px 1fr;
+}
+.ls-import-symbol {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ls-import-symbol .tj-input {
+  flex: 1;
+}
+.ls-import-summary {
+  margin-top: 8px;
+  color: var(--color-text-secondary);
+}
+
+/* ─── Symbol search, Local tab ─── */
+.symbol-search-local-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.symbol-search-import {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.symbol-search-import:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.06));
+}
+.symbol-search-local-actions {
+  display: flex;
+  gap: 2px;
+  visibility: hidden;
+}
+.symbol-search-row:hover .symbol-search-local-actions,
+.symbol-search-row.is-highlighted .symbol-search-local-actions {
+  visibility: visible;
+}
+.symbol-search-local-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.symbol-search-local-action:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.06));
+  color: var(--color-text-primary);
+}
+.symbol-search-list.is-local:not(.is-compare) {
+  grid-template-columns: max-content minmax(0, 1fr) auto auto;
+}

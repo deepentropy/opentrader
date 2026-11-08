@@ -53,6 +53,7 @@ import {
   DAILY_ONLY_MESSAGE,
   intervalLabel,
   isEconomicSymbol,
+  isLocalSymbol,
   isSupportedResolution,
   symbolServesResolution,
   isIntradayInterval,
@@ -62,6 +63,7 @@ import {
   type BarsResult,
   type SessionId,
 } from "../../data/datafeed";
+import { localIntervalMessage } from "../../data/local-series";
 import { type Candle } from "../../bindings";
 import { createSeriesForType, isTransformType, setDataForType, transformBarsOf, type AnySeries, type ChartTypeId, type OHLC } from "./chart-types";
 import { type LegendValues } from "./ChartLegend";
@@ -583,7 +585,7 @@ export function ChartView(props: ChartViewProps) {
    *  types draw what it built as projection bars. */
   function lastBarForming(): boolean {
     const last = raw.length > 0 ? raw[raw.length - 1] : null;
-    if (!last || typeof last.time !== "number" || isEconomicSymbol(props.symbol)) return false;
+    if (!last || typeof last.time !== "number" || isEconomicSymbol(props.symbol) || isLocalSymbol(props.symbol)) return false;
     const sessions = cachedSymbolSessions(props.symbol ?? "");
     return countdownText(props.interval ?? "1D", Date.now() / 1000, last.time as number, props.session ?? "RTH", sessions) != null;
   }
@@ -1547,7 +1549,7 @@ export function ChartView(props: ChartViewProps) {
               <path fill="currentColor" fill-rule="evenodd" d={INTERVAL_UNSUPPORTED_ICON} />
             </svg>
             <strong class="ot-interval-unsupported__title">Interval is not supported</strong>
-            <div class="ot-interval-unsupported__text">{DAILY_ONLY_MESSAGE}</div>
+            <div class="ot-interval-unsupported__text">{isLocalSymbol(props.symbol) ? localIntervalMessage(props.symbol!) : DAILY_ONLY_MESSAGE}</div>
             <button type="button" class="ot-interval-unsupported__button" onClick={() => props.onSetInterval?.("1D")}>
               Switch to a D
             </button>

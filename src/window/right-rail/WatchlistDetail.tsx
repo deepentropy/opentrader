@@ -26,7 +26,8 @@ import { computeYearRange, type YearRange } from "./ticker-stats";
 import * as kv from "../../data/kv";
 import { onAppEvent } from "../../data/app-events";
 import { marketSession as marketSessionOf, type MarketSession } from "../../data/market-session";
-import { isEconomicSymbol } from "../../data/datafeed";
+import { isEconomicSymbol, isLocalSymbol } from "../../data/datafeed";
+import { cachedSymbolSessions } from "../../data/session";
 import { abbreviatedPrice } from "../chart/price-format";
 
 const DASH = "—";
@@ -273,10 +274,18 @@ export function WatchlistDetail(props: Props) {
   const i = () => quote()?.info ?? null;
   // An economic series (reference): name, source agency and "Economy", its value and change abbreviated (no
   // percentage), no session, ranges, stats or profile.
-  const econ = () => isEconomicSymbol(full());
-  const econValue = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? DASH : abbreviatedPrice(n, fmtPrice));
-  const econChange = (n: number | null | undefined) =>
-    n == null || !Number.isFinite(n) ? DASH : n > 0 ? `+${abbreviatedPrice(n, fmtPrice)}` : abbreviatedPrice(n, fmtSignedPrice);
+  // An imported series (data/local-series) shows the same, with "Imported", its prices on its own grid and the
+  // percentage.
+  const local = () => isLocalSymbol(full());
+  const econ = () => isEconomicSymbol(full()) || local();
+  const localPrice = (n: number) => cachedSymbolSessions(full() ?? "")?.formatPrice(n) ?? fmtPrice(n);
+  const econValue = (n: number | null | undefined) =>
+    n == null || !Number.isFinite(n) ? DASH : local() ? localPrice(n) : abbreviatedPrice(n, fmtPrice);
+  const econChange = (n: number | null | undefined) => {
+    if (n == null || !Number.isFinite(n)) return DASH;
+    if (local()) return `${n > 0 ? "+" : n < 0 ? "−" : ""}${localPrice(Math.abs(n))}`;
+    return n > 0 ? `+${abbreviatedPrice(n, fmtPrice)}` : abbreviatedPrice(n, fmtSignedPrice);
+  };
   const s = () => quote()?.snap ?? null;
   const y = () => yr() ?? null;
 
@@ -471,12 +480,15 @@ export function WatchlistDetail(props: Props) {
             <span class="watchlist-detail-exchange">{i()?.exchange ?? DASH}</span>
           </div>
           <div class="watchlist-detail-row watchlist-detail-tags">
-            <span class="watchlist-detail-link watchlist-detail-link--disabled">Economy</span>
+            <span class="watchlist-detail-link watchlist-detail-link--disabled">{local() ? "Imported" : "Economy"}</span>
           </div>
           <div class="watchlist-detail-price-row">
             <span class="watchlist-detail-price">{econValue(s()?.last)}</span>
             <span class="watchlist-detail-currency">{i()?.currency ?? ""}</span>
             <span class={`watchlist-detail-change${changeSign()}`}>{econChange(s()?.change)}</span>
+            <Show when={local()}>
+              <span class={`watchlist-detail-change${changeSign()}`}>{fmtSignedPercent(s()?.changePercent)}</span>
+            </Show>
           </div>
           <Show when={note().trim()}>
             <div class="watchlist-detail-note" onClick={() => setOpenPanel("note")}>{note()}</div>

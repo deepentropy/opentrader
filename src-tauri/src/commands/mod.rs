@@ -3,6 +3,7 @@ pub mod events;
 pub mod funding;
 pub mod history;
 pub mod images;
+pub mod local_series;
 pub mod meta;
 pub mod realtime;
 pub mod screener;

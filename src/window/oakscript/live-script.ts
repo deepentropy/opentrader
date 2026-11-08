@@ -7,6 +7,7 @@ import { createScriptRun, type ChartContext, type ScriptRun } from "oakscriptjs/
 import type { KeptRuns, LiveReply, LiveRequest } from "../../backtester/live-runs";
 import { scriptBars, withChartTimes } from "../../backtester/oakscript";
 import type { Bar } from "../../backtester/types";
+import { seedSymbol } from "../../data/symbol-name";
 import type { OakBar, OakSourceData, OakSymbolData } from "./engine-types";
 
 export type UserModule = Record<string, unknown> & {
@@ -94,7 +95,7 @@ export function updateLiveScript(kept: KeptRuns<LiveScript>, entry: Compiled, re
   const live = same ? prev.run : newLiveScript(entry, inputs, inputsKey);
   live.sources = req.sources;
   live.symbols = req.symbols;
-  const chart: ChartContext = req.symbols ? { ...req.chart, bars: live.barsOf, symbolInfo: live.infoOf } : (req.chart ?? {});
+  const chart: ChartContext = req.symbols ? { ...req.chart, bars: live.barsOf, symbolInfo: live.infoOf, seedSymbol } : { ...req.chart, seedSymbol };
   // Daily bars at the session open, as scripts read them: only the changed bars are restamped again.
   let seen = got.bars;
   if (req.restamp) {

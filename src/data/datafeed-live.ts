@@ -15,6 +15,7 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { isLocalSymbol } from "./local-series";
 
 export type ChartAggregate = {
   symbol: string;
@@ -77,7 +78,8 @@ export type TradeTick = {
  *  it "<window>:<pane>"), so multi-pane layouts each hold their own symbol
  *  instead of overwriting a single global slot. */
 export async function setChartSubscription(symbol: string | null, pane = "0"): Promise<void> {
-  await invoke("set_chart_subscription", { pane, symbol });
+  // An imported series has no live data.
+  await invoke("set_chart_subscription", { pane, symbol: isLocalSymbol(symbol) ? null : symbol });
 }
 
 /** Replace THIS WINDOW's watchlist subscription with this exact set. Several
@@ -85,7 +87,7 @@ export async function setChartSubscription(symbol: string | null, pane = "0"): P
  *  tab titles — see data/subscriptions.ts); the backend merges the per-window
  *  sets, so another window's union can't clobber this one. */
 export async function setWatchlistSubscription(symbols: string[]): Promise<void> {
-  await invoke("set_watchlist_subscription", { symbols });
+  await invoke("set_watchlist_subscription", { symbols: symbols.filter((s) => !isLocalSymbol(s)) });
 }
 
 export function onChartAggregate(

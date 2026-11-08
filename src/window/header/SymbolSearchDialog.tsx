@@ -21,6 +21,9 @@ import {
   type SymbolCategoryId,
 } from "../../data/symbol-search";
 import { ECONOMIC_CATEGORIES, economicSources, getTickerInfo, searchEconomic, searchSymbols } from "../../data/datafeed";
+import { deleteLocalSeries, LOCAL_EXCHANGE, localSeriesList, localSymbol, renameLocalSeries } from "../../data/local-series";
+import { ImportSeriesHost, pickSeriesFiles } from "./ImportSeriesDialog";
+import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
 import { recentSymbols } from "../../data/recent-symbols";
 import { countryOfExchange, flagUrl } from "../../data/country-flags";
 import type { SymbolSearchResult } from "../../bindings";
@@ -160,6 +163,28 @@ function economyRows(results: SymbolSearchResult[], query: string): FilteredRow[
     const d = q ? row.description.toUpperCase().indexOf(q) : -1;
     return { ...row, titleHighlight: t >= 0 ? [t, t + q.length] : null, descriptionHighlight: d >= 0 ? [d, d + q.length] : null };
   });
+}
+
+/** Local tab: the imported series matching the query (name or description). */
+function localRows(query: string): FilteredRow[] {
+  const q = query.trim().toUpperCase();
+  const rows: FilteredRow[] = [];
+  for (const s of localSeriesList()) {
+    const t = q ? s.name.indexOf(q) : -1;
+    const d = q ? s.description.toUpperCase().indexOf(q) : -1;
+    if (q && t < 0 && d < 0) continue;
+    rows.push({
+      symbolName: localSymbol(s.name),
+      ticker: s.name,
+      description: s.description,
+      marketType: "",
+      exchange: LOCAL_EXCHANGE,
+      category: "local",
+      titleHighlight: t >= 0 ? [t, t + q.length] : null,
+      descriptionHighlight: d >= 0 ? [d, d + q.length] : null,
+    });
+  }
+  return rows;
 }
 
 // Economy tab filters, kept for the app session (null = all).
@@ -407,13 +432,16 @@ export function SymbolSearchDialog(props: Props) {
       const country = econCountry();
       return economyRows(country ? econ.filter((r) => (r.locale ?? "").toUpperCase() === country) : econ, q);
     }
+    if (cat === "local") return localRows(q);
     const type = activeType();
     const raw = liveRaw();
+    // All tab: the imported series that match come first.
+    const local = cat === "all" && q.length > 0 ? localRows(q) : [];
     if (!HAS_TAURI || q.length < 1 || raw == null) {
       const base = filterSymbols(cat, q);
-      return q.length < 1 && cat === "all" ? [...historyRows(), ...base] : base;
+      return q.length < 1 && cat === "all" ? [...historyRows(), ...base] : [...local, ...base];
     }
-    return liveResultsToRows(raw, type ? "all" : cat, q);
+    return [...local, ...liveResultsToRows(raw, type ? "all" : cat, q)];
   });
 
   // Empty state of a tab other than All (reference app): "<query> not found in
@@ -509,6 +537,34 @@ export function SymbolSearchDialog(props: Props) {
     setQuery("");
     input.value = "";
     input.focus();
+  }
+
+  /** Local tab: rename an imported series (its charts keep the old symbol). */
+  function renameSeries(name: string) {
+    showRename({
+      title: "Rename series",
+      label: "Symbol name",
+      maxLength: 42,
+      // No list of names: a taken name is refused (renameLocalSeries), not replaced.
+      names: [],
+      replaceText: (n) => n,
+      initialValue: name,
+      onSave: (to) => {
+        renameLocalSeries(name, to).catch((e) => showNotice({ title: "Rename series", text: e instanceof Error ? e.message : String(e) }));
+      },
+    });
+  }
+
+  function removeSeries(name: string) {
+    showConfirm({
+      title: "Remove series",
+      text: `Do you really want to remove ${localSymbol(name)}? Its bars are deleted.`,
+      mainText: "Remove",
+      intent: "danger",
+      onConfirm: () => {
+        deleteLocalSeries(name).catch((e) => showNotice({ title: "Remove series", text: e instanceof Error ? e.message : String(e) }));
+      },
+    });
   }
 
   function commit(row: FilteredRow | undefined, shift = false) {
@@ -812,6 +868,15 @@ export function SymbolSearchDialog(props: Props) {
             </div>
           </Show>
 
+          {/* Local tab: import CSV files of bars. */}
+          <Show when={!props.compare && category() === "local"}>
+            <div class="symbol-search-filters symbol-search-local-bar">
+              <button type="button" class="symbol-search-import" data-name="import-csv" onClick={pickSeriesFiles}>
+                Import CSV…
+              </button>
+            </div>
+          </Show>
+
           {/* Economy tab: Countries (its own panel), Sources and Categories filters. */}
           <Show when={economy()}>
             <div class="symbol-search-filters">
@@ -905,7 +970,11 @@ export function SymbolSearchDialog(props: Props) {
             >
               <div
                 class="symbol-search-list"
-                classList={{ "is-watchlist": !!props.watchlist && !multiMode(), "has-list-actions": anyInList() }}
+                classList={{
+                  "is-watchlist": !!props.watchlist && !multiMode(),
+                  "has-list-actions": anyInList(),
+                  "is-local": category() === "local" && !props.watchlist && !multiMode(),
+                }}
                 role="listbox"
                 ref={listEl}
               >
@@ -1000,6 +1069,40 @@ export function SymbolSearchDialog(props: Props) {
                           </Show>
                         </div>
 
+                        <Show when={category() === "local" && !props.watchlist && !multiMode()}>
+                          <div class="symbol-search-cell symbol-search-actions-cell">
+                            <span class="symbol-search-local-actions">
+                              <button
+                                type="button"
+                                class="symbol-search-local-action"
+                                title="Rename"
+                                aria-label="Rename"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  renameSeries(row.ticker);
+                                }}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                                  <path fill="none" stroke="currentColor" d="M11.5 3.5l3 3-8 8H3.5v-3l8-8zM10 5l3 3" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                class="symbol-search-local-action"
+                                title="Remove"
+                                aria-label="Remove"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeSeries(row.ticker);
+                                }}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+                                  <path fill="none" stroke="currentColor" d="M3 5h12M7 5V3.5h4V5M5 5l.7 9.5h6.6L13 5M7.5 7.5v5M10.5 7.5v5" />
+                                </svg>
+                              </button>
+                            </span>
+                          </div>
+                        </Show>
                         <Show when={!multiMode() && props.watchlist}>
                           {(wl) => (
                             <div class="symbol-search-cell symbol-search-actions-cell">
@@ -1061,7 +1164,13 @@ export function SymbolSearchDialog(props: Props) {
               <Show when={!props.compare}>
                 <div class="symbol-search-footer">
                   {/* Economy: the notice the economic data source's terms require. */}
-                  {category() === "economy" ? ECONOMIC_DATA_NOTICE : "Search using ISIN and CUSIP codes"}
+                  {category() === "economy"
+                    ? ECONOMIC_DATA_NOTICE
+                    : category() === "local"
+                      ? import.meta.env.MODE === "web"
+                        ? "Imported series are kept in this browser tab until it closes"
+                        : "Imported series are kept on this computer"
+                      : "Search using ISIN and CUSIP codes"}
                 </div>
               </Show>
             }
@@ -1157,6 +1266,8 @@ export function SymbolSearchDialog(props: Props) {
           </Show>
         </div>
       </div>
+      {/* Local tab: the Import CSV dialog of the picked files. */}
+      <ImportSeriesHost />
     </Portal>
   );
 }

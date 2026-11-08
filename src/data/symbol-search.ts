@@ -12,7 +12,7 @@ export type SymbolType =
 
 export type SymbolCategoryId =
   | 'all' | 'stocks' | 'funds' | 'futures' | 'forex'
-  | 'crypto' | 'indices' | 'bonds' | 'economy' | 'options';
+  | 'crypto' | 'indices' | 'bonds' | 'economy' | 'options' | 'local';
 
 export type SymbolRow = {
   /** "NASDAQ:INTC" — full symbol passed to the chart. */
@@ -54,6 +54,8 @@ export const CATEGORIES: { id: SymbolCategoryId; label: string }[] = [
   { id: 'bonds',    label: 'Bonds' },
   { id: 'economy',  label: 'Economy' },
   { id: 'options',  label: 'Options' },
+  // Imported CSV series (data/local-series).
+  { id: 'local',    label: 'Local' },
 ];
 
 /**

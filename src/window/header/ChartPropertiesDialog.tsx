@@ -46,7 +46,7 @@ import { TransparencySlider } from "../drawings/ImageDialog";
 import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
-import { isEconomicSymbol } from "../../data/datafeed";
+import { isEconomicSymbol, isLocalSymbol } from "../../data/datafeed";
 import { symbolDetails } from "../chart/indicators/script-chart";
 import { tradingPrefs } from "../../data/trading/trading-prefs";
 import { FeatureCardIcon } from "./FeatureCard";
@@ -55,7 +55,7 @@ import { FeatureCardIcon } from "./FeatureCard";
  *  type is not known yet. */
 const EVENT_SYMBOL_TYPES = new Set(["stock", "fund", "dr"]);
 function hasSymbolEvents(symbol: string): boolean {
-  if (isEconomicSymbol(symbol)) return false;
+  if (isEconomicSymbol(symbol) || isLocalSymbol(symbol)) return false;
   const t = symbol ? symbolDetails(symbol)?.symbolType : undefined;
   return !t || EVENT_SYMBOL_TYPES.has(t);
 }

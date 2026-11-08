@@ -21,7 +21,7 @@ import {
   setReplayActivePane,
   type ReplayUnavailable,
 } from "../../../data/replay";
-import { DAILY_ARCHIVE_START, getBars, getBarsBefore, isEconomicSymbol, isIntradayResolution, isSecondResolution, isSupportedResolution } from "../../../data/datafeed";
+import { DAILY_ARCHIVE_START, getBars, getBarsBefore, isEconomicSymbol, isLocalSymbol, isIntradayResolution, isSecondResolution, isSupportedResolution } from "../../../data/datafeed";
 import { utcToWall, wallTimeToUtc } from "../day-key";
 import { cachedSymbolSessions } from "../../../data/session";
 import { providerCapabilities } from "../../../data/providers/capabilities";
@@ -119,6 +119,8 @@ export function createReplay(cx: ChartCx): ReplayApi {
 
   /** Earliest time the data plan serves an interval at. */
   const depthOf = (id: string): number => {
+    // An imported series: its file is the whole depth.
+    if (isLocalSymbol(cx.fullSymbol())) return 0;
     const floor = providerCapabilities()?.entitlements?.historyFloor;
     if (/^\d+[DWM]$/.test(id)) return isoDay(DAILY_ARCHIVE_START);
     if (/S$/.test(id)) return isoDay(floor?.second);

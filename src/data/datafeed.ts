@@ -39,6 +39,7 @@ import { providerCapabilities, providerServes } from "./providers/capabilities";
 import { getFundamentals, hasFundamentals, isoDaySec } from "./fundamentals";
 import { localDay, localToUtc, symbolSessions, cachedSymbolSessions, type SessionId, type SessionSpec } from "./session";
 import { aggregateCandles, periodStart, type AggregatePeriod } from "../window/chart/chart-aggregate";
+import { isLocalSymbol, localBarsBefore, localDailyBars, localIntradayBars, localServesResolution } from "./local-series";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 // Re-export so consumers have one import surface for the daily-aggregation
@@ -60,6 +61,7 @@ export type { TradeTick } from "./datafeed-live";
 export { getTickerInfo, getTickerSnapshot } from "./datafeed-rest";
 export type { TickerInfo, Snapshot } from "./datafeed-rest";
 export type { SymbolSearchResult } from "../bindings";
+export { isLocalSymbol } from "./local-series";
 
 // ── Resolution map ────────────────────────────────────────────────────────
 // The canonical routing table: an interval id → which source serves it and
@@ -205,6 +207,8 @@ export const DAILY_ONLY_MESSAGE = "Intervals less than D are not supported for t
 /** Whether `symbol` has bars on `resolution`: a served interval, daily or
  *  coarser for an economic series. */
 export function symbolServesResolution(symbol: string | null | undefined, resolution: string): boolean {
+  // An imported series: the intervals its file's bars build (../local-series).
+  if (isLocalSymbol(symbol)) return localServesResolution(symbol!, resolution);
   if (!isSupportedResolution(resolution)) return false;
   return !isEconomicSymbol(symbol) || dailyFamily(resolution) !== null;
 }
@@ -543,6 +547,7 @@ export function getBars(
 }
 
 async function getBarsOnce(symbol: string, resolution: string, session: SessionId): Promise<BarsResult> {
+  if (isLocalSymbol(symbol)) return localBars(symbol, resolution);
   // Guard the catch-all daily branch below: an unservable resolution (tick,
   // range, too large a multiplier) must error here rather than silently
   // resolve to daily bars. The picker gates on the same set, so this is a
@@ -582,6 +587,15 @@ async function getBarsOnce(symbol: string, resolution: string, session: SessionI
   return { bars, daily, aggregate: cfg.aggregate ?? null, partial: res.data.partial };
 }
 
+/** Bars of an imported series: the whole series at once. */
+async function localBars(symbol: string, resolution: string): Promise<BarsResult> {
+  const cfg = dailyFamily(resolution);
+  if (!cfg) return { bars: await localIntradayBars(symbol, resolution), daily: null, aggregate: null };
+  const [daily, sessions] = await Promise.all([localDailyBars(symbol), symbolSessions(symbol)]);
+  const bars = cfg.aggregate ? aggregateCandles(daily, cfg.aggregate, sessions.regular) : daily;
+  return { bars, daily, aggregate: cfg.aggregate ?? null };
+}
+
 /** Scroll-back pager: one older window of source rows ending strictly before
  *  `beforeSec` (the time, in seconds, of the chart's oldest loaded bar). For
  *  the daily family these are raw daily candles (the caller prepends to its
@@ -600,6 +614,7 @@ export async function getBarsBefore(
 ): Promise<Candle[]> {
   // An economic series is loaded whole.
   if (isEconomicSymbol(symbol)) return [];
+  if (isLocalSymbol(symbol)) return localBarsBefore(symbol, resolution, beforeSec, spanDays ?? dailyConfig(resolution).days);
   const adjusted = isAdjusted();
   const second = SECOND_INTERVALS[resolution];
   if (second) {
@@ -634,6 +649,7 @@ export function getSecondBarsTail(
 ): Promise<Candle[]> | null {
   const second = SECOND_INTERVALS[resolution];
   if (!second) return null;
+  if (isLocalSymbol(symbol)) return Promise.resolve([]);
   return Promise.all([getSecondHistoryTail(symbol, second.mult, sinceSec, isAdjusted()), symbolSessions(symbol)]).then(
     ([rows, sessions]) => inSession(rows, sessions.spec(session)),
   );

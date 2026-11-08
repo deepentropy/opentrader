@@ -85,7 +85,8 @@ describe("symbolOf / chartWithSymbols", () => {
   });
 
   it("adds accessors of the other symbols' bars keyed symbol|timeframe", () => {
-    expect(chartWithSymbols(undefined, undefined)).toEqual({});
+    // request.seed's symbol: the imported series of that name, with or without other symbols.
+    expect(chartWithSymbols(undefined, undefined).seedSymbol?.("seed_repo", "abc")).toBe("LOCAL:ABC");
     const bars: Bar[] = [{ time: 1, open: 1, high: 1, low: 1, close: 1 }];
     const ctx = chartWithSymbols({ timeframe: "1D" }, { bars: { "NASDAQ:AAPL|1D": bars }, info: {} });
     expect(ctx.timeframe).toBe("1D");

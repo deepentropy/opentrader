@@ -7,6 +7,7 @@
  */
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import { isEconomicSymbol } from "../../../data/datafeed";
+import { localSeriesMeta } from "../../../data/local-series";
 
 /** Extra metadata IndicatorLayer reads to give an overlay study a dedicated
  *  hidden price scale instead of the symbol scale. */
@@ -73,7 +74,7 @@ export const VOLUME_ENTRY: IndicatorRegistryEntry = {
   defaultInputs: { maLength: 20, colorOnPrevClose: false },
   calculate(bars, inputs, ctx?: { tickerid?: string }) {
     // An economic series has no volume: the study fails with the reference's "No volume data" status.
-    if (isEconomicSymbol(ctx?.tickerid)) throw noVolumeData();
+    if (isEconomicSymbol(ctx?.tickerid) || localSeriesMeta(ctx?.tickerid)?.hasVolume === false) throw noVolumeData();
     const maLength = Math.max(1, Number(inputs?.maLength ?? 20));
     const onPrevClose = Boolean(inputs?.colorOnPrevClose ?? false);
     const vol: { time: number; value: number | null; paletteIndex: number }[] = [];

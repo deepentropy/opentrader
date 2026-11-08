@@ -27,6 +27,7 @@
  *    extended hours the latest trade (pre- and post-market included).
  */
 import { createRoot, createEffect, createSignal, onCleanup } from "solid-js";
+import { seedSymbol } from "./symbol-name";
 import { onTradeTick, getBars, getTickerInfo, isSupportedResolution, tickerOf, type TradeTick } from "./datafeed";
 import { cachedSymbolSessions, localToUtc, symbolSessions } from "./session";
 import { periodStart } from "../window/chart/chart-aggregate";
@@ -848,6 +849,7 @@ function runStudy(
     // Bars of other symbols (request.security of another ticker): loaded on the first request, read by the next poll.
     bars: (s, tf) => alertSymbols.bars(s, tf, resolution),
     symbolInfo: (s) => alertSymbols.symbolInfo(s),
+    seedSymbol,
     // Lower-timeframe bars of the symbol (profile studies), loaded on the first request.
     lowerBars: (res: string, from: number) => alertSymbols.lowerBars(symbol, res, session as SessionId, from),
     // A user script keeps one worker run per chart + study: one per alert series here.

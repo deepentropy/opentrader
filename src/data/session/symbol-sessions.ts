@@ -14,6 +14,7 @@ import { createSignal } from "solid-js";
 import { commands, type SymbolSession } from "../../bindings";
 import { splitSymbol } from "../symbol-name";
 import { SessionSpec } from "./spec";
+import { isLocalSymbol, localSession } from "../local-series";
 
 /** Bottom-bar session choice: regular hours or the extended (whole traded)
  *  day. */
@@ -141,7 +142,11 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
   if (done) return Promise.resolve(done);
   let p = pending.get(key);
   if (!p) {
-    p = commands.getSymbolSession(`${exchange}:${ticker}`).then((r) => {
+    // An imported series has its own session (../local-series).
+    const info = isLocalSymbol(key)
+      ? localSession(key).then((data) => ({ status: "ok" as const, data }))
+      : commands.getSymbolSession(`${exchange}:${ticker}`);
+    p = info.then((r) => {
       if (r.status === "error") throw new Error(r.error);
       const s = new SymbolSessions(r.data);
       resolved.set(key, s);
@@ -152,6 +157,11 @@ export function symbolSessions(symbol: string): Promise<SymbolSessions> {
     pending.set(key, p);
   }
   return p;
+}
+
+/** Resolve `symbol`'s sessions again on next use (a re-imported series). */
+export function forgetSymbolSessions(symbol: string): void {
+  resolved.delete(keyOf(symbol).key);
 }
 
 /** Sessions of `symbol` when already resolved, else null (and the resolve is

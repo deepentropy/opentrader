@@ -18,10 +18,12 @@
  * "Wait for timeframe closes" a bar still forming is left out.
  */
 import type { Bar } from "oakscriptjs";
+import { seedSymbol } from "./symbol-name";
 import { MissingSymbolDataError } from "oakscriptjs/script";
 import type { IndicatorRegistryEntry } from "lightweight-charts-indicators";
 import { commands, type Candle } from "../bindings";
 import { getBars, isAdjusted } from "./datafeed";
+import { isLocalSymbol, localDailyBars } from "./local-series";
 import { symbolSessions } from "./session";
 import { screenerScan } from "./screener-api";
 import * as scripts from "./oakscript-store";
@@ -179,7 +181,12 @@ async function symbolBars(symbol: string, spec: ScanSpec, live: Map<string, Sess
     return { candles: bars, forming: !!last && (last.time as number) + mins * 60 > now };
   }
   const iv = spec.interval as "1D" | "1W" | "1M";
-  const [history, sessions] = await Promise.all([commands.getDailyHistory(symbol, HISTORY_DAYS[iv], isAdjusted()), symbolSessions(symbol)]);
+  const [history, sessions] = await Promise.all([
+    isLocalSymbol(symbol)
+      ? localDailyBars(symbol).then((bars) => ({ status: "ok" as const, data: { bars } }))
+      : commands.getDailyHistory(symbol, HISTORY_DAYS[iv], isAdjusted()),
+    symbolSessions(symbol),
+  ]);
   if (history.status === "error") throw new Error(history.error);
   const daily = withSession(history.data.bars, live.get(bareTicker(symbol)));
   const regular = sessions.regular;
@@ -235,6 +242,7 @@ async function runBuiltIn(spec: ScanSpec, given: Bar[], context: object, others:
     ...context,
     bars: (s: string, tf: string) => others.bars(s, tf, spec.interval),
     symbolInfo: (s: string) => others.symbolInfo(s),
+    seedSymbol,
     chartId: "script-screener",
   };
   const calculate = spec.entry.calculate as (bars: Bar[], inputs: unknown, chart: unknown) => unknown;

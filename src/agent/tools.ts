@@ -38,6 +38,7 @@ import { AgentError, type AgentTool } from "./mcp";
 import { locateSyntaxError } from "./syntax";
 import { createScreenerTools } from "./screener-tools";
 import { createJournalTools } from "./journal-tools";
+import { createSeriesTools } from "./series-tools";
 import { createWatchlistTools } from "./watchlist-tools";
 import { createAlertTools } from "./alert-tools";
 import { createCommunityTools } from "./community-tools";
@@ -659,6 +660,8 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     ...createScreenerTools(),
     // ── Trade journal ──────────────────────────────────────────────────
     ...createJournalTools(),
+    // ── Imported series ────────────────────────────────────────────────
+    ...createSeriesTools(),
     // ── Watchlists ─────────────────────────────────────────────────────
     ...createWatchlistTools(),
     // ── Alerts ─────────────────────────────────────────────────────────

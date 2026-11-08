@@ -43,6 +43,7 @@ import { Broker } from './broker';
 import { backtestReport, binIntrabars, heikinAshiBars } from './run';
 import { SessionSpec } from '../data/session/spec';
 import { localDay, localToUtc } from '../data/session/zone';
+import { seedSymbol } from '../data/symbol-name';
 import {
   DEFAULT_SYMBOL,
   type BacktestReport,
@@ -344,11 +345,13 @@ export type OtherSymbolData = {
 /** The chart context with the accessors of the other symbols' bars (a request not in `symbols` is missing: the run
  *  ends with a MissingSymbolDataError listing it). */
 export function chartWithSymbols(chart: ChartContext | undefined, symbols: OtherSymbolData | undefined): ChartContext {
-  if (!symbols) return chart ?? {};
+  // request.seed reads the imported series of its symbol name (asked for like any other symbol).
+  if (!symbols) return { ...chart, seedSymbol };
   return {
     ...chart,
     bars: (symbol, timeframe) => symbols.bars[`${symbol}|${timeframe}`],
     symbolInfo: (symbol) => symbols.info[symbol],
+    seedSymbol,
   };
 }
 
@@ -650,7 +653,7 @@ export function createStrategyRun(body: () => void, options: { verify?: number }
       const live = current;
       if (!live.run) return { ...runOakScriptStrategy(body, bars, opts), fullRunReason: live.reason };
       live.symbols = opts.symbols;
-      const chart = strategyChart(opts.symbols ? { ...opts.chart, bars: live.barsOf, symbolInfo: live.infoOf } : (opts.chart ?? {}), symbol);
+      const chart = strategyChart(opts.symbols ? { ...opts.chart, bars: live.barsOf, symbolInfo: live.infoOf, seedSymbol } : { ...opts.chart, seedSymbol }, symbol);
       const skipLast = chart.realtime === true && bars.length > 0 && !live.everyTick;
       const runChart = setPass(live.pass, bars, opts, chart, skipLast);
       const script = live.run.update(live.pass.seen, runChart);

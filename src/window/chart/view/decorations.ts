@@ -9,7 +9,7 @@ import { LineStyle } from "lightweight-charts";
 import type { IPriceLine, Logical } from "lightweight-charts";
 import { readFontFamily } from "../chart-tokens";
 import { countdownText } from "../countdown";
-import { isEconomicSymbol, isIntradayInterval, splitSymbol } from "../../../data/datafeed";
+import { isEconomicSymbol, isIntradayInterval, isLocalSymbol, splitSymbol } from "../../../data/datafeed";
 import { heikinAshiLast, isTransformType } from "../chart-types";
 import { quoteFor } from "../../../data/quotes";
 import { marketSession as marketSessionOf } from "../../../data/market-session";
@@ -339,8 +339,8 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     // The countdown shows for time-based styles only (renko, line break,
     // kagi, P&F and range bars have no bar close to count to).
     const timeBased = !isTransformType(cx.activeType);
-    // An economic series has no bar forming (one value per observation).
-    const text = last && timeBased && !isEconomicSymbol(props.symbol)
+    // An economic series has no bar forming (one value per observation), an imported one no live data.
+    const text = last && timeBased && !isEconomicSymbol(props.symbol) && !isLocalSymbol(props.symbol)
       ? countdownText(
           props.interval ?? "1D",
           Date.now() / 1000,

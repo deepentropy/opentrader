@@ -16,7 +16,7 @@
  */
 import { createRoot, createEffect, createSignal } from "solid-js";
 import { createStore } from "solid-js/store";
-import { getTickerSnapshot, isEconomicSymbol, onTradeTick, type TradeTick } from "./datafeed";
+import { getTickerSnapshot, isEconomicSymbol, isLocalSymbol, onTradeTick, type TradeTick } from "./datafeed";
 import { setSubscription } from "./subscriptions";
 import { watchlistStore } from "./watchlist-store";
 
@@ -80,10 +80,10 @@ createRoot(() => {
     const rows = a ? [...a.groups.flatMap((g) => g.rows), ...a.extras] : [];
     const symbols = [...new Set(rows.map((r) => r.ticker.toUpperCase()))];
     setSubscription("watchlist", symbols);
-    // Economic series have no live feed: their last observation, read when
-    // listed and again every half hour.
+    // Economic and imported series have no live feed: their last value, read
+    // when listed and again every half hour.
     void economicTick();
-    for (const sym of symbols) if (isEconomicSymbol(sym)) loadEconomic(sym);
+    for (const sym of symbols) if (isEconomicSymbol(sym) || isLocalSymbol(sym)) loadEconomic(sym);
   });
   setInterval(() => { economicRead.clear(); setEconomicTick((n) => n + 1); }, ECONOMIC_REFRESH_MS);
 
