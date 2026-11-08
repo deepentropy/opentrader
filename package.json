@@ -1,6 +1,6 @@
 {
   "name": "opentrader",
-  "version": "0.4.17",
+  "version": "0.4.18",
   "description": "Free, open-source desktop charting and trading app (Rust + SolidJS).",
   "private": true,
   "type": "module",
@@ -25,7 +25,7 @@
     "url": "https://github.com/deepentropy/opentrader.git"
   },
   "config": {
-    "drawingRef": "v0.6.3"
+    "drawingRef": "v0.7.0"
   },
   "overrides": {
     "lightweight-charts-indicators": {
