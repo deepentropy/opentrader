@@ -23,11 +23,6 @@ export function fmtQty(v: number | null | undefined): string {
   return Number.isInteger(v) ? String(v) : String(Number(v.toFixed(8)));
 }
 
-export function fmtMoney(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v)) return "—";
-  return money.format(v);
-}
-
 /** Signed P&L: "+12.34" / "−12.34" (true minus). */
 export function fmtPnl(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
@@ -38,12 +33,6 @@ export function fmtPnl(v: number | null | undefined): string {
 export function fmtPct(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%";
-}
-
-/** "pos" / "neg" / "" for P&L colouring. */
-export function pnlClass(v: number | null | undefined): string {
-  if (v == null || !Number.isFinite(v) || v === 0) return "";
-  return v > 0 ? "is-pos" : "is-neg";
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

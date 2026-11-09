@@ -30,7 +30,6 @@ export type ClipboardSource =
 const [clip, setClip] = createSignal<Drawing[] | null>(null);
 const [clipSource, setClipSource] = createSignal<ClipboardSource | null>(null);
 
-export const hasClipboardDrawing = (): boolean => clip() !== null;
 /** Something to paste: a drawing or a source. */
 export const hasClipboardContent = (): boolean => clip() !== null || clipSource() !== null;
 /** The copied source (a copy of it), or null. */
