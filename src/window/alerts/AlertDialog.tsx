@@ -622,7 +622,7 @@ export function AlertDialog(props: Props) {
   // In-app toast and notification schedule (reference Notifications view).
   const [toast, setToast] = createSignal(existing?.toast !== false);
   const [schedule, setSchedule] = createSignal<AlertSchedule | null>(existing?.schedule ?? null);
-  // Webhook — persisted per-rule beside the store (see alert-engine's kv map).
+  // Webhook — persisted per rule by the alert store (deleting the alert deletes it).
   const existingWebhook = existing ? alertWebhook(existing.id) : null;
   const [webhookOn, setWebhookOn] = createSignal(existingWebhook != null);
   const [webhookUrl, setWebhookUrl] = createSignal(existingWebhook ?? "");
@@ -1571,7 +1571,7 @@ export function AlertDialog(props: Props) {
                 <span class="ad-check-title">Show toast notification</span>
                 <span class="ad-check-desc">Displays an onsite notification in the page corner.</span>
               </label>
-              {/* Webhook — POSTs the fire payload as JSON (see alert-engine). */}
+              {/* Webhook — POSTs the fire payload as JSON (see data/alert-delivery). */}
               <label class="ad-check">
                 <input type="checkbox" checked={draftWebhookOn()} onChange={() => setDraftWebhookOn((v) => !v)} />
                 <span class="ad-check-title">Webhook URL</span>
