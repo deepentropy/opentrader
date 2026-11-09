@@ -104,7 +104,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (!options) return;
     // The new pane goes right below (above) the price pane.
     const order = where === "above" ? cx.controller.orderAbovePricePane(id) : cx.controller.orderBelowPricePane(id);
-    props.onEditSources?.({ studies: { [id]: { options } }, paneOrder: order }, where === "above" ? "unmerge up" : "unmerge down");
+    cx.edits.editSources({ studies: { [id]: { options } }, paneOrder: order }, where === "above" ? "unmerge up" : "unmerge down");
     cx.setPaneEpoch((n) => n + 1);
     queueMicrotask(cx.refreshPaneBoxes);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
@@ -329,7 +329,7 @@ export function createSources(cx: ChartCx): SourcesApi {
   /** Save a study's new pane (options, stacking order) as one undo step named `label`: the chart draws it there
    *  from the pane; then the panes are measured again. */
   function studyPaneChanged(id: string, options: IndicatorOptions, order: string[], label: string) {
-    props.onEditSources?.({ studies: { [id]: { options } }, paneOrder: order }, label);
+    cx.edits.editSources({ studies: { [id]: { options } }, paneOrder: order }, label);
     panesChanged();
   }
   /** The panes changed: their controls and the legend follow. */
@@ -361,7 +361,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (pane === null || pane === last) return false;
     const mates = cx.controller.studiesInPane(pane);
     const order = [...cx.controller.stackedOrder().filter((x) => !mates.includes(x)), ...mates];
-    props.onEditSources?.({ paneOrder: order }, "move pane down");
+    cx.edits.editSources({ paneOrder: order }, "move pane down");
     panesChanged();
     return true;
   }
@@ -381,7 +381,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     const c = cx.controller;
     if (!c) return;
     for (const id of move.ids) {
-      props.onIndicatorSettings?.(id, { inputs: c.getInputs(id) ?? {}, styles: c.getStyles(id) ?? {}, options: c.getOptions(id) });
+      cx.edits.setIndicatorSettings(id, { inputs: c.getInputs(id) ?? {}, styles: c.getStyles(id) ?? {}, options: c.getOptions(id) });
     }
     // The first compared symbol takes the pane the series left (with the
     // studies that stayed); a second one opens its own pane (one compared
@@ -389,9 +389,9 @@ export function createSources(cx: ChartCx): SourcesApi {
     // The order is read before the compared symbols change (that redraws them).
     const stay = compares[0];
     const next = order ?? c.stackedOrder(stay ? [[stay, move.from]] : []);
-    for (const id of compares) props.onCompareChange?.(id, { placement: "pane" });
+    for (const id of compares) cx.edits.patchCompare(id, { placement: "pane" });
     c.setPaneOrder(next);
-    props.onPaneOrder?.(next);
+    cx.edits.setPaneOrder(next);
     cx.setPaneEpoch((n) => n + 1);
     cx.setCollapsedPanes(new Map());
     queueMicrotask(cx.refreshPaneBoxes);
@@ -453,8 +453,8 @@ export function createSources(cx: ChartCx): SourcesApi {
       if (!options) return;
       // Saved first, the chart draws it there from the pane (this step's undo records the whole move).
       const order = c.stackedOrderAfterMove(id, targetPane.pane, options);
-      props.onIndicatorSettings?.(id, { options });
-      props.onPaneOrder?.(order);
+      cx.edits.setIndicatorSettings(id, { options });
+      cx.edits.setPaneOrder(order);
       cx.setPaneEpoch((n) => n + 1);
       queueMicrotask(cx.refreshPaneBoxes);
       refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
@@ -478,10 +478,10 @@ export function createSources(cx: ChartCx): SourcesApi {
       const order = sourceOrderIds().map((x) => (inPane.has(x) ? now.sources[k++] : x));
       // Saved ids of sources not on the chart now ("Hide indicators") are kept.
       const kept = (props.sourceOrder ?? []).filter((x) => !order.includes(x));
-      props.onSourceOrder?.([...order, ...kept]);
+      cx.edits.setSourceOrder([...order, ...kept]);
     }
     if (now.drawings.join("\n") !== was.drawings.join("\n") || JSON.stringify(now.over) !== JSON.stringify(was.over)) {
-      props.placeDrawings?.(now.drawings, now.over);
+      cx.edits.placeDrawings(now.drawings, now.over);
     }
   }
   /** Visual order steps of a source: to the front unless it is the front

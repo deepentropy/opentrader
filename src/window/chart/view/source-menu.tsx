@@ -163,12 +163,12 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const visibility = visibilityForMode(props.interval ?? "1D", mode);
     const cmp = cx.compareEntry(id);
     if (cmp) {
-      sourcesEdit(VISIBILITY_UNDO[mode], () => props.onCompareChange?.(id, { style: { ...cmp.style, visibility } }));
+      sourcesEdit(VISIBILITY_UNDO[mode], () => cx.edits.patchCompare(id, { style: { ...cmp.style, visibility } }));
       return;
     }
     const c = cx.controller;
     if (!c) return;
-    props.onEditStudySettings?.(id, { options: { ...c.getOptions(id), visibility } }, VISIBILITY_UNDO[mode]);
+    cx.edits.editStudySettings(id, { options: { ...c.getOptions(id), visibility } }, VISIBILITY_UNDO[mode]);
     cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
   }
   function visibilityRow(id: string): CtxNode {
@@ -215,7 +215,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
   function pinTo(id: string, scale: StudyScale, label: string) {
     const c = cx.controller;
     if (!c || c.scaleOf(id) === null) return;
-    props.onEditSources?.({ studies: { [id]: { options: { ...c.getOptions(id), scale } } } }, label);
+    cx.edits.editSources({ studies: { [id]: { options: { ...c.getOptions(id), scale } } } }, label);
     cx.syncSideScales();
     cx.syncScaleLayout();
     cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
@@ -306,12 +306,12 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
       const target = move === "mergeUp" ? pane - 1 : pane + 1;
       // Into the price pane: over the series on a scale of its own; else the pane's group.
       if (target === cx.mainPane()) {
-        props.onEditSources?.({ compare: { [id]: { placement: "scale", group: undefined, paneScale: undefined, scale: undefined } } }, label);
+        cx.edits.editSources({ compare: { [id]: { placement: "scale", group: undefined, paneScale: undefined, scale: undefined } } }, label);
         return;
       }
       const group = c.groupOfPane(target);
       if (!group) return;
-      props.onEditSources?.({ compare: { [id]: { placement: "pane", group, paneScale: undefined } } }, label);
+      cx.edits.editSources({ compare: { [id]: { placement: "pane", group, paneScale: undefined } } }, label);
       return;
     }
     // A new pane right above / below the panes it shares.
@@ -322,7 +322,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     before.forEach((x, k) => { if (mates.includes(x)) lastMate = k; });
     const at = first < 0 ? (move === "unmergeUp" ? 0 : before.length) : move === "unmergeUp" ? first : lastMate + 1;
     const order = [...before.slice(0, at), id, ...before.slice(at)];
-    props.onEditSources?.({ compare: { [id]: { placement: "pane", group: undefined, paneScale: undefined } }, paneOrder: order }, label);
+    cx.edits.editSources({ compare: { [id]: { placement: "pane", group: undefined, paneScale: undefined } }, paneOrder: order }, label);
   }
   function compareMoveRow(id: string): CtxNode | null {
     const moves = compareMoves(id);
@@ -355,7 +355,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
         : scale === "none" ? { placement: "none" }
         : scale === main && pane === cx.mainPane() ? { placement: "percent" }
         : { placement: "scale", scale };
-      props.onEditSources?.({ compare: { [id]: patch } }, label);
+      cx.edits.editSources({ compare: { [id]: patch } }, label);
       cx.syncScaleLayout();
     });
   }
@@ -395,7 +395,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
         patch.studies![src] = { options: { ...c.getOptions(src), scale: old } };
       }
     }
-    props.onEditSources?.(patch, label);
+    cx.edits.editSources(patch, label);
   }
   function seriesArrangeRows(): CtxNode[] {
     const out: CtxNode[] = [];

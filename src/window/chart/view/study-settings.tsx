@@ -54,7 +54,7 @@ export function createStudySettings(cx: ChartCx): StudySettingsApi {
             const { key, label } = settingsUndoText(was, next, entry!.inputConfig ?? [], title);
             shown = JSON.stringify(next);
             cx.controller?.previewSettings(id(), next.inputs, next.styles, next.options);
-            props.onEditStudySettings?.(id(), { inputs: next.inputs, styles: next.styles, options: next.options }, label, { coalesce: `${session}:${key}`, session });
+            cx.edits.editStudySettings(id(), { inputs: next.inputs, styles: next.styles, options: next.options }, label, { coalesce: `${session}:${key}`, session });
           };
           const redrawn = () => {
             legendAtCrosshair();

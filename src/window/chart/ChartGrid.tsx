@@ -17,14 +17,14 @@
  * A double click puts the template back to equal sizes. No splitter while a
  * chart is maximized.
  *
- * EVERY pane is fully interactive: the armed drawing tool, magnet, selection
- * and edit callbacks reach all panes, but each pane's callbacks are bound to
- * ITS OWN symbol — so placing / dragging / editing on any pane lands on that
- * pane's chart in one gesture (no focus-first step). Acting on a pane also
- * focuses it (so the header / right-rail / object-tree follow). Each pane's
- * study legend removes from THAT pane via onRemoveIndicator(paneIndex, id).
+ * EVERY pane is fully interactive: the armed drawing tool, magnet and
+ * selection reach all panes, and each chart edits its own pane and drawings
+ * through the stores (chartEdits, drawingStore) bound to its tab and pane
+ * index (view/pane-edits.ts) — so placing / dragging / editing on any pane
+ * lands on that pane's chart in one gesture (no focus-first step). Acting on a
+ * pane also focuses it (so the header / right-rail / object-tree follow).
  *
- * Drawings are keyed by a sync-mode scope key (drawingKeyForPane(pane)): per
+ * Drawings are keyed by a sync-mode scope key (drawingStore.drawingKeyFor): per
  * pane, per layout, or per symbol. Panes resolving to the same key share the
  * slice, so an edit on one shows on the others. The global `selectedDrawingId`
  * is rendered by whichever pane owns that drawing.
@@ -55,12 +55,11 @@ import {
   type Sizing,
   type Splitter,
 } from "./layout-sizes";
-import type { ComparePatch, PaneChart, PaneIndicatorSettings } from "../shell/tabs";
-import type { SourcesPatch } from "../shell/chart-edits";
-import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
+import type { PaneChart } from "../shell/tabs";
+import type { ChartEdits } from "../shell/chart-edits";
+import type { DrawingStore } from "../drawings/drawing-store";
 import type { CursorMode } from "../../data/drawing-toolbar";
 import { displayTimeZone } from "../../data/session";
-import type { SyncMode } from "../drawings/DrawingToolbar";
 
 type Props = {
   /** False while this grid's tab is hidden. App keeps every opened tab's grid
@@ -69,7 +68,10 @@ type Props = {
    *  reload) and takes no input. */
   shown?: boolean;
   /** The tab this grid shows (Bar Replay runs per tab). */
-  tabId?: string;
+  tabId: string;
+  /** The stores each chart edits its pane and drawings through (bound to its tab and pane by the chart). */
+  chartEdits: ChartEdits;
+  drawingStore: DrawingStore;
   layout: LayoutId;
   /** One entry per grid cell (same length as the layout's cells). */
   panes: PaneChart[];
@@ -91,40 +93,11 @@ type Props = {
   timeZone?: string;
   /** The timezone row label (the time-axis menu checks it). */
   timeZoneLabel?: string;
-  /** Reactive read of a scope key's drawings (each pane renders its own). */
-  drawingsFor: (key: string) => Drawing[];
-  /** Scope key for a pane under the active sync mode — the store/persist key the
-   *  pane's drawings live under (per pane / per layout / per symbol). */
-  drawingKeyForPane: (pane: PaneChart) => string;
-  /** Remove a study from a specific pane (its legend trash). */
-  onRemoveIndicator?: (paneIndex: number, id: string) => void;
-  /** Persist a new study order for a pane (pane controls move up / down). */
-  onReorderIndicators?: (paneIndex: number, ids: string[]) => void;
-  /** Persist a study's edited inputs/styles onto a specific pane (Settings → Ok). */
-  onIndicatorSettings?: (paneIndex: number, id: string, settings: PaneIndicatorSettings) => void;
-  /** Change a study's settings on a specific pane as one undo step (chart-edits editStudySettings). */
-  onEditStudySettings?: (paneIndex: number, id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) => void;
-  /** Change a specific pane's sources as one undo step (chart-edits editSources). */
-  onEditSources?: (paneIndex: number, patch: SourcesPatch, label: string) => void;
   /** Compared symbols of a pane: patch / remove one, change its symbol. */
-  onCompareChange?: (paneIndex: number, id: string, patch: ComparePatch) => void;
-  onRemoveCompare?: (paneIndex: number, id: string) => void;
   onChangeCompareSymbol?: (paneIndex: number, id: string) => void;
-  onPaneOrder?: (paneIndex: number, order: string[]) => void;
-  /** The main series joined a study pane (its group) or got its own pane (null). */
-  onSeriesPane?: (paneIndex: number, group: string | null) => void;
-  onSeriesScale?: (paneIndex: number, key: string | null) => void;
-  onSourceOrder?: (paneIndex: number, order: string[]) => void;
-  /** Persist a specific pane's settled visible logical range (its scroll/zoom
-   *  anchor), so it survives tab switches + reloads. */
-  onVisibleRange?: (paneIndex: number, range: { from: number; to: number; last?: number; barSpacing?: number; rightOffset?: number }) => void;
-  /** Legend eye of pane `paneIndex` (hide / show its main series). */
-  onToggleSeries?: (paneIndex: number) => void;
-  onToggleIndicatorsLegend?: (paneIndex: number) => void;
   /** Legend "Symbol/interval chart syncing" shown (several charts and Symbol
    *  or Interval sync on), and the group setter of pane `paneIndex`. */
   linkSyncVisible?: boolean;
-  onLinkGroup?: (paneIndex: number, group: number | undefined) => void;
   /** Legend symbol title clicked ("Change symbol"). */
   onChangeSymbol?: () => void;
   /** Legend interval clicked ("Change interval"). */
@@ -149,19 +122,6 @@ type Props = {
   setSelectedDrawingId?: (id: string | null) => void;
   /** Ctrl/Cmd+click membership toggle. */
   toggleSelectedDrawing?: (id: string) => void;
-  onPlaceToSymbol?: (key: string, d: NewDrawing) => string | void;
-  updateDrawingForSymbol?: (key: string, d: Drawing, label?: string) => void;
-  /** Bulk replace (group drag/nudge) — one undo entry. */
-  updateDrawingsForSymbol?: (key: string, list: Drawing[]) => void;
-  cloneDrawingForSymbol?: (key: string, id: string | string[]) => void;
-  /** Sync of a drawing (the scope it is kept in) and its change, per view key. */
-  drawingSyncForSymbol?: (key: string, id: string) => SyncMode | null;
-  setDrawingsSyncForSymbol?: (key: string, ids: string[], mode: SyncMode) => void;
-  reorderDrawingForSymbol?: (key: string, id: string, dir: "front" | "forward" | "backward" | "back") => void;
-  placeDrawingsForSymbol?: (key: string, ids: string[], over: Record<string, string | null>) => void;
-  removeDrawingForSymbol?: (key: string, id: string) => void;
-  /** Bulk delete (multi-select Delete) — one undo entry. */
-  removeDrawingsForSymbol?: (key: string, ids: string[]) => void;
 };
 
 export function ChartGrid(props: Props) {
@@ -369,6 +329,8 @@ export function ChartGrid(props: Props) {
           // Each cell's chart state comes from the matching pane (fall back to
           // pane 0 during the brief frame before reconcilePanes catches up).
           const pane = () => props.panes[i] ?? props.panes[0];
+          // Scope key the pane's drawings live under (per pane / layout / symbol).
+          const drawingKey = () => props.drawingStore.drawingKeyFor(pane(), props.tabId);
           const isActive = () => live() && i === props.activePane;
           // When maximized, the focused cell spans the whole grid and every
           // other cell is hidden (display:none keeps its ChartView mounted, so
@@ -414,12 +376,8 @@ export function ChartGrid(props: Props) {
                 indicators={pane().indicators}
                 compare={pane().compare}
                 indicatorSettings={pane().indicatorSettings}
-                onIndicatorSettings={(id, s) => live() && props.onIndicatorSettings?.(i, id, s)}
-                onEditStudySettings={(id, patch, label, opts) => live() && props.onEditStudySettings?.(i, id, patch, label, opts)}
-                onEditSources={(patch, label) => live() && props.onEditSources?.(i, patch, label)}
                 visibleLogicalRange={pane().visibleLogicalRange}
                 initialScale={pane().initialScale}
-                onVisibleRange={(r) => props.onVisibleRange?.(i, r)}
                 settings={pane().settings}
                 indicatorsHidden={props.indicatorsHidden}
                 indicatorsLocked={props.indicatorsLocked}
@@ -429,6 +387,12 @@ export function ChartGrid(props: Props) {
                 active={isActive()}
                 shown={live()}
                 tabId={props.tabId}
+                paneIndex={i}
+                chartEdits={props.chartEdits}
+                drawingStore={props.drawingStore}
+                drawingKey={drawingKey()}
+                drawings={props.drawingStore.drawingsFor(drawingKey())}
+                onFocus={() => props.setActivePane(i)}
                 // Control bar → maximize. Only offered when there is more
                 // than one cell to grow over. No
                 // setActivePane here: the cell's capture-phase mousedown above
@@ -437,34 +401,22 @@ export function ChartGrid(props: Props) {
                 layoutCount={spec().cells.length}
                 maximized={maxed()}
                 onToggleMaximize={() => props.onToggleMaximize?.()}
-                drawings={props.drawingsFor(props.drawingKeyForPane(pane()))}
-                onRemoveIndicator={(id) => live() && props.onRemoveIndicator?.(i, id)}
-                onCompareChange={(id, patch) => live() && props.onCompareChange?.(i, id, patch)}
-                onRemoveCompare={(id) => live() && props.onRemoveCompare?.(i, id)}
                 onChangeCompareSymbol={(id) => live() && props.onChangeCompareSymbol?.(i, id)}
                 paneOrder={pane().paneOrder}
-                onPaneOrder={(order) => live() && props.onPaneOrder?.(i, order)}
                 seriesPane={pane().seriesPane}
-                onSeriesPane={(group) => live() && props.onSeriesPane?.(i, group)}
                 seriesScale={pane().seriesScale}
-                onSeriesScale={(key) => live() && props.onSeriesScale?.(i, key)}
                 sourceOrder={pane().sourceOrder}
-                onSourceOrder={(order) => live() && props.onSourceOrder?.(i, order)}
-                onReorderIndicators={(ids) => live() && props.onReorderIndicators?.(i, ids)}
                 cursorMode={props.cursorMode}
                 onWheelZoom={onWheelZoom}
                 seriesHidden={!!pane().seriesHidden}
-                onToggleSeries={() => props.onToggleSeries?.(i)}
                 indicatorsLegendCollapsed={!!pane().indicatorsLegendCollapsed}
-                onToggleIndicatorsLegend={() => props.onToggleIndicatorsLegend?.(i)}
                 linkGroup={pane().linkGroup}
                 linkSyncVisible={!!props.linkSyncVisible}
-                onLinkGroup={(g) => props.onLinkGroup?.(i, g)}
                 onChangeSymbol={props.onChangeSymbol}
                 onChangeInterval={props.onChangeInterval}
                 onSetInterval={props.onSetInterval}
-                // Every pane is interactive; callbacks bind to this pane's
-                // symbol, and acting on a pane focuses it.
+                // Every pane is interactive; its edits bind to this pane
+                // (view/pane-edits.ts), and acting on a pane focuses it.
                 armedTool={props.armedTool}
                 armedGlyph={props.armedGlyph}
                 magnet={props.magnet}
@@ -475,18 +427,8 @@ export function ChartGrid(props: Props) {
                 selectedDrawingId={props.selectedDrawingId}
                 selectedDrawingIds={props.selectedDrawingIds}
                 // A hidden grid takes no drawing action (its tab is not shown).
-                onPlace={(d) => { if (!live()) return; props.setActivePane(i); return props.onPlaceToSymbol?.(props.drawingKeyForPane(pane()), d); }}
                 setSelectedDrawingId={(id) => { if (!live()) return; props.setActivePane(i); props.setSelectedDrawingId?.(id); }}
                 toggleSelectedDrawing={(id) => { if (!live()) return; props.setActivePane(i); props.toggleSelectedDrawing?.(id); }}
-                updateDrawing={(d, label) => live() && props.updateDrawingForSymbol?.(props.drawingKeyForPane(pane()), d, label)}
-                updateDrawings={(list) => live() && props.updateDrawingsForSymbol?.(props.drawingKeyForPane(pane()), list)}
-                cloneDrawing={(id) => live() && props.cloneDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}
-                drawingSync={(id) => props.drawingSyncForSymbol?.(props.drawingKeyForPane(pane()), id) ?? null}
-                setDrawingSync={(ids, mode) => live() && props.setDrawingsSyncForSymbol?.(props.drawingKeyForPane(pane()), ids, mode)}
-                reorderDrawing={(id, dir) => live() && props.reorderDrawingForSymbol?.(props.drawingKeyForPane(pane()), id, dir)}
-                placeDrawings={(ids, over) => live() && props.placeDrawingsForSymbol?.(props.drawingKeyForPane(pane()), ids, over)}
-                removeDrawing={(id) => live() && props.removeDrawingForSymbol?.(props.drawingKeyForPane(pane()), id)}
-                removeDrawings={(ids) => live() && props.removeDrawingsForSymbol?.(props.drawingKeyForPane(pane()), ids)}
               />
             </div>
           );

@@ -88,6 +88,7 @@ import { createSeries } from "./view/series";
 import { createTimeAxis } from "./view/time-axis";
 import { createStudySync } from "./view/study-sync";
 import { createStudySettings } from "./view/study-settings";
+import { createPaneEdits } from "./view/pane-edits";
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
 let paneSyncSeq = 0;
@@ -273,24 +274,25 @@ export function ChartView(props: ChartViewProps) {
   /** Eye of a source (legend, More menu, Object tree): the main series, a
    *  compared symbol or a study. The state is saved with the chart. */
   function toggleSourceHidden(id: string) {
-    if (id === MAIN_SOURCE_ID) { props.onToggleSeries?.(); return; }
+    if (id === MAIN_SOURCE_ID) { cx.edits.toggleSeriesHidden(); return; }
     const cmp = cx.compareEntry(id);
-    if (cmp) { props.onCompareChange?.(id, { hidden: !cmp.hidden }); return; }
+    if (cmp) { cx.edits.patchCompare(id, { hidden: !cmp.hidden }); return; }
     if (!cx.controller) return;
     const nowHidden = cx.controller.toggleHidden(id);
-    props.onIndicatorSettings?.(id, { hidden: nowHidden || undefined });
+    cx.edits.setIndicatorSettings(id, { hidden: nowHidden || undefined });
     cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
     if (isStrategyId(id)) cx.applyStrategyMarkers();
   }
   /** Remove a study or a compared symbol (same path as the legend trash). */
   function removeStudy(id: string) {
-    if (cx.compareEntry(id)) props.onRemoveCompare?.(id);
-    else props.onRemoveIndicator?.(id);
+    if (cx.compareEntry(id)) cx.edits.removeCompare(id);
+    else cx.edits.removeIndicator(id);
   }
 
   // The view's state, read and written by its parts through the context.
   const core: ChartCore = {
     props,
+    edits: createPaneEdits(props),
     paneId,
     appearance,
     currentTokens,
@@ -464,7 +466,7 @@ export function ChartView(props: ChartViewProps) {
             // Bar spacing and right offset too: a chart a larger template
             // adds opens at them (reference app).
             const scale = { barSpacing: cx.chart.timeScale().options().barSpacing, rightOffset: cx.chart.timeScale().scrollPosition() };
-            props.onVisibleRange?.(last != null ? { from: lr.from, to: lr.to, last, ...scale } : { from: lr.from, to: lr.to, ...scale });
+            cx.edits.setVisibleRange(last != null ? { from: lr.from, to: lr.to, last, ...scale } : { from: lr.from, to: lr.to, ...scale });
           }, 250);
         }
       }
@@ -770,20 +772,20 @@ export function ChartView(props: ChartViewProps) {
           cx.emitCrosshair?.({ time, logical: logical ?? undefined, point: { x: at.x, y }, seriesData: new Map(), paneIndex: cx.mainPane() } as unknown as MouseEventParams);
         }}
         stayMode={!!props.stayMode}
-        onPlace={(d) => props.onPlace?.(d)}
+        onPlace={(d) => cx.edits.placeDrawing(d)}
         onDisarm={() => props.onDisarm?.()}
         selectedId={props.selectedDrawingId ?? null}
         selectedIds={props.selectedDrawingIds}
         setSelectedId={(id) => props.setSelectedDrawingId?.(id)}
         onToggleSelect={(id) => props.toggleSelectedDrawing?.(id)}
-        onUpdate={(d, label) => props.updateDrawing?.(d, label)}
-        onUpdateMany={(list) => props.updateDrawings?.(list)}
-        onClone={(id) => props.cloneDrawing?.(id)}
-        drawingSync={(id) => props.drawingSync?.(id) ?? null}
-        onSync={(ids, mode) => props.setDrawingSync?.(ids, mode)}
-        onReorder={(id, dir) => props.reorderDrawing?.(id, dir)}
-        onRemove={(id) => props.removeDrawing?.(id)}
-        onRemoveMany={(ids) => props.removeDrawings?.(ids)}
+        onUpdate={(d, label) => cx.edits.updateDrawing(d, label)}
+        onUpdateMany={(list) => cx.edits.updateDrawings(list)}
+        onClone={(id) => cx.edits.cloneDrawing(id)}
+        drawingSync={(id) => cx.edits.drawingSync(id) ?? null}
+        onSync={(ids, mode) => cx.edits.setDrawingSync(ids, mode)}
+        onReorder={(id, dir) => cx.edits.reorderDrawing(id, dir)}
+        onRemove={(id) => cx.edits.removeDrawing(id)}
+        onRemoveMany={(ids) => cx.edits.removeDrawings(ids)}
       />
       <TradingLinesLayer epoch={coordEpoch()} />
       <ReplaySelectLayer />
@@ -869,7 +871,7 @@ export function ChartView(props: ChartViewProps) {
           <CompareSettingsDialog
             entry={e}
             title={cx.compareTitle(e)}
-            onApply={({ symbol, style }) => sourcesEdit(`change ${cx.compareTitle(e)} style`, () => props.onCompareChange?.(e.id, symbol !== e.symbol ? { symbol, style } : { style }))}
+            onApply={({ symbol, style }) => sourcesEdit(`change ${cx.compareTitle(e)} style`, () => cx.edits.patchCompare(e.id, symbol !== e.symbol ? { symbol, style } : { style }))}
             onPreview={(next) => cx.setComparePreview(next ? { id: e.id, ...next } : null)}
             onClose={() => setCompareSettingsFor(null)}
           />

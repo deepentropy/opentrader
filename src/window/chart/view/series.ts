@@ -206,7 +206,7 @@ export function createSeries(cx: ChartCx): SeriesApi {
       const group = cx.controller?.seriesPaneGroup() ?? null;
       if (group !== (props.seriesPane ?? null)) {
         cx.appliedSeriesPane = group;
-        props.onSeriesPane?.(group);
+        cx.edits.setSeriesPane(group);
       }
     });
     setMainPaneEpoch((n) => n + 1);

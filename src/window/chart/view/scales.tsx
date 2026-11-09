@@ -140,12 +140,12 @@ export function createScales(cx: ChartCx): ScalesApi {
       if (!key) continue;
       const cmp = cx.compareEntry(src);
       if (cmp) {
-        if (cmp.placement === "scale" && !cmp.scale) props.onCompareChange?.(src, { scale: key });
+        if (cmp.placement === "scale" && !cmp.scale) cx.edits.patchCompare(src, { scale: key });
         continue;
       }
       if (!c) continue;
       const options = c.setScaleKey(src, key);
-      if (options) props.onIndicatorSettings?.(src, { inputs: c.getInputs(src) ?? {}, styles: c.getStyles(src) ?? {}, options });
+      if (options) cx.edits.setIndicatorSettings(src, { inputs: c.getInputs(src) ?? {}, styles: c.getStyles(src) ?? {}, options });
     }
     const sig = lay.signature();
     if (sig !== lastSig) {
@@ -445,7 +445,7 @@ export function createScales(cx: ChartCx): ScalesApi {
       }
       if (c && c.paneOf(src) !== null) patch.studies![src] = { options: { ...c.getOptions(src), scale: to } };
     }
-    props.onEditSources?.(patch, `move scale to ${side}`);
+    cx.edits.editSources(patch, `move scale to ${side}`);
     syncScaleLayout();
   }
 

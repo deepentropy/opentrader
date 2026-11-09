@@ -86,7 +86,7 @@ export function createStudySync(cx: ChartCx): StudySyncApi {
     controller?.sync(ids);
     // The study pane the series was dragged into is gone (its studies were
     // removed): the saved place goes too ("Hide indicators" keeps it).
-    if (!props.indicatorsHidden && controller?.seriesGroupGone()) untrack(() => props.onSeriesPane?.(null));
+    if (!props.indicatorsHidden && controller?.seriesGroupGone()) untrack(() => cx.edits.setSeriesPane(null));
     // Study panes added / removed: the drawing panes follow.
     cx.setPaneEpoch((n) => n + 1);
     queueMicrotask(cx.refreshPaneBoxes);

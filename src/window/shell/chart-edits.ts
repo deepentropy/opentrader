@@ -463,18 +463,6 @@ export function createChartEdits(
       }),
     });
   }
-  /** The main series pinned to a scale (series menu "Pin to scale"; null = the chart's scales side). */
-  function setSeriesScaleForPane(tabId: string, paneIndex: number, key: string | null) {
-    const tab = tabOf(tabId);
-    if (!tab) return;
-    patchTab(tabId, {
-      panes: tab.panes.map((p, i) => {
-        if (i !== paneIndex) return p;
-        const { seriesScale: _old, ...rest } = p;
-        return key ? { ...rest, seriesScale: key as PaneChart["seriesScale"] } : rest;
-      }),
-    });
-  }
   /** Persist a pane's source drawing order (Object tree drag). */
   function setSourceOrderForPane(tabId: string, paneIndex: number, order: string[]) {
     const tab = tabOf(tabId);
@@ -576,7 +564,6 @@ export function createChartEdits(
     compareRecent,
     setPaneOrderForPane,
     setSeriesPaneForPane,
-    setSeriesScaleForPane,
     setSourceOrderForPane,
     setPaneLinkGroup,
     toggleSeriesHidden,
@@ -584,3 +571,6 @@ export function createChartEdits(
     applyUndoEntry,
   };
 }
+
+/** The chart edits App creates once. */
+export type ChartEdits = ReturnType<typeof createChartEdits>;

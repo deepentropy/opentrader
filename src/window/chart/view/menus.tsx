@@ -368,7 +368,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       // Visual order, Move to, Pin to scale (reference order: before Hide).
       ...cx.seriesArrangeRows(),
       { kind: "item", id: "hide", label: hidden ? "Show" : "Hide", icon: hidden ? CtxIcons.show : CtxIcons.hide,
-        onSelect: () => props.onToggleSeries?.() },
+        onSelect: () => cx.edits.toggleSeriesHidden() },
       { kind: "separator" },
       { kind: "item", id: "watchlist", label: `Add ${sym} to watchlist`, submenu: [
         ...listRows,
@@ -538,7 +538,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       { kind: "item", id: "hide", label: row.eyeHidden ? "Show" : "Hide", icon: row.eyeHidden ? CtxIcons.show : CtxIcons.hide,
         onSelect: () => toggleSourceHidden(id) },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
-        onSelect: () => props.onRemoveIndicator?.(id) },
+        onSelect: () => cx.edits.removeIndicator(id) },
       { kind: "separator" },
       { kind: "item", id: "object-tree", label: "Object tree",
         onSelect: () => emitAppEvent("chart-open-panel", { id: "object_tree" }) },
@@ -581,7 +581,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       if (list.length) map[key] = list;
       else delete map[key];
       inputs.mergePoints = JSON.stringify(map);
-      props.onEditStudySettings?.(id, { inputs }, `change ${entry?.name ?? id} properties`);
+      cx.edits.editStudySettings(id, { inputs }, `change ${entry?.name ?? id} properties`);
     };
     if (!entry) return;
     nodes.push(
@@ -618,9 +618,9 @@ export function createMenus(cx: ChartCx): MenusApi {
       ...(arrange.length ? [...arrange, { kind: "separator" } as CtxNode] : []),
       cx.sourceCopyRow(id),
       { kind: "item", id: "hide", label: e.hidden ? "Show" : "Hide", icon: e.hidden ? CtxIcons.show : CtxIcons.hide,
-        onSelect: () => props.onCompareChange?.(id, { hidden: !e.hidden }) },
+        onSelect: () => cx.edits.patchCompare(id, { hidden: !e.hidden }) },
       { kind: "item", id: "remove", label: "Remove", shortcut: "Del", icon: CtxIcons.remove,
-        onSelect: () => props.onRemoveCompare?.(id) },
+        onSelect: () => cx.edits.removeCompare(id) },
       { kind: "separator" },
       { kind: "item", id: "object-tree", label: "Object tree",
         onSelect: () => emitAppEvent("chart-open-panel", { id: "object_tree" }) },
@@ -641,7 +641,7 @@ export function createMenus(cx: ChartCx): MenusApi {
   function pasteClipboard() {
     const all = pasteAllAsNew();
     if (all.length) {
-      const ids = all.map((nd) => props.onPlace?.(nd)).filter((id): id is string => !!id);
+      const ids = all.map((nd) => cx.edits.placeDrawing(nd)).filter((id): id is string => !!id);
       if (ids[0]) props.setSelectedDrawingId?.(ids[0]);
       for (const id of ids.slice(1)) props.toggleSelectedDrawing?.(id);
       return;
@@ -759,10 +759,10 @@ export function createMenus(cx: ChartCx): MenusApi {
         applyToLayout: () => emitAppEvent("chart-apply-studies-to-layout"),
         objectTree: () => openPanel("object_tree"),
         saveTemplateAs: () => emitAppEvent("chart-save-template"),
-        // Bulk path when available — one undo entry for the whole set.
+        // Bulk path: one undo entry for the whole set.
         removeDrawings: () => {
-          if (ds.length > 1 && props.removeDrawings) props.removeDrawings(ds.map((d) => d.id));
-          else for (const d of ds) props.removeDrawing?.(d.id);
+          if (ds.length > 1) cx.edits.removeDrawings(ds.map((d) => d.id));
+          else for (const d of ds) cx.edits.removeDrawing(d.id);
         },
         removeIndicators: () => emitAppEvent("chart-clear-indicators"),
         settings: () => emitAppEvent("chart-open-settings"),
@@ -795,7 +795,7 @@ export function createMenus(cx: ChartCx): MenusApi {
         onSelect: () => {
           const last = cx.raw.length > 0 ? cx.raw[cx.raw.length - 1] : null;
           if (!last) return;
-          const id = props.onPlace?.({ kind: "horizontal-line", points: [{ time: last.time as number, price: p }], style: defaultStyleFor("horizontal-line"), ...(owner ? { owner } : {}) } as never);
+          const id = cx.edits.placeDrawing({ kind: "horizontal-line", points: [{ time: last.time as number, price: p }], style: defaultStyleFor("horizontal-line"), ...(owner ? { owner } : {}) } as never);
           if (id) props.setSelectedDrawingId?.(id);
         } },
     ];

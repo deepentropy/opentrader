@@ -119,7 +119,7 @@ export function createPanes(cx: ChartCx): PanesApi {
     const a = cx.controller.idsInPane(i);
     const b = cx.controller.idsInPane(j);
     cx.controller.swapPanes(i, j);
-    props.onPaneOrder?.(cx.controller.stackedOrder());
+    cx.edits.setPaneOrder(cx.controller.stackedOrder());
     setPaneEpoch((n) => n + 1);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
     // Persist: stacked panes are claimed in list order, so swap the two
@@ -132,7 +132,7 @@ export function createPanes(cx: ChartCx): PanesApi {
       const slots = [...posA, ...posB].sort((x, y) => x - y);
       const ordered = dir > 0 ? [...b, ...a] : [...a, ...b];
       slots.forEach((slot, k) => { list[slot] = ordered[k]; });
-      props.onReorderIndicators?.(list);
+      cx.edits.reorderIndicators(list);
     }
     setCollapsedPanes(new Map());
     queueMicrotask(refreshPaneBoxes);
@@ -142,8 +142,8 @@ export function createPanes(cx: ChartCx): PanesApi {
   function deletePane(i: number) {
     if (!cx.controller) return;
     for (const id of cx.controller.idsInPane(i)) {
-      if (cx.compareEntry(id)) props.onRemoveCompare?.(id);
-      else props.onRemoveIndicator?.(id);
+      if (cx.compareEntry(id)) cx.edits.removeCompare(id);
+      else cx.edits.removeIndicator(id);
     }
   }
   function toggleCollapse(i: number) {

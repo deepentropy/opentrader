@@ -380,36 +380,18 @@ function App() {
   appTabs.followCloseOnlyTypes();
   const drawingStore = createDrawingStore(appTabs, undo);
   const {
-    drawingKeyFor,
-    drawingsFor,
     drawings,
-    addDrawingToSymbol,
-    updateDrawingForSymbol,
-    removeDrawingForSymbol,
-    updateDrawingsForSymbol,
-    removeDrawingsForSymbol,
-    cloneDrawingForSymbol,
     updateDrawing,
     removeDrawing,
     cloneDrawing,
-    drawingSyncForSymbol,
-    setDrawingsSyncForSymbol,
     toggleHide,
     toggleLock,
     removeAllDrawings,
-    reorderDrawingForSymbol,
-    placeDrawingsForSymbol,
     moveDrawingToDisplayIndex,
   } = drawingStore;
   const chartEdits = createChartEdits(appTabs, undo, drawingStore);
   const {
-    removeIndicatorFromPane,
-    reorderIndicatorsForPane,
-    setIndicatorSettingsForPane,
-    editSources,
-    editStudySettings,
     patchStudyInputs,
-    setVisibleRangeForPane,
     addIndicator,
     toggleScriptOnChart,
     removeAllIndicators,
@@ -422,13 +404,6 @@ function App() {
     patchCompare,
     compareAdded,
     compareRecent,
-    setPaneOrderForPane,
-    setSeriesPaneForPane,
-    setSeriesScaleForPane,
-    setSourceOrderForPane,
-    setPaneLinkGroup,
-    toggleSeriesHidden,
-    toggleIndicatorsLegend,
   } = chartEdits;
   function removeAllObjects() {
     removeAllDrawings();
@@ -861,28 +836,13 @@ function App() {
               theme={theme()}
               timeZone={timezone().iana}
               timeZoneLabel={timezone().label}
-              drawingsFor={drawingsFor}
-              drawingKeyForPane={(p) => drawingKeyFor(p, tabId)}
-              onRemoveIndicator={(i, id) => removeIndicatorFromPane(tabId, i, id)}
-              onReorderIndicators={(i, ids) => reorderIndicatorsForPane(tabId, i, ids)}
-              onIndicatorSettings={(i, id, st) => setIndicatorSettingsForPane(tabId, i, id, st)}
-              onEditStudySettings={(i, id, patch, label, opts) => editStudySettings(tabId, i, id, patch, label, opts)}
-              onEditSources={(i, patch, label) => editSources(tabId, i, patch, label)}
-              onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
-              onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
-              onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}
-              onSeriesPane={(i, group) => setSeriesPaneForPane(tabId, i, group)}
-              onSeriesScale={(i, key) => setSeriesScaleForPane(tabId, i, key)}
-              onSourceOrder={(i, order) => setSourceOrderForPane(tabId, i, order)}
+              chartEdits={chartEdits}
+              drawingStore={drawingStore}
               onChangeCompareSymbol={(i, id) => {
                 setCompareTarget({ tabId, paneIndex: i, id });
                 openSymbolSearch(null);
               }}
-              onVisibleRange={(i, r) => setVisibleRangeForPane(tabId, i, r)}
               linkSyncVisible={tab().panes.length > 1 && (tab().sync.symbol || tab().sync.interval)}
-              onLinkGroup={(i, g) => setPaneLinkGroup(tabId, i, g)}
-              onToggleSeries={(i) => toggleSeriesHidden(tabId, i)}
-              onToggleIndicatorsLegend={(i) => toggleIndicatorsLegend(tabId, i)}
               onChangeInterval={() => setIntervalDialog({ initVal: interval(), selectOnInit: true })}
               onSetInterval={setInterval}
               onChangeSymbol={() => {
@@ -899,21 +859,11 @@ function App() {
               magnetMode={magnetMode()}
               magnetSnapsToIndicators={magnetSnapsToIndicators()}
               stayMode={stayMode()}
-              onPlaceToSymbol={addDrawingToSymbol}
               onDisarm={() => setArmedTool(null)}
               selectedDrawingId={selectedDrawingId()}
               selectedDrawingIds={selectedDrawingIds()}
               setSelectedDrawingId={setSelectedDrawingId}
               toggleSelectedDrawing={toggleSelectedDrawing}
-              updateDrawingForSymbol={updateDrawingForSymbol}
-              updateDrawingsForSymbol={updateDrawingsForSymbol}
-              cloneDrawingForSymbol={cloneDrawingForSymbol}
-              drawingSyncForSymbol={drawingSyncForSymbol}
-              setDrawingsSyncForSymbol={setDrawingsSyncForSymbol}
-              reorderDrawingForSymbol={reorderDrawingForSymbol}
-              placeDrawingsForSymbol={placeDrawingsForSymbol}
-              removeDrawingForSymbol={removeDrawingForSymbol}
-              removeDrawingsForSymbol={removeDrawingsForSymbol}
             />
               )}
             </Show>
