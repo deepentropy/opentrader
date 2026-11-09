@@ -27,6 +27,8 @@ export function noticeTitle(n: Notice): string {
       return n.actor ? `Community proposal: ${n.actor}` : "Community proposal";
     case "idea":
       return `New idea from ${n.actor ?? "a trader you follow"}`;
+    case "status":
+      return "Suggestion update";
   }
 }
 

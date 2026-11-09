@@ -45,6 +45,7 @@ import { SelectControl } from "./ChartPropertiesDialog";
 import { downloadDir } from "@tauri-apps/api/path";
 import { fundingStatus, type Funding } from "../../data/funding";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { COMMUNITY_ENABLED, COMMUNITY_URL } from "../../data/community/api";
 import type { ThemeSetting } from "../shell/app-theme";
 
 // ── Persisted dialog settings ────────────────────────────────────────────────
@@ -815,6 +816,9 @@ function AboutTab() {
         <UpdateAppBlock />
       </Show>
       <div class="app-settings-about-copyright">Copyright © 2026 OpenTrader</div>
+      <Show when={COMMUNITY_ENABLED}>
+        <SuggestLink />
+      </Show>
       <EconomicDataNotice />
       <FundingBlock />
     </div>
@@ -834,6 +838,28 @@ function EconomicDataNotice() {
         </a>
         .
       </div>
+    </div>
+  );
+}
+
+/** Members ask for features on the Community website, no GitHub account needed. */
+function SuggestLink() {
+  const url = `${COMMUNITY_URL}/suggestions`;
+  return (
+    <div class="app-settings-about-notice">
+      <span>
+        Missing something?{" "}
+        <a
+          class="app-settings-about-link"
+          href={url}
+          onClick={(e) => {
+            e.preventDefault();
+            void openUrl(url).catch((err) => console.warn("[about] open suggestions failed", err));
+          }}
+        >
+          Suggest a feature
+        </a>
+      </span>
     </div>
   );
 }

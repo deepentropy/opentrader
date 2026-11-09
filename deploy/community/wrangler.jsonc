@@ -3,7 +3,8 @@
 // Deploy: `npm run db:remote` once per new migration, then `npm run deploy`.
 // Secrets (`wrangler secret put`): GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_SECRET,
 // DISCORD_CLIENT_SECRET (a provider without its id and secret is not offered),
-// TURNSTILE_SECRET, GATEWAY_TOKEN. Paid tier (#252, off until set):
+// TURNSTILE_SECRET, GATEWAY_TOKEN, GITHUB_ISSUES_TOKEN (fine-grained, Issues
+// read and write on the project: suggestions promoted to issues). Paid tier (#252, off until set):
 // PASS_PRIVATE_KEY (scripts/pass-keys.mjs), GATEWAY_ADMIN_TOKEN (the gateway's
 // REALTIME_ADMIN_TOKEN), STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_ID;
 // webhook URL <PUBLIC_URL>/billing/webhook.
@@ -88,7 +89,8 @@
     }
   },
   // Every half hour on weekdays; index.ts runs by the hour: the bot's threads (13:00, 16:00 UTC), idea prices
-  // (14:00 to 21:30), the ideas settled on the day's bars (22:30), subscriptions read back (23:00).
+  // (14:00 to 21:30), the ideas settled on the day's bars (22:30), subscriptions read back (23:00), suggestions'
+  // closed GitHub issues (each hour).
   "triggers": { "crons": ["*/30 * * * 1-5"] },
   "observability": { "enabled": true }
 }

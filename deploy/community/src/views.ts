@@ -3,13 +3,14 @@
  * visit, a ticker's page, the tickers, search, and a trader's profile.
  *
  * The home feed holds members' posts only (the bot's threads are on ticker
- * pages and in search) and ends: "You're caught up".
+ * pages and in search) and ends: "You're caught up". Suggestions are on
+ * their own page (suggestions.ts), not in the feed or search.
  */
 import { Env } from "./env";
 import { User } from "./auth";
 import { POST_SELECT, POST_TYPES, findCommunity, ideaOut, order, postsOut, requireUser } from "./api";
 import { RECORD_COLUMNS, dailyBars, nyTime, quotes, recordOf, recordsOf, reference, round2, type IdeaRecord } from "./ideas";
-import { HttpError, json, now, parseCommunityId, str } from "./util";
+import { HttpError, SUGGESTIONS, json, now, parseCommunityId, str } from "./util";
 
 type Row = Record<string, any>;
 
@@ -38,7 +39,7 @@ export async function home(env: Env, user: User | null, url: URL): Promise<Respo
   const { since, visitor } = await visitStart(env, user, at);
   const type = url.searchParams.get("type");
   const typed = !!type && (POST_TYPES as readonly string[]).includes(type);
-  const base = "p.created_at >= ? AND p.removed = 0 AND p.deleted = 0 AND p.author_id IS NOT ?";
+  const base = `p.created_at >= ? AND p.removed = 0 AND p.deleted = 0 AND p.author_id IS NOT ? AND p.community_id <> '${SUGGESTIONS}'`;
   const { results } = await env.DB.prepare(`${POST_SELECT} WHERE ${base} ${typed ? "AND p.type = ?" : ""} ORDER BY ${order(url.searchParams.get("sort") ?? "useful")} LIMIT ?`)
     .bind(since, BOT, ...(typed ? [type] : []), HOME_MAX)
     .all<Row>();
@@ -220,7 +221,7 @@ export async function search(env: Env, user: User | null, url: URL): Promise<Res
   const offset = Math.max(0, Math.min(5_000, Number(url.searchParams.get("offset")) || 0));
 
   // The query's own conditions; the facets add theirs.
-  const where: string[] = ["p.removed = 0", "p.deleted = 0"];
+  const where: string[] = ["p.removed = 0", "p.deleted = 0", `p.community_id <> '${SUGGESTIONS}'`];
   const binds: unknown[] = [];
   for (const t of q.terms) {
     where.push("(p.title LIKE ? OR p.body LIKE ?)");

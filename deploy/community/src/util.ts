@@ -90,6 +90,11 @@ export function parseCommunityId(id: string): { kind: "ticker" | "theme"; key: s
   return null;
 }
 
+/** Members' feature suggestions (suggestions.ts): kept out of the market feeds and search. */
+export const SUGGESTIONS = "c:suggestions";
+/** The project whose GitHub issues track the suggestions. */
+export const GITHUB_REPO = "deepentropy/opentrader";
+
 export const LIMITS = {
   titleMin: 3,
   titleMax: 300,

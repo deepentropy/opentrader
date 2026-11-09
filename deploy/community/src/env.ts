@@ -33,6 +33,8 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   DISCORD_CLIENT_ID?: string;
   DISCORD_CLIENT_SECRET?: string;
+  /** Opens GitHub issues from suggestions (Issues: read and write on the project). Unset: "Promote" opens a prefilled new issue page instead. */
+  GITHUB_ISSUES_TOKEN?: string;
   /** Paid tier (billing.ts, pass.ts). Passes: Ed25519 PKCS #8, base64url. Unset = no passes. */
   PASS_PRIVATE_KEY?: string;
   /** The gateway's admin token: closes an account's real-time stream when it loses its plan. */

@@ -5,7 +5,8 @@
  *   /t/NVDA           a ticker's page                    /c/general        General
  *   /t/NVDA/about     its moderators and log             /p/<id>           a post
  *   /submit?to=&type= new post                           /search?q=        search
- *   /u/<name>         a trader's profile
+ *   /u/<name>         a trader's profile                 /suggestions      feature suggestions
+ *   /suggestions/new  suggest a feature (a suggestion opens at /p/<id>)
  *   /notifications, /account, /mod (moderation queue), /contact, /signin?next=
  *
  * Addresses of the former communities (/c/options, /following) land on
@@ -23,6 +24,8 @@ export type Route =
   | { page: "search"; q: string }
   | { page: "user"; name: string }
   | { page: "tickers" }
+  | { page: "suggestions" }
+  | { page: "suggest" }
   | { page: "notifications" }
   | { page: "account" }
   | { page: "queue" }
@@ -44,6 +47,8 @@ export function parseRoute(path: string, search: string): Route {
       return { page: "submit", to: q.get("to"), type: q.get("type") };
     case "search":
       return { page: "search", q: q.get("q") ?? "" };
+    case "suggestions":
+      return b === "new" ? { page: "suggest" } : { page: "suggestions" };
     case "tickers":
     case "notifications":
     case "account":

@@ -3,11 +3,14 @@
  * prices, R multiples, dates (dd/mm/yyyy), a trader's record, an idea's
  * state, a post's status line.
  */
-import type { Idea, Post, PostType, TrackRecord } from "./api";
+import type { Idea, Post, PostType, SuggestionStatus, TrackRecord } from "./api";
 
-export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem" };
-export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems" };
-export const TYPES: PostType[] = ["idea", "analysis", "question", "postmortem"];
+export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem", suggestion: "Suggestion" };
+export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems", suggestion: "Suggestions" };
+/** The market posts' types (suggestions are listed apart). */
+export const TYPES: Exclude<PostType, "suggestion">[] = ["idea", "analysis", "question", "postmortem"];
+
+export const STATUS_LABEL: Record<SuggestionStatus, string> = { review: "Under review", planned: "Planned", progress: "In progress", shipped: "Shipped", declined: "Declined" };
 
 export const UP = "#089981";
 export const DOWN = "#f23645";
@@ -105,6 +108,7 @@ export function outcome(i: Idea): string {
 /** The status line of a post in a list: an idea's state, an answered question, a post-mortem's idea. */
 export function postState(p: Post): { text: string; color: string } | null {
   if (p.idea) return ideaState(p.idea);
+  if (p.suggestion) return { text: `${STATUS_LABEL[p.suggestion.status]} · ${p.useful_count} supporter${p.useful_count === 1 ? "" : "s"}`, color: p.suggestion.status === "shipped" ? UP : INK };
   if (p.type === "question" && p.answer_id) return { text: "Answered", color: INK };
   if (p.type === "postmortem" && p.linked?.status) {
     const s = p.linked.status;

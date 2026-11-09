@@ -2,7 +2,8 @@
  * Community API client (deploy/community): ticker communities (US stocks and
  * ETFs) and General; posts typed idea / analysis / question / post-mortem,
  * ideas with locked levels settled in R; replies; the readers' "useful"
- * reasons; reports and moderation; and the website's page views. Reading
+ * reasons; members' feature suggestions; reports and moderation; and the
+ * website's page views. Reading
  * needs no account; the session token (./session.ts) is sent when there is one.
  */
 
@@ -14,6 +15,8 @@ export const COMMUNITY_ENABLED = import.meta.env.VITE_COMMUNITY_ENABLED !== "0";
 
 /** General: the posts about no one ticker. */
 export const GENERAL = "c:general";
+/** Members' feature suggestions (their own page on the website). */
+export const SUGGESTIONS = "c:suggestions";
 
 export type CommunityKind = "ticker" | "theme";
 
@@ -33,7 +36,7 @@ export type CommunityRef = { id: string; kind: CommunityKind; title: string };
 /** A chart shared in a post: what "Open on my chart" applies. */
 export type SharedChart = { symbol: string; interval: string; drawings: unknown[] };
 
-export type PostType = "idea" | "analysis" | "question" | "postmortem";
+export type PostType = "idea" | "analysis" | "question" | "postmortem" | "suggestion";
 export type IdeaStatus = "pending" | "open" | "target" | "stopped" | "expired" | "untriggered";
 export type Direction = "long" | "short";
 
@@ -56,6 +59,18 @@ export type Idea = {
   exit_price: number | null;
   last_price: number | null;
   result_r: number | null;
+};
+
+export type SuggestionStatus = "review" | "planned" | "progress" | "shipped" | "declined";
+
+/** A suggestion's status, the administrators' note, its GitHub issue; external_author: brought in from GitHub, by this login. */
+export type Suggestion = {
+  status: SuggestionStatus;
+  note: string | null;
+  updated_at: number | null;
+  issue_number: number | null;
+  issue_url: string | null;
+  external_author: string | null;
 };
 
 /** A trader's settled ideas: how many, the share that hit the target, the average R; and the open ones. */
@@ -84,6 +99,8 @@ export type Post = {
   /** Posted by the automatic threads' account (OpenTrader-bot). */
   author_bot?: boolean;
   idea: Idea | null;
+  /** A suggestion's status and issue (useful_count: its supporters). */
+  suggestion?: Suggestion | null;
   /** A question's accepted reply. */
   answer_id: string | null;
   /** A post-mortem's idea. */
@@ -98,7 +115,7 @@ export type Post = {
 /** A chart attached to a new post or reply: its state and picture (base64), or a snapshot sent from the app. */
 export type ChartAttachment = { chart: SharedChart; image: string; imageType: string } | { snapshotId: string };
 
-export type ReplyKind = "data" | "counterpoint" | "question" | "update";
+export type ReplyKind = "data" | "counterpoint" | "question" | "update" | "support";
 
 export type Comment = {
   id: string;
@@ -190,6 +207,15 @@ export type Profile = {
 };
 export type ProfileReply = { id: string; post_id: string; body: string; kind: ReplyKind | null; useful_count: number; created_at: number; post_title: string; community_id: string };
 
+export type SuggestionsView = {
+  suggestions: Post[];
+  /** Ids of the listed suggestions the viewer supports. */
+  supported: string[];
+  counts: Partial<Record<SuggestionStatus | "open" | "all", number>>;
+  next_offset: number | null;
+};
+export type SuggestionFilter = SuggestionStatus | "open" | "all";
+
 export type ContactKind = "illegal" | "appeal" | "authority" | "other";
 
 /** A message sent through the website's contact form (administrators). */
@@ -218,7 +244,7 @@ export class CommunityError extends Error {
 /** A notification: a reply, a moderation decision, a new idea from a watched trader. */
 export type Notice = {
   id: string;
-  kind: "reply" | "removed" | "banned" | "proposal" | "idea";
+  kind: "reply" | "removed" | "banned" | "proposal" | "idea" | "status";
   post_id: string | null;
   comment_id: string | null;
   actor: string | null;
@@ -330,7 +356,8 @@ export const api = {
       ...attachBody(p.attach),
     }),
 
-  post: (id: string) => request<{ post: Post; comments: Comment[]; ratings: Ratings; is_mod: boolean }>("GET", `/posts/${enc(id)}`),
+  /** supported: a suggestion the viewer supports. */
+  post: (id: string) => request<{ post: Post; comments: Comment[]; ratings: Ratings; is_mod: boolean; supported?: boolean }>("GET", `/posts/${enc(id)}`),
   editPost: (id: string, body: string) => request<{ post: Post; comments: Comment[]; ratings: Ratings }>("PATCH", `/posts/${enc(id)}`, { body }),
   deletePost: (id: string) => request<{ ok: true }>("DELETE", `/posts/${enc(id)}`),
   rate: (id: string, reason: Reason, on: boolean) => request<{ useful_count: number; flag_count: number } & Ratings>("POST", `/posts/${enc(id)}/rate`, { reason, on }),
@@ -358,6 +385,15 @@ export const api = {
   setModerator: (id: string, name: string, add: boolean) => request<{ ok: true }>("POST", "/mod/moderators", { community_id: id, name, add }),
   messages: () => request<{ messages: ContactMessage[] }>("GET", "/mod/messages"),
   messageDone: (id: string) => request<{ ok: true }>("POST", `/mod/messages/${enc(id)}/done`),
+  suggestions: (status: SuggestionFilter, sort: "top" | "new", q = "", offset = 0) =>
+    request<SuggestionsView>("GET", `/suggestions?${qs({ status, sort, q, offset: offset || null })}`),
+  suggest: (title: string, body: string) => request<{ post: Post }>("POST", "/suggestions", { title, body }),
+  support: (id: string, on: boolean, why = "") => request<{ supporters: number; supported: boolean; comment: Comment | null }>("POST", `/suggestions/${enc(id)}/support`, { on, why }),
+  setSuggestion: (id: string, fields: { status?: SuggestionStatus; note?: string; issue_number?: number | null }) =>
+    request<{ post: Post }>("POST", `/mod/suggestions/${enc(id)}`, fields),
+  /** A 501 error without a GitHub token on the server: its `new_issue_url` opens a prefilled issue. */
+  promoteSuggestion: (id: string) => request<{ post: Post }>("POST", `/mod/suggestions/${enc(id)}/promote`),
+  importIssue: (issue: number) => request<{ post: Post }>("POST", "/mod/suggestions/import", { issue }),
   modAction: (action: string, type: "post" | "comment" | "user", id: string, reason = "", days?: number) =>
     request<{ ok: true }>("POST", "/mod/action", { action, target_type: type, target_id: id, reason, days }),
 };

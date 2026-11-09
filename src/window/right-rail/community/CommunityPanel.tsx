@@ -316,6 +316,7 @@ export function CommunityPanel(props: Props) {
       </Show>
       <div class="ot-popover-separator cm-menu-separator" />
       {item("Open the Community website", () => void openUrl(WEBSITE))}
+      {item("Suggest a feature", () => void openUrl(`${WEBSITE}/suggestions`))}
       {item("Community guidelines", () => void openUrl(RULES_URL))}
       {item("Contact and reports", () => void openUrl(CONTACT_URL))}
     </div>

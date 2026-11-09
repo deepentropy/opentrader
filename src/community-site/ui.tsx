@@ -4,8 +4,8 @@
  * chart snapshot; and (data/community/format.ts) how figures read.
  */
 import { For, Show } from "solid-js";
-import { GENERAL, imageUrl, type Post, type PostType } from "../data/community/api";
-import { TYPE_LABEL } from "../data/community/format";
+import { GENERAL, SUGGESTIONS, imageUrl, type Post, type PostType, type SuggestionStatus } from "../data/community/api";
+import { STATUS_LABEL, TYPE_LABEL } from "../data/community/format";
 import { longIntervalLabel, shortIntervalLabel } from "../window/chart/interval-favorites";
 import { go } from "./router";
 
@@ -15,16 +15,23 @@ export function TypeTag(props: { type: PostType }) {
   return <span class={`cs-type is-${props.type}`}>{TYPE_LABEL[props.type]}</span>;
 }
 
+/** A suggestion's status: under review, planned, in progress, shipped, declined. */
+export function StatusTag(props: { status: SuggestionStatus }) {
+  return <span class={`cs-type is-sg-${props.status}`}>{STATUS_LABEL[props.status]}</span>;
+}
+
 export function DirTag(props: { dir: "long" | "short" }) {
   return <span class="cs-type is-dir">{props.dir === "long" ? "Long" : "Short"}</span>;
 }
 
-/** "NVDA" for `t:NVDA`, "General" for General. */
+/** "NVDA" for `t:NVDA`, "General" for General, "Suggestions". */
 export function tickerName(communityId: string): string {
+  if (communityId === SUGGESTIONS) return "Suggestions";
   return communityId === GENERAL ? "General" : communityId.replace(/^t:/, "").replace(/^\$/, "");
 }
 
 export function communityHref(communityId: string): string {
+  if (communityId === SUGGESTIONS) return "/suggestions";
   return communityId === GENERAL ? "/c/general" : `/t/${encodeURIComponent(tickerName(communityId))}`;
 }
 

@@ -28,6 +28,7 @@ import { GeneralPage, TickerPage } from "./TickerPage";
 import { SearchPage } from "./SearchPage";
 import { ProfilePage } from "./ProfilePage";
 import { TickersPage } from "./TickersPage";
+import { SuggestCompose, SuggestionsPage } from "./SuggestionsPage";
 import { go, navigate, route, type Route } from "./router";
 import { communityHref } from "./ui";
 import "./site.css";
@@ -37,6 +38,8 @@ const APP_URL = "https://opentrader.markets";
 const TITLES: Partial<Record<Route["page"], string>> = {
   home: "OpenTrader Community",
   tickers: "Tickers · OpenTrader Community",
+  suggestions: "Suggestions · OpenTrader Community",
+  suggest: "Suggest a feature · OpenTrader Community",
   submit: "New post · OpenTrader Community",
   notifications: "Notifications · OpenTrader Community",
   account: "Account · OpenTrader Community",
@@ -99,6 +102,8 @@ function Site() {
           <Match when={r().page === "search"}><SearchPage q={(r() as { q: string }).q} /></Match>
           <Match when={r().page === "user" && (r() as { name: string }).name}>{(n) => <ProfilePage name={n()} />}</Match>
           <Match when={r().page === "tickers"}><TickersPage /></Match>
+          <Match when={r().page === "suggestions"}><SuggestionsPage /></Match>
+          <Match when={r().page === "suggest"}><SuggestCompose /></Match>
           <Match when={r().page === "about" && (r() as { community: string }).community}>{(id) => <Narrow><AboutPage id={id()} /></Narrow>}</Match>
           <Match when={r().page === "notifications"}>
             <Narrow><div class="cs-panel-page"><NotificationsView onBack={back} onOpenPost={(id) => navigate(`/p/${id}`)} /></div></Narrow>

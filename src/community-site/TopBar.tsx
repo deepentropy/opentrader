@@ -1,5 +1,5 @@
 /*
- * The website's top bar: the brand, Home / Tickers / Search / Guidelines, the
+ * The website's top bar: the brand, Home / Tickers / Search / Suggestions / Guidelines, the
  * search box, New post and the account (initials; its menu holds the
  * notifications, the account and moderation). The composer has its own bar:
  * the brand, when the draft was saved, Discard.
@@ -27,6 +27,7 @@ const NAV = [
   { id: "home", label: "Home", href: "/" },
   { id: "tickers", label: "Tickers", href: "/tickers" },
   { id: "search", label: "Search", href: "/search" },
+  { id: "suggestions", label: "Suggestions", href: "/suggestions" },
 ];
 
 export function TopBar() {
@@ -36,6 +37,7 @@ export function TopBar() {
     const p = route().page;
     if (p === "ticker" || p === "general" || p === "tickers" || p === "about") return "tickers";
     if (p === "search") return "search";
+    if (p === "suggestions" || p === "suggest") return "suggestions";
     return p === "home" ? "home" : "";
   };
   const search = (e: Event) => {
@@ -61,6 +63,7 @@ export function TopBar() {
     const r = route();
     if (r.page === "ticker") return `/submit?to=${encodeURIComponent(`t:${r.ticker}`)}`;
     if (r.page === "general") return "/submit?to=c%3Ageneral";
+    if (r.page === "suggestions") return "/suggestions/new";
     return "/submit";
   };
 

@@ -18,7 +18,7 @@ import { DirTag, Pills, TYPE_LABEL, TYPES, TypeTag, day, price, signInPath } fro
 
 const DRAFT_KEY = "ot:community:draft";
 
-const TYPE_HINT: Record<PostType, string> = {
+const TYPE_HINT: Record<Exclude<PostType, "suggestion">, string> = {
   idea: "A trade with levels. Tracked to outcome.",
   analysis: "Data or a market read. No levels required.",
   question: "Ask the community. Can be marked answered.",

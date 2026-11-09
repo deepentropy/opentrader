@@ -15,7 +15,7 @@ import { notify, notifyStatement } from "./notify";
 import { IdeaRecord, emptyRecord, openingState, parseIdea, quotes, recordsOf, reference, rewardRisk, rMultiple, round2 } from "./ideas";
 import { takeSnapshot } from "./snapshots";
 import { cancelForDeletedAccount } from "./billing";
-import { HttpError, LIMITS, NAME_RE, REPORT_REASONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
+import { GITHUB_REPO, HttpError, LIMITS, NAME_RE, REPORT_REASONS, SUGGESTIONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
 
 type Row = Record<string, any>;
 
@@ -193,6 +193,22 @@ export function ideaOut(r: Row) {
   };
 }
 
+export const SUGGESTION_STATUSES = ["review", "planned", "progress", "shipped", "declined"] as const;
+export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
+
+/** A suggestion's status, the administrators' note, its GitHub issue, and who asked on GitHub (imported ones). */
+export function suggestionOut(r: Row) {
+  if (!r.sg_status) return null;
+  return {
+    status: r.sg_status as SuggestionStatus,
+    note: r.sg_note ?? null,
+    updated_at: r.sg_updated_at ?? null,
+    issue_number: r.issue_number ?? null,
+    issue_url: r.issue_number ? `https://github.com/${GITHUB_REPO}/issues/${r.issue_number}` : null,
+    external_author: r.external_author ?? null,
+  };
+}
+
 export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true, record?: IdeaRecord) {
   const own = !!viewer && r.author_id === viewer.id;
   const hidden = !!r.removed && !own && !mod;
@@ -222,6 +238,7 @@ export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = tr
     /** Posted by the automatic threads' account. */
     author_bot: r.author_role === "bot",
     idea: shown ? ideaOut(r) : null,
+    suggestion: suggestionOut(r),
     answer_id: r.answer_id ?? null,
     linked: r.linked_id ? { id: r.linked_id, title: r.linked_title ?? null, status: r.linked_status ?? null, result_r: r.linked_r ?? null } : null,
     // The shared chart: its state in the post (lists: symbol and interval only), its picture as a path on this server.
@@ -269,9 +286,10 @@ export async function communityPosts(env: Env, user: User | null, id: string, ur
 export async function feed(env: Env, user: User | null, url: URL): Promise<Response> {
   if (url.searchParams.get("scope") === "following") {
     const u = requireUser(user);
-    return json(await listPosts(env, user, "p.community_id IN (SELECT community_id FROM follows WHERE user_id = ?)", [u.id], url));
+    return json(await listPosts(env, user, "p.community_id IN (SELECT community_id FROM follows WHERE user_id = ?) AND p.community_id <> ?", [u.id, SUGGESTIONS], url));
   }
-  return json(await listPosts(env, user, "1 = 1", [], url));
+  // Suggestions have their own page.
+  return json(await listPosts(env, user, "p.community_id <> ?", [SUGGESTIONS], url));
 }
 
 /** Posts and comments a connection may send a day, whatever the account. */
@@ -312,13 +330,16 @@ async function attachment(env: Env, u: User, body: any): Promise<{ chart: Shared
 export async function createPost(env: Env, user: User | null, request: Request, id: string, body: any): Promise<Response> {
   const u = writer(user);
   // Apps from before post types send none: an analysis; their theme communities are General now.
-  const type = (str(body?.type) || "analysis") as PostType;
-  if (!(POST_TYPES as readonly string[]).includes(type)) throw new HttpError(400, "Pick what kind of post this is.");
-  if (id.startsWith("c:")) id = GENERAL;
+  const type = (str(body?.type) || "analysis") as PostType | "suggestion";
+  // A suggestion goes to Suggestions, and only a suggestion does (suggestions.ts).
+  const suggestion = type === "suggestion";
+  if (suggestion !== (id === SUGGESTIONS)) throw new HttpError(400, "Suggestions go on the Suggestions page.");
+  if (!suggestion && !(POST_TYPES as readonly string[]).includes(type)) throw new HttpError(400, "Pick what kind of post this is.");
+  if (id.startsWith("c:") && !suggestion) id = GENERAL;
   const title = text(body?.title, "The title", LIMITS.titleMin, LIMITS.titleMax);
   const content = str(body?.body).trim();
   if (content.length > LIMITS.bodyMax) throw new HttpError(400, `The text is longer than ${LIMITS.bodyMax} characters.`);
-  if (!id.startsWith("t:") && id !== GENERAL) throw new HttpError(400, "Post on a ticker, or in General.");
+  if (!id.startsWith("t:") && id !== GENERAL && !suggestion) throw new HttpError(400, "Post on a ticker, or in General.");
   const community = await ensureCommunity(env, id);
   await notBannedIn(env, u, community.id);
   requirePostingCheck(env, u);
@@ -350,13 +371,15 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   const repeat = await env.DB.prepare("SELECT 1 FROM posts WHERE author_id = ? AND content_hash = ? AND created_at >= ? AND deleted = 0")
     .bind(u.id, contentHash, now() - 7 * 86_400)
     .first();
-  if (repeat) throw new HttpError(409, "You already posted this text. Post it once, on the ticker it fits best.");
+  if (repeat) throw new HttpError(409, suggestion ? "You already suggested this." : "You already posted this text. Post it once, on the ticker it fits best.");
   const postId = newId();
   if (image) await saveImage(env, postId, image);
   const cols: Row = {
     id: postId, community_id: community.id, author_id: u.id, title, body: content, score: 0, hot: hotRank(0, at), created_at: at,
     chart: chart ? JSON.stringify(chart) : null, has_image: image ? 1 : 0, sender_hash: sender, content_hash: contentHash,
     type, linked_id: linked, ...idea,
+    // Its author is its first supporter.
+    ...(suggestion ? { sg_status: "review", sg_updated_at: at, useful_count: 1 } : {}),
   };
   const keys = Object.keys(cols);
   const watchers = type === "idea"
@@ -365,6 +388,7 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO posts (${keys.join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).bind(...keys.map((k) => cols[k])),
     env.DB.prepare("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").bind(community.id),
+    ...(suggestion ? [env.DB.prepare("INSERT INTO ratings (user_id, target_type, target_id, reason, created_at) VALUES (?, 'post', ?, 'support', ?)").bind(u.id, postId, at)] : []),
     // "Notify me of new ideas".
     ...watchers.map((w) => notifyStatement(env, w.user_id, { kind: "idea", postId, actor: u.name, text: title })!),
   ]);
@@ -393,7 +417,7 @@ async function flagSameText(env: Env, contentHash: string): Promise<void> {
   );
 }
 
-async function postRow(env: Env, id: string): Promise<Row> {
+export async function postRow(env: Env, id: string): Promise<Row> {
   const row = await env.DB.prepare(`${POST_SELECT} WHERE p.id = ?`).bind(id).first<Row>();
   if (!row) throw new HttpError(404, "This post doesn't exist.");
   return row;
@@ -434,7 +458,7 @@ async function postRatings(env: Env, postId: string, user: User | null) {
   return { reasons: Object.fromEntries(results.map((r) => [r.reason, r.n])), mine };
 }
 
-/** GET /posts/:id — the post, its replies (the client builds the tree), the viewer's ratings. */
+/** GET /posts/:id — the post, its replies (the client builds the tree), the viewer's ratings (a suggestion: whether the viewer supports it). */
 export async function getPost(env: Env, user: User | null, id: string, status = 200): Promise<Response> {
   const row = await postRow(env, id);
   const mod = await isMod(env, user, row.community_id);
@@ -454,6 +478,7 @@ export async function getPost(env: Env, user: User | null, id: string, status = 
       comments: results.map((c) => commentOut(c, user, mod, row.author_id, rec(c.author_id))),
       ratings: await postRatings(env, id, user),
       is_mod: mod,
+      ...(row.sg_status ? { supported: !!user && !!(await env.DB.prepare("SELECT 1 FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ? AND reason = 'support'").bind(user.id, id).first()) } : {}),
     },
     status,
   );
@@ -504,7 +529,8 @@ export async function markAnswer(env: Env, user: User | null, id: string, body: 
 
 // ── Comments ────────────────────────────────────────────────────────────
 
-export const REPLY_KINDS = ["data", "counterpoint", "question", "update"] as const;
+/** 'support': why a supporter needs a suggestion (suggestions.ts). */
+export const REPLY_KINDS = ["data", "counterpoint", "question", "update", "support"] as const;
 
 /** POST /posts/:id/comments {body, parent_id?, kind?, snapshot_id? | chart+image} */
 export async function createComment(env: Env, user: User | null, request: Request, postId: string, body: any, ctx?: ExecutionContext): Promise<Response> {
@@ -518,6 +544,7 @@ export async function createComment(env: Env, user: User | null, request: Reques
   const kind = str(body?.kind) || null;
   if (kind && !(REPLY_KINDS as readonly string[]).includes(kind)) throw new HttpError(400, "Unknown kind of reply.");
   if (kind === "update" && post.author_id !== u.id) throw new HttpError(400, "Updates are by the post's author.");
+  if (kind === "support" && !post.sg_status) throw new HttpError(400, "Unknown kind of reply.");
   const parentId = str(body?.parent_id) || null;
   let parentAuthor: string | null = null;
   if (parentId) {
@@ -585,6 +612,7 @@ export async function ratePost(env: Env, user: User | null, id: string, body: an
   if (!(REASONS as readonly string[]).includes(reason)) throw new HttpError(400, "Unknown reason.");
   const post = await postRow(env, id);
   if (post.deleted || post.removed) throw new HttpError(403, "This post can't be rated.");
+  if (post.sg_status) throw new HttpError(400, "Support the suggestion instead.");
   if (post.author_id === u.id) throw new HttpError(403, "Readers rate a post, not its author.");
   await notBannedIn(env, u, post.community_id);
   const on = body?.on !== false;

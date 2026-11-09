@@ -1,7 +1,8 @@
 /*
  * OpenTrader Community: posts per ticker ($AAPL, US stocks and ETFs) and in
- * General, ideas settled against price, served from one Worker and one D1
- * database, with its website (./site, see pages.ts) at the same address.
+ * General, ideas settled against price, members' feature suggestions
+ * (suggestions.ts), served from one Worker and one D1 database, with its
+ * website (./site, see pages.ts) at the same address.
  * The desktop app and the web version call it directly (CORS below).
  * See migrations/ for the data, auth.ts for sign-in, api.ts for the rest.
  */
@@ -19,6 +20,7 @@ import * as ideas from "./ideas";
 import * as snapshots from "./snapshots";
 import * as views from "./views";
 import * as billing from "./billing";
+import * as suggestions from "./suggestions";
 
 export { PostRoom } from "./live";
 import { HttpError, json } from "./util";
@@ -29,7 +31,7 @@ const MAX_BODY = 64 * 1024;
 /** A new post, a reply or a snapshot may carry a chart's picture. */
 const MAX_POST_BODY = 2_500_000;
 /** Website pages whose address the API also answers (with JSON). */
-const BOTH = /^\/(search|tickers)\/?$/;
+const BOTH = /^\/(search|tickers|suggestions)\/?$/;
 const PICTURED = /^\/(communities\/[^/]+\/posts|posts\/[a-z0-9]+\/comments|me\/snapshots)$/;
 
 function cors(request: Request, env: Env): Record<string, string> {
@@ -112,6 +114,14 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/users\/([^/]+)\/replies$/, ({ env, params, url }) => views.userReplies(env, params[0], url)],
   ["POST", /^\/users\/([^/]+)\/watch$/, ({ env, user, params }) => views.watch(env, user, params[0], true)],
   ["DELETE", /^\/users\/([^/]+)\/watch$/, ({ env, user, params }) => views.watch(env, user, params[0], false)],
+
+  ["GET", /^\/suggestions$/, ({ env, user, url }) => suggestions.list(env, user, url)],
+  ["POST", /^\/suggestions$/, ({ env, user, request, body }) => suggestions.create(env, user, request, body)],
+  ["GET", /^\/suggestions\/([a-z0-9]+)$/, ({ env, user, params }) => suggestions.get(env, user, params[0])],
+  ["POST", /^\/suggestions\/([a-z0-9]+)\/support$/, ({ env, user, request, params, body, ctx }) => suggestions.support(env, user, request, params[0], body, ctx)],
+  ["POST", /^\/mod\/suggestions\/import$/, ({ env, user, body }) => suggestions.importIssue(env, user, body)],
+  ["POST", /^\/mod\/suggestions\/([a-z0-9]+)$/, ({ env, user, params, body }) => suggestions.update(env, user, params[0], body)],
+  ["POST", /^\/mod\/suggestions\/([a-z0-9]+)\/promote$/, ({ env, user, params }) => suggestions.promote(env, user, params[0])],
 
   ["GET", /^\/communities\/([^/]+)$/, ({ env, user, params }) => api.getCommunity(env, user, params[0])],
   ["GET", /^\/communities\/([^/]+)\/moderators$/, ({ env, params }) => members.moderators(env, params[0])],
@@ -205,7 +215,8 @@ export default {
   /**
    * Every half hour on weekdays (wrangler.jsonc), by UTC time: the bot's threads
    * at 13:00 and 16:00, idea prices from 14:00 to 21:30, the ideas settled at
-   * 22:30 on the day's bars, subscriptions read back from the payment provider at 23:00.
+   * 22:30 on the day's bars, subscriptions read back from the payment provider at 23:00,
+   * suggestions whose GitHub issue closed each hour.
    */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const t = new Date(controller.scheduledTime);
@@ -215,5 +226,6 @@ export default {
     if (hm >= 1400 && hm <= 2130) run("prices", () => ideas.refreshPrices(env));
     if (hm === 2230) run("ideas", () => ideas.settleIdeas(env));
     if (hm === 2300) run("billing", () => billing.reconcile(env));
+    if (t.getUTCMinutes() === 0) run("suggestions", () => suggestions.syncIssues(env));
   },
 };

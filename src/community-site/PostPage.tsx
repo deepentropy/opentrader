@@ -4,18 +4,23 @@
  * the replies (each with its kind and snapshot, the answers under it, the
  * author's marked "Author"), and the reply box. Right: an idea's log, the
  * author's last ideas, more on the ticker. Comments arrive live.
+ *
+ * A suggestion (SuggestionsPage) shows its status and GitHub issue, "I need
+ * this too" with an optional reason instead of the ratings, the
+ * administrators' tools, and other suggestions on the right.
  */
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
 import { createStore, produce } from "solid-js/store";
-import { COMMUNITY_URL, api, imageUrl, type Comment, type Idea, type Post, type Ratings, type Reason, type ReplyKind } from "../data/community/api";
+import { COMMUNITY_URL, CommunityError, api, imageUrl, type Comment, type Idea, type Post, type Ratings, type Reason, type ReplyKind, type SuggestionStatus } from "../data/community/api";
 import { withPostingCheck } from "../data/community/posting-check";
 import { me } from "../data/community/session";
 import { showConfirm } from "../components/Dialogs";
 import { BanForm, ErrorBanner, MarkdownBody, PostingCheckPrompt, ReasonForm, ReportForm, errorText } from "../window/right-rail/community/parts";
 import { SnapshotPicker } from "./SnapshotPicker";
+import { SuggestedBy, SupportButton } from "./SuggestionsPage";
 import { go, navigate } from "./router";
 import {
-  Avatar, DirTag, FOG, Pills, TYPE_LABEL, TickerTag, TypeTag, UserLink, age, communityHref, date, dateTime, day, fmtPct, fmtR, ideaState, outcome, price, rColor, recordLine, recordLong, signInPath, tfLong, tfShort, tickerName,
+  Avatar, DirTag, FOG, Pills, STATUS_LABEL, StatusTag, TYPE_LABEL, TickerTag, TypeTag, UserLink, age, communityHref, date, dateTime, day, fmtPct, fmtR, ideaState, outcome, price, rColor, recordLine, recordLong, signInPath, tfLong, tfShort, tickerName,
 } from "./ui";
 
 const APP_URL = "https://opentrader.markets/download.html";
@@ -33,7 +38,7 @@ const KINDS: { id: ReplyKind; label: string }[] = [
   { id: "counterpoint", label: "Counterpoint" },
   { id: "question", label: "Question" },
 ];
-const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update" };
+const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update", support: "Supporter" };
 
 /** "daily close > 148.20", "trade < 52.00": what triggers the entry. */
 export function triggerText(i: Idea): string {
@@ -72,6 +77,8 @@ export function PostPage(props: { id: string }) {
   const [picking, setPicking] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [sort, setSort] = createSignal<"useful" | "oldest">("useful");
+  const [supported, setSupported] = createSignal(false);
+  const [why, setWhy] = createSignal("");
   // "Open in OpenTrader" (#233): the browser hands opentrader:// to the app; a page that keeps the focus means none answered.
   const [noApp, setNoApp] = createSignal(false);
   const openInApp = () => {
@@ -92,6 +99,7 @@ export function PostPage(props: { id: string }) {
     setComments("list", d.comments);
     setRatings(d.ratings);
     setIsMod(d.is_mod);
+    setSupported(!!d.supported);
     document.title = `${d.post.title} · ${tickerName(d.post.community.id)} · OpenTrader Community`;
   });
 
@@ -135,8 +143,11 @@ export function PostPage(props: { id: string }) {
     ([name, id]) => api.userPosts(name, "idea", 0, 6).then((r) => r.posts.filter((x) => x.id !== id).slice(0, 5)).catch(() => [] as Post[]),
   );
   const [related] = createResource(
-    () => (post.p ? [post.p.community.id, post.p.id] as const : null),
-    ([c, id]) => api.posts(c, "new", 0).then((r) => r.posts.filter((x) => x.id !== id).slice(0, 3)).catch(() => [] as Post[]),
+    () => (post.p ? [post.p.community.id, post.p.id, !!post.p.suggestion] as const : null),
+    ([c, id, suggestion]) =>
+      (suggestion ? api.suggestions("open", "top").then((r) => r.suggestions) : api.posts(c, "new", 0).then((r) => r.posts))
+        .then((l) => l.filter((x) => x.id !== id).slice(0, suggestion ? 5 : 3))
+        .catch(() => [] as Post[]),
   );
 
   // Replies: the top ones sorted, each with all its answers under it (oldest first).
@@ -176,6 +187,30 @@ export function PostPage(props: { id: string }) {
       setPost("p", produce((x) => { if (x) { x.useful_count = r.useful_count; x.flag_count = r.flag_count; } }));
     } catch (e) {
       setError(errorText(e));
+    }
+  };
+
+  /** "I need this too", on or off; the reason, when given, comes as a reply. */
+  const support = async () => {
+    const p = post.p;
+    if (!p) return;
+    if (!me()) return navigate(signInPath());
+    setError(null);
+    setBusy(true);
+    try {
+      const r = await withPostingCheck(() => api.support(p.id, !supported(), supported() ? "" : why()));
+      setSupported(r.supported);
+      setPost("p", "useful_count", r.supporters);
+      if (r.comment) {
+        const c = r.comment;
+        setComments("list", (l) => (l.some((x) => x.id === c.id) ? l : [...l, c]));
+        setPost("p", "comment_count", (n) => n + 1);
+      }
+      setWhy("");
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -359,7 +394,7 @@ export function PostPage(props: { id: string }) {
         <div class="cs-reply-main">
           <div class="cs-reply-head">
             <UserLink name={c().author} />
-            <span class="cs-fog">{recordLine(c().author_record)} · {age(c().created_at)}{c().edited_at ? " · edited" : ""}</span>
+            <span class="cs-fog">{post.p?.suggestion ? "" : `${recordLine(c().author_record)} · `}{age(c().created_at)}{c().edited_at ? " · edited" : ""}</span>
             <Show when={c().kind}><span class="cs-type is-plain">{KIND_LABEL[c().kind!]}</span></Show>
             <Show when={c().by_op}><span class="cs-type is-idea">Author</span></Show>
             <Show when={accepted()}><span class="cs-type is-answer">Accepted answer</span></Show>
@@ -400,6 +435,57 @@ export function PostPage(props: { id: string }) {
     );
   };
 
+  /** The administrators' tools on a suggestion: status and note, the GitHub issue. */
+  const SuggestionAdmin = () => {
+    const s = () => post.p!.suggestion!;
+    const [status, setStatus] = createSignal<SuggestionStatus>(s().status);
+    const [note, setNote] = createSignal(s().note ?? "");
+    const [issue, setIssue] = createSignal(s().issue_number ? String(s().issue_number) : "");
+    const [saved, setSaved] = createSignal(false);
+    const run = async (fn: () => Promise<{ post: Post }>) => {
+      setError(null);
+      setBusy(true);
+      try {
+        const r = await fn();
+        setPost("p", r.post);
+        setStatus(r.post.suggestion!.status);
+        setIssue(r.post.suggestion!.issue_number ? String(r.post.suggestion!.issue_number) : "");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } catch (e) {
+        // No token on the server: the issue is opened by hand on GitHub, its number linked here.
+        const url = e instanceof CommunityError ? (e.data.new_issue_url as string | undefined) : undefined;
+        if (url) window.open(url, "_blank", "noopener");
+        setError(errorText(e));
+      } finally {
+        setBusy(false);
+      }
+    };
+    const save = () => {
+      const n = issue().trim().replace(/^#/, "");
+      return run(() => api.setSuggestion(post.p!.id, { status: status(), note: note(), issue_number: n ? Number(n) : null }));
+    };
+    return (
+      <div class="cs-sg-admin">
+        <div class="cs-label">Administrators</div>
+        <div class="cs-row">
+          <select class="cs-input" aria-label="Status" value={status()} onChange={(e) => setStatus(e.currentTarget.value as SuggestionStatus)}>
+            <For each={Object.entries(STATUS_LABEL)}>{([id, label]) => <option value={id}>{label}</option>}</For>
+          </select>
+          <input class="cs-input cs-sg-issue" inputmode="numeric" placeholder="Issue #" aria-label="GitHub issue number" value={issue()} onInput={(e) => setIssue(e.currentTarget.value)} />
+          <input class="cs-input cs-sg-note" maxlength={500} placeholder="Note shown with the status (optional)" aria-label="Note" value={note()} onInput={(e) => setNote(e.currentTarget.value)} />
+        </div>
+        <div class="cs-row">
+          <button type="button" class="cs-btn is-primary" disabled={busy()} onClick={() => void save()}>Save</button>
+          <Show when={!s().issue_number}>
+            <button type="button" class="cs-btn" disabled={busy()} onClick={() => void run(() => api.promoteSuggestion(post.p!.id))}>Open a GitHub issue</button>
+          </Show>
+          <Show when={saved()}><span class="cs-fog">Saved.</span></Show>
+        </div>
+      </div>
+    );
+  };
+
   const isPost = (k: NonNullable<Open>["kind"]) => open()?.id === post.p?.id && open()?.kind === k;
   const p = () => post.p!;
   const ticker = () => tickerName(p().community.id);
@@ -411,22 +497,50 @@ export function PostPage(props: { id: string }) {
         <div class="cs-grid is-post">
           <main id="cs-main" class="cs-center is-wide">
             <div class="cs-crumbs">
-              <a href="/" onClick={go("/")}>Home</a> / <a href={communityHref(p().community.id)} onClick={go(communityHref(p().community.id))}>{ticker()}</a> / {TYPE_LABEL[p().type]}
+              <Show when={!p().suggestion}><a href="/" onClick={go("/")}>Home</a> / </Show>
+              <a href={communityHref(p().community.id)} onClick={go(communityHref(p().community.id))}>{ticker()}</a> / {TYPE_LABEL[p().type]}
             </div>
             <div class="cs-tags">
               <TypeTag type={p().type} />
               <Show when={p().idea}><DirTag dir={p().idea!.direction} /></Show>
-              <TickerTag id={p().community.id} size="mid" />
+              <Show when={p().suggestion} fallback={<TickerTag id={p().community.id} size="mid" />}><StatusTag status={p().suggestion!.status} /></Show>
             </div>
             <h1 class="cs-post-title">{p().title}</h1>
-            <div class="cs-byline">
-              <Avatar name={p().author} />
-              <UserLink name={p().author} />
-              <Show when={p().author_bot} fallback={<span class="cs-fog">{recordLong(p().author_record)} · posted {age(p().created_at)} ago{p().edited_at ? " · edited" : ""}</span>}>
-                <span class="cs-bot">bot</span><span class="cs-fog">posted {age(p().created_at)} ago</span>
-              </Show>
-              <Show when={p().locked}><span class="cs-type is-plain">Locked</span></Show>
-            </div>
+            <Show
+              when={p().suggestion}
+              fallback={
+                <div class="cs-byline">
+                  <Avatar name={p().author} />
+                  <UserLink name={p().author} />
+                  <Show when={p().author_bot} fallback={<span class="cs-fog">{recordLong(p().author_record)} · posted {age(p().created_at)} ago{p().edited_at ? " · edited" : ""}</span>}>
+                    <span class="cs-bot">bot</span><span class="cs-fog">posted {age(p().created_at)} ago</span>
+                  </Show>
+                  <Show when={p().locked}><span class="cs-type is-plain">Locked</span></Show>
+                </div>
+              }
+            >
+              {(s) => (
+                <>
+                  <div class="cs-byline">
+                    <Avatar name={s().external_author ?? p().author} />
+                    <SuggestedBy post={p()} />
+                    <span class="cs-fog">suggested {date(p().created_at)}{p().edited_at ? " · edited" : ""}</span>
+                    <Show when={p().locked}><span class="cs-type is-plain">Locked</span></Show>
+                  </div>
+                  <div class="cs-status">
+                    <span class="cs-status-main">
+                      <span class={`cs-status-mark is-sg-${s().status}`} />
+                      {STATUS_LABEL[s().status]}
+                      <Show when={s().updated_at && s().status !== "review"}><span class="cs-fog"> · {date(s().updated_at!)}</span></Show>
+                    </span>
+                    <Show when={s().issue_url}>
+                      <a href={s().issue_url!} target="_blank" rel="noopener">GitHub issue #{s().issue_number}</a>
+                    </Show>
+                    <Show when={s().note}><span class="cs-status-note">{s().note}</span></Show>
+                  </div>
+                </>
+              )}
+            </Show>
 
             <Show when={p().idea}>
               {(() => {
@@ -505,7 +619,23 @@ export function PostPage(props: { id: string }) {
               <BanForm name={p().author!} communityTitle={ticker()} onCancel={() => setOpen(null)} onSubmit={(d, r) => banAuthor(p().author!, d, r)} />
             </Show>
 
-            <Show when={!p().deleted && !p().removed}>
+            <Show when={p().suggestion && me()?.user.role === "admin"}><SuggestionAdmin /></Show>
+
+            <Show when={p().suggestion && !p().deleted && !p().removed}>
+              <div class="cs-rate">
+                <div class="cs-rate-head">
+                  <h5>{supported() ? "You support this suggestion" : "Do you need this too?"}</h5>
+                  <span class="cs-fog">{p().useful_count} supporter{p().useful_count === 1 ? "" : "s"} · the most supported are looked at first</span>
+                </div>
+                <div class="cs-sg-support">
+                  <SupportButton count={p().useful_count} on={supported()} disabled={busy() || p().suggestion!.status === "shipped"} onToggle={() => void support()} />
+                  <Show when={!supported() && p().suggestion!.status !== "shipped"}>
+                    <textarea class="cs-textarea" maxlength={2000} placeholder="How would you use it? (optional, posted as a reply)" value={why()} onInput={(e) => setWhy(e.currentTarget.value)} />
+                  </Show>
+                </div>
+              </div>
+            </Show>
+            <Show when={!p().suggestion && !p().deleted && !p().removed}>
               <div class="cs-rate">
                 <div class="cs-rate-head">
                   <h5>{p().own ? "What readers found useful" : "Was this useful? Say why."}</h5>
@@ -539,11 +669,15 @@ export function PostPage(props: { id: string }) {
                 <div class="cs-reply-box">
                   <textarea
                     class="cs-textarea"
-                    placeholder={p().own ? "Add an update: what changed, what you do now. The levels stay." : "Add a counterpoint, data, or a question. Attach a snapshot if you reference price."}
+                    placeholder={
+                      p().suggestion
+                        ? "Add details, a use case, or a question."
+                        : p().own ? "Add an update: what changed, what you do now. The levels stay." : "Add a counterpoint, data, or a question. Attach a snapshot if you reference price."
+                    }
                     value={draft()}
                     onInput={(e) => setDraft(e.currentTarget.value)}
                   />
-                  <Show when={!p().own}>
+                  <Show when={!p().own && !p().suggestion}>
                     <div class="cs-row is-kinds">
                       <span class="cs-fog">Kind</span>
                       <For each={KINDS}>
@@ -556,7 +690,9 @@ export function PostPage(props: { id: string }) {
                   <Show when={picking()}><SnapshotPicker selected={snap()} onSelect={setSnap} columns={3} /></Show>
                   <div class="cs-row">
                     <button type="button" class="cs-btn is-primary" disabled={busy() || !draft().trim()} onClick={needUser(() => void send(null, draft()))}>Reply</button>
-                    <button type="button" class="cs-btn" onClick={needUser(() => setPicking((x) => !x))}>{snap() ? "Snapshot attached" : "Attach OpenTrader snapshot"}</button>
+                    <Show when={!p().suggestion}>
+                      <button type="button" class="cs-btn" onClick={needUser(() => setPicking((x) => !x))}>{snap() ? "Snapshot attached" : "Attach OpenTrader snapshot"}</button>
+                    </Show>
                   </div>
                 </div>
               </Show>
@@ -570,7 +706,7 @@ export function PostPage(props: { id: string }) {
                 <For each={ideaLog(p())}>{(e) => <div class="cs-log"><span class="cs-fog">{e.d}</span><span>{e.e}</span></div>}</For>
               </section>
             </Show>
-            <Show when={p().author && !p().author_bot}>
+            <Show when={p().author && !p().author_bot && !p().suggestion}>
               <section>
                 <h5>{p().author}'s last {Math.max(1, (authorIdeas() ?? []).length)} idea{(authorIdeas() ?? []).length === 1 ? "" : "s"}</h5>
                 <div class="cs-note">Every idea counts, including the bad ones.</div>
@@ -586,11 +722,15 @@ export function PostPage(props: { id: string }) {
               </section>
             </Show>
             <section>
-              <h5>Also on {ticker()}</h5>
+              <h5>{p().suggestion ? "Other open suggestions" : `Also on ${ticker()}`}</h5>
               <For each={related() ?? []} fallback={<div class="cs-ruled-row cs-fog">Nothing else yet.</div>}>
                 {(x) => (
                   <a class="cs-ruled-row cs-q" href={`/p/${x.id}`} onClick={go(`/p/${x.id}`)}>
-                    <div class="cs-label">{TYPE_LABEL[x.type]} · {x.type === "question" && x.answer_id ? "answered" : age(x.created_at)}</div>
+                    <div class="cs-label">
+                      {x.suggestion
+                        ? `${STATUS_LABEL[x.suggestion.status]} · ${x.useful_count} supporter${x.useful_count === 1 ? "" : "s"}`
+                        : `${TYPE_LABEL[x.type]} · ${x.type === "question" && x.answer_id ? "answered" : age(x.created_at)}`}
+                    </div>
                     <div class="cs-q-t">{x.title}</div>
                   </a>
                 )}

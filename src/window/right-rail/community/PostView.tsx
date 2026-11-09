@@ -30,7 +30,7 @@ const KINDS: { id: ReplyKind; label: string }[] = [
   { id: "counterpoint", label: "Counterpoint" },
   { id: "question", label: "Question" },
 ];
-const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update" };
+const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update", support: "Supporter" };
 
 /** Deeper replies are drawn at this depth (the panel is narrow). */
 const MAX_INDENT = 6;

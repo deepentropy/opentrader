@@ -78,6 +78,7 @@ async function sitemap(env: Env): Promise<Response> {
     `<url><loc>${escapeHtml(env.PUBLIC_URL + loc)}</loc>${at ? `<lastmod>${new Date(at * 1000).toISOString().slice(0, 10)}</lastmod>` : ""}</url>`;
   const body = [
     url("/"),
+    url("/suggestions"),
     ...communities.map((c) => url(c.id.startsWith("t:") ? `/t/${encodeURIComponent(c.id.slice(2))}` : `/c/${c.id.slice(2)}`)),
     ...posts.map((p) => url(`/p/${p.id}`, p.at)),
   ].join("");

@@ -1,13 +1,14 @@
 /*
  * Notifications (#208): a reply to your post or comment, a moderation
  * decision about your content or account, a new idea from a trader you
- * asked to hear from ('proposal': past answers to community proposals). The app asks for the unread count now and then and lists them.
+ * asked to hear from ('proposal': past answers to community proposals), a new
+ * status of a suggestion you made or support. The app asks for the unread count now and then and lists them.
  */
 import { Env } from "./env";
 import { User } from "./auth";
 import { HttpError, json, newId, now } from "./util";
 
-export type NoticeKind = "reply" | "removed" | "banned" | "proposal" | "idea";
+export type NoticeKind = "reply" | "removed" | "banned" | "proposal" | "idea" | "status";
 
 const KEEP = 90 * 86_400;
 
