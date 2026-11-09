@@ -46,28 +46,44 @@ export const SYNC_LOAD_QUIET_MS = 200;
 /** Time-axis formatting from the Settings dialog (Scales tab). */
 export type AxisFmt = { dateFormat?: string; timeFormat?: string; dayOfWeek?: boolean };
 
-/** Zone the labels of a chart's bar times are read in. Daily-and-up bars
- *  stand for a date (daily at the exchange's midnight, weekly / monthly at
- *  UTC midnight), the same in any chart time zone: read in UTC, as the time
- *  scale does when it places the year / month / day ticks. Otherwise a weekly
- *  bar of Mon 1 Jan read in New York is Sun 31 Dec and its year tick "2023". */
-export const barTimeZone = (timeZone: string, intraday: boolean): string => (intraday ? timeZone : "UTC");
+/** Zone the label of bar time `sec` is read in. Daily-and-up bars stand for a
+ *  date, the same in any chart time zone. Weekly / monthly bars are stamped at
+ *  UTC midnight: read in UTC, else a weekly bar of Mon 1 Jan read in New York
+ *  is Sun 31 Dec and its year tick "2023". Daily bars are stamped at the
+ *  exchange's midnight: read in the exchange zone, else a Kolkata or Tokyo
+ *  day (18:30 / 15:00 UTC the day before) shows one day early. */
+export const barTimeZone = (timeZone: string, intraday: boolean, sec: number, exchangeZone = "UTC"): string =>
+  intraday ? timeZone : sec % 86400 === 0 ? "UTC" : exchangeZone;
 
 /** Crosshair time-axis label, in the chosen IANA timezone: the chart
  *  date-time text ("Wed 23 Sep '26   14:00"; date only on daily+ bars). */
-export function formatAxisTime(time: UTCTimestamp, timeZone: string, intraday: boolean, seconds: boolean, fmt: AxisFmt = {}): string {
-  return formatChartTime(time as number, barTimeZone(timeZone, intraday), intraday, seconds, fmt);
+export function formatAxisTime(
+  time: UTCTimestamp,
+  timeZone: string,
+  intraday: boolean,
+  seconds: boolean,
+  fmt: AxisFmt = {},
+  exchangeZone = "UTC",
+): string {
+  return formatChartTime(time as number, barTimeZone(timeZone, intraday, time as number, exchangeZone), intraday, seconds, fmt);
 }
 
 /** Time-axis tick label in the chosen IANA timezone (tick-mark text). */
-export function formatTick(time: UTCTimestamp, type: TickMarkType, timeZone: string, fmt: AxisFmt = {}, intraday = true): string {
+export function formatTick(
+  time: UTCTimestamp,
+  type: TickMarkType,
+  timeZone: string,
+  fmt: AxisFmt = {},
+  intraday = true,
+  exchangeZone = "UTC",
+): string {
   const kind =
     type === TickMarkType.Year ? "Year"
     : type === TickMarkType.Month ? "Month"
     : type === TickMarkType.DayOfMonth ? "DayOfMonth"
     : type === TickMarkType.TimeWithSeconds ? "TimeWithSeconds"
     : "Time";
-  return formatTickMark(time as number, kind, barTimeZone(timeZone, intraday), fmt.timeFormat);
+  return formatTickMark(time as number, kind, barTimeZone(timeZone, intraday, time as number, exchangeZone), fmt.timeFormat);
 }
 
 // Binary-search the (time-ascending) bar array for an exact timestamp match,

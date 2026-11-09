@@ -1187,15 +1187,19 @@ export function ChartView(props: ChartViewProps) {
     // the effect — and re-applies the formatters — when the settings change.
     const a = appearance();
     const axisFmt: AxisFmt = { dateFormat: a.dateFormat, timeFormat: a.timeFormat, dayOfWeek: a.dayOfWeek };
+    // Daily bars read their date in the exchange zone they are stamped in. Looked up per label: the
+    // symbol's sessions resolve before its first bars, possibly after this effect ran.
+    const exchangeZone = () => cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? "UTC";
     chart.applyOptions({
       timeScale: {
         timeVisible: second || intraday,
         secondsVisible: second,
-        tickMarkFormatter: (t: Time, tt: TickMarkType) => translate(formatTick(realTimeOf(t), tt, tz, axisFmt, second || intraday)),
+        tickMarkFormatter: (t: Time, tt: TickMarkType) =>
+          translate(formatTick(realTimeOf(t), tt, tz, axisFmt, second || intraday, exchangeZone())),
       },
       localization: {
         timeFormatter: (t: Time) =>
-          translate(formatAxisTime(realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt)),
+          translate(formatAxisTime(realTimeOf(t), tz, isIntradayInterval(id), /[ST]$/.test(id.toUpperCase()), axisFmt, exchangeZone())),
       },
     });
     // Day rollover (and thus session-break placement) depends on the timezone,

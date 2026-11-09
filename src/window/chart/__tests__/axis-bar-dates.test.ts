@@ -23,6 +23,25 @@ describe("daily-and-up bar dates on the time axis", () => {
     expect(formatAxisTime(t, "America/Los_Angeles", false, false)).toBe("Tue 02 Jan '24");
   });
 
+  it("a daily bar of an exchange east of UTC keeps its date in any chart zone (#268)", () => {
+    // Thu 2 Jul 2026 00:00 Kolkata = 1 Jul 18:30 UTC; Tokyo = 1 Jul 15:00 UTC; London (summer) = 1 Jul 23:00 UTC.
+    for (const [zone, t] of [
+      ["Asia/Kolkata", (utc(2026, 7, 1, 18) + 1800) as UTCTimestamp],
+      ["Asia/Tokyo", utc(2026, 7, 1, 15)],
+      ["Europe/London", utc(2026, 7, 1, 23)],
+    ] as const) {
+      expect(formatAxisTime(t, NY, false, false, {}, zone)).toBe("Thu 02 Jul '26");
+      expect(formatTick(t, TickMarkType.DayOfMonth, NY, {}, false, zone)).toBe("2");
+    }
+  });
+
+  it("a New York daily bar keeps its date with the exchange zone given", () => {
+    const t = utc(2024, 1, 2, 5);
+    expect(formatAxisTime(t, "America/Los_Angeles", false, false, {}, NY)).toBe("Tue 02 Jan '24");
+    // A weekly bar at UTC midnight is still read in UTC.
+    expect(formatTick(utc(2024, 1, 1), TickMarkType.Year, NY, {}, false, NY)).toBe("2024");
+  });
+
   it("intraday bars stay in the chart's time zone", () => {
     // 1 Jan 2024 03:00 UTC = 31 Dec 2023 22:00 New York.
     const t = utc(2024, 1, 1, 3);

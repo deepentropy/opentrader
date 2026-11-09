@@ -477,7 +477,7 @@ export function MarginChart(props: { report: BacktestReport; intraday: boolean; 
         fixLeftEdge: true,
         fixRightEdge: true,
         // Tick labels in the exchange zone, as on the chart.
-        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(t as UTCTimestamp, tt, props.timeZone, {}, props.intraday),
+        tickMarkFormatter: (t: Time, tt: TickMarkType) => formatTick(t as UTCTimestamp, tt, props.timeZone, {}, props.intraday, props.timeZone),
       },
       layout: { background: { color: "transparent" }, textColor: c.text, fontSize: 12, fontFamily: CHART_FONT, attributionLogo: false },
       leftPriceScale: { visible: false },
