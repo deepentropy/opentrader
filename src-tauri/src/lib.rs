@@ -61,6 +61,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::events::get_splits,
             commands::events::get_latest_news,
             commands::events::get_fundamentals,
+            commands::events::get_filings,
+            commands::events::read_filing,
             commands::meta::get_data_provider,
             commands::meta::get_provider_capabilities,
             commands::meta::open_snapshot,

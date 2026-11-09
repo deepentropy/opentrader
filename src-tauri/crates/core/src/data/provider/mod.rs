@@ -24,7 +24,7 @@ use capabilities::{DataStatus, HistoryProbe, ProviderCapabilities, StreamCaps};
 use crate::data::session::SymbolSession;
 use crate::data::symbol::SymbolRef;
 use crate::data::types::{
-    Candle, DividendEvent, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
 use anyhow::Result;
@@ -142,6 +142,14 @@ pub trait ReferenceProvider: Send + Sync {
     /// the symbol. An error when there are none (or the lookup failed).
     async fn fundamentals(&self, _sym: &SymbolRef) -> Result<Arc<Fundamentals>> {
         anyhow::bail!("fundamentals are not available from this data source")
+    }
+    /// A page of the company's filings, newest first.
+    async fn filings(&self, _sym: &SymbolRef, _q: &FilingQuery) -> Result<FilingList> {
+        anyhow::bail!("filings are not available from this data source")
+    }
+    /// The contents of filing `accn` (no `section`), or a page of one section's text.
+    async fn filing_text(&self, _sym: &SymbolRef, _accn: &str, _section: Option<&str>, _offset: u32) -> Result<FilingText> {
+        anyhow::bail!("filings are not available from this data source")
     }
 }
 

@@ -16,7 +16,7 @@ use axum::Json;
 use opentrader_core::data::market_rest::economics;
 use opentrader_core::data::provider::entitlements;
 use opentrader_core::data::symbol::SymbolRef;
-use opentrader_core::data::types::SubscribeMsg;
+use opentrader_core::data::types::{FilingQuery, SubscribeMsg};
 use opentrader_core::screener::{fields, scan};
 use opentrader_core::{funding, history};
 use serde::de::DeserializeOwned;
@@ -203,6 +203,24 @@ struct News {
 }
 
 #[derive(Deserialize)]
+struct Filings {
+    symbol: String,
+    #[serde(default)]
+    query: FilingQuery,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReadFiling {
+    symbol: String,
+    accn: String,
+    #[serde(default)]
+    section: Option<String>,
+    #[serde(default)]
+    offset: Option<u32>,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Owner {
     owner: String,
@@ -355,6 +373,18 @@ async fn dispatch(state: &Shared, command: &str, headers: &HeaderMap, body: &Byt
             let a: Symbol = args(body)?;
             let f = provider.fundamentals(&SymbolRef::parse(&a.symbol)).await.map_err(|e| e.to_string())?;
             ok(&*f)
+        }
+        "get_filings" => {
+            let a: Filings = args(body)?;
+            ok(provider.filings(&SymbolRef::parse(&a.symbol), &a.query).await.map_err(|e| e.to_string())?)
+        }
+        "read_filing" => {
+            let a: ReadFiling = args(body)?;
+            let f = provider
+                .filing_text(&SymbolRef::parse(&a.symbol), &a.accn, a.section.as_deref(), a.offset.unwrap_or(0))
+                .await
+                .map_err(|e| e.to_string())?;
+            ok(f)
         }
 
         // ── Provider ──

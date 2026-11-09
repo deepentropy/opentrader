@@ -17,7 +17,7 @@ use super::capabilities::{
 use super::entitlements;
 use super::{DataProvider, HistoryProvider, RealtimeProvider, ReferenceProvider, SymbolChange};
 use crate::data::types::{
-    Candle, DividendEvent, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
+    Candle, DividendEvent, FilingList, FilingQuery, FilingText, Fundamentals, NewsItem, Snapshot, SplitEvent, SymbolSearchResult, TickerInfo,
     WsHandle,
 };
 use crate::data::session::{Subsession, SymbolSession};
@@ -151,6 +151,18 @@ impl ReferenceProvider for GatewayProvider {
             anyhow::bail!("an economic series has no fundamentals");
         }
         Ok(market_rest::fetch_fundamentals(&ticker_case::to_source(&sym.ticker)).await?)
+    }
+    async fn filings(&self, sym: &SymbolRef, q: &FilingQuery) -> Result<FilingList> {
+        if economics::is_economic(&sym.exchange) {
+            anyhow::bail!("an economic series has no filings");
+        }
+        Ok(market_rest::fetch_filings(&ticker_case::to_source(&sym.ticker), q).await?)
+    }
+    async fn filing_text(&self, sym: &SymbolRef, accn: &str, section: Option<&str>, offset: u32) -> Result<FilingText> {
+        if economics::is_economic(&sym.exchange) {
+            anyhow::bail!("an economic series has no filings");
+        }
+        Ok(market_rest::fetch_filing_text(&ticker_case::to_source(&sym.ticker), accn, section, offset).await?)
     }
 }
 

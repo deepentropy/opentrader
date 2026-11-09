@@ -40,7 +40,10 @@ Rules:
 - Trade journal: import_trades (symbol, entry, exit per trade), list_journal_trades (P&L, run-up, drawdown read on the
   bars; wait: true until computed), show_journal_trade to show one on the chart or replay it from its entry.
 - Your own bars: import_series (CSV text) makes the symbol LOCAL:<name> (set_symbol to chart it; no live data),
-  list_series, delete_series.`;
+  list_series, delete_series.
+- Companies: get_fundamentals (statements, latest and next earnings), list_filings, then read_filing (contents, then a
+  section). Take figures from get_fundamentals, not from a filing's text; nextEarnings is an estimate: say so. Filing ids
+  come from list_filings, never invented. Report what a filing says as written; never turn it into advice.`;
 
 // The libraries' agent guides (skills/ in each package), bundled as text; empty until a library ships one.
 const oakGuides = import.meta.glob("../../node_modules/oakscriptjs/skills/**/*.md", { query: "?raw", import: "default", eager: true }) as Record<string, string>;

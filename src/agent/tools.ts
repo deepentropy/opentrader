@@ -42,6 +42,7 @@ import { createSeriesTools } from "./series-tools";
 import { createWatchlistTools } from "./watchlist-tools";
 import { createAlertTools } from "./alert-tools";
 import { createCommunityTools } from "./community-tools";
+import { createFilingsTools } from "./filings-tools";
 import { createLayoutTools, type LayoutHost } from "./layout-tools";
 
 /** What App hands the tools. */
@@ -670,6 +671,8 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     ...createLayoutTools({ tabs: host.tabs, layouts: host.layouts }),
     // ── Community (read only) ──────────────────────────────────────────
     ...createCommunityTools(),
+    // ── Company fundamentals and filings (read only) ───────────────────
+    ...createFilingsTools(() => pane().symbol),
   ];
   return tools;
 }

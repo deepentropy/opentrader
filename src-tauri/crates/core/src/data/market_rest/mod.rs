@@ -27,6 +27,7 @@ mod cache;
 mod catalog;
 mod corporate_actions;
 pub mod economics;
+mod filings;
 mod fundamentals;
 mod market_snapshot;
 mod news;
@@ -45,6 +46,7 @@ pub use corporate_actions::{
 };
 #[cfg(test)]
 pub(crate) use corporate_actions::set_splits_for_test;
+pub use filings::{fetch_filing_text, fetch_filings, Filing, FilingList, FilingQuery, FilingSection, FilingText};
 pub use fundamentals::{fetch_fundamentals, Fundamentals};
 pub use market_snapshot::{fetch_market_snapshot, fetch_market_snapshot_counted, shape_feed_snapshots, FeedSnapshot, MarketRow};
 pub use news::{latest_news, NewsItem};
