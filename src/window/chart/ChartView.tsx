@@ -121,6 +121,7 @@ import { createReplay } from "./view/replay";
 import { createTradingLines } from "./view/trading-lines";
 import { createStrategyMarks } from "./view/strategy-marks";
 import { createLegend } from "./view/legend";
+import { upperBound } from "./time-search";
 
 
 /** Per-instance id so a pane ignores its own sync-bus broadcasts. */
@@ -380,14 +381,7 @@ export function ChartView(props: ChartViewProps) {
   }
   /** Built future bars after the last bar. */
   function futureBarsLeft(times: number[], last: number): number {
-    let lo = 0;
-    let hi = times.length;
-    while (lo < hi) {
-      const m = (lo + hi) >> 1;
-      if (times[m] <= last) lo = m + 1;
-      else hi = m;
-    }
-    return times.length - lo;
+    return times.length - upperBound(times, last);
   }
   function syncFutureBars() {
     if (!chart || !series) return;

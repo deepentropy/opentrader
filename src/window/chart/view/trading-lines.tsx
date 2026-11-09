@@ -39,7 +39,7 @@ import { BuySellPresetsButton, placePresetOrder } from "../../trading/OrderPrese
 import { QtyCalculator, QtyPill } from "../../trading/QtyCalculator";
 import { moveOrder } from "../../trading/order-actions";
 import { Popover, PopDivider, PopItem } from "../../screener/Popover";
-import { lastAtOrBefore } from "../replay-feed";
+import { lastAtOrBefore } from "../time-search";
 import {
   defaultBracket,
   defaultOrderBracket,

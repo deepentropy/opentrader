@@ -26,6 +26,7 @@ import { strategyTester } from "../../../data/strategy-tester-store";
 import { tradeJournal, type JournalTrade } from "../../../data/trade-journal";
 import { intervalSec } from "../../../data/trade-journal-calc";
 import { type ChartCx } from "./context";
+import { lastAtOrBefore } from "../time-search";
 
 /** What createStrategyMarks adds to the chart context. */
 export interface StrategyMarksApi {
@@ -106,13 +107,8 @@ export function createStrategyMarks(cx: ChartCx): StrategyMarksApi {
   function barTimeAt(sec: number, after: boolean): number | null {
     const raw = cx.raw;
     if (raw.length === 0) return null;
-    let lo = 0;
-    let hi = raw.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if ((raw[mid].time as number) <= sec) lo = mid;
-      else hi = mid - 1;
-    }
+    // The bar at or before `sec`, else the first one.
+    const lo = Math.max(0, lastAtOrBefore(raw, sec));
     const t = raw[lo].time as number;
     // Past the last bar (Bar Replay hides what follows): no bar holds it.
     if (lo === raw.length - 1 && sec >= t + intervalSec(props.interval ?? "1D")) return null;

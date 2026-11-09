@@ -32,7 +32,8 @@ import { OAKSCRIPT_OPEN_EVENT } from "../indicators/user-scripts";
 import { editorScriptOfStudy, isOpenedInEditor } from "../../oakscript/editor-state";
 import { publishDataWindow, type DataWindowState } from "../../../data/data-window-store";
 import { type ChartCx } from "./context";
-import { indexOfTime, buildLegend } from "./helpers";
+import { buildLegend } from "./helpers";
+import { indexOfTime } from "../time-search";
 import { emitAppEvent } from "../../../data/app-events";
 import type { JSX } from "solid-js";
 

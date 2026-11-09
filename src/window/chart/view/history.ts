@@ -36,6 +36,7 @@ import { type ChartCx } from "./context";
 import { emitAppEvent } from "../../../data/app-events";
 import { waitBeforeRetry } from "../../../data/connection";
 import type { SessionId } from "../../../data/session";
+import { lastAtOrBefore, lowerBound } from "../time-search";
 
 export type GotoOpts = {
   /** Centre the target even when it is already in view (the reference app Go to). */
@@ -430,33 +431,13 @@ export function createHistory(cx: ChartCx): HistoryApi {
   /** Index of the newest loaded bar at or before `targetSec` (binary search on
    *  the time-ascending `raw`); 0 when the target predates every bar. */
   function indexAtOrBefore(targetSec: number): number {
-    let lo = 0,
-      hi = cx.raw.length - 1,
-      ans = 0;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if ((cx.raw[mid].time as number) <= targetSec) {
-        ans = mid;
-        lo = mid + 1;
-      } else hi = mid - 1;
-    }
-    return ans;
+    return Math.max(0, lastAtOrBefore(cx.raw, targetSec));
   }
 
   /** Index of the oldest loaded bar at or after `targetSec` (lower bound);
    *  the newest bar when the target is past every bar. */
   function indexAtOrAfter(targetSec: number): number {
-    let lo = 0,
-      hi = cx.raw.length - 1,
-      ans = cx.raw.length - 1;
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1;
-      if ((cx.raw[mid].time as number) >= targetSec) {
-        ans = mid;
-        hi = mid - 1;
-      } else lo = mid + 1;
-    }
-    return ans;
+    return Math.min(lowerBound(cx.raw, targetSec), cx.raw.length - 1);
   }
 
   // ── Date-range sync, driver side ────────────────────────────────────────

@@ -16,7 +16,7 @@ import { STRATEGY_UPDATED_EVENT, type StrategyUpdatedDetail } from "../indicator
 import { emitAppEvent, onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
 import { startReplayAt } from "../../../data/replay";
 import { type ChartCx } from "./context";
-import { indexAtOrBefore } from "./helpers";
+import { lastAtOrBefore } from "../time-search";
 import { sourcesEdit } from "../../shell/source-edits";
 import { getIndicatorEntry } from "../indicators/registry";
 
@@ -74,7 +74,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
           // only if no price was sent (older broadcast / off-scale cursor).
           const price = d.price != null ? d.price : (cx.raw.length ? cx.raw[cx.raw.length - 1].close : 0);
           // The bar holding the time (another interval's time falls inside one): the library would take the next.
-          const k = indexAtOrBefore(cx.raw, d.time);
+          const k = lastAtOrBefore(cx.raw, d.time);
           const past = k === cx.raw.length - 1 && d.time > (cx.raw[k].time as number);
           const time = past ? d.time : (cx.raw[k].time as number);
           cx.chart.setCrosshairPosition(price, time as UTCTimestamp, cx.series);

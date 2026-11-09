@@ -28,6 +28,7 @@
 import type { Candle } from "../../bindings";
 import { localDay } from "../../data/session";
 import type { SessionSpec } from "../../data/session";
+import { lowerBound } from "./time-search";
 
 export type AggregateUnit = "week" | "month";
 
@@ -107,13 +108,7 @@ export function periodStart(sec: number, p: AggregatePeriod, spec: SessionSpec):
   // Days: index of the day among the year's trading days (a bar on a day the
   // spec calls closed takes the index of the next trading day).
   const days = tradingDaysOf(spec, year);
-  let lo = 0;
-  let hi = days.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (days[mid] < day) lo = mid + 1;
-    else hi = mid;
-  }
+  const lo = lowerBound(days, day);
   const group = lo - (lo % p.n);
   return (days[group] ?? day) * 86400;
 }

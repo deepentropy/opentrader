@@ -24,6 +24,7 @@ import { isTransformType, setDataForType } from "../chart-types";
 import { type ChartCx } from "./context";
 import { toOHLC, barsSpan, MIN_VISIBLE_BARS, SYMBOL_CHANGE_MAX_BACK } from "./helpers";
 import type { Accessor, Setter } from "solid-js";
+import { lowerBound } from "../time-search";
 
 /** What createSymbolLoad adds to the chart context. */
 export interface SymbolLoadApi {
@@ -250,10 +251,7 @@ export function createSymbolLoad(cx: ChartCx): SymbolLoadApi {
       } else if (keep.leftTime !== undefined) {
         // Left edge kept: the first bar at / after the old left-edge time
         // stays at the left edge, same bar spacing.
-        let lo = 0;
-        let hi = cx.raw.length;
-        while (lo < hi) { const mid = (lo + hi) >> 1; if ((cx.raw[mid].time as number) < keep.leftTime) lo = mid + 1; else hi = mid; }
-        const from = lo;
+        const from = lowerBound(cx.raw, keep.leftTime);
         ts.setVisibleLogicalRange({ from, to: from + barsSpan(ts.width(), keep.barSpacing) });
         framed = `keep-left bs=${keep.barSpacing.toFixed(2)} left=${keep.leftTime}`;
       } else {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Time } from "lightweight-charts";
-import { ReplayFeed, lastAtOrBefore } from "../replay-feed";
+import { ReplayFeed } from "../replay-feed";
 import type { OHLC } from "../chart-types";
 import { autoUpdateInterval, clampDelay, fallbackUpdateInterval, updateIntervals } from "../../../data/replay";
 
@@ -11,15 +11,6 @@ const D = 86400;
 const days = [bar(0, 10, 13, 9, 12, 30), bar(D, 12, 15, 11, 14, 30), bar(2 * D, 14, 16, 13, 13, 30)];
 const hours = (day: number, rows: [number, number, number, number][]) =>
   rows.map(([o, h, l, c], i) => bar(day * D + 34200 + i * 3600, o, h, l, c));
-
-describe("lastAtOrBefore", () => {
-  it("finds the bar a time falls in", () => {
-    expect(lastAtOrBefore(days, -1)).toBe(-1);
-    expect(lastAtOrBefore(days, 0)).toBe(0);
-    expect(lastAtOrBefore(days, D - 1)).toBe(0);
-    expect(lastAtOrBefore(days, 5 * D)).toBe(2);
-  });
-});
 
 describe("ReplayFeed on the chart interval", () => {
   it("cuts before the clicked bar and reveals one bar per update", () => {

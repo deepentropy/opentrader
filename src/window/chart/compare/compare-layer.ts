@@ -18,6 +18,7 @@ import type { CompareEntry } from "../../shell/tabs";
 import { chartTypeOf, compareColor, compareSeriesStyles, compareSource } from "./compare-style";
 import { SelectionMarkers, type BackgroundAt } from "../selection-markers";
 import { setSeriesScale } from "../scales/extra-axes";
+import { lastAtOrBefore, lowerBound } from "../time-search";
 
 export class CompareLayer {
   private series: AnySeries | null = null;
@@ -217,13 +218,7 @@ export class CompareLayer {
     if (!b.length) return null;
     let i = b.length - 1;
     if (time != null) {
-      let lo = 0;
-      let hi = b.length - 1;
-      i = -1;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if ((b[mid].time as number) <= time) { i = mid; lo = mid + 1; } else hi = mid - 1;
-      }
+      i = lastAtOrBefore(b, time);
       if (i < 0) return null;
     }
     const src = compareSource(this.entry.style);
@@ -234,12 +229,7 @@ export class CompareLayer {
    *  library's percent mode measures from the first visible value). */
   baseAt(time: number): number | null {
     const b = this.drawn;
-    let lo = 0;
-    let hi = b.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if ((b[mid].time as number) < time) lo = mid + 1; else hi = mid;
-    }
+    const lo = lowerBound(b, time);
     return lo < b.length ? priceOf(b[lo], compareSource(this.entry.style)) : null;
   }
 

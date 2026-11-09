@@ -11,20 +11,9 @@
  * is one whole bar.
  */
 import type { OHLC } from "./chart-types";
+import { lastAtOrBefore } from "./time-search";
 
 const t = (b: { time: unknown }) => b.time as number;
-
-/** Index of the last bar at or before `sec` (-1 when every bar is after). */
-export function lastAtOrBefore(bars: readonly { time: unknown }[], sec: number): number {
-  let lo = 0;
-  let hi = bars.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (t(bars[mid]) <= sec) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo - 1;
-}
 
 /** Merge a sub-bar into a forming bar. */
 export function mergeInto(forming: OHLC, sub: OHLC): OHLC {

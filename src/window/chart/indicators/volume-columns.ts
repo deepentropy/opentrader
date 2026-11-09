@@ -17,6 +17,7 @@ import type {
 } from 'lightweight-charts';
 import type { CanvasRenderingTarget2D } from 'fancy-canvas';
 import { volumeHalfWidth, volumeWidthFactor } from '../volume-widths';
+import { lowerBound } from '../time-search';
 
 export type ColumnPoint = { time: number; value: number; color: string };
 type VolumeBar = { time: number; volume?: number };
@@ -88,16 +89,4 @@ export class VolumeColumnsPrimitive implements ISeriesPrimitive<Time> {
       }
     });
   }
-}
-
-/** Index of the first item at or after `time`. */
-function lowerBound(points: readonly { time: number }[], time: number): number {
-  let lo = 0;
-  let hi = points.length;
-  while (lo < hi) {
-    const m = (lo + hi) >> 1;
-    if (points[m].time < time) lo = m + 1;
-    else hi = m;
-  }
-  return lo;
 }

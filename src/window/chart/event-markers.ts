@@ -37,6 +37,7 @@ import type { OHLC } from "./chart-types";
 import type { ChartEvent } from "../../data/datafeed";
 import { timeToXFallback, type FutureAxis } from "../drawings/coords";
 import { applyOpacity } from "lightweight-charts-drawing/core/color";
+import { lowerBound } from "./time-search";
 
 export type EventKind = ChartEvent["kind"];
 export type EventMarker = ChartEvent;
@@ -70,18 +71,6 @@ const SPLIT_LABEL =
 const EARNINGS_LABEL = "M10 17V8h5.2v1.5h-3.7v2.25h2.7v1.5h-2.7v2.25h3.7V17z";
 const EARNINGS_FILL = "M2 5a3 3 0 0 1 3-3h15a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z";
 const EARNINGS_BORDER = "M5 3.5h15c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5H5A1.5 1.5 0 0 1 3.5 20V4.85A1.5 1.5 0 0 1 5 3.5Z";
-
-/** First index whose time is ≥ `t` (bars ascending). */
-function lowerBound(bars: OHLC[], t: number): number {
-  let lo = 0;
-  let hi = bars.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if ((bars[mid].time as number) < t) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
 
 /** One placed marker. */
 export type PlacedMarker = { index: number; marker: EventMarker; x: number; cx: number; cy: number; size: number; baseY: number };

@@ -53,6 +53,7 @@ import { translatedPlotConfig, translatedStudyResult } from '../../../i18n/study
 import { isUserIndicatorId } from './user-scripts';
 import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
 import { ACCESSORS, applyDelta, callKey, jobChanges, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
+import { indexOfTime, lastAtOrBefore, lowerBound } from '../time-search';
 
 type PlotPoint = { time: number; value: number; color?: string };
 type PlotStyle = NonNullable<PlotConfig['style']>;
@@ -245,16 +246,9 @@ const restored = new WeakSet<object>();
 
 /** Index of the first bar at or after `time` (`after`), else of the last bar at or before it; -1 = none. */
 function barIndexAt(bars: Bar[], time: number, after: boolean): number {
-  let lo = 0;
-  let hi = bars.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if ((bars[mid].time as unknown as number) < time) lo = mid + 1;
-    else hi = mid - 1;
-  }
-  // lo = first bar with time >= `time`
-  if (after) return lo < bars.length ? lo : -1;
-  return lo < bars.length && (bars[lo].time as unknown as number) === time ? lo : lo - 1;
+  if (!after) return lastAtOrBefore(bars, time);
+  const i = lowerBound(bars, time);
+  return i < bars.length ? i : -1;
 }
 /**
  * Plot points with an na point at each skipped bar: OakScript plot() output leaves the na bars out, and a
@@ -281,21 +275,6 @@ function pineStyle(plotType: string | undefined): PlotStyle | undefined {
 
 /** Plot styles the renderer draws with a primitive on an anchor series, not with a plot series. */
 const ANCHOR_STYLES = new Set<string>(['cross', 'linebr', 'steplinebr']);
-
-/** Index of the point whose `time` equals `time`, or -1.  Arrays are ascending
- *  and one-point-per-bar, so a binary search resolves the crosshair bar. */
-function bsearchTime(arr: Array<{ time: number }>, time: number): number {
-  let lo = 0;
-  let hi = arr.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    const t = arr[mid].time;
-    if (t === time) return mid;
-    if (t < time) lo = mid + 1;
-    else hi = mid - 1;
-  }
-  return -1;
-}
 
 /** One legend cell: a plot's current value coloured by the plot's own colour. */
 /** `index`: the plot's position in the entry's plotConfig (alert operands
@@ -1222,7 +1201,7 @@ export class IndicatorLayer {
     if (!sample) return loadingPlots();
     let idx = sample.length - 1;
     if (time != null) {
-      const hit = bsearchTime(sample, time);
+      const hit = indexOfTime(sample, time);
       if (hit >= 0) idx = hit;
     }
     const out: IndicatorLegendPlot[] = [];

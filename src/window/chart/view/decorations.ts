@@ -18,6 +18,7 @@ import { mixColor, textColorOn } from "./helpers";
 import { type ChartCx } from "./context";
 import type { MarketSession } from "../../../data/session";
 import type { Setter } from "solid-js";
+import { lastAtOrBefore, lowerBound } from "../time-search";
 
 /** What createDecorations adds to the chart context. */
 export interface DecorationsApi {
@@ -281,12 +282,8 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     if (vr) {
       const from = vr.from as number;
       const to = vr.to as number;
-      let lo = 0, hi = cx.raw.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if ((cx.raw[m].time as number) < from) lo = m + 1; else hi = m; }
-      i0 = lo;
-      lo = i0; hi = cx.raw.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if ((cx.raw[m].time as number) <= to) lo = m + 1; else hi = m; }
-      i1 = lo - 1;
+      i0 = lowerBound(cx.raw, from);
+      i1 = lastAtOrBefore(cx.raw, to);
     }
     let hi = -Infinity;
     let lo = Infinity;
