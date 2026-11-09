@@ -3,12 +3,14 @@
  * prices, R multiples, dates (dd/mm/yyyy), a trader's record, an idea's
  * state, a post's status line.
  */
+import { POST_TYPES } from "../../community-shared/contract";
+import { date, dateTime } from "../../community-shared/dates";
 import type { Idea, Post, PostType, SuggestionStatus, TrackRecord } from "./api";
 
 export const TYPE_LABEL: Record<PostType, string> = { idea: "Idea", analysis: "Analysis", question: "Question", postmortem: "Post-mortem", suggestion: "Suggestion" };
 export const TYPE_PLURAL: Record<PostType, string> = { idea: "Ideas", analysis: "Analysis", question: "Questions", postmortem: "Post-mortems", suggestion: "Suggestions" };
 /** The market posts' types (suggestions are listed apart). */
-export const TYPES: Exclude<PostType, "suggestion">[] = ["idea", "analysis", "question", "postmortem"];
+export const TYPES: Exclude<PostType, "suggestion">[] = [...POST_TYPES];
 
 export const STATUS_LABEL: Record<SuggestionStatus, string> = { review: "Under review", planned: "Planned", progress: "In progress", shipped: "Shipped", declined: "Declined" };
 
@@ -38,19 +40,7 @@ export function fmtPct(v: number | null | undefined, digits = 1): string {
   return `${v < 0 ? MINUS : "+"}${Math.abs(v).toFixed(digits)}%`;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** dd/mm/yyyy of a UNIX time. */
-export function date(sec: number): string {
-  const d = new Date(sec * 1000);
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-}
-
-/** dd/mm/yyyy hh:mm of a UNIX time. */
-export function dateTime(sec: number): string {
-  const d = new Date(sec * 1000);
-  return `${date(sec)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+export { date, dateTime };
 
 /** dd/mm/yyyy of a session date (YYYY-MM-DD). */
 export function day(iso: string): string {

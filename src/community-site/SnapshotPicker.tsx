@@ -6,13 +6,8 @@
 import { For, Show, createResource, onCleanup } from "solid-js";
 import { api, type Snapshot } from "../data/community/api";
 import { me } from "../data/community/session";
+import { hhmm } from "../community-shared/dates";
 import { tfShort } from "./ui";
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const hhmm = (sec: number) => {
-  const d = new Date(sec * 1000);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 export const SNAPSHOT_HOWTO = "In OpenTrader, open the chart's menu and choose \"Send snapshot to Community\".";
 

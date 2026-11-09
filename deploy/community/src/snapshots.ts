@@ -6,7 +6,8 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { SharedChart, deleteImages, parseChart, parseImage, saveImage } from "./charts";
+import type { SharedChart } from "../../../src/community-shared/contract";
+import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
 import { requireUser } from "./api";
 import { HttpError, json, newId, now, str } from "./util";
 

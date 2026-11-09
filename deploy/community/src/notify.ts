@@ -6,9 +6,8 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
+import type { Notice, NoticeKind } from "../../../src/community-shared/contract";
 import { HttpError, json, newId, now } from "./util";
-
-export type NoticeKind = "reply" | "removed" | "banned" | "proposal" | "idea" | "status";
 
 const KEEP = 90 * 86_400;
 
@@ -50,8 +49,8 @@ export async function list(env: Env, user: User | null): Promise<Response> {
       WHERE n.user_id = ? ORDER BY n.created_at DESC, n.rowid DESC LIMIT 50`,
   )
     .bind(u.id)
-    .all();
-  return json({ notifications: results });
+    .all<Notice>();
+  return json<{ notifications: Notice[] }>({ notifications: results });
 }
 
 /** POST /me/notifications/read — all read; old ones go. */

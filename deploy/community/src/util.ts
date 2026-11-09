@@ -10,7 +10,8 @@ export class HttpError extends Error {
   }
 }
 
-export function json(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
+/** A JSON answer; `T`: its shape in the API contract (src/community-shared/contract.ts), when typed. */
+export function json<T = unknown>(data: T, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
 }
 
@@ -111,8 +112,6 @@ export const LIMITS = {
   commentsPerDay: 300,
   commentsPerDayNew: 30,
 } as const;
-
-export const REPORT_REASONS = ["spam", "manipulation", "harassment", "illegal", "other"] as const;
 
 /** SHA-256 of the sender's IP address and the day: daily limits per connection without keeping the address. */
 export async function senderHash(request: Request): Promise<string> {

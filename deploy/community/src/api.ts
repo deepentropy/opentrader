@@ -7,16 +7,22 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { SharedChart, deleteImages, parseChart, parseImage, saveImage } from "./charts";
+import {
+  CONTACT_KINDS, POST_TYPES, REASONS, REPLY_KINDS, REPORT_REASONS,
+  type Comment, type Community, type CommunityRef, type Idea, type Me, type Post, type PostDetail, type PostList, type PostType, type Ratings, type Reason, type RecordTotals, type SharedChart,
+  type Suggestion, type SuggestionStatus,
+} from "../../../src/community-shared/contract";
+import { deleteImages, parseChart, parseImage, saveImage } from "./charts";
 import { requirePostingCheck } from "./check";
 import { broadcast } from "./live";
 import { notBannedIn } from "./members";
 import { notify, notifyStatement } from "./notify";
-import { IdeaRecord, emptyRecord, openingState, parseIdea, quotes, recordsOf, reference, rewardRisk, rMultiple, round2 } from "./ideas";
+import { emptyRecord, openingState, parseIdea, quotes, recordsOf, reference, rewardRisk, rMultiple, round2 } from "./ideas";
 import { takeSnapshot } from "./snapshots";
 import { cancelForDeletedAccount } from "./billing";
-import { GITHUB_REPO, HttpError, LIMITS, NAME_RE, REPORT_REASONS, SUGGESTIONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
+import { GITHUB_REPO, HttpError, LIMITS, NAME_RE, SUGGESTIONS, hotRank, json, newId, now, parseCommunityId, senderHash, sha256Hex, str } from "./util";
 
+/** A database row: the columns its query selects (the answers sent are typed by the API contract). */
 type Row = Record<string, any>;
 
 export function requireUser(user: User | null): User {
@@ -57,7 +63,7 @@ function text(v: unknown, field: string, min: number, max: number): string {
 /** Where posts go: a US stock or ETF ticker, or General. */
 export const GENERAL = "c:general";
 
-function communityOut(row: Row, followed: boolean, mod: boolean) {
+function communityOut(row: Row, followed: boolean, mod: boolean): Community {
   return {
     id: row.id,
     kind: row.kind,
@@ -159,9 +165,6 @@ export async function setTickers(env: Env, user: User | null, body: any): Promis
 
 // ── Posts ───────────────────────────────────────────────────────────────
 
-export const POST_TYPES = ["idea", "analysis", "question", "postmortem"] as const;
-export type PostType = (typeof POST_TYPES)[number];
-
 export const POST_SELECT = `SELECT p.*, u.name AS author_name, u.role AS author_role, c.title AS community_title, c.kind AS community_kind,
     l.status AS linked_status, l.result_r AS linked_r, l.title AS linked_title
   FROM posts p
@@ -170,7 +173,7 @@ export const POST_SELECT = `SELECT p.*, u.name AS author_name, u.role AS author_
   LEFT JOIN posts l ON l.id = p.linked_id`;
 
 /** The idea part of a post: levels, where it stands, and its R now (open) or final. */
-export function ideaOut(r: Row) {
+export function ideaOut(r: Row): Idea | null {
   if (r.type !== "idea" || !r.direction) return null;
   const open = r.status === "open";
   return {
@@ -201,11 +204,8 @@ export function postOrigin(type: string, origin: unknown): "journal" | null {
   return "journal";
 }
 
-export const SUGGESTION_STATUSES = ["review", "planned", "progress", "shipped", "declined"] as const;
-export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
-
 /** A suggestion's status, the administrators' note, its GitHub issue, and who asked on GitHub (imported ones). */
-export function suggestionOut(r: Row) {
+export function suggestionOut(r: Row): Suggestion | null {
   if (!r.sg_status) return null;
   return {
     status: r.sg_status as SuggestionStatus,
@@ -217,7 +217,7 @@ export function suggestionOut(r: Row) {
   };
 }
 
-export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true, record?: IdeaRecord) {
+export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = true, record?: RecordTotals): Post {
   const own = !!viewer && r.author_id === viewer.id;
   const hidden = !!r.removed && !own && !mod;
   const shown = !hidden && !r.deleted;
@@ -259,7 +259,7 @@ export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = tr
 }
 
 /** Post rows with their authors' records, as sent. */
-export async function postsOut(env: Env, rows: Row[], user: User | null): Promise<ReturnType<typeof postOut>[]> {
+export async function postsOut(env: Env, rows: Row[], user: User | null): Promise<Post[]> {
   const records = await recordsOf(env, rows.map((r) => r.author_id));
   return rows.map((r) => postOut(r, user, false, false, r.author_id ? records.get(r.author_id) ?? emptyRecord() : undefined));
 }
@@ -268,7 +268,7 @@ export function order(sort: string): string {
   return sort === "useful" ? "p.useful_count DESC, p.created_at DESC" : "p.created_at DESC";
 }
 
-async function listPosts(env: Env, user: User | null, where: string, binds: unknown[], url: URL) {
+async function listPosts(env: Env, user: User | null, where: string, binds: unknown[], url: URL): Promise<PostList> {
   const sort = url.searchParams.get("sort") ?? "new";
   const offset = Math.max(0, Math.min(10_000, Number(url.searchParams.get("offset")) || 0));
   const type = url.searchParams.get("type");
@@ -288,7 +288,7 @@ async function listPosts(env: Env, user: User | null, where: string, binds: unkn
 /** GET /communities/:id/posts?sort=new|useful&type=…&offset=… */
 export async function communityPosts(env: Env, user: User | null, id: string, url: URL): Promise<Response> {
   const row = await findCommunity(env, id);
-  if (row.virtual) return json({ posts: [], next_offset: null });
+  if (row.virtual) return json<PostList>({ posts: [], next_offset: null });
   return json(await listPosts(env, user, "p.community_id = ?", [row.id], url));
 }
 
@@ -434,7 +434,7 @@ export async function postRow(env: Env, id: string): Promise<Row> {
   return row;
 }
 
-function commentOut(r: Row, viewer: User | null, mod: boolean, postAuthor: string | null, record?: IdeaRecord) {
+function commentOut(r: Row, viewer: User | null, mod: boolean, postAuthor: string | null, record?: RecordTotals): Comment {
   const own = !!viewer && r.author_id === viewer.id;
   const hidden = !!r.removed && !own && !mod;
   const shown = !hidden && !r.deleted;
@@ -461,10 +461,10 @@ function commentOut(r: Row, viewer: User | null, mod: boolean, postAuthor: strin
 }
 
 /** How many readers gave each reason, and the viewer's. */
-async function postRatings(env: Env, postId: string, user: User | null) {
-  const { results } = await env.DB.prepare("SELECT reason, COUNT(*) AS n FROM ratings WHERE target_type = 'post' AND target_id = ? GROUP BY reason").bind(postId).all<{ reason: string; n: number }>();
+async function postRatings(env: Env, postId: string, user: User | null): Promise<Ratings> {
+  const { results } = await env.DB.prepare("SELECT reason, COUNT(*) AS n FROM ratings WHERE target_type = 'post' AND target_id = ? GROUP BY reason").bind(postId).all<{ reason: Reason; n: number }>();
   const mine = user
-    ? (await env.DB.prepare("SELECT reason FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ?").bind(user.id, postId).all<{ reason: string }>()).results.map((r) => r.reason)
+    ? (await env.DB.prepare("SELECT reason FROM ratings WHERE user_id = ? AND target_type = 'post' AND target_id = ?").bind(user.id, postId).all<{ reason: Reason }>()).results.map((r) => r.reason)
     : [];
   return { reasons: Object.fromEntries(results.map((r) => [r.reason, r.n])), mine };
 }
@@ -483,7 +483,7 @@ export async function getPost(env: Env, user: User | null, id: string, status = 
     .all<Row>();
   const records = await recordsOf(env, [row.author_id, ...results.map((c) => c.author_id)]);
   const rec = (a: string | null) => (a ? records.get(a) ?? emptyRecord() : undefined);
-  return json(
+  return json<PostDetail>(
     {
       post: postOut(row, user, mod, true, rec(row.author_id)),
       comments: results.map((c) => commentOut(c, user, mod, row.author_id, rec(c.author_id))),
@@ -539,9 +539,6 @@ export async function markAnswer(env: Env, user: User | null, id: string, body: 
 }
 
 // ── Comments ────────────────────────────────────────────────────────────
-
-/** 'support': why a supporter needs a suggestion (suggestions.ts). */
-export const REPLY_KINDS = ["data", "counterpoint", "question", "update", "support"] as const;
 
 /** POST /posts/:id/comments {body, parent_id?, kind?, snapshot_id? | chart+image} */
 export async function createComment(env: Env, user: User | null, request: Request, postId: string, body: any, ctx?: ExecutionContext): Promise<Response> {
@@ -612,9 +609,6 @@ export async function deleteComment(env: Env, user: User | null, id: string): Pr
 }
 
 // ── Ratings ─────────────────────────────────────────────────────────────
-
-/** Why a post was useful; 'vague': it wasn't. */
-export const REASONS = ["thesis", "data", "view", "risk", "vague"] as const;
 
 /** POST /posts/:id/rate {reason, on} — a reason on or off; "vague" and the useful reasons exclude each other. */
 export async function ratePost(env: Env, user: User | null, id: string, body: any): Promise<Response> {
@@ -852,9 +846,9 @@ export async function me(env: Env, user: User | null): Promise<Response> {
     "SELECT c.id, c.kind, c.title FROM follows f JOIN communities c ON c.id = f.community_id WHERE f.user_id = ? ORDER BY c.kind DESC, c.title",
   )
     .bind(u.id)
-    .all<Row>();
+    .all<CommunityRef>();
   const bio = (await env.DB.prepare("SELECT bio FROM users WHERE id = ?").bind(u.id).first<{ bio: string }>())?.bio ?? "";
-  return json({
+  return json<Me>({
     user: { name: u.name, role: u.role, created_at: u.created_at, banned_until: u.banned_until, ban_reason: u.ban_reason, post_checked: !!u.post_checked, bio },
     moderates: u.role === "admin" ? "all" : await moderated(env, u),
     follows,
@@ -900,7 +894,6 @@ export async function deleteAccount(env: Env, user: User | null): Promise<Respon
 
 // ── Contact point and appeals ───────────────────────────────────────────
 
-export const CONTACT_KINDS = ["illegal", "appeal", "authority", "other"] as const;
 const CONTACTS_PER_DAY = 5;
 
 /** POST /contact {kind, email?, url?, body} — anyone, signed in or not. */

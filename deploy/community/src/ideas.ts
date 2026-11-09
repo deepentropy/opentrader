@@ -13,12 +13,10 @@
  * The pure rules are unit-tested (test/ideas.test.ts); `settleIdeas` and
  * `refreshPrices` run from the Worker's cron (index.ts) on the market data.
  */
+import type { Direction, EntryRule, IdeaStatus, Quote, RecordTotals, TickerReference } from "../../../src/community-shared/contract";
 import { Env } from "./env";
 import { HttpError, now } from "./util";
 
-export type Direction = "long" | "short";
-export type EntryRule = "close" | "touch";
-export type IdeaStatus = "pending" | "open" | "target" | "stopped" | "expired" | "untriggered";
 export const SETTLED: IdeaStatus[] = ["target", "stopped", "expired"];
 
 export type IdeaLevels = { direction: Direction; entry: number; stop: number; target: number; expires: string; entry_rule: EntryRule };
@@ -169,9 +167,7 @@ export function stepIdea(s: IdeaState, bars: DayBar[], lastDay: string = nyTime(
 
 // ── Records ─────────────────────────────────────────────────────────────
 
-export type IdeaRecord = { resolved: number; hits: number; hit_pct: number | null; avg_r: number | null; total_r: number; open: number };
-
-export function emptyRecord(): IdeaRecord {
+export function emptyRecord(): RecordTotals {
   return { resolved: 0, hits: 0, hit_pct: null, avg_r: null, total_r: 0, open: 0 };
 }
 
@@ -182,7 +178,7 @@ export const RECORD_COLUMNS = `
   SUM(CASE WHEN p.status IN ('target','stopped','expired') THEN p.result_r ELSE 0 END) AS total_r,
   SUM(p.status IN ('pending','open')) AS open`;
 
-export function recordOf(row: { resolved?: number | null; hits?: number | null; total_r?: number | null; open?: number | null } | null | undefined): IdeaRecord {
+export function recordOf(row: { resolved?: number | null; hits?: number | null; total_r?: number | null; open?: number | null } | null | undefined): RecordTotals {
   const resolved = row?.resolved ?? 0;
   const hits = row?.hits ?? 0;
   const total = round2(row?.total_r ?? 0);
@@ -197,9 +193,9 @@ export function recordOf(row: { resolved?: number | null; hits?: number | null; 
 }
 
 /** The records of these authors (user ids), over their ideas not deleted or removed. */
-export async function recordsOf(env: Env, authorIds: (string | null)[]): Promise<Map<string, IdeaRecord>> {
+export async function recordsOf(env: Env, authorIds: (string | null)[]): Promise<Map<string, RecordTotals>> {
   const ids = [...new Set(authorIds.filter((x): x is string => !!x))];
-  const out = new Map<string, IdeaRecord>();
+  const out = new Map<string, RecordTotals>();
   for (let i = 0; i < ids.length; i += 90) {
     const chunk = ids.slice(i, i + 90);
     const { results } = await env.DB.prepare(
@@ -214,7 +210,7 @@ export async function recordsOf(env: Env, authorIds: (string | null)[]): Promise
 }
 
 /** "34 ideas · 62% hit", "3 ideas", "no ideas yet". */
-export function recordLine(r: IdeaRecord | undefined): string {
+export function recordLine(r: RecordTotals | undefined): string {
   if (!r || (!r.resolved && !r.open)) return "no ideas yet";
   if (!r.resolved) return `${r.open} open idea${r.open === 1 ? "" : "s"}`;
   return `${r.resolved} idea${r.resolved === 1 ? "" : "s"} · ${r.hit_pct}% hit`;
@@ -229,8 +225,6 @@ async function gateway<T>(env: Env, path: string): Promise<T | null> {
   if (!res.ok) throw new Error(`${path} answered ${res.status}`);
   return (await res.json()) as T;
 }
-
-export type Quote = { last: number; change: number | null; change_pct: number | null };
 
 type SnapTicker = { ticker: string; todaysChange?: number; todaysChangePerc?: number; day?: { c?: number }; min?: { c?: number }; lastTrade?: { p?: number }; prevDay?: { c?: number } };
 
@@ -254,12 +248,10 @@ export async function quotes(env: Env, tickers: string[]): Promise<Map<string, Q
   return out;
 }
 
-export type Reference = { name: string; exchange: string; sector: string; type: string };
-
 const EXCHANGES: Record<string, string> = { XNAS: "Nasdaq", XNYS: "NYSE", ARCX: "NYSE Arca", XASE: "NYSE American", BATS: "Cboe BZX", IEXG: "IEX" };
 
 /** The company behind a US stock or ETF ticker; null when the market data doesn't list it there. */
-export async function reference(env: Env, ticker: string): Promise<Reference | null> {
+export async function reference(env: Env, ticker: string): Promise<TickerReference | null> {
   const r = await gateway<{ results?: { name?: string; market?: string; locale?: string; primary_exchange?: string; sic_description?: string; type?: string } }>(
     env,
     `/v3/reference/tickers/${encodeURIComponent(ticker)}`,

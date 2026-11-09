@@ -15,6 +15,7 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
+import { utcDate } from "../../../src/community-shared/dates";
 import { HttpError, hotRank, json, newId, now } from "./util";
 
 /** UTC days since 1970. */
@@ -30,12 +31,6 @@ const MOVERS_EACH_WAY = 3;
 const MOVER_MIN_CHANGE = 15;
 const MOVER_MIN_VOLUME = 1_000_000;
 const MOVER_MIN_PRICE = 0.5;
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const ddmmyyyy = (at: number) => {
-  const d = new Date(at * 1000);
-  return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
-};
 
 /** Posts a bot thread once per key; locks the previous thread of the same kind in that community. */
 async function post(
@@ -99,7 +94,7 @@ export async function dailyThreads(env: Env): Promise<string[]> {
       "daily",
       id,
       String(today(at)),
-      `${t} daily thread, ${ddmmyyyy(at)}`,
+      `${t} daily thread, ${utcDate(at)}`,
       `Today's thread for ${t}: plans, levels, charts and news for the session.\n\n_Posted automatically every trading day. Yesterday's thread is locked._`,
       true,
     );
@@ -125,7 +120,7 @@ export async function weeklyThreads(env: Env): Promise<string[]> {
       "weekly",
       c.id,
       String(monday),
-      `${c.title} weekly thread, week of ${ddmmyyyy(monday)}`,
+      `${c.title} weekly thread, week of ${utcDate(monday)}`,
       `This week's open thread for ${c.title}: questions, trades and ideas that don't need a post of their own.\n\n_Posted automatically every Monday. Last week's thread is locked._`,
       true,
     );
@@ -199,7 +194,7 @@ const isoDate = (day: number) => new Date(day * DAY * 1000).toISOString().slice(
 export async function backfillMoves(env: Env, days: number): Promise<string[]> {
   if (!env.GATEWAY_URL || !env.GATEWAY_TOKEN) return [];
   const made: string[] = [];
-  const added = ddmmyyyy(now());
+  const added = utcDate(now());
   // Sessions newest first, each with the session before it.
   const sessions: { day: number; bars: DayBar[] }[] = [];
   for (let d = today() - 1; sessions.length < days + 1 && d > today() - (days + 1) * 2 - 10; d--) {
@@ -215,7 +210,7 @@ export async function backfillMoves(env: Env, days: number): Promise<string[]> {
       const p = prev.get(b.T);
       return { ticker: b.T, changePct: p ? ((b.c - p) / p) * 100 : null, day: { c: b.c, v: b.v } };
     });
-    const date = ddmmyyyy(day * DAY);
+    const date = utcDate(day * DAY);
     for (const s of pickMoves(snaps)) {
       const t = `$${s.ticker}`;
       const p = await post(

@@ -5,9 +5,8 @@
  * comments/<comment id> (/images/c/<comment id>) and snapshots/<id>.
  */
 import { Env } from "./env";
+import type { SharedChart } from "../../../src/community-shared/contract";
 import { HttpError } from "./util";
-
-export type SharedChart = { symbol: string; interval: string; drawings: unknown[] };
 
 const MAX_DRAWINGS = 200;
 const MAX_CHART_JSON = 200_000;

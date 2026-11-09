@@ -8,10 +8,12 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { POST_SELECT, POST_TYPES, findCommunity, ideaOut, order, postsOut, requireUser } from "./api";
-import { RECORD_COLUMNS, dailyBars, nyTime, quotes, recordOf, recordsOf, reference, round2, type IdeaRecord } from "./ideas";
+import { POST_TYPES, type HomeView, type PostList, type Profile, type Reason, type RecordTotals, type SearchView, type TickerView } from "../../../src/community-shared/contract";
+import { POST_SELECT, findCommunity, ideaOut, order, postsOut, requireUser } from "./api";
+import { RECORD_COLUMNS, dailyBars, nyTime, quotes, recordOf, recordsOf, reference, round2 } from "./ideas";
 import { HttpError, SUGGESTIONS, json, now, parseCommunityId, str } from "./util";
 
+/** A database row: the columns its query selects (the answers sent are typed by the API contract). */
 type Row = Record<string, any>;
 
 const DAY = 86_400;
@@ -20,7 +22,10 @@ const VISIT_GAP = 30 * 60;
 const HOME_MAX = 100;
 const BOT = "bot";
 
-const recordOut = (r: IdeaRecord | undefined) => (r ? { resolved: r.resolved, hit_pct: r.hit_pct, avg_r: r.avg_r, open: r.open } : null);
+/** A line of the home page's suggestions box. */
+type SuggestionLine = NonNullable<HomeView["suggestions"]>["open"][number];
+
+const recordOut = (r: RecordTotals | undefined) => (r ? { resolved: r.resolved, hit_pct: r.hit_pct, avg_r: r.avg_r, open: r.open } : null);
 
 /** Where the home feed starts: the member's previous visit (a week for visitors, a month at most). */
 async function visitStart(env: Env, user: User | null, at: number): Promise<{ since: number; visitor: boolean }> {
@@ -72,7 +77,7 @@ export async function home(env: Env, user: User | null, url: URL): Promise<Respo
       WHERE p.type = 'question' AND p.answer_id IS NULL AND p.created_at >= ? AND p.removed = 0 AND p.deleted = 0 AND p.author_id IS NOT ? ORDER BY p.created_at DESC LIMIT 3`,
   )
     .bind(at - 14 * DAY, BOT)
-    .all<Row>();
+    .all<HomeView["open_questions"][number]>();
   // The side box: the most supported open suggestions, and what shipped this month.
   const live = "p.community_id = ? AND p.removed = 0 AND p.deleted = 0";
   const { results: wanted } = await env.DB.prepare(
@@ -80,14 +85,14 @@ export async function home(env: Env, user: User | null, url: URL): Promise<Respo
       WHERE ${live} AND p.sg_status IN ('review','planned','progress') ORDER BY p.useful_count DESC, p.created_at DESC LIMIT 3`,
   )
     .bind(SUGGESTIONS)
-    .all<Row>();
+    .all<SuggestionLine>();
   const { results: shipped } = await env.DB.prepare(
     `SELECT p.id, p.title, p.sg_status AS status, p.useful_count AS supporters FROM posts p
       WHERE ${live} AND p.sg_status = 'shipped' AND p.sg_updated_at >= ? ORDER BY p.sg_updated_at DESC LIMIT 2`,
   )
     .bind(SUGGESTIONS, at - 30 * DAY)
-    .all<Row>();
-  return json({
+    .all<SuggestionLine>();
+  return json<HomeView>({
     since,
     visitor,
     posts: await postsOut(env, results, user),
@@ -126,8 +131,9 @@ export async function tickerPage(env: Env, user: User | null, raw: string): Prom
     .all<Row>();
   const records = await recordsOf(env, open.map((o) => o.author_id));
   const rec = (a: string | null) => (a ? records.get(a) : undefined);
+  // Idea rows only: each has its idea part.
   const ideas = open
-    .map((o) => ({ id: o.id, title: o.title, author: o.author_name, author_record: recordOut(rec(o.author_id)), created_at: o.created_at, idea: ideaOut({ ...o, last_price: q?.last ?? o.last_price }) }))
+    .map((o) => ({ id: o.id, title: o.title, author: o.author_name, author_record: recordOut(rec(o.author_id)), created_at: o.created_at, idea: ideaOut({ ...o, last_price: q?.last ?? o.last_price })! }))
     .sort((a, b) => (b.author_record?.resolved ?? 0) - (a.author_record?.resolved ?? 0) || (b.author_record?.hit_pct ?? 0) - (a.author_record?.hit_pct ?? 0));
   // Each side weighted by its authors' hit rate (a new author counts as an even record).
   const weight = (a: string | null) => {
@@ -144,15 +150,15 @@ export async function tickerPage(env: Env, user: User | null, raw: string): Prom
       ORDER BY p.resolved_at DESC LIMIT 4`,
   )
     .bind(id, since90)
-    .all<Row>();
+    .all<TickerView["resolved90"]["recent"][number]>();
   const { results: answered } = await env.DB.prepare(
     `SELECT p.id, p.title, a.useful_count, ua.name AS answer_by FROM posts p
        JOIN comments a ON a.id = p.answer_id LEFT JOIN users ua ON ua.id = a.author_id
       WHERE p.community_id = ? AND p.type = 'question' AND p.removed = 0 AND p.deleted = 0 ORDER BY p.useful_count DESC, p.created_at DESC LIMIT 3`,
   )
     .bind(id)
-    .all<Row>();
-  return json({
+    .all<TickerView["answered"][number]>();
+  return json<TickerView>({
     community: { id, title: c.title, post_count: c.post_count ?? 0, followed },
     ticker,
     reference: ref,
@@ -290,7 +296,7 @@ export async function search(env: Env, user: User | null, url: URL): Promise<Res
     .bind(...condBinds, offset)
     .all<Row>();
   const posts = await postsOut(env, results.slice(0, 25), user);
-  return json({
+  return json<SearchView>({
     query: q,
     total: total?.n ?? 0,
     facets: {
@@ -305,7 +311,7 @@ export async function search(env: Env, user: User | null, url: URL): Promise<Res
 
 // ── Profiles ────────────────────────────────────────────────────────────
 
-const REASON_LABELS = ["thesis", "risk", "data", "view"];
+const REASON_LABELS: Reason[] = ["thesis", "risk", "data", "view"];
 
 async function userByName(env: Env, name: string): Promise<Row> {
   const u = await env.DB.prepare("SELECT id, name, bio, role, created_at FROM users WHERE name_key = ?").bind(str(name).toLowerCase()).first<Row>();
@@ -348,9 +354,9 @@ export async function profile(env: Env, user: User | null, name: string): Promis
     .bind(u.id)
     .all<Row>();
   const watching = !!user && !!(await env.DB.prepare("SELECT 1 FROM watches WHERE user_id = ? AND author_id = ?").bind(user.id, u.id).first());
-  const outcomes = { target: 0, stopped: 0, expired: 0 } as Record<string, number>;
-  for (const s of settled) outcomes[s.status]++;
-  return json({
+  const outcomes: Profile["outcomes"] = { target: 0, stopped: 0, expired: 0 };
+  for (const s of settled) outcomes[s.status as keyof typeof outcomes]++;
+  return json<Profile>({
     user: { name: u.name, bio: u.bio, created_at: u.created_at, bot: u.role === "bot" },
     record: recordOf(rec),
     median_hold_days: hold == null ? null : Math.round(hold),
@@ -376,7 +382,7 @@ export async function userPosts(env: Env, user: User | null, name: string, url: 
   const { results } = await env.DB.prepare(`${POST_SELECT} WHERE p.author_id = ? AND p.type = ? AND p.deleted = 0 AND p.removed = 0 ORDER BY p.created_at DESC LIMIT ? OFFSET ?`)
     .bind(u.id, type, limit + 1, offset)
     .all<Row>();
-  return json({ posts: await postsOut(env, results.slice(0, limit), user), next_offset: results.length > limit ? offset + limit : null });
+  return json<PostList>({ posts: await postsOut(env, results.slice(0, limit), user), next_offset: results.length > limit ? offset + limit : null });
 }
 
 /** GET /users/:name/replies?offset= */

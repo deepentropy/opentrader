@@ -12,11 +12,13 @@
  */
 import { Env } from "./env";
 import { User } from "./auth";
-import { POST_SELECT, SUGGESTION_STATUSES, type SuggestionStatus, createComment, createPost, getPost, postRow, postsOut, requireUser, writer } from "./api";
+import { SUGGESTION_STATUSES, type SuggestionStatus, type SuggestionsView } from "../../../src/community-shared/contract";
+import { POST_SELECT, createComment, createPost, getPost, postRow, postsOut, requireUser, writer } from "./api";
 import { notBannedIn } from "./members";
 import { notifyStatement } from "./notify";
 import { GITHUB_REPO, HttpError, LIMITS, SUGGESTIONS, hotRank, json, newId, now, str } from "./util";
 
+/** A database row: the columns its query selects (the answers sent are typed by the API contract). */
 type Row = Record<string, any>;
 
 const STATUS_LABEL: Record<SuggestionStatus, string> = { review: "Under review", planned: "Planned", progress: "In progress", shipped: "Shipped", declined: "Declined" };
@@ -67,7 +69,7 @@ export async function list(env: Env, user: User | null, url: URL): Promise<Respo
       ).results.map((r) => r.target_id)
     : [];
   const counts: Record<string, number> = Object.fromEntries(byStatus.map((r) => [r.k, r.n]));
-  return json({
+  return json<SuggestionsView>({
     suggestions: await postsOut(env, page, user),
     supported,
     counts: { ...counts, open: OPEN.reduce((a, s) => a + (counts[s] ?? 0), 0), all: byStatus.reduce((a, r) => a + r.n, 0) },
