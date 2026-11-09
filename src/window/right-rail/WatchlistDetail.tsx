@@ -132,7 +132,7 @@ const PERIODS = ["1W", "1M", "3M", "6M", "YTD", "1Y"] as const;
 
 // ── Detail-panel preferences (Settings header button) ──
 // Settings toggles which sections show.
-// Persists to localStorage, alongside per-symbol notes (the "Add note" button).
+// Persists to kv, alongside per-symbol notes (the "Add note" button).
 const PREFS_KEY = "ot:watchlist:detail-prefs:v1";
 const NOTES_KEY = "ot:watchlist:notes:v1";
 

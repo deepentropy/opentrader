@@ -1,7 +1,7 @@
 /*
  * Drawing-panel visibility — the "Drawings panel" toggle in the profile/main
  * menu shows or hides the left vertical drawing toolbar. Module-level Solid
- * signal + localStorage persistence (mirrors layout-sync), so the ProfileMenu
+ * signal + kv persistence (mirrors layout-sync), so the ProfileMenu
  * toggle and App's toolbar render read the same state without prop-threading.
  */
 import { createSignal } from "solid-js";

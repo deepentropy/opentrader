@@ -5,7 +5,7 @@
  *
  * Settings (Feature: watchlist settings, ported from the reference mock): the
  * header gear opens WatchlistSettingsMenu — Table/tile view, customizable
- * columns, logo toggle, Symbol/Name display. Persisted to localStorage.
+ * columns, logo toggle, Symbol/Name display. Persisted to kv.
  *
  * The panel's parts (columns, cells, sort, selection, sections, drag and
  * drop, menus, rows, headers) live in watchlist/; they share the panel's
@@ -64,7 +64,7 @@ export function Watchlist(props: WatchlistProps) {
   const actionItems = HEADER_ITEMS.filter((h) => h.dataName !== "watchlists-button");
 
   // ── Active list (multi-list store) ──
-  // The store owns the lists + which one is active and persists to localStorage.
+  // The store owns the lists + which one is active and persists to kv.
   // Its sections/extras drive the rows; its marker drives the header + toolbar.
   const active = (): WatchList | undefined => watchlistStore.active();
   const groups = () => active()?.groups ?? [];

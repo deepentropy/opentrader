@@ -1,7 +1,7 @@
 /*
  * Multi-list watchlist store — holds several named lists (each with its own
  * sections + ungrouped "extras"), tracks the active one, and persists the whole
- * thing to localStorage. Seeded from WATCHLIST_TABS + GROUPS: the active
+ * thing to kv. Seeded from WATCHLIST_TABS + GROUPS: the active
  * list gets the seed sections; the others start empty.
  *
  * This backs the watchlist-menu actions (Create / Make a copy / Rename / Add

@@ -19,7 +19,9 @@
  * Out of scope (still on raw localStorage): the per-window-label coordination
  * keys (ot:tabs:*, ot:active-tab:*, ot:detach:*) which rely on synchronous,
  * shared-origin cross-window semantics an async file store would race on — see
- * window-bridge.ts / tabs.ts.
+ * window-bridge.ts / tabs.ts — and the reopen-closed stack (ot:closed-stack),
+ * written synchronously by a closing window and followed by the others through
+ * the `storage` event (see window/shell/closed-stack.ts).
  */
 
 /** Backing file under the app's config dir (e.g. %APPDATA%\<id>\opentrader.json). */
@@ -27,7 +29,7 @@ const STORE_FILE = "opentrader.json";
 /** Set once the first localStorage→store import has run, so it never repeats. */
 const MIGRATED_SENTINEL = "ot:_migrated:v1";
 /** Keys that intentionally stay on raw localStorage (window coordination). */
-const SKIP_PREFIXES = ["ot:tabs:", "ot:active-tab:", "ot:detach:"];
+const SKIP_PREFIXES = ["ot:tabs:", "ot:active-tab:", "ot:detach:", "ot:closed-stack"];
 const PREFIX = "ot:";
 
 /** Minimal structural view of the tauri-plugin-store Store we depend on. */

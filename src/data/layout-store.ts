@@ -3,7 +3,7 @@
  * dropdown (the `save-load-menu` HeaderMenu owner).
  *
  * A "layout" is a named snapshot of a chart workspace, persisted locally to
- * localStorage (not the cloud). A snapshot captures ONE tab's chart configuration
+ * kv (not the cloud). A snapshot captures ONE tab's chart configuration
  * (the multi-pane template + every pane's symbol/interval/chart-type/
  * indicators). The active tab references the layout it was loaded from via
  * `savedLayoutId`; "dirty" = the tab's current config differs from that
@@ -15,7 +15,7 @@
  *   - Share layout is a cloud feature and is not offered. "Download chart
  *     data…" opens the CSV export dialog (DownloadChartDataDialog).
  *
- * Module-level Solid signals + localStorage, mirroring layout-sync.ts /
+ * Module-level Solid signals + kv, mirroring layout-sync.ts /
  * interval-favorites.ts so any component can read/mutate without prop drilling.
  */
 import { createSignal } from "solid-js";

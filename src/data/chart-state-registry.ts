@@ -8,7 +8,7 @@
  * price. ChartView registers a provider for its symbol on mount / symbol
  * change and unregisters on cleanup.
  *
- * Drawing operands are NOT here: drawings persist to localStorage per symbol
+ * Drawing operands are NOT here: drawings persist to kv per symbol
  * (window/drawings/persistence.ts), so the engine reads them directly and this
  * registry stays limited to the closure-only state.
  *

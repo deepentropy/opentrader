@@ -1,5 +1,5 @@
 /*
- * Per-symbol drawing persistence via localStorage. Drawings store
+ * Per-symbol drawing persistence via kv (data/kv.ts). Drawings store
  * `{time, price}` data points which are JSON-safe (Time is a number for
  * intraday/UTC-timestamp charts; for business-day strings it round-trips
  * through JSON unchanged).

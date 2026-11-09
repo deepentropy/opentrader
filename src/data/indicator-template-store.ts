@@ -1,6 +1,6 @@
 /*
  * Indicator templates — the header "Indicator templates" dropdown (a
- * study-template model; templates live in localStorage, not the cloud). A
+ * study-template model; templates live in kv (on this computer), not the cloud). A
  * template captures the active pane's indicator set plus each study's edited
  * inputs/styles, so applying one restores the exact studies.
  *

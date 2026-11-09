@@ -6,7 +6,7 @@
  * The favourited set drives BOTH the filled stars in the left drawing
  * toolbar's submenu rows and the membership of the floating
  * `FavoritesToolbar` strip. It's a single global preference, persisted to
- * localStorage, keyed by canonical tool id (the same ids the toolbar arms and
+ * kv, keyed by canonical tool id (the same ids the toolbar arms and
  * the drawing specs match on). Toolbar visibility is persisted alongside it.
  */
 import { createSignal } from "solid-js";
