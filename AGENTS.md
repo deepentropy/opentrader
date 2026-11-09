@@ -35,7 +35,9 @@ npm run tauri dev                # the app with hot reload (first Rust build: mi
 ```
 
 A new Tauri command: add it in `src-tauri/src/`, list it in `specta_builder()` (`src-tauri/src/lib.rs`), then run
-`cargo test --lib export_bindings` and call it through `commands` from `src/bindings.ts`.
+`cargo test --lib export_bindings` and call it through `commands` from `src/bindings.ts`. If the web build serves it
+too, put its body in `opentrader_core::commands`, add its name to `SERVED` there and route it in
+`crates/server/src/invoke.rs` (tests check that the lists match).
 
 ## Conventions
 
