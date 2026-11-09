@@ -1,0 +1,423 @@
+{
+  "about": "Alert evaluation vectors run by engine.rs (cargo test) and by src/data/__tests__/alert-eval.test.ts (vitest): both must give these fires. A rule lists only what differs from ruleDefaults (its `and` conditions too). Steps: quote {symbol, last, bar: [time, open, high, low, close] | null, now}; set {rules, now} (expect `jobs`); finishReplay {bars | null} (every job of the last set); replay {rule, grid, from, bars}. Fires: [ruleId, price, time, barTime], sorted by rule id.",
+  "constants": { "everyTimeSec": 60, "replayMaxSec": 2592000, "replayMinGapSec": 120, "replayMaxFires": 50 },
+  "ruleDefaults": {
+    "id": "r",
+    "symbol": "X:A",
+    "sig": "1",
+    "op": "greater",
+    "shape": "level",
+    "frequency": "every_time",
+    "expiresAt": null,
+    "since": 0,
+    "grid": "g",
+    "values": [],
+    "perBar": null,
+    "absentIsOutside": false,
+    "and": []
+  },
+  "defaultGrids": [
+    { "key": "g", "bars": [[0, 300], [300, 600], [600, 900], [900, 1200], [1200, 1500]], "regular": [], "session": [], "extendedHours": false }
+  ],
+  "cases": [
+    {
+      "name": "crossing up needs a previous sample and fires once",
+      "rules": [{ "op": "crossing_up", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 15 }, "fires": [["r", 101, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 20 }, "fires": [] },
+        { "quote": { "symbol": "X:B", "last": 101, "bar": null, "now": 20 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "crossing down",
+      "rules": [{ "op": "crossing_down", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 15 }, "fires": [["r", 99, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 98, "bar": null, "now": 20 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "crossing either way, every time at most once a minute",
+      "rules": [{ "op": "crossing", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 15 }, "fires": [["r", 101, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 20 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 100 }, "fires": [["r", 101, 100, 0]] }
+      ]
+    },
+    {
+      "name": "a spike between two quotes crosses at the bar high",
+      "rules": [{ "op": "crossing_up", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": [0, 99, 99.5, 98.5, 99], "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99.2, "bar": [0, 99, 100.4, 98.5, 99.2], "now": 15 }, "fires": [["r", 100.4, 0, 0]] },
+        { "quote": { "symbol": "X:A", "last": 99.3, "bar": [0, 99, 100.4, 98.5, 99.3], "now": 20 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99.4, "bar": [60, 99.3, 100.1, 99.3, 99.4], "now": 76 }, "fires": [["r", 100.1, 60, 0]] }
+      ]
+    },
+    {
+      "name": "greater reads the sample high, less the sample low",
+      "rules": [{ "id": "g", "op": "greater", "values": [100] }, { "id": "l", "op": "less", "values": [98.6] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": [0, 99, 99.5, 98.5, 99], "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99.5, "bar": [0, 99, 100.2, 98.5, 99.5], "now": 15 }, "fires": [["g", 100.2, 0, 0]] },
+        { "quote": { "symbol": "X:A", "last": 99.5, "bar": [60, 99.5, 99.6, 98, 99.5], "now": 70 }, "fires": [["l", 98, 60, 0]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 130 }, "fires": [["g", 101, 130, 0]] }
+      ]
+    },
+    {
+      "name": "the first bar seen gives no range",
+      "rules": [{ "op": "greater", "values": [100] }],
+      "steps": [{ "quote": { "symbol": "X:A", "last": 99, "bar": [0, 99, 101, 98, 99], "now": 10 }, "fires": [] }]
+    },
+    {
+      "name": "inside: the range touches the band; outside: the range leaves it",
+      "rules": [{ "id": "i", "op": "inside", "shape": "band", "values": [110, 100] }, { "id": "o", "op": "outside", "shape": "band", "values": [100, 110] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 95, "bar": [0, 95, 96, 94, 95], "now": 10 }, "fires": [["o", 95, 0, 0]] },
+        { "quote": { "symbol": "X:A", "last": 96, "bar": [0, 95, 101, 94, 96], "now": 20 }, "fires": [["i", 96, 0, 0]] },
+        { "quote": { "symbol": "X:A", "last": 105, "bar": [60, 105, 105, 105, 105], "now": 70 }, "fires": [["i", 105, 60, 0]] },
+        { "quote": { "symbol": "X:A", "last": 105, "bar": [120, 105, 111, 104, 105], "now": 130 }, "fires": [["i", 105, 120, 0], ["o", 105, 120, 0]] }
+      ]
+    },
+    {
+      "name": "entering a band",
+      "rules": [{ "op": "entering", "shape": "band", "values": [110, 100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 95, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 105, "bar": null, "now": 15 }, "fires": [["r", 105, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 106, "bar": null, "now": 20 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "entering a band by the range only",
+      "rules": [{ "op": "entering", "shape": "band", "values": [110, 100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 95, "bar": [0, 95, 95, 95, 95], "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 96, "bar": [0, 95, 100.5, 95, 96], "now": 20 }, "fires": [["r", 96, 0, 0]] }
+      ]
+    },
+    {
+      "name": "exiting a band",
+      "rules": [{ "op": "exiting", "shape": "band", "values": [100, 110] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 105, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 111, "bar": null, "now": 15 }, "fires": [["r", 111, 15, 0]] }
+      ]
+    },
+    {
+      "name": "a rectangle outside its dates counts as outside",
+      "rules": [{ "id": "a", "op": "outside", "shape": "band", "absentIsOutside": true }, { "id": "n", "op": "outside", "shape": "band" }],
+      "steps": [{ "quote": { "symbol": "X:A", "last": 105, "bar": null, "now": 10 }, "fires": [["a", 105, 10, 0]] }]
+    },
+    {
+      "name": "a rectangle's greater and less read its top and bottom",
+      "rules": [{ "id": "g", "op": "greater", "shape": "band", "values": [100, 110], "absentIsOutside": true }, { "id": "l", "op": "less", "shape": "band", "values": [100, 110], "absentIsOutside": true }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 105, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 111, "bar": null, "now": 15 }, "fires": [["g", 111, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 20 }, "fires": [["l", 99, 20, 0]] }
+      ]
+    },
+    {
+      "name": "position: the entry once, then the target ends it",
+      "rules": [{ "op": "hits_level", "shape": "position", "values": [100, 95, 110] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 15 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 20 }, "fires": [["r", 100, 20, 0]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 25 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 111, "bar": null, "now": 30 }, "fires": [["r", 110, 30, 0]] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 35 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "position: a stop before the entry ends it",
+      "rules": [{ "op": "hits_level", "shape": "position", "frequency": "only_once", "values": [100, 95, 110] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 97, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 94, "bar": null, "now": 15 }, "fires": [["r", 95, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 20 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "position: entry and stop in one move fire one after the other",
+      "rules": [{ "op": "hits_level", "shape": "position", "frequency": "only_once", "values": [100, 95, 110] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 94, "bar": null, "now": 15 }, "fires": [["r", 100, 15, 0]] },
+        { "quote": { "symbol": "X:A", "last": 94, "bar": null, "now": 20 }, "fires": [["r", 95, 20, 0]] }
+      ]
+    },
+    {
+      "name": "position: a level touched by the range",
+      "rules": [{ "op": "hits_level", "shape": "position", "values": [100, 95, 110] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 102, "bar": [0, 102, 102, 102, 102], "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": [0, 102, 102, 99.5, 101], "now": 20 }, "fires": [["r", 100, 0, 0]] }
+      ]
+    },
+    {
+      "name": "vertical line: the time reaches it",
+      "rules": [{ "op": "crossing", "shape": "time", "frequency": "only_once", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 5, "bar": null, "now": 90 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 5, "bar": null, "now": 100 }, "fires": [["r", 5, 100, 0]] },
+        { "quote": { "symbol": "X:A", "last": 5, "bar": null, "now": 110 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "per-bar levels follow the bars",
+      "rules": [{ "op": "greater", "perBar": [[100], [101], [], [103], [104]] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 100.5, "bar": null, "now": 10 }, "fires": [["r", 100.5, 10, 0]] },
+        { "quote": { "symbol": "X:A", "last": 100.5, "bar": null, "now": 310 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 500, "bar": null, "now": 610 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 500, "bar": null, "now": 1600 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "every time fires at most once a minute",
+      "rules": [{ "op": "greater", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 10 }, "fires": [["r", 101, 10, 0]] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 40 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 69 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 70 }, "fires": [["r", 102, 70, 0]] }
+      ]
+    },
+    {
+      "name": "once per bar, and a quote with an older bar stays in the bar reached",
+      "rules": [{ "op": "greater", "frequency": "once_per_bar", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 10 }, "fires": [["r", 101, 10, 0]] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 200 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 310 }, "fires": [["r", 102, 310, 300]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": [60, 101, 101, 101, 101], "now": 320 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "only once",
+      "rules": [{ "op": "greater", "frequency": "only_once", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 10 }, "fires": [["r", 101, 10, 0]] },
+        { "quote": { "symbol": "X:A", "last": 102, "bar": null, "now": 400 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "once per bar close compares the closes",
+      "rules": [{ "op": "crossing_up", "frequency": "once_per_bar_close", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 100 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99.5, "bar": null, "now": 290 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 100.5, "bar": null, "now": 310 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 100.6, "bar": null, "now": 610 }, "fires": [["r", 100.5, 310, 300]] }
+      ]
+    },
+    {
+      "name": "expiry",
+      "rules": [{ "op": "greater", "values": [100], "expiresAt": 50000 }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 10 }, "fires": [["r", 101, 10, 0]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 60 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "all conditions must hold",
+      "rules": [{ "op": "crossing_up", "values": [100], "and": [{ "op": "less", "values": [105] }] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 106, "bar": null, "now": 20 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 30 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 40 }, "fires": [["r", 101, 40, 0]] }
+      ]
+    },
+    {
+      "name": "each condition keeps its own memory",
+      "rules": [{ "op": "greater", "values": [100], "and": [{ "op": "crossing_up", "values": [110] }] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 90, "bar": null, "now": 10 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 111, "bar": null, "now": 20 }, "fires": [["r", 111, 20, 0]] },
+        { "quote": { "symbol": "X:A", "last": 112, "bar": null, "now": 90 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "memory is kept while the signature is unchanged",
+      "rules": [{ "op": "crossing_up", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 10 }, "fires": [] },
+        { "set": { "rules": [{ "op": "crossing_up", "values": [100] }], "now": 12 }, "jobs": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 15 }, "fires": [["r", 101, 15, 0]] },
+        { "set": { "rules": [{ "op": "crossing_down", "values": [100], "sig": "2" }], "now": 16 }, "jobs": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 20 }, "fires": [] }
+      ]
+    },
+    {
+      "name": "regular hours: quotes outside the session are not read",
+      "grids": [
+        { "key": "g", "bars": [[0, 300], [300, 600], [1200, 1500], [1500, 1800]], "regular": [[0, 600], [1200, 1800]], "session": [[0, 600], [1200, 1800]], "extendedHours": false }
+      ],
+      "rules": [{ "op": "greater", "frequency": "once_per_bar", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": [-120, 101, 101, 101, 101], "now": -100 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 700 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1210 }, "fires": [["r", 101, 1210, 1200]] }
+      ]
+    },
+    {
+      "name": "regular hours read the regular-session last, not the trade",
+      "grids": [
+        { "key": "g", "bars": [[0, 300], [300, 600], [1200, 1500], [1500, 1800]], "regular": [[0, 600], [1200, 1800]], "session": [[0, 600], [1200, 1800]], "extendedHours": false }
+      ],
+      "rules": [{ "op": "greater", "frequency": "once_per_bar", "values": [100] }],
+      "steps": [{ "quote": { "symbol": "X:A", "last": 99, "bar": [60, 101, 101, 101, 101], "now": 70 }, "fires": [] }]
+    },
+    {
+      "name": "extended hours read pre- and post-market trades in their own bars",
+      "grids": [
+        {
+          "key": "g",
+          "bars": [[-300, 0], [0, 300], [300, 600], [600, 900], [900, 1200], [1200, 1500]],
+          "regular": [[0, 600], [1200, 1800]],
+          "session": [[-300, 900], [900, 2100]],
+          "extendedHours": true
+        }
+      ],
+      "rules": [{ "op": "greater", "frequency": "once_per_bar", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": [-120, 101, 101, 101, 101], "now": -100 }, "fires": [["r", 101, -120, -300]] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": [660, 101, 101, 101, 101], "now": 700 }, "fires": [["r", 101, 660, 600]] }
+      ]
+    },
+    {
+      "name": "once per bar close: the session's last bar closes on the first quote after it",
+      "grids": [
+        { "key": "g", "bars": [[0, 300], [300, 600], [1200, 1500], [1500, 1800]], "regular": [[0, 600], [1200, 1800]], "session": [[0, 600], [1200, 1800]], "extendedHours": false }
+      ],
+      "rules": [{ "op": "greater", "frequency": "once_per_bar_close", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 400 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 700 }, "fires": [["r", 101, 400, 300]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1210 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1220 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1510 }, "fires": [["r", 101, 1220, 1200]] }
+      ]
+    },
+    {
+      "name": "replay of the missed minute bars",
+      "grids": [
+        { "key": "g", "bars": [[0, 300], [300, 600], [600, 900], [900, 1200], [1200, 1500]], "regular": [], "session": [], "extendedHours": false },
+        { "key": "closed", "bars": [[0, 300], [300, 600], [600, 900], [900, 1200], [1200, 1500]], "regular": [[0, 100]], "session": [], "extendedHours": false }
+      ],
+      "rules": [{ "op": "crossing_up", "values": [100] }],
+      "steps": [
+        { "replay": { "rule": "r", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 99, 99.2]] }, "fires": [["r", 100.5, 120, 0]] },
+        { "replay": { "rule": "r", "grid": "g", "from": 120, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 99, 99.2]] }, "fires": [] },
+        { "replay": { "rule": "r", "grid": "closed", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 99, 99.2]] }, "fires": [] }
+      ]
+    },
+    {
+      "name": "the replay reads the minutes of the rule's session",
+      "grids": [
+        { "key": "rth", "bars": [[0, 300], [300, 600], [1200, 1500], [1500, 1800]], "regular": [[0, 600], [1200, 1800]], "session": [[0, 600], [1200, 1800]], "extendedHours": false },
+        {
+          "key": "eth",
+          "bars": [[-300, 0], [0, 300], [300, 600], [600, 900], [900, 1200], [1200, 1500]],
+          "regular": [[0, 600], [1200, 1800]],
+          "session": [[-300, 900], [900, 2100]],
+          "extendedHours": true
+        }
+      ],
+      "rules": [{ "op": "greater", "frequency": "once_per_bar", "values": [100], "grid": "rth" }],
+      "steps": [
+        { "replay": { "rule": "r", "grid": "rth", "from": -1000, "bars": [[-120, 101, 101, 101, 101], [660, 101, 101, 101, 101]] }, "fires": [] },
+        { "replay": { "rule": "r", "grid": "eth", "from": -1000, "bars": [[-120, 101, 101, 101, 101], [660, 101, 101, 101, 101]] }, "fires": [["r", 101, -120, -300], ["r", 101, 660, 600]] }
+      ]
+    },
+    {
+      "name": "replay of every operator over a minute's range",
+      "rules": [
+        { "id": "a-greater", "op": "greater", "values": [100] },
+        { "id": "b-less", "op": "less", "values": [98.5] },
+        { "id": "c-cross", "op": "crossing", "values": [100] },
+        { "id": "d-down", "op": "crossing_down", "values": [99] },
+        { "id": "e-inside", "op": "inside", "shape": "band", "values": [100.2, 100.8] },
+        { "id": "f-outside", "op": "outside", "shape": "band", "values": [98, 101] },
+        { "id": "g-entering", "op": "entering", "shape": "band", "values": [100.2, 100.8] },
+        { "id": "h-exiting", "op": "exiting", "shape": "band", "values": [98, 100.4] },
+        { "id": "i-position", "op": "hits_level", "shape": "position", "values": [100, 98.6, 101] },
+        { "id": "j-time", "op": "crossing", "shape": "time", "values": [150] }
+      ],
+      "steps": [
+        { "replay": { "rule": "a-greater", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["a-greater", 100.5, 120, 0]] },
+        { "replay": { "rule": "b-less", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["b-less", 98, 60, 0], ["b-less", 98.4, 180, 0]] },
+        { "replay": { "rule": "c-cross", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["c-cross", 100.5, 120, 0]] },
+        { "replay": { "rule": "d-down", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["d-down", 98, 60, 0], ["d-down", 98.4, 180, 0]] },
+        { "replay": { "rule": "e-inside", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["e-inside", 99.4, 120, 0]] },
+        { "replay": { "rule": "f-outside", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 97.5, 99.2]] }, "fires": [["f-outside", 99.2, 180, 0]] },
+        { "replay": { "rule": "g-entering", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["g-entering", 99.4, 120, 0]] },
+        { "replay": { "rule": "h-exiting", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["h-exiting", 99.4, 120, 0]] },
+        { "replay": { "rule": "i-position", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["i-position", 98.6, 60, 0]] },
+        { "replay": { "rule": "j-time", "grid": "g", "from": 0, "bars": [[60, 99, 99.5, 98, 99], [120, 99, 100.5, 99, 99.4], [180, 99.4, 99.6, 98.4, 99.2]] }, "fires": [["j-time", 99.4, 180, 0]] }
+      ]
+    },
+    {
+      "name": "replay with a trigger per bar",
+      "rules": [
+        { "id": "a-bar", "op": "greater", "frequency": "once_per_bar", "values": [100] },
+        { "id": "b-once", "op": "greater", "frequency": "only_once", "values": [100] },
+        { "id": "c-close", "op": "crossing_up", "frequency": "once_per_bar_close", "values": [100] }
+      ],
+      "steps": [
+        { "replay": { "rule": "a-bar", "grid": "g", "from": 0, "bars": [[60, 101, 101, 101, 101], [120, 101, 101, 101, 101], [360, 101, 101, 101, 101]] }, "fires": [["a-bar", 101, 60, 0], ["a-bar", 101, 360, 300]] },
+        { "replay": { "rule": "b-once", "grid": "g", "from": 0, "bars": [[60, 101, 101, 101, 101], [120, 101, 101, 101, 101], [360, 101, 101, 101, 101]] }, "fires": [["b-once", 101, 60, 0]] },
+        { "replay": { "rule": "c-close", "grid": "g", "from": 0, "bars": [[60, 99, 99, 99, 99], [360, 99, 102, 99, 101], [660, 101, 101, 101, 101]] }, "fires": [["c-close", 101, 360, 300]] }
+      ]
+    },
+    {
+      "name": "a replay only after a previous run, then quotes go on from its state",
+      "previous": { "X:A": 996400 },
+      "setAt": 1000000,
+      "jobs": [["X:A", 996400]],
+      "rules": [{ "op": "greater", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1000000 }, "fires": [] },
+        { "finishReplay": { "bars": [[999400, 101, 101, 101, 101]] }, "fires": [["r", 101, 999400, null]] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1000005 }, "fires": [["r", 101, 1000005, null]] },
+        { "set": { "rules": [{ "op": "greater", "values": [100] }], "now": 1000000 }, "jobs": [] }
+      ]
+    },
+    {
+      "name": "no previous run: nothing to replay",
+      "setAt": 1000000,
+      "jobs": [],
+      "rules": [{ "op": "greater", "values": [100] }],
+      "steps": []
+    },
+    {
+      "name": "a rule active a moment ago missed nothing",
+      "previous": { "X:A": 996400 },
+      "setAt": 1000000,
+      "jobs": [],
+      "rules": [{ "op": "greater", "values": [100], "since": 999990000 }],
+      "steps": []
+    },
+    {
+      "name": "unreadable missed bars: the rule starts from the next quote",
+      "previous": { "X:A": 996400 },
+      "setAt": 1000000,
+      "jobs": [["X:A", 996400]],
+      "rules": [{ "op": "crossing_up", "values": [100] }],
+      "steps": [
+        { "finishReplay": { "bars": null }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 101, "bar": null, "now": 1000010 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 1000020 }, "fires": [] }
+      ]
+    }
+  ]
+}

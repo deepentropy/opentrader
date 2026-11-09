@@ -772,6 +772,88 @@ mod tests {
         assert_eq!(fires, vec![Some(-300.0), Some(600.0)]);
     }
 
+    /// The vectors shared with the window's evaluation (src/data/alert-eval.ts): both must give these fires.
+    #[test]
+    fn shared_vectors() {
+        use serde_json::Value;
+        let v: Value = serde_json::from_str(include_str!("vectors.json")).unwrap();
+        let c = &v["constants"];
+        assert_eq!(c["everyTimeSec"].as_f64(), Some(EVERY_TIME_SEC));
+        assert_eq!(c["replayMaxSec"].as_f64(), Some(REPLAY_MAX));
+        assert_eq!(c["replayMinGapSec"].as_f64(), Some(REPLAY_MIN_GAP));
+        assert_eq!(c["replayMaxFires"].as_u64(), Some(REPLAY_MAX_FIRES as u64));
+
+        fn with_defaults(r: &Value, defaults: &Value) -> Value {
+            let mut out = defaults.clone();
+            for (k, x) in r.as_object().unwrap() {
+                out[k] = x.clone();
+            }
+            let and: Vec<Value> = out["and"].as_array().unwrap().iter().map(|c| with_defaults(c, defaults)).collect();
+            out["and"] = Value::Array(and);
+            out
+        }
+        let rules_of = |list: &Value| -> Vec<EngineRule> { list.as_array().unwrap().iter().map(|r| serde_json::from_value(with_defaults(r, &v["ruleDefaults"])).unwrap()).collect() };
+        let bars_of = |list: &Value| -> Vec<Candle> {
+            list.as_array().unwrap().iter().map(|b| {
+                let n: Vec<f64> = serde_json::from_value(b.clone()).unwrap();
+                bar(n[0], n[1], n[2], n[3], n[4])
+            }).collect()
+        };
+        let check = |name: &str, i: usize, mut got: Vec<Fire>, want: &Value| {
+            got.sort_by(|a, b| a.rule_id.cmp(&b.rule_id));
+            let want = want.as_array().unwrap();
+            assert_eq!(got.len(), want.len(), "{name}, step {i}: {got:?}");
+            for (g, w) in got.iter().zip(want) {
+                let ok = g.rule_id == w[0].as_str().unwrap()
+                    && (g.price - w[1].as_f64().unwrap()).abs() < 1e-9
+                    && (g.time - w[2].as_f64().unwrap()).abs() < 1e-9
+                    && g.bar_time == w[3].as_f64();
+                assert!(ok, "{name}, step {i}: {got:?}");
+            }
+        };
+        let jobs_are = |name: &str, jobs: &[ReplayJob], want: &Value| {
+            let mut got: Vec<(String, f64)> = jobs.iter().map(|j| (j.symbol.clone(), j.from)).collect();
+            got.sort_by(|a, b| a.0.cmp(&b.0));
+            let want: Vec<(String, f64)> = serde_json::from_value(want.clone()).unwrap();
+            assert_eq!(got, want, "{name}: replay jobs");
+        };
+
+        for case in v["cases"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let grid_list = if case["grids"].is_null() { &v["defaultGrids"] } else { &case["grids"] };
+            let grids: Vec<EngineGrid> = serde_json::from_value(grid_list.clone()).unwrap();
+            let previous: Option<HashMap<String, f64>> = serde_json::from_value(case["previous"].clone()).unwrap();
+            let rules = rules_of(&case["rules"]);
+            let mut e = Engine::with_previous(previous);
+            let mut jobs = e.set(rules.clone(), grids.clone(), case["setAt"].as_f64().unwrap_or(0.0));
+            if !case["jobs"].is_null() {
+                jobs_are(name, &jobs, &case["jobs"]);
+            }
+            for (i, step) in case["steps"].as_array().unwrap().iter().enumerate() {
+                if let Some(q) = step.get("quote") {
+                    let b = (!q["bar"].is_null()).then(|| bars_of(&Value::Array(vec![q["bar"].clone()]))[0].clone());
+                    let fires = e.sample(q["symbol"].as_str().unwrap(), q["last"].as_f64().unwrap(), b.as_ref(), q["now"].as_f64().unwrap());
+                    check(name, i, fires, &step["fires"]);
+                } else if let Some(s) = step.get("set") {
+                    jobs = e.set(rules_of(&s["rules"]), grids.clone(), s["now"].as_f64().unwrap());
+                    jobs_are(name, &jobs, &step["jobs"]);
+                } else if let Some(f) = step.get("finishReplay") {
+                    let bars = (!f["bars"].is_null()).then(|| bars_of(&f["bars"]));
+                    let fires = jobs.iter().flat_map(|j| e.finish_replay(j, bars.as_deref())).collect();
+                    check(name, i, fires, &step["fires"]);
+                } else if let Some(r) = step.get("replay") {
+                    let rule = rules.iter().find(|x| x.id == r["rule"].as_str().unwrap()).unwrap();
+                    let grid = grids.iter().find(|g| g.key == r["grid"].as_str().unwrap());
+                    let more: Vec<Option<EngineGrid>> = rule.and.iter().map(|c| grids.iter().find(|g| g.key == c.grid).cloned()).collect();
+                    let (_, fires) = replay_rule(rule, grid, &more, &bars_of(&r["bars"]), r["from"].as_f64().unwrap());
+                    check(name, i, fires, &step["fires"]);
+                } else {
+                    panic!("{name}, step {i}: unknown step");
+                }
+            }
+        }
+    }
+
     #[test]
     fn replay_only_after_a_previous_run() {
         let now = 1_000_000.0;
