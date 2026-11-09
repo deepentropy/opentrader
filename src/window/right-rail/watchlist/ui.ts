@@ -43,11 +43,6 @@ export const HEADER_ITEMS: HeaderItem[] = [
   }
 ];
 
-export const WL_SETTINGS_ICONS = {
-  check:
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 9" fill="none"><path stroke="currentColor" stroke-width="2" d="M0.999878 4L3.99988 7L9.99988 1"></path></svg>',
-};
-
 /** Customize-columns rows: `menuLabel` shows in the popover, `header` is the
  *  short column-strip label, in display order (after the fixed Symbol column). */
 export const WL_COLUMNS: { key: WlColumnKey; menuLabel: string; header: string }[] = [
