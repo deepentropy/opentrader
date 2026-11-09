@@ -14,8 +14,7 @@
 import { createRoot, createSignal } from "solid-js";
 import type { BacktestReport, Bar } from "../../backtester/types";
 import { DEFAULT_SYMBOL } from "../../backtester/types";
-import { getTickerInfo } from "../datafeed";
-import { isEconomicSymbol } from "../datafeed";
+import { getTickerInfo, isEconomicSymbol, isLocalSymbol } from "../datafeed";
 import * as kv from "../kv";
 import {
   isPaneInReplay,
@@ -92,8 +91,12 @@ export const replayBroker = createRoot(() => {
       metas.set(symbol, {
         mintick: sess?.mintick ?? 0.01,
         timezone: sess?.timeZone ?? DEFAULT_SYMBOL.timezone,
-        // Economic series have no currency: not tradable.
-        currency: isEconomicSymbol(symbol) ? null : (info?.currency ?? "").toUpperCase() || null,
+        // Economic series have no currency: not tradable. An imported series
+        // has none either but is a price series: traded in US dollars unless
+        // the session's settings pick a currency.
+        currency: isEconomicSymbol(symbol)
+          ? null
+          : (info?.currency ?? "").toUpperCase() || (isLocalSymbol(symbol) ? "USD" : null),
         description: info?.name ?? symbol,
         iconUrl: info?.iconUrl ?? null,
         symbolType: info?.symbolType ?? null,
