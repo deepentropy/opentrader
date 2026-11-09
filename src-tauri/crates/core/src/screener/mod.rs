@@ -20,6 +20,7 @@ pub mod progress;
 pub mod scan;
 pub mod state;
 pub mod table;
+pub mod technicals;
 
 use crate::data::gateway;
 use crate::data::market_rest::{self, MarketRow, RefTicker};

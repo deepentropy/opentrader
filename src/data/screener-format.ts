@@ -35,7 +35,21 @@ function signed(n: number, body: string): string {
   return body;
 }
 
-export type Cell = { text: string; unit?: string; tone?: "up" | "down" };
+/** A technical rating's bucket (the reference screener's rating enum). */
+export type Rating = "StrongBuy" | "Buy" | "Neutral" | "Sell" | "StrongSell";
+
+export type Cell = { text: string; unit?: string; tone?: "up" | "down"; rating?: Rating };
+
+const RATING_TEXT: Record<Rating, string> = { StrongBuy: "Strong buy", Buy: "Buy", Neutral: "Neutral", Sell: "Sell", StrongSell: "Strong sell" };
+
+/** The bucket of a rating from -1 to 1: strong above 0.5, buy / sell beyond 0.1 (Pine comparisons, 1e-10). */
+export function ratingOf(v: number): Rating {
+  if (v - 0.5 > 1e-10) return "StrongBuy";
+  if (v - 0.1 > 1e-10) return "Buy";
+  if (-0.5 - v > 1e-10) return "StrongSell";
+  if (-0.1 - v > 1e-10) return "Sell";
+  return "Neutral";
+}
 
 /** Format one table cell. `currency` is the row currency (unit suffix). */
 export function formatCell(fmt: Fmt, v: number | string | null | undefined, currency: string | null): Cell {
@@ -62,6 +76,10 @@ export function formatCell(fmt: Fmt, v: number | string | null | undefined, curr
       return { text: `${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}` };
     case "integer":
       return { text: `${v < 0 ? MINUS : ""}${Math.round(Math.abs(v))}` };
+    case "rating": {
+      const rating = ratingOf(v);
+      return { text: RATING_TEXT[rating], rating };
+    }
     // A date (UNIX seconds of a UTC day), dd/mm/yyyy.
     case "date": {
       const d = new Date(v * 1000);

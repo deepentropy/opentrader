@@ -26,7 +26,7 @@ import {
   sameColumn,
   type ColumnRef,
 } from "../../data/screener-catalog";
-import { DASH } from "../../data/screener-format";
+import { DASH, type Rating } from "../../data/screener-format";
 import { displayCell } from "../../data/screener-display";
 import { screenerSettings } from "../../data/screener-settings";
 import { EXTRA_FIELDS } from "../../data/screener-query";
@@ -165,6 +165,8 @@ export function ScreenerTable(props: Props) {
         const f = displayCell(def, row.d[ci], typeof cur === "string" ? cur : null);
         let px = textWidth(f.text, `14px ${FONT}`);
         if (f.unit && f.text !== DASH) px += textWidth(` ${f.unit}`, `500 10px ${FONT}`);
+        // A rating's icon: 18 px and its 4 px gap.
+        if (f.rating) px += 22;
         w = Math.max(w, Math.ceil(px) + 24 + 1);
       }
       if (w !== (next[colKey(c)] ?? 0)) {
@@ -250,9 +252,11 @@ export function ScreenerTable(props: Props) {
       const t = f()?.tone;
       return t === "up" ? "scr-up" : t === "down" ? "scr-down" : undefined;
     };
+    const rating = () => f()?.rating;
     return (
       <td class="scr-td" classList={{ "is-right": def?.align !== "left" }} title={def?.cellText ? text() : undefined}>
-        <span class={tone()}>{text()}</span>
+        <Show when={rating()}>{(r) => <RatingIcon rating={r()} />}</Show>
+        <span class={rating() ? `scr-rating scr-rating-${RATING_CLASS[rating()!]}` : tone()}>{text()}</span>
         <Show when={unit()}>
           <span class="scr-currency"> {unit()}</span>
         </Show>
@@ -435,5 +439,25 @@ export function ScreenerTable(props: Props) {
         />
       </Show>
     </div>
+  );
+}
+
+const RATING_CLASS: Record<Rating, string> = { StrongBuy: "buy", Buy: "buy", Neutral: "neutral", Sell: "sell", StrongSell: "sell" };
+/** Chevrons of a rating cell: two up, one up, a dash, one down, two down. */
+const RATING_PATH: Record<Rating, string> = {
+  StrongBuy: "M5 8.5 9 4.5l4 4M5 13.5 9 9.5l4 4",
+  Buy: "M5 11 9 7l4 4",
+  Neutral: "M5 9h8",
+  Sell: "M5 7l4 4 4-4",
+  StrongSell: "M5 4.5l4 4 4-4M5 9.5l4 4 4-4",
+};
+
+function RatingIcon(props: { rating: Rating }) {
+  return (
+    <span class={`scr-rating-icon scr-rating-${RATING_CLASS[props.rating]}`}>
+      <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+        <path d={RATING_PATH[props.rating]} />
+      </svg>
+    </span>
   );
 }

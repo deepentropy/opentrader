@@ -14,6 +14,7 @@
 use crate::data::market_rest::MarketRow;
 use crate::screener::state::StateFile;
 use crate::screener::table::{Join, Row, Table};
+use crate::screener::technicals::{self, Tech};
 use serde::Serialize;
 
 /// A computed cell.
@@ -98,6 +99,16 @@ pub enum Step {
     /// yield (cash dividends of the last 12 months / close of D) and beta
     /// (weekly or monthly returns against the S&P 500).
     Daily,
+    /// Technical ratings and oscillators (`technicals.rs`).
+    Tech(Tech),
+    /// Text bucket of a rating ("StrongBuy" ... "StrongSell"), for the rating checkbox filters.
+    Rating(Tech),
+    /// Mean of 100 * (high - low) / low over the window's bars: (`|s` + today's) / (`|n` + 1).
+    MeanSwing,
+    /// Volume of the current week / month: `|next` (the bars of the period before today) + today's volume.
+    PeriodVolume,
+    /// Price * the period volume of the given key.
+    PeriodTurnover(&'static str),
 }
 
 /// A price ratio of the fundamentals: the live price (or market cap) against
@@ -207,6 +218,26 @@ const STATE: &[(&str, Step)] = &[
     ("beta_1_year", Step::Daily),
     ("beta_3_year", Step::Daily),
     ("beta_5_year", Step::Daily),
+    ("Recommend.All", Step::Tech(Tech::RatingAll)),
+    ("Recommend.MA", Step::Tech(Tech::RatingMa)),
+    ("Recommend.Other", Step::Tech(Tech::RatingOther)),
+    ("TechRating_1D", Step::Rating(Tech::RatingAll)),
+    ("MARating_1D", Step::Rating(Tech::RatingMa)),
+    ("OsRating_1D", Step::Rating(Tech::RatingOther)),
+    ("Mom", Step::Tech(Tech::Mom(10))),
+    ("Mom_14", Step::Tech(Tech::Mom(14))),
+    ("AO", Step::Tech(Tech::Ao)),
+    ("CCI20", Step::Tech(Tech::Cci)),
+    ("Stoch.K", Step::Tech(Tech::StochK)),
+    ("Stoch.D", Step::Tech(Tech::StochD)),
+    ("Stoch.K_14_1_3", Step::Tech(Tech::StochKFast)),
+    ("Stoch.D_14_1_3", Step::Tech(Tech::StochDFast)),
+    ("Volatility.W", Step::MeanSwing),
+    ("Volatility.M", Step::MeanSwing),
+    ("volume|1W", Step::PeriodVolume),
+    ("volume|1M", Step::PeriodVolume),
+    ("Value.Traded|1W", Step::PeriodTurnover("volume|1W")),
+    ("Value.Traded|1M", Step::PeriodTurnover("volume|1M")),
 ];
 
 /// Price ratios (field id -> ratio).
@@ -242,7 +273,21 @@ fn ratio_inputs(r: Ratio) -> Vec<&'static str> {
 }
 
 /// State fields offered only once the served state holds their key (added after the first state version).
-const STATE_OPTIONAL: &[&str] = &["Perf.5Y"];
+const STATE_OPTIONAL: &[&str] = &[
+    "Perf.5Y", "Recommend.All", "Recommend.MA", "Recommend.Other", "TechRating_1D", "MARating_1D", "OsRating_1D", "Mom",
+    "Mom_14", "AO", "CCI20", "Stoch.K", "Stoch.D", "Stoch.K_14_1_3", "Stoch.D_14_1_3", "Volatility.W", "Volatility.M",
+    "volume|1W", "volume|1M", "Value.Traded|1W", "Value.Traded|1M",
+];
+
+/// The state key whose presence offers an optional field.
+fn held_key(id: &str, step: Step) -> String {
+    match step {
+        Step::Rating(t) => technicals::state_key(t).to_string(),
+        Step::PeriodTurnover(k) => k.to_string(),
+        Step::Perf => format!("{id}|next"),
+        _ => id.to_string(),
+    }
+}
 
 impl Field {
     pub fn parse(id: &str) -> Option<Field> {
@@ -273,7 +318,7 @@ impl Field {
     }
 
     pub fn is_text(&self) -> bool {
-        matches!(self, Field::Reference(_) | Field::State(_, Step::Text | Step::List))
+        matches!(self, Field::Reference(_) | Field::State(_, Step::Text | Step::List | Step::Rating(_)))
     }
 
     /// Text field with several comma-joined values (see `Step::List`).
@@ -298,6 +343,10 @@ impl Field {
             Field::State(key, Step::Text | Step::List) => {
                 let s = t.state.as_ref()?;
                 s.text(key, row.st?).filter(|v| !v.is_empty()).map(Val::Text)
+            }
+            Field::State(_, Step::Rating(tech)) => {
+                let v = state_num(t, row, technicals::state_key(tech), Step::Tech(tech))?;
+                v.is_finite().then(|| Val::Text(technicals::bucket(v)))
             }
             Field::State(key, step) => state_num(t, row, key, step).filter(|v| v.is_finite()).map(Val::Num),
             Field::Ratio(r) => ratio(t, row, r).filter(|v| v.is_finite()).map(Val::Num),
@@ -372,6 +421,7 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
         Join::AtClose => match step {
             // Market cap moves with the price even on the state's own day.
             Step::MarketCap => Some(price? * s.num("shares", i)?),
+            Step::PeriodTurnover(k) => Some(price? * s.num(k, i)?),
             _ => s.num(key, i),
         },
         Join::Step => match step {
@@ -408,7 +458,15 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
             }
             Step::MarketCap => Some(price? * s.num("shares", i)?),
             Step::Daily => s.num(key, i),
-            Step::Text | Step::List => None,
+            Step::Tech(tech) => technicals::step(s, i, m, tech),
+            Step::MeanSwing => {
+                let (h, l) = ((m.high > 0.0).then_some(m.high)?, (m.low > 0.0).then_some(m.low)?);
+                let n = s.num(&format!("{key}|n"), i)?;
+                Some((s.num(&format!("{key}|s"), i)? + 100.0 * (h - l) / l) / (n + 1.0))
+            }
+            Step::PeriodVolume => Some(next()? + m.volume),
+            Step::PeriodTurnover(k) => Some(price? * (s.num(&format!("{k}|next"), i)? + m.volume)),
+            Step::Text | Step::List | Step::Rating(_) => None,
         },
     }
 }
@@ -467,8 +525,8 @@ pub fn catalog(t: &Table) -> Vec<FieldInfo> {
         out.push(FieldInfo { id: id.to_string(), kind: "text".into(), source: "reference".into(), available });
     }
     for (id, step) in STATE {
-        let kind = if matches!(step, Step::Text | Step::List) { "text" } else { "number" };
-        let held = !STATE_OPTIONAL.contains(id) || t.state.as_ref().is_some_and(|s| s.num.contains_key(&format!("{id}|next")));
+        let kind = if matches!(step, Step::Text | Step::List | Step::Rating(_)) { "text" } else { "number" };
+        let held = !STATE_OPTIONAL.contains(id) || t.state.as_ref().is_some_and(|s| s.num.contains_key(&held_key(id, *step)));
         out.push(FieldInfo { id: id.to_string(), kind: kind.into(), source: "state".into(), available: has_state && held });
     }
     // The fundamentals the served state holds, and the ratios whose inputs it holds.

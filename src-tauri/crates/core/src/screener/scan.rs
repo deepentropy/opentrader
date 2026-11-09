@@ -476,6 +476,36 @@ mod tests {
     }
 
     #[test]
+    fn week_month_and_rating_fields() {
+        // AAA on 29/09: price 10, high 10.2, low 9.8, volume 1000.
+        let with_values = |mut st: StateFile| {
+            for (k, v) in [("Volatility.W", 3.0), ("Volatility.W|s", 8.0), ("Volatility.W|n", 3.0), ("volume|1W", 7000.0), ("volume|1W|next", 7000.0), ("Recommend.All", 0.6)] {
+                st.num.insert(k.to_string(), vec![Some(v), None, None]);
+            }
+            st
+        };
+        let t = table(Some(with_values(state((2026, 9, 28)))));
+        let row = &t.rows[0];
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, row);
+        let Some(Val::Num(w)) = v("Volatility.W") else { panic!() };
+        assert!((w - (8.0 + 100.0 * 0.4 / 9.8) / 4.0).abs() < 1e-12);
+        assert_eq!(v("volume|1W"), Some(Val::Num(8000.0)));
+        assert_eq!(v("Value.Traded|1W"), Some(Val::Num(80000.0)));
+        // On the state's own day: the values at its close (turnover at the current price).
+        let t = table(Some(with_values(state((2026, 9, 29)))));
+        let v = |id: &str| Field::parse(id).unwrap().eval(&t, &t.rows[0]);
+        assert_eq!(v("Volatility.W"), Some(Val::Num(3.0)));
+        assert_eq!(v("Value.Traded|1W"), Some(Val::Num(70000.0)));
+        assert_eq!(v("TechRating_1D"), Some(Val::Text("StrongBuy")));
+        let set = Operand::List(vec![Operand::Text("Buy".into()), Operand::Text("StrongBuy".into())]);
+        let r = run(&t, &req(vec![clause("TechRating_1D", Op::InRange, set)], None)).unwrap();
+        assert_eq!(tickers(&r), vec!["AAA"]);
+        let ids: Vec<String> = crate::screener::fields::catalog(&t).into_iter().filter(|f| f.available).map(|f| f.id).collect();
+        assert!(ids.contains(&"TechRating_1D".to_string()) && ids.contains(&"Value.Traded|1W".to_string()));
+        assert!(!ids.contains(&"Volatility.M".to_string()) && !ids.contains(&"AO".to_string()));
+    }
+
+    #[test]
     fn fundamentals_and_their_price_ratios() {
         // AAA: price 10, 100 shares (market cap 1000).
         let mut st = state((2026, 9, 28));

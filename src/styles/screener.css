@@ -680,6 +680,21 @@ html.theme-light .scr-table-scroll.is-scrolled-x .scr-th-symbol::before {
 .scr-down {
   color: var(--color-symbol-change-negative, #f7525f);
 }
+/* Technical rating cells: an 18 px chevron icon 4 px before the bucket text, coloured by side. */
+.scr-rating-icon {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-end: 4px;
+}
+.scr-rating-buy {
+  color: var(--color-symbol-rating-positive);
+}
+.scr-rating-sell {
+  color: var(--color-symbol-rating-negative);
+}
+.scr-rating-neutral {
+  color: var(--color-symbol-rating-neutral);
+}
 .scr-spacer {
   height: 0;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DASH, abbrev, formatCell, parseValue, priceText, valueText } from "../screener-format";
+import { DASH, abbrev, formatCell, parseValue, priceText, ratingOf, valueText } from "../screener-format";
 
 const NNBSP = " ";
 const MINUS = "−";
@@ -151,5 +151,13 @@ describe("parseValue", () => {
 
   it("round-trips valueText output", () => {
     for (const n of [5, 500_000, 1e10, -2.5, 1.74e9]) expect(parseValue(valueText("money", n))).toBeCloseTo(n, 6);
+  });
+});
+
+describe("technical ratings", () => {
+  it("buckets like the reference screener: strong beyond 0.5, buy / sell beyond 0.1", () => {
+    expect([0.51, 0.5, 0.11, 0.1, 0, -0.1, -0.11, -0.5, -0.51].map(ratingOf)).toEqual(["StrongBuy", "Buy", "Buy", "Neutral", "Neutral", "Neutral", "Sell", "Sell", "StrongSell"]);
+    expect(formatCell("rating", 0.6, null)).toEqual({ text: "Strong buy", rating: "StrongBuy" });
+    expect(formatCell("rating", null, null)).toEqual({ text: DASH });
   });
 });

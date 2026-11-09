@@ -190,6 +190,34 @@ describe("filters and screens", () => {
     expect(POPULAR_SCREENS.find((p) => p.id === "14")!.screen().title).toBe("All stocks");
   });
 
+  it("Stochastic: the field follows its inputs and plot, 14, 1, 3 by default", () => {
+    expect(fieldOf(C("Stochastic"))).toBe("Stoch.K_14_1_3");
+    expect(fieldOf(C("Stochastic", { inputsGroup: "Stochastic:14_3_3", plot: "Stochastic:D" }))).toBe("Stoch.D");
+    expect(configuredShort(C("Stochastic", { inputsGroup: "Stochastic:14_3_3", plot: "Stochastic:K" }))).toBe("Stoch, 14,3,3, %K");
+    expect(isOffered(COLUMN_BY_ID.Stochastic, has("Stoch.K"))).toBe(false);
+    expect(isOffered(COLUMN_BY_ID.Stochastic, has("Stoch.K_14_1_3"))).toBe(true);
+  });
+
+  it("the Technicals set: ratings, RSI, Momentum, AO, CCI and the slow Stochastic", () => {
+    const set = COLUMN_SETS.find((x) => x.id === "technicals")!;
+    expect(set.columns.map(fieldOf)).toEqual(["Recommend.All", "Recommend.MA", "Recommend.Other", "RSI", "Mom", "AO", "CCI20", "Stoch.K", "Stoch.D"]);
+  });
+
+  it("volume, turnover and volatility over the week and the month", () => {
+    expect(fieldOf(C("Volume", { resolution: "TimeResolution1W" }))).toBe("volume|1W");
+    expect(fieldOf(C("VolumePrice", { resolution: "TimeResolution1M" }))).toBe("Value.Traded|1M");
+    expect(fieldOf(C("Volatility", { interval: "Interval1M" }))).toBe("Volatility.M");
+    expect(configuredShort(C("Volume", { resolution: "TimeResolution1W" }))).toBe("Vol, 1W");
+  });
+
+  it("popular screens: 'Bullish and undervalued' and 'Large, efficient and innovative'", () => {
+    const bull = POPULAR_SCREENS.find((p) => p.id === "11")!.screen();
+    expect(bull.filters.find((f) => f.left.id === "TechnicalRating")).toMatchObject({ type: "CheckboxGroup", values: ["Buy", "StrongBuy"] });
+    const large = POPULAR_SCREENS.find((p) => p.id === "12")!.screen();
+    expect(large.filters.find((f) => f.left.id === "RevenuePerEmployee")).toMatchObject({ operation: "above", right: { value: 500000 } });
+    expect(POPULAR_SCREENS.map((p) => p.id)).toEqual(["14", "1", "2", "3", "4", "6", "7", "8", "11", "12", "13"]);
+  });
+
   it("popular screens: own values on the default pills, extra pills after them, column set and sort", () => {
     const s = POPULAR_SCREENS.find((p) => p.title === "Close to new-high and undervalued")!.screen();
     const ids = s.filters.map((f) => f.left.id);

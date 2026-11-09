@@ -4,8 +4,8 @@
  * layout. Pure: ScreenerHeatmap draws what these return.
  *
  * Options are the reference lists restricted to the columns the backend has
- * (Chg % 1h / 4h, Vol and Price × vol over 1W / 1M and the pre/post-market
- * changes have no data source).
+ * (Chg % 1h / 4h and the pre/post-market changes have no data source: the
+ * live table holds the day's bar only).
  */
 import type { ColumnRef, ScreenerType } from "./screener-catalog";
 
@@ -37,11 +37,19 @@ const perf = (interval: string, short: string): HeatOption => ({
   scale: "signed",
 });
 
+/** Volume and turnover of the day, the current week and the current month. */
+const PERIODS = ["1D", "1W", "1M"] as const;
+
 export const HEAT_SIZE: HeatOption[] = [
   { id: "MarketCap", short: "Mkt cap", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 0, type: "stock" },
   { id: "AUM", short: "AUM", valueShort: "AUM", column: { id: "AssetsUnderManagement", params: {} }, group: 0, type: "etf" },
-  { id: "Volume", short: "Vol, 1D", valueShort: "Vol, 1D", column: { id: "Volume", params: R1D }, group: 1 },
-  { id: "VolumePrice", short: "Price × vol, 1D", valueShort: "Price × vol, 1D", column: { id: "VolumePrice", params: R1D }, group: 2 },
+  ...PERIODS.map((r): HeatOption => ({
+    id: r === "1D" ? "Volume" : `Volume${r}`, short: `Vol, ${r}`, valueShort: `Vol, ${r}`, column: { id: "Volume", params: { resolution: `TimeResolution${r}` } }, group: 1,
+  })),
+  ...PERIODS.map((r): HeatOption => ({
+    id: r === "1D" ? "VolumePrice" : `VolumePrice${r}`, short: `Price × vol, ${r}`, valueShort: `Price × vol, ${r}`,
+    column: { id: "VolumePrice", params: { resolution: `TimeResolution${r}` } }, group: 2,
+  })),
   { id: "Mono", short: "Mono size", valueShort: "Mkt cap", column: { id: "MarketCap", params: {} }, group: 3, mono: true, type: "stock" },
   { id: "MonoEtf", short: "Mono size", valueShort: "AUM", column: { id: "AssetsUnderManagement", params: {} }, group: 3, mono: true, type: "etf" },
 ];

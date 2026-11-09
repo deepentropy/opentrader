@@ -29,6 +29,7 @@ export type Fmt =
   | "number" //      1.79
   | "integer" //     25
   | "date" //        27/09/2026 (UNIX seconds)
+  | "rating" //      Strong buy (a technical rating from -1 to 1)
   | "text";
 
 export type Category = "securityInfo" | "marketData" | "technicals" | "financials" | "valuation" | "growth" | "margins" | "dividends";
@@ -102,12 +103,27 @@ export type ColumnDef = {
   noColumn?: boolean;
   /** A financial amount: shown in the "Convert financials" currency when that setting is on (prices are not). */
   financial?: boolean;
+  /** Field of a column whose field depends on several params at once (the Stochastic's inputs and plot). */
+  fieldOfParams?: (params: Record<string, string>) => string;
+  /** Field a checkbox filter reads when it is not the column's (a rating's bucket text, the column being its
+   *  number). */
+  filterField?: string;
 };
 
 // ── Param option sets ─────────────────────────────────────────────────────
 const RES_1D = (field: string): ParamDef[] => [
   { key: "resolution", title: "Interval", default: "TimeResolution1D", options: [{ value: "TimeResolution1D", label: "1 day", short: "1D", field }] },
 ];
+/** One day, the current week and the current month (the weekly and monthly bars). */
+const RES_DWM = (day: string, week: string, month: string): ParamDef[] => [
+  { key: "resolution", title: "Interval", default: "TimeResolution1D", options: [
+    { value: "TimeResolution1D", label: "1 day", short: "1D", field: day },
+    { value: "TimeResolution1W", label: "1 week", short: "1W", field: week },
+    { value: "TimeResolution1M", label: "1 month", short: "1M", field: month },
+  ] },
+];
+/** A one-day interval without a field of its own (the field comes from the other params). */
+const RES_1D_ONLY: ParamDef = { key: "resolution", title: "Interval", default: "TimeResolution1D", options: [{ value: "TimeResolution1D", label: "1 day", short: "1D", field: "" }] };
 const TIMEBASED = (fields: Record<string, string>): ParamDef[] => [
   {
     key: "timebased",
@@ -166,6 +182,17 @@ const MA_PRESETS = (id: "Ema" | "Ma"): Preset[] => [
   { operation: "below", target: id, leftParams: { length: "50" }, right: { column: { id, params: { length: "100", resolution: "TimeResolution1D" } } }, ...d("Bearish alignment") },
 ];
 
+/** A technical rating column: its number (sorting, the cell) and its bucket text (the checkbox filter). */
+const rating = (id: string, title: string, short: string, field: string, bucketField: string): ColumnDef => ({
+  id, title, short, category: "technicals", align: "left", fmt: "rating", width: 110, field, filterField: bucketField,
+  filter: { type: "CheckboxGroup", options: [["StrongBuy", "Strong buy"], ["Buy", "Buy"], ["Neutral", "Neutral"], ["Sell", "Sell"], ["StrongSell", "Strong sell"]] },
+});
+/** An oscillator column (the reference filter: any comparison with a value or the same column). */
+const oscillator = (id: string, title: string, short: string, params: ParamDef[]): ColumnDef => ({
+  id, title, short, category: "technicals", align: "right", fmt: "number", width: 86, params,
+  filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: [["value", id]] },
+});
+
 // Price-like right-hand targets (the reference app groups: Value | Open High Low Price | EMA SMA).
 const PRICE_TARGETS = (self: string) => [["value"], ["Open", "High", "Low", "Price"].filter((x) => x !== self), ["Ema", "Ma"]];
 const ALL_OPS: Operation[] = ["above", "aboveOrEqual", "below", "belowOrEqual", "between", "outside", "equal"];
@@ -218,7 +245,7 @@ const FUNDAMENTALS: ColumnDef[] = ([
   ["RecentFiscalPeriod", "Recent fiscal period", "Fiscal period", "securityInfo", "text", FP(["current", "f.fiscal_period"])],
   ["FiscalPeriodEndDate", "Fiscal period end date", "Fiscal period end", "securityInfo", "date", FP(["current", "f.fiscal_period_end"])],
   // Financials: income statement, balance sheet, cash flow
-  ["TotalRevenue", "Total revenue", "Revenue", "financials", "money", FP(["ttm", "f.revenue_ttm"]), true],
+  ["TotalRevenue", "Total revenue", "Revenue", "financials", "money", FP(["ttm", "f.revenue_ttm"], ["fy", "f.revenue_fy"]), true],
   ["GrossProfit", "Gross profit", "Gross profit", "financials", "money", FP(["ttm", "f.gross_profit_ttm"]), true],
   ["OperatingIncome", "Operating income", "Op income", "financials", "money", FP(["ttm", "f.operating_income_ttm"]), true],
   ["NetIncome", "Net income", "Net income", "financials", "money", FP(["ttm", "f.net_income_ttm"]), true],
@@ -279,6 +306,8 @@ const FUNDAMENTALS: ColumnDef[] = ([
   ["BookPerShare", "Book value per share", "Book per share", "margins", "price", FP(["fq", "f.book_ps_fq"]), true],
   ["TotalDebtPerShare", "Total debt per share", "Total debt per share", "margins", "price", FP(["fq", "f.debt_ps_fq"]), true],
   ["CashPerShare", "Cash per share", "Cash per share", "margins", "price", FP(["fq", "f.cash_ps_fq"]), true],
+  ["RevenuePerEmployee", "Revenue per employee", "Revenue/employees", "margins", "money", FP(["fy", "f.revenue_per_employee_fy"]), true],
+  ["NumberOfEmployees", "Number of employees", "Employees", "margins", "volume", FP(["fy", "f.employees"])],
   // Dividends
   ["DividendsPerShare", "Dividends per share", "Div per share", "dividends", "price", FP(["fy", "f.dps_fy"], ["fq", "f.dps_fq"]), true],
   ["DividendsYieldForward", "Dividend yield % (indicated)", "Div yield % (indicated)", "dividends", "percent", "f.div_yield_indicated"],
@@ -370,7 +399,8 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "above", target: "Ema", right: { column: EMA50 }, ...d("Uptrend") },
       { operation: "below", target: "Ema", right: { column: EMA50 }, ...d("Downtrend") },
     ] } },
-  { id: "VolumePrice", title: "Price × volume (turnover)", short: "Price × vol", category: "marketData", align: "right", fmt: "money", width: 99, params: RES_1D("Value.Traded"),
+  { id: "VolumePrice", title: "Price × volume (turnover)", short: "Price × vol", category: "marketData", align: "right", fmt: "money", width: 99,
+    params: RES_DWM("Value.Traded", "Value.Traded|1W", "Value.Traded|1M"),
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]], presets: [
       { operation: "above", target: "value", right: { value: 1e9 } },
       { operation: "above", target: "value", right: { value: 1e8 } },
@@ -378,7 +408,11 @@ export const COLUMNS: ColumnDef[] = [
       { operation: "below", target: "value", right: { value: 1e6 } },
     ] } },
   { id: "Volatility", title: "Volatility", short: "Volatility", category: "marketData", align: "right", fmt: "percent", width: 86,
-    params: [{ key: "interval", title: "Date Range", default: "Interval1D", options: [{ value: "Interval1D", label: "1 day", short: "1D", field: "Volatility.D" }] }],
+    params: [{ key: "interval", title: "Date Range", default: "Interval1D", options: [
+      { value: "Interval1D", label: "1 day", short: "1D", field: "Volatility.D" },
+      { value: "Interval1W", label: "1 week", short: "1W", field: "Volatility.W" },
+      { value: "Interval1M", label: "1 month", short: "1M", field: "Volatility.M" },
+    ] }],
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value", "Volatility"]], presets: [
       { operation: "above", target: "value", right: { value: 50 }, ...d("Extreme") },
       { operation: "between", target: "value", right: { left: 20, right: 50 }, ...d("Very high") },
@@ -389,7 +423,7 @@ export const COLUMNS: ColumnDef[] = [
     ] } },
   { id: "RelativeVolume", title: "Relative volume", short: "Rel vol", category: "marketData", align: "right", fmt: "number", width: 58, params: RES_1D("relative_volume_10d_calc"),
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value"]] } },
-  { id: "Volume", title: "Volume", short: "Vol", category: "marketData", align: "right", fmt: "volume", width: 90, params: RES_1D("volume"),
+  { id: "Volume", title: "Volume", short: "Vol", category: "marketData", align: "right", fmt: "volume", width: 90, params: RES_DWM("volume", "volume|1W", "volume|1M"),
     filter: { type: "Condition", operations: ["above", "below", "between", "outside", "equal"], defaultOperation: "above", targets: [["value", "AverageVolume", "Volume"]] } },
   // Technicals
   { id: "AverageDailyRange", title: "Average daily range", short: "ADR", category: "technicals", align: "right", fmt: "price", width: 86, field: "ADR",
@@ -426,6 +460,36 @@ export const COLUMNS: ColumnDef[] = [
     ] } },
   { id: "Ma", title: "Simple moving average", short: "SMA", category: "technicals", align: "right", fmt: "price", width: 99, params: MA_PARAMS("SMA"),
     filter: { type: "Condition", operations: ALL_OPS, defaultOperation: "aboveOrEqual", targets: PRICE_TARGETS("Ma"), presets: MA_PRESETS("Ma") } },
+  rating("TechnicalRating", "Technical rating", "Tech rating", "Recommend.All", "TechRating_1D"),
+  rating("RatingMa", "Moving averages rating", "MA rating", "Recommend.MA", "MARating_1D"),
+  rating("RatingOscillators", "Oscillators rating", "Os rating", "Recommend.Other", "OsRating_1D"),
+  oscillator("Momentum", "Momentum", "Mom", [
+    { key: "length", title: "Length", default: "10", options: [
+      { value: "10", label: "10", short: "10", field: "Mom" },
+      { value: "14", label: "14", short: "14", field: "Mom_14" },
+    ] },
+    RES_1D_ONLY,
+  ]),
+  oscillator("AwesomeOscillator", "Awesome oscillator", "AO", [{ ...RES_1D_ONLY, options: [{ ...RES_1D_ONLY.options[0], field: "AO" }] }]),
+  oscillator("CommodityChannelIndex", "Commodity channel index", "CCI", [
+    { key: "length", title: "Length", default: "20", options: [{ value: "20", label: "20", short: "20", field: "CCI20" }] },
+    RES_1D_ONLY,
+  ]),
+  {
+    ...oscillator("Stochastic", "Stochastic", "Stoch", [
+      { key: "inputsGroup", title: "Inputs", default: "Stochastic:14_1_3", options: [
+        { value: "Stochastic:14_1_3", label: "14,1,3", short: "14,1,3", field: "" },
+        { value: "Stochastic:14_3_3", label: "14,3,3", short: "14,3,3", field: "" },
+      ] },
+      { key: "plot", title: "Plot", default: "Stochastic:K", options: [
+        { value: "Stochastic:K", label: "%K", short: "%K", field: "" },
+        { value: "Stochastic:D", label: "%D", short: "%D", field: "" },
+      ] },
+      RES_1D_ONLY,
+    ]),
+    // The reference scanner names: Stoch.K / Stoch.D for 14, 3, 3, with the inputs as a suffix otherwise.
+    fieldOfParams: (p) => `Stoch.${p.plot === "Stochastic:D" ? "D" : "K"}${p.inputsGroup === "Stochastic:14_3_3" ? "" : "_14_1_3"}`,
+  },
   // Valuation
   { id: "MarketCap", title: "Market capitalization", short: "Mkt cap", category: "valuation", align: "right", fmt: "money", width: 110, field: "market_cap_basic", financial: true,
     filter: { type: "Condition", operations: ["between"], defaultOperation: "between", targets: [["value"]], presets: [
@@ -521,6 +585,7 @@ export function fieldOf(col: ColumnRef): string | null {
   if (!def) return null;
   if (def.field) return def.field;
   const p = fullParams(def, col.params);
+  if (def.fieldOfParams) return def.fieldOfParams(p);
   for (const pd of def.params ?? []) {
     const opt = optionOf(pd, p[pd.key]);
     if (opt?.field) return opt.field;
@@ -544,6 +609,7 @@ export function offeredParams(def: ColumnDef, has: (field: string) => boolean): 
 
 export function isOffered(def: ColumnDef, has: (field: string) => boolean): boolean {
   if (def.field) return has(def.field);
+  if (def.fieldOfParams) return has(def.fieldOfParams(fullParams(def, {})));
   return offeredParams(def, has) !== null;
 }
 
@@ -613,15 +679,21 @@ const CURRENT = { fiscalPeriod: "current" };
 const YOY_TTM = { period: "YoYTTM" };
 const YOY_FY = { period: "YoYAnnual" };
 const FISCAL = [C("RecentFiscalPeriod", CURRENT), C("FiscalPeriodEndDate", CURRENT)];
+const STOCH_3_3 = (plot: string) => C("Stochastic", { resolution: "TimeResolution1D", plot, inputsGroup: "Stochastic:14_3_3" });
+/** The reference Technicals column set (both screeners), without its candlestick Pattern column. */
+const TECHNICALS = [C("TechnicalRating", R1D), C("RatingMa", R1D), C("RatingOscillators", R1D),
+  C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" }), C("Momentum", { resolution: "TimeResolution1D", length: "10" }),
+  C("AwesomeOscillator", R1D), C("CommodityChannelIndex", { resolution: "TimeResolution1D", length: "20" }), STOCH_3_3("Stochastic:K"), STOCH_3_3("Stochastic:D")];
 /** The reference app column-set presets, in the reference app menu order (03/11/2026). Columns without a data
- *  source are left out (ratings, estimates, extended hours, 10-year and all-time performance...); a preset
- *  with no column the backend has is not listed. */
+ *  source are left out (analyst rating, estimates, extended hours, 10-year and all-time performance, candlestick
+ *  pattern...); a preset with no column the backend has is not listed. */
 export const COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] }[] = [
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("Volume", R1D), C("RelativeVolume", R1D), C("MarketCap"), C("PriceToEarnings"),
     C("EpsDiluted", TTM), C("EpsDilutedGrowth", YOY_TTM), C("DividendsYield", TTM), C("Sector")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
-    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i }))] },
-  { id: "technicals", title: "Technicals", columns: [C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" })] },
+    ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i })),
+    C("Volatility", { interval: "Interval1W" }), C("Volatility", { interval: "Interval1M" })] },
+  { id: "technicals", title: "Technicals", columns: TECHNICALS },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
   { id: "forecasts", title: "Forecasts", columns: [C("MarketCap"), C("Price")] },
   { id: "valuation", title: "Valuation", columns: [C("MarketCap"), C("MarketCapPerf", { interval: "Interval1Y" }), C("PriceToEarnings"), C("PriceToEarningsToGrowth", TTM),
@@ -644,11 +716,11 @@ export const ETF_COLUMN_SETS: { id: string; title: string; columns: ColumnRef[] 
   { id: "overview", title: "Overview", columns: [C("Price"), C("Change", R1D), C("VolumePrice", R1D), C("RelativeVolume", R1D), C("AssetsUnderManagement")] },
   { id: "performance", title: "Performance", columns: [C("Price"), C("Change", R1D),
     ...["Interval1W", "Interval1M", "Interval3M", "Interval6M", "IntervalYTD", "Interval1Y", "Interval5Y"].map((i) => C("Performance", { interval: i }))] },
-  { id: "technicals", title: "Technicals", columns: [C("RelativeStrengthIndex", { resolution: "TimeResolution1D", length: "14" })] },
+  { id: "technicals", title: "Technicals", columns: TECHNICALS },
   { id: "extendedHours", title: "Extended hours", columns: [C("Price"), C("Change", R1D), C("Gap", R1D), C("Volume", R1D)] },
   { id: "dividends", title: "Dividends", columns: [C("Price"), C("DividendsYieldForward")] },
   { id: "risk", title: "Risk", columns: [C("Beta", { interval: "Interval1Y" }), C("Beta", { interval: "Interval3Y" }), C("Beta", { interval: "Interval5Y" }),
-    C("Volatility", { interval: "Interval1D" })] },
+    ...["Interval1D", "Interval1W", "Interval1M"].map((i) => C("Volatility", { interval: i }))] },
 ];
 export const columnSets = (type: ScreenerType) => (type === "etf" ? ETF_COLUMN_SETS : COLUMN_SETS);
 
@@ -777,8 +849,7 @@ export const newScreen = (type: ScreenerType, title?: string): Screen => (type =
 /** The reference app "Popular screens" (03/11/2026, in its order) whose filters, columns and sort the backend can
  *  serve. Left out: "Healthy growth technology stocks" (the reference sector names; ours are the industry
  *  classification's divisions), "Dividend princes" and "Dividend kings" (25 to 40+ years of dividends; the dividend
- *  history starts in 2003), "Bullish and undervalued" (technical rating) and "Large, efficient and innovative"
- *  (revenue per employee). Each one = the default pills with the screen's own values, its extra filters after them,
+ *  history starts in 2003). Each one = the default pills with the screen's own values, its extra filters after them,
  *  its column set and its sort (descending). */
 export type PopularScreen = { id: string; title: string; description: string; screen: (pills?: ColumnRef[]) => Screen };
 
@@ -847,6 +918,19 @@ export const POPULAR_SCREENS: PopularScreen[] = [
     below(C("TotalDebtGrowth", YOY_FY), -15),
     below(C("DebtToEquityRatio", FQ), 1),
     above(C("EbitdaGrowth", YOY_TTM), 15),
+  ]),
+  popular("11", "Bullish and undervalued", "Technically and fundamentally undervalued stocks", "overview", MKT_CAP, [
+    atMost(C("PriceToEarnings"), 20),
+    above(EPS_GROWTH, 25),
+    above(C("RevenueGrowth", YOY_TTM), 15),
+    below(C("PriceToEarningsToGrowth", TTM), 1),
+    atMost(C("PriceToSales"), 2),
+    { col: C("TechnicalRating", R1D), values: ["Buy", "StrongBuy"] },
+  ]),
+  popular("12", "Large, efficient and innovative", "Blue chip stocks with industry-high revenues per employee", "overview", MKT_CAP, [
+    atLeast(MKT_CAP, 1e10),
+    above(C("RevenuePerEmployee", FY), 500000),
+    above(C("ResearchNDevelopmentRatio", TTM), 5),
   ]),
   popular("13", "Doubled", "Large cap stocks that've doubled their market cap in the last year", "valuation", C("MarketCapPerf", { interval: "Interval1Y" }), [
     atLeast(MKT_CAP, 1e10),

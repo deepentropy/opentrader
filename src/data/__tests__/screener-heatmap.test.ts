@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bucketOf, colorScale, legendLabel, squarify } from "../screener-heatmap";
+import { bucketOf, colorScale, heatSizes, legendLabel, squarify } from "../screener-heatmap";
 
 describe("screener heatmap colour scale", () => {
   it("widens past ±3.25: a legend of −8 … 8 for an extremum near 9.5", () => {
@@ -36,5 +36,12 @@ describe("squarified treemap", () => {
     const area = placed.reduce((s, p) => s + p.w * p.h, 0);
     expect(area).toBeCloseTo(24);
     expect(placed[0].w * placed[0].h).toBeCloseTo(6);
+  });
+});
+
+describe("size options", () => {
+  it("volume and turnover of the day, the week and the month, each kind in its own group", () => {
+    expect(heatSizes("stock").map((o) => o.short)).toEqual(["Mkt cap", "Vol, 1D", "Vol, 1W", "Vol, 1M", "Price × vol, 1D", "Price × vol, 1W", "Price × vol, 1M", "Mono size"]);
+    expect(heatSizes("stock").find((o) => o.id === "Volume1W")?.column).toEqual({ id: "Volume", params: { resolution: "TimeResolution1W" } });
   });
 });

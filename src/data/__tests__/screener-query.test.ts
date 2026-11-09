@@ -196,6 +196,8 @@ describe("filterClauses", () => {
 
   it("compiles checkbox groups to in_range", () => {
     expect(filterClauses(box(C("Index"), ["SPX", "NDX"]))).toEqual([{ left: "indexes", operation: "in_range", right: ["SPX", "NDX"] }]);
+    // A rating column is a number; its checkbox filter reads the bucket text.
+    expect(filterClauses(box(C("TechnicalRating"), ["Buy", "StrongBuy"]))).toEqual([{ left: "TechRating_1D", operation: "in_range", right: ["Buy", "StrongBuy"] }]);
   });
 
   it("compiles ranges", () => {

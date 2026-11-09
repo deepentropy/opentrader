@@ -191,7 +191,7 @@ const OP: Record<Exclude<Operation, "between" | "outside">, Clause["operation"]>
 export function filterClauses(f: Filter): Clause[] | null {
   const left = fieldOf(f.left);
   if (!left) return null;
-  if (f.type === "CheckboxGroup") return [{ left, operation: "in_range", right: f.values }];
+  if (f.type === "CheckboxGroup") return [{ left: COLUMN_BY_ID[f.left.id]?.filterField ?? left, operation: "in_range", right: f.values }];
   const r = f.right;
   let right: Operand;
   if ("column" in r) {
