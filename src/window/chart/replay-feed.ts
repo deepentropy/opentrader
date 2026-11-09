@@ -10,7 +10,6 @@
  * values once the next bar starts. On the chart interval itself, one update
  * is one whole bar.
  */
-import type { UTCTimestamp } from "lightweight-charts";
 import type { OHLC } from "./chart-types";
 
 const t = (b: { time: unknown }) => b.time as number;
@@ -235,6 +234,3 @@ export class ReplayFeed {
     this.shownEnd += older.length;
   }
 }
-
-/** Seconds as a chart time. */
-export const asTime = (sec: number) => sec as UTCTimestamp;

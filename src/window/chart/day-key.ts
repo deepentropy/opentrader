@@ -42,12 +42,3 @@ export function wallTimeToUtc(timeZone: string, y: number, mo: number, d: number
   const u = wall - before;
   return offsetFor(u) === before ? u : wall - after;
 }
-
-/** Returns `minuteOfDay(sec)`: minutes since local midnight in `timeZone`. */
-export function minuteOfDayer(timeZone: string): (sec: number) => number {
-  const offsetFor = offsetFinder(timeZone);
-  return (sec: number) => {
-    const local = sec + offsetFor(sec);
-    return Math.floor((((local % 86400) + 86400) % 86400) / 60);
-  };
-}

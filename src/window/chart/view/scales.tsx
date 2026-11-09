@@ -22,7 +22,7 @@ import { getIndicatorEntry } from "../indicators/registry";
 import { typeIdOf } from "../indicators/study-id";
 import { MAIN_SOURCE_ID } from "../object-tree-sources";
 import type { CompareEntry } from "../../shell/tabs";
-import { ScaleLayout, isScaleKey, keySide, scaleLetter, type ScaleKey, type ScaleUse, type Side } from "../scales/scale-layout";
+import { ScaleLayout, scaleLetter, type ScaleKey, type ScaleUse, type Side } from "../scales/scale-layout";
 import { ExtraAxesPrimitive, ExtraScaleModel, axisWidthFor, isExtraScaleId, setFirstAxisWidths, type AxisStyle } from "../scales/extra-axes";
 import { type ChartCx } from "./context";
 import type { JSX } from "solid-js";
@@ -593,6 +593,3 @@ export function createScales(cx: ChartCx): ScalesApi {
     ExtraAxisOverlays,
   };
 }
-
-/** Side of a stored scale key (re-exported for the menus). */
-export const scaleKeySide = (k: string): Side | null => (isScaleKey(k) ? keySide(k) : null);

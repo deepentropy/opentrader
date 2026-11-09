@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayKeyer, minuteOfDayer, utcToWall, wallTimeToUtc } from "../day-key";
+import { dayKeyer, utcToWall, wallTimeToUtc } from "../day-key";
 
 const NY = "America/New_York";
 const PARIS = "Europe/Paris";
@@ -88,21 +88,5 @@ describe("wallTimeToUtc", () => {
 
   it("a repeated fall-back time takes its first occurrence (Paris 02:30, 25/10/2026)", () => {
     expect(wallTimeToUtc(PARIS, 2026, 9, 25, 2, 30)).toBe(utc(2026, 10, 25, 0, 30));
-  });
-});
-
-describe("minuteOfDayer", () => {
-  it("returns minutes since local midnight", () => {
-    const mod = minuteOfDayer(NY);
-    expect(mod(utc(2026, 1, 15, 14, 30))).toBe(570);
-    expect(mod(utc(2026, 7, 15, 13, 30))).toBe(570);
-    expect(mod(utc(2026, 1, 15, 5))).toBe(0);
-    expect(mod(utc(2026, 1, 15, 4, 59))).toBe(1439);
-  });
-
-  it("stays in 0..1439 for negative UNIX times", () => {
-    const mod = minuteOfDayer("UTC");
-    expect(mod(-60)).toBe(1439);
-    expect(mod(-86400)).toBe(0);
   });
 });
