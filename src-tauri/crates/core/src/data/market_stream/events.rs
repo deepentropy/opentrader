@@ -107,11 +107,14 @@ pub(super) struct Pending {
     second: HashMap<String, SecondAggregate>,
     trades: HashMap<String, TradeTick>,
     trades_sent: Instant,
+    /// The trades of each symbol's current minute, as the bar the host's
+    /// alert rules read with each trade.
+    trade_bars: HashMap<String, Candle>,
 }
 
 impl Pending {
     pub(super) fn new(app: &HostRef) -> Self {
-        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), trades: HashMap::new(), trades_sent: Instant::now() }
+        Self { app: app.clone(), minute: HashMap::new(), second: HashMap::new(), trades: HashMap::new(), trades_sent: Instant::now(), trade_bars: HashMap::new() }
     }
 
     pub(super) fn is_empty(&self) -> bool {
@@ -136,7 +139,21 @@ impl Pending {
         }
     }
 
+    /// The views get the newest trade per flush; the host's alert rules get
+    /// every trade (#265), with what its minute traded so far.
     fn trade(&mut self, tick: TradeTick) {
+        let price = tick.price;
+        let bar = tick.trade_time.map(|time| {
+            let bar = self.trade_bars.entry(tick.symbol.clone()).or_insert(Candle { time, open: price, high: price, low: price, close: price, volume: 0.0 });
+            if bar.time != time {
+                *bar = Candle { time, open: price, high: price, low: price, close: price, volume: 0.0 };
+            }
+            bar.high = bar.high.max(price);
+            bar.low = bar.low.min(price);
+            bar.close = price;
+            bar.clone()
+        });
+        self.app.on_quote(&tick.symbol, price, bar.as_ref());
         self.trades.insert(tick.symbol.clone(), tick);
     }
 
@@ -279,6 +296,40 @@ mod tests {
         fn emit_value(&self, name: &'static str, payload: serde_json::Value) {
             self.0.lock().unwrap().push((name, payload));
         }
+    }
+
+    /// The quotes the host's alert rules read: price and bar (time, high, low).
+    #[derive(Default)]
+    struct Quotes(std::sync::Mutex<Vec<(f64, Option<(f64, f64, f64)>)>>);
+    impl crate::host::Host for Quotes {
+        fn emit_value(&self, _: &'static str, _: serde_json::Value) {}
+        fn on_quote(&self, _symbol: &str, last: f64, minute: Option<&Candle>) {
+            self.0.lock().unwrap().push((last, minute.map(|b| (b.time, b.high, b.low))));
+        }
+    }
+
+    #[test]
+    fn every_trade_reaches_the_alert_rules_with_its_minute_so_far() {
+        let quotes = std::sync::Arc::new(Quotes::default());
+        let host: HostRef = quotes.clone();
+        let trade = |price: f64, time: Option<f64>| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: time };
+        let mut p = Pending::new(&host);
+        p.trade(trade(10.0, Some(60.0)));
+        p.trade(trade(12.0, Some(60.0)));
+        p.trade(trade(11.0, Some(60.0)));
+        p.trade(trade(9.0, Some(120.0)));
+        p.trade(trade(8.0, None));
+        let got = quotes.0.lock().unwrap().clone();
+        assert_eq!(
+            got,
+            vec![
+                (10.0, Some((60.0, 10.0, 10.0))),
+                (12.0, Some((60.0, 12.0, 10.0))),
+                (11.0, Some((60.0, 12.0, 10.0))),
+                (9.0, Some((120.0, 9.0, 9.0))),
+                (8.0, None),
+            ]
+        );
     }
 
     fn minute(symbol: &str, time: f64, close: f64) -> ChartAggregate {
