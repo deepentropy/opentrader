@@ -318,7 +318,8 @@ export function createLive(cx: ChartCx): LiveApi {
     // follows the pane's state.
     let lastRefresh = Date.now();
     const timer = window.setInterval(() => {
-      if (cx.swapping || hidden()) return;
+      // Nor in a browser tab left in the background (it would keep the web server running).
+      if (cx.swapping || hidden() || document.hidden) return;
       lastRefresh = Date.now();
       refresh();
     }, 60_000);
@@ -383,7 +384,8 @@ export function createLive(cx: ChartCx): LiveApi {
         })
         .catch(() => { /* transient fetch failure — next poll retries */ });
     const timer = window.setInterval(() => {
-      if (cx.swapping || history.loading || cx.raw.length === 0) return;
+      // Not in a browser tab left in the background: the first poll back fills the gap.
+      if (cx.swapping || document.hidden || history.loading || cx.raw.length === 0) return;
       const lastTime = cx.raw[cx.raw.length - 1].time as number;
       const tail = getSecondBarsTail(sym, id, lastTime - TAIL_SEC, sess);
       if (!tail) return;

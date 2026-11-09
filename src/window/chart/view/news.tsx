@@ -53,7 +53,9 @@ export function createNews(cx: ChartCx): NewsApi {
     load();
     let lastLoad = Date.now();
     const timer = setInterval(() => {
-      if (hidden()) return;
+      // Not in a browser tab left in the background either: its calls would
+      // keep the web version's server running with no one looking.
+      if (hidden() || document.hidden) return;
       lastLoad = Date.now();
       load();
     }, NEWS_UPDATE_MS);
