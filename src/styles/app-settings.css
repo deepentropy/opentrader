@@ -592,3 +592,35 @@
   cursor: default;
   pointer-events: none;
 }
+/* Local data tab (#267) */
+.app-settings-local-note { margin-left: 0; }
+.app-settings-local-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+}
+.app-settings-local-head { display: flex; align-items: center; gap: 8px; }
+.app-settings-local-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ot-strong);
+}
+.app-settings-local-row,
+.app-settings-local-add { display: flex; align-items: center; gap: 12px; }
+.app-settings-local-add { margin-top: 8px; }
+.app-settings-local-status { color: var(--color-content-secondary-neutral); font-size: 12px; line-height: 16px; }
+.app-settings-local-errors { max-height: 160px; overflow-y: auto; font-size: 12px; line-height: 16px; }
+.app-settings-local-error { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; padding: 2px 0; color: #f7525f; }
+.app-settings-local-error-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-content-secondary-neutral); }
+.app-settings-local-folder .app-settings-btn,
+.app-settings-local-add .app-settings-btn { flex: none; white-space: nowrap; }
+.app-settings-local-row .app-settings-field-label,
+.app-settings-local-add .app-settings-field-label { white-space: nowrap; }

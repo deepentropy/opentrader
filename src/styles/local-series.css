@@ -65,3 +65,76 @@
 .symbol-search-list.is-local:not(.is-compare) {
   grid-template-columns: max-content minmax(0, 1fr) auto auto;
 }
+
+/* ─── Import dialog: skipped files, folders, many files (#267) ─── */
+.ls-import-file-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ls-import-file-head .tj-section-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ls-import-skip {
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.ls-import-skip:hover {
+  background: var(--color-bg-hover, rgba(255, 255, 255, 0.06));
+}
+.ls-import-file.is-skipped .tj-section-title {
+  color: var(--color-text-secondary);
+}
+.ls-import-folder {
+  margin-bottom: 12px;
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.ls-import-sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  cursor: pointer;
+}
+.ls-import-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--color-divider);
+  border-radius: 6px;
+}
+.ls-import-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--color-divider-hover);
+}
+.ls-import-list-row:first-child {
+  border-top: 0;
+}
+.ls-import-list-row .tj-import-errors {
+  margin-top: 0;
+}
+.ls-import-list-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ls-import-result-head {
+  margin-bottom: 12px;
+}
+.ls-import-progress {
+  margin-right: auto;
+  color: var(--color-text-secondary);
+}

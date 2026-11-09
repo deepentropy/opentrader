@@ -55,7 +55,8 @@ import { displayTimeZone } from "./data/session";
 import { tradeJournal } from "./data/trade-journal";
 import { chartFrame } from "./data/trade-journal-calc";
 import { LayoutNameDialog } from "./window/header/LayoutNameDialog";
-import { DialogHost } from "./components/Dialogs";
+import { DialogHost, showNotice } from "./components/Dialogs";
+import { startLocalFolderSync } from "./data/local-folders";
 import { installDialogDrag } from "./components/dialog-drag";
 import { buildFavoriteIndicatorsMenu } from "./data/indicator-favorites";
 import { OAKSCRIPT_OPEN_EVENT } from "./window/chart/indicators/user-scripts";
@@ -435,6 +436,11 @@ function App() {
   // in the main window; then from the main menu.
   const AppOnboarding = lazy(() => import("./window/shell/AppOnboarding").then((m) => ({ default: m.AppOnboarding })));
   onMount(() => { if (isTauri() && windowLabel === "main") openFirstStartOnboarding(); });
+
+  // Synced folders of CSV files (#267): the main window keeps them in sync.
+  onMount(() => {
+    if (isTauri() && windowLabel === "main") onCleanup(startLocalFolderSync((text) => showNotice({ title: "Local data", text })));
+  });
 
   // Main series / compared symbol menu "Symbol info…" (loaded on first use).
   const SymbolInfoDialog = lazy(() => import("./window/chart/SymbolInfoDialog").then((m) => ({ default: m.SymbolInfoDialog })));

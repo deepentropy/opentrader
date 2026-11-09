@@ -22,7 +22,7 @@ import {
 } from "../../data/symbol-search";
 import { ECONOMIC_CATEGORIES, economicSources, getTickerInfo, searchEconomic, searchSymbols } from "../../data/datafeed";
 import { deleteLocalSeries, LOCAL_EXCHANGE, localSeriesList, localSymbol, renameLocalSeries } from "../../data/local-series";
-import { ImportSeriesHost, pickSeriesFiles } from "./ImportSeriesDialog";
+import { ImportSeriesHost, pickSeriesFiles, pickSeriesFolder } from "./ImportSeriesDialog";
 import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
 import { recentSymbols } from "../../data/recent-symbols";
 import { countryOfExchange, flagUrl } from "../../data/country-flags";
@@ -873,6 +873,9 @@ export function SymbolSearchDialog(props: Props) {
             <div class="symbol-search-filters symbol-search-local-bar">
               <button type="button" class="symbol-search-import" data-name="import-csv" onClick={pickSeriesFiles}>
                 Import CSV…
+              </button>
+              <button type="button" class="symbol-search-import" data-name="import-folder" onClick={() => void pickSeriesFolder()}>
+                Import folder…
               </button>
             </div>
           </Show>

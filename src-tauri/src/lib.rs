@@ -72,6 +72,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::local_series::local_series_read,
             commands::local_series::local_series_delete,
             commands::local_series::local_series_rename,
+            commands::local_series::local_folder_pick,
+            commands::local_series::local_folder_scan,
+            commands::local_series::local_folder_read,
             commands::alerts::post_webhook,
             alerts::alert_engine_claim,
             alerts::alert_engine_info,
@@ -156,6 +159,7 @@ pub fn run() {
     // One app at a time, and `opentrader://` links (deep_link): the single-instance plugin comes first.
     deep_link::plugins(tauri::Builder::default())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         // A destroyed window can no longer clear its own subscription slots

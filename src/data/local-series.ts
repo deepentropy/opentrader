@@ -11,13 +11,14 @@
  * file: 5, 10, 15… minutes, and every daily interval, built from its bars).
  */
 import { createSignal } from "solid-js";
-import { commands, type Candle, type LocalSeries, type Snapshot, type SymbolSession, type TickerInfo } from "../bindings";
+import { listen, emit } from "@tauri-apps/api/event";
+import { commands, type Candle, type LocalSeries, type LocalSource, type Snapshot, type SymbolSession, type TickerInfo } from "../bindings";
 import { localDay, localToUtc } from "./session/zone";
 import { parseBarsCsv, ROW, SERIES_NAME, type ParsedBars } from "./local-series-csv";
 import { emitAppEvent } from "./app-events";
 import { forgetSymbolSessions } from "./session/symbol-sessions";
 
-export type { LocalSeries } from "../bindings";
+export type { LocalSeries, LocalSource } from "../bindings";
 
 /** Exchange part of an imported series' symbol. */
 export const LOCAL_EXCHANGE = "LOCAL";
@@ -279,6 +280,11 @@ export async function importLocalSeries(opts: {
   description?: string;
   /** Price grid to use instead of the file's decimals (a Pine Seeds symbol_info). */
   pricescale?: number;
+  /** The synced folder's file it comes from (#267); none: imported by hand. */
+  source?: LocalSource | null;
+  /** A batch of files: the caller tells the app once, after the last one
+   *  (localSeriesChanged), instead of after each. */
+  deferRefresh?: boolean;
 }): Promise<ImportResult> {
   const name = opts.name.trim().toUpperCase();
   if (!SERIES_NAME.test(name)) throw new Error("A name is 1 to 42 characters: A-Z, 0-9, '.', '_' or '-'.");
@@ -295,21 +301,19 @@ export async function importLocalSeries(opts: {
     first: parsed.rows[0],
     last: parsed.rows[(n - 1) * ROW],
     imported: Date.now(),
+    source: opts.source ?? null,
   };
   const r = await commands.localSeriesSave(series, parsed.rows);
   if (r.status === "error") throw new Error(r.error);
-  forget(name);
-  await reload();
-  emitAppEvent("chart-reload-data");
+  if (!opts.deferRefresh) await localSeriesChanged([name]);
   return { series, skipped: parsed.skipped };
 }
 
-export async function deleteLocalSeries(name: string): Promise<void> {
+/** Remove a series. `deferRefresh`: see importLocalSeries. */
+export async function deleteLocalSeries(name: string, deferRefresh = false): Promise<void> {
   const r = await commands.localSeriesDelete(name);
   if (r.status === "error") throw new Error(r.error);
-  forget(name);
-  await reload();
-  emitAppEvent("chart-reload-data");
+  if (!deferRefresh) await localSeriesChanged([name]);
 }
 
 export async function renameLocalSeries(from: string, to: string): Promise<void> {
@@ -317,10 +321,34 @@ export async function renameLocalSeries(from: string, to: string): Promise<void>
   if (!SERIES_NAME.test(target)) throw new Error("A name is 1 to 42 characters: A-Z, 0-9, '.', '_' or '-'.");
   const r = await commands.localSeriesRename(from, target);
   if (r.status === "error") throw new Error(r.error);
-  forget(from);
-  forget(target);
+  await localSeriesChanged([from, target]);
+}
+
+/** App-wide event of series that changed, so the other windows read them again. */
+const CHANGED_EVENT = "local-series://changed";
+const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+/** This window, to skip its own events. */
+const SELF = Math.random().toString(36).slice(2);
+
+/** The series `names` were stored, replaced or removed: this window and the
+ *  others read the list and those bars again, and their charts reload. */
+export async function localSeriesChanged(names: string[]): Promise<void> {
+  if (names.length === 0) return;
+  await refresh(names);
+  if (HAS_TAURI) void emit(CHANGED_EVENT, { window: SELF, names }).catch(() => {});
+}
+
+async function refresh(names: string[]): Promise<void> {
+  for (const name of names) forget(name);
   await reload();
   emitAppEvent("chart-reload-data");
+}
+
+if (HAS_TAURI) {
+  void listen<{ window: string; names: string[] }>(CHANGED_EVENT, (e) => {
+    // Nothing read yet in this window: it reads the list when it first needs it.
+    if (e.payload.window !== SELF && loaded) void refresh(e.payload.names).catch(() => {});
+  }).catch(() => {});
 }
 
 /** Drop what was read of a series: its charts read it again on the

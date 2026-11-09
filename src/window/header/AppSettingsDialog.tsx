@@ -1,7 +1,7 @@
 /*
  * AppSettingsDialog — the desktop "App settings" modal. Solid port of the
  * reference mock's dialog: a left tab rail (General · Tabs · Video & Audio ·
- * Alerts · Service · Network · About) + a page section; settings apply live
+ * Alerts · Service · Network · Coding agents · Local data · About) + a page section; settings apply live
  * (no footer).
  *
  * Every control persists: alerts via alert-settings.ts, tab-title parts via
@@ -31,6 +31,16 @@ import * as kv from "../../data/kv";
 import { appUpdateStatus, buildInfo, checkForUpdates, installUpdate } from "../../data/app-update";
 import { commands, type AgentServerStatus, type BuildInfo, type ProxyProtocol, type ProxySettings } from "../../bindings";
 import { isTauri } from "../shell/window-bridge";
+import {
+  addLocalFolder,
+  localFolderProgress,
+  localFolders,
+  removeLocalFolder,
+  setLocalFolderOptions,
+  syncLocalFolder,
+  type LocalFolder,
+} from "../../data/local-folders";
+import { TIMEZONES } from "../../data/timezones";
 import { SelectControl } from "./ChartPropertiesDialog";
 import { downloadDir } from "@tauri-apps/api/path";
 import { fundingStatus, type Funding } from "../../data/funding";
@@ -96,7 +106,7 @@ kv.onExternalChange(SETTINGS_KEY, () => setSettings(loadSettings()));
 export const crosshairSyncSetting = () => settings.crosshairSync;
 
 export type AppSettingsTabId =
-  | "general" | "tabs" | "alerts" | "service" | "network" | "agents" | "about";
+  | "general" | "tabs" | "alerts" | "service" | "network" | "agents" | "local-data" | "about";
 
 type Props = {
   onClose: () => void;
@@ -119,6 +129,8 @@ const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
   ...(isTauri() ? [{ id: "network" as const, label: "Network", icon: "settings-network" }] : []),
   // The local endpoint coding agents connect to (desktop app only).
   ...(isTauri() ? [{ id: "agents" as const, label: "Coding agents", icon: "settings-agents" }] : []),
+  // Folders of CSV files kept in sync with the imported series (desktop app only: they need the disk).
+  ...(isTauri() ? [{ id: "local-data" as const, label: "Local data", icon: "settings-local-data" }] : []),
   { id: "about", label: "About", icon: "settings-about" },
 ];
 
@@ -660,6 +672,129 @@ http_headers = { "Authorization" = "Bearer ${s.token}" }` },
   );
 }
 
+/** Zones a folder's times may be in: UTC and the chart's cities, one row per zone. */
+const FOLDER_ZONES = TIMEZONES.filter((z) => z.label !== "Exchange").filter((z, i, all) => all.findIndex((y) => y.iana === z.iana) === i);
+const zoneLabel = (iana: string) => FOLDER_ZONES.find((z) => z.iana === iana)?.label ?? iana;
+
+/** "09/11/2026 14:05". */
+function syncTime(ms: number): string {
+  const d = new Date(ms);
+  const p = (v: number) => String(v).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+const thousands = (v: number) => v.toLocaleString("en-US");
+
+/** Settings > Local data (#267): folders whose CSV files stay imported series (data/local-folders). */
+function LocalDataTab() {
+  const [zone, setZone] = createSignal("UTC");
+  const [error, setError] = createSignal<string | null>(null);
+  const add = async () => {
+    setError(null);
+    const r = await commands.localFolderPick();
+    if (r.status === "error") return setError(r.error);
+    if (!r.data) return;
+    if (!addLocalFolder(r.data, zone())) return setError(`${r.data} is synced already.`);
+    void syncLocalFolder(r.data).catch((e) => setError(String(e)));
+  };
+  return (
+    <div class="app-settings-network app-settings-local-data">
+      <Section label="LOCAL DATA FOLDERS">
+        <div class="app-settings-note app-settings-local-note">
+          The CSV files at the top of a folder are imported series, LOCAL:&lt;file name&gt;, with the descriptions of its symbol_info JSON. When the app
+          starts and every 5 minutes, new and changed files are imported again; unchanged files are not read.
+        </div>
+      </Section>
+      <For each={localFolders()}>{(f) => <LocalFolderCard folder={f} />}</For>
+      <div class="app-settings-local-add">
+        <span class="app-settings-field-label">Times without an offset are in</span>
+        <SelectControl value={zone()} options={FOLDER_ZONES.map((z) => z.iana)} labelOf={zoneLabel} width={200} onPick={setZone} />
+        <button type="button" class="app-settings-btn" data-name="add-local-folder" onClick={() => void add()}>
+          Add folder…
+        </button>
+      </div>
+      <Show when={error()}>{(e) => <span class="app-settings-field-error">{e()}</span>}</Show>
+    </div>
+  );
+}
+
+/** Errors listed under a folder; the others are counted. */
+const SHOWN_ERRORS = 50;
+
+function LocalFolderCard(props: { folder: LocalFolder }) {
+  const f = () => props.folder;
+  const progress = () => {
+    const p = localFolderProgress();
+    return p && p.path === f().path ? p : null;
+  };
+  const statusText = () => {
+    const s = f().status;
+    if (!s) return "Not synced yet.";
+    if (s.failed) return `Last sync ${syncTime(s.at)}: ${s.failed}`;
+    const parts = [
+      `${thousands(s.scanned)} file${s.scanned === 1 ? "" : "s"}`,
+      `${thousands(s.imported)} imported (${thousands(s.bars)} bars)`,
+      `${thousands(s.unchanged)} unchanged`,
+    ];
+    if (f().removeDeleted) parts.push(`${thousands(s.removed)} removed`);
+    parts.push(`${thousands(s.errors.length)} not imported`);
+    return `Last sync ${syncTime(s.at)}: ${parts.join(", ")}.`;
+  };
+  const errors = () => f().status?.errors ?? [];
+  return (
+    <section class="app-settings-local-folder" data-name="local-folder">
+      <div class="app-settings-local-head">
+        <span class="app-settings-local-path" title={f().path}>
+          {f().path}
+        </span>
+        <button type="button" class="app-settings-btn" data-name="sync-local-folder" disabled={!!progress()} onClick={() => void syncLocalFolder(f().path).catch(() => {})}>
+          Sync now
+        </button>
+        <button type="button" class="app-settings-btn" title="Its series stay" onClick={() => removeLocalFolder(f().path)}>
+          Remove
+        </button>
+      </div>
+      <div class="app-settings-local-row">
+        <span class="app-settings-field-label">Times without an offset are in</span>
+        <SelectControl
+          value={f().timeZone}
+          options={FOLDER_ZONES.map((z) => z.iana)}
+          labelOf={zoneLabel}
+          width={240}
+          onPick={(z) => setLocalFolderOptions(f().path, { timeZone: z })}
+        />
+      </div>
+      <Checkbox
+        label="Remove a series when its file is deleted from the folder"
+        checked={f().removeDeleted}
+        onChange={() => setLocalFolderOptions(f().path, { removeDeleted: !f().removeDeleted })}
+      />
+      <div class="app-settings-local-status" data-name="local-folder-status">
+        <Show when={progress()} fallback={statusText()}>
+          {(p) => `Syncing: ${thousands(p().done)} of ${thousands(p().total)} files…`}
+        </Show>
+      </div>
+      <Show when={!progress() && errors().length > 0}>
+        <div class="app-settings-local-errors">
+          <For each={errors().slice(0, SHOWN_ERRORS)}>
+            {(e) => (
+              <div class="app-settings-local-error">
+                <span class="app-settings-local-error-file" title={e.file}>
+                  {e.file}
+                </span>
+                <span>{e.message}</span>
+              </div>
+            )}
+          </For>
+          <Show when={errors().length > SHOWN_ERRORS}>
+            <div class="app-settings-local-error">and {thousands(errors().length - SHOWN_ERRORS)} more</div>
+          </Show>
+        </div>
+      </Show>
+    </section>
+  );
+}
+
 function AboutTab() {
   const [info, setInfo] = createSignal<BuildInfo | null>(null);
   onMount(() => {
@@ -818,6 +953,7 @@ export function AppSettingsDialog(props: Props) {
       case "service": return <ServiceTab />;
       case "network": return <NetworkTab />;
       case "agents": return <AgentsTab />;
+      case "local-data": return <LocalDataTab />;
       case "about": return <AboutTab />;
       default: return <GeneralTab themeSetting={props.themeSetting} onThemeChange={props.onThemeChange} />;
     }
