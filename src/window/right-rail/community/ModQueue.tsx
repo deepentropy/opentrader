@@ -11,7 +11,7 @@ import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { api, type ContactMessage, type QueueItem } from "../../../data/community/api";
 import { me } from "../../../data/community/session";
-import { Age, Author, ErrorBanner, ReasonForm, errorText } from "./parts";
+import { Age, Author, ErrorBanner, ReasonForm, errorText } from "../../../community-shared/parts";
 
 const REASON_LABELS: Record<string, string> = {
   spam: "Spam",

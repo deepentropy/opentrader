@@ -10,7 +10,7 @@ import { For, Show, createEffect, createResource, createSignal, on, onCleanup } 
 import { api, type Post, type SuggestionFilter, type SuggestionsView } from "../data/community/api";
 import { withPostingCheck } from "../data/community/posting-check";
 import { me, ready } from "../data/community/session";
-import { ErrorBanner, PostingCheckPrompt, errorText } from "../window/right-rail/community/parts";
+import { ErrorBanner, PostingCheckPrompt, errorText } from "../community-shared/parts";
 import { plain } from "./Home";
 import { go, navigate } from "./router";
 import { Pills, STATUS_LABEL, StatusTag, UserLink, age, signInPath } from "./ui";

@@ -4,19 +4,16 @@
  * a question's accepted answer, edits, deletion, reports, and the
  * moderators' remove / restore / lock.
  */
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
-import { createStore, produce } from "solid-js/store";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { showConfirm } from "../../../components/Dialogs";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, imageUrl, type Comment, type Post, type Ratings, type Reason, type ReplyKind, type SharedChart } from "../../../data/community/api";
+import { api, imageUrl, type Comment, type Reason, type SharedChart } from "../../../data/community/api";
 import { chartBridge } from "../../../data/community/chart-share";
-import { withPostingCheck } from "../../../data/community/posting-check";
-import { COMMUNITY_URL } from "../../../data/community/api";
 import { shortIntervalLabel } from "../../chart/interval-favorites";
-import { me } from "../../../data/community/session";
-import { Age, Author, AuthorRecord, BanForm, BotBadge, ErrorBanner, ExternalLink, IdeaLevels, MarkdownBody, PostState, ReasonForm, ReportForm, TypeBadges, errorText } from "./parts";
+import { Age, Author, AuthorRecord, BanForm, BotBadge, ErrorBanner, ExternalLink, IdeaLevels, MarkdownBody, PostState, ReasonForm, ReportForm, TypeBadges, errorText } from "../../../community-shared/parts";
+import { KINDS, KIND_LABEL, createPostThread, type FormKind } from "../../../community-shared/post-thread";
 
 const REASONS: { id: Reason; label: string }[] = [
   { id: "thesis", label: "Clear thesis" },
@@ -25,12 +22,6 @@ const REASONS: { id: Reason; label: string }[] = [
   { id: "risk", label: "Well-defined risk" },
   { id: "vague", label: "Vague" },
 ];
-const KINDS: { id: ReplyKind; label: string }[] = [
-  { id: "data", label: "Data" },
-  { id: "counterpoint", label: "Counterpoint" },
-  { id: "question", label: "Question" },
-];
-const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update", support: "Supporter" };
 
 /** Deeper replies are drawn at this depth (the panel is narrow). */
 const MAX_INDENT = 6;
@@ -45,9 +36,6 @@ type Props = {
   /** The post was deleted or rated: the list refreshes. */
   onChanged: () => void;
 };
-
-/** Inline form under a post or comment: reply, edit, report, remove. */
-type Open = { id: string; kind: "reply" | "edit" | "report" | "remove" | "appeal" | "ban" } | null;
 
 /** The author asks the moderators to look again at a removal. */
 function AppealForm(props: { type: "post" | "comment"; id: string; onDone: () => void }) {
@@ -119,63 +107,9 @@ function SharedChartBlock(props: { imagePath: string | null; chart: SharedChart 
 }
 
 export function PostView(props: Props) {
-  const [data, { refetch }] = createResource(() => props.postId, (id) => api.post(id));
-  const [post, setPost] = createStore<{ p: Post | null }>({ p: null });
-  const [comments, setComments] = createStore<{ list: Comment[] }>({ list: [] });
-  const [isMod, setIsMod] = createSignal(false);
-  const [ratings, setRatings] = createSignal<Ratings>({ reasons: {}, mine: [] });
-  const [kind, setKind] = createSignal<ReplyKind | null>(null);
-  const [error, setError] = createSignal<string | null>(null);
-  const [open, setOpen] = createSignal<Open>(null);
+  const t = createPostThread({ id: () => props.postId, onNeedSignIn: () => props.onNeedSignIn(), onChanged: () => props.onChanged() });
+  const { data, post, comments, ratings, isMod, error, setError, open, setOpen, draft, setDraft, kind, setKind, busy, needUser, rate, useful, markAnswer, moderate } = t;
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
-  const [draft, setDraft] = createSignal("");
-  const [busy, setBusy] = createSignal(false);
-
-  // Live comments (#208): the post's room passes on each new comment; a lost
-  // connection comes back after a pause (not while the panel shows nothing).
-  let socket: WebSocket | null = null;
-  let retry: ReturnType<typeof setTimeout> | null = null;
-  let closed = false;
-  const connect = (postId: string, delay = 2000) => {
-    socket?.close();
-    try {
-      socket = new WebSocket(`${COMMUNITY_URL.replace(/^http/, "ws") || (location.protocol === "https:" ? "wss://" : "ws://") + location.host}/posts/${encodeURIComponent(postId)}/live`);
-    } catch {
-      return;
-    }
-    socket.onmessage = (e) => {
-      let m: { type?: string; comment?: Comment };
-      try {
-        m = JSON.parse(String(e.data));
-      } catch {
-        return;
-      }
-      const c = m.comment;
-      if (m.type !== "comment" || !c || comments.list.some((x) => x.id === c.id)) return;
-      setComments("list", (l) => [...l, c]);
-      setPost("p", produce((x) => { if (x) x.comment_count += 1; }));
-    };
-    socket.onclose = () => {
-      if (closed) return;
-      retry = setTimeout(() => connect(postId, Math.min(delay * 2, 60_000)), delay);
-    };
-  };
-  createEffect(on(() => props.postId, (id) => connect(id)));
-  onCleanup(() => {
-    closed = true;
-    if (retry) clearTimeout(retry);
-    socket?.close();
-  });
-
-  // The fetched post feeds the stores the view edits in place.
-  createMemo(() => {
-    const d = data();
-    if (!d) return;
-    setPost("p", d.post);
-    setComments("list", d.comments);
-    setRatings(d.ratings);
-    setIsMod(d.is_mod);
-  });
 
   const children = createMemo(() => {
     const map = new Map<string | null, Comment[]>();
@@ -188,50 +122,13 @@ export function PostView(props: Props) {
     return map;
   });
 
-  const needUser = (fn: () => void) => () => (me() ? fn() : props.onNeedSignIn());
-  const toggle = (id: string, kind: NonNullable<Open>["kind"]) => {
+  // One text box at a time: opening a form starts it empty.
+  const toggle = (id: string, kind: FormKind) => {
     setDraft("");
-    setOpen((o) => (o?.id === id && o.kind === kind ? null : { id, kind }));
+    t.toggle(id, kind);
   };
-
-  const sendComment = async (parentId: string | null) => {
-    const p = post.p;
-    if (!p || !draft().trim()) return;
-    setBusy(true);
-    try {
-      const k = parentId ? null : p.own ? "update" : kind();
-      const { comment } = await withPostingCheck(() => api.comment(p.id, draft(), parentId, k));
-      setKind(null);
-      // The live room may have brought it first.
-      setComments("list", (l) => (l.some((x) => x.id === comment.id) ? l : [...l, comment]));
-      setPost("p", "comment_count", (n) => n + 1);
-      setDraft("");
-      setOpen(null);
-      props.onChanged();
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveEdit = async (target: "post" | Comment) => {
-    setBusy(true);
-    try {
-      if (target === "post") {
-        const r = await api.editPost(post.p!.id, draft());
-        setPost("p", r.post);
-      } else {
-        const r = await api.editComment(target.id, draft());
-        setComments("list", (c) => c.id === target.id, produce((c) => { c.body = r.comment.body; c.edited_at = r.comment.edited_at; }));
-      }
-      setOpen(null);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const sendComment = (parentId: string | null) => void t.send(parentId, draft());
+  const saveEdit = (target: "post" | Comment) => t.saveEdit(target, draft());
 
   const remove = (target: "post" | Comment) =>
     showConfirm({
@@ -240,65 +137,12 @@ export function PostView(props: Props) {
       mainText: "Delete",
       cancelText: "Cancel",
       intent: "danger",
-      onConfirm: async () => {
-        try {
-          if (target === "post") {
-            await api.deletePost(post.p!.id);
-            props.onChanged();
-            void refetch();
-          } else {
-            await api.deleteComment(target.id);
-            setComments("list", (c) => c.id === target.id, produce((c) => { c.deleted = true; c.body = ""; c.author = null; }));
-          }
-        } catch (e) {
-          setError(errorText(e));
-        }
-      },
+      onConfirm: () => t.remove(target),
     });
 
-  const rate = async (reason: Reason) => {
-    const p = post.p;
-    if (!p) return;
-    if (!me()) return props.onNeedSignIn();
-    try {
-      const r = await api.rate(p.id, reason, !ratings().mine.includes(reason));
-      setRatings({ reasons: r.reasons, mine: r.mine });
-      setPost("p", produce((x) => { if (x) { x.useful_count = r.useful_count; x.flag_count = r.flag_count; } }));
-      props.onChanged();
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  const useful = async (c: Comment) => {
-    if (!me()) return props.onNeedSignIn();
-    try {
-      const r = await api.useful(c.id, !c.my_useful);
-      setComments("list", (x) => x.id === c.id, produce((x) => { x.useful_count = r.useful_count; x.my_useful = r.my_useful; }));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  const markAnswer = async (c: Comment) => {
-    try {
-      const r = await api.markAnswer(post.p!.id, post.p!.answer_id === c.id ? null : c.id);
-      setPost("p", "answer_id", r.answer_id);
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-
-  /** A moderator bans the author from this community (#209). */
   const banAuthor = async (name: string, days: number, reason: string) => {
-    await api.communityBan(post.p!.community.id, name, true, days, reason);
-    setOpen(null);
+    await t.banAuthor(name, days, reason);
     setError(null);
-  };
-
-  const moderate = async (action: string, type: "post" | "comment", id: string, reason = "") => {
-    await api.modAction(action, type, id, reason);
-    setOpen(null);
-    props.onChanged();
-    await refetch();
   };
 
   const Editor = (p: { placeholder: string; action: string; onSubmit: () => void }) => (
@@ -316,7 +160,7 @@ export function PostView(props: Props) {
     const kids = () => children().get(c().id) ?? [];
     const isCollapsed = () => collapsed().has(c().id);
     const flip = () => setCollapsed((s) => { const n = new Set(s); if (n.has(c().id)) n.delete(c().id); else n.add(c().id); return n; });
-    const is = (kind: NonNullable<Open>["kind"]) => open()?.id === c().id && open()?.kind === kind;
+    const is = (kind: FormKind) => open()?.id === c().id && open()?.kind === kind;
     return (
       <div class={"cm-comment" + (cp.depth > 0 && cp.depth <= MAX_INDENT ? " is-nested" : "")}>
         <div class="cm-comment-head">
@@ -387,7 +231,7 @@ export function PostView(props: Props) {
     );
   };
 
-  const isPost = (kind: NonNullable<Open>["kind"]) => open()?.id === "post" && open()?.kind === kind;
+  const isPost = (kind: FormKind) => open()?.id === "post" && open()?.kind === kind;
 
   return (
     <div class="cm-post-view">

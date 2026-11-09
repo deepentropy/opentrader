@@ -9,13 +9,13 @@
  * this too" with an optional reason instead of the ratings, the
  * administrators' tools, and other suggestions on the right.
  */
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from "solid-js";
-import { createStore, produce } from "solid-js/store";
-import { COMMUNITY_URL, CommunityError, api, imageUrl, type Comment, type Idea, type Post, type Ratings, type Reason, type ReplyKind, type SuggestionStatus } from "../data/community/api";
+import { For, Show, createMemo, createResource, createSignal } from "solid-js";
+import { CommunityError, api, imageUrl, type Comment, type Idea, type Post, type Reason, type SuggestionStatus } from "../data/community/api";
 import { withPostingCheck } from "../data/community/posting-check";
 import { me } from "../data/community/session";
 import { showConfirm } from "../components/Dialogs";
-import { BanForm, ErrorBanner, MarkdownBody, PostingCheckPrompt, ReasonForm, ReportForm, errorText } from "../window/right-rail/community/parts";
+import { BanForm, ErrorBanner, MarkdownBody, PostingCheckPrompt, ReasonForm, ReportForm, errorText } from "../community-shared/parts";
+import { KINDS, KIND_LABEL, createPostThread, type FormKind } from "../community-shared/post-thread";
 import { SnapshotPicker } from "./SnapshotPicker";
 import { SuggestedBy, SupportButton } from "./SuggestionsPage";
 import { go, navigate } from "./router";
@@ -32,13 +32,6 @@ const REASONS: { id: Reason; label: string }[] = [
   { id: "risk", label: "Well-defined risk" },
   { id: "vague", label: "Not useful: vague" },
 ];
-
-const KINDS: { id: ReplyKind; label: string }[] = [
-  { id: "data", label: "Data" },
-  { id: "counterpoint", label: "Counterpoint" },
-  { id: "question", label: "Question" },
-];
-const KIND_LABEL: Record<ReplyKind, string> = { data: "Data", counterpoint: "Counterpoint", question: "Question", update: "Update", support: "Supporter" };
 
 /** "daily close > 148.20", "trade < 52.00": what triggers the entry. */
 export function triggerText(i: Idea): string {
@@ -61,21 +54,11 @@ function ideaLog(p: Post): { d: string; e: string }[] {
   return rows;
 }
 
-type Open = { id: string; kind: "reply" | "edit" | "report" | "remove" | "appeal" | "ban" } | null;
-
 export function PostPage(props: { id: string }) {
-  const [data, { refetch }] = createResource(() => [props.id, me()?.user.name ?? ""] as const, ([id]) => api.post(id));
-  const [post, setPost] = createStore<{ p: Post | null }>({ p: null });
-  const [comments, setComments] = createStore<{ list: Comment[] }>({ list: [] });
-  const [ratings, setRatings] = createSignal<Ratings>({ reasons: {}, mine: [] });
-  const [isMod, setIsMod] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
-  const [open, setOpen] = createSignal<Open>(null);
-  const [draft, setDraft] = createSignal("");
-  const [kind, setKind] = createSignal<ReplyKind | null>(null);
+  const t = createPostThread({ id: () => props.id, reloadOnAccount: true, onNeedSignIn: () => navigate(signInPath()) });
+  const { data, post, setPost, comments, setComments, ratings, isMod, error, setError, open, setOpen, draft, setDraft, kind, setKind, busy, setBusy, needUser, toggle, saveEdit, useful, markAnswer, moderate, banAuthor } = t;
   const [snap, setSnap] = createSignal<string | null>(null);
   const [picking, setPicking] = createSignal(false);
-  const [busy, setBusy] = createSignal(false);
   const [sort, setSort] = createSignal<"useful" | "oldest">("useful");
   const [supported, setSupported] = createSignal(false);
   const [why, setWhy] = createSignal("");
@@ -95,47 +78,8 @@ export function PostPage(props: { id: string }) {
   createMemo(() => {
     const d = data();
     if (!d) return;
-    setPost("p", d.post);
-    setComments("list", d.comments);
-    setRatings(d.ratings);
-    setIsMod(d.is_mod);
     setSupported(!!d.supported);
     document.title = `${d.post.title} · ${tickerName(d.post.community.id)} · OpenTrader Community`;
-  });
-
-  // Live replies: the post's room passes on each new one; a lost connection comes back after a pause.
-  let socket: WebSocket | null = null;
-  let retry: ReturnType<typeof setTimeout> | null = null;
-  let closed = false;
-  const connect = (postId: string, delay = 2000) => {
-    socket?.close();
-    try {
-      const base = COMMUNITY_URL ? COMMUNITY_URL.replace(/^http/, "ws") : `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
-      socket = new WebSocket(`${base}/posts/${encodeURIComponent(postId)}/live`);
-    } catch {
-      return;
-    }
-    socket.onmessage = (e) => {
-      let m: { type?: string; comment?: Comment };
-      try {
-        m = JSON.parse(String(e.data));
-      } catch {
-        return;
-      }
-      const c = m.comment;
-      if (m.type !== "comment" || !c || comments.list.some((x) => x.id === c.id)) return;
-      setComments("list", (l) => [...l, c]);
-      setPost("p", produce((x) => { if (x) x.comment_count += 1; }));
-    };
-    socket.onclose = () => {
-      if (!closed) retry = setTimeout(() => connect(postId, Math.min(delay * 2, 60_000)), delay);
-    };
-  };
-  createEffect(on(() => props.id, (id) => connect(id)));
-  onCleanup(() => {
-    closed = true;
-    if (retry) clearTimeout(retry);
-    socket?.close();
   });
 
   const [authorIdeas] = createResource(
@@ -171,23 +115,10 @@ export function PostPage(props: { id: string }) {
     return map;
   });
 
-  const needUser = (fn: () => void) => () => (me() ? fn() : navigate(signInPath()));
-  const toggle = (id: string, k: NonNullable<Open>["kind"]) => {
-    setOpen((o) => (o?.id === id && o.kind === k ? null : { id, kind: k }));
-  };
-
-  const rate = async (reason: Reason) => {
-    const p = post.p;
-    if (!p) return;
-    if (!me()) return navigate(signInPath());
-    setError(null);
-    try {
-      const r = await api.rate(p.id, reason, !ratings().mine.includes(reason));
-      setRatings({ reasons: r.reasons, mine: r.mine });
-      setPost("p", produce((x) => { if (x) { x.useful_count = r.useful_count; x.flag_count = r.flag_count; } }));
-    } catch (e) {
-      setError(errorText(e));
-    }
+  // The page drops its last error when a rating or a reply is sent (the panel keeps it until closed).
+  const rate = (reason: Reason) => {
+    if (post.p && me()) setError(null);
+    return t.rate(reason);
   };
 
   /** "I need this too", on or off; the reason, when given, comes as a reply. */
@@ -214,52 +145,12 @@ export function PostPage(props: { id: string }) {
     }
   };
 
-  const useful = async (c: Comment) => {
-    if (!me()) return navigate(signInPath());
-    try {
-      const r = await api.useful(c.id, !c.my_useful);
-      setComments("list", (x) => x.id === c.id, produce((x) => { x.useful_count = r.useful_count; x.my_useful = r.my_useful; }));
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-
+  /** A reply; one to the post carries the attached snapshot. */
   const send = async (parentId: string | null, text: string) => {
-    const p = post.p;
-    if (!p || !text.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const attach = parentId ? null : snap() ? { snapshotId: snap()! } : null;
-      const k = parentId ? null : p.own ? "update" : kind();
-      const { comment } = await withPostingCheck(() => api.comment(p.id, text, parentId, k, attach));
-      setComments("list", (l) => (l.some((x) => x.id === comment.id) ? l : [...l, comment]));
-      setPost("p", "comment_count", (n) => n + 1);
-      setDraft("");
-      setKind(null);
+    if (post.p && text.trim()) setError(null);
+    if (await t.send(parentId, text, parentId ? null : snap() ? { snapshotId: snap()! } : null)) {
       setSnap(null);
       setPicking(false);
-      setOpen(null);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveEdit = async (target: "post" | Comment, text: string) => {
-    setBusy(true);
-    try {
-      if (target === "post") setPost("p", (await api.editPost(post.p!.id, text)).post);
-      else {
-        const r = await api.editComment(target.id, text);
-        setComments("list", (c) => c.id === target.id, produce((c) => { c.body = r.comment.body; c.edited_at = r.comment.edited_at; }));
-      }
-      setOpen(null);
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -270,38 +161,8 @@ export function PostPage(props: { id: string }) {
       mainText: "Delete",
       cancelText: "Cancel",
       intent: "danger",
-      onConfirm: async () => {
-        try {
-          if (target === "post") {
-            await api.deletePost(post.p!.id);
-            void refetch();
-          } else {
-            await api.deleteComment(target.id);
-            setComments("list", (c) => c.id === target.id, produce((c) => { c.deleted = true; c.body = ""; c.author = null; c.image_url = null; }));
-          }
-        } catch (e) {
-          setError(errorText(e));
-        }
-      },
+      onConfirm: () => t.remove(target),
     });
-
-  const moderate = async (action: string, type: "post" | "comment", id: string, reason = "") => {
-    await api.modAction(action, type, id, reason);
-    setOpen(null);
-    await refetch();
-  };
-  const banAuthor = async (name: string, days: number, reason: string) => {
-    await api.communityBan(post.p!.community.id, name, true, days, reason);
-    setOpen(null);
-  };
-  const markAnswer = async (c: Comment) => {
-    try {
-      const r = await api.markAnswer(post.p!.id, post.p!.answer_id === c.id ? null : c.id);
-      setPost("p", "answer_id", r.answer_id);
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
 
   const Editor = (ep: { initial?: string; placeholder: string; action: string; onSubmit: (text: string) => void }) => {
     const [text, setText] = createSignal(ep.initial ?? "");
@@ -339,7 +200,7 @@ export function PostPage(props: { id: string }) {
   );
 
   const Forms = (fp: { type: "post" | "comment"; id: string; body: string; author: string | null; target: "post" | Comment }) => {
-    const is = (k: NonNullable<Open>["kind"]) => open()?.id === fp.id && open()?.kind === k;
+    const is = (k: FormKind) => open()?.id === fp.id && open()?.kind === k;
     return (
       <>
         <Show when={is("edit")}><Editor initial={fp.body} placeholder="Text" action="Save" onSubmit={(t) => saveEdit(fp.target, t)} /></Show>
@@ -486,7 +347,7 @@ export function PostPage(props: { id: string }) {
     );
   };
 
-  const isPost = (k: NonNullable<Open>["kind"]) => open()?.id === post.p?.id && open()?.kind === k;
+  const isPost = (k: FormKind) => open()?.id === post.p?.id && open()?.kind === k;
   const p = () => post.p!;
   const ticker = () => tickerName(p().community.id);
   const fromEntry = (i: Idea) => (i.last_price == null ? null : ((i.direction === "long" ? i.last_price - i.entry : i.entry - i.last_price) / i.entry) * 100);

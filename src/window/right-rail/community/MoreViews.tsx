@@ -14,7 +14,8 @@ import { markAllRead, refreshNotifications } from "../../../data/community/notif
 import { deleteAccount, me, refreshMe, signOut } from "../../../data/community/session";
 import { showConfirm } from "../../../components/Dialogs";
 import { noticeTitle } from "./CommunityNotifier";
-import { Age, ErrorBanner, errorText, fullDate } from "./parts";
+import { Age, ErrorBanner, errorText } from "../../../community-shared/parts";
+import { date } from "../../../community-shared/dates";
 
 function Frame(props: { title: string; onBack: () => void; children: any }) {
   return (
@@ -126,7 +127,7 @@ export function AboutView(props: { community: Community; onBack: () => void; onO
                 <div class="cm-about-row">
                   <span>
                     <span class="cm-author">{b.name}</span>
-                    <span class="cm-muted"> · {b.until > 4_000_000_000 ? "permanent" : `until ${fullDate(b.until).slice(0, 10)}`} · {b.reason}</span>
+                    <span class="cm-muted"> · {b.until > 4_000_000_000 ? "permanent" : `until ${date(b.until)}`} · {b.reason}</span>
                   </span>
                   <button type="button" class="cm-action" onClick={() => act(() => api.communityBan(id(), b.name, false), refetchBans)}>Unban</button>
                 </div>

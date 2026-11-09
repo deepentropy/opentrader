@@ -6,7 +6,7 @@
  */
 import { For, Show, createEffect, createResource, createSignal, on } from "solid-js";
 import { api, type PostType, type SearchFilters, type SearchView } from "../data/community/api";
-import { errorText } from "../window/right-rail/community/parts";
+import { errorText } from "../community-shared/parts";
 import { plain } from "./Home";
 import { go, navigate, route } from "./router";
 import { SEARCH_ICON, TYPE_LABEL, TYPES, TickerTag, TypeTag, UserLink, age, date, postState } from "./ui";

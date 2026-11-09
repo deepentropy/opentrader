@@ -6,7 +6,7 @@
 import { For, Show, createResource, createSignal } from "solid-js";
 import { api, tickerCommunityId, type TickerRow } from "../data/community/api";
 import { me, refreshMe } from "../data/community/session";
-import { errorText } from "../window/right-rail/community/parts";
+import { errorText } from "../community-shared/parts";
 import { go, navigate } from "./router";
 import { TickerTag } from "./ui";
 

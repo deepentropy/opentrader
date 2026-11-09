@@ -8,7 +8,7 @@ import { For, Show, createSignal } from "solid-js";
 import { Icon } from "../components/Icon";
 import { IconButton } from "../components/IconButton";
 import { api, type ContactKind } from "../data/community/api";
-import { ErrorBanner, errorText } from "../window/right-rail/community/parts";
+import { ErrorBanner, errorText } from "../community-shared/parts";
 
 const KINDS: { id: ContactKind; label: string }[] = [
   { id: "illegal", label: "Report illegal content" },

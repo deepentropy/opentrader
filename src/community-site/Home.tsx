@@ -10,7 +10,7 @@ import { For, Show, createResource, createSignal } from "solid-js";
 import { api, type HomeView, type Post, type PostType, type Sort } from "../data/community/api";
 import { me, ready } from "../data/community/session";
 import * as kv from "../data/kv";
-import { errorText } from "../window/right-rail/community/parts";
+import { errorText } from "../community-shared/parts";
 import { go } from "./router";
 import {
   DirTag, OriginTag, Pills, STATUS_LABEL, Snapshot, TYPE_PLURAL, TYPES, TickerTag, TypeTag, UserLink, age, communityHref, dateTime, daysLeft, fmtR, postState, recordLine, signInPath, tickerName,

@@ -34,7 +34,7 @@ import { withPostingCheck } from "../../../data/community/posting-check";
 import { shareRequest, takeShare } from "../../../data/community/share";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, MarkdownBody, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "./parts";
+import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, MarkdownBody, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "../../../community-shared/parts";
 
 /** "chart" (follows the chart), "following" (my tickers), "all", or a community id. */
 type Source = string;

@@ -1,17 +1,17 @@
 /*
- * Pieces shared by the Community panel's views: ages, the post's type and
- * an idea's levels and state, the rendered text, the report and reason
- * forms, the sign-in box.
+ * Pieces shared by the app's Community panel and the community website: ages,
+ * the post's type and an idea's levels and state, the rendered text, the
+ * report, reason and ban forms, the sign-in box.
  */
 import { For, Show, createSignal } from "solid-js";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Icon } from "../../../components/Icon";
-import { renderMarkdown } from "../../../data/community/markdown";
-import { chartBridge } from "../../../data/community/chart-share";
-import { cancelCheck, checkError, openCheck, pending as checkPending, waiting as checkWaiting } from "../../../data/community/posting-check";
-import { api, CommunityError, type Idea, type Post, type ReportReason } from "../../../data/community/api";
-import { TYPE_LABEL, ideaState, postState, price, recordLine, day } from "../../../data/community/format";
-import { signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../../../data/community/session";
+import { Icon } from "../components/Icon";
+import { renderMarkdown } from "../data/community/markdown";
+import { chartBridge } from "../data/community/chart-share";
+import { cancelCheck, checkError, openCheck, pending as checkPending, waiting as checkWaiting } from "../data/community/posting-check";
+import { api, CommunityError, type Idea, type Post, type ReportReason } from "../data/community/api";
+import { TYPE_LABEL, age, dateTime, day, ideaState, postState, price, recordLine } from "../data/community/format";
+import { signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../data/community/session";
 
 export const RULES_URL = "https://opentrader.markets/community-rules.html";
 export const TERMS_URL = "https://opentrader.markets/terms.html";
@@ -22,24 +22,8 @@ export function errorText(e: unknown): string {
   return String(e);
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-export function fullDate(sec: number): string {
-  const d = new Date(sec * 1000);
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** "5m", "3h", "2d"; the date past a month. */
-export function age(sec: number, nowMs = Date.now()): string {
-  const s = Math.max(0, Math.floor(nowMs / 1000) - sec);
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86_400) return `${Math.floor(s / 3600)}h`;
-  if (s < 30 * 86_400) return `${Math.floor(s / 86_400)}d`;
-  return fullDate(sec).slice(0, 10);
-}
-
 export function Age(props: { at: number }) {
-  return <span title={fullDate(props.at)}>{age(props.at)}</span>;
+  return <span title={dateTime(props.at)}>{age(props.at)}</span>;
 }
 
 export function Author(props: { name: string | null }) {

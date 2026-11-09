@@ -9,7 +9,7 @@ import { For, Show, createEffect, createResource, createSignal, onCleanup, onMou
 import type { IChartApi, ISeriesApi } from "lightweight-charts";
 import { GENERAL, api, type Bar, type Post, type PostType, type TickerView } from "../data/community/api";
 import { me, refreshMe } from "../data/community/session";
-import { errorText } from "../window/right-rail/community/parts";
+import { errorText } from "../community-shared/parts";
 import { go, navigate } from "./router";
 import { DOWN, FOG, Pills, TypeTag, UP, UserLink, age, date, fmtPct, fmtR, price, rColor, signInPath } from "./ui";
 

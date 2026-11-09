@@ -8,7 +8,7 @@
 import { For, Show, createEffect, createResource, createSignal } from "solid-js";
 import { api, type Post, type PostType, type Profile, type ProfileReply, type Reason } from "../data/community/api";
 import { me } from "../data/community/session";
-import { errorText } from "../window/right-rail/community/parts";
+import { errorText } from "../community-shared/parts";
 import { go, navigate } from "./router";
 import { Avatar, DOWN, FOG, TickerTag, TypeTag, UP, age, date, fmtR, outcome, price, rColor, signInPath, tickerName } from "./ui";
 

@@ -18,7 +18,7 @@ import { initSession, me } from "../data/community/session";
 import { startNotifications } from "../data/community/notifications";
 import { ModQueue } from "../window/right-rail/community/ModQueue";
 import { AboutView, AccountView, NotificationsView } from "../window/right-rail/community/MoreViews";
-import { SignInBox } from "../window/right-rail/community/parts";
+import { SignInBox } from "../community-shared/parts";
 import { ContactPage } from "./ContactPage";
 import { TopBar } from "./TopBar";
 import { Home } from "./Home";

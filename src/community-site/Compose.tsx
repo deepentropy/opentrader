@@ -10,7 +10,7 @@ import { GENERAL, api, tickerCommunityId, type Direction, type PostType } from "
 import { me } from "../data/community/session";
 import { withPostingCheck } from "../data/community/posting-check";
 import * as kv from "../data/kv";
-import { ErrorBanner, PostingCheckPrompt, errorText } from "../window/right-rail/community/parts";
+import { ErrorBanner, PostingCheckPrompt, errorText } from "../community-shared/parts";
 import { ComposeBar } from "./TopBar";
 import { SNAPSHOT_HOWTO, SnapshotPicker } from "./SnapshotPicker";
 import { go, navigate } from "./router";
