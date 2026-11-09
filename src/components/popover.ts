@@ -31,6 +31,10 @@ export type PopoverOptions = {
   insideSelector?: string;
   /** The press that closes: `pointerdown` (default) or `mousedown` (menus whose rows act on mouse down). */
   press?: "pointerdown" | "mousedown";
+  /** Where the press and Escape are heard. Default: the press on the document and Escape on the window, both in
+   *  the capture phase (before a dialog under the popover). In the bubble phase, a press that something stops on
+   *  its way up (a panel keeping its own presses) leaves the popover open. */
+  on?: { target: "window" | "document"; capture: boolean };
   /** Escape: "stop" (default) closes and keeps the key from the dialog under the popover, "pass" closes and lets
    *  it go on, "none" leaves Escape alone. */
   escape?: "stop" | "pass" | "none";
@@ -84,11 +88,14 @@ export function createPopover(
     // Placed once the element is in the document (a portal inserts it during the same render).
     queueMicrotask(place);
     const press = opts.press ?? "pointerdown";
-    document.addEventListener(press, onPress, true);
-    window.addEventListener("keydown", onKey, true);
+    const capture = opts.on?.capture ?? true;
+    const pressTarget = opts.on?.target === "window" ? window : document;
+    const keyTarget = opts.on?.target === "document" ? document : window;
+    pressTarget.addEventListener(press, onPress, capture);
+    keyTarget.addEventListener("keydown", onKey as EventListener, capture);
     onCleanup(() => {
-      document.removeEventListener(press, onPress, true);
-      window.removeEventListener("keydown", onKey, true);
+      pressTarget.removeEventListener(press, onPress, capture);
+      keyTarget.removeEventListener("keydown", onKey as EventListener, capture);
     });
   });
 

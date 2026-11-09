@@ -14,7 +14,7 @@
  * list: name, message, instrument logo, webhook status), its button counting
  * the filters applied. A row's Delete button (on hover) removes that event.
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup } from "solid-js";
 import { tickerOf } from "../../data/symbol-name";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
@@ -30,6 +30,7 @@ import { webhookStatus } from "../../data/webhook-status";
 import { AlertRulesList, AlertRulesToolbar, OptionsButton, RowLogo, isTechnical } from "./AlertRules";
 import { GLYPH, MenuAction, MenuSection, MenuToggle } from "./alerts-menu";
 import * as kv from "../../data/kv";
+import { createPopover } from "../../components/popover";
 
 type LogFilters = { symbol: boolean; interval: boolean; price: boolean; technicals: boolean; watchlist: boolean; name: boolean; message: boolean; logo: boolean; webhook: boolean };
 const LOG_DEFAULTS: LogFilters = { symbol: false, interval: false, price: true, technicals: true, watchlist: true, name: true, message: true, logo: true, webhook: true };
@@ -120,12 +121,8 @@ export function AlertsPanel(props: { symbol?: string; interval?: string; onShow?
   });
 
   const [logMenu, setLogMenu] = createSignal(false);
-  let logToolbarEl: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => { if (logToolbarEl && !logToolbarEl.contains(e.target as Node)) setLogMenu(false); };
-    window.addEventListener("pointerdown", onDown);
-    onCleanup(() => window.removeEventListener("pointerdown", onDown));
-  });
+  // A press outside the log toolbar (its menu included) closes the menu.
+  const logToolbarEl = createPopover(undefined, { onClose: () => setLogMenu(false), placement: false, escape: "none", on: { target: "window", capture: false } });
 
   return (
     <aside class="ot-rail-panel alerts-panel" aria-label="Alerts">

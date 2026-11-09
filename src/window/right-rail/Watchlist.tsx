@@ -52,6 +52,7 @@ import { createKeyboard } from "./watchlist/keyboard";
 import { createRowMenus } from "./watchlist/row-menus";
 import { createRows } from "./watchlist/rows";
 import { createHeaders } from "./watchlist/headers";
+import { createPopover } from "../../components/popover";
 
 export function Watchlist(props: WatchlistProps) {
   const watchlistsHeader = HEADER_ITEMS.find((h) => h.dataName === "watchlists-button");
@@ -101,12 +102,14 @@ export function Watchlist(props: WatchlistProps) {
   };
   const [sortMenuOpen, setSortMenuOpen] = createSignal(false);
   let sortWrapEl: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => {
-      if (sortMenuOpen() && sortWrapEl && !sortWrapEl.contains(e.target as Node)) setSortMenuOpen(false);
-    };
-    window.addEventListener("pointerdown", onDown);
-    onCleanup(() => window.removeEventListener("pointerdown", onDown));
+  // The sort menu and its button are one wrapper: a press outside it closes the menu.
+  createPopover(undefined, {
+    onClose: () => setSortMenuOpen(false),
+    placement: false,
+    inside: () => [sortWrapEl],
+    active: () => sortMenuOpen() && !!sortWrapEl,
+    escape: "none",
+    on: { target: "window", capture: false },
   });
   // Hidden file input backing the menu's "Upload list…" action.
   let uploadInput: HTMLInputElement | undefined;

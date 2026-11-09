@@ -9,11 +9,12 @@
  * (picker). "Add alert on the list…" is the only row with no real backend
  * equivalent beyond the local stand-in.
  */
-import { For, onCleanup, onMount, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
 import { WL_ICONS, WL_MENU_GROUPS, type WlMenuAction } from "./watchlist/ui";
 import { Icon } from "../../components/Icon";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
+import { createPopover } from "../../components/popover";
 
 type Props = {
   /** All saved lists + which one is active (drives the "Recently used" group). */
@@ -80,22 +81,13 @@ function ListMarker(props: { flag: FlagColor | null; emoji: string | null; name:
 }
 
 export function WatchlistMenu(props: Props) {
-  let root!: HTMLDivElement;
-
-  onMount(() => {
-    // Outside-click / Esc dismiss; ignore the trigger button (it toggles itself).
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Element;
-      if (root.contains(t) || t.closest?.('[data-name="watchlists-button"]')) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    });
+  // Outside-click / Esc dismiss; ignore the trigger button (it toggles itself).
+  const root = createPopover(undefined, {
+    onClose: () => props.onClose(),
+    placement: false,
+    insideSelector: '[data-name="watchlists-button"]',
+    escape: "pass",
+    on: { target: "window", capture: false },
   });
 
   const renderAction = (a: WlMenuAction) => (

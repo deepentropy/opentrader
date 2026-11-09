@@ -8,8 +8,8 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
-import { fitToWindow } from "../../components/menu-fit";
 import { ChevronIcon } from "./icons";
+import { createPopover } from "../../components/popover";
 
 export type MenuRow = {
   title: string;
@@ -25,31 +25,14 @@ export type MenuRow = {
 
 /** A menu under `anchor` (left edges aligned, or right edges with `alignEnd`). */
 export function Popup(props: { anchor: HTMLElement; alignEnd?: boolean; onClose: () => void; class?: string; label?: string; children: JSX.Element }) {
-  let el!: HTMLDivElement;
-  const place = () => {
-    const r = props.anchor.getBoundingClientRect();
-    fitToWindow(el, props.alignEnd ? r.right : r.left, r.bottom + 4, !!props.alignEnd);
-  };
+  const el = createPopover(() => props.anchor, {
+    onClose: () => props.onClose(),
+    placement: { align: props.alignEnd ? "end" : "start", gap: 4 },
+    on: { target: "window", capture: true },
+  });
   onMount(() => {
-    place();
-    const down = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (!el.contains(t) && !props.anchor.contains(t)) props.onClose();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        props.onClose();
-      }
-    };
-    window.addEventListener("pointerdown", down, true);
-    window.addEventListener("keydown", key, true);
     window.addEventListener("resize", props.onClose);
-    onCleanup(() => {
-      window.removeEventListener("pointerdown", down, true);
-      window.removeEventListener("keydown", key, true);
-      window.removeEventListener("resize", props.onClose);
-    });
+    onCleanup(() => window.removeEventListener("resize", props.onClose));
   });
   return (
     <Portal>

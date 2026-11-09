@@ -19,7 +19,7 @@
  * Show/hide: right-click → "Hide Favorite Drawing Tools Toolbar" (the inverse
  * "Show …" lives on the left toolbar's context menu — see DrawingToolbar).
  */
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import {
   favoriteToolIds,
@@ -31,6 +31,7 @@ import {
   setFavoritesToolbarVisible,
 } from "./favorite-tools";
 import { emitAppEvent } from "../../data/app-events";
+import { createPopover } from "../../components/popover";
 
 export function FavoritesToolbar() {
   // Position is a free offset from the default dock (top-centre of the chart
@@ -44,7 +45,6 @@ export function FavoritesToolbar() {
 
   // Right-click context menu (single item: "Hide …").
   const [menu, setMenu] = createSignal<{ x: number; y: number } | null>(null);
-  let menuEl: HTMLDivElement | undefined;
 
   // Clamp an offsetParent-relative position to the viewport, with one carve-out:
   // the bar may roam the whole screen (chart, header, watchlist) but never up
@@ -98,19 +98,13 @@ export function FavoritesToolbar() {
   createEffect(() => { if (!favoritesToolbarVisible()) setMenu(null); });
 
   // Outside-click + Escape dismiss the context menu.
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      if (menu() && menuEl && !menuEl.contains(e.target as Node)) setMenu(null);
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (menu() && e.key === "Escape") setMenu(null);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onEsc);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onEsc);
-    });
+  const menuRef = createPopover(undefined, {
+    onClose: () => setMenu(null),
+    placement: false,
+    active: () => !!menu(),
+    press: "mousedown",
+    escape: "pass",
+    on: { target: "document", capture: false },
   });
 
   // Resolve favourites to renderable tools, dropping any unknown id defensively.
@@ -171,7 +165,7 @@ export function FavoritesToolbar() {
         <Show when={menu()}>
           {(m) => (
             <div
-              ref={menuEl}
+              ref={menuRef}
               class="ot-popover drawing-toolbar-context-menu"
               role="menu"
               style={{ position: "fixed", left: `${m().x}px`, top: `${m().y}px` }}

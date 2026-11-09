@@ -11,6 +11,7 @@ import * as kv from "../data/kv";
 import { Tooltip } from "./Tooltip";
 import { EMOJI_GROUPS } from "./emoji-groups";
 import { EmojiImage } from "./emoji-images";
+import { createPopover } from "../components/popover";
 
 export { separateEmoji } from "./emoji-images";
 
@@ -205,35 +206,20 @@ function EmojiPicker(props: { anchor: HTMLElement; recent: string[]; onSelect: (
     list.scrollTop = t.offsetTop;
     requestAnimationFrame(() => (jumping = false));
   };
+  const popover = createPopover(() => props.anchor, { onClose: () => props.onClose(), placement: false, press: "mousedown" });
   onMount(() => {
     box.focus({ preventScroll: true });
-    const down = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!box.contains(t) && !props.anchor.contains(t)) props.onClose();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      props.onClose();
-    };
     // Scrolling the page (not the list) closes it.
     const scroll = (e: Event) => {
       if (!box.contains(e.target as Node)) props.onClose();
     };
-    document.addEventListener("mousedown", down, true);
-    window.addEventListener("keydown", key, true);
     window.addEventListener("scroll", scroll, true);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", down, true);
-      window.removeEventListener("keydown", key, true);
-      window.removeEventListener("scroll", scroll, true);
-    });
+    onCleanup(() => window.removeEventListener("scroll", scroll, true));
   });
   return (
     <Portal mount={document.body}>
       <div
-        ref={box}
+        ref={(el) => { box = el; popover(el); }}
         class="ot-emoji-picker"
         role="menu"
         tabIndex={-1}

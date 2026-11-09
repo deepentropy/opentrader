@@ -9,13 +9,14 @@
  * "Drawings panel" toggle, which shows/hides the left drawing toolbar via the
  * shared `drawing-panel` signal (persisted).
  */
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-panel";
 import { installUpdate, updateReady } from "../../data/app-update";
 import { setOnboardingOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { currentLanguage, currentLanguageLabel, LANGUAGES, setLanguage } from "../../i18n/language";
+import { createPopover } from "../../components/popover";
 
 type Row =
   | { type: "sep" }
@@ -71,26 +72,19 @@ export function ProfileMenu(props: Props) {
   // Language list, at the side of its row.
   const [languageRow, setLanguageRow] = createSignal<HTMLElement | null>(null);
 
-  onMount(() => {
-    // Outside-click / Esc dismiss. Ignore clicks on the avatar button — its own
-    // onClick handles the toggle, so we'd double-fire otherwise.
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (root.contains(t) || (t as Element).closest?.(".header-toolbar-profile, .main-menu-button")) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    });
+  // Outside-click / Esc dismiss. Ignore clicks on the avatar button — its own
+  // onClick handles the toggle, so we'd double-fire otherwise.
+  const popover = createPopover(undefined, {
+    onClose: () => props.onClose(),
+    placement: false,
+    insideSelector: ".header-toolbar-profile, .main-menu-button",
+    escape: "pass",
+    on: { target: "window", capture: false },
   });
 
   return (
     <div
-      ref={root}
+      ref={(el) => { root = el; popover(el); }}
       class="ot-popover profile-menu"
       role="menu"
       aria-label="Main menu"

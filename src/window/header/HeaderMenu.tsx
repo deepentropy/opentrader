@@ -8,7 +8,7 @@
  * Rendering + selection; App's onMenuSelect runs the picked row (chart
  * interval, chart type, layout, favourite indicators, snapshot, layouts).
  */
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
@@ -39,6 +39,7 @@ import {
 } from "../../data/indicator-template-store";
 import { getLayout, OPEN_LAYOUT_PREFIX, toggleFavoriteLayout } from "../../data/layout-store";
 import type { HeaderMenuDef } from "./header-menus/registry";
+import { createPopover } from "../../components/popover";
 
 type Props = {
   /** Whether the active symbol has bars on an interval row (false: greyed; an economic series below D). */
@@ -71,7 +72,6 @@ function StarIcon(props: { filled: boolean }) {
 }
 
 export function HeaderMenu(props: Props) {
-  let root!: HTMLDivElement;
   const [pos, setPos] = createSignal<{ top: number; left: number }>({ top: 0, left: 0 });
   // "Add custom interval…" opens its dialog over the open interval menu; the
   // menu stays open behind it and shows the added row.
@@ -95,27 +95,21 @@ export function HeaderMenu(props: Props) {
     setPos({ top: a.bottom + 2, left });
   });
 
-  onMount(() => {
-    const onMouseDown = (e: MouseEvent) => {
-      if (addIntervalOpen() || root.contains(e.target as Node)) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !addIntervalOpen()) props.onClose();
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKey);
-      setLastAddedInterval(null);
-    });
+  // The custom interval dialog opened from the menu keeps it open under it.
+  const popover = createPopover(undefined, {
+    onClose: () => props.onClose(),
+    placement: false,
+    active: () => !addIntervalOpen(),
+    press: "mousedown",
+    escape: "pass",
+    on: { target: "document", capture: false },
   });
+  onCleanup(() => setLastAddedInterval(null));
 
   return (
     <Portal mount={document.body}>
       <div
-        ref={root}
+        ref={popover}
         class="ot-popover header-menu"
         data-menu-id={props.menuId}
         role="menu"

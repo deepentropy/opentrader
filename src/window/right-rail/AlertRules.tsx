@@ -40,6 +40,7 @@ import { iconForKind } from "../drawings/labels";
 import * as kv from "../../data/kv";
 import { emitAppEvent } from "../../data/app-events";
 import { GLYPH, MenuAction, MenuSection, MenuSep, MenuSort, MenuToggle } from "./alerts-menu";
+import { createPopover } from "../../components/popover";
 
 type SortKey = "symbol" | "name" | "message" | "created" | "triggered";
 type Sort = { key: SortKey; desc: boolean };
@@ -270,12 +271,8 @@ export function OptionsButton(props: { name: string; count: number; pressed: boo
 /** Toolbar row of the Alerts view. */
 export function AlertRulesToolbar(props: { ctx: AlertListContext; onOpenSettings?: () => void }) {
   const [menu, setMenu] = createSignal<"sort" | "options" | null>(null);
-  let el: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => { if (el && !el.contains(e.target as Node)) setMenu(null); };
-    window.addEventListener("pointerdown", onDown);
-    onCleanup(() => window.removeEventListener("pointerdown", onDown));
-  });
+  // A press outside the toolbar (its menus included) closes the open menu.
+  const el = createPopover(undefined, { onClose: () => setMenu(null), placement: false, escape: "none", on: { target: "window", capture: false } });
   const toggle = (m: "sort" | "options") => setMenu((cur) => (cur === m ? null : m));
   const items = () => allItems();
   const shown = () => visibleItems(props.ctx);

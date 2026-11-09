@@ -4,8 +4,9 @@
  * 320 x 160 picture, a title and a line of text in a 352 px card under the
  * icon (8 px left of it). A click outside or on the icon again closes it.
  */
-import { Show, createSignal, onCleanup, type JSX } from "solid-js";
+import { Show, createSignal, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 
 export type FeatureCardInfo = { title: string; text: string; art: "positions" | "executions" };
 
@@ -96,14 +97,7 @@ function Art(props: { kind: FeatureCardInfo["art"] }) {
 export function FeatureCardIcon(props: { card: FeatureCardInfo }): JSX.Element {
   const [at, setAt] = createSignal<{ left: number; top: number } | null>(null);
   let icon: HTMLButtonElement | undefined;
-  let card: HTMLDivElement | undefined;
-  const onDown = (e: MouseEvent) => {
-    const t = e.target as Node;
-    if (card?.contains(t) || icon?.contains(t)) return;
-    setAt(null);
-  };
-  document.addEventListener("mousedown", onDown, true);
-  onCleanup(() => document.removeEventListener("mousedown", onDown, true));
+  const card = createPopover(() => icon, { onClose: () => setAt(null), placement: false, active: () => !!at(), press: "mousedown", escape: "none" });
   const toggle = () => {
     if (at()) return setAt(null);
     const r = icon!.getBoundingClientRect();

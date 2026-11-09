@@ -4,7 +4,8 @@
  * two-row list "Normal" / "Arrow" (icon + label). The right-end control shows
  * the icons mirrored.
  */
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
+import { createPopover } from "../../components/popover";
 
 const END_ICONS: Record<0 | 1, string> = {
   0: "M8.5 13.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 0H24",
@@ -24,25 +25,8 @@ export function LineEndSelect(props: { side: "left" | "right"; value: 0 | 1; onC
   const [open, setOpen] = createSignal(false);
   const [pos, setPos] = createSignal({ left: 0, top: 0 });
   let btn: HTMLButtonElement | undefined;
-  let menu: HTMLDivElement | undefined;
   const mirrored = () => props.side === "right";
-  onMount(() => {
-    const onDown = (e: PointerEvent) => {
-      if (!open()) return;
-      const t = e.target as Node;
-      if (btn?.contains(t) || menu?.contains(t)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (open() && e.key === "Escape") { e.stopPropagation(); setOpen(false); }
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      document.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
-  });
+  const menu = createPopover(() => btn, { onClose: () => setOpen(false), placement: false, active: open });
   return (
     <>
       <button
@@ -94,24 +78,7 @@ export function LineGlyphSelect<T extends string | number>(props: {
   const [open, setOpen] = createSignal(false);
   const [pos, setPos] = createSignal({ left: 0, top: 0 });
   let btn: HTMLButtonElement | undefined;
-  let menu: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => {
-      if (!open()) return;
-      const t = e.target as Node;
-      if (btn?.contains(t) || menu?.contains(t)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (open() && e.key === "Escape") { e.stopPropagation(); setOpen(false); }
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      document.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
-  });
+  const menu = createPopover(() => btn, { onClose: () => setOpen(false), placement: false, active: open });
   const glyph = (v: T, len: number) => {
     const w = props.kind === "width" ? Number(v) : 1;
     const dash = props.kind === "style" ? (v === "dashed" ? "4 3" : v === "dotted" ? "1 2" : undefined) : undefined;

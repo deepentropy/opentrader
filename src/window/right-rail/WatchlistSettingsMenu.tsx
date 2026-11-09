@@ -5,10 +5,11 @@
  * (checkboxes) · Symbol display (Logo checkbox + Symbol/Name radio). Toggling a
  * control edits the parent's settings in place and keeps the popover open.
  */
-import { For, onCleanup, onMount } from "solid-js";
+import { For } from "solid-js";
 import type { WlColumnKey, WlSettings, WlSymbolDisplay } from "../../data/watchlist";
 import { WL_COLUMNS, WL_SYMBOL_DISPLAY } from "./watchlist/ui";
 import { CheckMarkBox, SwitchMark } from "../../components/form";
+import { createPopover } from "../../components/popover";
 
 type Props = {
   settings: WlSettings;
@@ -21,23 +22,14 @@ const Radio = (props: { checked: boolean }) => (
 );
 
 export function WatchlistSettingsMenu(props: Props) {
-  let ref: HTMLDivElement | undefined;
-
   // Outside-click / Escape close; ignore the gear (it toggles us itself).
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (ref?.contains(t)) return;
-      if (t.closest('[data-name="settings-button"]')) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
+  const ref = createPopover(undefined, {
+    onClose: () => props.onClose(),
+    placement: false,
+    insideSelector: '[data-name="settings-button"]',
+    press: "mousedown",
+    escape: "pass",
+    on: { target: "window", capture: true },
   });
 
   const toggleColumn = (key: WlColumnKey) =>

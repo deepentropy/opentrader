@@ -11,6 +11,7 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
+import { createPopover } from "../../components/popover";
 
 type PopoverProps = {
   anchor: HTMLElement | undefined;
@@ -45,31 +46,21 @@ export function Popover(props: PopoverProps) {
     el.style.top = `${Math.max(0, y)}px`;
   };
 
+  // Nested popovers (selects) live in their own portal: presses there do not close this one.
+  const popover = createPopover(() => props.anchor, {
+    onClose: () => props.onClose(),
+    placement: false,
+    insideSelector: ".scr-popover",
+    on: { target: "document", capture: true },
+  });
   onMount(() => {
     place();
     const ro = new ResizeObserver(place);
     ro.observe(el);
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (el.contains(t) || props.anchor?.contains(t)) return;
-      // Nested popovers (selects) live in their own portal: ignore them.
-      if ((t as HTMLElement).closest?.(".scr-popover")) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        props.onClose();
-      }
-    };
     const onResize = () => place();
-    document.addEventListener("pointerdown", onDown, true);
-    document.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", onResize);
     onCleanup(() => {
       ro.disconnect();
-      document.removeEventListener("pointerdown", onDown, true);
-      document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onResize);
     });
   });
@@ -77,7 +68,7 @@ export function Popover(props: PopoverProps) {
   return (
     <Portal mount={document.body}>
       <div
-        ref={el}
+        ref={(node) => { el = node; popover(node); }}
         class={`scr-popover${props.class ? " " + props.class : ""}`}
         style={{ width: props.width ? `${props.width}px` : undefined }}
         role="dialog"

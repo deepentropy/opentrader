@@ -33,6 +33,7 @@ import { ECONOMIC_DATA_NOTICE } from "../../data/economic-notice";
 import { Tooltip } from "../../components/Tooltip";
 import { CheckBox } from "../../components/form";
 import type { ComparePlacement } from "../shell/tabs";
+import { createPopover } from "../../components/popover";
 
 /** Durable key for the Type filter chip, so the chosen filter survives both a
  *  query change (already independent state) and closing/reopening the modal or
@@ -219,15 +220,8 @@ function FilterChip(props: {
   onOpen?: () => void;
 }) {
   const [open, setOpen] = createSignal(false);
-  let wrap: HTMLDivElement | undefined;
-  createEffect(() => {
-    if (!open()) return;
-    const onDown = (e: MouseEvent) => {
-      if (wrap && !wrap.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown, true);
-    onCleanup(() => document.removeEventListener("mousedown", onDown, true));
-  });
+  // The wrapper holds the button and its menu (capture phase: before the dialog stops the press).
+  const wrap = createPopover(undefined, { onClose: () => setOpen(false), placement: false, active: open, press: "mousedown", escape: "none" });
   const pick = (v: string | null) => {
     props.onPick(v);
     setOpen(false);
@@ -312,7 +306,6 @@ export function SymbolSearchDialog(props: Props) {
 
   let input!: HTMLInputElement;
   let listEl: HTMLDivElement | undefined;
-  let typeWrap: HTMLDivElement | undefined;
 
   // Results: live gateway typeahead inside Tauri (debounced per keystroke),
   // else the static local filter. `searching` suppresses the empty state while
@@ -458,14 +451,7 @@ export function SymbolSearchDialog(props: Props) {
 
   // Close the type dropdown on an outside click (capture phase so it runs
   // before the dialog's mousedown-stopPropagation).
-  createEffect(() => {
-    if (!typeMenuOpen()) return;
-    const onDown = (e: MouseEvent) => {
-      if (typeWrap && !typeWrap.contains(e.target as Node)) setTypeMenuOpen(false);
-    };
-    document.addEventListener("mousedown", onDown, true);
-    onCleanup(() => document.removeEventListener("mousedown", onDown, true));
-  });
+  const typeWrap = createPopover(undefined, { onClose: () => setTypeMenuOpen(false), placement: false, active: typeMenuOpen, press: "mousedown", escape: "none" });
 
   // Pre-select the row matching the active symbol when the result set
   // changes (incl. on query / tab change); fall back to the first row.

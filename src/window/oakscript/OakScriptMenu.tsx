@@ -9,8 +9,9 @@
  * "Rename…" is disabled; it cannot be deleted either. "Built-in…" (the
  * reference's Create new > Built-in…) opens the list of built-in sources.
  */
-import { For, Show, onCleanup, onMount } from "solid-js";
+import { For, Show } from "solid-js";
 import type { OakScriptMeta } from "../../data/oakscript-store";
+import { createPopover } from "../../components/popover";
 
 type Props = {
   scriptsList: OakScriptMeta[];
@@ -31,23 +32,13 @@ type Props = {
 };
 
 export function OakScriptMenu(props: Props) {
-  let root!: HTMLDivElement;
-
-  onMount(() => {
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Element;
-      if (root.contains(t) || t.closest?.(".oak-panel__name-btn")) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    });
+  // The script name button toggles the menu itself.
+  const popover = createPopover(undefined, {
+    onClose: () => props.onClose(),
+    placement: false,
+    insideSelector: ".oak-panel__name-btn",
+    escape: "pass",
+    on: { target: "window", capture: false },
   });
 
   const item = (label: string, action: () => void, opts: { danger?: boolean; disabled?: boolean } = {}) => (
@@ -71,7 +62,7 @@ export function OakScriptMenu(props: Props) {
   );
 
   return (
-    <div ref={root} class="ot-popover oak-script-menu" role="menu" aria-label="Script menu">
+    <div ref={popover} class="ot-popover oak-script-menu" role="menu" aria-label="Script menu">
       {item("Make a copy…", props.onCopy)}
       {item("Rename…", props.onRename, { disabled: props.readOnly })}
       <Show when={props.onShare}>{item("Share to Community…", props.onShare!)}</Show>
