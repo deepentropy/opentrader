@@ -1,3 +1,15 @@
+// Header Features menu: close it on a click outside, on a choice, or with Escape.
+(function () {
+  var menu = document.querySelector("details.menu");
+  if (!menu) return;
+  document.addEventListener("click", function (e) {
+    if (menu.open && (!menu.contains(e.target) || e.target.closest(".menu-list a"))) menu.open = false;
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") menu.open = false;
+  });
+})();
+
 // Landing pages: pick the visitor's installer and show the latest release details.
 (function () {
   var BASE = "https://github.com/deepentropy/opentrader/releases/latest/download/";

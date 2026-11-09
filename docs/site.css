@@ -160,6 +160,25 @@ p { margin: 0; }
 .cta p { margin-top: 8px; color: var(--ink-soft); }
 .cta .hero-actions { margin-top: 0; }
 
+/* Header features menu */
+.menu { position: relative; }
+.menu summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.menu summary::-webkit-details-marker { display: none; }
+.menu summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-2px) rotate(45deg); }
+.menu summary:hover, .menu summary[aria-current] { color: var(--blue); }
+.menu-list { position: absolute; top: calc(100% + 10px); left: -14px; z-index: 10; display: flex; flex-direction: column; min-width: 210px; padding: 8px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 18px 40px -18px rgba(30, 40, 120, 0.35); }
+.top nav .menu-list a { padding: 8px 10px; border-radius: 6px; }
+.top nav .menu-list a:hover { background: var(--mist); }
+.menu-list a:last-child { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; }
+
+/* Home: feature page cards */
+.feature-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 36px; }
+.feature-cards a { display: block; padding: 18px 20px; background: var(--mist); border-radius: 10px; color: var(--ink); text-decoration: none; border: 1px solid transparent; }
+.feature-cards a:hover { border-color: var(--blue); color: var(--ink); }
+.feature-cards strong { display: block; font: 600 1.1rem/1.2 var(--display); }
+.feature-cards span { display: block; margin-top: 6px; font-size: 15px; color: var(--ink-soft); }
+.feature-cards strong::after { content: " →"; color: var(--blue); }
+
 /* Feature pages */
 .crumbs { margin-bottom: 18px; font: 400 13px var(--mono); color: var(--ink-soft); }
 .crumbs a { color: var(--ink-soft); }
@@ -195,7 +214,7 @@ p { margin: 0; }
   body { font-size: 16px; }
   .feature, .feature.is-flipped, .fund, .notes { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .feature.is-flipped .feature-text { order: 0; }
-  .grid, .libs { grid-template-columns: minmax(0, 1fr); }
+  .grid, .libs, .feature-cards { grid-template-columns: minmax(0, 1fr); }
   .os { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .top nav { gap: 16px; }
   .top-logo img { width: 160px; }
