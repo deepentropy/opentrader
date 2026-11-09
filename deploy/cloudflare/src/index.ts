@@ -2,8 +2,9 @@
  * The web version on Cloudflare. The built frontend (dist-web) is served as
  * static assets; `/api/*` goes to one container running the OpenTrader server
  * (src-tauri/crates/server), shared by every visitor: its live subscriptions
- * and screener table are in its memory. A cron ping keeps it running between
- * visits, so the first visitor does not wait for a start.
+ * and screener table are in its memory. It runs while visitors are connected
+ * and stops once idle (`sleepAfter`); the next visitor starts it again, in
+ * about a second.
  *
  * `/ingest/*` relays the usage statistics of the web version and the desktop
  * app (src/data/analytics.ts) to the analytics service, adding the city,
@@ -31,20 +32,35 @@ interface Env {
 /**
  * The one instance: every visitor must reach the same server. The container
  * reads its environment when it starts: after changing the secret, bump the
- * name so a fresh container starts (the old one sleeps once unpinged).
+ * name so a fresh container starts (the old one stops once idle).
  */
 const INSTANCE = "main-3";
 
 export class OpenTraderServer extends Container<Env> {
   defaultPort = 8080;
-  // Above the cron period: with the pings it never sleeps.
+  // Stopped this long after the last request, a visitor's open WebSocket
+  // counting as one (a hidden tab closes it after 10 minutes).
   sleepAfter = "15m";
+  /** SIGTERM went out at the previous expiry (the server exits on it): still running, it is killed. */
+  private stopSent = false;
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env);
     // Page origins are checked in the Worker (see `fetch`), so a new address
     // needs no container restart.
     this.envVars = { OPENTRADER_GATEWAY_TOKEN: env.OPENTRADER_GATEWAY_TOKEN };
+  }
+
+  override onStart(): void {
+    this.stopSent = false;
+  }
+
+  // An image whose server ignored SIGTERM ran (and was billed) for good.
+  override async onActivityExpired(): Promise<void> {
+    if (!this.ctx.container?.running) return;
+    if (this.stopSent) return this.destroy();
+    this.stopSent = true;
+    await this.stop();
   }
 }
 
@@ -129,9 +145,5 @@ export default {
       return getContainer(env.SERVER, INSTANCE).fetch(request);
     }
     return env.ASSETS.fetch(request);
-  },
-
-  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
-    await getContainer(env.SERVER, INSTANCE).fetch(new Request("http://container/api/health"));
   },
 };

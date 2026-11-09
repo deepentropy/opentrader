@@ -153,7 +153,32 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&bind).await.unwrap_or_else(|e| panic!("bind {bind}: {e}"));
     eprintln!("[server] listening on http://{bind}");
     // The connection's address: the visitor IP when no proxy names it.
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).await.expect("server");
+    let serve = axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>());
+    tokio::select! {
+        r = serve => r.expect("server"),
+        _ = stop_signal() => {
+            eprintln!("[server] stop signal: exiting");
+            // At once, open WebSockets included: nothing is left to save.
+            std::process::exit(0);
+        }
+    }
+}
+
+/// SIGTERM (or Ctrl+C). In a container the server is process 1, which the
+/// system spares from signals it does not handle: without this, a host
+/// stopping the idle container (SIGTERM) left it running.
+async fn stop_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut term = signal(SignalKind::terminate()).expect("SIGTERM handler");
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = tokio::signal::ctrl_c() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 #[derive(Deserialize)]

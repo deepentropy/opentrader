@@ -29,7 +29,8 @@
     "bindings": [{ "name": "SERVER", "class_name": "OpenTraderServer" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["OpenTraderServer"] }],
-  "triggers": { "crons": ["*/5 * * * *"] },
+  // No keep-awake ping: the container stops when idle (#251). Empty, so a deploy removes the old one.
+  "triggers": { "crons": [] },
   "vars": {
     "PUBLIC_ORIGIN": "https://demo.opentrader.markets,https://opentrader-web.cloudflare-breeder165.workers.dev",
     // The gateway's BLOCKED_ASNS: usage statistics from those networks are dropped.
