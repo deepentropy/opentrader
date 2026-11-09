@@ -36,19 +36,15 @@ import {
   choiceOf,
   defaultFibLevel,
   defaultFibLevel2,
-  drawingOperand,
   drawingOperators,
   fibLevelText,
   fixedFrequency,
-  indicatorOperand as studyOperand,
   movingBarsMin,
   savedConditions,
   sharedBarInterval,
   strategyOperators,
-  studyConditionOperand,
   studyLabel,
   studyPlots,
-  symbolOperand as compareOperand,
 } from "../../data/alert-operands";
 import {
   LEVEL_OPERATORS,
@@ -80,8 +76,7 @@ import { hasAlertFunction, studyConditions } from "../../data/alert-study-condit
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
 import { messageOutputs } from "../../data/alert-outputs";
 import { studyOperandValue } from "../../data/alert-studies";
-import { parseAmountText, stepAmountText } from "../../data/study-format";
-import * as kv from "../../data/kv";
+import { stepAmountText } from "../../data/study-format";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import type { SessionId } from "../../data/session/symbol-sessions";
 import { isFullSymbol, isSupportedResolution, toFullSymbol } from "../../data/datafeed";
@@ -89,6 +84,8 @@ import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playA
 import { alertSettings } from "../../data/alert-settings";
 import { ensureNotificationPermission } from "../../data/alert-delivery";
 import { attachDialogSize } from "./dialog-size";
+import * as form from "./alert-form";
+import { fieldText, isValidWebhookUrl, openPlaceholderGroups, saveOpenPlaceholderGroups, type ConditionChoices, type ConditionFields, type SideKind } from "./alert-form";
 import { ISO_WEEKDAYS, PRESET_SEGMENTS, PRESET_TITLES, localTimeZone, schedulePreset, scheduleTitle, segmentText, type SchedulePreset } from "../../data/alert-schedule";
 
 type Props = {
@@ -368,17 +365,6 @@ function AdIntervalMenu(props: { value: string; origin: string; chart?: string; 
   );
 }
 
-/** Groups of the placeholder menu shown open; General only until the user
- *  opens or closes one (remembered). */
-const PLACEHOLDER_GROUPS_KEY = "alerts.placeholder-groups.v1";
-function openPlaceholderGroups(): Record<string, boolean> {
-  try {
-    return { general: true, ...JSON.parse(kv.getItem(PLACEHOLDER_GROUPS_KEY) ?? "{}") };
-  } catch {
-    return { general: true };
-  }
-}
-
 /** "Add placeholder" button of the message view and its menu: opens above the
  *  button, one foldable group per kind, a row = title + placeholder; a click
  *  adds the placeholder to the message and closes the menu. */
@@ -397,7 +383,7 @@ function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: str
   const toggle = (id: string) => {
     const next = { ...expanded(), [id]: !expanded()[id] };
     setExpanded(next);
-    try { kv.setItem(PLACEHOLDER_GROUPS_KEY, JSON.stringify(next)); } catch { /* best-effort */ }
+    saveOpenPlaceholderGroups(next);
   };
   return (
     <div class="ad-ph" ref={el}>
@@ -435,23 +421,8 @@ function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: str
   );
 }
 
-/** A formatted amount as a number field holds it: no thousands separator, a plain minus sign. */
-const fieldText = (t: string) => t.replace(/,/g, "").replace(/−/g, "-");
-
-type SideKind = "value" | "drawing" | "indicator" | "price" | "symbol";
-
 /** The web version (alerts checked by the browser tab). */
 const WEB_BUILD = import.meta.env.MODE === "web";
-
-/** A deliverable webhook target: parses as a URL with an http(s) scheme. */
-function isValidWebhookUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw.trim());
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 
 export function AlertDialog(props: Props) {
@@ -793,54 +764,34 @@ export function AlertDialog(props: Props) {
     setRightLevel2(defaultFibLevel2(lv, rightLevel()));
   });
 
-  function buildLeft(): Operand {
-    if (leftKind() === "indicator" && leftIndicator()) {
-      if (!isOwn()) return indicatorOperand(leftIndicator(), leftPlot(), seed()?.left);
-      // A condition reads no plot: the study's label without a plot title.
-      return studyConditionOperand(indicatorOptions(), leftIndicator(), op(), leftCondition(), seed()?.left);
-    }
-    if (leftKind() === "symbol" && leftSymbol()) return symbolOperand(leftSymbol());
-    return { kind: "price" };
-  }
-
-  /** An operand on a compared symbol, named as the select shows it. */
-  const symbolOperand = (sym: string): Operand => compareOperand(compareOptions_(), sym);
-
-  /** A bound of a channel: a value, the price or a study's plot. */
-  function boundOperand(sel: string, text: string, plot: number, was: Operand | undefined): Operand {
-    if (sel === "price") return { kind: "price" };
-    if (sel.startsWith("ind:")) return indicatorOperand(sel.slice(4), plot, was);
-    if (sel.startsWith("sym:")) return symbolOperand(sel.slice(4));
-    return { kind: "value", value: parseAmountText(text) || 0 };
-  }
-
-  /** The lower bound of a channel between two bounds, else none. */
-  function buildRight2(): Operand | undefined {
-    return valueBand() ? boundOperand(lowerSel(), lowerValue(), lowerPlot(), seed()?.right2) : undefined;
-  }
-
-  function buildRight(): Operand {
-    // A study's condition compares nothing.
-    if (isOwn()) return { kind: "value", value: 0 };
-    if (isMoving()) return { kind: "value", value: parseFloat(pct()) || 0 };
-    if (valueBand()) return boundOperand(upperSel(), upperValue(), upperPlot(), seed()?.right);
-    switch (rightKind()) {
-      case "drawing":
-        return drawingOperand(rightDrawing(), drawingOptions().find((x) => x.id === rightDrawing()), { level: rightLevel(), level2: fibChannel() ? rightLevel2() : null, plot: rightVwapPlot() });
-      case "indicator": {
-        return indicatorOperand(rightIndicator(), rightPlot(), seed()?.right);
-      }
-      case "price":
-        return { kind: "price" };
-      case "symbol":
-        return symbolOperand(rightSymbol());
-      default:
-        return { kind: "value", value: parseAmountText(rightValue()) || 0 };
-    }
-  }
-
-  /** An operand on a study, with its inputs on the chart (an alert being edited keeps its own). */
-  const indicatorOperand = (indicatorId: string, plot: number, was: Operand | undefined): Operand => studyOperand(indicatorOptions(), indicatorId, plot, was);
+  /** The editor's fields as plain values, and what they are read against (the condition is built in ./alert-form). */
+  const fields = (): ConditionFields => ({
+    leftKind: leftKind(),
+    leftIndicator: leftIndicator(),
+    leftPlot: leftPlot(),
+    leftSymbol: leftSymbol(),
+    op: op(),
+    rightKind: rightKind(),
+    rightValue: rightValue(),
+    rightDrawing: rightDrawing(),
+    rightIndicator: rightIndicator(),
+    rightPlot: rightPlot(),
+    rightSymbol: rightSymbol(),
+    rightLevel: rightLevel(),
+    rightLevel2: rightLevel2(),
+    rightVwapPlot: rightVwapPlot(),
+    pct: pct(),
+    upperSel: upperSel(),
+    upperValue: upperValue(),
+    upperPlot: upperPlot(),
+    lowerSel: lowerSel(),
+    lowerValue: lowerValue(),
+    lowerPlot: lowerPlot(),
+  });
+  const choices = (): ConditionChoices => ({ studies: indicatorOptions(), compares: compareOptions_(), drawings: drawingOptions(), seed: seed(), studyCondition: leftCondition(), fibChannel: fibChannel() });
+  const buildLeft = () => form.buildLeft(fields(), choices());
+  const buildRight = () => form.buildRight(fields(), choices());
+  const buildRight2 = () => form.buildRight2(fields(), choices());
 
   /** Default message: the condition as it is set ("AZO Crossing 150"), or
    *  the message a study's condition declares. An alert keeps no message of
@@ -861,34 +812,12 @@ export function AlertDialog(props: Props) {
   const webhookValid = createMemo(() => !webhookOn() || isValidWebhookUrl(webhookUrl()));
 
   /** The condition in the editor can be saved. */
-  const conditionValid = createMemo(() => {
-    if (isCond()) return !!leftCondition();
-    if (isStrat()) return leftStrategy() && (op() === "strategy_orders" || leftCalls());
-    if (isCalls()) return leftCalls();
-    if (isMoving()) return Number.isFinite(parseFloat(pct()));
-    if (valueBand()) {
-      const ok = (sel: string, text: string) => (sel === "value" ? Number.isFinite(parseAmountText(text)) : sel === "price" || indicatorOptions().some((o) => `ind:${o.id}` === sel) || compareOptions_().some((c) => `sym:${c.symbol}` === sel));
-      return ok(upperSel(), upperValue()) && ok(lowerSel(), lowerValue());
-    }
-    if (rightKind() === "value") return Number.isFinite(parseAmountText(rightValue()));
-    if (rightKind() === "drawing") return drawingOptions().some((o) => o.id === rightDrawing());
-    if (rightKind() === "indicator") return indicatorOptions().some((o) => o.id === rightIndicator());
-    if (rightKind() === "symbol") return compareOptions_().some((c) => c.symbol === rightSymbol());
-    return true;
-  });
+  const conditionValid = createMemo(() => form.conditionValid(fields(), choices(), { strategy: leftStrategy(), calls: leftCalls() }));
   const canSave = createMemo(() => !!symbol().trim() && webhookValid() && (multi() || conditionValid()));
 
   /** The condition in the editor. */
   function snapshot(): AlertCondition {
-    const right2 = buildRight2();
-    return {
-      left: buildLeft(),
-      op: op(),
-      right: buildRight(),
-      ...(right2 ? { right2 } : {}),
-      ...(isMoving() ? { bars: barsValue() } : {}),
-      resolution: ruleResolution(),
-    };
+    return form.conditionOf(fields(), choices(), barsValue(), ruleResolution());
   }
 
   /** Put condition `c` in the editor (null: a new one, the price crossing its current value). */
