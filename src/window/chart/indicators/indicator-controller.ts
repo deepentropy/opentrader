@@ -1,7 +1,7 @@
 /*
  * IndicatorController — owns the set of active indicators on one chart.
  *
- * ChartView creates a controller per chart instance and calls:
+ * The chart view creates a controller per chart with its IndicatorHost and calls:
  *   • sync(ids)         when the user's active-indicator list changes
  *   • renderAll(bars)   when the underlying bars change (symbol/interval load,
  *                       history prepend) or the chart is re-themed
@@ -9,11 +9,12 @@
  *
  * Overlay studies (SMA, BB, …) draw in the price pane over the price series.
  * Oscillator studies (RSI, MACD, …) each get their own stacked pane, allocated
- * here and freed when the study is removed. The price pane can sit at any
- * position (pane controls, chart drag) and the main series can share a study
- * pane: `mainPane` is the pane of the series and of the studies drawn over it.
+ * by pane-allocator.ts and freed when the study is removed. The price pane can
+ * sit at any position (pane controls, chart drag) and the main series can share
+ * a study pane: the allocator's `mainPane` is the pane of the series and of the
+ * studies drawn over it. study-scales.ts picks each study's price scale.
  */
-import { PriceScaleMode, type IChartApi, type ISeriesApi, type SeriesType, type Time } from 'lightweight-charts';
+import { type IChartApi, type ISeriesApi, type SeriesType, type Time } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import type { StudyChart } from './script-chart';
 import type { IndicatorRegistryEntry } from 'lightweight-charts-indicators';
@@ -38,7 +39,9 @@ import {
   type StudyScale,
 } from './indicator-options';
 import type { StudyFormat } from "../../../data/study-format";
-import { isScaleKey, type ScaleKey, type ScaleUse } from "../scales/scale-layout";
+import { type ScaleKey, type ScaleUse } from "../scales/scale-layout";
+import { PaneAllocator } from './pane-allocator';
+import { StudyScales } from './study-scales';
 import { alignToBars, parentsOf, parseSourceRef, sourceInputIds, SOURCES_KEY, type SourceSpec } from "./study-sources";
 
 /** Quiet time after a scroll or zoom before the studies that read the visible range calculate again. */
@@ -152,11 +155,10 @@ export class IndicatorController {
   /** Selected study and the chart background its markers use. */
   private selected: { id: string; bgAt: BackgroundAt } | null = null;
   private seriesOnlyScale: string | null = null;
-  /** Pane indices currently claimed by a non-overlay study (the price pane
-   *  is never in it). */
-  private usedPanes = new Set<number>();
-  /** Pane of the main series and of the studies drawn over it. */
-  private mainPane = 0;
+  /** Pane numbering: the price pane, the stacked panes claimed (pane-allocator.ts). */
+  private readonly panes: PaneAllocator;
+  /** Which scale each study is on (study-scales.ts). */
+  private readonly scales: StudyScales;
   /** Pane group of the study pane the main series shares (chart drag onto
    *  that pane); null = the series has a pane of its own. */
   private seriesGroup: string | null = null;
@@ -224,6 +226,8 @@ export class IndicatorController {
   constructor(chart: IChartApi, host: IndicatorHost) {
     this.chart = chart;
     this.host = host;
+    this.panes = new PaneAllocator(chart, this.instances, () => this.host.mainPaneMoved());
+    this.scales = new StudyScales(chart, host, this.instances, this.options, this.panes);
     chart.timeScale().subscribeVisibleTimeRangeChange(this.onVisibleRange);
     this.otherSymbols = new OtherSymbolBars((keys, live) => this.onSymbolsMoved(keys, live), `ind:${host.chartId}`);
   }
@@ -376,7 +380,7 @@ export class IndicatorController {
     const list: [string, number][] = [...this.instances].filter(([, inst]) => !inst.overlay).map(([id, inst]) => [id, inst.paneIndex]);
     // Panes about to be taken (a compared symbol staying where the series was).
     list.push(...extra.filter(([id]) => !this.instances.has(id)));
-    if (!this.seriesShares()) list.push([MAIN_SOURCE_ID, this.mainPane]);
+    if (!this.seriesShares()) list.push([MAIN_SOURCE_ID, this.panes.mainPane]);
     return list.sort((a, b) => a[1] - b[1]).map(([id]) => id);
   }
 
@@ -394,9 +398,9 @@ export class IndicatorController {
 
   private orderNextToPricePane(id: string, above: boolean): string[] {
     const list: [string, number][] = [...this.instances].filter(([k, inst]) => k !== id && !inst.overlay).map(([k, inst]) => [k, inst.paneIndex]);
-    if (!this.seriesShares()) list.push([MAIN_SOURCE_ID, this.mainPane]);
+    if (!this.seriesShares()) list.push([MAIN_SOURCE_ID, this.panes.mainPane]);
     list.sort((a, b) => a[1] - b[1]);
-    const at = above ? list.findIndex(([, i]) => i >= this.mainPane) : list.findIndex(([, i]) => i > this.mainPane);
+    const at = above ? list.findIndex(([, i]) => i >= this.panes.mainPane) : list.findIndex(([, i]) => i > this.panes.mainPane);
     const ids = list.map(([k]) => k);
     ids.splice(at < 0 ? ids.length : at, 0, id);
     return ids;
@@ -428,7 +432,7 @@ export class IndicatorController {
     });
     const n = this.chart.panes().length;
     stacked.forEach((id, want) => {
-      const cur = id === MAIN_SOURCE_ID ? this.mainPane : this.instances.get(id)!.paneIndex;
+      const cur = id === MAIN_SOURCE_ID ? this.panes.mainPane : this.instances.get(id)!.paneIndex;
       if (cur !== want && cur < n && want < n) this.swapPanes(cur, want);
     });
   }
@@ -526,7 +530,7 @@ export class IndicatorController {
       // The scales may have changed (a scale emptied, the series pinned elsewhere): each study reads its scale again.
       const entry = getIndicatorEntry(id);
       if (entry) {
-        const det = this.detachedScale(id, inst, entry);
+        const det = this.scales.detached(id, inst);
         inst.layer.setDetachedScale(det?.id ?? null, det?.axis ?? false, !!this.options.get(id)?.scale);
       }
       inst.layer.redraw();
@@ -571,7 +575,7 @@ export class IndicatorController {
   private renderOne(id: string, inst: Instance, entry: IndicatorRegistryEntry, bars: Bar[], live = false): void {
     const o = this.options.get(id) ?? defaultIndicatorOptions();
     inst.layer.setPlotOptions({ labelsOnScale: o.labelsOnScale, precision: precisionDigits(o.precision) });
-    const det = this.detachedScale(id, inst, entry);
+    const det = this.scales.detached(id, inst);
     inst.layer.setDetachedScale(det?.id ?? null, det?.axis ?? false, !!o.scale);
     const drawn = !this.hidden.has(id) && this.onInterval(id);
     const inputs = this.effectiveInputs(id, entry);
@@ -580,7 +584,7 @@ export class IndicatorController {
     // Not drawn: nothing shows its values (legend, data window, export), so it does not calculate, except a strategy
     // (its report) — a study reading it calculates it when it reads it.
     inst.layer.render(entry, bars, inputs, drawn, this.styles.get(id) ?? {}, live, drawn || isStrategyId(id));
-    if (!inst.overlay) this.paneScaleDefaults(inst.paneIndex);
+    if (!inst.overlay) this.scales.paneDefaults(inst.paneIndex);
     if (!live) this.host.seriesChanged();
     this.renderDependents(id, bars, live);
   }
@@ -675,77 +679,15 @@ export class IndicatorController {
     this.renderDependents(id, this.host.bars(), false);
   }
 
-  /** Panes whose scales were given their defaults. */
-  private scaleDefaultsSet = new WeakSet<HTMLElement>();
-  /** A study pane's scales start regular and upright (reference: a percent / log / inverted price scale stays on the
-   *  price pane). The library merges the options of a pane's left / right scale into the chart-wide ones that new
-   *  panes start from, so they are set once per pane; a mode set later on the pane's own scale is kept. */
-  private paneScaleDefaults(paneIndex: number): void {
-    if (paneIndex === this.mainPane) return;
-    const el = this.chart.panes()[paneIndex]?.getHTMLElement();
-    if (!el || this.scaleDefaultsSet.has(el)) return;
-    this.scaleDefaultsSet.add(el);
-    for (const side of ['left', 'right'] as const) {
-      try {
-        this.chart.priceScale(side, paneIndex).applyOptions({ mode: PriceScaleMode.Normal, invertScale: false });
-      } catch {
-        /* pane gone (teardown) */
-      }
-    }
-  }
 
-  /** Scale of a study other than its default one (the main series' scale
-   *  over the series, the pane's scale in a study pane): the chart library
-   *  id of the scale it is on, `axis` false for a hidden scale of its own (no
-   *  scale). Null = the default scale. */
-  private detachedScale(id: string, inst: Instance, entry: IndicatorRegistryEntry): { id: string; axis: boolean } | null {
-    const key = this.scaleKeyOf(id);
-    if (key === null || key === 'own') return null;
-    if (key === 'none') return { id: `src:${id}`, axis: false };
-    const ids = this.host.scaleIds();
-    const def = inst.overlay ? ids.price : ids.pane;
-    const r = this.host.scaleResolve(id, inst.paneIndex, key);
-    if (!r) return { id: `src:${id}`, axis: false };
-    if (r.key === def && r.lib === def) return null;
-    void entry;
-    return { id: r.lib, axis: true };
-  }
-
-  /** Scale key of a study (scale-layout.ts): its pinned scale ("Pin to
-   *  scale"), else the reference rules: a price study over the series takes
-   *  the series' scale, another study there a new scale; in a stacked pane the
-   *  study the pane was made for takes the pane's scale, a price study joins
-   *  it when it shows prices, another study takes a new scale. "own" = the
-   *  study's own hidden scale (Volume), "none" = no scale, "new" = a new scale
-   *  to give it. Null when it is not a study of the chart. */
+  /** Scale key of a study (study-scales.ts keyOf). */
   scaleKeyOf(id: string): ScaleKey | 'new' | 'none' | 'own' | null {
-    const inst = this.instances.get(id);
-    const entry = getIndicatorEntry(id);
-    if (!inst || inst.owner || !entry) return null;
-    const pinned = this.options.get(id)?.scale;
-    if (pinned === 'none') return 'none';
-    if (pinned && isScaleKey(pinned)) return pinned;
-    if ((entry.metadata as { ownScaleId?: string }).ownScaleId) return 'own';
-    const ids = this.host.scaleIds();
-    if (inst.overlay) return entry.overlay ? ids.price : 'new';
-    const lead = this.groupLead(inst.group);
-    if (lead === id) return ids.pane;
-    if (entry.overlay && lead !== null && this.leadsPriceScale(lead)) {
-      const k = this.instances.get(lead)?.owner ? ids.pane : this.scaleKeyOf(lead);
-      return k !== null && isScaleKey(k) ? k : ids.pane;
-    }
-    return 'new';
+    return this.scales.keyOf(id);
   }
 
   /** The studies on a side scale (scale layout input). */
   scaleUses(): ScaleUse[] {
-    const out: ScaleUse[] = [];
-    for (const [id, inst] of this.instances) {
-      const key = this.scaleKeyOf(id);
-      if (key === null || key === 'own' || key === 'none') continue;
-      out.push({ source: id, pane: inst.paneIndex, key });
-    }
-    return out;
+    return this.scales.uses();
   }
 
 
@@ -756,30 +698,10 @@ export class IndicatorController {
     return this.getOptions(id);
   }
 
-  /** The study (or pane owner) whose scale is the scale of the stacked pane of
-   *  `group`: the one the group was made for, else the first member. */
-  private groupLead(group: string | null): string | null {
-    const members = [...this.instances].filter(([, i]) => !i.overlay && i.group === group).map(([mid]) => mid);
-    return members.includes(group ?? "") ? group : members[0] ?? null;
-  }
-
-  /** The pane scale led by `id` shows prices: a price study (drawn over the
-   *  series by default) or a compared symbol. */
-  private leadsPriceScale(id: string): boolean {
-    const inst = this.instances.get(id);
-    if (!inst) return false;
-    if (inst.owner) return true;
-    return !!getIndicatorEntry(id)?.overlay;
-  }
-
-  /** The series shares a study pane whose scale shows prices: it takes that
-   *  scale (reference: the first price scale of the pane), else a scale of
-   *  its own on the free side. */
+  /** The series shares a study pane whose scale shows prices: it takes that scale, else a scale of its own on the
+   *  free side. */
   seriesSharesPriceScale(): boolean {
-    const lead = [...this.instances].find(([, i]) => !i.overlay && i.paneIndex === this.mainPane);
-    if (!lead) return false;
-    const id = this.groupLead(lead[1].group);
-    return id !== null && this.leadsPriceScale(id);
+    return this.scales.seriesSharesPriceScale();
   }
 
   /** Side of the main series' scale (the pane scale of the studies). */
@@ -797,15 +719,10 @@ export class IndicatorController {
     }
   }
 
-  /** Scale a study is on: the key of a scale of its pane, or none (a hidden
-   *  scale of its own: Volume, a study with no room for a scale). Null when it
-   *  is not on the chart. */
+  /** Scale a study is on: the key of a scale of its pane, or none (a hidden scale of its own). Null when it is not on
+   *  the chart. */
   scaleOf(id: string): StudyScale | null {
-    const key = this.scaleKeyOf(id);
-    const inst = this.instances.get(id);
-    if (key === null || !inst) return null;
-    if (key === 'own' || key === 'none') return 'none';
-    return this.host.scaleResolve(id, inst.paneIndex, key)?.key ?? 'none';
+    return this.scales.scaleOf(id);
   }
 
   /** Pin a study to a scale ("Pin to scale"); returns its options to save. */
@@ -1056,7 +973,7 @@ export class IndicatorController {
     if (!inst || inst.owner) return null;
     if (inst.overlay) return this.moveToNewPane(id);
     // Alone in its pane: nothing to leave (the series counts as a mate).
-    if (this.idsInPane(inst.paneIndex).length < 2 && inst.paneIndex !== this.mainPane) return null;
+    if (this.idsInPane(inst.paneIndex).length < 2 && inst.paneIndex !== this.panes.mainPane) return null;
     // A group of its own: the studies left behind keep the pane's group.
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: false, paneGroup: this.ownGroup(id, true) };
     delete options.scale;
@@ -1092,7 +1009,7 @@ export class IndicatorController {
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: false };
     delete options.paneGroup;
     delete options.scale;
-    if (paneIndex === this.mainPane) {
+    if (paneIndex === this.panes.mainPane) {
       if (!entry.overlay) options.paneGroup = MAIN_PANE_GROUP;
     } else {
       const mate = [...this.instances.values()].find((i) => !i.overlay && i.paneIndex === paneIndex);
@@ -1157,12 +1074,11 @@ export class IndicatorController {
     const joined = joinGroup ? [...this.instances.entries()].find(([k, i]) => k !== id && !i.overlay && i.group === joinGroup)?.[1] : undefined;
     const group = joined ? joinGroup! : id;
     const mate = joined ?? [...this.instances.values()].find((i) => !i.overlay && i.group === id);
-    const reserved = this.reservedPanes.get(id);
-    this.reservedPanes.delete(id);
+    const reserved = this.panes.unreserve(id);
     let paneIndex: number;
     // The series was dropped into its pane: the series' pane.
     if (id === this.seriesGroup) {
-      paneIndex = this.mainPane;
+      paneIndex = this.panes.mainPane;
       this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false, group: id });
       // After the caller has its layer (the hook redraws the compared symbols).
       queueMicrotask(() => this.host.mainPaneMoved());
@@ -1172,15 +1088,11 @@ export class IndicatorController {
     else if (reserved && this.chart.panes().includes(reserved)) {
       paneIndex = this.chart.panes().indexOf(reserved);
       reserved.setPreserveEmptyPane(false);
-      this.usedPanes.add(paneIndex);
-    } else paneIndex = this.claimPane();
+      this.panes.markUsed(paneIndex);
+    } else paneIndex = this.panes.claim();
     this.instances.set(id, { layer: null as unknown as IndicatorLayer, owner, paneIndex, overlay: false, ownScale: false, group });
     return paneIndex;
   }
-
-  /** Panes kept (empty) for a pane owner about to take them: a compared
-   *  symbol over the series stays in the pane the series left. */
-  private reservedPanes = new Map<string, ReturnType<IChartApi['panes']>[number]>();
 
   /** Remove a pane owner: its series goes, its pane closes, the panes below
    *  move up. */
@@ -1203,52 +1115,27 @@ export class IndicatorController {
     return out;
   }
 
-  /** Pane group of stacked pane `paneIndex` (the group of a study or pane
-   *  owner in it), null for the price pane or none. */
+  /** Pane group of stacked pane `paneIndex`, null for the price pane or none. */
   groupOfPane(paneIndex: number): string | null {
-    if (paneIndex === this.mainPane) return null;
-    for (const inst of this.instances.values()) if (!inst.overlay && inst.paneIndex === paneIndex && inst.group) return inst.group;
-    return null;
+    return this.panes.groupOfPane(paneIndex);
   }
 
   /** Studies and pane owners of stacked pane `paneIndex` (not the ones drawn
    *  over the series). */
   idsInPane(paneIndex: number): string[] {
-    const out: string[] = [];
-    for (const [id, inst] of this.instances) if (!inst.overlay && inst.paneIndex === paneIndex) out.push(id);
-    return out;
+    return this.panes.idsInPane(paneIndex);
   }
 
   /** Swap two panes (pane controls: move up / down; the price pane too). */
   swapPanes(a: number, b: number): void {
-    const n = this.chart.panes().length;
-    if (a < 0 || b < 0 || a >= n || b >= n || a === b) return;
-    this.chart.swapPanes(a, b);
-    for (const inst of this.instances.values()) {
-      if (inst.paneIndex === a) { inst.paneIndex = b; this.setPaneOf(inst, b); }
-      else if (inst.paneIndex === b) { inst.paneIndex = a; this.setPaneOf(inst, a); }
-    }
-    const moved = this.mainPane === a || this.mainPane === b;
-    if (moved) this.mainPane = this.mainPane === a ? b : a;
-    this.resetUsedPanes();
-    if (moved) this.host.mainPaneMoved();
-  }
-
-  /** The stacked panes claimed now (the price pane is not claimed). */
-  private resetUsedPanes(): void {
-    this.usedPanes = new Set([...this.instances.values()].filter((o) => !o.overlay && o.paneIndex !== this.mainPane).map((o) => o.paneIndex));
-  }
-
-  private setPaneOf(inst: Instance, i: number): void {
-    if (inst.owner) inst.owner.setPaneIndex(i);
-    else inst.layer.setPaneIndex(i);
+    this.panes.swap(a, b);
   }
 
   // ── The price pane ──────────────────────────────────────────────────────
 
   /** Pane of the main series (and of the studies drawn over it). */
   mainPaneIndex(): number {
-    return this.mainPane;
+    return this.panes.mainPane;
   }
 
   /** Pane group of the study pane the series was dropped into, null = its
@@ -1260,7 +1147,7 @@ export class IndicatorController {
 
   /** The series shares its pane with stacked studies (or pane owners). */
   seriesShares(): boolean {
-    return [...this.instances.values()].some((i) => !i.overlay && i.paneIndex === this.mainPane);
+    return this.panes.seriesShares();
   }
 
   /** The study pane group the series was dropped into has no study on the
@@ -1283,7 +1170,7 @@ export class IndicatorController {
     }
     const members = [...this.instances.values()].filter((i) => !i.overlay && i.group === group);
     // Drawn in another pane: the series moves into theirs.
-    if (members.length && members[0].paneIndex !== this.mainPane) {
+    if (members.length && members[0].paneIndex !== this.panes.mainPane) {
       this.mergeSeriesInto(members[0].paneIndex, group);
       return;
     }
@@ -1292,7 +1179,7 @@ export class IndicatorController {
 
   /** The main series can join stacked pane `paneIndex` (chart drag onto it). */
   canMergeSeriesTo(paneIndex: number): boolean {
-    if (paneIndex === this.mainPane || paneIndex < 0 || paneIndex >= this.chart.panes().length) return false;
+    if (paneIndex === this.panes.mainPane || paneIndex < 0 || paneIndex >= this.chart.panes().length) return false;
     return [...this.instances.values()].some((i) => !i.overlay && i.paneIndex === paneIndex && i.group !== null);
   }
 
@@ -1317,24 +1204,24 @@ export class IndicatorController {
 
   private mergeSeriesInto(paneIndex: number, group: string, stay?: string): SeriesMove {
     const panes = this.chart.panes();
-    const from = panes[this.mainPane];
+    const from = panes[this.panes.mainPane];
     // The former pane stays while the series leaves (indices kept), then
     // closes when left empty.
     const kept = from?.preserveEmptyPane() ?? false;
     from?.setPreserveEmptyPane(true);
     const left = this.leaveStudiesBehind(stay);
     this.seriesGroup = group;
-    this.mainPane = paneIndex;
-    this.resetUsedPanes();
+    this.panes.mainPane = paneIndex;
+    this.panes.resetUsed();
     this.redrawLeftBehind(left);
     this.host.mainPaneMoved();
     if (from) {
       from.setPreserveEmptyPane(kept);
       const at = this.chart.panes().indexOf(from);
-      if (stay && !left.ids.length && at >= 0) this.reservePane(stay, from);
+      if (stay && !left.ids.length && at >= 0) this.panes.reserve(stay, from);
       else if (at >= 0 && from.getSeries().length === 0) {
         try { this.chart.removePane(at); } catch { /* race with teardown */ }
-        this.reindex(panes);
+        this.panes.reindex(panes);
       }
     }
     return left;
@@ -1346,7 +1233,7 @@ export class IndicatorController {
    *  itself. */
   unmergeSeriesToNewPane(stay?: string): SeriesMove | null {
     if (!this.seriesPaneShared(!!stay)) return null;
-    const from = this.chart.panes()[this.mainPane];
+    const from = this.chart.panes()[this.panes.mainPane];
     const left = this.leaveStudiesBehind(stay);
     this.seriesGroup = null;
     // A pane of its own, below the others (and below panes not drawn yet).
@@ -1354,10 +1241,10 @@ export class IndicatorController {
     let at = n;
     for (const i of this.instances.values()) if (!i.overlay) at = Math.max(at, i.paneIndex + 1);
     while (this.chart.panes().length <= at) this.chart.addPane(true);
-    this.mainPane = at;
-    this.resetUsedPanes();
+    this.panes.mainPane = at;
+    this.panes.resetUsed();
     this.redrawLeftBehind(left);
-    if (stay && !left.ids.length && from) this.reservePane(stay, from);
+    if (stay && !left.ids.length && from) this.panes.reserve(stay, from);
     this.host.mainPaneMoved();
     // Kept while empty only until the series is there.
     for (const p of this.chart.panes().slice(n)) p.setPreserveEmptyPane(false);
@@ -1369,7 +1256,7 @@ export class IndicatorController {
    *  studies share its scale). Their options change (saved by the chart). */
   private leaveStudiesBehind(stay?: string): SeriesMove {
     const ids = [...this.instances].filter(([, i]) => i.overlay && !i.owner).map(([id]) => id);
-    const from = this.mainPane;
+    const from = this.panes.mainPane;
     if (!ids.length) return { from, group: stay ?? null, ids };
     // In a study pane the series shares, they join that pane's studies.
     const shared = [...this.instances.values()].find((i) => !i.overlay && i.paneIndex === from)?.group ?? null;
@@ -1395,25 +1282,6 @@ export class IndicatorController {
       const entry = getIndicatorEntry(id);
       if (inst && entry) this.renderOne(id, inst, entry, bars);
     }
-  }
-
-  /** Keep pane `pane` (empty) for pane owner `id` (a compared symbol staying
-   *  in the pane the series left): it takes it with {@link claimPaneFor}. Not
-   *  taken soon: the pane goes. */
-  private reservePane(id: string, pane: ReturnType<IChartApi['panes']>[number]): void {
-    pane.setPreserveEmptyPane(true);
-    this.reservedPanes.set(id, pane);
-    setTimeout(() => {
-      if (this.reservedPanes.get(id) !== pane) return;
-      this.reservedPanes.delete(id);
-      pane.setPreserveEmptyPane(false);
-      const before = this.chart.panes();
-      const at = before.indexOf(pane);
-      if (at >= 0 && pane.getSeries().length === 0 && at !== this.mainPane) {
-        try { this.chart.removePane(at); } catch { /* race with teardown */ }
-        this.reindex(before);
-      }
-    }, 3000);
   }
 
   /** Toggle a study's plot visibility (legend eye). Returns the new hidden state. */
@@ -1477,7 +1345,7 @@ export class IndicatorController {
     const group = overlay ? null : o?.paneGroup ?? id;
     const mate = overlay ? undefined : [...this.instances.values()].find((i) => !i.overlay && i.group === group);
     // The pane the series shares: its studies join the series' pane.
-    const paneIndex = overlay || group === this.seriesGroup ? this.mainPane : mate ? mate.paneIndex : this.claimPane();
+    const paneIndex = overlay || group === this.seriesGroup ? this.panes.mainPane : mate ? mate.paneIndex : this.panes.claim();
     const layer = new IndicatorLayer(this.chart, paneIndex, this.host.chartId, id);
     layer.setLastValueVisible(this.lastValueVisible);
     layer.setNameLabelsVisible(this.nameLabelsVisible);
@@ -1561,50 +1429,12 @@ export class IndicatorController {
         if (!m.owner && entry) this.renderOne(mid, m, entry, bars);
       }
     } else if (!inst.overlay) {
-      this.removeEmptyPanes();
+      this.panes.removeEmpty();
       // Its pane is gone: the panes below move up one index. Renumber the
       // studies there (and the price pane), else their next redraw re-creates
       // the old index and leaves an empty pane.
-      this.reindex(panesBefore);
+      this.panes.reindex(panesBefore);
     }
   }
 
-  /** Panes were removed since `before` (the chart's panes then): the pane
-   *  indices after them move up. */
-  private reindex(before: ReturnType<IChartApi['panes']>): void {
-    const after = new Set(this.chart.panes());
-    const removed = before.map((p, i) => (after.has(p) ? -1 : i)).filter((i) => i >= 0);
-    if (removed.length) {
-      const shift = (i: number) => i - removed.filter((r) => r < i).length;
-      for (const other of this.instances.values()) {
-        const next = shift(other.paneIndex);
-        if (next === other.paneIndex) continue;
-        other.paneIndex = next;
-        this.setPaneOf(other, next);
-      }
-      const main = shift(this.mainPane);
-      const moved = main !== this.mainPane;
-      this.mainPane = main;
-      if (moved) this.host.mainPaneMoved();
-    }
-    this.resetUsedPanes();
-  }
-
-  private claimPane(): number {
-    let pane = 0;
-    while (this.usedPanes.has(pane) || pane === this.mainPane) pane++;
-    this.usedPanes.add(pane);
-    return pane;
-  }
-
-  /** Drop any pane but the price pane that no longer holds a series (the
-   *  caller renumbers with {@link reindex}). */
-  private removeEmptyPanes(): void {
-    const panes = this.chart.panes();
-    for (let i = panes.length - 1; i >= 0; i--) {
-      if (i !== this.mainPane && panes[i].getSeries().length === 0) {
-        try { this.chart.removePane(i); } catch { /* race with teardown */ }
-      }
-    }
-  }
 }
