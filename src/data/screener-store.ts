@@ -6,7 +6,8 @@
  *   ot:screener:screens:v1  saved screens (Stock and ETF ones: Screen.type) + recently used order
  *   ot:screener:draft:v1    the current Stock screen and the saved screen it came from
  *   ot:screener:draft-etf:v1  the same for the ETF Screener
- *   ot:screener:type:v1     the screener shown: "stock" or "etf"
+ *   ot:screener:shown:v1    the screener shown: "stock", "etf" or "script" (the Script
+ *                           Screener, see script-screen-store.ts)
  *   ot:screener:open / ot:screener:width  split-view panel
  *   ot:screener:placement / ot:screener:height  where the panel shows (right,
  *   bottom, its own window) and the bottom panel's height
@@ -17,6 +18,7 @@
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
+import { oneOf, persisted } from "./persisted";
 import { LEGACY_DEFAULT_PILLS, defaultScreen, newScreen, popularScreens, screenType, type Screen, type ScreenerType } from "./screener-catalog";
 
 /** `autosave`: the screen menu's "Autosave" switch of this screen (off by default). */
@@ -24,7 +26,10 @@ export type SavedScreen = { id: string; screen: Screen; updatedAt: number; autos
 
 const SCREENS_KEY = "ot:screener:screens:v1";
 const DRAFT_KEYS: Record<ScreenerType, string> = { stock: "ot:screener:draft:v1", etf: "ot:screener:draft-etf:v1" };
-const TYPE_KEY = "ot:screener:type:v1";
+const SHOWN_KEY = "ot:screener:shown:v1";
+/** Before one setting, the screener shown was two: Stock or ETF here, Stock or Script in the script store. */
+const OLD_TYPE_KEY = "ot:screener:type:v1";
+const OLD_KIND_KEY = "ot:screener:kind:v1";
 const OPEN_KEY = "ot:screener:open";
 const WIDTH_KEY = "ot:screener:width";
 const HISTORY_MAX = 100;
@@ -71,20 +76,39 @@ function readDraft(type: ScreenerType): { screen: Screen; savedId: string | null
   return { screen: draftScreen(d), savedId: d.savedId ?? null, popularId: d.popularId ?? null };
 }
 
+/** The screener shown: Stock, ETF or the Script Screener. */
+export type ScreenerShown = ScreenerType | "script";
+/** Stock-side screeners (Stock / ETF, see `type`) or the Script Screener. */
+export type ScreenerKind = "stock" | "script";
+
+/** The two old keys into the one setting, once. */
+function migrateShown(): void {
+  if (kv.getItem(SHOWN_KEY) !== null) return;
+  const kind = kv.getItem(OLD_KIND_KEY);
+  const type = kv.getItem(OLD_TYPE_KEY);
+  if (kind === null && type === null) return;
+  kv.setItem(SHOWN_KEY, kind === "script" ? "script" : type === "etf" ? "etf" : "stock");
+  kv.removeItem(OLD_KIND_KEY);
+  kv.removeItem(OLD_TYPE_KEY);
+}
+migrateShown();
+
 const store = createRoot(() => {
-  const persisted = readJson<Persisted>(SCREENS_KEY);
+  const [shown, setShown] = persisted<ScreenerShown>(SHOWN_KEY, { parse: oneOf("stock", "etf", "script"), format: String, default: "stock" });
+  const saved = readJson<Persisted>(SCREENS_KEY);
   const [screens, setScreens] = createSignal<SavedScreen[]>(
-    (persisted?.screens ?? []).filter((x) => x && typeof x.id === "string" && isScreen(x.screen)),
+    (saved?.screens ?? []).filter((x) => x && typeof x.id === "string" && isScreen(x.screen)),
   );
-  const [recent, setRecent] = createSignal<string[]>(persisted?.recent ?? []);
-  const [type, setType] = createSignal<ScreenerType>(kv.getItem(TYPE_KEY) === "etf" ? "etf" : "stock");
+  const [recent, setRecent] = createSignal<string[]>(saved?.recent ?? []);
+  // Stock or ETF: the one shown, else (the Script Screener shown) the one it goes back to.
+  const [type, setType] = createSignal<ScreenerType>(shown() === "etf" ? "etf" : "stock");
   const draft = readDraft(type());
   const [screen, setScreenRaw] = createSignal<Screen>(draft.screen);
   const [savedId, setSavedId] = createSignal<string | null>(draft.savedId);
   const [popularId, setPopularId] = createSignal<string | null>(draft.popularId);
   const [past, setPast] = createSignal<Screen[]>([]);
   const [future, setFuture] = createSignal<Screen[]>([]);
-  return { screens, setScreens, recent, setRecent, type, setType, screen, setScreenRaw, savedId, setSavedId, popularId, setPopularId, past, setPast, future, setFuture };
+  return { shown, setShown, screens, setScreens, recent, setRecent, type, setType, screen, setScreenRaw, savedId, setSavedId, popularId, setPopularId, past, setPast, future, setFuture };
 });
 
 function persistScreens(): void {
@@ -115,11 +139,17 @@ const parked: Partial<Record<ScreenerType, { screen: Screen; savedId: string | n
 function setTypeOnly(t: ScreenerType): void {
   if (store.type() === t) return;
   store.setType(t);
-  kv.setItem(TYPE_KEY, t);
+  if (store.shown() !== "script") store.setShown(t);
 }
 
 export const screenerStore = {
-  /** The screener shown: Stock or ETF. */
+  /** A stock-side screener (Stock or ETF, see `type`) or the Script Screener. */
+  kind: (): ScreenerKind => (store.shown() === "script" ? "script" : "stock"),
+  /** Show the Script Screener, or the Stock / ETF one it was left for. */
+  setKind(k: ScreenerKind): void {
+    store.setShown(k === "script" ? "script" : store.type());
+  },
+  /** The stock-side screener: Stock or ETF. */
   type: store.type,
   /** Show the other screener: its own current screen comes back. */
   setType(t: ScreenerType): void {

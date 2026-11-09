@@ -8,7 +8,7 @@ import {
   COLUMN_BY_ID,
   columnSets,
   screenType,
-  OPERATION_LABEL,
+  FILTER_OPS,
   CUSTOM_SET_ID,
   TICKER_SORT_FIELD,
   configuredShort,
@@ -45,7 +45,7 @@ function openRangeOp(f: ConditionFilter): Operation | null {
   return null;
 }
 
-/** Pill operation icon key (see OPERATION_ICON). */
+/** Pill operation icon key (see FILTER_OPS). */
 export function pillOperation(f: ConditionFilter): Operation {
   const open = openRangeOp(f);
   if (open) return open;
@@ -71,7 +71,7 @@ const OFFSET_LABEL: Record<OffsetRangeId, string> = {
 export type PillTexts = {
   primary: string;
   value: string | null;
-  /** Operation icon key (see OPERATION_ICON); none for a closed range, an
+  /** Operation icon key (see FILTER_OPS); none for a closed range, an
    *  "equal" value, a percent offset or an outside range. */
   icon?: Operation;
   /** Operation word instead of the icon: "Above" / "Below" of a percent
@@ -116,7 +116,7 @@ export function pillTexts(f: Filter): PillTexts {
   }
   if (r.left !== null && r.right !== null) {
     const value = `${valueText(fmt, r.left)} to ${valueText(fmt, r.right)}${u}`;
-    return f.operation === "outside" ? { primary, value, operation: OPERATION_LABEL.outside } : { primary, value };
+    return f.operation === "outside" ? { primary, value, operation: FILTER_OPS.outside.label } : { primary, value };
   }
   // Open range: shown as ≥ / ≤.
   const one = (r.left ?? r.right) as number;

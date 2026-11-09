@@ -451,11 +451,11 @@ export function createScreenerTools(): AgentTool[] {
         const script = scriptScreenStore.saved().find((s) => s.name.toLowerCase() === name);
         if (!saved && !popular && !script) throw new AgentError(`No screen named "${args.name}": see list_screens.`);
         if (saved || popular) {
-          scriptScreenStore.setKind("stock");
+          screenerStore.setKind("stock");
           if (saved) screenerStore.open(saved.id);
           else screenerStore.openPopular(popular!.id);
         } else {
-          scriptScreenStore.setKind("script");
+          screenerStore.setKind("script");
           scriptScreenStore.open(script!.id);
         }
         screenerPanel.setOpen(true);
@@ -500,7 +500,7 @@ export function createScreenerTools(): AgentTool[] {
         else screenerStore.createNew(name);
         screenerStore.update(() => screen);
         screenerStore.save();
-        scriptScreenStore.setKind("stock");
+        screenerStore.setKind("stock");
         screenerPanel.setOpen(true);
         await useTable();
         const cat = await fields();

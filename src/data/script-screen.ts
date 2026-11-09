@@ -149,33 +149,6 @@ export type SignalOp = "true" | "trueWithin";
 export type ScriptOp = ValueOp | SignalOp;
 export const VALUE_OPS: ValueOp[] = ["above", "aboveOrEqual", "below", "belowOrEqual", "crosses", "crossesUp", "crossesDown", "between", "outside", "equal"];
 export const SIGNAL_OPS: SignalOp[] = ["true", "trueWithin"];
-export const OP_LABEL: Record<ScriptOp, string> = {
-  above: "Above",
-  aboveOrEqual: "Above or equal",
-  below: "Below",
-  belowOrEqual: "Below or equal",
-  crosses: "Crosses",
-  crossesUp: "Crosses up",
-  crossesDown: "Crosses down",
-  between: "Between",
-  outside: "Outside",
-  equal: "Equal",
-  true: "True",
-  trueWithin: "True within",
-};
-/** Icon of an operation (scr-op-<name>, scr-op-lg-<name>); none for the signal ones. */
-export const OP_ICON: Partial<Record<ScriptOp, string>> = {
-  above: "above",
-  aboveOrEqual: "above-or-equal",
-  below: "below",
-  belowOrEqual: "below-or-equal",
-  crosses: "crosses",
-  crossesUp: "crosses-up",
-  crossesDown: "crosses-down",
-  between: "between",
-  outside: "outside",
-  equal: "equal",
-};
 
 /** The symbol's own prices a value can be compared with (the right side of a filter), as cell keys. */
 export const PRICE_TARGETS: { key: string; title: string }[] = [

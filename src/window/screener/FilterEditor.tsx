@@ -16,8 +16,7 @@ import { Icon } from "../../components/Icon";
 import { screenerValues } from "../../data/screener-api";
 import {
   COLUMN_BY_ID,
-  OPERATION_ICON,
-  OPERATION_LABEL,
+  FILTER_OPS,
   defaultRef,
   emptyFilter,
   fullParams,
@@ -248,7 +247,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
   const op = (): Operation =>
     props.filter.operation === "abovePercent" ? "above" : props.filter.operation === "belowPercent" ? "below" : props.filter.operation;
   const range = () => op() === "between" || op() === "outside";
-  const opOptions = () => (cfg()?.operations ?? []).map((o) => ({ value: o, label: OPERATION_LABEL[o], icon: `scr-op-lg-${OPERATION_ICON[o]}` }));
+  const opOptions = () => (cfg()?.operations ?? []).map((o) => ({ value: o, label: FILTER_OPS[o].label, icon: `scr-op-lg-${FILTER_OPS[o].icon}` }));
   // Target groups: "Value" + offered columns, a divider between the reference app groups.
   const targetOptions = createMemo(() => {
     const out: { value: string; label: string; divider?: boolean }[] = [];
@@ -297,7 +296,7 @@ function ManualSetup(props: { filter: ConditionFilter; has: (f: string) => boole
     <div class="scr-manual">
       <SelectButton
         class="scr-select--stretch"
-        label={OPERATION_LABEL[op()]}
+        label={FILTER_OPS[op()].label}
         options={opOptions()}
         value={op()}
         onChange={setOp}

@@ -28,11 +28,9 @@ import { showConfirm } from "../../components/Dialogs";
 import * as kv from "../../data/kv";
 import { FLAG_HEX, FLAG_SORT_ORDER, type FlagColor } from "../../data/watchlist";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
-import { INDEXES } from "../../data/screener-catalog";
+import { FILTER_OPS, INDEXES } from "../../data/screener-catalog";
 import { allFlags, clearAllFlags, lastFlagColor, setFlag } from "../../data/symbol-flags";
 import {
-  OP_ICON,
-  OP_LABEL,
   PRICE_TARGETS,
   INTRADAY_MAX_SYMBOLS,
   SCRIPT_INTERVALS,
@@ -552,7 +550,7 @@ export function ScriptScreener(props: Props) {
                   <button type="button" class="scr-pill-main" aria-expanded={openFilter() === id} onClick={() => setOpenFilter(openFilter() === id ? null : id)}>
                     <span class="scr-pill-text">{titleOf(f().key)}</span>
                     <Show when={active()}>
-                      <Show when={f().op && OP_ICON[f().op!]}>
+                      <Show when={f().op && FILTER_OPS[f().op!].icon}>
                         {(icon) => (
                           <span class="scr-pill-icon">
                             <Icon name={`scr-op-${icon()}`} size={18} />
@@ -1074,8 +1072,8 @@ function FilterEditor(props: {
       <div class="scr-manual">
         <SelectButton
           class="scr-select--stretch"
-          label={f().op ? OP_LABEL[f().op!] : "Select condition"}
-          options={ops().map((o) => ({ value: o, label: OP_LABEL[o], icon: OP_ICON[o] ? `scr-op-lg-${OP_ICON[o]}` : undefined }))}
+          label={f().op ? FILTER_OPS[f().op!].label : "Select condition"}
+          options={ops().map((o) => ({ value: o, label: FILTER_OPS[o].label, icon: FILTER_OPS[o].icon ? `scr-op-lg-${FILTER_OPS[o].icon}` : undefined }))}
           value={f().op ?? ""}
           onChange={setOp}
         />

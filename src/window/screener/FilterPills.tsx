@@ -19,7 +19,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { FLAG_HEX, FLAG_SORT_ORDER } from "../../data/watchlist";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
-import { COLUMN_BY_ID, OPERATION_ICON, emptyFilter, isOffered, type ColumnRef, type Filter } from "../../data/screener-catalog";
+import { COLUMN_BY_ID, FILTER_OPS, emptyFilter, isOffered, type ColumnRef, type Filter } from "../../data/screener-catalog";
 import { isActive, pillTexts } from "../../data/screener-query";
 import { screenerStore } from "../../data/screener-store";
 import { CategoryMenu } from "./CategoryMenu";
@@ -145,7 +145,7 @@ export function FilterPills(props: Props) {
             <Show when={texts().icon}>
               {(op) => (
                 <span class="scr-pill-icon">
-                  <Icon name={`scr-op-${OPERATION_ICON[op()]}`} size={18} />
+                  <Icon name={`scr-op-${FILTER_OPS[op()].icon}`} size={18} />
                 </span>
               )}
             </Show>

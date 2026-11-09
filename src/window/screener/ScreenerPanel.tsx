@@ -120,7 +120,7 @@ export function ScreenerPanel(props: Props) {
   let setsBtn!: HTMLButtonElement;
   let titleBtn!: HTMLButtonElement;
   const [titleOpen, setTitleOpen] = createSignal(false);
-  const script = () => scriptScreenStore.kind() === "script";
+  const script = () => screenerStore.kind() === "script";
   // The script screener's shown rows and columns, for the title menu.
   let scriptRows: () => ScriptRow[] = () => [];
   let scriptColumns: () => ScriptColumn[] = () => [];
@@ -140,7 +140,7 @@ export function ScreenerPanel(props: Props) {
   };
   /** The Stock or ETF Screener; leaving a changed screen asks first. */
   const showScreener = (t: ScreenerType) => {
-    if (script()) scriptScreenStore.setKind("stock");
+    if (script()) screenerStore.setKind("stock");
     if (screenerStore.type() !== t) leaveScreen(() => screenerStore.setType(t));
   };
   const saveScreenAs = () =>
@@ -738,7 +738,7 @@ export function ScreenerPanel(props: Props) {
         <Popover anchor={titleBtn} onClose={() => setTitleOpen(false)} width={260}>
           <PopItem title="Stock Screener" selected={!script() && screenerStore.type() === "stock"} onClick={() => { setTitleOpen(false); showScreener("stock"); }} />
           <PopItem title="ETF Screener" selected={!script() && screenerStore.type() === "etf"} onClick={() => { setTitleOpen(false); showScreener("etf"); }} />
-          <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); scriptScreenStore.setKind("script"); }} />
+          <PopItem title="Script Screener" selected={script()} onClick={() => { setTitleOpen(false); screenerStore.setKind("script"); }} />
           <PopDivider />
           <PopSectionTitle title="Placement" />
           <PopItem title="Right panel" selected={screenerPanel.placement() === "right"} onClick={() => { setTitleOpen(false); place("right"); }} />

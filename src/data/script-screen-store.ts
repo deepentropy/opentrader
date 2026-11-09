@@ -1,9 +1,8 @@
 /*
- * Script screener state: which screener the panel shows (stock or script),
- * the current script screen (symbol source, indicator, its inputs, interval,
- * calculation settings, filters, columns, sort) and the saved screens, kept
- * in kv:
- *   ot:screener:kind:v1          "stock" | "script"
+ * Script screener state: the current script screen (symbol source, indicator,
+ * its inputs, interval, calculation settings, filters, columns, sort) and the
+ * saved screens, kept in kv (whether the Script Screener is the one shown is
+ * the screener's setting, see screener-store.ts):
  *   ot:screener:script:v1        the current screen and the saved one it came from
  *   ot:screener:script:saved:v1  the saved screens
  * The rows of the last scan stay in memory only.
@@ -11,8 +10,6 @@
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "./kv";
 import { isScriptInterval, type ScriptFilter, type ScriptInterval, type ScriptSort } from "./script-screen";
-
-export type ScreenerKind = "stock" | "script";
 
 /** Symbols scanned: an OpenTrader watchlist, or an index of the live table ("SPX"...). */
 export type ScriptSource = { kind: "watchlist"; id: string } | { kind: "index"; code: string };
@@ -37,7 +34,6 @@ export type ScriptScreen = {
 
 export type SavedScriptScreen = { id: string; name: string; screen: ScriptScreen; updatedAt: number };
 
-const KIND_KEY = "ot:screener:kind:v1";
 const SCREEN_KEY = "ot:screener:script:v1";
 const SAVED_KEY = "ot:screener:script:saved:v1";
 
@@ -98,14 +94,13 @@ function readSaved(): SavedScriptScreen[] {
 }
 
 const store = createRoot(() => {
-  const [kind, setKind] = createSignal<ScreenerKind>(kv.getItem(KIND_KEY) === "script" ? "script" : "stock");
   const cur = readJson(SCREEN_KEY) as { savedId?: unknown; screen?: unknown } | null;
   // Before saved screens, the current screen was stored alone.
   const stored = cur && typeof cur === "object" && "screen" in cur ? cur.screen : cur;
   const [screen, setScreen] = createSignal<ScriptScreen>(readScriptScreen(stored));
   const [savedId, setSavedId] = createSignal<string | null>(cur && typeof cur.savedId === "string" ? cur.savedId : null);
   const [saved, setSaved] = createSignal<SavedScriptScreen[]>(readSaved());
-  return { kind, setKind, screen, setScreen, savedId, setSavedId, saved, setSaved };
+  return { screen, setScreen, savedId, setSavedId, saved, setSaved };
 });
 
 const persistCurrent = () => kv.setItem(SCREEN_KEY, JSON.stringify({ savedId: store.savedId(), screen: store.screen() }));
@@ -114,11 +109,6 @@ const newId = () => `sscr_${Date.now().toString(36)}_${Math.random().toString(36
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export const scriptScreenStore = {
-  kind: store.kind,
-  setKind(k: ScreenerKind): void {
-    store.setKind(k);
-    kv.setItem(KIND_KEY, k);
-  },
   screen: store.screen,
   update(fn: (s: ScriptScreen) => ScriptScreen): void {
     store.setScreen(fn(store.screen()));

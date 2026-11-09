@@ -37,6 +37,8 @@ export type Category = "securityInfo" | "marketData" | "technicals" | "financial
 /** The reference app filter operations the backend can evaluate (crosses and the % offset
  *  manual operations are left out). */
 export type Operation = "above" | "aboveOrEqual" | "below" | "belowOrEqual" | "equal" | "nequal" | "between" | "outside";
+/** The operations of both screeners: these and the Script Screener's crossings and signal ones. */
+export type FilterOp = Operation | "crosses" | "crossesUp" | "crossesDown" | "true" | "trueWithin";
 /** Operations only used by presets (EMA/SMA deviation from price). */
 export type OffsetOperation = "abovePercent" | "belowPercent";
 export type OffsetRangeId = "offset_range_0_10" | "offset_range_10" | "offset_range_20";
@@ -548,26 +550,23 @@ export const CATEGORIES: { id: Category; title: string; icon: string }[] = [
   { id: "dividends", title: "Dividends", icon: "scr-cat-dividends" },
 ];
 
-export const OPERATION_LABEL: Record<Operation, string> = {
-  above: "Above",
-  aboveOrEqual: "Above or equal",
-  below: "Below",
-  belowOrEqual: "Below or equal",
-  equal: "Equal",
-  nequal: "Not equal",
-  between: "Between",
-  outside: "Outside",
-};
-/** 18 px pill icon / 28 px menu icon per operation. */
-export const OPERATION_ICON: Record<Operation, string> = {
-  above: "above",
-  aboveOrEqual: "above-or-equal",
-  below: "below",
-  belowOrEqual: "below-or-equal",
-  equal: "equal",
-  nequal: "not-equal",
-  between: "between",
-  outside: "outside",
+/** Every filter operation of the screeners (this one's `Operation`s and the Script Screener's, see
+ *  script-screen.ts): its label and its icon (scr-op-<icon> 18 px pill, scr-op-lg-<icon> 28 px menu); the
+ *  signal operations have none. */
+export const FILTER_OPS: Record<FilterOp, { label: string; icon?: string }> & Record<Operation, { label: string; icon: string }> = {
+  above: { label: "Above", icon: "above" },
+  aboveOrEqual: { label: "Above or equal", icon: "above-or-equal" },
+  below: { label: "Below", icon: "below" },
+  belowOrEqual: { label: "Below or equal", icon: "below-or-equal" },
+  equal: { label: "Equal", icon: "equal" },
+  nequal: { label: "Not equal", icon: "not-equal" },
+  between: { label: "Between", icon: "between" },
+  outside: { label: "Outside", icon: "outside" },
+  crosses: { label: "Crosses", icon: "crosses" },
+  crossesUp: { label: "Crosses up", icon: "crosses-up" },
+  crossesDown: { label: "Crosses down", icon: "crosses-down" },
+  true: { label: "True" },
+  trueWithin: { label: "True within" },
 };
 
 // ── Column refs → fields ──────────────────────────────────────────────────
