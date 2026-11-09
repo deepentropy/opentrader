@@ -35,6 +35,15 @@ import { showConfirm } from "../../components/Dialogs";
 import type { ChildStudyParent } from "../../data/app-events";
 import type { DrawingStore } from "../drawings/drawing-store";
 
+/** An edit of a chart's sources (editSources): study settings and compared symbol patches by id, the pane order,
+ *  the series' scale (null = the chart's scales side). */
+export type SourcesPatch = {
+  studies?: Record<string, PaneIndicatorSettings>;
+  compare?: Record<string, ComparePatch>;
+  paneOrder?: string[];
+  seriesScale?: string | null;
+};
+
 export function createChartEdits(
   t: Pick<AppTabs, "tabOf" | "patchTab" | "activeTab" | "activePaneState" | "patchActivePane">,
   undo: Pick<UndoHistory, "commit" | "record" | "undoStack" | "redoStack">,
@@ -70,31 +79,39 @@ export function createChartEdits(
       ),
     });
   }
-  /** Change a study's settings on a SPECIFIC pane as one undo step named `label`: the store is written and the
-   *  chart draws the study from it. `patch` replaces the fields it holds. `coalesce`: one step with the previous one
-   *  of the same key (the keystrokes of one dialog field); `session`: the dialog the edit is made in (its Cancel
-   *  takes the session's steps back, see UndoHistory.rollback). */
-  function editStudySettings(
-    tabId: string,
-    paneIndex: number,
-    id: string,
-    patch: PaneIndicatorSettings,
-    label: string,
-    opts: { coalesce?: string; session?: string } = {},
-  ) {
+  /** Change the sources of a SPECIFIC pane as one undo step named `label`: the store is written and the chart draws
+   *  the sources from it (studies' settings, compared symbols, pane order, the series' scale). Each study / compare
+   *  patch replaces the fields it holds. `coalesce`: one step with the previous one of the same key (the keystrokes
+   *  of one dialog field); `session`: the dialog the edit is made in (its Cancel takes the session's steps back, see
+   *  UndoHistory.rollback). */
+  function editSources(tabId: string, paneIndex: number, patch: SourcesPatch, label: string, opts: { coalesce?: string; session?: string } = {}) {
     const pane = tabOf(tabId)?.panes[paneIndex];
-    if (!pane || !pane.indicators.includes(id)) return;
+    if (!pane) return;
     const before = chartSources(pane);
-    const cur = before.indicatorSettings?.[id];
-    const next: PaneIndicatorSettings = { ...cur, ...(JSON.parse(JSON.stringify(patch)) as PaneIndicatorSettings) };
-    if (JSON.stringify(next) === JSON.stringify(cur ?? {})) return;
-    const after: ChartSources = { ...before, indicatorSettings: { ...before.indicatorSettings, [id]: next } };
+    const after = chartSources(pane);
+    const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
     // A study on its defaults has no saved settings: its `before` takes the defaults of the fields the edit sets,
     // so an undo draws the study with them again (no saved value leaves the edited one drawn).
     const defaults: PaneIndicatorSettings = { inputs: {}, styles: {}, options: defaultIndicatorOptions() };
-    const was: PaneIndicatorSettings = { ...cur };
-    for (const k of ["inputs", "styles", "options"] as const) if (k in patch && was[k] === undefined) Object.assign(was, { [k]: defaults[k] });
-    if (Object.keys(was).length) before.indicatorSettings = { ...before.indicatorSettings, [id]: was };
+    for (const [id, p] of Object.entries(patch.studies ?? {})) {
+      if (!pane.indicators.includes(id)) continue;
+      const cur = before.indicatorSettings?.[id];
+      const next: PaneIndicatorSettings = { ...cur, ...clone(p) };
+      if (JSON.stringify(next) === JSON.stringify(cur ?? {})) continue;
+      after.indicatorSettings = { ...after.indicatorSettings, [id]: next };
+      const was: PaneIndicatorSettings = { ...cur };
+      for (const k of ["inputs", "styles", "options"] as const) if (k in p && was[k] === undefined) Object.assign(was, { [k]: defaults[k] });
+      if (Object.keys(was).length) before.indicatorSettings = { ...before.indicatorSettings, [id]: was };
+    }
+    if (patch.compare && after.compare) {
+      after.compare = after.compare.map((c) => {
+        const p = patch.compare![c.id];
+        return p ? clone({ ...c, ...p, hidden: p.hidden ?? c.hidden }) : c;
+      });
+    }
+    if (patch.paneOrder) after.paneOrder = patch.paneOrder.slice();
+    if (patch.seriesScale !== undefined) after.seriesScale = (patch.seriesScale ?? undefined) as PaneChart["seriesScale"];
+    if (JSON.stringify(after) === JSON.stringify(chartSources(pane))) return;
     undo.commit({
       kind: "layout-sources",
       tabId,
@@ -105,6 +122,17 @@ export function createChartEdits(
       at: Date.now(),
       ...opts,
     });
+  }
+  /** Change a study's settings on a SPECIFIC pane as one undo step (editSources). */
+  function editStudySettings(
+    tabId: string,
+    paneIndex: number,
+    id: string,
+    patch: PaneIndicatorSettings,
+    label: string,
+    opts: { coalesce?: string; session?: string } = {},
+  ) {
+    editSources(tabId, paneIndex, { studies: { [id]: patch } }, label, opts);
   }
   /** Merge input values into a study's saved inputs, one undo step as the Settings dialog's Ok (Strategy Tester
    *  properties, the agent's set inputs). */
@@ -530,6 +558,7 @@ export function createChartEdits(
     removeIndicatorFromPane,
     reorderIndicatorsForPane,
     setIndicatorSettingsForPane,
+    editSources,
     editStudySettings,
     patchStudyInputs,
     setVisibleRangeForPane,

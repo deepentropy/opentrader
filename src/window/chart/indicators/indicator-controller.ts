@@ -725,15 +725,6 @@ export class IndicatorController {
     return this.scales.scaleOf(id);
   }
 
-  /** Pin a study to a scale ("Pin to scale"); returns its options to save. */
-  pinToScale(id: string, scale: StudyScale): IndicatorOptions | null {
-    const inst = this.instances.get(id);
-    const entry = getIndicatorEntry(id);
-    if (!inst || inst.owner || !entry) return null;
-    this.options.set(id, { ...cloneIndicatorOptions(this.options.get(id) ?? defaultIndicatorOptions()), scale });
-    this.renderOne(id, inst, entry, this.host.bars());
-    return this.getOptions(id);
-  }
 
   /** Registry defaults merged with any user input overrides for `id`. A copy either way: the Settings dialog edits
    *  what it is given, which must never be the registry's defaults (every chart's next study would take them). */
@@ -940,10 +931,9 @@ export class IndicatorController {
     return !!inst && !inst.owner && inst.overlay;
   }
 
-  /** Move an overlay study to a new pane (re-created there; the caller puts
-   *  the pane in the stacking order and saves the options). Returns the
-   *  study's options to persist, or null when it cannot move. */
-  moveToNewPane(id: string): IndicatorOptions | null {
+  /** Options of an overlay study moved to a new pane (the caller saves them with the pane in the stacking order;
+   *  the study is drawn there from the saved options), or null when it cannot move. */
+  newPaneOptions(id: string): IndicatorOptions | null {
     if (!this.canMoveToNewPane(id)) return null;
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: true };
     delete options.paneGroup;
@@ -953,9 +943,7 @@ export class IndicatorController {
     // its former pane): a group of its own then.
     const own = this.ownGroup(id);
     if (own !== id) options.paneGroup = own;
-    this.options.set(id, cloneIndicatorOptions(options));
-    this.refresh(id);
-    return this.getOptions(id);
+    return cloneIndicatorOptions(options);
   }
 
   /** Studies of stacked pane `paneIndex` (not the ones drawn over the
@@ -964,22 +952,19 @@ export class IndicatorController {
     return [...this.instances].filter(([, i]) => !i.owner && !i.overlay && i.paneIndex === paneIndex).map(([id]) => id);
   }
 
-  /** A study out of a pane it shares (with the series or other studies) into
-   *  a new pane of its own (a chart drag dropped on the time axis); the
-   *  caller places the pane and saves the options. Null when it is alone in
-   *  its pane. */
-  unmergeToNewPane(id: string): IndicatorOptions | null {
+  /** Options of a study out of a pane it shares (with the series or other studies) into a new pane of its own (a
+   *  chart drag dropped on the time axis, "Move to ▸ New pane"); the caller places the pane and saves the options.
+   *  Null when it is alone in its pane. */
+  unmergeOptions(id: string): IndicatorOptions | null {
     const inst = this.instances.get(id);
     if (!inst || inst.owner) return null;
-    if (inst.overlay) return this.moveToNewPane(id);
+    if (inst.overlay) return this.newPaneOptions(id);
     // Alone in its pane: nothing to leave (the series counts as a mate).
     if (this.idsInPane(inst.paneIndex).length < 2 && inst.paneIndex !== this.panes.mainPane) return null;
     // A group of its own: the studies left behind keep the pane's group.
     const options = { ...(this.options.get(id) ?? defaultIndicatorOptions()), ownPane: false, paneGroup: this.ownGroup(id, true) };
     delete options.scale;
-    this.options.set(id, cloneIndicatorOptions(options));
-    this.refresh(id);
-    return this.getOptions(id);
+    return cloneIndicatorOptions(options);
   }
 
   /** A pane group no other study uses: the study's id when free (and not
@@ -998,11 +983,10 @@ export class IndicatorController {
     return inst && !inst.owner ? inst.paneIndex : null;
   }
 
-  /** Move a study into the existing pane `paneIndex` (the price pane or a
-   *  study pane; Object tree drag): re-created there, next to what the pane
-   *  holds. Its former pane closes when it was alone in it. Returns the
-   *  study's options to persist, or null when it cannot move. */
-  moveToPane(id: string, paneIndex: number): IndicatorOptions | null {
+  /** Options of a study moved into the existing pane `paneIndex` (the price pane or a study pane; Object tree or
+   *  chart drag): drawn there from the saved options, next to what the pane holds; its former pane closes when it
+   *  was alone in it. Null when it cannot move. */
+  paneOptions(id: string, paneIndex: number): IndicatorOptions | null {
     const inst = this.instances.get(id);
     const entry = getIndicatorEntry(id);
     if (!inst || inst.owner || !entry || this.paneOf(id) === paneIndex) return null;
@@ -1016,9 +1000,18 @@ export class IndicatorController {
       if (!mate?.group) return null;
       options.paneGroup = mate.group;
     }
-    this.options.set(id, cloneIndicatorOptions(options));
-    this.refresh(id);
-    return this.getOptions(id);
+    return cloneIndicatorOptions(options);
+  }
+
+  /** The stacking order once study `id` is drawn in pane `paneIndex` with `options` (a move saved before it is
+   *  drawn): it comes after what that pane holds, over the series it is not in the order. */
+  stackedOrderAfterMove(id: string, paneIndex: number, options: IndicatorOptions): string[] {
+    const entry = getIndicatorEntry(id);
+    const overlay = options.paneGroup === MAIN_PANE_GROUP || (!options.paneGroup && !!entry?.overlay && !options.ownPane);
+    const list: [string, number][] = [...this.instances].filter(([k, inst]) => k !== id && !inst.overlay).map(([k, inst]) => [k, inst.paneIndex]);
+    if (!overlay) list.push([id, paneIndex]);
+    if (!list.some(([, i]) => i === this.panes.mainPane)) list.push([MAIN_SOURCE_ID, this.panes.mainPane]);
+    return list.sort((a, b) => a[1] - b[1]).map(([k]) => k);
   }
 
   /** Hidden with its eye. */

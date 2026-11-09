@@ -38,7 +38,7 @@ export interface SourcesApi {
   dropSeriesOnTimeAxis: () => boolean;
   dropStudyOnTimeAxis: (id: string) => boolean;
   mergeSeriesToPane: (pane: number) => boolean;
-  mergeStudyToPane: (id: string, pane: number) => boolean;
+  mergeStudyToPane: (id: string, pane: number, label?: string) => boolean;
   /** Visual order steps a source can take in its pane (null = not a source of the chart). */
   zOrderSteps: (id: string) => { front: boolean; back: boolean } | null;
   /** Visual order: move a source to the front / back of its pane, or one step. */
@@ -50,7 +50,7 @@ export interface SourcesApi {
   /** Apply a series "Move to" row. */
   moveSeries: (move: keyof StudyMoves) => void;
   /** Apply one "Move to" row. */
-  moveStudy: (id: string, move: keyof StudyMoves) => void;
+  moveStudy: (id: string, move: keyof StudyMoves, label: string) => void;
   scheduleSourceOrder: () => void;
   sunkIds: Accessor<ReadonlySet<string>>;
   sunkPainter: SunkPainter | null;
@@ -100,17 +100,11 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (props.active === false || !cx.controller) return;
     const { id, where } = (d ?? {}) as AppEvents["chart-move-study"];
     if (!id || (where !== "below" && where !== "above")) return;
-    const options = cx.controller.moveToNewPane(id);
+    const options = cx.controller.newPaneOptions(id);
     if (!options) return;
     // The new pane goes right below (above) the price pane.
     const order = where === "above" ? cx.controller.orderAbovePricePane(id) : cx.controller.orderBelowPricePane(id);
-    cx.controller.setPaneOrder(order);
-    props.onPaneOrder?.(order);
-    props.onIndicatorSettings?.(id, {
-      inputs: cx.controller.getInputs(id) ?? {},
-      styles: cx.controller.getStyles(id) ?? {},
-      options,
-    });
+    props.onEditSources?.({ studies: { [id]: { options } }, paneOrder: order }, where === "above" ? "unmerge up" : "unmerge down");
     cx.setPaneEpoch((n) => n + 1);
     queueMicrotask(cx.refreshPaneBoxes);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
@@ -332,35 +326,34 @@ export function createSources(cx: ChartCx): SourcesApi {
     const id = d?.id;
     if (id && treeSources().some((s) => s.id === id && s.kind !== "series")) removeStudy(id);
   };
-  /** Save a study's new pane (options, stacking order) and redraw the panes. */
-  function studyPaneChanged(id: string, options: IndicatorOptions, order?: string[]) {
-    if (!cx.controller) return;
-    if (order) cx.controller.setPaneOrder(order);
-    props.onIndicatorSettings?.(id, {
-      inputs: cx.controller.getInputs(id) ?? {},
-      styles: cx.controller.getStyles(id) ?? {},
-      options,
-    });
-    props.onPaneOrder?.(order ?? cx.controller.stackedOrder());
+  /** Save a study's new pane (options, stacking order) as one undo step named `label`: the chart draws it there
+   *  from the pane; then the panes are measured again. */
+  function studyPaneChanged(id: string, options: IndicatorOptions, order: string[], label: string) {
+    props.onEditSources?.({ studies: { [id]: { options } }, paneOrder: order }, label);
+    panesChanged();
+  }
+  /** The panes changed: their controls and the legend follow. */
+  function panesChanged() {
     cx.setPaneEpoch((n) => n + 1);
     cx.setCollapsedPanes(new Map());
     queueMicrotask(cx.refreshPaneBoxes);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
   }
-  /** Study dropped on pane `pane` (chart drag): it joins that pane. */
-  function mergeStudyToPane(id: string, pane: number): boolean {
-    const options = cx.controller?.moveToPane(id, pane);
-    if (!options) return false;
-    studyPaneChanged(id, options);
+  /** Study dropped on pane `pane` (chart drag, "Move to ▸ Existing pane"): it joins that pane. */
+  function mergeStudyToPane(id: string, pane: number, label = "merge to pane"): boolean {
+    const c = cx.controller;
+    const options = c?.paneOptions(id, pane);
+    if (!c || !options) return false;
+    studyPaneChanged(id, options, c.stackedOrderAfterMove(id, pane, options), label);
     return true;
   }
   /** Study dropped on the time axis (chart drag): a new pane at the bottom
    *  when it shares its pane, else its pane moves to the bottom. */
   function dropStudyOnTimeAxis(id: string): boolean {
     if (!cx.controller) return false;
-    const options = cx.controller.unmergeToNewPane(id);
+    const options = cx.controller.unmergeOptions(id);
     if (options) {
-      studyPaneChanged(id, options, [...cx.controller.stackedOrder().filter((x) => x !== id), id]);
+      studyPaneChanged(id, options, [...cx.controller.stackedOrder().filter((x) => x !== id), id], "unmerge down");
       return true;
     }
     const pane = cx.controller.paneOf(id);
@@ -368,12 +361,8 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (pane === null || pane === last) return false;
     const mates = cx.controller.studiesInPane(pane);
     const order = [...cx.controller.stackedOrder().filter((x) => !mates.includes(x)), ...mates];
-    cx.controller.setPaneOrder(order);
-    props.onPaneOrder?.(order);
-    cx.setPaneEpoch((n) => n + 1);
-    cx.setCollapsedPanes(new Map());
-    queueMicrotask(cx.refreshPaneBoxes);
-    refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
+    props.onEditSources?.({ paneOrder: order }, "move pane down");
+    panesChanged();
     return true;
   }
   // ── Main series drag (reference rules) ─────────────────────────────────
@@ -458,15 +447,14 @@ export function createSources(cx: ChartCx): SourcesApi {
     if (pane !== targetPane) {
       // A drop in another pane: only a study changes pane (it joins the
       // target's pane, its former pane closes when left empty).
-      if (!cx.controller || treeSources().find((s) => s.id === id)?.kind !== "study") return;
-      const options = cx.controller.moveToPane(id, targetPane.pane);
+      const c = cx.controller;
+      if (!c || treeSources().find((s) => s.id === id)?.kind !== "study") return;
+      const options = c.paneOptions(id, targetPane.pane);
       if (!options) return;
-      props.onIndicatorSettings?.(id, {
-        inputs: cx.controller.getInputs(id) ?? {},
-        styles: cx.controller.getStyles(id) ?? {},
-        options,
-      });
-      props.onPaneOrder?.(cx.controller.stackedOrder());
+      // Saved first, the chart draws it there from the pane (this step's undo records the whole move).
+      const order = c.stackedOrderAfterMove(id, targetPane.pane, options);
+      props.onIndicatorSettings?.(id, { options });
+      props.onPaneOrder?.(order);
       cx.setPaneEpoch((n) => n + 1);
       queueMicrotask(cx.refreshPaneBoxes);
       refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
@@ -531,27 +519,27 @@ export function createSources(cx: ChartCx): SourcesApi {
     const shared = pane === cx.mainPane() || c.idsInPane(pane).length > 1;
     return { mergeUp: pane > 0, unmergeUp: shared, mergeDown: pane < last, unmergeDown: shared };
   }
-  /** Apply a "Move to" row: merge into the pane above / below, or a new
+  /** Apply a "Move to" row (one undo step named `label`): merge into the pane above / below, or a new
    *  pane right above / below the study's pane. */
-  function moveStudy(id: string, move: keyof StudyMoves) {
+  function moveStudy(id: string, move: keyof StudyMoves, label: string) {
     const c = cx.controller;
     const moves = studyMoves(id);
     if (!c || !moves?.[move]) return;
     const pane = c.paneOf(id) ?? 0;
     if (move === "mergeUp" || move === "mergeDown") {
-      mergeStudyToPane(id, move === "mergeUp" ? pane - 1 : pane + 1);
+      mergeStudyToPane(id, move === "mergeUp" ? pane - 1 : pane + 1, label);
       return;
     }
     // Stacked panes, top to bottom, before the move (the price pane as `_series` when the series has its own).
     const before = c.stackedOrder().filter((x) => x !== id);
     const mates = [...c.idsInPane(pane).filter((x) => x !== id), ...(pane === cx.mainPane() ? [MAIN_SOURCE_ID] : [])];
-    const options = c.unmergeToNewPane(id);
+    const options = c.unmergeOptions(id);
     if (!options) return;
     const first = before.findIndex((x) => mates.includes(x));
     let lastMate = first;
     before.forEach((x, k) => { if (mates.includes(x)) lastMate = k; });
     const at = first < 0 ? (move === "unmergeUp" ? 0 : before.length) : move === "unmergeUp" ? first : lastMate + 1;
-    studyPaneChanged(id, options, [...before.slice(0, at), id, ...before.slice(at)]);
+    studyPaneChanged(id, options, [...before.slice(0, at), id, ...before.slice(at)], label);
   }
   /** "Move to" rows of the main series (reference series menu): into the study pane above / below, a new pane
    *  above / below when it shares its pane (with studies or compared symbols drawn over it). */

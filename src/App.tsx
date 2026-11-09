@@ -406,6 +406,7 @@ function App() {
     removeIndicatorFromPane,
     reorderIndicatorsForPane,
     setIndicatorSettingsForPane,
+    editSources,
     editStudySettings,
     patchStudyInputs,
     setVisibleRangeForPane,
@@ -866,6 +867,7 @@ function App() {
               onReorderIndicators={(i, ids) => reorderIndicatorsForPane(tabId, i, ids)}
               onIndicatorSettings={(i, id, st) => setIndicatorSettingsForPane(tabId, i, id, st)}
               onEditStudySettings={(i, id, patch, label, opts) => editStudySettings(tabId, i, id, patch, label, opts)}
+              onEditSources={(i, patch, label) => editSources(tabId, i, patch, label)}
               onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
               onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
               onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}

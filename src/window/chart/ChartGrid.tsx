@@ -56,6 +56,7 @@ import {
   type Splitter,
 } from "./layout-sizes";
 import type { ComparePatch, PaneChart, PaneIndicatorSettings } from "../shell/tabs";
+import type { SourcesPatch } from "../shell/chart-edits";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { CursorMode } from "../../data/drawing-toolbar";
 import { displayTimeZone } from "../../data/session";
@@ -103,6 +104,8 @@ type Props = {
   onIndicatorSettings?: (paneIndex: number, id: string, settings: PaneIndicatorSettings) => void;
   /** Change a study's settings on a specific pane as one undo step (chart-edits editStudySettings). */
   onEditStudySettings?: (paneIndex: number, id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) => void;
+  /** Change a specific pane's sources as one undo step (chart-edits editSources). */
+  onEditSources?: (paneIndex: number, patch: SourcesPatch, label: string) => void;
   /** Compared symbols of a pane: patch / remove one, change its symbol. */
   onCompareChange?: (paneIndex: number, id: string, patch: ComparePatch) => void;
   onRemoveCompare?: (paneIndex: number, id: string) => void;
@@ -413,6 +416,7 @@ export function ChartGrid(props: Props) {
                 indicatorSettings={pane().indicatorSettings}
                 onIndicatorSettings={(id, s) => live() && props.onIndicatorSettings?.(i, id, s)}
                 onEditStudySettings={(id, patch, label, opts) => live() && props.onEditStudySettings?.(i, id, patch, label, opts)}
+                onEditSources={(patch, label) => live() && props.onEditSources?.(i, patch, label)}
                 visibleLogicalRange={pane().visibleLogicalRange}
                 initialScale={pane().initialScale}
                 onVisibleRange={(r) => props.onVisibleRange?.(i, r)}

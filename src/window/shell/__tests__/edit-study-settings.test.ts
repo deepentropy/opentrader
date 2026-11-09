@@ -23,7 +23,7 @@ function setup(settings?: PaneChart["indicatorSettings"]) {
     { drawingKeyFor: () => "", drawingsFor: () => [], splitView: () => ({}) as never, restoreSlice: () => {} } as never,
   );
   const saved = () => tabOf("t1")!.panes[0].indicatorSettings?.rsi;
-  return { edits, undo, saved };
+  return { edits, undo, saved, pane: () => tabOf("t1")!.panes[0] };
 }
 
 describe("editStudySettings", () => {
@@ -75,6 +75,24 @@ describe("editStudySettings", () => {
       const { edits, saved } = setup({ rsi: { inputs: { length: 14, src: "close" } } });
       edits.patchStudyInputs("t1", 0, "rsi", { length: 9 });
       expect(saved()?.inputs).toEqual({ length: 9, src: "close" });
+      dispose();
+    }));
+});
+
+describe("editSources", () => {
+  it("writes a study, the pane order and the series' scale as one undo step", () =>
+    createRoot((dispose) => {
+      const { edits, undo, saved, pane } = setup({ rsi: { inputs: { length: 14 } } });
+      const options = { ...defaultIndicatorOptions(), scale: "left" as const };
+      edits.editSources("t1", 0, { studies: { rsi: { options } }, paneOrder: ["rsi", "_series"], seriesScale: "left" }, "pin to left scale");
+      expect(undo.undoStack().length).toBe(1);
+      expect(saved()?.options).toEqual(options);
+      expect(pane().paneOrder).toEqual(["rsi", "_series"]);
+      expect(pane().seriesScale).toBe("left");
+      undo.undo();
+      expect(saved()).toEqual({ inputs: { length: 14 }, options: defaultIndicatorOptions() });
+      expect(pane().paneOrder).toBeUndefined();
+      expect(pane().seriesScale).toBeUndefined();
       dispose();
     }));
 });

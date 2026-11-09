@@ -22,6 +22,7 @@ import type { NewsLollipopPrimitive } from "../news-lollipop";
 import type { CrosshairLockAxisPrimitive, CrosshairLockViews } from "../crosshair-lock";
 import type { DialogTab } from "../IndicatorSettingsDialog";
 import type { CompareEntry, ComparePatch, PaneIndicatorSettings } from "../../shell/tabs";
+import type { SourcesPatch } from "../../shell/chart-edits";
 import type { Draft } from "../../header/chart-settings";
 import { appearanceFrom } from "../../header/chart-settings";
 import { readChartTokens } from "../chart-tokens";
@@ -165,6 +166,9 @@ export type ChartViewProps = {
   /** Change a study's settings as one undo step named `label` (chart-edits editStudySettings); the chart draws them
    *  from `indicatorSettings`. */
   onEditStudySettings?: (id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) => void;
+  /** Change this chart's sources as one undo step named `label` (chart-edits editSources); the chart draws them from
+   *  its props. */
+  onEditSources?: (patch: SourcesPatch, label: string) => void;
   /** Chart syncing group (0..4, undefined = none), its legend button shown,
    *  and the setter. */
   linkGroup?: number;

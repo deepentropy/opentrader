@@ -25,6 +25,7 @@ import type { CompareEntry } from "../../shell/tabs";
 import { ScaleLayout, scaleLetter, type ScaleKey, type ScaleUse, type Side } from "../scales/scale-layout";
 import { ExtraAxesPrimitive, ExtraScaleModel, axisWidthFor, isExtraScaleId, setFirstAxisWidths, type AxisStyle } from "../scales/extra-axes";
 import { type ChartCx } from "./context";
+import type { SourcesPatch } from "../../shell/chart-edits";
 import type { JSX } from "solid-js";
 
 /** A target of the price scale menu that is not the main series' scale. */
@@ -428,22 +429,23 @@ export function createScales(cx: ChartCx): ScalesApi {
 
   const namedScales = () => stubs().length > 0;
 
+  /** The sources of a scale pinned to a new scale on the other side, one undo step written to the pane. */
   function moveScaleToSide(pane: number, key: ScaleKey, side: Side) {
     const lay = scaleLayout();
     const to = lay.newKeyFor(pane, side);
     if (!to) return;
+    const c = cx.controller;
+    const patch: SourcesPatch = { studies: {}, compare: {} };
     for (const src of lay.sourcesOn(pane, key)) {
       if (src === MAIN_SOURCE_ID) continue;
       const cmp = cx.compareEntry(src);
       if (cmp) {
-        if (cmp.placement === "pane") props.onCompareChange?.(src, { paneScale: to });
-        else props.onCompareChange?.(src, { placement: "scale", scale: to });
+        patch.compare![src] = cmp.placement === "pane" ? { paneScale: to } : { placement: "scale", scale: to };
         continue;
       }
-      const c = cx.controller;
-      const options = c?.pinToScale(src, to);
-      if (c && options) props.onIndicatorSettings?.(src, { inputs: c.getInputs(src) ?? {}, styles: c.getStyles(src) ?? {}, options });
+      if (c && c.paneOf(src) !== null) patch.studies![src] = { options: { ...c.getOptions(src), scale: to } };
     }
+    props.onEditSources?.(patch, `move scale to ${side}`);
     syncScaleLayout();
   }
 

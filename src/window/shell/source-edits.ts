@@ -1,12 +1,13 @@
 /*
  * Undo steps of the edits of one source of a chart made through the chart
- * (reference undo commands): visual order, Move to, Pin to scale, a compared
+ * (reference undo commands): visual order, an Object tree move, a compared
  * symbol's visibility and style. The chart wraps such an edit in
  * "chart-sources-edit" begin / end; the sources of the focused chart
  * (studies, their settings, compared symbols, the orders) are read before
  * and after, and one undo step holds both, under the reference's text of the
- * command. A study's settings are edited in the store instead (chart-edits
- * editStudySettings); the Settings dialog's Cancel takes its steps back here.
+ * command. A study's settings, Move to and Pin to scale are edited in the
+ * store instead (chart-edits editSources); the Settings dialog's Cancel takes
+ * its steps back here.
  */
 import { emitAppEvent, onAppEvent } from "../../data/app-events";
 import type { AppTabs } from "./app-tabs";
