@@ -10,7 +10,7 @@
  */
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Icon } from "../../components/Icon";
-import { CheckBox, SelectControl } from "../header/ChartPropertiesDialog";
+import { CheckBox, SelectControl } from "../../components/form";
 import {
   CURRENCIES,
   HEAT_SCHEMES,

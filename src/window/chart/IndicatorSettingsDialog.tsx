@@ -16,7 +16,7 @@ import { createStore, reconcile } from "solid-js/store";
 import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
 import type { PlotDefaultVisible, PlotPalette } from "./indicators/volume";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
-import { CheckBox, ColorControl, NumberField, SelectControl } from "../header/ChartPropertiesDialog";
+import { CheckBox, ColorControl, NumberField, SelectControl } from "../../components/form";
 import { RangeSlider } from "../drawings/SettingsDialog";
 import type { IntervalVisibility, UnitVisibility } from "lightweight-charts-drawing/core/types";
 import {

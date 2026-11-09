@@ -31,7 +31,7 @@ import { searchResultToRow } from "../../data/providers";
 import * as kv from "../../data/kv";
 import { ECONOMIC_DATA_NOTICE } from "../../data/economic-notice";
 import { Tooltip } from "../../components/Tooltip";
-import { CheckBox } from "./ChartPropertiesDialog";
+import { CheckBox } from "../../components/form";
 import type { ComparePlacement } from "../shell/tabs";
 
 /** Durable key for the Type filter chip, so the chosen filter survives both a

@@ -20,7 +20,7 @@ import { detalizationTicks } from "../../backtester/magnifier";
 import type { CommissionType, QtyType, StrategyProperties } from "../../backtester/types";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { CheckBox, NumberField, SelectControl } from "../header/ChartPropertiesDialog";
+import { CheckBox, NumberField, SelectControl } from "../../components/form";
 
 type Props = {
   value: StrategyProperties;

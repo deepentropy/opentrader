@@ -30,6 +30,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { Icon } from "../../components/Icon";
+import { CheckMarkBox } from "../../components/form";
 import { LoadingWheel } from "../../components/LoadingWheel";
 import { SquareTabs } from "./SquareTabs";
 import type { WheelText } from "../../data/screener-progress";
@@ -479,11 +480,7 @@ export function ChartsToolbar(props: { tabs?: boolean }) {
                   <PopDivider />
                 </Show>
                 <div class="scr-item scr-check-item" role="menuitemcheckbox" aria-checked={st().chartIndicators.includes(ind.id)} onClick={() => toggleInd(ind.id)}>
-                  <span class="scr-checkbox" classList={{ "is-checked": st().chartIndicators.includes(ind.id) }}>
-                    <Show when={st().chartIndicators.includes(ind.id)}>
-                      <Icon name="scr-check" size={18} />
-                    </Show>
-                  </span>
+                  <CheckMarkBox variant="screener" checked={st().chartIndicators.includes(ind.id)} />
                   <span class="scr-item-text"><span class="scr-item-title">{ind.label}</span></span>
                 </div>
               </>

@@ -11,7 +11,8 @@ import { LineGlyphSelect } from "../LineEndSelect";
 import { ImageDialog, TransparencySlider } from "../ImageDialog";
 import { drawingImage, imageInitialSize } from "lightweight-charts-drawing/core/kinds/images";
 import { imagesVersion } from "../image-store";
-import { CheckBox, CheckboxRow, ColorThicknessPicker, DecimalInput, DialogColorButton, DialogRow, Dropdown } from "./controls";
+import { DialogRow } from "./controls";
+import { CheckField, ColorButton, DecimalInput, NativeSelect } from "../../../components/form";
 import { FONT_SIZES, LEVEL_FRAGMENT_KINDS, LEVELS_LINE_KINDS, sizeOptions } from "./kind-config";
 
 /** Gann square / Gann square fixed Style page: LEVELS / FANS / ARCS grids (checkbox, title,
@@ -36,9 +37,9 @@ export function GannStyleRows(props: {
           };
           return (
             <div class={"drawing-settings-level-row" + (l.visible ? "" : " off")}>
-              <CheckBox checked={l.visible} onChange={(v) => patch({ visible: v })} />
+              <CheckField variant="drawing" checked={l.visible} onChange={(v) => patch({ visible: v })} />
               <span class="drawing-settings-level-coeff is-fixed">{title(l, i())}</span>
-              <ColorThicknessPicker color={l.color} width={l.width} onColor={(c) => patch({ color: c })} onWidth={(w) => patch({ width: w })} />
+              <ColorButton variant="drawing" color={l.color} width={l.width} onColor={(c) => patch({ color: c })} onWidth={(w) => patch({ width: w })} />
             </div>
           );
         }}
@@ -92,7 +93,7 @@ export function GannStyleRows(props: {
       {grid("gannArcs", arcs, (l: GannRatioLine) => `${l.x}x${l.y}`)}
       <div class="drawing-settings-group-sep" />
       <DialogRow label="Use one color">
-        <DialogColorButton
+        <ColorButton variant="drawing"
           color={levels()[0]?.color ?? "#808080"}
           onColor={(c) =>
             props.patchStyle({
@@ -104,20 +105,20 @@ export function GannStyleRows(props: {
         />
       </DialogRow>
       <div class="drawing-settings-row">
-        <CheckboxRow checked={st().fillBackground !== false} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
+        <CheckField variant="drawing" checked={st().fillBackground !== false} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
         <div class="drawing-settings-row-inputs">
           <TransparencySlider value={st().transparency ?? 80} onChange={(t) => props.patchStyle({ transparency: t })} />
         </div>
       </div>
-      <CheckboxRow checked={!!st().reverse} onChange={setReverse} label="Reverse" />
+      <CheckField variant="drawing" checked={!!st().reverse} onChange={setReverse} label="Reverse" />
       <Show when={props.drawing.kind === "gann-square"}>
         <DialogRow label="Price/bar ratio">
           <DecimalInput value={ratio() ?? 0} onCommit={setRatio} />
         </DialogRow>
         <div class="drawing-settings-row">
-          <CheckboxRow checked={st().showLabels !== false} onChange={(v) => props.patchStyle({ showLabels: v })} label="Ranges and ratio" />
+          <CheckField variant="drawing" checked={st().showLabels !== false} onChange={(v) => props.patchStyle({ showLabels: v })} label="Ranges and ratio" />
           <div class="drawing-settings-row-inputs drawing-settings-text-format">
-            <Dropdown value={String(st().labelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().labelFontSize ?? 12))} onChange={(v) => props.patchStyle({ labelFontSize: Number(v) })} />
+            <NativeSelect class="drawing-settings-select" value={String(st().labelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().labelFontSize ?? 12))} onChange={(v) => props.patchStyle({ labelFontSize: Number(v) })} />
             <button type="button" class={"drawing-settings-text-toggle" + (st().bold ? " active" : "")} style={{ "font-weight": 700 }} aria-pressed={!!st().bold} title="Bold" onClick={() => props.patchStyle({ bold: !st().bold })}>
               B
             </button>
@@ -150,9 +151,9 @@ export function GannBoxStyleRows(props: { style: DrawingStyle; patchStyle: (p: P
           };
           return (
             <div class={"drawing-settings-level-row" + (lvl.visible ? "" : " off")}>
-              <CheckBox checked={lvl.visible} onChange={(v) => patch({ visible: v })} />
+              <CheckField variant="drawing" checked={lvl.visible} onChange={(v) => patch({ visible: v })} />
               <DecimalInput narrow value={lvl.coeff} onCommit={(v) => patch({ coeff: v })} />
-              <DialogColorButton color={lvl.color} onColor={(c) => patch({ color: c })} />
+              <ColorButton variant="drawing" color={lvl.color} onColor={(c) => patch({ color: c })} />
             </div>
           );
         }}
@@ -161,7 +162,7 @@ export function GannBoxStyleRows(props: { style: DrawingStyle; patchStyle: (p: P
   );
   const background = (on: boolean, t: number, onOn: (v: boolean) => void, onT: (t: number) => void) => (
     <div class="drawing-settings-row">
-      <CheckboxRow checked={on} onChange={onOn} label="Background" />
+      <CheckField variant="drawing" checked={on} onChange={onOn} label="Background" />
       <div class="drawing-settings-row-inputs">
         <TransparencySlider value={t} onChange={onT} />
       </div>
@@ -174,18 +175,18 @@ export function GannBoxStyleRows(props: { style: DrawingStyle; patchStyle: (p: P
     <>
       <div class="drawing-settings-section-title">PRICE LEVELS</div>
       {grid("levels", hLevels)}
-      <CheckboxRow checked={props.style.showLeftLabels !== false} onChange={(v) => props.patchStyle({ showLeftLabels: v })} label="Left labels" />
-      <CheckboxRow checked={props.style.showRightLabels !== false} onChange={(v) => props.patchStyle({ showRightLabels: v })} label="Right labels" />
+      <CheckField variant="drawing" checked={props.style.showLeftLabels !== false} onChange={(v) => props.patchStyle({ showLeftLabels: v })} label="Left labels" />
+      <CheckField variant="drawing" checked={props.style.showRightLabels !== false} onChange={(v) => props.patchStyle({ showRightLabels: v })} label="Right labels" />
       {background(props.style.fillBackground !== false, props.style.transparency ?? 80, (v) => props.patchStyle({ fillBackground: v }), (t) => props.patchStyle({ transparency: t }))}
       <div class="drawing-settings-group-sep" />
       <div class="drawing-settings-section-title">TIME LEVELS</div>
       {grid("vLevels", vLevels)}
-      <CheckboxRow checked={props.style.showTopLabels !== false} onChange={(v) => props.patchStyle({ showTopLabels: v })} label="Top labels" />
-      <CheckboxRow checked={props.style.showBottomLabels !== false} onChange={(v) => props.patchStyle({ showBottomLabels: v })} label="Bottom labels" />
+      <CheckField variant="drawing" checked={props.style.showTopLabels !== false} onChange={(v) => props.patchStyle({ showTopLabels: v })} label="Top labels" />
+      <CheckField variant="drawing" checked={props.style.showBottomLabels !== false} onChange={(v) => props.patchStyle({ showBottomLabels: v })} label="Bottom labels" />
       {background(props.style.fillVertBackground !== false, props.style.vertTransparency ?? 80, (v) => props.patchStyle({ fillVertBackground: v }), (t) => props.patchStyle({ vertTransparency: t }))}
       <div class="drawing-settings-group-sep" />
       <DialogRow label="Use one color">
-        <DialogColorButton
+        <ColorButton variant="drawing"
           color={hLevels()[0]?.color ?? "#808080"}
           mixed={!sameColor()}
           onColor={(c) =>
@@ -199,12 +200,12 @@ export function GannBoxStyleRows(props: { style: DrawingStyle; patchStyle: (p: P
         />
       </DialogRow>
       <div class="drawing-settings-row">
-        <CheckboxRow checked={fans().visible} onChange={(v) => props.patchStyle({ fans: { ...fans(), visible: v } })} label="Angles" />
+        <CheckField variant="drawing" checked={fans().visible} onChange={(v) => props.patchStyle({ fans: { ...fans(), visible: v } })} label="Angles" />
         <div class="drawing-settings-row-inputs">
-          <DialogColorButton color={fans().color} onColor={(c) => props.patchStyle({ fans: { ...fans(), color: c } })} />
+          <ColorButton variant="drawing" color={fans().color} onColor={(c) => props.patchStyle({ fans: { ...fans(), color: c } })} />
         </div>
       </div>
-      <CheckboxRow checked={!!props.style.reverse} onChange={(v) => props.patchStyle({ reverse: v })} label="Reverse" />
+      <CheckField variant="drawing" checked={!!props.style.reverse} onChange={(v) => props.patchStyle({ reverse: v })} label="Reverse" />
     </>
   );
 }
@@ -228,9 +229,9 @@ export function SpeedFanStyleRows(props: { style: DrawingStyle; patchStyle: (p: 
           };
           return (
             <div class={"drawing-settings-level-row" + (lvl.visible ? "" : " off")}>
-              <CheckBox checked={lvl.visible} onChange={(v) => patch({ visible: v })} />
+              <CheckField variant="drawing" checked={lvl.visible} onChange={(v) => patch({ visible: v })} />
               <DecimalInput narrow value={lvl.coeff} onCommit={(v) => patch({ coeff: v })} />
-              <DialogColorButton color={lvl.color} onColor={(c) => patch({ color: c })} />
+              <ColorButton variant="drawing" color={lvl.color} onColor={(c) => patch({ color: c })} />
             </div>
           );
         }}
@@ -241,16 +242,16 @@ export function SpeedFanStyleRows(props: { style: DrawingStyle; patchStyle: (p: 
     <>
       <div class="drawing-settings-section-title">PRICE LEVELS</div>
       {grid2("levels", hLevels)}
-      <CheckboxRow checked={props.style.showLeftLabels !== false} onChange={(v) => props.patchStyle({ showLeftLabels: v })} label="Left labels" />
-      <CheckboxRow checked={props.style.showRightLabels !== false} onChange={(v) => props.patchStyle({ showRightLabels: v })} label="Right labels" />
+      <CheckField variant="drawing" checked={props.style.showLeftLabels !== false} onChange={(v) => props.patchStyle({ showLeftLabels: v })} label="Left labels" />
+      <CheckField variant="drawing" checked={props.style.showRightLabels !== false} onChange={(v) => props.patchStyle({ showRightLabels: v })} label="Right labels" />
       <div class="drawing-settings-group-sep" />
       <div class="drawing-settings-section-title">TIME LEVELS</div>
       {grid2("vLevels", vLevels)}
-      <CheckboxRow checked={props.style.showTopLabels !== false} onChange={(v) => props.patchStyle({ showTopLabels: v })} label="Top labels" />
-      <CheckboxRow checked={props.style.showBottomLabels !== false} onChange={(v) => props.patchStyle({ showBottomLabels: v })} label="Bottom labels" />
+      <CheckField variant="drawing" checked={props.style.showTopLabels !== false} onChange={(v) => props.patchStyle({ showTopLabels: v })} label="Top labels" />
+      <CheckField variant="drawing" checked={props.style.showBottomLabels !== false} onChange={(v) => props.patchStyle({ showBottomLabels: v })} label="Bottom labels" />
       <div class="drawing-settings-group-sep" />
       <DialogRow label="Use one color">
-        <DialogColorButton
+        <ColorButton variant="drawing"
           color={hLevels()[0]?.color ?? "#808080"}
           onColor={(c) =>
             props.patchStyle({
@@ -262,15 +263,15 @@ export function SpeedFanStyleRows(props: { style: DrawingStyle; patchStyle: (p: 
         />
       </DialogRow>
       <div class="drawing-settings-row">
-        <CheckboxRow checked={props.style.fillBackground !== false} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
+        <CheckField variant="drawing" checked={props.style.fillBackground !== false} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
         <div class="drawing-settings-row-inputs">
           <TransparencySlider value={props.style.transparency ?? 80} onChange={(t) => props.patchStyle({ transparency: t })} />
         </div>
       </div>
       <div class="drawing-settings-row">
-        <CheckboxRow checked={grid().visible} onChange={(v) => props.patchStyle({ fanGrid: { ...grid(), visible: v } })} label="Grid" />
+        <CheckField variant="drawing" checked={grid().visible} onChange={(v) => props.patchStyle({ fanGrid: { ...grid(), visible: v } })} label="Grid" />
         <div class="drawing-settings-row-inputs">
-          <ColorThicknessPicker
+          <ColorButton variant="drawing"
             color={grid().color}
             width={grid().width}
             lineStyle={grid().style}
@@ -280,7 +281,7 @@ export function SpeedFanStyleRows(props: { style: DrawingStyle; patchStyle: (p: 
           />
         </div>
       </div>
-      <CheckboxRow checked={!!props.style.reverse} onChange={(v) => props.patchStyle({ reverse: v })} label="Reverse" />
+      <CheckField variant="drawing" checked={!!props.style.reverse} onChange={(v) => props.patchStyle({ reverse: v })} label="Reverse" />
     </>
   );
 }
@@ -336,9 +337,9 @@ export function BackgroundColorRow(props: { style: DrawingStyle; patchStyle: (p:
   const color = () => applyOpacity(parseColor(props.style.backgroundColor ?? props.fallbackColor ?? props.style.color).hex, 100 - (props.style.transparency ?? 50));
   return (
     <div class="drawing-settings-row">
-      <CheckboxRow checked={!!props.style.fillBackground} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
+      <CheckField variant="drawing" checked={!!props.style.fillBackground} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
       <div class="drawing-settings-row-inputs">
-        <DialogColorButton
+        <ColorButton variant="drawing"
           color={color()}
           onColor={(c) => {
             const pc = parseColor(c);
@@ -383,11 +384,11 @@ export function LevelGridRows(props: { kind: string; style: DrawingStyle; defaul
                 fallback={
                   // Gann fan: the ratio is the row title (label column).
                   <span class="drawing-settings-level-title">
-                    <CheckboxRow checked={lvl.visible} onChange={(v) => patchLevel(i(), { visible: v })} label={lvl.label ?? ""} />
+                    <CheckField variant="drawing" checked={lvl.visible} onChange={(v) => patchLevel(i(), { visible: v })} label={lvl.label ?? ""} />
                   </span>
                 }
               >
-                <CheckBox
+                <CheckField variant="drawing"
                   checked={lvl.visible}
                   // Parallel channel: levels 0 and 1 (rows 2 and 6) are locked on.
                   disabled={props.kind === "parallel-channel" && (i() === 1 || i() === 5)}
@@ -397,9 +398,9 @@ export function LevelGridRows(props: { kind: string; style: DrawingStyle; defaul
               </Show>
               <Show
                 when={!fragment()}
-                fallback={<DialogColorButton color={lvl.color} onColor={(c) => patchLevel(i(), { color: c })} />}
+                fallback={<ColorButton variant="drawing" color={lvl.color} onColor={(c) => patchLevel(i(), { color: c })} />}
               >
-                <ColorThicknessPicker
+                <ColorButton variant="drawing"
                   color={lvl.color}
                   width={lvl.width ?? props.style.width}
                   lineStyle={lvl.style ?? props.style.lineStyle}
@@ -417,11 +418,11 @@ export function LevelGridRows(props: { kind: string; style: DrawingStyle; defaul
       </Show>
       <Show when={props.kind !== "parallel-channel"}>
         <DialogRow label="Use one color">
-          <DialogColorButton color={levels()[0]?.color ?? "#808080"} mixed={!sameColor()} onColor={(c) => props.patchStyle({ levels: levels().map((l) => ({ ...l, color: c })) })} />
+          <ColorButton variant="drawing" color={levels()[0]?.color ?? "#808080"} mixed={!sameColor()} onColor={(c) => props.patchStyle({ levels: levels().map((l) => ({ ...l, color: c })) })} />
         </DialogRow>
         <Show when={props.style.fillBackground !== undefined}>
           <div class="drawing-settings-row">
-            <CheckboxRow checked={!!props.style.fillBackground} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
+            <CheckField variant="drawing" checked={!!props.style.fillBackground} onChange={(v) => props.patchStyle({ fillBackground: v })} label="Background" />
             <div class="drawing-settings-row-inputs">
               <TransparencySlider value={props.style.transparency ?? 80} onChange={(t) => props.patchStyle({ transparency: t })} />
             </div>

@@ -18,7 +18,7 @@ import { getTickerInfo } from "../../data/datafeed";
 import type { CommissionType, ReplaySettings } from "../../data/trading/replay-account";
 import { replayBroker } from "../../data/trading/replay-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
-import { NumberField } from "../header/ChartPropertiesDialog";
+import { NumberField } from "../../components/form";
 
 const PRIMARY = ["USD", "EUR", "AUD", "GBP", "NZD", "CAD", "CHF"];
 const MORE = ["HKD", "JPY", "NOK", "RUB", "SEK", "SGD", "TRY", "ZAR", "BTC", "ETH", "MYR", "KRW", "USDT", "INR"];

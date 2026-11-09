@@ -27,6 +27,7 @@ import { emitAppEvent } from "../../data/app-events";
 import * as kv from "../../data/kv";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { CheckMarkBox, Switch } from "../../components/form";
 import { replayBroker } from "../../data/trading/replay-broker";
 import { tradingUi, type OrderPreset, type TicketDraft } from "../../data/trading/trading-ui";
 import type { OrderType } from "../../data/trading/types";
@@ -675,7 +676,7 @@ function TicketBody(props: { floating: boolean }) {
       <div class="trd-tk-exit" classList={{ "is-disabled": !on() }}>
         <div class="trd-tk-exit-head">
           <LabelMenu label={exitLabel(kind, type(), ccy())} rows={rows((t) => setExitType(kind, t), null, false)} />
-          <ToggleSwitch on={on()} label={kind === "tp" ? "Take profit" : "Stop loss"} onChange={(v) => setExit(kind, v)} />
+          <Switch on={on()} label={kind === "tp" ? "Take profit" : "Stop loss"} onChange={(v) => setExit(kind, v)} />
         </div>
         <span
           class="trd-tk-box"
@@ -1100,13 +1101,7 @@ function FieldTip(p: { anchor: HTMLElement | undefined; text: string; onClose: (
 function CheckRow(p: { label: string; on: boolean; onToggle: () => void }) {
   return (
     <button type="button" class="trd-menu-row" role="menuitemcheckbox" aria-checked={p.on} onClick={() => p.onToggle()}>
-      <span class="trd-menu-check" classList={{ "is-on": p.on }}>
-        <Show when={p.on}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-            <path d="M2.5 6.2l2.3 2.3 4.7-5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </Show>
-      </span>
+      <CheckMarkBox variant="ticket" checked={p.on} />
       <span class="trd-menu-title">{p.label}</span>
     </button>
   );
@@ -1121,21 +1116,5 @@ function ExitsSection(props: { children: JSX.Element }) {
       </button>
       <Show when={open()}>{props.children}</Show>
     </div>
-  );
-}
-
-function ToggleSwitch(p: { on: boolean; label: string; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={p.on}
-      aria-label={p.label}
-      class="trd-switch"
-      classList={{ "is-on": p.on }}
-      onClick={() => p.onChange(!p.on)}
-    >
-      <span class="trd-switch-knob" />
-    </button>
   );
 }

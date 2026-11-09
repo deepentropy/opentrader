@@ -5,28 +5,16 @@
  * (checkboxes) · Symbol display (Logo checkbox + Symbol/Name radio). Toggling a
  * control edits the parent's settings in place and keeps the popover open.
  */
-import { For, Show, onCleanup, onMount } from "solid-js";
+import { For, onCleanup, onMount } from "solid-js";
 import type { WlColumnKey, WlSettings, WlSymbolDisplay } from "../../data/watchlist";
-import { WL_COLUMNS, WL_SETTINGS_ICONS, WL_SYMBOL_DISPLAY } from "./watchlist/ui";
+import { WL_COLUMNS, WL_SYMBOL_DISPLAY } from "./watchlist/ui";
+import { CheckMarkBox, SwitchMark } from "../../components/form";
 
 type Props = {
   settings: WlSettings;
   onChange: (next: WlSettings) => void;
   onClose: () => void;
 };
-
-const Switch = (props: { on: boolean }) => (
-  <span class={`wl-settings-switch${props.on ? " on" : ""}`} aria-hidden="true">
-    <span class="wl-settings-switch-track" />
-    <span class="wl-settings-switch-thumb" />
-  </span>
-);
-
-const CheckBox = (props: { checked: boolean }) => (
-  <span class={`wl-settings-check${props.checked ? " checked" : ""}`} aria-hidden="true">
-    <Show when={props.checked}><span innerHTML={WL_SETTINGS_ICONS.check} /></Show>
-  </span>
-);
 
 const Radio = (props: { checked: boolean }) => (
   <span class={`wl-settings-radio${props.checked ? " checked" : ""}`} aria-hidden="true" />
@@ -68,7 +56,7 @@ export function WatchlistSettingsMenu(props: Props) {
         onClick={() => props.onChange({ ...props.settings, tableView: !props.settings.tableView })}
       >
         <span class="wl-settings-label apply-overflow-tooltip">Table view</span>
-        <Switch on={props.settings.tableView} />
+        <SwitchMark variant="menu" on={props.settings.tableView} />
       </button>
 
       <div class="ot-popover__divider" />
@@ -85,7 +73,7 @@ export function WatchlistSettingsMenu(props: Props) {
             data-qa-id={c.key}
             onClick={() => toggleColumn(c.key)}
           >
-            <CheckBox checked={props.settings.columns[c.key]} />
+            <CheckMarkBox variant="menu" checked={props.settings.columns[c.key]} />
             <span class="wl-settings-label apply-overflow-tooltip">{c.menuLabel}</span>
           </button>
         )}
@@ -103,7 +91,7 @@ export function WatchlistSettingsMenu(props: Props) {
         data-qa-id="logo"
         onClick={() => props.onChange({ ...props.settings, logo: !props.settings.logo })}
       >
-        <CheckBox checked={props.settings.logo} />
+        <CheckMarkBox variant="menu" checked={props.settings.logo} />
         <span class="wl-settings-label apply-overflow-tooltip">Logo</span>
       </button>
       <For each={WL_SYMBOL_DISPLAY}>

@@ -6,16 +6,12 @@
  * Layout + controls: 750-wide shell, 68 px header, 226 px rail
  * (20 px inset, 206 px tabs), a `auto 1fr` property grid (16/20 padding, 8 px
  * cell padding → 50 px rows, 42 px for grouped rows, 16 px group gaps), 67 px
- * footer. Controls: white check boxes, transparent r8
- * selects with the 18 px chevron and a r10 option menu, 34 px colour boxes
- * (24 px swatch on the dark opacity pattern) or the 75 px colour + line
- * button, the shared colour panel (palette, custom colours, Opacity,
- * Thickness, Line style), 100 px number fields with spin buttons.
+ * footer. The controls are the shared form kit (components/form).
  *
  * The Symbol tab shows the style rows of the pane's chart type above "Data
  * modification".
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { chartTemplateDraft, chartTemplates, removeChartTemplate, saveChartTemplate, type SettingsTemplate } from "./chart-templates";
 import { createStore, reconcile } from "solid-js/store";
 import {
@@ -40,16 +36,17 @@ import {
   type RowState,
 } from "./chart-settings";
 import type { ChartTypeId } from "../chart/chart-types";
-import { ColorPanel } from "../drawings/ColorPanel";
 import { LineGlyphSelect } from "../drawings/LineEndSelect";
 import { TransparencySlider } from "../drawings/ImageDialog";
-import type { LineStyle } from "lightweight-charts-drawing/core/types";
 import { marketSession } from "../../data/market-session";
 import { showConfirm, showRename } from "../../components/Dialogs";
 import { isEconomicSymbol, isLocalSymbol } from "../../data/datafeed";
 import { symbolDetails } from "../chart/indicators/script-chart";
 import { tradingPrefs } from "../../data/trading/trading-prefs";
 import { FeatureCardIcon } from "./FeatureCard";
+import { CheckBox, ColorControl, MultiCheckSelect, NumberField, SelectControl } from "../../components/form";
+import { Chevron } from "../../components/form/glyphs";
+import { createPopover } from "../../components/popover";
 
 /** Symbol events (dividends, splits, earnings) exist on stocks, funds and depositary receipts; shown while the
  *  type is not known yet. */
@@ -86,14 +83,6 @@ function TabGlyph(props: { icon: SettingsTabIcon }) {
     <svg class="settings-tab-icon" width="28" height="28" viewBox={props.icon.viewBox} fill={props.icon.fill} aria-hidden="true" innerHTML={props.icon.inner} />
   );
 }
-/** Check box mark (11×9). */
-const CheckMark = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 9" width="11" height="9" fill="none" aria-hidden="true"><path stroke="currentColor" stroke-width="2" d="M0.999878 4L3.99988 7L9.99988 1" /></svg>
-);
-/** Select caret / spin arrow (18×18). */
-const Chevron = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z" /></svg>
-);
 const HelpIcon = (p: { tip?: string }) => (
   <span class="cp3-help" title={p.tip} aria-hidden="true">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path fill="currentColor" fill-rule="evenodd" d="M9 17A8 8 0 1 0 9 1a8 8 0 0 0 0 16Zm-1-4a1 1 0 1 0 2 0 1 1 0 0 0-2 0Zm2.83-3.52c-.49.43-.97.85-1.06 1.52H8.26c.08-1.18.74-1.69 1.32-2.13.49-.38.92-.71.92-1.37C10.5 6.67 9.82 6 9 6s-1.5.67-1.5 1.5V8H6v-.5a3 3 0 1 1 6 0c0 .96-.6 1.48-1.17 1.98Z" /></svg>
@@ -107,331 +96,12 @@ const InfoIcon = (p: { tip?: string }) => (
   </span>
 );
 
-// ── Settings templates (footer "Template" menu) ──
-// ── Popover plumbing ──
+// Position of the footer "Template" menu, taken from its button.
 type Anchor = { left: number; top: number; bottom: number; width: number };
 const anchorOf = (el: HTMLElement): Anchor => {
   const r = el.getBoundingClientRect();
   return { left: r.left, top: r.top, bottom: r.bottom, width: r.width };
 };
-
-/** Outside-press + Escape dismissal for a popover (the trigger itself toggles). */
-function createDismiss(getRefs: () => (HTMLElement | undefined)[], onClose: () => void) {
-  const onDown = (e: PointerEvent) => {
-    const t = e.target as Node;
-    if (getRefs().some((el) => el?.contains(t))) return;
-    onClose();
-  };
-  const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
-  onMount(() => {
-    document.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-  });
-  onCleanup(() => {
-    document.removeEventListener("pointerdown", onDown, true);
-    window.removeEventListener("keydown", onKey, true);
-  });
-}
-
-// ── Check box (18 px, #f2f2f2 box / #2e2e2e mark) ──
-export function CheckBox(props: { checked: boolean; disabled?: boolean; onToggle: () => void; tabIndex?: number }) {
-  return (
-    <span
-      class={`cp3-checkbox${props.checked ? " is-checked" : ""}${props.disabled ? " is-disabled" : ""}`}
-      role="checkbox"
-      aria-checked={props.checked}
-      tabIndex={props.tabIndex ?? 0}
-      onClick={() => !props.disabled && props.onToggle()}
-      onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); if (!props.disabled) props.onToggle(); } }}
-    >
-      <Show when={props.checked}><CheckMark /></Show>
-    </span>
-  );
-}
-
-// ── Select (34 px, r8, transparent, chevron; menu r10 under it) ──
-function OptionsMenu(props: {
-  anchor: Anchor;
-  trigger: () => HTMLElement | undefined;
-  children: JSX.Element;
-  onClose: () => void;
-  role?: "listbox" | "menu";
-}) {
-  let ref: HTMLDivElement | undefined;
-  createDismiss(() => [ref, props.trigger()], props.onClose);
-  // The menu opens flush under the trigger, trigger-wide; flip above when
-  // there is no room below.
-  const [top, setTop] = createSignal(props.anchor.bottom);
-  onMount(() => {
-    if (!ref) return;
-    const h = ref.offsetHeight;
-    if (props.anchor.bottom + h > window.innerHeight - 4) setTop(Math.max(4, props.anchor.top - h));
-  });
-  return (
-    <div
-      ref={ref}
-      class="cp3-menu"
-      role={props.role ?? "listbox"}
-      style={{ left: `${props.anchor.left}px`, top: `${top()}px`, "min-width": `${props.anchor.width}px` }}
-    >
-      {props.children}
-    </div>
-  );
-}
-
-export function SelectControl(props: {
-  value: string;
-  options: string[];
-  width: number;
-  disabled?: boolean;
-  /** Options shown but not selectable. */
-  disabledOptions?: string[];
-  /** Right-aligned tag of an option (e.g. the chart currency). */
-  optionTag?: (o: string) => string | undefined;
-  /** Closed-control text when it differs from the value. */
-  display?: string;
-  /** Option text when the options are ids (default: the option itself). */
-  labelOf?: (o: string) => string;
-  onPick: (v: string) => void;
-}) {
-  let btn: HTMLButtonElement | undefined;
-  const [anchor, setAnchor] = createSignal<Anchor | null>(null);
-  return (
-    <>
-      <button
-        ref={btn}
-        type="button"
-        class={`cp3-select${props.disabled ? " is-disabled" : ""}${anchor() ? " is-open" : ""}`}
-        style={{ width: `${props.width}px` }}
-        aria-haspopup="listbox"
-        aria-expanded={!!anchor()}
-        disabled={props.disabled}
-        onClick={() => (anchor() ? setAnchor(null) : setAnchor(anchorOf(btn!)))}
-      >
-        <span class="cp3-select-value">{props.display ?? props.labelOf?.(props.value) ?? props.value}</span>
-        <span class="cp3-select-caret"><Chevron /></span>
-      </button>
-      <Show when={anchor()} keyed>
-        {(a) => (
-          <OptionsMenu anchor={a} trigger={() => btn} onClose={() => setAnchor(null)}>
-            <For each={props.options}>
-              {(o) => (
-                <div
-                  role="option"
-                  aria-checked={o === props.value}
-                  aria-disabled={props.disabledOptions?.includes(o) || undefined}
-                  class={`cp3-menu-item${o === props.value ? " is-selected" : ""}${props.disabledOptions?.includes(o) ? " is-disabled" : ""}`}
-                  onClick={() => { if (props.disabledOptions?.includes(o)) return; props.onPick(o); setAnchor(null); }}
-                >
-                  <span class="cp3-menu-title">{props.labelOf?.(o) ?? o}</span>
-                  <Show when={props.optionTag?.(o)}>
-                    {(tag) => <span class="cp3-menu-tag">{tag()}</span>}
-                  </Show>
-                </div>
-              )}
-            </For>
-          </OptionsMenu>
-        )}
-      </Show>
-    </>
-  );
-}
-
-/** Closed-control text for a check list: checked options in catalog order,
- *  the first as is and the rest lower-cased ("Value, line"); none checked
- *  reads "Hidden". */
-function multiSummary(options: string[], on: string[]): string {
-  const picked = options.filter((o) => on.includes(o));
-  if (picked.length === 0) return "Hidden";
-  return picked.map((o, i) => (i === 0 ? o : o.toLowerCase())).join(", ");
-}
-
-/** Check-list select: toggling an option keeps the menu open. */
-function MultiCheckControl(props: { options: string[]; on: string[]; width: number; onChange: (on: string[]) => void }) {
-  let btn: HTMLButtonElement | undefined;
-  const [anchor, setAnchor] = createSignal<Anchor | null>(null);
-  const toggle = (o: string) =>
-    props.onChange(props.on.includes(o) ? props.on.filter((x) => x !== o) : [...props.on, o]);
-  return (
-    <>
-      <button
-        ref={btn}
-        type="button"
-        class={`cp3-select${anchor() ? " is-open" : ""}`}
-        style={{ width: `${props.width}px` }}
-        aria-haspopup="menu"
-        aria-expanded={!!anchor()}
-        onClick={() => (anchor() ? setAnchor(null) : setAnchor(anchorOf(btn!)))}
-      >
-        <span class="cp3-select-value">{multiSummary(props.options, props.on)}</span>
-        <span class="cp3-select-caret"><Chevron /></span>
-      </button>
-      <Show when={anchor()} keyed>
-        {(a) => (
-          <OptionsMenu anchor={a} trigger={() => btn} onClose={() => { setAnchor(null); btn?.focus(); }} role="menu">
-            <For each={props.options}>
-              {(o, i) => (
-                <div
-                  ref={(el) => { if (i() === 0) queueMicrotask(() => el.focus()); }}
-                  role="menuitemcheckbox"
-                  aria-checked={props.on.includes(o)}
-                  tabIndex={0}
-                  class="cp3-menu-item cp3-menu-check"
-                  onClick={() => toggle(o)}
-                  onKeyDown={(e) => {
-                    // Space / Enter toggle the row, arrows move between rows.
-                    if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(o); }
-                    else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-                      e.preventDefault();
-                      const el = e.currentTarget;
-                      const next = (e.key === "ArrowDown" ? el.nextElementSibling : el.previousElementSibling) as HTMLElement | null;
-                      next?.focus();
-                    }
-                  }}
-                >
-                  <CheckBox checked={props.on.includes(o)} onToggle={() => {}} tabIndex={-1} />
-                  <span class="cp3-menu-title">{o}</span>
-                </div>
-              )}
-            </For>
-          </OptionsMenu>
-        )}
-      </Show>
-    </>
-  );
-}
-
-// ── Colour controls ──
-const STYLE_IDS: LineStyle[] = ["solid", "dashed", "dotted"];
-const lineCss = (width: number, style: number | undefined) =>
-  `${Math.max(1, width)}px ${style === 1 ? "dashed" : style === 2 ? "dotted" : "solid"}`;
-
-/** Fixed-position host for the shared colour panel, under its trigger. */
-function ColorPanelHost(props: { anchor: () => HTMLElement | undefined; onDismiss: () => void; children: JSX.Element }) {
-  let ref: HTMLDivElement | undefined;
-  createDismiss(() => [ref, props.anchor()], props.onDismiss);
-  const r = props.anchor()?.getBoundingClientRect();
-  const left = Math.max(8, Math.min(r?.left ?? 0, window.innerWidth - 258));
-  const top = Math.min((r?.bottom ?? 0) + 4, window.innerHeight - 120);
-  return (
-    <div ref={ref} class="dt-popover dlg-color-panel cp3-color-panel" style={{ position: "fixed", left: `${left}px`, top: `${top}px`, "max-height": `${window.innerHeight - top - 8}px` }}>
-      {props.children}
-    </div>
-  );
-}
-
-/** `color-select` (34 px box) or, with width / style, the 75 px colour +
- *  line button (`color-with-thickness-select`). `color === ""` = automatic. */
-export function ColorControl(props: {
-  color: string;
-  width?: number;
-  style?: number;
-  noOpacity?: boolean;
-  disabled?: boolean;
-  onChange: (patch: { color?: string; width?: number; style?: number }) => void;
-}) {
-  let btn: HTMLButtonElement | undefined;
-  const [open, setOpen] = createSignal(false);
-  const combined = () => props.width !== undefined || props.style !== undefined;
-  return (
-    <>
-      <button
-        ref={btn}
-        type="button"
-        class={`cp3-color${combined() ? " is-combined" : ""}${open() ? " is-open" : ""}${props.disabled ? " is-disabled" : ""}`}
-        data-name={combined() ? "color-with-thickness-select" : "color-select"}
-        aria-haspopup="dialog"
-        aria-expanded={open()}
-        disabled={props.disabled}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <Show when={props.color} fallback={<span class="cp3-swatch cp3-swatch-auto" />}>
-          <span class="cp3-swatch" style={{ "--swatch-color": props.color }} />
-        </Show>
-        <Show when={combined()}>
-          <span class="cp3-line" style={{ "border-top": lineCss(props.width ?? 1, props.style) }} />
-        </Show>
-      </button>
-      <Show when={open()}>
-        <ColorPanelHost anchor={() => btn} onDismiss={() => setOpen(false)}>
-          <ColorPanel
-            value={props.color || "#000000"}
-            noOpacity={props.noOpacity}
-            onChange={(c) => props.onChange({ color: c })}
-            onPicked={() => setOpen(false)}
-            thickness={props.width}
-            onThickness={props.width !== undefined ? (w) => { props.onChange({ width: w }); setOpen(false); } : undefined}
-            lineStyle={props.style !== undefined ? STYLE_IDS[props.style] : undefined}
-            onLineStyle={props.style !== undefined ? (s) => { props.onChange({ style: STYLE_IDS.indexOf(s) }); setOpen(false); } : undefined}
-          />
-        </ColorPanelHost>
-      </Show>
-    </>
-  );
-}
-
-// ── Number field (number input: 100×34, r8, spin buttons) ──
-export function NumberField(props: {
-  value: string;
-  unit?: string;
-  /** End slot inside the field (Slippage "ticks"). */
-  suffix?: string;
-  /** No up / down buttons. */
-  noSpin?: boolean;
-  /** Thousands separators in the shown value ("100,000"). */
-  grouping?: boolean;
-  disabled?: boolean;
-  width?: number;
-  num?: { min: number; max: number; step: number; int?: boolean };
-  onChange: (v: string) => void;
-}) {
-  const clamp = (n: number) => {
-    const r = props.num;
-    if (!r) return n;
-    let v = Math.max(r.min, Math.min(r.max, n));
-    if (r.int) v = Math.round(v);
-    return v;
-  };
-  const shown = () => (props.grouping && Number.isFinite(parseFloat(props.value)) ? Number(props.value).toLocaleString("en-US", { maximumFractionDigits: 8 }) : props.value);
-  const commit = (text: string, el?: HTMLInputElement) => {
-    const n = parseFloat(props.grouping ? text.replace(/,/g, "") : text);
-    if (!Number.isFinite(n)) { if (el) el.value = shown(); return; }
-    const v = String(Number(clamp(n).toFixed(8)));
-    props.onChange(v);
-    if (el) el.value = props.grouping ? Number(v).toLocaleString("en-US", { maximumFractionDigits: 8 }) : v;
-  };
-  const step = (dir: 1 | -1) => {
-    const n = parseFloat(props.value);
-    const s = props.num?.step ?? 1;
-    commit(String((Number.isFinite(n) ? n : 0) + dir * s));
-  };
-  return (
-    <span class="cp3-number-wrap">
-      <span class={`cp3-number${props.disabled ? " is-disabled" : ""}`} style={props.width ? { width: `${props.width}px` } : undefined}>
-        <input
-          type="text"
-          inputmode="decimal"
-          value={shown()}
-          disabled={props.disabled}
-          onChange={(e) => commit(e.currentTarget.value, e.currentTarget)}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowUp") { e.preventDefault(); step(1); }
-            else if (e.key === "ArrowDown") { e.preventDefault(); step(-1); }
-            else if (e.key === "Enter") commit(e.currentTarget.value, e.currentTarget);
-          }}
-        />
-        <Show when={props.suffix}><span class="cp3-suffix">{props.suffix}</span></Show>
-        <Show when={props.num && !props.disabled && !props.noSpin}>
-          <span class="cp3-spin">
-            <button type="button" tabIndex={-1} aria-label="Increase" class="cp3-spin-btn cp3-spin-up" onClick={() => step(1)}><Chevron /></button>
-            <button type="button" tabIndex={-1} aria-label="Decrease" class="cp3-spin-btn" onClick={() => step(-1)}><Chevron /></button>
-          </span>
-        </Show>
-      </span>
-      <Show when={props.unit}><span class="cp3-unit">{props.unit}</span></Show>
-    </span>
-  );
-}
 
 // Default control widths.
 const SELECT_W: Record<string, number> = {
@@ -467,7 +137,7 @@ export function ControlView(props: {
             );
           case "multicheck":
             return (
-              <MultiCheckControl
+              <MultiCheckSelect
                 options={c.c === "multicheck" ? c.options : []}
                 on={v.on}
                 width={selectWidth(props.rowId, c)}
@@ -813,8 +483,7 @@ function TemplateMenu(props: {
   onRemove: (name: string) => void;
   onClose: () => void;
 }) {
-  let ref: HTMLDivElement | undefined;
-  createDismiss(() => [ref, props.trigger()], props.onClose);
+  const popover = createPopover(props.trigger, { onClose: props.onClose, placement: false });
   const saveAs = () => {
     const names = props.templates.map((t) => t.name);
     const onSaveAs = props.onSaveAs;
@@ -834,7 +503,7 @@ function TemplateMenu(props: {
   };
   return (
     <div
-      ref={ref}
+      ref={popover}
       class="cp3-menu settings-template-menu"
       style={{ left: `${props.anchor.left}px`, bottom: `${window.innerHeight - props.anchor.top + 4}px` }}
       role="menu"

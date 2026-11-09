@@ -9,7 +9,7 @@
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
-import { CheckBox } from "../window/header/ChartPropertiesDialog";
+import { CheckBox } from "./form";
 
 export type ConfirmOptions = {
   /** Title (default "Confirmation"). */

@@ -6,7 +6,8 @@
 import { Show, type JSX } from "solid-js";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { applyOpacity, parseColor } from "../ColorPanel";
-import { CheckboxRow, ColorThicknessPicker, DialogColorButton, DialogRow, Dropdown, FontStyleToggles } from "./controls";
+import { DialogRow, FontStyleToggles } from "./controls";
+import { CheckField, ColorButton, NativeSelect } from "../../../components/form";
 import {
   capitalize,
   FONT_SIZES,
@@ -69,9 +70,9 @@ export function textTab(cx: SettingsCx): JSX.Element {
           <span class="drawing-settings-row-label">Text</span>
         </Show>
         <Show when={kind() !== "signpost"}>
-          <DialogColorButton color={textColorValue()} onColor={setTextColor} />
+          <ColorButton variant="drawing" color={textColorValue()} onColor={setTextColor} />
         </Show>
-        <Dropdown
+        <NativeSelect class="drawing-settings-select"
           value={String(textSize())}
           options={sizeOptions(FONT_SIZES, String(textSize()))}
           onChange={(v) => setTextSize(Number(v))}
@@ -93,12 +94,12 @@ export function textTab(cx: SettingsCx): JSX.Element {
           alignment options. */}
       <Show when={(LINE_LABEL_KINDS.has(kind()) && kind() !== "arrow-marker") || kind() === "price-note" || kind() === "rectangle"}>
         <DialogRow label="Text alignment">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={vertTitle(props.drawing.style.vertLabelsAlign ?? labelVertDefault(kind()), kind())}
             options={["Top", kind() === "rectangle" ? "Inside" : "Middle", "Bottom"]}
             onChange={(v) => patchStyle({ vertLabelsAlign: vertAlignFromTitle(v) })}
           />
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={capitalize(props.drawing.style.horzLabelsAlign ?? "center")}
             options={["Left", "Center", "Right"]}
             onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })}
@@ -108,7 +109,7 @@ export function textTab(cx: SettingsCx): JSX.Element {
       {/* Vertical line "Text orientation" (factory Vertical). */}
       <Show when={kind() === "vertical-line"}>
         <DialogRow label="Text orientation">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={props.drawing.style.textOrientation === "horizontal" ? "Horizontal" : "Vertical"}
             options={["Vertical", "Horizontal"]}
             onChange={(v) => patchStyle({ textOrientation: v === "Horizontal" ? "horizontal" : "vertical" })}
@@ -133,27 +134,27 @@ export function textBoxRows(cx: SettingsCx): JSX.Element {
     <>
       <div class="drawing-settings-row">
         <Show when={checked} fallback={<div class="drawing-settings-row-label">Background</div>}>
-          <CheckboxRow checked={kind() === "pin" ? st().fillBackground !== false : !!st().fillBackground} onChange={(v) => patchStyle({ fillBackground: v })} label="Background" />
+          <CheckField variant="drawing" checked={kind() === "pin" ? st().fillBackground !== false : !!st().fillBackground} onChange={(v) => patchStyle({ fillBackground: v })} label="Background" />
         </Show>
         <div class="drawing-settings-row-inputs">
-          <DialogColorButton color={bgColor()} onColor={setBg} />
+          <ColorButton variant="drawing" color={bgColor()} onColor={setBg} />
         </div>
       </div>
       <div class="drawing-settings-row">
         <Show when={checked} fallback={<div class="drawing-settings-row-label">Border</div>}>
-          <CheckboxRow checked={!!st().drawBorder} onChange={(v) => patchStyle({ drawBorder: v })} label="Border" />
+          <CheckField variant="drawing" checked={!!st().drawBorder} onChange={(v) => patchStyle({ drawBorder: v })} label="Border" />
         </Show>
         <div class="drawing-settings-row-inputs">
           <Show
             when={kind() === "callout"}
-            fallback={<DialogColorButton color={st().borderColor ?? TEXT_BORDER_DEFAULT[kind()] ?? st().color} onColor={(c) => patchStyle({ borderColor: c })} />}
+            fallback={<ColorButton variant="drawing" color={st().borderColor ?? TEXT_BORDER_DEFAULT[kind()] ?? st().color} onColor={(c) => patchStyle({ borderColor: c })} />}
           >
-            <ColorThicknessPicker color={st().borderColor ?? st().color} width={st().width} onColor={(c) => patchStyle({ borderColor: c })} onWidth={(w) => patchStyle({ width: w })} />
+            <ColorButton variant="drawing" color={st().borderColor ?? st().color} width={st().width} onColor={(c) => patchStyle({ borderColor: c })} onWidth={(w) => patchStyle({ width: w })} />
           </Show>
         </div>
       </div>
       <Show when={kind() === "text" || kind() === "callout"}>
-        <CheckboxRow checked={!!st().wordWrap} onChange={(v) => patchStyle({ wordWrap: v })} label="Text wrap" />
+        <CheckField variant="drawing" checked={!!st().wordWrap} onChange={(v) => patchStyle({ wordWrap: v })} label="Text wrap" />
       </Show>
     </>
   );

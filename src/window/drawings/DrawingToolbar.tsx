@@ -14,6 +14,7 @@ import { track } from "../../data/analytics";
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { SwitchMark } from "../../components/form";
 import {
   CURSOR_MODE_TOOL,
   CURSOR_TOOL_MODES,
@@ -764,9 +765,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => props.setMagnetSnapsToIndicators(!props.magnetSnapsToIndicators)}
               >
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Snap to indicators</span>
-                <span class={"ind3-switch" + (props.magnetSnapsToIndicators ? " is-on" : "")} aria-hidden="true">
-                  <span class="ind3-switch-thumb" />
-                </span>
+                <SwitchMark variant="toolbar" on={props.magnetSnapsToIndicators} />
               </button>
             </div>
           </Show>
@@ -941,9 +940,7 @@ export function DrawingToolbar(props: Props) {
                 onClick={() => { setRemoveMenuOpen(false); props.onToggleAlwaysRemoveLocked(); }}
               >
                 <span class="drawing-tool-submenu-label apply-overflow-tooltip">Always remove locked drawings</span>
-                <span class={"ind3-switch" + (props.alwaysRemoveLocked ? " is-on" : "")} aria-hidden="true">
-                  <span class="ind3-switch-thumb" />
-                </span>
+                <SwitchMark variant="toolbar" on={props.alwaysRemoveLocked} />
               </button>
             </div>
           </Show>

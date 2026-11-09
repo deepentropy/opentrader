@@ -6,7 +6,8 @@
 import { For, Show, type JSX } from "solid-js";
 import type { Time } from "lightweight-charts";
 import type { DataPoint, Drawing } from "lightweight-charts-drawing/core/types";
-import { DecimalInput, DialogRow } from "./controls";
+import { DialogRow } from "./controls";
+import { DecimalInput } from "../../../components/form";
 import { COORD_MODES } from "./kind-config";
 import { type SettingsCx } from "./context";
 

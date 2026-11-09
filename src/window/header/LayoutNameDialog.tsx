@@ -10,7 +10,7 @@
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import { CheckBox } from "./ChartPropertiesDialog";
+import { CheckBox } from "../../components/form";
 
 type Props = {
   title: string;

@@ -7,7 +7,8 @@ import { For, Show, type JSX } from "solid-js";
 import type { Drawing, LevelDef } from "lightweight-charts-drawing/core/types";
 import { VWAP_BAND_DEFAULTS } from "lightweight-charts-drawing/core/specs";
 import { levelFromPrice, positionLevels, positionRiskSize, POSITION_DEFAULTS } from "lightweight-charts-drawing/core/kinds/position";
-import { CheckboxRow, DecimalInput, DialogRow, Dropdown } from "./controls";
+import { DialogRow } from "./controls";
+import { CheckField, DecimalInput, NativeSelect } from "../../../components/form";
 import { VolumeProfileInputRows } from "./volume-profile";
 import { POSITION_KINDS, PRICE_SOURCE_LABELS, QTY_PRECISION_OPTIONS, VWAP_SOURCES } from "./kind-config";
 import { type SettingsCx } from "./context";
@@ -41,18 +42,18 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
         <DialogRow label="Lower Deviation">
           <DecimalInput narrow value={props.drawing.style.lowerDeviation ?? -2} onCommit={(v) => patchStyle({ lowerDeviation: v })} />
         </DialogRow>
-        <CheckboxRow
+        <CheckField variant="drawing"
           label="Use Upper Deviation"
           checked={props.drawing.style.useUpperDeviation !== false}
           onChange={(v) => patchStyle({ useUpperDeviation: v })}
         />
-        <CheckboxRow
+        <CheckField variant="drawing"
           label="Use Lower Deviation"
           checked={props.drawing.style.useLowerDeviation !== false}
           onChange={(v) => patchStyle({ useLowerDeviation: v })}
         />
         <DialogRow label="Source">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={PRICE_SOURCE_LABELS[props.drawing.style.regressionSource ?? "close"]}
             options={VWAP_SOURCES.map((k) => PRICE_SOURCE_LABELS[k])}
             onChange={(v) => {
@@ -100,7 +101,7 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
               }}
             />
           </Show>
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={props.drawing.style.riskDisplayMode === "money" ? moneyUnit() : "%"}
             options={["%", moneyUnit()]}
             onChange={(v) => setRiskMode(v === "%" ? "percents" : "money")}
@@ -147,7 +148,7 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
           }}
         </For>
         <DialogRow label="QTY precision">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={QTY_PRECISION_OPTIONS.find((o) => o.value === (props.drawing.style.qtyPrecision ?? "default"))?.label ?? "Default"}
             options={QTY_PRECISION_OPTIONS.map((o) => o.label)}
             onChange={(v) => {
@@ -165,7 +166,7 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
         {/* Study Inputs page: the group title is a 50 px row. */}
         <div class="drawing-settings-section-title tall">BANDS SETTINGS</div>
         <DialogRow label="Bands Calculation Mode">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={props.drawing.style.vwapBandsMode === "percent" ? "Percentage" : "Standard Deviation"}
             options={["Standard Deviation", "Percentage"]}
             onChange={(v) => patchStyle({ vwapBandsMode: v === "Percentage" ? "percent" : "stdev" })}
@@ -183,7 +184,7 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
             };
             return (
               <div class="drawing-settings-row">
-                <CheckboxRow checked={lvl.visible} onChange={(v) => patchBand({ visible: v })} label={`Bands Multiplier #${i() + 1}`} />
+                <CheckField variant="drawing" checked={lvl.visible} onChange={(v) => patchBand({ visible: v })} label={`Bands Multiplier #${i() + 1}`} />
                 <div class="drawing-settings-row-inputs">
                   <DecimalInput narrow value={lvl.coeff} onCommit={(v) => patchBand({ coeff: v })} />
                 </div>
@@ -195,7 +196,7 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
           group. */}
         <div class="drawing-settings-group-sep" />
         <DialogRow label="Source">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={PRICE_SOURCE_LABELS[props.drawing.style.vwapSource ?? "hlc3"]}
             options={VWAP_SOURCES.map((k) => PRICE_SOURCE_LABELS[k])}
             onChange={(v) => {

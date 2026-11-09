@@ -8,7 +8,7 @@
  */
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import { SelectControl } from "./ChartPropertiesDialog";
+import { SelectControl } from "../../components/form";
 import {
   CUSTOM_INTERVAL_TYPES,
   isValidCustomInterval,

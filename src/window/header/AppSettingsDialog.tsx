@@ -41,7 +41,7 @@ import {
   type LocalFolder,
 } from "../../data/local-folders";
 import { TIMEZONES } from "../../data/timezones";
-import { SelectControl } from "./ChartPropertiesDialog";
+import { CheckField, SelectControl } from "../../components/form";
 import { downloadDir } from "@tauri-apps/api/path";
 import { fundingStatus, type Funding } from "../../data/funding";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -135,30 +135,12 @@ const TABS: { id: AppSettingsTabId; label: string; icon: string }[] = [
   { id: "about", label: "About", icon: "settings-about" },
 ];
 
-const Check = () => (
-  <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-    <path fill="none" stroke="currentColor" stroke-width="2" d="m3.5 8 3 3 6-6.5" />
-  </svg>
-);
-
 function Section(props: { label: string; children: JSX.Element }) {
   return (
     <section class="app-settings-section">
       <label class="app-settings-section-label">{props.label}</label>
       <div class="app-settings-section-content">{props.children}</div>
     </section>
-  );
-}
-
-function Checkbox(props: { label: string; checked: boolean; onChange: () => void; disabled?: boolean }) {
-  return (
-    <label class={`app-settings-check${props.disabled ? " is-disabled" : ""}`}>
-      <input type="checkbox" checked={props.checked} disabled={props.disabled} onChange={props.onChange} />
-      <span class={`app-settings-checkbox${props.checked ? " is-checked" : ""}`}>
-        <Show when={props.checked}><Check /></Show>
-      </span>
-      <span class="app-settings-check-label">{props.label}</span>
-    </label>
   );
 }
 
@@ -234,7 +216,7 @@ function GeneralTab(props: { themeSetting: ThemeSetting; onThemeChange: (s: Them
   return (
     <>
       <Section label="CROSSHAIR">
-        <Checkbox label="Sync crosshair across windows" checked={settings.crosshairSync} onChange={() => setSettings("crosshairSync", !settings.crosshairSync)} />
+        <CheckField variant="settings" label="Sync crosshair across windows" checked={settings.crosshairSync} onChange={() => setSettings("crosshairSync", !settings.crosshairSync)} />
       </Section>
       <Section label="THEME"><ThemePicker setting={props.themeSetting} onChange={props.onThemeChange} /></Section>
       <Section label="DOWNLOADS">
@@ -319,7 +301,7 @@ function TabsTab(props: { parts: TabTitlePartState[]; onChange: (p: TabTitlePart
                 class={`app-settings-drag-row${drag()?.id === p.id ? " is-dragging" : ""}`}
                 style={rowStyle(i())}
               >
-                <Checkbox label={TAB_TITLE_LABEL[p.id]} checked={p.visible} onChange={() => toggle(p.id)} />
+                <CheckField variant="settings" label={TAB_TITLE_LABEL[p.id]} checked={p.visible} onChange={() => toggle(p.id)} />
                 <span
                   class="app-settings-drag-handle"
                   aria-label="Drag to reorder"
@@ -346,14 +328,14 @@ function AlertsTab() {
   return (
     <>
       <Section label="NOTIFICATIONS">
-        <Checkbox
+        <CheckField variant="settings"
           label="Use system notifications for alerts"
           checked={alertSettings.systemNotifications()}
           onChange={() => alertSettings.setSystemNotifications(!alertSettings.systemNotifications())}
         />
       </Section>
       <Section label="SOUND">
-        <Checkbox
+        <CheckField variant="settings"
           label="Play a sound when an alert fires"
           checked={alertSettings.soundEnabled()}
           onChange={() => alertSettings.setSoundEnabled(!alertSettings.soundEnabled())}
@@ -457,7 +439,7 @@ function ServiceTab() {
       </Section>
       <Show when={analyticsAvailable()}>
         <Section label="PRIVACY">
-          <Checkbox
+          <CheckField variant="settings"
             label="Send usage statistics"
             checked={analyticsEnabled()}
             onChange={() => setAnalyticsEnabled(!analyticsEnabled())}
@@ -514,7 +496,7 @@ function NetworkTab() {
   return (
     <div class="app-settings-network">
       <Section label="PROXY SETTINGS">
-        <Checkbox label="Use a proxy server" checked={!!proxy().enabled} onChange={() => change({ enabled: !proxy().enabled })} />
+        <CheckField variant="settings" label="Use a proxy server" checked={!!proxy().enabled} onChange={() => change({ enabled: !proxy().enabled })} />
       </Section>
       <Section label="PROXY PROTOCOL">
         <SelectControl
@@ -613,7 +595,7 @@ http_headers = { "Authorization" = "Bearer ${s.token}" }` },
         {(s) => (
           <>
             <Section label="CODING AGENTS">
-              <Checkbox label="Allow coding agents to use OpenTrader" checked={s().enabled} onChange={() => take(commands.agentServerSetEnabled(!s().enabled))} />
+              <CheckField variant="settings" label="Allow coding agents to use OpenTrader" checked={s().enabled} onChange={() => take(commands.agentServerSetEnabled(!s().enabled))} />
               <div class="app-settings-note">
                 An agent such as Claude Code or Codex can then read your charts, add indicators, write and test scripts, run strategies and draw, on this
                 computer only. It cannot place orders. Anyone with the token below can do the same while OpenTrader runs.
@@ -765,7 +747,7 @@ function LocalFolderCard(props: { folder: LocalFolder }) {
           onPick={(z) => setLocalFolderOptions(f().path, { timeZone: z })}
         />
       </div>
-      <Checkbox
+      <CheckField variant="settings"
         label="Remove a series when its file is deleted from the folder"
         checked={f().removeDeleted}
         onChange={() => setLocalFolderOptions(f().path, { removeDeleted: !f().removeDeleted })}

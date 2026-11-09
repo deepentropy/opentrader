@@ -12,6 +12,7 @@ import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid
 import { Portal } from "solid-js/web";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
+import { SwitchMark } from "../../components/form";
 import { favoriteIntervals, toggleFavoriteInterval } from "../chart/interval-favorites";
 import { favoriteChartTypes, toggleFavoriteChartType } from "../chart/chart-type-favorites";
 import { CHART_TYPE_IDS, type ChartTypeId } from "../chart/chart-types";
@@ -427,10 +428,7 @@ export function HeaderMenu(props: Props) {
                     />
                   </svg>
                 </span>
-                <span
-                  class={"header-menu-switch" + (layoutSync()[item.key] ? " is-on" : "")}
-                  aria-hidden="true"
-                />
+                <SwitchMark variant="header" on={layoutSync()[item.key]} />
               </button>
             )}
           </For>

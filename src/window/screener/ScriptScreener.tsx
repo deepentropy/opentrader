@@ -53,7 +53,7 @@ import { scriptScreenStore, type ScriptScreen, type ScriptSource } from "../../d
 import { getIndicatorEntry, indicatorName, isLibraryIndicatorId, loadIndicatorLibrary } from "../chart/indicators/registry";
 import { isUserIndicatorId } from "../chart/indicators/user-scripts";
 import { ChartContextMenu, type CtxNode } from "../chart/ChartContextMenu";
-import { CheckBox, SelectControl } from "../header/ChartPropertiesDialog";
+import { CheckBox, CheckMarkBox, SelectControl } from "../../components/form";
 import { defaultIndicatorOptions } from "../chart/indicators/indicator-options";
 import { IndicatorsDialog } from "../header/IndicatorsDialog";
 import { IndicatorSettingsDialog } from "../chart/IndicatorSettingsDialog";
@@ -937,11 +937,7 @@ export function ScriptScreener(props: Props) {
                     aria-checked={on()}
                     onClick={() => setColumns((keys) => (on() ? keys.filter((k) => k !== c.key) : [...keys, c.key]))}
                   >
-                    <span class="scr-checkbox" classList={{ "is-checked": on() }}>
-                      <Show when={on()}>
-                        <Icon name="scr-check" size={18} />
-                      </Show>
-                    </span>
+                    <CheckMarkBox variant="screener" checked={on()} />
                     <span class="scr-item-text">
                       <span class="scr-item-title">{c.title}</span>
                     </span>

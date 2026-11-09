@@ -8,7 +8,8 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import type { IntervalVisibility, UnitVisibility } from "lightweight-charts-drawing/core/types";
-import { CheckBox, FormRowView, SelectControl } from "../../header/ChartPropertiesDialog";
+import { FormRowView } from "../../header/ChartPropertiesDialog";
+import { CheckBox, SelectControl } from "../../../components/form";
 import { SymbolSearchDialog } from "../../header/SymbolSearchDialog";
 import { UnitRow, VIS_UNITS } from "../IndicatorSettingsDialog";
 import { keyOf, type CtrlValue } from "../../header/chart-settings";

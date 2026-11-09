@@ -7,7 +7,7 @@
  */
 import { createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
-import { SelectControl } from "./ChartPropertiesDialog";
+import { SelectControl } from "../../components/form";
 import {
   buildChartCsv,
   exportableCharts,

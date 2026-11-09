@@ -10,7 +10,8 @@ import { applyOpacity, parseColor } from "../ColorPanel";
 import { LineEndSelect, LineGlyphSelect } from "../LineEndSelect";
 import { positionStatOn, POSITION_STATS } from "lightweight-charts-drawing/core/kinds/position";
 import { TransparencySlider } from "../ImageDialog";
-import { CheckboxRow, ColorThicknessPicker, DialogColorButton, DialogRow, Dropdown, FontStyleToggles, StatsMultiSelect } from "./controls";
+import { DialogRow, FontStyleToggles, StatsMultiSelect } from "./controls";
+import { CheckField, ColorButton, NativeSelect } from "../../../components/form";
 import { BackgroundColorRow, GannBoxStyleRows, GannStyleRows, ImageStyleRows, LevelGridRows, SpeedFanStyleRows } from "./style-sections";
 import { VolumeProfileStyleRows } from "./volume-profile";
 import {
@@ -45,7 +46,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
 
   const lineRow = (label: string, ends: boolean, noStyle = false) => (
     <DialogRow label={label}>
-      <ColorThicknessPicker
+      <ColorButton variant="drawing"
         color={props.drawing.style.color}
         width={props.drawing.style.width}
         lineStyle={noStyle ? undefined : props.drawing.style.lineStyle}
@@ -107,9 +108,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
               <DialogRow label={title}>
                 <Show
                   when={k === "sourceBackColor"}
-                  fallback={<DialogColorButton color={st()[k] ?? def} onColor={(c) => patchStyle({ [k]: c } as Partial<DrawingStyle>)} />}
+                  fallback={<ColorButton variant="drawing" color={st()[k] ?? def} onColor={(c) => patchStyle({ [k]: c } as Partial<DrawingStyle>)} />}
                 >
-                  <DialogColorButton
+                  <ColorButton variant="drawing"
                     color={applyOpacity(parseColor(st()[k] ?? def).hex, 100 - (st().transparency ?? 10))}
                     onColor={(c) => {
                       const pc = parseColor(c);
@@ -127,8 +128,8 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <DialogRow label="Label">
             <div class="drawing-settings-text-format">
-              <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <ColorButton variant="drawing" color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
               <FontStyleToggles bold={!!st().bold} italic={!!st().italic} onBold={(v) => patchStyle({ bold: v })} onItalic={(v) => patchStyle({ italic: v })} />
             </div>
           </DialogRow>
@@ -137,7 +138,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "lineNoStyle":
         return (
           <DialogRow label={label}>
-            <ColorThicknessPicker color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
+            <ColorButton variant="drawing" color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
           </DialogRow>
         );
       // Colour-only rows (arrow marks "Arrow", flag "Flag", arrow marker /
@@ -146,30 +147,30 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "color":
         return (
           <DialogRow label={label}>
-            <DialogColorButton color={st().color} onColor={(c) => patchStyle({ color: c })} />
+            <ColorButton variant="drawing" color={st().color} onColor={(c) => patchStyle({ color: c })} />
           </DialogRow>
         );
       // Highlighter "Thickness" (factory 20px).
       case "thickness":
         return (
           <DialogRow label="Thickness">
-            <Dropdown value={`${st().width}px`} options={sizeOptions(HIGHLIGHTER_PX, `${st().width}px`)} onChange={(v) => patchStyle({ width: parseInt(v, 10) })} />
+            <NativeSelect class="drawing-settings-select" value={`${st().width}px`} options={sizeOptions(HIGHLIGHTER_PX, `${st().width}px`)} onChange={(v) => patchStyle({ width: parseInt(v, 10) })} />
           </DialogRow>
         );
       case "extend":
         return extendRow();
       case "middlePoint":
-        return <CheckboxRow checked={!!st().showMiddlePoint} onChange={(v) => patchStyle({ showMiddlePoint: v })} label="Middle point" />;
+        return <CheckField variant="drawing" checked={!!st().showMiddlePoint} onChange={(v) => patchStyle({ showMiddlePoint: v })} label="Middle point" />;
       case "priceLabel":
-        return <CheckboxRow checked={!!st().showPriceLabels} onChange={(v) => patchStyle({ showPriceLabels: v })} label={label} />;
+        return <CheckField variant="drawing" checked={!!st().showPriceLabels} onChange={(v) => patchStyle({ showPriceLabels: v })} label={label} />;
       case "timeLabel":
-        return <CheckboxRow checked={!!st().showTime} onChange={(v) => patchStyle({ showTime: v })} label="Time label" />;
+        return <CheckField variant="drawing" checked={!!st().showTime} onChange={(v) => patchStyle({ showTime: v })} label="Time label" />;
       // Vertical line "Extend" (extendLine, factory on): draws the line
       // through every pane of the chart.
       case "vpStyle":
         return <VolumeProfileStyleRows kind={props.drawing.kind} style={st()} patchStyle={patchStyle} />;
       case "vlineExtend":
-        return <CheckboxRow checked={st().extendLine !== false} onChange={(v) => patchStyle({ extendLine: v })} label="Extend" />;
+        return <CheckField variant="drawing" checked={st().extendLine !== false} onChange={(v) => patchStyle({ extendLine: v })} label="Extend" />;
       // Elliott "Wave" (showWave, factory on): the wave lines; off = the
       // labels only.
       // Elliott "Wave": [x] showWave + the wave line width select
@@ -177,7 +178,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "wave":
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={st().showWave !== false} onChange={(v) => patchStyle({ showWave: v })} label="Wave" />
+            <CheckField variant="drawing" checked={st().showWave !== false} onChange={(v) => patchStyle({ showWave: v })} label="Wave" />
             <div class="drawing-settings-row-inputs">
               <LineGlyphSelect kind="width" value={st().width} options={[1, 2, 3, 4]} onChange={(v) => patchStyle({ width: v })} />
             </div>
@@ -196,8 +197,8 @@ export function styleTab(cx: SettingsCx): JSX.Element {
               />
             </DialogRow>
             <DialogRow label="Stats position">
-              <Dropdown
-                wide
+              <NativeSelect
+                class="drawing-settings-select wide"
                 value={STATS_POSITIONS[st().statsPosition ?? (kind() === "info-line" ? 1 : 2)]}
                 options={[...STATS_POSITIONS]}
                 onChange={(v) => {
@@ -206,7 +207,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
                 }}
               />
             </DialogRow>
-            <CheckboxRow checked={!!st().showStats} onChange={(v) => patchStyle({ showStats: v })} label="Always show stats" />
+            <CheckField variant="drawing" checked={!!st().showStats} onChange={(v) => patchStyle({ showStats: v })} label="Always show stats" />
             <div class="drawing-settings-group-sep" />
           </>
         );
@@ -217,9 +218,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         const patchMl = (patch: Partial<RegressionLine>) => patchStyle({ rectMiddleLine: { ...ml(), ...patch } });
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={ml().visible} onChange={(v) => patchMl({ visible: v })} label="Middle line" />
+            <CheckField variant="drawing" checked={ml().visible} onChange={(v) => patchMl({ visible: v })} label="Middle line" />
             <div class="drawing-settings-row-inputs">
-              <ColorThicknessPicker color={ml().color} width={ml().width} lineStyle={ml().style} onColor={(c) => patchMl({ color: c })} onWidth={(w) => patchMl({ width: w })} onLineStyle={(x) => patchMl({ style: x })} />
+              <ColorButton variant="drawing" color={ml().color} width={ml().width} lineStyle={ml().style} onColor={(c) => patchMl({ color: c })} onWidth={(w) => patchMl({ width: w })} onLineStyle={(x) => patchMl({ style: x })} />
             </div>
           </div>
         );
@@ -227,8 +228,8 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "degree":
         return (
           <DialogRow label="Degree">
-            <Dropdown
-              mid
+            <NativeSelect
+              class="drawing-settings-select mid"
               value={ELLIOTT_DEGREE_NAMES[st().elliottDegree ?? ELLIOTT_DEFAULT_DEGREE]}
               options={[...ELLIOTT_DEGREE_NAMES]}
               onChange={(v) => {
@@ -252,9 +253,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
           };
           return (
             <div class="drawing-settings-row">
-              <CheckboxRow checked={ln().visible} onChange={(v) => patchLn({ visible: v })} label={`${side === "upper" ? "Upper" : "Lower"} band #${i + 1}`} />
+              <CheckField variant="drawing" checked={ln().visible} onChange={(v) => patchLn({ visible: v })} label={`${side === "upper" ? "Upper" : "Lower"} band #${i + 1}`} />
               <div class="drawing-settings-row-inputs">
-                <ColorThicknessPicker color={ln().color} width={ln().width} onColor={(c) => patchLn({ color: c })} onWidth={(w) => patchLn({ width: w })} />
+                <ColorButton variant="drawing" color={ln().color} width={ln().width} onColor={(c) => patchLn({ color: c })} onWidth={(w) => patchLn({ width: w })} />
               </div>
             </div>
           );
@@ -264,9 +265,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
             {bandRow(0, "lower")}
             {bandRow(0, "upper")}
             <div class="drawing-settings-row">
-              <CheckboxRow checked={st().fillBackground !== false} onChange={(v) => patchStyle({ fillBackground: v })} label="Background #1" />
+              <CheckField variant="drawing" checked={st().fillBackground !== false} onChange={(v) => patchStyle({ fillBackground: v })} label="Background #1" />
               <div class="drawing-settings-row-inputs">
-                <DialogColorButton
+                <ColorButton variant="drawing"
                   color={applyOpacity(parseColor(st().backgroundColor ?? "#4caf50").hex, 100 - (st().transparency ?? 95))}
                   onColor={(c) => {
                     const pc = parseColor(c);
@@ -279,7 +280,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
             {bandRow(1, "upper")}
             {bandRow(2, "lower")}
             {bandRow(2, "upper")}
-            <CheckboxRow checked={st().vwapPriceLabel !== false} onChange={(v) => patchStyle({ vwapPriceLabel: v })} label="Price label" />
+            <CheckField variant="drawing" checked={st().vwapPriceLabel !== false} onChange={(v) => patchStyle({ vwapPriceLabel: v })} label="Price label" />
           </>
         );
       }
@@ -292,9 +293,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         const patchTl = (x: Partial<RegressionLine>) => patchStyle({ fibTrendLine: { ...tl(), ...x } });
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={tl().visible} onChange={(v) => patchTl({ visible: v })} label="Trend line" />
+            <CheckField variant="drawing" checked={tl().visible} onChange={(v) => patchTl({ visible: v })} label="Trend line" />
             <div class="drawing-settings-row-inputs">
-              <ColorThicknessPicker color={tl().color} width={tl().width} lineStyle={tl().style} onColor={(c) => patchTl({ color: c })} onWidth={(w) => patchTl({ width: w })} onLineStyle={(x) => patchTl({ style: x })} />
+              <ColorButton variant="drawing" color={tl().color} width={tl().width} lineStyle={tl().style} onColor={(c) => patchTl({ color: c })} onWidth={(w) => patchTl({ width: w })} onLineStyle={(x) => patchTl({ style: x })} />
             </div>
           </div>
         );
@@ -307,17 +308,17 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <>
             <DialogRow label="Background">
-              <DialogColorButton color={st().backgroundColor ?? "#0f0f0f"} onColor={(c) => patchStyle({ backgroundColor: c })} />
+              <ColorButton variant="drawing" color={st().backgroundColor ?? "#0f0f0f"} onColor={(c) => patchStyle({ backgroundColor: c })} />
             </DialogRow>
             <DialogRow label="Border">
-              <DialogColorButton color={st().color} onColor={(c) => patchStyle({ color: c })} />
+              <ColorButton variant="drawing" color={st().color} onColor={(c) => patchStyle({ color: c })} />
             </DialogRow>
             <DialogRow label="Text">
-              <DialogColorButton color={st().textColor ?? "#dbdbdb"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 14)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 14))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <ColorButton variant="drawing" color={st().textColor ?? "#dbdbdb"} onColor={(c) => patchStyle({ textColor: c })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().fontSize ?? 14)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 14))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
             </DialogRow>
             <DialogRow label="Text alignment">
-              <Dropdown value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
+              <NativeSelect class="drawing-settings-select" value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
             </DialogRow>
           </>
         );
@@ -331,7 +332,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
             <DialogRow label="Background">
               <For each={[["sectorColor1", "#2962ff"], ["sectorColor2", "#9c27b0"]] as const}>
                 {([k, dflt]) => (
-                  <DialogColorButton
+                  <ColorButton variant="drawing"
                     color={applyOpacity(parseColor(st()[k] ?? dflt).hex, 100 - (st().transparency ?? 80))}
                     onColor={(c) => {
                       const pc = parseColor(c);
@@ -342,7 +343,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
               </For>
             </DialogRow>
             <DialogRow label="Border">
-              <ColorThicknessPicker color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
+              <ColorButton variant="drawing" color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
             </DialogRow>
           </>
         );
@@ -357,25 +358,25 @@ export function styleTab(cx: SettingsCx): JSX.Element {
           />
         );
       case "reverse":
-        return <CheckboxRow checked={!!st().reverse} onChange={(v) => patchStyle({ reverse: v })} label="Reverse" />;
+        return <CheckField variant="drawing" checked={!!st().reverse} onChange={(v) => patchStyle({ reverse: v })} label="Reverse" />;
       // Fib channel label rows: Prices, Levels (Values / Percents),
       // Labels (horizontal + vertical), Font size (8 ... 24).
       case "fibChannelLabels":
         return (
           <>
-            <CheckboxRow checked={st().showPrices !== false} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
+            <CheckField variant="drawing" checked={st().showPrices !== false} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
             <div class="drawing-settings-row">
-              <CheckboxRow checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />
+              <CheckField variant="drawing" checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />
               <div class="drawing-settings-row-inputs">
-                <Dropdown value={st().fibLevelsAsPercents ? "Percents" : "Values"} options={["Values", "Percents"]} onChange={(v) => patchStyle({ fibLevelsAsPercents: v === "Percents" })} />
+                <NativeSelect class="drawing-settings-select" value={st().fibLevelsAsPercents ? "Percents" : "Values"} options={["Values", "Percents"]} onChange={(v) => patchStyle({ fibLevelsAsPercents: v === "Percents" })} />
               </div>
             </div>
             <DialogRow label="Labels">
-              <Dropdown value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
-              <Dropdown value={VERT_ALIGN_TITLE[st().vertLabelsAlign ?? "middle"]} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertLabelsAlign: vertAlignFromTitle(v) })} />
+              <NativeSelect class="drawing-settings-select" value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
+              <NativeSelect class="drawing-settings-select" value={VERT_ALIGN_TITLE[st().vertLabelsAlign ?? "middle"]} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertLabelsAlign: vertAlignFromTitle(v) })} />
             </DialogRow>
             <DialogRow label="Font size">
-              <Dropdown value={String(st().labelFontSize ?? 12)} options={["8", "10", "11", "12", "14", "16", "18", "20", "22", "24"]} onChange={(v) => patchStyle({ labelFontSize: Number(v) })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().labelFontSize ?? 12)} options={["8", "10", "11", "12", "14", "16", "18", "20", "22", "24"]} onChange={(v) => patchStyle({ labelFontSize: Number(v) })} />
             </DialogRow>
           </>
         );
@@ -385,51 +386,51 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "fibLabels":
         return (
           <>
-            <CheckboxRow checked={st().showPrices !== false} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
+            <CheckField variant="drawing" checked={st().showPrices !== false} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
             <div class="drawing-settings-row">
-              <CheckboxRow checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />
+              <CheckField variant="drawing" checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />
               <div class="drawing-settings-row-inputs">
-                <Dropdown value={st().fibLevelsAsPercents ? "Percents" : "Values"} options={["Values", "Percents"]} onChange={(v) => patchStyle({ fibLevelsAsPercents: v === "Percents" })} />
+                <NativeSelect class="drawing-settings-select" value={st().fibLevelsAsPercents ? "Percents" : "Values"} options={["Values", "Percents"]} onChange={(v) => patchStyle({ fibLevelsAsPercents: v === "Percents" })} />
               </div>
             </div>
             <DialogRow label="Labels">
-              <Dropdown value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
-              <Dropdown value={VERT_ALIGN_TITLE[st().vertLabelsAlign ?? "middle"]} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertLabelsAlign: vertAlignFromTitle(v) })} />
+              <NativeSelect class="drawing-settings-select" value={capitalize(st().horzLabelsAlign ?? "left")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
+              <NativeSelect class="drawing-settings-select" value={VERT_ALIGN_TITLE[st().vertLabelsAlign ?? "middle"]} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertLabelsAlign: vertAlignFromTitle(v) })} />
             </DialogRow>
             <div class="drawing-settings-row">
-              <CheckboxRow checked={st().showText !== false} onChange={(v) => patchStyle({ showText: v })} label="Text" />
+              <CheckField variant="drawing" checked={st().showText !== false} onChange={(v) => patchStyle({ showText: v })} label="Text" />
               <div class="drawing-settings-row-inputs">
-                <Dropdown value={capitalize(st().horzTextAlign ?? "center")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzTextAlign: v.toLowerCase() as "left" | "center" | "right" })} />
-                <Dropdown value={VERT_ALIGN_TITLE[st().vertTextAlign ?? "middle"]} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertTextAlign: vertAlignFromTitle(v) })} />
+                <NativeSelect class="drawing-settings-select" value={capitalize(st().horzTextAlign ?? "center")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzTextAlign: v.toLowerCase() as "left" | "center" | "right" })} />
+                <NativeSelect class="drawing-settings-select" value={VERT_ALIGN_TITLE[st().vertTextAlign ?? "middle"]} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertTextAlign: vertAlignFromTitle(v) })} />
               </div>
             </div>
             <DialogRow label="Font size">
-              <Dropdown value={String(st().labelFontSize ?? 12)} options={["8", "10", "11", "12", "14", "16", "18", "20", "22", "24"]} onChange={(v) => patchStyle({ labelFontSize: Number(v) })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().labelFontSize ?? 12)} options={["8", "10", "11", "12", "14", "16", "18", "20", "22", "24"]} onChange={(v) => patchStyle({ labelFontSize: Number(v) })} />
             </DialogRow>
           </>
         );
       // Fib circles / speed arcs / wedge "Levels" (showCoeffs, factory on).
       case "showCoeffs":
-        return <CheckboxRow checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />;
+        return <CheckField variant="drawing" checked={st().showCoeffs !== false} onChange={(v) => patchStyle({ showCoeffs: v })} label="Levels" />;
       case "coeffsAsPercents":
-        return <CheckboxRow checked={!!st().fibLevelsAsPercents} onChange={(v) => patchStyle({ fibLevelsAsPercents: v })} label="Coeffs as percents" />;
+        return <CheckField variant="drawing" checked={!!st().fibLevelsAsPercents} onChange={(v) => patchStyle({ fibLevelsAsPercents: v })} label="Coeffs as percents" />;
       case "fullCircles":
-        return <CheckboxRow checked={!!st().fullCircles} onChange={(v) => patchStyle({ fullCircles: v })} label="Full circles" />;
+        return <CheckField variant="drawing" checked={!!st().fullCircles} onChange={(v) => patchStyle({ fullCircles: v })} label="Full circles" />;
       case "counterclockwise":
-        return <CheckboxRow checked={!!st().counterclockwise} onChange={(v) => patchStyle({ counterclockwise: v })} label="Counterclockwise" />;
+        return <CheckField variant="drawing" checked={!!st().counterclockwise} onChange={(v) => patchStyle({ counterclockwise: v })} label="Counterclockwise" />;
       // Gann fan "Labels" (showLabels, factory on).
       case "labels":
-        return <CheckboxRow checked={st().showLabels !== false} onChange={(v) => patchStyle({ showLabels: v })} label="Labels" />;
+        return <CheckField variant="drawing" checked={st().showLabels !== false} onChange={(v) => patchStyle({ showLabels: v })} label="Labels" />;
       // Pitchfork "Extend lines" (extendLines: the lines also run back).
       case "pitchforkExtend":
-        return <CheckboxRow checked={!!st().extendLines} onChange={(v) => patchStyle({ extendLines: v })} label="Extend lines" />;
+        return <CheckField variant="drawing" checked={!!st().extendLines} onChange={(v) => patchStyle({ extendLines: v })} label="Extend lines" />;
       // Pitchfork "Style": Original / Schiff / Modified Schiff / Inside
       // (one tool in the UI; OpenTrader switches between its four pitchfork
       // kinds).
       case "pitchforkStyle":
         return (
           <DialogRow label="Style">
-            <Dropdown
+            <NativeSelect class="drawing-settings-select"
               value={PITCHFORK_STYLES.find(([k]) => k === kind())?.[1] ?? "Original"}
               options={PITCHFORK_STYLES.map(([, t]) => t)}
               onChange={(v) => {
@@ -442,7 +443,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       // fibLevelsBasedOnLogScale: level prices in ln(price) space, only
       // on a logarithmic price scale.
       case "fibLog":
-        return <CheckboxRow checked={!!st().fibLevelsBasedOnLogScale} onChange={(v) => patchStyle({ fibLevelsBasedOnLogScale: v })} label="Fib levels based on log scale" />;
+        return <CheckField variant="drawing" checked={!!st().fibLevelsBasedOnLogScale} onChange={(v) => patchStyle({ fibLevelsBasedOnLogScale: v })} label="Fib levels based on log scale" />;
       // Regression trend Style: Base / Up / Down (check box + line).
       case "regressionLines":
         return (
@@ -455,9 +456,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
               };
               return (
                 <div class="drawing-settings-row">
-                  <CheckboxRow checked={cur().visible} onChange={(v) => patchLine({ visible: v })} label={title} />
+                  <CheckField variant="drawing" checked={cur().visible} onChange={(v) => patchLine({ visible: v })} label={title} />
                   <div class="drawing-settings-row-inputs">
-                    <ColorThicknessPicker color={cur().color} width={cur().width} lineStyle={cur().style} onColor={(c) => patchLine({ color: c })} onWidth={(w) => patchLine({ width: w })} onLineStyle={(x) => patchLine({ style: x })} />
+                    <ColorButton variant="drawing" color={cur().color} width={cur().width} lineStyle={cur().style} onColor={(c) => patchLine({ color: c })} onWidth={(w) => patchLine({ width: w })} onLineStyle={(x) => patchLine({ style: x })} />
                   </div>
                 </div>
               );
@@ -465,15 +466,15 @@ export function styleTab(cx: SettingsCx): JSX.Element {
           </For>
         );
       case "regressionExtend":
-        return <CheckboxRow checked={!!st().extendRight} onChange={(v) => patchStyle({ extendRight: v })} label="Extend lines" />;
+        return <CheckField variant="drawing" checked={!!st().extendRight} onChange={(v) => patchStyle({ extendRight: v })} label="Extend lines" />;
       case "pearsons":
-        return <CheckboxRow checked={st().showPearsons !== false} onChange={(v) => patchStyle({ showPearsons: v })} label="Pearson's R" />;
+        return <CheckField variant="drawing" checked={st().showPearsons !== false} onChange={(v) => patchStyle({ showPearsons: v })} label="Pearson's R" />;
       // Bars pattern: Mode, Mirrored, Flipped.
       case "barPattern":
         return (
           <>
             <DialogRow label="Mode">
-              <Dropdown
+              <NativeSelect class="drawing-settings-select"
                 value={BAR_PATTERN_MODE_LABELS[Math.max(0, BAR_PATTERN_MODE_VALUES.indexOf((st().patternMode ?? "bars") as (typeof BAR_PATTERN_MODE_VALUES)[number]))]}
                 options={[...BAR_PATTERN_MODE_LABELS]}
                 onChange={(v) => {
@@ -482,8 +483,8 @@ export function styleTab(cx: SettingsCx): JSX.Element {
                 }}
               />
             </DialogRow>
-            <CheckboxRow checked={!!st().mirrored} onChange={(v) => patchStyle({ mirrored: v })} label="Mirrored" />
-            <CheckboxRow checked={!!st().flipped} onChange={(v) => patchStyle({ flipped: v })} label="Flipped" />
+            <CheckField variant="drawing" checked={!!st().mirrored} onChange={(v) => patchStyle({ mirrored: v })} label="Mirrored" />
+            <CheckField variant="drawing" checked={!!st().flipped} onChange={(v) => patchStyle({ flipped: v })} label="Flipped" />
           </>
         );
       // Ghost feed Style: Candles (up / down), [x] Borders (up / down),
@@ -494,20 +495,20 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <>
             <DialogRow label="Candles">
-              <DialogColorButton color={cs().upColor} onColor={(c) => patchCandle({ upColor: c })} />
-              <DialogColorButton color={cs().downColor} onColor={(c) => patchCandle({ downColor: c })} />
+              <ColorButton variant="drawing" color={cs().upColor} onColor={(c) => patchCandle({ upColor: c })} />
+              <ColorButton variant="drawing" color={cs().downColor} onColor={(c) => patchCandle({ downColor: c })} />
             </DialogRow>
             <div class="drawing-settings-row">
-              <CheckboxRow checked={cs().drawBorder} onChange={(v) => patchCandle({ drawBorder: v })} label="Borders" />
+              <CheckField variant="drawing" checked={cs().drawBorder} onChange={(v) => patchCandle({ drawBorder: v })} label="Borders" />
               <div class="drawing-settings-row-inputs">
-                <DialogColorButton color={cs().borderUpColor} onColor={(c) => patchCandle({ borderUpColor: c })} />
-                <DialogColorButton color={cs().borderDownColor} onColor={(c) => patchCandle({ borderDownColor: c })} />
+                <ColorButton variant="drawing" color={cs().borderUpColor} onColor={(c) => patchCandle({ borderUpColor: c })} />
+                <ColorButton variant="drawing" color={cs().borderDownColor} onColor={(c) => patchCandle({ borderDownColor: c })} />
               </div>
             </div>
             <div class="drawing-settings-row">
-              <CheckboxRow checked={cs().drawWick} onChange={(v) => patchCandle({ drawWick: v })} label="Wick" />
+              <CheckField variant="drawing" checked={cs().drawWick} onChange={(v) => patchCandle({ drawWick: v })} label="Wick" />
               <div class="drawing-settings-row-inputs">
-                <DialogColorButton color={cs().wickColor} onColor={(c) => patchCandle({ wickColor: c })} />
+                <ColorButton variant="drawing" color={cs().wickColor} onColor={(c) => patchCandle({ wickColor: c })} />
               </div>
             </div>
             <DialogRow label="Transparency">
@@ -521,10 +522,10 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "ftzLabels":
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={st().showLabels !== false} onChange={(v) => patchStyle({ showLabels: v })} label="Labels" />
+            <CheckField variant="drawing" checked={st().showLabels !== false} onChange={(v) => patchStyle({ showLabels: v })} label="Labels" />
             <div class="drawing-settings-row-inputs">
-              <Dropdown value={capitalize(st().horzLabelsAlign ?? "right")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
-              <Dropdown value={capitalize(st().vertLabelsAlign ?? "bottom")} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertLabelsAlign: v.toLowerCase() as "top" | "middle" | "bottom" })} />
+              <NativeSelect class="drawing-settings-select" value={capitalize(st().horzLabelsAlign ?? "right")} options={["Left", "Center", "Right"]} onChange={(v) => patchStyle({ horzLabelsAlign: v.toLowerCase() as "left" | "center" | "right" })} />
+              <NativeSelect class="drawing-settings-select" value={capitalize(st().vertLabelsAlign ?? "bottom")} options={["Top", "Middle", "Bottom"]} onChange={(v) => patchStyle({ vertLabelsAlign: v.toLowerCase() as "top" | "middle" | "bottom" })} />
             </div>
           </div>
         );
@@ -535,19 +536,19 @@ export function styleTab(cx: SettingsCx): JSX.Element {
           <>
             <DialogRow label="Label text">
               <div class="drawing-settings-text-format">
-                <DialogColorButton color={st().priceLabelTextColor ?? "#ffffff"} onColor={(c) => patchStyle({ priceLabelTextColor: c })} />
-                <Dropdown value={String(st().priceLabelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().priceLabelFontSize ?? 12))} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
+                <ColorButton variant="drawing" color={st().priceLabelTextColor ?? "#ffffff"} onColor={(c) => patchStyle({ priceLabelTextColor: c })} />
+                <NativeSelect class="drawing-settings-select" value={String(st().priceLabelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().priceLabelFontSize ?? 12))} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
                 <FontStyleToggles bold={!!st().priceLabelBold} italic={!!st().priceLabelItalic} onBold={(v) => patchStyle({ priceLabelBold: v })} onItalic={(v) => patchStyle({ priceLabelItalic: v })} />
               </div>
             </DialogRow>
             <DialogRow label="Label background">
-              <DialogColorButton color={st().priceLabelBackgroundColor ?? "#2962ff"} onColor={(c) => patchStyle({ priceLabelBackgroundColor: c })} />
+              <ColorButton variant="drawing" color={st().priceLabelBackgroundColor ?? "#2962ff"} onColor={(c) => patchStyle({ priceLabelBackgroundColor: c })} />
             </DialogRow>
             <DialogRow label="Label border">
-              <DialogColorButton color={st().priceLabelBorderColor ?? "#2962ff"} onColor={(c) => patchStyle({ priceLabelBorderColor: c })} />
+              <ColorButton variant="drawing" color={st().priceLabelBorderColor ?? "#2962ff"} onColor={(c) => patchStyle({ priceLabelBorderColor: c })} />
             </DialogRow>
             <DialogRow label="Line color">
-              <DialogColorButton color={st().color} onColor={(c) => patchStyle({ color: c })} />
+              <ColorButton variant="drawing" color={st().color} onColor={(c) => patchStyle({ color: c })} />
             </DialogRow>
           </>
         );
@@ -557,12 +558,12 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <>
             <DialogRow label="Lines">
-              <ColorThicknessPicker color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
+              <ColorButton variant="drawing" color={st().color} width={st().width} onColor={(c) => patchStyle({ color: c })} onWidth={(w) => patchStyle({ width: w })} />
             </DialogRow>
             <For each={[["Stop color", "stopColor", "stopTransparency", "#f23645"], ["Target color", "targetColor", "targetTransparency", "#089981"]] as const}>
               {([title, ck, tk, dflt]) => (
                 <DialogRow label={title}>
-                  <DialogColorButton
+                  <ColorButton variant="drawing"
                     color={applyOpacity(parseColor(st()[ck] ?? dflt).hex, 100 - (st()[tk] ?? 80))}
                     onColor={(c) => {
                       const pc = parseColor(c);
@@ -574,11 +575,11 @@ export function styleTab(cx: SettingsCx): JSX.Element {
             </For>
             <DialogRow label="Text">
               <div class="drawing-settings-text-format">
-                <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-                <Dropdown value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+                <ColorButton variant="drawing" color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
+                <NativeSelect class="drawing-settings-select" value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
               </div>
             </DialogRow>
-            <CheckboxRow checked={st().showPriceLabels !== false} onChange={(v) => patchStyle({ showPriceLabels: v })} label="Price labels" />
+            <CheckField variant="drawing" checked={st().showPriceLabels !== false} onChange={(v) => patchStyle({ showPriceLabels: v })} label="Price labels" />
             <div class="drawing-settings-section-title">INFO</div>
             <DialogRow label="Stats">
               <StatsMultiSelect
@@ -587,8 +588,8 @@ export function styleTab(cx: SettingsCx): JSX.Element {
                 onToggle={(k, v) => patchStyle({ positionStats: { ...st().positionStats, [k]: v } })}
               />
             </DialogRow>
-            <CheckboxRow checked={!!st().compactStats} onChange={(v) => patchStyle({ compactStats: v })} label="Compact stats mode" />
-            <CheckboxRow checked={!!st().showStats} onChange={(v) => patchStyle({ showStats: v })} label="Always show stats" />
+            <CheckField variant="drawing" checked={!!st().compactStats} onChange={(v) => patchStyle({ compactStats: v })} label="Compact stats mode" />
+            <CheckField variant="drawing" checked={!!st().showStats} onChange={(v) => patchStyle({ showStats: v })} label="Always show stats" />
             <div class="drawing-settings-group-sep" />
           </>
         );
@@ -596,10 +597,10 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "channelPrices":
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={!!st().showPrices} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
+            <CheckField variant="drawing" checked={!!st().showPrices} onChange={(v) => patchStyle({ showPrices: v })} label="Prices" />
             <div class="drawing-settings-row-inputs drawing-settings-text-format">
-              <DialogColorButton color={st().priceLabelTextColor ?? st().color} onColor={(c) => patchStyle({ priceLabelTextColor: c })} />
-              <Dropdown value={String(st().priceLabelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().priceLabelFontSize ?? 12))} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
+              <ColorButton variant="drawing" color={st().priceLabelTextColor ?? st().color} onColor={(c) => patchStyle({ priceLabelTextColor: c })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().priceLabelFontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().priceLabelFontSize ?? 12))} onChange={(v) => patchStyle({ priceLabelFontSize: Number(v) })} />
               <FontStyleToggles bold={!!st().priceLabelBold} italic={!!st().priceLabelItalic} onBold={(v) => patchStyle({ priceLabelBold: v })} onItalic={(v) => patchStyle({ priceLabelItalic: v })} />
             </div>
           </div>
@@ -635,13 +636,13 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <>
             <DialogRow label="Label">
-              <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <ColorButton variant="drawing" color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().fontSize ?? 12)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 12))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
             </DialogRow>
             <div class="drawing-settings-row">
-              <CheckboxRow checked={st().fillLabelBackground !== false} onChange={(v) => patchStyle({ fillLabelBackground: v })} label="Label background" />
+              <CheckField variant="drawing" checked={st().fillLabelBackground !== false} onChange={(v) => patchStyle({ fillLabelBackground: v })} label="Label background" />
               <div class="drawing-settings-row-inputs">
-                <DialogColorButton color={st().labelBackgroundColor ?? "#2e2e2e"} onColor={(c) => patchStyle({ labelBackgroundColor: c })} />
+                <ColorButton variant="drawing" color={st().labelBackgroundColor ?? "#2e2e2e"} onColor={(c) => patchStyle({ labelBackgroundColor: c })} />
               </div>
             </div>
             <div class="drawing-settings-group-sep" />
@@ -652,9 +653,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "rangeBorder":
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={!!st().drawBorder} onChange={(v) => patchStyle({ drawBorder: v })} label="Border" />
+            <CheckField variant="drawing" checked={!!st().drawBorder} onChange={(v) => patchStyle({ drawBorder: v })} label="Border" />
             <div class="drawing-settings-row-inputs">
-              <ColorThicknessPicker color={st().borderColor ?? st().color} width={st().borderWidth ?? 1} onColor={(c) => patchStyle({ borderColor: c })} onWidth={(w) => patchStyle({ borderWidth: w })} />
+              <ColorButton variant="drawing" color={st().borderColor ?? st().color} width={st().borderWidth ?? 1} onColor={(c) => patchStyle({ borderColor: c })} onWidth={(w) => patchStyle({ borderWidth: w })} />
             </div>
           </div>
         );
@@ -662,9 +663,9 @@ export function styleTab(cx: SettingsCx): JSX.Element {
       case "emojiPin":
         return (
           <div class="drawing-settings-row">
-            <CheckboxRow checked={!!st().showImage} onChange={(v) => patchStyle({ showImage: v })} label="Emoji pin" />
+            <CheckField variant="drawing" checked={!!st().showImage} onChange={(v) => patchStyle({ showImage: v })} label="Emoji pin" />
             <div class="drawing-settings-row-inputs">
-              <DialogColorButton color={st().plateColor ?? "#2962ff"} onColor={(c) => patchStyle({ plateColor: c })} />
+              <ColorButton variant="drawing" color={st().plateColor ?? "#2962ff"} onColor={(c) => patchStyle({ plateColor: c })} />
             </div>
           </div>
         );
@@ -674,19 +675,19 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <>
             <div class="drawing-settings-row">
-              <CheckboxRow checked={st().fillBackground !== false} onChange={(v) => patchStyle({ fillBackground: v })} label="Label background" />
+              <CheckField variant="drawing" checked={st().fillBackground !== false} onChange={(v) => patchStyle({ fillBackground: v })} label="Label background" />
               <div class="drawing-settings-row-inputs">
-                <DialogColorButton color={st().backgroundColor ?? "#2e2e2e"} onColor={(c) => patchStyle({ backgroundColor: c })} />
+                <ColorButton variant="drawing" color={st().backgroundColor ?? "#2e2e2e"} onColor={(c) => patchStyle({ backgroundColor: c })} />
               </div>
             </div>
             <div class="drawing-settings-row">
-              <CheckboxRow checked={!!st().drawBorder} onChange={(v) => patchStyle({ drawBorder: v })} label="Label border" />
+              <CheckField variant="drawing" checked={!!st().drawBorder} onChange={(v) => patchStyle({ drawBorder: v })} label="Label border" />
               <div class="drawing-settings-row-inputs">
-                <DialogColorButton color={st().borderColor ?? "#4a4a4a"} onColor={(c) => patchStyle({ borderColor: c })} />
+                <ColorButton variant="drawing" color={st().borderColor ?? "#4a4a4a"} onColor={(c) => patchStyle({ borderColor: c })} />
               </div>
             </div>
             <DialogRow label="Line color">
-              <DialogColorButton color={st().color} onColor={(c) => patchStyle({ color: c })} />
+              <ColorButton variant="drawing" color={st().color} onColor={(c) => patchStyle({ color: c })} />
             </DialogRow>
           </>
         );
@@ -696,11 +697,11 @@ export function styleTab(cx: SettingsCx): JSX.Element {
         return (
           <>
             <DialogRow label="Text">
-              <DialogColorButton color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
-              <Dropdown value={String(st().fontSize ?? 14)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 14))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
+              <ColorButton variant="drawing" color={st().textColor ?? "#ffffff"} onColor={(c) => patchStyle({ textColor: c })} />
+              <NativeSelect class="drawing-settings-select" value={String(st().fontSize ?? 14)} options={sizeOptions(FONT_SIZES, String(st().fontSize ?? 14))} onChange={(v) => patchStyle({ fontSize: Number(v) })} />
             </DialogRow>
             <DialogRow label="Background">
-              <DialogColorButton
+              <ColorButton variant="drawing"
                 color={applyOpacity(parseColor(st().backgroundColor ?? st().color).hex, 100 - (st().transparency ?? 0))}
                 onColor={(c) => {
                   const pc = parseColor(c);
@@ -709,7 +710,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
               />
             </DialogRow>
             <DialogRow label="Border">
-              <DialogColorButton color={st().borderColor ?? st().color} onColor={(c) => patchStyle({ borderColor: c })} />
+              <ColorButton variant="drawing" color={st().borderColor ?? st().color} onColor={(c) => patchStyle({ borderColor: c })} />
             </DialogRow>
           </>
         );

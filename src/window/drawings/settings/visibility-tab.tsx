@@ -3,9 +3,9 @@
  * visibility matrix (Ticks, one row per unit with a from / to range,
  * Ranges) and its range slider.
  */
-import { createSignal, For, Show, type JSX } from "solid-js";
+import { createSignal, For, type JSX } from "solid-js";
 import { DEFAULT_VISIBILITY, type Drawing, type IntervalVisibility, type UnitVisibility } from "lightweight-charts-drawing/core/types";
-import { CheckboxRow } from "./controls";
+import { CheckField } from "../../../components/form";
 import { type SettingsCx } from "./context";
 
 export function visibilityTab(cx: SettingsCx): JSX.Element {
@@ -21,7 +21,7 @@ export function visibilityTab(cx: SettingsCx): JSX.Element {
       {/* Matrix: checkbox + from/to inputs per unit row; Ticks and
           Ranges carry the checkbox only. 50px row pitch, 70×28 inputs.
           Lock/Hide moved out (toolbar + context menu). */}
-      <CheckboxRow
+      <CheckField variant="drawing"
         checked={vis().ticks}
         onChange={(v) => patchVisibility({ ticks: v })}
         label="Ticks"
@@ -45,7 +45,7 @@ export function visibilityTab(cx: SettingsCx): JSX.Element {
           />
         )}
       </For>
-      <CheckboxRow
+      <CheckField variant="drawing"
         checked={vis().ranges}
         onChange={(v) => patchVisibility({ ranges: v })}
         label="Ranges"
@@ -76,21 +76,13 @@ export function UnitVisibilityRow(props: {
   };
   return (
     <div class="drawing-settings-row drawing-settings-vis-row">
-      <label class="drawing-settings-checkbox-row drawing-settings-vis-check">
-        <span class={"drawing-settings-checkbox-box" + (props.unit.on ? " checked" : "")}>
-          <Show when={props.unit.on}>
-            <svg viewBox="0 0 16 16" width="12" height="12">
-              <path fill="currentColor" d="M14.18 4.18 6 12.36l-4.18-4.18 1.4-1.41L6 9.54l6.77-6.78 1.41 1.42Z" />
-            </svg>
-          </Show>
-          <input
-            type="checkbox"
-            checked={props.unit.on}
-            onChange={(e) => props.onChange({ ...props.unit, on: e.currentTarget.checked })}
-          />
-        </span>
-        <span class="drawing-settings-checkbox-label">{props.label}</span>
-      </label>
+      <CheckField
+        variant="drawing"
+        class="drawing-settings-vis-check"
+        checked={props.unit.on}
+        onChange={(on) => props.onChange({ ...props.unit, on })}
+        label={props.label}
+      />
       <div class="drawing-settings-row-inputs drawing-settings-vis-range">
         <input
           type="text"

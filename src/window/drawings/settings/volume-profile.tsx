@@ -5,7 +5,8 @@
 import { Show } from "solid-js";
 import type { DrawingKind, DrawingStyle, VolumeProfileStyle } from "lightweight-charts-drawing/core/types";
 import { volumeProfileStyle } from "lightweight-charts-drawing/core/specs";
-import { CheckboxRow, ColorThicknessPicker, DecimalInput, DialogColorButton, DialogRow, Dropdown } from "./controls";
+import { DialogRow } from "./controls";
+import { CheckField, ColorButton, DecimalInput, NativeSelect } from "../../../components/form";
 
 // ── Volume profile tools (reference VbPFixed / VbPAnchored study) ──────────
 
@@ -23,18 +24,18 @@ export function VolumeProfileInputRows(props: { kind: DrawingKind; style: Drawin
   return (
     <>
       <DialogRow label="Rows Layout">
-        <Dropdown
+        <NativeSelect
+          class="drawing-settings-select mid"
           value={labelOf(VP_ROWS_LAYOUTS, vp().rowsLayout)}
           options={VP_ROWS_LAYOUTS.map(([, l]) => l)}
           onChange={(l) => { const v = valueOf(VP_ROWS_LAYOUTS, l); if (v) patch({ rowsLayout: v }); }}
-          mid
         />
       </DialogRow>
       <DialogRow label="Row Size">
         <DecimalInput value={vp().rows} onCommit={(v) => patch({ rows: int(v, 1, 1000000) })} />
       </DialogRow>
       <DialogRow label="Volume">
-        <Dropdown
+        <NativeSelect class="drawing-settings-select"
           value={labelOf(VP_VOLUMES, vp().volume)}
           options={VP_VOLUMES.map(([, l]) => l)}
           onChange={(l) => { const v = valueOf(VP_VOLUMES, l); if (v) patch({ volume: v }); }}
@@ -44,7 +45,7 @@ export function VolumeProfileInputRows(props: { kind: DrawingKind; style: Drawin
         <DecimalInput value={vp().vaVolume} onCommit={(v) => patch({ vaVolume: int(v, 0, 100) })} />
       </DialogRow>
       <Show when={props.kind === "fixed-range-volume-profile"}>
-        <CheckboxRow checked={vp().extendRight} onChange={(v) => patch({ extendRight: v })} label="Extend Right" />
+        <CheckField variant="drawing" checked={vp().extendRight} onChange={(v) => patch({ extendRight: v })} label="Extend Right" />
       </Show>
     </>
   );
@@ -59,9 +60,9 @@ export function VolumeProfileStyleRows(props: { kind: DrawingKind; style: Drawin
   const patch = (p: Partial<VolumeProfileStyle>) => props.patchStyle({ vp: { ...vp(), ...p } });
   const lineRow = (title: string, key: "vah" | "val" | "poc" | "developingPoc") => (
     <div class="drawing-settings-row">
-      <CheckboxRow checked={vp()[key].visible} onChange={(v) => patch({ [key]: { ...vp()[key], visible: v } })} label={title} />
+      <CheckField variant="drawing" checked={vp()[key].visible} onChange={(v) => patch({ [key]: { ...vp()[key], visible: v } })} label={title} />
       <div class="drawing-settings-row-inputs">
-        <ColorThicknessPicker
+        <ColorButton variant="drawing"
           color={vp()[key].color}
           width={vp()[key].width}
           lineStyle={vp()[key].style}
@@ -76,17 +77,17 @@ export function VolumeProfileStyleRows(props: { kind: DrawingKind; style: Drawin
     <div class="drawing-settings-row is-child">
       <div class="drawing-settings-row-label">{title}</div>
       <div class="drawing-settings-row-inputs">
-        <DialogColorButton color={vp()[key]} onColor={(c) => patch({ [key]: c })} />
+        <ColorButton variant="drawing" color={vp()[key]} onColor={(c) => patch({ [key]: c })} />
       </div>
     </div>
   );
   return (
     <>
-      <CheckboxRow checked={vp().visible} onChange={(v) => patch({ visible: v })} label="Volume profile" />
+      <CheckField variant="drawing" checked={vp().visible} onChange={(v) => patch({ visible: v })} label="Volume profile" />
       <div class="drawing-settings-row is-child">
-        <CheckboxRow checked={vp().showValues} onChange={(v) => patch({ showValues: v })} label="Values" />
+        <CheckField variant="drawing" checked={vp().showValues} onChange={(v) => patch({ showValues: v })} label="Values" />
         <div class="drawing-settings-row-inputs">
-          <DialogColorButton color={vp().valuesColor} onColor={(c) => patch({ valuesColor: c })} />
+          <ColorButton variant="drawing" color={vp().valuesColor} onColor={(c) => patch({ valuesColor: c })} />
         </div>
       </div>
       <div class="drawing-settings-row is-child">
@@ -98,7 +99,7 @@ export function VolumeProfileStyleRows(props: { kind: DrawingKind; style: Drawin
       <div class="drawing-settings-row is-child">
         <div class="drawing-settings-row-label">Placement</div>
         <div class="drawing-settings-row-inputs">
-          <Dropdown
+          <NativeSelect class="drawing-settings-select"
             value={vp().placement === "right" ? "Right" : "Left"}
             options={["Right", "Left"]}
             onChange={(v) => patch({ placement: v === "Right" ? "right" : "left" })}
@@ -115,13 +116,13 @@ export function VolumeProfileStyleRows(props: { kind: DrawingKind; style: Drawin
       {lineRow("Developing POC", "developingPoc")}
       {/* Developing VA: one row for the VA high and low plots. */}
       <div class="drawing-settings-row">
-        <CheckboxRow
+        <CheckField variant="drawing"
           checked={vp().developingVah.visible}
           onChange={(v) => patch({ developingVah: { ...vp().developingVah, visible: v }, developingVal: { ...vp().developingVal, visible: v } })}
           label="Developing VA"
         />
         <div class="drawing-settings-row-inputs">
-          <ColorThicknessPicker
+          <ColorButton variant="drawing"
             color={vp().developingVah.color}
             width={vp().developingVah.width}
             lineStyle={vp().developingVah.style}
@@ -134,7 +135,7 @@ export function VolumeProfileStyleRows(props: { kind: DrawingKind; style: Drawin
       <div class="drawing-settings-row">
         <div class="drawing-settings-row-label">Histogram Box</div>
         <div class="drawing-settings-row-inputs">
-          <DialogColorButton color={vp().boxColor} onColor={(c) => patch({ boxColor: c })} />
+          <ColorButton variant="drawing" color={vp().boxColor} onColor={(c) => patch({ boxColor: c })} />
         </div>
       </div>
     </>

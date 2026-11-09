@@ -8,7 +8,7 @@ import { showConfirm } from "../../components/Dialogs";
 import { alertStore, type AlertOperator } from "../../data/alert-store";
 import { OPERATOR_LABELS } from "../../data/alert-condition";
 import { ensureNotificationPermission } from "../../data/alert-delivery";
-import { CheckBox, SelectControl } from "../header/ChartPropertiesDialog";
+import { CheckBox, SelectControl } from "../../components/form";
 
 const OPS: AlertOperator[] = ["screen_enter", "screen_exit"];
 

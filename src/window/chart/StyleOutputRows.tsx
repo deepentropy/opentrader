@@ -7,7 +7,7 @@
  * under the output's check row, 26 px in ("Color 0", "Up", "Body"), with an 8 px gap after the group.
  */
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
-import { CheckBox, ColorControl, NumberField, SelectControl } from "../header/ChartPropertiesDialog";
+import { CheckBox, ColorControl, NumberField, SelectControl } from "../../components/form";
 import type { PlotStyleOverride } from "./indicators/indicator-layer";
 import type { ShapeLocation, ShapeStyle, StyleItem } from "./indicators/style-outputs";
 
