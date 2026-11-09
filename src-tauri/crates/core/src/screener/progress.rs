@@ -5,6 +5,7 @@
  * while the panel waits.
  */
 use anyhow::{Context, Result};
+use crate::sync::LockExt;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -50,16 +51,16 @@ impl Downloads {
             total: AtomicU64::new(0),
             done: AtomicBool::new(false),
         });
-        self.0.lock().expect("screener downloads lock").push(d.clone());
+        self.0.locked().push(d.clone());
         d
     }
 
     pub fn clear(&self) {
-        self.0.lock().expect("screener downloads lock").clear();
+        self.0.locked().clear();
     }
 
     pub fn progress(&self) -> ScreenerProgress {
-        let list = self.0.lock().expect("screener downloads lock");
+        let list = self.0.locked();
         let mut received = 0u64;
         let mut total = Some(0u64);
         let mut active = Vec::new();

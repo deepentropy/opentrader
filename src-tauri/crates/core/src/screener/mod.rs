@@ -23,6 +23,7 @@ pub mod table;
 pub mod technicals;
 
 use crate::data::gateway;
+use crate::sync::{LockExt, RwLockExt};
 use crate::data::market_rest::{self, MarketRow, RefTicker};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -94,7 +95,7 @@ pub struct Screener {
 
 impl Screener {
     pub fn table(&self) -> Arc<Table> {
-        self.inner.table.read().expect("screener table lock").clone().unwrap_or_else(|| Arc::new(Table::empty()))
+        self.inner.table.read_locked().clone().unwrap_or_else(|| Arc::new(Table::empty()))
     }
 
     pub fn status(&self) -> ScreenerStatus {
@@ -110,7 +111,7 @@ impl Screener {
 
     /// Register a panel; starts the poll task when it is the first one.
     pub fn open(&self, app: HostRef, owner: String) -> ScreenerStatus {
-        let mut owners = self.inner.owners.lock().expect("screener owners lock");
+        let mut owners = self.inner.owners.locked();
         owners.insert(owner);
         if !self.inner.running.swap(true, Ordering::SeqCst) {
             let inner = self.inner.clone();
@@ -124,7 +125,7 @@ impl Screener {
     /// columns join the table from its next update (the closes file is fetched first when needed).
     pub fn request_custom(&self, ids: Vec<String>) -> Vec<String> {
         let ok: Vec<String> = ids.into_iter().filter(|id| closes::custom_id(id).is_some()).collect();
-        self.inner.custom.lock().expect("screener custom lock").extend(ok.iter().cloned());
+        self.inner.custom.locked().extend(ok.iter().cloned());
         ok
     }
 
@@ -135,7 +136,7 @@ impl Screener {
 
     /// Unregister a panel; the task stops (and leaves the live feed) when none is left.
     pub fn close(&self, owner: &str) {
-        self.inner.owners.lock().expect("screener owners lock").remove(owner);
+        self.inner.owners.locked().remove(owner);
         self.inner.closed.notify_one();
     }
 }
@@ -314,7 +315,7 @@ impl Sources {
 }
 
 async fn run(app: HostRef, inner: Arc<Inner>) {
-    let mut version = inner.table.read().expect("screener table lock").as_ref().map_or(0, |t| t.version);
+    let mut version = inner.table.read_locked().as_ref().map_or(0, |t| t.version);
     let mut src = Sources::from_cache();
     let feed_url = feed_url();
     let mut feed: Option<live::Feed> = None;
@@ -326,7 +327,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
     let mut first_rest_download: Option<Arc<progress::Download>> = None;
 
     loop {
-        let none_left = inner.owners.lock().expect("screener owners lock").is_empty();
+        let none_left = inner.owners.locked().is_empty();
         if none_left {
             // Leaving the feed lets the gateway stop polling when no app is left.
             if let Some(f) = feed.take() {
@@ -334,7 +335,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
             }
             inner.running.store(false, Ordering::SeqCst);
             // A panel opened during the close: carry on unless its task started.
-            let reopened = !inner.owners.lock().expect("screener owners lock").is_empty();
+            let reopened = !inner.owners.locked().is_empty();
             if reopened && !inner.running.swap(true, Ordering::SeqCst) {
                 continue;
             }
@@ -342,12 +343,12 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         }
         let started = Instant::now();
         let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64);
-        let wanted: Vec<String> = inner.custom.lock().expect("screener custom lock").iter().cloned().collect();
+        let wanted: Vec<String> = inner.custom.locked().iter().cloned().collect();
         src.start(today, &wanted, &inner.downloads);
 
         // No table yet: the REST snapshot starts now and races the feed's connection. Either can take from 1 s to
         // over 25 s when the gateway is slow (measured 03/11/2026); the first to arrive fills the panel.
-        let no_table = inner.table.read().expect("screener table lock").is_none();
+        let no_table = inner.table.read_locked().is_none();
         if no_table && feed.is_none() && first_rest.is_none() && feed_url.is_some() {
             let d = inner.downloads.start("market");
             first_rest_download = Some(d.clone());
@@ -455,11 +456,11 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                 if t.complete {
                     inner.downloads.clear();
                 }
-                *inner.table.write().expect("screener table lock") = Some(t);
+                *inner.table.write_locked() = Some(t);
                 update
             }
             Err(e) => {
-                let t = inner.table.read().expect("screener table lock").clone();
+                let t = inner.table.read_locked().clone();
                 ScreenerUpdate {
                     version,
                     updated_ms: t.as_ref().and_then(|t| t.updated_ms),

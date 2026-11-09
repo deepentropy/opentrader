@@ -270,6 +270,7 @@ fn parse_trade(ev: &serde_json::Value) -> Option<TradeTick> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sync::LockExt;
 
     #[test]
     fn stream_data_messages_parse() {
@@ -294,7 +295,7 @@ mod tests {
     struct Recorder(std::sync::Mutex<Vec<(&'static str, serde_json::Value)>>);
     impl crate::host::Host for Recorder {
         fn emit_value(&self, name: &'static str, payload: serde_json::Value) {
-            self.0.lock().unwrap().push((name, payload));
+            self.0.locked().push((name, payload));
         }
     }
 
@@ -304,7 +305,7 @@ mod tests {
     impl crate::host::Host for Quotes {
         fn emit_value(&self, _: &'static str, _: serde_json::Value) {}
         fn on_quote(&self, _symbol: &str, last: f64, minute: Option<&Candle>) {
-            self.0.lock().unwrap().push((last, minute.map(|b| (b.time, b.high, b.low))));
+            self.0.locked().push((last, minute.map(|b| (b.time, b.high, b.low))));
         }
     }
 
@@ -319,7 +320,7 @@ mod tests {
         p.trade(trade(11.0, Some(60.0)));
         p.trade(trade(9.0, Some(120.0)));
         p.trade(trade(8.0, None));
-        let got = quotes.0.lock().unwrap().clone();
+        let got = quotes.0.locked().clone();
         assert_eq!(
             got,
             vec![
@@ -340,7 +341,7 @@ mod tests {
     fn pending_sends_the_newest_bar_per_symbol_and_closed_bars() {
         let rec = std::sync::Arc::new(Recorder(Default::default()));
         let host: HostRef = rec.clone();
-        let sent = |rec: &Recorder| rec.0.lock().unwrap().drain(..).map(|(n, v)| (n, v["symbol"].as_str().unwrap().to_string(), v["time"].as_f64(), v["close"].as_f64())).collect::<Vec<_>>();
+        let sent = |rec: &Recorder| rec.0.locked().drain(..).map(|(n, v)| (n, v["symbol"].as_str().unwrap().to_string(), v["time"].as_f64(), v["close"].as_f64())).collect::<Vec<_>>();
         let mut p = Pending::new(&host);
         for c in [2.0, 3.0, 4.0] {
             p.minute(minute("A", 60.0, c));
@@ -369,15 +370,15 @@ mod tests {
         p.trade(trade(1.0));
         p.trade(trade(2.0));
         p.flush();
-        assert!(rec.0.lock().unwrap().is_empty());
+        assert!(rec.0.locked().is_empty());
         // the trade interval is over
         p.trades_sent = Instant::now() - TRADE_FLUSH;
         p.flush();
-        let out: Vec<_> = rec.0.lock().unwrap().drain(..).map(|(n, v)| (n, v["price"].as_f64())).collect();
+        let out: Vec<_> = rec.0.locked().drain(..).map(|(n, v)| (n, v["price"].as_f64())).collect();
         assert_eq!(out, vec![("trade-tick", Some(2.0))]);
         // the session ends: what is left is sent
         p.trade(trade(3.0));
         drop(p);
-        assert_eq!(rec.0.lock().unwrap().len(), 1);
+        assert_eq!(rec.0.locked().len(), 1);
     }
 }

@@ -4,6 +4,7 @@
  * (Credential Manager, Keychain, Secret Service). Where that store isn't available it lasts until the app closes.
  */
 use opentrader_core::net::{self, ProxySettings};
+use opentrader_core::sync::LockExt;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
@@ -57,7 +58,7 @@ fn write_file(app: &AppHandle, file: &SavedFile) -> Result<(), String> {
 fn save(app: &AppHandle, settings: &ProxySettings) -> Result<(), String> {
     let stored = store_password(app, &settings.password);
     let saved = stored.is_ok();
-    *UNSAVED_PASSWORD.lock().unwrap() = (!saved).then(|| settings.password.clone());
+    *UNSAVED_PASSWORD.locked() = (!saved).then(|| settings.password.clone());
     let mut settings = settings.clone();
     let has_password = saved && !settings.password.is_empty();
     settings.password.clear();
@@ -75,7 +76,7 @@ fn load(app: &AppHandle) -> ProxySettings {
         }
         return settings;
     }
-    if let Some(password) = UNSAVED_PASSWORD.lock().unwrap().clone() {
+    if let Some(password) = UNSAVED_PASSWORD.locked().clone() {
         settings.password = password;
     } else if file.has_password {
         match credential(app).and_then(|entry| entry.get_password()) {
@@ -112,7 +113,7 @@ pub fn set_proxy_settings(app: AppHandle, settings: ProxySettings) -> Result<(),
 #[specta::specta]
 pub fn reset_proxy_settings(app: AppHandle) -> Result<(), String> {
     net::set_proxy(&ProxySettings::default()).map_err(|e| format!("{e:#}"))?;
-    *UNSAVED_PASSWORD.lock().unwrap() = None;
+    *UNSAVED_PASSWORD.locked() = None;
     if let Ok(dir) = app.path().app_config_dir() {
         let _ = std::fs::remove_file(dir.join(FILE));
     }

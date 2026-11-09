@@ -3,6 +3,7 @@
 //! applies at once: the clients are built again and the open streams reconnect.
 
 use anyhow::{anyhow, bail, Context, Result};
+use crate::sync::RwLockExt;
 use base64::Engine as _;
 use reqwest::{Client, ClientBuilder, Proxy, Url};
 use serde::{Deserialize, Serialize};
@@ -95,7 +96,7 @@ pub fn set_proxy(settings: &ProxySettings) -> Result<()> {
     }
     let next = url.map(|url| Active { settings: settings.clone(), url });
     {
-        let mut cur = active().write().unwrap();
+        let mut cur = active().write_locked();
         let same = match (&*cur, &next) {
             (None, None) => true,
             (Some(a), Some(b)) => a.settings == b.settings,
@@ -112,7 +113,7 @@ pub fn set_proxy(settings: &ProxySettings) -> Result<()> {
 
 /// The proxy's URL with its credentials, for clients built elsewhere.
 pub fn proxy_url() -> Option<Url> {
-    active().read().unwrap().as_ref().map(|a| a.url.clone())
+    active().read_locked().as_ref().map(|a| a.url.clone())
 }
 
 /// Fires when the proxy changes: a stream connects again through the new one.
@@ -134,7 +135,7 @@ impl SharedClient {
 
     pub fn get(&self) -> Client {
         let current = *generation().borrow();
-        if let Some((built, client)) = &*self.slot.read().unwrap() {
+        if let Some((built, client)) = &*self.slot.read_locked() {
             if *built == current {
                 return client.clone();
             }
@@ -144,7 +145,7 @@ impl SharedClient {
             builder = builder.proxy(Proxy::all(url.as_str()).expect("proxy checked by set_proxy"));
         }
         let client = builder.build().expect("build reqwest client");
-        *self.slot.write().unwrap() = Some((current, client.clone()));
+        *self.slot.write_locked() = Some((current, client.clone()));
         client
     }
 }
@@ -153,7 +154,7 @@ impl SharedClient {
 pub async fn connect_ws(url: &str) -> Result<WsStream> {
     let mut request = url.into_client_request()?;
     request.headers_mut().insert(USER_AGENT, HeaderValue::from_str(&user_agent())?);
-    let Some(proxy) = active().read().unwrap().clone() else {
+    let Some(proxy) = active().read_locked().clone() else {
         let (ws, _resp) = connect_async(request).await?;
         return Ok(ws);
     };

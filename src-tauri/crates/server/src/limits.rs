@@ -16,6 +16,7 @@
  * `X-Forwarded-For` when present, else the connection's address.
  */
 use axum::http::HeaderMap;
+use opentrader_core::sync::LockExt;
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Mutex;
@@ -65,7 +66,7 @@ impl Limits {
         if self.rate <= 0.0 {
             return true;
         }
-        let mut map = self.buckets.lock().unwrap();
+        let mut map = self.buckets.locked();
         // Forget idle visitors now and then (a full bucket is the same as none).
         if map.len() > 10_000 {
             let full = self.burst / self.rate;

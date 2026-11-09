@@ -8,6 +8,7 @@
  * The server runs on 127.0.0.1 only, started with the first chat and stopped with the app.
  */
 use opentrader_core::net::SharedClient;
+use opentrader_core::sync::LockExt;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -175,7 +176,7 @@ pub async fn local_model_info(app: AppHandle) -> Result<LocalModelInfo, String> 
         ram_bytes: sys.total_memory() as f64,
         ram_needed_bytes: RAM_NEEDED as f64,
         free_disk_bytes: free_disk(&probe) as f64,
-        installing: INSTALL_STOP.lock().unwrap().is_some(),
+        installing: INSTALL_STOP.locked().is_some(),
     })
 }
 
@@ -281,7 +282,7 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     let (tx, mut rx) = oneshot::channel();
     {
-        let mut slot = INSTALL_STOP.lock().unwrap();
+        let mut slot = INSTALL_STOP.locked();
         if slot.is_some() {
             return Err("The download is already under way.".into());
         }
@@ -300,14 +301,14 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
         fetch(&base, &BASE, &on_progress, &mut t, &mut rx).await
     }
     .await;
-    *INSTALL_STOP.lock().unwrap() = None;
+    *INSTALL_STOP.locked() = None;
     result
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn local_model_cancel() {
-    if let Some(tx) = INSTALL_STOP.lock().unwrap().take() {
+    if let Some(tx) = INSTALL_STOP.locked().take() {
         let _ = tx.send(());
     }
 }

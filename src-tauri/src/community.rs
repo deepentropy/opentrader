@@ -6,6 +6,7 @@
  * lasts until the app closes.
  */
 use std::sync::Mutex;
+use opentrader_core::sync::LockExt;
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -27,7 +28,7 @@ pub fn community_auth_listen() -> Result<u16, String> {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    *LISTENER.lock().unwrap() = Some(listener);
+    *LISTENER.locked() = Some(listener);
     Ok(port)
 }
 
@@ -54,7 +55,7 @@ fn page(ok: bool) -> String {
 #[tauri::command]
 #[specta::specta]
 pub async fn community_auth_wait() -> Result<String, String> {
-    let listener = LISTENER.lock().unwrap().take().ok_or("no sign-in in progress")?;
+    let listener = LISTENER.locked().take().ok_or("no sign-in in progress")?;
     let listener = tokio::net::TcpListener::from_std(listener).map_err(|e| e.to_string())?;
     let receive = async {
         loop {
@@ -86,7 +87,7 @@ pub async fn community_auth_wait() -> Result<String, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn community_auth_cancel() {
-    LISTENER.lock().unwrap().take();
+    LISTENER.locked().take();
     CANCEL.notify_waiters();
 }
 
@@ -98,7 +99,7 @@ fn credential(app: &AppHandle) -> keyring::Result<keyring::Entry> {
 #[tauri::command]
 #[specta::specta]
 pub fn community_token_get(app: AppHandle) -> Option<String> {
-    if let Some(token) = UNSAVED_TOKEN.lock().unwrap().clone() {
+    if let Some(token) = UNSAVED_TOKEN.locked().clone() {
         return Some(token);
     }
     match credential(&app).and_then(|e| e.get_password()) {
@@ -122,6 +123,6 @@ pub fn community_token_set(app: AppHandle, token: Option<String>) -> Result<(), 
             other => other,
         },
     });
-    *UNSAVED_TOKEN.lock().unwrap() = if stored.is_ok() { None } else { token };
+    *UNSAVED_TOKEN.locked() = if stored.is_ok() { None } else { token };
     stored.map_err(|e| format!("credential store: {e}"))
 }

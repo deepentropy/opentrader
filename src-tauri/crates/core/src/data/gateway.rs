@@ -16,6 +16,7 @@
  * `Authorization: Bearer <token>`, or as the first stream message.
  */
 use reqwest::StatusCode;
+use crate::sync::LockExt;
 use std::fmt;
 use std::time::Duration;
 
@@ -239,7 +240,7 @@ pub fn test_outage(var: &'static str) -> bool {
     use std::sync::{Mutex, OnceLock};
     use std::time::Instant;
     static OUTAGES: OnceLock<Mutex<HashMap<&'static str, (Instant, u64)>>> = OnceLock::new();
-    let mut outages = OUTAGES.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap_or_else(|e| e.into_inner());
+    let mut outages = OUTAGES.get_or_init(|| Mutex::new(HashMap::new())).locked();
     let (start, secs) = *outages
         .entry(var)
         .or_insert_with(|| (Instant::now(), std::env::var(var).ok().and_then(|v| v.parse().ok()).unwrap_or(0)));

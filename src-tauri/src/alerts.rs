@@ -38,6 +38,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
 use opentrader_core::alerts::engine::{Engine, EngineGrid, EngineRule, Fire};
+use opentrader_core::sync::LockExt;
 
 const FILE: &str = "alert-engine.json";
 const SAVE_EVERY: Duration = Duration::from_secs(30);
@@ -110,7 +111,7 @@ pub fn init(app: &AppHandle) {
 impl AlertEngine {
     fn save(&self) {
         let Some(path) = &self.path else { return };
-        let file = EngineFile { symbols: self.engine.lock().unwrap().last.clone() };
+        let file = EngineFile { symbols: self.engine.locked().last.clone() };
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
@@ -122,14 +123,14 @@ impl AlertEngine {
             }
             Err(e) => eprintln!("[alerts] encode failed: {e}"),
         }
-        *self.saved.lock().unwrap() = Instant::now();
+        *self.saved.locked() = Instant::now();
     }
 
     fn emit(&self, app: &AppHandle, fires: Vec<Fire>, offline: bool) {
         if fires.is_empty() {
             return;
         }
-        let Some(window) = self.leader.lock().unwrap().clone() else { return };
+        let Some(window) = self.leader.locked().clone() else { return };
         for f in fires {
             let _ = AlertFired { window: window.clone(), rule_id: f.rule_id, price: f.price, time: f.time, bar_time: f.bar_time, offline }.emit(app);
         }
@@ -140,9 +141,17 @@ impl AlertEngine {
 /// minute bar (pre- and post-market included).
 pub fn on_quote(app: &AppHandle, symbol: &str, last: f64, minute: Option<&Candle>) {
     let Some(state) = app.try_state::<AlertEngine>() else { return };
-    let fires = state.engine.lock().unwrap().sample(symbol, last, minute, now_sec());
-    state.emit(app, fires, false);
-    if state.saved.lock().unwrap().elapsed() >= SAVE_EVERY {
+    // This runs inside the live-data task: a panic in the evaluation would end
+    // it, and the quotes of every view with it. The quote is skipped instead
+    // (the panic is printed by the hook); the engine lock recovers.
+    let sampled = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        state.engine.locked().sample(symbol, last, minute, now_sec())
+    }));
+    match sampled {
+        Ok(fires) => state.emit(app, fires, false),
+        Err(_) => eprintln!("[alerts] a {symbol} quote was not evaluated"),
+    }
+    if state.saved.locked().elapsed() >= SAVE_EVERY {
         state.save();
     }
 }
@@ -151,7 +160,7 @@ pub fn on_quote(app: &AppHandle, symbol: &str, last: f64, minute: Option<&Candle
 pub fn on_window_destroyed(app: &AppHandle, label: &str) {
     let Some(state) = app.try_state::<AlertEngine>() else { return };
     state.save();
-    let mut leader = state.leader.lock().unwrap();
+    let mut leader = state.leader.locked();
     if leader.as_deref() != Some(label) {
         return;
     }
@@ -168,7 +177,7 @@ pub fn on_window_destroyed(app: &AppHandle, label: &str) {
 #[tauri::command]
 #[specta::specta]
 pub fn alert_engine_claim(app: AppHandle, window: tauri::Window, state: State<'_, AlertEngine>) -> bool {
-    let mut leader = state.leader.lock().unwrap();
+    let mut leader = state.leader.locked();
     let gone = leader.as_ref().is_some_and(|l| app.get_webview_window(l).is_none());
     if leader.is_none() || gone {
         *leader = Some(window.label().to_string());
@@ -179,7 +188,7 @@ pub fn alert_engine_claim(app: AppHandle, window: tauri::Window, state: State<'_
 #[tauri::command]
 #[specta::specta]
 pub fn alert_engine_info(state: State<'_, AlertEngine>) -> AlertEngineInfo {
-    AlertEngineInfo { previous: state.engine.lock().unwrap().previous.clone().unwrap_or_default() }
+    AlertEngineInfo { previous: state.engine.locked().previous.clone().unwrap_or_default() }
 }
 
 /// Replace the rules the backend evaluates (the leader window calls this on
@@ -194,7 +203,7 @@ pub fn alert_engine_set(
     rules: Vec<EngineRule>,
     grids: Vec<EngineGrid>,
 ) {
-    let jobs = state.engine.lock().unwrap().set(rules, grids, now_sec());
+    let jobs = state.engine.locked().set(rules, grids, now_sec());
     for job in jobs {
         let app = app.clone();
         let provider = provider.inner().clone();
@@ -206,7 +215,7 @@ pub fn alert_engine_set(
                 eprintln!("[alerts] replay of {} failed: {e:#}", job.symbol);
             }
             let Some(state) = app.try_state::<AlertEngine>() else { return };
-            let fires = state.engine.lock().unwrap().finish_replay(&job, bars.as_deref().ok());
+            let fires = state.engine.locked().finish_replay(&job, bars.as_deref().ok());
             state.emit(&app, fires, true);
         });
     }

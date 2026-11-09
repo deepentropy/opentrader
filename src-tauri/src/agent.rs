@@ -14,6 +14,7 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+use opentrader_core::sync::LockExt;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
@@ -96,9 +97,9 @@ fn new_token() -> Result<String, String> {
 
 fn status(app: &AppHandle) -> AgentServerStatus {
     let state = app.state::<AgentServer>();
-    let config = state.config.lock().unwrap().clone();
-    let running = state.stop.lock().unwrap().is_some();
-    let error = state.error.lock().unwrap().clone();
+    let config = state.config.locked().clone();
+    let running = state.stop.locked().is_some();
+    let error = state.error.locked().clone();
     AgentServerStatus {
         enabled: config.enabled,
         running,
@@ -133,17 +134,17 @@ pub fn init(app: &AppHandle) {
 
 fn stop(app: &AppHandle) {
     let state = app.state::<AgentServer>();
-    if let Some(tx) = state.stop.lock().unwrap().take() {
+    if let Some(tx) = state.stop.locked().take() {
         let _ = tx.send(());
     }
     // Requests still waiting get no answer: their senders drop and the handlers return an error.
-    state.pending.lock().unwrap().clear();
+    state.pending.locked().clear();
 }
 
 fn start(app: &AppHandle) {
     stop(app);
     let state = app.state::<AgentServer>();
-    let port = state.config.lock().unwrap().port;
+    let port = state.config.locked().port;
     // Bound here (not in the task) so Settings learns at once that the port is taken.
     let listener = match std::net::TcpListener::bind(("127.0.0.1", port)).and_then(|l| {
         l.set_nonblocking(true)?;
@@ -151,13 +152,13 @@ fn start(app: &AppHandle) {
     }) {
         Ok(l) => l,
         Err(e) => {
-            *state.error.lock().unwrap() = Some(format!("Port {port} is not available: {e}"));
+            *state.error.locked() = Some(format!("Port {port} is not available: {e}"));
             return;
         }
     };
-    *state.error.lock().unwrap() = None;
+    *state.error.locked() = None;
     let (tx, rx) = oneshot::channel::<()>();
-    *state.stop.lock().unwrap() = Some(tx);
+    *state.stop.locked() = Some(tx);
     let router = Router::new()
         .route("/mcp", post(on_post).get(not_allowed).delete(not_allowed))
         .with_state(app.clone());
@@ -174,8 +175,8 @@ fn start(app: &AppHandle) {
         };
         if let Err(e) = served {
             let state = app.state::<AgentServer>();
-            *state.error.lock().unwrap() = Some(e);
-            state.stop.lock().unwrap().take();
+            *state.error.locked() = Some(e);
+            state.stop.locked().take();
         }
     });
 }
@@ -210,7 +211,7 @@ async fn on_post(AxState(app): AxState<AppHandle>, headers: HeaderMap, body: Str
         return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
     }
     let state = app.state::<AgentServer>();
-    let expected = format!("Bearer {}", state.config.lock().unwrap().token);
+    let expected = format!("Bearer {}", state.config.locked().token);
     let given = headers.get(header::AUTHORIZATION).map(|v| v.as_bytes()).unwrap_or_default();
     if !same(given, expected.as_bytes()) {
         return (StatusCode::UNAUTHORIZED, "Missing or wrong token (Settings > Coding agents)").into_response();
@@ -225,9 +226,9 @@ async fn on_post(AxState(app): AxState<AppHandle>, headers: HeaderMap, body: Str
     };
     let n = state.seq.fetch_add(1, Ordering::Relaxed);
     let (tx, rx) = oneshot::channel();
-    state.pending.lock().unwrap().insert(n, tx);
+    state.pending.locked().insert(n, tx);
     if let Err(e) = (AgentRequest { window, id: n, body }).emit(&app) {
-        state.pending.lock().unwrap().remove(&n);
+        state.pending.locked().remove(&n);
         return rpc_error(&id, -32000, &format!("OpenTrader window unreachable: {e}"));
     }
     match tokio::time::timeout(REPLY_TIMEOUT, rx).await {
@@ -236,7 +237,7 @@ async fn on_post(AxState(app): AxState<AppHandle>, headers: HeaderMap, body: Str
         Ok(Ok(reply)) => ([(header::CONTENT_TYPE, "application/json")], reply).into_response(),
         Ok(Err(_)) => rpc_error(&id, -32000, "The request was dropped (coding agents turned off or window closed)"),
         Err(_) => {
-            state.pending.lock().unwrap().remove(&n);
+            state.pending.locked().remove(&n);
             rpc_error(&id, -32000, "OpenTrader did not answer in time")
         }
     }
@@ -245,7 +246,7 @@ async fn on_post(AxState(app): AxState<AppHandle>, headers: HeaderMap, body: Str
 /// Of the windows ready for requests: the one the user focused last, else the main window, else any.
 fn target_window(app: &AppHandle) -> Option<String> {
     let windows = app.webview_windows();
-    let ready = app.state::<AgentServer>().ready.lock().unwrap().clone();
+    let ready = app.state::<AgentServer>().ready.locked().clone();
     let usable = |l: &str| windows.contains_key(l) && ready.contains(l);
     if let Some(label) = crate::window_session::focused(app).filter(|l| usable(l)) {
         return Some(label);
@@ -260,7 +261,7 @@ fn target_window(app: &AppHandle) -> Option<String> {
 #[tauri::command]
 #[specta::specta]
 pub fn agent_ready(window: tauri::Window, state: State<'_, AgentServer>) {
-    state.ready.lock().unwrap().insert(window.label().to_string());
+    state.ready.locked().insert(window.label().to_string());
 }
 
 #[tauri::command]
@@ -275,7 +276,7 @@ pub fn agent_server_status(app: AppHandle) -> AgentServerStatus {
 pub fn agent_server_set_enabled(app: AppHandle, enabled: bool) -> Result<AgentServerStatus, String> {
     let state = app.state::<AgentServer>();
     let config = {
-        let mut c = state.config.lock().unwrap();
+        let mut c = state.config.locked();
         c.enabled = enabled;
         c.clone()
     };
@@ -284,7 +285,7 @@ pub fn agent_server_set_enabled(app: AppHandle, enabled: bool) -> Result<AgentSe
         start(&app);
     } else {
         stop(&app);
-        *state.error.lock().unwrap() = None;
+        *state.error.locked() = None;
     }
     Ok(status(&app))
 }
@@ -298,7 +299,7 @@ pub fn agent_server_set_port(app: AppHandle, port: u16) -> Result<AgentServerSta
     }
     let state = app.state::<AgentServer>();
     let config = {
-        let mut c = state.config.lock().unwrap();
+        let mut c = state.config.locked();
         c.port = port;
         c.clone()
     };
@@ -316,7 +317,7 @@ pub fn agent_server_new_token(app: AppHandle) -> Result<AgentServerStatus, Strin
     let token = new_token()?;
     let state = app.state::<AgentServer>();
     let config = {
-        let mut c = state.config.lock().unwrap();
+        let mut c = state.config.locked();
         c.token = token;
         c.clone()
     };
@@ -328,7 +329,7 @@ pub fn agent_server_new_token(app: AppHandle) -> Result<AgentServerStatus, Strin
 #[tauri::command]
 #[specta::specta]
 pub fn agent_reply(state: State<'_, AgentServer>, id: u32, body: String) {
-    if let Some(tx) = state.pending.lock().unwrap().remove(&id) {
+    if let Some(tx) = state.pending.locked().remove(&id) {
         let _ = tx.send(body);
     }
 }

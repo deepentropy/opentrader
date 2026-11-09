@@ -6,6 +6,7 @@
 //! start reads it at once and only asks the gateway when the copy is from an
 //! earlier New York day (an unchanged copy answers 304).
 use super::{http, rest_cache_root, SymbolSearchResult};
+use crate::sync::RwLockExt;
 use crate::data::gateway::{self, MARKET};
 use crate::data::{ticker_case, trading_calendar};
 use serde::Deserialize;
@@ -60,7 +61,7 @@ fn slot() -> &'static RwLock<Option<Arc<Catalog>>> {
 }
 
 pub(super) fn current() -> Option<Arc<Catalog>> {
-    slot().read().ok()?.clone()
+    slot().read_locked().clone()
 }
 
 fn dir() -> PathBuf {
@@ -166,9 +167,7 @@ fn word_start(key: &str, q: &str) -> Option<usize> {
 }
 
 fn install(c: Catalog) {
-    if let Ok(mut s) = slot().write() {
-        *s = Some(Arc::new(c));
-    }
+    *slot().write_locked() = Some(Arc::new(c));
 }
 
 /// Read the disk copy, then keep the catalog current in the background.

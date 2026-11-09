@@ -27,6 +27,7 @@
  * One state for the whole app; windows follow it through `AppUpdateStatus`.
  */
 use std::collections::HashSet;
+use opentrader_core::sync::LockExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -148,7 +149,7 @@ fn updater(app: &AppHandle) -> Result<Updater, String> {
 fn set_status(app: &AppHandle, state: UpdateState, version: Option<String>) {
     let update = app.state::<AppUpdate>();
     let status = AppUpdateStatus { state, version, update_required: update.required.load(Ordering::Relaxed) };
-    *update.status.lock().unwrap() = status.clone();
+    *update.status.locked() = status.clone();
     let _ = status.emit(app);
 }
 
@@ -165,7 +166,7 @@ pub fn init(app: &AppHandle) {
         let update = handle.state::<AppUpdate>();
         update.required.store(true, Ordering::Relaxed);
         let status = {
-            let mut st = update.status.lock().unwrap();
+            let mut st = update.status.locked();
             st.update_required = true;
             st.clone()
         };
@@ -204,16 +205,16 @@ pub fn init(app: &AppHandle) {
 /// `IDLE_BEFORE_INSTALL`, and the update waited `READY_BEFORE_IDLE_INSTALL`
 /// with no alert on, or this version is no longer served.
 fn idle_install_due(update: &AppUpdate, now: Instant) -> bool {
-    if update.status.lock().unwrap().state != UpdateState::ReadyToInstall {
+    if update.status.locked().state != UpdateState::ReadyToInstall {
         return false;
     }
-    if now.saturating_duration_since(*update.last_active.lock().unwrap()) < IDLE_BEFORE_INSTALL {
+    if now.saturating_duration_since(*update.last_active.locked()) < IDLE_BEFORE_INSTALL {
         return false;
     }
     if update.required.load(Ordering::Relaxed) {
         return true;
     }
-    let waited = update.ready_since.lock().unwrap().as_ref().map(|(_, since)| now.saturating_duration_since(*since));
+    let waited = update.ready_since.locked().as_ref().map(|(_, since)| now.saturating_duration_since(*since));
     waited.is_some_and(|w| w >= READY_BEFORE_IDLE_INSTALL) && !update.alerts_active.load(Ordering::Relaxed)
 }
 
@@ -222,7 +223,7 @@ fn idle_install_due(update: &AppUpdate, now: Instant) -> bool {
 fn check(app: &AppHandle) {
     let update = app.state::<AppUpdate>();
     let prev = {
-        let mut st = update.status.lock().unwrap();
+        let mut st = update.status.locked();
         if !matches!(st.state, UpdateState::UpToDate | UpdateState::ReadyToInstall | UpdateState::Error) {
             return;
         }
@@ -244,13 +245,13 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
     let found = updater(app)?.check().await.map_err(|e| format!("check: {e}"))?;
     let state = app.state::<AppUpdate>();
     let Some(update) = found else {
-        *state.ready.lock().unwrap() = None;
+        *state.ready.locked() = None;
         clear_saved(app);
         set_status(app, UpdateState::UpToDate, None);
         return Ok(());
     };
     let version = update.version.clone();
-    let have = state.ready.lock().unwrap().as_ref().is_some_and(|(u, _)| u.version == version);
+    let have = state.ready.locked().as_ref().is_some_and(|(u, _)| u.version == version);
     if !have {
         let bytes = match load_saved(app, &update) {
             Some(bytes) => bytes,
@@ -261,10 +262,10 @@ async fn check_and_download(app: &AppHandle) -> Result<(), String> {
                 bytes
             }
         };
-        *state.ready.lock().unwrap() = Some((update, bytes));
+        *state.ready.locked() = Some((update, bytes));
     }
     {
-        let mut since = state.ready_since.lock().unwrap();
+        let mut since = state.ready_since.locked();
         if since.as_ref().is_none_or(|(v, _)| *v != version) {
             *since = Some((version.clone(), Instant::now()));
         }
@@ -350,11 +351,11 @@ pub fn on_exit(app: &AppHandle) {
         return;
     };
     let ready = {
-        let mut st = state.status.lock().unwrap();
+        let mut st = state.status.locked();
         if st.state != UpdateState::ReadyToInstall {
             return;
         }
-        let ready = state.ready.lock().unwrap().take();
+        let ready = state.ready.locked().take();
         if ready.is_some() {
             st.state = UpdateState::Installing;
         }
@@ -377,7 +378,7 @@ pub fn on_exit(app: &AppHandle) {
 #[tauri::command]
 #[specta::specta]
 pub fn app_update_status(state: State<'_, AppUpdate>) -> AppUpdateStatus {
-    state.status.lock().unwrap().clone()
+    state.status.locked().clone()
 }
 
 /// Check now (Settings > About opened).
@@ -393,7 +394,7 @@ pub fn app_update_check(app: AppHandle) {
 #[tauri::command]
 #[specta::specta]
 pub fn app_user_active(state: State<'_, AppUpdate>) {
-    *state.last_active.lock().unwrap() = Instant::now();
+    *state.last_active.locked() = Instant::now();
 }
 
 /// Whether an alert is on: a ready update then waits for the user (unless
@@ -408,7 +409,7 @@ pub fn app_set_alerts_active(active: bool, state: State<'_, AppUpdate>) {
 #[tauri::command]
 #[specta::specta]
 pub fn app_update_flushed(window: tauri::WebviewWindow, state: State<'_, AppUpdate>) {
-    state.flushed.lock().unwrap().insert(window.label().to_string());
+    state.flushed.locked().insert(window.label().to_string());
     state.flushed_notify.notify_waiters();
 }
 
@@ -425,11 +426,11 @@ async fn install_now(app: &AppHandle) -> Result<(), String> {
     let app = app.clone();
     let state = app.state::<AppUpdate>();
     let (update, bytes) = {
-        let mut st = state.status.lock().unwrap();
+        let mut st = state.status.locked();
         if st.state != UpdateState::ReadyToInstall {
             return Err("no update is ready to install".into());
         }
-        let Some(ready) = state.ready.lock().unwrap().take() else {
+        let Some(ready) = state.ready.locked().take() else {
             return Err("no update is ready to install".into());
         };
         st.state = UpdateState::Installing;
@@ -441,12 +442,12 @@ async fn install_now(app: &AppHandle) -> Result<(), String> {
 
     // 1. Every window writes its pending settings.
     let windows: HashSet<String> = app.webview_windows().into_keys().collect();
-    state.flushed.lock().unwrap().clear();
+    state.flushed.locked().clear();
     let _ = AppUpdateBeforeInstall { version: version.clone() }.emit(&app);
     let all_flushed = async {
         loop {
             let notified = state.flushed_notify.notified();
-            if windows.is_subset(&state.flushed.lock().unwrap()) {
+            if windows.is_subset(&state.flushed.locked()) {
                 return;
             }
             notified.await;
@@ -467,7 +468,7 @@ async fn install_now(app: &AppHandle) -> Result<(), String> {
     // 3. Install. Windows: runs the installer and exits. macOS: replaces the app bundle.
     if let Err(e) = update.install(&bytes) {
         eprintln!("[app-update] install {version}: {e}");
-        *state.ready.lock().unwrap() = Some((update, bytes));
+        *state.ready.locked() = Some((update, bytes));
         set_status(&app, UpdateState::ReadyToInstall, Some(version));
         return Err(e.to_string());
     }
@@ -492,9 +493,9 @@ mod tests {
     fn due(waited: Duration, idle: Duration, alerts: bool, required: bool) -> bool {
         let now = Instant::now() + 30 * 24 * H;
         let update = AppUpdate::default();
-        update.status.lock().unwrap().state = UpdateState::ReadyToInstall;
-        *update.ready_since.lock().unwrap() = Some(("9.9.9".into(), now - waited));
-        *update.last_active.lock().unwrap() = now - idle;
+        update.status.locked().state = UpdateState::ReadyToInstall;
+        *update.ready_since.locked() = Some(("9.9.9".into(), now - waited));
+        *update.last_active.locked() = now - idle;
         update.alerts_active.store(alerts, Ordering::Relaxed);
         update.required.store(required, Ordering::Relaxed);
         idle_install_due(&update, now)
@@ -518,7 +519,7 @@ mod tests {
     fn nothing_without_a_ready_update() {
         let now = Instant::now() + 30 * 24 * H;
         let update = AppUpdate::default();
-        *update.last_active.lock().unwrap() = now - 3 * H;
+        *update.last_active.locked() = now - 3 * H;
         update.required.store(true, Ordering::Relaxed);
         assert!(!idle_install_due(&update, now));
     }

@@ -4,6 +4,7 @@
  * (a Channel); the window runs the agent loop and the tools (src/data/assistant/).
  */
 use opentrader_core::net::SharedClient;
+use opentrader_core::sync::LockExt;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -32,7 +33,7 @@ pub async fn assistant_chat(app: AppHandle, request: u32, body: String, on_event
     let base_url = crate::local_model::ensure_server(&app).await?;
     let payload: serde_json::Value = serde_json::from_str(&body).map_err(|e| e.to_string())?;
     let (stop_tx, mut stop_rx) = oneshot::channel();
-    RUNNING.lock().unwrap().get_or_insert_with(HashMap::new).insert(request, stop_tx);
+    RUNNING.locked().get_or_insert_with(HashMap::new).insert(request, stop_tx);
     let result = async {
         let req = CLIENT.get().post(format!("{base_url}/chat/completions")).json(&payload);
         let mut res = tokio::select! {
@@ -70,7 +71,7 @@ pub async fn assistant_chat(app: AppHandle, request: u32, body: String, on_event
         Ok(())
     }
     .await;
-    RUNNING.lock().unwrap().get_or_insert_with(HashMap::new).remove(&request);
+    RUNNING.locked().get_or_insert_with(HashMap::new).remove(&request);
     if result.is_ok() {
         crate::local_model::save_prefix(&app).await;
     }
@@ -81,7 +82,7 @@ pub async fn assistant_chat(app: AppHandle, request: u32, body: String, on_event
 #[tauri::command]
 #[specta::specta]
 pub fn assistant_cancel(request: u32) {
-    if let Some(tx) = RUNNING.lock().unwrap().get_or_insert_with(HashMap::new).remove(&request) {
+    if let Some(tx) = RUNNING.locked().get_or_insert_with(HashMap::new).remove(&request) {
         let _ = tx.send(());
     }
 }

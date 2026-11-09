@@ -12,6 +12,7 @@
  *              with the live price (`Ratio`: P/E, P/S, EV...).
  */
 use crate::data::market_rest::MarketRow;
+use crate::sync::LockExt;
 use crate::screener::state::StateFile;
 use crate::screener::table::{Join, Row, Table};
 use crate::screener::technicals::{self, Tech};
@@ -491,7 +492,7 @@ fn atr_step(s: &StateFile, i: usize, m: &MarketRow, n: u32) -> Option<f64> {
 /// A custom field id as a `'static` key (a few hundred at most: lengths 1 to 500 of three kinds).
 fn intern(id: &str) -> &'static str {
     static KEYS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, &'static str>>> = std::sync::OnceLock::new();
-    let mut keys = KEYS.get_or_init(Default::default).lock().expect("field keys lock");
+    let mut keys = KEYS.get_or_init(Default::default).locked();
     if let Some(k) = keys.get(id) {
         return k;
     }

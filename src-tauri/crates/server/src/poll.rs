@@ -11,6 +11,7 @@
  * dropped (the server restarted, or the lease ended) and must be sent again.
  */
 use crate::clients::{valid_id, Outgoing};
+use opentrader_core::sync::LockExt;
 use crate::{client_gone, origin_ok, Shared};
 use axum::extract::{Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -58,11 +59,11 @@ pub async fn handle(State(state): State<Shared>, Query(q): Query<PollQuery>, hea
     if !origin_ok(&state, &headers) {
         return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
     }
-    if !state.polls.map.lock().unwrap().contains_key(&q.client) && state.clients.over_cap(&q.client, state.limits.max_clients) {
+    if !state.polls.map.locked().contains_key(&q.client) && state.clients.over_cap(&q.client, state.limits.max_clients) {
         return (StatusCode::SERVICE_UNAVAILABLE, crate::limits::TOO_MANY_VISITORS).into_response();
     }
     let (session, new) = {
-        let mut map = state.polls.map.lock().unwrap();
+        let mut map = state.polls.map.locked();
         match map.get(&q.client) {
             Some(s) => (s.clone(), false),
             None => {
@@ -81,15 +82,15 @@ pub async fn handle(State(state): State<Shared>, Query(q): Query<PollQuery>, hea
         let subs = state.clients.connect(&q.client);
         tokio::spawn(run_session(state.clone(), q.client.clone(), session.clone(), subs));
     }
-    *session.last_poll.lock().unwrap() = Instant::now();
+    *session.last_poll.locked() = Instant::now();
 
-    if q.wait != Some(0) && session.queue.lock().unwrap().is_empty() {
+    if q.wait != Some(0) && session.queue.locked().is_empty() {
         if tokio::time::timeout(WAIT, session.ready.notified()).await.is_ok() {
             tokio::time::sleep(GATHER).await;
         }
     }
-    let events: Vec<Arc<Outgoing>> = session.queue.lock().unwrap().drain(..).collect();
-    *session.last_poll.lock().unwrap() = Instant::now();
+    let events: Vec<Arc<Outgoing>> = session.queue.locked().drain(..).collect();
+    *session.last_poll.locked() = Instant::now();
     let body = format!("[{}]", events.iter().map(|e| e.text.as_str()).collect::<Vec<_>>().join(","));
     let mut res = ([(header::CONTENT_TYPE, "application/json"), (header::CACHE_CONTROL, "no-store")], body).into_response();
     if new {
@@ -111,8 +112,8 @@ async fn run_session(
         tokio::select! {
             ev = rx.recv() => match ev {
                 Ok(ev) => {
-                    if subs.lock().unwrap().wants(&client, &ev) {
-                        let mut q = session.queue.lock().unwrap();
+                    if subs.locked().wants(&client, &ev) {
+                        let mut q = session.queue.locked();
                         if q.len() >= QUEUE_MAX {
                             q.pop_front();
                         }
@@ -125,12 +126,12 @@ async fn run_session(
                 Err(RecvError::Closed) => break,
             },
             _ = check.tick() => {
-                if session.last_poll.lock().unwrap().elapsed() > LEASE {
+                if session.last_poll.locked().elapsed() > LEASE {
                     break;
                 }
             }
         }
     }
-    state.polls.map.lock().unwrap().remove(&client);
+    state.polls.map.locked().remove(&client);
     client_gone(&state, &client, &subs).await;
 }

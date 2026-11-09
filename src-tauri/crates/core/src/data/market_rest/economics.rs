@@ -6,6 +6,7 @@
 //! observation date (00:00 UTC), drawn as bars whose open, high, low and close
 //! are that value.
 use super::{get_json, http, rest_cache_root, SymbolSearchResult};
+use crate::sync::RwLockExt;
 use crate::data::gateway::{self, ApiError, MARKET};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -108,7 +109,7 @@ fn slot() -> &'static RwLock<Option<Arc<Catalog>>> {
 }
 
 fn current() -> Option<Arc<Catalog>> {
-    slot().read().ok()?.clone()
+    slot().read_locked().clone()
 }
 
 fn dir() -> PathBuf {
@@ -296,9 +297,7 @@ pub fn meta(id: &str) -> Option<EconomicMeta> {
 }
 
 fn install(c: Catalog) {
-    if let Ok(mut s) = slot().write() {
-        *s = Some(Arc::new(c));
-    }
+    *slot().write_locked() = Some(Arc::new(c));
 }
 
 /// Read the disk copy, then keep the catalog current in the background.

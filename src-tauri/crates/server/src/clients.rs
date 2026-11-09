@@ -5,6 +5,7 @@
  * it has a screener panel open, and everything else.
  */
 use opentrader_core::host::Host;
+use opentrader_core::sync::LockExt;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
@@ -103,20 +104,20 @@ pub struct Clients {
 impl Clients {
     /// A new client (not connected yet) when `max` are connected already (0 = no cap).
     pub fn over_cap(&self, id: &str, max: usize) -> bool {
-        let map = self.map.lock().unwrap();
+        let map = self.map.locked();
         max > 0 && !map.contains_key(id) && map.len() >= max
     }
 
     /// Symbols streamed for every client (charts and watchlists), without the
     /// ones of `except` (the client about to change its own).
     pub fn live_symbols(&self, except: &str) -> HashSet<String> {
-        let map = self.map.lock().unwrap();
+        let map = self.map.locked();
         let mut out = HashSet::new();
         for (id, subs) in map.iter() {
             if id == except {
                 continue;
             }
-            let s = subs.lock().unwrap();
+            let s = subs.locked();
             out.extend(s.charts.values().cloned());
             out.extend(s.watchlist.iter().cloned());
         }
@@ -126,21 +127,21 @@ impl Clients {
     /// The subscriptions of a client with an open WebSocket. Subscribing needs
     /// one: its close is what releases them.
     pub fn connected(&self, id: &str) -> Option<Arc<Mutex<Subs>>> {
-        self.map.lock().unwrap().get(id).filter(|s| s.lock().unwrap().sockets > 0).cloned()
+        self.map.locked().get(id).filter(|s| s.locked().sockets > 0).cloned()
     }
 
     /// A WebSocket of the client opened.
     pub fn connect(&self, id: &str) -> Arc<Mutex<Subs>> {
-        let subs = self.map.lock().unwrap().entry(id.to_string()).or_default().clone();
-        subs.lock().unwrap().sockets += 1;
+        let subs = self.map.locked().entry(id.to_string()).or_default().clone();
+        subs.locked().sockets += 1;
         subs
     }
 
     /// A WebSocket of the client closed. When it was the last one the client
     /// is forgotten and its subscriptions are returned for cleanup.
     pub fn disconnect(&self, id: &str, subs: &Arc<Mutex<Subs>>) -> Option<Subs> {
-        let mut map = self.map.lock().unwrap();
-        let mut s = subs.lock().unwrap();
+        let mut map = self.map.locked();
+        let mut s = subs.locked();
         s.sockets = s.sockets.saturating_sub(1);
         if s.sockets > 0 {
             return None;

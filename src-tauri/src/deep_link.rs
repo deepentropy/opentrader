@@ -14,6 +14,7 @@
  *    those of a cold start once its page is up (`deep_link_take`).
  */
 use serde::{Deserialize, Serialize};
+use opentrader_core::sync::LockExt;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -54,7 +55,7 @@ fn deliver(app: &AppHandle, urls: Vec<String>) {
         return;
     }
     if let Some(p) = app.try_state::<PendingLinks>() {
-        p.0.lock().unwrap().extend(urls);
+        p.0.locked().extend(urls);
     }
     focus(app);
     if let Some(w) = target(app) {
@@ -80,7 +81,7 @@ pub fn init(app: &AppHandle) {
     if let Ok(Some(start)) = app.deep_link().get_current() {
         let urls = ours(start.iter().map(|u| u.as_str()));
         if let Some(p) = app.try_state::<PendingLinks>() {
-            p.0.lock().unwrap().extend(urls);
+            p.0.locked().extend(urls);
         }
     }
     let handle = app.clone();
@@ -94,7 +95,7 @@ pub fn init(app: &AppHandle) {
 #[tauri::command]
 #[specta::specta]
 pub fn deep_link_take(pending: State<'_, PendingLinks>) -> Vec<String> {
-    std::mem::take(&mut *pending.0.lock().unwrap())
+    std::mem::take(&mut *pending.0.locked())
 }
 
 #[cfg(test)]

@@ -13,6 +13,7 @@
  * again, at most once an hour.
  */
 use crate::data::gateway;
+use crate::sync::{LockExt, RwLockExt};
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock, RwLock};
@@ -29,12 +30,12 @@ static LAST_TRY: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// This install's token, once registered.
 pub fn current() -> Option<&'static str> {
-    *CURRENT.read().unwrap()
+    *CURRENT.read_locked()
 }
 
 fn set(token: Option<String>) {
     // Leaked: a handful a run at most (`gateway::token` hands out `&'static str`).
-    *CURRENT.write().unwrap() = token.map(|t| &*Box::leak(t.into_boxed_str()));
+    *CURRENT.write_locked() = token.map(|t| &*Box::leak(t.into_boxed_str()));
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -71,7 +72,7 @@ pub fn init(file: PathBuf) {
 async fn register_and_keep() {
     let Some(file) = FILE.get() else { return };
     {
-        let mut last = LAST_TRY.lock().unwrap();
+        let mut last = LAST_TRY.locked();
         if last.is_some_and(|t| t.elapsed() < RETRY_AFTER) {
             return;
         }
