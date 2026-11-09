@@ -9,6 +9,7 @@ import { periodStart } from "../window/chart/chart-aggregate";
 import { alertStore, isScreenRule, type AlertRule } from "./alert-store";
 import { ruleQuoteSymbol } from "./alert-condition";
 import type { SessionId } from "./session/symbol-sessions";
+import { intervalMs, isDailyInterval, parseInterval } from "./interval";
 
 /** Session of an alert made before alerts kept theirs: a chart's default. */
 export const DEFAULT_SESSION: SessionId = "RTH";
@@ -16,27 +17,10 @@ export const DEFAULT_SESSION: SessionId = "RTH";
 /** The enabled rules read here: an alert on a stock screen is read on the screener's table (./screen-alerts). */
 export const engineRules = (): AlertRule[] => alertStore.enabledRules().filter((r) => !isScreenRule(r));
 
-/** Parse a resolution id into bar length ms. Bare numbers and "m" are
- *  minutes; "S" seconds, "H" hours, "D" days, "W" weeks, "M" months (~30d).
- *  Case-sensitive so "1M" (month) ≠ "1m" (minute). Defaults to one minute. */
+/** Bar length of a rule's interval in ms (a month: 30 days); one minute
+ *  when the id is not an interval. */
 export function resolutionMs(res: string): number {
-  const m = /^(\d+)\s*([a-zA-Z]?)$/.exec(res.trim());
-  if (!m) return 60_000;
-  const n = parseInt(m[1], 10) || 1;
-  switch (m[2]) {
-    case "S":
-    case "s": return n * 1_000;
-    case "H":
-    case "h": return n * 3_600_000;
-    case "D":
-    case "d": return n * 86_400_000;
-    case "W":
-    case "w": return n * 604_800_000;
-    case "M": return n * 2_592_000_000; // month ≈ 30 days
-    case "m": // minutes (lowercase)
-    case "": return n * 60_000;
-    default: return n * 60_000;
-  }
+  return intervalMs(res) ?? 60_000;
 }
 
 /** Which bar bucket (its open time, UNIX ms) a timestamp falls into, for
@@ -51,15 +35,13 @@ export function barBucket(symbol: string, res: string, session: SessionId, timeM
   const sessions = cachedSymbolSessions(symbol);
   if (!sessions) return null;
   const sec = timeMs / 1000;
-  const m = /^(\d*)\s*([a-zA-Z]?)$/.exec(res.trim());
-  const unit = m?.[2] ?? "";
-  const n = Number(m?.[1] || 1);
-  if (unit === "D" || unit === "d" || unit === "W" || unit === "w" || unit === "M") {
+  const parsed = parseInterval(res);
+  if (parsed && isDailyInterval(parsed)) {
     const iv = sessions.regular.currentOrNext(sec);
     if (!iv) return null;
     const day = localToUtc(sessions.timeZone, iv.day, 0);
-    const period = unit === "W" || unit === "w" ? "week" : unit === "M" ? "month" : "day";
-    const key = period === "day" && n === 1 ? day : periodStart(day, { unit: period, n }, sessions.regular);
+    const period = parsed.unit as "day" | "week" | "month";
+    const key = period === "day" && parsed.count === 1 ? day : periodStart(day, { unit: period, n: parsed.count }, sessions.regular);
     return key * 1000;
   }
   const iv = sessions.spec(session).currentOrNext(sec);

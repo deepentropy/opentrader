@@ -43,6 +43,10 @@ describe("isDailyInterval", () => {
     expect(["1D", "D", "1W", "3M"].map((id) => isDailyInterval(parseInterval(id)!))).toEqual([true, true, true, true]);
     expect(["1", "60", "10S", "4H"].map((id) => isDailyInterval(parseInterval(id)!))).toEqual([false, false, false, false]);
   });
+  it("reads an id directly; a minute \"1m\" or a non-interval is not daily", () => {
+    expect(["1D", "W", "1M"].map((id) => isDailyInterval(id))).toEqual([true, true, true]);
+    expect(["1m", "", "x"].map((id) => isDailyInterval(id))).toEqual([false, false, false]);
+  });
 });
 
 describe("intervalSeconds / intervalMs", () => {

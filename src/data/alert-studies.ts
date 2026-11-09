@@ -24,6 +24,7 @@ import { OtherSymbolBars } from "../window/chart/indicators/other-symbols";
 import { alertCallsOf, conditionBars, type StudyAlertCall } from "./alert-study-conditions";
 import { outputByKey, outputSeries, outputValue } from "./alert-outputs";
 import { barBucket, DEFAULT_SESSION, engineRules, resolutionMs } from "./alert-bars";
+import { isDailyInterval } from "./interval";
 
 /** Chart id the strategy runs of the alerts report under (the Strategy Tester shows charts' runs only). */
 export const ALERTS_CHART = "alerts";
@@ -72,7 +73,7 @@ export function liveBarState(symbol: string, resolution: string, session: string
   if (!last || !sessions) return CLOSED_BARS;
   const now = Date.now();
   let forming: boolean;
-  if (/[DWM]$/i.test(resolution)) {
+  if (isDailyInterval(resolution)) {
     forming = barBucket(symbol, resolution, session as SessionId, now) === last.time * 1000;
   } else {
     const iv = sessions.spec(session as SessionId).currentOrNext(last.time);

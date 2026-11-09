@@ -20,6 +20,7 @@ import { fillPlaceholders, needsBarData, type PlaceholderValues } from "./alert-
 import { messageOutputs, outputValue } from "./alert-outputs";
 import { DEFAULT_SESSION, resolutionMs } from "./alert-bars";
 import { CLOSED_BARS, liveBarState, runStudy } from "./alert-studies";
+import { isDailyInterval } from "./interval";
 
 /** True inside the Tauri shell — gates the native webhook route. */
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -137,7 +138,7 @@ async function withTradingDay(rule: AlertRule, bars: ChartBar[], i: number, barT
 /** Open time (UNIX ms) of a bar as a message gives it: a daily, weekly or monthly bar opens with the regular session
  *  of its first day (13:30Z for a US stock, 00:00Z for a 24-hour market), not at midnight. */
 function barOpenTime(rule: AlertRule, ms: number | null): number | null {
-  if (ms == null || !/[DWM]$/.test(rule.resolution)) return ms;
+  if (ms == null || !isDailyInterval(rule.resolution)) return ms;
   const iv = cachedSymbolSessions(rule.symbol)?.regular.currentOrNext(ms / 1000);
   return iv && iv.start * 1000 - ms < 86_400_000 ? iv.start * 1000 : ms;
 }
@@ -172,7 +173,7 @@ async function placeholderValues(rule: AlertRule, text: string, price: number, b
     i = bars ? fireBarIndex(bars, rule.resolution, barTime) : -1;
   }
   // A live fire on a daily, weekly or monthly interval read from fetched bars: the day in progress is not in them.
-  if (bars && live && /[DWM]$/.test(rule.resolution) && !chartBars(rule.symbol, rule.resolution, rule.session ?? DEFAULT_SESSION)) {
+  if (bars && live && isDailyInterval(rule.resolution) && !chartBars(rule.symbol, rule.resolution, rule.session ?? DEFAULT_SESSION)) {
     ({ bars, i } = await withTradingDay(rule, bars, i, barTime, fireTime));
   }
   // Still newer for a live fire: the bar time follows the clock while the data are delayed; the fire's price belongs

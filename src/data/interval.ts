@@ -48,8 +48,9 @@ export function parseInterval(id: string): Interval | null {
 }
 
 /** Day, week and month bars: built from daily bars, stamped by trading day. */
-export function isDailyInterval(iv: Interval): boolean {
-  return iv.unit === "day" || iv.unit === "week" || iv.unit === "month";
+export function isDailyInterval(id: string | Interval): boolean {
+  const iv = typeof id === "string" ? parseInterval(id) : id;
+  return !!iv && (iv.unit === "day" || iv.unit === "week" || iv.unit === "month");
 }
 
 /** Bar length of an interval in seconds (a month: 30 days); null when `id` is

@@ -35,6 +35,7 @@ import { loadDrawings } from "../window/drawings/persistence";
 import { AlertEvalEngine, type Grid, type GridRule } from "./alert-eval";
 import { conditionSignature, ruleSignature } from "./alert-rule-state";
 import { onTradeTick } from "./datafeed";
+import { intervalSeconds, parseInterval as parseIntervalId, type IntervalUnit } from "./interval";
 
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -77,18 +78,14 @@ export function whenAlertLeader(windowLabel: string, start: () => void): void {
 // ── Bars of an interval ──
 
 type Bars = [number, number][];
-type Interval = { unit: string; n: number; stepSec: number };
+type Interval = { unit: IntervalUnit; n: number; stepSec: number };
 
 function parseInterval(res: string): Interval | null {
-  const m = /^(\d*)\s*([a-zA-Z]?)$/.exec(res.trim());
-  if (!m) return null;
-  const n = Number(m[1] || 1);
-  const unit = m[2] === "d" ? "D" : m[2] === "w" ? "W" : m[2] === "h" ? "H" : m[2] === "s" ? "S" : m[2];
-  const sec = unit === "S" ? 1 : unit === "H" ? 3600 : unit === "D" ? 86400 : unit === "W" ? 604800 : unit === "M" ? 2592000 : 60;
-  return n > 0 ? { unit, n, stepSec: n * sec } : null;
+  const iv = parseIntervalId(res);
+  return iv ? { unit: iv.unit, n: iv.count, stepSec: intervalSeconds(iv)! } : null;
 }
 
-const isDaily = (iv: Interval) => iv.unit === "D" || iv.unit === "W" || iv.unit === "M";
+const isDaily = (iv: Interval) => iv.unit === "day" || iv.unit === "week" || iv.unit === "month";
 
 /** Bars [open, close] of `iv` that close after `from` and open before `to`
  *  (UNIX seconds), as the engine buckets them: intraday bars anchored at the
@@ -99,7 +96,7 @@ function barsBetween(sessions: SymbolSessions, session: SessionId, iv: Interval,
   const out: Bars = [];
   const tz = sessions.timeZone;
   if (isDaily(iv)) {
-    const period = iv.unit === "W" ? "week" : iv.unit === "M" ? "month" : "day";
+    const period = iv.unit as "day" | "week" | "month";
     // The period holding `to` is followed to its last trading day.
     for (let day = localDay(tz, from) - 1, guard = 0; guard < 4000; day++, guard++) {
       const bounds = sessions.regular.dayBounds(day);

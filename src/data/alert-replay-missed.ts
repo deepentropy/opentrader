@@ -21,6 +21,7 @@ import { deliverStrategyFill, fillBarTime, strategyReplayReport } from "./alert-
 import { loadIndicatorLibrary } from "../window/chart/indicators/registry";
 import { commands } from "../bindings";
 import * as kv from "./kv";
+import { isDailyInterval } from "./interval";
 
 /** The previous run whose missed bars were read (they are read once). */
 const REPLAYED_KEY = "alerts.replayed-run.v1";
@@ -30,7 +31,7 @@ const REPLAYED_KEY = "alerts.replayed-run.v1";
 async function barCloses(symbol: string, resolution: string, session: SessionId, bars: ChartBar[]): Promise<number[]> {
   const stepSec = resolutionMs(resolution) / 1000;
   const spec = await symbolSessions(symbol).then((s) => s.spec(session), () => null);
-  const long = /[DWM]$/i.test(resolution);
+  const long = isDailyInterval(resolution);
   return bars.map((b, i) => {
     const end = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
     if (!spec) return end;
