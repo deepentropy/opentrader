@@ -8,13 +8,13 @@
  * copy / delete on hover; the "Deleted symbols" row has its name, its count
  * and copy only. Choosing a row switches lists.
  */
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { Portal } from "solid-js/web";
+import { createSignal, For, onMount, Show } from "solid-js";
 import { FLAG_HEX } from "../../data/watchlist";
 import { WL_ICONS } from "./watchlist/ui";
 import { Icon } from "../../components/Icon";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { promptCopyWatchlist } from "./watchlist-prompts";
+import { Dialog } from "../../components/Dialog";
 
 type Props = {
   lists: WatchList[];
@@ -60,19 +60,13 @@ export function OpenListDialog(props: Props) {
   const created = () => filtered().filter((l) => !isColorList(l) && !isDeletedList(l.id));
   const other = () => filtered().filter((l) => isDeletedList(l.id));
 
-  onMount(() => {
-    input.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        if (confirmingId()) setConfirmingId(null);
-        else if (editingId()) setEditingId(null);
-        else props.onClose();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    onCleanup(() => document.removeEventListener("keydown", onKey, true));
-  });
+  onMount(() => input.focus());
+  // Escape first leaves a delete confirmation or a rename, then closes.
+  const escape = () => {
+    if (confirmingId()) setConfirmingId(null);
+    else if (editingId()) setEditingId(null);
+    else props.onClose();
+  };
 
   const choose = (id: string) => { props.onSelect(id); props.onClose(); };
   const startRename = (l: WatchList) => { setDraft(l.name); setEditingId(l.id); };
@@ -147,48 +141,45 @@ export function OpenListDialog(props: Props) {
   };
 
   return (
-    <Portal mount={document.body}>
-      <div class="wl-dialog-backdrop" role="presentation" onMouseDown={() => props.onClose()}>
-        <div class="wl-dialog wl-dialog--lists" role="dialog" aria-label="Watchlists" onMouseDown={(e) => e.stopPropagation()}>
-          <header class="wl-dialog-header">
-            <span class="wl-dialog-title">Watchlists</span>
-            <button type="button" class="wl-dialog-close" aria-label="Close" onClick={() => props.onClose()}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
-                <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
-              </svg>
-            </button>
-          </header>
-          <div class="wl-dialog-search">
-            <input ref={input} class="wl-dialog-input" type="text" placeholder="Search lists" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
-          </div>
-          <div class="wl-lm-body">
-            <nav class="wl-lm-sidebar" aria-label="Watchlist groups">
-              <button type="button" class={`wl-lm-tab${tab() === "mine" ? " active" : ""}`} onClick={() => setTab("mine")}>My watchlists</button>
-            </nav>
-            <div class="wl-lm-main">
-              <Show when={tab() === "mine"}>
-                <div class="wl-lm-colhead"><span class="wl-lm-colhead-symbols">Symbols</span></div>
-                <div class="wl-lm-list" role="listbox">
-                  <Show when={filtered().length} fallback={<div class="wl-dialog-empty">No lists found</div>}>
-                    <Show when={flagged().length}>
-                      <div class="wl-lm-section">Flagged lists</div>
-                      <For each={flagged()}>{Row}</For>
-                    </Show>
-                    <Show when={created().length}>
-                      <div class="wl-lm-section">Created lists</div>
-                      <For each={created()}>{Row}</For>
-                    </Show>
-                    <Show when={other().length}>
-                      <div class="wl-lm-section">Other</div>
-                      <For each={other()}>{Row}</For>
-                    </Show>
-                  </Show>
-                </div>
+    <Dialog
+      look="watchlist"
+      layerClass="wl-dialog-backdrop"
+      backdrop="close"
+      class="wl-dialog wl-dialog--lists"
+      title="Watchlists"
+      onClose={props.onClose}
+      onEscape={escape}
+      keys={{ target: "document" }}
+    >
+      <div class="wl-dialog-search">
+        <input ref={input} class="wl-dialog-input" type="text" placeholder="Search lists" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
+      </div>
+      <div class="wl-lm-body">
+        <nav class="wl-lm-sidebar" aria-label="Watchlist groups">
+          <button type="button" class={`wl-lm-tab${tab() === "mine" ? " active" : ""}`} onClick={() => setTab("mine")}>My watchlists</button>
+        </nav>
+        <div class="wl-lm-main">
+          <Show when={tab() === "mine"}>
+            <div class="wl-lm-colhead"><span class="wl-lm-colhead-symbols">Symbols</span></div>
+            <div class="wl-lm-list" role="listbox">
+              <Show when={filtered().length} fallback={<div class="wl-dialog-empty">No lists found</div>}>
+                <Show when={flagged().length}>
+                  <div class="wl-lm-section">Flagged lists</div>
+                  <For each={flagged()}>{Row}</For>
+                </Show>
+                <Show when={created().length}>
+                  <div class="wl-lm-section">Created lists</div>
+                  <For each={created()}>{Row}</For>
+                </Show>
+                <Show when={other().length}>
+                  <div class="wl-lm-section">Other</div>
+                  <For each={other()}>{Row}</For>
+                </Show>
               </Show>
             </div>
-          </div>
+          </Show>
         </div>
       </div>
-    </Portal>
+    </Dialog>
   );
 }

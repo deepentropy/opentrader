@@ -8,7 +8,7 @@
  * Left out: "Symbol type" (shows nothing on US stocks in the reference) and
  * the group-by-ISIN switch (hidden for US stocks there).
  */
-import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, createSignal, type JSX } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { CheckBox, SelectControl } from "../../components/form";
 import {
@@ -23,6 +23,7 @@ import {
 } from "../../data/screener-settings";
 import { heatOption } from "../../data/screener-heatmap";
 import { screenerStore } from "../../data/screener-store";
+import { Dialog } from "../../components/Dialog";
 
 type Tab = "general" | "table" | "charts" | "heatmap";
 const TABS: { id: Tab; label: string; icon: string }[] = [
@@ -41,15 +42,6 @@ export function ScreenerSettingsDialog(props: { onClose: () => void }) {
     restoreScreenerSettings(opening);
     props.onClose();
   };
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || document.querySelector(".cp3-menu")) return;
-      e.stopPropagation();
-      cancel();
-    };
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => window.removeEventListener("keydown", onKey, true));
-  });
 
   const Section = (p: { title: string; first?: boolean }) => (
     <div class="cp3-section" classList={{ "is-first": !!p.first }}><span>{p.title}</span></div>
@@ -72,106 +64,109 @@ export function ScreenerSettingsDialog(props: { onClose: () => void }) {
   );
 
   return (
-    <div class="settings-backdrop cp3-backdrop" role="presentation" onMouseDown={cancel}>
-      <div class="settings-dialog cp3-dialog scr-settings-dialog" role="dialog" aria-label="Screener settings" data-name="screener-settings-dialog" onMouseDown={(e) => e.stopPropagation()}>
-        <header class="cp3-header">
-          <div class="cp3-header-title">Screener settings</div>
-          <button type="button" aria-label="Close menu" class="cp3-close" onClick={cancel}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" /></svg>
-          </button>
-        </header>
-        <div class="cp3-body">
-          <nav class="cp3-tabs" aria-label="Screener settings sections">
-            <For each={TABS}>
-              {(t) => (
-                <button type="button" class="settings-tab" classList={{ "is-active": tab() === t.id }} aria-current={tab() === t.id} onClick={() => setTab(t.id)}>
-                  <Icon name={t.icon} size={28} class="settings-tab-icon" />
-                  <span class="settings-tab-label">{t.label}</span>
-                </button>
-              )}
-            </For>
-          </nav>
-          <div class="cp3-content">
-            <div class="cp3-grid">
-              <Show when={tab() === "general"}>
-                <Section title="Data" first />
-                <Row label="Auto-refresh" checked={s().autoRefresh !== "off"} onToggle={() => setScreenerSettings({ autoRefresh: s().autoRefresh === "off" ? "1min" : "off" })}>
-                  <SelectControl
-                    width={180}
-                    value={s().autoRefresh === "off" ? "1min" : s().autoRefresh}
-                    options={["10s", "1min"]}
-                    labelOf={(o) => REFRESH_LABEL[o as "10s"]}
-                    disabled={s().autoRefresh === "off"}
-                    onPick={(v) => setScreenerSettings({ autoRefresh: v as AutoRefresh })}
-                  />
-                </Row>
-                <Row label="Convert financials" checked={s().currency !== null} onToggle={() => setScreenerSettings({ currency: s().currency === null ? "USD" : null })}>
-                  <SelectControl
-                    width={180}
-                    value={s().currency ?? "USD"}
-                    options={[...CURRENCIES]}
-                    disabled={s().currency === null}
-                    onPick={(v) => setScreenerSettings({ currency: v as Currency })}
-                  />
-                </Row>
-              </Show>
-              <Show when={tab() === "table"}>
-                <Section title="Symbol column" first />
-                {/* One of Symbol / Name stays checked: the only checked one is disabled. */}
-                <Row label="Symbol" checked={s().showSymbol} disabled={s().showSymbol && !s().showName} onToggle={() => setScreenerSettings({ showSymbol: !s().showSymbol })} />
-                <Row label="Name" checked={s().showName} disabled={s().showName && !s().showSymbol} onToggle={() => setScreenerSettings({ showName: !s().showName })} />
-                <Row label="Logo" checked={s().showLogo} onToggle={() => setScreenerSettings({ showLogo: !s().showLogo })} />
-                <Section title="Shown values" />
-                <Row label="Currency" checked={s().showCurrency} onToggle={() => setScreenerSettings({ showCurrency: !s().showCurrency })} />
-              </Show>
-              <Show when={tab() === "charts"}>
-                <Section title="Chart label" first />
-                <Row label="Instrument name" checked={s().chartName} onToggle={() => setScreenerSettings({ chartName: !s().chartName })} />
-              </Show>
-              <Show when={tab() === "heatmap"}>
-                <Section title="Tile" first />
-                <Row label="Instrument logo" checked={s().heatLogo} onToggle={() => setScreenerSettings({ heatLogo: !s().heatLogo })} />
-                <Row label="Title" checked={s().heatTitleOn} onToggle={() => setScreenerSettings({ heatTitleOn: !s().heatTitleOn })}>
-                  <SelectControl
-                    width={180}
-                    value={s().heatTitle}
-                    options={["name", "symbol"]}
-                    labelOf={(o) => (o === "name" ? "Instrument name" : "Symbol")}
-                    disabled={!s().heatTitleOn}
-                    onPick={(v) => setScreenerSettings({ heatTitle: v as "name" | "symbol" })}
-                  />
-                </Row>
-                <Row label="Value" checked={s().heatValueOn} onToggle={() => setScreenerSettings({ heatValueOn: !s().heatValueOn })}>
-                  <SelectControl
-                    width={180}
-                    value={s().heatValue}
-                    options={["color", "size"]}
-                    labelOf={(o) => (o === "size" ? heatOption("size", s().heatSize, screenerStore.type()) : heatOption("color", s().heatColor, screenerStore.type())).valueShort}
-                    disabled={!s().heatValueOn}
-                    onPick={(v) => setScreenerSettings({ heatValue: v as "color" | "size" })}
-                  />
-                </Row>
-                <Section title="Color" />
-                <Row label="Color scheme">
-                  <SelectControl
-                    width={180}
-                    value={s().heatScheme}
-                    options={HEAT_SCHEMES.map((x) => x.id)}
-                    labelOf={(o) => HEAT_SCHEMES.find((x) => x.id === o)?.label ?? o}
-                    onPick={(v) => setScreenerSettings({ heatScheme: v as HeatScheme })}
-                  />
-                </Row>
-              </Show>
-            </div>
+    <Dialog
+      look="settings"
+      layerClass="settings-backdrop cp3-backdrop"
+      backdrop="close"
+      inline
+      class="settings-dialog cp3-dialog scr-settings-dialog"
+      data-name="screener-settings-dialog"
+      title="Screener settings"
+      onClose={cancel}
+      // An open select takes Escape first.
+      onEscape={() => (document.querySelector(".cp3-menu") ? false : cancel())}
+    >
+      <div class="cp3-body">
+        <nav class="cp3-tabs" aria-label="Screener settings sections">
+          <For each={TABS}>
+            {(t) => (
+              <button type="button" class="settings-tab" classList={{ "is-active": tab() === t.id }} aria-current={tab() === t.id} onClick={() => setTab(t.id)}>
+                <Icon name={t.icon} size={28} class="settings-tab-icon" />
+                <span class="settings-tab-label">{t.label}</span>
+              </button>
+            )}
+          </For>
+        </nav>
+        <div class="cp3-content">
+          <div class="cp3-grid">
+            <Show when={tab() === "general"}>
+              <Section title="Data" first />
+              <Row label="Auto-refresh" checked={s().autoRefresh !== "off"} onToggle={() => setScreenerSettings({ autoRefresh: s().autoRefresh === "off" ? "1min" : "off" })}>
+                <SelectControl
+                  width={180}
+                  value={s().autoRefresh === "off" ? "1min" : s().autoRefresh}
+                  options={["10s", "1min"]}
+                  labelOf={(o) => REFRESH_LABEL[o as "10s"]}
+                  disabled={s().autoRefresh === "off"}
+                  onPick={(v) => setScreenerSettings({ autoRefresh: v as AutoRefresh })}
+                />
+              </Row>
+              <Row label="Convert financials" checked={s().currency !== null} onToggle={() => setScreenerSettings({ currency: s().currency === null ? "USD" : null })}>
+                <SelectControl
+                  width={180}
+                  value={s().currency ?? "USD"}
+                  options={[...CURRENCIES]}
+                  disabled={s().currency === null}
+                  onPick={(v) => setScreenerSettings({ currency: v as Currency })}
+                />
+              </Row>
+            </Show>
+            <Show when={tab() === "table"}>
+              <Section title="Symbol column" first />
+              {/* One of Symbol / Name stays checked: the only checked one is disabled. */}
+              <Row label="Symbol" checked={s().showSymbol} disabled={s().showSymbol && !s().showName} onToggle={() => setScreenerSettings({ showSymbol: !s().showSymbol })} />
+              <Row label="Name" checked={s().showName} disabled={s().showName && !s().showSymbol} onToggle={() => setScreenerSettings({ showName: !s().showName })} />
+              <Row label="Logo" checked={s().showLogo} onToggle={() => setScreenerSettings({ showLogo: !s().showLogo })} />
+              <Section title="Shown values" />
+              <Row label="Currency" checked={s().showCurrency} onToggle={() => setScreenerSettings({ showCurrency: !s().showCurrency })} />
+            </Show>
+            <Show when={tab() === "charts"}>
+              <Section title="Chart label" first />
+              <Row label="Instrument name" checked={s().chartName} onToggle={() => setScreenerSettings({ chartName: !s().chartName })} />
+            </Show>
+            <Show when={tab() === "heatmap"}>
+              <Section title="Tile" first />
+              <Row label="Instrument logo" checked={s().heatLogo} onToggle={() => setScreenerSettings({ heatLogo: !s().heatLogo })} />
+              <Row label="Title" checked={s().heatTitleOn} onToggle={() => setScreenerSettings({ heatTitleOn: !s().heatTitleOn })}>
+                <SelectControl
+                  width={180}
+                  value={s().heatTitle}
+                  options={["name", "symbol"]}
+                  labelOf={(o) => (o === "name" ? "Instrument name" : "Symbol")}
+                  disabled={!s().heatTitleOn}
+                  onPick={(v) => setScreenerSettings({ heatTitle: v as "name" | "symbol" })}
+                />
+              </Row>
+              <Row label="Value" checked={s().heatValueOn} onToggle={() => setScreenerSettings({ heatValueOn: !s().heatValueOn })}>
+                <SelectControl
+                  width={180}
+                  value={s().heatValue}
+                  options={["color", "size"]}
+                  labelOf={(o) => (o === "size" ? heatOption("size", s().heatSize, screenerStore.type()) : heatOption("color", s().heatColor, screenerStore.type())).valueShort}
+                  disabled={!s().heatValueOn}
+                  onPick={(v) => setScreenerSettings({ heatValue: v as "color" | "size" })}
+                />
+              </Row>
+              <Section title="Color" />
+              <Row label="Color scheme">
+                <SelectControl
+                  width={180}
+                  value={s().heatScheme}
+                  options={HEAT_SCHEMES.map((x) => x.id)}
+                  labelOf={(o) => HEAT_SCHEMES.find((x) => x.id === o)?.label ?? o}
+                  onPick={(v) => setScreenerSettings({ heatScheme: v as HeatScheme })}
+                />
+              </Row>
+            </Show>
           </div>
         </div>
-        <footer class="cp3-footer">
-          <div class="cp3-footer-actions">
-            <button type="button" class="cp3-btn" onClick={cancel}>Cancel</button>
-            <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={() => props.onClose()}>Ok</button>
-          </div>
-        </footer>
       </div>
-    </div>
+      <footer class="cp3-footer">
+        <div class="cp3-footer-actions">
+          <button type="button" class="cp3-btn" onClick={cancel}>Cancel</button>
+          <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={() => props.onClose()}>Ok</button>
+        </div>
+      </footer>
+    </Dialog>
   );
 }

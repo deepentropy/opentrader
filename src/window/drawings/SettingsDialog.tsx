@@ -29,6 +29,7 @@ import { styleTab } from "./settings/style-tab";
 import { textBoxRows, textTab } from "./settings/text-tab";
 import { coordinatesTab } from "./settings/coordinates-tab";
 import { visibilityTab } from "./settings/visibility-tab";
+import { DialogClose, createDialogKeys } from "../../components/Dialog";
 
 // The dialog's pages live in settings/: one module per page (inputs, style,
 // text, coordinates, visibility), the per-kind tables (kind-config), the
@@ -108,21 +109,19 @@ export function SettingsDialog(props: SettingsDialogProps) {
     props.onUpdate({ ...props.drawing, name: v !== labelForKind(props.drawing.kind) ? v : undefined } as Drawing);
   };
 
+  // Capture phase (the default) so the overlay's own Escape handler doesn't fire first.
+  createDialogKeys({
+    onEscape: () => {
+      if (renaming()) { renameCancelled = true; setRenaming(false); return; }
+      // Escape unwinds one layer at a time. The footer Template menu and any
+      // open nested popover (colour panel / Stats checklist) each own their
+      // own Escape dismissal — defer to them and only close the bare dialog.
+      if (templatesOpen()) { setTemplatesOpen(false); return; }
+      if (document.querySelector(".dlg-color-panel, .drawing-settings-multiselect-menu")) return;
+      props.onClose();
+    },
+  });
   onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        if (renaming()) { renameCancelled = true; setRenaming(false); return; }
-        // Escape unwinds one layer at a time. The footer Template menu and any
-        // open nested popover (colour panel / Stats checklist) each own their
-        // own Escape dismissal — defer to them and only close the bare dialog.
-        if (templatesOpen()) { setTemplatesOpen(false); return; }
-        if (document.querySelector(".dlg-color-panel, .drawing-settings-multiselect-menu")) return;
-        props.onClose();
-      }
-    };
-    // Capture phase so the overlay's own Escape handler doesn't fire first.
-    window.addEventListener("keydown", onKey, true);
     // Outside-click closes the template menu (capture, since the dialog stops
     // bubble-phase clicks at its root).
     const onDocClick = (e: MouseEvent) => {
@@ -132,10 +131,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       setTemplatesOpen(false);
     };
     document.addEventListener("click", onDocClick, true);
-    onCleanup(() => {
-      window.removeEventListener("keydown", onKey, true);
-      document.removeEventListener("click", onDocClick, true);
-    });
+    onCleanup(() => document.removeEventListener("click", onDocClick, true));
   });
 
   return (
@@ -153,7 +149,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
         data-name="source-properties-editor"
         onClick={(e) => e.stopPropagation()}
       >
-        <header class="drawing-settings-header">
+        <header class="drawing-settings-header" data-dialog-title>
           <Show
             when={!renaming()}
             fallback={
@@ -180,11 +176,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28"><path fill="currentColor" d="M16.73 6.56a2.5 2.5 0 0 1 3.54 0l1.17 1.17a2.5 2.5 0 0 1 0 3.54l-.59.58-9 9-1 1-.14.15H6v-4.7l.15-.15 1-1 9-9 .58-.59Zm2.83.7a1.5 1.5 0 0 0-2.12 0l-.23.24 3.29 3.3.23-.24a1.5 1.5 0 0 0 0-2.12l-1.17-1.17Zm.23 4.24L16.5 8.2l-8.3 8.3 3.3 3.3 8.3-8.3Zm-9 9L7.5 17.2l-.5.5V21h3.3l.5-.5Z" /></svg>
               </button>
             </div>
-            <button type="button" aria-label="Close" data-qa-id="close" class="drawing-settings-close" onClick={props.onClose}>
-              <svg viewBox="0 0 18 18" width="18" height="18">
-                <path stroke="currentColor" stroke-width="1.2" d="m1.5 1.5 15 15m0-15-15 15" />
-              </svg>
-            </button>
+            <DialogClose look="drawing" label="Close" onClick={props.onClose} />
           </Show>
         </header>
 

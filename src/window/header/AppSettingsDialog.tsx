@@ -13,7 +13,6 @@
 import { ECONOMIC_DATA_NOTICE, ECONOMIC_DATA_TERMS_URL } from "../../data/economic-notice";
 import { createEffect, createRoot, createSignal, For, Show, onCleanup, onMount, type JSX } from "solid-js";
 import { createStore } from "solid-js/store";
-import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import {
   DEFAULT_TAB_TITLE_PARTS,
@@ -47,6 +46,7 @@ import { fundingStatus, type Funding } from "../../data/funding";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { COMMUNITY_ENABLED, COMMUNITY_URL } from "../../data/community/api";
 import type { ThemeSetting } from "../shell/app-theme";
+import { Dialog } from "../../components/Dialog";
 
 // ── Persisted dialog settings ────────────────────────────────────────────────
 // One kv blob for every control here that has no dedicated store. Process
@@ -948,12 +948,6 @@ function UpdateSpinner() {
 export function AppSettingsDialog(props: Props) {
   const [tab, setTab] = createSignal<AppSettingsTabId>(props.initialTab ?? "general");
 
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); props.onClose(); } };
-    document.addEventListener("keydown", onKey, true);
-    onCleanup(() => document.removeEventListener("keydown", onKey, true));
-  });
-
   const body = () => {
     switch (tab()) {
       case "tabs": return <TabsTab parts={props.tabParts} onChange={props.onTabPartsChange} />;
@@ -968,37 +962,34 @@ export function AppSettingsDialog(props: Props) {
   };
 
   return (
-    <Portal mount={document.body}>
-      <div class="app-settings-backdrop" onMouseDown={() => props.onClose()}>
-        <div class="app-settings-dialog" role="dialog" aria-label="App settings" onMouseDown={(e) => e.stopPropagation()}>
-          <div class="app-settings-header">
-            <span class="app-settings-dialog-title">Settings</span>
-            <button type="button" class="app-settings-close" aria-label="Close" onClick={() => props.onClose()}>
-              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                <path fill="none" stroke="currentColor" stroke-width="1.5" d="m3 3 10 10M13 3 3 13" />
-              </svg>
-            </button>
-          </div>
-          <div class="app-settings-body">
-            <nav class="app-settings-tabs" aria-label="Settings categories">
-              <For each={TABS}>
-                {(t) => (
-                  <button
-                    type="button"
-                    class={`app-settings-tab${tab() === t.id ? " selected" : ""}`}
-                    aria-selected={tab() === t.id}
-                    onClick={() => setTab(t.id)}
-                  >
-                    <Icon name={t.icon} size={24} />
-                    <span>{t.label}</span>
-                  </button>
-                )}
-              </For>
-            </nav>
-            <div class="app-settings-page">{body()}</div>
-          </div>
-        </div>
+    <Dialog
+      look="app-settings"
+      layerClass="app-settings-backdrop"
+      backdrop="close"
+      class="app-settings-dialog"
+      label="App settings"
+      title="Settings"
+      onClose={props.onClose}
+      keys={{ target: "document" }}
+    >
+      <div class="app-settings-body">
+        <nav class="app-settings-tabs" aria-label="Settings categories">
+          <For each={TABS}>
+            {(t) => (
+              <button
+                type="button"
+                class={`app-settings-tab${tab() === t.id ? " selected" : ""}`}
+                aria-selected={tab() === t.id}
+                onClick={() => setTab(t.id)}
+              >
+                <Icon name={t.icon} size={24} />
+                <span>{t.label}</span>
+              </button>
+            )}
+          </For>
+        </nav>
+        <div class="app-settings-page">{body()}</div>
       </div>
-    </Portal>
+    </Dialog>
   );
 }

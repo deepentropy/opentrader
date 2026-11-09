@@ -7,8 +7,8 @@
  * Save (34px, radius 6, 12px apart); a 34px close button top-right.
  * Save = save then switch, Don't save = switch, Cancel / close / Esc = stay.
  */
-import { onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createDialogKeys } from "../../components/Dialog";
 
 type Props = {
   onSave: () => void;
@@ -17,16 +17,7 @@ type Props = {
 };
 
 export function UnsavedLayoutDialog(props: Props) {
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        props.onCancel();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => window.removeEventListener("keydown", onKey, true));
-  });
+  createDialogKeys({ onEscape: () => props.onCancel() });
 
   return (
     <Portal mount={document.body}>

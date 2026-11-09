@@ -7,10 +7,10 @@
  * GoToDateDialog): titlebar + close, a single labelled text input, and a
  * Cancel / <submit> footer. Enter submits, Escape / backdrop click cancels.
  */
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onMount } from "solid-js";
 import { Show } from "solid-js";
-import { Portal } from "solid-js/web";
 import { CheckBox } from "../../components/form";
+import { Dialog } from "../../components/Dialog";
 
 type Props = {
   title: string;
@@ -46,70 +46,51 @@ export function LayoutNameDialog(props: Props) {
   onMount(() => {
     input.focus();
     input.select();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        props.onClose();
-      } else if (e.key === "Enter") {
-        e.stopPropagation();
-        submit();
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => window.removeEventListener("keydown", onKey, true));
   });
 
   return (
-    <Portal mount={document.body}>
-      <div class="layout-name-backdrop" onPointerDown={(e) => { if (e.target === e.currentTarget) props.onClose(); }}>
-        <div
-          ref={root}
-          class="ot-popover layout-name-dialog"
-          role="dialog"
-          aria-label={props.title}
-          data-name="layout-name-dialog"
-        >
-          <div class="layout-name-titlebar">
-            <div class="layout-name-title">{props.title}</div>
-            <button type="button" class="layout-name-close" aria-label="Close" onClick={() => props.onClose()}>
-              <svg viewBox="0 0 28 28" width="24" height="24">
-                <path fill="currentColor" d="M19.78 8.22 14 14l5.78 5.78-1.06 1.06L13 15.06l-5.78 5.78-1.06-1.06L11.94 14 6.16 8.22l1.06-1.06L13 12.94l5.72-5.78 1.06 1.06Z" />
-              </svg>
-            </button>
-          </div>
-          <div class="layout-name-body">
-            <label class="layout-name-field-label" for="layout-name-input">
-              {props.fieldLabel ?? "Layout name"}
+    <Dialog
+      look="form"
+      layerClass="layout-name-backdrop"
+      backdrop="close-self"
+      class="ot-popover layout-name-dialog"
+      ref={root}
+      data-name="layout-name-dialog"
+      title={props.title}
+      onClose={props.onClose}
+      onEnter={submit}
+    >
+      <div class="layout-name-body">
+        <label class="layout-name-field-label" for="layout-name-input">
+          {props.fieldLabel ?? "Layout name"}
+        </label>
+        <input
+          ref={input}
+          id="layout-name-input"
+          class="layout-name-input"
+          type="text"
+          value={value()}
+          placeholder={props.placeholder}
+          maxLength={props.maxLength}
+          spellcheck={false}
+          autocomplete="off"
+          onInput={(e) => setValue(e.currentTarget.value)}
+        />
+        <Show when={props.checkbox}>
+          {(cb) => (
+            <label class="layout-name-check" onClick={(e) => { e.preventDefault(); if (!(e.target as HTMLElement).closest(".cp3-checkbox")) cb().onChange(!cb().checked); }}>
+              <CheckBox checked={cb().checked} onToggle={() => cb().onChange(!cb().checked)} />
+              <span>{cb().label}</span>
             </label>
-            <input
-              ref={input}
-              id="layout-name-input"
-              class="layout-name-input"
-              type="text"
-              value={value()}
-              placeholder={props.placeholder}
-              maxLength={props.maxLength}
-              spellcheck={false}
-              autocomplete="off"
-              onInput={(e) => setValue(e.currentTarget.value)}
-            />
-            <Show when={props.checkbox}>
-              {(cb) => (
-                <label class="layout-name-check" onClick={(e) => { e.preventDefault(); if (!(e.target as HTMLElement).closest(".cp3-checkbox")) cb().onChange(!cb().checked); }}>
-                  <CheckBox checked={cb().checked} onToggle={() => cb().onChange(!cb().checked)} />
-                  <span>{cb().label}</span>
-                </label>
-              )}
-            </Show>
-          </div>
-          <div class="layout-name-footer">
-            <button type="button" class="layout-name-btn is-secondary" onClick={() => props.onClose()}>Cancel</button>
-            <button type="button" class="layout-name-btn is-primary" data-name="submit-button" aria-disabled={!value().trim()} disabled={!value().trim()} onClick={submit}>
-              {props.submitLabel}
-            </button>
-          </div>
-        </div>
+          )}
+        </Show>
       </div>
-    </Portal>
+      <div class="layout-name-footer">
+        <button type="button" class="layout-name-btn is-secondary" onClick={() => props.onClose()}>Cancel</button>
+        <button type="button" class="layout-name-btn is-primary" data-name="submit-button" aria-disabled={!value().trim()} disabled={!value().trim()} onClick={submit}>
+          {props.submitLabel}
+        </button>
+      </div>
+    </Dialog>
   );
 }

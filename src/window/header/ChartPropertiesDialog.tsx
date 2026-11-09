@@ -47,6 +47,7 @@ import { FeatureCardIcon } from "./FeatureCard";
 import { CheckBox, ColorControl, MultiCheckSelect, NumberField, SelectControl } from "../../components/form";
 import { Chevron } from "../../components/form/glyphs";
 import { createPopover } from "../../components/popover";
+import { Dialog } from "../../components/Dialog";
 
 /** Symbol events (dividends, splits, earnings) exist on stocks, funds and depositary receipts; shown while the
  *  type is not known yet. */
@@ -337,15 +338,6 @@ export function ChartPropertiesDialog(props: Props) {
   };
   const removeTemplate = (name: string) => removeChartTemplate(name);
 
-  // Dialog-level Escape: popovers stop propagation of their own Escape first.
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !tplAnchor()) { e.stopPropagation(); props.onClose(); }
-    };
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
-  });
-
   const RowView = (p: { tab: string; r: FormRow }) => {
     const key = keyOf(p.tab, rowIdOf(p.r));
     return (
@@ -388,82 +380,79 @@ export function ChartPropertiesDialog(props: Props) {
   });
 
   return (
-    <div class="settings-backdrop cp3-backdrop" role="presentation" onMouseDown={() => props.onClose()}>
-      <div
-        ref={dialogEl}
-        class="settings-dialog cp3-dialog"
-        style={{ top: top() === null ? undefined : `${top()}px`, visibility: top() === null ? "hidden" : undefined }}
-        data-qa-id="series-properties-dialog"
-        role="dialog"
-        aria-label="Settings"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <header class="cp3-header">
-          <div class="cp3-header-title">Settings</div>
-          <button type="button" data-qa-id="close" aria-label="Close menu" class="cp3-close" onClick={() => props.onClose()}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" /></svg>
-          </button>
-        </header>
+    <Dialog
+      look="settings"
+      layerClass="settings-backdrop cp3-backdrop"
+      backdrop="close"
+      inline
+      ref={dialogEl}
+      class="settings-dialog cp3-dialog"
+      style={{ top: top() === null ? undefined : `${top()}px`, visibility: top() === null ? "hidden" : undefined }}
+      data-qa-id="series-properties-dialog"
+      title="Settings"
+      onClose={props.onClose}
+      // Bubble phase: the selects and colour panels take Escape first.
+      keys={{ capture: false }}
+      onEscape={() => (tplAnchor() ? false : props.onClose())}
+    >
+      <div class="cp3-body">
+        <nav class="cp3-tabs" aria-label="Settings sections">
+          <For each={SETTINGS_TABS}>
+            {(tab) => (
+              <button type="button" data-qa-id={tab.id} class={`settings-tab${active() === tab.id ? " is-active" : ""}`} aria-current={active() === tab.id} onClick={() => setActive(tab.id)}>
+                <TabGlyph icon={tab.icon} />
+                <span class="settings-tab-label">{tab.label}</span>
+              </button>
+            )}
+          </For>
+        </nav>
 
-        <div class="cp3-body">
-          <nav class="cp3-tabs" aria-label="Settings sections">
-            <For each={SETTINGS_TABS}>
-              {(tab) => (
-                <button type="button" data-qa-id={tab.id} class={`settings-tab${active() === tab.id ? " is-active" : ""}`} aria-current={active() === tab.id} onClick={() => setActive(tab.id)}>
-                  <TabGlyph icon={tab.icon} />
-                  <span class="settings-tab-label">{tab.label}</span>
-                </button>
-              )}
+        <div class="cp3-content">
+          <div class="cp3-grid">
+            <For each={entries()}>
+              {(e, i) => {
+                const it = e.item;
+                if (it.kind === "section")
+                  return <div class={`cp3-section${i() === 0 ? " is-first" : ""}`}><span>{it.text}</span></div>;
+                if (it.kind === "gap") return <div class="cp3-group-gap" />;
+                return <RowView tab={e.tab} r={it} />;
+              }}
             </For>
-          </nav>
-
-          <div class="cp3-content">
-            <div class="cp3-grid">
-              <For each={entries()}>
-                {(e, i) => {
-                  const it = e.item;
-                  if (it.kind === "section")
-                    return <div class={`cp3-section${i() === 0 ? " is-first" : ""}`}><span>{it.text}</span></div>;
-                  if (it.kind === "gap") return <div class="cp3-group-gap" />;
-                  return <RowView tab={e.tab} r={it} />;
-                }}
-              </For>
-            </div>
           </div>
         </div>
-
-        <footer class="cp3-footer">
-          <button
-            ref={tplBtn}
-            type="button"
-            class="cp3-template"
-            aria-haspopup="menu"
-            aria-expanded={!!tplAnchor()}
-            onClick={() => (tplAnchor() ? setTplAnchor(null) : setTplAnchor(anchorOf(tplBtn!)))}
-          >Template <span class="cp3-select-caret"><Chevron /></span></button>
-          <div class="cp3-footer-actions">
-            <button type="button" class="cp3-btn" onClick={applyAll}>Apply to all</button>
-            <button type="button" class="cp3-btn" onClick={() => props.onClose()}>Cancel</button>
-            <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>Ok</button>
-          </div>
-        </footer>
-
-        <Show when={tplAnchor()} keyed>
-          {(a) => (
-            <TemplateMenu
-              anchor={a}
-              trigger={() => tplBtn}
-              templates={templates()}
-              onApplyDefault={reset}
-              onSaveAs={saveTemplate}
-              onApply={applyTemplate}
-              onRemove={removeTemplate}
-              onClose={() => setTplAnchor(null)}
-            />
-          )}
-        </Show>
       </div>
-    </div>
+
+      <footer class="cp3-footer">
+        <button
+          ref={tplBtn}
+          type="button"
+          class="cp3-template"
+          aria-haspopup="menu"
+          aria-expanded={!!tplAnchor()}
+          onClick={() => (tplAnchor() ? setTplAnchor(null) : setTplAnchor(anchorOf(tplBtn!)))}
+        >Template <span class="cp3-select-caret"><Chevron /></span></button>
+        <div class="cp3-footer-actions">
+          <button type="button" class="cp3-btn" onClick={applyAll}>Apply to all</button>
+          <button type="button" class="cp3-btn" onClick={() => props.onClose()}>Cancel</button>
+          <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>Ok</button>
+        </div>
+      </footer>
+
+      <Show when={tplAnchor()} keyed>
+        {(a) => (
+          <TemplateMenu
+            anchor={a}
+            trigger={() => tplBtn}
+            templates={templates()}
+            onApplyDefault={reset}
+            onSaveAs={saveTemplate}
+            onApply={applyTemplate}
+            onRemove={removeTemplate}
+            onClose={() => setTplAnchor(null)}
+          />
+        )}
+      </Show>
+    </Dialog>
   );
 }
 

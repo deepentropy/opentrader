@@ -5,9 +5,10 @@
  * slider, Cancel / Ok. Ok without an image shows "Image is required"; a click
  * outside confirms (when an image is chosen) and closes.
  */
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, onCleanup, Show } from "solid-js";
 import { IMAGE_MAX_SIDE, IMAGE_TYPES } from "lightweight-charts-drawing/core/kinds/images";
 import { saveDrawingImage } from "./image-store";
+import { DialogClose, createDialogKeys } from "../../components/Dialog";
 
 export type ImageDialogResult = { name: string; width: number; height: number; transparency: number };
 
@@ -52,13 +53,7 @@ export function ImageDialog(props: {
     return true;
   }
 
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); props.onClose(); }
-    };
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => window.removeEventListener("keydown", onKey, true));
-  });
+  createDialogKeys({ onEscape: () => props.onClose() });
   onCleanup(() => { const p = picked(); if (p) URL.revokeObjectURL(p.url); });
 
   return (
@@ -77,15 +72,11 @@ export function ImageDialog(props: {
         data-name="create-image-drawing-dialog"
         onClick={(e) => e.stopPropagation()}
       >
-        <header class="drawing-settings-header">
+        <header class="drawing-settings-header" data-dialog-title>
           <div class="drawing-settings-title">
             <span class="drawing-settings-title-text">Image</span>
           </div>
-          <button type="button" aria-label="Close menu" data-qa-id="close" class="drawing-settings-close" onClick={props.onClose}>
-            <svg viewBox="0 0 18 18" width="18" height="18">
-              <path stroke="currentColor" stroke-width="1.2" d="m1.5 1.5 15 15m0-15-15 15" />
-            </svg>
-          </button>
+          <DialogClose look="drawing" onClick={props.onClose} />
         </header>
         <div class="image-dialog-content">
           <div

@@ -10,6 +10,7 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import { CheckBox } from "./form";
+import { Dialog } from "./Dialog";
 
 export type ConfirmOptions = {
   /** Title (default "Confirmation"). */
@@ -87,30 +88,31 @@ export function showNotice(opts: NoticeOptions): () => void {
 /** Case-insensitive "contains" filter. */
 const matches = (typed: string, name: string) => typed === "" || name.toLowerCase().includes(typed.toLowerCase());
 
-const CloseIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
-    <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
-  </svg>
-);
-
-function Frame(props: { title: string; onClose: () => void; children: import("solid-js").JSX.Element; label: string; iconPath?: string }) {
+function Frame(props: { title: string; onClose: () => void; children: JSX.Element; label: string; iconPath?: string }) {
   return (
-    <div class="ot-dlg-layer" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-      <div class="ot-dlg" role="dialog" aria-label={props.label}>
-        <div class="ot-dlg-title">
+    <Dialog
+      look="prompt"
+      layerClass="ot-dlg-layer"
+      backdrop="block"
+      // The host portal holds the stack; Escape / Enter go to the top dialog only (useKeys).
+      inline
+      onEscape={false}
+      class="ot-dlg"
+      label={props.label}
+      onClose={props.onClose}
+      title={
+        <>
           <Show when={props.iconPath}>
             <svg class="ot-dlg-title-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
               <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" d={props.iconPath} />
             </svg>
           </Show>
           {props.title}
-        </div>
-        <button type="button" class="ot-dlg-close" aria-label="close" onClick={() => props.onClose()}>
-          <CloseIcon />
-        </button>
-        {props.children}
-      </div>
-    </div>
+        </>
+      }
+    >
+      {props.children}
+    </Dialog>
   );
 }
 

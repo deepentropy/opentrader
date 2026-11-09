@@ -48,6 +48,7 @@ import { isStrategyId, strategyRows, userStrategyId } from "../../window/chart/i
 import { typeIdOf } from "../../window/chart/indicators/study-id";
 import { Tooltip } from "../../components/Tooltip";
 import { Icon } from "../../components/Icon";
+import { Dialog } from "../../components/Dialog";
 
 type Props = {
   onClose: () => void;
@@ -366,235 +367,222 @@ export function IndicatorsDialog(props: Props) {
   });
 
   return (
-    <div class="indicators-backdrop" role="presentation" onMouseDown={() => props.onClose()}>
-      <div
-        class="indicators-dialog"
-        data-name="indicators-dialog"
-        role="dialog"
-        aria-label={props.title ?? "Indicators, metrics, and strategies"}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        {/* ─── Header ─── */}
-        <header class="indicators-header">
-          <div class="indicators-title">{props.title ?? "Indicators, metrics, and strategies"}</div>
-          <button
-            type="button"
-            data-qa-id="close"
-            aria-label="Close menu"
-            class="indicators-close"
-            onClick={() => props.onClose()}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18">
-              <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
-            </svg>
-          </button>
-        </header>
+    <Dialog
+      look="indicators"
+      layerClass="indicators-backdrop"
+      backdrop="close"
+      inline
+      class="indicators-dialog"
+      data-name="indicators-dialog"
+      title={props.title ?? "Indicators, metrics, and strategies"}
+      onClose={props.onClose}
+      // Escape is one of the dialog's keys (rows, Enter) handled above.
+      onEscape={false}
+    >
+      {/* ─── Search ─── */}
+      <div class="indicators-search-wrap">
+        <span class="indicators-search-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="20" height="20" fill="none">
+            <path stroke="currentColor" stroke-width="1.4" d="M19.5 19.5 24 24M21 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
+          </svg>
+        </span>
+        <input
+          ref={inputRef}
+          type="search"
+          role="searchbox"
+          class="indicators-search-input"
+          data-qa-id="indicators-dialog-search-input"
+          placeholder="Search"
+          value={input()}
+          onInput={(e) => onSearchInput(e.currentTarget.value)}
+          autocomplete="off"
+          spellcheck={false}
+        />
+      </div>
 
-        {/* ─── Search ─── */}
-        <div class="indicators-search-wrap">
-          <span class="indicators-search-icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="20" height="20" fill="none">
-              <path stroke="currentColor" stroke-width="1.4" d="M19.5 19.5 24 24M21 13a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z" />
-            </svg>
-          </span>
-          <input
-            ref={inputRef}
-            type="search"
-            role="searchbox"
-            class="indicators-search-input"
-            data-qa-id="indicators-dialog-search-input"
-            placeholder="Search"
-            value={input()}
-            onInput={(e) => onSearchInput(e.currentTarget.value)}
-            autocomplete="off"
-            spellcheck={false}
-          />
-        </div>
-
-        {/* ─── Content: sidebar + list ─── */}
-        <div class="indicators-content">
-          <nav class="indicators-sidebar" data-qa-id="indicator-sidebar" aria-label="Indicator categories">
-            <For each={SIDEBAR}>
-              {(group) => (
-                <div class="indicators-sidebar-group" data-qa-id={`indicator-sidebar-group-${group.key}`}>
-                  <div class="indicators-sidebar-title">{group.title}</div>
-                  <For each={group.items.filter((item) => isVisibleTab(item.id))}>
-                    {(item) => (
-                      <button
-                        type="button"
-                        data-qa-id={`indicator-sidebar-item-${item.id}`}
-                        class={`indicators-sidebar-item${activeItem() === item.id ? " is-active" : ""}${item.disabled ? " is-disabled" : ""}`}
-                        aria-current={activeItem() === item.id}
-                        aria-disabled={item.disabled || undefined}
-                        disabled={item.disabled}
-                        onClick={() => { if (!item.disabled) openTab(item.id); }}
-                      >
-                        <Glyph id={item.id} />
-                        <span class="indicators-sidebar-label">{item.label}</span>
-                      </button>
-                    )}
-                  </For>
-                </div>
-              )}
-            </For>
-          </nav>
-
-          <div class="indicators-list-pane">
-            <Show when={!searching() && (view()?.filters.length ?? 0) > 0}>
-              <div class="indicators-type-tabs" role="tablist" data-qa-id="indicators-type-tabs">
-                <For each={view()?.filters ?? []}>
-                  {(f) => (
+      {/* ─── Content: sidebar + list ─── */}
+      <div class="indicators-content">
+        <nav class="indicators-sidebar" data-qa-id="indicator-sidebar" aria-label="Indicator categories">
+          <For each={SIDEBAR}>
+            {(group) => (
+              <div class="indicators-sidebar-group" data-qa-id={`indicator-sidebar-group-${group.key}`}>
+                <div class="indicators-sidebar-title">{group.title}</div>
+                <For each={group.items.filter((item) => isVisibleTab(item.id))}>
+                  {(item) => (
                     <button
                       type="button"
-                      role="tab"
-                      data-filter={f.id}
-                      aria-selected={view()?.filter === f.id}
-                      class={`indicators-subtab${view()?.filter === f.id ? " selected" : ""}`}
-                      onClick={() => { const tab = activeItem(); if (tab) pickFilter(tab, f.id); }}
+                      data-qa-id={`indicator-sidebar-item-${item.id}`}
+                      class={`indicators-sidebar-item${activeItem() === item.id ? " is-active" : ""}${item.disabled ? " is-disabled" : ""}`}
+                      aria-current={activeItem() === item.id}
+                      aria-disabled={item.disabled || undefined}
+                      disabled={item.disabled}
+                      onClick={() => { if (!item.disabled) openTab(item.id); }}
                     >
-                      {FILTER_LABELS[f.id]}
+                      <Glyph id={item.id} />
+                      <span class="indicators-sidebar-label">{item.label}</span>
                     </button>
                   )}
                 </For>
               </div>
-            </Show>
-            <Show when={header()}>
-              {(h) => (
-                <div class={`indicators-list-head${(view()?.filters.length ?? 0) > 0 ? " has-filters" : ""}`}>
-                  <span class="indicators-col-name">{h().title}</span>
-                  <Show when={h().author}>
-                    <span class="indicators-col-author">Author</span>
+            )}
+          </For>
+        </nav>
+
+        <div class="indicators-list-pane">
+          <Show when={!searching() && (view()?.filters.length ?? 0) > 0}>
+            <div class="indicators-type-tabs" role="tablist" data-qa-id="indicators-type-tabs">
+              <For each={view()?.filters ?? []}>
+                {(f) => (
+                  <button
+                    type="button"
+                    role="tab"
+                    data-filter={f.id}
+                    aria-selected={view()?.filter === f.id}
+                    class={`indicators-subtab${view()?.filter === f.id ? " selected" : ""}`}
+                    onClick={() => { const tab = activeItem(); if (tab) pickFilter(tab, f.id); }}
+                  >
+                    {FILTER_LABELS[f.id]}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
+          <Show when={header()}>
+            {(h) => (
+              <div class={`indicators-list-head${(view()?.filters.length ?? 0) > 0 ? " has-filters" : ""}`}>
+                <span class="indicators-col-name">{h().title}</span>
+                <Show when={h().author}>
+                  <span class="indicators-col-author">Author</span>
+                </Show>
+              </div>
+            )}
+          </Show>
+          <div class="indicators-list-scroll">
+            {/* Tab body */}
+            <Show when={!searching() && view()?.content}>
+              {(c) => (
+                <>
+                  <Show when={c().kind === "empty"}>
+                    <div class="indicators-empty-state">
+                      <div class="indicators-empty-title">{(c() as any).title}</div>
+                      <Show when={(c() as any).body}>
+                        <div class="indicators-empty-body">{(c() as any).body}</div>
+                      </Show>
+                      <Show when={(c() as any).action}>
+                        <button type="button" class="indicators-empty-action">{(c() as any).action}</button>
+                      </Show>
+                    </div>
                   </Show>
-                </div>
+
+                  <Show when={c().kind === "placeholder" || c().kind === "gap"}>
+                    <div class="ot-empty-state indicators-empty">{(c() as any).note}</div>
+                  </Show>
+
+                  <Show when={c().kind === "fundamentals"}>
+                    <FundamentalsView subtabs={(c() as any).subtabs} query={query()} onAdd={props.supported ? undefined : props.onAddIndicator} />
+                  </Show>
+                </>
               )}
             </Show>
-            <div class="indicators-list-scroll">
-              {/* Tab body */}
-              <Show when={!searching() && view()?.content}>
-                {(c) => (
-                  <>
-                    <Show when={c().kind === "empty"}>
-                      <div class="indicators-empty-state">
-                        <div class="indicators-empty-title">{(c() as any).title}</div>
-                        <Show when={(c() as any).body}>
-                          <div class="indicators-empty-body">{(c() as any).body}</div>
-                        </Show>
-                        <Show when={(c() as any).action}>
-                          <button type="button" class="indicators-empty-action">{(c() as any).action}</button>
-                        </Show>
-                      </div>
-                    </Show>
 
-                    <Show when={c().kind === "placeholder" || c().kind === "gap"}>
-                      <div class="ot-empty-state indicators-empty">{(c() as any).note}</div>
-                    </Show>
-
-                    <Show when={c().kind === "fundamentals"}>
-                      <FundamentalsView subtabs={(c() as any).subtabs} query={query()} onAdd={props.supported ? undefined : props.onAddIndicator} />
-                    </Show>
-                  </>
-                )}
-              </Show>
-
-              <Show when={isList()}>
-                <Show
-                  when={items().length > 0}
-                  fallback={
-                    <div class="ot-empty-state indicators-empty">{searching() ? "No matches" : "No indicators"}</div>
-                  }
-                >
-                  <div class={`indicators-list${!searching() && (view()?.filters.length ?? 0) > 0 ? " has-filters" : ""}`} ref={listRef} role="listbox">
-                    <For each={items()}>
-                      {(item, i) => {
-                        if (isSection(item)) {
-                          return <div class="indicators-section-title" role="presentation">{item.section}</div>;
-                        }
-                        const row = item;
-                        const unsupported = () => !!row.indicatorId && !!props.supported && !props.supported(row.indicatorId);
-                        const addable = () => !!row.indicatorId && !!props.onAddIndicator && !unsupported();
-                        const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
-                        return (
-                          <div
-                            class={`indicators-row${row.metricKey ? " is-metric" : ""}${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}${unsupported() ? " is-unsupported" : ""}`}
-                            role="option"
-                            aria-disabled={unsupported() || undefined}
-                            title={unsupported() ? props.unsupportedText : undefined}
-                            aria-selected={i() === selectedIdx()}
-                            onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
-                          >
-                            <div class="indicators-cell indicators-name-cell">
-                              <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
-                                <span
-                                  class={`indicators-favorite${favorited() ? " is-active" : ""}`}
-                                  aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
-                                  role="button"
-                                  onClick={(e) => {
-                                    // Star toggles the favourite without
-                                    // adding the study.
-                                    if (!row.indicatorId) return;
-                                    e.stopPropagation();
-                                    toggleFavoriteIndicator(row.indicatorId);
-                                  }}
-                                >
-                                  <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
-                                    <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
-                                  </svg>
-                                </span>
-                              </Tooltip>
-                              <span class="indicators-name">
-                                <For each={highlightParts(row.name, query())}>
-                                  {(part) => (part.hit ? <span class="indicators-hit">{part.text}</span> : part.text)}
-                                </For>
+            <Show when={isList()}>
+              <Show
+                when={items().length > 0}
+                fallback={
+                  <div class="ot-empty-state indicators-empty">{searching() ? "No matches" : "No indicators"}</div>
+                }
+              >
+                <div class={`indicators-list${!searching() && (view()?.filters.length ?? 0) > 0 ? " has-filters" : ""}`} ref={listRef} role="listbox">
+                  <For each={items()}>
+                    {(item, i) => {
+                      if (isSection(item)) {
+                        return <div class="indicators-section-title" role="presentation">{item.section}</div>;
+                      }
+                      const row = item;
+                      const unsupported = () => !!row.indicatorId && !!props.supported && !props.supported(row.indicatorId);
+                      const addable = () => !!row.indicatorId && !!props.onAddIndicator && !unsupported();
+                      const favorited = () => !!row.indicatorId && isFavoriteIndicator(row.indicatorId);
+                      return (
+                        <div
+                          class={`indicators-row${row.metricKey ? " is-metric" : ""}${i() === selectedIdx() ? " is-selected" : ""}${addable() ? " is-addable" : ""}${unsupported() ? " is-unsupported" : ""}`}
+                          role="option"
+                          aria-disabled={unsupported() || undefined}
+                          title={unsupported() ? props.unsupportedText : undefined}
+                          aria-selected={i() === selectedIdx()}
+                          onClick={addable() ? () => props.onAddIndicator!(row.indicatorId!) : undefined}
+                        >
+                          <div class="indicators-cell indicators-name-cell">
+                            <Tooltip text={favorited() ? "Remove from favorites" : "Add to favorites"} side="bottom">
+                              <span
+                                class={`indicators-favorite${favorited() ? " is-active" : ""}`}
+                                aria-label={favorited() ? "Remove from favorites" : "Add to favorites"}
+                                role="button"
+                                onClick={(e) => {
+                                  // Star toggles the favourite without
+                                  // adding the study.
+                                  if (!row.indicatorId) return;
+                                  e.stopPropagation();
+                                  toggleFavoriteIndicator(row.indicatorId);
+                                }}
+                              >
+                                <svg viewBox="0 0 18 18" width="16" height="16" fill={favorited() ? "currentColor" : "none"} stroke="currentColor" stroke-width={favorited() ? 0 : 1.2} aria-hidden="true">
+                                  <path d="M9 2.2l1.96 4.02 4.44.62-3.22 3.1.78 4.44L9 12.78 5.26 14.4l.78-4.44-3.22-3.1 4.44-.62z" />
+                                </svg>
                               </span>
-                              <Show when={row.scriptType === "strategy"}>
-                                <span class="indicators-script-type" aria-label="Strategy">
-                                  <Icon name="st-indicators-dialog-strategy-scriptType" size={18} />
-                                </span>
-                              </Show>
-                              <For each={row.badges ?? []}>
-                                {(b) => <span class={`indicators-badge badge-${b.toLowerCase()}`}>{b}</span>}
+                            </Tooltip>
+                            <span class="indicators-name">
+                              <For each={highlightParts(row.name, query())}>
+                                {(part) => (part.hit ? <span class="indicators-hit">{part.text}</span> : part.text)}
                               </For>
-                            </div>
-                            <Show
-                              when={row.metricKey}
-                              fallback={
-                                <div class="indicators-cell indicators-author-cell">
-                                  <Show when={row.author}>
-                                    <span class="indicators-author">{row.author}</span>
-                                  </Show>
-                                </div>
-                              }
-                            >
-                              <Show when={(row.periods?.length ?? 0) > 1}>
-                                <div class="indicators-metric-actions">
-                                  <For each={row.periods}>
-                                    {(p) => (
-                                      <button
-                                        type="button"
-                                        class="indicators-metric-period"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          props.onAddIndicator?.(fundamentalId(row.metricKey!, p));
-                                        }}
-                                      >
-                                        {PERIOD_LABELS[p]}
-                                      </button>
-                                    )}
-                                  </For>
-                                </div>
-                              </Show>
+                            </span>
+                            <Show when={row.scriptType === "strategy"}>
+                              <span class="indicators-script-type" aria-label="Strategy">
+                                <Icon name="st-indicators-dialog-strategy-scriptType" size={18} />
+                              </span>
                             </Show>
+                            <For each={row.badges ?? []}>
+                              {(b) => <span class={`indicators-badge badge-${b.toLowerCase()}`}>{b}</span>}
+                            </For>
                           </div>
-                        );
-                      }}
-                    </For>
-                  </div>
-                </Show>
+                          <Show
+                            when={row.metricKey}
+                            fallback={
+                              <div class="indicators-cell indicators-author-cell">
+                                <Show when={row.author}>
+                                  <span class="indicators-author">{row.author}</span>
+                                </Show>
+                              </div>
+                            }
+                          >
+                            <Show when={(row.periods?.length ?? 0) > 1}>
+                              <div class="indicators-metric-actions">
+                                <For each={row.periods}>
+                                  {(p) => (
+                                    <button
+                                      type="button"
+                                      class="indicators-metric-period"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        props.onAddIndicator?.(fundamentalId(row.metricKey!, p));
+                                      }}
+                                    >
+                                      {PERIOD_LABELS[p]}
+                                    </button>
+                                  )}
+                                </For>
+                              </div>
+                            </Show>
+                          </Show>
+                        </div>
+                      );
+                    }}
+                  </For>
+                </div>
               </Show>
-            </div>
+            </Show>
           </div>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
