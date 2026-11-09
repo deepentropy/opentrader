@@ -369,6 +369,47 @@ createRoot(() => {
 kv.onExternalChange(RULES_KEY, () => setState(load()));
 kv.onExternalChange(FIRES_KEY, () => setState(load()));
 
+// ── Per-alert webhook URLs ──
+// Kept beside the rules (the AlertRule shape follows the Fire/Alert record layout), keyed by rule id and persisted
+// like them; deleting a rule deletes its URL.
+const WEBHOOKS_KEY = "ot:alert-webhooks:v1";
+function loadWebhooks(): Record<string, string> {
+  try {
+    const raw = kv.getItem(WEBHOOKS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed as Record<string, string>;
+    }
+  } catch {
+    /* malformed — start empty */
+  }
+  return {};
+}
+let webhooks = loadWebhooks();
+kv.onExternalChange(WEBHOOKS_KEY, () => {
+  webhooks = loadWebhooks();
+});
+function saveWebhooks(): void {
+  try {
+    kv.setItem(WEBHOOKS_KEY, JSON.stringify(webhooks));
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** The rule's webhook URL, or null when none is configured. */
+export function alertWebhook(id: string): string | null {
+  return webhooks[id] ?? null;
+}
+
+/** Set (or clear, with null/empty) a rule's webhook URL. */
+export function setAlertWebhook(id: string, url: string | null): void {
+  if (url?.trim()) webhooks[id] = url.trim();
+  else if (id in webhooks) delete webhooks[id];
+  else return; // nothing changed — skip the write
+  saveWebhooks();
+}
+
 /** Fields the caller supplies when creating a rule; the store fills in id /
  *  createdAt / enabled defaults. */
 export type NewAlertRule = Omit<AlertRule, "id" | "createdAt" | "enabled"> & {
@@ -439,12 +480,17 @@ export const alertStore = {
     return copy;
   },
 
+  /** Delete a rule with its webhook URL (its evaluation memory goes with it: the engine keeps memory for the rules
+   *  listed only). */
   remove(id: string): void {
     setState("rules", (rs) => rs.filter((r) => r.id !== id));
+    setAlertWebhook(id, null);
   },
 
   clearRules(): void {
     setState("rules", []);
+    webhooks = {};
+    saveWebhooks();
   },
 
   /** Add a fired event to the log (newest first; an offline event takes the

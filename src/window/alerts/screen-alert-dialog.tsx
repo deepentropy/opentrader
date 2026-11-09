@@ -7,7 +7,7 @@ import { createSignal } from "solid-js";
 import { showConfirm } from "../../components/Dialogs";
 import { alertStore, type AlertOperator } from "../../data/alert-store";
 import { OPERATOR_LABELS } from "../../data/alert-condition";
-import { ensureNotificationPermission } from "../../data/alert-engine";
+import { ensureNotificationPermission } from "../../data/alert-delivery";
 import { CheckBox, SelectControl } from "../header/ChartPropertiesDialog";
 
 const OPS: AlertOperator[] = ["screen_enter", "screen_exit"];

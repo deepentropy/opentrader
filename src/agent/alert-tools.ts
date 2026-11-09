@@ -45,7 +45,6 @@ import {
 } from "../data/alert-operands";
 import { chartComparesFor } from "../data/chart-state-registry";
 import { hasAlertFunction, studyConditions } from "../data/alert-study-conditions";
-import { resetRuleEvalState, setAlertWebhook } from "../data/alert-engine";
 import { alertStore, isScreenRule, type AlertCondition, type AlertFrequency, type AlertOperator, type AlertRule, type DrawingShape, type NewAlertRule, type Operand } from "../data/alert-store";
 import { screenerStore } from "../data/screener-store";
 import { getIndicatorEntry, loadIndicatorLibrary } from "../window/chart/indicators/registry";
@@ -428,11 +427,9 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
       run: async (args) => {
         const r = ruleNamed(args.id);
         const patch: Partial<AlertRule> = {};
-        let condition = false;
         if (args.value !== undefined) {
           if (r.right.kind !== "value" || r.right2 || isScreenRule(r) || OWN.includes(r.op)) throw new AgentError("This alert's condition has no single value.");
           patch.right = { kind: "value", value: num(args.value, "value") };
-          condition = true;
         }
         if (args.low !== undefined || args.high !== undefined) {
           if (!r.right2 || r.right.kind !== "value" || r.right2.kind !== "value") throw new AgentError("This alert has no low / high bounds.");
@@ -440,7 +437,6 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
           const lo = args.low === undefined ? r.right2.value : num(args.low, "low");
           patch.right = { kind: "value", value: Math.max(lo, hi) };
           patch.right2 = { kind: "value", value: Math.min(lo, hi) };
-          condition = true;
         }
         if (args.bars !== undefined) {
           if (!isMovingOperator(r.op)) throw new AgentError("Only a moving condition has bars.");
@@ -448,7 +444,6 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
           const min = movingBarsMin(r.left.kind);
           if (b < min || b > 300) throw new AgentError(`"bars": ${min} to 300.`);
           patch.bars = b;
-          condition = true;
         }
         if (args.frequency !== undefined) {
           const f = FREQUENCIES.find((x) => x === args.frequency);
@@ -464,7 +459,6 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
         if (Object.keys(patch).length) {
           // An edit starts the alert again, as saving the dialog does.
           alertStore.update(r.id, { ...patch, enabled: args.enabled !== false });
-          if (condition) resetRuleEvalState(r.id);
         } else if (typeof args.enabled === "boolean") {
           alertStore.setEnabled(r.id, args.enabled);
         }
@@ -479,8 +473,6 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
       annotations: { destructiveHint: true },
       run: async (args) => {
         const r = ruleNamed(args.id);
-        resetRuleEvalState(r.id);
-        setAlertWebhook(r.id, null);
         alertStore.remove(r.id);
         return { deleted: r.id, condition: inEnglish(() => describeCondition(r)) };
       },

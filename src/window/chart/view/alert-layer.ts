@@ -8,7 +8,6 @@ import { crosshairLockTime } from "../crosshair-lock";
 import { uiTheme } from "../../header/chart-settings";
 import { alertStore, type AlertRule, type AlertStopReason } from "../../../data/alert-store";
 import { LEVEL_OPERATORS, defaultAlertMessage, isBandOperator } from "../../../data/alert-condition";
-import { resetRuleEvalState, setAlertWebhook } from "../../../data/alert-engine";
 import { ALERT_STATUS_COLORS, AlertLabelsPrimitive, alertLabelTheme, type AlertLabelHit, type AlertLabelSpec } from "../alert-labels";
 import { CtxIcons, type CtxNode } from "../ChartContextMenu";
 import { roundedOnSeries } from "./helpers";
@@ -206,11 +205,11 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
     const nodes: CtxNode[] = [
       rule.enabled
         ? { kind: "item", id: "alert-pause", label: "Pause", icon: CtxIcons.pause, onSelect: () => alertStore.setEnabled(id, false) }
-        : { kind: "item", id: "alert-restart", label: "Restart", icon: CtxIcons.restart, onSelect: () => { resetRuleEvalState(id); alertStore.setEnabled(id, true); } },
+        : { kind: "item", id: "alert-restart", label: "Restart", icon: CtxIcons.restart, onSelect: () => alertStore.setEnabled(id, true) },
       { kind: "item", id: "alert-edit", label: "Edit…", icon: CtxIcons.edit,
         onSelect: () => emitAppEvent("chart-open-alert-dialog", { editId: id }) },
       { kind: "item", id: "alert-delete", label: "Delete", icon: CtxIcons.remove,
-        onSelect: () => { resetRuleEvalState(id); setAlertWebhook(id, null); alertStore.remove(id); } },
+        onSelect: () => alertStore.remove(id) },
       { kind: "separator" },
       { kind: "item", id: "alert-lines", label: "Alert lines", checked: t.alertLinesVisible,
         onSelect: () => emitAppEvent("chart-patch-scale-settings", { patch: { alertLines: !t.alertLinesVisible } }) },
@@ -265,12 +264,8 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
           window.removeEventListener("pointerup", up, true);
           const again = alertLabelAt(ev.clientX, ev.clientY);
           if (again?.hit.id !== rule.id || again.hit.area !== "button") return;
-          resetRuleEvalState(rule.id);
           if (!rule.enabled) alertStore.setEnabled(rule.id, true);
-          else {
-            setAlertWebhook(rule.id, null);
-            alertStore.remove(rule.id);
-          }
+          else alertStore.remove(rule.id);
         };
         window.addEventListener("pointerup", up, true);
         return;
@@ -304,7 +299,6 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
         if (!d?.moved) return;
         const r = alertStore.rule(d.id);
         if (!r) return;
-        resetRuleEvalState(r.id);
         alertStore.update(r.id, {
           right: { kind: "value", value: d.levels[0] },
           ...(d.levels.length > 1 ? { right2: { kind: "value", value: d.levels[1] } } : {}),

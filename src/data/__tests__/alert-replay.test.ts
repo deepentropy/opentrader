@@ -24,10 +24,10 @@ describe("replayRule: the price against a level", () => {
   const right = level(4);
   const run = (op: AlertOperator, from = t(0), now = t(4), freq: AlertFrequency = "once_per_bar") => replayRule(rule(op, freq), bars, null, right, from, now, STEP);
 
-  it("finds crossings within the bars' ranges, at the level price, one per bar at its close", () => {
+  it("finds crossings within the bars' ranges, at the price the sample crossed at, one per bar at its close", () => {
     expect(run("crossing")).toEqual([
-      { price: 100, barTime: t(1) * 1000, fireTime: t(2) * 1000 },
-      { price: 100, barTime: t(3) * 1000, fireTime: t(4) * 1000 },
+      { price: 100.5, barTime: t(1) * 1000, fireTime: t(2) * 1000 },
+      { price: 99.5, barTime: t(3) * 1000, fireTime: t(4) * 1000 },
     ]);
     expect(run("crossing_up").map((f) => f.barTime)).toEqual([t(1) * 1000]);
     expect(run("crossing_down").map((f) => f.barTime)).toEqual([t(3) * 1000]);
@@ -36,7 +36,8 @@ describe("replayRule: the price against a level", () => {
   it("greater / less: the bar's high above / low below the level", () => {
     expect(run("greater").map((f) => f.barTime / 1000)).toEqual([t(1), t(2), t(3)]);
     expect(run("less").map((f) => f.barTime / 1000)).toEqual([t(0), t(1), t(3)]);
-    expect(run("greater").every((f) => f.price === 100)).toBe(true);
+    // The sample's price when above, else its high.
+    expect(run("greater").map((f) => f.price)).toEqual([100.5, 100.5, 101]);
   });
 
   it("reads only the bars closing after fromSec", () => {
@@ -47,8 +48,8 @@ describe("replayRule: the price against a level", () => {
   it("fires in the bar in progress at nowSec", () => {
     const now = t(3) + 30;
     expect(run("crossing", t(0), now)).toEqual([
-      { price: 100, barTime: t(1) * 1000, fireTime: t(2) * 1000 },
-      { price: 100, barTime: t(3) * 1000, fireTime: now * 1000 },
+      { price: 100.5, barTime: t(1) * 1000, fireTime: t(2) * 1000 },
+      { price: 99.5, barTime: t(3) * 1000, fireTime: now * 1000 },
     ]);
     // A bar that opens at nowSec is not read.
     expect(run("crossing", t(0), t(3)).map((f) => f.barTime / 1000)).toEqual([t(1)]);
@@ -63,9 +64,9 @@ describe("replayRule: the price against a level", () => {
     expect(fires.map((f) => f.barTime / 1000)).toEqual([t(1)]);
   });
 
-  it("skips bars without a level and reads a moving level against the previous one", () => {
+  it("skips bars without a level: the next level compares with the last sample that had one", () => {
     const moving = [100, null, 100, 100];
-    expect(replayRule(rule("crossing"), bars, null, moving, t(0), t(4), STEP).map((f) => f.barTime / 1000)).toEqual([t(3)]);
+    expect(replayRule(rule("crossing"), bars, null, moving, t(0), t(4), STEP).map((f) => f.barTime / 1000)).toEqual([t(2), t(3)]);
   });
 
   it("a bar that opens across the level crosses through its range (open vs close)", () => {
@@ -124,16 +125,16 @@ describe("replayRule: moving operators", () => {
   const bars = [bar(0, 100, 100, 100, 100), bar(1, 100, 102.5, 99, 101), bar(2, 101, 101.5, 98, 99)];
   const pct = (op: AlertOperator, value: number, n?: number) => rule(op, "once_per_bar", { right: { kind: "value", value }, bars: n });
 
-  it("Moving Up %: the high against the close N bars back, at the threshold price", () => {
+  it("Moving Up %: the high against the close N bars back, at the high", () => {
     const fires = replayRule(pct("moving_up_pct", 2), bars, null, [], t(0), t(3), STEP);
-    expect(fires).toEqual([{ price: 102, barTime: t(1) * 1000, fireTime: t(2) * 1000 }]);
+    expect(fires).toEqual([{ price: 102.5, barTime: t(1) * 1000, fireTime: t(2) * 1000 }]);
   });
 
   it("Moving Down %: the low against the close N bars back", () => {
     const fires = replayRule(pct("moving_down_pct", 2), bars, null, [], t(0), t(3), STEP);
     expect(fires).toHaveLength(1);
     expect(fires[0].barTime).toBe(t(2) * 1000);
-    expect(fires[0].price).toBeCloseTo(98.98, 10);
+    expect(fires[0].price).toBe(98);
   });
 
   it("reads N bars back", () => {
@@ -148,7 +149,7 @@ describe("replayRule: moving operators", () => {
   });
 
   it("Moving Up / Down by an amount", () => {
-    expect(replayRule(pct("moving_up", 2), bars, null, [], t(0), t(3), STEP)).toEqual([{ price: 102, barTime: t(1) * 1000, fireTime: t(2) * 1000 }]);
+    expect(replayRule(pct("moving_up", 2), bars, null, [], t(0), t(3), STEP)).toEqual([{ price: 102.5, barTime: t(1) * 1000, fireTime: t(2) * 1000 }]);
     expect(replayRule(pct("moving_down", 2), bars, null, [], t(0), t(3), STEP)).toEqual([{ price: 99, barTime: t(2) * 1000, fireTime: t(3) * 1000 }]);
   });
 
@@ -193,9 +194,9 @@ describe("replayRule: channels between two bounds", () => {
     expect(run("entering", null, lower, upper)).toEqual([t(1)]);
   });
 
-  it("a missing bound resets the previous state", () => {
+  it("a missing bound leaves the previous state as it was", () => {
     const up = [105, null, 105, 105];
-    expect(run("entering", null, up)).toEqual([]);
+    expect(run("entering", null, up)).toEqual([t(2)]);
     expect(run("inside", null, up)).toEqual([t(2), t(3)]);
   });
 
@@ -351,8 +352,8 @@ describe("ruleFlags", () => {
   it("gives, per bar, the price a fire would give (null when not met), as replayRule finds them", () => {
     const bars = [bar(0, 98, 99, 97, 98), bar(1, 98, 101, 97.5, 100.5), bar(2, 100.5, 102, 100.2, 101)];
     const r = rule("crossing_up");
-    expect(ruleFlags(r, bars, null, level(3), t(0), STEP)).toEqual([null, 100, null]);
-    expect(replayRule(r, bars, null, level(3), t(0), t(3), STEP).map((f) => f.price)).toEqual([100]);
+    expect(ruleFlags(r, bars, null, level(3), t(0), STEP)).toEqual([null, 100.5, null]);
+    expect(replayRule(r, bars, null, level(3), t(0), t(3), STEP).map((f) => f.price)).toEqual([100.5]);
   });
 });
 

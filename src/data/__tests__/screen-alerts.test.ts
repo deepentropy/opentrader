@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // The engine (delivery) and the screener backend are not needed for the diff rules.
-vi.mock("../alert-engine", () => ({ deliverScreenFire: () => {} }));
+vi.mock("../alert-delivery", () => ({ deliverScreenFire: () => {} }));
 vi.mock("../screener-api", () => ({}));
 
 import { MAX_SINGLE, screenChanges, screenFires } from "../screen-alerts";

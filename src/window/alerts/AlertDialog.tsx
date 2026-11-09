@@ -21,6 +21,8 @@ import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, on
 import { Portal } from "solid-js/web";
 import {
   alertStore,
+  alertWebhook,
+  setAlertWebhook,
   type AlertCondition,
   type AlertSchedule,
   type AlertFrequency,
@@ -77,7 +79,7 @@ import { compareIntervals, favoriteIntervals, longIntervalLabel } from "../chart
 import { hasAlertFunction, studyConditions } from "../../data/alert-study-conditions";
 import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../../data/alert-placeholders";
 import { messageOutputs } from "../../data/alert-outputs";
-import { studyOperandValue } from "../../data/alert-engine";
+import { studyOperandValue } from "../../data/alert-studies";
 import { parseAmountText, stepAmountText } from "../../data/study-format";
 import * as kv from "../../data/kv";
 import { getIndicatorEntry } from "../chart/indicators/registry";
@@ -85,12 +87,7 @@ import type { SessionId } from "../../data/session/symbol-sessions";
 import { isFullSymbol, isSupportedResolution, toFullSymbol } from "../../data/datafeed";
 import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playAlertSound, stopAlertSound } from "../../data/alert-sounds";
 import { alertSettings } from "../../data/alert-settings";
-import {
-  alertWebhook,
-  ensureNotificationPermission,
-  resetRuleEvalState,
-  setAlertWebhook,
-} from "../../data/alert-engine";
+import { ensureNotificationPermission } from "../../data/alert-delivery";
 import { attachDialogSize } from "./dialog-size";
 import { ISO_WEEKDAYS, PRESET_SEGMENTS, PRESET_TITLES, localTimeZone, schedulePreset, scheduleTitle, segmentText, type SchedulePreset } from "../../data/alert-schedule";
 
@@ -1027,9 +1024,6 @@ export function AlertDialog(props: Props) {
       let id: string;
       if (existing) {
         alertStore.update(existing.id, { ...r, enabled: true });
-        // The condition may have changed — drop the stale crossing baseline so the
-        // next tick re-establishes it instead of manufacturing a spurious cross.
-        resetRuleEvalState(existing.id);
         id = existing.id;
       } else {
         id = alertStore.add(r);
@@ -1546,8 +1540,6 @@ export function AlertDialog(props: Props) {
                   type="button"
                   class="ot-dlg-btn is-secondary ad-delete"
                   onClick={() => {
-                    resetRuleEvalState(existing!.id);
-                    setAlertWebhook(existing!.id, null);
                     alertStore.remove(existing!.id);
                     props.onClose();
                   }}

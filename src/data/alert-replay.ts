@@ -3,35 +3,70 @@
  * anchored VWAP, a moving percentage) read again over the bars missed while
  * the app was not running.
  *
- * The rule is read bar by bar on its own interval and session, each bar with
- * the final value of its operands:
- *  - the price against a level: the level is reached when it lies within the
- *    bar's range; a crossing also needs the price on the other side before
- *    (the previous close) or after (the bar's close);
- *  - a study against a level, a rule that waits for the bar to close: the
- *    values at the close of two bars in a row, as on live samples;
- *  - a moving amount or percentage: the bar's high / low (or the study's
- *    value) against the value N bars back;
- *  - a channel between two bounds: the bar's range (or the study's value)
- *    against the bounds, entering / exiting against the previous bar;
+ * The rule is read bar by bar on its own interval and session with the
+ * evaluation of the live samples (alert-eval.ts), each operand at its value
+ * of the bar:
+ *  - the price: two samples per bar, its open, then its close with the bar's
+ *    range (as the backend replays its minute bars); a rule that waits for the
+ *    bar to close reads the closes only;
+ *  - a study: one sample per bar, its value at the close (a sample whose range
+ *    is that value);
  *  - a study's own condition: true at the bar's close;
  *  - a script's alert() calls: the calls of the bar's last run (see
  *    replayAlertCalls).
- * One fire per bar at most, at the bar's close (now for the bar in progress).
- * An alert with several conditions: each condition is read that way on its
- * own interval, and they are read together at every bar close (see
- * replayConditions).
+ * The trigger frequency applies as live, one fire per bar at most, dated at
+ * the bar's close (now for the bar in progress). An alert with several
+ * conditions: each condition is read that way on its own interval, and they
+ * are read together at every bar close (see replayConditions).
  */
 import type { AlertRule } from "./alert-store";
 import type { StudyAlertCall } from "./alert-study-conditions";
+import { evalCondition, newRuleState, pointSample, REPLAY_MAX_FIRES, stepRule, type EvalCondition, type Sample } from "./alert-eval";
+import { isBandOperator, isMovingOperator } from "./alert-condition";
+
+export { REPLAY_MAX_FIRES, REPLAY_MAX_SEC } from "./alert-eval";
 
 export type ReplayBar = { time: number; open: number; high: number; low: number; close: number };
 export type ReplayFire = { price: number; /** Open of the bar, epoch ms. */ barTime: number; /** Epoch ms. */ fireTime: number };
 
-/** Most fires found for one rule (the latest ones are kept). */
-export const REPLAY_MAX_FIRES = 50;
-/** How far back the bars are read, in seconds. */
-export const REPLAY_MAX_SEC = 30 * 86_400;
+type ReplayRule = Pick<AlertRule, "op" | "frequency" | "bars" | "right">;
+
+/** The condition of `rule` as the evaluation reads it (`banded`: the bounds of a channel are given). */
+function evalConditionOf(rule: ReplayRule, banded: boolean): EvalCondition {
+  if (isMovingOperator(rule.op)) return { op: rule.op, shape: "moving", absentIsOutside: false, amount: rule.right.kind === "value" ? rule.right.value : 0 };
+  return { op: rule.op, shape: banded && isBandOperator(rule.op) ? "band" : "level", absentIsOutside: false };
+}
+
+/** Per bar of `rule`'s interval, the samples its condition reads and its values. `left`: the operand's value at each
+ *  bar's close (null: the price); `right` / `lower`: the level, or the bounds of a channel. */
+function barReader(rule: ReplayRule, bars: ReplayBar[], left: (number | null)[] | null, right: (number | null)[], lower: (number | null)[] | null) {
+  const onClose = rule.frequency === "once_per_bar_close";
+  const back = Math.max(1, Math.min(300, Math.round(rule.bars ?? 1)));
+  const samples = (i: number): Sample[] => {
+    const b = bars[i];
+    const v = left?.[i];
+    if (left) return v == null ? [] : [pointSample(v, b.time)];
+    if (onClose) return [pointSample(b.close, b.time)];
+    return [pointSample(b.open, b.time), { price: b.close, lo: Math.min(b.low, b.close), hi: Math.max(b.high, b.close), time: b.time, extended: false }];
+  };
+  const values = (i: number): number[] | null => {
+    if (isMovingOperator(rule.op)) {
+      const ref = i - back >= 0 ? (left ? left[i - back] : bars[i - back].close) : null;
+      return ref == null ? null : [ref];
+    }
+    const a = right[i];
+    if (a == null) return null;
+    if (!lower) return [a];
+    const c = lower[i];
+    return c == null ? null : [a, c];
+  };
+  return { samples, values };
+}
+
+const closeOf = (bars: ReplayBar[], i: number, stepSec: number) => Math.min(bars[i].time + stepSec, bars[i + 1]?.time ?? Infinity);
+
+/** Index of the first bar closing after `fromSec`, -1 when none does. */
+const firstAfter = (bars: ReplayBar[], fromSec: number, stepSec: number) => bars.findIndex((_, k) => closeOf(bars, k, stepSec) > fromSec);
 
 /** The fires of `rule` in the bars closing after `fromSec` (UNIX seconds, the
  *  last moment it was evaluated) up to `nowSec`. `left` / `right`: the value
@@ -48,28 +83,42 @@ export function replayRule(
   stepSec: number,
   lower: (number | null)[] | null = null,
 ): ReplayFire[] {
+  const cond = evalConditionOf(rule, lower != null);
+  const evalRule = { ...cond, id: "", frequency: rule.frequency, expiresAt: rule.expiresAt, and: [] };
+  const { samples, values } = barReader(rule, bars, left, right, lower);
+  const st = newRuleState();
+  const indexOf = new Map(bars.map((b, k) => [b.time, k]));
+  let i = 0;
+  // A sample is stamped with its bar's open, which is its bar. Out of session: the last bar read closes (below).
+  let closing = false;
+  const reader = { bar: (t: number) => t, inSession: () => !closing, values: () => values(i) };
   const fires: ReplayFire[] = [];
-  const onClose = rule.frequency === "once_per_bar_close";
-  const met = ruleFlags(rule, bars, left, right, fromSec, stepSec, lower);
-  for (let i = 0; i < bars.length; i++) {
-    const b = bars[i];
-    const close = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
-    if (close <= fromSec || b.time >= nowSec) continue;
-    if (rule.expiresAt != null && b.time * 1000 >= rule.expiresAt) break;
-    // The bar in progress has no close yet.
-    if (onClose && close > nowSec) continue;
-    const price = met[i];
-    if (price == null) continue;
-    fires.push({ price, barTime: b.time * 1000, fireTime: Math.min(close, nowSec) * 1000 });
-    if (rule.frequency === "only_once") break;
+  const push = (f: { price: number; barTime: number | null } | null) => {
+    const k = f?.barTime == null ? undefined : indexOf.get(f.barTime);
+    if (!f || k === undefined) return;
+    // A study's fire gives the bar's close.
+    fires.push({ price: left ? bars[k].close : f.price, barTime: bars[k].time * 1000, fireTime: Math.min(closeOf(bars, k, stepSec), nowSec) * 1000 });
+  };
+  const first = firstAfter(bars, fromSec, stepSec);
+  if (first < 0) return [];
+  // The bar before the first one read: what a crossing or a channel compares with.
+  if (first > 0) for (const s of samples(first - 1)) evalCondition(cond, st, s, values(first - 1));
+  for (i = first; i < bars.length && bars[i].time < nowSec; i++) {
+    for (const s of samples(i)) push(stepRule(evalRule, st, s, reader));
+  }
+  // A rule on the close: the last bar read has closed when its close is past, even before the next one comes.
+  i--;
+  if (rule.frequency === "once_per_bar_close" && i >= first && closeOf(bars, i, stepSec) <= nowSec) {
+    closing = true;
+    push(stepRule(evalRule, st, pointSample(bars[i].close, bars[i].time), reader));
   }
   return fires.slice(-REPLAY_MAX_FIRES);
 }
 
 /** Per bar, whether one condition is met at the bar's close (the price a fire gives, null when not met), read as
- *  replayRule reads it; the bars closing at `fromSec` or before are not read. */
+ *  replayRule reads it without its trigger; the bars closing at `fromSec` or before are not read. */
 export function ruleFlags(
-  rule: Pick<AlertRule, "op" | "frequency" | "bars" | "right">,
+  rule: ReplayRule,
   bars: ReplayBar[],
   left: (number | null)[] | null,
   right: (number | null)[],
@@ -78,71 +127,16 @@ export function ruleFlags(
   lower: (number | null)[] | null = null,
 ): (number | null)[] {
   const out: (number | null)[] = bars.map(() => null);
-  const onClose = rule.frequency === "once_per_bar_close";
-  let wasInside: boolean | null = null;
-  // A rule on the close reads the closes only, like a study.
-  const series = left ?? (onClose ? bars.map((b) => b.close) : null);
-  const pct = rule.right.kind === "value" ? rule.right.value : 0;
-  const back = Math.max(1, Math.min(300, Math.round(rule.bars ?? 1)));
-  for (let i = 0; i < bars.length; i++) {
-    const b = bars[i];
-    const close = Math.min(b.time + stepSec, bars[i + 1]?.time ?? Infinity);
-    if (close <= fromSec) continue;
-    let price: number | null = null;
-    if (rule.op === "moving_up_pct" || rule.op === "moving_down_pct") {
-      const up = rule.op === "moving_up_pct";
-      const ref = i - back >= 0 ? (left ? left[i - back] : bars[i - back].close) : null;
-      const now = series ? series[i] : up ? b.high : b.low;
-      if (ref == null || ref === 0 || now == null) continue;
-      const change = ((now - ref) / Math.abs(ref)) * 100;
-      if (up ? change >= pct : change <= -pct) price = series ? b.close : ref + (up ? 1 : -1) * Math.abs(ref) * (pct / 100);
-    } else if (rule.op === "moving_up" || rule.op === "moving_down") {
-      const up = rule.op === "moving_up";
-      const ref = i - back >= 0 ? (left ? left[i - back] : bars[i - back].close) : null;
-      const now = series ? series[i] : up ? b.high : b.low;
-      if (ref == null || now == null) continue;
-      if (up ? now - ref >= pct : now - ref <= -pct) price = series ? b.close : ref + (up ? pct : -pct);
-    } else if (lower && (rule.op === "entering" || rule.op === "exiting" || rule.op === "inside" || rule.op === "outside")) {
-      const a = right[i];
-      const c = lower[i];
-      if (a == null || c == null) {
-        wasInside = null;
-        continue;
-      }
-      const lo = Math.min(a, c);
-      const hi = Math.max(a, c);
-      // A study (or a rule on the close): its value at the close; the price: the bar's range.
-      const v = series ? series[i] : null;
-      if (series && v == null) continue;
-      const inside = v != null ? v >= lo && v <= hi : b.close >= lo && b.close <= hi;
-      const touched = v != null ? inside : b.high >= lo && b.low <= hi;
-      const out = v != null ? !inside : b.high > hi || b.low < lo;
-      const prev = wasInside;
-      wasInside = inside;
-      const met = rule.op === "inside" ? touched : rule.op === "outside" ? out : prev == null ? false : rule.op === "entering" ? !prev && touched : prev && out;
-      if (met) price = b.close;
-    } else {
-      const level = right[i];
-      if (level == null) continue;
-      const before = i > 0 ? right[i - 1] : null;
-      if (series) {
-        const now = series[i];
-        const was = i > 0 ? series[i - 1] : null;
-        if (now == null) continue;
-        const diff = now - level;
-        const prev = was != null && before != null ? was - before : null;
-        const up = prev != null && prev <= 0 && diff > 0;
-        const down = prev != null && prev >= 0 && diff < 0;
-        if (hit(rule.op, up, down, diff > 0, diff < 0)) price = b.close;
-      } else {
-        const start = i > 0 ? bars[i - 1].close : b.open;
-        const from = before ?? level;
-        const up = (start < from && b.high > level) || (b.low < level && b.close > level);
-        const down = (start > from && b.low < level) || (b.high > level && b.close < level);
-        if (hit(rule.op, up, down, b.high > level, b.low < level)) price = level;
-      }
+  const cond = evalConditionOf(rule, lower != null);
+  const { samples, values } = barReader(rule, bars, left, right, lower);
+  const st = newRuleState();
+  const first = firstAfter(bars, fromSec, stepSec);
+  if (first < 0) return out;
+  for (let i = Math.max(0, first - 1); i < bars.length; i++) {
+    for (const s of samples(i)) {
+      const price = evalCondition(cond, st, s, values(i));
+      if (i >= first && price != null && out[i] == null) out[i] = left ? bars[i].close : price;
     }
-    out[i] = price;
   }
   return out;
 }
@@ -279,21 +273,4 @@ export function replayAlertCalls(
     }
   }
   return fires.slice(-REPLAY_MAX_FIRES);
-}
-
-function hit(op: AlertRule["op"], up: boolean, down: boolean, above: boolean, below: boolean): boolean {
-  switch (op) {
-    case "crossing":
-      return up || down;
-    case "crossing_up":
-      return up;
-    case "crossing_down":
-      return down;
-    case "greater":
-      return above;
-    case "less":
-      return below;
-    default:
-      return false;
-  }
 }

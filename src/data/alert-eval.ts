@@ -71,8 +71,8 @@ export type RuleState = CondState & {
   lastFiredBar: number | null;
   /** Time of the last fire (every time: at most once a minute). */
   lastFiredAt: number | null;
-  /** Once per bar close: the forming bar, its latest sample and the values each condition read then. */
-  forming: { bar: number; sample: Sample; values: (number[] | null)[] } | null;
+  /** Once per bar close: the forming bar, its latest sample and what each condition read then. */
+  forming: { bar: number; sample: Sample; reads: ConditionRead[] } | null;
   /** "Only once" has fired, or a position reached its stop or target. */
   done: boolean;
   /** A position's entry has fired (it fires once). */
@@ -98,6 +98,9 @@ export type EvalFire = {
   barTime: number | null;
 };
 
+/** What one condition reads at a sample: its own sample (null: nothing to read now) and its values. */
+type ConditionRead = { sample: Sample | null; values: number[] | null };
+
 /** What a rule reads besides the sample. */
 export type RuleReader = {
   /** Open time of the bar holding `t` (else of the next one to open); null when none is known. */
@@ -106,6 +109,9 @@ export type RuleReader = {
   inSession(s: Sample): boolean;
   /** The values of condition `k` (0: the first one) at `t`; null when it has none then. */
   values(k: number, t: number): number[] | null;
+  /** What condition `k` reads at the sample `s`: the price itself (unset: every condition) or, for a condition on a
+   *  study, the study's value then (a sample whose range is that value); null when it has nothing to read now. */
+  sample?(k: number, s: Sample): Sample | null;
 };
 
 /** The price the condition is met at for this sample, if it is. Updates the memory the next sample compares with. */
@@ -198,14 +204,18 @@ export function evalCondition(c: EvalCondition, st: CondState, s: Sample, values
 
 /** All the conditions of the rule for this sample: the price the first one is met at when every one is met. Each
  *  condition reads the sample, so its memory moves on even when another one is not met. */
-function evalConditions(rule: EvalRule, st: RuleState, s: Sample, values: (k: number) => number[] | null): number | null {
-  const first = evalCondition(rule, st, s, values(0));
+function evalConditions(rule: EvalRule, st: RuleState, read: (k: number) => ConditionRead): number | null {
+  const at = (c: EvalCondition, cst: CondState, k: number) => {
+    const r = read(k);
+    return r.sample ? evalCondition(c, cst, r.sample, r.values) : null;
+  };
+  const first = at(rule, st, 0);
   if (rule.and.length === 0) return first;
   while (st.and.length < rule.and.length) st.and.push(newCondState());
   st.and.length = rule.and.length;
   let all = first != null;
   rule.and.forEach((c, i) => {
-    all = evalCondition(c, st.and[i], s, values(i + 1)) != null && all;
+    all = at(c, st.and[i], i + 1) != null && all;
   });
   return all ? first : null;
 }
@@ -221,13 +231,15 @@ export function stepRule(rule: EvalRule, st: RuleState, s: Sample, reader: RuleR
   // A long / short position fires as the trade it draws: once at its entry, then at its stop or profit level, which
   // ends the alert (its trigger is fixed). Its values are [entry, stop, target].
   if (rule.shape === "position") {
+    const ps = reader.sample ? reader.sample(0, s) : s;
+    if (!ps) return null;
     const prev = st.prevPrice;
-    st.prevPrice = s.price;
+    st.prevPrice = ps.price;
     const v = reader.values(0, s.time);
     if (!v || v.length === 0 || prev == null) return null;
     const [entry, ...exits] = v;
-    const lo = Math.min(s.lo, prev);
-    const hi = Math.max(s.hi, prev);
+    const lo = Math.min(ps.lo, prev);
+    const hi = Math.max(ps.hi, prev);
     const crossed = (l: number) => lo < hi && l >= lo && l <= hi && l !== prev;
     if (!st.entryHit && crossed(entry)) {
       st.entryHit = true;
@@ -240,7 +252,7 @@ export function stepRule(rule: EvalRule, st: RuleState, s: Sample, reader: RuleR
     st.done = true;
     return fire(exit, s.time, bar);
   }
-  const read = (k: number) => reader.values(k, s.time);
+  const read = (k: number): ConditionRead => ({ sample: reader.sample ? reader.sample(k, s) : s, values: reader.values(k, s.time) });
   switch (rule.frequency) {
     // The bar that just closed is judged on its last sample, so a crossing compares close with close.
     case "once_per_bar_close": {
@@ -248,7 +260,7 @@ export function stepRule(rule: EvalRule, st: RuleState, s: Sample, reader: RuleR
       if (inside) {
         if (bar == null) return null;
         const prev = st.forming;
-        st.forming = { bar, sample: s, values: [0, ...rule.and.map((_, i) => i + 1)].map(read) };
+        st.forming = { bar, sample: s, reads: [0, ...rule.and.map((_, i) => i + 1)].map(read) };
         if (!prev || prev.bar === bar) return null;
         closed = prev;
       } else {
@@ -258,27 +270,31 @@ export function stepRule(rule: EvalRule, st: RuleState, s: Sample, reader: RuleR
         st.forming = null;
       }
       const last = closed.sample;
-      const price = evalConditions(rule, st, pointSample(last.price, last.time), (k) => closed.values[k] ?? null);
+      // Each condition reads its last sample as one value.
+      const price = evalConditions(rule, st, (k) => {
+        const r = closed.reads[k];
+        return { sample: r?.sample ? pointSample(r.sample.price, r.sample.time) : null, values: r?.values ?? null };
+      });
       if (price == null || st.lastFiredBar === closed.bar) return null;
       st.lastFiredBar = closed.bar;
       return fire(price, last.time, closed.bar);
     }
     case "once_per_bar": {
-      const price = evalConditions(rule, st, s, read);
+      const price = evalConditions(rule, st, read);
       if (price == null || bar == null || st.lastFiredBar === bar) return null;
       st.lastFiredBar = bar;
       return fire(price, s.time, bar);
     }
     // "Once per minute while condition remains met".
     case "every_time": {
-      const price = evalConditions(rule, st, s, read);
+      const price = evalConditions(rule, st, read);
       if (price == null) return null;
       if (st.lastFiredAt != null && s.time - st.lastFiredAt < EVERY_TIME_SEC) return null;
       st.lastFiredAt = s.time;
       return fire(price, s.time, bar);
     }
     default: {
-      const price = evalConditions(rule, st, s, read);
+      const price = evalConditions(rule, st, read);
       if (price == null) return null;
       st.done = rule.frequency === "only_once";
       return fire(price, s.time, bar);
@@ -289,7 +305,7 @@ export function stepRule(rule: EvalRule, st: RuleState, s: Sample, reader: RuleR
 // ── The backend's rules: compiled values on a grid of bars ──
 
 /** A rule as the backend takes it (bindings' EngineRule, with plain numbers). */
-export type GridRule = EvalRule & {
+export type GridRule = Omit<EvalRule, "and"> & {
   symbol: string;
   /** Changes whenever the condition or what it reads changes: the memory is kept only while it stays the same. */
   sig: string;

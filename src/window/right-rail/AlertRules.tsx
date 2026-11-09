@@ -34,7 +34,6 @@ import { alertStore, type AlertRule, type Operand } from "../../data/alert-store
 import { watchlistStore, clearFiredForList } from "../../data/watchlist-store";
 import { AddAlertDialog } from "./AddAlertDialog";
 import { defaultAlertMessage, ruleConditions } from "../../data/alert-condition";
-import { resetRuleEvalState, setAlertWebhook } from "../../data/alert-engine";
 import { intervalLabel } from "../../data/datafeed";
 import { loadDrawings } from "../drawings/persistence";
 import { iconForKind } from "../drawings/labels";
@@ -201,8 +200,6 @@ function removeItem(i: Item) {
     clearFiredForList(i.list.listId);
     return;
   }
-  resetRuleEvalState(i.rule.id);
-  setAlertWebhook(i.rule.id, null);
   alertStore.remove(i.rule.id);
 }
 function setItemEnabled(i: Item, enabled: boolean) {
@@ -212,7 +209,6 @@ function setItemEnabled(i: Item, enabled: boolean) {
     watchlistStore.setAlertPaused(i.list.listId, !enabled);
     return;
   }
-  if (enabled && !i.rule.enabled) resetRuleEvalState(i.rule.id);
   alertStore.setEnabled(i.rule.id, enabled);
 }
 

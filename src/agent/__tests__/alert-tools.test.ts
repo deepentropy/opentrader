@@ -13,8 +13,6 @@ vi.mock("../../data/datafeed", () => ({
   tickerOf: (s: string) => s.slice(s.indexOf(":") + 1),
   toFullSymbol: (s: string) => Promise.resolve(`NASDAQ:${s}`),
 }));
-const engine = vi.hoisted(() => ({ reset: [] as string[] }));
-vi.mock("../../data/alert-engine", () => ({ resetRuleEvalState: (id: string) => engine.reset.push(id), setAlertWebhook: () => undefined }));
 vi.mock("../../window/shell/app-dialogs", () => ({ setActiveRailTab: () => undefined }));
 vi.mock("../../data/screener-store", () => ({
   screenerStore: { savedScreens: () => [{ id: "scr_1", screen: { title: "Oversold" }, updatedAt: 0 }] },
@@ -53,6 +51,7 @@ vi.mock("../../data/chart-state-registry", async (orig) => ({
 
 import { createAlertTools } from "../alert-tools";
 import { alertStore } from "../../data/alert-store";
+import { ruleSignature } from "../../data/alert-rule-state";
 
 const drawings = [
   { id: "d1", kind: "horizontal-line", points: [{ time: 1, price: 150 }], style: {} },
@@ -171,9 +170,11 @@ describe("alert tools", () => {
 
   it("edits, switches off and deletes", async () => {
     const id = (await run("create_alert", { condition: "greater", value: 1 })).id as string;
+    const before = ruleSignature(alertStore.rule(id)!);
     await run("update_alert", { id, value: 2, frequency: "every_time" });
     expect(alertStore.rule(id)).toMatchObject({ right: { value: 2 }, frequency: "every_time", enabled: true });
-    expect(engine.reset).toContain(id);
+    // The edited rule starts its evaluation again.
+    expect(ruleSignature(alertStore.rule(id)!)).not.toBe(before);
     await expect(run("update_alert", { id, frequency: "once_per_bar" })).rejects.toThrow(/read a study/);
     await run("update_alert", { id, enabled: false });
     expect(alertStore.rule(id)).toMatchObject({ enabled: false, stopReason: "manual" });
