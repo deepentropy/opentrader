@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createRoot, createSignal } from "solid-js";
+import type { Drawing } from "lightweight-charts-drawing/core/types";
 import type { PaneChart, TabChart } from "../tabs";
 
 // The history listens to app events on `window`: an event target stands in for it.
@@ -9,9 +10,11 @@ const { createUndoHistory } = await import("../undo-history");
 const { createChartEdits } = await import("../chart-edits");
 const { defaultIndicatorOptions } = await import("../../chart/indicators/indicator-options");
 
-/** One tab with one chart holding an RSI, its settings `settings`. */
-function setup(settings?: PaneChart["indicatorSettings"]) {
-  const pane = { symbol: "NASDAQ:AAPL", interval: "1D", indicators: ["rsi"], indicatorSettings: settings } as unknown as PaneChart;
+/** One tab with one chart holding an RSI, its settings `settings` (`more`: other fields of the chart). */
+function setup(settings?: PaneChart["indicatorSettings"], more: Partial<PaneChart> = {}) {
+  const pane = { symbol: "NASDAQ:AAPL", interval: "1D", indicators: ["rsi"], indicatorSettings: settings, ...more } as unknown as PaneChart;
+  // The drawings by key, one slice per key.
+  const drawings = new Map<string, Drawing[]>();
   const [tabs, setTabs] = createSignal<TabChart[]>([{ id: "t1", panes: [pane], activePane: 0 } as unknown as TabChart]);
   const tabOf = (id: string) => tabs().find((t) => t.id === id);
   const patchTab = (id: string, patch: Partial<TabChart>) => setTabs((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -20,10 +23,15 @@ function setup(settings?: PaneChart["indicatorSettings"]) {
   edits = createChartEdits(
     { tabOf, patchTab, activeTab: () => tabs()[0], activePaneState: () => tabs()[0].panes[0], patchActivePane: () => {} },
     undo,
-    { drawingKeyFor: () => "", drawingsFor: () => [], splitView: () => ({}) as never, restoreSlice: () => {} } as never,
+    {
+      drawingKeyFor: () => "",
+      drawingsFor: (key: string) => drawings.get(key) ?? [],
+      splitView: (key: string, list: Drawing[]) => [{ key, before: drawings.get(key) ?? [], after: list }],
+      restoreSlice: (key: string, list: Drawing[]) => drawings.set(key, list),
+    } as never,
   );
   const saved = () => tabOf("t1")!.panes[0].indicatorSettings?.rsi;
-  return { edits, undo, saved, pane: () => tabOf("t1")!.panes[0] };
+  return { edits, undo, saved, drawings, pane: () => tabOf("t1")!.panes[0] };
 }
 
 describe("editStudySettings", () => {
@@ -93,6 +101,54 @@ describe("editSources", () => {
       expect(saved()).toEqual({ inputs: { length: 14 }, options: defaultIndicatorOptions() });
       expect(pane().paneOrder).toBeUndefined();
       expect(pane().seriesScale).toBeUndefined();
+      dispose();
+    }));
+
+  it("writes a pane swap with the studies' list in the new order, the series' pane and the sources' order", () =>
+    createRoot((dispose) => {
+      const { edits, undo, pane } = setup(undefined, { indicators: ["rsi", "macd"], paneOrder: ["_series", "rsi", "macd"], seriesPane: "rsi" });
+      edits.editSources("t1", 0, { indicators: ["macd", "rsi"], paneOrder: ["_series", "macd", "rsi"], seriesPane: null, sourceOrder: ["macd", "_series"] }, "move pane up");
+      expect(undo.undoLabel()).toBe("Undo move pane up");
+      expect(pane().indicators).toEqual(["macd", "rsi"]);
+      expect(pane().paneOrder).toEqual(["_series", "macd", "rsi"]);
+      expect(pane().seriesPane).toBeUndefined();
+      expect(pane().sourceOrder).toEqual(["macd", "_series"]);
+      undo.undo();
+      expect(pane().indicators).toEqual(["rsi", "macd"]);
+      expect(pane().paneOrder).toEqual(["_series", "rsi", "macd"]);
+      expect(pane().seriesPane).toBe("rsi");
+      expect(pane().sourceOrder).toBeUndefined();
+      dispose();
+    }));
+
+  it("places the drawings in the same step, even when the sources do not change", () =>
+    createRoot((dispose) => {
+      const { edits, undo, drawings } = setup();
+      const a = { id: "a" } as Drawing;
+      const b = { id: "b", over: "rsi" } as unknown as Drawing;
+      drawings.set("view", [a, b]);
+      edits.editSources("t1", 0, { drawings: { key: "view", list: [b, a] } }, "bring RSI to front");
+      expect(undo.undoStack().length).toBe(1);
+      expect(drawings.get("view")).toEqual([b, a]);
+      undo.undo();
+      expect(drawings.get("view")).toEqual([a, b]);
+      dispose();
+    }));
+
+  it("keeps two writes of one move with the same key as one step", () =>
+    createRoot((dispose) => {
+      const { edits, undo, saved, pane } = setup({ rsi: { inputs: { length: 14 } } });
+      const options = { ...defaultIndicatorOptions(), paneGroup: "macd" };
+      edits.editSources("t1", 0, { studies: { rsi: { options } }, paneOrder: ["macd"] }, "merge to pane", { coalesce: "move-1" });
+      edits.editSources("t1", 0, { sourceOrder: ["rsi", "_series"] }, "merge to pane", { coalesce: "move-1" });
+      edits.editSources("t1", 0, { sourceOrder: ["_series", "rsi"] }, "insert RSI before AAPL", { coalesce: "move-2" });
+      expect(undo.undoStack().length).toBe(2);
+      undo.undo();
+      expect(pane().sourceOrder).toEqual(["rsi", "_series"]);
+      undo.undo();
+      expect(saved()?.options).toEqual(defaultIndicatorOptions());
+      expect(pane().paneOrder).toBeUndefined();
+      expect(pane().sourceOrder).toBeUndefined();
       dispose();
     }));
 });

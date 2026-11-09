@@ -457,6 +457,12 @@ export function createDrawingStore(
    *  the places they hold together in the list, each with the source it now
    *  sits in front of (`over`; null = behind every source). One undo step. */
   function placeDrawingsForSymbol(key: string, ids: string[], over: Record<string, string | null>) {
+    const next = placedDrawings(key, ids, over);
+    if (next) setSlice(key, next, { label: "move objects" });
+  }
+  /** The drawings of `key` with `ids` put in that order (front first) in front of the sources `over` names; null
+   *  when nothing moves. */
+  function placedDrawings(key: string, ids: string[], over: Record<string, string | null>): Drawing[] | null {
     const list = drawingsFor(key);
     const byId = new Map(list.map((d) => [d.id, d]));
     const backFirst = ids.filter((id) => byId.has(id)).reverse();
@@ -475,7 +481,7 @@ export function createDrawingStore(
       else placed.over = want;
       return placed;
     });
-    if (changed) setSlice(key, next, { label: "move objects" });
+    return changed ? next : null;
   }
 
   /** Move a drawing to an absolute slot in the ObjectTree's DISPLAY order
@@ -517,6 +523,7 @@ export function createDrawingStore(
     removeAllDrawings,
     reorderDrawingForSymbol,
     placeDrawingsForSymbol,
+    placedDrawings,
     moveDrawingToDisplayIndex,
   };
 }

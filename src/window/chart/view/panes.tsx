@@ -118,22 +118,24 @@ export function createPanes(cx: ChartCx): PanesApi {
     if (!cx.controller || i < 0 || j < 0 || j >= (cx.chart?.panes().length ?? 0)) return;
     const a = cx.controller.idsInPane(i);
     const b = cx.controller.idsInPane(j);
-    cx.controller.swapPanes(i, j);
-    cx.edits.setPaneOrder(cx.controller.stackedOrder());
-    setPaneEpoch((n) => n + 1);
-    refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
-    // Persist: stacked panes are claimed in list order, so swap the two
-    // panes' studies in the pane's indicator list.
+    // One undo step written to the pane: the chart swaps the panes from the saved order. Stacked panes are claimed
+    // in list order, so the two panes' studies swap places in the indicator list too.
     const list = [...(props.indicators ?? [])];
     const posA = a.map((id) => list.indexOf(id)).filter((k) => k >= 0);
     const posB = b.map((id) => list.indexOf(id)).filter((k) => k >= 0);
-    if (posA.length && posB.length) {
+    const reordered = posA.length > 0 && posB.length > 0;
+    if (reordered) {
       // The combined slots now hold the upper pane's studies first.
       const slots = [...posA, ...posB].sort((x, y) => x - y);
       const ordered = dir > 0 ? [...b, ...a] : [...a, ...b];
       slots.forEach((slot, k) => { list[slot] = ordered[k]; });
-      cx.edits.reorderIndicators(list);
     }
+    cx.edits.editSources(
+      { paneOrder: cx.controller.stackedOrderAfterSwap(i, j), ...(reordered ? { indicators: list } : {}) },
+      dir < 0 ? "move pane up" : "move pane down",
+    );
+    setPaneEpoch((n) => n + 1);
+    refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
     setCollapsedPanes(new Map());
     queueMicrotask(refreshPaneBoxes);
     // The panes are laid out again on the next frame.

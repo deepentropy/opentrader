@@ -377,10 +377,21 @@ export class IndicatorController {
    *  pane owners, and `_series` for the price pane when the series has a
    *  pane of its own. */
   stackedOrder(extra: [string, number][] = []): string[] {
-    const list: [string, number][] = [...this.instances].filter(([, inst]) => !inst.overlay).map(([id, inst]) => [id, inst.paneIndex]);
+    return this.orderByPane(extra, (i) => i);
+  }
+
+  /** The pane order once panes `a` and `b` are swapped (pane controls: move pane up / down): the chart swaps them
+   *  when the order is saved. */
+  stackedOrderAfterSwap(a: number, b: number): string[] {
+    return this.orderByPane([], (i) => (i === a ? b : i === b ? a : i));
+  }
+
+  /** Pane ids sorted by the pane index `at` gives each pane. */
+  private orderByPane(extra: [string, number][], at: (paneIndex: number) => number): string[] {
+    const list: [string, number][] = [...this.instances].filter(([, inst]) => !inst.overlay).map(([id, inst]) => [id, at(inst.paneIndex)]);
     // Panes about to be taken (a compared symbol staying where the series was).
     list.push(...extra.filter(([id]) => !this.instances.has(id)));
-    if (!this.seriesShares()) list.push([MAIN_SOURCE_ID, this.panes.mainPane]);
+    if (!this.seriesShares()) list.push([MAIN_SOURCE_ID, at(this.panes.mainPane)]);
     return list.sort((a, b) => a[1] - b[1]).map(([id]) => id);
   }
 

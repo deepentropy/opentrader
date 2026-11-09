@@ -73,14 +73,6 @@ export interface AppEvents {
   "chart-apply-studies-to-layout": undefined;
   /** Chart menu "Paste" / Ctrl+V of a copied study or compared symbol. */
   "chart-paste-source": undefined;
-  /** One edit of a source of the focused chart (visual order, Move to, Pin to scale, a compared symbol's
-   *  visibility and style): begin / end around it, one undo step named `label` (source-edits.ts). */
-  "chart-sources-edit": { phase: "begin" | "end"; label: string };
-  /** A Settings dialog's Cancel: its session's undo steps are taken back (source-edits.ts). */
-  "chart-sources-rollback": { session: string };
-  /** The focused chart's studies as drawn (inputs, styles, options), handed to `fill`: an edit's undo step takes
-   *  them for the studies that have no saved settings yet (on their defaults). */
-  "chart-sources-snapshot": { fill: (settings: Record<string, { inputs: Record<string, unknown>; styles: unknown; options: unknown }>) => void };
   /** Chart menu "Move chart" > Forward / Back (the focused chart). */
   "chart-move-in-layout": { back: boolean };
 

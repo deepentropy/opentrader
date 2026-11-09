@@ -75,7 +75,6 @@ import { createChartEdits } from "./window/shell/chart-edits";
 import { installKeyboardShortcuts } from "./window/shell/keyboard-shortcuts";
 import { installAppRequests } from "./window/shell/app-requests";
 import { installLayoutSources } from "./window/shell/layout-sources";
-import { installSourceEdits } from "./window/shell/source-edits";
 import { ReplayToolbar } from "./window/replay/ReplayToolbar";
 import { replayEnabled, replayToolbarShown, setReplaySessionStore, setReplayTabSource } from "./data/replay";
 import { ReplaySettingsDialog } from "./window/replay/ReplaySettingsDialog";
@@ -642,8 +641,6 @@ function App() {
     // Chart menus: sources added / applied to the entire layout, pasted
     // sources, "Move chart".
     onCleanup(installLayoutSources(appTabs, undo, drawingStore));
-    // Edits of one source (visual order, visibility, Move to, Pin to scale, settings): undo steps.
-    onCleanup(installSourceEdits(appTabs, undo));
 
     // Start the alert engine and surface fires as a transient toast. ONE
     // engine per app, not per window: detached chart windows load this same

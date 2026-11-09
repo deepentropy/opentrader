@@ -48,7 +48,6 @@ import { localIntervalMessage } from "../../data/local-series";
 import { isTransformType, transformBarsOf } from "./chart-types";
 import { type LegendValues } from "./ChartLegend";
 import { type DialogTab } from "./IndicatorSettingsDialog";
-import { sourcesEdit } from "../shell/source-edits";
 import { PriceScaleWatch } from "./scale-watch";
 import { type IndicatorLegendRow } from "./indicators/indicator-controller";
 import { isStrategyId } from "./indicators/strategy-entries";
@@ -871,7 +870,7 @@ export function ChartView(props: ChartViewProps) {
           <CompareSettingsDialog
             entry={e}
             title={cx.compareTitle(e)}
-            onApply={({ symbol, style }) => sourcesEdit(`change ${cx.compareTitle(e)} style`, () => cx.edits.patchCompare(e.id, symbol !== e.symbol ? { symbol, style } : { style }))}
+            onApply={({ symbol, style }) => cx.edits.editSources({ compare: { [e.id]: symbol !== e.symbol ? { symbol, style } : { style } } }, `change ${cx.compareTitle(e)} style`)}
             onPreview={(next) => cx.setComparePreview(next ? { id: e.id, ...next } : null)}
             onClose={() => setCompareSettingsFor(null)}
           />

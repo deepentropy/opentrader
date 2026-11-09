@@ -122,17 +122,6 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
       void cx.goToTime(d.time);
     };
     listenWhenShown("chart-sync-crosshair", onSyncCrosshair);
-    // An edit of a source begins on the focused chart: its studies as drawn, for the undo step (source-edits.ts).
-    listenWhenShown("chart-sources-snapshot", (d) => {
-      const c = cx.controller;
-      if (!props.active || !c || !d) return;
-      const out: Record<string, { inputs: Record<string, unknown>; styles: unknown; options: unknown }> = {};
-      for (const id of props.indicators ?? []) {
-        const inputs = c.getInputs(id);
-        if (inputs) out[id] = { inputs: { ...inputs }, styles: { ...c.getStyles(id) }, options: c.getOptions(id) };
-      }
-      d.fill(out);
-    });
     listenWhenShown("chart-sync-range", onSyncRange);
     listenWhenShown("chart-sync-time", onSyncTime);
     listenWhenShown("chart-link-range", onLinkRange);

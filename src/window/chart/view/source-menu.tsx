@@ -14,7 +14,6 @@
  * metrics.
  */
 import { Icon } from "../../../components/Icon";
-import { sourcesEdit } from "../../shell/source-edits";
 import type { SourcesPatch } from "../../shell/chart-edits";
 import type { ComparePatch } from "../../shell/tabs";
 import { splitSymbol } from "../../../data/datafeed";
@@ -145,7 +144,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const steps = cx.zOrderSteps(id);
     if (!steps) return null;
     const row = (op: ZOrderOp, label: string, enabled: boolean): CtxNode => ({
-      kind: "item", id: `z-${op}`, label, disabled: !enabled, onSelect: () => sourcesEdit(Z_UNDO[op](sourceTitle(id)), () => cx.moveZ(id, op)),
+      kind: "item", id: `z-${op}`, label, disabled: !enabled, onSelect: () => cx.moveZ(id, op, Z_UNDO[op](sourceTitle(id))),
     });
     return {
       kind: "item", id: "visual-order", label: "Visual order", icon: <Icon name="dt-cm-visual-order" size={18} />,
@@ -163,7 +162,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const visibility = visibilityForMode(props.interval ?? "1D", mode);
     const cmp = cx.compareEntry(id);
     if (cmp) {
-      sourcesEdit(VISIBILITY_UNDO[mode], () => cx.edits.patchCompare(id, { style: { ...cmp.style, visibility } }));
+      cx.edits.editSources({ compare: { [id]: { style: { ...cmp.style, visibility } } } }, VISIBILITY_UNDO[mode]);
       return;
     }
     const c = cx.controller;
@@ -410,7 +409,7 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
         ["unmergeDown", "New pane below"],
       ];
       const submenu = rows.filter(([k]) => moves[k]).map(([k, label]): CtxNode => ({
-        kind: "item", id: `move-${k}`, label, onSelect: () => sourcesEdit(MOVE_UNDO[k], () => cx.moveSeries(k)),
+        kind: "item", id: `move-${k}`, label, onSelect: () => cx.moveSeries(k, MOVE_UNDO[k]),
       }));
       if (submenu.length) out.push({ kind: "item", id: "move-to", label: "Move to", icon: <Icon name="ot-header-move-to" size={18} />, submenu });
     }

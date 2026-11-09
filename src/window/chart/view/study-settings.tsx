@@ -18,7 +18,6 @@ import { isTpoEntry } from "../profiles/tpo";
 import { autoTicksPerRow } from "../profiles/tpo-engine";
 import { saveIndicatorDefault } from "../../../data/indicator-defaults";
 import { cachedSymbolSessions } from "../../../data/session";
-import { emitAppEvent } from "../../../data/app-events";
 import { type ChartCx } from "./context";
 
 /** What createStudySettings adds to the chart context. */
@@ -79,7 +78,7 @@ export function createStudySettings(cx: ChartCx): StudySettingsApi {
                   else {
                     // Cancel (or back to the opening values): the study as it was, the dialog's steps taken back.
                     if (snapshot) cx.controller?.restoreSettings(id(), snapshot);
-                    emitAppEvent("chart-sources-rollback", { session });
+                    cx.edits.rollbackSources(session);
                   }
                   redrawn();
                 }}

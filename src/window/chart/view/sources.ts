@@ -29,7 +29,8 @@ import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { NEVER_SUNK_KINDS, type SunkPainter } from "../../drawings/DrawingsOverlay";
 import { type ChartCx } from "./context";
 import { onAppEvent, type AppEventName, type AppEvents } from "../../../data/app-events";
-import { sourcesEdit } from "../../shell/source-edits";
+import type { SourcesPatch } from "../../shell/chart-edits";
+import type { ComparePatch, PaneIndicatorSettings } from "../../shell/tabs";
 import { escapeKeepsSelection } from "../menu-escape";
 import type { Accessor } from "solid-js";
 
@@ -37,18 +38,18 @@ import type { Accessor } from "solid-js";
 export interface SourcesApi {
   dropSeriesOnTimeAxis: () => boolean;
   dropStudyOnTimeAxis: (id: string) => boolean;
-  mergeSeriesToPane: (pane: number) => boolean;
+  mergeSeriesToPane: (pane: number, label?: string) => boolean;
   mergeStudyToPane: (id: string, pane: number, label?: string) => boolean;
   /** Visual order steps a source can take in its pane (null = not a source of the chart). */
   zOrderSteps: (id: string) => { front: boolean; back: boolean } | null;
-  /** Visual order: move a source to the front / back of its pane, or one step. */
-  moveZ: (id: string, op: ZOrderOp) => void;
+  /** Visual order: move a source to the front / back of its pane, or one step (one undo step named `label`). */
+  moveZ: (id: string, op: ZOrderOp, label: string) => void;
   /** "Move to" rows a study can take (merge into the pane above / below, a new pane above / below). */
   studyMoves: (id: string) => StudyMoves | null;
   /** "Move to" rows of the main series (series menu). */
   seriesMoves: () => StudyMoves | null;
-  /** Apply a series "Move to" row. */
-  moveSeries: (move: keyof StudyMoves) => void;
+  /** Apply a series "Move to" row (one undo step named `label`). */
+  moveSeries: (move: keyof StudyMoves, label: string) => void;
   /** Apply one "Move to" row. */
   moveStudy: (id: string, move: keyof StudyMoves, label: string) => void;
   scheduleSourceOrder: () => void;
@@ -58,6 +59,9 @@ export interface SourcesApi {
 
 /** Visual order operations (study / compared-symbol menu). */
 export type ZOrderOp = "front" | "back" | "forward" | "backward";
+
+/** Object tree moves of a source to another pane so far (each one undo step of its own, see onTreeMoveRequest). */
+let treeMoves = 0;
 
 /** "Move to" rows of a study (reference order: existing pane above, new pane
  *  above, existing pane below, new pane below); true = offered. */
@@ -374,39 +378,43 @@ export function createSources(cx: ChartCx): SourcesApi {
   // bottom.
   /** Compared symbols drawn over the series (not in a pane of their own). */
   const overSeriesCompares = () => cx.compareEntries().filter((e) => e.placement !== "pane").map((e) => e.id);
-  /** The series left its pane: what stayed there is saved (the studies'
-   *  pane group, the compared symbols now in that pane), then the stacking
-   *  order and the panes are redrawn. */
-  function seriesMoved(move: SeriesMove, compares: string[], order?: string[]) {
+  /** The series left its pane: its new pane and what stayed in the former one (the studies' pane group, the
+   *  compared symbols now in that pane) are saved with the stacking order as one undo step named `label`, then the
+   *  panes are redrawn. The chart moves the series itself (its former pane is kept for what stays there); an undo
+   *  gives it its saved place back. */
+  function seriesMoved(move: SeriesMove, compares: string[], label: string, order?: string[]) {
     const c = cx.controller;
     if (!c) return;
-    for (const id of move.ids) {
-      cx.edits.setIndicatorSettings(id, { inputs: c.getInputs(id) ?? {}, styles: c.getStyles(id) ?? {}, options: c.getOptions(id) });
-    }
+    const studies: Record<string, PaneIndicatorSettings> = {};
+    for (const id of move.ids) studies[id] = { options: c.getOptions(id) };
     // The first compared symbol takes the pane the series left (with the
     // studies that stayed); a second one opens its own pane (one compared
     // symbol per pane here).
     // The order is read before the compared symbols change (that redraws them).
     const stay = compares[0];
     const next = order ?? c.stackedOrder(stay ? [[stay, move.from]] : []);
-    for (const id of compares) cx.edits.patchCompare(id, { placement: "pane" });
+    const compare: Record<string, ComparePatch> = {};
+    for (const id of compares) compare[id] = { placement: "pane" };
     c.setPaneOrder(next);
-    cx.edits.setPaneOrder(next);
+    // The series is where its saved place says: not moved there again.
+    const group = c.seriesPaneGroup();
+    cx.appliedSeriesPane = group;
+    cx.edits.editSources({ studies, compare, paneOrder: next, seriesPane: group }, label);
     cx.setPaneEpoch((n) => n + 1);
     cx.setCollapsedPanes(new Map());
     queueMicrotask(cx.refreshPaneBoxes);
     requestAnimationFrame(() => requestAnimationFrame(cx.refreshPaneBoxes));
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
   }
-  /** Main series dropped on study pane `pane` (chart drag). */
-  function mergeSeriesToPane(pane: number): boolean {
+  /** Main series dropped on study pane `pane` (chart drag, "Move to ▸ Existing pane"): one undo step named `label`. */
+  function mergeSeriesToPane(pane: number, label = "merge to pane"): boolean {
     const c = cx.controller;
     if (!c?.canMergeSeriesTo(pane)) return false;
     const compares = overSeriesCompares();
     cx.holdCompares(compares);
     const move = c.mergeSeriesToPane(pane, compares[0]);
     if (!move) return false;
-    seriesMoved(move, compares);
+    seriesMoved(move, compares, label);
     return true;
   }
   /** Main series dropped on the time axis (chart drag). */
@@ -419,57 +427,62 @@ export function createSources(cx: ChartCx): SourcesApi {
       const move = c.unmergeSeriesToNewPane(compares[0]);
       if (!move) return false;
       const stay = compares[0];
-      seriesMoved(move, compares, seriesPaneLast(c.stackedOrder(stay ? [[stay, move.from]] : [])));
+      seriesMoved(move, compares, "unmerge down", seriesPaneLast(c.stackedOrder(stay ? [[stay, move.from]] : [])));
       return true;
     }
     // Alone in its pane: the pane moves to the bottom.
     const last = (cx.chart?.panes().length ?? 1) - 1;
     if (cx.mainPane() >= last) return false;
-    seriesMoved({ from: cx.mainPane(), group: null, ids: [] }, [], seriesPaneLast(c.stackedOrder()));
+    seriesMoved({ from: cx.mainPane(), group: null, ids: [] }, [], "move pane down", seriesPaneLast(c.stackedOrder()));
     return true;
   }
   const onTreeMoveRequest = (d: AppEvents["chart-tree-move"] | undefined) => {
     if (props.active === false) return;
     const { id, target, below } = (d ?? {}) as AppEvents["chart-tree-move"];
-    // A source moved: one undo step (reference texts); a drawing's move is the drawings' own.
-    const src = treeSources().find((x) => x.id === id);
-    if (src && !(d as { recorded?: boolean } | undefined)?.recorded) {
-      const into = treePanes().find((p) => p.items.some((x) => x.id === target));
-      const from = treePanes().find((p) => p.items.some((x) => x.id === id));
-      const targetTitle = treeSources().find((x) => x.id === target)?.title ?? "";
-      const label = from && into && from !== into ? "merge to pane" : `insert ${src.title} ${below ? "after" : "before"} ${targetTitle}`;
-      sourcesEdit(label, () => onTreeMoveRequest({ ...(d as AppEvents["chart-tree-move"]), recorded: true } as AppEvents["chart-tree-move"]));
-      return;
-    }
     let pane = treePanes().find((p) => p.items.some((x) => x.id === id));
     const targetPane = treePanes().find((p) => p.items.some((x) => x.id === target));
     if (!pane || !targetPane) return;
-    if (pane !== targetPane) {
-      // A drop in another pane: only a study changes pane (it joins the
-      // target's pane, its former pane closes when left empty).
-      const c = cx.controller;
-      if (!c || treeSources().find((s) => s.id === id)?.kind !== "study") return;
-      const options = c.paneOptions(id, targetPane.pane);
-      if (!options) return;
-      // Saved first, the chart draws it there from the pane (this step's undo records the whole move).
-      const order = c.stackedOrderAfterMove(id, targetPane.pane, options);
-      cx.edits.setIndicatorSettings(id, { options });
-      cx.edits.setPaneOrder(order);
-      cx.setPaneEpoch((n) => n + 1);
-      queueMicrotask(cx.refreshPaneBoxes);
-      refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
-      pane = treePanes().find((p) => p.items.some((x) => x.id === id));
-      if (!pane) return;
+    // A drawing's move is the drawings' own undo step (it stays in its pane).
+    const src = treeSources().find((x) => x.id === id);
+    if (!src) {
+      if (pane === targetPane) placeInPane(pane, id, target, below);
+      return;
     }
-    placeInPane(pane, id, target, below);
+    // A source's move is one undo step (reference texts).
+    if (pane === targetPane) {
+      const targetTitle = treeSources().find((x) => x.id === target)?.title ?? "";
+      placeInPane(pane, id, target, below, `insert ${src.title} ${below ? "after" : "before"} ${targetTitle}`);
+      return;
+    }
+    // A drop in another pane: only a study changes pane (it joins the target's pane, its former pane closes when
+    // left empty). The chart draws it there from the pane; its place among the objects there is the same step.
+    const c = cx.controller;
+    if (!c || src.kind !== "study") return;
+    const options = c.paneOptions(id, targetPane.pane);
+    if (!options) return;
+    treeMoves++;
+    const step = { coalesce: `tree-move-${treeMoves}` };
+    cx.edits.editSources({ studies: { [id]: { options } }, paneOrder: c.stackedOrderAfterMove(id, targetPane.pane, options) }, "merge to pane", step);
+    cx.setPaneEpoch((n) => n + 1);
+    queueMicrotask(cx.refreshPaneBoxes);
+    refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
+    pane = treePanes().find((p) => p.items.some((x) => x.id === id));
+    if (pane) placeInPane(pane, id, target, below, "merge to pane", step);
   };
-  /** Put `id` right above / below `target` among the objects of `pane`:
-   *  the sources' order and the drawings' places are saved. */
-  function placeInPane(pane: TreePane, id: string, target: string, below: boolean) {
+  /** Put `id` right above / below `target` among the objects of `pane`. A source's move saves the sources' order
+   *  and the places of the drawings it passes as one undo step named `label` (`opts`: see editSources); a drawing's
+   *  move (no label) saves the drawings' places as their own step. */
+  function placeInPane(pane: TreePane, id: string, target: string, below: boolean, label?: string, opts?: { coalesce?: string }) {
     const next = moveItem(pane.items, id, target, below);
     if (!next) return;
     const was = splitItems(pane.items);
     const now = splitItems(next);
+    const drawingsMoved = now.drawings.join("\n") !== was.drawings.join("\n") || JSON.stringify(now.over) !== JSON.stringify(was.over);
+    if (label === undefined) {
+      if (drawingsMoved) cx.edits.placeDrawings(now.drawings, now.over);
+      return;
+    }
+    const patch: SourcesPatch = {};
     if (now.sources.join("\n") !== was.sources.join("\n")) {
       // The pane's sources take, in their new order, the places they hold
       // in the chart's order.
@@ -478,11 +491,10 @@ export function createSources(cx: ChartCx): SourcesApi {
       const order = sourceOrderIds().map((x) => (inPane.has(x) ? now.sources[k++] : x));
       // Saved ids of sources not on the chart now ("Hide indicators") are kept.
       const kept = (props.sourceOrder ?? []).filter((x) => !order.includes(x));
-      cx.edits.setSourceOrder([...order, ...kept]);
+      patch.sourceOrder = [...order, ...kept];
     }
-    if (now.drawings.join("\n") !== was.drawings.join("\n") || JSON.stringify(now.over) !== JSON.stringify(was.over)) {
-      cx.edits.placeDrawings(now.drawings, now.over);
-    }
+    if (drawingsMoved) patch.drawings = cx.edits.placedDrawings(now.drawings, now.over) ?? undefined;
+    cx.edits.editSources(patch, label, opts);
   }
   /** Visual order steps of a source: to the front unless it is the front
    *  object of its pane, to the back unless it is the back one. */
@@ -493,8 +505,8 @@ export function createSources(cx: ChartCx): SourcesApi {
     return { front: i > 0, back: i < pane.items.length - 1 };
   }
   /** Visual order of a source among the objects (sources and drawings) of
-   *  its pane: to the front / back, or over / under the next object. */
-  function moveZ(id: string, op: ZOrderOp) {
+   *  its pane: to the front / back, or over / under the next object (one undo step named `label`). */
+  function moveZ(id: string, op: ZOrderOp, label: string) {
     const pane = treePanes().find((p) => p.items.some((x) => x.id === id && x.kind === "source"));
     if (!pane) return;
     const items = pane.items;
@@ -502,10 +514,10 @@ export function createSources(cx: ChartCx): SourcesApi {
     const last = items.length - 1;
     if ((op === "front" || op === "forward") && i <= 0) return;
     if ((op === "back" || op === "backward") && i >= last) return;
-    if (op === "front") placeInPane(pane, id, items[0].id, false);
-    else if (op === "back") placeInPane(pane, id, items[last].id, true);
-    else if (op === "forward") placeInPane(pane, id, items[i - 1].id, false);
-    else placeInPane(pane, id, items[i + 1].id, true);
+    if (op === "front") placeInPane(pane, id, items[0].id, false, label);
+    else if (op === "back") placeInPane(pane, id, items[last].id, true, label);
+    else if (op === "forward") placeInPane(pane, id, items[i - 1].id, false, label);
+    else placeInPane(pane, id, items[i + 1].id, true, label);
   }
   /** "Move to" rows of a study (reference rules): a pane above / below to
    *  merge into unless it is the first / last pane; a new pane above / below
@@ -556,12 +568,12 @@ export function createSources(cx: ChartCx): SourcesApi {
       unmergeDown: shared,
     };
   }
-  function moveSeries(move: keyof StudyMoves) {
+  function moveSeries(move: keyof StudyMoves, label: string) {
     const c = cx.controller;
     if (!c || !seriesMoves()?.[move]) return;
     const pane = cx.mainPane();
     if (move === "mergeUp" || move === "mergeDown") {
-      mergeSeriesToPane(move === "mergeUp" ? pane - 1 : pane + 1);
+      mergeSeriesToPane(move === "mergeUp" ? pane - 1 : pane + 1, label);
       return;
     }
     // A new pane right above / below what it shared its pane with.
@@ -576,7 +588,7 @@ export function createSources(cx: ChartCx): SourcesApi {
     let lastMate = first;
     base.forEach((x, k) => { if (mates.has(x)) lastMate = k; });
     const at = first < 0 ? (move === "unmergeUp" ? 0 : base.length) : move === "unmergeUp" ? first : lastMate + 1;
-    seriesMoved(moved, compares, [...base.slice(0, at), MAIN_SOURCE_ID, ...base.slice(at)]);
+    seriesMoved(moved, compares, label, [...base.slice(0, at), MAIN_SOURCE_ID, ...base.slice(at)]);
   }
   listenWhenShown(TREE_HIDE_EVENT, onTreeHideRequest);
   listenWhenShown(TREE_REMOVE_EVENT, onTreeRemoveRequest);

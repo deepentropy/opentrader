@@ -30,17 +30,17 @@ export function createPaneEdits(t: PaneEditsTarget) {
   return {
     // ── Sources ────────────────────────────────────────────────────────
     removeIndicator: (id: string) => live() && t.chartEdits.removeIndicatorFromPane(t.tabId, t.paneIndex, id),
-    reorderIndicators: (ids: string[]) => live() && t.chartEdits.reorderIndicatorsForPane(t.tabId, t.paneIndex, ids),
     /** Persist a study's settings (no undo step: the eye, a scale given to a new request). */
     setIndicatorSettings: (id: string, s: PaneIndicatorSettings) => live() && t.chartEdits.setIndicatorSettingsForPane(t.tabId, t.paneIndex, id, s),
     editStudySettings: (id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) =>
       live() && t.chartEdits.editStudySettings(t.tabId, t.paneIndex, id, patch, label, opts),
-    editSources: (patch: SourcesPatch, label: string) => live() && t.chartEdits.editSources(t.tabId, t.paneIndex, patch, label),
+    editSources: (patch: SourcesPatch, label: string, opts?: { coalesce?: string }) =>
+      live() && t.chartEdits.editSources(t.tabId, t.paneIndex, patch, label, opts),
+    /** A Settings dialog's Cancel: the steps of its session taken back. */
+    rollbackSources: (session: string) => t.chartEdits.rollbackSources(session),
     patchCompare: (id: string, patch: ComparePatch) => live() && t.chartEdits.patchCompare(t.tabId, t.paneIndex, id, patch),
     removeCompare: (id: string) => live() && t.chartEdits.removeCompare(t.tabId, t.paneIndex, id),
-    setPaneOrder: (order: string[]) => live() && t.chartEdits.setPaneOrderForPane(t.tabId, t.paneIndex, order),
     setSeriesPane: (group: string | null) => live() && t.chartEdits.setSeriesPaneForPane(t.tabId, t.paneIndex, group),
-    setSourceOrder: (order: string[]) => live() && t.chartEdits.setSourceOrderForPane(t.tabId, t.paneIndex, order),
     // ── View state of the chart ─────────────────────────────────────────
     setVisibleRange: (r: Parameters<ChartEdits["setVisibleRangeForPane"]>[2]) => t.chartEdits.setVisibleRangeForPane(t.tabId, t.paneIndex, r),
     toggleSeriesHidden: () => t.chartEdits.toggleSeriesHidden(t.tabId, t.paneIndex),
@@ -63,6 +63,12 @@ export function createPaneEdits(t: PaneEditsTarget) {
     /** The Object tree moved drawings: the pane's drawings in their new order (front first) and the source each one
      *  sits in front of. */
     placeDrawings: (ids: string[], over: Record<string, string | null>) => live() && t.drawingStore.placeDrawingsForSymbol(t.drawingKey, ids, over),
+    /** The pane's drawings placed so (see placeDrawings), for a source's move to save with it (editSources); null
+     *  when none moves. */
+    placedDrawings: (ids: string[], over: Record<string, string | null>): { key: string; list: Drawing[] } | null => {
+      const list = t.drawingStore.placedDrawings(t.drawingKey, ids, over);
+      return list ? { key: t.drawingKey, list } : null;
+    },
     removeDrawing: (id: string) => live() && t.drawingStore.removeDrawingForSymbol(t.drawingKey, id),
     /** Bulk delete (multi-select Delete): one undo entry. */
     removeDrawings: (ids: string[]) => live() && t.drawingStore.removeDrawingsForSymbol(t.drawingKey, ids),
