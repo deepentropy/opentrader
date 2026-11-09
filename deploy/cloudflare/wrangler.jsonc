@@ -33,8 +33,8 @@
   "triggers": { "crons": [] },
   "vars": {
     "PUBLIC_ORIGIN": "https://demo.opentrader.markets,https://opentrader-web.cloudflare-breeder165.workers.dev",
-    // The gateway's BLOCKED_ASNS: usage statistics from those networks are dropped.
-    "BLOCKED_ASNS": "31898,32934,45102"
+    // The gateway's BLOCKED_ASNS: those networks get no API and their usage statistics are dropped.
+    "BLOCKED_ASNS": "31898,32934,45102,3258"
   },
   "observability": { "enabled": true }
 }

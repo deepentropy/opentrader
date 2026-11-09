@@ -12,8 +12,9 @@
  * in events marked `ip_consent` (all, except users who declined it on the
  * former consent card); otherwise it never reaches the service.
  *
- * Events from the networks of `BLOCKED_ASNS` (cloud networks the gateway
- * refuses, where copies of the app run unattended) are dropped.
+ * The networks of `BLOCKED_ASNS` (cloud networks the gateway refuses, where
+ * copies of the app run unattended) get no API: the server fetches its data
+ * from the gateway, which would not see them. Their events are dropped.
  */
 import { Container, getContainer } from "@cloudflare/containers";
 
@@ -24,8 +25,8 @@ interface Env {
   OPENTRADER_GATEWAY_TOKEN: string;
   /** Origins of the public site (comma-separated): the only pages allowed to call the API. */
   PUBLIC_ORIGIN: string;
-  /** Networks (AS numbers, comma-separated) whose usage statistics are dropped: the
-   *  cloud networks the gateway refuses, where copies of the app run unattended. */
+  /** Networks (AS numbers, comma-separated) refused the API, whose usage statistics are
+   *  dropped: the cloud networks the gateway refuses, where copies of the app run unattended. */
   BLOCKED_ASNS?: string;
 }
 
@@ -142,6 +143,8 @@ export default {
     }
     if (url.pathname.startsWith("/api/")) {
       if (foreignOrigin(request, env)) return new Response("origin not allowed", { status: 403 });
+      // The zone firewall refuses them on the public address; this also covers the workers.dev one.
+      if (blockedNetwork(request, env)) return new Response("network not allowed", { status: 403 });
       return getContainer(env.SERVER, INSTANCE).fetch(request);
     }
     return env.ASSETS.fetch(request);
