@@ -33,6 +33,7 @@ import type {
 } from "lightweight-charts";
 import { customSeriesDefaultOptions, type CustomSeriesOptions } from "lightweight-charts";
 import type { ChartTokens } from "./chart-tokens";
+import { applyOpacity, parseColor } from "lightweight-charts-drawing/core/color";
 import type { OHLC } from "./chart-types";
 import type { KagiItem, PnfItem } from "./series-transforms";
 import type { SvpStyle } from "../header/chart-settings";
@@ -550,10 +551,10 @@ export class ProfilePaneView implements ICustomSeriesPaneView<Time, ProfileItem,
       const y1 = ptc(p.bottom + p.rowH * k);
       if (y0 == null || y1 == null) continue;
       const w = Math.max(1, (v / p.maxRow) * maxW);
-      ctx.fillStyle = k === p.poc ? rgbaOf(this.tokens.up, 0.75) : rgbaOf(this.tokens.up, 0.45);
+      ctx.fillStyle = k === p.poc ? fade(this.tokens.up, 75) : fade(this.tokens.up, 45);
       ctx.fillRect(x0, y0 + 0.5, w, Math.max(1, y1 - y0 - 1));
     }
-    ctx.strokeStyle = rgbaOf(this.tokens.text, 0.2);
+    ctx.strokeStyle = fade(this.tokens.text, 20);
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x0, ptc(p.top) ?? 0);
@@ -568,11 +569,9 @@ export class ProfilePaneView implements ICustomSeriesPaneView<Time, ProfileItem,
   }
 }
 
-function rgbaOf(hex: string, alpha: number): string {
-  const h = hex.trim().replace("#", "");
-  if (h.length !== 6 && h.length !== 3) return hex;
-  const e = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-  return `rgba(${parseInt(e.slice(0, 2), 16)}, ${parseInt(e.slice(2, 4), 16)}, ${parseInt(e.slice(4, 6), 16)}, ${alpha})`;
+/** A theme colour (hex or rgb/rgba) at `opacity` percent. */
+function fade(color: string, opacity: number): string {
+  return applyOpacity(parseColor(color).hex, opacity);
 }
 
 // ── Volume footprint ────────────────────────────────────────────────────────
@@ -712,11 +711,11 @@ export class FootprintPaneView implements ICustomSeriesPaneView<Time, FootprintI
               const wDown = (c.down / d.maxCell) * halfW;
               const wUp = (c.up / d.maxCell) * halfW;
               if (wDown > 0.5) {
-                ctx.fillStyle = this.hex(this.tokens.down, 0.45);
+                ctx.fillStyle = fade(this.tokens.down, 45);
                 ctx.fillRect(bar.x - wDown, y0 + 0.5, wDown, h);
               }
               if (wUp > 0.5) {
-                ctx.fillStyle = this.hex(this.tokens.up, 0.45);
+                ctx.fillStyle = fade(this.tokens.up, 45);
                 ctx.fillRect(bar.x, y0 + 0.5, wUp, h);
               }
               if (showNumbers && h >= 10) {
@@ -741,12 +740,6 @@ export class FootprintPaneView implements ICustomSeriesPaneView<Time, FootprintI
   }
   defaultOptions(): CustomSeriesOptions {
     return customSeriesDefaultOptions;
-  }
-  private hex(hex: string, alpha: number): string {
-    const h = hex.trim().replace("#", "");
-    if (h.length !== 6 && h.length !== 3) return hex;
-    const e = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
-    return `rgba(${parseInt(e.slice(0, 2), 16)}, ${parseInt(e.slice(2, 4), 16)}, ${parseInt(e.slice(4, 6), 16)}, ${alpha})`;
   }
 }
 

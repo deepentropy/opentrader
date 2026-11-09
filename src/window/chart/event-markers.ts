@@ -36,6 +36,7 @@ import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { OHLC } from "./chart-types";
 import type { ChartEvent } from "../../data/datafeed";
 import { timeToXFallback, type FutureAxis } from "../drawings/coords";
+import { applyOpacity } from "lightweight-charts-drawing/core/color";
 
 export type EventKind = ChartEvent["kind"];
 export type EventMarker = ChartEvent;
@@ -69,12 +70,6 @@ const SPLIT_LABEL =
 const EARNINGS_LABEL = "M10 17V8h5.2v1.5h-3.7v2.25h2.7v1.5h-2.7v2.25h3.7V17z";
 const EARNINGS_FILL = "M2 5a3 3 0 0 1 3-3h15a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z";
 const EARNINGS_BORDER = "M5 3.5h15c.83 0 1.5.67 1.5 1.5v15c0 .83-.67 1.5-1.5 1.5H5A1.5 1.5 0 0 1 3.5 20V4.85A1.5 1.5 0 0 1 5 3.5Z";
-
-/** `color` at `alpha` (a #RRGGBB colour). */
-function withAlpha(color: string, alpha: number): string {
-  const n = parseInt(color.slice(1), 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-}
 
 /** First index whose time is ≥ `t` (bars ascending). */
 function lowerBound(bars: OHLC[], t: number): number {
@@ -307,7 +302,7 @@ class EventMarkersRenderer implements IPrimitivePaneRenderer {
         const st = EVENT_STYLES[kind];
         const color = dark ? st.color.dark : st.color.light;
         const state = p.index === src.active() ? "active" : p.index === src.hovered() ? "hovered" : "default";
-        const fill = state === "active" ? color : state === "hovered" ? withAlpha(color, 0.15) : null;
+        const fill = state === "active" ? color : state === "hovered" ? applyOpacity(color, 15) : null;
         const text = state === "active" ? st.activeText : color;
         const w = st.size;
         // Marker box → bitmap: translate(hx, -vy) · scale(hpr, vpr) · translate(centre - size / 2).
