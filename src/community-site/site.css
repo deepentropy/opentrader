@@ -655,3 +655,4 @@ select.cs-input { padding-right: 8px; }
   .cs-sg-support { flex-direction: column; }
   .cs-sg-support .cs-textarea { width: 100%; }
 }
+.cs-sg-home { justify-content: space-between; margin-top: 12px; font-size: 13px; }

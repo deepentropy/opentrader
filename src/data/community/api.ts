@@ -166,6 +166,8 @@ export type HomeView = {
   record30: TrackRecord & { hits: number; total_r: number };
   resolving: { id: string; ticker: string; direction: Direction; author: string | null; status: IdeaStatus; entry: number; stop: number; target: number; expires: string; last_price: number | null }[];
   open_questions: { id: string; title: string; created_at: number; comment_count: number }[];
+  /** The side box: the most supported open suggestions, and those shipped in the last 30 days. */
+  suggestions?: Record<"open" | "shipped", { id: string; title: string; status: SuggestionStatus; supporters: number }[]>;
 };
 
 export type Quote = { last: number; change: number | null; change_pct: number | null };

@@ -3,7 +3,8 @@
  * Most useful or Newest, filtered by type, ending with "You're caught up".
  * Left: the member's tickers with their new posts, the type filter. Right:
  * the community's record over 30 days, the ideas resolving this week, the
- * questions still without an answer.
+ * questions still without an answer, the most wanted and recently shipped
+ * suggestions.
  */
 import { For, Show, createResource, createSignal } from "solid-js";
 import { api, type HomeView, type Post, type PostType, type Sort } from "../data/community/api";
@@ -12,7 +13,7 @@ import * as kv from "../data/kv";
 import { errorText } from "../window/right-rail/community/parts";
 import { go } from "./router";
 import {
-  DirTag, Pills, Snapshot, TYPE_PLURAL, TYPES, TickerTag, TypeTag, UserLink, age, communityHref, dateTime, daysLeft, fmtR, postState, recordLine, signInPath, tickerName,
+  DirTag, Pills, STATUS_LABEL, Snapshot, TYPE_PLURAL, TYPES, TickerTag, TypeTag, UserLink, age, communityHref, dateTime, daysLeft, fmtR, postState, recordLine, signInPath, tickerName,
 } from "./ui";
 
 const SORT_KEY = "ot:community:home-sort";
@@ -185,6 +186,22 @@ export function Home() {
               </a>
             )}
           </For>
+        </section>
+        <section>
+          <h5>Suggestions</h5>
+          <div class="cs-note">What members want next in OpenTrader.</div>
+          <For each={[...(view()?.suggestions?.open ?? []), ...(view()?.suggestions?.shipped ?? [])]} fallback={<div class="cs-ruled-row cs-fog">No suggestion yet.</div>}>
+            {(s) => (
+              <a class="cs-ruled-row cs-q" href={`/p/${s.id}`} onClick={go(`/p/${s.id}`)}>
+                <div class="cs-q-t">{s.title}</div>
+                <div class="cs-q-m">{STATUS_LABEL[s.status]} · {s.supporters} supporter{s.supporters === 1 ? "" : "s"}</div>
+              </a>
+            )}
+          </For>
+          <div class="cs-row cs-sg-home">
+            <a href="/suggestions" onClick={go("/suggestions")}>All suggestions</a>
+            <a href="/suggestions/new" onClick={go("/suggestions/new")}>Suggest a feature</a>
+          </div>
         </section>
       </aside>
     </div>

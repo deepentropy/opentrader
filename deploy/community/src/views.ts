@@ -73,6 +73,20 @@ export async function home(env: Env, user: User | null, url: URL): Promise<Respo
   )
     .bind(at - 14 * DAY, BOT)
     .all<Row>();
+  // The side box: the most supported open suggestions, and what shipped this month.
+  const live = "p.community_id = ? AND p.removed = 0 AND p.deleted = 0";
+  const { results: wanted } = await env.DB.prepare(
+    `SELECT p.id, p.title, p.sg_status AS status, p.useful_count AS supporters FROM posts p
+      WHERE ${live} AND p.sg_status IN ('review','planned','progress') ORDER BY p.useful_count DESC, p.created_at DESC LIMIT 3`,
+  )
+    .bind(SUGGESTIONS)
+    .all<Row>();
+  const { results: shipped } = await env.DB.prepare(
+    `SELECT p.id, p.title, p.sg_status AS status, p.useful_count AS supporters FROM posts p
+      WHERE ${live} AND p.sg_status = 'shipped' AND p.sg_updated_at >= ? ORDER BY p.sg_updated_at DESC LIMIT 2`,
+  )
+    .bind(SUGGESTIONS, at - 30 * DAY)
+    .all<Row>();
   return json({
     since,
     visitor,
@@ -86,6 +100,7 @@ export async function home(env: Env, user: User | null, url: URL): Promise<Respo
       entry: r.entry, stop: r.stop, target: r.target, expires: r.expires, last_price: r.last_price,
     })),
     open_questions: questions,
+    suggestions: { open: wanted, shipped },
   });
 }
 
