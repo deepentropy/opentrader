@@ -6,6 +6,7 @@
  */
 import { createRoot, createSignal } from "solid-js";
 import * as kv from "../kv";
+import { oneOf, persisted } from "../persisted";
 import { replayBroker } from "./replay-broker";
 import type { OrderType, Side, TradingOrder, TradingPosition } from "./types";
 
@@ -108,35 +109,18 @@ const K = {
 /** DOM panel settings (⋯ menu of the DOM tab). */
 export type DomPrices = { zeroVolume: boolean; spread: boolean };
 
-function readDomPrices(): DomPrices {
-  try {
-    const v = JSON.parse(kv.getItem(K.domPrices) ?? "null") as Partial<DomPrices> | null;
-    return { zeroVolume: v?.zeroVolume !== false, spread: v?.spread !== false };
-  } catch {
-    return { zeroVolume: true, spread: true };
-  }
+function parseDomPrices(raw: string): DomPrices {
+  const v = JSON.parse(raw) as Partial<DomPrices> | null;
+  return { zeroVolume: v?.zeroVolume !== false, spread: v?.spread !== false };
 }
 
-function readPresets(): OrderPreset[] {
-  try {
-    const v = JSON.parse(kv.getItem(K.presets) ?? "[]") as unknown;
-    return Array.isArray(v) ? v.filter((p): p is OrderPreset => !!p && typeof p.id === "string" && typeof p.title === "string" && typeof p.orderType === "string") : [];
-  } catch {
-    return [];
-  }
+function parsePresets(raw: string): OrderPreset[] {
+  const v = JSON.parse(raw) as unknown;
+  return Array.isArray(v) ? v.filter((p): p is OrderPreset => !!p && typeof p.id === "string" && typeof p.title === "string" && typeof p.orderType === "string") : [];
 }
 
 type TicketPrefs = { qty: string; orderType: OrderType };
-
-function readPrefs(): TicketPrefs {
-  const d: TicketPrefs = { qty: "1", orderType: "market" };
-  try {
-    const v = JSON.parse(kv.getItem(K.ticketPrefs) ?? "null") as Partial<TicketPrefs> | null;
-    return { ...d, ...(v ?? {}) };
-  } catch {
-    return d;
-  }
-}
+const DEFAULT_PREFS: TicketPrefs = { qty: "1", orderType: "market" };
 
 /** Decimals of a price step (0.01 → 2). */
 function decimalsOf(tick: number): number {
@@ -145,7 +129,15 @@ function decimalsOf(tick: number): number {
   return t.includes(".") ? t.split(".")[1].length : 0;
 }
 
-const [prefs, setPrefs] = createRoot(() => createSignal<TicketPrefs>(readPrefs()));
+// The ticket's choices, presets and menu settings follow every window; where
+// the ticket shows and which view is open belong to each window.
+const [prefs, setPrefs] = createRoot(() =>
+  persisted<TicketPrefs>(K.ticketPrefs, {
+    parse: (raw) => ({ ...DEFAULT_PREFS, ...((JSON.parse(raw) as Partial<TicketPrefs> | null) ?? {}) }),
+    default: DEFAULT_PREFS,
+    sync: true,
+  }),
+);
 
 /** Quantity the next order starts with (the ticket's last one): the chart's
  *  one-click Buy / Sell buttons use it (reactive). */
@@ -156,9 +148,7 @@ export function ticketQty(): number {
 
 /** The quantity of the next orders (chart Buy / Sell quantity calculator). */
 export function setTicketQty(qty: number) {
-  const next = { ...prefs(), qty: String(qty) };
-  setPrefs(next);
-  kv.setItem(K.ticketPrefs, JSON.stringify(next));
+  setPrefs({ ...prefs(), qty: String(qty) });
 }
 
 /** Ticket width bounds (px). */
@@ -180,16 +170,11 @@ export const tradingUi = createRoot(() => {
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   /** Bumped to bring the Replay Trading tab forward (open, selected). */
   const [reportRequest, setReportRequest] = createSignal(0);
-  const savedView = kv.getItem(K.reportView);
-  const [reportView, setReportViewRaw] = createSignal<ReplayReportView>(savedView === "trades" ? "trades" : "report");
+  const [reportView, setReportView] = persisted<ReplayReportView>(K.reportView, { parse: oneOf("report", "trades"), format: String, default: "report" });
 
   // Order presets and the ticket's ⋯ menu setting.
-  const [presets, setPresetsRaw] = createSignal<OrderPreset[]>(readPresets());
-  const setPresets = (list: OrderPreset[]) => {
-    setPresetsRaw(list);
-    kv.setItem(K.presets, JSON.stringify(list));
-  };
-  const [slEnablesRisk, setSlEnablesRiskRaw] = createSignal(kv.getItem(K.slRisk) === "true");
+  const [presets, setPresets] = persisted<OrderPreset[]>(K.presets, { parse: parsePresets, default: [], sync: true });
+  const [slEnablesRisk, setSlEnablesRisk] = persisted(K.slRisk, { parse: (raw) => raw === "true", default: false, sync: true });
 
   /** The order preset of the chart Buy / Sell buttons (presets menu). */
   const [activePreset, setActivePreset] = createSignal<string | null>(null);
@@ -200,10 +185,10 @@ export const tradingUi = createRoot(() => {
   // line on the chart) and the DOM panel settings.
   const [ticketTab, setTicketTabRaw] = createSignal<"order" | "dom">(kv.getItem(K.tab) === "dom" ? "dom" : "order");
   const [domHover, setDomHover] = createSignal<{ price: number; buy: boolean } | null>(null);
-  const [domPrices, setDomPricesRaw] = createSignal<DomPrices>(readDomPrices());
+  const [domPrices, setDomPrices] = persisted<DomPrices>(K.domPrices, { parse: parseDomPrices, default: { zeroVolume: true, spread: true }, sync: true });
   /** Docked at the right ("panel") or a floating dialog ("popup": "Undock
    *  order ticket"). */
-  const [ticketMode, setTicketModeRaw] = createSignal<"panel" | "popup">(kv.getItem(K.mode) === "popup" ? "popup" : "panel");
+  const [ticketMode, saveTicketMode] = persisted<"panel" | "popup">(K.mode, { parse: oneOf("panel", "popup"), format: String, default: "panel" });
   /** An order of the docked DOM tab in the floating dialog (one-click
    *  trading off). */
   const [orderDialog, setOrderDialog] = createSignal(false);
@@ -262,9 +247,7 @@ export const tradingUi = createRoot(() => {
     setSent,
     /** Remember the ticket choices the next order starts from. */
     savePrefs(d: TicketDraft) {
-      const next = { qty: d.qty, orderType: d.orderType };
-      setPrefs(next);
-      kv.setItem(K.ticketPrefs, JSON.stringify(next));
+      setPrefs({ qty: d.qty, orderType: d.orderType });
     },
     /** A new order's draft (the ticket's starting values). */
     newDraft,
@@ -365,8 +348,7 @@ export const tradingUi = createRoot(() => {
     ticketMode,
     /** "Undock order ticket" / "Dock to right". */
     setTicketMode(m: "panel" | "popup") {
-      setTicketModeRaw(m);
-      kv.setItem(K.mode, m);
+      saveTicketMode(m);
       setOrderDialog(false);
       if (m === "popup" && !draft()) setDraft(newDraft(replayBroker.symbol() || activeSymbol(), "buy"));
     },
@@ -393,16 +375,10 @@ export const tradingUi = createRoot(() => {
     domHover,
     setDomHover,
     domPrices,
-    setDomPrices(p: DomPrices) {
-      setDomPricesRaw(p);
-      kv.setItem(K.domPrices, JSON.stringify(p));
-    },
+    setDomPrices,
     /** "SL enables quantity in risk" (ticket ⋯ menu). */
     slEnablesRisk,
-    setSlEnablesRisk(v: boolean) {
-      setSlEnablesRiskRaw(v);
-      kv.setItem(K.slRisk, v ? "true" : "false");
-    },
+    setSlEnablesRisk,
 
     settingsOpen,
     openReplaySettings: () => setSettingsOpen(true),
@@ -414,9 +390,6 @@ export const tradingUi = createRoot(() => {
       setReportRequest((n) => n + 1);
     },
     reportView,
-    setReportView(v: ReplayReportView) {
-      setReportViewRaw(v);
-      kv.setItem(K.reportView, v);
-    },
+    setReportView,
   };
 });

@@ -9,6 +9,7 @@ import { createRoot, createSignal } from "solid-js";
 import type { BacktestReport } from "../backtester/types";
 import type { BacktestError } from "../backtester/worker-types";
 import * as kv from "./kv";
+import { oneOf, persisted } from "./persisted";
 
 export type StrategyRunState = {
   status: "running" | "done" | "error";
@@ -40,24 +41,23 @@ const DEFAULT_EQUITY: EquitySettings = {
   legendCollapsed: false,
   visible: { pnl: true, buyHold: false, excursions: true, periods: true },
 };
-function readEquity(): EquitySettings {
-  try {
-    const v = JSON.parse(kv.getItem(EQUITY_KEY) ?? "null") as Partial<EquitySettings> | null;
-    return { ...DEFAULT_EQUITY, ...(v ?? {}), visible: { ...DEFAULT_EQUITY.visible, ...(v?.visible ?? {}) } };
-  } catch {
-    return DEFAULT_EQUITY;
-  }
+/** Stored settings over the defaults (a setting added later keeps its default). */
+function parseEquity(raw: string): EquitySettings {
+  const v = JSON.parse(raw) as Partial<EquitySettings> | null;
+  return { ...DEFAULT_EQUITY, ...(v ?? {}), visible: { ...DEFAULT_EQUITY.visible, ...(v?.visible ?? {}) } };
 }
 
 export const strategyTester = createRoot(() => {
   /** Report content height (the 38 px footer bar excluded); 0 = default. */
   const [height, setHeightRaw] = createSignal(Number(kv.getItem(HEIGHT_KEY)) || 0);
-  const [collapsed, setCollapsedRaw] = createSignal(kv.getItem(COLLAPSED_KEY) === "1");
+  // The panel's state (minimized, height, view) belongs to each window; the
+  // performance chart settings follow every window.
+  const [collapsed, setCollapsed] = persisted(COLLAPSED_KEY, { parse: (raw) => raw === "1", format: (v) => (v ? "1" : "0"), default: false });
   const [maximized, setMaximized] = createSignal(false);
-  const [view, setViewRaw] = createSignal<ReportView>(kv.getItem(VIEW_KEY) === "trades" ? "trades" : "metrics");
+  const [view, setView] = persisted<ReportView>(VIEW_KEY, { parse: oneOf("metrics", "trades"), format: String, default: "metrics" });
   /** Chart id (ChartView pane id) of the active chart. */
   const [activeChartId, setActiveChartId] = createSignal<string | null>(null);
-  const [equity, setEquityRaw] = createSignal<EquitySettings>(readEquity());
+  const [equity, setEquity] = persisted(EQUITY_KEY, { parse: parseEquity, default: DEFAULT_EQUITY, sync: true });
   /** Performance chart expanded over the whole report (Expand chart). */
   const [equityExpanded, setEquityExpanded] = createSignal(false);
   // Reports stay plain objects (no store proxies over thousands of trades);
@@ -73,24 +73,17 @@ export const strategyTester = createRoot(() => {
       if (commit) kv.setItem(HEIGHT_KEY, String(Math.round(px)));
     },
     collapsed,
-    setCollapsed(v: boolean) {
-      setCollapsedRaw(v);
-      kv.setItem(COLLAPSED_KEY, v ? "1" : "0");
-    },
+    setCollapsed,
     maximized,
     setMaximized,
     view,
-    setView(v: ReportView) {
-      setViewRaw(v);
-      kv.setItem(VIEW_KEY, v);
-    },
+    setView,
     activeChartId,
     setActiveChartId,
     equity,
     patchEquity(patch: Partial<EquitySettings>) {
       const next = { ...equity(), ...patch, visible: { ...equity().visible, ...(patch.visible ?? {}) } };
-      setEquityRaw(next);
-      kv.setItem(EQUITY_KEY, JSON.stringify(next));
+      setEquity(next);
     },
     equityExpanded,
     setEquityExpanded,

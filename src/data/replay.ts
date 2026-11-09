@@ -11,8 +11,9 @@
  * States: off (no toolbar) → open (toolbar, no point) → selecting (the chart
  * picks a bar) → paused / playing (charts cut at the replay time).
  */
-import { createSignal } from "solid-js";
+import { createSignal, untrack } from "solid-js";
 import * as kv from "./kv";
+import { oneOf, persisted } from "./persisted";
 import { intervalSeconds, isDailyInterval, parseInterval } from "./interval";
 import type { WallDate, WallTime } from "../window/chart/day-key";
 
@@ -46,17 +47,28 @@ export function clampDelay(ms: number): number {
   return best;
 }
 
-function readMode(): ReplayMode {
-  return kv.getItem(MODE_KEY) === "AllCharts" ? "AllCharts" : "ActiveChart";
-}
-function readTiming(): TimingMode {
-  const v = kv.getItem(TIMING_KEY);
-  return v === "date" || v === "first" || v === "random" ? v : "bar";
-}
-function readDelay(): number {
-  const n = Number(kv.getItem(DELAY_KEY));
-  return Number.isFinite(n) && n > 0 ? clampDelay(n) : DEFAULT_REPLAY_DELAY;
-}
+// The last mode, start mode and speed used, in any window: a new tab's replay starts with them.
+const [lastMode, saveMode] = persisted<ReplayMode>(MODE_KEY, {
+  parse: oneOf("ActiveChart", "AllCharts"),
+  format: String,
+  default: "ActiveChart",
+  sync: true,
+});
+const [lastTiming, saveTiming] = persisted<TimingMode>(TIMING_KEY, {
+  parse: oneOf("bar", "date", "first", "random"),
+  format: String,
+  default: "bar",
+  sync: true,
+});
+const [lastDelay, saveDelay] = persisted<number>(DELAY_KEY, {
+  parse: (raw) => {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? clampDelay(n) : undefined;
+  },
+  format: String,
+  default: DEFAULT_REPLAY_DELAY,
+  sync: true,
+});
 
 // ── Update intervals ─────────────────────────────────────────────────────────
 
@@ -224,23 +236,22 @@ export function stopReplayToolbarHighlight() {
   if ((Number(kv.getItem(HIGHLIGHT_KEY)) || 0) < 3) kv.setItem(HIGHLIGHT_KEY, "4");
 }
 
-const [jumpHintClosed, setJumpHintClosed] = createSignal(kv.getItem(JUMP_HINT_KEY) === "true");
+// Closed in one window: closed in all (stored "true").
+const [jumpHintClosed, setJumpHintClosed] = persisted(JUMP_HINT_KEY, { parse: (raw) => raw === "true", default: false, sync: true });
 /** "Click to select the starting point." while a bar is picked, until it is
  *  closed once. */
 export const replayJumpHintShown = () => cur().selecting() && !jumpHintClosed();
 export function closeReplayJumpHint() {
   setJumpHintClosed(true);
-  kv.setItem(JUMP_HINT_KEY, "true");
 }
 
 const SAVE_SESSION_KEY = "ot:replay-save-session";
-/** "Save this replay" (leave dialog), on by default. */
-export function replaySaveSession(): boolean {
-  return kv.getItem(SAVE_SESSION_KEY) !== "false";
-}
-export function setReplaySaveSession(v: boolean) {
-  kv.setItem(SAVE_SESSION_KEY, v ? "true" : "false");
-}
+/** "Save this replay" (leave dialog), on by default; stored "true" / "false". */
+export const [replaySaveSession, setReplaySaveSession] = persisted(SAVE_SESSION_KEY, {
+  parse: (raw) => raw !== "false",
+  default: true,
+  sync: true,
+});
 
 // ── Sessions: one replay per tab ─────────────────────────────────────────────
 // The reference app runs each tab as its own page, so each has its own
@@ -257,9 +268,9 @@ function createSession(tab: string) {
   /** Replay time (s): the data shown ends at it. */
   const [point, setPoint] = createSignal<number | null>(null);
   // Mode, start mode and speed: a new tab's replay starts with the last ones used.
-  const [mode, setMode] = createSignal<ReplayMode>(readMode());
-  const [timing, setTiming] = createSignal<TimingMode>(readTiming());
-  const [delay, setDelay] = createSignal<number>(readDelay());
+  const [mode, setMode] = createSignal<ReplayMode>(untrack(lastMode));
+  const [timing, setTiming] = createSignal<TimingMode>(untrack(lastTiming));
+  const [delay, setDelay] = createSignal<number>(untrack(lastDelay));
   /** Fixed update interval; null = Auto. */
   const [fixedUpdate, setFixedUpdate] = createSignal<string | null>(null);
   const [dateDialog, setDateDialog] = createSignal(false);
@@ -595,7 +606,7 @@ export function setReplayDelay(ms: number) {
   const s = cur();
   const d = clampDelay(ms);
   s.setDelay(d);
-  kv.setItem(DELAY_KEY, String(d));
+  saveDelay(d);
   // Playing: restart at the new speed.
   if (s.playing()) startTimer(s);
 }
@@ -737,7 +748,7 @@ export function selectRandom(inSession: (sec: number) => boolean = () => true) {
 
 export function setTimingMode(m: TimingMode) {
   cur().setTiming(m);
-  kv.setItem(TIMING_KEY, m);
+  saveTiming(m);
 }
 
 /** Run the start-point action of the current timing mode. */
@@ -858,6 +869,6 @@ export function closeReplay() {
 
 function setMode(s: Session, m: ReplayMode) {
   s.setMode(m);
-  kv.setItem(MODE_KEY, m);
+  saveMode(m);
 }
 export const setReplayMode = (m: ReplayMode) => setMode(cur(), m);

@@ -4,6 +4,7 @@ const store = vi.hoisted(() => new Map<string, string>());
 vi.mock("../kv", () => ({
   getItem: (k: string) => store.get(k) ?? null,
   setItem: (k: string, v: string) => void store.set(k, v),
+  onExternalChange: () => () => undefined,
 }));
 // The autoplay timer is the window's.
 vi.stubGlobal("window", globalThis);
