@@ -39,6 +39,7 @@ import type { KagiItem, PnfItem } from "./series-transforms";
 import type { SvpStyle } from "../header/chart-settings";
 import { localDay, zoneOffsetFinder, type SymbolSessions } from "../../data/session";
 import { volumeHalfWidth, volumeWidthFactor } from "./volume-widths";
+import { pocOf, valueArea } from "./profiles/vbp-engine";
 export type { KagiItem, PnfItem } from "./series-transforms";
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer["draw"]>[0];
@@ -277,21 +278,10 @@ function parseSession(s: string): [number, number] | null {
   return [+m[1] * 60 + +m[2], +m[3] * 60 + +m[4]];
 }
 
-/** POC (row with the most volume) and the value area: rows added around the
- *  POC, the larger neighbour first, until `pct` % of the volume is inside. */
-function pocAndVa(total: number[], pct: number): { poc: number; lo: number; hi: number } {
-  let poc = 0;
-  for (let k = 1; k < total.length; k++) if (total[k] > total[poc]) poc = k;
-  const sum = total.reduce((a, b) => a + b, 0);
-  const target = (sum * Math.max(0, Math.min(100, pct))) / 100;
-  let lo = poc;
-  let hi = poc;
-  let acc = total[poc];
-  while (acc < target && (lo > 0 || hi < total.length - 1)) {
-    const below = lo > 0 ? total[lo - 1] : -1;
-    const above = hi < total.length - 1 ? total[hi + 1] : -1;
-    if (above >= below) { hi++; acc += total[hi]; } else { lo--; acc += total[lo]; }
-  }
+/** POC and value area of the row totals, by the same rules as the profile studies. */
+function pocAndValueArea(total: number[], pct: number): { poc: number; lo: number; hi: number } {
+  const poc = pocOf(total);
+  const [lo, hi] = valueArea(total, poc, pct);
   return { poc, lo, hi };
 }
 
@@ -360,14 +350,14 @@ export function toProfile(raw: OHLC[], mode: "svp" | "tpo", st: SvpStyle | undef
       for (let k = lo; k <= hi; k++) (mode === "svp" ? into : up)[k] += w;
       if (mode === "svp") {
         const tot = up.map((v, k) => v + down[k]);
-        const d = pocAndVa(tot, pct);
+        const d = pocAndValueArea(tot, pct);
         devs.push({ poc: bottom + rowH * (d.poc + 0.5), vah: bottom + rowH * (d.hi + 1), val: bottom + rowH * d.lo });
       }
     }
     const total = up.map((v, k) => v + down[k]);
     const maxRow = total.reduce((m, v) => Math.max(m, v), 0);
     if (maxRow <= 0) continue;
-    const va = pocAndVa(total, pct);
+    const va = pocAndValueArea(total, pct);
     items[g.idx[0]].profile = { top, bottom, rowH, up, down, maxRow, first: g.idx[0], last: g.idx[g.idx.length - 1], poc: va.poc, vaLo: va.lo, vaHi: va.hi };
     if (mode === "svp") g.idx.forEach((i, k) => { items[i].dev = devs[k]; });
   }
