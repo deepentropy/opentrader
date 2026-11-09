@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Free strategy backtesting and strategy tester · OpenTrader</title>
+  <meta name="description" content="Backtest trading strategies on the chart's history for free: built-in or your own, with commission, slippage and position sizing. Full report, list of trades, CSV and XLSX export.">
+  <link rel="canonical" href="https://opentrader.markets/backtesting.html">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta property="og:site_name" content="OpenTrader">
+  <meta property="og:title" content="Free strategy backtesting and strategy tester · OpenTrader">
+  <meta property="og:description" content="Backtest trading strategies on the chart's history for free: built-in or your own, with commission, slippage and position sizing. Full report, list of trades, CSV and XLSX export.">
+  <meta property="og:url" content="https://opentrader.markets/backtesting.html">
+  <meta property="og:image" content="https://opentrader.markets/assets/site/tester.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/site/icon-64.png">
+  <link rel="apple-touch-icon" href="assets/site/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/Outfit-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="site.css">
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "OpenTrader", "item": "https://opentrader.markets/"}, {"@type": "ListItem", "position": 2, "name": "Backtesting", "item": "https://opentrader.markets/backtesting.html"}]}</script>
+</head>
+<body>
+
+<div class="strip" role="note" aria-label="Highlights">
+  <ul class="wrap">
+    <li>16 charts per tab</li>
+    <li>No paywall, no login</li>
+    <li>Unlimited indicators per chart</li>
+    <li>1,000+ indicators</li>
+    <li>No ads</li>
+  </ul>
+</div>
+
+<header class="wrap top">
+  <a class="top-logo" href="./"><img src="assets/site/logo.png" alt="OpenTrader" width="190" height="53"></a>
+  <nav aria-label="Main">
+    <a href="./#features">Features</a>
+    <a href="./#libraries">Libraries</a>
+    <a href="./#support">Support the project</a>
+    <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+    <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
+    <a class="btn btn-main" href="download.html">Download</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <div class="wrap">
+    <nav class="crumbs" aria-label="Breadcrumb"><a href="./">OpenTrader</a> / <span aria-current="page">Backtesting</span></nav>
+    <h1>Backtest trading strategies, free.</h1>
+    <p class="hero-lede">Run a strategy over the chart's history and read the result: key stats, an equity curve against buy and hold, a breakdown of profits and losses, and every trade, which you can show on the chart.</p>
+    <div class="hero-actions">
+      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download free</span></a>
+      <a class="btn" href="https://demo.opentrader.markets/">Try it in your browser</a>
+    </div>
+    <div class="window">
+      <img src="assets/site/tester.png" alt="Strategy report with key stats, a cumulative profit curve and a profit and loss breakdown" width="1816" height="880" fetchpriority="high">
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="level is-last"><span>Backtesting</span></div>
+    <h2>From an idea to a report in a few clicks</h2>
+    <p>Add a strategy to the chart like an indicator. The report opens under the chart and updates when you change the symbol, the interval or a setting.</p>
+    <div class="grid">
+      <div>
+        <h3>Strategies to start from</h3>
+        <p>23 standard strategies such as MACD, Supertrend, Bollinger Bands, Parabolic SAR and technical ratings, and dozens more from the community collection.</p>
+      </div>
+      <div>
+        <h3>Your own strategies</h3>
+        <p>Write a strategy in the built-in OakScript editor and test it the same way. See <a href="scripting.html">scripting</a>.</p>
+      </div>
+      <div>
+        <h3>Realistic settings</h3>
+        <p>Initial capital and currency, order size in shares, cash or percent of equity, pyramiding, commission, slippage, leverage, limit order fills and an order delay.</p>
+      </div>
+      <div>
+        <h3>Finer fills</h3>
+        <p>Bar detail can use lower-timeframe bars for the fills, and the strategy can also run on each realtime tick instead of only at bar close.</p>
+      </div>
+      <div>
+        <h3>A full report</h3>
+        <p>Total profit, max drawdown, profit factor, win rate, CAGR, Sharpe and Sortino ratios, expectancy, run-ups and drawdowns, streaks, and results by hour, day and month.</p>
+      </div>
+      <div>
+        <h3>Charts of the result</h3>
+        <p>Equity curve with buy and hold, run-ups and drawdowns, periodical returns, benchmark comparison, margin use, returns distribution and winning and losing streaks.</p>
+      </div>
+      <div>
+        <h3>Every trade</h3>
+        <p>The list of trades with entry, exit, profit, run-up, drawdown and duration. Click a trade to see it on the chart.</p>
+      </div>
+      <div>
+        <h3>Export</h3>
+        <p>Download the trades as CSV, or the whole report as an XLSX workbook with about 60 metrics.</p>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-text">
+        <h3>Strategies on the chart</h3>
+        <p>Entries and exits are drawn on the chart, next to your indicators and drawings, so you can see where the strategy traded and why.</p>
+      </div>
+      <div class="window">
+        <img loading="lazy" decoding="async" src="assets/site/studies.png" alt="Daily chart with two moving averages, a trend-following strategy line and a coloured volume pane" width="1816" height="600">
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="level"><span>FAQ</span></div>
+    <h2>Questions</h2>
+    <div class="grid">
+      <div>
+        <h3>Is backtesting free?</h3>
+        <p>Yes, with no limit on the number of strategies or tests. The app is free and open source.</p>
+      </div>
+      <div>
+        <h3>How much history can I test on?</h3>
+        <p>The test runs on the bars the chart has loaded: daily history goes back to 2003, second and minute history to five years.</p>
+      </div>
+      <div>
+        <h3>Can I test my own strategy?</h3>
+        <p>Yes. Write it in the OakScript editor, in JavaScript-like syntax, and add it to the chart.</p>
+      </div>
+      <div>
+        <h3>Can I trade the strategy live?</h3>
+        <p>No. OpenTrader has no broker connection. Use alerts to be told when your conditions are met.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="level"><span>More</span></div>
+    <h2>Everything else in the app</h2>
+    <nav class="more-links" aria-label="Other features">
+      <a href="stock-screener.html">Stock screener</a>
+      <a href="bar-replay.html">Bar replay</a>
+      <a href="technical-indicators.html">Indicators</a>
+      <a href="drawing-tools.html">Drawing tools</a>
+      <a href="scripting.html">Scripting</a>
+      <a href="./#features">All features</a>
+    </nav>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <div>
+      <h2>Try it. It takes a minute.</h2>
+      <p>Free for Windows, macOS and Linux. Or open the demo in your browser.</p>
+    </div>
+    <div class="hero-actions">
+      <a class="btn btn-main" href="download.html" data-download><span data-download-label>Download</span></a>
+      <a class="btn" href="https://demo.opentrader.markets/">Try the demo</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>OpenTrader is an independent project, not affiliated with any trading platform or data provider. It is for charting and research only and is not financial advice. MIT license.</p>
+    <nav aria-label="Footer">
+      <a href="./">Home</a>
+      <a href="download.html">Download</a>
+      <a href="https://demo.opentrader.markets/">Online demo</a>
+      <a href="https://github.com/deepentropy/opentrader">GitHub</a>
+      <a href="https://community.opentrader.markets/">Community</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="legal.html">Legal notice</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

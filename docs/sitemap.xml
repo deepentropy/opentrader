@@ -2,6 +2,12 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://opentrader.markets/</loc><lastmod>2026-11-09</lastmod></url>
   <url><loc>https://opentrader.markets/download.html</loc><lastmod>2026-11-09</lastmod></url>
+  <url><loc>https://opentrader.markets/stock-screener.html</loc><lastmod>2026-11-09</lastmod></url>
+  <url><loc>https://opentrader.markets/backtesting.html</loc><lastmod>2026-11-09</lastmod></url>
+  <url><loc>https://opentrader.markets/bar-replay.html</loc><lastmod>2026-11-09</lastmod></url>
+  <url><loc>https://opentrader.markets/technical-indicators.html</loc><lastmod>2026-11-09</lastmod></url>
+  <url><loc>https://opentrader.markets/drawing-tools.html</loc><lastmod>2026-11-09</lastmod></url>
+  <url><loc>https://opentrader.markets/scripting.html</loc><lastmod>2026-11-09</lastmod></url>
   <url><loc>https://opentrader.markets/community-rules.html</loc><lastmod>2026-11-03</lastmod></url>
   <url><loc>https://opentrader.markets/terms.html</loc><lastmod>2026-11-03</lastmod></url>
   <url><loc>https://opentrader.markets/privacy.html</loc><lastmod>2026-11-05</lastmod></url>

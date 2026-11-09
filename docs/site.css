@@ -160,6 +160,15 @@ p { margin: 0; }
 .cta p { margin-top: 8px; color: var(--ink-soft); }
 .cta .hero-actions { margin-top: 0; }
 
+/* Feature pages */
+.crumbs { margin-bottom: 18px; font: 400 13px var(--mono); color: var(--ink-soft); }
+.crumbs a { color: var(--ink-soft); }
+.window.is-narrow { max-width: 860px; margin-inline: auto; }
+.more-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.more-links a { padding: 10px 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-decoration: none; font-weight: 500; }
+.more-links a:hover { border-color: var(--blue); color: var(--blue); }
+.feature-link { display: inline-block; margin-top: 14px; font-weight: 500; }
+
 /* Download page */
 .os-list { margin-top: 40px; border-top: 1px solid var(--line); }
 .os { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; padding: 32px 0; border-bottom: 1px solid var(--line); }
