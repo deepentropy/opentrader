@@ -7,7 +7,8 @@
  */
 import { MissingSymbolDataError } from 'oakscriptjs/script';
 import { StrategyRuntimeError } from './broker';
-import { runOakScriptStrategy, symbolOf } from './oakscript';
+import { symbolOf } from './oakscript';
+import { runScriptRequest } from './script-request';
 import { runBacktest } from './run';
 import { SCRIPT_STRATEGIES } from './scripts';
 import { BUILTIN_STRATEGIES } from './builtins';
@@ -18,18 +19,18 @@ import { intervalSeconds } from './magnifier';
 import { intrabarsOf } from './intrabar-cache';
 // The chart's library studies calculate in this worker too (it carries the library already).
 import { calculateStudy, isStudyJob } from '../window/chart/indicators/study-calc';
-import { KeptRuns, updateLiveStrategy, type KeptStrategy, type LiveReply } from './live-runs';
+import { KeptRuns, type KeptStrategy, type LiveReply } from './live-runs';
 
 /** The strategies on the charts, by channel (a port keeps its bars only). */
 const live = new KeptRuns<KeptStrategy | null>();
 
 /** The output of a request; null: a live request whose bars the worker no longer has. */
 function runStrategy(req: BacktestRequest): (Omit<BacktestOutput, 'fullRunReason'> & { live?: LiveReply }) | string | null {
-  const intrabars = intrabarsOf(req.intrabars);
-  const intrabarSeconds = req.intrabars ? intervalSeconds(req.intrabars.interval) : undefined;
-  const common = { intrabars, intrabarSeconds, heikinAshi: req.heikinAshi, realtime: req.chart?.realtime === true };
   const def = STRATEGIES.find((s) => s.key === req.strategy);
   if (def) {
+    const intrabars = intrabarsOf(req.intrabars);
+    const intrabarSeconds = req.intrabars ? intervalSeconds(req.intrabars.interval) : undefined;
+    const common = { intrabars, intrabarSeconds, heikinAshi: req.heikinAshi, realtime: req.chart?.realtime === true };
     // syminfo.timezone / mintick of the port = the charted symbol's.
     const symbol = { ...symbolOf(req.chart), ...req.symbol };
     const got = req.live ? live.bars(req.live, req.bars) : { kept: undefined, bars: req.bars };
@@ -40,24 +41,10 @@ function runStrategy(req: BacktestRequest): (Omit<BacktestOutput, 'fullRunReason
   }
   const script = SCRIPT_STRATEGIES.find((s) => s.key === req.strategy) ?? BUILTIN_STRATEGIES.find((s) => s.key === req.strategy);
   if (!script) return `Unknown strategy "${req.strategy}".`;
-  const opts = {
-    inputs: req.inputs,
-    properties: req.properties,
-    symbol: req.symbol,
-    chart: req.chart,
-    intrabars,
-    intrabarSeconds,
-    heikinAshi: req.heikinAshi,
-    symbols: req.symbols,
-  };
-  if (req.live) {
-    const out = updateLiveStrategy(live, req.live, script.body, req.bars, opts);
-    if (!out) return null;
-    return out.report ? { report: out.report, visuals: out.visuals, live: out.live } : `Strategy "${req.strategy}" did not run.`;
-  }
-  const { report, script: run } = runOakScriptStrategy(script.body, req.bars, opts);
-  // The kinds of drawings the run created ride with the drawn outputs (the Style tab lists one row per kind).
-  return report ? { report, visuals: run.drawingKinds.length ? { ...run.result, drawingKinds: run.drawingKinds } : run.result } : `Strategy "${req.strategy}" did not run.`;
+  const out = runScriptRequest(live, script.body, req);
+  if (!out) return null;
+  if (!out.report) return `Strategy "${req.strategy}" did not run.`;
+  return { report: out.report, visuals: out.visuals, ...(out.live ? { live: out.live } : {}) };
 }
 
 /** The indicator library, loaded once by the first run that needs it (Technical ratings strategy). */

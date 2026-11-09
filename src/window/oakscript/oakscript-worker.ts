@@ -22,11 +22,10 @@ import * as indicatorHelpers from "lightweight-charts-indicators/helpers";
 import type { OakCompiledMeta, OakRequest, OakResponse, OakScriptError } from "./engine-types";
 import { isConventionStyle, SCRIPT_LINE_OFFSET, wrapScriptStyle } from "./script-transform";
 import { StrategyRuntimeError } from "../../backtester/broker";
-import { BrokerEngine, brokerProperties, chartWithSymbols, DECLARATION_CHART, runOakScriptStrategy } from "../../backtester/oakscript";
-import { DEFAULT_SYMBOL, type BacktestReport } from "../../backtester/types";
-import { intrabarsOf } from "../../backtester/intrabar-cache";
-import { intervalSeconds } from "../../backtester/magnifier";
-import { KeptRuns, updateLiveStrategy, type KeptStrategy, type LiveReply } from "../../backtester/live-runs";
+import { BrokerEngine, brokerProperties, chartWithSymbols, DECLARATION_CHART } from "../../backtester/oakscript";
+import { DEFAULT_SYMBOL } from "../../backtester/types";
+import { KeptRuns, type KeptStrategy } from "../../backtester/live-runs";
+import { runScriptRequest } from "../../backtester/script-request";
 import { updateLiveScript, type Compiled, type LiveScript, type UserModule } from "./live-script";
 
 const ctx = self as unknown as {
@@ -256,27 +255,10 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
     return { id: req.id, type: "backtest", ok: false, error: { message } };
   }
   try {
-    const opts = {
-      inputs: req.inputs ?? {},
-      properties: req.properties,
-      chart: req.chart,
-      heikinAshi: req.heikinAshi,
-      symbols: req.symbols,
-      intrabars: intrabarsOf(req.intrabars),
-      intrabarSeconds: req.intrabars ? intervalSeconds(req.intrabars.interval) : undefined,
-    };
-    let report: BacktestReport | undefined;
-    let visuals: unknown;
-    let live: LiveReply | undefined;
-    if (req.live) {
-      const out = updateLiveStrategy(liveStrategies, { ...req.live, key: liveKey(req.scriptId, req.live.key) }, entry.run, req.bars, opts);
-      if (!out) return resend(req.id, "backtest");
-      ({ report, visuals, live } = out);
-    } else {
-      const { report: r, script } = runOakScriptStrategy(entry.run, req.bars, opts);
-      report = r;
-      visuals = script.drawingKinds.length ? { ...script.result, drawingKinds: script.drawingKinds } : script.result;
-    }
+    const live = req.live && { ...req.live, key: liveKey(req.scriptId, req.live.key) };
+    const out = runScriptRequest(liveStrategies, entry.run, { ...req, live });
+    if (!out) return resend(req.id, "backtest");
+    const { report, visuals } = out;
     if (!report) {
       return {
         id: req.id,
@@ -285,7 +267,7 @@ function handleBacktest(req: Extract<OakRequest, { type: "backtest" }>): OakResp
         error: { message: "The script must declare strategy() and run its logic in strategy.eachBar()." },
       };
     }
-    return { id: req.id, type: "backtest", ok: true, report, visuals, ...(live ? { live } : {}) };
+    return { id: req.id, type: "backtest", ok: true, report, visuals, ...(out.live ? { live: out.live } : {}) };
   } catch (err) {
     if (err instanceof StrategyRuntimeError) {
       return { id: req.id, type: "backtest", ok: false, error: { message: err.message, code: err.code, bar: err.bar } };
