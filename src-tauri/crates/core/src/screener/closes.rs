@@ -97,12 +97,14 @@ pub async fn fetch(d: Option<&crate::screener::progress::Download>) -> Result<Op
         d.set_total(resp.content_length());
     }
     let bytes = crate::screener::progress::read_body(resp, d, "screener closes").await?;
-    let c = Closes::parse(&bytes)?;
-    let path = cache_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    let _ = std::fs::write(&path, &bytes);
+    // Unpacking and parsing the whole market's closes: off the async threads.
+    let c = tokio::task::spawn_blocking(move || -> Result<Closes> {
+        let c = Closes::parse(&bytes)?;
+        let _ = crate::files::write_atomic(&cache_path(), &bytes);
+        Ok(c)
+    })
+    .await
+    .context("screener closes: read task")??;
     Ok(Some(c))
 }
 

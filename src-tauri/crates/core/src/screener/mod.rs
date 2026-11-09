@@ -186,6 +186,11 @@ struct Sources {
 }
 
 impl Sources {
+    /// The disk copies, read on a blocking thread.
+    async fn load() -> Self {
+        tokio::task::spawn_blocking(Self::from_cache).await.unwrap_or_default()
+    }
+
     fn from_cache() -> Self {
         let mut s = Sources { state: state::read_cache().map(Arc::new), ..Default::default() };
         if let Some((day, list)) = read_refs_cache() {
@@ -198,7 +203,7 @@ impl Sources {
     /// Start the downloads that are due: the reference list once per New York day, the daily state when missing
     /// or older than the last closed session, the closes of the state's session while custom lengths are asked for
     /// (both at most every STATE_RECHECK).
-    fn start(&mut self, today: Option<NaiveDate>, wanted: &[String], downloads: &progress::Downloads) {
+    async fn start(&mut self, today: Option<NaiveDate>, wanted: &[String], downloads: &progress::Downloads) {
         let refs_retry = self.refs_failed.map_or(true, |t| t.elapsed() >= REFS_RETRY);
         if self.refs_task.is_none() && self.refs_day != today && refs_retry {
             // Counted only when the table waits on it: no list held yet.
@@ -209,7 +214,13 @@ impl Sources {
                     d.finish();
                 }
                 match list {
-                    Ok(list) => Some(list),
+                    // The disk copy for the next start, written off the async threads.
+                    Ok(list) => tokio::task::spawn_blocking(move || {
+                        write_refs_cache(today, &list);
+                        list
+                    })
+                    .await
+                    .ok(),
                     Err(e) => {
                         eprintln!("[screener] reference tickers: {e:#}");
                         None
@@ -236,7 +247,7 @@ impl Sources {
             return;
         }
         if self.closes.is_none() {
-            self.closes = closes::read_cache().map(Arc::new);
+            self.closes = tokio::task::spawn_blocking(closes::read_cache).await.ok().flatten().map(Arc::new);
         }
         let due = self.closes_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK);
         if self.closes.as_ref().map(|c| c.asof) != Some(asof) && self.closes_task.is_none() && due {
@@ -274,7 +285,6 @@ impl Sources {
     fn apply(&mut self, arrived: Arrived, today: Option<NaiveDate>) {
         match arrived {
             Arrived::Refs(Some(list)) => {
-                write_refs_cache(today, &list);
                 self.refs = Arc::new(list);
                 self.refs_day = today;
             }
@@ -299,24 +309,27 @@ impl Sources {
     }
 
     /// The state the table joins: with the custom lengths' columns once the closes of its session are in.
-    fn table_state(&mut self, wanted: &[String]) -> Option<Arc<StateFile>> {
-        let s = self.state.as_ref()?;
-        match &self.closes {
+    async fn table_state(&mut self, wanted: &[String]) -> Option<Arc<StateFile>> {
+        let s = self.state.clone()?;
+        match self.closes.clone() {
             Some(c) if !wanted.is_empty() && c.asof == s.asof => {
-                let fresh = self.merged.as_ref().map_or(false, |(d, ids, _)| *d == s.asof && ids == wanted);
+                let fresh = self.merged.as_ref().is_some_and(|(d, ids, _)| *d == s.asof && ids == wanted);
                 if !fresh {
-                    self.merged = Some((s.asof, wanted.to_vec(), Arc::new(closes::with_custom(s, c, wanted))));
+                    // Each length runs over every ticker's closes: off the async threads.
+                    let (state, ids) = (s.clone(), wanted.to_vec());
+                    let merged = tokio::task::spawn_blocking(move || closes::with_custom(&state, &c, &ids)).await.ok()?;
+                    self.merged = Some((s.asof, wanted.to_vec(), Arc::new(merged)));
                 }
                 self.merged.as_ref().map(|(_, _, m)| m.clone())
             }
-            _ => Some(s.clone()),
+            _ => Some(s),
         }
     }
 }
 
 async fn run(app: HostRef, inner: Arc<Inner>) {
     let mut version = inner.table.read_locked().as_ref().map_or(0, |t| t.version);
-    let mut src = Sources::from_cache();
+    let mut src = Sources::load().await;
     let feed_url = feed_url();
     let mut feed: Option<live::Feed> = None;
     // The feed holds a table not shown yet (just connected).
@@ -344,7 +357,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         let started = Instant::now();
         let today = clock::ny_date_ms(chrono::Utc::now().timestamp_millis() as f64);
         let wanted: Vec<String> = inner.custom.locked().iter().cloned().collect();
-        src.start(today, &wanted, &inner.downloads);
+        src.start(today, &wanted, &inner.downloads).await;
 
         // No table yet: the REST snapshot starts now and races the feed's connection. Either can take from 1 s to
         // over 25 s when the gateway is slow (measured 03/11/2026); the first to arrive fills the panel.
@@ -442,7 +455,8 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
         let update = match snap {
             Ok(rows) => {
                 version = version.wrapping_add(1);
-                let mut t = Table::build(version, rows, src.refs.clone(), src.table_state(&wanted));
+                let state = src.table_state(&wanted).await;
+                let mut t = Table::build(version, rows, src.refs.clone(), state);
                 t.complete = src.complete();
                 let t = Arc::new(t);
                 let update = ScreenerUpdate {
@@ -516,11 +530,7 @@ fn read_refs_cache() -> Option<(NaiveDate, Vec<RefTicker>)> {
 
 fn write_refs_cache(day: Option<NaiveDate>, list: &[RefTicker]) {
     let Some(day) = day else { return };
-    let path = refs_cache_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
     if let Ok(bytes) = serde_json::to_vec(&RefsCache { day, tickers: list.to_vec() }) {
-        let _ = std::fs::write(path, bytes);
+        let _ = crate::files::write_atomic(&refs_cache_path(), &bytes);
     }
 }

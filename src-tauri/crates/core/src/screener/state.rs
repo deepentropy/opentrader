@@ -113,6 +113,13 @@ pub async fn fetch(d: Option<&Download>) -> Result<Option<StateFile>> {
     }
     let gzipped = resp.headers().get(reqwest::header::CONTENT_ENCODING).is_some_and(|v| v == "gzip");
     let body = progress::read_body(resp, d, "screener state").await?;
+    // Tens of megabytes to unpack, parse and write: off the async threads.
+    let s = tokio::task::spawn_blocking(move || read_answer(body, gzipped)).await.context("screener state: read task")??;
+    Ok(Some(s))
+}
+
+/// The state of an answer's body, also kept on disk for the next start.
+fn read_answer(body: Vec<u8>, gzipped: bool) -> Result<StateFile> {
     let bytes = if gzipped {
         let mut out = Vec::new();
         flate2::read::GzDecoder::new(&body[..]).read_to_end(&mut out).context("screener state: gunzip")?;
@@ -122,10 +129,6 @@ pub async fn fetch(d: Option<&Download>) -> Result<Option<StateFile>> {
     };
     let s: StateFile = serde_json::from_slice(&bytes).context("screener state: parse json")?;
     s.check()?;
-    let path = cache_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    let _ = std::fs::write(&path, &bytes);
-    Ok(Some(s))
+    let _ = crate::files::write_atomic(&cache_path(), &bytes);
+    Ok(s)
 }
