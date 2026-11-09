@@ -4,9 +4,8 @@
  */
 import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
 import { NEWS_MAX_AGE_MS, NEWS_UPDATE_MS, formatAgo, formatNewsDate } from "../news-lollipop";
-import { getLatestNews, type NewsItem } from "../../../data/datafeed-rest";
+import { getLatestNews, isSecondResolution, type NewsItem } from "../../../data/datafeed";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { isSecondResolution } from "../../../data/datafeed";
 import { type ChartCx } from "./context";
 import type { Accessor, JSX, Setter } from "solid-js";
 

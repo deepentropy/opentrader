@@ -55,11 +55,11 @@ export { setChartSubscription as setLiveSymbol } from "./datafeed-live";
 // shared slot. All route through the feed rather than reaching into datafeed-live.
 export { onTradeTick, setWatchlistSubscription } from "./datafeed-live";
 export type { TradeTick } from "./datafeed-live";
-// Reference info + live snapshot are part of the feed's symbol contract; expose
+// Reference info, live snapshot and headlines are part of the feed's symbol contract; expose
 // them here so consumers (watchlist, detail panel) have one front door rather
 // than reaching into datafeed-rest directly.
-export { getTickerInfo, getTickerSnapshot } from "./datafeed-rest";
-export type { TickerInfo, Snapshot } from "./datafeed-rest";
+export { getLatestNews, getTickerInfo, getTickerSnapshot } from "./datafeed-rest";
+export type { NewsItem, TickerInfo, Snapshot } from "./datafeed-rest";
 export type { SymbolSearchResult } from "../bindings";
 export { isLocalSymbol } from "./local-series";
 

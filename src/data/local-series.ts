@@ -12,7 +12,8 @@
  */
 import { createSignal } from "solid-js";
 import { listen, emit } from "@tauri-apps/api/event";
-import { commands, type Candle, type LocalSeries, type LocalSource, type Snapshot, type SymbolSession, type TickerInfo } from "../bindings";
+import { commands, type Candle, type LocalSeries, type LocalSource, type SymbolSession, type TickerInfo } from "../bindings";
+import type { Snapshot } from "./datafeed-rest";
 import { localDay, localToUtc } from "./session/zone";
 import { parseBarsCsv, ROW, SERIES_NAME, type ParsedBars } from "./local-series-csv";
 import { emitAppEvent } from "./app-events";
@@ -256,12 +257,12 @@ export async function localSnapshot(symbol: string): Promise<Snapshot> {
   const change = (last.close as number) - (prev.close as number);
   return {
     ticker: meta.name,
-    last: last.close,
+    last: last.close as number,
     change,
     changePercent: prev.close ? (change / Math.abs(prev.close)) * 100 : 0,
-    dayHigh: last.high,
-    dayLow: last.low,
-    dayVolume: last.volume,
+    dayHigh: last.high as number,
+    dayLow: last.low as number,
+    dayVolume: last.volume as number,
     extChangePercent: null,
     source: "prev",
     updatedMs: (last.time as number) * 1000,

@@ -1,77 +1,31 @@
 /*
- * Datafeed live-tick subscription helpers — Feature 9.
+ * Datafeed live-tick subscriptions — Feature 9.
  *
- * Thin typed wrappers over the Tauri invoke + event APIs. Vendor-neutral: the
- * backend's active provider owns the live transport (REST poll vs WebSocket) and
- * emits these events. Intentionally hand-written (parallel to bindings.ts) so
- * the frontend can wire to the Rust live task before `bindings.ts` regenerates
- * on the next debug-build run. Once tauri-specta regenerates, these wrappers
- * remain valid — they just duplicate names the generator also produces.
- *
- * Event-name convention (`tauri_specta::Event`): struct name → kebab-case
- *   ChartAggregate  → "chart-aggregate"
- *   SecondAggregate → "second-aggregate"
- *   TradeTick       → "trade-tick"
+ * The generated commands and events, plus what they don't do: imported series
+ * have no live data, so they never reach the backend's subscription slots.
+ * Vendor-neutral: the backend's active provider owns the live transport (REST
+ * poll vs WebSocket) and emits these events.
  */
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { commands, events, type Candle } from "../bindings";
+import type * as gen from "../bindings";
+import { unwrap, type Finite } from "./datafeed-rest";
 import { isLocalSymbol } from "./local-series";
 
-export type ChartAggregate = {
-  symbol: string;
-  /** Bar start, UNIX seconds — matches lightweight-charts UTCTimestamp. */
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  /** Today's full-session daily bar, when the transport knows it (the REST
-   *  snapshot poller does). Its `time` is the snapshot's update stamp, NOT a
-   *  bar boundary — the datafeed re-buckets it (see bucketLiveTick). */
-  day?: {
-    time: number;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  } | null;
-};
+type BarField = "time" | "open" | "high" | "low" | "close" | "volume";
 
-/** One 1-second bar from the stream (`bar1s` channel) for a charted
- *  symbol. Emitted only when the key is entitled to second bars and a chart
- *  is open; its volume covers that one second. */
-export type SecondAggregate = {
-  symbol: string;
-  /** Bar start, UNIX seconds. */
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+/** One minute bar of a charted symbol; `time` is the bar start, UNIX seconds.
+ *  `day` is today's full-session daily bar when the transport knows it: its
+ *  `time` is the snapshot's update stamp, not a bar boundary (the datafeed
+ *  re-buckets it, see bucketLiveTick). */
+export type ChartAggregate = Finite<Omit<gen.ChartAggregate, "day">, BarField> & {
+  day: Finite<Candle, BarField> | null;
 };
-
-export type TradeTick = {
-  symbol: string;
-  /** Regular-session "Last" (not the latest pre/post trade). */
-  price: number;
-  /** Regular-session change / change% / volume from the REST snapshot poller.
-   *  Null on the WS push path (a raw trade has none) — consumers keep the prior
-   *  value. */
-  change: number | null;
-  changePercent: number | null;
-  /** Pre/post-market move vs the regular close — the watchlist "Ext" column. */
-  extChangePercent: number | null;
-  volume: number | null;
-  /** "live" (today's session traded) or "prev". Null on the WS path. */
-  source: "live" | "prev" | null;
-  /** Latest trade, pre- and post-market included: its price and the start of
-   *  its minute (UNIX seconds). Null / absent when the quote has no minute bar. */
-  tradePrice?: number | null;
-  tradeTime?: number | null;
-};
+/** One 1-second bar of a charted symbol. */
+export type SecondAggregate = Finite<gen.SecondAggregate, BarField>;
+/** A quote update; `source` is "live" (today's session traded) or "prev", null
+ *  on the stream push path. */
+export type TradeTick = Omit<Finite<gen.TradeTick, "price">, "source"> & { source: "live" | "prev" | null };
 
 /** Declare one pane's charted-symbol subscription. Pass `null` to clear that
  *  pane's slot. `pane` scopes the slot within this window (the backend keys
@@ -79,7 +33,7 @@ export type TradeTick = {
  *  instead of overwriting a single global slot. */
 export async function setChartSubscription(symbol: string | null, pane = "0"): Promise<void> {
   // An imported series has no live data.
-  await invoke("set_chart_subscription", { pane, symbol: isLocalSymbol(symbol) ? null : symbol });
+  await unwrap(commands.setChartSubscription(pane, isLocalSymbol(symbol) ? null : symbol));
 }
 
 /** Replace THIS WINDOW's watchlist subscription with this exact set. Several
@@ -87,21 +41,17 @@ export async function setChartSubscription(symbol: string | null, pane = "0"): P
  *  tab titles — see data/subscriptions.ts); the backend merges the per-window
  *  sets, so another window's union can't clobber this one. */
 export async function setWatchlistSubscription(symbols: string[]): Promise<void> {
-  await invoke("set_watchlist_subscription", { symbols: symbols.filter((s) => !isLocalSymbol(s)) });
+  await unwrap(commands.setWatchlistSubscription(symbols.filter((s) => !isLocalSymbol(s))));
 }
 
-export function onChartAggregate(
-  fn: (ev: ChartAggregate) => void,
-): Promise<UnlistenFn> {
-  return listen<ChartAggregate>("chart-aggregate", (e) => fn(e.payload));
+export function onChartAggregate(fn: (ev: ChartAggregate) => void): Promise<UnlistenFn> {
+  return events.chartAggregate.listen((e) => fn(e.payload as ChartAggregate));
 }
 
-export function onSecondAggregate(
-  fn: (ev: SecondAggregate) => void,
-): Promise<UnlistenFn> {
-  return listen<SecondAggregate>("second-aggregate", (e) => fn(e.payload));
+export function onSecondAggregate(fn: (ev: SecondAggregate) => void): Promise<UnlistenFn> {
+  return events.secondAggregate.listen((e) => fn(e.payload as SecondAggregate));
 }
 
 export function onTradeTick(fn: (ev: TradeTick) => void): Promise<UnlistenFn> {
-  return listen<TradeTick>("trade-tick", (e) => fn(e.payload));
+  return events.tradeTick.listen((e) => fn(e.payload as TradeTick));
 }
