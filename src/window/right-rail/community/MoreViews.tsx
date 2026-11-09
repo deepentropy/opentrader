@@ -16,6 +16,7 @@ import { showConfirm } from "../../../components/Dialogs";
 import { noticeTitle } from "./CommunityNotifier";
 import { Age, ErrorBanner, errorText } from "../../../community-shared/parts";
 import { date } from "../../../community-shared/dates";
+import { translateWith } from "../../../i18n/translator";
 
 function Frame(props: { title: string; onBack: () => void; children: any }) {
   return (
@@ -89,7 +90,7 @@ export function AboutView(props: { community: Community; onBack: () => void; onO
     }
   };
   return (
-    <Frame title={`About ${props.community.title}`} onBack={props.onBack}>
+    <Frame title={translateWith("About {0}", props.community.title)} onBack={props.onBack}>
       <div class="cm-about">
         <Show when={props.community.description}><p>{props.community.description}</p></Show>
         <ErrorBanner text={error()} onClose={() => setError(null)} />
