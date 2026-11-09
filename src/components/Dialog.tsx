@@ -8,13 +8,19 @@
 import { Show, onCleanup, onMount, splitProps, type JSX } from "solid-js";
 import { Dynamic, Portal } from "solid-js/web";
 
-type CloseIcon = "x18" | "x24" | "x16" | "x14";
+type CloseIcon = "x18" | "x18s" | "x24" | "x16" | "x14";
 
 /** Close button glyphs, one per family. */
 const CLOSE_ICONS: Record<CloseIcon, () => JSX.Element> = {
   x18: () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
       <path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" />
+    </svg>
+  ),
+  /** The 18 px box with an 11 px cross. */
+  x18s: () => (
+    <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+      <path fill="none" stroke="currentColor" stroke-width="1.2" d="m3.5 3.5 11 11m0-11-11 11" />
     </svg>
   ),
   x24: () => (
@@ -61,6 +67,8 @@ const LOOKS = {
   drawing: { header: "drawing-settings-header", title: "drawing-settings-title", close: "drawing-settings-close", closeLabel: "Close menu", icon: "x18" },
   "symbol-search": { header: "symbol-search-header", title: "symbol-search-title", titleTag: "span", close: "symbol-search-close", closeLabel: "Close menu", icon: "x18" },
   "app-settings": { header: "app-settings-header", headerTag: "div", title: "app-settings-dialog-title", titleTag: "span", close: "app-settings-close", closeLabel: "Close", icon: "x16" },
+  "symbol-info": { header: "sid-header", headerTag: "div", title: "sid-title", titleTag: "span", close: "sid-close", closeLabel: "Close menu", icon: "x18s" },
+  "replay-settings": { header: "rs-header", headerTag: "div", title: "rs-title", close: "rs-close", closeLabel: "Close", icon: "x18" },
 } satisfies Record<string, Look>;
 
 export type DialogLook = keyof typeof LOOKS;
@@ -69,11 +77,11 @@ export type DialogLook = keyof typeof LOOKS;
  *  whose popovers must take Escape first listens in the bubble phase. */
 export type DialogKeyTarget = { target?: "window" | "document"; capture?: boolean };
 
-/** Escape (and Enter) for a dialog. `onEscape` returning false leaves the key alone (a nested menu takes it);
- *  otherwise it is stopped there. */
+/** Escape (and Enter) for a dialog. A handler returning false leaves the key alone (a nested menu takes Escape, a
+ *  field keeps its Enter); otherwise it is stopped there. */
 export function createDialogKeys(opts: {
   onEscape?: (e: KeyboardEvent) => boolean | void;
-  onEnter?: (e: KeyboardEvent) => void;
+  onEnter?: (e: KeyboardEvent) => boolean | void;
 } & DialogKeyTarget) {
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -81,8 +89,8 @@ export function createDialogKeys(opts: {
         if (opts.onEscape(e) === false) return;
         e.stopPropagation();
       } else if (e.key === "Enter" && opts.onEnter) {
+        if (opts.onEnter(e) === false) return;
         e.stopPropagation();
-        opts.onEnter(e);
       }
     };
     const target = opts.target === "document" ? document : window;
@@ -115,14 +123,15 @@ type DialogProps = {
   /** The title bar moves the dialog (default true). */
   draggable?: boolean;
   /** Layer under the dialog and what a press on it does: "close" (mouse down on it closes), "close-self" (a
-   *  pointer down on the layer itself closes) or "block" (presses stop there, nothing closes). */
+   *  pointer down on the layer itself closes), "block" (presses stop there, nothing closes) or "none" (presses go
+   *  on: the dialog closes on an outside press itself). */
   layerClass: string;
-  backdrop: "close" | "close-self" | "block";
+  backdrop: "close" | "close-self" | "block" | "none";
   /** Render in place instead of at the end of the document. */
   inline?: boolean;
   /** Escape: default closes; return false to leave the key to a nested menu. `false`: the dialog handles it. */
   onEscape?: ((e: KeyboardEvent) => boolean | void) | false;
-  onEnter?: (e: KeyboardEvent) => void;
+  onEnter?: (e: KeyboardEvent) => boolean | void;
   keys?: DialogKeyTarget;
   class: string;
   children: JSX.Element;

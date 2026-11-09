@@ -763,7 +763,7 @@ export function IndicatorSettingsDialog(props: Props) {
       // Escape / Enter in the bubble phase: popovers (menus, colour panel) take their own Escape first (they stop it
       // in the capture phase). Enter in a field is the field's.
       keys={{ capture: false }}
-      onEnter={(e) => { if (!(e.target instanceof HTMLInputElement)) ok(); }}
+      onEnter={(e) => (e.target instanceof HTMLInputElement ? false : ok())}
     >
       {/* Underline tabs (study dialog: a top bar, not the left rail). */}
       <div class="ind3-tabs" role="tablist">

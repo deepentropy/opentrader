@@ -4,18 +4,9 @@
  * reference app). The offset is the CSS `translate` property: it adds to the dialog's own layout and transforms.
  */
 
-/** Title bars that move their dialog: the Dialog shell marks its title bar with `data-dialog-title`. The classes
- *  are the title bars of dialogs that do not use the shell yet. */
-const TITLE_BARS = [
-  "[data-dialog-title]",
-  ".cp3-header",
-  ".ad-header",
-  ".goto-dialog-titlebar",
-  ".sid-header",
-  ".ot-dlg-title",
-  ".rs-header",
-  ".re-header",
-].join(",");
+/** Title bars that move their dialog: the Dialog shell marks its title bar, a dialog with its own frame marks it
+ *  by hand. */
+const TITLE_BARS = "[data-dialog-title]";
 
 /** Controls inside a title bar keep their click. */
 const CONTROLS = "button,input,select,textarea,a,[role=button],[role=tab],[contenteditable=true]";

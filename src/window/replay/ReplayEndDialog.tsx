@@ -6,8 +6,9 @@
  * close the top one. A one-shot confetti falls over it (green when the
  * session made money, a few red pieces when it lost).
  */
-import { For, Show, onCleanup, onMount } from "solid-js";
+import { For, Show } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createDialogKeys } from "../../components/Dialog";
 import { replayBroker, type SessionResult } from "../../data/trading/replay-broker";
 import { tradingUi } from "../../data/trading/trading-ui";
 import { money, percent } from "../strategy-tester/format";
@@ -69,7 +70,7 @@ function EndDialog(props: { r: SessionResult; top: boolean }) {
       }}
     >
       <div ref={box} class="re-dialog" classList={{ "is-loss": !win }} role="dialog" aria-label={win ? "Congrats, trader!" : "Keep training"} data-name="replay-end-dialog">
-        <div class="re-header">
+        <div class="re-header" data-dialog-title>
           <Show when={props.r.iconUrl} fallback={<span class="re-logo re-logo-letter">{props.r.symbol.replace(/^.*:/, "").slice(0, 1)}</span>}>
             {(src) => <img class="re-logo" src={src()} alt="" />}
           </Show>
@@ -124,16 +125,15 @@ function EndDialog(props: { r: SessionResult; top: boolean }) {
 }
 
 export function ReplayEndDialog() {
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key !== "Escape") return;
-    const list = replayBroker.results();
-    if (!list.length) return;
-    e.preventDefault();
-    e.stopPropagation();
-    replayBroker.dismissResult(list[list.length - 1].id);
-  };
-  onMount(() => window.addEventListener("keydown", onKey, true));
-  onCleanup(() => window.removeEventListener("keydown", onKey, true));
+  // Escape closes the top dialog.
+  createDialogKeys({
+    onEscape: (e) => {
+      const list = replayBroker.results();
+      if (!list.length) return false;
+      e.preventDefault();
+      replayBroker.dismissResult(list[list.length - 1].id);
+    },
+  });
   return (
     <Portal>
       <For each={replayBroker.results()}>

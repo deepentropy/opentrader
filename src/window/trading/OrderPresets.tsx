@@ -7,9 +7,10 @@
  * and sells: "Sell Bid – 5  Buy Ask + 5") and the exits in ticks / % price /
  * % balance; choosing one applies them to the ticket.
  */
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
 import { showConfirm } from "../../components/Dialogs";
+import { createDialogKeys } from "../../components/Dialog";
 import { EmojiSelect, separateEmoji } from "../../components/EmojiSelect";
 import { EmojiImage, LeadingEmojiText } from "../../components/emoji-images";
 import { Tooltip } from "../../components/Tooltip";
@@ -370,28 +371,25 @@ function SavePresetDialog(props: { preset: Omit<OrderPreset, "id" | "title">; on
     tradingUi.addPreset({ ...props.preset, title: n });
     props.onClose();
   };
-  onMount(() => {
-    input.focus();
-    const key = (e: KeyboardEvent) => {
-      if (pickerOpen()) return;
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        if (listOpen()) setListOpen(false);
-        else props.onClose();
-      } else if (e.key === "Enter") {
-        e.stopPropagation();
-        e.preventDefault();
-        save();
-      }
-    };
-    window.addEventListener("keydown", key, true);
-    onCleanup(() => window.removeEventListener("keydown", key, true));
+  onMount(() => input.focus());
+  // The emoji picker takes its own keys.
+  createDialogKeys({
+    onEscape: () => {
+      if (pickerOpen()) return false;
+      if (listOpen()) setListOpen(false);
+      else props.onClose();
+    },
+    onEnter: (e) => {
+      if (pickerOpen()) return false;
+      e.preventDefault();
+      save();
+    },
   });
   return (
     <Portal mount={document.body}>
       <div class="ot-dlg-layer" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
         <div class="ot-dlg trd-preset-dlg" role="dialog" aria-label="Save order preset">
-          <div class="ot-dlg-title">Save order preset</div>
+          <div class="ot-dlg-title" data-dialog-title>Save order preset</div>
           <button type="button" class="ot-dlg-close" aria-label="close" onClick={() => props.onClose()}>
             <CloseIcon />
           </button>

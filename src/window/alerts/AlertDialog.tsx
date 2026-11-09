@@ -84,6 +84,8 @@ import { SOUND_DURATIONS, SOUND_GROUP, SOUND_OPTIONS, isAlertSoundPlaying, playA
 import { alertSettings } from "../../data/alert-settings";
 import { ensureNotificationPermission } from "../../data/alert-delivery";
 import { attachDialogSize } from "./dialog-size";
+import { createDialogKeys } from "../../components/Dialog";
+import { createPopover } from "../../components/popover";
 import * as form from "./alert-form";
 import { fieldText, isValidWebhookUrl, openPlaceholderGroups, saveOpenPlaceholderGroups, type ConditionChoices, type ConditionFields, type SideKind } from "./alert-form";
 import { ISO_WEEKDAYS, PRESET_SEGMENTS, PRESET_TITLES, localTimeZone, schedulePreset, scheduleTitle, segmentText, type SchedulePreset } from "../../data/alert-schedule";
@@ -186,12 +188,8 @@ const OPERATOR_ICONS: Record<AlertOperator, string> = {
 function AdMenu(props: { variant: "box" | "inline"; value: string; options: MenuOption[]; onPick: (v: string) => void; more?: number; label?: string; placeholder?: string; group?: string; /** One option only: shown read-only (no menu). */ lockSingle?: boolean }) {
   const [open, setOpen] = createSignal(false);
   const [all, setAll] = createSignal(false);
-  let el: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => { if (el && !el.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("pointerdown", onDown, true);
-    onCleanup(() => document.removeEventListener("pointerdown", onDown, true));
-  });
+  // The menu and its button: a press outside closes it, Escape is the dialog's.
+  const el = createPopover(undefined, { onClose: () => setOpen(false), placement: false, active: open, escape: "none" });
   const current = () => props.options.find((o) => o.value === props.value);
   const locked = () => !!props.lockSingle && props.options.length <= 1;
   const cut = () => (props.more !== undefined && !all() && props.options.findIndex((o) => o.value === props.value) < props.more ? props.more : props.options.length);
@@ -288,7 +286,6 @@ function AdIntervalMenu(props: { value: string; origin: string; chart?: string; 
   const [open, setOpen] = createSignal(false);
   const [unfolded, setUnfolded] = createSignal<Record<string, boolean>>({});
   const [maxHeight, setMaxHeight] = createSignal(420);
-  let el: HTMLDivElement | undefined;
   let btn: HTMLButtonElement | undefined;
   let list: HTMLDivElement | undefined;
   // The width of the list's scroll bar, once the rows are laid out (folding a section changes it).
@@ -297,11 +294,7 @@ function AdIntervalMenu(props: { value: string; origin: string; chart?: string; 
     unfolded();
     queueMicrotask(() => list?.style.setProperty("--ad-iv-scrollbar", `${list.offsetWidth - list.clientWidth}px`));
   });
-  onMount(() => {
-    const onDown = (e: PointerEvent) => { if (el && !el.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("pointerdown", onDown, true);
-    onCleanup(() => document.removeEventListener("pointerdown", onDown, true));
-  });
+  const el = createPopover(undefined, { onClose: () => setOpen(false), placement: false, active: open, escape: "none" });
   const groups = (): IntervalGroup[] => [...(props.favorites.length ? [{ id: "favorites", title: "Favorites", items: props.favorites }] : []), ...props.groups];
   const toggle = () => {
     if (open()) { setOpen(false); return; }
@@ -371,15 +364,8 @@ function AdIntervalMenu(props: { value: string; origin: string; chart?: string; 
 function AdPlaceholders(props: { groups: PlaceholderGroup[]; onPick: (value: string) => void }) {
   const [open, setOpen] = createSignal(false);
   const [expanded, setExpanded] = createSignal(openPlaceholderGroups());
-  let el: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: PointerEvent) => { if (el && !el.contains(e.target as Node)) setOpen(false); };
-    // Escape closes the menu only (the dialog stays).
-    const onKey = (e: KeyboardEvent) => { if (open() && e.key === "Escape") { e.stopPropagation(); setOpen(false); } };
-    document.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => { document.removeEventListener("pointerdown", onDown, true); window.removeEventListener("keydown", onKey, true); });
-  });
+  // Escape closes the menu only (the dialog stays).
+  const el = createPopover(undefined, { onClose: () => setOpen(false), placement: false, active: open });
   const toggle = (id: string) => {
     const next = { ...expanded(), [id]: !expanded()[id] };
     setExpanded(next);
@@ -967,21 +953,16 @@ export function AlertDialog(props: Props) {
     props.onClose();
   }
 
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        props.onClose();
-      } else if (existing && e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
-        // "Save changes in the Edit alert dialog" = Ctrl+Enter (bound for the
-        // Edit dialog only).
-        e.preventDefault();
-        e.stopPropagation();
-        save();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-    onCleanup(() => document.removeEventListener("keydown", onKey, true));
+  createDialogKeys({
+    target: "document",
+    onEscape: () => props.onClose(),
+    onEnter: (e) => {
+      // "Save changes in the Edit alert dialog" = Ctrl+Enter (bound for the
+      // Edit dialog only).
+      if (!existing || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return false;
+      e.preventDefault();
+      save();
+    },
   });
 
   // ── View helpers ──────────────────────────────────────────────────────────
@@ -1326,7 +1307,7 @@ export function AlertDialog(props: Props) {
   };
 
   const subHeader = (title: string) => (
-    <header class="ad-header">
+    <header class="ad-header" data-dialog-title>
       <button type="button" class="ad-icon-btn" data-name="back" aria-label="Back" onClick={() => setView("main")}>
         {arrow("M11 3.5 5.5 9l5.5 5.5")}
       </button>
@@ -1344,7 +1325,7 @@ export function AlertDialog(props: Props) {
         <div class="ad" classList={{ "ad--message": view() === "message", "ad--condition": view() === "condition" }} role="dialog" aria-label={existing ? "Edit alert" : "Create alert"} ref={(el) => onMount(() => onCleanup(attachDialogSize(el)))} onMouseDown={(e) => e.stopPropagation()}>
           {/* ── Main view ── */}
           <Show when={view() === "main"}>
-            <header class="ad-header">
+            <header class="ad-header" data-dialog-title>
               <span class="ad-title">{existing ? "Edit alert on" : "Create alert on"}</span>
               <Show
                 when={!symbolEdit()}
@@ -1486,7 +1467,7 @@ export function AlertDialog(props: Props) {
 
           {/* ── Add / Edit condition ── */}
           <Show when={view() === "condition"}>
-            <header class="ad-header">
+            <header class="ad-header" data-dialog-title>
               {/* Back keeps an edited condition, drops a new one. */}
               <button type="button" class="ad-icon-btn" data-name="back" aria-label="Back" onClick={() => (draft()?.saved ? applyDraft() : abortDraft())}>
                 {arrow("M11 3.5 5.5 9l5.5 5.5")}

@@ -10,10 +10,12 @@
  * `onSubmitRange`; the bottom bar frames the chart on that span. Anchored as a
  * drop-up above the trigger, clamped into the viewport.
  */
-import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
 import type { WallDate, WallTime } from "../chart/day-key";
 import { normalizeTime, TimeInput } from "./TimeInput";
+import { createDialogKeys } from "../../components/Dialog";
+import { createPopover } from "../../components/popover";
 import * as kv from "../../data/kv";
 
 type Props = {
@@ -226,17 +228,10 @@ export function GoToDateDialog(props: Props) {
     reposition();
     if (tab() === "customrange") arm("from");
     (tab() === "date" ? dateInput : fromInput)?.focus();
-    const onDown = (e: PointerEvent) => { if (!popup.contains(e.target as Node)) props.onClose(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); props.onClose(); } };
-    // Defer the outside-click listener a tick so the opening click doesn't close it.
-    const t = window.setTimeout(() => window.addEventListener("pointerdown", onDown), 0);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      window.clearTimeout(t);
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey, true);
-    });
   });
+  createDialogKeys({ onEscape: () => props.onClose() });
+  // A press outside closes it, its opening button's too (bubble phase, after the press's own handlers).
+  const outside = createPopover(undefined, { onClose: props.onClose, placement: false, escape: "none", on: { target: "window", capture: false } });
   createEffect(() => { tab(); reposition(); });
 
   const stepMonth = (delta: number) => {
@@ -345,14 +340,14 @@ export function GoToDateDialog(props: Props) {
   return (
     <Portal mount={document.body}>
       <div
-        ref={popup}
+        ref={(el) => { popup = el; outside(el); }}
         class="ot-popover goto-dialog-wrapper"
         role="dialog"
         data-name={props.replay ? "select-date-dialog" : "go-to-date-dialog"}
         aria-label={props.replay ? "Select date" : "Go to"}
         style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : { left: "-9999px", top: "-9999px" }}
       >
-        <div class="goto-dialog-titlebar" data-dragg-area="true">
+        <div class="goto-dialog-titlebar" data-dragg-area="true" data-dialog-title>
           <div class="goto-dialog-title">{props.replay ? "Select date" : "Go to"}</div>
           <button type="button" class="goto-dialog-close" aria-label="Close menu" onClick={() => props.onClose()}>
             <span class="goto-dialog-close-icon" role="img" aria-hidden="true"><CloseIcon /></span>
