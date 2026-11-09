@@ -12,6 +12,7 @@ use opentrader_core::sync::LockExt;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::ipc::Channel;
@@ -80,12 +81,33 @@ const RAM_NEEDED: u64 = 6 * 1024 * 1024 * 1024;
 struct Server {
     child: tokio::process::Child,
     port: u16,
+    /// It has answered its health check (it was still loading the model before).
+    ready: bool,
     /// The prompt work was saved to disk this session.
     saved: bool,
 }
 
+/// The server, kept from its start on (so a quit stops it even while it loads). Held only for quick reads: never
+/// across a start or a health wait, which would block Settings and the chats.
 static SERVER: tokio::sync::Mutex<Option<Server>> = tokio::sync::Mutex::const_new(None);
-static INSTALL_STOP: Mutex<Option<oneshot::Sender<()>>> = Mutex::new(None);
+/// One start at a time: two chats at once start one server.
+static STARTING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+/// The download under way: its number and its stop.
+static INSTALL_STOP: Mutex<Option<(u64, oneshot::Sender<()>)>> = Mutex::new(None);
+static INSTALLS: AtomicU64 = AtomicU64::new(0);
+
+/// Frees the download's slot however `local_model_install` ends: the window may drop the call midway. A cancelled
+/// download already gave its slot up and may have a successor, which is left alone.
+struct Installing(u64);
+
+impl Drop for Installing {
+    fn drop(&mut self) {
+        let mut slot = INSTALL_STOP.locked();
+        if slot.as_ref().is_some_and(|(id, _)| *id == self.0) {
+            *slot = None;
+        }
+    }
+}
 
 fn dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app.path().app_local_data_dir().map_err(|e| e.to_string())?.join("assistant-model"))
@@ -157,27 +179,35 @@ fn free_disk(path: &Path) -> u64 {
 #[specta::specta]
 pub async fn local_model_info(app: AppHandle) -> Result<LocalModelInfo, String> {
     let base = dir(&app)?;
-    let rts = runtimes();
-    let parts: Vec<Asset> = [BASE, ADAPTER].into_iter().chain(rts.first().copied()).collect();
-    let missing: u64 = parts
-        .iter()
-        .map(|a| if present(&base, a) || (a.file.contains("llama-") && server_exe(&runtime_dir(&base, a)).is_some()) { 0 } else { a.size })
-        .sum();
-    let disk: u64 = walk(&base).iter().filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum();
-    let mut sys = sysinfo::System::new();
-    sys.refresh_memory();
-    let probe = if base.exists() { base.clone() } else { app.path().app_local_data_dir().map_err(|e| e.to_string())? };
-    Ok(LocalModelInfo {
-        available: !rts.is_empty() && PUBLISHED,
-        installed: installed(&base),
-        running: SERVER.lock().await.is_some(),
-        download_bytes: missing as f64,
-        disk_bytes: disk as f64,
-        ram_bytes: sys.total_memory() as f64,
-        ram_needed_bytes: RAM_NEEDED as f64,
-        free_disk_bytes: free_disk(&probe) as f64,
-        installing: INSTALL_STOP.locked().is_some(),
+    let data_dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    let running = SERVER.lock().await.as_ref().is_some_and(|s| s.ready);
+    let installing = INSTALL_STOP.locked().is_some();
+    // Walks the model's folder (thousands of files) and asks the system for its disks: on a blocking thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        let rts = runtimes();
+        let parts: Vec<Asset> = [BASE, ADAPTER].into_iter().chain(rts.first().copied()).collect();
+        let missing: u64 = parts
+            .iter()
+            .map(|a| if present(&base, a) || (a.file.contains("llama-") && server_exe(&runtime_dir(&base, a)).is_some()) { 0 } else { a.size })
+            .sum();
+        let disk: u64 = walk(&base).iter().filter_map(|p| std::fs::metadata(p).ok()).map(|m| m.len()).sum();
+        let mut sys = sysinfo::System::new();
+        sys.refresh_memory();
+        let probe = if base.exists() { base.clone() } else { data_dir };
+        LocalModelInfo {
+            available: !rts.is_empty() && PUBLISHED,
+            installed: installed(&base),
+            running,
+            download_bytes: missing as f64,
+            disk_bytes: disk as f64,
+            ram_bytes: sys.total_memory() as f64,
+            ram_needed_bytes: RAM_NEEDED as f64,
+            free_disk_bytes: free_disk(&probe) as f64,
+            installing,
+        }
     })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Download progress over the whole install: the file under way, the bytes so far and the size of all that is
@@ -281,34 +311,43 @@ pub async fn local_model_install(app: AppHandle, on_progress: Channel<LocalProgr
     let base = dir(&app)?;
     std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
     let (tx, mut rx) = oneshot::channel();
+    let id = INSTALLS.fetch_add(1, Ordering::Relaxed);
     {
         let mut slot = INSTALL_STOP.locked();
         if slot.is_some() {
             return Err("The download is already under way.".into());
         }
-        *slot = Some(tx);
+        *slot = Some((id, tx));
     }
-    let runtimes: Vec<Asset> = runtimes().into_iter().filter(|r| server_exe(&runtime_dir(&base, r)).is_none()).collect();
+    let _installing = Installing(id);
+    let b = base.clone();
+    let runtimes: Vec<Asset> =
+        blocking(move || runtimes().into_iter().filter(|r| server_exe(&runtime_dir(&b, r)).is_none()).collect()).await?;
     let total = runtimes.iter().chain([&ADAPTER, &BASE]).filter(|a| !present(&base, a)).map(|a| a.size).sum();
     let mut t = Tally { before: 0, total };
-    let result = async {
-        for r in &runtimes {
-            fetch(&base, r, &on_progress, &mut t, &mut rx).await?;
-            unpack(&base.join(r.file), &runtime_dir(&base, r))?;
-            let _ = std::fs::remove_file(base.join(r.file));
-        }
-        fetch(&base, &ADAPTER, &on_progress, &mut t, &mut rx).await?;
-        fetch(&base, &BASE, &on_progress, &mut t, &mut rx).await
+    for r in &runtimes {
+        fetch(&base, r, &on_progress, &mut t, &mut rx).await?;
+        let (archive, to) = (base.join(r.file), runtime_dir(&base, r));
+        blocking(move || {
+            unpack(&archive, &to)?;
+            let _ = std::fs::remove_file(&archive);
+            Ok::<_, String>(())
+        })
+        .await??;
     }
-    .await;
-    *INSTALL_STOP.locked() = None;
-    result
+    fetch(&base, &ADAPTER, &on_progress, &mut t, &mut rx).await?;
+    fetch(&base, &BASE, &on_progress, &mut t, &mut rx).await
+}
+
+/// `f` on a blocking thread (file walks, archives, deletions of gigabytes).
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub fn local_model_cancel() {
-    if let Some(tx) = INSTALL_STOP.locked().take() {
+    if let Some((_, tx)) = INSTALL_STOP.locked().take() {
         let _ = tx.send(());
     }
 }
@@ -319,10 +358,13 @@ pub fn local_model_cancel() {
 pub async fn local_model_remove(app: AppHandle) -> Result<(), String> {
     stop_server().await;
     let base = dir(&app)?;
-    if base.exists() {
-        std::fs::remove_dir_all(&base).map_err(|e| format!("The files could not all be deleted: {e}"))?;
-    }
-    Ok(())
+    blocking(move || {
+        if base.exists() {
+            std::fs::remove_dir_all(&base).map_err(|e| format!("The files could not all be deleted: {e}"))?;
+        }
+        Ok(())
+    })
+    .await?
 }
 
 pub async fn stop_server() {
@@ -333,7 +375,7 @@ pub async fn stop_server() {
 
 /// Stops the server when the app quits (it would outlive it otherwise).
 pub fn shutdown() {
-    if let Some(mut guard) = SERVER.try_lock().ok() {
+    if let Ok(mut guard) = SERVER.try_lock() {
         if let Some(s) = guard.as_mut() {
             let _ = s.child.start_kill();
         }
@@ -349,7 +391,8 @@ async fn healthy(port: u16) -> bool {
     CLIENT.get().get(format!("http://127.0.0.1:{port}/health")).timeout(Duration::from_secs(2)).send().await.is_ok_and(|r| r.status().is_success())
 }
 
-async fn start(base: &Path, exe: &Path, gpu: bool) -> Result<Server, String> {
+/// Starts the server and keeps it in `SERVER` at once (a quit stops it from then on), then waits for it to answer.
+async fn start(base: &Path, exe: &Path, gpu: bool) -> Result<u16, String> {
     let port = free_port()?;
     let mut cmd = tokio::process::Command::new(exe);
     cmd.arg("-m")
@@ -369,44 +412,82 @@ async fn start(base: &Path, exe: &Path, gpu: bool) -> Result<Server, String> {
         // No console window.
         cmd.creation_flags(0x0800_0000);
     }
-    let mut child = cmd.spawn().map_err(|e| format!("The model server did not start: {e}"))?;
+    let child = cmd.spawn().map_err(|e| format!("The model server did not start: {e}"))?;
+    // A server left from before (stopped, or not answering) is replaced; dropping it kills it.
+    *SERVER.lock().await = Some(Server { child, port, ready: false, saved: false });
+    wait_ready(port).await?;
+    Ok(port)
+}
+
+/// Waits up to 2 minutes for the server on `port` to answer its health check; an error when it stopped, was
+/// replaced, or never answered (it is then stopped).
+async fn wait_ready(port: u16) -> Result<(), String> {
     for _ in 0..240 {
-        if let Ok(Some(status)) = child.try_wait() {
-            return Err(format!("The model server stopped ({status})."));
+        {
+            let mut guard = SERVER.lock().await;
+            let Some(s) = guard.as_mut().filter(|s| s.port == port) else {
+                return Err("The model server was stopped.".into());
+            };
+            if let Ok(Some(status)) = s.child.try_wait() {
+                *guard = None;
+                return Err(format!("The model server stopped ({status})."));
+            }
         }
         if healthy(port).await {
-            return Ok(Server { child, port, saved: false });
+            if let Some(s) = SERVER.lock().await.as_mut().filter(|s| s.port == port) {
+                s.ready = true;
+            }
+            return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
-    let _ = child.kill().await;
+    if let Some(mut s) = SERVER.lock().await.take_if(|s| s.port == port) {
+        let _ = s.child.kill().await;
+    }
     Err("The model server did not answer within 2 minutes.".into())
+}
+
+fn api_root(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/v1")
 }
 
 /// The running server's API root, starting it when needed (the GPU build first, then the CPU one).
 pub async fn ensure_server(app: &AppHandle) -> Result<String, String> {
-    let mut guard = SERVER.lock().await;
-    if let Some(s) = guard.as_mut() {
-        if s.child.try_wait().ok().flatten().is_none() && healthy(s.port).await {
-            return Ok(format!("http://127.0.0.1:{}/v1", s.port));
+    let _one_start = STARTING.lock().await;
+    let current = {
+        let mut guard = SERVER.lock().await;
+        let alive = guard.as_mut().is_some_and(|s| s.child.try_wait().ok().flatten().is_none());
+        if !alive {
+            *guard = None;
         }
-        *guard = None;
+        guard.as_ref().map(|s| (s.port, s.ready))
+    };
+    match current {
+        Some((port, true)) if healthy(port).await => return Ok(api_root(port)),
+        // Still loading the model: a start whose chat was stopped midway. Its wait goes on here.
+        Some((port, false)) => match wait_ready(port).await {
+            Ok(()) => return Ok(api_root(port)),
+            Err(e) => eprintln!("[local-model] {e}"),
+        },
+        // Not answering any more: replaced by the start below.
+        _ => {}
     }
     let base = dir(app)?;
-    if !installed(&base) {
+    let b = base.clone();
+    // The first build uses the graphics card (Vulkan, Metal); the fallback runs on the processor.
+    let exes: Option<Vec<(bool, PathBuf)>> = blocking(move || {
+        installed(&b).then(|| runtimes().iter().enumerate().filter_map(|(i, r)| Some((i == 0, server_exe(&runtime_dir(&b, r))?))).collect())
+    })
+    .await?;
+    let Some(exes) = exes else {
         return Err("The assistant's model is not downloaded yet.".into());
-    }
+    };
     let mut last = String::new();
-    for (i, r) in runtimes().iter().enumerate() {
-        let Some(exe) = server_exe(&runtime_dir(&base, r)) else { continue };
-        // The first build uses the graphics card (Vulkan, Metal); the fallback runs on the processor.
-        match start(&base, &exe, i == 0).await {
-            Ok(s) => {
-                let port = s.port;
-                *guard = Some(s);
-                drop(guard);
+    for (gpu, exe) in exes {
+        match start(&base, &exe, gpu).await {
+            Ok(port) => {
                 restore_prefix(&base, port).await;
-                return Ok(format!("http://127.0.0.1:{port}/v1"));
+                return Ok(api_root(port));
             }
             Err(e) => last = e,
         }
