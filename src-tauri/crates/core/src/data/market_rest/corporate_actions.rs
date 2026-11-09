@@ -1,13 +1,11 @@
 //! Splits and dividends: the per-day memos, the chart event markers and
 //! the split epoch the disk cache is namespaced by.
 use super::cache::{rest_cache_root, REST_CACHE_DIR};
-use super::{get_json, DayMemo};
+use super::{get_json, DayMemo, TICKER_MEMO_CAP};
 use crate::data::gateway::ApiError;
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
+use std::sync::Arc;
 
 // ── Splits (REST cache invalidation) ─────────────────────────────────────
 //
@@ -97,7 +95,7 @@ async fn fetch_splits(ticker: &str, today: NaiveDate) -> Result<Vec<Split>, ApiE
 /// Per-ticker, per-day memo of the splits list. One small REST call resolved at
 /// most once per ticker per calendar day; a transient failure simply retries on
 /// the next fetch. Shared by the REST cache epoch and the S3 adjustment.
-pub(super) static SPLITS: DayMemo<String, Vec<Split>> = OnceLock::new();
+pub(super) static SPLITS: DayMemo<String, Vec<Split>> = DayMemo::new(TICKER_MEMO_CAP);
 
 /// Memoised already-executed splits for `ticker` (newest-first), or `None` on a
 /// lookup failure.
@@ -108,15 +106,9 @@ pub async fn fetch_splits_cached(ticker: &str) -> Option<Arc<Vec<Split>>> {
 /// Memoised already-executed splits for `ticker` (newest-first), or the lookup error.
 async fn splits_cached(ticker: &str) -> Result<Arc<Vec<Split>>, ApiError> {
     let ticker = ticker.to_string();
-    let memo = SPLITS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
-    {
-        let guard = memo.lock().await;
-        if let Some((as_of, splits)) = guard.get(&ticker) {
-            if *as_of == today {
-                return Ok(splits.clone());
-            }
-        }
+    if let Some(splits) = SPLITS.get(&ticker, |as_of| *as_of == today) {
+        return Ok(splits);
     }
     // Resolve without holding the lock (don't serialize unrelated tickers). A
     // concurrent duplicate lookup for the same ticker is harmless/idempotent.
@@ -128,7 +120,7 @@ async fn splits_cached(ticker: &str) -> Result<Arc<Vec<Split>>, ApiError> {
         let (t, epoch) = (ticker.clone(), epoch_of(&splits));
         tokio::spawn(async move { prune_stale_epochs(&t, &epoch).await });
     }
-    memo.lock().await.insert(ticker, (today, splits.clone()));
+    SPLITS.insert(ticker, today, splits.clone());
     Ok(splits)
 }
 
@@ -136,8 +128,7 @@ async fn splits_cached(ticker: &str) -> Result<Arc<Vec<Split>>, ApiError> {
 /// executes after the archive file was cached).
 #[cfg(test)]
 pub(crate) async fn set_splits_for_test(ticker: &str, splits: Vec<Split>) {
-    let memo = SPLITS.get_or_init(|| Mutex::new(HashMap::new()));
-    memo.lock().await.insert(ticker.to_string(), (Utc::now().date_naive(), Arc::new(splits)));
+    SPLITS.insert(ticker.to_string(), Utc::now().date_naive(), Arc::new(splits));
 }
 
 /// The executed splits of `ticker` (newest-first) for the chart markers and
@@ -168,7 +159,7 @@ struct DividendRow {
 
 /// Per-ticker, per-day memo of dividend markers (mirrors the splits memo). One
 /// small REST call resolved at most once per ticker per calendar day.
-pub(super) static DIVIDENDS: DayMemo<String, Vec<DividendEvent>> = OnceLock::new();
+pub(super) static DIVIDENDS: DayMemo<String, Vec<DividendEvent>> = DayMemo::new(TICKER_MEMO_CAP);
 
 /// Ex-dividend markers for `ticker` (newest-first); empty on any lookup failure.
 pub async fn dividend_events(ticker: &str) -> Result<Vec<DividendEvent>, ApiError> {
@@ -179,18 +170,12 @@ pub async fn dividend_events(ticker: &str) -> Result<Vec<DividendEvent>, ApiErro
 /// lookup error (not memoised, so the next call asks again).
 async fn dividends_cached(ticker: &str) -> Result<Vec<DividendEvent>, ApiError> {
     let ticker = ticker.to_string();
-    let memo = DIVIDENDS.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
-    {
-        let guard = memo.lock().await;
-        if let Some((as_of, evs)) = guard.get(&ticker) {
-            if *as_of == today {
-                return Ok((**evs).clone());
-            }
-        }
+    if let Some(evs) = DIVIDENDS.get(&ticker, |as_of| *as_of == today) {
+        return Ok((*evs).clone());
     }
     let evs = Arc::new(fetch_dividends(&ticker, today).await?);
-    memo.lock().await.insert(ticker, (today, evs.clone()));
+    DIVIDENDS.insert(ticker, today, evs.clone());
     Ok((*evs).clone())
 }
 

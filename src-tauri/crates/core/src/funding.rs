@@ -5,6 +5,7 @@
  */
 use crate::data::gateway::BASE;
 use crate::data::market_rest::http;
+use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -25,21 +26,21 @@ pub struct FundingStatus {
 }
 
 /// `None` when the gateway has no cost set for this month (404).
-pub async fn get_funding_status() -> Result<Option<FundingStatus>, String> {
+pub async fn get_funding_status() -> Result<Option<FundingStatus>> {
     let resp = http()
         .get(format!("{BASE}/funding/v1"))
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
-        .map_err(|e| format!("funding request: {e}"))?;
+        .map_err(|e| Error::upstream(format!("funding request: {e}")))?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(None);
     }
     if !resp.status().is_success() {
-        return Err(format!("funding {}", resp.status()));
+        return Err(Error::upstream(format!("funding {}", resp.status())));
     }
     resp.json::<FundingStatus>()
         .await
         .map(Some)
-        .map_err(|e| format!("funding body: {e}"))
+        .map_err(|e| Error::upstream(format!("funding body: {e}")))
 }

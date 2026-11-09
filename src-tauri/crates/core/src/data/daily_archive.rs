@@ -24,10 +24,8 @@ use chrono::NaiveDate;
 use reqwest::header::{AUTHORIZATION, ETAG, IF_NONE_MATCH};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
+use std::sync::Arc;
 
 /// Cache folder under the market-data cache root ("Clear cache" deletes it).
 pub const CACHE_DIR: &str = "daily_archive_v1";
@@ -59,17 +57,16 @@ struct CachedFile {
 
 /// Per-ticker memo of the archive (`None` = the gateway has none), stamped with
 /// the day it was validated.
-static ARCHIVES: DayMemo<String, Option<Archive>> = OnceLock::new();
+/// The archives are decades of daily bars: a few hundred kilobytes each.
+static ARCHIVES: DayMemo<String, Option<Archive>> = DayMemo::new(300);
 
 /// Full file downloads of this run (a 304 is not one).
 #[cfg(test)]
 static FULL_DOWNLOADS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// Forget the in-memory archives ("Clear cache").
-pub async fn clear_memo() {
-    if let Some(m) = ARCHIVES.get() {
-        m.lock().await.clear();
-    }
+pub fn clear_memo() {
+    ARCHIVES.clear();
 }
 
 /// Tickers are case-sensitive and the cache folder may not be: a lower-case
@@ -110,12 +107,9 @@ async fn write_disk(ticker: &str, file: &CachedFile) {
 /// archive for it. A failed request falls back to the disk copy when there is
 /// one and is not memoised, so the next load asks again.
 async fn load(ticker: &str) -> Result<Arc<Option<Archive>>> {
-    let memo = ARCHIVES.get_or_init(|| Mutex::new(HashMap::new()));
     let today = trading_calendar::ny_today();
-    if let Some((as_of, archive)) = memo.lock().await.get(ticker) {
-        if *as_of == today {
-            return Ok(archive.clone());
-        }
+    if let Some(archive) = ARCHIVES.get(ticker, |as_of| *as_of == today) {
+        return Ok(archive);
     }
     let token = gateway::token().context(NO_TOKEN)?;
     let disk = read_disk(ticker).await;
@@ -163,7 +157,7 @@ async fn load(ticker: &str) -> Result<Arc<Option<Archive>>> {
     match fetched {
         Ok(archive) => {
             let archive = Arc::new(archive);
-            memo.lock().await.insert(ticker.to_string(), (today, archive.clone()));
+            ARCHIVES.insert(ticker.to_string(), today, archive.clone());
             Ok(archive)
         }
         Err(e) => match disk {
@@ -304,7 +298,7 @@ mod tests {
         market_rest::set_splits_for_test(ticker, splits).await;
 
         let after = daily_bars(ticker, true).await.unwrap();
-        clear_memo().await; // an app restart: the disk copy is revalidated (304)
+        clear_memo(); // an app restart: the disk copy is revalidated (304)
         let restarted = daily_bars(ticker, true).await.unwrap();
         let raw = daily_bars(ticker, false).await.unwrap();
         eprintln!(

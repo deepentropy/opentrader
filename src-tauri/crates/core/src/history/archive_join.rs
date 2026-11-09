@@ -75,7 +75,7 @@ pub(super) async fn joined_daily(
     from: NaiveDate,
     to: NaiveDate,
     adjusted: bool,
-) -> Result<JoinedDaily, String> {
+) -> crate::error::Result<JoinedDaily> {
     // One REST call returns the whole daily series (split-adjusted when
     // `adjusted`); closed sessions are then served from the per-day disk cache
     // on later loads. The sessions older than that series come from the daily
@@ -87,7 +87,7 @@ pub(super) async fn joined_daily(
         provider.daily_archive(sym, adjusted),
         listing_of(provider.as_ref(), sym),
     );
-    let bars = bars.map_err(|e| e.to_string())?;
+    let bars = bars?;
     if bars.is_empty() {
         return Ok(JoinedDaily { bars, complete: false, partial: false });
     }

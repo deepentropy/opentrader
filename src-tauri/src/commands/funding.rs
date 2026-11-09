@@ -8,5 +8,5 @@ use opentrader_core::funding::{self, FundingStatus};
 #[tauri::command]
 #[specta::specta]
 pub async fn get_funding_status() -> Result<Option<FundingStatus>, String> {
-    funding::get_funding_status().await
+    Ok(funding::get_funding_status().await?)
 }

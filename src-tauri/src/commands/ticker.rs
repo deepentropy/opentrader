@@ -1,24 +1,18 @@
 /*
- * Ticker reference + snapshot commands — back the WatchlistDetail panel. All
- * lookups route through the injected `DataProvider`; the returned shapes
- * (`TickerInfo`, `Snapshot`, `SymbolSearchResult`) are vendor-neutral.
+ * Ticker reference + snapshot commands — back the WatchlistDetail panel and
+ * the symbol search. The bodies are shared with the web server
+ * (`opentrader_core::commands`); the returned shapes are vendor-neutral.
  */
 use crate::data::provider::Provider;
 use crate::data::session::SymbolSession;
-use crate::data::symbol::SymbolRef;
 use crate::data::types::{Snapshot, SymbolSearchResult, TickerInfo};
+use opentrader_core::commands as core;
 use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_ticker_info(
-    provider: State<'_, Provider>,
-    symbol: String,
-) -> Result<TickerInfo, String> {
-    provider
-        .ticker_info(&SymbolRef::parse(&symbol))
-        .await
-        .map_err(|e| e.to_string())
+pub async fn get_ticker_info(provider: State<'_, Provider>, symbol: String) -> Result<TickerInfo, String> {
+    Ok(core::ticker_info(&provider, &symbol).await?)
 }
 
 /// Trading sessions of a symbol (time zone, regular / extended hours,
@@ -26,26 +20,14 @@ pub async fn get_ticker_info(
 /// follows the symbol's own market.
 #[tauri::command]
 #[specta::specta]
-pub async fn get_symbol_session(
-    provider: State<'_, Provider>,
-    symbol: String,
-) -> Result<SymbolSession, String> {
-    provider
-        .symbol_session(&SymbolRef::parse(&symbol))
-        .await
-        .map_err(|e| e.to_string())
+pub async fn get_symbol_session(provider: State<'_, Provider>, symbol: String) -> Result<SymbolSession, String> {
+    Ok(core::symbol_session(&provider, &symbol).await?)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_ticker_snapshot(
-    provider: State<'_, Provider>,
-    symbol: String,
-) -> Result<Snapshot, String> {
-    provider
-        .ticker_snapshot(&SymbolRef::parse(&symbol))
-        .await
-        .map_err(|e| e.to_string())
+pub async fn get_ticker_snapshot(provider: State<'_, Provider>, symbol: String) -> Result<Snapshot, String> {
+    Ok(core::ticker_snapshot(&provider, &symbol).await?)
 }
 
 /// Symbol-search typeahead over the provider's reference universe. `type_filter`
@@ -57,10 +39,7 @@ pub async fn search_tickers(
     query: String,
     type_filter: Option<String>,
 ) -> Result<Vec<SymbolSearchResult>, String> {
-    provider
-        .search(query.trim(), type_filter.as_deref())
-        .await
-        .map_err(|e| e.to_string())
+    Ok(core::search_tickers(&provider, &query, type_filter.as_deref()).await?)
 }
 
 /// Economy tab of the symbol search: the series matching `query` (the most
@@ -72,14 +51,12 @@ pub async fn search_economic(
     source: Option<String>,
     category: Option<String>,
 ) -> Result<Vec<SymbolSearchResult>, String> {
-    use crate::data::market_rest::economics;
-    let filter = economics::Filter { source: source.as_deref(), category: category.as_deref() };
-    Ok(economics::search_filtered(query.trim(), &filter))
+    Ok(core::search_economic(&query, source.as_deref(), category.as_deref()))
 }
 
 /// The source agencies of the economic series catalog, most series first.
 #[tauri::command]
 #[specta::specta]
 pub async fn economic_sources() -> Result<Vec<String>, String> {
-    Ok(crate::data::market_rest::economics::sources())
+    Ok(core::economic_sources())
 }

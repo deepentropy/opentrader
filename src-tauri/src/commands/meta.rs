@@ -4,13 +4,14 @@
  * presentation adapter instead of hardcoding one. See `data/provider`.
  */
 use crate::data::provider::capabilities::ProviderCapabilities;
-use crate::data::provider::{entitlements, Provider};
+use crate::data::provider::Provider;
+use opentrader_core::commands as core;
 use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
 pub fn get_data_provider(provider: State<'_, Provider>) -> String {
-    provider.name().to_string()
+    core::data_provider(&provider)
 }
 
 /// What the active provider can serve (the datafeed `onReady` equivalent):
@@ -20,7 +21,7 @@ pub fn get_data_provider(provider: State<'_, Provider>) -> String {
 #[tauri::command]
 #[specta::specta]
 pub fn get_provider_capabilities(provider: State<'_, Provider>) -> ProviderCapabilities {
-    entitlements::full_capabilities(&provider)
+    core::provider_capabilities(&provider)
 }
 
 /// Write a PNG snapshot and a page showing it to temp files and open the page

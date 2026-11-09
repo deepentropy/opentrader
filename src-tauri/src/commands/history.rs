@@ -13,7 +13,7 @@ use tauri::State;
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_cache() -> Result<(), String> {
-    history::clear_cache().await
+    Ok(history::clear_cache().await?)
 }
 
 /// Daily candles of `symbol` over its last `days` sessions. Prices are always
@@ -27,7 +27,7 @@ pub async fn get_daily_history(
     days: u32,
     adjusted: bool,
 ) -> Result<History, String> {
-    history::get_daily_history(&provider, symbol, days, adjusted).await
+    Ok(history::get_daily_history(&provider, symbol, days, adjusted).await?)
 }
 
 /// Fetch minute candles for `symbol` over the last `days` trading days,
@@ -44,7 +44,7 @@ pub async fn get_minute_history(
     interval_min: u32,
     adjusted: bool,
 ) -> Result<History, String> {
-    history::get_minute_history(&provider, symbol, days, interval_min, adjusted).await
+    Ok(history::get_minute_history(&provider, symbol, days, interval_min, adjusted).await?)
 }
 
 /// Fetch second-granularity bars for `symbol` over the trailing `days`
@@ -60,7 +60,7 @@ pub async fn get_second_history(
     days: u32,
     adjusted: bool,
 ) -> Result<History, String> {
-    history::get_second_history(&provider, symbol, mult, days, adjusted).await
+    Ok(history::get_second_history(&provider, symbol, mult, days, adjusted).await?)
 }
 
 /// Live-tail refresh for the seconds frames: `mult`-second bars strictly newer
@@ -77,7 +77,7 @@ pub async fn get_second_history_tail(
     since_sec: f64,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    history::get_second_history_tail(&provider, symbol, mult, since_sec, adjusted).await
+    Ok(history::get_second_history_tail(&provider, symbol, mult, since_sec, adjusted).await?)
 }
 
 /// Scroll-back pager for the REST-sourced frames (seconds + minutes): one older
@@ -100,7 +100,7 @@ pub async fn get_aggregates_before(
     span_days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    history::get_aggregates_before(&provider, symbol, timespan, mult, before_sec, span_days, adjusted).await
+    Ok(history::get_aggregates_before(&provider, symbol, timespan, mult, before_sec, span_days, adjusted).await?)
 }
 
 /// Scroll-back pager for the daily family (1D/1W/1M): older daily candles
@@ -118,5 +118,5 @@ pub async fn get_daily_history_before(
     span_days: u32,
     adjusted: bool,
 ) -> Result<Vec<Candle>, String> {
-    history::get_daily_history_before(&provider, symbol, before_sec, span_days, adjusted).await
+    Ok(history::get_daily_history_before(&provider, symbol, before_sec, span_days, adjusted).await?)
 }

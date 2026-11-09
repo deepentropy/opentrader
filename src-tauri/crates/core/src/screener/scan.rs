@@ -267,12 +267,14 @@ fn cmp_vals(a: Option<Val>, b: Option<Val>) -> Ordering {
     }
 }
 
-pub fn run(t: &Table, req: &ScanRequest) -> Result<ScanResult, String> {
-    let clauses = req.filter.iter().map(compile).collect::<Result<Vec<_>, _>>()?;
+/// The request's own mistakes (an unknown field, a wrong operand) are invalid input.
+pub fn run(t: &Table, req: &ScanRequest) -> crate::error::Result<ScanResult> {
+    use crate::error::Error;
+    let clauses = req.filter.iter().map(compile).collect::<Result<Vec<_>, _>>().map_err(Error::invalid)?;
     let columns = req
         .columns
         .iter()
-        .map(|c| Field::parse(c).ok_or_else(|| format!("unknown field {c}")))
+        .map(|c| Field::parse(c).ok_or_else(|| Error::invalid(format!("unknown field {c}"))))
         .collect::<Result<Vec<_>, _>>()?;
     let scope: Option<std::collections::HashSet<String>> =
         req.tickers.as_ref().map(|v| v.iter().map(|s| s.to_uppercase()).collect());
@@ -294,7 +296,7 @@ pub fn run(t: &Table, req: &ScanRequest) -> Result<ScanResult, String> {
                 hits.reverse();
             }
         } else {
-            let f = Field::parse(&sort.sort_by).ok_or_else(|| format!("unknown sort field {}", sort.sort_by))?;
+            let f = Field::parse(&sort.sort_by).ok_or_else(|| Error::invalid(format!("unknown sort field {}", sort.sort_by)))?;
             let mut keyed: Vec<(Option<Val>, &Row)> = hits.iter().map(|r| (f.eval(t, r), *r)).collect();
             keyed.sort_by(|(a, _), (b, _)| match (a.is_some(), b.is_some()) {
                 (true, false) => Ordering::Less,

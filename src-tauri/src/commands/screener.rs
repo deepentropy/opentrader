@@ -1,12 +1,14 @@
 /*
  * Screener commands. `screener_open` / `screener_close` start and stop the
  * market table per panel (owner = "<window label>:screener"); scans run
- * on the in-memory table (see `screener/`).
+ * on the in-memory table (see `screener/`). The bodies are shared with the
+ * web server (`opentrader_core::commands`).
  */
-use crate::screener::fields::{self, FieldInfo};
-use crate::screener::scan::{self, ScanRequest, ScanResult};
+use crate::screener::fields::FieldInfo;
 use crate::screener::progress::ScreenerProgress;
+use crate::screener::scan::{ScanRequest, ScanResult};
 use crate::screener::{Screener, ScreenerStatus};
+use opentrader_core::commands as core;
 use opentrader_core::host::HostRef;
 use tauri::State;
 
@@ -30,26 +32,22 @@ pub async fn screener_close(screener: State<'_, Screener>, owner: String) -> Res
 /// Filter, sort and page the current table (the reference app `/scan` grammar).
 #[tauri::command]
 #[specta::specta]
-pub async fn screener_scan(
-    screener: State<'_, Screener>,
-    req: ScanRequest,
-) -> Result<ScanResult, String> {
-    let table = screener.table();
-    scan::run(&table, &req)
+pub async fn screener_scan(screener: State<'_, Screener>, req: ScanRequest) -> Result<ScanResult, String> {
+    Ok(core::screener_scan(&screener, &req)?)
 }
 
 /// Download progress of what the next complete table waits on (the loading wheel).
 #[tauri::command]
 #[specta::specta]
 pub async fn screener_progress(screener: State<'_, Screener>) -> Result<ScreenerProgress, String> {
-    Ok(screener.progress())
+    Ok(core::screener_progress(&screener))
 }
 
 /// The field ids a scan accepts, and whether their source is loaded.
 #[tauri::command]
 #[specta::specta]
 pub async fn screener_fields(screener: State<'_, Screener>) -> Result<Vec<FieldInfo>, String> {
-    Ok(fields::catalog(&screener.table()))
+    Ok(core::screener_fields(&screener))
 }
 
 /// Ask for custom moving-average / RSI lengths ("EMA137", "SMA150", "RSI21"): they join the field catalog and the
@@ -65,5 +63,5 @@ pub async fn screener_custom_fields(screener: State<'_, Screener>, ids: Vec<Stri
 #[tauri::command]
 #[specta::specta]
 pub async fn screener_values(screener: State<'_, Screener>, field: String) -> Result<Vec<String>, String> {
-    fields::text_values(&screener.table(), &field)
+    Ok(core::screener_values(&screener, &field)?)
 }

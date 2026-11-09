@@ -10,8 +10,9 @@ use crate::data::gateway::{self, ApiError, MARKET};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, Instant};
+use crate::memo::Memo;
 
 /// Exchange of the economic series symbols.
 pub const EXCHANGE: &str = "ECONOMICS";
@@ -391,18 +392,14 @@ struct SeriesAnswer {
     v: Vec<Option<f64>>,
 }
 
-fn series_memo() -> &'static Mutex<HashMap<String, (Instant, Arc<EconomicSeries>)>> {
-    static MEMO: OnceLock<Mutex<HashMap<String, (Instant, Arc<EconomicSeries>)>>> = OnceLock::new();
-    MEMO.get_or_init(|| Mutex::new(HashMap::new()))
-}
+/// Series fetched within `SERIES_TTL`; the longest are a few thousand observations.
+static SERIES_MEMO: Memo<String, Instant, Arc<EconomicSeries>> = Memo::new(300);
 
 /// The observations of series `id`.
 pub async fn fetch_series(id: &str) -> Result<Arc<EconomicSeries>, ApiError> {
     let key = id.to_uppercase();
-    if let Some((at, s)) = series_memo().lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
-        if at.elapsed() < SERIES_TTL {
-            return Ok(s.clone());
-        }
+    if let Some(s) = SERIES_MEMO.get(&key, |at| at.elapsed() < SERIES_TTL) {
+        return Ok(s);
     }
     let a: SeriesAnswer = get_json("economic series", &format!("economics/series/{}", super::seg(&key)), &[]).await?;
     // Values in full units (a series in billions of dollars charts as dollars).
@@ -431,7 +428,7 @@ pub async fn fetch_series(id: &str) -> Result<Arc<EconomicSeries>, ApiError> {
         time,
         value,
     });
-    series_memo().lock().unwrap_or_else(|e| e.into_inner()).insert(key, (Instant::now(), s.clone()));
+    SERIES_MEMO.insert(key, Instant::now(), s.clone());
     Ok(s)
 }
 

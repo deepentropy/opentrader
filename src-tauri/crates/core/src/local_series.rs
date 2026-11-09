@@ -6,6 +6,7 @@
  * little-endian f64 rows: time, open, high, low, close, volume). The window
  * parses the file and serves the bars; this module only stores them.
  */
+use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -72,8 +73,8 @@ fn folder_file(name: &str) -> bool {
 
 /// The bar and symbol_info files at the top of a folder (not its subfolders),
 /// by name. Only the directory is read, not the files.
-pub fn scan_folder(folder: &Path) -> Result<Vec<FolderFile>, String> {
-    let entries = std::fs::read_dir(folder).map_err(|e| format!("{}: {e}", folder.display()))?;
+pub fn scan_folder(folder: &Path) -> Result<Vec<FolderFile>> {
+    let entries = std::fs::read_dir(folder).map_err(|e| with_path(&e, &folder.display()))?;
     let mut out = Vec::new();
     for entry in entries.flatten() {
         let Ok(name) = entry.file_name().into_string() else { continue };
@@ -97,11 +98,11 @@ pub fn scan_folder(folder: &Path) -> Result<Vec<FolderFile>, String> {
 
 /// The text of one file [`scan_folder`] lists (a bare file name: no path).
 /// Bytes that are not UTF-8 are replaced; a byte order mark is dropped.
-pub fn read_folder_file(folder: &Path, file: &str) -> Result<String, String> {
+pub fn read_folder_file(folder: &Path, file: &str) -> Result<String> {
     if file.contains(['/', '\\']) || !folder_file(file) {
-        return Err(format!("not a file of the folder: {file}"));
+        return Err(Error::invalid(format!("not a file of the folder: {file}")));
     }
-    let bytes = std::fs::read(folder.join(file)).map_err(|e| format!("{file}: {e}"))?;
+    let bytes = std::fs::read(folder.join(file)).map_err(|e| with_path(&e, &file))?;
     let text = String::from_utf8_lossy(&bytes);
     Ok(text.strip_prefix('\u{feff}').unwrap_or(&text).to_string())
 }
@@ -113,20 +114,28 @@ pub fn valid_name(name: &str) -> bool {
         && name.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || matches!(b, b'.' | b'_' | b'-'))
 }
 
-fn check_name(name: &str) -> Result<(), String> {
+fn check_name(name: &str) -> Result<()> {
     if valid_name(name) {
         Ok(())
     } else {
-        Err(format!("invalid series name: {name} (A-Z, 0-9, '.', '_' or '-', at most 42)"))
+        Err(Error::invalid(format!("invalid series name: {name} (A-Z, 0-9, '.', '_' or '-', at most 42)")))
+    }
+}
+
+/// A file error named by its path, of the same kind.
+fn with_path(e: &std::io::Error, path: &dyn std::fmt::Display) -> Error {
+    match Error::from(e) {
+        Error::NotFound(_) => Error::not_found(format!("{path}: {e}")),
+        _ => Error::io(format!("{path}: {e}")),
     }
 }
 
 /// The stored series, by name.
-pub fn list(dir: &Path) -> Result<Vec<LocalSeries>, String> {
+pub fn list(dir: &Path) -> Result<Vec<LocalSeries>> {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(e.into()),
     };
     let mut out = Vec::new();
     for entry in entries.flatten() {
@@ -147,65 +156,68 @@ pub fn list(dir: &Path) -> Result<Vec<LocalSeries>, String> {
 
 /// Store a series (replacing one of the same name). `rows` holds the bars as
 /// [`ROW`] values each, time-ascending.
-pub fn save(dir: &Path, meta: &LocalSeries, rows: &[f64]) -> Result<(), String> {
+pub fn save(dir: &Path, meta: &LocalSeries, rows: &[f64]) -> Result<()> {
     check_name(&meta.name)?;
-    if rows.len() % ROW != 0 {
-        return Err("bars must have 6 values each".into());
+    if !rows.len().is_multiple_of(ROW) {
+        return Err(Error::invalid("bars must have 6 values each"));
     }
     if rows.len() / ROW > MAX_BARS {
-        return Err(format!("more than {MAX_BARS} bars"));
+        return Err(Error::invalid(format!("more than {MAX_BARS} bars")));
     }
-    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(dir)?;
     let mut bytes = Vec::with_capacity(rows.len() * 8);
     for v in rows {
         bytes.extend_from_slice(&v.to_le_bytes());
     }
     // Bars first, description last: a series is listed only once both exist.
-    std::fs::write(dir.join(format!("{}.bin", meta.name)), bytes).map_err(|e| e.to_string())?;
-    let json = serde_json::to_string_pretty(meta).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(format!("{}.json", meta.name)), json).map_err(|e| e.to_string())
+    std::fs::write(dir.join(format!("{}.bin", meta.name)), bytes)?;
+    write_meta(dir, meta)
+}
+
+fn write_meta(dir: &Path, meta: &LocalSeries) -> Result<()> {
+    let json = serde_json::to_string_pretty(meta).map_err(|e| Error::invalid(e.to_string()))?;
+    Ok(std::fs::write(dir.join(format!("{}.json", meta.name)), json)?)
 }
 
 /// The bars of a series, [`ROW`] values each.
-pub fn read(dir: &Path, name: &str) -> Result<Vec<f64>, String> {
+pub fn read(dir: &Path, name: &str) -> Result<Vec<f64>> {
     check_name(name)?;
-    let bytes = std::fs::read(dir.join(format!("{name}.bin"))).map_err(|e| e.to_string())?;
-    if bytes.len() % (ROW * 8) != 0 {
-        return Err(format!("the bars of {name} are damaged"));
+    let bytes = std::fs::read(dir.join(format!("{name}.bin")))?;
+    if !bytes.len().is_multiple_of(ROW * 8) {
+        return Err(Error::io(format!("the bars of {name} are damaged")));
     }
     Ok(bytes.chunks_exact(8).map(|c| f64::from_le_bytes(c.try_into().unwrap())).collect())
 }
 
 /// Remove a series (no error when it is already gone).
-pub fn delete(dir: &Path, name: &str) -> Result<(), String> {
+pub fn delete(dir: &Path, name: &str) -> Result<()> {
     check_name(name)?;
     for ext in ["json", "bin"] {
         match std::fs::remove_file(dir.join(format!("{name}.{ext}"))) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.to_string()),
+            Err(e) => return Err(e.into()),
         }
     }
     Ok(())
 }
 
 /// Give a series another name (an error when that name is taken).
-pub fn rename(dir: &Path, from: &str, to: &str) -> Result<(), String> {
+pub fn rename(dir: &Path, from: &str, to: &str) -> Result<()> {
     check_name(from)?;
     check_name(to)?;
     if from == to {
         return Ok(());
     }
     if dir.join(format!("{to}.json")).exists() {
-        return Err(format!("a series named {to} exists"));
+        return Err(Error::invalid(format!("a series named {to} exists")));
     }
-    let text = std::fs::read_to_string(dir.join(format!("{from}.json"))).map_err(|e| e.to_string())?;
-    let mut meta: LocalSeries = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let text = std::fs::read_to_string(dir.join(format!("{from}.json")))?;
+    let mut meta: LocalSeries = serde_json::from_str(&text).map_err(|e| Error::io(e.to_string()))?;
     meta.name = to.to_string();
-    std::fs::rename(dir.join(format!("{from}.bin")), dir.join(format!("{to}.bin"))).map_err(|e| e.to_string())?;
-    let json = serde_json::to_string_pretty(&meta).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(format!("{to}.json")), json).map_err(|e| e.to_string())?;
-    std::fs::remove_file(dir.join(format!("{from}.json"))).map_err(|e| e.to_string())
+    std::fs::rename(dir.join(format!("{from}.bin")), dir.join(format!("{to}.bin")))?;
+    write_meta(dir, &meta)?;
+    Ok(std::fs::remove_file(dir.join(format!("{from}.json")))?)
 }
 
 #[cfg(test)]

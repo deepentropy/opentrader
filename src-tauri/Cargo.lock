@@ -2993,6 +2993,7 @@ dependencies = [
  "serde_json",
  "specta",
  "tauri-specta",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-socks",
  "tokio-tungstenite 0.24.0",

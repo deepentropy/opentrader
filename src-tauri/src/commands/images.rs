@@ -15,12 +15,12 @@ fn images_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn save_drawing_image(app: tauri::AppHandle, data_base64: String, ext: String) -> Result<String, String> {
-    images::save_drawing_image(&images_dir(&app)?, &data_base64, &ext)
+    Ok(images::save_drawing_image(&images_dir(&app)?, &data_base64, &ext)?)
 }
 
 /// Read a stored drawing image back as base64.
 #[tauri::command]
 #[specta::specta]
 pub fn read_drawing_image(app: tauri::AppHandle, name: String) -> Result<String, String> {
-    images::read_drawing_image(&images_dir(&app)?, &name)
+    Ok(images::read_drawing_image(&images_dir(&app)?, &name)?)
 }

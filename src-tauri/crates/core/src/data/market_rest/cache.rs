@@ -66,26 +66,18 @@ const CLEARABLE_CACHE_DIRS: &[&str] =
 /// Settings > Service > "Clear cache": delete the market-data disk cache and
 /// forget the in-memory splits, dividends and prior-close memos. Bars are
 /// fetched again on the next load.
-pub async fn clear_market_data_cache() -> Result<(), String> {
+pub async fn clear_market_data_cache() -> crate::error::Result<()> {
     let root = rest_cache_root();
     for dir in CLEARABLE_CACHE_DIRS {
         let path = root.join(dir);
         if tokio::fs::try_exists(&path).await.unwrap_or(false) {
-            tokio::fs::remove_dir_all(&path).await.map_err(|e| format!("{}: {e}", path.display()))?;
+            tokio::fs::remove_dir_all(&path).await.map_err(|e| crate::error::Error::io(format!("{}: {e}", path.display())))?;
         }
     }
-    if let Some(m) = SPLITS.get() {
-        m.lock().await.clear();
-    }
-    if let Some(m) = DIVIDENDS.get() {
-        m.lock().await.clear();
-    }
-    if let Some(m) = LISTING_DATES.get() {
-        m.lock().await.clear();
-    }
-    if let Some(m) = TICKER_CHANGES.get() {
-        m.lock().await.clear();
-    }
+    SPLITS.clear();
+    DIVIDENDS.clear();
+    LISTING_DATES.clear();
+    TICKER_CHANGES.clear();
     if let Some(m) = PRIOR_CLOSES.get() {
         *m.lock().await = None;
     }

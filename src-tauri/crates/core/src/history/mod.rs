@@ -15,10 +15,9 @@ use crate::data::market_rest::DayMemo;
 use crate::data::symbol::SymbolRef;
 use crate::data::calendar::SessionCalendar;
 use crate::data::types::Candle;
+use crate::error::{Error, Result};
 use chrono::{Duration, NaiveDate};
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
+use std::sync::Arc;
 
 mod adjustments;
 mod archive_join;
@@ -38,7 +37,8 @@ use symbol_chain::chained_aggs;
 /// closed bars and today's bar are picked up — today's still-forming bar is
 /// corrected live by the poller, so a slightly stale snapshot here is harmless.
 /// The series is split-adjusted; the dividend adjustment is applied on a copy.
-static DAILY_MEM: DayMemo<(String, u32), Vec<Candle>> = OnceLock::new();
+/// One series is up to 30 years of daily bars (a few hundred kilobytes).
+static DAILY_MEM: DayMemo<(String, u32), Vec<Candle>> = DayMemo::new(300);
 
 /// Daily sessions the dividend factors are computed from: the window of the
 /// daily chart, so the series is the memoised one.
@@ -46,17 +46,15 @@ const DIVIDEND_BASIS_DAYS: u32 = 7560;
 
 /// Settings > Service > "Clear cache": the market-data disk cache and the
 /// in-memory series and memos.
-pub async fn clear_cache() -> Result<(), String> {
-    if let Some(m) = DAILY_MEM.get() {
-        m.lock().await.clear();
-    }
-    crate::data::daily_archive::clear_memo().await;
+pub async fn clear_cache() -> Result<()> {
+    DAILY_MEM.clear();
+    crate::data::daily_archive::clear_memo();
     crate::data::market_rest::clear_market_data_cache().await
 }
 
 /// The symbol's trading calendar (its session: weekdays, holidays, zone).
-async fn calendar_of(provider: &Provider, sym: &SymbolRef) -> Result<SessionCalendar, String> {
-    let session = provider.symbol_session(sym).await.map_err(|e| e.to_string())?;
+async fn calendar_of(provider: &Provider, sym: &SymbolRef) -> Result<SessionCalendar> {
+    let session = provider.symbol_session(sym).await?;
     Ok(SessionCalendar::new(&session))
 }
 
@@ -80,8 +78,8 @@ fn economic(sym: &SymbolRef) -> bool {
     crate::data::market_rest::economics::is_economic(&sym.exchange)
 }
 
-async fn economic_bars(sym: &SymbolRef) -> Result<Vec<Candle>, String> {
-    let s = crate::data::market_rest::economics::fetch_series(&sym.ticker).await.map_err(|e| e.to_string())?;
+async fn economic_bars(sym: &SymbolRef) -> Result<Vec<Candle>> {
+    let s = crate::data::market_rest::economics::fetch_series(&sym.ticker).await?;
     Ok(s.time
         .iter()
         .zip(&s.value)
@@ -104,7 +102,7 @@ fn day_of(sec: f64) -> Option<NaiveDate> {
 
 /// The split-adjusted daily series of `sym` over its last `days` sessions
 /// (see [`joined_daily`]), memoised for the day.
-async fn daily_series(provider: &Provider, cal: &SessionCalendar, sym: &SymbolRef, days: u32) -> Result<Arc<Vec<Candle>>, String> {
+async fn daily_series(provider: &Provider, cal: &SessionCalendar, sym: &SymbolRef, days: u32) -> Result<Arc<Vec<Candle>>> {
     Ok(daily_series_read(provider, cal, sym, days).await?.0)
 }
 
@@ -115,30 +113,27 @@ async fn daily_series_read(
     cal: &SessionCalendar,
     sym: &SymbolRef,
     days: u32,
-) -> Result<(Arc<Vec<Candle>>, bool), String> {
+) -> Result<(Arc<Vec<Candle>>, bool)> {
     let to = cal.window_end();
 
     // Instant path: same (ticker, days) already assembled today.
-    let mem = DAILY_MEM.get_or_init(|| Mutex::new(HashMap::new()));
-    if let Some((as_of, series)) = mem.lock().await.get(&(sym.full(), days)) {
-        if *as_of == to {
-            return Ok((series.clone(), false));
-        }
+    if let Some(series) = DAILY_MEM.get(&(sym.full(), days), |as_of| *as_of == to) {
+        return Ok((series, false));
     }
 
     let dates = cal.last_trading_days(days.max(1) as usize);
     let wanted_from = *dates.first().unwrap_or(&to);
     let Some((from, to)) = clamp_to_floor(BarFamily::Day, wanted_from, to).await else {
-        return Err(format!("no daily data for {sym} in last {days} days"));
+        return Err(no_data("daily", sym, days));
     };
 
     let joined = joined_daily(provider, cal, sym, wanted_from, from, to, true).await?;
     if joined.bars.is_empty() {
-        return Err(format!("no daily data for {sym} in last {days} days"));
+        return Err(no_data("daily", sym, days));
     }
     let bars = Arc::new(joined.bars);
     if joined.complete {
-        mem.lock().await.insert((sym.full(), days), (to, bars.clone()));
+        DAILY_MEM.insert((sym.full(), days), to, bars.clone());
     }
     Ok((bars, joined.partial))
 }
@@ -156,8 +151,16 @@ pub struct History {
 /// The error of a scroll-back page whose symbol history could not be read:
 /// a transient one, so the page is asked again (a page kept with a gap would
 /// never be completed, the next page starts before it).
-fn page_without_symbol_history() -> String {
-    gateway::ApiError::transport("symbol history", "lookup failed").to_string()
+fn page_without_symbol_history() -> Error {
+    gateway::ApiError::transport("symbol history", "lookup failed").into()
+}
+
+fn no_data(family: &str, sym: &SymbolRef, days: u32) -> Error {
+    Error::not_found(format!("no {family} data for {sym} in last {days} days"))
+}
+
+fn invalid_before(before_sec: f64) -> Error {
+    Error::invalid(format!("invalid before_sec: {before_sec}"))
 }
 
 /// Daily candles of `symbol` over its last `days` sessions. Prices are always
@@ -168,14 +171,14 @@ pub async fn get_daily_history(
     symbol: String,
     days: u32,
     adjusted: bool,
-) -> Result<History, String> {
+) -> Result<History> {
     let sym = SymbolRef::parse(&symbol);
     if economic(&sym) {
         return Ok(History { bars: economic_bars(&sym).await?, partial: false });
     }
-    let cal = calendar_of(&provider, &sym).await?;
-    let (bars, partial) = daily_series_read(&provider, &cal, &sym, days).await?;
-    let bars = with_dividends(&provider, &cal, &sym, (*bars).clone(), adjusted).await?;
+    let cal = calendar_of(provider, &sym).await?;
+    let (bars, partial) = daily_series_read(provider, &cal, &sym, days).await?;
+    let bars = with_dividends(provider, &cal, &sym, (*bars).clone(), adjusted).await?;
     Ok(History { bars, partial })
 }
 
@@ -190,26 +193,24 @@ pub async fn get_minute_history(
     days: u32,
     interval_min: u32,
     adjusted: bool,
-) -> Result<History, String> {
+) -> Result<History> {
     let sym = SymbolRef::parse(&symbol);
     if economic(&sym) {
-        return Err(DAILY_ONLY.into());
+        return Err(Error::invalid(DAILY_ONLY));
     }
-    let cal = calendar_of(&provider, &sym).await?;
+    let cal = calendar_of(provider, &sym).await?;
     let dates = cal.last_trading_days(days.max(1) as usize);
     let to = cal.window_end();
     let from = *dates.first().unwrap_or(&to);
     let Some((from, to)) = clamp_to_floor(BarFamily::Minute, from, to).await else {
-        return Err(format!("no minute data for {sym} in last {days} days"));
+        return Err(no_data("minute", &sym, days));
     };
 
-    let (bars, partial) = chained_aggs(&provider, &cal, &sym, Span::Minute(interval_min.max(1)), from, to, true, true)
-        .await
-        .map_err(|e| e.to_string())?;
+    let (bars, partial) = chained_aggs(provider, &cal, &sym, Span::Minute(interval_min.max(1)), from, to, true, true).await?;
     if bars.is_empty() {
-        return Err(format!("no minute data for {sym} in last {days} days"));
+        return Err(no_data("minute", &sym, days));
     }
-    let bars = with_dividends(&provider, &cal, &sym, bars, adjusted).await?;
+    let bars = with_dividends(provider, &cal, &sym, bars, adjusted).await?;
     Ok(History { bars, partial })
 }
 
@@ -223,12 +224,12 @@ pub async fn get_second_history(
     mult: u32,
     days: u32,
     adjusted: bool,
-) -> Result<History, String> {
+) -> Result<History> {
     let sym = SymbolRef::parse(&symbol);
     if economic(&sym) {
-        return Err(DAILY_ONLY.into());
+        return Err(Error::invalid(DAILY_ONLY));
     }
-    let cal = calendar_of(&provider, &sym).await?;
+    let cal = calendar_of(provider, &sym).await?;
     let to = cal.window_end();
     // Pad the lookback by a day so a `days = 1` request still spans the
     // most recent full session even before today's bars exist.
@@ -236,10 +237,8 @@ pub async fn get_second_history(
     let Some((from, to)) = clamp_to_floor(BarFamily::Second, from, to).await else {
         return Ok(History { bars: Vec::new(), partial: false });
     };
-    let (bars, partial) = chained_aggs(&provider, &cal, &sym, Span::Second(mult), from, to, true, true)
-        .await
-        .map_err(|e| e.to_string())?;
-    let bars = with_dividends(&provider, &cal, &sym, bars, adjusted).await?;
+    let (bars, partial) = chained_aggs(provider, &cal, &sym, Span::Second(mult), from, to, true, true).await?;
+    let bars = with_dividends(provider, &cal, &sym, bars, adjusted).await?;
     Ok(History { bars, partial })
 }
 
@@ -254,17 +253,17 @@ pub async fn get_second_history_tail(
     mult: u32,
     since_sec: f64,
     adjusted: bool,
-) -> Result<Vec<Candle>, String> {
+) -> Result<Vec<Candle>> {
     let sym = SymbolRef::parse(&symbol);
     if economic(&sym) {
         return Ok(Vec::new());
     }
-    let bars = provider.second_tail(&sym, mult, since_sec, true).await.map_err(|e| e.to_string())?;
+    let bars = provider.second_tail(&sym, mult, since_sec, true).await?;
     if !adjusted || bars.is_empty() {
         return Ok(bars);
     }
-    let cal = calendar_of(&provider, &sym).await?;
-    with_dividends(&provider, &cal, &sym, bars, true).await
+    let cal = calendar_of(provider, &sym).await?;
+    with_dividends(provider, &cal, &sym, bars, true).await
 }
 
 /// The `[from, to]` calendar window a scroll-back page should fetch, given the
@@ -304,16 +303,16 @@ pub async fn get_aggregates_before(
     before_sec: f64,
     span_days: u32,
     adjusted: bool,
-) -> Result<Vec<Candle>, String> {
+) -> Result<Vec<Candle>> {
     let sym = SymbolRef::parse(&symbol);
     if economic(&sym) {
         return Ok(Vec::new());
     }
-    let cal = calendar_of(&provider, &sym).await?;
+    let cal = calendar_of(provider, &sym).await?;
     // The exchange date of the oldest loaded bar.
     let to = cal
         .date_of(before_sec as i64 - 1)
-        .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?;
+        .ok_or_else(|| invalid_before(before_sec))?;
     let (from, to) = aggregates_before_window(&cal, to, span_days);
     let family = match timespan.as_str() {
         "second" => BarFamily::Second,
@@ -327,16 +326,16 @@ pub async fn get_aggregates_before(
     let span = match timespan.as_str() {
         "second" => Span::Second(mult),
         "minute" => Span::MinuteChunked(mult),
-        other => return Err(format!("unsupported timespan for aggregates-before: {other}")),
+        other => return Err(Error::invalid(format!("unsupported timespan for aggregates-before: {other}"))),
     };
-    let (bars, partial) = chained_aggs(&provider, &cal, &sym, span, from, to, true, false).await.map_err(|e| e.to_string())?;
+    let (bars, partial) = chained_aggs(provider, &cal, &sym, span, from, to, true, false).await?;
     if partial {
         return Err(page_without_symbol_history());
     }
 
     // The day-rounded `to` can echo the boundary bar; keep strictly-older bars.
     let bars = bars.into_iter().filter(|b| b.time < before_sec).collect();
-    with_dividends(&provider, &cal, &sym, bars, adjusted).await
+    with_dividends(provider, &cal, &sym, bars, adjusted).await
 }
 
 /// Scroll-back pager for the daily family (1D/1W/1M): older daily candles
@@ -351,16 +350,16 @@ pub async fn get_daily_history_before(
     before_sec: f64,
     span_days: u32,
     adjusted: bool,
-) -> Result<Vec<Candle>, String> {
+) -> Result<Vec<Candle>> {
     let sym = SymbolRef::parse(&symbol);
     // An economic series is loaded whole.
     if economic(&sym) {
         return Ok(Vec::new());
     }
-    let cal = calendar_of(&provider, &sym).await?;
+    let cal = calendar_of(provider, &sym).await?;
     let end = cal
         .date_of(before_sec as i64 - 1)
-        .ok_or_else(|| format!("invalid before_sec: {before_sec}"))?;
+        .ok_or_else(|| invalid_before(before_sec))?;
     let dates = cal.trading_days_before(end, span_days.max(1) as usize);
     let Some(&from) = dates.first() else {
         return Ok(Vec::new());
@@ -375,12 +374,12 @@ pub async fn get_daily_history_before(
     // Ok([]) so the renderer latches "history exhausted" and stops paging.
     // Same series as the initial load: the days before the company took the
     // symbol are read under its earlier symbol.
-    let (bars, partial) = chained_aggs(&provider, &cal, &sym, Span::Day, from, end, true, false).await.map_err(|e| e.to_string())?;
+    let (bars, partial) = chained_aggs(provider, &cal, &sym, Span::Day, from, end, true, false).await?;
     if partial {
         return Err(page_without_symbol_history());
     }
     let bars = bars.into_iter().filter(|b| b.time < before_sec).collect();
-    with_dividends(&provider, &cal, &sym, bars, adjusted).await
+    with_dividends(provider, &cal, &sym, bars, adjusted).await
 }
 
 #[cfg(test)]

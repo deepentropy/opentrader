@@ -6,8 +6,9 @@
 use super::get_json;
 use crate::data::gateway::ApiError;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, Mutex, OnceLock};
+use crate::memo::Memo;
+use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const TTL: Duration = Duration::from_secs(3 * 3600);
@@ -193,23 +194,19 @@ fn yes() -> bool {
     true
 }
 
-fn memo() -> &'static Mutex<HashMap<String, (Instant, Arc<Fundamentals>)>> {
-    static MEMO: OnceLock<Mutex<HashMap<String, (Instant, Arc<Fundamentals>)>>> = OnceLock::new();
-    MEMO.get_or_init(|| Mutex::new(HashMap::new()))
-}
+/// Companies' fundamentals fetched within `TTL`; one is tens of kilobytes.
+static MEMO: Memo<String, Instant, Arc<Fundamentals>> = Memo::new(500);
 
 /// The fundamentals of `ticker` (the source's spelling). An error when the
 /// company has none (`NOT_FOUND`) or the gateway could not answer.
 pub async fn fetch_fundamentals(ticker: &str) -> Result<Arc<Fundamentals>, ApiError> {
     let key = ticker.to_uppercase();
-    if let Some((at, f)) = memo().lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
-        if at.elapsed() < TTL {
-            return Ok(f.clone());
-        }
+    if let Some(f) = MEMO.get(&key, |at| at.elapsed() < TTL) {
+        return Ok(f);
     }
     let f: Fundamentals = get_json("fundamentals", &format!("fundamentals/{}", super::seg(&key)), &[]).await?;
     let f = Arc::new(f);
-    memo().lock().unwrap_or_else(|e| e.into_inner()).insert(key, (Instant::now(), f.clone()));
+    MEMO.insert(key, Instant::now(), f.clone());
     Ok(f)
 }
 

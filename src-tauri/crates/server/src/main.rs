@@ -48,6 +48,7 @@ use opentrader_core::data::provider::{self, Provider};
 use opentrader_core::data::types::{SubscribeMsg, WsHandle};
 use opentrader_core::host::HostRef;
 use opentrader_core::screener::Screener;
+use opentrader_core::sync::LockExt;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::broadcast::error::RecvError;
@@ -85,17 +86,13 @@ async fn main() {
     if opentrader_core::data::gateway::token().is_none() {
         eprintln!("[server] {}", opentrader_core::data::gateway::NO_TOKEN);
     }
-    // The server's own gateway token, kept with its caches.
-    opentrader_core::data::install_token::init(opentrader_core::data::cache_root().join("gateway-install.json"));
 
     market_rest::set_icon_proxy_base(format!("{}/api/ticker-icon/", public.trim_end_matches('/')));
     let host = Arc::new(ServerHost::new());
     let host_ref: HostRef = host.clone();
     let provider = provider::build();
-    let live = provider.spawn(host_ref.clone());
-    provider::entitlements::init(&host_ref, provider.clone());
-    market_rest::init_symbol_catalog();
-    market_rest::economics::init();
+    // The server's own gateway token is kept with its caches.
+    let live = opentrader_core::start(&host_ref, &provider, opentrader_core::data::cache_root().join("gateway-install.json"));
 
     let state = Arc::new(AppState {
         provider,
@@ -212,7 +209,7 @@ async fn run_events(state: Shared, client: String, mut socket: WebSocket) {
         tokio::select! {
             ev = rx.recv() => match ev {
                 Ok(ev) => {
-                    if subs.lock().unwrap().wants(&client, &ev) && socket.send(Message::Text(ev.text.clone().into())).await.is_err() {
+                    if subs.locked().wants(&client, &ev) && socket.send(Message::Text(ev.text.clone().into())).await.is_err() {
                         break;
                     }
                 }

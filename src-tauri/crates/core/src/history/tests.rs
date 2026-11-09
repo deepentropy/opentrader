@@ -4,6 +4,7 @@ use super::adjustments::{dividend_steps, scale_by_dividends, scale_by_splits};
 use super::archive_join::{prepend_archive, JoinedDaily};
 use super::listing::{listing_of, stretch_start, times_inside, Listing, Segment};
 use super::symbol_chain::{merge_between, prepend_older};
+use std::collections::HashMap;
 use crate::data::provider::SymbolChange;
 use crate::data::types::{DividendEvent, SplitEvent};
 use crate::data::provider::{HistoryProvider, GatewayProvider, ReferenceProvider};

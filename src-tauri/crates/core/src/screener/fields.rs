@@ -555,10 +555,11 @@ pub fn catalog(t: &Table) -> Vec<FieldInfo> {
 
 /// Distinct values of a text field over the table, sorted (the options of the
 /// Sector / Industry checkbox filters). Errors on an unknown or numeric field.
-pub fn text_values(t: &Table, id: &str) -> Result<Vec<String>, String> {
-    let f = Field::parse(id).ok_or_else(|| format!("unknown field {id}"))?;
+pub fn text_values(t: &Table, id: &str) -> crate::error::Result<Vec<String>> {
+    use crate::error::Error;
+    let f = Field::parse(id).ok_or_else(|| Error::invalid(format!("unknown field {id}")))?;
     if !f.is_text() {
-        return Err(format!("{id} is not a text field"));
+        return Err(Error::invalid(format!("{id} is not a text field")));
     }
     let mut set = std::collections::BTreeSet::new();
     for row in &t.rows {

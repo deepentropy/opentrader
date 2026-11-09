@@ -1,15 +1,13 @@
 //! Reference data: company info, listing date, symbol history, logos and the
 //! list of active tickers.
-use super::{get_bytes, get_json, get_raw, seg, DayMemo};
+use super::{get_bytes, get_json, get_raw, seg, DayMemo, TICKER_MEMO_CAP};
 use crate::screener::progress::{read_body, Download};
 use crate::data::gateway::{ApiError, ErrorCode, BASE, MARKET};
 use anyhow::{anyhow, Context, Result};
 use chrono::{NaiveDate, Utc};
 use percent_encoding::{percent_decode_str, utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
+use std::sync::Arc;
 
 // ── Ticker details (`tickers/<T>`) ───────────────────────────────────────
 
@@ -83,25 +81,22 @@ async fn fetch_details(ticker: &str) -> Result<DetailsAnswer, ApiError> {
 
 /// Per-ticker, per-day memo of the listing date (`None` = the reference data
 /// has none).
-pub(super) static LISTING_DATES: DayMemo<String, Option<NaiveDate>> = OnceLock::new();
+pub(super) static LISTING_DATES: DayMemo<String, Option<NaiveDate>> = DayMemo::new(TICKER_MEMO_CAP);
 
 /// Date the current listing of `ticker` started, from its reference data.
 /// `None` when unknown (also for a ticker the reference data does not
 /// know); the error of a failed lookup (not memoised then).
 pub async fn listing_date(ticker: &str) -> Result<Option<NaiveDate>, ApiError> {
-    let memo = LISTING_DATES.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
-    if let Some((as_of, date)) = memo.lock().await.get(ticker) {
-        if *as_of == today {
-            return Ok(**date);
-        }
+    if let Some(date) = LISTING_DATES.get(ticker, |as_of| *as_of == today) {
+        return Ok(*date);
     }
     let date = match fetch_details(ticker).await {
         Ok(details) => details.list_date.and_then(|d| NaiveDate::parse_from_str(&d, "%Y-%m-%d").ok()),
         Err(e) if e.code == ErrorCode::NotFound => None,
         Err(e) => return Err(e),
     };
-    memo.lock().await.insert(ticker.to_string(), (today, Arc::new(date)));
+    LISTING_DATES.insert(ticker.to_string(), today, Arc::new(date));
     Ok(date)
 }
 
@@ -121,19 +116,16 @@ struct RenameRow {
 }
 
 /// Per-ticker, per-day memo of the symbol history.
-pub(super) static TICKER_CHANGES: DayMemo<String, Vec<(NaiveDate, String)>> = OnceLock::new();
+pub(super) static TICKER_CHANGES: DayMemo<String, Vec<(NaiveDate, String)>> = DayMemo::new(TICKER_MEMO_CAP);
 
 /// Symbols of the company now behind `ticker`, each with the date it took it
 /// (newest first, the symbols in the source's spelling). Empty when the
 /// reference data has no history for it (`NOT_FOUND`); the error of a failed
 /// lookup (not memoised then).
 pub async fn ticker_changes(ticker: &str) -> Result<Arc<Vec<(NaiveDate, String)>>, ApiError> {
-    let memo = TICKER_CHANGES.get_or_init(|| Mutex::new(HashMap::new()));
     let today = Utc::now().date_naive();
-    if let Some((as_of, changes)) = memo.lock().await.get(ticker) {
-        if *as_of == today {
-            return Ok(changes.clone());
-        }
+    if let Some(changes) = TICKER_CHANGES.get(ticker, |as_of| *as_of == today) {
+        return Ok(changes);
     }
     #[cfg(debug_assertions)]
     if crate::data::gateway::test_outage("OPENTRADER_TEST_SYMBOL_HISTORY_DOWN_SECS") {
@@ -159,7 +151,7 @@ pub async fn ticker_changes(ticker: &str) -> Result<Arc<Vec<(NaiveDate, String)>
         }
     };
     let changes = Arc::new(changes);
-    memo.lock().await.insert(ticker.to_string(), (today, changes.clone()));
+    TICKER_CHANGES.insert(ticker.to_string(), today, changes.clone());
     Ok(changes)
 }
 

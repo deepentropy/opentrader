@@ -23,6 +23,8 @@ chrono-tz = "0.10"
 dirs = "6.0.0"
 tokio = { version = "1.52.3", features = ["full"] }
 anyhow = "1.0.102"
+# The error of the command-facing calls (error.rs).
+thiserror = "2"
 # Async methods in the `DataProvider` trait (the provider-agnostic data seam).
 # Needed for `dyn DataProvider` since native async-fn-in-trait isn't dyn-safe.
 async-trait = "0.1"

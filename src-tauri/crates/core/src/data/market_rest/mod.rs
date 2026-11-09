@@ -15,10 +15,8 @@
 use chrono::NaiveDate;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 use crate::data::gateway::{self, ApiError, ErrorCode, MARKET, NO_TOKEN};
 
@@ -59,7 +57,11 @@ pub use snapshot::{fetch_ticker_snapshot, Snapshot};
 
 /// Process-wide memo keyed by `K`, each value stamped with the day it was
 /// resolved for (callers rebuild it when the day changes).
-pub(crate) type DayMemo<K, V> = OnceLock<Mutex<HashMap<K, (NaiveDate, Arc<V>)>>>;
+pub(crate) type DayMemo<K, V> = crate::memo::Memo<K, NaiveDate, Arc<V>>;
+
+/// Entries of a per-ticker memo of small lists (splits, dividends, listing
+/// dates, symbol history): far more symbols than a session opens.
+pub(crate) const TICKER_MEMO_CAP: usize = 4000;
 
 /// One shared, connection-pooled HTTP client for every gateway call. `reqwest::
 /// get` builds a fresh client — and therefore a fresh TCP+TLS handshake — on

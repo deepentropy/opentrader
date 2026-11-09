@@ -2,16 +2,15 @@
 //! (`filings/<T>/<accn>`), for the coding agents' `list_filings` /
 //! `read_filing`. Lists are kept in memory a few minutes (a new filing shows
 //! within the gateway's own 10 min); a filing never changes, so its pages are
-//! kept until the memo is full.
+//! kept until newer pages push them out of the memo.
 use super::get_json;
 use crate::data::gateway::ApiError;
+use crate::memo::Memo;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 const LIST_TTL: Duration = Duration::from_secs(5 * 60);
-/// Answers kept per memo; past it the memo starts over.
+/// Answers kept per memo; past it the oldest goes.
 const MEMO_MAX: usize = 64;
 
 /// What `list_filings` asks: every field optional.
@@ -123,20 +122,6 @@ pub struct FilingText {
     pub next: Option<u32>,
 }
 
-type Memo<V> = OnceLock<Mutex<HashMap<String, (Instant, V)>>>;
-
-fn recall<V: Clone>(memo: &'static Memo<V>, key: &str, ttl: Option<Duration>) -> Option<V> {
-    let m = memo.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
-    m.get(key).filter(|(at, _)| ttl.is_none_or(|t| at.elapsed() < t)).map(|(_, v)| v.clone())
-}
-
-fn keep<V>(memo: &'static Memo<V>, key: String, v: V) {
-    let mut m = memo.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
-    if m.len() >= MEMO_MAX {
-        m.clear();
-    }
-    m.insert(key, (Instant::now(), v));
-}
 
 /// The query string of `q` (lists comma-separated, as the gateway reads them).
 fn query_of(q: &FilingQuery) -> Vec<(&'static str, String)> {
@@ -161,33 +146,33 @@ fn query_of(q: &FilingQuery) -> Vec<(&'static str, String)> {
 
 /// A page of the filings of `ticker` (the source's spelling).
 pub async fn fetch_filings(ticker: &str, q: &FilingQuery) -> Result<FilingList, ApiError> {
-    static MEMO: Memo<FilingList> = OnceLock::new();
+    static MEMO: Memo<String, Instant, FilingList> = Memo::new(MEMO_MAX);
     let t = ticker.to_uppercase();
     let query = query_of(q);
     let key = format!("{t}?{query:?}");
-    if let Some(l) = recall(&MEMO, &key, Some(LIST_TTL)) {
+    if let Some(l) = MEMO.get(&key, |at| at.elapsed() < LIST_TTL) {
         return Ok(l);
     }
     let l: FilingList = get_json("filings", &format!("filings/{}", super::seg(&t)), &query).await?;
-    keep(&MEMO, key, l.clone());
+    MEMO.insert(key, Instant::now(), l.clone());
     Ok(l)
 }
 
 /// The contents of filing `accn` of `ticker` (no `section`), or a page of
 /// one section's text from `offset`.
 pub async fn fetch_filing_text(ticker: &str, accn: &str, section: Option<&str>, offset: u32) -> Result<FilingText, ApiError> {
-    static MEMO: Memo<FilingText> = OnceLock::new();
+    static MEMO: Memo<String, Instant, FilingText> = Memo::new(MEMO_MAX);
     let t = ticker.to_uppercase();
     let query: Vec<(&str, String)> = match section {
         Some(s) => vec![("section", s.to_string()), ("offset", offset.to_string())],
         None => Vec::new(),
     };
     let key = format!("{t}/{accn}?{query:?}");
-    if let Some(f) = recall(&MEMO, &key, None) {
+    if let Some(f) = MEMO.get(&key, |_| true) {
         return Ok(f);
     }
     let f: FilingText = get_json("filing", &format!("filings/{}/{}", super::seg(&t), super::seg(accn)), &query).await?;
-    keep(&MEMO, key, f.clone());
+    MEMO.insert(key, Instant::now(), f.clone());
     Ok(f)
 }
 
