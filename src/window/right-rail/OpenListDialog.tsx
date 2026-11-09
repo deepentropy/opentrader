@@ -10,7 +10,8 @@
  */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
-import { FLAG_HEX, WL_ICONS } from "../../data/watchlist";
+import { FLAG_HEX } from "../../data/watchlist";
+import { WL_ICONS } from "./watchlist/ui";
 import { Icon } from "../../components/Icon";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { promptCopyWatchlist } from "./watchlist-prompts";

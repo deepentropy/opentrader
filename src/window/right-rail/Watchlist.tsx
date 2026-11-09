@@ -17,13 +17,8 @@ import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { PanelHeader } from "../../components/PanelHeader";
 import { IconButton } from "../../components/IconButton";
-import {
-  HEADER_ITEMS,
-  WL_COLUMNS,
-  WL_ICONS,
-  type SortKey,
-  type WlSettings,
-} from "../../data/watchlist";
+import type { SortKey, WlSettings } from "../../data/watchlist";
+import { HEADER_ITEMS, WL_COLUMNS, WL_ICONS } from "./watchlist/ui";
 import {
   watchlistStore,
   isSectionId,

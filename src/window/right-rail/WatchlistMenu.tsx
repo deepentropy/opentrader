@@ -10,13 +10,8 @@
  * equivalent beyond the local stand-in.
  */
 import { For, onCleanup, onMount, Show } from "solid-js";
-import {
-  FLAG_HEX,
-  WL_ICONS,
-  WL_MENU_GROUPS,
-  type FlagColor,
-  type WlMenuAction,
-} from "../../data/watchlist";
+import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
+import { WL_ICONS, WL_MENU_GROUPS, type WlMenuAction } from "./watchlist/ui";
 import { Icon } from "../../components/Icon";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 

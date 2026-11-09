@@ -3,7 +3,8 @@
  * emoji or initial).
  */
 import { Show } from "solid-js";
-import { FLAG_HEX, WL_ICONS, type FlagColor } from "../../../data/watchlist";
+import { FLAG_HEX, type FlagColor } from "../../../data/watchlist";
+import { WL_ICONS } from "./ui";
 
 /** Left-edge colour flag. The SVG markup is WL_ICONS.flag; CSS `color` does
  *  the tint. */

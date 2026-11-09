@@ -5,16 +5,8 @@
  */
 import { relativeVolumeOf } from "../../../data/watchlist-metrics";
 import { createEffect, createSignal, onCleanup } from "solid-js";
-import {
-  COLUMN_HEADERS,
-  FLAG_SORT_ORDER,
-  WL_COLUMNS,
-  WL_ICONS,
-  type Row,
-  type SortField,
-  type SortKey,
-  type WlColumnKey,
-} from "../../../data/watchlist";
+import { FLAG_SORT_ORDER, type Row, type SortField, type SortKey, type WlColumnKey } from "../../../data/watchlist";
+import { COLUMN_HEADERS, WL_COLUMNS, WL_ICONS } from "./ui";
 import { flagOf } from "../../../data/symbol-flags";
 import { numFromStr } from "./format";
 import { type WatchlistCx } from "./context";

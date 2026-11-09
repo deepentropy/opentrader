@@ -3,7 +3,8 @@
  * tile view (the same handlers in both views).
  */
 import { For, Show } from "solid-js";
-import { WL_ICONS, type Group, type Row } from "../../../data/watchlist";
+import type { Group, Row } from "../../../data/watchlist";
+import { WL_ICONS } from "./ui";
 import { sectionId } from "../../../data/watchlist-store";
 import { flagOf } from "../../../data/symbol-flags";
 import { FlagMarker } from "./markers";

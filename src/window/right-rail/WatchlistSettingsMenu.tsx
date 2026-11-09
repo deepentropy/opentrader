@@ -6,14 +6,8 @@
  * control edits the parent's settings in place and keeps the popover open.
  */
 import { For, Show, onCleanup, onMount } from "solid-js";
-import {
-  WL_COLUMNS,
-  WL_SETTINGS_ICONS,
-  WL_SYMBOL_DISPLAY,
-  type WlColumnKey,
-  type WlSettings,
-  type WlSymbolDisplay,
-} from "../../data/watchlist";
+import type { WlColumnKey, WlSettings, WlSymbolDisplay } from "../../data/watchlist";
+import { WL_COLUMNS, WL_SETTINGS_ICONS, WL_SYMBOL_DISPLAY } from "./watchlist/ui";
 
 type Props = {
   settings: WlSettings;

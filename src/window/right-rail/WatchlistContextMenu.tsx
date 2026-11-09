@@ -31,7 +31,8 @@
  * Section header menu (160×121): Rename / Remove section / Add symbol.
  */
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
-import { FLAG_HEX, WL_ICONS, type FlagColor, type Row } from "../../data/watchlist";
+import { FLAG_HEX, type FlagColor, type Row } from "../../data/watchlist";
+import { WL_ICONS } from "./watchlist/ui";
 import type { WatchList } from "../../data/watchlist-store";
 
 /** The 7 flag colours, in `data-color` order. */

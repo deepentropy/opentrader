@@ -5,7 +5,7 @@
  */
 import { For, Show } from "solid-js";
 import { Tooltip } from "../../../components/Tooltip";
-import { WL_ICONS } from "../../../data/watchlist";
+import { WL_ICONS } from "./ui";
 import { SYMBOL_COL_KEY } from "./prefs";
 import { SORT_MENU_FIELDS } from "./sort";
 import { type WatchlistCx } from "./context";
