@@ -6,7 +6,7 @@ import { batch, createEffect, createMemo, createSignal, For, lazy, on, onCleanup
 import { HeaderToolbar } from "./window/header/HeaderToolbar";
 import { HeaderMenu } from "./window/header/HeaderMenu";
 import { buildIntervalMenu } from "./window/chart/custom-intervals";
-import { HEADER_MENUS } from "./window/header/header-menus/registry";
+import { HEADER_MENUS, type HeaderMenuDef } from "./window/header/header-menus/registry";
 import { SymbolSearchDialog } from "./window/header/SymbolSearchDialog";
 import { ChangeIntervalDialog } from "./window/chart/ChangeIntervalDialog";
 import { IndicatorsDialog } from "./window/header/IndicatorsDialog";
@@ -574,72 +574,65 @@ function App() {
   });
 
   // ── Header dropdowns ───────────────────────────────────────────────────
+  /** Snapshot menu rows (the link and tweet rows are cloud actions, not offered). "Open in new tab" opens the PNG
+   *  in the OS default viewer (temp file via the open_snapshot command). */
+  const snapshotRows: Record<string, () => void> = {
+    "save-chart-image": () => emitAppEvent("chart-snapshot", { action: "download" }),
+    "copy-chart-image": () => emitAppEvent("chart-snapshot", { action: "copy" }),
+    "open-image-in-new-tab": () => emitAppEvent("chart-snapshot", { action: "open" }),
+    "share-to-community": () => requestShare({ attach: true }),
+    "snapshot-to-community": () => requestShare({ snapshotOnly: true }),
+  };
+
+  /** Each header dropdown in one place: its rows when they come from live state (otherwise the registry entry), the
+   *  row shown as the current choice, and what picking a row does. A menu missing here only shows its rows. */
+  const headerMenus: Record<string, { build?: () => HeaderMenuDef; selected?: () => string | undefined; onSelect?: (rowId: string) => void }> = {
+    "chart-interval": { build: buildIntervalMenu, selected: interval, onSelect: setInterval },
+    candles: {
+      selected: chartType,
+      onSelect: (rowId) => {
+        if (CHART_TYPE_IDS.has(rowId as ChartTypeId)) setChartType(rowId as ChartTypeId);
+      },
+    },
+    "layout-setup": { selected: () => variantIdForLayout(layout()), onSelect: (rowId) => setLayout(layoutFromVariantId(rowId)) },
+    "save-load-menu": {
+      // Built from the live autosave state and the saved-layouts list.
+      build: () =>
+        buildSaveLoadMenu({
+          activeId: activeTab().savedLayoutId,
+          autosave: layoutAutosave(),
+          dirty: layoutDirty(),
+          summaryOf: layouts.summaryOfLayout,
+        }),
+      onSelect: (rowId) => layouts.onManageLayoutsSelect(rowId),
+    },
+    "take-a-snapshot": { onSelect: (rowId) => snapshotRows[rowId]?.() },
+    // A favourite row adds that study to the focused pane (one more instance when it is already on the chart).
+    "show-favorite-indicators": { build: buildFavoriteIndicatorsMenu, onSelect: (rowId) => addIndicator(rowId) },
+    "indicator-templates": {
+      build: buildIndicatorTemplatesMenu,
+      onSelect: (rowId) => {
+        if (rowId === SAVE_TEMPLATE_ROW_ID) setTemplateNameDialogOpen(true);
+        else if (rowId.startsWith(APPLY_TEMPLATE_PREFIX)) applyIndicatorTemplate(rowId.slice(APPLY_TEMPLATE_PREFIX.length));
+      },
+    },
+  };
+
   function onMenuSelect(rowId: string) {
-    const which = openMenu();
-    if (which === "chart-interval") {
-      setInterval(rowId);
-    } else if (which === "candles" && CHART_TYPE_IDS.has(rowId as ChartTypeId)) {
-      setChartType(rowId as ChartTypeId);
-    } else if (which === "layout-setup") {
-      setLayout(layoutFromVariantId(rowId));
-    } else if (which === "save-load-menu") {
-      layouts.onManageLayoutsSelect(rowId);
-    } else if (which === "take-a-snapshot") {
-      // Snapshot menu (the link and tweet rows are cloud actions, not
-      // offered). "Open in new tab" opens the PNG in the OS default viewer
-      // (temp file via the open_snapshot command).
-      if (rowId === "save-chart-image") {
-        emitAppEvent("chart-snapshot", { action: "download" });
-      } else if (rowId === "copy-chart-image") {
-        emitAppEvent("chart-snapshot", { action: "copy" });
-      } else if (rowId === "open-image-in-new-tab") {
-        emitAppEvent("chart-snapshot", { action: "open" });
-      } else if (rowId === "share-to-community") {
-        requestShare({ attach: true });
-      } else if (rowId === "snapshot-to-community") {
-        requestShare({ snapshotOnly: true });
-      }
-    } else if (which === "show-favorite-indicators") {
-      // A favourite row adds that study to the focused pane (one more
-      // instance when it is already on the chart).
-      addIndicator(rowId);
-    } else if (which === "indicator-templates") {
-      if (rowId === SAVE_TEMPLATE_ROW_ID) setTemplateNameDialogOpen(true);
-      else if (rowId.startsWith(APPLY_TEMPLATE_PREFIX))
-        applyIndicatorTemplate(rowId.slice(APPLY_TEMPLATE_PREFIX.length));
-    }
-    // Other menus: no-op for now.
+    const id = openMenu();
+    if (id) headerMenus[id]?.onSelect?.(rowId);
   }
 
-  /** Live menu def for the open dropdown — the "Manage layouts" menu is built
-   *  dynamically (live autosave state + saved-layouts list); the rest are the
-   *  static registry entries. */
-  function currentMenuDef() {
+  /** Rows of the open dropdown. */
+  function currentMenuDef(): HeaderMenuDef | undefined {
     const id = openMenu();
     if (!id) return undefined;
-    if (id === "save-load-menu") {
-      return buildSaveLoadMenu({
-        activeId: activeTab().savedLayoutId,
-        autosave: layoutAutosave(),
-        dirty: layoutDirty(),
-        summaryOf: layouts.summaryOfLayout,
-      });
-    }
-    // Live menus (the static registry entries for these ids are placeholders
-    // — the real rows come from the local stores).
-    if (id === "show-favorite-indicators")
-      return buildFavoriteIndicatorsMenu();
-    if (id === "indicator-templates") return buildIndicatorTemplatesMenu();
-    if (id === "chart-interval") return buildIntervalMenu();
-    return HEADER_MENUS[id];
+    return headerMenus[id]?.build?.() ?? HEADER_MENUS[id];
   }
 
   function selectedRowForOpenMenu(): string | undefined {
-    const which = openMenu();
-    if (which === "chart-interval") return interval();
-    if (which === "candles") return chartType();
-    if (which === "layout-setup") return variantIdForLayout(layout());
-    return undefined;
+    const id = openMenu();
+    return id ? headerMenus[id]?.selected?.() : undefined;
   }
 
   onMount(() => {
