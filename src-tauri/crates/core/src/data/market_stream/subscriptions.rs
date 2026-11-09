@@ -89,11 +89,6 @@ impl SubscriptionState {
         self.charts.values().map(|s| ticker_of(s)).collect()
     }
 
-    /// Vendor tickers of the watchlist union.
-    pub fn watch_tickers(&self) -> HashSet<String> {
-        self.watch_union().iter().map(|s| ticker_of(s)).collect()
-    }
-
     /// Vendor tickers of everything subscribed.
     pub fn all_tickers(&self) -> HashSet<String> {
         self.all_symbols().iter().map(|s| ticker_of(s)).collect()
@@ -188,7 +183,6 @@ mod subscription_state_tests {
         set_chart(&mut s, "main:2", Some("BOATS:INTC"));
         set_watch(&mut s, "main", &["NYSE:IBM", "NASDAQ:INTC"]);
         assert_eq!(s.chart_tickers(), HashSet::from(["INTC".to_string()]));
-        assert!(s.watch_tickers().contains("IBM"));
         let mut charts = s.chart_symbols_for("INTC");
         charts.sort();
         assert_eq!(charts, vec!["BOATS:INTC", "NASDAQ:INTC"]);

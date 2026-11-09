@@ -30,13 +30,13 @@
  * session and the next one uses the delayed route (`MarketTier` tells the
  * frontend why).
  *
- * Modes (see `Mode`):
- *   • SECOND_BARS — spawned today, next to the REST poller: `bar1s:<T>` for
- *     charted symbols, gated on the probed `StreamCaps.second_bars`, and
- *     connected only while a chart is open.
- *   • MINUTE_AND_TRADES — `bar1m:` + `trade:`, not spawned: trades carry every
- *     print (pre/post included) while the watchlist shows the regular-session
- *     Last, and minute bars have no day bar, so the poller serves those.
+ * Mode (see `Mode`): SECOND_BARS, next to the REST poller: `bar1s:<T>` for
+ * charted symbols, gated on the probed `StreamCaps.second_bars`, and connected
+ * only while a chart is open. The watchlist and the minute bars stay with the
+ * poller: trades carry every print (pre/post included) while the watchlist
+ * shows the regular-session Last, and minute bars have no day bar. Which
+ * channels the plan may use is measured by `probe_channels` (13/10/2026
+ * through the gateway: bar1m / bar1s granted, trade / quote NOT_ENTITLED).
  *
  * Protocol (`gateway/doc/README.md`, "Market API (v2)"; every server message
  * is a JSON array of objects):
@@ -51,12 +51,6 @@
  *              {"type":"trade","ticker","t","p","size"},
  *              {"type":"quote","ticker","t","bid","bidSize","ask","askSize"}
  */
-// MINUTE_AND_TRADES / `spawn` / `parse_trade` are unused while SECOND_BARS is
-// the only spawned mode. Which channels the plan may use is measured by
-// `probe_channels` (13/10/2026 through the gateway: bar1m / bar1s granted,
-// trade / quote NOT_ENTITLED). Allow dead code module-wide rather than
-// per-fn attributes.
-#![allow(dead_code)]
 use crate::data::gateway::{self, STREAM_RT_URL, STREAM_URL};
 use crate::data::pass;
 use crate::host::Event;
@@ -96,11 +90,8 @@ pub struct WsHandle {
 /// Which channels a live session carries, and when it may connect.
 #[derive(Clone, Copy)]
 struct Mode {
-    /// Channel prefix for charted symbols ("bar1m:" minute bars, "bar1s:"
-    /// second bars).
+    /// Channel prefix for charted symbols ("bar1s:" second bars).
     chart: &'static str,
-    /// Channel prefix for watchlist symbols ("trade:"), or none.
-    watch: Option<&'static str>,
     /// Stream entitlement required before connecting; `None` = always.
     gate: Option<fn(&StreamCaps) -> bool>,
     /// Hold the connection only while something is subscribed.
@@ -111,18 +102,10 @@ fn wants_second_bars(s: &StreamCaps) -> bool {
     s.second_bars
 }
 
-/// Minute bars for charts + trades for the watchlist (the push feed, kept for
-/// a switch-over; not spawned today).
-const MINUTE_AND_TRADES: Mode = Mode { chart: "bar1m:", watch: Some("trade:"), gate: None, lazy: false };
-
 /// 1-second bars for charted symbols: the live source of the seconds charts,
 /// running next to the REST poller (which keeps the watchlist quotes and the
 /// minute / day bars).
-const SECOND_BARS: Mode = Mode { chart: "bar1s:", watch: None, gate: Some(wants_second_bars), lazy: true };
-
-pub fn spawn(app: HostRef) -> WsHandle {
-    spawn_mode(app, MINUTE_AND_TRADES)
-}
+const SECOND_BARS: Mode = Mode { chart: "bar1s:", gate: Some(wants_second_bars), lazy: true };
 
 /// The second-bars stream task. Connects only when the probed entitlements
 /// allow the `bar1s` channel and a chart is open; otherwise it stays idle and
@@ -157,16 +140,16 @@ fn spawn_mode(app: HostRef, mode: Mode) -> WsHandle {
     WsHandle { tx }
 }
 
-/// Something for this mode to subscribe to.
-fn has_work(mode: Mode, state: &SubscriptionState) -> bool {
-    !state.chart_symbols().is_empty() || (mode.watch.is_some() && !state.watch_union().is_empty())
+/// Something for this mode to subscribe to: an open chart.
+fn has_work(state: &SubscriptionState) -> bool {
+    !state.chart_symbols().is_empty()
 }
 
 /// Entitled (per the probe) and, for a lazy mode, something to subscribe to.
 /// A subscriber connects at once, before any probe: its session is what
 /// gives the account's REST calls real-time answers (gateway#19).
 fn may_connect(mode: Mode, ent: &entitlements::State, state: &SubscriptionState, realtime: bool) -> bool {
-    realtime || (mode.gate.is_none_or(|g| ent.stream_allows(g)) && (!mode.lazy || has_work(mode, state)))
+    realtime || (mode.gate.is_none_or(|g| ent.stream_allows(g)) && (!mode.lazy || has_work(state)))
 }
 
 /// The route of the next session: real-time with the pass when there is one,
@@ -362,10 +345,7 @@ async fn run_session(
 
     // Replay desired subscription state. The frontend may have churned
     // the chart slots / watchlists while we were disconnected.
-    let mut replay = channels(mode.chart, &state.chart_tickers());
-    if let Some(prefix) = mode.watch {
-        replay.extend(channels(prefix, &state.watch_tickers()));
-    }
+    let replay = channels(mode.chart, &state.chart_tickers());
     send_op(&mut write, "subscribe", &replay).await?;
 
     // The data messages wait here for the next flush (#261).
@@ -381,22 +361,16 @@ async fn run_session(
             _ = flush.tick(), if !pending.is_empty() => pending.flush(),
             sub = rx.recv() => {
                 let Some(sub) = sub else { return Ok(SessionExit::ShuttingDown); };
-                // Diff the UNION views before/after applying — an owner update
-                // only touches the wire when it changes the merged sets.
-                let prev_c = state.chart_tickers();
-                let prev_w = state.watch_tickers();
+                // Diff the UNION view before/after applying — an owner update
+                // only touches the wire when it changes the merged set.
+                let prev = state.chart_tickers();
                 state.apply(sub);
-                if mode.lazy && !route.realtime && !has_work(mode, state) {
+                if mode.lazy && !route.realtime && !has_work(state) {
                     return Ok(SessionExit::Idle);
                 }
-                let next_c = state.chart_tickers();
-                let next_w = state.watch_tickers();
-                let mut drops = channels(mode.chart, &prev_c.difference(&next_c).cloned().collect());
-                let mut adds = channels(mode.chart, &next_c.difference(&prev_c).cloned().collect());
-                if let Some(p) = mode.watch {
-                    drops.extend(channels(p, &prev_w.difference(&next_w).cloned().collect()));
-                    adds.extend(channels(p, &next_w.difference(&prev_w).cloned().collect()));
-                }
+                let next = state.chart_tickers();
+                let drops = channels(mode.chart, &prev.difference(&next).cloned().collect());
+                let adds = channels(mode.chart, &next.difference(&prev).cloned().collect());
                 send_op(&mut write, "unsubscribe", &drops).await?;
                 send_op(&mut write, "subscribe", &adds).await?;
             }
