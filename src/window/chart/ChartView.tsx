@@ -1010,32 +1010,35 @@ export function ChartView(props: ChartViewProps) {
 
     // The controller reads bars from `raw` on demand, so it always recomputes
     // against the freshest dataset without threading bars in.
-    // Price-based types: the studies run on the bricks (reference app).
-    controller = new IndicatorController(chart, () => ((isTransformType(activeType) ? transformBarsOf(series)?.bars : null) ?? raw) as unknown as Bar[], String(paneId));
-    controller.setLastBarOpenProbe(lastBarForming);
-    controller.setMainSeriesProbe(() => series as ISeriesApi<SeriesType> | null);
-    // Studies over the series take its scale (its side when it has no scale).
-    controller.setScaleIdsProbe(() => {
-      const k = seriesKey();
-      return { price: k === "none" ? mainSide() : k, pane: currentTokens().scalesPlacement };
+    controller = new IndicatorController(chart, {
+      chartId: String(paneId),
+      // Price-based types: the studies run on the bricks (reference app).
+      bars: () => ((isTransformType(activeType) ? transformBarsOf(series)?.bars : null) ?? raw) as unknown as Bar[],
+      lastBarOpen: lastBarForming,
+      mainSeries: () => series as ISeriesApi<SeriesType> | null,
+      // Studies over the series take its scale (its side when it has no scale).
+      scaleIds: () => {
+        const k = seriesKey();
+        return { price: k === "none" ? mainSide() : k, pane: currentTokens().scalesPlacement };
+      },
+      scaleResolve: (id, pane, key) => cx.scaleResolve(id, pane, key),
+      // Study on study: a compared symbol's values, the names of the sources in the legend.
+      externalSource: (id) => compareLayers.get(id)?.sourcePoints() ?? null,
+      externalSpec: (id) => {
+        const e = cx.compareEntry(id);
+        return e ? { symbol: e.symbol, source: compareSource(e.style) } : null;
+      },
+      sourceText: (v) => cx.sourceInputText(v),
+      mainPaneMoved: onMainPaneMoved,
+      seriesChanged: () => {
+        scheduleSourceOrder();
+        cx.syncSideScales();
+        cx.syncScaleLayout();
+        setAlertSeriesEpoch((n) => n + 1);
+      },
+      drawingsData: () => setCoordEpoch((n) => n + 1),
+      redrawn: () => refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined),
     });
-    controller.setScaleResolver((id, pane, key) => cx.scaleResolve(id, pane, key));
-    // Study on study: a compared symbol's values, the names of the sources in the legend.
-    controller.setExternalSourceProbe((id) => compareLayers.get(id)?.sourcePoints() ?? null);
-    controller.setSourceTextProbe((v) => cx.sourceInputText(v));
-    controller.setExternalSpecProbe((id) => {
-      const e = cx.compareEntry(id);
-      return e ? { symbol: e.symbol, source: compareSource(e.style) } : null;
-    });
-    controller.setMainPaneHook(onMainPaneMoved);
-    controller.setSeriesChangedHook(() => {
-      scheduleSourceOrder();
-      cx.syncSideScales();
-      cx.syncScaleLayout();
-      setAlertSeriesEpoch((n) => n + 1);
-    });
-    controller.setDrawingsDataHook(() => setCoordEpoch((n) => n + 1));
-    controller.setRedrawnHook(() => refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined));
     setChartReady((n) => n + 1);
 
     hostW = host.clientWidth;
