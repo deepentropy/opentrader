@@ -13,6 +13,7 @@
  */
 import { createSignal } from "solid-js";
 import * as kv from "./kv";
+import { intervalSeconds, isDailyInterval, parseInterval } from "./interval";
 import type { WallDate, WallTime } from "../window/chart/day-key";
 
 /** Which charts a replay covers (the header "Replay mode" menu). */
@@ -59,33 +60,29 @@ function readDelay(): number {
 
 // ── Update intervals ─────────────────────────────────────────────────────────
 
-/** Seconds of an interval id ("1S", "5", "60", "1D", "1W", "1M"); a month
- *  counts 30 days (the reference app). */
-export function replayIntervalSeconds(id: string): number {
-  const m = /^(\d+)([SDWM])$/.exec(id);
-  if (m) {
-    const n = Number(m[1]);
-    return n * ({ S: 1, D: 86400, W: 7 * 86400, M: 30 * 86400 } as const)[m[2] as "S" | "D" | "W" | "M"];
-  }
-  const n = Number(id);
-  return Number.isFinite(n) ? n * 60 : NaN;
-}
+/** Seconds of an interval id (a month counts 30 days, as in the reference app);
+ *  NaN for an id that is no interval, so it compares false and is left out. */
+const seconds = (id: string): number => intervalSeconds(id) ?? NaN;
+
+/** The unit of an interval id, null when it is no interval. */
+const unitOf = (id: string) => parseInterval(id)?.unit ?? null;
 
 /** Candidate update intervals by chart interval kind (the reference app list, without
  *  ticks: the data has no trades). */
 function candidatesFor(chart: string): string[] {
-  if (/^\d+S$/.test(chart)) return ["1S", "5S", "10S", "15S", "30S", "45S"];
-  if (/^\d+D$/.test(chart)) return ["60", "120", "180", "240", "1D"];
-  if (/^\d+[WM]$/.test(chart)) return ["1D"];
-  const mins = Number(chart);
+  const unit = unitOf(chart);
+  if (unit === "second") return ["1S", "5S", "10S", "15S", "30S", "45S"];
+  if (unit === "day") return ["60", "120", "180", "240", "1D"];
+  if (unit === "week" || unit === "month") return ["1D"];
   const small = ["1S", "1", "3", "5", "10", "15", "30", "45"];
-  return mins >= 60 ? [...small, "60", "120", "180", "240"] : small;
+  return seconds(chart) >= 3600 ? [...small, "60", "120", "180", "240"] : small;
 }
 
 /** The interval every chart steps on at least (the reference app common divisor):
  *  the chart interval itself, "1D" for a daily, weekly or monthly chart. */
 function baseOf(chart: string): string {
-  return /^\d+[DWM]$/.test(chart) ? "1D" : chart;
+  const iv = parseInterval(chart);
+  return iv && isDailyInterval(iv) ? "1D" : chart;
 }
 
 /** Update intervals offered for the charts in replay (`intervals`, one per
@@ -97,20 +94,21 @@ export function updateIntervals(intervals: string[], available: (id: string) => 
   if (intervals.length === 0) return [];
   const main = intervals[0];
   const base = baseOf(main);
-  const baseSec = replayIntervalSeconds(base);
+  const baseSec = seconds(base);
   const divides = (id: string) => {
-    const s = replayIntervalSeconds(id);
+    const s = seconds(id);
     return intervals.every((iv) => {
-      if (/^\d+[WM]$/.test(iv)) return id === "1D";
-      const t = replayIntervalSeconds(iv);
+      const unit = unitOf(iv);
+      if (unit === "week" || unit === "month") return id === "1D";
+      const t = seconds(iv);
       return Number.isFinite(t) && t % s === 0;
     });
   };
   const all = [...new Set([...candidatesFor(main), base])].filter((id) => {
-    const s = replayIntervalSeconds(id);
+    const s = seconds(id);
     return Number.isFinite(s) && s <= baseSec && divides(id);
   });
-  all.sort((a, b) => replayIntervalSeconds(a) - replayIntervalSeconds(b));
+  all.sort((a, b) => seconds(a) - seconds(b));
   return all.filter(available);
 }
 
@@ -124,8 +122,8 @@ export function autoUpdateInterval(list: string[], chart: string): string {
  *  the largest offered one shorter than it, else the first. */
 export function fallbackUpdateInterval(list: string[], current: string): string | null {
   if (list.includes(current)) return current;
-  const cur = replayIntervalSeconds(current);
-  const shorter = list.filter((id) => replayIntervalSeconds(id) < cur);
+  const cur = seconds(current);
+  const shorter = list.filter((id) => seconds(id) < cur);
   return shorter.length > 0 ? shorter[shorter.length - 1] : list[0] ?? null;
 }
 

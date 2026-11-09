@@ -18,6 +18,7 @@ import { localDay, localToUtc } from "./session/zone";
 import { parseBarsCsv, ROW, SERIES_NAME, type ParsedBars } from "./local-series-csv";
 import { emitAppEvent } from "./app-events";
 import { forgetSymbolSessions } from "./session/symbol-sessions";
+import { intervalSeconds, isDailyInterval, parseInterval } from "./interval";
 
 export type { LocalSeries, LocalSource } from "../bindings";
 
@@ -81,25 +82,22 @@ async function metaOf(symbol: string): Promise<LocalSeries> {
 }
 
 /** Seconds of an interval id, or "daily" for the day / week / month family. */
-function intervalSeconds(id: string): number | "daily" | null {
-  if (/^[1-9]\d*[DWM]$/.test(id)) return "daily";
-  let m = /^([1-9]\d*)S$/.exec(id);
-  if (m) return Number(m[1]);
-  m = /^([1-9]\d*)$/.exec(id);
-  if (m) return Number(m[1]) * 60;
-  return null;
+function barSeconds(id: string): number | "daily" | null {
+  const iv = parseInterval(id);
+  if (!iv) return null;
+  return isDailyInterval(iv) ? "daily" : intervalSeconds(iv);
 }
 
 /** Whether a local symbol has bars on `resolution`: every daily interval, and
  *  the intraday sizes that are a multiple of its file's bar size. Unknown
  *  series (not loaded yet): true, so a restored chart keeps its interval. */
 export function localServesResolution(symbol: string, resolution: string): boolean {
-  const res = intervalSeconds(resolution);
+  const res = barSeconds(resolution);
   if (res === null) return false;
   if (res === "daily") return true;
   const meta = localSeriesMeta(symbol);
   if (!meta) return true;
-  const base = intervalSeconds(meta.base);
+  const base = barSeconds(meta.base);
   return base !== "daily" && base !== null && res % base === 0;
 }
 
@@ -182,8 +180,8 @@ export function localDailyBars(symbol: string): Promise<Candle[]> {
  *  empty when its file's bars are coarser. */
 export async function localIntradayBars(symbol: string, resolution: string): Promise<Candle[]> {
   const meta = await metaOf(symbol);
-  const res = intervalSeconds(resolution);
-  const base = intervalSeconds(meta.base);
+  const res = barSeconds(resolution);
+  const base = barSeconds(meta.base);
   if (typeof res !== "number" || typeof base !== "number" || res % base !== 0) return [];
   const bars = await localBaseBars(symbol);
   return res === base ? bars : bucketBars(bars, res, meta.timezone);
@@ -205,7 +203,7 @@ function lowerBound(bars: Candle[], sec: number): number {
  *  days (raw daily bars for the daily family), for bar replay's windows; the
  *  chart itself loads the whole series at once. */
 export async function localBarsBefore(symbol: string, resolution: string, beforeSec: number, spanDays: number): Promise<Candle[]> {
-  const bars = intervalSeconds(resolution) === "daily" ? await localDailyBars(symbol) : await localIntradayBars(symbol, resolution);
+  const bars = barSeconds(resolution) === "daily" ? await localDailyBars(symbol) : await localIntradayBars(symbol, resolution);
   // Trading days to calendar days, with room for holidays.
   const from = beforeSec - Math.ceil((spanDays * 7) / 5 + 3) * 86400;
   return bars.slice(lowerBound(bars, from), lowerBound(bars, beforeSec));

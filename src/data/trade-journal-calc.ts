@@ -8,6 +8,7 @@
  * trade's own entry price.
  */
 import { localDay } from "./session";
+import { intervalSeconds } from "./interval";
 
 export type Side = "long" | "short";
 
@@ -121,23 +122,10 @@ export function metricsInterval(t: Pick<TradeInput, "entryTime" | "exitTime" | "
   return "1";
 }
 
-/** Bar length of an interval id in seconds ("1" → 60, "60" → 3600, "1D" → 86400, "1W" → 604800). */
+/** Bar length of an interval id in seconds ("1" → 60, "60" → 3600, "1D" → 86400, "1W" → 604800);
+ *  a day for an id that is no interval, so a frame still has a width. */
 export function intervalSec(id: string): number {
-  const m = /^(\d*)([SDWM]?)$/.exec(id.toUpperCase());
-  if (!m) return 86400;
-  const n = Number(m[1] || 1);
-  switch (m[2]) {
-    case "S":
-      return n;
-    case "D":
-      return n * 86400;
-    case "W":
-      return n * 7 * 86400;
-    case "M":
-      return n * 30 * 86400;
-    default:
-      return n * 60;
-  }
+  return intervalSeconds(id) ?? 86400;
 }
 
 /** Trading days from `from` to `to` (weekdays plus a holiday margin), at least 1. */
