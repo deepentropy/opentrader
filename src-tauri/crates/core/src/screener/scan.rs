@@ -282,7 +282,7 @@ pub fn run(t: &Table, req: &ScanRequest) -> crate::error::Result<ScanResult> {
     let mut hits: Vec<&Row> = t
         .rows
         .iter()
-        .filter(|r| scope.as_ref().map_or(true, |s| s.contains(&r.m.ticker)))
+        .filter(|r| scope.as_ref().is_none_or(|s| s.contains(&r.m.ticker)))
         .filter(|r| clauses.iter().all(|c| holds(t, r, c)))
         .collect();
 

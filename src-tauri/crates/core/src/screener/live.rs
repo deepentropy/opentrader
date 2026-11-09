@@ -167,7 +167,7 @@ impl LiveTable {
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub fn ticker_count(&self) -> usize {
         self.rows.len()
     }
 
@@ -247,7 +247,7 @@ impl Feed {
         tokio::time::timeout(CONNECT_TIMEOUT, feed.next())
             .await
             .map_err(|_| anyhow!("screener feed: no table after {} s", CONNECT_TIMEOUT.as_secs()))??;
-        if feed.table.len() == 0 {
+        if feed.table.ticker_count() == 0 {
             bail!("screener feed: empty table");
         }
         Ok(feed)
@@ -407,7 +407,7 @@ mod tests {
         let clients_before = status().await["clients"].as_u64().unwrap_or(0);
         let t0 = std::time::Instant::now();
         let mut feed = Feed::connect(gateway::SCREENER_LIVE_URL).await.unwrap();
-        eprintln!("full table: {} tickers in {} ms, clients {} -> {}", feed.table.len(), t0.elapsed().as_millis(), clients_before, status().await["clients"]);
+        eprintln!("full table: {} tickers in {} ms, clients {} -> {}", feed.table.ticker_count(), t0.elapsed().as_millis(), clients_before, status().await["clients"]);
 
         let mut compared = (0, 0, 0);
         for round in 0..3 {

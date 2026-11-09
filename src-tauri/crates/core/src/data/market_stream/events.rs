@@ -299,9 +299,11 @@ mod tests {
         }
     }
 
-    /// The quotes the host's alert rules read: price and bar (time, high, low).
+    /// A quote the host's alert rules read: price and bar (time, high, low).
+    type Quote = (f64, Option<(f64, f64, f64)>);
+
     #[derive(Default)]
-    struct Quotes(std::sync::Mutex<Vec<(f64, Option<(f64, f64, f64)>)>>);
+    struct Quotes(std::sync::Mutex<Vec<Quote>>);
     impl crate::host::Host for Quotes {
         fn emit_value(&self, _: &'static str, _: serde_json::Value) {}
         fn on_quote(&self, _symbol: &str, last: f64, minute: Option<&Candle>) {

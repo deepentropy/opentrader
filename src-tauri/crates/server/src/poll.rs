@@ -84,10 +84,10 @@ pub async fn handle(State(state): State<Shared>, Query(q): Query<PollQuery>, hea
     }
     *session.last_poll.locked() = Instant::now();
 
-    if q.wait != Some(0) && session.queue.locked().is_empty() {
-        if tokio::time::timeout(WAIT, session.ready.notified()).await.is_ok() {
-            tokio::time::sleep(GATHER).await;
-        }
+    // The queue's lock is released before the wait (a guard in the condition would live across it).
+    let nothing_yet = q.wait != Some(0) && session.queue.locked().is_empty();
+    if nothing_yet && tokio::time::timeout(WAIT, session.ready.notified()).await.is_ok() {
+        tokio::time::sleep(GATHER).await;
     }
     let events: Vec<Arc<Outgoing>> = session.queue.locked().drain(..).collect();
     *session.last_poll.locked() = Instant::now();

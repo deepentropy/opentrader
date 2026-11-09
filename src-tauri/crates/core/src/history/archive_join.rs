@@ -23,6 +23,7 @@ use chrono::NaiveDate;
 ///   - the first hole longer than [`ARCHIVE_MAX_HOLE_SECS`], unless the
 ///     company already held the symbol before the hole (`held_since`: a
 ///     company delisted and listed again under its symbol).
+///
 /// Both inputs oldest first.
 pub(super) fn prepend_archive(mut bars: Vec<Candle>, archive: Vec<Candle>, from_sec: f64, listing: &Listing) -> Vec<Candle> {
     if let Some(taken) = listing.taken_sec {

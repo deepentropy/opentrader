@@ -473,7 +473,7 @@ fn state_num(t: &Table, row: &Row, key: &str, step: Step) -> Option<f64> {
 }
 
 fn range(m: &MarketRow) -> Option<f64> {
-    (m.high > 0.0 && m.low > 0.0).then(|| m.high - m.low)
+    (m.high > 0.0 && m.low > 0.0).then_some(m.high - m.low)
 }
 
 fn perf(price: f64, base: f64) -> Option<f64> {

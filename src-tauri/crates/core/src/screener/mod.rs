@@ -204,7 +204,7 @@ impl Sources {
     /// or older than the last closed session, the closes of the state's session while custom lengths are asked for
     /// (both at most every STATE_RECHECK).
     async fn start(&mut self, today: Option<NaiveDate>, wanted: &[String], downloads: &progress::Downloads) {
-        let refs_retry = self.refs_failed.map_or(true, |t| t.elapsed() >= REFS_RETRY);
+        let refs_retry = self.refs_failed.is_none_or(|t| t.elapsed() >= REFS_RETRY);
         if self.refs_task.is_none() && self.refs_day != today && refs_retry {
             // Counted only when the table waits on it: no list held yet.
             let d = self.refs.is_empty().then(|| downloads.start("tickers"));
@@ -230,7 +230,7 @@ impl Sources {
         }
         let expected = clock::last_closed_session(chrono::Utc::now());
         let stale = self.state.as_ref().map(|s| s.asof) < expected;
-        if stale && self.state_task.is_none() && self.state_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK) {
+        if stale && self.state_task.is_none() && self.state_checked.is_none_or(|t| t.elapsed() >= STATE_RECHECK) {
             self.state_checked = Some(Instant::now());
             let d = downloads.start("state");
             self.state_task = Some(crate::rt::spawn(async move {
@@ -249,7 +249,7 @@ impl Sources {
         if self.closes.is_none() {
             self.closes = tokio::task::spawn_blocking(closes::read_cache).await.ok().flatten().map(Arc::new);
         }
-        let due = self.closes_checked.map_or(true, |t| t.elapsed() >= STATE_RECHECK);
+        let due = self.closes_checked.is_none_or(|t| t.elapsed() >= STATE_RECHECK);
         if self.closes.as_ref().map(|c| c.asof) != Some(asof) && self.closes_task.is_none() && due {
             self.closes_checked = Some(Instant::now());
             let d = downloads.start("closes");
@@ -374,7 +374,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
 
         // Live feed: connect when there is none and its retry time has come.
         let mut rest_rows: Option<anyhow::Result<Vec<MarketRow>>> = None;
-        if feed.is_none() && feed_retry.map_or(true, |t| Instant::now() >= t) {
+        if feed.is_none() && feed_retry.is_none_or(|t| Instant::now() >= t) {
             if let Some(url) = feed_url.as_deref() {
                 let connected = match first_rest.as_mut() {
                     Some(task) => tokio::select! {
@@ -391,7 +391,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                 }
                 match connected {
                     Some(Ok(f)) => {
-                        eprintln!("[screener] live feed connected ({} tickers)", f.table.len());
+                        eprintln!("[screener] live feed connected ({} tickers)", f.table.ticker_count());
                         feed = Some(f);
                         feed_fresh = true;
                         feed_retry = None;
@@ -480,7 +480,7 @@ async fn run(app: HostRef, inner: Arc<Inner>) {
                     updated_ms: t.as_ref().and_then(|t| t.updated_ms),
                     total: t.as_ref().map_or(0, |t| t.rows.len() as u32),
                     state_asof: t.as_ref().and_then(|t| t.state_asof()).map(|d| d.to_string()),
-                    complete: t.as_ref().map_or(false, |t| t.complete),
+                    complete: t.as_ref().is_some_and(|t| t.complete),
                     error: Some(format!("{e:#}")),
                 }
             }

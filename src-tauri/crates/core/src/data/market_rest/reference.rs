@@ -141,7 +141,7 @@ pub async fn ticker_changes(ticker: &str) -> Result<Arc<Vec<(NaiveDate, String)>
                 .into_iter()
                 .filter_map(|e| Some((NaiveDate::parse_from_str(e.date.as_deref()?, "%Y-%m-%d").ok()?, e.ticker?)))
                 .collect();
-            rows.sort_by(|a, b| b.0.cmp(&a.0));
+            rows.sort_by_key(|r| std::cmp::Reverse(r.0));
             rows
         }
         Err(e) if e.code == ErrorCode::NotFound => Vec::new(),

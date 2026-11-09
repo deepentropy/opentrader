@@ -361,6 +361,8 @@ mod tests {
     }
 
     #[tokio::test]
+    // The handshake callback's error type is the WebSocket library's.
+    #[allow(clippy::result_large_err)]
     async fn websocket_carries_the_user_agent() {
         let _turn = PROXY_IN_USE.lock().await;
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
