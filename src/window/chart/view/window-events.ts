@@ -17,8 +17,6 @@ import { emitAppEvent, onAppEvent, type AppEventName, type AppEvents } from "../
 import { startReplayAt } from "../../../data/replay";
 import { type ChartCx } from "./context";
 import { lastAtOrBefore } from "../time-search";
-import { sourcesEdit } from "../../shell/source-edits";
-import { getIndicatorEntry } from "../indicators/registry";
 
 /** What createWindowEvents adds to the chart context. */
 export interface WindowEventsApi {
@@ -323,20 +321,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
         setSettingsTab(d.tab);
         setSettingsForId(id);
       };
-      const onPatchInputs = (d: AppEvents["chart-patch-study-inputs"] | undefined) => {
-        if (!props.active || props.shown === false || !d || !cx.controller || !(props.indicators ?? []).includes(d.id)) return;
-        const c = cx.controller;
-        const inputs = { ...(c.getInputs(d.id) ?? {}), ...d.patch };
-        const styles = c.getStyles(d.id) ?? {};
-        const options = c.getOptions(d.id);
-        // One undo step, as the Settings dialog's Ok.
-        sourcesEdit(`change ${getIndicatorEntry(d.id)?.name ?? d.id} properties`, () => {
-          c.applySettings(d.id, inputs, styles, options);
-          props.onIndicatorSettings?.(d.id, { inputs, styles, options });
-        });
-      };
       onCleanup(onAppEvent("chart-open-study-settings", onOpenSettings));
-      onCleanup(onAppEvent("chart-patch-study-inputs", onPatchInputs));
     });
     // Strategies: a backtest of this chart finished — redraw its trade marks.
     onMount(() => {

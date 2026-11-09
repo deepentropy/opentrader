@@ -406,6 +406,8 @@ function App() {
     removeIndicatorFromPane,
     reorderIndicatorsForPane,
     setIndicatorSettingsForPane,
+    editStudySettings,
+    patchStudyInputs,
     setVisibleRangeForPane,
     addIndicator,
     toggleScriptOnChart,
@@ -863,6 +865,7 @@ function App() {
               onRemoveIndicator={(i, id) => removeIndicatorFromPane(tabId, i, id)}
               onReorderIndicators={(i, ids) => reorderIndicatorsForPane(tabId, i, ids)}
               onIndicatorSettings={(i, id, st) => setIndicatorSettingsForPane(tabId, i, id, st)}
+              onEditStudySettings={(i, id, patch, label, opts) => editStudySettings(tabId, i, id, patch, label, opts)}
               onCompareChange={(i, id, patch) => patchCompare(tabId, i, id, patch)}
               onRemoveCompare={(i, id) => removeCompare(tabId, i, id)}
               onPaneOrder={(i, order) => setPaneOrderForPane(tabId, i, order)}
@@ -956,7 +959,8 @@ function App() {
             properties={(id) => ((activePaneState().indicatorSettings?.[id]?.inputs as Record<string, unknown> | undefined)?.[PROPERTIES_INPUT] ?? {}) as Record<string, unknown>}
             onPatchProperties={(id, patch) => {
               const cur = ((activePaneState().indicatorSettings?.[id]?.inputs as Record<string, unknown> | undefined)?.[PROPERTIES_INPUT] ?? {}) as Record<string, unknown>;
-              emitAppEvent("chart-patch-study-inputs", { id, patch: { [PROPERTIES_INPUT]: { ...cur, ...patch } } });
+              const tab = activeTab();
+              patchStudyInputs(tab.id, tab.activePane, id, { [PROPERTIES_INPUT]: { ...cur, ...patch } });
             }}
             onSettings={(id, tab) => emitAppEvent("chart-open-study-settings", { id, tab })}
             onAddStrategy={() => emitAppEvent("chart-open-indicators")}

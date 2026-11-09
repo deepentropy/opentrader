@@ -101,6 +101,8 @@ type Props = {
   onReorderIndicators?: (paneIndex: number, ids: string[]) => void;
   /** Persist a study's edited inputs/styles onto a specific pane (Settings → Ok). */
   onIndicatorSettings?: (paneIndex: number, id: string, settings: PaneIndicatorSettings) => void;
+  /** Change a study's settings on a specific pane as one undo step (chart-edits editStudySettings). */
+  onEditStudySettings?: (paneIndex: number, id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) => void;
   /** Compared symbols of a pane: patch / remove one, change its symbol. */
   onCompareChange?: (paneIndex: number, id: string, patch: ComparePatch) => void;
   onRemoveCompare?: (paneIndex: number, id: string) => void;
@@ -410,6 +412,7 @@ export function ChartGrid(props: Props) {
                 compare={pane().compare}
                 indicatorSettings={pane().indicatorSettings}
                 onIndicatorSettings={(id, s) => live() && props.onIndicatorSettings?.(i, id, s)}
+                onEditStudySettings={(id, patch, label, opts) => live() && props.onEditStudySettings?.(i, id, patch, label, opts)}
                 visibleLogicalRange={pane().visibleLogicalRange}
                 initialScale={pane().initialScale}
                 onVisibleRange={(r) => props.onVisibleRange?.(i, r)}

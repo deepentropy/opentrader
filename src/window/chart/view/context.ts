@@ -157,6 +157,9 @@ export type ChartViewProps = {
   indicatorSettings?: Record<string, PaneIndicatorSettings>;
   /** Persist a study's edited inputs/styles (Settings dialog → Ok). */
   onIndicatorSettings?: (id: string, settings: PaneIndicatorSettings) => void;
+  /** Change a study's settings as one undo step named `label` (chart-edits editStudySettings); the chart draws them
+   *  from `indicatorSettings`. */
+  onEditStudySettings?: (id: string, patch: PaneIndicatorSettings, label: string, opts?: { coalesce?: string; session?: string }) => void;
   /** Chart syncing group (0..4, undefined = none), its legend button shown,
    *  and the setter. */
   linkGroup?: number;

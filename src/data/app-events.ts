@@ -73,9 +73,9 @@ export interface AppEvents {
   "chart-apply-studies-to-layout": undefined;
   /** Chart menu "Paste" / Ctrl+V of a copied study or compared symbol. */
   "chart-paste-source": undefined;
-  /** One edit of a source of the focused chart (visual order, visibility on intervals, Move to, Pin to scale,
-   *  settings): begin / end around it, one undo step named `label` (source-edits.ts). */
-  "chart-sources-edit": { phase: "begin" | "end"; label: string; coalesce?: string; session?: string };
+  /** One edit of a source of the focused chart (visual order, Move to, Pin to scale, a compared symbol's
+   *  visibility and style): begin / end around it, one undo step named `label` (source-edits.ts). */
+  "chart-sources-edit": { phase: "begin" | "end"; label: string };
   /** A Settings dialog's Cancel: its session's undo steps are taken back (source-edits.ts). */
   "chart-sources-rollback": { session: string };
   /** The focused chart's studies as drawn (inputs, styles, options), handed to `fill`: an edit's undo step takes
@@ -86,7 +86,6 @@ export interface AppEvents {
 
   // ── Requests to the active chart ─────────────────────────────────────
   "chart-open-study-settings": { id: string; tab?: DialogTab };
-  "chart-patch-study-inputs": { id: string; patch: Record<string, unknown> };
   "chart-zoom": { dir: "in" | "out" };
   "chart-scale": { mode: "invert" | "log" | "percent" };
   "chart-snapshot": { action?: "copy" | "download" | "open" };

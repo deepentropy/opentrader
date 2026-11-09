@@ -161,21 +161,17 @@ export function createSourceMenu(cx: ChartCx): SourceMenuApi {
     const visibility = visibilityForMode(props.interval ?? "1D", mode);
     const cmp = cx.compareEntry(id);
     if (cmp) {
-      props.onCompareChange?.(id, { style: { ...cmp.style, visibility } });
+      sourcesEdit(VISIBILITY_UNDO[mode], () => props.onCompareChange?.(id, { style: { ...cmp.style, visibility } }));
       return;
     }
     const c = cx.controller;
     if (!c) return;
-    const inputs = c.getInputs(id) ?? {};
-    const styles = c.getStyles(id) ?? {};
-    const options = { ...c.getOptions(id), visibility };
-    c.applySettings(id, inputs, styles, options);
-    props.onIndicatorSettings?.(id, { inputs, styles, options });
+    props.onEditStudySettings?.(id, { options: { ...c.getOptions(id), visibility } }, VISIBILITY_UNDO[mode]);
     cx.refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
   }
   function visibilityRow(id: string): CtxNode {
     const row = (mode: IntervalsVisibilityMode, label: string): CtxNode => ({
-      kind: "item", id: `vis-${mode}`, label, onSelect: () => sourcesEdit(VISIBILITY_UNDO[mode], () => setVisibility(id, mode)),
+      kind: "item", id: `vis-${mode}`, label, onSelect: () => setVisibility(id, mode),
     });
     return {
       kind: "item", id: "visibility-intervals", label: "Visibility on intervals",

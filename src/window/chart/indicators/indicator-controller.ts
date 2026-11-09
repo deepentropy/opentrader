@@ -890,9 +890,10 @@ export class IndicatorController {
     if (inst && entry) this.renderOne(id, inst, entry, this.getBars());
   }
 
-  /** Commit a study's edited inputs + plot styles (Settings dialog → Ok) and
-   *  redraw it once in place, preserving its current eye (hidden) state. */
-  applySettings(id: string, inputs: Record<string, unknown>, styles: IndicatorStyleOverrides, options?: IndicatorOptions): void {
+  /** Draw a study with the Settings dialog's values at once, preserving its current eye (hidden) state; the dialog
+   *  saves them in the pane's settings too (seedSettings then finds them drawn). Edits made elsewhere (menus,
+   *  Strategy Tester, the agent) are written to the pane's settings only, and seedSettings draws them. */
+  previewSettings(id: string, inputs: Record<string, unknown>, styles: IndicatorStyleOverrides, options?: IndicatorOptions): void {
     const inst = this.instances.get(id);
     const entry = getIndicatorEntry(id);
     if (!inst || !entry) return;
@@ -927,7 +928,7 @@ export class IndicatorController {
       }
       if (!drawn) continue;
       if (this.placementKey(id) !== paneBefore) this.refresh(id);
-      else if (eye || this.settingsKey(id) !== before) this.renderOne(id, inst!, entry!, this.getBars());
+      else if (eye || this.settingsKey(id) !== before) this.keepView(() => this.renderOne(id, inst!, entry!, this.getBars()));
     }
     // A drawn study whose saved settings are gone (an undo back to before it had any) takes its default place:
     // its own pane / the price pane and its default scale.

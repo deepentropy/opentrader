@@ -1,12 +1,12 @@
 /*
- * Undo steps of the edits of one source of a chart (reference undo commands):
- * visual order, visibility on intervals, Move to, Pin to scale, the settings
- * dialog. The chart wraps such an edit in "chart-sources-edit" begin / end;
- * the sources of the focused chart (studies, their settings, compared
- * symbols, the orders) are read before and after, and one undo step holds
- * both, under the reference's text of the command. The Settings dialog
- * records each change as it is made (the reference app), the keystrokes of
- * one field as one step; its Cancel takes them back.
+ * Undo steps of the edits of one source of a chart made through the chart
+ * (reference undo commands): visual order, Move to, Pin to scale, a compared
+ * symbol's visibility and style. The chart wraps such an edit in
+ * "chart-sources-edit" begin / end; the sources of the focused chart
+ * (studies, their settings, compared symbols, the orders) are read before
+ * and after, and one undo step holds both, under the reference's text of the
+ * command. A study's settings are edited in the store instead (chart-edits
+ * editStudySettings); the Settings dialog's Cancel takes its steps back here.
  */
 import { emitAppEvent, onAppEvent } from "../../data/app-events";
 import type { AppTabs } from "./app-tabs";
@@ -24,22 +24,20 @@ export function withDrawnBefore(before: ChartSources, after: ChartSources, drawn
   return { ...before, indicatorSettings };
 }
 
-/** Run `edit` as one undo step named `label` (the chart's side). `coalesce`: one step with the previous one of the
- *  same key; `session`: the dialog it is made in (see "chart-sources-rollback"). */
-export function sourcesEdit(label: string, edit: () => void, opts: { coalesce?: string; session?: string } = {}): void {
-  emitAppEvent("chart-sources-edit", { phase: "begin", label, ...opts });
+/** Run `edit` as one undo step named `label` (the chart's side). */
+export function sourcesEdit(label: string, edit: () => void): void {
+  emitAppEvent("chart-sources-edit", { phase: "begin", label });
   try {
     edit();
   } finally {
-    emitAppEvent("chart-sources-edit", { phase: "end", label, ...opts });
+    emitAppEvent("chart-sources-edit", { phase: "end", label });
   }
 }
 
 export function installSourceEdits(t: Pick<AppTabs, "activeTab" | "tabOf">, undo: Pick<UndoHistory, "commit" | "rollback">): () => void {
   let open: { tabId: string; pane: number; before: ChartSources; drawn: Record<string, unknown> } | null = null;
-  // After the steps still being read (they are read on the next turn).
   const offRollback = onAppEvent("chart-sources-rollback", (d) => {
-    if (d) setTimeout(() => undo.rollback(d.session), 0);
+    if (d) undo.rollback(d.session);
   });
   const offEdit = onAppEvent("chart-sources-edit", (d) => {
     if (!d) return;
@@ -68,8 +66,6 @@ export function installSourceEdits(t: Pick<AppTabs, "activeTab" | "tabOf">, undo
         slices: [],
         label: d.label,
         at: Date.now(),
-        coalesce: d.coalesce,
-        session: d.session,
       };
       undo.commit(entry);
     }, 0);

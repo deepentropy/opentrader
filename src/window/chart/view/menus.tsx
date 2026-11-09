@@ -581,10 +581,7 @@ export function createMenus(cx: ChartCx): MenusApi {
       if (list.length) map[key] = list;
       else delete map[key];
       inputs.mergePoints = JSON.stringify(map);
-      const styles = cx.controller?.getStyles(id) ?? {};
-      const options = cx.controller?.getOptions(id);
-      cx.controller?.applySettings(id, inputs, styles, options);
-      if (options) props.onIndicatorSettings?.(id, { inputs, styles, options });
+      props.onEditStudySettings?.(id, { inputs }, `change ${entry?.name ?? id} properties`);
     };
     if (!entry) return;
     nodes.push(

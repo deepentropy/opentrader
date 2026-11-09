@@ -48,7 +48,7 @@ import { createLayoutTools, type LayoutHost } from "./layout-tools";
 /** What App hands the tools. */
 export type AgentHost = {
   tabs: Pick<AppTabs, "activeTab" | "activePaneState" | "tabs" | "activateTab">;
-  edits: Pick<ReturnType<typeof createChartEdits>, "addIndicator" | "removeIndicatorFromPane" | "setIndicatorSettingsForPane">;
+  edits: Pick<ReturnType<typeof createChartEdits>, "addIndicator" | "removeIndicatorFromPane" | "patchStudyInputs">;
   drawings: Pick<DrawingStore, "drawingKeyFor" | "drawingsFor" | "addDrawingToSymbol" | "updateDrawingForSymbol" | "removeDrawingForSymbol">;
   setSymbol: (symbol: string) => void;
   setInterval: (interval: string) => void;
@@ -184,21 +184,12 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
     if (unknown.length) throw new AgentError(`Unknown input(s) ${unknown.join(", ")}. Inputs: ${[...known].join(", ") || "none"}.`);
   }
 
-  /** Set inputs of a study on the focused chart (as the Settings dialog does). */
-  async function setInputs(studyId: string, inputs: Record<string, unknown>) {
+  /** Set inputs of a study on the focused chart (one undo step, as the Settings dialog's Ok); the chart draws them
+   *  from the saved settings. */
+  function setInputs(studyId: string, inputs: Record<string, unknown>) {
     checkInputs(studyId, inputs);
-    // The chart builds a new study on its next frame: wait until it took the inputs.
     const t = tab();
-    const ok = await waitFor(() => {
-      emitAppEvent("chart-patch-study-inputs", { id: studyId, patch: inputs });
-      const saved = pane().indicatorSettings?.[studyId]?.inputs ?? {};
-      return Object.entries(inputs).every(([k, v]) => JSON.stringify(saved[k]) === JSON.stringify(v)) ? true : null;
-    }, 3000);
-    if (!ok) {
-      // The chart is not shown (another tab): save them; the chart reads them when it is built.
-      const cur = pane().indicatorSettings?.[studyId];
-      host.edits.setIndicatorSettingsForPane(t.id, t.activePane, studyId, { ...cur, inputs: { ...cur?.inputs, ...inputs } });
-    }
+    host.edits.patchStudyInputs(t.id, t.activePane, studyId, inputs);
   }
 
   const tools: AgentTool[] = [
@@ -400,7 +391,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
         const inputs = obj(args, "inputs");
         if (inputs) checkInputs(typeId, inputs);
         const studyId = addStudy(typeId);
-        if (inputs && Object.keys(inputs).length) await setInputs(studyId, inputs);
+        if (inputs && Object.keys(inputs).length) setInputs(studyId, inputs);
         return { studyId };
       },
     },
@@ -417,7 +408,7 @@ export function createAgentTools(host: AgentHost): AgentTool[] {
         await loadIndicatorLibrary();
         const studyId = str(args, "studyId");
         requireStudy(studyId);
-        await setInputs(studyId, obj(args, "inputs") ?? {});
+        setInputs(studyId, obj(args, "inputs") ?? {});
         return { studyId, inputs: pane().indicatorSettings?.[studyId]?.inputs ?? {} };
       },
     },

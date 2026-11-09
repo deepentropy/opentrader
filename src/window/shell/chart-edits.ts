@@ -70,6 +70,48 @@ export function createChartEdits(
       ),
     });
   }
+  /** Change a study's settings on a SPECIFIC pane as one undo step named `label`: the store is written and the
+   *  chart draws the study from it. `patch` replaces the fields it holds. `coalesce`: one step with the previous one
+   *  of the same key (the keystrokes of one dialog field); `session`: the dialog the edit is made in (its Cancel
+   *  takes the session's steps back, see UndoHistory.rollback). */
+  function editStudySettings(
+    tabId: string,
+    paneIndex: number,
+    id: string,
+    patch: PaneIndicatorSettings,
+    label: string,
+    opts: { coalesce?: string; session?: string } = {},
+  ) {
+    const pane = tabOf(tabId)?.panes[paneIndex];
+    if (!pane || !pane.indicators.includes(id)) return;
+    const before = chartSources(pane);
+    const cur = before.indicatorSettings?.[id];
+    const next: PaneIndicatorSettings = { ...cur, ...(JSON.parse(JSON.stringify(patch)) as PaneIndicatorSettings) };
+    if (JSON.stringify(next) === JSON.stringify(cur ?? {})) return;
+    const after: ChartSources = { ...before, indicatorSettings: { ...before.indicatorSettings, [id]: next } };
+    // A study on its defaults has no saved settings: its `before` takes the defaults of the fields the edit sets,
+    // so an undo draws the study with them again (no saved value leaves the edited one drawn).
+    const defaults: PaneIndicatorSettings = { inputs: {}, styles: {}, options: defaultIndicatorOptions() };
+    const was: PaneIndicatorSettings = { ...cur };
+    for (const k of ["inputs", "styles", "options"] as const) if (k in patch && was[k] === undefined) Object.assign(was, { [k]: defaults[k] });
+    if (Object.keys(was).length) before.indicatorSettings = { ...before.indicatorSettings, [id]: was };
+    undo.commit({
+      kind: "layout-sources",
+      tabId,
+      before: { [paneIndex]: before },
+      after: { [paneIndex]: after },
+      slices: [],
+      label,
+      at: Date.now(),
+      ...opts,
+    });
+  }
+  /** Merge input values into a study's saved inputs, one undo step as the Settings dialog's Ok (Strategy Tester
+   *  properties, the agent's set inputs). */
+  function patchStudyInputs(tabId: string, paneIndex: number, id: string, patch: Record<string, unknown>) {
+    const cur = tabOf(tabId)?.panes[paneIndex]?.indicatorSettings?.[id]?.inputs;
+    editStudySettings(tabId, paneIndex, id, { inputs: { ...cur, ...patch } }, `change ${getIndicatorEntry(id)?.name ?? id} properties`);
+  }
   /** Persist a pane's settled scroll/zoom anchor (its visible logical range).
    *  The saveTabs effect then writes it to localStorage, so the view survives tab
    *  switches and full reloads (ChartView restores it on data load). No-op when
@@ -488,6 +530,8 @@ export function createChartEdits(
     removeIndicatorFromPane,
     reorderIndicatorsForPane,
     setIndicatorSettingsForPane,
+    editStudySettings,
+    patchStudyInputs,
     setVisibleRangeForPane,
     addIndicator,
     toggleScriptOnChart,

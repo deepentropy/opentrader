@@ -1663,14 +1663,8 @@ export function ChartView(props: ChartViewProps) {
             const title = indLegend().find((r) => r.id === id())?.title ?? entry!.name;
             const { key, label } = settingsUndoText(was, next, entry!.inputConfig ?? [], title);
             shown = JSON.stringify(next);
-            sourcesEdit(
-              label,
-              () => {
-                controller?.applySettings(id(), next.inputs, next.styles, next.options);
-                props.onIndicatorSettings?.(id(), { inputs: next.inputs, styles: next.styles, options: next.options });
-              },
-              { coalesce: `${session}:${key}`, session },
-            );
+            controller?.previewSettings(id(), next.inputs, next.styles, next.options);
+            props.onEditStudySettings?.(id(), { inputs: next.inputs, styles: next.styles, options: next.options }, label, { coalesce: `${session}:${key}`, session });
           };
           const redrawn = () => {
             refreshIndicatorLegend(crosshairActive ? lastLegendTime : undefined);
