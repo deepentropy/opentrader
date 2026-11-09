@@ -386,8 +386,11 @@ export function scriptBars(bars: Bar[], chart: ChartContext | undefined): Bar[] 
   if (!chart?.timeframe || !/^\d*[DWM]$/i.test(chart.timeframe)) return bars;
   const tz = chart.timezone;
   const regular = chart.regularSession ?? chart.session;
-  if (!tz || typeof regular !== 'string') return bars;
-  const spec = new SessionSpec(tz, regular);
+  if (!tz || !regular) return bars;
+  // With its corrections and holidays, a special session off the weekly calendar opens its own day.
+  const spec = typeof regular === 'string'
+    ? new SessionSpec(tz, regular)
+    : new SessionSpec(tz, regular.session, [regular.holidays ?? ''].flat().join(','), regular.corrections ?? '');
   if (spec.always) return bars;
   return bars.map((b) => {
     const day = localDay(tz, b.time);

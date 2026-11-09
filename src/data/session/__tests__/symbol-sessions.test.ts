@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SymbolSession } from "../../../bindings";
+import { periodClose, periodTime, tradingDayTime } from "oakscriptjs";
 
 const getSymbolSession = vi.hoisted(() => vi.fn());
 vi.mock("../../../bindings", () => ({ commands: { getSymbolSession } }));
 vi.mock("../../providers", () => ({ defaultExchange: () => "NASDAQ" }));
 
-import { SymbolSessions, cachedSymbolSessions, displayTimeZone, sessionsVersion, symbolSessions } from "../symbol-sessions";
+import { SymbolSessions, type ScriptSession, cachedSymbolSessions, displayTimeZone, sessionsVersion, symbolSessions } from "../symbol-sessions";
 
 const utc = (y: number, mo: number, d: number, h = 0, mi = 0) => Date.UTC(y, mo - 1, d, h, mi) / 1000;
 
@@ -32,10 +33,23 @@ function usStock(over: Partial<SymbolSession> = {}): SymbolSession {
 describe("SymbolSessions", () => {
   const s = new SymbolSessions(usStock());
 
+  it("gives scripts the corrections and holidays: early closes and special sessions keep their own day", () => {
+    const ctx = (session: ScriptSession) => ({ timeframe: "5", timezone: "America/New_York", session, timeUnit: "ms" as const });
+    const us = new SymbolSessions(usStock({ corrections: "0930-1300:20261127" }));
+    const halfDay = utc(2026, 11, 27, 15) * 1000;
+    expect(periodClose(halfDay, "D", ctx(us.regularScript)) / 1000).toBe(utc(2026, 11, 27, 18));
+    // A special Sunday session (18:00-19:00 Kolkata) is its own trading day, not Friday's.
+    const nse = new SymbolSessions(usStock({ timezone: "Asia/Kolkata", session: "0915-1530", subsessions: [], holidays: "", corrections: "1800-1900:20261108" }));
+    const k = { ...ctx(nse.regularScript), timezone: "Asia/Kolkata" };
+    const sunday = utc(2026, 11, 8, 12, 45) * 1000;
+    expect(periodTime(sunday, "D", k) / 1000).toBe(utc(2026, 11, 8, 12, 30));
+    expect(tradingDayTime(sunday, k) / 1000).toBe(utc(2026, 11, 8));
+  });
+
   it("reads the regular, extended, pre and post schedules", () => {
     expect(s.timeZone).toBe("America/New_York");
-    expect(s.regularSpec).toBe("0930-1600");
-    expect(s.extendedSpec).toBe("0400-2000");
+    expect(s.regularScript).toEqual({ session: "0930-1600", corrections: "", holidays: "20261126" });
+    expect(s.extendedScript).toEqual({ session: "0400-2000", corrections: "", holidays: "20261126" });
     expect(s.hasExtendedHours).toBe(true);
     expect(s.premarket).not.toBeNull();
     expect(s.postmarket).not.toBeNull();

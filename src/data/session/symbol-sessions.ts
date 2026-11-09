@@ -24,6 +24,14 @@ export type SessionId = "RTH" | "ETH";
  *  closed. */
 export type MarketSession = "open" | "pre" | "post" | "closed";
 
+/** A schedule as scripts take it: hours, corrections ("<session>:<dates>;dayoff:<dates>")
+ *  and comma-separated holiday dates. */
+export interface ScriptSession {
+  session: string;
+  corrections: string;
+  holidays: string;
+}
+
 /** A symbol's schedules, parsed. */
 export class SymbolSessions {
   readonly timeZone: string;
@@ -34,10 +42,12 @@ export class SymbolSessions {
   readonly postmarket: SessionSpec | null;
   /** The symbol trades outside its regular session. */
   readonly hasExtendedHours: boolean;
-  /** Regular session spec string ("0930-1600"), for script `syminfo.session`. */
-  readonly regularSpec: string;
-  /** Extended session spec string (the regular one when there is none). */
-  readonly extendedSpec: string;
+  /** The regular and extended schedules with their corrections and holidays,
+   *  for scripts: `time("D")`, `time_close`, `time_tradingday` and daily
+   *  resampling follow early closes and special sessions off the weekly
+   *  calendar only with these. */
+  readonly regularScript: ScriptSession;
+  readonly extendedScript: ScriptSession;
   /** Tick at the current price (minmov / pricescale): script
    *  `syminfo.mintick`, backtest fill rounding. */
   readonly mintick: number;
@@ -56,8 +66,8 @@ export class SymbolSessions {
     const pre = sub("premarket");
     const post = sub("postmarket");
     this.timeZone = tz;
-    this.regularSpec = info.session;
-    this.extendedSpec = ext?.session ?? info.session;
+    this.regularScript = { session: info.session, corrections: info.corrections, holidays: info.holidays };
+    this.extendedScript = ext ? { session: ext.session, corrections: ext.corrections, holidays: info.holidays } : this.regularScript;
     this.regular = spec(info.session, info.corrections);
     this.extended = ext ? spec(ext.session, ext.corrections) : this.regular;
     this.premarket = pre ? spec(pre.session, pre.corrections) : null;

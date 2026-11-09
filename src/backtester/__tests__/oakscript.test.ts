@@ -110,6 +110,14 @@ describe("scriptBars", () => {
     expect(winter.time).toBe(localToUtc(NY, day(2024, 1, 10), 0));
   });
 
+  it("a special session off the weekly calendar opens its own day with the symbol's corrections", () => {
+    const IN = "Asia/Kolkata";
+    const sunday: Bar = { time: localToUtc(IN, day(2026, 11, 8), 0), open: 1, high: 1, low: 1, close: 1 };
+    const session = { session: "0915-1530", corrections: "1800-1900:20261108", holidays: "" };
+    const [b] = scriptBars([sunday], { timeframe: "1D", timezone: IN, session });
+    expect(new Date(b.time * 1000).toISOString()).toBe("2026-11-08T12:30:00.000Z");
+  });
+
   it("keeps intraday bars, bars off local midnight, 24x7 sessions and contexts without a zone", () => {
     const bars = [daily(day(2024, 1, 10))];
     expect(scriptBars(bars, { ...chart, timeframe: "60" })).toBe(bars);

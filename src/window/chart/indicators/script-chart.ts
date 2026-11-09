@@ -97,8 +97,8 @@ export function scriptChartContext(
   const sessions = symbol ? cachedSymbolSessions(symbol) : null;
   if (sessions) {
     ctx.timezone = sessions.timeZone;
-    ctx.session = extended ? sessions.extendedSpec : sessions.regularSpec;
-    ctx.regularSession = sessions.regularSpec;
+    ctx.session = extended ? sessions.extendedScript : sessions.regularScript;
+    ctx.regularSession = sessions.regularScript;
     ctx.mintick = sessions.mintick;
     ctx.minmove = sessions.minmove;
     ctx.pricescale = sessions.pricescale;
