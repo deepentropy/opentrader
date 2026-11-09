@@ -4,7 +4,7 @@
 
 # OpenTrader
 
-**Website:** [deepentropy.github.io/opentrader](https://deepentropy.github.io/opentrader/) · [Download](https://deepentropy.github.io/opentrader/download.html)
+**Website:** [opentrader.markets](https://opentrader.markets/) · [Download](https://opentrader.markets/download.html) · [Online demo](https://demo.opentrader.markets/) · [Community](https://community.opentrader.markets/)
 
 **An attempt at an open trading app.** OpenTrader is a free, open-source desktop charting application built for speed. It is an open-source alternative to commercial trading software, out in the open for anyone to read, run, and extend.
 

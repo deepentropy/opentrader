@@ -37,6 +37,37 @@ const COMMUNITY = (mode: string) => mode === "community";
 // @ts-expect-error process is a nodejs global
 const webServer = process.env.OPENTRADER_SERVER ?? "http://127.0.0.1:8787";
 
+const DEMO_URL = "https://demo.opentrader.markets/";
+const DEMO_TITLE = "OpenTrader online demo: free stock charts in your browser";
+const DEMO_DESCRIPTION =
+  "Free stock charts in your browser: 1,000+ indicators, drawing tools, a stock screener, alerts and backtesting. No sign-up. Also a free desktop app.";
+const webSeo = () => ({
+  name: "web-seo",
+  transformIndexHtml: (html: string) =>
+    html.replace(
+      "<title>OpenTrader</title>",
+      [
+        `<title>${DEMO_TITLE}</title>`,
+        `<meta name="description" content="${DEMO_DESCRIPTION}" />`,
+        `<link rel="canonical" href="${DEMO_URL}" />`,
+        `<meta property="og:site_name" content="OpenTrader" />`,
+        `<meta property="og:title" content="${DEMO_TITLE}" />`,
+        `<meta property="og:description" content="${DEMO_DESCRIPTION}" />`,
+        `<meta property="og:url" content="${DEMO_URL}" />`,
+        `<meta property="og:image" content="https://opentrader.markets/assets/screenshot.png" />`,
+        `<meta property="og:type" content="website" />`,
+        `<meta name="twitter:card" content="summary_large_image" />`,
+      ].join("\n    "),
+    ),
+  generateBundle(this: { emitFile: (f: { type: "asset"; fileName: string; source: string }) => void }) {
+    this.emitFile({
+      type: "asset",
+      fileName: "robots.txt",
+      source: "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /ingest/\n",
+    });
+  },
+});
+
 export default defineConfig(async ({ mode }: { mode: string }) => ({
   ...(COMMUNITY(mode)
     ? {
@@ -60,6 +91,9 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
       transformIndexHtml: (html: string) =>
         html.replace("<!--web-desktop-app-->", mode === "web" ? '<div class="splash-web">Also available as a free desktop app.</div>' : ""),
     },
+    // Web version: what search engines and link previews show for the demo, and a robots.txt that keeps
+    // crawlers off the API (the single-page fallback would otherwise answer it with the app).
+    ...(mode === "web" ? [webSeo()] : []),
     { name: "watch-drawing-core", configureServer: (server: { watcher: { add: (p: string) => void } }) => { server.watcher.add(drawingCore); server.watcher.add(drawingRuntime); } },
   ],
   // ES module workers: a worker can load a module on demand (the backtest worker loads the indicator library only
