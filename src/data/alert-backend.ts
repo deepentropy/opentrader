@@ -15,6 +15,10 @@
  *    in the bars missed while the app was not running) to the log and the
  *    rule's webhook only.
  *
+ * The web build has no backend: the same engine (alert-eval.ts, the port the
+ * shared vectors pin) runs in the window on the same compiled rules, fed the
+ * same quotes (the regular-session last and the latest minute's range).
+ *
  * Rules on an indicator, an anchored VWAP or a moving percentage stay in the
  * window's engine (alert-engine.ts).
  */
@@ -28,11 +32,14 @@ import { cachedSymbolSessions, localDay, localToUtc, sessionsVersion, type Symbo
 import type { SessionId } from "./session/symbol-sessions";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { loadDrawings } from "../window/drawings/persistence";
+import { AlertEvalEngine, type Grid, type GridRule } from "./alert-eval";
+import { conditionSignature, ruleSignature } from "./alert-rule-state";
+import { onTradeTick } from "./datafeed";
 
 const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-/** True when the backend evaluates the rule (the window's engine skips it): every condition reads only the price, all
- *  on the same symbol's quotes. */
+/** True when the backend's engine evaluates the rule (the window's own evaluation skips it): every condition reads
+ *  only the price, all on the same symbol's quotes. */
 export function evaluatedByBackend(rule: AlertRule): boolean {
   if (!rule.and?.length) return conditionByBackend(rule);
   const views = conditionRules(rule);
@@ -43,7 +50,7 @@ export function evaluatedByBackend(rule: AlertRule): boolean {
 /** One condition the backend can evaluate. */
 function conditionByBackend(rule: AlertRule): boolean {
   // The price of the symbol, or of a compared symbol (read on that symbol's quotes).
-  if (!HAS_TAURI || (rule.left.kind !== "price" && rule.left.kind !== "symbol") || isMovingOperator(rule.op)) return false;
+  if ((rule.left.kind !== "price" && rule.left.kind !== "symbol") || isMovingOperator(rule.op)) return false;
   // A channel between two numbers: a band.
   if (rule.right.kind === "value" && isBandOperator(rule.op)) return rule.right2?.kind === "value";
   if (rule.right.kind === "value") return LEVEL_OPERATORS.includes(rule.op);
@@ -245,7 +252,7 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       if (perBar.length > 0 && perBar.every((v) => sameValues(v, perBar[0]))) compiled.values = perBar[0];
       else compiled.perBar = perBar;
     }
-    return { compiled, sig: [rule.op, rule.left, right, rule.right2, rule.resolution, drawing?.points, drawing?.style] };
+    return { compiled, sig: conditionSignature(rule, drawing) };
   };
   for (const rule of enabled) {
     // The quotes the rule reads: its symbol's, or the compared symbol's.
@@ -256,7 +263,7 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
     const parts = conditionRules(rule).map((v) => compile(v, symbol, since, session));
     if (parts.some((p) => p === null)) continue;
     const [first, ...more] = parts as { compiled: EngineRule; sig: unknown[] }[];
-    const sig = JSON.stringify([rule.frequency, session, since, ...parts.map((p) => p!.sig)]);
+    const sig = ruleSignature(rule, parts.map((p) => p!.sig));
     const compiled: EngineRule = { ...first.compiled, sig, and: more.map((p) => ({ ...p.compiled, sig })) };
     rules.push(compiled);
     keys.push(`${rule.id}\u0001${sig}\u0001${rule.expiresAt}`);
@@ -289,11 +296,22 @@ function sync(): void {
   });
 }
 
+/** The rules and sessions the compiled rules depend on, read so an effect follows them (a moved drawing is caught by
+ *  the timer: its storage has no signal in the window that writes it). */
+function trackRules(): void {
+  alertStore.rules().forEach((r) => [r.enabled, r.op, r.frequency, r.expiresAt, r.activeSince, JSON.stringify(r.left), JSON.stringify(r.right), JSON.stringify(r.right2), JSON.stringify(r.and)]);
+  sessionsVersion();
+}
+
 /** Hand the backend its rules and keep them current; `deliver` receives its
  *  fires. Call in the window that runs the alerts. Idempotent. */
 export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLabel: string): void {
-  if (!HAS_TAURI || started) return;
+  if (started) return;
   started = true;
+  if (!HAS_TAURI) {
+    startWindowEngine(deliver);
+    return;
+  }
 
   void listen<AlertFired>("alert-fired", (e) => {
     const f = e.payload;
@@ -312,14 +330,42 @@ export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLa
   void commands.alertEngineInfo().then((info) => {
     previousRun = info.previous;
     createRoot(() => {
-      // Rules and sessions are tracked; a moved drawing is caught by the
-      // timer (its storage has no signal in the window that writes it).
       createEffect(() => {
-        alertStore.rules().forEach((r) => [r.enabled, r.op, r.frequency, r.expiresAt, r.activeSince, JSON.stringify(r.left), JSON.stringify(r.right), JSON.stringify(r.right2), JSON.stringify(r.and)]);
-        sessionsVersion();
+        trackRules();
         sync();
       });
     });
     setInterval(sync, 5000);
+  });
+}
+
+/** The web build: the backend's engine runs here, on every quote the window receives (no previous run is known, so
+ *  nothing is replayed). */
+function startWindowEngine(deliver: (fire: BackendFire) => void): void {
+  const engine = new AlertEvalEngine();
+  const push = () => {
+    const now = Date.now();
+    const { rules, grids, key } = compileBackendRules(Math.floor(now / 1000), Math.floor(now / RENEW_MS));
+    if (key === lastKey) return;
+    lastKey = key;
+    // The bindings type the compiled numbers as nullable; the compilation never leaves one out.
+    engine.set(rules as unknown as GridRule[], grids as unknown as Grid[], now / 1000);
+  };
+  createRoot(() => {
+    createEffect(() => {
+      trackRules();
+      push();
+    });
+  });
+  setInterval(push, 5000);
+  void onTradeTick((t) => {
+    // The latest minute bar, as the backend gets it with a quote (its open is not read).
+    const p = t.tradePrice;
+    const bar = t.tradeTime != null && p != null ? { time: t.tradeTime, open: p, high: t.tradeHigh ?? p, low: t.tradeLow ?? p, close: p } : null;
+    for (const f of engine.sample(t.symbol.toUpperCase(), t.price, bar, Date.now() / 1000)) {
+      const rule = alertStore.rule(f.ruleId);
+      if (!rule || !rule.enabled) continue;
+      deliver({ rule, price: f.price, barTime: f.barTime == null ? null : f.barTime * 1000, offline: false, fireTime: Date.now() });
+    }
   });
 }

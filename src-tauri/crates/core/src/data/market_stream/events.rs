@@ -72,6 +72,12 @@ pub struct TradeTick {
     /// of its minute (UNIX seconds). `None` when the quote has no minute bar.
     pub trade_price: Option<f64>,
     pub trade_time: Option<f64>,
+    /// High and low of that minute so far: what an alert read in the window
+    /// (web build) needs to see the range the backend engine sees.
+    #[serde(default)]
+    pub trade_high: Option<f64>,
+    #[serde(default)]
+    pub trade_low: Option<f64>,
 }
 
 /// The live stream left or joined real-time data (#252). Sent when a session
@@ -141,7 +147,7 @@ impl Pending {
 
     /// The views get the newest trade per flush; the host's alert rules get
     /// every trade (#265), with what its minute traded so far.
-    fn trade(&mut self, tick: TradeTick) {
+    fn trade(&mut self, mut tick: TradeTick) {
         let price = tick.price;
         let bar = tick.trade_time.map(|time| {
             let bar = self.trade_bars.entry(tick.symbol.clone()).or_insert(Candle { time, open: price, high: price, low: price, close: price, volume: 0.0 });
@@ -154,6 +160,9 @@ impl Pending {
             bar.clone()
         });
         self.app.on_quote(&tick.symbol, price, bar.as_ref());
+        // The views get the newest trade only: it carries the minute's range.
+        tick.trade_high = bar.as_ref().map(|b| b.high);
+        tick.trade_low = bar.as_ref().map(|b| b.low);
         self.trades.insert(tick.symbol.clone(), tick);
     }
 
@@ -264,6 +273,9 @@ fn parse_trade(ev: &serde_json::Value) -> Option<TradeTick> {
         source: None,
         trade_price: ev.get("p").and_then(|v| v.as_f64()),
         trade_time: ev.get("t").and_then(|v| v.as_f64()).map(|ms| (ms / 60_000.0).floor() * 60.0),
+        // Filled in from the minute's trades as they arrive (`Pending::trade`).
+        trade_high: None,
+        trade_low: None,
     })
 }
 
@@ -315,7 +327,7 @@ mod tests {
     fn every_trade_reaches_the_alert_rules_with_its_minute_so_far() {
         let quotes = std::sync::Arc::new(Quotes::default());
         let host: HostRef = quotes.clone();
-        let trade = |price: f64, time: Option<f64>| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: time };
+        let trade = |price: f64, time: Option<f64>| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: time, trade_high: None, trade_low: None };
         let mut p = Pending::new(&host);
         p.trade(trade(10.0, Some(60.0)));
         p.trade(trade(12.0, Some(60.0)));
@@ -367,7 +379,7 @@ mod tests {
     fn pending_sends_trades_every_trade_flush() {
         let rec = std::sync::Arc::new(Recorder(Default::default()));
         let host: HostRef = rec.clone();
-        let trade = |price: f64| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: None };
+        let trade = |price: f64| TradeTick { symbol: "A".into(), price, change: None, change_percent: None, ext_change_percent: None, volume: None, source: None, trade_price: Some(price), trade_time: None, trade_high: None, trade_low: None };
         let mut p = Pending::new(&host);
         p.trade(trade(1.0));
         p.trade(trade(2.0));

@@ -183,6 +183,8 @@ fn trade_tick(symbol: &str, t: &LiveTick) -> Option<TradeTick> {
         source: Some(t.source.clone()),
         trade_price: t.minute.as_ref().map(|m| m.close),
         trade_time: t.minute.as_ref().map(|m| m.time),
+        trade_high: t.minute.as_ref().map(|m| m.high),
+        trade_low: t.minute.as_ref().map(|m| m.low),
     })
 }
 
