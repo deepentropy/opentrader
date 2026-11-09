@@ -10,6 +10,7 @@
  * - run-up and drawdown periods (generateRunupDrawdownPeriods).
  */
 import type { BacktestReport, Trade } from "../../backtester/types";
+import { intervalSeconds as barSeconds, parseInterval } from "../../data/interval";
 
 export type EquityPoint = {
   /** Chart time, UNIX seconds (fractional: +1 ms per same-time exit). */
@@ -62,18 +63,15 @@ export function equityPoints(r: BacktestReport, percent: boolean): EquityPoint[]
   return out;
 }
 
-/** Chart interval in seconds ("5" -> 300, "1D" -> 86400, "1W", "1M" as Pine timeframe.in_seconds). */
+/** Pine timeframe.in_seconds of a month (the report reads its time grid with it, not a 30-day month). */
+const MONTH_SECONDS = 2_628_003;
+
+/** Chart interval in seconds ("5" -> 300, "1D" -> 86400, "1W", "1M" as Pine timeframe.in_seconds); a day for an id
+ *  that is not an interval (the report still gets a time grid). */
 export function intervalSeconds(res: string): number {
-  const m = /^(\d*)([SDWM]?)$/i.exec(res.trim());
-  if (!m) return 86400;
-  const n = Number(m[1] || 1);
-  switch (m[2].toUpperCase()) {
-    case "S": return n;
-    case "D": return n * 86400;
-    case "W": return n * 604800;
-    case "M": return n * 2628003;
-    default: return n * 60;
-  }
+  const iv = parseInterval(res);
+  if (!iv) return 86400;
+  return iv.unit === "month" ? iv.count * MONTH_SECONDS : barSeconds(iv)!;
 }
 
 /**

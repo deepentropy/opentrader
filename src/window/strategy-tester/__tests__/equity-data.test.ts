@@ -14,9 +14,14 @@ describe("intervalSeconds", () => {
     expect(intervalSeconds(" 15 ")).toBe(900);
   });
 
+  it("reads hours and lower-case minutes as the other interval readers do", () => {
+    expect(intervalSeconds("1H")).toBe(3600);
+    expect(intervalSeconds("1m")).toBe(60);
+  });
+
   it("unknown ids fall back to a day", () => {
-    expect(intervalSeconds("1H")).toBe(86400);
     expect(intervalSeconds("abc")).toBe(86400);
+    expect(intervalSeconds("")).toBe(86400);
   });
 });
 

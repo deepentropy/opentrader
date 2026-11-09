@@ -8,8 +8,10 @@
  * reference app's tick-count table they belong to (2-4 minutes -> 10S, 45 minutes -> 5...); 30S-58S -> 5S.
  * No lower timeframe below 30 seconds (the "High" tick count is 4 there, as "Default").
  */
+import { intervalSeconds as barSeconds, parseInterval } from '../data/interval';
 
-/** Interval id parts: "5" (minutes), "30S", "1D", "1W", "1M", "100T" (ticks), "1R" (range). */
+/** Interval id parts: "5" (minutes), "30S", "1D", "1W", "1M", "100T" (ticks), "1R" (range). Read here, not by the
+ *  app's interval reader: the tick-count table has rows for tick and range charts. */
 function parse(interval: string): { n: number; unit: string } | null {
   const m = /^(\d*)([SDWMTR]?)$/i.exec(interval.trim());
   if (!m) return null;
@@ -71,10 +73,9 @@ export function magnifierInterval(interval: string): string | null {
   }
 }
 
-/** Seconds of a lower-timeframe interval id ("10S", "2", "60", "1D"). */
+/** Seconds of a lower-timeframe interval id ("10S", "2", "60", "1D"); 0 for a month (never a lower timeframe), a tick
+ *  or range id, or an id that is not an interval. */
 export function intervalSeconds(interval: string): number {
-  const p = parse(interval);
-  if (!p) return 0;
-  const { n, unit } = p;
-  return unit === 'S' ? n : unit === '' ? n * 60 : unit === 'D' ? n * 86400 : unit === 'W' ? n * 7 * 86400 : 0;
+  const iv = parseInterval(interval);
+  return iv && iv.unit !== 'month' ? barSeconds(iv)! : 0;
 }

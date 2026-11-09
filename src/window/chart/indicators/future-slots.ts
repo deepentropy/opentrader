@@ -11,24 +11,25 @@
 import type { FutureSlots } from "lightweight-charts-indicators/render";
 import type { FutureAxis } from "lightweight-charts-drawing/runtime/coords";
 import { localDay, localToUtc, type SessionSpec } from "../../../data/session";
+import { intervalSeconds, parseInterval } from "../../../data/interval";
 
 /** Days scanned at most after the last bar (a decade of pivots on a daily chart). */
 const MAX_DAYS = 3700;
 /** Days scanned at most before the first loaded bar (40 years of daily bars). */
 const MAX_PAST_DAYS = 15000;
 
-type Interval = { unit: "s" | "D" | "W" | "M"; n: number };
+/** Bars of `n` seconds within the sessions ("s"), or of `n` trading days, weeks or months. */
+type Slots = { unit: "s" | "D" | "W" | "M"; n: number };
 
-/** Chart interval ("5", "60", "10S", "1D", "D", "1W", "3M"), null when not a time interval. */
-function parseInterval(interval: string): Interval | null {
-  const m = /^(\d*)([SDWM]?)$/i.exec(interval.trim());
-  if (!m) return null;
-  const n = m[1] ? parseInt(m[1], 10) : 1;
-  if (!(n > 0)) return null;
-  const u = m[2].toUpperCase();
-  if (u === "") return { unit: "s", n: n * 60 };
-  if (u === "S") return { unit: "s", n };
-  return { unit: u as "D" | "W" | "M", n };
+/** How the bars of a chart interval ("5", "60", "10S", "1D", "D", "1W", "3M") follow each other; null when not a
+ *  time interval. */
+function slotsOf(interval: string): Slots | null {
+  const iv = parseInterval(interval);
+  if (!iv) return null;
+  if (iv.unit === "day") return { unit: "D", n: iv.count };
+  if (iv.unit === "week") return { unit: "W", n: iv.count };
+  if (iv.unit === "month") return { unit: "M", n: iv.count };
+  return { unit: "s", n: intervalSeconds(iv)! };
 }
 
 /** Week number of a local day (weeks from Monday; day 0 = Thursday 01/01/1970). */
@@ -45,7 +46,7 @@ function monthOf(day: number): number {
  * interval is not a time interval (the renderer then counts calendar time).
  */
 export function sessionFutureSlots(interval: string, spec: SessionSpec): FutureSlots | null {
-  const iv = parseInterval(interval);
+  const iv = slotsOf(interval);
   if (!iv) return null;
   const tz = spec.timeZone;
   if (iv.unit === "s") {
@@ -95,7 +96,7 @@ export function sessionFutureSlots(interval: string, spec: SessionSpec): FutureS
  * midnight of their first trading day. null past the scanned range or when the interval is not a time interval.
  */
 export function sessionFutureTime(interval: string, spec: SessionSpec): ((k: number, lastTime: number) => number | null) | null {
-  const iv = parseInterval(interval);
+  const iv = slotsOf(interval);
   if (!iv) return null;
   const tz = spec.timeZone;
   if (iv.unit === "s") {
@@ -147,7 +148,7 @@ export function sessionFutureTime(interval: string, spec: SessionSpec): ((k: num
  * pass over the calendar: what `sessionFutureTime` gives for k = 1..count. The time scale's bars after the last bar.
  */
 export function sessionFutureTimes(interval: string, spec: SessionSpec, lastTime: number, count: number): number[] {
-  const iv = parseInterval(interval);
+  const iv = slotsOf(interval);
   if (!iv || !(count > 0)) return [];
   const tz = spec.timeZone;
   const out: number[] = [];
@@ -225,7 +226,7 @@ export function dayOpenKey(regular: SessionSpec): (time: number) => number {
  * open at its open), `spec` = the chart's session.
  */
 export function sessionFutureAxis(interval: string, spec: SessionSpec, regular: SessionSpec = spec): FutureAxis | null {
-  const iv = parseInterval(interval);
+  const iv = slotsOf(interval);
   const slots = sessionFutureSlots(interval, spec);
   const time = sessionFutureTime(interval, spec);
   if (!iv || !slots || !time) return null;
