@@ -8,7 +8,8 @@
  * page to link to) and "Go back" / "Go forward" (opentrader tabs do not
  * navigate, so there is no navigation history).
  */
-import { onCleanup, onMount, For, Show, createSignal } from "solid-js";
+import { onMount, For, Show, createSignal } from "solid-js";
+import { createPopover } from "../../components/popover";
 import { Icon, type IconName } from "../../components/Icon";
 import { LINK_PALETTE, type LinkChannel, type LinkColor, type TabLinkingState } from "./tab-linking";
 
@@ -64,19 +65,13 @@ export function TabContextMenu(props: Props) {
     if (left + r.width > window.innerWidth - 4) left = Math.max(4, window.innerWidth - r.width - 4);
     if (top + r.height > window.innerHeight - 4) top = Math.max(4, window.innerHeight - r.height - 4);
     setPos({ left, top });
-
-    const onDown = (e: MouseEvent) => {
-      if (!root.contains(e.target as Node)) props.onClose();
-    };
-    const onEsc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onEsc);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onEsc);
-    });
+  });
+  const popover = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    on: { target: "document", capture: false },
+    escape: "pass",
   });
 
   const id = a.tabId;
@@ -124,7 +119,7 @@ export function TabContextMenu(props: Props) {
 
   return (
     <div
-      ref={root}
+      ref={(el) => { root = el; popover(el); }}
       class="ot-popover tab-context-menu"
       role="menu"
       style={{ position: "fixed", left: `${pos().left}px`, top: `${pos().top}px`, "z-index": 9000 }}

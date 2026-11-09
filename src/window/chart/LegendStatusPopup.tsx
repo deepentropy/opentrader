@@ -9,6 +9,7 @@
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import { cachedSymbolSessions, sessionsVersion } from "../../data/session";
 import {
   MARKET_STATUS_TEXT,
@@ -50,29 +51,20 @@ export function LegendStatusPopup(props: Props) {
     const w = el.offsetWidth;
     if (left + w > window.innerWidth - 4) left = Math.max(4, window.innerWidth - w - 4);
     setPos({ left, top: Math.round(r.bottom + 7) });
-    let armed = false;
-    const t = window.setTimeout(() => (armed = true), 0);
-    const onDown = (e: MouseEvent) => {
-      if (!armed) return;
-      const target = e.target as Node;
-      if (el.contains(target) || props.anchor.contains(target)) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
     const onAway = () => props.onClose();
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
     window.addEventListener("resize", onAway);
     window.addEventListener("wheel", onAway, { capture: true, passive: true });
     onCleanup(() => {
-      window.clearTimeout(t);
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("resize", onAway);
       window.removeEventListener("wheel", onAway, true);
     });
+  });
+  const popover = createPopover(() => props.anchor, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    on: { target: "window", capture: true },
+    escape: "pass",
   });
 
   const sessions = () => {
@@ -96,7 +88,7 @@ export function LegendStatusPopup(props: Props) {
   return (
     <Portal>
       <div
-        ref={el}
+        ref={(node) => { el = node; popover(node); }}
         class="ot-lsp"
         data-qa-id="chart-statuses-popup"
         role="dialog"

@@ -4,8 +4,9 @@
  * The selection drives per-pane session filtering in the datafeed (see
  * data/datafeed.ts — getBars / getBarsBefore / bucketLiveTick).
  */
-import { For, createSignal, onCleanup, onMount } from "solid-js";
+import { For, createSignal, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 // Canonical session type lives in the data layer (where the filtering happens);
 // re-exported here so existing importers (BottomBar) keep their import path.
 import type { SessionId } from "../../data/datafeed";
@@ -39,23 +40,19 @@ export function SessionMenu(props: Props) {
       if (top < M) top = Math.round(props.anchor.bottom + M);
       setPos({ left, top });
     }
-    let armed = false;
-    const onDown = (e: MouseEvent) => { if (armed && popupRef && !popupRef.contains(e.target as Node)) props.onClose(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    const t = setTimeout(() => { armed = true; }, 0);
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      clearTimeout(t);
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
+  });
+  const popover = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    on: { target: "window", capture: true },
+    escape: "pass",
   });
 
   return (
     <Portal>
       <div
-        ref={popupRef}
+        ref={(el) => { popupRef = el; popover(el); }}
         class="ot-popover session-menu context-menu"
         role="menu"
         aria-label="Session"

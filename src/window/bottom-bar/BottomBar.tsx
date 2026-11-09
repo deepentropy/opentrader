@@ -12,6 +12,7 @@
  */
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import { Tooltip } from "../../components/Tooltip";
 import { TimezoneMenu } from "./TimezoneMenu";
 import { SessionMenu, type SessionId } from "./SessionMenu";
@@ -435,23 +436,17 @@ function RangesMenu(props: {
       left: Math.min(props.anchor.left, window.innerWidth - r.width - 8),
       top: Math.max(8, props.anchor.top - r.height - 4),
     });
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (root.contains(t) || props.trigger?.()?.contains(t)) return;
-      props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    });
+  });
+  const popover = createPopover(() => props.trigger?.(), {
+    onClose: props.onClose,
+    placement: false,
+    on: { target: "window", capture: false },
+    escape: "pass",
   });
   return (
     <Portal>
     <div
-      ref={root}
+      ref={(el) => { root = el; popover(el); }}
       class="ot-popover session-menu context-menu"
       role="menu"
       aria-label="Date range"

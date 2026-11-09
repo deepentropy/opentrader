@@ -35,9 +35,12 @@ export type PopoverOptions = {
    *  the capture phase (before a dialog under the popover). In the bubble phase, a press that something stops on
    *  its way up (a panel keeping its own presses) leaves the popover open. */
   on?: { target: "window" | "document"; capture: boolean };
+  /** Where Escape is heard when it differs from the press (a menu closing after the chart's own Escape). */
+  keys?: { target: "window" | "document"; capture: boolean };
   /** Escape: "stop" (default) closes and keeps the key from the dialog under the popover, "pass" closes and lets
-   *  it go on, "none" leaves Escape alone. */
-  escape?: "stop" | "pass" | "none";
+   *  it go on, "mark" closes and lets it go on marked as handled (default prevented: a panel under the popover
+   *  then keeps its overlay), "none" leaves Escape alone. */
+  escape?: "stop" | "pass" | "mark" | "none";
   /** Listen only while this is true (a popover kept mounted and shown by a flag). */
   active?: () => boolean;
 };
@@ -80,7 +83,8 @@ export function createPopover(
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== "Escape" || opts.escape === "none") return;
     if (opts.active && !opts.active()) return;
-    if (opts.escape !== "pass") e.stopPropagation();
+    if (opts.escape === "mark") e.preventDefault();
+    else if (opts.escape !== "pass") e.stopPropagation();
     opts.onClose();
   };
 
@@ -90,12 +94,13 @@ export function createPopover(
     const press = opts.press ?? "pointerdown";
     const capture = opts.on?.capture ?? true;
     const pressTarget = opts.on?.target === "window" ? window : document;
-    const keyTarget = opts.on?.target === "document" ? document : window;
+    const keyTarget = (opts.keys ?? opts.on)?.target === "document" ? document : window;
+    const keyCapture = opts.keys?.capture ?? capture;
     pressTarget.addEventListener(press, onPress, capture);
-    keyTarget.addEventListener("keydown", onKey as EventListener, capture);
+    keyTarget.addEventListener("keydown", onKey as EventListener, keyCapture);
     onCleanup(() => {
       pressTarget.removeEventListener(press, onPress, capture);
-      keyTarget.removeEventListener("keydown", onKey as EventListener, capture);
+      keyTarget.removeEventListener("keydown", onKey as EventListener, keyCapture);
     });
   });
 

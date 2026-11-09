@@ -4,8 +4,9 @@
  * icons. A click puts the chart in that group; the chart's own group again
  * takes it out. Opens under the legend button.
  */
-import { For, onCleanup, onMount } from "solid-js";
+import { For } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 
 /** The syncing groups (icon, label), index = the group number. */
 export const SYNC_GROUPS: { icon: string; label: string }[] = [
@@ -22,18 +23,13 @@ export function ChartSyncMenu(props: {
   onPick: (group: number | undefined) => void;
   onClose: () => void;
 }) {
-  let root: HTMLDivElement | undefined;
-  onMount(() => {
-    const down = (e: MouseEvent) => {
-      if (!root?.contains(e.target as Node)) props.onClose();
-    };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    document.addEventListener("mousedown", down, true);
-    document.addEventListener("keydown", key);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", down, true);
-      document.removeEventListener("keydown", key);
-    });
+  const root = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    on: { target: "document", capture: true },
+    keys: { target: "document", capture: false },
+    escape: "pass",
   });
   return (
     <Portal>

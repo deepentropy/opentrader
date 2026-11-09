@@ -1,27 +1,17 @@
 /*
  * A small menu of the AI assistant panel, under or above its button.
  */
-import { onCleanup, onMount } from "solid-js";
+import { createPopover } from "../../components/popover";
 
-/** A small menu under (or above) its button; a click outside or Escape closes it. */
+/** A small menu under (or above) its button; a click outside or Escape closes it. Its Escape is marked handled:
+ *  the panel keeps its overlay. Presses on menu buttons are theirs (they toggle their menu). */
 export function Popup(props: { onClose: () => void; class?: string; children: any }) {
-  let el!: HTMLDivElement;
-  onMount(() => {
-    const down = (e: MouseEvent) => {
-      if (!el.contains(e.target as Node) && !(e.target as HTMLElement).closest?.("[aria-haspopup]")) props.onClose();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        props.onClose();
-      }
-    };
-    document.addEventListener("mousedown", down, true);
-    window.addEventListener("keydown", key, true);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", down, true);
-      window.removeEventListener("keydown", key, true);
-    });
+  const el = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    insideSelector: "[aria-haspopup]",
+    escape: "mark",
   });
   return (
     <div ref={el} class={"asst-popup " + (props.class ?? "")} role="menu">

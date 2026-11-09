@@ -4,8 +4,9 @@
  * active one checked + scrolled into view. Click/Escape closes; selecting a row
  * sets the chart's display timezone.
  */
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import { TIMEZONES, type TimezoneEntry } from "../../data/timezones";
 
 type Props = {
@@ -40,26 +41,19 @@ export function TimezoneMenu(props: Props) {
       setPos({ left, top });
     }
     selectedRow?.scrollIntoView({ block: "center" });
-
-    // Defer the outside-click listener a tick so the opening click doesn't close.
-    let armed = false;
-    const arm = () => { armed = true; };
-    const onDown = (e: MouseEvent) => { if (armed && popupRef && !popupRef.contains(e.target as Node)) props.onClose(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    const t = setTimeout(arm, 0);
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      clearTimeout(t);
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
+  });
+  const popover = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    on: { target: "window", capture: true },
+    escape: "pass",
   });
 
   return (
     <Portal>
       <div
-        ref={popupRef}
+        ref={(el) => { popupRef = el; popover(el); }}
         class="ot-popover ot-popover--scrollable tz-menu-wrap context-menu"
         role="menu"
         aria-label="Timezone"

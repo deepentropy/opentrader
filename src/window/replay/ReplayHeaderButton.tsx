@@ -4,8 +4,9 @@
  * layout a "Replay mode" chevron picks Single chart / All charts; changing it
  * while a replay runs asks first ("Confirm reset", with "Don't show again").
  */
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
 import { showConfirm } from "../../components/Dialogs";
@@ -122,21 +123,13 @@ function ModeMenu(props: { anchor: DOMRect; onClose: () => void }) {
     let left = Math.round(props.anchor.left);
     if (left + el.offsetWidth > window.innerWidth - M) left = window.innerWidth - el.offsetWidth - M;
     setPos({ left, top: Math.round(props.anchor.bottom + 4) });
-    let armed = false;
-    const t = window.setTimeout(() => (armed = true), 0);
-    const onDown = (e: MouseEvent) => {
-      if (armed && !el.contains(e.target as Node)) props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      window.clearTimeout(t);
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
+  });
+  const popover = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    on: { target: "window", capture: true },
+    escape: "pass",
   });
   const items: { id: ReplayMode; label: string }[] = [
     { id: "ActiveChart", label: "Single chart" },
@@ -145,7 +138,7 @@ function ModeMenu(props: { anchor: DOMRect; onClose: () => void }) {
   return (
     <Portal>
       <div
-        ref={el}
+        ref={(node) => { el = node; popover(node); }}
         class="ot-popover ot-replay-menu is-down"
         role="menu"
         aria-label="Replay mode"

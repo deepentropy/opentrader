@@ -6,8 +6,9 @@
  * not a valid, supported interval. Enter applies a valid, changed interval and
  * closes; Escape and a click outside close. Centred in the window, no backdrop.
  */
-import { createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { createMemo, createSignal, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import { Tooltip } from "../../components/Tooltip";
 import { longIntervalLabel } from "./interval-favorites";
 
@@ -53,7 +54,6 @@ type Props = {
 export function ChangeIntervalDialog(props: Props) {
   const [value, setValue] = createSignal(props.initVal.toUpperCase());
   let input!: HTMLInputElement;
-  let dialog!: HTMLDivElement;
   const normalized = createMemo(() => normalizeInterval(value()));
   const valid = createMemo(() => {
     const n = normalized();
@@ -67,16 +67,9 @@ export function ChangeIntervalDialog(props: Props) {
       const end = input.value.length;
       input.setSelectionRange(end, end);
     }
-    const onDown = (e: PointerEvent) => {
-      if (!dialog.contains(e.target as Node)) props.onClose();
-    };
-    // Next tick: the press that opened the dialog must not close it.
-    const t = window.setTimeout(() => document.addEventListener("pointerdown", onDown, true), 0);
-    onCleanup(() => {
-      window.clearTimeout(t);
-      document.removeEventListener("pointerdown", onDown, true);
-    });
   });
+  // Escape is the dialog's own (its key handler).
+  const outside = createPopover(undefined, { onClose: props.onClose, placement: false, escape: "none" });
 
   const submit = (e: Event) => {
     e.preventDefault();
@@ -88,7 +81,7 @@ export function ChangeIntervalDialog(props: Props) {
   return (
     <Portal mount={document.body}>
       <div
-        ref={dialog}
+        ref={outside}
         class="change-interval-dialog"
         role="dialog"
         aria-label="Change interval"

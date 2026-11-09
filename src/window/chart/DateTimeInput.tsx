@@ -7,8 +7,9 @@
  * dialog's typing rules and calendar (GoToDateDialog helpers); the time
  * field is the Go to dialog's TimeInput.
  */
-import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import {
   CalendarIcon,
   ChevronIcon,
@@ -47,7 +48,6 @@ export function DateTimeInput(props: Props) {
 
   let field!: HTMLLabelElement;
   let input!: HTMLInputElement;
-  let pop: HTMLDivElement | undefined;
   const [open, setOpen] = createSignal<DOMRect | null>(null);
   const [view, setView] = createSignal({ y: current().date.getFullYear(), m: current().date.getMonth() });
 
@@ -67,24 +67,12 @@ export function DateTimeInput(props: Props) {
     setView({ y: d.getFullYear(), m: d.getMonth() });
   };
 
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (pop?.contains(t) || field.contains(t)) return;
-      setOpen(null);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && open()) {
-        e.stopPropagation();
-        setOpen(null);
-      }
-    };
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
+  const pop = createPopover(() => field, {
+    onClose: () => setOpen(null),
+    placement: false,
+    active: () => !!open(),
+    press: "mousedown",
+    on: { target: "window", capture: true },
   });
 
   return (

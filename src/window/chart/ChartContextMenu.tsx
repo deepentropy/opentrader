@@ -8,6 +8,7 @@
  * Purely presentational: ChartView owns open/close + supplies the node list.
  */
 import { createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { createPopover } from "../../components/popover";
 import { fitMenuRef } from "../../components/menu-fit";
 import { contextMenuShown } from "./menu-escape";
 
@@ -173,24 +174,20 @@ export function ChartContextMenu(props: Props) {
   const [openSub, setOpenSub] = createSignal<string | null>(null);
   const [subPos, setSubPos] = createSignal<{ left: number; top: number }>({ left: 0, top: 0 });
 
-  onMount(() => {
-    // While shown, an Escape closes the menu only (menu-escape.ts).
-    onCleanup(contextMenuShown());
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") props.onClose(); };
-    // "Outside" must include the SUBMENU, which renders as a sibling of the
-    // root div — a plain ref.contains() check closed the menu on the capture
-    // mousedown of any submenu click, before the item's onClick could fire.
-    const onDown = (e: MouseEvent) => {
-      const el = e.target as Element | null;
-      if (el?.closest?.(".ot-chart-ctx-menu")) return;
-      props.onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("mousedown", onDown, true);
-    onCleanup(() => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("mousedown", onDown, true);
-    });
+  // While shown, an Escape closes the menu only (menu-escape.ts).
+  onMount(() => onCleanup(contextMenuShown()));
+  // "Outside" must include the SUBMENU, which renders as a sibling of the
+  // root div — a plain ref.contains() check closed the menu on the capture
+  // mousedown of any submenu click, before the item's onClick could fire.
+  // Escape closes it in the bubble phase, after the chart has asked menu-escape.ts.
+  createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    insideSelector: ".ot-chart-ctx-menu",
+    on: { target: "window", capture: true },
+    keys: { target: "window", capture: false },
+    escape: "pass",
   });
 
   const select = (n: Extract<CtxNode, { kind: "item" }>) => {

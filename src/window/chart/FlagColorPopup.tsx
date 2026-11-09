@@ -6,6 +6,7 @@
  */
 import { For, onCleanup, onMount } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import { FLAG_HEX, type FlagColor } from "../../data/watchlist";
 import { FLAG_COLORS } from "../../data/symbol-flags";
 
@@ -18,6 +19,7 @@ export function FlagColorPopup(props: {
 }) {
   let root: HTMLDivElement | undefined;
   const r = props.anchor.getBoundingClientRect();
+  const popover = createPopover(() => props.anchor, { onClose: props.onClose, placement: false, press: "mousedown", escape: "none" });
   onMount(() => {
     let timer = 0;
     const leave = () => {
@@ -26,22 +28,16 @@ export function FlagColorPopup(props: {
         if (!props.anchor.matches(":hover") && !root?.matches(":hover")) props.onClose();
       }, 150);
     };
-    const down = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!root?.contains(t) && !props.anchor.contains(t)) props.onClose();
-    };
     props.anchor.addEventListener("mouseleave", leave);
-    document.addEventListener("mousedown", down, true);
     onCleanup(() => {
       window.clearTimeout(timer);
       props.anchor.removeEventListener("mouseleave", leave);
-      document.removeEventListener("mousedown", down, true);
     });
   });
   return (
     <Portal>
       <div
-        ref={root}
+        ref={(el) => { root = el; popover(el); }}
         class="ot-flag-popup"
         style={{ left: `${r.right}px`, top: `${r.top + r.height / 2}px` }}
         onMouseLeave={() => {

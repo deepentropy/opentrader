@@ -20,8 +20,9 @@
  * editor (reference legend status for a script open in its editor).
  */
 import { Icon } from "../../components/Icon";
-import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, createSignal, type JSX } from "solid-js";
 import { Portal } from "solid-js/web";
+import { createPopover } from "../../components/popover";
 import type { IndicatorLegendRow } from "./indicators/indicator-controller";
 import type { StudyError } from "./indicators/indicator-layer";
 import { formatStudyValue } from "../../data/study-format";
@@ -158,23 +159,14 @@ function StudyStatusPanel(props: {
   text: string;
   action?: { label: string; onClick: () => void };
 }) {
-  let el: HTMLDivElement | undefined;
   const left = () => Math.max(4, Math.min(props.anchor.left - 15, window.innerWidth - 348));
-  onMount(() => {
-    const down = (e: MouseEvent) => {
-      const t = e.target as Element;
-      if (el?.contains(t) || t.closest?.("[data-qa-id=legend-source-item-status]")) return;
-      props.onClose();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    document.addEventListener("mousedown", down, true);
-    document.addEventListener("keydown", key, true);
-    onCleanup(() => {
-      document.removeEventListener("mousedown", down, true);
-      document.removeEventListener("keydown", key, true);
-    });
+  const el = createPopover(undefined, {
+    onClose: props.onClose,
+    placement: false,
+    press: "mousedown",
+    insideSelector: "[data-qa-id=legend-source-item-status]",
+    on: { target: "document", capture: true },
+    escape: "pass",
   });
   return (
     <Portal>
