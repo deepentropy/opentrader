@@ -5,7 +5,7 @@
  * The favourited-interval set drives BOTH the quick-access
  * buttons on the header strip and the filled stars in the chart-interval
  * dropdown. It's a single global preference shared across charts and persisted
- * to localStorage. Keyed by canonical interval id ("10S", "60", "1D") — the
+ * through kv (data/kv.ts). Keyed by canonical interval id ("10S", "60", "1D") — the
  * same ids the chart-interval dropdown rows + ChartView's `interval` prop use.
  */
 import { createSignal } from "solid-js";
