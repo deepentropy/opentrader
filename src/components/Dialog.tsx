@@ -59,6 +59,7 @@ const LOOKS = {
   indicators: { header: "indicators-header", title: "indicators-title", close: "indicators-close", closeLabel: "Close menu", icon: "x18" },
   /** Drawing Settings and Image: their own frame (a rename field in the title bar), only the close button here. */
   drawing: { header: "drawing-settings-header", title: "drawing-settings-title", close: "drawing-settings-close", closeLabel: "Close menu", icon: "x18" },
+  "symbol-search": { header: "symbol-search-header", title: "symbol-search-title", titleTag: "span", close: "symbol-search-close", closeLabel: "Close menu", icon: "x18" },
   "app-settings": { header: "app-settings-header", headerTag: "div", title: "app-settings-dialog-title", titleTag: "span", close: "app-settings-close", closeLabel: "Close", icon: "x16" },
 } satisfies Record<string, Look>;
 
