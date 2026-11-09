@@ -49,6 +49,7 @@ import { cachedSymbolSessions } from '../../../data/session';
 import { sessionFutureSlots } from './future-slots';
 import { applyStyleOverrides, type StyleEntry } from './style-outputs';
 import { isLibraryEntry } from './registry';
+import { translatedPlotConfig, translatedStudyResult } from '../../../i18n/study-text';
 import { isUserIndicatorId } from './user-scripts';
 import { calculateInWorker, studyWorkersAvailable } from './study-worker-host';
 import { ACCESSORS, applyDelta, callKey, jobChanges, type SentState, type StudyCall, type StudyJob } from './study-worker-types';
@@ -918,17 +919,19 @@ export class IndicatorLayer {
 
     // The other outputs with their Style overrides (shapes, arrows, colours, candles, hlines, fills, drawings).
     const styled = applyStyleOverrides(entry as unknown as StyleEntry, result, styles, bars);
+    // A built-in study's text in the interface language; a user's script or strategy keeps its own.
+    const library = isLibraryEntry(entry) || (!isUserIndicatorId(entry.id) && !isStrategyId(entry.id));
     renderer.setPaneIndex(this.paneIndex);
     renderer.setFutureSlots(this.futureSlots());
     renderer.render(
       {
         overlay: this.rendererOverlay,
-        plotConfig: entry.plotConfig,
+        plotConfig: library ? translatedPlotConfig(entry.plotConfig) : entry.plotConfig,
         hlineConfig: styled.hlineConfig as IndicatorRegistryEntry["hlineConfig"],
         fillConfig: styled.fillConfig as IndicatorRegistryEntry["fillConfig"],
         arrowConfig: (entry as { arrowConfig?: never }).arrowConfig,
       },
-      { ...styled.result, plots } as IndicatorResult,
+      (library ? translatedStudyResult({ ...styled.result, plots } as IndicatorResult) : { ...styled.result, plots }) as IndicatorResult,
       bars,
       {
         inputs: this.lastInputs,

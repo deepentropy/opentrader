@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { setDictionary, translate } from "../translator";
+import { inEnglish, setDictionary, translate, translateDrawn, translateWith } from "../translator";
+import zhHans from "../zh-Hans.json";
+import zhHant from "../zh-Hant.json";
 import { SIMPLIFIED_RULES, TRADITIONAL_RULES } from "../zh-patterns";
 
 const D = { Save: "保存", "Open…": "打开…" };
@@ -38,5 +40,46 @@ describe("text holding a value (#190)", () => {
     setDictionary({}, TRADITIONAL_RULES);
     expect(translate("Tue 27 Oct '26")).toBe("2026年10月27日 週二");
     setDictionary({});
+  });
+});
+
+describe("text with values from the code (#190)", () => {
+  it("translateWith: the template's translation with the values", () => {
+    setDictionary({ "{0} bars": "{0} 根K线", "{0} on {1}": "{1} 上的 {0}" });
+    expect(translateWith("{0} bars", 12)).toBe("12 根K线");
+    expect(translateWith("{0} on {1}", "MA 9", "AAPL")).toBe("AAPL 上的 MA 9");
+    expect(translateWith("{0} left {1}", "AAPL", "Oversold")).toBe("AAPL left Oversold");
+    // Message placeholders are not values.
+    expect(translateWith("{0}: {{ticker}}", "S")).toBe("S: {{ticker}}");
+    setDictionary({});
+    expect(translateWith("{0} bars", 3)).toBe("3 bars");
+  });
+  it("inEnglish: the English text inside, the language after", () => {
+    setDictionary({ "{0} bars": "{0} 根K线" });
+    expect(inEnglish(() => translateWith("{0} bars", 2))).toBe("2 bars");
+    expect(translateWith("{0} bars", 2)).toBe("2 根K线");
+    setDictionary({});
+  });
+  it("translateDrawn: each line", () => {
+    setDictionary({ Strong: "强烈", Buy: "买入" }, SIMPLIFIED_RULES);
+    expect(translateDrawn("Strong\nBuy")).toBe("强烈\n买入");
+    expect(translateDrawn("Jan")).toBe("1月");
+    expect(translateDrawn("HH")).toBe("HH");
+    setDictionary({});
+    expect(translateDrawn("Buy")).toBe("Buy");
+  });
+});
+
+describe("the dictionaries (#190)", () => {
+  for (const [name, d] of [["zh-Hans", zhHans], ["zh-Hant", zhHant]] as const) {
+    it(`${name}: every translation of a template keeps its values`, () => {
+      const holes = (s: string) => (s.match(/\{\d+\}|\{\{[^}]+\}\}/g) ?? []).sort().join(" ");
+      const wrong = Object.entries(d as Record<string, string>).filter(([en, to]) => holes(en) !== holes(to)).map(([en]) => en);
+      expect(wrong).toEqual([]);
+    });
+  }
+  it("both scripts have the same texts", () => {
+    expect(Object.keys(zhHant).filter((k) => !(k in zhHans))).toEqual([]);
+    expect(Object.keys(zhHans).filter((k) => !(k in zhHant))).toEqual([]);
   });
 });

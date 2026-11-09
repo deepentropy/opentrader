@@ -38,6 +38,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { alertSettings } from "./alert-settings";
 import { playAlertSound } from "./alert-sounds";
 import { evaluatedByBackend, startAlertBackend } from "./alert-backend";
+import { translateWith } from "../i18n/translator";
 import { conditionRules, defaultAlertMessage, describeCondition, drawingBand, drawingPositionLevels, positionHit, POSITION_LEVEL_NAMES, drawingPriceLevel, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isPercentOperator, operandValue, ruleComparedSymbols, ruleQuoteSymbol, type EvalContext } from "./alert-condition";
 import { chartBars, chartLastBarTime, chartLastPrice, chartResolution, chartSession, indicatorPlotValue, type ChartBar } from "./chart-state-registry";
 import { getIndicatorEntry, loadIndicatorLibrary } from "../window/chart/indicators/registry";
@@ -559,8 +560,8 @@ function deliverFire(rule: AlertRule, price: number, barTime: number | null, off
 export function deliverScreenFire(rule: AlertRule, symbols: string[], price: number | null): void {
   if (!symbols.length) return;
   const title = rule.left.kind === "screen" ? rule.left.title : "";
-  const verb = rule.op === "screen_enter" ? "entered" : "left";
-  const message = rule.message?.trim() || (symbols.length > 1 ? `${symbols.join(", ")} ${verb} ${title}` : "");
+  const several = rule.op === "screen_enter" ? "{0} entered {1}" : "{0} left {1}";
+  const message = rule.message?.trim() || (symbols.length > 1 ? translateWith(several, symbols.join(", "), title) : "");
   deliverFire({ ...rule, symbol: symbols[0], message }, symbols.length > 1 ? NaN : (price ?? NaN), null);
 }
 
@@ -568,7 +569,7 @@ function sendFire(rule: AlertRule, price: number, barTime: number | null, messag
   const now = Date.now();
   const condText = describeCondition(rule);
   // An alert on a script's alert() calls is known by its condition (its fires carry the calls' messages).
-  const title = rule.name?.trim() ? rule.name : rule.op === "alert_function" || rule.op === "strategy_alerts" ? condText : `Alert · ${tickerOf(rule.symbol)}`;
+  const title = rule.name?.trim() ? rule.name : rule.op === "alert_function" || rule.op === "strategy_alerts" ? condText : translateWith("Alert · {0}", tickerOf(rule.symbol));
 
   const fire = alertStore.recordFire({
     alertId: rule.id,

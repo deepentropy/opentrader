@@ -229,7 +229,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
     prePostLine = cx.series.createPriceLine({
       price: price!,
       color,
-      title: session === "pre" ? "Pre" : "Post",
+      title: translate(session === "pre" ? "Pre" : "Post"),
       // Dotted, width 1 (drawn 1 px on / 3 px off; the
       // library's SparseDotted 1/4 is the closest, as for the grid).
       lineStyle: LineStyle.SparseDotted,

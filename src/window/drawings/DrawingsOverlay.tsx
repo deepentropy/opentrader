@@ -231,8 +231,10 @@ export function DrawingsOverlay(props: OverlayProps) {
 
   return (
     <>
+    {/* The drawings' own text is drawn in the interface language (formatLabel); the text the user typed is not translated. */}
     <svg
       ref={svg}
+      data-no-translate
       width="100%"
       height="100%"
       style={{

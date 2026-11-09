@@ -33,7 +33,7 @@ export function createSunk(cx: OverlayCx): SunkApi {
     if (!pts) return;
     // Table and image: their plain scene (the snapshot image paints them).
     const scene = d.kind === "text"
-      ? sceneTextTool(d, pts[0], false, false)
+      ? sceneTextTool(d, pts[0], false, false, f.coords)
       : d.kind === "table"
         ? sceneTable(d, pts[0], false, null)
         : d.kind === "image"

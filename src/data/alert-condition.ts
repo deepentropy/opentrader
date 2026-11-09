@@ -21,6 +21,7 @@ import { conditionMessage } from "./alert-study-conditions";
 import { tickerOf } from "./symbol-name";
 import { groupThousands } from "../window/chart/price-format";
 import { formatStudyValue } from "./study-format";
+import { translate, translateWith } from "../i18n/translator";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -234,8 +235,10 @@ export function positionMessage(symbol: string, resolution: string, drawingId: s
   const lv = positionLevelsOf(d, cachedSymbolSessions(symbol)?.mintick ?? 0.01);
   if (!lv) return null;
   const { shown } = positionQty(d.style, lv.entry, Math.abs(lv.entry - lv.stop));
-  const side = d.kind === "long-position" ? "long" : "short";
-  return `${tickerOf(symbol) || "—"}, ${alertIntervalText(resolution)} ${side} position, price hits {{position.level}} at {{position.price}}. Qty: ${shown}. PnL: {{position.pnl}}`;
+  const template = d.kind === "long-position"
+    ? "{0}, {1} long position, price hits {{position.level}} at {{position.price}}. Qty: {2}. PnL: {{position.pnl}}"
+    : "{0}, {1} short position, price hits {{position.level}} at {{position.price}}. Qty: {2}. PnL: {{position.pnl}}";
+  return translateWith(template, tickerOf(symbol) || "—", alertIntervalText(resolution), shown);
 }
 
 /** Rules that read the drawing `id`. */
@@ -578,49 +581,52 @@ export function describeCondition(rule: Pick<AlertRule, "left" | "op" | "right" 
   // A study's own condition: "MACD (close, 12, 26, 9): Rising to falling".
   if (rule.op === "alert_condition") {
     const title = rule.left.kind === "indicator" ? rule.left.condition?.title : undefined;
-    return `${operandLabel(rule.left)}: ${title ?? OPERATOR_LABELS.alert_condition}`;
+    return `${operandLabel(rule.left)}: ${translate(title ?? OPERATOR_LABELS.alert_condition)}`;
   }
   // A stock screen: "Oversold: A symbol enters the screen".
-  if (rule.op === "screen_enter" || rule.op === "screen_exit") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS[rule.op]}`;
+  if (rule.op === "screen_enter" || rule.op === "screen_exit") return `${operandLabel(rule.left)}: ${translate(OPERATOR_LABELS[rule.op])}`;
   // A script's alert() calls: "Auto fib retracement (3, 10): Any alert() function call".
-  if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${OPERATOR_LABELS.alert_function}`;
+  if (rule.op === "alert_function") return `${operandLabel(rule.left)}: ${translate(OPERATOR_LABELS.alert_function)}`;
   // A strategy's condition: "MA Cross (9, 21): Order fills only".
-  if (isStrategyOperator(rule.op)) return `${operandLabel(rule.left)}: ${OPERATOR_LABELS[rule.op]}`;
-  const left = messageOperand(rule.left);
+  if (isStrategyOperator(rule.op)) return `${operandLabel(rule.left)}: ${translate(OPERATOR_LABELS[rule.op])}`;
+  const left = translate(messageOperand(rule.left));
   // A number is written as the left operand's values are ("3.50", "0.0000").
-  const side = (o: Operand) => (o.kind === "value" ? alertAmountText(rule.symbol, rule.left, o.value) : messageOperand(o));
+  const side = (o: Operand) => (o.kind === "value" ? alertAmountText(rule.symbol, rule.left, o.value) : translate(messageOperand(o)));
   if (isMovingOperator(rule.op)) {
     const v = rule.right.kind === "value" ? rule.right.value : 0;
     const n = rule.bars ?? 1;
     const amount = isPercentOperator(rule.op) ? `${v}%` : alertAmountText(rule.symbol, rule.left, v);
     const label = rule.op === "moving_up_pct" ? OPERATOR_LABELS.moving_up : rule.op === "moving_down_pct" ? OPERATOR_LABELS.moving_down : OPERATOR_LABELS[rule.op];
-    return `${left} ${label} ${amount} in ${n} ${n === 1 ? "bar" : "bars"}`;
+    return translateWith(n === 1 ? "{0} {1} {2} in {3} bar" : "{0} {1} {2} in {3} bars", left, translate(label), amount, n);
   }
   if (isBandOperator(rule.op) && rule.right.kind === "drawing") {
     const name = messageOperand(rule.right);
     // Rectangle: "Entering rectangle".
-    if (rule.right.band === "rectangle") return `${left} ${bandOperatorLabel(rule.op, "rectangle")}`;
+    if (rule.right.band === "rectangle") return `${left} ${translate(bandOperatorLabel(rule.op, "rectangle"))}`;
     // Fib tool: its two levels.
     if (rule.right.level != null) {
       const base = name.replace(/ \(upper bound:.*$/, "");
-      return `${left} ${bandOperatorLabel(rule.op, "channel")} ${base} (Upper Bound: Fib level ${rule.right.level}, Lower Bound: Fib level ${rule.right.level2 ?? 0.618})`;
+      return translateWith(
+        "{0} {1} {2} (Upper Bound: Fib level {3}, Lower Bound: Fib level {4})",
+        left, translate(bandOperatorLabel(rule.op, "channel")), base, rule.right.level, rule.right.level2 ?? 0.618,
+      );
     }
-    return `${left} ${bandOperatorLabel(rule.op, "channel")} (Upper Bound: ${name}, Lower Bound: ${name})`;
+    return translateWith("{0} {1} (Upper Bound: {2}, Lower Bound: {3})", left, translate(bandOperatorLabel(rule.op, "channel")), name, name);
   }
   // Two bounds: values, the price or studies.
   if (isBandOperator(rule.op)) {
     const lower = side(rule.right2 ?? rule.right);
-    return `${left} ${bandOperatorLabel(rule.op, "channel")} (Upper Bound: ${side(rule.right)}, Lower Bound: ${lower})`;
+    return translateWith("{0} {1} (Upper Bound: {2}, Lower Bound: {3})", left, translate(bandOperatorLabel(rule.op, "channel")), side(rule.right), lower);
   }
   // A vertical line is crossed by the time, not by a value.
-  if (rule.right.kind === "drawing" && rule.right.band === "time") return `${OPERATOR_LABELS[rule.op]} ${messageOperand(rule.right)}`;
-  return `${left} ${OPERATOR_LABELS[rule.op]} ${side(rule.right)}`;
+  if (rule.right.kind === "drawing" && rule.right.band === "time") return `${translate(OPERATOR_LABELS[rule.op])} ${translate(messageOperand(rule.right))}`;
+  return `${left} ${translate(OPERATOR_LABELS[rule.op])} ${side(rule.right)}`;
 }
 
 /** Default message of an alert on a strategy's order fills. */
 export function strategyOrderMessage(left: Operand): string {
-  const title = left.kind === "indicator" ? (left.title ?? left.label ?? "Strategy") : "Strategy";
-  return `${title}: order {{strategy.order.action}} @ {{strategy.order.contracts}} filled on {{ticker}}. New strategy position is {{strategy.position_size}}`;
+  const title = left.kind === "indicator" ? (left.title ?? left.label ?? translate("Strategy")) : translate("Strategy");
+  return translateWith("{0}: order {{strategy.order.action}} @ {{strategy.order.contracts}} filled on {{ticker}}. New strategy position is {{strategy.position_size}}", title);
 }
 
 /** Interval of an alert as its message shows it: "10s", "5", "1h", "1D",
@@ -667,12 +673,12 @@ export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution
     return ruleConditions(rule)
       .map((c) => defaultAlertMessage({ symbol: rule.symbol, ...c }))
       .filter((t) => t !== "")
-      .join(` ${CONDITIONS_SEPARATOR} `);
+      .join(` ${translate(CONDITIONS_SEPARATOR)} `);
   }
   if (rule.op === "alert_condition" && rule.left.kind === "indicator") return conditionMessage(rule.left.condition);
   // A stock screen: each fire is one symbol ("AAPL entered Oversold").
   if ((rule.op === "screen_enter" || rule.op === "screen_exit") && rule.left.kind === "screen") {
-    return `${tickerOf(rule.symbol)} ${rule.op === "screen_enter" ? "entered" : "left"} ${rule.left.title}`;
+    return translateWith(rule.op === "screen_enter" ? "{0} entered {1}" : "{0} left {1}", tickerOf(rule.symbol), rule.left.title);
   }
   // The message of a fire is the alert() call's: the alert is known by its name, the condition.
   if (rule.op === "alert_function" || rule.op === "strategy_alerts") return describeCondition(rule);
@@ -686,6 +692,7 @@ export function defaultAlertMessage(rule: Pick<AlertRule, "symbol" | "resolution
   const text = describeCondition(rule);
   const ticker = tickerOf(rule.symbol) || "—";
   const series = conditionHasInterval(rule) && rule.resolution ? `${ticker}, ${alertIntervalText(rule.resolution)}` : ticker;
-  if (isStudyLike(rule.left)) return `${text} on ${series}`;
-  return `${series} ${text.replace(/^Price /, "")}`;
+  if (isStudyLike(rule.left)) return translateWith("{0} on {1}", text, series);
+  const price = `${translate("Price")} `;
+  return `${series} ${text.startsWith(price) ? text.slice(price.length) : text}`;
 }

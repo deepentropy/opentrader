@@ -22,8 +22,10 @@ let rules: readonly ((text: string) => string)[] = [];
 
 /** `textRules`: text holding a value (dates), tried when the dictionary doesn't have it. */
 export function setDictionary(d: Dictionary, textRules: readonly ((text: string) => string)[] = []): void {
-  dictionary = d;
+  // No dictionary and no rules: English.
+  dictionary = Object.keys(d).length || textRules.length ? d : EMPTY;
   rules = textRules;
+  drawn.clear();
 }
 
 /** The translation of a text, its spaces around kept; the text itself when the dictionary doesn't have it. */
@@ -45,6 +47,48 @@ export function translate(text: string, d: Dictionary = dictionary): string {
     }
   }
   return core === text ? to : text.replace(core, () => to as string);
+}
+
+/** A language other than English is on (the code that translates text itself can skip the work otherwise). */
+export function translating(): boolean {
+  return dictionary !== EMPTY;
+}
+
+/**
+ * A text holding values: the dictionary's translation of `template` ("{0} bars" → "{0} 根K线"), its `{0}`, `{1}`…
+ * replaced by the values. The English template when the dictionary doesn't have it.
+ */
+export function translateWith(template: string, ...values: (string | number)[]): string {
+  const to = dictionary === EMPTY ? template : (dictionary[template] ?? template);
+  return to.replace(/\{(\d+)\}/g, (all, i) => (values[Number(i)] !== undefined ? String(values[Number(i)]) : all));
+}
+
+/** `fn` run with the English text (what the agent tools answer). */
+export function inEnglish<T>(fn: () => T): T {
+  const [d, r] = [dictionary, rules];
+  dictionary = EMPTY;
+  rules = [];
+  try {
+    return fn();
+  } finally {
+    dictionary = d;
+    rules = r;
+  }
+}
+
+/** Translations of text drawn on a canvas, each line on its own (the same texts come back on every paint). */
+const drawn = new Map<string, string>();
+
+/** `translate` of each line of a text drawn on a canvas, remembered. */
+export function translateDrawn(text: string): string {
+  if (dictionary === EMPTY || text.length < 2) return text;
+  let to = drawn.get(text);
+  if (to === undefined) {
+    to = text.includes("\n") ? text.split("\n").map((l) => translate(l)).join("\n") : translate(text);
+    if (drawn.size > 5000) drawn.clear();
+    drawn.set(text, to);
+  }
+  return to;
 }
 
 /** Translated text nodes: a node written by the translator isn't translated again. */

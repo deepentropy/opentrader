@@ -30,6 +30,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
+import { translate } from "../../../i18n/translator";
 import type { TpoDraw, TpoProfile } from "./tpo-engine";
 
 type RGB = [number, number, number, number];
@@ -338,16 +339,16 @@ export class TpoPrimitive implements ISeriesPrimitive<Time> {
       vl(vs.val.visible, p.volumeVal, "bot", vs.val.color, vs.val.width, vs.val.style, p.extend.volumeVal);
     }
     const labelColor = this.dark ? "#DBDBDB" : "#0F0F0F";
-    if (st.open) labelAt(series.priceToCoordinate(p.open), x0, "left", labelColor, withText ? "Open" : undefined);
+    if (st.open) labelAt(series.priceToCoordinate(p.open), x0, "left", labelColor, withText ? translate("Open") : undefined);
     if (st.close) {
       const r = p.rows.find((x) => x.row === Math.floor(p.close / p.rowSize));
       const col = r ? (expand ? Math.max(...r.blocks) : r.blocks.length - 1) : 0;
-      labelAt(series.priceToCoordinate(p.close), colX(col).end + 1, "right", labelColor, withText ? "Close" : undefined);
+      labelAt(series.priceToCoordinate(p.close), colX(col).end + 1, "right", labelColor, withText ? translate("Close") : undefined);
     }
     if (st.midpoint) {
       const r = p.rows.find((x) => x.row === p.mid);
       const col = r ? (expand ? r.blocks[0] : 0) : 0;
-      labelAt(midRow(p.mid), colX(col).start, "left", "#F23645", withText ? "Mid" : undefined);
+      labelAt(midRow(p.mid), colX(col).start, "left", "#F23645", withText ? translate("Mid") : undefined);
     }
     if (st.poorHigh.visible && p.poorHigh !== null) lineAt(midRow(p.poorHigh), x0, p.extend.poorHigh != null ? px(endX(p.extend.poorHigh, H)) : boxRight, st.poorHigh.color, 1, [2, 2]);
     if (st.poorLow.visible && p.poorLow !== null) lineAt(midRow(p.poorLow), x0, p.extend.poorLow != null ? px(endX(p.extend.poorLow, H)) : boxRight, st.poorLow.color, 1, [2, 2]);

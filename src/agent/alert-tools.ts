@@ -52,6 +52,7 @@ import { getIndicatorEntry, loadIndicatorLibrary } from "../window/chart/indicat
 import { isStrategyId } from "../window/chart/indicators/strategy-entries";
 import { setActiveRailTab } from "../window/shell/app-dialogs";
 import { AgentError, type AgentTool } from "./mcp";
+import { inEnglish } from "../i18n/translator";
 
 /** The focused chart, as the alerts need it. */
 export type AlertChart = { symbol: string; interval: string; session?: string; drawings: () => Drawing[] };
@@ -88,8 +89,8 @@ function ruleView(r: AlertRule) {
     id: r.id,
     ...(r.name ? { name: r.name } : {}),
     symbol: r.symbol || undefined,
-    condition: describeCondition(r),
-    ...(r.and?.length ? { andConditions: r.and.map((c) => describeCondition(c)) } : {}),
+    condition: inEnglish(() => describeCondition(r)),
+    ...(r.and?.length ? { andConditions: inEnglish(() => r.and!.map((c) => describeCondition(c))) } : {}),
     interval: r.resolution || undefined,
     frequency: r.frequency,
     status: status(r),
@@ -481,7 +482,7 @@ export function createAlertTools(chart: () => AlertChart): AgentTool[] {
         resetRuleEvalState(r.id);
         setAlertWebhook(r.id, null);
         alertStore.remove(r.id);
-        return { deleted: r.id, condition: describeCondition(r) };
+        return { deleted: r.id, condition: inEnglish(() => describeCondition(r)) };
       },
     },
   ];

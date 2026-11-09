@@ -34,7 +34,7 @@ export function renderKind(
 ): import("solid-js").JSX.Element {
   switch (d.kind) {
     case "text":
-      return <TextToolView d={d} p={pts[0]} hovered={hovered} ghost={ghost} />;
+      return <TextToolView d={d} p={pts[0]} hovered={hovered} ghost={ghost} coords={coords} />;
     case "table":
       return <TableView d={d} p={pts[0]} active={selected} />;
     case "image":
@@ -151,7 +151,7 @@ function ImageView(props: { d: Drawing; p: Pt; active: boolean }) {
   );
 }
 
-function TextToolView(props: { d: Drawing; p: Pt; hovered: boolean; ghost?: boolean }) {
+function TextToolView(props: { d: Drawing; p: Pt; hovered: boolean; ghost?: boolean; coords: Coords | null }) {
   const ctx = useContext(AnchorCtx);
-  return <>{sceneSvg(sceneTextTool(props.d, props.p, ctx.selected(), props.hovered), Handles, props.d.style.color, props.ghost)}</>;
+  return <>{sceneSvg(sceneTextTool(props.d, props.p, ctx.selected(), props.hovered, props.coords), Handles, props.d.style.color, props.ghost)}</>;
 }

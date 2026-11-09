@@ -33,6 +33,7 @@ import { toOHLC } from "./helpers";
 import { replayBroker } from "../../../data/trading/replay-broker";
 import type { Bar } from "../../../backtester/types";
 import { type ChartCx } from "./context";
+import { translate } from "../../../i18n/translator";
 
 /** Chart styles Bar Replay does not run on (the reference app: price-based styles and
  *  the profile styles). */
@@ -439,7 +440,7 @@ export function createReplay(cx: ChartCx): ReplayApi {
       wmPane = null;
     }
     if (!on) return;
-    wm.set([...lines, { text: "Replay", icon: true }], color, readFontFamily());
+    wm.set([...lines, { text: translate("Replay"), icon: true }], color, readFontFamily());
     cx.chart.panes()[pane]?.attachPrimitive(wm);
     wmPane = pane;
   });

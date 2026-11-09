@@ -13,6 +13,7 @@ import { ALERT_STATUS_COLORS, AlertLabelsPrimitive, alertLabelTheme, type AlertL
 import { CtxIcons, type CtxNode } from "../ChartContextMenu";
 import { roundedOnSeries } from "./helpers";
 import { type ChartCx } from "./context";
+import { translate, translateWith } from "../../../i18n/translator";
 import type { Setter } from "solid-js";
 import { emitAppEvent } from "../../../data/app-events";
 
@@ -92,7 +93,7 @@ export function createAlertLayer(cx: ChartCx): AlertLayerApi {
           id: r.id,
           levels,
           text: r.name?.trim() || r.message?.trim() || defaultAlertMessage(r),
-          status: r.enabled ? null : `Stopped — ${ALERT_STOP_TEXT[reason]}`,
+          status: r.enabled ? null : translateWith("Stopped — {0}", translate(ALERT_STOP_TEXT[reason])),
           statusColor: r.enabled ? null : ALERT_STATUS_COLORS[reason],
           color: r.enabled ? t.alertLineColor : theme.inactive,
           inactive: !r.enabled,
