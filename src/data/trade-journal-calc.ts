@@ -224,6 +224,30 @@ export function dayLabel(day: number): string {
   const d = new Date(day * 86400000);
   return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
 }
+/** "dd/mm/yyyy hh:mm" of a time in `zone` ("dd/mm/yyyy" when `dateOnly`). */
+export function tradeDateText(sec: number, zone: string, dateOnly: boolean): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date(sec * 1000))
+      .map((x) => [x.type, x.value]),
+  );
+  const d = `${p.day}/${p.month}/${p.year}`;
+  return dateOnly ? d : `${d} ${p.hour}:${p.minute}`;
+}
+/** How long a trade lasted: "3d 4h", "45m"; days for a date-only trade ("Same day", "12d"). */
+export function durationText(t: Pick<TradeInput, "entryTime" | "exitTime" | "dateOnly">): string {
+  const s = Math.max(0, t.exitTime - t.entryTime);
+  if (t.dateOnly) {
+    const days = Math.round(s / 86400);
+    return days === 0 ? "Same day" : `${days}d`;
+  }
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return h ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 /** What grouping reads of a trade; `zone`: its exchange zone (a date-only

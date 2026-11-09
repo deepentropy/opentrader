@@ -83,3 +83,21 @@ describe("search", () => {
     expect(snippet("a ".repeat(100) + "the gap filled", ["gap"]).startsWith("…")).toBe(true);
   });
 });
+
+describe("postOrigin", () => {
+  it("labels trades shared from the journal", async () => {
+    const { postOrigin, postOut } = await import("../src/api");
+    expect(postOrigin("postmortem", "journal")).toBe("journal");
+    expect(postOrigin("analysis", "journal")).toBe("journal");
+    expect(postOrigin("analysis", undefined)).toBeNull();
+    expect(postOrigin("idea", "other")).toBeNull();
+    const row = { id: "p1", community_id: "t:AAPL", title: "AAPL long", body: "", comment_count: 0, created_at: 1, type: "postmortem", origin: "journal" };
+    expect(postOut(row, null, false).origin).toBe("journal");
+    expect(postOut({ ...row, origin: null }, null, false).origin).toBeNull();
+  });
+  it("never makes them an idea, so they stay out of track records", async () => {
+    const { postOrigin } = await import("../src/api");
+    expect(() => postOrigin("idea", "journal")).toThrow(/analysis or a post-mortem/);
+    expect(() => postOrigin("question", "journal")).toThrow(/analysis or a post-mortem/);
+  });
+});

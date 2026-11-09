@@ -260,6 +260,8 @@
 .cm-markdown a:hover, .cm-link:hover { text-decoration: underline; }
 .cm-markdown table { display: block; max-width: 100%; overflow-x: auto; margin: 0 0 8px; border-collapse: collapse; font-size: 12px; }
 .cm-markdown th, .cm-markdown td { padding: 3px 6px; border: 1px solid var(--color-divider-line-primary); text-align: left; white-space: nowrap; }
+/* The trades of a journal share, in the composer: a long list scrolls. */
+.cm-journal-trades { max-height: 240px; overflow: auto; }
 
 /* Forms. */
 .cm-form { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }

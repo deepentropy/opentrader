@@ -20,7 +20,7 @@ import { SnapshotPicker } from "./SnapshotPicker";
 import { SuggestedBy, SupportButton } from "./SuggestionsPage";
 import { go, navigate } from "./router";
 import {
-  Avatar, DirTag, FOG, Pills, STATUS_LABEL, StatusTag, TYPE_LABEL, TickerTag, TypeTag, UserLink, age, communityHref, date, dateTime, day, fmtPct, fmtR, ideaState, outcome, price, rColor, recordLine, recordLong, signInPath, tfLong, tfShort, tickerName,
+  Avatar, DirTag, FOG, OriginTag, Pills, STATUS_LABEL, StatusTag, TYPE_LABEL, TickerTag, TypeTag, UserLink, age, communityHref, date, dateTime, day, fmtPct, fmtR, ideaState, outcome, price, rColor, recordLine, recordLong, signInPath, tfLong, tfShort, tickerName,
 } from "./ui";
 
 const APP_URL = "https://opentrader.markets/download.html";
@@ -503,6 +503,7 @@ export function PostPage(props: { id: string }) {
             <div class="cs-tags">
               <TypeTag type={p().type} />
               <Show when={p().idea}><DirTag dir={p().idea!.direction} /></Show>
+              <OriginTag post={p()} />
               <Show when={p().suggestion} fallback={<TickerTag id={p().community.id} size="mid" />}><StatusTag status={p().suggestion!.status} /></Show>
             </div>
             <h1 class="cs-post-title">{p().title}</h1>

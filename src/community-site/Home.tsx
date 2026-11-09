@@ -13,7 +13,7 @@ import * as kv from "../data/kv";
 import { errorText } from "../window/right-rail/community/parts";
 import { go } from "./router";
 import {
-  DirTag, Pills, STATUS_LABEL, Snapshot, TYPE_PLURAL, TYPES, TickerTag, TypeTag, UserLink, age, communityHref, dateTime, daysLeft, fmtR, postState, recordLine, signInPath, tickerName,
+  DirTag, OriginTag, Pills, STATUS_LABEL, Snapshot, TYPE_PLURAL, TYPES, TickerTag, TypeTag, UserLink, age, communityHref, dateTime, daysLeft, fmtR, postState, recordLine, signInPath, tickerName,
 } from "./ui";
 
 const SORT_KEY = "ot:community:home-sort";
@@ -31,6 +31,7 @@ export function FeedItem(props: { post: Post }) {
         <div class="cs-meta">
           <TypeTag type={p().type} />
           <Show when={p().idea}><DirTag dir={p().idea!.direction} /></Show>
+          <OriginTag post={p()} />
           <TickerTag id={p().community.id} />
           <span>·</span>
           <UserLink name={p().author} />

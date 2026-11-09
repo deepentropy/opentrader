@@ -750,9 +750,10 @@ export function createHistory(cx: ChartCx): HistoryApi {
    *  sync target. The user's own move: persisted and sent to synced panes. */
   async function goToRange(fromSec: number, toSec: number) {
     if (!cx.chart || !cx.series || cx.raw.length === 0) return;
+    // Retried once the other loader is done; the caller waits for the frame (a journal share pictures it).
     if (loadingMore) {
-      window.setTimeout(() => void goToRange(fromSec, toSec), 50);
-      return;
+      await new Promise((r) => window.setTimeout(r, 50));
+      return goToRange(fromSec, toSec);
     }
     const myGoto = ++gotoGen;
     const dimTimer = needsSyncLoad(fromSec) ? window.setTimeout(() => cx.setDimmed(true), 160) : 0;

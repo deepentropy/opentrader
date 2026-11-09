@@ -279,3 +279,13 @@
   margin-top: 10px;
   color: #f7525f;
 }
+/* Picked with Ctrl / Shift + click (the trade on the chart keeps its edge). */
+.tj-row.is-picked {
+  background: var(--color-container-fill-primary-neutral-light);
+}
+/* Where a context menu opens: the pointer. */
+.tj-menu-anchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+}

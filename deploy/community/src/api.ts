@@ -193,6 +193,14 @@ export function ideaOut(r: Row) {
   };
 }
 
+/** Where a post's content came from: "journal", trades shared from the app's trade journal. Self-reported (the
+ *  trades can be edited before import), so only an analysis or a post-mortem: never an idea, never in a record. */
+export function postOrigin(type: string, origin: unknown): "journal" | null {
+  if (origin !== "journal") return null;
+  if (type !== "analysis" && type !== "postmortem") throw new HttpError(400, "Trades from the journal are shared as an analysis or a post-mortem.");
+  return "journal";
+}
+
 export const SUGGESTION_STATUSES = ["review", "planned", "progress", "shipped", "declined"] as const;
 export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
 
@@ -235,6 +243,8 @@ export function postOut(r: Row, viewer: User | null, mod: boolean, withBody = tr
     removed_reason: r.removed && (own || mod) ? r.removed_reason : null,
     own,
     source_url: r.source_url ?? null,
+    /** "journal": trades from the author's trade journal, self-reported. */
+    origin: (r.origin ?? null) as "journal" | null,
     /** Posted by the automatic threads' account. */
     author_bot: r.author_role === "bot",
     idea: shown ? ideaOut(r) : null,
@@ -326,7 +336,7 @@ async function attachment(env: Env, u: User, body: any): Promise<{ chart: Shared
   return { chart: parseChart(body?.chart), image: parseImage(body?.image, body?.image_type) };
 }
 
-/** POST /communities/:id/posts {type, title, body, idea?, linked_id?, snapshot_id? | chart+image} */
+/** POST /communities/:id/posts {type, title, body, idea?, linked_id?, origin?, snapshot_id? | chart+image} */
 export async function createPost(env: Env, user: User | null, request: Request, id: string, body: any): Promise<Response> {
   const u = writer(user);
   // Apps from before post types send none: an analysis; their theme communities are General now.
@@ -336,6 +346,7 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   if (suggestion !== (id === SUGGESTIONS)) throw new HttpError(400, "Suggestions go on the Suggestions page.");
   if (!suggestion && !(POST_TYPES as readonly string[]).includes(type)) throw new HttpError(400, "Pick what kind of post this is.");
   if (id.startsWith("c:") && !suggestion) id = GENERAL;
+  const origin = postOrigin(type, body?.origin);
   const title = text(body?.title, "The title", LIMITS.titleMin, LIMITS.titleMax);
   const content = str(body?.body).trim();
   if (content.length > LIMITS.bodyMax) throw new HttpError(400, `The text is longer than ${LIMITS.bodyMax} characters.`);
@@ -377,7 +388,7 @@ export async function createPost(env: Env, user: User | null, request: Request, 
   const cols: Row = {
     id: postId, community_id: community.id, author_id: u.id, title, body: content, score: 0, hot: hotRank(0, at), created_at: at,
     chart: chart ? JSON.stringify(chart) : null, has_image: image ? 1 : 0, sender_hash: sender, content_hash: contentHash,
-    type, linked_id: linked, ...idea,
+    type, linked_id: linked, origin, ...idea,
     // Its author is its first supporter.
     ...(suggestion ? { sg_status: "review", sg_updated_at: at, useful_count: 1 } : {}),
   };

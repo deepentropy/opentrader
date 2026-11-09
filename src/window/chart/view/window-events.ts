@@ -37,8 +37,10 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
     if (!d || !cx.chart || cx.raw.length === 0 || cx.history.loading || cx.swapping) return;
     pendingShowRange = null;
     // Bar Replay frames its own start: the range would fight it.
-    if (d.replayAt !== undefined) startReplayAt(d.replayAt);
-    else void cx.goToRange(d.from, d.to);
+    if (d.replayAt !== undefined) {
+      startReplayAt(d.replayAt);
+      d.done?.();
+    } else void cx.goToRange(d.from, d.to).finally(() => d.done?.());
   }
   /** The window-wide chart events belong to the shown tab: a hidden tab's
    *  chart ignores them. Removed with the chart. */

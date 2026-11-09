@@ -2,13 +2,17 @@
  * Trade journal tab of the footer panel: the active journal's trades, grouped
  * and sorted, one click (or the arrow keys) showing a trade on the active
  * chart. The values come from the bars (trade-journal-calc.ts) and fill in as
- * they are read.
+ * they are read. Ctrl / Shift + click picks several trades; a trade's, or a
+ * group's, context menu shares it to the Community (trade-journal-share.ts).
  */
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from "solid-js";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { Popover, PopItem } from "../screener/Popover";
+import { requestShare } from "../../data/community/share";
+import { shareListSeed, shareTradeSeed } from "../../data/trade-journal-share";
 import { tradeJournal, type JournalTrade, type SortCol } from "../../data/trade-journal";
-import { GROUP_LABELS, groupTrades, type GroupBy } from "../../data/trade-journal-calc";
+import { GROUP_LABELS, durationText, groupTrades, tradeDateText, type GroupBy } from "../../data/trade-journal-calc";
 import { pickTradeFile } from "./ImportTradesDialog";
 
 type Props = {
@@ -44,28 +48,6 @@ const GROUPS: GroupBy[] = ["none", "symbol", "day", "week", "month", "year", "pr
 const num = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 const qtyFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 });
 
-function dateText(sec: number, zone: string, dateOnly: boolean): string {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-      .formatToParts(new Date(sec * 1000))
-      .map((x) => [x.type, x.value]),
-  );
-  const d = `${p.day}/${p.month}/${p.year}`;
-  return dateOnly ? d : `${d} ${p.hour}:${p.minute}`;
-}
-function durationText(t: JournalTrade): string {
-  const s = Math.max(0, t.exitTime - t.entryTime);
-  if (t.dateOnly) {
-    const days = Math.round(s / 86400);
-    return days === 0 ? "Same day" : `${days}d`;
-  }
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (d > 0) return h ? `${d}d ${h}h` : `${d}d`;
-  if (h > 0) return m ? `${h}h ${m}m` : `${h}h`;
-  return `${m}m`;
-}
 const price = (v: number) => (Math.abs(v) < 1 ? v.toFixed(4) : num.format(v));
 const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${num.format(Math.abs(v))}`;
 const pct = (v: number, sign = true) => `${sign && v > 0 ? "+" : v < 0 ? "−" : ""}${(Math.abs(v) * 100).toFixed(2)}%`;
@@ -98,6 +80,10 @@ export function TradeJournalView(props: Props) {
   const [scrollTop, setScrollTop] = createSignal(0);
   const [viewH, setViewH] = createSignal(300);
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
+  /** Trades picked with Ctrl / Shift + click (a list to share). */
+  const [picked, setPicked] = createSignal<Set<string>>(new Set());
+  /** Context menu at the pointer: a trade's, or a group's. */
+  const [menu, setMenu] = createSignal<{ x: number; y: number; trade?: JournalTrade; group?: { label: string; trades: JournalTrade[] } } | null>(null);
 
   onMount(() => {
     const ro = new ResizeObserver(() => setViewH(scroller.clientHeight));
@@ -152,11 +138,47 @@ export function TradeJournalView(props: Props) {
     return { count: ts.length, done: done.length, wins, pnl, pending, failed };
   });
 
-  // Collapsed groups belong to one grouping.
+  // Collapsed groups belong to one grouping; picked trades to one journal.
   createEffect(on(() => [prefs().groupBy, journal()?.id], () => setCollapsed(new Set<string>()), { defer: true }));
+  createEffect(on(() => journal()?.id, () => setPicked(new Set<string>()), { defer: true }));
 
   function show(t: JournalTrade, replay = false) {
     tradeJournal.show(t, replay);
+  }
+  /** A plain click shows the trade; Ctrl + click adds it to (or takes it from) the picked trades; Shift + click
+   *  picks the trades shown from the one on the chart to it. */
+  function onRowClick(e: MouseEvent, t: JournalTrade) {
+    const from = tradeJournal.selectedId();
+    if (e.ctrlKey || e.metaKey) {
+      const next = new Set(picked());
+      if (next.size === 0 && from && from !== t.id) next.add(from);
+      if (next.has(t.id)) next.delete(t.id);
+      else next.add(t.id);
+      setPicked(next);
+      return;
+    }
+    if (e.shiftKey && from) {
+      const list = shownTrades();
+      const a = list.findIndex((x) => x.id === from);
+      const b = list.findIndex((x) => x.id === t.id);
+      if (a >= 0 && b >= 0) {
+        setPicked(new Set(list.slice(Math.min(a, b), Math.max(a, b) + 1).map((x) => x.id)));
+        return;
+      }
+    }
+    setPicked(new Set<string>());
+    show(t);
+  }
+  /** The picked trades, in the order shown. */
+  const pickedTrades = () => shownTrades().filter((t) => picked().has(t.id));
+
+  /** One trade: the chart shows it first, so the post's picture is framed on it with its marks. */
+  async function shareTrade(t: JournalTrade) {
+    if (t.fullSymbol) await tradeJournal.showFramed(t);
+    requestShare(shareTradeSeed(t, props.timeZone));
+  }
+  function shareList(trades: JournalTrade[], label?: string) {
+    requestShare(shareListSeed(trades, props.timeZone, label));
   }
   /** Scroll the selected trade into view. */
   function reveal(id: string) {
@@ -266,7 +288,17 @@ export function TradeJournalView(props: Props) {
                 const top = () => (range().first + i()) * ROW;
                 if (item.kind === "group") {
                   return (
-                    <div class="tj-group" style={{ top: `${top()}px` }} role="row" onClick={() => toggleGroup(item.key)}>
+                    <div
+                      class="tj-group"
+                      style={{ top: `${top()}px` }}
+                      role="row"
+                      onClick={() => toggleGroup(item.key)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        const g = groups().find((x) => x.key === item.key);
+                        if (g) setMenu({ x: e.clientX, y: e.clientY, group: { label: g.label, trades: g.trades } });
+                      }}
+                    >
                       <span class="tj-group-caret" classList={{ "is-collapsed": collapsed().has(item.key) }}>
                         <Icon name="st-footer-tab-caret" />
                       </span>
@@ -285,18 +317,26 @@ export function TradeJournalView(props: Props) {
                 return (
                   <div
                     class="tj-row"
-                    classList={{ "is-selected": tradeJournal.selectedId() === t.id, "is-failed": t.status === "unknown" || t.status === "nodata" }}
+                    classList={{
+                      "is-selected": tradeJournal.selectedId() === t.id,
+                      "is-picked": picked().has(t.id),
+                      "is-failed": t.status === "unknown" || t.status === "nodata",
+                    }}
                     style={{ top: `${top()}px`, "grid-template-columns": TEMPLATE }}
                     role="row"
-                    onClick={() => show(t)}
+                    onClick={(e) => onRowClick(e, t)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setMenu({ x: e.clientX, y: e.clientY, trade: t });
+                    }}
                   >
                     <span class="tj-td tj-muted">{item.n}</span>
                     <span class="tj-td tj-symbol">
                       {t.symbol}
                       <span class={t.side === "long" ? "st-side-long" : "st-side-short"}>{t.side === "long" ? "Long" : "Short"}</span>
                     </span>
-                    <span class="tj-td">{dateText(t.entryTime, zone, t.dateOnly)}</span>
-                    <span class="tj-td">{dateText(t.exitTime, zone, t.dateOnly)}</span>
+                    <span class="tj-td">{tradeDateText(t.entryTime, zone, t.dateOnly)}</span>
+                    <span class="tj-td">{tradeDateText(t.exitTime, zone, t.dateOnly)}</span>
                     <span class="tj-td is-end">{durationText(t)}</span>
                     <span class="tj-td is-end">{t.qty !== undefined ? qtyFmt.format(t.qty) : "—"}</span>
                     <span class="tj-td is-end" classList={{ "tj-estimated": !!c?.entryEstimated }} title={c?.entryEstimated ? "Read on the bars (not in the file)" : undefined}>
@@ -339,6 +379,30 @@ export function TradeJournalView(props: Props) {
         </Show>
       </div>
 
+      <Show when={menu()}>
+        {(m) => {
+          let anchor!: HTMLDivElement;
+          // Read once: the menu's accessors go stale when it closes.
+          const { x, y, trade, group } = m();
+          const list = trade && picked().has(trade.id) && picked().size > 1 ? pickedTrades() : [];
+          const run = (fn: () => void) => () => {
+            setMenu(null);
+            fn();
+          };
+          return (
+            <>
+              <div ref={anchor} class="tj-menu-anchor" style={{ left: `${x}px`, top: `${y}px` }} />
+              <Popover anchor={anchor} onClose={() => setMenu(null)} class="st-tab-menu">
+                <Show when={trade}>{(t) => <PopItem title="Share trade to Community…" onClick={run(() => void shareTrade(t()))} />}</Show>
+                <Show when={list.length > 0}>
+                  <PopItem title={`Share ${tradesText(list.length)} to Community…`} onClick={run(() => shareList(list))} />
+                </Show>
+                <Show when={group}>{(g) => <PopItem title={`Share ${g().label} to Community…`} onClick={run(() => shareList(g().trades, g().label))} />}</Show>
+              </Popover>
+            </>
+          );
+        }}
+      </Show>
     </div>
   );
 }

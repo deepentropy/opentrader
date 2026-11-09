@@ -34,7 +34,7 @@ import { withPostingCheck } from "../../../data/community/posting-check";
 import { shareRequest, takeShare } from "../../../data/community/share";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "./parts";
+import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, MarkdownBody, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "./parts";
 
 /** "chart" (follows the chart), "following" (my tickers), "all", or a community id. */
 type Source = string;
@@ -418,18 +418,24 @@ export function CommunityPanel(props: Props) {
   );
 
   const Composer = () => {
+    // A share request from elsewhere fills the post in.
+    const seed = takeShare();
     const targets = createMemo(() => {
       const list: { id: string; title: string }[] = [];
-      const add = (id: string | null) => id && !list.some((t) => t.id === id) && list.push({ id, title: label(id) });
+      const add = (id: string | null | undefined) => id && !list.some((t) => t.id === id) && list.push({ id, title: label(id) });
+      add(seed?.to);
       add(communityId());
       add(chartCommunity());
       for (const f of me()?.follows ?? []) if (f.kind === "ticker") add(f.id);
       add(GENERAL);
       return list;
     });
-    // A share request from elsewhere fills the post in.
-    const seed = takeShare();
-    const [type, setType] = createSignal<PostType>(seed?.body ? "analysis" : "idea");
+    const journal = seed?.journal;
+    // Journal trades are self-reported: never an idea (the server keeps them out of track records).
+    const types = journal ? TYPES.filter((t) => t === "analysis" || t === "postmortem") : TYPES;
+    const [type, setType] = createSignal<PostType>(seed?.type ?? (seed?.body ? "analysis" : "idea"));
+    const [amounts, setAmounts] = createSignal(false);
+    const trades = () => (journal ? (amounts() ? journal.withAmounts : journal.table) : "");
     const [target, setTarget] = createSignal(seed?.to && targets().some((t) => t.id === seed.to) ? seed.to : targets()[0]?.id ?? GENERAL);
     const [title, setTitle] = createSignal(seed?.title ?? "");
     const [body, setBody] = createSignal(seed?.body ?? "");
@@ -488,9 +494,10 @@ export function CommunityPanel(props: Props) {
           api.createPost(target(), {
             type: type(),
             title: title(),
-            body: body(),
+            body: journal ? `${trades()}\n\n${body()}`.trim() : body(),
             idea: isIdea() ? { direction: direction(), entry: l.e, stop: l.s, target: l.t, expires: expires(), entry_rule: rule() } : undefined,
             attach: attachment,
+            origin: journal ? "journal" : undefined,
           }),
         );
         if (source() !== "chart" || target() !== chartCommunity()) setSource(target());
@@ -510,7 +517,7 @@ export function CommunityPanel(props: Props) {
         </div>
         <div class="cm-scroll cm-composer">
           <label class="cm-label">Kind of post</label>
-          <SegmentedControl items={TYPES.map((t) => ({ id: t, label: TYPE_LABEL[t] }))} value={type()} onChange={setType} ariaLabel="Kind of post" />
+          <SegmentedControl items={types.map((t) => ({ id: t, label: TYPE_LABEL[t] }))} value={type()} onChange={setType} ariaLabel="Kind of post" />
           <label class="cm-label">Ticker</label>
           <select class="cm-input" value={target()} onChange={(e) => setTarget(e.currentTarget.value)}>
             <For each={targets()}>{(t) => <option value={t.id}>{t.title}</option>}</For>
@@ -534,7 +541,16 @@ export function CommunityPanel(props: Props) {
             </div>
             <div class="cm-muted cm-hint">Tracked against the price and added to your public record whatever the outcome. You can add updates, not move levels.</div>
           </Show>
-          <label class="cm-label">{isIdea() ? "Thesis, trigger and risk" : "Text"}</label>
+          <Show when={journal}>
+            <label class="cm-label">Trades</label>
+            <MarkdownBody class="cm-journal-trades" text={trades()} />
+            <label class="cm-radio cm-attach">
+              <input type="checkbox" checked={amounts()} onChange={(e) => setAmounts(e.currentTarget.checked)} />
+              <span>Include amounts (quantity, P&L and fees)</span>
+            </label>
+            <div class="cm-muted cm-hint">From journal, self-reported: the post says so, and it never counts in your track record. Your notes stay in the journal.</div>
+          </Show>
+          <label class="cm-label">{isIdea() ? "Thesis, trigger and risk" : journal ? "Your text, under the trades" : "Text"}</label>
           <textarea class="cm-textarea is-tall" maxLength={20000} value={body()} onInput={(e) => setBody(e.currentTarget.value)} />
           <div class="cm-muted cm-hint">Markdown: **bold**, *italic*, [link](https://…), - lists, &gt; quotes.</div>
           <Show when={chartBridge()}>
@@ -599,7 +615,8 @@ export function CommunityPanel(props: Props) {
             />
           )}
         </Match>
-        <Match when={view().kind === "compose"}><Composer /></Match>
+        {/* Keyed: a share asked while the composer is open starts a new post with its own content. */}
+        <Match when={view().kind === "compose" ? view() : null} keyed><Composer /></Match>
         <Match when={view().kind === "queue"}>
           <ModQueue onBack={() => setView({ kind: "list" })} onOpenPost={(id) => id && setView({ kind: "post", id })} />
         </Match>

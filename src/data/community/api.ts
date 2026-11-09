@@ -96,6 +96,8 @@ export type Post = {
   removed_reason: string | null;
   own: boolean;
   source_url: string | null;
+  /** "journal": trades from the author's trade journal, self-reported (never in a track record). */
+  origin?: "journal" | null;
   /** Posted by the automatic threads' account (OpenTrader-bot). */
   author_bot?: boolean;
   idea: Idea | null;
@@ -143,7 +145,16 @@ export type Reason = "thesis" | "data" | "view" | "risk" | "vague";
 export type Ratings = { reasons: Partial<Record<Reason, number>>; mine: Reason[] };
 
 export type NewIdea = { direction: Direction; entry: number; stop: number; target: number; expires: string; entry_rule: "close" | "touch" };
-export type NewPost = { type: PostType; title: string; body: string; idea?: NewIdea; linked_id?: string | null; attach?: ChartAttachment | null };
+export type NewPost = {
+  type: PostType;
+  title: string;
+  body: string;
+  idea?: NewIdea;
+  linked_id?: string | null;
+  attach?: ChartAttachment | null;
+  /** "journal": trades shared from the trade journal (labelled self-reported). */
+  origin?: "journal";
+};
 
 /** A chart snapshot sent from the app to the member's account. */
 export type Snapshot = { id: string; symbol: string; interval: string; created_at: number };
@@ -355,6 +366,7 @@ export const api = {
       body: p.body,
       idea: p.idea,
       linked_id: p.linked_id ?? undefined,
+      origin: p.origin,
       ...attachBody(p.attach),
     }),
 

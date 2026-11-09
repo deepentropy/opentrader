@@ -473,7 +473,7 @@ function App() {
       if (r.interval && r.interval !== interval() && symbolServesResolution(r.symbol, r.interval)) setInterval(r.interval);
     });
     const { from, to } = chartFrame(r, interval());
-    emitAppEvent("chart-show-range", { from, to, replayAt: r.replayAt });
+    emitAppEvent("chart-show-range", { from, to, replayAt: r.replayAt, done: r.onFramed });
   });
   onCleanup(() => tradeJournal.setNavigator(null));
 

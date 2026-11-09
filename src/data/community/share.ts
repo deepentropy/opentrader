@@ -1,12 +1,13 @@
 /*
  * "Share to Community" from anywhere in the app: the chart's menu, the
- * snapshot menu, the Strategy Tester report, the script editor. A request
- * opens the Community panel on a new post, already holding the chart and,
- * for a report or a script, the user's own figures or code. "Send snapshot
- * to Community" only sends the chart's picture to the account, to attach to
- * a post written on the website.
+ * snapshot menu, the Strategy Tester report, the script editor, the trade
+ * journal. A request opens the Community panel on a new post, already holding
+ * the chart and, for a report, a script or trades, the user's own figures or
+ * code. "Send snapshot to Community" only sends the chart's picture to the
+ * account, to attach to a post written on the website.
  */
 import { createSignal } from "solid-js";
+import type { PostType } from "./api";
 
 export type ShareSeed = {
   at: number;
@@ -18,6 +19,11 @@ export type ShareSeed = {
   to?: string;
   /** Only send the chart's snapshot to the account (no post). */
   snapshotOnly?: boolean;
+  /** The kind of post (default: an analysis with a body, else an idea). */
+  type?: PostType;
+  /** Trades from the trade journal: their table in percent, and with the amounts ("Include amounts"). Added above
+   *  the member's text and labelled self-reported. */
+  journal?: { table: string; withAmounts: string };
 };
 
 const [shareRequest, setShareRequest] = createSignal<ShareSeed | null>(null);

@@ -15,6 +15,15 @@ export function TypeTag(props: { type: PostType }) {
   return <span class={`cs-type is-${props.type}`}>{TYPE_LABEL[props.type]}</span>;
 }
 
+/** Trades shared from the author's trade journal in the app: self-reported, not in the track record. */
+export function OriginTag(props: { post: Post }) {
+  return (
+    <Show when={props.post.origin === "journal"}>
+      <span class="cs-type" title="Trades imported in the author's journal: not checked against the price, not in the track record">From journal, self-reported</span>
+    </Show>
+  );
+}
+
 /** A suggestion's status: under review, planned, in progress, shipped, declined. */
 export function StatusTag(props: { status: SuggestionStatus }) {
   return <span class={`cs-type is-sg-${props.status}`}>{STATUS_LABEL[props.status]}</span>;

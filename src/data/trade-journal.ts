@@ -59,6 +59,8 @@ export type ShowRequest = {
   exitTime: number;
   /** Start Bar Replay at this time once framed. */
   replayAt?: number;
+  /** Called once the chart is framed on it. */
+  onFramed?: () => void;
 };
 
 const LISTS_KEY = "ot:journal:lists";
@@ -69,6 +71,8 @@ const DEFAULT_ZONE = "America/New_York";
 const DEFAULT_PREFS: JournalPrefs = { groupBy: "none", interval: "auto", sort: { col: "entry", desc: true } };
 /** Bar requests running at once while values are read. */
 const CONCURRENCY = 4;
+/** A chart that has not framed a trade by then (no chart shown, bars not loading) is not waited for. */
+const FRAME_TIMEOUT_MS = 15_000;
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -282,11 +286,23 @@ export const tradeJournal = createRoot(() => {
   /** Select a trade and show it on the active chart (its symbol, an interval
    *  that fits it unless the chart keeps its own, framed from entry to exit).
    *  `replay`: start Bar Replay at its entry. */
-  function show(t: JournalTrade, replay = false) {
+  function show(t: JournalTrade, replay = false, onFramed?: () => void) {
     setSelectedId(t.id);
-    if (!t.fullSymbol || !navigator) return;
+    if (!t.fullSymbol || !navigator) return onFramed?.();
     const interval = prefs().interval === "auto" ? chartInterval(t, Date.now() / 1000) : null;
-    navigator({ symbol: t.fullSymbol, interval, entryTime: t.entryTime, exitTime: t.exitTime, replayAt: replay ? t.entryTime : undefined });
+    navigator({ symbol: t.fullSymbol, interval, entryTime: t.entryTime, exitTime: t.exitTime, replayAt: replay ? t.entryTime : undefined, onFramed });
+  }
+
+  /** Show a trade and wait until the chart is framed on it and painted with its marks (a share pictures it). */
+  function showFramed(t: JournalTrade): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(resolve, FRAME_TIMEOUT_MS);
+      show(t, false, () => {
+        clearTimeout(timer);
+        // The chart paints the new range and marks on its next frames.
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+    });
   }
 
   /** Trades of the active journal on `fullSymbol`: the chart's trade marks. */
@@ -314,6 +330,7 @@ export const tradeJournal = createRoot(() => {
     removeTrade,
     setNavigator,
     show,
+    showFramed,
     marksFor,
   };
 });

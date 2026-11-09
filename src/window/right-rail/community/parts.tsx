@@ -79,12 +79,13 @@ export function ExternalLink(props: { href: string; children: any }) {
   );
 }
 
-/** The post's type ("Idea", "Analysis"…) and an idea's direction. */
+/** The post's type ("Idea", "Analysis"…), an idea's direction, and the label of trades shared from a journal. */
 export function TypeBadges(props: { post: Post }) {
   return (
     <>
       <span class={`cm-type is-${props.post.type}`}>{TYPE_LABEL[props.post.type]}</span>
       <Show when={props.post.idea}><span class="cm-type is-dir">{props.post.idea!.direction === "long" ? "Long" : "Short"}</span></Show>
+      <Show when={props.post.origin === "journal"}><span class="cm-type" title="Trades imported in the author's journal: not checked against the price, not in the track record">From journal, self-reported</span></Show>
     </>
   );
 }
