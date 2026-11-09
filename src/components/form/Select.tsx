@@ -3,7 +3,7 @@
  *
  * `SelectControl`: the Settings dialogs' select — a 34 px transparent r8 button with the 18 px chevron and an r10
  * option menu flush under it, trigger-wide, flipped above without room below. `MultiCheckSelect` is the same button
- * over a check list that stays open while options are toggled. `NativeSelect` is a plain <select> (drawing
+ * over a check list that stays open while options are toggled, `MenuSelect` over the caller's own rows. `NativeSelect` is a plain <select> (drawing
  * Settings), styled by its class.
  */
 import { For, Show, createSignal, onMount, type JSX } from "solid-js";
@@ -96,6 +96,36 @@ export function SelectControl(props: {
                 </div>
               )}
             </For>
+          </OptionsMenu>
+        )}
+      </Show>
+    </>
+  );
+}
+
+/** The select button over a menu of the caller's own rows (options with tooltips or disabled states). */
+export function MenuSelect(props: { display: string; width: number; role: "listbox" | "menu"; children: (close: () => void) => JSX.Element }) {
+  let btn: HTMLButtonElement | undefined;
+  const [anchor, setAnchor] = createSignal<Anchor | null>(null);
+  const close = () => setAnchor(null);
+  return (
+    <>
+      <button
+        ref={btn}
+        type="button"
+        class={`cp3-select${anchor() ? " is-open" : ""}`}
+        style={{ width: `${props.width}px` }}
+        aria-haspopup={props.role}
+        aria-expanded={!!anchor()}
+        onClick={() => (anchor() ? close() : setAnchor(anchorOf(btn!)))}
+      >
+        <span class="cp3-select-value">{props.display}</span>
+        <span class="cp3-select-caret"><Chevron /></span>
+      </button>
+      <Show when={anchor()} keyed>
+        {(a) => (
+          <OptionsMenu anchor={a} trigger={() => btn} onClose={close} role={props.role}>
+            {props.children(close)}
           </OptionsMenu>
         )}
       </Show>

@@ -6,8 +6,9 @@
  * value field 100 px; a gradient fill = two 34 px colours; palette colours, arrow colours and candle parts are rows
  * under the output's check row, 26 px in ("Color 0", "Up", "Body"), with an 8 px gap after the group.
  */
-import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, createSignal, type JSX } from "solid-js";
 import { CheckBox, ColorControl, NumberField, SelectControl } from "../../components/form";
+import { createPopover } from "../../components/popover";
 import type { PlotStyleOverride } from "./indicators/indicator-layer";
 import type { ShapeLocation, ShapeStyle, StyleItem } from "./indicators/style-outputs";
 
@@ -63,7 +64,6 @@ function ShapeGlyph(props: { shape: ShapeStyle }) {
 /** Shape button (34 px, the shape's glyph, no arrow) and its menu of shapes (glyph + name). */
 function ShapeControl(props: { value: ShapeStyle; disabled?: boolean; onPick: (s: ShapeStyle) => void }) {
   let btn: HTMLButtonElement | undefined;
-  let menu: HTMLDivElement | undefined;
   const [pos, setPos] = createSignal<{ left: number; top: number } | null>(null);
   const open = () => {
     if (!btn || props.disabled) return;
@@ -71,24 +71,16 @@ function ShapeControl(props: { value: ShapeStyle; disabled?: boolean; onPick: (s
     setPos({ left: r.left, top: r.bottom + 1 });
   };
   const close = () => setPos(null);
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!pos()) return;
-      const t = e.target as Node;
-      if (menu?.contains(t) || btn?.contains(t)) return;
-      close();
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && pos()) { e.stopPropagation(); close(); } };
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
+  const popover = createPopover(() => btn, {
+    onClose: close,
+    placement: false,
+    active: () => !!pos(),
+    press: "mousedown",
+    on: { target: "window", capture: true },
   });
   // The menu opens under the button, above it when there is no room below.
   const place = (el: HTMLDivElement) => {
-    menu = el;
+    popover(el);
     queueMicrotask(() => {
       const p = pos();
       if (!p || !btn) return;

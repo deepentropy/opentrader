@@ -11,12 +11,15 @@
  * swatches), footer "Defaults" menu + Cancel / Ok. The controls are the chart
  * Settings dialog's. Edits a local draft; Cancel discards, Ok commits.
  */
-import { For, Show, createEffect, createSignal, on, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, createEffect, createSignal, on, type JSX } from "solid-js";
 import { createStore, reconcile } from "solid-js/store";
 import type { InputConfig, PlotConfig } from "lightweight-charts-indicators";
 import type { PlotDefaultVisible, PlotPalette } from "./indicators/volume";
 import type { IndicatorStyleOverrides } from "./indicators/indicator-layer";
-import { CheckBox, ColorControl, NumberField, SelectControl } from "../../components/form";
+import { CheckBox, ColorControl, NumberField, SelectControl, SwitchMark } from "../../components/form";
+import { Chevron } from "../../components/form/glyphs";
+import { createPopover } from "../../components/popover";
+import { Dialog } from "../../components/Dialog";
 import { RangeSlider } from "../drawings/SettingsDialog";
 import type { IntervalVisibility, UnitVisibility } from "lightweight-charts-drawing/core/types";
 import {
@@ -146,10 +149,6 @@ const SOURCE_LABELS: Record<string, string> = {
   hl2: "(H + L)/2", hlc3: "(H + L + C)/3", ohlc4: "(O + H + L + C)/4", hlcc4: "(H + L + C + C)/4",
 };
 
-const Chevron = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z" /></svg>
-);
-
 /** Select width: the SHOWN value + button padding (content 7 left, 6
  *  before the 20 px caret, 2 right), 100 px minimum. The "Close" source
  *  select is 100 px although its list holds "(H + L + C + C)/4", so the
@@ -187,6 +186,14 @@ function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t:
   let btn: HTMLButtonElement | undefined;
   let menu: HTMLDivElement | undefined;
   const [pos, setPos] = createSignal<{ left: number; top: number } | null>(null);
+  const close = () => setPos(null);
+  const popover = createPopover(() => btn, {
+    onClose: close,
+    placement: false,
+    active: () => !!pos(),
+    press: "mousedown",
+    on: { target: "window", capture: true },
+  });
   const open = () => {
     const r = btn!.getBoundingClientRect();
     setPos({ left: r.left, top: r.bottom + 4 });
@@ -198,18 +205,6 @@ function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t:
       setPos({ left: Math.max(0, Math.min(r.left, vw - m.width)), top: Math.max(0, Math.min(r.bottom + 4, vh - m.height)) });
     });
   };
-  const close = () => setPos(null);
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (menu?.contains(t) || btn?.contains(t)) return;
-      close();
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && pos()) { e.stopPropagation(); close(); } };
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => { window.removeEventListener("mousedown", onDown, true); window.removeEventListener("keydown", onKey, true); });
-  });
   return (
     <>
       <button
@@ -226,13 +221,12 @@ function PlotTypeControl(props: { value: string; priceLine: boolean; onPick: (t:
       </button>
       <Show when={pos()}>
         {(p) => (
-          <div ref={menu} class="ind3-plottype-menu" role="listbox" style={{ left: `${p().left}px`, top: `${p().top}px` }}>
+          <div ref={(el) => { menu = el; popover(el); }} class="ind3-plottype-menu" role="listbox" style={{ left: `${p().left}px`, top: `${p().top}px` }}>
             <label class="ind3-plottype-switch-row">
               <span class="ind3-plottype-switch-label">Price line</span>
-              <span class={`ind3-switch${props.priceLine ? " is-on" : ""}`}>
+              <SwitchMark variant="toolbar" on={props.priceLine}>
                 <input type="checkbox" role="switch" checked={props.priceLine} onChange={(e) => props.onPriceLine(e.currentTarget.checked)} />
-                <span class="ind3-switch-thumb" />
-              </span>
+              </SwitchMark>
             </label>
             <div class="ind3-plottype-sep" role="separator" />
             <For each={PLOT_TYPES}>
@@ -494,15 +488,14 @@ export function IndicatorSettingsDialog(props: Props) {
   // (a JSON file, ../../data/study-settings-file). Opens upward from the footer button.
   const [defaultsOpen, setDefaultsOpen] = createSignal(false);
   let defaultsBtn: HTMLButtonElement | undefined;
-  let defaultsMenu: HTMLDivElement | undefined;
-  onMount(() => {
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (defaultsMenu?.contains(t) || defaultsBtn?.contains(t)) return;
-      setDefaultsOpen(false);
-    };
-    window.addEventListener("mousedown", onDown, true);
-    onCleanup(() => window.removeEventListener("mousedown", onDown, true));
+  // Escape is left to the dialog (it closes with the menu open).
+  const defaultsMenu = createPopover(() => defaultsBtn, {
+    onClose: () => setDefaultsOpen(false),
+    placement: false,
+    active: defaultsOpen,
+    press: "mousedown",
+    escape: "none",
+    on: { target: "window", capture: true },
   });
   /** The dialog's values as a settings file (strategy properties in full). */
   const exportSettings = () => {
@@ -563,17 +556,6 @@ export function IndicatorSettingsDialog(props: Props) {
     }
     setOptDraft(defaultIndicatorOptions());
   };
-
-  // Escape / Enter on the dialog; popovers (menus, colour panel) take their
-  // own Escape first (they stop it in the capture phase).
-  onMount(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); ok(); }
-      else if (e.key === "Enter" && !(e.target instanceof HTMLInputElement)) { e.stopPropagation(); ok(); }
-    };
-    window.addEventListener("keydown", onKey);
-    onCleanup(() => window.removeEventListener("keydown", onKey));
-  });
 
   /** One line plot: visible check box, colour + thickness, plot type (palette plots: a row per palette colour). */
   const plotRow = (p: PlotConfig) => (
@@ -767,457 +749,463 @@ export function IndicatorSettingsDialog(props: Props) {
   };
 
   return (
-    <div class="settings-backdrop" role="presentation" onMouseDown={() => ok()}>
-      <div class="settings-dialog ind3-dialog" data-qa-id="indicator-properties-dialog" role="dialog" aria-label={`${props.title} settings`} onMouseDown={(e) => e.stopPropagation()}>
-        <header class="cp3-header">
-          <div class="cp3-header-title ind3-title">{props.title}</div>
-          <button type="button" data-qa-id="close" aria-label="Close menu" class="cp3-close" onClick={() => ok()}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18"><path stroke="currentColor" stroke-width="1.2" fill="none" d="m1.5 1.5 15 15m0-15-15 15" /></svg>
-          </button>
-        </header>
+    <Dialog
+      look="settings"
+      titleClass="cp3-header-title ind3-title"
+      layerClass="settings-backdrop"
+      backdrop="close"
+      inline
+      class="settings-dialog ind3-dialog"
+      data-qa-id="indicator-properties-dialog"
+      label={`${props.title} settings`}
+      title={props.title}
+      onClose={ok}
+      // Escape / Enter in the bubble phase: popovers (menus, colour panel) take their own Escape first (they stop it
+      // in the capture phase). Enter in a field is the field's.
+      keys={{ capture: false }}
+      onEnter={(e) => { if (!(e.target instanceof HTMLInputElement)) ok(); }}
+    >
+      {/* Underline tabs (study dialog: a top bar, not the left rail). */}
+      <div class="ind3-tabs" role="tablist">
+        <For each={tabs()}>
+          {(t) => (
+            <button type="button" role="tab" aria-selected={tab() === t} class={`ind3-tab${tab() === t ? " is-active" : ""}`} onClick={() => setTab(t)}>{TAB_TITLES[t]}</button>
+          )}
+        </For>
+      </div>
 
-        {/* Underline tabs (study dialog: a top bar, not the left rail). */}
-        <div class="ind3-tabs" role="tablist">
-          <For each={tabs()}>
-            {(t) => (
-              <button type="button" role="tab" aria-selected={tab() === t} class={`ind3-tab${tab() === t ? " is-active" : ""}`} onClick={() => setTab(t)}>{TAB_TITLES[t]}</button>
-            )}
-          </For>
-        </div>
-
-        <div class="ind3-content">
-          {/* ── Inputs ── */}
-          <Show when={tab() === "inputs"}>
-            <Show
-              when={props.inputConfig.length > 0 || props.extraRows}
-              fallback={<div class="ot-empty-state ind3-empty">This indicator has no inputs.</div>}
-            >
-              <div class="ind3-grid">
-                <For each={inputRows()}>
-                  {(row) => {
-                    if (row.kind === "group") return <div class={`cp3-section ind3-group${row.first ? " is-first" : ""}`}>{row.title}</div>;
-                    if (row.kind === "gap") return <div class="ind3-group-gap" />;
-                    const [first, ...rest] = row.items;
-                    const tip = [...row.items].reverse().find((c) => c.tooltip)?.tooltip;
-                    const info = () => (tip ? <InfoIcon text={tip} /> : null);
-                    const more = () => (
-                      <For each={rest}>
-                        {(cfg) => (
-                          // Reference inline items: a check box with its title after it (an empty title still takes
-                          // its 8 px gap), any other input its title (when it has one) 8 px before the control; an
-                          // item with a title starts 12 px further.
-                          <span class="ind3-inline-item" classList={{ "is-wide": !!cfg.title }}>
-                            {cfg.type === "bool" ? (
-                              <>
-                                <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} />
-                                <span class="cp3-title" onClick={() => toggleInput(cfg.id)}>{cfg.title}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Show when={cfg.title}>
-                                  <span class="cp3-title">{cfg.title}</span>
-                                </Show>
-                                {inputControl(cfg)}
-                              </>
-                            )}
-                          </span>
-                        )}
-                      </For>
-                    );
-                    if (first.type === "bool") {
-                      // A check box alone is a 34 px row (reference "fill" cell); with inline controls a 50 px one.
-                      return (
-                        <div class={`cp3-cell cp3-label is-full${rest.length === 0 ? " ind3-check-row" : ""}`}>
-                          <div class="cp3-label-inner">
-                            <CheckBox checked={!!inputDraft[first.id]} onToggle={() => toggleInput(first.id)} />
-                            <span class="cp3-title" onClick={() => toggleInput(first.id)}>{first.title ?? first.id}</span>
-                            {more()}
-                            {info()}
-                          </div>
-                        </div>
-                      );
-                    }
-                    // Several inputs on one row: label and controls flow from the left (reference inline cells), not in
-                    // the controls column.
-                    if (rest.length > 0) {
-                      return (
-                        <div class="cp3-cell cp3-label is-full">
-                          <div class="cp3-label-inner">
-                            <span class="cp3-title">{first.title ?? first.id}</span>
-                            {inputControl(first)}
-                            {more()}
-                            {info()}
-                          </div>
-                        </div>
-                      );
-                    }
-                    return (
-                      <>
-                        <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">{first.title ?? first.id}</span></div></div>
-                        <div class="cp3-cell cp3-controls">{inputControl(first)}{info()}</div>
-                      </>
-                    );
-                  }}
-                </For>
-                {props.extraRows?.()}
-              </div>
-            </Show>
-          </Show>
-
-          {/* ── Properties (strategies) ── */}
-          <Show when={tab() === "properties" && props.strategy}>
-            {(st) => (
-              <StrategyPropertiesTab
-                value={propDraft}
-                chartCurrency={st().chartCurrency}
-                interval={st().interval}
-                chartStyle={st().chartStyle}
-                historyTicks={st().historyTicks}
-                onChange={(patch) => setPropDraft(patch)}
-              />
-            )}
-          </Show>
-
-          {/* ── Style (strategies) ── trade marks on the price pane, then
-              INPUT VALUES / Inputs in status line. */}
-          <Show when={tab() === "style" && props.strategy}>
+      <div class="ind3-content">
+        {/* ── Inputs ── */}
+        <Show when={tab() === "inputs"}>
+          <Show
+            when={props.inputConfig.length > 0 || props.extraRows}
+            fallback={<div class="ot-empty-state ind3-empty">This indicator has no inputs.</div>}
+          >
             <div class="ind3-grid">
-              {outputRowsJsx()}
-              {checkRow("Trades on chart", () => stratStyle.tradesOnChart, () => setStratStyle("tradesOnChart", (v) => !v))}
-              {checkRow("Signal labels", () => stratStyle.signalLabels, () => setStratStyle("signalLabels", (v) => !v))}
-              {checkRow("Quantity", () => stratStyle.quantity, () => setStratStyle("quantity", (v) => !v))}
-              {valueRowsJsx(false)}
+              <For each={inputRows()}>
+                {(row) => {
+                  if (row.kind === "group") return <div class={`cp3-section ind3-group${row.first ? " is-first" : ""}`}>{row.title}</div>;
+                  if (row.kind === "gap") return <div class="ind3-group-gap" />;
+                  const [first, ...rest] = row.items;
+                  const tip = [...row.items].reverse().find((c) => c.tooltip)?.tooltip;
+                  const info = () => (tip ? <InfoIcon text={tip} /> : null);
+                  const more = () => (
+                    <For each={rest}>
+                      {(cfg) => (
+                        // Reference inline items: a check box with its title after it (an empty title still takes
+                        // its 8 px gap), any other input its title (when it has one) 8 px before the control; an
+                        // item with a title starts 12 px further.
+                        <span class="ind3-inline-item" classList={{ "is-wide": !!cfg.title }}>
+                          {cfg.type === "bool" ? (
+                            <>
+                              <CheckBox checked={!!inputDraft[cfg.id]} onToggle={() => toggleInput(cfg.id)} />
+                              <span class="cp3-title" onClick={() => toggleInput(cfg.id)}>{cfg.title}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Show when={cfg.title}>
+                                <span class="cp3-title">{cfg.title}</span>
+                              </Show>
+                              {inputControl(cfg)}
+                            </>
+                          )}
+                        </span>
+                      )}
+                    </For>
+                  );
+                  if (first.type === "bool") {
+                    // A check box alone is a 34 px row (reference "fill" cell); with inline controls a 50 px one.
+                    return (
+                      <div class={`cp3-cell cp3-label is-full${rest.length === 0 ? " ind3-check-row" : ""}`}>
+                        <div class="cp3-label-inner">
+                          <CheckBox checked={!!inputDraft[first.id]} onToggle={() => toggleInput(first.id)} />
+                          <span class="cp3-title" onClick={() => toggleInput(first.id)}>{first.title ?? first.id}</span>
+                          {more()}
+                          {info()}
+                        </div>
+                      </div>
+                    );
+                  }
+                  // Several inputs on one row: label and controls flow from the left (reference inline cells), not in
+                  // the controls column.
+                  if (rest.length > 0) {
+                    return (
+                      <div class="cp3-cell cp3-label is-full">
+                        <div class="cp3-label-inner">
+                          <span class="cp3-title">{first.title ?? first.id}</span>
+                          {inputControl(first)}
+                          {more()}
+                          {info()}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <>
+                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">{first.title ?? first.id}</span></div></div>
+                      <div class="cp3-cell cp3-controls">{inputControl(first)}{info()}</div>
+                    </>
+                  );
+                }}
+              </For>
+              {props.extraRows?.()}
             </div>
           </Show>
+        </Show>
 
-          {/* ── Style / Volume profile (time price opportunity) ── */}
-          <Show when={(tab() === "style" || tab() === "volume") && props.tpo}>
-            {(() => {
-              const extendSelect = (inputId: string, disabled: () => boolean) => (
-                <SelectControl
-                  value={inputDraft[inputId] ? "Extend" : "Don't extend"}
-                  options={["Don't extend", "Extend"]}
-                  width={100}
-                  disabled={disabled()}
-                  onPick={(o) => setInputDraft(inputId, o === "Extend")}
-                />
-              );
-              type LevelKey = "poc" | "poorHigh" | "poorLow" | "singlePrints" | "vah" | "val";
-              const level = (label: string, key: LevelKey, inputId: string) => (
-                <>
-                  <div class="cp3-cell cp3-label">
-                    <div class="cp3-label-inner">
-                      <CheckBox checked={tpoDraft[key].visible} onToggle={() => setTpoDraft(key, "visible", (v) => !v)} />
-                      <span class="cp3-title" onClick={() => setTpoDraft(key, "visible", (v) => !v)}>{label}</span>
-                    </div>
+        {/* ── Properties (strategies) ── */}
+        <Show when={tab() === "properties" && props.strategy}>
+          {(st) => (
+            <StrategyPropertiesTab
+              value={propDraft}
+              chartCurrency={st().chartCurrency}
+              interval={st().interval}
+              chartStyle={st().chartStyle}
+              historyTicks={st().historyTicks}
+              onChange={(patch) => setPropDraft(patch)}
+            />
+          )}
+        </Show>
+
+        {/* ── Style (strategies) ── trade marks on the price pane, then
+            INPUT VALUES / Inputs in status line. */}
+        <Show when={tab() === "style" && props.strategy}>
+          <div class="ind3-grid">
+            {outputRowsJsx()}
+            {checkRow("Trades on chart", () => stratStyle.tradesOnChart, () => setStratStyle("tradesOnChart", (v) => !v))}
+            {checkRow("Signal labels", () => stratStyle.signalLabels, () => setStratStyle("signalLabels", (v) => !v))}
+            {checkRow("Quantity", () => stratStyle.quantity, () => setStratStyle("quantity", (v) => !v))}
+            {valueRowsJsx(false)}
+          </div>
+        </Show>
+
+        {/* ── Style / Volume profile (time price opportunity) ── */}
+        <Show when={(tab() === "style" || tab() === "volume") && props.tpo}>
+          {(() => {
+            const extendSelect = (inputId: string, disabled: () => boolean) => (
+              <SelectControl
+                value={inputDraft[inputId] ? "Extend" : "Don't extend"}
+                options={["Don't extend", "Extend"]}
+                width={100}
+                disabled={disabled()}
+                onPick={(o) => setInputDraft(inputId, o === "Extend")}
+              />
+            );
+            type LevelKey = "poc" | "poorHigh" | "poorLow" | "singlePrints" | "vah" | "val";
+            const level = (label: string, key: LevelKey, inputId: string) => (
+              <>
+                <div class="cp3-cell cp3-label">
+                  <div class="cp3-label-inner">
+                    <CheckBox checked={tpoDraft[key].visible} onToggle={() => setTpoDraft(key, "visible", (v) => !v)} />
+                    <span class="cp3-title" onClick={() => setTpoDraft(key, "visible", (v) => !v)}>{label}</span>
                   </div>
-                  <div class="cp3-cell cp3-controls">
-                    {extendSelect(inputId, () => !tpoDraft[key].visible)}
-                    <ColorControl color={tpoDraft[key].color} disabled={!tpoDraft[key].visible} onChange={(p) => { if (p.color) setTpoDraft(key, "color", p.color); }} />
+                </div>
+                <div class="cp3-cell cp3-controls">
+                  {extendSelect(inputId, () => !tpoDraft[key].visible)}
+                  <ColorControl color={tpoDraft[key].color} disabled={!tpoDraft[key].visible} onChange={(p) => { if (p.color) setTpoDraft(key, "color", p.color); }} />
+                </div>
+              </>
+            );
+            const check = (label: string, key: "showBlocks" | "showLetters" | "midpoint" | "open" | "close") =>
+              checkRow(label, () => tpoDraft[key], () => setTpoDraft(key, (v) => !v));
+            type VolKey = "vah" | "val" | "poc";
+            const volLine = (label: string, key: VolKey, inputId: string) => (
+              <>
+                <div class="cp3-cell cp3-label">
+                  <div class="cp3-label-inner">
+                    <CheckBox checked={tpoDraft.volume[key].visible} onToggle={() => setTpoDraft("volume", key, "visible", (v) => !v)} />
+                    <span class="cp3-title" onClick={() => setTpoDraft("volume", key, "visible", (v) => !v)}>{label}</span>
                   </div>
-                </>
-              );
-              const check = (label: string, key: "showBlocks" | "showLetters" | "midpoint" | "open" | "close") =>
-                checkRow(label, () => tpoDraft[key], () => setTpoDraft(key, (v) => !v));
-              type VolKey = "vah" | "val" | "poc";
-              const volLine = (label: string, key: VolKey, inputId: string) => (
-                <>
-                  <div class="cp3-cell cp3-label">
-                    <div class="cp3-label-inner">
-                      <CheckBox checked={tpoDraft.volume[key].visible} onToggle={() => setTpoDraft("volume", key, "visible", (v) => !v)} />
-                      <span class="cp3-title" onClick={() => setTpoDraft("volume", key, "visible", (v) => !v)}>{label}</span>
-                    </div>
-                  </div>
-                  <div class="cp3-cell cp3-controls">
-                    {extendSelect(inputId, () => !tpoDraft.volume[key].visible)}
-                    <ColorControl
-                      color={tpoDraft.volume[key].color}
-                      width={tpoDraft.volume[key].width}
-                      style={tpoDraft.volume[key].style}
-                      disabled={!tpoDraft.volume[key].visible}
-                      onChange={(p) => {
-                        if (p.color) setTpoDraft("volume", key, "color", p.color);
-                        if (p.width !== undefined) setTpoDraft("volume", key, "width", Math.max(1, Math.min(4, Math.round(p.width))));
-                        if (p.style !== undefined) setTpoDraft("volume", key, "style", p.style);
-                      }}
-                    />
-                  </div>
-                </>
-              );
-              return (
-                <Show
-                  when={tab() === "style"}
-                  fallback={
-                    <div class="ind3-grid">
-                      {checkRow("Show volume profile", () => tpoDraft.volume.visible, () => setTpoDraft("volume", "visible", (v) => !v))}
-                      <div class="cp3-cell cp3-label">
-                        <div class="cp3-label-inner">
-                          <CheckBox checked={tpoDraft.volume.showValues} onToggle={() => setTpoDraft("volume", "showValues", (v) => !v)} />
-                          <span class="cp3-title" onClick={() => setTpoDraft("volume", "showValues", (v) => !v)}>Values</span>
-                        </div>
-                      </div>
-                      <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.valuesColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "valuesColor", p.color); }} /></div>
-                      {volLine("VAH", "vah", "extendVolumeVah")}
-                      {volLine("VAL", "val", "extendVolumeVal")}
-                      {volLine("POC", "poc", "extendVolumePoc")}
-                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Volume</span></div></div>
-                      <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.nonVaColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "nonVaColor", p.color); }} /></div>
-                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Value area</span></div></div>
-                      <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.vaColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "vaColor", p.color); }} /></div>
-                      <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Placement</span></div></div>
-                      <div class="cp3-cell cp3-controls">
-                        <SelectControl value={tpoDraft.volume.placement} options={["Left", "Right"]} width={100} onPick={(o) => setTpoDraft("volume", "placement", o as "Left" | "Right")} />
-                      </div>
-                    </div>
-                  }
-                >
+                </div>
+                <div class="cp3-cell cp3-controls">
+                  {extendSelect(inputId, () => !tpoDraft.volume[key].visible)}
+                  <ColorControl
+                    color={tpoDraft.volume[key].color}
+                    width={tpoDraft.volume[key].width}
+                    style={tpoDraft.volume[key].style}
+                    disabled={!tpoDraft.volume[key].visible}
+                    onChange={(p) => {
+                      if (p.color) setTpoDraft("volume", key, "color", p.color);
+                      if (p.width !== undefined) setTpoDraft("volume", key, "width", Math.max(1, Math.min(4, Math.round(p.width))));
+                      if (p.style !== undefined) setTpoDraft("volume", key, "style", p.style);
+                    }}
+                  />
+                </div>
+              </>
+            );
+            return (
+              <Show
+                when={tab() === "style"}
+                fallback={
                   <div class="ind3-grid">
-                    <div class="cp3-section ind3-section is-first">Appearance</div>
-                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Gradient colors</span></div></div>
-                    <div class="cp3-cell cp3-controls">
-                      <For each={[0, 1, 2, 3] as const}>
-                        {(i) => <ColorControl color={tpoDraft.colors[i]} onChange={(p) => { if (p.color) setTpoDraft("colors", i, p.color); }} />}
-                      </For>
-                    </div>
-                    {check("Blocks", "showBlocks")}
-                    {check("Letters", "showLetters")}
-                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Opacity outside VA</span></div></div>
-                    <div class="cp3-cell cp3-controls"><TransparencySlider class="ind3-tpo-opacity" value={tpoDraft.nonVaOpacity} onChange={(t) => setTpoDraft("nonVaOpacity", t)} /></div>
+                    {checkRow("Show volume profile", () => tpoDraft.volume.visible, () => setTpoDraft("volume", "visible", (v) => !v))}
                     <div class="cp3-cell cp3-label">
                       <div class="cp3-label-inner">
-                        <CheckBox checked={tpoDraft.expand} onToggle={() => setTpoDraft("expand", (v) => !v)} />
-                        <span class="cp3-title" onClick={() => setTpoDraft("expand", (v) => !v)}>Expand blocks</span>
+                        <CheckBox checked={tpoDraft.volume.showValues} onToggle={() => setTpoDraft("volume", "showValues", (v) => !v)} />
+                        <span class="cp3-title" onClick={() => setTpoDraft("volume", "showValues", (v) => !v)}>Values</span>
                       </div>
                     </div>
+                    <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.valuesColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "valuesColor", p.color); }} /></div>
+                    {volLine("VAH", "vah", "extendVolumeVah")}
+                    {volLine("VAL", "val", "extendVolumeVal")}
+                    {volLine("POC", "poc", "extendVolumePoc")}
+                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Volume</span></div></div>
+                    <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.nonVaColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "nonVaColor", p.color); }} /></div>
+                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Value area</span></div></div>
+                    <div class="cp3-cell cp3-controls"><ColorControl color={tpoDraft.volume.vaColor} onChange={(p) => { if (p.color) setTpoDraft("volume", "vaColor", p.color); }} /></div>
+                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Placement</span></div></div>
                     <div class="cp3-cell cp3-controls">
-                      <SelectControl value={tpoDraft.expandMode} options={["All", "Last profile"]} width={100} onPick={(o) => setTpoDraft("expandMode", o as "All" | "Last profile")} />
+                      <SelectControl value={tpoDraft.volume.placement} options={["Left", "Right"]} width={100} onPick={(o) => setTpoDraft("volume", "placement", o as "Left" | "Right")} />
                     </div>
-                    <div class="cp3-section ind3-section">Lines and labels</div>
-                    {level("POC", "poc", "extendPOC")}
-                    {level("Poor high", "poorHigh", "extendPoorHigh")}
-                    {level("Poor low", "poorLow", "extendPoorLow")}
-                    {level("Single prints", "singlePrints", "extendSingleprints")}
-                    {level("VAH", "vah", "extendTpoVah")}
-                    {level("VAL", "val", "extendTpoVal")}
-                    {check("TPO Midpoint", "midpoint")}
-                    {check("Open", "open")}
-                    {check("Close", "close")}
-                    <div class="cp3-cell cp3-label">
-                      <div class="cp3-label-inner">
-                        <CheckBox checked={tpoDraft.initialBalance} onToggle={() => setTpoDraft("initialBalance", (v) => !v)} />
-                        <span class="cp3-title" onClick={() => setTpoDraft("initialBalance", (v) => !v)}>Initial Balance Range</span>
-                      </div>
-                    </div>
-                    <div class="cp3-cell cp3-controls">
-                      <NumberField
-                        value={String(tpoDraft.ibBlocks)}
-                        num={{ min: 1, max: 1000, step: 1, int: true }}
-                        disabled={!tpoDraft.initialBalance}
-                        onChange={(v) => { const n = parseFloat(v); if (Number.isFinite(n)) setTpoDraft("ibBlocks", Math.round(n)); }}
-                      />
-                    </div>
-                    <div class="cp3-section ind3-section">Input values</div>
-                    {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
                   </div>
-                </Show>
-              );
-            })()}
-          </Show>
-
-          {/* ── Style (volume profiles): the profile rows, its lines, the
-              developing POC / VA plots, the histogram box, then the study
-              options (no Precision row). ── */}
-          <Show when={tab() === "style" && props.profile}>
-            {(pf) => {
-              const color = (label: string, get: () => string, set: (c: string) => void) => (
-                <>
-                  <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">{label}</span></div></div>
-                  <div class="cp3-cell cp3-controls"><ColorControl color={get()} onChange={(p) => { if (p.color) set(p.color); }} /></div>
-                </>
-              );
-              const line = (label: string, key: "vah" | "val" | "poc") => (
-                <>
+                }
+              >
+                <div class="ind3-grid">
+                  <div class="cp3-section ind3-section is-first">Appearance</div>
+                  <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Gradient colors</span></div></div>
+                  <div class="cp3-cell cp3-controls">
+                    <For each={[0, 1, 2, 3] as const}>
+                      {(i) => <ColorControl color={tpoDraft.colors[i]} onChange={(p) => { if (p.color) setTpoDraft("colors", i, p.color); }} />}
+                    </For>
+                  </div>
+                  {check("Blocks", "showBlocks")}
+                  {check("Letters", "showLetters")}
+                  <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Opacity outside VA</span></div></div>
+                  <div class="cp3-cell cp3-controls"><TransparencySlider class="ind3-tpo-opacity" value={tpoDraft.nonVaOpacity} onChange={(t) => setTpoDraft("nonVaOpacity", t)} /></div>
                   <div class="cp3-cell cp3-label">
                     <div class="cp3-label-inner">
-                      <CheckBox checked={vbpDraft[key].visible} onToggle={() => setVbpDraft(key, "visible", (v) => !v)} />
-                      <span class="cp3-title" onClick={() => setVbpDraft(key, "visible", (v) => !v)}>{label}</span>
+                      <CheckBox checked={tpoDraft.expand} onToggle={() => setTpoDraft("expand", (v) => !v)} />
+                      <span class="cp3-title" onClick={() => setTpoDraft("expand", (v) => !v)}>Expand blocks</span>
                     </div>
                   </div>
                   <div class="cp3-cell cp3-controls">
-                    <ColorControl
-                      color={vbpDraft[key].color}
-                      width={vbpDraft[key].width}
-                      style={vbpDraft[key].style}
-                      onChange={(p) =>
-                        setVbpDraft(key, (l: VbpLine) => ({
-                          ...l,
-                          ...(p.color ? { color: p.color } : {}),
-                          ...(p.width !== undefined ? { width: Math.max(1, Math.min(4, Math.round(p.width))) } : {}),
-                          ...(p.style !== undefined ? { style: p.style } : {}),
-                        }))
-                      }
-                    />
+                    <SelectControl value={tpoDraft.expandMode} options={["All", "Last profile"]} width={100} onPick={(o) => setTpoDraft("expandMode", o as "All" | "Last profile")} />
                   </div>
-                </>
-              );
-              /** Developing POC / VA: plot styles (VA = its high and low lines together). */
-              const developing = (label: string, ids: string[]) => {
-                const toggle = () => {
-                  const v = !styleDraft[ids[0]].visible;
-                  for (const id of ids) setStyleDraft(id, "visible", v);
-                };
-                return (
-                  <Show when={ids.every((id) => styleDraft[id])}>
-                    <div class="cp3-cell cp3-label">
-                      <div class="cp3-label-inner">
-                        <CheckBox checked={styleDraft[ids[0]].visible} onToggle={toggle} />
-                        <span class="cp3-title" onClick={toggle}>{label}</span>
-                      </div>
-                    </div>
-                    <div class="cp3-cell cp3-controls">
-                      <ColorControl
-                        color={styleDraft[ids[0]].color}
-                        width={styleDraft[ids[0]].lineWidth}
-                        onChange={(p) => {
-                          for (const id of ids) {
-                            if (p.color) setStyleDraft(id, "color", p.color);
-                            if (p.width !== undefined) setStyleDraft(id, "lineWidth", Math.max(1, Math.min(4, Math.round(p.width))));
-                          }
-                        }}
-                      />
-                    </div>
-                  </Show>
-                );
-              };
-              return (
-                <div class="ind3-grid">
-                  {checkRow("Volume profile", () => vbpDraft.visible, () => setVbpDraft("visible", (v) => !v))}
-                  <div class="cp3-cell cp3-label is-offset">
+                  <div class="cp3-section ind3-section">Lines and labels</div>
+                  {level("POC", "poc", "extendPOC")}
+                  {level("Poor high", "poorHigh", "extendPoorHigh")}
+                  {level("Poor low", "poorLow", "extendPoorLow")}
+                  {level("Single prints", "singlePrints", "extendSingleprints")}
+                  {level("VAH", "vah", "extendTpoVah")}
+                  {level("VAL", "val", "extendTpoVal")}
+                  {check("TPO Midpoint", "midpoint")}
+                  {check("Open", "open")}
+                  {check("Close", "close")}
+                  <div class="cp3-cell cp3-label">
                     <div class="cp3-label-inner">
-                      <CheckBox checked={vbpDraft.showValues} onToggle={() => setVbpDraft("showValues", (v) => !v)} />
-                      <span class="cp3-title" onClick={() => setVbpDraft("showValues", (v) => !v)}>Values</span>
+                      <CheckBox checked={tpoDraft.initialBalance} onToggle={() => setTpoDraft("initialBalance", (v) => !v)} />
+                      <span class="cp3-title" onClick={() => setTpoDraft("initialBalance", (v) => !v)}>Initial Balance Range</span>
                     </div>
                   </div>
-                  <div class="cp3-cell cp3-controls"><ColorControl color={vbpDraft.valuesColor} onChange={(p) => { if (p.color) setVbpDraft("valuesColor", p.color); }} /></div>
-                  <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">Width (% of the box)</span></div></div>
                   <div class="cp3-cell cp3-controls">
                     <NumberField
-                      value={String(vbpDraft.percentWidth)}
-                      num={{ min: 1, max: 100, step: 1, int: true }}
-                      onChange={(v) => { const n = parseFloat(v); if (Number.isFinite(n)) setVbpDraft("percentWidth", Math.round(n)); }}
+                      value={String(tpoDraft.ibBlocks)}
+                      num={{ min: 1, max: 1000, step: 1, int: true }}
+                      disabled={!tpoDraft.initialBalance}
+                      onChange={(v) => { const n = parseFloat(v); if (Number.isFinite(n)) setTpoDraft("ibBlocks", Math.round(n)); }}
                     />
                   </div>
-                  <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">Placement</span></div></div>
-                  <div class="cp3-cell cp3-controls">
-                    <SelectControl value={vbpDraft.placement} options={["Left", "Right"]} width={selectWidth([vbpDraft.placement])} onPick={(o) => setVbpDraft("placement", o as "Left" | "Right")} />
-                  </div>
-                  {color("Up Volume", () => vbpDraft.upColor, (c) => setVbpDraft("upColor", c))}
-                  {color("Down Volume", () => vbpDraft.downColor, (c) => setVbpDraft("downColor", c))}
-                  {color("Value Area Up", () => vbpDraft.vaUpColor, (c) => setVbpDraft("vaUpColor", c))}
-                  {color("Value Area Down", () => vbpDraft.vaDownColor, (c) => setVbpDraft("vaDownColor", c))}
-                  {line("VAH", "vah")}
-                  {line("VAL", "val")}
-                  {line("POC", "poc")}
-                  {developing("Developing POC", ["developingPoc"])}
-                  {developing("Developing VA", ["developingVAHigh", "developingVALow"])}
-                  <Show when={pf().histogramBox}>
-                    <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Histogram Box</span></div></div>
-                    <div class="cp3-cell cp3-controls"><ColorControl color={vbpDraft.boxColor} onChange={(p) => { if (p.color) setVbpDraft("boxColor", p.color); }} /></div>
-                  </Show>
-                  {checkRow("Labels on price scale", () => optDraft.labelsOnScale, () => setOptDraft("labelsOnScale", (v) => !v))}
-                  {checkRow("Values in status line", () => optDraft.valuesInStatusLine, () => setOptDraft("valuesInStatusLine", (v) => !v))}
                   <div class="cp3-section ind3-section">Input values</div>
                   {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
                 </div>
-              );
-            }}
-          </Show>
+              </Show>
+            );
+          })()}
+        </Show>
 
-          {/* ── Style ── one row group per output (reference order, style-outputs.ts): a line plot = visible check
-              box + colour and thickness (color-with-thickness button; thickness is in its colour panel) + plot type;
-              the other outputs (StyleOutputRows); the drawing groups under "Graphic objects". */}
-          <Show when={tab() === "style" && !props.strategy && !props.profile && !props.tpo}>
-            <div class="ind3-grid">
-              {outputRowsJsx()}
-              {valueRowsJsx(otherItems().length + stylePlots.length === 0)}
-            </div>
-          </Show>
-
-          {/* ── Visibility ── intervals visibility matrix (same as the
-              drawing Visibility tab): Ticks / Ranges check only; Seconds ..
-              Months check + from (100 px) + range slider + to (100 px). */}
-          <Show when={tab() === "visibility"}>
-            <div class="ind3-grid">
-              <div class="cp3-cell cp3-label is-full">
-                <div class="cp3-label-inner">
-                  <CheckBox checked={optDraft.visibility.ticks} onToggle={() => setOptDraft("visibility", "ticks", (v) => !v)} />
-                  <span class="cp3-title" onClick={() => setOptDraft("visibility", "ticks", (v) => !v)}>Ticks</span>
+        {/* ── Style (volume profiles): the profile rows, its lines, the
+            developing POC / VA plots, the histogram box, then the study
+            options (no Precision row). ── */}
+        <Show when={tab() === "style" && props.profile}>
+          {(pf) => {
+            const color = (label: string, get: () => string, set: (c: string) => void) => (
+              <>
+                <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">{label}</span></div></div>
+                <div class="cp3-cell cp3-controls"><ColorControl color={get()} onChange={(p) => { if (p.color) set(p.color); }} /></div>
+              </>
+            );
+            const line = (label: string, key: "vah" | "val" | "poc") => (
+              <>
+                <div class="cp3-cell cp3-label">
+                  <div class="cp3-label-inner">
+                    <CheckBox checked={vbpDraft[key].visible} onToggle={() => setVbpDraft(key, "visible", (v) => !v)} />
+                    <span class="cp3-title" onClick={() => setVbpDraft(key, "visible", (v) => !v)}>{label}</span>
+                  </div>
                 </div>
-              </div>
-              <For each={VIS_UNITS}>
-                {([key, label, max]) => (
-                  <UnitRow label={label} max={max} unit={optDraft.visibility[key] as UnitVisibility} onChange={(u) => setUnit(key, u)} />
-                )}
-              </For>
-              <div class="cp3-cell cp3-label is-full">
-                <div class="cp3-label-inner">
-                  <CheckBox checked={optDraft.visibility.ranges} onToggle={() => setOptDraft("visibility", "ranges", (v) => !v)} />
-                  <span class="cp3-title" onClick={() => setOptDraft("visibility", "ranges", (v) => !v)}>Ranges</span>
+                <div class="cp3-cell cp3-controls">
+                  <ColorControl
+                    color={vbpDraft[key].color}
+                    width={vbpDraft[key].width}
+                    style={vbpDraft[key].style}
+                    onChange={(p) =>
+                      setVbpDraft(key, (l: VbpLine) => ({
+                        ...l,
+                        ...(p.color ? { color: p.color } : {}),
+                        ...(p.width !== undefined ? { width: Math.max(1, Math.min(4, Math.round(p.width))) } : {}),
+                        ...(p.style !== undefined ? { style: p.style } : {}),
+                      }))
+                    }
+                  />
                 </div>
-              </div>
-            </div>
-          </Show>
-        </div>
-
-        <footer class="cp3-footer">
-          <div class="settings-defaults">
-            <button
-              ref={defaultsBtn}
-              type="button"
-              class="cp3-template"
-              aria-haspopup="menu"
-              aria-expanded={defaultsOpen()}
-              onClick={() => setDefaultsOpen(!defaultsOpen())}
-            >
-              Defaults <span class="cp3-select-caret"><Chevron /></span>
-            </button>
-            <Show when={defaultsOpen()}>
-              <div ref={defaultsMenu} class="cp3-menu settings-template-menu settings-defaults-menu" role="menu">
-                <div role="menuitem" class="cp3-menu-item" onClick={() => { reset(); setDefaultsOpen(false); }}>
-                  <span class="cp3-menu-title">Reset settings</span>
-                </div>
-                <Show when={!props.inputsOnly}>
-                  <div role="menuitem" class="cp3-menu-item" onClick={() => { props.onSaveAsDefault(current()); setDefaultsOpen(false); }}>
-                    <span class="cp3-menu-title">Save as default</span>
+              </>
+            );
+            /** Developing POC / VA: plot styles (VA = its high and low lines together). */
+            const developing = (label: string, ids: string[]) => {
+              const toggle = () => {
+                const v = !styleDraft[ids[0]].visible;
+                for (const id of ids) setStyleDraft(id, "visible", v);
+              };
+              return (
+                <Show when={ids.every((id) => styleDraft[id])}>
+                  <div class="cp3-cell cp3-label">
+                    <div class="cp3-label-inner">
+                      <CheckBox checked={styleDraft[ids[0]].visible} onToggle={toggle} />
+                      <span class="cp3-title" onClick={toggle}>{label}</span>
+                    </div>
+                  </div>
+                  <div class="cp3-cell cp3-controls">
+                    <ColorControl
+                      color={styleDraft[ids[0]].color}
+                      width={styleDraft[ids[0]].lineWidth}
+                      onChange={(p) => {
+                        for (const id of ids) {
+                          if (p.color) setStyleDraft(id, "color", p.color);
+                          if (p.width !== undefined) setStyleDraft(id, "lineWidth", Math.max(1, Math.min(4, Math.round(p.width))));
+                        }
+                      }}
+                    />
                   </div>
                 </Show>
-                <div class="settings-popup-sep" role="separator" />
-                <div role="menuitem" class="cp3-menu-item" onClick={() => { exportSettings(); setDefaultsOpen(false); }}>
-                  <span class="cp3-menu-title">Export settings…</span>
+              );
+            };
+            return (
+              <div class="ind3-grid">
+                {checkRow("Volume profile", () => vbpDraft.visible, () => setVbpDraft("visible", (v) => !v))}
+                <div class="cp3-cell cp3-label is-offset">
+                  <div class="cp3-label-inner">
+                    <CheckBox checked={vbpDraft.showValues} onToggle={() => setVbpDraft("showValues", (v) => !v)} />
+                    <span class="cp3-title" onClick={() => setVbpDraft("showValues", (v) => !v)}>Values</span>
+                  </div>
                 </div>
-                <div role="menuitem" class="cp3-menu-item" onClick={() => { importInput?.click(); setDefaultsOpen(false); }}>
-                  <span class="cp3-menu-title">Import settings…</span>
+                <div class="cp3-cell cp3-controls"><ColorControl color={vbpDraft.valuesColor} onChange={(p) => { if (p.color) setVbpDraft("valuesColor", p.color); }} /></div>
+                <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">Width (% of the box)</span></div></div>
+                <div class="cp3-cell cp3-controls">
+                  <NumberField
+                    value={String(vbpDraft.percentWidth)}
+                    num={{ min: 1, max: 100, step: 1, int: true }}
+                    onChange={(v) => { const n = parseFloat(v); if (Number.isFinite(n)) setVbpDraft("percentWidth", Math.round(n)); }}
+                  />
                 </div>
+                <div class="cp3-cell cp3-label is-offset"><div class="cp3-label-inner"><span class="cp3-title">Placement</span></div></div>
+                <div class="cp3-cell cp3-controls">
+                  <SelectControl value={vbpDraft.placement} options={["Left", "Right"]} width={selectWidth([vbpDraft.placement])} onPick={(o) => setVbpDraft("placement", o as "Left" | "Right")} />
+                </div>
+                {color("Up Volume", () => vbpDraft.upColor, (c) => setVbpDraft("upColor", c))}
+                {color("Down Volume", () => vbpDraft.downColor, (c) => setVbpDraft("downColor", c))}
+                {color("Value Area Up", () => vbpDraft.vaUpColor, (c) => setVbpDraft("vaUpColor", c))}
+                {color("Value Area Down", () => vbpDraft.vaDownColor, (c) => setVbpDraft("vaDownColor", c))}
+                {line("VAH", "vah")}
+                {line("VAL", "val")}
+                {line("POC", "poc")}
+                {developing("Developing POC", ["developingPoc"])}
+                {developing("Developing VA", ["developingVAHigh", "developingVALow"])}
+                <Show when={pf().histogramBox}>
+                  <div class="cp3-cell cp3-label"><div class="cp3-label-inner"><span class="cp3-title">Histogram Box</span></div></div>
+                  <div class="cp3-cell cp3-controls"><ColorControl color={vbpDraft.boxColor} onChange={(p) => { if (p.color) setVbpDraft("boxColor", p.color); }} /></div>
+                </Show>
+                {checkRow("Labels on price scale", () => optDraft.labelsOnScale, () => setOptDraft("labelsOnScale", (v) => !v))}
+                {checkRow("Values in status line", () => optDraft.valuesInStatusLine, () => setOptDraft("valuesInStatusLine", (v) => !v))}
+                <div class="cp3-section ind3-section">Input values</div>
+                {checkRow("Inputs in status line", () => optDraft.inputsInStatusLine, () => setOptDraft("inputsInStatusLine", (v) => !v))}
               </div>
-            </Show>
-            <input
-              ref={importInput}
-              type="file"
-              accept=".json,application/json"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const f = e.currentTarget.files?.[0];
-                if (f) void importSettings(f);
-                e.currentTarget.value = "";
-              }}
-            />
+            );
+          }}
+        </Show>
+
+        {/* ── Style ── one row group per output (reference order, style-outputs.ts): a line plot = visible check
+            box + colour and thickness (color-with-thickness button; thickness is in its colour panel) + plot type;
+            the other outputs (StyleOutputRows); the drawing groups under "Graphic objects". */}
+        <Show when={tab() === "style" && !props.strategy && !props.profile && !props.tpo}>
+          <div class="ind3-grid">
+            {outputRowsJsx()}
+            {valueRowsJsx(otherItems().length + stylePlots.length === 0)}
           </div>
-          <div class="cp3-footer-actions">
-            <button type="button" class="cp3-btn" onClick={() => cancel()}>Cancel</button>
-            <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>{props.inputsOnly ? "Apply" : "Ok"}</button>
+        </Show>
+
+        {/* ── Visibility ── intervals visibility matrix (same as the
+            drawing Visibility tab): Ticks / Ranges check only; Seconds ..
+            Months check + from (100 px) + range slider + to (100 px). */}
+        <Show when={tab() === "visibility"}>
+          <div class="ind3-grid">
+            <div class="cp3-cell cp3-label is-full">
+              <div class="cp3-label-inner">
+                <CheckBox checked={optDraft.visibility.ticks} onToggle={() => setOptDraft("visibility", "ticks", (v) => !v)} />
+                <span class="cp3-title" onClick={() => setOptDraft("visibility", "ticks", (v) => !v)}>Ticks</span>
+              </div>
+            </div>
+            <For each={VIS_UNITS}>
+              {([key, label, max]) => (
+                <UnitRow label={label} max={max} unit={optDraft.visibility[key] as UnitVisibility} onChange={(u) => setUnit(key, u)} />
+              )}
+            </For>
+            <div class="cp3-cell cp3-label is-full">
+              <div class="cp3-label-inner">
+                <CheckBox checked={optDraft.visibility.ranges} onToggle={() => setOptDraft("visibility", "ranges", (v) => !v)} />
+                <span class="cp3-title" onClick={() => setOptDraft("visibility", "ranges", (v) => !v)}>Ranges</span>
+              </div>
+            </div>
           </div>
-        </footer>
+        </Show>
       </div>
-    </div>
+
+      <footer class="cp3-footer">
+        <div class="settings-defaults">
+          <button
+            ref={defaultsBtn}
+            type="button"
+            class="cp3-template"
+            aria-haspopup="menu"
+            aria-expanded={defaultsOpen()}
+            onClick={() => setDefaultsOpen(!defaultsOpen())}
+          >
+            Defaults <span class="cp3-select-caret"><Chevron /></span>
+          </button>
+          <Show when={defaultsOpen()}>
+            <div ref={defaultsMenu} class="cp3-menu settings-template-menu settings-defaults-menu" role="menu">
+              <div role="menuitem" class="cp3-menu-item" onClick={() => { reset(); setDefaultsOpen(false); }}>
+                <span class="cp3-menu-title">Reset settings</span>
+              </div>
+              <Show when={!props.inputsOnly}>
+                <div role="menuitem" class="cp3-menu-item" onClick={() => { props.onSaveAsDefault(current()); setDefaultsOpen(false); }}>
+                  <span class="cp3-menu-title">Save as default</span>
+                </div>
+              </Show>
+              <div class="settings-popup-sep" role="separator" />
+              <div role="menuitem" class="cp3-menu-item" onClick={() => { exportSettings(); setDefaultsOpen(false); }}>
+                <span class="cp3-menu-title">Export settings…</span>
+              </div>
+              <div role="menuitem" class="cp3-menu-item" onClick={() => { importInput?.click(); setDefaultsOpen(false); }}>
+                <span class="cp3-menu-title">Import settings…</span>
+              </div>
+            </div>
+          </Show>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.currentTarget.files?.[0];
+              if (f) void importSettings(f);
+              e.currentTarget.value = "";
+            }}
+          />
+        </div>
+        <div class="cp3-footer-actions">
+          <button type="button" class="cp3-btn" onClick={() => cancel()}>Cancel</button>
+          <button type="button" class="cp3-btn is-primary" data-qa-id="submit-button" onClick={ok}>{props.inputsOnly ? "Apply" : "Ok"}</button>
+        </div>
+      </footer>
+    </Dialog>
   );
 }

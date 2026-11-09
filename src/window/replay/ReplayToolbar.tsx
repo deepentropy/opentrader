@@ -14,6 +14,8 @@ import { For, Show, createEffect, createSignal, on, onCleanup, onMount, type JSX
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { SwitchMark } from "../../components/form";
+import { createPopover } from "../../components/popover";
 import { longIntervalLabel, shortIntervalLabel } from "../chart/interval-favorites";
 import { requestCloseReplay } from "./ReplayHeaderButton";
 import { GoToDateDialog } from "../bottom-bar/GoToDateDialog";
@@ -68,29 +70,13 @@ function UpMenu(props: { anchor: DOMRect; label: string; width?: number; onClose
     const top = Math.max(M, Math.round(props.anchor.top - 2 - el.offsetHeight));
     if (left + el.offsetWidth > window.innerWidth - M) left = window.innerWidth - el.offsetWidth - M;
     setPos({ left, top });
-    let armed = false;
-    const t = window.setTimeout(() => (armed = true), 0);
-    const onDown = (e: MouseEvent) => {
-      if (armed && !el.contains(e.target as Node)) props.onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        props.onClose();
-      }
-    };
-    window.addEventListener("mousedown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-    onCleanup(() => {
-      window.clearTimeout(t);
-      window.removeEventListener("mousedown", onDown, true);
-      window.removeEventListener("keydown", onKey, true);
-    });
   });
+  // Any press outside the menu closes it, its button too (the click on the button then opens it again).
+  const popover = createPopover(undefined, { onClose: props.onClose, placement: false, press: "mousedown", on: { target: "window", capture: true } });
   return (
     <Portal>
       <div
-        ref={el}
+        ref={(node) => { el = node; popover(node); }}
         class="ot-popover ot-replay-menu"
         role="menu"
         aria-label={props.label}
@@ -374,9 +360,7 @@ export function ReplayToolbar() {
                   onClick={() => setReplayUpdateInterval(replayFixedUpdate() === null ? replayUpdateInterval() : null)}
                 >
                   <span>Auto select interval</span>
-                  <span class={`ot-replay-switch${replayFixedUpdate() === null ? " is-on" : ""}`} aria-hidden="true">
-                    <span class="ot-replay-switch__knob" />
-                  </span>
+                  <SwitchMark variant="replay" on={replayFixedUpdate() === null} />
                 </button>
               </UpMenu>
             </Show>

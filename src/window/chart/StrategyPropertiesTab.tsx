@@ -15,12 +15,12 @@
  * order fill" and "On history bar tick" (extra script runs inside a bar). The
  * reference app's (?) help links are not shown (no Help Center).
  */
-import { For, Show, createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { For, Show, type JSX } from "solid-js";
 import { detalizationTicks } from "../../backtester/magnifier";
 import type { CommissionType, QtyType, StrategyProperties } from "../../backtester/types";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
-import { CheckBox, NumberField, SelectControl } from "../../components/form";
+import { CheckBox, MenuSelect, NumberField, SelectControl } from "../../components/form";
 
 type Props = {
   value: StrategyProperties;
@@ -67,71 +67,6 @@ function Info(props: { text: string }) {
         <Icon name="st-settings-info" size={18} />
       </span>
     </Tooltip>
-  );
-}
-
-/** Outside-press and Escape close a menu (its trigger toggles it). */
-function createDismiss(refs: () => (HTMLElement | undefined)[], onClose: () => void) {
-  const onDown = (e: PointerEvent) => {
-    if (refs().some((el) => el?.contains(e.target as Node))) return;
-    onClose();
-  };
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-    }
-  };
-  onMount(() => {
-    document.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onKey, true);
-  });
-  onCleanup(() => {
-    document.removeEventListener("pointerdown", onDown, true);
-    window.removeEventListener("keydown", onKey, true);
-  });
-}
-
-const Caret = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3.92 7.83 9 12.29l5.08-4.46-1-1.13L9 10.29l-4.09-3.6-.99 1.14Z" /></svg>
-);
-
-/** A select button (cp3-select) and its option menu under it (flipped above without room below). */
-function MenuSelect(props: { display: string; width: number; role: "listbox" | "menu"; children: (close: () => void) => JSX.Element }) {
-  let btn: HTMLButtonElement | undefined;
-  let menu: HTMLDivElement | undefined;
-  const [rect, setRect] = createSignal<DOMRect | null>(null);
-  const close = () => setRect(null);
-  return (
-    <>
-      <button
-        ref={btn}
-        type="button"
-        class={`cp3-select${rect() ? " is-open" : ""}`}
-        style={{ width: `${props.width}px` }}
-        aria-haspopup={props.role}
-        aria-expanded={!!rect()}
-        onClick={() => setRect(rect() ? null : btn!.getBoundingClientRect())}
-      >
-        <span class="cp3-select-value">{props.display}</span>
-        <span class="cp3-select-caret"><Caret /></span>
-      </button>
-      <Show when={rect()} keyed>
-        {(r) => {
-          const [top, setTop] = createSignal(r.bottom);
-          createDismiss(() => [menu, btn], close);
-          onMount(() => {
-            const h = menu?.offsetHeight ?? 0;
-            if (r.bottom + h > window.innerHeight - 4) setTop(Math.max(4, r.top - h));
-          });
-          return (
-            <div ref={menu} class="cp3-menu" role={props.role} style={{ left: `${r.left}px`, top: `${top()}px`, "min-width": `${r.width}px` }}>
-              {props.children(close)}
-            </div>
-          );
-        }}
-      </Show>
-    </>
   );
 }
 
