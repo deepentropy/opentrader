@@ -39,6 +39,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import type { ChartTokens } from "./chart-tokens";
+import * as kv from "../../data/kv";
 import type { CandleStyleS } from "../header/chart-settings";
 import {
   FootprintPaneView,
@@ -100,17 +101,25 @@ const LAST_SINGLE_VALUE_KEY = "ot:last-single-value-type";
 
 /** Single-value type last picked on a close-only symbol ("Line with markers" until one is). */
 export function lastSingleValueType(): ChartTypeId {
+  const v = (kv.getItem(LAST_SINGLE_VALUE_KEY) ?? legacySingleValueType()) as ChartTypeId | null;
+  return v && SINGLE_VALUE_TYPES.has(v) ? v : "lineWithMarkers";
+}
+
+/** The pick older builds kept in raw localStorage after the store import had run:
+ *  copied into the store once so the choice survives the move. */
+function legacySingleValueType(): string | null {
   try {
-    const v = localStorage.getItem(LAST_SINGLE_VALUE_KEY) as ChartTypeId | null;
-    return v && SINGLE_VALUE_TYPES.has(v) ? v : "lineWithMarkers";
+    const v = localStorage.getItem(LAST_SINGLE_VALUE_KEY);
+    if (v) kv.setItem(LAST_SINGLE_VALUE_KEY, v);
+    return v;
   } catch {
-    return "lineWithMarkers";
+    return null;
   }
 }
 
 export function rememberSingleValueType(t: ChartTypeId): void {
   if (!SINGLE_VALUE_TYPES.has(t)) return;
-  try { localStorage.setItem(LAST_SINGLE_VALUE_KEY, t); } catch { /* storage off */ }
+  kv.setItem(LAST_SINGLE_VALUE_KEY, t);
 }
 
 export const CHART_TYPE_IDS: ReadonlySet<ChartTypeId> = new Set<ChartTypeId>([
