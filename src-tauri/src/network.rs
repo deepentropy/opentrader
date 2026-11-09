@@ -3,6 +3,7 @@
  * connection is made. The password is never written there: it goes to the system's encrypted credential store
  * (Credential Manager, Keychain, Secret Service). Where that store isn't available it lasts until the app closes.
  */
+use opentrader_core::files;
 use opentrader_core::net::{self, ProxySettings};
 use opentrader_core::sync::LockExt;
 use serde::{Deserialize, Serialize};
@@ -41,17 +42,12 @@ fn store_password(app: &AppHandle, password: &str) -> keyring::Result<()> {
 }
 
 fn read_file(app: &AppHandle) -> SavedFile {
-    let path = app.path().app_config_dir().ok().map(|d| d.join(FILE));
-    path.and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+    app.path().app_config_dir().map(|d| files::load_or_default(&d.join(FILE))).unwrap_or_default()
 }
 
 fn write_file(app: &AppHandle, file: &SavedFile) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let text = serde_json::to_string_pretty(file).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(FILE), text).map_err(|e| e.to_string())
+    files::save_json(&dir.join(FILE), file).map_err(|e| e.to_string())
 }
 
 /// Saves the settings, the password apart. An error: the password couldn't be stored (the rest is saved).

@@ -31,13 +31,14 @@ use crate::data::symbol::SymbolRef;
 use crate::data::types::Candle;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
 use opentrader_core::alerts::engine::{Engine, EngineGrid, EngineRule, Fire};
+use opentrader_core::files;
 use opentrader_core::sync::LockExt;
 
 const FILE: &str = "alert-engine.json";
@@ -95,10 +96,11 @@ fn now_sec() -> f64 {
 /// Create the engine with what the previous run saved. Call from `setup`.
 pub fn init(app: &AppHandle) {
     let path = app.path().app_config_dir().ok().map(|d| d.join(FILE));
+    // A missing or unreadable file: no previous run to replay from.
     let previous = path
-        .as_ref()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str::<EngineFile>(&s).ok())
+        .as_deref()
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|bytes| serde_json::from_slice::<EngineFile>(&bytes).ok())
         .map(|f| f.symbols);
     app.manage(AlertEngine {
         engine: Mutex::new(Engine::with_previous(previous)),
@@ -108,22 +110,38 @@ pub fn init(app: &AppHandle) {
     });
 }
 
+fn write(path: &Path, file: &EngineFile) {
+    if let Err(e) = files::save_json(path, file) {
+        eprintln!("[alerts] write failed: {e}");
+    }
+}
+
 impl AlertEngine {
+    fn snapshot(&self) -> EngineFile {
+        EngineFile { symbols: self.engine.locked().last.clone() }
+    }
+
+    /// Save now, on the calling thread (a window closing).
     fn save(&self) {
-        let Some(path) = &self.path else { return };
-        let file = EngineFile { symbols: self.engine.locked().last.clone() };
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        match serde_json::to_string(&file) {
-            Ok(json) => {
-                if let Err(e) = std::fs::write(path, json) {
-                    eprintln!("[alerts] write failed: {e}");
-                }
-            }
-            Err(e) => eprintln!("[alerts] encode failed: {e}"),
-        }
         *self.saved.locked() = Instant::now();
+        if let Some(path) = &self.path {
+            write(path, &self.snapshot());
+        }
+    }
+
+    /// Save at most every `SAVE_EVERY`, the file written on a blocking thread:
+    /// this is called from the live-data task, which only takes the snapshot.
+    fn save_soon(&self) {
+        {
+            let mut saved = self.saved.locked();
+            if saved.elapsed() < SAVE_EVERY {
+                return;
+            }
+            *saved = Instant::now();
+        }
+        let Some(path) = self.path.clone() else { return };
+        let file = self.snapshot();
+        tauri::async_runtime::spawn_blocking(move || write(&path, &file));
     }
 
     fn emit(&self, app: &AppHandle, fires: Vec<Fire>, offline: bool) {
@@ -151,9 +169,7 @@ pub fn on_quote(app: &AppHandle, symbol: &str, last: f64, minute: Option<&Candle
         Ok(fires) => state.emit(app, fires, false),
         Err(_) => eprintln!("[alerts] a {symbol} quote was not evaluated"),
     }
-    if state.saved.locked().elapsed() >= SAVE_EVERY {
-        state.save();
-    }
+    state.save_soon();
 }
 
 /// A window was destroyed: save, and hand its role to another window.

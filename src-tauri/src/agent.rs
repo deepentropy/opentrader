@@ -13,6 +13,7 @@ use axum::{
     routing::post,
     Router,
 };
+use opentrader_core::files;
 use serde::{Deserialize, Serialize};
 use opentrader_core::sync::LockExt;
 use std::collections::{HashMap, HashSet};
@@ -76,17 +77,12 @@ pub struct AgentServer {
 }
 
 fn read_config(app: &AppHandle) -> Config {
-    let path = app.path().app_config_dir().ok().map(|d| d.join(FILE));
-    path.and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+    app.path().app_config_dir().map(|d| files::load_or_default(&d.join(FILE))).unwrap_or_default()
 }
 
 fn write_config(app: &AppHandle, config: &Config) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let text = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(FILE), text).map_err(|e| e.to_string())
+    files::save_json(&dir.join(FILE), config).map_err(|e| e.to_string())
 }
 
 fn new_token() -> Result<String, String> {

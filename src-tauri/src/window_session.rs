@@ -23,6 +23,7 @@
  *
  * Tabs themselves stay in the frontend's localStorage (tabs.ts).
  */
+use opentrader_core::files;
 use serde::{Deserialize, Serialize};
 use opentrader_core::sync::LockExt;
 use std::collections::HashMap;
@@ -73,16 +74,8 @@ pub struct Session {
 impl Session {
     fn save_now(&self) {
         let snapshot = self.file.locked().clone();
-        if let Some(dir) = self.path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        match serde_json::to_string_pretty(&snapshot) {
-            Ok(json) => {
-                if let Err(e) = std::fs::write(&self.path, json) {
-                    eprintln!("[window-session] write failed: {e}");
-                }
-            }
-            Err(e) => eprintln!("[window-session] encode failed: {e}"),
+        if let Err(e) = files::save_json(&self.path, &snapshot) {
+            eprintln!("[window-session] write failed: {e}");
         }
     }
 }
@@ -237,10 +230,7 @@ pub fn init(app: &AppHandle) {
             return;
         }
     };
-    let saved: SessionFile = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
+    let saved: SessionFile = files::load_or_default(&path);
 
     let Some(main) = app.get_webview_window(MAIN) else {
         eprintln!("[window-session] main window missing");
