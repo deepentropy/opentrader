@@ -21,25 +21,25 @@ use std::time::Duration;
 
 /// Gateway origin. No trailing slash: the ticker logo URLs of the details
 /// answer start with exactly this origin (see `market_rest::fetch_icon`).
-pub const BASE: &str = "https://opentrader-gateway.cloudflare-breeder165.workers.dev";
+pub const BASE: &str = "https://api.opentrader.markets";
 
 /// REST base of the market API: `<MARKET>/<path>?<query>`.
-pub const MARKET: &str = "https://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1";
+pub const MARKET: &str = "https://api.opentrader.markets/market/v1";
 
 /// The market stream of the free tier (delayed). The gateway holds the one
 /// upstream connection and shares it between the apps.
-pub const STREAM_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1/stream";
+pub const STREAM_URL: &str = "wss://api.opentrader.markets/market/v1/stream";
 
 /// The real-time stream of subscribed accounts (#252): the same protocol, a
 /// pass (`data::pass`) instead of the app token.
-pub const STREAM_RT_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/market/v1/stream/rt";
+pub const STREAM_RT_URL: &str = "wss://api.opentrader.markets/market/v1/stream/rt";
 
 /// The screener's real-time live feed (#253): a subscriber's, with the pass.
-pub const SCREENER_LIVE_RT_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/screener/v2/live/rt";
+pub const SCREENER_LIVE_RT_URL: &str = "wss://api.opentrader.markets/screener/v2/live/rt";
 
 /// The screener's live feed: one full-market table, then its changes every
 /// 10 s, polled once by the gateway for every app (`?token=<token>`).
-pub const SCREENER_LIVE_URL: &str = "wss://opentrader-gateway.cloudflare-breeder165.workers.dev/screener/v2/live";
+pub const SCREENER_LIVE_URL: &str = "wss://api.opentrader.markets/screener/v2/live";
 
 /// Shown when the build has no token. Surfaces in the UI as the reason a chart
 /// failed to load.

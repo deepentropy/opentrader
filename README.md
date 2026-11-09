@@ -55,7 +55,7 @@ The agent acts on the chart tab you focused last; every change is an undo step. 
 
 OpenTrader is free, but running it is not: market data, servers and development tools are paid every month. Donations pay these costs. Only the monthly total is published.
 
-[![Monthly costs](https://img.shields.io/endpoint?url=https%3A%2F%2Fopentrader-gateway.cloudflare-breeder165.workers.dev%2Ffunding%2Fv1%2Fbadge)](https://github.com/sponsors/deepentropy)
+[![Monthly costs](https://img.shields.io/endpoint?url=https%3A%2F%2Fapi.opentrader.markets%2Ffunding%2Fv1%2Fbadge)](https://github.com/sponsors/deepentropy)
 
 - [Sponsor on GitHub](https://github.com/sponsors/deepentropy)
 - [Buy Me a Coffee](https://buymeacoffee.com/opentrader)

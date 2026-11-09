@@ -52,7 +52,7 @@
     // Bot check at sign-in; its secret is TURNSTILE_SECRET.
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFx6K_eX2hXdUuKw",
     // Ticker communities only for known symbols; its token is GATEWAY_TOKEN.
-    "GATEWAY_URL": "https://opentrader-gateway.cloudflare-breeder165.workers.dev"
+    "GATEWAY_URL": "https://api.opentrader.markets"
   },
   "env": {
     // `wrangler dev --env local`: the test sign-in, the Vite dev servers.
