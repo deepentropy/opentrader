@@ -193,7 +193,7 @@ impl EngineRule {
                         }
                         let inside = band.is_some_and(|(l, u)| s.price >= l && s.price <= u);
                         let touched = band.is_some_and(|(l, u)| s.hi >= l && s.lo <= u);
-                        let left = band.map_or(true, |(l, u)| s.hi > u || s.lo < l);
+                        let left = band.is_none_or(|(l, u)| s.hi > u || s.lo < l);
                         if op == "inside" {
                             return touched.then_some(s.price);
                         }
@@ -260,7 +260,7 @@ impl EngineRule {
         let bar = grid.and_then(|g| g.bar_at(s.time).map(|i| g.bars[i].0));
         let fire = |price: f64, time: f64, bar_time: Option<f64>| Fire { rule_id: self.id.clone(), price, time, bar_time };
         // Out of the rule's session its bars do not move: nothing is read.
-        let inside = grid.map_or(true, |g| g.in_session(&s));
+        let inside = grid.is_none_or(|g| g.in_session(&s));
         if !inside && self.frequency != "once_per_bar_close" {
             return None;
         }
@@ -336,7 +336,7 @@ pub fn replay_rule(rule: &EngineRule, grid: Option<&EngineGrid>, more: &[Option<
     let mut st = RuleState::default();
     let mut fires = Vec::new();
     for b in bars {
-        if b.time <= from || !grid.map_or(true, |g| g.reads_minute(b.time)) {
+        if b.time <= from || !grid.is_none_or(|g| g.reads_minute(b.time)) {
             continue;
         }
         let close = Sample { price: b.close, lo: b.low.min(b.close), hi: b.high.max(b.close), time: b.time, extended: false };
@@ -473,7 +473,7 @@ impl Engine {
                 let s = match bar {
                     None => Sample::point(last, time),
                     // A pre- or post-market trade: only extended-hours bars move.
-                    Some(b) if !grid.map_or(true, |g| g.in_regular(b.time)) => Sample { extended: true, ..with_range(b.close) },
+                    Some(b) if !grid.is_none_or(|g| g.in_regular(b.time)) => Sample { extended: true, ..with_range(b.close) },
                     // Extended-hours bars follow every trade.
                     Some(b) if grid.is_some_and(|g| g.extended_hours) => with_range(b.close),
                     // Regular hours read the regular-session last, with the
