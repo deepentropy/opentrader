@@ -19,7 +19,7 @@ import {
   LineSeries,
   LineStyle,
   TickMarkType,
-  createChart,
+  createChartEx,
   type IChartApi,
   type ISeriesApi,
   type SeriesType,
@@ -69,6 +69,7 @@ import { createSeriesForType, isTransformType, setDataForType, transformBarsOf, 
 import { type LegendValues } from "./ChartLegend";
 import { chartPriceFormat } from "./price-format";
 import { dayKeyer } from "./day-key";
+import { zonedTimeScale } from "./view/zoned-time-scale";
 import { cachedSymbolSessions } from "../../data/session";
 import { IndicatorSettingsDialog, type DialogTab } from "./IndicatorSettingsDialog";
 import { outputValueRows, styleItems, type StyleEntry } from "./indicators/style-outputs";
@@ -94,7 +95,7 @@ import { sessionFutureAxis, sessionFutureTimes } from "./indicators/future-slots
 import { DrawingsOverlay } from "../drawings/DrawingsOverlay";
 import { cursorForMode } from "../drawings/cursors";
 import { attach, type ChartCore, type ChartCx, type ChartMenuState, type ChartViewProps } from "./view/context";
-import { barsSpan, AxisFmt, formatAxisTime, formatTick, appearanceOptions } from "./view/helpers";
+import { barsSpan, AxisFmt, barTimeZone, formatAxisTime, formatTick, appearanceOptions } from "./view/helpers";
 import { createNavigation } from "./view/navigation";
 import { createMenus } from "./view/menus";
 import { createPriceAxis } from "./view/price-axis";
@@ -884,6 +885,7 @@ export function ChartView(props: ChartViewProps) {
    *  committed appearance (on/off + colour) onto the primitive. Cheap and
    *  idempotent — safe to call after every data load / appearance change. */
   function updateSessionBreaks() {
+    refreshTickWeights();
     syncFutureBars();
     const t = currentTokens();
     const intraday = isIntradayInterval(props.interval ?? "1D");
@@ -921,6 +923,37 @@ export function ChartView(props: ChartViewProps) {
 
   const { installAlertPointer, setAlertSeriesEpoch } = attach(cx, createAlertLayer(cx));
 
+  // Year / month / day ticks in the zone the axis labels are read in (#270).
+  const tickZone = () => {
+    const id = props.interval ?? "1D";
+    return {
+      tz: props.timeZone ?? "UTC",
+      intraday: isSecondResolution(id) || isIntradayResolution(id),
+      exchange: cachedSymbolSessions(props.symbol ?? "")?.timeZone ?? "UTC",
+    };
+  };
+  const timeScale = zonedTimeScale({
+    zoneOf: (sec) => {
+      const z = tickZone();
+      return barTimeZone(z.tz, z.intraday, sec, z.exchange);
+    },
+    realTime: (t) => realTimeOf(t as Time),
+    key: () => {
+      const z = tickZone();
+      return `${z.tz}|${z.intraday}|${z.exchange}`;
+    },
+  });
+  /** The library weighs the bars only when the time points change: after a
+   *  zone change (time zone, interval with the same first bars, sessions
+   *  resolved late) a placeholder point before the first bar, added and
+   *  removed, makes it weigh them all again. */
+  function refreshTickWeights() {
+    if (!chart || !timeScale.stale()) return;
+    const s = chart.addSeries(LineSeries, { visible: false, lastValueVisible: false, priceLineVisible: false });
+    s.setData([{ time: 1 as UTCTimestamp }]);
+    chart.removeSeries(s);
+  }
+
 
   /** Rebuild {@link prevDayClose}: for each bar, the close of the last bar of the
    *  PREVIOUS trading day (in the chart timezone). O(n) per data change, so the
@@ -952,7 +985,7 @@ export function ChartView(props: ChartViewProps) {
   onMount(() => {
     const tokens = currentTokens();
     const base = appearanceOptions(tokens);
-    chart = createChart(host, {
+    chart = createChartEx(host, timeScale.behavior, {
       width: host.clientWidth,
       height: host.clientHeight,
       ...base,
@@ -963,7 +996,9 @@ export function ChartView(props: ChartViewProps) {
       // Disable the library's cursor-anchored mouse-wheel zoom; we replace it
       // below with a right-edge-anchored zoom (see onWheel).
       handleScale: { mouseWheel: false },
-    });
+      // createChart's default for its time scale (the time formatter replaces it).
+      localization: { dateFormat: "dd MMM 'yy" },
+    }) as IChartApi;
     lockViews = new CrosshairLockViews(chart, () => {
       const t = currentTokens();
       return {
