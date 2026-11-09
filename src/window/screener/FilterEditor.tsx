@@ -33,6 +33,7 @@ import {
 import { abbrev, parseValue } from "../../data/screener-format";
 import { isActive, presetFilter, presetTitle } from "../../data/screener-query";
 import { PopDivider, PopItem, PopSearch, Popover, SelectButton } from "./Popover";
+import { translateWith } from "../../i18n/translator";
 
 type Props = {
   filter: Filter;
@@ -87,7 +88,7 @@ export function ParamButtons(props: { col: ColumnRef; has: (f: string) => boolea
                         class="scr-input-plain"
                         type="text"
                         inputmode="numeric"
-                        placeholder={`Custom… (1–${MAX_CUSTOM_LENGTH})`}
+                        placeholder={translateWith("Custom… (1–{0})", MAX_CUSTOM_LENGTH)}
                         value={custom()}
                         onInput={(e) => setCustom(e.currentTarget.value.trim())}
                         onKeyDown={(e) => {

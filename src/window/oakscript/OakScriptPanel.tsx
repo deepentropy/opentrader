@@ -46,6 +46,7 @@ import { showRename } from "../../components/Dialogs";
 import { builtinName, builtinScriptId, builtinTypeOf, loadBuiltinSource } from "./builtin-sources";
 import { setOpenedScript } from "./editor-state";
 import { BuiltinScriptDialog } from "./BuiltinScriptDialog";
+import { translate, translateWith } from "../../i18n/translator";
 
 // Monaco (and the oakscriptjs typings) stay in this lazy chunk — nothing
 // editor-sized loads until the drawer first opens.
@@ -561,7 +562,7 @@ export function OakScriptPanel(props: Props) {
                   <span class="oak-console__time">{e.time}</span>
                   <span class="oak-console__msg">
                     <Show when={e.loc}>
-                      <span class="oak-console__badge">{`Error at ${e.loc!.line}:${e.loc!.col}`}</span>
+                      <span class="oak-console__badge">{translateWith("Error at {0}:{1}", e.loc!.line, e.loc!.col)}</span>
                     </Show>
                     {e.text}
                   </span>
@@ -587,14 +588,14 @@ export function OakScriptPanel(props: Props) {
           <div class="oak-panel__status-right">
             <Show when={fullRun()}>
               {(reason) => (
-                <Tooltip text={`Live updates recalculate every bar: ${reason()}`} side="top">
+                <Tooltip text={translateWith("Live updates recalculate every bar: {0}", translate(reason()))} side="top">
                   <span class="oak-panel__status-item">Full recalculation</span>
                 </Tooltip>
               )}
             </Show>
             <Show when={cursor()}>
               {(c) => (
-                <span class="oak-panel__status-item">{`Line ${c().line}, Col ${c().col}`}</span>
+                <span class="oak-panel__status-item">{translateWith("Line {0}, Col {1}", c().line, c().col)}</span>
               )}
             </Show>
             <span class="oak-panel__status-item">{ENGINE_LABEL}</span>

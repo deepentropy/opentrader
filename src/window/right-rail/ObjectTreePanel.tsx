@@ -46,6 +46,7 @@ import { copyDrawing } from "../drawings/clipboard";
 import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { consumeDataWindowRequest, dataWindow } from "../../data/data-window-store";
 import { emitAppEvent } from "../../data/app-events";
+import { translateWith } from "../../i18n/translator";
 
 type View = "tree" | "data-window";
 
@@ -701,7 +702,7 @@ export function ObjectTreePanel(props: Props) {
 
         {/* Bulk actions over the checked set (manage mode only). */}
         <Show when={manage()}>
-          <span class="object-tree-toolbar-count">{checked().size} selected</span>
+          <span class="object-tree-toolbar-count">{translateWith("{0} selected", checked().size)}</span>
           <Tooltip text="Hide / show checked" side="bottom">
             <IconButton
               data-name="bulk-hide-button"

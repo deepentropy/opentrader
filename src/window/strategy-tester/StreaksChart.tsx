@@ -14,6 +14,7 @@ import { streakBars, type StreakBar } from "./metrics";
 import { HoverBar, PALETTE as P, PrettyPriceScale, chartBase, reportTheme, themed, volume2, withAlpha } from "./report-chart-kit";
 import { CountBarsSeries, type CountBarsData } from "./report-series";
 import { ChartTip, DetailSwitch, Legend, PagedChart, Widget, signOf, usePager, type TipAnchor } from "./ReportWidget";
+import { translateWith } from "../../i18n/translator";
 
 type Mode = "count" | "amount";
 const MODES: readonly Mode[] = ["count", "amount"];
@@ -113,7 +114,7 @@ export function StreaksChart(props: { report: BacktestReport; intraday: boolean;
         {(t) => (
           <ChartTip
             anchor={t().anchor}
-            title={`Trade #${t().bar.tradeNumber} ${t().bar.short ? "Short" : "Long"}`}
+            title={translateWith(t().bar.short ? "Trade #{0} Short" : "Trade #{0} Long", t().bar.tradeNumber)}
             rows={[
               { title: t().bar.profit >= 0 ? "Net profit" : "Net loss", value: money(t().bar.profit, true), unit: props.report.currency, positive: signOf(t().bar.profit) },
               { title: "PnL return", value: percent(t().bar.profitPercent, true), positive: signOf(t().bar.profitPercent) },

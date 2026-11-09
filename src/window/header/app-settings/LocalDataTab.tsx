@@ -15,6 +15,7 @@ import {
 import { TIMEZONES } from "../../../data/timezones";
 import { pickFolder } from "./io";
 import { Section } from "./parts";
+import { translateWith } from "../../../i18n/translator";
 
 /** Zones a folder's times may be in: UTC and the chart's cities, one row per zone. */
 const FOLDER_ZONES = TIMEZONES.filter((z) => z.label !== "Exchange").filter((z, i, all) => all.findIndex((y) => y.iana === z.iana) === i);
@@ -130,7 +131,7 @@ function LocalFolderCard(props: { folder: LocalFolder }) {
             )}
           </For>
           <Show when={errors().length > SHOWN_ERRORS}>
-            <div class="app-settings-local-error">and {thousands(errors().length - SHOWN_ERRORS)} more</div>
+            <div class="app-settings-local-error">{translateWith("and {0} more", thousands(errors().length - SHOWN_ERRORS))}</div>
           </Show>
         </div>
       </Show>

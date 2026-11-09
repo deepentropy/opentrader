@@ -59,6 +59,7 @@ import { IndicatorsDialog } from "../header/IndicatorsDialog";
 import { IndicatorSettingsDialog } from "../chart/IndicatorSettingsDialog";
 import { PopDivider, PopItem, PopSearch, PopSectionTitle, Popover, SelectButton } from "./Popover";
 import { ValueInput } from "./FilterEditor";
+import { translateWith } from "../../i18n/translator";
 
 /** Pills a new indicator starts with (the reference: its first ten outputs). */
 const MAX_PILLS = 10;
@@ -609,7 +610,7 @@ export function ScriptScreener(props: Props) {
           <span class="scr-light-btn-text">{scanning() ? "Stop" : "Scan"}</span>
         </button>
         <Show when={!scanning() && overCap()}>
-          <span class="sscr-progress">Intraday intervals scan up to {INTRADAY_MAX_SYMBOLS} symbols</span>
+          <span class="sscr-progress">{translateWith("Intraday intervals scan up to {0} symbols", INTRADAY_MAX_SYMBOLS)}</span>
         </Show>
         <Show when={scanning()}>
           <span class="sscr-progress" role="status">
@@ -906,7 +907,7 @@ export function ScriptScreener(props: Props) {
             }}
           />
           <PopItem
-            title={`Remove ${inactiveCount()} inactive filter${inactiveCount() === 1 ? "" : "s"}`}
+            title={translateWith(inactiveCount() === 1 ? "Remove {0} inactive filter" : "Remove {0} inactive filters", inactiveCount())}
             disabled={inactiveCount() === 0}
             onClick={() => {
               setMoreOpen(false);

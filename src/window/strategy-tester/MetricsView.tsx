@@ -25,6 +25,7 @@ import { ResultsByTime } from "./ResultsByTime";
 import { Widget } from "./ReportWidget";
 import { cachedSymbolSessions } from "../../data/session/symbol-sessions";
 import { durationString } from "./format";
+import { translateWith } from "../../i18n/translator";
 
 /** One metric cell: label, value [+ currency] [+ second value]. */
 function Cell(props: { label: string; value: string; currency?: string; change?: string; tone?: string }): JSX.Element {
@@ -386,7 +387,7 @@ function TradesDistribution(props: { total: number; winners: number; losers: num
               <>
                 <span class="st-dot" style={{ background: p.color }} />
                 <span>{p.label}</span>
-                <span class="st-donut-num">{p.n} trades</span>
+                <span class="st-donut-num">{translateWith("{0} trades", p.n)}</span>
                 <span class="st-donut-num">{percent(props.total ? p.n / props.total : 0)}</span>
               </>
             )}

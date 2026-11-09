@@ -30,6 +30,7 @@ import { isEconomicSymbol, isLocalSymbol } from "../../data/datafeed";
 import { cachedSymbolSessions } from "../../data/session";
 import { abbreviatedPrice } from "../chart/price-format";
 import { createPopover } from "../../components/popover";
+import { translateWith } from "../../i18n/translator";
 
 const DASH = "—";
 
@@ -451,7 +452,7 @@ export function WatchlistDetail(props: Props) {
           {/* Add-note popover — a per-symbol note, persisted locally. */}
           <Show when={openPanel() === "note"}>
             <div class="watchlist-detail-popover watchlist-detail-note-popover" role="dialog" aria-label="Note">
-              <div class="watchlist-detail-popover-title">Note · {short() || DASH}</div>
+              <div class="watchlist-detail-popover-title">{translateWith("Note · {0}", short() || DASH)}</div>
               <textarea
                 class="watchlist-detail-note-input"
                 placeholder="Write a note for this symbol…"

@@ -77,6 +77,7 @@ import { promptNewWatchlist } from "../right-rail/watchlist-prompts";
 import { scriptResultsCsv } from "./script-csv";
 import { csvFileName, downloadText } from "./screener-csv";
 import { showConfirm, showNotice, showRename } from "../../components/Dialogs";
+import { translateWith } from "../../i18n/translator";
 
 /** The view type menu (the reference app order). */
 const VIEWS: { id: ViewMode; title: string; icon: string }[] = [
@@ -636,7 +637,7 @@ export function ScreenerPanel(props: Props) {
               {viewTools()}
               <div class="scr-header-controls">
                 <Show when={!waiting() && view() !== "table" && (view() === "heatmap" ? heatTotal() : ctl.total()) !== null}>
-                  <span class="scr-total">{(view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US")} total</span>
+                  <span class="scr-total">{translateWith("{0} total", (view() === "heatmap" ? heatTotal() : ctl.total())!.toLocaleString("en-US"))}</span>
                 </Show>
                 <Show when={roomy()}>{refreshButton()}</Show>
                 <button

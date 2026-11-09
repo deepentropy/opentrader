@@ -12,6 +12,7 @@ import { CheckField, DecimalInput, NativeSelect } from "../../../components/form
 import { VolumeProfileInputRows } from "./volume-profile";
 import { POSITION_KINDS, PRICE_SOURCE_LABELS, QTY_PRECISION_OPTIONS, VWAP_SOURCES } from "./kind-config";
 import { type SettingsCx } from "./context";
+import { translateWith } from "../../../i18n/translator";
 
 export function inputsTab(cx: SettingsCx): JSX.Element {
   const { kind, moneyUnit, patchStyle, pip, priceDigits, props } = cx;
@@ -184,7 +185,7 @@ export function inputsTab(cx: SettingsCx): JSX.Element {
             };
             return (
               <div class="drawing-settings-row">
-                <CheckField variant="drawing" checked={lvl.visible} onChange={(v) => patchBand({ visible: v })} label={`Bands Multiplier #${i() + 1}`} />
+                <CheckField variant="drawing" checked={lvl.visible} onChange={(v) => patchBand({ visible: v })} label={translateWith("Bands Multiplier #{0}", i() + 1)} />
                 <div class="drawing-settings-row-inputs">
                   <DecimalInput narrow value={lvl.coeff} onCommit={(v) => patchBand({ coeff: v })} />
                 </div>

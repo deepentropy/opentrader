@@ -6,6 +6,7 @@
  */
 import { createSignal, onMount, Show } from "solid-js";
 import { Dialog } from "../../components/Dialog";
+import { translateWith } from "../../i18n/translator";
 
 type Props = {
   listName: string;
@@ -40,7 +41,7 @@ export function AddAlertDialog(props: Props) {
       backdrop="close"
       class="wl-dialog wl-dialog--narrow"
       label="Add alert"
-      title={<>Alert · {props.listName}</>}
+      title={translateWith("Alert · {0}", props.listName)}
       onClose={props.onClose}
       keys={{ target: "document" }}
       onEnter={(e) => { e.preventDefault(); save(); }}

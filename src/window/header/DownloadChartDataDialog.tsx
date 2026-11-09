@@ -16,6 +16,7 @@ import {
 } from "../chart/chart-export";
 import * as kv from "../../data/kv";
 import { Dialog } from "../../components/Dialog";
+import { translate, translateWith } from "../../i18n/translator";
 
 const FORMAT_KEY = "ot:export-time-format";
 const FORMAT_LABEL: Record<ExportTimeFormat, string> = { iso: "ISO time", unix: "UNIX timestamp" };
@@ -72,7 +73,7 @@ export function DownloadChartDataDialog(props: { onClose: () => void }) {
         </div>
         <div class="chart-export-row">
           <div class="chart-export-title">
-            Time format ({exportZoneLabel(format(), chart()?.source.timeZone() ?? "UTC")})
+            {translateWith("Time format ({0})", translate(exportZoneLabel(format(), chart()?.source.timeZone() ?? "UTC")))}
           </div>
           <SelectControl
             value={format()}

@@ -15,6 +15,7 @@ import { Icon } from "../../components/Icon";
 import { isDeletedList, watchlistStore, type WatchList } from "../../data/watchlist-store";
 import { promptCopyWatchlist } from "./watchlist-prompts";
 import { Dialog } from "../../components/Dialog";
+import { translateWith } from "../../i18n/translator";
 
 type Props = {
   lists: WatchList[];
@@ -89,7 +90,7 @@ export function OpenListDialog(props: Props) {
       >
         <Show when={confirmingId() !== l.id} fallback={
           <span class="wl-lm-confirm" onClick={(e) => e.stopPropagation()}>
-            <span class="wl-dialog-confirm-text">Delete “{l.name}”?</span>
+            <span class="wl-dialog-confirm-text">{translateWith("Delete “{0}”?", l.name)}</span>
             <button type="button" class="wl-dialog-confirm-btn wl-dialog-confirm-yes" onClick={() => { watchlistStore.deleteList(l.id); setConfirmingId(null); }}>Delete</button>
             <button type="button" class="wl-dialog-confirm-btn" onClick={() => setConfirmingId(null)}>Cancel</button>
           </span>

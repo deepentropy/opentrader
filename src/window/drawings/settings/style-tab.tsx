@@ -33,6 +33,7 @@ import {
   vertAlignFromTitle,
 } from "./kind-config";
 import { type SettingsCx } from "./context";
+import { translateWith } from "../../../i18n/translator";
 
 export function styleTab(cx: SettingsCx): JSX.Element {
   const { kind, patchStyle, props } = cx;
@@ -253,7 +254,7 @@ export function styleTab(cx: SettingsCx): JSX.Element {
           };
           return (
             <div class="drawing-settings-row">
-              <CheckField variant="drawing" checked={ln().visible} onChange={(v) => patchLn({ visible: v })} label={`${side === "upper" ? "Upper" : "Lower"} band #${i + 1}`} />
+              <CheckField variant="drawing" checked={ln().visible} onChange={(v) => patchLn({ visible: v })} label={translateWith(side === "upper" ? "Upper band #{0}" : "Lower band #{0}", i + 1)} />
               <div class="drawing-settings-row-inputs">
                 <ColorButton variant="drawing" color={ln().color} width={ln().width} onColor={(c) => patchLn({ color: c })} onWidth={(w) => patchLn({ width: w })} />
               </div>

@@ -24,6 +24,7 @@ import { TIMEZONES } from "../../data/timezones";
 import { showNotice } from "../../components/Dialogs";
 import { isTauri } from "../shell/window-bridge";
 import { Dialog } from "../../components/Dialog";
+import { translateWith } from "../../i18n/translator";
 
 type SeedInfo = ReturnType<typeof parseSeedSymbolInfo>;
 /** A bar file to import: its text is read when needed. `text` is set for the
@@ -375,7 +376,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
         >
           <Show when={busy() && !preview}>
             <span class="ls-import-progress" data-name="import-progress">
-              Importing {done().toLocaleString("en-US")} of {chosen().length.toLocaleString("en-US")}…
+              {translateWith("Importing {0} of {1}…", done().toLocaleString("en-US"), chosen().length.toLocaleString("en-US"))}
             </span>
           </Show>
           <button type="button" class="ot-dlg-btn is-secondary" onClick={props.onClose}>

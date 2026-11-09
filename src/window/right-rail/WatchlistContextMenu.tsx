@@ -38,6 +38,7 @@ import type { WatchList } from "../../data/watchlist-store";
 /** The 7 flag colours, in `data-color` order. */
 import { FLAG_COLORS, flagOf } from "../../data/symbol-flags";
 import { createPopover } from "../../components/popover";
+import { translateWith } from "../../i18n/translator";
 
 const ICON_PLUS =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18"><path fill="currentColor" d="M8.5 4h1v4.5H14v1H9.5V14h-1V9.5H4v-1h4.5V4Z"></path></svg>';
@@ -246,7 +247,7 @@ export function WatchlistContextMenu(props: Props) {
       <Show when={!multi() && props.row}>
         <button type="button" role="menuitem" class="ot-menu-item" onClick={() => run(() => props.onAddNote(props.row!))}>
           <span class="ot-menu-item__icon" aria-hidden="true" innerHTML={ICON_NOTE} />
-          <span class="ot-menu-item__label">Add note for {sym()}</span>
+          <span class="ot-menu-item__label">{translateWith("Add note for {0}", sym())}</span>
         </button>
       </Show>
 

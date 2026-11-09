@@ -9,6 +9,7 @@ import { COMMUNITY_ENABLED, COMMUNITY_URL } from "../../../data/community/api";
 import { ECONOMIC_DATA_NOTICE, ECONOMIC_DATA_TERMS_URL } from "../../../data/economic-notice";
 import { fundingStatus, type Funding } from "../../../data/funding";
 import { openLink } from "./io";
+import { translateWith } from "../../../i18n/translator";
 
 export function AboutTab() {
   const [info, setInfo] = createSignal<BuildInfo | null>(null);
@@ -23,7 +24,7 @@ export function AboutTab() {
     <div class="app-settings-about">
       <div class="app-settings-about-app">OpenTrader</div>
       <Show when={info()}>
-        {(i) => <div class="app-settings-about-version">{`Version ${i().version} · ${date(i().buildDate)}`}</div>}
+        {(i) => <div class="app-settings-about-version">{translateWith("Version {0} · {1}", i().version, date(i().buildDate))}</div>}
       </Show>
       {/* The reference app hides its update block on Linux (no in-app update there). */}
       <Show when={!/Linux/.test(navigator.userAgent)}>

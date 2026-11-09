@@ -10,6 +10,7 @@ import { SYMBOL_COL_KEY } from "./prefs";
 import { SORT_MENU_FIELDS } from "./sort";
 import { type WatchlistCx } from "./context";
 import type { JSX } from "solid-js";
+import { translate, translateWith } from "../../../i18n/translator";
 
 /** What createHeaders adds to the watchlist context. */
 export interface HeadersApi {
@@ -148,7 +149,7 @@ export function createHeaders(cx: WatchlistCx): HeadersApi {
               aria-sort={sortDirFor(c.key) ? (sortDirFor(c.key) === "asc" ? "ascending" : "descending") : "none"}
             >
               {sortArrow(c.key)}
-              <Tooltip text={`Click to sort by ${headerLabel(c.key)}`} icon={sortTipIcon(c.key)} side="top" farther>
+              <Tooltip text={translateWith("Click to sort by {0}", translate(headerLabel(c.key)))} icon={sortTipIcon(c.key)} side="top" farther>
                 <button
                   type="button"
                   class="watchlist-column-label"
