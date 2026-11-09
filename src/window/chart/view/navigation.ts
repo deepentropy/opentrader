@@ -37,7 +37,8 @@ export interface NavigationApi {
   gotoShown: Accessor<boolean>;
   installControlBars: () => void;
   moveBars: (dir: -1 | 1) => void;
-  readonly refreshBarsRef: (() => void) | undefined;
+  /** Re-anchor and re-fit the control bars (nothing until they are installed). */
+  refreshControlBars: () => void;
   resetAvailable: Accessor<boolean>;
   resetChartView: () => void;
   resetTimeScale: () => void;
@@ -60,8 +61,9 @@ export function createNavigation(cx: ChartCx): NavigationApi {
   const [barLeft, setBarLeft] = createSignal(0);
   const [barFits, setBarFits] = createSignal<Set<GroupId>>(new Set());
   const [resetAvailable, setResetAvailable] = createSignal(false);
-  /** Set by onMount so the actions below can re-resolve bar visibility. */
+  /** Set by installControlBars so the actions below can re-resolve bar visibility. */
   let refreshBarsRef: (() => void) | undefined;
+  const refreshControlBars = () => refreshBarsRef?.();
 
   /** Right-edge-anchored zoom, in bar-spacing terms: holds `rightOffset` and
    *  scales the span, so `span` is the reciprocal of the bar-spacing factor. */
@@ -139,7 +141,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
       ts.scrollToPosition(from + position(at - scrollStarted, scrollEnd - at), false);
       if (now >= scrollEnd) {
         scrollAnim = null;
-        refreshBarsRef?.();
+        refreshControlBars();
         return;
       }
       scrollAnim = requestAnimationFrame(step);
@@ -213,7 +215,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
     if (!cx.chart) return;
     resetTimeScale();
     cx.mainScale()?.applyOptions({ autoScale: true });
-    refreshBarsRef?.();
+    refreshControlBars();
   };
 
   /** Reset available: true when bar spacing, right offset OR price
@@ -360,7 +362,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
         nearGoto = false;
         nearBar = false;
       }
-      refreshBarsRef?.();
+      refreshControlBars();
     });
   }
 
@@ -373,9 +375,7 @@ export function createNavigation(cx: ChartCx): NavigationApi {
     gotoShown,
     installControlBars,
     moveBars,
-    get refreshBarsRef() {
-      return refreshBarsRef;
-    },
+    refreshControlBars,
     resetAvailable,
     resetChartView,
     resetTimeScale,

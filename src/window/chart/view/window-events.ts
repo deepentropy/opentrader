@@ -264,7 +264,7 @@ export function createWindowEvents(cx: ChartCx): WindowEventsApi {
     const onResetTime = () => {
       if (!props.active) return;
       cx.resetTimeScale();
-      cx.refreshBarsRef?.();
+      cx.refreshControlBars();
     };
     listenWhenShown("chart-zoom", onZoom);
     listenWhenShown("chart-scale", onScale);

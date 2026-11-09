@@ -1,17 +1,16 @@
 /*
- * Shared context of a chart view's parts (view/*.ts). ChartView owns the
- * chart, its series and bars; each part is created with this context and adds
- * its own functions to it (attach), so the parts reach each other through it
- * without a creation order. The mutable fields are live accessors of the
- * view's state.
+ * Shared context of a chart view's parts (view/*.ts). ChartView keeps the
+ * chart's state in one plain core object; createChartCx creates every part
+ * with the context and adds its functions to it, all before any effect or
+ * handler of them runs, so the parts reach each other through it without
+ * optional calls.
  */
 import type { LegendValues } from "../ChartLegend";
 import type { SetStoreFunction } from "solid-js/store";
 import type { Accessor, Resource, Setter } from "solid-js";
-import type { IChartApi, IPriceScaleApi, MouseEventParams } from "lightweight-charts";
+import type { IChartApi, MouseEventParams } from "lightweight-charts";
 import type { Drawing, NewDrawing } from "lightweight-charts-drawing/core/types";
 import type { AnySeries, ChartTypeId, OHLC } from "../chart-types";
-import { setDataForType } from "../chart-types";
 import type { Candle } from "../../../bindings";
 import type { BarsResult, SessionId } from "../../../data/datafeed";
 import type { IndicatorController, IndicatorLegendRow } from "../indicators/indicator-controller";
@@ -20,7 +19,7 @@ import type { CtxNode } from "../ChartContextMenu";
 import type { CountdownPrimitive } from "../countdown";
 import type { HistoryEndPrimitive } from "../history-end-marker";
 import type { NewsLollipopPrimitive } from "../news-lollipop";
-import type { CrosshairLockViews } from "../crosshair-lock";
+import type { CrosshairLockAxisPrimitive, CrosshairLockViews } from "../crosshair-lock";
 import type { DialogTab } from "../IndicatorSettingsDialog";
 import type { CompareEntry, ComparePatch, PaneIndicatorSettings } from "../../shell/tabs";
 import type { Draft } from "../../header/chart-settings";
@@ -53,6 +52,12 @@ import type { SourceMenuApi } from "./source-menu";
 import type { ScalesApi } from "./scales";
 import type { ReplayApi } from "./replay";
 import type { TradingLinesApi } from "./trading-lines";
+import type { FutureAxisApi } from "./future-axis";
+import type { SeriesApi } from "./series";
+import type { TimeAxisApi } from "./time-axis";
+import type { StudySyncApi } from "./study-sync";
+import type { StudySettingsApi } from "./study-settings";
+import type { PriceScaleWatch } from "../scale-watch";
 import type { SyncMode } from "../../drawings/DrawingToolbar";
 
 export type ChartViewProps = {
@@ -212,13 +217,19 @@ export interface ChartCore {
   /** Unique id of this view (sync bus, live slot, strategy reports). */
   paneId: number;
   activeType: ChartTypeId;
-  afterSeriesData: () => void;
   appearance: Accessor<ReturnType<typeof appearanceFrom>>;
+  /** The saved place of the series last applied to (or saved from) the controller. */
+  appliedSeriesPane: string | null;
   barWrap: HTMLDivElement;
   chart: IChartApi | null;
   chartReady: Accessor<number>;
   controller: IndicatorController | null;
+  /** Coords bridge for the drawings overlay; refreshed on every series rebuild. */
   coords: Accessor<Coords | null>;
+  setCoords: Setter<Coords | null>;
+  /** Bumped on visible-range and price-scale changes so the overlay re-projects drawings. */
+  coordEpoch: Accessor<number>;
+  setCoordEpoch: Setter<number>;
   countdown: CountdownPrimitive;
   crosshairActive: boolean;
   /** The crosshair is a sibling pane's, mirrored by Crosshair sync: the legend follows it, the data window does not. */
@@ -230,7 +241,6 @@ export interface ChartCore {
   crosshairPrice: number | null;
   ctxMenu: Accessor<ChartMenuState | null>;
   currentTokens: () => ReturnType<typeof readChartTokens>;
-  dataExtras: () => Parameters<typeof setDataForType>[4];
   fullSymbol: Accessor<string>;
   gotoWrap: HTMLDivElement;
   hidden: () => boolean;
@@ -242,58 +252,42 @@ export interface ChartCore {
   hoveredStudy: string | null;
   indLegend: () => IndicatorLegendRow[];
   lastLegendTime: number | undefined;
+  /** "Lock vertical cursor line by time" views (crosshair-lock.ts): the time label on the main series, the line
+   *  and padlock in every pane (created with the chart). */
   lockViews: CrosshairLockViews | null;
-  mainLastIndex: () => number | null;
-  /** Pane of the main series (the price pane; any position). */
-  mainPane: () => number;
-  /** Bumped when the price pane moves or the series changes pane or scale. */
-  mainPaneEpoch: Accessor<number>;
-  /** Price scale of the main series. */
-  mainScale: () => IPriceScaleApi | null;
-  /** Side of the main series' scale (the free side in a study pane it shares). */
-  mainSide: () => "left" | "right";
-  /** Width of the left price axis (0 when hidden). */
-  leftAxisWidth: () => number;
-  /** Show the price axes the series and the compared symbols use. */
-  syncScaleSides: () => void;
+  lockAxis: CrosshairLockAxisPrimitive | null;
   newsLollipop: NewsLollipopPrimitive;
-  /** Apply the price format again (the symbol's tick grid is known). */
-  applyPriceFormat: () => void;
   eventMarkers: EventMarkersPrimitive;
   onShownHooks: Set<() => void>;
   paneRoot: HTMLDivElement;
   pendingRangeSpan: string | null;
   pointerOverHost: boolean;
-  prevDayClose: (number | null)[];
   raw: OHLC[];
   rawDaily: Candle[];
   reloadTick: Accessor<number>;
   removeStudy: (id: string) => void;
   selectStudy: (id: string) => void;
   selectedStudy: Accessor<string | null>;
+  /** Price-scale changes (autoscale, axis drag, log / percent) of the main series: attached to it. */
+  scaleWatch: PriceScaleWatch;
   series: AnySeries | null;
-  seriesOnlyScale: () => string | null;
-  /** Scale key of the main series (pinned, else its side) and its library scale id. */
-  seriesKey: () => string;
-  seriesLibId: () => string;
-  /** Put the series on the scale it should be on. */
-  applySeriesScale: () => void;
   setCompareSettingsFor: Setter<string | null>;
   setCtxMenu: Setter<ChartMenuState | null>;
   setReloadTick: Setter<number>;
   setSelectedStudy: Setter<string | null>;
+  /** Study whose Settings dialog is open (null = closed) and the tab it opens on. */
+  settingsForId: Accessor<string | null>;
   setSettingsForId: Setter<string | null>;
+  settingsTab: Accessor<DialogTab | undefined>;
   setSettingsTab: Setter<DialogTab | undefined>;
   studySelectionBg: Accessor<ReturnType<typeof chartBackgroundAt>>;
   swapping: boolean;
   syncLockPanes: () => void;
   toggleSourceHidden: (id: string) => void;
-  updateSessionBreaks: () => void;
   whenShown: <T extends Event>(fn: (e: T) => void) => EventListener;
   flagPopup: Accessor<HTMLElement | null>;
   intervalText: Accessor<string>;
   legend: Accessor<LegendValues | null>;
-  legendPriceFormat: Accessor<((p: number) => string) | undefined>;
   rangePersistTimer: ReturnType<typeof setTimeout> | undefined;
   setFlagPopup: Setter<HTMLElement | null>;
   setIndLegendStore: SetStoreFunction<{ rows: IndicatorLegendRow[] }>;
@@ -326,10 +320,23 @@ export type ChartCx = ChartCore &
   SourceMenuApi &
   ScalesApi &
   ReplayApi &
-  TradingLinesApi;
+  TradingLinesApi &
+  FutureAxisApi &
+  SeriesApi &
+  TimeAxisApi &
+  StudySyncApi &
+  StudySettingsApi;
 
-/** Add a part's functions (and its state accessors) to the context. */
-export function attach<T extends object>(cx: ChartCx, api: T): T {
-  Object.defineProperties(cx, Object.getOwnPropertyDescriptors(api));
-  return api;
+type Part = (cx: ChartCx) => object;
+type Intersection<U> = (U extends unknown ? (u: U) => void : never) extends (i: infer I) => void ? I : never;
+
+/** The context of a chart view: `core` with every part added, created in the order given (their effects run in
+ *  that order). A part reads the others through the context only when called, so all of them are in it before any
+ *  effect or handler runs (Solid runs a component's effects after its body). The caller types the result as
+ *  ChartCx: a part left out is a compile error. */
+export function createChartCx<P extends Part[]>(core: ChartCore, ...parts: P): ChartCore & Intersection<ReturnType<P[number]>> {
+  const cx = core as ChartCore & Intersection<ReturnType<P[number]>>;
+  // Getters of a part's state (its mutable fields) stay getters on the context.
+  for (const part of parts) Object.defineProperties(cx, Object.getOwnPropertyDescriptors(part(cx as unknown as ChartCx)));
+  return cx;
 }

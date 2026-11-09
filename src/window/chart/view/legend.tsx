@@ -227,7 +227,7 @@ export function createLegend(cx: ChartCx): LegendApi {
             onLink={(r) => setSyncMenu(syncMenu() ? null : r)}
           />
           {/* Buy / Sell buttons (replay trading), under the series row. */}
-          {cx.TradingButtons?.()}
+          {cx.TradingButtons()}
           <Show when={syncMenu()}>
             {(r) => (
               <ChartSyncMenu anchor={r()} group={props.linkGroup} onPick={(g) => props.onLinkGroup?.(g)} onClose={() => setSyncMenu(null)} />

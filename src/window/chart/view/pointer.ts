@@ -32,7 +32,7 @@ export function createPointer(cx: ChartCx): PointerApi {
   let mainHovered = false;
   /** Top of the price pane (its sources hit-test in pane space). */
   const mainTop = () => cx.paneBoxes().find((b) => b.index === cx.mainPane())?.top ?? 0;
-  const { historyEnd, indLegend, mainLastIndex, newsLollipop, paneId, props, refreshIndicatorLegend, refreshLegend, selectStudy, selectedStudy, setSelectedStudy, syncLockPanes, whenShown } = cx;
+  const { historyEnd, indLegend, newsLollipop, paneId, props, refreshIndicatorLegend, refreshLegend, selectStudy, selectedStudy, setSelectedStudy, syncLockPanes, whenShown } = cx;
   function installPointer() {
     // ── Right-edge-anchored wheel zoom ──────────────────────────────────────
     // The wheel zoom pins the most recent bar to the right edge, so history
@@ -89,7 +89,7 @@ export function createPointer(cx: ChartCx): PointerApi {
       // the left edge moves. The margin is then clamped to the bars on
       // screen minus 2: a view that is almost all whitespace past the last
       // bar slides left instead, keeping the last bar in view.
-      const lastIndex = mainLastIndex();
+      const lastIndex = cx.mainLastIndex();
       let to: number = range.to;
       if (lastIndex != null) to = Math.min(to, lastIndex + newSpan - 2);
       ts.setVisibleLogicalRange({ from: to - newSpan, to });

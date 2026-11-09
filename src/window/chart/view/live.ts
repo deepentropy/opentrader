@@ -39,7 +39,7 @@ export interface LiveApi {
 }
 
 export function createLive(cx: ChartCx): LiveApi {
-  const { afterSeriesData, currentTokens, dataExtras, hidden, history, onShownHooks, paneId, props, refreshIndicatorLegend, refreshLegend, updateSessionBreaks } = cx;
+  const { currentTokens, hidden, history, onShownHooks, paneId, props, refreshIndicatorLegend, refreshLegend } = cx;
   /** Live bars merged while hidden and not drawn yet. */
   let liveDirty = false;
   let liveAppendedWhileHidden = false;
@@ -175,14 +175,14 @@ export function createLive(cx: ChartCx): LiveApi {
       // OHLC is shape-compatible (time + o/h/l/c).
       (cx.series as { update: (d: OHLC) => void }).update(next);
     } else {
-      setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), dataExtras());
-      afterSeriesData();
+      setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), cx.dataExtras());
+      cx.afterSeriesData();
     }
     // Recompute active studies against the mutated bars so indicator lines
     // track the live bar instead of lagging until the next reload.
     cx.controller?.renderAll(true);
     refreshIndicatorLegend(cx.crosshairActive ? cx.lastLegendTime : undefined);
-    if (appended) { updateSessionBreaks(); cx.renderCompareAll(); cx.syncJournalMarks(); }
+    if (appended) { cx.updateSessionBreaks(); cx.renderCompareAll(); cx.syncJournalMarks(); }
     // A forming bar can push a new visible extreme without appending.
     else cx.updateHighLowLines();
     // Keep the legend on the latest bar unless the user is hovering one.
@@ -305,8 +305,8 @@ export function createLive(cx: ChartCx): LiveApi {
           if (!alive || (props.chartType ?? "candle") !== "volFootprint") return;
           subMinute = toOHLC(r.bars);
           if (cx.series && !cx.swapping) {
-            setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), { ...dataExtras(), subMinute });
-            afterSeriesData();
+            setDataForType(cx.series, cx.activeType, cx.raw, currentTokens(), { ...cx.dataExtras(), subMinute });
+            cx.afterSeriesData();
           }
         })
         .catch(() => { /* footprint stays candle-only on fetch failure */ });
