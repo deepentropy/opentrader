@@ -22,6 +22,7 @@ import { tickerOf } from "./symbol-name";
 import { groupThousands } from "../window/chart/price-format";
 import { formatStudyValue } from "./study-format";
 import { formatted, translate, translatePlural, translateWith } from "../i18n/translator";
+import { localNumber } from "../i18n/format";
 
 export const OPERATOR_LABELS: Record<AlertOperator, string> = {
   crossing: "Crossing",
@@ -595,12 +596,12 @@ function conditionText(rule: Pick<AlertRule, "left" | "op" | "right" | "bars"> &
   // A strategy's condition: "MA Cross (9, 21): Order fills only".
   if (isStrategyOperator(rule.op)) return `${operandLabel(rule.left)}: ${translate(OPERATOR_LABELS[rule.op])}`;
   const left = translate(messageOperand(rule.left));
-  // A number is written as the left operand's values are ("3.50", "0.0000").
-  const side = (o: Operand) => (o.kind === "value" ? alertAmountText(rule.symbol, rule.left, o.value) : translate(messageOperand(o)));
+  // A number is written as the left operand's values are ("3.50", "0.0000"), in the interface language's marks.
+  const side = (o: Operand) => (o.kind === "value" ? localNumber(alertAmountText(rule.symbol, rule.left, o.value)) : translate(messageOperand(o)));
   if (isMovingOperator(rule.op)) {
     const v = rule.right.kind === "value" ? rule.right.value : 0;
     const n = rule.bars ?? 1;
-    const amount = isPercentOperator(rule.op) ? `${v}%` : alertAmountText(rule.symbol, rule.left, v);
+    const amount = localNumber(isPercentOperator(rule.op) ? `${v}%` : alertAmountText(rule.symbol, rule.left, v));
     const label = rule.op === "moving_up_pct" ? OPERATOR_LABELS.moving_up : rule.op === "moving_down_pct" ? OPERATOR_LABELS.moving_down : OPERATOR_LABELS[rule.op];
     return translatePlural(n, { one: "{0} {1} {2} in {3} bar", other: "{0} {1} {2} in {3} bars" }, left, translate(label), amount, n);
   }

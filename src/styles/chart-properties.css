@@ -660,7 +660,9 @@
   align-items: center;
   gap: 8px;
 }
-.cp3-title { line-height: 16px; cursor: default; }
+/* A label wraps in its column; a word longer than the column ("Vor-/Nachbörse", a German compound) breaks at its edge
+   instead of running under the control. */
+.cp3-title { min-width: 0; line-height: 16px; overflow-wrap: anywhere; cursor: default; }
 .cp3-checkbox + .cp3-title { cursor: pointer; }
 /* Row description: 13/18 px #8c8c8c right under the 34 px label block. */
 .cp3-desc {
