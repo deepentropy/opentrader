@@ -115,10 +115,10 @@ export function ReportToolbar(props: Props) {
             <div class="st-pill st-pill-static" data-name="date-range-pill">
               <span class="st-pill-hover-tip">
                 <span class="st-pill-tip-title">Testing period</span>
-                <span class="st-pill-tip-range">{period()}</span>
+                <span class="st-pill-tip-range ot-value">{period()}</span>
               </span>
               <Icon name="st-pill-date-range-icon" size={28} />
-              <span class="st-pill-text">{period()}</span>
+              <span class="st-pill-text ot-value">{period()}</span>
             </div>
           )}
         </Show>
@@ -132,8 +132,8 @@ export function ReportToolbar(props: Props) {
           onClick={() => setCapitalOpen(!capitalOpen())}
         >
           <Icon name="st-pill-capital-icon" size={28} />
-          <span class="st-pill-text">{compact(capital())}</span>
-          <span class="st-pill-currency">{currency()}</span>
+          <span class="st-pill-text ot-value">{compact(capital())}</span>
+          <span class="st-pill-currency" data-no-translate>{currency()}</span>
           <span class="st-pill-chevron"><Icon name="st-pill-chevron-down" size={18} /></span>
         </button>
 

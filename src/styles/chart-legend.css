@@ -108,14 +108,15 @@
 }
 
 /* Dot separator — every piece after the first is preceded by a centred
-   middle-dot sitting in a 12px gutter (withDot:not(:first-child)). */
+   middle-dot sitting in a 12px gutter (withDot:not(:first-child)), on the
+   piece's start side (its right right to left). */
 .ot-legend-dot {
-  padding-left: 12px;
+  padding-inline-start: 12px;
 }
 .ot-legend-dot::before {
   content: '·';
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   width: 12px;
   text-align: center;
   font-size: 16px;

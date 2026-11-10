@@ -54,6 +54,11 @@
 .st-paged:dir(rtl) {
   direction: ltr;
 }
+/* The series title's pieces (symbol, description, interval, exchange) are each a unit of their own: a name, an
+   interval "5" and an exchange don't run into each other in the right-to-left row. */
+.ot-legend-title-piece:dir(rtl) {
+  unicode-bidi: isolate;
+}
 /* Each O / H / L / C and its value stay one Latin unit; the row of them runs right to left. */
 .ot-legend-value-item:dir(rtl),
 .ot-ind-legend-val:dir(rtl) {
