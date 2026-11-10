@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { indicatorRegistry } from "lightweight-charts-indicators";
 import catalogJson from "../catalog.json";
 import { LANGUAGES } from "../languages";
+import { pseudoDictionary } from "../pseudo";
 import type { Dictionary } from "../translator";
 import { buildCatalog, checkDictionary, type Catalog } from "../tools/catalog";
 import { RUN_TIME_TEXTS } from "../tools/run-time-texts";
@@ -43,7 +44,8 @@ describe("the dictionaries (#288)", () => {
     }
   });
   for (const l of LANGUAGES.filter((x) => x.dictionary)) {
-    const d = DICTIONARIES[`../${l.id}.json`];
+    // A pseudo-language is generated from the catalog (#289).
+    const d = l.pseudo ? pseudoDictionary(catalog) : DICTIONARIES[`../${l.id}.json`];
     const categories = new Intl.PluralRules(l.pluralLocale).resolvedOptions().pluralCategories;
     describe(l.id, () => {
       const p = checkDictionary(catalog, d, categories, known);

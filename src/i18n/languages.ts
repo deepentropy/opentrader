@@ -33,6 +33,11 @@ export type LanguageEntry = {
   direction: "ltr" | "rtl";
   /** Still being translated: the missing texts are reported, not a test failure, and show in English. */
   partial?: boolean;
+  /**
+   * A test language generated from the catalog when it loads (pseudo.ts), no dictionary file: in the language menu of
+   * a development build only, a production build loads it from the saved choice alone.
+   */
+  pseudo?: boolean;
 };
 
 export const ENGLISH: LanguageEntry = {
@@ -62,7 +67,22 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     formats: { dateLocale: "zh-TW", numberLocale: "en-US", chartDate: "{yyyy}年{M}月{d}日", chartWeekdayDate: "{yyyy}年{M}月{d}日 {wd}" },
     direction: "ltr",
   },
+  {
+    // Accented, longer text between markers: what is left in English or cut shows (#289).
+    id: "en-XA",
+    name: "Pseudo",
+    dictionary: () => import("./pseudo").then((m) => m.loadPseudoDictionary()),
+    pluralLocale: "en",
+    formats: ENGLISH.formats,
+    direction: "ltr",
+    pseudo: true,
+  },
 ];
+
+/** The languages the language menu offers: the pseudo-languages in a development build only. */
+export function menuLanguages(): LanguageEntry[] {
+  return LANGUAGES.filter((l) => !l.pseudo || import.meta.env.DEV);
+}
 
 export function languageEntry(id: string): LanguageEntry | undefined {
   return LANGUAGES.find((l) => l.id === id);

@@ -15,7 +15,7 @@ import { drawingPanelVisible, toggleDrawingPanel } from "../../data/drawing-pane
 import { installUpdate, updateReady } from "../../data/app-update";
 import { setOnboardingOpen } from "../shell/app-dialogs";
 import { isTauri } from "../shell/window-bridge";
-import { currentLanguage, currentLanguageLabel, LANGUAGES, setLanguage } from "../../i18n/language";
+import { currentLanguage, currentLanguageLabel, menuLanguages, setLanguage } from "../../i18n/language";
 import { createPopover } from "../../components/popover";
 
 type Row =
@@ -154,7 +154,7 @@ export function ProfileMenu(props: Props) {
             data-no-translate
             style={{ position: "fixed", left: `${Math.round(root.getBoundingClientRect().right)}px`, top: `${Math.round(row().getBoundingClientRect().top)}px` }}
           >
-            <For each={LANGUAGES}>
+            <For each={menuLanguages()}>
               {(l) => (
                 <button
                   type="button"

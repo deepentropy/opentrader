@@ -54,7 +54,8 @@ const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 const dictionaryPath = (id) => join(I18N, `${id}.json`);
 /** A language just added may have no dictionary file yet: nothing translated. */
 const readDictionary = (id) => (existsSync(dictionaryPath(id)) ? readJson(dictionaryPath(id)) : {});
-const translated = () => tools.LANGUAGES.filter((l) => l.dictionary);
+/** The languages with a dictionary file (a pseudo-language is generated from the catalog). */
+const translated = () => tools.LANGUAGES.filter((l) => l.dictionary && !l.pseudo);
 const language = (id) => {
   const l = translated().find((x) => x.id === id);
   if (!l) throw new Error(`No language "${id}" in src/i18n/languages.ts (${translated().map((x) => x.id).join(", ")}).`);

@@ -4,7 +4,7 @@
  */
 import * as kv from "../data/kv";
 import { libraryMonthRule } from "./format";
-import { ENGLISH, LANGUAGES, languageEntry, type LanguageEntry } from "./languages";
+import { ENGLISH, LANGUAGES, languageEntry, menuLanguages, type LanguageEntry } from "./languages";
 import { observePage, setDictionary } from "./translator";
 
 const STORAGE_KEY = "ot:language";
@@ -21,7 +21,7 @@ export function currentLanguageLabel(): string {
   return current().name;
 }
 
-export { LANGUAGES };
+export { LANGUAGES, menuLanguages };
 
 export async function setLanguage(id: string): Promise<void> {
   if (id === currentLanguage()) return;
