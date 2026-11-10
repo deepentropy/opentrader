@@ -1,0 +1,569 @@
+{
+  "Add": {
+    "translation": "Ajouter"
+  },
+  "Alert": {
+    "translation": "Alerte"
+  },
+  "Alerts": {
+    "translation": "Alertes"
+  },
+  "All charts": {
+    "translation": "Tous les graphiques"
+  },
+  "Apply": {
+    "translation": "Appliquer"
+  },
+  "Arrow": {
+    "translation": "Flèche"
+  },
+  "Auto": {
+    "translation": "Auto"
+  },
+  "Average": {
+    "translation": "Moyenne",
+    "notes": "adjective after the noun, agreeing: 'True Range moyen'"
+  },
+  "Background": {
+    "translation": "Arrière-plan"
+  },
+  "Background Color": {
+    "translation": "Couleur d'arrière-plan"
+  },
+  "Backtest": {
+    "translation": "Backtest",
+    "notes": "kept, usual in French trading software"
+  },
+  "Bar": {
+    "translation": "Barre",
+    "notes": "a chart bar"
+  },
+  "Bar Replay": {
+    "translation": "Relecture des barres"
+  },
+  "Bars": {
+    "translation": "Barres"
+  },
+  "Bearish": {
+    "translation": "Baissier",
+    "notes": "agrees: baissière (f.)"
+  },
+  "Bullish": {
+    "translation": "Haussier",
+    "notes": "agrees: haussière (f.)"
+  },
+  "Buy": {
+    "translation": "Acheter",
+    "notes": "verb on buttons; 'Achat' as a noun (side, order type)"
+  },
+  "Calculation": {
+    "translation": "Calcul"
+  },
+  "Cancel": {
+    "translation": "Annuler"
+  },
+  "Candle": {
+    "translation": "Bougie"
+  },
+  "Candles": {
+    "translation": "Bougies"
+  },
+  "Change": {
+    "translation": "Variation",
+    "notes": "price change; 'Change|action' is Modifier"
+  },
+  "Chart": {
+    "translation": "Graphique"
+  },
+  "Chart syncing": {
+    "translation": "Synchronisation des graphiques"
+  },
+  "Charts": {
+    "translation": "Graphiques"
+  },
+  "Chg": {
+    "translation": "Var."
+  },
+  "Close": {
+    "translation": "Clôture",
+    "notes": "the closing price; 'Close|action' is Fermer"
+  },
+  "Cloud": {
+    "translation": "Nuage"
+  },
+  "Color": {
+    "translation": "Couleur"
+  },
+  "Colors": {
+    "translation": "Couleurs"
+  },
+  "Commission": {
+    "translation": "Commission"
+  },
+  "Community": {
+    "translation": "Communauté"
+  },
+  "Condition": {
+    "translation": "Condition"
+  },
+  "Content": {
+    "translation": "Contenu"
+  },
+  "Create": {
+    "translation": "Créer"
+  },
+  "Crosshair": {
+    "translation": "Réticule"
+  },
+  "Current": {
+    "translation": "Actuel"
+  },
+  "Custom": {
+    "translation": "Personnalisé"
+  },
+  "Data": {
+    "translation": "Données"
+  },
+  "Date": {
+    "translation": "Date"
+  },
+  "Day": {
+    "translation": "Jour"
+  },
+  "Days": {
+    "translation": "Jours"
+  },
+  "Default": {
+    "translation": "Par défaut"
+  },
+  "Delete": {
+    "translation": "Supprimer"
+  },
+  "Display": {
+    "translation": "Affichage"
+  },
+  "Divergence": {
+    "translation": "Divergence"
+  },
+  "Download": {
+    "translation": "Télécharger"
+  },
+  "Downtrend": {
+    "translation": "Tendance baissière"
+  },
+  "Drawdown": {
+    "translation": "Drawdown",
+    "notes": "kept, usual in French backtest reports"
+  },
+  "Drawing": {
+    "translation": "Dessin"
+  },
+  "Drawings": {
+    "translation": "Dessins"
+  },
+  "Edit": {
+    "translation": "Modifier"
+  },
+  "Enable": {
+    "translation": "Activer"
+  },
+  "Engulfing": {
+    "translation": "Avalement",
+    "notes": "candlestick pattern: 'Avalement haussier'"
+  },
+  "Entry": {
+    "translation": "Entrée"
+  },
+  "Equity": {
+    "translation": "Capital"
+  },
+  "Exit": {
+    "translation": "Sortie"
+  },
+  "Extend": {
+    "translation": "Prolonger"
+  },
+  "Factor": {
+    "translation": "Facteur"
+  },
+  "Fill": {
+    "translation": "Remplissage"
+  },
+  "Gradient": {
+    "translation": "Dégradé"
+  },
+  "Harami": {
+    "translation": "Harami"
+  },
+  "Hide": {
+    "translation": "Masquer"
+  },
+  "High": {
+    "translation": "Plus haut",
+    "notes": "the bar's high; the on-chart high/low price lines keep 'High'/'Low' ('High|chart')"
+  },
+  "History": {
+    "translation": "Historique"
+  },
+  "Holiday": {
+    "translation": "Jour férié"
+  },
+  "Icon": {
+    "translation": "Icône"
+  },
+  "Idea": {
+    "translation": "Idée"
+  },
+  "Import": {
+    "translation": "Importer"
+  },
+  "Index": {
+    "translation": "Indice",
+    "notes": "a market index"
+  },
+  "Indicator": {
+    "translation": "Indicateur",
+    "notes": "also for 'study'"
+  },
+  "Indicators": {
+    "translation": "Indicateurs"
+  },
+  "Inputs": {
+    "translation": "Entrées",
+    "notes": "the settings tab"
+  },
+  "Interval": {
+    "translation": "Intervalle"
+  },
+  "Label": {
+    "translation": "Étiquette"
+  },
+  "Labels": {
+    "translation": "Étiquettes"
+  },
+  "Layout": {
+    "translation": "Disposition"
+  },
+  "Length": {
+    "translation": "Longueur"
+  },
+  "Lock": {
+    "translation": "Verrouiller"
+  },
+  "Log": {
+    "translation": "Journal",
+    "notes": "'Log|history'"
+  },
+  "Long": {
+    "translation": "Long"
+  },
+  "Lookback": {
+    "translation": "Période d'analyse"
+  },
+  "Loss": {
+    "translation": "Perte"
+  },
+  "Low": {
+    "translation": "Plus bas",
+    "notes": "the bar's low"
+  },
+  "Lower Band": {
+    "translation": "Bande inférieure"
+  },
+  "Market closed": {
+    "translation": "Marché fermé"
+  },
+  "Market open": {
+    "translation": "Marché ouvert"
+  },
+  "Message": {
+    "translation": "Message"
+  },
+  "Minute": {
+    "translation": "Minute"
+  },
+  "Minutes": {
+    "translation": "Minutes"
+  },
+  "Mode": {
+    "translation": "Mode"
+  },
+  "Momentum": {
+    "translation": "Momentum"
+  },
+  "Month": {
+    "translation": "Mois"
+  },
+  "Months": {
+    "translation": "Mois"
+  },
+  "Moving Average": {
+    "translation": "Moyenne mobile"
+  },
+  "Multiplier": {
+    "translation": "Multiplicateur"
+  },
+  "Name": {
+    "translation": "Nom"
+  },
+  "Net Profit": {
+    "translation": "Profit net"
+  },
+  "Object Tree": {
+    "translation": "Arborescence des objets"
+  },
+  "Offset": {
+    "translation": "Décalage"
+  },
+  "Once": {
+    "translation": "Une fois"
+  },
+  "Open": {
+    "translation": "Ouverture",
+    "notes": "the opening price; 'Open|action' Ouvrir, 'Open|trade' Ouverte"
+  },
+  "Options": {
+    "translation": "Options"
+  },
+  "Order": {
+    "translation": "Ordre"
+  },
+  "Orders": {
+    "translation": "Ordres"
+  },
+  "Oscillator": {
+    "translation": "Oscillateur"
+  },
+  "Other": {
+    "translation": "Autre"
+  },
+  "Overbought": {
+    "translation": "Surachat"
+  },
+  "Oversold": {
+    "translation": "Survente"
+  },
+  "Pane": {
+    "translation": "Volet"
+  },
+  "Percentage": {
+    "translation": "Pourcentage"
+  },
+  "Period": {
+    "translation": "Période"
+  },
+  "Pivot": {
+    "translation": "Pivot"
+  },
+  "Position": {
+    "translation": "Position"
+  },
+  "Post": {
+    "translation": "Post",
+    "notes": "on the chart (after hours); 'Post|action' is Publier"
+  },
+  "Post-market": {
+    "translation": "Post-marché"
+  },
+  "Pre-market": {
+    "translation": "Pré-marché"
+  },
+  "Preset": {
+    "translation": "Préréglage"
+  },
+  "Price scale": {
+    "translation": "Échelle de prix"
+  },
+  "Profit": {
+    "translation": "Profit"
+  },
+  "Real-time": {
+    "translation": "Temps réel"
+  },
+  "Redo": {
+    "translation": "Rétablir"
+  },
+  "Regular": {
+    "translation": "Régulière",
+    "notes": "the regular session"
+  },
+  "Remove": {
+    "translation": "Retirer",
+    "notes": "'Supprimer' for delete"
+  },
+  "Replay": {
+    "translation": "Relecture"
+  },
+  "Reset": {
+    "translation": "Réinitialiser"
+  },
+  "Resistance": {
+    "translation": "Résistance"
+  },
+  "Right": {
+    "translation": "Droite"
+  },
+  "Risk": {
+    "translation": "Risque"
+  },
+  "Scale": {
+    "translation": "Échelle"
+  },
+  "Scan": {
+    "translation": "Scanner",
+    "notes": "verb; 'Scan|action' too"
+  },
+  "Screener": {
+    "translation": "Screener",
+    "notes": "kept, usual in French trading software"
+  },
+  "Search": {
+    "translation": "Rechercher"
+  },
+  "Seconds": {
+    "translation": "Secondes"
+  },
+  "Select": {
+    "translation": "Sélectionner"
+  },
+  "Sell": {
+    "translation": "Vendre",
+    "notes": "verb on buttons; 'Vente' as a noun"
+  },
+  "Session": {
+    "translation": "Séance"
+  },
+  "Settings": {
+    "translation": "Paramètres"
+  },
+  "Setup": {
+    "translation": "Configuration"
+  },
+  "Short": {
+    "translation": "Short"
+  },
+  "Show": {
+    "translation": "Afficher"
+  },
+  "Signal": {
+    "translation": "Signal"
+  },
+  "Signals": {
+    "translation": "Signaux"
+  },
+  "Slippage": {
+    "translation": "Slippage"
+  },
+  "Smoothing": {
+    "translation": "Lissage"
+  },
+  "Snapshot": {
+    "translation": "Capture"
+  },
+  "Sound": {
+    "translation": "Son"
+  },
+  "Source": {
+    "translation": "Source"
+  },
+  "Standard Deviation": {
+    "translation": "Écart type"
+  },
+  "Stop Loss": {
+    "translation": "Stop loss"
+  },
+  "Strategy": {
+    "translation": "Stratégie"
+  },
+  "Strategy Tester": {
+    "translation": "Testeur de stratégie"
+  },
+  "Study": {
+    "translation": "Indicateur"
+  },
+  "Style": {
+    "translation": "Style"
+  },
+  "Support": {
+    "translation": "Support"
+  },
+  "Symbol": {
+    "translation": "Symbole"
+  },
+  "Symbols": {
+    "translation": "Symboles"
+  },
+  "Table": {
+    "translation": "Tableau"
+  },
+  "Take Profit": {
+    "translation": "Take profit"
+  },
+  "Template": {
+    "translation": "Modèle"
+  },
+  "Threshold": {
+    "translation": "Seuil"
+  },
+  "Ticker": {
+    "translation": "Ticker",
+    "notes": "kept"
+  },
+  "Ticks": {
+    "translation": "Ticks"
+  },
+  "Time zone": {
+    "translation": "Fuseau horaire"
+  },
+  "Timeframe": {
+    "translation": "Unité de temps"
+  },
+  "Trade": {
+    "translation": "Transaction",
+    "notes": "a strategy or journal trade"
+  },
+  "Trades": {
+    "translation": "Transactions"
+  },
+  "Trading": {
+    "translation": "Trading"
+  },
+  "Trend": {
+    "translation": "Tendance"
+  },
+  "Trigger": {
+    "translation": "Déclencheur"
+  },
+  "Type": {
+    "translation": "Type"
+  },
+  "Undo": {
+    "translation": "Annuler",
+    "notes": "the undo history: 'Annuler {0}'"
+  },
+  "Update": {
+    "translation": "Mettre à jour"
+  },
+  "Upper Band": {
+    "translation": "Bande supérieure"
+  },
+  "Uptrend": {
+    "translation": "Tendance haussière"
+  },
+  "Volume": {
+    "translation": "Volume"
+  },
+  "Volume Profile": {
+    "translation": "Profil de volume"
+  },
+  "Watchlist": {
+    "translation": "Liste de surveillance"
+  },
+  "Week": {
+    "translation": "Semaine"
+  },
+  "Width": {
+    "translation": "Épaisseur",
+    "notes": "line width; 'Largeur' for a box or a column"
+  }
+}

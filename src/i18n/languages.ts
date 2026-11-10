@@ -68,6 +68,15 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     direction: "ltr",
   },
   {
+    id: "fr",
+    name: "Français",
+    dictionary: () => import("./fr.json"),
+    pluralLocale: "fr",
+    formats: { dateLocale: "fr-FR", numberLocale: "fr-FR", chartDate: "{dd} {MMM} '{yy}", chartWeekdayDate: "{wd} {dd} {MMM} '{yy}" },
+    direction: "ltr",
+    partial: true,
+  },
+  {
     // Accented, longer text between markers: what is left in English or cut shows (#289).
     id: "en-XA",
     name: "Pseudo",
