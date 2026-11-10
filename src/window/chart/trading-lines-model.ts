@@ -1,4 +1,5 @@
 import { translateWith } from "../../i18n/translator";
+import { localNumber } from "../../i18n/format";
 /*
  * Texts and prices of the chart trading lines (Bar Replay trading): chip
  * labels, the dialog summaries, tick snapping, the default bracket of a
@@ -30,12 +31,13 @@ export function tickDecimals(tick: number): number {
   return s.includes(".") ? s.split(".")[1].length : 0;
 }
 
+/** A price of a line or a summary, in the interface language's marks ("1 234,50"). */
 export function fmtPrice(v: number, tick: number): string {
-  return v.toFixed(Math.max(2, tickDecimals(tick)));
+  return localNumber(v.toFixed(Math.max(2, tickDecimals(tick))));
 }
 
 export function fmtQty(v: number): string {
-  return Number.isInteger(v) ? String(v) : String(Number(v.toFixed(8)));
+  return localNumber(Number.isInteger(v) ? String(v) : String(Number(v.toFixed(8))));
 }
 
 /** Nearest tick level. */
@@ -101,7 +103,7 @@ export function executionLabel(e: TradingExecution, tick: number): string {
 export function fmtPl(v: number, currency: string): string {
   const abs = Math.abs(v).toFixed(2);
   const sign = v > 0 ? "+" : v < 0 ? "−" : "";
-  return `${sign}${abs} ${currency}`;
+  return localNumber(`${sign}${abs} ${currency}`);
 }
 
 /** Take profit / stop loss of a position at the ticket's default distance. */
@@ -121,7 +123,7 @@ export function plText(perUnit: number, qty: number, base: number, kind: 'money'
   if (kind === 'money') return fmtPl(perUnit * qty, currency);
   const v = kind === 'ticks' ? Math.round(perUnit / tick) : base ? (perUnit / base) * 100 : 0;
   const sign = v > 0 ? '+' : v < 0 ? '−' : '';
-  return kind === 'ticks' ? translateWith("{0}{1} ticks", sign, Math.abs(v)) : `${sign}${Math.abs(v).toFixed(2)}%`;
+  return kind === 'ticks' ? translateWith("{0}{1} ticks", sign, Math.abs(v)) : localNumber(`${sign}${Math.abs(v).toFixed(2)}%`);
 }
 
 /** Take profit / stop loss of a working order at the ticket's default

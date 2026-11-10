@@ -45,6 +45,7 @@ import type { VbpDraw } from '../profiles/vbp-studies';
 import { TpoPrimitive, type TpoBlockHit } from '../profiles/tpo-primitive';
 import type { TpoDraw } from '../profiles/tpo-engine';
 import { uiTheme } from '../../header/chart-settings';
+import { studyScaleFormat } from '../price-format';
 import { cachedSymbolSessions } from '../../../data/session';
 import { sessionFutureSlots } from './future-slots';
 import { applyStyleOverrides, type StyleEntry } from './style-outputs';
@@ -973,8 +974,17 @@ export class IndicatorLayer {
     const own = (entry as { format?: { type: "price" | "volume" | "percent"; precision?: number } }).format;
     if (!mainFormat && this.precision === null && own) {
       const precision = own.type === "volume" ? 2 : (own.precision ?? 2);
-      const priceFormat = own.type === "volume" ? { type: "volume" as const, precision } : { type: own.type, precision, minMove: 1 / 10 ** precision };
+      const priceFormat =
+        studyScaleFormat(own.type, precision) ??
+        (own.type === "volume" ? { type: "volume" as const, precision } : { type: own.type, precision, minMove: 1 / 10 ** precision });
       for (const s of series) applyChanged(s, { priceFormat });
+    }
+    // A language writing numbers with other marks: the library's own formats ("1234.50") in the language's marks,
+    // with their decimals.
+    for (const s of series) {
+      const pf = (s as ISeriesApi<SeriesType>).options().priceFormat;
+      const local = pf.type === "custom" ? null : studyScaleFormat(pf.type, pf.precision ?? 2);
+      if (local) applyChanged(s, { priceFormat: local });
     }
     if (this.detachedScale && !ownScale && this.detachedAxis) {
       // A scale with its axis (a side scale, or an extra axis that draws the

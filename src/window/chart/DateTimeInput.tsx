@@ -14,7 +14,7 @@ import {
   CalendarIcon,
   ChevronIcon,
   DATE_KEY,
-  WEEKDAYS,
+  weekdayHeads,
   ariaDay,
   dowMondayFirst,
   fixDate,
@@ -119,7 +119,7 @@ export function DateTimeInput(props: Props) {
                 <button type="button" class="goto-dialog-cal-nav is-next" aria-label="Next month" onClick={() => step(1)}><ChevronIcon /></button>
               </div>
               <div class="goto-dialog-cal-sub-header" aria-hidden="true">
-                <For each={WEEKDAYS}>{(w) => <span>{w}</span>}</For>
+                <For each={weekdayHeads()}>{(w) => <span>{w}</span>}</For>
               </div>
               <div class="goto-dialog-cal-view-month">
                 <div class="goto-dialog-cal-weeks">

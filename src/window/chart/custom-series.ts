@@ -40,6 +40,7 @@ import type { SvpStyle } from "../header/chart-settings";
 import { localDay, zoneOffsetFinder, type SymbolSessions } from "../../data/session";
 import { volumeHalfWidth, volumeWidthFactor } from "./volume-widths";
 import { pocOf, valueArea } from "./profiles/vbp-engine";
+import { localNumber } from "../../i18n/format";
 export type { KagiItem, PnfItem } from "./series-transforms";
 
 type DrawTarget = Parameters<ICustomSeriesPaneRenderer["draw"]>[0];
@@ -734,8 +735,8 @@ export class FootprintPaneView implements ICustomSeriesPaneView<Time, FootprintI
 }
 
 function compact(v: number): string {
-  if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + "K";
+  if (v >= 1e6) return localNumber((v / 1e6).toFixed(1)) + "M";
+  if (v >= 1e3) return localNumber((v / 1e3).toFixed(1)) + "K";
   return String(Math.round(v));
 }
 

@@ -9,6 +9,7 @@ import { positionAnchors } from "lightweight-charts-drawing/core/kinds/position"
 import { screenPoints } from "lightweight-charts-drawing/core/interact/project";
 import { PriceAxisLabel, TimeAxisLabel } from "./axis-labels";
 import { type Frame, type OverlayCx } from "./context";
+import { localNumber } from "../../../i18n/format";
 
 // Fill of the measured range on the scales.
 const MEASURE_AXIS_HIGHLIGHT = "rgba(41, 98, 255, 0.25)";
@@ -37,7 +38,7 @@ export function createScaleMarks(cx: OverlayCx): ScaleMarksApi {
     if (f.key === null && props.formatPrice) return props.formatPrice(price);
     const pip = f.coords.pipSize() || 0.01;
     const digits = Math.max(0, Math.min(8, Math.round(-Math.log10(pip))));
-    return price.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    return localNumber(price.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }));
   }
 
   /** Points on the scales: a band between the lowest and highest point on the

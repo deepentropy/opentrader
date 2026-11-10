@@ -17,6 +17,7 @@ import { Show, createEffect, createMemo, createResource, createSignal, onCleanup
 import { createStore } from "solid-js/store";
 import { CrosshairMode, createChartEx, type IChartApi, type MouseEventParams } from "lightweight-charts";
 import { readChartTokens, readFontFamily } from "./chart-tokens";
+import { chartNumberOptions } from "./price-format";
 import { chartBackgroundAt } from "./selection-markers";
 import { MAIN_SOURCE_ID } from "./object-tree-sources";
 import { CrosshairLockAxisPrimitive, CrosshairLockPanePrimitive, CrosshairLockViews, crosshairLockTime } from "./crosshair-lock";
@@ -389,7 +390,7 @@ export function ChartView(props: ChartViewProps) {
       // below with a right-edge-anchored zoom (see onWheel).
       handleScale: { mouseWheel: false },
       // createChart's default for its time scale (the time formatter replaces it).
-      localization: { dateFormat: "dd MMM 'yy" },
+      localization: { dateFormat: "dd MMM 'yy", ...chartNumberOptions() },
     }) as IChartApi;
     cx.chart = chart;
     cx.lockViews = new CrosshairLockViews(chart, () => {

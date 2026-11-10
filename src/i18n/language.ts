@@ -39,6 +39,6 @@ export async function startTranslation(): Promise<void> {
   if (!language.dictionary) return;
   document.documentElement.lang = language.id;
   const { default: dictionary } = await language.dictionary();
-  setDictionary(dictionary, [libraryMonthRule(language.formats.dateLocale)], language.pluralLocale, language.formats);
+  setDictionary(dictionary, [libraryMonthRule(language.formats.dateLocale, language.formats.shortMonths)], language.pluralLocale, language.formats);
   observePage();
 }

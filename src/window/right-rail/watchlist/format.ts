@@ -4,20 +4,21 @@
  * state of a symbol's own session.
  */
 import { marketSession } from "../../../data/market-session";
+import { localNumber } from "../../../i18n/format";
 
 export function isNegative(v: string): boolean {
   return v.startsWith("−") || v.startsWith("-");
 }
 export function formatLast(price: number): string {
-  return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return localNumber(price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 }
 /** Signed change, 2 decimals, Unicode minus (e.g. "0.76", "−3.04"). */
 export function fmtChange(v: number): string {
-  return (v < 0 ? "−" : "") + Math.abs(v).toFixed(2);
+  return localNumber((v < 0 ? "−" : "") + Math.abs(v).toFixed(2));
 }
 /** Signed percent with Unicode minus (e.g. "6.92%", "−3.07%"). */
 export function fmtPercent(v: number): string {
-  return (v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%";
+  return localNumber((v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%");
 }
 /** Compact volume with a K/M/B suffix, trailing zeros trimmed (e.g. "11.95 M",
  *  "4 M", "577.2 K"). */
@@ -25,7 +26,7 @@ export function fmtVolume(v: number): string {
   const abs = Math.abs(v);
   const [div, suffix] =
     abs >= 1e9 ? [1e9, " B"] : abs >= 1e6 ? [1e6, " M"] : abs >= 1e3 ? [1e3, " K"] : [1, ""];
-  return parseFloat((v / div).toFixed(2)).toString() + suffix;
+  return localNumber(parseFloat((v / div).toFixed(2)).toString() + suffix);
 }
 
 /** Watchlist view of a symbol's own session: "extended" = pre/post-market

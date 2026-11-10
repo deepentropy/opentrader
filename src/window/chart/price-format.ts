@@ -4,9 +4,14 @@
  * SymbolSessions.formatPrice), the integer part is grouped by thousands with
  * "," and the decimal sign is "." (the English number format), negatives use
  * the "−" sign. One formatter per chart serves the price axis, the crosshair
- * and last-price labels (series priceFormat) and the legend values.
+ * and last-price labels (series priceFormat) and the legend values. A language
+ * writing numbers with other marks gets them on the finished text ("1 234,5",
+ * i18n/format localNumber).
  */
 import type { SymbolSessions } from "../../data/session";
+import { volumeFormat } from "../../data/volume-format";
+import { activeFormats } from "../../i18n/translator";
+import { localNumber } from "../../i18n/format";
 
 const MINUS = "−";
 
@@ -30,7 +35,42 @@ export type ChartPriceFormat = {
  *  choices "1/2" … "1/320" use the fractional format. */
 export function chartPriceFormat(precision: string | undefined, grid: SymbolSessions | null, abbreviated = false): ChartPriceFormat | null {
   const f = priceFormatOf(precision, grid, abbreviated);
-  return f && { format: remembered(f.format), minMove: f.minMove };
+  // The marks of the interface language ("1 234,5"), on the scales, the labels and the legend alike.
+  return f && { format: remembered((v) => localNumber(f.format(v))), minMove: f.minMove };
+}
+
+/** The chart's options for a language writing numbers with other marks: the percentage scale's labels ("+5,81%");
+ *  none in English (the library's own). */
+export function chartNumberOptions(): { percentageFormatter?: (v: number) => string } {
+  if (!activeFormats().numberMarks) return {};
+  return { percentageFormatter: remembered((v) => localNumber(`${v < 0 ? MINUS : ""}${Math.abs(v).toFixed(2)}%`)) };
+}
+
+/**
+ * A study's own value format on its scale ("price", "percent" or "volume" with its decimals) in a language writing
+ * numbers with other marks than English: the chart library writes the English ones itself ("1234.50", "1.5K"), so
+ * the study's series take this custom format instead ("1 234,50", "1,5 K"). Null in English.
+ */
+export function studyScaleFormat(type: "price" | "percent" | "volume", precision: number): StudyScaleFormat | null {
+  if (!activeFormats().numberMarks) return null;
+  // One per format: the series' options are compared before they are applied again.
+  const key = `${type}|${precision}`;
+  let f = studyScaleFormats.get(key);
+  if (!f) studyScaleFormats.set(key, (f = studyScaleFormatOf(type, precision)));
+  return f;
+}
+
+type StudyScaleFormat = { type: "custom"; formatter: (v: number) => string; minMove: number };
+const studyScaleFormats = new Map<string, StudyScaleFormat>();
+
+function studyScaleFormatOf(type: "price" | "percent" | "volume", precision: number): StudyScaleFormat {
+  const text =
+    type === "volume"
+      ? (v: number) => volumeFormat(v, precision)
+      : type === "percent"
+        ? (v: number) => `${groupThousands(v.toFixed(precision))}%`
+        : (v: number) => groupThousands(v.toFixed(precision));
+  return { type: "custom", formatter: remembered((v) => localNumber(text(v))), minMove: 1 / 10 ** precision };
 }
 
 /** Texts kept per formatter: every paint formats the same prices again (each plot's price label, the axis and the

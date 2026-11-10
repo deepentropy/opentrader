@@ -16,6 +16,7 @@ import { cachedSymbolSessions } from "../../../data/session";
 import { type IndicatorLegendRow } from "../indicators/indicator-controller";
 import { toOHLC } from "./helpers";
 import { type ChartCx } from "./context";
+import { localNumber } from "../../../i18n/format";
 import type { Setter } from "solid-js";
 
 /** A compared symbol as an alert source: "Microsoft Corp. (NASDAQ)", its
@@ -90,7 +91,7 @@ export function createCompare(cx: ChartCx): CompareApi {
       const { ticker, exchange } = splitSymbol(e.symbol);
       const description = compareNames()[e.symbol] || ticker;
       const layer = compareLayers.get(e.id);
-      const fmt = compareFormat(e)?.format ?? ((n: number) => n.toFixed(2));
+      const fmt = compareFormat(e)?.format ?? ((n: number) => localNumber(n.toFixed(2)));
       return { id: e.id, symbol: e.symbol, label: exchange ? `${description} (${exchange})` : description, description, hidden: !compareVisible(e), last: layer?.valueAt()?.value ?? null, format: fmt };
     });
 
@@ -420,15 +421,15 @@ export function createCompare(cx: ChartCx): CompareApi {
           const base = visFrom != null ? layer.baseAt(visFrom) : null;
           if (base) {
             const pct = (v.value / base - 1) * 100;
-            texts.push({ text: `${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`, color });
+            texts.push({ text: localNumber(`${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`), color });
           }
         } else {
-          const f = compareFormat(e)?.format ?? ((n: number) => n.toFixed(2));
+          const f = compareFormat(e)?.format ?? ((n: number) => localNumber(n.toFixed(2)));
           texts.push({ text: f(v.value), color });
           if (v.prev != null && v.prev !== 0) {
             const d = v.value - v.prev;
             const sign = d < 0 ? "−" : "+";
-            texts.push({ text: `${sign}${f(Math.abs(d))} (${sign}${Math.abs((d / v.prev) * 100).toFixed(2)}%)`, color });
+            texts.push({ text: `${sign}${f(Math.abs(d))} (${sign}${localNumber(Math.abs((d / v.prev) * 100).toFixed(2))}%)`, color });
           }
         }
       }

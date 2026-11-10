@@ -1,4 +1,4 @@
-import { dateFormat, dateText, numberFormat } from "../../i18n/format";
+import { dateFormat, dateText, localNumber, numberFormat } from "../../i18n/format";
 /*
  * Strategy Tester number / date formats, as the reference app 3.4.1 renders them
  * (.tmp/backtester/design/doc §3.1): thousands ",", 2 decimals for money
@@ -46,7 +46,7 @@ export function count(v: number): string {
 /** Capital pill and trade sizes: 100000 -> "100 K", 36683.12 -> "36.68 K",
  *  512.5 -> "512.5" (see volume-format.ts). */
 export function compact(v: number): string {
-  return volumeFormat(v, 2);
+  return localNumber(volumeFormat(v, 2));
 }
 
 /** Tone class of a signed value. */

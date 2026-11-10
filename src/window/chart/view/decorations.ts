@@ -3,7 +3,8 @@
  * previous day close, pre / post market, the countdown plate, the baseline
  * waterline, the gradient label colour and the locked price-to-bar ratio.
  */
-import { translate } from "../../../i18n/translator";
+import { translate, translateAs } from "../../../i18n/translator";
+import { localNumber } from "../../../i18n/format";
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { LineStyle } from "lightweight-charts";
 import type { IPriceLine, Logical } from "lightweight-charts";
@@ -322,8 +323,9 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
       });
     if (highLine) cx.series.removePriceLine(highLine);
     if (lowLine) cx.series.removePriceLine(lowLine);
-    highLine = mk(hi, translate("High"));
-    lowLine = mk(lo, translate("Low"));
+    // The lines' own sense: a language may keep the English words on the chart.
+    highLine = mk(hi, translateAs("High", "chart"));
+    lowLine = mk(lo, translateAs("Low", "chart"));
   }
 
   /** Scales → "Countdown to bar close": refresh the axis label's remaining
@@ -365,7 +367,7 @@ export function createDecorations(cx: ChartCx): DecorationsApi {
       const base = cx.raw[idx]?.close;
       if (base) {
         const pct = ((last.close - base) / Math.abs(base)) * 100;
-        pctText = `${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`;
+        pctText = localNumber(`${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%`);
       }
     }
     const labelOn = t.symbolLastValue && last != null;

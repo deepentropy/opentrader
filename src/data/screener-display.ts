@@ -8,6 +8,7 @@ import { usdRate } from "./fx-rates";
 import type { ColumnDef } from "./screener-catalog";
 import { formatCell, type Cell } from "./screener-format";
 import { screenerSettings } from "./screener-settings";
+import { localNumber } from "../i18n/format";
 
 /** Value and currency after "Convert financials" (unchanged until the rate is loaded). */
 export function convertedValue(def: ColumnDef | undefined, v: number | string | null | undefined, currency: string | null): { v: typeof v; currency: string | null } {
@@ -20,6 +21,8 @@ export function convertedValue(def: ColumnDef | undefined, v: number | string | 
 export function displayCell(def: ColumnDef | undefined, v: number | string | null | undefined, currency: string | null): Cell {
   if (def?.cellText && typeof v === "string" && v) return { text: def.cellText(v) };
   const c = convertedValue(def, v, currency);
-  const f = formatCell(def?.fmt ?? "text", c.v, c.currency);
+  const cell = formatCell(def?.fmt ?? "text", c.v, c.currency);
+  // A number in the marks of the interface language ("9,07 M").
+  const f = typeof c.v === "number" ? { ...cell, text: localNumber(cell.text) } : cell;
   return screenerSettings().showCurrency ? f : { ...f, unit: undefined };
 }

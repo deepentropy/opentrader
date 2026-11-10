@@ -6,6 +6,7 @@
 import { ColorType, LineStyle, TickMarkType, type IChartApi, type ISeriesApi, type SeriesType, type UTCTimestamp } from "lightweight-charts";
 import { readChartTokens } from "../chart-tokens";
 import { formatChartTime, formatTickMark } from "../time-format";
+import { englishNumber } from "../../../i18n/format";
 import { type PriceSource } from "../../header/chart-settings";
 import { priceOf } from "../series-transforms";
 import { type Candle } from "../../../bindings";
@@ -237,13 +238,13 @@ export const menuPrice = (v: number) => {
 
 /** Price rounded to what its formatter shows (the alert value). */
 export function roundedPrice(p: number, format: (n: number) => string): number {
-    const n = Number(format(p).replace(/−/g, "-").replace(/[^0-9.eE+-]/g, ""));
+    const n = Number(englishNumber(format(p)).replace(/−/g, "-").replace(/[^0-9.eE+-]/g, ""));
     return Number.isFinite(n) ? n : p;
   }
 
 /** A price rounded as the series writes its values. */
 export function roundedOnSeries(s: ISeriesApi<SeriesType>, v: number): number {
-    const text = s.priceFormatter().format(v).replace(/,/g, "").replace(/\u2212/g, "-");
+    const text = englishNumber(s.priceFormatter().format(v)).replace(/,/g, "").replace(/\u2212/g, "-");
     const n = Number(text);
     return Number.isFinite(n) ? n : v;
   }

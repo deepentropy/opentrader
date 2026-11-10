@@ -26,6 +26,7 @@ import { createPopover } from "../../components/popover";
 import type { IndicatorLegendRow } from "./indicators/indicator-controller";
 import type { StudyError } from "./indicators/indicator-layer";
 import { formatStudyValue } from "../../data/study-format";
+import { localNumber } from "../../i18n/format";
 import { applyOpacity, parseColor } from "lightweight-charts-drawing/core/color";
 
 type Props = {
@@ -193,9 +194,9 @@ function StudyStatusPanel(props: {
 /** A study value in the legend: the Precision setting, else the study's own format, else the symbol's price format
  *  (reference); without that, the compact form. */
 function valueText(row: IndicatorLegendRow, v: number, formatPrice?: (v: number) => string): string {
-  if (row.precision !== null) return v.toFixed(row.precision);
-  if (row.format) return formatStudyValue(v, row.format);
-  return formatPrice ? formatPrice(v) : fmtVal(v);
+  if (row.precision !== null) return localNumber(v.toFixed(row.precision));
+  if (row.format) return localNumber(formatStudyValue(v, row.format));
+  return formatPrice ? formatPrice(v) : localNumber(fmtVal(v));
 }
 
 /** Compact study legend value format ("773.19 M", "82.50"); a value that is not available is "∅". */

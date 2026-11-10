@@ -1,5 +1,5 @@
 import { translateWith } from "../../i18n/translator";
-import { dateText } from "../../i18n/format";
+import { calendarWeekdays, dateText } from "../../i18n/format";
 /*
  * GoToDateDialog — the "Go to" date dialog opened by the calendar button next
  * to the date-range tabs in the bottom bar (hotkey Alt+G). Solid port of the
@@ -44,6 +44,8 @@ type Props = {
 
 // ─── Calendar primitives (Monday-first week) ────────────────────────────────
 export const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const;
+/** The weekday heads of the calendar in the interface language ("Mo"…, "Lu"…). */
+export const weekdayHeads = () => calendarWeekdays(WEEKDAYS);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 export const dowMondayFirst = (d: Date) => (d.getDay() + 6) % 7;
 
@@ -64,8 +66,10 @@ export function parseYmd(s: string): Date | null {
   const d = new Date(+m[1], +m[2] - 1, +m[3]);
   return isNaN(d.getTime()) ? null : d;
 }
+/** The calendar's head: "November 2026", "Novembre 2026" (a title: its first letter upper case). */
 export function monthLabel(year: number, month: number): string {
-  return dateText(new Date(year, month, 1), { month: "long", year: "numeric" });
+  const text = dateText(new Date(year, month, 1), { month: "long", year: "numeric" });
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 export function ariaDay(d: Date): string {
   return dateText(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -435,7 +439,7 @@ export function GoToDateDialog(props: Props) {
 
                 <Show when={calView() === "days"}>
                   <div class="goto-dialog-cal-sub-header" aria-hidden="true">
-                    <For each={WEEKDAYS}>{(w) => <span>{w}</span>}</For>
+                    <For each={weekdayHeads()}>{(w) => <span>{w}</span>}</For>
                   </div>
                 </Show>
 

@@ -16,6 +16,7 @@
  */
 import { Show, createSignal, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
+import { localNumber } from "../../i18n/format";
 import { STATUS_ITEMS, pillStatus } from "./legend-status";
 import { LegendStatusPopup } from "./LegendStatusPopup";
 
@@ -122,10 +123,10 @@ const EXCHANGE_TITLES: Record<string, string> = {
 /** Compact volume ("1.23 M"), mirroring the studies legend. */
 function fmtVolume(v: number): string {
   const a = Math.abs(v);
-  if (a >= 1e9) return `${(v / 1e9).toFixed(2)} B`;
-  if (a >= 1e6) return `${(v / 1e6).toFixed(2)} M`;
-  if (a >= 1e3) return `${(v / 1e3).toFixed(2)} K`;
-  return `${v}`;
+  if (a >= 1e9) return localNumber(`${(v / 1e9).toFixed(2)} B`);
+  if (a >= 1e6) return localNumber(`${(v / 1e6).toFixed(2)} M`);
+  if (a >= 1e3) return localNumber(`${(v / 1e3).toFixed(2)} K`);
+  return localNumber(`${v}`);
 }
 
 // Unicode minus (U+2212): negative changes render with it, not the ASCII
@@ -178,14 +179,14 @@ function priceDecimals(p: number): number {
 
 /** Format a price with magnitude-derived precision. */
 function fmtPrice(p: number): string {
-  return p.toFixed(priceDecimals(p));
+  return localNumber(p.toFixed(priceDecimals(p)));
 }
 
 /** Signed value with the Unicode minus for negatives and a leading "+" for
  *  non-negatives — matches the legend's "<±abs> (<±pct>%)" change item. */
 function fmtSigned(n: number, decimals: number): string {
   const sign = n < 0 ? MINUS : "+";
-  return `${sign}${Math.abs(n).toFixed(decimals)}`;
+  return localNumber(`${sign}${Math.abs(n).toFixed(decimals)}`);
 }
 
 /** One O/H/L/C cell: a dim letter title hugging its coloured value. */

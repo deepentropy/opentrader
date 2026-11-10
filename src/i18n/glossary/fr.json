@@ -298,7 +298,8 @@
     "translation": "Mois"
   },
   "Moving Average": {
-    "translation": "Moyenne mobile"
+    "translation": "Moyenne mobile",
+    "notes": "MA abbreviated MM"
   },
   "Multiplier": {
     "translation": "Multiplicateur"
@@ -346,6 +347,10 @@
   "Pane": {
     "translation": "Volet"
   },
+  "Panel": {
+    "translation": "Panneau",
+    "notes": "distinct from pane (volet)"
+  },
   "Percentage": {
     "translation": "Pourcentage"
   },
@@ -354,6 +359,10 @@
   },
   "Pivot": {
     "translation": "Pivot"
+  },
+  "PnL": {
+    "translation": "P&L",
+    "notes": "masculine: 'P&L réalisé'"
   },
   "Position": {
     "translation": "Position"
@@ -400,6 +409,10 @@
   "Resistance": {
     "translation": "Résistance"
   },
+  "Reward": {
+    "translation": "Gain",
+    "notes": "'Ratio risque/gain'"
+  },
   "Right": {
     "translation": "Droite"
   },
@@ -412,6 +425,10 @@
   "Scan": {
     "translation": "Scanner",
     "notes": "verb; 'Scan|action' too"
+  },
+  "Screen": {
+    "translation": "Filtre",
+    "notes": "a saved screener screen"
   },
   "Screener": {
     "translation": "Screener",

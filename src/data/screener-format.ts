@@ -8,6 +8,7 @@
  */
 import type { Fmt } from "./screener-catalog";
 import { volumeFormat } from "./volume-format";
+import { localNumber } from "../i18n/format";
 
 export const DASH = "—";
 const MINUS = "−";
@@ -92,8 +93,12 @@ export function formatCell(fmt: Fmt, v: number | string | null | undefined, curr
 }
 
 /** Filter value text (pill value, preset labels): "5", "500 K", "10 B",
- *  "5%", no currency. */
+ *  "5%", no currency; in the marks of the interface language. */
 export function valueText(fmt: Fmt, n: number): string {
+  return localNumber(englishValueText(fmt, n));
+}
+
+function englishValueText(fmt: Fmt, n: number): string {
   switch (fmt) {
     case "volume":
     case "money":

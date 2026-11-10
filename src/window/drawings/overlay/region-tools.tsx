@@ -13,6 +13,7 @@ import { rangeLabelLines } from "lightweight-charts-drawing/core/scene/ranges";
 import { rangeArrowPath } from "lightweight-charts-drawing/core/scene/lines";
 import { eventPoint } from "./helpers";
 import { type Frame, type OverlayCx } from "./context";
+import { localNumber } from "../../../i18n/format";
 
 /** DOM event (on the chart root, detail = the PointerEvent) by which the
  *  chart's Shift+Click starts a measure at the click. */
@@ -238,7 +239,7 @@ export function createRegionTools(cx: OverlayCx): RegionToolsApi {
     const change = ed.price - sd.price;
     const pct = sd.price !== 0 ? Math.round(((100 * change) / Math.abs(sd.price)) * 100) / 100 : 0;
     const lines = [
-      `${grouped(change, digits)} (${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%) ${grouped(Math.round(change / pip), 0)}`,
+      localNumber(`${grouped(change, digits)} (${pct < 0 ? "−" : ""}${Math.abs(pct).toFixed(2)}%) ${grouped(Math.round(change / pip), 0)}`),
       ...rangeLabelLines({ points: [sd, ed] } as Drawing, { showVolume: f.key === null } as Drawing["style"], c, false, true),
     ];
     const fs = 12;

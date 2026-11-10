@@ -4,7 +4,9 @@
  * ("Sep 10, 2003", "1,250.5", the chart's "Mon 26 Oct '26"); the call sites keep their Intl options, the language
  * only changes the locale.
  *
- * Not here: prices and values on the chart's scales, which follow the symbol, not the language.
+ * Prices and values keep the decimals of their symbol or study; a language writing numbers with other marks than
+ * English ("1 234,5") has them put in by `localNumber` where the text is shown (the chart's scales and legends, the
+ * watchlist, the screener).
  */
 import { activeFormats, translate, translatePlural, translateWith } from "./translator";
 
@@ -45,8 +47,76 @@ export function numberText(n: number, options?: Intl.NumberFormatOptions): strin
   return numberFormat(options).format(n);
 }
 
+/** The numbers of an English number text: "1,234.5" (one run of digits, its groups and decimals). */
+const ENGLISH_NUMBERS = /\d+(?:,\d{3})*(?:\.\d+)?/g;
+
+/**
+ * A number the code wrote in English ("−1,234.5", "103.47 M", "+5.81%", "123'16") in the marks of the interface
+ * language ("−1 234,5", "103,47 M"): the text itself in English and in a language writing numbers as English does.
+ * For text written once by one formatter: a text already in the language's marks is not one to give it again.
+ */
+export function localNumber(text: string): string {
+  const m = activeFormats().numberMarks;
+  if (!m) return text;
+  return text
+    .replace(ENGLISH_NUMBERS, (n) => n.replace(/[,.]/g, (c) => (c === "," ? m.group : m.decimal)))
+    .replace(/(\d)[ \u202f](?=[KMBT](?![A-Za-z]))/g, `$1${m.unitSpace}`);
+}
+
+/** The interface language writes numbers with other marks than English ("1 234,5"). */
+export function ownNumberMarks(): boolean {
+  return activeFormats().numberMarks !== undefined;
+}
+
+/** A number text of the interface language back in English marks, to be read as a number ("1 234,5" → "1234.5"). */
+export function englishNumber(text: string): string {
+  const m = activeFormats().numberMarks;
+  if (!m) return text;
+  const group = new RegExp(`(\\d)[${m.group} \u00a0](?=\\d)`, "g");
+  return text.replace(group, "$1").replace(new RegExp(`(\\d)\\${m.decimal}(?=\\d)`, "g"), "$1.");
+}
+
+/*
+ * Price fields. In a language with its own decimal sign, a price is typed with that sign or with a dot ("1234,56",
+ * "1 234,56", "1234.56"), shown in the language's marks, and kept in English marks once the field is left, so the
+ * code reads it as it always has. In English all three give the text itself. Plain number settings take a dot.
+ */
+
+/** A number typed in a price field in English marks ("1 234,5" → "1234.5"); a text with both a "," and a "." is
+ *  English already ("1,234.5"). The text itself in English. */
+export function typedNumber(text: string): string {
+  const m = activeFormats().numberMarks;
+  if (!m || (text.includes(",") && text.includes("."))) return text;
+  const t = text.replace(/(\d)[\s\u202f\u00a0](?=\d)/g, "$1");
+  return m.decimal === "." ? t : t.replace(m.decimal, ".");
+}
+
+/** An English number ("1,234.5", "−0.25"), as the code writes it in a field. */
+const ENGLISH_FIELD = /^[+\-\u2212]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?$/;
+
+/** What a price field shows of its English text ("1,234.5" → "1 234,5"); a text being typed as it is. */
+export function shownNumber(text: string): string {
+  return activeFormats().numberMarks && ENGLISH_FIELD.test(text.trim()) ? localNumber(text) : text;
+}
+
+/** A price field left: the number typed in English marks, its thousands grouped ("1 234,5" → "1,234.5"); the text
+ *  itself when it isn't one number, and in English. */
+export function leftNumber(text: string): string {
+  if (!activeFormats().numberMarks) return text;
+  const t = typedNumber(text.trim()).replace(/,/g, "");
+  const m = /^([+\-\u2212]?)(\d+)(\.\d+)?$/.exec(t);
+  return m ? m[1] + m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (m[3] ?? "") : text;
+}
+
+/** The weekday heads of a calendar, Monday first: the language's, or `english` ("Mo", "Tu"…). */
+export function calendarWeekdays<T extends string>(english: readonly T[]): readonly string[] {
+  return activeFormats().calendarWeekdays ?? english;
+}
+
 /** The short name of a month (1 to 12): "Oct", 10月. */
 export function monthName(month: number, width: "short" | "long" = "short"): string {
+  const own = width === "short" ? activeFormats().shortMonths : undefined;
+  if (own) return own[month - 1];
   return dateText(Date.UTC(2000, month - 1, 1), { month: width, timeZone: "UTC" });
 }
 
@@ -93,10 +163,10 @@ export function chartWeekday(wd: string): string {
  * A lone short month name drawn by a library study (a seasonality table's "Jan") in the interface language. A text
  * rule because the study writes the English name itself; the app's own month names come from `monthName`.
  */
-export function libraryMonthRule(dateLocale: string): (text: string) => string {
+export function libraryMonthRule(dateLocale: string, shortMonths?: readonly string[]): (text: string) => string {
   const english = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const f = new Intl.DateTimeFormat(dateLocale, { month: "short", timeZone: "UTC" });
-  const names = english.map((_, i) => f.format(Date.UTC(2000, i, 1)));
+  const names = shortMonths ?? english.map((_, i) => f.format(Date.UTC(2000, i, 1)));
   return (t) => (english.includes(t) ? names[english.indexOf(t)] : t);
 }
 

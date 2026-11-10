@@ -17,6 +17,16 @@ export type Formats = {
   chartDate: string;
   /** The same with the day of the week ("Mon 26 Oct '26"). */
   chartWeekdayDate: string;
+  /** The short month names of the chart and the time axis, January first, where the language's own differ from
+   *  Intl's ("Janv" for "janv."). Intl's when absent. */
+  shortMonths?: readonly string[];
+  /** The weekday heads of a calendar, Monday first. The code's ("Mo", "Tu"…) when absent. */
+  calendarWeekdays?: readonly string[];
+  /**
+   * The marks of the numbers the code writes in English ("−1,234.5", "103.47 M", "+5.81%"): the thousands separator
+   * and the decimal sign, and the space before a K / M / B / T letter. The English text as it is when absent.
+   */
+  numberMarks?: { group: string; decimal: string; unitSpace: string };
 };
 
 export type LanguageEntry = {
@@ -72,9 +82,17 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     name: "Français",
     dictionary: () => import("./fr.json"),
     pluralLocale: "fr",
-    formats: { dateLocale: "fr-FR", numberLocale: "fr-FR", chartDate: "{dd} {MMM} '{yy}", chartWeekdayDate: "{wd} {dd} {MMM} '{yy}" },
+    // "1 234,5" (narrow no-break spaces), "103,47 M", "+5,81%"; the chart's months capitalised without a dot.
+    formats: {
+      dateLocale: "fr-FR",
+      numberLocale: "fr-FR",
+      chartDate: "{dd} {MMM} '{yy}",
+      chartWeekdayDate: "{wd} {dd} {MMM} '{yy}",
+      shortMonths: ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juill", "Août", "Sept", "Oct", "Nov", "Déc"],
+      calendarWeekdays: ["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"],
+      numberMarks: { group: "\u202f", decimal: ",", unitSpace: "\u202f" },
+    },
     direction: "ltr",
-    partial: true,
   },
   {
     // Accented, longer text between markers: what is left in English or cut shows (#289).

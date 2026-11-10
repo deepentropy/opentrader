@@ -1,4 +1,3 @@
-import { dateText } from "../../i18n/format";
 /*
  * ObjectTreePanel — right-rail "object_tree" tab content.
  *
@@ -48,6 +47,7 @@ import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { consumeDataWindowRequest, dataWindow } from "../../data/data-window-store";
 import { emitAppEvent } from "../../data/app-events";
 import { translateWith } from "../../i18n/translator";
+import { dateText, localNumber } from "../../i18n/format";
 
 type View = "tree" | "data-window";
 
@@ -98,6 +98,7 @@ function fmtTime(timeSec: number, tz?: string): string {
 
 /** One label/value line in the data window. `dir` tints up/down; `color`
  *  overrides (indicator plot colour). */
+/** A row of the data window; its number in the marks of the interface language (the formats here write English). */
 function DwRow(props: { label: string; value: string; dir?: "up" | "down"; color?: string }) {
   return (
     <div class="data-window-row">
@@ -106,7 +107,7 @@ function DwRow(props: { label: string; value: string; dir?: "up" | "down"; color
         class={`data-window-value${props.dir ? ` ${props.dir}` : ""}`}
         style={props.color ? { color: props.color } : undefined}
       >
-        {props.value}
+        {localNumber(props.value)}
       </span>
     </div>
   );

@@ -10,6 +10,7 @@ import { quoteFor as liveQuoteFor, type LiveQuote } from "../../../data/quotes";
 import { getTickerInfo } from "../../../data/datafeed";
 import { relativeVolumeOf, useRelativeVolumes } from "../../../data/watchlist-metrics";
 import { fmtChange, fmtPercent, fmtVolume, formatLast, isNegative, marketState } from "./format";
+import { localNumber } from "../../../i18n/format";
 import { type WatchlistCx } from "./context";
 
 /** What createCells adds to the watchlist context. */
@@ -41,7 +42,7 @@ export function createCells(cx: WatchlistCx): CellsApi {
   function lastForRow(row: { ticker: string; last: string }): string {
     const q = quoteFor(row.ticker);
     if (q?.last != null) return formatLast(q.last);
-    return row.last;
+    return localNumber(row.last);
   }
 
   // ── Company names (the "Name" symbol-display + tile sub-line) ──
@@ -92,7 +93,7 @@ export function createCells(cx: WatchlistCx): CellsApi {
       ? ""
       : q?.extChangePercent != null
         ? fmtPercent(q.extChangePercent)
-        : r.prePostChange;
+        : localNumber(r.prePostChange);
     return { text, tint: text ? (isNegative(text) ? "down" : "up") : undefined };
   }
 
@@ -113,7 +114,7 @@ export function createCells(cx: WatchlistCx): CellsApi {
       case "change": {
         // No static fallback in the sectioned capture → "—" (untinted) until a
         // live snapshot lands.
-        const text = q?.change != null ? fmtChange(q.change) : r.change ?? "—";
+        const text = q?.change != null ? fmtChange(q.change) : localNumber(r.change ?? "—");
         return { text, tint: text === "—" ? undefined : isNegative(text) ? "down" : "up" };
       }
       case "change_percent": {
@@ -123,12 +124,12 @@ export function createCells(cx: WatchlistCx): CellsApi {
         return { text, tint: isNegative(text) ? "down" : "up" };
       }
       case "volume": {
-        return { text: q?.volume != null ? fmtVolume(q.volume) : r.volume ?? "—" };
+        return { text: q?.volume != null ? fmtVolume(q.volume) : localNumber(r.volume ?? "—") };
       }
       case "rchp": return extForRow(r);
       case "rvol": {
         const v = relativeVolumeOf(r.ticker);
-        return { text: v != null ? v.toFixed(2) : "—" };
+        return { text: v != null ? localNumber(v.toFixed(2)) : "—" };
       }
       case "turnover": {
         return { text: q?.last != null && q.volume != null ? fmtVolume(q.last * q.volume) : "—" };

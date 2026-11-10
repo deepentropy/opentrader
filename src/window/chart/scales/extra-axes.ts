@@ -24,6 +24,7 @@ import {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { Side } from "./scale-layout";
+import { localNumber } from "../../../i18n/format";
 
 const EXTRA_RE = /^(left|right)#(\d+)$/;
 
@@ -133,7 +134,7 @@ function baseValue(chart: IChartApi, s: ISeriesApi<SeriesType>): number | null {
 
 function fmtPercent(v: number): string {
   const s = Math.abs(v).toFixed(2);
-  return `${v < 0 ? "−" : ""}${s}%`;
+  return localNumber(`${v < 0 ? "−" : ""}${s}%`);
 }
 
 /** The axis maths of one extra scale. */
@@ -163,7 +164,7 @@ export class ExtraScaleModel {
     if (mode === PriceScaleMode.Percentage || mode === PriceScaleMode.IndexedTo100) {
       const base = baseValue(this.chart, lead);
       if (base === null) return null;
-      return mode === PriceScaleMode.Percentage ? (p) => fmtPercent((p / base - 1) * 100) : (p) => ((p / base) * 100).toFixed(2);
+      return mode === PriceScaleMode.Percentage ? (p) => fmtPercent((p / base - 1) * 100) : (p) => localNumber(((p / base) * 100).toFixed(2));
     }
     const f = lead.priceFormatter();
     return (p) => f.format(p);

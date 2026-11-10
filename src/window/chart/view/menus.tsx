@@ -38,6 +38,7 @@ import { tradingUi } from "../../../data/trading/trading-ui";
 import { sourceCodeMenuRows } from "./source-code-rows";
 import type { ScaleTarget } from "./scales";
 import { translatePlural, translateWith } from "../../../i18n/translator";
+import { localNumber } from "../../../i18n/format";
 
 // Context for the right-click menu's dynamic pieces (price/symbol/counts).
 type ChartMenuCtx = {
@@ -356,14 +357,14 @@ export function createMenus(cx: ChartCx): MenusApi {
       },
     }));
     const nodes: CtxNode[] = [
-      { kind: "item", id: "alert", label: translateWith("Add alert on {0} at {1}…", sym, p), shortcut: "Alt + A", icon: CtxIcons.alert,
+      { kind: "item", id: "alert", label: translateWith("Add alert on {0} at {1}…", sym, localNumber(p)), shortcut: "Alt + A", icon: CtxIcons.alert,
         onSelect: () => emitAppEvent("chart-open-alert-dialog", { symbol: full, price: last ?? undefined }) },
       { kind: "item", id: "add-indicator", label: translateWith("Add indicator/strategy on {0}…", sym), icon: CtxIcons.addIndicator,
         onSelect: () => emitAppEvent("chart-open-indicators") },
       { kind: "separator" },
       symbolInfoRow(full),
       { kind: "separator" },
-      { kind: "item", id: "copy-price", label: translateWith("Copy price {0}", p),
+      { kind: "item", id: "copy-price", label: translateWith("Copy price {0}", localNumber(p)),
         onSelect: () => { if (last != null) void navigator.clipboard?.writeText(p); } },
       { kind: "item", id: "paste", label: "Paste", shortcut: "Ctrl + V", disabled: !hasClipboardContent(), onSelect: pasteClipboard },
       { kind: "separator" },
@@ -728,7 +729,8 @@ export function createMenus(cx: ChartCx): MenusApi {
     const nodes = buildChartContextMenu(
       {
         symbol: splitSymbol(props.symbol ?? "").ticker,
-        price: priceStr,
+        // Shown in the interface language's marks; copied in English.
+        price: localNumber(priceStr),
         study: studyTitle,
         alertLabel: studyId && rawPrice != null ? studyAlertRow(studyId, rawPrice)?.label : undefined,
         drawingCount: ds.length,
