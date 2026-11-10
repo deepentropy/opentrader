@@ -65,3 +65,7 @@ from the code, the built-in studies and `src/i18n/tools/run-time-texts.ts`.
   their context and glossary terms to `.tmp/i18n/<lang>-missing.json`, `npm run i18n:merge -- <lang> <file>` merges
   the filled file back (checked); `npm run i18n:prune` removes the entries the catalog lost. In the dev build,
   `window.__i18nMisses()` lists the texts left in English on screen.
+- The pseudo-language "Pseudo" (`en-XA`, dev builds' language menu, `src/i18n/pseudo.ts`) shows every catalog text
+  accented, a third longer and between markers ⟦…⟧: text without them is left in English. With the dev app running
+  with CDP, `npm run i18n:walk -- 9231` walks its screens, menus, dialogs and panels in it and writes the English left
+  on screen, the cut text and the misses to `.tmp/i18n-walk/` (report.md, screenshots), then puts the app back.

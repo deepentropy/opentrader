@@ -21,7 +21,8 @@
     "i18n:report": "node scripts/i18n.mjs report",
     "i18n:prune": "node scripts/i18n.mjs prune",
     "i18n:missing": "node scripts/i18n.mjs missing",
-    "i18n:merge": "node scripts/i18n.mjs merge"
+    "i18n:merge": "node scripts/i18n.mjs merge",
+    "i18n:walk": "node scripts/i18n-walk.mjs"
   },
   "license": "MIT",
   "author": "OpenTrader contributors",
