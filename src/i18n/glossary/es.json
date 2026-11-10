@@ -1,0 +1,613 @@
+{
+  "Add": {
+    "translation": "Añadir"
+  },
+  "Alert": {
+    "translation": "Alerta"
+  },
+  "Alerts": {
+    "translation": "Alertas"
+  },
+  "All charts": {
+    "translation": "Todos los gráficos"
+  },
+  "Apply": {
+    "translation": "Aplicar"
+  },
+  "Arrow": {
+    "translation": "Flecha"
+  },
+  "Auto": {
+    "translation": "Auto"
+  },
+  "Average": {
+    "translation": "Media",
+    "notes": "adjective after the noun, agreeing: 'Rango verdadero medio', 'Ganancia media'; 'Promedio' as a noun in tables"
+  },
+  "Background": {
+    "translation": "Fondo"
+  },
+  "Background Color": {
+    "translation": "Color de fondo"
+  },
+  "Backtest": {
+    "translation": "Backtest",
+    "notes": "kept, usual in Spanish trading software"
+  },
+  "Bar": {
+    "translation": "Barra",
+    "notes": "a chart bar"
+  },
+  "Bar Replay": {
+    "translation": "Repetición de barras"
+  },
+  "Bars": {
+    "translation": "Barras"
+  },
+  "Bearish": {
+    "translation": "Bajista",
+    "notes": "same form in both genders"
+  },
+  "Bullish": {
+    "translation": "Alcista",
+    "notes": "same form in both genders"
+  },
+  "Buy": {
+    "translation": "Comprar",
+    "notes": "verb on buttons; 'Compra' as a noun (side, order type)"
+  },
+  "Calculation": {
+    "translation": "Cálculo"
+  },
+  "Cancel": {
+    "translation": "Cancelar"
+  },
+  "Candle": {
+    "translation": "Vela"
+  },
+  "Candles": {
+    "translation": "Velas"
+  },
+  "Change": {
+    "translation": "Variación",
+    "notes": "price change; 'Change|action' is Cambiar"
+  },
+  "Chart": {
+    "translation": "Gráfico"
+  },
+  "Chart syncing": {
+    "translation": "Sincronización de gráficos"
+  },
+  "Charts": {
+    "translation": "Gráficos"
+  },
+  "Chg": {
+    "translation": "Var."
+  },
+  "Close": {
+    "translation": "Cierre",
+    "notes": "the closing price; 'Close|action' is Cerrar"
+  },
+  "Cloud": {
+    "translation": "Nube"
+  },
+  "Color": {
+    "translation": "Color"
+  },
+  "Colors": {
+    "translation": "Colores"
+  },
+  "Commission": {
+    "translation": "Comisión"
+  },
+  "Community": {
+    "translation": "Comunidad"
+  },
+  "Condition": {
+    "translation": "Condición"
+  },
+  "Content": {
+    "translation": "Contenido"
+  },
+  "Copy": {
+    "translation": "Copiar"
+  },
+  "Create": {
+    "translation": "Crear"
+  },
+  "Crosshair": {
+    "translation": "Retícula"
+  },
+  "Current": {
+    "translation": "Actual"
+  },
+  "Custom": {
+    "translation": "Personalizado",
+    "notes": "agrees: personalizada (f.)"
+  },
+  "Data": {
+    "translation": "Datos"
+  },
+  "Date": {
+    "translation": "Fecha"
+  },
+  "Day": {
+    "translation": "Día"
+  },
+  "Days": {
+    "translation": "Días"
+  },
+  "Default": {
+    "translation": "Predeterminado",
+    "notes": "agrees: predeterminada (f.)"
+  },
+  "Delete": {
+    "translation": "Eliminar",
+    "notes": "'Quitar' for remove"
+  },
+  "Display": {
+    "translation": "Visualización"
+  },
+  "Divergence": {
+    "translation": "Divergencia"
+  },
+  "Download": {
+    "translation": "Descargar"
+  },
+  "Downtrend": {
+    "translation": "Tendencia bajista"
+  },
+  "Drawdown": {
+    "translation": "Drawdown",
+    "notes": "kept, usual in Spanish backtest reports"
+  },
+  "Drawing": {
+    "translation": "Dibujo"
+  },
+  "Drawings": {
+    "translation": "Dibujos"
+  },
+  "Edit": {
+    "translation": "Editar"
+  },
+  "Enable": {
+    "translation": "Activar",
+    "notes": "'Desactivar' for disable"
+  },
+  "Engulfing": {
+    "translation": "Envolvente",
+    "notes": "candlestick pattern: 'Envolvente alcista'"
+  },
+  "Entry": {
+    "translation": "Entrada",
+    "notes": "a trade entry"
+  },
+  "Equity": {
+    "translation": "Capital"
+  },
+  "Exit": {
+    "translation": "Salida"
+  },
+  "Extend": {
+    "translation": "Extender"
+  },
+  "Factor": {
+    "translation": "Factor"
+  },
+  "Fill": {
+    "translation": "Relleno"
+  },
+  "Gradient": {
+    "translation": "Degradado"
+  },
+  "Harami": {
+    "translation": "Harami"
+  },
+  "Hide": {
+    "translation": "Ocultar"
+  },
+  "High": {
+    "translation": "Máximo",
+    "notes": "the bar's high; the on-chart high/low price lines keep 'High'/'Low' ('High|chart')"
+  },
+  "History": {
+    "translation": "Historial"
+  },
+  "Holiday": {
+    "translation": "Festivo"
+  },
+  "Icon": {
+    "translation": "Icono"
+  },
+  "Idea": {
+    "translation": "Idea"
+  },
+  "Import": {
+    "translation": "Importar"
+  },
+  "Index": {
+    "translation": "Índice",
+    "notes": "a market index"
+  },
+  "Indicator": {
+    "translation": "Indicador",
+    "notes": "also for 'study'"
+  },
+  "Indicators": {
+    "translation": "Indicadores"
+  },
+  "Inputs": {
+    "translation": "Parámetros",
+    "notes": "the settings tab of a study; 'Configuración' is Settings"
+  },
+  "Interval": {
+    "translation": "Intervalo"
+  },
+  "Label": {
+    "translation": "Etiqueta"
+  },
+  "Labels": {
+    "translation": "Etiquetas"
+  },
+  "Layout": {
+    "translation": "Diseño",
+    "notes": "a saved set of charts: 'Diseño de gráficos'"
+  },
+  "Length": {
+    "translation": "Longitud"
+  },
+  "Lock": {
+    "translation": "Bloquear"
+  },
+  "Log": {
+    "translation": "Registro",
+    "notes": "'Log|history'; the log scale is 'Logarítmica'"
+  },
+  "Long": {
+    "translation": "Largo",
+    "notes": "a long position: 'Posición larga'"
+  },
+  "Lookback": {
+    "translation": "Período de análisis"
+  },
+  "Loss": {
+    "translation": "Pérdida"
+  },
+  "Low": {
+    "translation": "Mínimo",
+    "notes": "the bar's low"
+  },
+  "Lower Band": {
+    "translation": "Banda inferior"
+  },
+  "Market closed": {
+    "translation": "Mercado cerrado"
+  },
+  "Market open": {
+    "translation": "Mercado abierto"
+  },
+  "Message": {
+    "translation": "Mensaje"
+  },
+  "Minute": {
+    "translation": "Minuto"
+  },
+  "Minutes": {
+    "translation": "Minutos"
+  },
+  "Mode": {
+    "translation": "Modo"
+  },
+  "Momentum": {
+    "translation": "Momentum"
+  },
+  "Month": {
+    "translation": "Mes"
+  },
+  "Months": {
+    "translation": "Meses"
+  },
+  "Moving Average": {
+    "translation": "Media móvil",
+    "notes": "abbreviations SMA/EMA… kept"
+  },
+  "Multiplier": {
+    "translation": "Multiplicador"
+  },
+  "Name": {
+    "translation": "Nombre"
+  },
+  "Net Profit": {
+    "translation": "Beneficio neto"
+  },
+  "Object Tree": {
+    "translation": "Árbol de objetos"
+  },
+  "Offset": {
+    "translation": "Desplazamiento"
+  },
+  "Once": {
+    "translation": "Una vez"
+  },
+  "Open": {
+    "translation": "Apertura",
+    "notes": "the opening price; 'Open|action' Abrir, 'Open|trade' Abierta"
+  },
+  "Options": {
+    "translation": "Opciones"
+  },
+  "Order": {
+    "translation": "Orden",
+    "notes": "feminine: 'la orden', 'orden de mercado'"
+  },
+  "Orders": {
+    "translation": "Órdenes"
+  },
+  "Oscillator": {
+    "translation": "Oscilador"
+  },
+  "Other": {
+    "translation": "Otro"
+  },
+  "Overbought": {
+    "translation": "Sobrecompra"
+  },
+  "Oversold": {
+    "translation": "Sobreventa"
+  },
+  "Pane": {
+    "translation": "Panel",
+    "notes": "a chart pane: 'Nuevo panel', 'Eliminar panel'"
+  },
+  "Panel": {
+    "translation": "Panel lateral",
+    "notes": "the app's side panels when it could be read as a chart pane ('Contraer panel lateral'); 'Panel inferior', 'Panel derecho', 'Panel de dibujos' where the kind is named"
+  },
+  "Percentage": {
+    "translation": "Porcentaje"
+  },
+  "Period": {
+    "translation": "Período"
+  },
+  "Pivot": {
+    "translation": "Pivote"
+  },
+  "PnL": {
+    "translation": "P&L",
+    "notes": "masculine: 'P&L realizado'"
+  },
+  "Position": {
+    "translation": "Posición"
+  },
+  "Post": {
+    "translation": "Post",
+    "notes": "on the chart (after hours); 'Post|action' is Publicar"
+  },
+  "Post-market": {
+    "translation": "Posmercado"
+  },
+  "Pre-market": {
+    "translation": "Premercado"
+  },
+  "Preset": {
+    "translation": "Preajuste"
+  },
+  "Price": {
+    "translation": "Precio"
+  },
+  "Price scale": {
+    "translation": "Escala de precios"
+  },
+  "Profit": {
+    "translation": "Beneficio"
+  },
+  "Real-time": {
+    "translation": "Tiempo real"
+  },
+  "Redo": {
+    "translation": "Rehacer"
+  },
+  "Regular": {
+    "translation": "Regular",
+    "notes": "the regular session"
+  },
+  "Remove": {
+    "translation": "Quitar",
+    "notes": "'Eliminar' for delete"
+  },
+  "Rename": {
+    "translation": "Renombrar"
+  },
+  "Replay": {
+    "translation": "Repetición"
+  },
+  "Reset": {
+    "translation": "Restablecer"
+  },
+  "Resistance": {
+    "translation": "Resistencia"
+  },
+  "Reward": {
+    "translation": "Recompensa",
+    "notes": "'Ratio riesgo/recompensa'"
+  },
+  "Right": {
+    "translation": "Derecha"
+  },
+  "Risk": {
+    "translation": "Riesgo"
+  },
+  "Save": {
+    "translation": "Guardar"
+  },
+  "Scale": {
+    "translation": "Escala"
+  },
+  "Scan": {
+    "translation": "Escanear",
+    "notes": "verb; 'Scan|action' too"
+  },
+  "Screen": {
+    "translation": "Filtro",
+    "notes": "a saved screener screen"
+  },
+  "Screener": {
+    "translation": "Screener",
+    "notes": "kept, usual in Spanish trading software"
+  },
+  "Script": {
+    "translation": "Script",
+    "notes": "kept"
+  },
+  "Search": {
+    "translation": "Buscar"
+  },
+  "Seconds": {
+    "translation": "Segundos"
+  },
+  "Select": {
+    "translation": "Seleccionar"
+  },
+  "Sell": {
+    "translation": "Vender",
+    "notes": "verb on buttons; 'Venta' as a noun"
+  },
+  "Session": {
+    "translation": "Sesión"
+  },
+  "Settings": {
+    "translation": "Configuración"
+  },
+  "Setup": {
+    "translation": "Configuración",
+    "notes": "a trade setup in the community stays 'setup'"
+  },
+  "Short": {
+    "translation": "Corto",
+    "notes": "a short position: 'Posición corta'"
+  },
+  "Show": {
+    "translation": "Mostrar"
+  },
+  "Signal": {
+    "translation": "Señal"
+  },
+  "Signals": {
+    "translation": "Señales"
+  },
+  "Slippage": {
+    "translation": "Deslizamiento"
+  },
+  "Smoothing": {
+    "translation": "Suavizado"
+  },
+  "Snapshot": {
+    "translation": "Captura"
+  },
+  "Sound": {
+    "translation": "Sonido"
+  },
+  "Source": {
+    "translation": "Fuente"
+  },
+  "Standard Deviation": {
+    "translation": "Desviación estándar"
+  },
+  "Stop Loss": {
+    "translation": "Stop loss"
+  },
+  "Strategy": {
+    "translation": "Estrategia"
+  },
+  "Strategy Tester": {
+    "translation": "Probador de estrategias"
+  },
+  "Study": {
+    "translation": "Indicador"
+  },
+  "Style": {
+    "translation": "Estilo"
+  },
+  "Support": {
+    "translation": "Soporte"
+  },
+  "Symbol": {
+    "translation": "Símbolo"
+  },
+  "Symbols": {
+    "translation": "Símbolos"
+  },
+  "Table": {
+    "translation": "Tabla"
+  },
+  "Take Profit": {
+    "translation": "Take profit"
+  },
+  "Template": {
+    "translation": "Plantilla"
+  },
+  "Threshold": {
+    "translation": "Umbral"
+  },
+  "Ticker": {
+    "translation": "Ticker",
+    "notes": "kept"
+  },
+  "Ticks": {
+    "translation": "Ticks"
+  },
+  "Time zone": {
+    "translation": "Zona horaria"
+  },
+  "Timeframe": {
+    "translation": "Marco temporal"
+  },
+  "Trade": {
+    "translation": "Operación",
+    "notes": "a strategy or journal trade"
+  },
+  "Trades": {
+    "translation": "Operaciones"
+  },
+  "Trading": {
+    "translation": "Trading"
+  },
+  "Trend": {
+    "translation": "Tendencia"
+  },
+  "Trigger": {
+    "translation": "Disparador"
+  },
+  "Type": {
+    "translation": "Tipo"
+  },
+  "Undo": {
+    "translation": "Deshacer",
+    "notes": "the undo history: 'Deshacer {0}'"
+  },
+  "Update": {
+    "translation": "Actualizar"
+  },
+  "Upper Band": {
+    "translation": "Banda superior"
+  },
+  "Uptrend": {
+    "translation": "Tendencia alcista"
+  },
+  "Volume": {
+    "translation": "Volumen"
+  },
+  "Volume Profile": {
+    "translation": "Perfil de volumen"
+  },
+  "Watchlist": {
+    "translation": "Lista de seguimiento"
+  },
+  "Week": {
+    "translation": "Semana"
+  },
+  "Width": {
+    "translation": "Grosor",
+    "notes": "line width; 'Ancho' for a box or a column"
+  }
+}

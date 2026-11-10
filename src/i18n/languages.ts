@@ -114,6 +114,23 @@ export const LANGUAGES: readonly LanguageEntry[] = [
     direction: "ltr",
   },
   {
+    id: "es",
+    name: "Español",
+    dictionary: () => import("./es.json"),
+    pluralLocale: "es",
+    // "1.234,5", "103,47 M", "+5,81%"; the chart's months capitalised.
+    formats: {
+      dateLocale: "es-ES",
+      numberLocale: "es-ES",
+      chartDate: "{dd} {MMM} '{yy}",
+      chartWeekdayDate: "{wd} {dd} {MMM} '{yy}",
+      shortMonths: ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sept", "Oct", "Nov", "Dic"],
+      calendarWeekdays: ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"],
+      numberMarks: { group: ".", decimal: ",", unitSpace: " " },
+    },
+    direction: "ltr",
+  },
+  {
     // Accented, longer text between markers: what is left in English or cut shows (#289).
     id: "en-XA",
     name: "Pseudo",
