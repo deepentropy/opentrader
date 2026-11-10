@@ -6,6 +6,7 @@
 import type { ExitFieldType, OrderPreset, TicketDraft } from "../../data/trading/trading-ui";
 import type { OrderRequest, TradingQuote } from "../../data/trading/types";
 import { fmtQty, parsePositive, tickerOf } from "./format";
+import { localNumber } from "../../i18n/format";
 
 /** Default exit distances in ticks (take profit / stop loss). */
 export const TP_TICKS = 75;
@@ -292,7 +293,7 @@ export function buildTicket(d: TicketDraft, q: Quote | null): OrderRequest | str
 export function describeTicket(d: TicketDraft, decimals: number): string {
   const qty = fmtQty(parsePositive(d.qty) ?? 0);
   const t = tickerOf(d.symbol);
-  const f = (v: number | null) => (v != null ? v.toFixed(decimals) : "—");
+  const f = (v: number | null) => (v != null ? localNumber(v.toFixed(decimals)) : "—");
   const lp = parsePositive(d.limitPrice);
   const sp = parsePositive(d.stopPrice);
   switch (d.orderType) {

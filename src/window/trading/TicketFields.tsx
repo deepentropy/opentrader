@@ -7,6 +7,8 @@ import { replayBroker } from "../../data/trading/replay-broker";
 import type { TicketDraft } from "../../data/trading/trading-ui";
 import { Switch } from "../../components/form";
 import { parsePositive } from "./format";
+import { localNumber } from "../../i18n/format";
+import { priceFieldProps } from "../../i18n/price-field";
 import { EXIT_TYPES, QTY_TYPES, exitTypeDisabled, marketHint, priceBase, type ExitKind, type ExitType, type PriceField } from "./ticket";
 import { NO_MONEY_SL, exitInfo, exitLabel, exitTitle, exitUnit, qtyInfo, qtyTitle, qtyUnit } from "./ticket-labels";
 import type { TicketModel } from "./ticket-model";
@@ -23,6 +25,7 @@ export function PriceInput(props: { m: TicketModel; f: PriceField }) {
     const base = d().orderType === "stopLimit" ? (f === "stopPrice" ? "Stop price" : "Limit price") : "Price";
     return offset() ? translateWith("{0} offset", translate(base)) : base;
   };
+  const price = priceFieldProps(() => String(d()[f]), (v) => patch({ [f]: v } as Partial<TicketDraft>));
   return (
     <div class="trd-tk-field">
       <span class="trd-tk-label">{label()}</span>
@@ -31,7 +34,9 @@ export function PriceInput(props: { m: TicketModel; f: PriceField }) {
           class="trd-tk-input"
           inputmode="decimal"
           placeholder={offset() ? priceBase(r(), q(), f).name : ""}
-          value={offset() ? (d()[offKey] ?? "") : String(d()[f])}
+          value={offset() ? (d()[offKey] ?? "") : price.value}
+          onFocus={price.onFocus}
+          onBlur={price.onBlur}
           onInput={(e) => patch({ [offset() ? offKey : f]: e.currentTarget.value } as Partial<TicketDraft>)}
           onKeyDown={(e) => {
             if (offset()) stepKey(e, offKey, 1, true);
@@ -40,7 +45,7 @@ export function PriceInput(props: { m: TicketModel; f: PriceField }) {
           }}
         />
         <SwapButton onClick={() => swapPrice(f)} />
-        <span class="trd-tk-hint">{offset() ? r()[f] : marketHint(r(), q(), r()[f], tick(), f)}</span>
+        <span class="trd-tk-hint">{localNumber(offset() ? r()[f] : marketHint(r(), q(), r()[f], tick(), f))}</span>
       </span>
     </div>
   );
@@ -53,11 +58,12 @@ export function ExitInput(props: { m: TicketModel; kind: ExitKind }) {
   const type = () => exitType(kind);
   const eq = () => exitEquiv(kind);
   const key = (): keyof TicketDraft => (type() === "price" ? (kind === "tp" ? "takeProfit" : "stopLoss") : kind === "tp" ? "tpValue" : "slValue");
+  const value = priceFieldProps(() => exitInputValue(kind), (v) => patch({ [key()]: v } as Partial<TicketDraft>));
   const rows = (pick: (t: ExitType) => void, without: ExitType | null, values: boolean): MenuRow[] =>
     EXIT_TYPES.filter((t) => t !== without).map((t) => ({
       title: exitTitle(kind, t, ccy()),
       info: values ? undefined : exitInfo(kind, t),
-      value: values ? exitValueText(kind, t) || "⌀" : undefined,
+      value: values ? localNumber(exitValueText(kind, t)) || "⌀" : undefined,
       selected: t === (values ? eq() : type()),
       disabled: exitTypeDisabled(kind, t, types().qtyType) ? NO_MONEY_SL : false,
       onSelect: () => pick(t),
@@ -91,7 +97,9 @@ export function ExitInput(props: { m: TicketModel; kind: ExitKind }) {
           class="trd-tk-input"
           inputmode="decimal"
           readOnly={!on()}
-          value={exitInputValue(kind)}
+          value={value.value}
+          onFocus={value.onFocus}
+          onBlur={value.onBlur}
           onInput={(e) => patch({ [key()]: e.currentTarget.value } as Partial<TicketDraft>)}
           onKeyDown={(e) => {
             stepKey(e, key(), exitStep(type()));
@@ -100,7 +108,7 @@ export function ExitInput(props: { m: TicketModel; kind: ExitKind }) {
         />
         <SwapButton onClick={() => swapExit(kind)} />
         <EquivButton
-          value={exitValueText(kind, eq()) || "⌀"}
+          value={localNumber(exitValueText(kind, eq())) || "⌀"}
           unit={exitUnit(eq(), ccy())}
           rows={rows((t) => setExitEquiv(kind, t), type(), true)}
         />
@@ -139,12 +147,12 @@ export function QtyInput(props: { m: TicketModel }) {
         />
         <SwapButton onClick={() => setQtyType(eq(), type())} />
         <EquivButton
-          value={qtyValueText(eq())}
+          value={localNumber(qtyValueText(eq()))}
           unit={qtyUnit(eq(), ccy(), stock())}
           rows={QTY_TYPES.filter((t) => t !== type()).map((t) => ({
             title: qtyTitle(t, ccy(), stock()),
             info: qtyInfo(t),
-            value: qtyValueText(t),
+            value: localNumber(qtyValueText(t)),
             selected: t === eq(),
             onSelect: () => patch({ qtyEquiv: t }),
           }))}

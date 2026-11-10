@@ -1,6 +1,6 @@
-import { numberFormat } from "../../i18n/format";
+import { localNumber, numberFormat, typedNumber } from "../../i18n/format";
 /*
- * Number / time formatting of the trading panel and order ticket.
+ * Number / time formatting of the trading panel and order ticket, in the interface language's marks ("1 234,50").
  */
 
 const money = () => numberFormat({ minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -16,12 +16,12 @@ export function tickDecimals(tick: number | null | undefined): number | null {
 export function fmtPrice(v: number | null | undefined, tick?: number | null): string {
   if (v == null || !Number.isFinite(v)) return "—";
   const d = tickDecimals(tick) ?? (Math.abs(v) >= 1 ? 2 : 4);
-  return v.toFixed(Math.max(d, 2));
+  return localNumber(v.toFixed(Math.max(d, 2)));
 }
 
 export function fmtQty(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return Number.isInteger(v) ? String(v) : String(Number(v.toFixed(8)));
+  return localNumber(Number.isInteger(v) ? String(v) : String(Number(v.toFixed(8))));
 }
 
 /** Signed P&L: "+12.34" / "−12.34" (true minus). */
@@ -33,7 +33,7 @@ export function fmtPnl(v: number | null | undefined): string {
 
 export function fmtPct(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  return (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%";
+  return localNumber((v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(2) + "%");
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -45,9 +45,10 @@ export function fmtTime(ms: number | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** Parse a typed price / quantity; null when not a positive number. */
+/** Parse a typed price / quantity; null when not a positive number. Typed in the interface language's marks too
+ *  ("1234,5"). */
 export function parsePositive(s: string): number | null {
-  const v = Number(String(s).replace(/,/g, "").trim());
+  const v = Number(typedNumber(String(s)).replace(/,/g, "").trim());
   return Number.isFinite(v) && v > 0 ? v : null;
 }
 

@@ -77,6 +77,7 @@ import { appendPlaceholder, placeholderGroups, type PlaceholderGroup } from "../
 import { messageOutputs } from "../../data/alert-outputs";
 import { studyOperandValue } from "../../data/alert-studies";
 import { stepAmountText } from "../../data/study-format";
+import { priceFieldProps } from "../../i18n/price-field";
 import { getIndicatorEntry } from "../chart/indicators/registry";
 import type { SessionId } from "../../data/session/symbol-sessions";
 import { isFullSymbol, isSupportedResolution, toFullSymbol } from "../../data/datafeed";
@@ -891,15 +892,19 @@ export function AlertDialog(props: Props) {
   /** One step up / down of a number field, in its last decimal. */
   const stepped = (text: string, dir: 1 | -1) => stepAmountText(text, dir);
   /** A number field with its up / down steppers. */
-  const valueBox = (get: () => string, set: (v: string) => void, label: string) => (
-    <span class="ad-number">
-      <input class="ad-input" type="text" inputmode="decimal" aria-label={label} value={get()} onInput={(e) => set(e.currentTarget.value)} placeholder="0.00" />
-      <span class="ad-steppers">
-        <button type="button" tabIndex={-1} aria-label="Increase" onClick={() => set(stepped(get(), 1))}>{arrow("m5 11 4-4 4 4")}</button>
-        <button type="button" tabIndex={-1} aria-label="Decrease" onClick={() => set(stepped(get(), -1))}>{arrow("m5 7 4 4 4-4")}</button>
+  const valueBox = (get: () => string, set: (v: string) => void, label: string) => {
+    // Shown and typed in the interface language's marks ("1 234,5"), kept in English ones.
+    const field = priceFieldProps(get, set);
+    return (
+      <span class="ad-number">
+        <input class="ad-input" type="text" inputmode="decimal" aria-label={label} value={field.value} onFocus={field.onFocus} onBlur={field.onBlur} onInput={(e) => set(e.currentTarget.value)} placeholder="0.00" />
+        <span class="ad-steppers">
+          <button type="button" tabIndex={-1} aria-label="Increase" onClick={() => set(stepped(get(), 1))}>{arrow("m5 11 4-4 4 4")}</button>
+          <button type="button" tabIndex={-1} aria-label="Decrease" onClick={() => set(stepped(get(), -1))}>{arrow("m5 7 4 4 4-4")}</button>
+        </span>
       </span>
-    </span>
-  );
+    );
+  };
   /** What a bound can be: a value, the studies with plots (not the source itself), and the drawing with two bounds
    *  the dialog was opened for (picking it makes the drawing the level). The price is not a bound. */
   const boundOptions = (): MenuOption[] => [

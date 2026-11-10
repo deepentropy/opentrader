@@ -8,6 +8,7 @@ import type { Time } from "lightweight-charts";
 import type { DataPoint, Drawing } from "lightweight-charts-drawing/core/types";
 import { DialogRow } from "./controls";
 import { DecimalInput } from "../../../components/form";
+import { ownNumberMarks, shownNumber, typedNumber } from "../../../i18n/format";
 import { COORD_MODES } from "./kind-config";
 import { type SettingsCx } from "./context";
 
@@ -85,11 +86,13 @@ export function coordinatesTab(cx: SettingsCx): JSX.Element {
                     type="text"
                     class="drawing-settings-input"
                     aria-label={`Point ${i() + 1} price`}
-                    value={pt.price.toFixed(priceDigits())}
+                    value={shownNumber(pt.price.toFixed(priceDigits()))}
                     onChange={(e) => {
-                      const v = parseFloat(e.currentTarget.value);
+                      // Typed in the interface language's marks too ("1234,5").
+                      const v = parseFloat(typedNumber(e.currentTarget.value));
                       if (Number.isFinite(v)) updatePoint(i(), { price: v });
-                      else e.currentTarget.value = pt.price.toFixed(priceDigits());
+                      // Shown again in the language's marks (the text itself in English).
+                      if (!Number.isFinite(v) || ownNumberMarks()) e.currentTarget.value = shownNumber(pt.price.toFixed(priceDigits()));
                     }}
                   />
                 </Show>

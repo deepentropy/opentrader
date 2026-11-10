@@ -5,6 +5,7 @@
  * Alert amounts (the dialog's value fields, the messages) use it; the text is
  * read back with its suffix.
  */
+import { typedNumber } from "../i18n/format";
 export type StudyFormat = { type: "price" | "volume" | "percent"; precision?: number };
 
 /** Narrow no-break space between a volume and its unit, as the reference writes it. */
@@ -33,9 +34,10 @@ export function formatStudyValue(v: number, f: StudyFormat): string {
   return f.type === "percent" ? `${text}%` : text;
 }
 
-/** The number an amount text stands for ("5.37 K", "1,234.50", "−2.5", "12%"); NaN when it is not one. */
+/** The number an amount text stands for ("5.37 K", "1,234.50", "−2.5", "12%"); NaN when it is not one. Typed in the
+ *  interface language's marks too ("1 234,5"). */
 export function parseAmountText(text: string): number {
-  const t = text.replace(/[,\s  ]/g, "").replace(/−/g, "-").replace(/%$/, "");
+  const t = typedNumber(text).replace(/[,\s  ]/g, "").replace(/−/g, "-").replace(/%$/, "");
   const m = /^([-+]?(?:\d+\.?\d*|\.\d+))([KMBT])?$/i.exec(t);
   if (!m) return NaN;
   const unit = m[2]?.toUpperCase();
@@ -45,7 +47,7 @@ export function parseAmountText(text: string): number {
 
 /** One step up / down of an amount text in its last decimal, its unit kept ("5.37 K" → "5.38 K"). */
 export function stepAmountText(text: string, dir: 1 | -1): string {
-  const t = text.trim();
+  const t = typedNumber(text.trim());
   const m = /^(.*?)([\s ]*[KMBT%])?$/i.exec(t);
   const num = (m?.[1] ?? t).replace(/,/g, "").replace(/−/g, "-");
   const suffix = m?.[2] ?? "";
