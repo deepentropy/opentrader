@@ -12,7 +12,7 @@ import { IconButton } from "../../../components/IconButton";
 import { api, type ContactMessage, type QueueItem } from "../../../data/community/api";
 import { me } from "../../../data/community/session";
 import { Age, Author, ErrorBanner, ReasonForm, errorText } from "../../../community-shared/parts";
-import { translatePlural } from "../../../i18n/translator";
+import { translatePlural, translateWith } from "../../../i18n/translator";
 
 const REASON_LABELS: Record<string, string> = {
   spam: "Spam",
@@ -77,8 +77,8 @@ export function ModQueue(props: { onBack: () => void; onOpenPost: (id: string) =
                   <Show when={m.user_name}><span class="cm-dot">·</span><Author name={m.user_name} /></Show>
                 </div>
                 <div class="cm-queue-body">{m.body}</div>
-                <Show when={m.url}><div class="cm-meta">Link: {m.url}</div></Show>
-                <Show when={m.email}><div class="cm-meta">Reply to: {m.email}</div></Show>
+                <Show when={m.url}><div class="cm-meta">{translateWith("Link: {0}", m.url ?? "")}</div></Show>
+                <Show when={m.email}><div class="cm-meta">{translateWith("Reply to: {0}", m.email ?? "")}</div></Show>
                 <div class="cm-actions">
                   <button type="button" class="cm-action" onClick={() => handled(m)}>Mark handled</button>
                 </div>

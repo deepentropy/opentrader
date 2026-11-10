@@ -334,7 +334,7 @@ function ImportSeriesDialog(props: { picked: Picked; onClose: () => void }) {
                           </div>
                         }
                       >
-                        {(msg) => <div class="tj-import-errors">{msg()} The file is left out.</div>}
+                        {(msg) => <div class="tj-import-errors">{translateWith("{0} The file is left out.", msg())}</div>}
                       </Show>
                     </Show>
                   </div>

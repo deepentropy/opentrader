@@ -4,6 +4,7 @@
  * Nothing comes with the installer; Remove is in the panel's menu once it is there.
  */
 import { Show, onMount } from "solid-js";
+import { translateWith } from "../../i18n/translator";
 import { cancelLocal, gb, installLocal, localBlocker, localError, localInfo, localProgress, refreshLocal } from "../../data/assistant/local";
 
 export function AssistantSetup() {
@@ -25,7 +26,7 @@ export function AssistantSetup() {
                 <div class="asst-progress-block">
                   <div class="asst-progress"><div style={{ width: `${pct()}%` }} /></div>
                   <div class="asst-inline">
-                    <span class="asst-muted">Activating… {pct()}%</span>
+                    <span class="asst-muted">{translateWith("Activating… {0}%", pct())}</span>
                     <button type="button" class="asst-btn" data-i18n-sense="action" onClick={cancelLocal}>Stop</button>
                   </div>
                 </div>
@@ -38,7 +39,7 @@ export function AssistantSetup() {
                     It can make mistakes and some steps may fail.
                   </p>
                   <button type="button" class="asst-btn is-primary" onClick={() => void installLocal()}>
-                    Activate ({gb(i().downloadBytes)})
+                    {translateWith("Activate ({0})", gb(i().downloadBytes))}
                   </button>
                 </>
               }>

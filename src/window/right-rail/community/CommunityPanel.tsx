@@ -35,7 +35,7 @@ import { shareRequest, takeShare } from "../../../data/community/share";
 import { ModQueue } from "./ModQueue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Age, Author, AuthorRecord, BotBadge, CONTACT_URL, ErrorBanner, ExternalLink, MarkdownBody, PostState, PostingCheckPrompt, RULES_URL, SignInBox, TypeBadges, errorText } from "../../../community-shared/parts";
-import { translatePlural } from "../../../i18n/translator";
+import { translatePlural, translateWith } from "../../../i18n/translator";
 
 /** "chart" (follows the chart), "following" (my tickers), "all", or a community id. */
 type Source = string;
@@ -58,7 +58,7 @@ const SORTS = [
   { id: "useful" as const, label: "Most useful" },
 ];
 
-const DISCLAIMER = "Posts are members' opinions, not financial advice.";
+const disclaimerText = "Posts are members' opinions, not financial advice.";
 
 const inWeeks = (n: number) => new Date(Date.now() + n * 7 * 86_400_000).toISOString().slice(0, 10);
 
@@ -343,7 +343,7 @@ export function CommunityPanel(props: Props) {
           <Age at={p.post.created_at} />
         </div>
         <div class="cm-meta">
-          <span>{p.post.useful_count} useful</span>
+          <span>{translateWith("{0} useful", p.post.useful_count)}</span>
           <span class="cm-dot">·</span>
           <span class="cm-comment-count"><Icon name="community-comment" size={18} />{p.post.comment_count}</span>
           <PostState post={p.post} />
@@ -413,7 +413,7 @@ export function CommunityPanel(props: Props) {
             </Show>
           </Match>
         </Switch>
-        <div class="cm-disclaimer">{DISCLAIMER}</div>
+        <div class="cm-disclaimer">{disclaimerText}</div>
       </div>
     </>
   );
@@ -537,7 +537,7 @@ export function CommunityPanel(props: Props) {
             <label class="cm-label">Expires</label>
             <input class="cm-input" type="date" value={expires()} onInput={(e) => setExpires(e.currentTarget.value)} />
             <div class="cm-muted cm-hint">
-              Reward : risk {levels().rr == null ? "—" : levels().rr!.toFixed(1)} · risk per share {levels().ok ? price(Math.abs(levels().e - levels().s)) : "—"} · entry on{" "}
+              {translateWith("Reward : risk {0} · risk per share {1} · entry on", levels().rr == null ? "—" : levels().rr!.toFixed(1), levels().ok ? price(Math.abs(levels().e - levels().s)) : "—")}{" "}
               <button type="button" class="cm-community-link is-small" onClick={() => setRule(rule() === "close" ? "touch" : "close")}>{rule() === "close" ? "a daily close" : "a trade through it"}</button>
             </div>
             <div class="cm-muted cm-hint">Tracked against the price and added to your public record whatever the outcome. You can add updates, not move levels.</div>
@@ -571,7 +571,7 @@ export function CommunityPanel(props: Props) {
             <button type="button" class="cm-btn" onClick={() => setView({ kind: "list" })}>Cancel</button>
             <button type="button" class="cm-btn is-primary" data-i18n-sense="action" disabled={busy() || !ready()} onClick={submit}>{isIdea() ? "Post idea" : "Post"}</button>
           </div>
-          <div class="cm-disclaimer">{DISCLAIMER} Promotion, coordinated buying and undisclosed positions are removed: read the <ExternalLink href={RULES_URL}>community guidelines</ExternalLink>.</div>
+          <div class="cm-disclaimer"><span>{disclaimerText}</span> Promotion, coordinated buying and undisclosed positions are removed: read the <ExternalLink href={RULES_URL}>community guidelines</ExternalLink>.</div>
         </div>
       </div>
     );

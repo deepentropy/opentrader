@@ -238,16 +238,16 @@ export function TradeJournalView(props: Props) {
           <div class="tj-summary">
             <span>{tradesText(summary().count)}</span>
             <Show when={summary().done > 0}>
-              <span>Win rate {((summary().wins / summary().done) * 100).toFixed(1)}%</span>
+              <span>{translateWith("Win rate {0}%", ((summary().wins / summary().done) * 100).toFixed(1))}</span>
               <span>
                 Net P&L <span class={tone(summary().pnl)}>{signed(summary().pnl)}</span>
               </span>
             </Show>
             <Show when={summary().pending > 0}>
-              <span class="tj-muted">Reading {summary().pending}…</span>
+              <span class="tj-muted">{translateWith("Reading {0}…", summary().pending)}</span>
             </Show>
             <Show when={summary().failed > 0}>
-              <span class="tj-muted">{summary().failed} without values</span>
+              <span class="tj-muted">{translateWith("{0} without values", summary().failed)}</span>
             </Show>
           </div>
         </Show>
@@ -307,7 +307,7 @@ export function TradeJournalView(props: Props) {
                       <span class="tj-group-label">{item.label}</span>
                       <span class="tj-muted">{tradesText(item.count)}</span>
                       <Show when={item.computed > 0}>
-                        <span class="tj-muted">Win rate {((item.wins / item.computed) * 100).toFixed(1)}%</span>
+                        <span class="tj-muted">{translateWith("Win rate {0}%", ((item.wins / item.computed) * 100).toFixed(1))}</span>
                         <span class={tone(item.pnl)}>{signed(item.pnl)}</span>
                       </Show>
                     </div>

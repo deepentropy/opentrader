@@ -179,7 +179,7 @@ export function PostView(props: Props) {
         <Show when={!isCollapsed()}>
           <Show when={c().removed}>
             <div class="cm-removed">
-              Removed by moderators{c().removed_reason ? `: ${c().removed_reason}` : ""}
+              {c().removed_reason ? translateWith("Removed by moderators: {0}", c().removed_reason!) : "Removed by moderators"}
               <Show when={c().own}> <button type="button" class="cm-action is-inline" onClick={() => toggle(c().id, "appeal")}>Appeal</button></Show>
             </div>
             <Show when={is("appeal")}>
@@ -194,7 +194,7 @@ export function PostView(props: Props) {
           </Show>
           <div class="cm-actions">
             <button type="button" class={"cm-action" + (c().my_useful ? " is-on" : "")} aria-pressed={c().my_useful} disabled={c().own || c().deleted || c().removed} onClick={() => useful(c())}>
-              {c().useful_count} useful
+              {translateWith("{0} useful", c().useful_count)}
             </button>
             <Show when={post.p?.own && post.p?.type === "question" && !c().own && !c().deleted && cp.depth === 0}>
               <button type="button" class="cm-action" onClick={() => markAnswer(c())}>{post.p?.answer_id === c().id ? "Unmark answer" : "Mark as the answer"}</button>
@@ -264,7 +264,7 @@ export function PostView(props: Props) {
                   </div>
                   <Show when={p().removed}>
                     <div class="cm-removed">
-                      Removed by moderators{p().removed_reason ? `: ${p().removed_reason}` : ""}
+                      {p().removed_reason ? translateWith("Removed by moderators: {0}", p().removed_reason!) : "Removed by moderators"}
                       <Show when={p().own}> <button type="button" class="cm-action is-inline" onClick={() => toggle("post", "appeal")}>Appeal</button></Show>
                     </div>
                     <Show when={isPost("appeal")}>
@@ -284,7 +284,7 @@ export function PostView(props: Props) {
                   <Show when={!p().deleted && !p().removed}>
                     <div class="cm-rate">
                       <div class="cm-muted">
-                        {p().own ? "What readers found useful" : "Useful? Say why"} · {p().useful_count} found it useful{p().flag_count ? ` · ${translateWith("{0} flagged", p().flag_count)}` : ""}
+                        {p().own ? "What readers found useful" : "Useful? Say why"}{" · "}{translateWith("{0} found it useful", p().useful_count)}{p().flag_count ? ` · ${translateWith("{0} flagged", p().flag_count)}` : ""}
                       </div>
                       <div class="cm-rate-btns">
                         <For each={REASONS}>

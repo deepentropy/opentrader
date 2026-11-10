@@ -1000,7 +1000,7 @@ export function DrawingToolbar(props: Props) {
               }}
             >
               <span class="drawing-tool-submenu-label">
-                {favoritesToolbarVisible() ? "Hide" : "Show"} Favorite Drawing Tools Toolbar
+                {favoritesToolbarVisible() ? "Hide Favorite Drawing Tools Toolbar" : "Show Favorite Drawing Tools Toolbar"}
               </span>
             </button>
           </div>

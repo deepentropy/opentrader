@@ -310,20 +310,67 @@ function writtenParts(e: ts.Expression): string[] | undefined {
   return undefined;
 }
 
+/** A JSX child shows an element, or nothing: not a value written into the text around it. */
+function showsElement(e: ts.Expression): boolean {
+  return shownLeaves(e).every(
+    (l) =>
+      ts.isJsxElement(l) ||
+      ts.isJsxSelfClosingElement(l) ||
+      ts.isJsxFragment(l) ||
+      l.kind === ts.SyntaxKind.NullKeyword ||
+      l.kind === ts.SyntaxKind.FalseKeyword ||
+      (ts.isIdentifier(l) && l.text === "undefined") ||
+      // `{list.map((x) => <Row />)}`, `{props.children}`
+      (ts.isCallExpression(l) && ts.isPropertyAccessExpression(l.expression) && l.expression.name.text === "map") ||
+      (ts.isPropertyAccessExpression(l) && l.name.text === "children"),
+  );
+}
+
 /**
- * Interface text joined from words and values (`"Undo " + name`, `` `${n} decimals` ``), where the static text is
- * read: a translation needs the whole phrase.
+ * JSX text and values side by side in an element (`{n} found it useful`, `Showing {a} of {b}`): the page holds the
+ * words and the values as separate texts, each translated alone.
+ */
+function jsxJoined(sf: ts.SourceFile): ts.Node[][] {
+  const out: ts.Node[][] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+      // The runs of text and expressions between the child elements.
+      let run: ts.Node[] = [];
+      const close = () => {
+        const words = run.some((c) => ts.isJsxText(c) && hasWord(c.text.replace(/\s+/g, " ")));
+        const values = run.some((c) => ts.isJsxExpression(c) && c.expression && constantText(c.expression) === undefined && !showsElement(c.expression));
+        if (words && values) out.push(run);
+        run = [];
+      };
+      for (const c of node.children) {
+        if (ts.isJsxText(c) || (ts.isJsxExpression(c) && !(c.expression && showsElement(c.expression)))) run.push(c);
+        else close();
+      }
+      close();
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * Interface text joined from words and values (`"Undo " + name`, `` `${n} decimals` ``, JSX's `{n} found it useful`),
+ * where the static text is read: a translation needs the whole phrase.
  */
 export function joinedTexts(file: string, source: string): JoinedText[] {
   const sf = parse(file, source);
   const out: JoinedText[] = [];
+  const lineOf = (n: ts.Node) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
   visitShown(sf, (e) => {
     for (const leaf of shownLeaves(e)) {
       const parts = writtenParts(leaf);
-      if (parts?.some(hasWord)) {
-        out.push({ file, line: sf.getLineAndCharacterOfPosition(leaf.getStart(sf)).line + 1, code: leaf.getText(sf).replace(/\s+/g, " ").slice(0, 120) });
-      }
+      if (parts?.some(hasWord)) out.push({ file, line: lineOf(leaf), code: leaf.getText(sf).replace(/\s+/g, " ").slice(0, 120) });
     }
   });
-  return out;
+  for (const run of jsxJoined(sf)) {
+    const code = run.map((c) => (ts.isJsxText(c) ? c.text : c.getText(sf))).join("").replace(/\s+/g, " ").trim();
+    out.push({ file, line: lineOf(run.find((c) => !ts.isJsxText(c) || c.text.trim()) ?? run[0]), code: code.slice(0, 120) });
+  }
+  return out.sort((a, b) => a.line - b.line);
 }

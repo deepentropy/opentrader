@@ -16,7 +16,7 @@ import { showConfirm } from "../../../components/Dialogs";
 import { noticeTitle } from "./CommunityNotifier";
 import { Age, ErrorBanner, errorText } from "../../../community-shared/parts";
 import { date } from "../../../community-shared/dates";
-import { translateWith } from "../../../i18n/translator";
+import { translate, translateWith } from "../../../i18n/translator";
 
 function Frame(props: { title: string; onBack: () => void; children: any }) {
   return (
@@ -209,7 +209,7 @@ export function AccountView(props: { onBack: () => void }) {
       <div class="cm-composer">
         <Show when={me()} fallback={<div class="ot-empty-state">Signed out.</div>}>
           <Show when={me()!.user.banned_until && me()!.user.banned_until! > Date.now() / 1000}>
-            <div class="cm-removed">Your account is banned. Reason: {me()!.user.ban_reason || "not given"}</div>
+            <div class="cm-removed">{translateWith("Your account is banned. Reason: {0}", me()!.user.ban_reason || translate("not given"))}</div>
           </Show>
           <label class="cm-label">User name</label>
           <input class="cm-input" maxLength={20} value={name()} onInput={(e) => setName(e.currentTarget.value)} onKeyDown={(e) => e.key === "Enter" && save()} />

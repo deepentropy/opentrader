@@ -109,6 +109,31 @@ describe("text joined from pieces (#288)", () => {
     ).toEqual(['"Undo " + step', "`${n} decimals`", "`Add ${sym} to watchlist`", "`Exit${pct}`"]);
   });
 
+  it("finds JSX text with values side by side (#289)", () => {
+    expect(
+      joined(
+        `const a = <div>
+          <span>{n} found it useful</span>
+          <p>Showing {a} of {b}</p>
+          <i>{label()}: {x}</i>
+        </div>;`,
+      ),
+    ).toEqual(["{n} found it useful", "Showing {a} of {b}"]);
+  });
+
+  it("lets JSX text sit by elements, element lists, constants and lone values", () => {
+    expect(
+      joined(
+        `const a = <div>
+          Save <b>{n}</b>
+          <span>{n} · {m}</span><span>{x}%</span><span>{"Plain"} text</span>
+          <span>Rows {on && <b />}{rows.map((r) => <i>{r}</i>)}{props.children}</span>
+          <Show when={on}>Loading</Show>
+        </div>;`,
+      ),
+    ).toEqual([]);
+  });
+
   it("lets values, symbols, abbreviations and ids be joined", () => {
     expect(
       joined(

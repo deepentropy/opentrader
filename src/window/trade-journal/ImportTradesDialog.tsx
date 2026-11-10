@@ -1,4 +1,4 @@
-import { translatePlural, translateWith } from "../../i18n/translator";
+import { translate, translatePlural, translateWith } from "../../i18n/translator";
 /*
  * Import trades: a CSV file read into the trade journal. The columns are
  * guessed from the header and can be changed; the preview shows the first
@@ -129,9 +129,9 @@ export function ImportTradesDialog(props: Props) {
       const r = await tradeJournal.importTrades(result().trades, { name: name().trim() || "Trades", zone: zone(), into });
       props.onClose();
       const notes: string[] = [];
-      if (r.unknown.length) notes.push(`Unknown symbols, kept without values: ${r.unknown.join(", ")}.`);
-      if (r.dropped) notes.push(`${r.dropped} trade(s) left out: exit before entry.`);
-      if (result().errors.length) notes.push(`${result().errors.length} row(s) could not be read.`);
+      if (r.unknown.length) notes.push(translateWith("Unknown symbols, kept without values: {0}.", r.unknown.join(", ")));
+      if (r.dropped) notes.push(translatePlural(r.dropped, { one: "{0} trade left out: exit before entry.", other: "{0} trades left out: exit before entry." }));
+      if (result().errors.length) notes.push(translatePlural(result().errors.length, { one: "{0} row could not be read.", other: "{0} rows could not be read." }));
       if (notes.length) showNotice({ title: translatePlural(r.added, { one: "{0} trade imported", other: "{0} trades imported" }), text: notes.join(" ") });
     } finally {
       setBusy(false);
@@ -160,13 +160,13 @@ export function ImportTradesDialog(props: Props) {
             <option value="exchange">Exchange time zone</option>
             <option value="UTC">UTC</option>
             <Show when={props.chartTimeZone.iana !== "UTC"}>
-              <option value={props.chartTimeZone.iana}>Chart time zone ({props.chartTimeZone.label})</option>
+              <option value={props.chartTimeZone.iana}>{translateWith("Chart time zone ({0})", props.chartTimeZone.label)}</option>
             </Show>
           </select>
           <Show when={!stExport}>
             <label class="tj-form-label">Dates</label>
             <select class="tj-select" value={order()} onChange={(e) => setOrder(e.currentTarget.value as DateOrder | "auto")}>
-              <option value="auto">Detect ({ORDER_LABELS[detected()]})</option>
+              <option value="auto">{translateWith("Detect ({0})", translate(ORDER_LABELS[detected()]))}</option>
               <For each={Object.keys(ORDER_LABELS) as DateOrder[]}>{(o) => <option value={o}>{ORDER_LABELS[o]}</option>}</For>
             </select>
             <label class="tj-form-label">Decimal separator</label>
@@ -203,7 +203,7 @@ export function ImportTradesDialog(props: Props) {
         </Show>
 
         <div class="tj-section-title">
-          Preview <span class="tj-muted">{result().trades.length} trades</span>
+          Preview <span class="tj-muted">{translatePlural(result().trades.length, { one: "{0} trade", other: "{0} trades" })}</span>
         </div>
         <div class="tj-preview">
           <div class="tj-preview-row tj-preview-head">
@@ -231,10 +231,10 @@ export function ImportTradesDialog(props: Props) {
         </div>
         <Show when={result().errors.length > 0}>
           <div class="tj-import-errors">
-            {result().errors.length} row(s) will be left out:{" "}
+            {translatePlural(result().errors.length, { one: "{0} row will be left out:", other: "{0} rows will be left out:" })}{" "}
             {result()
               .errors.slice(0, 3)
-              .map((e) => (e.row ? `row ${e.row}: ${e.message}` : e.message))
+              .map((e) => (e.row ? translateWith("row {0}: {1}", e.row, e.message) : e.message))
               .join("; ")}
             {result().errors.length > 3 ? "…" : ""}
           </div>

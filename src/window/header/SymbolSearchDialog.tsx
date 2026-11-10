@@ -1,4 +1,4 @@
-import { translateWith } from "../../i18n/translator";
+import { translatePlural, translateWith } from "../../i18n/translator";
 /*
  * SymbolSearchDialog — modal opened from the header's symbol pill.
  *
@@ -441,7 +441,7 @@ export function SymbolSearchDialog(props: Props) {
                       <span class="symbol-search-other-token">{searchText().trim()}</span> not found in <b>{categoryLabel()}</b> with such criteria
                     </div>
                     <div class="symbol-search-other-count">
-                      There are also {otherCount()} symbols in other markets
+                      {translatePlural(otherCount(), { one: "There is also {0} symbol in other markets", other: "There are also {0} symbols in other markets" })}
                     </div>
                     <button type="button" class="symbol-search-show-me" onClick={() => setCategory("all")}>
                       Show me

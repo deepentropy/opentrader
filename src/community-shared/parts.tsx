@@ -12,6 +12,7 @@ import { cancelCheck, checkError, openCheck, pending as checkPending, waiting as
 import { api, CommunityError, type Idea, type Post, type ReportReason } from "../data/community/api";
 import { TYPE_LABEL, age, dateTime, day, ideaState, postState, price, recordLine } from "../data/community/format";
 import { signIn, cancelSignIn, signingIn, PROVIDER_LABELS } from "../data/community/session";
+import { translateWith } from "../i18n/translator";
 
 export const RULES_URL = "https://opentrader.markets/community-rules.html";
 export const TERMS_URL = "https://opentrader.markets/terms.html";
@@ -87,11 +88,11 @@ export function IdeaLevels(props: { idea: Idea }) {
   return (
     <div class="cm-idea">
       <div class="cm-idea-levels">
-        E {price(i().entry)} · S {price(i().stop)} · T {price(i().target)} · R:R {i().reward_risk.toFixed(1)} · until {day(i().expires)}
+        {translateWith("E {0} · S {1} · T {2} · R:R {3} · until {4}", price(i().entry), price(i().stop), price(i().target), i().reward_risk.toFixed(1), day(i().expires))}
       </div>
       <div class="cm-idea-state">
         <span style={{ color: st().color }}>{st().text}</span>
-        <Show when={i().last_price != null && (i().status === "open" || i().status === "pending")}><span class="cm-muted"> · last {price(i().last_price)}</span></Show>
+        <Show when={i().last_price != null && (i().status === "open" || i().status === "pending")}><span class="cm-muted">{" · "}{translateWith("last {0}", price(i().last_price))}</span></Show>
         <span class="cm-muted"> · levels locked at posting</span>
       </div>
     </div>
@@ -144,7 +145,7 @@ export function ReportForm(props: { type: "post" | "comment"; id: string; onDone
   };
   return (
     <div class="cm-form" onClick={(e) => e.stopPropagation()}>
-      <div class="cm-form-title">Report this {props.type}</div>
+      <div class="cm-form-title">{props.type === "post" ? "Report this post" : "Report this comment"}</div>
       <For each={REASONS}>
         {(r) => (
           <label class="cm-radio">
@@ -235,7 +236,7 @@ export function SignInBox(props: { providers: string[] | null; error: string | n
               {(p) => (
                 <button type="button" class="cm-btn is-provider" onClick={() => go(p)}>
                   <Show when={p !== "dev"}><Icon name={`signin-${p}`} size={18} class="cm-provider-logo" /></Show>
-                  <span>Continue with {PROVIDER_LABELS[p] ?? p}</span>
+                  <span>{translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p)}</span>
                 </button>
               )}
             </For>
@@ -291,7 +292,7 @@ export function BanForm(props: { name: string; communityTitle: string; onSubmit:
   };
   return (
     <div class="cm-form" onClick={(e) => e.stopPropagation()}>
-      <div class="cm-form-title">Ban {props.name} from {props.communityTitle}</div>
+      <div class="cm-form-title">{translateWith("Ban {0} from {1}", props.name, props.communityTitle)}</div>
       <select class="cm-input" value={String(days())} onChange={(e) => setDays(Number(e.currentTarget.value))}>
         <For each={BAN_DAYS}>{(d) => <option value={String(d.days)}>{d.label}</option>}</For>
       </select>

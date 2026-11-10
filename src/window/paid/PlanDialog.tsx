@@ -37,7 +37,7 @@ function SignInButtons(props: { onDone: () => void }) {
             class="plan-signin-button"
             onClick={() => signIn(p).then(props.onDone, (e) => e?.message !== "cancelled" && failed(e))}
           >
-            Continue with {PROVIDER_LABELS[p] ?? p}
+            {translateWith("Continue with {0}", PROVIDER_LABELS[p] ?? p)}
           </button>
         )}
       </For>

@@ -14,6 +14,7 @@ import { For, Show, createResource, createSignal, onMount, type JSX } from "soli
 import { Portal } from "solid-js/web";
 import { Icon } from "../../components/Icon";
 import { Tooltip } from "../../components/Tooltip";
+import { translateWith } from "../../i18n/translator";
 import { getTickerInfo } from "../../data/datafeed";
 import type { CommissionType, ReplaySettings } from "../../data/trading/replay-account";
 import { replayBroker } from "../../data/trading/replay-broker";
@@ -155,7 +156,7 @@ function SettingsDialog() {
       class="rs-dialog"
       label="Replay settings"
       data-name="replay-settings-dialog"
-      title={<>Trading on historical data {ticker}</>}
+      title={translateWith("Trading on historical data {0}", ticker)}
       onClose={cancel}
       keys={{ capture: false }}
       onEscape={(e) => { e.preventDefault(); cancel(); }}
