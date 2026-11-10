@@ -61,9 +61,6 @@ import { replayMissedOnce } from "./alert-replay-missed";
 
 export { onAlertFire } from "./alert-delivery";
 
-/** True inside the Tauri shell: the missed bars are known there. */
-const HAS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
 /** The latest tick of each symbol (a rule on a compared symbol reads both symbols). */
 const lastTicks = new Map<string, TradeTick>();
 
@@ -337,8 +334,8 @@ export function startAlertEngine(windowLabel = "main"): void {
     unlisten = u;
   });
 
-  // Once per run of the app: the fires missed while it was not running.
-  if (HAS_TAURI) replayMissedOnce();
+  // Once per run of the app (a visit on the web build): the fires missed while it was not running.
+  replayMissedOnce();
 
   // Bars of the uncharted operands: prime once, then refresh every minute.
   void pollMovingRefs();

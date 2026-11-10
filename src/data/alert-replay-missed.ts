@@ -3,7 +3,8 @@
  * rules (alert-backend.ts). The rules evaluated in the window are read again
  * at start, bar by bar on their interval and session (alert-replay.ts); what
  * they find goes to the log and the rule's webhook only, as fires that
- * happened while the app was closed.
+ * happened while the app was closed. The web build does the same at each
+ * visit, from the last quotes it kept (alert-backend.ts).
  */
 import { getBars, isSupportedResolution } from "./datafeed";
 import { symbolSessions } from "./session";
@@ -11,7 +12,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { conditionRules, drawingBand, drawingPriceLevel, drawingTime, drawingVwapValue, isBandOperator, isMovingOperator, isStrategyOperator, ruleQuoteSymbol } from "./alert-condition";
 import type { AlertRule } from "./alert-store";
 import type { ChartBar } from "./chart-state-registry";
-import { evaluatedByBackend } from "./alert-backend";
+import { evaluatedByBackend, previousRunQuotes } from "./alert-backend";
 import { isEventOperator, REPLAY_MAX_FIRES, REPLAY_MAX_SEC, replayAlertCalls, replayCondition, replayConditions, replayRule, ruleFlags, type ReplayConditionSeries } from "./alert-replay";
 import { strategyFillsBetween } from "./alert-strategy";
 import { DEFAULT_SESSION, engineRules, resolutionMs } from "./alert-bars";
@@ -19,7 +20,6 @@ import { alertCallSeries, conditionSeries, plotSeries } from "./alert-studies";
 import { deliverFire } from "./alert-delivery";
 import { deliverStrategyFill, fillBarTime, strategyReplayReport } from "./alert-strategies";
 import { loadIndicatorLibrary } from "../window/chart/indicators/registry";
-import { commands } from "../bindings";
 import * as kv from "./kv";
 import { isDailyInterval } from "./interval";
 
@@ -249,16 +249,20 @@ export async function replayMissedFires(previous: Record<string, number | null |
   return found;
 }
 
-/** Once per run of the app: the fires missed while it was not running (with the indicator library loaded: alerts on
- *  its studies are replayed too). */
+/** Once per run of the app (a visit, on the web build): the fires missed while it was not running (with the indicator
+ *  library loaded: alerts on its studies are replayed too). */
 export function replayMissedOnce(): void {
+  // Read at once: the web build's record is overwritten during this run.
+  const previousRun = previousRunQuotes();
   void loadIndicatorLibrary()
-    .then(() => commands.alertEngineInfo())
-    .then((info) => {
-      const run = JSON.stringify(info.previous);
+    .then(() => previousRun)
+    .then((recorded) => {
+      // No record on the web build yet: from each rule's start, as the app does without a previous run.
+      const previous = recorded ?? {};
+      const run = JSON.stringify(previous);
       if (kv.getItem(REPLAYED_KEY) === run) return;
       kv.setItem(REPLAYED_KEY, run);
-      return replayMissedFires(info.previous);
+      return replayMissedFires(previous);
     })
     .catch((e) => console.warn("[alerts] missed bars not read", e));
 }

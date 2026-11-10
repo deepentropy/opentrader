@@ -17,7 +17,9 @@
  *
  * The web build has no backend: the same engine (alert-eval.ts, the port the
  * shared vectors pin) runs in the window on the same compiled rules, fed the
- * same quotes (the regular-session last and the latest minute's range).
+ * same quotes (the regular-session last and the latest minute's range); it
+ * keeps the time of each symbol's last quote in kv, as the backend keeps its
+ * file, so the next visit replays the bars missed in between.
  *
  * Rules on an indicator, an anchored VWAP or a moving percentage stay in the
  * window's engine (alert-engine.ts).
@@ -32,7 +34,8 @@ import { cachedSymbolSessions, localDay, localToUtc, sessionsVersion, type Symbo
 import type { SessionId } from "./session/symbol-sessions";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { loadDrawings } from "../window/drawings/persistence";
-import { AlertEvalEngine, type Grid, type GridRule } from "./alert-eval";
+import { AlertEvalEngine, type EvalFire, type Grid, type GridRule, type MinuteBar, type ReplayJob } from "./alert-eval";
+import * as kv from "./kv";
 import { ruleSignature } from "./alert-rule-state";
 import { onTradeTick } from "./datafeed";
 import { intervalSeconds, parseInterval as parseIntervalId, type IntervalUnit } from "./interval";
@@ -325,8 +328,8 @@ export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLa
     });
   });
 
-  void commands.alertEngineInfo().then((info) => {
-    previousRun = info.previous;
+  void previousRunQuotes().then((previous) => {
+    previousRun = previous ?? {};
     createRoot(() => {
       createEffect(() => {
         trackRules();
@@ -337,18 +340,90 @@ export function startAlertBackend(deliver: (fire: BackendFire) => void, windowLa
   });
 }
 
-/** The web build: the backend's engine runs here, on every quote the window receives (no previous run is known, so
- *  nothing is replayed). */
+// ── The previous run ──
+
+/** The web build: per symbol, the time (UNIX seconds) of the last quote evaluated, kept as the backend keeps its file
+ *  (src-tauri/src/alerts.rs). */
+const LAST_QUOTES_KEY = "alerts.last-quotes.v1";
+/** How often it is written while quotes come in (the backend's pace); also when the page is left. */
+const SAVE_MS = 30_000;
+
+let previousQuotes: Promise<Record<string, number> | null> | null = null;
+
+/** Per symbol, the time (UNIX seconds) of its last quote evaluated by the previous run: the backend's in the app, the
+ *  one kept in kv on the web build (null there before any was kept). Read once per run, before this run writes its
+ *  own. */
+export function previousRunQuotes(): Promise<Record<string, number> | null> {
+  previousQuotes ??= HAS_TAURI ? commands.alertEngineInfo().then((info) => info.previous as Record<string, number>) : Promise.resolve(readLastQuotes());
+  return previousQuotes;
+}
+
+function readLastQuotes(): Record<string, number> | null {
+  try {
+    const raw = kv.getItem(LAST_QUOTES_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object") return null;
+    return Object.fromEntries(Object.entries(parsed).filter((e): e is [string, number] => typeof e[1] === "number" && Number.isFinite(e[1])));
+  } catch {
+    return null;
+  }
+}
+
+/** The bars missed since the previous run, for a replay job of the web build: the minute bars (pre- and post-market
+ *  included) from the day before the job's start, as the backend fetches them; null when they cannot be read. */
+async function replayMinuteBars(job: ReplayJob, nowSec: number): Promise<MinuteBar[] | null> {
+  // Trading days counted back from today: the calendar days cover them.
+  const days = Math.ceil((nowSec - job.from) / 86400) + 2;
+  try {
+    const res = await commands.getMinuteHistory(job.symbol, days, 1, true);
+    if (res.status === "error") throw new Error(res.error);
+    return res.data.bars.flatMap((b) =>
+      b.time != null && b.open != null && b.high != null && b.low != null && b.close != null ? [{ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close }] : [],
+    );
+  } catch (e) {
+    console.warn(`[alerts] replay of ${job.symbol} failed`, e);
+    return null;
+  }
+}
+
+/** The web build: the backend's engine runs here, on every quote the window receives. As the backend does, it keeps
+ *  the time of each symbol's last quote and, on the next visit, replays the minute bars missed since then for its
+ *  rules (the fires found are offline ones). */
 function startWindowEngine(deliver: (fire: BackendFire) => void): void {
-  const engine = new AlertEvalEngine();
+  void previousRunQuotes().then((previous) => runWindowEngine(deliver, previous));
+}
+
+function runWindowEngine(deliver: (fire: BackendFire) => void, previous: Record<string, number> | null): void {
+  previousRun = previous ?? {};
+  const engine = new AlertEvalEngine(previous ? new Map(Object.entries(previous)) : null);
+  const toFire = (f: EvalFire, offline: boolean): BackendFire | null => {
+    const rule = alertStore.rule(f.ruleId);
+    if (!rule || !rule.enabled) return null;
+    return { rule, price: f.price, barTime: f.barTime == null ? null : f.barTime * 1000, offline, fireTime: offline ? f.time * 1000 : Date.now() };
+  };
   const push = () => {
     const now = Date.now();
     const { rules, grids, key } = compileBackendRules(Math.floor(now / 1000), Math.floor(now / RENEW_MS));
     if (key === lastKey) return;
     lastKey = key;
     // The bindings type the compiled numbers as nullable; the compilation never leaves one out.
-    engine.set(rules as unknown as GridRule[], grids as unknown as Grid[], now / 1000);
+    const jobs = engine.set(rules as unknown as GridRule[], grids as unknown as Grid[], now / 1000);
+    for (const job of jobs) {
+      void replayMinuteBars(job, now / 1000).then((bars) => {
+        for (const f of engine.finishReplay(job, bars)) {
+          const fire = toFire(f, true);
+          if (fire) deliver(fire);
+        }
+      });
+    }
   };
+  // This run's last quotes over the previous run's: a symbol without a quote this time keeps its time.
+  let savedAt = Date.now();
+  const save = () => {
+    savedAt = Date.now();
+    kv.setItem(LAST_QUOTES_KEY, JSON.stringify({ ...previous, ...Object.fromEntries(engine.last) }));
+  };
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") window.addEventListener("pagehide", save);
   createRoot(() => {
     createEffect(() => {
       trackRules();
@@ -361,9 +436,9 @@ function startWindowEngine(deliver: (fire: BackendFire) => void): void {
     const p = t.tradePrice;
     const bar = t.tradeTime != null && p != null ? { time: t.tradeTime, open: p, high: t.tradeHigh ?? p, low: t.tradeLow ?? p, close: p } : null;
     for (const f of engine.sample(t.symbol.toUpperCase(), t.price, bar, Date.now() / 1000)) {
-      const rule = alertStore.rule(f.ruleId);
-      if (!rule || !rule.enabled) continue;
-      deliver({ rule, price: f.price, barTime: f.barTime == null ? null : f.barTime * 1000, offline: false, fireTime: Date.now() });
+      const fire = toFire(f, false);
+      if (fire) deliver(fire);
     }
+    if (Date.now() - savedAt >= SAVE_MS) save();
   });
 }
