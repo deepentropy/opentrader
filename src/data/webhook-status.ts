@@ -5,7 +5,8 @@
  */
 import type { WebhookOutcome } from "./alert-store";
 
-const STATUS_TEXT: Record<number, string> = {
+/** The phrase after a status code ("404 Not Found"), a piece of the failure line. */
+const REASON_PHRASES: Record<number, string> = {
   400: "Bad Request",
   401: "Unauthorized",
   403: "Forbidden",
@@ -26,7 +27,7 @@ const STATUS_TEXT: Record<number, string> = {
 };
 
 function httpError(code: number): string {
-  const text = STATUS_TEXT[code] ?? (code >= 400 && code < 500 ? "Client Error" : code >= 500 && code < 600 ? "Server Error" : "");
+  const text = REASON_PHRASES[code] ?? (code >= 400 && code < 500 ? "Client Error" : code >= 500 && code < 600 ? "Server Error" : "");
   return text ? `${code} ${text}` : String(code);
 }
 
