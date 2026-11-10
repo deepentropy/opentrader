@@ -9,6 +9,8 @@ vi.mock("../kv", () => ({
   onExternalChange: () => () => undefined,
 }));
 vi.mock("../datafeed", () => ({ isFullSymbol: () => true, toFullSymbol: (s: string) => Promise.resolve(s) }));
+const drawings = vi.hoisted(() => ({ list: [] as { id: string; points: { time: number; price: number }[]; style: object }[] }));
+vi.mock("../../window/drawings/persistence", () => ({ loadDrawings: () => drawings.list, migrateDrawingKey: () => undefined }));
 
 import { RuleStates, ruleRuntimes, ruleSignature } from "../alert-rule-state";
 import { alertStore, alertWebhook, setAlertWebhook } from "../alert-store";
@@ -45,6 +47,16 @@ describe("ruleSignature", () => {
     expect(ruleSignature(rule({ and: [{ left: { kind: "price" }, op: "less", right: { kind: "value", value: 1 }, resolution: "1" }] }))).not.toBe(sig);
     expect(ruleSignature(rule({ name: "x", message: "y", sound: "z" }))).toBe(sig);
   });
+
+  it("changes when the drawing the rule reads moves", () => {
+    const onLine = rule({ right: { kind: "drawing", drawingId: "d" } });
+    drawings.list = [{ id: "d", points: [{ time: 10, price: 100 }], style: {} }];
+    const sig = ruleSignature(onLine);
+    expect(ruleSignature(onLine)).toBe(sig);
+    drawings.list = [{ id: "d", points: [{ time: 10, price: 95 }], style: {} }];
+    expect(ruleSignature(onLine)).not.toBe(sig);
+    drawings.list = [];
+  });
 });
 
 describe("RuleStates", () => {
@@ -60,6 +72,22 @@ describe("RuleStates", () => {
     states.sync(new Map([["b", "2"]]));
     expect(states.peek("a")).toBeUndefined();
     expect(states.size).toBe(1);
+  });
+
+  it("a signature read again between two syncs (a moved drawing) drops the memory", () => {
+    const states = new RuleStates(() => ({ n: 0 }));
+    states.sync(new Map([["a", "1"]]));
+    states.get("a").n = 5;
+    states.resign("a", "1");
+    expect(states.get("a").n).toBe(5);
+    states.resign("a", "2");
+    expect(states.get("a").n).toBe(0);
+    // The next sync with the same signature keeps it; a rule that is not synced is not taken in.
+    states.get("a").n = 3;
+    states.resign("b", "1");
+    states.sync(new Map([["a", "2"]]));
+    expect(states.get("a").n).toBe(3);
+    expect(states.peek("b")).toBeUndefined();
   });
 
   it("a rule's memory is one object: every part of it goes together", () => {

@@ -214,6 +214,8 @@ function onTick(t: TradeTick): void {
     const bucket = barBucket(ruleQuoteSymbol(rule), rule.resolution, session, refMs);
     const inSession = inRuleSession(rule, refMs, extendedQuote);
     const conds = conditionRules(rule);
+    // A drawing moved since the rules last changed: the rule starts again from this sample, as the backend's do.
+    ruleRuntimes.resign(rule.id, ruleSignature(rule));
     const runtime = ruleRuntimes.get(rule.id);
     const reader: RuleReader = {
       bar: () => (bucket == null ? null : bucket / 1000),

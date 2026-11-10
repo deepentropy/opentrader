@@ -33,7 +33,7 @@ import type { SessionId } from "./session/symbol-sessions";
 import { periodStart } from "../window/chart/chart-aggregate";
 import { loadDrawings } from "../window/drawings/persistence";
 import { AlertEvalEngine, type Grid, type GridRule } from "./alert-eval";
-import { conditionSignature, ruleSignature } from "./alert-rule-state";
+import { ruleSignature } from "./alert-rule-state";
 import { onTradeTick } from "./datafeed";
 import { intervalSeconds, parseInterval as parseIntervalId, type IntervalUnit } from "./interval";
 
@@ -212,7 +212,7 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
     return grid;
   };
   /** One condition as the backend reads it (null: its drawing or its symbol's sessions are not known). */
-  const compile = (rule: AlertRule, symbol: string, since: number, session: SessionId): { compiled: EngineRule; sig: unknown[] } | null => {
+  const compile = (rule: AlertRule, symbol: string, since: number, session: SessionId): EngineRule | null => {
     const iv = parseInterval(rule.resolution);
     const sessions = cachedSymbolSessions(symbol);
     if (!iv || !sessions) return null;
@@ -249,7 +249,7 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
       if (perBar.length > 0 && perBar.every((v) => sameValues(v, perBar[0]))) compiled.values = perBar[0];
       else compiled.perBar = perBar;
     }
-    return { compiled, sig: conditionSignature(rule, drawing) };
+    return compiled;
   };
   for (const rule of enabled) {
     // The quotes the rule reads: its symbol's, or the compared symbol's.
@@ -259,9 +259,10 @@ export function compileBackendRules(nowSec: number, epoch: number): Compiled {
     const session: SessionId = rule.session ?? "RTH";
     const parts = conditionRules(rule).map((v) => compile(v, symbol, since, session));
     if (parts.some((p) => p === null)) continue;
-    const [first, ...more] = parts as { compiled: EngineRule; sig: unknown[] }[];
-    const sig = ruleSignature(rule, parts.map((p) => p!.sig));
-    const compiled: EngineRule = { ...first.compiled, sig, and: more.map((p) => ({ ...p.compiled, sig })) };
+    const [first, ...more] = parts as EngineRule[];
+    // The window signs its own rules the same way (alert-rule-state.ts).
+    const sig = ruleSignature(rule);
+    const compiled: EngineRule = { ...first, sig, and: more.map((p) => ({ ...p, sig })) };
     rules.push(compiled);
     keys.push(`${rule.id}\u0001${sig}\u0001${rule.expiresAt}`);
   }

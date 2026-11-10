@@ -5,18 +5,19 @@ import type { SymbolSession } from "../../bindings";
 const mocks = vi.hoisted(() => {
   // The backend part runs in the app shell only.
   (globalThis as { window?: unknown }).window = { __TAURI_INTERNALS__: {} };
-  return { rules: [] as unknown[], sessions: new Map<string, unknown>() };
+  return { rules: [] as unknown[], sessions: new Map<string, unknown>(), drawings: [] as unknown[] };
 });
 
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
 vi.mock("../../bindings", () => ({ commands: { getSymbolSession: vi.fn() } }));
 vi.mock("../providers", () => ({ defaultExchange: () => "NASDAQ" }));
 vi.mock("../alert-store", () => ({ alertStore: { enabledRules: () => mocks.rules, rules: () => mocks.rules, rule: () => undefined } }));
-vi.mock("../../window/drawings/persistence", () => ({ loadDrawings: () => [] }));
+vi.mock("../../window/drawings/persistence", () => ({ loadDrawings: () => mocks.drawings }));
 vi.mock("../session", async (orig) => ({ ...(await orig<typeof import("../session")>()), cachedSymbolSessions: (s: string) => mocks.sessions.get(s) ?? null }));
 
 import { SymbolSessions } from "../session";
 import { compileBackendRules, evaluatedByBackend } from "../alert-backend";
+import { ruleSignature } from "../alert-rule-state";
 
 const usStock: SymbolSession = {
   timezone: "America/New_York",
@@ -61,5 +62,25 @@ describe("backend rules on a compared symbol", () => {
     // Without the compared symbol's sessions: not handed over yet.
     mocks.sessions.clear();
     expect(compileBackendRules(now, 2).rules).toHaveLength(0);
+  });
+});
+
+describe("backend rule signature", () => {
+  it("is the window's signature, and changes when the drawing moves", () => {
+    mocks.sessions.set("NASDAQ:TLRY", new SymbolSessions(usStock));
+    const onLine = rule({ right: { kind: "drawing", drawingId: "d" } });
+    mocks.rules = [onLine];
+    const line = (price: number) => [{ id: "d", kind: "horizontal-line", points: [{ time: Date.UTC(2026, 9, 1) / 1000, price }], style: {} }];
+    const now = Date.UTC(2026, 9, 15, 15) / 1000;
+    mocks.drawings = line(480);
+    const before = compileBackendRules(now, 3).rules[0];
+    expect(before.values).toEqual([480]);
+    expect(before.sig).toBe(ruleSignature(onLine));
+    mocks.drawings = line(470);
+    const after = compileBackendRules(now, 4).rules[0];
+    expect(after.sig).toBe(ruleSignature(onLine));
+    expect(after.sig).not.toBe(before.sig);
+    mocks.drawings = [];
+    mocks.sessions.clear();
   });
 });

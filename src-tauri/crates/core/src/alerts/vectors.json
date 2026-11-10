@@ -258,6 +258,16 @@
       ]
     },
     {
+      "name": "a moved drawing (new levels, new signature) starts again from its next sample",
+      "rules": [{ "op": "crossing", "values": [100] }],
+      "steps": [
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 10 }, "fires": [] },
+        { "set": { "rules": [{ "op": "crossing", "values": [95], "sig": "2" }], "now": 12 }, "jobs": [] },
+        { "quote": { "symbol": "X:A", "last": 99, "bar": null, "now": 15 }, "fires": [] },
+        { "quote": { "symbol": "X:A", "last": 94, "bar": null, "now": 20 }, "fires": [["r", 94, 20, 0]] }
+      ]
+    },
+    {
       "name": "regular hours: quotes outside the session are not read",
       "grids": [
         { "key": "g", "bars": [[0, 300], [300, 600], [1200, 1500], [1500, 1800]], "regular": [[0, 600], [1200, 1800]], "session": [[0, 600], [1200, 1800]], "extendedHours": false }

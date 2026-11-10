@@ -3,26 +3,32 @@
  * the rule's signature stays the same: as the backend's engine does
  * (engine.rs, `EngineRule::sig`), an edited, restarted or deleted rule starts
  * again from its next sample without anyone having to say so. The signature
- * holds what the condition reads and when the rule became active (an edit or a
- * restart moves `activeSince`).
+ * holds what the condition reads (the points and style of the drawing it
+ * compares with included: a moved line is a new level) and when the rule became
+ * active (an edit or a restart moves `activeSince`). The rules handed to the
+ * backend are signed by the same function (alert-backend.ts), so the window and
+ * the backend forget a rule's memory on the same changes.
  */
-import type { Drawing } from "lightweight-charts-drawing/core/types";
 import { conditionRules } from "./alert-condition";
 import type { AlertRule } from "./alert-store";
 import { newRuleState, type RuleState } from "./alert-eval";
 import type { StrategyAlertState } from "./alert-strategy";
 import type { StrategyAlertRun } from "./alert-strategies";
+import { loadDrawings } from "../window/drawings/persistence";
 
-/** What one condition's memory depends on; `drawing`: the drawing it reads, when its points and style are known. */
-export function conditionSignature(c: AlertRule, drawing?: Pick<Drawing, "points" | "style">): unknown[] {
+/** What one condition's memory depends on: the condition, and the points and style of the drawing it compares with
+ *  (as saved). */
+export function conditionSignature(c: AlertRule): unknown[] {
+  const right = c.right;
+  const drawing = right.kind === "drawing" ? loadDrawings(c.symbol).find((d) => d.id === right.drawingId) : undefined;
   return [c.op, c.left, c.right, c.right2, c.resolution, c.bars, drawing?.points, drawing?.style];
 }
 
-/** The signature of a rule: changes whenever its condition, its trigger, its session or the moment it became active
- *  changes. `parts`: its conditions' signatures (default: without their drawings). */
-export function ruleSignature(rule: AlertRule, parts: unknown[][] = conditionRules(rule).map((c) => conditionSignature(c))): string {
+/** The signature of a rule: changes whenever its condition, the drawing it reads, its trigger, its session or the
+ *  moment it became active changes. */
+export function ruleSignature(rule: AlertRule): string {
   // Older rules without a session: regular hours, a chart's default.
-  return JSON.stringify([rule.frequency, rule.session ?? "RTH", rule.activeSince ?? rule.createdAt, ...parts]);
+  return JSON.stringify([rule.frequency, rule.session ?? "RTH", rule.activeSince ?? rule.createdAt, ...conditionRules(rule).map(conditionSignature)]);
 }
 
 /** One state object per rule, made by `create`, kept while the rule stays listed with the same signature. */
@@ -35,8 +41,14 @@ export class RuleStates<T> {
   /** The rules to keep memory for, with their signatures: the others lose theirs, as does a rule whose signature
    *  changed. */
   sync(sigs: Map<string, string>): void {
-    this.sigs = sigs;
+    this.sigs = new Map(sigs);
     for (const [id, s] of this.states) if (sigs.get(id) !== s.sig) this.states.delete(id);
+  }
+
+  /** Rule `id`'s signature read again between two syncs (a drawing moves without the rules changing): its memory is
+   *  dropped at the next `get` when the signature differs. A rule that is not synced stays out. */
+  resign(id: string, sig: string): void {
+    if (this.sigs.has(id)) this.sigs.set(id, sig);
   }
 
   /** The state of rule `id` (a new one the first time, or after its signature changed). */
