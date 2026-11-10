@@ -30,6 +30,11 @@ export async function setLanguage(id: string): Promise<void> {
   window.location.reload();
 }
 
+// The development build's hook for the screen walk (scripts/i18n-walk.mjs): this module's own setLanguage.
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __i18nSetLanguage: typeof setLanguage }).__i18nSetLanguage = setLanguage;
+}
+
 /** At startup, before the app renders: loads the dictionary and starts translating. */
 export async function startTranslation(): Promise<void> {
   // Another window changed the language.

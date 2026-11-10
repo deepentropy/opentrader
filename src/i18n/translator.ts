@@ -29,7 +29,7 @@ const ATTRIBUTES = ["placeholder", "title"];
 const SENSE = "data-i18n-sense";
 
 /** Elements whose text isn't interface text. */
-const SKIP = "script,style,textarea,[contenteditable=true],.cm-editor,[data-no-translate]";
+const SKIP = "script,noscript,style,textarea,[contenteditable=true],.cm-editor,.monaco-editor,[data-no-translate]";
 
 /** End of a text that the dictionary has without it. */
 export const ENDINGS = /(\s*(?:…|\.\.\.|:|：))$/;
@@ -53,6 +53,7 @@ export function setDictionary(d: Dictionary, textRules: readonly ((text: string)
   pluralRules = new Intl.PluralRules(pluralLocale);
   formats = languageFormats;
   drawn.clear();
+  translations = null;
 }
 
 /** The formats of the interface language (English inside `inEnglish`). */
@@ -98,6 +99,7 @@ export function translate(text: string, d: Dictionary = dictionary, sense?: stri
     if (import.meta.env.DEV && d === dictionary) missed(core);
     return text;
   }
+  if (import.meta.env.DEV && d === dictionary) produced(to);
   return core === text ? to : text.replace(core, () => to);
 }
 
@@ -124,7 +126,9 @@ export function translateWith(template: string, ...values: (string | number)[]):
   if (dictionary === EMPTY) return fill(template, values);
   const to = textOf(dictionary[template]);
   if (import.meta.env.DEV && to === undefined) missed(template);
-  return fill(to ?? template, values);
+  const filled = fill(to ?? template, values);
+  if (import.meta.env.DEV && to !== undefined) produced(filled);
+  return filled;
 }
 
 /**
@@ -138,7 +142,9 @@ export function translatePlural(count: number, forms: { one: string; other: stri
   const entry = dictionary === EMPTY ? undefined : dictionary[forms.other];
   if (import.meta.env.DEV && dictionary !== EMPTY && entry === undefined) missed(forms.other);
   if (entry === undefined) return fill(ENGLISH_PLURALS.select(count) === "one" ? forms.one : forms.other, filled);
-  return fill(typeof entry === "string" ? entry : (entry[category] ?? entry.other), filled);
+  const to = fill(typeof entry === "string" ? entry : (entry[category] ?? entry.other), filled);
+  if (import.meta.env.DEV) produced(to);
+  return to;
 }
 
 /** `fn` run with the English text and formats (what the agent tools answer). */
@@ -160,9 +166,48 @@ export function inEnglish<T>(fn: () => T): T {
  * the dictionary lacked, once, with where it was seen. `window.__i18nMisses()` lists them; each is logged once with
  * console.debug. Recorded once the page is translated (observePage), so tests stay quiet; a production build leaves
  * it out (import.meta.env.DEV is false there, the calls are dropped).
+ *
+ * Not a miss (#289): a text already translated that comes back to the translator: a dictionary's text, a filled
+ * template or plural the code got from it (a component copying a translated label, a title set again), a
+ * pseudo-language's marked text. Nor a text without a lowercase letter: an abbreviation, a ticker or an exchange
+ * reads the same in every language (the catalog leaves the studies' out for the same reason). Data (names, hotkeys,
+ * what the user wrote) is marked `data-no-translate` and never looked up.
  */
 const misses = new Map<string, string>();
 let recording = false;
+/** The dictionary's texts (each plural form, the ending trimmed), built on the first miss. */
+let translations: Set<string> | null = null;
+/** The texts the code got translated with values (translateWith, translatePlural), the latest ones. */
+const filledTexts = new Set<string>();
+
+function produced(text: string): void {
+  if (!recording) return;
+  if (filledTexts.size > 20000) filledTexts.clear();
+  filledTexts.add(text.trim());
+}
+
+/**
+ * A text the code wrote in the interface language itself: a date or a month in the language's formats (format.ts),
+ * words translated one by one and joined with values ("SMA (9, clôture)", "Valeur, ligne"). Shown, it is not a miss.
+ */
+export function formatted(text: string): string {
+  if (import.meta.env.DEV) produced(text);
+  return text;
+}
+
+/** A text the translator gave, shown again, or an abbreviation: not English left on screen. */
+function notMissed(text: string): boolean {
+  // A run of one letter ("mmmm…"): a code editor measuring its font.
+  if (!/[a-z]/.test(text) || /^(.)\1+$/.test(text) || text.includes("⟦") || filledTexts.has(text)) return true;
+  if (!translations) {
+    translations = new Set();
+    for (const entry of Object.values(dictionary)) {
+      for (const t of typeof entry === "string" ? [entry] : Object.values(entry)) if (t) translations.add(t.trim());
+    }
+  }
+  const end = ENDINGS.exec(text);
+  return translations.has(text) || (!!end && translations.has(text.slice(0, -end[1].length)));
+}
 
 /** The element path of a node ("div.chart-legend > span"), for the miss list. */
 function pathOf(el: Element | null): string {
@@ -175,7 +220,7 @@ function pathOf(el: Element | null): string {
 }
 
 function missed(text: string, el?: Element | null): void {
-  if (!recording || misses.has(text)) return;
+  if (!recording || misses.has(text) || notMissed(text)) return;
   const where = el ? pathOf(el) : "code or canvas";
   misses.set(text, where);
   console.debug("[i18n] untranslated:", JSON.stringify(text), where);
@@ -203,6 +248,8 @@ export function translateDrawn(text: string): string {
 
 /** Translated text nodes: a node written by the translator isn't translated again. */
 const written = new WeakMap<Node, string>();
+/** Translated attributes, by element: an attribute the translator wrote isn't translated again. */
+const writtenAttributes = new WeakMap<Element, Record<string, string>>();
 
 function skipped(el: Element | null): boolean {
   return !el || el.closest(SKIP) !== null;
@@ -222,6 +269,7 @@ function translateOnPage(text: string, el: Element | null): string {
     if (import.meta.env.DEV) missed(core, el);
     return text;
   }
+  if (import.meta.env.DEV) produced(to);
   return core === text ? to : text.replace(core, () => to);
 }
 
@@ -238,9 +286,14 @@ function translateTextNode(node: Text): void {
 function translateAttributes(el: Element): void {
   for (const name of ATTRIBUTES) {
     const value = el.getAttribute(name);
-    if (!value) continue;
+    if (!value || writtenAttributes.get(el)?.[name] === value) continue;
     const to = translateOnPage(value, el);
-    if (to !== value) el.setAttribute(name, to);
+    if (to !== value) {
+      const mine = writtenAttributes.get(el) ?? {};
+      mine[name] = to;
+      writtenAttributes.set(el, mine);
+      el.setAttribute(name, to);
+    }
   }
 }
 
@@ -267,7 +320,9 @@ export function observePage(root: Node = document.documentElement): () => void {
   const observer = new MutationObserver((records) => {
     for (const r of records) {
       if (r.type === "characterData") translateTextNode(r.target as Text);
-      else if (r.type === "attributes") translateAttributes(r.target as Element);
+      else if (r.type === "attributes") {
+        if (!skipped(r.target as Element)) translateAttributes(r.target as Element);
+      }
       else r.addedNodes.forEach(translateTree);
     }
   });

@@ -8,7 +8,13 @@
 // outlined), then restores the app: dialogs closed, the panels as they were, the study, strategy, drawing and alert
 // it added removed by id, the language put back.
 //
-//   npm run i18n:walk -- [cdp-port=9231] [--only=name,name] [--keep-language] [--no-shots] [--ignore=<regexp>]
+//   npm run i18n:walk -- [cdp-port=9231] [--language=en-XA] [--only=name,name] [--keep-language] [--no-shots]
+//                        [--all-shots] [--ignore=<regexp>]
+//
+// The language: the pseudo-language en-XA by default (text outside ⟦…⟧ is English); en-XB, the right-to-left one, the
+// same way; a real language (fr, zh-Hans…): the catalog's texts shown as they are in English while its dictionary
+// translates them. Data is not interface text: the elements showing it (tickers, names, hotkeys, user text) are marked
+// data-no-translate and skipped.
 //
 // The dev app with CDP: WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9231 npx tauri dev. The study,
 // strategy, drawing and alert are added through the app's agent tools (Settings > Coding agents), switched on for
@@ -19,8 +25,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = join(ROOT, ".tmp", "i18n-walk");
-const PSEUDO = "Pseudo";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
@@ -29,7 +33,11 @@ const PORT = Number(args.find((a) => /^\d+$/.test(a)) ?? 9231);
 const ONLY = flagValue("only")?.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 const KEEP_LANGUAGE = !!flag("keep-language");
 const SHOTS = !flag("no-shots");
+const ALL_SHOTS = !!flag("all-shots");
 const IGNORE = flagValue("ignore") ? new RegExp(flagValue("ignore")) : null;
+const LANGUAGE = flagValue("language") ?? "en-XA";
+const MARKED_LANGUAGE = /^en-X[AB]$/.test(LANGUAGE);
+const OUT = join(ROOT, ".tmp", "i18n-walk", LANGUAGE === "en-XA" ? "" : LANGUAGE);
 
 const CATALOG = JSON.parse(readFileSync(join(ROOT, "src", "i18n", "catalog.json"), "utf8"));
 const ENDING = /(\s*(?:…|\.\.\.|:|：))$/;
@@ -37,6 +45,21 @@ const inCatalog = (text) => {
   const t = text.trim();
   return t in CATALOG || (ENDING.test(t) && t.replace(ENDING, "") in CATALOG);
 };
+
+/** A real language: the catalog's texts its dictionary writes otherwise (shown as they are, they are English). */
+function englishTexts() {
+  if (MARKED_LANGUAGE) return [];
+  const d = JSON.parse(readFileSync(join(ROOT, "src", "i18n", `${LANGUAGE}.json`), "utf8"));
+  const texts = new Set();
+  for (const key of Object.keys(CATALOG)) {
+    const word = key.includes("|") ? key.slice(0, key.lastIndexOf("|")) : key;
+    const to = d[key] ?? d[word];
+    const shown = typeof to === "object" ? to?.other : to;
+    // A text the language writes as English does ("OK", "RSI") is not left in English; nor a template's.
+    if (shown !== undefined && shown !== word && !/\{\d+\}/.test(word) && /[a-z]{2}/.test(word)) texts.add(word);
+  }
+  return [...texts];
+}
 
 // ── CDP ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -161,19 +184,25 @@ async function screenshot(file) {
 
 // ── In the page: what is left in English, what is cut ──────────────────────────────────────────────────────────
 
-const PAGE_HELPER = String.raw`(() => {
+const PAGE_HELPER = (english) => String.raw`((ENGLISH_TEXTS) => {
   const MARKED = /⟦[^⟦⟧]*⟧/g;
+  const ENDING = /(\s*(?:…|\.\.\.|:|：))$/;
+  const englishTexts = ENGLISH_TEXTS && new Set(ENGLISH_TEXTS);
   /** Words that are not interface text: dates written by the language's formats, units, ids. */
   const NOT_WORDS = new Set("Jan Feb Mar Apr May Jun Jul Aug Sep Sept Oct Nov Dec January February March April June July August September October November December Mon Tue Wed Thu Fri Sat Sun Monday Tuesday Wednesday Thursday Friday Saturday Sunday am pm px ms".split(" "));
-  const SKIP = "script,style,noscript,textarea,input,[contenteditable=''],[contenteditable=true],.cm-editor,[data-no-translate],svg title,[data-i18n-walk-ignore]";
+  const SKIP = "script,style,noscript,textarea,input,[contenteditable=''],[contenteditable=true],.cm-editor,.monaco-editor,[data-no-translate],svg title,[data-i18n-walk-ignore]";
 
   function leftover(text) {
     let t = text, before;
     do { before = t; t = t.replace(MARKED, " "); } while (t !== before);
     return t;
   }
-  /** The English words of a text outside the markers. */
+  /** The English words of a text outside the markers; in a real language, a catalog text shown as it is. */
   function english(text) {
+    if (englishTexts) {
+      const t = text.trim();
+      return englishTexts.has(t) || englishTexts.has(t.replace(ENDING, "")) ? [t] : [];
+    }
     const t = leftover(text);
     if (/^\s*(?:https?:\/\/|[\w.+-]+@[\w-]+\.)/.test(t)) return [];
     return (t.match(/[A-Za-z][A-Za-z'’]+/g) || []).filter((w) => /[a-z]/.test(w) && !NOT_WORDS.has(w));
@@ -206,10 +235,12 @@ const PAGE_HELPER = String.raw`(() => {
     const rects = [...range.getClientRects()].filter((r) => r.width > 0);
     if (!rects.length) return null;
     const t = { left: Math.min(...rects.map((r) => r.left)), right: Math.max(...rects.map((r) => r.right)), top: Math.min(...rects.map((r) => r.top)), bottom: Math.max(...rects.map((r) => r.bottom)) };
-    for (let a = el, depth = 0; a && a !== document.body && depth < 8; a = a.parentElement, depth++) {
+    for (let a = el, depth = 0, fixed = false; a && a !== document.body && depth < 8 && !fixed; a = a.parentElement, depth++) {
       const cs = getComputedStyle(a);
       // A scroll container: text scrolled out of view is not cut.
       if (scrolls(cs.overflowX) || scrolls(cs.overflowY)) break;
+      // A fixed box (a dialog, a menu) is placed in the window: the boxes around it in the page don't clip it.
+      fixed = cs.position === "fixed";
       if (!clips(cs.overflowX) && !clips(cs.overflowY)) continue;
       if (a.clientWidth <= 2 || a.clientHeight <= 2) return null; // visually hidden on purpose
       const b = a.getBoundingClientRect();
@@ -294,9 +325,10 @@ const PAGE_HELPER = String.raw`(() => {
   }
 
   window.__i18nWalk = { collect, misses, unmark, outline, drawingPoint };
-})()`;
+})(` + JSON.stringify(english) + `)`;
 
-const inject = () => ev(PAGE_HELPER);
+let ENGLISH_TEXTS = null;
+const inject = () => ev(PAGE_HELPER(ENGLISH_TEXTS));
 
 // ── The app's agent tools (study, strategy, drawing and alert added for the walk) ───────────────────────────────
 
@@ -398,14 +430,14 @@ function popover(name, opener, root, extra = {}) {
   });
 }
 
-/** A right-rail panel: its button toggles it. */
+/** A right-rail panel: its button toggles it (some buttons don't show pressed: the panel on screen tells). */
 async function openRail(id, root) {
   if (!(await exists(RAIL(id)))) throw new Error(`skip: no ${id} button`);
-  if (!(await railOn(id)) || !(await exists(root))) await click(RAIL(id));
-  await waitFor(root, 6000);
+  if (!(await exists(root))) await click(RAIL(id));
+  await waitFor(root, 8000);
 }
-async function closeRail(id) {
-  if (await railOn(id)) await click(RAIL(id));
+async function closeRail(id, root) {
+  if (root ? await exists(root) : await railOn(id)) await click(RAIL(id));
 }
 
 // Main window.
@@ -612,33 +644,37 @@ popover("screener › first filter", '[data-name^="screener-filter-pill-"]', ".s
 popover("screener › column sets", ".scr-column-sets-btn", ".scr-sets-menu", { before: openScreener });
 popover("screener › view type", ".scr-view-type-btn", ".scr-popover", { before: openScreener });
 popover("screener › add column", ".scr-setup-btn", ".scr-category-menu", { before: openScreener });
-popover("screener › column menu", "th.scr-th[data-field]", ".scr-popover", { before: openScreener });
-state("screener › close", { open: async () => (await closeRail("screener-dialog-button"), []), check: false });
+popover("screener › column menu", "th.scr-th[data-field]:not(.scr-th-symbol)", ".scr-popover", { before: openScreener });
+state("screener › close", { open: async () => (await closeRail("screener-dialog-button", SCREENER), []), check: false });
 
 // Community, assistant.
 state("community", { open: async () => (await openRail("community", "aside.cm-panel"), ["aside.cm-panel"]) });
 popover("community › more menu", 'aside.cm-panel .ot-icon-button[aria-label="More"]', ".cm-menu", { before: () => openRail("community", "aside.cm-panel") });
 state("assistant", {
   open: async () => (await openRail("assistant-button", "section.asst-panel"), ["section.asst-panel"]),
-  close: () => closeRail("assistant-button"),
+  close: () => closeRail("assistant-button", "section.asst-panel"),
 });
 popover("assistant › chat menu", ".asst-chat-title", ".asst-chat-menu", {
-  before: () => openRail("assistant-button", "section.asst-panel"),
-  after: () => closeRail("assistant-button"),
+  before: async () => {
+    await openRail("assistant-button", "section.asst-panel");
+    // The chat shows once the local model is installed (Activate): the panel's first screen otherwise.
+    if (!(await exists(".asst-chat-title"))) throw new Error("skip: the assistant's model is not installed (no chat)");
+  },
+  after: () => closeRail("assistant-button", "section.asst-panel"),
 });
 
 // Bottom panels.
 state("trade journal", {
   open: async () => (await openRail("trade-journal-button", '[data-name="trade-journal"]'), ['[data-name="trade-journal"]', '[data-name="strategy-tester"]']),
-  close: () => closeRail("trade-journal-button"),
+  close: () => closeRail("trade-journal-button", '[data-name="trade-journal"]'),
 });
 state("script editor", {
   open: async () => (await openRail("pine-dialog-button", "section.oak-panel"), ["section.oak-panel"]),
-  close: () => closeRail("pine-dialog-button"),
+  close: () => closeRail("pine-dialog-button", "section.oak-panel"),
 });
 popover("script editor › script menu", ".oak-panel__name-btn", ".oak-script-menu", {
   before: () => openRail("pine-dialog-button", "section.oak-panel"),
-  after: () => closeRail("pine-dialog-button"),
+  after: () => closeRail("pine-dialog-button", "section.oak-panel"),
 });
 
 const TESTER = 'section[data-name="strategy-tester"]';
@@ -785,8 +821,13 @@ state("drawing › settings", {
 state("drawing › context menu", {
   needsAgent: true,
   open: async () => {
-    const p = await pointOfDrawing();
-    await mouseAt(p.x, p.y, { button: "right" });
+    // A press on the stroke selects the drawing, then the right press opens its menu (twice if the first misses).
+    for (let i = 0; i < 2 && !(await exists('[data-qa-id="drawing-context-menu"]')); i++) {
+      const p = await pointOfDrawing();
+      await mouseAt(p.x, p.y);
+      await mouseAt(p.x, p.y, { button: "right" });
+      await sleep(300);
+    }
     await waitFor('[data-qa-id="drawing-context-menu"]');
     return ['[data-qa-id="drawing-context-menu"]'];
   },
@@ -817,7 +858,8 @@ let shot = 0;
 async function record(name, r, misses) {
   const item = { name, untranslated: r.untranslated, cut: r.cut, misses };
   const problems = r.untranslated.length + r.cut.filter((c) => c.kind !== "ellipsis").length + misses.length;
-  if (SHOTS && problems) {
+  // Every state with --all-shots: a right-to-left or real language is checked by eye too.
+  if (SHOTS && (problems || ALL_SHOTS)) {
     await ev(`window.__i18nWalk.outline(true)`);
     item.screenshot = `${String(++shot).padStart(2, "0")}-${slug(name)}.png`;
     await screenshot(join(OUT, item.screenshot)).catch(() => delete item.screenshot);
@@ -837,7 +879,7 @@ async function newMisses() {
   return fresh;
 }
 
-async function walkState(s) {
+async function walkState(s, retry = true) {
   if (s.needsAgent && !agent) {
     results.push({ name: s.name, skipped: "agent tools unavailable" });
     return;
@@ -867,6 +909,12 @@ async function walkState(s) {
     }
   } catch (e) {
     const msg = String(e.message ?? e);
+    // The page restarted under the state: once more on the fresh page.
+    if (retry && (await ensurePage())) {
+      console.warn(`  ${s.name}: again (${msg})`);
+      results.splice(results.findIndex((r) => r.name.startsWith(s.name)) >>> 0);
+      return walkState(s, false);
+    }
     results.push({ name: s.name, skipped: msg.replace(/^skip: /, "") });
     console.log(`  ${s.name}: skipped (${msg.replace(/^skip: /, "")})`);
   } finally {
@@ -880,25 +928,17 @@ async function walkState(s) {
 
 // ── Language ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const languageName = () =>
-  ev(`(async () => {
-    document.querySelector('[data-qa-id="main-menu-button"]').click();
-    await new Promise((r) => setTimeout(r, 300));
-    const rows = document.querySelectorAll(".profile-menu .profile-menu-row");
-    const row = rows[rows.length - 1];
-    row.dispatchEvent(new MouseEvent("mouseenter"));
-    row.click();
-    await new Promise((r) => setTimeout(r, 300));
-    const current = document.querySelector(".profile-menu-language.is-current")?.textContent.trim() ?? null;
-    const names = [...document.querySelectorAll(".profile-menu-language")].map((b) => b.textContent.trim());
-    return { current, names };
-  })()`);
+/** The app's setLanguage (window.__i18nSetLanguage, development build): a copy of language.ts imported from here
+ *  after a hot update would be a second module, its storage not loaded. */
+const SET_LANGUAGE = `(window.__i18nSetLanguage ?? ((id) => import("/src/i18n/language.ts").then((m) => m.setLanguage(id))))`;
+// The page's lang (a module imported from here may be a second copy of the app's, its storage not loaded).
+const currentLanguage = () => ev(`document.documentElement.lang || "en"`);
 
 async function waitForApp() {
-  const end = Date.now() + 60000;
+  const end = Date.now() + 180000;
   while (Date.now() < end) {
     try {
-      if (await ev(`!!document.querySelector(".header-toolbar") && document.readyState === "complete"`)) {
+      if (await ev(`!!document.querySelector(".header-toolbar") && document.querySelectorAll("canvas").length > 0 && !document.getElementById("splash") && document.readyState === "complete"`)) {
         await sleep(2500);
         return;
       }
@@ -907,23 +947,29 @@ async function waitForApp() {
     }
     await sleep(500);
   }
-  throw new Error("The app did not come back after the language change.");
+  throw new Error("The app did not come back.");
 }
 
-/** Picks a language in the profile menu (the page restarts); returns once the app is back. */
-async function chooseLanguage(name) {
-  const { current, names } = await languageName();
-  if (current === name) {
-    await dismiss(".profile-menu");
-    return;
-  }
-  if (!names.includes(name)) {
-    await dismiss(".profile-menu");
-    throw new Error(`No "${name}" in the language menu (${names.join(", ")}): a development build lists the pseudo-language.`);
-  }
-  await ev(`[...document.querySelectorAll(".profile-menu-language")].find((b) => b.textContent.trim() === ${q(name)}).click()`);
+/** Puts the language on by its id (the page restarts); returns once the app is back. */
+async function chooseLanguage(id) {
+  if ((await currentLanguage()) === id) return;
+  // setLanguage reloads the page: its promise never settles.
+  await ev(`(${SET_LANGUAGE}(${q(id)}), true)`);
   await sleep(1500);
   await waitForApp();
+  const now = await currentLanguage();
+  if (now !== id) throw new Error(`The language is ${now}, not ${id}: is ${id} in src/i18n/languages.ts?`);
+}
+
+/** The page restarted (a reload, a hot update of many modules): the app waited for, the helper put back. */
+async function ensurePage() {
+  const ok = await ev(`!!window.__i18nWalk && !!document.querySelector(".header-toolbar")`).catch(() => false);
+  if (ok) return false;
+  console.warn("  (the page restarted: waiting for the app)");
+  await waitForApp();
+  await inject();
+  missesBefore = new Set((await ev(`window.__i18nWalk.misses()`)).map((m) => m.text));
+  return true;
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -980,10 +1026,10 @@ async function main() {
   console.log(`Connected: ${url}`);
   await waitForApp();
 
-  const before = await languageName();
-  await dismiss(".profile-menu");
-  console.log(`Language: ${before.current}${before.current === PSEUDO ? "" : ` → ${PSEUDO}`}`);
-  await chooseLanguage(PSEUDO);
+  const before = await currentLanguage();
+  console.log(`Language: ${before}${before === LANGUAGE ? "" : ` → ${LANGUAGE}`}`);
+  await chooseLanguage(LANGUAGE);
+  ENGLISH_TEXTS = MARKED_LANGUAGE ? null : englishTexts();
   await inject();
   missesBefore = new Set();
 
@@ -994,6 +1040,7 @@ async function main() {
   console.log(`Walking ${selected.length} states…`);
   try {
     for (const s of selected) {
+      await ensurePage();
       await inject();
       await walkState(s);
     }
@@ -1010,16 +1057,16 @@ async function main() {
     await stopAgent();
   }
 
-  const report = { date: new Date().toLocaleDateString("en-GB"), url, language: PSEUDO, states: results, summary: summarize() };
+  const report = { date: new Date().toLocaleDateString("en-GB"), url, language: LANGUAGE, states: results, summary: summarize() };
   writeFileSync(join(OUT, "report.json"), JSON.stringify(report, null, 2) + "\n");
   writeFileSync(join(OUT, "report.md"), markdown(report));
   const s = report.summary;
   console.log(`\n${s.states} states, ${s.skipped} skipped: ${s.untranslated.length} untranslated, ${s.cut.length} cut, ${s.ellipsis.length} with an ellipsis, ${s.misses.length} misses.`);
   console.log(`Report: ${join(OUT, "report.md")}`);
 
-  if (!KEEP_LANGUAGE && before.current && before.current !== PSEUDO) {
-    console.log(`Language back to ${before.current}`);
-    await chooseLanguage(before.current);
+  if (!KEEP_LANGUAGE && before !== LANGUAGE) {
+    console.log(`Language back to ${before}`);
+    await chooseLanguage(before);
   }
   ws.close();
 }
