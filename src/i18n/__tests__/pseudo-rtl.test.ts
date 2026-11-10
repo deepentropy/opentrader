@@ -6,7 +6,7 @@ import type { Catalog } from "../tools/catalog";
 import { valuesOf } from "../tools/catalog";
 
 const RLM = "‏";
-const plain = (s: string) => s.replaceAll(RLM, "");
+const plain = (s: string) => s.split(RLM).join("");
 
 describe("the right-to-left pseudo-language en-XB (#290)", () => {
   it("is registered in the development build, right to left, English formats", () => {
