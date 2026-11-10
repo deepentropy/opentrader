@@ -142,7 +142,9 @@ export default defineConfig(async ({ mode }: { mode: string }) => ({
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      // Research files, dev builds (a cargo target can sit in .tmp) and agent worktrees (whose node_modules link to
+      // this one) are not the app: watching them makes the dev server crawl.
+      ignored: ["**/src-tauri/**", "**/.tmp/**", "**/.claude/**"],
     },
     proxy: mode === "web" ? { "/api": { target: webServer, ws: true } } : undefined,
     fs: {
