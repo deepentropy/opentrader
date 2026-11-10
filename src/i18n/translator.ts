@@ -93,7 +93,8 @@ export function lookUp(core: string, d: Dictionary = dictionary, sense?: string)
 /** The translation of a text, its spaces around kept; the text itself when the dictionary doesn't have it. */
 export function translate(text: string, d: Dictionary = dictionary, sense?: string): string {
   const core = text.trim();
-  if (d === EMPTY || !translatable(core)) return text;
+  // A single letter is looked up in a sense that gives it an entry ("O|legend": 始値, the legend's open price).
+  if (d === EMPTY || (!translatable(core) && !(sense !== undefined && `${core}|${sense}` in d))) return text;
   const to = lookUp(core, d, sense);
   if (to === undefined) {
     if (import.meta.env.DEV && d === dictionary) missed(core);

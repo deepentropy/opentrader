@@ -30,7 +30,7 @@ import type {
   Time,
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
-import { translate } from "../../../i18n/translator";
+import { translate, translateAs } from "../../../i18n/translator";
 import type { TpoDraw, TpoProfile } from "./tpo-engine";
 
 type RGB = [number, number, number, number];
@@ -348,7 +348,7 @@ export class TpoPrimitive implements ISeriesPrimitive<Time> {
     if (st.midpoint) {
       const r = p.rows.find((x) => x.row === p.mid);
       const col = r ? (expand ? r.blocks[0] : 0) : 0;
-      labelAt(midRow(p.mid), colX(col).start, "left", "#F23645", withText ? translate("Mid") : undefined);
+      labelAt(midRow(p.mid), colX(col).start, "left", "#F23645", withText ? translateAs("Mid", "profile") : undefined);
     }
     if (st.poorHigh.visible && p.poorHigh !== null) lineAt(midRow(p.poorHigh), x0, p.extend.poorHigh != null ? px(endX(p.extend.poorHigh, H)) : boxRight, st.poorHigh.color, 1, [2, 2]);
     if (st.poorLow.visible && p.poorLow !== null) lineAt(midRow(p.poorLow), x0, p.extend.poorLow != null ? px(endX(p.extend.poorLow, H)) : boxRight, st.poorLow.color, 1, [2, 2]);

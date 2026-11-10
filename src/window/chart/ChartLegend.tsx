@@ -17,6 +17,7 @@
 import { Show, createSignal, type JSX } from "solid-js";
 import { Tooltip } from "../../components/Tooltip";
 import { localNumber } from "../../i18n/format";
+import { translateAs } from "../../i18n/translator";
 import { STATUS_ITEMS, pillStatus } from "./legend-status";
 import { LegendStatusPopup } from "./LegendStatusPopup";
 
@@ -377,10 +378,10 @@ export function ChartLegend(props: Props) {
                       <span class={`ot-legend-value-value ot-legend-${valueDir()}`}>{price(v().close)}</span>
                     }
                   >
-                    <ValueItem letter="O" value={price(v().open)} dir={v().barDir} />
-                    <ValueItem letter="H" value={price(v().high)} dir={v().barDir} />
-                    <ValueItem letter="L" value={price(v().low)} dir={v().barDir} />
-                    <ValueItem letter="C" value={price(v().close)} dir={v().barDir} />
+                    <ValueItem letter={translateAs("O", "legend")} value={price(v().open)} dir={v().barDir} />
+                    <ValueItem letter={translateAs("H", "legend")} value={price(v().high)} dir={v().barDir} />
+                    <ValueItem letter={translateAs("L", "legend")} value={price(v().low)} dir={v().barDir} />
+                    <ValueItem letter={translateAs("C", "legend")} value={price(v().close)} dir={v().barDir} />
                   </Show>
                 </Show>
                 <Show when={(props.showBarChange ?? true) && !props.hideChangeValues}>

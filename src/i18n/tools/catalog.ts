@@ -62,7 +62,8 @@ export function buildCatalog(code: StaticText[], studies: FoundText[], runTime: 
     if (e.at.length < AT_MOST && !e.at.includes(at)) e.at.push(at);
   };
   for (const t of code) {
-    if (!worded(t.text)) continue;
+    // A letter given a sense in the code (translateAs("O", "legend")) is one to translate.
+    if (!worded(t.text) && !(t.sense && /^[A-Z]$/.test(t.text))) continue;
     const at = `${t.file.replace(/^src\//, "")}:${t.line}`;
     const key = keyOf(t);
     add(key, at, { ...(t.sense && key.includes("|") ? { sense: t.sense } : {}), ...(t.plural ? { plural: t.plural } : {}) });
@@ -103,7 +104,7 @@ export type Problems = {
   obsolete: string[];
   /** Entries whose values differ from the English ({0}, {1}…). */
   values: string[];
-  /** "word|sense" entries without the word's own entry. */
+  /** "word|sense" entries without the word's own entry (a letter, "O|legend", has none). */
   senses: string[];
   /** Plural entries with a form the language doesn't have, or none for `other`; plain texts given forms. */
   plurals: string[];
@@ -128,7 +129,7 @@ export function checkDictionary(catalog: Catalog, d: Dictionary, categories: rea
     const forms = typeof to === "string" ? [to] : Object.values(to);
     if (forms.some((f) => valuesOf(f ?? "").join(" ") !== english)) p.values.push(key);
     const bar = key.indexOf("|");
-    if (bar > 0 && /^[a-z]+$/.test(key.slice(bar + 1)) && !(key.slice(0, bar) in d)) p.senses.push(key);
+    if (bar > 0 && /^[a-z]+$/.test(key.slice(bar + 1)) && translatable(key.slice(0, bar)) && !(key.slice(0, bar) in d)) p.senses.push(key);
     if (typeof to === "object") {
       const ok = catalog[key]?.plural && "other" in to && Object.keys(to).every((c) => categories.includes(c));
       if (!ok) p.plurals.push(key);

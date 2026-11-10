@@ -95,14 +95,15 @@ const GROUPS: Record<string, string[]> = {
     "crypto|market",
     "options|market",
   ],
-  // "Money" is also the profit and loss shown as an amount (chart settings): the category has its own sense.
+  // "Money" is also the profit and loss shown as an amount (chart settings), "Trade" the header's trading button: the
+  // categories have their own sense.
   "data/datafeed.ts ECONOMIC_CATEGORIES, the symbol search's economic categories": [
     "GDP",
     "Labor",
     "Prices",
     "Health",
     "Money|economy",
-    "Trade",
+    "Trade|economy",
     "Government",
     "Business",
     "Consumer",
@@ -112,6 +113,8 @@ const GROUPS: Record<string, string[]> = {
   "index.html, the splash card": ["Version"],
   "data/chart-properties.ts, Scales > Time hours format (written like an id, the scanner leaves them)": ["24-hours", "12-hours"],
   "data/community/api.ts, the error the community panel shows when the server can't be reached": ["Community is unreachable. Check your connection."],
+  // "Update" is also the verb of a button: a reply kind of a community post is a noun.
+  "community-shared/post-thread.ts KIND_LABEL, the kind of a reply to a community post": ["Update|post"],
   "data/screener-catalog.ts DEFAULT_SCREEN_TITLE and data/oakscript-store.ts DEFAULT_SCRIPT_NAME, a new screen's and script's name, translated while it is unchanged": [
     "Untitled screen",
     "Untitled script",
