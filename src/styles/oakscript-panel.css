@@ -11,7 +11,7 @@
   min-height: 0;
   background-color: var(--ot-chart-bg);
   /* Seam between chart and editor — same 4px widget gutter as the pane edges. */
-  border-top: 4px solid var(--color-widget-border, #2e2e2e);
+  border-top: 4px solid var(--color-widget-border);
 }
 
 /* Invisible grab zone straddling the top seam. */
@@ -33,7 +33,7 @@
   height: 30px;
   flex-shrink: 0;
   padding: 0 6px 0 10px;
-  border-bottom: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-bottom: 1px solid var(--color-popup-menu-separator);
 }
 
 .oak-panel__header-left {
@@ -57,7 +57,7 @@
 }
 
 .oak-panel__name-btn:hover {
-  background-color: var(--color-toolbar-button-background-hover, rgba(134, 137, 147, 0.2));
+  background-color: var(--color-toolbar-button-background-hover);
   color: var(--color-text-primary);
 }
 
@@ -82,13 +82,13 @@
 }
 
 .oak-script-menu__danger .ot-menu-item__label {
-  color: var(--color-ripe-red-500, #f23645);
+  color: var(--color-ripe-red-500);
 }
 
 .oak-panel__rename-input {
   height: 24px;
   padding: 0 6px;
-  border: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border: 1px solid var(--color-popup-menu-separator);
   border-radius: 4px;
   background: transparent;
   font-size: 13px;
@@ -127,7 +127,7 @@
 }
 
 .oak-panel__chrome-btn:hover {
-  background-color: var(--color-toolbar-button-background-hover, rgba(134, 137, 147, 0.2));
+  background-color: var(--color-toolbar-button-background-hover);
   color: var(--color-text-primary);
 }
 
@@ -141,7 +141,7 @@
   height: 24px;
   padding: 0 8px;
   margin-right: 6px;
-  border: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border: 1px solid var(--color-popup-menu-separator);
   border-radius: 6px;
   font-size: 12px;
   color: var(--color-text-primary);
@@ -149,7 +149,7 @@
 }
 
 .oak-panel__action-btn:hover {
-  background-color: var(--color-toolbar-button-background-hover, rgba(134, 137, 147, 0.2));
+  background-color: var(--color-toolbar-button-background-hover);
 }
 
 .oak-panel__body {
@@ -174,7 +174,7 @@
   height: 160px;
   flex-shrink: 0;
   overflow-y: auto;
-  border-top: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-top: 1px solid var(--color-popup-menu-separator);
   font-family: Menlo, "Ubuntu Mono", Consolas, "Courier New", monospace;
   font-size: 13px;
   line-height: 18px;
@@ -200,7 +200,7 @@
 }
 
 .oak-console__row--error .oak-console__msg {
-  color: var(--color-ripe-red-500, #f23645);
+  color: var(--color-ripe-red-500);
 }
 
 .oak-console__badge {
@@ -208,8 +208,8 @@
   margin-right: 6px;
   padding: 1px 4px;
   border-radius: 4px;
-  background-color: #4d191d;
-  color: var(--color-ripe-red-500, #f23645);
+  background-color: var(--color-ripe-red-a800);
+  color: var(--color-ripe-red-500);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -225,7 +225,7 @@
   padding: 0 8px;
   font-size: 12px;
   color: var(--color-text-secondary);
-  border-top: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-top: 1px solid var(--color-popup-menu-separator);
 }
 
 .oak-panel__status-left,
@@ -247,8 +247,8 @@
   align-items: center;
   flex-shrink: 0;
   padding: 9px 18px;
-  background-color: var(--color-tan-orange-a900, #33261a);
-  color: var(--color-text-primary, #dbdbdb);
+  background-color: var(--color-tan-orange-a900);
+  color: var(--color-text-primary);
   font-size: 14px;
   line-height: 18px;
 }
@@ -260,21 +260,21 @@
   width: 22px;
   height: 22px;
   margin-right: 9px;
-  color: var(--color-tan-orange-700, #f57c00);
+  color: var(--color-tan-orange-700);
 }
 .oak-panel__readonly-header {
   margin-right: 4px;
-  color: var(--color-tan-orange-700, #f57c00);
+  color: var(--color-tan-orange-700);
   font-weight: 600;
 }
 .oak-panel__readonly-link {
   margin-left: 4px;
-  color: #5b9cf6;
+  color: var(--color-ot-blue-300);
   cursor: pointer;
 }
 .oak-panel__readonly-link:hover { text-decoration: underline; }
 /* Light theme (reference warning container): tan-orange-50 box, tan-orange-700 icon + header. */
-html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange-50, #fff3e0); }
+html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange-50); }
 
 /* "Open built-in script" dialog: 420 x 610, title 20/28 600 at 20 px, search
    row 40 px (padding 8 16 8 47, magnifier), header 11/16 uppercase #8C8C8C
@@ -289,7 +289,7 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
   max-height: calc(100vh - 32px);
   border-radius: 6px;
   background: var(--color-bg-primary);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
   color: var(--color-text-primary);
   font-family: var(--font-family-base);
   font-size: 14px;
@@ -307,8 +307,8 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
   height: 40px;
   box-sizing: border-box;
   padding: 8px 16px 8px 47px;
-  border-top: 1px solid var(--color-popup-menu-separator, #4a4a4a);
-  border-bottom: 1px solid var(--color-popup-menu-separator, #4a4a4a);
+  border-top: 1px solid var(--color-popup-menu-separator);
+  border-bottom: 1px solid var(--color-popup-menu-separator);
 }
 .oak-builtin-dlg__search svg {
   position: absolute;
@@ -321,10 +321,10 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
   font-size: 16px;
   color: var(--color-text-primary);
 }
-.oak-builtin-dlg__search input::placeholder { color: #a8a8a8; }
+.oak-builtin-dlg__search input::placeholder { color: var(--color-cold-gray-350); }
 .oak-builtin-dlg__header {
   padding: 10px 20px 0;
-  color: var(--color-text-secondary, #8c8c8c);
+  color: var(--color-text-secondary);
   font-size: 11px;
   line-height: 16px;
   letter-spacing: 0.4px;
@@ -343,7 +343,7 @@ html.theme-light .oak-panel__readonly { background-color: var(--color-tan-orange
   padding: 0 20px;
   cursor: default;
 }
-.oak-builtin-dlg__row:hover { background-color: var(--color-popup-menu-item-hover-bg, #2e2e2e); }
+.oak-builtin-dlg__row:hover { background-color: var(--color-popup-menu-item-hover-bg); }
 .oak-builtin-dlg__name {
   overflow: hidden;
   white-space: nowrap;

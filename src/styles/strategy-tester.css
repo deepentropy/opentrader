@@ -6,11 +6,11 @@
   --st-font: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   --st-text: var(--color-text-primary);
   --st-dim: var(--color-text-secondary);
-  --st-positive: #22ab94;
-  --st-negative: #f7525f;
-  --st-positive-strong: #089981;
-  --st-negative-strong: #f23645;
-  --st-breakeven: #ff9800;
+  --st-positive: var(--color-minty-green-400);
+  --st-negative: var(--color-ripe-red-400);
+  --st-positive-strong: var(--color-minty-green-500);
+  --st-negative-strong: var(--color-ripe-red-500);
+  --st-breakeven: var(--color-tan-orange-500);
   position: relative;
   flex-shrink: 0;
   display: flex;
@@ -80,13 +80,13 @@
 }
 .st-tab.is-active::before {
   left: -8px;
-  -webkit-mask: radial-gradient(circle at 0 0, transparent 8px, #000 8.5px);
-  mask: radial-gradient(circle at 0 0, transparent 8px, #000 8.5px);
+  -webkit-mask: radial-gradient(circle at 0 0, transparent 8px, var(--color-black) 8.5px);
+  mask: radial-gradient(circle at 0 0, transparent 8px, var(--color-black) 8.5px);
 }
 .st-tab.is-active::after {
   right: -8px;
-  -webkit-mask: radial-gradient(circle at 100% 0, transparent 8px, #000 8.5px);
-  mask: radial-gradient(circle at 100% 0, transparent 8px, #000 8.5px);
+  -webkit-mask: radial-gradient(circle at 100% 0, transparent 8px, var(--color-black) 8.5px);
+  mask: radial-gradient(circle at 100% 0, transparent 8px, var(--color-black) 8.5px);
 }
 .st-tab:first-child.is-active::before {
   display: none;
@@ -345,10 +345,10 @@
   display: flex;
 }
 .st-pill-tip-title {
-  color: #ffffff;
+  color: var(--color-white);
 }
 .st-pill-tip-range {
-  color: #90bff9;
+  color: var(--color-ot-blue-200);
 }
 .st-toolbar-divider {
   width: 1px;
@@ -400,7 +400,7 @@
 }
 .st-capital-input:focus {
   outline: none;
-  border-color: #2962ff;
+  border-color: var(--color-brand);
 }
 .st-capital-currency {
   font-size: 14px;
@@ -812,22 +812,22 @@
   justify-content: flex-end;
 }
 .st-pnl-commission {
-  background: #8c541c;
+  background: var(--color-tan-orange-a700);
 }
 .st-pnl-loss {
-  background: #991f29;
+  background: var(--color-ripe-red-800);
 }
 .st-pnl-left > :first-child {
   border-radius: 4px 0 0 4px;
 }
 .st-pnl-netloss {
-  background: #f23645;
+  background: var(--color-ripe-red-500);
 }
 .st-pnl-netprofit {
-  background: #089981;
+  background: var(--color-minty-green-500);
 }
 .st-pnl-profit {
-  background: #004d40;
+  background: var(--color-minty-green-800);
 }
 .st-pnl-right > :last-child {
   border-radius: 0 4px 4px 0;
@@ -1144,8 +1144,8 @@
   box-sizing: border-box;
   padding: 6px 12px;
   border-radius: 4px;
-  background: #3d3d3d;
-  color: #b8b8b8;
+  background: var(--color-cold-gray-750);
+  color: var(--color-cold-gray-300);
   font: 400 12px/16px var(--st-tip-font);
   font-feature-settings: "tnum", "lnum";
   white-space: nowrap;
@@ -1161,7 +1161,7 @@
   display: grid;
   column-gap: 12px;
   width: 100%;
-  color: #fff;
+  color: var(--color-white);
   font-size: 13px;
   line-height: 18px;
 }
@@ -1188,10 +1188,10 @@
   justify-content: start;
 }
 .st-tip-value.is-positive {
-  color: #22ab94;
+  color: var(--color-minty-green-400);
 }
 .st-tip-value.is-negative {
-  color: #f7525f;
+  color: var(--color-ripe-red-400);
 }
 .st-tip-dot {
   width: 8px;
@@ -1208,7 +1208,7 @@
 }
 .st-tip-dash {
   margin: 0 8px;
-  color: #b8b8b8;
+  color: var(--color-cold-gray-300);
   font-size: 12px;
   line-height: 16px;
 }
@@ -1216,7 +1216,7 @@
   position: absolute;
   top: 100%;
   left: 50%;
-  color: #3d3d3d;
+  color: var(--color-cold-gray-750);
   transform: translateX(-50%) rotate(180deg);
 }
 
@@ -1396,10 +1396,10 @@
   gap: 8px;
 }
 .st-side-long {
-  color: #2962ff;
+  color: var(--color-brand);
 }
 .st-side-short {
-  color: #f7525f;
+  color: var(--color-ripe-red-400);
 }
 .st-td-halves {
   display: grid;

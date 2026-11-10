@@ -35,7 +35,7 @@
   padding: 0;
   border: 1px solid var(--c);
   border-radius: 4px;
-  background: var(--ot-chart-bg, #0f0f0f);
+  background: var(--ot-chart-bg);
   color: var(--c);
   font: 13px/18px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   white-space: nowrap;
@@ -71,7 +71,7 @@
 }
 .ot-trd-chip.is-button:hover,
 .ot-trd-chip.is-dotted:hover {
-  background: color-mix(in srgb, var(--c) 16%, var(--ot-chart-bg, #0f0f0f));
+  background: color-mix(in srgb, var(--c) 16%, var(--ot-chart-bg));
 }
 .ot-trd-chip.is-position-chip { cursor: default; }
 
@@ -90,20 +90,20 @@
 .ot-trd-chip__part.is-close { border-left: 1px solid var(--c); }
 .ot-trd-chip__part.is-filled {
   background: var(--c);
-  color: #fff;
+  color: var(--color-white);
 }
 .ot-trd-chip__part.is-close {
   padding: 0 7px;
   cursor: pointer;
 }
 .ot-trd-chip__part.is-close:hover {
-  background: color-mix(in srgb, var(--c) 22%, var(--ot-chart-bg, #0f0f0f));
+  background: color-mix(in srgb, var(--c) 22%, var(--ot-chart-bg));
 }
 .ot-trd-chip.is-position-chip .ot-trd-chip__part.is-close {
-  background: color-mix(in srgb, var(--c) 18%, var(--ot-chart-bg, #0f0f0f));
+  background: color-mix(in srgb, var(--c) 18%, var(--ot-chart-bg));
 }
 .ot-trd-chip.is-position-chip .ot-trd-chip__part.is-close:hover {
-  background: color-mix(in srgb, var(--c) 34%, var(--ot-chart-bg, #0f0f0f));
+  background: color-mix(in srgb, var(--c) 34%, var(--ot-chart-bg));
 }
 
 /* Project order (the open ticket's order): half transparent but its send
@@ -114,7 +114,7 @@
   padding: 0 6px;
   border-color: var(--c);
   background: var(--c);
-  color: #fff;
+  color: var(--color-white);
   font-weight: 600;
   cursor: pointer;
 }
@@ -131,7 +131,7 @@ button.ot-trd-chip__part { cursor: pointer; }
   transform: translateY(-50%);
   border: 1px solid var(--c);
   border-radius: 3px;
-  background: var(--ot-chart-bg, #0f0f0f);
+  background: var(--ot-chart-bg);
   color: var(--c);
   font: 12px/18px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   white-space: nowrap;
@@ -141,7 +141,7 @@ button.ot-trd-chip__part { cursor: pointer; }
 .ot-trd-axis.is-dotted { border-style: dotted; }
 .ot-trd-axis.is-filled {
   background: var(--c);
-  color: #fff;
+  color: var(--color-white);
 }
 
 /* Execution arrow (tip at the bar) and its "1 @ 651.42" label. */
@@ -185,8 +185,8 @@ button.ot-trd-chip__part { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #2962ff;
-  color: #fff;
+  background: var(--color-brand);
+  color: var(--color-white);
   font-weight: 600;
 }
 .ot-trd-confirm__text { display: flex; flex-direction: column; }
@@ -204,7 +204,7 @@ button.ot-trd-chip__part { cursor: pointer; }
   gap: 8px;
   margin: 2px 0 4px;
   padding: 4px 5px;
-  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
+  background: color-mix(in srgb, var(--ot-chart-bg) 50%, transparent);
   pointer-events: auto;
   font-family: -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
 }
@@ -223,9 +223,9 @@ button.ot-trd-chip__part { cursor: pointer; }
   color: var(--t);
   cursor: pointer;
 }
-.ot-trd-buysell__btn.is-sell { --c: #f23645; --c-hover: #cc2f3c; --c-active: #b22833; --t: #ffebec; }
-.ot-trd-buysell__btn.is-buy { --c: #2962ff; --c-hover: #1e53e5; --c-active: #1848cc; --t: #e3effd; }
-html.theme-light .ot-trd-buysell__btn { --t: #fff; }
+.ot-trd-buysell__btn.is-sell { --c: var(--color-ripe-red-500); --c-hover: var(--color-ripe-red-600); --c-active: var(--color-ripe-red-700); --t: var(--color-ripe-red-50); }
+.ot-trd-buysell__btn.is-buy { --c: var(--color-brand); --c-hover: var(--color-brand-hover); --c-active: var(--color-brand-active); --t: var(--color-ot-blue-50); }
+html.theme-light .ot-trd-buysell__btn { --t: var(--color-white); }
 @media (any-hover: hover) {
   .ot-trd-buysell__btn:hover { background: var(--c-hover); border-color: var(--c-hover); }
 }
@@ -259,32 +259,32 @@ html.theme-light .ot-trd-buysell__btn { --t: #fff; }
   text-align: center;
   font-size: 10px;
   line-height: 10px;
-  color: #dbdbdb;
+  color: var(--color-cold-gray-200);
   font-feature-settings: "tnum", "lnum";
 }
-html.theme-light .ot-trd-buysell__spread { color: #0f0f0f; }
+html.theme-light .ot-trd-buysell__spread { color: var(--color-cold-gray-900); }
 .ot-trd-buysell__qty {
   align-self: stretch;
   height: 22px;
   box-sizing: border-box;
   padding: 0 7px;
-  border: 1px solid #2e2e2e;
+  border: 1px solid var(--color-cold-gray-800);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 80%, transparent);
-  color: #dbdbdb;
+  background: color-mix(in srgb, var(--ot-chart-bg) 80%, transparent);
+  color: var(--color-cold-gray-200);
   font: 400 14px/18px -apple-system, BlinkMacSystemFont, "Trebuchet MS", Roboto, Ubuntu, sans-serif;
   font-feature-settings: "tnum", "lnum";
   cursor: default;
 }
 @media (any-hover: hover) {
-  .ot-trd-buysell__qty:not(.is-active):hover { background: #2e2e2e; }
+  .ot-trd-buysell__qty:not(.is-active):hover { background: var(--color-cold-gray-800); }
 }
-.ot-trd-buysell__qty.is-active { border-color: #3d3d3d; background: #3d3d3d; }
-html.theme-light .ot-trd-buysell__qty { border-color: #f2f2f2; color: #0f0f0f; }
+.ot-trd-buysell__qty.is-active { border-color: var(--color-cold-gray-750); background: var(--color-cold-gray-750); }
+html.theme-light .ot-trd-buysell__qty { border-color: var(--color-cold-gray-100); color: var(--color-cold-gray-900); }
 @media (any-hover: hover) {
-  html.theme-light .ot-trd-buysell__qty:not(.is-active):hover { background: #f2f2f2; }
+  html.theme-light .ot-trd-buysell__qty:not(.is-active):hover { background: var(--color-cold-gray-100); }
 }
-html.theme-light .ot-trd-buysell__qty.is-active { border-color: #ebebeb; background: #ebebeb; }
+html.theme-light .ot-trd-buysell__qty.is-active { border-color: var(--color-cold-gray-150); background: var(--color-cold-gray-150); }
 .ot-trd-buysell__presets {
   position: relative;
   display: inline-flex;
@@ -294,18 +294,18 @@ html.theme-light .ot-trd-buysell__qty.is-active { border-color: #ebebeb; backgro
   height: 34px;
   box-sizing: border-box;
   padding: 0;
-  border: 1px solid #3d3d3d;
+  border: 1px solid var(--color-cold-gray-750);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ot-chart-bg, #0f0f0f) 50%, transparent);
-  color: #dbdbdb;
+  background: color-mix(in srgb, var(--ot-chart-bg) 50%, transparent);
+  color: var(--color-cold-gray-200);
   cursor: pointer;
 }
-html.theme-light .ot-trd-buysell__presets { border-color: #dbdbdb; color: #0f0f0f; }
+html.theme-light .ot-trd-buysell__presets { border-color: var(--color-cold-gray-200); color: var(--color-cold-gray-900); }
 @media (any-hover: hover) {
-  .ot-trd-buysell__presets:hover { box-shadow: inset 0 0 0 40px #ffffff1a; }
+  .ot-trd-buysell__presets:hover { box-shadow: inset 0 0 0 40px var(--ot-tint-white-10); }
   html.theme-light .ot-trd-buysell__presets:hover { box-shadow: inset 0 0 0 40px #1317220f; }
 }
-.ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px #ffffff1a; }
+.ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px var(--ot-tint-white-10); }
 html.theme-light .ot-trd-buysell__presets.is-active { box-shadow: inset 0 0 0 40px #1317220f; }
 
 /* Price under the pointer in the order ticket's DOM tab: a dashed line. */

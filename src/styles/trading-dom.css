@@ -238,7 +238,7 @@ html.theme-light {
 .trd-dom-order.is-highlighted {
   z-index: 2;
   margin: -1px;
-  border: 1px solid #000;
+  border: 1px solid var(--color-black);
 }
 .trd-dom-order-close {
   float: right;
@@ -247,7 +247,7 @@ html.theme-light {
   padding: 0;
   border: 0;
   background: #48cfad;
-  color: #fff;
+  color: var(--color-white);
   pointer-events: auto;
   cursor: pointer;
 }
@@ -266,14 +266,14 @@ html.theme-light {
   height: 15px;
   padding: 3px 0;
   overflow: hidden;
-  color: #fff;
+  color: var(--color-white);
   font-size: 12px;
   line-height: 15px;
   white-space: nowrap;
   pointer-events: auto;
   cursor: ns-resize;
 }
-.trd-dom-order-qty:hover { background: #ffffff1a; }
+.trd-dom-order-qty:hover { background: var(--ot-tint-white-10); }
 .trd-dom-order-qty:active { background: #ffffff0d; }
 .trd-dom-order-type {
   display: block;
@@ -281,7 +281,7 @@ html.theme-light {
   height: 10px;
   overflow: hidden;
   background: #f1f3f6;
-  color: #4a4a4a;
+  color: var(--color-cold-gray-700);
   font-size: 8px;
   line-height: 10px;
   text-transform: uppercase;
@@ -355,8 +355,8 @@ html.theme-light {
   line-height: 19px;
   text-align: center;
 }
-.trd-dom-total.is-bid { background: #2962ff26; color: var(--color-content-primary-accent); }
-.trd-dom-total.is-ask { background: #f2364526; color: var(--color-content-primary-danger, var(--color-ripe-red-500)); }
+.trd-dom-total.is-bid { background: var(--ot-tint-blue-15); color: var(--color-content-primary-accent); }
+.trd-dom-total.is-ask { background: var(--ot-tint-red-15); color: var(--color-content-primary-danger); }
 .trd-dom-switch { position: relative; }
 .trd-dom-timer {
   position: absolute;
@@ -401,7 +401,7 @@ html.theme-light {
 .trd-dom-btn.is-sell { color: var(--color-ripe-red-500); }
 .trd-dom-btn.is-profit { color: var(--color-minty-green-500); }
 .trd-dom-btn.is-loss { color: var(--color-ripe-red-500); }
-.trd-dom-btn.is-primary { border-color: transparent; color: #fff; }
+.trd-dom-btn.is-primary { border-color: transparent; color: var(--color-white); }
 .trd-dom-btn.is-primary.is-buy { background: var(--trd-buy); }
 .trd-dom-btn.is-primary.is-buy:hover { background: var(--trd-buy-hover); }
 .trd-dom-btn.is-primary.is-sell { background: var(--trd-sell); }
@@ -431,7 +431,7 @@ html.theme-light {
   border-left: 0;
   border-radius: 6px;
   background: var(--trd-float-bg);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 4px var(--ot-shadow-40);
 }
 html.theme-dark { --trd-float-bg: #1f1f1f; }
 html.theme-light { --trd-float-bg: #fff; }

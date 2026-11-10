@@ -5,7 +5,7 @@
  * note 12/16 #8c8c8c.
  */
 .asst-panel {
-  color: var(--color-content-secondary-neutral, #b8b8b8);
+  color: var(--color-content-secondary-neutral);
 }
 .asst-body {
   flex: 1 1 auto;
@@ -51,7 +51,7 @@
 }
 .asst-chat-title:hover,
 .asst-chat-title.is-open {
-  background-color: var(--color-container-fill-primary-neutral-extra-light, #2e2e2e);
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
 }
 .asst-chat-title-text {
   overflow: hidden;
@@ -73,9 +73,9 @@
   padding: 4px 0;
   min-width: 200px;
   border-radius: 6px;
-  background-color: var(--color-popup-bg, #1e1e1e);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 1px #3d3d3d;
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  background-color: #1e1e1e;
+  box-shadow: 0 2px 4px var(--ot-shadow-20), 0 0 0 1px var(--color-cold-gray-750);
+  color: var(--color-content-primary-neutral-bold);
   font-size: 14px;
 }
 .asst-chat-menu {
@@ -98,15 +98,15 @@
 }
 .asst-menu-item:hover:not(:disabled),
 .asst-menu-item.is-selected {
-  background-color: var(--color-container-fill-primary-neutral-extra-light, #2e2e2e);
+  background-color: var(--color-container-fill-primary-neutral-extra-light);
 }
 .asst-menu-item:disabled {
-  color: var(--color-content-primary-neutral-light, #575757);
+  color: var(--color-content-primary-neutral-light);
 }
 .asst-menu-sep {
   height: 1px;
   margin: 4px 0;
-  background-color: #3d3d3d;
+  background-color: var(--color-cold-gray-750);
 }
 
 /* ── Messages ────────────────────────────────────────────────────────────── */
@@ -142,7 +142,7 @@
   border: 1px solid #222;
   border-radius: 8px;
   background-color: #222;
-  color: #fff;
+  color: var(--color-white);
   font: inherit;
   font-size: 16px;
   line-height: 24px;
@@ -150,11 +150,11 @@
   cursor: default;
 }
 .asst-suggestion:hover:not(:disabled) {
-  background-color: #2e2e2e;
-  border-color: #2e2e2e;
+  background-color: var(--color-cold-gray-800);
+  border-color: var(--color-cold-gray-800);
 }
 .asst-suggestion:disabled {
-  color: #8c8c8c;
+  color: var(--color-cold-gray-450);
 }
 .asst-user {
   align-self: flex-end;
@@ -162,7 +162,7 @@
   padding: 8px 12px;
   border-radius: 8px;
   background-color: #222;
-  color: #fff;
+  color: var(--color-white);
   font-size: 14px;
   line-height: 20px;
   white-space: pre-wrap;
@@ -176,11 +176,11 @@
 .asst-markdown.cm-markdown {
   font-size: 14px;
   line-height: 22px;
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  color: var(--color-content-primary-neutral-bold);
 }
 .asst-reasoning {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--color-cold-gray-450);
 }
 .asst-reasoning > div {
   white-space: pre-wrap;
@@ -188,7 +188,7 @@
 }
 .asst-error,
 .asst-status.is-error {
-  color: var(--color-content-negative, #f23645);
+  color: var(--color-ripe-red-500);
   font-size: 13px;
 }
 .asst-thinking {
@@ -200,7 +200,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #8c8c8c;
+  background-color: var(--color-cold-gray-450);
   animation: asst-blink 1.2s infinite ease-in-out;
 }
 .asst-thinking span:nth-child(2) {
@@ -218,7 +218,7 @@
 .asst-step {
   font-size: 13px;
   line-height: 18px;
-  color: #8c8c8c;
+  color: var(--color-cold-gray-450);
 }
 .asst-step summary {
   display: flex;
@@ -234,19 +234,19 @@
   flex: 0 0 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #575757;
+  background-color: var(--color-cold-gray-650);
 }
 .asst-step.is-done .asst-step-dot {
-  background-color: var(--color-content-positive, #22ab94);
+  background-color: var(--color-minty-green-400);
 }
 .asst-step.is-running .asst-step-dot,
 .asst-step.is-pending .asst-step-dot,
 .asst-step.is-confirm .asst-step-dot {
-  background-color: var(--color-content-accent, #2962ff);
+  background-color: var(--color-brand);
   animation: asst-blink 1.2s infinite ease-in-out;
 }
 .asst-step.is-error .asst-step-dot {
-  background-color: var(--color-content-negative, #f23645);
+  background-color: var(--color-ripe-red-500);
 }
 .asst-step-title {
   overflow: hidden;
@@ -254,7 +254,7 @@
   white-space: nowrap;
 }
 .asst-step-flag {
-  color: #b8b8b8;
+  color: var(--color-cold-gray-300);
 }
 .asst-step-detail {
   margin: 4px 0 0 14px;
@@ -274,13 +274,13 @@
   flex-wrap: wrap;
   gap: 8px;
   margin: 6px 0 0 14px;
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  color: var(--color-content-primary-neutral-bold);
 }
 .asst-shot {
   margin: 6px 0 0 14px;
   max-width: calc(100% - 14px);
   border-radius: 6px;
-  border: 1px solid #2e2e2e;
+  border: 1px solid var(--color-cold-gray-800);
 }
 
 /* ── Composer ────────────────────────────────────────────────────────────── */
@@ -294,7 +294,7 @@
   border-radius: 8px;
 }
 .asst-composer:focus-within {
-  border-color: #8c8c8c;
+  border-color: var(--color-cold-gray-450);
 }
 .asst-input {
   min-height: 18px;
@@ -304,13 +304,13 @@
   outline: 0;
   resize: none;
   background: transparent;
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  color: var(--color-content-primary-neutral-bold);
   font: inherit;
   font-size: 14px;
   line-height: 18px;
 }
 .asst-input::placeholder {
-  color: #b8b8b8;
+  color: var(--color-cold-gray-300);
 }
 .asst-composer-row {
   display: flex;
@@ -319,7 +319,7 @@
   gap: 8px;
 }
 .asst-muted {
-  color: #8c8c8c;
+  color: var(--color-cold-gray-450);
 }
 .asst-muted {
   font-size: 12px;
@@ -344,21 +344,21 @@
   cursor: default;
 }
 .asst-send:not(:disabled) {
-  border-color: #dbdbdb;
-  background-color: #dbdbdb;
-  color: #000;
+  border-color: var(--color-cold-gray-200);
+  background-color: var(--color-cold-gray-200);
+  color: var(--color-black);
 }
 .asst-send.is-stop {
-  border-color: #dbdbdb;
+  border-color: var(--color-cold-gray-200);
   background-color: transparent;
-  color: #dbdbdb;
+  color: var(--color-cold-gray-200);
 }
 .asst-note {
   flex: 0 0 auto;
   margin: 4px 0 8px;
   font-size: 12px;
   line-height: 16px;
-  color: #8c8c8c;
+  color: var(--color-cold-gray-450);
 }
 
 /* ── Models, chats ───────────────────────────────────────────────────────── */
@@ -433,44 +433,44 @@
   height: 34px;
   box-sizing: border-box;
   padding: 0 10px;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-cold-gray-700);
   border-radius: 6px;
-  background-color: #000;
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  background-color: var(--color-black);
+  color: var(--color-content-primary-neutral-bold);
   font: inherit;
   font-size: 14px;
 }
 .asst-field:focus {
   outline: 0;
-  border-color: var(--color-content-accent, #2962ff);
+  border-color: var(--color-brand);
 }
 .asst-btn {
   flex: 0 0 auto;
   height: 30px;
   padding: 0 12px;
-  border: 1px solid #4a4a4a;
+  border: 1px solid var(--color-cold-gray-700);
   border-radius: 6px;
   background: transparent;
-  color: var(--color-content-primary-neutral-bold, #dbdbdb);
+  color: var(--color-content-primary-neutral-bold);
   font: inherit;
   font-size: 13px;
   cursor: default;
 }
 .asst-btn:hover:not(:disabled) {
-  background-color: #2e2e2e;
+  background-color: var(--color-cold-gray-800);
 }
 .asst-btn:disabled {
-  color: #575757;
+  color: var(--color-cold-gray-650);
 }
 .asst-btn.is-primary {
   align-self: flex-start;
-  border-color: #dbdbdb;
-  background-color: #dbdbdb;
-  color: #000;
+  border-color: var(--color-cold-gray-200);
+  background-color: var(--color-cold-gray-200);
+  color: var(--color-black);
 }
 .asst-btn.is-danger {
-  border-color: var(--color-content-negative, #f23645);
-  color: var(--color-content-negative, #f23645);
+  border-color: var(--color-ripe-red-500);
+  color: var(--color-ripe-red-500);
 }
 .asst-status {
   margin: 0;
@@ -485,12 +485,12 @@
 .asst-progress {
   height: 4px;
   border-radius: 2px;
-  background-color: #2e2e2e;
+  background-color: var(--color-cold-gray-800);
   overflow: hidden;
 }
 .asst-progress > div {
   height: 100%;
-  background-color: var(--color-content-accent, #2962ff);
+  background-color: var(--color-brand);
   transition: width 0.25s;
 }
 .asst-setup {
@@ -512,14 +512,14 @@
   margin-right: 6px;
   padding: 0 6px;
   border-radius: 4px;
-  background-color: #ff9800;
+  background-color: var(--color-tan-orange-500);
   color: #131722;
   font-size: 11px;
   font-weight: 600;
   line-height: 16px;
 }
 .asst-markdown a.asst-ticker {
-  color: var(--color-content-accent, #5b9cf6);
+  color: var(--color-ot-blue-300);
   text-decoration: none;
   cursor: pointer;
 }
@@ -541,13 +541,13 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #575757;
+  color: var(--color-cold-gray-650);
   cursor: default;
 }
 .asst-rate-btn:hover {
-  background-color: #2e2e2e;
-  color: #b8b8b8;
+  background-color: var(--color-cold-gray-800);
+  color: var(--color-cold-gray-300);
 }
 .asst-rate-btn.is-on {
-  color: #dbdbdb;
+  color: var(--color-cold-gray-200);
 }

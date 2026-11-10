@@ -35,7 +35,7 @@ html.theme-light {
   flex: 0 0 49px;
   height: 49px;
   box-sizing: border-box;
-  border-top: 1px solid var(--ot-replay-toolbar-border, #2e2e2e);
+  border-top: 1px solid var(--ot-replay-toolbar-border);
   background-color: var(--color-pane-bg);
   color: var(--color-toolbar-button-text);
   font-size: 14px;
@@ -65,7 +65,7 @@ html.theme-light {
   width: 1px;
   height: 22px;
   margin: 8px 8px;
-  background-color: var(--color-toolbar-divider-background, #4a4a4a);
+  background-color: var(--color-toolbar-divider-background);
 }
 .ot-replay-toolbar__close {
   position: absolute;
@@ -93,7 +93,7 @@ html.theme-light {
   min-width: 24px;
   width: 24px;
   padding: 0;
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
 }
 .ot-replay-chevron:hover:not(.is-disabled) {
   color: var(--color-toolbar-button-text-hover);
@@ -105,7 +105,7 @@ html.theme-light {
    menu): the neutral grey pill, default text colour. */
 .ot-toolbar-button.ot-replay-btn[aria-pressed="true"]::before,
 .ot-toolbar-button.ot-replay-btn[aria-pressed="true"]:hover:not(.is-disabled)::before {
-  background-color: var(--color-toolbar-button-background-secondary-hover, #3d3d3d);
+  background-color: var(--color-toolbar-button-background-secondary-hover);
 }
 .ot-toolbar-button.ot-replay-btn[aria-pressed="true"],
 .ot-toolbar-button.ot-replay-btn[aria-pressed="true"]:hover:not(.is-disabled) {
@@ -122,7 +122,7 @@ html.theme-light {
   flex-direction: column;
 }
 .ot-replay-menu__title {
-  color: var(--color-content-primary-neutral, #8c8c8c);
+  color: var(--color-content-primary-neutral);
   font-size: 11px;
   line-height: 16px;
   padding: 0 12px;
@@ -159,14 +159,14 @@ html.theme-light {
 }
 .ot-replay-menu__item.is-selected,
 .ot-replay-menu__item.is-selected:hover {
-  background-color: var(--ot-replay-selected-bg, #f2f2f2);
-  color: var(--ot-replay-selected-text, #0f0f0f);
+  background-color: var(--ot-replay-selected-bg);
+  color: var(--ot-replay-selected-text);
 }
 .ot-replay-menu__item.is-disabled {
   opacity: 0.4;
 }
 .ot-replay-menu__desc {
-  color: var(--color-content-primary-neutral-semi-bold, #b8b8b8);
+  color: var(--color-content-primary-neutral-semi-bold);
 }
 .ot-replay-menu__item.is-selected .ot-replay-menu__desc {
   color: inherit;
@@ -174,7 +174,7 @@ html.theme-light {
 .ot-replay-menu__sep {
   height: 1px;
   margin: 6px 0;
-  background-color: var(--color-toolbar-divider-background, #4a4a4a);
+  background-color: var(--color-toolbar-divider-background);
 }
 .ot-replay-switch {
   position: relative;
@@ -182,10 +182,10 @@ html.theme-light {
   width: 38px;
   height: 22px;
   border-radius: 11px;
-  background-color: var(--ot-replay-switch-off, #707070);
+  background-color: var(--ot-replay-switch-off);
 }
 .ot-replay-switch.is-on {
-  background-color: var(--ot-replay-switch-on, #f2f2f2);
+  background-color: var(--ot-replay-switch-on);
 }
 .ot-replay-switch__knob {
   position: absolute;
@@ -194,7 +194,7 @@ html.theme-light {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-color: var(--ot-replay-switch-knob, #0f0f0f);
+  background-color: var(--ot-replay-switch-knob);
   transition: left 80ms ease;
 }
 .ot-replay-switch.is-on .ot-replay-switch__knob {
@@ -218,7 +218,7 @@ html.theme-light {
 }
 .ot-replay-select__line {
   width: 2px;
-  background-color: #2962ff;
+  background-color: var(--color-brand);
 }
 .ot-replay-select__label {
   display: flex;
@@ -228,8 +228,8 @@ html.theme-light {
 .ot-replay-select__label > span {
   padding: 3px 6px;
   border-radius: 2px;
-  background-color: #2962ff;
-  color: #fff;
+  background-color: var(--color-brand);
+  color: var(--color-white);
   font-size: 12px;
   line-height: 16px;
   white-space: nowrap;
@@ -237,19 +237,19 @@ html.theme-light {
 
 /* ── Legend status (Select your start point / Replay mode) ─────────────── */
 .ot-legend-status-item.is-replay {
-  color: var(--color-content-tertiary-inverse, #fff);
+  color: var(--color-content-tertiary-inverse);
 }
 .ot-legend-status-item.is-replay-select::after {
-  background-color: var(--color-content-primary-neutral-normal, #707070);
+  background-color: var(--color-content-primary-neutral-normal);
 }
 .ot-legend-status-pill:hover .ot-legend-status-item.is-replay-select::after {
-  background-color: var(--color-content-primary-neutral, #8c8c8c);
+  background-color: var(--color-content-primary-neutral);
 }
 .ot-legend-status-item.is-replay-on::after {
-  background-color: var(--color-content-secondary-accent, #3179f5);
+  background-color: var(--color-content-secondary-accent);
 }
 .ot-legend-status-pill:hover .ot-legend-status-item.is-replay-on::after {
-  background-color: var(--color-content-primary-accent-semi-bold, #2962ff);
+  background-color: var(--color-content-primary-accent-semi-bold);
 }
 .ot-legend-status-item.is-replay-play::after {
   animation: ot-replay-blink 1s cubic-bezier(0.77, 0.21, 0.1, 0.74) infinite;
@@ -268,11 +268,11 @@ html.theme-light {
    theme a light pill with a dark label, light theme the reverse). */
 .ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"]::before,
 .ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"]:hover::before {
-  background-color: var(--ot-replay-selected-bg, #f2f2f2);
+  background-color: var(--ot-replay-selected-bg);
 }
 .ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"],
 .ot-toolbar-button.ot-replay-header-btn[aria-pressed="true"]:hover {
-  color: var(--ot-replay-selected-text, #0f0f0f);
+  color: var(--ot-replay-selected-text);
 }
 .ot-replay-menu.is-down {
   min-width: 0;
@@ -297,8 +297,8 @@ html.theme-light {
     box-shadow: none;
   }
   50% {
-    background: var(--ot-replay-flash-bg, #132042);
-    box-shadow: inset 2px 2px #2962ff, inset -2px -2px #2962ff;
+    background: var(--ot-replay-flash-bg);
+    box-shadow: inset 2px 2px var(--color-brand), inset -2px -2px var(--color-brand);
   }
 }
 
@@ -316,14 +316,14 @@ html.theme-light {
   align-items: flex-start;
   padding: 8px;
   border-radius: 4px;
-  background: #2962ff;
+  background: var(--color-brand);
   pointer-events: auto;
   cursor: default;
 }
 .ot-replay-hint__text {
   padding: 4px 8px;
   margin-inline-end: 24px;
-  color: #fff;
+  color: var(--color-white);
   font-size: 14px;
   line-height: 21px;
 }
@@ -332,7 +332,7 @@ html.theme-light {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #fff;
+  color: var(--color-white);
   cursor: pointer;
 }
 
@@ -349,10 +349,10 @@ html.theme-light {
   align-items: flex-start;
   max-width: fit-content;
   padding: 11px 12px;
-  border: 1px solid var(--ot-replay-caution-color, #ff9800);
+  border: 1px solid var(--color-tan-orange-500);
   border-radius: 8px;
-  background: var(--ot-replay-caution-bg, #1f1f1f);
-  color: var(--ot-replay-caution-text, #dbdbdb);
+  background: var(--ot-replay-caution-bg, var(--color-cold-gray-850));
+  color: var(--ot-replay-caution-text, var(--color-cold-gray-200));
   font-size: 14px;
   line-height: 18px;
   pointer-events: auto;
@@ -365,7 +365,7 @@ html.theme-light {
   display: flex;
   flex: none;
   margin-right: 8px;
-  color: var(--ot-replay-caution-color, #ff9800);
+  color: var(--color-tan-orange-500);
 }
 .ot-replay-caution__box.no-icon .ot-replay-caution__icon {
   display: none;
@@ -377,7 +377,7 @@ html.theme-light {
   word-break: break-word;
 }
 .ot-replay-caution__header {
-  color: var(--ot-replay-caution-color, #ff9800);
+  color: var(--color-tan-orange-500);
   font-weight: 600;
 }
 .ot-replay-caution__close {

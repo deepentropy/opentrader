@@ -126,7 +126,7 @@ html.theme-light {
   height: 24px;
   border-radius: 6px;
   background: var(--trd-buy);
-  color: #fff;
+  color: var(--color-white);
 }
 .trd-tk-title {
   font: 600 14px/18px var(--trd-font);
@@ -384,7 +384,7 @@ html.theme-light {
 }
 .trd-tk-error {
   margin-bottom: 8px;
-  color: #f7525f;
+  color: var(--color-ripe-red-400);
   font: 400 13px/18px var(--trd-font);
 }
 .trd-tk-place {
@@ -397,7 +397,7 @@ html.theme-light {
   border: 0;
   border-radius: 8px;
   background: var(--trd-idle-bg);
-  color: #fff;
+  color: var(--color-white);
   font-family: var(--trd-font);
 }
 .trd-tk-place.is-buy {
@@ -499,19 +499,19 @@ html.theme-light {
 }
 .trd-toast.is-error .trd-toast-icon {
   background: rgba(255, 183, 77, 0.15);
-  color: #ffb74d;
+  color: var(--color-tan-orange-300);
 }
 .trd-toast.is-placed.is-buy .trd-toast-icon {
-  background: rgba(41, 98, 255, 0.15);
+  background: var(--ot-tint-blue-15);
   color: var(--trd-buy);
 }
 .trd-toast.is-placed.is-sell .trd-toast-icon {
-  background: rgba(242, 54, 69, 0.15);
+  background: var(--ot-tint-red-15);
   color: var(--trd-sell);
 }
 .trd-toast.is-info .trd-toast-icon {
   background: rgba(130, 177, 255, 0.15);
-  color: #82b1ff;
+  color: var(--color-ot-blue-a100);
 }
 .trd-toast-body {
   flex: 1;
@@ -578,8 +578,8 @@ html.theme-light {
   height: 18px;
   padding: 0 4px;
   border-radius: 9px;
-  background: #f2f2f2;
-  color: #0f0f0f;
+  background: var(--color-cold-gray-100);
+  color: var(--color-cold-gray-900);
   font-size: 12px;
 }
 .trd-toast-symbol {
@@ -607,16 +607,16 @@ html.theme-light {
   font-size: 11px;
 }
 .trd-toast.is-placed.is-buy .trd-toast-icon {
-  background: rgba(41, 98, 255, 0.15);
+  background: var(--ot-tint-blue-15);
   color: var(--trd-buy);
 }
 .trd-toast.is-placed.is-sell .trd-toast-icon {
-  background: rgba(242, 54, 69, 0.15);
+  background: var(--ot-tint-red-15);
   color: var(--trd-sell);
 }
 .trd-toast.is-info .trd-toast-icon {
   background: rgba(140, 140, 140, 0.15);
-  color: #8c8c8c;
+  color: var(--color-cold-gray-450);
 }
 
 /* ─── Header "Trade" button (replay) ─── */
@@ -651,7 +651,7 @@ html.theme-light {
   height: 20px;
   border-radius: 50%;
   background: var(--trd-buy);
-  color: #fff;
+  color: var(--color-white);
 }
 .trd-trade-chevron {
   display: inline-flex;
@@ -822,7 +822,7 @@ html.theme-light {
   border-radius: 8px;
   background: var(--trd-menu-bg);
   color: var(--trd-menu-text);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px var(--ot-shadow-35);
   font: 400 14px/18px var(--trd-font);
 }
 .trd-menu-row {
@@ -863,7 +863,7 @@ html.theme-light {
   --trd-menu-bg-icon: var(--trd-menu-bg);
 }
 .trd-menu-row.is-selected .trd-menu-info {
-  color: #b8b8b8;
+  color: var(--color-cold-gray-300);
 }
 .trd-menu-value {
   margin-left: auto;

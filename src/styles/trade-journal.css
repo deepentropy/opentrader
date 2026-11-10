@@ -60,7 +60,7 @@
 }
 .tj-select:focus,
 .tj-input:focus {
-  border-color: #2962ff;
+  border-color: var(--color-brand);
 }
 .tj-select option {
   background: var(--color-bg-primary);
@@ -139,7 +139,7 @@
 }
 .tj-row.is-selected {
   background: var(--color-container-fill-primary-neutral-light);
-  box-shadow: inset 2px 0 0 #2962ff;
+  box-shadow: inset 2px 0 0 var(--color-brand);
 }
 .tj-row.is-failed .tj-td:not(.tj-notes):not(.tj-symbol) {
   color: var(--color-text-secondary);
@@ -239,7 +239,7 @@
 }
 .tj-required {
   margin-left: 2px;
-  color: #f23645;
+  color: var(--color-ripe-red-500);
 }
 .tj-section-title {
   margin: 18px 0 8px;
@@ -277,7 +277,7 @@
 }
 .tj-import-errors {
   margin-top: 10px;
-  color: #f7525f;
+  color: var(--color-ripe-red-400);
 }
 /* Picked with Ctrl / Shift + click (the trade on the chart keeps its edge). */
 .tj-row.is-picked {
