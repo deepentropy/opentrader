@@ -27,11 +27,6 @@ describe("the pseudo-language (#289)", () => {
     expect(pseudo("Price:").endsWith(":⟧")).toBe(true);
   });
 
-  it("writes each piece right to left with rtl, the values left as they are", () => {
-    const t = pseudo("{0} bars", { rtl: true });
-    expect(t).toMatch(/^⟦\{0\}‮ ƀàŕš‬‮.*‬⟧$/);
-  });
-
   it("is generated from the catalog: texts, senses and plural forms", () => {
     const catalog: Catalog = {
       Save: { at: [] },

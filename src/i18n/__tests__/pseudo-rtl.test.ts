@@ -25,7 +25,9 @@ describe("the right-to-left pseudo-language en-XB (#290)", () => {
   it("gives every catalog text, its plural forms and its senses, with the same values", () => {
     const catalog = catalogJson as Catalog;
     const d = pseudoRtlDictionary(catalog);
-    expect(Object.keys(d).sort()).toEqual(Object.keys(catalog).sort());
+    // Each sense's word has its own entry too, the one the sense falls back to.
+    const words = Object.entries(catalog).flatMap(([key, e]) => (e.sense ? [key.slice(0, -(e.sense.length + 1))] : []));
+    expect(Object.keys(d).sort()).toEqual([...new Set([...Object.keys(catalog), ...words])].sort());
     for (const [key, entry] of Object.entries(catalog)) {
       const to = d[key];
       if (entry.plural) {

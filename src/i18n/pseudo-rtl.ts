@@ -32,10 +32,12 @@ export function pseudoRtlDictionary(catalog: Catalog): Dictionary {
     if (entry.plural) {
       const forms: PluralEntry = { one: pseudoRtl(entry.plural.one), other: pseudoRtl(entry.plural.other) };
       d[key] = forms;
-    } else {
-      // "Close|action": the word, without its sense.
-      d[key] = pseudoRtl(entry.sense && key.endsWith(`|${entry.sense}`) ? key.slice(0, -(entry.sense.length + 1)) : key);
-    }
+    } else if (entry.sense && key.endsWith(`|${entry.sense}`)) {
+      // "Close|action": the word, without its sense; the word's own entry too, the one the sense falls back to.
+      const word = key.slice(0, -(entry.sense.length + 1));
+      d[key] = pseudoRtl(word);
+      d[word] ??= pseudoRtl(word);
+    } else d[key] = pseudoRtl(key);
   }
   return d;
 }
