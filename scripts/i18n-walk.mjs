@@ -250,7 +250,11 @@ const PAGE_HELPER = (english) => String.raw`((ENGLISH_TEXTS) => {
       if (cutX || cutY) return { kind: cs.textOverflow === "ellipsis" ? "ellipsis" : "clipped", axis: cutX ? "x" : "y", by: a === el ? "" : pathOf(a), el: a };
     }
     const cs = getComputedStyle(el);
-    if (cs.display !== "inline" && el.clientWidth > 0 && cs.overflowX === "visible" && el.scrollWidth > el.clientWidth + 1) return { kind: "overflows", axis: "x", by: "", el };
+    // Wider than its box. Not a closing CJK bracket or stop ending the line: the line end trims its blank half, which
+    // the text's width still counts ("スケールモード（AとL）" fits).
+    const over = t.right - (el.getBoundingClientRect().left + el.clientLeft + el.clientWidth);
+    const trimmedEnd = /[）」』】〕〉》。、]$/.test(node.textContent.trim()) && over <= parseFloat(cs.fontSize) / 2 + 1;
+    if (cs.display !== "inline" && el.clientWidth > 0 && cs.overflowX === "visible" && el.scrollWidth > el.clientWidth + 1 && !trimmedEnd) return { kind: "overflows", axis: "x", by: "", el };
     return null;
   }
 
